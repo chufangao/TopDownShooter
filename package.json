@@ -1,0 +1,28 @@
+{
+  "name": "retinue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "description": "A sprite-based Isaac-like party incremental. Phaser renders; plain JS decides.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test \"test/**/*.test.js\"",
+    "lint": "node tools/lint.js",
+    "fmt": "node tools/fmt.js",
+    "art": "node tools/art.js",
+    "art:check": "node tools/art.js --check",
+    "modcheck": "node tools/modcheck.js"
+  },
+  "devDependencies": {
+    "vite": "^7.0.0"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

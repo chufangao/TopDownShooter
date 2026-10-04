@@ -1,0 +1,43 @@
+{
+  "$schema": "../schemas/anim_template.schema.json",
+  "kind": "anim_template",
+  "_note": "Shared, data-defined attack templates (§7). Any unit references one by id; templates are reused across the whole roster, which is what makes a 120-unit roster affordable. The template runner reads event.damage — it never computes it. Unknown step ops are skipped with one warning rather than taking the game down (§13.4).",
+  "defs": [
+    {
+      "id": "core:melee_lunge",
+      "dur": 620,
+      "steps": [
+        { "t": 0, "op": "anim", "who": "actor", "key": "attack" },
+        { "t": 60, "op": "tween", "who": "actor", "to": "targetAdj", "dur": 140, "ease": "Cubic.Out" },
+        { "t": 210, "op": "fx", "key": "core:slash_a", "at": "target" },
+        { "t": 215, "op": "anim", "who": "target", "key": "hurt" },
+        { "t": 215, "op": "shake", "mag": 5, "dur": 120 },
+        { "t": 215, "op": "popup", "src": "event.damage" },
+        { "t": 340, "op": "tween", "who": "actor", "to": "home", "dur": 180, "ease": "Cubic.InOut" }
+      ]
+    },
+    {
+      "id": "core:ranged_bolt",
+      "dur": 540,
+      "steps": [
+        { "t": 0, "op": "anim", "who": "actor", "key": "attack" },
+        { "t": 120, "op": "projectile", "key": "core:bolt_a", "from": "actor", "to": "target", "dur": 180 },
+        { "t": 300, "op": "fx", "key": "core:impact_a", "at": "target" },
+        { "t": 305, "op": "anim", "who": "target", "key": "hurt" },
+        { "t": 305, "op": "popup", "src": "event.damage" }
+      ]
+    },
+    {
+      "id": "core:cast_beam",
+      "dur": 760,
+      "steps": [
+        { "t": 0, "op": "anim", "who": "actor", "key": "cast" },
+        { "t": 80, "op": "fx", "key": "core:cast_ring", "at": "actor" },
+        { "t": 320, "op": "beam", "key": "core:beam_a", "from": "actor", "to": "target", "dur": 220 },
+        { "t": 420, "op": "anim", "who": "target", "key": "hurt" },
+        { "t": 420, "op": "popup", "src": "event.damage" },
+        { "t": 560, "op": "anim", "who": "actor", "key": "idle" }
+      ]
+    }
+  ]
+}

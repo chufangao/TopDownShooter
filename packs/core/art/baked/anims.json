@@ -1,0 +1,439 @@
+[
+  {
+    "key": "core:bone_chanter/idle",
+    "frames": ["core:bone_chanter/idle/0", "core:bone_chanter/idle/1", "core:bone_chanter/idle/2", "core:bone_chanter/idle/3"],
+    "frameRate": 6,
+    "repeat": -1
+  },
+  {
+    "key": "core:bone_chanter/walk",
+    "frames": [
+      "core:bone_chanter/walk/0",
+      "core:bone_chanter/walk/1",
+      "core:bone_chanter/walk/2",
+      "core:bone_chanter/walk/3",
+      "core:bone_chanter/walk/4",
+      "core:bone_chanter/walk/5"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "core:bone_chanter/attack",
+    "frames": [
+      "core:bone_chanter/attack/0",
+      "core:bone_chanter/attack/1",
+      "core:bone_chanter/attack/2",
+      "core:bone_chanter/attack/3",
+      "core:bone_chanter/attack/4"
+    ],
+    "frameRate": 12,
+    "repeat": 0
+  },
+  {
+    "key": "core:bone_chanter/cast",
+    "frames": [
+      "core:bone_chanter/cast/0",
+      "core:bone_chanter/cast/1",
+      "core:bone_chanter/cast/2",
+      "core:bone_chanter/cast/3",
+      "core:bone_chanter/cast/4"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "core:bone_chanter/hurt",
+    "frames": ["core:bone_chanter/hurt/0", "core:bone_chanter/hurt/1", "core:bone_chanter/hurt/2"],
+    "frameRate": 14,
+    "repeat": 0
+  },
+  {
+    "key": "core:bone_chanter/faint",
+    "frames": [
+      "core:bone_chanter/faint/0",
+      "core:bone_chanter/faint/1",
+      "core:bone_chanter/faint/2",
+      "core:bone_chanter/faint/3",
+      "core:bone_chanter/faint/4"
+    ],
+    "frameRate": 8,
+    "repeat": 0
+  },
+  {
+    "key": "core:clockwork_page/idle",
+    "frames": [
+      "core:clockwork_page/idle/0",
+      "core:clockwork_page/idle/1",
+      "core:clockwork_page/idle/2",
+      "core:clockwork_page/idle/3"
+    ],
+    "frameRate": 6,
+    "repeat": -1
+  },
+  {
+    "key": "core:clockwork_page/walk",
+    "frames": [
+      "core:clockwork_page/walk/0",
+      "core:clockwork_page/walk/1",
+      "core:clockwork_page/walk/2",
+      "core:clockwork_page/walk/3",
+      "core:clockwork_page/walk/4",
+      "core:clockwork_page/walk/5"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "core:clockwork_page/attack",
+    "frames": [
+      "core:clockwork_page/attack/0",
+      "core:clockwork_page/attack/1",
+      "core:clockwork_page/attack/2",
+      "core:clockwork_page/attack/3",
+      "core:clockwork_page/attack/4"
+    ],
+    "frameRate": 12,
+    "repeat": 0
+  },
+  {
+    "key": "core:clockwork_page/cast",
+    "frames": [
+      "core:clockwork_page/cast/0",
+      "core:clockwork_page/cast/1",
+      "core:clockwork_page/cast/2",
+      "core:clockwork_page/cast/3",
+      "core:clockwork_page/cast/4"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "core:clockwork_page/hurt",
+    "frames": ["core:clockwork_page/hurt/0", "core:clockwork_page/hurt/1", "core:clockwork_page/hurt/2"],
+    "frameRate": 14,
+    "repeat": 0
+  },
+  {
+    "key": "core:clockwork_page/faint",
+    "frames": [
+      "core:clockwork_page/faint/0",
+      "core:clockwork_page/faint/1",
+      "core:clockwork_page/faint/2",
+      "core:clockwork_page/faint/3",
+      "core:clockwork_page/faint/4"
+    ],
+    "frameRate": 8,
+    "repeat": 0
+  },
+  {
+    "key": "core:ember_drake/idle",
+    "frames": ["core:ember_drake/idle/0", "core:ember_drake/idle/1", "core:ember_drake/idle/2", "core:ember_drake/idle/3"],
+    "frameRate": 6,
+    "repeat": -1
+  },
+  {
+    "key": "core:ember_drake/walk",
+    "frames": [
+      "core:ember_drake/walk/0",
+      "core:ember_drake/walk/1",
+      "core:ember_drake/walk/2",
+      "core:ember_drake/walk/3",
+      "core:ember_drake/walk/4",
+      "core:ember_drake/walk/5"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "core:ember_drake/attack",
+    "frames": [
+      "core:ember_drake/attack/0",
+      "core:ember_drake/attack/1",
+      "core:ember_drake/attack/2",
+      "core:ember_drake/attack/3",
+      "core:ember_drake/attack/4"
+    ],
+    "frameRate": 12,
+    "repeat": 0
+  },
+  {
+    "key": "core:ember_drake/cast",
+    "frames": [
+      "core:ember_drake/cast/0",
+      "core:ember_drake/cast/1",
+      "core:ember_drake/cast/2",
+      "core:ember_drake/cast/3",
+      "core:ember_drake/cast/4"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "core:ember_drake/hurt",
+    "frames": ["core:ember_drake/hurt/0", "core:ember_drake/hurt/1", "core:ember_drake/hurt/2"],
+    "frameRate": 14,
+    "repeat": 0
+  },
+  {
+    "key": "core:ember_drake/faint",
+    "frames": [
+      "core:ember_drake/faint/0",
+      "core:ember_drake/faint/1",
+      "core:ember_drake/faint/2",
+      "core:ember_drake/faint/3",
+      "core:ember_drake/faint/4"
+    ],
+    "frameRate": 8,
+    "repeat": 0
+  },
+  {
+    "key": "core:frost_sprite/idle",
+    "frames": ["core:frost_sprite/idle/0", "core:frost_sprite/idle/1", "core:frost_sprite/idle/2", "core:frost_sprite/idle/3"],
+    "frameRate": 6,
+    "repeat": -1
+  },
+  {
+    "key": "core:frost_sprite/walk",
+    "frames": [
+      "core:frost_sprite/walk/0",
+      "core:frost_sprite/walk/1",
+      "core:frost_sprite/walk/2",
+      "core:frost_sprite/walk/3",
+      "core:frost_sprite/walk/4",
+      "core:frost_sprite/walk/5"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "core:frost_sprite/attack",
+    "frames": [
+      "core:frost_sprite/attack/0",
+      "core:frost_sprite/attack/1",
+      "core:frost_sprite/attack/2",
+      "core:frost_sprite/attack/3",
+      "core:frost_sprite/attack/4"
+    ],
+    "frameRate": 12,
+    "repeat": 0
+  },
+  {
+    "key": "core:frost_sprite/cast",
+    "frames": [
+      "core:frost_sprite/cast/0",
+      "core:frost_sprite/cast/1",
+      "core:frost_sprite/cast/2",
+      "core:frost_sprite/cast/3",
+      "core:frost_sprite/cast/4"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "core:frost_sprite/hurt",
+    "frames": ["core:frost_sprite/hurt/0", "core:frost_sprite/hurt/1", "core:frost_sprite/hurt/2"],
+    "frameRate": 14,
+    "repeat": 0
+  },
+  {
+    "key": "core:frost_sprite/faint",
+    "frames": [
+      "core:frost_sprite/faint/0",
+      "core:frost_sprite/faint/1",
+      "core:frost_sprite/faint/2",
+      "core:frost_sprite/faint/3",
+      "core:frost_sprite/faint/4"
+    ],
+    "frameRate": 8,
+    "repeat": 0
+  },
+  {
+    "key": "core:hive_warden/idle",
+    "frames": ["core:hive_warden/idle/0", "core:hive_warden/idle/1", "core:hive_warden/idle/2", "core:hive_warden/idle/3"],
+    "frameRate": 6,
+    "repeat": -1
+  },
+  {
+    "key": "core:hive_warden/walk",
+    "frames": [
+      "core:hive_warden/walk/0",
+      "core:hive_warden/walk/1",
+      "core:hive_warden/walk/2",
+      "core:hive_warden/walk/3",
+      "core:hive_warden/walk/4",
+      "core:hive_warden/walk/5"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "core:hive_warden/attack",
+    "frames": [
+      "core:hive_warden/attack/0",
+      "core:hive_warden/attack/1",
+      "core:hive_warden/attack/2",
+      "core:hive_warden/attack/3",
+      "core:hive_warden/attack/4"
+    ],
+    "frameRate": 12,
+    "repeat": 0
+  },
+  {
+    "key": "core:hive_warden/cast",
+    "frames": [
+      "core:hive_warden/cast/0",
+      "core:hive_warden/cast/1",
+      "core:hive_warden/cast/2",
+      "core:hive_warden/cast/3",
+      "core:hive_warden/cast/4"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "core:hive_warden/hurt",
+    "frames": ["core:hive_warden/hurt/0", "core:hive_warden/hurt/1", "core:hive_warden/hurt/2"],
+    "frameRate": 14,
+    "repeat": 0
+  },
+  {
+    "key": "core:hive_warden/faint",
+    "frames": [
+      "core:hive_warden/faint/0",
+      "core:hive_warden/faint/1",
+      "core:hive_warden/faint/2",
+      "core:hive_warden/faint/3",
+      "core:hive_warden/faint/4"
+    ],
+    "frameRate": 8,
+    "repeat": 0
+  },
+  {
+    "key": "core:hollow_sovereign/idle",
+    "frames": [
+      "core:hollow_sovereign/idle/0",
+      "core:hollow_sovereign/idle/1",
+      "core:hollow_sovereign/idle/2",
+      "core:hollow_sovereign/idle/3"
+    ],
+    "frameRate": 6,
+    "repeat": -1
+  },
+  {
+    "key": "core:hollow_sovereign/walk",
+    "frames": [
+      "core:hollow_sovereign/walk/0",
+      "core:hollow_sovereign/walk/1",
+      "core:hollow_sovereign/walk/2",
+      "core:hollow_sovereign/walk/3",
+      "core:hollow_sovereign/walk/4",
+      "core:hollow_sovereign/walk/5"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "core:hollow_sovereign/attack",
+    "frames": [
+      "core:hollow_sovereign/attack/0",
+      "core:hollow_sovereign/attack/1",
+      "core:hollow_sovereign/attack/2",
+      "core:hollow_sovereign/attack/3",
+      "core:hollow_sovereign/attack/4"
+    ],
+    "frameRate": 12,
+    "repeat": 0
+  },
+  {
+    "key": "core:hollow_sovereign/cast",
+    "frames": [
+      "core:hollow_sovereign/cast/0",
+      "core:hollow_sovereign/cast/1",
+      "core:hollow_sovereign/cast/2",
+      "core:hollow_sovereign/cast/3",
+      "core:hollow_sovereign/cast/4"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "core:hollow_sovereign/hurt",
+    "frames": ["core:hollow_sovereign/hurt/0", "core:hollow_sovereign/hurt/1", "core:hollow_sovereign/hurt/2"],
+    "frameRate": 14,
+    "repeat": 0
+  },
+  {
+    "key": "core:hollow_sovereign/faint",
+    "frames": [
+      "core:hollow_sovereign/faint/0",
+      "core:hollow_sovereign/faint/1",
+      "core:hollow_sovereign/faint/2",
+      "core:hollow_sovereign/faint/3",
+      "core:hollow_sovereign/faint/4"
+    ],
+    "frameRate": 8,
+    "repeat": 0
+  },
+  {
+    "key": "core:tomb_knight/idle",
+    "frames": ["core:tomb_knight/idle/0", "core:tomb_knight/idle/1", "core:tomb_knight/idle/2", "core:tomb_knight/idle/3"],
+    "frameRate": 6,
+    "repeat": -1
+  },
+  {
+    "key": "core:tomb_knight/walk",
+    "frames": [
+      "core:tomb_knight/walk/0",
+      "core:tomb_knight/walk/1",
+      "core:tomb_knight/walk/2",
+      "core:tomb_knight/walk/3",
+      "core:tomb_knight/walk/4",
+      "core:tomb_knight/walk/5"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "core:tomb_knight/attack",
+    "frames": [
+      "core:tomb_knight/attack/0",
+      "core:tomb_knight/attack/1",
+      "core:tomb_knight/attack/2",
+      "core:tomb_knight/attack/3",
+      "core:tomb_knight/attack/4"
+    ],
+    "frameRate": 12,
+    "repeat": 0
+  },
+  {
+    "key": "core:tomb_knight/cast",
+    "frames": [
+      "core:tomb_knight/cast/0",
+      "core:tomb_knight/cast/1",
+      "core:tomb_knight/cast/2",
+      "core:tomb_knight/cast/3",
+      "core:tomb_knight/cast/4"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "core:tomb_knight/hurt",
+    "frames": ["core:tomb_knight/hurt/0", "core:tomb_knight/hurt/1", "core:tomb_knight/hurt/2"],
+    "frameRate": 14,
+    "repeat": 0
+  },
+  {
+    "key": "core:tomb_knight/faint",
+    "frames": [
+      "core:tomb_knight/faint/0",
+      "core:tomb_knight/faint/1",
+      "core:tomb_knight/faint/2",
+      "core:tomb_knight/faint/3",
+      "core:tomb_knight/faint/4"
+    ],
+    "frameRate": 8,
+    "repeat": 0
+  }
+]

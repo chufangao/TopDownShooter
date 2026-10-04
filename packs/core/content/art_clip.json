@@ -1,0 +1,81 @@
+{
+  "$schema": "../schemas/art_clip.schema.json",
+  "kind": "art_clip",
+  "_note": "Keyframed joint tracks (§15.1). ~30 clips are shared across the entire roster; a unit overrides one only when it needs to. Channels: x, y (pixels), rot (degrees), scale.",
+  "defs": [
+    {
+      "id": "core:clip_idle_breathe",
+      "fps": 6,
+      "frames": 4,
+      "loop": true,
+      "tracks": {
+        "torso": { "y": [0, -1, 0, 0] },
+        "head": { "y": [0, -1, -1, 0] },
+        "armL": { "rot": [0, -3, 0, 2] },
+        "armR": { "rot": [0, 3, 0, -2] }
+      }
+    },
+    {
+      "id": "core:clip_walk_biped",
+      "fps": 10,
+      "frames": 6,
+      "loop": true,
+      "tracks": {
+        "torso": { "y": [0, -1, 0, 1, 0, -1] },
+        "legL": { "rot": [-14, -6, 4, 14, 6, -4] },
+        "legR": { "rot": [14, 6, -4, -14, -6, 4] },
+        "armL": { "rot": [12, 6, -4, -12, -6, 4] },
+        "armR": { "rot": [-12, -6, 4, 12, 6, -4] }
+      }
+    },
+    {
+      "id": "core:clip_attack_swing",
+      "fps": 12,
+      "frames": 5,
+      "loop": false,
+      "tracks": {
+        "armR": { "rot": [0, -45, -75, 35, 10] },
+        "torso": { "rot": [0, -5, -8, 7, 2] },
+        "head": { "rot": [0, -3, -4, 4, 1] },
+        "hips": { "x": [0, -1, -2, 2, 0] }
+      }
+    },
+    {
+      "id": "core:clip_cast_raise",
+      "fps": 10,
+      "frames": 5,
+      "loop": false,
+      "tracks": {
+        "armR": { "rot": [0, -30, -60, -72, -58] },
+        "armL": { "rot": [0, 22, 44, 54, 42] },
+        "head": { "y": [0, -1, -2, -2, -1] },
+        "torso": { "y": [0, 0, -1, -1, 0] }
+      }
+    },
+    {
+      "id": "core:clip_hurt_recoil",
+      "fps": 14,
+      "frames": 3,
+      "loop": false,
+      "tracks": {
+        "torso": { "rot": [0, 12, 5], "x": [0, 2, 1] },
+        "head": { "rot": [0, 14, 6] },
+        "armL": { "rot": [0, 18, 8] },
+        "armR": { "rot": [0, -18, -8] }
+      }
+    },
+    {
+      "id": "core:clip_faint_collapse",
+      "fps": 8,
+      "frames": 5,
+      "loop": false,
+      "_note": "The root x track walks the body back toward the middle as it rotates — without it a 76° fall puts the head outside a 48px canvas.",
+      "tracks": {
+        "root": { "rot": [0, -16, -38, -60, -76], "x": [0, 2, 5, 9, 13], "y": [0, 1, 3, 6, 9] },
+        "head": { "rot": [0, -4, -8, -12, -14] },
+        "armL": { "rot": [0, 10, 24, 38, 44] },
+        "armR": { "rot": [0, -10, -24, -38, -44] }
+      }
+    }
+  ]
+}

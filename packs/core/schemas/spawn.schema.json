@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://retinue.local/schemas/spawn.schema.json",
+  "title": "spawn table content file",
+  "type": "object",
+  "required": ["kind", "defs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string" },
+    "kind": { "const": "spawn" },
+    "defs": { "type": "array", "items": { "$ref": "#/$defs/spawn" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+    "spawn": {
+      "type": "object",
+      "required": ["id", "name", "floors"],
+      "additionalProperties": false,
+      "description": "A floor-scoped pool. Every table whose floor range and `when` match contributes its rows, and a unit's weight is the SUM of its rows across tables — so a pack adds to the pool by shipping one row, and no load order can change the result (§18.6).",
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "_note": { "type": "string" },
+        "name": { "type": "string" },
+        "floors": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "[first, last] floor this table applies to, inclusive."
+        },
+        "when": { "type": "array", "description": "expr tree (§11.6), evaluated with floorNum bound" },
+        "units": {
+          "const": "*",
+          "description": "Every unit that declares its own `spawn` block. This is what keeps 'adding a unit is one JSON file' true — a new unit describes how it appears and needs no table edit."
+        },
+        "weights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["unit"],
+            "additionalProperties": false,
+            "properties": {
+              "unit": { "$ref": "#/$defs/id" },
+              "w": { "type": "number", "minimum": 0 },
+              "when": { "type": "array", "description": "expr tree (§11.6)" },
+              "_note": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "../schemas/status.schema.json",
+  "kind": "status",
+  "_note": "A status is {modifiers[], hooks[], dur} — the same shape as an item, a Resonance, a Pact, a keystone, a shrine curse and a Lattice node (§11.5). One type, one activation check, one place to debug. dur is in ticks (20 per second).",
+  "defs": [
+    {
+      "id": "core:brittle",
+      "name": "Brittle",
+      "tags": ["debuff"],
+      "dur": 120,
+      "stacks": 3,
+      "element": "core:dark",
+      "modifiers": [{ "path": "def", "op": "mul", "v": 0.75 }]
+    },
+    {
+      "id": "core:hasten",
+      "name": "Hasten",
+      "tags": ["buff"],
+      "dur": 100,
+      "stacks": 1,
+      "modifiers": [{ "path": "gauge.rate", "op": "mul", "v": 1.25 }]
+    },
+    {
+      "id": "core:regen",
+      "name": "Regen",
+      "tags": ["buff"],
+      "dur": 200,
+      "stacks": 1,
+      "_note": "tick effects fire every `tickEvery` ticks (20 = once a second). Without that a 20 Hz regen out-heals the entire field — the battle fuzzer found the stall.",
+      "tick": [{ "op": "core:heal", "power": 24 }],
+      "hooks": [{ "point": "damage:apply", "prio": 40, "field": "damage", "op": "mul", "v": 0.95 }],
+      "tickEvery": 20
+    },
+    {
+      "id": "core:enraged",
+      "name": "Enraged",
+      "tags": ["buff"],
+      "dur": "battle",
+      "stacks": 1,
+      "_note": "Phase 1 of a boss (§6.3), and nothing about it says 'boss'. dur 'battle' rather than a tick count because a phase does not wear off — the fight only goes one way.",
+      "modifiers": [{ "path": "atk", "op": "mul", "v": 1.35 }, { "path": "gauge.rate", "op": "mul", "v": 1.2 }]
+    },
+    {
+      "id": "core:desperate",
+      "name": "Desperate",
+      "tags": ["buff"],
+      "dur": "battle",
+      "stacks": 1,
+      "_note": "Phase 2. It gives away as much as it gains — a cornered boss hits harder and takes more — so the last quarter of a boss fight is faster in both directions rather than simply longer.",
+      "modifiers": [
+        { "path": "damage.dealt", "op": "mul", "v": 1.5 },
+        { "path": "damage.taken", "op": "mul", "v": 1.25 },
+        { "path": "gauge.rate", "op": "mul", "v": 1.15 }
+      ]
+    }
+  ]
+}

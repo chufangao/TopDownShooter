@@ -1,0 +1,13 @@
+{
+  "$schema": "../../../../packs/core/schemas/element.schema.json",
+  "kind": "element",
+  "_note": "A pack adding an element writes its own affinity row rather than patching a global matrix.",
+  "defs": [
+    {
+      "id": "kindled:ash",
+      "name": "Ash",
+      "tint": "#8a6b5a",
+      "affinity": { "core:frost": 1.5, "core:holy": 0.5, "kindled:ash": 0.5 }
+    }
+  ]
+}

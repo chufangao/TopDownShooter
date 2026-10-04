@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../../../packs/core/schemas/art_descriptor.schema.json",
+  "_note": "A pack ships art the same way it ships units (§13.4): a descriptor over core's rig, clips, parts and palettes. No PNG in the pack at all — the baker generates one on install.",
+  "id": "kindled:ash_seer",
+  "rig": "core:biped",
+  "seed": 8823,
+  "scale": 0.98,
+  "palette": { "ramp": "core:ash", "accent": "core:ember" },
+  "parts": {
+    "head": { "shape": "core:head_drake", "scale": 0.95 },
+    "torso": { "shape": "core:torso_robe" },
+    "hips": { "shape": "core:legs_hem" },
+    "back": { "shape": "core:wing_membrane", "scale": 0.8 },
+    "armL": { "shape": "core:arm_bone" },
+    "armR": { "shape": "core:arm_bone" },
+    "legL": { "shape": "core:arm_bone", "scale": 0.9 },
+    "legR": { "shape": "core:arm_bone", "scale": 0.9 }
+  }
+}

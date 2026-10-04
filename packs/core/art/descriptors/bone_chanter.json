@@ -1,0 +1,16 @@
+{
+  "$schema": "../../schemas/art_descriptor.schema.json",
+  "id": "core:bone_chanter",
+  "rig": "core:biped",
+  "seed": 4417,
+  "palette": { "ramp": "core:bone", "accent": "core:necrotic" },
+  "parts": {
+    "head": { "shape": "core:head_skull", "scale": 1.05 },
+    "torso": { "shape": "core:torso_robe" },
+    "hips": { "shape": "core:legs_hem" },
+    "armL": { "shape": "core:arm_bone" },
+    "armR": { "shape": "core:arm_bone" },
+    "legL": { "shape": "core:arm_bone", "scale": 0.9 },
+    "legR": { "shape": "core:arm_bone", "scale": 0.9 }
+  }
+}

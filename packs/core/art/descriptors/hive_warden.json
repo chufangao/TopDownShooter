@@ -1,0 +1,17 @@
+{
+  "$schema": "../../schemas/art_descriptor.schema.json",
+  "id": "core:hive_warden",
+  "rig": "core:biped",
+  "seed": 6642,
+  "scale": 1.04,
+  "palette": { "ramp": "core:chitin", "accent": "core:necrotic" },
+  "parts": {
+    "head": { "shape": "core:head_drake", "scale": 0.9 },
+    "torso": { "shape": "core:torso_carapace" },
+    "hips": { "shape": "core:legs_hem", "scale": 0.7 },
+    "armL": { "shape": "core:arm_plate", "scale": 0.9 },
+    "armR": { "shape": "core:arm_plate", "scale": 0.9 },
+    "legL": { "shape": "core:leg_plate", "scale": 0.9 },
+    "legR": { "shape": "core:leg_plate", "scale": 0.9 }
+  }
+}

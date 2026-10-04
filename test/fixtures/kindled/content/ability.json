@@ -1,0 +1,19 @@
+{
+  "$schema": "../../../../packs/core/schemas/ability.schema.json",
+  "kind": "ability",
+  "_note": "Zero JavaScript. This is core's ops recombined — the §11.4 claim that a modder authoring 30 units writes no code.",
+  "defs": [
+    {
+      "id": "kindled:emberdirge",
+      "name": "Emberdirge",
+      "castCost": 180,
+      "shape": "column",
+      "element": "kindled:ash",
+      "anim": "core:cast_beam",
+      "effects": [
+        { "op": "core:damage", "power": 28, "element": "kindled:ash" },
+        { "op": "core:apply_status", "status": "core:brittle", "dur": 100, "chance": 0.4 }
+      ]
+    }
+  ]
+}

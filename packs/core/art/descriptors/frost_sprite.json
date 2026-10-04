@@ -1,0 +1,19 @@
+{
+  "$schema": "../../schemas/art_descriptor.schema.json",
+  "_note": "Variants cost nothing (§15.4): a smaller scale, a different ramp and two swapped parts read as a completely different creature.",
+  "id": "core:frost_sprite",
+  "rig": "core:biped",
+  "seed": 2255,
+  "scale": 0.72,
+  "jitter": 1.4,
+  "palette": { "ramp": "core:frost", "accent": "core:arcana" },
+  "parts": {
+    "head": { "shape": "core:head_orb", "scale": 1.15 },
+    "torso": { "shape": "core:torso_robe" },
+    "back": { "shape": "core:wing_membrane", "scale": 0.7 },
+    "armL": { "shape": "core:arm_bone" },
+    "armR": { "shape": "core:arm_bone" },
+    "legL": { "shape": "core:arm_bone", "scale": 0.8 },
+    "legR": { "shape": "core:arm_bone", "scale": 0.8 }
+  }
+}

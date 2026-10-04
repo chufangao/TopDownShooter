@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RETINUE</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23171527'/%3E%3Cpath d='M8 3l5 5-5 5-5-5z' fill='%23e8b04b'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #0b0a0e; overflow: hidden; }
+      body { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #cfc9bd; }
+      #game { width: 100vw; height: 100vh; }
+      #game canvas { display: block; image-rendering: pixelated; }
+      #fault {
+        position: fixed; inset: 0; padding: 6vh 8vw; overflow: auto;
+        background: #0b0a0e; white-space: pre-wrap;
+      }
+      #fault h1 { font-size: 15px; color: #e8b04b; margin: 0 0 1em; letter-spacing: .08em; }
+      #fault .e { color: #e06c6c; }
+      #fault .w { color: #b3a25c; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <!-- The Doctrine editors are plain DOM above the canvas (§8). Empty until src/ui mounts. -->
+    <div id="ui"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

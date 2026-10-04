@@ -1,0 +1,96 @@
+{
+  "$schema": "../schemas/tuning.schema.json",
+  "kind": "tuning",
+  "_note": "Every constant from §2 and §5 in one reviewable file. Patchable by mods, hot-reloadable while a battle runs (§16.3), sweepable by tools/balance.js without editing code. If a number in the sim is not here, that is a bug.",
+  "defs": [
+    {
+      "id": "core:tuning",
+      "tick": {
+        "hz": 20,
+        "ms": 50,
+        "ceiling": 2400,
+        "_note": "ceiling is the battle-length fuzzer bound (§10) — 2400 ticks is 120s of sim, far past any real fight. It is no longer the anti-stall mechanism; damage escalation is. Reaching it is an assertion failure, not a safety net."
+      },
+      "hit": { "min": 0.1, "max": 0.95 },
+      "crit": { "min": 0.01, "max": 0.6, "divisor": 100, "mult": 1.75 },
+      "damage": {
+        "atkDivisor": 28,
+        "defConstant": 100,
+        "min": 1,
+        "_note": "raw = power * (atk / atkDivisor). Swept against the real roster: at 10 a unit died in two hits, which left no window between 'weakened' and 'dead' and made the whole persuade loop unreachable. At 28 a kill takes ~5 hits and battles land at ~19 s, inside the 15-40 s band of §1."
+      },
+      "variance": [0.95, 1.05],
+      "gauge": {
+        "base": 1.6,
+        "spdDivisor": 25,
+        "_note": "gaugeRate = base + spd / spdDivisor, per tick. An ability's castCost is the gauge needed. §2 wrote 1 + spd/100; measured against the real roster that opened every fight with four dead seconds and made SPD nearly invisible. These numbers put the first action at 32–48 ticks (1.6–2.4 s) and give SPD a ~50% spread across the roster."
+      },
+      "formation": { "cols": 4, "rows": 3, "slots": 12 },
+      "rows": {
+        "0": { "name": "front", "meleeReach": true, "aggro": 0.6, "meleeDealt": 1.1, "meleeTaken": 1 },
+        "1": { "name": "mid", "meleeReach": true, "aggro": 0.3, "meleeDealt": 1, "meleeTaken": 1 },
+        "2": { "name": "back", "meleeReach": true, "aggro": 0.1, "meleeDealt": 0.75, "meleeTaken": 0.7 }
+      },
+      "persuade": {
+        "threshold": 0.3,
+        "decay": 0.7,
+        "max": 0.9,
+        "charmDivisor": 100,
+        "weakenBonus": 2,
+        "kinAffinity": 1.25,
+        "base": { "1": 0.15, "2": 0.11, "3": 0.08, "4": 0.05, "5": 0.03, "default": 0.09 },
+        "_note": "BASE is deliberately low because the weaken bonus multiplies it by up to 3x: a tier-1 enemy at the 30% threshold is a ~36% chance, not a formality. With decay 0.7 a second attempt is ~25% and a third ~18%, so persuading is an investment of actions you could have spent killing it (§2)."
+      },
+      "party": { "cap": 12 },
+      "xp": {
+        "perTier": 4.5,
+        "perLevel": 0.35,
+        "recruitShare": 0.5,
+        "fallenShare": 0.5,
+        "base": 28,
+        "exponent": 1.45,
+        "cap": 10,
+        "capPerStar": 5,
+        "_note": "The term on the other side of the depth curve. Foe level is 1 + (floor-1)*1.5, so without this the party is flat against a rising wall and floor 2 is where every run ends. xpToNext = base * lvl^exponent -> 28, 76, 138, 209 ... ~2.8k cumulative to 10. perTier swept 3 -> 5 over 20 seeded runs of the real spawn tables; measured median party level after each floor at 4.5 is f1 2.5 (foes 1), f2 4.2 (3), f3 6.0 (4), f4 7.0 (6), f5 7.8 (7), f6 8.8 (9) — ahead of the curve through floor 5 and behind it by floor 7, where the ★1 cap of 10 bites on purpose, because that is what fusion is for. Note the sweep barely moved survival (13/20 runs reach floor 4 at every rate tested): early deaths happen on floors 1-3 before any rate matters, so this constant sets the shape of the curve, not the difficulty."
+      },
+      "residue": {
+        "floorBase": 10,
+        "floorGrowth": 1.55,
+        "coherenceBonus": 0.6,
+        "_note": "residue = Σ_floors (floorBase * floorGrowth^(floor-1)) * (1 + coherenceBonus*coherence) * keystoneMult * insightMult (§5). Floors are summed rather than taking the deepest, so a run that died on floor 5 is paid for floors 1-5 and a deeper run is worth strictly more than a shallower one — the growth term is what makes depth, not time, the thing worth optimising."
+      },
+      "coin": {
+        "perFoeTier": 3,
+        "perFloor": 0.4,
+        "treasure": 40,
+        "_note": "Coin is in-run only and never banked (§5). A defeated foe pays perFoeTier * tier, scaled by (1 + perFloor*(floor-1)); a treasure node pays `treasure` on the same curve. There is no crafting and no upgrade tree to spend it on until M6 ships items — until then it accrues honestly and buys nothing, which is better than a shop that sells placeholders."
+      },
+      "insight": { "divisor": 1000000 },
+      "lattice": { "costGrowth": 1.18, "respecMult": 0.25 },
+      "offline": { "capHours": 8, "efficiency": 0.6 },
+      "escalation": {
+        "startTick": 700,
+        "perTick": 0.005,
+        "max": 8,
+        "bossMult": 2,
+        "_note": "After 35 s a fight starts escalating: every tick past startTick multiplies all damage a little more, capped at max. This bounds every battle by construction instead of by balance, and it is why two healer-heavy sides cannot deadlock. Boss fights multiply startTick by bossMult (§6.3): a 35-second bound on a fight designed to last 60 makes the last phase unreachable, which would turn a boss's whole phase table into content nobody ever sees."
+      },
+      "spawn": {
+        "levelPerFloor": 1.5,
+        "tierPerFloor": 0.5,
+        "tierMax": 5,
+        "tierOverCap": 1,
+        "tierFalloff": 3,
+        "bossEvery": 8,
+        "_note": "Depth scaling (§6.2), moved out of party.js where it was twelve lines of code deciding content. Foe level is 1 + (floor-1)*levelPerFloor — the curve the party's XP has to keep pace with, and the reason §3's XP hole was fatal rather than cosmetic. A floor's target tier is 1 + (floor-1)*tierPerFloor capped at tierMax; anything above target+tierOverCap cannot appear at all, and inside the cap weight falls off as 1/(1+|tier-target|)^tierFalloff. Flat weighting was measured putting two tier-3 Drakes in the first encounter of floor 1."
+      },
+      "run": {
+        "postBattleHeal": 0.25,
+        "campfireHeal": 1,
+        "campfireRevive": 0.5,
+        "woundedDescent": 0.5,
+        "_note": "Recovery between encounters. Without any, a party that won a hard fight loses the next one on residual damage and the run ends before it can assemble anyone — measured in the browser: every run died on node 2 of floor 1. M4's run structure owns this properly; these are the knobs it will use."
+      }
+    }
+  ]
+}

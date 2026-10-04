@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://retinue.local/schemas/kin.schema.json",
+  "title": "kin content file",
+  "description": "One of the two tag axes (§3). Referenced by $schema so editors autocomplete and red-underline content authoring — including a modder's — with no plugin to install (§16.1).",
+  "type": "object",
+  "required": ["kind", "defs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string" },
+    "kind": { "const": "kin" },
+    "defs": { "type": "array", "items": { "$ref": "#/$defs/kin" } }
+  },
+  "$defs": {
+    "kin": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+        "_note": { "type": "string" },
+        "name": { "type": "string" },
+        "thresholds": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "description": "Synergy breakpoints, counting distinct units holding the tag."
+        }
+      }
+    }
+  }
+}

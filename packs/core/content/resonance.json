@@ -1,0 +1,124 @@
+{
+  "$schema": "../schemas/resonance.schema.json",
+  "kind": "resonance",
+  "_note": "Layer 1 of three (§3): automatic, threshold-driven, always on. A Resonance is {when, modifiers[], hooks[]} — byte for byte the same shape as a Pact, activated by the same code path in synergy.js. Kin thresholds are 2/4/6, Role thresholds 2/3/4; twelve slots means a 6-Kin monobuild costs half your party.",
+  "defs": [
+    {
+      "id": "core:undead_2",
+      "name": "Undead 2",
+      "desc": "The dead do not flinch. +12% DEF.",
+      "when": ["gte", ["kinCount", "core:undead"], 2],
+      "modifiers": [{ "path": "def", "op": "mul", "v": 1.12 }]
+    },
+    {
+      "id": "core:undead_4",
+      "name": "Undead 4",
+      "desc": "+30% DEF and the grave's patience.",
+      "when": ["gte", ["kinCount", "core:undead"], 4],
+      "modifiers": [{ "path": "def", "op": "mul", "v": 1.3 }, { "path": "hp", "op": "mul", "v": 1.1 }]
+    },
+    {
+      "id": "core:drake_2",
+      "name": "Drake 2",
+      "desc": "+15% ATK.",
+      "when": ["gte", ["kinCount", "core:drake"], 2],
+      "modifiers": [{ "path": "atk", "op": "mul", "v": 1.15 }]
+    },
+    {
+      "id": "core:fae_2",
+      "name": "Fae 2",
+      "desc": "+8 EVA.",
+      "when": ["gte", ["kinCount", "core:fae"], 2],
+      "modifiers": [{ "path": "eva", "op": "add", "v": 8 }]
+    },
+    {
+      "id": "core:insect_2",
+      "name": "Insect 2",
+      "desc": "+6% gauge rate.",
+      "when": ["gte", ["kinCount", "core:insect"], 2],
+      "modifiers": [{ "path": "gauge.rate", "op": "mul", "v": 1.06 }]
+    },
+    {
+      "id": "core:construct_2",
+      "name": "Construct 2",
+      "desc": "+10 DEF, no nerves to lose.",
+      "when": ["gte", ["kinCount", "core:construct"], 2],
+      "modifiers": [{ "path": "def", "op": "add", "v": 10 }]
+    },
+    {
+      "id": "core:beast_2",
+      "name": "Beast 2",
+      "desc": "+10% ATK, +4 SPD.",
+      "when": ["gte", ["kinCount", "core:beast"], 2],
+      "modifiers": [{ "path": "atk", "op": "mul", "v": 1.1 }, { "path": "spd", "op": "add", "v": 4 }]
+    },
+    {
+      "id": "core:humanoid_2",
+      "name": "Humanoid 2",
+      "desc": "Someone who can hold a conversation. +25 Charm.",
+      "_note": "The one Resonance that feeds the acquisition loop directly — Charm is party-wide in the persuade formula (§2).",
+      "when": ["gte", ["kinCount", "core:humanoid"], 2],
+      "modifiers": [{ "path": "charm", "op": "add", "v": 25 }]
+    },
+    {
+      "id": "core:aberration_2",
+      "name": "Aberration 2",
+      "desc": "+8 CRT.",
+      "when": ["gte", ["kinCount", "core:aberration"], 2],
+      "modifiers": [{ "path": "crt", "op": "add", "v": 8 }]
+    },
+    {
+      "id": "core:vanguard_2",
+      "name": "Vanguard 2",
+      "desc": "The front holds. +14% DEF.",
+      "when": ["gte", ["roleCount", "core:vanguard"], 2],
+      "modifiers": [{ "path": "def", "op": "mul", "v": 1.14 }]
+    },
+    {
+      "id": "core:ranger_3",
+      "name": "Ranger 3",
+      "desc": "The back row ignores the melee damage penalty.",
+      "_note": "§3's worked example. It is a hook row and nothing else: it cancels the back-row penalty by dividing it back out, gated on the incoming ability being melee and the defender standing in row 2.",
+      "when": ["gte", ["roleCount", "core:ranger"], 3],
+      "hooks": [
+        {
+          "point": "damage:compute",
+          "on": "target",
+          "field": "mul",
+          "op": "mul",
+          "v": 1.4286,
+          "prio": 30,
+          "when": ["and", "$melee", ["eq", ["row", "$target"], 2]]
+        }
+      ]
+    },
+    {
+      "id": "core:skirmisher_2",
+      "name": "Skirmisher 2",
+      "desc": "+7 SPD.",
+      "when": ["gte", ["roleCount", "core:skirmisher"], 2],
+      "modifiers": [{ "path": "spd", "op": "add", "v": 7 }]
+    },
+    {
+      "id": "core:channeler_2",
+      "name": "Channeler 2",
+      "desc": "+12% damage dealt.",
+      "when": ["gte", ["roleCount", "core:channeler"], 2],
+      "modifiers": [{ "path": "damage.dealt", "op": "mul", "v": 1.12 }]
+    },
+    {
+      "id": "core:warden_2",
+      "name": "Warden 2",
+      "desc": "+25% healing given.",
+      "when": ["gte", ["roleCount", "core:warden"], 2],
+      "modifiers": [{ "path": "heal.given", "op": "mul", "v": 1.25 }]
+    },
+    {
+      "id": "core:trickster_2",
+      "name": "Trickster 2",
+      "desc": "+6 CRT, +15 Charm.",
+      "when": ["gte", ["roleCount", "core:trickster"], 2],
+      "modifiers": [{ "path": "crt", "op": "add", "v": 6 }, { "path": "charm", "op": "add", "v": 15 }]
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://retinue.local/schemas/status.schema.json",
+  "title": "status content file",
+  "description": "A status is {modifiers[], hooks[], dur} — the same shape as an item, Resonance, Pact, keystone, shrine curse and Lattice node (§11.5).",
+  "type": "object",
+  "required": ["kind", "defs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string" },
+    "kind": { "const": "status" },
+    "defs": { "type": "array", "items": { "$ref": "#/$defs/status" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+    "modifier": {
+      "type": "object",
+      "required": ["path", "op", "v"],
+      "additionalProperties": false,
+      "description": "The one stat pipeline (§11.3). Applied set → add → mul → clamp, order-independent.",
+      "properties": {
+        "path": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$" },
+        "op": { "enum": ["set", "add", "mul", "clamp"] },
+        "v": {},
+        "prio": { "type": "number" },
+        "_note": { "type": "string" }
+      }
+    },
+    "hookRow": {
+      "type": "object",
+      "required": ["point", "field", "op"],
+      "additionalProperties": false,
+      "description": "One nudge to one field of one hook proposal (§11.5).",
+      "properties": {
+        "point": { "type": "string" },
+        "field": { "type": "string" },
+        "op": { "enum": ["set", "add", "mul"] },
+        "v": {},
+        "prio": { "type": "number" },
+        "when": { "type": "array", "description": "expr tree (§11.6)" },
+        "_note": { "type": "string" },
+        "on": {
+          "enum": ["actor", "target"],
+          "description": "Which participant must be the bearer for this row to fire. Defaults to target."
+        }
+      }
+    },
+    "effect": {
+      "type": "object",
+      "required": ["op"],
+      "description": "Names a registered op; its remaining keys are that op's args, validated at load (§11.4).",
+      "properties": {
+        "op": { "$ref": "#/$defs/id" },
+        "_note": { "type": "string" }
+      }
+    },
+    "status": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "_note": { "type": "string" },
+        "name": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "buff | debuff | curse — what core:cleanse filters on."
+        },
+        "dur": {
+          "oneOf": [{ "type": "integer", "minimum": 0 }, { "enum": ["battle", "run"] }],
+          "description": "Ticks (20 per second), or the whole battle/run."
+        },
+        "stacks": { "type": "integer", "minimum": 1 },
+        "element": { "$ref": "#/$defs/id" },
+        "modifiers": { "type": "array", "items": { "$ref": "#/$defs/modifier" } },
+        "hooks": { "type": "array", "items": { "$ref": "#/$defs/hookRow" } },
+        "tick": { "type": "array", "items": { "$ref": "#/$defs/effect" } },
+        "tickEvery": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How often tick effects fire, in ticks. Defaults to tuning.tick.hz (once per second)."
+        }
+      }
+    }
+  }
+}

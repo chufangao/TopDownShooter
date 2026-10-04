@@ -1,0 +1,19 @@
+{
+  "$schema": "../schemas/element.schema.json",
+  "kind": "element",
+  "_note": "Affinity lives on the ATTACKING element and names the defender's element (§2: AFFINITY[ability.element][defender.element], 0.5 | 1.0 | 1.5 | 2.0). Unlisted matchups are 1.0. Declaring matchups per element means a mod adding one writes its own row instead of patching a global matrix nobody owns.",
+  "defs": [
+    { "id": "core:physical", "name": "Physical", "tint": "#d8d4cc", "affinity": {} },
+    { "id": "core:fire", "name": "Fire", "tint": "#ff7a33", "affinity": { "core:frost": 1.5, "core:fire": 0.5 } },
+    { "id": "core:frost", "name": "Frost", "tint": "#66c8ff", "affinity": { "core:arcane": 1.5, "core:frost": 0.5 } },
+    { "id": "core:arcane", "name": "Arcane", "tint": "#b57bff", "affinity": { "core:fire": 1.5, "core:arcane": 0.5 } },
+    { "id": "core:dark", "name": "Dark", "tint": "#7a5c9e", "affinity": { "core:holy": 1.5, "core:dark": 0.5 } },
+    {
+      "id": "core:holy",
+      "name": "Holy",
+      "tint": "#ffe9a8",
+      "_note": "The only 2.0 in the base game. Holy is the anti-dark specialist and pays for it by being the weakest generalist.",
+      "affinity": { "core:dark": 2, "core:holy": 0.5 }
+    }
+  ]
+}

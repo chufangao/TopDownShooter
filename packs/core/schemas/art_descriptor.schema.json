@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://retinue.local/schemas/art_descriptor.schema.json",
+  "title": "art descriptor",
+  "description": "One file per unit, ~40 lines (§15.1). Unlike the other content kinds this is a single def per file, because it lives beside the art in art/descriptors/ rather than in content/.",
+  "type": "object",
+  "required": ["id"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+    "type": {
+      "enum": ["unit", "tileset", "sheet"],
+      "description": "Omitted means unit. `sheet` is the hand-drawn escape hatch (§15.5) — the baker passes it through."
+    },
+    "src": { "type": "string", "description": "sheet only: a hand-drawn PNG inside the pack." },
+    "rig": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+    "seed": {
+      "type": "integer",
+      "description": "Descriptor randomness (jitter, asymmetry, speckling) comes from here through the kernel RNG — never Math.random (§15.2)."
+    },
+    "scale": { "type": "number", "exclusiveMinimum": 0 },
+    "jitter": { "type": "number", "minimum": 0 },
+    "tile": { "type": "integer", "minimum": 1 },
+    "palette": {
+      "type": "object",
+      "required": ["ramp"],
+      "additionalProperties": false,
+      "properties": {
+        "ramp": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+        "accent": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+        "outline": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+      }
+    },
+    "parts": {
+      "type": "object",
+      "description": "Joint name → part binding. A joint not in the rig's z order would never draw, and the loader says so.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["shape"],
+        "additionalProperties": false,
+        "properties": {
+          "shape": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+          "held": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+          "scale": { "type": "number", "exclusiveMinimum": 0 },
+          "flip": { "type": "boolean" },
+          "_note": { "type": "string" }
+        }
+      }
+    },
+    "overrides": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clips": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" } }
+      }
+    },
+    "fx": { "type": "object" },
+    "extends": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+    "tiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["shape"],
+        "additionalProperties": false,
+        "properties": {
+          "shape": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+          "speckle": { "type": "integer", "minimum": 0 },
+          "speckleFill": { "type": "string", "pattern": "^(ramp|accent)\\.[0-9]+$" },
+          "_note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

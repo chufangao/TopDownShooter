@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.vite/
+*.log
+.DS_Store
+
+# baked art IS committed (§15) — do not ignore packs/*/art/baked/

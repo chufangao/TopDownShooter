@@ -1,0 +1,19 @@
+{
+  "_note": "Tier 2 — rebalance and rewire existing content without forking it (§13.2). Two mods patching the same path is not an error; tools/modcheck.js reports the overlap so authors can coordinate.",
+  "patches": [
+    {
+      "target": "unit:core:bone_chanter",
+      "ops": [
+        { "op": "mul", "path": "base.hp", "v": 1.2 },
+        { "op": "push", "path": "abilities", "v": "kindled:emberdirge" },
+        { "op": "set", "path": "tier", "v": 3 }
+      ]
+    },
+    {
+      "_note": "Wildcard plus a where-expression: 'rebalance every Drake' in four lines rather than forty.",
+      "target": "unit:*",
+      "where": ["eq", "$def.kin", "core:drake"],
+      "ops": [{ "op": "mul", "path": "base.atk", "v": 1.1 }]
+    }
+  ]
+}

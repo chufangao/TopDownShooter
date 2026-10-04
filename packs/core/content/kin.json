@@ -1,0 +1,15 @@
+{
+  "$schema": "../schemas/kin.schema.json",
+  "kind": "kin",
+  "_note": "One of the two tag axes (§3). Synergies count distinct units holding a tag; thresholds are in tuning.json. Kin is content so Insight can unlock new families and mods can add their own.",
+  "defs": [
+    { "id": "core:beast", "name": "Beast", "thresholds": [2, 4, 6] },
+    { "id": "core:undead", "name": "Undead", "thresholds": [2, 4, 6] },
+    { "id": "core:construct", "name": "Construct", "thresholds": [2, 4, 6] },
+    { "id": "core:fae", "name": "Fae", "thresholds": [2, 4, 6] },
+    { "id": "core:insect", "name": "Insect", "thresholds": [2, 4, 6] },
+    { "id": "core:drake", "name": "Drake", "thresholds": [2, 4, 6] },
+    { "id": "core:humanoid", "name": "Humanoid", "thresholds": [2, 4, 6] },
+    { "id": "core:aberration", "name": "Aberration", "thresholds": [2, 4, 6] }
+  ]
+}

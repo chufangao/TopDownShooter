@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://retinue.local/schemas/anim_template.schema.json",
+  "title": "anim template content file",
+  "description": "Presentation only (§7). The sim never loads these; the renderer plays them against an already-decided event timeline.",
+  "type": "object",
+  "required": ["kind", "defs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string" },
+    "kind": { "const": "anim_template" },
+    "defs": { "type": "array", "items": { "$ref": "#/$defs/template" } }
+  },
+  "$defs": {
+    "template": {
+      "type": "object",
+      "required": ["id", "dur", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+        "_note": { "type": "string" },
+        "dur": { "type": "number", "minimum": 0, "description": "Total length in milliseconds at ×1 speed." },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["t", "op"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0 },
+              "op": {
+                "type": "string",
+                "description": "anim | tween | fx | projectile | beam | shake | popup | sound. Unknown ops are skipped with one warning (§13.4)."
+              },
+              "who": { "enum": ["actor", "target", "allies", "enemies"] },
+              "key": { "type": "string" },
+              "at": { "type": "string" },
+              "from": { "type": "string" },
+              "to": { "type": "string" },
+              "src": { "type": "string" },
+              "dur": { "type": "number", "minimum": 0 },
+              "mag": { "type": "number" },
+              "ease": { "type": "string" },
+              "_note": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

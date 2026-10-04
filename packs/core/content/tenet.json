@@ -1,0 +1,221 @@
+{
+  "$schema": "../schemas/tenet.schema.json",
+  "kind": "tenet",
+  "_note": "The shop (§4.2). Each row is one narrow power with a plain name and a price in Codex, and the sum of what you own is exactly what you can say. Two things are deliberate about the pricing. Codex is a count of discoveries and is not farmable (§5) — against the current roster the whole list costs about three times what exists, so it cannot be finished and every purchase is an argument about how you want to play. And the entry tenet of each area is the cheapest thing in it, so the first decision a new player makes is 'which of these five areas do I care about', not 'can I afford anything'. Order is display order only; `requires` is a prerequisite rather than a price rise, because selling a chip with nowhere to put it is selling nothing.",
+  "defs": [
+    {
+      "id": "core:parley_threshold",
+      "name": "Parley threshold",
+      "section": "parley",
+      "order": 10,
+      "cost": 2,
+      "desc": "Say how hurt something must be before anyone talks to it, instead of taking the standing 30%.",
+      "grants": { "edit": ["recruit"], "slots": { "recruit": 1 }, "forms": ["hpPct"], "actions": ["persuade", "kill"] }
+    },
+    {
+      "id": "core:parley_by_kin",
+      "name": "Parley by Kin",
+      "section": "parley",
+      "order": 11,
+      "cost": 2,
+      "requires": ["core:parley_threshold"],
+      "desc": "Name a Kin in a parley rule — chase Fae and leave the rest, or the other way round.",
+      "grants": { "forms": ["kin", "hasTag"] }
+    },
+    {
+      "id": "core:parley_by_worth",
+      "name": "Parley by worth",
+      "section": "parley",
+      "order": 12,
+      "cost": 2,
+      "requires": ["core:parley_threshold"],
+      "desc": "Read tier, level, and how many times this one has already been approached.",
+      "grants": { "forms": ["tier", "lvl", "attempts"] }
+    },
+    {
+      "id": "core:parley_by_roster",
+      "name": "Parley by what you hold",
+      "section": "parley",
+      "order": 13,
+      "cost": 3,
+      "requires": ["core:parley_threshold"],
+      "desc": "Count your own roster in a parley rule — stop at the fourth Drake, or start at the second.",
+      "grants": { "forms": ["kinCount", "roleCount", "partySize", "partyFull"] }
+    },
+    {
+      "id": "core:parley_refuse",
+      "name": "Refuse outright",
+      "section": "parley",
+      "order": 14,
+      "cost": 2,
+      "requires": ["core:parley_threshold"],
+      "desc": "DECLINE, which stops anyone approaching a thing whatever a later rule says.",
+      "grants": { "actions": ["decline"] }
+    },
+    {
+      "id": "core:parley_second_rule",
+      "name": "A second parley rule",
+      "section": "parley",
+      "order": 15,
+      "cost": 3,
+      "requires": ["core:parley_threshold"],
+      "desc": "One more slot before the standing orders. Order is the argument you are making.",
+      "grants": { "slots": { "recruit": 1 } }
+    },
+    {
+      "id": "core:cut_rule",
+      "name": "The cut rule",
+      "section": "parley",
+      "order": 16,
+      "cost": 2,
+      "desc": "Choose who is dropped when the party is full and something else wants in.",
+      "grants": { "edit": ["cut"] }
+    },
+    {
+      "id": "core:role_rows",
+      "name": "Role rows",
+      "section": "formation",
+      "order": 20,
+      "cost": 2,
+      "desc": "Say which row each Role falls to — including recruits you have never met.",
+      "grants": { "edit": ["formation.autoRow"] }
+    },
+    {
+      "id": "core:pin_a_unit",
+      "name": "Pin a unit",
+      "section": "formation",
+      "order": 21,
+      "cost": 2,
+      "desc": "Name one unit and the slot it stands in, whatever its Role says.",
+      "grants": { "edit": ["formation.pins"], "slots": { "formation.pins": 1 } }
+    },
+    {
+      "id": "core:pin_two_more",
+      "name": "Two more pins",
+      "section": "formation",
+      "order": 22,
+      "cost": 3,
+      "requires": ["core:pin_a_unit"],
+      "desc": "Two further units placed by hand.",
+      "grants": { "slots": { "formation.pins": 2 } }
+    },
+    {
+      "id": "core:mark_by_health",
+      "name": "Mark by health",
+      "section": "focus",
+      "order": 30,
+      "cost": 2,
+      "desc": "Pick who gets hit inside a row by how much health they have left, in raw points or as a fraction.",
+      "grants": {
+        "edit": ["targeting.default", "allyTargeting.default"],
+        "modes": ["lowestHpPct", "highestHpPct", "lowestHp", "highestHp"]
+      }
+    },
+    {
+      "id": "core:mark_by_position",
+      "name": "Mark by position",
+      "section": "focus",
+      "order": 31,
+      "cost": 2,
+      "requires": ["core:mark_by_health"],
+      "desc": "Reach for the front row, the back row, or whatever is in your own lane.",
+      "grants": { "modes": ["frontRow", "backRow", "nearestColumn"] }
+    },
+    {
+      "id": "core:mark_by_threat",
+      "name": "Mark by threat",
+      "section": "focus",
+      "order": 32,
+      "cost": 3,
+      "requires": ["core:mark_by_health"],
+      "desc": "Read what a target does rather than where it stands — sustain, attack, speed, defence, tier.",
+      "grants": { "modes": ["healersFirst", "strongest", "fastest", "weakest", "lowestTier", "highestTier"] }
+    },
+    {
+      "id": "core:second_priority",
+      "name": "A second priority",
+      "section": "focus",
+      "order": 33,
+      "cost": 2,
+      "requires": ["core:mark_by_health"],
+      "desc": "A tiebreak for when the first one cannot separate two targets.",
+      "grants": { "slots": { "targeting.default": 2, "allyTargeting.default": 2 } }
+    },
+    {
+      "id": "core:orders_per_role",
+      "name": "Different orders per Role",
+      "section": "focus",
+      "order": 34,
+      "cost": 3,
+      "requires": ["core:second_priority"],
+      "desc": "Let your Rangers and your Vanguards want different things.",
+      "grants": { "edit": ["targeting.byRole"] }
+    },
+    {
+      "id": "core:what_to_walk_to",
+      "name": "What to walk to",
+      "section": "route",
+      "order": 40,
+      "cost": 2,
+      "desc": "Rank the node types, so the leader reaches the ones you care about first.",
+      "grants": { "edit": ["route.order"] }
+    },
+    {
+      "id": "core:what_to_walk_past",
+      "name": "What to walk past",
+      "section": "route",
+      "order": 41,
+      "cost": 2,
+      "requires": ["core:what_to_walk_to"],
+      "desc": "Skip a node type outright rather than merely visiting it last.",
+      "grants": { "edit": ["route.skip"] }
+    },
+    {
+      "id": "core:when_to_descend",
+      "name": "When to take the stairs",
+      "section": "route",
+      "order": 42,
+      "cost": 3,
+      "requires": ["core:what_to_walk_to"],
+      "desc": "Stop after a set number of nodes and go down, whatever is left on the floor.",
+      "grants": { "edit": ["route.maxNodes"] }
+    },
+    {
+      "id": "core:which_ability_when",
+      "name": "Which ability when",
+      "section": "orders",
+      "order": 50,
+      "cost": 3,
+      "desc": "Name an ability and the condition it is for. A unit that cannot afford the one you named banks its gauge and waits.",
+      "grants": { "edit": ["ability"], "slots": { "ability": 1 }, "forms": ["hpPct", "alliesBelow", "enemyCount", "tick"] }
+    },
+    {
+      "id": "core:second_order",
+      "name": "A second order",
+      "section": "orders",
+      "order": 51,
+      "cost": 3,
+      "requires": ["core:which_ability_when"],
+      "desc": "One more ability rule before the unit falls back to its own list.",
+      "grants": { "slots": { "ability": 1 } }
+    },
+    {
+      "id": "core:branch_preference",
+      "name": "Which branch at 5 and 10",
+      "section": "succession",
+      "order": 60,
+      "cost": 3,
+      "desc": "A unit takes the first branch on offer unless you have said otherwise. It never waits for you; this is where you say otherwise.",
+      "grants": { "edit": ["branch"], "slots": { "branch": 2 }, "forms": ["role", "kin", "lvl"] }
+    },
+    {
+      "id": "core:arithmetic",
+      "name": "Arithmetic in a rule",
+      "section": "parley",
+      "order": 17,
+      "cost": 2,
+      "desc": "Do sums inside a condition — compare one count against another rather than against a number you typed.",
+      "grants": { "groups": ["maths", "data"] }
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "$schema": "../schemas/art_part.schema.json",
+  "kind": "art_part",
+  "_note": "Drawables in joint-local pixels: capsule, ellipse, rect, poly (§15.1). ~60 parts and ~15 ramps are what make a 120-unit roster stylistically unified by construction — coherence is free when everything is assembled from the same box. `fill` is a palette slot (ramp.N / accent.N), never a raw colour, which is why a full-roster recolour is a patch file with no PNGs in it (§15.5).",
+  "defs": [
+    {
+      "id": "core:head_skull",
+      "shapes": [
+        { "type": "ellipse", "cx": 0, "cy": -4, "rx": 5, "ry": 5, "fill": "ramp.4" },
+        { "type": "rect", "x": -4, "y": 0, "w": 8, "h": 3, "fill": "ramp.3" },
+        { "type": "poly", "points": [[-5, -6], [-8, -12], [-3, -7]], "fill": "accent.3" },
+        { "type": "poly", "points": [[5, -6], [8, -12], [3, -7]], "fill": "accent.3" },
+        { "type": "rect", "x": -3, "y": -5, "w": 2, "h": 2, "fill": "accent.2" },
+        { "type": "rect", "x": 1, "y": -5, "w": 2, "h": 2, "fill": "accent.2" }
+      ]
+    },
+    {
+      "id": "core:head_helm",
+      "shapes": [
+        { "type": "rect", "x": -5, "y": -10, "w": 10, "h": 10, "fill": "ramp.3" },
+        { "type": "rect", "x": -5, "y": -5, "w": 10, "h": 2, "fill": "ramp.0" },
+        { "type": "rect", "x": -3, "y": -5, "w": 1, "h": 2, "fill": "accent.3" },
+        { "type": "rect", "x": 2, "y": -5, "w": 1, "h": 2, "fill": "accent.3" },
+        { "type": "poly", "points": [[-1, -11], [1, -11], [2, -16], [-2, -16]], "fill": "accent.2" }
+      ]
+    },
+    {
+      "id": "core:head_drake",
+      "shapes": [
+        { "type": "ellipse", "cx": 0, "cy": -4, "rx": 5.5, "ry": 4.5, "fill": "ramp.3" },
+        { "type": "poly", "points": [[3, -6], [11, -3], [3, -1]], "fill": "ramp.2" },
+        { "type": "poly", "points": [[-2, -8], [-7, -14], [-1, -9]], "fill": "ramp.4" },
+        { "type": "poly", "points": [[2, -8], [-2, -15], [4, -9]], "fill": "ramp.4" },
+        { "type": "rect", "x": 1, "y": -5, "w": 2, "h": 2, "fill": "accent.4" }
+      ]
+    },
+    {
+      "id": "core:head_orb",
+      "shapes": [
+        { "type": "ellipse", "cx": 0, "cy": -4, "rx": 4.5, "ry": 4.5, "fill": "ramp.2" },
+        { "type": "ellipse", "cx": 0, "cy": -4, "rx": 2.2, "ry": 2.2, "fill": "accent.4" },
+        { "type": "capsule", "x1": -6, "y1": -4, "x2": 6, "y2": -4, "r": 0.8, "fill": "ramp.4" }
+      ]
+    },
+    {
+      "id": "core:torso_robe",
+      "shapes": [
+        { "type": "poly", "points": [[-5, -8], [5, -8], [8, 6], [-8, 6]], "fill": "ramp.2" },
+        { "type": "poly", "points": [[-3, -8], [3, -8], [2, 2], [-2, 2]], "fill": "ramp.1" },
+        { "type": "capsule", "x1": -5, "y1": -8, "x2": 5, "y2": -8, "r": 1.6, "fill": "ramp.3" }
+      ]
+    },
+    {
+      "id": "core:torso_plate",
+      "shapes": [
+        { "type": "rect", "x": -6, "y": -9, "w": 12, "h": 15, "fill": "ramp.3" },
+        { "type": "ellipse", "cx": -6, "cy": -7, "rx": 3, "ry": 2.6, "fill": "ramp.4" },
+        { "type": "ellipse", "cx": 6, "cy": -7, "rx": 3, "ry": 2.6, "fill": "ramp.4" },
+        { "type": "rect", "x": -6, "y": 2, "w": 12, "h": 2, "fill": "ramp.1" },
+        { "type": "poly", "points": [[0, -8], [3, -2], [0, 2], [-3, -2]], "fill": "accent.3" }
+      ]
+    },
+    {
+      "id": "core:torso_carapace",
+      "shapes": [
+        { "type": "ellipse", "cx": 0, "cy": -2, "rx": 7, "ry": 8, "fill": "ramp.3" },
+        { "type": "rect", "x": -7, "y": -5, "w": 14, "h": 1, "fill": "ramp.1" },
+        { "type": "rect", "x": -7, "y": -1, "w": 14, "h": 1, "fill": "ramp.1" },
+        { "type": "rect", "x": -7, "y": 3, "w": 14, "h": 1, "fill": "ramp.1" },
+        { "type": "ellipse", "cx": 0, "cy": -6, "rx": 3, "ry": 2, "fill": "accent.3" }
+      ]
+    },
+    {
+      "id": "core:arm_bone",
+      "shapes": [
+        { "type": "capsule", "x1": 0, "y1": 0, "x2": 0, "y2": 10, "r": 1.6, "fill": "ramp.3" },
+        { "type": "ellipse", "cx": 0, "cy": 10, "rx": 2, "ry": 2, "fill": "ramp.4" }
+      ]
+    },
+    {
+      "id": "core:arm_plate",
+      "shapes": [
+        { "type": "capsule", "x1": 0, "y1": 0, "x2": 0, "y2": 9, "r": 2.4, "fill": "ramp.3" },
+        { "type": "rect", "x": -2.5, "y": 7, "w": 5, "h": 2, "fill": "ramp.1" },
+        { "type": "ellipse", "cx": 0, "cy": 11, "rx": 2.2, "ry": 2.2, "fill": "ramp.4" }
+      ]
+    },
+    {
+      "id": "core:legs_hem",
+      "shapes": [
+        { "type": "poly", "points": [[-6, 0], [6, 0], [9, 13], [-9, 13]], "fill": "ramp.2" },
+        { "type": "rect", "x": -9, "y": 11, "w": 18, "h": 2, "fill": "ramp.1" }
+      ]
+    },
+    {
+      "id": "core:leg_plate",
+      "shapes": [
+        { "type": "capsule", "x1": 0, "y1": 0, "x2": 0, "y2": 10, "r": 2.2, "fill": "ramp.3" },
+        { "type": "rect", "x": -3, "y": 10, "w": 6, "h": 2, "fill": "ramp.1" }
+      ]
+    },
+    {
+      "id": "core:wing_membrane",
+      "shapes": [
+        { "type": "poly", "points": [[-2, -4], [-14, -12], [-16, 2], [-3, 4]], "fill": "accent.2" },
+        { "type": "poly", "points": [[2, -4], [14, -12], [16, 2], [3, 4]], "fill": "accent.2" },
+        { "type": "capsule", "x1": -2, "y1": -4, "x2": -14, "y2": -12, "r": 0.9, "fill": "accent.4" },
+        { "type": "capsule", "x1": 2, "y1": -4, "x2": 14, "y2": -12, "r": 0.9, "fill": "accent.4" }
+      ]
+    },
+    {
+      "_note": "Tileset parts — the same generator pointed at a different part set (§15.4). Local coordinates are 0..tile, drawn with no rig and no outline.",
+      "id": "core:tile_void",
+      "shapes": []
+    },
+    {
+      "id": "core:tile_floor",
+      "shapes": [
+        { "type": "rect", "x": 0, "y": 0, "w": 16, "h": 16, "fill": "ramp.0" },
+        { "type": "rect", "x": 1, "y": 1, "w": 14, "h": 14, "fill": "ramp.1" }
+      ]
+    },
+    {
+      "id": "core:tile_floor_alt",
+      "shapes": [
+        { "type": "rect", "x": 0, "y": 0, "w": 16, "h": 16, "fill": "ramp.0" },
+        { "type": "rect", "x": 1, "y": 1, "w": 14, "h": 14, "fill": "ramp.1" },
+        { "type": "rect", "x": 3, "y": 4, "w": 10, "h": 1, "fill": "ramp.2" },
+        { "type": "rect", "x": 3, "y": 11, "w": 10, "h": 1, "fill": "ramp.2" },
+        { "type": "rect", "x": 7, "y": 5, "w": 2, "h": 6, "fill": "ramp.2" }
+      ]
+    },
+    {
+      "id": "core:tile_wall",
+      "shapes": [
+        { "type": "rect", "x": 0, "y": 0, "w": 16, "h": 16, "fill": "ramp.3" },
+        { "type": "rect", "x": 0, "y": 0, "w": 16, "h": 4, "fill": "ramp.4" },
+        { "type": "rect", "x": 0, "y": 14, "w": 16, "h": 2, "fill": "ramp.0" },
+        { "type": "rect", "x": 0, "y": 8, "w": 16, "h": 1, "fill": "ramp.0" },
+        { "type": "rect", "x": 5, "y": 4, "w": 1, "h": 4, "fill": "ramp.0" },
+        { "type": "rect", "x": 11, "y": 9, "w": 1, "h": 5, "fill": "ramp.0" }
+      ]
+    },
+    {
+      "id": "core:tile_door",
+      "shapes": [
+        { "type": "rect", "x": 0, "y": 0, "w": 16, "h": 16, "fill": "ramp.0" },
+        { "type": "rect", "x": 1, "y": 1, "w": 14, "h": 14, "fill": "ramp.1" },
+        { "type": "rect", "x": 3, "y": 2, "w": 10, "h": 13, "fill": "accent.2" },
+        { "type": "rect", "x": 3, "y": 2, "w": 10, "h": 2, "fill": "accent.4" },
+        { "type": "ellipse", "cx": 11, "cy": 9, "rx": 1, "ry": 1, "fill": "accent.4" }
+      ]
+    },
+    {
+      "id": "core:tile_stairs",
+      "shapes": [
+        { "type": "rect", "x": 0, "y": 0, "w": 16, "h": 16, "fill": "ramp.0" },
+        { "type": "rect", "x": 1, "y": 2, "w": 14, "h": 3, "fill": "accent.4" },
+        { "type": "rect", "x": 2, "y": 6, "w": 12, "h": 3, "fill": "accent.3" },
+        { "type": "rect", "x": 3, "y": 10, "w": 10, "h": 3, "fill": "accent.2" },
+        { "type": "rect", "x": 4, "y": 14, "w": 8, "h": 2, "fill": "accent.1" }
+      ]
+    },
+    {
+      "id": "core:tile_node",
+      "shapes": [
+        { "type": "rect", "x": 0, "y": 0, "w": 16, "h": 16, "fill": "ramp.1" },
+        { "type": "rect", "x": 1, "y": 1, "w": 14, "h": 14, "fill": "ramp.2" },
+        { "type": "poly", "points": [[8, 3], [13, 8], [8, 13], [3, 8]], "fill": "accent.3" },
+        { "type": "poly", "points": [[8, 6], [10, 8], [8, 10], [6, 8]], "fill": "accent.4" }
+      ]
+    }
+  ]
+}

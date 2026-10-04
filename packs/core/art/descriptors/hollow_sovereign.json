@@ -1,0 +1,18 @@
+{
+  "$schema": "../../schemas/art_descriptor.schema.json",
+  "id": "core:hollow_sovereign",
+  "rig": "core:biped",
+  "seed": 8801,
+  "scale": 1.22,
+  "_note": "A boss costs exactly what any other unit costs: one descriptor over the shared rig, parts and ramps (§15). The crowned silhouette is a helm, a cape off the back joint and 22% more scale — no new parts, no new clips.",
+  "palette": { "ramp": "core:necrotic", "accent": "core:ember" },
+  "parts": {
+    "back": { "shape": "core:wing_membrane" },
+    "head": { "shape": "core:head_helm", "scale": 1.15 },
+    "torso": { "shape": "core:torso_plate" },
+    "armL": { "shape": "core:arm_plate" },
+    "armR": { "shape": "core:arm_plate" },
+    "legL": { "shape": "core:leg_plate" },
+    "legR": { "shape": "core:leg_plate" }
+  }
+}

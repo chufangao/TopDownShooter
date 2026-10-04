@@ -1,0 +1,69 @@
+{
+  "$schema": "../schemas/pact.schema.json",
+  "kind": "pact",
+  "_note": "Layer 2 of three (§3): named, discoverable, cross-axis recipes with codex entries — the 'what does THIS do with THAT' moments. Note the shape is identical to a Resonance and the loader validates them with the same function; synergy.js activates both in one walk. That is the M2 gate, and it is why the 30th Pact costs the same to ship as the 12th.",
+  "defs": [
+    {
+      "id": "core:scaled_wall",
+      "name": "Scaled Wall",
+      "recipe": "Drake 2 + Vanguard 2",
+      "desc": "The front row takes 20% less melee damage.",
+      "_note": "§11.5's worked example, shipped verbatim as one row of data. There is no scaled_wall.js.",
+      "when": ["and", ["gte", ["kinCount", "core:drake"], 2], ["gte", ["roleCount", "core:vanguard"], 2]],
+      "hooks": [
+        {
+          "point": "damage:compute",
+          "on": "target",
+          "field": "mul",
+          "op": "mul",
+          "v": 0.8,
+          "prio": 50,
+          "when": ["and", "$melee", ["eq", ["row", "$target"], 0]]
+        }
+      ]
+    },
+    {
+      "id": "core:glamour",
+      "name": "Glamour",
+      "recipe": "Fae 2 + Trickster 2",
+      "desc": "Persuade threshold rises to 60% HP.",
+      "_note": "The acquisition build. A whole extra 30% of an enemy's health bar is time you no longer have to spend not-killing it (§2).",
+      "when": ["and", ["gte", ["kinCount", "core:fae"], 2], ["gte", ["roleCount", "core:trickster"], 2]],
+      "modifiers": [{ "path": "persuade.threshold", "op": "set", "v": 0.6 }]
+    },
+    {
+      "id": "core:swarm_logic",
+      "name": "Swarm Logic",
+      "recipe": "Insect 4 + Skirmisher 2",
+      "desc": "+16% gauge rate across the party.",
+      "when": ["and", ["gte", ["kinCount", "core:insect"], 4], ["gte", ["roleCount", "core:skirmisher"], 2]],
+      "modifiers": [{ "path": "gauge.rate", "op": "mul", "v": 1.16 }]
+    },
+    {
+      "id": "core:grave_vigil",
+      "name": "Grave Vigil",
+      "recipe": "Undead 4 + Warden 2",
+      "desc": "+25% max HP. What is already dead endures.",
+      "when": ["and", ["gte", ["kinCount", "core:undead"], 4], ["gte", ["roleCount", "core:warden"], 2]],
+      "modifiers": [{ "path": "hp", "op": "mul", "v": 1.25 }]
+    },
+    {
+      "id": "core:silver_tongue",
+      "name": "Silver Tongue",
+      "recipe": "Humanoid 2 + Trickster 2",
+      "desc": "+60 Charm, and a failed attempt hardens the mark less.",
+      "when": ["and", ["gte", ["kinCount", "core:humanoid"], 2], ["gte", ["roleCount", "core:trickster"], 2]],
+      "modifiers": [{ "path": "charm", "op": "add", "v": 60 }],
+      "hooks": [{ "point": "persuade:roll", "on": "actor", "field": "chance", "op": "mul", "v": 1.25, "prio": 40 }]
+    },
+    {
+      "id": "core:ember_choir",
+      "name": "Ember Choir",
+      "recipe": "Drake 2 + Channeler 2",
+      "desc": "+20% damage dealt, and crits hit harder.",
+      "when": ["and", ["gte", ["kinCount", "core:drake"], 2], ["gte", ["roleCount", "core:channeler"], 2]],
+      "modifiers": [{ "path": "damage.dealt", "op": "mul", "v": 1.2 }],
+      "hooks": [{ "point": "damage:compute", "on": "actor", "field": "critMul", "op": "add", "v": 0.35, "prio": 40 }]
+    }
+  ]
+}

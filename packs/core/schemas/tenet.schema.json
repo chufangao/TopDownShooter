@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://retinue.local/schemas/tenet.schema.json",
+  "title": "tenet content file",
+  "description": "One small named power the player buys with Codex (§4.2). The sum of the tenets you own is exactly what your Doctrine is allowed to say — which fields exist, how many rules each holds, which chips are legal, which modes and actions are offered. Nothing hands one over; you browse the list and spend.",
+  "type": "object",
+  "required": ["kind", "defs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string" },
+    "kind": { "const": "tenet" },
+    "defs": { "type": "array", "items": { "$ref": "#/$defs/tenet" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+    "tenet": {
+      "type": "object",
+      "required": ["id", "name", "desc", "cost", "grants"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "_note": { "type": "string" },
+        "name": {
+          "type": "string",
+          "description": "Plain, not flavourful. This is a price tag on a shelf; the player has to know what they are buying without opening it."
+        },
+        "desc": {
+          "type": "string",
+          "description": "One sentence: what you can say afterwards that you could not say before."
+        },
+        "section": { "type": "string", "description": "Display grouping in the shop. Cosmetic; the sim knows nothing about it." },
+        "order": { "type": "number", "description": "Display order within the shop." },
+        "cost": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Codex. A count of discoveries, not a farmable resource (§5) — so the whole list is deliberately unaffordable and what you buy is an argument about how you want to play."
+        },
+        "requires": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" },
+          "description": "Prerequisites, not a price rise. A chip with nowhere to put it is not worth selling."
+        },
+        "grants": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Additive and order-independent — a union of sets and a sum of integers, so two players holding the same tenets hold the same capabilities whatever order they bought them in.",
+          "properties": {
+            "edit": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Doctrine paths this opens for authoring. A path nothing grants does not appear in the panel at all."
+            },
+            "slots": {
+              "type": "object",
+              "additionalProperties": { "type": "integer", "minimum": 1 },
+              "description": "How many entries may sit at a path. Summed across every tenet that grants some."
+            },
+            "forms": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Expr forms legal in rules (§11.6). Structural forms — and, ≤, +, a number — are always free; the ones sold here are the forms that read a fact about the world."
+            },
+            "modes": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Targeting mode ids this makes selectable."
+            },
+            "actions": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Recruit actions this makes selectable — persuade, kill, decline."
+            },
+            "groups": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "A whole form group at once, for a tenet that sells a way of saying things rather than a fact to say. Only `logic` and `compare` are free — arithmetic is bought, because thirteen maths chips in the dropdown of somebody who owns one tenet is the problem this design exists to fix."
+            }
+          }
+        }
+      }
+    }
+  }
+}

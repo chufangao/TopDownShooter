@@ -1,0 +1,368 @@
+{
+  "v": 1,
+  "contentHash": "c6be8367",
+  "mods": [
+    {
+      "id": "core",
+      "version": "1.0.0"
+    }
+  ],
+  "uid": 107,
+  "state": {
+    "profile": {
+      "collection": [
+        "core:bone_chanter",
+        "core:clockwork_page",
+        "core:clockwork_page",
+        "core:clockwork_page",
+        "core:clockwork_page",
+        "core:clockwork_page",
+        "core:frost_sprite",
+        "core:tomb_knight"
+      ],
+      "codex": [
+        "pact:core:glamour",
+        "recruit:core:bone_chanter",
+        "recruit:core:clockwork_page",
+        "recruit:core:frost_sprite",
+        "recruit:core:hive_warden"
+      ],
+      "residue": 26,
+      "lifetimeResidue": 26,
+      "insight": 0,
+      "prestiges": 0,
+      "lattice": {},
+      "doctrine": {
+        "v": 2,
+        "formation": {
+          "pins": {
+            "core:tomb_knight": 0
+          },
+          "autoRow": {}
+        },
+        "targeting": {
+          "default": [
+            "lowestHpPct"
+          ],
+          "byRole": {}
+        },
+        "allyTargeting": {
+          "default": [
+            "lowestHpPct"
+          ],
+          "byRole": {}
+        },
+        "ability": [],
+        "recruit": [
+          {
+            "_note": "Anything rare enough to be worth a slot is worth three attempts, and worth catching early.",
+            "when": [
+              "and",
+              [
+                "gte",
+                [
+                  "tier",
+                  "$target"
+                ],
+                3
+              ],
+              [
+                "lt",
+                [
+                  "attempts",
+                  "$target"
+                ],
+                3
+              ]
+            ],
+            "action": "persuade",
+            "at": 0.45
+          },
+          {
+            "_note": "Otherwise only chase tags we are actually short of — recruiting a fourth Undead is a slot spent on a Resonance we already have. This is the bridge between the tree and the roster (§5).",
+            "when": [
+              "and",
+              [
+                "lt",
+                [
+                  "kinCount",
+                  [
+                    "kin",
+                    "$target"
+                  ]
+                ],
+                3
+              ],
+              [
+                "lt",
+                [
+                  "attempts",
+                  "$target"
+                ],
+                2
+              ]
+            ],
+            "action": "persuade",
+            "at": 0.3
+          },
+          {
+            "_note": "Every attempt is a swing not taken. When the rules above stop matching, finish the fight.",
+            "when": true,
+            "action": "kill"
+          }
+        ],
+        "cut": "lowestLevel",
+        "route": {
+          "order": {
+            "treasure": 0,
+            "shrine": 0,
+            "merchant": 0,
+            "secret": 0,
+            "encounter": 1,
+            "campfire": 2,
+            "rare": 3,
+            "elite": 4,
+            "boss": 5
+          },
+          "skip": [],
+          "maxNodes": null
+        },
+        "granted": [
+          "core:persuade"
+        ]
+      }
+    },
+    "run": {
+      "seed": 1701,
+      "floorNum": 2,
+      "visited": 23,
+      "deepest": 2,
+      "over": true,
+      "reason": "cleared",
+      "coin": 562,
+      "discovered": [
+        "recruit:core:frost_sprite",
+        "recruit:core:clockwork_page",
+        "recruit:core:bone_chanter",
+        "pact:core:glamour",
+        "recruit:core:hive_warden"
+      ],
+      "bias": null,
+      "roster": [
+        {
+          "lvl": 6,
+          "xp": 58,
+          "star": 1,
+          "hp": 222,
+          "maxHp": 222,
+          "gauge": 0,
+          "slot": 0,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 1,
+          "defId": "core:tomb_knight"
+        },
+        {
+          "lvl": 6,
+          "xp": 58,
+          "star": 1,
+          "hp": 123,
+          "maxHp": 123,
+          "gauge": 0,
+          "slot": 8,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 2,
+          "defId": "core:bone_chanter"
+        },
+        {
+          "lvl": 6,
+          "xp": 58,
+          "star": 1,
+          "hp": 84,
+          "maxHp": 84,
+          "gauge": 0,
+          "slot": 4,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 3,
+          "defId": "core:frost_sprite"
+        },
+        {
+          "lvl": 6,
+          "xp": 46,
+          "star": 1,
+          "hp": 84,
+          "maxHp": 84,
+          "gauge": 0,
+          "slot": 5,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 6,
+          "defId": "core:frost_sprite",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 34,
+          "star": 1,
+          "hp": 103,
+          "maxHp": 103,
+          "gauge": 0,
+          "slot": 6,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 8,
+          "defId": "core:clockwork_page",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 28,
+          "star": 1,
+          "hp": 84,
+          "maxHp": 84,
+          "gauge": 0,
+          "slot": 7,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 10,
+          "defId": "core:frost_sprite",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 28,
+          "star": 1,
+          "hp": 84,
+          "maxHp": 84,
+          "gauge": 0,
+          "slot": 1,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 12,
+          "defId": "core:frost_sprite",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 0,
+          "star": 1,
+          "hp": 103,
+          "maxHp": 103,
+          "gauge": 0,
+          "slot": 9,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 17,
+          "defId": "core:clockwork_page",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 0,
+          "star": 1,
+          "hp": 123,
+          "maxHp": 123,
+          "gauge": 0,
+          "slot": 10,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 18,
+          "defId": "core:bone_chanter",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 0,
+          "star": 1,
+          "hp": 26,
+          "maxHp": 103,
+          "gauge": 0,
+          "slot": 2,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 102,
+          "defId": "core:clockwork_page",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 0,
+          "star": 1,
+          "hp": 29,
+          "maxHp": 103,
+          "gauge": 0,
+          "slot": 3,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 104,
+          "defId": "core:clockwork_page",
+          "left": false
+        },
+        {
+          "lvl": 6,
+          "xp": 0,
+          "star": 1,
+          "hp": 26,
+          "maxHp": 103,
+          "gauge": 0,
+          "slot": 11,
+          "side": "party",
+          "statuses": [],
+          "branch": [],
+          "persuadeAttempts": 0,
+          "phase": 0,
+          "pinned": false,
+          "uid": 106,
+          "defId": "core:clockwork_page",
+          "left": false
+        }
+      ]
+    }
+  }
+}

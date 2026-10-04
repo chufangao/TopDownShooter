@@ -1,0 +1,130 @@
+{
+  "$schema": "../schemas/ability.schema.json",
+  "kind": "ability",
+  "_note": "An ability is a `when` gate, a targeting shape, and an ordered list of effects naming registered ops (§11.4). No ability is code. Shapes read off the 3×4 grid; melee abilities reach only the enemy's frontmost occupied row, which is what makes 'who goes in front' a real decision (§3).",
+  "defs": [
+    {
+      "id": "core:strike",
+      "name": "Strike",
+      "castCost": 100,
+      "shape": "single",
+      "melee": true,
+      "element": "core:physical",
+      "anim": "core:melee_lunge",
+      "effects": [{ "op": "core:damage", "power": 30, "element": "core:physical" }]
+    },
+    {
+      "id": "core:cleave",
+      "name": "Cleave",
+      "castCost": 140,
+      "shape": "row",
+      "melee": true,
+      "element": "core:physical",
+      "anim": "core:melee_lunge",
+      "when": ["gte", ["enemyCount"], 2],
+      "effects": [{ "op": "core:damage", "power": 22, "element": "core:physical" }]
+    },
+    {
+      "id": "core:marrow_bolt",
+      "name": "Marrow Bolt",
+      "castCost": 100,
+      "shape": "single",
+      "element": "core:dark",
+      "anim": "core:cast_beam",
+      "effects": [
+        { "op": "core:damage", "power": 34, "element": "core:dark" },
+        { "op": "core:apply_status", "status": "core:brittle", "dur": 120, "chance": 0.35 }
+      ]
+    },
+    {
+      "id": "core:dirge",
+      "name": "Dirge",
+      "castCost": 180,
+      "shape": "all_allies",
+      "element": "core:dark",
+      "anim": "core:cast_beam",
+      "_note": "The Channeler opener. Priced so it lands once or twice early and then falls through to damage — the gate is a tick window rather than a cooldown, because `when` gates are a primitive the player can also write (§11.6) and cooldowns would be a second system.",
+      "effects": [{ "op": "core:apply_status", "status": "core:hasten", "dur": 100 }],
+      "when": ["lt", ["tick"], 150]
+    },
+    {
+      "id": "core:ember_arc",
+      "name": "Ember Arc",
+      "castCost": 160,
+      "shape": "column",
+      "element": "core:fire",
+      "anim": "core:ranged_bolt",
+      "effects": [{ "op": "core:damage", "power": 26, "element": "core:fire" }],
+      "when": ["gte", ["enemyCount"], 2],
+      "_note": "A column pierce is worth its price only against a stack; against one target the drake just hits it."
+    },
+    {
+      "id": "core:frost_lance",
+      "name": "Frost Lance",
+      "castCost": 120,
+      "shape": "single",
+      "element": "core:frost",
+      "anim": "core:ranged_bolt",
+      "effects": [{ "op": "core:damage", "power": 30, "element": "core:frost" }, { "op": "core:gauge", "amount": -20 }]
+    },
+    {
+      "id": "core:mend",
+      "name": "Mend",
+      "castCost": 130,
+      "shape": "ally",
+      "element": "core:holy",
+      "anim": "core:cast_beam",
+      "when": ["gte", ["alliesBelow", 0.5], 1],
+      "effects": [
+        { "op": "core:heal", "power": 28 },
+        { "op": "core:apply_status", "status": "core:regen", "dur": 200, "chance": 0.5 }
+      ]
+    },
+    {
+      "id": "core:purge",
+      "name": "Purge",
+      "castCost": 110,
+      "shape": "ally",
+      "element": "core:holy",
+      "anim": "core:cast_beam",
+      "effects": [{ "op": "core:cleanse", "tag": "debuff", "count": 2 }, { "op": "core:heal", "power": 8 }],
+      "when": ["gte", ["alliesBelow", 0.9], 1]
+    },
+    {
+      "id": "core:persuade",
+      "name": "Persuade",
+      "_note": "Granted by the Recruit doctrine rather than listed on any unit (§4). Priced near a basic attack: the cost of an attempt is one swing you did not take, which is the whole tension.",
+      "castCost": 120,
+      "shape": "single",
+      "element": "core:holy",
+      "anim": "core:cast_beam",
+      "effects": [{ "op": "core:persuade" }]
+    },
+    {
+      "id": "core:sovereign_sweep",
+      "name": "Sovereign Sweep",
+      "castCost": 150,
+      "shape": "row",
+      "melee": true,
+      "element": "core:physical",
+      "anim": "core:melee_lunge",
+      "_note": "A boss alone against a 3x4 grid needs reach or it loses to arithmetic. Melee, so the formation still decides who eats it — the back row is a real answer to this ability.",
+      "effects": [{ "op": "core:damage", "power": 26, "element": "core:physical" }]
+    },
+    {
+      "id": "core:grave_tide",
+      "name": "Grave Tide",
+      "castCost": 260,
+      "shape": "all",
+      "melee": false,
+      "element": "core:dark",
+      "anim": "core:cast_beam",
+      "_note": "Gated on the caster's own HP rather than listed first, because the policy banks gauge for the highest-priority ability that passes its gate (§2). Ungated it would be the only thing the boss ever did; gated at half health it is what the fight turns into.",
+      "when": ["lte", ["hpPct", "$self"], 0.6],
+      "effects": [
+        { "op": "core:damage", "power": 24, "element": "core:dark" },
+        { "op": "core:apply_status", "status": "core:brittle", "dur": 120, "chance": 0.4 }
+      ]
+    }
+  ]
+}

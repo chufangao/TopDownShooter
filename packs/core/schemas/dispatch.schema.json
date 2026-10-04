@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://retinue.local/schemas/dispatch.schema.json",
+  "title": "dispatch content file",
+  "description": "A report: this happened (§4.1). Raised after the fact, queued, never waited on, and it offers nothing — what to do about it is the player's to deduce and the player's to buy. There is deliberately no `offers` field; adding one rebuilds the Precedent, which is the shape §4.1 records as wrong.",
+  "type": "object",
+  "required": ["kind", "defs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "_note": { "type": "string" },
+    "kind": { "const": "dispatch" },
+    "defs": { "type": "array", "items": { "$ref": "#/$defs/dispatch" } }
+  },
+  "$defs": {
+    "dispatch": {
+      "type": "object",
+      "required": ["id", "when", "title", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+:[a-z0-9_]+$" },
+        "_note": { "type": "string" },
+        "topic": { "enum": ["combat", "party", "route", "run"], "description": "Cosmetic grouping for the feed." },
+        "prio": { "type": "number", "description": "Queue order, highest first. The feed is capped at 4." },
+        "once": {
+          "enum": ["run", "profile", "never"],
+          "description": "The whole cooldown model. `run` for a pattern that should keep being reported while it keeps happening; `profile` for a first-time measurement. A dispatch that can fire twice a run is one that will."
+        },
+        "when": {
+          "type": "array",
+          "description": "expr tree (§11.6). The ONLY place `signalCount`, `signalSince` and `hasTenet` are legal — everywhere else they are a validation error, which is what keeps combat independent of save history (§4.3)."
+        },
+        "title": { "type": "string", "description": "Interpolates the same three forms the body does." },
+        "body": {
+          "type": "string",
+          "description": "A measurement with words around it. Interpolates {signalCount:name}, {signalTotal:name} and {last:name.field}. It must not recommend, and it must not name a tenet: the test is whether two players could read it and reasonably do different things."
+        }
+      }
+    }
+  }
+}
