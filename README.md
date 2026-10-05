@@ -1,145 +1,144 @@
 # RETINUE
 
-A roguelite party autobattler shaped like Slay the Spire. Your party fights on the standing orders
-you wrote; you choose the route, the spoils and the cuts, and spend a small budget of **Commands**
-to overrule it mid-fight. One currency, spent inside the run. Prestige only makes it harder.
+A small roguelite autobattler in the browser. You lead a party through four floors, choosing your
+route room by room. Fights play out on their own in real time, and you get three Commands per fight
+to overrule them. Beat the boss at the end of floor 4, or lose when your whole party falls.
 
-See [PLAN.md](PLAN.md) for the full design and build order.
+## The gameplay loop
 
-## The architectural rule
-
-> Combat resolves entirely in pure JS. The sim emits an ordered event timeline. Phaser plays that
-> timeline back. Animation never feeds back into resolution.
-
-Nothing under `src/sim/` may import Phaser, read a clock, or call `Math.random`.
-
-## Layout
+A run is four floors. You start with three level-2 units (Tomb Knight, Bone Chanter, Frost Sprite)
+and try to grow them into a party of up to 12 strong enough to kill the Hollow Sovereign at the
+bottom. Every run follows the same loop:
 
 ```
-packs/core/         all first-party content — a mod like any other (§13.1)
-  content/*.json    units, abilities, statuses, tuning, rigs, clips, parts, palettes
-  art/descriptors/  sprite source of truth — ~40 lines per unit (§15)
-  art/baked/        generated atlases, committed
-  schemas/          a JSON Schema per content kind, so editors autocomplete content
-src/sim/            pure JS simulation. Runs in Node and in a Worker. No Phaser, ever.
-src/sim/kernel/     the seven primitives everything is built from (§11)
-src/sim/combat/     resolve · battle · rules — the three files with a §18.9 size alarm
-src/engine/         the only place Phaser is imported
-src/ui/             the Doctrine editors — plain DOM over the canvas, never a Phaser scene
-test/               every test, mirroring src/ — kernel/ combat/ sim/ mods/ tools/
-tools/              headless CLI: lint, fmt, art, modcheck, sim, balance (replay to come)
-legacy-pygame/      the original 2019 PyGame prototype
+ ┌──► MAP: pick the next room ───────────────────────────────┐
+ │       │ fight / elite / boss      │ treasure   │ campfire  │
+ │       ▼                           ▼            ▼           │
+ │    BATTLE: watch, spend Commands  SPOILS:      heal all,   │
+ │       │ win            │ wipe     3 relics     revive      │
+ │       ▼                ▼            │            │         │
+ │    SPOILS: pick 1 of 3  RUN OVER    │            │         │
+ │       │                             │            │         │
+ │    (SWAP if a recruit arrives        │            │         │
+ │     with the party full)             │            │         │
+ └───────┴──────────────────────────────┴────────────┘         │
+   after the floor's last room → next floor (boss on floor 4) ◄┘
 ```
 
-Tests live under `test/`, never beside the code they cover — colocated tests drop out of the suite
-the moment the runner's glob changes, and `npm run lint` fails if one appears under `src/`.
+### 1. Choose a room
+
+Each floor is a one-way map: a start, five ranks of 2–3 rooms, and a final room. It's an elite on
+floors 1–3 and the boss on floor 4. You can only move forward to a room connected to the one you're
+in, so taking one branch gives up the rooms on the others. A floor is 6 rooms long.
+
+| Room | What happens |
+|---|---|
+| Fight | 3 foes. Win for 1 of 3 spoils. |
+| Elite | 4 tougher foes. The spoils always include a relic. |
+| Treasure | No fight. Pick 1 of 3 relics. |
+| Campfire | No fight. Full heal, and the fallen revive at 50% HP. The rank before each floor's final room always has exactly one. |
+| Boss | The Hollow Sovereign alone. It can't be recruited and gets stronger at 60% and 25% HP. |
+
+While on the map you can also rearrange the party on the 3×4 formation grid (click two slots to
+swap them). Position matters: melee attacks only reach the enemy's frontmost occupied row, the
+front row draws most single-target attacks, and the back row takes less melee damage. Synergies
+activate from how many units share a kin or role (Undead 2, Vanguard 2, …) and are listed on the
+map screen.
+
+### 2. Fight, and overrule it
+
+Battles run on their own in real time. Each unit's gauge fills by speed, and it acts when the gauge
+covers its next ability, using simple built-in priorities. You don't control units directly.
+Instead you get **3 Commands per battle**, which don't carry over:
+
+- **Focus** (Q): every party unit targets one foe for 6 seconds.
+- **Parley** (W): the next party unit to act tries to persuade a weakened foe (≤30% HP) to join you
+  instead of attacking. The chance is shown over each eligible foe. It's higher the weaker the foe
+  is, and lower after each failed attempt on it. If the foe dies before the attempt, you get the
+  Command back. **Parley is the main way to grow your party.**
+- **Brace** (E): an ally steps back a row if the slot behind it is free, and takes 40% less damage
+  for 5 seconds.
+- **Unleash** (R): an ally's gauge fills at once and it casts its most expensive usable ability.
+
+Picking a Command pauses the fight. Click a highlighted target to issue it, or Esc to cancel.
+Space pauses at any time and 1 / 2 / 4 set the speed. Long fights escalate: all damage ramps up
+after 45 seconds (90 for the boss), so nothing stalls.
+
+### 3. Collect spoils and recruits
+
+If you win, survivors gain XP (levels raise stats, up to level 10), and everyone standing heals
+half their max HP. Fallen units stay down at 0 HP until a campfire or a Rest revives them. Then you
+pick 1 of 3 spoils, or skip:
+
+- **Relic**: a permanent party bonus for the rest of the run, such as +12% ATK, +1 Command per
+  battle, or Parley working up to 45% HP.
+- **Drill**: every unit gains a level.
+- **Rest**: everyone is healed to at least 50%, and the fallen revive at 25%.
+- **Recruit**: a random unit joins at your party's median level.
+
+Foes won by Parley join after the battle at the party's median level, keeping the HP they were
+persuaded at (minimum 25%). If the party is already at 12, a swap screen asks you to release
+someone for the newcomer or turn it away.
+
+### 4. Go deeper
+
+Clearing a floor's final room takes you to the next floor with your party, relics and wounds
+intact. Foes get stronger each floor. The run ends when your whole party falls (defeat) or when you
+kill the boss on floor 4 (victory). Nothing carries over between runs.
 
 ## Run it
 
 ```
 npm install
-npm run dev          # → http://localhost:5173
+npm run dev                 # http://localhost:5173
 ```
 
-The party walks the floor, cuts to a battle screen at every encounter, and carries its wounds to
-the next fight. It fights on its own standing orders and you overrule it: **`tab` opens the
-Doctrine**, where you rewrite those orders for the rest of the run. `1 2 4` change the view speed
-and `?seed=anything` in the URL picks a run.
-
-*Not yet built (M5, see [PLAN.md](PLAN.md) §2.6 and §6):* the branching one-way floor map you route
-yourself, the 1-of-3 spoils pick after each fight, and the three **Commands** per battle — Focus ·
-Parley · Brace · Unleash — that are the reason to watch a fight rather than skip it. The current
-build still plays the previous design's self-routing run.
+Add `?seed=anything` to the URL to play a specific run.
 
 ```
-npm test                            # node --test over test/ — sim + art, no browser
-npm run lint                        # schema, dangling refs, architecture invariants (§18)
-npm run fmt                         # canonical formatting for every pack JSON
-npm run art                         # rebake stale descriptors into committed atlases
-npm run modcheck test/fixtures/kindled --trust
+npm test                    # node --test, sim only, no browser
+node tools/sim.js --runs 100   # headless autoplayed runs; prints clear rate, battle length, recruits
 ```
 
+## Layout
+
 ```
-node tools/sim.js --runs 20                     # 20 seeded runs, headless, no browser
-node tools/sim.js --seed 7 --verbose             # one run, node by node
-node tools/balance.js --n 400 > balance.csv      # win rate and time-to-kill per floor
-node tools/balance.js --n 200 --sweep damage.atkDivisor=10,28,40
+src/
+  main.js        boot: Phaser game + DOM UI, wires the screens to the run
+  content/       units, abilities, statuses, elements, tags, synergies, relics, tuning, anims
+  sim/           pure game logic
+    rng formula formation stats
+    battle.js    createBattle / stepBattle / runBattle
+    ai.js        default unit behaviour
+    commands.js  Focus, Parley, Brace, Unleash
+    map.js       floor generation
+    spoils.js    1-of-3 offers
+    run.js       run state machine and replay
+    autoplay.js  heuristic player used by tests and tools/sim.js
+  engine/        Phaser: boot, battle scene, animation playback
+  ui/            plain DOM screens and one stylesheet
+  assets/        baked sprite atlas and animations
+test/            content, formula, battle, commands, map, run
+tools/sim.js     balance runs
 ```
 
-`npm test` and `npm run lint` use Node built-ins only — they run with no `node_modules`. So do
-`tools/sim.js` and `tools/balance.js`: the whole simulation runs in Node because nothing under
-`src/sim/` imports Phaser, which is the payoff of the one architectural rule.
+## The one rule
 
-## Status
+`src/sim/` is pure: no Phaser import, no `Math.random`, no `Date`. All randomness comes from the
+seeded RNG in `src/sim/rng.js`. A battle replays exactly from its seed and the Commands issued, and
+a whole run replays from its seed and input log. That is what lets the tests, the autoplayer and
+`tools/sim.js` run in Node without a browser.
 
-| | Deliverable | State |
-|---|---|---|
-| K0 | `src/sim/kernel/` — the seven primitives | done |
-| K1 | pack loader + `packs/core/` as a pack + `tools/lint.js` | done |
-| K2 | `tools/art.js` — descriptors to baked atlases | done |
-| M0 | Vite + Phaser 4, dungeon generator, leader + follower chain | done |
-| M1 | `combat/resolve.js` + `BattleScene` timeline playback | done |
-| M2 | Roster, tags, Resonance, party management, **persuade** | done |
-| M3 | Doctrine editors over expr trees; export/import | done |
-| M4 | Floors, node types, XP, **boss**, spawn tables, run economy, save + repair | done |
-| M3.5 | **Signal ledger + Tenets + Dispatches** — a Doctrine can say only what was paid for | done |
-| M2.5 | Third-party pack delivery: zip → OPFS, trust toggle | open |
-| M5 | **Commands, the branching one-way map, the spoils screen** | next |
-| M5.5 | **One currency**: Coin only, items + merchants, **Ascent**, post-mortem | open |
-| M6 | Pacts, Banners, branches, fusion, ~40 units | open |
+## Adding a unit
 
-**K0 gate** — registry freezes; expr evaluates; modifiers resolve identically under 100 shuffles;
-RNG streams are independent (draining one stream 1000× cannot move another).
-
-**K1 gate** — nothing under `src/` imports a content file, and `core` reaches the registry only
-through `createGame()`. Load `core` + three other packs in 40 random orders → one content hash.
-[test/fixtures/kindled/](test/fixtures/kindled/) is a real external pack shipping content, a patch,
-art and a sandboxed script through that same door.
-
-**K2 gate** — 7 descriptors over 1 rig, 6 clips, 19 parts and 10 ramps bake to 168 frames in one
-atlas. Same inputs → byte-identical PNG, so the committed art diffs cleanly and CI fails on stale
-art. Adding a unit is one JSON file and one descriptor; no PNG is ever drawn by hand.
-
-**M0 gate** — `entry → exit` reachable across 500 seeded generations, every node walkable, and the
-same seed reproduces the same floor.
-
-**M2 gate** — a Pact and a Resonance share one code path: same shape, same validator function, same
-activation walk in [synergy.js](src/sim/synergy.js), same modifier collection, same hook-row walk.
-Scaled Wall and Glamour are rows of JSON with no code behind them. Over 100 seeded battles the
-observed recruit count matches the sum of the chances the sim rolled against, within 4σ.
-
-**M3 gate** — a Doctrine round-trips through JSON unchanged, and *rewriting a rule changes what
-happens*: a KILL-everything set recruits nobody over 24 seeded battles and a PERSUADE-everything set
-recruits repeatedly, on the same seeds and the same spawns. All five editors of §4 are live —
-Formation, Targeting, Ability, Recruit, Route — and none of them enumerates a hardcoded list: every
-chip menu is generated from the registered form signatures, so a pack that ships a form gets an
-editor entry for it with no UI work. Every rule carries a live fire count, and clicking a `0` prints
-the evaluation that produced it — `tier($target) → 1`, `tier($target) ≥ 3 → false`. Editing is safe
-mid-run because the draft only goes live at a node boundary, and never at all while it has an error.
-
-**M3.5 shipped, and then the frame around it changed.** What M3.5 built stands: a Doctrine can say
-only what its holder paid for, reports state facts and never recommend, and the chip editor,
-validator, fire counts and export string are unchanged. What moved is how much rests on it. The
-Doctrine used to be the *only* interaction in a self-playing game, which is why it grew three
-designs in a row; it is now **standing orders** — what the party does between the moments you
-overrule it. A rule that works is a Command you get to keep, which is the first time writing one has
-had a price to beat. See §4 of [PLAN.md](PLAN.md) for the full reframe and what it retires.
-
-**M4 gate** — two claims, both measured rather than asserted. *A seeded run reaches floor 4 without a
-hand-built party*: `node tools/sim.js --runs 20` reports 15/20, median floor 8, and 14 of the 20 kill
-the floor-8 boss. *Removing a pack loads the save with a readable report*: a save written against core
-+ [kindled](test/fixtures/kindled/) loads against core alone, naming the dropped unit and keeping the
-rest of the party — removing a mod must never brick a save, and that alone decides whether anyone is
-willing to try one. Spawn tables are content, so a pack joins the pool by shipping one `spawn` block
-and touching nothing else; a boss is a unit def with three extra fields and no code behind it at all.
-
-**M1 gate** — the make-or-break one. `resolve.js` is 140 lines (89 of code) and knows nothing about any
-ability. A fixed seed produces a stable timeline hash across two independently loaded kernels;
-stepping tick-by-tick is byte-identical to running the battle in one go; the same seed at ×1 and
-×8 yields the same hash and the same final HP. 10,000 fuzzed battles find no stall, no negative
-HP, no unit acting twice on one gauge fill, and no fractional damage. The hash is printed on the
-battle screen so you can check it by eye.
+Add one entry to `src/content/units.js` (stats, kin, role, element, abilities, spawn weight) and
+reference abilities from `src/content/abilities.js`. Sprites come from the baked atlas in
+`src/assets/`; the generator that made it is gone, so a new unit's `art` key must name frames that
+already exist there. Pointing it at an existing unit's key reuses that sprite. `test/content.test.js`
+checks that every reference and every frame resolves, and it also asserts the unit count, so update
+that number too.
 
 ## License
 
-GPL-3.0-or-later, inherited from the prototype this replaces.
+GPL-3.0-or-later, inherited from the 2019 PyGame prototype. The prototype lives in git history at
+commit `377c703`.
