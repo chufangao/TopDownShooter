@@ -6,17 +6,9 @@
   "license": "GPL-3.0-or-later",
   "description": "RETINUE: a roguelite autobattler. Pick a route, overrule the fight with Commands, recruit your foes.",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "start": "node serve.js",
     "test": "node --test \"test/*.test.js\"",
-    "sim": "node tools/sim.js --runs 100"
-  },
-  "devDependencies": {
-    "vite": "^7.0.0"
-  },
-  "dependencies": {
-    "phaser": "^4.2.1"
+    "sim": "node src/sim/autoplay.js --runs 200"
   },
   "engines": {
     "node": ">=22"

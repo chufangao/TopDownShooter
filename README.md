@@ -88,51 +88,66 @@ kill the boss on floor 4 (victory). Nothing carries over between runs.
 
 ## Run it
 
-```
-npm install
-npm run dev                 # http://localhost:5173
-```
-
-Add `?seed=anything` to the URL to play a specific run.
+Everything works offline: no install, no build step, no network. Node 22+ is the only requirement.
 
 ```
-npm test                    # node --test, sim only, no browser
-node tools/sim.js --runs 100   # headless autoplayed runs; prints clear rate, battle length, recruits
+npm start                      # http://localhost:5173 (node serve.js)
+npm test                       # node --test, sim only, no browser
+npm run sim                    # 200 headless autoplayed runs: clear rate, battle length, per-floor progression
 ```
+
+Add `?seed=anything` to the URL to play a specific run. In the browser console, `retinue.run.state.log`
+is the current run's action log.
 
 ## Layout
 
 ```
+index.html          page shell: stylesheet + src/main.js
+serve.js            static file server for npm start
 src/
-  main.js        boot: Phaser game + DOM UI, wires the screens to the run
-  content/       units, abilities, statuses, elements, tags, synergies, relics, tuning, anims
-  sim/           pure game logic
-    rng formula formation stats
-    battle.js    createBattle / stepBattle / runBattle
-    ai.js        default unit behaviour
-    commands.js  Focus, Parley, Brace, Unleash
-    map.js       floor generation
-    spoils.js    1-of-3 offers
-    run.js       run state machine and replay
-    autoplay.js  heuristic player used by tests and tools/sim.js
-  engine/        Phaser: boot, battle scene, animation playback
-  ui/            plain DOM screens and one stylesheet
-  assets/        baked sprite atlas and animations
-test/            content, formula, battle, commands, map, run
-tools/sim.js     balance runs
+  main.js           boot: Phaser engine + DOM UI; turns every input into apply(run, action)
+  content.js        all game data: units, abilities, statuses, elements, kin/roles, synergies, relics, attack anims
+  tuning.js         every balance constant
+  sim/              pure game logic, runs in Node
+    run.js            the run: apply, legalActions, replay; progression (XP, levels, foe scaling); spoils
+    battle.js         a fight: tick loop, effects and statuses, Commands, unit AI, combat formulas
+    unit.js           stats, modifiers, synergies, the 3×4 formation grid
+    map.js            floor generation
+    rng.js            seeded RNG
+    autoplay.js       heuristic policy for tests; run directly for the balance report
+  engine.js         Phaser, battles only: boot + atlas loading, battle scene, timeline player
+  ui.js             DOM: title, map, spoils, swap and end screens, battle command bar, shared parts
+  style.css
+  assets/           baked sprite atlas and animations
+  vendor/phaser.js  Phaser 4.2.1 ESM build (MIT), vendored so the game runs offline
+test/               one file per sim module, plus content checks and a fuzz test over legalActions
 ```
 
-## The one rule
+## The rules of the sim
 
 `src/sim/` is pure: no Phaser import, no `Math.random`, no `Date`. All randomness comes from the
-seeded RNG in `src/sim/rng.js`. A battle replays exactly from its seed and the Commands issued, and
-a whole run replays from its seed and input log. That is what lets the tests, the autoplayer and
-`tools/sim.js` run in Node without a browser.
+seeded RNG in `src/sim/rng.js`.
+
+A run changes only through `apply(run, action)`, and `legalActions(run)` lists every action `apply`
+accepts right now:
+
+| Phase | Actions |
+|---|---|
+| map | `{ type: 'node', id }` walk to a room · `{ type: 'slots', a, b }` swap formation slots |
+| battle | `{ type: 'command', verb, target }` issue a Command at the current tick · `{ type: 'advance', ticks }` step the fight |
+| spoils | `{ type: 'spoil', index }` take an offer, `index: null` skips |
+| swap | `{ type: 'release', uid }` release a unit for the waiting recruit, `uid: null` turns it away |
+
+When a battle ends during an `advance`, the run settles it (HP, XP, recruits, spoils) on its own.
+Every applied action goes into `run.state.log` (consecutive advances merge into one entry), and
+`replay(seed, log)` rebuilds the identical state. The UI, the autoplayer and the tests all drive the
+game the same way, which is what lets `test/run.test.js` fuzz whole runs with random legal actions,
+check invariants after every step, and assert that each one replays exactly.
 
 ## Adding a unit
 
-Add one entry to `src/content/units.js` (stats, kin, role, element, abilities, spawn weight) and
-reference abilities from `src/content/abilities.js`. Sprites come from the baked atlas in
+Add one entry to `UNIT_LIST` in `src/content.js` (stats, kin, role, element, abilities, spawn weight)
+and reference abilities from `ABILITY_LIST` in the same file. Sprites come from the baked atlas in
 `src/assets/`; the generator that made it is gone, so a new unit's `art` key must name frames that
 already exist there. Pointing it at an existing unit's key reuses that sprite. `test/content.test.js`
 checks that every reference and every frame resolves, and it also asserts the unit count, so update

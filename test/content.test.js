@@ -1,10 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import {
-  UNITS, ABILITIES, STATUSES, ELEMENTS, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, TUNING
-} from '../src/content/index.js'
-import { statsOf, makeUnit } from '../src/sim/stats.js'
+import { UNITS, ABILITIES, STATUSES, ELEMENTS, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS } from '../src/content.js'
+import { TUNING } from '../src/tuning.js'
+import { statsOf, makeUnit } from '../src/sim/unit.js'
 
 const json = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url)))
 const atlas = new Set(json('../src/assets/atlas-0.json').frames.map((f) => f.filename))

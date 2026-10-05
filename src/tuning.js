@@ -1,6 +1,8 @@
+
+
 // Every balance constant in one place.
-export default {
-  tick: { hz: 20, ms: 50, ceiling: 2400 },
+export const TUNING = {
+  tick: { ms: 50, ceiling: 2400 },
   hit: { min: 0.1, max: 0.95 },
   crit: { min: 0.01, max: 0.6, divisor: 100, mult: 1.75 },
   // raw = power × atk / atkDivisor, then × defConstant / (defConstant + def)

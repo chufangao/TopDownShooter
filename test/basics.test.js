@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hitChance, critChance, affinity, computeDamage, persuadeChance } from '../src/sim/formula.js'
+import { hitChance, critChance, affinity, computeDamage, persuadeChance } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
-import { ELEMENTS, TUNING } from '../src/content/index.js'
-import { autoPlace, reachable, expand, rowOf } from '../src/sim/formation.js'
-import { makeUnit } from '../src/sim/stats.js'
+import { ELEMENTS } from '../src/content.js'
+import { TUNING } from '../src/tuning.js'
+import { autoPlace, reachable, expand, rowOf, makeUnit } from '../src/sim/unit.js'
 
 test('hit and crit are clamped', () => {
   assert.equal(hitChance(50, 50), 0.5)
@@ -62,9 +62,10 @@ test('rng is seeded, string seeds work, and streams are independent', () => {
 })
 
 test('formation: auto-fill by role, melee reaches only the front row', () => {
-  const party = autoPlace(['bone_chanter', 'tomb_knight', 'frost_sprite'].map((id, i) => makeUnit(id, { uid: i + 1 })))
+  const side = (list, name) => list.map((u) => ({ ...u, side: name }))
+  const party = side(autoPlace(['bone_chanter', 'tomb_knight', 'frost_sprite'].map((id, i) => makeUnit(id, { uid: i + 1 }))), 'party')
   assert.deepEqual(party.map((u) => rowOf(u.slot)), [2, 0, 1])
-  const foes = autoPlace(['tomb_knight', 'bone_chanter'].map((id, i) => makeUnit(id, { uid: i + 10, side: 'foe' })))
+  const foes = side(autoPlace(['tomb_knight', 'bone_chanter'].map((id, i) => makeUnit(id, { uid: i + 10 }))), 'foe')
   const units = [...party, ...foes]
   const melee = { shape: 'single', melee: true }
   assert.deepEqual(reachable(units, party[1], melee).map((u) => u.uid), [10])
