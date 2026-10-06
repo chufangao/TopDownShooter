@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { generateFloor, nodeOf, RANKS } from '../src/sim/map.js'
+import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 
-const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'boss']
+const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'rite', 'boss']
 
 function reach (map, from, edges) {
   const seen = new Set([from])
@@ -34,16 +34,18 @@ test('500 seeded floors keep the rank, link and type rules', () => {
 
     for (let r = 1; r < RANKS - 1; r++) {
       const rank = ranks[r]
-      assert.ok(rank.length >= 2 && rank.length <= 3, `${where} rank ${r} size`)
+      assert.ok(rank.length >= 2 && rank.length <= WIDTH, `${where} rank ${r} size`)
       assert.ok(rank.every((n) => TYPES.includes(n.type) && n.type !== 'boss'), `${where} rank ${r} types`)
-      assert.ok(!rank.every((n) => n.type === rank[0].type) || r === 1, `${where} rank ${r} all ${rank[0].type}`)
-      if (r >= 2) assert.ok(rank.filter((n) => n.type === 'elite').length <= 1, `${where} rank ${r} elites`)
+      assert.ok(!rank.every((n) => n.type === rank[0].type && n.type !== 'fight'), `${where} rank ${r} all ${rank[0].type}`)
+      assert.ok(rank.filter((n) => n.type === 'elite').length <= (r < 4 ? 0 : 1), `${where} rank ${r} elites`)
     }
     assert.ok(ranks[1].every((n) => n.type === 'fight'), `${where} rank 1 is all fights`)
-    const altars = ranks[5].filter((n) => n.type === 'altar').length
-    assert.ok(altars >= 1 && altars < ranks[5].length, `${where} rank 5 altars`)
-    const reliquaries = map.nodes.filter((n) => n.type === 'reliquary').length
-    assert.ok(reliquaries >= 1 && reliquaries <= 3, `${where} reliquaries ${reliquaries}`)
+    const late = ranks[RANKS - 2]
+    assert.equal(late.filter((n) => n.type === 'altar').length, 1, `${where} one altar before the end`)
+    for (const type of ['reliquary', 'rite']) {
+      const count = map.nodes.filter((n) => n.type === type && n.rank < RANKS - 2).length
+      assert.ok(count >= 1 && count <= 2, `${where} ${type} ${count}`)
+    }
 
     for (const n of map.nodes) {
       for (const id of n.next) assert.equal(nodeOf(map, id).rank, n.rank + 1, `${where} ${n.id} → ${id}`)

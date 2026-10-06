@@ -101,15 +101,13 @@ test('bosses ignore gauge drain', () => {
   assert.ok(!r.events.some((e) => e.type === 'gauge' && e.target === boss[0].uid))
 })
 
-test('only fielded souls with HP fight; stars raise HP and ATK', () => {
+test('only fielded souls with HP fight', () => {
   const party = team(START)
   party[2].slot = -1
+  party.push(makeUnit('tomb_knight', { uid: 9, lvl: 3, slot: 10 }))
+  party[3].hp = 0
   const b = createBattle({ party, foes: team(['clockwork_page'], { side: 'foe' }), seed: 'bench' })
   assert.deepEqual(b.units.filter((u) => u.side === 'party').map((u) => u.uid), [1, 2])
-  const one = makeUnit('tomb_knight', { uid: 1, lvl: 3 })
-  const two = makeUnit('tomb_knight', { uid: 2, lvl: 3, star: 2 })
-  assert.equal(two.maxHp, Math.round(one.maxHp * TUNING.star.mult[1]))
-  assert.equal(b.events[0].units[0].star, 1)
 })
 
 test('units walk one free tile at a time, never share one, and the engaged hold unless they slip', () => {
@@ -156,4 +154,22 @@ test('a Tomb Knight shields the allies next to it; bonds are set at the start an
   unit(4).tile = unit(3).tile + 1
   b.cache.clear()
   assert.ok(stats(b, unit(1)).def > stats(b, { ...unit(1), uid: 98 }).def)
+})
+
+test('path tiers fight: a self heal mends the user, and a `who` mod touches only souls it names', () => {
+  const ghoul = { ...makeUnit('grave_ghoul', { uid: 1, lvl: 6, slot: slotAt(0, 3) }), path: 'glutton', tier: 3 }
+  ghoul.hp = Math.round(ghoul.maxHp / 2)
+  const b = createBattle({ party: [ghoul], foes: team(['iron_golem'], { side: 'foe', lvl: 6 }), seed: 'devour' })
+  runBattle(b)
+  const devours = b.events.filter((e) => e.type === 'action' && e.ability === 'devour')
+  assert.ok(devours.length > 0)
+  assert.ok(b.events.some((e) => e.type === 'heal' && e.actor === 1 && e.target === 1), 'Devour heals its user')
+
+  const vanguardsOnly = [{ path: 'def', op: 'mul', v: 2, who: { role: ['vanguard'] } }]
+  const knight = makeUnit('tomb_knight', { uid: 2 })
+  const sprite = makeUnit('frost_sprite', { uid: 3 })
+  const field = createBattle({ party: autoPlace([knight, sprite]), foes: team(['clockwork_page'], { side: 'foe' }), seed: 'who', partyMods: vanguardsOnly })
+  const of = (id) => stats(field, field.units.find((u) => u.id === id)).def
+  assert.equal(of('tomb_knight'), 2 * unitDef('tomb_knight').base.def)
+  assert.equal(of('frost_sprite'), unitDef('frost_sprite').base.def)
 })

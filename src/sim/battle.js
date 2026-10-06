@@ -2,16 +2,17 @@
 // formulas. Real-time in 50 ms ticks, and no input once it starts: the same setup always plays out the
 // same. Pure: all randomness comes from battle.rng.
 import { TUNING } from '../tuning.js'
-import { unitDef, statusDef, elementDef, abilityDef, ROLES, BEHAVIOURS } from '../content.js'
+import { unitDef, statusDef, abilityDef, ROLES, BEHAVIOURS } from '../content.js'
 import { createRng, hashString } from './rng.js'
 import {
   alive, livingOn, statsOf, activeSynergies, reachable, expand, enemySide, isAllyShape,
-  deployTile, depthFor, distance, steps, neighbours, rangeOf, isEngaged, TILES, tileX, activeBonds, auraGivers
+  deployTile, depthFor, distance, steps, neighbours, rangeOf, isEngaged, TILES, tileX, activeBonds, auraGivers,
+  abilitiesOf, auraOf, cheapestOf
 } from './unit.js'
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
 
-// party/foes are run units { uid, id, lvl, star, hp, maxHp, slot }; the battle works on copies, and
+// party/foes are run units { uid, id, lvl, path, tier, hp, maxHp, slot }; the battle works on copies, and
 // only units on the field (slot ≥ 0) with HP left take part. Each starts on its slot's board tile (the
 // party's in its camp, past `walls`, a list of board tiles), and the formation bonds it holds there last
 // the whole battle.
@@ -41,7 +42,7 @@ export function createBattle ({ party, foes, seed, floor = 1, boss = false, part
   emit(battle, {
     type: 'battle:start',
     walls: [...battle.walls],
-    units: units.map((u) => ({ uid: u.uid, id: u.id, side: u.side, slot: u.slot, tile: u.tile, lvl: u.lvl, star: u.star ?? 1, hp: u.hp, maxHp: u.maxHp })),
+    units: units.map((u) => ({ uid: u.uid, id: u.id, side: u.side, slot: u.slot, tile: u.tile, lvl: u.lvl, hp: u.hp, maxHp: u.maxHp })),
     synergies: ['party', 'foe'].flatMap((side) => synergiesOf(battle, side).map((s) => ({ side, id: s.id, name: s.name }))),
     bonds: battle.bonds.map((b) => ({ id: b.bond.id, uid: b.uid, partner: b.partner }))
   })
@@ -84,7 +85,7 @@ function act (battle, u) {
     battle.paths.clear()
     return
   }
-  emit(battle, { type: 'action', actor: u.uid, ability: ability.id, anim: ability.anim, element: ability.element, targets: targets.map((x) => x.uid) })
+  emit(battle, { type: 'action', actor: u.uid, ability: ability.id, anim: ability.anim, targets: targets.map((x) => x.uid) })
   for (const effect of ability.effects) runEffect(battle, effect, u, targets, ability)
 }
 
@@ -150,7 +151,7 @@ function modsFor (battle, unit) {
   }
   for (const syn of synergiesOf(battle, unit.side)) mods.push(...syn.mods)
   for (const b of battle.bonds) if (b.uid === unit.uid) mods.push(...b.bond.mods)
-  for (const giver of auraGivers(battle.units, unit)) mods.push(...unitDef(giver.id).aura.mods)
+  for (const giver of auraGivers(battle.units, unit)) mods.push(...auraOf(giver).mods)
   mods.push(...(unit.side === 'party' ? battle.partyMods : battle.foeMods))
   return mods
 }
@@ -175,6 +176,8 @@ function escalation (battle) {
 }
 
 function runEffect (battle, effect, actor, targets, ability = null) {
+  // A `self` heal mends the actor once, whoever it struck and whether they still stand.
+  if (effect.self) return alive(actor) && heal(battle, actor, actor, effect.power)
   const a = stats(battle, actor)
   for (const target of targets) {
     if (!alive(target)) continue
@@ -190,17 +193,13 @@ function runEffect (battle, effect, actor, targets, ability = null) {
         power: effect.power,
         atk: a.atk,
         def: d.def,
-        affinity: affinity(elementDef(effect.element), unitDef(target.id).element),
         isCrit,
         variance: rollVariance(battle.rng),
         mul
       })
-      applyDamage(battle, target, damage, { actor, isCrit, element: effect.element })
+      applyDamage(battle, target, damage, { actor, isCrit, ability: ability?.id })
     } else if (effect.op === 'heal') {
-      const amount = Math.max(1, Math.round(effect.power * a.atk / TUNING.damage.atkDivisor * a.heal.given))
-      const before = target.hp
-      target.hp = Math.min(target.maxHp, target.hp + amount)
-      emit(battle, { type: 'heal', actor: actor.uid, target: target.uid, heal: target.hp - before, hp: target.hp })
+      heal(battle, actor, target, effect.power)
     } else if (effect.op === 'apply_status') {
       if (effect.chance === undefined || battle.rng.chance(effect.chance)) addStatus(battle, target, effect.status, effect.dur)
     } else if (effect.op === 'cleanse') {
@@ -219,9 +218,17 @@ function runEffect (battle, effect, actor, targets, ability = null) {
   }
 }
 
-function applyDamage (battle, target, amount, { actor, isCrit, element }) {
+function heal (battle, actor, target, power) {
+  const a = stats(battle, actor)
+  const amount = Math.max(1, Math.round(power * a.atk / TUNING.damage.atkDivisor * a.heal.given))
+  const before = target.hp
+  target.hp = Math.min(target.maxHp, target.hp + amount)
+  emit(battle, { type: 'heal', actor: actor.uid, target: target.uid, heal: target.hp - before, hp: target.hp })
+}
+
+function applyDamage (battle, target, amount, { actor, isCrit, ability }) {
   target.hp = Math.max(0, target.hp - amount)
-  emit(battle, { type: 'damage', actor: actor.uid, target: target.uid, damage: amount, isCrit, element, hp: target.hp })
+  emit(battle, { type: 'damage', actor: actor.uid, target: target.uid, damage: amount, isCrit, ability, hp: target.hp })
   if (target.hp > 0) return
   target.statuses = []
   emit(battle, { type: 'death', target: target.uid, actor: actor.uid })
@@ -265,7 +272,7 @@ function view (battle, unit) {
 // The first ability in def order that passes its condition and has a target in reach, or null.
 function nextAbility (battle, unit) {
   const s = view(battle, unit)
-  for (const id of unitDef(unit.id).abilities) {
+  for (const id of abilitiesOf(unit)) {
     const ability = abilityDef(id)
     if (ability.when && !ability.when(s)) continue
     const candidates = reachable(battle.units, unit, ability)
@@ -281,7 +288,7 @@ export const nextCost = (battle, unit) => nextAbility(battle, unit)?.ability.cas
 function reachOf (battle, unit) {
   const s = view(battle, unit)
   let r = 1
-  for (const id of unitDef(unit.id).abilities) {
+  for (const id of abilitiesOf(unit)) {
     const a = abilityDef(id)
     if (!isAllyShape(a.shape) && (!a.when || a.when(s))) r = Math.max(r, rangeOf(a))
   }
@@ -373,6 +380,12 @@ function pickTarget (battle, unit, ability, candidates) {
 function chooseAction (battle, unit) {
   const move = behaviourOf(unit)
   const free = BEHAVIOURS[move].slips || !isEngaged(battle.units, unit)
+  // Nothing is affordable yet, so nothing below could happen; a flanker still keeps its quarry current
+  // every tick, as it would there.
+  if (unit.gauge < (unit.cheapest ??= cheapestOf(unit))) {
+    if (move === 'flank' && free) quarryOf(battle, unit)
+    return null
+  }
   const step = (to) => (to === null ? undefined : unit.gauge < TUNING.board.moveCost ? null : { to, cost: TUNING.board.moveCost })
 
   if (move === 'flank' && free) {
@@ -414,22 +427,17 @@ export function critChance (crt, tuning = TUNING) {
   return clamp(t.min, t.max, crt / t.divisor)
 }
 
-export function affinity (attackElement, defenderElementId) {
-  if (!attackElement || !defenderElementId) return 1
-  return attackElement.affinity?.[defenderElementId] ?? 1
-}
-
 function rollVariance (rng, tuning = TUNING) {
   const [lo, hi] = tuning.variance
   return rng.range(lo, hi)
 }
 
-// p: { power, atk, def, affinity, isCrit, critMul, variance, mul }
+// p: { power, atk, def, isCrit, critMul, variance, mul }
 export function computeDamage (p, tuning = TUNING) {
   const t = tuning.damage
   const raw = p.power * (p.atk / t.atkDivisor)
   const mitigated = raw * (t.defConstant / (t.defConstant + Math.max(0, p.def)))
   const crit = p.isCrit ? (p.critMul ?? tuning.crit.mult) : 1
-  const total = mitigated * (p.affinity ?? 1) * crit * (p.variance ?? 1) * (p.mul ?? 1)
+  const total = mitigated * crit * (p.variance ?? 1) * (p.mul ?? 1)
   return Math.max(t.min, Math.round(total))
 }

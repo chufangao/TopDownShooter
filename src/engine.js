@@ -3,7 +3,7 @@
 // FX. It never decides anything: it steps a battle that takes no input and plays back what the sim emitted.
 import Phaser from './vendor/phaser.js'
 import { TUNING } from './tuning.js'
-import { UNIT_LIST, unitDef, statusDef, animDef, artUrl, ART_POSES, ELEMENTS, BONDS } from './content.js'
+import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, BONDS } from './content.js'
 import { stepBattle, nextCost } from './sim/battle.js'
 import { tileX, tileY, LANES, DEPTH, TILES, ROWS, CAMP_ROWS } from './sim/unit.js'
 
@@ -112,10 +112,8 @@ const REST = { lean: 0, sx: 0, sy: 0, dx: 0, dy: 0 } // a unit's pose at rest: s
 const BAR = 46
 const BAR_DROP = 14     // from the feet down to the HP bar, clear of the pictures' ground details
 const BAR_PX = 56     // fallback height of the DOM playback bar under the canvas
-const STAR_SCALE = 0.15 // extra sprite scale per star above 1
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif'
-const STAR_TINT = [0, 0, 0xa98bff, GOLD]
 
 class BattleScene extends Phaser.Scene {
   constructor () { super('Battle') }
@@ -200,7 +198,6 @@ class BattleScene extends Phaser.Scene {
       // The dead lie under the living who step over them.
       a.sprite.setDepth(a.gone ? a.sprite.y - ROW_PX / 2 : a.sprite.y)
       a.shadow.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 2)
-      a.aura?.setPosition(x, a.sprite.y + 2).setDepth(a.sprite.y - 1)
       a.ring.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 1)
       // The bars lie on the ground under the feet, sorted with the units: whoever stands in front draws
       // over them, so they never cover a picture.
@@ -209,7 +206,6 @@ class BattleScene extends Phaser.Scene {
       a.trail.setPosition(x - BAR / 2, y).setDepth(ground + 0.1)
       a.bar.setPosition(x - BAR / 2, y).setDepth(ground + 0.2)
       a.gaugeBar.setPosition(x - BAR / 2, y + 5).setDepth(ground + 0.2)
-      a.stars?.setPosition(x, y + 9).setDepth(ground + 0.3)
       const u = this.units.get(a.uid)
       if (!a.gone && u.hp > 0) {
         const cost = nextCost(b, u)
@@ -273,27 +269,21 @@ class BattleScene extends Phaser.Scene {
   addActor (u) {
     const home = this.posFor(u.tile)
     const art = unitDef(u.id).art
-    const star = u.star ?? 1
     const side = u.side === 'party' ? PARTY : FOE
     const sprite = this.add.image(home.x, home.y, `unit:${art}:alive`).setOrigin(0.5, FEET).setDepth(home.y)
       .setFlipX(u.side === 'foe')
-    const scale = SCALE / RES * (1 + STAR_SCALE * (star - 1))
+    const scale = SCALE / RES
     // Pictures are drawn on a 96 box, the boss on a bigger one; the shadow and FX heights follow.
-    const size = sprite.width / RES / 96 * (1 + STAR_SCALE * (star - 1))
+    const size = sprite.width / RES / 96
     const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size, 13 * size, 0x000000, 0.5).setDepth(home.y - 2)
-    const aura = star > 1
-      ? this.add.image(home.x, home.y + 2, 'glow').setTint(STAR_TINT[star]).setBlendMode(Phaser.BlendModes.ADD).setScale(1.5, 0.6).setAlpha(0.55).setDepth(home.y - 1)
-      : null
-    if (aura) this.tweens.add({ targets: aura, alpha: 0.25, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' })
     const ring = this.add.ellipse(home.x, home.y + 4, 56 * size, 17 * size).setStrokeStyle(1.5, 0xffffff, 0.8).setDepth(home.y - 1).setVisible(false)
     const barBg = this.add.rectangle(home.x, home.y + 14, BAR + 2, 10, 0x07060b, 0.92).setStrokeStyle(1, 0x2c2740)
     const width = BAR * u.hp / u.maxHp
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
     const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, 4, side).setOrigin(0, 0.5)
     const gaugeBar = this.add.rectangle(home.x - BAR / 2, home.y + 17, 0, 2, GOLD).setOrigin(0, 0.5)
-    const stars = star > 1 ? this.text(home.x, home.y + 21, '★'.repeat(star), 9, '#' + STAR_TINT[star].toString(16), 2).setOrigin(0.5, 0) : null
     const actor = {
-      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, sprite, scale, home, shadow, aura, ring, bar, trail, barBg, gaugeBar, stars,
+      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar,
       // chest: how far above the feet blows land and bolts fly from.
       chest: 30 * size, pose: { ...REST }, hp: u.hp, maxHp: u.maxHp, gone: false
     }
@@ -399,7 +389,7 @@ class BattleScene extends Phaser.Scene {
       { to: { lean: 84 * away, sy: -0.06, dx: 4 * away }, ms: 300, ease: 'Quad.In' },
       { to: { sx: 0.12, sy: -0.2 }, ms: 1, picture: 'dead', start: land },
       { to: REST, ms: 280, ease: 'Back.Out' }])
-    this.tweens.add({ targets: [a.bar, a.trail, a.barBg, a.gaugeBar, a.aura, a.stars, a.shadow].filter(Boolean), alpha: 0, duration: 300 })
+    this.tweens.add({ targets: [a.bar, a.trail, a.barBg, a.gaugeBar, a.shadow], alpha: 0, duration: 300 })
   }
 
   decorate (start) {
@@ -524,7 +514,7 @@ class BattleScene extends Phaser.Scene {
             // Knocked back from the attacker; a tick of poison or burn has no attacker to face, so it shudders.
             this.strike(a, 'hurt', inAction ? this.actors.get(ev.actor) : null)
             this.flash(a)
-            this.burst(a.sprite.x, a.sprite.y - a.chest, tint(ev.element), ev.isCrit ? 22 : 9, { speed: ev.isCrit ? 220 : 140 })
+            this.burst(a.sprite.x, a.sprite.y - a.chest, tint(ev.ability), ev.isCrit ? 22 : 9, { speed: ev.isCrit ? 220 : 140 })
             if (ev.isCrit) this.cameras.main.shake(140, 0.005)
           }
         } else {
@@ -721,7 +711,8 @@ class TimelinePlayer {
   }
 }
 
-const tint = (element) => parseInt((ELEMENTS[element]?.tint ?? '#d8d4cc').slice(1), 16)
+// An ability's colour, for its bolts, beams and hit sparks.
+const tint = (ability) => parseInt((ability ? abilityDef(ability).tint : '#d8d4cc').slice(1), 16)
 
 const STEPS = {
   anim (p, step, refs) {
@@ -740,7 +731,7 @@ const STEPS = {
   fx (p, step, refs) {
     const at = p.where(step.at ?? 'target', refs)
     const lift = (step.at === 'actor' ? refs.actor : refs.primary ?? refs.actor).chest
-    const ring = p.scene.add.image(at.x, at.y - lift, 'glow').setTint(tint(refs.beat.action.element))
+    const ring = p.scene.add.image(at.x, at.y - lift, 'glow').setTint(tint(refs.beat.action.ability))
       .setBlendMode(Phaser.BlendModes.ADD).setScale(0.3).setAlpha(0.9).setDepth(9200)
     p.scene.tweens.add({ targets: ring, scale: 1.3, alpha: 0, duration: 300, ease: 'Cubic.Out', onComplete: () => ring.destroy() })
   },
@@ -752,7 +743,7 @@ const STEPS = {
     const angle = Math.atan2(primary.sprite.y - actor.sprite.y, primary.sprite.x - actor.sprite.x)
     const flip = refs.beat.action.t % 2 ? 1 : -1
     const arc = p.scene.add.image(primary.sprite.x, primary.sprite.y - primary.chest, 'slash')
-      .setTint(tint(refs.beat.action.element)).setBlendMode(Phaser.BlendModes.ADD).setDepth(9250)
+      .setTint(tint(refs.beat.action.ability)).setBlendMode(Phaser.BlendModes.ADD).setDepth(9250)
       .setRotation(angle).setScale(0.35, 0.35 * flip).setAlpha(0)
     p.scene.tweens.add({ targets: arc, scaleX: 0.75, scaleY: 0.75 * flip, alpha: { from: 1, to: 0 }, rotation: angle + 0.6 * flip, duration: 240, ease: 'Cubic.Out', onComplete: () => arc.destroy() })
   },
@@ -760,7 +751,7 @@ const STEPS = {
   projectile (p, step, refs) {
     const from = p.where(step.from ?? 'actor', refs)
     const to = p.where(step.to ?? 'target', refs)
-    const colour = tint(refs.beat.action.element)
+    const colour = tint(refs.beat.action.ability)
     const [up, down] = [refs.actor.chest, (refs.primary ?? refs.actor).chest]
     const bolt = p.scene.add.image(from.x, from.y - up, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setScale(0.35).setDepth(9000)
     const core = p.scene.add.image(from.x, from.y - up, 'spark').setScale(0.6).setDepth(9001)
@@ -773,7 +764,7 @@ const STEPS = {
   beam (p, step, refs) {
     const from = p.where(step.from ?? 'actor', refs)
     const to = p.where(step.to ?? 'target', refs)
-    const colour = tint(refs.beat.action.element)
+    const colour = tint(refs.beat.action.ability)
     const [up, down] = [refs.actor.chest, (refs.primary ?? refs.actor).chest]
     const glow = p.scene.add.line(0, 0, from.x, from.y - up, to.x, to.y - down, colour, 0.35)
       .setOrigin(0, 0).setLineWidth(6).setBlendMode(Phaser.BlendModes.ADD).setDepth(9000)

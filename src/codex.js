@@ -1,9 +1,11 @@
 // Rules text, generated from the content data so it is never out of date: unit stat cards, ability
-// and status text, room and threat tooltips, the synergy tracker, merge previews and How to play.
+// and status text, room and threat tooltips, the synergy tracker and How to play.
 import { TUNING } from './tuning.js'
-import { unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, ROLE_LIST, BEHAVIOURS, ELEMENTS, ELEMENT_LIST, SYNERGIES, RELIC_LIST, BONDS } from './content.js'
-import { statsOf, activeSynergies, synergyActive, baseStats, COLS, ROWS, slotAt, rangeOf, isAllyShape, activeBonds, CAMP_ROWS } from './sim/unit.js'
-import { xpToNext, foeMods, fielded } from './sim/run.js'
+import { unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, ROLE_LIST, BEHAVIOURS, SYNERGIES, RELIC_LIST, BONDS } from './content.js'
+import {
+  statsOf, activeSynergies, synergyActive, baseStats, COLS, ROWS, slotAt, rangeOf, isAllyShape, activeBonds, CAMP_ROWS, pathDef, abilitiesOf, auraOf
+} from './sim/unit.js'
+import { foeMods, fielded } from './sim/run.js'
 import { h, icon, portrait } from './dom.js'
 
 const pct = (v) => `${Math.round(v * 100)}%`
@@ -53,8 +55,8 @@ const SHAPE = {
 function effectText (e, st) {
   const est = (power) => Math.round(power * st.atk / TUNING.damage.atkDivisor)
   switch (e.op) {
-    case 'damage': return [h('b', null, `${e.power} power`), ` ${ELEMENTS[e.element].name.toLowerCase()} damage `, h('span', { class: 'dim' }, `(≈${est(e.power)} before DEF)`)]
-    case 'heal': return [`heals `, h('b', null, `${e.power} power`), h('span', { class: 'dim' }, ` (≈${Math.round(est(e.power) * st.heal.given)} HP)`)]
+    case 'damage': return [h('b', null, `${e.power} power`), ' damage ', h('span', { class: 'dim' }, `(≈${est(e.power)} before DEF)`)]
+    case 'heal': return [e.self ? 'heals itself ' : 'heals ', h('b', null, `${e.power} power`), h('span', { class: 'dim' }, ` (≈${Math.round(est(e.power) * st.heal.given)} HP)`)]
     case 'apply_status': {
       const s = statusDef(e.status)
       return [e.chance !== undefined ? `${pct(e.chance)} chance of ` : '', h('b', { class: 'status' }, s.name), ` for ${secs(e.dur ?? s.dur)}: ${s.desc.replace(/\.$/, '')}`]
@@ -77,7 +79,6 @@ export function abilityBlock (id, st) {
   return h('div', { class: 'ability' },
     h('div', { class: 'ab-head' },
       h('b', null, a.name),
-      h('span', { class: 'chip', style: `--c:${ELEMENTS[a.element].tint}` }, ELEMENTS[a.element].name),
       h('span', { class: 'dim right' }, `${a.castCost} gauge · ${fillTime(st, a.castCost)}`)),
     h('div', { class: 'ab-body' },
       reachTag(a),
@@ -93,20 +94,6 @@ export function statusLine (s) {
     h('span', { class: 'dim' }, ` ${s.dur === 'battle' ? 'all battle' : secs(s.dur)} · ${d.desc}`))
 }
 
-// ── elements ─────────────────────────────────────────────────────────────────────────────────────
-
-// What hurts a defender of this element more, or less, than normal.
-export function elementLine (id) {
-  const taken = ELEMENT_LIST.filter((e) => (e.affinity[id] ?? 1) !== 1).map((e) => ({ e, m: e.affinity[id] }))
-  const weak = taken.filter((x) => x.m > 1)
-  const resist = taken.filter((x) => x.m < 1)
-  const name = (x) => h('span', { style: `color:${x.e.tint}` }, `${x.e.name} ×${x.m}`)
-  return h('div', { class: 'dim' },
-    h('span', { style: `color:${ELEMENTS[id].tint}` }, ELEMENTS[id].name), ' element.',
-    weak.length ? [' Takes ', weak.map((x, i) => [i ? ', ' : '', name(x)]), '.'] : ' No weakness.',
-    resist.length ? [' Resists ', resist.map((x, i) => [i ? ', ' : '', name(x)]), '.'] : '')
-}
-
 // ── unit card ────────────────────────────────────────────────────────────────────────────────────
 
 // u: a run unit, a battle unit or a scouted foe { id, lvl, slot }. opts.mods: the mods it fights with;
@@ -114,20 +101,22 @@ export function elementLine (id) {
 // lines at the bottom.
 export function unitCard (u, { mods = [], stats = null, statuses = null, notes = [], foe = false } = {}) {
   const d = unitDef(u.id)
-  const star = u.star ?? 1
-  const st = stats ?? statsOf({ ...u, star }, mods)
+  const st = stats ?? statsOf(u, mods)
   const hp = u.hp ?? null
   const maxHp = Math.round(st.hp)
   const shown = hp === null ? maxHp : Math.round(hp / (u.maxHp || 1) * maxHp)
   const stat = (label, v) => h('div', { class: 'stat' }, h('span', { class: 'dim' }, label), h('b', null, v))
-  const next = !foe && u.xp != null && u.lvl < TUNING.xp.cap && baseStats(u.id, u.lvl + 1, star)
-  const now = baseStats(u.id, u.lvl, star)
+  const next = !foe && u.path !== undefined && u.lvl < TUNING.level.cap && baseStats(u.id, u.lvl + 1)
+  const now = baseStats(u.id, u.lvl)
+  const path = u.path ? pathDef(u.id, u.path) : null
+  const aura = auraOf(u)
   return h('div', { class: 'card-tip' + (foe ? ' foe' : '') },
     h('div', { class: 'ct-head' },
-      h('div', { class: 'ct-port' + (star > 1 ? ` star${star}` : '') }, portrait(u.id, 52, shown <= 0)),
+      h('div', { class: 'ct-port' }, portrait(u.id, 52, shown <= 0)),
       h('div', null,
-        h('div', { class: 'ct-name' }, d.name, star > 1 && h('span', { class: 'stars' }, ' ' + '★'.repeat(star))),
+        h('div', { class: 'ct-name' }, d.name),
         h('div', { class: 'dim' }, `Level ${u.lvl} · ${KIN[d.kin].name} · ${ROLES[d.role].name}${d.boss ? ' · Boss' : ''}`),
+        path && h('div', { class: 'ct-path' }, `${path.name} ${ROMAN[u.tier - 1]}`),
         h('div', { class: 'ct-hp' },
           h('span', { class: 'hpbar' + (shown <= 0 ? ' dead' : shown / maxHp < 0.35 ? ' low' : '') }, h('span', { style: `width:${Math.max(0, Math.min(1, shown / maxHp)) * 100}%` })),
           h('span', null, shown <= 0 ? 'fallen' : `${shown} / ${maxHp} HP`)))),
@@ -141,16 +130,22 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
     (st.damage.dealt !== 1 || st.damage.taken !== 1 || st.gauge.rate !== 1) && h('div', { class: 'dim small' },
       [st.damage.dealt !== 1 && `damage dealt ×${st.damage.dealt.toFixed(2)}`, st.damage.taken !== 1 && `damage taken ×${st.damage.taken.toFixed(2)}`, st.gauge.rate !== 1 && `gauge rate ×${st.gauge.rate.toFixed(2)}`].filter(Boolean).join(' · ')),
     h('div', { class: 'ct-sec' }, 'Abilities ', h('span', { class: 'dim' }, '· in priority order')),
-    d.abilities.map((id) => abilityBlock(id, st)),
-    d.aura && [h('div', { class: 'ct-sec' }, 'Aura ', h('span', { class: 'dim' }, `· within ${d.aura.range} tile${d.aura.range > 1 ? 's' : ''}`)), h('div', { class: 'ability' }, d.aura.desc)],
+    abilitiesOf(u).map((id) => abilityBlock(id, st)),
+    aura && [h('div', { class: 'ct-sec' }, 'Aura ', h('span', { class: 'dim' }, `· within ${aura.range} tile${aura.range > 1 ? 's' : ''}`)), h('div', { class: 'ability' }, aura.desc)],
+    path && [h('div', { class: 'ct-sec' }, `Path: ${path.name}`), pathTiers(path, u.tier)],
     statuses?.length > 0 && [h('div', { class: 'ct-sec' }, 'Statuses'), statuses.map(statusLine)],
     h('div', { class: 'ct-foot' },
-      elementLine(d.element),
       behaviourLine(d.role),
       h('div', { class: 'dim' }, `${ROLES[d.role].name}s are placed in the ${ROW_NAMES[ROLES[d.role].autoRow]} row by default.`),
-      next && h('div', { class: 'dim' }, `XP ${u.xp} / ${xpToNext(u.lvl)}. Next level: +${next.hp - now.hp} HP, +${(next.atk - now.atk).toFixed(1)} ATK.`),
+      next && h('div', { class: 'dim' }, `Next level: +${next.hp - now.hp} HP, +${(next.atk - now.atk).toFixed(1)} ATK.`),
       notes.filter(Boolean).map((n) => h('div', { class: 'note-line' }, n))))
 }
+
+export const ROMAN = ['I', 'II', 'III']
+
+// A path's tiers, the ones held marked.
+export const pathTiers = (path, held = 0) => h('ol', { class: 'tiers' }, path.tiers.map((t, i) =>
+  h('li', { class: i < held ? 'held' : '' }, h('b', null, ROMAN[i]), ' ', t.desc)))
 
 function behaviourLine (role) {
   const r = ROLES[role]
@@ -161,9 +156,9 @@ function behaviourLine (role) {
 // ── threat ───────────────────────────────────────────────────────────────────────────────────────
 
 // Rough fighting power: √(HP × ATK × gauge rate), wounds included. The ratio of the two sides tracks
-// the autoplayer's win rate closely: ≤0.6 almost always won, ~1.0 about even, ≥1.2 mostly lost.
+// the basic autoplayer's win rate closely: ≤0.6 almost always won, ~1.0 about even, ≥1.2 mostly lost.
 function power (u, mods) {
-  const s = statsOf({ ...u, star: u.star ?? 1 }, mods)
+  const s = statsOf(u, mods)
   const hpFrac = u.maxHp ? u.hp / u.maxHp : 1
   return Math.sqrt(Math.max(0, s.hp * hpFrac) * s.atk * gaugeRate(s))
 }
@@ -197,9 +192,10 @@ export function threatMeter (run, node) {
 
 export const ROOM = {
   start: { name: 'Start', text: 'Where this floor begins.' },
-  fight: { name: 'Fight', text: 'A battle. Win and reap the soul of one kind of foe you slew.' },
-  elite: { name: 'Elite', text: 'A tougher battle, one tier stronger. Win and reap a soul, or claim a relic instead.' },
+  fight: { name: 'Fight', text: 'A battle. Win essence, and the chance to recruit the souls you slew.' },
+  elite: { name: 'Elite', text: `A tougher battle, one tier stronger. Win essence, recruits, and 1 of ${TUNING.essence.eliteRelics} relics for free.` },
   reliquary: { name: 'Reliquary', text: 'No battle. Choose 1 of 3 relics: lasting bonuses for the rest of the run.' },
+  rite: { name: 'Rite', text: 'No battle. Choose 1 of 3 path tiers for your souls, for free.' },
   altar: { name: 'Altar', text: `No battle. Every soul heals to full; the fallen rise at ${pct(TUNING.run.altarRevive)} HP.` },
   boss: { name: 'The Hollow Sovereign', text: 'The final battle. It grows stronger at 60% and 25% HP. Kill it to win the run.' }
 }
@@ -287,28 +283,11 @@ export function bondTracker (units) {
   }, h('span', { class: 'syn-name' }, '◆ ', b.bond.name), h('span', { class: 'syn-prog' }, `${name(b.uid)} · ${name(b.partner)}`))))
 }
 
-// ── relics and merges ────────────────────────────────────────────────────────────────────────────
+// ── relics ────────────────────────────────────────────────────────────────────────────
 
 export const relicTip = (id) => {
   const r = relicDef(id)
   return h('div', { class: 'syn-tip' }, h('b', null, r.name), h('p', null, r.desc), h('p', { class: 'dim' }, 'Relics last for the rest of the run.'))
-}
-
-// Which copies merge and what comes out.
-export function mergeTip (party, { id, star }) {
-  const copies = party.filter((u) => u.id === id && u.star === star)
-    .sort((a, b) => b.lvl - a.lvl || b.xp - a.xp || a.uid - b.uid)
-    .slice(0, TUNING.star.copies)
-  const keep = copies[0]
-  const before = baseStats(id, keep.lvl, star)
-  const after = baseStats(id, keep.lvl, star + 1)
-  return h('div', { class: 'syn-tip' },
-    h('b', null, `Merge into ${unitDef(id).name} ${'★'.repeat(star + 1)}`),
-    h('p', null, `Fuses ${copies.length} ${'★'.repeat(star)} copies (levels ${copies.map((u) => u.lvl).join(', ')}) into one at level ${keep.lvl}, fully healed, where the frontmost copy stood.`),
-    h('div', { class: 'merge-cmp' },
-      h('span', null, `HP ${before.hp} → `, h('b', null, after.hp)),
-      h('span', null, `ATK ${Math.round(before.atk)} → `, h('b', null, Math.round(after.atk)))),
-    h('p', { class: 'dim' }, `One body instead of ${copies.length}: stronger per field slot, but it counts once toward synergies. Can't be undone.`))
 }
 
 // ── how to play ──────────────────────────────────────────────────────────────────────────────────
@@ -325,11 +304,11 @@ export function helpOverlay (onClose) {
         sec('1 · The route',
           h('p', null, 'Each floor is a map of rooms. You can only move up to a room connected to where you stand. ',
             'Hover any battle room to scout its foes, their formation and the threat they pose.'),
-          h('ul', { class: 'room-list' }, ['fight', 'elite', 'reliquary', 'altar', 'boss'].map((t) =>
+          h('ul', { class: 'room-list' }, ['fight', 'elite', 'reliquary', 'rite', 'altar', 'boss'].map((t) =>
             h('li', null, h('span', { class: `room-ico t-${t}` }, icon(t, 16)), h('b', null, ROOM[t].name), ' ', ROOM[t].text)))),
         sec('2 · The camp',
           h('p', null, `Up to ${TUNING.party.field} souls stand in your `, h('b', null, 'camp'), `, ${COLS}×${CAMP_ROWS} cells. The rest wait in the `, h('b', null, 'ossuary'),
-            ', where they neither fight nor gain XP. Click a soul, then a cell or another soul, to move or swap them.'),
+            ', where they do not fight. Click a soul, then a cell or another soul, to move or swap them.'),
           h('p', null, 'Each floor gives you a different camp. Its ', h('b', null, 'walls'), ' block walking, yours and theirs, but not attacks: bolts fly over them. ',
             `The foes always come from above, over open ground, ${ROWS} rows deep, so the walls decide which way their melee has to walk.`),
           h('p', null, `Units walk one tile at a time (a step costs ${TUNING.board.moveCost} gauge) until a foe is in reach: melee reaches the 8 tiles around, a ranged ability its range in tiles. `,
@@ -345,11 +324,15 @@ export function helpOverlay (onClose) {
             `Hit chance is ACC / (ACC + EVA). CRT is the chance of a ×${TUNING.crit.mult} critical hit.`),
           h('p', null, `After ${secs(TUNING.escalation.startTick)} all damage starts ramping up, so no fight stalls. `,
             'Losing a battle ends the run. Space pauses, 1/2/4 change speed, S skips to the result: none of these change the outcome.')),
-        sec('4 · Souls',
-          h('p', null, 'After a win you reap the soul of one kind of foe you slew. It joins at your retinue\'s median level. ',
-            `Fielded survivors share the XP of every foe slain and heal ${pct(TUNING.run.postBattleHeal)} of their HP. The fallen stay down until an altar raises them.`),
-          h('p', null, h('b', null, 'Merging: '), `three souls of one kind at the same star fuse into one of the next star: ×${TUNING.star.mult[1]} HP and ATK at ★★, ×${TUNING.star.mult[2]} at ★★★, fully healed. `,
-            `You can hold ${TUNING.party.roster} souls; release one to make room.`)),
+        sec('4 · Souls and essence',
+          h('p', null, 'Every foe you slay pays ', h('b', null, 'essence'), ', more for stronger foes. After a win your standing souls heal ',
+            `${pct(TUNING.run.postBattleHeal)} of their HP; the fallen stay down until an altar raises them. Essence buys three things:`),
+          h('ul', null,
+            h('li', null, h('b', null, 'Levels. '), `Select a soul in your camp to buy its next level, up to ${TUNING.level.cap}. Nothing levels on its own.`),
+            h('li', null, h('b', null, 'Paths. '), `Each kind of soul has two or three upgrade paths. Its first tier commits it to one; tiers II and III follow it (${TUNING.essence.tier.join(' / ')} essence). Third tiers change what a soul does.`),
+            h('li', null, h('b', null, 'Recruits. '), 'After a win, the souls you slew are for sale, at the level they fought at. You may recruit one.')),
+          h('p', null, h('b', null, 'Your retinue is all you have: '), `you hold up to ${TUNING.party.roster} souls, and only ${TUNING.party.field} fight at once. `,
+            'A full retinue must release a soul before it can recruit another.')),
         sec('5 · Synergies',
           h('p', null, 'Field souls that share a kin or role to unlock bonuses for the whole field.'),
           h('div', { class: 'syn-table' }, SYNERGIES.map((s) => h('div', null, h('b', null, s.name), h('span', { class: 'dim' }, ' ' + s.desc)))),
@@ -360,12 +343,7 @@ export function helpOverlay (onClose) {
           h('h3', null, 'Auras and area attacks'),
           h('p', null, 'Some souls lend an ', h('b', null, 'aura'), ' to allies near them while they stand, so packing close pays. ',
             'Area attacks punish it: a ', h('b', null, 'blast'), ' hits its target and everyone next to it, and aims wherever its targets stand thickest.')),
-        sec('6 · Elements',
-          h('p', null, 'Each attack has an element; each unit has one. Matchups multiply damage:'),
-          h('div', { class: 'elem-table' }, ELEMENT_LIST.filter((e) => Object.keys(e.affinity).length).map((e) =>
-            h('div', null, h('span', { style: `color:${e.tint}` }, e.name), ' → ',
-              Object.entries(e.affinity).map(([k, v], i) => [i ? ', ' : '', h('span', { style: `color:${ELEMENTS[k].tint}` }, ELEMENTS[k].name), ` ×${v}`])))),
-          h('h3', null, 'Relics'),
+        sec('6 · Relics',
           h('div', { class: 'syn-table' }, RELIC_LIST.map((r) => h('div', null, h('b', null, r.name), h('span', { class: 'dim' }, ' ' + r.desc)))))),
       h('p', { class: 'dim center-text' }, 'Press ', h('kbd', null, 'H'), ' anywhere to open this again.')))
   return el

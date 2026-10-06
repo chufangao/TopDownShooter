@@ -1,8 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hitChance, critChance, affinity, computeDamage } from '../src/sim/battle.js'
+import { hitChance, critChance, computeDamage } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
-import { ELEMENTS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { autoPlace, reachable, expand, rowOf, makeUnit, deployTile, slotAt, tileAt, distance, isEngaged, DEPTH, CENTRE_OUT, activeBonds, CAMP_ROWS, campGrid, steps, wallTiles } from '../src/sim/unit.js'
 
@@ -15,19 +14,12 @@ test('hit and crit are clamped', () => {
   assert.equal(critChance(1000), TUNING.crit.max)
 })
 
-test('affinity reads the attacking element', () => {
-  assert.equal(affinity(ELEMENTS.holy, 'dark'), 2)
-  assert.equal(affinity(ELEMENTS.fire, 'frost'), 1.5)
-  assert.equal(affinity(ELEMENTS.fire, 'holy'), 1)
-  assert.equal(affinity(null, 'dark'), 1)
-})
-
 test('damage is an integer, at least the minimum, and scales the right way', () => {
   const p = { power: 30, atk: TUNING.damage.atkDivisor, def: 0 }
   assert.equal(computeDamage(p), 30)
   assert.equal(computeDamage({ ...p, def: 100 }), 15)
   assert.equal(computeDamage({ ...p, isCrit: true }), Math.round(30 * TUNING.crit.mult))
-  assert.equal(computeDamage({ ...p, affinity: 2, mul: 0.5 }), 30)
+  assert.equal(computeDamage({ ...p, mul: 0.5 }), 15)
   assert.equal(computeDamage({ power: 0, atk: 1, def: 999 }), TUNING.damage.min)
   assert.ok(Number.isInteger(computeDamage({ ...p, variance: 1.0371 })))
 })

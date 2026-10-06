@@ -1,14 +1,13 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { UNITS, ABILITIES, STATUSES, ELEMENTS, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl } from '../src/content.js'
-import { statsOf, makeUnit, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile, wallTiles, steps } from '../src/sim/unit.js'
+import { UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, PATHS } from '../src/content.js'
+import { statsOf, abilitiesOf, auraOf, makeUnit, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile, wallTiles, steps } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 
 
 const checkEffect = (e, where) => {
   assert.ok(['damage', 'heal', 'apply_status', 'cleanse', 'gauge'].includes(e.op), `${where}: op ${e.op}`)
-  if (e.element) assert.ok(ELEMENTS[e.element], `${where}: element ${e.element}`)
   if (e.status) assert.ok(STATUSES[e.status], `${where}: status ${e.status}`)
 }
 
@@ -16,7 +15,6 @@ test('every unit reference resolves', () => {
   for (const u of Object.values(UNITS)) {
     assert.ok(KIN[u.kin], `${u.id} kin`)
     assert.ok(ROLES[u.role], `${u.id} role`)
-    assert.ok(ELEMENTS[u.element], `${u.id} element`)
     assert.ok(Number.isInteger(u.tier) && u.tier >= 1, `${u.id} tier`)
     for (const a of u.abilities) assert.ok(ABILITIES[a], `${u.id} ability ${a}`)
     for (const p of u.phases ?? []) assert.ok(STATUSES[p.grant], `${u.id} phase ${p.grant}`)
@@ -25,9 +23,34 @@ test('every unit reference resolves', () => {
   assert.equal(Object.keys(UNITS).length, 14)
 })
 
+test('every soul has two or three upgrade paths of three tiers, and every tier resolves', () => {
+  for (const u of Object.values(UNITS)) {
+    const paths = PATHS[u.id] ?? []
+    if (u.boss) { assert.equal(paths.length, 0); continue }
+    assert.ok(paths.length >= 2 && paths.length <= 3, `${u.id} paths`)
+    assert.equal(new Set(paths.map((p) => p.id)).size, paths.length, `${u.id} path ids`)
+    for (const p of paths) {
+      assert.ok(p.name && p.desc && p.tiers.length === 3, `${u.id} ${p.id}`)
+      const soul = { ...makeUnit(u.id, { uid: 1 }), path: p.id }
+      for (const [i, t] of p.tiers.entries()) {
+        const where = `${u.id} ${p.id} ${i + 1}`
+        assert.ok(t.desc && (t.mods || t.ability || t.aura), where)
+        const before = abilitiesOf({ ...soul, tier: i })
+        if (t.ability) {
+          assert.ok(ABILITIES[t.ability.id], `${where}: ability ${t.ability.id}`)
+          if (t.ability.replace) assert.ok(before.includes(t.ability.replace), `${where}: replaces ${t.ability.replace}`)
+          assert.ok(abilitiesOf({ ...soul, tier: i + 1 }).includes(t.ability.id), where)
+        }
+        if (t.aura) assert.ok(t.aura.range >= 1 && t.aura.mods.length && auraOf({ ...soul, tier: i + 1 }) === t.aura, where)
+        statsOf({ ...soul, tier: i + 1 })
+      }
+    }
+  }
+})
+
 test('every ability, status and synergy reference resolves', () => {
   for (const a of Object.values(ABILITIES)) {
-    assert.ok(ELEMENTS[a.element], `${a.id} element`)
+    assert.match(a.tint, /^#[0-9a-f]{6}$/, `${a.id} tint`)
     assert.ok(ANIMS[a.anim], `${a.id} anim ${a.anim}`)
     assert.ok(a.castCost > 0)
     for (const e of a.effects) checkEffect(e, a.id)

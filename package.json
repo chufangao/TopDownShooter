@@ -9,7 +9,8 @@
     "start": "node serve.js",
     "test": "node --test \"test/*.test.js\"",
     "sim": "node src/sim/autoplay.js --runs 200",
-    "decisions": "node src/sim/autoplay.js --decisions"
+    "decisions": "node src/sim/autoplay.js --decisions",
+    "ladder": "node src/sim/autoplay.js --ladder"
   },
   "engines": {
     "node": ">=22"

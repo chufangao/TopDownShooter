@@ -1,12 +1,16 @@
-// A floor is a small DAG of ranks: start → 5 ranks of 2–3 rooms → elite (or the boss on the last floor).
+// A floor is a DAG of ranks: start → 14 ranks of 2–4 rooms → elite (or the boss on the last floor), so
+// a walk through it is 15 rooms long.
 import { createRng } from './rng.js'
 
-export const RANKS = 7
+export const RANKS = 16
+export const WIDTH = 4 // the most rooms in a rank
 
-const MID_TYPES = ['fight', 'elite', 'reliquary', 'altar']
-const MID_WEIGHTS = [5, 1.5, 1, 1]
+const MID_TYPES = ['fight', 'elite', 'reliquary', 'altar', 'rite']
+const MID_WEIGHTS = [5, 1.5, 1, 1, 1]
 const LATE_TYPES = ['fight', 'elite', 'reliquary']
 const LATE_WEIGHTS = [3, 1, 0.5]
+const ELITE_FROM = 4 // the first rank an elite may stand in
+const RARE = ['reliquary', 'rite'] // a floor's middle holds one or two of each
 
 // Non-crossing links between two ordered ranks: a monotone staircase from (0,0) to (a-1,b-1), with
 // an optional extra edge filling each diagonal step. Every node gets ≥1 link each way, out-degree ≤ 2.
@@ -37,32 +41,37 @@ function link (rng, a, b) {
   }
 }
 
+// Rank 1 is all fights; the middle ranks mix rooms, with no elite before ELITE_FROM, at most one elite a
+// rank, one or two reliquaries and rites, and no rank all of one kind but fights; the rank before the last always holds exactly
+// one altar.
 function assignTypes (rng, ranks, last) {
   const pick = (types, weights) => rng.weighted(types, weights)
+  const late = RANKS - 2
   for (const n of ranks[1]) n.type = 'fight'
-  for (let r = 2; r <= 4; r++) {
+  for (let r = 2; r < late; r++) {
     let elite = false
     for (const n of ranks[r]) {
       n.type = pick(MID_TYPES, MID_WEIGHTS)
-      if (n.type === 'elite' && elite) n.type = 'fight'
+      if (n.type === 'elite' && (elite || r < ELITE_FROM)) n.type = 'fight'
       if (n.type === 'elite') elite = true
     }
   }
-  const mid = ranks.slice(2, 5).flat()
-  const reliquaries = mid.filter((n) => n.type === 'reliquary')
-  for (const n of reliquaries.slice(2)) n.type = 'fight'
-  if (!reliquaries.length) {
-    const fights = mid.filter((n) => n.type === 'fight')
-    rng.pick(fights.length ? fights : mid).type = 'reliquary'
+  const mid = ranks.slice(2, late).flat()
+  for (const type of RARE) {
+    const rooms = mid.filter((n) => n.type === type)
+    for (const n of rng.shuffle(rooms).slice(2)) n.type = 'fight'
+    if (!rooms.length) {
+      const fights = mid.filter((n) => n.type === 'fight')
+      rng.pick(fights.length ? fights : mid).type = type
+    }
   }
-  for (let r = 2; r <= 4; r++) {
+  for (let r = 2; r < late; r++) {
     const rank = ranks[r]
-    if (rank.every((n) => n.type === rank[0].type)) rng.pick(rank).type = rank[0].type === 'fight' ? 'altar' : 'fight'
+    if (rank.every((n) => n.type === rank[0].type && n.type !== 'fight')) rng.pick(rank).type = 'fight'
   }
-  const late = ranks[5]
-  const altar = rng.int(late.length)
+  const altar = rng.int(ranks[late].length)
   let elite = false
-  late.forEach((n, i) => {
+  ranks[late].forEach((n, i) => {
     n.type = i === altar ? 'altar' : pick(LATE_TYPES, LATE_WEIGHTS)
     if (n.type === 'elite' && elite) n.type = 'fight'
     if (n.type === 'elite') elite = true
@@ -75,8 +84,8 @@ export function generateFloor ({ seed, floor = 1, last = false }) {
   const rng = createRng(seed).stream('map' + floor)
   const ranks = []
   for (let r = 0; r < RANKS; r++) {
-    const n = r === 0 || r === RANKS - 1 ? 1 : 2 + rng.int(2)
-    ranks.push(Array.from({ length: n }, (_, i) => ({ id: `${r}.${i}`, rank: r, lane: i + (3 - n) / 2, type: null, next: [] })))
+    const n = r === 0 || r === RANKS - 1 ? 1 : 2 + rng.int(WIDTH - 1)
+    ranks.push(Array.from({ length: n }, (_, i) => ({ id: `${r}.${i}`, rank: r, lane: i + (WIDTH - n) / 2, type: null, next: [] })))
   }
   for (let r = 0; r < RANKS - 1; r++) {
     for (const [i, j] of link(rng, ranks[r].length, ranks[r + 1].length)) {

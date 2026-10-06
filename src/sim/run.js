@@ -2,35 +2,41 @@
 // apply(run, action) is the only way to change it, legalActions(run) lists what apply accepts now,
 // and the log of applied actions replays the run exactly: replay(seed, log).
 //
-// Battles take no input. The player's part is the retinue: which souls stand in the camp, where, and
-// which are merged. Each floor draws its camp, a 7×7 walled layout, on arrival. `fight` resolves the
-// whole battle at once; run.setup is what it was built from, so the UI can play it back tick by tick.
+// Battles take no input. The player's part is the retinue: which souls it recruits, keeps and lets go,
+// what it spends its essence on, and which souls stand in the camp, where. Slain foes pay essence; it
+// buys levels, path tiers and recruits. Each floor draws its camp, a 7×7 walled layout, on arrival.
+// `fight` resolves the whole battle at once; run.setup is what it was built from, so the UI can play it
+// back tick by tick.
 //
 //   phase            action
-//   map              { type: 'node', id }          walk to a connected room (a battle room opens prep)
-//   map, prep        { type: 'place', uid, slot }  move a soul to an open camp slot (0–48) or the bench
-//                                                  (−1); a soul already there takes the mover's old place
-//   map, prep        { type: 'merge', id, star }   merge the strongest copies of a soul into one of star + 1
-//   map, prep, reap  { type: 'release', uid }      let a soul go (never the last one standing)
-//   prep             { type: 'fight' }             the battle plays out; the run moves on by itself
-//   reap             { type: 'reap', index }       bind offer `index` (a soul or a relic), or null to skip
+//   map              { type: 'node', id }           walk to a connected room (a battle room opens prep)
+//   map, prep        { type: 'place', uid, slot }   move a soul to an open camp slot (0–48) or the bench
+//                                                   (−1); a soul already there takes the mover's old place
+//   map, prep        { type: 'level', uid }         buy a soul its next level
+//   map, prep        { type: 'upgrade', uid, path } buy a soul its next tier on `path` (the first commits it)
+//   map, prep, reap  { type: 'release', uid }       let a soul go (never the last one standing)
+//   prep             { type: 'fight' }              the battle plays out; the run moves on by itself
+//   reap             { type: 'reap', index }        take offer `index` (recruit one soul for its price, a
+//                                                   free relic, a free tier), or null to move on
 //   over             none
 import { TUNING } from '../tuning.js'
 import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, CAMP_LIST } from '../content.js'
 import { createRng } from './rng.js'
-import { makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campGrid, campOpen, wallTiles } from './unit.js'
+import { makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campGrid, campOpen, wallTiles, pathsOf, pathDef } from './unit.js'
 import { createBattle, runBattle } from './battle.js'
-import { generateFloor, nodeOf } from './map.js'
+import { generateFloor, nodeOf, RANKS } from './map.js'
 
 export const START_PARTY = ['tomb_knight', 'bone_chanter', 'frost_sprite']
 const START_LEVEL = 2
 const BATTLE_NODES = ['fight', 'elite', 'boss']
+const ROMAN = ['I', 'II', 'III']
 const BOSS = UNIT_LIST.find((u) => u.boss).id
 
 export function createRun ({ seed }) {
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [],
-    result: null, stats: { fights: 0, wins: 0, reaped: 0, merges: 0, floorsCleared: 0 }, log: [], nextUid: 1
+    essence: TUNING.essence.start, result: null,
+    stats: { fights: 0, wins: 0, reaped: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
   }
   state.party = START_PARTY.map((id) => makeUnit(id, { uid: state.nextUid++, lvl: START_LEVEL }))
   const run = { state, battle: null, setup: null }
@@ -72,7 +78,10 @@ function rosterActions (run) {
   for (const u of s.party) {
     for (let slot = -1; slot < CAMP_SLOTS; slot++) if (canPlace(run, u, slot)) out.push({ type: 'place', uid: u.uid, slot })
   }
-  out.push(...mergeable(s.party).map(({ id, star }) => ({ type: 'merge', id, star })))
+  for (const u of s.party) {
+    if (canLevel(run, u)) out.push({ type: 'level', uid: u.uid })
+    for (const p of pathsOf(u.id)) if (canUpgrade(run, u, p.id)) out.push({ type: 'upgrade', uid: u.uid, path: p.id })
+  }
   out.push(...releasable(s).map((u) => ({ type: 'release', uid: u.uid })))
   return out
 }
@@ -87,27 +96,16 @@ export function availableNodes (run) {
 const relicDefs = (s) => s.relics.map(relicDef)
 const relicSum = (s, key) => relicDefs(s).reduce((n, r) => n + (r[key] ?? 0), 0)
 export const fieldCap = (run) => TUNING.party.field + relicSum(run.state, 'field')
+export const rosterCap = (run) => TUNING.party.roster + relicSum(run.state, 'roster')
 export const fielded = (party) => party.filter(onField)
 export const benched = (party) => party.filter((u) => !onField(u))
 
-// ── the retinue: placing, merging, releasing ─────────────────────────────────────────────────────
+// ── the retinue: placing, releasing, buying ─────────────────────────────────────────────────────
 
 function canPlace (run, u, slot) {
   if (slot === u.slot || (slot !== -1 && !campOpen(run.state.camp, slot))) return false
   const other = slot >= 0 && run.state.party.find((x) => x.slot === slot)
   return onField(u) || !!other || fielded(run.state.party).length < fieldCap(run)
-}
-
-// Kinds with enough copies at one star to merge: [{ id, star }].
-export function mergeable (party) {
-  const n = new Map()
-  for (const u of party) n.set(`${u.id}|${u.star}`, (n.get(`${u.id}|${u.star}`) ?? 0) + 1)
-  const out = []
-  for (const [key, count] of n) {
-    const [id, star] = key.split('|')
-    if (count >= TUNING.star.copies && Number(star) < TUNING.star.max) out.push({ id, star: Number(star) })
-  }
-  return out
 }
 
 // Releasing must leave someone who can still fight.
@@ -118,8 +116,8 @@ const canFight = (s) => s.party.some((u) => onField(u) && u.hp > 0)
 // A new soul takes a free field slot if there is one, else waits on the bench.
 export function join (run, id, { lvl = medianLevel(run.state.party), uid = run.state.nextUid++ } = {}) {
   const s = run.state
-  if (s.party.length >= TUNING.party.roster) throw new Error('the retinue is full')
-  const u = makeUnit(id, { uid, lvl: Math.min(TUNING.xp.cap, lvl) })
+  if (s.party.length >= rosterCap(run)) throw new Error('the retinue is full')
+  const u = makeUnit(id, { uid, lvl: Math.min(TUNING.level.cap, lvl) })
   s.party.push(u)
   if (fielded(s.party).length < fieldCap(run)) autoPlace([...fielded(s.party), u], { grid: campGrid(s.camp) })
   return u
@@ -130,7 +128,8 @@ export function join (run, id, { lvl = medianLevel(run.state.party), uid = run.s
 const HANDLERS = {
   node: { phases: ['map'], run: walk },
   place: { phases: ['map', 'prep'], run: place },
-  merge: { phases: ['map', 'prep'], run: merge },
+  level: { phases: ['map', 'prep'], run: level },
+  upgrade: { phases: ['map', 'prep'], run: upgrade },
   release: { phases: ['map', 'prep', 'reap'], run: release },
   fight: { phases: ['prep'], run: fight },
   reap: { phases: ['reap'], run: reap }
@@ -146,6 +145,10 @@ function walk (run, { id }) {
   } else if (node.type === 'reliquary') {
     s.offers = relicOffers(s, 3)
     s.phase = 'reap'
+  } else if (node.type === 'rite') {
+    s.offers = riteOffers(run, 3)
+    s.phase = 'reap'
+    if (!s.offers.length) nextRoom(run)
   } else if (node.type === 'altar') {
     const t = TUNING.run
     for (const u of s.party) u.hp = u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive)
@@ -165,27 +168,28 @@ function place (run, { uid, slot }) {
   u.slot = slot
 }
 
-// The strongest copies merge into the strongest one, which stands where the frontmost of them stood.
-function merge (run, { id, star }) {
-  const s = run.state
-  if (!mergeable(s.party).some((m) => m.id === id && m.star === star)) throw new Error(`cannot merge ${id} ★${star}`)
-  const copies = s.party.filter((u) => u.id === id && u.star === star)
-    .sort((a, b) => b.lvl - a.lvl || b.xp - a.xp || a.uid - b.uid)
-    .slice(0, TUNING.star.copies)
-  const [keep, ...gone] = copies
-  const slots = copies.map((u) => u.slot).filter((x) => x >= 0).sort((a, b) => a - b)
-  s.party = s.party.filter((u) => !gone.includes(u))
-  keep.star++
-  keep.slot = slots[0] ?? -1
-  keep.maxHp = baseStats(keep.id, keep.lvl, keep.star).hp
-  keep.hp = keep.maxHp
-  s.stats.merges++
+function level (run, { uid }) {
+  const u = run.state.party.find((x) => x.uid === uid)
+  if (!u || !canLevel(run, u)) throw new Error(`cannot level ${uid}`)
+  pay(run, levelCost(run, u))
+  setLevel(u, u.lvl + 1)
 }
 
+function upgrade (run, { uid, path }) {
+  const u = run.state.party.find((x) => x.uid === uid)
+  if (!u || !canUpgrade(run, u, path)) throw new Error(`cannot upgrade ${uid} on ${path}`)
+  pay(run, tierCost(run, u))
+  advance(u, path)
+}
+
+// A released soul's rite offers go with it; a rite left with none ends.
 function release (run, { uid }) {
   const s = run.state
   if (!releasable(s).some((u) => u.uid === uid)) throw new Error(`cannot release ${uid}`)
   s.party = s.party.filter((u) => u.uid !== uid)
+  if (s.phase !== 'reap') return
+  s.offers = s.offers.filter((o) => o.uid !== uid)
+  if (!s.offers.length) nextRoom(run)
 }
 
 function fight (run) {
@@ -198,21 +202,33 @@ function fight (run) {
   finishBattle(run)
 }
 
+// One of each kind per room: recruiting a soul (for its price) takes the other souls off the table, and
+// taking a free relic or rite tier the others of its kind, so an elite still leaves its relic after a
+// recruit. The room ends on null, or once nothing is left.
 function reap (run, { index }) {
   const s = run.state
   const o = index === null ? null : s.offers[index]
   if (index !== null && !o) throw new Error(`no offer ${index}`)
-  if (o && !canTake(run, o)) throw new Error('the retinue is full: release a soul first')
+  if (o && !canTake(run, o)) {
+    throw new Error(o.type !== 'soul' ? `offer ${index} can't be taken` : s.party.length >= rosterCap(run) ? 'the retinue is full: release a soul first' : 'not enough essence')
+  }
   if (o?.type === 'relic') s.relics.push(o.id)
+  else if (o?.type === 'tier') advance(s.party.find((u) => u.uid === o.uid), o.path)
   else if (o?.type === 'soul') {
+    pay(run, o.cost)
     join(run, o.id, { lvl: o.lvl })
     s.stats.reaped++
   }
-  s.offers = []
-  nextRoom(run)
+  s.offers = o ? s.offers.filter((x) => x.type !== o.type) : []
+  if (!s.offers.length) nextRoom(run)
 }
 
-const canTake = (run, o) => o.type !== 'soul' || run.state.party.length < TUNING.party.roster
+function canTake (run, o) {
+  const s = run.state
+  if (o.type === 'soul') return s.party.length < rosterCap(run) && s.essence >= o.cost
+  if (o.type === 'tier') return s.party.some((u) => u.uid === o.uid && canAdvance(u, o.path))
+  return true
+}
 
 // ── internals ────────────────────────────────────────────────────────────────────────────────────
 
@@ -241,7 +257,7 @@ function nextRoom (run) {
 // the middle lanes first, each band of lanes (centre three, then the next pair out…) in shuffled order.
 export function encounter (seed, floor, node) {
   const sp = TUNING.spawn
-  const lvl = foeLevel(floor)
+  const lvl = foeLevel(floor, node.rank)
   if (node.type === 'boss') return [{ id: BOSS, lvl, slot: slotAt(0, CENTRE_OUT[0]) }]
   const rng = createRng(seed).stream(`foes|${floor}|${node.id}`)
   const elite = node.type === 'elite'
@@ -287,11 +303,11 @@ function finishBattle (run) {
     return
   }
   s.stats.wins++
-  const xp = battleXp(b)
+  const earned = Math.round(battleEssence(b) * (1 + relicSum(s, 'essence')))
+  s.essence += earned
+  s.stats.essence += earned
   for (const u of s.party) {
-    if (u.hp <= 0) continue
-    if (byUid.has(u.uid)) gainXp(u, xp)
-    u.hp = Math.min(u.maxHp, u.hp + Math.ceil(u.maxHp * TUNING.run.postBattleHeal))
+    if (u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + Math.ceil(u.maxHp * TUNING.run.postBattleHeal))
   }
   const node = currentNode(run)
   if (node.type === 'boss') {
@@ -300,32 +316,46 @@ function finishBattle (run) {
     s.result = 'victory'
     return
   }
-  s.offers = [...soulOffers(run, b), ...(node.type === 'elite' ? relicOffers(s, 1) : [])]
+  s.offers = [...soulOffers(run, b), ...(node.type === 'elite' ? relicOffers(s, TUNING.essence.eliteRelics) : [])]
   s.phase = 'reap'
 }
 
 // ── progression: the retinue ─────────────────────────────────────────────────────────────────────
 
-export const xpToNext = (lvl) => Math.round(TUNING.xp.base * Math.pow(Math.max(1, lvl), TUNING.xp.exponent))
-const defeatXp = (u) => Math.round(TUNING.xp.perTier * unitDef(u.id).tier * (1 + TUNING.xp.perLevel * (u.lvl - 1)))
+// Every foe slain pays essence, more for higher tiers and levels; it all goes to one purse.
+const foeEssence = (u) => TUNING.essence.perTier * unitDef(u.id).tier * (1 + TUNING.essence.perLevel * (u.lvl - 1))
+const battleEssence = (battle) => battle.units.filter((u) => u.side === 'foe' && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
 
-// XP every fielded survivor of a won battle gets (in full, not split): the sum over foes slain.
-const battleXp = (battle) => battle.units.filter((u) => u.side === 'foe' && u.hp <= 0).reduce((n, u) => n + defeatXp(u), 0)
+// Prices, after the relics' discounts.
+const price = (run, base, discount) => Math.max(1, Math.round(base * (1 - relicSum(run.state, discount))))
+export const levelCost = (run, u) => price(run, TUNING.level.cost * Math.pow(u.lvl, TUNING.level.exponent), 'levelDiscount')
+export const tierCost = (run, u) => price(run, TUNING.essence.tier[u.tier], 'tierDiscount')
+export const recruitCost = (run, id, lvl) => price(run, TUNING.essence.recruit * unitDef(id).tier * (1 + TUNING.essence.perLevel * (lvl - 1)), 'recruitDiscount')
+
+const canLevel = (run, u) => u.lvl < TUNING.level.cap && run.state.essence >= levelCost(run, u)
+// The next tier on `path`: the first commits the soul to it.
+const canAdvance = (u, path) => !!pathDef(u.id, path) && (u.path === null || u.path === path) && u.tier < ROMAN.length
+const canUpgrade = (run, u, path) => canAdvance(u, path) && run.state.essence >= tierCost(run, u)
+
+function pay (run, cost) {
+  const s = run.state
+  if (s.essence < cost) throw new Error('not enough essence')
+  s.essence -= cost
+  s.stats.spent += cost
+}
+
+function advance (u, path) {
+  if (!canAdvance(u, path)) throw new Error(`no tier ${u.tier + 1} on ${path} for ${u.id}`)
+  u.path = path
+  u.tier++
+}
 
 // A level-up raises maxHp and heals by the difference; the fallen stay at 0.
 function setLevel (u, lvl) {
   const before = u.maxHp
-  u.lvl = Math.min(TUNING.xp.cap, lvl)
-  u.maxHp = baseStats(u.id, u.lvl, u.star).hp
+  u.lvl = Math.min(TUNING.level.cap, lvl)
+  u.maxHp = baseStats(u.id, u.lvl).hp
   if (u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + u.maxHp - before)
-}
-
-function gainXp (u, amount) {
-  u.xp += amount
-  while (u.lvl < TUNING.xp.cap && u.xp >= xpToNext(u.lvl)) {
-    u.xp -= xpToNext(u.lvl)
-    setLevel(u, u.lvl + 1)
-  }
 }
 
 export function medianLevel (party) {
@@ -337,7 +367,12 @@ export function medianLevel (party) {
 
 const at = (list, floor) => list[Math.min(floor, list.length) - 1]
 
-export const foeLevel = (floor) => Math.max(1, Math.round(1 + (floor - 1) * TUNING.spawn.levelPerFloor))
+// Foes grow floor by floor and, across a floor, rank by rank: the floor's last room is `levelRamp`
+// levels above its first.
+export const foeLevel = (floor, rank = 1) => {
+  const sp = TUNING.spawn
+  return Math.max(1, Math.round(1 + (floor - 1) * sp.levelPerFloor + sp.levelRamp * (rank - 1) / (RANKS - 2)))
+}
 
 // Spawnable units for a floor, weighted toward the floor's target tier.
 function spawnPool (floor, tierBias = 0) {
@@ -357,14 +392,26 @@ export function foeMods (floor, boss) {
 
 // ── rewards ──────────────────────────────────────────────────────────────────────────────────────
 
-// One soul offer per kind of foe slain, rising at the retinue's median level.
+// One soul for sale per kind of foe slain, rising at the level that foe fought at.
 function soulOffers (run, battle) {
   const s = run.state
-  const lvl = Math.min(TUNING.xp.cap, medianLevel(s.party) + relicSum(s, 'soulLevel'))
-  const ids = [...new Set(battle.units.filter((u) => u.side === 'foe' && u.hp <= 0).map((u) => u.id))]
-  return ids.map((id) => {
-    const d = unitDef(id)
-    return { type: 'soul', id, lvl, name: d.name, desc: `Rises at level ${lvl}.` }
+  const slain = battle.units.filter((u) => u.side === 'foe' && u.hp <= 0)
+  return [...new Set(slain.map((u) => u.id))].map((id) => {
+    const lvl = Math.min(TUNING.level.cap, Math.max(...slain.filter((u) => u.id === id).map((u) => u.lvl)) + relicSum(s, 'soulLevel'))
+    return { type: 'soul', id, lvl, cost: recruitCost(run, id, lvl), name: unitDef(id).name, desc: `Rises at level ${lvl}.` }
+  })
+}
+
+// A rite offers free tiers: up to `n` of the next tiers your souls could take, each for a different
+// soul where it can.
+function riteOffers (run, n) {
+  const s = run.state
+  const rng = createRng(s.seed).stream(`rite|${s.floor}|${s.at}`)
+  const options = rng.shuffle(s.party.flatMap((u) => pathsOf(u.id).filter((p) => canAdvance(u, p.id)).map((p) => ({ u, p }))))
+  const picked = [...options.filter((o, i) => options.findIndex((x) => x.u === o.u) === i), ...options].filter((o, i, all) => all.indexOf(o) === i).slice(0, n)
+  return picked.map(({ u, p }) => {
+    const tier = pathDef(u.id, p.id).tiers[u.tier]
+    return { type: 'tier', uid: u.uid, path: p.id, name: `${unitDef(u.id).name}: ${p.name} ${ROMAN[u.tier]}`, desc: tier.desc }
   })
 }
 

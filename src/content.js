@@ -1,4 +1,4 @@
-// All game content: units, abilities, statuses, elements, kin and roles, behaviours, synergies, bonds,
+// All game content: units, abilities, upgrade paths, statuses, kin and roles, behaviours, synergies, bonds,
 // camps, relics and attack animations, plus id lookups. Data only; balance numbers live in tuning.js.
 
 // ── units ────────────────────────────────────────────────────────────────────────────────────
@@ -13,7 +13,6 @@ export const UNIT_LIST = [
     name: 'Bone Chanter',
     kin: 'undead',
     role: 'channeler',
-    element: 'dark',
     tier: 2,
     base: { hp: 78, atk: 14, def: 6, spd: 22, acc: 40, eva: 12, crt: 5 },
     growth: { hp: 9, atk: 2.1, def: 0.6, spd: 1.2 },
@@ -26,7 +25,6 @@ export const UNIT_LIST = [
     name: 'Tomb Knight',
     kin: 'undead',
     role: 'vanguard',
-    element: 'dark',
     tier: 2,
     base: { hp: 142, atk: 16, def: 22, spd: 12, acc: 45, eva: 6, crt: 4 },
     growth: { hp: 16, atk: 2.4, def: 2, spd: 0.5 },
@@ -40,7 +38,6 @@ export const UNIT_LIST = [
     name: 'Ember Drake',
     kin: 'drake',
     role: 'ranger',
-    element: 'fire',
     tier: 3,
     base: { hp: 96, atk: 24, def: 10, spd: 26, acc: 52, eva: 14, crt: 12 },
     growth: { hp: 11, atk: 3.2, def: 0.9, spd: 1.4 },
@@ -53,7 +50,6 @@ export const UNIT_LIST = [
     name: 'Frost Sprite',
     kin: 'fae',
     role: 'skirmisher',
-    element: 'frost',
     tier: 1,
     base: { hp: 54, atk: 15, def: 4, spd: 38, acc: 48, eva: 30, crt: 9 },
     growth: { hp: 6, atk: 2, def: 0.3, spd: 2.1 },
@@ -66,7 +62,6 @@ export const UNIT_LIST = [
     name: 'Hive Warden',
     kin: 'insect',
     role: 'warden',
-    element: 'physical',
     tier: 2,
     base: { hp: 110, atk: 13, def: 15, spd: 18, acc: 42, eva: 10, crt: 3 },
     growth: { hp: 13, atk: 1.6, def: 1.4, spd: 0.9 },
@@ -79,7 +74,6 @@ export const UNIT_LIST = [
     name: 'Clockwork Page',
     kin: 'construct',
     role: 'trickster',
-    element: 'arcane',
     tier: 1,
     base: { hp: 68, atk: 12, def: 9, spd: 30, acc: 44, eva: 18, crt: 7 },
     growth: { hp: 7, atk: 1.7, def: 0.8, spd: 1.6 },
@@ -92,7 +86,6 @@ export const UNIT_LIST = [
     name: 'Grave Ghoul',
     kin: 'undead',
     role: 'vanguard',
-    element: 'physical',
     tier: 1,
     base: { hp: 96, atk: 13, def: 9, spd: 18, acc: 42, eva: 10, crt: 6 },
     growth: { hp: 11, atk: 1.8, def: 0.8, spd: 0.9 },
@@ -105,7 +98,6 @@ export const UNIT_LIST = [
     name: "Will-o'-Wisp",
     kin: 'fae',
     role: 'channeler',
-    element: 'arcane',
     tier: 1,
     base: { hp: 50, atk: 15, def: 3, spd: 32, acc: 46, eva: 28, crt: 6 },
     growth: { hp: 6, atk: 2.1, def: 0.3, spd: 1.8 },
@@ -118,7 +110,6 @@ export const UNIT_LIST = [
     name: 'Thorn Dryad',
     kin: 'fae',
     role: 'warden',
-    element: 'holy',
     tier: 2,
     base: { hp: 104, atk: 12, def: 12, spd: 20, acc: 42, eva: 14, crt: 3 },
     growth: { hp: 12, atk: 1.6, def: 1.1, spd: 1 },
@@ -131,7 +122,6 @@ export const UNIT_LIST = [
     name: 'Mantis Reaper',
     kin: 'insect',
     role: 'trickster',
-    element: 'physical',
     tier: 3,
     base: { hp: 92, atk: 25, def: 9, spd: 32, acc: 50, eva: 20, crt: 16 },
     growth: { hp: 10, atk: 3.1, def: 0.8, spd: 1.8 },
@@ -144,7 +134,6 @@ export const UNIT_LIST = [
     name: 'Iron Golem',
     kin: 'construct',
     role: 'vanguard',
-    element: 'physical',
     tier: 3,
     base: { hp: 220, atk: 17, def: 30, spd: 9, acc: 44, eva: 2, crt: 3 },
     growth: { hp: 22, atk: 2.2, def: 2.4, spd: 0.4 },
@@ -157,7 +146,6 @@ export const UNIT_LIST = [
     name: 'Barrow Wight',
     kin: 'undead',
     role: 'skirmisher',
-    element: 'dark',
     tier: 4,
     base: { hp: 128, atk: 27, def: 13, spd: 30, acc: 52, eva: 22, crt: 10 },
     growth: { hp: 14, atk: 3.4, def: 1.1, spd: 1.6 },
@@ -170,7 +158,6 @@ export const UNIT_LIST = [
     name: 'Frost Wyrm',
     kin: 'drake',
     role: 'ranger',
-    element: 'frost',
     tier: 4,
     base: { hp: 190, atk: 29, def: 16, spd: 16, acc: 50, eva: 6, crt: 8 },
     growth: { hp: 20, atk: 3.4, def: 1.5, spd: 0.7 },
@@ -184,7 +171,6 @@ export const UNIT_LIST = [
     name: 'The Hollow Sovereign',
     kin: 'undead',
     role: 'vanguard',
-    element: 'dark',
     tier: 5,
     boss: true,
     base: { hp: 2800, atk: 65, def: 30, spd: 18, acc: 70, eva: 8, crt: 8 },
@@ -212,9 +198,9 @@ const ABILITY_LIST = [
     castCost: 100,
     shape: 'single',
     melee: true,
-    element: 'physical',
+    tint: '#d8d4cc',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 30, element: 'physical' }]
+    effects: [{ op: 'damage', power: 30 }]
   },
   {
     id: 'cleave',
@@ -222,11 +208,11 @@ const ABILITY_LIST = [
     castCost: 140,
     shape: 'row',
     melee: true,
-    element: 'physical',
+    tint: '#d8d4cc',
     anim: 'melee_lunge',
     when: (s) => s.enemies.length >= 2,
     cond: 'while 2+ foes stand',
-    effects: [{ op: 'damage', power: 22, element: 'physical' }]
+    effects: [{ op: 'damage', power: 22 }]
   },
   {
     id: 'marrow_bolt',
@@ -234,10 +220,10 @@ const ABILITY_LIST = [
     castCost: 100,
     shape: 'single',
     range: 4,
-    element: 'dark',
+    tint: '#7a5c9e',
     anim: 'cast_beam',
     effects: [
-      { op: 'damage', power: 34, element: 'dark' },
+      { op: 'damage', power: 34 },
       { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.35 }
     ]
   },
@@ -247,7 +233,7 @@ const ABILITY_LIST = [
     castCost: 180,
     shape: 'all_allies',
     range: 2,
-    element: 'dark',
+    tint: '#7a5c9e',
     anim: 'cast_beam',
     when: (s) => s.t < 150,
     cond: 'in the first 7.5 s of a battle',
@@ -259,11 +245,11 @@ const ABILITY_LIST = [
     castCost: 160,
     shape: 'blast',
     range: 4,
-    element: 'fire',
+    tint: '#ff7a33',
     anim: 'ranged_bolt',
     when: (s) => s.enemies.length >= 2,
     cond: 'while 2+ foes stand',
-    effects: [{ op: 'damage', power: 26, element: 'fire' }]
+    effects: [{ op: 'damage', power: 26 }]
   },
   {
     id: 'frost_lance',
@@ -271,16 +257,16 @@ const ABILITY_LIST = [
     castCost: 120,
     shape: 'single',
     range: 3,
-    element: 'frost',
+    tint: '#66c8ff',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 30, element: 'frost' }, { op: 'gauge', amount: -20 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -20 }]
   },
   {
     id: 'mend',
     name: 'Mend',
     castCost: 130,
     shape: 'ally',
-    element: 'holy',
+    tint: '#ffe9a8',
     anim: 'cast_beam',
     when: (s) => s.allies.some((u) => hpPct(u) < 0.5),
     cond: 'while an ally is below 50% HP',
@@ -294,7 +280,7 @@ const ABILITY_LIST = [
     name: 'Purge',
     castCost: 110,
     shape: 'ally',
-    element: 'holy',
+    tint: '#ffe9a8',
     anim: 'cast_beam',
     when: (s) => s.allies.some((u) => hpPct(u) < 0.9),
     cond: 'while an ally is below 90% HP',
@@ -306,10 +292,10 @@ const ABILITY_LIST = [
     castCost: 110,
     shape: 'single',
     melee: true,
-    element: 'physical',
+    tint: '#d8d4cc',
     anim: 'melee_lunge',
     effects: [
-      { op: 'damage', power: 30, element: 'physical' },
+      { op: 'damage', power: 30 },
       { op: 'apply_status', status: 'brittle', dur: 100, chance: 0.25 }
     ]
   },
@@ -319,9 +305,9 @@ const ABILITY_LIST = [
     castCost: 110,
     shape: 'single',
     range: 4,
-    element: 'arcane',
+    tint: '#b57bff',
     anim: 'cast_beam',
-    effects: [{ op: 'damage', power: 30, element: 'arcane' }]
+    effects: [{ op: 'damage', power: 30 }]
   },
   {
     id: 'barkskin',
@@ -329,7 +315,7 @@ const ABILITY_LIST = [
     castCost: 160,
     shape: 'all_allies',
     range: 2,
-    element: 'holy',
+    tint: '#ffe9a8',
     anim: 'cast_beam',
     when: (s) => s.allies.some((u) => hpPct(u) < 0.75) && !s.self.statuses.some((x) => x.id === 'barkskin'),
     cond: 'while an ally is below 75% HP and it has no Barkskin itself',
@@ -341,9 +327,9 @@ const ABILITY_LIST = [
     castCost: 130,
     shape: 'single',
     melee: true,
-    element: 'physical',
+    tint: '#d8d4cc',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 42, element: 'physical' }]
+    effects: [{ op: 'damage', power: 42 }]
   },
   {
     id: 'quake',
@@ -351,11 +337,11 @@ const ABILITY_LIST = [
     castCost: 170,
     shape: 'blast',
     melee: true,
-    element: 'physical',
+    tint: '#d8d4cc',
     anim: 'melee_lunge',
     when: (s) => s.enemies.length >= 2,
     cond: 'while 2+ foes stand',
-    effects: [{ op: 'damage', power: 20, element: 'physical' }, { op: 'gauge', amount: -30 }]
+    effects: [{ op: 'damage', power: 20 }, { op: 'gauge', amount: -30 }]
   },
   {
     id: 'wither',
@@ -363,10 +349,10 @@ const ABILITY_LIST = [
     castCost: 120,
     shape: 'single',
     range: 3,
-    element: 'dark',
+    tint: '#7a5c9e',
     anim: 'cast_beam',
     effects: [
-      { op: 'damage', power: 34, element: 'dark' },
+      { op: 'damage', power: 34 },
       { op: 'apply_status', status: 'withered', dur: 140, chance: 0.5 }
     ]
   },
@@ -376,9 +362,9 @@ const ABILITY_LIST = [
     castCost: 170,
     shape: 'column',
     range: 3,
-    element: 'frost',
+    tint: '#66c8ff',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 30, element: 'frost' }, { op: 'gauge', amount: -25 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -25 }]
   },
   {
     id: 'sovereign_sweep',
@@ -386,25 +372,403 @@ const ABILITY_LIST = [
     castCost: 150,
     shape: 'row',
     melee: true,
-    element: 'physical',
+    tint: '#d8d4cc',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 26, element: 'physical' }]
+    effects: [{ op: 'damage', power: 26 }]
   },
   {
     id: 'grave_tide',
     name: 'Grave Tide',
     castCost: 260,
     shape: 'blast',
-    element: 'dark',
+    tint: '#7a5c9e',
     anim: 'cast_beam',
     when: (s) => hpPct(s.self) <= 0.6,
     cond: 'once it is at 60% HP or less',
     effects: [
-      { op: 'damage', power: 44, element: 'dark' },
+      { op: 'damage', power: 44 },
       { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.4 }
     ]
+  },
+  // ── abilities a path grants ──
+  {
+    id: 'requiem',
+    name: 'Requiem',
+    castCost: 180,
+    shape: 'all_allies',
+    range: 3,
+    tint: '#7a5c9e',
+    anim: 'cast_beam',
+    when: (s) => s.t < 200,
+    cond: 'in the first 10 s of a battle',
+    effects: [{ op: 'apply_status', status: 'hasten', dur: 140 }]
+  },
+  {
+    id: 'marrow_spear',
+    name: 'Marrow Spear',
+    castCost: 150,
+    shape: 'column',
+    range: 4,
+    tint: '#7a5c9e',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 }]
+  },
+  {
+    id: 'bone_mend',
+    name: 'Bone Mend',
+    castCost: 130,
+    shape: 'ally',
+    tint: '#7a5c9e',
+    anim: 'cast_beam',
+    when: (s) => s.allies.some((u) => hpPct(u) < 0.5),
+    cond: 'while an ally is below 50% HP',
+    effects: [{ op: 'heal', power: 30 }]
+  },
+  {
+    id: 'rending_strike',
+    name: 'Rending Strike',
+    castCost: 110,
+    shape: 'single',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 36 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 }]
+  },
+  {
+    id: 'inferno',
+    name: 'Inferno',
+    castCost: 170,
+    shape: 'blast',
+    range: 4,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 32 }]
+  },
+  {
+    id: 'searing_bolt',
+    name: 'Searing Bolt',
+    castCost: 120,
+    shape: 'single',
+    range: 5,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 34 }]
+  },
+  {
+    id: 'shatter_lance',
+    name: 'Shatter Lance',
+    castCost: 130,
+    shape: 'single',
+    range: 3,
+    tint: '#66c8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 38 }, { op: 'gauge', amount: -20 }, { op: 'apply_status', status: 'brittle', dur: 100, chance: 0.3 }]
+  },
+  {
+    id: 'hoarfrost',
+    name: 'Hoarfrost',
+    castCost: 150,
+    shape: 'blast',
+    range: 3,
+    tint: '#66c8ff',
+    anim: 'ranged_bolt',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 18 }, { op: 'gauge', amount: -30 }]
+  },
+  {
+    id: 'swarm_mend',
+    name: 'Swarm Mend',
+    castCost: 150,
+    shape: 'all_allies',
+    range: 2,
+    tint: '#ffe9a8',
+    anim: 'cast_beam',
+    when: (s) => s.allies.some((u) => hpPct(u) < 0.6),
+    cond: 'while an ally is below 60% HP',
+    effects: [{ op: 'heal', power: 18 }]
+  },
+  {
+    id: 'spanner',
+    name: 'Spanner in the Works',
+    castCost: 120,
+    shape: 'single',
+    melee: true,
+    tint: '#b57bff',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -40 }]
+  },
+  {
+    id: 'overclock',
+    name: 'Overclock',
+    castCost: 120,
+    shape: 'ally',
+    tint: '#b57bff',
+    anim: 'cast_beam',
+    when: (s) => s.allies.length >= 2,
+    cond: 'while it has an ally',
+    effects: [{ op: 'apply_status', status: 'hasten', dur: 100 }, { op: 'cleanse', tag: 'debuff', count: 1 }]
+  },
+  {
+    id: 'devour',
+    name: 'Devour',
+    castCost: 130,
+    shape: 'single',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 34 }, { op: 'heal', power: 20, self: true }]
+  },
+  {
+    id: 'plague_bite',
+    name: 'Plague Bite',
+    castCost: 120,
+    shape: 'single',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [
+      { op: 'damage', power: 30 },
+      { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 },
+      { op: 'apply_status', status: 'withered', dur: 120, chance: 0.3 }
+    ]
+  },
+  {
+    id: 'wildfire',
+    name: 'Wildfire',
+    castCost: 160,
+    shape: 'blast',
+    range: 4,
+    tint: '#b57bff',
+    anim: 'cast_beam',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 24 }]
+  },
+  {
+    id: 'bloom',
+    name: 'Bloom',
+    castCost: 140,
+    shape: 'ally',
+    tint: '#ffe9a8',
+    anim: 'cast_beam',
+    when: (s) => s.allies.some((u) => hpPct(u) < 0.5),
+    cond: 'while an ally is below 50% HP',
+    effects: [{ op: 'heal', power: 34 }, { op: 'apply_status', status: 'regen', dur: 200 }]
+  },
+  {
+    id: 'thorn_lash',
+    name: 'Thorn Lash',
+    castCost: 140,
+    shape: 'row',
+    melee: true,
+    tint: '#ffe9a8',
+    anim: 'melee_lunge',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 20 }]
+  },
+  {
+    id: 'execute',
+    name: 'Execute',
+    castCost: 150,
+    shape: 'single',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 48 }]
+  },
+  {
+    id: 'earthshatter',
+    name: 'Earthshatter',
+    castCost: 180,
+    shape: 'blast',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 26 }, { op: 'gauge', amount: -40 }]
+  },
+  {
+    id: 'soul_drain',
+    name: 'Soul Drain',
+    castCost: 130,
+    shape: 'single',
+    range: 3,
+    tint: '#7a5c9e',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 34 }, { op: 'heal', power: 20, self: true }]
+  },
+  {
+    id: 'dread_wail',
+    name: 'Dread Wail',
+    castCost: 160,
+    shape: 'blast',
+    range: 3,
+    tint: '#7a5c9e',
+    anim: 'cast_beam',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.6 }]
+  },
+  {
+    id: 'blizzard',
+    name: 'Blizzard',
+    castCost: 180,
+    shape: 'row',
+    range: 3,
+    tint: '#66c8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 26 }, { op: 'gauge', amount: -25 }]
   }
 ]
+
+// ── upgrade paths ────────────────────────────────────────────────────────────────────────────
+
+// Each kind of soul has up to three paths. A soul commits to one with its first tier, then buys tiers
+// II and III along it with essence (TUNING.essence.tier). A tier can carry `mods` (always on, like a
+// relic's, for that soul alone), `ability` ({ id, replace } swaps one of its abilities; { id, at }
+// adds one at that place in its priority list, first by default) and `aura` (replaces its aura).
+const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
+export const PATHS = {
+  bone_chanter: [
+    { id: 'dirgemaster', name: 'Dirgemaster', desc: 'Quickens the whole line.', tiers: [
+      { desc: '+15% gauge rate.', mods: [m('gauge.rate', 'mul', 1.15)] },
+      { desc: '+20% damage dealt.', mods: [m('damage.dealt', 'mul', 1.2)] },
+      { desc: 'Dirge becomes Requiem: Hasten for 7 s to every ally within 3 tiles, in the first 10 s.', ability: { id: 'requiem', replace: 'dirge' } }] },
+    { id: 'marrowcaller', name: 'Marrowcaller', desc: 'Bolts that pierce a whole lane.', tiers: [
+      { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
+      { desc: '+15 ACC, +8 CRT.', mods: [m('acc', 'add', 15), m('crt', 'add', 8)] },
+      { desc: 'Marrow Bolt becomes Marrow Spear: hits a foe and everyone in its lane.', ability: { id: 'marrow_spear', replace: 'marrow_bolt' } }] },
+    { id: 'grave_mender', name: 'Grave Mender', desc: 'Knits bone back together.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: '+30% healing given.', mods: [m('heal.given', 'mul', 1.3)] },
+      { desc: 'Learns Bone Mend: heals the most wounded ally while one is below 50% HP.', ability: { id: 'bone_mend' } }] }
+  ],
+  tomb_knight: [
+    { id: 'bulwark', name: 'Bulwark', desc: 'A wall the line hides behind.', tiers: [
+      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Its aura reaches allies within 2 tiles.', aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } }] },
+    { id: 'reaver', name: 'Reaver', desc: 'Trades the shield for the edge.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+15% damage dealt while a foe is next to it.', mods: [m('damage.dealt', 'mul', 1.15, 'engaged')] },
+      { desc: 'Strike becomes Rending Strike: 36 power, 50% chance of Brittle.', ability: { id: 'rending_strike', replace: 'strike' } }] }
+  ],
+  ember_drake: [
+    { id: 'pyroclast', name: 'Pyroclast', desc: 'Bigger fires.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Ember Burst becomes Inferno: 32 power to a foe and everyone next to it.', ability: { id: 'inferno', replace: 'ember_burst' } }] },
+    { id: 'skyhunter', name: 'Skyhunter', desc: 'Picks off whoever strays.', tiers: [
+      { desc: '+12 ACC, +10% gauge rate.', mods: [m('acc', 'add', 12), m('gauge.rate', 'mul', 1.1)] },
+      { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
+      { desc: 'Learns Searing Bolt: 34 power at range 5, when Ember Burst has no use.', ability: { id: 'searing_bolt', at: 1 } }] }
+  ],
+  frost_sprite: [
+    { id: 'rimeblade', name: 'Rimeblade', desc: 'A colder, crueller lance.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Frost Lance becomes Shatter Lance: 38 power, drains gauge, 30% chance of Brittle.', ability: { id: 'shatter_lance', replace: 'frost_lance' } }] },
+    { id: 'winters_herald', name: "Winter's Herald", desc: 'Slows everything near it.', tiers: [
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
+      { desc: 'Learns Hoarfrost: frosts a foe and everyone next to it, draining 30 gauge.', ability: { id: 'hoarfrost' } }] }
+  ],
+  hive_warden: [
+    { id: 'brood_mother', name: 'Brood Mother', desc: 'Mends the whole swarm.', tiers: [
+      { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Mend becomes Swarm Mend: heals every ally within 2 tiles.', ability: { id: 'swarm_mend', replace: 'mend' } }] },
+    { id: 'chitin_guard', name: 'Chitin Guard', desc: 'Armours those beside it.', tiers: [
+      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+      { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+      { desc: 'Gains an aura: allies next to it get +15% DEF.', aura: { range: 1, desc: 'Allies next to it get +15% DEF.', mods: [m('def', 'mul', 1.15)] } }] }
+  ],
+  clockwork_page: [
+    { id: 'saboteur', name: 'Saboteur', desc: 'Jams the enemy back line.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Strike becomes Spanner in the Works: 30 power, drains 40 gauge.', ability: { id: 'spanner', replace: 'strike' } }] },
+    { id: 'gearwright', name: 'Gearwright', desc: 'Keeps the others ticking.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: 'Purge becomes Overclock: Hasten and one debuff removed, on the most wounded ally.', ability: { id: 'overclock', replace: 'purge' } }] }
+  ],
+  grave_ghoul: [
+    { id: 'glutton', name: 'Glutton', desc: 'Eats to stay standing.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Takes 8% less damage.', mods: [m('damage.taken', 'mul', 0.92)] },
+      { desc: 'Gnaw becomes Devour: 34 power, and it heals itself.', ability: { id: 'devour', replace: 'gnaw' } }] },
+    { id: 'plague_bearer', name: 'Plague-Bearer', desc: 'Every bite festers.', tiers: [
+      { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
+      { desc: '+12% gauge rate.', mods: [m('gauge.rate', 'mul', 1.12)] },
+      { desc: 'Gnaw becomes Plague Bite: Brittle and Withered.', ability: { id: 'plague_bite', replace: 'gnaw' } }] }
+  ],
+  will_o_wisp: [
+    { id: 'lantern', name: 'Lantern', desc: 'Its light spreads to crowds.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+15 ACC.', mods: [m('acc', 'add', 15)] },
+      { desc: 'Learns Wildfire: 24 power to a foe and everyone next to it.', ability: { id: 'wildfire' } }] },
+    { id: 'will_ward', name: 'Will-Ward', desc: 'Hard to pin down, and so are its friends.', tiers: [
+      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Gains an aura: allies next to it get +8 EVA.', aura: { range: 1, desc: 'Allies next to it get +8 EVA.', mods: [m('eva', 'add', 8)] } }] }
+  ],
+  thorn_dryad: [
+    { id: 'heartwood', name: 'Heartwood', desc: 'Deep-rooted healing.', tiers: [
+      { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
+      { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+      { desc: 'Mend becomes Bloom: 34 power and Regen every time.', ability: { id: 'bloom', replace: 'mend' } }] },
+    { id: 'bramble', name: 'Bramble', desc: 'A healer with thorns.', tiers: [
+      { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
+      { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
+      { desc: 'Learns Thorn Lash: damage to a foe and everyone level with it.', ability: { id: 'thorn_lash' } }] }
+  ],
+  mantis_reaper: [
+    { id: 'executioner', name: 'Executioner', desc: 'One cut, one corpse.', tiers: [
+      { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
+      { desc: '+12 CRT.', mods: [m('crt', 'add', 12)] },
+      { desc: 'Reap becomes Execute: 48 power.', ability: { id: 'execute', replace: 'reap' } }] },
+    { id: 'phantom', name: 'Phantom', desc: 'Never quite where it was.', tiers: [
+      { desc: '+10 EVA.', mods: [m('eva', 'add', 10)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: '+15 EVA, +15% damage dealt.', mods: [m('eva', 'add', 15), m('damage.dealt', 'mul', 1.15)] }] }
+  ],
+  iron_golem: [
+    { id: 'juggernaut', name: 'Juggernaut', desc: 'An iron wall that shelters others.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+      { desc: 'Gains an aura: allies next to it take 10% less damage.', aura: { range: 1, desc: 'Allies next to it take 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] } }] },
+    { id: 'siegebreaker', name: 'Siegebreaker', desc: 'Breaks whole formations.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: 'Quake becomes Earthshatter: 26 power, drains 40 gauge.', ability: { id: 'earthshatter', replace: 'quake' } }] }
+  ],
+  barrow_wight: [
+    { id: 'lich', name: 'Lich-in-Waiting', desc: 'Feeds on what it kills.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Wither becomes Soul Drain: 34 power, and it heals itself.', ability: { id: 'soul_drain', replace: 'wither' } }] },
+    { id: 'dread', name: 'Dread', desc: 'Its wail saps whole squads.', tiers: [
+      { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
+      { desc: 'Learns Dread Wail: Withers a foe and everyone next to it.', ability: { id: 'dread_wail' } }] }
+  ],
+  frost_wyrm: [
+    { id: 'ancient', name: 'Ancient', desc: 'Older, thicker, colder.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
+      { desc: 'Glacial Breath becomes Blizzard: freezes a foe and everyone level with it.', ability: { id: 'blizzard', replace: 'glacial_breath' } }] },
+    { id: 'rime_tyrant', name: 'Rime Tyrant', desc: 'Pure killing cold.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: '+20% damage dealt, +10 CRT.', mods: [m('damage.dealt', 'mul', 1.2), m('crt', 'add', 10)] }] }
+  ]
+}
 
 // ── statuses ─────────────────────────────────────────────────────────────────────────────────
 
@@ -479,18 +843,6 @@ const STATUS_LIST = [
       { path: 'gauge.rate', op: 'mul', v: 1.15 }
     ]
   }
-]
-
-// ── elements ─────────────────────────────────────────────────────────────────────────────────
-
-// affinity[defender element] on the attacking element; unlisted matchups are 1.
-export const ELEMENT_LIST = [
-  { id: 'physical', name: 'Physical', tint: '#d8d4cc', affinity: {} },
-  { id: 'fire', name: 'Fire', tint: '#ff7a33', affinity: { frost: 1.5, fire: 0.5 } },
-  { id: 'frost', name: 'Frost', tint: '#66c8ff', affinity: { arcane: 1.5, frost: 0.5 } },
-  { id: 'arcane', name: 'Arcane', tint: '#b57bff', affinity: { fire: 1.5, arcane: 0.5 } },
-  { id: 'dark', name: 'Dark', tint: '#7a5c9e', affinity: { holy: 1.5, dark: 0.5 } },
-  { id: 'holy', name: 'Holy', tint: '#ffe9a8', affinity: { dark: 2, holy: 0.5 } }
 ]
 
 // ── kin and roles ────────────────────────────────────────────────────────────────────────────
@@ -583,18 +935,30 @@ export const CAMP_LIST = [
 
 // ── relics ───────────────────────────────────────────────────────────────────────────────────
 
-// Run-long passives. `mods` apply to every fielded soul in battle (a `pos` mod only in that position);
-// `field` adds field slots; `soulLevel` adds levels to every soul you reap.
+// Run-long passives. `mods` apply to every fielded soul in battle (a `pos` mod only in that position, a
+// `who` mod only to souls of that role or kin); `field` adds field slots; `roster` adds room in the
+// retinue; `soulLevel` adds levels to every soul you recruit; `essence` raises the essence battles
+// pay by that share; `levelDiscount`, `tierDiscount` and `recruitDiscount` cut those prices by theirs.
 export const RELIC_LIST = [
   { id: 'whetstone', name: 'Whetstone', desc: '+12% ATK.', mods: [{ path: 'atk', op: 'mul', v: 1.12 }] },
   { id: 'grave_banner', name: 'Grave Banner', desc: '+1 field slot.', field: 1 },
-  { id: 'soul_lantern', name: 'Soul Lantern', desc: 'Reaped souls rise 2 levels higher.', soulLevel: 2 },
+  { id: 'soul_lantern', name: 'Soul Lantern', desc: 'Recruited souls rise 2 levels higher.', soulLevel: 2 },
   { id: 'hourglass', name: 'Hourglass', desc: '+10% gauge rate.', mods: [{ path: 'gauge.rate', op: 'mul', v: 1.1 }] },
   { id: 'heartwood', name: 'Heartwood', desc: '+15% max HP.', mods: [{ path: 'hp', op: 'mul', v: 1.15 }] },
   { id: 'tower_shield', name: 'Tower Shield', desc: 'Engaged souls take 15% less damage.', mods: [{ path: 'damage.taken', op: 'mul', v: 0.85, pos: 'engaged' }] },
   { id: 'longbow', name: 'Longbow', desc: 'Souls with no foe next to them deal 20% more damage.', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.2, pos: 'free' }] },
   { id: 'keen_eye', name: 'Keen Eye', desc: '+10 ACC, +8 CRT.', mods: [{ path: 'acc', op: 'add', v: 10 }, { path: 'crt', op: 'add', v: 8 }] },
-  { id: 'balm', name: 'Balm', desc: '+30% healing given.', mods: [{ path: 'heal.given', op: 'mul', v: 1.3 }] }
+  { id: 'balm', name: 'Balm', desc: '+30% healing given.', mods: [{ path: 'heal.given', op: 'mul', v: 1.3 }] },
+  { id: 'tithe_bowl', name: 'Tithe Bowl', desc: 'Battles pay 25% more essence.', essence: 0.25 },
+  { id: 'grave_ledger', name: 'Grave Ledger', desc: 'Levels cost 25% less essence.', levelDiscount: 0.25 },
+  { id: 'rite_candle', name: 'Rite Candle', desc: 'Path tiers cost 25% less essence.', tierDiscount: 0.25 },
+  { id: 'binding_chain', name: 'Binding Chain', desc: 'Recruiting a soul costs 30% less essence.', recruitDiscount: 0.3 },
+  { id: 'ossuary_key', name: 'Ossuary Key', desc: 'Your retinue holds 3 more souls.', roster: 3 },
+  { id: 'iron_oath', name: 'Iron Oath', desc: 'Vanguards and Wardens: +20% DEF.', mods: [{ path: 'def', op: 'mul', v: 1.2, who: { role: ['vanguard', 'warden'] } }] },
+  { id: 'arcane_focus', name: 'Arcane Focus', desc: 'Channelers and Rangers deal 20% more damage.', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.2, who: { role: ['channeler', 'ranger'] } }] },
+  { id: 'hunters_mark', name: "Hunter's Mark", desc: 'Skirmishers and Tricksters: +12 CRT, +10 ACC.', mods: [{ path: 'crt', op: 'add', v: 12, who: { role: ['skirmisher', 'trickster'] } }, { path: 'acc', op: 'add', v: 10, who: { role: ['skirmisher', 'trickster'] } }] },
+  { id: 'bone_idol', name: 'Bone Idol', desc: 'Undead souls: +15% max HP.', mods: [{ path: 'hp', op: 'mul', v: 1.15, who: { kin: 'undead' } }] },
+  { id: 'glass_crown', name: 'Glass Crown', desc: '+25% damage dealt, but +15% damage taken.', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.25 }, { path: 'damage.taken', op: 'mul', v: 1.15 }] }
 ]
 
 // ── attack animations ────────────────────────────────────────────────────────────────────────
@@ -645,7 +1009,6 @@ const byId = (list) => Object.fromEntries(list.map((d) => [d.id, d]))
 export const UNITS = byId(UNIT_LIST)
 export const ABILITIES = byId(ABILITY_LIST)
 export const STATUSES = byId(STATUS_LIST)
-export const ELEMENTS = byId(ELEMENT_LIST)
 export const KIN = byId(KIN_LIST)
 export const ROLES = byId(ROLE_LIST)
 export const RELICS = byId(RELIC_LIST)
@@ -663,7 +1026,6 @@ function lookup (map, kind) {
 export const unitDef = lookup(UNITS, 'unit')
 export const abilityDef = lookup(ABILITIES, 'ability')
 export const statusDef = lookup(STATUSES, 'status')
-export const elementDef = lookup(ELEMENTS, 'element')
 export const relicDef = lookup(RELICS, 'relic')
 export const animDef = lookup(ANIMS, 'anim')
 export const campDef = lookup(CAMPS, 'camp')

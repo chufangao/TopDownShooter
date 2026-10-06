@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, legalActions, availableNodes, replay, join, currentNode, fielded } from '../src/sim/run.js'
+import { createRun, apply, legalActions, availableNodes, replay, join, currentNode, fielded, levelCost, tierCost, rosterCap } from '../src/sim/run.js'
 import { createBattle, runBattle } from '../src/sim/battle.js'
 import { autoplay, policy } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { RELICS } from '../src/content.js'
-import { CAMP_SLOTS, campOpen, isWall } from '../src/sim/unit.js'
+import { CAMP_SLOTS, campOpen, isWall, abilitiesOf, auraOf, statsOf, pathsOf } from '../src/sim/unit.js'
 import { CAMP_LIST } from '../src/content.js'
 
 const play = (seed) => autoplay(createRun({ seed }), { rng: createRng(seed).stream('autoplay') })
@@ -22,9 +22,9 @@ function visit (run, type) {
 }
 
 // Play the autoplay policy until `done(run)` holds or the run ends.
-function autoplayTo (run, done) {
+function autoplayTo (run, done, level = 'basic') {
   const rng = createRng(run.state.seed).stream('autoplay')
-  while (run.state.phase !== 'over' && !done(run)) apply(run, policy(run, rng))
+  while (run.state.phase !== 'over' && !done(run)) apply(run, policy(run, rng, level))
 }
 
 // Visit fights until one is won.
@@ -40,7 +40,7 @@ function winFight (prefix) {
 test('a new run: start retinue at level 2 on floor 1, all fielded, every battle room scouted', () => {
   const run = createRun({ seed: 'new' })
   const s = run.state
-  assert.deepEqual(s.party.map((u) => [u.id, u.lvl, u.star]), [['tomb_knight', 2, 1], ['bone_chanter', 2, 1], ['frost_sprite', 2, 1]])
+  assert.deepEqual(s.party.map((u) => [u.id, u.lvl]), [['tomb_knight', 2], ['bone_chanter', 2], ['frost_sprite', 2]])
   assert.equal(new Set(s.party.map((u) => u.slot)).size, 3)
   assert.ok(s.party.every((u) => u.slot >= 0))
   assert.equal(s.phase, 'map')
@@ -62,7 +62,7 @@ test('apply refuses illegal actions and leaves the log alone', () => {
     { type: 'place', uid: a.uid, slot: CAMP_SLOTS }, { type: 'place', uid: a.uid, slot: a.slot }, { type: 'place', uid: 999, slot: 3 },
     { type: 'place', uid: a.uid, slot: wall }, { type: 'place', uid: a.uid, slot: 1.5 },
     { type: 'order', uid: a.uid, order: 'advance' },
-    { type: 'merge', id: 'tomb_knight', star: 1 }, { type: 'release', uid: 999 }
+    { type: 'release', uid: 999 }
   ]
   for (const action of bad) assert.throws(() => apply(run, action), undefined, JSON.stringify(action))
   assert.deepEqual(run.state.log, [])
@@ -71,7 +71,11 @@ test('apply refuses illegal actions and leaves the log alone', () => {
 test('legalActions per phase', () => {
   const run = createRun({ seed: 'legal' })
   const kinds = (r) => [...new Set(legalActions(r).map((a) => a.type))].sort()
+  run.state.essence = 0
   assert.deepEqual(kinds(run), ['node', 'place', 'release'])
+  run.state.essence = 1000
+  assert.deepEqual(kinds(run), ['level', 'node', 'place', 'release', 'upgrade'])
+  run.state.essence = 0
   visit(run, 'fight')
   assert.equal(run.state.phase, 'prep')
   assert.deepEqual(kinds(run), ['fight', 'place', 'release'])
@@ -132,23 +136,6 @@ test('each floor draws a camp from its own list, and souls on its walls move to 
   for (const u of fielded(s.party)) assert.ok(campOpen(s.camp, u.slot))
 })
 
-test('merge: three copies become one of the next star, at full HP, where the frontmost stood', () => {
-  const run = createRun({ seed: 'merge' })
-  const s = run.state
-  const pages = [join(run, 'clockwork_page', { lvl: 2 }), join(run, 'clockwork_page', { lvl: 4 }), join(run, 'clockwork_page', { lvl: 3 })]
-  pages[1].hp = 1
-  const front = Math.min(...pages.map((u) => u.slot))
-  assert.deepEqual(legalActions(run).filter((a) => a.type === 'merge'), [{ type: 'merge', id: 'clockwork_page', star: 1 }])
-  apply(run, { type: 'merge', id: 'clockwork_page', star: 1 })
-  const merged = s.party.filter((u) => u.id === 'clockwork_page')
-  assert.equal(merged.length, 1)
-  assert.equal(merged[0], pages[1], 'the strongest copy is kept')
-  assert.deepEqual([merged[0].star, merged[0].lvl, merged[0].slot], [2, 4, front])
-  assert.equal(merged[0].hp, merged[0].maxHp)
-  assert.equal(s.stats.merges, 1)
-  assert.throws(() => apply(run, { type: 'merge', id: 'clockwork_page', star: 1 }))
-})
-
 test('release never lets go of the last soul standing', () => {
   const run = createRun({ seed: 'release' })
   const [a, b, c] = run.state.party
@@ -198,33 +185,97 @@ test('reliquary offers 3 distinct relics; taking one keeps it, skipping takes no
   assert.equal(run.state.relics.length, 1)
 })
 
-test('a won fight copies HP back, pays fielded survivors XP, and offers one soul per kind slain', () => {
+test('a won fight pays essence and puts one soul per kind slain up for sale; one may be recruited', () => {
   const run = winFight('fight')
   const s = run.state
-  const slain = new Set(run.battle.units.filter((u) => u.side === 'foe' && u.hp <= 0).map((u) => u.id))
-  assert.deepEqual(new Set(s.offers.map((o) => o.id)), slain)
-  assert.ok(s.offers.every((o) => o.type === 'soul'))
-  assert.ok(s.party.some((u) => u.hp > 0 && u.xp > 0))
+  const slain = run.battle.units.filter((u) => u.side === 'foe' && u.hp <= 0)
+  assert.deepEqual(new Set(s.offers.map((o) => o.id)), new Set(slain.map((u) => u.id)))
+  assert.ok(s.offers.every((o) => o.type === 'soul' && o.cost > 0 && o.lvl === Math.max(...slain.filter((u) => u.id === o.id).map((u) => u.lvl))))
+  assert.ok(s.essence > TUNING.essence.start && s.stats.essence === s.essence - TUNING.essence.start)
+  assert.ok(s.party.every((u) => u.lvl === 2), 'no XP: levels only rise when bought')
+  s.essence = 0
+  assert.ok(!legalActions(run).some((a) => a.type === 'reap' && a.index !== null), 'recruits cost essence')
+  assert.throws(() => apply(run, { type: 'reap', index: 0 }), /not enough essence/)
+  s.essence = 1000
   const before = s.party.length
   const soul = s.offers[0]
   apply(run, { type: 'reap', index: 0 })
   assert.equal(s.party.length, before + 1)
   assert.deepEqual([s.party.at(-1).id, s.party.at(-1).lvl], [soul.id, soul.lvl])
+  assert.equal(s.essence, 1000 - soul.cost)
   assert.equal(s.stats.reaped, 1)
+  assert.ok(!s.offers.some((o) => o.type === 'soul'), 'one recruit per battle')
+  assert.equal(s.phase, 'map')
   checkState(s)
 })
 
-test('a full retinue must release a soul before it can reap one', () => {
+test('essence buys levels and path tiers; the first tier commits a soul to its path', () => {
+  const run = createRun({ seed: 'buy' })
+  const s = run.state
+  const knight = s.party.find((u) => u.id === 'tomb_knight')
+  s.essence = 0
+  assert.throws(() => apply(run, { type: 'level', uid: knight.uid }), /cannot level/)
+  s.essence = 5000
+  const cost = levelCost(run, knight)
+  const hp = knight.maxHp
+  apply(run, { type: 'level', uid: knight.uid })
+  assert.deepEqual([knight.lvl, s.essence], [3, 5000 - cost])
+  assert.ok(knight.maxHp > hp && knight.hp === knight.maxHp)
+  const [bulwark, reaver] = pathsOf('tomb_knight')
+  const def = statsOf(knight).def
+  apply(run, { type: 'upgrade', uid: knight.uid, path: bulwark.id })
+  assert.deepEqual([knight.path, knight.tier], [bulwark.id, 1])
+  assert.ok(statsOf(knight).def > def, 'tier I raises DEF')
+  assert.throws(() => apply(run, { type: 'upgrade', uid: knight.uid, path: reaver.id }), /cannot upgrade/)
+  assert.ok(!legalActions(run).some((a) => a.type === 'upgrade' && a.uid === knight.uid && a.path === reaver.id))
+  apply(run, { type: 'upgrade', uid: knight.uid, path: bulwark.id })
+  apply(run, { type: 'upgrade', uid: knight.uid, path: bulwark.id })
+  assert.equal(auraOf(knight).range, 2, 'Bulwark III widens its aura')
+  assert.throws(() => apply(run, { type: 'upgrade', uid: knight.uid, path: bulwark.id }), /cannot upgrade/)
+  const sprite = s.party.find((u) => u.id === 'frost_sprite')
+  for (let i = 0; i < 3; i++) apply(run, { type: 'upgrade', uid: sprite.uid, path: 'rimeblade' })
+  assert.deepEqual(abilitiesOf(sprite), ['shatter_lance'])
+  assert.equal(s.stats.spent, 5000 - s.essence)
+})
+
+test('a rite offers free next tiers, each for a different soul, and taking one ends it', () => {
+  const run = createRun({ seed: 'rite' })
+  const s = run.state
+  visit(run, 'rite')
+  assert.equal(s.phase, 'reap')
+  assert.equal(s.offers.length, 3)
+  assert.ok(s.offers.every((o) => o.type === 'tier'))
+  assert.equal(new Set(s.offers.map((o) => o.uid)).size, 3)
+  const o = s.offers[1]
+  const essence = s.essence
+  apply(run, { type: 'reap', index: 1 })
+  const u = s.party.find((x) => x.uid === o.uid)
+  assert.deepEqual([u.path, u.tier, s.essence, s.phase], [o.path, 1, essence, 'map'])
+})
+
+test('releasing a soul during a rite withdraws its offer, and a rite left with none ends', () => {
+  const run = createRun({ seed: 'rite-release' })
+  const s = run.state
+  visit(run, 'rite')
+  const [first, ...rest] = s.offers
+  apply(run, { type: 'release', uid: first.uid })
+  assert.deepEqual(s.offers, rest)
+  for (const o of rest) if (s.party.length > 1) apply(run, { type: 'release', uid: o.uid })
+  assert.equal(s.phase, s.offers.length ? 'reap' : 'map')
+})
+
+test('a full retinue must release a soul before it can recruit', () => {
   const run = winFight('full')
   const s = run.state
-  while (s.party.length < TUNING.party.roster) join(run, 'clockwork_page')
+  s.essence = 1e5
+  while (s.party.length < rosterCap(run)) join(run, 'clockwork_page')
   assert.ok(!legalActions(run).some((a) => a.type === 'reap' && a.index !== null))
   assert.throws(() => apply(run, { type: 'reap', index: 0 }), /release a soul first/)
   const benched = s.party.find((u) => u.slot < 0)
   apply(run, { type: 'release', uid: benched.uid })
   assert.equal(s.phase, 'reap')
   apply(run, { type: 'reap', index: 0 })
-  assert.equal(s.party.length, TUNING.party.roster)
+  assert.equal(s.party.length, rosterCap(run))
 })
 
 test('autoplay finishes 20 seeded runs with a sane final state', () => {
@@ -241,27 +292,36 @@ test('autoplay finishes 20 seeded runs with a sane final state', () => {
 })
 
 test('the autoplayer uses the choices a player has: open cells only', () => {
-  for (let i = 0; i < 4; i++) {
-    const run = createRun({ seed: 'plans' + i })
-    autoplay(run, {
-      onBattle: (b, r) => {
-        for (const u of r.setup.party) assert.ok(campOpen(r.setup.camp, u.slot), `${u.id} on ${u.slot} in ${r.setup.camp}`)
-      }
-    })
+  const check = (b, r) => {
+    for (const u of r.setup.party) assert.ok(campOpen(r.setup.camp, u.slot), `${u.id} on ${u.slot} in ${r.setup.camp}`)
+  }
+  for (let i = 0; i < 4; i++) autoplay(createRun({ seed: 'plans' + i }), { onBattle: check })
+  // The expert also trades souls with the ossuary; one floor of it.
+  const run = createRun({ seed: 'plans-expert' })
+  const rng = createRng('plans-expert').stream('autoplay')
+  while (run.state.floor === 1 && run.state.phase !== 'over') {
+    const action = policy(run, rng, 'expert')
+    apply(run, action)
+    if (action.type === 'fight') check(run.battle, run)
   }
 })
 
-test('the autoplayer rehearses without touching the run', () => {
-  const run = createRun({ seed: 'rehearse' })
-  visit(run, 'fight')
-  const rng = createRng('rehearse').stream('autoplay')
-  for (;;) {
-    const before = structuredClone(run.state)
-    const action = policy(run, rng)
-    assert.deepEqual(run.state, before)
-    assert.equal(run.setup, null)
-    if (action.type === 'fight') break
-    apply(run, action)
+test('the autoplayer rehearses and plays ahead without touching the run', () => {
+  for (const level of ['basic', 'expert']) {
+    const run = createRun({ seed: 'rehearse' })
+    const rng = createRng('rehearse').stream('autoplay')
+    const seen = new Set()
+    // Through the first rooms: a route choice, a prep and a reap at least.
+    while (run.state.stats.fights < 2 && run.state.phase !== 'over') {
+      const before = structuredClone(run.state)
+      const setup = run.setup
+      const action = policy(run, rng, level)
+      assert.deepEqual(run.state, before, `${level} ${run.state.phase}`)
+      assert.equal(run.setup, setup)
+      seen.add(run.state.phase)
+      apply(run, action)
+    }
+    assert.deepEqual([...seen].sort(), ['map', 'prep', 'reap'], level)
   }
 })
 
@@ -283,7 +343,8 @@ test('the current node after a fight is the room fought in', () => {
 
 function checkState (s) {
   assert.ok(['map', 'prep', 'reap', 'over'].includes(s.phase), s.phase)
-  assert.ok(s.party.length >= 1 && s.party.length <= TUNING.party.roster)
+  assert.ok(s.party.length >= 1 && s.party.length <= TUNING.party.roster + 3 * s.relics.filter((r) => r === 'ossuary_key').length)
+  assert.ok(Number.isInteger(s.essence) && s.essence >= 0, `essence ${s.essence}`)
   assert.equal(new Set(s.party.map((u) => u.uid)).size, s.party.length, 'unique uids')
   const field = s.party.filter((u) => u.slot >= 0)
   assert.equal(new Set(field.map((u) => u.slot)).size, field.length, 'unique slots')
@@ -292,12 +353,14 @@ function checkState (s) {
   for (const u of s.party) {
     assert.ok(u.slot === -1 || campOpen(s.camp, u.slot), `${u.id} slot ${u.slot} in camp ${s.camp}`)
     assert.ok(Number.isInteger(u.hp) && u.hp >= 0 && u.hp <= u.maxHp, `${u.id} hp ${u.hp}/${u.maxHp}`)
-    assert.ok(u.lvl >= 1 && u.lvl <= TUNING.xp.cap && u.xp >= 0, `${u.id} lvl ${u.lvl} xp ${u.xp}`)
-    assert.ok(u.star >= 1 && u.star <= TUNING.star.max, `${u.id} star ${u.star}`)
+    assert.ok(u.lvl >= 1 && u.lvl <= TUNING.level.cap, `${u.id} lvl ${u.lvl}`)
+    assert.ok(u.tier >= 0 && u.tier <= 3 && (u.tier === 0) === (u.path === null), `${u.id} ${u.path} ${u.tier}`)
+    if (u.path) assert.ok(pathsOf(u.id).some((p) => p.id === u.path), `${u.id} path ${u.path}`)
   }
 }
 
-// Half the time the autoplay policy (to get deep into runs), half a uniformly random legal action.
+// A fifth of the time a uniformly random legal action, else the autoplay policy: a floor is 15 rooms
+// long, and random play rarely gets past the first.
 function fuzz (seed) {
   const rng = createRng(seed).stream('fuzz')
   const run = createRun({ seed })
@@ -305,7 +368,7 @@ function fuzz (seed) {
     assert.ok(steps < 1e5, 'stuck')
     const legal = legalActions(run)
     assert.ok(legal.length > 0)
-    const action = rng.chance(0.5) ? rng.pick(legal) : policy(run, rng)
+    const action = rng.chance(0.2) ? rng.pick(legal) : policy(run, rng)
     apply(run, action)
     checkState(run.state)
     if (steps % 97 === 0) everyLegalActionApplies(run)

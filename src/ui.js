@@ -3,12 +3,15 @@
 // sends its actions through act(action), which returns an error message or null. Every control has a
 // tooltip saying exactly what it does (rules text lives in codex.js).
 import { TUNING } from './tuning.js'
-import { availableNodes, fieldCap, fielded, benched, mergeable, currentNode } from './sim/run.js'
-import { RANKS } from './sim/map.js'
+import { availableNodes, fieldCap, rosterCap, fielded, benched, currentNode, levelCost, tierCost } from './sim/run.js'
+import { RANKS, WIDTH } from './sim/map.js'
 import { unitDef, relicDef, campDef, KIN, ROLES } from './content.js'
-import { COLS, ROWS, CAMP_ROWS, slotAt, rowOf, activeBonds, isWall } from './sim/unit.js'
+import { COLS, ROWS, CAMP_ROWS, slotAt, rowOf, activeBonds, isWall, pathsOf, pathDef, baseStats } from './sim/unit.js'
 import { h, fill, icon, portrait, prefs } from './dom.js'
-import { unitCard, partyMods, roomFoeMods, roomTip, threatMeter, foeSynergyLine, synergyTracker, bondTracker, bondMods, bondNotes, relicTip, mergeTip, ROOM, campRowLabel, campRowText } from './codex.js'
+import {
+  unitCard, partyMods, roomFoeMods, roomTip, threatMeter, foeSynergyLine, synergyTracker, bondTracker, bondMods, bondNotes, relicTip, ROOM,
+  campRowLabel, campRowText, pathTiers, ROMAN
+} from './codex.js'
 
 // ── title ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -24,10 +27,10 @@ export function titleScreen ({ seed, onStart, onHelp }) {
       h('div', { class: 'steps' },
         step('fight', 'Scout', 'Hover rooms on the map to see the foes and formation waiting inside.'),
         step('start', 'Arrange', `Place up to ${TUNING.party.field} souls on the field. Once a battle begins, it plays out on its own.`),
-        step('soul', 'Reap', 'Bind the soul of a foe you slew. Three of a kind merge into a stronger shade.')),
+        step('soul', 'Reap', 'Slain foes pay essence. Spend it on levels, upgrade paths and recruits.')),
       h('div', { class: 'title-actions' },
         h('button', { class: 'primary big', onclick: start, tip: () => 'Start a new run with this seed. (Enter)' }, 'Begin the descent ', h('kbd', null, 'Enter')),
-        h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, synergies, elements and relics. (H)' }, icon('help'), ' How to play')),
+        h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, synergies and relics. (H)' }, icon('help'), ' How to play')),
       h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles. Share one to play the same run.' }, 'seed ', input)))
   return { el, key: (e) => { if (e.key === 'Enter') start() } }
 }
@@ -43,10 +46,11 @@ function topbar (run, onHelp) {
       Array.from({ length: TUNING.run.floors }, (_, i) => h('span', { class: 'pip' + (i + 1 < s.floor ? ' done' : i + 1 === s.floor ? ' now' : '') })),
       h('span', null, `Floor ${s.floor}`)),
     h('div', { class: 'chips' },
-      chip('Souls', `${s.party.length}/${TUNING.party.roster}`, `Souls you hold, on the field and in the ossuary. You can hold up to ${TUNING.party.roster}.`),
+      h('span', { class: 'chip-stat essence', tip: () => `Essence: slain foes pay it. Spend it on levels and path tiers (select a soul in your camp) and on recruits after a win. ${s.stats.essence} earned, ${s.stats.spent} spent this run.` },
+        icon('soul', 14), h('b', null, s.essence)),
+      chip('Souls', `${s.party.length}/${rosterCap(run)}`, `Souls you hold, on the field and in the ossuary. You can hold up to ${rosterCap(run)}.`),
       chip('Won', s.stats.wins, 'Battles won this run.'),
-      chip('Reaped', s.stats.reaped, 'Souls bound after battles.'),
-      chip('Merges', s.stats.merges, 'Times three souls fused into one of a higher star.'),
+      chip('Recruited', s.stats.reaped, 'Souls recruited after battles.'),
       chip('Seed', s.seed, 'This run\'s seed. The same seed always makes the same run.')),
     h('button', { class: 'icon-btn', onclick: onHelp, tip: () => 'How to play (H)' }, icon('help', 20)))
 }
@@ -69,9 +73,10 @@ function guide (key, steps) {
 // ── map ──────────────────────────────────────────────────────────────────────────────────────────
 
 const NODE_W = 400
-const ROW_H = 82
+const ROW_H = 64
 const H = RANKS * ROW_H
-const pos = (n) => ({ x: 70 + n.lane * 130, y: (RANKS - 1 - n.rank) * ROW_H + ROW_H / 2 })
+const LANE_W = (NODE_W - 100) / (WIDTH - 1)
+const pos = (n) => ({ x: 50 + n.lane * LANE_W, y: (RANKS - 1 - n.rank) * ROW_H + ROW_H / 2 })
 
 export const NODE = Object.fromEntries(Object.entries(ROOM).map(([k, v]) => [k, { name: k === 'boss' ? 'Boss' : v.name }]))
 
@@ -117,6 +122,10 @@ export function mapScreen ({ run, trail, note = '', onNode, act, onHelp }) {
     }, h('span', { class: 'medal' }, icon(n.type, 20)), h('span', { class: 'node-name' }, NODE[n.type].name), key && h('kbd', null, key))
   })
 
+  // A floor is taller than the screen: the route scrolls, and opens on the room you stand in.
+  const scroller = h('div', { class: 'dag-scroll' }, h('div', { class: 'dag', style: `height:${H}px` }, svg, nodes))
+  requestAnimationFrame(() => { scroller.scrollTop = pos(currentNode(run)).y - scroller.clientHeight / 2 })
+
   const el = h('div', { class: 'screen map-screen' },
     bar,
     note && h('div', { class: 'note' }, note),
@@ -127,7 +136,7 @@ export function mapScreen ({ run, trail, note = '', onNode, act, onHelp }) {
     h('div', { class: 'cols' },
       h('section', { class: 'panel mapcol' },
         h('h2', null, 'Route', h('span', { class: 'dim' }, ` · floor ${s.floor}`)),
-        h('div', { class: 'dag', style: `height:${H}px` }, svg, nodes)),
+        scroller),
       h('section', { class: 'panel side' },
         editor.el,
         h('h2', null, 'Relics'),
@@ -194,49 +203,53 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
 export function reapScreen ({ run, title, act, onDone, onHelp }) {
   const s = run.state
   const el = h('div', { class: 'screen reap-screen' })
-  const full = () => s.party.length >= TUNING.party.roster
+  const full = () => s.party.length >= rosterCap(run)
+  const blocked = (o) => o.type === 'soul' && (full() ? 'full' : o.cost > s.essence ? 'poor' : null)
   const take = (i) => {
-    if (i !== null && s.offers[i]?.type === 'soul' && full()) return
+    if (i !== null && blocked(s.offers[i])) return
     onDone(i)
   }
-  const souls = s.offers.some((o) => o.type === 'soul')
+  const has = (type) => s.offers.some((o) => o.type === type)
+  const lede = [
+    has('relic') && 'Choose one relic, free. It lasts for the rest of the run.',
+    has('tier') && 'Choose one soul to advance along its path, free.',
+    has('soul') && 'The slain linger: recruit one of them for essence, at the level it fought at.'].filter(Boolean).join(' ')
 
-  function render () {
-    const cards = s.offers.map((o, i) => {
-      const locked = o.type === 'soul' && full()
-      const owned = o.type === 'soul' ? s.party.filter((u) => u.id === o.id && u.star === 1).length : 0
-      return h('button', {
-        class: `offer o-${o.type}` + (locked ? ' locked' : ''),
-        onclick: () => take(i),
-        'aria-disabled': locked ? 'true' : null,
-        tip: () => o.type === 'soul'
-          ? unitCard({ id: o.id, lvl: o.lvl, star: 1, slot: -1 }, {
-            mods: partyMods(run),
-            notes: [locked ? 'Your retinue is full: release a soul first.' : 'Click to bind this soul. It joins the field if there is room, else the ossuary.',
-              owned && `You already hold ${owned}.${owned + 1 >= TUNING.star.copies ? ' Binding this one lets you merge them.' : ''}`]
-          })
-          : relicTip(o.id)
-      },
-      h('div', { class: 'offer-tag' }, h('kbd', null, i + 1), o.type === 'soul' ? ' Soul' : ' Relic'),
-      h('div', { class: 'offer-art' }, o.type === 'soul' ? portrait(o.id, 100) : icon('reliquary', 48)),
+  function card (o, i) {
+    const why = blocked(o)
+    const owned = o.type === 'soul' ? s.party.filter((u) => u.id === o.id).length : 0
+    const soul = o.type === 'tier' ? s.party.find((u) => u.uid === o.uid) : null
+    const tip = o.type === 'soul'
+      ? () => unitCard({ id: o.id, lvl: o.lvl, path: null, tier: 0, slot: -1 }, {
+        mods: partyMods(run),
+        notes: [why === 'full' ? 'Your retinue is full: release a soul first.' : why === 'poor' ? `You need ${o.cost} essence; you have ${s.essence}.` : `Click to recruit it for ${o.cost} essence. It joins the field if there is room, else the ossuary.`,
+          owned && `You already hold ${owned}.`]
+      })
+      : o.type === 'relic' ? () => relicTip(o.id)
+        : () => h('div', { class: 'syn-tip' }, h('b', null, o.name), pathTiers(pathDef(soul.id, o.path), soul.tier), h('p', { class: 'dim' },
+          soul.path ? 'Click to grant the next tier, free.' : 'Click to commit it to this path and grant tier I, free.'))
+    return h('button', { class: `offer o-${o.type}` + (why ? ' locked' : ''), onclick: () => take(i), 'aria-disabled': why ? 'true' : null, tip },
+      h('div', { class: 'offer-tag' }, h('kbd', null, i + 1), { soul: ' Recruit', relic: ' Relic', tier: ' Path' }[o.type]),
+      h('div', { class: 'offer-art' }, o.type === 'relic' ? icon('reliquary', 48) : portrait(o.type === 'soul' ? o.id : soul.id, 100)),
       h('div', { class: 'offer-name' }, o.name),
       o.type === 'soul' && h('div', { class: 'dim' }, `${KIN[unitDef(o.id).kin].name} ${ROLES[unitDef(o.id).role].name} · level ${o.lvl}`),
-      h('div', { class: 'offer-desc' }, o.type === 'soul'
-        ? (owned ? `You hold ${owned}.${owned + 1 >= TUNING.star.copies ? ' This completes a merge!' : ''}` : 'New to your retinue.')
-        : o.desc))
-    })
+      h('div', { class: 'offer-desc' }, o.type === 'soul' ? (owned ? `You hold ${owned}.` : 'New to your retinue.') : o.desc),
+      h('div', { class: 'offer-price' + (why === 'poor' ? ' poor' : '') }, o.type === 'soul' ? [icon('soul', 12), ` ${o.cost}`] : 'Free'))
+  }
+
+  function render () {
     fill(el,
       topbar(run, onHelp),
       h('div', { class: 'center' },
-        h('div', { class: 'reap-title' }, icon(souls ? 'soul' : 'reliquary', 30), h('h1', null, title)),
-        h('p', { class: 'dim' }, souls ? 'The slain linger. Bind one soul to your retinue: hover a card for its full stats.' : 'Choose one relic. It lasts for the rest of the run.'),
-        h('div', { class: 'offers' }, cards),
-        h('button', { class: 'ghost', onclick: () => take(null), tip: () => 'Leave with nothing. (S)' }, 'Take nothing ', h('kbd', null, 'S')),
-        full() && souls && h('p', { class: 'warn' }, `Your retinue is full (${TUNING.party.roster}). Release a soul below to make room.`),
+        h('div', { class: 'reap-title' }, icon(has('soul') ? 'soul' : has('tier') ? 'rite' : 'reliquary', 30), h('h1', null, title)),
+        h('p', { class: 'dim' }, lede),
+        h('div', { class: 'offers' }, s.offers.map(card)),
+        h('button', { class: 'ghost', onclick: () => take(null), tip: () => 'Leave what is left and go on. (S)' }, 'Move on ', h('kbd', null, 'S')),
+        full() && has('soul') && h('p', { class: 'warn' }, `Your retinue is full (${rosterCap(run)}). Release a soul below to make room.`),
         h('div', { class: 'panel' },
-          h('h2', null, `Your retinue ${s.party.length}/${TUNING.party.roster}`),
+          h('h2', null, `Your retinue ${s.party.length}/${rosterCap(run)}`),
           h('div', { class: 'units' }, s.party.slice().sort(fieldOrder).map((u) =>
-            unitRow(run, u, full() && h('button', {
+            unitRow(run, u, full() && has('soul') && h('button', {
               class: 'danger small',
               onclick: () => { act({ type: 'release', uid: u.uid }); render() },
               tip: () => `Release ${unitDef(u.id).name} forever, freeing a place in your retinue. This can't be undone.`
@@ -266,7 +279,7 @@ export function endScreen ({ run, onNew }) {
       h('p', { class: 'tagline' }, won ? 'The Hollow Sovereign falls, and its soul is yours.' : `Your retinue fell on floor ${s.floor}.`),
       h('div', { class: 'end-stats' },
         [['Floors cleared', `${s.stats.floorsCleared}/${TUNING.run.floors}`], ['Battles won', `${s.stats.wins}/${s.stats.fights}`],
-          ['Souls reaped', s.stats.reaped], ['Merges', s.stats.merges], ['Relics', s.relics.length]]
+          ['Souls recruited', s.stats.reaped], ['Essence earned', s.stats.essence], ['Relics', s.relics.length]]
           .map(([k, v]) => h('div', null, h('b', null, v), h('span', { class: 'dim' }, k)))),
       h('button', { class: 'primary big', onclick: onNew, tip: () => 'Start again with a new seed. (Enter)' }, 'New run ', h('kbd', null, 'Enter')),
       h('p', { class: 'dim' }, `seed ${s.seed}`),
@@ -324,7 +337,7 @@ export function battleBar () {
 
 // ── the retinue editor ───────────────────────────────────────────────────────────────────────────
 
-// The camp, ossuary (bench), merges, synergies and bonds. Click a soul, then a cell or another soul, to
+// The camp, ossuary (bench), synergies and bonds. Click a soul, then a cell or another soul, to
 // move or swap them; click the ossuary to bench one. With `facing` (a battle room), its formation is
 // drawn above your camp. onChange runs after every action it sends.
 
@@ -336,12 +349,41 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   let sel = null // { uid } or { slot } (an empty field slot)
   let error = ''
 
-  // Every action clears the selection.
+  // Every action clears the selection, but a purchase keeps it, so you can buy again.
   function send (action) {
     error = act(action) ?? ''
-    sel = null
+    if (action.type !== 'level' && action.type !== 'upgrade') sel = null
     render()
     onChange?.()
+  }
+
+  // Spending essence on the selected soul: its next level, and its next path tier (or a path to take).
+  function upgradePanel (u) {
+    const d = unitDef(u.id)
+    const essence = s.essence
+    const lvlCost = levelCost(run, u)
+    const capped = u.lvl >= TUNING.level.cap
+    const next = !capped && baseStats(u.id, u.lvl + 1)
+    const now = baseStats(u.id, u.lvl)
+    const buyButton = (label, cost, action, why) => h('button', {
+      class: 'buy' + (essence < cost ? ' poor' : ''),
+      'aria-disabled': essence < cost ? 'true' : null,
+      onclick: () => { if (essence >= cost) send(action) },
+      tip: () => essence < cost ? `You need ${cost} essence; you have ${essence}.` : why
+    }, label, h('span', { class: 'price' }, icon('soul', 12), cost))
+    const tierCostNow = tierCost(run, u)
+    const paths = u.path ? [pathDef(u.id, u.path)] : pathsOf(u.id)
+    return h('div', { class: 'upgrade' },
+      h('h2', null, `Spend essence on ${d.name} `, h('span', { class: 'dim' }, `Lv ${u.lvl}`)),
+      capped
+        ? h('p', { class: 'dim' }, `Level ${TUNING.level.cap}: it can rise no further.`)
+        : buyButton(`Level ${u.lvl + 1} `, lvlCost, { type: 'level', uid: u.uid }, `+${next.hp - now.hp} HP, +${(next.atk - now.atk).toFixed(1)} ATK, and more.`),
+      h('div', { class: 'paths' }, paths.map((p) => h('div', { class: 'path' + (u.path === p.id ? ' on' : '') },
+        h('div', null, h('b', null, p.name), h('span', { class: 'dim' }, ' · ' + p.desc)),
+        pathTiers(p, u.path === p.id ? u.tier : 0),
+        u.tier < 3 && buyButton(u.path ? `Tier ${ROMAN[u.tier]} ` : `Take ${p.name} `, tierCostNow, { type: 'upgrade', uid: u.uid, path: p.id },
+          u.path ? p.tiers[u.tier].desc : `Commits ${d.name} to ${p.name} for good, and grants tier I: ${p.tiers[0].desc}`)))),
+      !u.path && h('p', { class: 'dim small' }, 'A soul follows one path: its first tier rules out the others.'))
   }
 
   function clickSlot (slot) {
@@ -380,15 +422,13 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   }
 
   function soulTip (u, where, extra) {
-    const copies = s.party.filter((x) => x.id === u.id && x.star === u.star).length
     const field = fielded(s.party)
     return unitCard(u, {
       mods: [...partyMods(run), ...bondMods(field, u)],
       notes: [
         where,
         ...bondNotes(field, u),
-        u.hp <= 0 && 'Fallen: it will not fight until an altar raises it, or it is merged.',
-        u.star < TUNING.star.max && copies > 1 && `You hold ${copies} of ${TUNING.star.copies} ${'★'.repeat(u.star)} needed to merge.`,
+        u.hp <= 0 && 'Fallen: it will not fight until an altar raises it.',
         extra]
     })
   }
@@ -397,7 +437,6 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     const cap = fieldCap(run)
     const field = fielded(s.party)
     const bench = benched(s.party)
-    const merges = mergeable(s.party)
     const picked = selected()
     const bonded = new Set(activeBonds(field).map((b) => b.uid))
     const fieldGrid = []
@@ -412,7 +451,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         const u = field.find((x) => x.slot === slot)
         const isSel = sel && (sel.uid != null ? u?.uid === sel.uid : sel.slot === slot)
         cells.push(h('button', {
-          class: 'cell' + (u ? ` has star${u.star}` : ' empty') + (isSel ? ' sel' : '') + (u && u.hp <= 0 ? ' fallen' : '') + (picked && !u ? ' drop' : ''),
+          class: 'cell' + (u ? ' has' : ' empty') + (isSel ? ' sel' : '') + (u && u.hp <= 0 ? ' fallen' : '') + (picked && !u ? ' drop' : ''),
           onclick: () => clickSlot(slot),
           tip: () => u
             ? soulTip(u, `In the camp: ${campRowLabel(r).toLowerCase()}.`, slotHint(slot, u))
@@ -433,7 +472,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         h('div', { class: 'gridlabel', tip: () => 'Your camp on this floor. Each floor draws a different one.' }, `Your camp: ${campDef(s.camp).name} `, h('span', { class: 'dim' }, `${field.length}/${cap} · ${field.filter((u) => u.hp > 0).length} standing`)),
         h('div', { class: 'grid' }, fieldGrid)),
       h('div', { class: 'tray' },
-        h('h2', { tip: () => 'Souls here are kept but do not fight or gain XP. Swap them onto the field at any time before a battle.' },
+        h('h2', { tip: () => 'Souls here are kept but do not fight. Swap them onto the field at any time before a battle.' },
           'Ossuary ', h('span', { class: 'dim' }, `${bench.length} · benched souls do not fight`)),
         h('div', {
           class: 'bench' + (picked && picked.slot >= 0 ? ' target' : ''),
@@ -442,16 +481,14 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         },
         bench.length
           ? bench.map((u) => h('button', {
-            class: `cell has star${u.star}` + (picked === u ? ' sel' : '') + (u.hp <= 0 ? ' fallen' : ''),
+            class: 'cell has' + (picked === u ? ' sel' : '') + (u.hp <= 0 ? ' fallen' : ''),
             onclick: () => clickBench(u),
-            tip: () => soulTip(u, 'In the ossuary: does not fight or gain XP.',
+            tip: () => soulTip(u, 'In the ossuary: does not fight.',
               picked && picked !== u && picked.slot >= 0 ? `Click to swap it with ${unitDef(picked.id).name} on the field.` : picked === u ? 'Click again to deselect.' : 'Click to select, then click a field slot to place it.')
           }, cellBody(u)))
           : h('span', { class: 'dim empty-bench', onclick: clickOssuary }, picked ? 'Click here to bench the selected soul.' : 'Empty.')),
-        merges.length > 0 && h('div', { class: 'merges' }, merges.map((m) =>
-          h('button', { class: 'merge', onclick: () => send({ type: 'merge', ...m }), tip: () => mergeTip(s.party, m) },
-            icon('merge', 16), portrait(m.id, 26), ` Merge ${unitDef(m.id).name} `, h('span', { class: 'stars' }, '★'.repeat(m.star + 1))))),
         error && h('p', { class: 'warn' }, error),
+        picked ? upgradePanel(picked) : h('p', { class: 'dim upgrade-hint' }, `Select a soul to spend essence on it: you have ${s.essence}.`),
         h('h2', null, 'Synergies'),
         synergyTracker(field),
         h('h2', null, 'Bonds'),
@@ -480,9 +517,9 @@ function hpBar (u) {
 function unitRow (run, u, extra = null) {
   const d = unitDef(u.id)
   return h('div', { class: 'unit' + (u.hp <= 0 ? ' fallen' : ''), tip: () => unitCard(u, { mods: partyMods(run) }) },
-    h('span', { class: `cell-port star${u.star}` }, portrait(u.id, 32, u.hp <= 0)),
+    h('span', { class: 'cell-port' }, portrait(u.id, 32, u.hp <= 0)),
     h('div', { class: 'grow' },
-      h('div', null, h('b', null, d.name), u.star > 1 && h('span', { class: 'stars' }, ' ' + '★'.repeat(u.star)), ` Lv ${u.lvl}`,
+      h('div', null, h('b', null, d.name), ` Lv ${u.lvl}`, u.path && h('span', { class: 'path-tag' }, ` ${pathDef(u.id, u.path).name} ${ROMAN[u.tier - 1]}`),
         h('span', { class: 'dim' }, ` · ${KIN[d.kin].name} ${ROLES[d.role].name}${u.slot < 0 ? ' · ossuary' : ` · ${campRowLabel(rowOf(u.slot)).toLowerCase()}`}`)),
       h('div', { class: 'line' }, hpBar(u), h('span', { class: 'dim' }, u.hp > 0 ? `${u.hp}/${u.maxHp}` : 'fallen'))),
     extra)
@@ -492,7 +529,8 @@ function cellBody (u, bonded = false) {
   return [
     bonded && h('span', { class: 'bond-mark' }, '◆'),
     portrait(u.id, 46, u.hp <= 0),
-    h('span', { class: 'badge' }, u.star > 1 && h('span', { class: 'stars' }, '★'.repeat(u.star)), ` ${u.lvl}`),
+    h('span', { class: 'badge' }, ` ${u.lvl}`),
+    u.tier > 0 && h('span', { class: 'tier-pips', 'aria-label': `path tier ${u.tier}` }, '▴'.repeat(u.tier)),
     u.maxHp && hpBar(u)]
 }
 
@@ -500,7 +538,7 @@ function cellBody (u, bonded = false) {
 function foeGrid (run, node) {
   const mods = roomFoeMods(run, node)
   // Scouted foes have no uid yet; their slot stands in for one.
-  const foes = node.foes.map((f) => ({ ...f, uid: f.slot, star: 1 }))
+  const foes = node.foes.map((f) => ({ ...f, uid: f.slot }))
   const at = new Map(foes.map((f) => [f.slot, f]))
   const bonded = new Set(activeBonds(foes).map((b) => b.uid))
   const rows = []

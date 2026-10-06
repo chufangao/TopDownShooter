@@ -73,7 +73,7 @@ function route () {
   } else if (s.phase === 'prep') {
     show(prepScreen({ run, act, onFight: fight, onHelp: toggleHelp }))
   } else if (s.phase === 'reap') {
-    const title = currentNode(run).type === 'reliquary' ? 'Reliquary' : 'Reap a soul'
+    const title = { reliquary: 'Reliquary', rite: 'Rite' }[currentNode(run).type] ?? 'Spoils'
     show(reapScreen({ run, title, act, onDone: reap, onHelp: toggleHelp }))
   } else {
     show(endScreen({ run, onNew: () => title(newSeed()) }))
@@ -92,6 +92,7 @@ function reap (index) {
   apply(run, { type: 'reap', index })
   if (o?.type === 'soul') note = `${o.name} rises to serve you.`
   else if (o?.type === 'relic') note = `${o.name} claimed.`
+  else if (o?.type === 'tier') note = `${o.name}: the rite is done.`
   route()
 }
 

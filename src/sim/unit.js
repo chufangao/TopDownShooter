@@ -1,27 +1,49 @@
-// A unit outside the battle loop: base stats, growth and stars, stat modifiers, synergies, where it
+// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, where it
 // deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
-import { unitDef, campDef, SYNERGIES, ROLES, BONDS } from '../content.js'
+import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, BONDS, PATHS } from '../content.js'
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 
-// Stars (from merging) scale HP and ATK.
-export function baseStats (id, lvl = 1, star = 1) {
+export function baseStats (id, lvl = 1) {
   const def = unitDef(id)
   const out = {}
   for (const [k, v] of Object.entries(def.base)) out[k] = v + (def.growth[k] ?? 0) * (lvl - 1)
-  const mult = TUNING.star.mult[star - 1]
-  out.hp = Math.round(out.hp * mult)
-  out.atk *= mult
+  out.hp = Math.round(out.hp)
   return out
 }
 
 // A unit as the run keeps it between battles; createBattle adds the per-battle fields.
-// slot −1 is the bench: the unit is kept but does not fight.
-export function makeUnit (id, { uid, lvl = 1, slot = -1, star = 1 } = {}) {
-  const hp = baseStats(id, lvl, star).hp
-  return { uid, id, lvl, star, xp: 0, hp, maxHp: hp, slot }
+// slot −1 is the bench: the unit is kept but does not fight. `path` is the upgrade path it has
+// committed to (null before its first tier) and `tier` how far along it (0–3).
+export function makeUnit (id, { uid, lvl = 1, slot = -1 } = {}) {
+  const hp = baseStats(id, lvl).hp
+  return { uid, id, lvl, path: null, tier: 0, hp, maxHp: hp, slot }
 }
+
+// ── upgrade paths ────────────────────────────────────────────────────────────────────────────────
+
+// What a soul's path tiers make of it. Foes and scouted units have no path.
+export const pathsOf = (id) => PATHS[id] ?? []
+export const pathDef = (id, path) => pathsOf(id).find((p) => p.id === path) ?? null
+export const tiersOf = (u) => (u.path ? pathDef(u.id, u.path).tiers.slice(0, u.tier) : [])
+export const pathMods = (u) => tiersOf(u).flatMap((t) => t.mods ?? [])
+
+// Its abilities in priority order, with the swaps and additions its tiers grant.
+export function abilitiesOf (u) {
+  const list = unitDef(u.id).abilities.slice()
+  for (const { ability: a } of tiersOf(u)) {
+    if (!a) continue
+    if (a.replace) list[list.indexOf(a.replace)] = a.id
+    else list.splice(a.at ?? 0, 0, a.id)
+  }
+  return list
+}
+
+export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
+
+// The least gauge any of its actions costs: below it, a unit can only bank.
+export const cheapestOf = (u) => Math.min(TUNING.board.moveCost, ...abilitiesOf(u).map((a) => abilityDef(a).castCost))
 
 const getPath = (o, path) => path.split('.').reduce((v, k) => v?.[k], o)
 function setPath (o, path, value) {
@@ -31,11 +53,12 @@ function setPath (o, path, value) {
   o[last] = value
 }
 
-// Modifiers { path, op: add|mul|set, v, pos? } apply add → mul → set; a `pos` mod ('engaged' or
-// 'free') only applies to a battle unit in that position (unit.pos), never outside a battle.
-// Several sets on one path: the largest wins, so order never matters.
+// Modifiers { path, op: add|mul|set, v, pos?, who? } apply add → mul → set; a `pos` mod ('engaged' or
+// 'free') only applies to a battle unit in that position (unit.pos), never outside a battle, and a
+// `who` mod ({ role?, kin? }, one or a list) only to units it matches. The unit's own path tiers count
+// too. Several sets on one path: the largest wins, so order never matters.
 export function statsOf (unit, mods = []) {
-  const b = baseStats(unit.id, unit.lvl, unit.star)
+  const b = baseStats(unit.id, unit.lvl)
   const s = {
     hp: b.hp, atk: b.atk, def: b.def, spd: b.spd, acc: b.acc, eva: b.eva, crt: b.crt,
     gauge: { rate: 1 },
@@ -43,8 +66,9 @@ export function statsOf (unit, mods = []) {
     heal: { given: 1 }
   }
   const acc = new Map()
-  for (const m of mods) {
+  for (const m of [...pathMods(unit), ...mods]) {
     if (m.pos !== undefined && m.pos !== unit.pos) continue
+    if (m.who && !matches(unit, m.who)) continue
     let a = acc.get(m.path)
     if (!a) acc.set(m.path, (a = { add: 0, mul: 1, set: null }))
     if (m.op === 'add') a.add += m.v
@@ -223,8 +247,8 @@ export function steps (tile, walls) {
 export const rangeOf = (ability) => ability.range ?? (ability.melee ? 1 : Infinity)
 
 // The living allies whose aura reaches this unit.
-export const auraGivers = (units, u) => units.filter((a) => a !== u && a.side === u.side && alive(a) && unitDef(a.id).aura &&
-  distance(a.tile, u.tile) <= unitDef(a.id).aura.range)
+export const auraGivers = (units, u) => units.filter((a) => a !== u && a.side === u.side && alive(a) && auraOf(a) &&
+  distance(a.tile, u.tile) <= auraOf(a).range)
 
 // A unit with a living foe next to it is engaged: it stays put unless its role slips free.
 export const foesNextTo = (units, u) => units.filter((e) => e.side !== u.side && alive(e) && distance(e.tile, u.tile) === 1)

@@ -17,16 +17,19 @@ export const TUNING = {
   escalation: { startTick: 900, perTick: 0.005, max: 8, bossMult: 2 },
   // field: souls that fight; roster: field + bench.
   party: { field: 6, roster: 12 },
-  // `copies` souls of one kind and star merge into one of star + 1; mult[star − 1] scales HP and ATK.
-  star: { max: 3, copies: 3, mult: [1, 2, 3.8] },
-  xp: { perTier: 2.5, perLevel: 0.35, base: 28, exponent: 1.45, cap: 10 },
-  // Foe level = 1 + (floor − 1) × levelPerFloor; weights fall off with distance from the floor's target
-  // tier. fight/elite: foes per encounter on floors 1–4. foeHp/foeAtk multiply ordinary foes per floor;
-  // bossHp/bossAtk multiply the boss.
+  // A level costs cost × level^exponent essence, up to cap.
+  level: { cap: 10, cost: 6, exponent: 1.2 },
+  // Essence: each foe slain pays perTier × tier × (1 + perLevel × (level − 1)); a run starts with
+  // `start`. Path tiers I–III cost tier[]; recruiting a soul costs recruit × tier × (1 + perLevel ×
+  // (level − 1)). An elite offers `eliteRelics` relics to choose one from.
+  essence: { start: 20, perTier: 2.5, perLevel: 0.35, tier: [30, 60, 100], recruit: 8, eliteRelics: 2 },
+  // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
+  // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
+  // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss.
   spawn: {
-    levelPerFloor: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 1, tierFalloff: 3,
+    levelPerFloor: 2, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 1, tierFalloff: 3,
     fight: [3, 4, 5, 5], elite: [4, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
-    foeHp: [0.8, 1.02, 0.84, 0.95], foeAtk: [0.8, 0.95, 0.8, 0.9], bossHp: 0.9, bossAtk: 0.9
+    foeHp: [0.9, 0.98, 0.84, 0.95], foeAtk: [0.88, 0.92, 0.84, 0.92], bossHp: 0.9, bossAtk: 0.9
   },
   run: { floors: 4, postBattleHeal: 0.5, altarHeal: 1, altarRevive: 0.5 }
 }
