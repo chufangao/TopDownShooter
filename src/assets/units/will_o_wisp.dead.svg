@@ -1,0 +1,236 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Will-o'-Wisp, snuffed out: the rusted lantern lies on its side in a bog puddle inside a scorched ring, a coil of grey smoke rising from its cracked pane; only a last dim ember remains, eyes closed. -->
+  <defs>
+    <linearGradient id="wwd-iron" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a6e58"/>
+      <stop offset="0.5" stop-color="#553c2c"/>
+      <stop offset="1" stop-color="#2a1d15"/>
+    </linearGradient>
+    <linearGradient id="wwd-iron-dark" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#644b3c"/>
+      <stop offset="1" stop-color="#21160f"/>
+    </linearGradient>
+    <linearGradient id="wwd-glass" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9a94ae"/>
+      <stop offset="0.5" stop-color="#5e5872"/>
+      <stop offset="1" stop-color="#34303f"/>
+    </linearGradient>
+    <linearGradient id="wwd-smoke" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#7a748a" stop-opacity="0.95"/>
+      <stop offset="0.55" stop-color="#9a95aa" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#b8b3c6" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="wwd-smoke-line" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#0d0a12" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#0d0a12" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="wwd-ember" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9a8cc4"/>
+      <stop offset="0.5" stop-color="#65579a"/>
+      <stop offset="1" stop-color="#3a2f62"/>
+    </linearGradient>
+    <linearGradient id="wwd-reed" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5d6e4e"/>
+      <stop offset="1" stop-color="#2f3b28"/>
+    </linearGradient>
+    <radialGradient id="wwd-pool" cx="0.45" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#3f4d4a"/>
+      <stop offset="0.7" stop-color="#2a3634"/>
+      <stop offset="1" stop-color="#1d2523"/>
+    </radialGradient>
+    <radialGradient id="wwd-scorch" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#1a1416" stop-opacity="0"/>
+      <stop offset="0.62" stop-color="#1a1416" stop-opacity="0.15"/>
+      <stop offset="0.8" stop-color="#140f12" stop-opacity="0.75"/>
+      <stop offset="0.9" stop-color="#2b2024" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#2b2024" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="wwd-sheen" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8f84b8" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#8f84b8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="wwd-dim" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#b7abd8" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#7a6aa8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="wwd-puff" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#a9a4b8" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#a9a4b8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ===== the scorched ring where the wisp burned out ===== -->
+  <ellipse cx="48" cy="82" rx="38" ry="12" fill="url(#wwd-scorch)"/>
+  <path d="M11.4 82 L14 79.6 L13.2 77.4 L17.4 76.2 L18.6 73.8 L23.4 73.2 L26 70.8 L31 71.2 L35.4 69.4 L40 70.6 L45 68.8 L50.4 70.2 L55 68.6 L60 70.4 L64.6 69.6 L68.6 71.6 L73.6 71.4 L76.4 74 L80.6 74.6 L81.6 77.6 L84.8 79.4 L83.6 82 L85.6 84.6 L82.2 86.4 L82 89 L77.4 89.6 L74.8 92.4 L69.4 92 L64.4 94 L58.6 93 L53 94.6 L47.4 93.4 L41.6 94.6 L36.4 93 L30.6 93.8 L26.2 91.6 L21 91.6 L18.6 89 L14.4 88 L14.8 85.4 Z M48 73.4 C31 73.4 18.6 77.4 18.6 82.4 C18.6 87.4 31 91.2 48 91.2 C65 91.2 77.4 87.4 77.4 82.4 C77.4 77.4 65 73.4 48 73.4 Z" fill="#150f13" fill-rule="evenodd" opacity="0.5"/>
+  <path d="M18.6 82.4 C18.6 77.4 31 73.4 48 73.4 C65 73.4 77.4 77.4 77.4 82.4" fill="none" stroke="#4a3a40" stroke-width="0.5" stroke-linecap="round" opacity="0.6"/>
+  <!-- mud clods and pebbles thrown up on the rim -->
+  <g stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round">
+    <path d="M21.6 77.4 Q22.6 76.2 24 76.8 Q24.4 78 23 78.4 Q21.8 78.4 21.6 77.4 Z" fill="#4a3c2e"/>
+    <path d="M73.6 88.6 Q74.8 87.6 76 88.4 Q75.8 89.6 74.6 89.6 Q73.6 89.4 73.6 88.6 Z" fill="#3e3228"/>
+    <ellipse cx="78.8" cy="80.8" rx="1" ry="0.7" fill="#5a5560"/>
+    <ellipse cx="19.4" cy="88.4" rx="0.9" ry="0.6" fill="#55505c"/>
+  </g>
+  <path d="M21.9 77.2 Q22.6 76.6 23.4 76.8 M78.3 80.5 L79.2 80.4" stroke="#8a7a66" stroke-width="0.3" stroke-linecap="round"/>
+  <!-- ash flecks on the char -->
+  <g fill="#8c8592" opacity="0.75">
+    <circle cx="18" cy="79" r="0.5"/><circle cx="22.6" cy="75.6" r="0.4"/><circle cx="77.6" cy="78" r="0.5"/>
+    <circle cx="80" cy="84.6" r="0.4"/><circle cx="70.4" cy="91" r="0.5"/><circle cx="27" cy="91" r="0.45"/>
+    <circle cx="16.6" cy="86" r="0.35"/><circle cx="60" cy="92.6" r="0.35"/>
+  </g>
+  <path d="M19.4 80.6 l1.4 -0.4 M74.6 76.2 l1.2 0.6 M33 92.2 l1.4 0.2" stroke="#4a3e44" stroke-width="0.6" stroke-linecap="round"/>
+
+  <!-- ===== the bog puddle ===== -->
+  <path d="M25.4 82.6 Q24 77.6 31 76.2 Q36 74 44 74.8 Q52 73.4 60 75.2 Q68.6 75.2 71.6 79.6 Q74.2 83.6 70 87 Q65.4 90.6 56 90 Q48 91.6 40 90.4 Q31 90.6 27.6 87.4 Q25 85.6 25.4 82.6 Z" fill="url(#wwd-pool)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <!-- muddy lip -->
+  <path d="M26.4 82 Q25.6 78 31.4 77 Q36.4 75 44 75.8 Q52 74.4 60 76.2 Q67.6 76.2 70.6 80" fill="none" stroke="#4a3c2e" stroke-width="0.9" stroke-linecap="round" opacity="0.9"/>
+  <path d="M71.4 84.6 Q68 88.6 60 89.2 M44 89.8 Q34 90 29 87" fill="none" stroke="#3c4d48" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <!-- an oily violet sheen, all that is left of the witchfire -->
+  <ellipse cx="38" cy="84" rx="8" ry="2.6" fill="url(#wwd-sheen)"/>
+  <path d="M32.4 84.2 Q36 82.6 40.4 83.6 Q43 84.4 44.4 83.4" fill="none" stroke="#9d92c4" stroke-width="0.5" stroke-linecap="round" opacity="0.55"/>
+  <path d="M33.6 85.8 Q37.4 85 41 85.8" fill="none" stroke="#7fb0a2" stroke-width="0.4" stroke-linecap="round" opacity="0.5"/>
+  <!-- cold reflections on the water -->
+  <path d="M29 81 Q32 80 35 80.6 M60 86.8 Q64 86 68 86.6 M52 88.8 Q56 88.4 59 88.8" fill="none" stroke="#9fb6ae" stroke-width="0.5" stroke-linecap="round" opacity="0.55"/>
+  <!-- bubbles rising through the muck -->
+  <g fill="none" stroke="#9fb6ae" stroke-width="0.35" opacity="0.7">
+    <circle cx="31.4" cy="86.4" r="0.6"/><circle cx="33" cy="87.4" r="0.4"/><circle cx="66.4" cy="83.6" r="0.5"/>
+  </g>
+  <circle cx="31.2" cy="86.2" r="0.15" fill="#d8e4de"/>
+  <!-- floating reed fragments and a dead leaf -->
+  <path d="M28.4 79.4 L33.4 78.6" stroke="#0d0a12" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M28.4 79.4 L33.4 78.6" stroke="#55623f" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M63 88 Q65 86.6 67.4 87.2 Q65.6 88.8 63 88 Z" fill="#5a4a30" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+  <path d="M63.4 87.9 L66.6 87.3" stroke="#8a7650" stroke-width="0.25"/>
+  <!-- a lily pad with a notch -->
+  <path d="M65.6 79.6 Q66 77.6 68.4 77.8 Q70.4 78.2 70 80 Q69.4 81.4 67.4 81.2 L67.6 79.4 Z" fill="#3f5a3c" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M66.4 79 Q67.6 78.4 68.8 78.8" fill="none" stroke="#7f9a6a" stroke-width="0.35" stroke-linecap="round"/>
+
+  <!-- ===== reeds, scorched at the edge of the ring ===== -->
+  <g stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round">
+    <path d="M12.6 86 Q12.2 80 10.4 75.6 Q12.8 79.4 14 86 Z" fill="url(#wwd-reed)"/>
+    <path d="M14.6 86 Q15.4 81 18.4 77.6 Q16.4 82 16 86 Z" fill="#33402c"/>
+    <!-- a snapped reed folded over toward the puddle -->
+    <path d="M17.6 86.4 L18 80.8 Q22 79 26.4 80.6 Q22 80.6 19 82 L19 86.4 Z" fill="#4a5640"/>
+    <path d="M85 86 Q85.6 80.4 88 76.4 Q86.6 80.8 86.4 86 Z" fill="url(#wwd-reed)"/>
+    <path d="M82.6 86 Q82 82 79.6 79.4 Q82.6 81.6 84 86 Z" fill="#33402c"/>
+  </g>
+  <!-- cattail heads, charred black at the tips -->
+  <g stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round">
+    <path d="M10 76.2 L9.6 72.4 Q10.2 71.6 11 72.2 L11.2 76 Q10.6 76.8 10 76.2 Z" fill="#4a3226"/>
+    <path d="M87.4 77 L87.6 73 Q88.4 72.4 89 73.2 L88.8 77 Q88 77.6 87.4 77 Z" fill="#3a2a22"/>
+  </g>
+  <path d="M10 72.6 L10.2 71.2 M88.2 73 L88.4 71.6" stroke="#0d0a12" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M10.2 73 L10.3 75" stroke="#8a6a52" stroke-width="0.35" stroke-linecap="round"/>
+  <path d="M10.8 77 Q11.6 81 12.6 85" fill="none" stroke="#8e9e7a" stroke-width="0.35" opacity="0.6"/>
+
+  <!-- ===== the chain, trailing loose from the lantern ring into the water ===== -->
+  <g fill="none" stroke="#2a1d14" stroke-width="1">
+    <ellipse cx="34.4" cy="77.2" rx="1.2" ry="0.7" transform="rotate(-15 34.4 77.2)"/>
+    <ellipse cx="32.4" cy="78.4" rx="0.9" ry="0.45" transform="rotate(-30 32.4 78.4)"/>
+    <ellipse cx="30.8" cy="80" rx="1.2" ry="0.7" transform="rotate(-45 30.8 80)"/>
+    <ellipse cx="29.6" cy="82" rx="0.9" ry="0.45" transform="rotate(-60 29.6 82)"/>
+    <ellipse cx="28.8" cy="84.2" rx="1.2" ry="0.7" transform="rotate(-70 28.8 84.2)"/>
+    <ellipse cx="28.6" cy="86.6" rx="0.9" ry="0.45" transform="rotate(-95 28.6 86.6)"/>
+    <ellipse cx="29.6" cy="88.6" rx="1.2" ry="0.7" transform="rotate(-130 29.6 88.6)"/>
+  </g>
+  <g fill="none" stroke="#8a6a52" stroke-width="0.4">
+    <ellipse cx="34.4" cy="77.2" rx="1.2" ry="0.7" transform="rotate(-15 34.4 77.2)"/>
+    <ellipse cx="30.8" cy="80" rx="1.2" ry="0.7" transform="rotate(-45 30.8 80)"/>
+    <ellipse cx="28.8" cy="84.2" rx="1.2" ry="0.7" transform="rotate(-70 28.8 84.2)"/>
+    <ellipse cx="29.6" cy="88.6" rx="1.2" ry="0.7" transform="rotate(-130 29.6 88.6)"/>
+  </g>
+
+  <!-- ===== the extinguished lantern, lying on its side ===== -->
+  <g transform="translate(48 79.4) rotate(-78) scale(1.6)">
+    <!-- top ring, now bent -->
+    <path d="M-3 -4.8 Q-3.2 -7.6 0.2 -7.8 Q2.6 -7.6 2.6 -5.2" fill="none" stroke="#0d0a12" stroke-width="1.2"/>
+    <path d="M-3 -4.8 Q-3.2 -7.6 0.2 -7.8 Q2.6 -7.6 2.6 -5.2" fill="none" stroke="#7a5e4a" stroke-width="0.5"/>
+    <!-- roof -->
+    <path d="M-5.2 -3.2 L-2 -6 L2 -6 L5.2 -3.2 Z" fill="url(#wwd-iron)" stroke="#0d0a12" stroke-width="0.75" stroke-linejoin="round"/>
+    <path d="M-5.8 -3.4 L5.8 -3.4 L5.6 -2 L-5.6 -2 Z" fill="url(#wwd-iron-dark)" stroke="#0d0a12" stroke-width="0.65" stroke-linejoin="round"/>
+    <path d="M4.6 -3.6 L1.8 -5.6 L0 -5.6" fill="none" stroke="#b08e70" stroke-width="0.35" stroke-linecap="round"/>
+    <circle cx="0" cy="-6.4" r="0.7" fill="#5a4334" stroke="#0d0a12" stroke-width="0.4"/>
+    <!-- sooted glass, dark now -->
+    <path d="M-4.8 -2 L4.8 -2 L4.4 4.2 L-4.4 4.2 Z" fill="url(#wwd-glass)" stroke="#0d0a12" stroke-width="0.75" stroke-linejoin="round"/>
+    <!-- soot bloom inside -->
+    <path d="M-4.2 -1.6 Q0 -2.2 4.2 -1.6 L4 -0.2 Q0 -1 -4 -0.2 Z" fill="#1b1722" opacity="0.6"/>
+    <path d="M-4 3.8 Q0 3 4 3.8" fill="none" stroke="#1b1722" stroke-width="0.6" opacity="0.5"/>
+    <!-- glint across the dead glass -->
+    <path d="M3.9 1.8 L3.8 3.6 M-3 -1.2 L-3.4 3.6" stroke="#d8d4e2" stroke-width="0.35" stroke-linecap="round" opacity="0.7"/>
+    <!-- the dead wick -->
+    <path d="M0 3.6 L0 1.8 L0.5 1.2" fill="none" stroke="#151119" stroke-width="0.7" stroke-linecap="round"/>
+    <circle cx="0.5" cy="1.2" r="0.35" fill="#6a6470"/>
+    <!-- the upward pane, broken through -->
+    <path d="M2.5 -1.6 L4.6 -1.6 L4.4 1.4 L3.7 0.3 L3.1 1.6 L2.7 0.1 Z" fill="#110d17" stroke="#0d0a12" stroke-width="0.3" stroke-linejoin="round"/>
+    <path d="M4.6 -1.6 L4.4 1.4 M2.5 -1.6 L2.7 0.1" stroke="#a7a1b6" stroke-width="0.25"/>
+    <!-- cracks -->
+    <path d="M-3.8 -1.2 L-2.6 0.6 L-3.4 2.2 M-2.6 0.6 L-1 1" fill="none" stroke="#a7a1b6" stroke-width="0.25" opacity="0.8"/>
+    <!-- a dent in the roof from the fall -->
+    <path d="M-1.6 -4.6 Q-0.6 -3.8 0.6 -4.4" fill="none" stroke="#1a110c" stroke-width="0.4" stroke-linecap="round"/>
+    <path d="M-1.4 -4.9 Q-0.6 -4.2 0.4 -4.7" fill="none" stroke="#b08e70" stroke-width="0.25" stroke-linecap="round"/>
+    <!-- door hinge and latch -->
+    <path d="M4.5 -0.8 L5.4 -0.8 L5.4 0.4 L4.5 0.4 Z M4.4 2 L5.2 2 L5.2 3 L4.4 3 Z" fill="#3e2a1e" stroke="#0d0a12" stroke-width="0.25"/>
+    <!-- iron cage bars -->
+    <path d="M-2.2 -2 L-2 4.2 M2.2 -2 L2 4.2" stroke="#33221a" stroke-width="0.75"/>
+    <path d="M2.4 -1.8 L2.2 4" stroke="#a88566" stroke-width="0.25"/>
+    <path d="M-4.6 1 L4.6 1" stroke="#33221a" stroke-width="0.5"/>
+    <!-- base and finial -->
+    <path d="M-5.6 4 L5.6 4 L5 5.8 L-5 5.8 Z" fill="url(#wwd-iron)" stroke="#0d0a12" stroke-width="0.65" stroke-linejoin="round"/>
+    <path d="M-1.8 5.8 L1.8 5.8 L0 7.8 Z" fill="url(#wwd-iron-dark)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+    <path d="M5 4.6 L0 4.6" stroke="#b08e70" stroke-width="0.3" stroke-linecap="round"/>
+    <!-- rivets, rust, verdigris -->
+    <circle cx="-4.4" cy="-2.7" r="0.3" fill="#6a5040"/><circle cx="4.4" cy="-2.7" r="0.3" fill="#c09e7c"/>
+    <circle cx="-4.2" cy="4.9" r="0.3" fill="#6a5040"/><circle cx="4.2" cy="4.9" r="0.3" fill="#c09e7c"/>
+    <path d="M3.4 -2.8 q0.6 1 0.2 2 M-1.4 5.6 q0.4 0.8 0 1.4" fill="none" stroke="#9a4e2c" stroke-width="0.45" opacity="0.85"/>
+    <path d="M1 -5 q1.2 -0.4 1.8 0.6 q-0.8 0.6 -1.8 -0.6 Z" fill="#4a7a6a" opacity="0.85"/>
+  </g>
+  <!-- bog water lapping over the lantern's lower side -->
+  <path d="M37 86.2 Q41 85.2 44.6 86.2 Q48.6 87.2 52.4 86 Q56.4 85 60.4 86.2 L60 89.2 Q48 90.2 37.4 89 Z" fill="#2c3836" opacity="0.85"/>
+  <path d="M37 86.2 Q41 85.2 44.6 86.2 Q48.6 87.2 52.4 86 Q56.4 85 60.4 86.2" fill="none" stroke="#9fb6ae" stroke-width="0.5" stroke-linecap="round" opacity="0.75"/>
+  <path d="M36 87.2 Q38 86.4 39.6 87 M58 86.6 Q60 86 62 86.8" fill="none" stroke="#9fb6ae" stroke-width="0.4" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- glass shards from the broken pane -->
+  <g fill="#5a546a" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round">
+    <path d="M58.6 71.8 L61 70.6 L60.4 72.8 Z"/>
+    <path d="M38.4 72.6 L39.8 70.8 L40.6 72.8 Z"/>
+    <path d="M62 78.6 L64.2 78 L63 79.8 Z"/>
+  </g>
+  <path d="M59.2 71.6 L60.6 70.9 M38.8 72.3 L39.7 71.2" stroke="#c4bfd0" stroke-width="0.3" stroke-linecap="round"/>
+
+  <!-- ===== the coil of grey smoke rising from the cracked pane ===== -->
+  <circle cx="47" cy="60" r="8" fill="url(#wwd-puff)"/>
+  <circle cx="45" cy="46" r="7" fill="url(#wwd-puff)"/>
+  <path d="M47.8 74.6 C45.8 71 49.8 68.2 49.8 63.4 C49.8 58.6 44.2 56.2 44.4 50.8 C44.6 45.6 49.6 43.2 52.6 45.4 C54.6 47 53.4 50 51 49.6 C52.8 48.6 52 46.2 49.8 46.6 C47.6 47 47 50 48.4 52.6 C50.6 56.4 54 59 53.6 64 C53.2 68.6 49.6 71 50.4 74.6 Z" fill="url(#wwd-smoke)" stroke="url(#wwd-smoke-line)" stroke-width="0.8" stroke-linejoin="round"/>
+  <!-- light along the smoke's left edge, shade on the right -->
+  <path d="M47 71.4 C47.4 69.4 49 67.4 49 64 M45.6 53.4 C45 50.2 46.2 47 49 45.6" fill="none" stroke="#d8d4e2" stroke-width="0.6" stroke-linecap="round" opacity="0.6"/>
+  <path d="M52.4 62.6 C52.2 66.4 50.4 69 50.4 72" fill="none" stroke="#56506a" stroke-width="0.6" stroke-linecap="round" opacity="0.6"/>
+  <!-- thinner wisps peeling off and fading -->
+  <path d="M50 58 C53 55.6 56.4 55.6 58 53 C58.8 51.6 58.4 50 57.2 49.4" fill="none" stroke="#a9a4b8" stroke-width="0.9" stroke-linecap="round" opacity="0.45"/>
+  <path d="M46.4 44 C44.6 41.4 45.2 38.6 47.4 37.4 C49.2 36.4 50.6 37.4 50.2 38.8" fill="none" stroke="#a9a4b8" stroke-width="0.8" stroke-linecap="round" opacity="0.3"/>
+  <path d="M44.6 66 C42.6 64.8 41.6 62.8 42.2 60.8" fill="none" stroke="#a9a4b8" stroke-width="0.7" stroke-linecap="round" opacity="0.4"/>
+
+  <!-- ===== the last dim ember, flopped over with its eyes shut ===== -->
+  <circle cx="64.4" cy="85.6" r="5" fill="url(#wwd-dim)" opacity="0.6"/>
+  <path d="M60 86 C60 83.8 62 82.6 64 82.8 C65.8 83 67.2 83.8 69.4 83.4 C68.2 84.4 67.8 85.2 67.8 86 C67.8 87.6 66 88.6 63.8 88.6 C61.6 88.6 60 87.8 60 86 Z" fill="url(#wwd-ember)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M61.2 85.2 C61.6 84.2 62.6 83.6 63.8 83.6" fill="none" stroke="#cfc6ea" stroke-width="0.45" stroke-linecap="round" opacity="0.8"/>
+  <path d="M61 87 Q63.6 88.2 66.6 87.2" fill="none" stroke="#2c2350" stroke-width="0.45" stroke-linecap="round"/>
+  <!-- closed eyes and a tiny, peaceful mouth -->
+  <path d="M61.8 85.8 Q62.4 86.4 63 85.8 M64.4 85.8 Q65 86.4 65.6 85.8" fill="none" stroke="#1f1840" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M63.2 87.1 Q63.6 87.4 64 87.1" fill="none" stroke="#1f1840" stroke-width="0.35" stroke-linecap="round"/>
+  <!-- a thread of smoke off its guttered tip -->
+  <path d="M69 83.2 C70 81.6 69.2 80.2 70.4 78.6 C71.4 77.4 71 76 70.4 75.2" fill="none" stroke="#a9a4b8" stroke-width="0.6" stroke-linecap="round" opacity="0.55"/>
+
+  <!-- soot drifting down out of the smoke -->
+  <g fill="#6c6676" opacity="0.8">
+    <circle cx="53.4" cy="56" r="0.35"/><circle cx="41.6" cy="54.4" r="0.3"/><circle cx="55.6" cy="66" r="0.3"/>
+    <circle cx="42.4" cy="69.4" r="0.35"/><circle cx="51" cy="40.4" r="0.3"/>
+  </g>
+  <!-- ===== a few dying motes, going grey ===== -->
+  <circle cx="30" cy="66" r="1.6" fill="url(#wwd-dim)" opacity="0.6"/>
+  <circle cx="30" cy="66" r="0.4" fill="#a59bc6"/>
+  <circle cx="66" cy="64" r="1.4" fill="url(#wwd-dim)" opacity="0.5"/>
+  <circle cx="66" cy="64" r="0.35" fill="#958cb6"/>
+  <circle cx="56" cy="44" r="0.35" fill="#8a849a" opacity="0.8"/>
+  <circle cx="22" cy="72" r="0.35" fill="#8a849a" opacity="0.7"/>
+  <circle cx="74" cy="72" r="0.3" fill="#8a849a" opacity="0.7"/>
+</svg>

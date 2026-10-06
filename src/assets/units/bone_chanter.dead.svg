@@ -1,0 +1,262 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Bone Chanter, fallen: its robes collapsed into an empty heap, bones spilling out, the skull rolled free and dark, the staff snapped and its lantern guttered to a thread of grey smoke. -->
+  <defs>
+    <linearGradient id="bcd-robe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8f8999"/>
+      <stop offset="0.5" stop-color="#5c5667"/>
+      <stop offset="1" stop-color="#302b38"/>
+    </linearGradient>
+    <linearGradient id="bcd-robe-back" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#463e53"/>
+      <stop offset="1" stop-color="#1c1725"/>
+    </linearGradient>
+    <linearGradient id="bcd-violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#83719c"/>
+      <stop offset="0.5" stop-color="#54436c"/>
+      <stop offset="1" stop-color="#2b2139"/>
+    </linearGradient>
+    <linearGradient id="bcd-hood" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8c7aa6"/>
+      <stop offset="0.55" stop-color="#584672"/>
+      <stop offset="1" stop-color="#2a2039"/>
+    </linearGradient>
+    <radialGradient id="bcd-hood-in" cx="0.4" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#1c1626"/>
+      <stop offset="1" stop-color="#0b0911"/>
+    </radialGradient>
+    <linearGradient id="bcd-bone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e2d9c1"/>
+      <stop offset="0.55" stop-color="#bdb196"/>
+      <stop offset="1" stop-color="#837863"/>
+    </linearGradient>
+    <linearGradient id="bcd-staff" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e0d7bf"/>
+      <stop offset="0.5" stop-color="#b6aa8e"/>
+      <stop offset="1" stop-color="#746a58"/>
+    </linearGradient>
+    <linearGradient id="bcd-linen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c2b8a0"/>
+      <stop offset="1" stop-color="#857b64"/>
+    </linearGradient>
+    <radialGradient id="bcd-ash" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2d2737"/>
+      <stop offset="1" stop-color="#16121d"/>
+    </radialGradient>
+    <radialGradient id="bcd-ember" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#4f6e66" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#4f6e66" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- a pool of grave-ash where the chanter fell -->
+  <path d="M10 84 Q12 75 28 72 Q48 67 70 70 Q86 73 88 82 Q89 90 74 92.6 Q50 95.4 26 93.6 Q8 92 10 84 Z" fill="url(#bcd-ash)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M16 80 Q24 75.6 34 74.6 M66 72.6 Q78 74.4 84 80" fill="none" stroke="#453c52" stroke-width="0.6" opacity="0.7"/>
+  <g fill="#4a4256">
+    <circle cx="14.6" cy="88" r="0.5"/><circle cx="20" cy="91.4" r="0.4"/><circle cx="83" cy="86.6" r="0.5"/><circle cx="72" cy="91.4" r="0.4"/><circle cx="12.6" cy="83.4" r="0.35"/>
+  </g>
+
+  <!-- upper half of the snapped staff, lying behind the heap -->
+  <path d="M46.4 58.7 L69.4 65.1 L68.6 67.7 L45.6 61.3 L46.6 60.7 L44.4 60.1 L46.2 59.6 L44.8 58.6 Z" fill="url(#bcd-staff)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M47 59.6 L68.8 65.7" stroke="#f2ebd8" stroke-width="0.4" opacity="0.7"/>
+  <path d="M46.2 61 L68.4 67.1" stroke="#5c5444" stroke-width="0.4"/>
+  <ellipse cx="58.4" cy="63.4" rx="1.6" ry="2.4" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.8" transform="rotate(15 58.4 63.4)"/>
+  <path d="M52 61.2 l0.8 -1 l0.9 0.4 M63.2 64.6 l0.6 0.9" fill="none" stroke="#4f4738" stroke-width="0.4"/>
+  <!-- splinters at the break -->
+  <path d="M45 58.8 l-1.8 -1 M44.6 60.2 l-2.2 0.2 M45.4 61.2 l-1.6 1.2" stroke="#0d0a12" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M45 58.8 l-1.8 -1 M44.6 60.2 l-2.2 0.2 M45.4 61.2 l-1.6 1.2" stroke="#cfc4a8" stroke-width="0.5" stroke-linecap="round"/>
+
+  <!-- the ribcage lantern, tipped on its side, cage cracked and cold -->
+  <g transform="translate(7.64 54.06) rotate(105.4 71 15)">
+    <path d="M69 26.4 L72.2 26.6 L71.8 31 L68.6 30.8 Z" fill="#4c3f33" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M68.8 27.8 l3.2 0.2 M68.7 29.4 l3.2 0.2" stroke="#7a6a50" stroke-width="0.45"/>
+    <!-- spine at the back of the cage -->
+    <path d="M71 24 L71 7" stroke="#0d0a12" stroke-width="1.8"/>
+    <path d="M71 24 L71 7" stroke="#8f8a78" stroke-width="0.9"/>
+    <path d="M70.4 21 l1.2 0 M70.4 18 l1.2 0 M70.4 15 l1.2 0 M70.4 12 l1.2 0 M70.4 9.4 l1.2 0" stroke="#3a3530" stroke-width="0.35"/>
+    <!-- a last dull ember where the flame floated -->
+    <circle cx="71" cy="17.6" r="3.2" fill="url(#bcd-ember)"/>
+    <circle cx="71" cy="17.8" r="0.7" fill="#56706a"/>
+    <!-- ribs: two intact, two snapped -->
+    <g fill="none" stroke-linecap="round">
+      <path d="M70 24 C64 21 63.4 11 69.4 6.8 M70.4 24.2 C67.2 20.4 66.8 11.4 70.2 6.6 M71.6 24.2 C73.4 22 74.4 19.4 74.8 16.6 M74.6 12.4 C74.2 10 73.2 8 71.8 6.6 M72 24 C75.4 22.4 77.2 19.6 77.6 17 M72.6 6.8 C74.6 8.2 75.8 9.8 76.4 11.4" stroke="#0d0a12" stroke-width="2"/>
+      <path d="M70 24 C64 21 63.4 11 69.4 6.8 M70.4 24.2 C67.2 20.4 66.8 11.4 70.2 6.6 M71.6 24.2 C73.4 22 74.4 19.4 74.8 16.6 M74.6 12.4 C74.2 10 73.2 8 71.8 6.6 M72 24 C75.4 22.4 77.2 19.6 77.6 17 M72.6 6.8 C74.6 8.2 75.8 9.8 76.4 11.4" stroke="#cbc0a4" stroke-width="1.05"/>
+      <path d="M65.2 18 C64.6 15 65 12 66.2 10" stroke="#efe7d2" stroke-width="0.4"/>
+    </g>
+    <!-- the sternum band, snapped and hanging loose -->
+    <path d="M64.6 15.4 Q67.6 16.4 70 16.6 M74.4 16.2 Q76 17.6 76.6 20" fill="none" stroke="#0d0a12" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M64.6 15.4 Q67.6 16.4 70 16.6 M74.4 16.2 Q76 17.6 76.6 20" fill="none" stroke="#7a6a50" stroke-width="0.6" stroke-linecap="round"/>
+    <!-- base cup, cracked through, and the top cap -->
+    <path d="M67.4 23.4 Q71 22.2 74.6 23.4 L73.8 26.2 Q71 27.2 68.2 26.2 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M71.6 22.8 L70.8 24.6 L71.8 26.8" fill="none" stroke="#0d0a12" stroke-width="0.6"/>
+    <ellipse cx="71" cy="6.2" rx="2.4" ry="1.4" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.8"/>
+    <path d="M70 5.2 L71 2.2 L72 5.2 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  </g>
+  <!-- a snapped rib from the cage, lying in the ash -->
+  <path d="M83.2 80.6 Q86 78.6 88.6 79.4" fill="none" stroke="#0d0a12" stroke-width="1.9" stroke-linecap="round"/>
+  <path d="M83.2 80.6 Q86 78.6 88.6 79.4" fill="none" stroke="#cbc0a4" stroke-width="0.95" stroke-linecap="round"/>
+
+  <!-- under-robe, splayed flat beneath the heap -->
+  <path d="M14 82 Q16 74 26 72 Q34 68 46 69 Q58 68 64 74 Q68 80 66 86 L62 88 L60 91 L56 88.6 L52 91.4 L48 89 L44 92 L40 89.4 L36 92 L32 89 L28 91.6 L24 88.4 L20 90.4 L17.6 87 Q13 86 14 82 Z" fill="url(#bcd-robe-back)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M22 89 l-0.4 1.4 M34 90.6 l0.2 1.4 M42 90.4 l-0.2 1.4 M54 90 l0.2 1.4 M61 89.6 l0.3 1.3" stroke="#3a3346" stroke-width="0.4" stroke-linecap="round"/>
+
+  <!-- the ash-grey robe, collapsed into an empty mound -->
+  <path d="M18 80 Q19 72 28 69 Q36 64.6 46 66.4 Q56 66 61 71 Q65 76 63 83 L59.6 85.4 L57.6 88.6 L54 86.4 L50.6 89.4 L47 87 L43.4 89.8 L40 87.2 L36.4 89.6 L33 86.8 L29.4 88.6 L26.4 85.6 L22.6 87 Q17.6 85 18 80 Z" fill="url(#bcd-robe)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- slumped folds -->
+  <path d="M21 80 Q26 76.6 31 78.6 M24 85 Q30 80.6 36 83 M48 82 Q53 78.6 58.4 80.6 M52 86 Q56 83 60.6 83.4 M38 84.6 Q41 82 44 84" fill="none" stroke="#25212c" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M20.4 78 Q24 74.6 28.4 75 M23.6 82.6 Q28 79.4 31.6 80.4 M49 80.4 Q52.4 78 55.6 78.6" fill="none" stroke="#c6c0cc" stroke-width="0.6" opacity="0.7" stroke-linecap="round"/>
+  <!-- the burial-linen wrap, come loose and trailing -->
+  <path d="M26.4 77.4 Q34 80.4 40.6 79.4 L40.2 82 Q33 83 26 80 Z" fill="url(#bcd-linen)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M27 78.2 Q34 81 40 80.2" fill="none" stroke="#ebe3cf" stroke-width="0.4" opacity="0.7"/>
+  <path d="M29.6 78.8 l0.3 2.2 M33.6 80 l0.2 2.2 M37.4 80.2 l0 2.2" stroke="#585040" stroke-width="0.35"/>
+  <!-- darned patch and a moth hole -->
+  <path d="M55.4 81.6 L59.8 80.8 L60.4 84.6 L56 85.4 Z" fill="#82786a" stroke="#0d0a12" stroke-width="0.55" stroke-linejoin="round"/>
+  <path d="M55.6 82.2 l0.8 0.8 M56.4 82.2 l-0.8 0.8 M59.4 81.4 l0.8 0.8 M60.2 81.4 l-0.8 0.8 M56.2 84.2 l0.8 0.8 M57 84.2 l-0.8 0.8" stroke="#2a2430" stroke-width="0.35"/>
+  <path d="M30.6 84.6 q1.2 -1.2 2.2 0 q0.2 1.4 -1.1 1.6 q-1.3 -0.2 -1.1 -1.6 Z" fill="#17121e" stroke="#0d0a12" stroke-width="0.4"/>
+
+  <!-- violet mantle draped over the top of the heap -->
+  <path d="M24 70 Q34 63 46 64 Q56 64.4 60 69 Q61.6 73 59 76 L56.4 74.6 L55 78.4 L52 75.6 L49.6 79.4 L47 76 L44 79.6 L41.6 75.6 L38.4 78.6 L36.6 74.8 L33.2 77.2 L32 73.6 L28.6 75.2 Q25 73.6 24 70 Z" fill="url(#bcd-violet)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M30 68 Q38 64.6 46 65.4" fill="none" stroke="#bcadd0" stroke-width="0.8" stroke-linecap="round" opacity="0.75"/>
+  <path d="M37 69.6 L37.4 74 M44 69.4 L44.4 77 M52 69 L51.6 74.6 M57 70 L56.8 73.6" fill="none" stroke="#221a2e" stroke-width="0.6"/>
+  <path d="M28 72.6 Q42 76.4 58 72.2" fill="none" stroke="#b2a4c4" stroke-width="0.4" stroke-dasharray="0.9 1.4" opacity="0.45"/>
+  <!-- a stole hanging off the mound, its stitched glyph faded -->
+  <path d="M50.4 74 L55.2 73.4 L56.6 84 L55.4 83 L54.4 85.6 L53.2 83.2 L51.8 85 L51.2 82.8 Z" fill="#5a4a72" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M52 77.4 Q53.2 76.2 54.4 77.4 Q53.2 78.6 52 77.4 Z M53.4 79.4 L53.6 82.4 M52.2 80.6 L54.8 80.4" fill="none" stroke="#a69c86" stroke-width="0.4" opacity="0.8"/>
+
+  <!-- ribs and spine poking out of the empty neckline -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M38.4 68.6 Q40.4 63.6 45.4 63.2 M40 70.2 Q42.2 65.6 47 65.4 M41.8 71.6 Q44 67.8 48.2 67.8 M36.6 66 L43 70.4" stroke="#0d0a12" stroke-width="1.9"/>
+    <path d="M38.4 68.6 Q40.4 63.6 45.4 63.2 M40 70.2 Q42.2 65.6 47 65.4 M41.8 71.6 Q44 67.8 48.2 67.8 M36.6 66 L43 70.4" stroke="#d6cdb3" stroke-width="0.95"/>
+    <path d="M38.9 67.6 Q40.6 64.4 43.4 63.8" stroke="#f3ecd9" stroke-width="0.35"/>
+  </g>
+  <path d="M37.6 66.5 l0.8 -0.9 M39.4 67.7 l0.8 -0.9 M41.2 68.9 l0.8 -0.9" stroke="#6e6452" stroke-width="0.4"/>
+
+  <!-- the bone circlet, knocked off, half under the fallen hood -->
+  <path d="M12 68.4 C9.6 67 7.8 65.4 6.6 62.8 C8.8 64 11 65.2 13.4 66.6 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M9.2 65.6 C9.4 64 9.2 62.6 8.6 61.2 C9.6 62.2 10.4 63.6 10.6 65.2 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M11.6 67.2 C9.8 66.2 8.4 65 7.4 63.6" fill="none" stroke="#f3ecd9" stroke-width="0.35" opacity="0.8"/>
+  <path d="M11 69.4 a7.4 2.4 -4 1 0 14.8 -1 a7.4 2.4 -4 1 0 -14.8 1 Z M13 69.2 a5.4 1.3 -4 1 0 10.8 -0.8 a5.4 1.3 -4 1 0 -10.8 0.8 Z" fill="url(#bcd-bone)" fill-rule="evenodd" stroke="#0d0a12" stroke-width="0.8"/>
+  <path d="M12 70.6 Q15.6 72.2 20.6 71.6" fill="none" stroke="#f3ecd9" stroke-width="0.4"/>
+  <path d="M14.2 71.2 L13.4 74.4 L15.6 71.6 Z M19.4 71.6 L19.8 74.8 L20.8 71.4 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M15.6 71.2 l0.2 -0.8 M18.2 71.4 l0 -0.8" stroke="#6e6452" stroke-width="0.35"/>
+  <!-- the brow stone gone grey -->
+  <circle cx="17" cy="71.8" r="0.85" fill="#55605d" stroke="#0d0a12" stroke-width="0.4"/>
+  <circle cx="16.7" cy="71.5" r="0.25" fill="#9aa5a2"/>
+
+  <!-- the empty hood, fallen flat over the heap, its peak flopped to one side and its mouth gaping sideways -->
+  <path d="M13 62.4 C16 59.6 19.6 57.6 24 56.8 C30 55.8 36.4 56.6 40 59.6 C42.6 62 43 65.6 41.4 68.4 Q36 72.4 28 72.6 Q21.6 72.4 18.4 68.6 C17 66.6 15.4 64.6 13 62.4 Z" fill="url(#bcd-hood)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M15.4 61.6 Q19.6 58.4 25.4 57.6" fill="none" stroke="#c9bcdc" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
+  <!-- slack folds radiating from the peak -->
+  <path d="M16.6 62.6 Q24 63.4 30.6 67.4 M18.2 61 Q26 60.4 33.4 62.6 M19.4 66.6 Q24.6 69.4 30 70.6 M39.6 66.8 Q37 70.4 32 71.6" fill="none" stroke="#221a2e" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M17.6 63.6 Q23.6 64.4 28.6 67.4 M19.6 60.2 Q25 59.4 30 60.2" fill="none" stroke="#a594bd" stroke-width="0.45" opacity="0.7" stroke-linecap="round"/>
+  <!-- frayed threads and a stitched seam along the hood -->
+  <path d="M19 69.6 l-0.8 1.2 M22.4 71.6 l-0.4 1.3 M26.6 72.6 l0 1.3 M31 72.6 l0.3 1.2" stroke="#2a2039" stroke-width="0.4" stroke-linecap="round"/>
+  <path d="M21.6 58.6 Q30 56 38.6 59.4" fill="none" stroke="#b2a4c4" stroke-width="0.4" stroke-dasharray="0.9 1.3" opacity="0.5"/>
+  <!-- its mouth, seen edge-on: hollow, the ribs slipping out of it -->
+  <path d="M36.4 60.4 Q41.8 61 42.2 65.4 Q41.8 69.6 37 70.8 Q39.2 65.6 36.4 60.4 Z" fill="url(#bcd-hood-in)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M36.8 61 Q38.8 65.4 37.4 70" fill="none" stroke="#a796be" stroke-width="0.6" opacity="0.85"/>
+
+  <!-- lower half of the staff, flung in front, foot-cap and all -->
+  <path d="M7.5 84.7 L25.5 77.7 L26.4 79.4 L25.2 79.6 L26.6 80.4 L8.5 87.3 Z" fill="url(#bcd-staff)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M8.6 85 L24.8 78.6" stroke="#f2ebd8" stroke-width="0.4" opacity="0.7"/>
+  <path d="M9.2 86.6 L25.4 80.2" stroke="#5c5444" stroke-width="0.4"/>
+  <ellipse cx="17" cy="82.4" rx="1.5" ry="2.4" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.8" transform="rotate(-21 17 82.4)"/>
+  <path d="M26.4 77.8 l1.8 -0.8 M26.8 79.2 l2 0.4 M26.6 80.4 l1.4 1.2" stroke="#0d0a12" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M26.4 77.8 l1.8 -0.8 M26.8 79.2 l2 0.4 M26.6 80.4 l1.4 1.2" stroke="#cfc4a8" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M6.6 85.4 Q7.6 84.2 8.8 84.8 L9.8 87.4 Q8.6 88.4 7.6 87.8 Z" fill="#7d7262" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <!-- grip wrapping, unravelling -->
+  <path d="M19.4 79.2 L22.6 78 L23.6 80.4 L20.4 81.6 Z" fill="url(#bcd-linen)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M20.6 79 l0.9 2.2 M21.8 78.5 l0.9 2.2" stroke="#585040" stroke-width="0.35"/>
+  <path d="M21.4 81.4 Q20.6 84 22.6 86.4" fill="none" stroke="#a89e86" stroke-width="0.6" stroke-linecap="round"/>
+
+  <!-- a femur slid out from under the hem -->
+  <path d="M28.6 88.4 L20.6 91.6" stroke="#0d0a12" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M28.6 88.4 L20.6 91.6" stroke="#d6cdb3" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="20.2" cy="91.2" r="1.2" fill="#d6cdb3" stroke="#0d0a12" stroke-width="0.6"/>
+  <circle cx="20.8" cy="92.4" r="1.1" fill="#c3b89c" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M27 88.4 L21.6 90.6" stroke="#f3ecd9" stroke-width="0.35"/>
+
+  <!-- an empty sleeve, the arm bones spilling out of it onto the ash -->
+  <path d="M34 80.4 Q38 76.6 44 78 Q47.8 80 47.2 84.4 Q43 87.8 37.6 86.8 Q33.6 84.8 34 80.4 Z" fill="url(#bcd-violet)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M35.6 80 Q38.4 77.8 42 78.4" fill="none" stroke="#bcadd0" stroke-width="0.6" opacity="0.7"/>
+  <path d="M36.6 84.4 Q40 83 42.6 85.6" fill="none" stroke="#221a2e" stroke-width="0.6"/>
+  <ellipse cx="46" cy="82.4" rx="1.6" ry="2.8" fill="#120e18" stroke="#0d0a12" stroke-width="0.6" transform="rotate(-20 46 82.4)"/>
+  <!-- radius and ulna -->
+  <path d="M46.2 81.2 L52.6 85.6 M46 83.4 L52.2 87.4" stroke="#0d0a12" stroke-width="2.1" stroke-linecap="round"/>
+  <path d="M46.2 81.2 L52.6 85.6 M46 83.4 L52.2 87.4" stroke="#d6cdb3" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M47 81.4 L51.6 84.6" stroke="#f3ecd9" stroke-width="0.35"/>
+  <!-- the open hand, palm up, fingers curled slack -->
+  <path d="M52 85.2 Q54.6 84.6 55.6 86.6 Q55.2 88.6 52.8 88.6 Q51.4 87.4 52 85.2 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M55.4 85.8 L57.6 84.6 L59 85.6 M55.8 87 L58.4 87 L59.4 88.4 M55.2 88.2 L57.4 89.6 L57.8 91.2 M53.8 88.8 L54.6 91 L54 92.4 M53 85 L54 83 L55.6 82.6" stroke="#0d0a12" stroke-width="1.7"/>
+    <path d="M55.4 85.8 L57.6 84.6 L59 85.6 M55.8 87 L58.4 87 L59.4 88.4 M55.2 88.2 L57.4 89.6 L57.8 91.2 M53.8 88.8 L54.6 91 L54 92.4 M53 85 L54 83 L55.6 82.6" stroke="#d6cdb3" stroke-width="0.85"/>
+  </g>
+
+  <!-- the two knocked-out teeth, near the skull -->
+  <path d="M60.2 90.6 l1.2 -0.2 l0.2 1.4 l-1.2 0.2 Z M74.6 92.2 l1.1 0.3 l-0.3 1.3 l-1.1 -0.3 Z" fill="#d6cdb3" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/>
+  <!-- more small bones strewn about: finger joints, a loose rib, bone dust -->
+  <path d="M65.6 76.2 L68.6 76.8 M86 89.4 L88.4 88.4" stroke="#0d0a12" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M65.6 76.2 L68.6 76.8 M86 89.4 L88.4 88.4" stroke="#d6cdb3" stroke-width="0.75" stroke-linecap="round"/>
+  <path d="M9.6 77.6 Q12.6 75.6 16 76" fill="none" stroke="#0d0a12" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M9.6 77.6 Q12.6 75.6 16 76" fill="none" stroke="#cbc0a4" stroke-width="0.9" stroke-linecap="round"/>
+  <g fill="#3a3346" stroke="#0d0a12" stroke-width="0.4">
+    <ellipse cx="86.6" cy="76.6" rx="1.4" ry="0.9"/><ellipse cx="9.4" cy="81" rx="1.2" ry="0.8"/><ellipse cx="57" cy="93.6" rx="1.1" ry="0.7"/>
+  </g>
+  <g fill="#b9b09a" opacity="0.7">
+    <circle cx="35" cy="93.6" r="0.35"/><circle cx="48.4" cy="93.8" r="0.3"/><circle cx="70.8" cy="89.6" r="0.35"/><circle cx="82.6" cy="91" r="0.3"/><circle cx="24.6" cy="93.4" r="0.3"/>
+  </g>
+  <!-- the skull, rolled free of the hood: sockets dark, the soulfire gone -->
+  <g transform="translate(19 60.6) rotate(18 48 23)">
+    <path d="M41 22.6 Q41 16 48 16 Q55 16 55 22.6 Q55.2 25.8 53.4 27.4 L53 29.6 L43 29.6 L42.6 27.4 Q40.8 25.8 41 22.6 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M42.4 21 Q43.6 17.4 47.6 17" fill="none" stroke="#f3ecd9" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+    <path d="M54 22.4 Q54.2 25.4 52.6 26.8" fill="none" stroke="#6e6452" stroke-width="0.6"/>
+    <path d="M42.6 26.6 Q44 27.6 45.4 26.6 M50.6 26.6 Q52 27.6 53.4 26.6" fill="none" stroke="#6e6452" stroke-width="0.45"/>
+    <path d="M42.4 23.2 Q42.8 21 45 21.2 Q46.8 21.6 46.6 23.6 Q46 25.4 44.4 25.2 Q42.6 24.8 42.4 23.2 Z" fill="#0b0912"/>
+    <path d="M53.6 23.2 Q53.2 21 51 21.2 Q49.2 21.6 49.4 23.6 Q50 25.4 51.6 25.2 Q53.4 24.8 53.6 23.2 Z" fill="#0b0912"/>
+    <path d="M43.2 22.4 Q44 21.6 45.2 21.8" fill="none" stroke="#2b2533" stroke-width="0.5"/>
+    <path d="M48 25 L47 27.4 L49 27.4 Z" fill="#1a1622"/>
+    <!-- upper teeth, two knocked out -->
+    <path d="M43 28.4 L53 28.4 L52.8 30 L43.2 30 Z" fill="#d6cdb3" stroke="#0d0a12" stroke-width="0.5"/>
+    <path d="M46.3 28.6 L47.7 28.6 L47.7 30 L46.3 30 Z M50.9 28.6 L52.2 28.6 L52.1 30 L50.9 30 Z" fill="#0b0912"/>
+    <path d="M44.6 28.4 l0 1.6 M49.4 28.4 l0 1.6" stroke="#6e6452" stroke-width="0.35"/>
+    <!-- a crack running from the crown into the socket -->
+    <path d="M49.6 16.2 L50.6 18.6 L49.4 19.8 L50.6 21.4" fill="none" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M50.2 16.4 L51.1 18.6 L50 19.8" fill="none" stroke="#f3ecd9" stroke-width="0.35"/>
+    <path d="M53.4 20.4 L52 22 L52.8 23" fill="none" stroke="#5c5444" stroke-width="0.4"/>
+  </g>
+  <!-- the jaw, come loose and lying apart -->
+  <g transform="rotate(-14 78 89)">
+    <path d="M73.2 87 L82.8 87 Q83.2 89.8 80.8 91 L75.2 91 Q72.8 89.8 73.2 87 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M74.6 87 l0 1.1 M76.2 87 l0 1.2 M77.8 87 l0 1.2 M79.4 87 l0 1.2 M81 87 l0 1.1" stroke="#6e6452" stroke-width="0.35"/>
+    <path d="M74 88.6 Q75 90 76.4 90.2" fill="none" stroke="#f3ecd9" stroke-width="0.35" opacity="0.7"/>
+  </g>
+
+  <!-- the prayer strand, broken: vertebrae beads scattered across the ash -->
+  <path d="M46.4 79.6 Q42 84 36.6 88.4 Q40 90.4 44 90.2" fill="none" stroke="#3a2f2a" stroke-width="0.5"/>
+  <g fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.5">
+    <ellipse cx="41.2" cy="86.6" rx="1.3" ry="1" transform="rotate(-40 41.2 86.6)"/>
+    <ellipse cx="38.4" cy="91.2" rx="1.3" ry="1" transform="rotate(10 38.4 91.2)"/>
+    <ellipse cx="45.6" cy="92" rx="1.3" ry="1" transform="rotate(-15 45.6 92)"/>
+    <ellipse cx="50.6" cy="91.6" rx="1.3" ry="1" transform="rotate(30 50.6 91.6)"/>
+    <ellipse cx="62.4" cy="92.4" rx="1.3" ry="1" transform="rotate(-25 62.4 92.4)"/>
+    <ellipse cx="85.4" cy="84.6" rx="1.3" ry="1" transform="rotate(20 85.4 84.6)"/>
+    <ellipse cx="13" cy="90.6" rx="1.3" ry="1" transform="rotate(-10 13 90.6)"/>
+  </g>
+  <path d="M40.2 87.4 l-0.8 0.5 M37.2 91.4 l-0.9 0 M44.4 92.4 l-0.8 0.3 M51.6 92.4 l0.6 0.6 M61.2 92.8 l-0.8 0.3 M86.6 85 l0.8 0.3 M11.8 90.8 l-0.8 0" stroke="#bdb196" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M40.8 86 l0.6 -0.4 M38 90.6 l0.6 -0.1 M45.2 91.4 l0.6 -0.2 M50.2 91 l0.6 0.2 M62 91.8 l0.6 -0.2 M85 84 l0.6 0.2 M12.6 90 l0.6 -0.1" stroke="#f3ecd9" stroke-width="0.35"/>
+  <!-- the bone pendant, its stone dead and grey -->
+  <circle cx="79.4" cy="81.6" r="2.4" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.8"/>
+  <circle cx="79.4" cy="81.6" r="1.6" fill="none" stroke="#7d725d" stroke-width="0.4"/>
+  <circle cx="79.4" cy="81.6" r="0.9" fill="#55605d" stroke="#0d0a12" stroke-width="0.4"/>
+  <path d="M79.1 81.3 l0.4 -0.1" stroke="#9aa5a2" stroke-width="0.3"/>
+  <path d="M77.4 80.2 Q75.6 78.6 75.8 76.8" fill="none" stroke="#3a2f2a" stroke-width="0.45"/>
+
+  <!-- a finger bone and a knucklebone charm strewn nearby -->
+  <path d="M30.4 92.8 L33.4 92.2" stroke="#0d0a12" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M30.4 92.8 L33.4 92.2" stroke="#d6cdb3" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M67.4 92 Q68.2 91.2 69.2 92 L69 93.6 Q68.2 94.2 67.4 93.6 Z" fill="url(#bcd-bone)" stroke="#0d0a12" stroke-width="0.55"/>
+
+  <!-- a thin thread of grey smoke rising from the cracked lantern: the dirge's last breath -->
+  <path d="M79.6 67.6 C77.2 63.4 81.8 60 79.6 55.6 C77.8 51.8 81.6 48.6 80 44.6 C79 42 80.6 39.8 82.4 39.4" fill="none" stroke="#8b8798" stroke-width="2.4" stroke-linecap="round" opacity="0.15"/>
+  <path d="M79.6 67.6 C77.2 63.4 81.8 60 79.6 55.6 C77.8 51.8 81.6 48.6 80 44.6 C79 42 80.6 39.8 82.4 39.4" fill="none" stroke="#9894a4" stroke-width="0.8" stroke-linecap="round" opacity="0.55"/>
+  <path d="M82.4 39.4 Q84 39.4 83.6 41" fill="none" stroke="#9894a4" stroke-width="0.6" stroke-linecap="round" opacity="0.4"/>
+</svg>

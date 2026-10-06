@@ -1,0 +1,234 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Frost Wyrm, fallen: collapsed on its side in a spreading pool of frost, half sealed under cracked ice, its crystal spines shattered and strewn about, eye shut, one great horn snapped off and lying in the frost, its last breath a thin mist. -->
+  <defs>
+    <linearGradient id="fwd-scale" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#cfe2f0"/>
+      <stop offset="0.35" stop-color="#8aaacb"/>
+      <stop offset="0.7" stop-color="#4c6c98"/>
+      <stop offset="1" stop-color="#26405f"/>
+    </linearGradient>
+    <linearGradient id="fwd-scale-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7590b2"/>
+      <stop offset="0.6" stop-color="#3d5a84"/>
+      <stop offset="1" stop-color="#1f3352"/>
+    </linearGradient>
+    <linearGradient id="fwd-head" x1="0.1" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#dce9f3"/>
+      <stop offset="0.45" stop-color="#97b4d2"/>
+      <stop offset="1" stop-color="#3f5f8a"/>
+    </linearGradient>
+    <linearGradient id="fwd-belly" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf0f5"/>
+      <stop offset="0.6" stop-color="#b8c6d4"/>
+      <stop offset="1" stop-color="#7d8fa6"/>
+    </linearGradient>
+    <linearGradient id="fwd-wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#57709a"/>
+      <stop offset="0.55" stop-color="#30436b"/>
+      <stop offset="1" stop-color="#1b2847"/>
+    </linearGradient>
+    <linearGradient id="fwd-wing-far" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#425a82"/>
+      <stop offset="1" stop-color="#18223e"/>
+    </linearGradient>
+    <linearGradient id="fwd-horn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ecebe4"/>
+      <stop offset="0.5" stop-color="#b3b5b2"/>
+      <stop offset="1" stop-color="#5f6670"/>
+    </linearGradient>
+    <linearGradient id="fwd-ice" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4f9fc"/>
+      <stop offset="0.4" stop-color="#c4dcec"/>
+      <stop offset="1" stop-color="#6f93b8"/>
+    </linearGradient>
+    <linearGradient id="fwd-icicle" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#f4f9fc"/>
+      <stop offset="0.5" stop-color="#bcd6e8"/>
+      <stop offset="1" stop-color="#6a90b6"/>
+    </linearGradient>
+    <linearGradient id="fwd-crust" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4faff" stop-opacity="0.85"/>
+      <stop offset="0.5" stop-color="#c4def0" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#7fa6cc" stop-opacity="0.55"/>
+    </linearGradient>
+    <radialGradient id="fwd-pool" cx="0.5" cy="0.45" r="0.55">
+      <stop offset="0" stop-color="#4a6088"/>
+      <stop offset="0.6" stop-color="#303f62"/>
+      <stop offset="1" stop-color="#1d263f"/>
+    </radialGradient>
+    <radialGradient id="fwd-mist" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c9d6e2" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#c9d6e2" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ===== a pool of frost spreading beneath the body, cracked and glinting ===== -->
+  <path d="M6 106 Q7 97.4 22 95.4 Q40 91.6 60 92.4 Q82 91.4 100 94 Q114 96.8 114 105 Q114.6 113 100 115.4 Q80 117.6 58 117.2 Q32 117.6 16 115.4 Q5.4 113.4 6 106 Z" fill="url(#fwd-pool)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <!-- a rim of hoarfrost creeping out from the edge -->
+  <path d="M7.6 106 Q8.6 98.6 22 96.8 Q40 93 60 93.8 Q82 92.8 99.6 95.4 Q112.4 98 112.6 105 Q113 111.8 99.6 114 Q80 116.2 58 115.8 Q32 116.2 16.4 114 Q7 112.2 7.6 106 Z" fill="none" stroke="#bcd2e4" stroke-width="0.8" stroke-linejoin="round" opacity="0.75"/>
+  <path d="M8 104.6 l-1.6 -0.8 M10.6 98.6 l-1.2 -1.4 M20 95.6 l-0.6 -1.6 M36 93 l-0.2 -1.6 M108 98.2 l1.2 -1.2 M112.6 104.6 l1.6 -0.4 M110.6 111.6 l1.4 0.8 M98 115.4 l0.4 1.4 M70 116.8 l0 1.2 M40 116.8 l-0.2 1.2 M14 114.6 l-1 1.2" stroke="#dfeaf3" stroke-width="0.6" stroke-linecap="round" opacity="0.85"/>
+  <!-- glassy sheen and frost cracks across the pool -->
+  <path d="M11 104 Q14.6 99.4 25 98.2 M86 96.4 Q100 97 107.6 100.6" fill="none" stroke="#dfeaf3" stroke-width="0.7" stroke-linecap="round" opacity="0.7"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 112 L20 109.4 L24 111.6 L30 109 M92 112.6 L97 110 L103 111.4 L108 108.6 M60 115.4 L64 113 L70 114.6 M20 109.4 L19 106 M97 110 L96.4 106.8 M40 115.2 L44 113.6 L48 115" stroke="#9fb8d0" stroke-width="0.5" opacity="0.85"/>
+    <path d="M14.4 112.6 L20 110.2 L24 112.4 M92.4 113.2 L97 110.8 L103 112.2" stroke="#e6f2fa" stroke-width="0.3" opacity="0.8"/>
+  </g>
+
+  <!-- ===== far wing: torn and limp, flung out behind on the ground ===== -->
+  <path d="M64 84 L75 75 L86 68.6 L109 71 Q103.4 75 106 80 L102 78.6 L103.4 83.4 Q96.4 82 93.6 88 L91.6 85 L89.6 88.8 Q80 86.4 72 89.4 Z" fill="url(#fwd-wing-far)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <!-- rips through the membrane: the frost shows through -->
+  <path d="M94 73.4 L98.6 74.4 L96.4 77 L98 79 L93.8 78 Z" fill="#6f90b6" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M80.6 79.4 L84 78.6 L82.6 82.2 Z" fill="#6f90b6" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M88 71.6 Q93 72.6 97 72 M87 73.4 Q88.6 79 86.6 84 M78 78 Q79.4 82.6 77 87" fill="none" stroke="#6f86a8" stroke-width="0.45" opacity="0.8"/>
+  <path d="M86 68.6 L108.6 71 M86 68.6 L94 76.2 L103 79 M86 68.6 Q89 79 92.8 87.4" fill="none" stroke="#0d0a12" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M86 68.6 L108.6 71 M86 68.6 L94 76.2 L103 79 M86 68.6 Q89 79 92.8 87.4" fill="none" stroke="#5a76a0" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M87.2 68.4 L103 70" stroke="#b6c8dc" stroke-width="0.4" stroke-linecap="round"/>
+  <!-- a snapped finger bone -->
+  <path d="M93.4 75.4 l1 0.6 l-0.4 0.9 l1 0.4" fill="none" stroke="#e2e6ea" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M105 72.6 Q107 73.4 108.4 72.4 M101 79.4 Q101.6 81 103 81.6" fill="none" stroke="#dde9f2" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M64 84 L75 75 L86 68.6" fill="none" stroke="#0d0a12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M64 84 L75 75 L86 68.6" fill="none" stroke="#5a76a0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M65.6 82 L74.6 74.4 L85 68.4" fill="none" stroke="#c8d8e6" stroke-width="0.55" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="75" cy="75" r="1.7" fill="#5a76a0" stroke="#0d0a12" stroke-width="0.5"/>
+  <path d="M85.4 69 Q84.6 65 87.4 63.6 Q87 66.4 88.2 68.6 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <circle cx="86" cy="68.6" r="1.5" fill="#5a76a0" stroke="#0d0a12" stroke-width="0.5"/>
+
+  <!-- ===== tail, lying in a loose curl, its spines snapped and its crystal blade broken off ===== -->
+  <path d="M40 104.4 C30 109 17.6 109.4 11 104 C6.4 100.2 7 92.4 11.6 89.2 C13.4 88 15.2 88.2 16 89.4 L15 92.4 C12.6 93.2 11.8 97.4 14.4 100.2 C18.6 104 29 103 38 97 Z" fill="url(#fwd-scale)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M15 101.6 Q22 106.4 36 103" fill="none" stroke="#dfe7ee" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M18 103.4 l-0.3 1.3 M22 104.6 l0 1.3 M26 105 l0.2 1.3 M30 104.6 l0.3 1.2" stroke="#6f86a0" stroke-width="0.4"/>
+  <path d="M9.4 94.6 Q10.4 90.6 13.6 89.2" fill="none" stroke="#eef4f8" stroke-width="0.6" stroke-linecap="round"/>
+  <g fill="none" stroke="#3c5a82" stroke-width="0.4"><path d="M18 100.6 q1.1 1.1 2.2 0 M22.4 101.4 q1.1 1.1 2.2 0 M27 100.8 q1.1 1.1 2.2 0 M31.4 99.4 q1.1 1.1 2.2 0 M9 97.4 q1.1 1.1 2.2 0 M10 101.6 q1.1 1.1 2.2 0 M14.4 105.4 q1.1 1.1 2.2 0 M20 107 q1.1 1.1 2.2 0 M26 107.2 q1.1 1.1 2.2 0 M32 106.2 q1.1 1.1 2.2 0"/></g>
+  <!-- the stub where the tail-blade broke away -->
+  <path d="M16 89.4 L16.8 87.6 L15.6 87.2 L16.4 85.8 L14.4 86.4 L13 88.2 L15 92.4 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M8.59 100.68 L6.63 100.81 L5.91 100.43 L6.62 99.97 L5.9 99.65 L6.7 98.95 L8.21 98.52 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M8.38 99.49 L6.62 99.97 L6.7 98.95 L8.21 98.52 Z" fill="#4f7196" opacity="0.45"/><path d="M8.26 100.3 L6.84 100.49" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M11.24 105.77 L9.74 106.77 L8.99 106.81 L9.35 106.12 L8.63 106.2 L8.95 105.27 L9.96 104.23 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M10.54 104.92 L9.35 106.12 L8.95 105.27 L9.96 104.23 Z" fill="#4f7196" opacity="0.45"/><path d="M10.8 105.61 L9.76 106.42" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M19.6 108.51 L19.54 110.17 L19.14 110.76 L18.78 110.13 L18.43 110.71 L17.87 109.99 L17.6 108.69 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M18.5 108.61 L18.78 110.13 L17.87 109.99 L17.6 108.69 Z" fill="#4f7196" opacity="0.45"/><path d="M19.22 108.77 L19.27 109.98" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M28 109 L27.8 110.8 L27.35 111.4 L27.05 110.68 L26.65 111.28 L26.15 110.44 L26 109 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M26.9 109 L27.05 110.68 L26.15 110.44 L26 109 Z" fill="#4f7196" opacity="0.45"/><path d="M27.6 109.24 L27.55 110.56" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- ===== torso, slumped on its side, belly to the viewer ===== -->
+  <path d="M36 92 C38 82 50 77 64 77.6 C76 78 84 84 84.4 92 C84.8 101 77 107.6 64 108 C50 108.4 39 105 36.6 99 C36 96.6 35.8 94.4 36 92 Z" fill="url(#fwd-scale)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M39 87 Q46 79.6 58 78.6" fill="none" stroke="#eef4f8" stroke-width="0.9" stroke-linecap="round" opacity="0.85"/>
+  <g fill="none" stroke="#3c5a82" stroke-width="0.45"><path d="M42 88 q1.4 1.4 2.8 0 M46 85.4 q1.4 1.4 2.8 0 M50.4 83.6 q1.4 1.4 2.8 0 M55 82.6 q1.4 1.4 2.8 0 M60 82.2 q1.4 1.4 2.8 0 M65 82.4 q1.4 1.4 2.8 0 M70 83.4 q1.4 1.4 2.8 0 M74.4 85.4 q1.4 1.4 2.8 0 M78 88.6 q1.4 1.4 2.8 0 M40.4 92.6 q1.4 1.4 2.8 0 M45 90.2 q1.4 1.4 2.8 0 M70.6 88 q1.4 1.4 2.8 0 M75 91 q1.4 1.4 2.8 0 M79 93.4 q1.4 1.4 2.8 0"/></g>
+  <!-- the shattered crystal ridge along the spine -->
+  <path d="M60.2 77.67 L60.73 75.31 L61.59 74.56 L62.07 75.56 L62.84 74.81 L63.66 75.99 L63.8 77.93 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M62.18 77.81 L62.07 75.56 L63.66 75.99 L63.8 77.93 Z" fill="#4f7196" opacity="0.45"/><path d="M60.94 77.41 L61.16 75.66" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M66.16 77.94 L67.36 74.68 L68.47 73.78 L68.69 75.25 L69.7 74.32 L70.23 76.11 L69.84 78.86 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M68.18 78.45 L68.69 75.25 L70.23 76.11 L69.84 78.86 Z" fill="#4f7196" opacity="0.45"/><path d="M67.01 77.68 L67.71 75.25" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M72.61 79.8 L74.02 78.01 L75.02 77.72 L74.98 78.74 L75.91 78.41 L76.08 79.72 L75.39 81.4 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M74.14 80.68 L74.98 78.74 L76.08 79.72 L75.39 81.4 Z" fill="#4f7196" opacity="0.45"/><path d="M73.32 79.86 L74.21 78.47" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+  <path d="M55.4 78.4 L56.4 72.4 L58 76.8 L59 73.6 L59.8 78 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M56.4 73.4 L56.8 77" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round"/>
+  <!-- belly plates, frosted grey -->
+  <path d="M37.2 99 Q42 104 54 104.6 Q68 105 81.6 97.4 Q80 103.4 74 106 Q67 108.4 60 108.2 Q46 108 40.4 104.6 Q37.8 102.4 37.2 99 Z" fill="url(#fwd-belly)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M42.6 103.2 L41.6 106 M47.4 104.4 L46.8 107.4 M52.4 104.8 L52.2 107.8 M57.4 104.8 L57.4 108 M62.4 104.6 L62.8 107.8 M67.4 104 L68 107 M72.4 102.4 L73.4 105.4 M77 100.4 L78 103" stroke="#5f7590" stroke-width="0.8"/>
+  <path d="M40.6 102.4 Q46 105 52 105.2" fill="none" stroke="#ffffff" stroke-width="0.5" stroke-linecap="round" opacity="0.8"/>
+  <path d="M82.4 90 Q83.4 96 80 101.6" fill="none" stroke="#1d3150" stroke-width="0.8" opacity="0.7"/>
+
+  <!-- ===== hind legs: the upper one folded, the lower one stretched out limp ===== -->
+  <path d="M42 98 C38 101.6 34.4 105.6 31.6 109.6 L37.6 112.4 C41 108.6 45.4 105.2 50 102 Z" fill="url(#fwd-scale-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M35 108 Q36.6 109 37.6 110.6 M38.2 104.8 Q40 105.8 41 107.4" fill="none" stroke="#b8c6d4" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M33 108.4 Q28.4 107.6 25.8 110 Q25 113.2 27.6 114.8 L33.6 114.4 Q35.4 111.4 33 108.4 Z" fill="url(#fwd-scale)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M28 109.6 L30.4 114.2 M30.6 108.8 L32.6 113.6" stroke="#2c4468" stroke-width="0.45"/>
+  <path d="M25.7 110.47 Q24.36 109.58 24.15 107.95 Q25.09 108.73 26.7 108.73 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M25.69 113.6 Q24.08 113.64 22.98 112.43 Q24.19 112.52 25.51 111.6 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M28.04 115.37 Q26.75 116.32 25.15 115.96 Q26.2 115.35 26.76 113.83 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+  <path d="M60 87.6 C66.4 87 70.6 91 70 96 C69.4 100.6 65.4 103 61 102.4 C56.6 101.8 54 98.2 54.6 94.4 C55.2 90.6 57.2 88 60 87.6 Z" fill="url(#fwd-scale)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M56.4 92 Q58 88.8 61.6 88.6" fill="none" stroke="#eef4f8" stroke-width="0.7" stroke-linecap="round"/>
+  <g fill="none" stroke="#3c5a82" stroke-width="0.4"><path d="M57 94.4 q1.3 1.3 2.6 0 M60.2 94.6 q1.3 1.3 2.6 0 M63.4 95 q1.3 1.3 2.6 0 M58.6 98 q1.3 1.3 2.6 0 M61.8 98.4 q1.3 1.3 2.6 0"/></g>
+  <path d="M59.6 101.6 Q63.4 100.4 68 101.6 Q69.4 104.4 67.4 106 L61.2 106 Q59 104.4 59.6 101.6 Z" fill="url(#fwd-scale-dark)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M62.2 101.8 L62 105.6 M65 101.6 L65 105.8" stroke="#1d3150" stroke-width="0.45"/>
+  <path d="M61.98 105.63 Q62.16 107.22 61.06 108.43 Q61.05 107.21 60.02 105.97 Z" fill="#a3a8ac" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M65.2 106 Q65.1 107.6 63.8 108.6 Q64 107.4 63.2 106 Z" fill="#a3a8ac" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M68.17 105.86 Q67.66 107.38 66.14 108.01 Q66.64 106.9 66.23 105.34 Z" fill="#a3a8ac" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+
+  <!-- ===== near wing, crumpled over the body ===== -->
+  <path d="M66 85 L54.4 77.6 L42.4 82.4 Q43.4 88.6 45.4 94 Q48.6 91 50.6 95 Q53.6 91.4 56.6 95 Q58.6 90.8 62.4 92.6 Q62.6 88.4 66 87.2 Z" fill="url(#fwd-wing)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M46.4 83.6 L47.6 92.6 M51.4 82 L51.8 93.6 M56.6 82.4 L56.2 93.4 M61.4 85 L60.6 91.6" fill="none" stroke="#141e38" stroke-width="0.7"/>
+  <path d="M45.6 84.2 L46.6 91.8 M50.6 82.6 L50.8 92.8 M55.6 83 L55.4 92.6" fill="none" stroke="#7086aa" stroke-width="0.45" opacity="0.8"/>
+  <!-- frost rime gone dull on the trailing edge, and a tear -->
+  <path d="M45.8 93.6 Q48.6 91.4 50.4 94.4 M50.8 94.4 Q53.6 91.6 56.4 94.4 M56.8 94.4 Q58.8 91.4 62 92.8" fill="none" stroke="#d6e2ec" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M56.6 95 L57.4 91.2 L58.8 93" fill="none" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M49.65 94.6 C49.88 95.65 50.38 96.7 50.6 97.6 C50.79 96.46 50.96 95.5 51.15 94.6 Z" fill="url(#fwd-icicle)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M50.06 94.84 Q50.22 95.8 50.53 96.76" fill="none" stroke="#ffffff" stroke-width="0.25" stroke-linecap="round" opacity="0.9"/><path d="M44.95 93.6 C45.15 94.44 45.41 95.28 45.6 96 C45.76 95.09 46.09 94.32 46.25 93.6 Z" fill="url(#fwd-icicle)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M45.31 93.79 Q45.37 94.56 45.54 95.33" fill="none" stroke="#ffffff" stroke-width="0.25" stroke-linecap="round" opacity="0.9"/>
+  <path d="M67 85 L54.4 77.6 L42.4 82.4" fill="none" stroke="#0d0a12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M67 85 L54.4 77.6 L42.4 82.4" fill="none" stroke="#6d88b0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M65.6 83.6 L54.4 76.8 L44 81" fill="none" stroke="#dce6ee" stroke-width="0.55" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="54.4" cy="77.6" r="1.6" fill="#6d88b0" stroke="#0d0a12" stroke-width="0.5"/>
+  <path d="M42.4 82.4 L45.4 94 M42.4 82.4 L50.6 95 M42.4 82.4 L56.6 95" fill="none" stroke="#0d0a12" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M42.4 82.4 L45.4 94 M42.4 82.4 L50.6 95 M42.4 82.4 L56.6 95" fill="none" stroke="#5a76a0" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M42 81.6 Q38.4 80.6 37.6 77.4 Q40.2 78.8 43.2 79.8 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <circle cx="42.4" cy="82.4" r="1.4" fill="#6d88b0" stroke="#0d0a12" stroke-width="0.5"/>
+
+  <!-- ===== a dome of cracked ice sealing the haunch, back and wing-root ===== -->
+  <path d="M33 99 C32.4 92 35 86 39.6 82 C44 78.6 50 76.6 56.4 76 L59 79.4 L55.4 83.6 L58 88.4 L53.6 91.8 L54.8 97.4 L50.2 101.2 L50.8 106.2 L44.2 108.6 L37.6 110.6 L32.8 108 Z" fill="url(#fwd-crust)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M34.4 96 C34.2 90.4 36.6 86 40.4 83 C44.6 79.8 50 78 55.6 77.4" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round"/>
+  <!-- facets and cracks through the ice -->
+  <path d="M39.6 82 L42.6 88.6 L49.6 87.4 L55.4 83.6 M42.6 88.6 L40.4 96.4 L46.6 99.4 L53.6 91.8 M40.4 96.4 L33.4 101.4 M46.6 99.4 L44.2 108.6 M49.6 87.4 L50.4 79" fill="none" stroke="#ffffff" stroke-width="0.45" opacity="0.85"/>
+  <path d="M42.8 89.4 L40.8 95.6 M47 100.2 L44.8 107.4 M50 88 L53 91.2 M36 99 L39.6 96.8" fill="none" stroke="#2c4468" stroke-width="0.5" opacity="0.6"/>
+  <path d="M36.4 93.6 Q37 89 39.8 86 M44.8 82.6 Q47.6 80.8 51 80" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M35.4 104 l1.6 0.6 l-0.4 1.4 M47.6 93.8 l1.4 -0.4" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.7"/>
+  <!-- shattered spines jutting up through the ice -->
+  <path d="M42.81 82.25 L41.72 79.43 L41.97 78.16 L43.01 78.97 L43.17 77.75 L44.62 78.56 L45.99 80.55 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M44.56 81.32 L43.01 78.97 L44.62 78.56 L45.99 80.55 Z" fill="#4f7196" opacity="0.45"/><path d="M43.26 81.55 L42.31 79.57" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M48.74 78.8 L48.4 75.34 L48.99 74.04 L49.84 75.27 L50.34 73.99 L51.61 75.36 L52.46 78 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M50.79 78.36 L49.84 75.27 L51.61 75.36 L52.46 78 Z" fill="#4f7196" opacity="0.45"/><path d="M49.39 78.19 L48.96 75.69" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+  <path d="M36.9 110.2 C37.11 110.97 37.39 111.74 37.6 112.4 C37.78 111.56 38.13 110.86 38.3 110.2 Z" fill="url(#fwd-icicle)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M37.29 110.38 Q37.36 111.08 37.53 111.78" fill="none" stroke="#ffffff" stroke-width="0.25" stroke-linecap="round" opacity="0.9"/><path d="M43.55 108.2 C43.75 109.04 44.01 109.88 44.2 110.6 C44.36 109.69 44.69 108.92 44.85 108.2 Z" fill="url(#fwd-icicle)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M43.91 108.39 Q43.97 109.16 44.14 109.93" fill="none" stroke="#ffffff" stroke-width="0.25" stroke-linecap="round" opacity="0.9"/><path d="M50.05 105.8 C50.22 106.43 50.44 107.06 50.6 107.6 C50.74 106.92 51.01 106.34 51.15 105.8 Z" fill="url(#fwd-icicle)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M50.35 105.94 Q50.41 106.52 50.55 107.1" fill="none" stroke="#ffffff" stroke-width="0.25" stroke-linecap="round" opacity="0.9"/>
+
+  <!-- ===== near foreleg, flung out limp in front ===== -->
+  <path d="M74 95 C76.2 100.4 78 105 79.6 109.6 L86.6 108.6 C85 104.4 82.6 99.6 80.6 94.4 Z" fill="url(#fwd-scale)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M76 97 Q77.6 101.4 79 105.6" fill="none" stroke="#eef4f8" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M80.2 100.6 Q82.4 100.6 83.6 100 M81.4 104 Q83.6 104 84.8 103.4" fill="none" stroke="#c4d2de" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M78.6 108.4 Q82.6 106.6 87.6 108 Q89 111 86.8 112.6 L80.6 112.8 Q78 111.2 78.6 108.4 Z" fill="url(#fwd-scale)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M81.6 108.4 L81.4 112.6 M84.6 108.2 L84.6 112.6" stroke="#2c4468" stroke-width="0.45"/>
+  <path d="M81.34 112.26 Q81.79 113.8 80.91 115.18 Q80.69 113.98 79.46 112.94 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M84.4 112.71 Q84.44 114.32 83.23 115.42 Q83.32 114.21 82.4 112.89 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/><path d="M87.37 112.66 Q86.86 114.18 85.34 114.81 Q85.84 113.7 85.43 112.14 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+
+  <!-- ===== neck, stretched out along the ground ===== -->
+  <path d="M77 82.4 C81.6 82.6 86 85 88.6 88.4 L90 100.6 C86.4 103 82 103.6 78.4 103 C82.6 97 83 89 77 82.4 Z" fill="url(#fwd-scale)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M80.4 101.6 Q85 102.6 89.4 100.4 L89 97.4 Q84.6 99.4 81.6 98.6 Z" fill="url(#fwd-belly)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M82.6 99 L82.4 101.8 M85.6 99 L85.8 102" stroke="#5f7590" stroke-width="0.5"/>
+  <path d="M80 84 Q84.4 85 87.4 88" fill="none" stroke="#eef4f8" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M80.87 83.19 L81.76 81.44 L82.49 81.01 L82.57 81.87 L83.24 81.42 L83.49 82.48 L83.13 84.01 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M82.11 83.64 L82.57 81.87 L83.49 82.48 L83.13 84.01 Z" fill="#4f7196" opacity="0.45"/><path d="M81.41 83.11 L81.96 81.79" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M85.16 85.29 L86.48 84.06 L87.25 83.91 L87.04 84.68 L87.76 84.5 L87.64 85.5 L86.84 86.71 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M86.08 86.07 L87.04 84.68 L87.64 85.5 L86.84 86.71 Z" fill="#4f7196" opacity="0.45"/><path d="M85.65 85.39 L86.54 84.42" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- ===== head, lying on its side: eye shut, jaw slack ===== -->
+  <!-- the great horn still attached, swept back along the neck -->
+  <path d="M91 86.6 C87.6 82.4 82 80.6 76.4 81.6 C72.4 82.4 69.4 80.8 68.4 77 C67.4 81.8 70.4 85.4 76 85.8 C81.4 86.2 85.8 87.6 88.6 90 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M89 85.4 C85.6 82.6 81 81.8 76.6 82.4 C73 83 70.6 81.6 69.4 79.4" fill="none" stroke="#ffffff" stroke-width="0.5" stroke-linecap="round" opacity="0.85"/>
+  <path d="M85.8 83.2 Q85 85.2 85.8 87.4 M82.4 82 Q81.6 84 82.4 86.4 M78.8 81.6 Q78 83.6 78.8 85.8 M75 82.2 Q74.4 84 75 85.6 M72 81.6 Q71.4 83 72 84.6" fill="none" stroke="#656c76" stroke-width="0.5"/>
+  <!-- slack lower jaw, resting on the frost -->
+  <path d="M88 99.4 L110 98 C110.8 100.8 108.6 103.6 104 104.4 C97 105.4 90.4 105 87.2 102.4 Z" fill="url(#fwd-head)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M90 103 Q97 104.6 104.4 103.4" fill="none" stroke="#dfe7ee" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M90.6 99.6 Q100 99.6 108.6 98.8" fill="none" stroke="#1d3150" stroke-width="1.4"/>
+  <g fill="#e8eef2" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round">
+    <path d="M100 99.6 L100.8 97.8 L101.6 99.6 Z"/><path d="M104 99.2 L104.8 97.4 L105.6 99 Z"/><path d="M95.4 99.8 L96 98.4 L96.8 99.8 Z"/>
+  </g>
+  <!-- skull and snout, in profile -->
+  <path d="M84 92 C84 86 90 83.4 97 84 C102 84.4 106.4 87 109.4 91 C111.4 93.6 111.8 96.6 110.4 98.4 L96 99.4 C90 100 85.4 98.6 84 96 Z" fill="url(#fwd-head)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M86.4 89.4 Q89.6 85.4 96 85.2" fill="none" stroke="#f4f8fb" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M98.6 85.6 Q104.4 87 108.4 91.4" fill="none" stroke="#e6eef4" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M109.6 96 Q106 98.4 98 98.8" fill="none" stroke="#2c4468" stroke-width="0.6"/>
+  <g fill="none" stroke="#5a76a0" stroke-width="0.4"><path d="M88 93 q1 1 2 0 M91.4 94.4 q1 1 2 0 M95 95.2 q1 1 2 0 M99 95.4 q1 1 2 0 M102.6 94.8 q1 1 2 0 M100 89 q1 1 2 0 M103.4 90.6 q1 1 2 0"/></g>
+  <!-- the broken stump of the other horn -->
+  <path d="M94 84.6 L91.6 81.6 L93.2 81.8 L93.4 80.4 L94.8 81.6 L96 80.8 L97.6 84.4 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M92 81.8 L93.2 81.8 L93.4 80.8 L94.8 81.6 L95.8 81.2" fill="none" stroke="#5f6670" stroke-width="0.4"/>
+  <!-- cheek spike, still whole but dull -->
+  <path d="M86.6 93.6 L80.6 95.6 L86 96.4 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <!-- heavy brow over the shut eye -->
+  <path d="M89.4 88.4 Q94 85.8 99 88 L98.4 89.4 Q94 87.8 90 89.8 Z" fill="#7d99bc" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M90 88 Q94 86.4 98 87.8" fill="none" stroke="#f4f8fb" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- the eye, closed: a heavy lid with frost on the lashes -->
+  <path d="M90.8 91.4 Q94.4 93.6 98 91.2" fill="none" stroke="#0d0a12" stroke-width="1" stroke-linecap="round"/>
+  <path d="M91 90.6 Q94.4 92.4 97.8 90.4" fill="none" stroke="#c4d6e6" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M92 92.4 l-0.3 1 M94.2 93 l0 1.1 M96.4 92.6 l0.3 1" stroke="#e6eef4" stroke-width="0.4" stroke-linecap="round"/>
+  <!-- nostril -->
+  <path d="M106.6 91.6 Q108 90.6 108.8 92 Q107.8 93 106.6 91.6 Z" fill="#1d3150"/>
+  <!-- old scar -->
+  <path d="M100.6 92.6 L103.6 96" stroke="#3c5a82" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- the frost beard, snapped short -->
+  <path d="M92.9 103.52 L92.83 104.88 L92.47 105.37 L92.15 104.85 L91.84 105.33 L91.33 104.74 L91.1 103.68 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M91.91 103.61 L92.15 104.85 L91.33 104.74 L91.1 103.68 Z" fill="#4f7196" opacity="0.45"/><path d="M92.55 103.73 L92.6 104.72" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M96.6 104.6 L96.4 106.25 L95.95 106.8 L95.65 106.14 L95.25 106.69 L94.75 105.92 L94.6 104.6 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M95.5 104.6 L95.65 106.14 L94.75 105.92 L94.6 104.6 Z" fill="#4f7196" opacity="0.45"/><path d="M96.2 104.82 L96.15 106.03" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/><path d="M100.3 104.88 L100.01 106.06 L99.57 106.42 L99.35 105.92 L98.95 106.29 L98.55 105.69 L98.5 104.72 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/><path d="M99.31 104.79 L99.35 105.92 L98.55 105.69 L98.5 104.72 Z" fill="#4f7196" opacity="0.45"/><path d="M99.92 105.01 L99.8 105.88" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- ===== ice and crystal shards strewn across the frost ===== -->
+  <path d="M16.9 114.13 L18.63 111.16 L22.95 111.46 L21.92 114.41 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M17.75 113.58 L21.94 111.59" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/>
+  <path d="M67.83 112.62 L69.84 111.35 L72.22 113.07 L70.62 114.57 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M68.51 112.58 L71.6 112.79" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M47.38 114.19 L48.11 112.39 L50.5 112.38 L50.16 114.14 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M47.81 113.84 L49.96 112.5" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M98.5 108.85 L100.11 108.16 L101.59 109.72 L100.23 110.63 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M98.99 108.9 L101.18 109.44" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M11.25 96.9 L10.9 95.31 L12.56 94.19 L13.16 95.58 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M11.38 96.45 L12.24 94.53" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M35.3 114.89 L36.27 113.82 L37.88 114.51 L37.18 115.66 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M35.69 114.76 L37.49 114.44" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M89.36 114 L90.04 112.73 L91.77 113.01 L91.37 114.3 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M89.7 113.79 L91.37 113.03" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M107.63 104.68 L108.94 104.84 L109.31 106.4 L108.09 106.49 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M107.93 104.9 L109.15 106.07" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M57.13 114.1 L58.23 113.81 L58.95 114.96 L57.99 115.42 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M57.43 114.18 L58.73 114.74" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/><path d="M25.76 97.11 L25.92 95.93 L27.34 95.57 L27.4 96.67 Z" fill="url(#fwd-ice)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round" opacity="1"/><path d="M25.96 96.83 L27.04 95.72" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="1"/>
+  <g fill="#e6f0f6">
+    <circle cx="44" cy="111.4" r="0.45"/><circle cx="76" cy="111.6" r="0.4"/><circle cx="96" cy="112.2" r="0.45"/><circle cx="14" cy="108.6" r="0.4"/><circle cx="64" cy="112.4" r="0.35"/><circle cx="104" cy="113" r="0.4"/>
+  </g>
+
+  <!-- ===== the snapped-off horn, lying in the frost ===== -->
+  <path d="M60.2 109.6 C65 107.6 71.4 107.4 76 108.6 C79.6 109.6 82.4 108.4 84 105.6 C84.4 109.6 81.4 112.6 76.4 112.6 C71 112.6 65.4 112.8 61 112.4 L61.8 111.4 L60.4 110.8 Z" fill="url(#fwd-horn)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M62 109.4 C66.6 108.2 71.6 108.2 75.6 109.2 C78.6 110 81.4 109.2 83.2 107.2" fill="none" stroke="#ffffff" stroke-width="0.5" stroke-linecap="round" opacity="0.85"/>
+  <path d="M65 108.6 Q64.4 110.6 65.2 112.6 M68.6 108 Q68 110.4 68.8 112.6 M72.2 108 Q71.6 110.2 72.4 112.6 M75.8 108.6 Q75.2 110.6 76 112.6 M79.4 109 Q78.8 110.6 79.4 112" fill="none" stroke="#656c76" stroke-width="0.5"/>
+  <path d="M60.4 110.8 L61.8 111.4 L61 112.4" fill="none" stroke="#e6e6e0" stroke-width="0.4"/>
+
+  <!-- ===== the last breath, gone to a faint mist ===== -->
+  <ellipse cx="111" cy="86" rx="5" ry="6" fill="url(#fwd-mist)"/>
+  <path d="M109.4 91 C111.6 88.6 109 86.4 110.6 84 C112 82 114.4 82.6 114 84.6 C113.6 86 112 85.6 112.2 84.6" fill="none" stroke="#b8c6d4" stroke-width="0.8" stroke-linecap="round" opacity="0.45"/>
+  <path d="M108 90.4 C107.4 88 108.4 86.6 107.6 84.6" fill="none" stroke="#b8c6d4" stroke-width="0.5" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- ===== a few last flakes settling ===== -->
+  <path d="M28.94 79.72 L31.06 80.28 M29.72 78.94 L30.28 81.06 M30.78 79.22 L29.22 80.78 M30.84 80.46 L30.64 80.17 L30.96 80.02 M30.02 80.96 L30.17 80.64 L30.46 80.84 M29.18 80.5 L29.53 80.47 L29.5 80.82 M29.16 79.54 L29.36 79.83 L29.04 79.98 M29.98 79.04 L29.83 79.36 L29.54 79.16 M30.82 79.5 L30.47 79.53 L30.5 79.18" fill="none" stroke="#d6e2ec" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/><circle cx="30" cy="80" r="0.2" fill="#ffffff" opacity="0.45"/><path d="M97.03 63.74 L98.97 64.26 M97.74 63.03 L98.26 64.97 M98.71 63.29 L97.29 64.71 M98.76 64.42 L98.58 64.16 L98.87 64.02 M98.02 64.87 L98.16 64.58 L98.42 64.76 M97.26 64.45 L97.58 64.42 L97.55 64.74 M97.24 63.58 L97.42 63.84 L97.13 63.98 M97.98 63.13 L97.84 63.42 L97.58 63.24 M98.74 63.55 L98.42 63.58 L98.45 63.26" fill="none" stroke="#d6e2ec" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/><circle cx="98" cy="64" r="0.18" fill="#ffffff" opacity="0.4"/><path d="M7.13 83.77 L8.87 84.23 M7.77 83.13 L8.23 84.87 M8.64 83.36 L7.36 84.64 M8.69 84.38 L8.52 84.14 L8.78 84.02 M8.02 84.78 L8.14 84.52 L8.38 84.69 M7.33 84.41 L7.62 84.38 L7.59 84.67 M7.31 83.62 L7.48 83.86 L7.22 83.98 M7.98 83.22 L7.86 83.48 L7.62 83.31 M8.67 83.59 L8.38 83.62 L8.41 83.33" fill="none" stroke="#d6e2ec" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/><circle cx="8" cy="84" r="0.16" fill="#ffffff" opacity="0.4"/>
+</svg>

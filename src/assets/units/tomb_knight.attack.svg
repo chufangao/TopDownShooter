@@ -1,0 +1,295 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Tomb Knight, attack key pose: the end of a huge downward cleave. The greatsword has come over the
+       shield shoulder and down across the body, leaving a soulfire smear; weight on the front foot. Lit from the upper left. -->
+  <defs>
+    <linearGradient id="tka-steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a7b0c0"/>
+      <stop offset="0.45" stop-color="#6b7487"/>
+      <stop offset="1" stop-color="#363b4b"/>
+    </linearGradient>
+    <linearGradient id="tka-steel-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7d8698"/>
+      <stop offset="1" stop-color="#2a2e3b"/>
+    </linearGradient>
+    <linearGradient id="tka-cape" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b2852"/>
+      <stop offset="1" stop-color="#160f22"/>
+    </linearGradient>
+    <linearGradient id="tka-tabard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5b2a44"/>
+      <stop offset="1" stop-color="#2d1424"/>
+    </linearGradient>
+    <linearGradient id="tka-blade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e9eef6"/>
+      <stop offset="0.5" stop-color="#9ea8b8"/>
+      <stop offset="0.51" stop-color="#5d6676"/>
+      <stop offset="1" stop-color="#3a404e"/>
+    </linearGradient>
+    <linearGradient id="tka-shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a4258"/>
+      <stop offset="1" stop-color="#1f1b29"/>
+    </linearGradient>
+    <radialGradient id="tka-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f2fffa"/>
+      <stop offset="0.3" stop-color="#8ff7d6"/>
+      <stop offset="0.6" stop-color="#5ef0c0" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="tka-spark" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#8ff7d6" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </radialGradient>
+    <!-- the cleave smear: invisible where the swing began (over the shield shoulder), blazing at the blade -->
+    <linearGradient id="tka-arc" gradientUnits="userSpaceOnUse" x1="70" y1="4" x2="8" y2="82">
+      <stop offset="0" stop-color="#5ef0c0" stop-opacity="0"/>
+      <stop offset="0.35" stop-color="#5ef0c0" stop-opacity="0.22"/>
+      <stop offset="0.8" stop-color="#5ef0c0" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#8ff7d6" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="tka-arc-core" gradientUnits="userSpaceOnUse" x1="60" y1="2" x2="6" y2="84">
+      <stop offset="0" stop-color="#d8fff0" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#8ff7d6" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#f2fffa" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="tka-arc-edge" gradientUnits="userSpaceOnUse" x1="56" y1="2" x2="6" y2="86">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#e9fff7" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ===== soulfire cleave smear, behind the figure ===== -->
+  <g stroke-linejoin="round">
+    <!-- wide outer haze -->
+    <path d="M72 7 C50 -1 14 3 5.5 32 C2.5 52 2.6 70 6.2 85.4 L19.1 74.5 C15 62 15 46 19 35 C24 17 46 8 72 7 Z" fill="url(#tka-arc)"/>
+    <!-- brighter band hugging the tip's path -->
+    <path d="M64 4.5 C42 1.5 13 7 7 33 C4.4 52 4.4 70 6.6 85 L11.5 80.9 C9.4 66 10.4 48 13.6 35 C18.4 15 40 6 64 4.5 Z" fill="url(#tka-arc-core)"/>
+    <!-- hard leading edge of the tip -->
+    <path d="M58 3 C36 2 12 10 6.8 33.5 C4.4 52 4.2 70 6.2 85.2" fill="none" stroke="url(#tka-arc-edge)" stroke-width="1.1" stroke-linecap="round"/>
+    <!-- speed streaks inside the smear -->
+    <path d="M46 7.2 C30 9 17.5 18 14.5 34 M11.2 44 C10.4 55 11 66 13.4 76 M38 11.5 C27 15 21.5 24 20.4 33" fill="none" stroke="#d8fff0" stroke-width="0.5" stroke-linecap="round" opacity="0.55"/>
+    <path d="M30 6.4 C22 8.6 15 13.6 11 21 M8.4 52 C8 62 8.4 71 9.8 79" fill="none" stroke="#8ff7d6" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  </g>
+
+  <!-- cape, flung out by the swing: the hem flares wide to both sides -->
+  <path d="M31 32 C25 44 20 58 14 74 L19.5 74 L21 82 L27 77 L31.5 85.5 L37.5 80 L43 86 L49 81 L55 87 L60.5 80.5 L66.5 85.5 L70 78 L77.5 81 L76.5 74.5 L85 73 C78 58 70 44 62 32 Z" fill="url(#tka-cape)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M27 50 C24 61 21 69 19.5 74 M33 58 C32 68 31.5 77 31.5 85 M66 56 C68 66 69 72 70 78 M71 48 C74 58 77 66 80 72" fill="none" stroke="#120b1b" stroke-width="0.8" opacity="0.8"/>
+  <path d="M29.5 40 C26 51 22 62 17.5 72" fill="none" stroke="#5a4378" stroke-width="0.7" opacity="0.6"/>
+  <path d="M74 62 C77 66 80 70 83 72.6" fill="none" stroke="#4a3566" stroke-width="0.6" opacity="0.7"/>
+
+  <!-- legs: front (sword side) leg bent and planted, back leg braced and straight -->
+  <g stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round">
+    <path d="M36 64 L45.5 64 L45 82 L35 82 Z" fill="url(#tka-steel)"/>
+    <path d="M51 64 L60 64 L62 81 L52.5 81.5 Z" fill="url(#tka-steel-dark)"/>
+    <path d="M32 83 Q32 79.6 35 79.6 L45 79.6 Q46.6 80.6 46.6 83.6 L46.6 89 L31 89 Q30 87 32 83 Z" fill="url(#tka-steel-dark)"/>
+    <path d="M52 79.4 L62 79 Q65 79.2 65.5 83 Q66.5 85.6 65.5 87.6 L51.6 88 L51.6 83 Q51.6 80 52 79.4 Z" fill="#3b4150"/>
+  </g>
+  <!-- knee cops -->
+  <ellipse cx="40.5" cy="70.6" rx="5.3" ry="3.7" fill="#8e98aa" stroke="#0d0a12" stroke-width="1"/>
+  <ellipse cx="55.8" cy="71.2" rx="4.9" ry="3.4" fill="#596275" stroke="#0d0a12" stroke-width="1" transform="rotate(8 55.8 71.2)"/>
+  <path d="M36.9 69.6 Q40.5 67.3 44.1 69.6" fill="none" stroke="#d3dae6" stroke-width="0.8"/>
+  <circle cx="40.5" cy="70.9" r="0.9" fill="#2a2e3b"/><circle cx="55.8" cy="71.5" r="0.9" fill="#1d2029"/>
+  <!-- sabaton lames and greave highlights -->
+  <path d="M32.5 85 L46 85 M32 87 L46 87 M52 84.4 L65 84.2 M52 86.3 L65.5 86.1" stroke="#1a1d26" stroke-width="0.6"/>
+  <path d="M37.6 75 L37.4 81" stroke="#c8d0dc" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M59.5 75 L60.4 80.6" stroke="#232733" stroke-width="0.8"/>
+  <path d="M33 84 Q32.4 86 31.8 88" stroke="#8ff7d6" stroke-width="0.6" opacity="0.55" fill="none"/>
+  <!-- rust streaks -->
+  <path d="M43 74 Q43.5 77 42.8 80 M53.4 66 Q54.2 69 53.8 72" stroke="#8a4b2a" stroke-width="0.7" fill="none" opacity="0.75"/>
+  <!-- grit kicked up by the planted front foot -->
+  <path d="M28 88.6 L24.5 87.6 M28.6 86.6 L25.6 85" stroke="#4a4258" stroke-width="0.6" stroke-linecap="round"/>
+  <circle cx="23.4" cy="86.4" r="0.5" fill="#5a5168"/><circle cx="26" cy="83.6" r="0.4" fill="#5a5168"/>
+
+  <!-- hips: tassets and tabard lean with the body, tabard hem flicked back by the swing -->
+  <g transform="translate(-1 0.8)">
+    <g stroke="#0d0a12" stroke-width="1" stroke-linejoin="round">
+      <path d="M35 56 L45 57 L45 64 Q40 66 35.5 64 Z" fill="url(#tka-steel)"/>
+      <path d="M51 57 L61 56 L61.5 64 Q56.5 66 51 64 Z" fill="url(#tka-steel-dark)"/>
+    </g>
+    <path d="M35.5 60 L45 60.6 M51 60.6 L61.2 60" stroke="#20232d" stroke-width="0.6"/>
+    <circle cx="37" cy="58" r="0.7" fill="#d8dfe9"/><circle cx="43.5" cy="58.4" r="0.7" fill="#d8dfe9"/>
+    <circle cx="52.5" cy="58.4" r="0.7" fill="#8a93a3"/><circle cx="59" cy="58" r="0.7" fill="#8a93a3"/>
+
+    <path d="M42 50 L54 50 L57.5 71 L54.6 69 L53.4 73 L50.4 70 L48 73.6 L45.8 69.8 L43.2 72.2 Z" fill="url(#tka-tabard)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M43 52 L44.2 70.6 M53 52 L56 69.4" stroke="#c99a4a" stroke-width="0.7" opacity="0.85"/>
+    <path d="M47 55 C46.6 61 47.4 66 47.4 71.6 M50 56 C51 62 51 66 52.4 71.6" stroke="#1d0d17" stroke-width="0.6" fill="none"/>
+    <path d="M45.6 66 L52 60.4 M45.6 60.4 L52 66" stroke="#d9cfb4" stroke-width="1" stroke-linecap="round"/>
+    <path d="M46.2 59.6 Q48.8 56 51.4 59.6 Q51.6 62 50.2 62.6 L47.4 62.6 Q46 62 46.2 59.6 Z" fill="#e3dac0" stroke="#2d1424" stroke-width="0.5"/>
+    <circle cx="47.8" cy="59.8" r="0.7" fill="#2d1424"/><circle cx="49.8" cy="59.8" r="0.7" fill="#2d1424"/>
+  </g>
+
+  <!-- ===== torso, leaning into the blow ===== -->
+  <g transform="translate(-2 1.6) rotate(-4 48 56)">
+    <!-- breastplate -->
+    <path d="M34 34 Q48 29 62 34 L61 52 Q55 57 48 57 Q41 57 35 52 Z" fill="url(#tka-steel)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M48 31.5 L48 56.5" stroke="#2e3340" stroke-width="0.8"/>
+    <path d="M47.2 32 L47.2 55.5" stroke="#dfe5ee" stroke-width="0.7" opacity="0.8"/>
+    <path d="M37 38 Q42 35 46 35.5" fill="none" stroke="#eef2f8" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>
+    <path d="M51 47 Q56 46 59.5 43" fill="none" stroke="#262a35" stroke-width="0.9" stroke-linecap="round"/>
+    <!-- soulfire bounce light from the smear on the left flank -->
+    <path d="M34.6 36 Q34.3 44 35.6 51.2" fill="none" stroke="#8ff7d6" stroke-width="0.7" opacity="0.6"/>
+    <!-- fauld bands -->
+    <path d="M35.5 51.5 Q48 57.5 60.8 51.5 L60.6 54.5 Q48 60 35.6 54.5 Z" fill="#4c5466" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M36 53 Q48 58.6 60.5 53" fill="none" stroke="#a9b2c2" stroke-width="0.5"/>
+    <!-- belt -->
+    <path d="M35.8 55 Q48 61 60.5 55 L60.4 57.6 Q48 63 35.8 57.6 Z" fill="#3a2a22" stroke="#0d0a12" stroke-width="0.9"/>
+    <rect x="45.6" y="57" width="4.8" height="3.8" rx="0.8" fill="#b9873c" stroke="#0d0a12" stroke-width="0.7"/>
+    <rect x="47" y="58.1" width="2" height="1.6" fill="#3a2a22"/>
+    <!-- gouge, rivets, rust, verdigris -->
+    <path d="M39 44 L43.5 41.5 L42 43.6 L45 42.6" fill="none" stroke="#1c1f28" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M39.3 44.8 L43.6 42.3" stroke="#c9d1dd" stroke-width="0.4"/>
+    <circle cx="36.8" cy="36.5" r="0.7" fill="#e6ebf2"/><circle cx="59" cy="36.5" r="0.7" fill="#7f889a"/>
+    <path d="M55 38 Q56.5 42 55.6 45" stroke="#8a4b2a" stroke-width="0.7" fill="none" opacity="0.7"/>
+    <path d="M57 49 q1.5 -1 2.6 0.4 q-0.6 1.4 -2.2 1.2 Z" fill="#4f8f7a" opacity="0.8"/>
+
+    <!-- shield-side pauldron -->
+    <path d="M58 30 Q67 28 70 35 Q71 41 66 43 Q61 40 57 39 Z" fill="url(#tka-steel-dark)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M60 32.5 Q66 31 68.5 36" fill="none" stroke="#aab3c2" stroke-width="0.7"/>
+  </g>
+
+  <!-- ===== tower shield, braced forward: pulled in toward the centre line and squared to the viewer ===== -->
+  <g transform="translate(-3.2 1.2) rotate(-3 68 56)">
+    <path d="M56 38 L79 35.5 Q82.5 56 71.5 76.5 Q65 80.5 58.5 75 Q54.5 57 56 38 Z" fill="url(#tka-shield)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M57.3 39.3 L77.8 37 Q80.8 56 70.6 75 Q65 78.6 59.6 74 Q56 57 57.3 39.3 Z" fill="none" stroke="#7a8395" stroke-width="1.6"/>
+    <path d="M57.3 39.3 L77.8 37" stroke="#c3cbd8" stroke-width="0.8"/>
+    <path d="M57.4 41 Q56.2 58 59.7 73.4" fill="none" stroke="#a0a9b9" stroke-width="0.6"/>
+    <!-- soulfire catching the rim on the left -->
+    <path d="M57 44 Q56.4 56 58.2 66" fill="none" stroke="#8ff7d6" stroke-width="0.6" opacity="0.5"/>
+    <g fill="#d2d9e4" stroke="#0d0a12" stroke-width="0.4">
+      <circle cx="60" cy="39" r="0.9"/><circle cx="67.5" cy="38.2" r="0.9"/><circle cx="75" cy="37.4" r="0.9"/>
+      <circle cx="79" cy="46" r="0.9"/><circle cx="78.6" cy="56" r="0.9"/><circle cx="76" cy="65" r="0.9"/>
+      <circle cx="71.5" cy="73" r="0.9"/><circle cx="64" cy="75.6" r="0.9"/><circle cx="58.3" cy="66" r="0.9"/>
+      <circle cx="57.4" cy="56" r="0.9"/><circle cx="57.4" cy="47" r="0.9"/>
+    </g>
+    <!-- painted skull sigil, its eyes flaring with the knight's -->
+    <path d="M61 50 Q67.5 42 74.5 49.5 Q75.5 55 72.5 57.5 L72.5 60.5 L63.5 61 L63.6 58 Q60.2 55.5 61 50 Z" fill="#d6cdb3" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M62.3 50.5 Q67.5 44.5 73 49.6" fill="none" stroke="#f3ecd8" stroke-width="0.7"/>
+    <path d="M63 52 Q65 50.5 67 52.3 Q66.5 55 64.4 54.9 Q62.8 54.2 63 52 Z" fill="#1a1622"/>
+    <path d="M69 52.2 Q71 50.5 72.8 52 Q73 54.2 71.3 54.8 Q69.4 55 69 52.2 Z" fill="#1a1622"/>
+    <circle cx="65" cy="52.8" r="2.4" fill="url(#tka-spark)" opacity="0.8"/><circle cx="70.9" cy="52.8" r="2.4" fill="url(#tka-spark)" opacity="0.8"/>
+    <circle cx="65" cy="52.8" r="1.05" fill="#8ff7d6"/><circle cx="70.9" cy="52.8" r="1.05" fill="#8ff7d6"/>
+    <circle cx="64.8" cy="52.6" r="0.4" fill="#ffffff"/><circle cx="70.7" cy="52.6" r="0.4" fill="#ffffff"/>
+    <path d="M67.6 55.4 L66.8 57.4 L68.6 57.4 Z" fill="#1a1622"/>
+    <path d="M65 58.5 L65 60.6 M67 58.6 L67 60.8 M69 58.6 L69 60.8 M71 58.5 L71 60.6" stroke="#5c5444" stroke-width="0.6"/>
+    <path d="M61.5 63.5 L74 70 M74 63.5 L61.5 70" stroke="#c8bfa5" stroke-width="1.3" stroke-linecap="round"/>
+    <circle cx="61.4" cy="63.3" r="1" fill="#c8bfa5"/><circle cx="74.1" cy="63.3" r="1" fill="#c8bfa5"/>
+    <circle cx="61.4" cy="70.2" r="1" fill="#c8bfa5"/><circle cx="74.1" cy="70.2" r="1" fill="#c8bfa5"/>
+    <path d="M59.5 44 L66 47.5 M72 66 L77 60.5" stroke="#0f0c16" stroke-width="0.8"/>
+    <path d="M59.6 44.8 L65.8 48.2 M72.5 66.6 L77.3 61.3" stroke="#6e6680" stroke-width="0.4"/>
+    <path d="M74.5 40.5 l1.5 1.2" stroke="#8a4b2a" stroke-width="0.8"/>
+  </g>
+
+  <!-- gorget (moves with the torso) -->
+  <g transform="translate(-2 1.6) rotate(-4 48 56)">
+    <path d="M39 29 Q48 26.5 57 29 L57.5 34 Q48 36.5 38.5 34 Z" fill="url(#tka-steel-dark)" stroke="#0d0a12" stroke-width="1"/>
+    <path d="M39.5 31.4 Q48 29 56.8 31.4" fill="none" stroke="#aab3c2" stroke-width="0.6"/>
+  </g>
+
+  <!-- ===== sword arm, driven all the way down and forward ===== -->
+  <!-- rerebrace and couter -->
+  <path d="M26.4 41.6 L32.6 42 L33 49.4 L27.2 49.6 Z" fill="#7b8496" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M27.4 43 L27.8 48.6" stroke="#c8d0dc" stroke-width="0.6"/>
+  <ellipse cx="30" cy="51" rx="3.7" ry="2.8" fill="#97a1b2" stroke="#0d0a12" stroke-width="0.9"/>
+  <path d="M27.3 51 L32.7 51.2" stroke="#3a3f4c" stroke-width="0.5"/>
+  <path d="M27.6 49.6 Q29.2 48.4 31 48.6" fill="none" stroke="#eef2f8" stroke-width="0.5"/>
+  <!-- vambrace angling forward to the grip -->
+  <path d="M27.6 53 L32.8 52.6 L36.4 59.2 L31.6 61 Z" fill="url(#tka-steel)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M28.6 54 L32.2 60" stroke="#d8dfe9" stroke-width="0.6"/>
+  <path d="M30 56.8 L34.6 55.4" stroke="#2a2e3b" stroke-width="0.5"/>
+  <circle cx="33.6" cy="56.6" r="0.5" fill="#2a2e3b"/>
+
+  <!-- sword-arm pauldron (moves with the torso) -->
+  <g transform="translate(-2 1.6) rotate(-4 48 56)">
+    <path d="M26 34 Q28 27 37 28.5 Q41 31 40 37 Q35 41 28.5 40 Q25.5 38 26 34 Z" fill="url(#tka-steel)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M27.5 36.5 Q31 34.5 39 35.5 M28 38.7 Q32 37.5 38.6 38" fill="none" stroke="#2c303c" stroke-width="0.7"/>
+    <path d="M28.2 32.5 Q30.5 29.2 35.5 29.5" fill="none" stroke="#f0f4fa" stroke-width="1" stroke-linecap="round"/>
+    <path d="M26.3 35 Q26.4 38 28.6 39.6" fill="none" stroke="#8ff7d6" stroke-width="0.7" opacity="0.7"/>
+    <circle cx="34" cy="32.4" r="0.7" fill="#2c303c"/>
+  </g>
+
+  <!-- ===== greatsword, swung through: low and out past the front foot, rune-fire blazing =====
+       drawn blade-down in local space (crossguard at 0,0) and rotated into place -->
+  <g transform="translate(31.4 64.2) rotate(50)">
+    <!-- soul-glow sheathing the blade -->
+    <ellipse cx="0" cy="18" rx="5" ry="19" fill="url(#tka-glow)" opacity="0.55"/>
+    <!-- blade -->
+    <path d="M-1.7 0.6 L-1.55 29 Q-1.1 32 0 33.4 Q1.2 32 1.6 29 L1.7 0.6 Z" fill="url(#tka-blade)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M0.1 2 L0.1 30" stroke="#2a2f3a" stroke-width="0.5"/>
+    <path d="M-0.75 2.4 L-0.7 29.4" stroke="#ffffff" stroke-width="0.5" opacity="0.85"/>
+    <!-- runes along the fuller, burning bright -->
+    <path d="M-0.2 5 l0.9 1.4 l-0.9 0.8 M0.4 9.4 l-0.9 1.6 M-0.3 13 l0.9 0.8 l-0.9 1.2 M0.4 17.4 l-0.9 1.4 l0.9 0.6 M-0.2 21.6 l0.8 1.4" fill="none" stroke="#e9fff7" stroke-width="0.7" stroke-linecap="round"/>
+    <path d="M-0.2 5 l0.9 1.4 l-0.9 0.8 M0.4 9.4 l-0.9 1.6 M-0.3 13 l0.9 0.8 l-0.9 1.2 M0.4 17.4 l-0.9 1.4 l0.9 0.6 M-0.2 21.6 l0.8 1.4" fill="none" stroke="#5ef0c0" stroke-width="1.5" stroke-linecap="round" opacity="0.35"/>
+    <!-- nicks in the edge -->
+    <path d="M1.6 11 l-0.8 0.5 l0.8 0.5 M1.6 20 l-0.8 0.5 l0.8 0.5" fill="#0d0a12" stroke="#0d0a12" stroke-width="0.4"/>
+    <!-- crossguard -->
+    <path d="M-6.4 -1.2 Q0 0.4 6.4 -1.2 L6.6 0.9 Q0 2.4 -6.6 0.9 Z" fill="#c09048" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M-6 -0.5 Q0 1 6 -0.5" fill="none" stroke="#f1d08a" stroke-width="0.5"/>
+    <circle cx="-6.8" cy="-0.2" r="1.4" fill="#a87a36" stroke="#0d0a12" stroke-width="0.6"/>
+    <circle cx="6.8" cy="-0.2" r="1.4" fill="#a87a36" stroke="#0d0a12" stroke-width="0.6"/>
+    <circle cx="-7.1" cy="-0.6" r="0.45" fill="#f6dc9c"/>
+    <!-- grip and pommel -->
+    <path d="M0 -1.4 L0 -12" stroke="#3a2418" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M-1.2 -3 l2.4 0.6 M-1.2 -5 l2.4 0.6 M-1.2 -7 l2.4 0.6" stroke="#6a4a30" stroke-width="0.5"/>
+    <circle cx="0" cy="-13.4" r="1.9" fill="#c09048" stroke="#0d0a12" stroke-width="0.8"/>
+    <circle cx="-0.6" cy="-13.9" r="0.6" fill="#f6dc9c"/>
+    <!-- flared cuff where the vambrace meets the fist -->
+    <path d="M-2.6 -1.4 Q-5.8 -0.6 -6.2 -5 Q-6 -9.4 -2.8 -8.8 Z" fill="#8e98aa" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M-5.2 -2.4 Q-5.6 -5 -5.2 -7.6" fill="none" stroke="#3a3f4c" stroke-width="0.5"/>
+    <!-- big gauntlet fist clamped around the grip: knuckle plates toward the viewer, thumb over the guard -->
+    <path d="M-3.4 -1.6 Q0 -3.2 3.6 -1.8 Q4.8 -5 3.6 -8.6 Q0 -9.8 -3.4 -8.2 Q-4.6 -5 -3.4 -1.6 Z" fill="url(#tka-steel)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M-3 -3.6 Q0 -4.8 3.4 -3.6 M-3.2 -5.6 Q0 -6.8 3.6 -5.6" fill="none" stroke="#2a2e3b" stroke-width="0.55"/>
+    <g fill="#c9d1dd" stroke="#0d0a12" stroke-width="0.3">
+      <circle cx="-2" cy="-7.2" r="0.5"/><circle cx="0" cy="-7.7" r="0.5"/><circle cx="2" cy="-7.4" r="0.5"/>
+    </g>
+    <path d="M3.2 -2.4 Q4.6 -1.6 4.2 0.4 Q3 0.8 2.2 -0.6 Z" fill="#7b8496" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M-3.1 -7.6 Q-3.9 -5 -3 -2.4" fill="none" stroke="#eef2f8" stroke-width="0.6"/>
+    <path d="M-4.2 -4 Q-4.4 -6 -3.8 -7.4" fill="none" stroke="#8ff7d6" stroke-width="0.5" opacity="0.6"/>
+  </g>
+
+  <!-- ===== great helm, dipped toward the blow ===== -->
+  <g transform="translate(-2.4 2) rotate(-7 48 30)">
+    <!-- tattered crimson plume, flung up and back by the swing -->
+    <path d="M48 9.6 Q51 1.8 61 1.8 Q70 2 77 6 L71.6 7.4 L76.6 10.8 L69.4 10.4 L72 14.8 L65.4 11.8 L65 15.6 L60.4 11.6 Q55.2 10 51 11.6 Z" fill="#7e1f2e" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M50 8.6 Q54 3.6 62 3.6 M52.6 10.2 Q58.8 6.6 67.4 7.4" fill="none" stroke="#c4425a" stroke-width="0.7"/>
+    <path d="M56.6 10.6 Q61.6 9.8 65.4 11.8" fill="none" stroke="#3f0d18" stroke-width="0.6"/>
+    <path d="M62 4.4 Q67 4.4 71 6" fill="none" stroke="#e0657a" stroke-width="0.5" opacity="0.8"/>
+
+    <path d="M37.5 15.5 Q48 8.5 58.5 15.5 L59 29.5 Q48 33.5 37 29.5 Z" fill="url(#tka-steel)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M48 9.8 L48 31.6" stroke="#2a2e3b" stroke-width="0.8"/>
+    <path d="M47.1 10.4 L47.1 18.5" stroke="#f2f5fa" stroke-width="0.8"/>
+    <path d="M39.6 16.4 Q42.5 12.6 46 11.6" fill="none" stroke="#f2f5fa" stroke-width="1.2" stroke-linecap="round" opacity="0.9"/>
+    <path d="M56.8 17 L57.2 28.6" stroke="#2a2e3b" stroke-width="0.9"/>
+    <path d="M37.8 18 Q37.2 24 37.6 29" fill="none" stroke="#8ff7d6" stroke-width="0.6" opacity="0.6"/>
+    <!-- visor blazing: wider, hotter glow, slit flames slanted into a scowl -->
+    <ellipse cx="48" cy="21.3" rx="16" ry="6.5" fill="url(#tka-glow)" opacity="0.95"/>
+    <path d="M39.2 20 L56.8 20 L56.6 22.6 L39.4 22.6 Z" fill="#0b0912" stroke="#0d0a12" stroke-width="0.6"/>
+    <path d="M40.2 20.6 L46.6 22 M49.4 22 L55.8 20.6" stroke="#8ff7d6" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M41 20.8 L46 21.9 M50 21.9 L55 20.8" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round"/>
+    <circle cx="43.4" cy="21.4" r="1.3" fill="#ffffff"/><circle cx="52.6" cy="21.4" r="1.3" fill="#ffffff"/>
+    <path d="M46.9 23.6 L46.9 29.6 M49.1 23.6 L49.1 29.6" stroke="#0b0912" stroke-width="1.1"/>
+    <path d="M47.4 24 L47.4 27 M48.6 24 L48.6 27" stroke="#5ef0c0" stroke-width="0.5" opacity="0.8"/>
+    <path d="M41 25 l0 2.6 M43 25.3 l0 2.6 M53 25.3 l0 2.6 M55 25 l0 2.6" stroke="#262a35" stroke-width="0.8" stroke-linecap="round"/>
+    <path d="M38 17.8 Q48 15 58.2 17.8" fill="none" stroke="#3c4250" stroke-width="0.7"/>
+    <g fill="#e1e7ef" stroke="#0d0a12" stroke-width="0.3">
+      <circle cx="40.2" cy="17.4" r="0.6"/><circle cx="44" cy="16.5" r="0.6"/><circle cx="52" cy="16.5" r="0.6"/><circle cx="55.8" cy="17.4" r="0.6"/>
+    </g>
+    <rect x="45.8" y="8.2" width="4.4" height="2.8" rx="0.8" fill="#b9873c" stroke="#0d0a12" stroke-width="0.7"/>
+    <!-- soulfire streaming back off the visor -->
+    <path d="M56.6 20.4 Q61 19 64.6 16 M56.6 21.8 Q61.4 21.6 65.6 19.4" fill="none" stroke="#8ff7d6" stroke-width="0.9" stroke-linecap="round" opacity="0.75"/>
+    <path d="M57 21 Q62.6 20.2 67.6 17.4" fill="none" stroke="#e9fff7" stroke-width="0.4" stroke-linecap="round" opacity="0.8"/>
+  </g>
+
+  <!-- ===== in front: sparks shed by the blade and embers flung off the visor ===== -->
+  <circle cx="6.2" cy="85" r="3.4" fill="url(#tka-spark)"/>
+  <circle cx="6.2" cy="85" r="0.9" fill="#ffffff"/>
+  <path d="M6.2 81.6 L6.2 88.4 M3 85 L9.4 85" stroke="#e9fff7" stroke-width="0.5" stroke-linecap="round" opacity="0.9"/>
+  <circle cx="12.6" cy="89" r="0.7" fill="#8ff7d6"/>
+  <circle cx="4.4" cy="77" r="0.6" fill="#8ff7d6" opacity="0.85"/>
+  <circle cx="16.4" cy="84.6" r="0.5" fill="#d8fff0" opacity="0.8"/>
+  <circle cx="9.6" cy="90.6" r="0.45" fill="#8ff7d6" opacity="0.7"/>
+  <circle cx="63.6" cy="13" r="0.8" fill="#8ff7d6" opacity="0.9"/>
+  <circle cx="67" cy="10.4" r="0.6" fill="#8ff7d6" opacity="0.75"/>
+  <circle cx="70.4" cy="14.6" r="0.5" fill="#d8fff0" opacity="0.7"/>
+  <circle cx="34" cy="17" r="0.55" fill="#8ff7d6" opacity="0.6"/>
+</svg>

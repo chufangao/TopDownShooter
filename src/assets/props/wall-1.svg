@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Rune stele: a weathered obelisk snapped off at the top, on a stepped plinth, faint soulfire still in its carved runes. Its broken tip lies on the plinth. Lit from the upper left. -->
+  <defs>
+    <radialGradient id="w1-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#05040a" stop-opacity="0.8"/>
+      <stop offset="0.6" stop-color="#05040a" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#05040a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="w1-top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9d95b8"/>
+      <stop offset="0.5" stop-color="#7d7599"/>
+      <stop offset="1" stop-color="#635b80"/>
+    </linearGradient>
+    <linearGradient id="w1-front" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6a6386"/>
+      <stop offset="0.55" stop-color="#4b4560"/>
+      <stop offset="1" stop-color="#38334a"/>
+    </linearGradient>
+    <linearGradient id="w1-front2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5f587a"/>
+      <stop offset="1" stop-color="#332e44"/>
+    </linearGradient>
+    <linearGradient id="w1-front3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#78709a"/>
+      <stop offset="0.6" stop-color="#554e6e"/>
+      <stop offset="1" stop-color="#3f3955"/>
+    </linearGradient>
+    <linearGradient id="w1-obelisk" x1="0" y1="0" x2="1" y2="0.35">
+      <stop offset="0" stop-color="#7a729c"/>
+      <stop offset="0.45" stop-color="#5c5578"/>
+      <stop offset="1" stop-color="#3b3650"/>
+    </linearGradient>
+    <linearGradient id="w1-break" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b0a9cc"/>
+      <stop offset="1" stop-color="#7a7296"/>
+    </linearGradient>
+    <linearGradient id="w1-wax" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d9cfb4"/>
+      <stop offset="1" stop-color="#8f8670"/>
+    </linearGradient>
+    <linearGradient id="w1-leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6f9462"/>
+      <stop offset="1" stop-color="#2f4a33"/>
+    </linearGradient>
+    <radialGradient id="w1-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8ff7d6" stop-opacity="0.5"/>
+      <stop offset="0.45" stop-color="#5ef0c0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- contact shadow -->
+  <ellipse cx="48" cy="83" rx="45" ry="9" fill="url(#w1-shadow)"/>
+
+  <!-- ===== lower plinth ===== -->
+  <path d="M11 72 L11 64.6 L13.4 62 L81.6 62 L85 64.4 L85 72 Z" fill="url(#w1-top)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M12.4 64.6 L14 63.2 L30 63.2" fill="none" stroke="#c9c2e4" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <path d="M30 62.4 L30 71.6 M70 62.4 L70 71.6" stroke="#2e2940" stroke-width="0.9"/>
+  <path d="M30.8 63 L30.8 71.4 M70.8 63 L70.8 71.4" stroke="#b3acd0" stroke-width="0.45" opacity="0.6"/>
+  <!-- lower plinth front -->
+  <path d="M10.4 72 L85.6 72 L85.8 83 Q85 85.2 82.4 85.2 L13.6 85.2 Q10.6 85 10.2 82.4 Z" fill="#1a1625" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <g stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round">
+    <path d="M11.2 72.7 L29.3 72.7 L29.3 84.4 L13.6 84.4 Q11.2 84 11.2 82 Z" fill="url(#w1-front3)"/>
+    <path d="M30.7 72.7 L51.3 72.7 L51.3 84.4 L30.7 84.4 Z" fill="url(#w1-front)"/>
+    <path d="M52.7 72.7 L69.3 72.7 L69.3 81.8 L67 84.4 L52.7 84.4 Z" fill="url(#w1-front2)"/>
+    <path d="M70.7 72.7 L84.9 72.7 L85 82.4 Q84.4 84.4 82.2 84.4 L70.7 84.4 Z" fill="url(#w1-front)"/>
+  </g>
+  <path d="M12.1 81.6 L12.1 73.6 L28.4 73.6 M31.6 83.4 L31.6 73.6 L50.4 73.6 M53.6 83.4 L53.6 73.6 L68.4 73.6 M71.6 83.4 L71.6 73.6 L84 73.6" fill="none" stroke="#9d95b8" stroke-width="0.7" opacity="0.55"/>
+  <path d="M14 83.5 L28.4 83.5 L28.4 74 M32 83.5 L50.4 83.5 L50.4 74 M54 83.5 L66.4 83.5 L68.4 81.4 L68.4 74 M72 83.5 L82 83.5 L84 82 L84 74" fill="none" stroke="#211c2e" stroke-width="0.9" opacity="0.8"/>
+  <path d="M67 84.4 L69.3 81.8 L69.3 84.4 Z" fill="#1a1625"/>
+  <!-- cracks on the plinth -->
+  <path d="M40 72.8 L41.6 76 L40.4 78.4 L42.6 81.6 M76 76 L79 77.6 L80 81" fill="none" stroke="#151120" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M40.6 73.6 L42.2 76.1 L41 78.4 L43.2 81.4 M76.4 76.8 L79.5 78.2" fill="none" stroke="#8f88ad" stroke-width="0.35" opacity="0.7"/>
+  <g fill="#2a2539"><ellipse cx="20" cy="78" rx="1" ry="0.6"/><ellipse cx="60" cy="77" rx="0.8" ry="0.5"/><ellipse cx="35" cy="81" rx="0.6" ry="0.4"/></g>
+
+  <!-- ===== upper plinth ===== -->
+  <path d="M24 63 L24 57 L26 55.2 L70 55.2 L72 57 L72 63 Z" fill="url(#w1-top)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M25 57.4 L26.6 56.2 L33 56.2" fill="none" stroke="#c9c2e4" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M23.6 63 L72.4 63 L72.4 70.4 L23.6 70.4 Z" fill="url(#w1-front2)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M48 63.4 L48 70" stroke="#1a1625" stroke-width="0.9"/>
+  <path d="M24.6 69.4 L24.6 63.9 L47 63.9 M49 69.4 L49 63.9 L71.4 63.9" fill="none" stroke="#9d95b8" stroke-width="0.6" opacity="0.5"/>
+  <path d="M25 69.6 L47.2 69.6 M49.4 69.6 L71.6 69.6 L71.6 64.2" fill="none" stroke="#211c2e" stroke-width="0.8" opacity="0.8"/>
+  <!-- carved moulding groove -->
+  <path d="M25.2 66.6 L46.8 66.6 M49.2 66.6 L71 66.6" stroke="#2a2539" stroke-width="0.7"/>
+  <path d="M25.2 67.2 L46.8 67.2 M49.2 67.2 L71 67.2" stroke="#7d7599" stroke-width="0.35" opacity="0.6"/>
+
+  <!-- ===== obelisk ===== -->
+  <!-- broken top surface (lit, rough) -->
+  <path d="M37.4 22 L38 17.6 L41.6 15 L44.6 16.2 L48.6 11.6 L52.4 12.4 L55.4 9.4 L58.8 10.6 L58.6 14.6 L55 13.6 L52 17.6 L48 16.6 L44 21 L41 19.4 Z" fill="url(#w1-break)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M39 18 L41.6 16.4 M45.4 17 L48.8 13 M53 13.6 L55.6 11" stroke="#d8d2ee" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M42 18.4 L44 17.8 M50 14.6 L51.6 15 M56 12.4 L57.6 12.6" stroke="#5c5578" stroke-width="0.5"/>
+  <!-- front face, tapering, with a chamfer on each side -->
+  <path d="M37.4 22 L41 19.4 L44 21 L48 16.6 L52 17.6 L55 13.6 L58.6 14.6 L62.6 61.6 L33.4 61.6 Z" fill="url(#w1-obelisk)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M37.4 22 L33.4 61.6 L36.2 61.6 L39.6 20.4 Z" fill="#8f88ad" opacity="0.75"/>
+  <path d="M58.6 14.6 L62.6 61.6 L59.8 61.6 L56.6 14.4 Z" fill="#2c273b" opacity="0.8"/>
+  <path d="M36.4 59 L39.8 22" stroke="#c9c2e4" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <!-- incised frame -->
+  <path d="M41.2 58.4 L43 25 L54.6 22.4 L58 58.4 Z" fill="none" stroke="#2a2539" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M41.8 58.4 L43.6 25.6 M43.4 25.6 L54.4 23" fill="none" stroke="#9d95b8" stroke-width="0.35" opacity="0.6"/>
+  <!-- banding where the stele meets the plinth -->
+  <path d="M33.8 57.4 L62.2 57.4" stroke="#1f1b2c" stroke-width="0.9"/>
+  <path d="M34 58.2 L61.8 58.2" stroke="#8a83a6" stroke-width="0.45" opacity="0.6"/>
+
+  <!-- runes: carved grooves with dying soulfire -->
+  <ellipse cx="49" cy="32" rx="7" ry="6" fill="url(#w1-glow)"/>
+  <ellipse cx="49.6" cy="45" rx="7" ry="7" fill="url(#w1-glow)"/>
+  <g fill="none" stroke="#120e1a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M46.6 27 L49.6 29.8 L52.2 26.6 M49.6 29.8 L49.6 34"/>
+    <path d="M46.4 38 L49.6 36.4 L52.6 38 M49.6 36.4 L49.6 42.2 M47.4 40.4 L51.8 40.4"/>
+    <path d="M47 45.6 L52.4 45.6 L47.2 50 L52.8 50"/>
+    <path d="M48 53 L50.4 54.4 L48.6 55.6"/>
+  </g>
+  <g fill="none" stroke="#5ef0c0" stroke-width="0.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.7">
+    <path d="M46.6 27 L49.6 29.8 L52.2 26.6 M49.6 29.8 L49.6 34"/>
+    <path d="M46.4 38 L49.6 36.4 L52.6 38 M49.6 36.4 L49.6 42.2 M47.4 40.4 L51.8 40.4"/>
+    <path d="M47 45.6 L52.4 45.6 L47.2 50 L52.8 50"/>
+  </g>
+  <path d="M48 53 L50.4 54.4 L48.6 55.6" fill="none" stroke="#3c6b5e" stroke-width="0.5" stroke-linecap="round"/>
+  <circle cx="49.6" cy="29.8" r="0.6" fill="#d8fff0"/><circle cx="49.6" cy="40.4" r="0.6" fill="#d8fff0"/>
+  <!-- the carved eye above the runes -->
+  <path d="M45 24.6 Q49.4 21.6 53.6 23.8 Q49.6 26.6 45 24.6 Z" fill="#1d1828" stroke="#120e1a" stroke-width="0.4"/>
+  <circle cx="49.3" cy="24.2" r="0.9" fill="#5ef0c0" opacity="0.7"/>
+  <!-- damage on the stele -->
+  <path d="M55.6 30 L57.6 33 L56 35.4 L58.6 39 M38 44 L41 46.2 L39.4 48.6" fill="none" stroke="#151120" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M56.2 30.8 L58.2 33 L56.6 35.4 M38.6 44.8 L41.6 46.4" fill="none" stroke="#9d95b8" stroke-width="0.35" opacity="0.7"/>
+  <path d="M59.4 46 L62.2 44.8 L62.6 49.4 L60.2 49 Z" fill="#1a1625"/>
+  <g fill="#2a2539"><ellipse cx="44" cy="33" rx="0.6" ry="0.4"/><ellipse cx="55" cy="51" rx="0.7" ry="0.4"/><ellipse cx="42.6" cy="54" rx="0.6" ry="0.4"/><ellipse cx="54" cy="41" rx="0.5" ry="0.3"/></g>
+  <path d="M46 61 Q46.4 57 45.8 52 M52 61 Q52.4 58 52 55" fill="none" stroke="#2b263a" stroke-width="1.1" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- ivy climbing the stele from the plinth -->
+  <path d="M35 61 Q36.6 55 35.6 50 Q34.8 45.6 37.4 41.6" fill="none" stroke="#2a3a24" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M35 61 Q36.6 55 35.6 50" fill="none" stroke="#5f7a4e" stroke-width="0.35"/>
+  <g fill="url(#w1-leaf)" stroke="#16211a" stroke-width="0.5" stroke-linejoin="round">
+    <path d="M35.8 57 Q32.8 56.6 32.6 54.2 Q35.4 54 35.8 57 Z"/>
+    <path d="M36 52 Q38.8 50.6 40.2 52.8 Q37.8 54.4 36 52 Z"/>
+    <path d="M35.4 47 Q32.4 46.6 32.4 44.2 Q35.2 44 35.4 47 Z"/>
+    <path d="M37.4 41.6 Q39.4 38.8 41.6 40.4 Q40 43 37.4 41.6 Z"/>
+    <path d="M33 61.2 Q30 59.8 30.6 57.6 Q33.4 58.4 33 61.2 Z"/>
+  </g>
+  <path d="M35.2 56.6 L33.2 54.8 M36.6 52 L39.4 52.6 M37.8 41.4 L40.8 40.6" stroke="#8fb279" stroke-width="0.35" opacity="0.8"/>
+
+  <!-- moss on the plinth -->
+  <g fill="#4f6b4a" stroke="#1f2b1e" stroke-width="0.4">
+    <path d="M11.2 71.6 Q13 69 16.4 69.8 Q19.6 69 21.4 71 L20 74 Q19 72.4 17.8 74.6 Q16.6 72.6 15 75.2 Q14 72.8 12.4 74 Q11.2 73 11.2 71.6 Z"/>
+    <path d="M60 62.6 Q62.4 60.4 66 61.4 Q68.6 61.6 68.6 63.2 L66.8 65 Q66 63.8 64.6 65.4 Q63.6 63.8 62 64.8 Q60.8 63.8 60 62.6 Z"/>
+    <path d="M23.8 62.6 Q26 60.6 29.4 61.6 L28.4 63.6 Q27.4 62.8 26.6 64.4 Q25.4 63 24.2 64 Z"/>
+  </g>
+  <g fill="#7b9a63" opacity="0.85">
+    <ellipse cx="14.4" cy="70.6" rx="1.6" ry="0.6"/><ellipse cx="18" cy="70.2" rx="1.2" ry="0.5"/>
+    <ellipse cx="63.6" cy="61.8" rx="1.5" ry="0.5"/><ellipse cx="26.4" cy="61.8" rx="1.1" ry="0.4"/>
+  </g>
+  <g fill="#8e9a6a" opacity="0.55">
+    <circle cx="22" cy="66" r="0.7"/><circle cx="23.2" cy="67" r="0.45"/><circle cx="77" cy="65" r="0.6"/>
+    <circle cx="44" cy="35.5" r="0.6"/><circle cx="57" cy="24" r="0.5"/><circle cx="62" cy="79" r="0.6"/>
+  </g>
+
+  <!-- unlit candle stubs on the upper step, wax run over the edge -->
+  <g stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round">
+    <path d="M26.6 61 L26.6 56.6 Q28 55.8 29.4 56.6 L29.4 61 Q28 61.8 26.6 61 Z" fill="url(#w1-wax)"/>
+    <path d="M30.4 61.6 L30.4 58.8 Q31.6 58.2 32.8 58.8 L32.8 61.6 Q31.6 62.2 30.4 61.6 Z" fill="url(#w1-wax)"/>
+  </g>
+  <path d="M26 61.2 Q28 62.4 33.2 61.8 L33 63.2 Q31.8 63.4 31.6 65 Q31 63.6 29.8 63.6 Q29.2 64.6 28.8 66.4 Q28.2 64.2 27.4 63.4 Q26.4 63.4 26 62.6 Z" fill="#b7ac91" stroke="#2a2433" stroke-width="0.4" stroke-linejoin="round"/>
+  <path d="M27.1 57 Q26.9 58.6 27.2 60 M30.9 59.2 L30.9 60.6" stroke="#f1ead4" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M28 56.2 L28.2 54.8 M31.6 58.6 L31.4 57.6" stroke="#1a1418" stroke-width="0.5"/>
+  <path d="M28.4 54 Q27.4 51.6 28.8 49.6 Q27.8 47.6 29 45.6" fill="none" stroke="#6e6688" stroke-width="0.5" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- ===== the snapped-off tip, fallen onto the plinth ===== -->
+  <path d="M71.6 70.4 L73.6 61.4 L84.8 58.4 L88.6 66.6 L84 71.6 Z" fill="url(#w1-front)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M73.6 61.4 L76 56.4 L84.8 58.4 Z" fill="url(#w1-break)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M74.4 61 L76.6 57.4 L83 58.6" fill="none" stroke="#e0dbf2" stroke-width="0.5"/>
+  <path d="M74 62.4 L84.4 59.6" stroke="#9d95b8" stroke-width="0.5" opacity="0.7"/>
+  <path d="M84.8 58.4 L88.6 66.6 L84 71.6 L82.2 64 Z" fill="#2f2a40" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M76 66 L78.6 63.6 L80.6 66.4 M77 68.4 L80 68" fill="none" stroke="#120e1a" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M71.6 70.4 L84 71.6" stroke="#0d0a12" stroke-width="0.6"/>
+
+  <!-- ===== rubble ===== -->
+  <g stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round">
+    <path d="M6.8 86.4 L7.8 82 L12.4 81 L15 83.6 L13.6 86.8 L9 87.4 Z" fill="#6e6688"/>
+    <path d="M14.6 87.4 L15.8 84.8 L19.4 84.4 L20.4 86.8 L18 88 Z" fill="#5a5374"/>
+    <path d="M13.6 64.6 L15 61.2 L19.4 60.6 L20.8 63.6 L18.6 65.6 Z" fill="#7d7599"/>
+    <path d="M86.6 86.6 L87.4 82.8 L90.6 82.4 L91.2 85.8 L89 87.4 Z" fill="#625b7e"/>
+    <path d="M58 87.4 L59 85 L62.2 84.8 L63.2 87.2 L60.6 88.2 Z" fill="#5a5374"/>
+  </g>
+  <path d="M8.4 82.4 L12 81.6 M16.2 85.1 L19 84.8 M15.6 61.8 L19 61.2 M87.8 83.2 L90.2 82.9 M59.4 85.4 L61.8 85.2" stroke="#a7a0c4" stroke-width="0.6" stroke-linecap="round"/>
+  <g fill="#3a3450"><circle cx="25" cy="86.8" r="0.9"/><circle cx="68" cy="87.2" r="0.8"/><circle cx="44" cy="87" r="0.6"/><circle cx="79" cy="86.8" r="0.7"/><circle cx="83" cy="74" r="0.5"/></g>
+</svg>

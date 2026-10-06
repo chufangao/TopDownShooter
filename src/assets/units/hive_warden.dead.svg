@@ -1,0 +1,352 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Hive Warden, fallen: flipped on its back with its legs curled to the sky, the lantern smashed in a spreading pool of honey. -->
+  <defs>
+    <linearGradient id="hwd-amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0c46c"/>
+      <stop offset="0.5" stop-color="#c98a32"/>
+      <stop offset="1" stop-color="#7c4412"/>
+    </linearGradient>
+    <linearGradient id="hwd-amber-rot" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#f0c46c"/>
+      <stop offset="0.5" stop-color="#c98a32"/>
+      <stop offset="1" stop-color="#7c4412"/>
+    </linearGradient>
+    <linearGradient id="hwd-amber-dk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c88632"/>
+      <stop offset="1" stop-color="#5e300c"/>
+    </linearGradient>
+    <linearGradient id="hwd-band" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#574350"/>
+      <stop offset="1" stop-color="#1e141b"/>
+    </linearGradient>
+    <linearGradient id="hwd-wax" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#efe2b8"/>
+      <stop offset="0.55" stop-color="#cdae6c"/>
+      <stop offset="1" stop-color="#8e6a32"/>
+    </linearGradient>
+    <linearGradient id="hwd-fur" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#d6a956"/>
+      <stop offset="1" stop-color="#f4e6bc"/>
+    </linearGradient>
+    <linearGradient id="hwd-wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e6f2f6" stop-opacity="0.6"/>
+      <stop offset="0.6" stop-color="#aac6d2" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#8aaebe" stop-opacity="0.26"/>
+    </linearGradient>
+    <linearGradient id="hwd-shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8b456"/>
+      <stop offset="0.5" stop-color="#b47224"/>
+      <stop offset="1" stop-color="#66340e"/>
+    </linearGradient>
+    <linearGradient id="hwd-wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#94643a"/>
+      <stop offset="1" stop-color="#422614"/>
+    </linearGradient>
+    <radialGradient id="hwd-eye" cx="0.4" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#b08870"/>
+      <stop offset="0.5" stop-color="#764030"/>
+      <stop offset="1" stop-color="#2a120c"/>
+    </radialGradient>
+    <radialGradient id="hwd-honey" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#f6d688"/>
+      <stop offset="0.5" stop-color="#d8902a"/>
+      <stop offset="1" stop-color="#94500e"/>
+    </radialGradient>
+    <radialGradient id="hwd-pool" cx="0.42" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#f3b850"/>
+      <stop offset="0.55" stop-color="#d0862a"/>
+      <stop offset="1" stop-color="#8a4a10"/>
+    </radialGradient>
+    <linearGradient id="hwd-resin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2cc78"/>
+      <stop offset="0.5" stop-color="#c88022"/>
+      <stop offset="1" stop-color="#6e3a0c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the torn-off wing, lying on the ground behind the body -->
+  <path d="M63.2 60.8 C69 55.6 80 53.2 88 54.4 C91.2 55.6 90.6 59.4 87 60.2 C79 61.8 71 62.4 66.2 62.8 L65.4 61.6 L64.6 63 L63.8 61.8 L62.8 62.6 Z" fill="url(#hwd-wing)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <g fill="none" stroke="#7896a4" stroke-width="0.4" stroke-linecap="round">
+    <path d="M64.6 61.4 C71 57.2 80 55 88.6 55.6 M65 62 C72 60.4 80 59.4 87.4 59.4"/>
+    <path d="M69.6 58.4 L70.6 61.6 M74.4 56.8 L75.6 60.8 M79.4 55.6 L80.4 60.2 M84 55 L84.6 59.8 M72 59.6 C76 58.8 80 58.2 84.6 58"/>
+  </g>
+  <path d="M66 59.6 C71 56.4 79 54.6 86 54.8" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.6" stroke-linecap="round"/>
+  <ellipse cx="88.4" cy="57.2" rx="1.2" ry="0.8" fill="#4e6672" opacity="0.55"/>
+  <!-- a scrap of torn membrane -->
+  <path d="M60.4 58.4 L62.6 57 L63.4 58.8 L61.6 59.6 Z" fill="url(#hwd-wing)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+
+  <!-- the honeycomb shield, fallen flat and chipped -->
+  <g transform="translate(16.6 62.6) scale(1 0.62) rotate(-6) translate(-16.6 -62.6)">
+    <path d="M16.6 49.8 L27.7 56.2 L27.7 69 L16.6 75.4 L5.5 69 L6.6 64 L10 59 L9 61.2 L11.2 60 L12 57.4 L10.4 57.8 L11.4 55.4 L13.2 53 Z" fill="#4a240a" stroke="#0d0a12" stroke-width="1.6" stroke-linejoin="round" transform="translate(0 2.6)"/>
+    <path d="M16.6 49.8 L27.7 56.2 L27.7 69 L16.6 75.4 L5.5 69 L6.6 64 L10 59 L9 61.2 L11.2 60 L12 57.4 L10.4 57.8 L11.4 55.4 L13.2 53 Z" fill="url(#hwd-shield)" stroke="#0d0a12" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M16.6 51.3 L26.4 57 L26.4 68.3 L16.6 73.9 L6.8 68.3 L6.9 63.6 L11.2 60.4 L13.4 53.3 Z" fill="#6e3810" stroke="#4e260a" stroke-width="0.7" stroke-linejoin="round"/>
+    <g>
+      
+    <polygon points="16.6,54.9 18.1,55.7 18.1,57.5 16.6,58.3 15.1,57.5 15.1,55.7" fill="url(#hwd-honey)" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="20.1,54.9 21.6,55.7 21.6,57.5 20.1,58.3 18.6,57.5 18.6,55.7" fill="#dcc07a" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    
+    <polygon points="14.9,57.9 16.4,58.7 16.4,60.5 14.9,61.3 13.4,60.5 13.4,58.7" fill="#dcc07a" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="18.3,57.9 19.8,58.7 19.8,60.5 18.3,61.3 16.8,60.5 16.8,58.7" fill="url(#hwd-honey)" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="21.8,57.9 23.3,58.7 23.3,60.5 21.8,61.3 20.3,60.5 20.3,58.7" fill="#dcc07a" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    
+    
+    
+    <polygon points="20.1,60.9 21.6,61.7 21.6,63.5 20.1,64.3 18.6,63.5 18.6,61.7" fill="url(#hwd-honey)" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="23.5,60.9 25,61.7 25,63.5 23.5,64.3 22,63.5 22,61.7" fill="#5e300e" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/><path d="M22.5 62 L23.7 62.8 L24.4 62.2" fill="none" stroke="#1e0e04" stroke-width="0.4"/>
+    <polygon points="11.4,63.9 12.9,64.7 12.9,66.5 11.4,67.3 9.9,66.5 9.9,64.7" fill="#dcc07a" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="14.9,63.9 16.4,64.7 16.4,66.5 14.9,67.3 13.4,66.5 13.4,64.7" fill="url(#hwd-honey)" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="18.3,63.9 19.8,64.7 19.8,66.5 18.3,67.3 16.8,66.5 16.8,64.7" fill="#dcc07a" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="21.8,63.9 23.3,64.7 23.3,66.5 21.8,67.3 20.3,66.5 20.3,64.7" fill="url(#hwd-honey)" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="13.1,66.9 14.6,67.7 14.6,69.5 13.1,70.3 11.6,69.5 11.6,67.7" fill="url(#hwd-honey)" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="16.6,66.9 18.1,67.7 18.1,69.5 16.6,70.3 15.1,69.5 15.1,67.7" fill="#dcc07a" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    <polygon points="20.1,66.9 21.6,67.7 21.6,69.5 20.1,70.3 18.6,69.5 18.6,67.7" fill="url(#hwd-honey)" stroke="#4e260a" stroke-width="0.5" stroke-linejoin="round"/>
+    </g>
+    <path d="M16.6 50.6 L27 56.6 L27 68.6 L16.6 74.6 L6.2 68.6 L6.3 63.6 L11.2 60.4 L13.4 52.8 Z" fill="none" stroke="#a87c3e" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M5.5 69 L6.6 64 M13.2 53 L16.6 49.8 L27.7 56.2" fill="none" stroke="#e2c27e" stroke-width="0.8"/>
+    <!-- raw broken edge of the chip -->
+    <path d="M6.6 64 L10 59 L9 61.2 L11.2 60 L12 57.4 L10.4 57.8 L11.4 55.4 L13.2 53" fill="none" stroke="#e8c47a" stroke-width="0.6" transform="translate(0.8 0.6)"/>
+    <polygon points="16.6,59.2 19.5,60.9 19.5,64.3 16.6,66 13.7,64.3 13.7,60.9" fill="#a87c3e" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <circle cx="16.6" cy="62.6" r="2.2" fill="url(#hwd-resin)" stroke="#4e260a" stroke-width="0.5"/>
+    <path d="M15.400000000000002 61 L16.8 62.6 L16.200000000000003 64.4" fill="none" stroke="#2a1206" stroke-width="0.5"/>
+    <!-- a long crack across the face -->
+    <path d="M18.6 65.6 L21.6 67.2 L23 71 M21.6 67.2 L25.200000000000003 66.2" fill="none" stroke="#1e0e04" stroke-width="0.8" stroke-linejoin="round"/>
+    <g fill="#c8a868" stroke="#0d0a12" stroke-width="0.4">
+      <circle cx="16.6" cy="50.6" r="0.8"/><circle cx="26.9" cy="56.6" r="0.8"/>
+      <circle cx="26.9" cy="68.6" r="0.8"/><circle cx="16.6" cy="74.6" r="0.8"/>
+      <circle cx="6.3" cy="68.6" r="0.8"/>
+    </g>
+  </g>
+  <!-- broken-off shield fragments on the ground -->
+  <path d="M4.6 55.6 L7.4 54.4 L8 56.4 L5.6 57.2 Z" fill="#b47224" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M5 55.6 L7.2 54.7" stroke="#e8c47a" stroke-width="0.4"/>
+  <polygon points="10.6,51.3 11.7,52 11.7,53.3 10.6,53.9 9.5,53.3 9.5,52" fill="#dcc07a" stroke="#0d0a12" stroke-width="0.5" transform="rotate(20 10.6 52.6)"/>
+
+  <!-- wilted sprig, dropped -->
+  <path d="M6 77.6 Q10 76.4 15.6 78.2" fill="none" stroke="#0d0a12" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M6 77.6 Q10 76.4 15.6 78.2" fill="none" stroke="#6a7a44" stroke-width="0.6" stroke-linecap="round"/>
+  <g stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round">
+    <path d="M9 76.9 Q8.2 74.4 10.4 73.6 Q10.8 75.6 9 76.9 Z" fill="#7e9a54"/>
+    <path d="M11.8 77 Q13.6 79.6 11.6 80.6 Q10.8 78.6 11.8 77 Z" fill="#6a8446"/>
+    <path d="M13.6 77.6 Q14 75.2 16.2 75 Q16 77 13.6 77.6 Z" fill="#8c9a5a"/>
+  </g>
+  <circle cx="6" cy="77.6" r="0.8" fill="#d8d0b0" stroke="#0d0a12" stroke-width="0.35"/>
+
+  <!-- the domed back carapace, now underneath: cracked open along the rim -->
+  <path d="M17.4 74 C16.4 83 28 89.4 46 89.6 C62 89.6 74 86 76.6 79 L74 72 L20 70 Z" fill="url(#hwd-amber-dk)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M19 80.4 C24 86 34 88.4 46 88.6 C60 88.6 70 85.6 74.6 81" fill="none" stroke="#2a1c24" stroke-width="2.2"/>
+  <path d="M18.6 79 C22 84 32 87 44 87.4" fill="none" stroke="#f0c46c" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <!-- the crack, and the chip blown out of the rim -->
+  <path d="M50.2 82.8 L52.6 85.2 L51.2 86.6 L53.4 89" fill="none" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M52.6 85.2 L55.8 84.4 L57.4 85.8" fill="none" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M50.9 82.9 L53.2 85.2 M53 85.6 L55.6 85" fill="none" stroke="#f0c46c" stroke-width="0.35"/>
+  <path d="M22.4 81.2 L24 83.6 L23.2 85" fill="none" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M57.6 83.6 L59.6 83 L60.6 84.6 L58.6 86 Z" fill="#2a1408" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+
+  <!-- the remaining wing, crumpled and pinned under the body -->
+  <path d="M25.6 83.6 C20 85 13.6 86.4 9.2 88.6 L10.6 89.4 L8.6 90.6 C10.6 92 14 91.4 16.4 90.4 L17 91.6 C20.6 89.8 24.6 87.6 28.4 85.6 Z" fill="url(#hwd-wing)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M24.6 84.6 C19.6 86.4 14 88.2 10 90 M18 87 L17 89.6 M14.4 88 L13.4 90.4 M21.6 85.8 L20.6 88.6" fill="none" stroke="#7896a4" stroke-width="0.4" stroke-linecap="round"/>
+  <path d="M23 84.4 C18.6 85.6 14 87 10.6 88.6" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.6"/>
+
+  <!-- banded abdomen, belly up, stinger limp at the tip -->
+  <path d="M18.8 73.8 L14.2 75.4 L18.8 76.4 Z" fill="#3a2a33" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M40 66.4 C32 64.4 22 66 18.6 72 C17 76.2 19.6 81 26 82.6 C32 84 38 83.2 41 80.6 Z" fill="url(#hwd-amber)"/>
+  <path d="M22.4 67.8 Q20.4 75 22.6 81.8 L26.2 82.8 Q24 75 26 66.6 Z" fill="url(#hwd-band)"/>
+  <path d="M30.4 65.4 Q28.2 74.4 30.6 83.6 L34.6 83.6 Q32.4 74.4 34.4 65.2 Z" fill="url(#hwd-band)"/>
+  <path d="M40 66.4 C32 64.4 22 66 18.6 72 C17 76.2 19.6 81 26 82.6 C32 84 38 83.2 41 80.6 Z" fill="none" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- belly plates and fuzz -->
+  <path d="M27.6 67 Q26.2 74.4 28 82.6 M36.2 66 Q35 74 36.6 82.8" fill="none" stroke="#844812" stroke-width="0.6"/>
+  <path d="M20.4 71 Q22.6 67.4 27 66.4 M28 66.2 Q31 65.4 33.4 65.4" fill="none" stroke="#ffe8a8" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M23.2 68.6 Q24.6 67.8 25.4 67.6 M31.4 66.4 Q32.6 66 33.6 66" fill="none" stroke="#6e5864" stroke-width="0.5"/>
+  <path d="M28.6 70 l0.5 1.2 M29 74.4 l0.5 1.2 M28.8 78.6 l0.5 1.2 M37 70 l0.4 1.2 M37.2 75 l0.4 1.2 M20.8 75.6 l0.4 1.2" stroke="#9a5a18" stroke-width="0.4" stroke-linecap="round"/>
+
+  <!-- thorax, belly up: plated sternum -->
+  <path d="M40 66 C44 63 54 62.6 58 65.2 C60.6 68.6 60.6 77.4 58 80.8 C53 83.4 45 83.4 40.6 80.8 C38.6 76 38.4 70 40 66 Z" fill="url(#hwd-amber)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M40.2 66 Q44 64.4 45 64.2 Q43.4 73 45 82.4 Q42.4 82 40.6 80.8 C38.6 76 38.4 70 40.2 66 Z" fill="url(#hwd-band)"/>
+  <path d="M45.4 73.4 L58.8 73.2" stroke="#844812" stroke-width="0.8"/>
+  <path d="M45.6 72.6 L58.4 72.4" stroke="#ffe8a8" stroke-width="0.5" opacity="0.8"/>
+  <path d="M50.6 64 Q49.6 73 50.8 82 M55.4 64.4 Q54.6 73 55.6 81.6" fill="none" stroke="#844812" stroke-width="0.6"/>
+  <path d="M46.4 65.6 Q50 64 53.4 64.2" fill="none" stroke="#ffe8a8" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M47.4 76.6 L49.2 78.6 M52.6 75.6 L53.8 77.8" stroke="#8a4810" stroke-width="0.5"/>
+  <!-- leg sockets -->
+  <g fill="#3a2a33" stroke="#0d0a12" stroke-width="0.5">
+    <ellipse cx="34.4" cy="66.4" rx="2" ry="1.1"/><ellipse cx="40.6" cy="65.4" rx="2" ry="1.1"/>
+    <ellipse cx="46" cy="64.2" rx="1.8" ry="1"/><ellipse cx="50" cy="63.8" rx="1.8" ry="1"/>
+    <ellipse cx="53.8" cy="64.2" rx="1.8" ry="1"/><ellipse cx="57" cy="65.6" rx="1.7" ry="1"/>
+  </g>
+
+  <!-- sash still across the chest -->
+  <path d="M45 64 L48.6 63.4 L58.6 79.6 L55.6 81.6 Z" fill="url(#hwd-wax)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M46.8 64.2 L57 80.6" stroke="#b08a48" stroke-width="0.4"/>
+  <g fill="none" stroke="#b08a48" stroke-width="0.35">
+    <polygon points="49.4,67.6 50.1,68 50.1,68.8 49.4,69.3 48.7,68.8 48.7,68"/><polygon points="52,71.8 52.7,72.2 52.7,73 52,73.4 51.3,73 51.3,72.2"/><polygon points="54.6,76 55.3,76.4 55.3,77.2 54.6,77.6 53.9,77.2 53.9,76.4"/>
+  </g>
+
+  <!-- belt -->
+  <path d="M38.4 68 Q40.6 74 38.8 80.6 L41.4 81.2 Q43.4 74 41.2 67.4 Z" fill="#4e321c" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <polygon points="42.4,74.2 41.5,75.8 39.7,75.8 38.8,74.2 39.7,72.6 41.5,72.6" fill="#a87c3e" stroke="#0d0a12" stroke-width="0.6"/>
+  <polygon points="41.4,74.2 41,74.9 40.2,74.9 39.8,74.2 40.2,73.5 41,73.5" fill="#4e321c"/>
+
+  <!-- fur ruff at the neck -->
+  <path d="M57.6 64.6 Q61 64 60.6 67 Q63.4 68 62 70.6 Q64.6 72.6 62.2 74.8 Q64.4 77.4 61.6 79 Q62 81.6 58.4 81.2 Q60.4 77 59.4 73 Q60.4 69 57.6 64.6 Z" fill="url(#hwd-fur)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M59.8 67.4 l1.4 0.4 M60.4 70.6 l1.6 0.2 M60.6 74 l1.6 0 M60.4 77.4 l1.4 -0.2" stroke="#b88a40" stroke-width="0.45" stroke-linecap="round"/>
+
+  <!-- antennae, limp, trailing onto the ground -->
+  <path d="M77.6 71.6 C81.6 68.4 86.6 69.4 88.4 74 C89.2 76.4 88.6 78.6 87.6 80" fill="none" stroke="#0d0a12" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M76.6 77.6 C80 78.6 83.4 81.4 82.6 86.4" fill="none" stroke="#0d0a12" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M80.7 70 L79.8 71.5 M80.7 70 L79.1 69.2 M81.8 69.8 L80.5 71.3 M81.8 69.8 L80.2 68.6 M82.8 69.7 L81.2 71.1 M82.8 69.7 L81.4 68.3 M83.8 69.9 L82 70.9 M83.8 69.9 L82.6 68.2 M84.8 70.2 L82.9 70.9 M84.8 70.2 L83.9 68.4 M85.7 70.6 L83.9 71 M85.7 70.6 L85.2 68.9 M86.5 71.2 L85 71.3 M86.5 71.2 L86.3 69.7 M87.3 72 L86.1 71.8 M87.3 72 L87.3 70.8 M87.9 72.9 L87 72.7 M87.9 72.9 L88.1 72.1 M88.4 74 L87.6 73.6 M88.4 74 L88.7 73.2" stroke="#8a6438" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M79.1 78.7 L77.4 79 M79.1 78.7 L78.6 77.1 M79.9 79.3 L78.1 79.4 M79.9 79.3 L79.6 77.5 M80.7 80 L78.8 79.9 M80.7 80 L80.6 78.1 M81.4 80.8 L79.5 80.4 M81.4 80.8 L81.6 78.9 M81.9 81.7 L80.3 81.1 M81.9 81.7 L82.4 80 M82.4 82.7 L81 81.9 M82.4 82.7 L83 81.3 M82.6 83.8 L81.7 83 M82.6 83.8 L83.3 82.8 M82.7 85.1 L82.1 84.4 M82.7 85.1 L83.3 84.4 M82.6 86.4 L82.1 85.7 M82.6 86.4 L83.3 85.8" stroke="#7a5630" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M77.6 71.6 C81.6 68.4 86.6 69.4 88.4 74 C89.2 76.4 88.6 78.6 87.6 80" fill="none" stroke="#5a4450" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M76.6 77.6 C80 78.6 83.4 81.4 82.6 86.4" fill="none" stroke="#4a3842" stroke-width="0.8" stroke-linecap="round"/>
+
+  <!-- head, lolled onto its side: eyes gone dull -->
+  <g transform="translate(68.6 73.4) rotate(100) translate(-48 -19.5)">
+    <path d="M36.8 19 C36.8 11 41.6 7.6 48 7.6 C54.4 7.6 59.2 11 59.2 19 C59.2 25.6 55.6 30 48 31 C40.4 30 36.8 25.6 36.8 19 Z" fill="url(#hwd-amber-rot)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M38 14 C39.4 9.8 43.4 8.1 48 8.1 C52.6 8.1 56.6 9.8 58 14 Q48 11 38 14 Z" fill="url(#hwd-band)"/>
+    <path d="M44.6 15.6 Q48 14.2 51.4 15.6 L50.8 25.8 Q48 27.6 45.2 25.8 Z" fill="#e6b864" stroke="#844812" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M46 19.6 l0.6 1 M47.4 20.2 l0.3 1.1 M48.8 20.2 l-0.1 1.1 M50 19.6 l-0.4 1" stroke="#c08a3a" stroke-width="0.45" stroke-linecap="round"/>
+    <circle cx="48" cy="10" r="0.7" fill="#6a4a3a" stroke="#0d0a12" stroke-width="0.3"/>
+    <circle cx="46.4" cy="11.2" r="0.55" fill="#6a4a3a" stroke="#0d0a12" stroke-width="0.3"/>
+    <circle cx="49.6" cy="11.2" r="0.55" fill="#6a4a3a" stroke="#0d0a12" stroke-width="0.3"/>
+    <path d="M37.4 12.4 C34 15.4 33.6 23.8 37.6 27.8 C41.6 29.8 45 25.6 45.1 20.4 C45.2 14.6 41.4 10.4 37.4 12.4 Z" fill="url(#hwd-eye)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M58.6 12.4 C62 15.4 62.4 23.8 58.4 27.8 C54.4 29.8 51 25.6 50.9 20.4 C50.8 14.6 54.6 10.4 58.6 12.4 Z" fill="url(#hwd-eye)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <g fill="none" stroke="#1e0a06" stroke-width="0.25" opacity="0.5">
+      <polygon points="37.8,13.6 38.5,14.1 38.5,14.9 37.8,15.4 37,14.9 37,14.1"/><polygon points="39.4,13.6 40.2,14.1 40.2,14.9 39.4,15.4 38.6,14.9 38.6,14.1"/><polygon points="41,13.6 41.8,14.1 41.8,14.9 41,15.4 40.3,14.9 40.3,14.1"/><polygon points="36.9,15.1 37.7,15.5 37.7,16.4 36.9,16.8 36.2,16.4 36.2,15.5"/><polygon points="38.6,15.1 39.3,15.5 39.3,16.4 38.6,16.8 37.8,16.4 37.8,15.5"/><polygon points="40.2,15.1 41,15.5 41,16.4 40.2,16.8 39.5,16.4 39.5,15.5"/><polygon points="41.9,15.1 42.6,15.5 42.6,16.4 41.9,16.8 41.1,16.4 41.1,15.5"/><polygon points="36.1,16.5 36.9,16.9 36.9,17.8 36.1,18.2 35.4,17.8 35.4,16.9"/><polygon points="37.8,16.5 38.5,16.9 38.5,17.8 37.8,18.2 37,17.8 37,16.9"/><polygon points="39.4,16.5 40.2,16.9 40.2,17.8 39.4,18.2 38.6,17.8 38.6,16.9"/><polygon points="41,16.5 41.8,16.9 41.8,17.8 41,18.2 40.3,17.8 40.3,16.9"/><polygon points="42.7,16.5 43.4,16.9 43.4,17.8 42.7,18.2 41.9,17.8 41.9,16.9"/><polygon points="36.9,17.9 37.7,18.3 37.7,19.2 36.9,19.6 36.2,19.2 36.2,18.3"/><polygon points="38.6,17.9 39.3,18.3 39.3,19.2 38.6,19.6 37.8,19.2 37.8,18.3"/><polygon points="40.2,17.9 41,18.3 41,19.2 40.2,19.6 39.5,19.2 39.5,18.3"/><polygon points="41.9,17.9 42.6,18.3 42.6,19.2 41.9,19.6 41.1,19.2 41.1,18.3"/><polygon points="36.1,19.3 36.9,19.8 36.9,20.6 36.1,21.1 35.4,20.6 35.4,19.8"/><polygon points="37.8,19.3 38.5,19.8 38.5,20.6 37.8,21.1 37,20.6 37,19.8"/><polygon points="39.4,19.3 40.2,19.8 40.2,20.6 39.4,21.1 38.6,20.6 38.6,19.8"/><polygon points="41,19.3 41.8,19.8 41.8,20.6 41,21.1 40.3,20.6 40.3,19.8"/><polygon points="42.7,19.3 43.4,19.8 43.4,20.6 42.7,21.1 41.9,20.6 41.9,19.8"/><polygon points="36.9,20.8 37.7,21.2 37.7,22.1 36.9,22.5 36.2,22.1 36.2,21.2"/><polygon points="38.6,20.8 39.3,21.2 39.3,22.1 38.6,22.5 37.8,22.1 37.8,21.2"/><polygon points="40.2,20.8 41,21.2 41,22.1 40.2,22.5 39.5,22.1 39.5,21.2"/><polygon points="41.9,20.8 42.6,21.2 42.6,22.1 41.9,22.5 41.1,22.1 41.1,21.2"/><polygon points="36.1,22.2 36.9,22.6 36.9,23.5 36.1,23.9 35.4,23.5 35.4,22.6"/><polygon points="37.8,22.2 38.5,22.6 38.5,23.5 37.8,23.9 37,23.5 37,22.6"/><polygon points="39.4,22.2 40.2,22.6 40.2,23.5 39.4,23.9 38.6,23.5 38.6,22.6"/><polygon points="41,22.2 41.8,22.6 41.8,23.5 41,23.9 40.3,23.5 40.3,22.6"/><polygon points="42.7,22.2 43.4,22.6 43.4,23.5 42.7,23.9 41.9,23.5 41.9,22.6"/><polygon points="36.9,23.6 37.7,24 37.7,24.9 36.9,25.3 36.2,24.9 36.2,24"/><polygon points="38.6,23.6 39.3,24 39.3,24.9 38.6,25.3 37.8,24.9 37.8,24"/><polygon points="40.2,23.6 41,24 41,24.9 40.2,25.3 39.5,24.9 39.5,24"/><polygon points="41.9,23.6 42.6,24 42.6,24.9 41.9,25.3 41.1,24.9 41.1,24"/><polygon points="37.8,25 38.5,25.5 38.5,26.3 37.8,26.8 37,26.3 37,25.5"/><polygon points="39.4,25 40.2,25.5 40.2,26.3 39.4,26.8 38.6,26.3 38.6,25.5"/><polygon points="41,25 41.8,25.5 41.8,26.3 41,26.8 40.3,26.3 40.3,25.5"/>
+      <polygon points="55,13.6 55.7,14.1 55.7,14.9 55,15.4 54.2,14.9 54.2,14.1"/><polygon points="56.6,13.6 57.4,14.1 57.4,14.9 56.6,15.4 55.8,14.9 55.8,14.1"/><polygon points="58.2,13.6 59,14.1 59,14.9 58.2,15.4 57.5,14.9 57.5,14.1"/><polygon points="54.1,15.1 54.9,15.5 54.9,16.4 54.1,16.8 53.4,16.4 53.4,15.5"/><polygon points="55.8,15.1 56.5,15.5 56.5,16.4 55.8,16.8 55,16.4 55,15.5"/><polygon points="57.4,15.1 58.2,15.5 58.2,16.4 57.4,16.8 56.7,16.4 56.7,15.5"/><polygon points="59.1,15.1 59.8,15.5 59.8,16.4 59.1,16.8 58.3,16.4 58.3,15.5"/><polygon points="53.3,16.5 54.1,16.9 54.1,17.8 53.3,18.2 52.6,17.8 52.6,16.9"/><polygon points="55,16.5 55.7,16.9 55.7,17.8 55,18.2 54.2,17.8 54.2,16.9"/><polygon points="56.6,16.5 57.4,16.9 57.4,17.8 56.6,18.2 55.8,17.8 55.8,16.9"/><polygon points="58.2,16.5 59,16.9 59,17.8 58.2,18.2 57.5,17.8 57.5,16.9"/><polygon points="59.9,16.5 60.6,16.9 60.6,17.8 59.9,18.2 59.1,17.8 59.1,16.9"/><polygon points="54.1,17.9 54.9,18.3 54.9,19.2 54.1,19.6 53.4,19.2 53.4,18.3"/><polygon points="55.8,17.9 56.5,18.3 56.5,19.2 55.8,19.6 55,19.2 55,18.3"/><polygon points="57.4,17.9 58.2,18.3 58.2,19.2 57.4,19.6 56.7,19.2 56.7,18.3"/><polygon points="59.1,17.9 59.8,18.3 59.8,19.2 59.1,19.6 58.3,19.2 58.3,18.3"/><polygon points="53.3,19.3 54.1,19.8 54.1,20.6 53.3,21.1 52.6,20.6 52.6,19.8"/><polygon points="55,19.3 55.7,19.8 55.7,20.6 55,21.1 54.2,20.6 54.2,19.8"/><polygon points="56.6,19.3 57.4,19.8 57.4,20.6 56.6,21.1 55.8,20.6 55.8,19.8"/><polygon points="58.2,19.3 59,19.8 59,20.6 58.2,21.1 57.5,20.6 57.5,19.8"/><polygon points="59.9,19.3 60.6,19.8 60.6,20.6 59.9,21.1 59.1,20.6 59.1,19.8"/><polygon points="54.1,20.8 54.9,21.2 54.9,22.1 54.1,22.5 53.4,22.1 53.4,21.2"/><polygon points="55.8,20.8 56.5,21.2 56.5,22.1 55.8,22.5 55,22.1 55,21.2"/><polygon points="57.4,20.8 58.2,21.2 58.2,22.1 57.4,22.5 56.7,22.1 56.7,21.2"/><polygon points="59.1,20.8 59.8,21.2 59.8,22.1 59.1,22.5 58.3,22.1 58.3,21.2"/><polygon points="53.3,22.2 54.1,22.6 54.1,23.5 53.3,23.9 52.6,23.5 52.6,22.6"/><polygon points="55,22.2 55.7,22.6 55.7,23.5 55,23.9 54.2,23.5 54.2,22.6"/><polygon points="56.6,22.2 57.4,22.6 57.4,23.5 56.6,23.9 55.8,23.5 55.8,22.6"/><polygon points="58.2,22.2 59,22.6 59,23.5 58.2,23.9 57.5,23.5 57.5,22.6"/><polygon points="59.9,22.2 60.6,22.6 60.6,23.5 59.9,23.9 59.1,23.5 59.1,22.6"/><polygon points="54.1,23.6 54.9,24 54.9,24.9 54.1,25.3 53.4,24.9 53.4,24"/><polygon points="55.8,23.6 56.5,24 56.5,24.9 55.8,25.3 55,24.9 55,24"/><polygon points="57.4,23.6 58.2,24 58.2,24.9 57.4,25.3 56.7,24.9 56.7,24"/><polygon points="59.1,23.6 59.8,24 59.8,24.9 59.1,25.3 58.3,24.9 58.3,24"/><polygon points="55,25 55.7,25.5 55.7,26.3 55,26.8 54.2,26.3 54.2,25.5"/><polygon points="56.6,25 57.4,25.5 57.4,26.3 56.6,26.8 55.8,26.3 55.8,25.5"/><polygon points="58.2,25 59,25.5 59,26.3 58.2,26.8 57.5,26.3 57.5,25.5"/>
+    </g>
+    <!-- a crack across one eye -->
+    <path d="M53 14.6 L55.4 18.4 L54.2 20.6 L57 24.6" fill="none" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M53.6 14.6 L55.9 18.4" stroke="#a88470" stroke-width="0.3"/>
+    <!-- mandibles, slack and splayed -->
+    <path d="M44.4 25.6 Q40.6 27.6 41.4 31.6 Q43.4 33 44.8 31.4 Q43.8 30 44.4 28.6 Q45 27.6 46.4 27 Z" fill="url(#hwd-band)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M51.6 25.6 Q55.4 27.6 54.6 31.6 Q52.6 33 51.2 31.4 Q52.2 30 51.6 28.6 Q51 27.6 49.6 27 Z" fill="#1c1219" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M46.2 25.6 Q48 24.8 49.8 25.6 L49.2 28 Q48 28.8 46.8 28 Z" fill="#a8641c" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+    <path d="M38.8 13 Q40.2 9.8 44 8.4" fill="none" stroke="#6e5864" stroke-width="0.7" stroke-linecap="round"/>
+  </g>
+  <!-- dull sheen on the eyes, re-lit from the upper left -->
+  <ellipse cx="66.4" cy="64.8" rx="1.3" ry="0.6" fill="#c8b0a0" opacity="0.45" transform="rotate(-20 66.4 64.8)"/>
+  <ellipse cx="64.4" cy="80.8" rx="1" ry="0.5" fill="#c8b0a0" opacity="0.35" transform="rotate(-20 64.4 80.8)"/>
+  <path d="M72 63.6 Q76.6 64.6 79.2 68.4" fill="none" stroke="#f4d48a" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- the gold circlet, knocked off -->
+  <ellipse cx="84.4" cy="65.6" rx="3.2" ry="1.5" fill="none" stroke="#0d0a12" stroke-width="1.5" transform="rotate(-10 84.4 65.6)"/>
+  <ellipse cx="84.4" cy="65.6" rx="3.2" ry="1.5" fill="none" stroke="#a87c3e" stroke-width="0.7" transform="rotate(-10 84.4 65.6)"/>
+  <polygon points="81.6,65.2 82.6,65.8 82.6,67 81.6,67.6 80.6,67 80.6,65.8" fill="url(#hwd-resin)" stroke="#0d0a12" stroke-width="0.45"/>
+
+  <!-- legs and arms curled up to the sky -->
+  <path d="M34.4 66.4 L28.6 58.2 L33.6 52.4" fill="none" stroke="#0d0a12" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M34.4 66.4 L28.6 58.2 L33.6 52.4" fill="none" stroke="#d4923a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M34.4 66.4 L28.6 58.2 L33.6 52.4" fill="none" stroke="#844812" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.7 0.7)"/>
+  <path d="M34.4 66.4 L28.6 58.2 L33.6 52.4" fill="none" stroke="#f4d48a" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" transform="translate(-0.7 -0.7)" opacity="0.85"/>
+  <circle cx="28.6" cy="58.2" r="1.4" fill="#3a2a33" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M29.6 61.6 L28.2 59.8 L30.4 59 Z" fill="#3a2a33"/>
+  <path d="M32.4 51.2 Q36 49.6 38.6 51.8 Q38.8 53.6 37.4 54.4 Q35.2 53.6 33.6 54 Z" fill="url(#hwd-band)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M37.4 54.4 Q37.4 56.2 35.8 56.6 Q36.4 55.4 35.8 54.2 Z M38.6 51.8 Q40.2 52.8 39.8 54.6 Q39.2 53.6 38.2 53.4 Z" fill="#e0b060" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+
+  <path d="M40.6 65.4 L39.6 55.4 L44.8 51.2" fill="none" stroke="#0d0a12" stroke-width="5.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.6 65.4 L39.6 55.4 L44.8 51.2" fill="none" stroke="#c47e2a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40.6 65.4 L39.6 55.4 L44.8 51.2" fill="none" stroke="#844812" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.7 0.7)"/>
+  <path d="M40.6 65.4 L39.6 55.4 L44.8 51.2" fill="none" stroke="#f4d48a" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" transform="translate(-0.7 -0.7)" opacity="0.85"/>
+  <circle cx="39.6" cy="55.4" r="1.4" fill="#3a2a33" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M43.8 50 Q47.6 48.8 49.8 51.4 Q49.8 53.2 48.4 53.8 Q46.4 52.8 44.8 53 Z" fill="url(#hwd-band)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M48.4 53.8 Q48.4 55.6 46.8 55.8 Q47.4 54.6 46.8 53.6 Z M49.8 51.4 Q51.4 52.4 51 54.2 Q50.4 53.2 49.4 53 Z" fill="#e0b060" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+
+  <path d="M46 64.2 L48.4 56.8 L52.6 56.6" fill="none" stroke="#0d0a12" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 64.2 L48.4 56.8 L52.6 56.6" fill="none" stroke="#d4923a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M46 64.2 L48.4 56.8 L52.6 56.6" fill="none" stroke="#844812" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.6 0.6)"/>
+  <path d="M46 64.2 L48.4 56.8 L52.6 56.6" fill="none" stroke="#f4d48a" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round" transform="translate(-0.5 -0.5)" opacity="0.85"/>
+  <circle cx="48.4" cy="56.8" r="1.1" fill="#3a2a33" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M50 63.8 L54.8 58.6 L55.6 61.8" fill="none" stroke="#0d0a12" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50 63.8 L54.8 58.6 L55.6 61.8" fill="none" stroke="#b8722a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M50 63.8 L54.8 58.6 L55.6 61.8" fill="none" stroke="#844812" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.5 0.5)"/>
+  <circle cx="54.8" cy="58.6" r="1" fill="#3a2a33" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M53.8 64.2 L59 57.6 L62.4 59.6" fill="none" stroke="#0d0a12" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M53.8 64.2 L59 57.6 L62.4 59.6" fill="none" stroke="#d4923a" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M53.8 64.2 L59 57.6 L62.4 59.6" fill="none" stroke="#844812" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" transform="translate(0.6 0.6)"/>
+  <path d="M53.8 64.2 L59 57.6 L62.4 59.6" fill="none" stroke="#f4d48a" stroke-width="0.7" stroke-linecap="round" stroke-linejoin="round" transform="translate(-0.6 -0.6)" opacity="0.85"/>
+  <circle cx="59" cy="57.6" r="1.2" fill="#3a2a33" stroke="#0d0a12" stroke-width="0.6"/>
+  <!-- curled claw-hands -->
+  <g stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round">
+    <path d="M52 55.2 Q54.6 54.4 55.4 56.6 Q54.6 58.4 52.6 58 Q53.8 57 52 55.2 Z" fill="#d4923a"/>
+    <path d="M54.4 61.4 Q56.6 61 57 63 Q55.6 64 54.4 63.4 Z" fill="#b8722a"/>
+    <path d="M61.8 58.4 Q64.4 58.2 64.6 60.6 Q63.4 62 61.8 61 Q62.8 60 61.8 58.4 Z" fill="#d4923a"/>
+  </g>
+  <path d="M52.6 55.6 Q53.8 55.2 54.6 55.8 M62.4 58.8 Q63.4 58.6 64 59.4" fill="none" stroke="#ffe8a8" stroke-width="0.4"/>
+
+  <!-- tabard slumped off the belt, draped over the side and pooled on the ground -->
+  <path d="M37.8 71 L42.6 71.2 Q43.4 77 46.2 81.6 Q48.6 84.6 47.6 87.6 Q45.4 89.4 43 88 Q41.4 90.4 38.6 89.2 Q36 90.6 33.6 88.6 Q30.6 88.4 31 86 Q33.6 82.6 35.2 78.6 Q36.6 75 37.8 71 Z" fill="url(#hwd-wax)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M38.4 72.4 Q36.6 79 32.2 86.2 M42.2 72.6 Q43.6 79 46.8 84.4" fill="none" stroke="#a87c3e" stroke-width="0.7"/>
+  <path d="M33.4 87.6 Q36 89.4 38.6 88.2 Q41.2 89.4 43 87.2 Q45.4 88.4 47 86.8" fill="none" stroke="#a87c3e" stroke-width="0.6"/>
+  <path d="M40.4 76.6 Q40.2 82 38.4 87.6 M43.6 80 Q44.2 84 43 87" fill="none" stroke="#8e6a32" stroke-width="0.5"/>
+  <path d="M36.4 80 Q37.4 84 36.4 88" fill="none" stroke="#8e6a32" stroke-width="0.4"/>
+  <polygon points="41.2,78.2 43.1,79.8 42.6,82.1 40.4,83 38.5,81.4 39,79.1" fill="#6a360e" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M40.8 78.8 Q42.4 80.8 42 81.6 Q41.6 82.6 40.8 82.6 Q40 82.6 39.6 81.6 Q39.2 80.8 40.8 78.8 Z" fill="url(#hwd-honey)" stroke="#2a1206" stroke-width="0.3"/>
+  <polygon points="38.4,73.6 39.3,74.1 39.3,75.1 38.4,75.6 37.5,75.1 37.5,74.1" fill="none" stroke="#b08a48" stroke-width="0.35"/>
+  <polygon points="44.4,84.3 45.4,84.9 45.4,86 44.4,86.5 43.4,86 43.4,84.9" fill="none" stroke="#b08a48" stroke-width="0.35"/>
+  <polygon points="35,84.3 36,84.9 36,86 35,86.5 34,86 34,84.9" fill="none" stroke="#b08a48" stroke-width="0.35"/>
+  <path d="M38.2 72.4 Q37.6 75.4 36.6 77.6" fill="none" stroke="#fff6d6" stroke-width="0.5"/>
+
+  <!-- spreading pool of honey from the smashed lantern -->
+  <path d="M60.4 87.4 C62 83.8 69.6 83 76.6 83.4 C84 83.8 90.4 85.4 89.8 88.6 C89.2 91.8 82 93 74 92.8 C67 92.8 60.8 91.6 60.4 87.4 Z" fill="url(#hwd-pool)" stroke="#4a2408" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M84.6 92 Q86.6 93.6 88.6 93 Q89.6 92 88.6 91.4 Z M61.2 90.6 Q59 92.6 60.4 93.4 Q62.4 93.2 63.2 91.6 Z" fill="url(#hwd-pool)" stroke="#4a2408" stroke-width="0.6"/>
+  <path d="M65 85.6 Q72 84 80 84.6" fill="none" stroke="#ffe6a0" stroke-width="0.9" stroke-linecap="round" opacity="0.8"/>
+  <path d="M82.6 86.4 Q85.6 86.6 87.4 87.6" fill="none" stroke="#ffe6a0" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <path d="M64 91 Q72 92.4 82 91.6" fill="none" stroke="#6a3008" stroke-width="0.6" opacity="0.7"/>
+  <g fill="#d68a28" stroke="#4a2408" stroke-width="0.35">
+    <ellipse cx="91" cy="84.4" rx="0.9" ry="0.5"/><ellipse cx="57.8" cy="86.6" rx="0.7" ry="0.4"/><ellipse cx="80.4" cy="94.2" rx="0.8" ry="0.45"/>
+  </g>
+
+  <!-- the staff, snapped in two -->
+  <g stroke="#0d0a12" stroke-linejoin="round">
+    <path d="M21.2 91.4 L44.6 89.2 L45.6 90.2 L44.8 90.6 L45.8 91.4 L44.6 91.8 L21.6 93.8 Z" fill="url(#hwd-wood)" stroke-width="0.9"/>
+    <path d="M48.2 90 L49.4 89.2 L49 90.2 L50.2 89.8 L62.4 87.8 L62.8 90.2 L50 92 L48.6 91.6 L49.2 91 Z" fill="url(#hwd-wood)" stroke-width="0.9"/>
+  </g>
+  <path d="M22 91.8 L44 89.8 M50.6 90.4 L62 88.6" stroke="#c49060" stroke-width="0.5"/>
+  <path d="M28 92.8 L36 92.1" stroke="#2a160a" stroke-width="0.4"/>
+  <!-- banded wrap and ferrule -->
+  <g stroke="#0d0a12" stroke-width="0.45">
+    <path d="M31 90.6 L33 90.4 L33.2 92.8 L31.2 93 Z" fill="#d4923a"/>
+    <path d="M33 90.4 L35 90.2 L35.2 92.6 L33.2 92.8 Z" fill="#3a2a33"/>
+    <path d="M35 90.2 L37 90 L37.2 92.4 L35.2 92.6 Z" fill="#d4923a"/>
+    <path d="M18.6 91.6 L21.6 91.2 L22 94 L19 94.4 Q17.8 93 18.6 91.6 Z" fill="#a87c3e"/>
+  </g>
+  <!-- splinters at the break -->
+  <path d="M45.6 90.2 L47.4 89.4 M45.8 91.4 L47.6 91.6 M48.2 90 L46.8 89.6" stroke="#b88450" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M46.8 93.4 l1.6 -0.2 M52.6 93.6 l1.2 0.4" stroke="#8a5a30" stroke-width="0.5" stroke-linecap="round"/>
+  <!-- the wax-cloth ribbon, still tied -->
+  <path d="M56.6 88.6 Q56 92 53.6 93.6 L55.4 93.4 L55 94.2 Q57.6 93 58.2 89.6 Z" fill="url(#hwd-wax)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <rect x="56.4" y="88" width="2" height="2.4" rx="0.5" fill="#a87c3e" stroke="#0d0a12" stroke-width="0.45" transform="rotate(-9 57.4 89.2)"/>
+
+  <!-- the smashed lantern: gold cup, a bent cage, resin shattered, no light left -->
+  <path d="M62 87.2 L65.6 86.6 L66 90.6 L62.6 91 Z" fill="#a87c3e" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M62.6 87.6 L65.2 87.2" stroke="#e2c27e" stroke-width="0.4"/>
+  <path d="M66 86 L70.4 83.6 L75.6 85 L76.6 88.4 L71.4 91.2 L66.4 89.8 Z" fill="none" stroke="#0d0a12" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M66 86 L70.4 83.6 L75.6 85 L76.6 88.4 L71.4 91.2 L66.4 89.8 Z" fill="none" stroke="#a87c3e" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M70.4 83.6 Q72 87 71.4 91.2 M66.4 87.6 Q71 86.2 76 86.6" fill="none" stroke="#a87c3e" stroke-width="0.45"/>
+  <path d="M75.6 85 Q78 82.6 77.6 80.4" fill="none" stroke="#0d0a12" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M75.6 85 Q78 82.6 77.6 80.4" fill="none" stroke="#a87c3e" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M66.8 86.2 L70.2 84.4" stroke="#e2c27e" stroke-width="0.4"/>
+  <!-- resin shards, cold and dull -->
+  <g stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round">
+    <path d="M68 86.4 L71.4 85.4 L72.6 88.2 L69.4 89.4 Z" fill="url(#hwd-resin)"/>
+    <path d="M73 86.2 L75.2 86.6 L74.4 89 Z" fill="url(#hwd-resin)"/>
+    <path d="M78.8 89.4 L81.2 88.4 L81.6 90.4 L79.4 90.8 Z" fill="url(#hwd-resin)"/>
+    <path d="M61.4 83.8 L63.4 83 L63.6 84.8 Z" fill="url(#hwd-resin)"/>
+    <path d="M84.8 87.4 L86.2 86.6 L86.8 88 Z" fill="url(#hwd-resin)"/>
+  </g>
+  <path d="M68.6 86.6 L70.6 86" stroke="#ffe8a8" stroke-width="0.4"/>
+  <path d="M79.2 89.4 L80.6 88.8" stroke="#ffe8a8" stroke-width="0.35"/>
+  <!-- the bee that was sealed in the resin, freed at last -->
+  <ellipse cx="70.4" cy="87.6" rx="0.9" ry="0.55" fill="#5a3010" transform="rotate(-20 70.4 87.6)"/>
+  <!-- wax cap, tipped over -->
+  <path d="M78.4 83.4 Q80.8 80 84.4 81.4 Q86.4 83 85.4 85.6 Q81.4 85.8 78.4 83.4 Z" fill="url(#hwd-wax)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M79.6 82.6 Q81 81.2 83 81.4" fill="none" stroke="#fff6d6" stroke-width="0.45"/>
+  <circle cx="86.8" cy="81.4" r="1.2" fill="none" stroke="#0d0a12" stroke-width="1.2"/>
+  <circle cx="86.8" cy="81.4" r="1.2" fill="none" stroke="#a87c3e" stroke-width="0.55"/>
+
+  <!-- a chip of carapace and pebbles -->
+  <path d="M28.4 93.4 Q30.4 91.8 32.6 93 L31.8 94.6 L29.2 94.8 Z" fill="url(#hwd-amber-dk)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M29 93.4 Q30.4 92.4 31.8 92.8" fill="none" stroke="#f0c46c" stroke-width="0.35"/>
+  <g fill="#3a3346" stroke="#0d0a12" stroke-width="0.4">
+    <ellipse cx="11" cy="93.6" rx="1.3" ry="0.8"/><ellipse cx="90.6" cy="63.6" rx="1.2" ry="0.7"/><ellipse cx="4.4" cy="70" rx="1" ry="0.6"/>
+  </g>
+</svg>
