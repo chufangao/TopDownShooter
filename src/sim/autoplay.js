@@ -1,11 +1,10 @@
+// A heuristic player for tests and balance runs: a policy that picks one action at a time for apply().
+// Run directly for a balance report:  node src/sim/autoplay.js [--runs 200] [--seed sim]
 import { createRng } from './rng.js'
 import { canIssue, unleashPick } from './battle.js'
 import { livingOn } from './unit.js'
 import { createRun, apply, availableNodes } from './run.js'
 import { TUNING } from '../tuning.js'
-
-// A heuristic player for tests and balance runs: a policy that picks one action at a time for apply().
-// Run directly for a balance report:  node src/sim/autoplay.js [--runs 200] [--seed sim]
 
 const hpPct = (u) => u.hp / u.maxHp
 const partyHealth = (party) => party.reduce((n, u) => n + hpPct(u), 0) / party.length

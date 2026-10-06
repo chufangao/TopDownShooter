@@ -1,10 +1,9 @@
+// Composition root: the Phaser engine (battles only), the DOM screens, and the run that links them.
+// Every player input becomes one apply(run, action); the screens only read run.state.
 import { createEngine } from './engine.js'
 import { createRun, apply, currentNode } from './sim/run.js'
 import { unitDef } from './content.js'
 import { titleScreen, mapScreen, NODE, spoilsScreen, swapScreen, endScreen, battleBar } from './ui.js'
-
-// Composition root: the Phaser engine (battles only), the DOM screens, and the run that links them.
-// Every player input becomes one apply(run, action); the screens only read run.state.
 
 const ui = document.getElementById('ui')
 const engine = createEngine('game')

@@ -1,10 +1,9 @@
+// Everything inside a fight: the tick loop, effects and statuses, the player's Commands, unit AI and
+// the combat formulas. Real-time in 50 ms ticks; pure: all randomness comes from battle.rng.
 import { TUNING } from '../tuning.js'
 import { unitDef, statusDef, elementDef, abilityDef } from '../content.js'
 import { createRng, hashString } from './rng.js'
 import { alive, livingOn, SLOTS, rowMods, statsOf, activeSynergies, rowOf, COLS, ROWS, reachable, expand, enemySide, isAllyShape } from './unit.js'
-
-// Everything inside a fight: the tick loop, effects and statuses, the player's Commands, unit AI and
-// the combat formulas. Real-time in 50 ms ticks; pure: all randomness comes from battle.rng.
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
 

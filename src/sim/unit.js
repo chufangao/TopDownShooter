@@ -1,8 +1,7 @@
-import { TUNING } from '../tuning.js'
-import { unitDef, SYNERGIES, ROLES } from '../content.js'
-
 // A unit outside the battle loop: base stats and growth, stat modifiers, synergies, and the 3×4
 // formation grid it stands on.
+import { TUNING } from '../tuning.js'
+import { unitDef, SYNERGIES, ROLES } from '../content.js'
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,5 @@
-import { createRng } from './rng.js'
-
 // A floor is a small DAG of ranks: start → 5 ranks of 2–3 rooms → elite (or the boss on the last floor).
+import { createRng } from './rng.js'
 
 export const RANKS = 7
 

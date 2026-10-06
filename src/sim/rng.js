@@ -1,5 +1,3 @@
-
-
 // Seeded RNG (sfc32 over a cyrb128 hash). The only randomness the sim may use.
 
 function hashSeed (str) {

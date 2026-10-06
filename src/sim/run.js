@@ -1,10 +1,3 @@
-import { TUNING } from '../tuning.js'
-import { UNIT_LIST, relicDef, unitDef, RELIC_LIST } from '../content.js'
-import { createRng } from './rng.js'
-import { makeUnit, autoPlace, slotAt, SLOTS, baseStats } from './unit.js'
-import { createBattle, stepBattle, VERBS, canIssue, issueCommand } from './battle.js'
-import { generateFloor, nodeOf } from './map.js'
-
 // The run: a state machine over map → battle → spoils (→ swap) → map, floor by floor.
 // apply(run, action) is the only way to change it, legalActions(run) lists what apply accepts now,
 // and the log of applied actions replays the run exactly: replay(seed, log).
@@ -17,6 +10,12 @@ import { generateFloor, nodeOf } from './map.js'
 //   spoils   { type: 'spoil', index }           take offer `index`, or null to skip
 //   swap     { type: 'release', uid }           release a unit for the waiting recruit, or null to turn it away
 //   over     none
+import { TUNING } from '../tuning.js'
+import { UNIT_LIST, relicDef, unitDef, RELIC_LIST } from '../content.js'
+import { createRng } from './rng.js'
+import { makeUnit, autoPlace, slotAt, SLOTS, baseStats } from './unit.js'
+import { createBattle, stepBattle, VERBS, canIssue, issueCommand } from './battle.js'
+import { generateFloor, nodeOf } from './map.js'
 
 export const START_PARTY = ['tomb_knight', 'bone_chanter', 'frost_sprite']
 const BATTLE_NODES = ['fight', 'elite', 'boss']

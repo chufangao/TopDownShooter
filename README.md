@@ -86,6 +86,25 @@ Clearing a floor's final room takes you to the next floor with your party, relic
 intact. Foes get stronger each floor. The run ends when your whole party falls (defeat) or when you
 kill the boss on floor 4 (victory). Nothing carries over between runs.
 
+### How progression works
+
+The party gets stronger in four ways, and the foes keep up in two. The code is the progression
+section of `src/sim/run.js`; every number below lives in `src/tuning.js`.
+
+| Party | How |
+|---|---|
+| XP | After a win, every surviving unit gets the *full* XP of all foes killed or recruited (it is not split). A foe is worth `2.5 × tier × (1 + 0.35 × (level − 1))`; the next level costs `28 × level^1.45` (76 XP at level 2). Level cap 10. Fallen units get nothing. |
+| Drill | A spoil: every unit gains a level at once. |
+| Recruits | Parley and the Recruit spoil add units at the party's median level, up to 12. Synergies come from the mix. |
+| Relics | 11 run-long bonuses; one you already own is never offered. Elite spoils always include one, and treasure rooms offer three. |
+
+| Foes | How |
+|---|---|
+| Level | `1 + 2 × (floor − 1)`: 1, 3, 5, 7. Elites are the same level but a tier higher, and bring 4 foes instead of 3. |
+| Multipliers | Ordinary foes get ×1.2 / 3.6 / 5 / 6.2 HP and ×0.75 / 1.1 / 1.25 / 1.4 ATK on floors 1–4, because fights stay at 3–4 foes while the party grows. The boss has its own fixed stats. |
+
+`npm run sim` prints how this plays out per floor: party level, units fielded, foes, and relics.
+
 ## Run it
 
 Everything works offline: no install, no build step, no network. Node 22+ is the only requirement.
@@ -119,8 +138,8 @@ src/
   ui.js             DOM: title, map, spoils, swap and end screens, battle command bar, shared parts
   style.css
   assets/           baked sprite atlas and animations
-  vendor/phaser.js  Phaser 4.2.1 ESM build (MIT), vendored so the game runs offline
-test/               one file per sim module, plus content checks and a fuzz test over legalActions
+  vendor/phaser.js  Phaser 4.2.1 ESM build (MIT), vendored so the game runs offline; replace the file to upgrade
+test/               run (incl. the fuzz test), battle (incl. Commands), map, content, basics (formulas, rng, grid)
 ```
 
 ## The rules of the sim
@@ -144,6 +163,35 @@ Every applied action goes into `run.state.log` (consecutive advances merge into 
 game the same way, which is what lets `test/run.test.js` fuzz whole runs with random legal actions,
 check invariants after every step, and assert that each one replays exactly.
 
+## Testing and debugging
+
+`npm test` runs 38 tests in about 4 seconds, all in Node:
+
+- **run.test.js**: what `legalActions` offers in each phase, that illegal actions are refused
+  without touching the log, campfires, treasure, spoils, the swap screen and replay. The fuzz test
+  plays 40 runs half by autoplay and half by random legal actions, checks invariants after every
+  action, applies a sample of every listed legal action to a replayed copy, and asserts each run
+  replays exactly.
+- **battle.test.js**: determinism (same seed gives the same timeline hash), phases, and each Command.
+- **map.test.js**, **content.test.js**, **basics.test.js**: floor rules over 500 seeds, that every
+  content reference and sprite frame resolves, and the formulas, RNG and formation grid.
+
+To turn a bug you hit in the browser into a test, copy the run from the console and replay it:
+
+```js
+// browser console
+copy(JSON.stringify({ seed: retinue.run.state.seed, log: retinue.run.state.log }))
+```
+
+```js
+// test/run.test.js
+const { seed, log } = /* paste */
+const run = replay(seed, log)   // the exact state you saw, battle included
+```
+
+`replay` throws on the first action that is no longer legal, so it also tells you quickly whether a
+content or tuning change has broken an old run.
+
 ## Adding a unit
 
 Add one entry to `UNIT_LIST` in `src/content.js` (stats, kin, role, element, abilities, spawn weight)
@@ -156,4 +204,4 @@ that number too.
 ## License
 
 GPL-3.0-or-later, inherited from the 2019 PyGame prototype. The prototype lives in git history at
-commit `377c703`.
+commit `377c703`. `src/vendor/phaser.js` is Phaser 4.2.1 under the MIT License.

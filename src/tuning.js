@@ -1,6 +1,5 @@
-
-
 // Every balance constant in one place.
+
 export const TUNING = {
   tick: { ms: 50, ceiling: 2400 },
   hit: { min: 0.1, max: 0.95 },

@@ -1,5 +1,3 @@
-
-
 // All game content: units, abilities, statuses, elements, kin and roles, synergies, relics and attack
 // animations, plus id lookups. Data only; balance numbers live in tuning.js.
 
