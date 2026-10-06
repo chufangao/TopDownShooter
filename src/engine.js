@@ -1,15 +1,13 @@
-// Phaser, used for battles only: the one Phaser Game, the scene that loads the baked atlas, the battle
-// scene, and the timeline player that turns sim events into tweens and FX. It never decides anything;
-// it plays back what the sim emitted and sends player input through act(action).
+// Phaser, used for battles only: the one Phaser Game, the scene that loads the unit and prop pictures and
+// makes the FX textures, the battle scene, and the timeline player that turns sim events into tweens and
+// FX. It never decides anything: it steps a battle that takes no input and plays back what the sim emitted.
 import Phaser from './vendor/phaser.js'
-import atlasData from './assets/atlas-0.json' with { type: 'json' }
-import anims from './assets/anims.json' with { type: 'json' }
 import { TUNING } from './tuning.js'
-import { unitDef, statusDef, animDef, ELEMENTS } from './content.js'
-import { canIssue, viable } from './sim/battle.js'
-import { rowOf, colOf, SLOTS } from './sim/unit.js'
+import { UNIT_LIST, unitDef, statusDef, animDef, artUrl, ART_POSES, ELEMENTS, BONDS } from './content.js'
+import { stepBattle, nextCost } from './sim/battle.js'
+import { tileX, tileY, LANES, DEPTH, TILES, ROWS, CAMP_ROWS } from './sim/unit.js'
 
-// ── engine and atlas loading ─────────────────────────────────────────────────────────────────────
+// ── engine and picture loading ───────────────────────────────────────────────────────────────────
 
 export function createEngine (parent) {
   let ready
@@ -17,16 +15,15 @@ export function createEngine (parent) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    backgroundColor: '#0b0a0e',
-    pixelArt: true,
-    roundPixels: true,
+    backgroundColor: '#08070d',
     scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
     callbacks: { preBoot: (g) => g.registry.set('ready', ready) },
     scene: [BootScene, BattleScene]
   })
   return {
     game,
-    // data: { battle, act(action) → events, title, barHeight(), onChange(state), onDone() }. Resolves with the scene once built.
+    // data: { battle (fresh, from createBattle), title, barHeight(), onChange(state), onHover(unit | null, rect),
+    // onDone() }. Resolves with the scene once built.
     async battle (data) {
       await loaded
       return new Promise((resolve) => game.scene.start('Battle', { ...data, onReady: resolve }))
@@ -34,45 +31,91 @@ export function createEngine (parent) {
   }
 }
 
-const atlasPng = new URL('./assets/atlas-0.png', import.meta.url).href
+// The pictures are SVG, rasterised once at RES× their size so they stay sharp when the camera zooms in.
+// A unit's are `unit:<art>:alive`, `:attack` and `:dead`; its feet stand at FEET of its height.
+const RES = 3
+const FEET = 11 / 12
+const prop = (name) => new URL(`./assets/props/${name}.svg`, import.meta.url).href
+const WALLS = ['wall-0', 'wall-1', 'wall-2']
+const WALL_FOOT = 80 / 96 // a wall picture's ground line
 
-const TEXTURE = 'units'
+// Colours of the two sides and the soulfire that runs through the game.
+const PARTY = 0x5ef0c0
+const FOE = 0xe0566a
+const SOUL = 0x8ff7d6
+const GOLD = 0xe8b04b
 
 class BootScene extends Phaser.Scene {
   constructor () { super('Boot') }
 
   preload () {
-    this.load.atlas(TEXTURE, atlasPng, atlasData)
+    for (const u of UNIT_LIST) {
+      for (const pose of ART_POSES) this.load.svg(`unit:${u.art}:${pose}`, artUrl(u.id, pose), { scale: RES })
+    }
+    for (const w of WALLS) this.load.svg(w, prop(w), { scale: RES })
+    this.load.svg('floor', prop('floor'), { scale: 2 })
     this.load.on('loaderror', (file) => console.error('failed to load', file.key, file.src))
   }
 
   create () {
-    for (const a of anims) {
-      if (this.anims.exists(a.key)) continue
-      this.anims.create({
-        key: a.key,
-        frames: a.frames.map((frame) => ({ key: TEXTURE, frame })),
-        frameRate: a.frameRate,
-        repeat: a.repeat
-      })
-    }
+    makeTextures(this)
     this.registry.get('ready')?.()
   }
 }
 
+// Soft FX textures drawn once on canvases: a radial glow, a small spark, and the vignette over the floor.
+function makeTextures (scene) {
+  const canvas = (key, w, hgt, draw) => {
+    if (scene.textures.exists(key)) return
+    const t = scene.textures.createCanvas(key, w, hgt)
+    draw(t.getContext(), w, hgt)
+    t.refresh()
+    t.setFilter(Phaser.Textures.FilterMode.LINEAR)
+  }
+  const radial = (ctx, w, stops) => {
+    const g = ctx.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2)
+    for (const [at, c] of stops) g.addColorStop(at, c)
+    ctx.fillStyle = g
+    ctx.fillRect(0, 0, w, w)
+  }
+  canvas('glow', 64, 64, (ctx, w) => radial(ctx, w, [[0, 'rgba(255,255,255,1)'], [0.35, 'rgba(255,255,255,.45)'], [1, 'rgba(255,255,255,0)']]))
+  canvas('spark', 16, 16, (ctx, w) => radial(ctx, w, [[0, 'rgba(255,255,255,1)'], [0.5, 'rgba(255,255,255,.7)'], [1, 'rgba(255,255,255,0)']]))
+  // A crescent for blade swings: the gap between two offset circles, brightest at its belly.
+  canvas('slash', 128, 128, (ctx, w) => {
+    const g = ctx.createLinearGradient(0, 0, w, 0)
+    g.addColorStop(0, 'rgba(255,255,255,0)')
+    g.addColorStop(0.75, 'rgba(255,255,255,.9)')
+    g.addColorStop(1, 'rgba(255,255,255,1)')
+    ctx.fillStyle = g
+    ctx.beginPath(); ctx.arc(w / 2, w / 2, w * 0.46, 0, Math.PI * 2); ctx.fill()
+    ctx.globalCompositeOperation = 'destination-out'
+    ctx.beginPath(); ctx.arc(w / 2 - w * 0.1, w / 2, w * 0.44, 0, Math.PI * 2); ctx.fill()
+  })
+  canvas('vignette', 512, 512, (ctx, w) => radial(ctx, w, [[0, 'rgba(6,5,10,0)'], [0.55, 'rgba(6,5,10,.25)'], [1, 'rgba(6,5,10,.96)']]))
+}
+
 // ── battle scene ─────────────────────────────────────────────────────────────────────────────────
 
-// The battle screen: two facing 3×4 formations. It advances the sim on the same clock that plays the
-// events back, and issues Commands between ticks; both go through act(action), i.e. the run's apply().
+// The battle screen: the shared board, the party's walled camp at the bottom and the foes at the top.
+// It steps the battle on the same clock that plays the events back. Pause, speed and skip change only the
+// playback; the outcome was fixed when it began.
 
-const GAP = 64        // centre line → each side's front row
-const DEPTH = 74      // between rows
-const SPREAD = 104    // between columns
-const SCALE = 1.6
+const ROW_PX = 64     // between board rows
+const SPREAD = 84     // between lanes
+const EDGE = (DEPTH - 1) / 2 * ROW_PX // board centre → the top and bottom rows
+const rowY = (y) => ((DEPTH - 1) / 2 - y) * ROW_PX
+const WALK_MS = 300
+const SCALE = 0.95      // world px per unit of a picture's viewBox
+const WALL_SCALE = 1
+const BREATH = 0.014    // idle breathing: the share of its height a unit swells by
+const REST = { lean: 0, sx: 0, sy: 0, dx: 0, dy: 0 } // a unit's pose at rest: see animate
 const BAR = 46
-const BAR_PX = 72     // fallback height of the DOM command bar under the canvas
-const FONT = 'ui-monospace, SFMono-Regular, Menlo, monospace'
-const VERB_NAME = { focus: 'Focus', parley: 'Parley', brace: 'Brace', unleash: 'Unleash' }
+const BAR_DROP = 14     // from the feet down to the HP bar, clear of the pictures' ground details
+const BAR_PX = 56     // fallback height of the DOM playback bar under the canvas
+const STAR_SCALE = 0.15 // extra sprite scale per star above 1
+const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
+const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif'
+const STAR_TINT = [0, 0, 0xa98bff, GOLD]
 
 class BattleScene extends Phaser.Scene {
   constructor () { super('Battle') }
@@ -83,19 +126,22 @@ class BattleScene extends Phaser.Scene {
     this.speed = 1
     this.paused = false
     this.playMs = this.battle.t * TUNING.tick.ms
-    this.targeting = null
     this.ending = false
-    this.message = ''
     this.hover = null
   }
 
   create () {
     this.actors = new Map()
     this.units = new Map(this.battle.units.map((u) => [u.uid, u]))
+    this.emitters = new Map()
     const start = this.battle.events.find((e) => e.type === 'battle:start')
-    for (const u of start.units) this.addActor(u)
     this.decorate(start)
-    this.focusMark = this.add.ellipse(0, 0, 50, 16).setStrokeStyle(2, 0xe06c6c, 0.9).setVisible(false).setDepth(-300)
+    for (const u of start.units) this.addActor(u)
+    // Kicked up where the dead hit the ground: low, sideways, settling.
+    this.dust = this.add.particles(0, 0, 'glow', {
+      emitting: false, lifespan: 650, speedX: { min: -120, max: 120 }, speedY: { min: -40, max: -5 }, gravityY: 70,
+      scale: { start: 0.32, end: 0.08 }, alpha: { start: 0.45, end: 0 }, tint: [0x6e6680, 0x8a8094, 0x544c64]
+    }).setDepth(9100)
 
     this.player = new TimelinePlayer(this, {
       template: (id) => animDef(id),
@@ -107,18 +153,14 @@ class BattleScene extends Phaser.Scene {
     this.player.enqueue(this.battle.events.slice(this.battle.events.indexOf(start) + 1))
     this.player.setSpeed(this.speed)
 
-    // A lunging attacker can overlap its target, so a click picks from every sprite under the pointer.
-    this.input.topOnly = false
-    this.input.on('pointerdown', (p, over) => this.pick(over.map((o) => o.getData('uid'))))
     this.fit()
     this.scale.on('resize', this.fit, this)
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.fit, this)
       this.tweens.timeScale = 1
-      this.anims.globalTimeScale = 1
-      this.anims.resumeAll()
+      this.args.onHover?.(null)
     })
-    this.cameras.main.fadeIn(180, 6, 5, 10)
+    this.cameras.main.fadeIn(260, 6, 5, 10)
     this.lastSecond = -1
     this.changed()
     this.args.onReady?.(this)
@@ -128,7 +170,7 @@ class BattleScene extends Phaser.Scene {
     const { width, height } = this.scale
     const cam = this.cameras.main
     const bar = this.args.barHeight?.() || BAR_PX
-    const zoom = Math.max(0.4, Math.min(1.5, (height - bar) / 640, width / 540))
+    const zoom = Math.max(0.4, Math.min(1.5, (height - bar) / (2 * EDGE + 220), width / (LANES * SPREAD + 100)))
     cam.setZoom(zoom)
     cam.centerOn(0, bar / 2 / zoom)
   }
@@ -138,25 +180,44 @@ class BattleScene extends Phaser.Scene {
     if (!this.paused) {
       this.playMs += Math.min(delta, 250) * this.speed
       const want = Math.floor(this.playMs / TUNING.tick.ms)
-      if (!b.over && b.t < want) this.player.enqueue(this.args.act({ type: 'advance', ticks: want - b.t }))
+      const events = []
+      while (!b.over && b.t < want) events.push(...stepBattle(b))
+      if (events.length) this.player.enqueue(events)
     }
     this.player.update(this.playMs)
     if (b.over && this.player.finished && !this.ending) this.finish()
 
     for (const a of this.actors.values()) {
-      const y = a.sprite.y + 10
-      a.barBg.setPosition(a.sprite.x, y + 2)
-      a.bar.setPosition(a.sprite.x - BAR / 2, y)
-      a.gaugeBar.setPosition(a.sprite.x - BAR / 2, y + 4)
+      const x = a.sprite.x
+      const y = a.sprite.y + BAR_DROP
+      // The pose (see animate) and breathing, which keeps the playback clock so pause holds it. The pose's
+      // dx, dy move the picture off its feet through the origin, leaving x, y to walks and lunges.
+      const p = a.pose
+      const breath = a.gone ? 0 : BREATH * Math.sin(this.playMs / 640 + a.uid)
+      a.sprite.setScale(a.scale * (1 + p.sx), a.scale * (1 + p.sy + breath))
+      a.sprite.angle = p.lean
+      a.sprite.setOrigin(0.5 - p.dx / a.sprite.displayWidth, FEET - p.dy / a.sprite.displayHeight)
+      // The dead lie under the living who step over them.
+      a.sprite.setDepth(a.gone ? a.sprite.y - ROW_PX / 2 : a.sprite.y)
+      a.shadow.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 2)
+      a.aura?.setPosition(x, a.sprite.y + 2).setDepth(a.sprite.y - 1)
+      a.ring.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 1)
+      // The bars lie on the ground under the feet, sorted with the units: whoever stands in front draws
+      // over them, so they never cover a picture.
+      const ground = a.sprite.y + 0.5
+      a.barBg.setPosition(x, y + 2).setDepth(ground)
+      a.trail.setPosition(x - BAR / 2, y).setDepth(ground + 0.1)
+      a.bar.setPosition(x - BAR / 2, y).setDepth(ground + 0.2)
+      a.gaugeBar.setPosition(x - BAR / 2, y + 5).setDepth(ground + 0.2)
+      a.stars?.setPosition(x, y + 9).setDepth(ground + 0.3)
       const u = this.units.get(a.uid)
       if (!a.gone && u.hp > 0) {
-        const cost = viable(b, u)[0]?.ability.castCost ?? 100
-        a.gaugeBar.width = BAR * Math.min(1, u.gauge / cost)
+        const cost = nextCost(b, u)
+        const fill = Math.min(1, u.gauge / cost)
+        a.gaugeBar.width = BAR * fill
+        a.gaugeBar.setFillStyle(fill >= 1 ? 0xffe9a8 : GOLD)
       }
     }
-    const focus = b.focus && this.actors.get(b.focus.target)
-    this.focusMark.setVisible(!!focus && !focus.gone)
-    if (focus) this.focusMark.setPosition(focus.sprite.x, focus.sprite.y + 6)
 
     const second = Math.floor(b.t * TUNING.tick.ms / 1000)
     if (second !== this.lastSecond) {
@@ -165,7 +226,7 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
-  // ── controls (called by the DOM command bar) ─────────────────────────────────────────────────
+  // ── controls (called by the DOM playback bar) ────────────────────────────────────────────────
 
   setSpeed (n) {
     this.speed = n
@@ -176,212 +237,334 @@ class BattleScene extends Phaser.Scene {
   setPaused (on) {
     if (this.ending) return
     this.paused = on
-    if (on) { this.tweens.pauseAll(); this.anims.pauseAll() } else { this.tweens.resumeAll(); this.anims.resumeAll() }
+    if (on) this.tweens.pauseAll()
+    else this.tweens.resumeAll()
     this.changed()
   }
 
   togglePause () {
-    if (this.targeting) return this.cancelTarget()
     this.setPaused(!this.paused)
   }
 
-  beginTarget (verb) {
-    if (this.ending) return
-    if (this.targeting?.verb === verb) return this.cancelTarget()
-    const b = this.battle
-    if (b.commandsLeft <= 0) return this.say('No Commands left this battle.')
-    const wantFoe = verb === 'focus' || verb === 'parley'
-    const ok = new Map()
-    let reason = null
-    for (const a of this.actors.values()) {
-      const c = canIssue(b, verb, a.uid)
-      if (c.ok) ok.set(a.uid, c)
-      else if (!reason && !a.gone && (a.side === 'foe') === wantFoe) reason = c.reason
-    }
-    if (!ok.size) return this.say(`${VERB_NAME[verb]}: ${reason ?? 'no valid target'}.`)
-    const wasPaused = this.targeting ? this.targeting.wasPaused : this.paused
-    this.clearMarks()
-    this.targeting = { verb, ok, wasPaused, marks: [] }
-    for (const [uid, c] of ok) {
-      const a = this.actors.get(uid)
-      const ring = this.add.ellipse(a.sprite.x, a.sprite.y + 6, 52, 18).setStrokeStyle(2, 0xe8b04b, 1).setDepth(a.sprite.depth - 1)
-      this.targeting.marks.push(ring)
-      if (c.chance !== undefined) {
-        this.targeting.marks.push(this.text(a.sprite.x, a.sprite.y - 52, `${Math.round(c.chance * 100)}%`, 13, '#e8b04b', 3)
-          .setOrigin(0.5, 1).setDepth(9800))
-      }
-    }
-    for (const a of this.actors.values()) if (!ok.has(a.uid) && !a.gone) a.sprite.setAlpha(0.45)
-    this.message = `${VERB_NAME[verb]}: click a highlighted ${wantFoe ? 'foe' : 'ally'} · Esc cancels`
-    this.setPaused(true)
-  }
-
-  cancelTarget (message = '') {
-    if (!this.targeting) return
-    const { wasPaused } = this.targeting
-    this.clearMarks()
-    this.targeting = null
-    this.message = message
-    this.setPaused(wasPaused)
-  }
-
-  clearMarks () {
-    if (!this.targeting) return
-    for (const m of this.targeting.marks) m.destroy()
-    for (const a of this.actors.values()) if (!a.gone) a.sprite.setAlpha(1)
-  }
-
-  pick (uids) {
-    if (!this.targeting || !uids.length) return
-    const { verb, ok } = this.targeting
-    const uid = uids.find((u) => ok.has(u))
-    if (uid === undefined) return this.say('Not a valid target.')
-    this.args.act({ type: 'command', verb, target: uid })
-    this.cancelTarget(`${VERB_NAME[verb]} → ${unitDef(this.actors.get(uid).id).name}`)
-  }
-
-  say (message) {
-    this.message = message
-    this.changed()
+  // Leave now; the run already knows how the battle ended.
+  skip () {
+    const done = this.args.onDone
+    if (!done) return
+    this.args.onDone = null
+    this.scene.stop()
+    done()
   }
 
   changed () {
-    const b = this.battle
-    const h = this.hover != null && this.actors.get(this.hover)
     this.args.onChange?.({
       paused: this.paused,
       speed: this.speed,
-      targeting: this.targeting?.verb ?? null,
-      commandsLeft: b.commandsLeft,
-      seconds: b.t * TUNING.tick.ms / 1000,
-      over: this.ending,
-      message: this.message,
-      hover: h ? `${unitDef(h.id).name} · Lv ${this.units.get(h.uid).lvl} · HP ${h.hp}/${h.maxHp}` : ''
+      seconds: this.battle.t * TUNING.tick.ms / 1000,
+      over: this.ending
     })
   }
 
   // ── stage ────────────────────────────────────────────────────────────────────────────────────
 
-  posFor (side, slot) {
-    const dir = side === 'party' ? 1 : -1
-    return { x: (colOf(slot) - 1.5) * SPREAD, y: dir * (GAP + rowOf(slot) * DEPTH) }
+  posFor (tile) {
+    return { x: (tileX(tile) - (LANES - 1) / 2) * SPREAD, y: rowY(tileY(tile)) }
   }
 
   addActor (u) {
-    const home = this.posFor(u.side, u.slot)
+    const home = this.posFor(u.tile)
     const art = unitDef(u.id).art
-    const sprite = this.add.sprite(home.x, home.y, TEXTURE, `${art}/idle/0`)
-      .setOrigin(0.5, 0.86).setScale(SCALE).setDepth(home.y)
-    const idle = `${art}/idle`
-    if (this.anims.exists(idle)) sprite.play(idle)
-    const barBg = this.add.rectangle(home.x, home.y + 12, BAR + 2, 8, 0x07060b, 0.9).setDepth(9001)
-    const bar = this.add.rectangle(home.x - BAR / 2, home.y + 10, BAR * u.hp / u.maxHp, 3, u.side === 'party' ? 0x7be0a0 : 0xd05c5c)
-      .setOrigin(0, 0.5).setDepth(9002)
-    const gaugeBar = this.add.rectangle(home.x - BAR / 2, home.y + 14, 0, 2, 0xe8b04b).setOrigin(0, 0.5).setDepth(9002)
-    const actor = { uid: u.uid, id: u.id, side: u.side, slot: u.slot, art, sprite, home, bar, barBg, gaugeBar, hp: u.hp, maxHp: u.maxHp, gone: false }
-    sprite.on('animationcomplete', (anim) => {
-      if (!actor.gone && anim.key !== idle && this.anims.exists(idle)) sprite.play(idle)
+    const star = u.star ?? 1
+    const side = u.side === 'party' ? PARTY : FOE
+    const sprite = this.add.image(home.x, home.y, `unit:${art}:alive`).setOrigin(0.5, FEET).setDepth(home.y)
+      .setFlipX(u.side === 'foe')
+    const scale = SCALE / RES * (1 + STAR_SCALE * (star - 1))
+    // Pictures are drawn on a 96 box, the boss on a bigger one; the shadow and FX heights follow.
+    const size = sprite.width / RES / 96 * (1 + STAR_SCALE * (star - 1))
+    const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size, 13 * size, 0x000000, 0.5).setDepth(home.y - 2)
+    const aura = star > 1
+      ? this.add.image(home.x, home.y + 2, 'glow').setTint(STAR_TINT[star]).setBlendMode(Phaser.BlendModes.ADD).setScale(1.5, 0.6).setAlpha(0.55).setDepth(home.y - 1)
+      : null
+    if (aura) this.tweens.add({ targets: aura, alpha: 0.25, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' })
+    const ring = this.add.ellipse(home.x, home.y + 4, 56 * size, 17 * size).setStrokeStyle(1.5, 0xffffff, 0.8).setDepth(home.y - 1).setVisible(false)
+    const barBg = this.add.rectangle(home.x, home.y + 14, BAR + 2, 10, 0x07060b, 0.92).setStrokeStyle(1, 0x2c2740)
+    const width = BAR * u.hp / u.maxHp
+    const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
+    const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, 4, side).setOrigin(0, 0.5)
+    const gaugeBar = this.add.rectangle(home.x - BAR / 2, home.y + 17, 0, 2, GOLD).setOrigin(0, 0.5)
+    const stars = star > 1 ? this.text(home.x, home.y + 21, '★'.repeat(star), 9, '#' + STAR_TINT[star].toString(16), 2).setOrigin(0.5, 0) : null
+    const actor = {
+      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, sprite, scale, home, shadow, aura, ring, bar, trail, barBg, gaugeBar, stars,
+      // chest: how far above the feet blows land and bolts fly from.
+      chest: 30 * size, pose: { ...REST }, hp: u.hp, maxHp: u.maxHp, gone: false
+    }
+    sprite.setInteractive(this.input.makePixelPerfect())
+    sprite.on('pointerover', (p) => {
+      this.hover = u.uid
+      ring.setVisible(!actor.gone)
+      this.args.onHover?.(this.units.get(u.uid), { left: p.x + 14, right: p.x + 14, top: p.y - 10, bottom: p.y + 10 })
     })
-    sprite.setInteractive({ useHandCursor: true }).setData('uid', u.uid)
-    sprite.on('pointerover', () => { this.hover = u.uid; this.changed() })
-    sprite.on('pointerout', () => { if (this.hover === u.uid) { this.hover = null; this.changed() } })
+    sprite.on('pointerout', () => {
+      ring.setVisible(false)
+      if (this.hover === u.uid) { this.hover = null; this.args.onHover?.(null) }
+    })
     this.actors.set(u.uid, actor)
   }
 
+  // ── animation ────────────────────────────────────────────────────────────────────────────────
+
+  // Plays keyframes on a unit's pose ({ lean, sx, sy, dx, dy }; see REST). Each key tweens to `to` over
+  // `ms`; as it starts, `picture` swaps the unit's picture and `start` runs. Whatever was playing gives
+  // way, and a living unit goes back to its alive picture first, so a cut-off swing never sticks.
+  animate (a, keys) {
+    this.tweens.killTweensOf(a.pose)
+    if (!a.gone) this.picture(a, 'alive')
+    this.tweens.chain({
+      targets: a.pose,
+      tweens: keys.map((k) => ({
+        ...REST, ...k.to, duration: k.ms, ease: k.ease ?? 'Sine.InOut',
+        onStart: () => { if (k.picture) this.picture(a, k.picture); k.start?.() }
+      }))
+    })
+  }
+
+  picture (a, pose) {
+    a.sprite.setTexture(`unit:${a.art}:${pose}`)
+  }
+
+  // A living unit's poses. `toward` is the other unit in the exchange (the target for an attacker, the
+  // attacker for the hurt): leans and lunges point at it.
+  strike (a, pose, toward = null) {
+    if (a.gone) return
+    const dx = toward ? toward.sprite.x - a.sprite.x : 0
+    const dy = toward ? toward.sprite.y - a.sprite.y : 0
+    const len = Math.hypot(dx, dy) || 1
+    const [ux, uy] = [dx / len, dy / len]
+    const lean = Math.sign(dx)
+    const at = (d) => ({ dx: ux * d, dy: uy * d })
+    switch (pose) {
+      // Wind up, snap into the attack picture, hold the blow, recover.
+      case 'attack': return this.animate(a, [
+        { to: { lean: -8 * lean, sx: 0.08, sy: -0.1, ...at(-4) }, ms: 90, ease: 'Quad.Out' },
+        { to: { lean: 10 * lean, sx: -0.06, sy: 0.1, ...at(6) }, ms: 80, ease: 'Back.Out', picture: 'attack' },
+        { to: { lean: 8 * lean, sx: -0.02, sy: 0.04, ...at(4) }, ms: 160 },
+        { to: REST, ms: 200, picture: 'alive' }])
+      // Gather, rise into the release, hold it while the spell flies.
+      case 'cast': return this.animate(a, [
+        { to: { lean: -4 * lean, sx: 0.06, sy: -0.07 }, ms: 160, ease: 'Quad.Out' },
+        { to: { lean: 6 * lean, sx: -0.04, sy: 0.12, dy: -4 }, ms: 100, ease: 'Back.Out', picture: 'attack' },
+        { to: { lean: 4 * lean, sy: 0.06, dy: -3 }, ms: 260 },
+        { to: REST, ms: 200, picture: 'alive' }])
+      // Knocked back from the blow, squashed, then springing back.
+      case 'hurt': return this.animate(a, [
+        { to: { lean: -12 * lean, sx: 0.1, sy: -0.12, ...at(-7) }, ms: 60, ease: 'Quad.Out' },
+        { to: REST, ms: 240, ease: 'Back.Out' }])
+      case 'idle': return this.animate(a, [{ to: REST, ms: 140 }])
+    }
+  }
+
+  // A step to the next tile, hopping; whatever tween was moving the sprite (a lunge's return) gives way.
+  walk (ev) {
+    const a = this.actors.get(ev.actor)
+    if (!a || a.gone) return
+    a.tile = ev.to
+    a.home = this.posFor(ev.to)
+    this.tweens.killTweensOf(a.sprite)
+    this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: WALK_MS, ease: 'Sine.InOut' })
+    const lean = Math.sign(a.home.x - a.sprite.x) || 1
+    this.animate(a, [
+      { to: { lean: 5 * lean, sy: 0.05, dy: -7 }, ms: WALK_MS * 0.4, ease: 'Sine.Out' },
+      { to: { lean: -2 * lean, sx: 0.06, sy: -0.07 }, ms: WALK_MS * 0.4, ease: 'Sine.In' },
+      { to: REST, ms: WALK_MS * 0.2 }])
+  }
+
+  // Death: the unit staggers back from its killer and topples over at the feet; where it hits the ground
+  // it becomes its corpse in a puff of dust, its soul leaves, and the corpse stays under the living.
+  fall (a, killer) {
+    a.gone = true
+    a.gaugeBar.width = 0
+    a.ring.setVisible(false)
+    this.picture(a, 'alive')
+    // A unit can die mid-lunge; its return step is skipped once it is gone, so send it home now.
+    this.tweens.killTweensOf(a.sprite)
+    this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: 200, ease: 'Sine.Out' })
+    const away = killer ? Math.sign(a.sprite.x - killer.sprite.x) || (a.uid % 2 ? 1 : -1) : 1
+    const land = () => {
+      a.sprite.setTint(0xc4bfd0)
+      this.dust.explode(14, a.home.x, a.home.y - 4)
+      this.cameras.main.shake(90, 0.0025)
+      this.wisp(a)
+    }
+    this.animate(a, [
+      { to: { lean: 10 * away, sx: 0.06, sy: -0.08, dx: 6 * away }, ms: 130, ease: 'Quad.Out' },
+      { to: { lean: 84 * away, sy: -0.06, dx: 4 * away }, ms: 300, ease: 'Quad.In' },
+      { to: { sx: 0.12, sy: -0.2 }, ms: 1, picture: 'dead', start: land },
+      { to: REST, ms: 280, ease: 'Back.Out' }])
+    this.tweens.add({ targets: [a.bar, a.trail, a.barBg, a.gaugeBar, a.aura, a.stars, a.shadow].filter(Boolean), alpha: 0, duration: 300 })
+  }
+
   decorate (start) {
-    const bandW = 4 * SPREAD + 90
-    const bandH = 2 * DEPTH + 110
-    this.add.rectangle(0, 0, bandW + 200, 2, 0x1d1a2a, 0.7).setDepth(-500)
-    for (const dir of [-1, 1]) {
-      this.add.rectangle(0, dir * (GAP + DEPTH + 4), bandW, bandH, 0x121020, 0.55).setDepth(-400)
+    const bandW = LANES * SPREAD + 90
+    this.add.tileSprite(0, 0, 2400, 2000, 'floor').setTileScale(0.6).setAlpha(0.62).setDepth(-1000)
+    this.add.image(0, 0, 'vignette').setDisplaySize(bandW + 700, 2 * EDGE + 700).setDepth(-999)
+    // A dais under the camp and under the foes' formation, a seam of soulfire across the open ground
+    // between, the camp's walls, and a rune under every other tile; the tiles the battle starts on glow.
+    const g = this.add.graphics().setDepth(-400)
+    const zone = (y) => (y < CAMP_ROWS ? PARTY : y >= DEPTH - ROWS ? FOE : 0xa98bff)
+    for (const [y0, y1, colour] of [[0, CAMP_ROWS - 1, PARTY], [DEPTH - ROWS, DEPTH - 1, FOE]]) {
+      const top = rowY(y1) - 40
+      const h = rowY(y0) - rowY(y1) + 80
+      g.fillStyle(colour, 0.045).fillRoundedRect(-bandW / 2, top, bandW, h, 18)
+      g.lineStyle(1, colour, 0.22).strokeRoundedRect(-bandW / 2, top, bandW, h, 18)
     }
-    const occupied = new Set([...this.actors.values()].map((a) => `${a.side}/${a.slot}`))
-    for (const side of ['party', 'foe']) {
-      for (let slot = 0; slot < SLOTS; slot++) {
-        const p = this.posFor(side, slot)
-        this.add.ellipse(p.x, p.y + 8, 40, 12, side === 'party' ? 0x7be0a0 : 0xd05c5c, occupied.has(`${side}/${slot}`) ? 0.14 : 0.05)
-          .setDepth(-350)
-      }
+    const seam = rowY((CAMP_ROWS + DEPTH - ROWS - 1) / 2)
+    this.add.image(0, seam, 'glow').setDisplaySize(bandW + 260, 26).setTint(0xa98bff).setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(-390)
+    const walls = new Set(start.walls)
+    for (const tile of walls) {
+      const p = this.posFor(tile)
+      // One of the wall pictures, picked by the tile so a camp always looks the same.
+      this.add.image(p.x, p.y + 8, WALLS[(tile * 7 + (tile >> 3)) % WALLS.length]).setOrigin(0.5, WALL_FOOT)
+        .setScale(WALL_SCALE / RES).setFlipX(tile % 2 === 1).setDepth(p.y)
     }
-    const syn = (side) => start.synergies.filter((s) => s.side === side).map((s) => s.name).join(' · ')
-    const label = (y, text, colour, size = 11) => this.text(-bandW / 2 + 8, y, text, size, colour)
-      .setWordWrapWidth(bandW - 16).setDepth(-300)
-    const top = -(GAP + 2 * DEPTH) - 74
-    label(top - 4, this.args.title ?? `FLOOR ${this.battle.floor}`, '#d05c5c', 14)
-    label(top + 14, syn('foe'), '#9a5a62', 12)
-    label(GAP + 2 * DEPTH + 42, 'YOUR RETINUE', '#7be0a0', 14)
-    label(GAP + 2 * DEPTH + 60, syn('party'), '#5ea878', 12)
+    const occupied = new Set(start.units.map((u) => u.tile))
+    for (let tile = 0; tile < TILES; tile++) {
+      if (walls.has(tile)) continue
+      const p = this.posFor(tile)
+      const colour = zone(tileY(tile))
+      const on = occupied.has(tile)
+      g.lineStyle(1.2, colour, on ? 0.5 : 0.14).strokeEllipse(p.x, p.y + 6, 50, 15)
+      if (on) this.add.image(p.x, p.y + 6, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(70, 22).setAlpha(0.3).setDepth(-380)
+    }
+    // Drifting motes of soulfire.
+    this.add.particles(0, 0, 'glow', {
+      x: { min: -bandW / 2 - 60, max: bandW / 2 + 60 },
+      y: { min: -EDGE - 68, max: EDGE + 68 },
+      lifespan: 7000,
+      speedY: { min: -14, max: -4 },
+      speedX: { min: -6, max: 6 },
+      scale: { start: 0.14, end: 0 },
+      alpha: { start: 0.45, end: 0 },
+      tint: [SOUL, 0xa98bff],
+      frequency: 160,
+      blendMode: 'ADD'
+    }).setDepth(-300)
+
+    const sideOf = new Map(start.units.map((u) => [u.uid, u.side]))
+    const bondNames = (side) => [...new Set(start.bonds.filter((b) => sideOf.get(b.uid) === side).map((b) => `◆ ${BONDS.find((x) => x.id === b.id).name}`))]
+    const syn = (side) => [...start.synergies.filter((s) => s.side === side).map((s) => s.name), ...bondNames(side)].join('  ·  ')
+    const label = (y, text, colour, size, font = FONT) => this.text(-bandW / 2 + 12, y, text, size, colour, 0, font)
+      .setWordWrapWidth(bandW - 24).setDepth(-300)
+    const top = -EDGE - 66
+    label(top - 6, this.args.title ?? `FLOOR ${this.battle.floor}`, '#f08a98', 16, SERIF)
+    label(top + 15, syn('foe') || 'no synergies', '#9a5a62', 11)
+    label(EDGE + 28, 'YOUR RETINUE', '#8ff7d6', 16, SERIF)
+    label(EDGE + 49, syn('party') || 'no synergies', '#4fa98c', 11)
+  }
+
+  // A burst of sparks in one colour; one emitter per colour, made on first use.
+  burst (x, y, colour, n = 10, { up = false, speed = 140 } = {}) {
+    const key = `${colour}|${up}`
+    let e = this.emitters.get(key)
+    if (!e) {
+      e = this.add.particles(0, 0, 'spark', {
+        emitting: false,
+        lifespan: up ? 700 : 420,
+        speed: { min: speed * 0.3, max: speed },
+        angle: up ? { min: 240, max: 300 } : { min: 0, max: 360 },
+        gravityY: up ? -60 : 160,
+        scale: { start: up ? 0.7 : 0.9, end: 0 },
+        alpha: { start: 1, end: 0 },
+        tint: colour,
+        blendMode: 'ADD'
+      }).setDepth(9300)
+      this.emitters.set(key, e)
+    }
+    e.explode(n, x, y)
+  }
+
+  // A soul leaves the fallen: foes' souls stream toward you, your own fade upward.
+  wisp (a) {
+    const mine = a.side === 'party'
+    const orb = this.add.image(a.sprite.x, a.sprite.y - a.chest, 'glow').setTint(mine ? 0xb8b4c8 : SOUL).setBlendMode(Phaser.BlendModes.ADD).setScale(0.45).setDepth(9400)
+    const trail = this.add.particles(0, 0, 'spark', {
+      lifespan: 500, speed: 6, scale: { start: 0.5, end: 0 }, alpha: { start: 0.8, end: 0 },
+      tint: mine ? 0xb8b4c8 : SOUL, frequency: 30, blendMode: 'ADD'
+    }).setDepth(9399)
+    trail.startFollow(orb)
+    const done = () => { trail.stopFollow(); trail.stop(); orb.destroy(); this.time.delayedCall(600, () => trail.destroy()) }
+    if (mine) {
+      this.tweens.add({ targets: orb, y: orb.y - 70, alpha: 0, scale: 0.2, duration: 1300, ease: 'Sine.Out', onComplete: done })
+    } else {
+      this.tweens.chain({
+        targets: orb,
+        tweens: [
+          { y: orb.y - 30, scale: 0.6, duration: 380, ease: 'Sine.Out' },
+          { x: 0, y: EDGE + 108, scale: 0.25, alpha: 0.2, duration: 900, ease: 'Cubic.In' }
+        ],
+        onComplete: done
+      })
+    }
   }
 
   // ── react to events the sim already decided ──────────────────────────────────────────────────
 
   applyEvent (ev, inAction) {
+    if (ev.type === 'move') return this.walk(ev)
     const a = ev.target != null ? this.actors.get(ev.target) : null
     if (!a) return
     switch (ev.type) {
       case 'damage':
-      case 'heal':
+      case 'heal': {
         a.hp = ev.hp
-        a.bar.width = BAR * Math.max(0, a.hp / a.maxHp)
-        if (ev.type === 'damage' && ev.damage > 0) this.flash(a)
-        if (ev.type === 'heal' && !inAction && ev.heal > 0) this.floating(a, `+${ev.heal}`, '#7be0a0')
+        const w = BAR * Math.max(0, a.hp / a.maxHp)
+        a.bar.width = w
+        this.tweens.killTweensOf(a.trail)
+        if (ev.type === 'damage') {
+          this.tweens.add({ targets: a.trail, width: w, delay: 260, duration: 380, ease: 'Quad.Out' })
+          if (ev.damage > 0) {
+            // Knocked back from the attacker; a tick of poison or burn has no attacker to face, so it shudders.
+            this.strike(a, 'hurt', inAction ? this.actors.get(ev.actor) : null)
+            this.flash(a)
+            this.burst(a.sprite.x, a.sprite.y - a.chest, tint(ev.element), ev.isCrit ? 22 : 9, { speed: ev.isCrit ? 220 : 140 })
+            if (ev.isCrit) this.cameras.main.shake(140, 0.005)
+          }
+        } else {
+          a.trail.width = w
+          if (ev.heal > 0) this.burst(a.sprite.x, a.sprite.y - 6, 0x7be0a0, 8, { up: true, speed: 50 })
+          if (!inAction && ev.heal > 0) this.floating(a, `+${ev.heal}`, '#7be0a0')
+        }
         break
+      }
       case 'death':
-        a.gone = true
-        a.gaugeBar.width = 0
-        if (this.anims.exists(`${a.art}/faint`)) a.sprite.play(`${a.art}/faint`)
-        // A unit can die mid-lunge; its return step is skipped once it is gone, so send it home now.
-        this.tweens.add({ targets: a.sprite, alpha: 0.25, duration: 400 })
-        this.tweens.add({ targets: [a.bar, a.barBg, a.gaugeBar], alpha: 0, duration: 300 })
+        this.fall(a, this.actors.get(ev.actor))
         break
       case 'status':
-        this.floating(a, statusDef(ev.status).name.toLowerCase(), '#b39ddb', 10)
+        this.floating(a, statusDef(ev.status).name, '#c3b0ff', 10)
         break
       case 'cleanse':
-        this.pip(a, 0x7be0a0)
+        this.burst(a.sprite.x, a.sprite.y - a.chest, 0x7be0a0, 6, { up: true, speed: 40 })
         break
       case 'gauge':
-        this.pip(a, 0x66c8ff)
+        this.burst(a.sprite.x, a.sprite.y - a.chest, 0x66c8ff, 6, { speed: 60 })
         break
-      case 'miss':
+      case 'miss': {
+        // A sidestep out of the blow's way.
+        const side = (a.uid % 2 ? 1 : -1)
+        if (!a.gone) this.animate(a, [{ to: { lean: -8 * side, dx: 12 * side }, ms: 90, ease: 'Quad.Out' }, { to: REST, ms: 220 }])
         this.floating(a, 'miss', '#8e8e9e')
         break
-      case 'persuade':
-        if (!ev.success) this.floating(a, `${Math.round(ev.chance * 100)}% · refused`, '#b39ddb')
-        break
-      case 'recruit':
-        a.gone = true
-        this.floating(a, 'JOINS YOU', '#7be0a0', 13)
-        this.tweens.add({ targets: [a.bar, a.barBg, a.gaugeBar], alpha: 0, duration: 300 })
-        this.tweens.add({ targets: a.sprite, y: a.sprite.y - 26, alpha: 0, scale: SCALE * 1.2, duration: 620, ease: 'Quad.Out' })
-        break
-      case 'command':
-        this.floating(a, VERB_NAME[ev.verb].toUpperCase(), '#e8b04b', 13)
-        this.changed()
-        break
-      case 'refund':
-        this.floating(a, 'parley refunded', '#8e8e9e')
-        this.changed()
-        break
-      case 'move':
-        a.slot = ev.slot
-        a.home = this.posFor(a.side, ev.slot)
-        a.sprite.setDepth(a.home.y)
-        this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: 260, ease: 'Cubic.Out' })
-        break
+      }
       case 'phase':
-        this.floating(a, `PHASE ${ev.phase + 1}`, '#e06c6c', 15)
-        this.cameras.main.shake(200, 0.006)
+        this.floating(a, `PHASE ${ev.phase + 1}`, '#ff6a7a', 16)
+        this.cameras.main.shake(260, 0.008)
+        this.cameras.main.flash(220, 120, 20, 30)
         break
     }
   }
 
-  // Canvas text, smoothed: the game is pixelArt (nearest filtering), which garbles text at fractional zoom.
-  text (x, y, str, size, colour, stroke = 0) {
-    const t = this.add.text(x, y, str, { fontFamily: FONT, fontSize: `${size}px`, color: colour, stroke: '#07060b', strokeThickness: stroke })
+  // Canvas text, drawn at 3× so it stays sharp when the camera zooms.
+  text (x, y, str, size, colour, stroke = 0, font = FONT) {
+    return this.add.text(x, y, str, { fontFamily: font, fontSize: `${size}px`, fontStyle: 'bold', color: colour, stroke: '#07060b', strokeThickness: stroke })
       .setResolution(3)
-    t.texture.setFilter(Phaser.Textures.FilterMode.LINEAR)
-    return t
   }
 
   flash (a) {
@@ -390,40 +573,36 @@ class BattleScene extends Phaser.Scene {
     this.time.delayedCall(60 / this.speed, () => a.sprite.clearTint().setTintMode(Phaser.TintModes.MULTIPLY))
   }
 
-  pip (a, colour) {
-    const dot = this.add.circle(a.sprite.x, a.sprite.y - 30, 2.5, colour).setDepth(9400)
-    this.tweens.add({ targets: dot, y: dot.y - 12, alpha: 0, duration: 500, onComplete: () => dot.destroy() })
-  }
-
-  floating (a, text, colour, size = 11) {
-    const t = this.text(a.sprite.x, a.sprite.y - 34, text, size, colour, 3).setOrigin(0.5, 1).setDepth(9500)
-    this.tweens.add({ targets: t, y: t.y - 20, alpha: 0, duration: 760, ease: 'Quad.Out', onComplete: () => t.destroy() })
+  floating (a, text, colour, size = 12) {
+    const t = this.text(a.sprite.x, a.sprite.y - a.chest - 22, text, size, colour, 3).setOrigin(0.5, 1).setDepth(9500).setScale(0.6)
+    this.tweens.add({ targets: t, scale: 1, duration: 120, ease: 'Back.Out' })
+    this.tweens.add({ targets: t, y: t.y - 24, alpha: 0, delay: 160, duration: 760, ease: 'Quad.Out', onComplete: () => t.destroy() })
   }
 
   finish () {
-    this.cancelTarget()
     this.setPaused(false)
     this.ending = true
     this.changed()
     const won = this.battle.winner === 'party'
-    const plate = this.add.rectangle(0, 0, 4 * SPREAD + 300, 48, 0x07060b, 0.85).setDepth(9990).setAlpha(0)
-    const banner = this.text(0, 0, won ? 'VICTORY' : this.battle.winner === 'foe' ? 'PARTY WIPED' : 'STALEMATE', 24, won ? '#7be0a0' : '#e06c6c', 4)
+    const colour = won ? SOUL : FOE
+    const glow = this.add.image(0, 0, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(620, 120).setAlpha(0).setDepth(9989)
+    const plate = this.add.rectangle(0, 0, LANES * SPREAD + 120, 70, 0x07060b, 0.82).setStrokeStyle(1, colour, 0.5).setDepth(9990).setAlpha(0)
+    const banner = this.text(0, -8, won ? 'VICTORY' : this.battle.winner === 'foe' ? 'YOUR RETINUE FALLS' : 'STALEMATE', 28, won ? '#8ff7d6' : '#ff6a7a', 4, SERIF)
       .setOrigin(0.5).setDepth(10000).setAlpha(0)
-    this.tweens.add({ targets: [plate, banner], alpha: 1, duration: 220 })
-    this.time.delayedCall(1300, () => {
-      this.cameras.main.fadeOut(220, 6, 5, 10)
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        const done = this.args.onDone
-        this.scene.stop()
-        done?.()
-      })
+    const sub = this.text(0, 20, won ? 'The souls of the slain linger, waiting to be reaped.' : 'The dead return to the dark.', 11, '#a59fb8', 0)
+      .setOrigin(0.5).setDepth(10000).setAlpha(0)
+    this.tweens.add({ targets: [plate, banner, sub], alpha: 1, duration: 260 })
+    this.tweens.add({ targets: glow, alpha: 0.5, duration: 400 })
+    this.time.delayedCall(1600, () => {
+      this.cameras.main.fadeOut(260, 6, 5, 10)
+      this.cameras.main.once('camerafadeoutcomplete', () => this.skip())
     })
   }
 }
 
 // ── timeline player ──────────────────────────────────────────────────────────────────────────────
 
-// Sim events → tweens, anims and FX. The player only reads events; it never computes a result.
+// Sim events → tweens, poses and FX. The player only reads events; it never computes a result.
 // Events are appended as the battle steps (always in tick order) and played when the playhead,
 // which the scene drives with the same clock as the sim, reaches their tick.
 
@@ -465,7 +644,6 @@ class TimelinePlayer {
   setSpeed (n) {
     this.speed = n
     this.scene.tweens.timeScale = n
-    this.scene.anims.globalTimeScale = n
   }
 
   get finished () {
@@ -485,13 +663,20 @@ class TimelinePlayer {
   }
 
   play (beat) {
+    const tpl = beat.action?.anim ? this.template(beat.action.anim) : null
     if (beat.action) this.onEvent?.(beat.action, true)
-    for (const ev of beat.results) this.onEvent?.(ev, !!beat.action)
+    // What an action did shows when its blow lands (its template's popup), not as the attacker winds up.
+    // Steps between the two happen at once.
+    const impact = tpl?.steps.find((s) => s.op === 'popup')?.t ?? 0
+    for (const ev of beat.results) {
+      const run = () => this.onEvent?.(ev, !!beat.action)
+      if (impact && ev.type !== 'move') this.scheduled.push({ at: this.playhead + impact, run })
+      else run()
+    }
     if (!beat.action) return
-    const tpl = beat.action.anim ? this.template(beat.action.anim) : null
     const actor = this.actorOf(beat.action.actor)
     if (!tpl || !actor) return
-    const hit = beat.results.find((e) => e.type === 'damage' || e.type === 'heal' || e.type === 'persuade')
+    const hit = beat.results.find((e) => e.type === 'damage' || e.type === 'heal')
     const primary = this.actorOf(hit?.target ?? beat.action.targets?.[0])
     const refs = { actor, primary, beat }
     for (const step of tpl.steps) {
@@ -540,10 +725,8 @@ const tint = (element) => parseInt((ELEMENTS[element]?.tint ?? '#d8d4cc').slice(
 
 const STEPS = {
   anim (p, step, refs) {
-    const who = step.who === 'target' ? refs.primary : refs.actor
-    if (!who || who.gone) return
-    const key = `${who.art}/${step.key}`
-    if (p.scene.anims.exists(key)) who.sprite.play(key, true)
+    const [who, other] = step.who === 'target' ? [refs.primary, refs.actor] : [refs.actor, refs.primary]
+    if (who) p.scene.strike(who, step.key, other !== who ? other : null)
   },
 
   tween (p, step, refs) {
@@ -553,25 +736,50 @@ const STEPS = {
     p.scene.tweens.add({ targets: who.sprite, x: to.x, y: to.y, duration: step.dur ?? 150, ease: step.ease ?? 'Linear' })
   },
 
+  // A ring of light where the blow lands (the sparks come with the damage event).
   fx (p, step, refs) {
     const at = p.where(step.at ?? 'target', refs)
-    const ring = p.scene.add.circle(at.x, at.y, 6, tint(refs.beat.action.element), 0.85).setDepth(at.y + 40)
-    p.scene.tweens.add({ targets: ring, scale: 3.2, alpha: 0, duration: 260, ease: 'Cubic.Out', onComplete: () => ring.destroy() })
+    const lift = (step.at === 'actor' ? refs.actor : refs.primary ?? refs.actor).chest
+    const ring = p.scene.add.image(at.x, at.y - lift, 'glow').setTint(tint(refs.beat.action.element))
+      .setBlendMode(Phaser.BlendModes.ADD).setScale(0.3).setAlpha(0.9).setDepth(9200)
+    p.scene.tweens.add({ targets: ring, scale: 1.3, alpha: 0, duration: 300, ease: 'Cubic.Out', onComplete: () => ring.destroy() })
+  },
+
+  // A crescent swung across the target, edge-on to the blow.
+  slash (p, step, refs) {
+    const { actor, primary } = refs
+    if (!primary || primary === actor) return
+    const angle = Math.atan2(primary.sprite.y - actor.sprite.y, primary.sprite.x - actor.sprite.x)
+    const flip = refs.beat.action.t % 2 ? 1 : -1
+    const arc = p.scene.add.image(primary.sprite.x, primary.sprite.y - primary.chest, 'slash')
+      .setTint(tint(refs.beat.action.element)).setBlendMode(Phaser.BlendModes.ADD).setDepth(9250)
+      .setRotation(angle).setScale(0.35, 0.35 * flip).setAlpha(0)
+    p.scene.tweens.add({ targets: arc, scaleX: 0.75, scaleY: 0.75 * flip, alpha: { from: 1, to: 0 }, rotation: angle + 0.6 * flip, duration: 240, ease: 'Cubic.Out', onComplete: () => arc.destroy() })
   },
 
   projectile (p, step, refs) {
     const from = p.where(step.from ?? 'actor', refs)
     const to = p.where(step.to ?? 'target', refs)
-    const bolt = p.scene.add.circle(from.x, from.y - 6, 3, tint(refs.beat.action.element), 1).setDepth(9000)
-    p.scene.tweens.add({ targets: bolt, x: to.x, y: to.y - 6, duration: step.dur ?? 180, ease: 'Quad.In', onComplete: () => bolt.destroy() })
+    const colour = tint(refs.beat.action.element)
+    const [up, down] = [refs.actor.chest, (refs.primary ?? refs.actor).chest]
+    const bolt = p.scene.add.image(from.x, from.y - up, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setScale(0.35).setDepth(9000)
+    const core = p.scene.add.image(from.x, from.y - up, 'spark').setScale(0.6).setDepth(9001)
+    p.scene.tweens.add({
+      targets: [bolt, core], x: to.x, y: to.y - down, duration: step.dur ?? 180, ease: 'Quad.In',
+      onComplete: () => { bolt.destroy(); core.destroy() }
+    })
   },
 
   beam (p, step, refs) {
     const from = p.where(step.from ?? 'actor', refs)
     const to = p.where(step.to ?? 'target', refs)
-    const line = p.scene.add.line(0, 0, from.x, from.y - 8, to.x, to.y - 8, tint(refs.beat.action.element))
-      .setOrigin(0, 0).setLineWidth(1.5).setDepth(9000)
-    p.scene.tweens.add({ targets: line, alpha: 0, duration: step.dur ?? 220, onComplete: () => line.destroy() })
+    const colour = tint(refs.beat.action.element)
+    const [up, down] = [refs.actor.chest, (refs.primary ?? refs.actor).chest]
+    const glow = p.scene.add.line(0, 0, from.x, from.y - up, to.x, to.y - down, colour, 0.35)
+      .setOrigin(0, 0).setLineWidth(6).setBlendMode(Phaser.BlendModes.ADD).setDepth(9000)
+    const line = p.scene.add.line(0, 0, from.x, from.y - up, to.x, to.y - down, 0xffffff, 0.9)
+      .setOrigin(0, 0).setLineWidth(1.5).setDepth(9001)
+    p.scene.tweens.add({ targets: [glow, line], alpha: 0, duration: step.dur ?? 220, onComplete: () => { glow.destroy(); line.destroy() } })
   },
 
   shake (p, step) {
@@ -585,8 +793,8 @@ const STEPS = {
       const value = ev.type === 'heal' ? ev.heal : ev.damage
       const target = p.actorOf(ev.target)
       if (!value || !target) continue
-      p.scene.floating(target, `${ev.type === 'heal' ? '+' : ''}${value}`,
-        ev.type === 'heal' ? '#7be0a0' : ev.isCrit ? '#ffd28a' : '#f0e6d8', ev.isCrit ? 15 : 12)
+      p.scene.floating(target, `${ev.type === 'heal' ? '+' : ''}${value}${ev.isCrit ? '!' : ''}`,
+        ev.type === 'heal' ? '#7be0a0' : ev.isCrit ? '#ffd28a' : '#f4ece0', ev.isCrit ? 18 : 13)
     }
   }
 }

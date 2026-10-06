@@ -1,0 +1,529 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Iron Golem: a hulking dwarven-forged war golem. Riveted iron plates over a stone-and-iron frame, fists like anvils,
+       a furnace glowing through its chest grate and in the slit of its little helm. Chains wound round one forearm,
+       rune bands on the shoulders, moss and rust in every seam. Planted wide, knuckles to the floor. Lit from the upper left. -->
+  <defs>
+    <linearGradient id="ig-iron" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c4bcb0"/>
+      <stop offset="0.45" stop-color="#7f766d"/>
+      <stop offset="1" stop-color="#3b3335"/>
+    </linearGradient>
+    <linearGradient id="ig-irondk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#968b81"/>
+      <stop offset="1" stop-color="#2c2527"/>
+    </linearGradient>
+    <linearGradient id="ig-stone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9ad94"/>
+      <stop offset="0.5" stop-color="#7e735f"/>
+      <stop offset="1" stop-color="#41392f"/>
+    </linearGradient>
+    <linearGradient id="ig-bronze" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6da96"/>
+      <stop offset="0.5" stop-color="#c0904a"/>
+      <stop offset="1" stop-color="#6a4519"/>
+    </linearGradient>
+    <linearGradient id="ig-knuckle" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ddd5c9"/>
+      <stop offset="1" stop-color="#7d746b"/>
+    </linearGradient>
+    <linearGradient id="ig-chain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d2cbc1"/>
+      <stop offset="1" stop-color="#5c5450"/>
+    </linearGradient>
+    <linearGradient id="ig-irondkm" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#968b81"/>
+      <stop offset="1" stop-color="#2c2527"/>
+    </linearGradient>
+    <linearGradient id="ig-plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b0a08f"/>
+      <stop offset="0.45" stop-color="#6e6058"/>
+      <stop offset="1" stop-color="#33292b"/>
+    </linearGradient>
+    <linearGradient id="ig-platedk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#857568"/>
+      <stop offset="1" stop-color="#271f21"/>
+    </linearGradient>
+    <linearGradient id="ig-knucklem" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9c0b4"/>
+      <stop offset="1" stop-color="#625a53"/>
+    </linearGradient>
+    <radialGradient id="ig-furnace" cx="0.5" cy="0.62" r="0.62">
+      <stop offset="0" stop-color="#fff6cf"/>
+      <stop offset="0.35" stop-color="#ffd27a"/>
+      <stop offset="0.72" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#a8380f"/>
+    </radialGradient>
+    <radialGradient id="ig-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff3c4"/>
+      <stop offset="0.3" stop-color="#ffd27a" stop-opacity="0.9"/>
+      <stop offset="0.62" stop-color="#ff8a3d" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ig-haze" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff8a3d" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ig-smoke" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8d8794" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#8d8794" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- a lazy curl of smoke from the left stack -->
+  <circle cx="42.4" cy="6.2" r="3.4" fill="url(#ig-smoke)"/>
+  <circle cx="45.4" cy="4.4" r="2.3" fill="url(#ig-smoke)"/>
+  <path d="M43.6 9.4 Q41.4 7 43.4 5 Q45.4 3.8 44.6 2.6" fill="none" stroke="#8d8794" stroke-width="0.7" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- twin exhaust stacks rising behind the shoulders -->
+  <g stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round">
+    <path d="M38.5 31 L39.6 11 L47.4 11 L48.5 31 Z" fill="url(#ig-iron)"/>
+    <path d="M71.5 31 L72.6 13.5 L80.4 13.5 L81.5 31 Z" fill="url(#ig-irondk)"/>
+  </g>
+  <path d="M41.3 13 L40.8 28" stroke="#f4eee4" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M46 13.2 L46.6 29" stroke="#241d20" stroke-width="0.7"/>
+  <path d="M74 15.5 L73.6 28" stroke="#d9d1c5" stroke-width="0.6" opacity="0.7"/>
+  <path d="M79 15.5 L79.6 29" stroke="#241d20" stroke-width="0.7"/>
+  <!-- bronze collars on the stacks -->
+  <g stroke="#0d0a12" stroke-width="0.7">
+    <path d="M39.2 17 L47.8 17 L48 20.4 L39 20.4 Z" fill="url(#ig-bronze)"/>
+    <path d="M72.2 19.4 L80.8 19.4 L81 22.8 L72 22.8 Z" fill="url(#ig-bronze)"/>
+  </g>
+  <path d="M39.6 17.7 L47.4 17.7 M72.6 20.1 L80.4 20.1" stroke="#fff0c0" stroke-width="0.4"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25">
+    <circle cx="41" cy="18.8" r="0.55"/><circle cx="43.5" cy="18.8" r="0.55"/><circle cx="46" cy="18.8" r="0.55"/>
+    <circle cx="74" cy="21.2" r="0.55"/><circle cx="76.5" cy="21.2" r="0.55"/><circle cx="79" cy="21.2" r="0.55"/>
+  </g>
+  <!-- lips of the stacks -->
+  <ellipse cx="43.5" cy="11" rx="5.2" ry="1.9" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1"/>
+  <ellipse cx="43.5" cy="10.9" rx="3.5" ry="1.05" fill="#1a1012"/>
+  <ellipse cx="76.5" cy="13.5" rx="5.2" ry="1.9" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1"/>
+  <ellipse cx="76.5" cy="13.4" rx="3.5" ry="1.05" fill="#1a1012"/>
+  <path d="M39.2 10.6 Q41 9.4 43.5 9.2" fill="none" stroke="#f4eee4" stroke-width="0.6" stroke-linecap="round"/>
+  <ellipse cx="43.5" cy="11.1" rx="2.6" ry="0.65" fill="#ff8a3d" opacity="0.75"/>
+  <ellipse cx="76.5" cy="13.6" rx="2.6" ry="0.65" fill="#ff8a3d" opacity="0.6"/>
+  <!-- soot streaks -->
+  <path d="M45.4 12.6 Q46 14.6 45.3 16.6 M78.6 15 Q79.2 17 78.6 19" fill="none" stroke="#1d1618" stroke-width="0.7" opacity="0.7"/>
+  <path d="M42 22 Q42.5 25 41.8 28" fill="none" stroke="#9a5230" stroke-width="0.7" opacity="0.7"/>
+
+  <!-- short, thick legs planted wide: stone thighs, iron knee caps, great iron boots -->
+  <g>
+    <g stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round">
+      <path d="M39 76 L55 78 L54.5 92 L40 92 Z" fill="url(#ig-stone)"/>
+      <path d="M32.6 103.4 Q33.6 96.6 40.6 96 L55 96 Q59.6 97 59.6 103 L59.6 110 L31.6 110 Q29.8 106.6 32.6 103.4 Z" fill="url(#ig-iron)"/>
+      <path d="M38.4 95 L57.2 95 L57.6 99.6 L37.6 99.6 Z" fill="url(#ig-stone)"/>
+    </g>
+    <ellipse cx="47.4" cy="92.5" rx="8.6" ry="5.4" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1"/>
+    <g stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round">
+      <path d="M81 76 L65 78 L65.5 92 L80 92 Z" fill="url(#ig-stone)"/>
+      <path d="M87.4 103.4 Q86.4 96.6 79.4 96 L65 96 Q60.4 97 60.4 103 L60.4 110 L88.4 110 Q90.2 106.6 87.4 103.4 Z" fill="url(#ig-irondk)"/>
+      <path d="M81.6 95 L62.8 95 L62.4 99.6 L82.4 99.6 Z" fill="url(#ig-stone)"/>
+    </g>
+    <ellipse cx="72.6" cy="92.5" rx="8.6" ry="5.4" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1"/>
+  </g>
+  <!-- stone thigh blocks: seams and chips -->
+  <path d="M40 84 L54.8 85.4 M65.2 85.4 L80 84" stroke="#3a3229" stroke-width="0.6"/>
+  <path d="M41 79 L41.6 90" stroke="#e3d7bd" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <path d="M45 86.4 l1.4 1.6 l-0.6 1.4 M76 79.4 l-1.2 1.8" fill="none" stroke="#3a3229" stroke-width="0.5"/>
+  <!-- knee caps -->
+  <path d="M40.2 91 Q47.4 87.4 54 90.6" fill="none" stroke="#f4eee4" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M66.4 94.8 Q72.6 98.4 79.8 94.4" fill="none" stroke="#241d20" stroke-width="0.8"/>
+  <circle cx="47.4" cy="92.6" r="1.4" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="72.6" cy="92.6" r="1.4" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="47" cy="92.2" r="0.45" fill="#fff0c0"/>
+  <!-- boot cuffs (stone) and moss in the seams -->
+  <path d="M38.2 97.3 L57.4 97.3 M62.6 97.3 L81.8 97.3" stroke="#3a3229" stroke-width="0.5"/>
+  <path d="M39 95.8 L56.8 95.8" stroke="#e3d7bd" stroke-width="0.5" opacity="0.8"/>
+  <path d="M38.4 99.2 q1.6 -1.6 3.6 -0.6 q1.4 -1 2.6 0.4 q-2.8 1.4 -6.2 0.2 Z" fill="#6d8a3a"/>
+  <path d="M75.6 99.2 q1.4 -1.4 3.2 -0.4 q1.2 -0.6 2.6 0.3 q-2.6 1.3 -5.8 0.1 Z" fill="#6d8a3a"/>
+  <path d="M39.4 98.6 q1 -0.6 2 -0.2 M76.4 98.6 q0.9 -0.5 1.8 -0.1" fill="none" stroke="#a5c46a" stroke-width="0.4"/>
+  <!-- boot toe plates and soles -->
+  <path d="M32 107.6 L59.4 107.6 M60.6 107.6 L88 107.6" stroke="#1a1416" stroke-width="0.6"/>
+  <path d="M38.4 100 Q37.6 104 38.4 107.4 M45.4 100 L45.4 107.4 M52.4 100 L52.4 107.4 M67.6 100 L67.6 107.4 M74.6 100 L74.6 107.4 M81.6 100 Q82.4 104 81.6 107.4" fill="none" stroke="#3a3134" stroke-width="0.55"/>
+  <path d="M33.4 103.4 Q34.4 100.6 37 100.4" fill="none" stroke="#f4eee4" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M40 101.4 L43.6 101.4 M47.2 101.4 L50.8 101.4" stroke="#d9d1c5" stroke-width="0.5" opacity="0.8"/>
+  <path d="M86.8 103.6 Q86.4 106.4 84.6 107.2" fill="none" stroke="#241d20" stroke-width="0.8"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25">
+    <circle cx="41.9" cy="104.8" r="0.6"/><circle cx="48.9" cy="104.8" r="0.6"/><circle cx="55.6" cy="104.8" r="0.6"/>
+  </g>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25">
+    <circle cx="64.4" cy="104.8" r="0.6"/><circle cx="71.1" cy="104.8" r="0.6"/><circle cx="78.1" cy="104.8" r="0.6"/>
+  </g>
+  <path d="M54 101 Q54.6 103.6 53.8 106 M84.2 101.8 Q84.8 104 84.2 106" fill="none" stroke="#9a5230" stroke-width="0.6" opacity="0.7"/>
+
+  <!-- ===== barrel chest: a stone-and-iron frame under riveted plates ===== -->
+  <path d="M28.6 34 Q60 23 91.4 34 Q97 48 86.6 64.6 Q74 77 60 77 Q46 77 33.4 64.6 Q23 48 28.6 34 Z" fill="url(#ig-stone)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <!-- stone belly courses between plates and girdle, moss in the joints -->
+  <path d="M34 62.6 Q60 70 86 62.6" fill="none" stroke="#3a3229" stroke-width="0.7"/>
+  <path d="M41 64.6 L40.4 71 M50 66.4 L49.8 73.4 M60 67 L60 74 M70 66.4 L70.2 73.4 M79 64.6 L79.6 71" stroke="#3a3229" stroke-width="0.6"/>
+  <path d="M34.5 63.6 Q47 68.6 58.6 68.4" fill="none" stroke="#e3d7bd" stroke-width="0.5" opacity="0.85"/>
+  <path d="M44 67.2 q1.4 -1.4 3.2 -0.4 q1 1.2 -0.6 1.8 q-1.8 0.4 -2.6 -1.4 Z M68.6 68.4 q1.6 -1.2 3.2 0 q-0.4 1.4 -1.8 1.4 q-1.2 -0.2 -1.4 -1.4 Z" fill="#6d8a3a"/>
+  <path d="M44.6 66.8 q1 -0.6 2 -0.2" fill="none" stroke="#a5c46a" stroke-width="0.4"/>
+  <!-- pectoral plates -->
+  <path d="M30.4 35 Q42 30 51 33.5 L49 42 Q48 52 49 62 Q41 63.5 34.4 59 Q27 47 30.4 35 Z" fill="url(#ig-plate)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M89.6 35 Q78 30 69 33.5 L71 42 Q72 52 71 62 Q79 63.5 85.6 59 Q93 47 89.6 35 Z" fill="url(#ig-platedk)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M31 47.4 Q39.6 45.6 48.6 47.2 M71.4 47.2 Q80.4 45.6 89 47.4" fill="none" stroke="#3a3134" stroke-width="0.7"/>
+  <path d="M31.2 48.4 Q39.6 46.8 48.4 48.3" fill="none" stroke="#d9d1c5" stroke-width="0.45"/>
+  <path d="M33 38.6 Q38 33.8 45.4 32.8" fill="none" stroke="#f4eee4" stroke-width="1.2" stroke-linecap="round" opacity="0.9"/>
+  <path d="M30.6 41 Q29.8 47 31.6 53" fill="none" stroke="#d9d1c5" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <path d="M88 53 Q86 58 80 60.6" fill="none" stroke="#241d20" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M75 37.4 Q81 35.6 86 36.8" fill="none" stroke="#d9d1c5" stroke-width="0.55" opacity="0.6"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="32.6" cy="38.4" r="0.75"/><circle cx="38" cy="34.6" r="0.75"/><circle cx="44" cy="33" r="0.75"/>
+    <circle cx="31.4" cy="45.4" r="0.75"/><circle cx="32.8" cy="53" r="0.75"/><circle cx="37.6" cy="58.8" r="0.75"/><circle cx="44" cy="61.2" r="0.75"/>
+  </g>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="87.4" cy="38.4" r="0.75"/><circle cx="82" cy="34.6" r="0.75"/><circle cx="76" cy="33" r="0.75"/>
+    <circle cx="88.6" cy="45.4" r="0.75"/><circle cx="87.2" cy="53" r="0.75"/><circle cx="82.4" cy="58.8" r="0.75"/><circle cx="76" cy="61.2" r="0.75"/>
+  </g>
+  <!-- scars, rust and moss on the plates -->
+  <path d="M35.6 51 L40.6 49 L39.4 50.8 L42.4 50" fill="none" stroke="#1c1618" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M35.8 51.8 L40.6 49.8" stroke="#d9d1c5" stroke-width="0.35"/>
+  <path d="M38.2 35.6 Q38.8 38.6 38 41 M44 62 Q44.4 64 43.8 65.6 M82 35.6 Q82.6 39 81.8 42 M83 49 Q83.6 52 82.8 55" fill="none" stroke="#9a5230" stroke-width="0.7" opacity="0.75"/>
+  <path d="M84.6 57.4 q1.8 -1.4 3.2 0.2 q-0.6 1.4 -2.4 1.4 Z" fill="#6d8a3a"/>
+  <path d="M80.4 41 L84.8 43.4" stroke="#1c1618" stroke-width="0.7"/>
+  <!-- furnace light spilling over the plates -->
+  <ellipse cx="60" cy="51" rx="21" ry="16" fill="url(#ig-haze)"/>
+  <path d="M49 42.4 Q48 52 49 61.6 M71 42.4 Q72 52 71 61.6" fill="none" stroke="#ff9a50" stroke-width="0.8" opacity="0.85"/>
+  <!-- the furnace: an arched grate in an iron frame -->
+  <path d="M46.6 42.6 Q60 32.6 73.4 42.6 L73.8 61.6 Q60 66.4 46.2 61.6 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M50 44.6 Q60 37.4 70 44.6 L70.4 59.6 Q60 63.2 49.6 59.6 Z" fill="url(#ig-furnace)" stroke="#0d0a12" stroke-width="0.8"/>
+  <path d="M52 59.6 Q51 54.4 54.4 51 Q55 54.6 56.8 55 Q57.2 50.4 60 47.4 Q61.2 52.6 63.2 53.8 Q63.6 51 65.8 50 Q68.2 54.4 67.4 59.6 Z" fill="#ffd27a" opacity="0.95"/>
+    <path d="M55.6 59.8 Q55.6 56.6 57.8 54.8 Q58.8 57.4 60.8 56.8 Q62.4 58 61.8 59.8 Z" fill="#fff6cf"/>
+  <path d="M49.8 47.4 L70.2 47.4" stroke="#0d0a12" stroke-width="2"/><path d="M49.8 47.4 L70.2 47.4" stroke="#4f4441" stroke-width="1.1"/>
+  <path d="M49.7 51 L70.3 51" stroke="#0d0a12" stroke-width="2"/><path d="M49.7 51 L70.3 51" stroke="#4f4441" stroke-width="1.1"/>
+  <path d="M49.6 54.6 L70.4 54.6" stroke="#0d0a12" stroke-width="2"/><path d="M49.6 54.6 L70.4 54.6" stroke="#4f4441" stroke-width="1.1"/>
+  <path d="M49.6 58.2 L70.4 58.2" stroke="#0d0a12" stroke-width="2"/><path d="M49.6 58.2 L70.4 58.2" stroke="#4f4441" stroke-width="1.1"/>
+  <path d="M60 39.6 L60 62" stroke="#0d0a12" stroke-width="2"/><path d="M60 39.6 L60 62" stroke="#4f4441" stroke-width="1.1"/>
+  <path d="M50.4 46.6 L69.6 46.6 M50.3 50.2 L69.7 50.2 M50.2 53.8 L69.8 53.8 M50.2 57.4 L69.8 57.4" stroke="#ffb070" stroke-width="0.35"/>
+  <path d="M50 44.6 Q60 37.4 70 44.6 L70.4 59.6 Q60 63.2 49.6 59.6 Z" fill="none" stroke="url(#ig-bronze)" stroke-width="0.8"/>
+  <path d="M47.6 43 Q53 38.4 59 36.6" fill="none" stroke="#f4eee4" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M73 46 L73.3 60.4" stroke="#241d20" stroke-width="0.7"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="48.3" cy="45.6" r="0.8"/><circle cx="48.1" cy="52.4" r="0.8"/><circle cx="48.2" cy="59.4" r="0.8"/>
+    <circle cx="53.6" cy="39.8" r="0.8"/><circle cx="60" cy="37.4" r="0.8"/><circle cx="66.4" cy="39.8" r="0.8"/>
+  </g>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="71.8" cy="45.6" r="0.8"/><circle cx="72" cy="52.4" r="0.8"/><circle cx="71.9" cy="59.4" r="0.8"/>
+    <circle cx="54.4" cy="62.6" r="0.8"/><circle cx="60" cy="63.4" r="0.8"/><circle cx="65.6" cy="62.6" r="0.8"/>
+  </g>
+
+  <!-- ===== iron girdle, hip tassets and the riveted apron ===== -->
+  <path d="M36.4 73 L50 79 L48.6 90.4 Q42 92.4 37.2 88.4 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M83.6 73 L70 79 L71.4 90.4 Q78 92.4 82.8 88.4 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M37 80.6 L49.3 84.6 M70.7 84.6 L83 80.6" stroke="#3a3134" stroke-width="0.6"/>
+  <path d="M37.8 75.4 L38.2 86.6" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <path d="M82.2 75.6 L81.8 86.8" stroke="#241d20" stroke-width="0.7"/>
+  <path d="M35.4 65.6 Q60 76 84.6 65.6 L85.4 73.8 Q60 84.4 34.6 73.8 Z" fill="url(#ig-plate)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M36 67.4 Q60 77.4 84 67.4" fill="none" stroke="#d9d1c5" stroke-width="0.5"/>
+  <path d="M35 72.2 Q60 82.6 85 72.2" fill="none" stroke="#3a3134" stroke-width="0.6"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="38" cy="70.6" r="0.7"/><circle cx="41" cy="72.4" r="0.7"/><circle cx="46" cy="74" r="0.7"/>
+  </g>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="74" cy="74" r="0.7"/><circle cx="79" cy="72.4" r="0.7"/><circle cx="82" cy="70.6" r="0.7"/>
+  </g>
+  <!-- apron plates -->
+  <path d="M49.6 79.6 L70.4 79.6 L69 95 L60 97.6 L51 95 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M50.2 85.4 L69.8 85.4 M50.7 90.6 L69.4 90.6" stroke="#3a3134" stroke-width="0.6"/>
+  <path d="M50.4 86.3 L69.6 86.3 M50.9 91.5 L69.2 91.5" stroke="#d9d1c5" stroke-width="0.4"/>
+  <path d="M51.4 81 L52.4 94" stroke="#f4eee4" stroke-width="0.6" opacity="0.8"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25">
+    <circle cx="52.4" cy="88" r="0.55"/><circle cx="67.6" cy="88" r="0.55"/><circle cx="53" cy="93.2" r="0.55"/><circle cx="67" cy="93.2" r="0.55"/><circle cx="60" cy="95.6" r="0.55"/>
+  </g>
+  <path d="M64.6 92 Q65.2 94.4 64.4 96.4" fill="none" stroke="#9a5230" stroke-width="0.6" opacity="0.7"/>
+  <!-- bronze buckle-plate with the forge-hammer sigil -->
+  <path d="M52.6 70.6 L67.4 70.6 L66.4 80 L60 82.8 L53.6 80 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M53.4 71.4 L66.6 71.4" stroke="#fff0c0" stroke-width="0.5"/>
+  <path d="M60 73.6 L60 80.4" stroke="#3a2309" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M56.6 72.8 L63.4 72.8 L63.4 75.4 L56.6 75.4 Z" fill="#3a2309"/>
+  <path d="M57.2 73.3 L60.4 73.3" stroke="#fff0c0" stroke-width="0.35" opacity="0.8"/>
+  <circle cx="54.6" cy="72.6" r="0.5" fill="#fff0c0"/><circle cx="65.4" cy="72.6" r="0.5" fill="#8a6028"/>
+
+  <!-- ===== left arm (viewer's left): knuckles planted, chains wound round the forearm ===== -->
+  <g transform="translate(2.2 3) rotate(6.5 26 48) translate(24 62) scale(0.9) translate(-24 -62)">
+    <!-- upper arm: riveted iron sleeve -->
+    <path d="M14 44 L36 45.5 L33.5 60.5 L17.5 60.5 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M15 50.6 L35.2 51.6 L35 55 L15.6 54.2 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.7"/>
+    <path d="M15.6 51.3 L34.8 52.2" stroke="#fff0c0" stroke-width="0.4"/>
+    <path d="M24.6 46 L24.2 50.6 M25 55 L24.6 60.4" stroke="#3a3134" stroke-width="0.6"/>
+    <path d="M16 46.4 L18.4 59.6" stroke="#f4eee4" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+    <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25"><circle cx="19" cy="52.8" r="0.6"/><circle cx="25" cy="53.1" r="0.6"/><circle cx="31" cy="53.4" r="0.6"/></g>
+    <path d="M31.6 55.6 Q32.2 57.6 31.4 59.6" fill="none" stroke="#9a5230" stroke-width="0.6" opacity="0.7"/>
+    <!-- stone elbow -->
+    <circle cx="25.4" cy="62" r="7.4" fill="url(#ig-stone)" stroke="#0d0a12" stroke-width="1.1"/>
+    <path d="M20.2 59.4 Q22.6 56 26.6 55.6" fill="none" stroke="#e3d7bd" stroke-width="0.8" stroke-linecap="round"/>
+    <path d="M27.4 58.6 l1.4 2.4 l-1 1.6 l1.8 2" fill="none" stroke="#3a3229" stroke-width="0.55"/>
+    <!-- forearm -->
+    <path d="M9.5 66 Q23 58 39 65 L40.5 84 Q24.5 90.5 7.5 84.5 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M11 67.4 Q14 63 21.6 61.6" fill="none" stroke="#f4eee4" stroke-width="1.1" stroke-linecap="round"/>
+    <path d="M9.4 70 L8.4 82" stroke="#d9d1c5" stroke-width="0.6" opacity="0.8"/>
+    <path d="M39.2 66.4 L40.4 82.6" stroke="#ff9a50" stroke-width="0.7" opacity="0.75"/>
+    <!-- heavy chains wound round the forearm -->
+    <ellipse cx="10.67" cy="69.9" rx="2.6" ry="1.51" transform="rotate(9.57 10.67 69.9)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="10.67" cy="69.9" rx="2.6" ry="1.51" transform="rotate(9.57 10.67 69.9)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M8.8 68.67 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M11.95 70.13 L16.08 70.67" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M12.08 70.14 L15.95 70.66" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="17.38" cy="70.79" rx="2.6" ry="1.51" transform="rotate(5.52 17.38 70.79)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="17.38" cy="70.79" rx="2.6" ry="1.51" transform="rotate(5.52 17.38 70.79)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M15.47 69.7 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M18.68 70.92 L22.83 71.18" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M18.81 70.93 L22.7 71.17" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="24.15" cy="71.2" rx="2.6" ry="1.51" transform="rotate(1.5 24.15 71.2)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="24.15" cy="71.2" rx="2.6" ry="1.51" transform="rotate(1.5 24.15 71.2)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M22.21 70.25 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M25.48 71.25 L29.64 71.21" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M25.61 71.25 L29.51 71.21" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="30.98" cy="71.14" rx="2.6" ry="1.51" transform="rotate(-2.47 30.98 71.14)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="30.98" cy="71.14" rx="2.6" ry="1.51" transform="rotate(-2.47 30.98 71.14)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M29.02 70.32 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M32.34 71.09 L36.49 70.77" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M32.47 71.08 L36.36 70.78" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="37.87" cy="70.61" rx="2.6" ry="1.51" transform="rotate(-6.35 37.87 70.61)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="37.87" cy="70.61" rx="2.6" ry="1.51" transform="rotate(-6.35 37.87 70.61)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M35.9 69.92 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <ellipse cx="10.14" cy="76.92" rx="2.6" ry="1.51" transform="rotate(9.84 10.14 76.92)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="10.14" cy="76.92" rx="2.6" ry="1.51" transform="rotate(9.84 10.14 76.92)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M8.27 75.68 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M11.56 77.18 L15.68 77.74" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M11.68 77.19 L15.55 77.72" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="17.11" cy="77.87" rx="2.6" ry="1.51" transform="rotate(5.63 17.11 77.87)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="17.11" cy="77.87" rx="2.6" ry="1.51" transform="rotate(5.63 17.11 77.87)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M15.2 76.77 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M18.55 78.02 L22.7 78.27" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M18.68 78.03 L22.57 78.27" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="24.15" cy="78.3" rx="2.6" ry="1.51" transform="rotate(1.44 24.15 78.3)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="24.15" cy="78.3" rx="2.6" ry="1.51" transform="rotate(1.44 24.15 78.3)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M22.21 77.35 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M25.61 78.35 L29.77 78.3" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M25.74 78.35 L29.64 78.3" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="31.25" cy="78.22" rx="2.6" ry="1.51" transform="rotate(-2.7 31.25 78.22)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="31.25" cy="78.22" rx="2.6" ry="1.51" transform="rotate(-2.7 31.25 78.22)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M29.28 77.41 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M32.74 78.16 L36.89 77.82" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M32.87 78.15 L36.76 77.83" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="38.4" cy="77.63" rx="2.6" ry="1.51" transform="rotate(-6.74 38.4 77.63)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="38.4" cy="77.63" rx="2.6" ry="1.51" transform="rotate(-6.74 38.4 77.63)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M36.43 76.96 q1.56 -0.5 2.86 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <!-- wrist cuff -->
+    <path d="M7.6 82 Q24 88 40.4 82 L40.6 87 Q24 93 7.4 87 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M8.4 83 Q24 88.8 39.8 83" fill="none" stroke="#fff0c0" stroke-width="0.5"/>
+    <path d="M13 85.6 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M19 87.3 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0 M25 88 m-0.6 -1.3 l0 2.6 l1.4 -0.9 l-1.4 -0.8 M31 87.3 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M37 85.6 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0" fill="none" stroke="#3a2309" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M13 85.6 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M19 87.3 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0 M25 88 m-0.6 -1.3 l0 2.6 l1.4 -0.9 l-1.4 -0.8 M31 87.3 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M37 85.6 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0" fill="none" stroke="#ffb35a" stroke-width="0.35" stroke-linecap="round" opacity="0.9"/>
+    <!-- the fist -->
+    <!-- back of the hand: three riveted plates -->
+    <path d="M5.4 89 Q23 82 40.8 89 L41.4 100 L5 100 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M17 86.2 L16.4 98 M29.4 86.2 L30 98" stroke="#3a3134" stroke-width="0.6"/>
+    <path d="M17.6 86.6 L17 97.4 M30 86.6 L30.6 97.4" stroke="#d9d1c5" stroke-width="0.35" opacity="0.7"/>
+    <path d="M7.2 90.2 Q11.4 87 16 86.2" fill="none" stroke="#f4eee4" stroke-width="1" stroke-linecap="round" opacity="0.95"/>
+    <path d="M40.2 91 L40.6 98" stroke="#241d20" stroke-width="0.7"/>
+    <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25">
+      <circle cx="11" cy="91.4" r="0.6"/><circle cx="23.2" cy="88.6" r="0.6"/><circle cx="35.4" cy="91" r="0.6"/>
+    </g>
+    <!-- fingers curled under, knuckles to the floor -->
+    <path d="M5.6 100.4 L13.8 100.4 L13.8 106 Q9.7 109.8 5.6 106 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M7 103.6 Q7.6 106.4 9.4 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.75"/>
+    <path d="M13.8 100.4 L22 100.4 L22 106 Q17.9 109.8 13.8 106 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M15.2 103.6 Q15.8 106.4 17.6 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.75"/>
+    <path d="M22 100.4 L30.2 100.4 L30.2 106 Q26.1 109.8 22 106 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M23.4 103.6 Q24 106.4 25.8 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.75"/>
+    <path d="M30.2 100.4 L38.4 100.4 L38.4 106 Q34.3 109.8 30.2 106 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M31.6 103.6 Q32.2 106.4 34 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.75"/>
+    <path d="M5.3 98.6 Q5.3 94.6 9.7 94.4 Q14.1 94.6 14.1 98.6 Q14.1 102.2 9.7 102.4 Q5.3 102.2 5.3 98.6 Z" fill="url(#ig-knuckle)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M6.8 97.6 Q7.8 95.6 10.2 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.95"/>
+    <path d="M13 99.4 Q12.2 101.4 10 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="9.7" cy="98.4" r="0.6" fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M13.5 98.6 Q13.5 94.6 17.9 94.4 Q22.3 94.6 22.3 98.6 Q22.3 102.2 17.9 102.4 Q13.5 102.2 13.5 98.6 Z" fill="url(#ig-knuckle)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M15 97.6 Q16 95.6 18.4 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.95"/>
+    <path d="M21.2 99.4 Q20.4 101.4 18.2 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="17.9" cy="98.4" r="0.6" fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M21.7 98.6 Q21.7 94.6 26.1 94.4 Q30.5 94.6 30.5 98.6 Q30.5 102.2 26.1 102.4 Q21.7 102.2 21.7 98.6 Z" fill="url(#ig-knuckle)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M23.2 97.6 Q24.2 95.6 26.6 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.95"/>
+    <path d="M29.4 99.4 Q28.6 101.4 26.4 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="26.1" cy="98.4" r="0.6" fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M29.9 98.6 Q29.9 94.6 34.3 94.4 Q38.7 94.6 38.7 98.6 Q38.7 102.2 34.3 102.4 Q29.9 102.2 29.9 98.6 Z" fill="url(#ig-knuckle)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M31.4 97.6 Q32.4 95.6 34.8 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.95"/>
+    <path d="M37.6 99.4 Q36.8 101.4 34.6 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="34.3" cy="98.4" r="0.6" fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25"/>
+    <!-- thumb clamped across the inside -->
+    <path d="M35 88.8 Q42.6 87.6 43.6 94.6 Q43.4 101 38.2 101.6 Q34.4 100.6 34.6 95.6 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <ellipse cx="39.4" cy="95.2" rx="2.7" ry="2.2" fill="url(#ig-knuckle)" stroke="#0d0a12" stroke-width="0.6"/>
+    <path d="M36.4 90.4 Q39 89 41.6 90.6" fill="none" stroke="#d9d1c5" stroke-width="0.5"/>
+    <path d="M42.8 96.6 Q42.6 100.2 39.4 101" fill="none" stroke="#241d20" stroke-width="0.6"/>
+    <!-- a loose end of chain dangling from the wrist -->
+    <ellipse cx="9.1" cy="87.52" rx="2.2" ry="1.28" transform="rotate(106.38 9.1 87.52)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="9.1" cy="87.52" rx="2.2" ry="1.28" transform="rotate(106.38 9.1 87.52)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M9.85 85.03 q1.32 -0.5 2.42 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M8.67 88.9 L8.13 92.38" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M8.66 89.01 L8.14 92.27" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+    <ellipse cx="8.1" cy="93.89" rx="2.2" ry="1.28" transform="rotate(91.73 8.1 93.89)" fill="none" stroke="#0d0a12" stroke-width="2"/>
+    <ellipse cx="8.1" cy="93.89" rx="2.2" ry="1.28" transform="rotate(91.73 8.1 93.89)" fill="none" stroke="url(#ig-chain)" stroke-width="1"/>
+    <path d="M8.45 91.34 q1.32 -0.5 2.42 0" fill="none" stroke="#f2ece2" stroke-width="0.35" opacity="0.8"/>
+    <path d="M8.05 95.51 L8.35 99.02" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M8.06 95.62 L8.34 98.91" stroke="#9a918a" stroke-width="0.9" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===== right arm: fist hanging a little higher, ready ===== -->
+  <g transform="translate(-2.2 1.4) rotate(-6.5 94 48) translate(96 62) scale(0.9) translate(-96 -62)">
+    <path d="M106 44 L84 45.5 L86.5 60.5 L102.5 60.5 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M105 50.6 L84.8 51.6 L85 55 L104.4 54.2 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.7"/>
+    <path d="M104.4 51.3 L85.2 52.2" stroke="#fff0c0" stroke-width="0.35" opacity="0.6"/>
+    <path d="M95.4 46 L95.8 50.6 M95 55 L95.4 60.4" stroke="#3a3134" stroke-width="0.6"/>
+    <path d="M87.4 47 L86 59.4" stroke="#d9d1c5" stroke-width="0.6" opacity="0.6"/>
+    <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25"><circle cx="101" cy="52.8" r="0.6"/><circle cx="95" cy="53.1" r="0.6"/><circle cx="89" cy="53.4" r="0.6"/></g>
+    <circle cx="94.6" cy="62" r="7.4" fill="url(#ig-stone)" stroke="#0d0a12" stroke-width="1.1"/>
+    <path d="M89.6 58.6 Q92 55.8 95.6 55.4" fill="none" stroke="#e3d7bd" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+    <path d="M96.4 64 q1.6 -0.6 2.6 0.6 q-0.6 1.4 -2 1 Z" fill="#6d8a3a"/>
+    <path d="M110.5 66 Q97 58 81 65 L79.5 84 Q95.5 90.5 112.5 84.5 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M82.4 66 Q90 61.6 98.4 61.6" fill="none" stroke="#d9d1c5" stroke-width="0.9" stroke-linecap="round" opacity="0.9"/>
+    <path d="M110.6 70 L111.8 82.6" stroke="#241d20" stroke-width="0.8"/>
+    <path d="M80.8 66.4 L79.6 82.6" stroke="#ff9a50" stroke-width="0.7" opacity="0.75"/>
+    <!-- forearm plates, rivets and a steam vent -->
+    <path d="M81 73.4 Q95 76.6 111 72.4" fill="none" stroke="#3a3134" stroke-width="0.7"/>
+    <path d="M81.2 74.4 Q95 77.6 110.8 73.4" fill="none" stroke="#d9d1c5" stroke-width="0.4" opacity="0.6"/>
+    <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3">
+      <circle cx="84" cy="70.6" r="0.7"/><circle cx="108" cy="69.6" r="0.7"/><circle cx="84.4" cy="79.6" r="0.7"/><circle cx="108.6" cy="79" r="0.7"/>
+    </g>
+    <path d="M90 66 L100 65 L100.4 71 L90.2 71.8 Z" fill="#241c1e" stroke="#0d0a12" stroke-width="0.7"/>
+    <path d="M91 67.6 L99.4 67 M91.2 69.6 L99.6 69" stroke="#c25a26" stroke-width="0.8" stroke-linecap="round"/>
+    <path d="M100 79 q1.6 -1.4 3.4 -0.4 q1 1.2 -0.4 1.8 q-1.8 0.4 -3 -1.4 Z" fill="#6d8a3a"/>
+    <path d="M86 78 Q86.6 80.4 86 82.4 M104 74.6 Q104.6 77 104 79" fill="none" stroke="#9a5230" stroke-width="0.6" opacity="0.7"/>
+    <path d="M112.4 82 Q96 88 79.6 82 L79.4 87 Q96 93 112.6 87 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M80.6 83 Q96 88.8 111.6 83" fill="none" stroke="#fff0c0" stroke-width="0.4" opacity="0.6"/>
+    <path d="M83 85.6 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M89 87.3 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0 M95 88 m-0.7 1.3 l0 -2.6 l1.4 1 l-1.4 0.8 M101 87.3 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M107 85.6 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0" fill="none" stroke="#3a2309" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M83 85.6 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M89 87.3 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0 M95 88 m-0.7 1.3 l0 -2.6 l1.4 1 l-1.4 0.8 M101 87.3 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M107 85.6 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0" fill="none" stroke="#ffb35a" stroke-width="0.35" stroke-linecap="round" opacity="0.9"/>
+    <g transform="translate(0 -2.4)">
+      <g transform="translate(120 0) scale(-1 1)">
+      <!-- back of the hand: three riveted plates -->
+    <path d="M5.4 89 Q23 82 40.8 89 L41.4 100 L5 100 Z" fill="url(#ig-irondkm)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M17 86.2 L16.4 98 M29.4 86.2 L30 98" stroke="#3a3134" stroke-width="0.6"/>
+    <path d="M17.6 86.6 L17 97.4 M30 86.6 L30.6 97.4" stroke="#d9d1c5" stroke-width="0.35" opacity="0.7"/>
+    <path d="M7.2 90.2 Q11.4 87 16 86.2" fill="none" stroke="#f4eee4" stroke-width="1" stroke-linecap="round" opacity="0.5"/>
+    <path d="M40.2 91 L40.6 98" stroke="#241d20" stroke-width="0.7"/>
+    <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25">
+      <circle cx="11" cy="91.4" r="0.6"/><circle cx="23.2" cy="88.6" r="0.6"/><circle cx="35.4" cy="91" r="0.6"/>
+    </g>
+    <!-- fingers curled under, knuckles to the floor -->
+    <path d="M5.6 100.4 L13.8 100.4 L13.8 106 Q9.7 109.8 5.6 106 Z" fill="url(#ig-irondkm)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M7 103.6 Q7.6 106.4 9.4 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.4"/>
+    <path d="M13.8 100.4 L22 100.4 L22 106 Q17.9 109.8 13.8 106 Z" fill="url(#ig-irondkm)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M15.2 103.6 Q15.8 106.4 17.6 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.4"/>
+    <path d="M22 100.4 L30.2 100.4 L30.2 106 Q26.1 109.8 22 106 Z" fill="url(#ig-irondkm)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M23.4 103.6 Q24 106.4 25.8 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.4"/>
+    <path d="M30.2 100.4 L38.4 100.4 L38.4 106 Q34.3 109.8 30.2 106 Z" fill="url(#ig-irondkm)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M31.6 103.6 Q32.2 106.4 34 107.4" fill="none" stroke="#d9d1c5" stroke-width="0.5" opacity="0.4"/>
+    <path d="M5.3 98.6 Q5.3 94.6 9.7 94.4 Q14.1 94.6 14.1 98.6 Q14.1 102.2 9.7 102.4 Q5.3 102.2 5.3 98.6 Z" fill="url(#ig-knucklem)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M6.8 97.6 Q7.8 95.6 10.2 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.55"/>
+    <path d="M13 99.4 Q12.2 101.4 10 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="9.7" cy="98.4" r="0.6" fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M13.5 98.6 Q13.5 94.6 17.9 94.4 Q22.3 94.6 22.3 98.6 Q22.3 102.2 17.9 102.4 Q13.5 102.2 13.5 98.6 Z" fill="url(#ig-knucklem)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M15 97.6 Q16 95.6 18.4 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.55"/>
+    <path d="M21.2 99.4 Q20.4 101.4 18.2 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="17.9" cy="98.4" r="0.6" fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M21.7 98.6 Q21.7 94.6 26.1 94.4 Q30.5 94.6 30.5 98.6 Q30.5 102.2 26.1 102.4 Q21.7 102.2 21.7 98.6 Z" fill="url(#ig-knucklem)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M23.2 97.6 Q24.2 95.6 26.6 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.55"/>
+    <path d="M29.4 99.4 Q28.6 101.4 26.4 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="26.1" cy="98.4" r="0.6" fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M29.9 98.6 Q29.9 94.6 34.3 94.4 Q38.7 94.6 38.7 98.6 Q38.7 102.2 34.3 102.4 Q29.9 102.2 29.9 98.6 Z" fill="url(#ig-knucklem)" stroke="#0d0a12" stroke-width="0.9"/>
+    <path d="M31.4 97.6 Q32.4 95.6 34.8 95.5" fill="none" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.55"/>
+    <path d="M37.6 99.4 Q36.8 101.4 34.6 101.6" fill="none" stroke="#241d20" stroke-width="0.5" opacity="0.8"/>
+    <circle cx="34.3" cy="98.4" r="0.6" fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25"/>
+    <!-- thumb clamped across the inside -->
+    <path d="M35 88.8 Q42.6 87.6 43.6 94.6 Q43.4 101 38.2 101.6 Q34.4 100.6 34.6 95.6 Z" fill="url(#ig-irondkm)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <ellipse cx="39.4" cy="95.2" rx="2.7" ry="2.2" fill="url(#ig-knucklem)" stroke="#0d0a12" stroke-width="0.6"/>
+    <path d="M36.4 90.4 Q39 89 41.6 90.6" fill="none" stroke="#d9d1c5" stroke-width="0.5"/>
+    <path d="M42.8 96.6 Q42.6 100.2 39.4 101" fill="none" stroke="#241d20" stroke-width="0.6"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- ===== the little helm-head, sunk between the shoulders ===== -->
+  <g transform="rotate(-4 60 34)">
+  <path d="M49 19 Q60 11.4 71 19 L72 34.6 Q60 39.2 48 34.6 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M51.2 20.4 Q53.6 15.6 57.6 14" fill="none" stroke="#f4eee4" stroke-width="1.1" stroke-linecap="round"/>
+    <path d="M70.6 21.4 L71.2 33.6" stroke="#241d20" stroke-width="0.9"/>
+    <!-- bronze crest ridge -->
+    <path d="M58.4 12.8 Q60 11 61.6 12.8 L61.6 21.4 L58.4 21.4 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.7"/>
+    <path d="M59.2 13 L59.2 21" stroke="#fff0c0" stroke-width="0.4"/>
+    <!-- heavy brow, riveted -->
+    <path d="M48.4 21 Q60 17.6 71.6 21 L71.8 24.6 Q60 21.6 48.2 24.6 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M49 21.6 Q60 18.4 71 21.6" fill="none" stroke="#d9d1c5" stroke-width="0.45"/>
+    <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25">
+      <circle cx="51" cy="22.4" r="0.55"/><circle cx="55" cy="21.4" r="0.55"/><circle cx="65" cy="21.4" r="0.55"/><circle cx="69" cy="22.4" r="0.55"/>
+    </g>
+    <!-- the eye slit: furnace light behind a scowl -->
+    <ellipse cx="60" cy="26" rx="13" ry="5" fill="url(#ig-glow)" opacity="0.8"/>
+    <path d="M50.4 24 L58.4 26 L61.6 26 L69.6 24 L69.2 27.8 L50.8 27.8 Z" fill="#1a0c08" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M52 25.2 L58.4 26.9 M61.6 26.9 L68 25.2" stroke="#ffd27a" stroke-width="1.3" stroke-linecap="round"/>
+    <circle cx="55.4" cy="26.1" r="1" fill="#fff6cf"/><circle cx="64.6" cy="26.1" r="1" fill="#fff6cf"/>
+    <!-- grille face -->
+    <path d="M50.8 28.4 L69.2 28.4 L68.8 35.4 Q60 38.2 51.2 35.4 Z" fill="#221a1b" stroke="#0d0a12" stroke-width="0.7"/>
+    <path d="M52 29 L68 29 L67.6 34.6 Q60 37 52.4 34.6 Z" fill="url(#ig-haze)"/>
+    <path d="M53 28.6 L53.2 35.8 M56.5 28.6 L56.6 36.8 M60 28.6 L60 37.4 M63.5 28.6 L63.4 36.8 M67 28.6 L66.8 35.8" stroke="#0d0a12" stroke-width="1.8"/>
+    <path d="M53 28.6 L53.2 35.8 M56.5 28.6 L56.6 36.8 M60 28.6 L60 37.4 M63.5 28.6 L63.4 36.8 M67 28.6 L66.8 35.8" stroke="url(#ig-iron)" stroke-width="1"/>
+    <path d="M52.6 29 L52.8 32 M56.1 29 L56.2 32.4 M59.6 29 L59.6 32.6" stroke="#f4eee4" stroke-width="0.35" opacity="0.8"/>
+    <circle cx="49.8" cy="30.4" r="0.7" fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25"/>
+    <circle cx="70.2" cy="30.4" r="0.7" fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25"/>
+    <!-- a tuft of moss on the dome -->
+    <path d="M64.6 15.6 q1.6 -1.8 3.6 -0.6 q1.2 0.4 1.6 1.6 q-1.6 0.4 -2.6 -0.2 q-1.4 0.6 -2.6 -0.8 Z" fill="#6d8a3a"/>
+    <path d="M65.4 15.2 q1 -0.8 2 -0.4" fill="none" stroke="#a5c46a" stroke-width="0.4"/>
+    <path d="M55 15.6 L53.6 18.8" stroke="#1c1618" stroke-width="0.55"/>
+  </g>
+  <!-- iron collar ringing the neck, lit from below by the furnace -->
+  <path d="M43.6 32.6 Q60 40.6 76.4 32.6 L78 40 Q60 47.2 42 40 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M44.2 33.8 Q60 41.6 75.8 33.8" fill="none" stroke="#ffb070" stroke-width="0.6" opacity="0.9"/>
+    <path d="M43.4 37.2 Q60 44.6 76.8 37.2" fill="none" stroke="#3a3134" stroke-width="0.5"/>
+    <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.25">
+      <circle cx="46" cy="38.2" r="0.6"/><circle cx="51" cy="40.4" r="0.6"/><circle cx="56" cy="41.6" r="0.6"/>
+    </g>
+    <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.25">
+      <circle cx="64" cy="41.6" r="0.6"/><circle cx="69" cy="40.4" r="0.6"/><circle cx="74" cy="38.2" r="0.6"/>
+    </g>
+
+  <!-- ===== great rune-banded pauldrons ===== -->
+  <g transform="matrix(0.88 0 0 0.88 6.4 3.1)">
+    <path d="M12 44.5 Q28 52.5 45 45.5 L43.5 51 Q28 57 14.5 50.5 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M14 47.6 Q28 54.4 43.8 48" fill="none" stroke="#3a3134" stroke-width="0.5"/>
+    <path d="M9 40 Q7 26 21 20.5 Q35 16 45.5 25 Q50 33 46 43.5 Q36 49.5 22 48.5 Q11 47.5 9 40 Z" fill="url(#ig-iron)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M10.6 42.6 Q14 47.4 22 47.6 Q36 48.6 44.8 42.8" fill="none" stroke="url(#ig-bronze)" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M12.6 30.6 Q14.6 24 23.4 21.6" fill="none" stroke="#f4eee4" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M27 20.8 Q33 19.8 37.6 21.6" fill="none" stroke="#d9d1c5" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+    <path d="M45 39.4 Q39 46.6 26 47.4" fill="none" stroke="#241d20" stroke-width="1" stroke-linecap="round"/>
+    <path d="M9.4 32.5 Q27 24 47.4 30.5 L47.2 36.4 Q28 30.5 10.4 38.6 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M10.2 33.2 Q27 25 47 31.3" fill="none" stroke="#fff0c0" stroke-width="0.5"/>
+    <path d="M11 37.6 Q28 29.8 46.8 35.4" fill="none" stroke="#6a4519" stroke-width="0.45"/>
+    <path d="M15.4 34.4 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M21 31.9 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0 M27 30.6 m-0.6 -1.3 l0 2.6 l1.4 -0.9 l-1.4 -0.8 M33 30.4 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M38.8 31.2 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0 M44 32.6 m-0.7 1.3 l0 -2.6 l1.4 1 l-1.4 0.8" fill="none" stroke="#3a2309" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M15.4 34.4 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M21 31.9 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0 M27 30.6 m-0.6 -1.3 l0 2.6 l1.4 -0.9 l-1.4 -0.8 M33 30.4 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M38.8 31.2 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0 M44 32.6 m-0.7 1.3 l0 -2.6 l1.4 1 l-1.4 0.8" fill="none" stroke="#ffb35a" stroke-width="0.35" stroke-linecap="round" opacity="0.9"/>
+    <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3">
+      <circle cx="14.4" cy="43.4" r="0.85"/><circle cx="20.4" cy="45.8" r="0.85"/><circle cx="27.4" cy="46.6" r="0.85"/><circle cx="34.4" cy="46" r="0.85"/><circle cx="40.6" cy="44" r="0.85"/>
+      <circle cx="17" cy="51" r="0.6"/><circle cx="28" cy="53.6" r="0.6"/><circle cx="39.6" cy="51.4" r="0.6"/>
+    </g>
+    <path d="M27.4 47.6 Q27.9 49.6 27.2 51.6 M41 45 Q41.4 46.8 40.8 48.4" fill="none" stroke="#9a5230" stroke-width="0.6" opacity="0.75"/>
+    <path d="M33.2 23 L38 25.4" stroke="#1c1618" stroke-width="0.7"/><path d="M33.2 23.7 L37.8 26" stroke="#d9d1c5" stroke-width="0.35"/>
+    <path d="M10.4 38.4 q1.6 -1.6 3.6 -0.6 q1 1.6 -0.6 2.2 q-2 0.4 -3 -1.6 Z" fill="#6d8a3a"/>
+    <path d="M11.2 38.2 q1 -0.7 2 -0.3" fill="none" stroke="#a5c46a" stroke-width="0.4"/>
+  </g>
+  <g transform="matrix(0.88 0 0 0.88 8 3.1)">
+    <path d="M108 44.5 Q92 52.5 75 45.5 L76.5 51 Q92 57 105.5 50.5 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M111 40 Q113 26 99 20.5 Q85 16 74.5 25 Q70 33 74 43.5 Q84 49.5 98 48.5 Q109 47.5 111 40 Z" fill="url(#ig-irondk)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M109.4 42.6 Q106 47.4 98 47.6 Q84 48.6 75.2 42.8" fill="none" stroke="url(#ig-bronze)" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M77.6 24.2 Q84 19.6 94 20.8" fill="none" stroke="#d9d1c5" stroke-width="1" stroke-linecap="round"/>
+    <path d="M109.6 36 Q109.4 44.4 98 48" fill="none" stroke="#241d20" stroke-width="1" stroke-linecap="round"/>
+    <path d="M110.6 32.5 Q93 24 72.6 30.5 L72.8 36.4 Q92 30.5 109.6 38.6 Z" fill="url(#ig-bronze)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M73.2 31.2 Q93 25 109.8 33.2" fill="none" stroke="#fff0c0" stroke-width="0.4" opacity="0.7"/>
+    <path d="M76 32.6 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M81.2 31.2 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0 M87 30.4 m-0.7 1.3 l0 -2.6 l1.4 1 l-1.4 0.8 M93 30.6 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M99 31.9 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0 M104.6 34.4 m-0.6 -1.3 l0 2.6 l1.4 -0.9 l-1.4 -0.8" fill="none" stroke="#3a2309" stroke-width="0.75" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M76 32.6 m-0.8 -1.3 l1.6 2.6 m0 -2.6 l-1.6 2.6 M81.2 31.2 m0 -1.3 l0 2.6 m-0.9 -1.8 l1.8 0 m-1.8 1 l1.8 0 M87 30.4 m-0.7 1.3 l0 -2.6 l1.4 1 l-1.4 0.8 M93 30.6 m0 -1.3 l0 2.6 m0 -1.3 l1.4 -1.3 m-1.4 1.3 l1.4 1.3 M99 31.9 m-0.7 1.3 l0.7 -2.6 l0.7 2.6 m-1.1 -0.9 l1.2 0 M104.6 34.4 m-0.6 -1.3 l0 2.6 l1.4 -0.9 l-1.4 -0.8" fill="none" stroke="#ffb35a" stroke-width="0.35" stroke-linecap="round" opacity="0.9"/>
+    <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3">
+      <circle cx="105.6" cy="43.4" r="0.85"/><circle cx="99.6" cy="45.8" r="0.85"/><circle cx="92.6" cy="46.6" r="0.85"/><circle cx="85.6" cy="46" r="0.85"/><circle cx="79.4" cy="44" r="0.85"/>
+      <circle cx="103" cy="51" r="0.6"/><circle cx="92" cy="53.6" r="0.6"/><circle cx="80.4" cy="51.4" r="0.6"/>
+    </g>
+    <path d="M92.6 47.6 Q93.1 49.6 92.4 52" fill="none" stroke="#9a5230" stroke-width="0.6" opacity="0.75"/>
+    <path d="M100 38.6 q1.8 -1.6 3.8 -0.4 q1.2 -1.2 2.8 0 q-0.4 1.8 -2.4 1.8 q-2.6 0.4 -4.2 -1.4 Z" fill="#6d8a3a"/>
+    <path d="M86 24 L91 22.6 L89.6 24.6" fill="none" stroke="#1c1618" stroke-width="0.6"/>
+  </g>
+
+  <!-- embers drifting up out of the grate -->
+  <circle cx="67.6" cy="35" r="0.7" fill="#ffd27a" opacity="0.9"/>
+  <circle cx="70.6" cy="31.4" r="0.5" fill="#ffd27a" opacity="0.7"/>
+  <circle cx="50.6" cy="36.6" r="0.5" fill="#ff8a3d" opacity="0.7"/>
+</svg>

@@ -1,0 +1,265 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Frost Sprite, fallen: curled in a puddle of meltwater, wings shattered to shards, lance snapped, its icicle crown melting beside it. -->
+  <defs>
+    <linearGradient id="fsd-skin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#cfdde9"/>
+      <stop offset="0.5" stop-color="#95adc4"/>
+      <stop offset="1" stop-color="#5f7894"/>
+    </linearGradient>
+    <linearGradient id="fsd-skin-rot" x1="0.6" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#d4e1ec"/>
+      <stop offset="0.5" stop-color="#9ab1c7"/>
+      <stop offset="1" stop-color="#627b97"/>
+    </linearGradient>
+    <linearGradient id="fsd-skin-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8ea7bf"/>
+      <stop offset="1" stop-color="#4a6180"/>
+    </linearGradient>
+    <linearGradient id="fsd-hair" x1="0.6" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#eef0f6"/>
+      <stop offset="0.5" stop-color="#c4c8da"/>
+      <stop offset="1" stop-color="#868caa"/>
+    </linearGradient>
+    <linearGradient id="fsd-hair-flat" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e4e7f0"/>
+      <stop offset="1" stop-color="#8a90ad"/>
+    </linearGradient>
+    <linearGradient id="fsd-leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#88a9c0"/>
+      <stop offset="0.5" stop-color="#4c6f8e"/>
+      <stop offset="1" stop-color="#283f5c"/>
+    </linearGradient>
+    <linearGradient id="fsd-leaf-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5f84a2"/>
+      <stop offset="1" stop-color="#1f3350"/>
+    </linearGradient>
+    <linearGradient id="fsd-shard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e2ecf3"/>
+      <stop offset="0.5" stop-color="#a3bacd"/>
+      <stop offset="1" stop-color="#5f7a95"/>
+    </linearGradient>
+    <linearGradient id="fsd-ice" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#eef3f7"/>
+      <stop offset="0.48" stop-color="#aec3d4"/>
+      <stop offset="0.52" stop-color="#7d97ae"/>
+      <stop offset="1" stop-color="#4b6480"/>
+    </linearGradient>
+    <linearGradient id="fsd-shaft" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#dfe6ee"/>
+      <stop offset="0.5" stop-color="#99a9ba"/>
+      <stop offset="1" stop-color="#56677d"/>
+    </linearGradient>
+    <radialGradient id="fsd-pool" cx="0.45" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#7f98b2"/>
+      <stop offset="0.7" stop-color="#4d6380"/>
+      <stop offset="1" stop-color="#34455e"/>
+    </radialGradient>
+    <radialGradient id="fsd-chill" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c9d7e4" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#c9d7e4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ===== the meltwater puddle, rimed with frost at the edge ===== -->
+  <path d="M12 80 Q10 72 20 69.6 Q26 66 36 66.8 Q44 64.2 54 66 Q64 64.8 72 68.4 Q84 69.6 86 77 Q89 83 82 87.6 Q76 92.6 64 91.4 Q56 94.2 46 92.4 Q36 94 28 91.6 Q16 91 13 86 Q10.6 83.4 12 80 Z" fill="url(#fsd-pool)" fill-opacity="0.9" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <!-- frost rim -->
+  <path d="M13 80 Q11.6 73 20.4 70.6 Q26.4 67.2 36 67.8 Q44 65.2 54 67 Q64 65.8 71.8 69.4 Q83 70.6 85 77.2" fill="none" stroke="#dde7f0" stroke-width="0.9" stroke-linecap="round" opacity="0.85"/>
+  <path d="M84.8 82.4 Q81 87.6 72 89.4 M44 91.4 Q34 92.6 26 90.4 M18 89 Q14.4 87 13.4 84" fill="none" stroke="#9fb3c7" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <!-- rime crystals on the rim -->
+  <path d="M16 72.6 l-1.6 -1.6 M16 72.6 l-0.4 -2.2 M30 67.2 l-0.4 -2 M30 67.2 l1.2 -1.6 M60 65.6 l0.2 -2 M60 65.6 l1.4 -1.2 M78 70.4 l1.2 -1.6 M85.6 79.6 l2 -0.6" stroke="#e6eef5" stroke-width="0.5" stroke-linecap="round"/>
+  <!-- reflections on the water -->
+  <path d="M20 84 Q26 83 31 84 M60 88 Q66 87 72 88.2 M74 79 Q78 78.6 81 79.8 M30 88.6 Q35 88 39 88.8" fill="none" stroke="#b9cad9" stroke-width="0.6" stroke-linecap="round" opacity="0.6"/>
+  <ellipse cx="48" cy="80" rx="34" ry="11" fill="url(#fsd-chill)"/>
+
+  <!-- ===== background shards of the shattered wings ===== -->
+  <g fill="url(#fsd-shard)" fill-opacity="0.85" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round">
+    <path d="M18 63 L24.4 58.6 L23 64.4 Z"/>
+    <path d="M58 60.4 L64.4 57.4 L62.8 62.6 L59.4 63.4 Z"/>
+    <path d="M74 66.4 L82.6 63 L79.4 68.4 Z"/>
+    <path d="M8.6 74 L14 71.6 L12.4 76.4 Z"/>
+    <path d="M86 72.6 L90.6 75.4 L86.6 77.2 Z"/>
+  </g>
+  <path d="M19.6 62.6 L23.6 59.6 M59.4 61.6 L63.4 58.4 M75.6 66.2 L81.6 63.6 M10 74 L13.4 72.2" stroke="#f2f6fa" stroke-width="0.4" opacity="0.8"/>
+  <path d="M21.4 61.6 L23 64.4 M61 60 L62.8 62.6 M78.6 65 L79.4 68.4" stroke="#4d6884" stroke-width="0.4"/>
+
+  <!-- ===== the lance's shaft, snapped, lying behind the body ===== -->
+  <g stroke-linejoin="round">
+    <path d="M60.6 62.4 L86.6 69.4 L86 71.6 L59.8 64.6 Z" fill="url(#fsd-shaft)" stroke="#0d0a12" stroke-width="0.8"/>
+    <!-- splintered end -->
+    <path d="M60.6 62.4 L58.4 61.6 L59.6 63.2 L57.4 63.4 L59.6 64.2 L58.6 65.4 L59.8 64.6 Z" fill="#c9d4df" stroke="#0d0a12" stroke-width="0.6"/>
+    <path d="M61.4 63.2 L85.6 69.8" stroke="#f4f7fa" stroke-width="0.4" opacity="0.8"/>
+    <path d="M66 64.4 L66.6 64.6 M72 66.2 L72.8 66.4 M79 68 L79.6 68.2" stroke="#3d4a5c" stroke-width="0.6"/>
+    <path d="M82.2 68.2 L81.6 70.6 M83.4 68.6 L82.8 70.8" stroke="#e6eef6" stroke-width="0.7"/>
+    <!-- butt spike -->
+    <path d="M86.6 69.4 L90 71.2 L86 71.6 Z" fill="#aec3d4" stroke="#0d0a12" stroke-width="0.6"/>
+  </g>
+
+  <!-- ===== wing stumps still on the back, broken off jagged ===== -->
+  <path d="M39.6 67.4 L37 61 L34.4 55.4 L38.4 57.6 L39.4 53.8 L41.8 58.6 L44.6 56.8 L44.4 62.6 L46.4 66.8 Z" fill="url(#fsd-shard)" fill-opacity="0.9" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M38.4 62.4 L44.4 62.6 L41.8 58.6 Z" fill="#4d6884" opacity="0.3"/>
+  <path d="M45.4 66.6 L37 61 M45 65.6 L41.8 58.6 M44.8 64 L44.6 56.8" stroke="#4d6884" stroke-width="0.45"/>
+  <path d="M39.6 66.6 L35.4 56.6 M39.6 55 L41.4 58.4" stroke="#f2f6fa" stroke-width="0.5" opacity="0.85"/>
+  <path d="M46.6 66.8 L49 60.2 L50.6 62 L52.8 57.6 L53.2 62.6 L51.2 66.8 Z" fill="url(#fsd-shard)" fill-opacity="0.85" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M47.6 66.2 L49.2 61.4 M50.8 62.4 L52.6 58.6" stroke="#f2f6fa" stroke-width="0.4" opacity="0.8"/>
+  <path d="M50 66.4 L52.8 58.4" stroke="#4d6884" stroke-width="0.4"/>
+  <!-- cracks running through the stumps -->
+  <path d="M37.8 60.2 L39.4 61 L39 62.6 L40.6 64" fill="none" stroke="#2c3e55" stroke-width="0.4" stroke-linejoin="round"/>
+  <path d="M50.4 64.4 L51.6 63.6" stroke="#2c3e55" stroke-width="0.4"/>
+
+  <!-- ===== far leg, tucked under ===== -->
+  <path d="M51.4 76.4 Q55 79.6 57.4 83.4 Q61.4 83.6 66 82 Q68.8 81.4 70.6 82.4 Q69.6 84 66.8 84.6 Q61 86.6 56.6 86.4 Q53.2 85 50.6 80.6 Z" fill="url(#fsd-skin-dark)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M60 83.4 L60.6 85.8 M63 82.8 L63.4 85.2" stroke="#c8d4df" stroke-width="0.7" stroke-linecap="round"/>
+
+  <!-- ===== the lance's crystal head, snapped off and flung behind the head ===== -->
+  <g transform="translate(39.4 57.6) rotate(-79)">
+    <!-- stub of shaft with a splintered end -->
+    <rect x="-1" y="-11" width="2" height="11" rx="0.6" fill="url(#fsd-ice)" stroke="#0d0a12" stroke-width="0.7"/>
+    <path d="M-1 0 L-0.4 1.8 L0.2 0.4 L0.8 1.6 L1 0 Z" fill="#c9d4df" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+    <path d="M-1.2 -9 L1.2 -8.2 M-1.2 -10.4 L1.2 -9.6" stroke="#e6eef6" stroke-width="0.6"/>
+    <path d="M-2.8 -11 L-1.3 -14.4 L1.3 -14.4 L2.8 -11 L1.1 -10.2 L-1.1 -10.2 Z" fill="#8ea6bc" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+    <!-- dull, cracked crystal head -->
+    <path d="M0 -34.4 L2.2 -27 L4.2 -26.4 L2.6 -24 L3.4 -19.6 L5 -18.4 L2.4 -16.2 L1.3 -14.2 L-1.3 -14.2 L-2.6 -16.4 L-4.8 -18.2 L-3.2 -19.6 L-2.8 -23.6 L-4.2 -25.4 L-2.2 -27.2 Z" fill="url(#fsd-ice)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+    <path d="M0 -33.4 L0 -15 M0 -27 L-2.2 -27.2 M0 -23.4 L2.6 -24 M0 -19.6 L-3.2 -19.6" fill="none" stroke="#4b6480" stroke-width="0.35"/>
+    <path d="M-0.6 -31.6 L-0.8 -17" stroke="#f2f6fa" stroke-width="0.5" opacity="0.7"/>
+    <!-- a crack through the crystal -->
+    <path d="M-2.4 -22 L-0.4 -21 L0.8 -22.8 L2.8 -21.4" fill="none" stroke="#1f2c40" stroke-width="0.5" stroke-linejoin="round"/>
+  </g>
+
+  <!-- ===== hair, fanned out across the puddle ===== -->
+  <path d="M34 62 Q30 56.4 24.6 54.4 Q26.4 56.4 26.8 58.2 Q21 54.6 15 55.4 Q19 57 20.2 59.4 Q14.4 59.8 9.6 63.6 Q14.6 63.4 17.4 64.8 Q12.6 67.8 10.8 72.6 Q15 70.2 18.6 69.8 Q16.6 73.8 17.4 77.6 Q19.6 74.4 22.8 73.4 L28 70 Z" fill="url(#fsd-hair-flat)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M28.4 57.6 Q26.6 56 25.6 55.4 M23.4 58.6 Q19.4 56.6 16.6 56.2 M20 61.6 Q15.4 62 11.8 63.4 M19 66.4 Q15.4 68.6 12.4 71.4" fill="none" stroke="#fafbff" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M21.6 63.6 Q17.6 64 14.8 64.8 M21.6 70.4 Q19.2 73 18.4 75.6 M25.6 60.2 Q22.4 59.6 19.8 59.4" fill="none" stroke="#7880a2" stroke-width="0.5" stroke-linecap="round"/>
+  <!-- the hair's reflection in the water -->
+  <path d="M11.4 74.6 Q13 77.6 12.4 80.4 M16 78.6 Q17.2 81 16.6 83" fill="none" stroke="#c4c8da" stroke-width="0.5" opacity="0.4"/>
+
+  <!-- ===== torso, lying on its side ===== -->
+  <path d="M35 68.4 Q42 65.6 50 67 Q53.2 70 52.8 74 Q51.8 78.6 48 79.4 Q41 80.6 36 78.4 Q33.2 73.4 35 68.4 Z" fill="url(#fsd-leaf)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <!-- leaf scales -->
+  <path d="M38.4 68.6 Q36.6 70.6 38.4 72.6 Q36.6 74.6 38.4 76.6 M42 67.8 Q40.2 69.8 42 71.8 Q40.2 73.8 42 75.8 Q40.2 77.8 42 79.6 M45.6 67.8 Q43.8 69.8 45.6 71.8 Q43.8 73.8 45.6 75.8 Q43.8 77.8 45.6 79.4" fill="none" stroke="#22374f" stroke-width="0.5"/>
+  <path d="M38.8 68.8 Q37.8 69.8 38.4 71 M42.4 68 Q41.4 69 42 70.2" fill="none" stroke="#c2d3e0" stroke-width="0.45"/>
+  <path d="M36.6 69.4 Q40 67.2 44 67" fill="none" stroke="#c2d3e0" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <path d="M51.4 71 Q51.6 75.6 48.4 78" fill="none" stroke="#1d2f47" stroke-width="0.7"/>
+  <!-- belt and the snowflake clasp, its light gone -->
+  <path d="M49.4 67.2 L51.2 67.8 Q53.6 72.6 52 78.6 L50.2 79 Q51.6 73 49.4 67.2 Z" fill="#b6c2d0" stroke="#0d0a12" stroke-width="0.7"/>
+  <circle cx="52.2" cy="73.4" r="1.6" fill="#8a9fb4" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M51 73.4 L53.4 73.4 M51.6 72.4 L52.8 74.4 M51.6 74.4 L52.8 72.4" stroke="#d4dde6" stroke-width="0.35"/>
+
+  <!-- ===== skirt of leaves, crumpled toward the legs ===== -->
+  <g stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round">
+    <path d="M52.6 67.6 Q57.6 66.6 61.4 69.2 Q58.2 70.6 54 70.4 Z" fill="url(#fsd-leaf-dark)"/>
+    <path d="M53.4 70 Q59 70.4 62.4 73.6 Q58.2 74.4 53.8 73 Z" fill="url(#fsd-leaf)"/>
+    <path d="M53.4 73 Q58.4 75 60.8 78.6 Q56.6 78.4 53 75.8 Z" fill="url(#fsd-leaf-dark)"/>
+    <path d="M52.4 75.6 Q56 78.6 57 82 Q53.4 80.6 51.4 77.6 Z" fill="url(#fsd-leaf)"/>
+  </g>
+  <path d="M54 68.8 Q57.6 68.4 60.4 69.2 M54.4 71.6 Q58.4 72.2 61.4 73.6 M54.2 74.6 Q57.6 76.2 59.8 78.2 M52.8 76.8 Q55 79 56.2 81.2" fill="none" stroke="#1d2f47" stroke-width="0.4"/>
+  <path d="M61 69.2 L60 69.4 M62 73.6 L61 73.6 M60.4 78.4 L59.6 78" stroke="#e6eef5" stroke-width="0.7" stroke-linecap="round"/>
+
+  <!-- ===== near leg, knee drawn up, toe still pointed ===== -->
+  <path d="M53.6 72.4 Q58.6 73.4 62.4 78.6 Q66 77.2 70.6 76 Q74.6 75.4 76 76.6 Q74.6 78.2 71.4 78.6 Q66.4 80.2 62.4 82.2 Q59.6 82.8 58.4 80.6 Q55.6 78.4 52.6 77.4 Z" fill="url(#fsd-skin)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M55 73.6 Q58.6 74.6 61 77.2" fill="none" stroke="#e6eef5" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M60.2 81.4 Q61.4 80.4 62.4 80.8" fill="none" stroke="#4a6180" stroke-width="0.5"/>
+  <!-- frost-cloth wraps, loosened -->
+  <path d="M56.4 74.2 L54.8 77.8 M58.6 75.4 L57 79.2 M65 77.4 L66 80.2 M67.6 76.8 L68.4 79.4 M70.2 76.2 L70.8 78.6" stroke="#c8d4df" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M57 74.6 L55.4 78.2 M65.6 77.6 L66.6 80.2" stroke="#4a6180" stroke-width="0.35"/>
+  <!-- a wrap come undone, trailing in the water -->
+  <path d="M70.6 78.6 Q73 81.4 76.4 81.4 Q78.6 82.4 80 84.4" fill="none" stroke="#c8d4df" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- broken anklet shard -->
+  <path d="M72.4 75.2 L73 73.6 L73.6 75.4 Z" fill="#aec3d4" stroke="#0d0a12" stroke-width="0.35"/>
+
+  <!-- ===== head, laid on its side, eyes closed ===== -->
+  <g transform="rotate(-50 29 69) translate(-19 36)">
+    <!-- back hair tufts, limp -->
+    <path d="M40.4 37 Q37.8 31 39 26.2 Q36.4 23.8 34.6 21 Q38.4 21.4 40.6 22.6 Q42 19.4 45 18.2 Q46.2 19.6 46.6 20.6 Q50.6 18.4 54.6 19.6 Q53.8 20.6 53.8 21.6 Q58 21 60.6 23.4 Q59.6 24.6 59.2 25.6 Q61.6 28.4 60.6 31.6 Q59.6 35 58 37 Q57 39.4 55.4 40 Z" fill="url(#fsd-hair)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M40 25 Q38 23.4 36.6 22 M42 21.6 Q43.4 20.2 44.8 19.4 M48 20.4 Q51 19.6 53.4 20" fill="none" stroke="#fafbff" stroke-width="0.55" stroke-linecap="round"/>
+    <path d="M58.6 25.6 Q60.2 28.6 59.4 31.6 M57.6 34 Q57.2 36.6 55.8 38.6" fill="none" stroke="#7880a2" stroke-width="0.5"/>
+    <!-- pointed ears, drooping -->
+    <path d="M41.2 31.6 Q37.2 30.2 33.4 28.6 Q35 32.6 37 34.2 Q39 35.6 41.4 35.4 Z" fill="url(#fsd-skin-rot)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+    <path d="M40.4 32.4 Q37.6 31.4 35.4 30.4 Q36.8 33 40.2 34" fill="none" stroke="#5f7894" stroke-width="0.45"/>
+    <path d="M54.8 31.6 Q58.8 30.2 62.6 28.6 Q61 32.6 59 34.2 Q57 35.6 54.6 35.4 Z" fill="url(#fsd-skin-rot)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+    <path d="M55.6 32.4 Q58.4 31.4 60.6 30.4 Q59.2 33 55.8 34" fill="none" stroke="#5f7894" stroke-width="0.45"/>
+    <!-- face -->
+    <path d="M40.6 30.6 Q40.6 24.2 48 24.2 Q55.4 24.2 55.4 30.6 Q55.4 36.6 52.6 39.6 Q50.2 41.8 48 41.8 Q45.8 41.8 43.4 39.6 Q40.6 36.6 40.6 30.6 Z" fill="url(#fsd-skin-rot)" stroke="#0d0a12" stroke-width="1.05" stroke-linejoin="round"/>
+    <path d="M55.2 29.6 Q55.6 36.4 52.4 39.6 Q50.4 41.4 48.6 41.6 Q52.6 38 53.4 31.4 Z" fill="#566f8c" opacity="0.45"/>
+    <path d="M42 30.6 Q48 27.6 55 30.8 Q48 29.4 42 31.8 Z" fill="#566f8c" opacity="0.4"/>
+    <!-- closed eyes, sunken -->
+    <path d="M42.6 33 Q44.4 34.8 46.4 33.2" fill="none" stroke="#1f2c40" stroke-width="0.75" stroke-linecap="round"/>
+    <path d="M53.4 33 Q51.6 34.8 49.6 33.2" fill="none" stroke="#1f2c40" stroke-width="0.75" stroke-linecap="round"/>
+    <path d="M42.6 33 L41.6 32.6 M53.4 33 L54.4 32.6" stroke="#1f2c40" stroke-width="0.45" stroke-linecap="round"/>
+    <path d="M43 34.8 Q44.4 35.8 46 35.2 M53 34.8 Q51.6 35.8 50 35.2" fill="none" stroke="#6a83a0" stroke-width="0.4"/>
+    <!-- slack brows -->
+    <path d="M42.4 30.8 Q44.4 30.4 46.4 31.2 M53.6 30.8 Q51.6 30.4 49.6 31.2" fill="none" stroke="#b9c6d3" stroke-width="0.7" stroke-linecap="round"/>
+    <!-- nose and parted lips -->
+    <path d="M48.2 34.4 L47.6 36.6 L48.6 36.8" fill="none" stroke="#5f7894" stroke-width="0.5" stroke-linecap="round"/>
+    <path d="M46.6 38.8 Q48 38.2 49.6 38.8 Q48 39.8 46.6 38.8 Z" fill="#33445c" stroke="#1f2c40" stroke-width="0.4"/>
+    <!-- frost creeping over the cheek -->
+    <path d="M51.6 36.6 l1.4 0.4 M52 37.6 l1 1 M42.6 36.4 l-0.8 0.8" stroke="#eef3f7" stroke-width="0.4" stroke-linecap="round"/>
+    <circle cx="52.4" cy="35.8" r="0.3" fill="#ffffff"/>
+    <!-- bangs, fallen across the brow -->
+    <path d="M40.6 30.6 Q40.4 24.6 45.6 23.4 Q52 22.2 55.8 26.6 Q56.4 29 55.6 31.6 Q54.6 28.8 52.6 27.8 Q53 29.6 52.2 31 Q50.6 28 47.4 27.6 Q48 29.2 47 30.6 Q45.4 28.4 43 28.6 Q41.8 29.4 41.6 31.8 Z" fill="url(#fsd-hair)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+    <path d="M42.2 27 Q45 24.4 49.2 24.2 M50.6 24.8 Q53.6 25.4 55 27.4" fill="none" stroke="#fafbff" stroke-width="0.55" stroke-linecap="round"/>
+    <path d="M44.2 26.4 Q46.6 25.8 49 26.4" fill="none" stroke="#7880a2" stroke-width="0.4"/>
+  </g>
+
+  <!-- neck joining the head to the shoulders -->
+  <path d="M34.6 71 Q33.4 74 35 77.4 L37.4 76.2 Q36.4 73.6 37 71.4 Z" fill="url(#fsd-skin-dark)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <!-- feathered collar, ruffled -->
+  <g stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round">
+    <path d="M35.4 68.8 Q37.4 67.4 39.4 68.4 Q38 69.8 36.2 70.2 Z" fill="#d6e0ea"/>
+    <path d="M35 77 Q37 78.6 39 77.8 Q37.8 76.4 35.8 76 Z" fill="#a7b8c9"/>
+  </g>
+
+  <!-- ===== near arm, flung out, palm up on the ground ===== -->
+  <path d="M37.4 74.4 Q40.4 75 41.8 78.6 Q43.6 82 46.4 83.4 L47.2 86.4 Q42.4 86 40 82.4 Q37.6 79.6 36.2 77.4 Z" fill="url(#fsd-skin)" stroke="#0d0a12" stroke-width="0.95" stroke-linejoin="round"/>
+  <path d="M38.6 75.6 Q40.6 76.8 41.4 79.2" fill="none" stroke="#e6eef5" stroke-width="0.5" opacity="0.8"/>
+  <!-- cracked ice bracer -->
+  <path d="M42.4 81 L45.2 81.6 L45.6 85 L42.6 84.6 Z" fill="#aec3d4" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M43.4 81.6 L44.2 83 L43.6 84.4" fill="none" stroke="#3d5470" stroke-width="0.35"/>
+  <!-- open hand, palm up, fingers slack -->
+  <path d="M45.6 83.2 Q48.2 81.8 50.6 82.8 Q52.4 82 53.6 82.6 Q54 83.4 52.8 83.9 Q54 84.3 54.2 85.1 Q53.8 85.9 52.6 85.5 Q53.4 86.3 52.9 86.9 Q52 87.3 51.2 86.5 Q50.2 88.1 48 87.7 Q46.2 87.3 45.4 86 Z" fill="url(#fsd-skin)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M50.8 83.4 L52.6 83.8 M51 84.6 L52.8 85.4 M50.6 85.6 L51.4 86.4" fill="none" stroke="#5f7894" stroke-width="0.35"/>
+  <path d="M46.6 83.6 Q48 82.8 49.6 83" fill="none" stroke="#e6eef5" stroke-width="0.4"/>
+  <!-- the last snowflake, dull and melting in the palm -->
+  <path d="M48.4 84.2 L48.4 86.8 M47.3 84.85 L49.5 86.15 M47.3 86.15 L49.5 84.85" stroke="#a9b8c7" stroke-width="0.4" stroke-linecap="round"/>
+  <path d="M49.6 87.6 Q49.8 88.8 49.4 89.6" fill="none" stroke="#9fb3c7" stroke-width="0.4" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- ===== the icicle crown, slipped off and melting into the puddle ===== -->
+  <g transform="translate(-1 21) rotate(-8 20 63) translate(20 63) scale(1.15) translate(-20 -63)">
+    <path d="M12.6 64.4 Q20 61.4 27.4 64.4 L27.2 65.8 Q20 63 12.8 65.8 Z" fill="#b9c4d1" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <g fill="url(#fsd-ice)" stroke="#0d0a12" stroke-width="0.55" stroke-linejoin="round">
+      <path d="M18.6 62.6 L19.4 59 L20.4 58.4 L21 62.4 Z"/>
+      <path d="M15.2 63.6 L15.6 59.8 L17.2 63.2 Z"/>
+      <path d="M22.8 62.8 L24.6 58.4 L24.8 63.4 Z"/>
+      <path d="M13.2 64.6 L12.4 62 L14.2 64 Z"/>
+      <path d="M25.8 63.6 L27.4 61.4 L27 64.4 Z"/>
+    </g>
+    <!-- the tallest icicle snapped off short -->
+    <path d="M19.4 59 L20 59.6 L20.4 58.4" fill="none" stroke="#0d0a12" stroke-width="0.4"/>
+    <path d="M16 62.6 L16.1 60.8 M23.6 62.4 L24.3 60" stroke="#f2f6fa" stroke-width="0.35"/>
+    <circle cx="20" cy="63.2" r="1" fill="#7f95ac" stroke="#0d0a12" stroke-width="0.45"/>
+    <circle cx="19.7" cy="62.9" r="0.3" fill="#c9d4df"/>
+    <path d="M13.6 64.8 Q17 63.4 20 63.2" fill="none" stroke="#eef3f7" stroke-width="0.4"/>
+    <!-- meltwater beading off the band -->
+    <path d="M16 66 Q16.3 67.2 15.9 68 M23.4 65.8 Q23.7 67 23.3 67.8" fill="none" stroke="#c9d7e4" stroke-width="0.5" stroke-linecap="round"/>
+  </g>
+  <ellipse cx="15" cy="89.6" rx="1.8" ry="0.55" fill="none" stroke="#c9d7e4" stroke-width="0.4" opacity="0.7"/>
+  <!-- the snapped icicle tip lying nearby -->
+  <path d="M29.4 87.6 L33.8 86.4 L33.2 88.2 Z" fill="url(#fsd-ice)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+
+  <!-- ===== foreground shards ===== -->
+  <g fill="url(#fsd-shard)" fill-opacity="0.9" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round">
+    <path d="M74.6 86.4 L81 83.4 L79.6 88.6 Z"/>
+    <path d="M82.6 77.4 L87.4 79.6 L83.4 81.6 Z"/>
+    <path d="M30.8 83.6 L35.6 81.8 L34.8 86 Z"/>
+    <path d="M66 62.6 L71.6 60.6 L69.8 64.8 Z"/>
+    <path d="M27.4 92 L31.6 90.6 L30.6 93.4 Z"/>
+  </g>
+  <path d="M76 86 L80.2 84 M83.6 78 L86.6 79.6 M31.8 83.6 L35 82.2 M67 62.6 L71 61" stroke="#f2f6fa" stroke-width="0.4" opacity="0.85"/>
+  <path d="M78.4 84.6 L79.6 88.6 M34 82.6 L34.8 86 M70.4 61.8 L69.8 64.8" stroke="#4d6884" stroke-width="0.4"/>
+  <!-- tiny glittering crumbs of broken ice -->
+  <g fill="#c9d7e4" stroke="#0d0a12" stroke-width="0.3">
+    <path d="M30 63.4 l1.2 -0.6 l-0.2 1.2 Z"/><path d="M68 64.6 l1.2 0.2 l-0.8 0.9 Z"/><path d="M52 90.6 l1 -0.6 l0 1.1 Z"/>
+    <path d="M26 88.4 l1.1 0.1 l-0.6 0.9 Z"/><path d="M88 84 l0.9 -0.7 l0.2 1.1 Z"/><path d="M6.8 80 l1 -0.6 l0 1.1 Z"/>
+  </g>
+  <!-- the cold breath gone: a last grey wisp of mist -->
+  <path d="M36.4 60.6 Q34.6 57.4 36.8 55 Q38.8 52.6 37 49.6" fill="none" stroke="#8b94a6" stroke-width="0.7" stroke-linecap="round" opacity="0.45"/>
+</svg>

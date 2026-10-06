@@ -1,0 +1,648 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144">
+  <!-- The Hollow Sovereign, attack key pose: SOVEREIGN SWEEP. The greatscythe has just been swept round in a vast
+       horizontal arc in front of it, a crescent of soulfire tearing through the air behind the blade, while the
+       other hand flings out the Grave Tide: a burst of soulfire and wailing ghost-skulls. Crown and sockets blaze,
+       the void-heart flares, cape and sleeves whipped by the swing. Same canvas and feet anchor (72,132) as alive. -->
+  <defs>
+    <linearGradient id="hsa-plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8a849e"/>
+      <stop offset="0.45" stop-color="#524c68"/>
+      <stop offset="1" stop-color="#262236"/>
+    </linearGradient>
+    <linearGradient id="hsa-plate-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#666080"/>
+      <stop offset="1" stop-color="#1f1b2c"/>
+    </linearGradient>
+    <linearGradient id="hsa-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1d08a"/>
+      <stop offset="0.5" stop-color="#c09048"/>
+      <stop offset="1" stop-color="#7a5426"/>
+    </linearGradient>
+    <linearGradient id="hsa-iron" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9a95aa"/>
+      <stop offset="0.5" stop-color="#5a5570"/>
+      <stop offset="1" stop-color="#2c283a"/>
+    </linearGradient>
+    <linearGradient id="hsa-robe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7a3fa6"/>
+      <stop offset="0.5" stop-color="#4f2470"/>
+      <stop offset="1" stop-color="#26103a"/>
+    </linearGradient>
+    <linearGradient id="hsa-sleeve" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6a3592"/>
+      <stop offset="1" stop-color="#2c1342"/>
+    </linearGradient>
+    <linearGradient id="hsa-cape" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d2858"/>
+      <stop offset="1" stop-color="#170e24"/>
+    </linearGradient>
+    <linearGradient id="hsa-lining" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a4a5e"/>
+      <stop offset="1" stop-color="#3a1828"/>
+    </linearGradient>
+    <linearGradient id="hsa-tabard" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2c4c"/>
+      <stop offset="1" stop-color="#1a1426"/>
+    </linearGradient>
+    <linearGradient id="hsa-bone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6efd9"/>
+      <stop offset="0.55" stop-color="#d4c7a3"/>
+      <stop offset="1" stop-color="#93856a"/>
+    </linearGradient>
+    <linearGradient id="hsa-ermine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7f2e4"/>
+      <stop offset="1" stop-color="#c2b9a2"/>
+    </linearGradient>
+    <linearGradient id="hsa-blade" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dfe8ec"/>
+      <stop offset="0.45" stop-color="#9aa6b6"/>
+      <stop offset="0.46" stop-color="#5e6878"/>
+      <stop offset="1" stop-color="#363c4c"/>
+    </linearGradient>
+    <linearGradient id="hsa-shaft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6e6884"/>
+      <stop offset="0.5" stop-color="#3a3550"/>
+      <stop offset="1" stop-color="#1c1828"/>
+    </linearGradient>
+    <linearGradient id="hsa-flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#e9fff7"/>
+      <stop offset="0.35" stop-color="#8ff7d6"/>
+      <stop offset="0.75" stop-color="#5ef0c0" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hsa-ghost" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b8fbe6" stop-opacity="0.8"/>
+      <stop offset="0.55" stop-color="#5ef0c0" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="hsa-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#d8fff0"/>
+      <stop offset="0.35" stop-color="#5ef0c0"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hsa-glow-soft" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#5ef0c0" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hsa-void" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#2f6f66"/>
+      <stop offset="0.45" stop-color="#2a1640"/>
+      <stop offset="1" stop-color="#140b20"/>
+    </radialGradient>
+    <radialGradient id="hsa-heart" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0c0616"/>
+      <stop offset="0.45" stop-color="#2a1650"/>
+      <stop offset="0.78" stop-color="#5ef0c0"/>
+      <stop offset="1" stop-color="#e9fff7"/>
+    </radialGradient>
+    <radialGradient id="hsa-gem-g" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#e9fff7"/>
+      <stop offset="0.4" stop-color="#5ef0c0"/>
+      <stop offset="1" stop-color="#1c6b58"/>
+    </radialGradient>
+    <radialGradient id="hsa-gem-v" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#e3d6ff"/>
+      <stop offset="0.45" stop-color="#9a6ae0"/>
+      <stop offset="1" stop-color="#3a1c66"/>
+    </radialGradient>
+    <linearGradient id="hsa-trail" gradientUnits="userSpaceOnUse" x1="78" y1="116" x2="8" y2="90">
+      <stop offset="0" stop-color="#e9fff7" stop-opacity="0.95"/>
+      <stop offset="0.22" stop-color="#8ff7d6" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#5ef0c0" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hsa-trail-wide" gradientUnits="userSpaceOnUse" x1="84" y1="118" x2="6" y2="88">
+      <stop offset="0" stop-color="#5ef0c0" stop-opacity="0.4"/>
+      <stop offset="0.5" stop-color="#5ef0c0" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hsa-trail-core" gradientUnits="userSpaceOnUse" x1="76" y1="117" x2="14" y2="98">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="0.5" stop-color="#e9fff7" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#8ff7d6" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hsa-blade2" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#c6d0da"/>
+      <stop offset="0.45" stop-color="#8a96a6"/>
+      <stop offset="1" stop-color="#3c4252"/>
+    </linearGradient>
+    <linearGradient id="hsa-bevel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2f8fa"/>
+      <stop offset="1" stop-color="#a6b2c0"/>
+    </linearGradient>
+    <radialGradient id="hsa-burst" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#d8fff0"/>
+      <stop offset="0.65" stop-color="#8ff7d6" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hsa-flare" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#e9fff7" stop-opacity="0.9"/>
+      <stop offset="0.4" stop-color="#5ef0c0" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#5ef0c0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ===== the great cape, whipped out wide by the swing, tattered hem lifting ===== -->
+  <path d="M52 54 C38 66 22 86 7 106 L16.4 107.6 L10 118.6 L21 115 L20 127 L31.6 120.4 L35 130.6 L46.6 124.6 L55 131 L86 131 L92 125 L100.4 132 L105.6 123.4 L115.6 130.6 L116.4 119.6 L127 126.4 L124.6 115 L133.6 117.6 C120 92 106 68 92 54 Z" fill="url(#hsa-cape)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <!-- crimson lining flung out along both edges -->
+  <path d="M52 56 C39 69 24 88 9.4 105.4 L16.4 107.6 L14.4 112.4 C27 94 41 76 55 60 Z" fill="url(#hsa-lining)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M92 56 C104 71 116 92 131.6 116.6 L124.6 115 L126 120.4 C113 98 101 76 89 60 Z" fill="url(#hsa-lining)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M50 64 C41 77 30 92 18 106 M94 64 C103 78 113 96 124 112" fill="none" stroke="#c07a8a" stroke-width="0.6" opacity="0.6"/>
+  <!-- cape folds, dragged sideways by the swing -->
+  <path d="M38 80 C31 94 27 108 23 124 M46 88 C42 102 40 114 38 127 M98 90 C100 104 102 116 104 128 M106 82 C110 96 113 108 115 124" fill="none" stroke="#0f0918" stroke-width="0.9" opacity="0.85"/>
+  <path d="M35 86 C30 98 26 108 22 118 M105 88 C109 100 112 110 114 120" fill="none" stroke="#5a4378" stroke-width="0.6" opacity="0.55"/>
+  <path d="M20 110 Q26 104 33 101 M14 113 Q20 109 25 108" fill="none" stroke="#5a4378" stroke-width="0.5" opacity="0.5"/>
+  <!-- moth-eaten holes in the cape -->
+  <path d="M24 104 l2 -1.4 l1.4 1.6 l-0.8 2 l-2 0.2 Z M117 104 l1.8 -1 l1.2 1.4 l-1 1.8 l-1.6 -0.4 Z" fill="#0b0712" stroke="#2a1c3a" stroke-width="0.4"/>
+  <!-- soulfire rim light on the cape from the sweep -->
+  <path d="M10 106.6 L16.4 107.6 M21 115.4 L20.4 124 M32 121 L34.6 129" fill="none" stroke="#5ef0c0" stroke-width="0.6" opacity="0.6"/>
+
+  <!-- ===== high standing collar behind the skull ===== -->
+  <path d="M51 60 L45 40 L52 43.5 L48.5 27 L57.5 36 L60 31 L72 34 L84 31 L86.5 36 L95.5 27 L92 43.5 L99 40 L93 60 Z" fill="url(#hsa-cape)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M52.5 56 L48 42.5 L53.5 45 L51 31 L57.5 38 M91.5 56 L96 42.5 L90.5 45 L93 31 L86.5 38" fill="none" stroke="#c09048" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M51.6 54 L47.6 42.2 M50.6 32 L53 44" fill="none" stroke="#f1d08a" stroke-width="0.5" opacity="0.8"/>
+  <path d="M54 48 L56 56 M90 48 L88 56" stroke="#0f0918" stroke-width="0.7"/>
+  <circle cx="48.6" cy="27.6" r="0.9" fill="#f1d08a" stroke="#0d0a12" stroke-width="0.4"/>
+  <circle cx="95.4" cy="27.6" r="0.9" fill="#c09048" stroke="#0d0a12" stroke-width="0.4"/>
+
+  <!-- ===== ghostly chain, flung outward by the swing ===== -->
+  <g transform="rotate(14 30 70)">
+  <path d="M30 70 Q18 82 15 104" fill="none" stroke="#5ef0c0" stroke-width="4" opacity="0.12" stroke-linecap="round"/>
+  <g fill="none" stroke-linecap="round">
+    <g stroke="#0d0a12" stroke-width="2.6">
+      <ellipse cx="29.4" cy="73" rx="2.4" ry="1.5" transform="rotate(-50 29.4 73)"/>
+      <path d="M27.2 75.2 L25.4 77.4"/>
+      <ellipse cx="24.2" cy="79.6" rx="2.4" ry="1.5" transform="rotate(-58 24.2 79.6)"/>
+      <path d="M22.8 82 L21.6 84.4"/>
+      <ellipse cx="20.6" cy="86.8" rx="2.4" ry="1.5" transform="rotate(-66 20.6 86.8)"/>
+      <path d="M19.6 89.4 L18.9 91.8"/>
+      <ellipse cx="18.1" cy="94.4" rx="2.4" ry="1.5" transform="rotate(-74 18.1 94.4)"/>
+      <path d="M17.5 97 L17.1 99.4"/>
+    </g>
+    <g stroke="#7a7592" stroke-width="1.1">
+      <ellipse cx="29.4" cy="73" rx="2.4" ry="1.5" transform="rotate(-50 29.4 73)"/>
+      <path d="M27.2 75.2 L25.4 77.4"/>
+      <ellipse cx="24.2" cy="79.6" rx="2.4" ry="1.5" transform="rotate(-58 24.2 79.6)"/>
+      <path d="M22.8 82 L21.6 84.4"/>
+      <ellipse cx="20.6" cy="86.8" rx="2.4" ry="1.5" transform="rotate(-66 20.6 86.8)"/>
+      <path d="M19.6 89.4 L18.9 91.8"/>
+      <ellipse cx="18.1" cy="94.4" rx="2.4" ry="1.5" transform="rotate(-74 18.1 94.4)"/>
+      <path d="M17.5 97 L17.1 99.4"/>
+    </g>
+    <path d="M28 71.8 Q29.6 71.6 30.6 72.6 M23 78.4 Q24.4 78.2 25.2 79.2 M19.6 85.4 Q20.8 85.4 21.4 86.4 M17.2 93 Q18.3 93 18.8 94" stroke="#c8fbea" stroke-width="0.5"/>
+  </g>
+  <!-- the broken shackle at its end -->
+  <path d="M14.2 101.6 Q12.4 104.6 14 107.4 Q17 109.4 19.6 107 Q20.8 104.8 19.6 102.6" fill="none" stroke="#0d0a12" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M14.2 101.6 Q12.4 104.6 14 107.4 Q17 109.4 19.6 107 Q20.8 104.8 19.6 102.6" fill="none" stroke="#6e6986" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M13.6 104 Q13.6 106.4 15.4 107.6" fill="none" stroke="#c8fbea" stroke-width="0.5"/>
+  <path d="M16.2 100.2 L17.2 99.8 L17.4 101.2" fill="none" stroke="#0d0a12" stroke-width="0.6"/>
+  </g>
+
+  <!-- ===== legs: sabatons peeking under the robe ===== -->
+  <g stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round">
+    <path d="M59 124 L69.5 124 L70 129 Q70 132 68 132 L54 132 Q53.2 129.6 56 127.6 Z" fill="url(#hsa-plate)"/>
+    <path d="M74.5 124 L85 124 L88 127.6 Q90.8 129.6 90 132 L76 132 Q74 132 74 129 Z" fill="url(#hsa-plate-dark)"/>
+  </g>
+  <path d="M56.4 129 L69.4 129 M74.6 129 L88.6 129" stroke="#1a1626" stroke-width="0.6"/>
+  <path d="M57.4 128 Q61 126.4 66 126.6" fill="none" stroke="#c8c4d8" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M54.4 131.4 L58 129.6 M89.6 131.4 L86 129.6" stroke="#c09048" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- robe hem flung out by the swing (behind the skirt) -->
+  <path d="M53 98 C47 107 41 114 33.6 120.6 L39.4 121 L37.4 126 L43.6 123.4 L44.4 127.6 L48.4 123.6 Z" fill="url(#hsa-robe)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M49 106 C45 112 41 116 37 119.6 M51 110 Q48 116 45 121" fill="none" stroke="#a46ad0" stroke-width="0.5" opacity="0.7"/>
+  <path d="M91 98 C96 106 101 112 107.4 117.6 L102.6 118.6 L104 123 L98.6 120.6 L97.4 124.6 Z" fill="url(#hsa-robe)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M94 104 Q99 111 104 116" fill="none" stroke="#1e0b2e" stroke-width="0.6"/>
+  <!-- ===== robe skirt, with ermine at the hem ===== -->
+  <path d="M57 89 Q72 95 87 89 C93 101 98 112 102.5 123 Q72 131 41.5 123 C46 112 51 101 57 89 Z" fill="url(#hsa-robe)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- robe folds -->
+  <path d="M55 100 C52 108 49 114 47 121 M61 100 C59 108 58 116 57 124 M83 100 C85 108 86 116 87.5 124 M89 100 C92 108 94 114 97 121" fill="none" stroke="#1e0b2e" stroke-width="0.8"/>
+  <path d="M53.6 98 C50.6 106 48 112 45.6 119 M60 104 C58.6 110 58 116 57.6 120" fill="none" stroke="#a46ad0" stroke-width="0.6" opacity="0.7"/>
+  <!-- gold embroidery along the robe's front opening -->
+  <path d="M63.5 95 C62.4 104 61.6 112 61 121 M80.5 95 C81.6 104 82.4 112 83 121" fill="none" stroke="#c09048" stroke-width="0.8" stroke-dasharray="1.6 1"/>
+  <!-- ermine band along the hem -->
+  <path d="M43.6 117.6 Q72 125.4 100.4 117.6 L102.8 123.2 L100 125.6 L97 124.4 Q72 132.6 47 124.4 L44 125.6 L41.2 123.2 Z" fill="url(#hsa-ermine)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M45 119.4 Q72 126.8 99 119.4" fill="none" stroke="#ffffff" stroke-width="0.6" opacity="0.8"/>
+  <g fill="#2a2238">
+    <path d="M49 121 l0.9 2.2 l0.9 -2.2 Z M55.4 122.6 l0.9 2.2 l0.9 -2.2 Z M62 123.8 l0.9 2.2 l0.9 -2.2 Z M80.2 123.8 l0.9 2.2 l0.9 -2.2 Z M86.8 122.6 l0.9 2.2 l0.9 -2.2 Z M93.2 121 l0.9 2.2 l0.9 -2.2 Z"/>
+  </g>
+  <path d="M51.4 123.4 l1 0.4 M58.6 124.8 l1 0.3 M84.2 124.8 l1 0.3 M90.4 123.4 l1 0.4" stroke="#9a907a" stroke-width="0.5"/>
+  <!-- torn notches in the fur -->
+  <path d="M68 127.8 l1.4 -1.8 l1.2 2 M93.8 124 l1 -1.6 l1 1.4" fill="#2c1442" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+
+  <!-- ===== tassets over the robe ===== -->
+  <g stroke="#0d0a12" stroke-width="1" stroke-linejoin="round">
+    <path d="M56.5 90 L66 93.5 L64 107 Q58 108.5 52.6 105 Z" fill="url(#hsa-plate)"/>
+    <path d="M78 93.5 L87.5 90 L91.4 105 Q86 108.5 80 107 Z" fill="url(#hsa-plate-dark)"/>
+  </g>
+  <path d="M55 97.6 L65.2 100.2 M54 101.6 L64.6 104 M79.2 100.2 L89.2 97.6 M79.6 104 L90.2 101.6" stroke="#1a1626" stroke-width="0.6"/>
+  <path d="M53 104.8 Q58.4 108 63.8 106.6 M80.2 106.6 Q85.6 108 91 104.8" fill="none" stroke="#c09048" stroke-width="0.9"/>
+  <path d="M57 92 L58.4 104" stroke="#cfcadc" stroke-width="0.7" stroke-linecap="round"/>
+  <circle cx="58" cy="94" r="0.7" fill="#f1d08a"/><circle cx="63.6" cy="96" r="0.7" fill="#f1d08a"/>
+  <circle cx="80.4" cy="96" r="0.7" fill="#c09048"/><circle cx="86" cy="94" r="0.7" fill="#c09048"/>
+
+  <!-- ===== tabard with the sigil of the hollow crown ===== -->
+  <path d="M65.5 92 L78.5 92 L79 117 L75.6 114 L72 120 L68.4 114 L65 117 Z" fill="url(#hsa-tabard)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M66.8 94 L66.4 114.4 M77.2 94 L77.6 114.4" stroke="#c09048" stroke-width="0.8"/>
+  <path d="M67.2 94.4 L66.9 112" stroke="#f1d08a" stroke-width="0.4"/>
+  <path d="M71 97 C70.4 104 70.8 110 70.4 116 M74.6 98 C75 104 74.6 110 75 114" fill="none" stroke="#0f0a18" stroke-width="0.5"/>
+  <!-- sigil: an empty gold crown over a small skull -->
+  <path d="M68 103 L68.6 99 L70.2 101 L72 97.8 L73.8 101 L75.4 99 L76 103 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <circle cx="72" cy="107" r="2.6" fill="none" stroke="#c09048" stroke-width="0.9"/>
+  <circle cx="72" cy="107" r="1.1" fill="#5ef0c0" opacity="0.8"/>
+  <path d="M72 110.2 L73 112 L72 114 L71 112 Z" fill="#c09048" stroke="#0d0a12" stroke-width="0.3"/>
+
+  <!-- ===== hollow ribcage behind the cracked cuirass ===== -->
+  <path d="M60 58 L84 58 L85 84 L59 84 Z" fill="url(#hsa-void)"/>
+  <!-- spine, deep inside -->
+  <path d="M72 59 L72 84" stroke="#5c5268" stroke-width="2.4" stroke-dasharray="2 0.8"/>
+  <!-- ribs -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M72 62 Q65 61.6 60.4 65.6 M72 62 Q79 61.6 83.6 65.6 M72 66.6 Q64.6 66.2 59.8 70.6 M72 66.6 Q79.4 66.2 84.2 70.6 M72 71.4 Q65 71 60.2 75.4 M72 71.4 Q79 71 83.8 75.4 M72 76 Q66 76 61.6 79.6 M72 76 Q78 76 82.4 79.6" stroke="#0d0a12" stroke-width="2.6"/>
+    <path d="M72 62 Q65 61.6 60.4 65.6 M72 62 Q79 61.6 83.6 65.6 M72 66.6 Q64.6 66.2 59.8 70.6 M72 66.6 Q79.4 66.2 84.2 70.6 M72 71.4 Q65 71 60.2 75.4 M72 71.4 Q79 71 83.8 75.4 M72 76 Q66 76 61.6 79.6 M72 76 Q78 76 82.4 79.6" stroke="#d8ccac" stroke-width="1.7"/>
+    <path d="M71 61.6 Q66 61.6 62 64.4 M71 66.2 Q65.6 66.2 61.6 69.2 M71 71 Q66 71 62 74 M71 75.6 Q67 75.6 63.4 78.4" stroke="#f6efd9" stroke-width="0.5"/>
+    <path d="M74 62.6 Q79.6 62.8 83 65.8 M74 67.2 Q79.6 67.4 83.6 70.8 M74 72 Q79.4 72.2 83.2 75.6" stroke="#7e6f55" stroke-width="0.5"/>
+  </g>
+  <!-- sternum -->
+  <path d="M70.6 60 L73.4 60 L73.2 78 L72 80 L70.8 78 Z" fill="url(#hsa-bone)" stroke="#0d0a12" stroke-width="0.6"/>
+  <!-- the void-heart: FLARING, its light bursting out through the ribs -->
+  <ellipse cx="72" cy="70" rx="13" ry="12" fill="url(#hsa-glow)" opacity="0.8"/>
+  <circle cx="72" cy="70" r="5" fill="url(#hsa-heart)" stroke="#0d0a12" stroke-width="0.7"/>
+  <path d="M70 68 Q72.6 66.4 74.4 68.6 Q75.4 71.6 72.4 72.6 Q70.4 72.6 70.6 70.6 Q71.4 69.4 72.6 70.2" fill="none" stroke="#5ef0c0" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M67 68.4 Q68.6 63.6 73.4 64.4 Q77.6 65.4 77.4 69.4 M77 72 Q75.4 76.4 70.6 75.6 Q66.4 74.6 66.6 70.6" fill="none" stroke="#8ff7d6" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M65.4 66 Q67 61.6 72 61.8 M78.6 74 Q77 78.2 72 78.4" fill="none" stroke="#5ef0c0" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="69.4" cy="67.8" r="0.8" fill="#ffffff"/>
+  <circle cx="77.8" cy="66" r="0.5" fill="#e9fff7"/><circle cx="66.4" cy="73.8" r="0.5" fill="#e9fff7"/>
+  <circle cx="72" cy="70" r="2" fill="#ffffff" opacity="0.85"/>
+
+  <!-- ===== cuirass, broken open over the chest (evenodd leaves the hole) ===== -->
+  <path fill-rule="evenodd" d="M54 56 Q72 51.5 90 56 L88.5 80 Q87 88.5 72 90.5 Q57 88.5 55.5 80 Z M63.6 59.6 L67.6 62 L70.6 58.6 L74.4 61.4 L79.6 58.8 L81.6 65 L79.2 69 L82.8 75.4 L78.2 79.6 L74 77.4 L70.4 81.8 L66.4 77 L61.4 79 L63 72 L60.2 66.6 Z" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- broken edges: lit lips and soulfire rim light on the shards -->
+  <path d="M60.6 66.8 L63.2 72 L61.8 78.4 M63.8 60.2 L67.4 62.6 L70.6 59.2" fill="none" stroke="#e8e4f2" stroke-width="0.6"/>
+  <path d="M74.4 62 L79.4 59.6 L81 65 L78.6 69 L82 75.2 L78 78.8 L74 76.8 L70.4 81 L66.6 76.6" fill="none" stroke="#5ef0c0" stroke-width="0.6" opacity="0.8"/>
+  <!-- gold neckline trim and filigree -->
+  <path d="M54.6 57.6 Q72 53 89.4 57.6" fill="none" stroke="#c09048" stroke-width="1.3"/>
+  <path d="M55 56.8 Q72 52.4 89 56.8" fill="none" stroke="#f1d08a" stroke-width="0.5"/>
+  <path d="M57 62 Q58.6 65 57.4 68 Q56.4 71 58 74 M87 62 Q85.4 65 86.6 68 Q87.6 71 86 74" fill="none" stroke="#c09048" stroke-width="0.7"/>
+  <circle cx="57.2" cy="62" r="0.8" fill="#f1d08a"/><circle cx="86.8" cy="62" r="0.8" fill="#c09048"/>
+  <!-- plate highlight on the lit side, shadow on the right -->
+  <path d="M57.4 61 Q58.4 58.8 61 58.4" fill="none" stroke="#f0edf8" stroke-width="1" stroke-linecap="round" opacity="0.85"/>
+  <path d="M84.8 72 Q85.6 79 82 84.6" fill="none" stroke="#1a1626" stroke-width="0.9"/>
+  <!-- lower plate ridge and scratches -->
+  <path d="M72 82 L72 90" stroke="#1a1626" stroke-width="0.7"/>
+  <path d="M71.3 82.4 L71.3 89.6" stroke="#c8c4d8" stroke-width="0.4"/>
+  <path d="M59 82 L63 80.4 M83 82.6 L86 80.6 M60 84.6 l2.6 -0.8" stroke="#1a1626" stroke-width="0.6"/>
+  <path d="M84 63 Q85 66 84.2 68" stroke="#4f8f7a" stroke-width="0.7" fill="none" opacity="0.7"/>
+  <!-- glow pouring out of the hole and soulfire rays through the cracks -->
+  <ellipse cx="72" cy="70" rx="19" ry="16" fill="url(#hsa-glow-soft)" opacity="0.5"/>
+  <g fill="#8ff7d6" opacity="0.75">
+    <path d="M70.6 66 L63.4 55.6 L72.4 65.4 Z M74 66 L82.8 54.4 L74.8 66.8 Z M76 70.4 L90.6 66.6 L76 71.8 Z M68 71.6 L53.6 75 L68 70.2 Z M74.4 74 L82 85.4 L73 74.6 Z M69.6 74 L61.4 84.6 L70.8 74.8 Z"/>
+  </g>
+  <g fill="#e9fff7">
+    <path d="M71 66.6 L66 59.2 L71.8 66 Z M74.6 67 L80.6 58.8 L75.2 67.4 Z M75.6 70.8 L85.4 68.4 L75.6 71.4 Z M68.4 71.2 L58.6 73.6 L68.4 70.6 Z"/>
+  </g>
+
+  <!-- ===== belt with a gold skull buckle ===== -->
+  <path d="M55.6 85 Q72 91.6 88.4 85 L88.6 90 Q72 97 55.4 90 Z" fill="#3a2a3a" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M56 86.6 Q72 93 88 86.6" fill="none" stroke="#c09048" stroke-width="0.6" stroke-dasharray="1.2 1.2"/>
+  <circle cx="60" cy="88.6" r="0.8" fill="#f1d08a" stroke="#0d0a12" stroke-width="0.3"/><circle cx="84" cy="88.6" r="0.8" fill="#c09048" stroke="#0d0a12" stroke-width="0.3"/>
+  <path d="M67.4 89.4 Q67.4 84.6 72 84.4 Q76.6 84.6 76.6 89.4 Q76.4 92 74.6 92.6 L74.4 94.6 L69.6 94.6 L69.4 92.6 Q67.6 92 67.4 89.4 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M68.6 88 Q69.4 85.6 72 85.4" fill="none" stroke="#fbe8b8" stroke-width="0.6"/>
+  <path d="M68.8 89 Q70 87.8 71.2 89.2 Q71 90.8 69.8 90.8 Q68.8 90.4 68.8 89 Z M72.8 89.2 Q74 87.8 75.2 89 Q75.2 90.4 74.2 90.8 Q73 90.8 72.8 89.2 Z" fill="#2a1a10"/>
+  <circle cx="70" cy="89.4" r="0.45" fill="#8ff7d6"/><circle cx="74" cy="89.4" r="0.45" fill="#8ff7d6"/>
+  <path d="M72 90.8 L71.4 92 L72.6 92" fill="#2a1a10"/>
+  <path d="M70.6 93 l0 1.4 M72 93 l0 1.4 M73.4 93 l0 1.4" stroke="#5a3a18" stroke-width="0.4"/>
+
+  <!-- ===== ermine mantle around the shoulders ===== -->
+  <path d="M51.5 57 Q55 50 63 52 Q72 48.6 81 52 Q89 50 92.5 57 Q91 63 83 61.6 Q72 64.6 61 61.6 Q53 63 51.5 57 Z" fill="url(#hsa-ermine)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M53.4 56 Q56 51.6 62.4 53.2 Q68 51 72 51" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M60 60.4 Q66 62 72 62.2 M84 60.4 Q89 60.2 91 57.4" fill="none" stroke="#a0967e" stroke-width="0.6"/>
+  <g fill="#2a2238">
+    <path d="M56 55.6 l0.8 2.4 l0.8 -2.4 Z M62.6 56.8 l0.8 2.4 l0.8 -2.4 Z M69 57.6 l0.8 2.4 l0.8 -2.4 Z M74.6 57.6 l0.8 2.4 l0.8 -2.4 Z M81 56.8 l0.8 2.4 l0.8 -2.4 Z M87.4 55.6 l0.8 2.4 l0.8 -2.4 Z M59.4 53.2 l0.7 2 l0.7 -2 Z M84 53.2 l0.7 2 l0.7 -2 Z"/>
+  </g>
+
+  <!-- ===== SOVEREIGN SWEEP: the crescent of soulfire torn through the air in front of it ===== -->
+  <path d="M87.1 121.3 L83.9 121.6 L80.7 121.8 L77.4 121.9 L74.2 122 L70.9 122 L67.7 121.9 L64.4 121.8 L61.2 121.7 L58 121.4 L54.8 121.1 L51.6 120.8 L48.6 120.4 L45.5 119.9 L42.5 119.4 L39.6 118.8 L36.8 118.2 L34 117.5 L31.3 116.8 L28.7 116 L26.2 115.2 L23.9 114.3 L21.6 113.4 L19.4 112.5 L17.3 111.5 L15.4 110.5 L13.6 109.4 L11.9 108.3 L10.4 107.2 L9 106 L7.7 104.8 L6.6 103.6 L5.7 102.4 L4.8 101.2 L4.2 99.9 L3.6 98.7 L3.3 97.4 L3.1 96.1 L3 94.9 L3.1 93.6 L3.3 92.3 L3.7 91 L4.3 89.8 L5 88.5 L5.9 87.3 L6.9 86.1 L8 84.9 L9.3 83.7 L10.7 82.6 L10.7 82.6 L10.4 84.2 L9.7 85.5 L9 86.7 L8.5 87.9 L8 89.1 L7.7 90.2 L7.5 91.3 L7.4 92.4 L7.5 93.5 L7.7 94.5 L8 95.5 L8.5 96.4 L9.1 97.4 L9.8 98.3 L10.6 99.1 L11.6 100 L12.7 100.8 L13.9 101.5 L15.3 102.3 L16.7 103 L18.3 103.6 L20 104.2 L21.7 104.8 L23.6 105.3 L25.6 105.8 L27.6 106.3 L29.8 106.7 L32 107.1 L34.3 107.5 L36.7 107.8 L39.1 108 L41.6 108.3 L44.1 108.5 L46.7 108.6 L49.3 108.7 L52 108.8 L54.7 108.8 L57.4 108.8 L60.1 108.8 L62.9 108.7 L65.6 108.6 L68.4 108.5 L71.1 108.3 L73.8 108.1 L76.5 107.9 L79.2 107.7 L81.9 107.4 L84.5 107.1 Z" fill="url(#hsa-trail-wide)"/>
+  <path d="M76.5 119.9 L73.9 120 L71.2 120 L68.5 120 L65.9 119.9 L63.2 119.8 L60.6 119.6 L58 119.4 L55.4 119.2 L52.8 118.9 L50.3 118.6 L47.8 118.2 L45.4 117.8 L43 117.4 L40.6 116.9 L38.3 116.4 L36.1 115.9 L33.9 115.3 L31.8 114.7 L29.8 114 L27.8 113.4 L25.9 112.6 L24.1 111.9 L22.4 111.2 L20.7 110.4 L19.2 109.5 L17.7 108.7 L16.4 107.9 L15.1 107 L13.9 106.1 L12.8 105.2 L11.9 104.2 L11 103.3 L10.3 102.3 L9.6 101.4 L9.1 100.4 L8.6 99.4 L8.3 98.4 L8.1 97.4 L8 96.4 L8 95.4 L8.1 94.4 L8.4 93.4 L8.7 92.4 L9.2 91.4 L9.7 90.4 L10.4 89.5 L11.2 88.5 L12.1 87.6 L12.1 87.6 L11.5 88.6 L10.9 89.6 L10.5 90.6 L10.1 91.6 L9.8 92.5 L9.6 93.4 L9.6 94.3 L9.6 95.2 L9.7 96.1 L10 96.9 L10.3 97.7 L10.7 98.5 L11.3 99.3 L11.9 100.1 L12.7 100.8 L13.5 101.5 L14.5 102.2 L15.5 102.9 L16.6 103.5 L17.9 104.1 L19.2 104.7 L20.6 105.2 L22 105.7 L23.6 106.2 L25.2 106.7 L26.9 107.1 L28.7 107.5 L30.6 107.9 L32.5 108.2 L34.4 108.5 L36.5 108.8 L38.6 109 L40.7 109.2 L42.9 109.4 L45.1 109.6 L47.4 109.7 L49.7 109.8 L52 109.8 L54.4 109.9 L56.7 109.9 L59.1 109.9 L61.6 109.8 L64 109.7 L66.4 109.6 L68.8 109.5 L71.3 109.3 L73.7 109.2 L76.1 109 Z" fill="url(#hsa-trail)" stroke="#8ff7d6" stroke-width="0.5" stroke-opacity="0.5" stroke-linejoin="round"/>
+  <path d="M76.5 116.3 L74.2 116.4 L72 116.4 L69.8 116.4 L67.5 116.3 L65.3 116.3 L63 116.2 L60.8 116.1 L58.6 115.9 L56.4 115.7 L54.3 115.5 L52.1 115.3 L50 115.1 L47.9 114.8 L45.9 114.5 L43.8 114.2 L41.8 113.8 L39.9 113.5 L38 113.1 L36.1 112.6 L34.3 112.2 L32.5 111.7 L30.8 111.3 L29.1 110.7 L27.4 110.2 L25.9 109.7 L24.4 109.1 L22.9 108.5 L21.5 107.9 L20.2 107.3 L18.9 106.7 L17.7 106.1 L16.6 105.4 L15.6 104.7 L14.6 104.1 L13.7 103.4 L12.8 102.7 L12 102 L11.4 101.2 L10.7 100.5 L10.2 99.8 L9.7 99 L9.4 98.3 L9 97.5 L8.8 96.8 L8.7 96 L8.6 95.3 L8.6 94.5 L8.7 93.8 L8.7 93.8 L8.7 94.5 L8.7 95.3 L8.8 96 L9 96.7 L9.3 97.5 L9.6 98.2 L10.1 98.9 L10.6 99.6 L11.2 100.3 L11.8 101 L12.6 101.6 L13.4 102.3 L14.3 102.9 L15.2 103.5 L16.2 104.1 L17.3 104.7 L18.5 105.3 L19.7 105.8 L21 106.4 L22.4 106.9 L23.8 107.4 L25.3 107.8 L26.8 108.3 L28.4 108.7 L30 109.1 L31.7 109.5 L33.4 109.9 L35.2 110.2 L37 110.5 L38.9 110.8 L40.8 111.1 L42.7 111.3 L44.7 111.5 L46.6 111.7 L48.7 111.9 L50.7 112 L52.8 112.2 L54.9 112.3 L57 112.3 L59.1 112.4 L61.2 112.4 L63.4 112.4 L65.5 112.4 L67.7 112.4 L69.8 112.3 L72 112.2 L74.1 112.1 L76.3 112 Z" fill="url(#hsa-trail-core)"/>
+  <!-- speed streaks inside and outside the arc -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M68.7 120.2 L66.3 120.1 L63.9 120 L61.4 119.9 L59.1 119.7 L56.7 119.5 L54.3 119.3 L52 119.1 L49.7 118.8 L47.4 118.5 L45.2 118.1 L43 117.7 L40.8 117.3 L38.7 116.9 L36.6 116.4 L34.5 116 L32.6 115.4 L30.6 114.9 L28.7 114.3 L26.9 113.7 L25.1 113.1 L23.4 112.5 L21.8 111.8 L20.2 111.1 L18.7 110.4 L17.2 109.7 L15.8 108.9 L14.5 108.2 L13.3 107.4 L12.1 106.6 L11.1 105.8" stroke="#8ff7d6" stroke-width="0.7" opacity="0.6"/>
+    <path d="M49.4 121.1 L47.9 120.9 L46.5 120.7 L45.1 120.5 L43.7 120.2 L42.3 120 L41 119.7 L39.6 119.5 L38.3 119.2 L37 118.9 L35.7 118.6 L34.4 118.3 L33.1 117.9 L31.8 117.6 L30.6 117.3 L29.4 116.9 L28.2 116.5 L27 116.2 L25.9 115.8 L24.8 115.4 L23.6 115 L22.6 114.5 L21.5 114.1 L20.5 113.7 L19.4 113.2 L18.5 112.8 L17.5 112.3 L16.6 111.8 L15.6 111.4 L14.8 110.9 L13.9 110.4" stroke="#5ef0c0" stroke-width="0.5" opacity="0.45"/>
+    <path d="M61.3 110.3 L59.1 110.2 L56.8 110.1 L54.6 109.9 L52.4 109.7 L50.3 109.5 L48.1 109.2 L46 109 L44 108.7 L42 108.4 L40 108 L38.1 107.7 L36.2 107.3 L34.4 106.9 L32.6 106.5 L30.9 106.1 L29.3 105.7 L27.7 105.2 L26.2 104.7 L24.7 104.2 L23.3 103.7 L22 103.2 L20.8 102.7 L19.6 102.1 L18.5 101.5 L17.5 101 L16.6 100.4 L15.8 99.8 L15 99.2 L14.3 98.6 L13.7 98" stroke="#e9fff7" stroke-width="0.5" opacity="0.55"/>
+    <path d="M38.7 104 L37.6 103.8 L36.4 103.6 L35.4 103.5 L34.3 103.2 L33.2 103 L32.2 102.8 L31.2 102.6 L30.3 102.4 L29.3 102.1 L28.4 101.9 L27.5 101.7 L26.7 101.4 L25.8 101.2 L25 100.9 L24.2 100.7 L23.5 100.4 L22.8 100.1 L22.1 99.9 L21.5 99.6 L20.8 99.3 L20.2 99 L19.7 98.7 L19.2 98.4 L18.7 98.2 L18.2 97.9 L17.8 97.6 L17.4 97.3 L17 97 L16.7 96.7 L16.4 96.4" stroke="#8ff7d6" stroke-width="0.45" opacity="0.4"/>
+    <path d="M9.8 103 L9.5 102.7 L9.1 102.3 L8.8 101.9 L8.5 101.5 L8.2 101.1 L7.9 100.7 L7.7 100.4 L7.4 100 L7.2 99.6 L7 99.2 L6.8 98.8 L6.7 98.4 L6.5 98 L6.4 97.6 L6.3 97.2 L6.2 96.8 L6.1 96.4 L6.1 96 L6 95.6 L6 95.2 L6 94.8 L6 94.4 L6.1 94 L6.1 93.6 L6.2 93.2 L6.3 92.8 L6.4 92.4 L6.5 92 L6.7 91.6 L6.8 91.2" stroke="#8ff7d6" stroke-width="0.5" opacity="0.35"/>
+  </g>
+  <circle cx="44.9" cy="112.2" r="0.85" fill="#8ff7d6" opacity="0.85"/><circle cx="31.4" cy="111.2" r="0.6" fill="#e9fff7" opacity="0.85"/><circle cx="15.7" cy="107" r="0.85" fill="#8ff7d6" opacity="0.85"/><circle cx="12.3" cy="95.9" r="0.6" fill="#e9fff7" opacity="0.85"/><circle cx="11.7" cy="96" r="0.85" fill="#8ff7d6" opacity="0.85"/><circle cx="59.8" cy="116.9" r="0.6" fill="#e9fff7" opacity="0.85"/>
+
+  <!-- ===== left (scythe) arm: sleeve whipped back, rerebrace, haft, forearm driving the sweep ===== -->
+  <path d="M35 79 L46.6 78.4 Q46 86 41 92.6 L37.6 90.6 L35.4 96.4 L32 92.4 L27.6 97.6 L27.6 91.4 L22.4 94 Q26 85 35 79 Z" fill="url(#hsa-sleeve)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M38 82 Q34 87 31 92 M43 81.6 Q41 87 37.6 90.6" fill="none" stroke="#1e0b2e" stroke-width="0.6"/>
+  <path d="M33 81.6 Q28 85.6 25.4 90.6" fill="none" stroke="#a46ad0" stroke-width="0.5" opacity="0.7"/>
+  <!-- the haft, swept low across the body -->
+  <path d="M21.2 78.9 L75.1 115.2" stroke="#0d0a12" stroke-width="4.6" stroke-linecap="round"/>
+  <path d="M21.2 78.9 L75.1 115.2" stroke="#3a3550" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M22.5 78.8 L73.9 113.4" stroke="#9a94b2" stroke-width="0.6" opacity="0.85"/>
+  <path d="M21.6 80.1 L73 114.7" stroke="#14111c" stroke-width="0.5"/>
+  <!-- leather grip wrap below the hand -->
+  <g stroke-linecap="round">
+    <path d="M45.8 97.8 L48 94.6" stroke="#3a2418" stroke-width="1.3"/><path d="M43.7 96.3 L45.8 93.2" stroke="#3a2418" stroke-width="1.3"/><path d="M41.5 94.9 L43.7 91.7" stroke="#3a2418" stroke-width="1.3"/><path d="M39.4 93.4 L41.5 90.3" stroke="#3a2418" stroke-width="1.3"/><path d="M37.2 92 L39.3 88.8" stroke="#3a2418" stroke-width="1.3"/>
+    <path d="M46 97.5 L47.8 94.9" stroke="#7a5236" stroke-width="0.5"/><path d="M41.7 94.6 L43.5 92" stroke="#7a5236" stroke-width="0.5"/><path d="M37.4 91.7 L39.2 89.1" stroke="#7a5236" stroke-width="0.5"/>
+  </g>
+  <!-- gold bands down the haft -->
+  <g stroke-linecap="round">
+    <path d="M65.5 111.6 L68.1 107.6" stroke="#0d0a12" stroke-width="3.2"/><path d="M65.5 111.6 L68.1 107.6" stroke="url(#hsa-gold)" stroke-width="2"/><path d="M52.2 102.7 L54.9 98.7" stroke="#0d0a12" stroke-width="3.2"/><path d="M52.2 102.7 L54.9 98.7" stroke="url(#hsa-gold)" stroke-width="2"/><path d="M23.2 83.1 L25.8 79.1" stroke="#0d0a12" stroke-width="3.2"/><path d="M23.2 83.1 L25.8 79.1" stroke="url(#hsa-gold)" stroke-width="2"/>
+  </g>
+  <!-- butt spike -->
+  <path d="M23.2 77.6 L20.8 81.3 L17 76.1 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M21.6 78.2 L18 76.5" stroke="#fbe8b8" stroke-width="0.4"/>
+  <path d="M36.4 69 L47 69.4 L45.4 80 L35.4 79 Z" fill="url(#hsa-plate-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M37.2 70.6 L36.6 77.6" stroke="#bcb7cc" stroke-width="0.6"/>
+  <g transform="rotate(-67 38.6 81.6)">
+  <path d="M33.4 85.6 L42.4 84 L39.6 92.6 L31.2 91.6 Z" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M34 87.6 L41.4 86.4 M32.8 90 L40.4 89" stroke="#c09048" stroke-width="0.7"/>
+  <g stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round">
+    <path d="M31.6 91.2 Q34.6 90.6 37.6 92 Q37.4 95 35 95.6 Q32.4 95.6 31 94 Z" fill="url(#hsa-bone)"/>
+    <path d="M30.6 92.4 Q27.6 91.8 25.8 93.4 Q25.6 95 27 95 Q28.6 94.4 30.6 95" fill="url(#hsa-bone)"/>
+    <path d="M31 95 Q27.8 94.8 26 96.6 Q26 98.2 27.4 98 Q29 97.2 31.2 97.4" fill="url(#hsa-bone)"/>
+    <path d="M32.6 96.6 Q29.4 97 27.6 99 Q27.8 100.4 29 100.2 Q30.6 99.2 32.6 99.4" fill="url(#hsa-bone)"/>
+  </g>
+  <path d="M26.6 93.6 l1.6 -0.4 M27 96.6 l1.6 -0.4 M28.6 99 l1.4 -0.4" stroke="#7e6f55" stroke-width="0.4"/>
+  <circle cx="30.4" cy="92.8" r="0.5" fill="#f6efd9"/><circle cx="30.8" cy="95.6" r="0.5" fill="#f6efd9"/>
+  <path d="M33.2 92.2 Q30.8 89.6 28.2 90 Q27 91 27.8 92" fill="url(#hsa-bone)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  </g>
+  <ellipse cx="38.6" cy="81.6" rx="4.6" ry="3.4" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1"/>
+  <path d="M35.2 80.6 Q38.4 78.6 41.6 80.2" fill="none" stroke="#e0dcea" stroke-width="0.7"/>
+  <path d="M38.6 79.6 L37.4 76.4 L40.2 79.2 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="38.6" cy="81.8" r="1" fill="#c09048" stroke="#0d0a12" stroke-width="0.4"/>
+  <!-- soulfire under-light on the forearm from the arc -->
+  <path d="M44 99.4 Q47.6 100.4 50 98.4" fill="none" stroke="#8ff7d6" stroke-width="0.6" opacity="0.7"/>
+
+  <!-- ===== left pauldron: layered, spiked, a gold skull boss ===== -->
+  <path d="M30 53.6 L19.4 41.4 L36.4 48.2 Z" fill="url(#hsa-iron)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M36.4 47.8 L31 31.4 L44.4 46.2 Z" fill="url(#hsa-iron)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M19.4 41.4 L23.6 43.2 L22.6 45 Z M31 31.4 L34.4 35 L32.6 36.2 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M32.4 35.6 L37.6 46.6 M22.4 44.4 L30.6 50.6" stroke="#e0dcea" stroke-width="0.5"/>
+  <path d="M30 69.6 Q41.6 75.6 55.6 70 L54.4 76 Q41.6 81.4 24.4 78.4 Z" fill="url(#hsa-plate-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M26.4 75.6 Q41.6 79.4 54.8 72.8" fill="none" stroke="#c09048" stroke-width="0.7"/>
+  <path d="M28 63.8 Q41.6 70.6 57.6 64.4 L56 71.2 Q41.6 77 23.4 72.6 Z" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M25.6 70 Q41.6 74.6 56.8 67.4" fill="none" stroke="#c09048" stroke-width="0.7"/>
+  <path d="M26.4 60.6 Q26.4 47.4 42 45.6 Q56.4 45.6 59.6 54 Q60.4 61.6 56.6 66 Q42 71.6 28 66.6 L22.6 65.4 Q25.4 63.4 26.4 60.6 Z" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M27.4 62.6 Q42 69 57.8 63.4" fill="none" stroke="url(#hsa-gold)" stroke-width="1.6"/>
+  <path d="M28.4 62.2 Q42 68 57 62.8" fill="none" stroke="#fbe8b8" stroke-width="0.4"/>
+  <path d="M29.6 55 Q31.6 49 39.6 47.4" fill="none" stroke="#f4f1fa" stroke-width="1.3" stroke-linecap="round" opacity="0.9"/>
+  <path d="M52 49.6 Q57.6 53 57.4 60" fill="none" stroke="#1a1626" stroke-width="0.9"/>
+  <!-- engraved gold filigree -->
+  <path d="M32 60.6 Q35 58.6 38 60.4 Q35.2 62 32 60.6 Z M49 60.4 Q52 58.6 55 60.4 Q52 62 49 60.4 Z" fill="none" stroke="#c09048" stroke-width="0.6"/>
+  <!-- raised gold-edged ridge across the dome -->
+  <path d="M28.6 57.6 Q42 50 57.6 55.6" fill="none" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M28.6 57.6 Q42 50 57.6 55.6" fill="none" stroke="url(#hsa-gold)" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M30 56.4 Q38 52 44 51.6" fill="none" stroke="#fbe8b8" stroke-width="0.4"/>
+  <!-- gold rosette with a violet gem -->
+  <path d="M43.4 53.2 L45 55.6 L47.8 55.8 L46 58 L46.8 60.8 L43.4 59.6 L40 60.8 L40.8 58 L39 55.8 L41.8 55.6 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <circle cx="43.4" cy="57.6" r="1.9" fill="url(#hsa-gem-v)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="42.8" cy="57" r="0.5" fill="#ffffff"/>
+  <!-- rivets and a gouge -->
+  <g fill="#e6e2f0" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="30" cy="64" r="0.7"/><circle cx="36" cy="66.4" r="0.7"/><circle cx="49.6" cy="66.6" r="0.7"/><circle cx="55.6" cy="64.4" r="0.7"/>
+  </g>
+  <path d="M31.4 59 L35.6 57.4 L34.4 59.4" fill="none" stroke="#1a1626" stroke-width="0.7"/>
+
+  <!-- ===== right arm: rerebrace (forearm thrust out after the pauldron) ===== -->
+  <!-- loose sleeve whipped down and out -->
+  <path d="M108 80 Q114 76 120 74 Q126 82 131 90 L127 89.4 L127.6 95 L123 91.6 L121 97.6 L118.4 91 L114.6 95.4 Q111 88 108 80 Z" fill="url(#hsa-sleeve)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M113 81 Q116 87 118.4 91 M119 78 Q123 84 127 89.4" fill="none" stroke="#1e0b2e" stroke-width="0.6"/>
+  <path d="M110.6 82 Q112.4 87 114.6 92" fill="none" stroke="#a46ad0" stroke-width="0.5" opacity="0.7"/>
+  <path d="M122 76 Q126.6 82 130 88" fill="none" stroke="#5ef0c0" stroke-width="0.5" opacity="0.6"/>
+  <path d="M100 68 L110.6 66 L115.4 78.6 L106.4 81 Z" fill="url(#hsa-plate-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M102 69.4 L107.4 79" stroke="#bcb7cc" stroke-width="0.6"/>
+
+  <!-- ===== right pauldron ===== -->
+  <path d="M114 53.6 L124.6 41.4 L107.6 48.2 Z" fill="url(#hsa-iron)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M107.6 47.8 L113 31.4 L99.6 46.2 Z" fill="url(#hsa-iron)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M124.6 41.4 L120.4 43.2 L121.4 45 Z M113 31.4 L109.6 35 L111.4 36.2 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M110.4 36 L104 46.4 M121 44.2 L111 50.6" stroke="#c4bfd4" stroke-width="0.5"/>
+  <path d="M114 69.6 Q102.4 75.6 88.4 70 L89.6 76 Q102.4 81.4 119.6 78.4 Z" fill="url(#hsa-plate-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M117.6 75.6 Q102.4 79.4 89.2 72.8" fill="none" stroke="#a07838" stroke-width="0.7"/>
+  <path d="M116 63.8 Q102.4 70.6 86.4 64.4 L88 71.2 Q102.4 77 120.6 72.6 Z" fill="url(#hsa-plate-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M118.4 70 Q102.4 74.6 87.2 67.4" fill="none" stroke="#a07838" stroke-width="0.7"/>
+  <path d="M117.6 60.6 Q117.6 47.4 102 45.6 Q87.6 45.6 84.4 54 Q83.6 61.6 87.4 66 Q102 71.6 116 66.6 L121.4 65.4 Q118.6 63.4 117.6 60.6 Z" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M116.6 62.6 Q102 69 86.2 63.4" fill="none" stroke="url(#hsa-gold)" stroke-width="1.6"/>
+  <path d="M88 52.4 Q92 47.4 99.6 47" fill="none" stroke="#f4f1fa" stroke-width="1.1" stroke-linecap="round" opacity="0.85"/>
+  <path d="M110 50 Q116 54 116.2 61" fill="none" stroke="#1a1626" stroke-width="1"/>
+  <path d="M89 60.4 Q92 58.6 95 60.4 Q92 62 89 60.4 Z M106 60.4 Q109 58.6 112 60.6 Q109 62 106 60.4 Z" fill="none" stroke="#c09048" stroke-width="0.6"/>
+  <path d="M115.4 57.6 Q102 50 86.4 55.6" fill="none" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M115.4 57.6 Q102 50 86.4 55.6" fill="none" stroke="url(#hsa-gold)" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M88 54.6 Q94 51.8 100 51.6" fill="none" stroke="#fbe8b8" stroke-width="0.4"/>
+  <path d="M100.6 53.2 L102.2 55.6 L105 55.8 L103.2 58 L104 60.8 L100.6 59.6 L97.2 60.8 L98 58 L96.2 55.8 L99 55.6 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <circle cx="100.6" cy="57.6" r="1.9" fill="url(#hsa-gem-v)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="100" cy="57" r="0.5" fill="#ffffff"/>
+  <!-- soulfire bounce light from the hand on the pauldron's outer rim -->
+  <path d="M113.6 51.6 Q117.4 55 117.4 61" fill="none" stroke="#5ef0c0" stroke-width="0.8" stroke-linecap="round" opacity="0.7"/>
+  <g fill="#bcb7cc" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="88.4" cy="64.4" r="0.7"/><circle cx="94.4" cy="66.6" r="0.7"/><circle cx="108" cy="66.4" r="0.7"/><circle cx="114" cy="64" r="0.7"/>
+  </g>
+  <path d="M108 52 l3 2.4 l-1.6 0.4 l2 1.6" fill="none" stroke="#1a1626" stroke-width="0.7"/>
+  <path d="M93 50.4 Q94.6 52 94 54" stroke="#4f8f7a" stroke-width="0.7" fill="none" opacity="0.7"/>
+
+  <!-- ===== the GRAVE TIDE: hand flung out, soulfire and wailing skulls bursting from the palm ===== -->
+  <ellipse cx="131.8" cy="57.4" rx="12" ry="12" fill="url(#hsa-flare)"/>
+  <ellipse cx="126" cy="50" rx="17" ry="20" fill="url(#hsa-glow-soft)" opacity="0.8"/>
+  <!-- streams of soul-smoke curling out to the skulls -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M124 50 Q116 40 110.6 28" stroke="#5ef0c0" stroke-width="3" opacity="0.25"/>
+    <path d="M131 48 Q134 40 134.6 34" stroke="#5ef0c0" stroke-width="2.6" opacity="0.25"/>
+    <path d="M134 62 Q138 70 137.6 78" stroke="#5ef0c0" stroke-width="2.4" opacity="0.25"/>
+    <path d="M122 52 Q115 44 112 34 M127.6 46 Q129 40 131.6 36 M135 59 Q139 64 139.4 72" stroke="#8ff7d6" stroke-width="0.6" opacity="0.7"/>
+  </g>
+  <g transform="translate(109 20) rotate(-31) scale(1.05)">
+    <ellipse cx="0" cy="-2" rx="11" ry="12" fill="url(#hsa-glow-soft)" opacity="0.7"/>
+    <path d="M-5.6 -2 Q-7.6 6 -4.4 12 Q-2.6 18 -4 25 Q0.6 19 1.6 14 Q3.2 20 1.6 28 Q6.4 21 6 12 Q7.8 5 5.6 -2 Z" fill="url(#hsa-ghost)" stroke="#8ff7d6" stroke-width="0.5" stroke-opacity="0.6" stroke-linejoin="round"/>
+    <path d="M-5.6 -3 Q-6 -10.2 0 -10.6 Q6 -10.2 5.6 -3 Q5.4 0.8 3.6 1.8 L3.2 5.6 Q0 6.6 -3.2 5.6 L-3.6 1.8 Q-5.4 0.8 -5.6 -3 Z" fill="#c8fbea" fill-opacity="0.82" stroke="#8ff7d6" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M-4.4 -5 Q-3.6 -8.8 0.4 -9.4" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" opacity="0.9"/>
+    <path d="M-4.2 -3.6 L-0.8 -2.4 Q-1 0 -2.6 0.2 Q-4.2 -0.2 -4.2 -3.6 Z M4.2 -3.6 L0.8 -2.4 Q1 0 2.6 0.2 Q4.2 -0.2 4.2 -3.6 Z" fill="#0f3a32"/>
+    <circle cx="-2.4" cy="-1.6" r="0.6" fill="#e9fff7"/><circle cx="2.4" cy="-1.6" r="0.6" fill="#e9fff7"/>
+    <path d="M0 0.6 L-0.7 1.8 L0.7 1.8 Z" fill="#0f3a32"/>
+    <ellipse cx="0" cy="3.8" rx="1.6" ry="1.9" fill="#0f3a32"/>
+    <path d="M-2.4 2.6 l0 1 M2.4 2.6 l0 1" stroke="#0f3a32" stroke-width="0.4"/>
+  </g>
+  <g transform="translate(134.4 27.4) rotate(10) scale(0.82)">
+    <ellipse cx="0" cy="-2" rx="11" ry="12" fill="url(#hsa-glow-soft)" opacity="0.7"/>
+    <path d="M-5.6 -2 Q-7.6 6 -4.4 12 Q-2.6 18 -4 25 Q0.6 19 1.6 14 Q3.2 20 1.6 28 Q6.4 21 6 12 Q7.8 5 5.6 -2 Z" fill="url(#hsa-ghost)" stroke="#8ff7d6" stroke-width="0.5" stroke-opacity="0.6" stroke-linejoin="round"/>
+    <path d="M-5.6 -3 Q-6 -10.2 0 -10.6 Q6 -10.2 5.6 -3 Q5.4 0.8 3.6 1.8 L3.2 5.6 Q0 6.6 -3.2 5.6 L-3.6 1.8 Q-5.4 0.8 -5.6 -3 Z" fill="#c8fbea" fill-opacity="0.82" stroke="#8ff7d6" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M-4.4 -5 Q-3.6 -8.8 0.4 -9.4" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" opacity="0.9"/>
+    <path d="M-4.2 -3.6 L-0.8 -2.4 Q-1 0 -2.6 0.2 Q-4.2 -0.2 -4.2 -3.6 Z M4.2 -3.6 L0.8 -2.4 Q1 0 2.6 0.2 Q4.2 -0.2 4.2 -3.6 Z" fill="#0f3a32"/>
+    <circle cx="-2.4" cy="-1.6" r="0.6" fill="#e9fff7"/><circle cx="2.4" cy="-1.6" r="0.6" fill="#e9fff7"/>
+    <path d="M0 0.6 L-0.7 1.8 L0.7 1.8 Z" fill="#0f3a32"/>
+    <ellipse cx="0" cy="3.8" rx="1.6" ry="1.9" fill="#0f3a32"/>
+    <path d="M-2.4 2.6 l0 1 M2.4 2.6 l0 1" stroke="#0f3a32" stroke-width="0.4"/>
+  </g>
+  <g transform="translate(136.8 84) rotate(166) scale(0.6)">
+    <ellipse cx="0" cy="-2" rx="11" ry="12" fill="url(#hsa-glow-soft)" opacity="0.7"/>
+    <path d="M-5.6 -2 Q-7.6 6 -4.4 12 Q-2.6 18 -4 25 Q0.6 19 1.6 14 Q3.2 20 1.6 28 Q6.4 21 6 12 Q7.8 5 5.6 -2 Z" fill="url(#hsa-ghost)" stroke="#8ff7d6" stroke-width="0.5" stroke-opacity="0.6" stroke-linejoin="round"/>
+    <path d="M-5.6 -3 Q-6 -10.2 0 -10.6 Q6 -10.2 5.6 -3 Q5.4 0.8 3.6 1.8 L3.2 5.6 Q0 6.6 -3.2 5.6 L-3.6 1.8 Q-5.4 0.8 -5.6 -3 Z" fill="#c8fbea" fill-opacity="0.82" stroke="#8ff7d6" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M-4.4 -5 Q-3.6 -8.8 0.4 -9.4" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" opacity="0.9"/>
+    <path d="M-4.2 -3.6 L-0.8 -2.4 Q-1 0 -2.6 0.2 Q-4.2 -0.2 -4.2 -3.6 Z M4.2 -3.6 L0.8 -2.4 Q1 0 2.6 0.2 Q4.2 -0.2 4.2 -3.6 Z" fill="#0f3a32"/>
+    <circle cx="-2.4" cy="-1.6" r="0.6" fill="#e9fff7"/><circle cx="2.4" cy="-1.6" r="0.6" fill="#e9fff7"/>
+    <path d="M0 0.6 L-0.7 1.8 L0.7 1.8 Z" fill="#0f3a32"/>
+    <ellipse cx="0" cy="3.8" rx="1.6" ry="1.9" fill="#0f3a32"/>
+    <path d="M-2.4 2.6 l0 1 M2.4 2.6 l0 1" stroke="#0f3a32" stroke-width="0.4"/>
+  </g>
+  <g transform="rotate(-40 111.6 78.6)">
+  <path d="M109.4 79.6 Q115 76 122 78.4 Q123.6 81.6 122.2 84 Q116 82.4 110.6 85.6 Q108.4 83 109.4 79.6 Z" fill="url(#hsa-ermine)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M113.4 80 l0.6 1.8 l0.6 -1.8 Z M117.6 79.4 l0.6 1.8 l0.6 -1.8 Z" fill="#2a2238"/>
+  <path d="M110.6 80.4 Q114.6 77.6 119.6 78.2" fill="none" stroke="#ffffff" stroke-width="0.6"/>
+  <path d="M112.6 77.4 L122.6 75.2 L126 79.6 L121.8 80.6 Q116 79.4 112.6 81 Z" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M114 77.4 L122 75.8" stroke="#c09048" stroke-width="0.7"/>
+  </g>
+  <ellipse cx="111.6" cy="78.6" rx="4.4" ry="3.4" fill="url(#hsa-plate)" stroke="#0d0a12" stroke-width="1"/>
+  <path d="M108.4 77.8 Q111.4 75.6 114.6 77" fill="none" stroke="#e0dcea" stroke-width="0.7"/>
+  <circle cx="111.6" cy="78.8" r="1" fill="#c09048" stroke="#0d0a12" stroke-width="0.4"/>
+  <!-- the burst itself: jagged soulfire star behind the splayed fingers -->
+  <path d="M140.7 54.7 L136.2 57.6 L138.2 60.1 L135 60.4 L136.3 66.1 L132.4 61.8 L129.3 68.6 L129.4 61.1 L125.2 62.4 L127.6 58.7 L124.5 57 L127.7 55.7 L123.9 50.1 L129.8 53.5 L130.4 46.6 L132.8 53.1 L135.8 51.1 L135.3 54.7 Z" fill="url(#hsa-burst)" stroke="#8ff7d6" stroke-width="0.4" stroke-opacity="0.6" stroke-linejoin="round"/>
+  <path d="M137.3 58.5 L134 59.1 L133.7 61.1 L131.9 60.2 L129.4 62.8 L129.7 59.2 L125.1 59.1 L129.1 56.8 L127.8 54.4 L130.5 54.9 L131.7 53 L133 54.8 L136.8 53.2 L134.5 56.7 Z" fill="#e9fff7" opacity="0.9"/>
+  <circle cx="131.8" cy="57.4" r="3.6" fill="#ffffff"/>
+  <!-- palm and splayed finger bones, black against the light -->
+  <g stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M119.4 71.4 Q117.6 67.4 120.6 64.2 Q124 61.2 127.6 63.4 Q130.2 65.8 129.4 68.6 Q126.6 72.6 119.4 71.4 Z" fill="url(#hsa-bone)"/>
+    <path d="M121.8 64.9 L120.5 61.8 L119.1 59.3 Q117.9 58.6 117.4 60 L118.2 62.7 L119.4 65.9 Z" fill="url(#hsa-bone)"/>
+    <path d="M118 62.8 L120.6 61.7" stroke="#7e6f55" stroke-width="0.4" fill="none"/>
+    <path d="M125.8 62.8 L126.7 58.3 L127.2 54.6 Q126.6 53.3 125.5 54.2 L124.4 57.8 L123.4 62.4 Z" fill="url(#hsa-bone)"/>
+    <path d="M124.3 57.8 L126.9 58.4" stroke="#7e6f55" stroke-width="0.4" fill="none"/>
+    <path d="M127.2 64.7 L130.2 60.5 L132.4 56.9 Q132.4 55.5 131 55.9 L128.3 59.1 L125.2 63.3 Z" fill="url(#hsa-bone)"/>
+    <path d="M128.2 59 L130.3 60.6" stroke="#7e6f55" stroke-width="0.4" fill="none"/>
+    <path d="M128.2 66.8 L132.2 64.3 L135.4 62.1 Q135.9 60.8 134.5 60.7 L131.1 62.4 L127 64.8 Z" fill="url(#hsa-bone)"/>
+    <path d="M131 62.3 L132.3 64.4" stroke="#7e6f55" stroke-width="0.4" fill="none"/>
+    <path d="M128.8 68.8 L132.6 68.2 L135.6 67.5 Q136.6 66.5 135.4 66 L132.2 66.2 L128.4 66.8 Z" fill="url(#hsa-bone)"/>
+    <path d="M132.2 66.1 L132.6 68.3" stroke="#7e6f55" stroke-width="0.4" fill="none"/>
+  </g>
+  <path d="M120.4 67.4 Q121 64.6 123.6 63.4" fill="none" stroke="#fffaf0" stroke-width="0.6"/>
+  <path d="M122 69.6 l3 -2.6 M124.6 70.2 l3 -2.8" stroke="#7e6f55" stroke-width="0.45"/>
+  <!-- soulfire licking around the knuckles and white-hot spill over the fingertips -->
+  <path d="M125.6 62.2 Q127.6 60.6 129.6 61.6 M128.6 64.4 Q130.8 63.6 132.4 65" fill="none" stroke="#8ff7d6" stroke-width="0.6" stroke-linecap="round"/>
+  <circle cx="131.8" cy="57.4" r="7" fill="url(#hsa-glow)" opacity="0.75"/>
+  <circle cx="132.4" cy="56.199999999999996" r="1.6" fill="#ffffff"/>
+  <path d="M118 46 Q122 42 126.6 43 M140 52 Q140.6 58 138 62 M117 60 Q114.6 55 116 50" fill="none" stroke="#e9fff7" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <circle cx="118" cy="40" r="0.8" fill="#e9fff7"/><circle cx="140" cy="46" r="0.7" fill="#8ff7d6"/>
+  <circle cx="141" cy="66" r="0.6" fill="#8ff7d6"/><circle cx="114" cy="62" r="0.7" fill="#e9fff7" opacity="0.8"/>
+  <circle cx="124" cy="38" r="0.55" fill="#8ff7d6"/>
+
+  <!-- ===== soulfire roaring up from the crown, streaming back from the swing ===== -->
+  <g transform="rotate(3 72 58)">
+  <ellipse cx="71" cy="16" rx="24" ry="14" fill="url(#hsa-glow-soft)" opacity="0.85"/>
+  <path d="M55.6 26 Q49.4 18.6 50 9.4 Q53 14.6 56.4 15.4 Q55.8 10.6 57.6 7 Q59.6 14 61.6 17.6 Q62 22 61 26 Z" fill="url(#hsa-flame)"/>
+  <path d="M63.4 24 Q58.6 13 61 2.2 Q63 9.4 66.6 11.6 Q68.6 17.6 68.6 24 Z" fill="url(#hsa-flame)"/>
+  <path d="M68.4 22 Q66.4 12 69.6 4.4 Q71.6 9 74.4 9.4 Q73.6 4.6 75 1.4 Q78.6 8 78.8 14 Q79 19 77.6 22 Z" fill="url(#hsa-flame)"/>
+  <path d="M75.4 24 Q74.6 17.4 76 12.6 Q78.6 9.4 77.8 3.4 Q84.4 11.4 81.4 24 Z" fill="url(#hsa-flame)"/>
+  <path d="M83.4 26 Q82 20.4 82.6 16.4 Q85.4 13.8 84.6 8 Q90.4 15.4 88.6 22.6 Q88 25 86.6 26 Z" fill="url(#hsa-flame)"/>
+  <path d="M87.6 27.4 Q88.4 22.4 91 20 Q91.6 17 90.6 14 Q94.4 18.4 92.6 25 Z" fill="url(#hsa-flame)" opacity="0.8"/>
+  <path d="M60 19 Q57.6 13 59.6 7.6 M70.6 16 Q69.6 10.4 71.6 6.4 M80 18 Q79.4 12 81.2 8.6" fill="none" stroke="#e9fff7" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  </g>
+
+  <!-- ===== the skull and crown, tilted into the swing ===== -->
+  <g transform="rotate(3 72 58)">
+  <ellipse cx="72" cy="59.4" rx="12" ry="3.2" fill="#3a3048" opacity="0.65"/>
+  <path d="M57.5 34 Q57 21 72 20 Q87 21 86.5 34 Q87.5 41 84 45.5 L83 49.5 Q82 55.5 78 57.8 Q72 60.4 66 57.8 Q62 55.5 61 49.5 L60 45.5 Q56.5 41 57.5 34 Z" fill="url(#hsa-bone)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <!-- shadow down the unlit side of the skull -->
+  <path d="M84.6 31 Q86.6 38 85 44 L83 49.5 Q82 55.5 78 57.8 Q80.6 51 82 45 Q84.4 38 84.6 31 Z" fill="#8a7b5e" opacity="0.6"/>
+  <!-- temple hollows and cheekbones -->
+  <path d="M58.6 37 Q59.6 42 62 44.6 L61.2 46.6 Q58.2 42.6 58.6 37 Z" fill="#a89878" opacity="0.8"/>
+  <path d="M85.4 37 Q84.4 42 82 44.6 L82.8 46.6 Q85.8 42.6 85.4 37 Z" fill="#7a6c52" opacity="0.9"/>
+  <path d="M61.4 45 Q64.4 46.6 68 45.4 M82.6 45 Q79.6 46.6 76 45.4" fill="none" stroke="#7a6c52" stroke-width="0.7"/>
+  <path d="M62 44.2 Q64.4 45.4 67 44.6" fill="none" stroke="#fffaf0" stroke-width="0.6"/>
+  <path d="M59.4 33 Q60.4 29 63.6 28" fill="none" stroke="#fffaf0" stroke-width="1" stroke-linecap="round"/>
+  <!-- soulfire welling in the deep sockets -->
+  <path d="M60.4 35.6 L69.2 38.6 Q68.8 43 65 43.6 Q60.8 43 60.4 35.6 Z" fill="#100a18" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M83.6 35.6 L74.8 38.6 Q75.2 43 79 43.6 Q83.2 43 83.6 35.6 Z" fill="#100a18" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <!-- sockets BLAZING -->
+  <ellipse cx="65.4" cy="40.2" rx="7" ry="5.4" fill="url(#hsa-glow-soft)"/>
+  <ellipse cx="78.6" cy="40.2" rx="7" ry="5.4" fill="url(#hsa-glow-soft)"/>
+  <ellipse cx="65.4" cy="40.4" rx="4.2" ry="3.2" fill="url(#hsa-glow)"/>
+  <ellipse cx="78.6" cy="40.4" rx="4.2" ry="3.2" fill="url(#hsa-glow)"/>
+  <path d="M62.8 40 L67.8 41 M81.2 40 L76.2 41" stroke="#e9fff7" stroke-width="1.3" stroke-linecap="round"/>
+  <circle cx="65.6" cy="40.6" r="1.2" fill="#ffffff"/><circle cx="78.4" cy="40.6" r="1.2" fill="#ffffff"/>
+  <!-- soulfire streaming back out of the sockets -->
+  <path d="M61.2 38.4 Q56 36.6 52.6 31.4 Q57.6 33.6 60.6 33.4 Q58.4 31 58.4 28 Q61.4 32.6 63.6 36.6 Z" fill="url(#hsa-flame)" stroke="#8ff7d6" stroke-width="0.3" stroke-opacity="0.6"/>
+  <path d="M82.8 38.4 Q85.6 34.6 84.6 30.4 Q86.8 32.6 87.8 32 Q87.4 28.6 85.2 26.4 Q90.4 29.6 89.6 34 Q87.6 37.6 83.4 39.4 Z" fill="url(#hsa-flame)" stroke="#8ff7d6" stroke-width="0.3" stroke-opacity="0.6"/>
+  <!-- the brow ridge, heavy and scowling -->
+  <path d="M59.6 34.6 L69.6 37.8 M84.4 34.6 L74.4 37.8" stroke="#6e6048" stroke-width="0.9" stroke-linecap="round"/>
+  <!-- nasal cavity -->
+  <path d="M72 42.6 L70.2 46.8 Q71 47.4 72 46.4 Q73 47.4 73.8 46.8 Z" fill="#100a18" stroke="#0d0a12" stroke-width="0.4"/>
+  <!-- the jaw hangs open, soulfire smouldering in the throat -->
+  <path d="M66 50.4 Q72 51.2 78 50.4 L77.4 54.6 Q72 55.6 66.6 54.6 Z" fill="#100a18" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <ellipse cx="72" cy="52.8" rx="4.6" ry="2.4" fill="url(#hsa-glow)"/>
+  <circle cx="72" cy="52.8" r="0.9" fill="#ffffff" opacity="0.9"/>
+  <path d="M65.6 48.4 Q72 49.4 78.4 48.4 L78 50.6 Q72 51.6 66 50.6 Z" fill="#ddd1b2" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M67.6 48.8 l0 2 M69.6 49.1 l0 2 M71.6 49.2 l0 2.1 M73.6 49.2 l0 2.1 M75.6 49 l0 2 M77.2 48.7 l0 1.8" stroke="#6e6048" stroke-width="0.5"/>
+  <path d="M66.6 54.4 Q72 55.4 77.4 54.4 L76.8 56.4 Q72 57.4 67.2 56.4 Z" fill="#c4b694" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/>
+  <path d="M68.8 54.8 l0 1.6 M70.8 55 l0 1.7 M72.8 55 l0 1.7 M74.8 54.8 l0 1.6" stroke="#6e6048" stroke-width="0.4"/>
+  <!-- gaunt shadow under the right cheekbone and chin -->
+  <path d="M80.6 46.4 Q82 51 79.6 55.6 Q77 57.6 74 58.4 Q79 54 79.6 49 Z" fill="#7a6c52" opacity="0.7"/>
+  <!-- jaw hinge line and a crack down the cheek -->
+  <path d="M61.6 47.6 Q63 51 64.6 50.2 M82.4 47.6 Q81 51 79.4 50.2" fill="none" stroke="#6e6048" stroke-width="0.6"/>
+  <path d="M80.6 30 L79 33.4 L80.4 35 L78.8 37" fill="none" stroke="#3a3024" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M60.4 30.6 l1.8 2 l-0.4 1.8" fill="none" stroke="#5a4c38" stroke-width="0.5"/>
+  <!-- ===== the crown: jagged iron points, gold rims, soulfire gem ===== -->
+  <path d="M56.6 31.6 L55 16 L60.6 22.6 L63.4 11 L67.6 20.6 L72 7.6 L76.4 20.6 L80.6 11 L83.4 22.6 L89 16 L87.4 31.6 Q72 35.4 56.6 31.6 Z" fill="url(#hsa-iron)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- lit faces of the points -->
+  <path d="M56 18.4 L57 28 M63.4 13.6 L62.6 24 M72 10.2 L70.6 24.4" stroke="#e6e2f2" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M80.6 13.6 L81.6 24 M88 18.4 L86.8 28" stroke="#24202e" stroke-width="0.6"/>
+  <!-- gold caps on every point -->
+  <g fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round">
+    <path d="M55 16 L54.2 13.4 L56.6 15.4 Z"/><circle cx="63.4" cy="10.4" r="1.4"/><path d="M72 7.6 L70.8 5 L72 2.8 L73.2 5 Z"/><circle cx="80.6" cy="10.4" r="1.4"/><path d="M89 16 L89.8 13.4 L87.4 15.4 Z"/>
+  </g>
+  <circle cx="63" cy="10" r="0.45" fill="#fbe8b8"/><circle cx="80.2" cy="10" r="0.45" fill="#fbe8b8"/>
+  <!-- gold band -->
+  <path d="M56.4 25.4 Q72 29.6 87.6 25.4 L87.4 31.6 Q72 35.4 56.6 31.6 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M57.2 26.8 Q72 30.8 86.8 26.8" fill="none" stroke="#fbe8b8" stroke-width="0.5"/>
+  <path d="M57.4 30.6 Q72 34.2 86.6 30.6" fill="none" stroke="#6a4820" stroke-width="0.5"/>
+  <!-- engraved notches and a nick in the band -->
+  <path d="M60 28.4 l0 2.6 M84 28.4 l0 2.6 M67.4 30 l0 2.4 M76.6 30 l0 2.4" stroke="#6a4820" stroke-width="0.5"/>
+  <path d="M84.8 26.6 l1 1.4 l0.8 -1.2" fill="#0d0a12"/>
+  <!-- gems -->
+  <ellipse cx="72" cy="30.4" rx="2.4" ry="2.8" fill="url(#hsa-gem-g)" stroke="#0d0a12" stroke-width="0.6"/>
+  <circle cx="71.3" cy="29.4" r="0.6" fill="#ffffff"/>
+  <circle cx="63.6" cy="29.6" r="1.5" fill="url(#hsa-gem-v)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="80.4" cy="29.6" r="1.5" fill="url(#hsa-gem-v)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="63.2" cy="29.1" r="0.4" fill="#ffffff"/><circle cx="80" cy="29.1" r="0.4" fill="#ffffff"/>
+  <!-- rust and a crack in the iron -->
+  <path d="M66.4 21 Q66.8 23 66.2 25 M84 20 Q84.6 22 84 24" stroke="#8a4b2a" stroke-width="0.6" fill="none" opacity="0.7"/>
+  <path d="M77.4 21.4 L78.6 18 L77.8 16" fill="none" stroke="#1a1626" stroke-width="0.5"/>
+  <!-- soulfire rim on the crown's points -->
+  <path d="M55.2 17.4 L56.2 27 M63.2 12.6 L62.4 22 M71.6 9 L70.4 20" stroke="#8ff7d6" stroke-width="0.4" opacity="0.6"/>
+  </g>
+
+  <!-- ===== the greatscythe blade, at the end of its sweep (in front of everything) ===== -->
+  <path d="M77.4 106.6 Q104 111.6 121.6 108 Q127.6 105.8 132.4 98.4 Q131.6 110.4 114.6 120.2 Q104 124.4 91.6 122.6 Q82.4 121.6 76.6 118.4 Z" fill="url(#hsa-blade2)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <!-- bright bevel along the cutting edge, and the darker back of the blade -->
+  <path d="M78.6 107.8 Q104 112.8 121.6 109.2 Q127 107.2 131 101.4 Q127.6 108.6 121.4 112 Q104 115.8 79 112 Z" fill="url(#hsa-bevel)"/>
+  <path d="M79 112 Q104 115.8 121.4 112 Q127.6 108.6 131 101.4" fill="none" stroke="#3e4656" stroke-width="0.7"/>
+  <path d="M80 118.2 Q90 121.6 104 121 Q116 118.8 126 110.6" fill="none" stroke="#1c202a" stroke-width="0.8" opacity="0.8"/>
+  <path d="M84 115.6 Q96 118 108 116.6" fill="none" stroke="#b9c4d0" stroke-width="0.4" opacity="0.7"/>
+  <!-- edge burning white-hot -->
+  <path d="M78 107 Q104 112 121.6 108.4 Q127.4 106.2 131.6 100" fill="none" stroke="#5ef0c0" stroke-width="5" stroke-linecap="round" opacity="0.22"/>
+  <path d="M78 107 Q104 112 121.6 108.4 Q127.4 106.2 131.6 100" fill="none" stroke="#5ef0c0" stroke-width="2.4" stroke-linecap="round" opacity="0.6"/>
+  <path d="M78 107 Q104 112 121.6 108.4 Q127.4 106.2 131.6 100" fill="none" stroke="#8ff7d6" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M80 107.6 Q98 111.2 112 110.4" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- runes etched in the blade, lit from within -->
+  <path d="M86 115.4 l1.2 1.4 l1.2 -1.2 M93 116.4 l0.6 1.8 l1.6 -0.6 M100 116.4 l1.4 1.2 M101.6 118.6 l-0.6 -1.4 M108 115.6 l1 1.8 l1.2 -1.2 M115 113.6 l1.4 0.6 l0 1.6" fill="none" stroke="#5ef0c0" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- nicks along the spine, a crack near the tip -->
+  <path d="M98 123.2 l1 -1.4 l1 1.3 Z M118.4 118.2 l0.6 -1.6 l1.2 1 Z" fill="#0d0a12"/>
+  <path d="M126.4 106.6 l-1.4 1.6 l0.8 1.6" fill="none" stroke="#1c202a" stroke-width="0.6"/>
+  <!-- gold skull socket where blade meets haft -->
+  <path d="M73 112.6 Q72.8 107.6 77 107.2 Q81.2 107.6 81 112.4 Q80.8 115 79.2 115.6 L79 117.4 L75 117.4 L74.8 115.6 Q73.2 115 73 112.6 Z" fill="url(#hsa-gold)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M74 111 Q74.8 108.4 77 108.2" fill="none" stroke="#fbe8b8" stroke-width="0.5"/>
+  <circle cx="75.6" cy="112.4" r="1" fill="#2a1a10"/><circle cx="78.6" cy="112.4" r="1" fill="#2a1a10"/>
+  <circle cx="75.6" cy="112.4" r="0.55" fill="#e9fff7"/><circle cx="78.6" cy="112.4" r="0.55" fill="#e9fff7"/>
+  <path d="M76 116 l0 1.2 M77 116 l0 1.2 M78 116 l0 1.2" stroke="#5a3a18" stroke-width="0.4"/>
+
+  <!-- ===== embers whirling off the crown, eyes and sweep ===== -->
+  <circle cx="58" cy="3.6" r="0.8" fill="#8ff7d6" opacity="0.9"/>
+  <circle cx="48.4" cy="10" r="0.7" fill="#8ff7d6" opacity="0.8"/>
+  <circle cx="86" cy="4.4" r="0.7" fill="#e9fff7" opacity="0.8"/>
+  <circle cx="94.6" cy="12" r="0.55" fill="#8ff7d6" opacity="0.6"/>
+  <circle cx="51" cy="26" r="0.6" fill="#8ff7d6" opacity="0.7"/>
+  <circle cx="90" cy="36" r="0.6" fill="#8ff7d6" opacity="0.7"/>
+  <circle cx="6.6" cy="96" r="0.6" fill="#8ff7d6" opacity="0.6"/>
+  <circle cx="132" cy="110" r="0.7" fill="#e9fff7" opacity="0.8"/>
+  <circle cx="136" cy="104" r="0.5" fill="#8ff7d6" opacity="0.7"/>
+</svg>

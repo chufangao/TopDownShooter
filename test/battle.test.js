@@ -1,14 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, stepBattle, runBattle, timelineHash, stats, canIssue, issueCommand } from '../src/sim/battle.js'
+import { createBattle, stepBattle, runBattle, timelineHash, stats } from '../src/sim/battle.js'
 import { TUNING } from '../src/tuning.js'
-import { rowOf, makeUnit, autoPlace } from '../src/sim/unit.js'
+import { makeUnit, autoPlace, distance, TILES, slotAt, campGrid, wallTiles, steps } from '../src/sim/unit.js'
 import { createRng } from '../src/sim/rng.js'
-import { UNIT_LIST } from '../src/content.js'
+import { UNIT_LIST, unitDef, ROLES, BEHAVIOURS, CAMP_LIST } from '../src/content.js'
 import { foeLevel, START_PARTY } from '../src/sim/run.js'
 
-function team (ids, { side = 'party', lvl = 2, uid = side === 'party' ? 1 : 100 } = {}) {
-  return autoPlace(ids.map((id, i) => makeUnit(id, { uid: uid + i, lvl })))
+function team (ids, { side = 'party', lvl = 2, uid = side === 'party' ? 1 : 100, camp = null } = {}) {
+  return autoPlace(ids.map((id, i) => makeUnit(id, { uid: uid + i, lvl })), camp ? { grid: campGrid(camp) } : {})
 }
 
 const START = START_PARTY
@@ -28,9 +28,11 @@ function encounter (seed, floor) {
   return { foes: team(ids, { side: 'foe', lvl: lvl + (n === 4 ? 1 : 0) }), boss: false }
 }
 
+// In one of the floor's camps, picked by seed, walls and all.
 const fresh = (seed, floor = 1) => {
   const { foes, boss } = encounter(seed, floor)
-  return createBattle({ party: team(START, { lvl: 1 + floor }), foes, seed, floor, boss })
+  const camp = createRng(seed).stream('camp').pick(CAMP_LIST.filter((c) => c.floor === floor)).id
+  return createBattle({ party: team(START, { lvl: 1 + floor, camp }), foes, seed, floor, boss, walls: wallTiles(camp) })
 }
 
 test('the same seed gives the same timeline; a different seed does not', () => {
@@ -99,134 +101,59 @@ test('bosses ignore gauge drain', () => {
   assert.ok(!r.events.some((e) => e.type === 'gauge' && e.target === boss[0].uid))
 })
 
-const FOES = ['clockwork_page', 'hive_warden', 'frost_sprite']
-const battle = (seed = 'cmd', opts = {}) =>
-  createBattle({ party: team(START), foes: team(FOES, { side: 'foe', lvl: 1 }), seed, ...opts })
-const step = (b, n) => { for (let i = 0; i < n && !b.over; i++) stepBattle(b) }
-const uidOf = (b, id, side) => b.units.find((u) => u.id === id && u.side === side).uid
-
-test('budget: 3 per battle, spent on issue, refused after', () => {
-  const b = battle()
-  assert.equal(b.commandsLeft, TUNING.commands.perBattle)
-  for (let i = 0; i < 3; i++) assert.ok(issueCommand(b, { verb: 'focus', target: 100 }).ok)
-  assert.equal(b.commandsLeft, 0)
-  const r = issueCommand(b, { verb: 'focus', target: 100 })
-  assert.equal(r.ok, false)
-  assert.equal(b.commandLog.length, 3)
-  assert.equal(battle('x', { commands: 5 }).commandsLeft, 5)
+test('only fielded souls with HP fight; stars raise HP and ATK', () => {
+  const party = team(START)
+  party[2].slot = -1
+  const b = createBattle({ party, foes: team(['clockwork_page'], { side: 'foe' }), seed: 'bench' })
+  assert.deepEqual(b.units.filter((u) => u.side === 'party').map((u) => u.uid), [1, 2])
+  const one = makeUnit('tomb_knight', { uid: 1, lvl: 3 })
+  const two = makeUnit('tomb_knight', { uid: 2, lvl: 3, star: 2 })
+  assert.equal(two.maxHp, Math.round(one.maxHp * TUNING.star.mult[1]))
+  assert.equal(b.events[0].units[0].star, 1)
 })
 
-test('invalid targets are rejected without spending', () => {
-  const b = battle()
-  assert.equal(canIssue(b, 'focus', 1).ok, false)
-  assert.equal(canIssue(b, 'brace', 100).ok, false)
-  assert.equal(canIssue(b, 'unleash', 100).ok, false)
-  assert.equal(canIssue(b, 'focus', 999).ok, false)
-  assert.equal(canIssue(b, 'dance', 1).ok, false)
-  assert.equal(canIssue(b, 'parley', 100).ok, false, 'a healthy foe cannot be parleyed')
-  b.units.find((u) => u.uid === 101).hp = 0
-  assert.equal(canIssue(b, 'focus', 101).ok, false, 'dead')
-  assert.equal(issueCommand(b, { verb: 'brace', target: 100 }).ok, false)
-  assert.equal(b.commandsLeft, 3)
-  const boss = team(['hollow_sovereign'], { side: 'foe' })
-  boss[0].slot = 1
-  boss[0].hp = 1
-  assert.equal(canIssue(createBattle({ party: team(START), foes: boss, seed: 1, boss: true }), 'parley', 100).ok, false)
-})
-
-test('focus: every party single-target pick goes to the focused foe', () => {
-  const b = battle('focus')
-  const target = uidOf(b, 'frost_sprite', 'foe')
-  issueCommand(b, { verb: 'focus', target })
-  const events = []
-  while (!b.over && b.t < TUNING.commands.focusTicks) events.push(...stepBattle(b))
-  assert.equal(events[0].type, 'command')
-  const party = new Set(b.units.filter((u) => u.side === 'party').map((u) => u.uid))
-  const picks = events.filter((e) => e.type === 'action' && party.has(e.actor) && e.targets.length === 1 && !party.has(e.targets[0]))
-  const focusAlive = (t) => !events.some((e) => e.type === 'death' && e.target === target && e.t < t)
-  assert.ok(picks.length > 0)
-  for (const p of picks) if (focusAlive(p.t)) assert.equal(p.targets[0], target)
-})
-
-test('parley: an attempt is made on the weakened foe, and success recruits it', () => {
-  let recruited = 0
-  for (let i = 0; i < 20; i++) {
-    const b = battle('parley' + i)
-    const foe = b.units.find((u) => u.id === 'clockwork_page')
-    foe.hp = Math.floor(foe.maxHp * 0.2)
-    const c = canIssue(b, 'parley', foe.uid)
-    assert.ok(c.ok && c.chance > 0 && c.chance < 1)
-    issueCommand(b, { verb: 'parley', target: foe.uid })
-    assert.equal(canIssue(b, 'parley', foe.uid).ok, false, 'one parley at a time')
-    const events = []
-    while (!b.over && !events.some((e) => e.type === 'persuade' || e.type === 'refund')) events.push(...stepBattle(b))
-    const p = events.find((e) => e.type === 'persuade')
-    if (!p) { assert.equal(b.commandsLeft, 3, 'refunded'); continue }
-    assert.equal(p.target, foe.uid)
-    assert.ok(!events.some((e) => e.type === 'damage' && e.actor === p.actor && e.t === p.t))
-    if (p.success) {
-      recruited++
-      assert.ok(foe.left && b.recruited.includes(foe.uid))
-      assert.ok(events.some((e) => e.type === 'recruit' && e.target === foe.uid && e.id === 'clockwork_page'))
-    } else {
-      assert.equal(foe.persuadeAttempts, 1)
+test('units walk one free tile at a time, never share one, and the engaged hold unless they slip', () => {
+  let moves = 0
+  let flanks = 0
+  for (let i = 0; i < 60; i++) {
+    const b = fresh('walk' + i, 1 + (i % 4))
+    const tile = new Map(b.units.map((u) => [u.uid, u.tile]))
+    const dead = new Set()
+    const engaged = (u) => b.units.some((e) => e.side !== u.side && !dead.has(e.uid) && distance(tile.get(e.uid), tile.get(u.uid)) === 1)
+    while (!b.over) {
+      for (const e of stepBattle(b)) {
+        if (e.type === 'death') dead.add(e.target)
+        if (e.type !== 'move') continue
+        const u = b.units.find((x) => x.uid === e.actor)
+        assert.equal(tile.get(u.uid), e.from)
+        assert.ok(e.to >= 0 && e.to < TILES && distance(e.from, e.to) === 1, `seed ${i}: step ${e.from}→${e.to}`)
+        assert.ok(steps(e.from, b.walls).includes(e.to), `seed ${i}: step ${e.from}→${e.to} into or past a wall`)
+        const slips = BEHAVIOURS[ROLES[unitDef(u.id).role].move].slips
+        assert.ok(slips || !engaged(u), `seed ${i}: ${u.id} walked away while engaged`)
+        tile.set(u.uid, e.to)
+        const held = b.units.filter((x) => !dead.has(x.uid)).map((x) => tile.get(x.uid))
+        assert.equal(new Set(held).size, held.length, `seed ${i}: two units on one tile`)
+        moves++
+        if (slips) flanks++
+      }
     }
   }
-  assert.ok(recruited > 0)
+  assert.ok(moves > 0 && flanks > 0)
 })
 
-test('parley is refunded when the target dies first', () => {
-  const b = battle('refund')
-  const foe = b.units.find((u) => u.id === 'frost_sprite' && u.side === 'foe')
-  foe.hp = 1
-  issueCommand(b, { verb: 'parley', target: foe.uid })
-  for (const u of b.units) if (u.side === 'party') u.gauge = -1000
-  stepBattle(b)
-  foe.hp = 0
-  stepBattle(b)
-  assert.equal(b.parley, null)
-  assert.equal(b.commandsLeft, 3)
-  assert.ok(b.events.some((e) => e.type === 'refund'))
-})
-
-test('brace: braced takes less damage, and steps back a row only when the slot is free', () => {
-  const b = battle('brace')
-  const knight = b.units.find((u) => u.id === 'tomb_knight')
-  const sprite = b.units.find((u) => u.id === 'frost_sprite' && u.side === 'party')
-  const taken = stats(b, knight).damage.taken
-  issueCommand(b, { verb: 'brace', target: knight.uid })
-  stepBattle(b)
-  assert.equal(knight.slot, 0, 'blocked by the sprite behind it')
-  assert.ok(knight.statuses.some((s) => s.id === 'braced' && s.dur === TUNING.commands.braceTicks - 1))
-  assert.ok(Math.abs(stats(b, knight).damage.taken - taken * 0.6) < 1e-9)
-  sprite.slot = 5
-  issueCommand(b, { verb: 'brace', target: knight.uid })
-  stepBattle(b)
-  assert.equal(rowOf(knight.slot), 1)
-  assert.ok(b.events.some((e) => e.type === 'move' && e.target === knight.uid && e.slot === 4))
-})
-
-test('unleash: the ally fires its most expensive viable ability this tick', () => {
-  const b = battle('unleash')
-  const knight = b.units.find((u) => u.id === 'tomb_knight')
-  issueCommand(b, { verb: 'unleash', target: knight.uid })
-  const events = stepBattle(b)
-  const act = events.find((e) => e.type === 'action' && e.actor === knight.uid)
-  assert.equal(act?.ability, 'cleave')
-  assert.equal(act.t, 0)
-})
-
-test('live play with commands replays exactly from the command log', () => {
-  for (const seed of ['r1', 'r2', 'r3']) {
-    const live = battle(seed)
-    while (!live.over) {
-      if (live.t === 40) issueCommand(live, { verb: 'unleash', target: uidOf(live, 'bone_chanter', 'party') })
-      if (live.t === 60) issueCommand(live, { verb: 'focus', target: uidOf(live, 'hive_warden', 'foe') })
-      for (const f of live.units) if (live.commandsLeft && canIssue(live, 'parley', f.uid).ok) issueCommand(live, { verb: 'parley', target: f.uid })
-      stepBattle(live)
-    }
-    assert.ok(live.commandLog.length >= 2)
-    const replay = runBattle(battle(seed), { commands: live.commandLog })
-    assert.deepEqual(replay.events, live.events)
-  }
+test('a Tomb Knight shields the allies next to it; bonds are set at the start and announced', () => {
+  const soul = (id, uid, row, col) => makeUnit(id, { uid, slot: slotAt(row, col), lvl: 3 })
+  const party = [soul('tomb_knight', 1, 0, 3), soul('frost_sprite', 2, 1, 4), soul('bone_chanter', 3, 2, 0), soul('tomb_knight', 4, 0, 2)]
+  const b = createBattle({ party, foes: [soul('clockwork_page', 10, 2, 3)], seed: 'aura' })
+  const unit = (uid) => b.units.find((u) => u.uid === uid)
+  assert.equal(stats(b, unit(2)).damage.taken, 0.85, 'next to a knight')
+  assert.equal(stats(b, unit(3)).damage.taken, 1, 'three lanes away')
+  assert.equal(stats(b, unit(1)).damage.taken, 0.85, "the other knight's aura, not its own")
+  assert.ok(Math.abs(stats(b, unit(1)).def / stats(b, { ...unit(3), uid: 99, id: 'tomb_knight', lvl: 3, tile: unit(3).tile }).def - 1.2) < 1e-9, 'Phalanx: +20% DEF')
+  const start = b.events[0]
+  assert.deepEqual(start.bonds.filter((x) => x.id === 'phalanx').map((x) => x.uid).sort(), [1, 4])
+  // Walking apart does not break a bond: it was set by the formation.
+  unit(4).tile = unit(3).tile + 1
+  b.cache.clear()
+  assert.ok(stats(b, unit(1)).def > stats(b, { ...unit(1), uid: 98 }).def)
 })

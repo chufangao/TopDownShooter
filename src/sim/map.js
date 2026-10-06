@@ -3,9 +3,9 @@ import { createRng } from './rng.js'
 
 export const RANKS = 7
 
-const MID_TYPES = ['fight', 'elite', 'treasure', 'campfire']
+const MID_TYPES = ['fight', 'elite', 'reliquary', 'altar']
 const MID_WEIGHTS = [5, 1.5, 1, 1]
-const LATE_TYPES = ['fight', 'elite', 'treasure']
+const LATE_TYPES = ['fight', 'elite', 'reliquary']
 const LATE_WEIGHTS = [3, 1, 0.5]
 
 // Non-crossing links between two ordered ranks: a monotone staircase from (0,0) to (a-1,b-1), with
@@ -49,21 +49,21 @@ function assignTypes (rng, ranks, last) {
     }
   }
   const mid = ranks.slice(2, 5).flat()
-  const treasures = mid.filter((n) => n.type === 'treasure')
-  for (const n of treasures.slice(2)) n.type = 'fight'
-  if (!treasures.length) {
+  const reliquaries = mid.filter((n) => n.type === 'reliquary')
+  for (const n of reliquaries.slice(2)) n.type = 'fight'
+  if (!reliquaries.length) {
     const fights = mid.filter((n) => n.type === 'fight')
-    rng.pick(fights.length ? fights : mid).type = 'treasure'
+    rng.pick(fights.length ? fights : mid).type = 'reliquary'
   }
   for (let r = 2; r <= 4; r++) {
     const rank = ranks[r]
-    if (rank.every((n) => n.type === rank[0].type)) rng.pick(rank).type = rank[0].type === 'fight' ? 'campfire' : 'fight'
+    if (rank.every((n) => n.type === rank[0].type)) rng.pick(rank).type = rank[0].type === 'fight' ? 'altar' : 'fight'
   }
   const late = ranks[5]
-  const fire = rng.int(late.length)
+  const altar = rng.int(late.length)
   let elite = false
   late.forEach((n, i) => {
-    n.type = i === fire ? 'campfire' : pick(LATE_TYPES, LATE_WEIGHTS)
+    n.type = i === altar ? 'altar' : pick(LATE_TYPES, LATE_WEIGHTS)
     if (n.type === 'elite' && elite) n.type = 'fight'
     if (n.type === 'elite') elite = true
   })

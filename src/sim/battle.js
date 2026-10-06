@@ -1,29 +1,33 @@
-// Everything inside a fight: the tick loop, effects and statuses, the player's Commands, unit AI and
-// the combat formulas. Real-time in 50 ms ticks; pure: all randomness comes from battle.rng.
+// Everything inside a fight: the tick loop, effects and statuses, unit AI and movement, and the combat
+// formulas. Real-time in 50 ms ticks, and no input once it starts: the same setup always plays out the
+// same. Pure: all randomness comes from battle.rng.
 import { TUNING } from '../tuning.js'
-import { unitDef, statusDef, elementDef, abilityDef } from '../content.js'
+import { unitDef, statusDef, elementDef, abilityDef, ROLES, BEHAVIOURS } from '../content.js'
 import { createRng, hashString } from './rng.js'
-import { alive, livingOn, SLOTS, rowMods, statsOf, activeSynergies, rowOf, COLS, ROWS, reachable, expand, enemySide, isAllyShape } from './unit.js'
+import {
+  alive, livingOn, statsOf, activeSynergies, reachable, expand, enemySide, isAllyShape,
+  deployTile, depthFor, distance, steps, neighbours, rangeOf, isEngaged, TILES, tileX, activeBonds, auraGivers
+} from './unit.js'
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
 
-// party/foes are run units { uid, id, lvl, hp, maxHp, slot }; the battle works on copies.
-export function createBattle ({
-  party, foes, seed, floor = 1, boss = false, partyMods = [], foeMods = [],
-  commands = TUNING.commands.perBattle, braceTicks = TUNING.commands.braceTicks
-}) {
-  const stamp = (u, side) => ({ ...u, side, gauge: 0, statuses: [], persuadeAttempts: 0, left: false, phase: 0, unleash: null })
+// party/foes are run units { uid, id, lvl, star, hp, maxHp, slot }; the battle works on copies, and
+// only units on the field (slot ≥ 0) with HP left take part. Each starts on its slot's board tile (the
+// party's in its camp, past `walls`, a list of board tiles), and the formation bonds it holds there last
+// the whole battle.
+export function createBattle ({ party, foes, seed, floor = 1, boss = false, partyMods = [], foeMods = [], walls = [] }) {
+  const stamp = (u, side) => ({ ...u, side, tile: deployTile(side, u.slot), gauge: 0, statuses: [], phase: 0, quarry: null })
   const units = [...party.map((u) => stamp(u, 'party')), ...foes.map((u) => stamp(u, 'foe'))]
-    .filter((u) => u.hp > 0 && u.slot >= 0 && u.slot < SLOTS)
+    .filter((u) => u.hp > 0 && u.slot >= 0)
     .sort((a, b) => (a.side < b.side ? -1 : a.side > b.side ? 1 : a.slot - b.slot))
 
   const battle = {
     t: 0, seed, floor, boss, over: false, winner: null, reason: null,
-    units, events: [], recruited: [],
-    commandsLeft: commands, commandLog: [], pending: [], focus: null, parley: null,
-    partyMods, foeMods, braceTicks,
+    units, events: [], walls: new Set(walls), paths: new Map(),
+    partyMods, foeMods,
     rng: createRng(seed).stream('battle'),
-    syn: {}, cache: new Map()
+    syn: {}, cache: new Map(),
+    bonds: ['party', 'foe'].flatMap((side) => activeBonds(units.filter((u) => u.side === side)))
   }
 
   // Max HP includes HP mods (synergies, relics); current HP keeps its fraction.
@@ -36,8 +40,10 @@ export function createBattle ({
 
   emit(battle, {
     type: 'battle:start',
-    units: units.map((u) => ({ uid: u.uid, id: u.id, side: u.side, slot: u.slot, hp: u.hp, maxHp: u.maxHp })),
-    synergies: ['party', 'foe'].flatMap((side) => synergiesOf(battle, side).map((s) => ({ side, id: s.id, name: s.name })))
+    walls: [...battle.walls],
+    units: units.map((u) => ({ uid: u.uid, id: u.id, side: u.side, slot: u.slot, tile: u.tile, lvl: u.lvl, star: u.star ?? 1, hp: u.hp, maxHp: u.maxHp })),
+    synergies: ['party', 'foe'].flatMap((side) => synergiesOf(battle, side).map((s) => ({ side, id: s.id, name: s.name }))),
+    bonds: battle.bonds.map((b) => ({ id: b.bond.id, uid: b.uid, partner: b.partner }))
   })
   return battle
 }
@@ -46,8 +52,6 @@ export function createBattle ({
 export function stepBattle (battle) {
   if (battle.over) return []
   const from = battle.events.length
-  if (battle.focus && (battle.t >= battle.focus.until || !alive(unitOf(battle, battle.focus.target)))) battle.focus = null
-  applyCommands(battle)
   phases(battle)
   tickStatuses(battle)
   for (const u of battle.units) {
@@ -56,35 +60,30 @@ export function stepBattle (battle) {
     u.gauge += Math.max(0, (TUNING.gauge.base + s.spd / TUNING.gauge.spdDivisor) * s.gauge.rate)
     act(battle, u)
   }
-  checkParley(battle)
   checkEnd(battle)
   battle.t++
   return battle.events.slice(from)
 }
 
-// Plays a battle to the end, issuing each { t, verb, target } at its tick.
-export function runBattle (battle, { commands = [] } = {}) {
-  const queue = commands.slice().sort((a, b) => a.t - b.t)
-  let i = 0
-  while (!battle.over) {
-    for (; i < queue.length && queue[i].t <= battle.t; i++) {
-      if (queue[i].t === battle.t) issueCommand(battle, queue[i])
-    }
-    stepBattle(battle)
-  }
+// Plays a battle to the end.
+export function runBattle (battle) {
+  while (!battle.over) stepBattle(battle)
   return { events: battle.events, hash: timelineHash(battle.events), winner: battle.winner, ticks: battle.t }
 }
 
 export const timelineHash = (events) => hashString(JSON.stringify(events))
 
 function act (battle, u) {
-  const parleyReady = u.side === 'party' && battle.parley && !u.unleash && u.gauge >= TUNING.commands.parleyCost
-  if (parleyReady) return attemptParley(battle, u)
   const chosen = chooseAction(battle, u)
-  u.unleash = null
   if (!chosen) return
-  const { ability, targets, cost } = chosen
+  const { ability, targets, cost, to } = chosen
   u.gauge -= cost
+  if (to !== undefined) {
+    emit(battle, { type: 'move', actor: u.uid, from: u.tile, to })
+    u.tile = to
+    battle.paths.clear()
+    return
+  }
   emit(battle, { type: 'action', actor: u.uid, ability: ability.id, anim: ability.anim, element: ability.element, targets: targets.map((x) => x.uid) })
   for (const effect of ability.effects) runEffect(battle, effect, u, targets, ability)
 }
@@ -136,9 +135,7 @@ function emit (battle, ev) {
   return ev
 }
 
-const unitOf = (battle, uid) => battle.units.find((u) => u.uid === uid)
-
-// Units only ever leave a battle (death, recruit), never return, so the living count versions the roster.
+// Units only ever leave a battle (by dying), never return, so the living count versions the roster.
 function synergiesOf (battle, side) {
   const living = livingOn(battle.units, side)
   const c = battle.syn[side]
@@ -152,6 +149,8 @@ function modsFor (battle, unit) {
     for (const m of statusDef(s.id).mods ?? []) for (let n = 0; n < s.stacks; n++) mods.push(m)
   }
   for (const syn of synergiesOf(battle, unit.side)) mods.push(...syn.mods)
+  for (const b of battle.bonds) if (b.uid === unit.uid) mods.push(...b.bond.mods)
+  for (const giver of auraGivers(battle.units, unit)) mods.push(...unitDef(giver.id).aura.mods)
   mods.push(...(unit.side === 'party' ? battle.partyMods : battle.foeMods))
   return mods
 }
@@ -159,10 +158,12 @@ function modsFor (battle, unit) {
 // Cached on everything stats depend on, so nothing has to remember to invalidate it.
 export function stats (battle, unit) {
   synergiesOf(battle, unit.side)
-  const key = `${unit.slot}|${battle.syn[unit.side].n}|${unit.statuses.map((s) => s.id + s.stacks).join()}`
+  const pos = isEngaged(battle.units, unit) ? 'engaged' : 'free'
+  const auras = auraGivers(battle.units, unit).map((u) => u.uid).join()
+  const key = `${pos}|${auras}|${battle.syn[unit.side].n}|${unit.statuses.map((s) => s.id + s.stacks).join()}`
   const hit = battle.cache.get(unit.uid)
   if (hit?.key === key) return hit.s
-  const s = statsOf(unit, modsFor(battle, unit))
+  const s = statsOf({ ...unit, pos }, modsFor(battle, unit))
   battle.cache.set(unit.uid, { key, s })
   return s
 }
@@ -184,8 +185,7 @@ function runEffect (battle, effect, actor, targets, ability = null) {
         continue
       }
       const isCrit = battle.rng.chance(critChance(a.crt))
-      let mul = a.damage.dealt * d.damage.taken * escalation(battle)
-      if (ability?.melee) mul *= rowMods(actor.slot).meleeDealt * rowMods(target.slot).meleeTaken
+      const mul = a.damage.dealt * d.damage.taken * escalation(battle)
       const damage = computeDamage({
         power: effect.power,
         atk: a.atk,
@@ -225,6 +225,7 @@ function applyDamage (battle, target, amount, { actor, isCrit, element }) {
   if (target.hp > 0) return
   target.statuses = []
   emit(battle, { type: 'death', target: target.uid, actor: actor.uid })
+  battle.paths.clear()
 }
 
 function addStatus (battle, target, id, dur) {
@@ -240,131 +241,17 @@ function addStatus (battle, target, id, dur) {
   emit(battle, { type: 'status', target: target.uid, status: id, dur })
 }
 
-// ── commands ─────────────────────────────────────────────────────────────────────────────────────
-
-// Focus · Parley · Brace · Unleash. Issued between ticks, applied at the start of the next step, and
-// logged in battle.commandLog so a battle replays exactly.
-
-export const VERBS = ['focus', 'parley', 'brace', 'unleash']
-
-const no = (reason) => ({ ok: false, reason })
-
-// Party-wide persuade numbers: charm sums, threshold and chance multiplier take the best unit's.
-function partyPersuade (battle) {
-  const p = { charm: 0, threshold: TUNING.persuade.threshold, chance: 1, kin: new Set() }
-  for (const u of livingOn(battle.units, 'party')) {
-    const s = stats(battle, u)
-    p.charm += s.charm
-    p.threshold = Math.max(p.threshold, s.persuade.threshold)
-    p.chance = Math.max(p.chance, s.persuade.chance)
-    p.kin.add(unitDef(u.id).kin)
-  }
-  return p
-}
-
-function parleyChance (battle, target, p = partyPersuade(battle)) {
-  const def = unitDef(target.id)
-  return persuadeChance({
-    tier: def.tier,
-    hpPct: target.hp / target.maxHp,
-    charm: p.charm,
-    kinAffinity: p.kin.has(def.kin) ? TUNING.persuade.kinAffinity : 1,
-    itemMods: p.chance,
-    attempts: target.persuadeAttempts
-  })
-}
-
-// The ability Unleash would fire: the most expensive viable one.
-export function unleashPick (battle, unit) {
-  let best = null
-  for (const { ability } of viable(battle, unit)) if (!best || ability.castCost > best.castCost) best = ability
-  return best
-}
-
-export function canIssue (battle, verb, targetUid) {
-  if (battle.over) return no('battle over')
-  if (!VERBS.includes(verb)) return no('unknown command')
-  if (battle.commandsLeft <= 0) return no('no commands left')
-  const u = unitOf(battle, targetUid)
-  if (!u || !alive(u)) return no('needs a living target')
-  const wantFoe = verb === 'focus' || verb === 'parley'
-  if ((u.side === 'foe') !== wantFoe) return no(wantFoe ? 'target a foe' : 'target an ally')
-  if (verb === 'parley') {
-    if (unitDef(u.id).boss) return no('cannot be persuaded')
-    if (battle.parley || battle.pending.some((c) => c.verb === 'parley')) return no('a parley is already pending')
-    const p = partyPersuade(battle)
-    if (u.hp / u.maxHp > p.threshold) return no(`not weak enough (≤${Math.round(p.threshold * 100)}% HP)`)
-    return { ok: true, chance: parleyChance(battle, u, p) }
-  }
-  if (verb === 'unleash' && !unleashPick(battle, u)) return no('nothing to unleash')
-  return { ok: true }
-}
-
-export function issueCommand (battle, { verb, target }) {
-  const check = canIssue(battle, verb, target)
-  if (!check.ok) return check
-  battle.commandsLeft--
-  const cmd = { t: battle.t, verb, target }
-  battle.commandLog.push(cmd)
-  battle.pending.push(cmd)
-  return { ok: true }
-}
-
-function applyCommands (battle) {
-  for (const { verb, target } of battle.pending) {
-    const u = unitOf(battle, target)
-    if (!alive(u)) { battle.commandsLeft++; continue }
-    emit(battle, { type: 'command', verb, target })
-    if (verb === 'focus') {
-      battle.focus = { target, until: battle.t + TUNING.commands.focusTicks }
-    } else if (verb === 'parley') {
-      battle.parley = { target }
-    } else if (verb === 'brace') {
-      const behind = u.slot + COLS
-      const free = rowOf(u.slot) < ROWS - 1 && !battle.units.some((x) => x.side === u.side && alive(x) && x.slot === behind)
-      if (free) {
-        u.slot = behind
-        emit(battle, { type: 'move', target, slot: behind })
-      }
-      addStatus(battle, u, 'braced', battle.braceTicks)
-    } else if (verb === 'unleash') {
-      const pick = unleashPick(battle, u)
-      if (pick) {
-        u.gauge = Math.max(u.gauge, pick.castCost)
-        u.unleash = pick.id
-      }
-    }
-  }
-  battle.pending = []
-}
-
-// Refund a pending parley whose target died or left before anyone could try it.
-function checkParley (battle) {
-  if (!battle.parley || alive(unitOf(battle, battle.parley.target))) return
-  emit(battle, { type: 'refund', verb: 'parley', target: battle.parley.target })
-  battle.parley = null
-  battle.commandsLeft++
-}
-
-function attemptParley (battle, actor) {
-  const target = unitOf(battle, battle.parley.target)
-  if (!alive(target)) return checkParley(battle)
-  battle.parley = null
-  actor.gauge -= TUNING.commands.parleyCost
-  const chance = parleyChance(battle, target)
-  emit(battle, { type: 'action', actor: actor.uid, ability: 'parley', anim: 'cast_beam', element: 'holy', targets: [target.uid] })
-  const success = battle.rng.chance(chance)
-  emit(battle, { type: 'persuade', actor: actor.uid, target: target.uid, success, chance })
-  if (!success) { target.persuadeAttempts++; return }
-  target.left = true
-  battle.recruited.push(target.uid)
-  emit(battle, { type: 'recruit', target: target.uid, id: target.id })
-}
-
 // ── unit AI ──────────────────────────────────────────────────────────────────────────────────────
 
-// Default policy: try abilities in def order; skip one whose `when` fails or that has no legal
-// target; if the first viable one is unaffordable, bank gauge rather than fall through.
+// Each tick, a unit does the first of these that applies:
+//   1. a flanker whose quarry is out of reach steps toward it;
+//   2. the first ability in def order whose `when` holds and that has a target in reach is used, or
+//      the unit banks gauge for it if it cannot afford it yet;
+//   3. with nothing in reach, the unit steps toward the foes.
+// A step costs TUNING.board.moveCost gauge and never enters a wall. An engaged unit only steps if its
+// behaviour slips (BEHAVIOURS). A unit's behaviour is its role's.
+
+export const behaviourOf = (unit) => ROLES[unitDef(unit.id).role].move
 
 function view (battle, unit) {
   return {
@@ -375,53 +262,142 @@ function view (battle, unit) {
   }
 }
 
-// Abilities that pass their condition and have a legal target, in def order.
-export function viable (battle, unit) {
+// The first ability in def order that passes its condition and has a target in reach, or null.
+function nextAbility (battle, unit) {
   const s = view(battle, unit)
-  const out = []
   for (const id of unitDef(unit.id).abilities) {
     const ability = abilityDef(id)
     if (ability.when && !ability.when(s)) continue
     const candidates = reachable(battle.units, unit, ability)
-    if (candidates.length) out.push({ ability, candidates })
+    if (candidates.length) return { ability, candidates }
   }
-  return out
+  return null
 }
 
-const byHpPct = (a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.slot - b.slot
+// The gauge the unit is saving for: its next ability, or a step.
+export const nextCost = (battle, unit) => nextAbility(battle, unit)?.ability.castCost ?? TUNING.board.moveCost
+
+// How far the unit's foe-targeting abilities that pass their condition reach: where it walks to.
+function reachOf (battle, unit) {
+  const s = view(battle, unit)
+  let r = 1
+  for (const id of unitDef(unit.id).abilities) {
+    const a = abilityDef(id)
+    if (!isAllyShape(a.shape) && (!a.when || a.when(s))) r = Math.max(r, rangeOf(a))
+  }
+  return r
+}
+
+const byHpPct = (a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.uid - b.uid
 const lowest = (list) => list.slice().sort(byHpPct)[0]
 
-// Aggro roll over the rows that hold a candidate (front draws most).
-function pickRow (candidates, rng) {
-  const rows = []
-  const weights = []
-  for (let r = 0; r < ROWS; r++) {
-    const inRow = candidates.filter((u) => rowOf(u.slot) === r)
-    if (!inRow.length) continue
-    rows.push(inRow)
-    weights.push(rowMods(r * 4).aggro)
+// A flanker's quarry: the foe deepest in its own formation, kept until it falls.
+function quarryOf (battle, unit) {
+  const held = battle.units.find((u) => u.uid === unit.quarry)
+  if (held && alive(held)) return held
+  const foes = livingOn(battle.units, enemySide(unit.side))
+  const q = foes.sort((a, b) => depthFor(b.side, b.tile) - depthFor(a.side, a.tile) || byHpPct(a, b))[0]
+  unit.quarry = q?.uid ?? null
+  return q
+}
+
+// The tile to step to on the cheapest path toward any tile within `range` of a target, or null if the
+// unit is there already or no path is open. Walls and tiles held by the living are closed; with
+// `avoid`, so are tiles next to a foe. Entering a tile next to a foe costs `danger` steps. Ties keep
+// to the lane.
+// Memoised until someone moves or dies: nothing else changes the answer.
+function stepToward (battle, unit, targets, opts) {
+  const key = `${unit.uid}|${targets.map((e) => e.uid)}|${opts.range}|${opts.avoid}|${opts.danger}`
+  if (!battle.paths.has(key)) battle.paths.set(key, searchStep(battle, unit, targets, opts))
+  return battle.paths.get(key)
+}
+
+function searchStep (battle, unit, targets, { range, avoid = false, danger = 1 }) {
+  // The board flattened into typed arrays: near (next to a foe) and open (may be stepped on).
+  const adj = (battle.adj ??= Array.from({ length: TILES }, (_, t) => steps(t, battle.walls)))
+  const near = new Uint8Array(TILES)
+  const open = new Uint8Array(TILES).fill(1)
+  for (const t of battle.walls) open[t] = 0
+  for (const u of battle.units) {
+    if (!alive(u)) continue
+    if (u !== unit) open[u.tile] = 0
+    if (u.side !== unit.side) for (const n of neighbours(u.tile)) near[n] = 1
   }
-  return rows.length === 1 ? rows[0] : rng.weighted(rows, weights)
+  if (avoid) for (let t = 0; t < TILES; t++) if (near[t]) open[t] = 0
+  const cost = (t) => (near[t] ? danger : 1)
+  const passable = (t) => open[t] || t === unit.tile
+  // Cost to the nearest goal: Dijkstra outward from the goals, with a bucket per cost (step costs are
+  // whole numbers). It stops once the unit's own cost is final: by then so is every tile nearer the
+  // goals, and only those can be its best step.
+  const dist = new Float64Array(TILES).fill(Infinity)
+  const buckets = [[]]
+  for (let t = 0; t < TILES; t++) {
+    if (passable(t) && targets.some((e) => distance(e.tile, t) <= range)) { dist[t] = 0; buckets[0].push(t) }
+  }
+  for (let d = 0; d < buckets.length && d < dist[unit.tile]; d++) {
+    for (const t of buckets[d] ?? []) {
+      if (dist[t] !== d) continue
+      const next = d + cost(t)
+      for (const n of adj[t]) {
+        if (next < dist[n] && passable(n)) { dist[n] = next; (buckets[next] ??= []).push(n) }
+      }
+    }
+  }
+  if (dist[unit.tile] === 0 || dist[unit.tile] === Infinity) return null
+  const lane = tileX(unit.tile)
+  let best = null
+  let bestD = Infinity
+  for (const n of adj[unit.tile]) {
+    if (!open[n]) continue
+    const d = cost(n) + dist[n] - (tileX(n) === lane ? 0.5 : 0)
+    if (d < bestD) { best = n; bestD = d }
+  }
+  return best
 }
 
 function pickTarget (battle, unit, ability, candidates) {
   if (isAllyShape(ability.shape)) return lowest(candidates)
-  const f = battle.focus
-  if (unit.side === 'party' && f && battle.t < f.until) {
-    const hit = candidates.find((u) => u.uid === f.target)
-    if (hit) return hit
+  if (ability.shape === 'blast') {
+    // Where it catches the most: the candidate with the most of its side around it.
+    const caught = (c) => livingOn(battle.units, c.side).filter((u) => distance(u.tile, c.tile) <= 1).length
+    return candidates.slice().sort((a, b) => caught(b) - caught(a) || byHpPct(a, b))[0]
   }
-  return lowest(pickRow(candidates, battle.rng))
+  const quarry = candidates.find((u) => u.uid === unit.quarry)
+  if (quarry) return quarry
+  if (ROLES[unitDef(unit.id).role].target === 'weakest') return lowest(candidates)
+  const d = (u) => distance(unit.tile, u.tile)
+  return candidates.slice().sort((a, b) => d(a) - d(b) || byHpPct(a, b))[0]
 }
 
-// → { ability, targets, cost } or null (banking, or nothing to do).
+// → { ability, targets, cost }, { to, cost } for a step, or null (banking, or nothing to do).
 function chooseAction (battle, unit) {
-  const options = viable(battle, unit)
-  let pick = options[0]
-  if (unit.unleash) pick = options.find((o) => o.ability.id === unit.unleash) ?? pick
-  if (!pick || unit.gauge < pick.ability.castCost) return null
-  const primary = pickTarget(battle, unit, pick.ability, pick.candidates)
-  return { ability: pick.ability, targets: expand(battle.units, unit, pick.ability, primary), cost: pick.ability.castCost }
+  const move = behaviourOf(unit)
+  const free = BEHAVIOURS[move].slips || !isEngaged(battle.units, unit)
+  const step = (to) => (to === null ? undefined : unit.gauge < TUNING.board.moveCost ? null : { to, cost: TUNING.board.moveCost })
+
+  if (move === 'flank' && free) {
+    const quarry = quarryOf(battle, unit)
+    const range = reachOf(battle, unit)
+    if (quarry && distance(unit.tile, quarry.tile) > range) {
+      const go = step(stepToward(battle, unit, [quarry], { range, danger: TUNING.board.dangerCost }))
+      if (go !== undefined) return go
+    }
+  }
+
+  const pick = nextAbility(battle, unit)
+  if (pick) {
+    if (unit.gauge < pick.ability.castCost) return null
+    const primary = pickTarget(battle, unit, pick.ability, pick.candidates)
+    return { ability: pick.ability, targets: expand(battle.units, unit, pick.ability, primary), cost: pick.ability.castCost }
+  }
+
+  if (!free) return null
+  const foes = livingOn(battle.units, enemySide(unit.side))
+  const range = reachOf(battle, unit)
+  // A ranged unit holding back keeps off the tiles next to foes, unless that leaves it no way in.
+  let to = move === 'keep' && range > 1 ? stepToward(battle, unit, foes, { range, avoid: true }) : null
+  if (to === null) to = stepToward(battle, unit, foes, { range })
+  return step(to) ?? null
 }
 
 // ── formulas ─────────────────────────────────────────────────────────────────────────────────────
@@ -456,17 +432,4 @@ export function computeDamage (p, tuning = TUNING) {
   const crit = p.isCrit ? (p.critMul ?? tuning.crit.mult) : 1
   const total = mitigated * (p.affinity ?? 1) * crit * (p.variance ?? 1) * (p.mul ?? 1)
   return Math.max(t.min, Math.round(total))
-}
-
-// chance = base[tier] × (1 + charm/100) × (1 + 2(1 − hp%)) × kinAffinity × itemMods × decay^attempts
-export function persuadeChance (p, tuning = TUNING) {
-  const t = tuning.persuade
-  const base = t.base[p.tier] ?? t.base.default
-  const chance = base *
-    (1 + (p.charm ?? 0) / t.charmDivisor) *
-    (1 + t.weakenBonus * (1 - clamp(0, 1, p.hpPct))) *
-    (p.kinAffinity ?? 1) *
-    (p.itemMods ?? 1) *
-    Math.pow(t.decay, p.attempts ?? 0)
-  return clamp(0, t.max, chance)
 }

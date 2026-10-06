@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS } from '../src/sim/map.js'
 
-const TYPES = ['fight', 'elite', 'treasure', 'campfire', 'boss']
+const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'boss']
 
 function reach (map, from, edges) {
   const seen = new Set([from])
@@ -40,10 +40,10 @@ test('500 seeded floors keep the rank, link and type rules', () => {
       if (r >= 2) assert.ok(rank.filter((n) => n.type === 'elite').length <= 1, `${where} rank ${r} elites`)
     }
     assert.ok(ranks[1].every((n) => n.type === 'fight'), `${where} rank 1 is all fights`)
-    const fires = ranks[5].filter((n) => n.type === 'campfire').length
-    assert.ok(fires >= 1 && fires < ranks[5].length, `${where} rank 5 campfires`)
-    const treasures = map.nodes.filter((n) => n.type === 'treasure').length
-    assert.ok(treasures >= 1 && treasures <= 3, `${where} treasures ${treasures}`)
+    const altars = ranks[5].filter((n) => n.type === 'altar').length
+    assert.ok(altars >= 1 && altars < ranks[5].length, `${where} rank 5 altars`)
+    const reliquaries = map.nodes.filter((n) => n.type === 'reliquary').length
+    assert.ok(reliquaries >= 1 && reliquaries <= 3, `${where} reliquaries ${reliquaries}`)
 
     for (const n of map.nodes) {
       for (const id of n.next) assert.equal(nodeOf(map, id).rank, n.rank + 1, `${where} ${n.id} → ${id}`)

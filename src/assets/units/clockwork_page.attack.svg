@@ -1,0 +1,445 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Clockwork Page, attack key pose: sprung low into the backstab. The stiletto is driven forward at full stretch trailing a violet slash, the card flicked away spinning, the key whirring, the feather flung back and the arcane eye blazing. Lit from the upper left. -->
+  <defs>
+    <linearGradient id="cpa-brass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbe5a2"/>
+      <stop offset="0.45" stop-color="#d09c48"/>
+      <stop offset="1" stop-color="#76491a"/>
+    </linearGradient>
+    <linearGradient id="cpa-brass-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d2a356"/>
+      <stop offset="1" stop-color="#5a3812"/>
+    </linearGradient>
+    <linearGradient id="cpa-copper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2ae80"/>
+      <stop offset="0.5" stop-color="#b9673b"/>
+      <stop offset="1" stop-color="#5c2a15"/>
+    </linearGradient>
+    <linearGradient id="cpa-velvet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a274e0"/>
+      <stop offset="0.5" stop-color="#6a3fab"/>
+      <stop offset="1" stop-color="#341a60"/>
+    </linearGradient>
+    <linearGradient id="cpa-velvet-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7a50bb"/>
+      <stop offset="1" stop-color="#2c1552"/>
+    </linearGradient>
+    <linearGradient id="cpa-porcelain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffbf3"/>
+      <stop offset="0.55" stop-color="#ebe0d0"/>
+      <stop offset="1" stop-color="#b7a697"/>
+    </linearGradient>
+    <linearGradient id="cpa-feather" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#6b4cc0"/>
+      <stop offset="0.55" stop-color="#b9a0f4"/>
+      <stop offset="1" stop-color="#f1eaff"/>
+    </linearGradient>
+    <linearGradient id="cpa-card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#d9cbb5"/>
+    </linearGradient>
+    <linearGradient id="cpa-blade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef2f8"/>
+      <stop offset="0.5" stop-color="#a3adbd"/>
+      <stop offset="0.51" stop-color="#5d6676"/>
+      <stop offset="1" stop-color="#3a404e"/>
+    </linearGradient>
+    <linearGradient id="cpa-crystal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6f1ff"/>
+      <stop offset="0.45" stop-color="#b99fff"/>
+      <stop offset="1" stop-color="#5e3fcf"/>
+    </linearGradient>
+    <linearGradient id="cpa-leather" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5a3a2a"/>
+      <stop offset="1" stop-color="#2e1c14"/>
+    </linearGradient>
+    <radialGradient id="cpa-glass" cx="0.38" cy="0.32" r="0.7">
+      <stop offset="0" stop-color="#5a46a0"/>
+      <stop offset="1" stop-color="#1e1440"/>
+    </radialGradient>
+    <radialGradient id="cpa-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.25" stop-color="#e3d6ff"/>
+      <stop offset="0.55" stop-color="#a98bff" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#a98bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cpa-haze" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#a98bff" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#a98bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cpa-flash" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.18" stop-color="#e3d6ff" stop-opacity="0.95"/>
+      <stop offset="0.5" stop-color="#a98bff" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#a98bff" stop-opacity="0"/>
+    </radialGradient>
+    <!-- the slash: a crescent fading out behind the blade's travel -->
+    <linearGradient id="cpa-slash" gradientUnits="userSpaceOnUse" x1="68" y1="70" x2="20" y2="62">
+      <stop offset="0" stop-color="#a98bff" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#a98bff" stop-opacity="0.45"/>
+      <stop offset="0.85" stop-color="#c9b6ff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#e3d6ff" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="cpa-slash-core" gradientUnits="userSpaceOnUse" x1="62" y1="70" x2="20" y2="62">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.6" stop-color="#f3eeff" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="cpa-streak" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e3d6ff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#e3d6ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- the great wind-up key, whirring in a blur -->
+  <g transform="rotate(-11 48 62) translate(0.6 3)">
+  <path d="M53 40.6 L66.4 32.2" stroke="#0d0a12" stroke-width="5" stroke-linecap="round"/>
+  <path d="M53 40.6 L66.4 32.2" stroke="url(#cpa-brass)" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M54.4 38.8 L65.8 31.6" stroke="#fff1c4" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M55.2 41 L66.4 34" stroke="#6e4618" stroke-width="0.6" stroke-linecap="round"/>
+  <g transform="translate(60.2 36.1) rotate(-32)">
+    <rect x="-1.5" y="-2.9" width="3" height="5.8" rx="0.8" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.8"/>
+    <path d="M-0.8 -2.2 L-0.8 2.2" stroke="#fff1c4" stroke-width="0.45"/>
+    <path d="M0.8 -2.2 L0.8 2.2" stroke="#6e4618" stroke-width="0.4"/>
+  </g>
+  <g transform="translate(66.6 32.2) rotate(-32) scale(1.15)">
+    <!-- spin blur: ghost bows sweeping round the shaft -->
+    <ellipse cx="5.4" cy="0" rx="4.4" ry="10.8" fill="url(#cpa-haze)" opacity="0.4"/>
+    <path d="M0.6 -1 C1.6 -4 1.2 -10.4 5.4 -10.8 C9.6 -11 10.6 -5 7.4 -1.2 Z" fill="#c09048" fill-opacity="0.2" stroke="#f1d08a" stroke-width="0.35" stroke-opacity="0.45"/>
+    <path d="M0.6 1 C1.6 4 1.2 10.4 5.4 10.8 C9.6 11 10.6 5 7.4 1.2 Z" fill="#c09048" fill-opacity="0.14" stroke="#f1d08a" stroke-width="0.35" stroke-opacity="0.3"/>
+    <path d="M3 -10.4 Q8.6 -11.6 10.4 -6.4" fill="none" stroke="#fff1c4" stroke-width="0.55" stroke-linecap="round" opacity="0.85"/>
+    <path d="M3.4 10.6 Q9 11.4 10.6 6" fill="none" stroke="#fff1c4" stroke-width="0.5" stroke-linecap="round" opacity="0.6"/>
+    <path d="M1.2 -12.2 Q8 -13.8 12 -7.4" fill="none" stroke="#e3d6ff" stroke-width="0.45" stroke-linecap="round" opacity="0.75"/>
+    <path d="M1.8 12.4 Q8.6 13.6 12.2 7.8" fill="none" stroke="#a98bff" stroke-width="0.45" stroke-linecap="round" opacity="0.7"/>
+    <path d="M-0.4 -13.8 Q7 -15.6 11.6 -10.6" fill="none" stroke="#c9b6ff" stroke-width="0.35" stroke-linecap="round" opacity="0.5"/>
+    <!-- the bow itself, caught edge-on mid-turn -->
+    <g transform="scale(1 0.58)">
+      <path d="M0 0 C1.6 -1.8 0.2 -9 5.2 -9.6 C10.6 -10.2 11.8 -4.2 7.4 -1.2 L7.4 1.2 C11.8 4.2 10.6 10.2 5.2 9.6 C0.2 9 1.6 1.8 0 0 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+      <ellipse cx="5.6" cy="-5.2" rx="2.1" ry="2.3" fill="#2a1a10" stroke="#5a3812" stroke-width="0.5"/>
+      <ellipse cx="5.6" cy="5.2" rx="2.1" ry="2.3" fill="#2a1a10" stroke="#5a3812" stroke-width="0.5"/>
+      <path d="M1.6 -3 C1.4 -7 3 -8.6 5.6 -8.7 C8.4 -8.8 10 -7 9.6 -4.6" fill="none" stroke="#fff1c4" stroke-width="0.8" stroke-linecap="round"/>
+      <path d="M9.8 4 C10.2 7 8.6 9 5.6 8.8" fill="none" stroke="#5a3812" stroke-width="0.8" stroke-linecap="round"/>
+      <path d="M4 -6.8 q1 -0.8 2 0 M4 6.8 q1 0.8 2 0" fill="none" stroke="#7a4f1c" stroke-width="0.4"/>
+    </g>
+    <circle cx="2.6" cy="0" r="1.7" fill="#d9a650" stroke="#0d0a12" stroke-width="0.55"/>
+    <circle cx="2.2" cy="-0.4" r="0.5" fill="#fff4cf"/>
+    <!-- glint thrown off the spinning edge -->
+    <path d="M9.6 -6.2 l0 2.4 M8.4 -5 l2.4 0" stroke="#ffffff" stroke-width="0.35" stroke-linecap="round"/>
+  </g>
+  <!-- arcane rim on the key from the heart's glow -->
+  <path d="M55.4 42.2 L65.6 35.8" stroke="#a98bff" stroke-width="0.5" opacity="0.75"/>
+  </g>
+
+  <!-- legs: sprung into a low lunge, front knee driven forward, back leg stretched -->
+  <g stroke="#0d0a12" stroke-width="1" stroke-linejoin="round">
+    <!-- forward leg (thigh, shin) -->
+    <path d="M40.4 60.6 L46.8 63.2 L37.6 73.2 L31.8 69.8 Z" fill="url(#cpa-brass)"/>
+    <path d="M31.8 73 Q34.8 71 37.8 72.8 L37.4 82.8 L33.1 82.8 Z" fill="url(#cpa-copper)"/>
+    <!-- back leg -->
+    <path d="M50.2 63.4 L56.2 61.6 L63.8 70.6 L58.6 73.6 Z" fill="url(#cpa-brass-dark)"/>
+    <path d="M58.8 73.4 Q61.8 71.4 64.4 73 L65 82.8 L60.9 83 Z" fill="url(#cpa-copper)"/>
+  </g>
+  <!-- thigh plates and rivets -->
+  <path d="M35.2 68.4 L40.4 70 M55.4 66.4 L60.4 64.6" stroke="#5a3812" stroke-width="0.5"/>
+  <path d="M41.4 62.4 L34 70" stroke="#fff1c4" stroke-width="0.7" stroke-linecap="round"/>
+  <circle cx="43.4" cy="64.2" r="0.5" fill="#fff1c4"/><circle cx="36.6" cy="71" r="0.5" fill="#fff1c4"/>
+  <circle cx="54.2" cy="64" r="0.5" fill="#b78a44"/><circle cx="61" cy="70.2" r="0.5" fill="#b78a44"/>
+  <!-- shin piston rods and highlights -->
+  <path d="M33.9 74 L34.5 82" stroke="#ffd2ad" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M35.9 74 L35.7 81.6" stroke="#4a2010" stroke-width="0.5"/>
+  <path d="M60.6 74.4 L62.2 82.2" stroke="#ffc9a0" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M63.4 74.4 L63.8 82" stroke="#3d1a0c" stroke-width="0.5"/>
+  <path d="M32.8 77.4 L37.4 77.4 M59.6 78 L64.2 78" stroke="#4a2010" stroke-width="0.5"/>
+  <circle cx="35" cy="77.4" r="0.45" fill="#ffd9b5"/><circle cx="61.9" cy="78" r="0.45" fill="#e2a37a"/>
+  <!-- knee joints: ball sockets with cog rims -->
+  <circle cx="34.8" cy="71.6" r="2.9" fill="none" stroke="#0d0a12" stroke-width="1.9" stroke-dasharray="0.9 0.7"/>
+  <circle cx="34.8" cy="71.6" r="2.7" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.8"/>
+  <circle cx="34.8" cy="71.6" r="1" fill="#6e4618"/>
+  <circle cx="33.9" cy="70.7" r="0.6" fill="#fff4cf"/>
+  <circle cx="61.2" cy="72.2" r="2.8" fill="none" stroke="#0d0a12" stroke-width="1.9" stroke-dasharray="0.9 0.7"/>
+  <circle cx="61.2" cy="72.2" r="2.6" fill="url(#cpa-brass-dark)" stroke="#0d0a12" stroke-width="0.8"/>
+  <circle cx="61.2" cy="72.2" r="0.95" fill="#4a2c0c"/>
+  <circle cx="60.4" cy="71.4" r="0.5" fill="#f1d08a"/>
+  <!-- ankle pins -->
+  <circle cx="35.2" cy="83" r="1.5" fill="#a87a36" stroke="#0d0a12" stroke-width="0.6"/>
+  <circle cx="62.9" cy="83" r="1.5" fill="#8a6028" stroke="#0d0a12" stroke-width="0.6"/>
+  <!-- pointed page's shoes with curled toes: front one stepped forward, back one pushing off its toe -->
+  <g transform="translate(-2.4 0)">
+    <path d="M33.6 83.4 Q37.6 81.6 41.6 83.4 L42 86.6 Q41.6 88 39 88 L32 88 Q28.4 88 27.4 85.4 Q26.8 83.4 28.6 83.8 Q29.6 85.4 31.6 85.2 Z" fill="url(#cpa-velvet)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M34 84 Q37.4 82.6 41 84" fill="none" stroke="#e0b45a" stroke-width="0.6"/>
+    <path d="M29.6 85.8 Q31.4 86.4 33.4 85.8" fill="none" stroke="#c9a8f4" stroke-width="0.5"/>
+    <path d="M33 87.2 L41.2 87.2" stroke="#1d0f33" stroke-width="0.5"/>
+    <circle cx="28.4" cy="84.2" r="0.7" fill="#f1d08a" stroke="#0d0a12" stroke-width="0.3"/>
+    <rect x="36.4" y="84.4" width="2.4" height="1.6" rx="0.4" fill="#e0b45a" stroke="#0d0a12" stroke-width="0.4"/>
+  </g>
+  <g transform="translate(2.6 0) rotate(-7 66 88)">
+    <path d="M56.4 83.4 Q60.4 81.6 64.2 83.6 Q67.6 85 68.6 85 Q70.4 84.4 70 86.2 Q69.2 88 66.4 88 L56.6 88 Q55.6 86 56.4 83.4 Z" fill="url(#cpa-velvet-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M56.8 84 Q60.4 82.6 63.8 84.2" fill="none" stroke="#c09048" stroke-width="0.6"/>
+    <path d="M57 87.2 L67 87.2" stroke="#1d0f33" stroke-width="0.5"/>
+    <circle cx="69.6" cy="85.2" r="0.7" fill="#c09048" stroke="#0d0a12" stroke-width="0.3"/>
+    <rect x="59.6" y="84.4" width="2.4" height="1.6" rx="0.4" fill="#b8883e" stroke="#0d0a12" stroke-width="0.4"/>
+  </g>
+  <!-- scuff of dust kicked from the push-off -->
+  <path d="M71.6 86.6 Q74 85.6 76.2 86.4 M72.4 88.2 Q75 87.8 77.4 88.4" fill="none" stroke="#8a7aa8" stroke-width="0.45" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- upper body: dropped low and pitched forward into the thrust -->
+  <g transform="rotate(-11 48 62) translate(0.6 3)">
+  <!-- dagged velvet skirt of the tabard, flaring back with the spring -->
+  <path d="M37.6 56.6 L57.6 56.6 L62.4 66.2 L59.4 64.8 L57.8 67.6 L54.8 65 L52.4 67.8 L49.6 65.2 L47 67.8 L44.2 65 L41.6 67.6 L39 64.8 L35.8 66.4 Z" fill="url(#cpa-velvet)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M37 65 L39 63.6 L41.6 66.2 L44.2 63.6 L47 66.4 L49.6 63.8 L52.4 66.4 L54.8 63.6 L57.8 66.2 L59.4 63.4 L61.2 64.6" fill="none" stroke="#e0b45a" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M42 59 Q41.6 62 41.6 66 M47.6 59.4 Q47.6 62.6 47 66.4 M53 59 Q54.2 62 55 64.4" fill="none" stroke="#2a1450" stroke-width="0.6"/>
+  <path d="M39 59 Q38.2 62 37.6 64.8" fill="none" stroke="#c7a3f5" stroke-width="0.6" opacity="0.8"/>
+
+  <!-- doublet over the brass torso -->
+  <path d="M37.6 39.4 Q46.6 35.6 56.6 38.8 L57.6 51 Q56.6 58.4 47.6 59 Q39.2 58.4 37.8 51.6 Z" fill="url(#cpa-velvet)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- quilted diamond stitching -->
+  <path d="M39 44 L42.6 40.4 M38.8 49 L42 45.6 M39.6 53.6 L42.4 50.8 M39 41.6 L42.4 45 M38.8 46.6 L42 49.8 M54.2 40.4 L56.8 43 M53.4 45.6 L57 49.2 M53.8 51 L56.6 53.8 M53.6 43.4 L56.6 40.4 M53.4 48.6 L57 45 M54 54 L57 51" stroke="#e0b45a" stroke-width="0.3" opacity="0.55"/>
+  <circle cx="40.7" cy="42.6" r="0.35" fill="#f1d08a"/><circle cx="40.4" cy="47.8" r="0.35" fill="#f1d08a"/><circle cx="55.2" cy="47.2" r="0.35" fill="#c09048"/>
+  <!-- velvet sheen and shadow -->
+  <path d="M39 41 Q38.6 46 39.2 51" fill="none" stroke="#d2b4ff" stroke-width="0.8" stroke-linecap="round" opacity="0.75"/>
+  <path d="M56.4 42 Q57 47.6 55.8 54.6" fill="none" stroke="#1f0d3e" stroke-width="0.9" stroke-linecap="round"/>
+  <!-- neckline piping -->
+  <path d="M38.6 39.6 Q46.6 36.6 55.8 39.2" fill="none" stroke="#e0b45a" stroke-width="0.7"/>
+  <!-- center-front piping and buttons below the window -->
+  <path d="M47.6 52 L47.6 58.8" stroke="#e0b45a" stroke-width="0.7"/>
+  <g fill="#e8be62" stroke="#0d0a12" stroke-width="0.35">
+    <circle cx="47.6" cy="53.6" r="0.75"/><circle cx="47.6" cy="56" r="0.75"/>
+  </g>
+
+  <!-- chest window: the gears spun up and blazing with the heart's light -->
+  <circle cx="47.6" cy="46" r="10" fill="url(#cpa-haze)"/>
+  <circle cx="47.6" cy="46" r="6" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="1"/>
+  <circle cx="47.6" cy="46" r="4.5" fill="url(#cpa-glass)" stroke="#0d0a12" stroke-width="0.7"/>
+  <!-- gears, glowing at the teeth -->
+  <circle cx="45.4" cy="48" r="2.3" fill="none" stroke="#e3a070" stroke-width="1.1" stroke-dasharray="0.7 0.55"/>
+  <circle cx="45.4" cy="48" r="1.7" fill="#b8683e" stroke="#3d1a0c" stroke-width="0.3"/>
+  <circle cx="45.4" cy="48" r="2.6" fill="none" stroke="#c9b6ff" stroke-width="0.35" opacity="0.8"/>
+  <circle cx="45.4" cy="48" r="0.5" fill="#ffffff"/>
+  <circle cx="50.4" cy="43.8" r="1.6" fill="none" stroke="#f1c070" stroke-width="0.9" stroke-dasharray="0.55 0.45"/>
+  <circle cx="50.4" cy="43.8" r="1.1" fill="#c08a38" stroke="#4a2c0c" stroke-width="0.3"/>
+  <circle cx="50.4" cy="43.8" r="1.9" fill="none" stroke="#c9b6ff" stroke-width="0.3" opacity="0.8"/>
+  <circle cx="44.6" cy="43.6" r="1.1" fill="none" stroke="#c4914a" stroke-width="0.7" stroke-dasharray="0.4 0.4"/>
+  <!-- whirl lines: the train running flat out -->
+  <path d="M43.4 46.4 A2.4 2.4 0 0 1 45.8 45.4 M51.6 44.4 A1.8 1.8 0 0 1 50 45.8" fill="none" stroke="#e3d6ff" stroke-width="0.3" stroke-linecap="round" opacity="0.9"/>
+  <!-- heart crystal and its flaring glow -->
+  <circle cx="47.8" cy="46.2" r="5.4" fill="url(#cpa-glow)"/>
+  <path d="M47.8 43 L49.6 45.6 L47.8 49.6 L46 45.6 Z" fill="url(#cpa-crystal)" stroke="#2c1660" stroke-width="0.4" stroke-linejoin="round"/>
+  <path d="M47.8 43 L47.8 49.6 M46 45.6 L49.6 45.6" stroke="#ffffff" stroke-width="0.3" opacity="0.85"/>
+  <circle cx="47.3" cy="44.8" r="0.55" fill="#ffffff"/>
+  <path d="M47.8 41.6 L47.8 50.8 M43.4 46.2 L52.2 46.2" stroke="#ffffff" stroke-width="0.3" stroke-linecap="round" opacity="0.6"/>
+  <!-- glass glint -->
+  <path d="M44.4 44.2 Q45.2 42.6 47 42" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <path d="M50.8 48.6 Q50.2 49.4 49.4 49.8" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.4"/>
+  <!-- bezel rivets and highlight -->
+  <g fill="#fff1c4" stroke="#0d0a12" stroke-width="0.25">
+    <circle cx="47.6" cy="40.8" r="0.5"/><circle cx="51.3" cy="42.3" r="0.5"/><circle cx="52.8" cy="46" r="0.5"/><circle cx="51.3" cy="49.7" r="0.5"/>
+    <circle cx="47.6" cy="51.2" r="0.5"/><circle cx="43.9" cy="49.7" r="0.5"/><circle cx="42.4" cy="46" r="0.5"/><circle cx="43.9" cy="42.3" r="0.5"/>
+  </g>
+  <path d="M42.6 44.2 Q43.6 41.4 46.4 40.5" fill="none" stroke="#fff4cf" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M52.6 47.8 Q51.6 50.6 48.8 51.4" fill="none" stroke="#5a3812" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M53.2 44.2 Q53.6 46.4 52.9 48.4" fill="none" stroke="#a98bff" stroke-width="0.45" opacity="0.8"/>
+
+  <!-- belt with a brass buckle, and the ring of purloined keys swinging back -->
+  <path d="M37.6 55.4 Q47.6 58.4 57.6 55.4 L57.7 58.2 Q47.6 61.2 37.7 58.2 Z" fill="url(#cpa-leather)" stroke="#0d0a12" stroke-width="0.9"/>
+  <path d="M38.2 56.4 Q47.6 59.2 57 56.4" fill="none" stroke="#8a6046" stroke-width="0.4" stroke-dasharray="0.8 0.6"/>
+  <rect x="45.6" y="57" width="4" height="3.4" rx="0.7" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.6"/>
+  <rect x="46.8" y="58" width="1.6" height="1.4" fill="#3a2418"/>
+  <circle cx="40.2" cy="59.6" r="1.5" fill="none" stroke="#0d0a12" stroke-width="1.1"/>
+  <circle cx="40.2" cy="59.6" r="1.5" fill="none" stroke="#e0b45a" stroke-width="0.5"/>
+  <g transform="rotate(38 40.2 59.6)">
+    <path d="M39.4 61 L38.4 65.2 M41 61 L42 64.6" stroke="#0d0a12" stroke-width="1"/>
+    <path d="M39.4 61 L38.4 65.2 M41 61 L42 64.6" stroke="#d9a650" stroke-width="0.5"/>
+    <path d="M38.4 65.2 l-0.9 0.2 M38.6 64.4 l-0.8 0.1 M42 64.6 l0.8 0.2" stroke="#d9a650" stroke-width="0.4"/>
+  </g>
+
+  </g>
+
+  <!-- the violet slash: crescent swept from the hip, round and under, to the extended point -->
+  <path d="M68 66 Q57 76.6 38 72 Q27 69 18.6 63.2 Q29 66.6 38.6 69.4 Q56.6 73.2 68 66 Z" fill="url(#cpa-slash)"/>
+  <path d="M60 71.2 Q48 74.2 34 70 Q26 67.2 18.6 63.2" fill="none" stroke="url(#cpa-slash-core)" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M64.4 72.6 Q52 78 38 74.2" fill="none" stroke="#a98bff" stroke-width="0.35" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- stiletto arm, driven across and forward at full stretch -->
+  <g transform="rotate(-11 48 62) translate(0.6 3)">
+  <!-- upper arm swung down and in -->
+  <path d="M58.4 41.6 L61.8 43.4 L58.6 51.8 L55.2 50.2 Z" fill="url(#cpa-brass-dark)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M58.8 43 L56.4 49.4" stroke="#f1d08a" stroke-width="0.4"/>
+  <circle cx="57" cy="51.4" r="2.1" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.8"/>
+  <circle cx="57" cy="51.4" r="0.65" fill="#5a3812"/>
+  <circle cx="56.4" cy="50.8" r="0.4" fill="#fff4cf"/>
+  <!-- forearm thrown straight out along the line of the thrust -->
+  <path d="M56.4 49.6 L57.6 53.2 L45.6 55.8 L44.8 52.2 Z" fill="url(#cpa-copper)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M55.6 50.4 L46 52.8" stroke="#ffd2ad" stroke-width="0.45"/>
+  <path d="M50.6 51.2 L51.4 54.6 M48.4 51.8 L49.2 55.1" stroke="#4a2010" stroke-width="0.4"/>
+  <path d="M46.4 52 L47.2 55.6" stroke="#e0b45a" stroke-width="0.7"/>
+  <!-- fist with the pommel showing behind -->
+  <circle cx="45.8" cy="53.6" r="1" fill="#e0b45a" stroke="#0d0a12" stroke-width="0.5"/>
+  <path d="M44.6 51.4 Q42.4 50.8 40.8 52 Q40 53.8 40.8 55.4 Q42.6 56.6 44.8 55.8 Q45.8 53.6 44.6 51.4 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M43.6 51.6 L43.8 55.6 M42.2 51.6 L42.2 55.6" stroke="#6e4618" stroke-width="0.4"/>
+  <path d="M41.2 52.4 Q42 51.4 43.4 51.4" fill="none" stroke="#fff4cf" stroke-width="0.4"/>
+  <!-- crossguard -->
+  <path d="M40.4 50.8 Q39.2 53.4 40.2 56.4 L39.2 56.2 Q38.2 53.4 39.4 50.6 Z" fill="#d9a650" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <!-- needle blade at full extension -->
+  <path d="M39 52.6 L39 54.6 L19.6 53.8 Z" fill="url(#cpa-blade)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M38.4 53.2 L22 53.7" stroke="#ffffff" stroke-width="0.3" opacity="0.85"/>
+  <path d="M37 54.2 L24 54" stroke="#c9b6ff" stroke-width="0.35" opacity="0.85"/>
+  <!-- purge-flash bursting from the point -->
+  <circle cx="20" cy="53.8" r="5.4" fill="url(#cpa-flash)"/>
+  <path d="M20 49.6 L20 58 M15.8 53.8 L24.2 53.8" stroke="#ffffff" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M17.4 51.2 L22.6 56.4 M17.4 56.4 L22.6 51.2" stroke="#e3d6ff" stroke-width="0.3" stroke-linecap="round" opacity="0.8"/>
+  <!-- slashed puff sleeve over the shoulder -->
+  <path d="M55.2 38 Q59.2 36.2 61.8 38.6 Q63.4 41.6 61.2 44.6 Q57.6 45.8 55.4 43.6 Z" fill="url(#cpa-velvet-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M57.2 38.2 Q58.4 41 57.6 44.6 M59.8 37.8 Q61 41 60 44.6" fill="none" stroke="#e0b45a" stroke-width="0.6"/>
+  <path d="M56.6 39 Q58.2 37.8 60 38" fill="none" stroke="#b896ee" stroke-width="0.5"/>
+
+  <!-- ruff collar and brass neck -->
+  <path d="M43.2 34.6 L49.4 34.6 L49.2 38 L43.4 38 Z" fill="url(#cpa-brass-dark)" stroke="#0d0a12" stroke-width="0.8"/>
+  <path d="M43.6 36 L49 36" stroke="#5a3812" stroke-width="0.4"/>
+  <path d="M39.4 38.6 q0.8 -1.9 2.4 -1.6 q1 -1.6 2.5 -1.2 q1.3 -1.1 2.7 -0.5 q1.5 -0.6 2.7 0.5 q1.5 -0.1 2.3 1.4 q1.4 0.4 1.3 2 q-0.8 1.6 -2.4 1.3 q-1.2 1.1 -2.6 0.5 q-1.4 1 -2.7 0.2 q-1.4 0.7 -2.5 -0.3 q-1.6 0.2 -2.3 -1.1 q-1.3 -0.3 -1.4 -1.2 Z" fill="#efe6d6" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M41.8 37.4 L42.4 39.6 M44.3 36.3 L44.6 40 M47 35.9 L47 40.2 M49.7 36.3 L49.4 40 M52 37.6 L51.6 39.8" stroke="#a8977e" stroke-width="0.4"/>
+  <path d="M40.4 38.4 Q41.4 37 43 37" fill="none" stroke="#ffffff" stroke-width="0.5"/>
+
+  <!-- head: brass skull-shell behind a porcelain mask -->
+  <ellipse cx="45" cy="27.4" rx="9" ry="9.4" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="1.2"/>
+  <path d="M52.6 22 Q54.4 27 52.6 33" fill="none" stroke="#5a3812" stroke-width="0.6"/>
+  <path d="M53.6 24 Q54.6 28 53.2 32.4" fill="none" stroke="#a98bff" stroke-width="0.5" opacity="0.85"/>
+  <g fill="#fff1c4" stroke="#0d0a12" stroke-width="0.25">
+    <circle cx="51.6" cy="23.2" r="0.45"/><circle cx="52.6" cy="32.4" r="0.45"/>
+  </g>
+  <!-- ear cog, spinning -->
+  <circle cx="52.4" cy="28" r="2.5" fill="none" stroke="#0d0a12" stroke-width="1.7" stroke-dasharray="0.8 0.6"/>
+  <circle cx="52.4" cy="28" r="2.3" fill="url(#cpa-copper)" stroke="#0d0a12" stroke-width="0.6"/>
+  <circle cx="52.4" cy="28" r="0.8" fill="#3d1a0c"/>
+  <path d="M51.2 26.9 Q51.8 26.2 52.6 26.1" fill="none" stroke="#ffd2ad" stroke-width="0.4"/>
+  <path d="M55.4 26 A3.4 3.4 0 0 1 55.4 30" fill="none" stroke="#fff1c4" stroke-width="0.35" stroke-linecap="round" opacity="0.7"/>
+  <!-- porcelain mask -->
+  <path d="M37 22.6 Q40 19.8 45 20 Q50.2 20.4 50.9 24.6 Q51.6 30 49 34 Q46.4 37 42.6 36.6 Q37.9 35.8 36.5 31 Q35.5 26.2 37 22.6 Z" fill="url(#cpa-porcelain)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M37.8 25.6 Q38.3 22 42.2 20.9" fill="none" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M50 27 Q50.2 31.4 47.6 34.4" fill="none" stroke="#a08b7c" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- violet light thrown up on the mask from the eye -->
+  <path d="M37.2 28.6 Q38 32 40.4 33.4" fill="none" stroke="#c9b6ff" stroke-width="0.6" stroke-linecap="round" opacity="0.6"/>
+  <!-- the arcane eye, flaring -->
+  <ellipse cx="40.6" cy="26.6" rx="8.4" ry="6.8" fill="url(#cpa-haze)"/>
+  <path d="M38.3 26.8 Q40.6 25.4 42.9 26.6 Q40.7 28.2 38.3 26.8 Z" fill="#1a1030" stroke="#3a2a4a" stroke-width="0.4"/>
+  <circle cx="40.6" cy="26.6" r="4.2" fill="url(#cpa-glow)"/>
+  <ellipse cx="40.6" cy="26.6" rx="6.4" ry="0.55" fill="url(#cpa-streak)"/>
+  <ellipse cx="40.6" cy="26.6" rx="0.45" ry="3.4" fill="url(#cpa-streak)" opacity="0.7"/>
+  <circle cx="40.6" cy="26.6" r="1.25" fill="#e3d6ff"/>
+  <circle cx="40.5" cy="26.5" r="0.6" fill="#ffffff"/>
+  <!-- painted brows, snapped down into a wicked V -->
+  <path d="M37.6 22.8 Q40 23 43 25" fill="none" stroke="#3a2a4a" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M45 25 Q47.4 23.4 50 23" fill="none" stroke="#3a2a4a" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- harlequin teardrop under the eye -->
+  <path d="M40.3 28.8 L40.9 29.8 L40.3 30.8 L39.7 29.8 Z" fill="#7a55c8"/>
+  <!-- the monocle eye, narrowed -->
+  <path d="M45.7 26.8 Q47.4 25.9 49.1 26.6 Q47.4 27.6 45.7 26.8 Z" fill="#1a1030"/>
+  <circle cx="47.4" cy="26.7" r="0.5" fill="#a98bff"/>
+  <circle cx="47.4" cy="26.4" r="2.7" fill="#cfe2ff" fill-opacity="0.22" stroke="#0d0a12" stroke-width="1.5"/>
+  <circle cx="47.4" cy="26.4" r="2.7" fill="none" stroke="#e0b45a" stroke-width="0.75"/>
+  <path d="M45.6 25.4 Q46.2 24.4 47.4 24.2" fill="none" stroke="#ffffff" stroke-width="0.55" stroke-linecap="round"/>
+  <circle cx="45.3" cy="24.6" r="0.35" fill="#fff4cf"/>
+  <!-- monocle chain, flung back by the lunge -->
+  <path d="M49.4 28.2 Q53.4 30.4 55.6 34.2" fill="none" stroke="#0d0a12" stroke-width="0.9"/>
+  <path d="M49.4 28.2 Q53.4 30.4 55.6 34.2" fill="none" stroke="#e0b45a" stroke-width="0.5" stroke-dasharray="0.7 0.35"/>
+  <!-- nose and the painted grin, split wide open -->
+  <path d="M43.8 27.6 Q43.2 29.6 44.2 30.2" fill="none" stroke="#a08b7c" stroke-width="0.5" stroke-linecap="round"/>
+  <ellipse cx="38.9" cy="30.4" rx="1.3" ry="0.8" fill="#e79aa8" opacity="0.55"/>
+  <ellipse cx="48.6" cy="30.6" rx="1" ry="0.7" fill="#e79aa8" opacity="0.45"/>
+  <path d="M39.2 31.2 Q43 32.6 46.6 31.4 Q48.4 30.6 49.2 29 Q48.8 34.8 44 35.4 Q40.4 35.2 39.2 31.2 Z" fill="#5a1f3e" stroke="#2a0f20" stroke-width="0.45" stroke-linejoin="round"/>
+  <path d="M40.2 32 Q43.2 33.2 46.4 32.2 Q47.8 31.6 48.6 30.4 L48.2 31.6 Q47.4 32.8 46 33.2 Q43 34 40.6 32.8 Z" fill="#f3ead8"/>
+  <path d="M42 32.6 L42.1 33.4 M43.8 32.9 L43.8 33.7 M45.6 32.7 L45.6 33.5 M47.2 32 L47.1 32.8" stroke="#8a6a70" stroke-width="0.3"/>
+  <path d="M41.2 34.2 Q43.6 35 46.4 34.2" fill="none" stroke="#e6d8c4" stroke-width="0.4"/>
+  <path d="M38.8 30.6 L39.6 31.6 M49 28.6 L49.6 28.9" stroke="#3a2a4a" stroke-width="0.45" stroke-linecap="round"/>
+  <!-- marionette seams down the chin -->
+  <path d="M41.4 34.8 L41.6 36.2 M46.4 34.6 L46.2 35.8" stroke="#a08b7c" stroke-width="0.4"/>
+
+  <!-- feathered page cap: the plume flung straight back by the spring -->
+  <g transform="rotate(32 55.6 20)">
+    <path d="M54.2 19.8 Q56.2 12.4 62.6 8.4 Q66.8 6 70.4 6.8 Q68.6 8.4 67 10.8 Q63.6 15.6 57.8 20.2 Z" fill="url(#cpa-feather)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M55.2 19.8 Q59.6 11.6 70 7" fill="none" stroke="#f6f1ff" stroke-width="0.5"/>
+    <path d="M57.4 16.6 l2.2 0.6 M59 13.8 l2.4 0.4 M61 11.4 l2.4 0.2 M63.4 9.4 l2.2 0 M56.8 15.2 l-0.6 -1.6 M58.6 12.4 l-0.4 -1.8 M60.8 10.2 l-0.2 -1.6" stroke="#4e33a0" stroke-width="0.4" stroke-linecap="round"/>
+    <path d="M66.2 11.6 Q65.4 13 64.2 13.6" fill="none" stroke="#4e33a0" stroke-width="0.45" stroke-linecap="round"/>
+    <!-- barbs ripped loose at the tip -->
+    <path d="M70.6 7.8 Q72.6 8.2 74 7.4 M69.4 9.6 Q71.4 10.6 73 10.2" fill="none" stroke="#b9a0f4" stroke-width="0.5" stroke-linecap="round"/>
+    <!-- speed streaks off the plume -->
+    <path d="M65 15.6 Q69 14.4 72.4 12.2 M61.4 17.6 Q65 17.4 68.4 15.8" fill="none" stroke="#e3d6ff" stroke-width="0.35" stroke-linecap="round" opacity="0.6"/>
+  </g>
+  <path d="M35 21.6 Q34.6 15.2 42.6 13.8 Q51.6 12.4 57.6 16.4 Q60.2 18.8 57.8 21.2 Q47 19.6 35 21.6 Z" fill="url(#cpa-velvet)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M37.2 18 Q39.4 15 44 14.6" fill="none" stroke="#d6bcff" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M44 16.6 Q50 15.4 55 17.8 M41 18.6 Q47 17.4 53.6 19.2" fill="none" stroke="#2a1450" stroke-width="0.6"/>
+  <path d="M56 19 Q58.4 19.4 58.8 18" fill="none" stroke="#1f0d3e" stroke-width="0.6"/>
+  <!-- gold band -->
+  <path d="M35 21.4 Q46.6 19.2 57.8 21 L57.4 23.2 Q46.6 21.6 35.6 23.8 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M36 22 Q46.6 20.1 56.8 21.6" fill="none" stroke="#fff4cf" stroke-width="0.4"/>
+  <g fill="#fff1c4" stroke="#0d0a12" stroke-width="0.2">
+    <circle cx="38.4" cy="22.3" r="0.4"/><circle cx="42.4" cy="21.6" r="0.4"/><circle cx="46.6" cy="21.2" r="0.4"/><circle cx="50.8" cy="21.4" r="0.4"/>
+  </g>
+  <!-- amethyst clasp pinning the feather -->
+  <circle cx="55.6" cy="21" r="2.4" fill="url(#cpa-haze)"/>
+  <circle cx="55.6" cy="21" r="1.4" fill="url(#cpa-crystal)" stroke="#0d0a12" stroke-width="0.6"/>
+  <circle cx="55.1" cy="20.5" r="0.4" fill="#ffffff"/>
+
+  <!-- card arm, snapped up and open: the card has just left the fingers -->
+  <!-- upper arm raised to the elbow -->
+  <path d="M31.4 42 L36 39.8 L31.2 34.6 L27.6 37.4 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M31.6 40.2 L28.8 36.8" stroke="#fff1c4" stroke-width="0.45"/>
+  <circle cx="29.4" cy="36.2" r="2.1" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.8"/>
+  <circle cx="29.4" cy="36.2" r="0.65" fill="#5a3812"/>
+  <circle cx="28.8" cy="35.6" r="0.4" fill="#fff4cf"/>
+  <!-- puff sleeve of the card arm -->
+  <path d="M32.6 40.6 Q33.4 37 37.4 36.8 Q40.6 38.6 40.4 42.6 Q38 45.6 34.6 44.8 Q32 43.6 32.6 40.6 Z" fill="url(#cpa-velvet)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M34.6 37.6 Q33.6 41 34.6 44.8 M37.4 37 Q37.6 41 38 45.2" fill="none" stroke="#e0b45a" stroke-width="0.6"/>
+  <path d="M33.4 40 Q34.4 38 36.4 37.6" fill="none" stroke="#e2cdff" stroke-width="0.6"/>
+  <!-- forearm whipping up -->
+  <path d="M27.6 35.2 L30.8 36.4 L30.4 27.6 L27 27.8 Z" fill="url(#cpa-copper)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M28.4 34.4 L28.2 28.6" stroke="#ffd2ad" stroke-width="0.45"/>
+  <path d="M27.4 31.6 L30.6 31.4 M27.3 29.8 L30.5 29.6" stroke="#4a2010" stroke-width="0.4"/>
+  <!-- lace cuff -->
+  <path d="M26.2 28.8 q-0.8 -1.2 -0.2 -2.2 q-0.4 -1.2 0.6 -1.8 q0.4 -1.1 1.6 -0.8 q0.9 -0.8 1.8 -0.1 q1.2 -0.2 1.5 0.9 q1 0.6 0.5 1.8 q0.4 1 -0.6 1.6 q-1 0.9 -2.6 0.8 q-1.6 0.2 -2.6 -0.2 Z" fill="#efe6d6" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M27 26.2 L27.6 28 M29 25.2 L29.2 27.8 M30.8 25.8 L30.4 27.8" stroke="#a8977e" stroke-width="0.3"/>
+  <!-- open brass hand, fingers splayed after the flick -->
+  <path d="M26.4 24.8 Q26 22.2 28 21.6 Q30.4 21.6 30.8 23.8 Q30.6 25.4 28.6 25.6 Q27 25.6 26.4 24.8 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M26.8 22.6 L24.2 19.4 Q23.6 18.6 24.4 18.2 Q25.2 18 25.6 18.8 L28 21.8 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M28.2 21.6 L27.4 17.6 Q27.4 16.8 28.2 16.8 Q28.9 16.9 29 17.6 L29.6 21.6 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M29.8 22 L31.2 18.6 Q31.6 18 32.2 18.4 Q32.6 18.9 32.3 19.5 L30.8 22.8 Z" fill="url(#cpa-brass-dark)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M26.4 23.4 L23.4 23.2 Q22.6 23 22.8 22.3 Q23.1 21.8 23.8 21.9 L26.8 22.4 Z" fill="url(#cpa-brass)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M27 23.4 Q28.4 22.4 30 23" fill="none" stroke="#6e4618" stroke-width="0.4"/>
+  <path d="M27 22.4 Q27.8 21.8 28.8 21.9" fill="none" stroke="#fff4cf" stroke-width="0.4"/>
+  <circle cx="28.4" cy="17.4" r="0.3" fill="#fff4cf"/>
+  </g>
+
+  <!-- the playing card, flicked away and spinning, trailing sparkle (canvas space so it stays on-frame) -->
+  <path d="M20 22.6 Q16.4 20.6 15 16.4" fill="none" stroke="#a98bff" stroke-width="0.9" stroke-linecap="round" opacity="0.4"/>
+  <path d="M20.8 20.6 Q18.8 17.8 18.6 14.6" fill="none" stroke="#e3d6ff" stroke-width="0.45" stroke-linecap="round" opacity="0.7"/>
+  <path d="M8.2 18.6 A7.6 7.6 0 0 1 12.4 7.2" fill="none" stroke="#e3d6ff" stroke-width="0.45" stroke-linecap="round" opacity="0.75"/>
+  <path d="M20.2 7.2 A7.6 7.6 0 0 1 19.4 17.4" fill="none" stroke="#a98bff" stroke-width="0.45" stroke-linecap="round" opacity="0.6"/>
+  <g transform="rotate(38 14.2 12.8)">
+    <circle cx="14.2" cy="12.8" r="8" fill="url(#cpa-haze)"/>
+    <!-- after-image of the card a beat behind in its spin -->
+    <rect x="10.2" y="7.6" width="8" height="10.6" rx="1" fill="#e3d6ff" opacity="0.22" transform="rotate(-30 14.2 12.8)"/>
+    <g transform="translate(14.2 12.8) scale(0.88 1) translate(-14.2 -12.8)">
+      <rect x="10" y="7.2" width="8.4" height="11.2" rx="1.1" fill="url(#cpa-card)" stroke="#0d0a12" stroke-width="0.9"/>
+      <rect x="11" y="8.2" width="6.4" height="9.2" rx="0.6" fill="none" stroke="#7a55c8" stroke-width="0.45"/>
+      <path d="M14.2 10.2 L16.3 12.8 L14.2 15.4 L12.1 12.8 Z" fill="#7a55c8" stroke="#2c1660" stroke-width="0.4" stroke-linejoin="round"/>
+      <circle cx="14.2" cy="12.8" r="1.1" fill="url(#cpa-glow)"/>
+      <circle cx="14.2" cy="12.8" r="0.4" fill="#ffffff"/>
+      <path d="M11.8 8.8 L12.4 9.6 L11.8 10.4 L11.2 9.6 Z M16.6 15.2 L17.2 16 L16.6 16.8 L16 16 Z" fill="#7a55c8"/>
+      <path d="M10.9 8 L16.4 8" stroke="#ffffff" stroke-width="0.4" opacity="0.8"/>
+      <path d="M18 9 L18 17" stroke="#9b8a72" stroke-width="0.35"/>
+    </g>
+  </g>
+  <!-- arcane sparkle shed by the card -->
+  <path d="M6.4 9.4 l0 3 M4.9 10.9 l3 0" stroke="#ffffff" stroke-width="0.45" stroke-linecap="round"/>
+  <circle cx="6.4" cy="10.9" r="1.4" fill="url(#cpa-haze)"/>
+  <path d="M22.4 8.4 l0 2.2 M21.3 9.5 l2.2 0" stroke="#e3d6ff" stroke-width="0.4" stroke-linecap="round"/>
+  <path d="M17.6 24.6 l0 1.6 M16.8 25.4 l1.6 0" stroke="#e3d6ff" stroke-width="0.35" stroke-linecap="round"/>
+  <circle cx="10.4" cy="21.4" r="0.55" fill="#e3d6ff" opacity="0.9"/>
+  <circle cx="19.6" cy="4.4" r="0.45" fill="#a98bff" opacity="0.85"/>
+  <circle cx="23.6" cy="15.2" r="0.4" fill="#e3d6ff" opacity="0.8"/>
+  <circle cx="8.6" cy="5.6" r="0.4" fill="#a98bff" opacity="0.7"/>
+  <!-- motes ripped off the blazing eye -->
+  <circle cx="30.2" cy="27.2" r="0.6" fill="#e3d6ff" opacity="0.85"/>
+  <circle cx="28.2" cy="25.2" r="0.4" fill="#a98bff" opacity="0.75"/>
+
+</svg>

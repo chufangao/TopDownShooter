@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
-  "description": "RETINUE: a roguelite autobattler. Pick a route, overrule the fight with Commands, recruit your foes.",
+  "description": "RETINUE: a necromancer autobattler. Scout the route, arrange the field, reap the souls of the slain.",
   "scripts": {
     "start": "node serve.js",
     "test": "node --test \"test/*.test.js\"",
-    "sim": "node src/sim/autoplay.js --runs 200"
+    "sim": "node src/sim/autoplay.js --runs 200",
+    "decisions": "node src/sim/autoplay.js --decisions"
   },
   "engines": {
     "node": ">=22"
