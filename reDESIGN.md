@@ -1,6 +1,19 @@
 # RETINUE design: the Monarch and the army
 
-Status: proposal, 2026-10-06. Nothing here is built yet. README.md describes the game as it is.
+Status: built on 2026-10-07, all eight slices of the build order. README.md describes the game as it is.
+Where the build differs from this proposal: the "below half strength" start is "a body of yours falls";
+the tick ceiling counts from the last foe to enter; the Monarch takes no synergy, relic or keystone stats,
+only its points'; floor-1 elites are 2 foes plus the late pair; waves come only from floor 3 (elites, fights
+from rank 8, sieges); essence is tallied wave by wave but paid with the win; a Marshal's second ability slot
+is the second path's tiers I–III; the Legion's shadows rise only while fewer than 10 of your bodies stand; the eights'
+rules hold for the foes only from the second deep floor; faltering is a flat ×0.7 for everyone; the deep
+grows the enemy with both more waves and bigger cohorts; banner shapes include a mouth; the board size is
+not data-driven. The mechanic-necessity tuning then changed more: the board holds 10 bodies, not 14, and a
+body with no room sits the battle out, so only Arise's shadows and held detachments (10 places of their
+own) stand past it; the Monarch holds a banner more each floor down; a Knight and a Marshal lead 3 and 6
+bodies beyond Command and deal ×1.2 and ×1.4 (taking ÷ as much); a Stay post braces and a held start enters
+fresh; a retinue holds at most 6 relics. The final balance ladders, the necessity sweep, and the targets met
+and missed are under "How to measure it".
 
 ## The goal
 
@@ -33,7 +46,25 @@ flows from where it stands, and **if it falls, the run ends.**
 
 ## Where the game sits today
 
-A 16-seed ladder on this branch, 2026-10-06:
+As built, 2026-10-07: two 16-seed ladders on the final build (`npm run ladder -- --runs 16`, seeds `sim` and
+`sim2`; each cell reads `sim / sim2`). A third, on seed `gate`, and the targets met and missed are under
+"How to measure it".
+
+| Measure | Basic | Expert |
+|---|---|---|
+| Clear rate | 0% / 0% | 87.5% / 62.5% |
+| Died on floor 1 / 2 / 3 / 4 | 69% / 25% / 6% / 0 and 81% / 13% / 6% / 0 | 6% / 0 / 0 / 6% and 0 / 6% / 25% / 6% |
+| Battles won | 90.5% / 87.2% | 99.7% / 99.2% |
+| Recruits per run | 2.6 / 2.1 | 20.8 / 21.1 |
+| Monarch points per run | 0.3 / 0.3 | 14.7 / 13.0 |
+| Bodies bound per run | 9.5 / 6.8 | 104.4 / 97.8 |
+| Army that acted at least once a battle | 92% / 94% | 90% / 92% |
+| Battles from floor 3 where a reserve entered | 0% / 25% | 6% / 7% |
+| Monarch deaths / defeats | 15 of 16 / 16 of 16 | 1 of 2 / 5 of 6 |
+| Top cause of Monarch deaths | reach 67% / reach 81% | drain 1 of 1 / flank 60% |
+| Median battle ticks, floors 1 / 2 / 3 / 4 | 490 / 337 / 436 / – and 529 / 457 / 1023 / – | 380 / 316 / 291 / 161 and 375 / 300 / 295 / 193 |
+
+Before the redesign, a 16-seed ladder on this branch, 2026-10-06:
 
 | Measure | Basic | Expert |
 |---|---|---|
@@ -478,9 +509,9 @@ The ladder (`npm run ladder`) stays the main tool, with these targets:
 
 | Measure | Target |
 |---|---|
-| Clear rate, basic | Under 5% (12.5% today) |
-| Basic runs that die on floor 1 | 70%+ (19% today) |
-| Clear rate, expert | 90%+ (93.8% today) |
+| Clear rate, basic | Under 5% (12.5% before the redesign; 0% now) |
+| Basic runs that die on floor 1 | 70%+ (19% before; 73% now) |
+| Clear rate, expert | 90%+ (93.8% before; 79% now) |
 | Expert runs that die on floor 1 | Under 5%, or floor 1 is luck, not skill |
 | Share of the army that acted at least once per battle | 70%+, or the extra bodies are parking |
 | Share of battles where a reserve entered | 30%+ from floor 3 |
@@ -492,6 +523,117 @@ The ladder (`npm run ladder`) stays the main tool, with these targets:
 
 Battle length and HP lost measure the snowball better than a power ratio taken at battle start, which
 cannot see Arise.
+
+### Results of the balance pass
+
+Three 16-run ladders (`npm run ladder -- --runs 16 --seed <seed>`) on the final config, the same seeds at
+both levels:
+
+| Seed | Level | Clear | Died on floor 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|---|
+| `sim` | basic | 0.0% | 68.8% | 25.0% | 6.3% | 0.0% |
+| `sim` | expert | 87.5% | 6.3% | 0.0% | 0.0% | 6.3% |
+| `sim2` | basic | 0.0% | 81.3% | 12.5% | 6.3% | 0.0% |
+| `sim2` | expert | 62.5% | 0.0% | 6.3% | 25.0% | 6.3% |
+| `gate` | basic | 0.0% | 68.8% | 31.3% | 0.0% | 0.0% |
+| `gate` | expert | 87.5% | 0.0% | 0.0% | 6.3% | 6.3% |
+
+Met:
+- Clear rate, basic: 0 of 48.
+- Basic runs that die on floor 1: 35 of 48 (73%).
+- Expert runs that die on floor 1: 1 of 48 (2%).
+- Army share that acted: 90–94%.
+- Battle length falls late: the expert's median ticks run 380 / 316 / 291 / 161 on floors 1–4 (`sim`).
+- Build spread: the commonest keystones-and-kin build is in 7–10% of wins.
+
+Missed:
+- **Clear rate, expert: 38 of 48 (79%).** The army wins over 99% of its battles. The runs end when a flank brood
+  or a shape blast reaches the Monarch in a battle otherwise won, or when a ranged foe out-ranges a Stay line
+  to the tick ceiling.
+- **Reserve entered from floor 3: 6–7% of battles.** The expert's bodies almost never fall (0.03–0.11 a
+  battle), so nothing calls the reserve. More foe bulk moved it only to 10% and cost clears: it needs a
+  structural change, not a number.
+- **Threat spread.** The expert's few deaths are mostly flank (3 of 6 on `sim2`), too few to tune on. Basic's
+  are mostly reach, once its souls are gone.
+- **Monarch deaths as a share of defeats: 6 of 8 for the expert (`sim`, `sim2`).** Almost every defeat is a Monarch death by
+  construction; the rest are ceilings.
+- The threat meter's bands were measured before waves and have not been re-calibrated.
+
+The ladders above predate the necessity tuning below. On the final config, basic still clears none and dies
+on floor 1 in 81% of 64 runs.
+
+#### Mechanic necessity
+
+The goal is an expert who needs every mechanic to clear, with the core ones weighing most. The measure is
+**ablation** (`npm run ablations`): the expert autoplayer plays the same seeds once in full and once for
+each mechanic taken away (`ABLATIONS` in `src/sim/autoplay.js`). It plans around the gap: its rehearsals,
+route rollouts, room veto and spending all carry the ablation, so essence the missing mechanic would have
+taken goes wherever the expert would spend it next. A mechanic's **drop** is the full expert's clear rate
+minus the ablated expert's, in points. The targets:
+
+| | Mechanics | Target |
+|---|---|---|
+| Full expert | | 90%+ clear |
+| Core | monarch-stats, arise, orders, reserves, army | 25–50 point drop each |
+| Extra | ranks, paths, keystones, relics, synergies, formation | 8–25 point drop each |
+| Reference | levels | reported, not targeted |
+
+`npm run necessity` is a quick proxy. It refights the full expert's recorded battles with each mechanic
+stripped. It steered the two tuning rounds between sweeps (the rule changes are listed under Status), but it
+cannot see the expert adapt.
+
+The confirming sweep: `npm run ablations -- --seed confirm`, 8 runs a variant, 104 runs, 15.4 min on 8 cores.
+The last column is the round's own sweep of the same tree on seed `sim`, for the noise. At 8 runs, one run is
+12.5 points.
+
+| Variant | Tier | Clear | Died on floor 1 / 2 / 3 / 4 | Drop | What ended the runs (killer's threat, or ceiling) | Drop on `sim` |
+|---|---|---|---|---|---|---|
+| full | | 75% | 0 / 1 / 0 / 1 | – | ceiling 1, reach 1 | (88% clear) |
+| monarch-stats | core | 0% | 2 / 5 / 1 / 0 | 75 | reach 3, flank 3, ceiling 1, drain 1 | 88 |
+| arise | core | 63% | 0 / 0 / 1 / 2 | 13 | flank 1, ceiling 1, shape 1 | 38 |
+| orders | core | 75% | 0 / 0 / 1 / 1 | 0 | shape 2 | 25 |
+| reserves | core | 63% | 0 / 1 / 2 / 0 | 13 | reach 1, clock 1, flank 1 | 0 |
+| army | core | 50% | 1 / 0 / 1 / 2 | 25 | reach 2, shape 1, flank 1 | 25 |
+| ranks | extra | 88% | 0 / 1 / 0 / 0 | −13 | ceiling 1 | 0 |
+| paths | extra | 88% | 0 / 0 / 0 / 1 | −13 | flank 1 | −13 |
+| keystones | extra | 63% | 0 / 1 / 1 / 1 | 13 | ceiling 1, flank 1, shape 1 | 13 |
+| relics | extra | 75% | 0 / 0 / 1 / 1 | 0 | shape 1, flank 1 | 38 |
+| synergies | extra | 63% | 1 / 0 / 0 / 2 | 13 | shape 1, reach 1, clock 1 | 38 |
+| formation | extra | 38% | 1 / 1 / 3 / 0 | 38 | reach 2, flank 2, ceiling 1 | 50 |
+| levels | ref. | 88% | 1 / 0 / 0 / 0 | −13 | reach 1 | −13 |
+
+Each ablation does remove its mechanic. Its uses fall to zero in the sweep's uses table: no points under
+monarch-stats, no promotions under ranks, no cohorts or musters under army, no tiers under paths, and no
+keystones or relics under theirs.
+
+Met (seed `confirm`): army 25 (core); keystones 13 and synergies 13 (extra).
+
+Not met:
+- **Full expert 75% (target 90%+).** It cleared 88% of the same tree on `sim`: 13 of 16 over both seeds.
+  Its three losses over both seeds are two Monarchs felled by reach and one tick-ceiling stall.
+- **monarch-stats 75 (core, too large).** With no points, no run clears on either seed, and most die on
+  floor 2 to reach and flank. Command's banners, Dominion's domain and the Monarch's HP still carry the run.
+- **arise 13 (core, too small).** It read 38 on `sim` (25 over both seeds): it straddles the band's floor. The
+  expert spends the Will it does not buy on Command and Dominion.
+- **orders 0 (core, too small).** It read 25 on `sim`. The Stay line and braced posts seldom flip a battle:
+  in the last proxy reading, all 361 of the expert's recorded battles are still won with every plan turned to
+  Hunt.
+- **reserves 13 (core, too small).** It read 0 on `sim`. In the last proxy reading, turning the recorded held starts to
+  `once` loses 9 battles (a 50-point drop in runs clean). An expert that plans without them re-plans its
+  field and spending around the board's 10, and loses little.
+- **ranks −13, paths −13 (extra, too small).** Each is a run's worth better than full on one seed, and
+  0 / −13 on `sim`. The freed essence buys levels (paths: 300 levels against 137; ranks: 174) and, under
+  paths, Knights and Marshals (134 promotions against 45), and these replace what was lost.
+- **relics 0 (extra, too small).** It read 38 on `sim` (19 over both seeds, in band). This is seed noise more
+  than tuning.
+- **formation 38 (extra, too large).** It read 50 on `sim`. Basic's cells park the Monarch at the rear centre
+  and set souls by role row, and reach and flank foes find the Monarch there. Where the Monarch stands is most
+  of the Monarch's safety, so formation weighs like a core mechanic.
+
+Over both seeds (16 runs) the in-band set grows to arise 25, army 25, keystones 13, relics 19 and synergies 25.
+Only monarch-stats (81) and formation (44) stay too large, and orders (13), reserves (6), ranks (−6) and paths
+(−13) too small. At 8 runs a variant, most mechanics swing across a band from seed to seed. Settling the rest
+needs 16–24 runs a variant.
 
 ## Build order
 

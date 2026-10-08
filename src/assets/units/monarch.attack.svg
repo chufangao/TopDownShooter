@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- The Monarch, attack key pose: calling Arise. The staff is thrust up high with its skull lantern flaring, the free hand reaches down and out over the ground with its fingers spread, and pale green threads rise from a sigil ring at its feet; the crown of flame roars up and the robes billow outward. Lit from the upper left, rim-lit pale green. -->
+  <defs>
+    <linearGradient id="moa-robe" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5a4f72"/>
+      <stop offset="0.45" stop-color="#2f2842"/>
+      <stop offset="1" stop-color="#14101e"/>
+    </linearGradient>
+    <linearGradient id="moa-robe-back" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2a2338"/>
+      <stop offset="1" stop-color="#0e0b15"/>
+    </linearGradient>
+    <linearGradient id="moa-mantle" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a5a56"/>
+      <stop offset="0.5" stop-color="#26302f"/>
+      <stop offset="1" stop-color="#111716"/>
+    </linearGradient>
+    <linearGradient id="moa-hood" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#655a80"/>
+      <stop offset="0.5" stop-color="#342c48"/>
+      <stop offset="1" stop-color="#16121f"/>
+    </linearGradient>
+    <radialGradient id="moa-hood-in" cx="0.5" cy="0.45" r="0.6">
+      <stop offset="0" stop-color="#2a4a3c"/>
+      <stop offset="1" stop-color="#05070a"/>
+    </radialGradient>
+    <linearGradient id="moa-panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b3352"/>
+      <stop offset="1" stop-color="#1a1526"/>
+    </linearGradient>
+    <linearGradient id="moa-bone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1ead6"/>
+      <stop offset="0.55" stop-color="#cfc5a8"/>
+      <stop offset="1" stop-color="#8f846c"/>
+    </linearGradient>
+    <linearGradient id="moa-staff" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4a4152"/>
+      <stop offset="0.5" stop-color="#26202d"/>
+      <stop offset="1" stop-color="#110d16"/>
+    </linearGradient>
+    <linearGradient id="moa-flame" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.35" stop-color="#c8f5d2"/>
+      <stop offset="1" stop-color="#7fe0a4" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="moa-thread" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#c8f5d2" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#7fe0a4" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="moa-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f4fff6"/>
+      <stop offset="0.35" stop-color="#9ff0bc"/>
+      <stop offset="1" stop-color="#9ff0bc" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- the sigil ring kindled on the ground before it -->
+  <ellipse cx="66" cy="86" rx="22" ry="6" fill="url(#moa-glow)" opacity="0.35"/>
+  <ellipse cx="66" cy="86" rx="18" ry="4.6" fill="none" stroke="#9ff0bc" stroke-width="0.9" opacity="0.8"/>
+  <ellipse cx="66" cy="86" rx="13" ry="3.2" fill="none" stroke="#c8f5d2" stroke-width="0.5" stroke-dasharray="1.6 1.4" opacity="0.8"/>
+  <path d="M52 86 l1.6 -1 l0.4 1.8 M78 85 l1.6 1 l-1.4 1 M64 82.6 l2 0 l-1 -1.4 Z M68 89.6 l-1.6 -1 l1.8 -0.4" fill="none" stroke="#c8f5d2" stroke-width="0.5" opacity="0.8"/>
+  <!-- the dead answering: threads of pale light rising from the ground -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M58 86 C56 78 60 72 57 64" stroke="url(#moa-thread)" stroke-width="1.6"/>
+    <path d="M66 87 C68 78 63 72 66 60" stroke="url(#moa-thread)" stroke-width="2"/>
+    <path d="M74 86 C72 80 77 74 74 67" stroke="url(#moa-thread)" stroke-width="1.4"/>
+    <path d="M82 85 C80 81 84 77 82 72" stroke="url(#moa-thread)" stroke-width="1"/>
+  </g>
+  <g fill="#e9fff0">
+    <circle cx="57.4" cy="66" r="0.7" opacity="0.8"/><circle cx="66" cy="62" r="0.8"/><circle cx="74.2" cy="69" r="0.6" opacity="0.8"/><circle cx="62" cy="74" r="0.5" opacity="0.7"/><circle cx="79" cy="76" r="0.5" opacity="0.6"/>
+  </g>
+
+  <!-- under-robe, flung back to the left by the cast -->
+  <path d="M33 34 C27 50 20 68 12 86 L18 85 L22 89 L28 86 L33 89.5 L38 86.6 L44 89.4 L49 86.6 L54 89 L58 86 L61 87.6 C57 68 54 50 56 34 Z" fill="url(#moa-robe-back)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M19 82 l-0.8 3 M30 84 l-0.2 3.4 M41 84.6 l0 3.4 M51 84.4 l0.2 3.2" stroke="#2c2439" stroke-width="0.5" stroke-linecap="round"/>
+
+  <!-- main robe, billowing -->
+  <path d="M34 33 C29 48 24 64 18 83 L23 81.4 L26 85.6 L31 82.6 L35 86.4 L40 83 L45 86.4 L49 83 L54 85.6 L57 82 L61 83.4 C59 64 57 48 58 33 Z" fill="url(#moa-robe)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M34 46 C31 58 27 70 24 80 M40 50 C38 62 36.6 72 35.6 84 M51 52 C51.6 64 52.4 74 53.6 83" fill="none" stroke="#0e0a16" stroke-width="0.9" stroke-linecap="round" opacity="0.9"/>
+  <path d="M32.6 44 C30 56 27 68 23.4 78 M38.4 49 C36.8 60 35.6 70 35 80" fill="none" stroke="#8a7fa6" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <!-- green light washing the robe's right side from the ring -->
+  <path d="M57 50 C58 62 59.6 72 60.6 82" fill="none" stroke="#9ff0bc" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+  <path d="M20.6 78.6 Q40 74.4 60 78.4" fill="none" stroke="#9ff0bc" stroke-width="0.7" stroke-dasharray="1.4 1.2" opacity="0.7"/>
+
+  <!-- inner panel, its glyphs blazing -->
+  <path d="M41 40 L51 40 L52 84 L48 82 L45 85 L42 82 L38.4 84 Z" fill="url(#moa-panel)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M41.6 42 L39.4 82.6 M50.4 42 L51.2 82.6" stroke="#9aa3a8" stroke-width="0.6" opacity="0.8"/>
+  <g fill="none" stroke="#c8f5d2" stroke-width="0.7" stroke-linecap="round">
+    <path d="M45.4 50 l0 5 M43.4 52.5 l4 0 M43.8 50.4 l3.2 4.2"/>
+    <path d="M45.2 62 q-2 2 0 4 q2 2 0 4"/>
+    <path d="M43.4 75 l1.8 -2.6 l1.8 2.6 Z"/>
+  </g>
+
+  <!-- sash, the bone chain swinging out -->
+  <path d="M35.6 56 Q46 60 57.4 56 L57.6 59.4 Q46 63.6 35.4 59.4 Z" fill="#251c33" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <circle cx="46" cy="60" r="2" fill="#b8c2c4" stroke="#0d0a12" stroke-width="0.7"/>
+  <circle cx="46" cy="60" r="0.9" fill="#e9fff0"/>
+  <path d="M54 59.6 Q57.6 63.6 59.6 67.4" fill="none" stroke="#5b5163" stroke-width="0.6"/>
+  <g fill="url(#moa-bone)" stroke="#0d0a12" stroke-width="0.45">
+    <rect x="55.4" y="61.6" width="1.6" height="2.4" rx="0.7" transform="rotate(-35 56.2 62.8)"/>
+    <rect x="57.2" y="64" width="1.5" height="2.2" rx="0.7" transform="rotate(-35 58 65)"/>
+    <rect x="58.8" y="66.6" width="1.6" height="2.6" rx="0.7" transform="rotate(-35 59.6 67.8)"/>
+  </g>
+
+  <!-- the mantle, flaring wide -->
+  <path d="M28 34 Q46 25 64 32 L70 43 L66 41.6 L64.6 46.4 L60.6 43 L57.6 47.6 L54.4 43.8 L50.6 48 L47.6 44 L44 47.6 L41.2 43.4 L37 46.6 L35.6 42 L31.4 44.4 L29 40.6 L24.6 42 Z" fill="url(#moa-mantle)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M30 35.4 Q40 30 48 30" fill="none" stroke="#9db5ad" stroke-width="0.9" stroke-linecap="round" opacity="0.7"/>
+  <path d="M60 34.6 Q65 37 68 41" fill="none" stroke="#9ff0bc" stroke-width="0.7" opacity="0.7"/>
+  <path d="M43 33.6 L49 33.6 L48 37 L44 37 Z" fill="url(#moa-bone)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <circle cx="46" cy="35.2" r="0.9" fill="#9ff0bc"/>
+
+  <!-- the reaching arm: out over the ring, the sleeve fallen back from a bare bony forearm -->
+  <path d="M58 38 Q66 42 70 50 Q68 53.6 64.6 53 Q61.6 47.6 56 45 Z" fill="url(#moa-robe)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M59.6 39.6 Q65 43 68 49" fill="none" stroke="#9ff0bc" stroke-width="0.6" opacity="0.8"/>
+  <path d="M67.4 51 L72.8 58.6 M66 52.6 L71.4 60" stroke="#0d0a12" stroke-width="2" stroke-linecap="round"/>
+  <path d="M67.4 51 L72.8 58.6 M66 52.6 L71.4 60" stroke="#d6cdb3" stroke-width="1" stroke-linecap="round"/>
+  <!-- the spread hand, palm down, light spilling from it -->
+  <circle cx="73.6" cy="62" r="6" fill="url(#moa-glow)" opacity="0.75"/>
+  <path d="M70.6 58.6 Q73.4 57 75.4 59 Q75.6 61.6 73.6 62.6 Q71 62.4 70.6 58.6 Z" fill="url(#moa-bone)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M71 61.6 L69.6 64.6 M72.4 62.6 L72 66 M74 62.6 L74.8 65.8 M75.2 61.2 L77.4 63.6 M75.4 59.4 L78 59.8" stroke="#0d0a12" stroke-width="1.6"/>
+    <path d="M71 61.6 L69.6 64.6 M72.4 62.6 L72 66 M74 62.6 L74.8 65.8 M75.2 61.2 L77.4 63.6 M75.4 59.4 L78 59.8" stroke="#e8e0c8" stroke-width="0.75"/>
+  </g>
+
+  <!-- the staff, thrust up and forward of the body -->
+  <path d="M16.4 13.6 L19.4 13.2 L26.4 84.4 L23.2 84.8 Z" fill="url(#moa-staff)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M17.4 16 L24 82" stroke="#7a6f86" stroke-width="0.5" opacity="0.7"/>
+  <g fill="url(#moa-bone)" stroke="#0d0a12" stroke-width="0.6">
+    <ellipse cx="19.6" cy="30" rx="2.6" ry="1.1" transform="rotate(6 19.6 30)"/>
+    <ellipse cx="22.4" cy="62" rx="2.6" ry="1.1" transform="rotate(6 22.4 62)"/>
+    <ellipse cx="23.8" cy="76" rx="2.4" ry="1" transform="rotate(6 23.8 76)"/>
+  </g>
+  <!-- staff arm: raised, the sleeve sliding down -->
+  <path d="M32 38 Q25 36 20.6 31 Q22 27.6 25.4 28.4 Q29.4 32 34.6 33 Z" fill="url(#moa-robe)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M30.6 36 Q25.6 34 22.4 30.6" fill="none" stroke="#8a7fa6" stroke-width="0.6" opacity="0.8"/>
+  <path d="M16.4 27.6 Q19 25.4 22.4 26.6 Q23.6 29.4 22 31.6 Q18.8 32.4 16.8 30.8 Z" fill="url(#moa-bone)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M17 28.8 L22 28.4 M17.2 30.2 L21.6 30" stroke="#6e6452" stroke-width="0.45"/>
+
+  <!-- the skull lantern, flaring white-green -->
+  <circle cx="17.6" cy="11" r="11" fill="url(#moa-glow)" opacity="0.7"/>
+  <path d="M12 1.8 Q11.6 -3.6 16.6 -4 Q21.6 -3.6 21.2 1.8 Q21 4.6 19.4 5.6 L19 7.4 L14.2 7.4 L13.8 5.6 Q12.2 4.6 12 1.8 Z" fill="url(#moa-bone)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round" transform="translate(1 11)"/>
+  <g transform="translate(1 11)">
+    <path d="M13.2 1.8 Q13.8 0.2 15.2 0.6 Q16 1.8 15 3 Q13.6 3.2 13.2 1.8 Z M20 1.8 Q19.4 0.2 18 0.6 Q17.2 1.8 18.2 3 Q19.6 3.2 20 1.8 Z" fill="#ffffff"/>
+    <path d="M16 3.6 L16.6 4.8 L17.2 3.6 Z" fill="#0b120f"/>
+    <path d="M12.4 -1.2 Q9.8 -3.2 10 -6.4 Q11.8 -4.2 13.8 -3.2 Z M20.8 -1.2 Q23.4 -3.2 23.2 -6.4 Q21.4 -4.2 19.4 -3.2 Z" fill="url(#moa-bone)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  </g>
+
+  <!-- the hood, thrown back a little by the cast -->
+  <path d="M34.6 33.6 C33 26 34 18 39 12.6 Q44 7.6 50.6 9.6 Q58 12.6 59 22 C59.6 27 58.6 31 57.6 34 Q46 37.4 34.6 33.6 Z" fill="url(#moa-hood)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M36.6 28 C36 21 38.4 15.4 43 12.4" fill="none" stroke="#a69bc2" stroke-width="1" stroke-linecap="round" opacity="0.8"/>
+  <path d="M55.6 18 Q57.6 24 56.6 31" fill="none" stroke="#9ff0bc" stroke-width="0.8" opacity="0.7"/>
+  <path d="M39.4 31.6 C38.4 25 40.6 19 46.4 17.4 C52 18.6 54.4 24.4 53.2 31.6 Q46.4 34 39.4 31.6 Z" fill="url(#moa-hood-in)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M42.6 30.4 Q42.2 25.6 46.2 24 Q50.2 25.6 49.8 30.4 Q46.2 32 42.6 30.4 Z" fill="#c4c0b2" opacity="0.32"/>
+  <ellipse cx="46.2" cy="25.6" rx="7" ry="3" fill="url(#moa-glow)" opacity="0.8"/>
+  <path d="M42.8 25.6 Q44 24 45.2 25.6 M47.4 25.6 Q48.6 24 49.8 25.6" fill="none" stroke="#ffffff" stroke-width="1.3" stroke-linecap="round"/>
+  <!-- its mouth open on the word -->
+  <path d="M45 28.6 Q46.2 27.8 47.4 28.6 Q47.2 30.2 46.2 30.4 Q45.2 30.2 45 28.6 Z" fill="#0b120f"/>
+
+  <!-- the crown, roaring up -->
+  <path d="M38.2 16.4 Q46.6 12.6 56.4 16.4 L56.2 18.4 Q46.6 14.8 38.4 18.4 Z" fill="#c4ccd0" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <circle cx="47" cy="9" r="13" fill="url(#moa-glow)" opacity="0.45"/>
+  <g stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round">
+    <path d="M39.4 16.6 Q37.6 10 40 4 Q40.8 9.6 42.8 14 Z" fill="url(#moa-flame)"/>
+    <path d="M42.8 14.6 Q41.6 7 45 1.6 Q45.8 8 47 13.2 Z" fill="url(#moa-flame)"/>
+    <path d="M46.8 13.6 Q47 5 50.2 0.8 Q50.6 7 51 13.4 Z" fill="url(#moa-flame)"/>
+    <path d="M51 14 Q52.4 6.4 56 2.6 Q54.8 8.6 54.8 14.8 Z" fill="url(#moa-flame)"/>
+    <path d="M54.8 15.4 Q57 10 60.4 7.6 Q58.6 12.4 56.8 16.6 Z" fill="url(#moa-flame)"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="40.6" cy="11" r="0.7"/><circle cx="45" cy="6" r="0.8"/><circle cx="49.8" cy="4.4" r="0.8"/><circle cx="54.4" cy="8" r="0.7"/>
+  </g>
+  <g fill="#c8f5d2">
+    <circle cx="52.6" cy="1.6" r="0.6"/><circle cx="58.6" cy="3" r="0.6" opacity="0.8"/><circle cx="36" cy="6" r="0.5" opacity="0.7"/><circle cx="62.6" cy="9" r="0.5" opacity="0.7"/>
+  </g>
+</svg>

@@ -1,5 +1,6 @@
 // A floor is a DAG of ranks: start → 14 ranks of 2–4 rooms → elite (or the boss on the last floor), so
-// a walk through it is 15 rooms long.
+// a walk through it is 15 rooms long. From floor SIEGE_FLOOR one or two of the late ranks' fights are
+// sieges: one battle of three waves, with no prep between them.
 import { createRng } from './rng.js'
 
 export const RANKS = 16
@@ -11,6 +12,8 @@ const LATE_TYPES = ['fight', 'elite', 'reliquary']
 const LATE_WEIGHTS = [3, 1, 0.5]
 const ELITE_FROM = 4 // the first rank an elite may stand in
 const RARE = ['reliquary', 'rite'] // a floor's middle holds one or two of each
+const SIEGE_FLOOR = 3 // the first floor with sieges
+export const SIEGE_RANK = 9 // the first rank a siege may stand in
 
 // Non-crossing links between two ordered ranks: a monotone staircase from (0,0) to (a-1,b-1), with
 // an optional extra edge filling each diagonal step. Every node gets ≥1 link each way, out-degree ≤ 2.
@@ -80,6 +83,14 @@ function assignTypes (rng, ranks, last) {
   ranks[0][0].type = 'start'
 }
 
+// From SIEGE_FLOOR, one or two fights of the late ranks (SIEGE_RANK to the altar's) become sieges, never two
+// in a rank: a rank keeps a room of another kind, so it is never all sieges.
+function assignSieges (rng, ranks, floor) {
+  if (floor < SIEGE_FLOOR) return
+  const options = ranks.slice(SIEGE_RANK, RANKS - 1).map((rank) => rank.filter((n) => n.type === 'fight')).filter((l) => l.length)
+  for (const fights of rng.shuffle(options).slice(0, 1 + rng.int(2))) rng.pick(fights).type = 'siege'
+}
+
 export function generateFloor ({ seed, floor = 1, last = false }) {
   const rng = createRng(seed).stream('map' + floor)
   const ranks = []
@@ -96,6 +107,7 @@ export function generateFloor ({ seed, floor = 1, last = false }) {
   }
   for (const rank of ranks) for (const n of rank) n.next.sort()
   assignTypes(rng, ranks, last)
+  assignSieges(rng, ranks, floor)
   return { floor, nodes: ranks.flat(), start: ranks[0][0].id, end: ranks[RANKS - 1][0].id }
 }
 

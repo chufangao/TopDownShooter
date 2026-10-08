@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 
-const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'rite', 'boss']
+const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'rite', 'boss', 'siege']
 
 function reach (map, from, edges) {
   const seen = new Set([from])

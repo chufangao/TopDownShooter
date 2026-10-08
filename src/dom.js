@@ -88,7 +88,17 @@ const PATHS = {
   play: '<path d="M8 5l11 7-11 7z" fill="currentColor"/>',
   pause: '<path d="M8 5v14M16 5v14" stroke-width="3"/>',
   skip: '<path d="M5 5l8 7-8 7zM13 5l8 7-8 7z" fill="currentColor"/>',
-  close: '<path d="M6 6l12 12M18 6L6 18"/>'
+  close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  // The Monarch: a circlet under a crown of three flames.
+  crown: '<path d="M5.5 20.5h13l-.8-4.5H6.3z"/><path d="M8.5 16c-1.6-1.8-1-3.8 0-5.2.4 1.4 1.4 2 1.4 2M12 16c-2.2-2.6-1.4-6 0-8.5 1.4 2.5 2.2 5.9 0 8.5M15.5 16c1.6-1.8 1-3.8 0-5.2-.4 1.4-1.4 2-1.4 2"/>',
+  // A captain's rank insignia (GRADES): a Soldier's chevron, a Knight's shield, a Marshal's standard.
+  soldier: '<path d="M6 15.5l6-6 6 6" stroke-width="2.4"/>',
+  knight: '<path d="M12 3l7 2.8v5.4c0 4.6-3 7.9-7 9.8-4-1.9-7-5.2-7-9.8V5.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.5 12.5l3.5-3.5 3.5 3.5"/>',
+  marshal: '<path d="M6 21.5V2.5" stroke-width="2"/><path d="M6 3.5h13l-3.2 4.5 3.2 4.5H6z" fill="currentColor" fill-opacity=".3"/><path d="M10.5 8h4"/>',
+  // A keystone: the wedge at the crown of an arch, holding up the stones on either side.
+  keystone: '<path d="M8.6 3h6.8l-1.2 7.2H9.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.6 3h6.8l-1.2 7.2H9.8z"/><path d="M8.8 5.2C5.6 6.6 3.5 9.8 3.5 13.5V21h4v-7c0-1.6 1-3 2.3-3.8M15.2 5.2c3.2 1.4 5.3 4.6 5.3 8.3V21h-4v-7c0-1.6-1-3-2.3-3.8"/>',
+  // A siege: a crenellated wall and its gate, wave after wave against it.
+  siege: '<path d="M3.5 20.5V9h3v2.5h3V9h5v2.5h3V9h3v11.5z"/><path d="M9.5 20.5v-4a2.5 2.5 0 0 1 5 0v4M3.5 4.5c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 3.5.4"/>'
 }
 
 export function icon (name, size = 18) {

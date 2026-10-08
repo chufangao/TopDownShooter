@@ -51,9 +51,14 @@ export function createRng (seed) {
     }
     return out
   }
+  // A weight that is no number at all (a type missing from a table) fails loudly: summed in, it would make
+  // the total NaN and quietly hand every roll to the last item.
   r.weighted = (arr, weights) => {
     let total = 0
-    for (const w of weights) total += w
+    for (const w of weights) {
+      if (!Number.isFinite(w) || w < 0) throw new Error(`weight ${w} is not a finite number ≥ 0`)
+      total += w
+    }
     if (total <= 0) return arr[0]
     let roll = next() * total
     for (let i = 0; i < arr.length; i++) {
