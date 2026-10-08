@@ -6,36 +6,105 @@ import { createBattle, stats, ariseCap } from './sim/battle.js'
 import { TUNING } from './tuning.js'
 import { unitDef, ORDERS, relicDef } from './content.js'
 import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleBar, bannerColours } from './ui.js'
-import { helpOverlay, unitCard, bodies, tileText, whenText, ENEMY_TEXT } from './codex.js'
-import { showTip, hideTip } from './dom.js'
+import { helpOverlay, unitCard, bodies, tileText, whenText, ENEMY_TEXT, tipDetail } from './codex.js'
+import { showTip, hideTip, refreshTip } from './dom.js'
+import { sfx } from './sfx.js'
 import { distance } from './sim/unit.js'
+import { board } from './board.js'
 
 const ui = document.getElementById('ui')
 const engine = createEngine('game')
+// The retinue editor's board (prep, the map's Camp) is the battle's own, drawn by the same Phaser game.
+board.attach(engine)
 let screen = null
 let run = null
 let trail = null
 let note = ''
 let help = null
 
+// A new kind of screen fades in (feel.css: .screen-in fades its body, never the top bar, and never under
+// reduced motion); a screen re-shown in place (the spoils after each pick) swaps without a blink, and keeps
+// its scroll. A screen's kind is its class as it went up: one a screen adds to itself later (the spoils'
+// 'picking') does not make the next one new.
+let kind = null
 function show (s) {
+  const fresh = kind !== s.el.className
+  kind = s.el.className
   screen = s
   hideTip()
+  if (fresh) {
+    s.el.classList.add('screen-in')
+    const done = (e) => {
+      if (e.animationName !== 'screen-in') return
+      s.el.classList.remove('screen-in')
+      s.el.removeEventListener('animationend', done)
+    }
+    s.el.addEventListener('animationend', done)
+  }
   ui.replaceChildren(s.el)
-  ui.scrollTop = 0
+  if (fresh) ui.scrollTop = 0
 }
 
+// Every press of a button clicks, unless its own handler already played a sound (buy, card, poor, place,
+// select…: sfx.count moved while the click went through) or it says otherwise: data-sfx="none" for
+// silence, or data-sfx="<name>" for another sound. Disabled ones stay quiet.
+let sounded = 0
+document.addEventListener('click', () => { sounded = sfx.count }, true)
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('button, [role="button"], [role="tab"]')
+  if (!b || b.getAttribute('aria-disabled') === 'true' || sfx.count !== sounded) return
+  const own = b.dataset.sfx
+  if (own !== 'none') sfx.play(own || 'click')
+})
+
+// How to play pauses a battle playing out while it is open (one already paused stays so after), and puts
+// the cursor in its search box.
+let helpPaused = null
 function toggleHelp () {
   hideTip()
-  if (help) { help.remove(); help = null; return }
+  if (help) {
+    help.remove()
+    help = null
+    if (helpPaused?.sys.isActive() && helpPaused.paused) helpPaused.setPaused(false)
+    helpPaused = null
+    return
+  }
   help = helpOverlay(toggleHelp, run)
   document.body.append(help)
+  const battle = engine.game.scene.getScene('Battle')
+  if (battle?.sys.isActive() && !battle.paused && !battle.ending) { battle.setPaused(true); helpPaused = battle }
+  help.querySelector('.gl-search')?.focus({ preventScroll: true })
 }
+
+// Holding Shift opens the details of the card under the pointer (codex.js tipDetail); letting go closes them.
+const detail = (on) => { if (tipDetail.on !== on) { tipDetail.on = on; refreshTip() } }
+window.addEventListener('keydown', (e) => { if (e.key === 'Shift') detail(true) })
+window.addEventListener('keyup', (e) => { if (e.key === 'Shift') detail(false) })
+window.addEventListener('blur', () => detail(false))
+
+// A control the keyboard focused (a button, a tab, a fold of the rules) presses itself on Enter or Space: its
+// own press wins over the screen's keys. One a click just focused holds nothing: the key lets go of it and
+// goes to the screen (Enter begins, Space pauses), so a click never turns the next Enter into a second click.
+const CONTROL = 'button, [role="button"], [role="tab"], a[href], summary, select, textarea'
+let pressing = false
+let clicked = null
+document.addEventListener('pointerdown', () => { pressing = true }, true)
+for (const t of ['pointerup', 'pointercancel']) document.addEventListener(t, () => { pressing = false }, true)
+document.addEventListener('focusin', (e) => { clicked = pressing ? e.target : null })
 
 window.addEventListener('keydown', (e) => {
   if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
+  // The seed box takes Enter (start); the rules' search box handles its own keys (codex.js helpOverlay).
   if (e.target.tagName === 'INPUT' && e.key !== 'Enter') return
-  if (e.key === 'h' || e.key === 'H' || e.key === '?') return toggleHelp()
+  if (e.key === 'Enter' || e.key === ' ') {
+    const c = e.target.closest?.(CONTROL)
+    if (c && c !== clicked) return
+    if (c) { e.preventDefault(); c.blur() }
+  }
+  // Opens How to play, or closes it from anywhere but its search box (which closes it on its own while empty).
+  // Kept from the search box it focuses: the key that opens it does not type.
+  if (e.key === 'h' || e.key === 'H' || e.key === '?') { e.preventDefault(); return toggleHelp() }
+  if (e.key === 'm' || e.key === 'M') { if (!sfx.toggle()) sfx.play('click'); return }
   if (help) { if (e.key === 'Escape') toggleHelp(); return }
   screen?.key?.(e)
 })
@@ -95,6 +164,12 @@ function onNode (id) {
       ? 'The altar burns: your souls are healed, and the fallen, souls and bodies, rise again. Under Court of Bone the Monarch is not healed.'
       : 'The altar burns: everyone is healed, and the fallen, souls and bodies, rise again.'
   }
+  // A reliquary with nothing to offer (the relics already at their most) is used up on the spot.
+  if (currentNode(run).type === 'reliquary' && run.state.phase === 'map') {
+    note = run.state.relics.length >= TUNING.essence.relicMax
+      ? `The reliquary stands empty to you: you already hold ${TUNING.essence.relicMax} relics, the most you can carry.`
+      : 'The reliquary holds nothing you do not already carry.'
+  }
   route()
 }
 
@@ -127,14 +202,18 @@ function bind (id, count) {
 
 // The run settles the battle the moment it starts; the scene rebuilds the same battle from run.setup
 // and plays it out, then routes to wherever the run went (reap, or the end).
+// From prep, the board you arranged stays up while the battle is built under it, then fades into it with
+// everyone where they stood (board.leave); the battle skips its own fade in.
 async function fight () {
   const node = currentNode(run)
+  const handoff = board.leave()
   apply(run, { type: 'fight' })
   const bar = battleBar()
   show(bar)
   const battle = createBattle(run.setup)
   const scene = await engine.battle({
     battle,
+    seamless: !!handoff,
     title: `FLOOR ${run.setup.floor}${depthOf(run.setup.floor) ? ` · DEEP ${depthOf(run.setup.floor)}` : ''} · ${NODE[node.type].name.toUpperCase()}`,
     barHeight: () => bar.el.offsetHeight,
     banners: bannerColours(run.state.party),
@@ -161,42 +240,56 @@ async function fight () {
       const kept = marshal && battle.monarch && distance(u.tile, marshal.tile) <= R && distance(u.tile, battle.centre ?? battle.monarch.tile) > battle.domain
       // Faltering drops a plan for good, so one back inside may only be hunting: say so (Stay never ends in
       // a Hunt otherwise; Move may have arrived, so that stays neutral).
-      const orders = u.where !== 'hunt' ? ' and keeps its orders'
-        : u.plan?.where === 'stay' ? ', but it dropped its orders when it faltered and hunts' : ' and hunts'
+      const orders = u.where !== 'hunt' ? ', orders kept' : u.plan?.where === 'stay' ? ', orders dropped when it faltered' : ', hunting'
       // A shadow the Legion (Undead 8) raised is marked on its arise event; on the foes' side it is one of yours.
       const legion = u.shadow && battle.events.some((e) => e.type === 'arise' && e.rule === 'legion' && e.unit.uid === u.uid)
-      const how = legion ? 'the Legion (Undead 8), past Arise\'s limit' : 'Arise'
+      const me = u.uid === battle.monarch?.uid
+      // Short phrases, most a few words: the card above carries the numbers, the glossary the rules.
       const notes = [
         u.shadow && (foe
-          ? legion ? 'A shadow of one of your fallen, risen against you by their Legion (Undead 8): it always falters and is gone when the battle ends.'
-            : 'A shadow raised by the Sovereign\'s Grave Tide: it always falters, and crumbles if the Sovereign falls.'
-          : captain
-            ? `A shadow, raised by ${how} within ${unitDef(captain.id).name}'s domain: it joined its banner, and falters only beyond ${R} tiles of it (or once it falls). It is gone when the battle ends${u.arisen && holds(run.state, 'keep') ? ', unless it still stands when the battle is won: then Hollow Court keeps it as rank-and-file' : ''}.`
-            : u.arisen && holds(run.state, 'keep')
-              ? 'A shadow, raised by Arise: it always falters. Hollow Court: if it still stands when the battle is won, it stays as rank-and-file.'
-              : `A shadow, raised by ${how}: it always falters and is gone when the battle ends.`),
-        foe && u.wave && (u.when?.at === 'time' ? 'It came with the late pair, over the far edge.' : `It came with wave ${u.wave + 1}, over the far edge.`),
+          ? legion ? 'Your fallen, raised against you by their Legion: it falters.' : 'Raised by Grave Tide: it falters, and crumbles with the Sovereign.'
+          : `${legion ? 'Legion' : 'Arise'} shadow${captain ? ` of ${unitDef(captain.id).name}'s banner` : ''}` +
+            (u.arisen && holds(run.state, 'keep') ? '; Hollow Court keeps it if it stands.' : '; gone after the battle.')),
+        foe && u.wave && (u.when?.at === 'time' ? 'Came with the late pair.' : `Came with wave ${u.wave + 1}.`),
         foe && !u.rank && led > 0 && ENEMY_TEXT.captain(led, unitDef(u.id).boss),
-        u.grade >= 2 && !foe && `A Marshal: within ${R} tiles of it, wherever it goes, its banner never falters, so none of it drops its orders there, and a shadow raised there joins it. It never falters itself.`,
-        kept && u !== marshal && !u.shadow && `Beyond the ${battle.ks.crown ? '' : "Monarch's "}domain, but within its Marshal's: it fights at full strength${orders}.`,
-        u.rank && (foe ? (captain ? ENEMY_TEXT.of(captain.id) : 'Of a captain\'s cohort.') : `Rank-and-file of ${captain ? `${unitDef(captain.id).name}'s` : 'a'} banner, at muster level ${u.lvl}.`),
-        u.orphan ? 'Its captain has fallen: it falters and hunts.' : u.rank && 'It keeps within a tile of its captain.',
-        !foe && !u.shadow && !u.orphan && u.falter && (battle.ks.crown
-          ? `Outside the domain, which follows your front-most captain (Vanguard Crown): it falters, dealing ×${TUNING.monarch.falter} damage until the domain reaches it again.`
-          : `Outside the Monarch's domain: it falters, dealing ×${TUNING.monarch.falter} damage until it steps back in.`),
-        u.rose && 'Risen by Undying this battle: its next fall is final.',
+        u.grade >= 2 && !foe && `Marshal: its banner never falters within ${R} tiles.`,
+        kept && u !== marshal && !u.shadow && `Past the domain, in its Marshal's: full strength${orders}.`,
+        u.rank && (foe ? (captain ? ENEMY_TEXT.of(captain.id) : 'Of a captain\'s cohort.') : `Of ${captain ? `${unitDef(captain.id).name}'s` : 'a'} banner, muster ${u.lvl}.`),
+        u.orphan && 'Its captain fell: it falters and hunts.',
+        !foe && !u.orphan && !kept && u.falter && `Faltering ×${TUNING.monarch.falter}: outside the domain${battle.ks.crown ? ' (it follows your front captain)' : ''}.`,
+        u.rose && 'Risen by Undying: its next fall is final.',
         battle.ks.pool && !foe && !u.shadow && (u.cohortOf != null ? !u.orphan : battle.units.some((x) => x.cohortOf === u.uid && !x.orphan && x.hp > 0)) &&
-          'One Army: it shares one HP pool with its banner, and the banner falls together.',
+          'One Army: shares its banner\'s HP pool.',
         ...(!foe ? planNotes(battle, u, captain) : []),
-        u.uid === battle.monarch?.uid && `Arise: ${battle.raised} of ${ariseCap(battle.will, battle.ks.raises)} raised this battle.`,
-        u.uid === battle.monarch?.uid && battle.ks.tithe > 0 && `Blood Tithe: each shadow costs it ${Math.ceil(u.maxHp * battle.ks.tithe)} HP.`,
-        u.uid === battle.monarch?.uid && battle.ks.unhealable && 'Court of Bone: nothing heals it.',
-        u.uid === battle.monarch?.uid && n > 0 && `Reserve: ${n} wait${n === 1 ? 's' : ''} behind the camp to enter beside it.`,
-        u.uid === battle.monarch?.uid && held.length > 0 && `Held: ${held.length} wait behind the camp for their start (${[...new Set(held.map((r) => r.det))].map((id) => `detachment ${id} ${whenText(held.find((r) => r.det === id).when)}`).join(', ')}).`]
+        me && [`Arise ${battle.raised}/${ariseCap(battle.will, battle.ks.raises)}`,
+          battle.ks.tithe > 0 && `${Math.ceil(u.maxHp * battle.ks.tithe)} HP a shadow`,
+          battle.ks.unhealable && 'unhealable',
+          n > 0 && `${n} still to enter`,
+          held.length > 0 && `held: ${[...new Set(held.map((r) => r.det))].map((id) => `${id} ${whenText(held.find((r) => r.det === id).when)}`).join(', ')}`].filter(Boolean).join(' · ')]
+      // The card's one live line: the first of these that holds, most pressing first (the notes above wait
+      // under Shift).
+      const plan = !foe && planLine(battle, u, captain)
+      const live = [
+        u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
+        me && `Arise ${battle.raised}/${ariseCap(battle.will, battle.ks.raises)} · if it falls, the run ends`,
+        u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
+          : u.arisen && holds(run.state, 'keep') ? 'Shadow: Hollow Court keeps it if it stands' : 'Shadow: gone after the battle'),
+        u.orphan && 'Its captain fell: it falters and hunts',
+        !foe && !kept && u.falter && `Faltering ×${TUNING.monarch.falter}: outside the domain`,
+        kept && u !== marshal && 'In its Marshal\'s domain: full strength',
+        u.rose && 'Risen by Undying: its next fall is final',
+        plan,
+        u.grade >= 2 && !foe && `Marshal: no falter within ${R} tiles`,
+        foe && !u.rank && led > 0 && (unitDef(u.id).boss ? `Leads a court of ${led}` : `Captain of ${led}: kill it, they falter`),
+        u.rank && captain && (foe ? `Of ${unitDef(captain.id).name}'s ${unitDef(captain.id).boss ? 'court' : 'cohort'}` : `Of ${unitDef(captain.id).name}'s banner`),
+        foe && u.wave && (u.when?.at === 'time' ? 'Came with the late pair' : `Came with wave ${u.wave + 1}`),
+        !foe && 'Hunting'].find(Boolean) || null
       const realm = { domain: battle.domain, will: battle.will, raises: battle.ks.raises, tithe: battle.ks.tithe, keep: holds(run.state, 'keep') }
-      showTip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, notes, ordered }))
+      showTip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, notes, ordered, live }))
     },
     onDone: () => {
+      // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).
+      if (!scene?.ending) sfx.play(run.battle.winner === 'party' ? 'win' : 'lose')
       // Shadows are not souls: they were never yours to lose. Rank-and-file are counted by kind.
       const lost = run.battle.units.filter((u) => u.side === 'party' && !u.shadow && u.hp <= 0)
       const fallen = lost.filter((u) => !u.rank).map((u) => unitDef(u.id).name)
@@ -206,27 +299,42 @@ async function fight () {
       route()
     }
   })
+  handoff?.(scene)
   bar.attach(scene)
 }
 
 // A unit's orders in a battle, live: its detachment's plan, and what it is doing with it now (holding its
 // ground, moving to its square, arrived, dropped outside the domain, following its captain into the Hunt).
 function planNotes (battle, u, captain) {
-  if (u.det == null || !u.plan) return []
-  const plan = u.plan
-  const arrived = plan.where === 'move' && battle.events.some((e) => e.type === 'arrive' && e.uid === u.uid)
-  const following = captain && captain.hp > 0 && captain.where === 'hunt' && u.where !== 'hunt'
-  // It falters from t 0 when it was placed outside the domain: it never stepped anywhere.
-  const placed = battle.events.find((e) => e.type === 'falter' && e.target === u.uid && e.on)?.t === 0
-  return [
-    `Detachment ${u.det}: ${ORDERS.where[plan.where].name}${plan.where === 'move' ? ` to ${tileText(plan.square)}` : ''}${u.when ? `, entered ${whenText(u.when)}` : ''}.`,
-    following ? 'Its captain hunts, so it hunts.'
-      : u.where === 'stay' ? `Holding its ground at ${tileText(u.anchor)}: it strikes what comes in reach, steps in to engage a foe within 2 tiles, and walks back.`
-        : u.where === 'move' ? `Moving to ${tileText(u.square)}: it stops to fight what comes near, and once on its square or next to it, it has arrived and hunts.`
-          : arrived ? 'It reached its square, and now hunts.'
-            : plan.where !== 'hunt' && !u.orphan && (placed
-              ? 'Outside the domain only Hunt is heeded: it stood outside from the start, so it dropped its plan at once, and hunts for the rest of the battle.'
-              : 'Outside the domain only Hunt is heeded: it stepped out, dropped its plan, and hunts for the rest of the battle.')]
+  const p = planNow(battle, u, captain)
+  if (!p) return []
+  const now = p.following ? 'hunting with its captain'
+    : u.where === 'stay' ? `holding ${tileText(u.anchor)}`
+      : u.where === 'move' ? `moving to ${tileText(u.square)}`
+        : p.arrived ? 'arrived, now hunting'
+          : p.dropped ? (p.placed ? 'placed outside the domain, so hunting' : 'stepped out of the domain, so hunting') : null
+  return [`Detachment ${u.det}, ${ORDERS.where[u.plan.where].name}${u.when ? ` (entered ${whenText(u.when)})` : ''}${now ? `: ${now}` : ''}.`]
+}
+
+// The same in a few words, for the card's live line: "A, Stay: holding its tile".
+function planLine (battle, u, captain) {
+  const p = planNow(battle, u, captain)
+  if (!p) return null
+  const now = p.following ? 'hunting with its captain' : u.where === 'stay' ? 'holding its tile' : u.where === 'move' ? 'moving to its square'
+    : p.arrived ? 'arrived, hunting' : p.dropped ? 'faltered, so hunting' : null
+  return `${u.det}, ${ORDERS.where[u.plan.where].name}${now ? `: ${now}` : ''}`
+}
+
+// Where a unit stands with its detachment's plan: following its captain into the Hunt, arrived at its square,
+// or dropped (outside the domain: `placed` there from t 0, when it never stepped anywhere). Null with no plan.
+function planNow (battle, u, captain) {
+  if (u.det == null || !u.plan) return null
+  return {
+    arrived: u.plan.where === 'move' && battle.events.some((e) => e.type === 'arrive' && e.uid === u.uid),
+    following: captain && captain.hp > 0 && captain.where === 'hunt' && u.where !== 'hunt',
+    placed: battle.events.find((e) => e.type === 'falter' && e.target === u.uid && e.on)?.t === 0,
+    dropped: u.plan.where !== 'hunt' && !u.orphan && u.where === 'hunt'
+  }
 }
 
 const seed = new URLSearchParams(location.search).get('seed') ?? newSeed()

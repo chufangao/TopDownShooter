@@ -4,8 +4,21 @@
   --panel: rgba(20, 17, 32, 0.78); --panel2: #171428; --raise: #1d1930;
   --line: #2d2745; --line2: #221d36;
   --text: #ddd6e8; --dim: #827b96; --bright: #f6f1ff;
-  --soul: #5ef0c0; --soul2: #8ff7d6; --gold: #e8b04b; --red: #e0566a; --violet: #a98bff; --blue: #66c8ff;
   --radius: 10px;
+  /* One colour per system, the same on the board (engine.js palette() and board.js read these at scene
+     creation), in tabs, cards and keywords (keywords.js `sys`). No two sit closer than 20 ΔE2000. Teal is
+     essence and what is yours; nothing else wears it (essence2, its pale text tint, is the same system).
+       essence teal · foe red (also harm: a loss, low HP, too little essence) · orders blue (synergies, bonds,
+       rules and buffs share it, worn as filled tints where orders are outlines) · keystone lilac · Monarch
+       deep gold · relic orange · warn amber-yellow (warnings, the threat scale) · ossuary bone · domain green
+       · shadow pink (Arise) · path cyan (a second path pale cyan, 12 apart)
+     Gauge is a neutral, no system's. Ranks as frames: Soldier bronze, Knight steel, Marshal champagne.
+     Detachments (content.js) and banners (ui.js) take white, indigo, magenta, peach and emerald, 19+ from
+     every system and 20+ from each other. */
+  --c-essence: #5ef0c0; --c-essence2: #8ff7d6; --c-monarch: #c08a00; --c-orders: #3697ff; --c-foe: #e0566a;
+  --c-relic: #ff7f45; --c-warn: #ffdc4a; --c-keystone: #ab94fc; --c-ossuary: #b8ae9e; --c-domain: #84d21a;
+  --c-shadow: #fb9ad5; --c-path: #3bd3ea; --c-path2: #b3f3f9; --c-synergy: var(--c-orders); --c-gauge: #9a95b0;
+  --c-soldier: #b07040; --c-knight: #b4bfd0; --c-marshal: #f6e4b8;
   --serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -23,17 +36,17 @@ button {
   background: var(--raise); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer;
   transition: border-color .15s, color .15s, background .15s, transform .15s, box-shadow .15s;
 }
-button:hover:not([aria-disabled]):not(:disabled) { border-color: var(--soul); color: var(--soul2); }
-button:focus-visible { outline: 2px solid var(--soul); outline-offset: 2px; }
+button:hover:not([aria-disabled]):not(:disabled) { border-color: var(--c-essence); color: var(--c-essence2); }
+button:focus-visible { outline: 2px solid var(--c-essence); outline-offset: 2px; }
 button.primary {
-  background: linear-gradient(180deg, #2c4d44, #17302a); border-color: var(--soul); color: var(--bright);
+  background: linear-gradient(180deg, #2c4d44, #17302a); border-color: var(--c-essence); color: var(--bright);
   box-shadow: 0 0 0 1px #5ef0c033 inset, 0 0 18px #5ef0c026;
 }
 button.primary:hover { box-shadow: 0 0 0 1px #5ef0c066 inset, 0 0 26px #5ef0c055; color: var(--bright) !important; }
 button.big { padding: 10px 22px; font-size: 15px; font-weight: 600; letter-spacing: .02em; }
 button.ghost { background: transparent; }
 button.danger { border-color: #5a2a35; color: #f0a0ac; background: #2a141a; }
-button.danger:hover { border-color: var(--red) !important; color: #ffc4cc !important; }
+button.danger:hover { border-color: var(--c-foe) !important; color: #ffc4cc !important; }
 button.small { padding: 3px 9px; font-size: 12px; }
 button.link { background: none; border: none; color: var(--dim); padding: 0; text-decoration: underline dotted; }
 .icon-btn { padding: 6px; border-radius: 50%; background: transparent; border-color: transparent; color: var(--dim); }
@@ -47,11 +60,11 @@ kbd {
 h1 { font: 600 26px/1.2 var(--serif); letter-spacing: .12em; color: var(--bright); margin: 0; }
 h2 { font: 600 12px/1.4 var(--sans); letter-spacing: .12em; text-transform: uppercase; margin: 18px 0 8px; color: var(--text); }
 h2:first-child { margin-top: 0; }
-h3 { font: 600 15px/1.3 var(--serif); color: var(--soul2); margin: 0 0 6px; letter-spacing: .03em; }
+h3 { font: 600 15px/1.3 var(--serif); color: var(--c-essence2); margin: 0 0 6px; letter-spacing: .03em; }
 b { font-weight: 600; color: var(--bright); }
 .dim { color: var(--dim); }
 .small { font-size: 12px; }
-.warn { color: var(--gold); }
+.warn { color: var(--c-warn); }
 .center { max-width: 820px; margin: 0 auto; text-align: center; }
 .center-text { text-align: center; }
 
@@ -75,7 +88,7 @@ b { font-weight: 600; color: var(--bright); }
   box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(4px);
 }
 .note {
-  margin: 14px 0 0; padding: 9px 14px; border-radius: 8px; background: #1b2a26; border: 1px solid #2d5248; color: var(--soul2);
+  margin: 14px 0 0; padding: 9px 14px; border-radius: 8px; background: #1b2a26; border: 1px solid #2d5248; color: var(--c-essence2);
   animation: rise .4s ease-out;
 }
 @keyframes rise { from { opacity: 0; transform: translateY(-6px); } }
@@ -84,12 +97,12 @@ b { font-weight: 600; color: var(--bright); }
 .title-screen { display: grid; place-items: center; padding-top: 24px; }
 .title-box { max-width: 760px; text-align: center; animation: rise .6s ease-out; }
 .sigil {
-  width: 104px; height: 104px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center; color: var(--soul);
+  width: 104px; height: 104px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center; color: var(--c-essence);
   background: radial-gradient(circle, #5ef0c033, transparent 70%); box-shadow: 0 0 0 1px #5ef0c044, 0 0 60px #5ef0c033;
   animation: breathe 3.2s ease-in-out infinite;
 }
-.sigil.lose { color: var(--red); background: radial-gradient(circle, #e0566a33, transparent 70%); box-shadow: 0 0 0 1px #e0566a44, 0 0 60px #e0566a33; }
-.sigil.win { color: var(--gold); background: radial-gradient(circle, #e8b04b33, transparent 70%); box-shadow: 0 0 0 1px #e8b04b44, 0 0 60px #e8b04b33; }
+.sigil.lose { color: var(--c-foe); background: radial-gradient(circle, #e0566a33, transparent 70%); box-shadow: 0 0 0 1px #e0566a44, 0 0 60px #e0566a33; }
+.sigil.win { color: var(--c-monarch); background: radial-gradient(circle, color-mix(in srgb, var(--c-monarch) 20%, transparent), transparent 70%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-monarch) 27%, transparent), 0 0 60px color-mix(in srgb, var(--c-monarch) 20%, transparent); }
 @keyframes breathe { 50% { box-shadow: 0 0 0 1px #5ef0c066, 0 0 90px #5ef0c055; } }
 .logo {
   font-size: 54px; letter-spacing: .32em; margin-right: -.32em;
@@ -97,13 +110,13 @@ b { font-weight: 600; color: var(--bright); }
   filter: drop-shadow(0 0 18px #5ef0c044);
 }
 .logo.lose { background-image: linear-gradient(180deg, #fff, #ffb0bb 55%, #c0394c); filter: drop-shadow(0 0 18px #e0566a44); }
-.logo.win { background-image: linear-gradient(180deg, #fff, #ffe0a0 55%, #c88a24); filter: drop-shadow(0 0 18px #e8b04b44); }
+.logo.win { background-image: linear-gradient(180deg, #fff, #ffe0a0 55%, var(--c-monarch)); filter: drop-shadow(0 0 18px color-mix(in srgb, var(--c-monarch) 27%, transparent)); }
 .tagline { font: italic 17px/1.6 var(--serif); color: #c5bdd6; margin: 12px 0 26px; }
 .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; text-align: left; }
 .steps.four { grid-template-columns: repeat(4, 1fr); }
 .title-box:has(.steps.four) { max-width: 940px; }
 .step { background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius); padding: 16px; }
-.step-ico { color: var(--soul); margin-bottom: 8px; }
+.step-ico { color: var(--c-essence); margin-bottom: 8px; }
 .step b { font: 600 16px var(--serif); }
 .step p { margin: 6px 0 0; color: var(--dim); font-size: 13px; }
 .title-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 18px; }
@@ -115,23 +128,23 @@ b { font-weight: 600; color: var(--bright); }
   position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
   margin: 0 -22px; padding: 10px 22px; background: #0b0a12e6; border-bottom: 1px solid var(--line2); backdrop-filter: blur(8px);
 }
-.brand { display: flex; align-items: center; gap: 8px; color: var(--soul); font: 600 16px var(--serif); letter-spacing: .24em; }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--c-essence); font: 600 16px var(--serif); letter-spacing: .24em; }
 .brand span { color: var(--bright); }
 .floors { display: flex; align-items: center; gap: 6px; font-weight: 600; }
 .floors span:last-child { margin-left: 4px; }
 .pip { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--line); background: #0c0a14; }
-.pip.done { background: var(--soul); border-color: var(--soul); }
-.pip.now { border-color: var(--soul); box-shadow: 0 0 8px var(--soul); }
-/* The deep, past the Sovereign's floor: a violet pip, and the floor in violet. */
-.pip.deep { border-radius: 2px; transform: rotate(45deg); border-color: var(--violet); background: #2a2045; box-shadow: 0 0 8px var(--violet); }
-.floors.deep span:last-child { color: #c9b6ff; }
+.pip.done { background: var(--c-essence); border-color: var(--c-essence); }
+.pip.now { border-color: var(--c-essence); box-shadow: 0 0 8px var(--c-essence); }
+/* The deep, past the Sovereign's floor: a red diamond pip (harder foes), and the floor in the foes' pale red. */
+.pip.deep { border-radius: 2px; transform: rotate(45deg); border-color: var(--c-foe); background: #3a1a26; box-shadow: 0 0 8px color-mix(in srgb, var(--c-foe) 70%, transparent); }
+.floors.deep span:last-child { color: #f0a0ac; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
 .chip-stat { display: inline-flex; gap: 6px; padding: 3px 10px; border-radius: 99px; background: #141122; border: 1px solid var(--line2); font-size: 12px; }
-.chip-stat.essence { align-items: center; color: var(--soul); border-color: #2d5248; }
-.chip-stat.essence b { color: var(--soul2); }
-.chip-stat.monarch { align-items: center; border-color: #5a4520; color: var(--gold); }
+.chip-stat.essence { align-items: center; color: var(--c-essence); border-color: #2d5248; }
+.chip-stat.essence b { color: var(--c-essence2); }
+.chip-stat.monarch { align-items: center; border-color: #5a4520; color: var(--c-monarch); }
 .chip-stat.monarch b { color: #f3d9a0; }
-.chip-stat.monarch.low { border-color: var(--red); color: var(--red); box-shadow: 0 0 10px #e0566a55; }
+.chip-stat.monarch.low { border-color: var(--c-foe); color: var(--c-foe); box-shadow: 0 0 10px #e0566a55; }
 .chip-stat.monarch.low b { color: #ffb0bb; }
 .topbar .icon-btn { margin-left: auto; }
 .guide { margin: 14px 0 0; }
@@ -143,7 +156,7 @@ b { font-weight: 600; color: var(--bright); }
 .guide li { counter-increment: g; position: relative; padding-left: 28px; }
 .guide li::before {
   content: counter(g); position: absolute; left: 0; top: 0; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--soul); color: #06231b; font-weight: 700; font-size: 11px;
+  background: var(--c-essence); color: #06231b; font-weight: 700; font-size: 11px;
 }
 .guide > .link { font-size: 12px; }
 
@@ -154,12 +167,25 @@ b { font-weight: 600; color: var(--bright); }
   padding: 8px 9px; color: var(--dim); font-size: 13px; font-weight: 600; letter-spacing: .02em; gap: 5px;
 }
 .tab:hover:not(.on) { color: var(--text) !important; }
-.tab.on { color: var(--bright); border-bottom-color: var(--soul); }
+.tab.on { color: var(--bright); border-bottom-color: var(--c-essence); }
 .tab kbd { font-size: 10px; min-width: 1.4em; }
-.tab-count { min-width: 16px; padding: 0 4px; border-radius: 99px; background: #17302a; color: var(--soul2); font-size: 11px; line-height: 17px; text-align: center; }
+.tab-count { min-width: 16px; padding: 0 4px; border-radius: 99px; background: #17302a; color: var(--c-essence2); font-size: 11px; line-height: 17px; text-align: center; }
 .screen-tabs { max-width: 1040px; margin: 16px auto 0; }
 .screen-tabs .tab { font-size: 14px; padding: 10px 16px; }
-@media (max-width: 760px) { .tray { position: static; max-height: none; overflow: visible; } }
+/* The prep tray's tabs: always one row. Each an icon with its count as a small pill on the icon's corner, and
+   its label (a short one: Bones, Bonus) while the row has room; short of it, only the open tab keeps its
+   label, and on the narrowest row none does (the full name and what the tab holds are on hover). */
+.tray-tabs { flex-wrap: nowrap; gap: 0; container-type: inline-size; }
+.tray-tabs .tab { flex: 1 1 auto; justify-content: center; min-width: 0; padding: 9px 4px 8px; gap: 5px; font-size: 12.5px; letter-spacing: 0; white-space: nowrap; }
+.tab-ico { position: relative; flex: none; display: inline-grid; place-items: center; }
+.tab-ico .tab-count {
+  position: absolute; top: -7px; left: calc(100% - 7px); min-width: 14px; padding: 0 3px; font-size: 9.5px; font-weight: 700; line-height: 14px;
+  box-shadow: 0 0 0 2px var(--panel2); pointer-events: none;
+}
+/* A badge overhangs its icon's corner: the label keeps clear of it. */
+.tab-ico:has(.tab-count) + .tab-name { margin-left: 5px; }
+@container (max-width: 330px) { .tray-tabs .tab:not(.on) .tab-name { display: none; } }
+@container (max-width: 200px) { .tray-tabs .tab-name { display: none; } }
 .tab-body > h2:first-child, .tab-body > div:first-child > h2:first-child { margin-top: 0; }
 
 /* ── map ──────────────────────────────────────────────────────────────────────────────────────── */
@@ -168,11 +194,14 @@ b { font-weight: 600; color: var(--bright); }
 .mapcol { flex: none; width: 440px; max-width: 100%; }
 .side { flex: 1; min-width: 320px; }
 .dag { position: relative; margin: 0 auto; max-width: 400px; }
-.dag-scroll { max-height: min(72vh, 900px); overflow-y: auto; overscroll-behavior: contain; padding: 4px 0; }
+.dag-scroll {
+  max-height: min(72vh, 900px); overflow-y: auto; overscroll-behavior: contain; padding: 28px 0 20px;
+  mask-image: linear-gradient(transparent, #000 4px, #000 calc(100% - 22px), transparent);
+}
 .dag > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .edge { fill: none; stroke: #2a2440; stroke-width: 2; vector-effect: non-scaling-stroke; }
-.edge.open { stroke: var(--soul); stroke-dasharray: 5 5; animation: flow 1s linear infinite; opacity: .8; }
-.edge.walked { stroke: var(--gold); stroke-width: 3; }
+.edge.open { stroke: var(--c-essence); stroke-dasharray: 5 5; animation: flow 1s linear infinite; opacity: .8; }
+.edge.walked { stroke: var(--dim); stroke-width: 3; }
 @keyframes flow { to { stroke-dashoffset: -10; } }
 .node {
   position: absolute; transform: translate(-50%, -50%); flex-direction: column; gap: 2px; padding: 0;
@@ -183,23 +212,36 @@ b { font-weight: 600; color: var(--bright); }
   background: radial-gradient(circle at 50% 35%, #2a2440, #13101f); border: 1.5px solid var(--line); color: #b9b0cf;
   box-shadow: 0 4px 12px #0008; transition: transform .15s, box-shadow .15s, border-color .15s;
 }
-.node .node-name { font-size: 11px; color: var(--dim); white-space: nowrap; }
-.node kbd { position: absolute; top: -6px; right: 12px; font-size: 10px; min-width: 1.5em; background: var(--soul); color: #06231b; border-color: var(--soul); font-weight: 700; }
-.node.far { opacity: .55; }
+.node .node-name { font-size: 11px; color: var(--dim); white-space: nowrap; padding: 0 5px; border-radius: 4px; background: #110f1ce6; line-height: 15px; }
+.node kbd { position: absolute; top: -6px; right: 12px; font-size: 10px; min-width: 1.5em; background: var(--c-essence); color: #06231b; border-color: var(--c-essence); font-weight: 700; }
+/* A room you can't reach yet is dimmed, never greyed out: its icon, and its ring in its room's colour (the
+   rooms' own tokens), still tell rite, altar, reliquary and elite apart at a glance. */
+.node.t-rite { --room: var(--c-path); }
+.node.t-altar { --room: var(--c-ossuary); }
+.node.t-reliquary { --room: var(--c-relic); }
+.node.t-elite, .node.t-boss, .node.t-siege { --room: var(--c-foe); }
+.node.far { opacity: .78; }
+.node.far .medal { border-color: color-mix(in srgb, var(--room, var(--line)) 45%, var(--line)); }
+.node.far .node-name { opacity: .85; }
 .node.far:hover { opacity: 1; }
 .node:hover .medal { transform: scale(1.08); }
-.node.reach .medal { border-color: var(--soul); color: var(--bright); animation: beckon 1.8s ease-in-out infinite; }
+.node.reach .medal { border-color: var(--c-essence); color: var(--bright); animation: beckon 1.8s ease-in-out infinite; }
 .node.reach .node-name { color: var(--bright); }
 @keyframes beckon { 50% { box-shadow: 0 0 0 4px #5ef0c022, 0 0 20px #5ef0c066; } }
-.node.visited .medal { border-color: var(--gold); background: radial-gradient(circle at 50% 35%, #4a3a1c, #1f170a); color: var(--gold); }
-.node.here .medal { box-shadow: 0 0 0 3px #e8b04b55, 0 0 18px #e8b04b55; }
+.node.visited .medal { border-color: var(--dim); background: radial-gradient(circle at 50% 35%, #2e2a3e, #15121f); color: #c5bdd6; }
+.node.here .medal { border-color: var(--c-essence); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-essence) 33%, transparent), 0 0 18px color-mix(in srgb, var(--c-essence) 33%, transparent); }
 .node[aria-disabled] { cursor: default; }
+/* On the map the rooms keep to a neutral set (the icon tells them apart), the foes' rooms in the foes' red;
+   inside a room its title icon wears what it gives: a relic, a path tier, the fallen. */
 .t-elite .medal, .room-ico.t-elite, .rt-head.t-elite { color: #f08a98; }
 .t-boss .medal, .room-ico.t-boss, .rt-head.t-boss { color: #ff6a7a; }
-.t-reliquary .medal, .room-ico.t-reliquary, .rt-head.t-reliquary { color: var(--gold); }
-.t-altar .medal, .room-ico.t-altar, .rt-head.t-altar { color: var(--violet); }
-.t-rite .medal, .room-ico.t-rite, .rt-head.t-rite { color: var(--blue); }
-.t-fight .medal, .room-ico.t-fight, .rt-head.t-fight { color: #d8d0e8; }
+.t-reliquary .medal { color: #efe3c8; }
+.t-altar .medal { color: #d8cdd2; }
+.t-rite .medal { color: #dfe6f2; }
+.room-ico.t-reliquary, .rt-head.t-reliquary { color: var(--c-relic); }
+.room-ico.t-altar, .rt-head.t-altar { color: var(--c-ossuary); }
+.room-ico.t-rite, .rt-head.t-rite { color: var(--c-path); }
+.t-fight .medal, .room-ico.t-fight, .rt-head.t-fight { color: #a9a1bd; }
 .node.t-boss .medal { width: 52px; height: 52px; border-color: #7a2a38; }
 .node.reach .medal { color: var(--bright); }
 
@@ -216,10 +258,10 @@ b { font-weight: 600; color: var(--bright); }
 .bench-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 0 0; }
 .bench-row .rs-label { width: 48px; flex: none; text-align: right; }
 .bench-row .bench { flex: 1; min-height: 64px; }
-.gridlabel { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 8px 58px; color: var(--soul2); font-weight: 600; width: 0; min-width: calc(100% - 58px); }
+.gridlabel { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 8px 58px; color: var(--c-essence2); font-weight: 600; width: 0; min-width: calc(100% - 58px); }
 .gridlabel.foe { color: #f08a98; }
 .vs { display: flex; align-items: center; gap: 10px; margin: 14px 0 14px 58px; color: var(--dim); font: 600 12px var(--serif); letter-spacing: .3em; }
-.vs::before, .vs::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--violet), transparent); opacity: .5; }
+.vs::before, .vs::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--dim), transparent); opacity: .5; }
 
 /* ── grids and cells ──────────────────────────────────────────────────────────────────────────── */
 .grid { display: inline-flex; flex-direction: column; gap: 6px; }
@@ -232,36 +274,29 @@ b { font-weight: 600; color: var(--bright); }
 }
 .cell.empty { background: #0e0c17; border-style: dashed; border-color: #2a2440; }
 .cell.empty.drop { border-color: #5ef0c088; background: #10201c; }
-.cell.sel { border-color: var(--soul) !important; box-shadow: 0 0 0 2px #5ef0c066, 0 0 18px #5ef0c055 !important; transform: translateY(-2px); }
+.cell.sel { border-color: var(--c-essence) !important; box-shadow: 0 0 0 2px #5ef0c066, 0 0 18px #5ef0c055 !important; transform: translateY(-2px); }
 .cell.fallen .portrait { opacity: .75; }
 .cell.fallen::after { content: "fallen"; position: absolute; bottom: 4px; font-size: 9px; letter-spacing: .1em; color: #c06070; text-transform: uppercase; }
 .cell.foe { cursor: default; border-color: #3d2330; background: radial-gradient(circle at 50% 40%, #2a1520, #140b10); }
 .cell.foe.empty { border-color: #2a1d26; background: #0f0a0e; }
 .cell .badge { position: absolute; top: 2px; right: 5px; font-size: 10px; color: var(--dim); font-weight: 600; }
-.cell .bond-mark { position: absolute; top: 2px; left: 5px; font-size: 10px; color: var(--soul); text-shadow: 0 0 6px #5ef0c088; }
-.cell .tier-pips { position: absolute; bottom: 9px; right: 4px; font-size: 9px; letter-spacing: -1px; color: var(--blue); }
-.cell.foe .bond-mark { color: #f08a98; text-shadow: 0 0 6px #f08a9888; }
-/* The Monarch's cell, its domain (a tint and an outline drawn half into the gaps, so neighbours join up),
-   and the souls standing outside it, who falter. */
-.cell.monarch { border-color: #8a6a2a; background: radial-gradient(circle at 50% 40%, #3a2e14, #15110a); box-shadow: 0 0 14px #e8b04b33; }
+.cell .tier-pips { position: absolute; bottom: 9px; right: 4px; font-size: 11px; letter-spacing: -1px; color: var(--c-path); }
+/* The Monarch's cell, and its domain (a tint and an outline drawn half into the gaps, so neighbours join up). */
+.cell.monarch { border-color: #8a6a2a; background: radial-gradient(circle at 50% 40%, #3a2e14, #15110a); box-shadow: 0 0 14px color-mix(in srgb, var(--c-monarch) 20%, transparent); }
 .cell.dom:not(.monarch):not(.foe.has) { background-color: #0f1d19; }
 .cell.empty.dom { background: #0d1a16; border-color: #24443a; }
 .cell.foe.empty.dom { background: #12161a; border-color: #2c3b37; }
-.cell.dom::before { content: ""; position: absolute; inset: -4px; pointer-events: none; border: 0 solid #3fcf9f; border-radius: 2px; }
+.cell.dom::before { content: ""; position: absolute; inset: -4px; pointer-events: none; border: 0 solid var(--c-domain); border-radius: 2px; }
 .cell.d-t::before { border-top-width: 2px; }
 .cell.d-b::before { border-bottom-width: 2px; }
 .cell.d-l::before { border-left-width: 2px; }
 .cell.d-r::before { border-right-width: 2px; }
 .cell.out.empty { opacity: .62; }
-.cell.falter { border-color: #4a3a6a; }
-.cell.falter .portrait { opacity: .62; filter: grayscale(.5) drop-shadow(0 2px 2px #000a); }
-.cell .falter-mark { position: absolute; top: 2px; left: 4px; font-size: 9px; font-weight: 700; color: #c3b0ff; text-shadow: 0 0 4px #000; }
-.cell .bond-mark + .falter-mark { left: 15px; }
-.vs.dom::before, .vs.dom::after { background: linear-gradient(90deg, transparent, var(--soul), transparent); opacity: .7; }
+.vs.dom::before, .vs.dom::after { background: linear-gradient(90deg, transparent, var(--c-essence), transparent); opacity: .7; }
 /* width 0 + min-width: the key wraps to the grid's width instead of widening the board. */
 .domain-key { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin: 10px 0 0 58px; width: 0; min-width: calc(100% - 58px); font-size: 12px; }
-.dk-box { display: inline-block; width: 14px; height: 14px; border: 2px solid #3fcf9f; border-radius: 3px; background: #0f1d19; }
-.falter-note { color: #c3b0ff; }
+.dk-box { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--c-domain); border-radius: 3px; background: #181d0c; }
+.falter-note { color: var(--c-foe); }
 .cell.wall { cursor: default; border-color: #3d3552; background: url(assets/props/wall-0.svg) center 70% / 92% no-repeat, radial-gradient(circle at 50% 40%, #1d1930, #110e1c); }
 .cell.wall:nth-child(3n) { background-image: url(assets/props/wall-1.svg), radial-gradient(circle at 50% 40%, #1d1930, #110e1c); }
 .cell.wall:nth-child(3n+1) { background-image: url(assets/props/wall-2.svg), radial-gradient(circle at 50% 40%, #1d1930, #110e1c); }
@@ -271,13 +306,13 @@ b { font-weight: 600; color: var(--bright); }
   display: flex; flex-wrap: wrap; gap: 6px; min-height: 76px; padding: 4px; border: 1px dashed var(--line); border-radius: var(--radius);
   background: #0c0a14aa; transition: border-color .15s, background .15s;
 }
-.bench.target { border-color: var(--soul); background: #10201c; cursor: pointer; }
+.bench.target { border-color: var(--c-essence); background: #10201c; cursor: pointer; }
 .empty-bench { align-self: center; padding: 0 10px; font-size: 13px; }
 
 /* ── hp, units, synergies, relics ─────────────────────────────────────────────────────────────── */
 .portrait { display: block; flex: none; object-fit: contain; filter: drop-shadow(0 2px 2px #000a); pointer-events: none; }
 .hpbar { display: inline-block; width: 90px; height: 6px; background: #07060b; border: 1px solid var(--line2); border-radius: 3px; overflow: hidden; flex: none; }
-.hpbar > span { display: block; height: 100%; background: linear-gradient(90deg, #3cc79c, var(--soul2)); }
+.hpbar > span { display: block; height: 100%; background: linear-gradient(90deg, #3cc79c, var(--c-essence2)); }
 .hpbar.low > span { background: linear-gradient(90deg, #b03a4c, #ff7a8a); }
 .units { display: flex; flex-direction: column; gap: 6px; text-align: left; }
 .unit { display: flex; gap: 12px; align-items: center; background: #141122; border: 1px solid var(--line2); border-radius: 8px; padding: 6px 10px; }
@@ -288,37 +323,46 @@ b { font-weight: 600; color: var(--bright); }
 .cell-port { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: #1d1930; border: 1px solid var(--line); }
 .syns { display: flex; flex-direction: column; gap: 4px; }
 .syn { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px; border-radius: 6px; background: #120f1e; border: 1px solid var(--line2); font-size: 13px; color: var(--dim); }
-.syn.on { color: var(--bright); border-color: #2d5248; background: linear-gradient(90deg, #15302a, #120f1e); }
-.syn.on .syn-prog { color: var(--soul); }
+/* Synergies wear the orders' blue as filled tints (orders are outlines and dashes). */
+.syn.on { color: var(--bright); border-color: color-mix(in srgb, var(--c-synergy) 35%, #120f1e); background: linear-gradient(90deg, color-mix(in srgb, var(--c-synergy) 16%, #120f1e), #120f1e); }
+.syn.on .syn-prog { color: var(--c-synergy); }
 .syn-prog { font-weight: 600; white-space: nowrap; }
-/* A kin's or role's steps (2/4/6/8): lit once reached; the rule step (the 8) a gold diamond. */
+/* A kin's or role's steps (2/4/6/8): lit once reached; the rule step (the 8) lit brightest. */
 .syn-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .syn-steps { display: inline-flex; gap: 3px; }
-.syn-steps i { font: 600 9px/14px var(--sans); font-style: normal; width: 14px; height: 14px; text-align: center; border-radius: 3px; border: 1px solid var(--line); color: var(--dim); background: #0c0a14; }
-.syn-steps i.held { border-color: #2d7a62; background: #1d4a3e; color: var(--soul2); }
-.syn-steps i.rule { border-color: #5a4520; color: #b08a48; }
-.syn-steps i.rule.held { border-color: var(--gold); background: #4a3614; color: #ffe2a0; box-shadow: 0 0 6px #e8b04b88; }
-.syn.top { border-color: #5a4520; background: linear-gradient(90deg, #2a2112, #120f1e); }
-.syn.top .syn-prog { color: var(--gold); }
-.tag-rule { font-size: 10px; padding: 0 5px; border-radius: 4px; background: #3a2a10; color: #ffd98a; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
+.syn-steps i { font: 700 11px/16px var(--sans); font-style: normal; width: 17px; height: 17px; text-align: center; border-radius: 3px; border: 1px solid var(--line); color: #a39cb8; background: #0c0a14; }
+.syn-steps i.held { border-color: color-mix(in srgb, var(--c-synergy) 60%, #0c0a14); background: color-mix(in srgb, var(--c-synergy) 28%, #0c0a14); color: #d6e8ff; }
+.syn-steps i.rule { border-color: color-mix(in srgb, var(--c-synergy) 35%, #0c0a14); color: #8fb8e8; }
+.syn-steps i.rule.held { border-color: var(--c-synergy); background: color-mix(in srgb, var(--c-synergy) 40%, #0c0a14); color: #fff; box-shadow: 0 0 6px color-mix(in srgb, var(--c-synergy) 55%, transparent); }
+.syn.top { border-color: color-mix(in srgb, var(--c-synergy) 60%, #120f1e); background: linear-gradient(90deg, color-mix(in srgb, var(--c-synergy) 28%, #120f1e), #120f1e); }
+.syn.top .syn-prog { color: var(--c-synergy); }
+.tag-rule { font-size: 10px; padding: 0 5px; border-radius: 4px; background: color-mix(in srgb, var(--c-synergy) 28%, #0c0a14); color: #cfe3ff; text-transform: uppercase; letter-spacing: .06em; font-weight: 600; }
 .steps-list { margin: 6px 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--dim); }
 .steps-list li.held { color: var(--text); }
 .steps-list li > b:first-child { display: inline-block; min-width: 14px; color: var(--dim); }
-.steps-list li.held > b:first-child { color: var(--soul); }
+.steps-list li.held > b:first-child { color: var(--c-essence); }
 .relics { display: flex; flex-wrap: wrap; gap: 6px; }
-.relic { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; background: #241d10; border: 1px solid #5a4520; color: #f3d9a0; font-size: 13px; }
+.relic { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; background: #2a170c; border: 1px solid #6a3a1c; color: #ffc49a; font-size: 13px; }
 
 /* ── threat ───────────────────────────────────────────────────────────────────────────────────── */
-.threat { --t: var(--soul); font-size: 13px; }
+.threat { --t: var(--c-essence); font-size: 13px; }
 .threat-head b { color: var(--t); }
 .threat-bar { height: 8px; margin: 6px 0 4px; border-radius: 4px; background: linear-gradient(90deg, #2d6b5a, #3cc79c); overflow: hidden; }
 .threat-bar .theirs { display: block; height: 100%; background: linear-gradient(90deg, #8a2534, var(--t)); border-right: 2px solid #07060b; }
 .threat-legend { display: flex; justify-content: space-between; font-size: 11px; }
-.t-low { --t: #7be0a0; } .t-mod { --t: #c9e07b; } .t-high { --t: var(--gold); } .t-sev { --t: #ff8a5a; } .t-dead { --t: #ff4a62; }
+/* One scale, neutral to warning to harm: no system's colours but the warning amber and the foes' red. */
+.t-low { --t: #a9a3bd; } .t-mod { --t: color-mix(in srgb, var(--c-warn) 50%, #a9a3bd); } .t-high { --t: var(--c-warn); }
+.t-sev { --t: color-mix(in srgb, var(--c-foe) 85%, var(--c-warn)); } .t-dead { --t: var(--c-foe); }
+.t-dead .threat-head b { text-shadow: 0 0 8px color-mix(in srgb, var(--c-foe) 70%, transparent); }
 
 /* ── reap ─────────────────────────────────────────────────────────────────────────────────────── */
 .reap-screen .center { padding-top: 26px; }
-.reap-title { display: flex; gap: 12px; justify-content: center; align-items: center; color: var(--soul); }
+.reap-title { display: flex; gap: 12px; justify-content: center; align-items: center; color: var(--c-essence); }
+/* Its icon wears what the room gives (as ui.js picks the icon): a rite's path tier, a reliquary's relic. */
+.reap-screen:has(.o-tier) .reap-title { color: var(--c-path); }
+.reap-screen:has(.o-keystone) .reap-title { color: var(--c-keystone); }
+.reap-screen:has(.o-relic) .reap-title { color: var(--c-relic); }
+.reap-screen:has(.o-soul) .reap-title, .reap-screen:has(.o-bind) .reap-title { color: var(--c-essence); }
 .offers { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin: 26px 0; }
 .offer {
   width: 200px; min-height: 250px; flex-direction: column; justify-content: flex-start; gap: 8px; padding: 14px;
@@ -329,18 +373,18 @@ b { font-weight: 600; color: var(--bright); }
 .offer-tag { align-self: flex-start; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); display: flex; gap: 6px; align-items: center; }
 .offer-art {
   width: 104px; height: 104px; border-radius: 50%; display: grid; place-items: center; margin: 4px 0;
-  background: radial-gradient(circle, #5ef0c033, transparent 68%); color: var(--gold);
+  background: radial-gradient(circle, #5ef0c033, transparent 68%); color: var(--c-essence);
 }
-.o-relic .offer-art { background: radial-gradient(circle, #e8b04b33, transparent 68%); }
+.o-relic .offer-art { background: radial-gradient(circle, #ff8a3d33, transparent 68%); color: var(--c-relic); }
 .o-soul { border-color: #2d5248; }
-.o-relic { border-color: #5a4520; }
+.o-relic { border-color: #6a3a1c; }
 .offer-name { font: 600 17px var(--serif); color: var(--bright); }
 .offer-desc { font-size: 13px; color: var(--text); }
 .offer.locked { opacity: .45; cursor: not-allowed; }
-.o-tier { border-color: #23495e; }
-.o-tier .offer-art { background: radial-gradient(circle, #66c8ff33, transparent 68%); }
-.offer-price { margin-top: auto; display: inline-flex; gap: 4px; align-items: center; font-weight: 700; color: var(--soul2); }
-.offer-price.poor { color: var(--red); }
+.o-tier { border-color: #1f4a54; }
+.o-tier .offer-art { background: radial-gradient(circle, #3fd3ea33, transparent 68%); color: var(--c-path); }
+.offer-price { margin-top: auto; display: inline-flex; gap: 4px; align-items: center; font-weight: 700; color: var(--c-essence2); }
+.offer-price.poor { color: var(--c-foe); }
 .reap-screen .panel, .end-screen .panel { margin-top: 24px; text-align: left; }
 
 /* ── end ──────────────────────────────────────────────────────────────────────────────────────── */
@@ -362,8 +406,8 @@ b { font-weight: 600; color: var(--bright); }
 .mini-cell.camp { background: #0e1614; border-color: #1d2e29; }
 .mini-cell.gap { background: #0c0a14; border-color: #1a1626; }
 .mini-cell.wall { background: #2a2440; border-color: #3d3552; }
-.mini-cell.me { background: #3a2e14; border-color: var(--gold); }
-.mini-cell.killer { background: #3a1a26; border-color: var(--red); box-shadow: 0 0 8px #e0566a88; }
+.mini-cell.me { background: #3a2e14; border-color: var(--c-monarch); }
+.mini-cell.killer { background: #3a1a26; border-color: var(--c-foe); box-shadow: 0 0 8px #e0566a88; }
 
 /* ── battle playback bar ──────────────────────────────────────────────────────────────────────── */
 .battlebar {
@@ -374,14 +418,14 @@ b { font-weight: 600; color: var(--bright); }
 .legend { display: flex; gap: 16px; align-items: center; font-size: 12px; flex-wrap: wrap; }
 .legend span { display: inline-flex; gap: 6px; align-items: center; }
 .lg { display: inline-block; width: 18px; height: 4px; border-radius: 2px; }
-.lg.hp { background: var(--soul); }
-.lg.gauge { background: var(--gold); }
+.lg.hp { background: var(--c-essence); }
+.lg.gauge { background: var(--c-gauge); }
 .controls { display: flex; gap: 8px; align-items: center; }
 .clock { min-width: 3.5ch; text-align: right; color: var(--dim); font-weight: 600; }
 .segs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .segs .seg { border: none; border-radius: 0; border-right: 1px solid var(--line); }
 .segs .seg:last-child { border-right: none; }
-.seg.active { background: #17302a; color: var(--soul2); }
+.seg.active { background: #17302a; color: var(--c-essence2); }
 
 /* ── tooltip ──────────────────────────────────────────────────────────────────────────────────── */
 .tip {
@@ -402,7 +446,7 @@ b { font-weight: 600; color: var(--bright); }
 .stats-grid.three { grid-template-columns: repeat(3, 1fr); }
 .stat { display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 6px; background: #0f0c18; font-size: 10px; }
 .stat b { font-size: 14px; }
-.ct-sec { margin: 10px 0 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--soul2); font-weight: 600; }
+.ct-sec { margin: 10px 0 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--c-essence2); font-weight: 600; }
 .ability { padding: 6px 8px; border-radius: 8px; background: #0f0c18; margin-bottom: 4px; }
 .ab-head { display: flex; gap: 6px; align-items: center; }
 .ab-head .right { margin-left: auto; font-size: 11px; }
@@ -410,15 +454,15 @@ b { font-weight: 600; color: var(--bright); }
 .chip { font-size: 10px; padding: 0 6px; border-radius: 99px; border: 1px solid var(--c); color: var(--c); }
 .tag-melee, .tag-ranged { font-size: 10px; padding: 0 5px; border-radius: 4px; background: #2a1d26; color: #f0a0ac; text-transform: uppercase; letter-spacing: .06em; }
 .tag-ranged { background: #1a2433; color: #9ac8ff; }
-.tag-domain { font-size: 10px; padding: 0 5px; border-radius: 4px; background: #15302a; color: var(--soul2); text-transform: uppercase; letter-spacing: .06em; }
-.status { color: #c3b0ff; }
+.tag-domain { font-size: 10px; padding: 0 5px; border-radius: 4px; background: #15302a; color: var(--c-essence2); text-transform: uppercase; letter-spacing: .06em; }
+.status { color: var(--c-synergy); }
 .ct-foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line2); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
-.note-line { color: var(--soul2); }
+.note-line { color: var(--c-essence2); }
 .syn-tip { max-width: 300px; }
 .room-tip { width: 300px; }
 .rt-head { display: flex; gap: 8px; align-items: center; font: 600 16px var(--serif); }
 .rt-foot { margin-top: 8px; font-size: 12px; font-weight: 600; }
-.rt-foot.go { color: var(--soul); }
+.rt-foot.go { color: var(--c-essence); }
 .mini-grid { display: inline-flex; flex-direction: column; gap: 3px; margin: 8px 0 4px; }
 .mini-row { display: flex; gap: 3px; }
 .mini-cell { width: 30px; height: 30px; border-radius: 5px; background: #0f0a0e; border: 1px solid #2a1d26; display: grid; place-items: center; }
@@ -453,41 +497,6 @@ b { font-weight: 600; color: var(--bright); }
 .syn-table.flow { display: block; columns: 280px; column-gap: 22px; }
 .help-cols section.wide .syn-table { margin-bottom: 8px; }
 .syn-table.flow > div { break-inside: avoid; margin-bottom: 3px; }
-
-@media (max-width: 760px) {
-  .screen { padding: 0 14px 40px; }
-  .topbar { margin: 0 -14px; padding: 8px 14px; gap: 10px; }
-  /* Only the essence and the Monarch's HP stay in the top bar on a phone: the purse every price and bind is
-     read against (no hover there for the 'you have' tips), and the loss condition. The rest have panels. */
-  .chips { flex-wrap: nowrap; gap: 4px; min-width: 0; }
-  .chips > :not(.essence):not(.monarch) { display: none; }
-  .chip-stat { padding: 2px 7px; font-size: 11px; gap: 4px; }
-  .chip-stat.monarch .dim { display: none; }
-  .brand > span:not(.ico) { display: none; }
-  .floors.deep .pip.done { display: none; }
-  .steps { grid-template-columns: 1fr; }
-  .logo { font-size: 38px; }
-  .prep-head { grid-template-columns: 1fr; }
-  .begin-btn { justify-self: stretch; }
-  .side { min-width: 0; }
-  /* Seven lanes have to fit a phone: smaller cells, portraits scaled to match. At 39 px the camp grid and
-     the domain's outline (3 px past its cells) stay inside the panel at 390 px. */
-  .grid, .grid .row { gap: 4px; }
-  .cell { width: 39px; height: 39px; padding: 1px; gap: 1px; border-radius: 7px; }
-  .cell .portrait { zoom: .62; }
-  .cell .badge { font-size: 8px; top: 1px; right: 3px; }
-  .cell .bond-mark { font-size: 8px; top: 1px; left: 3px; }
-  .cell .hpbar { width: 30px; height: 3px; }
-  .cell.fallen::after { font-size: 7px; bottom: 2px; }
-  .rowname { width: 30px; font-size: 9px; letter-spacing: .04em; }
-  .gridlabel, .vs, .domain-key { margin-left: 34px; }
-  .domain-key, .gridlabel { min-width: calc(100% - 34px); }
-  .panel { padding: 12px 10px; }
-  .cell.dom::before { inset: -3px; }
-  .cell .falter-mark { font-size: 7px; top: 1px; left: 2px; }
-  .steps.four { grid-template-columns: 1fr; }
-  .legend .dim { display: none; }
-}
 .bar-slot { display: contents; }
 
 /* ── essence: the upgrade panel and path tiers ───────────────────────────────────────────────────── */
@@ -496,43 +505,35 @@ b { font-weight: 600; color: var(--bright); }
 .upgrade-hint { margin-top: 12px; }
 .paths { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .path { padding: 8px 10px; border: 1px solid var(--line2); border-radius: 8px; background: #141122; }
-.path.on { border-color: var(--blue); }
+.path.on { border-color: var(--c-path); }
 .buy { display: inline-flex; gap: 8px; align-items: center; margin-top: 6px; border-color: #2d5248; }
-.buy .price { display: inline-flex; gap: 3px; align-items: center; color: var(--soul2); font-weight: 700; }
+.buy .price { display: inline-flex; gap: 3px; align-items: center; color: var(--c-essence2); font-weight: 700; }
 .buy.poor { opacity: .5; cursor: not-allowed; }
-.buy.poor .price { color: var(--red); }
+.buy.poor .price { color: var(--c-foe); }
 .tiers { margin: 6px 0 0; padding-left: 0; list-style: none; font-size: 12px; color: var(--dim); }
 .tiers li { padding: 1px 0; }
 .tiers li b { display: inline-block; width: 2.2em; color: var(--dim); }
 .tiers li.held { color: var(--text); }
-.tiers li.held b { color: var(--blue); }
-.ct-path, .path-tag { color: var(--blue); font-size: 12px; }
+.tiers li.held b { color: var(--c-path); }
+.ct-path, .path-tag { color: var(--c-path); font-size: 12px; }
 
 /* ── the Monarch's panel ─────────────────────────────────────────────────────────────────────────── */
 .monarch-panel { margin-top: 14px; padding: 12px; border: 1px solid #5a4520; border-radius: 10px; background: #17130b; }
-.monarch-panel.on { border-color: var(--gold); box-shadow: 0 0 16px #e8b04b33; }
+.monarch-panel.on { border-color: var(--c-monarch); box-shadow: 0 0 16px color-mix(in srgb, var(--c-monarch) 20%, transparent); }
 .monarch-panel h2 { margin-top: 0; color: #f3d9a0; }
 .monarch-panel > p { margin: 8px 0 0; }
 .mstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .mstat { padding: 8px; border: 1px solid #3a2e14; border-radius: 8px; background: #120f09; display: flex; flex-direction: column; gap: 2px; }
 .mstat-name { display: flex; justify-content: space-between; align-items: baseline; }
-.mstat-pts { font: 600 18px var(--serif); color: var(--gold); }
+.mstat-pts { font: 600 18px var(--serif); color: var(--c-monarch); }
 .mstat .buy { align-self: flex-start; margin-top: auto; }
 .unit.monarch { border-color: #5a4520; }
-
-@media (max-width: 760px) {
-  .mstats { grid-template-columns: 1fr; }
-  .mstat { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-  .mstat-name { gap: 8px; }
-  .mstat .buy { margin: 0 0 0 auto; }
-}
 
 /* ── the army: banners in the camp, the reserve, the cohort and ossuary panels, binding ────────────── */
 /* A banner wears one colour (--b, set per cell): its captain's flag and its members' edges. Members are
    ghosted: they are counts, not souls, and their cells are open ground to a soul being placed. */
 .cell.member { border: 1px dashed var(--b, #5a5470); background: radial-gradient(circle at 50% 40%, #17142a, #0e0c17); }
 .cell.member .portrait { opacity: .55; filter: grayscale(.35) drop-shadow(0 2px 2px #000a); }
-.cell.member.falter .portrait { opacity: .4; }
 .cell.member.drop { background: #10201c; }
 .cell.member.led { box-shadow: 0 0 0 1px var(--b), 0 0 12px color-mix(in srgb, var(--b) 45%, transparent); }
 .cell.captain { border-color: var(--b); }
@@ -540,18 +541,13 @@ b { font-weight: 600; color: var(--bright); }
   position: absolute; top: 20px; left: 3px; min-width: 14px; height: 13px; padding: 0 3px; border-radius: 2px 2px 2px 0;
   background: var(--b); color: #0b0a12; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center;
 }
-.cell .under {
-  position: absolute; top: 16px; right: 2px; display: grid; place-items: center; width: 24px; height: 24px;
-  border: 1px dashed var(--b, #5a5470); border-radius: 5px; background: #0e0c17;
-}
-.cell .under .portrait { opacity: .75; }
 .reserve-strip {
   display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 0 0 58px; width: 0; min-width: calc(100% - 58px);
   padding: 6px 10px; border-radius: 8px; border: 1px dashed #2a2440; background: linear-gradient(180deg, #0b0a12, #060509); font-size: 12px;
 }
 .reserve-strip.on { border-color: #3a3258; }
 .rs-label { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
-.rs-count { color: var(--soul2); font-weight: 600; }
+.rs-count { color: var(--c-essence2); font-weight: 600; }
 .rs-bodies { display: flex; flex-wrap: wrap; gap: 2px; }
 .rs-body { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 5px; border-bottom: 2px solid var(--b, var(--line)); background: #120f1e; }
 .rs-body .portrait { opacity: .6; }
@@ -560,7 +556,7 @@ b { font-weight: 600; color: var(--bright); }
 .cohort-panel > p, .ossuary-panel > p { margin: 4px 0 8px; }
 .kinds { display: flex; flex-wrap: wrap; gap: 6px; }
 .kind { padding: 3px 8px 3px 4px; gap: 6px; font-size: 13px; }
-.kind.on { border-color: var(--soul); background: #15302a; color: var(--bright); }
+.kind.on { border-color: var(--c-essence); background: #15302a; color: var(--bright); }
 .kind.locked { opacity: .45; cursor: not-allowed; }
 .cohort-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
 .cohort-row b { min-width: 1.4em; text-align: center; font-size: 15px; }
@@ -568,11 +564,11 @@ b { font-weight: 600; color: var(--bright); }
 .step-btn[aria-disabled] { opacity: .4; cursor: not-allowed; }
 .shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0 8px; }
 .shape { flex-direction: column; gap: 4px; padding: 6px 4px; font-size: 12px; }
-.shape.on { border-color: var(--soul); background: #15302a; color: var(--bright); }
+.shape.on { border-color: var(--c-essence); background: #15302a; color: var(--bright); }
 .glyph { display: grid; gap: 1px; grid-auto-rows: 5px; min-height: 16px; align-content: center; }
 .glyph i { width: 5px; height: 5px; border-radius: 1px; }
-.glyph i.cap { background: var(--gold); }
-.glyph i.mem { background: var(--soul2); opacity: .7; }
+.glyph i.cap { background: var(--c-essence); }
+.glyph i.mem { background: var(--c-ossuary); opacity: .7; }
 .muster { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding: 8px; border: 1px solid var(--line2); border-radius: 8px; background: #0c0a16; }
 .muster .mstat-name { gap: 8px; }
 .muster .buy { margin: 0; }
@@ -582,19 +578,12 @@ b { font-weight: 600; color: var(--bright); }
 .bone .grow { flex: 1; min-width: 0; }
 .bone .fell { color: #c06070; }
 .o-bind { display: flex; align-items: center; border: 1px solid #3a3258; cursor: default; }
-.o-bind .offer-art { background: radial-gradient(circle, #a98bff33, transparent 68%); }
+.o-bind .offer-art { background: radial-gradient(circle, #b8ac9833, transparent 68%); }
 .o-bind .offer-art .portrait { opacity: .8; }
 .o-bind.locked { opacity: 1; cursor: default; }
 .stepper { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .stepper b { min-width: 1.6em; text-align: center; font-size: 16px; }
 .bind-btn { margin-top: auto; }
-
-@media (max-width: 760px) {
-  .reserve-strip { margin-left: 34px; min-width: calc(100% - 34px); }
-  .cell .flag { font-size: 7px; height: 10px; line-height: 10px; min-width: 10px; top: 12px; left: 1px; }
-  .cell .under { display: none; }
-  .shapes { grid-template-columns: repeat(2, 1fr); }
-}
 .reap-screen .center { max-width: 1100px; }
 .reap-screen .center > .panel { max-width: 820px; margin-left: auto; margin-right: auto; }
 
@@ -615,7 +604,7 @@ b { font-weight: 600; color: var(--bright); }
 /* A held soul waits behind the camp: ghosted on its own cell. */
 .cell.held { border: 1px dashed var(--d); }
 .cell.held .portrait { opacity: .4; filter: grayscale(.4) drop-shadow(0 2px 2px #000a); }
-.cell.pick { box-shadow: 0 0 0 2px var(--gold), 0 0 14px #e8b04b55; }
+.cell.pick { box-shadow: 0 0 0 2px var(--c-orders), 0 0 14px color-mix(in srgb, var(--c-orders) 33%, transparent); }
 .cell.square { box-shadow: inset 0 0 0 2px var(--q), inset 0 0 18px color-mix(in srgb, var(--q) 30%, transparent); }
 .cell.square.far { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--q) 40%, transparent); }
 .sq-tags { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; z-index: 1; }
@@ -625,7 +614,7 @@ b { font-weight: 600; color: var(--bright); }
 }
 .cell.square.far .sq-tag { opacity: .55; }
 .board.aiming .cell.aim { cursor: crosshair; }
-.board.aiming .cell.aim:hover { border-color: var(--soul2); box-shadow: 0 0 0 2px #8ff7d666; }
+.board.aiming .cell.aim:hover { border-color: var(--c-essence2); box-shadow: 0 0 0 2px #8ff7d666; }
 .board.aiming .cell.wall { cursor: not-allowed; }
 .grid.gap { display: flex; width: max-content; margin: 10px 0 12px; }
 .grid.gap .cell { height: 30px; background: #0c0b14; border: 1px dashed #2a2440; }
@@ -633,12 +622,12 @@ b { font-weight: 600; color: var(--bright); }
 .grid.gap .cell .sq-tags { top: 8px; }
 .rs-held { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 2px; border: 1px dashed var(--d); border-radius: 6px; }
 .rs-tag { padding: 0 4px; border-radius: 3px; background: var(--d); color: #0b0a12; font-size: 9px; font-weight: 700; line-height: 14px; white-space: nowrap; }
-.rs-body.soul { border-bottom-color: var(--gold); }
+.rs-body.soul { border-bottom-color: var(--c-essence); }
 .orders-panel { margin-top: 14px; padding: 12px; border: 1px solid #2c2a4a; border-radius: 10px; background: #100e1c; }
 .orders-panel h2 { margin-top: 0; }
 .pick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.pick-row button.on { border-color: var(--gold); color: var(--gold); background: #2a2210; }
-.picked { display: inline-flex; gap: 2px; padding: 1px 3px; border: 1px dashed var(--gold); border-radius: 6px; }
+.pick-row button.on { border-color: var(--c-orders); color: var(--c-orders); background: #101a2e; }
+.picked { display: inline-flex; gap: 2px; padding: 1px 3px; border: 1px dashed var(--c-orders); border-radius: 6px; }
 .det {
   margin-top: 10px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--d) 35%, var(--line)); border-left: 3px solid var(--d);
   border-radius: 8px; background: #0c0a16;
@@ -649,24 +638,14 @@ b { font-weight: 600; color: var(--bright); }
 .det-sw { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 5px; background: var(--d); color: #0b0a12; font-weight: 700; font-size: 12px; }
 .det-souls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0 2px; }
 .det-soul { padding: 1px; border-radius: 6px; }
-.det-soul.on { border-color: var(--soul); }
+.det-soul.on { border-color: var(--c-essence); }
 .det-soul.benched { opacity: .45; }
 .det-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .det-k { width: 40px; flex: none; }
 .det .segs .seg { padding: 3px 8px; font-size: 12px; }
 .det > p { margin: 6px 0 0; }
-.aim-hint { color: var(--soul2); }
+.aim-hint { color: var(--c-essence2); }
 .det .cohort-row { margin-top: 6px; }
-
-@media (max-width: 760px) {
-  .cell .det-tag { top: 24px; left: 1px; font-size: 7px; height: 10px; line-height: 10px; min-width: 10px; padding: 0 2px; }
-  .cell .start-tag { font-size: 6px; height: 9px; line-height: 9px; padding: 0 2px; top: 1px; left: 1px; }
-  .cell .det-dot { width: 5px; height: 5px; bottom: 2px; left: 2px; }
-  .sq-tag { font-size: 7px; min-width: 10px; height: 10px; line-height: 10px; }
-  .grid.gap .cell { height: 20px; }
-  .grid.gap .cell .sq-tags { top: 3px; }
-  .det-row { flex-wrap: wrap; }
-}
 /* The start buttons wrap as separate pills; aiming lights every cell the square may take. */
 .det .segs.wrap { display: flex; flex-wrap: wrap; gap: 4px; border: none; overflow: visible; }
 .det .segs.wrap .seg { border: 1px solid var(--line); border-radius: 7px; }
@@ -676,13 +655,12 @@ b { font-weight: 600; color: var(--bright); }
 /* ── ranks: insignia, the rank panel, the tiers past III, a Marshal's own domain ─────────────────── */
 /* A Knight's shield and a Marshal's standard sit in a captain's cell, bottom left; a second path's tier
    pips stack above the first's, in violet. */
-.cell .rank-mark { position: absolute; bottom: 8px; left: 3px; color: var(--gold); filter: drop-shadow(0 0 3px #000); }
-.cell .rank-mark.g2 { color: #ffd98a; }
+.cell .rank-mark { position: absolute; bottom: 8px; left: 3px; color: var(--c-knight); filter: drop-shadow(0 0 3px #000); }
+.cell .rank-mark.g2 { color: var(--c-marshal); }
 /* A detachment's tag takes the left edge under the flag: the insignia moves to the right edge, under the
-   level badge (left of a member's ghost, on a fallen soul's cell that holds one). */
+   level badge. */
 .cell:has(.det-tag) .rank-mark { display: flex; bottom: auto; top: 18px; left: auto; right: 4px; }
-.cell:has(.det-tag):has(.under) .rank-mark { right: 28px; }
-.cell .tier-pips.p2 { bottom: 18px; color: var(--violet); }
+.cell .tier-pips.p2 { bottom: 20px; color: var(--c-path2); }
 /* A Marshal's domain: a dashed square in its banner's colour (--m), drawn halfway into the gaps so the
    cells' pieces join up, just inside the Monarch's outline where the two meet. */
 .cell .mdom { position: absolute; inset: -3px; pointer-events: none; border: 0 dashed var(--m); border-radius: 3px; background: color-mix(in srgb, var(--m) 7%, transparent); }
@@ -698,35 +676,26 @@ b { font-weight: 600; color: var(--bright); }
 .rank-panel > p { margin: 6px 0 0; }
 .rank-row { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
 .rank-row .grow { flex: 1; min-width: 0; }
-.rank-ins { display: inline-flex; color: var(--gold); vertical-align: -2px; margin-right: 4px; }
+.rank-ins { display: inline-flex; color: var(--c-knight); vertical-align: -2px; margin-right: 4px; }
 .rank-ins.g0 { color: var(--dim); }
+.rank-ins.g2 { color: var(--c-marshal); }
 .rank-ins.big { width: 38px; height: 38px; flex: none; margin: 0; border-radius: 50%; display: grid; place-items: center; background: #1f1910; border: 1px solid #5a4520; }
 .rank-ins.big.g0 { border-color: var(--line); background: #141122; }
 .buy.promote { border-color: #5a4520; }
 .buy.promote .price { color: #f3d9a0; }
-.rank-tag { display: inline-flex; gap: 3px; align-items: center; margin: 0 2px 0 6px; color: var(--gold); font-size: 12px; }
-.ct-rank { display: flex; gap: 4px; align-items: center; color: var(--gold); font-size: 12px; }
+.rank-tag { display: inline-flex; gap: 3px; align-items: center; margin: 0 2px 0 6px; color: var(--c-knight); font-size: 12px; }
+.rank-tag.g2 { color: var(--c-marshal); }
+.ct-rank { display: flex; gap: 4px; align-items: center; color: var(--c-knight); font-size: 12px; }
+.ct-rank.g0 { color: var(--c-soldier); }
+.ct-rank.g2 { color: var(--c-marshal); }
 .ct-rank.g0 { color: var(--dim); }
-.path-tag.p2 { color: var(--violet); }
-.tier-iv { white-space: nowrap; font-size: 10px; letter-spacing: .04em; color: var(--gold); opacity: .75; }
+.path-tag.p2 { color: var(--c-path2); }
+.tier-iv { white-space: nowrap; font-size: 10px; letter-spacing: .04em; color: var(--c-knight); opacity: .75; }
 .path.second { border-style: dashed; }
-.path.second.on { border-color: var(--violet); }
+.path.second.on { border-color: var(--c-path2); }
 .path.clash { opacity: .6; }
 .path .shut { margin: 6px 0 0; }
 .rank-list { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; }
-
-@media (max-width: 760px) {
-  .cell .rank-mark { bottom: 3px; left: 1px; zoom: .7; }
-  /* A captain's flag fills the left edge above it there: the insignia rides beside the flag instead. */
-  .cell:has(.flag) .rank-mark { display: flex; bottom: auto; top: 18px; left: 22px; }
-  /* So does a detachment's tag, under the flag: the same spot, beside the flag and above the tag. */
-  .cell:has(.det-tag) .rank-mark { display: flex; bottom: auto; top: 18px; left: 22px; right: auto; }
-  .cell .mdom { inset: -2px; }
-}
-@media (max-width: 760px) {
-  .cell .tier-pips { font-size: 7px; bottom: 5px; right: 2px; }
-  .cell .tier-pips.p2 { bottom: 11px; }
-}
 /* ── keystones and trigger relics ─────────────────────────────────────────────────────────────── */
 /* A keystone rewrites a rule: carved-stone lilac, apart from the relics' gold and the binds' dim violet. */
 .o-keystone { border: 1px solid #8a6ad8; background: linear-gradient(180deg, #221a3a, #120e20); box-shadow: 0 0 0 1px #8a6ad833 inset, 0 0 22px #8a6ad826; }
@@ -740,21 +709,20 @@ b { font-weight: 600; color: var(--bright); }
 .chip-stat.keystones.on b { color: #e2d4ff; }
 .ks-tag, .trig-tag { display: inline-block; align-self: flex-start; margin: 2px 0; font-size: 10px; padding: 0 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: .08em; }
 .ks-tag { background: #2a2046; color: #c9b4ff; }
-.trig-tag { background: #2c2210; color: var(--gold); }
+.trig-tag { background: #2a170c; color: var(--c-relic); }
 .syn-table .trig-tag { margin: 0 4px; }
 /* Vanguard Crown: the captain the domain centres on wears a small crown. */
-.cell.centre { box-shadow: 0 0 12px #e8b04b44; }
-.cell .centre-mark { position: absolute; bottom: 9px; left: 4px; color: var(--gold); line-height: 0; filter: drop-shadow(0 0 3px #000); }
+.cell.centre { box-shadow: 0 0 12px color-mix(in srgb, var(--c-monarch) 27%, transparent); }
+.cell .centre-mark { position: absolute; bottom: 9px; left: 4px; color: var(--c-monarch); line-height: 0; filter: drop-shadow(0 0 3px #000); }
 /* A Knight's or Marshal's insignia holds that corner (unless a detachment tag moved it): the crown sits beside it. */
 .cell:has(.rank-mark):not(:has(.det-tag)) .centre-mark { left: 20px; }
-@media (max-width: 760px) { .cell:has(.rank-mark):not(:has(.det-tag)):not(:has(.flag)) .centre-mark { left: 13px; } }
 /* …and the domain's outline turns gold, as it does in battle. */
 .board.crowned .cell.dom::before { border-color: #c9a45a; }
 
 /* ── the enemy army: siege rooms, foe banners, waves still to come ────────────────────────────────── */
 .t-siege .medal, .room-ico.t-siege, .rt-head.t-siege { color: #ff9a5a; }
 .node.t-siege .medal { border-color: #6a3a22; }
-.node.reach.t-siege .medal { border-color: var(--soul); }
+.node.reach.t-siege .medal { border-color: var(--c-essence); }
 /* A foe captain wears a red flag with its cohort's size; its members stand a size smaller, edged like it. */
 .cell.foe-cap { --b: #f08a98; border-color: #8a3a4c; }
 .cell.foe-mem { border-style: dashed; border-color: #6a3040; }
@@ -783,18 +751,23 @@ b { font-weight: 600; color: var(--bright); }
 .wcell.has { background: #2a1520; border-color: #4a2432; cursor: default; }
 .wcell.cap { border-color: #b04a5c; }
 .wcell.mem { border-style: dashed; border-color: #6a3040; }
-.wave-pay { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; margin: 0 auto; padding: 5px 12px; border-radius: 99px; background: #141122; border: 1px solid #2d5248; color: var(--soul2); font-size: 13px; }
+.wave-pay { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; margin: 0 auto; padding: 5px 12px; border-radius: 99px; background: #141122; border: 1px solid #2d5248; color: var(--c-essence2); font-size: 13px; }
 .flavour { font: italic 12px/1.45 var(--serif); color: #c5aab4; }
-
-@media (max-width: 760px) {
-  .waves { margin-left: 34px; min-width: calc(100% - 34px); }
-  .cell.foe-mem .portrait { zoom: .55; }
-}
 
 /* The Monarch's approach tiles in the camp editor: the open tiles beside it, dashed red while no one holds
    them; a melee captain standing right behind another melee unit; a Monarch seat that seals souls in. */
 .cell.approach { outline: 1px dashed #e0566a55; outline-offset: -4px; }
 .cell.approach.bare { outline-color: #e0566acc; }
-.cell .behind-mark { position: absolute; bottom: 1px; left: 3px; font-size: 10px; font-weight: 700; color: var(--gold); text-shadow: 0 0 4px #000; }
-.cell.seal { border-color: var(--red); box-shadow: 0 0 10px #e0566a66; }
+.cell .behind-mark { position: absolute; bottom: 1px; left: 3px; font-size: 10px; font-weight: 700; color: var(--c-foe); text-shadow: 0 0 4px #000; }
+.cell.seal { border-color: var(--c-foe); box-shadow: 0 0 10px #e0566a66; }
 .line-key { margin-top: 4px; }
+
+/* ── keywords ─────────────────────────────────────────────────────────────────────────────────── */
+.kw { font-weight: 600; color: var(--k, var(--bright)); text-decoration: underline dotted color-mix(in srgb, var(--k, var(--bright)) 45%, transparent); text-underline-offset: 3px; cursor: help; }
+
+/* Reduced motion: nothing breathes, flows, beckons, rises or fades in; the states still show, standing still. */
+@media (prefers-reduced-motion: reduce) {
+  .sigil, .title-box, .note, .edge.open, .node.reach .medal, .overlay, .modal, .offer { animation: none; }
+  .node .medal { transition: none; }
+  .node:hover .medal { transform: none; }
+}

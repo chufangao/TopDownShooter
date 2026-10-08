@@ -1,0 +1,81 @@
+/* board: the retinue editor laid out round the prep board (board.js). The board itself is the battle's, drawn
+   by Phaser on the canvas behind the page (#game); .board-stage is a clear window onto it that takes the
+   pointer. The page shows the canvas through, the board fills what the screen leaves, the bench stands
+   beside it and the tray on the right; on a desktop it all fits the viewport, so nothing scrolls under it. */
+
+.screen:has(.board-stage) { background: transparent; }
+.retinue .board-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.board-main { display: flex; gap: 10px; min-height: 0; }
+.stage-wrap { position: relative; flex: 1; min-width: 0; }
+.board-stage { position: absolute; inset: 0; -webkit-user-select: none; user-select: none; outline: none; }
+.board-stage.kb:focus-visible { box-shadow: 0 0 0 2px var(--c-essence) inset; border-radius: var(--radius); }
+.board-stage.moving, .board-stage.aiming { cursor: crosshair; }
+.board-stage.dragging, body.dragging, body.dragging * { cursor: grabbing !important; }
+body.dragging { -webkit-user-select: none; user-select: none; }
+/* The dragged soul off the board, over the bench and the tray (the canvas lies under the page). */
+.drag-ghost {
+  position: fixed; left: 0; top: 0; z-index: 95; pointer-events: none; opacity: .92;
+  margin: calc(var(--s) * -0.62) 0 0 calc(var(--s) * -0.5); filter: drop-shadow(0 6px 10px #000c);
+}
+.drag-ghost .portrait { width: var(--s); height: var(--s); }
+
+/* The tray is a panel of its own now that the board has none. */
+.retinue .tray {
+  background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius); padding: 14px 16px;
+  box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(6px);
+}
+
+/* The legend, over the board's top right corner: the camp, the domain, the line and the approach, a Marshal's
+   own domain, in chips; the board draws each, the chip's tooltip tells the rule. A column in the corner, or
+   (data-form="row") a row along the top, right of the waves: board.js picks whichever leaves the board bigger. */
+.board-legend {
+  position: absolute; top: 0; right: 0; z-index: 1; width: 214px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 5px; font-size: 12px;
+}
+.board-legend[data-form="row"] { width: auto; max-width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
+.stage-wrap:has(.board-waves) .board-legend[data-form="row"] { max-width: calc(100% - 186px); }
+.board-legend .bk {
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 3px 10px; border-radius: 12px;
+  background: #0c0a14d9; border: 1px solid var(--line2); color: var(--text); cursor: default; text-align: right; justify-content: flex-end;
+}
+.board-legend .bk-camp b { color: var(--c-essence2); font-weight: 600; }
+.board-legend .bk.bare { border-color: #6a2a38; color: #ffb0bb; }
+.board-legend .bk.crowned .dk-box { border-color: #c9a45a; }
+.board-legend .dk-box, .board-legend .mk-box { width: 12px; height: 12px; }
+.lk-line { display: inline-block; width: 14px; border-top: 2px dashed #5fbf9f; }
+.lk-ring { display: inline-block; width: 14px; height: 7px; border: 2px solid var(--c-foe); border-radius: 50%; }
+
+/* The bench beside the board: a column of souls, and where a dragged soul is dropped to bench it. */
+.board-main .bench-row { margin: 0; }
+.bench .cell { cursor: grab; }
+.bench.target { box-shadow: 0 0 0 2px #5ef0c044, 0 0 18px #5ef0c033; }
+
+/* The waves still to come, over their corner of the board. */
+.board-waves { position: absolute; top: 0; left: 0; z-index: 1; display: flex; flex-direction: column; gap: 4px; max-width: 46%; }
+.board-waves .gridlabel { margin: 0; width: auto; min-width: 0; }
+.board-waves .waves { margin: 0; width: auto; min-width: 0; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
+.board-waves .wave-card { width: 168px; padding: 6px 8px; background: #120a10e6; }
+.board-waves .wcell { width: 19px; height: 19px; }
+
+/* The page fits the viewport (1024×768 at least): nothing scrolls under the board. */
+.prep-screen:has(.board-stage), .map-screen:has(.board-stage) { height: 100%; min-height: 0; display: flex; flex-direction: column; padding-bottom: 14px; }
+.prep-screen > .retinue, .map-body:has(.board-stage) { flex: 1; min-height: 0; }
+.map-body:has(.board-stage) { display: flex; flex-direction: column; }
+.map-body .camp-panel { flex: 1; min-height: 0; width: 100%; max-width: 1480px; margin: 0 auto; display: flex; }
+.retinue:has(.board-stage) {
+  /* The tray narrows on a smaller screen, so the board keeps most of the width. */
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, min(400px, 30vw)); gap: 16px; width: 100%; max-width: 1480px; margin: 12px auto 0;
+}
+.map-body .retinue { margin-top: 0; flex: 1; min-height: 0; }
+.retinue .tray { position: static; align-self: stretch; max-height: none; min-height: 0; overflow-y: auto; }
+.retinue .board-col { min-height: 0; }
+.board-main { flex: 1; }
+.board-main .bench-row { flex-direction: column; align-items: stretch; width: 84px; flex: none; gap: 6px; }
+.board-main .bench-row .rs-label { width: auto; text-align: center; }
+.board-main .bench { flex: 1; flex-direction: column; flex-wrap: nowrap; align-items: center; overflow-y: auto; min-height: 0; }
+.board-main .empty-bench { padding: 6px 4px; font-size: 12px; text-align: center; }
+/* A short screen: the tips strip goes, the room's head tightens. */
+@media (max-height: 760px) {
+  .prep-screen:has(.board-stage) > .guide { display: none; }
+  .prep-screen:has(.board-stage) > .prep-head { padding-top: 10px; padding-bottom: 10px; }
+}

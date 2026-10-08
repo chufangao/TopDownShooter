@@ -1,0 +1,102 @@
+/* feel: motion and the run's icon row. Screen fades (main.js show), the top bar's relic and keystone tiles,
+   the purse rolling and flashing as it changes (ui.js roll), the sound toggle, and the battle bar's essence
+   counter and playback states. Everything that moves stands still under prefers-reduced-motion. */
+
+/* ── screens ──────────────────────────────────────────────────────────────────────────────────── */
+/* Opacity only: a transform would make the screen the containing block of its fixed parts mid-fade. */
+/* The body fades, never the top bar it shares with the screen before (no black frame between the two), nor
+   the end screen's own sting. */
+.screen-in > :not(.topbar):not(.bar-slot):not(.sting) { animation: screen-in .18s ease-out; }
+@keyframes screen-in { from { opacity: 0; } }
+
+/* ── top bar ──────────────────────────────────────────────────────────────────────────────────── */
+.topbar .chips { flex: 0 1 auto; }
+.topbar .top-btns { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.topbar .top-btns .icon-btn { margin-left: 0; }
+/* Both speaker icons are drawn; sfx sets <html data-muted> and one shows. */
+.mute-btn .ico + .ico { display: none; }
+html[data-muted="1"] .mute-btn .ico:first-child { display: none; }
+html[data-muted="1"] .mute-btn .ico + .ico { display: inline-flex; }
+html[data-muted="1"] .mute-btn { color: #5a5470; }
+
+/* A tile per relic (gold) and keystone (lilac): its glyph, and its name's first letter in the corner. */
+.trinkets { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.trinket {
+  --tc: var(--c-relic);
+  position: relative; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; cursor: help;
+  color: var(--tc); background: color-mix(in srgb, var(--tc) 12%, #0c0a14); border: 1px solid color-mix(in srgb, var(--tc) 45%, transparent);
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+}
+.trinket i {
+  position: absolute; right: -5px; bottom: -5px; min-width: 15px; padding: 0 2px; border-radius: 4px;
+  font: 700 11px/14px var(--sans); font-style: normal; text-align: center; color: #0c0a14; background: var(--tc);
+}
+.trinket.t-keystone { --tc: var(--c-keystone); border-radius: 4px 4px 9px 9px; }
+/* A trigger relic (it fires in battle) wears a small spark at its top left. */
+.trinket.trig::before { content: ""; position: absolute; top: 2px; left: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; box-shadow: 0 0 5px currentColor; }
+.trinket:hover, .trinket:focus-visible { transform: translateY(-1px); border-color: currentColor; box-shadow: 0 0 10px color-mix(in srgb, currentColor 45%, transparent); outline: none; }
+.trinket.new { animation: trinket-in .5s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes trinket-in { from { transform: scale(.2) rotate(-20deg); opacity: 0; } 60% { box-shadow: 0 0 16px currentColor; } }
+/* A tile whose relic is still flying to it waits unseen (ui.js flyTrinket). */
+.trinket.arriving { visibility: hidden; }
+.floors .fl-deep { margin-left: 0; }
+
+/* ── arrivals: what is taken flies to where it now lives (ui.js flyOne) ─────────────────────────── */
+.fly-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+.flyer { position: absolute; left: 0; top: 0; display: inline-grid; place-items: center; will-change: transform, opacity; }
+.bone-chip {
+  width: 24px; height: 24px; border-radius: 50%; color: #2a2418;
+  background: radial-gradient(circle at 35% 30%, #fffaf0, var(--c-ossuary) 60%, #a89c80); box-shadow: 0 0 10px color-mix(in srgb, var(--c-ossuary) 60%, transparent);
+}
+.trinket-flyer { color: var(--c-relic); filter: drop-shadow(0 0 10px currentColor); }
+.trinket-flyer.f-keystone { color: var(--c-keystone); }
+.fly-word {
+  position: absolute; transform: translate(-50%, -100%); white-space: nowrap; pointer-events: none;
+  font: 700 14px/1 var(--sans); color: var(--c-ossuary); text-shadow: 0 0 10px #000, 0 0 3px #000;
+  animation: fly-word 1.1s ease-out forwards;
+}
+@keyframes fly-word { from { opacity: 0; transform: translate(-50%, -60%) scale(.7); } 15% { opacity: 1; transform: translate(-50%, -100%) scale(1.1); } 70% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -190%); } }
+@keyframes fly-word-still { from { opacity: 1; } 70% { opacity: 1; } to { opacity: 0; } }
+/* The ossuary's count in the top bar: bone, and the bodies standing. Bound bodies fly to it (ui.js flyBones). */
+.chip-stat.bodies { align-items: center; color: var(--c-ossuary); border-color: color-mix(in srgb, var(--c-ossuary) 30%, var(--line2)); cursor: help; }
+.chip-stat.bodies b { color: var(--bright); }
+.chip-stat.bodies.gain { animation: bones-gain .6s ease-out; }
+@keyframes bones-gain { 0% { transform: scale(1.16); border-color: var(--c-ossuary); box-shadow: 0 0 16px color-mix(in srgb, var(--c-ossuary) 60%, transparent); } }
+
+/* The purse and the Monarch's HP flash when they change: green up, red down (the number rolls meanwhile). */
+.chip-stat { transition: border-color .2s; }
+.chip-stat.gain { animation: gain .6s ease-out; }
+.chip-stat.spend { animation: spend .6s ease-out; }
+@keyframes gain { 0% { transform: scale(1.12); box-shadow: 0 0 14px #5ef0c0aa; border-color: var(--c-essence); background: #17302a; } }
+@keyframes spend { 0% { transform: scale(.94); box-shadow: 0 0 12px #e0566a88; border-color: var(--c-foe); background: #2a141a; } }
+
+/* ── battle bar ───────────────────────────────────────────────────────────────────────────────── */
+.battlebar { transition: border-color .2s, box-shadow .2s; }
+.purse {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px 3px 7px; border-radius: 99px; font-size: 13px;
+  color: var(--c-essence); background: #121c1a; border: 1px solid #2d5248; cursor: help;
+}
+.purse b { color: var(--c-essence2); min-width: 2ch; font-size: 14px; }
+.purse-plus { color: var(--dim); margin-right: -2px; }
+.purse.gain { animation: purse-gain .45s ease-out; }
+.purse.spend { animation: none; }
+@keyframes purse-gain { 0% { transform: scale(1.14); box-shadow: 0 0 18px #5ef0c0cc; background: #1c3a32; border-color: var(--c-essence); } }
+
+.battlebar .seg { gap: 5px; }
+.battlebar .seg kbd { min-width: 0; padding: 0 4px; font-size: 10px; line-height: 1.4; opacity: .75; }
+.battlebar .segs .seg.active { background: linear-gradient(180deg, #24493f, #17302a); color: var(--bright); box-shadow: 0 0 0 1px #5ef0c066 inset; }
+.battlebar .controls .mute-btn { padding: 5px; }
+/* Paused: the bar edged in plain light (no system's colour), the Resume button breathing. */
+.battlebar.paused { border-top-color: var(--text); box-shadow: 0 -1px 14px #ddd6e822; }
+.seg.pause { border: 1px solid var(--line); }
+.battlebar.paused .seg.pause { background: #2a2638; border-color: var(--text); color: var(--bright); animation: paused 1.4s ease-in-out infinite; }
+@keyframes paused { 50% { box-shadow: 0 0 0 1px #ddd6e866 inset, 0 0 12px #ddd6e844; } }
+/* Over: the speeds and pause no longer matter; Continue is the one thing to press. */
+.battlebar.over .seg.pause, .battlebar.over .segs { opacity: .4; pointer-events: none; }
+.battlebar.over .seg.skip { border-color: var(--c-essence); background: linear-gradient(180deg, #2c4d44, #17302a); color: var(--bright); box-shadow: 0 0 16px #5ef0c044; }
+.seg.skip { border: 1px solid var(--line); }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-in > *, .trinket.new, .chip-stat.gain, .chip-stat.spend, .chip-stat.bodies.gain, .purse.gain, .battlebar.paused .seg.pause { animation: none; }
+  .fly-word { animation-name: fly-word-still; }
+}

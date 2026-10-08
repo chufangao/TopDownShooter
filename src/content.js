@@ -1501,7 +1501,7 @@ export const ORDERS = {
 }
 
 // Each detachment's colour, by its id (1 to TUNING.army.detachments): its mark on the camp and the board.
-export const DETACHMENT_COLORS = ['#e8c15a', '#5ab4e8', '#e8708f', '#86d67a']
+export const DETACHMENT_COLORS = ['#f020c8', '#fcbdb5', '#5a5cff', '#1bab62']
 
 // ── camps ────────────────────────────────────────────────────────────────────────────────────
 
