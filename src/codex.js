@@ -530,14 +530,17 @@ export function threat (run, node) {
 export function threatMeter (run, node) {
   const t = threat(run, node)
   const share = t.theirs / (t.theirs + t.mine || 1)
-  return h('div', { class: `threat ${t.cls}` },
+  // The two powers behind the reading are in its tooltip: the word and the bar are what a glance needs.
+  const why = () => h('div', { class: 'syn-tip' }, h('b', null, `Threat: ${t.label}`), h('p', null, t.text),
+    h('p', null, `Their power ${Math.round(t.theirs)} against your field's ${Math.round(t.mine)}.`),
+    h('p', { class: 'dim' }, `Power weighs HP, ATK and speed, wounds and this floor's multipliers included. Yours counts the souls and cohorts on the board, at ×${TUNING.monarch.falter} outside the domain; the reserve, held detachments and the Monarch (it never strikes) add nothing.` +
+      (t.waves.length > 1 ? ` Their waves (${t.waves.map(Math.round).join(', ')}) come one after another, so they add as the root of their squares.` : '')))
+  return h('div', { class: `threat ${t.cls}`, tip: why },
     h('div', { class: 'threat-head' }, h('span', { class: 'dim' }, 'Threat '), h('b', null, t.label),
       h('span', { class: 'dim' }, ` · ${t.text}`)),
     h('div', { class: 'threat-bar' }, h('span', { class: 'theirs', style: `width:${share * 100}%` })),
     t.rules.length > 0 && h('div', { class: 'warn small', tip: () => 'Their 8-step rules hold in the deep. They bend the battle in ways no stat shows, so the meter does not weigh them: read it as the low end.' },
-      `Not counted: their ${t.rules.join(', ')}.`),
-    h('div', { class: 'threat-legend dim' }, h('span', { tip: () => `Their foes' power: HP, ATK and speed at this floor's multipliers and their own formation's synergies.${t.waves.length > 1 ? ` Its waves (${t.waves.map(Math.round).join(', ')}) come one after another, so they add as the root of their squares: a second wave as strong as the first adds about 40%, not 100%.` : ''}` }, `Their power ${Math.round(t.theirs)}`),
-      h('span', { tip: () => `Your fielded souls' power, and their cohorts' on the board: HP, ATK and speed, wounds included. Bodies outside the Monarch's domain count at their faltering damage (×${TUNING.monarch.falter}); the reserve, the detachments held behind the camp and the Monarch itself (it never strikes) add nothing.` }, `Your field ${Math.round(t.mine)}`)))
+      `Not counted: their ${t.rules.join(', ')}.`))
 }
 
 // ── rooms ────────────────────────────────────────────────────────────────────────────────────────

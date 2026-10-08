@@ -147,8 +147,24 @@ b { font-weight: 600; color: var(--bright); }
 }
 .guide > .link { font-size: 12px; }
 
+/* ── tabs ─────────────────────────────────────────────────────────────────────────────────────── */
+.tabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
+.tab {
+  background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px;
+  padding: 8px 9px; color: var(--dim); font-size: 13px; font-weight: 600; letter-spacing: .02em; gap: 5px;
+}
+.tab:hover:not(.on) { color: var(--text) !important; }
+.tab.on { color: var(--bright); border-bottom-color: var(--soul); }
+.tab kbd { font-size: 10px; min-width: 1.4em; }
+.tab-count { min-width: 16px; padding: 0 4px; border-radius: 99px; background: #17302a; color: var(--soul2); font-size: 11px; line-height: 17px; text-align: center; }
+.screen-tabs { max-width: 1040px; margin: 16px auto 0; }
+.screen-tabs .tab { font-size: 14px; padding: 10px 16px; }
+@media (max-width: 760px) { .tray { position: static; max-height: none; overflow: visible; } }
+.tab-body > h2:first-child, .tab-body > div:first-child > h2:first-child { margin-top: 0; }
+
 /* ── map ──────────────────────────────────────────────────────────────────────────────────────── */
-.cols { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 16px; align-items: flex-start; }
+.cols { display: flex; gap: 22px; flex-wrap: wrap; margin: 0 auto; max-width: 1040px; align-items: flex-start; }
+.camp-panel { max-width: 1040px; margin: 0 auto; }
 .mapcol { flex: none; width: 440px; max-width: 100%; }
 .side { flex: 1; min-width: 320px; }
 .dag { position: relative; margin: 0 auto; max-width: 400px; }
@@ -195,8 +211,11 @@ b { font-weight: 600; color: var(--bright); }
 .room-ico { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #1a1628; border: 1px solid var(--line); }
 .begin-btn { justify-self: end; }
 .retinue { display: flex; gap: 30px; flex-wrap: wrap; }
-.board { flex: none; }
-.tray { flex: 1; min-width: 260px; }
+.board-col { flex: none; }
+.tray { flex: 1; min-width: 280px; align-self: flex-start; position: sticky; top: 70px; max-height: calc(100vh - 86px); overflow-y: auto; overscroll-behavior: contain; }
+.bench-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 0 0; }
+.bench-row .rs-label { width: 48px; flex: none; text-align: right; }
+.bench-row .bench { flex: 1; min-height: 64px; }
 .gridlabel { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 8px 58px; color: var(--soul2); font-weight: 600; width: 0; min-width: calc(100% - 58px); }
 .gridlabel.foe { color: #f08a98; }
 .vs { display: flex; align-items: center; gap: 10px; margin: 14px 0 14px 58px; color: var(--dim); font: 600 12px var(--serif); letter-spacing: .3em; }

@@ -50,20 +50,13 @@ export function titleScreen ({ seed, onStart, onHelp }) {
 
 function topbar (run, onHelp) {
   const s = run.state
-  const chip = (label, value, text) => h('span', { class: 'chip-stat', tip: () => text }, h('span', { class: 'dim' }, label), h('b', null, value))
   return h('header', { class: 'topbar' },
     h('div', { class: 'brand' }, icon('soul', 20), h('span', null, 'RETINUE')),
     floorPips(s),
     h('div', { class: 'chips' },
-      h('span', { class: 'chip-stat essence', tip: () => `Essence: slain foes pay it. Spend it on levels and path tiers (select a soul in your camp), on recruits after a win, and on the Monarch's Dominion, Command and Will. ${s.stats.essence} earned, ${s.stats.spent} spent this run.` },
+      h('span', { class: 'chip-stat essence', tip: () => `Essence: slain foes pay it. Spend it on your souls, the Monarch and the ossuary. ${s.stats.essence} earned, ${s.stats.spent} spent this run.` },
         icon('soul', 14), h('b', null, s.essence)),
-      monarchChip(run),
-      chip('Souls', `${souls(s.party).length}/${rosterCap(run)}`, `Souls you hold, on the field and on the bench. You can hold up to ${rosterCap(run)}. The Monarch is not one of them.`),
-      chip('Bodies', armyCount(s, 'standing'), `Rank-and-file in the ossuary: ${armyCount(s, 'standing')} standing, ${armyCount(s, 'fallen')} fallen, all at muster level ${s.muster}. ${s.stats.bound} bound this run.`),
-      keystoneChip(run),
-      chip('Won', s.stats.wins, 'Battles won this run.'),
-      chip('Recruited', s.stats.reaped, 'Souls recruited after battles.'),
-      chip('Seed', s.seed, 'This run\'s seed. The same seed always makes the same run.')),
+      monarchChip(run)),
     h('button', { class: 'icon-btn', onclick: onHelp, tip: () => 'How to play (H)' }, icon('help', 20)))
 }
 
@@ -100,18 +93,6 @@ function monarchChip (run) {
   }, icon('crown', 14), h('span', { class: 'dim' }, `Lv ${m.lvl}`), h('b', null, `${m.hp}/${m.maxHp}`))
 }
 
-// The keystones held, of the most a run may hold, each with its rule.
-function keystoneChip (run) {
-  const ks = run.state.keystones
-  return h('span', {
-    class: 'chip-stat keystones' + (ks.length ? ' on' : ''),
-    tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Keystones ${ks.length}/${TUNING.keystone.max}`),
-      ks.length ? ks.map((id) => h('p', null, h('b', null, keystoneDef(id).name), h('span', { class: 'dim' }, ` · ${keystoneDef(id).desc}`)))
-        : h('p', null, 'None yet.'),
-      h('p', { class: 'dim' }, `Each rewrites a rule for the rest of the run. From floor ${TUNING.keystone.fromFloor}, won elites and rites offer ${TUNING.keystone.offer} at a time, free; a run holds at most ${TUNING.keystone.max}.`))
-  }, icon('keystone', 14), h('span', { class: 'dim' }, 'Keystones'), h('b', null, `${ks.length}/${TUNING.keystone.max}`))
-}
-
 // A dismissible strip of numbered steps for a screen; it remembers being closed.
 function guide (key, steps) {
   const el = h('div', { class: 'guide' })
@@ -125,6 +106,14 @@ function guide (key, steps) {
   }
   render()
   return el
+}
+
+// A row of tabs: [{ id, name, count?, key? }]. `count` is a small badge, shown when above 0; `key` its shortcut.
+function tabBar (tabs, on, pick, cls = '') {
+  return h('div', { class: 'tabs ' + cls, role: 'tablist' }, tabs.map((t) => h('button', {
+    class: 'tab' + (t.id === on ? ' on' : ''), role: 'tab', 'aria-selected': t.id === on ? 'true' : 'false',
+    onclick: () => pick(t.id), tip: t.tip
+  }, t.name, t.count > 0 && h('span', { class: 'tab-count' }, t.count), t.key && h('kbd', null, t.key))))
 }
 
 // ── map ──────────────────────────────────────────────────────────────────────────────────────────
@@ -181,30 +170,44 @@ export function mapScreen ({ run, trail, note = '', onNode, act, onHelp }) {
 
   // A floor is taller than the screen: the route scrolls, and opens on the room you stand in.
   const scroller = h('div', { class: 'dag-scroll' }, h('div', { class: 'dag', style: `height:${H}px` }, svg, nodes))
-  requestAnimationFrame(() => { scroller.scrollTop = pos(currentNode(run)).y - scroller.clientHeight / 2 })
+
+  // Two tabs: the route, with the retinue's wounds beside it; and the camp, to arrange and spend between rooms.
+  let tab = 'route'
+  const body = h('div')
+  const show = (id) => {
+    tab = id
+    fill(body,
+      tabBar([
+        { id: 'route', name: 'Route', key: 'R', tip: () => 'The floor\'s rooms: scout them and pick the next. (R)' },
+        { id: 'camp', name: 'Camp', key: 'C', tip: () => 'Arrange your souls and spend essence before the next room. (C)' }], tab, show, 'screen-tabs'),
+      tab === 'route'
+        ? h('div', { class: 'cols' },
+          h('section', { class: 'panel mapcol' },
+            h('h2', null, 'Route', h('span', { class: 'dim' }, ` · floor ${s.floor}${depthOf(s.floor) ? ` · deep ${depthOf(s.floor)}` : ''}`)),
+            scroller),
+          h('section', { class: 'panel side' },
+            h('h2', null, `Your retinue ${souls(s.party).length}/${rosterCap(run)}`),
+            h('div', { class: 'units' }, s.party.slice().sort(fieldOrder).map((u) => unitRow(run, u)))))
+        : h('div', { class: 'panel camp-panel' }, editor.el))
+    if (tab === 'route') requestAnimationFrame(() => { scroller.scrollTop = pos(currentNode(run)).y - scroller.clientHeight / 2 })
+  }
+  show('route')
 
   const el = h('div', { class: 'screen map-screen' },
     bar,
     note && h('div', { class: 'note' }, note),
     guide('map', [
-      [h('b', null, 'Hover'), ' any room to scout it: its foes, formation, waves and threat.'],
+      [h('b', null, 'Hover'), ' a room to scout it.'],
       [h('b', null, 'Click'), ' a glowing room (or press its number) to enter it.'],
-      [h('b', null, 'Arrange'), ' your souls on the field grid, now or just before the battle.']]),
-    h('div', { class: 'cols' },
-      h('section', { class: 'panel mapcol' },
-        h('h2', null, 'Route', h('span', { class: 'dim' }, ` · floor ${s.floor}${depthOf(s.floor) ? ` · deep ${depthOf(s.floor)}` : ''}`)),
-        scroller),
-      h('section', { class: 'panel side' },
-        editor.el,
-        h('h2', null, 'Relics'),
-        relicList(s.relics),
-        h('h2', null, 'Keystones'),
-        keystoneList(s.keystones))))
+      ['Open ', h('b', null, 'Camp'), ' to arrange your souls.']]),
+    body)
   return {
     el,
     key (e) {
       const n = reach[Number(e.key) - 1]
       if (n) onNode(n.id)
+      else if (e.key === 'r' || e.key === 'R') show('route')
+      else if (e.key === 'c' || e.key === 'C') show('camp')
       else editor.key(e)
     }
   }
@@ -260,11 +263,10 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
   const el = h('div', { class: 'screen prep-screen' },
     bar,
     guide('prep', [
-      ['Their formation is on top, yours below. ', h('b', null, 'Hover'), ' any unit for its stats and abilities.'],
-      [h('b', null, 'Click'), ' a soul or the Monarch, then a slot or another soul, to move or swap. Click the bench to bench the selected soul. A selected soul can lead a ', h('b', null, 'cohort'), ' from the ossuary.'],
-      [h('b', null, 'Shift-click'), ' souls to pick them for a ', h('b', null, 'detachment'), ', then give it orders: Hunt, Stay or Move to a square, at once or held behind the camp until a start.'],
-      [holds(s, 'crown') ? 'Souls outside the ' : 'Souls outside the Monarch\'s ', h('b', null, 'domain'), holds(s, 'crown') ? ' (the gold outline, on your front-most captain: Vanguard Crown)' : ' (the green outline)', ' falter, unless a Marshal\'s own (dashed, in its banner\'s colour) holds them. Your camp\'s ', h('b', null, 'walls'), ' block walking but not bolts. ', h('b', null, '◆'), ' marks a soul in a formation bond.'],
-      ['Press ', h('b', null, 'Begin'), ' when ready. You cannot act once the battle starts. ', h('b', null, 'If the Monarch falls, the run ends.')]]),
+      [h('b', null, 'Click'), ' a soul, then a cell, to move it. ', h('b', null, 'Hover'), ' anything for details.'],
+      [h('b', null, 'Shift-click'), ' souls to give them orders.'],
+      ['Keep souls inside the ', h('b', null, holds(s, 'crown') ? 'gold' : 'green'), ' domain, or they falter.'],
+      ['Press ', h('b', null, 'Begin'), '. ', h('b', null, 'If the Monarch falls, the run ends.')]]),
     h('div', { class: 'panel prep-head' },
       h('div', { class: 'ph-title' },
         h('span', { class: `room-ico t-${node.type}` }, icon(node.type, 22)),
@@ -284,8 +286,7 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
             h('p', { class: 'warn' }, `Losing ends the run: the Monarch falling loses at once, and so does a battle still undecided ${TUNING.tick.ceiling * TUNING.tick.ms / 1000} s after the start, or after the last foe entered.`))
           : 'The Monarch has fallen.'
       }, icon('play', 16), ' Begin ', h('kbd', null, 'Enter'))),
-    h('div', { class: 'panel' }, editor.el),
-    h('section', { class: 'panel' }, h('h2', null, 'Relics'), relicList(s.relics), h('h2', null, 'Keystones'), keystoneList(s.keystones)))
+    h('div', { class: 'panel' }, editor.el))
   return {
     el,
     key (e) {
@@ -580,8 +581,9 @@ export function battleBar () {
 
 // ── the retinue editor ───────────────────────────────────────────────────────────────────────────
 
-// The camp, the bench, the Monarch's panel, the ossuary (rank-and-file counts and the muster), synergies
-// and bonds. Click a soul (or the Monarch), then a cell or another soul, to move or swap them; click the
+// The camp and the bench, with a tray of tabs beside them, one open at a time: the selected soul, the
+// Monarch's panel, the orders, the ossuary (rank-and-file counts and the muster), and the bonuses in
+// effect (synergies, bonds, relics, keystones). Click a soul (or the Monarch), then a cell or another soul, to move or swap them; click the
 // bench to bench a soul. The Monarch stands on some open cell always: it never goes to the bench, and no
 // benched soul takes its cell. Its domain is outlined on the camp, and on their formation when it reaches
 // that far; souls outside it are marked as faltering. A selected soul's panel gives it a cohort; each
@@ -649,6 +651,10 @@ const marshalSquares = (marshals, r, c, past = true) => marshals.filter((m) => m
 const oneWay = (s, d, mTile, domain) => d.plan.where === 'move' && distance(d.plan.square, mTile) > domain &&
   fielded(s.party).some((u) => d.members.includes(u.uid) && u.hp > 0 && marshalOf(s, u) !== u)
 
+// The tray's open tab, kept across screens (and visits, while storage allows) so it stays where you left it.
+const TRAY = ['soul', 'monarch', 'orders', 'ossuary', 'bonuses']
+let trayTab = TRAY.includes(prefs.get('tray')) ? prefs.get('tray') : 'soul'
+
 function retinueEditor ({ run, act, facing = null, onChange = null }) {
   const s = run.state
   const el = h('div', { class: 'retinue' })
@@ -665,6 +671,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   let picking = false
   let aim = null
   let observer = null
+  // The tray's last selection and pick count, to open the right tab when either changes.
+  let lastSel = null
+  let lastPick = 0
 
   // Every action clears the selection, but a purchase, a cohort or an order keeps it, so you can go on.
   function send (action) {
@@ -1407,8 +1416,8 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
       h('div', { class: 'gridlabel', tip: () => `Your camp on this floor. Each floor draws a different one. ${fieldSouls.length} of up to ${cap} souls stand on the field as captains (${fieldRule(run)}), and the Monarch with them. ${ARMY_TEXT.board}` },
         `Your camp: ${campDef(s.camp).name} `, h('span', { class: 'dim' }, `${fieldSouls.length}/${cap} souls${alive < fieldSouls.length ? ` · ${alive} standing` : ''}${held.size ? ` · ${held.size} held` : ''} · ${onBoard}/${board} bodies`)),
       h('div', { class: 'grid camp' }, fieldGrid),
-      h('div', {
-        class: 'reserve-strip' + (waiting ? ' on' : ''),
+      waiting > 0 && h('div', {
+        class: 'reserve-strip on',
         tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Behind the camp: the reserve'), h('p', null, ARMY_TEXT.board),
           heldBy.length > 0 && [h('p', null, ORDER_TEXT.held),
             heldBy.map(([d, bs]) => h('p', { class: 'dim' }, `Detachment ${d.id} (${bs.map((b) => unitDef(b.id).name).join(', ')}) enters ${whenText(d.plan.when)}.`))],
@@ -1423,7 +1432,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
       army.reserve.length
         ? [h('span', { class: 'rs-count' }, `${army.reserve.length} sit out`),
             h('span', { class: 'rs-bodies' }, army.reserve.map((b) => h('span', { class: 'rs-body', style: banner(b.cohortOf) }, portrait(b.id, 22))))]
-        : !heldBy.length && h('span', { class: 'dim' }, `No reserve: ${onBoard}/${board} bodies on the board.`)),
+        : null),
       h('div', {
         class: 'domain-key',
         tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'The Monarch\'s domain'),
@@ -1440,39 +1449,60 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
           h('p', { class: 'dim' }, 'Outlined here around where each Marshal starts; in battle it moves with the Marshal.'))
       }, marshals.map(({ x, colour }) => h('span', { class: 'mk' }, h('i', { class: 'mk-box', style: `--m:${colour}` }), `${unitDef(x.id).name}: ${TUNING.ranks.domain} tiles`)),
       h('span', { class: 'dim' }, 'Its banner never falters within it.')))
+    // The bench sits under the board: it is where a selected soul is dropped to bench it.
+    const benchEl = h('div', { class: 'bench-row' },
+      h('span', { class: 'rs-label', tip: () => 'Souls here are kept but do not fight, and lead no cohort into battle. Swap them onto the field at any time before a battle. The Monarch never comes here.' }, `Bench ${bench.length}`),
+      h('div', {
+        class: 'bench' + (benchable(moving) ? ' target' : ''),
+        onclick: (e) => { if (e.target === e.currentTarget) clickBenchSpace() },
+        tip: () => benchable(moving) ? `Click empty space here to bench ${unitDef(moving.id).name}.`
+          : moving && isMonarch(moving) ? 'The Monarch never goes to the bench.' : 'Benched souls. Select a soul on the field, then click here to bench it.'
+      },
+      bench.length
+        ? bench.map((u) => h('button', {
+          class: 'cell has' + (picked === u ? ' sel' : '') + (u.hp <= 0 ? ' fallen' : '') + (colours.has(u.uid) ? ' captain' : ''),
+          style: styles(banner(u.uid), detOf(u) && `--d:${detOf(u).color}`),
+          onclick: (e) => clickBench(u, e),
+          tip: () => soulTip(u, 'On the bench: does not fight.',
+            picked === u ? 'Click again to deselect.' : moving && isMonarch(moving) ? 'The Monarch cannot trade places with a benched soul.'
+              : moving && moving.slot >= 0 ? `Click to swap it with ${unitDef(moving.id).name} on the field.`
+                : sel?.slot != null ? (full() ? fullText(u) : 'Click to place it in the selected cell.') : 'Click to select, then click a field slot to place it.')
+        }, cellBody(u, false, false, null, null, detOf(u))))
+        : h('span', { class: 'dim empty-bench', onclick: clickBenchSpace }, benchable(moving) ? 'Click here to bench the selected soul.' : 'Empty.')))
+
+    // The tray: one tab at a time. Selecting a soul opens its tab, the Monarch its own, and picking souls
+    // for a detachment the orders (unless the orders are already open: there a click joins or starts one).
+    const selUid = picked ? picked.uid : null
+    if (selUid !== null && selUid !== lastSel && trayTab !== 'orders') trayTab = isMonarch(picked) ? 'monarch' : 'soul'
+    if (pick.length > lastPick || aim != null) trayTab = 'orders'
+    lastSel = selUid
+    lastPick = pick.length
+    const synergies = synergyTracker(all, alias)
+    const tabs = [
+      { id: 'soul', name: 'Soul', tip: () => 'The selected soul: its level, path, rank and cohort.' },
+      { id: 'monarch', name: 'Monarch', tip: () => 'Dominion, Command and Will: the Monarch\'s three stats.' },
+      { id: 'orders', name: 'Orders', count: s.detachments.length, tip: () => 'Detachments and their plans: Hunt, Stay or Move, now or later.' },
+      { id: 'ossuary', name: 'Ossuary', count: armyCount(s, 'standing'), tip: () => 'Your rank-and-file bodies and the muster level they fight at.' },
+      { id: 'bonuses', name: 'Bonuses', count: synergies.querySelectorAll('.syn.on').length + s.relics.length + s.keystones.length, tip: () => 'Synergies, bonds, relics and keystones in effect.' }]
+    const pickTab = (id) => { trayTab = id; prefs.set('tray', id); render() }
+    const body = {
+      soul: () => picked && !isMonarch(picked)
+        ? [cohortPanel(picked), rankPanel(picked), upgradePanel(picked)]
+        : h('p', { class: 'dim upgrade-hint' }, picked
+          ? 'The Monarch grows by its own points: see the Monarch tab.'
+          : `Select a soul in the camp to level it, give it a cohort or promote it. You have ${s.essence} essence.`),
+      monarch: () => monarchPanel(picked && isMonarch(picked)),
+      orders: () => ordersPanel(picked),
+      ossuary: () => ossuaryPanel(),
+      bonuses: () => [h('h2', null, 'Synergies'), synergies, h('h2', null, 'Bonds'), bondTracker(all, alias),
+        h('h2', null, 'Relics'), relicList(s.relics), h('h2', null, 'Keystones'), keystoneList(s.keystones)]
+    }
     fill(el,
-      boardEl,
+      h('div', { class: 'board-col' }, boardEl, benchEl),
       h('div', { class: 'tray' },
-        h('h2', { tip: () => 'Souls here are kept but do not fight, and lead no cohort into battle. Swap them onto the field at any time before a battle. The Monarch never comes here.' },
-          'Bench ', h('span', { class: 'dim' }, `${bench.length} · benched souls do not fight`)),
-        h('div', {
-          class: 'bench' + (benchable(moving) ? ' target' : ''),
-          onclick: (e) => { if (e.target === e.currentTarget) clickBenchSpace() },
-          tip: () => benchable(moving) ? `Click empty space here to bench ${unitDef(moving.id).name}.`
-            : moving && isMonarch(moving) ? 'The Monarch never goes to the bench.' : 'Benched souls. Select a soul on the field, then click here to bench it.'
-        },
-        bench.length
-          ? bench.map((u) => h('button', {
-            class: 'cell has' + (picked === u ? ' sel' : '') + (u.hp <= 0 ? ' fallen' : '') + (colours.has(u.uid) ? ' captain' : ''),
-            style: styles(banner(u.uid), detOf(u) && `--d:${detOf(u).color}`),
-            onclick: (e) => clickBench(u, e),
-            tip: () => soulTip(u, 'On the bench: does not fight.',
-              picked === u ? 'Click again to deselect.' : moving && isMonarch(moving) ? 'The Monarch cannot trade places with a benched soul.'
-                : moving && moving.slot >= 0 ? `Click to swap it with ${unitDef(moving.id).name} on the field.`
-                  : sel?.slot != null ? (full() ? fullText(u) : 'Click to place it in the selected cell.') : 'Click to select, then click a field slot to place it.')
-          }, cellBody(u, false, false, null, null, detOf(u))))
-          : h('span', { class: 'dim empty-bench', onclick: clickBenchSpace }, benchable(moving) ? 'Click here to bench the selected soul.' : 'Empty.')),
+        tabBar(tabs, trayTab, pickTab),
         error && h('p', { class: 'warn' }, error),
-        ordersPanel(picked),
-        picked && !isMonarch(picked) ? [cohortPanel(picked), rankPanel(picked), upgradePanel(picked)] : h('p', { class: 'dim upgrade-hint' }, picked
-          ? 'The Monarch is not levelled like a soul: it grows by the points below. Click an open cell to move it.'
-          : `Select a soul to spend essence on it or give it a cohort: you have ${s.essence}.`),
-        monarchPanel(picked && isMonarch(picked)),
-        ossuaryPanel(),
-        h('h2', null, 'Synergies'),
-        synergyTracker(all, alias),
-        h('h2', null, 'Bonds'),
-        bondTracker(all, alias)))
+        h('div', { class: 'tab-body' }, body[trayTab]())))
     drawArrows(boardEl, arrows)
   }
 
