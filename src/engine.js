@@ -6,7 +6,7 @@ import { TUNING } from './tuning.js'
 import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES } from './content.js'
 import { stepBattle, nextCost, rulesOf, escalation } from './sim/battle.js'
 import { foeEssence } from './sim/run.js'
-import { tileX, tileY, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf } from './sim/unit.js'
+import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy } from './dom.js'
 import { frame } from './frame.js'
@@ -28,7 +28,8 @@ export function createEngine (parent) {
     game,
     // Resolves once the pictures are loaded (the prep board, board.js, waits on it too).
     ready: loaded,
-    // data: { battle (fresh, from createBattle), title, barHeight(), onChange(state), onHover(unit | null, rect),
+    // data: { battle (fresh, from createBattle), title, stage() (the viewport rect the board fits in), hud (the
+    // chrome's words: start, hp, announce), onChange(state), onHover(unit | null, rect),
     // onDone(), essence (what the purse multiplies a slain foe's essence by: 1 + the relics'), seamless (the prep
     // board fades into it: no fade in from black),
     // death (what felled the Monarch, codex.js deathText, for the end's replay beat) }. Resolves with the scene
@@ -289,21 +290,90 @@ export function placeHorde (a, x, y, depth, scale, alpha, breath = 0) {
   })
 }
 
+// ── the board on screen ──────────────────────────────────────────────────────────────────────────
+
+// The board lies on its side (DESIGN §4), the Bloons TD way, so it can take the screen's width: its long axis, the
+// DEPTH rows from your camp's rear to their back row, runs across, your camp on the right beside the panel (a soul
+// dragged from the ossuary has the shortest way to go) and theirs on the left, where the foes come in; its LANES
+// lanes run down it, lane 1 at the bottom (the board turned a quarter, never mirrored). A tile is TILE_W wide and
+// TILE_H tall, a unit's feet FOOT below its centre (it stands in its cell, its head only a little over the one
+// above). The sim's tiles are untouched: here, and only here, a tile becomes a point (posOf: where a unit's feet
+// stand) and a point a tile (tileUnder); the prep board (board.js) uses the same.
+const TILE_W = 76
+const TILE_H = 68
+const FOOT = 12
+const HALF_W = DEPTH * TILE_W / 2
+const HALF_H = LANES * TILE_H / 2
+const posOf = (tile) => ({ x: ((DEPTH - 1) / 2 - tileY(tile)) * TILE_W, y: ((LANES - 1) / 2 - tileX(tile)) * TILE_H + FOOT })
+// The tile whose cell holds world point (x, y), or off the board the nearest.
+function tileUnder (x, y) {
+  const clamp = (v, n) => Math.max(0, Math.min(n - 1, v))
+  return tileAt(clamp(Math.round((LANES - 1) / 2 - y / TILE_H), LANES), clamp(Math.round((DEPTH - 1) / 2 - x / TILE_W), DEPTH))
+}
+// The world box of the cells of lanes x0 to x1 and rows y0 to y1 (inclusive, either order), inset by `pad`.
+function cellsBox (x0, x1, y0, y1, pad = 0) {
+  return {
+    l: ((DEPTH - 1) / 2 - Math.max(y0, y1)) * TILE_W - TILE_W / 2 + pad,
+    r: ((DEPTH - 1) / 2 - Math.min(y0, y1)) * TILE_W + TILE_W / 2 - pad,
+    t: ((LANES - 1) / 2 - Math.max(x0, x1)) * TILE_H - TILE_H / 2 + pad,
+    b: ((LANES - 1) / 2 - Math.min(x0, x1)) * TILE_H + TILE_H / 2 - pad
+  }
+}
+// The world box the camera keeps in view: the board, with room over its top lane for the heads of who stands
+// there, and a little under its bottom lane.
+const BOX = { l: -HALF_W - 8, r: HALF_W + 8, t: -HALF_H - 38, b: HALF_H + 6 }
+// Your side faces left, across the board at theirs; theirs faces right (the pictures face right).
+const facesLeft = (side) => side === 'party'
+
+// The camera onto `box` (world) inside `rect` (viewport), as large as it fits, at most `max`: its zoom, and a
+// world point with the viewport point it shows at. → { z, wx, wy, sx, sy }
+export function fitBox (rect, box, max = 1.35) {
+  const z = Math.max(0.25, Math.min(max, (rect.width - 8) / (box.r - box.l), (rect.height - 6) / (box.b - box.t)))
+  return { z, wx: (box.l + box.r) / 2, wy: (box.t + box.b) / 2, sx: rect.left + rect.width / 2, sy: rect.top + rect.height / 2 }
+}
+
+// The square a ring or a domain covers round `tile` (`r` tiles every way, clipped to the board), as a world box.
+export function ringBox (tile, r, pad = 0) {
+  const [x, y] = [tileX(tile), tileY(tile)]
+  return cellsBox(Math.max(0, x - r), Math.min(LANES - 1, x + r), Math.max(0, y - r), Math.min(DEPTH - 1, y + r), pad)
+}
+
+// The ground both boards stand on (the prep board's and the battle's, so one fades into the other): the crypt
+// floor, a vignette and the dark past it, a dais under your camp and one under their formation, a seam of
+// soulfire down the open ground between, and drifting motes.
+export function drawGround (scene) {
+  scene.add.tileSprite(0, 0, 4200, 3200, 'floor').setTileScale(0.6).setAlpha(0.62).setDepth(-1000)
+  const [vw, vh] = [2 * HALF_W + 1100, 2 * HALF_H + 1000]
+  scene.add.image(0, 0, 'vignette').setDisplaySize(vw, vh).setDepth(-999)
+  for (const [x, y, w, h] of [[0, -vh / 2 - 1500, 9000, 3000], [0, vh / 2 + 1500, 9000, 3000], [-vw / 2 - 2000, 0, 4000, vh], [vw / 2 + 2000, 0, 4000, vh]]) {
+    scene.add.rectangle(x, y, w + 2, h + 2, 0x06050a, 0.96).setDepth(-999)
+  }
+  const g = scene.add.graphics().setDepth(-401)
+  for (const [y0, y1, colour] of [[0, CAMP_ROWS - 1, PARTY], [DEPTH - ROWS, DEPTH - 1, FOE]]) {
+    const b = cellsBox(0, LANES - 1, y0, y1, -10)
+    g.fillStyle(colour, 0.045).fillRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 18)
+    g.lineStyle(1, colour, 0.22).strokeRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 18)
+  }
+  const seam = ((DEPTH - 1) / 2 - (CAMP_ROWS + DEPTH - ROWS - 1) / 2) * TILE_W
+  scene.add.image(seam, 0, 'glow').setDisplaySize(26, 2 * HALF_H + 200).setTint(NEUTRAL).setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(-390)
+  scene.add.particles(0, 0, 'glow', {
+    x: { min: -HALF_W - 60, max: HALF_W + 60 }, y: { min: -HALF_H - 40, max: HALF_H + 40 }, lifespan: 7000,
+    speedY: { min: -14, max: -4 }, speedX: { min: -6, max: 6 }, scale: { start: 0.14, end: 0 }, alpha: { start: 0.45, end: 0 },
+    tint: [SOUL, NEUTRAL], frequency: 160, blendMode: 'ADD'
+  }).setDepth(-300)
+}
+
 // ── battle scene ─────────────────────────────────────────────────────────────────────────────────
 
-// The battle screen: the shared board, the party's walled camp at the bottom and the foes at the top.
-// It steps the battle on the same clock that plays the events back. Pause, speed and skip change only the
-// playback; the outcome was fixed when it began.
+// The battle screen: the shared board, your walled camp on the right and the foes on the left. It steps the
+// battle on the same clock that plays the events back. Pause, speed and skip change only the playback; the
+// outcome was fixed when it began.
 
-const ROW_PX = 64     // between board rows
-const SPREAD = 84     // between lanes
-const EDGE = (DEPTH - 1) / 2 * ROW_PX // board centre → the top and bottom rows
-const rowY = (y) => ((DEPTH - 1) / 2 - y) * ROW_PX
 const WALK_MS = 300
 // A flanker's vault over bodies: base + perBody per body vaulted, at most max (a unit steps every 800 ms).
 const LEAP_MS = { base: 340, perBody: 120, max: 700 }
 const LEAP_HURRY = 3
-const AIR = 2 * EDGE + 2 * ROW_PX // depth added while vaulting: above every unit, below the FX
+const AIR = 2 * HALF_H + 2 * TILE_H // depth added while vaulting: above every unit, below the FX
 const SCALE = 0.95      // world px per unit of a picture's viewBox
 const WALL_SCALE = 1
 const BREATH = 0.014    // idle breathing: the share of its height a unit swells by
@@ -311,8 +381,6 @@ const REST = { lean: 0, sx: 0, sy: 0, dx: 0, dy: 0 } // a unit's pose at rest: s
 const BAR = 46
 const BAR_DROP = 14     // from the feet down to the HP bar, clear of the pictures' ground details
 const PIP_SPAN = 78     // a soul's tiers stand within this width under its bars, inside its lane
-const BAR_PX = 56     // fallback height of the DOM playback bar under the canvas
-const HEADROOM = 70    // at least this much room above their back row for its heads, under their labels
 const ECHO_MS = 260     // Echo (Channeler 8): its second pass lands this long after the first
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif'
@@ -348,18 +416,12 @@ class BattleScene extends Phaser.Scene {
     this.playMs = this.battle.t * TUNING.tick.ms
     this.ending = false
     this.hover = null
-    this.crown = null
     this.domainArt = null
     // The end's replay beat (finish), drawn each frame once the battle is lost (drawEnd).
     this.endBeat = null
     this.endG = null
-    this.topRoom = null // room above the board for their labels: see decorate
-    this.bottomRoom = null // and below it, for yours and the Monarch's HP
     this.small = [] // labels kept legible as the camera zooms (fit)
-    this.labelArt = null // the labels round the board (layoutLabels)
-    this.announced = new Set() // `side|rule`: the rules already named across the board this battle
-    this.banners = { party: 0, foe: 0 } // announcements showing, by side, to stack them
-    this.ruleBand = null // where a side's rules are announced: over its labels (see decorate)
+    this.announced = new Set() // `side|rule`: the rules already named this battle
     this.noisy = new Map() // `side|rule` → playMs its name last rose, for the NOISY rules
   }
 
@@ -430,39 +492,19 @@ class BattleScene extends Phaser.Scene {
     this.args.onReady?.(this)
   }
 
+  // The camera onto the board inside the page's stage for it (args.stage(): a viewport rect, the room the
+  // battle's chrome leaves; the whole canvas without one), as large as it fits: the prep board's own view.
   fit () {
-    const { width, height } = this.scale
     const cam = this.cameras.main
-    const bar = this.args.barHeight?.() || BAR_PX
-    // The board, with room for the labels: this.topRoom above it (their labels, over their back row's heads),
-    // this.bottomRoom below (yours, the Monarch's HP); see decorate.
-    const zoom = this.zoomFor(width, height, bar)
-    const [top, bottom] = [this.topRoom ?? 110, this.bottomRoom ?? 110]
-    cam.setZoom(zoom)
-    cam.centerOn(0, bar / 2 / zoom + (bottom - top) / 2)
-    for (const t of this.small ?? []) legible(t, zoom)
+    const c = this.game.canvas.getBoundingClientRect()
+    const r = this.args.stage?.() ?? c
+    if (!r.width || !r.height) return
+    const v = fitBox(r, BOX)
+    cam.setViewport(0, 0, Math.round(c.width), Math.round(c.height))
+    cam.setZoom(v.z)
+    cam.centerOn(v.wx - (v.sx - c.left - cam.width / 2) / v.z, v.wy - (v.sy - c.top - cam.height / 2) / v.z)
+    for (const t of this.small ?? []) legible(t, v.z)
     this.placeDomain()
-    // The page's panels beside the board (args.hud: the titles, synergies, the Monarch's HP) stand in the bands
-    // left and right of it: they are told where the board stands, in viewport px.
-    const hud = this.args.hud
-    if (hud) {
-      const c = this.game.canvas.getBoundingClientRect()
-      const [sx, sy] = [c.width / width || 1, c.height / height || 1]
-      const cy = bar / 2 / zoom + (bottom - top) / 2
-      const at = (wx, wy) => ({ x: c.left + (width / 2 + wx * zoom) * sx, y: c.top + (height / 2 + (wy - cy) * zoom) * sy })
-      const bandW = LANES * SPREAD + 90
-      const a = at(-bandW / 2, -EDGE - top)
-      const b = at(bandW / 2, EDGE + bottom)
-      hud.place({ left: a.x, top: a.y, right: b.x, bottom: b.y, floor: c.top + (height - bar) * sy })
-    }
-  }
-
-  // The camera's zoom for a canvas of width × height px with the playback bar under it.
-  zoomFor (width, height, bar) {
-    const [top, bottom] = [this.topRoom ?? 110, this.bottomRoom ?? 110]
-    // With the page's panels beside it (args.hud), the board leaves each band at least hud.side() px wide.
-    const sides = 2 * (this.args.hud?.side() ?? 0)
-    return Math.max(0.3, Math.min(1.5, (height - bar) / (2 * EDGE + top + bottom), (width - sides) / (LANES * SPREAD + 100)))
   }
 
   update (time, delta) {
@@ -494,7 +536,7 @@ class BattleScene extends Phaser.Scene {
       a.sprite.angle = p.lean
       a.sprite.setOrigin(0.5 - p.dx / a.sprite.displayWidth, FEET - (p.dy - a.lift) / a.sprite.displayHeight)
       // The dead lie under the living who step over them.
-      a.sprite.setDepth(a.gone ? a.sprite.y - ROW_PX / 2 : a.sprite.y + (a.lift > 0 ? AIR : 0))
+      a.sprite.setDepth(a.gone ? a.sprite.y - TILE_H / 2 : a.sprite.y + (a.lift > 0 ? AIR : 0))
       a.shadow.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 2)
       a.ring.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 1)
       // The bars lie on the ground under the feet, sorted with the units: whoever stands in front draws
@@ -610,7 +652,7 @@ class BattleScene extends Phaser.Scene {
   // ── stage ────────────────────────────────────────────────────────────────────────────────────
 
   posFor (tile) {
-    return { x: (tileX(tile) - (LANES - 1) / 2) * SPREAD, y: rowY(tileY(tile)) }
+    return posOf(tile)
   }
 
   // A shadow (u.shadow, raised by Arise, or on the foes' side by Grave Tide) wears the shade pictures; the
@@ -625,7 +667,7 @@ class BattleScene extends Phaser.Scene {
     const crowned = u.uid === this.monarch
     const side = u.shadow ? (theirs ? 0xe0a0bc : RISE) : u.side === 'party' ? PARTY : FOE
     const sprite = this.add.image(home.x, home.y, `${skin}:${art}:alive`).setOrigin(0.5, FEET).setDepth(home.y)
-      .setFlipX(u.side === 'foe')
+      .setFlipX(facesLeft(u.side))
     const whole = this.units.get(u.uid) ?? u
     const n = u.count ?? 1
     const front = n > 1 ? HORDE.front : 1
@@ -852,7 +894,7 @@ class BattleScene extends Phaser.Scene {
     const n = a.gone ? 0 : Math.max(0, Math.ceil(a.hp / a.body - 1e-9))
     const fell = n < a.living && n > 0
     a.living = n
-    for (const o of syncHorde(this, a, n, `${a.skin}:${a.art}:alive`, a.side === 'foe')) if (fell) this.dust.explode(8, o.x, o.y - 4)
+    for (const o of syncHorde(this, a, n, `${a.skin}:${a.art}:alive`, facesLeft(a.side))) if (fell) this.dust.explode(8, o.x, o.y - 4)
     a.count.setText(`×${n}`).setVisible(n > 1)
   }
 
@@ -887,12 +929,13 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: this.parts(a), alpha: 0, delay, duration: 400 })
   }
 
-  // Arise: the beam reaches the corpse, the corpse sinks away, and its shadow climbs out of the ground in a
-  // ring of pale light. It runs as the beam is cast, not at its impact, because the shadow may step or act
-  // within the same few ticks; its picture comes up as the beam lands. The Sovereign's Grave Tide raises the
-  // field's dead the same way on the foes' side, in a bruised-rose light, and so does a Legion there. The
-  // Legion (Undead 8, `ev.rule`) raises with no beam and no actor (ev.actor may be null), the moment its
-  // corpse falls: it waits for the fall to land.
+  // Arise: the beam reaches the corpse, the corpse sinks away, and its shadow climbs out of the ground where it
+  // lay in a ring of pale light, then glides, a wisp trailing it, to the tile it rises on (DESIGN §2.7: the free
+  // tile nearest the Monarch; `from` is the corpse's). It runs as the beam is cast, not at its impact, because the
+  // shadow may step or act within a few ticks: a step takes the glide over from wherever it has got to (walk). The
+  // Sovereign's Grave Tide raises the field's dead the same way on the foes' side, in a bruised-rose light, and so
+  // does a Legion there. The Legion (Undead 8, `ev.rule`) raises with no beam and no actor (ev.actor may be null),
+  // the moment its corpse falls: it waits for the fall to land.
   arise (ev) {
     const LAND = ev.rule === 'legion' ? 620 : 340
     const glow = ev.unit.side === 'foe' ? ROT : RISE
@@ -904,6 +947,9 @@ class BattleScene extends Phaser.Scene {
     }
     this.addActor(ev.unit)
     const a = this.actors.get(ev.unit.uid)
+    const from = ev.from != null && ev.from !== ev.unit.tile ? this.posFor(ev.from) : null
+    const at = from ?? a.home
+    if (from) a.sprite.setPosition(from.x, from.y)
     a.rise.v = 0
     a.pose = { ...REST, sx: -0.3, sy: -0.75 }
     for (const part of this.parts(a)) part.setAlpha(0)
@@ -914,12 +960,26 @@ class BattleScene extends Phaser.Scene {
       { to: { sx: -0.3, sy: -0.75 }, ms: LAND },
       { to: { sx: 0.08, sy: 0.1, dy: -6 }, ms: 380, ease: 'Back.Out' },
       { to: REST, ms: 260 }])
-    const ring = this.add.image(a.home.x, a.home.y + 4, 'glow').setTint(glow).setBlendMode(Phaser.BlendModes.ADD)
-      .setDisplaySize(30, 10).setAlpha(0).setDepth(a.home.y - 1)
+    const ring = this.add.image(at.x, at.y + 4, 'glow').setTint(glow).setBlendMode(Phaser.BlendModes.ADD)
+      .setDisplaySize(30, 10).setAlpha(0).setDepth(at.y - 1)
     this.tweens.add({
       targets: ring, displayWidth: 120, displayHeight: 34, alpha: { from: 0.9, to: 0 }, delay: LAND, duration: 700, ease: 'Cubic.Out',
-      onStart: () => this.burst(a.home.x, a.home.y - 4, glow, 16, { up: true, speed: 90 }),
+      onStart: () => this.burst(at.x, at.y - 4, glow, 16, { up: true, speed: 90 }),
       onComplete: () => ring.destroy()
+    })
+    if (!from) return
+    // The glide: longer the further it goes, never long; a wisp trails it, stopped on time whatever cuts it short.
+    const go = LAND + 520
+    const ms = Math.min(900, 380 + 70 * Math.hypot(a.home.x - from.x, a.home.y - from.y) / TILE_W)
+    const trail = this.add.particles(0, 0, 'spark', {
+      emitting: false, lifespan: 460, speed: 10, scale: { start: 0.55, end: 0 }, alpha: { start: 0.8, end: 0 }, tint: glow, frequency: 22, blendMode: 'ADD'
+    }).setDepth(9399)
+    trail.startFollow(a.sprite, 0, -a.chest)
+    this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, delay: go, duration: ms, ease: 'Sine.InOut', onStart: () => trail.start() })
+    this.time.delayedCall(go + ms, () => {
+      trail.stop()
+      this.time.delayedCall(600, () => trail.destroy())
+      if (!a.gone) this.burst(a.sprite.x, a.sprite.y - 4, glow, 8, { up: true, speed: 50 })
     })
   }
 
@@ -942,13 +1002,13 @@ class BattleScene extends Phaser.Scene {
     this.burst(a.home.x, a.home.y - 4, glow, 8, { up: true, speed: 50 })
   }
 
-  // A foe of a later wave comes down out of the dark past the far edge onto its tile in a few hops, a red glow
-  // where it lands. A step it takes meanwhile carries it on from wherever it has got to (see walk).
+  // A foe of a later wave comes in out of the dark past the far (left) edge onto its tile in a few hops, a red
+  // glow where it lands. A step it takes meanwhile carries it on from wherever it has got to (see walk).
   march (a) {
     const MS = 560
-    a.sprite.setY(a.home.y - ROW_PX * 1.3)
+    a.sprite.setX(a.home.x - TILE_W * 1.3)
     this.tweens.add({ targets: a.rise, v: 1, duration: MS * 0.6, ease: 'Sine.Out' })
-    this.tweens.add({ targets: a.sprite, y: a.home.y, duration: MS, ease: 'Sine.Out' })
+    this.tweens.add({ targets: a.sprite, x: a.home.x, duration: MS, ease: 'Sine.Out' })
     this.tweens.add({ targets: this.parts(a), alpha: 1, delay: MS * 0.6, duration: 300 })
     this.animate(a, [
       { to: { sy: 0.05, dy: -8 }, ms: MS * 0.25, ease: 'Sine.Out' },
@@ -961,16 +1021,16 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: ring, displayWidth: 90, displayHeight: 26, alpha: { from: 0.6, to: 0 }, delay: MS * 0.7, duration: 500, ease: 'Cubic.Out', onComplete: () => ring.destroy() })
   }
 
-  // A foe wave arrives (sim event `wave`, just before its first foe enters): its name across the open ground,
-  // and a red glow along the far edge. A later wave, or the Sovereign and its court.
+  // A foe wave arrives (sim event `wave`, just before its first foe enters): its name over the top of the board,
+  // and a red glow down the far (left) edge. A later wave, or the Sovereign and its court.
   waveBanner (k) {
     const w = this.waves[k]
     const title = w?.boss ? 'THE HOLLOW SOVEREIGN COMES' : `THE ${ORDINAL[k] ?? `${k + 1}TH`} WAVE`
     const sub = w ? `${w.size} ${w.size === 1 ? 'foe enters' : 'foes enter'} from the far edge${w.boss ? ', its court about it' : ''}` : 'More foes enter from the far edge'
-    const edge = this.add.image(0, -EDGE - ROW_PX / 2, 'glow').setTint(FOE).setBlendMode(Phaser.BlendModes.ADD)
-      .setDisplaySize(LANES * SPREAD + 160, 46).setAlpha(0).setDepth(-350)
+    const edge = this.add.image(-HALF_W - TILE_W / 2, 0, 'glow').setTint(FOE).setBlendMode(Phaser.BlendModes.ADD)
+      .setDisplaySize(46, 2 * HALF_H + 160).setAlpha(0).setDepth(-350)
     this.tweens.add({ targets: edge, alpha: { from: 0.75, to: 0 }, duration: 1800, ease: 'Quad.In', onComplete: () => edge.destroy() })
-    const y = rowY((CAMP_ROWS + DEPTH - ROWS - 1) / 2)
+    const y = -HALF_H + TILE_H * 0.9
     // Its two lines legible at the zoom (labelSize), the plate round them.
     const z = this.cameras.main.zoom
     const head = this.text(0, 0, title, labelSize(17, z), '#ff8a9a', 4, faceFor(17, z)).setOrigin(0.5, 0).setDepth(9600).setAlpha(0)
@@ -978,7 +1038,7 @@ class BattleScene extends Phaser.Scene {
     const ph = head.height + line.height + 12
     head.setY(y - ph / 2 + 5)
     line.setY(head.y + head.height + 1)
-    const plate = this.add.rectangle(0, y, Math.max(LANES * SPREAD - 60, head.width + 40, line.width + 40), ph, 0x07060b, 0.84).setStrokeStyle(1, FOE, 0.45).setDepth(9590).setAlpha(0)
+    const plate = this.add.rectangle(0, y, Math.max(HALF_W, head.width + 40, line.width + 40), ph, 0x07060b, 0.84).setStrokeStyle(1, FOE, 0.45).setDepth(9590).setAlpha(0)
     this.tweens.add({ targets: [plate, head, line], alpha: 1, duration: 200 })
     this.tweens.add({ targets: [plate, head, line], alpha: 0, delay: 1700, duration: 500, onComplete: () => { plate.destroy(); head.destroy(); line.destroy() } })
     this.shake(180, 0.003)
@@ -1002,12 +1062,12 @@ class BattleScene extends Phaser.Scene {
     if (!w || w.shown || w.paid <= 0) return
     w.shown = true
     const name = `WAVE ${k + 1}`
-    // Popups shown together stack down the open ground.
+    // Popups shown together stack down the board's middle.
     const now = this.playMs
     this.payStack = now - (this.payAt ?? -1e9) < 900 ? (this.payStack ?? 0) + 1 : 0
     this.payAt = now
     const size = labelSize(12, this.cameras.main.zoom)
-    const y = rowY(DEPTH - ROWS) + ROW_PX * 0.55 + this.payStack * size * 1.6
+    const y = -TILE_H + this.payStack * size * 1.6
     const from = Math.min(1, Math.max(0.6, labelPx('word') / (size * this.cameras.main.zoom)))
     const t = this.text(0, y, `${name} SLAIN · +${Math.round(w.paid)} ESSENCE`, size, C.soul2, 3).setOrigin(0.5).setDepth(9550).setScale(from)
     if (from < 1) this.tweens.add({ targets: t, scale: 1, duration: 140, ease: 'Back.Out' })
@@ -1041,27 +1101,10 @@ class BattleScene extends Phaser.Scene {
   }
 
   decorate (start) {
-    const bandW = LANES * SPREAD + 90
-    this.add.tileSprite(0, 0, 4200, 3200, 'floor').setTileScale(0.6).setAlpha(0.62).setDepth(-1000)
-    // The vignette, and past it the dark it fades to, as the prep board's (board.js ground): a wide screen sees
-    // no hard edge where the floor's picture stops, and the panels beside the board stand on the dark.
-    const [vw, vh] = [bandW + 1100, 2 * EDGE + 1000]
-    this.add.image(0, 0, 'vignette').setDisplaySize(vw, vh).setDepth(-999)
-    for (const [x, y, w, h] of [[0, -vh / 2 - 1500, 9000, 3000], [0, vh / 2 + 1500, 9000, 3000], [-vw / 2 - 2000, 0, 4000, vh], [vw / 2 + 2000, 0, 4000, vh]]) {
-      this.add.rectangle(x, y, w + 2, h + 2, 0x06050a, 0.96).setDepth(-999)
-    }
-    // A dais under the camp and under the foes' formation, a seam of soulfire across the open ground
-    // between, the camp's walls, and a rune under every other tile; the tiles the battle starts on glow.
+    drawGround(this)
+    // The camp's walls, and a rune under every other tile, in its side's colour; the tiles the battle starts on glow.
     const g = this.add.graphics().setDepth(-400)
     const zone = (y) => (y < CAMP_ROWS ? PARTY : y >= DEPTH - ROWS ? FOE : NEUTRAL)
-    for (const [y0, y1, colour] of [[0, CAMP_ROWS - 1, PARTY], [DEPTH - ROWS, DEPTH - 1, FOE]]) {
-      const top = rowY(y1) - 40
-      const h = rowY(y0) - rowY(y1) + 80
-      g.fillStyle(colour, 0.045).fillRoundedRect(-bandW / 2, top, bandW, h, 18)
-      g.lineStyle(1, colour, 0.22).strokeRoundedRect(-bandW / 2, top, bandW, h, 18)
-    }
-    const seam = rowY((CAMP_ROWS + DEPTH - ROWS - 1) / 2)
-    this.add.image(0, seam, 'glow').setDisplaySize(bandW + 260, 26).setTint(NEUTRAL).setAlpha(0.35).setBlendMode(Phaser.BlendModes.ADD).setDepth(-390)
     const walls = new Set(start.walls)
     for (const tile of walls) {
       const p = this.posFor(tile)
@@ -1078,117 +1121,27 @@ class BattleScene extends Phaser.Scene {
       g.lineStyle(1.2, colour, on ? 0.5 : 0.14).strokeEllipse(p.x, p.y + 6, 50, 15)
       if (on) this.add.image(p.x, p.y + 6, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(70, 22).setAlpha(0.3).setDepth(-380)
     }
-    // Drifting motes of soulfire.
-    this.add.particles(0, 0, 'glow', {
-      x: { min: -bandW / 2 - 60, max: bandW / 2 + 60 },
-      y: { min: -EDGE - 68, max: EDGE + 68 },
-      lifespan: 7000,
-      speedY: { min: -14, max: -4 },
-      speedX: { min: -6, max: 6 },
-      scale: { start: 0.14, end: 0 },
-      alpha: { start: 0.45, end: 0 },
-      tint: [SOUL, NEUTRAL],
-      frequency: 160,
-      blendMode: 'ADD'
-    }).setDepth(-300)
-
+    // The words (their title and synergies, yours, the Monarch's HP) stand in the page's chrome (args.hud).
     const syn = (side) => topSteps(start.synergies.filter((s) => s.side === side).map((s) => s.id))
-    // The labels round the board are drawn at sizes that stay legible at the camera's zoom (labelSize), and the
-    // zoom depends on the room they take (fit): they are laid out at the zoom the room they need now gives, and
-    // again (at most twice) while that shrinks it.
-    const { width, height } = this.scale
-    const bar = this.args.barHeight?.() || BAR_PX
-    let z = this.zoomFor(width, height, bar)
-    for (let i = 0; i < 3; i++) {
-      for (const o of this.labelArt ?? []) o.destroy()
-      this.layoutLabels(start, z, syn)
-      const next = this.zoomFor(width, height, bar)
-      if (next >= z * 0.98) break
-      z = next
-    }
-
+    this.args.hud?.start({ title: this.args.title ?? `FLOOR ${this.battle.floor}`, theirs: syn('foe'), mine: syn('party'), monarch: start.monarch != null })
     const m = start.units.find((u) => u.uid === start.monarch)
     if (!m) return
     this.drawDomain(m.tile)
     this.crownHp(m)
   }
 
-  // Theirs above the board (their title over their synergies), yours below it (left), and the Monarch's HP
-  // (right, with the reserve's lines under it), each at least labelPx on screen at zoom `z`; then the room each
-  // side takes past the board (this.topRoom, this.bottomRoom), which the camera keeps in view (fit).
-  layoutLabels (start, z, syn) {
-    const bandW = LANES * SPREAD + 90
-    const art = this.labelArt = []
-    // Their back row's heads (a deep room can fill it): the room kept above it.
-    const heads = Math.max(HEADROOM, ...start.units.filter((u) => u.side === 'foe' && tileY(u.tile) === DEPTH - 1)
-      .map((u) => this.textures.get(`unit:${unitDef(u.id).art}:alive`).getSourceImage().height / RES * SCALE * FEET + 6))
-    // With the page's panels beside the board (args.hud), the words go there, and the board keeps only the room
-    // for the heads above it and the bars and tiers under it.
-    const hud = this.args.hud
-    if (hud) {
-      this.crown = null
-      this.ruleBand = null
-      this.topRoom = heads + 8
-      this.bottomRoom = BAR_DROP + 32
-      hud.start({ title: this.args.title ?? `FLOOR ${this.battle.floor}`, theirs: syn('foe'), mine: syn('party'), monarch: start.monarch != null })
-      return
-    }
-    const W = (size) => labelSize(size, z, 'word')
-    const keep = (o) => { art.push(o); return o }
-    const label = (y, text, colour, size, font = FONT, room = 0) => keep(this.text(-bandW / 2 + 12, y, text, W(size), colour, 0, font)
-      .setWordWrapWidth(bandW - 24 - room).setDepth(-300))
-    // The Monarch's HP, large, bottom right: when it runs out the battle and the run are lost. As wide as its
-    // name and the largest HP it could read take; your labels leave it that room on the right.
-    const hx = bandW / 2 - 12
-    const y0 = EDGE + 28
-    const hasM = start.monarch != null
-    let w = 0
-    let bottom = y0
-    this.crown = null
-    if (hasM) {
-      const name = keep(this.text(0, y0, 'THE MONARCH', W(14), C.monarch, 0, faceFor(14, z)).setDepth(-300))
-      const hpText = keep(this.text(hx, y0 + 1, '9999 / 9999', labelSize(14, z, 'num'), C.monarch, 0).setOrigin(1, 0).setDepth(-300))
-      w = Math.max(212, name.width + hpText.width + 18)
-      name.setX(hx - w)
-      const by = y0 + Math.max(name.height, hpText.height) + 8
-      keep(this.add.rectangle(hx - w / 2, by, w + 4, 9, 0x07060b, 0.92).setStrokeStyle(1, 0x5a4520).setDepth(-300))
-      const hpTrail = keep(this.add.rectangle(hx - w, by, w, 5, 0xfff1d0, 0.85).setOrigin(0, 0.5).setDepth(-299))
-      const hpBar = keep(this.add.rectangle(hx - w, by, w, 5, PARTY).setOrigin(0, 0.5).setDepth(-298))
-      this.crown = { text: hpText, bar: hpBar, trail: hpTrail, w }
-      bottom = by + 6
-    }
-    const room = hasM ? w + 28 : 0
-    // Theirs stand above their back row, clear of its heads, the title over their synergies however many lines
-    // those wrap to.
-    const theirs = label(-EDGE - heads, syn('foe').join('  ·  ') || 'no synergies', '#9a5a62', 11).setOrigin(0, 1)
-    const title = label(theirs.y - theirs.height - 3, this.args.title ?? `FLOOR ${this.battle.floor}`, '#f08a98', 16, faceFor(16, z)).setOrigin(0, 1)
-    this.topRoom = Math.max(110, -EDGE - title.y + title.height + 10)
-    const mine = label(y0, 'YOUR RETINUE', C.soul2, 16, faceFor(16, z), room)
-    const mineSyn = label(y0 + mine.height + 2, syn('party').join('  ·  ') || 'no synergies', C.synergy, 11, FONT, room)
-    bottom = Math.max(bottom, mineSyn.y + mineSyn.height)
-    this.bottomRoom = Math.max(110, bottom - EDGE + 10)
-    // A rule is announced over its side's labels, left of the Monarch's HP: off the board, where the blows land.
-    this.ruleBand = { x: -bandW / 2 + 12, party: (y0 + bottom) / 2, foe: theirs.y - theirs.height / 2 }
-  }
-
   // The domain: every tile within `this.domain` of `centre` (the Monarch's), clipped to the board.
   drawDomain (centre) {
-    const [mx, my, r] = [tileX(centre), tileY(centre), this.domain]
-    const [x0, x1] = [Math.max(0, mx - r), Math.min(LANES - 1, mx + r)]
-    const [y0, y1] = [Math.max(0, my - r), Math.min(DEPTH - 1, my + r)]
-    const left = (x0 - (LANES - 1) / 2) * SPREAD - SPREAD / 2 + 4
-    const right = (x1 - (LANES - 1) / 2) * SPREAD + SPREAD / 2 - 4
-    const dtop = rowY(y1) - ROW_PX / 2 + 2
-    const dbottom = rowY(y0) + ROW_PX / 2 - 2
+    const box = ringBox(centre, this.domain, 4)
     const d = this.add.graphics().setDepth(-395)
-    d.fillStyle(DOMAIN, 0.035).fillRoundedRect(left, dtop, right - left, dbottom - dtop, 12)
-    d.lineStyle(1.5, DOMAIN, 0.4).strokeRoundedRect(left, dtop, right - left, dbottom - dtop, 12)
+    d.fillStyle(DOMAIN, 0.035).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
+    d.lineStyle(1.5, DOMAIN, 0.4).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
     // Just outside the box, on a dark plate (as the prep board's: board.js drawDomain), over the units (no body
     // cuts it), at whichever corner covers fewest of them (placeDomain).
-    const label = domainLabel(this, r).setDepth(7000)
+    const label = domainLabel(this, this.domain).setDepth(7000)
     legible(label, this.cameras.main.zoom, 'word')
     ;(this.small ??= []).push(label)
-    this.domLabel = { t: label, box: { l: left, r: right, t: dtop, b: dbottom } }
+    this.domLabel = { t: label, box }
     this.placeDomain()
     this.domainArt = [d, label]
   }
@@ -1204,8 +1157,7 @@ class BattleScene extends Phaser.Scene {
       const s = a.sprite.getBounds()
       blocked.push({ l: s.x + s.width * 0.15, r: s.right - s.width * 0.15, t: s.y, b: a.sprite.y + BAR_DROP + 8 })
     }
-    const bandW = LANES * SPREAD + 90
-    placeOutside(d.t, d.box, { l: -bandW / 2, r: bandW / 2, t: -EDGE - (this.topRoom ?? 110), b: EDGE + (this.bottomRoom ?? 110) }, blocked)
+    placeOutside(d.t, d.box, BOX, blocked)
   }
 
   // Undying: a captain that just fell is up again at once, on its own tile. Its fall is cut short: it slumps
@@ -1249,17 +1201,9 @@ class BattleScene extends Phaser.Scene {
     else a.trail.width = w
   }
 
-  // The HUD's Monarch HP, from its actor (or the start unit): red once it runs low.
+  // The chrome's Monarch HP (args.hud), from its actor (or the start unit).
   crownHp (a) {
     this.args.hud?.hp(Math.max(0, a.hp), a.maxHp)
-    const c = this.crown
-    if (!c) return
-    const f = Math.max(0, a.hp / a.maxHp)
-    c.text.setText(`${Math.max(0, a.hp)} / ${a.maxHp}`).setColor(f < 0.35 ? '#ff8a9a' : C.monarch)
-    c.bar.width = c.w * f
-    c.bar.setFillStyle(f < 0.35 ? 0xff6a7a : PARTY)
-    this.tweens.killTweensOf(c.trail)
-    this.tweens.add({ targets: c.trail, width: c.w * f, delay: 260, duration: 380, ease: 'Quad.Out' })
   }
 
   // A burst of sparks in one colour; one emitter per colour, made on first use.
@@ -1332,7 +1276,7 @@ class BattleScene extends Phaser.Scene {
         targets: orb,
         tweens: [
           { y: orb.y - 30, scale: 0.6, duration: 380, ease: 'Sine.Out' },
-          { x: 0, y: EDGE + 108, scale: 0.25, alpha: 0.2, duration: 900, ease: 'Cubic.In' }
+          { x: HALF_W + 120, y: 0, scale: 0.25, alpha: 0.2, duration: 900, ease: 'Cubic.In' }
         ],
         onComplete: done
       })
@@ -1353,7 +1297,7 @@ class BattleScene extends Phaser.Scene {
   // The counter in the playback bar, in world space (the bar lies over the canvas); else below the camp.
   purseSpot () {
     const r = this.purseAt?.()
-    if (!r?.width) return { x: 0, y: EDGE + 108 }
+    if (!r?.width) return { x: HALF_W + 120, y: 0 }
     const p = this.cameras.main.getWorldPoint(r.left + r.width / 2, r.top + r.height / 2)
     return { x: p.x, y: p.y }
   }
@@ -1496,25 +1440,9 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
-  // A rule's name for a moment over its side's labels (yours below the board, theirs above it), off the
-  // ground where the blows land; several at once stack toward the board.
+  // A rule's name for a moment in its side's part of the chrome (args.hud).
   announce (r, mine) {
-    if (this.args.hud) return this.args.hud.announce(`${r.step} · ${r.name}`, mine)
-    const band = this.ruleBand
-    if (!band) return
-    const side = mine ? 'party' : 'foe'
-    // Legible at the zoom: the plate and the stacking grow with the print.
-    const size = labelSize(15, this.cameras.main.zoom)
-    const ph = Math.max(26, size * 1.7)
-    const y = band[side] + (mine ? -1 : 1) * ph * (this.banners[side]++ % 3)
-    const text = this.text(band.x + 18, y, `${r.step.toUpperCase()} · ${r.name.toUpperCase()}`, size, mine ? '#cfe3ff' : '#ffa0ae', 4, faceFor(15, this.cameras.main.zoom))
-      .setOrigin(0, 0.5).setDepth(9600).setAlpha(0)
-    const plate = this.add.rectangle(band.x, y, text.width + 36, ph, 0x07060b, 0.85).setOrigin(0, 0.5).setStrokeStyle(1, mine ? BOON : FOE, 0.6).setDepth(9590).setAlpha(0)
-    this.tweens.chain({
-      targets: [text, plate],
-      tweens: [{ alpha: 1, duration: 160 }, { alpha: 1, duration: 800 }, { alpha: 0, duration: 400 }],
-      onComplete: () => { text.destroy(); plate.destroy(); this.banners[side] = Math.max(0, this.banners[side] - 1) }
-    })
+    this.args.hud?.announce(`${r.step} · ${r.name}`, mine)
   }
 
   // Rules with no event of their own, seen in the action: Dragonfire (Drake 8) bursts a single-target attack
@@ -1620,18 +1548,19 @@ class BattleScene extends Phaser.Scene {
     const killer = death && reason === 'monarch' && death.from != null && death.by !== this.monarch ? death.from : null
     const crown = this.actors.get(this.monarch)
     if (killer != null && crown) this.endBeat = { from: this.posFor(killer), to: { x: crown.home.x, y: crown.home.y }, t0: this.time.now }
-    const y = killer != null ? rowY(DEPTH - ROWS + 1) : 0
+    // Over their half of the board (the left) while the blow is replayed on yours, else across the middle.
+    const [x, y] = [killer != null ? -HALF_W / 2 : 0, 0]
     const z = this.cameras.main.zoom
-    const width = LANES * SPREAD + 40
-    const glow = this.add.image(0, y, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(620, 120).setAlpha(0).setDepth(9989)
+    const width = killer != null ? HALF_W : 2 * HALF_W - 80
+    const glow = this.add.image(x, y, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(620, 120).setAlpha(0).setDepth(9989)
     // Its line legible at the zoom (labelSize; the title is large already), wrapped to the board, the plate round both.
     const banner = this.text(0, 0, title, labelSize(28, z), won ? C.soul2 : '#ff6a7a', 4, faceFor(28, z)).setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
     const sub = this.text(0, 0, line, labelSize(11, z), '#c8c0d8', 0).setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
       .setWordWrapWidth(width - 40).setAlign('center')
     const ph = banner.height + sub.height + 18
-    banner.setY(y - ph / 2 + 6)
-    sub.setY(banner.y + banner.height + 2)
-    const plate = this.add.rectangle(0, y, Math.max(width, banner.width + 60), Math.max(70, ph), 0x07060b, 0.84)
+    banner.setPosition(x, y - ph / 2 + 6)
+    sub.setPosition(x, banner.y + banner.height + 2)
+    const plate = this.add.rectangle(x, y, Math.max(width, banner.width + 60), Math.max(70, ph), 0x07060b, 0.84)
       .setStrokeStyle(1, colour, 0.5).setDepth(9990).setAlpha(0)
     this.tweens.add({ targets: [plate, banner, sub], alpha: 1, duration: 260 })
     this.tweens.add({ targets: glow, alpha: 0.5, duration: 400 })
@@ -1880,4 +1809,4 @@ const STEPS = {
 }
 
 // The board's measures and colours, for the prep board (board.js), which draws the very board a battle plays on.
-export { RES, FEET, SCALE, ROW_PX, SPREAD, EDGE, rowY, WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, GOLD, CROWN, DOMAIN, PLAN, NEUTRAL, C, FONT, SERIF, hex }
+export { RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, tileUnder, cellsBox, facesLeft, WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, GOLD, CROWN, DOMAIN, PLAN, NEUTRAL, C, FONT, SERIF, hex }

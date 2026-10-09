@@ -53,19 +53,19 @@
    thing pressable, so no two grown areas meet: a row with no gaps (tabs, the speed buttons) grows only up and
    down. (Measured: scratchpad u-hits.mjs.) */
 @media (pointer: coarse) {
-  .topbar .icon-btn, .battlebar .icon-btn, .battlebar .seg, .tnode, .tip .tip-act, .tip .tip-more,
+  .topbar .icon-btn, .battle-screen .icon-btn, .battle-screen .seg, .tnode, .tip .tip-act, .tip .tip-more,
   .ret-pop .danger, .kw, .help-tabs .tab { position: relative; }
   /* (How to play's ✕ is placed absolutely already: it is its own hit area's frame.) */
-  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tnode::before, .tip .tip-act::before, .tip .tip-more::before,
+  .topbar .icon-btn::before, .battle-screen .icon-btn::before, .battle-screen .seg::before, .tnode::before, .tip .tip-act::before, .tip .tip-more::before,
   .overlay .close::before, .ret-pop .danger::before, .kw::before,
   .help-tabs .tab::before { content: ''; position: absolute; }
   /* Rows edge to edge: up and down only. */
-  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tip .tip-act::before, .tip .tip-more::before,
+  .topbar .icon-btn::before, .battle-screen .icon-btn::before, .battle-screen .seg::before, .tip .tip-act::before, .tip .tip-more::before,
   .help-tabs .tab::before { inset: -6px 0; }
   /* The speeds' strip clips its corners: they are rounded on the buttons instead, so their hit areas get out. */
-  .battlebar .segs { overflow: visible; }
-  .battlebar .segs .seg:first-child { border-radius: 7px 0 0 7px; }
-  .battlebar .segs .seg:last-child { border-radius: 0 7px 7px 0; }
+  .battle-screen .segs { overflow: visible; }
+  .battle-screen .segs .seg:first-child { border-radius: 7px 0 0 7px; }
+  .battle-screen .segs .seg:last-child { border-radius: 0 7px 7px 0; }
   /* Alone in their space: all round. */
   .tnode::before, .overlay .close::before { inset: -6px; }
   .ret-pop .danger::before { inset: -6px -3px; }

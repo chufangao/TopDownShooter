@@ -164,7 +164,7 @@ function moreButton () {
 // scrolls, a long press pins the next tooltip). Its click is eaten only on nothing that answers a click (that tap
 // just closes the tooltip); and on a button that cannot be taken back (SURE) the press is not the button's at
 // all: it only closes the tooltip, and a second tap acts. A tap inside it (on its buttons) acts as ever.
-const SURE = '.primary, .danger, .begin-btn, .move-on, .offer, .buy, .tnode, .battlebar .skip, .end-actions button'
+const SURE = '.primary, .danger, .begin-btn, .move-on, .offer, .buy, .tnode, .battle-panel .skip, .end-actions button'
 const ACTIVE = 'button, a, input, select, textarea, label, summary, [role="tab"], [tabindex], .node, .stage-wrap, .bench, #game'
 let eat = false
 window.addEventListener('pointerdown', (e) => {
@@ -192,9 +192,7 @@ document.addEventListener('contextmenu', (e) => { if (finger && !e.target.closes
 function place () {
   const r = toLocalRect(anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : anchor)
   const vw = frame.w
-  // The bottom it keeps above: the frame's, or the battle's playback bar's.
-  const bar = document.querySelector('.battlebar')?.getBoundingClientRect()
-  const vh = bar?.height ? Math.min(frame.h, toLocal(0, bar.top).y) : frame.h
+  const vh = frame.h
   const w = tipEl.offsetWidth
   const ht = tipEl.offsetHeight
   const gap = 10

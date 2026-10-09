@@ -7,19 +7,16 @@
 // nothing: every rule, every tooltip and every action stays in ui.js.
 import Phaser from './vendor/phaser.js'
 import { unitDef } from './content.js'
-import { LANES, DEPTH, TILES, ROWS, CAMP_ROWS, tileX, tileY, tileAt as tileOf } from './sim/unit.js'
+import { LANES, DEPTH, TILES, ROWS, CAMP_ROWS, tileY } from './sim/unit.js'
 import {
-  RES, FEET, SCALE, ROW_PX, SPREAD, EDGE, rowY, WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH,
-  PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, NEUTRAL, C, FONT, hex, growthMarks, palette, reducedMotion, legible,
-  domainLabel, placeOutside, overlap, faceFor, HORDE, syncHorde, placeHorde
+  RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, tileUnder, cellsBox, ringBox, fitBox, facesLeft, drawGround, WALLS, WALL_FOOT, WALL_SCALE, BAR,
+  BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, NEUTRAL, FONT, hex, growthMarks, palette, reducedMotion, legible,
+  domainLabel, placeOutside, overlap, HORDE, syncHorde, placeHorde
 } from './engine.js'
 import { sfx } from './sfx.js'
 
-const BAND = LANES * SPREAD + 90 // the dais under each side, as the battle draws it
-const HIT_UP = 20                // a tile takes the pointer over its unit's body: centred this far above the feet
-const MARK_X = 32                // the marks beside a unit's feet stand this far either side of it (a lane is SPREAD)
-const TOP = 82                   // above their back row's tiles: its heads, and the label over them
-const ROSE = '#f08a98'
+const HIT_UP = 14                // a tile takes the pointer over its unit's body: centred this far above the feet
+const MARK_X = 30                // the marks beside a unit's feet stand this far either side of it (a tile is TILE_W)
 const GROUND = 6                 // a tile's ground lies this far under its centre: lines and arrows run on it
 // A drag by touch: the piece is drawn LIFT CSS px above the finger (feet first), so the finger hides neither it
 // nor the tile it would land on, and the drop goes by its feet. Where a tile stands under ZOOM_UNDER CSS px tall
@@ -31,7 +28,8 @@ const TOUCH_SLOP = 8
 const MARKER_HIT = 22
 // The pointer of the last press (touch or not), read when a drag lifts.
 let pointerType = 'mouse'
-const posFor = (tile) => ({ x: (tileX(tile) - (LANES - 1) / 2) * SPREAD, y: rowY(tileY(tile)) })
+// Every tile becomes a point by the board's one transform (engine.js posOf: the board on its side).
+const posFor = posOf
 const groundOf = (tile) => { const p = posFor(tile); return { x: p.x, y: p.y + GROUND } }
 
 let engine = null
@@ -170,28 +168,9 @@ class PrepScene extends Phaser.Scene {
     if (want) this.draw(want.picture)
   }
 
-  // The floor, the vignette, the two daises and the seam between them, and the motes: as the battle's.
+  // The floor, the vignette, the two daises and the seam between them, and the motes: the battle's own.
   ground () {
-    this.add.tileSprite(0, 0, 4200, 3200, 'floor').setTileScale(0.6).setAlpha(0.62).setDepth(-1000)
-    const [vw, vh] = [BAND + 1100, 2 * EDGE + 1000]
-    this.add.image(0, 0, 'vignette').setDisplaySize(vw, vh).setDepth(-999)
-    for (const [x, y, w, h] of [[0, -vh / 2 - 1500, 9000, 3000], [0, vh / 2 + 1500, 9000, 3000], [-vw / 2 - 2000, 0, 4000, vh], [vw / 2 + 2000, 0, 4000, vh]]) {
-      this.add.rectangle(x, y, w + 2, h + 2, 0x06050a, 0.96).setDepth(-999)
-    }
-    const g = this.add.graphics().setDepth(-401)
-    for (const [y0, y1, colour] of [[0, CAMP_ROWS - 1, PARTY], [DEPTH - ROWS, DEPTH - 1, FOE]]) {
-      const top = rowY(y1) - 40
-      const h = rowY(y0) - rowY(y1) + 80
-      g.fillStyle(colour, 0.045).fillRoundedRect(-BAND / 2, top, BAND, h, 18)
-      g.lineStyle(1, colour, 0.22).strokeRoundedRect(-BAND / 2, top, BAND, h, 18)
-    }
-    this.add.image(0, rowY((CAMP_ROWS + DEPTH - ROWS - 1) / 2), 'glow').setDisplaySize(BAND + 260, 26).setTint(NEUTRAL).setAlpha(0.35)
-      .setBlendMode(Phaser.BlendModes.ADD).setDepth(-390)
-    this.add.particles(0, 0, 'glow', {
-      x: { min: -BAND / 2 - 60, max: BAND / 2 + 60 }, y: { min: -EDGE - 68, max: EDGE + 68 }, lifespan: 7000,
-      speedY: { min: -14, max: -4 }, speedX: { min: -6, max: 6 }, scale: { start: 0.14, end: 0 }, alpha: { start: 0.45, end: 0 },
-      tint: [SOUL, NEUTRAL], frequency: 160, blendMode: 'ADD'
-    }).setDepth(-300)
+    drawGround(this)
   }
 
   text (x, y, str, size, colour, stroke = 0, font = FONT) {
@@ -219,7 +198,6 @@ class PrepScene extends Phaser.Scene {
     this.drawDomain(this.drag?.preview?.centre ?? p.domain?.centre ?? null)
     this.drawRing(p.ring)
     this.drawLines(p)
-    this.drawLabels(p)
     // The units, kept by key: one that changed tile walks there (a place), one that grew pops.
     const seen = new Set()
     let moved = false
@@ -305,19 +283,6 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
-  // The square a ring covers around a tile, clipped to the board, as a world box.
-  boxOf (tile, r, pad = 4) {
-    const [mx, my] = [tileX(tile), tileY(tile)]
-    const [x0, x1] = [Math.max(0, mx - r), Math.min(LANES - 1, mx + r)]
-    const [y0, y1] = [Math.max(0, my - r), Math.min(DEPTH - 1, my + r)]
-    return {
-      l: (x0 - (LANES - 1) / 2) * SPREAD - SPREAD / 2 + pad,
-      r: (x1 - (LANES - 1) / 2) * SPREAD + SPREAD / 2 - pad,
-      t: rowY(y1) - ROW_PX / 2 + pad / 2,
-      b: rowY(y0) + ROW_PX / 2 - pad / 2
-    }
-  }
-
   // The Monarch's domain around `centre`. While a piece is dragged the domain lights up and the ground outside
   // it dims; a dragged Monarch carries it.
   drawDomain (centre) {
@@ -329,7 +294,7 @@ class PrepScene extends Phaser.Scene {
     this.domLabel = null
     const d = p.domain
     if (!d || centre == null) return
-    const box = this.boxOf(centre, d.r)
+    const box = ringBox(centre, d.r, 4)
     const [w, h] = [box.r - box.l, box.b - box.t]
     g.fillStyle(DOMAIN, 0.045).fillRoundedRect(box.l, box.t, w, h, 12)
     g.lineStyle(1.5, DOMAIN, 0.45).strokeRoundedRect(box.l, box.t, w, h, 12)
@@ -354,7 +319,7 @@ class PrepScene extends Phaser.Scene {
   drawRing (ring) {
     const g = this.ringG.clear()
     if (!ring || !(ring.r > 0)) return
-    const box = this.boxOf(ring.tile, ring.r, 8)
+    const box = ringBox(ring.tile, ring.r, 8)
     const colour = ring.foe ? FOE : PLAN
     g.fillStyle(colour, 0.07).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 10)
     g.lineStyle(2.5, colour, 0.85).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 10)
@@ -403,26 +368,22 @@ class PrepScene extends Phaser.Scene {
       t.setAlpha(alpha)
       this.markerHits.push({ uid: l.uid, x: c.x, y: c.y, r })
     }
-    // The timing marks: a small plate on the tile a piece will stand on, its moments (5s, 10·15s) in print, the
-    // selected piece's bright; several on one tile stack down it.
-    const at = new Map()
+    // The timing marks (DESIGN §3): where each piece will stand at 5, 10 and 15 s, a station on its line, ringed;
+    // the selected piece's are told in print too ("10s", "5·10·15s" where it stands still), each on an opaque
+    // plate over everything, set off the station up its line so it reads whoever stands there.
     for (const k of p.marks ?? []) {
       const q = groundOf(k.tile)
-      const n = at.get(k.tile) ?? 0
-      at.set(k.tile, n + 1)
-      const t = legible(this.text(q.x + 14, q.y + 10, k.text, 10, k.sel ? '#ffffff' : '#a9c6ee', 0).setOrigin(0, 0.5).setDepth(7405).setData('size', 10), z, 'num')
-      t.setY(q.y + 10 + n * (t.displayHeight + 3))
-      const [w, hgt] = [t.displayWidth + 8, t.displayHeight + 2]
-      m.fillStyle(k.sel ? 0x1a3a66 : 0x0c1626, k.sel ? 0.95 : 0.8).fillRoundedRect(t.x - 4, t.y - hgt / 2, w, hgt, hgt / 2)
-      m.lineStyle(1.2, PLAN, k.sel ? 0.95 : 0.5).strokeRoundedRect(t.x - 4, t.y - hgt / 2, w, hgt, hgt / 2)
-      t.setAlpha(k.sel ? 1 : 0.85)
+      m.fillStyle(k.sel ? 0xffffff : PLAN, k.sel ? 1 : 0.75).fillCircle(q.x, q.y, k.sel ? 6 : 4.5)
+      m.lineStyle(2, 0x07060b, 0.9).strokeCircle(q.x, q.y, k.sel ? 6 : 4.5)
+      if (!k.sel) continue
+      const t = legible(this.text(0, 0, k.text, 11, '#ffffff', 0).setOrigin(0.5).setDepth(7406).setData('size', 11), z, 'num')
+      const [w, hgt] = [t.displayWidth + 12, t.displayHeight + 4]
+      const c = { x: q.x, y: q.y - TILE_H * 0.32 }
+      t.setPosition(c.x, c.y)
+      m.fillStyle(0x10284a, 0.97).fillRoundedRect(c.x - w / 2, c.y - hgt / 2, w, hgt, hgt / 2)
+      m.lineStyle(1.5, 0x9cc8ff, 1).strokeRoundedRect(c.x - w / 2, c.y - hgt / 2, w, hgt, hgt / 2)
+      m.lineStyle(1.5, 0x9cc8ff, 0.8).lineBetween(q.x, q.y - 6, c.x, c.y + hgt / 2)
     }
-  }
-
-  drawLabels (p) {
-    const x = -LANES / 2 * SPREAD + 4
-    const y = rowY(DEPTH - 1) - 88
-    legible(this.text(x, y, p.facing ? 'THEIR FORMATION' : 'THEIR GROUND', 14, p.facing ? ROSE : '#b0808e', 3, faceFor(14, this.labelZ)).setOrigin(0, 1).setDepth(-300), this.labelZ)
   }
 
   // ── units ────────────────────────────────────────────────────────────────────────────────────
@@ -430,7 +391,7 @@ class PrepScene extends Phaser.Scene {
   addActor (u, appear) {
     const art = unitDef(u.id).art
     const home = posFor(u.tile)
-    const sprite = this.add.image(home.x, home.y, `unit:${art}:alive`).setOrigin(0.5, FEET).setFlipX(u.side === 'foe')
+    const sprite = this.add.image(home.x, home.y, `unit:${art}:alive`).setOrigin(0.5, FEET).setFlipX(facesLeft(u.side))
     const size = sprite.width / RES / 96
     const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size, 13 * size, 0x000000, 0.5)
     const a = { key: u.key, sprite, shadow, scale: SCALE / RES, size, chest: 30 * size, tile: u.tile, u, parts: [], growth: null, horde: [], pop: { v: 0 }, rise: { v: appear ? 0 : 1 }, seed: Math.random() * 6 }
@@ -462,7 +423,7 @@ class PrepScene extends Phaser.Scene {
     // A stack is its horde (engine.js syncHorde): its own sprite in front, a little smaller, the rest behind it.
     const n = u.fallen ? 1 : u.count ?? 1
     a.scale = SCALE / RES * (n > 1 ? HORDE.front : 1)
-    syncHorde(this, a, n, `unit:${unitDef(u.id).art}:alive`, foe)
+    syncHorde(this, a, n, `unit:${unitDef(u.id).art}:alive`, facesLeft(u.side))
     a.sprite.setTexture(`unit:${unitDef(u.id).art}:${u.fallen ? 'dead' : 'alive'}`)
     if (u.fallen) a.sprite.setTint(0xc4bfd0)
     else a.sprite.clearTint()
@@ -547,7 +508,7 @@ class PrepScene extends Phaser.Scene {
     if (dom) placed.push(dom)
     for (const a of units) {
       const home = posFor(a.tile)
-      const lane = { l: home.x - SPREAD / 2 + 2, r: home.x + SPREAD / 2 - 2 }
+      const lane = { l: home.x - TILE_W / 2 + 2, r: home.x + TILE_W / 2 - 2 }
       for (const x of a.parts.filter((q) => q.move != null).sort((p, q) => p.move - q.move)) {
         x.bx ??= x.dx
         x.by ??= x.dy
@@ -644,8 +605,8 @@ class PrepScene extends Phaser.Scene {
     const p = this.picture
     if (!p || this.leaving) return
     if (this.focused != null && !this.drag) {
-      const { x, y } = posFor(this.focused)
-      g.lineStyle(2, 0xffffff, 0.6 + 0.35 * v).strokeRoundedRect(x - SPREAD / 2 + 5, y + GROUND - ROW_PX / 2 + 5, SPREAD - 10, ROW_PX - 10, 8)
+      const b = ringBox(this.focused, 0, 5)
+      g.lineStyle(2, 0xffffff, 0.6 + 0.35 * v).strokeRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 8)
     }
     const d = this.drag?.piece ? this.drag : null
     const at = d ? d.preview?.tile : !this.drag && typeof this.hovered === 'number' ? this.hovered : null
@@ -673,10 +634,9 @@ class PrepScene extends Phaser.Scene {
 
   // ── the camera ───────────────────────────────────────────────────────────────────────────────
 
-  // The world box the board takes: the board, room above their back row for heads and the label, and under the
-  // camp for the bars.
+  // The world box the board takes, the battle's (engine.js BOX): the board, with room over its top lane for heads.
   bounds () {
-    return { l: -BAND / 2 - 6, r: BAND / 2 + 6, t: rowY(DEPTH - 1) - ROW_PX / 2 - TOP, b: EDGE + 34 }
+    return BOX
   }
 
   // Fits the board inside the stage's rect (in the viewport, so a scroll or a resize carries it along), clear
@@ -724,9 +684,10 @@ class PrepScene extends Phaser.Scene {
   // Null when that would hardly zoom.
   dragView (fx, fy, line = false) {
     const f = this.fitted
-    if (!f || !want?.stage.isConnected || ROW_PX * f.z >= DRAG.zoomUnder) return null
+    if (!f || !want?.stage.isConnected || TILE_H * f.z >= DRAG.zoomUnder) return null
     const r = want.stage.getBoundingClientRect()
-    const box = line ? this.bounds() : { l: -BAND / 2 - 6, r: BAND / 2 + 6, t: rowY(CAMP_ROWS + 1) - 30, b: EDGE + 34 }
+    const camp = cellsBox(0, LANES - 1, 0, CAMP_ROWS, -6)
+    const box = line ? this.bounds() : { ...camp, t: camp.t - 44 }
     const z = line ? f.z * DRAG.zoom : Math.min(r.height / (box.b - box.t), r.width / (box.r - box.l), f.z * DRAG.zoom)
     if (z < f.z * 1.08) return null
     const p = this.toWorld(fx, fy)
@@ -803,9 +764,7 @@ class PrepScene extends Phaser.Scene {
   around (r, b, els) {
     const [bw, bh] = [b.r - b.l, b.b - b.t]
     const solve = (g) => {
-      const [w, h] = [Math.max(60, g.r - g.l), Math.max(60, g.b - g.t)]
-      const z = Math.max(0.25, Math.min(1.35, (w - 8) / bw, (h - 6) / bh))
-      const [cx, cy] = [g.l + w / 2, g.t + h / 2]
+      const { z, sx: cx, sy: cy } = fitBox({ left: g.l, top: g.t, width: Math.max(60, g.r - g.l), height: Math.max(60, g.b - g.t) }, b)
       return { g, z, cx, cy, box: { l: cx - bw / 2 * z, r: cx + bw / 2 * z, t: cy - bh / 2 * z, b: cy + bh / 2 * z } }
     }
     const clear = (v, rs) => {
@@ -854,13 +813,11 @@ class PrepScene extends Phaser.Scene {
       }
       if (best) return best.a.tile
     }
-    if (Math.abs(p.x) > LANES / 2 * SPREAD) return null
-    const tx = Math.round(p.x / SPREAD + (LANES - 1) / 2)
-    let ty = Math.round((DEPTH - 1) / 2 - (p.y + (feet || this.drag?.line ? -GROUND : HIT_UP)) / ROW_PX)
-    // The rear row's bars, and their back row's heads, still count as theirs.
-    if (ty === -1 && p.y <= EDGE + 30) ty = 0
-    if (ty === DEPTH && p.y >= -EDGE - 96) ty = DEPTH - 1
-    return ty >= 0 && ty < DEPTH ? tileOf(tx, ty) : null
+    // The point as the cell it falls in: by the ground a line runs on, or a unit's body.
+    const gy = p.y - FOOT + (feet || this.drag?.line ? -GROUND : HIT_UP)
+    // Off the board, but for the heads over its top lane and the bars under its bottom one, which count as theirs.
+    if (Math.abs(p.x) > HALF_W + 4 || gy > HALF_H + 24 || gy < -HALF_H - 50) return null
+    return tileUnder(p.x, gy)
   }
 
   // The line whose marker holds a viewport point: within its disc, or MARKER_HIT CSS px of its centre (the
@@ -879,8 +836,8 @@ class PrepScene extends Phaser.Scene {
   rectOf (tile) {
     if (!this.view || tile == null) return null
     const p = posFor(tile)
-    const a = this.toScreen(p.x - SPREAD / 2, p.y - HIT_UP - ROW_PX / 2)
-    const z = this.toScreen(p.x + SPREAD / 2, p.y - HIT_UP + ROW_PX / 2)
+    const a = this.toScreen(p.x - TILE_W / 2, p.y - HIT_UP - TILE_H / 2)
+    const z = this.toScreen(p.x + TILE_W / 2, p.y - HIT_UP + TILE_H / 2)
     return { left: a.x, top: a.y, right: z.x, bottom: z.y }
   }
 
@@ -904,7 +861,7 @@ class PrepScene extends Phaser.Scene {
       a.lifted = true
       a.drop = posFor(a.tile)
     } else {
-      ghost = this.add.image(0, 0, `unit:${unitDef(what.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES).setAlpha(0.92).setDepth(9500)
+      ghost = this.add.image(0, 0, `unit:${unitDef(what.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES).setAlpha(0.92).setDepth(9500).setFlipX(facesLeft('party'))
       sprite = ghost
     }
     this.drag = { piece: true, key: a ? what : null, a, sprite, ghost, chest: a?.chest ?? 30, preview: null, touch: pointerType === 'touch' }
@@ -945,7 +902,7 @@ class PrepScene extends Phaser.Scene {
     if (sw?.to != null) {
       const c = posFor(sw.to)
       this.swapGhost = this.add.image(c.x, c.y, `unit:${unitDef(sw.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES)
-        .setAlpha(0.5).setTint(SOUL).setDepth(c.y)
+        .setAlpha(0.5).setTint(SOUL).setDepth(c.y).setFlipX(facesLeft('party'))
     }
   }
 

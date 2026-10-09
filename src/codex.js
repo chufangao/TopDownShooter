@@ -753,7 +753,7 @@ export function codexView (run = null, { onClose = null } = {}) {
     }
   })
   const tipsBack = h('button', {
-    class: 'small ghost', onclick: () => { prefs.set('guide:field', 'on'); tipsBack.textContent = 'The tips are back on the Field' }
+    class: 'small ghost', onclick: () => { for (const k of ['select', 'line', 'signal']) prefs.set('did:' + k, '0'); tipsBack.textContent = 'The tips are back on the Field' }
   }, 'Show the tips again')
   const basics = h('div', { class: 'help-view basics' },
     h('p', { class: 'lede' }, `Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),

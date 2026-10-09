@@ -7,7 +7,7 @@ import { createRun, apply, currentNode, holds, depthOf } from './sim/run.js'
 import { createBattle, stats, ariseCap } from './sim/battle.js'
 import { TUNING } from './tuning.js'
 import { unitDef, relicDef } from './content.js'
-import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleBar, battleSides } from './ui.js'
+import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleChrome } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, signalText, bestiary } from './codex.js'
 import { livingBodies } from './sim/unit.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, touchy } from './dom.js'
@@ -232,24 +232,18 @@ async function fight () {
   const node = currentNode(run)
   const handoff = board.leave()
   apply(run, { type: 'fight' })
-  const bar = battleBar({ onHelp: toggleHelp })
+  // The battle's chrome keeps prep's layout (ui.js battleChrome): the board fits its stage, as prep's did.
+  const bar = battleChrome({ onHelp: toggleHelp })
   show(bar)
-  // The battle's words, in panels beside the board (ui.js battleSides).
-  const sides = battleSides()
-  bar.el.before(sides.el)
   const battle = createBattle(run.setup)
   const s = run.state
   const lost = s.death && run.battle.winner !== 'party'
   const scene = await engine.battle({
     battle,
-    hud: sides,
+    hud: bar.hud,
+    stage: bar.stage,
     seamless: !!handoff,
-    title: `FLOOR ${run.setup.floor}${depthOf(run.setup.floor) ? ` · DEEP ${depthOf(run.setup.floor)}` : ''} · ${NODE[node.type].name.toUpperCase()}`,
-    // The canvas below the bar's top, in viewport px (the bar is scaled with the frame, the canvas is not).
-    barHeight: () => {
-      const r = bar.el.getBoundingClientRect()
-      return r.height ? Math.max(0, engine.game.canvas.getBoundingClientRect().bottom - r.top) : 0
-    },
+    title: `Floor ${run.setup.floor}${depthOf(run.setup.floor) ? ` · deep ${depthOf(run.setup.floor)}` : ''} · ${NODE[node.type].name}`,
     onChange: (st) => bar.update(st),
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: 1 + s.relics.reduce((n, id) => n + (relicDef(id).essence ?? 0), 0),

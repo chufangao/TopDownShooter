@@ -69,8 +69,8 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 @keyframes gain { 0% { transform: scale(1.12); box-shadow: 0 0 14px #5ef0c0aa; border-color: var(--c-essence); background: #17302a; } }
 @keyframes spend { 0% { transform: scale(.94); box-shadow: 0 0 12px #e0566a88; border-color: var(--c-foe); background: #2a141a; } }
 
-/* ── battle bar ───────────────────────────────────────────────────────────────────────────────── */
-.battlebar { transition: border-color .2s, box-shadow .2s; }
+/* ── the battle's chrome ───────────────────────────────────────────────────────────────────────── */
+.battle-panel { transition: border-color .2s, box-shadow .2s; }
 .purse {
   display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 16px 0 12px; border-radius: 99px; font-size: var(--fs-md);
   color: var(--c-essence); background: #121c1a; border: 1px solid #2d5248; cursor: help;
@@ -80,21 +80,20 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 .purse.gain { animation: purse-gain .45s ease-out; }
 .purse.spend { animation: none; }
 @keyframes purse-gain { 0% { transform: scale(1.14); box-shadow: 0 0 18px #5ef0c0cc; background: #1c3a32; border-color: var(--c-essence); } }
-.battlebar .seg { gap: 8px; min-height: var(--tap); padding: 0 16px; }
-.battlebar .segs .seg { min-width: 60px; }
-.battlebar .seg kbd { min-width: 0; padding: 0 5px; opacity: .75; }
-.battlebar .segs .seg.active { background: linear-gradient(180deg, #24493f, #17302a); color: var(--bright); box-shadow: 0 0 0 1px #5ef0c066 inset; }
+.battle-panel .seg { gap: 8px; min-height: var(--tap); padding: 0 12px; }
+.battle-panel .segs .seg { min-width: 0; }
+.battle-panel kbd { min-width: 0; padding: 0 5px; opacity: .75; }
+.battle-panel .segs .seg.active { background: linear-gradient(180deg, #24493f, #17302a); color: var(--bright); box-shadow: 0 0 0 1px #5ef0c066 inset; }
 /* Skip, then Continue: the battle's one main action. */
-.battlebar .seg.skip { min-height: var(--tap-lg); padding: 0 24px; font-size: var(--fs-lg); font-weight: 600; }
-/* Paused: the bar edged in plain light (no system's colour), the Resume button breathing. */
-.battlebar.paused { border-top-color: var(--text); box-shadow: 0 -1px 14px #ddd6e822; }
+.battle-panel .skip { flex: 1; gap: 8px; min-height: var(--tap-lg); padding: 0 16px; font-size: var(--fs-lg); font-weight: 600; }
+/* Paused: the panel edged in plain light (no system's colour), the Resume button breathing. */
+.battle-screen.paused .battle-panel { border-color: var(--text); box-shadow: 0 0 14px #ddd6e822; }
 .seg.pause { border: 1px solid var(--line); }
-.battlebar.paused .seg.pause { background: #2a2638; border-color: var(--text); color: var(--bright); animation: paused 1.4s ease-in-out infinite; }
+.battle-screen.paused .seg.pause { background: #2a2638; border-color: var(--text); color: var(--bright); animation: paused 1.4s ease-in-out infinite; }
 @keyframes paused { 50% { box-shadow: 0 0 0 1px #ddd6e866 inset, 0 0 12px #ddd6e844; } }
-/* …and the battle above it dims under a quiet "Paused": from the bar's top edge up to the frame's top, taking no
-   presses (a unit still shows its card on hover), never over the bar and its Resume. */
+/* …and the board dims under a quiet "Paused", taking no presses (a unit still shows its card on hover). */
 .pause-veil {
-  position: absolute; left: 0; right: 0; bottom: calc(100% + 1px); height: var(--frame-h); pointer-events: none;
+  position: absolute; inset: 0; border-radius: var(--radius); pointer-events: none;
   display: none; place-items: center; background: #06050acc; background: color-mix(in srgb, var(--bg) 45%, transparent);
 }
 .pause-veil > span {
@@ -102,13 +101,12 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
   font: 600 var(--fs-xl) var(--serif); letter-spacing: .3em; text-transform: uppercase; color: var(--bright);
   background: #0b0a12b0; border: 1px solid #ddd6e844; text-shadow: 0 2px 8px #000;
 }
-.battlebar.paused .pause-veil { display: grid; animation: veil-in .25s ease-out; }
+.battle-screen.paused .pause-veil { display: grid; animation: veil-in .25s ease-out; }
 @keyframes veil-in { from { opacity: 0; } }
 /* Over: the speeds and pause no longer matter; Continue is the one thing to press. */
-.battlebar.over .seg.pause, .battlebar.over .segs { opacity: .4; pointer-events: none; }
-.battlebar.over .seg.skip { border-color: var(--c-essence); background: linear-gradient(180deg, #2c4d44, #17302a); color: var(--bright); box-shadow: 0 0 16px #5ef0c044; }
-.seg.skip { border: 1px solid var(--line); }
+.battle-screen.over .seg.pause, .battle-screen.over .segs { opacity: .4; pointer-events: none; }
+.battle-screen.over .skip { box-shadow: 0 0 16px #5ef0c044; }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen-in > *, .trinket.new, .chip-stat.gain, .chip-stat.spend, .chip-stat.souls.gain, .purse.gain, .battlebar.paused .seg.pause, .battlebar.paused .pause-veil { animation: none; }
+  .screen-in > *, .trinket.new, .chip-stat.gain, .chip-stat.spend, .chip-stat.souls.gain, .purse.gain, .battle-screen.paused .seg.pause, .battle-screen.paused .pause-veil { animation: none; }
 }

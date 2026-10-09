@@ -11,7 +11,7 @@ import { RANKS, WIDTH } from './sim/map.js'
 import { unitDef, relicDef, KIN, ROLES, keystoneDef, SIGNALS } from './content.js'
 import {
   COLS, ROWS, CAMP_ROWS, slotAt, rowOf, isWall, LANES, DEPTH, tileAt, deployTile, wallTiles, onField, tileX, tileY, steps, isSeat, ringOf,
-  statsOf, abilitiesOf, auraOf, onBoard, distance, tracksOf, canTrack, bannerOf, bodiesOf, livingBodies, nearestOpen, campGrid
+  statsOf, abilitiesOf, auraOf, onBoard, distance, tracksOf, canTrack, bannerOf, bodiesOf, livingBodies, nearestOpen, campGrid, activeSynergies
 } from './sim/unit.js'
 import { field, timingMarks } from './sim/battle.js'
 import { h, fill, icon, portrait, prefs, showTip, hideTip, pinTip, hold, HOLD, touchy, say } from './dom.js'
@@ -20,12 +20,12 @@ import { sfx } from './sfx.js'
 // The Field's board: the battle's own, drawn in Phaser (board.js), under a layer that takes the pointer.
 import { board } from './board.js'
 // The page is scaled whole (frame.js): what is placed over it by a viewport point goes into the frame's px.
-import { frame, toLocal, toLocalRect } from './frame.js'
+import { frame, toLocal } from './frame.js'
 import {
   unitCard, partyMods, roomFoeMods, roomTip, threatMeter, foeSynergyLine, synergyTracker, synergyGroups, relicTip, ROOM, campRowLabel, realmOf,
   MONARCH_TEXT, monarchNextText, monarchPointText, deathText, tileText, fieldRule, foeCountText, waveName, waveWhen,
   ENEMY_TEXT, DEEP_TEXT, ROMAN, keystoneTip, aliasOf, TRIGGER_TEXT, codexView, ringText, ringRule, signalText, signalTag, signalName, SIGNAL_ICON,
-  SIGNAL_CYCLE, nextSignal, sameSignal, bestiary, standing, abilityBlock, secs
+  SIGNAL_CYCLE, nextSignal, sameSignal, bestiary, standing, abilityBlock, secs, foeRulesOn
 } from './codex.js'
 
 // ── title ────────────────────────────────────────────────────────────────────────────────────────
@@ -68,7 +68,8 @@ function cornerButtons (onHelp) {
 // relic or keystone just taken pops in.
 const drawn = { run: null, essence: 0, hp: 0, souls: 0, held: new Set() }
 
-function topbar (run, onHelp) {
+// `tabs`: the run's tabs (runScreen), folded into the bar as compact icons, so the board keeps the screen's width.
+function topbar (run, onHelp, tabs = null) {
   const s = run.state
   const fresh = drawn.run !== run
   const n = soulCount(s.party)
@@ -98,6 +99,7 @@ function topbar (run, onHelp) {
   return h('header', { class: 'topbar' },
     floorPips(s),
     h('div', { class: 'chips' }, chip, monarchChip(run), kept),
+    tabs,
     t > 0 && h('div', { class: 'trinkets' + (t > 6 ? ' crowded' : '') },
       s.relics.map((id) => tile('t-relic' + (relicDef(id).on ? ' trig' : ''), id, relicDef(id).name, relicIcon(id), null, () => relicTip(id))),
       s.keystones.map((id) => tile('t-keystone', id, keystoneDef(id).name, 'keystone', letterPair(keystoneDef(id).name), () => keystoneTip(id, run)))),
@@ -187,26 +189,18 @@ function monarchChip (run) {
   }, icon('crown', 20), h('b', null, `${m.hp}/${m.maxHp}`))
 }
 
-// A dismissible line of numbered steps; it remembers being closed, and the codex's "Show the tips again" brings
-// it back. It costs the board its room, so it shows only where the frame is tall (board.css).
-function guide (key, steps) {
-  const el = h('div', { class: 'guide' })
-  const render = () => {
-    fill(el, prefs.get('guide:' + key) !== 'off' && h('div', { class: 'guide-box' },
-      h('ol', null, steps.map((s) => h('li', null, s))),
-      h('button', { class: 'icon-btn', 'aria-label': 'Hide the tips', onclick: () => { prefs.set('guide:' + key, 'off'); render() }, tip: () => 'Hide these tips. The codex brings them back.' }, icon('close', 18))))
-  }
-  render()
-  return el
-}
+// The Field's gestures, taught one at a time in a slim pill atop the panel (never over the board), on every frame,
+// each until it has been done once (remembered in this browser): select, then draw a line, then set its signal.
+const done = (k) => prefs.get('did:' + k) === '1'
+const learnt = (k) => { if (!done(k)) prefs.set('did:' + k, '1') }
 
 // ── the run's screen: Field · Map · Codex ───────────────────────────────────────────────────────
 
-// The run between battles and before one, one screen with its three tabs down the left edge (DESIGN §4), one
-// view at a time: the Field (the board, the bench under it, the selected piece's panel beside it), the Map (the
-// floor's rooms: scout them, and on the map walk to the next) and the Codex (the rules, the words, the foes
-// met). On the map the Map opens first; in a battle room's prep, the Field, their formation on it and Begin over
-// the panel. The rail takes width, which a landscape screen has to spare, never the board's height.
+// The run between battles and before one, one screen with its three tabs folded into the top bar (DESIGN §4), one
+// view at a time: the Field (the board, as large as the screen holds, and one slim panel beside it: the room and
+// Begin, the selected piece's card, the ossuary at its foot like a Bloons TD shop), the Map (the floor's rooms:
+// scout them, and on the map walk to the next) and the Codex (the rules, the words, the foes met). On the map the
+// Map opens first; in a battle room's prep, the Field, their formation on it.
 const TABS = [
   { id: 'field', name: 'Field', ico: 'field', key: 'F', desc: 'The board: place your souls, draw their lines, read the roads.' },
   { id: 'map', name: 'Map', ico: 'map', key: 'R', desc: 'The floor: scout its rooms.' },
@@ -220,7 +214,8 @@ function runScreen ({ run, act, trail, note = '', onNode = null, onFight = null,
   const node = currentNode(run)
   const bar = h('div', { class: 'bar-slot' })
   const meter = h('div')
-  const refresh = () => { fill(bar, topbar(run, onHelp)); if (prep) fill(meter, threatMeter(run, node)) }
+  const tabsEl = h('nav', { class: 'top-tabs', role: 'tablist', 'aria-label': 'Views' })
+  const refresh = () => { fill(bar, topbar(run, onHelp, tabsEl)); if (prep) fill(meter, threatMeter(run, node)) }
   const head = prep ? h('div', { class: 'prep-head' }) : null
   const editor = fieldEditor({ run, act, facing: prep ? node : null, onChange: refresh, head })
   refresh()
@@ -245,12 +240,11 @@ function runScreen ({ run, act, trail, note = '', onNode = null, onFight = null,
               h('p', { class: 'warn' }, `Losing ends the run: the Monarch falling loses at once, and so does a battle still undecided ${secs(TUNING.tick.ceiling)} after the last foe entered.`))
             : 'The Monarch has fallen.'
         }, icon('play', 22), ' Begin ', h('kbd', null, 'Enter'))),
-      foeSynergyLine(node.foes, run),
+      meter,
       node.waves?.length > 0 && waveChips(run, node),
-      meter)
+      activeFoeSynergies(node.foes, run) && foeSynergyLine(node.foes, run))
   }
 
-  const rail = h('nav', { class: 'rail', role: 'tablist', 'aria-label': 'Views' })
   const body = h('div', { class: 'run-body' })
   // The note (what just happened) floats over the foot of the view: a tap dismisses it, and it fades by itself.
   const toast = note && h('div', { class: 'note', role: 'status', onclick: (e) => e.currentTarget.remove() }, note)
@@ -262,17 +256,17 @@ function runScreen ({ run, act, trail, note = '', onNode = null, onFight = null,
     tab = id
     hideTip()
     editor.release()
-    fill(rail, TABS.map((t) => h('button', {
-      class: 'rail-tab' + (t.id === tab ? ' on' : ''), role: 'tab', 'aria-selected': t.id === tab ? 'true' : 'false', 'data-tab': t.id,
+    fill(tabsEl, TABS.map((t) => h('button', {
+      class: 'top-tab' + (t.id === tab ? ' on' : ''), role: 'tab', 'aria-selected': t.id === tab ? 'true' : 'false', 'data-tab': t.id,
       onclick: () => show(t.id), tip: () => h('div', { class: 'syn-tip' }, h('b', null, t.name), say(` (${t.key})`, ''), h('p', null, t.desc))
-    }, icon(t.ico, 26), h('span', { class: 'rail-name' }, t.name))))
+    }, icon(t.ico, 22), h('span', { class: 'top-tab-name' }, t.name))))
     fill(body, id === 'field' ? editor.el
       : id === 'map' ? mapView({ run, trail, onNode })
         : h('section', { class: 'panel codex-panel' }, codexView(run)))
     if (id === 'field') editor.shown()
   }
   show(prep ? 'field' : 'map')
-  const el = h('div', { class: 'screen fit run-screen' + (prep ? ' prep' : '') }, bar, h('div', { class: 'run-main' }, rail, body), toast)
+  const el = h('div', { class: 'screen fit run-screen' + (prep ? ' prep' : '') }, bar, body, toast)
   return {
     el,
     key (e) {
@@ -296,6 +290,8 @@ export const NODE = Object.fromEntries(Object.entries(ROOM).map(([k, v]) => [k, 
 // The whole floor at once, left to right: its ranks across (the start on the left, the elite or the boss on the
 // right), its lanes down. Places are in % of the floor's box (style.css .dag), so the floor fits any frame.
 const pos = (n) => ({ x: n.rank / (RANKS - 1) * 100, y: n.lane / (WIDTH - 1) * 100 })
+// Whether a formation holds any synergy its foes can use here (codex.js foeSynergyLine says which).
+const activeFoeSynergies = (foes, run) => activeSynergies(foes).some((syn) => !syn.rule || foeRulesOn(run))
 
 // On the map (onNode) a mouse's click enters a glowing room. By touch a tap scouts, since entering is for good:
 // a glowing room's first tap chooses it, its tooltip pinned with Enter ▸, and a second tap on it (or Enter ▸)
@@ -386,18 +382,14 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
   // A synergy whose chip was pressed: its pieces glow bright (synergyTracker's focus), until pressed again.
   let focusSyn = null
   const stage = h('div', { class: 'board-stage', 'aria-label': 'The board. Tap a piece to select it; drag a piece to move it; drag from the selected piece to draw its line. Keys: the arrows move a cursor, Enter taps, Escape lets go.' })
+  const hintEl = h('div', { class: 'board-hint', role: 'status' })
   const stageWrap = h('div', { class: 'stage-wrap' }, stage)
   const benchEl = h('div', { class: 'bench-strip' })
   const panelBody = h('div', { class: 'tab-body' })
   const errEl = h('p', { class: 'warn panel-err' })
   const panelEl = h('div', { class: 'tray' }, errEl, panelBody)
-  const guideEl = guide('field', [
-    [h('b', null, say('Click', 'Tap')), ' a piece to select it; ', h('b', null, 'drag'), ' a piece to move it.'],
-    [h('b', null, 'Drag from the selected'), ' piece to draw its ', kw('line'), '.'],
-    [h('b', null, say('Click its marker', 'Tap its marker')), ' to set its ', kw('signal'), '.']])
-  const col = h('div', { class: 'board-col' }, guideEl, stageWrap, benchEl)
-  const sideEl = h('div', { class: 'side-col' }, head, panelEl)
-  el.append(col, sideEl)
+  const sideEl = h('div', { class: 'side-col' }, head, hintEl, panelEl, benchEl)
+  el.append(stageWrap, sideEl)
   let shown = ''
   // The board's tooltips, by tile; the tile under the pointer; a press, which turns into a drag past a few pixels;
   // the drag (a piece moved, a line drawn); a bench soul's click to swallow after it was dragged.
@@ -434,7 +426,19 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
   function select (next) {
     sel = next
     error = ''
+    if (next) learnt('select')
     render()
+  }
+
+  // The gesture to learn next, if one is left (the hints: see learnt), in a few words for the pill atop the panel.
+  function hint () {
+    const p = selected()
+    const tap = say('Click', 'Tap')
+    if (!done('select')) return [h('b', null, tap), ' a piece to select it · ', h('b', null, 'drag'), ' one to move it']
+    if (!done('line') && p && onField(p) && !isMonarch(p)) return [h('b', null, `Drag from the ${unitDef(p.id).name}`), ' along the tiles to draw its line']
+    if (!done('line')) return [tap, ' a soul, then ', h('b', null, 'drag from it'), ' to draw its line']
+    if (!done('signal') && Object.keys(s.lines).length) return [h('b', null, `${tap} a line's marker`), ' to choose when it starts']
+    return null
   }
 
   // ── the picture ──
@@ -537,6 +541,9 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
       selTile: null, selKey: picked && onField(picked) ? `s${picked.uid}` : foe ? `f${foe.slot}` : null
     }
     stage.className = 'board-stage' + (drag ? ' dragging' : '') + (keyed ? ' kb' : '')
+    const teach = hint()
+    fill(hintEl, teach)
+    hintEl.hidden = !teach || !!drag
     fill(benchEl, benchStrip())
     keeping = document.activeElement === stage
     if (keeping && stage.isConnected) stage.focus({ preventScroll: true })
@@ -565,8 +572,8 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
         tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Ossuary · souls ${soulCount(s.party)}/${rosterCap(run)}`),
           h('p', null, `Your souls not on the field: kept, never fighting. The field takes ${fieldCap(run)} (${fieldRule(run)}).`),
           h('p', { class: 'dim' }, 'Drag a soul from here onto the camp, or a piece from the camp onto here. The Monarch never comes here.'))
-      }, h('b', null, 'Ossuary'), h('span', { class: 'dim' }, `Field ${fielded(souls(s.party)).length}/${fieldCap(run)}`)),
-      h('div', { class: 'bench' + (target ? ' target' : '') + (drag?.target?.bench && drag.target.ok ? ' over' : '') },
+      }, h('b', null, 'Ossuary'), h('span', { class: 'dim' }, `${bench.length ? `${bench.length} kept` : 'empty'} · field ${fielded(souls(s.party)).length}/${fieldCap(run)}`)),
+      (bench.length || target) && h('div', { class: 'bench' + (target ? ' target' : '') + (drag?.target?.bench && drag.target.ok ? ' over' : '') },
         bench.length
           ? bench.map((u) => h('button', {
             class: 'cell has' + (sel?.uid === u.uid ? ' sel' : '') + (u.hp <= 0 ? ' fallen' : ''),
@@ -575,7 +582,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
             onclick: () => { if (swallow) { swallow = false; return } select(sel?.uid === u.uid ? null : { uid: u.uid }) },
             tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run), live: 'In the ossuary: it does not fight', notes: ['Drag it onto an open tile of the camp to field it.'] })
           }, portrait(u.id, 46, u.hp <= 0), u.count > 1 && h('span', { class: 'badge' }, `×${u.count}`), u.maxHp && hpBar(u)))
-          : h('span', { class: 'dim empty-bench' }, target ? 'Drop here to keep it in the ossuary.' : 'Empty: every soul is on the field.'))]
+          : h('span', { class: 'dim empty-bench' }, 'Drop it here to keep it in the ossuary.'))]
   }
 
   // ── the panels ──
@@ -728,6 +735,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
     const pick = (w) => () => {
       if (!l) return
       if (sameSignal(l.when, w)) return
+      learnt('signal')
       if (send({ type: 'line', uid: u.uid, tiles: l.tiles, when: w })) sfx.play('select')
     }
     return h('div', { class: 'uc-line' },
@@ -769,29 +777,27 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
         class: `mc-col s-${k}`,
         tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${t.name}: `), t.line), h('p', { class: 'dim' }, monarchNextText(run, k)))
       },
-      h('div', { class: 'mc-ico' }, icon(k, 26)),
+      h('div', { class: 'mc-ico' }, icon(k, 20)),
       h('div', { class: 'mc-name' }, t.name),
       h('div', { class: 'mc-pts' }, s.monarch[k] ?? 0),
       h('div', { class: 'mc-now' }, t.now(run)),
-      buyButton('+1', cost, { type: 'monarch', stat: k }, monarchNextText(run, k)))
+      buyButton('+1', cost, { type: 'monarch', stat: k }, `${monarchNextText(run, k)} Each point costs ${TUNING.monarch.costPerPoint} more than the last.`))
     }
+    // Compact, so its four stats show whole in the slim panel: the head one line, the stats two by two.
     return [h('div', { class: 'mc' },
       h('div', { class: 'uc-head' },
-        h('div', { class: 'uc-art', tip: () => unitCard(m, { mods: [], realm: realmOf(run) }) }, portrait(m.id, 56, m.hp <= 0),
-          h('span', { class: 'uc-ins crown' }, icon('crown', 16))),
+        h('div', { class: 'uc-art', tip: () => unitCard(m, { mods: [], realm: realmOf(run), notes: ['Drag it to another seat of the rear two rows: the roads run to it.'] }) }, portrait(m.id, 44, m.hp <= 0),
+          h('span', { class: 'uc-ins crown' }, icon('crown', 14))),
         h('div', { class: 'uc-id' },
-          h('div', { class: 'uc-name' }, 'The Monarch'),
-          h('div', { class: 'uc-sub dim' }, m.lvl > 0 && `Lv ${m.lvl} · `, 'you: if it falls, the run ends'),
+          h('div', { class: 'uc-name', tip: () => monarchPointText(run) }, 'The Monarch'),
           h('div', { class: 'mc-hp' }, hpBar(m), h('span', null, `${m.hp}/${m.maxHp}`)))),
-      h('div', { class: 'mc-facts dim' }, kw('domain', `Domain ${domainOf(s)}`), ` · field ${fielded(souls(s.party)).length}/${fieldCap(run)} · drag it to another seat of the rear two rows`),
-      h('div', { class: 'mc-cols' + (MONARCH_STATS.length > 3 ? ' four' : '') }, MONARCH_STATS.map(col)),
-      h('p', { class: 'dim mc-foot', tip: () => monarchPointText(run) }, `A point: ${cost} essence; each costs ${TUNING.monarch.costPerPoint} more.`)),
+      h('div', { class: 'mc-cols' + (MONARCH_STATS.length > 3 ? ' four' : '') }, MONARCH_STATS.map(col))),
     h('div', { class: 'uc-sec' }, kw('synergy', 'Synergies'), h('span', { class: 'dim' }, say(' · click one to light its pieces', ' · tap one to light its pieces'))),
     synergyTracker(souls(standing(run)), aliasOf(run), { focus: focusSyn, onFocus: (key) => { focusSyn = focusSyn === key ? null : key; render() } }),
     h('div', { class: 'uc-sec' }, 'The board'),
     h('ul', { class: 'legend-list dim' },
       h('li', null, h('i', { class: 'lg-road' }), kw('road', 'Roads'), ': the arrows the foes walk to the Monarch.'),
-      h('li', null, h('i', { class: 'lg-line' }), kw('line', 'Lines'), ' and their markers; the plates are where each piece stands at 5, 10 and 15 s.'),
+      h('li', null, h('i', { class: 'lg-line' }), kw('line', 'Lines'), ' and their markers; the dots on them are where each piece stands at 5, 10 and 15 s (select one for its times).'),
       h('li', null, h('i', { class: 'lg-dom' }), kw('domain', 'Domain'), ': where a slain foe may rise for you.'))]
   }
 
@@ -852,6 +858,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
     const l = s.lines[uid]
     if (!l) return
     sel = { uid }
+    learnt('signal')
     if (send({ type: 'line', uid, tiles: l.tiles, when: nextSignal(l.when) })) sfx.play('select')
     const r = document.querySelector('.tip.on') && board.markerRect(uid)
     if (r) showTip(r, () => markerTip(uid))
@@ -1076,7 +1083,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
     const had = s.lines[d.uid]
     if (!d.tiles.length) return had ? send({ type: 'line', uid: d.uid, tiles: [] }) : render()
     if (had && String(had.tiles) === String(d.tiles)) return render()
-    if (send({ type: 'line', uid: d.uid, tiles: d.tiles, when: d.when })) sfx.play('place')
+    if (send({ type: 'line', uid: d.uid, tiles: d.tiles, when: d.when })) { learnt('line'); sfx.play('place'); render() }
   }
 
   // ── moving a piece ──
@@ -1620,30 +1627,31 @@ export function deathPanel (s, battle) {
 // The camp's walls, as the battle draws them (engine.js WALLS).
 const WALL_ART = ['wall-0', 'wall-1', 'wall-2'].map((w) => new URL(`./assets/props/${w}.svg`, import.meta.url).href)
 
-// ── battle playback bar ──────────────────────────────────────────────────────────────────────────
+// ── the battle's chrome ──────────────────────────────────────────────────────────────────────────
 
-// Under the battle canvas: the purse, the wave under way and the escalation bar (always in view: DESIGN §2.10),
-// the clock, pause, speed and skip. Only the purse and the bars read the battle; the controls change only how
-// it is shown.
+// The battle keeps prep's layout, so the board does not move as one fades into the other: a thin strip over the
+// board (the room, the wave under way, the escalation bar, always in view: DESIGN §2.10, the essence carried, the
+// clock), and the slim panel beside it (the Monarch's HP, their synergies and yours, the rules as they strike,
+// and at its foot pause, speed and skip, which change only how the battle is shown). The board takes the rest
+// (stage: engine.js fits it there).
 const SPEEDS = [1, 2, 4]
 
-export function battleBar ({ onHelp = null } = {}) {
+export function battleChrome ({ onHelp = null } = {}) {
   let scene = null
   let st = { paused: false, speed: 1, seconds: 0, over: false, essence: 0, wave: 1, waves: 1, left: 1, ramp: 0.4, esc: 1 }
   let carried = 0
   const noFocus = (e) => e.preventDefault()
   const btn = (attrs, ...kids) => h('button', { tabindex: '-1', onmousedown: noFocus, ...attrs }, ...kids)
-
   const speeds = SPEEDS.map((n) => btn({ class: 'seg', onclick: () => scene?.setSpeed(n), tip: () => `Play at ${n}× speed. (${n})` }, `${n}×`))
   const pause = btn({ class: 'seg pause', onclick: () => scene?.togglePause(), tip: () => 'Pause or resume the playback. (Space)' })
-  const skip = btn({ class: 'seg skip', 'data-sfx': 'none', onclick: () => scene?.skip(), tip: () => st.over ? 'On to what comes next. (S or Esc)' : 'Skip to the result. The outcome is already decided. (S or Esc)' })
+  const skip = btn({ class: 'primary skip', 'data-sfx': 'none', onclick: () => scene?.skip(), tip: () => st.over ? 'On to what comes next. (S or Esc)' : 'Skip to the result. The outcome is already decided. (S or Esc)' })
   const E = TUNING.escalation
   const clock = h('span', { class: 'clock', tip: () => 'Battle time.' })
   const count = h('b', null, '0')
   const purse = h('span', {
     class: 'purse',
     tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Essence'), h('p', null, 'Carried by the foes slain so far, relics included. A won battle pays it into your purse.'))
-  }, icon('soul', 22), h('span', { class: 'purse-plus' }, '+'), count)
+  }, icon('soul', 20), h('span', { class: 'purse-plus' }, '+'), count)
   const waveN = h('b')
   const wave = h('span', { class: 'wave-n', tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Wave ${st.wave} of ${st.waves}`), ' ', kw('wave', 'Waves'), ` come over the far edge: once the last is down to a third, or after ${secs(TUNING.spawn.waves.t)}.`) },
     icon('w-wave', 18), waveN)
@@ -1656,11 +1664,31 @@ export function battleBar ({ onHelp = null } = {}) {
       `The bar runs down from the last foe to enter. Past the mark (${secs(E.startTick)} in, ${secs(E.startTick * E.bossMult)} in the boss's room) every blow climbs, up to ×${E.max}. Empty: the battle is lost, and with it the run.`,
       h('p', { class: 'dim' }, st.esc > 1 ? `Every blow ×${st.esc.toFixed(2)} now.` : 'No blow is ramped yet.'))
   }, h('span', { class: 'esc-bar' }, fillEl, mark), escN)
-  const el = h('div', { class: 'battlebar' },
-    h('div', { class: 'pause-veil', 'aria-hidden': 'true' }, h('span', null, icon('pause', 26), 'Paused')),
-    h('div', { class: 'legend' }, purse, wave, esc),
-    h('div', { class: 'controls' }, clock, pause, h('div', { class: 'segs' }, speeds), skip, muteButton(),
-      onHelp && btn({ class: 'icon-btn', 'aria-label': 'How to play', onclick: onHelp, tip: () => 'How to play: the battle waits while it is open. (H)' }, icon('help', 20))))
+  const title = h('b', { class: 'bt-title' })
+  // The panel's words: the Monarch's HP, their synergies and yours, a rule's name a moment as it strikes.
+  const hpText = h('b', { class: 'bs-hp-n' })
+  const hpFill = h('span')
+  const crown = h('div', { class: 'bs-crown' },
+    h('div', { class: 'bs-crown-top' }, h('span', { class: 'bs-name' }, icon('crown', 18), 'The Monarch'), hpText),
+    h('div', { class: 'bs-hpbar' }, hpFill))
+  const theirs = h('div', { class: 'bs-syns foe' })
+  const mine = h('div', { class: 'bs-syns' })
+  const theirRules = h('div', { class: 'bs-rules foe' })
+  const myRules = h('div', { class: 'bs-rules' })
+  const list = (box, names) => fill(box, names.length ? names.map((n) => h('span', { class: 'bs-syn' + (n.startsWith('★') ? ' rule' : '') }, n)) : h('span', { class: 'dim' }, 'none'))
+  const stage = h('div', { class: 'battle-stage' }, h('div', { class: 'pause-veil', 'aria-hidden': 'true' }, h('span', null, icon('pause', 26), 'Paused')))
+  const el = h('div', { class: 'battle-screen' },
+    h('header', { class: 'battle-top' }, title, wave, esc, h('span', { class: 'grow' }), purse, clock),
+    h('div', { class: 'battle-main' },
+      stage,
+      h('aside', { class: 'battle-panel' },
+        crown,
+        h('div', { class: 'bs-k foe' }, 'Their synergies'), theirs, theirRules,
+        h('div', { class: 'bs-k' }, 'Yours'), mine, myRules,
+        h('div', { class: 'bs-controls' },
+          h('div', { class: 'bs-row' }, pause, h('div', { class: 'segs' }, speeds)),
+          h('div', { class: 'bs-row' }, skip, muteButton(),
+            onHelp && btn({ class: 'icon-btn', 'aria-label': 'How to play', onclick: onHelp, tip: () => 'How to play: the battle waits while it is open. (H)' }, icon('help', 20)))))))
 
   function render () {
     SPEEDS.forEach((n, i) => speeds[i].classList.toggle('active', st.speed === n))
@@ -1685,6 +1713,30 @@ export function battleBar ({ onHelp = null } = {}) {
 
   return {
     el,
+    // Where the board goes, in viewport px.
+    stage: () => stage.getBoundingClientRect(),
+    hud: {
+      start ({ title: t, theirs: th, mine: m, monarch }) {
+        title.textContent = t
+        list(theirs, th)
+        list(mine, m)
+        crown.hidden = !monarch
+      },
+      hp (hp, max) {
+        const f = max ? Math.max(0, hp / max) : 0
+        hpText.textContent = `${hp} / ${max}`
+        hpFill.style.width = `${f * 100}%`
+        crown.classList.toggle('low', f < 0.35)
+      },
+      announce (text, side) {
+        const box = side ? myRules : theirRules
+        const line = h('div', { class: 'bs-rule' }, text)
+        box.append(line)
+        while (box.children.length > 2) box.firstChild.remove()
+        setTimeout(() => line.classList.add('out'), 1400)
+        setTimeout(() => line.remove(), 1900)
+      }
+    },
     attach (s) { scene = s; s.purseAt = () => count.getBoundingClientRect() },
     update (next) { st = { ...st, ...next }; render() },
     key (e) {
@@ -1695,63 +1747,6 @@ export function battleBar ({ onHelp = null } = {}) {
       else return
       sfx.play('click')
       e.preventDefault()
-    }
-  }
-}
-
-// The battle's words, in two panels in the bands beside the board (engine.js: the scene's args.hud): on the left
-// their room's title and synergies at the top, yours at the bottom; on the right the Monarch's HP. A rule named
-// for the first time shows a moment in its side's panel. The scene tells them where the board stands (place).
-export function battleSides () {
-  const SIDE = 170 // logical px: the least each band keeps beside the board
-  const head = h('div', { class: 'bs-title' })
-  const theirs = h('div', { class: 'bs-syns foe' })
-  const mine = h('div', { class: 'bs-syns' })
-  const theirRules = h('div', { class: 'bs-rules foe' })
-  const myRules = h('div', { class: 'bs-rules' })
-  const hpText = h('b', { class: 'bs-hp-n' })
-  const hpFill = h('span')
-  const crown = h('div', { class: 'bs-crown' },
-    h('div', { class: 'bs-crown-top' }, h('span', { class: 'bs-name' }, icon('crown', 18), 'The Monarch'), hpText),
-    h('div', { class: 'bs-hpbar' }, hpFill))
-  const left = h('div', { class: 'battle-side left' },
-    h('div', { class: 'bs-top' }, head, h('div', { class: 'bs-k foe' }, 'Their synergies'), theirs, theirRules),
-    h('div', { class: 'bs-bottom' }, myRules, h('div', { class: 'bs-k' }, 'Your retinue'), mine))
-  const right = h('div', { class: 'battle-side right' }, h('div', { class: 'bs-bottom' }, crown))
-  const el = h('div', { class: 'battle-sides', 'aria-hidden': 'true' }, left, right)
-  const list = (box, names) => fill(box, names.length ? names.map((n) => h('span', { class: 'bs-syn' + (n.startsWith('★') ? ' rule' : '') }, n)) : h('span', { class: 'dim' }, 'no synergies'))
-  return {
-    el,
-    side: () => SIDE * frame.k,
-    start ({ title, theirs: t, mine: m, monarch }) {
-      head.textContent = title
-      list(theirs, t)
-      list(mine, m)
-      crown.hidden = !monarch
-    },
-    // The board's box in viewport px and the bar's top (`floor`): each panel fills its band.
-    place ({ left: l, top, right: r, bottom, floor }) {
-      const a = toLocalRect({ left: l, top, right: r, bottom })
-      const f = toLocalRect({ left: 0, top: floor, right: 0, bottom: floor }).top
-      const pad = 14
-      const t = Math.max(8, a.top)
-      const b = Math.min(f - 8, a.bottom)
-      left.style.cssText = `left:${pad}px;width:${Math.max(0, a.left - 2 * pad)}px;top:${t}px;height:${Math.max(0, b - t)}px`
-      right.style.cssText = `left:${a.right + pad}px;width:${Math.max(0, frame.w - a.right - 2 * pad)}px;top:${t}px;height:${Math.max(0, b - t)}px`
-    },
-    hp (hp, max) {
-      const f = max ? Math.max(0, hp / max) : 0
-      hpText.textContent = `${hp} / ${max}`
-      hpFill.style.width = `${f * 100}%`
-      crown.classList.toggle('low', f < 0.35)
-    },
-    announce (text, side) {
-      const box = side ? myRules : theirRules
-      const line = h('div', { class: 'bs-rule' }, text)
-      box.append(line)
-      while (box.children.length > 3) box.firstChild.remove()
-      setTimeout(() => line.classList.add('out'), 1400)
-      setTimeout(() => line.remove(), 1900)
     }
   }
 }

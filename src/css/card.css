@@ -113,13 +113,29 @@
 .mc-hp { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-sm); }
 .mc-hp .hpbar { flex: 1; width: auto; height: 10px; }
 .mc-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-.mc-cols.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-/* Four stats as two rows of two: each its icon, name and points on one line, what it gives now, its buy. */
-.mc-cols.four .mc-col { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 2px 8px; padding: 8px 10px; text-align: left; }
-.mc-cols.four .mc-pts { font-size: var(--fs-xl); }
-.mc-cols.four .mc-now { grid-column: 1 / -1; min-height: 0; }
-.mc-cols.four .buy { grid-column: 1 / -1; }
-.mc-facts { margin-top: 10px; font-size: var(--fs-sm); line-height: 1.35; }
+.mc-cols.four { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+/* Four stats as two rows of two, compact so all four show in the slim panel: its icon, name and points on one
+   line; what it gives now and its +1 on the next. */
+.mc-cols.four .mc-col {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ico name pts" "now now now" "buy buy buy";
+  align-items: center; gap: 2px 4px; padding: 6px; text-align: left;
+}
+.mc-cols.four .mc-ico { grid-area: ico; display: flex; }
+.mc-cols.four .mc-name { grid-area: name; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-cols.four .mc-pts { grid-area: pts; font-size: var(--fs-lg); }
+.mc-cols.four .mc-now { grid-area: now; min-height: 0; overflow-wrap: normal; }
+.tray .mc-cols.four .buy { grid-area: buy; width: auto; margin: 0; padding: 4px 10px; min-height: 40px; }
+.mc .uc-art { width: 52px; height: 52px; }
+/* On a short frame (a phone's) tighter still, what a stat gives now waiting on its hover. */
+@container frame (max-height: 640px) {
+  .mc { padding: 5px 8px 6px; }
+  .mc .uc-art { width: 40px; height: 40px; }
+  .mc .uc-art .portrait { width: 34px; height: 34px; }
+  .mc-cols.four { gap: 4px; margin-top: 5px; }
+  .mc-cols.four .mc-col { grid-template-areas: "ico name pts" "buy buy buy"; padding: 3px 6px; }
+  .mc-cols.four .mc-now { display: none; }
+  .tray .mc-cols.four .buy { min-height: 34px; padding: 2px 8px; }
+}
 .mc-col {
   display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 8px; text-align: center;
   border: 1px solid #4a3a18; border-radius: 10px; background: #15110a; cursor: help; min-width: 0;
@@ -129,7 +145,6 @@
 .mc-pts { font: 600 var(--fs-2xl)/1.05 var(--serif); color: var(--c-monarch); }
 .mc-now { font-size: var(--fs-sm); line-height: 1.25; color: var(--dim); min-height: 2.5em; overflow-wrap: anywhere; }
 .tray .mc-col .buy { margin-top: auto; width: 100%; padding: 6px 4px; gap: 6px; border-color: #5a4520; font-size: var(--fs-md); }
-.mc .mc-foot { margin: 10px 0 0; font-size: var(--fs-sm); line-height: 1.3; cursor: help; }
 
 /* ── your synergies, under the Monarch's card: a chip each, lit in its colour (the board's glow, --g); a
    lit one is a press that lights its pieces on the board ──────────────────────────────────────── */

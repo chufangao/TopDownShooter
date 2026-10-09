@@ -25,6 +25,9 @@
      (its hit area may be grown past what is drawn); a screen's main action is --tap-lg tall. */
   --fs-xs: 14px; --fs-sm: 16px; --fs-md: 18px; --fs-lg: 22px; --fs-xl: 28px; --fs-2xl: 36px;
   --tap: 44px; --tap-lg: 56px;
+  /* The run's chrome round the board (board.css), the battle's the same so the board never moves between them: a
+     top bar --top-h tall, and one slim panel --side wide, the board taking the rest. */
+  --top-h: 52px; --side: clamp(330px, calc(var(--frame-w, 960px) * .3), 380px);
   --serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -201,24 +204,6 @@ b { font-weight: 600; color: var(--bright); }
 .chip-stat.monarch.low { border-color: var(--c-foe); color: var(--c-foe); box-shadow: 0 0 10px #e0566a55; }
 .chip-stat.monarch.low b { color: #ffb0bb; }
 .topbar .icon-btn { margin-left: auto; }
-/* The guide: one slim line of numbered steps under the top bar, its close at the end. Closed, it takes no
-   room at all (How to play brings the tips back). */
-.guide { flex: none; margin: 10px 0 0; }
-.guide:empty { display: none; }
-.guide-box {
-  display: flex; gap: 8px; align-items: center; min-height: var(--tap); padding: 0 0 0 14px; border-radius: var(--radius);
-  background: linear-gradient(90deg, #1a2c27cc, #151225cc); border: 1px solid #2a4a41;
-}
-.guide ol {
-  margin: 0; padding: 4px 0; list-style: none; display: flex; align-items: center; gap: 4px 24px; flex-wrap: wrap; flex: 1; min-width: 0;
-  counter-reset: g; font-size: var(--fs-sm); line-height: 1.35;
-}
-.guide li { counter-increment: g; position: relative; padding-left: 30px; }
-.guide li::before {
-  content: counter(g); position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%;
-  display: grid; place-items: center; background: var(--c-essence); color: #06231b; font: 700 var(--fs-xs)/1 var(--sans);
-}
-.guide-box > .icon-btn { flex: none; align-self: stretch; border-radius: 0 var(--radius) var(--radius) 0; }
 
 /* ── tabs ─────────────────────────────────────────────────────────────────────────────────────── */
 .tabs { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
@@ -424,21 +409,28 @@ b { font-weight: 600; color: var(--bright); }
 .mini-cell.me { background: #3a2e14; border-color: var(--c-monarch); }
 .mini-cell.killer { background: #3a1a26; border-color: var(--c-foe); box-shadow: 0 0 8px #e0566a88; }
 
-/* ── battle playback bar ──────────────────────────────────────────────────────────────────────── */
-/* One row, 72 tall: the essence carried and the bars' key on the left; the clock, pause, speed, Skip (the main
-   action, --tap-lg) and sound on the right. */
-.battlebar {
-  pointer-events: auto; position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: center;
-  gap: 16px; flex-wrap: nowrap; min-height: 72px; padding: 8px 14px 8px 18px; background: linear-gradient(180deg, #0b0a12cc, #0b0a12f5); border-top: 1px solid var(--line2);
-  backdrop-filter: blur(8px);
+/* ── the battle's chrome (ui.js battleChrome) ─────────────────────────────────────────────────── */
+/* Prep's layout kept: the thin strip over the board (the room, the wave, the escalation bar, the purse, the
+   clock), the slim panel beside it (the Monarch's HP, the synergies, the rules, the controls at its foot), and
+   between them the stage, which takes no presses: the board is the canvas behind the page. */
+.battle-screen { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 10px 8px; pointer-events: none; }
+.battle-top {
+  pointer-events: auto; flex: none; display: flex; align-items: center; gap: 16px; min-height: var(--top-h); margin: 0 -10px; padding: 4px 14px;
+  background: #0b0a12e6; border-bottom: 1px solid var(--line2); backdrop-filter: blur(8px); font-size: var(--fs-sm); white-space: nowrap;
 }
-.legend { display: flex; gap: 18px; align-items: center; font-size: var(--fs-sm); flex-wrap: nowrap; white-space: nowrap; }
-.legend span { display: inline-flex; gap: 8px; align-items: center; }
-.legend > span:not(.purse) { min-height: var(--tap); cursor: help; }
-.lg { display: inline-block; width: 22px; height: 5px; border-radius: 3px; }
-.lg.hp { background: var(--c-essence); }
-.lg.gauge { background: var(--c-gauge); }
-.controls { display: flex; gap: 10px; align-items: center; }
+.battle-top > span:not(.grow) { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); cursor: help; }
+.battle-top .grow { flex: 1; }
+.bt-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: 600 var(--fs-lg)/1.1 var(--serif); letter-spacing: .03em; color: #f08a98; }
+.battle-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--side); gap: 10px; margin-top: 8px; }
+.battle-stage { position: relative; min-width: 0; min-height: 0; }
+.battle-panel {
+  pointer-events: auto; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0; overflow: hidden; padding: 10px 12px 12px;
+  background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius); box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(6px);
+}
+.bs-controls { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+.bs-row { display: flex; align-items: center; gap: 8px; }
+.bs-row .segs { flex: 1; }
+.bs-row .segs .seg { flex: 1; }
 /* The wave under way, of how many, and the escalation bar: it runs down from the last foe to enter, its mark
    where every blow starts to climb; hot past the mark, red when nearly out. */
 .wave-n { color: #f0a0ac; font-weight: 600; }
