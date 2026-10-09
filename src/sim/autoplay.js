@@ -41,7 +41,7 @@ import {
 import { createBattle, playOut, timelineHash, field } from './battle.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, levelCost, tierCost,
-  isMonarch, monarchOf, souls, MONARCH_STATS, monarchCost, monarchPoints, canAdvance, holds, isMarch, soulCount
+  isMonarch, monarchOf, souls, MONARCH_STATS, monarchCost, monarchPoints, canAdvance, holds, isMarch, soulCount, heldKinds
 } from './run.js'
 import { nodeOf, RANKS } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -906,11 +906,11 @@ function deliberate (run, L) {
 // (`chosen`), with the lines fought by signal, their length and the Monarch's seats (`lines`, `seats`). Only the
 // audited run's own plans and choices count (`run`: none of the copies it plays ahead on), and with no run named,
 // every plan the audit sees.
-export const AUDIT = { on: false, run: undefined, candidates: 0, plans: 0, considered: {}, chosen: {}, lines: {}, length: 0, seats: {} }
+export const AUDIT = { on: false, run: undefined, candidates: 0, plans: 0, considered: {}, chosen: {}, done: {}, lines: {}, length: 0, seats: {} }
 const note = (book, key, n = 1) => { if (AUDIT.on) AUDIT[book][key] = (AUDIT[book][key] ?? 0) + n }
 const audited = (run) => AUDIT.on && (AUDIT.run === undefined || AUDIT.run === run)
 export function resetAudit (on = true, run = undefined) {
-  Object.assign(AUDIT, { on, run, candidates: 0, plans: 0, considered: {}, chosen: {}, lines: {}, length: 0, seats: {} })
+  Object.assign(AUDIT, { on, run, candidates: 0, plans: 0, considered: {}, chosen: {}, done: {}, lines: {}, length: 0, seats: {} })
 }
 
 // What a formation uses: a line (by signal; turning off its lane), a Banner's wing (a Banner with a line and a piece
@@ -960,7 +960,46 @@ function pickSpend (run, L) {
     const wish = armyWish(run, L)
     if (wish) return s.essence >= monarchCost(run) ? { type: 'monarch', stat: wish } : null
   }
-  return kindSpend(run, L)
+  return kindSpend(run, L) ?? (L.spend ? idleSpend(run, L) : null)
+}
+
+// What the expert's essence buys when its usual buys find nothing (its fielded kinds at their cap, or past its
+// purse): every level and tier of any kind it holds and every Monarch point it may buy, each rehearsed over the
+// fights ahead (valueAhead) with the retinue as it would leave it; the one that gains the most, if any gains. So
+// essence never sits idle while a purchase is worth something. Weighed once a room for the purse it has.
+const idles = new WeakMap()
+// Every purchase the purse affords L: a level or a tier of any kind held (but under the levels or tracks ablation),
+// and a Monarch point in any stat L may buy.
+export function spendOptions (run, L) {
+  const s = run.state
+  return [
+    ...heldKinds(s).flatMap((kind) => [
+      ...(L.ablate !== 'levels' && s.kinds[kind].lvl < TUNING.level.cap && s.essence >= levelCost(run, kind) ? [{ type: 'level', kind }] : []),
+      ...[0, 1].filter((track) => L.ablate !== 'tracks' && canAdvance(s, kind, track) && s.essence >= tierCost(run, kind, track)).map((track) => ({ type: 'upgrade', kind, track }))
+    ]),
+    ...(s.essence >= monarchCost(run) ? statsFor(L).map((stat) => ({ type: 'monarch', stat })) : [])
+  ]
+}
+function idleSpend (run, L) {
+  const s = run.state
+  const key = JSON.stringify([s.floor, s.at, s.phase, s.essence, s.monarch, s.kinds, s.party.map((u) => [u.uid, u.count, u.hp])])
+  if (idles.get(run)?.key === key) return idles.get(run).pick
+  const options = spendOptions(run, L)
+  if (audited(run)) for (const a of options) note('considered', `idle ${a.type}`)
+  let pick = null
+  if (options.length) {
+    const value = valueAhead(run, L)
+    let best = value({})
+    for (const a of options) {
+      const sim = fork(run)
+      apply(sim, a)
+      const v = value({ party: sim.state.party, monarch: sim.state.monarch, kinds: sim.state.kinds })
+      if (v > best) { best = v; pick = a }
+    }
+  }
+  idles.set(run, { key, pick })
+  if (pick && audited(run)) note('done', `idle ${pick.type}`)
+  return pick
 }
 
 function kindSpend (run, L) {
@@ -1086,6 +1125,12 @@ function pickReap (run, L) {
   const s = run.state
   const free = s.offers.flatMap((o, index) => (o.type === 'soul' || o.type === BANNED[L.ablate] ? [] : [index]))
   if (free.length) return { type: 'reap', index: L.reap ? weighOffers(run, free, L) : free[0] }
+  if (L.reap) {
+    const pick = weighRecruits(run, L)
+    if (!pick) return { type: 'reap', index: null }
+    if (pick.release != null && soulCount(s.party) >= rosterCap(run)) return { type: 'release', uid: pick.release }
+    return { type: 'reap', index: pick.index, ...(pick.onto != null && { onto: pick.onto }) }
+  }
   const index = recruit(run, L)
   const piece = index !== null && L.reap && fielded(souls(s.party)).length >= fieldCap(run) && fielded(souls(s.party)).find((u) => u.id === s.offers[index].id)
   if (index === null || soulCount(s.party) < rosterCap(run)) return { type: 'reap', index, ...(piece && { onto: piece.uid }) }
@@ -1094,6 +1139,47 @@ function pickReap (run, L) {
   const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
   const weakest = inOssuary(s.party).filter(spare).sort(L.wounds ? byFieldPower : byPower).at(-1)
   return weakest ? { type: 'release', uid: weakest.uid } : { type: 'reap', index: null }
+}
+
+// The expert's recruit, by rehearsal over the fights ahead (valueAhead): each soul it can afford, as a piece of its
+// own or as a body more in the fielded piece of its kind, with the retinue as it would leave it (when the retinue
+// is full, its weakest standing piece in the ossuary let go first: a release only ever comes with a recruit worth
+// it), against keeping the essence for its souls' levels and tiers (soulsValue) or keeping it at all; the best that
+// beats both, or none. Weighed once a room; a release it needs comes first, then the recruit it was for.
+// → { index, onto?, release? } or null
+const recruits = new WeakMap()
+function weighRecruits (run, L) {
+  const s = run.state
+  const key = `${s.floor}|${s.at}`
+  if (recruits.get(run)?.key === key) return recruits.get(run).pick
+  const value = valueAhead(run, L)
+  const keep = value({})
+  const spend = new Map()
+  const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
+  const weakest = inOssuary(s.party).filter(spare).sort(byFieldPower).at(-1)
+  let pick = null
+  let best = -Infinity
+  for (const [index, o] of s.offers.entries()) {
+    if (o.type !== 'soul' || o.cost > s.essence) continue
+    const piece = fielded(souls(s.party)).filter((u) => u.id === o.id).sort(byFieldPower)[0]
+    for (const onto of [null, ...(piece ? [piece.uid] : [])]) {
+      const sim = fork(run)
+      const full = soulCount(s.party) >= rosterCap(run)
+      if (full && !weakest) continue
+      if (full) apply(sim, { type: 'release', uid: weakest.uid })
+      apply(sim, { type: 'reap', index, ...(onto !== null && { onto }) })
+      if (audited(run)) note('considered', onto === null ? 'recruit a new piece' : 'recruit onto a piece')
+      const v = value({ party: sim.state.party, nextUid: sim.state.nextUid, kinds: sim.state.kinds })
+      if (!spend.has(o.cost)) spend.set(o.cost, soulsValue(run, value, o.cost, L))
+      if (v > Math.max(keep, spend.get(o.cost)) && v > best) {
+        best = v
+        pick = { index, ...(onto !== null && { onto }), ...(full && { release: weakest.uid }) }
+      }
+    }
+  }
+  recruits.set(run, { key, pick })
+  if (pick && audited(run)) note('done', pick.onto != null ? 'recruit onto a piece' : 'recruit a new piece')
+  return pick
 }
 
 function recruit (run, L) {
@@ -1282,7 +1368,7 @@ export function auditRecord ({ seed, level }) {
   }
   const out = {
     seed, level, result: s.result, floor: s.floor, secs: (Date.now() - t0) / 1000, battles, acts,
-    candidates: AUDIT.candidates, plans: AUDIT.plans, considered: AUDIT.considered, chosen: AUDIT.chosen, lines: AUDIT.lines, length: AUDIT.length, seats: AUDIT.seats
+    candidates: AUDIT.candidates, plans: AUDIT.plans, considered: AUDIT.considered, chosen: AUDIT.chosen, done: AUDIT.done, lines: AUDIT.lines, length: AUDIT.length, seats: AUDIT.seats
   }
   resetAudit(false)
   return out
@@ -1308,7 +1394,9 @@ async function audit ({ runs, seed: seed0 }) {
   const features = ['line', ...Object.keys(SIGNALS).map((k) => `line:${k}`), 'turning line', 'Banner wing', 'seat off the rear middle', 'stack fielded', 'ring-2 fielded']
   for (const f of features) row(f, (rs) => sum(rs, (r) => r.considered[f]), (rs) => sum(rs, (r) => r.chosen[f]))
   for (const k of ['stack', 'split']) row(`${k} (weighed/done)`, (rs) => sum(rs, (r) => r.considered[k]), (rs) => sum(rs, (r) => r.acts[k]))
-  row('reap onto a piece (done)', () => '-', (rs) => sum(rs, (r) => r.acts['reap onto']))
+  for (const k of ['recruit a new piece', 'recruit onto a piece']) row(`${k} (weighed/done)`, (rs) => sum(rs, (r) => r.considered[k]), (rs) => sum(rs, (r) => r.done[k]))
+  row('release (done)', () => '-', (rs) => sum(rs, (r) => r.acts.release))
+  for (const k of ['level', 'upgrade', 'monarch']) row(`idle essence: ${k} (weighed/bought)`, (rs) => sum(rs, (r) => r.considered[`idle ${k}`]), (rs) => sum(rs, (r) => r.done[`idle ${k}`]))
   for (const stat of MONARCH_STATS) row(`Monarch ${stat} (weighed/bought)`, (rs) => sum(rs, (r) => r.considered[`Monarch ${stat}`]), (rs) => sum(rs, (r) => r.acts[`Monarch ${stat}`]))
   console.log('\nfought, per level:')
   for (const [level, rs] of groups) {

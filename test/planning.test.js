@@ -8,7 +8,7 @@ import { createRun, apply, availableNodes, souls, cleanLine, fielded, join, MONA
 import { createBattle } from '../src/sim/battle.js'
 import { battleSetup } from '../src/sim/run.js'
 import {
-  SHAPES, whensFor, lineContext, shapedLine, turns, redraw, wing, planFor, LEVELS, AUDIT, resetAudit, featuresOf, auditRecord
+  SHAPES, whensFor, lineContext, shapedLine, turns, redraw, wing, planFor, LEVELS, AUDIT, resetAudit, featuresOf, auditRecord, spendOptions, policy
 } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { SIGNALS } from '../src/content.js'
@@ -116,4 +116,51 @@ test('the audit counts what a run considered and chose, and leaves the audit off
   assert.ok(r.candidates >= r.plans)
   assert.ok(Object.values(r.chosen).every((n) => n <= r.plans))
   assert.equal(AUDIT.on, false)
+})
+
+test('idle essence: when its fielded kinds can buy nothing, the expert weighs every level, tier and Monarch point it can afford', () => {
+  const run = createRun({ seed: 'idle' })
+  const s = run.state
+  s.essence = 5000
+  // Every held kind at its cap and its tracks full: only the Monarch's points remain; then a kind with room to grow.
+  for (const k of Object.values(s.kinds)) Object.assign(k, { lvl: 10, tracks: [4, 2] })
+  for (const u of souls(s.party)) Object.assign(u, { lvl: 10, tracks: [4, 2] })
+  assert.deepEqual(spendOptions(run, LEVELS.expert).map((a) => a.stat), ['hp', 'dominion', 'command', 'will'])
+  join(run, 'grave_ghoul', { lvl: 1 })
+  const kinds = spendOptions(run, LEVELS.expert).filter((a) => a.kind === 'grave_ghoul').map((a) => a.type)
+  assert.deepEqual(kinds, ['level', 'upgrade', 'upgrade'])
+  assert.ok(!spendOptions(run, { ...LEVELS.expert, ablate: 'monarch-stats' }).some((a) => a.type === 'monarch'))
+  assert.ok(!spendOptions(run, { ...LEVELS.expert, ablate: 'levels' }).some((a) => a.type === 'level'))
+  // The expert's purchase, if it makes one, is one of them.
+  const a = policy(run, createRng('idle').stream('autoplay'), 'expert')
+  assert.ok(a.type === 'node' || spendOptions(run, LEVELS.expert).some((o) => JSON.stringify(o) === JSON.stringify(a)), JSON.stringify(a))
+})
+
+test('the expert lets a soul go only for a recruit it weighed worth it: the release, then that recruit', () => {
+  // A won fight with a full retinue: whatever the expert does, a release is followed by a recruit of a soul.
+  let released = 0
+  for (let i = 0; i < 12; i++) {
+    const run = createRun({ seed: 'letgo' + i })
+    const node = availableNodes(run)[0]
+    node.type = 'fight'
+    // A Tomb Knight slain: its soul may join the fielded Knight's piece.
+    node.foes = [{ id: 'tomb_knight', lvl: 1, slot: slotAt(0, 3) }]
+    apply(run, { type: 'node', id: node.id })
+    apply(run, { type: 'fight' })
+    if (run.state.phase !== 'reap') continue
+    const s = run.state
+    s.essence = 1000
+    while (souls(s.party).reduce((n, u) => n + u.count, 0) < 12) join(run, 'clockwork_page', { lvl: 1 })
+    const rng = createRng('letgo').stream('autoplay')
+    const a = policy(run, rng, 'expert')
+    if (a.type !== 'release') {
+      assert.ok(a.type === 'reap', JSON.stringify(a))
+      continue
+    }
+    apply(run, a)
+    const b = policy(run, rng, 'expert')
+    assert.ok(b.type === 'reap' && b.index !== null && s.offers[b.index].type === 'soul', JSON.stringify(b))
+    released++
+  }
+  assert.ok(released > 0, 'some full retinue let a soul go for a recruit')
 })
