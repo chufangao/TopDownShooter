@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { hitChance, critChance, computeDamage } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
-import { autoPlace, reachable, expand, rowOf, makeUnit, deployTile, slotAt, tileAt, distance, isEngaged, DEPTH, CENTRE_OUT, activeBonds, CAMP_ROWS, campGrid, steps, wallTiles } from '../src/sim/unit.js'
+import { autoPlace, reachable, expand, rowOf, makeUnit, deployTile, slotAt, tileAt, distance, isEngaged, DEPTH, CENTRE_OUT, activeBonds, CAMP_ROWS, campGrid, steps, wallTiles, summonTile, tileX, tileY } from '../src/sim/unit.js'
 
 test('hit and crit are clamped', () => {
   assert.equal(hitChance(50, 50), 0.5)
@@ -122,4 +122,17 @@ test('camp: placement skips walls and spills to the nearest row; steps never cut
   assert.ok(steps(tileAt(1, 2), walls).includes(tileAt(0, 3)), 'a diagonal past open ground is fine')
   assert.ok(!steps(tileAt(1, 2), walls).includes(tileAt(1, 1)))
   assert.equal(wallTiles('palisade').length, 5)
+})
+
+test('summons appear on the nearest open tile: beside the summoner, then behind, then ahead, diagonals last', () => {
+  const from = tileAt(3, 3)
+  const taken = new Set([from])
+  const order = []
+  for (let i = 0; i < 8; i++) {
+    const t = summonTile(from, (x) => !taken.has(x))
+    taken.add(t)
+    order.push([tileX(t) - 3, tileY(t) - 3])
+  }
+  assert.deepEqual(order, [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]])
+  assert.equal(summonTile(from, () => false), -1)
 })

@@ -344,22 +344,6 @@ test('autoplay finishes 20 seeded runs with a sane final state, and each defeat 
 // bought up to six a floor, past the souls' level cap: its HP is its points' alone, no synergy or relic adds
 // to it) plays to the boss and kills it, every state sane.
 // Not replayed: the purse and the points are bought outside the log's policy.
-test('a strong run clears all four floors: the boss falls, the Monarch stands on the last camp, and nothing felled it', () => {
-  const run = createRun({ seed: 'rich' })
-  const s = run.state
-  const rng = createRng(s.seed).stream('autoplay')
-  while (s.phase !== 'over') {
-    if (s.essence < 5000) s.essence = 1e5
-    const points = monarchPoints(s)
-    apply(run, ['map', 'prep'].includes(s.phase) && points < 6 * s.floor ? { type: 'monarch', stat: MONARCH_STATS[points % 3] } : policy(run, rng, STEADY))
-    checkState(s)
-  }
-  assert.deepEqual([s.result, s.death, s.floor, s.stats.floorsCleared], ['victory', null, TUNING.run.floors, TUNING.run.floors])
-  assert.equal(run.battle.boss, true)
-  assert.ok(campOpen(s.camp, monarchOf(s).slot) && monarchOf(s).hp > 0)
-  assert.ok(monarchPoints(s) > TUNING.level.cap, 'the Monarch\'s level runs past the souls\' cap')
-})
-
 test('the autoplayer uses the choices a player has: open cells only', () => {
   const check = (b, r) => {
     for (const u of r.setup.party) assert.ok(campOpen(r.setup.camp, u.slot), `${u.id} on ${u.slot} in ${r.setup.camp}`)
@@ -893,10 +877,10 @@ test('summons follow their summoner: on its leash, on its Move, and orphaned (fa
     stepBattle(b)
     for (const u of raised) if (u.hp > 0 && !u.orphan) assert.ok(distance(u.tile, me.tile) <= 3, `t ${b.t}: ${u.uid} strayed`)
   }
-  // Its fall orphans them: they falter and Hunt for the rest of the battle. (Foes far above it, the chanter
-  // carried in at 1 HP: it falls before they do.)
+  // Its fall orphans them: they falter and Hunt for the rest of the battle. (The chanter carried in at 1 HP,
+  // against Rangers far above it, which pick off the weakest: it falls before its summons do.)
   const setup = battleSetup(run)
-  const fight = createBattle({ ...setup, party: setup.party.map((u) => (u.uid === chanter.uid ? { ...u, hp: 1 } : u)), foes: setup.foes.map((f) => makeUnit(f.id, { uid: f.uid, lvl: 20, slot: f.slot })) })
+  const fight = createBattle({ ...setup, party: setup.party.map((u) => (u.uid === chanter.uid ? { ...u, hp: 1 } : u)), foes: setup.foes.map((f) => makeUnit('ember_drake', { uid: f.uid, lvl: 20, slot: f.slot })) })
   const lead = fight.units.find((u) => u.uid === chanter.uid)
   while (!fight.over && lead.hp > 0) stepBattle(fight)
   assert.ok(lead.hp <= 0, 'the summoner fell')

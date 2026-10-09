@@ -286,6 +286,22 @@ export const tileAt = (x, y) => y * LANES + x
 export const onBoard = (x, y) => x >= 0 && x < LANES && y >= 0 && y < DEPTH
 export const distance = (a, b) => Math.max(Math.abs(tileX(a) - tileX(b)), Math.abs(tileY(a) - tileY(b)))
 
+// Where a soul's summon appears: the open tile (`open(t)`) nearest `from` in a straight line, so side by side
+// before a diagonal; at equal distance level with it first, then behind it (toward the camp's back), then
+// ahead. A party tile's ahead is up the board, toward the foes. -1 when no tile is open.
+export function summonTile (from, open) {
+  let best = -1
+  let bestK = Infinity
+  for (let t = 0; t < TILES; t++) {
+    if (!open(t)) continue
+    const dx = tileX(t) - tileX(from)
+    const dy = tileY(t) - tileY(from)
+    const k = (dx * dx + dy * dy) * 1e4 + (dy === 0 ? 0 : dy < 0 ? 1 : 2) * 1e3 + Math.abs(dx) * 100 + t / TILES
+    if (k < bestK) { best = t; bestK = k }
+  }
+  return best
+}
+
 export function deployTile (side, slot) {
   const y = side === 'party' ? CAMP_ROWS - 1 - rowOf(slot) : DEPTH - ROWS + rowOf(slot)
   return tileAt(colOf(slot), y)

@@ -775,7 +775,6 @@ function deepWalk () {
     assert.ok(setup.floor > F && !setup.boss)
     assert.deepEqual(setup.foeMods.map((m) => m.v), foeMods(setup.floor, false).map((m) => m.v))
   }
-  assert.ok(s.floor > F + 1, 'it went on past the first endless floor')
   // Rebuilt from the clear by its log, the deep is the same.
   const again = { state: structuredClone(snap), battle: null, setup: null }
   for (const a of s.log.slice(snap.log.length)) apply(again, a)

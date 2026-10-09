@@ -4,7 +4,7 @@ import { TUNING } from './tuning.js'
 import { unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, ROLE_LIST, BEHAVIOURS, SYNERGIES, RELIC_LIST, BONDS, THREATS, ORDERS, GRADES, KEYSTONE_LIST, keystoneDef, TRIGGERS } from './content.js'
 import {
   statsOf, activeSynergies, synergyActive, baseStats, COLS, ROWS, slotAt, rangeOf, isAllyShape, activeBonds, CAMP_ROWS, pathDef, abilitiesOf, auraOf,
-  tileX, tileY, DEPTH, distance, deployTile, makeUnit, summonsOf, wallTiles, TILES
+  tileX, tileY, DEPTH, distance, deployTile, makeUnit, summonsOf, summonTile, wallTiles, TILES
 } from './sim/unit.js'
 import {
   foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, monarchCost, monarchPoints, MONARCH_STATS, armyLayout, waits,
@@ -62,26 +62,16 @@ export function armyOf (run, s = run.state) {
 // The room's formation in prep (its tiles are taken as the battle begins); none on the map.
 const prepFoes = (run) => run.state.phase === 'prep' ? currentNode(run)?.foes ?? [] : []
 
-// Where the battle will likely raise each soul's summons (battle.js summon, entryTile): soul by soul in party
-// order, every living soul that starts on the board raises its summons (summonsOf) one by one on the open tile
-// nearest it, ahead of it first, then level with it, past the walls, everyone standing and every summon already
-// placed. As units: the summon kind at its level, `summoned`, its `summoner`, its `tile` (and `slot`, its camp
+// Where the battle will likely raise each soul's summons (battle.js summon): soul by soul in party order,
+// every living soul that starts on the board raises its summons (summonsOf) one by one on the open tile nearest
+// it (unit.js summonTile: beside it first, then behind, then ahead), past the walls, everyone standing and
+// every summon already placed. As units: the summon kind at its level, `summoned`, its `summoner`, its `tile` (and `slot`, its camp
 // cell, or −1 past the camp), with a uid of its own ('m0', 'm1'…: never a soul's).
 export function summonLayout (s, foes = []) {
   const walls = new Set(wallTiles(s.camp))
   const standing = fielded(s.party).filter((u) => u.hp > 0 && !isHeld(s, u))
   const taken = new Set([...standing.map((u) => deployTile('party', u.slot)), ...foes.map((f) => deployTile('foe', f.slot))])
-  const near = (from) => {
-    let best = -1
-    let bestK = Infinity
-    for (let t = 0; t < TILES; t++) {
-      if (taken.has(t) || walls.has(t)) continue
-      const dy = tileY(t) - tileY(from)
-      const k = distance(t, from) * 1e4 + (dy > 0 ? 0 : dy === 0 ? 1 : 2) * 1e3 + Math.abs(tileX(t) - tileX(from)) * 100 + t / TILES
-      if (k < bestK) { best = t; bestK = k }
-    }
-    return best
-  }
+  const near = (from) => summonTile(from, (t) => !taken.has(t) && !walls.has(t))
   const out = []
   for (const u of souls(standing)) {
     for (const { id, count, lvl } of summonsOf(u)) {

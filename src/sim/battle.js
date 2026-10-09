@@ -7,7 +7,7 @@ import { createRng, hashString } from './rng.js'
 import {
   alive, livingOn, statsOf, activeSynergies, expand, enemySide, isAllyShape,
   deployTile, depthFor, distance, steps, NEIGHBOURS, rangeOf, TILES, tileX, tileY, tileAt, onBoard, activeBonds,
-  boardPlace, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, CAMP_ROWS, ROWS, CENTRE_OUT, LANES, DEPTH, summonsOf
+  boardPlace, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, CAMP_ROWS, ROWS, CENTRE_OUT, LANES, DEPTH, summonsOf, summonTile
 } from './unit.js'
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
@@ -162,7 +162,8 @@ const marks = (u) => ({
   ...(u.det != null && { det: u.det }), ...(u.grade > 0 && { grade: u.grade }), ...(u.wave && { wave: u.wave })
 })
 
-// A soul's summons (summonsOf) appear one by one on the open tile nearest it, ahead of it first (entryTile):
+// A soul's summons (summonsOf) appear one by one on the open tile nearest it, beside it first, then behind
+// (unit.js summonTile):
 // each a unit of its own, `summoned`, with `summoner` its uid, at its level, keeping to it on the leash
 // (`cohortOf`) and on its plan as it stands (its own copy: Stay holds the tile it appears on), in its detachment.
 // Summons of a soul that enters fresh (a held start) enter fresh with it. Mid-battle each is announced ({ type:
@@ -172,7 +173,7 @@ function summon (battle, u, announce = true) {
   if (u.side !== 'party' || u === battle.monarch || u.shadow || u.summoned || !alive(u) || battle.ablate.has('summons')) return
   for (const { id, count, lvl } of summonsOf(u)) {
     for (let k = 0; k < count; k++) {
-      const tile = entryTile(battle, 'party', u.tile)
+      const tile = summonTile(u.tile, (t) => battle.at[t] === null && !battle.walls.has(t))
       if (tile < 0) return
       const made = makeUnit(id, { uid: battle.nextUid++, lvl })
       const unit = enterBattle(battle, {
