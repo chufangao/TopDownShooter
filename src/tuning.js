@@ -56,7 +56,7 @@ export const TUNING = {
   spawn: {
     levelPerFloor: 2, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 1, tierFalloff: 3,
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
-    foeHp: [0.8, 0.88, 0.76, 0.95], foeAtk: [0.75, 0.83, 0.76, 0.9], bossHp: 1, bossAtk: 1,
+    foeHp: [1.08, 0.88, 0.76, 0.95], foeAtk: [1.02, 0.83, 0.76, 0.9], bossHp: 1, bossAtk: 1,
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses

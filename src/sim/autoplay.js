@@ -140,7 +140,7 @@ const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b.uid
 
 // Rough fighting worth from its stats, track tiers included: how long a body lasts times how hard it hits,
 // square-rooted, for each living body and each body its tiers add (unless `bodies` is false: the bodies
-// ablation's). A tier that grants an ability or an aura counts as a tenth more. 0 for the fallen, and for the
+// ablation's). A tier that grants an ability, an aura or a Banner counts as a tenth more. 0 for the fallen, and for the
 // Monarch, which never strikes: what it is worth only a rehearsal can tell.
 function worth (u, bodies = true) {
   if (u.hp <= 0 || isMonarch(u)) return 0
@@ -148,7 +148,7 @@ function worth (u, bodies = true) {
   const lasts = s.hp * (1 + s.def / 100) / s.damage.taken * (1 + s.eva / 60)
   const hits = s.atk * s.damage.dealt * (TUNING.gauge.base + s.spd / TUNING.gauge.spdDivisor) * s.gauge.rate *
     (1 + s.crt / 100 * (TUNING.crit.mult - 1)) * (s.acc / (s.acc + 15)) * (1 + 0.3 * (s.heal.given - 1))
-  const signature = tiersOf(u).filter((t) => t.ability || t.aura).length
+  const signature = tiersOf(u).filter((t) => t.ability || t.aura || t.banner).length
   return Math.sqrt(lasts * hits) * (1 + 0.1 * signature) * (livingBodies(u) + (bodies ? bodiesOf(u) : 0))
 }
 const power = worth
@@ -1150,7 +1150,8 @@ function pickReap (run, L) {
 const recruits = new WeakMap()
 function weighRecruits (run, L) {
   const s = run.state
-  const key = `${s.floor}|${s.at}`
+  // Once a room, for the offers it has (a release leaves them as they were; a recruit takes the souls away).
+  const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => [o.type, o.id ?? o.kind ?? null])])
   if (recruits.get(run)?.key === key) return recruits.get(run).pick
   const value = valueAhead(run, L)
   const keep = value({})

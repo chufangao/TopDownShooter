@@ -636,7 +636,22 @@ const reachOf = (u, ability) => Math.min(rangeOf(ability), u.ring)
 function reachableOn (battle, actor, ability) {
   if (ability.shape === 'corpse') return corpses(battle, actor)
   if (ability.shape === 'self' || isAllyShape(ability.shape)) return reachableIn(battle, actor, ability)
+  if (preyed(battle, actor)) return preyOf(battle, actor, reachOf(actor, ability))
   return around(battle, actor.tile, reachOf(actor, ability), enemySide(actor.side))
+}
+
+// A Flank kind on a road round your pieces dives (DESIGN §2.6): it goes for the Monarch and fights nothing else
+// but a piece of yours standing on its next road tile; with no road round them it fights as any foe does.
+const preyed = (battle, u) => u.side === 'foe' && u.behaviour === 'flank' && battle.monarch !== null && fieldOf(battle, true).dist[u.tile] < Infinity
+// What a diver may strike within `r` tiles: the Monarch, and the piece in its way.
+function preyOf (battle, u, r) {
+  const out = []
+  const m = battle.monarch
+  if (alive(m) && distance(m.tile, u.tile) <= r) out.push(m)
+  const next = arrowOf(battle, u)
+  const block = next >= 0 ? battle.at[next] : null
+  if (block && block.side !== u.side && block !== m && distance(block.tile, u.tile) <= r) out.push(block)
+  return out
 }
 
 // unit.js's reachable over battle.units, in one pass: the units on the side it aims at, living, within its range.
@@ -1133,7 +1148,7 @@ function firstAbility (battle, unit) {
 function inReach (battle, actor, ability) {
   if (ability.shape === 'corpse') return corpses(battle, actor).length > 0
   if (ability.shape === 'self') return true
-  if (!isAllyShape(ability.shape)) return foeWithin(battle, actor.tile, reachOf(actor, ability), actor.side)
+  if (!isAllyShape(ability.shape)) return preyed(battle, actor) ? preyOf(battle, actor, reachOf(actor, ability)).length > 0 : foeWithin(battle, actor.tile, reachOf(actor, ability), actor.side)
   const range = rangeOf(ability)
   for (const u of battle.units) if (u.side === actor.side && u.hp > 0 && distance(actor.tile, u.tile) <= range) return true
   return false
@@ -1207,7 +1222,7 @@ export const ringTarget = (battle, u) => pick(battle, u, around(battle, u.home ?
 function chooseAction (battle, u) {
   const due = battle.t >= u.nextStep
   if (!due && u.gauge < u.cheapest) return null
-  if (foeWithin(battle, u.home ?? u.tile, u.ring, u.side)) {
+  if (preyed(battle, u) ? preyOf(battle, u, u.ring).length > 0 : foeWithin(battle, u.home ?? u.tile, u.ring, u.side)) {
     const ability = firstAbility(battle, u)
     if (ability) return u.gauge < ability.castCost ? null : use(battle, u, ability)
     if (!due) return null

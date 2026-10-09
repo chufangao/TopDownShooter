@@ -1268,7 +1268,7 @@ export const ROLE_LIST = [
 export const BEHAVIOURS = {
   walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch, and fights whatever stands in its way.' },
   // Which kinds Flank is learnt by meeting them; the text only says what it does.
-  flank: { name: 'Flank', desc: 'Walks round your pieces to the Monarch where a way round is open; where none is, it walks the arrows.' }
+  flank: { name: 'Flank', desc: 'Walks round your pieces to the Monarch where a way round is open, striking nothing on the way but the Monarch and what stands in its path; where no way round is open, it walks the arrows and fights as any foe does.' }
 }
 
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
