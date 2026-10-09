@@ -53,8 +53,12 @@ and the balance record.
 - **Interface only.** Simplify the interface, never the rules. No changes to `src/sim/*` or `src/tuning.js`;
   in `src/content.js` only the presentation colour `DETACHMENT_COLORS` changed.
 - **Modular tabs.** One view at a time behind tabs, never every panel at once.
-- **Desktop only.** Minimum 1024×768, mouse and keyboard. Phone support was removed on purpose: no narrow
-  media queries, touch modes or bottom sheets. Test at 1440×900, 1280×720 and 1024×768.
+- **Universal landscape** (replaces "desktop only", 2026-10-08). One interface for desktop, tablet and phone,
+  scaled whole like Slay the Spire or Bloons TD 6: `src/frame.js` lays the DOM out 720 logical px tall (width
+  960 at 4:3 up to ~1560 on a phone) and scales it; the Phaser canvas stays native. No width-based phone
+  layouts or narrow media queries. Sizes come from the `--fs-*` / `--tap` tokens in `src/style.css`. Nothing
+  may need hover, Shift or a key: touch has long-press for tooltips and on-screen buttons for every shortcut.
+  Portrait shows a rotate prompt. Test at 1440×900, 1024×768, 1180×820 and 852×393, in Chromium and WebKit.
 - **Enemy behaviour is discovered, never previewed.** No intent markers or "it will flank" text; roles may be
   hinted in flavour text.
 - **Defeat is absolute.** Never suggest lives or retries.

@@ -1,13 +1,15 @@
 // Composition root: the Phaser engine (battles only), the DOM screens, and the run that links them.
 // Every player input becomes one apply(run, action); the screens only read run.state.
+// The DOM screens are laid out at one logical size and scaled to the screen (frame.js); the canvas is not.
+import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, holds, depthOf } from './sim/run.js'
 import { createBattle, stats, ariseCap } from './sim/battle.js'
 import { TUNING } from './tuning.js'
 import { unitDef, ORDERS, relicDef } from './content.js'
-import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleBar, bannerColours } from './ui.js'
+import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleBar, battleSides, bannerColours } from './ui.js'
 import { helpOverlay, unitCard, bodies, tileText, whenText, ENEMY_TEXT, tipDetail } from './codex.js'
-import { showTip, hideTip, refreshTip } from './dom.js'
+import { showTip, pinTip, hideTip, refreshTip, tipMore, touchy } from './dom.js'
 import { sfx } from './sfx.js'
 import { distance } from './sim/unit.js'
 import { board } from './board.js'
@@ -57,23 +59,48 @@ document.addEventListener('click', (e) => {
   if (own !== 'none') sfx.play(own || 'click')
 })
 
-// How to play pauses a battle playing out while it is open (one already paused stays so after), and puts
-// the cursor in its search box.
-let helpPaused = null
+// What covers the battle (How to play, the rotate prompt) pauses it while it is there, and it plays on once the
+// last of them goes (one already paused stays so after). A battle begun under one is held from its start.
+const covers = new Set()
+let coverPaused = null
+const battleScene = () => {
+  const b = engine.game.scene.getScene('Battle')
+  return b?.sys.isActive() ? b : null
+}
+function hush () {
+  const b = battleScene()
+  if (covers.size && b && !b.paused && !b.ending) { b.setPaused(true); coverPaused = b }
+}
+function cover (why, on) {
+  if (on) { covers.add(why); return hush() }
+  if (!covers.delete(why) || covers.size) return
+  if (coverPaused && coverPaused === battleScene() && coverPaused.paused) coverPaused.setPaused(false)
+  coverPaused = null
+}
+// Held upright (style.css #rotate shows): the battle waits for the screen to turn back.
+const upright = matchMedia('(orientation: portrait)')
+const turned = () => cover('rotate', upright.matches)
+upright.addEventListener?.('change', turned)
+turned()
+// The page hidden (the phone locked, another app): the battle pauses, and stays paused for the player's return.
+document.addEventListener('visibilitychange', () => {
+  const b = battleScene()
+  if (document.hidden && b && !b.paused && !b.ending) b.setPaused(true)
+})
+
+// How to play pauses a battle (above), and puts the cursor in its search box: never by touch, where that would
+// raise the on-screen keyboard over half the screen.
 function toggleHelp () {
   hideTip()
   if (help) {
     help.remove()
     help = null
-    if (helpPaused?.sys.isActive() && helpPaused.paused) helpPaused.setPaused(false)
-    helpPaused = null
-    return
+    return cover('help', false)
   }
   help = helpOverlay(toggleHelp, run)
-  document.body.append(help)
-  const battle = engine.game.scene.getScene('Battle')
-  if (battle?.sys.isActive() && !battle.paused && !battle.ending) { battle.setPaused(true); helpPaused = battle }
-  help.querySelector('.gl-search')?.focus({ preventScroll: true })
+  frame.el.append(help)
+  cover('help', true)
+  if (!touchy()) help.querySelector('.gl-search')?.focus({ preventScroll: true })
 }
 
 // Holding Shift opens the details of the card under the pointer (codex.js tipDetail); letting go closes them.
@@ -81,6 +108,8 @@ const detail = (on) => { if (tipDetail.on !== on) { tipDetail.on = on; refreshTi
 window.addEventListener('keydown', (e) => { if (e.key === 'Shift') detail(true) })
 window.addEventListener('keyup', (e) => { if (e.key === 'Shift') detail(false) })
 window.addEventListener('blur', () => detail(false))
+// By touch, a pinned card's More ▾ / Less ▴ does what Shift does (dom.js).
+Object.assign(tipMore, { get: () => tipDetail.on, set: detail })
 
 // A control the keyboard focused (a button, a tab, a fold of the rules) presses itself on Enter or Space: its
 // own press wins over the screen's keys. One a click just focused holds nothing: the key lets go of it and
@@ -152,7 +181,7 @@ function route () {
     const title = { reliquary: 'Reliquary', rite: 'Rite' }[currentNode(run).type] ?? 'Spoils'
     show(reapScreen({ run, title, act, onDone: reap, onBind: bind, onHelp: toggleHelp }))
   } else {
-    show(endScreen({ run, onNew: () => title(newSeed()), onDescend: descend }))
+    show(endScreen({ run, onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
   }
 }
 
@@ -208,22 +237,30 @@ async function fight () {
   const node = currentNode(run)
   const handoff = board.leave()
   apply(run, { type: 'fight' })
-  const bar = battleBar()
+  const bar = battleBar({ onHelp: toggleHelp })
   show(bar)
+  // The battle's words, in panels beside the board (ui.js battleSides).
+  const sides = battleSides()
+  bar.el.before(sides.el)
   const battle = createBattle(run.setup)
   const scene = await engine.battle({
     battle,
+    hud: sides,
     seamless: !!handoff,
     title: `FLOOR ${run.setup.floor}${depthOf(run.setup.floor) ? ` · DEEP ${depthOf(run.setup.floor)}` : ''} · ${NODE[node.type].name.toUpperCase()}`,
-    barHeight: () => bar.el.offsetHeight,
+    // The canvas below the bar's top, in viewport px (the bar is scaled with the frame, the canvas is not).
+    barHeight: () => {
+      const r = bar.el.getBoundingClientRect()
+      return r.height ? Math.max(0, engine.game.canvas.getBoundingClientRect().bottom - r.top) : 0
+    },
     banners: bannerColours(run.state.party),
     onChange: (st) => bar.update(st),
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: 1 + run.state.relics.reduce((n, id) => n + (relicDef(id).essence ?? 0), 0),
     // Live stats and statuses for the unit under the pointer, and what the Monarch's rules and its orders do
     // to it. Only your own plans are told: a foe's never are. A foe's card tells its banner and its wave,
-    // never where it is bound.
-    onHover: (u, at) => {
+    // never where it is bound. `pin`: a long press (touch), the card stays until the next tap.
+    onHover: (u, at, pin = false) => {
       if (!u) return hideTip()
       const foe = u.side === 'foe'
       const captain = u.cohortOf != null ? battle.byUid.get(u.cohortOf) : null
@@ -285,7 +322,8 @@ async function fight () {
         foe && u.wave && (u.when?.at === 'time' ? 'Came with the late pair' : `Came with wave ${u.wave + 1}`),
         !foe && 'Hunting'].find(Boolean) || null
       const realm = { domain: battle.domain, will: battle.will, raises: battle.ks.raises, tithe: battle.ks.tithe, keep: holds(run.state, 'keep') }
-      showTip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, notes, ordered, live }))
+      const tip = pin ? pinTip : showTip
+      tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, notes, ordered, live }))
     },
     onDone: () => {
       // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).
@@ -301,6 +339,7 @@ async function fight () {
   })
   handoff?.(scene)
   bar.attach(scene)
+  hush()
 }
 
 // A unit's orders in a battle, live: its detachment's plan, and what it is doing with it now (holding its
@@ -336,6 +375,13 @@ function planNow (battle, u, captain) {
     dropped: u.plan.where !== 'hunt' && !u.orphan && u.where === 'hunt'
   }
 }
+
+// The frame rescaled (a resize, a rotation, the iOS toolbar): a battle playing fits itself under its bar again.
+// The prep board needs nothing: board.js checks the stage's rect every frame.
+onFrame(() => {
+  const battle = engine.game.scene.getScene('Battle')
+  if (battle?.sys.isActive()) battle.fit()
+})
 
 const seed = new URLSearchParams(location.search).get('seed') ?? newSeed()
 title(seed)

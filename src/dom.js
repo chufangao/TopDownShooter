@@ -1,5 +1,6 @@
 // Small DOM toolkit for the screens: element builder, the one shared tooltip, icons and portraits.
 import { artUrl } from './content.js'
+import { frame, toLocal, toLocalRect, onFrame } from './frame.js'
 
 // h('div', { class: 'x', onclick, tip }, ...children). null and false children are skipped; `tip`
 // is a function returning the tooltip's content, built when the pointer arrives.
@@ -24,43 +25,178 @@ export function fill (el, ...kids) {
 // ── tooltip ──────────────────────────────────────────────────────────────────────────────────────
 
 // One floating panel for the whole page. It sits beside its anchor (right, else left, else below or
-// above) and never leaves the viewport, nor covers the battle's playback bar.
+// above) and never leaves the frame, nor covers the battle's playback bar. It lives in the frame (frame.js), so
+// it is laid out in logical px: the anchor's viewport rect is taken into the frame first.
 
 const tipEl = h('div', { class: 'tip', role: 'tooltip' })
-document.body.append(tipEl)
+frame.el.append(tipEl)
 let anchor = null
 
+// A mouse or a pen shows an element's tooltip while over it (and the keyboard while focused on it); a finger
+// shows it by a long press (hold), pinned until the next tap. A plain tap only does what the element does.
 export function tip (el, content) {
-  const show = () => showTip(el, content)
-  el.addEventListener('mouseenter', show)
-  el.addEventListener('focus', show)
-  el.addEventListener('mouseleave', hideTip)
-  el.addEventListener('blur', hideTip)
+  el.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') showTip(el, content) })
+  el.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch' && !pinned) hideTip() })
+  // A tap focuses a button too: only the keyboard's focus (or a mouse's) shows the tooltip.
+  el.addEventListener('focus', () => { if (!finger || focusVisible(el)) showTip(el, content) })
+  el.addEventListener('blur', () => { if (!pinned) hideTip() })
+  // Not inside the tooltip itself (a keyword on a card): there it would take the card's place.
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch' && e.isPrimary && !tipEl.contains(el)) hold(e, () => { pinTip(el, content); felt(el) })
+  })
   return el
 }
+const focusVisible = (el) => { try { return el.matches(':focus-visible') } catch { return true } }
 
 // target: an element, or a { left, top, right, bottom } rect in viewport pixels. None while a soul is dragged.
-export function showTip (target, content) {
+// `pin` (a long press, pinTip): it stays after the finger lifts, until the next tap anywhere or a scroll.
+export function showTip (target, content, pin = false) {
   if (document.body.classList.contains('dragging')) return hideTip()
+  // Another tooltip in a pinned one's place: that one goes first (its anchor lets go, its details close).
+  if (pinned && (!pin || target !== anchor)) hideTip()
   anchor = target
   shown = content
+  pinned = pin
   fill(tipEl, content())
+  if (finger) touchWords(tipEl)
+  if (pin) tipEl.append(moreButton() ?? '')
   tipEl.classList.add('on')
+  tipEl.classList.toggle('pinned', pin)
   place()
 }
 
 // The tooltip on show, built again in place: Shift opens or closes a card's details (main.js).
 let shown = null
 export function refreshTip () {
-  if (anchor && shown && tipEl.classList.contains('on')) showTip(anchor, shown)
+  if (anchor && shown && tipEl.classList.contains('on')) showTip(anchor, shown, pinned)
 }
 
+// ── touch: the long press, the pinned tooltip, the wording ──
+
+// Whether the last pointer was a finger (before any, a screen that cannot hover). The gestures and the wording
+// ("Tap" or "Click", touchText) read it; a mouse moved again takes it back.
+let finger = matchMedia('(hover: none)').matches
+export const touchy = () => finger
+// The text a guide or a hint shows: the mouse's words, or the finger's.
+export const say = (mouse, touch) => (finger ? touch : mouse)
+
+// The tooltips speak to the mouse and the keyboard ("Click to…", "(Enter)"); to a finger they say Tap, and
+// drop the key in brackets (the button is the way). A modifier-click is the Orders tab's Pick.
+const WORDS = [
+  [/Shift-?,? or Ctrl-click/g, 'Pick (in Orders)'],
+  [/Shift-click/g, 'Pick (in Orders)'],
+  [/\b([Cc])lick(s|ed|ing)?\b/g, (_, c, end = '') => (c === 'C' ? 'T' : 't') + 'ap' + ({ s: 's', ed: 'ped', ing: 'ping' }[end] ?? '')],
+  [/\bHover\b/g, 'Long-press'],
+  [/\bhover\b/g, 'long press'],
+  [/\s?\((?:⇧?[A-Z0-9?]|Enter|Esc|Space|[A-Z0-9] or [A-Z0-9?]+|S or Esc|← →|→|←|Shift)\)/g, '']
+]
+export const touchText = (s) => WORDS.reduce((t, [re, to]) => t.replace(re, to), s)
+function touchWords (el) {
+  const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    const t = touchText(n.nodeValue)
+    if (t !== n.nodeValue) n.nodeValue = t
+  }
+}
+
+// A long press: HOLD ms still (within SLOP px) under one finger. → { fired, cancel }; fire() runs as it fires.
+// Its release is then no tap: the click it would make is eaten (and a press that starts anew forgets that).
+export const HOLD = 400
+export const SLOP = 8
+export function hold (e, fire) {
+  const { pointerId: id, clientX: x0, clientY: y0 } = e
+  const press = { fired: false, cancel }
+  const timer = setTimeout(() => {
+    stop()
+    press.fired = true
+    eat = true
+    navigator.vibrate?.(10)
+    ring(x0, y0)
+    fire(e)
+  }, HOLD)
+  const move = (m) => { if (m.pointerId === id && Math.hypot(m.clientX - x0, m.clientY - y0) > SLOP) cancel() }
+  const up = (m) => { if (m.pointerId === id) cancel() }
+  function stop () {
+    window.removeEventListener('pointermove', move, true)
+    window.removeEventListener('pointerup', up, true)
+    window.removeEventListener('pointercancel', up, true)
+  }
+  function cancel () { clearTimeout(timer); stop() }
+  window.addEventListener('pointermove', move, true)
+  window.addEventListener('pointerup', up, true)
+  window.addEventListener('pointercancel', up, true)
+  return press
+}
+
+// The tooltip pinned (a long press). `keep`: a tap on its anchor still goes through to it (a room on the map,
+// tapped again, is entered); `onHide` runs when it goes (the room is let go of).
+let pinned = false
+let pinOpts = {}
+export function pinTip (target, content, opts = {}) {
+  showTip(target, content, true)
+  if (pinned) pinOpts = opts
+}
+export const tipPinned = () => pinned
+
+// A long press answered: the element swells a moment (touch.css), a ring spreads under the finger.
+function felt (el) {
+  el.classList.remove('held')
+  void el.offsetWidth
+  el.classList.add('held')
+  setTimeout(() => el.classList.remove('held'), 400)
+}
+function ring (x, y) {
+  const p = toLocal(x, y)
+  const r = h('div', { class: 'hold-ring', 'aria-hidden': 'true', style: `left:${p.x}px;top:${p.y}px` })
+  frame.el.append(r)
+  setTimeout(() => r.remove(), 600)
+}
+
+// A card's details (Shift with a mouse) on a pinned tooltip: More ▾ opens them, Less ▴ closes them. main.js
+// links it to codex.js's tipDetail; only a tooltip with details (a unit card) shows it.
+export const tipMore = { get: () => false, set: () => {} }
+function moreButton () {
+  if (!tipEl.querySelector('.card-tip')) return null
+  const on = tipMore.get()
+  return h('button', { class: 'tip-more small', onclick: () => tipMore.set(!on) }, on ? 'Less ▴' : 'More ▾')
+}
+
+// The click a long press would make, eaten; a new press forgets it. A press while a tooltip is pinned closes it
+// and goes on to do what it would (a tap on another room scouts it, on the board selects, a drag drags, a swipe
+// scrolls, a long press pins the next tooltip). Its click is eaten only on nothing that answers a click (that tap
+// just closes the tooltip); and on a button that cannot be taken back (SURE) the press is not the button's at
+// all: it only closes the tooltip, and a second tap acts. A tap inside it (on its buttons) acts as ever.
+const SURE = '.primary, .danger, .begin-btn, .move-on, .offer, .buy, .bind-btn, .bind-all, .tnode, .battlebar .skip, .end-actions button'
+const ACTIVE = 'button, a, input, select, textarea, label, summary, [role="tab"], [tabindex], .node, .stage-wrap, .bench, #game'
+let eat = false
+window.addEventListener('pointerdown', (e) => {
+  eat = false
+  if (e.pointerType === 'touch') finger = true
+  if (!pinned) return
+  const t = e.target
+  if (t.closest?.('.tip button')) return
+  if (pinOpts.keep && anchor?.nodeType && anchor.contains(t)) return
+  hideTip()
+  if (t.closest?.(SURE)) e.stopPropagation()
+  else if (t.closest?.(ACTIVE)) return
+  eat = true
+}, true)
+window.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') finger = false }, true)
+window.addEventListener('click', (e) => {
+  if (!eat) return
+  eat = false
+  e.stopPropagation()
+  e.preventDefault()
+}, true)
+// A finger held down asks for the page's menu (Android) or a callout: the long press is the game's.
+document.addEventListener('contextmenu', (e) => { if (finger && !e.target.closest?.('input, textarea')) e.preventDefault() })
+
 function place () {
-  const r = anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : anchor
-  const vw = window.innerWidth
-  // The bottom it keeps above: the viewport's, or the battle's playback bar's.
+  const r = toLocalRect(anchor.getBoundingClientRect ? anchor.getBoundingClientRect() : anchor)
+  const vw = frame.w
+  // The bottom it keeps above: the frame's, or the battle's playback bar's.
   const bar = document.querySelector('.battlebar')?.getBoundingClientRect()
-  const vh = bar?.height ? Math.min(window.innerHeight, bar.top) : window.innerHeight
+  const vh = bar?.height ? Math.min(frame.h, toLocal(0, bar.top).y) : frame.h
   const w = tipEl.offsetWidth
   const ht = tipEl.offsetHeight
   const gap = 10
@@ -78,21 +214,31 @@ function place () {
 
 export function hideTip () {
   anchor = null
-  tipEl.classList.remove('on')
+  tipEl.classList.remove('on', 'pinned')
+  if (!pinned) return
+  // A pinned tooltip gone: its details close again (a held Shift is the mouse's own), and its anchor lets go.
+  const { onHide } = pinOpts
+  pinned = false
+  pinOpts = {}
+  if (tipMore.get()) tipMore.set(false)
+  onHide?.()
 }
 
 // A re-render can remove the hovered element without a mouseleave; drop a tooltip left orphaned.
 new MutationObserver(() => { if (anchor?.nodeType && !anchor.isConnected) hideTip() })
   .observe(document.body, { childList: true, subtree: true })
 // A scroll or a resize moves an element out from under its tooltip, which follows it; a rect (a board tile, a
-// unit in battle) is only where it was, so its tooltip goes until the pointer moves again.
-const moved = () => {
+// unit in battle) is only where it was, so its tooltip goes until the pointer moves again. A scroll closes a
+// pinned one (but one inside it, of its own text).
+const moved = (e) => {
   if (!anchor) return
-  if (anchor.nodeType) place()
+  if (pinned && e?.type === 'scroll' && !tipEl.contains(e.target)) hideTip()
+  else if (anchor.nodeType) place()
   else hideTip()
 }
 window.addEventListener('scroll', moved, true)
 window.addEventListener('resize', moved)
+onFrame(moved)
 
 // ── icons ────────────────────────────────────────────────────────────────────────────────────────
 

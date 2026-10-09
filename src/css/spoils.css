@@ -3,6 +3,22 @@
    system's colour as --f: a recruit essence, a relic gold, a keystone lilac, a path tier the orders' blue, a
    body to bind bone. */
 
+/* ── reap: the frame ──────────────────────────────────────────────────────────────────────────── */
+/* Fitted to the frame (.screen.fit): the head, the cards in the middle (the one part that may scroll, a long
+   list of kinds to bind), the foot (the retinue strip and the actions). Wider frames widen it. */
+.reap-main { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; max-width: 1480px; margin: 0 auto; text-align: center; }
+.reap-head { flex: none; display: flex; align-items: center; justify-content: center; gap: 10px 28px; flex-wrap: wrap; padding-top: 14px; }
+.reap-title h1 { white-space: nowrap; }
+.reap-note, .reap-main > .wave-pay { flex: none; margin: 8px auto 0; }
+.wave-pay { font-size: var(--fs-sm); }
+/* The middle: whatever the cards, it holds them, scrolling inside itself when they outgrow it, so the foot and
+   its actions always stand clear below. */
+.reap-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 4px 10px; overflow-y: auto; overscroll-behavior: contain; }
+/* Centred in what is left, never pushed off the top when it is tall (a bind panel keeps its own scroll). */
+.reap-screen .reap-body > * { margin-top: auto; margin-bottom: auto; flex: none; }
+.reap-screen .reap-body > .bind-row { flex: 0 1 auto; min-height: 0; }
+.reap-foot { position: relative; flex: none; display: flex; align-items: center; gap: 12px 18px; padding-top: 10px; border-top: 1px solid var(--line2); }
+
 /* ── reap: the cards ──────────────────────────────────────────────────────────────────────────── */
 .reap-screen .offer { --f: var(--c-essence); }
 .reap-screen .o-relic { --f: var(--c-relic); }
@@ -10,11 +26,18 @@
 .reap-screen .o-tier { --f: var(--c-path); }
 .reap-screen .o-bind { --f: var(--c-ossuary); }
 
-.reap-screen .offers { gap: 16px; margin: 22px 0 18px; perspective: 900px; }
+/* Rows of --cols cards (ui.js: as many as the width holds, the rows as even as they come), every card the
+   same width, 168 to 250, a short last row centred. */
+.reap-screen .offers { margin: 0; perspective: 900px; }
+.reap-screen .offers.picks {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; width: 100%;
+  max-width: calc(var(--cols, 5) * 268px); margin-left: auto; margin-right: auto;
+}
+.reap-screen .offers.picks > .offer { flex: 0 0 min(250px, calc((100% - (var(--cols, 5) - 1) * 18px) / var(--cols, 5))); }
 .reap-screen .offer {
-  position: relative; width: 210px; min-height: 0; padding: 10px 12px 14px; gap: 6px;
+  position: relative; flex: 1 1 168px; width: auto; max-width: 250px; min-height: 0; padding: 12px 14px 16px; gap: 8px;
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center;
-  color: var(--text); border: 1.5px solid color-mix(in srgb, var(--f) 50%, transparent); border-radius: 14px;
+  color: var(--text); border: 1.5px solid color-mix(in srgb, var(--f) 50%, transparent); border-radius: 16px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--f) 13%, #17142a), #0e0b19 72%);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--f) 14%, transparent) inset, 0 12px 28px #0008;
   animation: none;
@@ -24,75 +47,111 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--f) 40%, transparent) inset, 0 18px 36px #000a, 0 0 30px color-mix(in srgb, var(--f) 30%, transparent);
 }
 .reap-screen .offer-tag { align-self: stretch; color: color-mix(in srgb, var(--f) 80%, var(--dim)); font-weight: 600; }
-.reap-screen .offer-tag kbd { background: var(--f); border-color: var(--f); color: #0b0913; font-weight: 700; }
+.reap-screen .offer kbd { background: var(--f); border-color: var(--f); color: #0b0913; font-weight: 700; }
 .reap-screen .offer-art {
-  position: relative; width: 100%; height: 128px; margin: 2px 0 4px; border-radius: 10px; display: grid; place-items: center;
+  position: relative; width: 100%; height: 144px; margin: 2px 0 2px; border-radius: 12px; display: grid; place-items: center;
   color: var(--f); border: 1px solid color-mix(in srgb, var(--f) 22%, transparent);
   background: radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--f) 32%, transparent), transparent 64%), #0b0914;
 }
 .reap-screen .offer-art .ico { filter: drop-shadow(0 0 12px color-mix(in srgb, var(--f) 60%, transparent)); }
-.reap-screen .offer-art .trig-tag { position: absolute; left: 6px; bottom: 6px; margin: 0; }
-.reap-screen .offer-name { font: 600 18px/1.2 var(--serif); color: var(--bright); }
-.reap-screen .offer-sub { font-size: 12px; color: var(--dim); margin-top: -2px; }
-.reap-screen .offer-line { font-size: 13px; line-height: 1.45; color: var(--text); }
+.reap-screen .offer-art > .ico svg { width: 72px; height: 72px; }
+.reap-screen .offer-art .trig-tag { position: absolute; left: 6px; bottom: 6px; margin: 0; cursor: help; }
+.reap-screen .offer-name { font: 600 var(--fs-lg)/1.2 var(--serif); color: var(--bright); }
+.reap-screen .offer-sub { font-size: var(--fs-sm); color: var(--dim); margin-top: -2px; }
+.reap-screen .offer-line { font-size: var(--fs-md); line-height: 1.4; color: var(--text); }
+.reap-screen .nowrap { white-space: nowrap; }
+/* Rows of cards, or a short frame: the pictures shorter, so two rows sit in a 720 frame and one in a 540. */
+.reap-screen .offers.picks.rows .offer-art { height: 76px; }
+/* …and the tag's word goes (the step names the group): its key sits on the picture's corner. */
+.reap-screen .offers.picks.rows .offer-tag { position: absolute; z-index: 1; top: 18px; left: 20px; }
+.reap-screen .offers.picks.rows .tag-word { display: none; }
+.reap-screen .offers.picks.rows .offer-art > .ico svg { width: 56px; height: 56px; }
+.reap-screen .offers.picks.rows .offer { gap: 6px; padding-bottom: 12px; }
+.reap-screen .offers.picks.rows .offer-art > .portrait { width: 68px; height: 68px; }
+@container frame (max-height: 640px) {
+  .reap-screen .offers.picks .offer-art > .portrait { width: 84px; height: 84px; }
+  .reap-screen .offers.picks .offer-art { height: 96px; }
+  .reap-screen .offers.picks .offer-art > .ico svg { width: 56px; height: 56px; }
+  .reap-screen .offers.picks .offer { gap: 6px; padding: 10px 12px 12px; }
+  .reap-screen .offer-price { min-height: 34px; }
+  .reap-head { padding-top: 8px; }
+  .reap-body { padding-top: 10px; padding-bottom: 6px; }
+}
 .reap-screen .num { color: var(--f); font-weight: 700; }
 .reap-screen .offer-price {
-  margin-top: auto; display: inline-flex; align-items: center; gap: 4px; padding: 2px 14px; border-radius: 999px;
-  font-weight: 700; color: var(--f); border: 1px solid color-mix(in srgb, var(--f) 40%, transparent); background: #0b0914;
+  margin-top: auto; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 18px; border-radius: 999px;
+  font-size: var(--fs-md); font-weight: 700; color: var(--f); border: 1px solid color-mix(in srgb, var(--f) 40%, transparent); background: #0b0914;
 }
 .reap-screen .offer-price.poor, .reap-screen .offer-price.full { color: var(--c-foe); border-color: #e0566a66; }
 .reap-screen .offer.locked { opacity: .6; }
 .reap-screen .offer.locked .offer-art { filter: grayscale(.6); }
-/* A bind's key is Shift and a digit (⇧1): the same chip, a little wider. */
-.reap-screen .offer-tag kbd { min-width: 20px; text-align: center; }
-.reap-screen .offer-art .trig-tag { cursor: help; }
 /* A rite's soul wears its rank on its picture, as on its card. */
 .offer-ins {
-  position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
   color: var(--rk); background: #0f0d18; border: 1.5px solid var(--rk); --rk: var(--c-soldier);
 }
 .offer-ins.g1 { --rk: var(--c-knight); }
 .offer-ins.g2 { --rk: var(--c-marshal); }
 /* A rite's path as the soul card's track (card.css): held tiers lit, the one offered glowing. Shown, not pressed. */
 .reap-screen .offer-track { align-self: stretch; padding: 4px 6px 2px; }
-.reap-screen .offer-track .tnode { display: inline-grid; place-items: center; width: 28px; height: 28px; font-size: 11px; cursor: inherit; }
+.reap-screen .offer-track .tnode { display: inline-grid; place-items: center; width: 34px; height: 34px; font-size: var(--fs-sm); cursor: inherit; }
 .reap-screen .offer-track .tlink.to { background: linear-gradient(90deg, var(--c-essence), color-mix(in srgb, var(--c-essence) 25%, var(--line))); }
 
-/* The lede: one line, the rules behind it on the ⓘ. */
-.reap-lede { color: var(--dim); margin: 8px 0 0; }
-.lede-more { display: inline-flex; vertical-align: -3px; margin-left: 6px; color: var(--dim); cursor: help; }
+/* The lede (one group): one line, the rules behind it on the ⓘ. */
+.reap-lede { color: var(--dim); margin: 0; font-size: var(--fs-md); }
+.lede-more { display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); vertical-align: middle; color: var(--dim); cursor: help; }
 .lede-more:hover, .lede-more:focus-visible { color: var(--bright); }
 
-/* The slain to bind: smaller cards in a row of their own, with one button for every free bind. */
+/* ── reap: the slain to bind ──────────────────────────────────────────────────────────────────── */
+/* Compact tiles, two to a row in a 4:3 frame and three on a wide one, in a panel that scrolls when an elite
+   lays out a dozen kinds. A tile: the picture (its key on the corner), then the name and count over the
+   stepper and Bind. */
 .bind-row {
-  width: fit-content; max-width: 100%; margin: 18px auto 0; padding: 12px 16px 16px; border-radius: 14px;
+  display: flex; flex-direction: column; min-height: 0; width: 100%; padding: 10px 12px 12px; border-radius: 16px; text-align: left;
   border: 1px solid color-mix(in srgb, var(--c-ossuary) 18%, transparent); background: #0f0d18b0;
 }
-.reap-screen .offers + .bind-row { margin-top: 4px; }
-.bind-head { display: flex; align-items: center; justify-content: center; gap: 10px 16px; flex-wrap: wrap; }
-.bind-head h2 { margin: 0; color: var(--c-ossuary); }
+.bind-row > h2.bind-head { flex: none; margin: 2px 0 10px; color: var(--c-ossuary); text-align: center; }
+.reap-screen .offers.binds {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 10px; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain; padding: 6px 6px 2px; margin: 0;
+}
+.reap-screen .o-bind {
+  display: grid; grid-template-columns: 68px 1fr; grid-template-rows: auto auto; column-gap: 14px; row-gap: 6px; align-items: center;
+  width: auto; max-width: none; padding: 10px 12px; gap: 6px 14px; cursor: default; text-align: left;
+}
+.reap-screen .o-bind:hover { transform: none; }
+.reap-screen .o-bind .offer-art { grid-row: 1 / 3; width: 68px; height: 68px; margin: 0; border-radius: 12px; background: radial-gradient(circle, #b8ac9833, transparent 68%), #0b0914; }
+.reap-screen .o-bind .offer-art .portrait { width: 60px; height: 60px; opacity: .85; }
+.reap-screen .o-bind .offer-art kbd { position: absolute; top: -8px; left: -8px; }
+.reap-screen .bind-info { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.reap-screen .o-bind .offer-name { font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.reap-screen .o-bind .offer-line { flex: none; font-size: var(--fs-sm); color: var(--dim); white-space: nowrap; }
+.reap-screen .bind-ctl { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.reap-screen .o-bind .step-btn { width: var(--tap); padding: 0; font-size: var(--fs-lg); }
+.reap-screen .o-bind .bind-btn { margin: 0; padding: 0 14px; border-color: color-mix(in srgb, var(--f) 45%, transparent); white-space: nowrap; }
+.reap-screen .o-bind .bind-btn .price { color: var(--c-essence); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+.reap-screen .o-bind .bind-btn.poor .price { color: var(--c-foe); }
+/* A short frame: the tiles tighter, so more kinds stand in view. */
+@container frame (max-height: 640px) {
+  .reap-screen .o-bind { padding: 6px 10px; row-gap: 4px; grid-template-columns: 56px 1fr; }
+  .reap-screen .o-bind .offer-art { width: 56px; height: 56px; }
+  .reap-screen .o-bind .offer-art .portrait { width: 50px; height: 50px; }
+  .bind-row { padding: 6px 10px 8px; }
+  .bind-row > h2.bind-head { margin: 0 0 6px; }
+}
 button.bind-all {
   font-weight: 600; color: #17130c; border-color: var(--c-ossuary);
   background: linear-gradient(180deg, #ece4cf, #bfb498); box-shadow: 0 0 18px #d8cfb833;
 }
 button.bind-all:hover:not([aria-disabled]) { color: #17130c; border-color: #fff; box-shadow: 0 0 26px #d8cfb866; }
 button.bind-all kbd { background: #17130c22; border-color: #17130c55; color: #17130c; }
-.reap-screen .offers.binds { margin: 12px 0 0; gap: 12px; }
-.reap-screen .o-bind { width: 176px; min-height: 0; cursor: default; }
-.reap-screen .o-bind:hover { transform: none; }
-.reap-screen .o-bind .offer-art { height: 84px; }
-.reap-screen .o-bind .stepper { margin-top: 2px; }
-.reap-screen .o-bind .bind-btn { margin-top: 6px; border-color: color-mix(in srgb, var(--f) 45%, transparent); }
-.reap-screen .o-bind .bind-btn .price { color: var(--c-essence); font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
-.reap-screen .o-bind .bind-btn.poor .price { color: var(--c-foe); }
 
-.reap-actions { display: flex; justify-content: center; gap: 10px; margin: 20px 0 0; }
-.reap-actions .move-on { min-width: 140px; }
+.reap-actions { flex: none; display: flex; justify-content: flex-end; gap: 10px; margin: 0 0 0 auto; }
+.reap-actions .move-on { min-width: 150px; }
 
 /* ── reap: a room of several groups, a step each (Recruit · Relic · Bind), one group in view ────── */
-.reap-screen .center { max-width: 1240px; }
 .reap-steps {
-  display: inline-flex; align-items: stretch; gap: 4px; margin: 14px auto 0; padding: 4px; border-radius: 14px;
+  display: inline-flex; align-items: stretch; gap: 4px; padding: 4px; border-radius: 16px;
   border: 1px solid var(--line2); background: #0d0b16c0;
 }
 .reap-step { --f: var(--c-essence); }
@@ -101,7 +160,7 @@ button.bind-all kbd { background: #17130c22; border-color: #17130c55; color: #17
 .reap-step.s-tier { --f: var(--c-path); }
 .reap-step.s-bind { --f: var(--c-ossuary); }
 button.reap-step {
-  display: flex; align-items: center; gap: 9px; padding: 7px 14px 7px 9px; border-radius: 10px; text-align: left;
+  display: flex; align-items: center; gap: 10px; min-height: var(--tap-lg); padding: 6px 16px 6px 10px; border-radius: 12px; text-align: left;
   border: 1px solid transparent; background: transparent; color: var(--dim);
 }
 button.reap-step:hover:not([aria-disabled]) { color: var(--text); border-color: color-mix(in srgb, var(--f) 40%, transparent); }
@@ -110,28 +169,20 @@ button.reap-step.on {
   background: linear-gradient(180deg, color-mix(in srgb, var(--f) 16%, #17142a), #110e1d);
 }
 .reap-step .rs-num {
-  flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700;
+  flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: var(--fs-sm); font-weight: 700;
   color: var(--f); border: 1.5px solid color-mix(in srgb, var(--f) 55%, transparent);
 }
 .reap-step.on .rs-num { color: #0b0913; background: var(--f); border-color: var(--f); }
 .reap-step .rs-text { display: flex; flex-direction: column; line-height: 1.25; }
-.reap-step .rs-text b { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: color-mix(in srgb, var(--f) 85%, var(--dim)); }
-.reap-step .rs-part { font-size: 13px; white-space: nowrap; }
+.reap-step .rs-text b { font-size: var(--fs-sm); letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--f) 85%, var(--dim)); }
+.reap-step .rs-part { font-size: var(--fs-sm); white-space: nowrap; }
+/* In a 4:3 frame only the step in view carries its line (four steps would not fit); a wide frame shows all. */
+.reap-step:not(.on) .rs-part { display: none; }
+@container frame (min-width: 1240px) { .reap-step:not(.on) .rs-part { display: inline; } }
 .reap-step .num { color: var(--f); }
 button.reap-step.done { opacity: .5; cursor: default; }
 .reap-step.done .rs-num { color: var(--dim); border-color: var(--line); }
-.reap-steps > .lede-more { align-self: center; margin: 0 6px 0 4px; }
-/* Cards in balanced rows (eleven kinds to bind: six and five, not seven and four; eight recruits four and
-   four), each row's most set by ui.js as --cols. The kinds to bind as compact cards, so two rows fit. */
-.reap-screen .offers.picks { max-width: calc(var(--cols, 5) * 226px); margin-left: auto; margin-right: auto; }
-.reap-screen .offers.binds { max-width: calc(var(--cols, 7) * 156px); margin-left: auto; margin-right: auto; gap: 10px; }
-.reap-screen .o-bind { width: 146px; padding: 8px 8px 12px; gap: 4px; }
-.reap-screen .o-bind .offer-art { height: 68px; }
-.reap-screen .o-bind .offer-art .portrait { width: 60px; height: 60px; }
-.reap-screen .o-bind .offer-name { font-size: 16px; }
-.reap-screen .o-bind .offer-line { font-size: 12px; }
-.stepped .bind-row { margin-top: 18px; }
-.reap-actions .next-step { min-width: 120px; }
+.reap-steps > .lede-more { align-self: center; }
 
 /* ── reap: dealing, picking, refusing ─────────────────────────────────────────────────────────── */
 @keyframes deal {
@@ -157,27 +208,29 @@ button.reap-step.done { opacity: .5; cursor: default; }
 @keyframes refuse-edge { 0%, 70% { border-color: var(--c-foe); box-shadow: 0 0 0 1px var(--c-foe) inset, 0 0 22px #e0566a55; } }
 .reap-screen .offers .offer.refuse { animation: refuse .36s ease-in-out, refuse-edge .6s ease-out; }
 
-/* ── reap: the retinue strip ──────────────────────────────────────────────────────────────────── */
-.ret-strip { width: fit-content; max-width: 100%; margin: 22px auto 0; padding: 10px 12px; text-align: left; border-radius: 12px; border: 1px solid var(--line2); background: #0d0b16a0; }
-.ret-strip.full { border-color: #6a5224; background: #1a140aa8; }
-.ret-head { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
-.ret-head b { color: var(--text); }
-.ret-head .warn { text-transform: none; letter-spacing: 0; }
-.ret-souls { display: flex; flex-wrap: wrap; gap: 6px; }
-.ret-soul {
-  position: relative; width: 86px; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px;
-  border-radius: 8px; background: #141122; border: 1px solid var(--line2);
+/* ── reap: the retinue, at the foot ───────────────────────────────────────────────────────────── */
+/* One line: its count. Full on the Recruit step, a press on it opens the souls (as the map lists them, each
+   with Release) in a panel over the cards, up from the foot; the foot and its actions stay where they are. */
+.ret-line { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); color: var(--dim); font-size: var(--fs-md); white-space: nowrap; cursor: help; }
+.ret-line .ico { color: var(--c-essence); }
+.ret-line b { color: var(--text); }
+.ret-strip { flex: 0 1 auto; min-width: 0; text-align: left; }
+button.ret-toggle {
+  max-width: 100%; justify-content: flex-start; gap: 8px; padding: 6px 16px; white-space: nowrap; overflow: hidden;
+  border-color: #6a5224; background: #1a140aa8; color: var(--c-warn);
 }
-.ret-soul.monarch { border-color: color-mix(in srgb, var(--c-monarch) 45%, transparent); }
-.ret-lv { position: absolute; top: 3px; right: 5px; font-size: 10px; color: var(--dim); }
-/* A name takes two lines rather than an ellipsis ("Clockwork Page", "Bone Chanter"). */
-.ret-name {
-  font-size: 11px; line-height: 1.15; max-width: 100%; min-height: 2.3em; display: flex; align-items: center; justify-content: center;
-  text-align: center; overflow-wrap: anywhere;
+.ret-toggle b { color: var(--c-warn); }
+.ret-toggle > span:not(.ret-caret) { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.ret-caret { color: var(--dim); }
+.ret-strip.open .ret-toggle { border-color: var(--c-warn); }
+.ret-pop {
+  position: absolute; z-index: 4; left: 0; right: 0; bottom: 100%; margin-bottom: 8px; padding: 12px;
+  max-height: calc(var(--frame-h) - 230px); overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 14px; border: 1px solid #6a5224; background: #120f1cf7; box-shadow: 0 -12px 40px #000c;
 }
-.ret-soul.fallen .ret-name { color: var(--dim); }
-.ret-soul .hpbar { width: 58px; height: 4px; }
-.ret-soul button { padding: 1px 6px; gap: 3px; font-size: 11px; margin-top: 2px; }
+.ret-pop .units { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 8px; }
+.ret-pop .unit { padding: 6px 10px; }
+.ret-pop .unit > button { flex: none; gap: 4px; padding: 0 12px; }
 
 /* ── a soul's portrait framed in its rank's metal (ui.js rankPort): the retinue strip, the lists ─────── */
 .rank-port {
@@ -190,7 +243,7 @@ button.reap-step.done { opacity: .5; cursor: default; }
 .rank-port.g2 { --rk: var(--c-marshal); box-shadow: 0 0 10px color-mix(in srgb, var(--c-marshal) 30%, transparent); }
 .rank-port.monarch { --rk: var(--c-monarch); }
 .rank-port .rp-ins {
-  position: absolute; left: -6px; bottom: -6px; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center;
+  position: absolute; left: -6px; bottom: -6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
   color: var(--rk); background: #0f0d18; border: 1.5px solid var(--rk);
 }
 /* The fallen: their living picture, greyed and dimmed but clear, the frame's metal dulled. */
@@ -201,20 +254,69 @@ button.reap-step.done { opacity: .5; cursor: default; }
 .units .unit.fallen b { color: var(--dim); }
 
 /* ── title: four steps, one line each ─────────────────────────────────────────────────────────── */
-.title-box:has(.steps.brief) { max-width: 840px; }
-.title-box .steps.brief { grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 26px; }
-.steps.brief .step { --s: var(--c-essence); display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-color: color-mix(in srgb, var(--s) 20%, var(--line2)); }
+/* Two by two in a 4:3 frame; on a wide one, the four in a row. */
+.title-box:has(.steps.brief) { max-width: 900px; }
+.title-box .steps.brief { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
+.steps.brief .step { --s: var(--c-essence); display: flex; gap: 14px; align-items: center; padding: 14px 16px; border-color: color-mix(in srgb, var(--s) 20%, var(--line2)); }
 .steps.brief .step-ico {
-  flex: none; width: 40px; height: 40px; margin: 0; border-radius: 50%; display: grid; place-items: center; color: var(--s);
+  flex: none; width: 48px; height: 48px; margin: 0; border-radius: 50%; display: grid; place-items: center; color: var(--s);
   background: radial-gradient(circle, color-mix(in srgb, var(--s) 22%, transparent), transparent 72%); border: 1px solid color-mix(in srgb, var(--s) 30%, transparent);
 }
-.steps.brief .step b { font: 600 15px var(--serif); color: var(--s); }
-.steps.brief .step p { margin: 1px 0 0; font-size: 13px; color: var(--text); }
+.steps.brief .step b { font: 600 var(--fs-lg)/1.2 var(--serif); color: var(--s); }
+.steps.brief .step p { margin: 2px 0 0; font-size: var(--fs-md); line-height: 1.4; color: var(--text); }
+@container frame (min-width: 1280px) {
+  .title-box:has(.steps.brief) { max-width: 1420px; }
+  .title-box .steps.brief { grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 30px; }
+  .steps.brief .step { flex-direction: column; align-items: flex-start; padding: 18px 18px 20px; }
+}
+/* A short frame (a phone, 540 tall): the sigil, the name and the gaps shrink so it all stands in one view. */
+@container frame (max-height: 640px) {
+  .title-screen .sigil { width: 64px; height: 64px; margin-bottom: 6px; }
+  .title-screen .sigil svg { width: 36px; height: 36px; }
+  .title-screen .logo { font-size: calc(var(--fs-2xl) * 1.35); }
+  .title-screen .tagline { font-size: var(--fs-md); margin: 6px 0 14px; }
+  .title-box .steps.brief { gap: 10px; margin-bottom: 16px; }
+  .steps.brief .step { padding: 10px 14px; }
+  .steps.brief .step-ico { width: 40px; height: 40px; }
+  .end-screen { padding-top: 12px; }
+  .end-screen .sigil { width: 60px; height: 60px; margin-bottom: 4px; }
+  .end-screen .sigil svg { width: 32px; height: 32px; }
+  .end-screen .logo { font-size: calc(var(--fs-2xl) * 1.1); }
+  .end-screen .tagline { margin: 4px 0 10px; line-height: 1.35; }
+  .end-screen .end-stats { margin-bottom: 10px; }
+  .end-screen .end-stat { padding: 6px; }
+}
 
-/* ── end: the sting and the tally ─────────────────────────────────────────────────────────────── */
+/* ── end: the verdict beside the tabs ─────────────────────────────────────────────────────────── */
+/* Landscape: the verdict, the tally and what to do next in a column on the left; the deep, the death, the
+   relics and the retinue behind tabs on the right, one at a time, each scrolling in its panel. */
+.end-screen { padding-top: 22px; }
+.end-main { flex: 1; min-height: 0; display: flex; gap: 32px; width: 100%; max-width: 1480px; margin: 0 auto; }
+.end-hero { flex: 0 0 400px; min-height: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+.end-detail { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.end-tabs { flex: none; flex-wrap: nowrap; margin-bottom: 12px; }
+.end-tabs .tab { font-size: var(--fs-lg); padding: 6px 18px; }
+/* Three tabs fit the 4:3 frame's column at --fs-md. */
+@container frame (max-width: 1100px) { .end-tabs .tab { font-size: var(--fs-md); padding: 6px 12px; } }
+.end-panel { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; text-align: left; }
+/* Sound and How to play over the verdict's column, top left, clear of the tabs. */
+.end-screen > .corner-btns { left: 10px; right: auto; }
+.end-panel > p { margin: 0 0 12px; }
+.end-panel > h2 { margin-top: 18px; }
+.end-panel > h2:first-child { margin-top: 0; }
+@container frame (min-width: 1240px) {
+  .end-hero { flex-basis: 520px; }
+  .end-panel .units { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+  .end-screen .db { --c: 38px; }
+}
+.end-screen .sigil { width: 84px; height: 84px; margin-bottom: 8px; }
+.end-screen .logo { font-size: calc(var(--fs-2xl) * 1.3); }
+.end-screen .tagline { font-size: var(--fs-md); margin: 8px 0 18px; }
+
+/* ── end: the sting ───────────────────────────────────────────────────────────────────────────── */
 .end-screen > .sting { position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0; animation: sting-flash 1.1s ease-out; }
-.end-screen.lost > .sting { background: radial-gradient(circle at 50% 18%, #e0566a66, transparent 62%); }
-.end-screen.won > .sting { background: radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--c-monarch) 40%, transparent), transparent 62%); }
+.end-screen.lost > .sting { background: radial-gradient(circle at 22% 18%, #e0566a66, transparent 62%); }
+.end-screen.won > .sting { background: radial-gradient(circle at 22% 18%, color-mix(in srgb, var(--c-monarch) 40%, transparent), transparent 62%); }
 @keyframes sting-flash { from { opacity: 1; } }
 @keyframes sting-sigil {
   from { opacity: 0; transform: scale(2.4); filter: blur(8px); }
@@ -226,24 +328,26 @@ button.reap-step.done { opacity: .5; cursor: default; }
 /* The title's breathe glows green; a won or lost sigil breathes in its own colour. */
 @keyframes breathe-own { 50% { box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 45%, transparent), 0 0 90px color-mix(in srgb, currentColor 35%, transparent); } }
 .end-screen .logo { animation: sting-logo .8s cubic-bezier(.2, .8, .2, 1) .1s both; }
-.end-screen .center > :not(.sigil):not(.logo) { animation: sting-rise .5s ease-out .55s both; }
-.end-screen .center > .end-stats { animation-delay: .7s; }
+.end-hero > :not(.sigil):not(.logo), .end-detail { animation: sting-rise .5s ease-out .55s both; }
+.end-hero > .end-stats { animation-delay: .7s; }
+.end-detail { animation-delay: .85s; }
 
-.end-screen .end-stats { gap: 8px; margin: 0 0 18px; }
-.end-screen .end-actions { margin-bottom: 4px; }
-.end-screen .end-seed { margin: 0 0 18px; font-size: 12px; }
+/* ── end: the tally ───────────────────────────────────────────────────────────────────────────── */
+.end-screen .end-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin: 0 0 18px; }
 .end-screen .end-stat {
-  --s: var(--c-essence); flex-direction: row; align-items: center; gap: 7px; min-width: 0; padding: 7px 14px 7px 10px; border-radius: 999px;
+  --s: var(--c-essence); flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 8px 6px; border-radius: 14px;
   border-color: color-mix(in srgb, var(--s) 28%, var(--line2)); cursor: help;
 }
+.end-val { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
 .end-stat .ico { color: var(--s); }
-.end-screen .end-stat b { font: 600 18px/1 var(--serif); }
-.end-screen .end-stat .lbl { font-size: 12px; color: var(--dim); }
+.end-screen .end-stat b { font: 600 var(--fs-lg)/1.1 var(--serif); }
+.end-screen .end-stat .lbl { font-size: var(--fs-sm); color: var(--dim); }
+.end-screen .end-actions { margin: 0 0 6px; }
+.end-screen .end-seed { margin: 4px 0 0; font-size: var(--fs-sm); }
 
 /* ── end: what felled the Monarch, on the battle's own board ──────────────────────────────────── */
-.end-screen .death { align-items: flex-start; gap: 18px 28px; text-align: left; }
-.end-screen .death-text { padding-top: 2px; }
-.end-screen .death-text h2 { margin-top: 0; }
+.end-screen .death { display: flex; align-items: flex-start; flex-wrap: nowrap; gap: 18px 20px; text-align: left; }
+.end-screen .death-text { flex: 1 1 200px; min-width: 0; padding-top: 2px; }
 .end-screen .death-board { flex: none; margin: 0; cursor: help; }
 /* The crypt floor the battle stands on, a cell per tile; their ground and your camp edged as the board's daises. */
 .db {
@@ -269,14 +373,13 @@ button.reap-step.done { opacity: .5; cursor: default; }
 .db-cell.killer .portrait { border: 2px solid var(--c-foe); box-shadow: 0 0 12px color-mix(in srgb, var(--c-foe) 70%, transparent); }
 .db-strike { position: absolute; inset: var(--pad); width: calc(100% - 2 * var(--pad)); height: calc(100% - 2 * var(--pad)); z-index: 2; pointer-events: none; overflow: visible; }
 .db-strike line { stroke: var(--c-foe); stroke-width: 2; stroke-dasharray: 4 3; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--c-foe)); }
-.db-key { display: flex; justify-content: center; gap: 14px; margin-top: 8px; font-size: 12px; color: var(--dim); }
-.db-key span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 2px solid; }
+.db-key { display: flex; justify-content: center; gap: 16px; margin-top: 8px; font-size: var(--fs-sm); color: var(--dim); }
+.db-key span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 2px solid; }
 .db-key .k-me::before { border-color: var(--c-monarch); }
 .db-key .k-killer::before { border-color: var(--c-foe); }
 
 @media (prefers-reduced-motion: reduce) {
-  .reap-screen .offers .offer, .reap-screen .offers.deal > .offer, .end-screen .sigil, .end-screen .logo, .end-screen .center > *, .end-screen > .sting { animation: none; }
+  .reap-screen .offers .offer, .reap-screen .offers.deal > .offer, .end-screen .sigil, .end-screen .logo, .end-hero > *, .end-detail, .end-screen > .sting { animation: none; }
   .reap-screen .offers .offer.refuse { animation: refuse-edge .6s ease-out; }
   .reap-screen .offer:hover:not([aria-disabled]) { transform: none; }
 }
-

@@ -10,7 +10,7 @@ import {
   foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, monarchCost, monarchPoints, MONARCH_STATS, armyLayout, musterCost, waits,
   detachmentOf, marshalOf, faltersIn, holds, isMonarch, depthOf
 } from './sim/run.js'
-import { h, icon, portrait } from './dom.js'
+import { h, fill, icon, portrait, prefs, say } from './dom.js'
 import { KEYWORDS, kw } from './keywords.js'
 
 const pct = (v) => `${Math.round(v * 100)}%`
@@ -321,7 +321,10 @@ export const planText = (p) => `${ORDERS.where[p.where].name}${p.where === 'move
 // One sentence each, for tooltips; the glossary keeps the full rules (ORDER_MORE).
 export const ORDER_TEXT = {
   detachments: `Up to ${A.detachments} detachments, each a colour and a plan (Where, When); a cohort goes with its captain, and a soul in none Hunts at once.`,
-  pick: 'Shift- or Ctrl-click souls on the field (or press Pick) to pick them, then form or join a detachment.',
+  get pick () {
+    return say('Shift- or Ctrl-click souls on the field (or press Pick) to pick them, then form or join a detachment.',
+      'Tap Pick in Orders, then souls on the field, to pick them; then form or join a detachment.')
+  },
   reaction: `Any plan stops to fight what is in reach, then resumes. On Stay within ${TUNING.orders.post} tile of its post it is braced: ×${TUNING.orders.braced} damage taken${TUNING.orders.holdFlank ? ', and no flanker slips past' : ''}.`,
   leash: 'Outside the domain only Hunt is heeded: a soul that falters drops its plan for good, so a Move past the edge is one-way. Marshals keep theirs.',
   held: `A later start waits behind the camp, then enters beside the Monarch fresh (full gauge, Shielded ${secs(TUNING.orders.fresh)}), with ${TUNING.orders.reserve} places of its own.`,
@@ -600,7 +603,8 @@ export function miniGrid (foes, { small = false } = {}) {
   return h('div', { class: 'mini-grid' + (small ? ' small' : '') }, rows, !small && h('div', { class: 'mini-label dim' }, 'front row ↓'))
 }
 
-export function roomTip (run, node, { reachable }) {
+// `enter`: an Enter ▸ button stands under it (a room chosen by touch), so its foot says nothing more.
+export function roomTip (run, node, { reachable, enter = false }) {
   const r = ROOM[node.type]
   const kinds = node.foes && [...new Set(roomFoes(node).map((f) => unitDef(f.id).name))]
   // Pictures first: the formation; then its numbers in a line; words only for what a picture cannot say.
@@ -612,16 +616,17 @@ export function roomTip (run, node, { reachable }) {
     node.type === 'altar' && holds(run.state, 'unhealable') && h('p', { class: 'warn' }, 'Court of Bone: not the Monarch.'),
     node.type === 'reliquary' && run.state.relics.length >= TUNING.essence.relicMax && h('p', { class: 'warn' }, `You already hold ${TUNING.essence.relicMax} relics, the most you can: it will offer nothing, and entering uses it up.`),
     depthOf(run.state.floor) > 0 && node.type === 'elite' && node.next.length === 0 && h('p', { class: 'warn' }, `Big elite: +${DEEP.final.count} foes, +${DEEP.final.level} levels. Then floor ${run.state.floor + 1}.`),
+    // The formation's picture, who stands in it beside it.
     node.foes && [
-      miniGrid(node.foes),
-      h('div', { class: 'dim small' }, kinds.join(', ')),
-      captainLine(node.foes),
-      syns.length > 0 && h('div', { class: 'dim small' }, kw('synergy', 'Synergies'), ': ', syns.map((n, i) => [i ? ' · ' : '', h('b', null, n)])),
+      h('div', { class: 'rt-body' }, miniGrid(node.foes), h('div', { class: 'rt-info' },
+        h('div', { class: 'dim small' }, kinds.join(', ')),
+        captainLine(node.foes),
+        syns.length > 0 && h('div', { class: 'dim small' }, kw('synergy', 'Synergies'), ': ', syns.map((n, i) => [i ? ' · ' : '', h('b', null, n)])))),
       // The waves to come, scouted like the first: who, where they stand, and when they come; never what they do.
       node.waves && h('div', { class: 'rt-waves' }, node.waves.map((w, k) => h('div', { class: 'rt-wave' },
         h('b', null, waveName(node, k)), miniGrid(w.foes, { small: true }), h('div', { class: 'dim small' }, waveWhen(w))))),
       threatMeter(run, node)],
-    h('div', { class: 'rt-foot ' + (reachable ? 'go' : 'dim') }, reachable ? 'Click to enter' : node.id === run.state.at ? 'You are here' : 'Not reachable yet'))
+    !(reachable && enter) && h('div', { class: 'rt-foot ' + (reachable ? 'go' : 'dim') }, reachable ? say('Click to enter', 'Tap it again to enter') : node.id === run.state.at ? 'You are here' : 'Not reachable yet'))
 }
 
 // Their synergies, short; `run` given, the 8-step rules only where the foes hold them (the deep: see
@@ -817,7 +822,7 @@ const KW_MORE = {
     (run ? ` Now: ${run.state.detachments.length ? run.state.detachments.map((d) => `${d.id}, ${planText(d.plan)}`).join('; ') : 'none, so every soul Hunts at once'}.` : ''),
   hunt: () => ORDERS.where.hunt.desc,
   stay: () => `${ORDERS.where.stay.desc} ${ORDER_MORE.cohort}`,
-  move: () => `${ORDERS.where.move.desc} Press Move, then click any cell of the board: your camp, the open ground or their formation. A square past the domain is drawn faded: a one-way trip.`,
+  move: () => `${ORDERS.where.move.desc} ${say('Press Move, then click', 'Tap Move, then')} any cell of the board: your camp, the open ground or their formation. A square past the domain is drawn faded: a one-way trip.`,
   braced: () => ORDER_MORE.reaction,
   held: () => `${ORDER_MORE.held} ${ORDER_TEXT.wave}`,
   gauge: () => `It uses the first ability in its list whose condition holds and that has a target in reach, saving gauge for it. Walking is off the gauge, one tile every ${secs(TUNING.board.stepTicks)} for everyone, so the gauge fills on the march. It banks only up to its costliest ability.`,
@@ -859,7 +864,14 @@ function glossary (run) {
         { name: 'Winning', sys: 'essence', line: 'Every foe fallen and none still to come, or the Sovereign slain.', more: 'You lose the instant the Monarch falls, and a lost battle ends the run.' },
         { name: 'Walking', line: `One tile every ${secs(TUNING.board.stepTicks)} for everyone, whatever its speed, until a foe is in reach.`, more: 'Melee reaches the 8 tiles around; a ranged ability, its range in tiles.' },
         { name: 'Camp', sys: 'domain', line: `Your ${COLS}×${CAMP_ROWS} cells, a new layout each floor; walls block walking, not bolts.`, more: `The foes always come from above: their formation, ${ROWS} rows deep, stands across ${TUNING.board.gap} row${TUNING.board.gap === 1 ? '' : 's'} of open ground, so the walls decide which way their melee walks.` },
-        { name: 'Controls', line: 'Click a unit to inspect it; drag a soul onto a tile or another soul to move or swap them. Prep: Enter begins. Battle: Space pauses, 1/2/4 set the speed, S or Esc skips (none changes the outcome). Anywhere: H or ? opens this, M mutes, hold Shift for a card\'s details.', more: 'The board (Tab to it): the arrows move a cursor, Enter or Space selects what is under it, X swaps the selected soul with it, Shift+Enter or Shift-click picks souls for a detachment, Esc drops a selection. A button or tab you Tab to takes Enter or Space itself. Map: 1–9 enter a glowing room, R / C show the Route or the Camp. Spoils: 1–9, 0, then Q, W… take a card; ⇧1, ⇧2… (Shift and a digit) bind the slain; B binds all free; S moves on.' }]
+        {
+          name: 'Controls',
+          line: 'Mouse: hover anything for its tooltip (hold Shift for a card\'s details), click to act, drag a soul onto a tile or another soul to move or swap them. Touch: tap to act, long-press for a tooltip (More ▾ opens its details; the next tap closes it), drag a soul to move or swap it.',
+          more: 'Keys: Enter begins (a run, a battle); in battle Space pauses, 1/2/4 set the speed, S or Esc skips (none changes the outcome); anywhere H or ? opens this, M mutes. ' +
+            'The board (Tab to it): the arrows move a cursor, Enter or Space selects what is under it, X swaps the selected soul with it, Shift+Enter or Shift-click picks souls for a detachment, Esc drops a selection. A button or tab you Tab to takes Enter or Space itself. ' +
+            'Map: 1–9 enter a glowing room, R / C show the Route or the Camp. Spoils: 1–9, 0, then Q, W… take a card; ⇧1, ⇧2… (Shift and a digit) bind the slain; B binds all free; ← → go between the steps; S moves on. The end: Enter descends (or starts a new run when the run is over), N starts a new run. ' +
+            'By touch: a tap on a room scouts it and a second tap enters it (or its tooltip\'s Enter ▸); Pick in the Orders tab picks souls for a detachment; a tap on the selected soul drops it; a swipe up or down on the bench scrolls it, sideways lifts a soul; the battle bar has pause, speed, skip and this help.'
+        }]
     },
     {
       name: 'Rooms',
@@ -913,22 +925,24 @@ function glossary (run) {
 // Bodies in the ossuary, all kinds together: 'standing' or 'fallen'.
 export const armyCount = (s, key) => Object.values(s.ossuary).reduce((n, o) => n + o[key], 0)
 
-// How to play: a one-screen primer (the goal, the loop, what kills you), what your run holds now, and the
-// glossary, filtered as you type. An entry is its term and one line; the rest of its rule waits under "more",
-// opened when the search matches only there. Its search box takes the keys: Esc closes, and H or ? close while it is empty.
-// run: the run in play, if any, so the rules can also say where you stand now.
+// How to play: a dialog filling most of the frame, one view at a time behind two tabs. Basics: the primer
+// (the goal, the loop, what kills you) and what your run holds now. Glossary: every term, filtered as you type.
+// The search box sits in the head over both, so typing in it (it has the focus on open) goes to the glossary.
+// An entry is its term and one line; one with more to its rule is a fold, the whole entry its toggle, opened
+// when the search matches only in the rest. The search box takes the keys: Esc closes, and H or ? close while
+// it is empty. run: the run in play, if any, so the rules can also say where you stand now.
 export function helpOverlay (onClose, run = null) {
   const s = run?.state
   const none = h('p', { class: 'dim gl-none', hidden: true }, 'Nothing matches.')
   const sections = glossary(run).map((g) => {
     const items = g.entries.map((e) => {
-      const det = e.more && h('details', { class: 'gl-more' }, h('summary', null, 'more'), h('p', null, e.more))
-      const el = h('div', { class: 'gl-entry' },
-        h('div', { class: 'gl-row' },
-          e.icon && h('span', { class: 'gl-ico', style: e.sys ? `color:var(--c-${e.sys})` : null }, icon(e.icon, 15)),
-          h('b', { class: 'gl-term', style: e.sys ? `--k:var(--c-${e.sys})` : null }, e.name), ' ', h('span', { class: 'gl-line' }, e.line)),
-        det)
-      return { el, det, head: `${g.name} ${e.name} ${e.line}`.toLowerCase(), more: (e.more ?? '').toLowerCase() }
+      const row = h('div', { class: 'gl-row' },
+        e.icon && h('span', { class: 'gl-ico', style: e.sys ? `color:var(--c-${e.sys})` : null }, icon(e.icon, 18)),
+        h('b', { class: 'gl-term', style: e.sys ? `--k:var(--c-${e.sys})` : null }, e.name), ' ', h('span', { class: 'gl-line' }, e.line))
+      const el = e.more
+        ? h('details', { class: 'gl-entry gl-more' }, h('summary', null, row), h('p', null, e.more))
+        : h('div', { class: 'gl-entry' }, row)
+      return { el, det: e.more ? el : null, head: `${g.name} ${e.name} ${e.line}`.toLowerCase(), more: (e.more ?? '').toLowerCase() }
     })
     // A section folds to its heading, so the first screen is the primer; a search opens what matches.
     // Its count: every entry, or those a search matches.
@@ -937,6 +951,7 @@ export function helpOverlay (onClose, run = null) {
   })
   function filter () {
     const q = search.value.trim().toLowerCase()
+    if (q) view('glossary')
     let shown = 0
     for (const sec of sections) {
       let hits = 0
@@ -965,29 +980,54 @@ export function helpOverlay (onClose, run = null) {
     }
   })
   const threats = Object.keys(THREATS)
+  // The tips strip every screen can show (ui.js guide), closed on its own after a first visit: back on all of them.
+  const tipsBack = h('button', {
+    class: 'small ghost', onclick: () => { for (const k of ['map', 'prep']) prefs.set('guide:' + k, 'on'); tipsBack.textContent = 'Tips are back on the next screen' }
+  }, 'Show the tips again')
+  const basics = h('div', { class: 'help-view basics' },
+    h('p', { class: 'lede' }, `Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),
+    h('ol', { class: 'primer' },
+      h('li', null, 'You are the ', kw('monarch'), '. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
+      h('li', null, 'Pick rooms on the map. Battles pay ', kw('essence'), ', a recruit, and bodies to ', kw('bind'), '.'),
+      h('li', null, 'Place yourself and your souls in the camp. Keep them in your ', kw('domain'), ', or they ', kw('falter'), '.'),
+      h('li', null, 'Give ', kw('detachment', 'detachments'), ' a plan (', kw('hunt'), ', ', kw('stay'), ', ', kw('move'), ', now or ', kw('held'), '), then Begin: it plays out alone.'),
+      h('li', null, 'You ', kw('arise', 'raise'), ' the slain as ', kw('shadow', 'shadows'), '. Between rooms, spend on souls, the ', kw('muster'), ', ', kw('dominion'), ', ', kw('command'), ' and ', kw('will'), '.'),
+      h('li', null, 'What kills you: ', threats.map((id, i) => [i ? ', ' : '', kw(id)]), '. Each is visible before Begin.')),
+    // Where the run stands now, a line each.
+    s && h('div', { class: 'gl-run' },
+      h('span', null, kw('monarch'), ` ${monarchOf(s).lvl > 0 ? `Lv ${monarchOf(s).lvl} · ` : ''}${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · ${MONARCH_STATS.map((k) => `${MONARCH_TEXT[k].name} ${s.monarch[k]}`).join(' · ')}`),
+      h('span', null, kw('ossuary'), ` ${armyCount(s, 'standing')} standing, ${armyCount(s, 'fallen')} fallen · muster ${s.muster}`),
+      h('span', null, kw('detachment', 'Detachments'), ` ${s.detachments.length}/${A.detachments}`),
+      h('span', null, kw('relic', 'Relics'), ` ${s.relics.length ? s.relics.map((id) => relicDef(id).name).join(', ') : 'none'}`),
+      h('span', null, kw('keystone', 'Keystones'), ` ${s.keystones.length ? s.keystones.map((id) => keystoneDef(id).name).join(', ') : 'none'} (${s.keystones.length}/${TUNING.keystone.max})`),
+      depthOf(s.floor) > 0 && h('span', null, DEEP_TEXT.now(s.floor)),
+      holds(s, 'unhealable') && h('span', { class: 'warn' }, 'Court of Bone: nothing heals the Monarch.')),
+    h('div', { class: 'help-foot' },
+      h('p', { class: 'dim' }, say([h('kbd', null, 'H'), ' or ', h('kbd', null, '?'), ' opens this anywhere, and closes it while the search box is empty; ', h('kbd', null, 'Esc'), ' always closes it.'],
+        'The ? button (How to play, on the title) opens this from any screen; ✕, or a tap outside it, closes it.')),
+      tipsBack))
+  const gloss = h('div', { class: 'help-view glossary' }, sections.map((x) => x.el), none)
+  // One view at a time: the tab row, and the view under it scrolling in the dialog's body.
+  const tabs = h('div', { class: 'tabs help-tabs', role: 'tablist' })
+  const body = h('div', { class: 'help-body' })
+  let on = null
+  function view (id) {
+    if (id === on) return
+    on = id
+    fill(tabs, [['basics', 'Basics'], ['glossary', 'Glossary']].map(([k, name]) =>
+      h('button', { class: 'tab' + (k === id ? ' on' : ''), role: 'tab', 'aria-selected': k === id ? 'true' : 'false', 'data-tab': k, onclick: () => view(k) }, name)))
+    fill(body, id === 'basics' ? basics : gloss)
+    body.scrollTop = 0
+  }
+  view('basics')
   const el = h('div', { class: 'overlay', onclick: (e) => { if (e.target === el) onClose() } },
     h('div', { class: 'modal help', role: 'dialog', 'aria-label': 'How to play' },
-      h('button', { class: 'icon-btn close', onclick: onClose, tip: () => 'Close (Esc)' }, icon('close')),
-      h('h2', { class: 'modal-title' }, 'How to play'),
-      h('p', { class: 'lede' }, `Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),
-      h('ol', { class: 'primer' },
-        h('li', null, 'You are the ', kw('monarch'), '. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
-        h('li', null, 'Pick rooms on the map. Battles pay ', kw('essence'), ', a recruit, and bodies to ', kw('bind'), '.'),
-        h('li', null, 'Place yourself and your souls in the camp. Keep them in your ', kw('domain'), ', or they ', kw('falter'), '.'),
-        h('li', null, 'Give ', kw('detachment', 'detachments'), ' a plan (', kw('hunt'), ', ', kw('stay'), ', ', kw('move'), ', now or ', kw('held'), '), then Begin: it plays out alone.'),
-        h('li', null, 'You ', kw('arise', 'raise'), ' the slain as ', kw('shadow', 'shadows'), '. Between rooms, spend on souls, the ', kw('muster'), ', ', kw('dominion'), ', ', kw('command'), ' and ', kw('will'), '.'),
-        h('li', null, 'What kills you: ', threats.map((id, i) => [i ? ', ' : '', kw(id)]), '. Each is visible before Begin.')),
-      s && h('div', { class: 'gl-run' },
-        h('span', null, kw('monarch'), ` ${monarchOf(s).lvl > 0 ? `Lv ${monarchOf(s).lvl} · ` : ''}${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · ${MONARCH_STATS.map((k) => `${MONARCH_TEXT[k].name} ${s.monarch[k]}`).join(' · ')}`),
-        h('span', null, kw('ossuary'), ` ${armyCount(s, 'standing')} standing, ${armyCount(s, 'fallen')} fallen · muster ${s.muster}`),
-        h('span', null, kw('detachment', 'Detachments'), ` ${s.detachments.length}/${A.detachments}`),
-        h('span', null, kw('relic', 'Relics'), ` ${s.relics.length ? s.relics.map((id) => relicDef(id).name).join(', ') : 'none'}`),
-        h('span', null, kw('keystone', 'Keystones'), ` ${s.keystones.length ? s.keystones.map((id) => keystoneDef(id).name).join(', ') : 'none'} (${s.keystones.length}/${TUNING.keystone.max})`),
-        depthOf(s.floor) > 0 && h('span', null, DEEP_TEXT.now(s.floor)),
-        holds(s, 'unhealable') && h('span', { class: 'warn' }, 'Court of Bone: nothing heals the Monarch.')),
-      h('div', { class: 'gl-bar' }, icon('search', 16), search),
-      h('div', { class: 'glossary' }, sections.map((x) => x.el), none),
-      h('p', { class: 'dim center-text' }, h('kbd', null, 'H'), ' or ', h('kbd', null, '?'), ' opens this anywhere, and closes it while the search box is empty; ', h('kbd', null, 'Esc'), ' always closes it.')))
+      h('div', { class: 'help-head' },
+        h('h2', { class: 'modal-title' }, 'How to play'),
+        h('label', { class: 'gl-bar' }, icon('search', 20), search),
+        h('button', { class: 'icon-btn close', 'aria-label': 'Close', onclick: onClose, tip: () => 'Close (Esc)' }, icon('close', 22))),
+      tabs,
+      body))
   return el
 }
 

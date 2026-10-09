@@ -1,0 +1,85 @@
+/* touch: what a finger needs that a mouse does not (dom.js: hold, pinTip, touchy). A long press pins a tooltip,
+   which then takes taps (its More ▾ / Less ▴, a room's Enter ▸) until the next tap anywhere closes it. These are
+   input rules, never width rules: the layout is the same on every screen. */
+
+/* A pinned tooltip is pressable; its Shift hint gives way to the More button. */
+.tip.pinned { pointer-events: auto; }
+.tip.pinned .ct-more { display: none; }
+.tip .tip-more, .tip .tip-act { display: flex; width: 100%; min-height: var(--tap); margin-top: 10px; }
+.tip .tip-more { background: #ffffff0a; border-color: var(--line2, var(--line)); color: var(--text); }
+
+/* A long press answered: the element swells a moment (by `scale`, which keeps any transform that places it),
+   and a ring spreads from under the finger. */
+.held { animation: held .32s ease-out; }
+@keyframes held {
+  0% { scale: 1; filter: none; }
+  40% { scale: 1.06; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--c-essence) 60%, transparent)); }
+  100% { scale: 1; filter: none; }
+}
+.hold-ring {
+  position: absolute; z-index: 99; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+  border: 2px solid var(--c-essence); pointer-events: none; animation: hold-ring .5s ease-out forwards;
+}
+@keyframes hold-ring { from { transform: scale(.4); opacity: .9; } to { transform: scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .held { animation: none; }
+  .hold-ring { animation: none; opacity: 0; }
+}
+
+/* A room chosen by a first tap (ui.js mapScreen): a second tap, or Enter ▸, goes in. */
+.node.chosen .medal {
+  transform: scale(1.12); border-color: var(--bright); animation: none;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-essence) 55%, transparent), 0 0 26px color-mix(in srgb, var(--c-essence) 50%, transparent);
+}
+.node.chosen .node-name { color: var(--c-essence2); }
+
+/* A touch screen: no keys to show, and no hover to stick after a tap. */
+@media (hover: none) and (pointer: coarse) {
+  #frame kbd { display: none; }
+  .node:hover:not(.chosen) .medal { transform: none; }
+}
+
+/* The battle canvas is pressed and held (a unit's card), never selected or offered the page's callout; the
+   page's text neither, but what is typed in. */
+#game, #game canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+@media (pointer: coarse) {
+  body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  input, textarea { -webkit-user-select: text; user-select: text; }
+}
+
+/* A finger is wider than the frame's --tap once a phone scales it down (a 44 px button is ~32 CSS px at 0.73×):
+   the small controls take presses from a little around them too, toward 56 px, by an invisible ::before past
+   their edges. Nothing moves. Each group grows only into the space around it, at most half the gap to the next
+   thing pressable, so no two grown areas meet: a row with no gaps (tabs, the speed buttons) grows only up and
+   down. (Measured: scratchpad u-hits.mjs.) */
+@media (pointer: coarse) {
+  .topbar .icon-btn, .battlebar .icon-btn, .battlebar .seg, .tray-tabs .tab, .uc-tabs button, .tnode, .uc-kind,
+  .tray .step-btn, .uc-shape, .uc-clear, .pick-btn, .det-x, .tip .tip-act, .tip .tip-more,
+  .ret-pop .danger, .kw, .screen-tabs .tab, .help-tabs .tab { position: relative; }
+  /* (How to play's ✕ is placed absolutely already: it is its own hit area's frame.) */
+  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tray-tabs .tab::before,
+  .uc-tabs button::before, .tnode::before, .uc-kind::before, .tray .step-btn::before, .uc-shape::before,
+  .uc-clear::before, .pick-btn::before, .det-x::before, .tip .tip-act::before, .tip .tip-more::before,
+  .overlay .close::before, .ret-pop .danger::before, .kw::before, .screen-tabs .tab::before,
+  .help-tabs .tab::before { content: ''; position: absolute; }
+  /* Rows edge to edge: up and down only. */
+  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tray-tabs .tab::before,
+  .uc-tabs button::before, .tip .tip-act::before, .tip .tip-more::before, .screen-tabs .tab::before,
+  .help-tabs .tab::before { inset: -6px 0; }
+  /* The speeds' strip clips its corners: they are rounded on the buttons instead, so their hit areas get out. */
+  .battlebar .segs { overflow: visible; }
+  .battlebar .segs .seg:first-child { border-radius: 7px 0 0 7px; }
+  .battlebar .segs .seg:last-child { border-radius: 0 7px 7px 0; }
+  /* Alone in their space: all round. */
+  .tnode::before, .overlay .close::before, .det-x::before { inset: -6px; }
+  /* 8 px from their neighbours above, below and beside. */
+  .uc-kind::before, .uc-shape::before { inset: -4px; }
+  .tray .step-btn::before, .uc-clear::before { inset: -4px -6px; }
+  .pick-btn::before { inset: -6px -6px -4px -2px; }
+  .ret-pop .danger::before { inset: -6px -3px; }
+  /* Wide buttons a row to themselves: a little up and down. */
+  .tray .buy, .new-det, .primary-ord { position: relative; }
+  .tray .buy::before, .new-det::before, .primary-ord::before { content: ''; position: absolute; inset: -4px 0; }
+  /* A keyword in running text: a line's height more to hold, none to the side (its neighbours touch it). */
+  .kw::before { inset: -6px 0; }
+}

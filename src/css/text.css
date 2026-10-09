@@ -3,46 +3,47 @@
    glossary, and the Orders and Ossuary tabs in their systems' colours. Loaded after style.css: it overrides. */
 
 /* ── keyword hover ────────────────────────────────────────────────────────────────────────────── */
-.kw-tip { max-width: 280px; font-size: 13px; }
+.kw-tip { max-width: 380px; font-size: var(--fs-md); }
 .kw-tip b { margin-right: 2px; }
 
 /* ── tooltip panel: opaque, so nothing behind it shows through ────────────────────────────────── */
 .tip { background-color: #120f1e; }
 
 /* ── unit card: three lines (name, stats, one live fact); Shift opens the rest ────────────────── */
-.card-tip.compact { width: 300px; font-size: 12px; line-height: 1.4; }
-.card-tip.compact.open { width: 316px; }
-.card-tip.compact .ct-name { font-size: 15px; line-height: 1.25; display: flex; align-items: center; gap: 7px; min-width: 0; }
+/* Its name --fs-lg, its live line --fs-md, the rest --fs-sm. */
+.card-tip.compact { width: 400px; font-size: var(--fs-sm); line-height: 1.4; }
+.card-tip.compact.open { width: 420px; }
+.card-tip.compact .ct-name { font-size: var(--fs-lg); line-height: 1.25; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .card-tip.compact .ct-nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-tip.compact .ct-rank { display: inline-flex; flex: none; gap: 3px; align-items: center; font: 600 11px var(--sans); }
+.card-tip.compact .ct-rank { display: inline-flex; flex: none; gap: 4px; align-items: center; font: 600 var(--fs-sm) var(--sans); }
 .card-tip.compact .ct-rank.g0 { color: var(--c-soldier); }
 .card-tip.compact .ct-rank.g1 { color: var(--c-knight); }
 .card-tip.compact .ct-rank.g2 { color: var(--c-marshal); }
-.card-tip.compact .ct-lv { flex: none; font: 500 11px var(--sans); }
-.ct-kind { font-size: 12px; margin-top: 6px; }
-.card-tip.compact .ct-hp { display: inline-flex; flex: none; align-items: center; gap: 5px; margin: 0 0 0 auto; font: 600 11px var(--sans); color: var(--text); }
-.card-tip.compact .ct-hp .hpbar { width: 36px; }
-.ct-live { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 12px; color: var(--text); }
+.card-tip.compact .ct-lv { flex: none; font: 500 var(--fs-sm) var(--sans); }
+.ct-kind { font-size: var(--fs-sm); margin-top: 6px; }
+.card-tip.compact .ct-hp { display: inline-flex; flex: none; align-items: center; gap: 6px; margin: 0 0 0 auto; font: 600 var(--fs-sm) var(--sans); color: var(--text); }
+.card-tip.compact .ct-hp .hpbar { width: 48px; }
+.ct-live { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: var(--fs-md); color: var(--text); }
 /* A board tile's tooltip: two short lines. */
-.tile-tip { max-width: 340px; font-size: 12px; line-height: 1.4; }
-.tile-tip > div + div { margin-top: 2px; }
-.ct-lead { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ct-more { flex: none; font-size: 10px; color: var(--dim); white-space: nowrap; }
-.ct-more kbd { font-size: 9px; padding: 0 4px; }
+.tile-tip { max-width: 440px; font-size: var(--fs-md); line-height: 1.4; }
+.tile-tip > div + div { margin-top: 3px; }
+/* The live line wraps to a second line rather than cut a status short; past two it ends in an ellipsis. */
+.ct-lead { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+.ct-more { flex: none; font-size: var(--fs-sm); color: var(--dim); white-space: nowrap; }
 .ct-mults { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
 
-.ct-stats { display: flex; flex-wrap: wrap; gap: 3px 8px; margin: 5px 0 5px; padding: 4px 7px; border-radius: 8px; background: #0f0c18; }
-.sx { display: inline-flex; align-items: center; gap: 3px; color: var(--dim); }
-.sx b { color: var(--bright); font-size: 13px; }
-.sx.mult { font-size: 11px; padding: 0 5px; border-radius: 4px; background: #1a1630; }
+.ct-stats { display: flex; flex-wrap: wrap; gap: 3px 10px; margin: 6px 0; padding: 5px 9px; border-radius: 8px; background: #0f0c18; }
+.sx { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); }
+.sx b { color: var(--bright); font-size: var(--fs-md); }
+.sx.mult { font-size: var(--fs-sm); padding: 0 6px; border-radius: 5px; background: #1a1630; }
 .sx.mult.up { color: var(--c-essence); }
 .sx.mult.down { color: var(--c-foe); }
 
 .ct-abs { display: flex; flex-direction: column; gap: 3px; }
-.card-tip.compact .ability { display: block; padding: 4px 7px; margin: 0; border-radius: 6px; font-size: 12px; line-height: 1.35; }
+.card-tip.compact .ability { display: block; padding: 5px 9px; margin: 0; border-radius: 7px; font-size: var(--fs-sm); line-height: 1.35; }
 .card-tip.compact .ability > b:first-child { color: var(--bright); }
-.ability .ab-cost { float: right; margin-left: 6px; font-size: 10px; line-height: 1.7; }
-.tag-shape { font-size: 10px; padding: 0 5px; margin-left: 3px; border-radius: 4px; background: #241d36; color: #c9bce8; text-transform: uppercase; letter-spacing: .05em; }
+.ability .ab-cost { float: right; margin-left: 8px; font-size: var(--fs-sm); }
+.tag-shape { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; margin-left: 4px; border-radius: 5px; background: #241d36; color: #c9bce8; }
 .ability.arise { border-left: 2px solid var(--c-shadow); }
 
 /* A path's tiers: the numeral in its own column; tier IV's rank tag leads its line, never mid-sentence. */
@@ -50,22 +51,31 @@
 .tiers li b { width: auto; }
 .tiers .tier-iv { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--c-knight) 45%, transparent); line-height: 1.5; vertical-align: 1px; opacity: 1; }
 
-.ct-tiers { margin-top: 5px; display: flex; flex-direction: column; gap: 1px; font-size: 11px; color: var(--text); }
+.ct-tiers { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); color: var(--text); }
 .ct-tier b { color: var(--c-knight); font-weight: 600; }
-.ct-statuses { margin-top: 5px; font-size: 12px; }
+.ct-statuses { margin-top: 6px; font-size: var(--fs-sm); }
 .status-line .kw { cursor: default; }
 
-.card-tip.compact .ct-foot { margin-top: 7px; padding-top: 6px; gap: 2px; font-size: 11.5px; }
+.card-tip.compact .ct-foot { margin-top: 8px; padding-top: 7px; gap: 3px; font-size: var(--fs-sm); }
 .ct-role b { color: var(--text); }
-.card-tip.compact .flavour { font-size: 11.5px; line-height: 1.4; }
+.card-tip.compact .flavour { font-size: var(--fs-sm); line-height: 1.4; }
 .card-tip.compact .note-line { line-height: 1.35; }
 
 /* ── rooms and threat ─────────────────────────────────────────────────────────────────────────── */
-.room-tip.compact { width: 290px; font-size: 12px; }
-.room-tip.compact .rt-head { font-size: 15px; }
-.rt-count { margin-left: auto; font: 600 11px var(--sans); color: var(--dim); white-space: nowrap; }
+/* What the room is (--fs-md), what stands in it (the formation, --fs-sm), its threat. */
+.room-tip.compact { width: 400px; font-size: var(--fs-sm); }
+.room-tip.compact .rt-head { font-size: var(--fs-lg); }
+.room-tip.compact .rt-text { font-size: var(--fs-md); }
+.rt-count { margin-left: auto; font: 600 var(--fs-sm) var(--sans); color: var(--dim); white-space: nowrap; }
 .rt-text { margin: 3px 0 0 !important; color: #c5bdd6; }
 .room-tip.compact .mini-grid { margin: 6px 0 2px; }
+/* The formation's picture (cells 28) with who stands in it beside it, not under it: a shorter card. */
+.rt-body { display: flex; gap: 12px; align-items: flex-start; }
+.rt-body .mini-grid { flex: none; }
+.rt-body .mini-cell { width: 28px; height: 28px; border-radius: 5px; }
+.rt-body .mini-flag { top: -5px; left: -5px; min-width: 18px; height: 18px; line-height: 18px; }
+.rt-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 6px; line-height: 1.35; }
+.room-tip.compact .threat { margin-top: 6px; }
 .room-tip.compact .rt-foot { margin-top: 6px; }
 .num { font-weight: 700; color: var(--c-essence); }
 .num.foe { color: var(--c-foe); }
@@ -73,7 +83,7 @@
 /* ── synergy and bond chips ───────────────────────────────────────────────────────────────────── */
 .syns.chips { flex-direction: row; flex-wrap: wrap; gap: 5px; }
 .syn.chip {
-  display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 99px; font-size: 12px; cursor: help;
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 99px; font-size: var(--fs-sm); cursor: help;
   color: var(--dim); background: #120f1e; border: 1px dashed var(--line);
 }
 .syn.chip > b { color: inherit; }
@@ -86,7 +96,7 @@
 .syn.chip.bond.on > b { color: var(--c-synergy); }
 .syn.chip.far { font-weight: 600; }
 .syn.chip .syn-steps { gap: 2px; }
-.syn.chip .syn-steps i { width: 16px; height: 16px; font-size: 11px; line-height: 15px; }
+.syn.chip .syn-steps i { width: 22px; height: 22px; font-size: var(--fs-sm); line-height: 20px; }
 .syn.chip .syn-steps i.next { border-style: dashed; border-color: var(--dim); color: var(--text); }
 
 /* ── relics and keystones ─────────────────────────────────────────────────────────────────────── */
@@ -105,36 +115,55 @@
 .bonuses p { margin: 0; font-size: 12px; }
 
 /* ── how to play: the primer and the glossary ─────────────────────────────────────────────────── */
-/* Full height whatever the search leaves showing, so the dialog never re-centres (jumps) as you type. */
-.modal.help { width: min(900px, 100%); height: calc(100vh - 40px); align-self: start; }
-.modal.help .lede { margin-bottom: 10px; }
-.primer { margin: 0 0 14px; padding: 12px 16px 12px 38px; border-radius: 12px; background: #0f0c18aa; border: 1px solid var(--line2); font-size: 14.5px; line-height: 1.6; display: flex; flex-direction: column; gap: 2px; }
+/* Most of the frame, full height whatever the search leaves showing (so it never re-centres as you type): a
+   head (the title, the search, close), the tabs, and the view under them scrolling in the body. */
+.modal.help {
+  width: min(1240px, 100%); height: calc(var(--frame-h) - 40px); align-self: start; overflow: hidden;
+  display: flex; flex-direction: column; padding: 16px 20px 0 28px;
+}
+.help-head { flex: none; display: flex; align-items: center; gap: 22px; }
+.help-head .modal-title { flex: none; margin: 0; }
+.help-head .close { position: static; flex: none; }
+.help-tabs { flex: none; margin: 8px 0 0; }
+.help-tabs .tab { font-size: var(--fs-lg); padding: 6px 18px; }
+.help-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 10px 24px 0; }
+.modal.help .lede { margin-bottom: 14px; }
+.primer {
+  margin: 0 0 16px; padding: 14px 20px 14px 44px; border-radius: 12px; background: #0f0c18aa; border: 1px solid var(--line2);
+  font-size: var(--fs-md); line-height: 1.6; display: flex; flex-direction: column; gap: 4px;
+}
 .primer li::marker { color: var(--c-monarch); font-weight: 700; }
-.gl-run { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 14px; padding: 8px 12px; border-radius: 10px; font-size: 12px; color: var(--dim); border: 1px dashed var(--line); }
+.gl-run { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0 0 16px; padding: 10px 16px; border-radius: 10px; font-size: var(--fs-sm); color: var(--dim); border: 1px dashed var(--line); }
 .gl-run .warn { color: var(--c-warn); }
-.gl-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 10px; background: #0b0914; color: var(--dim); }
+.help-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; font-size: var(--fs-sm); }
+.help-foot p { margin: 0; }
+.gl-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: #0b0914; color: var(--dim); cursor: text; }
 .gl-bar:focus-within { border-color: var(--c-essence); color: var(--c-essence2); }
-.gl-search { flex: 1; min-width: 0; border: none; background: transparent; outline: none; padding: 4px 0; font-size: 14px; color: var(--bright); }
-.glossary { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; align-items: start; }
-.gl-sec { border: 1px solid var(--line2); border-radius: 10px; background: #0f0c18aa; }
+.gl-search { flex: 1; min-width: 0; min-height: var(--tap); border: none; background: transparent; outline: none; padding: 0; font-size: var(--fs-md); color: var(--bright); }
+/* The glossary: its sections folded to a grid of headings; one opened spans the width, its entries in columns. */
+.glossary { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; align-items: start; }
+.gl-sec { border: 1px solid var(--line2); border-radius: 12px; background: #0f0c18aa; }
 .gl-sec[open] { grid-column: 1 / -1; }
-.gl-sec > summary { cursor: pointer; padding: 8px 12px; font: 600 14px var(--serif); color: var(--bright); list-style: none; display: flex; align-items: center; gap: 8px; }
+.gl-sec > summary { cursor: pointer; min-height: 52px; padding: 8px 16px; font: 600 var(--fs-lg) var(--serif); color: var(--bright); list-style: none; display: flex; align-items: center; gap: 10px; }
 .gl-sec > summary::-webkit-details-marker { display: none; }
-.gl-sec > summary::before { content: '▸'; color: var(--dim); font-size: 11px; transition: transform .15s; }
+.gl-sec > summary::before { content: '▸'; color: var(--dim); font-size: var(--fs-sm); transition: transform .15s; }
 .gl-sec[open] > summary::before { transform: rotate(90deg); }
-.gl-n { margin-left: auto; font: 600 11px var(--sans); color: var(--dim); }
-.gl-items { columns: 260px; column-gap: 22px; padding: 0 14px 10px; }
-.gl-entry { break-inside: avoid; padding: 3px 0 4px; font-size: 12.5px; line-height: 1.45; }
+.gl-n { margin-left: auto; font: 600 var(--fs-sm) var(--sans); color: var(--dim); }
+.gl-items { columns: 360px; column-gap: 32px; padding: 0 18px 14px; }
+.gl-entry { break-inside: avoid; padding: 6px 0; font-size: var(--fs-md); line-height: 1.45; }
 .gl-row { display: block; }
-.gl-ico { display: inline-flex; vertical-align: -3px; margin-right: 4px; color: var(--dim); }
+.gl-ico { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--dim); }
 .gl-term { color: var(--k, var(--bright)); }
 .gl-line { color: var(--text); }
-.gl-more { margin: 1px 0 0; }
-.gl-more > summary { cursor: pointer; font-size: 11px; color: var(--dim); list-style: none; display: inline; }
+/* An entry with more to it: the whole entry is the fold's toggle (at least --tap tall), a ▸ at its end. */
+.gl-more { padding: 0; }
+.gl-more > summary { cursor: pointer; list-style: none; display: block; min-height: var(--tap); padding: 6px 0; border-radius: 8px; }
+.gl-more > summary:hover .gl-line { color: var(--bright); }
 .gl-more > summary::-webkit-details-marker { display: none; }
-.gl-more > summary::after { content: ' ›'; }
-.gl-more[open] > summary::after { content: ' ‹'; }
-.gl-more p { margin: 2px 0 0; color: var(--dim); font-size: 12px; }
+.gl-more > summary > .gl-row { display: inline; }
+.gl-more > summary::after { content: ' ▸'; color: var(--dim); }
+.gl-more[open] > summary::after { content: ' ▾'; }
+.gl-more p { margin: 0 0 6px; color: var(--dim); font-size: var(--fs-md); }
 .gl-none { grid-column: 1 / -1; }
 
 /* ── orders tab, in the orders colour ─────────────────────────────────────────────────────────── */

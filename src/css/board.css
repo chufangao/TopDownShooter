@@ -1,13 +1,17 @@
 /* board: the retinue editor laid out round the prep board (board.js). The board itself is the battle's, drawn
    by Phaser on the canvas behind the page (#game); .board-stage is a clear window onto it that takes the
-   pointer. The page shows the canvas through, the board fills what the screen leaves, the bench stands
-   beside it and the tray on the right; on a desktop it all fits the viewport, so nothing scrolls under it. */
+   pointer. One layout for every screen, at the frame's logical size (frame.js: 720 tall, 960 to ~1560 wide):
+   the board column on the left, as tall as the screen allows (the bench under the board, or beside it where
+   the frame is wide); the side column on the right: the room's head (prep), the tray, Begin (prep). Nothing
+   scrolls but the tray's body and a long bench, inside their panels. */
 
 .screen:has(.board-stage) { background: transparent; }
-.retinue .board-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.board-main { display: flex; gap: 10px; min-height: 0; }
-.stage-wrap { position: relative; flex: 1; min-width: 0; }
+/* A badge's number: --fs-xs, and never under 10 CSS px on screen however far the frame is scaled down. */
+.retinue { --fs-badge: max(var(--fs-xs), calc(10.2px / var(--frame-k, 1))); }
 .board-stage { position: absolute; inset: 0; -webkit-user-select: none; user-select: none; outline: none; }
+/* What drags with the pointer (ui.js retinueEditor: the board, a benched soul) keeps a touch to itself: the
+   browser neither scrolls nor zooms under it, so a drag is never cut off by a pointercancel. */
+.board-stage, .bench .cell { touch-action: none; }
 .board-stage.kb:focus-visible { box-shadow: 0 0 0 2px var(--c-essence) inset; border-radius: var(--radius); }
 .board-stage.moving, .board-stage.aiming { cursor: crosshair; }
 .board-stage.dragging, body.dragging, body.dragging * { cursor: grabbing !important; }
@@ -19,63 +23,213 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 }
 .drag-ghost .portrait { width: var(--s); height: var(--s); }
 
-/* The tray is a panel of its own now that the board has none. */
-.retinue .tray {
-  background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius); padding: 14px 16px;
-  box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(6px);
+/* ── the screen: the page fits the frame, nothing scrolls under the board ──────────────────────── */
+
+.prep-screen:has(.board-stage), .map-screen:has(.board-stage) { height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 0 16px 12px; }
+.prep-screen > .retinue, .map-body:has(.board-stage) { flex: 1; min-height: 0; }
+.map-body:has(.board-stage) { display: flex; flex-direction: column; }
+.map-body .camp-panel { flex: 1; min-height: 0; width: 100%; max-width: none; margin: 0; display: flex; }
+/* Prep's tips, a slim line (its ✕ dismisses it for good; guide() shows it until it has been seen), only where
+   the frame has the height to spare: elsewhere the board needs it, and the room's head says what to do. */
+.prep-screen:has(.board-stage) > .guide { display: none; }
+@container frame (min-height: 680px) {
+  .prep-screen:has(.board-stage) > .guide { display: block; margin: 6px 0 0; }
 }
 
-/* The legend, over the board's top right corner: the camp, the domain, the line and the approach, a Marshal's
-   own domain, in chips; the board draws each, the chip's tooltip tells the rule. A column in the corner, or
-   (data-form="row") a row along the top, right of the waves: board.js picks whichever leaves the board bigger. */
+/* The two columns. The side column is about a third of the frame, never under 340 (the tray's tabs and a card
+   at the shared sizes) nor over 560 (a wide frame's extra width goes to it and to the legend beside the
+   board); the board takes the rest. */
+.retinue:has(.board-stage) {
+  --side: clamp(340px, calc(var(--frame-w) * .36), 560px);
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--side); gap: 14px; width: 100%; margin: 10px 0 0;
+}
+.map-body .retinue { margin-top: 0; flex: 1; min-height: 0; }
+.retinue .board-col { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+/* The board column: the bench, a column on the left, and the stage (the board and what lies over it). The
+   board is taller than wide (11 rows to 7 lanes, with its heads above and the bodies waiting behind), so on
+   every frame it is the height that bounds it: the bench takes width, never height. */
+.board-main { flex: 1; min-height: 0; display: grid; grid-template: "bench stage" minmax(0, 1fr) / auto minmax(0, 1fr); gap: 8px; }
+.board-main > .stage-wrap { grid-area: stage; position: relative; min-width: 0; min-height: 0; }
+.board-main > .bench-row { grid-area: bench; }
+
+/* ── the side column: the room's head, the tray, Begin ────────────────────────────────────────── */
+
+.side-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+.side-col > .prep-head:empty, .side-col > .side-foot:empty { display: none; }
+
+.retinue .tray {
+  position: static; flex: 1; min-height: 0; max-height: none; align-self: stretch; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius); padding: 4px 14px 12px;
+  box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(6px);
+  font-size: var(--fs-md); line-height: 1.35;
+}
+/* Only the tab's body scrolls (a long list, a tall card), inside the panel. */
+.retinue .tray > .tab-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-right: -8px; padding-right: 8px; }
+.retinue .tray > .warn { margin: 0 0 8px; font-size: var(--fs-sm); }
+/* Inside the tray, the old "small" print is the secondary size. */
+.tray .small { font-size: var(--fs-sm); }
+.tray h2 { font-size: var(--fs-sm); letter-spacing: .08em; }
+.tray .ico svg { flex: none; }
+
+/* The tray's tabs: one row, every tab named at every size: its icon (its count a pill on the corner) over its
+   name. Each takes the width its name needs, so the row fits the narrowest side column. */
+.tray .tray-tabs { margin: 0 -14px 10px; padding: 0 4px; }
+.tray .tray-tabs .tab { flex: 1 1 auto; flex-direction: column; min-height: 56px; padding: 6px 2px 4px; gap: 2px; font-size: var(--fs-sm); line-height: 1.1; }
+.tray .tray-tabs .tab-ico .ico svg { width: 22px; height: 22px; }
+.tray .tray-tabs .tab-ico .tab-count { top: -7px; left: calc(100% - 6px); font-size: var(--fs-badge); }
+.tray .tray-tabs .tab .tab-name, .tray .tray-tabs .tab:not(.on) .tab-name { display: block; margin: 0; }
+
+/* The room's head (prep): its name and foes, their synergies, the threat. */
+.side-col > .prep-head {
+  display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin: 0; padding: 10px 14px 12px; text-align: left;
+  background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius);
+  box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(6px);
+}
+/* Its top row: the room (its rule on hover) and Begin, the screen's one big press. */
+.prep-head .ph-top { display: flex; align-items: center; gap: 10px; }
+.prep-head .ph-title { flex: 1; display: flex; gap: 10px; align-items: center; min-width: 0; cursor: help; }
+.prep-head .room-ico { width: 44px; height: 44px; }
+.prep-head .ph-id { min-width: 0; }
+.prep-head .ph-id h2 { margin: 0; font: 600 var(--fs-lg)/1.15 var(--serif); letter-spacing: .03em; text-transform: none; color: var(--bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prep-head .ph-id .dim { font-size: var(--fs-sm); line-height: 1.25; }
+.prep-head .begin-btn { flex: none; justify-self: auto; min-height: var(--tap-lg); padding: 0 16px; font-size: var(--fs-lg); gap: 8px; }
+.prep-head .begin-btn kbd { display: none; font-size: var(--fs-xs); }
+/* Its key, where the side column has the room (and on hover everywhere). */
+@container frame (min-width: 1100px) { .prep-head .begin-btn kbd { display: inline-block; } }
+/* Their synergies, then the threat in one row: its word, then the bar (what it means on hover; the reading's
+   gloss where the frame is wide). */
+.prep-head > .dim.small { font-size: var(--fs-sm); line-height: 1.3; }
+.prep-head .threat { display: grid; grid-template-columns: auto minmax(60px, 1fr); align-items: center; gap: 2px 12px; font-size: var(--fs-sm); line-height: 1.3; }
+.prep-head .threat-head { white-space: nowrap; }
+/* The reading's gloss ("Should be an easy win") on a line of its own wherever the frame has the height. */
+.prep-head .threat-head > span:last-child { display: none; }
+@container frame (min-height: 600px) {
+  .prep-head .threat { grid-template-columns: 1fr; }
+  .prep-head .threat-head { white-space: normal; }
+  .prep-head .threat-head > span:last-child { display: inline; }
+}
+.prep-head .threat-bar { height: 10px; margin: 0; border-radius: 5px; }
+.prep-head .threat > .warn { grid-column: 1 / -1; font-size: var(--fs-sm); }
+
+/* ── over the board: the legend, the waves still to come ──────────────────────────────────────── */
+
+/* The legend, over the board's top right corner: the souls and bodies, the domain, the line and the approach,
+   a Marshal's own domain, in chips; the board draws each, the chip's tooltip tells the rule. A column in the
+   corner, or (data-form="row") a row along the top, right of the waves: board.js picks whichever leaves the
+   board bigger. */
 .board-legend {
-  position: absolute; top: 0; right: 0; z-index: 1; width: 214px;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 5px; font-size: 12px;
+  position: absolute; top: 0; right: 0; z-index: 1; width: max-content; max-width: 240px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: var(--fs-sm); line-height: 1.25;
 }
-.board-legend[data-form="row"] { width: auto; max-width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
-.stage-wrap:has(.board-waves) .board-legend[data-form="row"] { max-width: calc(100% - 186px); }
+/* While a soul is dragged it steps back: the board (eased in, on a phone) may reach under it. */
+.board-legend { transition: opacity .15s; }
+.stage-wrap:has(.board-stage.dragging) .board-legend { opacity: .25; }
+.board-legend[data-form="row"] { max-width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; align-items: flex-start; }
 .board-legend .bk {
-  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 3px 10px; border-radius: 12px;
-  background: #0c0a14d9; border: 1px solid var(--line2); color: var(--text); cursor: default; text-align: right; justify-content: flex-end;
+  display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 8px; padding: 5px 12px; border-radius: 16px; min-height: 34px;
+  background: #0c0a14d9; border: 1px solid var(--line2); color: var(--text); cursor: help; text-align: right; justify-content: flex-end;
 }
+.board-legend .bk-camp { gap: 0 4px; }
 .board-legend .bk-camp b { color: var(--c-essence2); font-weight: 600; }
 .board-legend .bk.bare { border-color: #6a2a38; color: #ffb0bb; }
 .board-legend .bk.crowned .dk-box { border-color: #c9a45a; }
-.board-legend .dk-box, .board-legend .mk-box { width: 12px; height: 12px; }
-.lk-line { display: inline-block; width: 14px; border-top: 2px dashed #5fbf9f; }
-.lk-ring { display: inline-block; width: 14px; height: 7px; border: 2px solid var(--c-foe); border-radius: 50%; }
+.board-legend .dk-box, .board-legend .mk-box { width: 14px; height: 14px; }
+.lk-line { display: inline-block; width: 18px; border-top: 2px dashed #5fbf9f; }
+.lk-ring { display: inline-block; width: 18px; height: 9px; border: 2px solid var(--c-foe); border-radius: 50%; }
 
-/* The bench beside the board: a column of souls, and where a dragged soul is dropped to bench it. */
-.board-main .bench-row { margin: 0; }
+/* The waves still to come, a row in the room's head: each a chip of its name (its formation and when it comes
+   on hover), its named foes' faces (each one's card on hover) and how many come. */
+.wave-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--fs-sm); }
+.wave-chips .wc-label { color: #f08a98; font-weight: 600; cursor: help; }
+.wave-chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 10px; border-radius: 999px;
+  border: 1px dashed #4a2432; background: #120a10cc;
+}
+.wave-chip > b { color: #f0a0ac; cursor: help; margin-right: 2px; }
+.wave-chip .wc-face { display: inline-grid; place-items: center; width: 30px; height: 30px; cursor: help; }
+.wave-chip .wc-face .portrait { width: 28px; height: 28px; }
+.wave-tip .wave-card { width: auto; border: none; padding: 0; background: none; font-size: var(--fs-sm); }
+.wave-tip .wave-card .dim.small { font-size: var(--fs-sm); }
+.wave-tip .wcell { width: 24px; height: 24px; }
+
+/* ── the bench ────────────────────────────────────────────────────────────────────────────────── */
+
+/* A column beside the board (it scrolls past what fits): where a dragged soul is dropped to bench it. */
+.board-main .bench-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 88px; margin: 0; min-height: 0; }
+.board-main .bench-row .rs-label { flex: none; width: auto; text-align: center; font-size: var(--fs-sm); letter-spacing: .06em; cursor: help; }
+.board-main .bench {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 4px 0;
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+}
+.board-main .empty-bench { padding: 6px 4px; font-size: var(--fs-sm); text-align: center; }
 .bench .cell { cursor: grab; }
 .bench.target { box-shadow: 0 0 0 2px #5ef0c044, 0 0 18px #5ef0c033; }
 
-/* The waves still to come, over their corner of the board. */
-.board-waves { position: absolute; top: 0; left: 0; z-index: 1; display: flex; flex-direction: column; gap: 4px; max-width: 46%; }
-.board-waves .gridlabel { margin: 0; width: auto; min-width: 0; }
-.board-waves .waves { margin: 0; width: auto; min-width: 0; flex-direction: column; flex-wrap: nowrap; gap: 6px; }
-.board-waves .wave-card { width: 168px; padding: 6px 8px; background: #120a10e6; }
-.board-waves .wcell { width: 19px; height: 19px; }
+/* A benched soul's cell, at the shared sizes: its level top right, its rank's insignia top left, its tiers
+   bottom right, a captain's flag and a detachment's tag down the left, its HP along the foot. */
+.bench .cell { flex: none; width: 74px; height: 74px; padding: 2px; gap: 2px; }
+.bench .cell .portrait { width: 52px; height: 52px; }
+.bench .cell .badge { top: 2px; right: 5px; font-size: var(--fs-badge); line-height: 1.1; color: var(--text); text-shadow: 0 1px 2px #000; }
+.bench .cell .tier-pips { bottom: 9px; right: 3px; letter-spacing: 0; font-size: var(--fs-badge); line-height: 1; font-weight: 700; color: var(--c-path); text-shadow: 0 1px 2px #000; }
+.bench .cell .tier-pips .p2 { margin-left: 2px; color: var(--c-path2); }
+.bench .cell .rank-mark { top: 3px; bottom: auto; left: 3px; right: auto; display: flex; }
+.bench .cell .flag { top: 24px; left: 2px; min-width: 18px; height: 18px; padding: 0 4px; font-size: var(--fs-badge); line-height: 18px; }
+.bench .cell .det-tag { top: 45px; left: 2px; min-width: 18px; height: 18px; padding: 0 4px; font-size: var(--fs-badge); line-height: 18px; }
+.bench .cell .hpbar { width: 58px; height: 5px; }
+.bench .cell.fallen::after { bottom: 10px; font-size: var(--fs-badge); letter-spacing: .04em; }
 
-/* The page fits the viewport (1024×768 at least): nothing scrolls under the board. */
-.prep-screen:has(.board-stage), .map-screen:has(.board-stage) { height: 100%; min-height: 0; display: flex; flex-direction: column; padding-bottom: 14px; }
-.prep-screen > .retinue, .map-body:has(.board-stage) { flex: 1; min-height: 0; }
-.map-body:has(.board-stage) { display: flex; flex-direction: column; }
-.map-body .camp-panel { flex: 1; min-height: 0; width: 100%; max-width: 1480px; margin: 0 auto; display: flex; }
-.retinue:has(.board-stage) {
-  /* The tray narrows on a smaller screen, so the board keeps most of the width. */
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, min(400px, 30vw)); gap: 16px; width: 100%; max-width: 1480px; margin: 12px auto 0;
+/* ── the battle's panels beside the board (ui.js battleSides) ─────────────────────────────────── */
+
+/* The bands left and right of the battle's board (engine.js tells where it stands): their room's title and
+   synergies top left, yours bottom left; the Monarch's HP, the reserve and the held bottom right. Words, so
+   they keep the page's sizes; the board keeps the height. */
+.battle-sides { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+.battle-side { position: fixed; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; min-width: 0; overflow: hidden; }
+.battle-side.right { justify-content: flex-end; }
+.battle-side .bs-top, .battle-side .bs-bottom { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.battle-side.right .bs-bottom { align-items: stretch; }
+.bs-title { font: 600 var(--fs-lg)/1.15 var(--serif); letter-spacing: .04em; color: #f08a98; }
+.bs-k { font: 600 var(--fs-sm)/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--c-essence2); }
+.bs-k.foe { color: #b0808e; }
+.bs-syns { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); line-height: 1.25; color: var(--c-synergy); }
+.bs-syns.foe { color: #e08a96; }
+.bs-syn.rule { font-weight: 600; }
+.bs-syns .dim { color: var(--dim); }
+.bs-rules { display: flex; flex-direction: column; gap: 4px; }
+.bs-rules:empty { display: none; }
+.bs-rule {
+  padding: 4px 10px; border-radius: 8px; border: 1px solid var(--c-synergy); background: #07060bd9; color: #cfe3ff;
+  font: 600 var(--fs-sm)/1.25 var(--sans); letter-spacing: .04em; text-transform: uppercase; transition: opacity .45s;
 }
-.map-body .retinue { margin-top: 0; flex: 1; min-height: 0; }
-.retinue .tray { position: static; align-self: stretch; max-height: none; min-height: 0; overflow-y: auto; }
-.retinue .board-col { min-height: 0; }
-.board-main { flex: 1; }
-.board-main .bench-row { flex-direction: column; align-items: stretch; width: 84px; flex: none; gap: 6px; }
-.board-main .bench-row .rs-label { width: auto; text-align: center; }
-.board-main .bench { flex: 1; flex-direction: column; flex-wrap: nowrap; align-items: center; overflow-y: auto; min-height: 0; }
-.board-main .empty-bench { padding: 6px 4px; font-size: 12px; text-align: center; }
-/* A short screen: the tips strip goes, the room's head tightens. */
-@media (max-height: 760px) {
-  .prep-screen:has(.board-stage) > .guide { display: none; }
-  .prep-screen:has(.board-stage) > .prep-head { padding-top: 10px; padding-bottom: 10px; }
+.bs-rules.foe .bs-rule { border-color: var(--c-foe); color: #ffa0ae; }
+.bs-rule.out { opacity: 0; }
+.bs-crown { padding: 8px 10px 10px; border: 1px solid #5a4520; border-radius: 10px; background: #0b0a12cc; }
+.bs-crown[hidden] { display: none; }
+.bs-crown-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 10px; color: var(--c-monarch); }
+.bs-name { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--fs-md)/1.3 var(--serif); letter-spacing: .03em; }
+.bs-hp-n { font: 700 var(--fs-md)/1.3 var(--sans); }
+.bs-crown.low .bs-hp-n { color: #ff8a9a; }
+.bs-hpbar { height: 10px; margin-top: 6px; border-radius: 5px; background: #07060b; box-shadow: inset 0 0 0 1px #5a4520; overflow: hidden; }
+.bs-hpbar > span { display: block; height: 100%; width: 100%; background: var(--c-essence); transition: width .38s ease-out .26s; }
+.bs-crown.low .bs-hpbar > span { background: #ff6a7a; }
+.bs-reserve { display: flex; flex-direction: column; gap: 2px; font: 600 var(--fs-sm)/1.25 var(--sans); letter-spacing: .03em; }
+.bs-reserve:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .bs-hpbar > span, .bs-rule { transition: none; } }
+
+/* On a short frame (a phone's, 540 tall) the board gets every pixel: less padding, a narrower side column
+   (its least, 340) and a slimmer bench. */
+@container frame (max-height: 640px) {
+  .prep-screen:has(.board-stage), .map-screen:has(.board-stage) { padding: 0 10px 8px; }
+  .retinue:has(.board-stage) { --side: clamp(340px, calc(var(--frame-w) * .29), 560px); gap: 10px; margin-top: 6px; }
+  .board-main { gap: 6px; }
+  .board-main .bench-row { width: 66px; gap: 4px; }
+  .board-main .bench-row .rs-label { letter-spacing: .02em; line-height: 1.1; }
+  .bench .cell { width: 60px; height: 60px; }
+  .bench .cell .portrait { width: 42px; height: 42px; }
+  .bench .cell .flag { top: 18px; }
+  .bench .cell .det-tag { top: 36px; }
+  .bench .cell .hpbar { width: 48px; }
+  .board-legend { max-width: 180px; gap: 4px; }
+  .board-legend .bk { padding: 3px 10px; min-height: 30px; }
 }

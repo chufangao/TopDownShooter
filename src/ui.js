@@ -21,7 +21,9 @@ import { sfx } from './sfx.js'
 import { monarchNextText } from './codex.js'
 // The retinue editor's board: the battle's own, drawn in Phaser (board.js), under a layer that takes the pointer.
 import { board, capsTag } from './board.js'
-import { showTip, hideTip } from './dom.js'
+import { showTip, hideTip, pinTip, hold, HOLD, touchy, say } from './dom.js'
+// The page is scaled whole (frame.js): what is placed over it by a viewport point goes into the frame's px.
+import { frame, toLocal, toLocalRect } from './frame.js'
 import { armyLayout } from './sim/run.js'
 import { tileX } from './sim/unit.js'
 import {
@@ -38,22 +40,30 @@ export function titleScreen ({ seed, onStart, onHelp }) {
   const input = h('input', { value: seed, spellcheck: 'false', 'aria-label': 'seed' })
   const start = () => onStart(input.value.trim() || seed)
   // The four steps of a run, one line each in its system's colour; the terms explain themselves on hover.
-  const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 22)), h('div', null, h('b', null, title), h('p', null, text)))
+  const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 26)), h('div', null, h('b', null, title), h('p', null, text)))
   const el = h('div', { class: 'screen title-screen' },
     h('div', { class: 'title-box' },
-      h('div', { class: 'sigil' }, icon('soul', 54)),
+      h('div', { class: 'sigil' }, icon('soul', 50)),
       h('h1', { class: 'logo' }, 'RETINUE'),
-      h('p', { class: 'tagline' }, 'You are the Monarch, a necromancer, and the dead fight for you.', h('br'), 'Descend four floors and unmake the Hollow Sovereign, then go on into the deep for as long as you last.'),
+      h('p', { class: 'tagline' }, 'You are the Monarch, a necromancer, and the dead fight for you.', h('br'), 'Descend four floors, unmake the Hollow Sovereign, then go on into the deep.'),
       h('div', { class: 'steps brief' },
         step('crown', 'monarch', 'Stand', 'You are the ', kw('monarch'), ' and never strike. Beyond your ', kw('domain'), ', souls ', kw('falter'), '.'),
-        step('fight', 'foe', 'Scout', 'Hover a room to see its foes. What they do, you learn by fighting.'),
+        step('fight', 'foe', 'Scout', say('Hover', 'Tap'), ' a room to see its foes. What they do, you learn by fighting.'),
         step('start', 'orders', 'Arrange', 'Place your ', kw('banner', 'banners'), ' in the camp. The battle then plays out alone.'),
         step('soul', 'essence', 'Reap', 'The slain pay ', kw('essence'), ', and you ', kw('bind'), ' their bodies.')),
       h('div', { class: 'title-actions' },
         h('button', { class: 'primary big', onclick: start, tip: () => 'Start a new run with this seed. (Enter)' }, 'Begin the descent ', h('kbd', null, 'Enter')),
-        h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, synergies and relics. (H)' }, icon('help'), ' How to play')),
-      h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles. Share one to play the same run.' }, 'seed ', input)))
+        h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, synergies and relics. (H)' }, icon('help', 22), ' How to play'),
+        h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles. Share one to play the same run.' }, 'seed', input))),
+    cornerButtons(onHelp))
   return { el, key: (e) => { if (e.key === 'Enter') start() } }
+}
+
+// Sound and How to play in the top corner of a screen with no top bar (the title, the end): a finger has no M
+// or H key.
+function cornerButtons (onHelp) {
+  return h('div', { class: 'corner-btns' }, muteButton(),
+    h('button', { class: 'icon-btn', 'aria-label': 'How to play', onclick: onHelp, tip: () => 'How to play (H)' }, icon('help', 22)))
 }
 
 // ── shared chrome ────────────────────────────────────────────────────────────────────────────────
@@ -73,7 +83,7 @@ function topbar (run, onHelp) {
   if (fresh) Object.assign(drawn, { run, essence: s.essence, hp: monarchOf(s).hp, bones: standingBodies(s), landing: false, held: new Set([...s.relics, ...s.keystones]) })
   const purse = h('b', null, Math.round(drawn.essence))
   const chip = h('span', { class: 'chip-stat essence', tip: () => `Essence: slain foes pay it. Spend it on your souls, the Monarch and the ossuary. ${s.stats.essence} earned, ${s.stats.spent} spent this run.` },
-    icon('soul', 14), purse)
+    icon('soul', 20), purse)
   if (drawn.purse) cancelAnimationFrame(drawn.purse.rolling)
   drawn.purse = purse
   roll(purse, drawn.essence, s.essence, chip, (v) => { drawn.essence = v })
@@ -84,7 +94,7 @@ function topbar (run, onHelp) {
     tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'The ossuary'),
       h('p', null, kinds.length ? `${standingBodies(s)} bodies standing: ${kinds.map(([id, k]) => bodies(id, k.standing)).join(', ')}.` : 'No bodies standing: bind the slain after a battle to raise them.'),
       h('p', { class: 'dim' }, `They fight at the muster level (${s.muster}), whatever level they fell at.`))
-  }, icon('bone', 14), count)
+  }, icon('bone', 20), count)
   if (drawn.count) cancelAnimationFrame(drawn.count.rolling)
   drawn.count = count
   if (!drawn.landing) roll(count, drawn.bones, standingBodies(s), bones, (v) => { drawn.bones = v })
@@ -92,18 +102,18 @@ function topbar (run, onHelp) {
   drawn.held = new Set([...s.relics, ...s.keystones])
   // A relic's tile wears its own glyph; the keystones share one, told apart by a letter pair.
   const tile = (cls, id, name, glyph, tag, tipFn) => h('span', { class: `trinket ${cls}` + (held.has(id) ? '' : ' new'), 'data-id': id, tabindex: '0', 'aria-label': name, tip: tipFn },
-    icon(glyph, 15), tag && h('i', null, tag))
+    icon(glyph, 22), tag && h('i', { class: 'badge' }, tag))
   const n = s.relics.length + s.keystones.length
+  // No brand: the title screen wears the name, and the bar keeps its width for six relics and three keystones.
   return h('header', { class: 'topbar' },
-    h('div', { class: 'brand' }, icon('soul', 20), h('span', null, 'RETINUE')),
     floorPips(s),
     h('div', { class: 'chips' }, chip, monarchChip(run), bones),
-    n > 0 && h('div', { class: 'trinkets' },
+    n > 0 && h('div', { class: 'trinkets' + (n > 6 ? ' crowded' : '') },
       s.relics.map((id) => tile('t-relic' + (relicDef(id).on ? ' trig' : ''), id, relicDef(id).name, relicIcon(id), null, () => relicTip(id))),
       s.keystones.map((id) => tile('t-keystone', id, keystoneDef(id).name, 'keystone', letterPair(keystoneDef(id).name), () => keystoneTip(id, run)))),
     h('div', { class: 'top-btns' },
       muteButton(),
-      h('button', { class: 'icon-btn', onclick: onHelp, tip: () => 'How to play (H)' }, icon('help', 20))))
+      h('button', { class: 'icon-btn', 'aria-label': 'How to play', onclick: onHelp, tip: () => 'How to play (H)' }, icon('help', 22))))
 }
 
 // Each relic's own glyph (dom.js PATHS); one with none falls back to the reliquary's.
@@ -114,11 +124,9 @@ const RELIC_ICON = {
   bone_idol: 'r-idol', glass_crown: 'r-glass', grave_bell: 'r-bell', rally_horn: 'r-horn'
 }
 const relicIcon = (id) => RELIC_ICON[id] ?? 'reliquary'
-// A keystone's tag: its words' initials ("One Army" OA), or a one-word name's first two letters ("Legion" Le).
-const letterPair = (name) => {
-  const words = name.split(/\s+/)
-  return words.length > 1 ? words.map((w) => w[0]).join('').slice(0, 2).toUpperCase() : name.slice(0, 2)
-}
+// A keystone's tag, in capitals as initials read: its words' initials ("One Army" OA), or a one-word name's
+// first letter ("Undying" U); small words skipped ("Court of Bone" CB).
+const letterPair = (name) => name.split(/\s+/).filter((w) => /^[A-Z]/.test(w)).map((w) => w[0]).join('').slice(0, 2)
 
 // Counts `el` from `from` to `to` (rounded as it goes), then flashes `host` (green for a gain, red for a
 // loss); onStep sees every value drawn, so a re-render mid-roll carries on from where it got to. Reduced
@@ -151,7 +159,7 @@ export function muteButton () {
     'aria-label': 'Sound on or off',
     onclick: () => { if (!sfx.toggle()) sfx.play('click') },
     tip: () => 'Sound on or off. (M)'
-  }, icon('sound', 20), icon('mute', 20))
+  }, icon('sound', 22), icon('mute', 22))
 }
 
 // The floors: a pip each down to the Sovereign's, lit as they are cleared; past it, in the deep, a deep pip
@@ -187,24 +195,27 @@ function monarchChip (run) {
         ? 'The Monarch is you. Its wounds carry from battle to battle, and under Court of Bone nothing heals them: not a win, not an altar.'
         : 'The Monarch is you. Its wounds carry from battle to battle: it heals like a soul after a win and at altars.']
     })
-  }, icon('crown', 14), m.lvl > 0 && h('span', { class: 'dim' }, `Lv ${m.lvl}`), h('b', null, `${m.hp}/${m.maxHp}`))
+  }, icon('crown', 20), h('b', null, `${m.hp}/${m.maxHp}`))
 }
 
-// A dismissible strip of numbered steps for a screen; it remembers being closed. On a short screen, where it
-// costs the board its room, it starts closed from the second visit on (unless brought back with Show tips).
-function guide (key, steps) {
+// A dismissible line of numbered steps for a screen; it remembers being closed. Every frame is short (720
+// logical px), so it costs the board its room: it starts closed from the second visit on. Closed, it takes no
+// room at all; How to play's "Show the tips again" brings every screen's back (codex.js helpOverlay), and a
+// screen may offer its own Tips button: el.toggle() shows or hides them, onChange(shown) follows each change.
+function guide (key, steps, onChange = null) {
   const el = h('div', { class: 'guide' })
   const seen = prefs.get('seen:' + key) === '1'
   prefs.set('seen:' + key, '1')
+  let hidden = false
   const render = () => {
     const pref = prefs.get('guide:' + key)
-    const hidden = pref === 'off' || (pref !== 'on' && seen && matchMedia('(max-height: 820px)').matches)
-    fill(el, hidden
-      ? h('button', { class: 'link', onclick: () => { prefs.set('guide:' + key, 'on'); render() }, tip: () => 'Show the steps for this screen again.' }, 'Show tips')
-      : h('div', { class: 'guide-box' },
-        h('ol', null, steps.map((s) => h('li', null, s))),
-        h('button', { class: 'icon-btn small', onclick: () => { prefs.set('guide:' + key, 'off'); render() }, tip: () => 'Hide these tips. "Show tips" brings them back.' }, icon('close', 14))))
+    hidden = pref === 'off' || (pref !== 'on' && seen)
+    fill(el, !hidden && h('div', { class: 'guide-box' },
+      h('ol', null, steps.map((s) => h('li', null, s))),
+      h('button', { class: 'icon-btn', 'aria-label': 'Hide the tips', onclick: () => { prefs.set('guide:' + key, 'off'); render() }, tip: () => onChange ? 'Hide these tips. Tips brings them back.' : 'Hide these tips. How to play brings them back.' }, icon('close', 18))))
+    onChange?.(!hidden)
   }
+  el.toggle = () => { prefs.set('guide:' + key, hidden ? 'on' : 'off'); render() }
   render()
   return el
 }
@@ -224,11 +235,10 @@ function tabBar (tabs, on, pick, cls = '') {
 
 // ── map ──────────────────────────────────────────────────────────────────────────────────────────
 
-const NODE_W = 400
-const ROW_H = 64
-const H = RANKS * ROW_H
-const LANE_W = (NODE_W - 100) / (WIDTH - 1)
-const pos = (n) => ({ x: 50 + n.lane * LANE_W, y: (RANKS - 1 - n.rank) * ROW_H + ROW_H / 2 })
+// The whole floor at once, left to right: its ranks across the route panel (the start on the left, the elite
+// or the boss on the right), its lanes down it. Places are in % of the panel's floor box (style.css .dag), so
+// the floor fits any frame without scrolling.
+const pos = (n) => ({ x: n.rank / (RANKS - 1) * 100, y: n.lane / (WIDTH - 1) * 100 })
 
 export const NODE = Object.fromEntries(Object.entries(ROOM).map(([k, v]) => [k, { name: k === 'boss' ? 'Boss' : v.name }]))
 
@@ -245,90 +255,95 @@ export function mapScreen ({ run, trail, note = '', onNode, act, onHelp }) {
 
   const svgNS = 'http://www.w3.org/2000/svg'
   const svg = document.createElementNS(svgNS, 'svg')
-  svg.setAttribute('viewBox', `0 0 ${NODE_W} ${H}`)
+  svg.setAttribute('viewBox', '0 0 100 100')
   svg.setAttribute('preserveAspectRatio', 'none')
   for (const n of s.map.nodes) {
     for (const id of n.next) {
       const a = pos(n)
       const b = pos(s.map.nodes.find((x) => x.id === id))
       const path = document.createElementNS(svgNS, 'path')
-      const my = (a.y + b.y) / 2
-      path.setAttribute('d', `M${a.x} ${a.y} C${a.x} ${my} ${b.x} ${my} ${b.x} ${b.y}`)
+      const mx = (a.x + b.x) / 2
+      path.setAttribute('d', `M${a.x} ${a.y} C${mx} ${a.y} ${mx} ${b.y} ${b.x} ${b.y}`)
       const cls = walked.has(`${n.id}>${id}`) ? 'walked' : n.id === s.at && reachIds.has(id) ? 'open' : ''
       path.setAttribute('class', 'edge ' + cls)
       svg.append(path)
     }
   }
   // Unreachable rooms stay hoverable (scouting ahead is the point), so they are not `disabled`.
+  // A mouse's click enters a glowing room. By touch a tap scouts, since entering is for good: a glowing room's
+  // first tap chooses it, its tooltip pinned with Enter ▸, and a second tap on it (or Enter ▸) enters; a tap
+  // anywhere else lets it go. Any other room's tap only scouts it.
+  let chosen = null
+  const scout = (el, n, ok) => {
+    chosen = ok ? el : null
+    el.classList.toggle('chosen', ok)
+    pinTip(el, () => [roomTip(run, n, { reachable: ok, enter: ok }),
+      ok && h('button', { class: 'primary small tip-act', onclick: () => onNode(n.id) }, 'Enter ▸')], {
+      keep: true,
+      onHide: () => { el.classList.remove('chosen'); if (chosen === el) chosen = null }
+    })
+  }
   const nodes = s.map.nodes.map((n) => {
     const p = pos(n)
     const ok = reachIds.has(n.id)
     const key = ok ? reach.indexOf(n) + 1 : null
     return h('button', {
       class: `node t-${n.type}` + (ok ? ' reach' : '') + (trail.includes(n.id) ? ' visited' : '') + (n.id === s.at ? ' here' : '') + (!ok && !trail.includes(n.id) ? ' far' : ''),
-      style: `left:${p.x / NODE_W * 100}%;top:${p.y}px`,
+      style: `left:${p.x}%;top:${p.y}%`,
       'aria-disabled': ok ? null : 'true',
       'aria-label': NODE[n.type].name,
       tip: () => roomTip(run, n, { reachable: ok }),
-      onclick: () => { if (ok) onNode(n.id) }
-    }, h('span', { class: 'medal' }, icon(n.type, 20)), h('span', { class: 'node-name' }, NODE[n.type].name), key && h('kbd', null, key))
+      onclick: (e) => {
+        if (!touchy()) { if (ok) onNode(n.id); return }
+        if (ok && chosen === e.currentTarget) return onNode(n.id)
+        scout(e.currentTarget, n, ok)
+      }
+    }, h('span', { class: 'medal' }, icon(n.type, 24)), h('span', { class: 'node-name' }, NODE[n.type].name), key && h('kbd', null, key))
   })
 
-  // A floor is taller than the screen: the route scrolls, and opens on the room you stand in. Its top edge falls
-  // between two rows of rooms, never through one: a little space is added under the floor's start when the
-  // bottom of the scroll would stop short of that.
-  const aim = (sc) => {
-    sc.style.paddingBottom = ''
-    if (sc.scrollHeight <= sc.clientHeight) return
-    const pad = parseFloat(getComputedStyle(sc).paddingTop)
-    const max = sc.scrollHeight - sc.clientHeight
-    const want = Math.min(pos(currentNode(run)).y - sc.clientHeight / 2, max)
-    // A room (its medal and name) stands centred in its row's band, with a sliver between bands: the edge goes
-    // on a band's boundary. Near the bottom, the one above when that leaves only the floor's padding unseen.
-    const at = (k) => (k > 0 ? pad + k * ROW_H : 0)
-    let k = Math.round((want - pad) / ROW_H)
-    if (at(k) > max && max - at(k - 1) <= parseFloat(getComputedStyle(sc).paddingBottom)) k--
-    const top = at(k)
-    const short = top - max
-    if (short > 0) sc.style.paddingBottom = `${parseFloat(getComputedStyle(sc).paddingBottom) + short}px`
-    sc.scrollTop = top
-  }
-  const scroller = h('div', { class: 'dag-scroll' }, h('div', { class: 'dag', style: `height:${H}px` }, svg, nodes))
+  // The floor's box: the edges under the rooms, both in its own % (the svg stretched to it).
+  const floor = h('div', { class: 'dag-wrap' }, h('div', { class: 'dag' }, svg, nodes))
 
-  // Two tabs: the route, with the retinue's wounds beside it; and the camp, to arrange and spend between rooms.
+  // The note (what just happened) is a toast in the tabs' row, right of the tabs, where it covers nothing: a tap
+  // dismisses it, and it fades by itself (a switch of tab drops it). Beside it, Tips brings the tips back once
+  // they are closed.
+  const toast = note && h('div', { class: 'note', role: 'status', onclick: (e) => e.currentTarget.remove() }, note)
+  const tipsBtn = h('button', { class: 'ghost small tips-btn', 'aria-label': 'Show the tips', onclick: () => tips.toggle(), tip: () => 'Show this screen\'s tips again.' }, icon('help', 18), 'Tips')
+  const tips = guide('map', [
+    [h('b', null, say('Hover', 'Tap')), ' a room to scout it.'],
+    say([h('b', null, 'Click'), ' a glowing room (or its number).'], [h('b', null, 'Tap'), ' a glowing room again to enter.']),
+    [h('b', null, 'Camp'), say(' (C)', ''), ': arrange and spend ', kw('essence'), '.']], (shown) => { tipsBtn.hidden = shown })
+  const extras = h('div', { class: 'tabs-extra' }, toast, tipsBtn)
+
+  // Two tabs: the route, the whole floor across the frame with the retinue's wounds under it; and the camp, to
+  // arrange and spend between rooms.
   let tab = 'route'
   const body = h('div', { class: 'map-body' })
   // A switch drops the old tab's tooltip, and any press or drag still held on the camp's board.
   const show = (id) => {
+    if (tab !== id && toast) toast.remove()
     tab = id
     hideTip()
     editor.release()
-    fill(body,
-      tabBar([
-        { id: 'route', name: 'Route', key: 'R', tip: () => 'The floor\'s rooms: scout them and pick the next. (R)' },
-        { id: 'camp', name: 'Camp', key: 'C', tip: () => 'Arrange your souls and spend essence before the next room. (C)' }], tab, show, 'screen-tabs'),
+    const tabs = tabBar([
+      { id: 'route', name: 'Route', key: 'R', tip: () => 'The floor\'s rooms: scout them and pick the next. (R)' },
+      { id: 'camp', name: 'Camp', key: 'C', tip: () => 'Arrange your souls and spend essence before the next room. (C)' }], tab, show, 'screen-tabs')
+    tabs.append(extras)
+    fill(body, tabs,
       tab === 'route'
-        ? h('div', { class: 'cols' },
-          h('section', { class: 'panel mapcol' },
-            h('h2', null, 'Route', h('span', { class: 'dim' }, ` · floor ${s.floor}${depthOf(s.floor) ? ` · deep ${depthOf(s.floor)}` : ''}`)),
-            scroller),
+        // The floor whole, start to end (the tab and the top bar already name it); the retinue under it, its list
+        // in columns, scrolling in its own panel.
+        ? h('div', { class: 'route-cols' },
+          h('section', { class: 'panel mapcol', 'aria-label': 'The floor' }, floor),
           h('section', { class: 'panel side' },
             h('h2', null, `Your retinue ${souls(s.party).length}/${rosterCap(run)}`),
             h('div', { class: 'units' }, s.party.slice().sort(fieldOrder).map((u) => unitRow(run, u)))))
         : h('div', { class: 'camp-panel' }, editor.el))
-    if (tab === 'route') requestAnimationFrame(() => aim(scroller))
-    else editor.shown()
+    if (tab !== 'route') editor.shown()
   }
   show('route')
 
-  const el = h('div', { class: 'screen map-screen' },
-    bar,
-    note && h('div', { class: 'note' }, note),
-    guide('map', [
-      [h('b', null, 'Hover'), ' a room to scout it.'],
-      [h('b', null, 'Click'), ' a glowing room (or its number).'],
-      [h('b', null, 'Camp'), ' (C): arrange and spend ', kw('essence'), '.']]),
-    body)
+  const el = h('div', { class: 'screen fit map-screen' }, bar, tips, body)
   return {
     el,
     key (e) {
@@ -351,7 +366,10 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
   const bar = h('div', { class: 'bar-slot' })
   const meter = h('div')
   const refresh = () => { fill(bar, topbar(run, onHelp)); fill(meter, threatMeter(run, node)) }
-  const editor = retinueEditor({ run, act, facing: node, onChange: refresh })
+  // The room's head, Begin in it, stands in the side column over the tray (filled below), so the board takes
+  // the screen's whole height.
+  const head = h('div', { class: 'prep-head' })
+  const editor = retinueEditor({ run, act, facing: node, onChange: refresh, head })
   refresh()
   const canGo = () => fielded(s.party).some((u) => u.hp > 0)
   // Begin lets go of a press or a drag still held on the board first: its release must do nothing.
@@ -394,30 +412,35 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
     class: 'primary big begin-btn',
     onclick: go,
     tip: () => canGo()
-      ? h('div', { class: 'syn-tip' }, h('b', null, 'Begin the battle'), h('p', null, 'It plays out on its own: you cannot move or command anyone until it ends.'),
+      ? h('div', { class: 'syn-tip' }, h('b', null, 'Begin the battle'), say(' (Enter)', ''), h('p', null, 'It plays out on its own: you cannot move or command anyone until it ends.'),
         warnings().map((w) => h('p', { class: 'warn' }, w)),
         reserveNote().map((n) => h('p', { class: 'dim' }, n)),
         wavesNote() && h('p', { class: 'dim' }, wavesNote()),
         h('p', { class: 'warn' }, `Losing ends the run: the Monarch falling loses at once, and so does a battle still undecided ${TUNING.tick.ceiling * TUNING.tick.ms / 1000} s after the start, or after the last foe entered.`))
       : 'The Monarch has fallen.'
-  }, icon('play', 16), ' Begin ', h('kbd', null, 'Enter'))
+  }, icon('play', 22), ' Begin ', h('kbd', null, 'Enter'))
   const el = h('div', { class: 'screen prep-screen' },
     bar,
     guide('prep', [
       [h('b', null, 'Drag'), ' a soul onto a tile. Keep souls in the ', kw('domain', holds(s, 'crown') ? 'gold domain' : 'green domain'), '.'],
-      [h('b', null, 'Shift-click'), ' souls for a ', kw('detachment'), ' with orders.'],
+      say([h('b', null, 'Shift-click'), ' souls for a ', kw('detachment'), ' with orders.'],
+        [h('b', null, 'Pick'), ' souls in Orders for a ', kw('detachment'), '.']),
       [h('b', null, 'Begin'), '. If the ', kw('monarch'), ' falls, the run ends.']]),
-    h('div', { class: 'panel prep-head' },
-      h('div', { class: 'ph-title' },
-        h('span', { class: `room-ico t-${node.type}` }, icon(node.type, 22)),
-        h('div', null,
-          h('h2', null, ROOM[node.type].name),
-          h('div', { class: 'dim' }, `${foeCountText(node)} · level ${node.foes[0].lvl}`),
-          foeSynergyLine(node.foes, run))),
-      meter,
-      beginButton()),
-    // The editor fills the rest of the screen: the board, and the tray beside it (board.css).
+    // The editor fills the rest of the screen: the board, and beside it the room's head and the tray (board.css).
     editor.el)
+  // The room in two lines (its rule on hover) beside Begin, the screen's one big press; their synergies; the
+  // waves still to come; the threat.
+  fill(head,
+    h('div', { class: 'ph-top' },
+      h('div', { class: 'ph-title', tip: () => h('div', { class: 'syn-tip' }, h('b', null, ROOM[node.type].name), h('p', null, ROOM[node.type].text)) },
+        h('span', { class: `room-ico t-${node.type}` }, icon(node.type, 24)),
+        h('div', { class: 'ph-id' },
+          h('h2', null, ROOM[node.type].name),
+          h('div', { class: 'dim' }, `${foeCountText(node)} · Lv ${node.foes[0].lvl}`))),
+      beginButton()),
+    foeSynergyLine(node.foes, run),
+    node.waves?.length > 0 && waveChips(run, node),
+    meter)
   return {
     el,
     key (e) {
@@ -468,20 +491,25 @@ const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // ── arrivals: what is taken flies to where it now lives ──
 
-// The things in flight sit on a layer of their own over the page, never in the pointer's way. A screen
-// re-shown under them (the spoils after a bind) does not cut them short.
+// The things in flight sit on a layer of their own over the page (in the frame, so they scale with it), never
+// in the pointer's way. A screen re-shown under them (the spoils after a bind) does not cut them short.
 let flyLayer = null
 const layer = () => {
-  if (!flyLayer?.isConnected) document.body.append(flyLayer = h('div', { class: 'fly-layer', 'aria-hidden': 'true' }))
+  if (!flyLayer?.isConnected) frame.el.append(flyLayer = h('div', { class: 'fly-layer', 'aria-hidden': 'true' }))
   return flyLayer
 }
 const centre = (r) => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 })
-// A point kept inside the viewport: a target scrolled out of sight is flown at from the nearest edge.
-const inView = (p) => ({ x: Math.min(Math.max(p.x, 28), innerWidth - 28), y: Math.min(Math.max(p.y, 28), innerHeight - 28) })
+// A viewport point kept inside the frame: a target scrolled out of sight is flown at from the nearest edge.
+const inView = (p) => {
+  const e = 28 * frame.k
+  return { x: Math.min(Math.max(p.x, frame.x + e), frame.x + frame.w * frame.k - e), y: Math.min(Math.max(p.y, frame.y + e), frame.y + frame.h * frame.k - e) }
+}
 
 // `node` flies in an arc from viewport point `from` to `to`, shrinking to `scale`, after `delay` ms; the
-// promise settles as it lands.
+// promise settles as it lands. The flight itself is drawn in the frame's px.
 function flyOne (node, from, to, { delay = 0, ms = 560, scale = 0.5, lift = 60 } = {}) {
+  from = toLocal(from.x, from.y)
+  to = toLocal(to.x, to.y)
   node.classList.add('flyer')
   Object.assign(node.style, { left: `${from.x}px`, top: `${from.y}px` })
   layer().append(node)
@@ -496,8 +524,9 @@ function flyOne (node, from, to, { delay = 0, ms = 560, scale = 0.5, lift = 60 }
   return a.finished.catch(() => {}).finally(() => node.remove())
 }
 
-// A word that rises from a point and fades ("+3 bodies"); under reduced motion it only fades.
+// A word that rises from a viewport point and fades ("+3 bodies"); under reduced motion it only fades.
 function popWord (at, text, cls = '') {
+  at = toLocal(at.x, at.y)
   const w = h('div', { class: 'fly-word ' + cls }, text)
   Object.assign(w.style, { left: `${at.x}px`, top: `${at.y}px` })
   layer().append(w)
@@ -517,7 +546,7 @@ function flyBones (from, before) {
     if (!now) return
     const r = now.getBoundingClientRect()
     roll(now.querySelector('b'), before, before + total, now, (v) => { drawn.bones = v })
-    popWord({ x: (r.left + r.right) / 2, y: r.bottom + 30 }, `+${total} ${total === 1 ? 'body' : 'bodies'}`, 'w-bone')
+    popWord({ x: (r.left + r.right) / 2, y: r.bottom + 30 * frame.k }, `+${total} ${total === 1 ? 'body' : 'bodies'}`, 'w-bone')
   }
   if (!total || !tally || still()) return land()
   const end = centre(tally.getBoundingClientRect())
@@ -564,7 +593,7 @@ const GROUP_NAME = { soul: 'Recruit', relic: 'Relic', keystone: 'Keystone', tier
 // offer's key works from any step, and brings its group into view.
 export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
   const s = run.state
-  const el = h('div', { class: 'screen reap-screen' })
+  const el = h('div', { class: 'screen fit reap-screen' })
   const full = () => souls(s.party).length >= rosterCap(run)
   const blocked = (o) => o.type === 'soul' && (full() ? 'full' : o.cost > s.essence ? 'poor' : null)
   // How many of each bind offer's kind to bind: by default every free one it can take, else one.
@@ -684,7 +713,7 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
   const paid = node.waves?.length && run.battle ? essenceByWave(run.battle) : null
   const boost = 1 + s.relics.reduce((n, id) => n + (relicDef(id).essence ?? 0), 0)
   const wavePay = paid && h('p', { class: 'wave-pay', tip: () => 'Every foe slain paid essence into one purse; this is what each wave paid of it, relics included.' },
-    icon('soul', 14), ' Paid wave by wave: ', paid.map((v, k) => [k ? ' · ' : '', k ? waveName(node, k - 1) : 'Wave 1', ' ', h('b', null, Math.round(v * boost))]))
+    icon('soul', 18), ' Paid wave by wave: ', paid.map((v, k) => [k ? ' · ' : '', k ? waveName(node, k - 1) : 'Wave 1', ' ', h('b', null, Math.round(v * boost))]))
 
   // A kind of slain foe to bind: how many (1 to all that fell), which of them are free, the price of the rest.
   function bindCard (o, i) {
@@ -708,20 +737,23 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
           leaders.length ? `Your souls that can lead them (${leadsText(o.id)}): ${[...new Set(leaders)].join(', ')}.` : `None of your souls can lead them yet: a captain leads bodies of its own kin or role (${leadsText(o.id)}).`]
       })
     },
-    h('div', { class: 'offer-tag' }, keyTag(i), ' Bind'),
-    h('div', { class: 'offer-art' }, portrait(o.id, 76)),
-    h('div', { class: 'offer-name' }, d.name),
-    h('div', { class: 'offer-line' }, h('b', { class: 'num' }, o.max), ' slain · ', standing ? [h('b', { class: 'num' }, standing), ' standing'] : 'new kind'),
-    h('div', { class: 'stepper' },
-      step('−', n - 1, 'Bind one fewer.'), h('b', null, n), step('+', n + 1, n >= o.max ? `Only ${o.max} ${o.max === 1 ? 'is' : 'are'} left to bind.` : 'Bind one more.'),
-      o.max > 1 && n < o.max && h('button', { class: 'small link', onclick: () => set(o.max), tip: () => `Bind all ${o.max}.` }, 'all')),
-    h('button', {
-      class: 'buy bind-btn' + (poor ? ' poor' : ''), 'aria-disabled': poor ? 'true' : null,
-      onclick: () => take(i),
-      tip: () => h('div', { class: 'syn-tip' },
-        h('p', null, `Bind ${bodies(o.id, n)}: ${[free && `${free} free`, n - free > 0 && `${n - free} × ${TUNING.army.bindPerTier * d.tier} essence`].filter(Boolean).join(' + ')}.${keyNote(i)}`),
-        poor && h('p', { class: 'warn' }, `You need ${cost} essence; you have ${s.essence}.`))
-    }, `Bind ${n} `, h('span', { class: 'price' }, cost ? [icon('soul', 12), cost] : 'free')))
+    // A compact tile, so a dozen kinds fit two or three to a row: the picture (its key on the corner), the name
+    // and the count on one line, then the stepper and Bind (its price on it) on the next. + past one takes
+    // the count up to all that fell.
+    h('div', { class: 'offer-art' }, portrait(o.id, 60), keyTag(i)),
+    h('div', { class: 'bind-info' },
+      h('span', { class: 'offer-name' }, d.name),
+      h('span', { class: 'offer-line' }, h('b', { class: 'num' }, o.max), ' slain · ', standing ? [h('b', { class: 'num' }, standing), ' standing'] : 'new')),
+    h('div', { class: 'bind-ctl' },
+      h('div', { class: 'stepper' },
+        step('−', n - 1, 'Bind one fewer.'), h('b', null, n), step('+', n + 1, n >= o.max ? `Only ${o.max} ${o.max === 1 ? 'is' : 'are'} left to bind.` : 'Bind one more.')),
+      h('button', {
+        class: 'buy bind-btn' + (poor ? ' poor' : ''), 'aria-disabled': poor ? 'true' : null,
+        onclick: () => take(i),
+        tip: () => h('div', { class: 'syn-tip' },
+          h('p', null, `Bind ${bodies(o.id, n)}: ${[free && `${free} free`, n - free > 0 && `${n - free} × ${TUNING.army.bindPerTier * d.tier} essence`].filter(Boolean).join(' + ')}.${keyNote(i)}`),
+          poor && h('p', { class: 'warn' }, `You need ${cost} essence; you have ${s.essence}.`))
+      }, `Bind ${n} `, h('span', { class: 'price' }, cost ? [icon('soul', 18), cost] : 'free'))))
   }
 
   function card (o, i) {
@@ -753,35 +785,41 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
     const d = o.type === 'soul' && unitDef(o.id)
     const on = o.type === 'relic' && relicDef(o.id).on
     return cards[i] = h('button', { class: `offer o-${o.type}` + (why ? ' locked' : ''), style: `--i:${i}`, onclick: () => take(i), 'aria-disabled': why ? 'true' : null, tip },
-      h('div', { class: 'offer-tag' }, keyTag(i), { soul: ' Recruit', relic: ' Relic', tier: ' Path', keystone: ' Keystone' }[o.type]),
+      h('div', { class: 'offer-tag' }, keyTag(i), h('span', { class: 'tag-word' }, { soul: ' Recruit', relic: ' Relic', tier: ' Path', keystone: ' Keystone' }[o.type])),
       h('div', { class: 'offer-art' }, o.type === 'relic' ? icon(relicIcon(o.id), 64) : o.type === 'keystone' ? icon('keystone', 64) : portrait(o.type === 'soul' ? o.id : soul.id, 104),
-        soul && soul.grade > 0 && h('span', { class: `offer-ins g${soul.grade}`, 'aria-label': GRADES[soul.grade].name }, icon(GRADE_ICON[soul.grade], 14)),
+        soul && soul.grade > 0 && h('span', { class: `offer-ins g${soul.grade}`, 'aria-label': GRADES[soul.grade].name }, icon(GRADE_ICON[soul.grade], 18)),
         on && h('span', { class: 'trig-tag', tip: () => `Fires each time ${TRIGGER_TEXT[on].when}` }, TRIGGER_TEXT[on].name)),
       // A path tier's name is the path and tier ("Reaver II"); whose it is goes under it.
       h('div', { class: 'offer-name' }, soul ? o.name.replace(`${unitDef(soul.id).name}: `, '') : o.name),
       soul && h('div', { class: 'offer-sub' }, `${unitDef(soul.id).name} · ${who.toLowerCase()}`),
       soul && tierTrack(soul, o.path, second),
-      h('div', { class: 'offer-line' }, d ? [`${KIN[d.kin].name} ${ROLES[d.role].name} · level `, h('b', { class: 'num' }, o.lvl)] : hiNums(o.desc)),
-      h('div', { class: 'offer-price' + (why ? ` ${why}` : '') }, o.type === 'soul' ? [icon('soul', 14), o.cost, why === 'full' && h('span', null, ' · full')] : 'Free'))
+      h('div', { class: 'offer-line' }, d ? [`${KIN[d.kin].name} ${ROLES[d.role].name} · `, h('span', { class: 'nowrap' }, 'level ', h('b', { class: 'num' }, o.lvl))] : hiNums(o.desc)),
+      h('div', { class: 'offer-price' + (why ? ` ${why}` : '') }, o.type === 'soul' ? [icon('soul', 18), o.cost, why === 'full' && h('span', null, ' · full')] : 'Free'))
   }
 
-  // The retinue as a strip of portraits (hover one for its card). When it is full and a recruit is on the
-  // table, each soul but the Monarch gets a Release button.
-  function strip () {
-    const releasing = full() && has('soul')
-    return h('div', { class: 'ret-strip' + (releasing ? ' full' : '') },
-      h('div', { class: 'ret-head' }, h('b', null, 'Retinue'), ` ${souls(s.party).length}/${rosterCap(run)}`,
-        releasing && h('span', { class: 'warn' }, ' · full: release a soul to recruit')),
-      h('div', { class: 'ret-souls' }, s.party.slice().sort(fieldOrder).map((u) => {
-        const d = unitDef(u.id)
-        return h('div', { class: 'ret-soul' + (u.hp <= 0 ? ' fallen' : '') + (d.monarch ? ' monarch' : ''), tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run) }) },
-          (!d.monarch || u.lvl > 0) && h('span', { class: 'ret-lv' }, u.lvl), rankPort(u, 36), h('span', { class: 'ret-name' }, d.monarch ? 'Monarch' : d.name), hpBar(u),
-          releasing && !isMonarch(u) && h('button', {
-            class: 'danger small',
-            onclick: () => { if (!busy) { act({ type: 'release', uid: u.uid }); render() } },
-            tip: () => `Release ${d.name} forever, freeing a place in your retinue. This can't be undone.`
-          }, icon('release', 12), 'Release'))
-      })))
+  // The retinue, one line at the foot: its count. On the Recruit step with the retinue full, the line says so
+  // and opens (a press) a panel over the cards: each soul but the Monarch as in the map's list, with a Release
+  // button. `roster`: that panel is open.
+  let roster = false
+  function strip (recruiting) {
+    const n = souls(s.party).length
+    const cap = rosterCap(run)
+    if (!recruiting || !full()) {
+      return h('div', { class: 'ret-line', tip: () => `Your retinue: ${n} of ${cap} places. Each soul is on the map's Route tab, and in the camp.` },
+        icon('hood', 20), h('b', null, 'Retinue'), ` ${n}/${cap}`)
+    }
+    return h('div', { class: 'ret-strip full' + (roster ? ' open' : '') },
+      h('button', {
+        class: 'ret-toggle', 'aria-expanded': roster ? 'true' : 'false',
+        onclick: () => { roster = !roster; hideTip(); render() },
+        tip: () => roster ? 'Close the list.' : 'Your retinue is full: open it to release a soul, and make room for a recruit.'
+      }, icon('hood', 20), h('b', null, `Full ${n}/${cap}`), h('span', null, ' · Release one to recruit'), h('span', { class: 'ret-caret', 'aria-hidden': 'true' }, roster ? '▾' : '▴')),
+      roster && h('div', { class: 'ret-pop', role: 'region', 'aria-label': 'Release a soul' },
+        h('div', { class: 'units' }, s.party.filter((u) => !isMonarch(u)).sort(fieldOrder).map((u) => unitRow(run, u, h('button', {
+          class: 'danger small',
+          onclick: () => { if (!busy) { act({ type: 'release', uid: u.uid }); roster = false; render() } },
+          tip: () => `Release ${unitDef(u.id).name} forever, freeing a place in your retinue. This can't be undone.`
+        }, icon('release', 16), 'Release'))))))
   }
 
   // The steps, one per group dealt: the group in view lit, a group taken done. A step names its group and
@@ -807,16 +845,18 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
           class: `reap-step s-${g}` + (g === view.on ? ' on' : '') + (done ? ' done' : ''), role: 'tab',
           'aria-selected': g === view.on ? 'true' : 'false', 'aria-disabled': done ? 'true' : null,
           onclick: () => show(g),
-          tip: () => done ? `${GROUP_NAME[g]}: done.` : `${GROUP_NAME[g]}: ${n} on the table. Every card's key works from any step. (← →)`
+          tip: () => done ? `${GROUP_NAME[g]}: done.` : `${GROUP_NAME[g]}: ${n} on the table.${say(' Every card\'s key works from any step. (← →)', '')}`
         },
         h('span', { class: 'rs-num' }, done ? '✓' : k + 1),
         h('span', { class: 'rs-text' }, h('b', null, GROUP_NAME[g]), h('span', { class: 'rs-part' }, done ? 'done' : part[g]())))
       }),
-      ledeTip().childElementCount > 0 && h('span', { class: 'lede-more', tabindex: '0', tip: ledeTip }, icon('help', 15)))
+      ledeTip().childElementCount > 0 && h('span', { class: 'lede-more', tabindex: '0', tip: ledeTip }, icon('help', 22)))
   }
 
-  // Cards per row: up to `most` in one, more in rows as even as they come (eleven kinds to bind: six and five).
+  // Cards per row: up to `most` in one, more in rows as even as they come (eight recruits: four and four). As
+  // many as the frame's width holds at 168 each (spoils.css), five in a 4:3 frame, six at the most.
   const rowOf = (n, most) => (n <= most ? Math.max(n, 1) : Math.ceil(n / Math.ceil(n / most)))
+  const most = () => Math.max(3, Math.min(6, Math.floor((frame.w - 44 + 18) / (168 + 18))))
   function render () {
     cards.length = 0
     const one = view.seen.length < 2
@@ -828,28 +868,36 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
     for (const row of [offers, binds]) row.filter(Boolean).forEach((c, k) => c.style.setProperty('--i', k))
     const left = view.seen.filter((g) => groups().includes(g))
     const next = on && left[left.indexOf(on) + 1]
+    const picksN = offers.filter(Boolean).length
+    const cols = rowOf(picksN, most())
+    // Fitted to the frame: the head (the title and the steps or the lede), the cards in the middle (a long
+    // list of kinds to bind scrolls in its own panel), and the foot: the retinue strip, then Bind all, the next
+    // step and Move on.
     fill(el,
       topbar(run, onHelp),
-      h('div', { class: 'center' + (one ? '' : ' stepped') },
-        h('div', { class: 'reap-title' }, icon(has('soul') || has('bind') ? 'soul' : has('tier') ? 'rite' : has('keystone') && !has('relic') ? 'keystone' : 'reliquary', 30), h('h1', null, title)),
-        one
-          ? h('p', { class: 'reap-lede' }, lede(), ledeTip().childElementCount > 0 && h('span', { class: 'lede-more', tabindex: '0', tip: ledeTip }, icon('help', 15)))
-          : steps(),
-        kept && h('p', { class: 'note-line' }, kept),
+      h('div', { class: 'reap-main' + (one ? '' : ' stepped') },
+        h('div', { class: 'reap-head' },
+          h('div', { class: 'reap-title' }, icon(has('soul') || has('bind') ? 'soul' : has('tier') ? 'rite' : has('keystone') && !has('relic') ? 'keystone' : 'reliquary', 34), h('h1', null, title)),
+          one
+            ? h('p', { class: 'reap-lede' }, lede(), ledeTip().childElementCount > 0 && h('span', { class: 'lede-more', tabindex: '0', tip: ledeTip }, icon('help', 22)))
+            : steps()),
+        kept && h('p', { class: 'note-line reap-note' }, kept),
         wavePay,
-        offers.some(Boolean) && h('div', { class: 'offers picks' + (deal ? ' deal' : ''), style: `--cols:${rowOf(offers.filter(Boolean).length, 5)}` }, offers),
-        binds.some(Boolean) && h('section', { class: 'bind-row' },
-          h('div', { class: 'bind-head' },
-            h('h2', null, 'Bind the slain'),
-            freeLeft() > 0 && h('button', {
-              class: 'bind-all', onclick: bindAll,
+        // The middle scrolls when its cards outgrow it (rows of recruits on a short frame); the foot stays.
+        h('div', { class: 'reap-body' },
+          offers.some(Boolean) && h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (picksN > cols ? ' rows' : ''), style: `--cols:${cols}` }, offers),
+          binds.some(Boolean) && h('section', { class: 'bind-row' },
+            one && h('h2', { class: 'bind-head' }, 'Bind the slain'),
+            h('div', { class: 'offers binds' + (deal ? ' deal' : '') }, binds))),
+        h('div', { class: 'reap-foot' },
+          strip(one ? has('soul') : on === 'soul'),
+          h('div', { class: 'reap-actions' },
+            binds.some(Boolean) && freeLeft() > 0 && h('button', {
+              class: 'bind-all big', onclick: bindAll,
               tip: () => `Bind every free body: ${freeLeft()}, across the kinds from the left. Use a card's stepper to pay for more. (B)`
-            }, icon('bone', 16), `Bind all free · ${freeLeft()}`, h('kbd', null, 'B'))),
-          h('div', { class: 'offers binds' + (deal ? ' deal' : ''), style: `--cols:${rowOf(binds.filter(Boolean).length, 7)}` }, binds)),
-        h('div', { class: 'reap-actions' },
-          next && h('button', { class: 'next-step', onclick: () => show(next), tip: () => `On to the next step: ${GROUP_NAME[next]}. (→)` }, `${GROUP_NAME[next]} `, h('span', { 'aria-hidden': 'true' }, '→')),
-          h('button', { class: 'ghost move-on', onclick: () => take(null), tip: () => `Leave what is left and go on.${has('bind') ? ' The slain left unbound are lost.' : ''} (S)` }, 'Move on ', h('kbd', null, 'S'))),
-        strip()))
+            }, icon('bone', 22), `Bind all free · ${freeLeft()}`, h('kbd', null, 'B')),
+            next && h('button', { class: 'next-step big', onclick: () => show(next), tip: () => `On to the next step: ${GROUP_NAME[next]}. (→)` }, `${GROUP_NAME[next]} `, h('span', { 'aria-hidden': 'true' }, '→')),
+            h('button', { class: 'ghost big move-on', onclick: () => take(null), tip: () => `Leave what is left and go on.${has('bind') ? ' The slain left unbound are lost.' : ''} (S)` }, 'Move on ', h('kbd', null, 'S'))))))
     deal = false
   }
 
@@ -876,8 +924,9 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
 
 // Three ends. The Sovereign slain (over, 'victory', no death): the run is cleared, and the deep lies below
 // (Descend, or stop here with a new run). A fall in the deep after that clear ('victory' with a death): the
-// clear stands. A defeat on the way down: as it was.
-export function endScreen ({ run, onNew, onDescend }) {
+// clear stands. A defeat on the way down: as it was. Sound and How to play stand in its top corner, for a finger
+// (no M or H key); without an onHelp the button asks for How to play the way the H key does.
+export function endScreen ({ run, onNew, onDescend, onHelp }) {
   const s = run.state
   const won = s.result === 'victory'
   const lost = s.death
@@ -893,48 +942,57 @@ export function endScreen ({ run, onNew, onDescend }) {
         : `The Monarch fell on floor ${s.floor}, and the run with it.`
   const newRun = h('button', { class: descend ? 'ghost big' : 'primary big', onclick: onNew, tip: () => `Start again with a new seed. (${descend ? 'N' : 'Enter'})` },
     'New run ', h('kbd', null, descend ? 'N' : 'Enter'))
-  // The run's tally as one row of icons, each in its system's colour; the full name on the hover.
-  const stat = (ico, sys, v, label, name) => h('div', { class: 'end-stat', style: `--s:var(--c-${sys})`, tip: () => name }, icon(ico, 20), h('b', null, v), h('span', { class: 'lbl' }, label))
+  // The run's tally as tiles of icons, each in its system's colour; the full name on the hover.
+  const stat = (ico, sys, v, label, name) => h('div', { class: 'end-stat', style: `--s:var(--c-${sys})`, tip: () => name }, h('span', { class: 'end-val' }, icon(ico, 22), h('b', null, v)), h('span', { class: 'lbl' }, label))
+  // The rest of the run, one view at a time behind tabs: the deep below (a cleared run), what felled the
+  // Monarch (a lost one), the relics and keystones held, the retinue. Each scrolls in its own panel.
+  const views = [
+    descend && { id: 'deep', name: 'The deep', body: () => [h('p', null, DEEP_TEXT.descend), h('p', { class: 'dim' }, DEEP_TEXT.growth), h('p', { class: 'warn' }, DEEP_TEXT.fall)] },
+    lost && { id: 'death', name: lost.reason === 'tick-ceiling' ? 'How it ended' : 'What felled you', body: () => deathPanel(s, run.battle) },
+    (s.relics.length > 0 || s.keystones.length > 0) && { id: 'relics', name: 'Relics', body: () => [h('h2', null, 'Relics'), relicList(s.relics), h('h2', null, 'Keystones'), keystoneList(s.keystones)] },
+    { id: 'retinue', name: descend ? 'Your retinue' : 'Final retinue', body: () => h('div', { class: 'units' }, s.party.slice().sort(fieldOrder).map((u) => unitRow(run, u))) }].filter(Boolean)
+  const tabs = h('div', { class: 'tabs end-tabs', role: 'tablist' })
+  const panel = h('div', { class: 'panel end-panel', role: 'tabpanel' })
+  const view = (id) => {
+    hideTip()
+    fill(tabs, views.map((v) => h('button', { class: 'tab' + (v.id === id ? ' on' : ''), role: 'tab', 'aria-selected': v.id === id ? 'true' : 'false', 'data-tab': v.id, onclick: () => view(v.id) }, v.name)))
+    fill(panel, views.find((v) => v.id === id).body())
+    panel.scrollTop = 0
+  }
+  view(views[0].id)
   // A short sting as the screen lands: a flash of gold or blood. Its sound already played, once, with the
-  // battle that decided the run (its banner, or main.js's onDone for a skipped one).
-  const el = h('div', { class: `screen end-screen ${lost ? 'lost' : 'won'}` },
+  // battle that decided the run (its banner, or main.js's onDone for a skipped one). The verdict, the tally and
+  // what to do next on the left; the tabs on the right.
+  const el = h('div', { class: `screen fit end-screen ${lost ? 'lost' : 'won'}` },
     h('div', { class: 'sting' }),
-    h('div', { class: 'center' },
-      h('div', { class: 'sigil ' + (won ? 'win' : 'lose') }, icon(won ? 'boss' : 'elite', 54)),
-      h('h1', { class: 'logo ' + (won ? 'win' : 'lose') }, descend ? 'VICTORY' : won ? 'CLEARED' : 'DEFEAT'),
-      h('p', { class: 'tagline' }, tagline),
-      h('div', { class: 'end-stats' },
-        stat('stairs', 'monarch', deeper > 0 ? `${cleared}/${n} + ${deeper}` : `${cleared}/${n}`, 'floors', deeper > 0 ? `Floors cleared: ${cleared} of ${n}, and ${deeper} of the deep.` : `Floors cleared: ${cleared} of ${n}.`),
-        stat('fight', 'foe', `${s.stats.wins}/${s.stats.fights}`, 'won', 'Battles won, of those fought.'),
-        stat('hood', 'essence', s.stats.reaped, 'recruited', 'Souls recruited.'),
-        stat('bone', 'ossuary', s.stats.bound, 'bound', 'Bodies bound to the ossuary.'),
-        stat('soul', 'essence', s.stats.essence, 'essence', 'Essence earned.'),
-        stat('reliquary', 'relic', s.relics.length, 'relics', 'Relics claimed.')),
-      // What to do next stands right under the tally, above all there is to read.
-      h('div', { class: 'title-actions end-actions' },
-        descend && h('button', {
-          class: 'primary big', onclick: onDescend,
-          tip: () => `Go on to floor ${s.floor + 1}, the first of the deep, with your retinue, relics, essence and wounds as they are. The clear is already yours. (Enter)`
-        }, 'Descend ', h('kbd', null, 'Enter')),
-        newRun),
-      h('p', { class: 'dim end-seed' }, `seed ${s.seed}`),
-      descend && h('div', { class: 'panel descend' },
-        h('h2', null, 'The deep'),
-        h('p', null, DEEP_TEXT.descend),
-        h('p', { class: 'dim' }, DEEP_TEXT.growth),
-        h('p', { class: 'warn' }, DEEP_TEXT.fall)),
-      lost && deathPanel(s, run.battle),
-      (s.relics.length > 0 || s.keystones.length > 0) && h('div', { class: 'panel' },
-        h('h2', null, 'Relics'), relicList(s.relics),
-        h('h2', null, 'Keystones'), keystoneList(s.keystones)),
-      h('div', { class: 'panel' },
-        h('h2', null, descend ? 'Your retinue' : 'Final retinue'),
-        h('div', { class: 'units' }, s.party.slice().sort(fieldOrder).map((u) => unitRow(run, u))))))
+    h('div', { class: 'end-main' },
+      h('div', { class: 'end-hero' },
+        h('div', { class: 'sigil ' + (won ? 'win' : 'lose') }, icon(won ? 'boss' : 'elite', 46)),
+        h('h1', { class: 'logo ' + (won ? 'win' : 'lose') }, descend ? 'VICTORY' : won ? 'CLEARED' : 'DEFEAT'),
+        h('p', { class: 'tagline' }, tagline),
+        h('div', { class: 'end-stats' },
+          stat('stairs', 'monarch', deeper > 0 ? `${cleared}/${n} + ${deeper}` : `${cleared}/${n}`, 'floors', deeper > 0 ? `Floors cleared: ${cleared} of ${n}, and ${deeper} of the deep.` : `Floors cleared: ${cleared} of ${n}.`),
+          stat('fight', 'foe', `${s.stats.wins}/${s.stats.fights}`, 'won', 'Battles won, of those fought.'),
+          stat('hood', 'essence', s.stats.reaped, 'recruited', 'Souls recruited.'),
+          stat('bone', 'ossuary', s.stats.bound, 'bound', 'Bodies bound to the ossuary.'),
+          stat('soul', 'essence', s.stats.essence, 'essence', 'Essence earned.'),
+          stat('reliquary', 'relic', s.relics.length, 'relics', 'Relics claimed.')),
+        // What to do next stands right under the tally.
+        h('div', { class: 'title-actions end-actions' },
+          descend && h('button', {
+            class: 'primary big', onclick: onDescend,
+            tip: () => `Go on to floor ${s.floor + 1}, the first of the deep, with your retinue, relics, essence and wounds as they are. The clear is already yours. (Enter)`
+          }, 'Descend ', h('kbd', null, 'Enter')),
+          newRun),
+        h('p', { class: 'dim end-seed' }, `seed ${s.seed}`)),
+      h('div', { class: 'end-detail' }, tabs, panel)),
+    cornerButtons(onHelp))
   return {
     el,
+    // N starts a new run from any end (How to play says so); Enter descends, or starts one when there is no deep.
     key (e) {
       if (descend && e.key === 'Enter') onDescend()
-      else if (descend ? e.key === 'n' || e.key === 'N' : e.key === 'Enter') onNew()
+      else if (e.key === 'n' || e.key === 'N' || (!descend && e.key === 'Enter')) onNew()
     }
   }
 }
@@ -970,9 +1028,9 @@ function deathPanel (s, battle) {
     svg.innerHTML = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" vector-effect="non-scaling-stroke"/>`
     return svg
   })()
-  return h('div', { class: 'panel death' },
+  // In the end screen's tab of that name: no heading of its own.
+  return h('div', { class: 'death' },
     h('div', { class: 'death-text' },
-      h('h2', null, s.death.reason === 'tick-ceiling' ? 'How the run ended' : 'What felled the Monarch'),
       h('p', { class: 'death-head' }, d.head),
       d.lines.map((l) => h('p', { class: 'dim' }, l)),
       d.threat && h('p', { class: 'death-threat' }, 'Threat: ', h('b', null, d.threat.name), h('span', { class: 'dim' }, ` · ${d.threat.desc}`))),
@@ -999,7 +1057,7 @@ const SPEEDS = [1, 2, 4]
 // The essence counter on the left is where the slain foes' orbs fly (the scene finds it through
 // scene.purseAt): it rolls up as each lands. The playback state reads at a glance: the speed lit, the bar
 // edged violet while paused, and once the battle is over, Skip becomes Continue.
-export function battleBar () {
+export function battleBar ({ onHelp = null } = {}) {
   let scene = null
   let st = { paused: false, speed: 1, seconds: 0, over: false, essence: 0 }
   let carried = 0
@@ -1015,20 +1073,25 @@ export function battleBar () {
   const purse = h('span', {
     class: 'purse',
     tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Essence'), h('p', null, 'Carried by the foes slain so far, relics included. A won battle pays it into your purse.'))
-  }, icon('soul', 16), h('span', { class: 'purse-plus' }, '+'), count)
+  }, icon('soul', 22), h('span', { class: 'purse-plus' }, '+'), count)
   const el = h('div', { class: 'battlebar' },
+    // Paused: the battle dims under a quiet word (feel.css), over the board and never over this bar.
+    h('div', { class: 'pause-veil', 'aria-hidden': 'true' }, h('span', null, icon('pause', 26), 'Paused')),
     h('div', { class: 'legend' },
       purse,
-      h('span', null, h('i', { class: 'lg hp' }), 'HP'),
+      h('span', { tip: () => 'The bright bar under each unit: its HP.' }, h('i', { class: 'lg hp' }), 'HP'),
       h('span', { tip: () => 'The pale bar under each unit fills by speed toward its next ability, or its cheapest one with nothing in reach. It acts once the bar is full and a target is in reach. Walking never uses the gauge: a unit may step once every ' +
         `${TUNING.board.stepTicks * TUNING.tick.ms / 1000} s, and stops once a foe is in reach (all but a flanker on the hunt).` }, h('i', { class: 'lg gauge' }), 'gauge'),
-      h('span', { class: 'dim' }, 'Hover a unit for live stats.')),
-    h('div', { class: 'controls' }, clock, pause, h('div', { class: 'segs' }, speeds), skip, muteButton()))
+      h('span', { class: 'dim bar-hint' }, say('Hover', 'Long-press'), ' a unit for live stats.')),
+    h('div', { class: 'controls' }, clock, pause, h('div', { class: 'segs' }, speeds), skip, muteButton(),
+      // How to play, H on the keyboard (it pauses the battle while open): a button for a finger.
+      onHelp && btn({ class: 'icon-btn', 'aria-label': 'How to play', onclick: onHelp, tip: () => 'How to play: the battle waits while it is open. (H)' }, icon('help', 20))))
 
   function render () {
     SPEEDS.forEach((n, i) => speeds[i].classList.toggle('active', st.speed === n))
-    fill(pause, icon(st.paused ? 'play' : 'pause', 14), st.paused ? ' Resume' : ' Pause', h('kbd', null, 'Space'))
-    fill(skip, icon('skip', 14), st.over ? ' Continue' : ' Skip', h('kbd', null, 'S'))
+    // Pause's key is on its tooltip (Space); Skip, the main action, wears its own.
+    fill(pause, icon(st.paused ? 'play' : 'pause', 20), st.paused ? ' Resume' : ' Pause')
+    fill(skip, icon('skip', 22), st.over ? ' Continue' : ' Skip', h('kbd', null, 'S'))
     pause.classList.toggle('active', st.paused)
     el.classList.toggle('paused', st.paused && !st.over)
     el.classList.toggle('over', !!st.over)
@@ -1052,6 +1115,68 @@ export function battleBar () {
       else return
       sfx.play('click')
       e.preventDefault()
+    }
+  }
+}
+
+// The battle's words, in two panels in the bands beside the board (engine.js: the scene's args.hud), so the
+// board itself takes the screen's height: on the left their room's title and synergies at the top, yours at
+// the bottom; on the right the Monarch's HP, the reserve and the held detachments at the bottom. A rule named
+// for the first time shows a moment in its side's panel. The scene tells them where the board stands (place).
+export function battleSides () {
+  const SIDE = 170 // logical px: the least each band keeps beside the board
+  const head = h('div', { class: 'bs-title' })
+  const theirs = h('div', { class: 'bs-syns foe' })
+  const mine = h('div', { class: 'bs-syns' })
+  const theirRules = h('div', { class: 'bs-rules foe' })
+  const myRules = h('div', { class: 'bs-rules' })
+  const hpText = h('b', { class: 'bs-hp-n' })
+  const hpFill = h('span')
+  const crown = h('div', { class: 'bs-crown' },
+    h('div', { class: 'bs-crown-top' }, h('span', { class: 'bs-name' }, icon('crown', 18), 'The Monarch'), hpText),
+    h('div', { class: 'bs-hpbar' }, hpFill))
+  const reserve = h('div', { class: 'bs-reserve' })
+  const left = h('div', { class: 'battle-side left' },
+    h('div', { class: 'bs-top' }, head, h('div', { class: 'bs-k foe' }, 'Their synergies'), theirs, theirRules),
+    h('div', { class: 'bs-bottom' }, myRules, h('div', { class: 'bs-k' }, 'Your retinue'), mine))
+  const right = h('div', { class: 'battle-side right' }, h('div', { class: 'bs-bottom' }, crown, reserve))
+  const el = h('div', { class: 'battle-sides', 'aria-hidden': 'true' }, left, right)
+  const list = (box, names) => fill(box, names.length ? names.map((n) => h('span', { class: 'bs-syn' + (n.startsWith('★') ? ' rule' : '') }, n)) : h('span', { class: 'dim' }, 'no synergies'))
+  return {
+    el,
+    side: () => SIDE * frame.k,
+    start ({ title, theirs: t, mine: m, monarch }) {
+      head.textContent = title
+      list(theirs, t)
+      list(mine, m)
+      crown.hidden = !monarch
+    },
+    // The board's box in viewport px (its top over their heads, its bottom under your back row's bars) and the
+    // bar's top (`floor`): each panel fills its band, its blocks at the board's top and bottom.
+    place ({ left: l, top, right: r, bottom, floor }) {
+      const a = toLocalRect({ left: l, top, right: r, bottom })
+      const f = toLocalRect({ left: 0, top: floor, right: 0, bottom: floor }).top
+      const pad = 14
+      const t = Math.max(8, a.top)
+      const b = Math.min(f - 8, a.bottom)
+      left.style.cssText = `left:${pad}px;width:${Math.max(0, a.left - 2 * pad)}px;top:${t}px;height:${Math.max(0, b - t)}px`
+      right.style.cssText = `left:${a.right + pad}px;width:${Math.max(0, frame.w - a.right - 2 * pad)}px;top:${t}px;height:${Math.max(0, b - t)}px`
+    },
+    hp (hp, max) {
+      const f = max ? Math.max(0, hp / max) : 0
+      hpText.textContent = `${hp} / ${max}`
+      hpFill.style.width = `${f * 100}%`
+      crown.classList.toggle('low', f < 0.35)
+    },
+    // [[text, colour]…]: the reserve's next and the held detachments' starts.
+    reserve (lines) { fill(reserve, lines.map(([t, c]) => h('div', { style: `color:${c}` }, t))) },
+    announce (text, side) {
+      const box = side ? myRules : theirRules
+      const line = h('div', { class: 'bs-rule' }, text)
+      box.append(line)
+      while (box.children.length > 3) box.firstChild.remove()
+      setTimeout(() => line.classList.add('out'), 1400)
+      setTimeout(() => line.remove(), 1900)
     }
   }
 }
@@ -1093,7 +1218,7 @@ function shapeGlyph (shape, n) {
   const [c0, rows] = [Math.min(...cols), Math.max(...cells.map(([r]) => r)) - r0 + 1]
   const w = Math.max(...cols) - c0 + 1
   const at = new Map(cells.map(([r, c], i) => [`${r}:${c}`, i]))
-  return h('span', { class: 'glyph', style: `grid-template-columns:repeat(${w},5px)` },
+  return h('span', { class: 'glyph', style: `grid-template-columns:repeat(${w},var(--gl,5px))` },
     Array.from({ length: rows * w }, (_, k) => {
       const i = at.get(`${Math.floor(k / w) + r0}:${k % w + c0}`)
       return h('i', { class: i === 0 ? 'cap' : i ? 'mem' : '' })
@@ -1129,7 +1254,11 @@ const oneWay = (s, d, mTile, domain) => d.plan.where === 'move' && distance(d.pl
 const TRAY = ['soul', 'monarch', 'orders', 'ossuary', 'bonuses']
 let trayTab = TRAY.includes(prefs.get('tray')) ? prefs.get('tray') : 'soul'
 
-function retinueEditor ({ run, act, facing = null, onChange = null }) {
+// The soul card's open section (Paths, Rank, Cohort), kept as the selection moves from soul to soul.
+let cardTab = 'paths'
+
+// `head`, `foot`: elements to stand over and under the tray in the side column (prep's room and Begin).
+function retinueEditor ({ run, act, facing = null, onChange = null, head = null, foot = null }) {
   const s = run.state
   const el = h('div', { class: 'retinue' })
   let sel = null // { uid } or { slot } (an empty field slot)
@@ -1143,6 +1272,8 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   let pick = []
   let picking = false
   let aim = null
+  // The detachment whose card the Orders tab shows open (the rest are one row each): see ordersPanel.
+  let openDet = null
   // The board (board.js) draws in `stage`, which takes the pointer: each tile's tooltip, by tile ('reserve' for
   // the bodies behind the camp); the tile under the pointer; a press, which turns into a drag past a few pixels;
   // the soul being dragged; a benched soul's click to swallow after it was dragged.
@@ -1161,10 +1292,14 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   // the tab or the soul it shows changes (`shown`).
   const trayBody = h('div', { class: 'tab-body' })
   const trayEl = h('div', { class: 'tray' })
+  // The side column: the head (if any), the tray, the foot (if any). Kept across redraws like the tray.
+  const sideEl = h('div', { class: 'side-col' }, head, trayEl, foot)
   let shown = ''
+  // Another tab is another subject: an old refusal goes with the last one.
   function openTab (id) {
     trayTab = id
     prefs.set('tray', id)
+    error = ''
     render()
   }
 
@@ -1251,15 +1386,46 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     'aria-disabled': s.essence < cost ? 'true' : null,
     onclick: (e) => buy(e, cost, action),
     tip: () => s.essence < cost ? poorText(cost) : why
-  }, label, h('span', { class: 'price' }, icon('soul', 12), cost))
+  }, label, h('span', { class: 'price' }, icon('soul', 16), cost))
 
-  // The selected soul as a card, framed in its rank's colour: its head, its level and paths, its rank, and
-  // its cohort.
-  const soulCard = (u) => h('div', { class: `uc g${u.grade ?? 0}${popKey(`promote:${u.uid}`)}` },
-    soulHead(u), upgradePanel(u), rankPanel(u), cohortPanel(u))
+  // The selected soul as a card, framed in its rank's colour: its head and its level-up, always; then one of
+  // its paths, its rank or its cohort, behind three tabs (the open one kept from soul to soul: cardTab). A
+  // promotion ready lights the Rank tab; a cohort's size is on its tab.
+  const soulCard = (u) => {
+    const ready = canPromote(run, u)
+    const sections = [
+      { id: 'paths', name: 'Paths', tip: 'Its paths: tiers bought with essence. Taking one rules out the others.' },
+      { id: 'rank', name: 'Rank', badge: ready && '!', tip: ready ? 'A promotion is ready: it eats bodies of its kin, no essence.' : 'Its rank, and what a promotion takes.' },
+      { id: 'cohort', name: 'Cohort', badge: u.cohort && u.cohort.count, tip: 'The rank-and-file bodies it leads into battle.' }]
+    const open = sections.some((x) => x.id === cardTab) ? cardTab : 'paths'
+    const panel = { paths: upgradePanel, rank: rankPanel, cohort: cohortPanel }
+    // All three are built; where the tray has the height for them together (fitCard) they all show, one under
+    // the other, each under its name (Rank names itself), and the tabs go.
+    return h('div', { class: `uc g${u.grade ?? 0}${popKey(`promote:${u.uid}`)}` },
+      soulHead(u),
+      levelButton(u),
+      h('div', { class: 'uc-tabs', role: 'tablist' }, sections.map((x) => h('button', {
+        class: 'uc-tab' + (x.id === open ? ' on' : '') + (x.id === 'rank' && ready ? ' ready' : ''), role: 'tab', 'aria-selected': x.id === open ? 'true' : 'false',
+        onclick: () => { cardTab = x.id; render() }, tip: () => x.tip
+      }, x.name, x.badge && h('span', { class: 'tab-count' }, x.badge)))),
+      sections.map((x) => h('div', { class: 'uc-part' + (x.id === open ? ' on' : '') },
+        x.id !== 'rank' && h('div', { class: 'uc-sec uc-part-head' }, x.name, x.id === 'cohort' && u.cohort && h('span', { class: 'dim' }, ` · ${u.cohort.count}`)),
+        panel[x.id](u))))
+  }
 
-  // The card's head: the soul's art (its full card on hover), name, level, kin and role, its wounds, and
-  // its HP, ATK, DEF and SPD as it fights now, with its relics', keystones' and bonds' mods (as soulTip).
+  // The selected soul's card shows its paths, rank and cohort together where the tray's body holds them
+  // without scrolling, else behind its three tabs (on every render, and as the tray changes size).
+  function fitCard () {
+    const card = trayBody.querySelector('.uc')
+    if (!card) return
+    card.classList.add('all')
+    if (trayBody.scrollHeight > trayBody.clientHeight + 1) card.classList.remove('all')
+  }
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitCard).observe(trayBody)
+
+  // The card's head: the soul's art (its full card on hover), name, level, kin and role, and under them its
+  // HP, ATK, DEF and SPD as it fights now, with its relics', keystones' and bonds' mods (as soulTip). Its rank
+  // is the card's frame and the art's insignia, named on the Rank tab.
   function soulHead (u) {
     const d = unitDef(u.id)
     const grade = u.grade ?? 0
@@ -1267,16 +1433,26 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     const st = statsOf(u, [...partyMods(run, u), ...bondMods(all, u, aliasOf(run))])
     const maxHp = Math.round(st.hp)
     const hp = Math.max(0, Math.round(u.hp / (u.maxHp || 1) * maxHp))
-    const stat = (ico, name, v) => h('span', { class: 'uc-stat s-' + ico, tip: () => name }, icon(ico, 15), h('b', null, v))
-    return h('div', { class: 'uc-head' },
-      h('div', { class: 'uc-art', tip: () => soulTip(u, null) }, portrait(u.id, 64, u.hp <= 0),
-        h('span', { class: `uc-ins g${grade}` }, icon(GRADE_ICON[grade], 14))),
+    const stat = (ico, name, v) => h('span', { class: 'uc-stat s-' + ico, tip: () => name }, icon(ico, 18), h('b', null, v))
+    return [h('div', { class: 'uc-head' },
+      h('div', { class: 'uc-art', tip: () => soulTip(u, null) }, portrait(u.id, 56, u.hp <= 0),
+        h('span', { class: `uc-ins g${grade}` }, icon(GRADE_ICON[grade], 16))),
       h('div', { class: 'uc-id' },
         h('div', { class: 'uc-name' }, d.name),
-        h('div', { class: 'dim small' }, `Lv ${u.lvl} · ${KIN[d.kin].name} ${ROLES[d.role].name} · `, kw(GRADES[grade].id)),
-        h('div', { class: 'uc-stats' },
-          stat('hp', u.hp > 0 ? 'HP' : 'Fallen: an altar raises it.', hp < maxHp ? `${hp}/${maxHp}` : maxHp),
-          stat('atk', 'Attack', Math.round(st.atk)), stat('def', 'Defence', Math.round(st.def)), stat('spd', 'Speed: how fast its gauge fills', Math.round(st.spd)))))
+        h('div', { class: 'uc-sub dim' }, `Lv ${u.lvl} · ${KIN[d.kin].name} ${ROLES[d.role].name}`))),
+    h('div', { class: 'uc-stats' },
+      stat('hp', u.hp > 0 ? 'HP' : 'Fallen: an altar raises it.', hp < maxHp ? `${hp}/${maxHp}` : maxHp),
+      stat('atk', 'Attack', Math.round(st.atk)), stat('def', 'Defence', Math.round(st.def)), stat('spd', 'Speed: how fast its gauge fills', Math.round(st.spd)))]
+  }
+
+  // The card's one big buy, under its head whichever tab is open: the next level (what it adds on hover).
+  function levelButton (u) {
+    if (u.lvl >= TUNING.level.cap) return h('p', { class: 'dim uc-cap' }, `Level ${TUNING.level.cap}: it can rise no further.`)
+    const [now, next] = [baseStats(u.id, u.lvl), baseStats(u.id, u.lvl + 1)]
+    const gain = [['hp', 'HP'], ['atk', 'ATK'], ['def', 'DEF'], ['spd', 'SPD']].filter(([k]) => next[k] > now[k])
+      .map(([k, n]) => `+${+(next[k] - now[k]).toFixed(1)} ${n}`).join(', ') + '.'
+    return buyButton([icon('levelup', 22), h('span', { class: 'grow' }, 'Level up ', h('span', { class: 'dim' }, `${u.lvl} → ${u.lvl + 1}`))],
+      levelCost(run, u), { type: 'level', uid: u.uid }, gain, ' lvl-up')
   }
 
   // Spending essence on the selected soul: its next level, then its paths as tracks of tier nodes (Bloons
@@ -1291,11 +1467,6 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     const others = first ? pathsOf(u.id).filter((p) => p.id !== u.path && (!u.path2 || p.id === u.path2)) : []
     // A Knight takes tier IV or a second path's tier I, not both: said on either while neither is taken.
     const either = grade === 1 && u.tier < 4 && !u.tier2
-    const gain = () => {
-      const [now, next] = [baseStats(u.id, u.lvl), baseStats(u.id, u.lvl + 1)]
-      return [['hp', 'HP'], ['atk', 'ATK'], ['def', 'DEF'], ['spd', 'SPD']].filter(([k]) => next[k] > now[k])
-        .map(([k, n]) => `+${+(next[k] - now[k]).toFixed(1)} ${n}`).join(', ') + '.'
-    }
     const marshalWaits = 'until it is a Marshal'
     // Why a path's next tier is shut, when the rank or a clash is what shuts it.
     const shut = (p) => {
@@ -1340,32 +1511,29 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         onclick: (e) => open ? buy(e, cost, { type: 'upgrade', uid: u.uid, path: p.id }, key) : i >= held && shake(e),
         tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${p.name} ${ROMAN[i]}: `), p.tiers[i].desc), note)
       }, h('span', { class: 'tnum' }, ROMAN[i]),
-      i === 3 && h('span', { class: 'tbadge g1' }, icon('knight', 10)),
-      why && h('span', { class: 'tbadge lock' }, icon('lock', 10)),
-      open && h('span', { class: 'tprice' }, icon('soul', 10), cost))
+      i === 3 && h('span', { class: 'tbadge g1' }, icon('knight', 13)),
+      why && h('span', { class: 'tbadge lock' }, icon('lock', 13)))
     }
-    // A path's track: its name, then its nodes joined by links (lit up to the last tier held), then the
-    // next tier's effect in a line.
+    // A path's track: its name and line (in full on hover), then its nodes joined by links (lit up to the last
+    // tier held) with the next tier's price at the end, then, once the path is taken, the next tier's effect.
     const track = (p, held, upto, second) => {
       const clash = second && pathsClash(u.id, u.path, p.id)
       const next = !clash && held < upto && canAdvance(u, p.id) && p.tiers[held]
+      const cost = next && tierCost(run, u, p.id)
       return h('div', { class: 'track' + (held ? ' held' : '') + (clash ? ' clash' : '') },
         h('div', { class: 'track-head', tip: () => clash ? shut(p) : p.desc }, h('b', null, p.name), h('span', { class: 'track-desc dim' }, clash ? 'clashes' : p.desc)),
-        h('div', { class: 'nodes' }, p.tiers.slice(0, upto).map((_, i) => [i > 0 && h('span', { class: 'tlink' + (i < held ? ' on' : '') }), node(p, i, held, second)])),
-        next && h('div', { class: 'track-next', tip: () => next.desc }, h('b', null, `${ROMAN[held]} `), next.desc))
+        h('div', { class: 'nodes' }, p.tiers.slice(0, upto).map((_, i) => [i > 0 && h('span', { class: 'tlink' + (i < held ? ' on' : '') }), node(p, i, held, second)]),
+          next && h('span', { class: 'tprice' + (s.essence < cost ? ' poor' : '') }, icon('soul', 16), cost)),
+        next && held > 0 && h('div', { class: 'track-next', tip: () => next.desc }, h('b', null, `${ROMAN[held]} `), next.desc))
     }
     return h('div', { class: 'uc-spend' },
-      u.lvl >= TUNING.level.cap
-        ? h('p', { class: 'dim small' }, `Level ${TUNING.level.cap}: it can rise no further.`)
-        : buyButton([icon('levelup', 18), h('span', { class: 'grow' }, 'Level up ', h('span', { class: 'dim' }, `${u.lvl} → ${u.lvl + 1}`))],
-          levelCost(run, u), { type: 'level', uid: u.uid }, gain(), ' lvl-up'),
-      h('div', { class: 'uc-sec' }, 'Paths', !first && h('span', { class: 'dim' }, ' · taking one rules out the others')),
+      !first && h('p', { class: 'dim uc-note' }, 'Taking one path rules out the others.'),
       h('div', { class: 'tracks' + (first ? '' : ' choose') }, paths.map((p) => track(p, u.path === p.id ? u.tier : 0, p.tiers.length, false))),
       grade >= 1 && first && others.length > 0 && [
-        h('div', { class: 'uc-sec sub' }, 'Second path', !u.path2 && h('span', { class: 'dim' }, ' · tiers I–III, on top')),
+        h('div', { class: 'uc-sec sub' }, 'Second path', !u.path2 && h('span', { class: 'dim' }, ' · I–III, on top')),
         h('div', { class: 'tracks choose' }, others.map((p) => track(p, p.id === u.path2 ? u.tier2 : 0, SECOND_TIERS, true)))],
-      first && grade === 0 && h('p', { class: 'dim small' }, 'Tier IV or a second path: promote to ', kw('knight'), '.'),
-      either && first && h('p', { class: 'dim small' }, 'A ', kw('knight'), ' takes tier IV or a second path, not both.'))
+      first && grade === 0 && h('p', { class: 'dim uc-note' }, 'Tier IV or a second path: promote to ', kw('knight'), '.'),
+      either && first && h('p', { class: 'dim uc-note' }, 'A ', kw('knight'), ' takes tier IV or a second path, not both.'))
   }
 
   // What a promotion would do to the cohorts: which shrink, and to how many, once its bodies are eaten
@@ -1410,9 +1578,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
           tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${up.name}: `), KEYWORDS[up.id].line),
             ok ? h('p', { class: 'dim' }, `Eats ${ate} for good. No essence.`)
               : h('p', { class: 'warn' }, `Needs ${need} ${kin} bodies standing; ${have} stand. Bind ${kin} slain after a win.`))
-        }, icon(GRADE_ICON[grade + 1], 16), `Promote to ${up.name}`),
+        }, icon(GRADE_ICON[grade + 1], 20), `Promote to ${up.name}`),
         h('div', { class: 'feed' + (ok ? ' ok' : ''), tip: () => `${kin} bodies standing in the ossuary: ${have} of the ${need} it needs.` },
-          eaten.map((k) => portrait(k, 22)), Array.from({ length: need - eaten.length }, () => h('span', { class: 'feed-gap' })),
+          eaten.map((k) => portrait(k, 30)), Array.from({ length: need - eaten.length }, () => h('span', { class: 'feed-gap' })),
           h('span', { class: 'feed-n' }, `${Math.min(have, need)}/${need}`))),
       shrink.length > 0 && h('p', { class: 'warn small' }, `Shrinks cohorts: ${shrinkText}.`))
   }
@@ -1429,7 +1597,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         class: `mc-col s-${k}${popKey(JSON.stringify(action))}`,
         tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${MONARCH_TEXT[k].name}: `), KEYWORDS[k].line), h('p', { class: 'dim' }, monarchNextText(run, k)))
       },
-      h('div', { class: 'mc-ico' }, icon(k, 26)),
+      h('div', { class: 'mc-ico' }, icon(k, 28)),
       h('div', { class: 'mc-name' }, MONARCH_TEXT[k].name),
       h('div', { class: 'mc-pts' }, s.monarch[k]),
       h('div', { class: 'mc-now' }, MONARCH_TEXT[k].now(run)),
@@ -1437,14 +1605,16 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     }
     return h('div', { class: 'mc' + (picked ? ' on' : '') },
       h('div', { class: 'uc-head' },
-        h('div', { class: 'uc-art', tip: () => unitCard(m, { mods: partyMods(run, m), realm: realmOf(run) }) }, portrait(m.id, 64, m.hp <= 0),
-          h('span', { class: 'uc-ins crown' }, icon('crown', 14))),
+        h('div', { class: 'uc-art', tip: () => unitCard(m, { mods: partyMods(run, m), realm: realmOf(run) }) }, portrait(m.id, 56, m.hp <= 0),
+          h('span', { class: 'uc-ins crown' }, icon('crown', 16))),
         h('div', { class: 'uc-id' },
           h('div', { class: 'uc-name' }, 'The Monarch'),
-          h('div', { class: 'dim small' }, m.lvl > 0 && `Lv ${m.lvl} · `, kw('monarch', 'you')),
-          h('div', { class: 'mc-hp' }, hpBar(m), h('span', { class: 'small' }, `${m.hp}/${m.maxHp}`)))),
+          h('div', { class: 'uc-sub dim' }, m.lvl > 0 && `Lv ${m.lvl} · `, kw('monarch', 'you')),
+          h('div', { class: 'mc-hp' }, hpBar(m), h('span', null, `${m.hp}/${m.maxHp}`)))),
       h('div', { class: 'mc-cols' }, MONARCH_STATS.map(col)),
-      h('p', { class: 'dim small mc-foot' }, `A point: +${M.hpPerPoint} max HP${holds(s, 'unhealable') ? ' (no heal: Court of Bone)' : ', healed'}; each costs ${M.costPerPoint} more.`))
+      // What a point gives and costs, short; the rest is on each column's hover.
+      h('p', { class: 'dim mc-foot', tip: () => `Each point also gives +${M.hpPerPoint} max HP${holds(s, 'unhealable') ? ' (not healed: Court of Bone)' : ', healed at once'}, and the next costs ${M.costPerPoint} more.` },
+        `A point: +${M.hpPerPoint} max HP. Each costs ${M.costPerPoint} more.`))
   }
 
   // What essence buys a soul next: its level, and its next tier (on its path, else a second path's), each
@@ -1467,7 +1637,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     const rows = [...fielded(souls(s.party)), ...benched(souls(s.party))]
     const chip = (b, ico, what) => b && h('span', {
       class: 'sp-chip' + (affords(b) ? ' ok' : ''), tip: () => affords(b) ? what : poorText(b.cost)
-    }, ico && icon(ico, 12), b.label, h('span', { class: 'price' }, icon('soul', 11), b.cost))
+    }, ico && icon(ico, 16), b.label, h('span', { class: 'price' }, icon('soul', 15), b.cost))
     const row = (u) => {
       const d = unitDef(u.id)
       const grade = u.grade ?? 0
@@ -1478,23 +1648,23 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         onclick: () => { sel = { uid: u.uid }; soft = false; aim = null; error = ''; render() },
         tip: () => soulTip(u, onField(u) ? null : 'On the bench: does not fight.', 'Click to select it: its card opens here.')
       },
-      h('span', { class: 'sp-port' }, portrait(u.id, 34, u.hp <= 0), h('span', { class: `sp-ins g${grade}` }, icon(GRADE_ICON[grade], 10))),
+      h('span', { class: 'sp-port' }, portrait(u.id, 44, u.hp <= 0), h('span', { class: `sp-ins g${grade}` }, icon(GRADE_ICON[grade], 13))),
       h('span', { class: 'sp-main' },
         h('span', { class: 'sp-id' }, h('b', null, d.name), h('span', { class: 'dim' }, `Lv ${u.lvl}${onField(u) ? '' : ' · bench'}`)),
         h('span', { class: 'sp-buys' },
           chip(b.level, 'levelup', `Level ${u.lvl + 1}.`),
           chip(b.tier, null, b.tier?.name ? `${b.tier.name} ${b.tier.label.replace('2nd ', '')}${b.tier.label.startsWith('2nd') ? ', a second path' : ''}.` : 'Its first path tier: choose the path on its card.'),
           b.promote && h('span', { class: `sp-chip promote g${grade + 1}`, tip: () => `Ready to promote to ${GRADES[grade + 1].name}: it eats bodies of its kin, no essence.` },
-            icon(GRADE_ICON[grade + 1], 12), 'Promote ready'))))
+            icon(GRADE_ICON[grade + 1], 16), 'Promote'))))
     }
     return h('div', { class: 'spend-panel' },
       h('div', { class: 'sp-head' },
-        h('span', { class: 'sp-ess', tip: () => 'Essence: slain foes pay it. Spend it on levels, path tiers and the Monarch.' }, icon('soul', 18), h('b', null, s.essence)),
-        h('span', { class: 'dim small' }, 'essence to spend. Select a soul for its card.')),
+        h('span', { class: 'sp-ess', tip: () => 'Essence: slain foes pay it. Spend it on levels, path tiers and the Monarch. Select a soul (here or on the board) for its card.' }, icon('soul', 24), h('b', null, s.essence)),
+        h('span', { class: 'dim' }, 'to spend: pick a soul')),
       s.essence >= mCost && h('button', {
         class: 'sp-nudge', onclick: () => openTab('monarch'),
         tip: () => 'Dominion widens the domain, Command grows every cohort, Will binds more of the slain.'
-      }, icon('crown', 16), h('span', { class: 'grow' }, 'A Monarch point is in reach'), h('span', { class: 'price' }, icon('soul', 12), mCost)),
+      }, icon('crown', 20), h('span', { class: 'grow' }, 'Monarch point in reach'), h('span', { class: 'price' }, icon('soul', 16), mCost)),
       rows.length
         ? h('div', { class: 'sp-list' }, rows.map(row))
         : h('p', { class: 'dim small' }, 'No souls yet: recruit after a win.'))
@@ -1518,25 +1688,27 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         onclick: () => on ? null : free < 1 ? refuse(`Every ${unitDef(k).name} standing is led by another cohort: clear one of those first.`) : give(k, most(k), c?.shape ?? 'line'),
         tip: () => h('div', { class: 'syn-tip' }, h('b', null, unitDef(k).name),
           h('p', { class: 'dim' }, `${free} free of ${standingOf(s, k)} standing. ${on ? 'Led now.' : free < 1 ? 'Others lead them all.' : `Click to lead ${most(k)}.`}`))
-      }, portrait(k, 30), h('span', { class: 'uc-kind-n' }, free))
+      }, portrait(k, 40), h('span', { class: 'uc-kind-n pill' }, free))
     }
     // The bodies it leads, then the places left up to its cap, as a strip of small portraits.
     const strip = c && h('div', { class: 'strip', tip: () => `${bodies(c.kind, c.count)}, of up to ${cmd}: Command${u.grade ? ' and its rank' : ''}.` },
-      Array.from({ length: Math.max(cmd, c.count) }, (_, i) => i < c.count ? portrait(c.kind, 24) : h('span', { class: 'feed-gap' })))
-    const controls = c && h('div', { class: 'uc-ctl' },
-      h('button', { class: 'step-btn', 'aria-label': 'One fewer', 'aria-disabled': c.count <= 1 ? 'true' : null, onclick: (e) => c.count > 1 ? give(c.kind, c.count - 1, c.shape) : shake(e), tip: () => c.count > 1 ? 'One fewer.' : 'At least one: ✕ clears it.' }, '−'),
-      h('b', { class: 'uc-count' }, c.count),
+      Array.from({ length: Math.max(cmd, c.count) }, (_, i) => i < c.count ? portrait(c.kind, 28) : h('span', { class: 'feed-gap' })))
+    // Two rows: how many (− n +) and clearing it; then its shape.
+    const controls = c && [h('div', { class: 'uc-ctl' },
+      h('button', { class: 'step-btn', 'aria-label': 'One fewer', 'aria-disabled': c.count <= 1 ? 'true' : null, onclick: (e) => c.count > 1 ? give(c.kind, c.count - 1, c.shape) : shake(e), tip: () => c.count > 1 ? 'One fewer.' : 'At least one: Clear ends it.' }, '−'),
+      h('span', { class: 'uc-count', tip: () => `${bodies(c.kind, c.count)} in a ${SHAPES[c.shape].name.toLowerCase()}, of up to ${cmd}: Command${u.grade ? ' and its rank' : ''}.` }, h('b', null, c.count), h('span', { class: 'dim' }, `/${cmd}`)),
       h('button', {
         class: 'step-btn', 'aria-label': 'One more', 'aria-disabled': c.count >= most(c.kind) ? 'true' : null,
         onclick: (e) => c.count < most(c.kind) ? give(c.kind, c.count + 1, c.shape) : shake(e),
         tip: () => c.count < most(c.kind) ? 'One more.' : c.count >= cmd ? `Full: up to ${cmd} (Command${u.grade ? ' and rank' : ''}).` : `No more ${unitDef(c.kind).name}s stand unled.`
       }, '+'),
-      h('div', { class: 'uc-shapes' }, Object.entries(SHAPES).map(([k, sh]) => h('button', {
-        class: 'uc-shape' + (c.shape === k ? ' on' : ''), 'aria-label': sh.name,
-        onclick: () => { if (c.shape !== k) give(c.kind, c.count, k) },
-        tip: () => h('div', { class: 'syn-tip' }, h('b', null, sh.name), h('p', null, sh.desc))
-      }, shapeGlyph(k, Math.max(c.count, 4))))),
-      h('button', { class: 'icon-btn small', 'aria-label': 'Clear', onclick: () => give(null), tip: () => `Clear: its ${bodies(c.kind, c.count)} go back to the ossuary.` }, icon('close', 14)))
+      h('span', { class: 'grow' }),
+      h('button', { class: 'ghost uc-clear', onclick: () => give(null), tip: () => `Clear: its ${bodies(c.kind, c.count)} go back to the ossuary.` }, icon('close', 16), 'Clear')),
+    h('div', { class: 'uc-shapes' }, Object.entries(SHAPES).map(([k, sh]) => h('button', {
+      class: 'uc-shape' + (c.shape === k ? ' on' : ''), 'aria-label': sh.name,
+      onclick: () => { if (c.shape !== k) give(c.kind, c.count, k) },
+      tip: () => h('div', { class: 'syn-tip' }, h('b', null, sh.name), h('p', null, sh.desc))
+    }, shapeGlyph(k, Math.max(c.count, 4)))))]
     // One short line for each state where it leads no bodies into battle; a fallen soul on the field may
     // still be given a cohort (ready for when an altar raises it), its bodies sitting out with it.
     const fallen = onField(u) && u.hp <= 0 && (c || kinds.length > 0) && line('warn', 'Fallen: it and its cohort sit out until an altar raises it.')
@@ -1547,14 +1719,14 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
             : !kinds.length ? line('dim', `No ${leadsText(u.id)} bodies stand. `, kw('bind'), ' some after a win.')
               : !c ? line('dim', 'Pick a kind to lead.') : null
     const open = onField(u) && cmd >= 1 && kinds.length > 0
+    // The tab names it: the kinds it may lead (whom on hover), then how many and in what shape. A cohort it
+    // cannot field shows as its strip of bodies.
     return h('div', { class: 'uc-cohort' },
-      h('div', { class: 'uc-sec', tip: () => `It leads ${leadsText(u.id)} bodies.` }, kw('cohort'),
-        c && h('span', { class: 'dim' }, ` · ${c.count}/${cmd} · ${SHAPES[c.shape].name}`)),
       fallen,
       state,
-      strip,
-      open && h('div', { class: 'uc-kinds' }, kinds.map(kindBtn)),
-      open ? controls : c && h('button', { class: 'small ghost', onclick: () => give(null), tip: () => `Its ${bodies(c.kind, c.count)} go back to the ossuary.` }, icon('close', 12), ' Clear'))
+      !open && strip,
+      open && h('div', { class: 'uc-kinds', tip: () => `It leads ${leadsText(u.id)} bodies.` }, kinds.map(kindBtn)),
+      open ? controls : c && h('button', { class: 'ghost uc-clear', onclick: () => give(null), tip: () => `Its ${bodies(c.kind, c.count)} go back to the ossuary.` }, icon('close', 16), 'Clear'))
   }
 
   // The rank-and-file: the muster in one row with its buy button, then the kinds as a portrait grid, each
@@ -1572,18 +1744,18 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     }
     return h('div', { class: 'ossuary-panel' },
       h('h2', { tip: () => h('div', { class: 'syn-tip' }, kw('ossuary'), ' ', ARMY_TEXT.ossuary, h('p', { class: 'dim' }, ARMY_TEXT.bind(run))) },
-        icon('bone', 16), ' Ossuary ', h('span', { class: 'oss-count' }, h('b', null, armyCount(s, 'standing')), ' standing'),
+        icon('bone', 20), ' Ossuary ', h('span', { class: 'oss-count' }, h('b', null, armyCount(s, 'standing')), ' standing'),
         armyCount(s, 'fallen') > 0 && h('span', { class: 'oss-count fell' }, h('b', null, armyCount(s, 'fallen')), ' fallen')),
       h('div', { class: 'muster-row', tip: () => h('div', { class: 'syn-tip' }, kw('muster'), ' ', ARMY_TEXT.muster(run)) },
         h('span', { class: 'mu-name' }, 'Muster'),
         h('span', { class: 'mu-lvl' }, s.muster),
         s.muster < cap && [h('span', { class: 'mu-arrow dim' }, '→'), h('span', { class: 'mu-next' }, s.muster + 1)],
-        h('span', { class: 'grow dim small' }, 'every body\'s level'),
+        h('span', { class: 'grow' }),
         s.muster < cap
           ? h('button', {
             class: 'buy' + (s.essence < cost ? ' poor' : ''), 'aria-disabled': s.essence < cost ? 'true' : null, onclick: buy,
             tip: () => s.essence < cost ? `You need ${cost} essence; you have ${s.essence}.` : `Every body fights at level ${s.muster + 1}.`
-          }, icon('levelup', 14), h('span', { class: 'price' }, icon('soul', 12), cost))
+          }, icon('levelup', 18), h('span', { class: 'price' }, icon('soul', 16), cost))
           : h('span', { class: 'chip-cap' }, 'cap')),
       kinds.length
         ? h('div', { class: 'bone-grid' }, kinds.map(([k, o]) => {
@@ -1598,9 +1770,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
                 `Leads under ${leadsText(k)} captains; promotes ${kin} souls (${kinStanding(s, unitDef(k).kin)} ${kin} stand).`]
             })
           },
-          h('div', { class: 'bt-port' }, portrait(k, 40, o.standing === 0),
-            h('span', { class: 'bt-stand' }, o.standing),
-            o.fallen > 0 && h('span', { class: 'bt-fell' }, `${o.fallen}`)),
+          h('div', { class: 'bt-port' }, portrait(k, 48, o.standing === 0),
+            h('span', { class: 'bt-stand pill' }, o.standing),
+            o.fallen > 0 && h('span', { class: 'bt-fell pill' }, `${o.fallen}`)),
           h('div', { class: 'bt-name' }, unitDef(k).name),
           h('div', { class: 'bt-led' + (n ? ' on' : '') }, n ? `${n} led` : 'unled'))
         }))
@@ -1620,7 +1792,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
       return h('div', { class: 'syn-tip' }, h('b', null, title), lines.map((p, i) => h('p', { class: i === lines.length - 1 && lines.length > 1 ? 'dim' : null }, p)))
     }
     // A segmented button: an icon over its word.
-    const seg = (on, ico, label, onclick, t) => h('button', { class: 'seg' + (on ? ' active' : ''), onclick, tip: t }, icon(ico, 15), h('span', null, label))
+    const seg = (on, ico, label, onclick, t) => h('button', { class: 'seg' + (on ? ' active' : ''), onclick, tip: t }, icon(ico, 18), h('span', null, label))
     const WHERE_ICON = { hunt: 'o-hunt', stay: 'o-stay', move: 'o-move' }
     const WHEN_ICON = { once: 'w-once', time: 'w-time', struck: 'w-struck', wave: 'w-wave', falls: 'w-falls' }
     const WHEN_WORD = { once: 'Now', struck: 'Struck', wave: 'Wave', falls: 'Falls' }
@@ -1629,6 +1801,20 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     const step = 100 // ticks: 5 s
     const tMax = Math.floor((TUNING.tick.ceiling - 1) / step) * step
     const secs = (t) => `${t * TUNING.tick.ms / 1000} s`
+
+    // A detachment's card folded to one row: its tag, its plan in short (where, when), its souls; a press opens
+    // it (one card is open at a time).
+    function folded (d) {
+      const p = d.plan
+      return h('button', {
+        class: 'det det-fold', style: `--d:${d.color}`, onclick: () => { openDet = d.id; aim = null; error = ''; render() },
+        tip: () => `Detachment ${d.id}: ${planText(p)}. Open its card to change the plan.`
+      },
+      h('span', { class: 'det-sw' }, d.id),
+      h('span', { class: 'det-plan' }, icon(WHERE_ICON[p.where], 18), ORDERS.where[p.where].name, icon(WHEN_ICON[p.when.at], 18), p.when.at === 'time' ? secs(p.when.t) : WHEN_WORD[p.when.at]),
+      h('span', { class: 'det-ports' }, d.members.map(soulOf).map((u) => portrait(u.id, 30))),
+      h('span', { class: 'det-open', 'aria-hidden': 'true' }))
+    }
 
     function card (d) {
       const p = d.plan
@@ -1646,19 +1832,21 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         h('div', { class: 'det-head' },
           h('span', { class: 'det-sw', tip: () => `Detachment ${d.id}'s colour: its souls' tag, its square and its arrow.` }, d.id),
           h('div', { class: 'grow det-state' }, state),
-          h('button', { class: 'small ghost', onclick: () => send({ type: 'disband', id: d.id }), tip: () => `Disband: its souls Hunt, at once.` }, icon('close', 12), ' Disband')),
+          h('button', { class: 'ghost det-x', onclick: () => send({ type: 'disband', id: d.id }), tip: () => `Disband: its souls Hunt, at once.` }, icon('close', 16), 'Disband')),
+        // Its souls (a press selects one), the bodies they lead; then what the selection or the picks can do here.
         h('div', { class: 'det-souls' },
           members.map((u) => h('button', {
-            class: 'det-soul' + (picked === u ? ' on' : '') + (onField(u) ? '' : ' benched'),
+            class: 'det-soul' + (picked === u ? ' on' : '') + (onField(u) ? '' : ' benched'), 'aria-label': name(u),
             onclick: () => { sel = { uid: u.uid }; soft = false; aim = null; error = ''; render() },
             tip: () => `${name(u)}${onField(u) ? '' : ', on the bench: it keeps its place here but does not fight'}${u.cohort && onField(u) ? `, leading ${bodies(u.cohort.kind, u.cohort.count)}` : ''}. Click to select it.`
-          }, portrait(u.id, 26))),
-          n > 0 && h('span', { class: 'dim small' }, `+ ${n} bod${n === 1 ? 'y' : 'ies'}`),
-          h('span', { class: 'grow' }),
-          one && mine === d && h('button', { class: 'small link', onclick: () => leaveDet(d, one), tip: () => `Take ${name(one)} out of detachment ${d.id}: it Hunts, at once. The others on the field keep the plan.${benchedOut(d)}` }, `Take ${name(one)} out`),
-          one && mine !== d && !pick.length && h('button', { class: 'small link', onclick: () => join(d, [one.uid]), tip: () => `${name(one)} joins detachment ${d.id} and takes its plan${mine ? `, leaving detachment ${mine.id}` : ''}.${benchedOut(d)}` }, `+ ${name(one)}`),
-          pick.length > 0 && h('button', { class: 'small link', onclick: () => join(d, pick), tip: () => `The picked souls join detachment ${d.id} and take its plan, leaving any other.${benchedOut(d)}` }, `+ ${pick.length} picked`)),
-        h('div', { class: 'det-row' }, h('span', { class: 'det-k' }, 'Where'),
+          }, portrait(u.id, 34))),
+          n > 0 && h('span', { class: 'dim' }, `+${n} bod${n === 1 ? 'y' : 'ies'}`)),
+        (one || pick.length > 0) && h('div', { class: 'det-acts' },
+          one && mine === d && h('button', { class: 'link', onclick: () => leaveDet(d, one), tip: () => `Take ${name(one)} out of detachment ${d.id}: it Hunts, at once. The others on the field keep the plan.${benchedOut(d)}` }, `Take ${name(one)} out`),
+          one && mine !== d && !pick.length && h('button', { class: 'link', onclick: () => join(d, [one.uid]), tip: () => `${name(one)} joins detachment ${d.id} and takes its plan${mine ? `, leaving detachment ${mine.id}` : ''}.${benchedOut(d)}` }, `+ ${name(one)}`),
+          pick.length > 0 && h('button', { class: 'link', onclick: () => join(d, pick), tip: () => `The picked souls join detachment ${d.id} and take its plan, leaving any other.${benchedOut(d)}` }, `+ ${pick.length} picked`)),
+        // Where and When, each a row of icon-over-word buttons (what each means on hover).
+        h('div', { class: 'det-row' },
           h('div', { class: 'segs icon-segs' }, Object.keys(ORDERS.where).map((k) => seg(p.where === k || (k === 'move' && aim === d.id), WHERE_ICON[k], ORDERS.where[k].name,
             () => {
               error = ''
@@ -1666,41 +1854,47 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
               aim = aim === d.id ? null : d.id
               render()
             }, whereTip(k))))),
-        aim === d.id && h('p', { class: 'aim-hint small' }, icon('o-move', 13), ' Click a cell for its square. Esc cancels.'),
+        aim === d.id && h('p', { class: 'aim-hint small' }, icon('o-move', 16), say(' Click a cell for its square. Esc cancels.', ' Tap a cell for its square; Move again cancels.')),
         p.where === 'move' && aim !== d.id && h('p', { class: 'det-note small' + (far ? ' warn' : ' dim') }, far
           ? ['One-way: its square is ', distance(p.square, mTile), ` tiles out, past the `, kw('domain'), ` (${dom}); it will `, kw('falter'), '.']
           : out ? ['Past the ', kw('domain'), ', but a ', kw('marshal'), ' keeps its plan there.']
             : `Square: ${tileText(p.square)}.`),
-        h('div', { class: 'det-row' }, h('span', { class: 'det-k' }, 'When'),
+        h('div', { class: 'det-row' },
           h('div', { class: 'segs icon-segs' }, Object.entries(ORDERS.when).map(([k, o]) => seg(p.when.at === k, WHEN_ICON[k], k === 'time' ? secs(t) : WHEN_WORD[k],
             () => { error = ''; setPlan(d, { when: k === 'time' ? { at: k, t } : { at: k } }) },
             tip(o.name, o.desc, k === 'wave' && ORDER_TEXT.wave, k !== 'once' && KEYWORDS.held.line))))),
-        p.when.at === 'time' && h('div', { class: 'det-time' },
-          icon('w-time', 14),
-          h('button', { class: 'small step-btn', 'aria-disabled': t <= step ? 'true' : null, onclick: () => { if (t > step) setT(t - step) }, tip: () => t > step ? '5 s sooner.' : `${secs(step)} at the soonest.` }, '−'),
+        p.when.at === 'time' && h('div', { class: 'det-time', tip: () => 'Seconds into the battle.' },
+          icon('w-time', 18),
+          h('button', { class: 'step-btn', 'aria-label': '5 s sooner', 'aria-disabled': t <= step ? 'true' : null, onclick: () => { if (t > step) setT(t - step) }, tip: () => t > step ? '5 s sooner.' : `${secs(step)} at the soonest.` }, '−'),
           h('b', null, secs(t)),
-          h('button', { class: 'small step-btn', 'aria-disabled': t >= tMax ? 'true' : null, onclick: () => { if (t < tMax) setT(t + step) }, tip: () => t < tMax ? '5 s later.' : `The latest start: a battle still undecided ${secs(TUNING.tick.ceiling)} after its last foe entered is lost.` }, '+'),
-          h('span', { class: 'dim small' }, 'into the battle')))
+          h('button', { class: 'step-btn', 'aria-label': '5 s later', 'aria-disabled': t >= tMax ? 'true' : null, onclick: () => { if (t < tMax) setT(t + step) }, tip: () => t < tMax ? '5 s later.' : `The latest start: a battle still undecided ${secs(TUNING.tick.ceiling)} after its last foe entered is lost.` }, '+')))
     }
 
+    // One card open at a time: the one aiming, else the selected soul's, else the last opened, else the first.
     const ds = s.detachments.slice().sort((a, b) => a.id - b.id)
+    const opened = ds.find((d) => d.id === aim) ?? (mine && ds.includes(mine) ? mine : null) ?? ds.find((d) => d.id === openDet) ?? ds[0]
+    // The head: the count (the rules on hover) and Pick; under it, the picks and what to do with them, or the
+    // selected soul's own detachment to start.
     return h('div', { class: 'orders-panel' },
-      h('h2', { tip: tip('Orders', ORDER_TEXT.detachments, ORDER_TEXT.reaction, ORDER_TEXT.leash) },
-        icon('o-move', 16), ' Orders ', h('span', { class: 'ord-count' }, `${s.detachments.length}/${cap}`)),
       h('div', { class: 'pick-row' },
+        h('span', { class: 'ord-title', tip: tip('Orders', `Up to ${cap} detachments, each one plan: where it goes, and when it starts. A soul in none Hunts at once.`, 'Outside the domain a plan is dropped; a Marshal keeps its own.') },
+          icon('o-move', 20), 'Orders ', h('span', { class: 'ord-count' }, `${s.detachments.length}/${cap}`)),
+        h('span', { class: 'grow' }),
         h('button', {
-          class: 'small' + (picking ? ' on' : ''),
+          class: 'pick-btn' + (picking ? ' on' : ''),
           onclick: () => { picking = !picking; aim = null; error = ''; render() },
-          tip: () => picking ? 'Stop picking: a click selects again.' : 'While on, a click on a soul on the field picks or drops it (Shift- or Ctrl-click always does).'
-        }, picking ? 'Done' : 'Pick'),
+          tip: () => picking ? 'Stop picking: a click selects again.' : say('While on, a click on a soul on the field picks or drops it (Shift- or Ctrl-click always does).', 'While on, a tap on a soul on the field picks or drops it.')
+        }, picking ? 'Done' : 'Pick')),
+      (pick.length > 0 || (one && !mine)) && h('div', { class: 'pick-row' },
         pick.length
-          ? [h('span', { class: 'picked' }, pick.map((uid) => portrait(soulOf(uid).id, 24))),
-              h('button', { class: 'small primary-ord', onclick: () => form(pick), tip: () => `${pick.map((uid) => name(soulOf(uid))).join(', ')}: a new detachment, Hunting at once until you plan it. Each leaves any other.` }, `Form (${pick.length})`),
-              h('button', { class: 'small link', onclick: () => { unpick(); error = ''; render() }, tip: () => 'Drop the picked souls.' }, 'Clear')]
-          : one && !mine
-            ? h('button', { class: 'small', onclick: () => form([one.uid]), tip: () => `${name(one)} alone: Hunts at once until you plan it.` }, `New: ${name(one)}`)
-            : h('span', { class: 'dim small' }, picking ? 'Click souls to pick.' : 'Shift-click souls to pick.')),
-      ds.length ? ds.map(card) : h('p', { class: 'dim small' }, 'None: every soul ', kw('hunt', 'Hunts'), ', at once.'))
+          ? [h('span', { class: 'picked' }, pick.map((uid) => portrait(soulOf(uid).id, 30))),
+              h('span', { class: 'grow' }),
+              h('button', { class: 'link', onclick: () => { unpick(); error = ''; render() }, tip: () => 'Drop the picked souls.' }, 'Clear'),
+              h('button', { class: 'primary-ord', onclick: () => form(pick), tip: () => `${pick.map((uid) => name(soulOf(uid))).join(', ')}: a new detachment, Hunting at once until you plan it. Each leaves any other.` }, `Form (${pick.length})`)]
+          : h('button', { class: 'new-det', onclick: () => form([one.uid]), tip: () => `${name(one)} alone: Hunts at once until you plan it.` }, `New: ${name(one)}`)),
+      picking && !pick.length && h('p', { class: 'dim' }, say('Click souls to pick.', 'Tap souls to pick.')),
+      ds.length ? ds.map((d) => d === opened ? card(d) : folded(d))
+        : h('p', { class: 'dim' }, 'None: every soul ', kw('hunt', 'Hunts'), ', at once. ', say('Shift-click souls to pick.', 'Tap Pick, then souls.')))
   }
 
   // A shift-, ctrl- or cmd-click (or any click in Pick mode) picks souls for a detachment.
@@ -1738,7 +1932,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   // A click on a benched soul selects it, or places it in a selected empty cell; `swap` (a drop on it) trades
   // it for the selected soul on the field.
   function clickBench (u, e, swap = false) {
-    if (aim != null) return refuse('The bench is not on the board: click a cell of the board for the square, or press Esc.')
+    if (aim != null) return refuse(say('The bench is not on the board: click a cell of the board for the square, or press Esc.', 'The bench is not on the board: tap a cell of the board for the square, or Move again to cancel.'))
     if (picks(e)) return togglePick(u)
     settle(u)
     const picked = selected()
@@ -1862,7 +2056,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   function orderNotes (u) {
     if (isMonarch(u)) return []
     const d = detOf(u)
-    if (!d) return [onField(u) && 'No orders: it Hunts, at once. Shift- or Ctrl-click to pick it for a detachment.']
+    if (!d) return [onField(u) && `No orders: it Hunts, at once. ${say('Shift- or Ctrl-click', 'Use Pick in Orders')} to pick it for a detachment.`]
     return [`Detachment ${d.id}: ${planText(d.plan)}.`,
       !onField(u) && 'On the bench: it keeps its place in the detachment, but does not fight.',
       onField(u) && waits(d) && `Held: it waits behind the camp, off the board, and enters beside the Monarch ${whenText(d.plan.when)}. Its cell stays its own, but it takes its bonds where it enters.`,
@@ -2139,8 +2333,13 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     // A column of chips in its corner, or a row over the board, whichever leaves the board bigger (board.js picks,
     // and the next legend starts as the last one was).
     const legend = h('div', { class: 'board-legend', 'data-forms': 'col row', 'data-form': el.querySelector('.board-legend')?.dataset.form ?? 'col' },
-      h('span', { class: 'bk bk-camp', tip: () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, campDef(s.camp).name), ` · this floor's camp, ${fieldSouls.length} of ${cap} souls (${fieldRule(run)})`), h('div', { class: 'dim' }, ARMY_TEXT.board)) },
-        h('b', null, campDef(s.camp).name), ` ${fieldSouls.length}/${cap} souls${alive < fieldSouls.length ? ` · ${alive} standing` : ''}${held.size ? ` · ${held.size} held` : ''} · ${onBoard}/${boardCap} bodies`),
+      // The camp's name, who stands and who is held are on hover: the chip is the two counts.
+      h('span', {
+        class: 'bk bk-camp',
+        tip: () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, campDef(s.camp).name), ` · this floor's camp, ${fieldSouls.length} of ${cap} souls (${fieldRule(run)})`),
+          (alive < fieldSouls.length || held.size > 0) && h('div', null, [alive < fieldSouls.length && `${alive} standing`, held.size && `${held.size} held behind the camp`].filter(Boolean).join(' · ') + '.'),
+          h('div', { class: 'dim' }, `${onBoard} of ${boardCap} bodies on the board. ${ARMY_TEXT.board}`))
+      }, h('b', null, `${fieldSouls.length}/${cap}`), ' souls · ', h('b', null, `${onBoard}/${boardCap}`), ' bodies'),
       h('span', {
         class: 'bk' + (crowned ? ' crowned' : ''),
         tip: () => h('div', { class: 'syn-tip tile-tip' },
@@ -2153,11 +2352,6 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
         tip: () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, `Marshal ${TUNING.ranks.domain}`), ` · ${marshals.map(({ x }) => unitDef(x.id).name).join(', ')}'s own domain (dashed)`),
           h('div', { class: 'dim' }, 'Its banner never falters within it; it moves with the Marshal.'))
       }, marshals.map(({ colour }) => h('i', { class: 'mk-box', style: `--m:${colour}` })), `Marshal ${TUNING.ranks.domain}`))
-    // The waves still to come, a small strip over their corner of the board: who comes, never what they do.
-    const waves = facing?.waves?.length > 0 && h('div', { class: 'board-waves' },
-      h('div', { class: 'gridlabel foe', tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Still to come'), h('p', null, facing.waves[0].when.at === 'time' ? ENEMY_TEXT.late : ENEMY_TEXT.waves), h('p', { class: 'dim' }, ENEMY_TEXT.entry)) },
-        'Still to come'),
-      wavePreview(run, facing))
     stage.className = 'board-stage' + (aim != null ? ' aiming' : '') + (moving && aim == null ? ' moving' : '') + (keyed ? ' kb' : '')
     // The bench beside the board: where a soul is dropped (or a selected one clicked) to bench it.
     const benchEl = h('div', { class: 'bench-row' },
@@ -2182,7 +2376,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
             return soulTip(u, 'On the bench: does not fight.', act ?? 'Drag it onto the field to place it.', act)
           }
         }, cellBody(u, detOf(u))))
-        : h('span', { class: 'dim empty-bench', onclick: clickBenchSpace }, benchable(moving) ? 'Click here to bench the selected soul.' : 'Empty.')))
+        : h('span', { class: 'dim empty-bench', onclick: clickBenchSpace }, benchable(moving) ? say('Click here to bench the selected soul.', 'Tap here to bench the selected soul.') : 'Empty.')))
 
     // The tray: one tab at a time. Selecting a soul opens its tab, the Monarch its own, and picking souls
     // for a detachment the orders (unless the orders are already open: there a click joins or starts one).
@@ -2215,10 +2409,10 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     }
     // The stage moves into the new column: one with the keyboard's focus keeps it (and its cursor).
     keeping = document.activeElement === stage
-    const col = h('div', { class: 'board-col' }, h('div', { class: 'board-main' }, benchEl, h('div', { class: 'stage-wrap' }, stage, waves, legend)))
-    // The tray is kept, not rebuilt (see trayEl): the board's column is swapped in front of it.
-    if (trayEl.parentNode === el) el.firstElementChild.replaceWith(col)
-    else fill(el, col, trayEl)
+    const col = h('div', { class: 'board-col' }, h('div', { class: 'board-main' }, benchEl, h('div', { class: 'stage-wrap' }, stage, legend)))
+    // The side column is kept, not rebuilt (see trayEl): the board's column is swapped in front of it.
+    if (sideEl.parentNode === el) el.firstElementChild.replaceWith(col)
+    else fill(el, col, sideEl)
     if (keeping && stage.isConnected) stage.focus({ preventScroll: true })
     keeping = false
     const now = `${trayTab}:${selUid}`
@@ -2229,9 +2423,10 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
       tabBar(tabs, trayTab, pickTab, 'tray-tabs'),
       error && h('p', { class: 'warn' }, error)].filter(Boolean))
     fill(trayBody, body[trayTab]())
+    fitCard()
     if (now !== shown) { trayBody.scrollTop = 0; trayEl.scrollTop = 0 }
     shown = now
-    board.show(stage, picture, [waves, legend])
+    board.show(stage, picture, [legend])
     // The tooltip under the pointer follows what the click just changed.
     if (hover != null && !drag) tileTip(hover)
   }
@@ -2250,8 +2445,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   // The camp slot of a board tile, or null past the camp.
   const slotOfTile = (t) => typeof t === 'number' && tileY(t) < CAMP_ROWS ? slotAt(CAMP_ROWS - 1 - tileY(t), tileX(t)) : null
 
+  // A finger never hovers: its tile's tooltip comes by a long press (begin), and stays when it lifts.
   stage.addEventListener('pointermove', (e) => {
-    if (press || drag) return
+    if (press || drag || e.pointerType === 'touch') return
     const t = board.tileAt(e.clientX, e.clientY)
     // A scroll or a resize hides a tile's tooltip (dom.js) and leaves `hover` as it was: moving on in the same
     // tile brings it back.
@@ -2260,8 +2456,8 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     board.hover(t)
     tileTip(t)
   })
-  stage.addEventListener('pointerleave', () => {
-    if (press || drag) return
+  stage.addEventListener('pointerleave', (e) => {
+    if (press || drag || e.pointerType === 'touch') return
     hover = null
     board.hover(null)
     hideTip()
@@ -2303,6 +2499,19 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     const slot = slotOfTile(t)
     const o = slot != null && aim == null && !picks(e) ? s.party.find((u) => u.slot === slot) : null
     begin(e, { tile: t, uid: o ? o.uid : null })
+    // A finger held still on a tile pins its tooltip (the board rings the tile meanwhile); it is then no tap.
+    // Moved past the drag's few pixels first, it is a drag; moved after, the soul lifts all the same.
+    const p = press
+    if (e.pointerType === 'touch' && e.isPrimary) {
+      p.hold = hold(e, () => {
+        if (press !== p || drag) return
+        p.long = true
+        const r = t != null && tips.has(t) && board.rectOf(t)
+        if (!r) return
+        board.hover(t)
+        pinTip(r, tips.get(t), { onHide: () => { if (!drag) board.hover(null) } })
+      })
+    }
   })
 
   function pressBench (e, u) {
@@ -2312,13 +2521,14 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   }
 
   function begin (e, p) {
-    press = { x: e.clientX, y: e.clientY, e, ...p }
+    press = { x: e.clientX, y: e.clientY, e, t0: performance.now(), touch: e.pointerType === 'touch', ...p }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onCancel)
   }
 
   function end () {
+    press?.hold?.cancel()
     press = null
     window.removeEventListener('pointermove', onMove)
     window.removeEventListener('pointerup', onUp)
@@ -2332,21 +2542,40 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     hover = null
   }
 
+  // A finger on a benched soul scrolls the bench (its souls keep the touch from the browser, for the drag) only
+  // when the bench has more than it shows, the finger sets off straight up or down (within 25° of it) before a
+  // long press, and it stays over the bench: any other way, or once it leaves the bench, the soul lifts.
+  const STEEP = Math.tan(25 * Math.PI / 180)
+  const inside = (list, e) => { const r = list.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right }
   function onMove (e) {
     if (!el.isConnected) return release()
-    if (!press) return
-    if (!drag && press.uid != null && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 6) lift(e)
+    if (!press || e.pointerId !== press.e.pointerId) return
+    const [dx, dy] = [e.clientX - press.x, e.clientY - press.y]
+    if (press.scroll) {
+      const { list, top } = press.scroll
+      if (inside(list, e)) { list.scrollTop = top - dy / frame.k; return }
+      press.scroll = null
+    } else if (!drag && press.uid != null && Math.hypot(dx, dy) > 6) {
+      const list = press.bench && press.touch && performance.now() - press.t0 < HOLD && el.querySelector('.bench')
+      if (list && list.scrollHeight > list.clientHeight + 1 && Math.abs(dx) <= Math.abs(dy) * STEEP && inside(list, e)) {
+        press.scroll = { list, top: list.scrollTop }
+        swallow = true
+        return
+      }
+    }
+    if (!drag && press.uid != null && Math.hypot(dx, dy) > 6) lift(e)
     if (drag) over(e)
   }
 
   // A click on the board goes where the old cells' clicks went: a camp cell to clickSlot, any tile (theirs too)
-  // to the square while a detachment aims; a benched soul's button clicks itself.
+  // to the square while a detachment aims; a benched soul's button clicks itself. A long press is no click.
   function onUp (e) {
     if (!el.isConnected) return release()
+    if (press && e.pointerId !== press.e.pointerId) return
     const p = press
     end()
     if (drag) return put(e)
-    if (p && !p.bench) clickTile(p.tile, p.e)
+    if (p && !p.bench && !p.long) clickTile(p.tile, p.e)
   }
 
   function onCancel () {
@@ -2371,6 +2600,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
   }
 
   function lift (e) {
+    press.hold?.cancel()
     const u = soulOf(press.uid)
     drag = { uid: u.uid, at: undefined, target: null }
     if (press.bench) swallow = true
@@ -2380,10 +2610,10 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     stage.classList.add('dragging')
     document.body.classList.add('dragging')
     // Off the board (over the bench, the tray) the canvas is under the page: a picture of the soul carries it
-    // there, at the board's size.
-    const size = Math.round(Math.max(40, 92 * board.zoom()))
+    // there, at the board's size (the board's zoom is in viewport px, the ghost in the frame's).
+    const size = Math.round(Math.max(40, 92 * board.zoom()) / frame.k)
     drag.ghost = h('div', { class: 'drag-ghost', hidden: true, style: `--s:${size}px` }, portrait(u.id, size, u.hp <= 0))
-    document.body.append(drag.ghost)
+    frame.el.append(drag.ghost)
     board.lift(press.bench ? { id: u.id } : `s${u.uid}`, e.clientX, e.clientY)
   }
 
@@ -2397,7 +2627,8 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
     // Over the board (the stage, or what lies over it: the legend, the waves) the board's own sprite follows.
     const off = !hit?.closest?.('.stage-wrap')
     drag.ghost.hidden = !off
-    drag.ghost.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`
+    const g = toLocal(e.clientX, e.clientY)
+    drag.ghost.style.transform = `translate(${g.x}px, ${g.y}px)`
     let preview
     if (at !== drag.at) {
       drag.at = at
@@ -2482,7 +2713,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null }) {
       if (aim != null) aim = null
       else if (pick.length || picking) unpick()
       else if (sel) { sel = null; soft = false }
-      else return
+      else if (!error) return
       error = ''
       render()
     }
@@ -2509,15 +2740,20 @@ function rankPort (u, size) {
     portrait(u.id, size), h('span', { class: 'rp-ins' }, icon(d.monarch ? 'crown' : GRADE_ICON[grade], 11)))
 }
 
+// A soul in a list (the map's Route tab, the end screen): its name, level, rank and paths on one line; its HP,
+// and what it leads or that it waits on the bench, on the next, then its kin, role and camp row where the row
+// is wide enough (style.css, a container query); they are on its card (hover) too.
 function unitRow (run, u, extra = null) {
   const d = unitDef(u.id)
+  const more = [d.monarch ? 'you' : u.slot < 0 && 'bench', u.cohort && `leads ${bodies(u.cohort.kind, u.cohort.count)}`].filter(Boolean).join(' · ')
+  const kin = !d.monarch && `${KIN[d.kin].name} ${ROLES[d.role].name}${u.slot >= 0 ? ` · ${campRowLabel(rowOf(u.slot)).toLowerCase()}` : ''}`
   return h('div', { class: 'unit' + (u.hp <= 0 ? ' fallen' : '') + (d.monarch ? ' monarch' : ''), tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run) }) },
-    rankPort(u, 32),
+    rankPort(u, 40),
     h('div', { class: 'grow' },
-      h('div', null, h('b', null, d.name), !d.monarch || u.lvl > 0 ? ` Lv ${u.lvl}` : '', u.grade > 0 && h('span', { class: `rank-tag g${u.grade}` }, icon(GRADE_ICON[u.grade], 12), GRADES[u.grade].name),
-        u.path && h('span', { class: 'path-tag' }, ` ${pathDef(u.id, u.path).name} ${ROMAN[u.tier - 1]}`), u.path2 && h('span', { class: 'path-tag p2' }, ` · ${pathDef(u.id, u.path2).name} ${ROMAN[u.tier2 - 1]}`),
-        h('span', { class: 'dim' }, ` · ${d.monarch ? 'you' : `${KIN[d.kin].name} ${ROLES[d.role].name}`}${u.slot < 0 ? ' · bench' : ` · ${campRowLabel(rowOf(u.slot)).toLowerCase()}`}${u.cohort ? ` · leads ${bodies(u.cohort.kind, u.cohort.count)}` : ''}`)),
-      h('div', { class: 'line' }, hpBar(u), h('span', { class: 'dim' }, u.hp > 0 ? `${u.hp}/${u.maxHp}` : 'fallen'))),
+      h('div', { class: 'u-name' }, h('b', null, d.name), (!d.monarch || u.lvl > 0) && h('span', { class: 'dim' }, ` Lv ${u.lvl}`), u.grade > 0 && h('span', { class: `rank-tag g${u.grade}` }, icon(GRADE_ICON[u.grade], 16), GRADES[u.grade].name),
+        u.path && h('span', { class: 'path-tag' }, ` ${pathDef(u.id, u.path).name} ${ROMAN[u.tier - 1]}`), u.path2 && h('span', { class: 'path-tag p2' }, ` · ${pathDef(u.id, u.path2).name} ${ROMAN[u.tier2 - 1]}`)),
+      h('div', { class: 'line' }, hpBar(u), h('span', { class: 'dim' }, u.hp > 0 ? `${u.hp}/${u.maxHp}` : 'fallen', more && ` · ${more}`),
+        kin && h('span', { class: 'dim u-kin' }, `· ${kin}`))),
     extra)
 }
 
@@ -2529,13 +2765,15 @@ const WHERE_MARK = { hunt: '', stay: ' ■', move: ' →' }
 function cellBody (u, det = null) {
   return [
     det && waits(det) && onField(u) && h('span', { class: 'start-tag', 'aria-label': `enters ${whenText(det.plan.when)}` }, whenTag(det.plan.when)),
-    portrait(u.id, 46, u.hp <= 0),
+    portrait(u.id, 52, u.hp <= 0),
+    // The marks are badges (board.css sizes them for the bench): the level, a path's tiers as one ▴ and their
+    // count (a second path's beside it), the rank's insignia, a captain's flag, a detachment's tag.
     h('span', { class: 'badge' }, ` ${u.lvl}`),
-    u.tier > 0 && h('span', { class: 'tier-pips', 'aria-label': `path tier ${u.tier}` }, '▴'.repeat(u.tier)),
-    u.tier2 > 0 && h('span', { class: 'tier-pips p2', 'aria-label': `second path tier ${u.tier2}` }, '▴'.repeat(u.tier2)),
-    u.grade > 0 && h('span', { class: `rank-mark g${u.grade}`, 'aria-label': GRADES[u.grade].name }, icon(GRADE_ICON[u.grade], 13)),
-    u.cohort && h('span', { class: 'flag', 'aria-label': `leads ${u.cohort.count}` }, u.cohort.count),
-    det && h('span', { class: 'det-tag', 'aria-label': `detachment ${det.id}, ${det.plan.where}` }, det.id, WHERE_MARK[det.plan.where]),
+    (u.tier > 0 || u.tier2 > 0) && h('span', { class: 'tier-pips pill', 'aria-label': `path tier ${u.tier}${u.tier2 ? `, second path tier ${u.tier2}` : ''}` },
+      u.tier > 0 && `▴${u.tier}`, u.tier2 > 0 && h('span', { class: 'p2' }, `▴${u.tier2}`)),
+    u.grade > 0 && h('span', { class: `rank-mark g${u.grade}`, 'aria-label': GRADES[u.grade].name }, icon(GRADE_ICON[u.grade], 16)),
+    u.cohort && h('span', { class: 'flag pill', 'aria-label': `leads ${u.cohort.count}` }, u.cohort.count),
+    det && h('span', { class: 'det-tag pill', 'aria-label': `detachment ${det.id}, ${det.plan.where}` }, det.id, WHERE_MARK[det.plan.where]),
     u.maxHp && hpBar(u)]
 }
 
@@ -2557,7 +2795,7 @@ function lineKey (lineY, mTile, approach, bare) {
   const approachTip = () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, `Approach ${approach.size - bare.length}/${approach.size} held`), ' · the open tiles beside the Monarch'),
     h('div', { class: bare.length ? 'warn' : 'dim' }, 'A foe on one can strike it; a soul or body there screens it.'))
   return [
-    h('span', { class: 'bk', tip: lineTip }, h('i', { class: 'lk-line' }), lineY === null ? 'No line' : `Line ${ahead >= 0 ? '+' : '−'}${Math.abs(ahead)} · gap ${gap}`),
+    h('span', { class: 'bk', tip: lineTip }, h('i', { class: 'lk-line' }), lineY === null ? 'No line' : `Line ${ahead >= 0 ? '+' : '−'}${Math.abs(ahead)}`),
     h('span', { class: 'bk' + (bare.length ? ' bare' : ''), tip: approachTip }, h('i', { class: 'lk-ring' }), `Approach ${approach.size - bare.length}/${approach.size}`)]
 }
 
@@ -2609,34 +2847,54 @@ function foeTiles (run, node, dom, ground) {
   return { units, tips }
 }
 
-// The waves still to come behind their formation, scouted like it: each a small formation of its own (its
-// captains flagged), with when it comes, and every foe's card on hover. Never what they will do. The grid is
-// a picture of roles and lanes only: a wave enters at the far edge in its lane (a cohort beside its captain),
-// not in its scouted row, and takes its bonds and synergies from where it enters and who still stands then,
-// so its cards carry the floor's multipliers alone.
-function wavePreview (run, node) {
-  return h('div', { class: 'waves' }, node.waves.map((w, k) => {
-    const mods = roomFoeMods(run, node, [])
-    const foes = scouted(w.foes)
-    const led = cohortSizes(foes)
-    const at = new Map(foes.map((f) => [f.slot, f]))
-    const rows = []
-    for (let r = ROWS - 1; r >= 0; r--) {
-      const cells = []
-      for (let c = 0; c < COLS; c++) {
-        const u = at.get(slotAt(r, c))
-        cells.push(h('span', {
-          class: 'wcell' + (u ? ' has' : '') + (u && led.has(u.slot) ? ' cap' : '') + (u?.rank ? ' mem' : ''),
-          tip: u ? () => unitCard(u, { mods, foe: true, ordered: node.type === 'elite' && (led.has(u.slot) || u.cohortOf != null), live: `${waveName(node, k)}: ${waveWhen(w).replace(/\.$/, '').toLowerCase()}`, notes: [`${waveName(node, k)}, in this lane. ${waveWhen(w)}`, 'Stats include this floor\'s multipliers only: its bonds and synergies come from where it enters and who still stands.', bannerNote(foes, u, led)] }) : null
-        }, u && portrait(u.id, u.rank ? 17 : 20), u && led.has(u.slot) && h('i', { class: 'mini-flag' }, led.get(u.slot))))
-      }
-      rows.push(h('div', { class: 'wrow' }, cells))
+// A wave still to come behind their formation, scouted like it: a small formation of its own (its captains
+// flagged), with when it comes, and every foe's card on hover. Never what they will do. The grid is a picture
+// of roles and lanes only: a wave enters at the far edge in its lane (a cohort beside its captain), not in its
+// scouted row, and takes its bonds and synergies from where it enters and who still stands then, so its cards
+// carry the floor's multipliers alone.
+function waveCard (run, node, w, k) {
+  const mods = roomFoeMods(run, node, [])
+  const foes = scouted(w.foes)
+  const led = cohortSizes(foes)
+  const at = new Map(foes.map((f) => [f.slot, f]))
+  const rows = []
+  for (let r = ROWS - 1; r >= 0; r--) {
+    const cells = []
+    for (let c = 0; c < COLS; c++) {
+      const u = at.get(slotAt(r, c))
+      cells.push(h('span', {
+        class: 'wcell' + (u ? ' has' : '') + (u && led.has(u.slot) ? ' cap' : '') + (u?.rank ? ' mem' : ''),
+        tip: u ? () => unitCard(u, { mods, foe: true, ordered: node.type === 'elite' && (led.has(u.slot) || u.cohortOf != null), live: `${waveName(node, k)}: ${waveWhen(w).replace(/\.$/, '').toLowerCase()}`, notes: [`${waveName(node, k)}, in this lane. ${waveWhen(w)}`, 'Stats include this floor\'s multipliers only: its bonds and synergies come from where it enters and who still stands.', bannerNote(foes, u, led)] }) : null
+      }, u && portrait(u.id, u.rank ? 17 : 20), u && led.has(u.slot) && h('i', { class: 'mini-flag' }, led.get(u.slot))))
     }
-    return h('div', { class: 'wave-card' },
-      h('div', { class: 'wave-head' }, h('b', null, waveName(node, k)), h('span', { class: 'dim small' }, ` · ${w.foes.length} foe${w.foes.length > 1 ? 's' : ''}`)),
-      h('div', { class: 'wgrid' }, rows),
-      h('div', { class: 'dim small' }, waveWhen(w)))
-  }))
+    rows.push(h('div', { class: 'wrow' }, cells))
+  }
+  return h('div', { class: 'wave-card' },
+    h('div', { class: 'wave-head' }, h('b', null, waveName(node, k)), h('span', { class: 'dim small' }, ` · ${w.foes.length} foe${w.foes.length > 1 ? 's' : ''}`)),
+    h('div', { class: 'wgrid' }, rows),
+    h('div', { class: 'dim small' }, waveWhen(w)))
+}
+
+// The waves still to come, a row in the room's head (prep): each a chip of its name, the faces of its named
+// foes (each one's card on hover) and how many come; its formation and when it comes on its name's hover.
+// Who comes, never what they will do.
+function waveChips (run, node) {
+  const mods = roomFoeMods(run, node, [])
+  return h('div', { class: 'wave-chips' },
+    h('span', { class: 'wc-label', tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Still to come'), h('p', null, node.waves[0].when.at === 'time' ? ENEMY_TEXT.late : ENEMY_TEXT.waves), h('p', { class: 'dim' }, ENEMY_TEXT.entry)) },
+      'Next'),
+    node.waves.map((w, k) => {
+      const foes = scouted(w.foes)
+      const led = cohortSizes(foes)
+      const faces = [...new Map(foes.filter((f) => !f.rank).map((f) => [f.id, f])).values()].slice(0, 3)
+      return h('span', { class: 'wave-chip' },
+        h('b', { tip: () => h('div', { class: 'wave-tip' }, waveCard(run, node, w, k)) }, waveName(node, k)),
+        faces.map((u) => h('span', {
+          class: 'wc-face',
+          tip: () => unitCard(u, { mods, foe: true, ordered: node.type === 'elite' && (led.has(u.slot) || u.cohortOf != null), live: `${waveName(node, k)}: ${waveWhen(w).replace(/\.$/, '').toLowerCase()}`, notes: [waveWhen(w), bannerNote(foes, u, led)] })
+        }, portrait(u.id, 28))),
+        h('span', { class: 'dim' }, `×${w.foes.length}`))
+    }))
 }
 
 // Relics and keystones as chips (a trigger relic marked with a spark); hover one for its rule.

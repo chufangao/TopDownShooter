@@ -8,6 +8,8 @@ import { stepBattle, nextCost, rulesOf } from './sim/battle.js'
 import { foeEssence } from './sim/run.js'
 import { tileX, tileY, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf } from './sim/unit.js'
 import { sfx } from './sfx.js'
+import { hold, touchy } from './dom.js'
+import { frame } from './frame.js'
 
 // ── engine and picture loading ───────────────────────────────────────────────────────────────────
 
@@ -85,12 +87,29 @@ const motion = typeof matchMedia === 'undefined' ? null : matchMedia('(prefers-r
 let calm = !!motion?.matches
 motion?.addEventListener?.('change', (e) => { calm = e.matches })
 export const reducedMotion = () => calm
-// A board label kept at least LEGIBLE px on screen however far the camera zooms out (scaled up from its size).
-const LEGIBLE = 11
-export function legible (t, zoom) {
+// The canvas's print follows the page's: a label on the board stands at least as large on screen as the page's
+// smallest print at the frame's scale (frame.js), a number (a level, ×0.7, a count, a hit) as --fs-xs (14
+// logical px) and a word as --fs-sm (16), and never under LABEL.floor CSS px however small the frame. So at
+// 1440×900 (k 1.25) a word stands 20 px tall, on a phone in landscape (k ≈ 0.55) 9. In viewport px.
+export const LABEL = { num: 14, word: 16, floor: 9 }
+export const labelPx = (kind = 'word') => Math.max(LABEL.floor, LABEL[kind] * frame.k)
+// The scale that brings a label drawn `size` world px tall to labelPx(kind) at the camera's `zoom` (never down);
+// labelSize, the world size to draw it at instead (for a label laid out by its size: the battle's HUD).
+export const labelScale = (size, zoom, kind = 'word') => (zoom > 0 && size > 0 ? Math.max(1, labelPx(kind) / (size * zoom)) : 1)
+export const labelSize = (size, zoom, kind = 'word') => Math.ceil(size * labelScale(size, zoom, kind) * 2) / 2
+// Under SERIF_MIN CSS px the serif's thin strokes break up ("THF MONARCH"): a label that would stand smaller is
+// set in the sans. faceFor: the face for a label drawn `size` world px tall, kept legible, at `zoom`.
+export const SERIF_MIN = 14
+export const faceFor = (size, zoom, kind = 'word') => (size * labelScale(size, zoom, kind) * (zoom || 1) >= SERIF_MIN ? SERIF : FONT)
+// A label (a text, or anything with its size given as data 'size': a pill, a flag) kept at labelPx however far
+// the camera zooms out; `kind` 'num' or 'word', kept for the next call (the board rescales these as its
+// camera zooms: board.js fit; the battle's are in `small`: BattleScene.fit).
+export function legible (t, zoom, kind) {
   if (!t?.active) return t
-  t.setData('legible', true) // the board rescales these as its camera zooms (board.js fit)
-  if (zoom > 0) t.setScale(Math.max(1, LEGIBLE / (parseFloat(t.style.fontSize) * zoom)))
+  kind ??= t.getData('legible') === 'num' ? 'num' : 'word'
+  t.setData('legible', kind)
+  const size = t.getData('size') ?? parseFloat(t.style?.fontSize)
+  if (zoom > 0 && size > 0) t.setScale(labelScale(size, zoom, kind))
   return t
 }
 const TITHE = '#ff6a8a'  // the HP Blood Tithe takes from the Monarch
@@ -192,12 +211,43 @@ function shadeTextures (scene, art, skin = 'shade') {
 
 // ── a soul's marks, shared with the prep board (board.js) ─────────────────────────────────────────
 
+// The domain's caption, "DOMAIN · 3", a legend on a dark plate, standing just outside the box (placeOutside),
+// over the units: never inside it, where the marks of whoever stands in its edge row are.
+export function domainLabel (scene, r, crowned) {
+  return scene.add.text(0, 0, crowned ? `DOMAIN · ${r} · VANGUARD CROWN` : `DOMAIN · ${r}`,
+    { fontFamily: FONT, fontSize: '11px', fontStyle: 'bold', color: crowned ? C.monarch : C.domain, backgroundColor: '#07060bd9', padding: { x: 5, y: 2 } })
+    .setResolution(3).setOrigin(0, 0)
+}
+
+// A world rect ({ l, r, t, b }) of an object drawn with a top-left origin, as displayed (its scale counted).
+export const rectOf = (o) => ({ l: o.x - o.displayWidth * o.originX, t: o.y - o.displayHeight * o.originY, r: o.x + o.displayWidth * (1 - o.originX), b: o.y + o.displayHeight * (1 - o.originY) })
+export const overlap = (a, b) => Math.max(0, Math.min(a.r, b.r) - Math.max(a.l, b.l)) * Math.max(0, Math.min(a.b, b.b) - Math.max(a.t, b.t))
+
+// Puts `t` (a top-left origin label, already scaled) just outside one corner of `box`: above or below its edge,
+// at its left or right end, whichever covers least of `blocked` (world rects: the units' bodies and marks; `w`,
+// a rect's weight: print counts more than a body), keeping inside `limit` (the board's box) where it can.
+// → its rect.
+export function placeOutside (t, box, limit, blocked = []) {
+  const [w, h] = [t.displayWidth, t.displayHeight]
+  const spots = [[box.l + 8, box.t - h - 3], [box.r - 8 - w, box.t - h - 3], [box.l + 8, box.b + 3], [box.r - 8 - w, box.b + 3]]
+  let best = null
+  for (const [x, y] of spots) {
+    const r = { l: x, t: y, r: x + w, b: y + h }
+    const out = (r.t < limit.t || r.b > limit.b || r.l < limit.l || r.r > limit.r) ? 1e7 : 0
+    const cost = out + blocked.reduce((n, b) => n + overlap(r, b) * (b.w ?? 1), 0)
+    if (!best || cost < best.cost - 1) best = { cost, x, y, r }
+  }
+  t.setPosition(best.x, best.y)
+  return best.r
+}
+
 // A captain's rank mark, centred on its origin over a dark disc, in its rank's metal: a Knight's shield
 // (silver), a Marshal's standard (a champagne pole flying its banner's colour).
 export function insignia (scene, grade, colour) {
   const g = scene.add.graphics()
   g.fillStyle(0x07060b, 0.7).fillCircle(0, 0, 8.5)
-  g.setScale(1.25)
+  // Its glyph is INSIGNIA world px tall at this scale: kept legible as a number is (legible, data 'size').
+  g.setScale(1.25).setData('size', INSIGNIA)
   if (grade >= 2) {
     g.lineStyle(1.5, MARSHAL, 1).lineBetween(-3, 6, -3, -7)
     g.fillStyle(colour, 0.95).fillTriangle(-2.5, -7, 6, -4, -2.5, -1)
@@ -207,6 +257,29 @@ export function insignia (scene, grade, colour) {
     g.fillStyle(RANK_RING[1], 0.95).fillPoints(shield, true)
     g.lineStyle(1, 0x07060b, 0.9).strokePoints(shield, true)
   }
+  return g
+}
+
+// The ground of a unit that falters (deals ×0.7 outside the domain): a red pool hatched across, under its feet,
+// centred on the origin, `size` its picture's (addActor). The prep board and the battle draw the same, so the
+// number itself need only be told on the unit in focus.
+export function falterGround (scene, size = 1) {
+  const g = scene.add.graphics()
+  const [rx, ry] = [31 * size, 10 * size]
+  g.fillStyle(FOE, 0.28).fillEllipse(0, 0, 2 * rx, 2 * ry)
+  g.lineStyle(2.6, FOE, 0.8)
+  for (let k = -3; k <= 3; k++) {
+    // A diagonal x − 2.2y = c, cut by the ellipse.
+    const c = k * rx * 0.3
+    const pts = []
+    for (let i = 0; i <= 24; i++) {
+      const y = -ry + 2 * ry * i / 24
+      const x = c + 2.2 * y
+      if ((x / rx) ** 2 + (y / ry) ** 2 <= 1) pts.push({ x, y })
+    }
+    if (pts.length > 1) g.lineBetween(pts[0].x, pts[0].y, pts.at(-1).x, pts.at(-1).y)
+  }
+  g.lineStyle(2.4, FOE, 0.9).strokeEllipse(0, 0, 2 * rx, 2 * ry)
   return g
 }
 
@@ -251,6 +324,8 @@ export function growthMarks (scene, u, { banner = null, count = 0, size = 1 } = 
   }
   return {
     parts: [under, pips, flag].filter(Boolean),
+    // The flag's count kept legible at the camera's zoom (the flag grows from its pole's foot).
+    legible (zoom) { if (flag) legible(flag.setData('size', 15), zoom, 'num') },
     place (x, y, depth, chest = 30, lift = 0) {
       under.setPosition(x, y + 4).setDepth(y - 1.2)
       pips.setPosition(x, y + BAR_DROP + 17).setDepth(y + 0.8)
@@ -281,6 +356,7 @@ const REST = { lean: 0, sx: 0, sy: 0, dx: 0, dy: 0 } // a unit's pose at rest: s
 const BAR = 46
 const BAR_DROP = 14     // from the feet down to the HP bar, clear of the pictures' ground details
 const PIP_SPAN = 78     // a soul's path tiers stand within this width under its bars, inside its lane
+const INSIGNIA = 13     // a rank's insignia's glyph, world px tall at scale 1 (kept legible as a number)
 const BAR_PX = 56     // fallback height of the DOM playback bar under the canvas
 const HEADROOM = 70    // at least this much room above their back row for its heads, under their labels
 const ECHO_MS = 260     // Echo (Channeler 8): its second pass lands this long after the first
@@ -324,6 +400,9 @@ class BattleScene extends Phaser.Scene {
     this.domainArt = null
     this.centre = null
     this.topRoom = null // room above the board for their labels: see decorate
+    this.bottomRoom = null // and below it, for yours and the Monarch's HP
+    this.small = [] // labels kept legible as the camera zooms (fit)
+    this.labelArt = null // the labels round the board (layoutLabels)
     this.announced = new Set() // `side|rule`: the rules already named across the board this battle
     this.banners = { party: 0, foe: 0 } // announcements showing, by side, to stack them
     this.ruleBand = null // where a side's rules are announced: over its labels (see decorate)
@@ -389,8 +468,13 @@ class BattleScene extends Phaser.Scene {
 
     this.fit()
     this.scale.on('resize', this.fit, this)
+    // By touch a unit's card comes by a long press on it, pinned (dom.js hold), never by a finger passing over.
+    const canvas = this.game.canvas
+    const press = (e) => { if (e.pointerType === 'touch' && e.isPrimary) hold(e, () => this.pressAt(e.clientX, e.clientY)) }
+    canvas.addEventListener('pointerdown', press)
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.fit, this)
+      canvas.removeEventListener('pointerdown', press)
       this.tweens.timeScale = 1
       this.args.onHover?.(null)
     })
@@ -406,12 +490,35 @@ class BattleScene extends Phaser.Scene {
     const cam = this.cameras.main
     const bar = this.args.barHeight?.() || BAR_PX
     // The board, with room for the labels: this.topRoom above it (their labels, over their back row's heads),
-    // 110 below.
-    const top = this.topRoom ?? 110
-    const zoom = Math.max(0.4, Math.min(1.5, (height - bar) / (2 * EDGE + 110 + top), width / (LANES * SPREAD + 100)))
+    // this.bottomRoom below (yours, the Monarch's HP); see decorate.
+    const zoom = this.zoomFor(width, height, bar)
+    const [top, bottom] = [this.topRoom ?? 110, this.bottomRoom ?? 110]
     cam.setZoom(zoom)
-    cam.centerOn(0, bar / 2 / zoom - (top - 110) / 2)
+    cam.centerOn(0, bar / 2 / zoom + (bottom - top) / 2)
     for (const t of this.small ?? []) legible(t, zoom)
+    for (const a of this.actors?.values() ?? []) a.growth?.legible(zoom)
+    this.placeDomain()
+    // The page's panels beside the board (args.hud: the titles, synergies, the Monarch's HP) stand in the bands
+    // left and right of it: they are told where the board stands, in viewport px.
+    const hud = this.args.hud
+    if (hud) {
+      const c = this.game.canvas.getBoundingClientRect()
+      const [sx, sy] = [c.width / width || 1, c.height / height || 1]
+      const cy = bar / 2 / zoom + (bottom - top) / 2
+      const at = (wx, wy) => ({ x: c.left + (width / 2 + wx * zoom) * sx, y: c.top + (height / 2 + (wy - cy) * zoom) * sy })
+      const bandW = LANES * SPREAD + 90
+      const a = at(-bandW / 2, -EDGE - top)
+      const b = at(bandW / 2, EDGE + bottom)
+      hud.place({ left: a.x, top: a.y, right: b.x, bottom: b.y, floor: c.top + (height - bar) * sy })
+    }
+  }
+
+  // The camera's zoom for a canvas of width × height px with the playback bar under it.
+  zoomFor (width, height, bar) {
+    const [top, bottom] = [this.topRoom ?? 110, this.bottomRoom ?? 110]
+    // With the page's panels beside it (args.hud), the board leaves each band at least hud.side() px wide.
+    const sides = 2 * (this.args.hud?.side() ?? 0)
+    return Math.max(0.3, Math.min(1.5, (height - bar) / (2 * EDGE + top + bottom), (width - sides) / (LANES * SPREAD + 100)))
   }
 
   update (time, delta) {
@@ -453,7 +560,10 @@ class BattleScene extends Phaser.Scene {
       a.trail.setPosition(x - BAR / 2, y).setDepth(ground + 0.1)
       a.bar.setPosition(x - BAR / 2, y).setDepth(ground + 0.2)
       a.gaugeBar.setPosition(x - BAR / 2, y + 5).setDepth(ground + 0.2)
-      a.mark.setPosition(x + BAR / 2 + 3, y + 2).setDepth(ground + 0.3)
+      // A faltering unit's ground is hatched red; its ×0.7 shows only under the pointer (see addActor).
+      const wilting = a.falter && !a.gone
+      a.wilt.setVisible(wilting).setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 1.6)
+      a.mark.setVisible(wilting && this.hover === a.uid).setPosition(x + BAR / 2 + 3, y + 2).setDepth(9400)
       // The rank mark rides at the shoulder, drawn with the unit (whoever stands in front still covers it).
       a.insignia?.setPosition(x - a.chest * 0.75, a.sprite.y - a.chest * 2.3 - a.lift).setDepth(a.sprite.depth + 0.05)
       a.growth?.place(x, a.sprite.y, a.sprite.depth, a.chest, a.lift)
@@ -579,7 +689,11 @@ class BattleScene extends Phaser.Scene {
     const gaugeBar = this.add.rectangle(home.x - BAR / 2, home.y + 17, 0, 2, GOLD).setOrigin(0, 0.5)
     // Beside the bars while the unit falters (outside the domain, a shadow, or a member whose captain fell):
     // the damage it deals.
+    // The ground under it is hatched red (falterGround); the tag says the number only on the unit under the
+    // pointer, so a faltering line is never a wall of overlapping tags.
     const mark = this.text(0, 0, `×${TUNING.monarch.falter}`, 10, C.foe, 3).setOrigin(0, 0.5).setVisible(false)
+    ;(this.small ??= []).push(legible(mark, this.cameras.main.zoom, 'num'))
+    const wilt = falterGround(this, 1).setVisible(false)
     let flag = null
     if (theirs && !u.shadow && this.foeCaptains.has(u.uid)) {
       flag = this.add.graphics()
@@ -592,7 +706,7 @@ class BattleScene extends Phaser.Scene {
     const order = u.det != null ? this.orders.get(u.det) : null
     const detRing = order ? this.add.ellipse(home.x, home.y + 4, 50 * size, 15 * size).setStrokeStyle(1.5, order.colour, 1).setDepth(home.y - 1.5) : null
     const actor = {
-      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar, mark, flag,
+      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar, mark, wilt, flag,
       det: order ? u.det : null, detRing, where: order?.where ?? 'hunt', anchor: u.tile, halt: false, cohortOf: u.cohortOf ?? null,
       // chest: how far above the feet blows land and bolts fly from. fade: 0 once a corpse has risen
       // as a shadow; rise.v: a shadow coming up out of the ground (apart from `fade`, so a walk that kills
@@ -600,17 +714,19 @@ class BattleScene extends Phaser.Scene {
       chest: 30 * size, pose: { ...REST }, hp: u.hp, maxHp: u.maxHp, gone: false, lift: 0, leaping: null, falter: false, fade: 1, rise: { v: 1 }
     }
     // A Knight's shield or a Marshal's standard beside its bars; a Marshal also carries its own domain.
-    if (u.grade > 0) actor.insignia = this.insignia(u.grade, this.bannerOf(u.uid))
+    if (u.grade > 0) this.small.push(legible(actor.insignia = this.insignia(u.grade, this.bannerOf(u.uid)), this.cameras.main.zoom, 'num'))
     // A soul's growth, worn as the prep board showed it (growthMarks): its rank's ring, its path tiers, and a
     // captain's flag with the bodies it leads into this battle (on the board and still to enter).
     if (u.side === 'party' && !u.rank && !u.shadow && !crowned) {
       const whole = this.units.get(u.uid) ?? u
       const led = [...this.battle.units, ...this.battle.reserve].filter((x) => x.cohortOf === u.uid && x.side !== 'foe').length
       actor.growth = growthMarks(this, whole, { banner: this.args.banners?.get(u.uid), count: led, size })
+      actor.growth.legible(this.cameras.main.zoom)
     }
     if (u.grade >= 2 && u.side === 'party') actor.realm = { g: this.add.graphics().setDepth(-394), colour: this.bannerOf(u.uid), x: null, y: null }
     sprite.setInteractive(this.input.makePixelPerfect())
     sprite.on('pointerover', (p) => {
+      if (p.wasTouch || touchy()) return
       this.hover = u.uid
       ring.setVisible(!actor.gone)
       this.args.onHover?.(this.units.get(u.uid), { left: p.x + 14, right: p.x + 14, top: p.y - 10, bottom: p.y + 10 })
@@ -620,6 +736,20 @@ class BattleScene extends Phaser.Scene {
       if (this.hover === u.uid) { this.hover = null; this.args.onHover?.(null) }
     })
     this.actors.set(u.uid, actor)
+  }
+
+  // A long press at viewport point (x, y): the card of the unit there, the front-most where two overlap (the one
+  // lower on the board, drawn over), pinned beside the finger.
+  pressAt (x, y) {
+    if (!this.sys.isActive()) return
+    const r = this.game.canvas.getBoundingClientRect()
+    const w = this.cameras.main.getWorldPoint((x - r.left) * this.scale.width / r.width, (y - r.top) * this.scale.height / r.height)
+    let best = null
+    for (const a of this.actors.values()) {
+      if (!a.sprite.visible || a.sprite.alpha <= 0.05 || !a.sprite.getBounds().contains(w.x, w.y)) continue
+      if (!best || a.sprite.y > best.sprite.y) best = a
+    }
+    if (best) this.args.onHover?.(this.units.get(best.uid), { left: x + 14, right: x + 14, top: y - 10, bottom: y + 10 }, true)
   }
 
   // A captain's banner colour (from data.banners), or the Marshal's gold.
@@ -937,9 +1067,14 @@ class BattleScene extends Phaser.Scene {
       .setDisplaySize(LANES * SPREAD + 160, 46).setAlpha(0).setDepth(-350)
     this.tweens.add({ targets: edge, alpha: { from: 0.75, to: 0 }, duration: 1800, ease: 'Quad.In', onComplete: () => edge.destroy() })
     const y = rowY((CAMP_ROWS + DEPTH - ROWS - 1) / 2)
-    const plate = this.add.rectangle(0, y, LANES * SPREAD - 60, 46, 0x07060b, 0.84).setStrokeStyle(1, FOE, 0.45).setDepth(9590).setAlpha(0)
-    const head = this.text(0, y - 7, title, 17, '#ff8a9a', 4, SERIF).setOrigin(0.5).setDepth(9600).setAlpha(0)
-    const line = this.text(0, y + 12, sub, 10, '#c09aa4', 0).setOrigin(0.5).setDepth(9600).setAlpha(0)
+    // Its two lines legible at the zoom (labelSize), the plate round them.
+    const z = this.cameras.main.zoom
+    const head = this.text(0, 0, title, labelSize(17, z), '#ff8a9a', 4, faceFor(17, z)).setOrigin(0.5, 0).setDepth(9600).setAlpha(0)
+    const line = this.text(0, 0, sub, labelSize(10, z), '#c09aa4', 0).setOrigin(0.5, 0).setDepth(9600).setAlpha(0)
+    const ph = head.height + line.height + 12
+    head.setY(y - ph / 2 + 5)
+    line.setY(head.y + head.height + 1)
+    const plate = this.add.rectangle(0, y, Math.max(LANES * SPREAD - 60, head.width + 40, line.width + 40), ph, 0x07060b, 0.84).setStrokeStyle(1, FOE, 0.45).setDepth(9590).setAlpha(0)
     this.tweens.add({ targets: [plate, head, line], alpha: 1, duration: 200 })
     this.tweens.add({ targets: [plate, head, line], alpha: 0, delay: 1700, duration: 500, onComplete: () => { plate.destroy(); head.destroy(); line.destroy() } })
     this.shake(180, 0.003)
@@ -967,9 +1102,11 @@ class BattleScene extends Phaser.Scene {
     const now = this.playMs
     this.payStack = now - (this.payAt ?? -1e9) < 900 ? (this.payStack ?? 0) + 1 : 0
     this.payAt = now
-    const y = rowY(DEPTH - ROWS) + ROW_PX * 0.55 + this.payStack * 20
-    const t = this.text(0, y, `${name} SLAIN · +${Math.round(w.paid)} ESSENCE`, 12, C.soul2, 3).setOrigin(0.5).setDepth(9550).setScale(0.6)
-    this.tweens.add({ targets: t, scale: 1, duration: 140, ease: 'Back.Out' })
+    const size = labelSize(12, this.cameras.main.zoom)
+    const y = rowY(DEPTH - ROWS) + ROW_PX * 0.55 + this.payStack * size * 1.6
+    const from = Math.min(1, Math.max(0.6, labelPx('word') / (size * this.cameras.main.zoom)))
+    const t = this.text(0, y, `${name} SLAIN · +${Math.round(w.paid)} ESSENCE`, size, C.soul2, 3).setOrigin(0.5).setDepth(9550).setScale(from)
+    if (from < 1) this.tweens.add({ targets: t, scale: 1, duration: 140, ease: 'Back.Out' })
     this.tweens.add({ targets: t, y: y - 26, alpha: 0, delay: 1300, duration: 900, ease: 'Quad.Out', onComplete: () => t.destroy() })
     this.burst(0, y, SOUL, 12, { up: true, speed: 70 })
   }
@@ -978,7 +1115,7 @@ class BattleScene extends Phaser.Scene {
   // next (the reserve, and the held detachments already called); then the held detachments still waiting
   // for their start. Foes still to come are never shown.
   showReserve () {
-    if (!this.waiting) return
+    if (!this.waiting && !this.args.hud) return
     const mine = this.reserve.filter((r) => r.side !== 'foe')
     const held = mine.filter((r) => r.when && r.when.at !== 'once' && !this.called.has(r.det))
     const queue = mine.filter((r) => !held.includes(r))
@@ -988,6 +1125,7 @@ class BattleScene extends Phaser.Scene {
       next ? [`RESERVE ${queue.length} · next: ${unitDef(next.id).name}`, '#8fb8a8'] : !held.length && ['RESERVE · all have entered', '#5a5470'],
       held.length > 0 && [`HELD ${held.length} · ${ids.map((id) => `${id}: ${startTag(this.orders.get(id)?.when ?? held.find((r) => r.det === id).when)}`).join('  ')}`, '#c8b47a']
     ].filter(Boolean)
+    if (this.args.hud) return this.args.hud.reserve(mine.length ? lines : [])
     for (const [i, t] of [this.waiting, this.heldText].entries()) t.setText(lines[i]?.[0] ?? '').setColor(lines[i]?.[1] ?? '#5a5470')
   }
 
@@ -1016,7 +1154,8 @@ class BattleScene extends Phaser.Scene {
       // At the square's top left, unless the square is the domain box's top-left tile, where the box's
       // "DOMAIN · N" caption stands: then at its bottom left.
       const under = m && tileX(o.square) === Math.max(0, tileX(c) - start.domain) && tileY(o.square) === Math.min(DEPTH - 1, tileY(c) + start.domain)
-      this.text(p.x - w / 2 + 5, under ? p.y + 6 + hgt / 2 - 3 : p.y + 6 - hgt / 2 + 3, label, 9, o.color, 0).setOrigin(0, under ? 1 : 0).setDepth(-385).setAlpha(far ? 0.5 : 0.85)
+      this.small.push(legible(this.text(p.x - w / 2 + 5, under ? p.y + 6 + hgt / 2 - 3 : p.y + 6 - hgt / 2 + 3, label, 9, o.color, 3)
+        .setOrigin(0, under ? 1 : 0).setDepth(-385).setAlpha(far ? 0.5 : 0.85), this.cameras.main.zoom, 'num'))
     }
   }
 
@@ -1079,8 +1218,14 @@ class BattleScene extends Phaser.Scene {
 
   decorate (start) {
     const bandW = LANES * SPREAD + 90
-    this.add.tileSprite(0, 0, 2400, 2000, 'floor').setTileScale(0.6).setAlpha(0.62).setDepth(-1000)
-    this.add.image(0, 0, 'vignette').setDisplaySize(bandW + 700, 2 * EDGE + 700).setDepth(-999)
+    this.add.tileSprite(0, 0, 4200, 3200, 'floor').setTileScale(0.6).setAlpha(0.62).setDepth(-1000)
+    // The vignette, and past it the dark it fades to, as the prep board's (board.js ground): a wide screen sees
+    // no hard edge where the floor's picture stops, and the panels beside the board stand on the dark.
+    const [vw, vh] = [bandW + 1100, 2 * EDGE + 1000]
+    this.add.image(0, 0, 'vignette').setDisplaySize(vw, vh).setDepth(-999)
+    for (const [x, y, w, h] of [[0, -vh / 2 - 1500, 9000, 3000], [0, vh / 2 + 1500, 9000, 3000], [-vw / 2 - 2000, 0, 4000, vh], [vw / 2 + 2000, 0, 4000, vh]]) {
+      this.add.rectangle(x, y, w + 2, h + 2, 0x06050a, 0.96).setDepth(-999)
+    }
     // A dais under the camp and under the foes' formation, a seam of soulfire across the open ground
     // between, the camp's walls, and a rune under every other tile; the tiles the battle starts on glow.
     const g = this.add.graphics().setDepth(-400)
@@ -1125,22 +1270,20 @@ class BattleScene extends Phaser.Scene {
 
     const sideOf = new Map(start.units.map((u) => [u.uid, u.side]))
     const bondNames = (side) => [...new Set(start.bonds.filter((b) => sideOf.get(b.uid) === side).map((b) => `◆ ${BONDS.find((x) => x.id === b.id).name}`))]
-    const syn = (side) => [...topSteps(start.synergies.filter((s) => s.side === side).map((s) => s.id)), ...bondNames(side)].join('  ·  ')
-    // The party's labels leave room on the right for the Monarch's HP.
-    const label = (y, text, colour, size, font = FONT, room = 0) => this.text(-bandW / 2 + 12, y, text, size, colour, 0, font)
-      .setWordWrapWidth(bandW - 24 - room).setDepth(-300)
-    const hud = start.monarch != null ? 240 : 0
-    // Theirs stand above their back row, clear of the heads of whoever stands in it (a deep room can fill it),
-    // the title over their synergies however many lines those wrap to; the camera makes room (fit).
-    const heads = Math.max(HEADROOM, ...start.units.filter((u) => u.side === 'foe' && tileY(u.tile) === DEPTH - 1)
-      .map((u) => this.textures.get(`unit:${unitDef(u.id).art}:alive`).getSourceImage().height / RES * SCALE * FEET + 6))
-    const theirs = label(-EDGE - heads, syn('foe') || 'no synergies', '#9a5a62', 11).setOrigin(0, 1)
-    const title = label(theirs.y - theirs.height - 3, this.args.title ?? `FLOOR ${this.battle.floor}`, '#f08a98', 16, SERIF).setOrigin(0, 1)
-    this.topRoom = Math.max(110, -EDGE - title.y + title.height + 10)
-    label(EDGE + 28, 'YOUR RETINUE', C.soul2, 16, SERIF, hud)
-    label(EDGE + 49, syn('party') || 'no synergies', C.synergy, 11, FONT, hud)
-    // A rule is announced over its side's labels, left of the Monarch's HP: off the board, where the blows land.
-    this.ruleBand = { x: -bandW / 2 + 12, party: EDGE + 40, foe: theirs.y - theirs.height / 2 }
+    const syn = (side) => [...topSteps(start.synergies.filter((s) => s.side === side).map((s) => s.id)), ...bondNames(side)]
+    // The labels round the board are drawn at sizes that stay legible at the camera's zoom (labelSize), and the
+    // zoom depends on the room they take (fit): they are laid out at the zoom the room they need now gives, and
+    // again (at most twice) while that shrinks it.
+    const { width, height } = this.scale
+    const bar = this.args.barHeight?.() || BAR_PX
+    let z = this.zoomFor(width, height, bar)
+    for (let i = 0; i < 3; i++) {
+      for (const o of this.labelArt ?? []) o.destroy()
+      this.layoutLabels(start, z, syn)
+      const next = this.zoomFor(width, height, bar)
+      if (next >= z * 0.98) break
+      z = next
+    }
 
     const m = start.units.find((u) => u.uid === start.monarch)
     if (!m) return
@@ -1149,21 +1292,75 @@ class BattleScene extends Phaser.Scene {
     const first = this.battle.events.find((e) => e.type === 'domain')
     this.crowned = !!first
     this.drawDomain(first ? first.centre : m.tile)
-    // The Monarch's HP, large, bottom right: when it runs out the battle and the run are lost.
-    const [hx, w] = [bandW / 2 - 12, 212]
-    this.text(hx - w, EDGE + 28, 'THE MONARCH', 14, C.monarch, 0, SERIF).setDepth(-300)
-    const hpText = this.text(hx, EDGE + 29, '', 14, C.monarch, 0).setOrigin(1, 0).setDepth(-300)
-    this.add.rectangle(hx - w / 2, EDGE + 55, w + 4, 9, 0x07060b, 0.92).setStrokeStyle(1, 0x5a4520).setDepth(-300)
-    const hpTrail = this.add.rectangle(hx - w, EDGE + 55, w, 5, 0xfff1d0, 0.85).setOrigin(0, 0.5).setDepth(-299)
-    const hpBar = this.add.rectangle(hx - w, EDGE + 55, w, 5, PARTY).setOrigin(0, 0.5).setDepth(-298)
-    this.crown = { text: hpText, bar: hpBar, trail: hpTrail, w }
     this.crownHp(m)
-    // Behind the camp, the reserve waits to enter beside the Monarch, and the held detachments their start.
-    if (this.reserve.some((r) => r.side !== 'foe')) {
-      this.waiting = this.text(hx, EDGE + 66, '', 10, '#8fb8a8', 0).setOrigin(1, 0).setDepth(-300)
-      this.heldText = this.text(hx, EDGE + 80, '', 10, '#b8a87a', 0).setOrigin(1, 0).setDepth(-300)
-      this.showReserve()
+    this.showReserve()
+  }
+
+  // Theirs above the board (their title over their synergies), yours below it (left), and the Monarch's HP
+  // (right, with the reserve's lines under it), each at least labelPx on screen at zoom `z`; then the room each
+  // side takes past the board (this.topRoom, this.bottomRoom), which the camera keeps in view (fit).
+  layoutLabels (start, z, syn) {
+    const bandW = LANES * SPREAD + 90
+    const art = this.labelArt = []
+    // Their back row's heads (a deep room can fill it): the room kept above it.
+    const heads = Math.max(HEADROOM, ...start.units.filter((u) => u.side === 'foe' && tileY(u.tile) === DEPTH - 1)
+      .map((u) => this.textures.get(`unit:${unitDef(u.id).art}:alive`).getSourceImage().height / RES * SCALE * FEET + 6))
+    // With the page's panels beside the board (args.hud), the words go there, and the board keeps only the room
+    // for the heads above it and the bars and tiers under it.
+    const hud = this.args.hud
+    if (hud) {
+      this.crown = null
+      this.waiting = this.heldText = null
+      this.ruleBand = null
+      this.topRoom = heads + 8
+      this.bottomRoom = BAR_DROP + 32
+      hud.start({ title: this.args.title ?? `FLOOR ${this.battle.floor}`, theirs: syn('foe'), mine: syn('party'), monarch: start.monarch != null })
+      return
     }
+    const W = (size) => labelSize(size, z, 'word')
+    const keep = (o) => { art.push(o); return o }
+    const label = (y, text, colour, size, font = FONT, room = 0) => keep(this.text(-bandW / 2 + 12, y, text, W(size), colour, 0, font)
+      .setWordWrapWidth(bandW - 24 - room).setDepth(-300))
+    // The Monarch's HP, large, bottom right: when it runs out the battle and the run are lost. As wide as its
+    // name and the largest HP it could read take; your labels leave it that room on the right.
+    const hx = bandW / 2 - 12
+    const y0 = EDGE + 28
+    const hasM = start.monarch != null
+    let w = 0
+    let bottom = y0
+    this.crown = null
+    this.waiting = this.heldText = null
+    if (hasM) {
+      const name = keep(this.text(0, y0, 'THE MONARCH', W(14), C.monarch, 0, faceFor(14, z)).setDepth(-300))
+      const hpText = keep(this.text(hx, y0 + 1, '9999 / 9999', labelSize(14, z, 'num'), C.monarch, 0).setOrigin(1, 0).setDepth(-300))
+      w = Math.max(212, name.width + hpText.width + 18)
+      name.setX(hx - w)
+      const by = y0 + Math.max(name.height, hpText.height) + 8
+      keep(this.add.rectangle(hx - w / 2, by, w + 4, 9, 0x07060b, 0.92).setStrokeStyle(1, 0x5a4520).setDepth(-300))
+      const hpTrail = keep(this.add.rectangle(hx - w, by, w, 5, 0xfff1d0, 0.85).setOrigin(0, 0.5).setDepth(-299))
+      const hpBar = keep(this.add.rectangle(hx - w, by, w, 5, PARTY).setOrigin(0, 0.5).setDepth(-298))
+      this.crown = { text: hpText, bar: hpBar, trail: hpTrail, w }
+      bottom = by + 6
+      // Behind the camp, the reserve waits to enter beside the Monarch, and the held detachments their start.
+      if (this.reserve.some((r) => r.side !== 'foe')) {
+        const size = W(10)
+        this.waiting = keep(this.text(hx, by + 8, '', size, '#8fb8a8', 0).setOrigin(1, 0).setDepth(-300))
+        this.heldText = keep(this.text(hx, by + 10 + size * 1.25, '', size, '#b8a87a', 0).setOrigin(1, 0).setDepth(-300))
+        bottom = by + 12 + size * 2.5
+      }
+    }
+    const room = hasM ? w + 28 : 0
+    // Theirs stand above their back row, clear of its heads, the title over their synergies however many lines
+    // those wrap to.
+    const theirs = label(-EDGE - heads, syn('foe').join('  ·  ') || 'no synergies', '#9a5a62', 11).setOrigin(0, 1)
+    const title = label(theirs.y - theirs.height - 3, this.args.title ?? `FLOOR ${this.battle.floor}`, '#f08a98', 16, faceFor(16, z)).setOrigin(0, 1)
+    this.topRoom = Math.max(110, -EDGE - title.y + title.height + 10)
+    const mine = label(y0, 'YOUR RETINUE', C.soul2, 16, faceFor(16, z), room)
+    const mineSyn = label(y0 + mine.height + 2, syn('party').join('  ·  ') || 'no synergies', C.synergy, 11, FONT, room)
+    bottom = Math.max(bottom, mineSyn.y + mineSyn.height)
+    this.bottomRoom = Math.max(110, bottom - EDGE + 10)
+    // A rule is announced over its side's labels, left of the Monarch's HP: off the board, where the blows land.
+    this.ruleBand = { x: -bandW / 2 + 12, party: (y0 + bottom) / 2, foe: theirs.y - theirs.height / 2 }
   }
 
   // The domain: every tile within `this.domain` of `centre`, clipped to the board. Under Vanguard Crown it
@@ -1183,9 +1380,13 @@ class BattleScene extends Phaser.Scene {
     const d = this.add.graphics().setDepth(-395)
     d.fillStyle(DOMAIN, 0.035).fillRoundedRect(left, dtop, right - left, dbottom - dtop, 12)
     d.lineStyle(1.5, this.crowned ? GOLD : DOMAIN, this.crowned ? 0.45 : 0.4).strokeRoundedRect(left, dtop, right - left, dbottom - dtop, 12)
-    const label = this.text(left + 8, dtop + 4, this.crowned ? `DOMAIN · ${r} · VANGUARD CROWN` : `DOMAIN · ${r}`, 11, this.crowned ? C.monarch : C.domain, 3).setDepth(-390)
-    legible(label, this.cameras.main.zoom)
+    // Just outside the box, on a dark plate (as the prep board's: board.js drawDomain), over the units (no body
+    // cuts it), at whichever corner covers fewest of them (placeDomain).
+    const label = domainLabel(this, r, this.crowned).setDepth(7000)
+    legible(label, this.cameras.main.zoom, 'word')
     ;(this.small ??= []).push(label)
+    this.domLabel = { t: label, box: { l: left, r: right, t: dtop, b: dbottom } }
+    this.placeDomain()
     const art = [d, label]
     if (this.crowned) {
       const p = this.posFor(centre)
@@ -1200,6 +1401,21 @@ class BattleScene extends Phaser.Scene {
       this.tweens.add({ targets: o, alpha: a, duration: 360, ease: 'Sine.Out' })
     }
     this.tweens.add({ targets: old, alpha: 0, duration: 360, ease: 'Sine.In', onComplete: () => old.forEach((o) => o.destroy()) })
+  }
+
+  // The domain's caption, outside its box where it covers the fewest bodies and bars standing now, inside the
+  // room the camera keeps (fit: placed again when the zoom rescales it).
+  placeDomain () {
+    const d = this.domLabel
+    if (!d?.t.active) return
+    const blocked = []
+    for (const a of this.actors?.values() ?? []) {
+      if (a.gone) continue
+      const s = a.sprite.getBounds()
+      blocked.push({ l: s.x + s.width * 0.15, r: s.right - s.width * 0.15, t: s.y, b: a.sprite.y + BAR_DROP + 8 })
+    }
+    const bandW = LANES * SPREAD + 90
+    placeOutside(d.t, d.box, { l: -bandW / 2, r: bandW / 2, t: -EDGE - (this.topRoom ?? 110), b: EDGE + (this.bottomRoom ?? 110) }, blocked)
   }
 
   // Undying: a captain that just fell is up again at once, on its own tile. Its fall is cut short: it slumps
@@ -1247,6 +1463,7 @@ class BattleScene extends Phaser.Scene {
 
   // The HUD's Monarch HP, from its actor (or the start unit): red once it runs low.
   crownHp (a) {
+    this.args.hud?.hp(Math.max(0, a.hp), a.maxHp)
     const c = this.crown
     if (!c) return
     const f = Math.max(0, a.hp / a.maxHp)
@@ -1537,13 +1754,17 @@ class BattleScene extends Phaser.Scene {
   // A rule's name for a moment over its side's labels (yours below the board, theirs above it), off the
   // ground where the blows land; several at once stack toward the board.
   announce (r, mine) {
+    if (this.args.hud) return this.args.hud.announce(`${r.step} · ${r.name}`, mine)
     const band = this.ruleBand
     if (!band) return
     const side = mine ? 'party' : 'foe'
-    const y = band[side] + (mine ? -1 : 1) * 26 * (this.banners[side]++ % 3)
-    const text = this.text(band.x + 18, y, `${r.step.toUpperCase()} · ${r.name.toUpperCase()}`, 15, mine ? '#cfe3ff' : '#ffa0ae', 4, SERIF)
+    // Legible at the zoom: the plate and the stacking grow with the print.
+    const size = labelSize(15, this.cameras.main.zoom)
+    const ph = Math.max(26, size * 1.7)
+    const y = band[side] + (mine ? -1 : 1) * ph * (this.banners[side]++ % 3)
+    const text = this.text(band.x + 18, y, `${r.step.toUpperCase()} · ${r.name.toUpperCase()}`, size, mine ? '#cfe3ff' : '#ffa0ae', 4, faceFor(15, this.cameras.main.zoom))
       .setOrigin(0, 0.5).setDepth(9600).setAlpha(0)
-    const plate = this.add.rectangle(band.x, y, text.width + 36, 26, 0x07060b, 0.85).setOrigin(0, 0.5).setStrokeStyle(1, mine ? BOON : FOE, 0.6).setDepth(9590).setAlpha(0)
+    const plate = this.add.rectangle(band.x, y, text.width + 36, ph, 0x07060b, 0.85).setOrigin(0, 0.5).setStrokeStyle(1, mine ? BOON : FOE, 0.6).setDepth(9590).setAlpha(0)
     this.tweens.chain({
       targets: [text, plate],
       tweens: [{ alpha: 1, duration: 160 }, { alpha: 1, duration: 800 }, { alpha: 0, duration: 400 }],
@@ -1607,11 +1828,17 @@ class BattleScene extends Phaser.Scene {
     for (let i = low; i < low + span; i++) rows[i] = at + FLOAT_HOLD
     const row = low + span - 1
     const wait = at - now
+    // Legible at the zoom (a number as a number, a name as a word): the print and its rows grow together.
+    const zoom = this.cameras.main.zoom
+    const kind = /^[-+−×]?\d/.test(String(text)) ? 'num' : 'word'
+    const k = labelScale(size, zoom, kind)
+    // It pops in from a little smaller, but never from under the legible size: it reads from its first frame.
+    const from = Math.min(1, Math.max(0.6, labelPx(kind) / (size * k * zoom)))
     const draw = () => {
       const t = side
-        ? this.text(a.sprite.x + Math.max(22, a.sprite.displayWidth * 0.3), a.sprite.y - a.chest - 2 - SIDE_ROW * row, text, size, colour, 3).setOrigin(0, 1).setDepth(9500).setScale(0.6)
-        : this.text(a.sprite.x, a.sprite.y - a.chest - 22 - 15 * row, text, size, colour, 3).setOrigin(0.5, 1).setDepth(9500).setScale(0.6)
-      this.tweens.add({ targets: t, scale: 1, duration: 120, ease: 'Back.Out' })
+        ? this.text(a.sprite.x + Math.max(22, a.sprite.displayWidth * 0.3), a.sprite.y - a.chest - 2 - SIDE_ROW * k * row, text, size * k, colour, 3).setOrigin(0, 1).setDepth(9500).setScale(from)
+        : this.text(a.sprite.x, a.sprite.y - a.chest - 22 - 15 * k * row, text, size * k, colour, 3).setOrigin(0.5, 1).setDepth(9500).setScale(from)
+      if (from < 1) this.tweens.add({ targets: t, scale: 1, duration: 120, ease: 'Back.Out' })
       this.tweens.add({ targets: t, y: t.y - 24, alpha: 0, delay: 160, duration: 760, ease: 'Quad.Out', onComplete: () => t.destroy() })
     }
     if (wait) this.time.delayedCall(wait, draw)
@@ -1627,8 +1854,9 @@ class BattleScene extends Phaser.Scene {
     // Any orb still in the air (or cut short) is counted before the screen fades.
     this.time.delayedCall(1400, () => { this.purse = this.owed; this.changed() })
     const colour = won ? SOUL : FOE
+    // The domain's caption (over the units) gives way to the banner.
+    if (this.domLabel?.t.active) this.tweens.add({ targets: this.domLabel.t, alpha: 0, duration: 200 })
     const glow = this.add.image(0, 0, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(620, 120).setAlpha(0).setDepth(9989)
-    const plate = this.add.rectangle(0, 0, LANES * SPREAD + 120, 70, 0x07060b, 0.82).setStrokeStyle(1, colour, 0.5).setDepth(9990).setAlpha(0)
     const reason = this.battle.reason
     // A wave the Sovereign's fall cut short pays for the slain it had (a lost battle pays nothing).
     if (won && this.waves.length > 1) this.waves.forEach((_, k) => this.wavePaid(k))
@@ -1637,10 +1865,16 @@ class BattleScene extends Phaser.Scene {
       : reason === 'monarch' ? ['THE MONARCH FALLS', `Its retinue crumbles with it. The run is over${this.battle.floor > TUNING.run.floors ? ', but the clear stands' : ''}.`]
         : reason === 'tick-ceiling' ? ['THE DARK CLOSES IN', 'Still undecided at the last moment: the run is lost.']
           : ['YOUR RETINUE FALLS', 'The dead return to the dark.']
-    const banner = this.text(0, -8, title, 28, won ? C.soul2 : '#ff6a7a', 4, SERIF)
-      .setOrigin(0.5).setDepth(10000).setAlpha(0)
-    const sub = this.text(0, 20, line, 11, '#a59fb8', 0)
-      .setOrigin(0.5).setDepth(10000).setAlpha(0)
+    // Its line legible at the zoom (labelSize; the title is large already), the plate round both.
+    const banner = this.text(0, 0, title, labelSize(28, this.cameras.main.zoom), won ? C.soul2 : '#ff6a7a', 4, faceFor(28, this.cameras.main.zoom))
+      .setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
+    const sub = this.text(0, 0, line, labelSize(11, this.cameras.main.zoom), '#a59fb8', 0)
+      .setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
+    const ph = banner.height + sub.height + 14
+    banner.setY(-ph / 2 + 6)
+    sub.setY(banner.y + banner.height)
+    const plate = this.add.rectangle(0, 0, Math.max(LANES * SPREAD + 120, banner.width + 60, sub.width + 60), Math.max(70, ph), 0x07060b, 0.82)
+      .setStrokeStyle(1, colour, 0.5).setDepth(9990).setAlpha(0)
     this.tweens.add({ targets: [plate, banner, sub], alpha: 1, duration: 260 })
     this.tweens.add({ targets: glow, alpha: 0.5, duration: 400 })
     this.time.delayedCall(1600, () => {
