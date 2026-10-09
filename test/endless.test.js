@@ -8,7 +8,7 @@ import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE, BOARD_14 } from './tuned.js'
 import {
   createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend, monarchPoints,
-  MONARCH_STATS, MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup
+  MONARCH_STATS, MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join
 } from '../src/sim/run.js'
 import { autoplay, policy, LEVELS } from '../src/sim/autoplay.js'
 import { generateFloor, RANKS } from '../src/sim/map.js'
@@ -181,8 +181,9 @@ function legionReap () {
     const run = createRun({ seed: `legion-reap${i}` })
     const s = run.state
     s.party = s.party.map((u) => u.uid === MONARCH_UID ? u : { ...makeUnit(u.id, { uid: u.uid, lvl: 12 }), slot: u.slot })
-    const golem = { ...makeUnit('iron_golem', { uid: s.nextUid++, lvl: 2 }), slot: -1, hp: 1 }
-    s.party.push(golem)
+    for (const k of Object.values(s.kinds)) k.lvl = 12
+    const golem = join(run, 'iron_golem', { lvl: 2 })
+    Object.assign(golem, { slot: -1, hp: 1 })
     const node = availableNodes(run)[0]
     node.type = 'fight'
     node.foes = [...Array(8).keys()].map((slot) => ({ id: 'grave_ghoul', lvl: 1, slot }))
@@ -666,7 +667,7 @@ function clear (seed) {
     while (s.phase !== 'over') {
       if (s.essence < 5000) s.essence = 1e5
       const points = monarchPoints(s)
-      apply(run, ['map', 'prep'].includes(s.phase) && points < 6 * s.floor ? { type: 'monarch', stat: MONARCH_STATS[points % 3] } : policy(run, rng, STEADY))
+      apply(run, ['map', 'prep'].includes(s.phase) && points < 6 * s.floor ? { type: 'monarch', stat: MONARCH_STATS[points % MONARCH_STATS.length] } : policy(run, rng, STEADY))
     }
     return run
   })
@@ -750,7 +751,7 @@ function deepWalk () {
     // is its points' alone.
     const points = monarchPoints(s)
     const action = ['map', 'prep'].includes(s.phase) && points < 8 * s.floor && s.essence > 2000
-      ? { type: 'monarch', stat: MONARCH_STATS[points % 3] }
+      ? { type: 'monarch', stat: MONARCH_STATS[points % MONARCH_STATS.length] }
       : rng.chance(0.2) ? rng.pick(legal) : policy(run, rng, STEADY)
     apply(run, action)
     if (action.type === 'fight') deepFights.push(run.setup)

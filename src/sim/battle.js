@@ -7,12 +7,12 @@ import { createRng, hashString } from './rng.js'
 import {
   alive, livingOn, statsOf, activeSynergies, expand, enemySide, isAllyShape, deployTile, distance, steps, NEIGHBOURS, rangeOf, TILES,
   tileX, tileY, tileAt, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, ROWS, CENTRE_OUT, LANES, DEPTH, summonsOf,
-  summonTile, ringOf, strideOf, behaviourOf
+  summonTile, ringOf, strideOf, behaviourOf, bannerOf
 } from './unit.js'
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
 
-// party/foes are run units { uid, id, lvl, path, tier, hp, maxHp, slot }; the battle works on copies, and
+// party/foes are run units { uid, id, lvl, tracks, hp, maxHp, slot }; the battle works on copies, and
 // only units on the field (slot ≥ 0) with HP left take part. Each starts on its slot's board tile (the
 // party's in its camp, past `walls`, a list of board tiles). A battle still going at `ceiling` ticks ends
 // undecided (the autoplayer rehearses on a shorter budget than the real fight's); the ticks count from the
@@ -27,7 +27,13 @@ import {
 //
 // Lines (DESIGN §2.4): a party unit with a `line` ({ tiles, when }) walks its tiles in order, one a step, once the
 // signal it waits for (`when`: see fired) has come, and holds at the last; one with none holds where it stands.
-// Summons: a party soul whose path tiers raise summons (unit.js summonsOf) has them appear on the open tiles
+// Banners (DESIGN §2.8): a piece of yours with Banner (a tier IV) and a line leads a wing: each piece of yours
+// standing beside it as the battle begins (the first Banner's, in acting order, if beside two) is its follower,
+// and walks its line shifted by where it stands from it (`offset`), never a step ahead of it while it stands; a
+// follower's own line is set aside. A shadow of yours that rises on a tile of a Banner's line falls in the same
+// way, from where it rose (see raise).
+//
+// Summons: a party soul whose track tiers raise summons (unit.js summonsOf) has them appear on the open tiles
 // nearest it as the battle begins, battle units `summoned`, with `summoner` its uid, that hold the tile they
 // appear on and are gone when the battle ends. They take no place on the board (TUNING.army.board), pay
 // nothing, and never rise as anyone's shadow. The `summons` switch (ablate) raises none.
@@ -105,8 +111,12 @@ export function createBattle ({
   }
   for (const u of units) occupy(battle, u)
   for (const u of units) fit(battle, u)
-  // The souls' summons appear beside them, announced with everyone in the start event.
+  // The souls' summons appear beside them, announced with everyone in the start event; then the Banners' wings form.
   for (const u of units) summon(battle, u)
+  for (const lead of battle.units) {
+    if (!lead.banner || lead.line === null || lead.leader !== null) continue
+    for (const u of battle.units) if (u.side === 'party' && u !== lead && u !== battle.monarch && !u.banner && u.leader === null && distance(u.tile, lead.tile) === 1) follow(u, lead)
+  }
   // Ambush (Skirmisher 8): a side holding it starts with every gauge full.
   for (const u of units) if (rulesOf(battle, u.side).has('ambush')) u.gauge = u.costliest
 
@@ -129,11 +139,11 @@ export function createBattle ({
 }
 
 // What marks a unit in the events that announce it: a foe's rank-and-file and whose cohort, a summon and whose
-// (`summoned`, `summoner`), a soul's rank (grade 1 Knight, 2 Marshal), and a foe's wave (k ≥ 1: it came after
-// the first formation).
+// (`summoned`, `summoner`), a Banner's follower and whose (`leader`), and a foe's wave (k ≥ 1: it came after the
+// first formation).
 const marks = (u) => ({
   ...(u.rank && { rank: true, cohortOf: u.cohortOf }), ...(u.summoned && { summoned: true, summoner: u.summoner }),
-  ...(u.grade > 0 && { grade: u.grade }), ...(u.wave && { wave: u.wave })
+  ...(u.leader != null && { leader: u.leader }), ...(u.wave && { wave: u.wave })
 })
 
 // A soul's summons (summonsOf) appear one by one on the open tile nearest it, beside it first, then behind
@@ -152,28 +162,26 @@ function summon (battle, u) {
 }
 
 // The per-battle fields a unit fights with: an empty gauge, a step due at once (`nextStep`), no statuses, the
-// next tile of its line to walk (`leg`) and the tile it lunged from (`home`, null while it has not).
+// next tile of its line to walk (`leg`), the tile it lunged from (`home`, null while it has not), and the Banner
+// it follows with where it stands from it (`leader`, `offset`: null while it follows none).
 // Every battle unit is made with the same fields in the same order (UNIT_FIELDS; one it was not given, or that
 // the battle sets later, is there as undefined, which reads as its absence does), so all of them share one
 // shape and the tick loop's reads of them stay fast. A field outside the list is copied on after them.
 const UNIT_FIELDS = new Set([
-  'uid', 'id', 'lvl', 'path', 'tier', 'hp', 'maxHp', 'slot', 'grade', 'path2', 'tier2', 'side', 'tile', 'line', 'cohortOf', 'rank',
+  'uid', 'id', 'lvl', 'tracks', 'hp', 'maxHp', 'slot', 'side', 'tile', 'line', 'cohortOf', 'rank',
   'summoned', 'summoner', 'when', 'wave', 'lane', 'shadow', 'corpse', 'arisen', 'raised', 'foiled', 'rose', 'stood',
-  'gauge', 'nextStep', 'statuses', 'phase', 'leg', 'home', 'ord', 'kit', 'aura', 'cheapest', 'costliest', 'ring', 'every', 'behaviour', 'lunges'
+  'gauge', 'nextStep', 'statuses', 'phase', 'leg', 'home', 'leader', 'offset', 'ord', 'kit', 'aura', 'cheapest', 'costliest', 'ring', 'every',
+  'behaviour', 'lunges', 'banner'
 ])
 const fresh = (u, t) => {
   const out = {
     uid: u.uid,
     id: u.id,
     lvl: u.lvl,
-    path: u.path,
-    tier: u.tier,
+    tracks: u.tracks,
     hp: u.hp,
     maxHp: u.maxHp,
     slot: u.slot,
-    grade: u.grade,
-    path2: u.path2,
-    tier2: u.tier2,
     side: u.side,
     tile: u.tile,
     line: u.line ?? null,
@@ -197,6 +205,8 @@ const fresh = (u, t) => {
     phase: 0,
     leg: 0,
     home: null,
+    leader: null,
+    offset: null,
     // set as it takes its place (occupy)
     ord: undefined,
     kit: undefined,
@@ -206,7 +216,8 @@ const fresh = (u, t) => {
     ring: undefined,
     every: undefined,
     behaviour: undefined,
-    lunges: undefined
+    lunges: undefined,
+    banner: undefined
   }
   for (const k in u) if (!UNIT_FIELDS.has(k)) out[k] = u[k]
   return out
@@ -215,8 +226,8 @@ const fresh = (u, t) => {
 // A unit takes its place in the battle: on the board's index, in the order it acts (after everyone
 // already there), with what its kit makes fixed for the battle: its abilities in priority order, its aura,
 // its cheapest and costliest ability, its ring, how often it may step (`every` ticks: never, for the Monarch),
-// how it walks the roads as a foe, and whether it lunges (one of yours whose every blow is a melee one: see
-// lunge). Everything that enters mid-battle comes through here too (enterBattle).
+// how it walks the roads as a foe, whether it lunges (one of yours whose every blow is a melee one: see lunge),
+// and whether it leads a wing (Banner). Everything that enters mid-battle comes through here too (enterBattle).
 function occupy (battle, u) {
   if (!alive(u)) throw new Error(`${u.id} has no HP to fight with`)
   if (!Number.isInteger(u.tile) || u.tile < 0 || u.tile >= TILES || battle.walls.has(u.tile)) {
@@ -234,6 +245,7 @@ function occupy (battle, u) {
   u.behaviour = behaviourOf(u)
   const blows = u.kit.filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse')
   u.lunges = u.side === 'party' && blows.length > 0 && blows.every((a) => a.melee)
+  u.banner = u.side === 'party' && bannerOf(u)
   battle.units.push(u)
   battle.byUid.set(u.uid, u)
   battle.at[u.tile] = u
@@ -242,7 +254,7 @@ function occupy (battle, u) {
   if (phasesOf(u.id)) battle.phased.push(u)
 }
 
-// Max HP includes the unit's HP mods (synergies, relics, path tiers); current HP keeps its fraction.
+// Max HP includes the unit's HP mods (synergies, relics, track tiers); current HP keeps its fraction.
 // Read once, as it takes its place: HP mods that come and go mid-battle do not stretch the bar. The
 // Monarch's max HP is its points' and nothing else's (see modsFor): the one the camp shows.
 function fit (battle, u) {
@@ -703,9 +715,6 @@ function modsFor (battle, unit) {
   if (own) mods.push(...(unit.side === 'party' ? battle.partyMods : battle.foeMods))
   // Will hastens the Monarch's gauge: Arise comes sooner (TUNING.monarch.willHaste a point).
   if (unit === battle.monarch && battle.will && TUNING.monarch.willHaste) mods.push({ path: 'gauge.rate', op: 'mul', v: 1 + TUNING.monarch.willHaste * battle.will })
-  // A rank's might (TUNING.ranks.might): a Knight or a Marshal deals that × damage and takes 1 / that × (round 2).
-  const might = TUNING.ranks.might[unit.grade ?? 0] ?? 1
-  if (might !== 1) mods.push({ path: 'damage.dealt', op: 'mul', v: might }, { path: 'damage.taken', op: 'mul', v: 1 / might })
   return mods
 }
 
@@ -724,9 +733,9 @@ export function stats (battle, unit) {
       return hit.s
     }
   }
-  // (statsOf reads only these of a unit: its kind, level and path tiers, and its position.)
+  // (statsOf reads only these of a unit: its kind, level and track tiers, and its position.)
   const pos = engaged ? 'engaged' : 'free'
-  const s = statsOf({ id: unit.id, lvl: unit.lvl, path: unit.path, tier: unit.tier, path2: unit.path2, tier2: unit.tier2, pos }, modsFor(battle, unit))
+  const s = statsOf({ id: unit.id, lvl: unit.lvl, tracks: unit.tracks, pos }, modsFor(battle, unit))
   const givers = auraGivers(battle, unit).map((u) => u.uid)
   const statuses = unit.statuses.map((x) => [x.id, x.stacks])
   const syn = unit === battle.monarch ? null : synergiesOf(battle, unit.side)
@@ -948,17 +957,20 @@ function crumble (battle, boss) {
 
 // Arise: the corpse rises on the actor's side as a shadow of itself, at its level with its own kit and
 // TUNING.monarch.raiseHp of its HP, where it fell (DESIGN §2.7). A shadow counts toward synergies and leaves when
-// the battle ends; its corpse cannot rise again. One of yours has no line: it holds the tile it rose on. One on
-// the foes' side is a foe like any other, and walks the roads. The shadow keeps the uid of the corpse it rose from
+// the battle ends; its corpse cannot rise again. One of yours has no line: it holds the tile it rose on, unless
+// that tile lies on a Banner's line, when it falls in with the Banner's wing (follow). One on the foes' side is a
+// foe like any other, and walks the roads. The shadow keeps the uid of the corpse it rose from
 // (`corpse`). The Legion raises on `side` with no actor (null) when no one of that side slew it, its event marked
 // `rule: 'legion'` (`rule`). Arise's cap is counted by the caller (runEffect). Returns the shadow.
 function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) {
   const u = makeUnit(corpse.id, { uid: battle.nextUid++, lvl: corpse.lvl })
   corpse.raised = true
   const shadow = enterBattle(battle, { ...u, side, shadow: true, corpse: corpse.uid, hp: Math.ceil(u.maxHp * TUNING.monarch.raiseHp), tile: corpse.tile })
+  const lead = side === 'party' ? battle.units.find((x) => x.banner && alive(x) && x.leader === null && x.line?.tiles.includes(shadow.tile)) : null
+  if (lead) follow(shadow, lead)
   emit(battle, {
     type: 'arise', actor: actor?.uid ?? null, corpse: corpse.uid,
-    unit: { uid: shadow.uid, id: shadow.id, side: shadow.side, tile: shadow.tile, lvl: shadow.lvl, hp: shadow.hp, maxHp: shadow.maxHp, shadow: true },
+    unit: { uid: shadow.uid, id: shadow.id, side: shadow.side, tile: shadow.tile, lvl: shadow.lvl, hp: shadow.hp, maxHp: shadow.maxHp, shadow: true, ...marks(shadow) },
     ...(rule && { rule })
   })
   // Blood Tithe: the Monarch pays for each shadow with its own HP (never its last: see corpses).
@@ -1189,12 +1201,30 @@ function stepOf (battle, u) {
 }
 
 // The next tile of a unit's line, once the signal it waits for has come: −1 before then, past its last tile, and
-// where the line breaks off (a tile no step from here reaches: a wall, or one not beside it).
+// where the line breaks off (a tile no step from here reaches: a wall, or one not beside it). A follower walks
+// its Banner's line shifted by its offset, and never takes a step its living Banner has not taken.
 function lineStep (battle, u) {
-  const line = u.line
+  const lead = u.leader === null ? u : battle.byUid.get(u.leader)
+  const line = lead.line
   if (line === null || u.leg >= line.tiles.length || !fired(battle, line.when)) return -1
-  const to = line.tiles[u.leg]
+  if (lead !== u && alive(lead) && u.leg >= lead.leg) return -1
+  let to = line.tiles[u.leg]
+  if (lead !== u) {
+    const x = tileX(to) + u.offset[0]
+    const y = tileY(to) + u.offset[1]
+    if (x < 0 || x >= LANES || y < 0 || y >= DEPTH) return -1
+    to = tileAt(x, y)
+  }
   return adjOf(battle)[u.tile].includes(to) ? to : -1
+}
+
+// A piece falls in with a Banner's wing (DESIGN §2.7, §2.8): from where it stands now it walks the rest of the
+// Banner's line, shifted by where it stands from the Banner; its own line is set aside.
+function follow (u, lead) {
+  u.leader = lead.uid
+  u.offset = [tileX(u.tile) - tileX(lead.tile), tileY(u.tile) - tileY(lead.tile)]
+  u.leg = lead.leg
+  u.line = null
 }
 
 // A lunge (DESIGN §2.3): one of yours whose ring holds a foe, and none it can strike, steps toward its ring's

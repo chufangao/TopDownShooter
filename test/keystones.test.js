@@ -8,7 +8,7 @@ import { policy, planFor, LEVELS, withPoint } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
-import { KEYSTONE_LIST, KEYSTONES, RELIC_LIST, RELICS, TRIGGERS, STATUSES } from '../src/content.js'
+import { KEYSTONE_LIST, KEYSTONES, RELIC_LIST, TRIGGERS, STATUSES } from '../src/content.js'
 // The keystones' numbers, as content sets them: Legion's HP share, Undying's rise, Blood Tithe's tithe.
 const LEGION_HP = KEYSTONES.legion.mods[0].v
 const RISE = KEYSTONES.undying.rise
@@ -598,14 +598,16 @@ test('the autoplayer and keystones: basic takes the first free offer; the expert
   bench.state.keystones.push('legion')
   assert.equal(placed(bench), fieldCap(bench))
   assert.equal(fieldCap(bench), 5)
-  // Weighing a Monarch point under Court of Bone, it counts on no heal from it.
+  // Weighing a point of the Monarch's HP under Court of Bone, it counts on no heal from it; a point of another
+  // stat leaves its HP as it is.
   const s = createRun({ seed: 'kspoint' }).state
   monarchOf(s).hp = 40
-  const healed = withPoint(s, 'will').party.find((u) => u.uid === 0)
+  const healed = withPoint(s, 'hp').party.find((u) => u.uid === 0)
   assert.ok(healed.hp > 40 && healed.maxHp > monarchOf(s).maxHp)
   s.keystones = ['court_of_bone']
-  const court = withPoint(s, 'will').party.find((u) => u.uid === 0)
+  const court = withPoint(s, 'hp').party.find((u) => u.uid === 0)
   assert.deepEqual([court.hp, court.maxHp], [40, healed.maxHp])
+  assert.deepEqual(withPoint(s, 'will'), { monarch: { ...s.monarch, will: 1 } })
 }))
 
 
@@ -614,7 +616,7 @@ test('the autoplayer and keystones: basic takes the first free offer; the expert
 test('Court of Bone turns only heals away from the Monarch: a buff still goes to it', () => {
   // A Gearwright page (Purge become Overclock: Hasten, on the most wounded ally), holding its tile; the Monarch is
   // the most wounded.
-  const b = scene([on('monarch', 0, 'party', 3, 1), { ...on('clockwork_page', 1, 'party', 3, 2, 9), path: 'gearwright', tier: 3 }, on('tomb_knight', 2, 'party', 0, 0),
+  const b = scene([on('monarch', 0, 'party', 3, 1), { ...on('clockwork_page', 1, 'party', 3, 2, 9), tracks: [0, 3] }, on('tomb_knight', 2, 'party', 0, 0),
     on('iron_golem', 50, 'foe', 6, 10)], { keystones: ['court_of_bone'] })
   b.monarch.hp = 30
   unit(b, 1).gauge = unit(b, 1).costliest
@@ -641,8 +643,8 @@ test('every keystone, alone and together, plays deterministically and keeps the 
     const node = visit(run, 'elite')
     node.foes = encounter(s.seed, 2 + (i % 3), node)
     const caps = fielded(souls(s.party))
-    // The chanter raises Skeletons (Marrowcaller II), a Knight one more.
-    Object.assign(caps.find((u) => u.id === 'bone_chanter'), { path: 'marrowcaller', tier: 2, grade: 1 })
+    // The chanter raises Skeletons (Marrowcaller II).
+    Object.assign(caps.find((u) => u.id === 'bone_chanter'), { tracks: [0, 2] })
     apply(run, legalActions(run).find((a) => a.type === 'line' && a.uid === caps.at(-1).uid && a.when?.at === 'time'))
     for (const u of caps) Object.assign(u, { lvl: 9, maxHp: baseStats(u.id, 9).hp, hp: Math.max(1, Math.round(baseStats(u.id, 9).hp * (i % 2 ? 0.25 : 0.6))) })
     for (const keystones of combos) {
@@ -687,7 +689,7 @@ test('Undying: a rise is still a fall, the Fallen signal a line waits on', () =>
   assert.ok(step.t === rise.t || step.t === rise.t + 1, `rose at ${rise.t}, stepped at ${step.t}`)
 })
 
-test('a rite lays a Knight\'s tier IV beside the keystones; taking one kind leaves the other, and Legion\'s souls stop at the board', () => {
+test('a rite lays a kind\'s tier IV (a Banner) beside the keystones; taking one kind leaves the other, and Legion\'s souls stop at the board', () => {
   const run = createRun({ seed: 'm7' })
   const s = run.state
   s.keystones = ['legion']
@@ -697,13 +699,14 @@ test('a rite lays a Knight\'s tier IV beside the keystones; taking one kind leav
   s.monarch.command = 0
   s.floor = 2
   const k = souls(s.party)[0]
-  Object.assign(k, { grade: 1, path: 'bulwark', tier: 3 })
   assert.equal(k.id, 'tomb_knight')
+  s.kinds.tomb_knight.tracks = [3, 0]
+  k.tracks = [3, 0]
   visit(run, 'rite')
-  assert.ok(s.offers.some((o) => o.type === 'tier' && o.uid === k.uid && o.path === 'bulwark'), JSON.stringify(s.offers))
+  assert.ok(s.offers.some((o) => o.type === 'tier' && o.kind === 'tomb_knight' && o.track === 0), JSON.stringify(s.offers))
   assert.equal(s.offers.filter((o) => o.type === 'keystone').length, TUNING.keystone.offer)
-  apply(run, { type: 'reap', index: s.offers.findIndex((o) => o.type === 'tier' && o.uid === k.uid) })
-  assert.equal(k.tier, 4)
+  apply(run, { type: 'reap', index: s.offers.findIndex((o) => o.type === 'tier' && o.kind === 'tomb_knight') })
+  assert.deepEqual([s.kinds.tomb_knight.tracks, k.tracks], [[4, 0], [4, 0]])
   assert.deepEqual(s.offers.map((o) => o.type), ['keystone', 'keystone'])
   apply(run, { type: 'reap', index: 0 })
   assert.equal(s.keystones.length, 2)

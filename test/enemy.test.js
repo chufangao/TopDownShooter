@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createBattle, stepBattle, runBattle, escalation } from '../src/sim/battle.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
-  essenceByWave, souls, monarchPoints, MONARCH_STATS, MONARCH_UID, currentNode
+  essenceByWave, monarchPoints, MONARCH_STATS, MONARCH_UID, currentNode
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS, rehearsalBudget } from '../src/sim/autoplay.js'
@@ -426,7 +426,7 @@ test('the deep floors play: every legal action applying on the way, every deep f
         assert.doesNotThrow(() => apply({ ...run, state: structuredClone(s) }, a), JSON.stringify(a))
       }
     }
-    const action = ['map', 'prep'].includes(s.phase) && points < 6 * s.floor ? { type: 'monarch', stat: MONARCH_STATS[points % 3] } : policy(run, rng, STEADY)
+    const action = ['map', 'prep'].includes(s.phase) && points < 6 * s.floor ? { type: 'monarch', stat: MONARCH_STATS[points % MONARCH_STATS.length] } : policy(run, rng, STEADY)
     const floor = s.floor
     apply(run, action)
     if (action.type === 'fight') fought.push({ floor, type: currentNode(run).type, b: run.battle })

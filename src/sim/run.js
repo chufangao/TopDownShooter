@@ -4,28 +4,31 @@
 //
 // Battles take no input. The player's part is the retinue: which souls it recruits, keeps and lets go,
 // what it spends its essence on, which souls stand in the camp, where, and the lines they walk. Slain foes
-// pay essence; it buys levels, path tiers, ranks, recruits and the Monarch's stats. Each floor draws its
-// camp, a 7×7 walled layout, on arrival.
+// pay essence; it buys levels and track tiers for a kind, recruits, and the Monarch's stats. Each floor draws
+// its camp, a 7×7 walled layout, on arrival.
 //
 // The Monarch is you: a party unit with uid MONARCH_UID that stands on a seat of the camp (its rear SEAT_ROWS
-// rows) but can never be put in the ossuary, released, levelled or upgraded, and counts toward no cap. Its
-// level is the points bought for Dominion (its domain's reach), Command (the field cap: how many souls fight)
-// and Will (Arise's raises, their tier, and how soon it casts), and its HP grows with it. It never steps: the
-// roads run to it (battle.js field). If it falls, the battle is lost and so is the run.
+// rows) but can never be put in the ossuary, released, levelled or upgraded, and counts toward no cap. It has
+// four stats, bought a point at a time (MONARCH_STATS): HP (its level: its max HP grows with it), Dominion (its
+// domain's reach), Command (the field cap: how many souls fight) and Will (Arise's raises, their tier, and how
+// soon it casts). It never steps: the roads run to it (battle.js field). If it falls, the battle is lost and so
+// is the run.
 //
 // The ossuary: your collection of souls. Every soul recruited and not on the field waits there (slot OSSUARY,
 // −1); you field the ones you want, up to the field cap (fieldCap: TUNING.party.field + Command, relics and
 // keystones, never more than TUNING.army.board), and the ossuary and the field together hold at most rosterCap.
 // After a win you may recruit one of the slain, a full soul at the level it fought at, for essence.
 //
-// The army: the souls fielded, and the summons their path tiers raise (a tier's `summon`, content.js PATHS):
+// The army: the souls fielded, and the summons their track tiers raise (a tier's `summon`, content.js TRACKS):
 // they appear beside their summoner each battle, hold where they appear, and are gone when it ends
-// (battle.js summon). Summons count toward no cap and never reach the run: no essence, no recruit, no rank.
+// (battle.js summon). Summons count toward no cap and never reach the run: no essence, no recruit.
 //
-// Ranks: a soul with the level is promoted for essence, Soldier → Knight → Marshal (u.grade 0–2,
-// TUNING.ranks: level[grade], cost[grade]). A Knight may take tier IV on its path or tier I of a second path;
-// a Marshal both, and the second path's tiers II–III. A Knight's first summon tier raises 1 more, a Marshal's 2
-// (TUNING.ranks.summons).
+// Kinds (DESIGN §2.8): upgrades belong to the kind, not the soul. s.kinds[id] = { lvl, tracks: [tier, tier] }
+// is every soul of the kind's level and the tiers it holds on the kind's two tracks (content.js TRACKS, with
+// the crosspath rule: unit.js canTrack); each soul of the kind carries a copy (u.lvl, u.tracks). A kind's
+// state stays once made, whether or not a soul of it is left. A soul recruited joins its kind at the kind's
+// level, or raises the kind to its own, whichever is higher. A front-line kind's first track ends in a Banner
+// (content.js BANNER): in battle the pieces placed beside it walk its line (battle.js follow).
 //
 // Lines (DESIGN §2.4): a fielded soul may have a line, its march for the battle (s.lines[uid]: { tiles, when }):
 // board tiles from its cell's, each a legal step from the one before, and the signal it waits for (content.js
@@ -52,10 +55,9 @@
 //                                                   the ossuary, nor off the seats, for the Monarch); a soul
 //                                                   from the ossuary only while the field has room, or onto
 //                                                   another soul's cell (a swap); whoever moves loses its line
-//   map, prep        { type: 'level', uid }         buy a soul its next level
-//   map, prep        { type: 'upgrade', uid, path } buy a soul its next tier on `path` (the first commits it;
-//                                                   a Knight's or Marshal's on another path, its second path)
-//   map, prep        { type: 'monarch', stat }      buy the Monarch a point of 'dominion', 'command' or 'will'
+//   map, prep        { type: 'level', kind }        buy a kind you hold its next level (every soul of it)
+//   map, prep        { type: 'upgrade', kind, track }  buy a kind you hold its next tier on track 0 or 1
+//   map, prep        { type: 'monarch', stat }      buy the Monarch a point of 'hp', 'dominion', 'command' or 'will'
 //   map, prep, reap  { type: 'release', uid }       let a soul go (never the last one standing)
 //   prep             { type: 'fight' }              the battle plays out; the run moves on by itself
 //   reap             { type: 'reap', index }        take offer `index` (recruit one soul for its price, a
@@ -63,8 +65,6 @@
 //   map, prep        { type: 'line', uid, tiles, when }  a fielded soul's line (cleanLine): `tiles` its march,
 //                                                   `when` the signal it waits for ({ at: 'once' } if left out);
 //                                                   no tiles (null or []) clears it: the soul holds
-//   map, prep        { type: 'promote', uid }       a soul at its rank's level rises a rank for its essence:
-//                                                   Soldier → Knight → Marshal (promoteLevel, promoteCost)
 //   over             { type: 'descend' }            the Sovereign slain (result 'victory'): on to the endless
 //                                                   floors, each deeper than the last; nothing after a fall
 //
@@ -77,15 +77,15 @@ import { TUNING } from '../tuning.js'
 import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, CAMP_LIST, KEYSTONE_LIST, keystoneDef, THREATS, SIGNALS } from '../content.js'
 import { createRng } from './rng.js'
 import {
-  makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campGrid, campOpen, wallTiles, pathsOf, pathDef, nearestOpen,
-  deployTile, colOf, TILES, tileX, tileY, tileAt, onBoard, steps, pathsClash, FORMATION, SLOTS, seatNear, isSeat
+  makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campGrid, campOpen, wallTiles, tracksOf, canTrack, nextTracks,
+  nearestOpen, deployTile, colOf, TILES, tileX, tileY, tileAt, onBoard, steps, FORMATION, SLOTS, seatNear, isSeat
 } from './unit.js'
 import { createBattle, playOut } from './battle.js'
 import { generateFloor, nodeOf, RANKS } from './map.js'
 
 export const START_PARTY = ['tomb_knight', 'bone_chanter', 'frost_sprite']
 export const MONARCH_UID = 0
-export const MONARCH_STATS = ['dominion', 'command', 'will']
+export const MONARCH_STATS = ['hp', 'dominion', 'command', 'will']
 // The slot of a soul in the ossuary: kept, not fighting.
 export const OSSUARY = -1
 const START_LEVEL = 2
@@ -103,8 +103,8 @@ const BOSS = UNIT_LIST.find((u) => u.boss).id
 export function createRun ({ seed, ablate = null }) {
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [],
-    essence: TUNING.essence.start, result: null, death: null, monarch: { dominion: 0, command: 0, will: 0 },
-    lines: {}, keystones: [],
+    essence: TUNING.essence.start, result: null, death: null, monarch: { hp: 0, dominion: 0, command: 0, will: 0 },
+    kinds: Object.fromEntries(START_PARTY.map((id) => [id, { lvl: START_LEVEL, tracks: [0, 0] }])), lines: {}, keystones: [],
     stats: { fights: 0, wins: 0, reaped: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
   }
   state.party = [
@@ -153,10 +153,9 @@ function rosterActions (run) {
   for (const u of s.party) {
     for (let slot = -1; slot < CAMP_SLOTS; slot++) if (canPlace(run, u, slot)) out.push({ type: 'place', uid: u.uid, slot })
   }
-  for (const u of s.party) {
-    if (canLevel(run, u)) out.push({ type: 'level', uid: u.uid })
-    for (const p of pathsOf(u.id)) if (canUpgrade(run, u, p.id)) out.push({ type: 'upgrade', uid: u.uid, path: p.id })
-    if (canPromote(run, u)) out.push({ type: 'promote', uid: u.uid })
+  for (const kind of heldKinds(s)) {
+    if (canLevel(run, kind)) out.push({ type: 'level', kind })
+    for (const track of [0, 1]) if (canUpgrade(run, kind, track)) out.push({ type: 'upgrade', kind, track })
   }
   out.push(...MONARCH_STATS.filter((stat) => canCrown(run, stat)).map((stat) => ({ type: 'monarch', stat })))
   out.push(...lineActions(run))
@@ -221,7 +220,7 @@ export const souls = (party) => party.filter((u) => !isMonarch(u))
 
 // ── the Monarch ──────────────────────────────────────────────────────────────────────────────────
 
-// Its level: the points bought. A point costs more the more it has.
+// The points bought, on all four stats: a point costs more the more it has.
 export const monarchPoints = (s) => MONARCH_STATS.reduce((n, k) => n + s.monarch[k], 0)
 export const monarchCost = (run) => TUNING.monarch.cost + TUNING.monarch.costPerPoint * monarchPoints(run.state)
 const canCrown = (run, stat) => MONARCH_STATS.includes(stat) && run.state.essence >= monarchCost(run)
@@ -229,16 +228,6 @@ const canCrown = (run, stat) => MONARCH_STATS.includes(stat) && run.state.essenc
 // How far its domain reaches (Chebyshev, in tiles, from the Monarch's tile; keystones bend it, never below 0):
 // Arise raises the foes that fall inside it (unit.js domainTiles lists its tiles).
 export const domainOf = (s) => Math.max(0, TUNING.monarch.domain + s.monarch.dominion + keystoneSum(s, 'domain'))
-
-// ── ranks ────────────────────────────────────────────────────────────────────────────────────────
-
-// A soul's next rank takes level TUNING.ranks.level[grade] and TUNING.ranks.cost[grade] essence: the level it
-// needs and the price, or null for a Marshal, the top.
-export const promoteLevel = (u) => TUNING.ranks.level[u?.grade ?? 0] ?? null
-export const promoteCost = (run, u) => TUNING.ranks.cost[u?.grade ?? 0] ?? null
-// Any soul, fielded, in the ossuary or fallen, may be promoted once it has the level and the essence; never the
-// Monarch.
-export const canPromote = (run, u) => !!u && !isMonarch(u) && promoteLevel(u) !== null && u.lvl >= promoteLevel(u) && run.state.essence >= promoteCost(run, u)
 
 // ── lines ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -306,12 +295,17 @@ function releasable (s) {
 // The Monarch alone may fight (and will likely fall).
 const canFight = (s) => s.party.some((u) => onField(u) && u.hp > 0)
 
-// A new soul takes a free field slot if there is one, else waits in the ossuary.
+// A new soul takes a free field slot if there is one, else waits in the ossuary. It joins its kind: at the
+// kind's level, or, at `lvl` above it, raising the kind (every soul of it) to `lvl`; a kind new to the run
+// starts at `lvl` with no tiers.
 export function join (run, id, { lvl = medianLevel(souls(run.state.party)), uid = run.state.nextUid++ } = {}) {
   const s = run.state
   if (unitDef(id).monarch) throw new Error('there is one Monarch')
   if (souls(s.party).length >= rosterCap(run)) throw new Error('the retinue is full')
-  const u = makeUnit(id, { uid, lvl: Math.min(TUNING.level.cap, lvl) })
+  lvl = Math.min(TUNING.level.cap, lvl)
+  if (!s.kinds[id]) s.kinds[id] = { lvl, tracks: [0, 0] }
+  else if (lvl > s.kinds[id].lvl) levelKind(s, id, lvl)
+  const u = makeUnit(id, { uid, lvl: s.kinds[id].lvl, tracks: s.kinds[id].tracks })
   s.party.push(u)
   if (fielded(souls(s.party)).length < fieldCap(run)) autoPlace([...fielded(s.party), u], { grid: campGrid(s.camp) })
   return u
@@ -326,7 +320,6 @@ const HANDLERS = {
   upgrade: { phases: ['map', 'prep'], run: upgrade },
   release: { phases: ['map', 'prep', 'reap'], run: release },
   monarch: { phases: ['map', 'prep'], run: crown },
-  promote: { phases: ['map', 'prep'], run: promote },
   line: { phases: ['map', 'prep'], run: line },
   fight: { phases: ['prep'], run: fight },
   reap: { phases: ['reap'], run: reap },
@@ -375,22 +368,23 @@ function place (run, { uid, slot }) {
   delete s.lines[u.uid]
 }
 
-function level (run, { uid }) {
-  const u = run.state.party.find((x) => x.uid === uid)
-  if (!u || !canLevel(run, u)) throw new Error(`cannot level ${uid}`)
-  pay(run, levelCost(run, u))
-  setLevel(u, u.lvl + 1)
+function level (run, { kind }) {
+  if (!canLevel(run, kind)) throw new Error(`cannot level ${kind}`)
+  pay(run, levelCost(run, kind))
+  levelKind(run.state, kind, run.state.kinds[kind].lvl + 1)
 }
 
-// A point raises the Monarch's max HP and heals it by the gain, unless nothing may heal it (Court of Bone).
+// A point of HP raises the Monarch's max HP (its level) and heals it by the gain, unless nothing may heal it
+// (Court of Bone).
 function crown (run, { stat }) {
   const s = run.state
   if (!canCrown(run, stat)) throw new Error(`cannot raise the Monarch's ${stat}`)
   pay(run, monarchCost(run))
   s.monarch[stat]++
+  if (stat !== 'hp') return
   const m = monarchOf(s)
   const hp = m.hp
-  setLevel(m, monarchPoints(s))
+  setLevel(m, s.monarch.hp)
   if (holds(s, 'unhealable')) m.hp = hp
 }
 
@@ -408,29 +402,21 @@ function line (run, { uid, tiles, when }) {
   s.lines[uid] = drawn
 }
 
-function upgrade (run, { uid, path }) {
-  const u = run.state.party.find((x) => x.uid === uid)
-  if (!u || !canUpgrade(run, u, path)) throw new Error(`cannot upgrade ${uid} on ${path}`)
-  pay(run, tierCost(run, u, path))
-  advance(u, path)
+function upgrade (run, { kind, track }) {
+  if (!canUpgrade(run, kind, track)) throw new Error(`cannot upgrade ${kind} on track ${track}`)
+  pay(run, tierCost(run, kind, track))
+  advance(run.state, kind, track)
 }
 
-// The essence is paid and the soul rises a rank.
-function promote (run, { uid }) {
-  const u = run.state.party.find((x) => x.uid === uid)
-  if (!canPromote(run, u)) throw new Error(`cannot promote ${uid}`)
-  pay(run, promoteCost(run, u))
-  u.grade = (u.grade ?? 0) + 1
-}
-
-// A released soul's rite offers go with it; a rite left with none ends.
+// Releasing the last soul of a kind withdraws the rite's offers for that kind; a rite left with none ends.
 function release (run, { uid }) {
   const s = run.state
   if (!releasable(s).some((u) => u.uid === uid)) throw new Error(`cannot release ${uid}`)
   s.party = s.party.filter((u) => u.uid !== uid)
   delete s.lines[uid]
   if (s.phase !== 'reap') return
-  s.offers = s.offers.filter((o) => o.uid !== uid)
+  const held = heldKinds(s)
+  s.offers = s.offers.filter((o) => o.type !== 'tier' || held.includes(o.kind))
   if (!s.offers.length) nextRoom(run)
 }
 
@@ -467,7 +453,7 @@ function reap (run, { index }) {
   }
   if (o?.type === 'relic') s.relics.push(o.id)
   else if (o?.type === 'keystone') s.keystones.push(o.id)
-  else if (o?.type === 'tier') advance(s.party.find((u) => u.uid === o.uid), o.path)
+  else if (o?.type === 'tier') advance(s, o.kind, o.track)
   else if (o?.type === 'soul') {
     pay(run, o.cost)
     join(run, o.id, { lvl: o.lvl })
@@ -480,7 +466,7 @@ function reap (run, { index }) {
 function canTake (run, o) {
   const s = run.state
   if (o.type === 'soul') return souls(s.party).length < rosterCap(run) && s.essence >= o.cost
-  if (o.type === 'tier') return s.party.some((u) => u.uid === o.uid && canAdvance(u, o.path))
+  if (o.type === 'tier') return canAdvance(s, o.kind, o.track)
   if (o.type === 'keystone') return !s.keystones.includes(o.id) && s.keystones.length < TUNING.keystone.max
   return true
 }
@@ -796,32 +782,19 @@ export function essenceByWave (battle) {
   return Array.from(out, (v) => v ?? 0)
 }
 
-// Prices, after the relics' discounts.
+// Prices, after the relics' discounts: a kind's next level, its next tier on `track`, a recruit.
 const price = (run, base, discount) => Math.max(1, Math.round(base * (1 - relicSum(run.state, discount))))
-export const levelCost = (run, u) => price(run, TUNING.level.cost * Math.pow(u.lvl, TUNING.level.exponent), 'levelDiscount')
-export const tierCost = (run, u, path = u.path) => price(run, TUNING.essence.tier[nextTier(u, path)], 'tierDiscount')
+export const levelCost = (run, kind) => price(run, TUNING.level.cost * Math.pow(run.state.kinds[kind].lvl, TUNING.level.exponent), 'levelDiscount')
+export const tierCost = (run, kind, track) => price(run, TUNING.essence.tier[run.state.kinds[kind].tracks[track]], 'tierDiscount')
 export const recruitCost = (run, id, lvl) => price(run, TUNING.essence.recruit * unitDef(id).tier * (1 + TUNING.essence.perLevel * (lvl - 1)), 'recruitDiscount')
 
-const canLevel = (run, u) => !isMonarch(u) && u.lvl < TUNING.level.cap && run.state.essence >= levelCost(run, u)
-// The next tier on `path`: tiers I–III of the path a soul commits to with its first; for a Knight one more,
-// tier IV there or tier I of a second path (one that does not clash with the first: pathsClash); for a
-// Marshal both, and the second path's tiers II–III besides.
-export function canAdvance (u, path) {
-  if (isMonarch(u) || !pathDef(u.id, path)) return false
-  const grade = u.grade ?? 0
-  const tier2 = u.tier2 ?? 0
-  if (u.path === null || u.path === path) return u.tier < 3 || (u.tier === 3 && grade >= 1 && (grade === 2 || !tier2))
-  if ((u.path2 ?? null) !== null && u.path2 !== path) return false
-  if (pathsClash(u.id, u.path, path)) return false
-  return tier2 ? grade === 2 && tier2 < 3 : grade === 2 || (grade === 1 && u.tier < 4)
-}
-// Which tier on `path` a soul takes next (0 for its tier I): on its path's, or on its second path's.
-export const nextTier = (u, path) => (u.path === null || u.path === path ? u.tier : u.tier2 ?? 0)
-// The soul with its next tier on `path`, as a copy.
-export const advanced = (u, path) => (u.path === null || u.path === path
-  ? { ...u, path, tier: u.tier + 1 }
-  : { ...u, path2: path, tier2: (u.tier2 ?? 0) + 1 })
-const canUpgrade = (run, u, path) => canAdvance(u, path) && run.state.essence >= tierCost(run, u, path)
+// The kinds the run holds a soul of, in party order (the Monarch is no kind).
+export const heldKinds = (s) => [...new Set(souls(s.party).map((u) => u.id))]
+const canLevel = (run, kind) => heldKinds(run.state).includes(kind) && run.state.kinds[kind].lvl < TUNING.level.cap && run.state.essence >= levelCost(run, kind)
+// Whether a kind the run holds may take its next tier on `track` (unit.js canTrack: up to IV, the other track
+// stopping at II once one passes it).
+export const canAdvance = (s, kind, track) => heldKinds(s).includes(kind) && (track === 0 || track === 1) && tracksOf(kind).length === 2 && canTrack(s.kinds[kind].tracks, track)
+const canUpgrade = (run, kind, track) => canAdvance(run.state, kind, track) && run.state.essence >= tierCost(run, kind, track)
 
 function pay (run, cost) {
   const s = run.state
@@ -830,9 +803,17 @@ function pay (run, cost) {
   s.stats.spent += cost
 }
 
-function advance (u, path) {
-  if (!canAdvance(u, path)) throw new Error(`no tier ${nextTier(u, path) + 1} on ${path} for ${u.id}`)
-  Object.assign(u, advanced(u, path))
+// A kind takes its next tier on `track`: every soul of it holds it.
+function advance (s, kind, track) {
+  if (!canAdvance(s, kind, track)) throw new Error(`no next tier on track ${track} for ${kind}`)
+  s.kinds[kind].tracks = nextTracks(s.kinds[kind].tracks, track)
+  for (const u of s.party) if (u.id === kind) u.tracks = s.kinds[kind].tracks.slice()
+}
+
+// A kind at level `lvl`: every soul of it too.
+function levelKind (s, kind, lvl) {
+  s.kinds[kind].lvl = Math.min(TUNING.level.cap, lvl)
+  for (const u of s.party) if (u.id === kind) setLevel(u, s.kinds[kind].lvl)
 }
 
 // A level-up raises maxHp and heals by the difference; the fallen stay at 0. The Monarch's level has no cap.
@@ -916,16 +897,17 @@ function soulOffers (run, battle) {
   })
 }
 
-// A rite offers free tiers: up to `n` of the next tiers your souls could take, each for a different
-// soul where it can.
+// A rite offers free tiers: up to `n` of the next tiers your kinds could take, each for a different kind
+// where it can.
 function riteOffers (run, n) {
   const s = run.state
   const rng = createRng(s.seed).stream(`rite|${s.floor}|${s.at}`)
-  const options = rng.shuffle(s.party.flatMap((u) => pathsOf(u.id).filter((p) => canAdvance(u, p.id)).map((p) => ({ u, p }))))
-  const picked = [...options.filter((o, i) => options.findIndex((x) => x.u === o.u) === i), ...options].filter((o, i, all) => all.indexOf(o) === i).slice(0, n)
-  return picked.map(({ u, p }) => {
-    const next = nextTier(u, p.id)
-    return { type: 'tier', uid: u.uid, path: p.id, name: `${unitDef(u.id).name}: ${p.name} ${ROMAN[next]}`, desc: pathDef(u.id, p.id).tiers[next].desc }
+  const options = rng.shuffle(heldKinds(s).flatMap((kind) => [0, 1].filter((track) => canAdvance(s, kind, track)).map((track) => ({ kind, track }))))
+  const picked = [...options.filter((o, i) => options.findIndex((x) => x.kind === o.kind) === i), ...options].filter((o, i, all) => all.indexOf(o) === i).slice(0, n)
+  return picked.map(({ kind, track }) => {
+    const next = s.kinds[kind].tracks[track]
+    const t = tracksOf(kind)[track]
+    return { type: 'tier', kind, track, name: `${unitDef(kind).name}: ${t.name} ${ROMAN[next]}`, desc: t.tiers[next].desc }
   })
 }
 

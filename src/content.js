@@ -1,4 +1,4 @@
-// All game content: units, abilities, upgrade paths, statuses, kin and roles, behaviours, signals, synergies,
+// All game content: units, abilities, upgrade tracks, statuses, kin and roles, behaviours, signals, synergies,
 // camps, relics and attack animations, plus id lookups. Data only; balance numbers live in tuning.js.
 
 // ── units ────────────────────────────────────────────────────────────────────────────────────
@@ -256,7 +256,7 @@ export const UNIT_LIST = [
     flavour: 'It does not fight alone: its court walks with it, and the dead of the field rise at its tide. Without it, they are dust.',
     art: 'hollow_sovereign'
   },
-  // Summons (`summon: true`): raised for one battle by a soul's path tier (PATHS, a tier's `summon`), never
+  // Summons (`summon: true`): raised for one battle by a kind's track tier (TRACKS, a tier's `summon`), never
   // spawned, offered or recruited, and gone when the battle ends. They fight at their summoner's level
   // (TUNING.summon), count toward synergies like anyone, and borrow the art of a kind of their kin.
   {
@@ -558,7 +558,7 @@ const ABILITY_LIST = [
       { op: 'raise', count: 2 }
     ]
   },
-  // ── abilities a path grants ──
+  // ── abilities a track grants ──
   {
     id: 'requiem',
     name: 'Requiem',
@@ -580,17 +580,6 @@ const ABILITY_LIST = [
     tint: '#7a5c9e',
     anim: 'cast_beam',
     effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 }]
-  },
-  {
-    id: 'bone_mend',
-    name: 'Bone Mend',
-    castCost: 130,
-    shape: 'ally',
-    tint: '#7a5c9e',
-    anim: 'cast_beam',
-    when: (s) => s.allies.some((u) => hpPct(u) < 0.5),
-    cond: 'while an ally is below 50% HP',
-    effects: [{ op: 'heal', power: 30 }]
   },
   {
     id: 'rending_strike',
@@ -690,20 +679,6 @@ const ABILITY_LIST = [
     effects: [{ op: 'damage', power: 34 }, { op: 'heal', power: 20, self: true }]
   },
   {
-    id: 'plague_bite',
-    name: 'Plague Bite',
-    castCost: 120,
-    shape: 'single',
-    melee: true,
-    tint: '#d8d4cc',
-    anim: 'melee_lunge',
-    effects: [
-      { op: 'damage', power: 30 },
-      { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 },
-      { op: 'apply_status', status: 'withered', dur: 120, chance: 0.3 }
-    ]
-  },
-  {
     id: 'wildfire',
     name: 'Wildfire',
     castCost: 160,
@@ -792,7 +767,7 @@ const ABILITY_LIST = [
     anim: 'ranged_bolt',
     effects: [{ op: 'damage', power: 26 }, { op: 'gauge', amount: -25 }]
   },
-  // ── abilities a tier IV grants (a Knight's or a Marshal's) ──
+  // ── abilities a tier IV grants ──
   {
     id: 'dirge_unending',
     name: 'Dirge Unending',
@@ -817,30 +792,6 @@ const ABILITY_LIST = [
     when: (s) => near(s, s.enemies, 4).length >= 3,
     cond: 'while 3+ foes stand within 4 tiles',
     effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.3 }]
-  },
-  {
-    id: 'knit_bones',
-    name: 'Knit Bones',
-    castCost: 170,
-    shape: 'all_allies',
-    range: 3,
-    tint: '#7a5c9e',
-    anim: 'cast_beam',
-    when: (s) => near(s, s.allies, 3).some((u) => hpPct(u) < 0.5),
-    cond: 'while an ally within 3 tiles is below 50% HP',
-    effects: [{ op: 'heal', power: 22 }]
-  },
-  {
-    id: 'shield_wall',
-    name: 'Shield Wall',
-    castCost: 180,
-    shape: 'all_allies',
-    range: 2,
-    tint: '#ffe9a8',
-    anim: 'cast_beam',
-    when: (s) => near(s, s.allies, 2).some((u) => hpPct(u) < 0.75) && !s.self.statuses.some((x) => x.id === 'barkskin'),
-    cond: 'while an ally within 2 tiles is below 75% HP and it has no Barkskin itself',
-    effects: [{ op: 'apply_status', status: 'barkskin', dur: 160 }]
   },
   {
     id: 'reaving_cleave',
@@ -955,32 +906,6 @@ const ABILITY_LIST = [
     effects: [{ op: 'damage', power: 30 }, { op: 'heal', power: 24, self: true }]
   },
   {
-    id: 'pestilence',
-    name: 'Pestilence',
-    castCost: 140,
-    shape: 'blast',
-    melee: true,
-    tint: '#d8d4cc',
-    anim: 'melee_lunge',
-    effects: [
-      { op: 'damage', power: 24 },
-      { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 },
-      { op: 'apply_status', status: 'withered', dur: 120, chance: 0.4 }
-    ]
-  },
-  {
-    id: 'baying_howl',
-    name: 'Baying Howl',
-    castCost: 160,
-    shape: 'all_allies',
-    range: 2,
-    tint: '#d8d4cc',
-    anim: 'cast_beam',
-    when: (s) => s.t < 200,
-    cond: 'in the first 10 s of a battle',
-    effects: [{ op: 'apply_status', status: 'hasten', dur: 120 }]
-  },
-  {
     id: 'conflagration',
     name: 'Conflagration',
     castCost: 220,
@@ -1049,19 +974,6 @@ const ABILITY_LIST = [
     effects: [{ op: 'damage', power: 34 }]
   },
   {
-    // Only once a foe is next to it: a melee soul strikes first, never banking for this at 2 tiles.
-    id: 'magnetize',
-    name: 'Magnetize',
-    castCost: 190,
-    shape: 'all',
-    range: 2,
-    tint: '#d8d4cc',
-    anim: 'cast_beam',
-    when: (s) => near(s, s.enemies, 1).length >= 1 && near(s, s.enemies, 2).length >= 2,
-    cond: 'while a foe is next to it and 2+ stand within 2 tiles',
-    effects: [{ op: 'damage', power: 10 }, { op: 'gauge', amount: -35 }]
-  },
-  {
     id: 'worldbreaker',
     name: 'Worldbreaker',
     castCost: 190,
@@ -1119,21 +1031,22 @@ const ABILITY_LIST = [
   }
 ]
 
-// ── upgrade paths ────────────────────────────────────────────────────────────────────────────
+// ── upgrade tracks ───────────────────────────────────────────────────────────────────────────
 
-// Each kind of soul has up to three paths. A soul commits to one with its first tier, then buys tiers
-// II and III along it with essence (TUNING.essence.tier). A tier can carry `mods` (always on, like a
-// relic's, for that soul alone), `ability` ({ id, replace } swaps one of its abilities; { id, at }
-// adds one at that place in its priority list, first by default), `aura` (replaces its aura) and `summon`
-// ({ id, count }: each battle `count` of that summon kind appear beside it, its first summon tier raising
-// TUNING.ranks.summons[grade] more for a Knight or a Marshal; each holds the tile it appears on and is gone
-// when the battle ends: unit.js summonsOf, battle.js summon). Summons are how the army grows past the field.
-// Tier IV is a Knight's or a Marshal's (GRADES): a rule, never a percentage (a new or remade ability).
-// A Knight may instead start a second path, and a Marshal take its tiers I–III: its tiers come on top of
-// the first path's, so two paths that remake the same ability, or both grant an aura, never pair (see
-// pathsClash in unit.js).
+// Each kind of soul has two tracks of four tiers (DESIGN §2.8), bought with essence for the kind
+// (TUNING.essence.tier): every soul of the kind holds them (run.js s.kinds). The crosspath rule, as Bloons TD
+// 6's: one track may pass tier II, and the other then stops at II (unit.js canTrack). A tier can carry `mods`
+// (always on, like a relic's, for the souls of the kind alone), `ability` ({ id, replace } swaps one of its
+// abilities; { id, at } adds one at that place in its priority list, first by default), `aura` (replaces its
+// aura), `summon` ({ id, count }: each battle `count` of that summon kind appear beside it: unit.js
+// summonsOf, battle.js summon), `ring` (tiles more), `stride` (× how fast it walks) and `banner`. Tier IV is a
+// rule, never a percentage (a new or remade ability, or Banner); no tier I–II of one track remakes an ability
+// or grants an aura, so the other track's tiers III–IV never undo it. Banner (tier IV of a front-line kind's
+// first track): the piece leads a wing, the pieces placed beside it in prep its followers (battle.js).
 const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
-export const PATHS = {
+// Banner, a tier IV.
+const BANNER = { desc: 'Banner: it leads. The pieces placed beside it follow its line, keeping their places, and a shadow that rises on its line falls in with them.', banner: true }
+export const TRACKS = {
   bone_chanter: [
     { id: 'dirgemaster', name: 'Dirgemaster', desc: 'Quickens the whole line.', tiers: [
       { desc: '+15% gauge rate.', mods: [m('gauge.rate', 'mul', 1.15)] },
@@ -1144,19 +1057,14 @@ export const PATHS = {
       { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
       { desc: 'Raises 2 Skeletons beside it each battle.', summon: { id: 'skeleton', count: 2 } },
       { desc: 'Marrow Bolt becomes Marrow Spear: hits a foe and everyone in its lane.', ability: { id: 'marrow_spear', replace: 'marrow_bolt' } },
-      { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles, while 3+ foes stand there.', ability: { id: 'bone_storm' } }] },
-    { id: 'grave_mender', name: 'Grave Mender', desc: 'Knits bone back together.', tiers: [
-      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: '+30% healing given.', mods: [m('heal.given', 'mul', 1.3)] },
-      { desc: 'Learns Bone Mend: heals the most wounded ally while one is below 50% HP.', ability: { id: 'bone_mend' } },
-      { desc: 'Bone Mend becomes Knit Bones: heals every ally within 3 tiles, not just one.', ability: { id: 'knit_bones', replace: 'bone_mend' } }] }
+      { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles, while 3+ foes stand there.', ability: { id: 'bone_storm' } }] }
   ],
   tomb_knight: [
     { id: 'bulwark', name: 'Bulwark', desc: 'A wall the line hides behind.', tiers: [
       { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
       { desc: 'Its aura reaches allies within 2 tiles.', aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } },
-      { desc: 'Learns Shield Wall: Barkskin for itself and every ally within 2 tiles, while one is below 75% HP.', ability: { id: 'shield_wall' } }] },
+      BANNER] },
     { id: 'reaver', name: 'Reaver', desc: 'Trades the shield for the edge.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+15% damage dealt while a foe is next to it.', mods: [m('damage.dealt', 'mul', 1.15, 'engaged')] },
@@ -1212,22 +1120,16 @@ export const PATHS = {
       { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
   ],
   grave_ghoul: [
-    { id: 'glutton', name: 'Glutton', desc: 'Eats to stay standing.', tiers: [
-      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Takes 8% less damage.', mods: [m('damage.taken', 'mul', 0.92)] },
-      { desc: 'Gnaw becomes Devour: 34 power, and it heals itself.', ability: { id: 'devour', replace: 'gnaw' } },
-      { desc: 'Devour becomes Gorge: it bites a foe and every foe next to it, and heals itself once.', ability: { id: 'gorge', replace: 'devour' } }] },
-    { id: 'plague_bearer', name: 'Plague-Bearer', desc: 'Every bite festers.', tiers: [
-      { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
-      { desc: '+12% gauge rate.', mods: [m('gauge.rate', 'mul', 1.12)] },
-      { desc: 'Gnaw becomes Plague Bite: Brittle and Withered.', ability: { id: 'plague_bite', replace: 'gnaw' } },
-      { desc: 'Plague Bite becomes Pestilence: Brittle and Withered for a foe and every foe next to it.', ability: { id: 'pestilence', replace: 'plague_bite' } }] },
-    // Glutton and Plague-Bearer both remake Gnaw, so neither can be the other's second path: this one is.
     { id: 'pack_leader', name: 'Pack Leader', desc: 'The pack runs at its heel.', tiers: [
       { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
       { desc: 'Gains an aura: allies next to it deal 10% more damage.', aura: { range: 1, desc: 'Allies next to it deal 10% more damage.', mods: [m('damage.dealt', 'mul', 1.1)] } },
-      { desc: 'Learns Baying Howl: Hasten for every ally within 2 tiles, in the first 10 s.', ability: { id: 'baying_howl' } }] }
+      BANNER] },
+    { id: 'glutton', name: 'Glutton', desc: 'Eats to stay standing.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Takes 8% less damage.', mods: [m('damage.taken', 'mul', 0.92)] },
+      { desc: 'Gnaw becomes Devour: 34 power, and it heals itself.', ability: { id: 'devour', replace: 'gnaw' } },
+      { desc: 'Devour becomes Gorge: it bites a foe and every foe next to it, and heals itself once.', ability: { id: 'gorge', replace: 'devour' } }] }
   ],
   will_o_wisp: [
     { id: 'lantern', name: 'Lantern', desc: 'Its light spreads to crowds.', tiers: [
@@ -1270,7 +1172,7 @@ export const PATHS = {
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
       { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
       { desc: 'Gains an aura: allies next to it take 10% less damage.', aura: { range: 1, desc: 'Allies next to it take 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] } },
-      { desc: 'Learns Magnetize: once a foe is next to it, it drags at every foe within 2 tiles, draining 35 gauge, while 2+ stand there.', ability: { id: 'magnetize' } }] },
+      BANNER] },
     { id: 'siegebreaker', name: 'Siegebreaker', desc: 'Breaks whole formations.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
@@ -1496,16 +1398,6 @@ export const SYNERGIES = [
   { id: 'trickster_4', name: 'Trickster 4', desc: '+4 CRT, +4 ACC.', needs: { role: { trickster: 4 } }, mods: [{ path: 'crt', op: 'add', v: 4 }, { path: 'acc', op: 'add', v: 4 }] },
   { id: 'trickster_6', name: 'Trickster 6', desc: '+6 CRT, +8% damage dealt.', needs: { role: { trickster: 6 } }, mods: [{ path: 'crt', op: 'add', v: 6 }, { path: 'damage.dealt', op: 'mul', v: 1.08 }] },
   { id: 'trickster_8', name: 'Trickster 8', desc: 'Deathblow: a critical hit of yours slays any foe but a boss or a Monarch outright (a Last Stand still holds, once).', needs: { role: { trickster: 8 } }, rule: 'deathblow', mods: [] }
-]
-
-// ── ranks ────────────────────────────────────────────────────────────────────────────────────
-
-// A soul's rank (u.grade: 0, 1, 2), bought with essence once the soul has the level (TUNING.ranks). Each rank
-// removes a limit instead of adding a percentage.
-export const GRADES = [
-  { id: 'soldier', name: 'Soldier', desc: 'Tiers I–III on one path.' },
-  { id: 'knight', name: 'Knight', desc: 'Tier IV on its path, or tier I of a second path. Its summon tier raises 1 more.' },
-  { id: 'marshal', name: 'Marshal', desc: 'Tier IV and tiers I–III of a second path, both. Its summon tier raises 2 more.' }
 ]
 
 // ── signals ──────────────────────────────────────────────────────────────────────────────────

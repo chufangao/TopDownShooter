@@ -1,11 +1,11 @@
 // A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring and stride, where
 // it deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
-import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, PATHS } from '../content.js'
+import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, TRACKS } from '../content.js'
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 
-// The Monarch's level is the points spent on it, and only its HP grows with them (TUNING.monarch).
+// The Monarch's level is the points bought for its HP (TUNING.monarch); nothing else of it grows.
 export function baseStats (id, lvl = 1) {
   const def = unitDef(id)
   const out = {}
@@ -15,36 +15,26 @@ export function baseStats (id, lvl = 1) {
   return out
 }
 
-// A unit as the run keeps it between battles; createBattle adds the per-battle fields.
-// slot −1 is the ossuary: the soul is kept but does not fight. `path` is the upgrade path it has
-// committed to (null before its first tier) and `tier` how far along it (0–4: IV is a Knight's);
-// `grade` its rank (0 Soldier, 1 Knight, 2 Marshal: GRADES), and `path2`/`tier2` the second path a
-// Knight or Marshal may take (null and 0 until it does).
-export function makeUnit (id, { uid, lvl = 1, slot = -1 } = {}) {
+// A unit as the run keeps it between battles; createBattle adds the per-battle fields. slot −1 is the
+// ossuary: the soul is kept but does not fight. `lvl` and `tracks` (the tier held on each of its kind's two
+// tracks, 0–4) are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own.
+export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {}) {
   const hp = baseStats(id, lvl).hp
-  return { uid, id, lvl, path: null, tier: 0, hp, maxHp: hp, slot, grade: 0, path2: null, tier2: 0 }
+  return { uid, id, lvl, tracks: tracks.slice(), hp, maxHp: hp, slot }
 }
 
-// ── upgrade paths ────────────────────────────────────────────────────────────────────────────────
+// ── upgrade tracks ───────────────────────────────────────────────────────────────────────────────
 
-// What a soul's path tiers make of it. Foes and scouted units have no path.
-export const pathsOf = (id) => PATHS[id] ?? []
-export const pathDef = (id, path) => pathsOf(id).find((p) => p.id === path) ?? null
-// The tiers it holds: its path's, then its second path's on top of them.
-export const tiersOf = (u) => [
-  ...(u.path ? pathDef(u.id, u.path).tiers.slice(0, u.tier) : []),
-  ...(u.path2 ? pathDef(u.id, u.path2).tiers.slice(0, u.tier2) : [])
-]
-export const pathMods = (u) => tiersOf(u).flatMap((t) => t.mods ?? [])
-
-// Whether path `b` (tiers I–III, as a second path) cannot go on top of path `a` (all its tiers): both
-// remake one ability, or both grant an aura (a soul has one). Either would take back what a tier gave.
-export function pathsClash (id, a, b) {
-  const pa = pathDef(id, a).tiers
-  const pb = pathDef(id, b).tiers.slice(0, 3)
-  const swaps = new Set(pa.flatMap((t) => (t.ability?.replace ? [t.ability.replace] : [])))
-  return pb.some((t) => swaps.has(t.ability?.replace)) || (pa.some((t) => t.aura) && pb.some((t) => t.aura))
-}
+// A kind's two tracks (content.js TRACKS); none for the Monarch or a summon.
+export const tracksOf = (id) => TRACKS[id] ?? []
+// The tiers a unit holds: its first track's, then its second's.
+export const tiersOf = (u) => tracksOf(u.id).flatMap((t, i) => t.tiers.slice(0, u.tracks?.[i] ?? 0))
+export const trackMods = (u) => tiersOf(u).flatMap((t) => t.mods ?? [])
+// The crosspath rule (DESIGN §2.8): whether a kind holding `tracks` may take the next tier on track `t`: up to
+// IV, but while one track stands past II the other stops at II.
+export const canTrack = (tracks, t) => tracks[t] < 4 && (tracks[t] < 2 || tracks[1 - t] <= 2)
+// The kind's tracks with the next tier taken on `t`.
+export const nextTracks = (tracks, t) => tracks.map((tier, i) => (i === t ? tier + 1 : tier))
 
 // Its abilities in priority order, with the swaps and additions its tiers grant.
 export function abilitiesOf (u) {
@@ -59,19 +49,19 @@ export function abilitiesOf (u) {
 
 export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
 
-// Its ring (DESIGN §2.3): the radius in tiles it fights within, its kind's. Its stride: how many times faster
-// than TUNING.board.stepTicks it walks (1 by default). How it walks the roads as a foe: 'walk' or 'flank'.
-export const ringOf = (u) => unitDef(u.id).ring
-export const strideOf = (u) => unitDef(u.id).stride ?? 1
+// Its ring (DESIGN §2.3): the radius in tiles it fights within, its kind's and the tiles its tiers add. Its
+// stride: how many times faster than TUNING.board.stepTicks it walks (1 by default, × its tiers'). How it walks
+// the roads as a foe: 'walk' or 'flank'. Whether it leads a wing (Banner, a tier IV).
+export const ringOf = (u) => tiersOf(u).reduce((r, t) => r + (t.ring ?? 0), unitDef(u.id).ring)
+export const strideOf = (u) => tiersOf(u).reduce((x, t) => x * (t.stride ?? 1), unitDef(u.id).stride ?? 1)
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
+export const bannerOf = (u) => tiersOf(u).some((t) => t.banner)
 
-// What a soul raises each battle: [{ id, count, lvl }], one entry a summon tier it holds (its path's, then its
-// second path's), its first raising TUNING.ranks.summons[grade] more for a Knight or a Marshal; each at
+// What a soul raises each battle: [{ id, count, lvl }], one entry a summon tier it holds; each at
 // TUNING.summon.level × its level (rounded, at least 1). Empty for a soul with no summon tier.
 export function summonsOf (u) {
-  const list = tiersOf(u).filter((t) => t.summon)
   const lvl = Math.max(1, Math.round(u.lvl * TUNING.summon.level))
-  return list.map((t, i) => ({ id: t.summon.id, count: t.summon.count + (i ? 0 : TUNING.ranks.summons[u.grade ?? 0] ?? 0), lvl }))
+  return tiersOf(u).filter((t) => t.summon).map((t) => ({ id: t.summon.id, count: t.summon.count, lvl }))
 }
 
 // The least and the most gauge any of its abilities costs: below the cheapest a unit can only bank (or
@@ -95,7 +85,7 @@ function setPath (o, path, value) {
 
 // Modifiers { path, op: add|mul|set, v, pos?, who? } apply add → mul → set; a `pos` mod ('engaged': a foe next
 // to it, or 'free') only applies to a battle unit in that position (unit.pos), never outside a battle, and a
-// `who` mod ({ role?, kin? }, one or a list; `boss`, true or false) only to units it matches. The unit's own path tiers count
+// `who` mod ({ role?, kin? }, one or a list; `boss`, true or false) only to units it matches. The unit's own track tiers count
 // too. Several sets on one path: the largest wins, so order never matters.
 export function statsOf (unit, mods = []) {
   const b = baseStats(unit.id, unit.lvl)
@@ -106,7 +96,7 @@ export function statsOf (unit, mods = []) {
     heal: { given: 1 }
   }
   const acc = new Map()
-  for (const m of [...pathMods(unit), ...mods]) {
+  for (const m of [...trackMods(unit), ...mods]) {
     if (m.pos !== undefined && m.pos !== unit.pos) continue
     if (m.who && !matches(unit, m.who)) continue
     let a = acc.get(m.path)

@@ -22,8 +22,9 @@ export const TUNING = {
   // (it was 1 in necessity round 2): Command alone widens the field. roster: the souls a retinue holds, on the
   // field and in the ossuary together. The Monarch counts toward neither, and summons toward nothing.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
-  // The Monarch: HP hp + hpPerPoint × points spent (its level); a point costs cost + costPerPoint × points
-  // spent. Its domain reaches `domain` + Dominion tiles (Chebyshev) from its tile: Arise raises the foes that
+  // The Monarch: four stats bought a point at a time, HP, Dominion, Command and Will (DESIGN §2.8). HP hp +
+  // hpPerPoint × HP points (its level); a point of any costs cost + costPerPoint × points spent on all four.
+  // Its domain reaches `domain` + Dominion tiles (Chebyshev) from its tile: Arise raises the foes that
   // fall inside it. A shadow rises with `raiseHp` of its max HP. Nothing else
   // touches its HP (no synergy, relic or keystone), so hp and hpPerPoint carry all of it: 140 and +24 a point
   // (the final balance pass; it was 90 and +12 while synergies still raised it some 40%). Only a run that buys
@@ -38,20 +39,14 @@ export const TUNING = {
   // The board (14 → 10 in necessity round 1): the field cap never passes `board` souls, and the Legion's shadows
   // rise only while fewer than `board` of yours stand on it (Arise's are bounded by its own cap).
   army: { board: 10 },
-  // Ranks: a soul is promoted for essence once it has the level: a Soldier to Knight at level[0] for cost[0], a
-  // Knight to Marshal at level[1] for cost[1] (in the spirit of the old 3 and 6 more bodies: a Knight a few
-  // fights in, a Marshal late). A Knight or a Marshal deals might[grade] × damage and takes 1 / that.
-  // summons[grade]: how many more its first summon tier raises (the old rank cohorts' place).
-  ranks: { level: [4, 7], cost: [40, 80], might: [1, 1.2, 1.4], summons: [0, 1, 2] },
-  // Summons (a path tier's `summon`): each battle they appear beside their summoner at `level` × its level
+  // Summons (a track tier's `summon`): each battle they appear beside their summoner at `level` × its level
   // (rounded, at least 1), hold the tile they appear on, and are gone when the battle ends.
   summon: { level: 1 },
-  // A level costs cost × level^exponent essence, up to cap.
+  // A kind's level (every soul of it) costs cost × level^exponent essence, up to cap.
   level: { cap: 10, cost: 8, exponent: 1.2 },
   // Essence: each foe slain pays perTier × tier × (1 + perLevel × (level − 1)); a run starts with
-  // `start`. Path tiers I–IV cost tier[] (IV only for a Knight or Marshal; a second path's tiers I–III cost
-  // the same as the first's); recruiting a soul costs recruit × tier × (1 + perLevel × (level − 1)). An
-  // elite offers `eliteRelics` relics to choose one from.
+  // `start`. A kind's track tiers I–IV cost tier[] (either track); recruiting a soul costs recruit × tier ×
+  // (1 + perLevel × (level − 1)). An elite offers `eliteRelics` relics to choose one from.
   essence: { start: 20, perTier: 2.5, perLevel: 0.35, tier: [20, 45, 75, 120], recruit: 8, eliteRelics: 2, relicMax: 6 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
   // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on

@@ -489,7 +489,7 @@ test('gauge never banks past the costliest ability, the tile index matches the l
   let wide = 0
   for (let i = 0; i < 40; i++) {
     // Half the battles bring a Tomb Knight whose Bulwark aura reaches 2 tiles, the widest on the board.
-    const bulwark = (party) => Object.assign(party.find((u) => u.id === 'tomb_knight'), { path: 'bulwark', tier: 3 })
+    const bulwark = (party) => Object.assign(party.find((u) => u.id === 'tomb_knight'), { tracks: [3, 0] })
     const b = boardOf(5, () => fresh('index' + i, 1 + (i % 4), i % 2 ? { monarch: true, will: 1, army: i % 4 === 3 ? 3 : 0, lines: i % 8 === 1 } : { ids: [...START, 'tomb_knight', 'bone_chanter'], tune: bulwark }))
     const check = () => {
       const living = b.units.filter((u) => u.hp > 0)
@@ -576,8 +576,8 @@ test('a Tomb Knight shields the allies next to it', () => {
   assert.ok(!('bonds' in b.events[0]), 'bonds are gone')
 })
 
-test('path tiers fight: a self heal mends the user, and a `who` mod touches only souls it names', () => {
-  const ghoul = { ...makeUnit('grave_ghoul', { uid: 1, lvl: 6, slot: slotAt(0, 3) }), path: 'glutton', tier: 3 }
+test('track tiers fight: a self heal mends the user, and a `who` mod touches only souls it names', () => {
+  const ghoul = { ...makeUnit('grave_ghoul', { uid: 1, lvl: 6, slot: slotAt(0, 3) }), tracks: [0, 3] }
   ghoul.hp = Math.round(ghoul.maxHp / 2)
   const b = createBattle({ party: [ghoul], foes: team(['iron_golem'], { side: 'foe', lvl: 6 }), seed: 'devour' })
   runBattle(b)
@@ -702,8 +702,8 @@ test('a shadow holds its tile, and counts for synergies; so does a summon', () =
   assert.ok(stats(b, ghoul).def > before.def, 'the shadow made a synergy')
   for (let k = 0; k < 300; k++) assert.deepEqual(moves(stepBattle(b), shadow.uid), [], 'it holds')
   assert.equal(shadow.tile, tileAt(3, 3))
-  // A Bone Chanter on its Marrowcaller path raises Skeletons beside it, and they hold there too.
-  const chanter = { ...on('bone_chanter', 1, 'party', 3, 3), path: 'marrowcaller', tier: 2 }
+  // A Bone Chanter two tiers up its Marrowcaller track raises Skeletons beside it, and they hold there too.
+  const chanter = { ...on('bone_chanter', 1, 'party', 3, 3), tracks: [0, 2] }
   const s = scene([on('monarch', 0, 'party', 0, 0), chanter, on('iron_golem', 11, 'foe', 6, 10, 1)])
   const skeletons = s.units.filter((u) => u.summoned)
   assert.ok(skeletons.length > 0 && skeletons.every((u) => u.summoner === 1 && u.line === null))
@@ -884,6 +884,71 @@ test('a marcher waits behind a friend on its next tile, and walks on the tick th
   for (let k = 0; k < 100; k++) stepBattle(file)
   assert.deepEqual([file.byUid.get(1).tile, file.byUid.get(2).tile], [tileAt(3, 4), tileAt(3, 3)])
 })
+
+// ── Banners (DESIGN §2.8: a front-line kind's tier IV) ───────────────────────────────────────────
+
+// A Tomb Knight of Bulwark IV: a Banner.
+const banner = (uid, x, y, lvl = 3) => ({ ...on('tomb_knight', uid, 'party', x, y, lvl), tracks: [4, 0] })
+
+test('a Banner leads: the pieces placed beside it walk its line keeping their places, their own lines set aside; the Monarch, another Banner and a piece not beside it keep their own', () => {
+  // The Banner at (3, 1) up its lane to (3, 5). Beside it: a Ghoul at (2, 1) with a line of its own, a Sprite
+  // at (4, 0), the Monarch at (3, 0), and a second Banner at (4, 2) on its own line; a Chanter at (6, 0), beside
+  // neither, on its own.
+  const far = on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)
+  const b = scene([
+    lined(banner(1, 3, 1), lane(3, 1, 4)), lined(on('grave_ghoul', 2, 'party', 2, 1), lane(2, 1, 1)), on('frost_sprite', 3, 'party', 4, 0),
+    on('monarch', 0, 'party', 3, 0), lined(banner(4, 4, 2), [tileAt(5, 3)]), lined(on('bone_chanter', 5, 'party', 6, 0), lane(6, 0, 2)), far
+  ], { moving: [1, 2, 3, 4, 5] })
+  assert.deepEqual([1, 2, 3, 0, 4, 5].map((uid) => b.byUid.get(uid)).map((u) => [u.uid, u.banner, u.leader, u.offset]),
+    [[1, true, null, null], [2, false, 1, [-1, 0]], [3, false, 1, [1, -1]], [0, false, null, null], [4, true, null, null], [5, false, null, null]])
+  assert.deepEqual([b.byUid.get(2).line, b.byUid.get(3).line], [null, null], 'their own lines set aside')
+  assert.deepEqual(b.events[0].units.filter((u) => u.leader !== undefined).map((u) => [u.uid, u.leader]).sort(), [[2, 1], [3, 1]], 'marked for the renderer')
+  // Never a step ahead of their living Banner.
+  const legs = { 1: 0, 2: 0, 3: 0 }
+  for (let k = 0; k < 300; k++) {
+    for (const e of stepBattle(b)) if (e.type === 'move' && legs[e.actor] !== undefined) legs[e.actor]++
+    assert.ok(legs[2] <= legs[1] && legs[3] <= legs[1], JSON.stringify(legs))
+  }
+  assert.deepEqual([1, 2, 3, 0, 4, 5].map((uid) => b.byUid.get(uid).tile), [tileAt(3, 5), tileAt(2, 5), tileAt(4, 4), tileAt(3, 0), tileAt(5, 3), tileAt(6, 2)])
+})
+
+test('a Banner\'s wing waits on it: held up, they hold; fallen, they walk the rest of its line alone; one with no line leads no one', () => {
+  // The Banner at (3, 1) up its lane; a Ghoul of yours holds (3, 3) in its way; its wing, a Ghoul at (2, 1).
+  const far = on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)
+  const b = scene([lined(banner(1, 3, 1), lane(3, 1, 4)), on('grave_ghoul', 2, 'party', 2, 1), on('grave_ghoul', 3, 'party', 3, 3), far], { moving: [1, 2] })
+  assert.equal(b.byUid.get(3).leader, null, 'two tiles off: no wing')
+  for (let k = 0; k < 200; k++) stepBattle(b)
+  assert.deepEqual([b.byUid.get(1).tile, b.byUid.get(2).tile], [tileAt(3, 2), tileAt(2, 2)], 'the wing holds with its Banner')
+  slay(b, b.byUid.get(1))
+  for (let k = 0; k < 200; k++) stepBattle(b)
+  assert.equal(b.byUid.get(2).tile, tileAt(2, 5), 'and walks on alone')
+  // A Banner with no line: the piece beside it stays where it was put.
+  const still = scene([banner(1, 3, 1), on('grave_ghoul', 2, 'party', 2, 1), far], { moving: [1, 2] })
+  assert.equal(still.byUid.get(2).leader, null)
+  for (let k = 0; k < 200; k++) stepBattle(still)
+  assert.equal(still.byUid.get(2).tile, tileAt(2, 1))
+})
+
+test('a shadow that rises on a Banner\'s line falls in with its wing; off the line, or on a line no Banner leads, it holds', () => tuned(FIRST_ARISE, () => {
+  // The Banner at (3, 1), its line up its lane from 30 ticks; a Ghoul foe slain at (3, 3), on that line, rises.
+  const rise = (lead, x) => {
+    const b = scene([on('monarch', 0, 'party', 0, 0), lined(lead, lane(3, 1, 4), { at: 'time', t: 30 }), on('grave_ghoul', 10, 'foe', x, 3, 2),
+      on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)], { moving: [1], domain: 9 })
+    slay(b, b.byUid.get(10))
+    b.monarch.gauge = 200
+    const arise = stepBattle(b).find((e) => e.type === 'arise')
+    const shadow = b.byUid.get(arise.unit.uid)
+    for (let k = 0; k < 300; k++) stepBattle(b)
+    return { arise, shadow }
+  }
+  const { arise, shadow } = rise(banner(1, 3, 1), 3)
+  assert.deepEqual([arise.unit.leader, shadow.offset], [1, [0, 2]])
+  assert.equal(shadow.tile, tileAt(3, 7), 'it walks the Banner\'s line two tiles ahead of it')
+  for (const [lead, x] of [[banner(1, 3, 1), 4], [{ ...on('tomb_knight', 1, 'party', 3, 1), tracks: [3, 0] }, 3]]) {
+    const off = rise(lead, x)
+    assert.deepEqual([off.arise.unit.leader, off.shadow.leader, off.shadow.tile], [undefined, null, tileAt(x, 3)])
+  }
+}))
 
 test('timing marks: where each piece stands at 5, 10 and 15 s, walking the lines with your pieces the only blockers, as a battle walks them', () => {
   const at = (id, uid, x, y) => makeUnit(id, { uid, lvl: 3, slot: slotAt(6 - y, x) })

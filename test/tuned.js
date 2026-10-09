@@ -23,12 +23,11 @@ export const FIRST_ARISE = { monarch: { raises: 1, raiseTier: 1, raiseHp: 0.5 } 
 // The board of 14 the army was first built with.
 export const BOARD_14 = { army: { board: 14 } }
 // The balance the army and its expert were first tested on (before necessity round 1): Arise as first built, the
-// Monarch's HP, the board of 14 and the first tier prices; and (round 2) no souls gained by floor and ranks with no
-// might. (The cohorts, binds, muster and orders it also set are gone from the rules.)
+// Monarch's HP, the board of 14 and the first tier prices; and (round 2) no souls gained by floor. (The ranks and their
+// might, the cohorts, binds, muster and orders it also set are gone from the rules.)
 export const FIRST_BALANCE = {
   monarch: { ...FIRST_ARISE.monarch, hp: 140, hpPerPoint: 24 },
   army: { board: 14 },
   party: { fieldPerFloor: 0 },
-  ranks: { might: [1, 1, 1] },
   essence: { tier: [30, 60, 100, 150] }
 }

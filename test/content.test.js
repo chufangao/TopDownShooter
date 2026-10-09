@@ -1,10 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, PATHS, THREATS, SIGNALS } from '../src/content.js'
+import { UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, TRACKS, THREATS, SIGNALS } from '../src/content.js'
 import {
   statsOf, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, baseStats, activeSynergies, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf,
-  deployTile, wallTiles, steps, summonsOf, rangeOf, isAllyShape
+  deployTile, wallTiles, steps, summonsOf, rangeOf, isAllyShape, ringOf, bannerOf
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 
@@ -63,38 +63,49 @@ test('the Monarch: one of a kind, never spawned, never striking, its HP from the
   assert.deepEqual(activeSynergies([party[1], party[1]]), [])
 })
 
-test('every soul has two or three upgrade paths of four tiers (IV a rank\'s), and every tier resolves', () => {
+test('every kind of soul has two tracks of four tiers, IV a rule, I–II never remaking what the other track does, and every tier resolves', () => {
+  const banners = []
   for (const u of Object.values(UNITS)) {
-    const paths = PATHS[u.id] ?? []
+    const paths = TRACKS[u.id] ?? []
     if (u.boss || u.monarch || u.summon) { assert.equal(paths.length, 0); continue }
-    assert.ok(paths.length >= 2 && paths.length <= 3, `${u.id} paths`)
-    assert.equal(new Set(paths.map((p) => p.id)).size, paths.length, `${u.id} path ids`)
-    for (const p of paths) {
+    assert.equal(paths.length, 2, `${u.id} tracks`)
+    assert.equal(new Set(paths.map((p) => p.id)).size, paths.length, `${u.id} track ids`)
+    for (const [k, p] of paths.entries()) {
       assert.ok(p.name && p.desc && p.tiers.length === 4, `${u.id} ${p.id}`)
-      const soul = { ...makeUnit(u.id, { uid: 1 }), path: p.id }
+      const soul = makeUnit(u.id, { uid: 1 })
+      const at = (n) => ({ ...soul, tracks: k ? [0, n] : [n, 0] })
+      // Tiers I–II, which the other track may sit beside, remake no ability and grant no aura; IV is a rule.
+      assert.ok(p.tiers.slice(0, 2).every((t) => !t.ability && !t.aura), `${u.id} ${p.id}: I–II`)
+      assert.ok(p.tiers[3].ability || p.tiers[3].banner, `${u.id} ${p.id}: IV a rule`)
+      if (p.tiers[3].banner) banners.push(`${u.id}:${k}`)
+      assert.ok(p.tiers.slice(0, 3).every((t) => !t.banner), `${u.id} ${p.id}: Banner at IV only`)
       for (const [i, t] of p.tiers.entries()) {
         const where = `${u.id} ${p.id} ${i + 1}`
-        assert.ok(t.desc && (t.mods || t.ability || t.aura || t.summon), where)
+        assert.ok(t.desc && (t.mods || t.ability || t.aura || t.summon || t.banner || t.ring || t.stride), where)
         // A summon tier names a summon kind, at least one of it; the soul raises it from that tier on.
         if (t.summon) {
           assert.ok(UNITS[t.summon.id]?.summon && Number.isInteger(t.summon.count) && t.summon.count >= 1, `${where}: summon`)
-          assert.ok(!summonsOf({ ...soul, tier: i }).some((x) => x.id === t.summon.id), where)
-          assert.ok(summonsOf({ ...soul, tier: i + 1 }).some((x) => x.id === t.summon.id && x.count >= t.summon.count), where)
+          assert.ok(!summonsOf(at(i)).some((x) => x.id === t.summon.id), where)
+          assert.ok(summonsOf(at(i + 1)).some((x) => x.id === t.summon.id && x.count >= t.summon.count), where)
         }
-        const before = abilitiesOf({ ...soul, tier: i })
+        const before = abilitiesOf(at(i))
         if (t.ability) {
           assert.ok(ABILITIES[t.ability.id], `${where}: ability ${t.ability.id}`)
           if (t.ability.replace) assert.ok(before.includes(t.ability.replace), `${where}: replaces ${t.ability.replace}`)
-          assert.ok(abilitiesOf({ ...soul, tier: i + 1 }).includes(t.ability.id), where)
+          assert.ok(abilitiesOf(at(i + 1)).includes(t.ability.id), where)
         }
-        if (t.aura) assert.ok(t.aura.range >= 1 && t.aura.mods.length && auraOf({ ...soul, tier: i + 1 }) === t.aura, where)
-        statsOf({ ...soul, tier: i + 1 })
+        if (t.aura) assert.ok(t.aura.range >= 1 && t.aura.mods.length && auraOf(at(i + 1)) === t.aura, where)
+        assert.equal(bannerOf(at(i + 1)), !!t.banner, where)
+        assert.ok(ringOf(at(i + 1)) >= ringOf(at(i)), where)
+        statsOf(at(i + 1))
         // The gauge saves toward abilities only (a step is free) and banks no further than the dearest.
-        const costs = abilitiesOf({ ...soul, tier: i + 1 }).map((a) => ABILITIES[a].castCost)
-        assert.deepEqual([cheapestOf({ ...soul, tier: i + 1 }), costliestOf({ ...soul, tier: i + 1 })], [Math.min(...costs), Math.max(...costs)], where)
+        const costs = abilitiesOf(at(i + 1)).map((a) => ABILITIES[a].castCost)
+        assert.deepEqual([cheapestOf(at(i + 1)), costliestOf(at(i + 1))], [Math.min(...costs), Math.max(...costs)], where)
       }
     }
   }
+  // Banner leads on the front-line kinds, its first track's tier IV.
+  assert.deepEqual(banners, ['tomb_knight:0', 'grave_ghoul:0', 'iron_golem:0'])
 })
 
 test('every ability, status and synergy reference resolves', () => {
@@ -173,15 +184,15 @@ test('camps: every floor has some; each is 7×7 with every open cell reachable f
 // The cohorts are gone, and their banner shapes with them; orders, detachments, bonds and foes' orders too.
 test('banner shapes, orders and bonds are gone', async () => {
   const content = await import('../src/content.js')
-  for (const name of ['SHAPES', 'ORDERS', 'DETACHMENT_COLORS', 'FOE_ORDERS', 'BONDS']) assert.ok(!(name in content), name)
+  for (const name of ['SHAPES', 'ORDERS', 'DETACHMENT_COLORS', 'FOE_ORDERS', 'BONDS', 'GRADES', 'PATHS']) assert.ok(!(name in content), name)
   assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'flank'])
   assert.ok(Object.values(ROLES).every((r) => !('move' in r) && !('target' in r) && !('autoRow' in r)))
   assert.ok(Object.values(UNITS).every((u) => !('foeOrders' in u)))
 })
 
-// Summons: one summon tier per kin, on a path of a kind of that kin, raising a summon of the same kin.
+// Summons: one summon tier per kin, on a track of a kind of that kin, raising a summon of the same kin.
 test('summon tiers: one kin each, the summon of the summoner\'s kin, at tier II', () => {
-  const tiers = Object.entries(PATHS).flatMap(([id, paths]) => paths.flatMap((p) => p.tiers.flatMap((t, i) => (t.summon ? [{ id, path: p.id, i, summon: t.summon }] : []))))
+  const tiers = Object.entries(TRACKS).flatMap(([id, paths]) => paths.flatMap((p) => p.tiers.flatMap((t, i) => (t.summon ? [{ id, path: p.id, i, summon: t.summon }] : []))))
   assert.deepEqual(tiers.map((t) => [t.id, t.path, t.summon.id]), [
     ['bone_chanter', 'marrowcaller', 'skeleton'], ['hive_warden', 'brood_mother', 'drone'], ['clockwork_page', 'gearwright', 'tin_soldier'],
     ['thorn_dryad', 'heartwood', 'wisp'], ['frost_wyrm', 'ancient', 'whelp']
