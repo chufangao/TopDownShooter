@@ -1,14 +1,14 @@
 // Rules text, generated from the content data so it is never out of date: unit stat cards, ability
 // and status text, room and threat tooltips, the synergy tracker and How to play.
 import { TUNING } from './tuning.js'
-import { unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, ROLE_LIST, BEHAVIOURS, SYNERGIES, RELIC_LIST, BONDS, THREATS, SHAPES, ORDERS, GRADES, KEYSTONE_LIST, keystoneDef, TRIGGERS } from './content.js'
+import { unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, ROLE_LIST, BEHAVIOURS, SYNERGIES, RELIC_LIST, BONDS, THREATS, ORDERS, GRADES, KEYSTONE_LIST, keystoneDef, TRIGGERS } from './content.js'
 import {
   statsOf, activeSynergies, synergyActive, baseStats, COLS, ROWS, slotAt, rangeOf, isAllyShape, activeBonds, CAMP_ROWS, pathDef, abilitiesOf, auraOf,
-  tileX, tileY, DEPTH, distance, deployTile, makeUnit
+  tileX, tileY, DEPTH, distance, deployTile, makeUnit, summonsOf, wallTiles, TILES
 } from './sim/unit.js'
 import {
-  foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, monarchCost, monarchPoints, MONARCH_STATS, armyLayout, musterCost, waits,
-  detachmentOf, marshalOf, faltersIn, holds, isMonarch, depthOf
+  foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, monarchCost, monarchPoints, MONARCH_STATS, armyLayout, waits,
+  detachmentOf, marshalOf, faltersIn, holds, isMonarch, depthOf, rosterCap, inOssuary, currentNode, domainCentre, promoteLevel
 } from './sim/run.js'
 import { h, fill, icon, portrait, prefs, say } from './dom.js'
 import { KEYWORDS, kw } from './keywords.js'
@@ -38,35 +38,66 @@ const keystoneMods = (run) => run.state.keystones.flatMap((id) => keystoneDef(id
 export const aliasOf = (run) => holds(run.state, 'alias') ? Object.assign({}, ...run.state.keystones.map((id) => keystoneDef(id).alias ?? {})) : null
 
 // The mods a fielded soul starts a battle with: relics, keystones plus the field's synergies, which count the
-// cohorts' members standing on the board. A held detachment's souls start off the board, so they count only
-// once they enter. The Monarch (`u`) takes none of them: its stats are its points' (battle.js modsFor).
+// summons standing beside their souls. A held detachment's souls start off the board, so they (and their
+// summons) count only once they enter. The Monarch (`u`) takes none of them: its stats are its points' (battle.js modsFor).
 export const partyMods = (run, u = null) => u && isMonarch(u) ? [] : [...relicMods(run.state.relics), ...keystoneMods(run),
-  ...activeSynergies([...boardField(run), ...armyOf(run).members], aliasOf(run)).flatMap((s) => s.mods)]
+  ...activeSynergies([...boardField(run), ...armyOf(run).summons], aliasOf(run)).flatMap((s) => s.mods)]
 const livingField = (run) => fielded(run.state.party).filter((u) => u.hp > 0)
 // Whether a soul's detachment starts later: it waits behind the camp, off the board, until its start.
 export const isHeld = (s, u) => waits(detachmentOf(s, u.uid))
 // Whether a detachment takes part in the next battle: a soul of it stands on the field, living. One whose
-// souls are all benched or fallen sits the battle out (battleSetup leaves it out): no square, no arrow.
+// souls are all in the ossuary or fallen sits the battle out (battleSetup leaves it out): no square, no arrow.
 export const takesPart = (s, d) => fielded(s.party).some((u) => u.hp > 0 && d.members.includes(u.uid))
 // The living souls (and the Monarch) standing on the board when the battle begins: held ones wait.
 export const boardField = (run) => livingField(run).filter((u) => !isHeld(run.state, u))
 
-// The army as the next battle will stand it (armyLayout), as units the cards, bonds and synergies can
-// read: each member a rank-and-file body of its kind at the muster level, on its cell, with a uid of its
-// own ('r0', 'r1'…: never a soul's, never the Monarch's); the reserve the same with slot −1, in the order
-// it enters; `held`, the detachments that start later, in the order they enter once called: each captain
-// (a copy of the soul, still on its cell) and each body (slot −1), with `det`, its detachment's id.
-export function armyOf (run) {
-  const s = run.state
-  const { members, reserve, held } = armyLayout(s)
-  const body = (b, i, slot) => ({ ...makeUnit(b.id, { uid: `r${i}`, lvl: s.muster, slot }), cohortOf: b.cohortOf, rank: true })
-  const n = members.length + reserve.length
-  return {
-    members: members.map((b, i) => body(b, i, b.slot)),
-    reserve: reserve.map((b, i) => body(b, members.length + i, -1)),
-    held: held.map((b, i) => ({ ...(b.uid !== undefined ? s.party.find((u) => u.uid === b.uid) : body(b, n + i, -1)), det: b.det }))
-  }
+// The army as the next battle will stand it, as units the cards and synergies can read: `summons`, every
+// soul's summons on the tiles the battle will likely give them (summonLayout); `held`, the souls of the
+// detachments that start later (armyLayout), in the order they enter once called, each a copy with `det`, its
+// detachment's id (their summons appear beside them as they enter). `s`: a copy of the state with a move made
+// (the drag preview reads one), else the run's.
+export function armyOf (run, s = run.state) {
+  return { summons: summonLayout(s, prepFoes(run)), held: armyLayout(s).held.map((b) => ({ ...s.party.find((u) => u.uid === b.uid), det: b.det })) }
 }
+// The room's formation in prep (its tiles are taken as the battle begins); none on the map.
+const prepFoes = (run) => run.state.phase === 'prep' ? currentNode(run)?.foes ?? [] : []
+
+// Where the battle will likely raise each soul's summons (battle.js summon, entryTile): soul by soul in party
+// order, every living soul that starts on the board raises its summons (summonsOf) one by one on the open tile
+// nearest it, ahead of it first, then level with it, past the walls, everyone standing and every summon already
+// placed. As units: the summon kind at its level, `summoned`, its `summoner`, its `tile` (and `slot`, its camp
+// cell, or −1 past the camp), with a uid of its own ('m0', 'm1'…: never a soul's).
+export function summonLayout (s, foes = []) {
+  const walls = new Set(wallTiles(s.camp))
+  const standing = fielded(s.party).filter((u) => u.hp > 0 && !isHeld(s, u))
+  const taken = new Set([...standing.map((u) => deployTile('party', u.slot)), ...foes.map((f) => deployTile('foe', f.slot))])
+  const near = (from) => {
+    let best = -1
+    let bestK = Infinity
+    for (let t = 0; t < TILES; t++) {
+      if (taken.has(t) || walls.has(t)) continue
+      const dy = tileY(t) - tileY(from)
+      const k = distance(t, from) * 1e4 + (dy > 0 ? 0 : dy === 0 ? 1 : 2) * 1e3 + Math.abs(tileX(t) - tileX(from)) * 100 + t / TILES
+      if (k < bestK) { best = t; bestK = k }
+    }
+    return best
+  }
+  const out = []
+  for (const u of souls(standing)) {
+    for (const { id, count, lvl } of summonsOf(u)) {
+      for (let k = 0; k < count; k++) {
+        const tile = near(deployTile('party', u.slot))
+        if (tile < 0) break
+        taken.add(tile)
+        const slot = tileY(tile) < CAMP_ROWS ? slotAt(CAMP_ROWS - 1 - tileY(tile), tileX(tile)) : -1
+        out.push({ ...makeUnit(id, { uid: `m${out.length}`, lvl, slot }), tile, summoned: true, summoner: u.uid, cohortOf: u.uid })
+      }
+    }
+  }
+  return out
+}
+// How many a soul raises each battle, all its summon tiers together.
+export const summonCount = (u) => summonsOf(u).reduce((n, x) => n + x.count, 0)
 
 // Foes of a room on the current floor start with the floor's multipliers plus their synergies: those of the
 // formation they stand in (`foes`: the room's first by default, or one of its later waves).
@@ -138,14 +169,14 @@ export function abilityBlock (id, st, realm = null) {
 
 // The Monarch's reach and Will, as Arise and faltering read them, and what the keystones do to them: Arise's
 // cap times `raises` and a `tithe` of the Monarch's max HP a shadow (Blood Tithe), the domain on the front
-// (`crown`, Vanguard Crown), and shadows that stay after a win (`keep`, Hollow Court). A battle's `ks` stands in
-// for `raises` and `tithe`.
+// (`crown`, Vanguard Crown), and shadows that pay again after a win (`reap`, Hollow Court). A battle's `ks` stands
+// in for `raises` and `tithe`.
 export const realmOf = (run) => ({
   domain: domainOf(run.state), will: run.state.monarch.will,
   raises: run.state.keystones.reduce((n, id) => n * (keystoneDef(id).raises ?? 1), 1),
   tithe: run.state.keystones.reduce((n, id) => n + (keystoneDef(id).tithe ?? 0), 0),
   crown: holds(run.state, 'crown'),
-  keep: holds(run.state, 'keep')
+  reap: holds(run.state, 'reap')
 })
 // The highest tier Arise raises (TUNING.monarch.raiseTier + Will), and how many it may raise a battle
 // (TUNING.monarch.raises × (1 + Will), times Blood Tithe's 2).
@@ -158,7 +189,7 @@ const FALTER = `×${TUNING.monarch.falter}`
 // Arise in one line: what it raises, from how far, how many; the rest of its rule is the glossary's (ARISE_MORE).
 function ariseText (realm) {
   return [h('span', { class: 'tag-domain' }, reach(realm)), ` a foe corpse, tier ≤ ${raises(realm)} → `, kw('shadow'), ` at ${pct(TUNING.monarch.raiseHp)} HP · `, h('b', null, raiseCap(realm)), ' a battle',
-    realm?.keep && ' · Hollow Court keeps it',
+    realm?.reap && ' · Hollow Court reaps it',
     titheOf(realm) > 0 && h('span', { class: 'warn' }, ` · −${pct(titheOf(realm))} HP each`)]
 }
 // The rest of Arise's rule, for the glossary.
@@ -166,8 +197,8 @@ const ARISE_MORE = `It picks the highest tier, then the nearest, on a tile no on
   `${TUNING.monarch.shadowFalter ? 'always falters' : 'falters outside the domain like a soul'}, joins a Marshal's banner if it rises in that Marshal's domain, and is gone when the battle ends. ` +
   'With no corpse in reach, the Monarch banks its gauge.'
 
-// What sets the field size (banners: captains), as the run has it: "3 + Command", with "+ relics" once a
-// relic adds to it, and the board's cap once it binds.
+// What sets the field size (souls on the field), as the run has it: "3 + Command", with "+ relics" once a
+// relic adds to it, and the board's cap once it reaches it.
 const relicField = (run) => run.state.relics.reduce((n, id) => n + (relicDef(id).field ?? 0), 0)
 const keystoneField = (run) => run.state.keystones.reduce((n, id) => n + (keystoneDef(id).field ?? 0), 0)
 export const fieldRule = (run) => {
@@ -178,8 +209,8 @@ export const fieldRule = (run) => {
 // Each Monarch stat by name, and what it gives now (monarchNextText: one more point).
 export const MONARCH_TEXT = {
   dominion: { name: 'Dominion', now: (run) => `Domain: ${domainOf(run.state)} tiles` },
-  command: { name: 'Command', now: (run) => `Banners: ${fieldCap(run)} · cohorts of ${run.state.monarch.command}` },
-  will: { name: 'Will', now: (run) => `Raises ${raiseCap(realmOf(run))}, tier ≤ ${TUNING.monarch.raiseTier + run.state.monarch.will}` }
+  command: { name: 'Command', now: (run) => `Souls on the field: ${fieldCap(run)}` },
+  will: { name: 'Will', now: (run) => `Raises ${raiseCap(realmOf(run))}, tier ≤ ${TUNING.monarch.raiseTier + run.state.monarch.will}` + (run.state.monarch.will ? ` · Arise +${pct(TUNING.monarch.willHaste * run.state.monarch.will)}` : '') }
 }
 
 export const monarchPointText = (run) =>
@@ -189,44 +220,36 @@ export const monarchPointText = (run) =>
 // ── the army ─────────────────────────────────────────────────────────────────────────────────────
 
 const A = TUNING.army
-// "1 Grave Ghoul", "3 Grave Ghouls".
-export const bodies = (id, n) => `${n} ${unitDef(id).name}${n === 1 ? '' : 's'}`
-// Who a captain can lead: bodies of its kin or of its role.
-export const leadsText = (id) => `${KIN[unitDef(id).kin].name} or ${ROLES[unitDef(id).role].name}`
+// "1 Skeleton", "3 Skeletons".
+export const named = (id, n) => `${n} ${unitDef(id).name}${n === 1 ? '' : 's'}`
+
+// Whether a fielded soul or a summon starts the battle faltering: a soul as the battle's first tick reads it
+// (faltersIn); a summon past the domain falters unless it stands within its summoner's own, a Marshal's.
+export const startsFaltering = (s, u) => {
+  if (!u.summoned) return faltersIn(s, u)
+  if (distance(u.tile, deployTile('party', domainCentre(s))) <= domainOf(s)) return false
+  const lord = s.party.find((x) => x.uid === u.summoner)
+  return !(lord && marshalOf(s, lord) && distance(u.tile, deployTile('party', lord.slot)) <= TUNING.ranks.domain)
+}
 
 // One sentence each: the tooltips' text. The glossary (GLOSSARY) carries the rest of each rule.
 export const ARMY_TEXT = {
-  cohort: (run) => `A captain leads up to Command${run ? ` (${run.state.monarch.command})` : ''} bodies of one kind sharing its kin or role (Knight +${TUNING.ranks.cohort[1]}, Marshal +${TUNING.ranks.cohort[2]}): together, one banner.`,
-  ai: `A body keeps within a tile of its captain; if the captain falls, it falters (${FALTER}) and hunts.`,
-  ossuary: 'Bodies by kind, standing and fallen; the fallen stand again at an altar. No paths, no levels of their own.',
-  // The bodies with no room on the board: they sit the battle out, unless TUNING.army.overflow lets them in
-  // as the board's own fall.
-  board: A.overflow
-    ? `The board holds ${A.board} of your bodies; the rest wait in reserve and enter as yours fall, beside the Monarch.`
-    : `The board holds ${A.board} of your bodies; the rest sit the battle out, and only held detachments enter mid-battle.`,
-  reserve: (n) => A.overflow
-    ? `${n} bod${n === 1 ? 'y waits' : 'ies wait'} in reserve behind the camp, entering beside the Monarch one at a time as your bodies on the board fall below ${A.board}.`
-    : `${n} bod${n === 1 ? 'y finds' : 'ies find'} no room among the board's ${A.board} and sit${n === 1 ? 's' : ''} this battle out.`,
-  bind: (run) => `After a win, bind the slain: the first ${run ? 1 + run.state.monarch.will : '1 + Will'} free, then ${A.bindPerTier} × tier essence each.`,
-  muster: (run) => {
-    if (!run) return `Every body fights at the muster level (${A.muster.start} to ${A.muster.cap}); a level costs ${A.muster.cost} × level^${A.muster.exponent}.`
-    const m = run.state.muster
-    return m >= A.muster.cap ? `Every body fights at muster ${m}, the cap.`
-      : `Every body fights at muster ${m}. Level ${m + 1}: ${musterCost(run)} essence${musterCost(run) < Math.round(A.muster.cost * Math.pow(m, A.muster.exponent)) ? ' (discounted)' : ''}.`
-  }
+  ossuary: (run) => `Your souls not on the field: kept, never fighting. Field and ossuary hold ${run ? rosterCap(run) : TUNING.party.roster} souls together.`,
+  summon: `Raised beside its soul each battle at its level; it keeps to it and takes its plan, and falters (${FALTER}) and Hunts if the soul falls. Gone after the battle.`,
+  board: `The field holds ${A.board} souls at most; summons and shadows stand past that, and held detachments have places of their own.`
 }
-
 // ── ranks ────────────────────────────────────────────────────────────────────────────────────────
 
 const RK = TUNING.ranks
 // A rank's insignia, by grade: an icon in dom.js.
 export const GRADE_ICON = ['soldier', 'knight', 'marshal']
 
-// What promotion takes, and what each rank removes.
+// What promotion takes, and what each rank removes. "Knight at level 4 · 40 essence".
+export const rankNeed = (grade) => `${GRADES[grade + 1].name} at level ${RK.level[grade]} · ${RK.cost[grade]} essence`
 export const RANK_TEXT = {
-  promote: `Feed it standing bodies of its kin: ${RK.knight} for a Knight, ${RK.marshal} more for a Marshal. Unled bodies go first; they are gone for good. No essence.`,
-  knight: `A Knight: tier IV (${TUNING.essence.tier[3]}) or a second path's tier I, not both until Marshal; ×${RK.might[1]} damage dealt, ÷${RK.might[1]} taken.`,
-  marshal: `A Marshal: tier IV and a second path's I–III; its own ${RK.domain}-tile domain where its banner never falters; ×${RK.might[2]} dealt, ÷${RK.might[2]} taken.`,
+  promote: `A soul with the level is promoted for essence: ${rankNeed(0)}; ${rankNeed(1)}.`,
+  knight: `A Knight: tier IV (${TUNING.essence.tier[3]}) or a second path's tier I, not both until Marshal; its summon tier raises ${RK.summons[1]} more; ×${RK.might[1]} damage dealt, ÷${RK.might[1]} taken.`,
+  marshal: `A Marshal: tier IV and a second path's I–III; its own ${RK.domain}-tile domain where its banner never falters; its summon tier raises ${RK.summons[2]} more; ×${RK.might[2]} dealt, ÷${RK.might[2]} taken.`,
   second: 'A second path stacks on the first; two that remake one ability or both grant an aura never pair.'
 }
 
@@ -237,10 +260,8 @@ export function clashText (id, a, b) {
   return swap ? `both remake ${abilityDef(swap).name}` : 'both grant an aura, and a soul holds one'
 }
 
-// The sim's own camp-side checks (run.js), under the names the UI uses: the Marshal whose domain covers a
-// soul or member, and whether it starts the battle faltering.
+// The sim's own camp-side check (run.js): the Marshal whose domain covers a soul (startsFaltering is above).
 export { marshalOf }
-export const startsFaltering = faltersIn
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
 
@@ -313,14 +334,14 @@ export function tileText (tile) {
 // ── orders ───────────────────────────────────────────────────────────────────────────────────────
 
 // A detachment's start in words, and as a short tag for the camp and the board: "after 20 s" / "20 s".
-export const whenText = (w) => w.at === 'time' ? `after ${secs(w.t)}` : { once: 'at once', struck: 'once the Monarch is struck', wave: 'once more foes enter', falls: 'once a body of yours falls' }[w.at]
+export const whenText = (w) => w.at === 'time' ? `after ${secs(w.t)}` : { once: 'at once', struck: 'once the Monarch is struck', wave: 'once more foes enter', falls: 'once one of yours falls' }[w.at]
 export const whenTag = (w) => w.at === 'time' ? secs(w.t) : { once: 'at once', struck: 'struck', wave: 'wave', falls: 'falls' }[w.at]
-// A plan in words: "Stay, at once", "Move to the open ground, lane 4, once a body of yours falls".
+// A plan in words: "Stay, at once", "Move to the open ground, lane 4, once one of yours falls".
 export const planText = (p) => `${ORDERS.where[p.where].name}${p.where === 'move' ? ` to ${tileText(p.square)}` : ''}, ${whenText(p.when)}`
 
 // One sentence each, for tooltips; the glossary keeps the full rules (ORDER_MORE).
 export const ORDER_TEXT = {
-  detachments: `Up to ${A.detachments} detachments, each a colour and a plan (Where, When); a cohort goes with its captain, and a soul in none Hunts at once.`,
+  detachments: `Up to ${A.detachments} detachments, each a colour and a plan (Where, When); a soul's summons take its plan, and a soul in none Hunts at once.`,
   get pick () {
     return say('Shift- or Ctrl-click souls on the field (or press Pick) to pick them, then form or join a detachment.',
       'Tap Pick in Orders, then souls on the field, to pick them; then form or join a detachment.')
@@ -335,9 +356,9 @@ export const ORDER_TEXT = {
 const ORDER_MORE = {
   reaction: 'For every unit on either side, whatever its plan: it strikes what is in reach (or saves its gauge for it); else a melee unit steps in to engage a foe within 2 tiles; ' +
     'else a ranged unit holds while a foe is in its range; else it follows its plan.' + (TUNING.orders.holdFlank ? ' A braced unit holds the line: no foe slips through it or away from beside it.' : ''),
-  held: `Held bodies take none of the board's ${A.board} places: they have ${TUNING.orders.reserve} of their own. When the start comes, captains and then bodies enter one a tick${A.overflow ? ', ahead of the reserve' : ''}. ` +
+  held: `Held souls take none of the field's ${A.board} places: they have ${TUNING.orders.reserve} of their own. When the start comes, they enter one a tick, their summons appearing beside them. ` +
     `A held soul keeps its camp cell, but takes its bonds where it enters. Shielded: ${statusDef('shield').desc.toLowerCase()}`,
-  cohort: 'On Stay each body holds the tile it started on when that lies within its leash (else it keeps to its captain); on Move it keeps to its captain on the way.',
+  summon: 'On Stay a summon holds the tile it appeared on when that lies within its leash (else it keeps to its soul); on Move it keeps to its soul on the way.',
   leash: 'Back inside or not, a faltered unit Hunts for the rest of the battle. The camp draws a square past the edge faded. A Marshal never falters, nor its banner within its own domain.'
 }
 
@@ -409,12 +430,12 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
   const more = tipDetail.on
   // A multiplier on top of the stats, as a chip: ×1.20 dealt, ×0.80 taken, ×1.10 gauge.
   const mult = (v, what) => v !== 1 && h('span', { class: 'sx mult' + ((what === 'taken' ? v < 1 : v > 1) ? ' up' : ' down') }, `×${v.toFixed(2)} ${what}`)
-  const next = !foe && !d.monarch && !u.shadow && !u.rank && u.path !== undefined && u.lvl < TUNING.level.cap && baseStats(u.id, u.lvl + 1)
+  const next = !foe && !d.monarch && !u.shadow && !u.rank && !u.summoned && u.path !== undefined && u.lvl < TUNING.level.cap && baseStats(u.id, u.lvl + 1)
   const now = baseStats(u.id, u.lvl)
   const path = u.path ? pathDef(u.id, u.path) : null
   const path2 = u.path2 ? pathDef(u.id, u.path2) : null
-  // A soul's rank (GRADES): only souls have one, never a foe, the Monarch, a body or a shadow.
-  const grade = !foe && !d.monarch && !u.rank && !u.shadow && u.grade !== undefined ? u.grade : null
+  // A soul's rank (GRADES): only souls have one, never a foe, the Monarch, a summon or a shadow.
+  const grade = !foe && !d.monarch && !u.rank && !u.shadow && !u.summoned && u.grade !== undefined ? u.grade : null
   const aura = auraOf(u)
   // What it is, in one line: kin and role, then whatever sets it apart (the level is on the name line).
   const kind = [d.kin && KIN[d.kin].name, d.monarch ? 'you' : ROLES[d.role].name, d.boss && 'Boss'].filter(Boolean).join(' · ')
@@ -444,7 +465,7 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
       h('span', { class: 'ct-lead' }, lead, statuses?.length > 0 && statuses.slice(0, 2).map((x) => [' · ', kw(x.id, statusDef(x.id).name)]), statuses?.length > 2 && ` +${statuses.length - 2}`),
       shiftHint()),
     more && [
-      h('div', { class: 'ct-kind dim' }, kind, u.shadow && [' · ', kw('shadow')], u.rank && [' · ', foe ? 'Cohort' : kw('rankfile')]),
+      h('div', { class: 'ct-kind dim' }, kind, u.shadow && [' · ', kw('shadow')], u.rank && ' · Cohort', u.summoned && [' · ', kw('summon')]),
       [mult(st.damage.dealt, 'dealt'), mult(st.damage.taken, 'taken'), mult(st.gauge.rate, 'gauge')].some(Boolean) &&
         h('div', { class: 'ct-mults' }, mult(st.damage.dealt, 'dealt'), mult(st.damage.taken, 'taken'), mult(st.gauge.rate, 'gauge')),
       h('div', { class: 'ct-abs' }, abilitiesOf(u).map((id) => abilityBlock(id, st, realm)),
@@ -452,9 +473,10 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
       (path || path2) && h('div', { class: 'ct-tiers' }, path && held(path, u.tier), path2 && held(path2, u.tier2)),
       statuses?.length > 0 && h('div', { class: 'ct-statuses' }, statuses.map((x, i) => [i ? ' · ' : '', statusLine(x)])),
       h('div', { class: 'ct-foot' },
-        behaviourLine(d.role, d.monarch || u.rank ? null : ROLES[d.role].autoRow),
+        behaviourLine(d.role, d.monarch || u.rank || u.summoned ? null : ROLES[d.role].autoRow),
         d.monarch && h('div', { class: 'warn' }, `Never strikes; if it falls, the run ends. Lv = points bought (+${TUNING.monarch.hpPerPoint} HP each); nothing else changes its stats.`),
-        u.rank && h('div', { class: 'dim' }, foe ? ENEMY_TEXT.member : `Muster level, no path. ${ARMY_TEXT.ai}`),
+        u.rank && h('div', { class: 'dim' }, ENEMY_TEXT.member),
+        u.summoned && h('div', { class: 'dim' }, ARMY_TEXT.summon),
         foe && ordered && h('div', { class: 'dim' }, ENEMY_TEXT.ordered),
         // A foe's lore is the only hint of what it does about your camp: its orders are never shown.
         foe && d.flavour && h('div', { class: 'flavour' }, d.flavour),
@@ -486,7 +508,7 @@ function behaviourLine (role, row = null) {
 // Monarch's domain (and its Marshal's) counts at its faltering damage, so the meter answers where the Monarch stands. The
 // ratio of the two sides tracks the basic autoplayer's win rate with the Monarch (200 seeded runs):
 // below 0.6 every battle won, 0.6–0.8 98%, 0.8–1.0 79%, 1.0–1.2 42%, above 1.2 19%. That was measured
-// before cohorts; the members on the board now count too (the reserve and held detachments do not), like souls.
+// before summons; the summons on the board now count too (held detachments do not), like souls.
 function power (u, mods) {
   const s = statsOf(u, mods)
   const hpFrac = u.maxHp ? u.hp / u.maxHp : 1
@@ -501,14 +523,14 @@ const THREAT = [
   { below: 1.2, label: 'Severe', cls: 't-sev', text: 'Close to a coin flip.' },
   { below: Infinity, label: 'Deadly', cls: 't-dead', text: 'Usually a loss.' }
 ]
-// Nothing of yours on the board can strike (every soul benched or fallen): no ratio to read, and no win.
+// Nothing of yours on the board can strike (every soul in the ossuary or fallen): no ratio to read, and no win.
 const UNFIELDED = { label: 'Deadly', cls: 't-dead', text: 'Nothing of yours on the field can strike, and the Monarch alone cannot win.' }
 
 export function threat (run, node) {
-  // The Monarch never strikes: only the souls and the members on the board count, at their faltering
+  // The Monarch never strikes: only the souls and their summons on the board count, at their faltering
   // damage outside its domain.
   const mods = partyMods(run)
-  const mine = [...souls(boardField(run)), ...armyOf(run).members].reduce((n, u) => n + power(u, startsFaltering(run.state, u) ? [...mods, ...FALTERS] : mods), 0)
+  const mine = [...souls(boardField(run)), ...armyOf(run).summons].reduce((n, u) => n + power(u, startsFaltering(run.state, u) ? [...mods, ...FALTERS] : mods), 0)
   // Each wave with its own formation's synergies. Waves come one after another, not all at once, and a side's
   // strength in a melee grows as the square of its numbers (Lanchester's square law), so the waves add as the
   // root of their squared powers: one wave counts in full, two equal waves as √2 of one, not 2. (A wave that
@@ -530,7 +552,7 @@ export function threatMeter (run, node) {
   // The two powers behind the reading are in its tooltip: the word and the bar are what a glance needs.
   const why = () => h('div', { class: 'syn-tip' }, h('b', null, `Threat: ${t.label}`), ' ', h('span', { class: 'num foe' }, Math.round(t.theirs)), ' vs ', h('span', { class: 'num' }, Math.round(t.mine)),
     t.waves.length > 1 && h('span', { class: 'dim' }, ` (waves ${t.waves.map(Math.round).join(' + ')}, as √Σ²)`),
-    h('p', { class: 'dim' }, `HP × ATK × speed. Yours: souls and cohorts on the board, ×${TUNING.monarch.falter} if they `, kw('falter'), '; not the reserve, held ones or the Monarch.'))
+    h('p', { class: 'dim' }, `HP × ATK × speed. Yours: souls and summons on the board, ×${TUNING.monarch.falter} if they `, kw('falter'), '; not held ones or the Monarch.'))
   return h('div', { class: `threat ${t.cls}`, tip: why },
     h('div', { class: 'threat-head' }, h('span', { class: 'dim' }, 'Threat '), h('b', null, t.label),
       h('span', { class: 'dim' }, ` · ${t.text}`)),
@@ -543,8 +565,8 @@ export function threatMeter (run, node) {
 
 export const ROOM = {
   start: { name: 'Start', text: 'Where this floor begins.' },
-  fight: { name: 'Fight', text: 'A battle: essence, a recruit, bodies to bind.' },
-  elite: { name: 'Elite', text: `A tier stronger. Pays essence, a recruit and bodies, plus a relic (1 of ${TUNING.essence.eliteRelics}) and a keystone from floor ${TUNING.keystone.fromFloor}.` },
+  fight: { name: 'Fight', text: 'A battle: essence, and one of the slain to recruit.' },
+  elite: { name: 'Elite', text: `A tier stronger. Pays essence and a recruit, plus a relic (1 of ${TUNING.essence.eliteRelics}) and a keystone from floor ${TUNING.keystone.fromFloor}.` },
   reliquary: { name: 'Reliquary', text: `No battle: take 1 of 3 relics (at most ${TUNING.essence.relicMax}).` },
   rite: { name: 'Rite', text: `No battle: take 1 of 3 path tiers free, and a keystone from floor ${TUNING.keystone.fromFloor}.` },
   altar: { name: 'Altar', text: `No battle: all heal to full; the fallen rise (souls at ${pct(TUNING.run.altarRevive)} HP).` },
@@ -556,7 +578,7 @@ const ROOM_MORE = {
   elite: `On floor 1 a late pair joins it at ${secs(SP.late.t)}; from floor ${W.floor} it comes in ${W.elite} waves. Past ${TUNING.essence.relicMax} relics, elites and reliquaries offer none.`,
   boss: 'It grows stronger at 60% and 25% HP, and raises the dead. Slay it and the court crumbles: the run is cleared, and you may descend into the deep.',
   siege: `Each wave enters at the far edge when the one before is down to ${shareText(W.share)}, or after ${secs(W.t)}. Each wave's essence is tallied as it falls.`,
-  altar: 'Fallen rank-and-file stand again too. Under Court of Bone the Monarch is not healed.'
+  altar: 'Under Court of Bone the Monarch is not healed.'
 }
 
 // ── the deep ─────────────────────────────────────────────────────────────────────────────────────
@@ -566,7 +588,7 @@ const ROOM_MORE = {
 const DEEP = TUNING.spawn.endless
 const every = (k, what) => k >= 1 ? `${k} ${what} every floor deeper` : `one ${what} every ${+(1 / k).toFixed(1)} floors`
 const perDeepWaves = every(DEEP.waves, 'more wave to every room')
-const perDeepCohort = every(DEEP.cohort, 'more body behind every captain')
+const perDeepCohort = every(DEEP.cohort, 'more foe behind every captain')
 const perDeep = DEEP.count >= 1 ? `${DEEP.count} more foe${DEEP.count === 1 ? '' : 's'} a wave` : `one more foe a wave every ${+(1 / DEEP.count).toFixed(1)} floors`
 export const DEEP_TEXT = {
   descend: `Slaying the Sovereign clears the run for good; then you may descend into the deep, floor after floor, for as long as the Monarch lasts.`,
@@ -682,11 +704,11 @@ const countsOf = (units, alias = null) => {
 
 const needText = (syn, c) => needsOf(syn).map(({ axis, id, n }) => ({ name: (axis === 'kin' ? KIN : ROLES)[id].name, have: c[axis][id] ?? 0, n, axis, id }))
 
-const COUNT_NOTE = 'Counts standing souls and cohort bodies on the board (and shadows in battle), never the Monarch.'
+const COUNT_NOTE = 'Counts standing souls and their summons on the board (and shadows in battle), never the Monarch.'
 
 // The kins and roles you field as chips: lit once a step is reached, dim while the next step is a single unit
 // away; the rest fold into one "+N" chip. Each chip's tooltip holds its whole step ladder and who counts.
-// Pacts (a kin and a role at once) the same. `units`: the field and the members. `alias`: your side's under
+// Pacts (a kin and a role at once) the same. `units`: the field and the summons. `alias`: your side's under
 // Mimicry (aliasOf).
 export function synergyTracker (units, alias = null) {
   const living = units.filter((u) => u.hp > 0)
@@ -733,8 +755,8 @@ export function synergyTracker (units, alias = null) {
 // Names with repeats counted: "Tomb Knight, Grave Ghoul ×3".
 const tally = (names) => Object.entries(Object.groupBy(names, (n) => n)).map(([n, xs]) => (xs.length > 1 ? `${n} ×${xs.length}` : n)).join(', ')
 
-// Active formation bonds, each with who holds it and with whom; the same bond between the same kinds (a
-// cohort's members, say) is listed once, with how many hold it.
+// Active formation bonds, each with who holds it and with whom; the same bond between the same kinds (two
+// pairs of Tomb Knights, say) is listed once, with how many hold it.
 export function bondTracker (units, alias = null) {
   const held = activeBonds(units.filter((u) => u.hp > 0), { alias })
   const name = (uid) => unitDef(units.find((u) => u.uid === uid).id).name
@@ -757,9 +779,9 @@ export function bondTracker (units, alias = null) {
 // The moments a trigger relic fires on (TRIGGERS), for your side only, and what each counts.
 // `short`: the moment in a few words, for a tooltip; `when`: in full, for the glossary.
 export const TRIGGER_TEXT = {
-  kill: { name: 'On a kill', short: 'one of yours lands a killing blow', when: 'one of yours (a soul, a body or a shadow) slays a foe. "The killer" is the one that struck the last blow.' },
-  fall: { name: 'On a fall', short: 'one of yours falls (never the Monarch)', when: 'one of yours falls: a soul, a body or a shadow, never the Monarch, whose fall ends the battle. A captain that rises by Undying still fell.' },
-  enter: { name: 'On entry', short: 'one of yours enters from behind the camp', when: `one of yours enters the board from behind the camp: ${A.overflow ? 'a body of your reserve, or a soul or body' : 'a soul or body of a detachment'} held back for a later start. A shadow rising by Arise is not an entry.` },
+  kill: { name: 'On a kill', short: 'one of yours lands a killing blow', when: 'one of yours (a soul, a summon or a shadow) slays a foe. "The killer" is the one that struck the last blow.' },
+  fall: { name: 'On a fall', short: 'one of yours falls (never the Monarch)', when: 'one of yours falls: a soul, a summon or a shadow, never the Monarch, whose fall ends the battle. A soul that rises by Undying still fell.' },
+  enter: { name: 'On entry', short: 'a held soul of yours enters from behind the camp', when: 'a soul of a detachment held back for a later start enters the board from behind the camp. Its summons appearing with it, and a shadow rising by Arise, are no entry.' },
   struck: { name: 'When struck', short: 'the Monarch takes damage and stands', when: 'the Monarch takes damage, a blow or a status ticking on it, and still stands. Blood Tithe\'s cost is not a blow.' }
 }
 
@@ -774,12 +796,12 @@ export const relicTip = (id) => {
 
 // What each keystone's rule covers beyond its one line (KEYSTONE_LIST holds the rule itself).
 const KEYSTONE_MORE = {
-  legion: `Your souls, their cohorts' bodies and your shadows fight at ${pct(keystoneDef('legion').mods[0].v)} of their max HP in battle; the Monarch keeps all of its own. The field takes ${keystoneDef('legion').field} more souls (still at most the board's ${TUNING.army.board}).`,
-  undying: 'A captain (a soul on the field, never a body, a shadow or the Monarch) that falls rises at once on its own tile, its cohort still with it. Its second fall in a battle is final. Its first still counts as a fall: a detachment held for a body falling is called, and relics that fire when one of yours falls fire. Nothing ever revives the Monarch.',
-  one_army: 'The banner pools its HP as the battle begins. A blow to any of its units comes out of the pool, and the pool is shared so each unit stands at the same share of its max HP: the whole banner falls together. Heals go into the pool, and a body entering joins it. A body whose captain fell leaves it.',
+  legion: `Your souls, their summons and your shadows fight at ${pct(keystoneDef('legion').mods[0].v)} of their max HP in battle; the Monarch keeps all of its own. The field takes ${keystoneDef('legion').field} more souls (still at most the board's ${TUNING.army.board}).`,
+  undying: 'A soul on the field (never a summon, a shadow or the Monarch) that falls rises at once on its own tile, its summons still with it. Its second fall in a battle is final. Its first still counts as a fall: a detachment held for one falling is called, and relics that fire when one of yours falls fire. Nothing ever revives the Monarch.',
+  one_army: 'A soul pools its HP with its summons (and, for a Marshal, the shadows that join it) as the battle begins. A blow to any of them comes out of the pool, shared so each stands at the same share of its max HP: they fall together. Heals go into the pool, and a summon or shadow joining joins it.',
   mimicry: 'A Vanguard keeps its own role and counts as a Warden as well, for your synergies and your formation bonds. Your foes never mimic.',
-  vanguard_crown: `Faltering and Arise's reach measure from the captain nearest the foes (then the middle lane), and the domain moves with the front as it advances or falls. ${A.overflow ? 'Reserve bodies and held detachments' : 'Held detachments'} enter beside that captain, not the Monarch. With no captain standing it falls back on the Monarch.`,
-  hollow_court: 'Each of your shadows standing when a battle is won joins the ossuary as one standing body of its kind, fighting at the muster level from then on; its corpse is not offered to bind as well. Fallen shadows are gone. It keeps nothing of a battle fought before you took it.',
+  vanguard_crown: 'Faltering and Arise\'s reach measure from the soul nearest the foes (then the middle lane), and the domain moves with the front as it advances or falls. Held detachments enter beside that soul, not the Monarch. With no soul standing it falls back on the Monarch.',
+  hollow_court: 'Each shadow Arise raised that still stands when a battle is won pays the essence its foe paid, again. Fallen shadows pay nothing, and every shadow is gone after the battle. It reaps nothing of a battle fought before you took it.',
   blood_tithe: `The tier limit is unchanged (${TUNING.monarch.raiseTier} + Will). The Monarch raises no shadow while its HP is at or below the cost, so the tithe never fells it, and the cost is not a blow.`,
   court_of_bone: 'Nothing heals the Monarch: not healers, Regen, relics, the rest after a win, altars or a Monarch point (which still adds max HP). Your healers turn to others.'
 }
@@ -798,53 +820,49 @@ export const keystoneTip = (id, run = null) => {
 // What each keyword's rule says beyond its one line, for the glossary's "more"; `run`, when one is in play,
 // adds where it stands now.
 const KW_MORE = {
-  monarch: (run) => `It starts with ${TUNING.monarch.hp} HP and stands on the cell you give it, never on the bench. A Monarch point costs ${TUNING.monarch.cost} essence, ${TUNING.monarch.costPerPoint} more for each bought, and adds ${TUNING.monarch.hpPerPoint} max HP; ` +
+  monarch: (run) => `It starts with ${TUNING.monarch.hp} HP and stands on the cell you give it, never in the ossuary. A Monarch point costs ${TUNING.monarch.cost} essence, ${TUNING.monarch.costPerPoint} more for each bought, and adds ${TUNING.monarch.hpPerPoint} max HP; ` +
     `no synergy, relic or keystone changes its stats (statuses and auras still reach it). Its wounds carry: it heals ${pct(TUNING.run.postBattleHeal)} after a win, all at an altar. If every soul falls while it stands, the battle goes on.` +
     (run ? ` Now: ${monarchOf(run.state).lvl > 0 ? `level ${monarchOf(run.state).lvl}, ` : ''}${monarchOf(run.state).hp}/${monarchOf(run.state).maxHp} HP.` : ''),
   domain: (run) => `It reaches ${TUNING.monarch.domain} + Dominion tiles in every direction, diagonals counting as one, and can run past the camp onto their ground; the camp outlines it. ` +
     `A Marshal carries one of its own (${RK.domain} tiles) for its banner. ${KEYSTONE_LIST.filter((k) => k.domain).map((k) => `${k.name}${k.crown ? ' centres it on your front-most captain and' : ''} ${k.domain > 0 ? 'widens' : 'shrinks'} it by ${Math.abs(k.domain)}`).join('; ')}.` + (run ? ` Now: ${domainOf(run.state)} tiles.` : ''),
-  falter: () => `${ORDER_MORE.leash} A shadow ${TUNING.monarch.shadowFalter ? 'always falters' : 'falters outside the domain like a soul'}, and a body whose captain fell falters wherever it stands.`,
-  approach: () => 'A cell\'s open neighbours are its approach tiles: walls, and bodies standing there, close them.',
+  falter: () => `${ORDER_MORE.leash} A shadow ${TUNING.monarch.shadowFalter ? 'always falters' : 'falters outside the domain like a soul'}, and a summon whose soul fell falters wherever it stands.`,
+  approach: () => 'A cell\'s open neighbours are its approach tiles: walls, and anyone of yours standing there, close them.',
   arise: () => `A cast of ${abilityDef('arise').castCost} gauge; at most ${TUNING.monarch.raises} × (1 + Will) a battle (twice that under Blood Tithe), of tier ≤ ${TUNING.monarch.raiseTier} + Will. ${ARISE_MORE}`,
-  shadow: () => 'Shadows count toward your synergies while they stand. Under Hollow Court, those standing at a win stay as bodies.',
-  command: (run) => `${TUNING.party.field} + Command banners on floor 1, ${TUNING.party.fieldPerFloor} more each floor down, at most ${A.board}.` + (run ? ` Now: ${fieldCap(run)} (${fieldRule(run)}).` : ''),
-  will: () => 'Free binds: the first 1 + Will bound after each battle.',
-  banner: () => 'Placed as one piece: the captain\'s cell, and its bodies around it in its shape. Its aura, bonds and synergies count its cohort.',
-  captain: () => 'On either side, kill a captain and its cohort falters for the rest of the battle and hunts on its own.',
-  cohort: (run) => `${ARMY_TEXT.cohort(run)} Select a soul in the camp to give it one: the kind, how many, the shape. Its bodies stand ghosted on their cells; a soul placed on one sends that body elsewhere.`,
-  rankfile: () => 'In battle a body strikes whatever comes in reach and otherwise keeps within a tile of its captain. If its captain falls, it falters for the rest of the battle and hunts on its own.',
-  ossuary: (run) => run ? `Now: ${armyCount(run.state, 'standing')} standing, ${armyCount(run.state, 'fallen')} fallen.` : null,
-  muster: (run) => `A level costs ${A.muster.cost} × level^${A.muster.exponent} essence (the current level), up to ${A.muster.cap}.` + (run ? ` ${ARMY_TEXT.muster(run)}` : ''),
-  bind: (run) => `Up to as many of each kind as fell.${run ? ` Now ${1 + run.state.monarch.will} free.` : ''}`,
-  reserve: () => `The board holds ${A.board} of your bodies at once: captains and bodies, and the Legion's shadows once risen. Arise's shadows, held detachments and the Monarch are not counted.`,
-  bench: () => `You hold up to ${TUNING.party.roster} souls (${TUNING.party.roster + relicDef('ossuary_key').roster} with the ${relicDef('ossuary_key').name}); a full retinue releases one before it recruits. Drag a soul onto a cell or another soul to move or swap it, or onto the bench to bench it.`,
+  shadow: () => 'Shadows count toward your synergies while they stand, and are gone after the battle. Under Hollow Court, those standing at a win pay their essence again.',
+  command: (run) => `${TUNING.party.field} + Command souls on the field, at most ${A.board}; relics and keystones may add more. Summons and shadows stand past it.` + (run ? ` Now: ${fieldCap(run)} (${fieldRule(run)}).` : ''),
+  will: () => `Arise's cap and tier rise with it, and each point fills the Monarch's gauge ${pct(TUNING.monarch.willHaste)} faster.`,
+  banner: () => 'A Marshal\'s domain covers its banner: it never falters there and keeps every order.',
+  captain: () => 'Kill a foe captain and its cohort falters for the rest of the battle and hunts on its own. Your souls are captains of their summons the same way.',
+  summon: () => `${ARMY_TEXT.summon} Summons count toward synergies, take no place on the field, pay no essence and are never recruited. Prep shows them faint on the tiles they will likely take; a held soul's appear beside it as it enters.`,
+  ossuary: (run) => `Drag a soul onto a tile or another soul to field or swap it, or into the ossuary to keep it out of battle. A soul leaves the ossuary for an empty tile only while the field has room; it can always swap. A full retinue releases one before it recruits. The ${relicDef('ossuary_key').name} holds ${relicDef('ossuary_key').roster} more.` +
+    (run ? ` Now: ${inOssuary(souls(run.state.party)).length} in the ossuary, ${souls(run.state.party).length}/${rosterCap(run)} souls.` : ''),
   detachment: (run) => `${ORDER_TEXT.pick} Each wears a colour: its square, the arrow to it, a tag on its souls. In battle the plans lie faint under the units.` +
     (run ? ` Now: ${run.state.detachments.length ? run.state.detachments.map((d) => `${d.id}, ${planText(d.plan)}`).join('; ') : 'none, so every soul Hunts at once'}.` : ''),
   hunt: () => ORDERS.where.hunt.desc,
-  stay: () => `${ORDERS.where.stay.desc} ${ORDER_MORE.cohort}`,
+  stay: () => `${ORDERS.where.stay.desc} ${ORDER_MORE.summon}`,
   move: () => `${ORDERS.where.move.desc} ${say('Press Move, then click', 'Tap Move, then')} any cell of the board: your camp, the open ground or their formation. A square past the domain is drawn faded: a one-way trip.`,
   braced: () => ORDER_MORE.reaction,
   held: () => `${ORDER_MORE.held} ${ORDER_TEXT.wave}`,
   gauge: () => `It uses the first ability in its list whose condition holds and that has a target in reach, saving gauge for it. Walking is off the gauge, one tile every ${secs(TUNING.board.stepTicks)} for everyone, so the gauge fills on the march. It banks only up to its costliest ability.`,
-  engaged: () => 'Bodies block the way, friend or foe; a flanker slips through them on any plan, not only Hunt. Corpses block no one.',
+  engaged: () => 'Units block the way, friend or foe; a flanker slips through them on any plan, not only Hunt. Corpses block no one.',
   escalation: () => `${secs(TUNING.escalation.startTick)} after the start or the last entry, yours or theirs (${secs(TUNING.escalation.startTick * TUNING.escalation.bossMult)} in the boss's room), all damage ramps +${pct(TUNING.escalation.perTick * 1000 / TUNING.tick.ms)} a second, up to ×${TUNING.escalation.max}, never later than ${secs(TUNING.escalation.startTick * TUNING.escalation.bossMult)} after the last foe entered.`,
   ceiling: () => 'Counted from the start if no foe entered later.',
   wave: () => `${ENEMY_TEXT.waves} ${ENEMY_TEXT.entry} Each wave is scouted like the first, and the defeat screen names the wave a killer came with.`,
   siege: () => ENEMY_TEXT.court(),
-  essence: () => `More for stronger foes. It buys levels (up to ${TUNING.level.cap}), path tiers, one recruit after a win (at the level it fought), Monarch points, the muster, and bodies past the free binds.`,
+  essence: () => `More for stronger foes. It buys levels (up to ${TUNING.level.cap}), path tiers, one recruit after a win (at the level it fought), promotions and Monarch points.`,
   path: () => `Each kind has two or three. Tiers I–III follow the first (${TUNING.essence.tier.slice(0, 3).join(' / ')} essence), and third tiers change what a soul does. ${RANK_TEXT.second}`,
   soldier: () => RANK_TEXT.promote,
   knight: () => RANK_TEXT.knight,
   marshal: () => `${RANK_TEXT.marshal} Its domain moves with it, and shadows raised there join its banner.`,
   synergy: () => `Steps stack: Undead 6 holds Undead 2 and 4 too. Ranger's are at 3, 6 and 8. ${COUNT_NOTE}`,
   rule: () => 'The battle names a rule when it strikes. Deep down, foes can hold one against you.',
-  bond: () => 'Set by the formation when a battle begins and kept all battle: with the one beside it in its row, or right behind or ahead of it in its lane. A body holds its cell\'s; one entering later, or a shadow, those of where it enters or rises. The Monarch neither holds nor gives one. ◆ marks a bonded soul in prep.',
+  bond: () => 'Set by the formation when a battle begins and kept all battle: with the one beside it in its row, or right behind or ahead of it in its lane. One entering later, a summon or a shadow takes those of where it enters or rises. The Monarch neither holds nor gives one. ◆ marks a bonded soul in prep.',
   relic: () => 'Reliquaries and elites offer them, free. A trigger fires in battle for your side only, and its name flashes over the one it fired for.',
   keystone: () => `From floor ${TUNING.keystone.fromFloor}, a won elite and a rite each offer ${TUNING.keystone.offer} you do not hold: take one, free. None ever revives the Monarch.`,
   undying: () => KEYSTONE_MORE.undying
 }
 // Icons for the keywords that have one.
-const KW_ICON = { monarch: 'crown', dominion: 'dominion', command: 'command', will: 'will', ossuary: 'bone', essence: 'soul', keystone: 'keystone', relic: 'reliquary', soldier: 'soldier', knight: 'knight', marshal: 'marshal', hunt: 'o-hunt', stay: 'o-stay', move: 'o-move', siege: 'siege', held: 'w-time' }
+const KW_ICON = { monarch: 'crown', dominion: 'dominion', command: 'command', will: 'will', ossuary: 'bone', summon: 'hood', essence: 'soul', keystone: 'keystone', relic: 'reliquary', soldier: 'soldier', knight: 'knight', marshal: 'marshal', hunt: 'o-hunt', stay: 'o-stay', move: 'o-move', siege: 'siege', held: 'w-time' }
 const WHEN_ICON = { once: 'w-once', time: 'w-time', struck: 'w-struck', wave: 'w-wave', falls: 'w-falls' }
 
 // Every term and rule, by section: { name, entries: [{ name, line, more?, sys?, icon? }] }. A line is one
@@ -869,8 +887,8 @@ function glossary (run) {
           line: 'Mouse: hover anything for its tooltip (hold Shift for a card\'s details), click to act, drag a soul onto a tile or another soul to move or swap them. Touch: tap to act, long-press for a tooltip (More ▾ opens its details; the next tap closes it), drag a soul to move or swap it.',
           more: 'Keys: Enter begins (a run, a battle); in battle Space pauses, 1/2/4 set the speed, S or Esc skips (none changes the outcome); anywhere H or ? opens this, M mutes. ' +
             'The board (Tab to it): the arrows move a cursor, Enter or Space selects what is under it, X swaps the selected soul with it, Shift+Enter or Shift-click picks souls for a detachment, Esc drops a selection. A button or tab you Tab to takes Enter or Space itself. ' +
-            'Map: 1–9 enter a glowing room, R / C show the Route or the Camp. Spoils: 1–9, 0, then Q, W… take a card; ⇧1, ⇧2… (Shift and a digit) bind the slain; B binds all free; ← → go between the steps; S moves on. The end: Enter descends (or starts a new run when the run is over), N starts a new run. ' +
-            'By touch: a tap on a room scouts it and a second tap enters it (or its tooltip\'s Enter ▸); Pick in the Orders tab picks souls for a detachment; a tap on the selected soul drops it; a swipe up or down on the bench scrolls it, sideways lifts a soul; the battle bar has pause, speed, skip and this help.'
+            'Map: 1–9 enter a glowing room, R / C show the Route or the Camp. Spoils: 1–9, 0, then Q, W… take a card; ← → go between the steps; S moves on. The end: Enter descends (or starts a new run when the run is over), N starts a new run. ' +
+            'By touch: a tap on a room scouts it and a second tap enters it (or its tooltip\'s Enter ▸); Pick in the Orders tab picks souls for a detachment; a tap on the selected soul drops it; a swipe up or down on the ossuary scrolls it, sideways lifts a soul; the battle bar has pause, speed, skip and this help.'
         }]
     },
     {
@@ -904,7 +922,6 @@ function glossary (run) {
         { name: 'CRT', icon: 'crt', line: `Chance of a ×${TUNING.crit.mult} critical hit.` }]
     },
     { name: 'Statuses', entries: group('Statuses') },
-    { name: 'Shapes', entries: Object.values(SHAPES).map((sh) => ({ name: sh.name, sys: 'ossuary', line: sh.desc, more: 'A cell walled, off the camp or taken passes to the next in the shape, then to the open cell nearest the captain.' })) },
     {
       name: 'Synergies',
       entries: [...LADDERS.map((l) => {
@@ -921,9 +938,6 @@ function glossary (run) {
     { name: 'Keystones', entries: KEYSTONE_LIST.map((k) => ({ name: k.name, sys: 'keystone', icon: 'keystone', line: k.desc, more: KEYSTONE_MORE[k.id] })) }
   ]
 }
-
-// Bodies in the ossuary, all kinds together: 'standing' or 'fallen'.
-export const armyCount = (s, key) => Object.values(s.ossuary).reduce((n, o) => n + o[key], 0)
 
 // How to play: a dialog filling most of the frame, one view at a time behind two tabs. Basics: the primer
 // (the goal, the loop, what kills you) and what your run holds now. Glossary: every term, filtered as you type.
@@ -988,15 +1002,15 @@ export function helpOverlay (onClose, run = null) {
     h('p', { class: 'lede' }, `Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),
     h('ol', { class: 'primer' },
       h('li', null, 'You are the ', kw('monarch'), '. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
-      h('li', null, 'Pick rooms on the map. Battles pay ', kw('essence'), ', a recruit, and bodies to ', kw('bind'), '.'),
+      h('li', null, 'Pick rooms on the map. Battles pay ', kw('essence'), ' and one of the slain to recruit; the rest of your souls wait in the ', kw('ossuary'), '.'),
       h('li', null, 'Place yourself and your souls in the camp. Keep them in your ', kw('domain'), ', or they ', kw('falter'), '.'),
       h('li', null, 'Give ', kw('detachment', 'detachments'), ' a plan (', kw('hunt'), ', ', kw('stay'), ', ', kw('move'), ', now or ', kw('held'), '), then Begin: it plays out alone.'),
-      h('li', null, 'You ', kw('arise', 'raise'), ' the slain as ', kw('shadow', 'shadows'), '. Between rooms, spend on souls, the ', kw('muster'), ', ', kw('dominion'), ', ', kw('command'), ' and ', kw('will'), '.'),
+      h('li', null, 'You ', kw('arise', 'raise'), ' the slain as ', kw('shadow', 'shadows'), '. Between rooms, spend on souls (paths raise ', kw('summon', 'summons'), '), ', kw('dominion'), ', ', kw('command'), ' and ', kw('will'), '.'),
       h('li', null, 'What kills you: ', threats.map((id, i) => [i ? ', ' : '', kw(id)]), '. Each is visible before Begin.')),
     // Where the run stands now, a line each.
     s && h('div', { class: 'gl-run' },
       h('span', null, kw('monarch'), ` ${monarchOf(s).lvl > 0 ? `Lv ${monarchOf(s).lvl} · ` : ''}${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · ${MONARCH_STATS.map((k) => `${MONARCH_TEXT[k].name} ${s.monarch[k]}`).join(' · ')}`),
-      h('span', null, kw('ossuary'), ` ${armyCount(s, 'standing')} standing, ${armyCount(s, 'fallen')} fallen · muster ${s.muster}`),
+      h('span', null, kw('ossuary'), ` ${inOssuary(souls(s.party)).length} kept · souls ${souls(s.party).length}/${rosterCap(run)} · ${fielded(souls(s.party)).length}/${fieldCap(run)} on the field`),
       h('span', null, kw('detachment', 'Detachments'), ` ${s.detachments.length}/${A.detachments}`),
       h('span', null, kw('relic', 'Relics'), ` ${s.relics.length ? s.relics.map((id) => relicDef(id).name).join(', ') : 'none'}`),
       h('span', null, kw('keystone', 'Keystones'), ` ${s.keystones.length ? s.keystones.map((id) => keystoneDef(id).name).join(', ') : 'none'} (${s.keystones.length}/${TUNING.keystone.max})`),
@@ -1037,7 +1051,7 @@ export function helpOverlay (onClose, run = null) {
 export function monarchNextText (run, k) {
   const s = run.state
   if (k === 'dominion') return `Next point: domain ${domainOf(s) + 1} tiles.`
-  if (k === 'command') return `Next point: ${Math.min(TUNING.army.board, fieldCap(run) + 1)} banners, cohorts of ${s.monarch.command + 1}.`
+  if (k === 'command') return `Next point: ${Math.min(TUNING.army.board, fieldCap(run) + 1)} souls on the field.`
   const w = 1 + s.monarch.will
-  return `Next point: ${TUNING.monarch.raises * (w + 1) * realmOf(run).raises} raises, tier ≤ ${TUNING.monarch.raiseTier + w}, ${w + 1} free binds.`
+  return `Next point: ${TUNING.monarch.raises * (w + 1) * realmOf(run).raises} raises, tier ≤ ${TUNING.monarch.raiseTier + w}, Arise +${pct(TUNING.monarch.willHaste * w)} sooner.`
 }

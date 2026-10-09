@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createBattle, stepBattle, runBattle, falters, keystoneRules, stats } from '../src/sim/battle.js'
 import {
   createRun, apply, availableNodes, battleSetup, fieldCap, domainOf, domainCentre, faltersAt, souls, monarchOf, fielded, legalActions, join,
-  keptShadows, encounter
+  reapedShadows, encounter, foeEssence
 } from '../src/sim/run.js'
 import { policy, planFor, LEVELS, withPoint } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
@@ -20,18 +20,22 @@ import { makeUnit, tileAt, tileX, tileY, slotAt, DEPTH, alive, activeSynergies, 
 
 // A unit placed on a board tile directly, for battles built tile by tile.
 const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-const member = (id, uid, captain, x, y, lvl = 3) => ({ ...on(id, uid, 'party', x, y, lvl), cohortOf: captain, rank: true })
-const waiting = (id, uid, captain, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), cohortOf: captain, rank: true })
+// A summon of `captain`'s, standing on a tile from the start (as battle.js summon makes them: on its leash).
+const member = (id, uid, captain, x, y, lvl = 3) => ({ ...on(id, uid, 'party', x, y, lvl), cohortOf: captain, summoned: true, summoner: captain })
+// A unit of yours waiting off the board on `captain`'s leash, entering as the board has room (the battle's own
+// reserve rule; the run fills the reserve only with held souls).
+const waiting = (id, uid, captain, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), cohortOf: captain })
 
 // A battle of units placed on tiles (the party in its camp, y 0–6; a foe anywhere). The ones not named in
-// `moving` never step.
-function scene (units, { moving = [], ...opts } = {}) {
+// `moving` never step. A soul's summon tiers raise nothing here (the summons switch) unless `summons`: the
+// scenes place every unit themselves.
+function scene (units, { moving = [], summons = false, ...opts } = {}) {
   const foeRow0 = DEPTH - 3
   const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
   const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
     : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
   const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...opts })
+  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...(!summons && { ablate: ['summons'] }), ...opts })
   for (const u of b.units) {
     const want = units.find((x) => x.uid === u.uid).tile
     if (u.tile !== want) {
@@ -84,7 +88,7 @@ function visit (run, type) {
 
 test('the keystones are the eight of the design, each a rule; most relics now trigger, a few flat ones stay', () => {
   assert.deepEqual(KEYSTONE_LIST.map((k) => k.id), ['legion', 'undying', 'one_army', 'mimicry', 'vanguard_crown', 'hollow_court', 'blood_tithe', 'court_of_bone'])
-  const RULES = ['field', 'mods', 'rise', 'pool', 'alias', 'crown', 'domain', 'keep', 'raises', 'tithe', 'unhealable']
+  const RULES = ['field', 'mods', 'rise', 'pool', 'alias', 'crown', 'domain', 'reap', 'raises', 'tithe', 'unhealable']
   for (const k of KEYSTONE_LIST) {
     assert.ok(k.name && k.desc, k.id)
     const rules = Object.keys(k).filter((key) => !['id', 'name', 'desc'].includes(key))
@@ -603,7 +607,7 @@ test('Court of Bone: nothing heals the Monarch out of battle: not a win, not an 
   assert.ok(monarchOf(plain.state).hp > 40)
 })
 
-test('Hollow Court: the shadows still standing when a battle is won stay, as rank-and-file of their kind; the fallen do not', () => tuned(FIRST_ARISE, () => {
+test('Hollow Court: the shadows still standing when a battle is won pay their essence again; the fallen do not', () => tuned(FIRST_ARISE, () => {
   // A Monarch with a wide domain and Will 2 raises shadows; find a won fight where some still stand and
   // some fell.
   const fight = (seed, keystones) => {
@@ -619,26 +623,24 @@ test('Hollow Court: the shadows still standing when a battle is won stay, as ran
     const shadows = run.state.phase === 'reap' ? run.battle.units.filter((u) => u.shadow && u.side === 'party') : []
     const kept = shadows.filter((u) => u.hp > 0)
     if (!kept.length || kept.length === shadows.length) continue
-    const want = {}
-    for (const u of kept) want[u.id] = (want[u.id] ?? 0) + 1
-    assert.deepEqual(Object.fromEntries(Object.entries(run.state.ossuary).map(([id, o]) => [id, o.standing])), want)
-    assert.ok(Object.values(run.state.ossuary).every((o) => o.fallen === 0), 'a fallen shadow is gone')
-    // The same battle without the keystone keeps none.
+    // The same battle without the keystone (it bends nothing in battle) pays the slain only.
     const plain = fight('court' + i, [])
     assert.equal(plain.battle.units.filter((u) => u.shadow && u.hp > 0).length, kept.length, 'the same battle')
-    assert.deepEqual(plain.state.ossuary, {})
-    // Arise's shadows are the ones kept (each `arisen`), and their corpses are not offered to bind again.
+    const court = kept.reduce((n, u) => n + foeEssence(u), 0)
+    assert.ok(Math.abs(run.state.essence - plain.state.essence - court) <= 1, `${run.state.essence} − ${plain.state.essence} vs ${court}`)
+    // Nothing is kept: no soul joins, no shadow outlives the battle, and the spoils are the same.
+    assert.equal(run.state.party.length, plain.state.party.length)
+    assert.deepEqual(run.state.offers, plain.state.offers)
+    // Arise's shadows are the ones reaped (each `arisen`).
     assert.ok(kept.every((u) => u.arisen))
-    assert.deepEqual(keptShadows(run), kept)
-    const binds = (r) => r.state.offers.filter((o) => o.type === 'bind').reduce((n, o) => n + o.max, 0)
-    assert.equal(binds(plain) - binds(run), kept.length, 'one slain foe, one body')
-    // A party shadow raised some other way is not Arise's: it is not kept.
+    assert.deepEqual(reapedShadows(run), kept)
+    // A party shadow raised some other way is not Arise's: it is not reaped.
     const stray = { ...kept[0], uid: 9999, arisen: false }
     run.battle.units.push(stray)
-    assert.ok(!keptShadows(run).includes(stray))
-    // The rules the battle was fought with decide: Hollow Court taken on the spoils after it keeps nothing of it.
+    assert.ok(!reapedShadows(run).includes(stray))
+    // The rules the battle was fought with decide: Hollow Court taken on the spoils after it reaps nothing of it.
     plain.state.keystones.push('hollow_court')
-    assert.deepEqual(keptShadows(plain), [])
+    assert.deepEqual(reapedShadows(plain), [])
     return
   }
   assert.fail('no battle left a shadow standing and one fallen')
@@ -889,7 +891,7 @@ test('Court of Bone turns only heals away from the Monarch: a buff still goes to
 // ── the keystones soaked ─────────────────────────────────────────────────────────────────────────
 
 test('every keystone, alone and together, plays deterministically and keeps the battle\'s invariants', () => {
-  // Real elites from floors 2–4, with cohorts (so banners pool), a held detachment (so captains enter), Will
+  // Real elites from floors 2–4, with a summoner (so banners pool), a held detachment (so souls enter), Will
   // (so Arise raises), every trigger relic, and captains carried in wounded (so some fall and rise).
   const all = KEYSTONE_LIST.map((k) => k.id)
   const combos = [...all.map((id) => [id]), all, ['one_army', 'undying', 'legion'], ['vanguard_crown', 'court_of_bone', 'blood_tithe']]
@@ -900,15 +902,12 @@ test('every keystone, alone and together, plays deterministically and keeps the 
     const s = run.state
     s.floor = 2
     Object.assign(s.monarch, { will: 2, dominion: 1, command: 1 })
-    s.ossuary = { grave_ghoul: { standing: 12, fallen: 0 }, frost_sprite: { standing: 6, fallen: 0 } }
     s.relics = [...RELIC_LIST.filter((r) => r.on).map((r) => r.id), 'heartwood']
     const node = visit(run, 'elite')
     node.foes = encounter(s.seed, 2 + (i % 3), node)
     const caps = fielded(souls(s.party))
-    for (const u of caps) {
-      const a = legalActions(run).filter((x) => x.type === 'cohort' && x.uid === u.uid && x.kind).sort((x, y) => y.count - x.count)[0]
-      if (a) apply(run, a)
-    }
+    // The chanter raises Skeletons (Marrowcaller II), a Knight one more.
+    Object.assign(caps.find((u) => u.id === 'bone_chanter'), { path: 'marrowcaller', tier: 2, grade: 1 })
     apply(run, { type: 'order', uids: [caps.at(-1).uid], plan: { where: 'hunt', square: null, when: { at: 'time', t: 40 } } })
     for (const u of caps) u.hp = Math.max(1, Math.round(u.maxHp * (i % 2 ? 0.25 : 0.6)))
     for (const keystones of combos) {

@@ -8,7 +8,7 @@ import { createBattle, stats, ariseCap } from './sim/battle.js'
 import { TUNING } from './tuning.js'
 import { unitDef, ORDERS, relicDef } from './content.js'
 import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleBar, battleSides, bannerColours } from './ui.js'
-import { helpOverlay, unitCard, bodies, tileText, whenText, ENEMY_TEXT, tipDetail } from './codex.js'
+import { helpOverlay, unitCard, tileText, whenText, ENEMY_TEXT, ARMY_TEXT, tipDetail } from './codex.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, touchy } from './dom.js'
 import { sfx } from './sfx.js'
 import { distance } from './sim/unit.js'
@@ -179,7 +179,7 @@ function route () {
     show(prepScreen({ run, act, onFight: fight, onHelp: toggleHelp }))
   } else if (s.phase === 'reap') {
     const title = { reliquary: 'Reliquary', rite: 'Rite' }[currentNode(run).type] ?? 'Spoils'
-    show(reapScreen({ run, title, act, onDone: reap, onBind: bind, onHelp: toggleHelp }))
+    show(reapScreen({ run, title, act, onDone: reap, onHelp: toggleHelp }))
   } else {
     show(endScreen({ run, onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
   }
@@ -190,8 +190,8 @@ function onNode (id) {
   trail.ids.push(id)
   if (currentNode(run).type === 'altar') {
     note = holds(run.state, 'unhealable')
-      ? 'The altar burns: your souls are healed, and the fallen, souls and bodies, rise again. Under Court of Bone the Monarch is not healed.'
-      : 'The altar burns: everyone is healed, and the fallen, souls and bodies, rise again.'
+      ? 'The altar burns: your souls are healed, and the fallen rise again. Under Court of Bone the Monarch is not healed.'
+      : 'The altar burns: everyone is healed, and the fallen rise again.'
   }
   // A reliquary with nothing to offer (the relics already at their most) is used up on the spot.
   if (currentNode(run).type === 'reliquary' && run.state.phase === 'map') {
@@ -208,8 +208,8 @@ function descend () {
   route()
 }
 
-// The spoils may take several steps (a recruit and binds), each re-showing the room until it ends: the
-// notes add up for the map.
+// The spoils may take several steps (a recruit, a relic, a keystone), each re-showing the room until it ends:
+// the notes add up for the map.
 const addNote = (line) => { note = note ? `${note} ${line}` : line }
 
 function reap (index) {
@@ -219,13 +219,6 @@ function reap (index) {
   else if (o?.type === 'relic') addNote(`${o.name} claimed.`)
   else if (o?.type === 'tier') addNote(`${o.name}: the rite is done.`)
   else if (o?.type === 'keystone') addNote(`${o.name}: a rule of the run is rewritten.`)
-  route()
-}
-
-// Bind `count` of the slain of kind `id` as rank-and-file. A bind offer is never taken by `reap`.
-function bind (id, count) {
-  apply(run, { type: 'bind', id, count })
-  addNote(`${bodies(id, count)} bound to the ossuary.`)
   route()
 }
 
@@ -271,7 +264,7 @@ async function fight () {
       const led = battle.units.filter((x) => x.cohortOf === u.uid && x.side === u.side && x.hp > 0).length + battle.reserve.filter((x) => x.cohortOf === u.uid && x.side === u.side).length
       // An elite's captain or cohort may march under orders (never shown which); an orphan only Hunts.
       const ordered = foe && node.type === 'elite' && !u.orphan && (u.rank || battle.units.some((x) => x.cohortOf === u.uid) || led > 0)
-      // A Marshal's banner (itself, its cohort, the shadows that joined it) within its own domain.
+      // A Marshal's banner (itself, its summons, the shadows that joined it) within its own domain.
       const R = TUNING.ranks.domain
       const marshal = foe ? null : u.grade >= 2 ? u : captain?.grade >= 2 && captain.hp > 0 ? captain : null
       const kept = marshal && battle.monarch && distance(u.tile, marshal.tile) <= R && distance(u.tile, battle.centre ?? battle.monarch.tile) > battle.domain
@@ -286,17 +279,18 @@ async function fight () {
         u.shadow && (foe
           ? legion ? 'Your fallen, raised against you by their Legion: it falters.' : 'Raised by Grave Tide: it falters, and crumbles with the Sovereign.'
           : `${legion ? 'Legion' : 'Arise'} shadow${captain ? ` of ${unitDef(captain.id).name}'s banner` : ''}` +
-            (u.arisen && holds(run.state, 'keep') ? '; Hollow Court keeps it if it stands.' : '; gone after the battle.')),
+            (u.arisen && holds(run.state, 'reap') ? '; gone after the battle, but Hollow Court reaps its essence if it stands.' : '; gone after the battle.')),
         foe && u.wave && (u.when?.at === 'time' ? 'Came with the late pair.' : `Came with wave ${u.wave + 1}.`),
         foe && !u.rank && led > 0 && ENEMY_TEXT.captain(led, unitDef(u.id).boss),
         u.grade >= 2 && !foe && `Marshal: its banner never falters within ${R} tiles.`,
         kept && u !== marshal && !u.shadow && `Past the domain, in its Marshal's: full strength${orders}.`,
-        u.rank && (foe ? (captain ? ENEMY_TEXT.of(captain.id) : 'Of a captain\'s cohort.') : `Of ${captain ? `${unitDef(captain.id).name}'s` : 'a'} banner, muster ${u.lvl}.`),
-        u.orphan && 'Its captain fell: it falters and hunts.',
-        !foe && !u.orphan && !kept && u.falter && `Faltering ×${TUNING.monarch.falter}: outside the domain${battle.ks.crown ? ' (it follows your front captain)' : ''}.`,
+        u.rank && (captain ? ENEMY_TEXT.of(captain.id) : 'Of a captain\'s cohort.'),
+        u.summoned && `${captain ? `${unitDef(captain.id).name}'s summon` : 'A summon'}: ${ARMY_TEXT.summon}`,
+        u.orphan && (u.summoned ? 'Its soul fell: it falters and hunts.' : 'Its captain fell: it falters and hunts.'),
+        !foe && !u.orphan && !kept && u.falter && `Faltering ×${TUNING.monarch.falter}: outside the domain${battle.ks.crown ? ' (it follows your front soul)' : ''}.`,
         u.rose && 'Risen by Undying: its next fall is final.',
         battle.ks.pool && !foe && !u.shadow && (u.cohortOf != null ? !u.orphan : battle.units.some((x) => x.cohortOf === u.uid && !x.orphan && x.hp > 0)) &&
-          'One Army: shares its banner\'s HP pool.',
+          'One Army: shares one HP pool with its soul\'s summons.',
         ...(!foe ? planNotes(battle, u, captain) : []),
         me && [`Arise ${battle.raised}/${ariseCap(battle.will, battle.ks.raises)}`,
           battle.ks.tithe > 0 && `${Math.ceil(u.maxHp * battle.ks.tithe)} HP a shadow`,
@@ -310,30 +304,28 @@ async function fight () {
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
         me && `Arise ${battle.raised}/${ariseCap(battle.will, battle.ks.raises)} · if it falls, the run ends`,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
-          : u.arisen && holds(run.state, 'keep') ? 'Shadow: Hollow Court keeps it if it stands' : 'Shadow: gone after the battle'),
-        u.orphan && 'Its captain fell: it falters and hunts',
+          : u.arisen && holds(run.state, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: gone after the battle'),
+        u.orphan && (u.summoned ? 'Its soul fell: it falters and hunts' : 'Its captain fell: it falters and hunts'),
         !foe && !kept && u.falter && `Faltering ×${TUNING.monarch.falter}: outside the domain`,
         kept && u !== marshal && 'In its Marshal\'s domain: full strength',
         u.rose && 'Risen by Undying: its next fall is final',
         plan,
         u.grade >= 2 && !foe && `Marshal: no falter within ${R} tiles`,
         foe && !u.rank && led > 0 && (unitDef(u.id).boss ? `Leads a court of ${led}` : `Captain of ${led}: kill it, they falter`),
-        u.rank && captain && (foe ? `Of ${unitDef(captain.id).name}'s ${unitDef(captain.id).boss ? 'court' : 'cohort'}` : `Of ${unitDef(captain.id).name}'s banner`),
+        u.rank && captain && `Of ${unitDef(captain.id).name}'s ${unitDef(captain.id).boss ? 'court' : 'cohort'}`,
+        u.summoned && captain && `${unitDef(captain.id).name}'s summon: gone after the battle`,
         foe && u.wave && (u.when?.at === 'time' ? 'Came with the late pair' : `Came with wave ${u.wave + 1}`),
         !foe && 'Hunting'].find(Boolean) || null
-      const realm = { domain: battle.domain, will: battle.will, raises: battle.ks.raises, tithe: battle.ks.tithe, keep: holds(run.state, 'keep') }
+      const realm = { domain: battle.domain, will: battle.will, raises: battle.ks.raises, tithe: battle.ks.tithe, reap: holds(run.state, 'reap') }
       const tip = pin ? pinTip : showTip
       tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, notes, ordered, live }))
     },
     onDone: () => {
       // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).
       if (!scene?.ending) sfx.play(run.battle.winner === 'party' ? 'win' : 'lose')
-      // Shadows are not souls: they were never yours to lose. Rank-and-file are counted by kind.
-      const lost = run.battle.units.filter((u) => u.side === 'party' && !u.shadow && u.hp <= 0)
-      const fallen = lost.filter((u) => !u.rank).map((u) => unitDef(u.id).name)
-      const kinds = Object.entries(Object.groupBy(lost.filter((u) => u.rank), (u) => u.id)).map(([id, us]) => bodies(id, us.length))
-      const what = [fallen.length && `Fallen: ${fallen.join(', ')}.`, kinds.length && `${kinds.join(', ')} of the rank-and-file fell.`].filter(Boolean)
-      if (what.length && run.state.phase !== 'over') note = `${what.join(' ')} An altar will raise them.`
+      // Shadows and summons are not souls: they were never yours to keep. The fallen souls wait for an altar.
+      const fallen = run.battle.units.filter((u) => u.side === 'party' && !u.shadow && !u.summoned && u.hp <= 0 && u.uid !== run.battle.monarch?.uid).map((u) => unitDef(u.id).name)
+      if (fallen.length && run.state.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. An altar will raise them.`
       route()
     }
   })

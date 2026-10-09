@@ -1,7 +1,7 @@
 /* card: the tray's tabs (retinueEditor in ui.js): the Soul tab (spendPanel; a soul's card: soulCard, upgradePanel,
-   rankPanel, cohortPanel), the Monarch's card (monarchPanel), Orders, Bones (the ossuary) and Bonus. A soul is a
-   card framed in its rank's colour, its head and level-up always shown and its paths, rank and cohort behind
-   three tabs; its paths are Bloons-style tracks of tier nodes; the Monarch is a gold card with three stat
+   rankPanel), the Monarch's card (monarchPanel), Orders and Bonus. A soul is a card framed in its rank's colour,
+   its head and level-up always shown and its paths (with what their summon tiers raise) and rank behind two
+   tabs; its paths are Bloons-style tracks of tier nodes; the Monarch is a gold card with three stat
    columns. Every purchase pops, every refusal shakes. Sizes are the shared scale (style.css :root): body text
    --fs-md, secondary --fs-sm, badge numbers --fs-xs; anything pressed --tap on its short side. */
 
@@ -131,36 +131,32 @@
 .buy.promote.g2 { --rank: var(--c-marshal); border-color: color-mix(in srgb, var(--c-marshal) 45%, transparent); }
 .buy.promote.poor { color: var(--dim); }
 .feed { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; cursor: help; }
-.feed .portrait, .strip .portrait { width: 30px; height: 30px; border-radius: 50%; background: #1d1930; }
-.feed-gap { width: 28px; height: 28px; margin: 1px; border-radius: 50%; border: 1px dashed #4a4266; flex: none; }
+/* The level a promotion needs, a pip a level, lit up to the soul's own. */
+.feed-gap { width: 14px; height: 14px; margin: 1px; border-radius: 50%; border: 1px dashed #4a4266; flex: none; }
+.feed-gap.on { border: 1px solid var(--rank, var(--c-knight)); background: color-mix(in srgb, var(--rank, var(--c-knight)) 55%, #100e1c); }
+.uc-promote .buy.promote .price { margin-left: 8px; display: inline-flex; align-items: center; gap: 3px; color: var(--c-essence); font-weight: 700; }
+.uc-promote .buy.promote.poor .price { color: var(--c-foe); }
 .feed-n { margin-left: 4px; font-size: var(--fs-sm); color: var(--dim); }
 .feed.ok .feed-n { color: var(--rank, var(--bright)); font-weight: 700; }
+.uc-rank { --rank: var(--c-knight); }
+.uc.g1 .uc-rank { --rank: var(--c-marshal); }
 
-/* ── cohort ──────────────────────────────────────────────────────────────────────────────────── */
+/* ── summons: on a path's track, what its summon tier raises ────────────────────────────────── */
 
-.strip { display: flex; flex-wrap: wrap; gap: 3px; margin: 4px 0 10px; cursor: help; }
-.strip .portrait { width: 28px; height: 28px; }
-.uc-kinds { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 8px; }
-.uc-kind { position: relative; width: 54px; height: 54px; padding: 4px; border-radius: 10px; }
-.uc-kind .portrait { width: 42px; height: 42px; }
-.uc-kind.on { border-color: var(--c-ossuary); background: #26221a; box-shadow: 0 0 10px #d8cfb833; }
-.uc-kind.locked { opacity: .45; cursor: not-allowed; }
-.uc-kind-n {
-  position: absolute; right: -7px; bottom: -7px; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px;
-  display: grid; place-items: center; font: 700 var(--fs-badge)/1 var(--sans); background: #0f0d18; border: 1px solid var(--line); color: var(--c-ossuary);
-}
-.uc-ctl { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-.uc-ctl .grow { flex: 1; }
+/* A summon tier's node wears the face of what it raises on its corner. */
+.tbadge.sum { top: auto; bottom: -7px; right: -7px; width: 22px; height: 22px; overflow: hidden; border-color: var(--c-path); background: #0f0d18; }
+.tbadge.sum .portrait { width: 18px; height: 18px; }
+/* Under the track: its face, how many each battle (a Knight's or a Marshal's more), dim until it is held. */
+.track-sum { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-sm); color: var(--dim); cursor: help; }
+.track-sum .portrait { flex: none; width: 26px; height: 26px; border-radius: 50%; background: #1d1930; opacity: .7; }
+.track-sum b { color: var(--text); }
+.track-sum.on { color: var(--text); }
+.track-sum.on .portrait { opacity: 1; box-shadow: 0 0 0 1.5px var(--c-path); }
+.track-sum.on b { color: var(--c-path); }
+.track-sum .rank-plus.g1 { color: var(--c-knight); }
+.track-sum .rank-plus.g2 { color: var(--c-marshal); }
+
 .tray .step-btn { width: var(--tap); min-width: var(--tap); height: var(--tap); padding: 0; font-size: var(--fs-lg); }
-.uc-count { min-width: 2.6em; text-align: center; cursor: help; white-space: nowrap; }
-.uc-count b { font: 600 var(--fs-xl)/1 var(--serif); }
-.uc-count .dim { font-size: var(--fs-sm); }
-.uc-clear { gap: 6px; padding: 6px 12px; font-size: var(--fs-sm); color: var(--dim); }
-.uc-shapes { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin-top: 8px; }
-.uc-shape { height: 48px; padding: 0; --gl: 7px; }
-.uc-shape .glyph { grid-auto-rows: 7px; gap: 2px; }
-.uc-shape .glyph i { width: 7px; height: 7px; }
-.uc-shape.on { border-color: var(--c-ossuary); background: #26221a; }
 
 /* ── the Monarch's card ──────────────────────────────────────────────────────────────────────── */
 
@@ -285,26 +281,6 @@
 .det-fold .det-ports { display: inline-flex; gap: 2px; min-width: 0; overflow: hidden; flex: 1; justify-content: flex-end; }
 .det-fold .det-ports .portrait { width: 30px; height: 30px; }
 .det-fold .det-open { flex: none; width: 10px; height: 10px; border-right: 2px solid var(--dim); border-bottom: 2px solid var(--dim); transform: rotate(45deg) translate(-2px, -2px); }
-
-/* ── Bones: the muster, then the kinds as tiles ──────────────────────────────────────────────── */
-
-.tray .ossuary-panel { margin: 0; padding: 0; border: none; background: none; }
-.tray .ossuary-panel h2 { margin: 0 0 8px; font: 600 var(--fs-md)/1.2 var(--sans); letter-spacing: 0; text-transform: none; cursor: help; }
-.tray .oss-count { font: 500 var(--fs-sm) var(--sans); }
-.tray .muster-row { gap: 10px; padding: 6px 10px; margin: 0 0 10px; cursor: help; }
-.tray .mu-name { font-size: var(--fs-sm); letter-spacing: .04em; }
-.tray .mu-lvl { font-size: var(--fs-xl); }
-.tray .mu-next { font-size: var(--fs-lg); }
-.tray .chip-cap { font-size: var(--fs-sm); padding: 2px 10px; }
-.tray .bone-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-.tray .bone-tile { padding: 8px 4px 6px; gap: 3px; }
-.tray .bt-port { width: 54px; height: 54px; }
-.tray .bt-port .portrait { width: 48px; height: 48px; }
-.tray .bt-stand, .tray .bt-fell { min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; font: 700 var(--fs-badge)/22px var(--sans); }
-.tray .bt-fell::before { font-size: var(--fs-badge); }
-/* A kind's name on up to two lines, never cut ("Will-o'-Wisp", "Clockwork Page"). */
-.tray .bt-name { font-size: var(--fs-sm); line-height: 1.15; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; min-height: 2.3em; width: 100%; display: flex; align-items: center; justify-content: center; text-align: center; }
-.tray .bt-led { font-size: var(--fs-sm); }
 
 /* ── Bonus: synergies, bonds, relics, keystones ──────────────────────────────────────────────── */
 

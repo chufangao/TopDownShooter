@@ -157,7 +157,10 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 
 /* A column beside the board (it scrolls past what fits): where a dragged soul is dropped to bench it. */
 .board-main .bench-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; width: 88px; margin: 0; min-height: 0; }
-.board-main .bench-row .rs-label { flex: none; width: auto; text-align: center; font-size: var(--fs-sm); letter-spacing: .06em; cursor: help; }
+.board-main .bench-row .rs-label { flex: none; width: auto; text-align: center; font-size: var(--fs-sm); letter-spacing: .06em; cursor: help; color: var(--c-ossuary); }
+/* The ossuary's count under its name: your souls, of the most you may hold. */
+.board-main .bench-row .rs-count { display: block; font-size: var(--fs-sm); letter-spacing: 0; text-transform: none; color: var(--dim); white-space: normal; }
+.board-main .bench-row .rs-count b { color: var(--text); }
 .board-main .bench {
   flex: 1; min-height: 0; display: flex; flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 4px 0;
   overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;

@@ -17,46 +17,48 @@ export const TUNING = {
   // After startTick (×bossMult for bosses) all damage ramps by perTick, capped at max: no stalemates. The
   // ticks count from the battle's last entry (a reserve, a wave), so newcomers never meet ramped blows.
   escalation: { startTick: 900, perTick: 0.005, max: 8, bossMult: 2 },
-  // field: captains (souls) that fight before Command on floor 1, fieldPerFloor more each floor down (round 2) (the Monarch's banners: field + command, never more
-  // than army.board); roster: field + bench. The Monarch counts toward neither.
-  party: { field: 3, fieldPerFloor: 1, roster: 12 },
+  // field: the souls that fight before Command; the field cap is field + fieldPerFloor × (floor − 1) + Command (+
+  // relics, keystones), never more than army.board. fieldPerFloor is 0 since the army became souls and summons
+  // (it was 1 in necessity round 2): Command alone widens the field. roster: the souls a retinue holds, on the
+  // field and in the ossuary together. The Monarch counts toward neither, and summons toward nothing.
+  party: { field: 3, fieldPerFloor: 0, roster: 12 },
   // The Monarch: HP hp + hpPerPoint × points spent (its level); a point costs cost + costPerPoint × points
   // spent. Its domain reaches `domain` + Dominion tiles (Chebyshev) from its tile; a party unit outside it,
   // and every shadow, deals `falter` × damage. A shadow rises with `raiseHp` of its max HP. Nothing else
   // touches its HP (no synergy, relic or keystone), so hp and hpPerPoint carry all of it: 140 and +24 a point
   // (the final balance pass; it was 90 and +12 while synergies still raised it some 40%). Only a run that buys
   // points gains by hpPerPoint: the expert buys some 14 by floor 4, a rule-of-thumb run none.
-  // Arise raises up to raises × (1 + Will) a battle, foes of tier up to raiseTier + Will.
+  // Arise raises up to raises × (1 + Will) a battle, foes of tier up to raiseTier + Will, and each point of Will
+  // fills the Monarch's gauge willHaste faster (×(1 + willHaste × Will)): Arise comes sooner. That is the half of
+  // Will that free binds were, until binding went.
   // Necessity round 2: hp 280 + 10 a point (was 200 + 16: points decided whole runs), raises 3 (was 2: Arise
-  // was worth less than the points its Will took). Ranks gained `might` and cohorts of 3/6; relics a cap (relicMax).
-  // Round 3: hp 220 + 14 a point (was 280 + 10), rank cohorts 2/4 (were 3/6): once the expert made Knights by
-  // rehearsal, Knights' cohorts filled the board at Command 0 and the points were worth nothing (monarch-stats −8).
-  monarch: { hp: 220, hpPerPoint: 14, cost: 20, costPerPoint: 10, domain: 3, falter: 0.7, raiseHp: 1, raises: 3, raiseTier: 2, shadowFalter: false },
+  // was worth less than the points its Will took). Ranks gained `might`; relics a cap (relicMax).
+  // Round 3: hp 220 + 14 a point (was 280 + 10).
+  monarch: { hp: 220, hpPerPoint: 14, cost: 20, costPerPoint: 10, domain: 3, falter: 0.7, raiseHp: 1, raises: 3, raiseTier: 2, shadowFalter: false, willHaste: 0.1 },
   // Orders' payoffs. braced: a party unit on Stay within `post` tiles of the tile it holds takes this × damage.
-  // fresh: a held detachment's body (any start but 'once') enters with a full gauge and Shielded for this many
-  // ticks. reserve: the places held bodies have past the board's cap (they take none of army.board's), so a
+  // fresh: a held detachment's soul (any start but 'once') enters with a full gauge and Shielded for this many
+  // ticks. reserve: the places held souls have past the board's cap (they take none of army.board's), so a
   // later start is how more than the board fights at once (necessity round 1: reserves were barely needed).
   // Round 1 also moved the Monarch to hp 200 + 16 a point (from 140 + 24: points weighed too much) and the
   // path tiers to 20/45/75/120 (from 30/60/100/150: tiers were rarely bought, paths barely needed).
   // holdFlank (round 3): a braced unit holds a flanker (it cannot vault one, and is engaged beside one), so a Stay
   // line answers the threat that most often fells the Monarch (battle.js pinned).
   orders: { braced: 0.5, post: 1, fresh: 240, reserve: 10, holdFlank: true },
-  // The army (board 14 → 10 in necessity round 1, so the army is not the whole game and Arise's shadows, which
-  // stand past the cap, and the reserve both count): at most `board` bodies on the board at once (captains and their cohorts, the Monarch not
-  // counted; shadows count once risen); the rest wait in reserve. Rank-and-file all fight at the muster
-  // level: it starts at muster.start, and the next costs muster.cost × level^muster.exponent, up to
-  // muster.cap. After a win the first 1 + Will bodies bound are free, each more costs bindPerTier × tier.
-  // At most `detachments` detachments carry orders at once (every other soul Hunts, at once). overflow: whether
-  // bodies with no room on the board wait in reserve and enter as places free (false since necessity round 2:
-  // they sit the battle out, and only a held detachment enters mid-battle, so reserves are how more fight).
-  army: { board: 10, overflow: false, muster: { start: 2, cap: 10, cost: 9, exponent: 1.2 }, bindPerTier: 3, detachments: 4 },
-  // Ranks: a captain is promoted by feeding it standing bodies of its kin, `knight` of them to make it a
-  // Knight and `marshal` more to make it a Marshal. A Marshal's own domain reaches `domain` tiles
-  // (Chebyshev) from it: there its banner never falters and heeds every order. `cohort[grade]`: bodies a
-  // captain of that rank leads beyond Command (a Soldier none), so a promoted captain leads a cohort even at
-  // Command 0 (necessity round 1: before, Command 0 meant no army at all, and a base cohort for every captain
-  // let a rule-of-thumb run through floor 1).
-  ranks: { knight: 3, marshal: 6, domain: 3, cohort: [0, 2, 4], might: [1, 1.2, 1.4] },
+  // The board (14 → 10 in necessity round 1): the field cap never passes `board` souls, and a held soul enters
+  // only while fewer than `board` of yours that take a place stand on the board (the Monarch, Arise's shadows,
+  // summons and held souls take none: held souls have orders.reserve places of their own). At most
+  // `detachments` detachments carry orders at once (every other soul Hunts, at once).
+  army: { board: 10, detachments: 4 },
+  // Ranks: a soul is promoted for essence once it has the level: a Soldier to Knight at level[0] for cost[0], a
+  // Knight to Marshal at level[1] for cost[1] (in the spirit of the old 3 and 6 more bodies: a Knight a few
+  // fights in, a Marshal late). A Knight or a Marshal deals might[grade] × damage and takes 1 / that. A
+  // Marshal's own domain reaches `domain` tiles (Chebyshev) from it: there its banner (itself, its summons, the
+  // shadows that joined it) never falters and heeds every order. summons[grade]: how many more its first summon
+  // tier raises (the old rank cohorts' place).
+  ranks: { level: [4, 7], cost: [40, 80], domain: 3, might: [1, 1.2, 1.4], summons: [0, 1, 2] },
+  // Summons (a path tier's `summon`): each battle they appear beside their summoner at `level` × its level
+  // (rounded, at least 1), keep to it, and are gone when the battle ends.
+  summon: { level: 1 },
   // A level costs cost × level^exponent essence, up to cap.
   level: { cap: 10, cost: 8, exponent: 1.2 },
   // Essence: each foe slain pays perTier × tier × (1 + perLevel × (level − 1)); a run starts with
@@ -81,7 +83,8 @@ export const TUNING = {
     // one is drawn again wanting it, up to `routeTries` times a type (run.js varyRoutes).
     variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 6 },
     // The enemy as an army. From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave,
-    // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind. A floor-1
+    // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind (the enemy
+    // keeps its captains and rank-and-file; your side is souls and their summons). A floor-1
     // elite brings a late pair: `late.n` more foes of its pool, entering at the top edge at tick `late.t`. From
     // floor `waves.floor` an elite, a fight from rank `waves.fightRank`, a siege and the last room come in
     // waves (`waves.elite`, `.fight`, `.siege` in all, the first included): each next one enters at the top
@@ -110,7 +113,8 @@ export const TUNING = {
     // strongest three, each floor's broods (flank, mantis) and final elite the usual end.
     endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, rules: 2, final: { count: 2, level: 1 } }
   },
-  // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless).
+  // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). An
+  // altar heals every soul to altarHeal of its max HP and raises a fallen one at altarRevive.
   run: { floors: 4, postBattleHeal: 0.5, altarHeal: 1, altarRevive: 0.5 },
   // The autoplayer's rehearsals: a battle budget of `rehearsalCeiling` ticks (one still going is scored
   // as a loss), and a single rehearsal seed for a battle of more than `bigBattle` units. `settle`: a rehearsal

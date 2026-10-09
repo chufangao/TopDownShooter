@@ -381,8 +381,8 @@ class PrepScene extends Phaser.Scene {
     legible(this.text(x, y, p.facing ? 'THEIR FORMATION' : 'THEIR GROUND', 14, p.facing ? ROSE : '#b0808e', 3, faceFor(14, this.labelZ)).setOrigin(0, 1).setDepth(-300), this.labelZ)
   }
 
-  // Behind the camp, under the board: the held detachments' bodies by detachment (its id and start in its
-  // colour), then the reserve that sits the battle out. Only drawn when any wait.
+  // Behind the camp, under the board: the held detachments' souls by detachment (its id and start in its
+  // colour), each followed by the summons it will raise as it enters, smaller. Only drawn when any wait.
   drawWaiting (p) {
     this.waitRect = null
     const w = p.waiting
@@ -400,14 +400,15 @@ class PrepScene extends Phaser.Scene {
     let y = top + Math.max(30, head.displayHeight + 16)
     const room = (n) => { if (x + n > right) { x = left; y += 34 } }
     const body = (b, alpha) => {
-      room(24)
-      const img = this.add.image(x + 11, y + 12, `unit:${unitDef(b.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES * 0.36).setAlpha(alpha).setDepth(-299)
+      const w = b.summon ? 17 : 24
+      room(w)
+      const img = this.add.image(x + w / 2 - 1, y + 12, `unit:${unitDef(b.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES * (b.summon ? 0.26 : 0.36)).setAlpha(b.summon ? alpha * 0.7 : alpha).setDepth(-299)
       this.layer.push(img)
       if (b.banner) {
-        const ring = this.add.ellipse(x + 11, y + 13, 20, 6).setStrokeStyle(1.2, hex(b.banner), 0.8).setDepth(-300)
+        const ring = this.add.ellipse(x + w / 2 - 1, y + 13, w - 4, 6).setStrokeStyle(1.2, hex(b.banner), 0.8).setDepth(-300)
         this.layer.push(ring)
       }
-      x += 24
+      x += w
     }
     const tag = (str, colour) => {
       const t = legible(this.text(0, 0, str, 9, colour, 3).setDepth(-299), this.labelZ, 'num')
@@ -494,12 +495,13 @@ class PrepScene extends Phaser.Scene {
     }
     // A soul of a detachment stands in a faint ring of its colour, as in battle.
     if (u.det && !u.det.dot) part(this.add.ellipse(0, 0, 50 * a.size, 15 * a.size).setStrokeStyle(1.5, hex(u.det.color), 0.6), 0, 4, 'under', { keep: true })
-    // The bars: the Monarch's thicker, in its gold frame.
+    // The bars: the Monarch's thicker, in its gold frame. A summon, a faint marker of where it will likely
+    // appear, has none.
     const crowned = !!u.monarch
     const colour = foe ? FOE : PARTY
-    part(this.add.rectangle(0, 0, BAR + 2, crowned ? 12 : 10, 0x07060b, 0.92).setStrokeStyle(1, crowned ? CROWN : 0x2c2740), 0, BAR_DROP + 2, 'ground', { keep: true })
+    if (!u.summon) part(this.add.rectangle(0, 0, BAR + 2, crowned ? 12 : 10, 0x07060b, 0.92).setStrokeStyle(1, crowned ? CROWN : 0x2c2740), 0, BAR_DROP + 2, 'ground', { keep: true })
     const f = u.maxHp ? Math.max(0, u.hp / u.maxHp) : 1
-    if (f > 0) part(this.add.rectangle(0, 0, BAR * f, crowned ? 6 : 4, colour).setOrigin(0, 0.5), -BAR / 2, BAR_DROP, 'ground', { z: 0.2, keep: true })
+    if (f > 0 && !u.summon) part(this.add.rectangle(0, 0, BAR * f, crowned ? 6 : 4, colour).setOrigin(0, 0.5), -BAR / 2, BAR_DROP, 'ground', { z: 0.2, keep: true })
     // Every mark that carries print is kept legible at the board's zoom (engine.js legible: a number as the
     // page's --fs-xs at the frame's scale), and placed by the size it then has.
     const z = this.labelZ
@@ -511,7 +513,7 @@ class PrepScene extends Phaser.Scene {
     // number; over it, a melee blocked behind melee (⇈). Right of the feet: a bond's ◆, a member's detachment
     // dot. Over its head: a soul's detachment tag.
     const grade = u.grade ?? 0
-    // (A body of a banner wears none: every body fights at the muster's level, told on its card and in Bones.)
+    // (A summon wears none: it fights at its soul's level, told on its card.)
     if (!foe && !u.rank && (!crowned || u.lvl > 0)) {
       const metal = crowned ? CROWN : grade >= 2 ? hex(C.marshal) : grade === 1 ? hex(C.knight) : 0x5a5078
       const kids = [this.add.circle(0, 0, 9.5, 0x07060b, 0.92).setStrokeStyle(grade && !crowned ? 2.2 : 1.5, metal),
@@ -543,12 +545,12 @@ class PrepScene extends Phaser.Scene {
       const flag = !u.rank && !u.monarch && (u.count ?? 0) > 0 ? 24 * labelScale(15, z, 'num') + 4 : 0
       part(tag, 0, -Math.max(a.chest * 2.95, a.chest * 2.1 + flag + 7.5 * tag.scaleY), 'top', { move: 2, box: [-(t.width + 10) / 2, -7.5, (t.width + 10) / 2, 7.5] })
     }
-    // A rank-and-file standing on a fallen soul's cell: a small ghost beside it, edged in its banner's colour.
+    // A summon likely raised on a fallen soul's cell: a small ghost beside it, edged in its banner's colour.
     if (u.under) {
       const g = this.add.image(0, 0, `unit:${unitDef(u.under.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES * 0.45).setAlpha(0.75)
       part(g, 24, -2, 'ground', { z: 0.25 })
       if (u.under.colour) part(this.add.ellipse(0, 0, 26, 8).setStrokeStyle(1.2, hex(u.under.colour), 0.9), 24, 0, 'ground', { z: 0.24 })
-      // Led by the selected captain, as a member on its own cell is.
+      // Raised by the selected soul, as a summon on its own tile is.
       if (u.under.led) part(this.add.ellipse(0, 0, 32, 10).setStrokeStyle(1.5, SOUL, 0.6), 24, 1, 'ground', { z: 0.23 })
     }
     // A foe captain's flag, with the size of its cohort.
@@ -558,13 +560,13 @@ class PrepScene extends Phaser.Scene {
       fl.fillStyle(FOE, 1).fillRect(0.8, -17, 17, 12)
       part(L(this.add.container(0, 0, [fl, txt(String(u.count), 11, '#07060b', 0).setOrigin(0.5).setPosition(9.3, -11)]), 11), -BAR / 2 - 8, BAR_DROP + 2, 'ground', { z: 0.3 })
     }
-    // Yours wear their growth as in battle (a captain's flag kept legible); a Knight's or a Marshal's insignia
+    // Yours wear their growth as in battle (a summoner's flag kept legible); a Knight's or a Marshal's insignia
     // is on its level's pill (above).
     if (!foe && !u.rank && !u.monarch) {
       a.growth = growthMarks(this, u, { banner: u.banner, count: u.count ?? 0, size: a.size })
       a.growth.legible(z)
     }
-    // A member edged in its banner's colour.
+    // A summon (or a foe's member) edged in its banner's colour.
     if (u.rank && u.banner) part(this.add.ellipse(0, 0, 44 * a.size, 13 * a.size).setStrokeStyle(1.5, hex(u.banner), 0.7), 0, 4, 'under', { z: 0.1 })
   }
 

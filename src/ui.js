@@ -4,15 +4,15 @@
 // tooltip saying exactly what it does (rules text lives in codex.js).
 import { TUNING } from './tuning.js'
 import {
-  apply, availableNodes, fieldCap, rosterCap, fielded, benched, currentNode, levelCost, tierCost, souls, isMonarch, monarchOf, monarchCost,
-  MONARCH_STATS, faltersAt, canLead, freeBodies, standingOf, musterCost, bindCost, DEFAULT_PLAN, isSquare, waits, detachmentOf,
-  promoteNeed, kinStanding, feedOf, canPromote, canAdvance, nextTier, holds, domainCentre, keptShadows, essenceByWave, canDescend, depthOf, cohortCap
+  apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, levelCost, tierCost, souls, isMonarch, monarchOf, monarchCost,
+  MONARCH_STATS, faltersAt, DEFAULT_PLAN, isSquare, waits, detachmentOf, promoteLevel, promoteCost, canPromote, canAdvance, nextTier, holds,
+  domainCentre, reapedShadows, essenceByWave, canDescend, depthOf, OSSUARY
 } from './sim/run.js'
 import { RANKS, WIDTH } from './sim/map.js'
-import { unitDef, relicDef, campDef, KIN, ROLES, SHAPES, ORDERS, GRADES, keystoneDef, abilityDef } from './content.js'
+import { unitDef, relicDef, campDef, KIN, ROLES, ORDERS, GRADES, keystoneDef, abilityDef } from './content.js'
 import {
   COLS, ROWS, CAMP_ROWS, slotAt, rowOf, colOf, activeBonds, isWall, pathsOf, pathDef, baseStats, LANES, DEPTH, tileAt, deployTile, wallTiles, onField,
-  distance, tileY, pathsClash, sealedBy, neighbours, isAllyShape, rangeOf
+  distance, tileY, pathsClash, sealedBy, neighbours, isAllyShape, rangeOf, summonsOf
 } from './sim/unit.js'
 import { h, fill, icon, portrait, prefs } from './dom.js'
 import { statsOf } from './sim/unit.js'
@@ -24,12 +24,11 @@ import { board, capsTag } from './board.js'
 import { showTip, hideTip, pinTip, hold, HOLD, touchy, say } from './dom.js'
 // The page is scaled whole (frame.js): what is placed over it by a viewport point goes into the frame's px.
 import { frame, toLocal, toLocalRect } from './frame.js'
-import { armyLayout } from './sim/run.js'
 import { tileX } from './sim/unit.js'
 import {
   unitCard, partyMods, roomFoeMods, roomTip, threatMeter, foeSynergyLine, synergyTracker, bondTracker, bondMods, bondNotes, relicTip, ROOM,
-  campRowLabel, campRowText, pathTiers, ROMAN, realmOf, MONARCH_TEXT, monarchPointText, deathText, tileText, fieldRule, armyOf, ARMY_TEXT, bodies,
-  leadsText, armyCount, ORDER_TEXT, planText, whenText, whenTag, isHeld, takesPart,
+  campRowLabel, pathTiers, ROMAN, realmOf, MONARCH_TEXT, deathText, tileText, fieldRule, armyOf, ARMY_TEXT, named, summonCount,
+  ORDER_TEXT, planText, whenText, whenTag, isHeld, takesPart, rankNeed,
   GRADE_ICON, RANK_TEXT, clashText, marshalOf, startsFaltering, SECOND_TIERS, keystoneTip, aliasOf, TRIGGER_TEXT,
   foeCountText, waveName, waveWhen, cohortSizes, ENEMY_TEXT, DEEP_TEXT
 } from './codex.js'
@@ -50,7 +49,7 @@ export function titleScreen ({ seed, onStart, onHelp }) {
         step('crown', 'monarch', 'Stand', 'You are the ', kw('monarch'), ' and never strike. Beyond your ', kw('domain'), ', souls ', kw('falter'), '.'),
         step('fight', 'foe', 'Scout', say('Hover', 'Tap'), ' a room to see its foes. What they do, you learn by fighting.'),
         step('start', 'orders', 'Arrange', 'Place your ', kw('banner', 'banners'), ' in the camp. The battle then plays out alone.'),
-        step('soul', 'essence', 'Reap', 'The slain pay ', kw('essence'), ', and you ', kw('bind'), ' their bodies.')),
+        step('soul', 'essence', 'Reap', 'The slain pay ', kw('essence'), ', and one of them joins you.')),
       h('div', { class: 'title-actions' },
         h('button', { class: 'primary big', onclick: start, tip: () => 'Start a new run with this seed. (Enter)' }, 'Begin the descent ', h('kbd', null, 'Enter')),
         h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, synergies and relics. (H)' }, icon('help', 22), ' How to play'),
@@ -72,43 +71,41 @@ function cornerButtons (onHelp) {
 // relic and keystone held (hover one for what it does), then sound and help. The bar is rebuilt on every
 // change: `drawn` keeps what it last showed, so a changed purse rolls to its new value and flashes, and a
 // relic or keystone just taken pops in.
-// The bodies standing in the ossuary get the same: a count that rolls, except while bound bodies are still
-// flying to it (`landing`, set by the spoils: flyBones rolls it as they land).
-const drawn = { run: null, essence: 0, hp: 0, bones: 0, landing: false, held: new Set() }
-const standingBodies = (s) => Object.values(s.ossuary).reduce((n, k) => n + k.standing, 0)
+// The souls you hold get the same: a count that rolls as one is recruited or released.
+const drawn = { run: null, essence: 0, hp: 0, souls: 0, held: new Set() }
 
 function topbar (run, onHelp) {
   const s = run.state
   const fresh = drawn.run !== run
-  if (fresh) Object.assign(drawn, { run, essence: s.essence, hp: monarchOf(s).hp, bones: standingBodies(s), landing: false, held: new Set([...s.relics, ...s.keystones]) })
+  const n = souls(s.party).length
+  if (fresh) Object.assign(drawn, { run, essence: s.essence, hp: monarchOf(s).hp, souls: n, held: new Set([...s.relics, ...s.keystones]) })
   const purse = h('b', null, Math.round(drawn.essence))
-  const chip = h('span', { class: 'chip-stat essence', tip: () => `Essence: slain foes pay it. Spend it on your souls, the Monarch and the ossuary. ${s.stats.essence} earned, ${s.stats.spent} spent this run.` },
+  const chip = h('span', { class: 'chip-stat essence', tip: () => `Essence: slain foes pay it. Spend it on your souls and the Monarch. ${s.stats.essence} earned, ${s.stats.spent} spent this run.` },
     icon('soul', 20), purse)
   if (drawn.purse) cancelAnimationFrame(drawn.purse.rolling)
   drawn.purse = purse
   roll(purse, drawn.essence, s.essence, chip, (v) => { drawn.essence = v })
-  const kinds = Object.entries(s.ossuary).filter(([, k]) => k.standing > 0)
-  const count = h('b', null, Math.round(drawn.bones))
-  const bones = h('span', {
-    class: 'chip-stat bodies',
-    tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'The ossuary'),
-      h('p', null, kinds.length ? `${standingBodies(s)} bodies standing: ${kinds.map(([id, k]) => bodies(id, k.standing)).join(', ')}.` : 'No bodies standing: bind the slain after a battle to raise them.'),
-      h('p', { class: 'dim' }, `They fight at the muster level (${s.muster}), whatever level they fell at.`))
-  }, icon('bone', 20), count)
+  // Your souls, the field's and the ossuary's, of the most you may hold.
+  const count = h('b', null, Math.round(drawn.souls))
+  const kept = h('span', {
+    class: 'chip-stat souls',
+    tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Souls ${n}/${rosterCap(run)}`),
+      h('p', null, `${fielded(souls(s.party)).length} on the field, ${inOssuary(souls(s.party)).length} in the `, kw('ossuary'), '. Recruit one of the slain after a win.'))
+  }, icon('hood', 20), count, h('span', { class: 'of' }, `/${rosterCap(run)}`))
   if (drawn.count) cancelAnimationFrame(drawn.count.rolling)
   drawn.count = count
-  if (!drawn.landing) roll(count, drawn.bones, standingBodies(s), bones, (v) => { drawn.bones = v })
+  roll(count, drawn.souls, n, kept, (v) => { drawn.souls = v })
   const held = drawn.held
   drawn.held = new Set([...s.relics, ...s.keystones])
   // A relic's tile wears its own glyph; the keystones share one, told apart by a letter pair.
   const tile = (cls, id, name, glyph, tag, tipFn) => h('span', { class: `trinket ${cls}` + (held.has(id) ? '' : ' new'), 'data-id': id, tabindex: '0', 'aria-label': name, tip: tipFn },
     icon(glyph, 22), tag && h('i', { class: 'badge' }, tag))
-  const n = s.relics.length + s.keystones.length
+  const t = s.relics.length + s.keystones.length
   // No brand: the title screen wears the name, and the bar keeps its width for six relics and three keystones.
   return h('header', { class: 'topbar' },
     floorPips(s),
-    h('div', { class: 'chips' }, chip, monarchChip(run), bones),
-    n > 0 && h('div', { class: 'trinkets' + (n > 6 ? ' crowded' : '') },
+    h('div', { class: 'chips' }, chip, monarchChip(run), kept),
+    t > 0 && h('div', { class: 'trinkets' + (t > 6 ? ' crowded' : '') },
       s.relics.map((id) => tile('t-relic' + (relicDef(id).on ? ' trig' : ''), id, relicDef(id).name, relicIcon(id), null, () => relicTip(id))),
       s.keystones.map((id) => tile('t-keystone', id, keystoneDef(id).name, 'keystone', letterPair(keystoneDef(id).name), () => keystoneTip(id, run)))),
     h('div', { class: 'top-btns' },
@@ -379,14 +376,14 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
   const warnings = () => {
     const field = souls(fielded(s.party)).filter((u) => u.hp > 0)
     const out = field.filter((u) => !isHeld(s, u) && startsFaltering(s, u))
-    const outM = armyOf(run).members.filter((u) => startsFaltering(s, u))
+    const outM = armyOf(run).summons.filter((u) => startsFaltering(s, u))
     const centre = deployTile('party', domainCentre(s))
     const far = s.detachments.filter((d) => takesPart(s, d) && oneWay(s, d, centre, realmOf(run).domain))
     return [
       !field.length && 'No soul stands on the field: the Monarch fights alone, and it never strikes.',
       field.length > 0 && field.every((u) => isHeld(s, u)) && 'Every soul is held behind the camp: the Monarch starts the battle alone.',
       out.length > 0 && `${out.length} of your souls stand${out.length === 1 ? 's' : ''} outside the domain and will falter (×${TUNING.monarch.falter} damage).`,
-      outM.length > 0 && `${outM.length} cohort member${outM.length === 1 ? ' stands' : 's stand'} outside the domain and will falter.`,
+      outM.length > 0 && `${outM.length} summon${outM.length === 1 ? ' is' : 's are'} likely to appear outside the domain and falter.`,
       far.length > 0 && (far.length === 1
         ? `Detachment ${far[0].id} moves to a square outside the domain: a one-way trip. It drops its plan the moment it steps out, and Hunts from there.`
         : `Detachments ${far.map((d) => d.id).join(' and ')} move to squares outside the domain: one-way trips. Each drops its plan the moment it steps out, and Hunts from there.`)].filter(Boolean)
@@ -397,15 +394,14 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
     const n = w.reduce((m, x) => m + x.foes.length, 0)
     return n > 0 && `${n} more ${n === 1 ? 'foe' : 'foes'} will come over the far edge after the battle begins, in ${w.length === 1 ? (w[0].when.at === 'time' ? 'a late pair' : 'one more wave') : `${w.length} more waves`}.`
   }
+  // The held detachments, and when each enters.
   const reserveNote = () => {
-    const { reserve, held } = armyOf(run)
-    const n = reserve.length
+    const { held } = armyOf(run)
     const ds = [...new Set(held.map((b) => b.det))].map((id) => s.detachments.find((d) => d.id === id))
-    return [n > 0 && ARMY_TEXT.reserve(n),
-      ds.length > 0 && `Held behind the camp: ${ds.map((d) => {
-        const k = held.filter((b) => b.det === d.id).length
-        return `detachment ${d.id} (${k}) enters ${whenText(d.plan.when)}`
-      }).join('; ')}.${TUNING.army.overflow ? ' Once called, they enter ahead of the reserve.' : ''}`].filter(Boolean)
+    return [ds.length > 0 && `Held behind the camp: ${ds.map((d) => {
+      const k = held.filter((b) => b.det === d.id).length
+      return `detachment ${d.id} (${k}) enters ${whenText(d.plan.when)}`
+    }).join('; ')}.`].filter(Boolean)
   }
   // Begin, in the room's head.
   const beginButton = () => h('button', {
@@ -452,25 +448,12 @@ export function prepScreen ({ run, act, onFight, onHelp }) {
 
 // ── reap ─────────────────────────────────────────────────────────────────────────────────────────
 
-// Every offer's key, in the order the cards are shown: the cards to pick (a recruit, a relic, a keystone, a
-// path's tier) take 1 to 9 and 0, then Q, W, E…; the slain to bind take Shift and the same keys in turn (⇧1…
-// ⇧0, then ⇧Q, ⇧W…). An elite can lay out more than ten kinds to bind, and none goes without a key. Shift turns
-// a digit into a symbol, so a bind's key is matched by its place (e.code). By offer index: { label, shift, code }.
+// Every offer's key, in the order the cards are shown: 1 to 9 and 0, then Q, W, E… By offer index.
 const PICK_KEYS = [...'1234567890QWERTYUIOP']
-const keyCode = (k) => (/\d/.test(k) ? `Digit${k}` : `Key${k}`)
-function offerKeys (offers) {
-  const keys = new Map()
-  let p = 0
-  let b = 0
-  offers.forEach((o, i) => {
-    if (o.type === 'bind') {
-      if (b < PICK_KEYS.length) keys.set(i, { label: `⇧${PICK_KEYS[b]}`, shift: true, code: keyCode(PICK_KEYS[b++]) })
-    } else if (p < PICK_KEYS.length) keys.set(i, { label: PICK_KEYS[p++], shift: false })
-  })
-  return keys
-}
+const offerKeys = (offers) => new Map(offers.slice(0, PICK_KEYS.length).map((o, i) => [i, PICK_KEYS[i]]))
 // A rite's offer as the soul card's track (card.css: .nodes, .tnode): the path's tiers I–IV (a second path's
-// I–III), the held ones lit, the one offered glowing, a Knight's tier IV badged. Shown, not pressed.
+// I–III), the held ones lit, the one offered glowing, a Knight's tier IV badged, a summon tier its summon's face.
+// Shown, not pressed.
 function tierTrack (u, path, second) {
   const p = pathDef(u.id, path)
   const held = path === u.path ? u.tier : path === u.path2 ? u.tier2 ?? 0 : 0
@@ -479,11 +462,11 @@ function tierTrack (u, path, second) {
     Array.from({ length: upto }, (_, k) => [
       k > 0 && h('span', { class: 'tlink' + (k < held ? ' on' : k === held ? ' to' : '') }),
       h('span', { class: 'tnode ' + (k < held ? 'own' : k === held ? 'next' : 'later') }, h('span', { class: 'tnum' }, ROMAN[k]),
-        !second && k === 3 && h('span', { class: 'tbadge g1' }, icon('knight', 10)))]))
+        !second && k === 3 && h('span', { class: 'tbadge g1' }, icon('knight', 10)),
+        p.tiers[k].summon && summonBadge(p.tiers[k].summon.id))]))
 }
-
-// Shift and a digit by the key's place (Shift turns the digit into a symbol), the rest by what it types.
-const pressed = (k, e) => k.shift ? e.shiftKey && e.code === k.code : !e.shiftKey && e.key.toUpperCase() === k.label
+// A summon tier's mark on a track's node: the face of what it raises, on the node's corner.
+const summonBadge = (id) => h('span', { class: 'tbadge sum', 'aria-label': `raises ${unitDef(id).name}s` }, portrait(id, 16))
 
 // The numbers in a card's effect line, picked out in the card's colour: +12%, 8 s, ×2, 40%.
 const hiNums = (text) => String(text).split(/([+−×-]?\d+(?:\.\d+)?%?)/).map((part, k) => (k % 2 ? h('b', { class: 'num' }, part) : part))
@@ -492,18 +475,13 @@ const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 // ── arrivals: what is taken flies to where it now lives ──
 
 // The things in flight sit on a layer of their own over the page (in the frame, so they scale with it), never
-// in the pointer's way. A screen re-shown under them (the spoils after a bind) does not cut them short.
+// in the pointer's way. A screen re-shown under them (the spoils after a pick) does not cut them short.
 let flyLayer = null
 const layer = () => {
   if (!flyLayer?.isConnected) frame.el.append(flyLayer = h('div', { class: 'fly-layer', 'aria-hidden': 'true' }))
   return flyLayer
 }
 const centre = (r) => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 })
-// A viewport point kept inside the frame: a target scrolled out of sight is flown at from the nearest edge.
-const inView = (p) => {
-  const e = 28 * frame.k
-  return { x: Math.min(Math.max(p.x, frame.x + e), frame.x + frame.w * frame.k - e), y: Math.min(Math.max(p.y, frame.y + e), frame.y + frame.h * frame.k - e) }
-}
 
 // `node` flies in an arc from viewport point `from` to `to`, shrinking to `scale`, after `delay` ms; the
 // promise settles as it lands. The flight itself is drawn in the frame's px.
@@ -524,82 +502,45 @@ function flyOne (node, from, to, { delay = 0, ms = 560, scale = 0.5, lift = 60 }
   return a.finished.catch(() => {}).finally(() => node.remove())
 }
 
-// A word that rises from a viewport point and fades ("+3 bodies"); under reduced motion it only fades.
-function popWord (at, text, cls = '') {
-  at = toLocal(at.x, at.y)
-  const w = h('div', { class: 'fly-word ' + cls }, text)
-  Object.assign(w.style, { left: `${at.x}px`, top: `${at.y}px` })
-  layer().append(w)
-  w.addEventListener('animationend', () => w.remove())
-  setTimeout(() => w.remove(), 2000)
-}
-
-// The bodies just bound fly as bone chips from their cards (`from`: each card's rect and how many it bound)
-// to the ossuary's count in the top bar, which counts up from `before` and pops "+N bodies" as they land. The
-// bar was drawn meanwhile holding the old count (drawn.landing, set before the binds were sent).
-function flyBones (from, before) {
-  const total = from.reduce((n, f) => n + f.n, 0)
-  const tally = document.querySelector('.topbar .chip-stat.bodies')
-  const land = () => {
-    drawn.landing = false
-    const now = document.querySelector('.topbar .chip-stat.bodies')
-    if (!now) return
-    const r = now.getBoundingClientRect()
-    roll(now.querySelector('b'), before, before + total, now, (v) => { drawn.bones = v })
-    popWord({ x: (r.left + r.right) / 2, y: r.bottom + 30 * frame.k }, `+${total} ${total === 1 ? 'body' : 'bodies'}`, 'w-bone')
-  }
-  if (!total || !tally || still()) return land()
-  const end = centre(tally.getBoundingClientRect())
-  let k = 0
-  const flights = from.flatMap((f) => Array.from({ length: Math.min(f.n, 6) }, () => {
-    const p = { x: f.rect.left + f.rect.width * (0.25 + 0.5 * Math.random()), y: f.rect.top + f.rect.height * (0.3 + 0.3 * Math.random()) }
-    return flyOne(h('span', { class: 'bone-chip' }, icon('bone', 14)), p, end, { delay: (k++) * 55, ms: 640, scale: 0.7, lift: 50 + Math.random() * 40 })
-  }))
-  flights[0].then(land)
-}
-
 // A relic or keystone just taken flies from its card to its new tile in the top bar, and the tile pops in as
-// it lands.
+// it lands; a recruit's face flies to the souls' count.
 function flyTrinket (o, rect) {
-  const find = () => document.querySelector(`.topbar .trinket[data-id="${o.id}"]`)
+  const soul = o.type === 'soul'
+  const find = () => document.querySelector(soul ? '.topbar .chip-stat.souls' : `.topbar .trinket[data-id="${o.id}"]`)
   const tile = find()
   if (!tile || !rect || still()) return
-  tile.classList.add('arriving')
-  const glyph = h('span', { class: 'trinket-flyer ' + (o.type === 'relic' ? 'f-relic' : 'f-keystone') }, icon(o.type === 'relic' ? relicIcon(o.id) : 'keystone', 44))
+  if (!soul) tile.classList.add('arriving')
+  const glyph = soul ? h('span', { class: 'soul-flyer' }, portrait(o.id, 64))
+    : h('span', { class: 'trinket-flyer ' + (o.type === 'relic' ? 'f-relic' : 'f-keystone') }, icon(o.type === 'relic' ? relicIcon(o.id) : 'keystone', 44))
   flyOne(glyph, centre(rect), centre(tile.getBoundingClientRect()), { ms: 680, scale: 0.36, lift: 90 }).then(() => {
     // The bar may have been drawn again meanwhile: land on whatever stands there now.
     const now = find()
     if (!now) return
-    now.classList.remove('arriving', 'new')
+    now.classList.remove('arriving', 'new', 'gain')
     void now.offsetWidth
-    now.classList.add('new')
+    now.classList.add(soul ? 'gain' : 'new')
   })
 }
 
-// The room whose cards were last dealt: a bind or a release re-shows the same room, and its cards should not
-// deal in again. `seen`: the room's groups of offers as dealt (a group taken is gone from the offers, and its
-// step shows it done); `on`: the group in view.
+// The room whose cards were last dealt: a release re-shows the same room, and its cards should not deal in
+// again. `seen`: the room's groups of offers as dealt (a group taken is gone from the offers, and its step shows
+// it done); `on`: the group in view.
 let dealt = null
 
-// The offers come in groups, one decision each, in this order: a recruit, a relic, a keystone, a path's tier,
-// the slain to bind (so the keys run left to right: the picks' digits, then the binds' ⇧). Taking one offer of a
-// group takes the group off the table; binding takes a kind's bodies, and the group goes with its last kind.
-const GROUPS = ['soul', 'relic', 'keystone', 'tier', 'bind']
-const GROUP_NAME = { soul: 'Recruit', relic: 'Relic', keystone: 'Keystone', tier: 'Path', bind: 'Bind' }
+// The offers come in groups, one decision each, in this order: a recruit, a relic, a keystone, a path's tier.
+// Taking one offer of a group takes the group off the table.
+const GROUPS = ['soul', 'relic', 'keystone', 'tier']
+const GROUP_NAME = { soul: 'Recruit', relic: 'Relic', keystone: 'Keystone', tier: 'Path' }
 
-// onDone(index): take offer `index`, or null to move on. onBind(id, count): bind that many of a kind.
-// The offers are cards to pick, framed in their system's colour. A room with more than one group shows them a
-// group at a time behind a row of steps (Recruit · Relic · Bind), each step its group's one line; every
-// offer's key works from any step, and brings its group into view.
-export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
+// onDone(index): take offer `index`, or null to move on. The offers are cards to pick, framed in their system's
+// colour. A room with more than one group shows them a group at a time behind a row of steps (Recruit · Relic
+// · Keystone), each step its group's one line; every offer's key works from any step, and brings its group into
+// view. A room of one group shows its cards under one line, no steps.
+export function reapScreen ({ run, title, act, onDone, onHelp }) {
   const s = run.state
   const el = h('div', { class: 'screen fit reap-screen' })
   const full = () => souls(s.party).length >= rosterCap(run)
   const blocked = (o) => o.type === 'soul' && (full() ? 'full' : o.cost > s.essence ? 'poor' : null)
-  // How many of each bind offer's kind to bind: by default every free one it can take, else one.
-  const picks = new Map()
-  const picked = (o) => Math.max(1, Math.min(o.max, picks.get(o.id) ?? (s.freeBinds || 1)))
-  const bindPoor = (o) => bindCost(run, o.id, picked(o)) > s.essence
   const room = `${s.floor}|${s.at}`
   let deal = !(dealt?.run === run && dealt.room === room)
   const groups = () => GROUPS.filter((g) => s.offers.some((o) => o.type === g))
@@ -618,8 +559,8 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
   let busy = false
   // Each offer's key (offerKeys), shown on its card and named in its tooltip.
   const keys = offerKeys(s.offers)
-  const keyTag = (i) => keys.has(i) && h('kbd', null, keys.get(i).label)
-  const keyNote = (i) => keys.has(i) ? ` (${keys.get(i).label})` : ''
+  const keyTag = (i) => keys.has(i) && h('kbd', null, keys.get(i))
+  const keyNote = (i) => keys.has(i) ? ` (${keys.get(i)})` : ''
   const refuse = (i) => {
     sfx.play('poor')
     const c = cards[i]
@@ -628,86 +569,42 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
     void c.offsetWidth // restart the shake
     c.classList.add('refuse')
   }
-  // A pick plays out (the card lifts away, or pulses if some of its kind stay to bind), then the run moves on.
+  // A pick plays out (the card lifts away), then the run moves on.
   const later = (fn) => (still() ? fn() : setTimeout(fn, 300))
-  const pick = (i, cls, then) => {
-    busy = true
-    sfx.play('card')
-    if (s.offers[i].type !== 'bind') el.classList.add('picking')
-    cards[i]?.classList.add(cls)
-    later(then)
-  }
   // Where a card's picture stands now (before it lifts away), for what flies from it.
   const artRect = (i) => (cards[i]?.querySelector('.offer-art') ?? cards[i])?.getBoundingClientRect()
-  const bodiesStanding = () => standingBodies(s)
-  // A bind offer is taken by binding (its picked count), never by `reap`.
   const take = (i) => {
     if (busy) return
     if (i === null) return onDone(null)
     const o = s.offers[i]
-    if (o.type === 'bind') {
-      if (bindPoor(o)) return refuse(i)
-      const n = picked(o)
-      const from = [{ rect: artRect(i), n }]
-      const before = bodiesStanding()
-      return pick(i, n === o.max ? 'taking' : 'pulse', () => {
-        drawn.landing = true
-        try { onBind(o.id, n) } finally { flyBones(from, before) }
-      })
-    }
     if (blocked(o)) return refuse(i)
     const rect = artRect(i)
-    pick(i, 'taking', () => {
-      onDone(i)
-      if (o.type === 'relic' || o.type === 'keystone') flyTrinket(o, rect)
-    })
-  }
-  // Every free bind at once, across the kinds in offer order. Each kind is one onBind, and each re-shows the
-  // room; the run's state is live, so the next kind's count is read after the last one's bind.
-  const freeLeft = () => Math.min(s.freeBinds, s.offers.reduce((n, o) => n + (o.type === 'bind' ? o.max : 0), 0))
-  const bindAll = () => {
-    if (busy || !freeLeft()) return
-    let left = s.freeBinds
-    const plan = s.offers.flatMap((o, i) => {
-      if (o.type !== 'bind' || left <= 0) return []
-      const n = Math.min(o.max, left)
-      left -= n
-      return [{ i, id: o.id, n, all: n === o.max }]
-    })
     busy = true
     sfx.play('card')
-    const from = plan.map((p) => ({ rect: artRect(p.i), n: p.n }))
-    const before = bodiesStanding()
-    for (const p of plan) cards[p.i]?.classList.add(p.all ? 'taking' : 'pulse')
+    el.classList.add('picking')
+    cards[i]?.classList.add('taking')
     later(() => {
-      drawn.landing = true
-      try {
-        for (const p of plan) if (s.phase === 'reap' && s.offers.some((o) => o.type === 'bind' && o.id === p.id)) onBind(p.id, p.n)
-      } finally { flyBones(from, before) }
+      onDone(i)
+      if (o.type !== 'tier') flyTrinket(o, rect)
     })
   }
   const has = (type) => s.offers.some((o) => o.type === type)
-  // Hollow Court: the shadows that stood at the end of the battle just won joined the ossuary (if it was
-  // fought under the keystone: one taken here keeps nothing of it), in any battle room that ends in spoils
-  // (a siege's too). A reliquary's or a rite's spoils follow no battle: run.battle is still the last one's.
-  const shades = ['fight', 'elite', 'siege'].includes(currentNode(run).type) ? keptShadows(run) : []
-  const kept = shades.length > 0 && `Hollow Court: ${shades.length} shadow${shades.length === 1 ? '' : 's'} stayed, standing in your ossuary now: ` +
-    `${Object.entries(Object.groupBy(shades, (u) => u.id)).map(([id, us]) => bodies(id, us.length)).join(', ')}.`
-  // One short line of what is on the table; the rules behind it on the ⓘ beside it.
-  const per = TUNING.army.bindPerTier
+  // Hollow Court: the shadows that stood at the end of the battle just won paid their essence again (if it was
+  // fought under the keystone: one taken here reaps nothing of it), in any battle room that ends in spoils (a
+  // siege's too). A reliquary's or a rite's spoils follow no battle: run.battle is still the last one's.
+  const shades = ['fight', 'elite', 'siege'].includes(currentNode(run).type) ? reapedShadows(run) : []
+  const reaped = shades.length > 0 && `Hollow Court: ${shades.length} shadow${shades.length === 1 ? '' : 's'} still stood, and paid ${shades.length === 1 ? 'its' : 'their'} essence again.`
   // Each group's part of the line (and, with more than one group, its step's words).
   const part = {
     soul: () => ['Recruit one for ', kw('essence')],
     relic: () => ['Pick one ', kw('relic'), ', free'],
     keystone: () => ['Pick one ', kw('keystone'), ` · ${s.keystones.length}/${TUNING.keystone.max} held`],
-    tier: () => ['Advance one path, free'],
-    bind: () => [kw('bind'), ' the slain: ', s.freeBinds > 0 ? [h('b', { class: 'num' }, s.freeBinds), ' free'] : [`${per} × tier `, kw('essence')]]
+    tier: () => ['Advance one path, free']
   }
   const lede = () => groups().map((g) => part[g]()).flatMap((p, k) => [k ? ' · ' : '', p])
   const ledeTip = () => h('div', { class: 'syn-tip' },
-    has('soul') && h('p', null, 'A recruit rises at the level it fought at, and joins the field if there is room.'),
-    has('tier') && h('p', null, 'A rite grants one soul the next tier of a path.'),
-    has('bind') && h('p', null, `The first 1 + Will binds after a battle are free, then ${per} × tier essence each. The unbound are lost when you move on.`))
+    has('soul') && h('p', null, 'A recruit rises whole at the level it fought at: the field takes it if there is room, else the ', kw('ossuary'), '. One a battle.'),
+    has('tier') && h('p', null, 'A rite grants one soul the next tier of a path.'))
   // A battle of waves (a siege's) paid each wave as it fell: what each paid, relics included.
   const node = currentNode(run)
   const paid = node.waves?.length && run.battle ? essenceByWave(run.battle) : null
@@ -715,49 +612,7 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
   const wavePay = paid && h('p', { class: 'wave-pay', tip: () => 'Every foe slain paid essence into one purse; this is what each wave paid of it, relics included.' },
     icon('soul', 18), ' Paid wave by wave: ', paid.map((v, k) => [k ? ' · ' : '', k ? waveName(node, k - 1) : 'Wave 1', ' ', h('b', null, Math.round(v * boost))]))
 
-  // A kind of slain foe to bind: how many (1 to all that fell), which of them are free, the price of the rest.
-  function bindCard (o, i) {
-    const d = unitDef(o.id)
-    const n = picked(o)
-    const cost = bindCost(run, o.id, n)
-    const free = Math.min(n, s.freeBinds)
-    const poor = cost > s.essence
-    const set = (k) => { picks.set(o.id, Math.max(1, Math.min(o.max, k))); render() }
-    const step = (label, k, why) => h('button', {
-      class: 'small step-btn', 'aria-disabled': k < 1 || k > o.max ? 'true' : null,
-      onclick: () => { if (k >= 1 && k <= o.max) set(k) }, tip: () => why
-    }, label)
-    const leaders = souls(s.party).filter((u) => canLead(u, o.id)).map((u) => unitDef(u.id).name)
-    const standing = standingOf(s, o.id)
-    return cards[i] = h('div', {
-      class: 'offer o-bind' + (poor ? ' locked' : ''), style: `--i:${i}`,
-      tip: () => unitCard({ id: o.id, lvl: s.muster, path: null, tier: 0, slot: -1, rank: true }, {
-        mods: partyMods(run),
-        notes: [ARMY_TEXT.bind(run), `Bound bodies stand in the ossuary and fight at the muster level (${s.muster}), whatever level they fell at.`,
-          leaders.length ? `Your souls that can lead them (${leadsText(o.id)}): ${[...new Set(leaders)].join(', ')}.` : `None of your souls can lead them yet: a captain leads bodies of its own kin or role (${leadsText(o.id)}).`]
-      })
-    },
-    // A compact tile, so a dozen kinds fit two or three to a row: the picture (its key on the corner), the name
-    // and the count on one line, then the stepper and Bind (its price on it) on the next. + past one takes
-    // the count up to all that fell.
-    h('div', { class: 'offer-art' }, portrait(o.id, 60), keyTag(i)),
-    h('div', { class: 'bind-info' },
-      h('span', { class: 'offer-name' }, d.name),
-      h('span', { class: 'offer-line' }, h('b', { class: 'num' }, o.max), ' slain · ', standing ? [h('b', { class: 'num' }, standing), ' standing'] : 'new')),
-    h('div', { class: 'bind-ctl' },
-      h('div', { class: 'stepper' },
-        step('−', n - 1, 'Bind one fewer.'), h('b', null, n), step('+', n + 1, n >= o.max ? `Only ${o.max} ${o.max === 1 ? 'is' : 'are'} left to bind.` : 'Bind one more.')),
-      h('button', {
-        class: 'buy bind-btn' + (poor ? ' poor' : ''), 'aria-disabled': poor ? 'true' : null,
-        onclick: () => take(i),
-        tip: () => h('div', { class: 'syn-tip' },
-          h('p', null, `Bind ${bodies(o.id, n)}: ${[free && `${free} free`, n - free > 0 && `${n - free} × ${TUNING.army.bindPerTier * d.tier} essence`].filter(Boolean).join(' + ')}.${keyNote(i)}`),
-          poor && h('p', { class: 'warn' }, `You need ${cost} essence; you have ${s.essence}.`))
-      }, `Bind ${n} `, h('span', { class: 'price' }, cost ? [icon('soul', 18), cost] : 'free'))))
-  }
-
   function card (o, i) {
-    if (o.type === 'bind') return bindCard(o, i)
     const why = blocked(o)
     const owned = o.type === 'soul' ? s.party.filter((u) => u.id === o.id).length : 0
     const soul = o.type === 'tier' ? s.party.find((u) => u.uid === o.uid) : null
@@ -765,11 +620,11 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
     const second = soul?.path && o.path !== soul.path
     // Which soul a path offer is for (the retinue may hold several of its kind): its level, rank and where it
     // stands.
-    const who = soul && `Level ${soul.lvl}${soul.grade ? ` ${GRADES[soul.grade].name}` : ''}, ${onField(soul) ? tileText(deployTile('party', soul.slot)).replace('your camp, ', '') : 'on the bench'}`
+    const who = soul && `Level ${soul.lvl}${soul.grade ? ` ${GRADES[soul.grade].name}` : ''}, ${onField(soul) ? tileText(deployTile('party', soul.slot)).replace('your camp, ', '') : 'in the ossuary'}`
     const tip = o.type === 'soul'
       ? () => unitCard({ id: o.id, lvl: o.lvl, path: null, tier: 0, slot: -1 }, {
         mods: partyMods(run),
-        notes: [why === 'full' ? 'Your retinue is full: release a soul first.' : why === 'poor' ? `You need ${o.cost} essence; you have ${s.essence}.` : `Click to recruit it for ${o.cost} essence. It joins the field if there is room, else the bench.`,
+        notes: [why === 'full' ? 'Your souls are at their most: release one first.' : why === 'poor' ? `You need ${o.cost} essence; you have ${s.essence}.` : `Click to recruit it for ${o.cost} essence. It joins the field if there is room, else the ossuary.`,
           owned && `You already hold ${owned}.`]
       })
       // A relic's card already shows all its tooltip would (a trigger's moment is on its tag's own).
@@ -797,28 +652,28 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
       h('div', { class: 'offer-price' + (why ? ` ${why}` : '') }, o.type === 'soul' ? [icon('soul', 18), o.cost, why === 'full' && h('span', null, ' · full')] : 'Free'))
   }
 
-  // The retinue, one line at the foot: its count. On the Recruit step with the retinue full, the line says so
-  // and opens (a press) a panel over the cards: each soul but the Monarch as in the map's list, with a Release
-  // button. `roster`: that panel is open.
+  // Your souls, one line at the foot: their count. On the Recruit step with no room for one more, the line says
+  // so and opens (a press) a panel over the cards: each soul but the Monarch as in the map's list, with a
+  // Release button. `roster`: that panel is open.
   let roster = false
   function strip (recruiting) {
     const n = souls(s.party).length
     const cap = rosterCap(run)
     if (!recruiting || !full()) {
-      return h('div', { class: 'ret-line', tip: () => `Your retinue: ${n} of ${cap} places. Each soul is on the map's Route tab, and in the camp.` },
-        icon('hood', 20), h('b', null, 'Retinue'), ` ${n}/${cap}`)
+      return h('div', { class: 'ret-line', tip: () => `Your souls: ${n} of ${cap}, on the field and in the ossuary. Each is on the map's Route tab, and in the camp.` },
+        icon('hood', 20), h('b', null, 'Souls'), ` ${n}/${cap}`)
     }
     return h('div', { class: 'ret-strip full' + (roster ? ' open' : '') },
       h('button', {
         class: 'ret-toggle', 'aria-expanded': roster ? 'true' : 'false',
         onclick: () => { roster = !roster; hideTip(); render() },
-        tip: () => roster ? 'Close the list.' : 'Your retinue is full: open it to release a soul, and make room for a recruit.'
+        tip: () => roster ? 'Close the list.' : 'Your souls are at their most: open the list to release one, and make room for a recruit.'
       }, icon('hood', 20), h('b', null, `Full ${n}/${cap}`), h('span', null, ' · Release one to recruit'), h('span', { class: 'ret-caret', 'aria-hidden': 'true' }, roster ? '▾' : '▴')),
       roster && h('div', { class: 'ret-pop', role: 'region', 'aria-label': 'Release a soul' },
         h('div', { class: 'units' }, s.party.filter((u) => !isMonarch(u)).sort(fieldOrder).map((u) => unitRow(run, u, h('button', {
           class: 'danger small',
           onclick: () => { if (!busy) { act({ type: 'release', uid: u.uid }); roster = false; render() } },
-          tip: () => `Release ${unitDef(u.id).name} forever, freeing a place in your retinue. This can't be undone.`
+          tip: () => `Release ${unitDef(u.id).name} forever, freeing a place among your souls. This can't be undone.`
         }, icon('release', 16), 'Release'))))))
   }
 
@@ -859,63 +714,52 @@ export function reapScreen ({ run, title, act, onDone, onBind, onHelp }) {
   const most = () => Math.max(3, Math.min(6, Math.floor((frame.w - 44 + 18) / (168 + 18))))
   function render () {
     cards.length = 0
-    const one = view.seen.length < 2
-    const on = one ? null : view.on
-    const shown = (o) => !on || o.type === on
-    const offers = s.offers.map((o, i) => o.type !== 'bind' && shown(o) && card(o, i))
-    const binds = s.offers.map((o, i) => o.type === 'bind' && shown(o) && card(o, i))
-    // Each row deals in from its first card, whatever the offers' indices.
-    for (const row of [offers, binds]) row.filter(Boolean).forEach((c, k) => c.style.setProperty('--i', k))
+    // Steps only while more than one group is left on the table: the last one standing shows alone.
     const left = view.seen.filter((g) => groups().includes(g))
+    const one = left.length < 2
+    const on = one ? null : view.on
+    const offers = s.offers.map((o, i) => (!on || o.type === on) && card(o, i))
+    // The row deals in from its first card, whatever the offers' indices.
+    offers.filter(Boolean).forEach((c, k) => c.style.setProperty('--i', k))
     const next = on && left[left.indexOf(on) + 1]
     const picksN = offers.filter(Boolean).length
     const cols = rowOf(picksN, most())
-    // Fitted to the frame: the head (the title and the steps or the lede), the cards in the middle (a long
-    // list of kinds to bind scrolls in its own panel), and the foot: the retinue strip, then Bind all, the next
-    // step and Move on.
+    // Fitted to the frame: the head (the title and the steps or the lede), the cards in the middle, and the
+    // foot: the souls' strip, then the next step and Move on.
     fill(el,
       topbar(run, onHelp),
       h('div', { class: 'reap-main' + (one ? '' : ' stepped') },
         h('div', { class: 'reap-head' },
-          h('div', { class: 'reap-title' }, icon(has('soul') || has('bind') ? 'soul' : has('tier') ? 'rite' : has('keystone') && !has('relic') ? 'keystone' : 'reliquary', 34), h('h1', null, title)),
+          h('div', { class: 'reap-title' }, icon(has('soul') ? 'soul' : has('tier') ? 'rite' : has('keystone') && !has('relic') ? 'keystone' : 'reliquary', 34), h('h1', null, title)),
           one
             ? h('p', { class: 'reap-lede' }, lede(), ledeTip().childElementCount > 0 && h('span', { class: 'lede-more', tabindex: '0', tip: ledeTip }, icon('help', 22)))
             : steps()),
-        kept && h('p', { class: 'note-line reap-note' }, kept),
+        reaped && h('p', { class: 'note-line reap-note' }, reaped),
         wavePay,
         // The middle scrolls when its cards outgrow it (rows of recruits on a short frame); the foot stays.
         h('div', { class: 'reap-body' },
-          offers.some(Boolean) && h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (picksN > cols ? ' rows' : ''), style: `--cols:${cols}` }, offers),
-          binds.some(Boolean) && h('section', { class: 'bind-row' },
-            one && h('h2', { class: 'bind-head' }, 'Bind the slain'),
-            h('div', { class: 'offers binds' + (deal ? ' deal' : '') }, binds))),
+          picksN > 0 && h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (picksN > cols ? ' rows' : ''), style: `--cols:${cols}` }, offers)),
         h('div', { class: 'reap-foot' },
           strip(one ? has('soul') : on === 'soul'),
           h('div', { class: 'reap-actions' },
-            binds.some(Boolean) && freeLeft() > 0 && h('button', {
-              class: 'bind-all big', onclick: bindAll,
-              tip: () => `Bind every free body: ${freeLeft()}, across the kinds from the left. Use a card's stepper to pay for more. (B)`
-            }, icon('bone', 22), `Bind all free · ${freeLeft()}`, h('kbd', null, 'B')),
             next && h('button', { class: 'next-step big', onclick: () => show(next), tip: () => `On to the next step: ${GROUP_NAME[next]}. (→)` }, `${GROUP_NAME[next]} `, h('span', { 'aria-hidden': 'true' }, '→')),
-            h('button', { class: 'ghost big move-on', onclick: () => take(null), tip: () => `Leave what is left and go on.${has('bind') ? ' The slain left unbound are lost.' : ''} (S)` }, 'Move on ', h('kbd', null, 'S'))))))
+            h('button', { class: 'ghost big move-on', onclick: () => take(null), tip: () => `Leave what is left and go on.${has('soul') ? ' The slain not recruited are lost.' : ''} (S)` }, 'Move on ', h('kbd', null, 'S'))))))
     deal = false
   }
 
-  // A key for an offer, or Bind all, out of view brings its group into view first, so its card plays the pick.
-  const reveal = (g) => { if (view.seen.length > 1 && view.on !== g && !busy) show(g) }
+  // A key for an offer out of view brings its group into view first, so its card plays the pick.
+  const reveal = (g) => { if (view.on !== g && !busy) show(g) }
   render()
   return {
     el,
     key (e) {
-      // A bind offer binds the count picked on its card. Escape is not Move on: a second Escape to close the
-      // help must never leave the room and its offers behind.
-      const hit = [...keys].find(([, k]) => pressed(k, e))
+      // Escape is not Move on: a second Escape to close the help must never leave the room and its offers behind.
+      if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
+      const hit = [...keys].find(([, k]) => e.key.toUpperCase() === k)
       if (hit) { reveal(s.offers[hit[0]].type); take(hit[0]) }
-      else if (e.shiftKey) return
-      else if (e.key === 'b' || e.key === 'B') { if (freeLeft()) reveal('bind'); bindAll() }
       else if (e.key === 's' || e.key === 'S') take(null)
-      else if (e.key === 'ArrowRight' && view.seen.length > 1) stepTo(1)
-      else if (e.key === 'ArrowLeft' && view.seen.length > 1) stepTo(-1)
+      else if (e.key === 'ArrowRight') stepTo(1)
+      else if (e.key === 'ArrowLeft') stepTo(-1)
     }
   }
 }
@@ -974,7 +818,7 @@ export function endScreen ({ run, onNew, onDescend, onHelp }) {
           stat('stairs', 'monarch', deeper > 0 ? `${cleared}/${n} + ${deeper}` : `${cleared}/${n}`, 'floors', deeper > 0 ? `Floors cleared: ${cleared} of ${n}, and ${deeper} of the deep.` : `Floors cleared: ${cleared} of ${n}.`),
           stat('fight', 'foe', `${s.stats.wins}/${s.stats.fights}`, 'won', 'Battles won, of those fought.'),
           stat('hood', 'essence', s.stats.reaped, 'recruited', 'Souls recruited.'),
-          stat('bone', 'ossuary', s.stats.bound, 'bound', 'Bodies bound to the ossuary.'),
+          stat('bone', 'ossuary', souls(s.party).length, 'souls', 'Souls held at the end, on the field and in the ossuary.'),
           stat('soul', 'essence', s.stats.essence, 'essence', 'Essence earned.'),
           stat('reliquary', 'relic', s.relics.length, 'relics', 'Relics claimed.')),
         // What to do next stands right under the tally.
@@ -1068,7 +912,7 @@ export function battleBar ({ onHelp = null } = {}) {
   const pause = btn({ class: 'seg pause', onclick: () => scene?.togglePause(), tip: () => 'Pause or resume the playback. (Space)' })
   const skip = btn({ class: 'seg skip', 'data-sfx': 'none', onclick: () => scene?.skip(), tip: () => st.over ? 'On to what comes next. (S or Esc)' : 'Skip to the result. The outcome is already decided. (S or Esc)' })
   const esc = (k = 1) => TUNING.escalation.startTick * k * TUNING.tick.ms / 1000
-  const clock = h('span', { class: 'clock', tip: () => `Battle time. ${esc()} s after the start, or after the last entry (${TUNING.army.overflow ? 'your reserve or their waves' : 'a held detachment of yours or a wave of theirs'}), all damage ramps up so no fight stalls; ${esc(TUNING.escalation.bossMult)} s in the boss's room. Never later than ${esc(TUNING.escalation.bossMult)} s after the last foe entered.` })
+  const clock = h('span', { class: 'clock', tip: () => `Battle time. ${esc()} s after the start, or after the last entry (a held detachment of yours or a wave of theirs), all damage ramps up so no fight stalls; ${esc(TUNING.escalation.bossMult)} s in the boss's room. Never later than ${esc(TUNING.escalation.bossMult)} s after the last foe entered.` })
   const count = h('b', null, '0')
   const purse = h('span', {
     class: 'purse',
@@ -1183,50 +1027,33 @@ export function battleSides () {
 
 // ── the retinue editor ───────────────────────────────────────────────────────────────────────────
 
-// The camp and the bench, with a tray of tabs beside them, one open at a time: the selected soul, the
-// Monarch's panel, the orders, the ossuary (rank-and-file counts and the muster), and the bonuses in
-// effect (synergies, bonds, relics, keystones). Click a soul (or the Monarch), then a cell or another soul, to move or swap them; click the
-// bench to bench a soul. The Monarch stands on some open cell always: it never goes to the bench, and no
-// benched soul takes its cell. Its domain is outlined on the camp, and on their formation when it reaches
-// that far; souls outside it are marked as faltering. A selected soul's panel gives it a cohort; each
-// banner (a captain and its cohort) wears one colour, its members ghosted on the cells armyLayout gives
-// them, and the bodies with no room on the board wait in the reserve strip behind the camp. A member's
-// cell is open ground to the rules: a soul placed there sends the member elsewhere. With `facing` (a
-// battle room), its formation is drawn above your camp, past the open ground's row. Orders: shift- or
-// ctrl-click souls (or click them in Pick mode) to pick them, form a detachment of them in the orders panel,
-// and give it Where and When; a Move's square is the next cell clicked on the board (their ground too).
-// Each detachment wears a colour of its own (its tag on its captains, a dot on its members, its square and
-// the arrow to it); a held detachment (a later start) stands ghosted on its cells and waits in the reserve
-// strip, ahead of the overflow. onChange runs after every action it sends.
+// The camp and the ossuary beside it, with a tray of tabs, one open at a time: the selected soul (its level,
+// paths and rank), the Monarch's panel, the orders, and the bonuses in effect (synergies, bonds, relics,
+// keystones). Click a soul (or the Monarch), then a cell or another soul, to move or swap them; click the
+// ossuary to put a soul there. The Monarch stands on some open cell always: it never goes to the ossuary, and
+// no soul from the ossuary takes its cell. Its domain is outlined on the camp, and on their formation when it
+// reaches that far; souls outside it are marked as faltering. A soul whose path raises summons wears a flag
+// with how many and one colour (its banner), and its summons stand faint on the tiles the battle will likely
+// give them (summonLayout): open ground to the rules, so a soul placed there sends them elsewhere. With
+// `facing` (a battle room), its formation is drawn above your camp, past the open ground's row. Orders: shift-
+// or ctrl-click souls (or click them in Pick mode) to pick them, form a detachment of them in the orders panel,
+// and give it Where and When; a Move's square is the next cell clicked on the board (their ground too). Each
+// detachment wears a colour of its own (its tag on its souls, its square and the arrow to it); a held
+// detachment (a later start) stands ghosted on its cells and waits behind the camp with its summons to come.
+// onChange runs after every action it sends.
 
 const FOE_ROW_LABEL = ['Front', 'Mid', 'Back']
 
-// A banner's colour, by its captain's place among the souls holding a cohort (benched ones too, so a
-// banner keeps its colour while it waits).
+// A banner's colour, by its soul's place among the souls whose paths raise summons (those in the ossuary too,
+// so a banner keeps its colour while it waits).
 // Banners are an identity, not a system: the hues no system wears (style.css :root), worn as a stripe on a
-// bone flag, a ring at a member's feet and a Marshal's realm.
+// bone flag, a ring at a summon's feet and a Marshal's realm.
 // Their order is not the detachments' (content.js), so the first banners and the first detachments differ.
 const BANNER = ['#f7f7fc', '#5a5cff', '#f020c8', '#fcbdb5', '#1bab62']
-export const bannerColours = (party) => new Map(souls(party).filter((u) => u.cohort).map((u, i) => [u.uid, BANNER[i % BANNER.length]]))
-
-// A shape's first n cells around its captain (the gold dot), as a small grid, the front on top: the captain's
-// row, or the row of a mouth's horns ahead of it.
-function shapeGlyph (shape, n) {
-  const cells = [[0, 0], ...SHAPES[shape].offsets.slice(0, n)]
-  const cols = cells.map(([, c]) => c)
-  const r0 = Math.min(...cells.map(([r]) => r))
-  const [c0, rows] = [Math.min(...cols), Math.max(...cells.map(([r]) => r)) - r0 + 1]
-  const w = Math.max(...cols) - c0 + 1
-  const at = new Map(cells.map(([r, c], i) => [`${r}:${c}`, i]))
-  return h('span', { class: 'glyph', style: `grid-template-columns:repeat(${w},var(--gl,5px))` },
-    Array.from({ length: rows * w }, (_, k) => {
-      const i = at.get(`${Math.floor(k / w) + r0}:${k % w + c0}`)
-      return h('i', { class: i === 0 ? 'cap' : i ? 'mem' : '' })
-    }))
-}
+export const bannerColours = (party) => new Map(souls(party).filter((u) => summonsOf(u).length).map((u, i) => [u.uid, BANNER[i % BANNER.length]]))
 
 // The Monarch's domain on the camp grid: a square of `r` cells around its cell (`m`: anything with the
-// centre's slot, which under Vanguard Crown is the front-most captain's, domainCentre), rows and lanes alike
+// centre's slot, which under Vanguard Crown is the front-most soul's, domainCentre), rows and lanes alike
 // (camp row r is board row CAMP_ROWS − 1 − r, so camp distance is board distance). Board rows past the
 // camp's front are the gap row, then their formation's front, middle and back rows.
 const domainOn = (m, r) => {
@@ -1251,10 +1078,10 @@ const oneWay = (s, d, mTile, domain) => d.plan.where === 'move' && distance(d.pl
   fielded(s.party).some((u) => d.members.includes(u.uid) && u.hp > 0 && marshalOf(s, u) !== u)
 
 // The tray's open tab, kept across screens (and visits, while storage allows) so it stays where you left it.
-const TRAY = ['soul', 'monarch', 'orders', 'ossuary', 'bonuses']
+const TRAY = ['soul', 'monarch', 'orders', 'bonuses']
 let trayTab = TRAY.includes(prefs.get('tray')) ? prefs.get('tray') : 'soul'
 
-// The soul card's open section (Paths, Rank, Cohort), kept as the selection moves from soul to soul.
+// The soul card's open section (Paths, Rank), kept as the selection moves from soul to soul.
 let cardTab = 'paths'
 
 // `head`, `foot`: elements to stand over and under the tray in the side column (prep's room and Begin).
@@ -1262,10 +1089,6 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   const s = run.state
   const el = h('div', { class: 'retinue' })
   let sel = null // { uid } or { slot } (an empty field slot)
-  // The selection outlived a cohort edit: it stays so that its panel stays, but the next click on a cell,
-  // a soul or the bench picks afresh instead of moving it (giving one captain a cohort and then clicking
-  // the next must not swap the two).
-  let soft = false
   let error = ''
   // Orders: the souls picked for a detachment, in pick order; Pick mode (a plain click on a soul picks it);
   // the detachment whose Move square the next click on the board sets.
@@ -1275,8 +1098,8 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   // The detachment whose card the Orders tab shows open (the rest are one row each): see ordersPanel.
   let openDet = null
   // The board (board.js) draws in `stage`, which takes the pointer: each tile's tooltip, by tile ('reserve' for
-  // the bodies behind the camp); the tile under the pointer; a press, which turns into a drag past a few pixels;
-  // the soul being dragged; a benched soul's click to swallow after it was dragged.
+  // the held souls behind the camp); the tile under the pointer; a press, which turns into a drag past a few
+  // pixels; the soul being dragged; a click on a soul in the ossuary to swallow after it was dragged.
   const stage = h('div', { class: 'board-stage', 'aria-label': 'The board. Click a soul to select it, then an empty tile to move it there; drag a soul onto another to swap them. Keys: the arrows move, Enter selects or moves, X swaps the selected soul with the one here.' })
   let tips = new Map()
   let hover = null
@@ -1303,12 +1126,10 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     render()
   }
 
-  // Every action clears the selection, but a purchase, a cohort or an order keeps it, so you can go on.
+  // Every action clears the selection, but a purchase or an order keeps it, so you can go on.
   function send (action) {
     error = said(act(action))
-    if (!['level', 'upgrade', 'monarch', 'muster', 'cohort', 'order', 'disband', 'promote'].includes(action.type)) sel = null
-    if (action.type === 'cohort') soft = sel !== null
-    else if (!sel) soft = false
+    if (!['level', 'upgrade', 'monarch', 'order', 'disband', 'promote'].includes(action.type)) sel = null
     render()
     onChange?.()
   }
@@ -1342,12 +1163,6 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   // The rules' refusal of an order names the action as data: say it in words instead. The editor checks
   // the refusals it knows of before sending, so this is the fallback.
   const said = (e) => !e ? '' : /^cannot give the order/.test(e) ? 'The rules refuse that order.' : e
-
-  // Before a click: a soft selection lets go, unless the click is on the selected soul itself.
-  function settle (u) {
-    if (soft && selected() !== u) sel = null
-    soft = false
-  }
 
   // A move the rules refuse, explained instead of sent.
   function refuse (why) {
@@ -1388,19 +1203,18 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     tip: () => s.essence < cost ? poorText(cost) : why
   }, label, h('span', { class: 'price' }, icon('soul', 16), cost))
 
-  // The selected soul as a card, framed in its rank's colour: its head and its level-up, always; then one of
-  // its paths, its rank or its cohort, behind three tabs (the open one kept from soul to soul: cardTab). A
-  // promotion ready lights the Rank tab; a cohort's size is on its tab.
+  // The selected soul as a card, framed in its rank's colour: its head and its level-up, always; then its paths
+  // or its rank, behind two tabs (the open one kept from soul to soul: cardTab). A promotion ready lights the
+  // Rank tab.
   const soulCard = (u) => {
     const ready = canPromote(run, u)
     const sections = [
       { id: 'paths', name: 'Paths', tip: 'Its paths: tiers bought with essence. Taking one rules out the others.' },
-      { id: 'rank', name: 'Rank', badge: ready && '!', tip: ready ? 'A promotion is ready: it eats bodies of its kin, no essence.' : 'Its rank, and what a promotion takes.' },
-      { id: 'cohort', name: 'Cohort', badge: u.cohort && u.cohort.count, tip: 'The rank-and-file bodies it leads into battle.' }]
+      { id: 'rank', name: 'Rank', badge: ready && '!', tip: ready ? 'A promotion is ready: it has the level and you have the essence.' : 'Its rank, and what a promotion takes.' }]
     const open = sections.some((x) => x.id === cardTab) ? cardTab : 'paths'
-    const panel = { paths: upgradePanel, rank: rankPanel, cohort: cohortPanel }
-    // All three are built; where the tray has the height for them together (fitCard) they all show, one under
-    // the other, each under its name (Rank names itself), and the tabs go.
+    const panel = { paths: upgradePanel, rank: rankPanel }
+    // Both are built; where the tray has the height for them together (fitCard) they both show, one under the
+    // other, each under its name (Rank names itself), and the tabs go.
     return h('div', { class: `uc g${u.grade ?? 0}${popKey(`promote:${u.uid}`)}` },
       soulHead(u),
       levelButton(u),
@@ -1409,12 +1223,12 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
         onclick: () => { cardTab = x.id; render() }, tip: () => x.tip
       }, x.name, x.badge && h('span', { class: 'tab-count' }, x.badge)))),
       sections.map((x) => h('div', { class: 'uc-part' + (x.id === open ? ' on' : '') },
-        x.id !== 'rank' && h('div', { class: 'uc-sec uc-part-head' }, x.name, x.id === 'cohort' && u.cohort && h('span', { class: 'dim' }, ` · ${u.cohort.count}`)),
+        x.id !== 'rank' && h('div', { class: 'uc-sec uc-part-head' }, x.name),
         panel[x.id](u))))
   }
 
-  // The selected soul's card shows its paths, rank and cohort together where the tray's body holds them
-  // without scrolling, else behind its three tabs (on every render, and as the tray changes size).
+  // The selected soul's card shows its paths and rank together where the tray's body holds them without
+  // scrolling, else behind its two tabs (on every render, and as the tray changes size).
   function fitCard () {
     const card = trayBody.querySelector('.uc')
     if (!card) return
@@ -1429,8 +1243,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   function soulHead (u) {
     const d = unitDef(u.id)
     const grade = u.grade ?? 0
-    const all = [...fielded(s.party).filter((x) => !isHeld(s, x)), ...armyOf(run).members]
-    const st = statsOf(u, [...partyMods(run, u), ...bondMods(all, u, aliasOf(run))])
+    const st = statsOf(u, [...partyMods(run, u), ...bondMods(bondField(), u, aliasOf(run))])
     const maxHp = Math.round(st.hp)
     const hp = Math.max(0, Math.round(u.hp / (u.maxHp || 1) * maxHp))
     const stat = (ico, name, v) => h('span', { class: 'uc-stat s-' + ico, tip: () => name }, icon(ico, 18), h('b', null, v))
@@ -1512,10 +1325,29 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
         tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${p.name} ${ROMAN[i]}: `), p.tiers[i].desc), note)
       }, h('span', { class: 'tnum' }, ROMAN[i]),
       i === 3 && h('span', { class: 'tbadge g1' }, icon('knight', 13)),
+      p.tiers[i].summon && !why && summonBadge(p.tiers[i].summon.id),
       why && h('span', { class: 'tbadge lock' }, icon('lock', 13)))
     }
+    // What a path's summon tier raises, as this soul would raise it: the summon's face, how many (its rank's
+    // more on the first summon tier it holds, TUNING.ranks.summons), and whether it raises them yet.
+    const summonLine = (p, held, upto, second) => {
+      const k = p.tiers.slice(0, upto).findIndex((t) => t.summon)
+      if (k < 0) return null
+      const { id, count } = p.tiers[k].summon
+      const first = !pathsOf(u.id).some((q) => q.id !== p.id && (q.id === u.path || q.id === u.path2) && q.tiers.slice(0, q.id === u.path ? u.tier : u.tier2 ?? 0).some((t) => t.summon))
+      const more = first ? TUNING.ranks.summons[grade] ?? 0 : 0
+      const now = held > k
+      return h('div', {
+        class: 'track-sum' + (now ? ' on' : ''),
+        tip: () => unitCard({ id, lvl: Math.max(1, Math.round(u.lvl * TUNING.summon.level)), path: null, tier: 0, slot: -1, summoned: true }, {
+          live: `${ROMAN[k]}: ${count + more} each battle${more ? ` (${GRADES[grade].name} +${more})` : ''}`, notes: [ARMY_TEXT.summon]
+        })
+      }, portrait(id, 26), h('span', null, h('b', null, `×${count + more}`), ` ${unitDef(id).name}${count + more === 1 ? '' : 's'}`,
+        h('span', { class: 'dim' }, now ? ' each battle' : ` at ${ROMAN[k]}`), more > 0 && h('span', { class: `rank-plus g${grade}` }, ` +${more} ${GRADES[grade].name}`)))
+    }
     // A path's track: its name and line (in full on hover), then its nodes joined by links (lit up to the last
-    // tier held) with the next tier's price at the end, then, once the path is taken, the next tier's effect.
+    // tier held) with the next tier's price at the end, then, once the path is taken, the next tier's effect;
+    // under it, what its summon tier raises.
     const track = (p, held, upto, second) => {
       const clash = second && pathsClash(u.id, u.path, p.id)
       const next = !clash && held < upto && canAdvance(u, p.id) && p.tiers[held]
@@ -1524,7 +1356,8 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
         h('div', { class: 'track-head', tip: () => clash ? shut(p) : p.desc }, h('b', null, p.name), h('span', { class: 'track-desc dim' }, clash ? 'clashes' : p.desc)),
         h('div', { class: 'nodes' }, p.tiers.slice(0, upto).map((_, i) => [i > 0 && h('span', { class: 'tlink' + (i < held ? ' on' : '') }), node(p, i, held, second)]),
           next && h('span', { class: 'tprice' + (s.essence < cost ? ' poor' : '') }, icon('soul', 16), cost)),
-        next && held > 0 && h('div', { class: 'track-next', tip: () => next.desc }, h('b', null, `${ROMAN[held]} `), next.desc))
+        next && held > 0 && h('div', { class: 'track-next', tip: () => next.desc }, h('b', null, `${ROMAN[held]} `), next.desc),
+        !clash && summonLine(p, held, upto, second))
     }
     return h('div', { class: 'uc-spend' },
       !first && h('p', { class: 'dim uc-note' }, 'Taking one path rules out the others.'),
@@ -1536,39 +1369,17 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
       either && first && h('p', { class: 'dim uc-note' }, 'A ', kw('knight'), ' takes tier IV or a second path, not both.'))
   }
 
-  // What a promotion would do to the cohorts: which shrink, and to how many, once its bodies are eaten
-  // (as fitCohorts in run.js settles it: souls in party order keep theirs first).
-  function shrinks (take) {
-    const left = {}
-    const out = []
-    for (const c of souls(s.party)) {
-      if (!c.cohort) continue
-      const k = c.cohort.kind
-      left[k] ??= standingOf(s, k) - (take[k] ?? 0)
-      const count = Math.min(c.cohort.count, left[k])
-      left[k] -= count
-      if (count < c.cohort.count) out.push({ c, to: count })
-    }
-    return out
-  }
-
-  // The selected soul's rank, which the card's frame wears, and its promotion: the bodies of its kin it eats,
-  // as portraits (those standing, then empty places for the rest it needs), and the cohorts that shrink for it.
+  // The selected soul's rank, which the card's frame wears, and its promotion: at a level, for essence
+  // ("Knight at level 4 · 40 essence"), the level it has against the level it needs as a bar.
   function rankPanel (u) {
-    const d = unitDef(u.id)
     const grade = u.grade ?? 0
-    const need = promoteNeed(u)
+    const need = promoteLevel(u)
     const up = need !== null && GRADES[grade + 1]
     const head = h('div', { class: 'uc-sec' }, 'Rank · ', kw(GRADES[grade].id))
     if (!up) return h('div', { class: 'uc-rank' }, head, h('p', { class: 'dim small' }, 'The highest rank.'))
-    const kin = KIN[d.kin].name
-    const have = kinStanding(s, d.kin)
+    const cost = promoteCost(run, u)
     const ok = canPromote(run, u)
-    const take = feedOf(s, d.kin, need)
-    const shrink = ok ? shrinks(take) : []
-    const ate = Object.entries(take).map(([k, n]) => bodies(k, n)).join(', ')
-    const eaten = Object.entries(take).flatMap(([k, n]) => Array(n).fill(k))
-    const shrinkText = shrink.map(({ c, to }) => `${unitDef(c.id).name} ${c.cohort.count} → ${to}`).join(', ')
+    const why = u.lvl < need ? `Needs level ${need}; it is level ${u.lvl}.` : s.essence < cost ? poorText(cost) : null
     return h('div', { class: 'uc-rank' },
       head,
       h('div', { class: 'uc-promote' },
@@ -1576,13 +1387,12 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
           class: `buy promote g${grade + 1}` + (ok ? '' : ' poor'), 'aria-disabled': ok ? null : 'true',
           onclick: (e) => { if (ok) return commit({ type: 'promote', uid: u.uid }, `promote:${u.uid}`); sfx.play('poor'); shake(e) },
           tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${up.name}: `), KEYWORDS[up.id].line),
-            ok ? h('p', { class: 'dim' }, `Eats ${ate} for good. No essence.`)
-              : h('p', { class: 'warn' }, `Needs ${need} ${kin} bodies standing; ${have} stand. Bind ${kin} slain after a win.`))
-        }, icon(GRADE_ICON[grade + 1], 20), `Promote to ${up.name}`),
-        h('div', { class: 'feed' + (ok ? ' ok' : ''), tip: () => `${kin} bodies standing in the ossuary: ${have} of the ${need} it needs.` },
-          eaten.map((k) => portrait(k, 30)), Array.from({ length: need - eaten.length }, () => h('span', { class: 'feed-gap' })),
-          h('span', { class: 'feed-n' }, `${Math.min(have, need)}/${need}`))),
-      shrink.length > 0 && h('p', { class: 'warn small' }, `Shrinks cohorts: ${shrinkText}.`))
+            why ? h('p', { class: 'warn' }, why) : h('p', { class: 'dim' }, `${cost} essence.`))
+        }, icon(GRADE_ICON[grade + 1], 20), `Promote to ${up.name}`, h('span', { class: 'price' }, icon('soul', 16), cost)),
+        h('div', { class: 'feed' + (u.lvl >= need ? ' ok' : ''), tip: () => `${rankNeed(grade)}. It is level ${u.lvl}.` },
+          Array.from({ length: need }, (_, k) => h('span', { class: 'feed-gap' + (k < u.lvl ? ' on' : '') })),
+          h('span', { class: 'feed-n' }, `Lv ${Math.min(u.lvl, need)}/${need}`))),
+      h('p', { class: 'dim small' }, rankNeed(grade)))
   }
 
   // The Monarch's card, in its gold frame: its art (its full card on hover) and HP, then its three stats as
@@ -1618,7 +1428,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   }
 
   // What essence buys a soul next: its level, and its next tier (on its path, else a second path's), each
-  // { label, cost } or null; and whether it can be promoted (that costs bodies, not essence).
+  // { label, cost } or null; and whether it can be promoted (it has the level, and you the essence).
   function nextBuys (u) {
     const level = u.lvl < TUNING.level.cap ? { label: `Lv ${u.lvl + 1}`, cost: levelCost(run, u) } : null
     const p = !u.path ? pathsOf(u.id)[0] : canAdvance(u, u.path) ? pathDef(u.id, u.path) : pathsOf(u.id).find((x) => x.id !== u.path && canAdvance(u, x.id))
@@ -1634,7 +1444,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   // affordable) and a badge when a promotion is ready; a click selects the soul.
   function spendPanel () {
     const mCost = monarchCost(run)
-    const rows = [...fielded(souls(s.party)), ...benched(souls(s.party))]
+    const rows = [...fielded(souls(s.party)), ...inOssuary(souls(s.party))]
     const chip = (b, ico, what) => b && h('span', {
       class: 'sp-chip' + (affords(b) ? ' ok' : ''), tip: () => affords(b) ? what : poorText(b.cost)
     }, ico && icon(ico, 16), b.label, h('span', { class: 'price' }, icon('soul', 15), b.cost))
@@ -1645,17 +1455,17 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
       const any = affords(b.level) || affords(b.tier) || b.promote
       return h('button', {
         class: 'sp-row' + (any ? ' can' : ''),
-        onclick: () => { sel = { uid: u.uid }; soft = false; aim = null; error = ''; render() },
-        tip: () => soulTip(u, onField(u) ? null : 'On the bench: does not fight.', 'Click to select it: its card opens here.')
+        onclick: () => { sel = { uid: u.uid }; aim = null; error = ''; render() },
+        tip: () => soulTip(u, onField(u) ? null : 'In the ossuary: does not fight.', 'Click to select it: its card opens here.')
       },
       h('span', { class: 'sp-port' }, portrait(u.id, 44, u.hp <= 0), h('span', { class: `sp-ins g${grade}` }, icon(GRADE_ICON[grade], 13))),
       h('span', { class: 'sp-main' },
-        h('span', { class: 'sp-id' }, h('b', null, d.name), h('span', { class: 'dim' }, `Lv ${u.lvl}${onField(u) ? '' : ' · bench'}`)),
+        h('span', { class: 'sp-id' }, h('b', null, d.name), h('span', { class: 'dim' }, `Lv ${u.lvl}${onField(u) ? '' : ' · ossuary'}`)),
         h('span', { class: 'sp-buys' },
           chip(b.level, 'levelup', `Level ${u.lvl + 1}.`),
           chip(b.tier, null, b.tier?.name ? `${b.tier.name} ${b.tier.label.replace('2nd ', '')}${b.tier.label.startsWith('2nd') ? ', a second path' : ''}.` : 'Its first path tier: choose the path on its card.'),
-          b.promote && h('span', { class: `sp-chip promote g${grade + 1}`, tip: () => `Ready to promote to ${GRADES[grade + 1].name}: it eats bodies of its kin, no essence.` },
-            icon(GRADE_ICON[grade + 1], 16), 'Promote'))))
+          b.promote && h('span', { class: `sp-chip promote g${grade + 1} ok`, tip: () => `Ready to promote to ${GRADES[grade + 1].name}: ${promoteCost(run, u)} essence.` },
+            icon(GRADE_ICON[grade + 1], 16), 'Promote', h('span', { class: 'price' }, icon('soul', 15), promoteCost(run, u))))))
     }
     return h('div', { class: 'spend-panel' },
       h('div', { class: 'sp-head' },
@@ -1663,120 +1473,11 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
         h('span', { class: 'dim' }, 'to spend: pick a soul')),
       s.essence >= mCost && h('button', {
         class: 'sp-nudge', onclick: () => openTab('monarch'),
-        tip: () => 'Dominion widens the domain, Command grows every cohort, Will binds more of the slain.'
+        tip: () => 'Dominion widens the domain, Command fields a soul more, Will makes Arise raise more, and sooner.'
       }, icon('crown', 20), h('span', { class: 'grow' }, 'Monarch point in reach'), h('span', { class: 'price' }, icon('soul', 16), mCost)),
       rows.length
         ? h('div', { class: 'sp-list' }, rows.map(row))
         : h('p', { class: 'dim small' }, 'No souls yet: recruit after a win.'))
-  }
-
-  // The selected soul's cohort: which kind it leads (of its kin or role, from the bodies standing in the
-  // ossuary that no other cohort leads), how many (up to Command, plus its rank's), in which shape; or clear it.
-  function cohortPanel (u) {
-    const c = u.cohort
-    const cmd = cohortCap(s, u)
-    const kinds = Object.keys(s.ossuary).filter((k) => canLead(u, k) && standingOf(s, k) > 0)
-    const most = (k) => Math.min(cmd, freeBodies(s, k, u))
-    const give = (kind, count, shape) => send(kind === null ? { type: 'cohort', uid: u.uid, kind } : { type: 'cohort', uid: u.uid, kind, count, shape })
-    const line = (cls, ...kids) => h('p', { class: cls + ' small' }, ...kids)
-    // A kind it may lead: its portrait, and how many of it no other cohort leads.
-    const kindBtn = (k) => {
-      const free = freeBodies(s, k, u)
-      const on = c?.kind === k
-      return h('button', {
-        class: 'uc-kind' + (on ? ' on' : '') + (free < 1 ? ' locked' : ''), 'aria-disabled': free < 1 && !on ? 'true' : null, 'aria-label': unitDef(k).name,
-        onclick: () => on ? null : free < 1 ? refuse(`Every ${unitDef(k).name} standing is led by another cohort: clear one of those first.`) : give(k, most(k), c?.shape ?? 'line'),
-        tip: () => h('div', { class: 'syn-tip' }, h('b', null, unitDef(k).name),
-          h('p', { class: 'dim' }, `${free} free of ${standingOf(s, k)} standing. ${on ? 'Led now.' : free < 1 ? 'Others lead them all.' : `Click to lead ${most(k)}.`}`))
-      }, portrait(k, 40), h('span', { class: 'uc-kind-n pill' }, free))
-    }
-    // The bodies it leads, then the places left up to its cap, as a strip of small portraits.
-    const strip = c && h('div', { class: 'strip', tip: () => `${bodies(c.kind, c.count)}, of up to ${cmd}: Command${u.grade ? ' and its rank' : ''}.` },
-      Array.from({ length: Math.max(cmd, c.count) }, (_, i) => i < c.count ? portrait(c.kind, 28) : h('span', { class: 'feed-gap' })))
-    // Two rows: how many (− n +) and clearing it; then its shape.
-    const controls = c && [h('div', { class: 'uc-ctl' },
-      h('button', { class: 'step-btn', 'aria-label': 'One fewer', 'aria-disabled': c.count <= 1 ? 'true' : null, onclick: (e) => c.count > 1 ? give(c.kind, c.count - 1, c.shape) : shake(e), tip: () => c.count > 1 ? 'One fewer.' : 'At least one: Clear ends it.' }, '−'),
-      h('span', { class: 'uc-count', tip: () => `${bodies(c.kind, c.count)} in a ${SHAPES[c.shape].name.toLowerCase()}, of up to ${cmd}: Command${u.grade ? ' and its rank' : ''}.` }, h('b', null, c.count), h('span', { class: 'dim' }, `/${cmd}`)),
-      h('button', {
-        class: 'step-btn', 'aria-label': 'One more', 'aria-disabled': c.count >= most(c.kind) ? 'true' : null,
-        onclick: (e) => c.count < most(c.kind) ? give(c.kind, c.count + 1, c.shape) : shake(e),
-        tip: () => c.count < most(c.kind) ? 'One more.' : c.count >= cmd ? `Full: up to ${cmd} (Command${u.grade ? ' and rank' : ''}).` : `No more ${unitDef(c.kind).name}s stand unled.`
-      }, '+'),
-      h('span', { class: 'grow' }),
-      h('button', { class: 'ghost uc-clear', onclick: () => give(null), tip: () => `Clear: its ${bodies(c.kind, c.count)} go back to the ossuary.` }, icon('close', 16), 'Clear')),
-    h('div', { class: 'uc-shapes' }, Object.entries(SHAPES).map(([k, sh]) => h('button', {
-      class: 'uc-shape' + (c.shape === k ? ' on' : ''), 'aria-label': sh.name,
-      onclick: () => { if (c.shape !== k) give(c.kind, c.count, k) },
-      tip: () => h('div', { class: 'syn-tip' }, h('b', null, sh.name), h('p', null, sh.desc))
-    }, shapeGlyph(k, Math.max(c.count, 4)))))]
-    // One short line for each state where it leads no bodies into battle; a fallen soul on the field may
-    // still be given a cohort (ready for when an altar raises it), its bodies sitting out with it.
-    const fallen = onField(u) && u.hp <= 0 && (c || kinds.length > 0) && line('warn', 'Fallen: it and its cohort sit out until an altar raises it.')
-    const state = !onField(u)
-      ? (c ? line('dim', 'Benched: its ', bodies(c.kind, c.count), ' sit out with it.') : line('dim', 'Benched: field it to lead a ', kw('cohort'), '.'))
-      : u.hp <= 0 && !c && !kinds.length ? line('dim', 'Fallen: it fights no battle until an altar raises it.')
-        : cmd < 1 ? line('dim', 'No ', kw('command'), ': buy a point on the Monarch tab, or promote it: a ', kw('knight'), ` leads ${TUNING.ranks.cohort[1]} bodies even at Command 0.`)
-            : !kinds.length ? line('dim', `No ${leadsText(u.id)} bodies stand. `, kw('bind'), ' some after a win.')
-              : !c ? line('dim', 'Pick a kind to lead.') : null
-    const open = onField(u) && cmd >= 1 && kinds.length > 0
-    // The tab names it: the kinds it may lead (whom on hover), then how many and in what shape. A cohort it
-    // cannot field shows as its strip of bodies.
-    return h('div', { class: 'uc-cohort' },
-      fallen,
-      state,
-      !open && strip,
-      open && h('div', { class: 'uc-kinds', tip: () => `It leads ${leadsText(u.id)} bodies.` }, kinds.map(kindBtn)),
-      open ? controls : c && h('button', { class: 'ghost uc-clear', onclick: () => give(null), tip: () => `Its ${bodies(c.kind, c.count)} go back to the ossuary.` }, icon('close', 16), 'Clear'))
-  }
-
-  // The rank-and-file: the muster in one row with its buy button, then the kinds as a portrait grid, each
-  // with how many stand (and have fallen), and how many of them cohorts lead. The rest is on hover.
-  function ossuaryPanel () {
-    const kinds = Object.entries(s.ossuary).filter(([, o]) => o.standing + o.fallen > 0)
-    const cap = TUNING.army.muster.cap
-    const cost = musterCost(run)
-    const leaders = (k) => souls(s.party).filter((u) => u.cohort?.kind === k)
-    // The muster's buy: a refusal (too little essence) is only a sound; the tooltip says why.
-    const buy = () => {
-      if (s.essence < cost) return sfx.play('poor')
-      send({ type: 'muster' })
-      sfx.play(error ? 'poor' : 'buy')
-    }
-    return h('div', { class: 'ossuary-panel' },
-      h('h2', { tip: () => h('div', { class: 'syn-tip' }, kw('ossuary'), ' ', ARMY_TEXT.ossuary, h('p', { class: 'dim' }, ARMY_TEXT.bind(run))) },
-        icon('bone', 20), ' Ossuary ', h('span', { class: 'oss-count' }, h('b', null, armyCount(s, 'standing')), ' standing'),
-        armyCount(s, 'fallen') > 0 && h('span', { class: 'oss-count fell' }, h('b', null, armyCount(s, 'fallen')), ' fallen')),
-      h('div', { class: 'muster-row', tip: () => h('div', { class: 'syn-tip' }, kw('muster'), ' ', ARMY_TEXT.muster(run)) },
-        h('span', { class: 'mu-name' }, 'Muster'),
-        h('span', { class: 'mu-lvl' }, s.muster),
-        s.muster < cap && [h('span', { class: 'mu-arrow dim' }, '→'), h('span', { class: 'mu-next' }, s.muster + 1)],
-        h('span', { class: 'grow' }),
-        s.muster < cap
-          ? h('button', {
-            class: 'buy' + (s.essence < cost ? ' poor' : ''), 'aria-disabled': s.essence < cost ? 'true' : null, onclick: buy,
-            tip: () => s.essence < cost ? `You need ${cost} essence; you have ${s.essence}.` : `Every body fights at level ${s.muster + 1}.`
-          }, icon('levelup', 18), h('span', { class: 'price' }, icon('soul', 16), cost))
-          : h('span', { class: 'chip-cap' }, 'cap')),
-      kinds.length
-        ? h('div', { class: 'bone-grid' }, kinds.map(([k, o]) => {
-          const led = leaders(k)
-          const n = led.reduce((m, u) => m + u.cohort.count, 0)
-          const kin = KIN[unitDef(k).kin].name
-          return h('div', {
-            class: 'bone-tile' + (o.standing === 0 ? ' gone' : ''),
-            tip: () => unitCard({ id: k, lvl: s.muster, path: null, tier: 0, slot: -1, rank: true }, {
-              mods: partyMods(run),
-              notes: [`${o.standing} standing · ${o.fallen} fallen · ${led.length ? `led by ${led.map((u) => `${unitDef(u.id).name} (${u.cohort.count})`).join(', ')}` : 'none led'}`,
-                `Leads under ${leadsText(k)} captains; promotes ${kin} souls (${kinStanding(s, unitDef(k).kin)} ${kin} stand).`]
-            })
-          },
-          h('div', { class: 'bt-port' }, portrait(k, 48, o.standing === 0),
-            h('span', { class: 'bt-stand pill' }, o.standing),
-            o.fallen > 0 && h('span', { class: 'bt-fell pill' }, `${o.fallen}`)),
-          h('div', { class: 'bt-name' }, unitDef(k).name),
-          h('div', { class: 'bt-led' + (n ? ' on' : '') }, n ? `${n} led` : 'unled'))
-        }))
-        : h('p', { class: 'dim small' }, 'No bodies yet: after a win, ', kw('bind'), ` the slain (${1 + s.monarch.will} free).`))
   }
 
   // The detachments and their plans: picking souls and forming one, then for each its souls, Where (a Move
@@ -1819,7 +1520,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     function card (d) {
       const p = d.plan
       const members = d.members.map(soulOf)
-      const n = members.filter((u) => onField(u) && u.hp > 0 && u.cohort).reduce((k, u) => k + u.cohort.count, 0)
+      const n = members.filter((u) => onField(u) && u.hp > 0).reduce((k, u) => k + summonCount(u), 0)
       const out = p.where === 'move' && distance(p.square, mTile) > dom
       const far = oneWay(s, d, mTile, dom)
       const t = p.when.t ?? 400
@@ -1833,14 +1534,14 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
           h('span', { class: 'det-sw', tip: () => `Detachment ${d.id}'s colour: its souls' tag, its square and its arrow.` }, d.id),
           h('div', { class: 'grow det-state' }, state),
           h('button', { class: 'ghost det-x', onclick: () => send({ type: 'disband', id: d.id }), tip: () => `Disband: its souls Hunt, at once.` }, icon('close', 16), 'Disband')),
-        // Its souls (a press selects one), the bodies they lead; then what the selection or the picks can do here.
+        // Its souls (a press selects one), the summons they raise; then what the selection or the picks can do here.
         h('div', { class: 'det-souls' },
           members.map((u) => h('button', {
             class: 'det-soul' + (picked === u ? ' on' : '') + (onField(u) ? '' : ' benched'), 'aria-label': name(u),
-            onclick: () => { sel = { uid: u.uid }; soft = false; aim = null; error = ''; render() },
-            tip: () => `${name(u)}${onField(u) ? '' : ', on the bench: it keeps its place here but does not fight'}${u.cohort && onField(u) ? `, leading ${bodies(u.cohort.kind, u.cohort.count)}` : ''}. Click to select it.`
+            onclick: () => { sel = { uid: u.uid }; aim = null; error = ''; render() },
+            tip: () => `${name(u)}${onField(u) ? '' : ', in the ossuary: it keeps its place here but does not fight'}${summonCount(u) && onField(u) ? `, raising ${summonsOf(u).map((x) => named(x.id, x.count)).join(' and ')}` : ''}. Click to select it.`
           }, portrait(u.id, 34))),
-          n > 0 && h('span', { class: 'dim' }, `+${n} bod${n === 1 ? 'y' : 'ies'}`)),
+          n > 0 && h('span', { class: 'dim' }, `+${n} summoned`)),
         (one || pick.length > 0) && h('div', { class: 'det-acts' },
           one && mine === d && h('button', { class: 'link', onclick: () => leaveDet(d, one), tip: () => `Take ${name(one)} out of detachment ${d.id}: it Hunts, at once. The others on the field keep the plan.${benchedOut(d)}` }, `Take ${name(one)} out`),
           one && mine !== d && !pick.length && h('button', { class: 'link', onclick: () => join(d, [one.uid]), tip: () => `${name(one)} joins detachment ${d.id} and takes its plan${mine ? `, leaving detachment ${mine.id}` : ''}.${benchedOut(d)}` }, `+ ${name(one)}`),
@@ -1906,19 +1607,18 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     if (aim != null) return setSquare(deployTile('party', slot))
     const o = s.party.find((u) => u.slot === slot)
     if (picks(e)) {
-      const who = o ?? captainOf(armyOf(run).members.find((x) => x.slot === slot) ?? {})
-      return who ? togglePick(who) : refuse('Nobody stands here to pick: pick souls on the field (a member\'s cell picks its captain).')
+      const who = o ?? summonerOf(summonAt(deployTile('party', slot)) ?? {})
+      return who ? togglePick(who) : refuse('Nobody stands here to pick: pick souls on the field (a summon\'s tile picks its soul).')
     }
-    settle(o)
     const picked = selected()
-    // A member's cell is open ground; with no soul selected, clicking it picks up its banner's captain.
-    const m = !o && !picked && armyOf(run).members.find((x) => x.slot === slot)
-    if (m) sel = { uid: m.cohortOf }
+    // A summon's tile is open ground; with no soul selected, clicking it picks up the soul that raises it.
+    const m = !o && !picked && summonAt(deployTile('party', slot))
+    if (m) sel = { uid: m.summoner }
     else if (!sel) sel = o ? { uid: o.uid } : { slot }
     else if (sel.uid != null) {
       if (o?.uid === sel.uid) sel = null
       else if (o && !swap) sel = { uid: o.uid }
-      else if (o && isMonarch(o) && picked.slot < 0) return refuse(`The Monarch never goes to the bench: place ${unitDef(picked.id).name} on another cell.`)
+      else if (o && isMonarch(o) && picked.slot < 0) return refuse(`The Monarch never goes to the ossuary: place ${unitDef(picked.id).name} on another cell.`)
       else if (!o && picked.slot < 0 && full()) return refuse(fullText(picked))
       else return send({ type: 'place', uid: sel.uid, slot })
     } else if (o) {
@@ -1929,14 +1629,13 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     render()
   }
 
-  // A click on a benched soul selects it, or places it in a selected empty cell; `swap` (a drop on it) trades
-  // it for the selected soul on the field.
+  // A click on a soul in the ossuary selects it, or places it in a selected empty cell; `swap` (a drop on it)
+  // trades it for the selected soul on the field.
   function clickBench (u, e, swap = false) {
-    if (aim != null) return refuse(say('The bench is not on the board: click a cell of the board for the square, or press Esc.', 'The bench is not on the board: tap a cell of the board for the square, or Move again to cancel.'))
+    if (aim != null) return refuse(say('The ossuary is not on the board: click a cell of the board for the square, or press Esc.', 'The ossuary is not on the board: tap a cell of the board for the square, or Move again to cancel.'))
     if (picks(e)) return togglePick(u)
-    settle(u)
     const picked = selected()
-    if (swap && picked && isMonarch(picked)) return refuse('The Monarch never goes to the bench. Pick a soul to swap with this one.')
+    if (swap && picked && isMonarch(picked)) return refuse('The Monarch never goes to the ossuary. Pick a soul to swap with this one.')
     if (swap && picked && picked !== u && picked.slot >= 0) return send({ type: 'place', uid: u.uid, slot: picked.slot })
     if (sel?.slot != null) return full() ? refuse(fullText(u)) : send({ type: 'place', uid: u.uid, slot: sel.slot })
     sel = picked === u ? null : { uid: u.uid }
@@ -1944,25 +1643,26 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     render()
   }
 
+  // A click on the ossuary's empty space puts the selected soul there.
   function clickBenchSpace () {
-    if (soft) {
-      settle(null)
-      return render()
-    }
     const picked = selected()
-    if (picked && isMonarch(picked)) return refuse('The Monarch never goes to the bench: it stands in every battle.')
-    if (picked && picked.slot >= 0) send({ type: 'place', uid: picked.uid, slot: -1 })
+    if (picked && isMonarch(picked)) return refuse('The Monarch never goes to the ossuary: it stands in every battle.')
+    if (picked && picked.slot >= 0) send({ type: 'place', uid: picked.uid, slot: OSSUARY })
   }
 
   const selected = () => sel?.uid != null && s.party.find((x) => x.uid === sel.uid)
-  // The soul a click elsewhere would move: the selected one, unless its selection is soft.
-  const mover = () => !soft && selected()
+  // The soul a click elsewhere would move: the selected one.
+  const mover = selected
   const benchable = (u) => u && u.slot >= 0 && !isMonarch(u)
-  // A benched soul can only take an open cell while a banner is free; it can always swap with a soul.
+  // A soul leaves the ossuary for an open cell only while the field has room; it can always swap with a soul.
   const full = () => fielded(souls(s.party)).length >= fieldCap(run)
-  const fullText = (u) => `The field is full (${fieldCap(run)} souls): swap ${unitDef(u.id).name} with a soul on the field, bench one first, or buy Command.`
-
-  const captainOf = (m) => s.party.find((u) => u.uid === m.cohortOf)
+  const fullText = (u) => `The field is full (${fieldCap(run)} souls): swap ${unitDef(u.id).name} with a soul on the field, put one in the ossuary first, or buy Command.`
+  // Who stands on the field from the start (not held), for the bonds: summons take none at the start.
+  const bondField = () => fielded(s.party).filter((x) => !isHeld(s, x))
+  // The summon likely raised on a tile (summonLayout, as the board last drew it), and its soul.
+  let summonsNow = []
+  const summonAt = (tile) => summonsNow.find((x) => x.tile === tile) ?? null
+  const summonerOf = (m) => s.party.find((u) => u.uid === m.summoner)
 
   // ── orders ──
 
@@ -1970,7 +1670,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   const soulOf = (uid) => s.party.find((u) => u.uid === uid)
   // A soul still in the retinue and on the field: the only kind the rules take orders for.
   const fieldedUid = (uid) => { const u = soulOf(uid); return !!u && onField(u) }
-  // Picks benched or released since they were picked drop out (run before every redraw).
+  // Picks put in the ossuary or released since they were picked drop out (run before every redraw).
   const prunePicks = () => { if (pick.some((uid) => !fieldedUid(uid))) pick = pick.filter(fieldedUid) }
   const detOf = (u) => detachmentOf(s, u.uid)
   const inOrder = (uids) => s.party.filter((u) => uids.includes(u.uid)).map((u) => u.uid)
@@ -1979,7 +1679,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
 
   function togglePick (u) {
     if (isMonarch(u)) return refuse('The Monarch takes no orders: it never takes a step. Pick souls on the field.')
-    if (!onField(u)) return refuse(`${unitDef(u.id).name} is on the bench, and a benched soul takes no orders: field it first.`)
+    if (!onField(u)) return refuse(`${unitDef(u.id).name} is in the ossuary, and a soul there takes no orders: field it first.`)
     pick = pick.includes(u.uid) ? pick.filter((x) => x !== u.uid) : [...pick, u.uid]
     error = ''
     render()
@@ -1991,7 +1691,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   // exactly these souls are refused here, in words.
   function form (uids, plan = DEFAULT_PLAN) {
     uids = inOrder(uids.filter(fieldedUid))
-    if (!uids.length) { unpick(); return refuse('Nobody picked stands on the field: a benched soul takes no orders.') }
+    if (!uids.length) { unpick(); return refuse('Nobody picked stands on the field: a soul in the ossuary takes no orders.') }
     const same = s.detachments.find((d) => d.members.length === uids.length && uids.every((uid) => d.members.includes(uid)))
     if (same) return refuse(`They already are detachment ${same.id}.`)
     if (kept(uids).length >= cap) return refuse(`At most ${cap} detachments: disband one first, or add these souls to one.`)
@@ -2000,18 +1700,18 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   }
 
   // Souls join detachment d, keeping its plan: d is disbanded and formed anew of its souls on the field and
-  // them (its colour follows its new id, the lowest free). The rules order only souls on the field, so a
-  // benched soul of d leaves it (the tooltips say so); disbanding d first keeps it from lingering, held by
-  // its benched soul alone, beside a second detachment on the same plan, and from counting toward the cap.
+  // them (its colour follows its new id, the lowest free). The rules order only souls on the field, so a soul
+  // of d in the ossuary leaves it (the tooltips say so); disbanding d first keeps it from lingering, held by that
+  // soul alone, beside a second detachment on the same plan, and from counting toward the cap.
   function join (d, uids) {
-    // A pick benched (or released) since it was picked takes no orders: it is dropped, and if no one is
-    // left to join, refused in words before anything is sent.
+    // A pick put in the ossuary (or released) since it was picked takes no orders: it is dropped, and if no one
+    // is left to join, refused in words before anything is sent.
     const gone = uids.filter((uid) => !fieldedUid(uid))
     pick = pick.filter((uid) => !gone.includes(uid))
     const fresh = uids.filter((uid) => !gone.includes(uid) && !d.members.includes(uid))
     if (!fresh.length) {
       const names = gone.map(soulOf).filter(Boolean).map((u) => unitDef(u.id).name)
-      return refuse(names.length ? `${names.join(' and ')} ${names.length === 1 ? 'is' : 'are'} on the bench now, and a benched soul takes no orders: field ${names.length === 1 ? 'it' : 'them'} first.`
+      return refuse(names.length ? `${names.join(' and ')} ${names.length === 1 ? 'is' : 'are'} in the ossuary now, and a soul there takes no orders: field ${names.length === 1 ? 'it' : 'them'} first.`
         : `Nobody new to add to detachment ${d.id}.`)
     }
     uids = inOrder([...d.members.filter((uid) => onField(soulOf(uid))), ...fresh])
@@ -2021,13 +1721,13 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     sendAll([{ type: 'disband', id: d.id }, { type: 'order', uids, plan: d.plan }], unpick)
   }
 
-  // The benched souls of d, who leave it whenever it is formed anew (join, leaveDet): words for a tooltip.
+  // The souls of d in the ossuary, who leave it whenever it is formed anew (join, leaveDet): words for a tooltip.
   const benchedOut = (d) => {
     const out = d.members.map(soulOf).filter((u) => !onField(u))
-    return out.length ? ` ${out.map((u) => unitDef(u.id).name).join(' and ')}, on the bench, leave${out.length === 1 ? 's' : ''} it too.` : ''
+    return out.length ? ` ${out.map((u) => unitDef(u.id).name).join(' and ')}, in the ossuary, leave${out.length === 1 ? 's' : ''} it too.` : ''
   }
 
-  // A soul leaves its detachment: the rest on the field are formed anew with its plan (its benched souls
+  // A soul leaves its detachment: the rest on the field are formed anew with its plan (its souls in the ossuary
   // leave it too), or it is disbanded if none is left.
   function leaveDet (d, u) {
     const rest = d.members.filter((uid) => uid !== u.uid && onField(soulOf(uid)))
@@ -2058,23 +1758,22 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     const d = detOf(u)
     if (!d) return [onField(u) && `No orders: it Hunts, at once. ${say('Shift- or Ctrl-click', 'Use Pick in Orders')} to pick it for a detachment.`]
     return [`Detachment ${d.id}: ${planText(d.plan)}.`,
-      !onField(u) && 'On the bench: it keeps its place in the detachment, but does not fight.',
-      onField(u) && waits(d) && `Held: it waits behind the camp, off the board, and enters beside the Monarch ${whenText(d.plan.when)}. Its cell stays its own, but it takes its bonds where it enters.`,
+      !onField(u) && 'In the ossuary: it keeps its place in the detachment, but does not fight.',
+      onField(u) && waits(d) && `Held: it waits behind the camp, off the board, and enters beside the Monarch ${whenText(d.plan.when)}${summonCount(u) ? ', its summons with it' : ''}. Its cell stays its own, but it takes its bonds where it enters.`,
       onField(u) && !waits(d) && d.plan.where !== 'hunt' && startsFaltering(s, u) && 'It stands outside the domain, so it falters from the start and drops its plan: only Hunt is heeded out there.']
   }
 
-  // What clicking here would do, given the current selection (`member`: the rank-and-file standing on it).
-  // In the order clickSlot decides.
-  function slotHint (slot, o, member = null) {
+  // What clicking here would do, given the current selection (`summon`: the summon likely raised on it). In
+  // the order clickSlot decides.
+  function slotHint (slot, o, summon = null) {
     if (o && selected() === o) return 'Click again to deselect.'
     const picked = mover()
-    if (picked && o && isMonarch(o) && picked.slot < 0) return `Click to select it. The Monarch never goes to the bench, so ${unitDef(picked.id).name} cannot take its cell.`
+    if (picked && o && isMonarch(o) && picked.slot < 0) return `Click to select it. The Monarch never goes to the ossuary, so ${unitDef(picked.id).name} cannot take its cell.`
     if (picked && o) return `Click to select it. Drag ${unitDef(picked.id).name} onto it to swap them.`
     if (picked && !o && picked.slot < 0 && full()) return fullText(picked)
-    if (!o && member) {
-      if (!picked) return `Click to select its captain, ${unitDef(captainOf(member).id).name}.`
-      return `Click to move ${unitDef(picked.id).name} here: the ${unitDef(member.id).name} makes way` + (picked.slot < 0
-        ? `, and with one more soul on the board a body may ${TUNING.army.overflow ? 'have to wait in reserve' : 'find no room and sit the battle out'}.` : ' and stands elsewhere in its banner.')
+    if (!o && summon) {
+      if (!picked) return `Click to select its soul, ${unitDef(summonerOf(summon).id).name}.`
+      return `Click to move ${unitDef(picked.id).name} here: the ${unitDef(summon.id).name} appears on another tile beside its soul.`
     }
     if (picked && isMonarch(picked) && !o && sealedBy(s.camp, slot).length) return `Click to move the Monarch here. ${sealText(sealedBy(s.camp, slot).length)}`
     if (picked) return `Click to move ${unitDef(picked.id).name} here.`
@@ -2082,18 +1781,23 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   }
 
   // Inside the domain or not, in words, for a cell's tooltip; and inside a Marshal's own, for its banner.
-  // Under Vanguard Crown the domain centres on the front-most captain, not the Monarch.
+  // Under Vanguard Crown the domain centres on the front-most soul, not the Monarch.
   const crowned = holds(s, 'crown')
-  const whose = crowned ? 'the domain (on your front-most captain, Vanguard Crown)' : "the Monarch's domain"
+  const whose = crowned ? 'the domain (on your front-most soul, Vanguard Crown)' : "the Monarch's domain"
   const domainLine = (slot, u) => {
     if (isMonarch(u ?? {})) {
       const sealed = sealedBy(s.camp, slot).length
-      return (crowned ? `Vanguard Crown: its domain (${realmOf(run).domain} tiles) centres on your front-most captain, not here. The Monarch itself never falters.` : `Its domain reaches ${realmOf(run).domain} tiles from here.`) +
+      return (crowned ? `Vanguard Crown: its domain (${realmOf(run).domain} tiles) centres on your front-most soul, not here. The Monarch itself never falters.` : `Its domain reaches ${realmOf(run).domain} tiles from here.`) +
         (sealed ? ` ${sealText(sealed)}` : '')
     }
-    const who = u?.rank ? 'a body' : 'a soul'
-    const centred = crowned && slot === domainCentre(s) && u && !u.rank
-      ? ` Vanguard Crown: the domain (${realmOf(run).domain} tiles) centres here as the battle begins, on your front-most captain, and moves with the front from then on.` : ''
+    // A summon by where it will likely appear (it may stand past the camp).
+    if (u?.summoned) {
+      return startsFaltering(s, u) ? `Outside ${whose}: it falters, dealing ×${TUNING.monarch.falter} damage while it stands out here.`
+        : `Inside ${whose}${faltersAt(s, slot) ? ' or its Marshal\'s' : ''}: it fights at full strength.`
+    }
+    const who = 'a soul'
+    const centred = crowned && slot === domainCentre(s) && u
+      ? ` Vanguard Crown: the domain (${realmOf(run).domain} tiles) centres here as the battle begins, on your front-most soul, and moves with the front from then on.` : ''
     if (!faltersAt(s, slot)) return `Inside ${whose}: ${who} here fights at full strength.${centred}`
     const m = u && marshalOf(s, u)
     if (u && !startsFaltering(s, u)) {
@@ -2102,17 +1806,17 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     }
     const near = marshalsOn().filter((x) => x !== m && campDistance(x.slot, slot) <= TUNING.ranks.domain)
     return `Outside ${whose}: ${who} here falters, dealing ×${TUNING.monarch.falter} damage while it stands out here.` +
-      (near.length ? ` A Marshal's own domain reaches here (${near.map((x) => unitDef(x.id).name).join(', ')}): ${u ? 'only bodies of its banner' : 'its banner'} would not falter.` : '')
+      (near.length ? ` A Marshal's own domain reaches here (${near.map((x) => unitDef(x.id).name).join(', ')}): ${u ? 'only its own summons' : 'its banner'} would not falter.` : '')
   }
   // The Marshals standing on the field, whose own domains the camp outlines.
   const marshalsOn = () => souls(fielded(s.party)).filter((u) => marshalOf(s, u) === u && !isHeld(s, u))
 
-  // A soul's one live line (its card's third): fallen, benched, held, faltering or not, its orders. `lead`
-  // goes first when given (what a click would do with a soul selected, a melee blocked).
+  // A soul's one live line (its card's third): fallen, in the ossuary, held, faltering or not, its orders.
+  // `lead` goes first when given (what a click would do with a soul selected, a melee blocked).
   function soulLive (u, lead = null) {
     if (lead) return lead
     if (u.hp <= 0) return 'Fallen: an altar raises it'
-    if (!onField(u)) return 'On the bench: it does not fight'
+    if (!onField(u)) return 'In the ossuary: it does not fight'
     if (isMonarch(u)) return `Domain ${realmOf(run).domain} · if it falls, the run ends`
     const d = detOf(u)
     if (d && waits(d)) return `Held: ${d.id} enters ${whenText(d.plan.when)}`
@@ -2123,9 +1827,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   }
 
   function soulTip (u, where, extra, lead = null) {
-    const all = [...fielded(s.party).filter((x) => !isHeld(s, x)), ...armyOf(run).members]
+    const all = bondField()
     const alias = aliasOf(run)
-    const c = u.cohort
+    const raised = summonsOf(u)
     return unitCard(u, {
       mods: [...partyMods(run, u), ...bondMods(all, u, alias)],
       realm: realmOf(run),
@@ -2134,7 +1838,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
         where,
         u.slot >= 0 && !isHeld(s, u) && domainLine(u.slot, u),
         ...orderNotes(u),
-        c && `Captain of a banner: leads ${bodies(c.kind, c.count)} in a ${SHAPES[c.shape].name.toLowerCase()}${onField(u) && u.hp > 0 ? '' : ', who stay out of battle while it does'}.`,
+        raised.length > 0 && `Raises ${raised.map((x) => named(x.id, x.count)).join(' and ')} each battle${onField(u) && u.hp > 0 ? '' : ', none while it sits out'}.`,
         ...bondNotes(all, u, alias),
         u.hp <= 0 && 'Fallen: it will not fight until an altar raises it.',
         ...[extra].flat()]
@@ -2146,22 +1850,21 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     const cap = fieldCap(run)
     const field = fielded(s.party)
     const fieldSouls = souls(field)
-    const bench = benched(s.party)
+    const bench = inOssuary(s.party)
     const picked = selected()
     const moving = mover()
-    // The army as it will stand: the members on their cells (bonds and synergies count them), the rest
-    // in reserve; a held detachment's souls stand ghosted on their cells, and wait with their bodies behind
-    // the camp (they count for nothing on the board until they enter).
+    // The army as it will stand: the souls on their cells, their summons faint on the tiles they will likely
+    // take (synergies count them; the bonds, set before they appear, do not); a held detachment's souls stand
+    // ghosted on their cells, and wait behind the camp (they count for nothing on the board until they enter).
     const army = armyOf(run)
-    const held = new Set(army.held.filter((b) => !b.rank).map((b) => b.uid))
-    const memberAt = new Map(army.members.map((m) => [m.slot, m]))
-    const all = [...field.filter((u) => !held.has(u.uid)), ...army.members]
+    const held = new Set(army.held.map((b) => b.uid))
+    summonsNow = army.summons
+    const summonOn = new Map(army.summons.map((x) => [x.tile, x]))
+    const all = field.filter((u) => !held.has(u.uid))
     const colours = bannerColours(s.party)
     const alias = aliasOf(run)
     const bonded = new Set(activeBonds(all, { alias }).map((b) => b.uid))
-    const standing = fieldSouls.filter((u) => u.hp > 0 && !held.has(u.uid)).length
     const alive = fieldSouls.filter((u) => u.hp > 0).length
-    const onBoard = standing + army.members.length
     const m = monarchOf(s)
     const realm = realmOf(run)
     const centre = domainCentre(s)
@@ -2170,9 +1873,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     // is a one-way trip): one and the same but under Vanguard Crown.
     const mTile = deployTile('party', m.slot)
     const cTile = deployTile('party', centre)
-    // Who takes the board at the start, by tile: the souls not held back, and the members.
-    const starters = [...fieldSouls.filter((u) => u.hp > 0 && !held.has(u.uid)), ...army.members]
-    const startAt = new Map(starters.map((u) => [deployTile('party', u.slot), u]))
+    // Who takes the board at the start, by tile: the souls not held back, and their summons.
+    const starters = [...fieldSouls.filter((u) => u.hp > 0 && !held.has(u.uid)), ...army.summons]
+    const startAt = new Map(starters.map((u) => [u.summoned ? u.tile : deployTile('party', u.slot), u]))
     // The Monarch's approach tiles (reDESIGN, what prep shows): the open tiles around it, where a foe stands to
     // strike it. Each one held at the start screens it; a bare one is a way in.
     const walls = new Set(wallTiles(s.camp))
@@ -2184,17 +1887,17 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     // The line: the front-most row anyone starts on; how far it stands ahead of the Monarch, and how far short
     // of their front (Reach strikes over the gap; a long one is open ground to cross).
     const lineY = starters.length ? Math.max(...starters.map((u) => tileY(deployTile('party', u.slot)))) : null
-    // Melee behind melee does nothing (reDESIGN §10): a melee captain with a melee unit of another banner
-    // right ahead of it in its lane strikes nothing until that one falls or it walks round.
+    // Melee behind melee does nothing (reDESIGN §10): a melee soul with a melee unit (not its own summon) right
+    // ahead of it in its lane strikes nothing until that one falls or it walks round.
     const melee = (u) => Math.max(1, ...unitDef(u.id).abilities.map(abilityDef).filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse').map(rangeOf)) === 1
     const behind = (u) => {
       if (isMonarch(u) || u.hp <= 0 || held.has(u.uid) || !melee(u) || rowOf(u.slot) === 0) return null
       const ahead = startAt.get(deployTile('party', slotAt(rowOf(u.slot) - 1, colOf(u.slot))))
-      return ahead && !isMonarch(ahead) && melee(ahead) && (ahead.cohortOf ?? ahead.uid) !== u.uid ? ahead : null
+      return ahead && !isMonarch(ahead) && melee(ahead) && (ahead.summoner ?? ahead.uid) !== u.uid ? ahead : null
     }
     const behindNote = (u) => {
       const a = behind(u)
-      return a && `Melee behind melee: ${unitDef(a.id).name}${a.rank ? ` (of ${unitDef(captainOf(a).id).name}'s banner)` : ''} stands right ahead of it in this lane. Melee strikes only the tiles around it, so this banner adds nothing at the front until that one falls or it walks round: stand it beside the other, or behind a ranged one.`
+      return a && `Melee behind melee: ${unitDef(a.id).name}${a.summoned ? ` (${unitDef(summonerOf(a).id).name}'s summon)` : ''} stands right ahead of it in this lane. Melee strikes only the tiles around it, so it adds nothing at the front until that one falls or it walks round: stand it beside the other, or behind a ranged one.`
     }
     const banner = (uid) => colours.has(uid) ? `--b:${colours.get(uid)}` : null
     const styles = (...xs) => xs.filter(Boolean).join(';') || null
@@ -2215,7 +1918,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
       h('div', { class: 'dim' }, [aim != null && squareNotes(tile).at(-1), squareNotes(tile)[0], approachNote(tile), text].find(Boolean)))
     // Empty ground past the camp (the open row, their formation's).
     const groundTip = (title, text, tile, inside) => () => tileTipOf(title, inside, tile, text)
-    // Each Marshal's own domain, a dashed square in its banner's colour (gold with no cohort), drawn per cell
+    // Each Marshal's own domain, a dashed square in its banner's colour (gold with no summons), drawn per cell
     // (a held Marshal enters beside the Monarch, so it outlines nothing in the camp).
     const marshals = marshalsOn().map((x) => ({ x, d: domainOn(x, TUNING.ranks.domain), colour: colours.get(x.uid) ?? MARSHAL_GOLD }))
     // ── the board: drawn by board.js on the battle's own picture ──
@@ -2223,20 +1926,25 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     // tooltip (`tips`) and what a click on it does (clickTile). Their ground is always drawn: empty on the map.
     const units = []
     tips = new Map()
-    // A member keeps its key while its captain moves, so the board walks it over: its captain, its place in the
-    // banner.
+    // A summon keeps its key while its soul moves, so the board walks it over: its soul, its place among them.
     const nth = new Map()
-    const memberKey = new Map(army.members.map((x) => {
-      const i = nth.get(x.cohortOf) ?? 0
-      nth.set(x.cohortOf, i + 1)
-      return [x, `m${x.cohortOf}:${i}`]
+    const summonKey = new Map(army.summons.map((x) => {
+      const i = nth.get(x.summoner) ?? 0
+      nth.set(x.summoner, i + 1)
+      return [x, `m${x.summoner}:${i}`]
     }))
-    // A detachment's tag (id, ■ Stay, → Move, a held start); a member wears its captain's as a dot.
+    // A detachment's tag (id, ■ Stay, → Move, a held start); a summon wears its soul's as a dot.
     const detMark = (d, dot = false) => d && { id: d.id, color: d.color, where: d.plan.where, start: waits(d) ? whenTag(d.plan.when) : null, dot }
-    // A captain's flag counts the bodies it leads into the battle (on the board or held with it), as the battle's.
-    const led = new Map()
-    for (const b of [...army.members, ...army.held.filter((x) => x.rank)]) led.set(b.cohortOf, (led.get(b.cohortOf) ?? 0) + 1)
+    // A soul's flag counts the summons it raises each battle, as the battle's.
     const selTile = sel?.slot != null ? deployTile('party', sel.slot) : null
+    // A summon's card: where it will likely appear, whose it is, falter or not.
+    const summonTip = (x, tile, doing) => unitCard(x, {
+      mods: partyMods(run), realm,
+      live: doing || (startsFaltering(s, x) ? `Falters ×${TUNING.monarch.falter}: outside the domain` : `${unitDef(summonerOf(x).id).name}'s summon`),
+      notes: [`Raised by ${unitDef(summonerOf(x).id).name} as the battle begins: it will likely appear here, on ${tileText(tile)}.`, ARMY_TEXT.summon,
+        detOf(summonerOf(x)) && `Detachment ${detOf(summonerOf(x)).id}: it takes its soul's plan, ${planText(detOf(summonerOf(x)).plan)}.`,
+        domainLine(x.slot, x), approachNote(tile), ...squareNotes(tile), aim == null && slotHint(x.slot, null, x)]
+    })
     const drop = []
     for (let r = 0; r < CAMP_ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -2247,42 +1955,27 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
           continue
         }
         const u = field.find((x) => x.slot === slot)
-        const mem = memberAt.get(slot) ?? null
+        // A fallen soul's cell may take a summon (the fallen do not fight): the soul shows, the summon beside it.
+        const under = u && u.hp <= 0 ? summonOn.get(tile) : null
         const heldHere = u && held.has(u.uid)
-        const falters = u && !isMonarch(u) && u.hp > 0 && !heldHere ? startsFaltering(s, u) : !u && mem ? startsFaltering(s, mem) : false
-        const det = u ? detOf(u) : mem ? detOf(captainOf(mem)) : null
+        const falters = u && !isMonarch(u) && u.hp > 0 && !heldHere ? startsFaltering(s, u) : false
         if (moving && !u && !(moving.slot < 0 && full()) && aim == null) drop.push(tile)
-        // A fallen soul's cell may hold a member (the fallen do not fight): the soul shows, the member is noted.
-        const memNote = mem && `In battle a ${unitDef(mem.id).name} of ${unitDef(captainOf(mem).id).name}'s banner stands here, rank-and-file at muster level ${s.muster}.`
         if (u) {
           units.push({
             key: `s${u.uid}`, id: u.id, tile, side: 'party', hp: u.hp, maxHp: u.maxHp, lvl: u.lvl, grade: u.grade ?? 0, tier: u.tier ?? 0, tier2: u.tier2 ?? 0,
-            monarch: isMonarch(u), fallen: u.hp <= 0, ghost: heldHere ? 0.45 : 1, banner: colours.get(u.uid) ?? null, count: led.get(u.uid) ?? 0,
-            det: detMark(det), falters, bonded: bonded.has(u.uid), behind: !!behind(u), centre: crowned && !isMonarch(u) && slot === centre,
+            monarch: isMonarch(u), fallen: u.hp <= 0, ghost: heldHere ? 0.45 : 1, banner: colours.get(u.uid) ?? null, count: u.hp > 0 ? summonCount(u) : 0,
+            det: detMark(detOf(u)), falters, bonded: bonded.has(u.uid), behind: !!behind(u), centre: crowned && !isMonarch(u) && slot === centre,
             seal: isMonarch(u) && sealedBy(s.camp, slot).length > 0, sel: sel?.uid === u.uid, pick: pick.includes(u.uid),
-            under: u.hp <= 0 && mem ? { id: mem.id, colour: colours.get(mem.cohortOf) ?? null, led: !!picked && mem.cohortOf === picked.uid } : null
-          })
-        } else if (mem) {
-          units.push({
-            key: memberKey.get(mem), id: mem.id, tile, side: 'party', rank: true, hp: mem.hp, maxHp: mem.maxHp, lvl: s.muster, banner: colours.get(mem.cohortOf) ?? null,
-            det: detMark(det, true), falters, bonded: bonded.has(mem.uid), led: !!picked && mem.cohortOf === picked.uid, ghost: 0.72
+            under: under ? { id: under.id, colour: colours.get(under.summoner) ?? null, led: !!picked && under.summoner === picked.uid } : null
           })
         }
         // A unit's card leads with what a click would do now (the aim, a selected soul's move), else its state.
-        const doing = (o, m = null) => (aim != null && squareNotes(tile).at(-1)) || (aim == null && mover() && selected() !== o && slotHint(slot, o, m)) || null
+        const doing = (o) => (aim != null && squareNotes(tile).at(-1)) || (aim == null && mover() && selected() !== o && slotHint(slot, o)) || null
         tips.set(tile, () => u
-          ? soulTip(u, `In the camp: ${campRowLabel(r).toLowerCase()}.`, [u.hp <= 0 && memNote, behindNote(u), approachNote(tile), ...squareNotes(tile), aim == null && slotHint(slot, u)],
+          ? soulTip(u, `In the camp: ${campRowLabel(r).toLowerCase()}.`, [under && `In battle ${unitDef(summonerOf(under).id).name}'s ${unitDef(under.id).name} will likely appear here: the fallen do not fight.`, behindNote(u), approachNote(tile), ...squareNotes(tile), aim == null && slotHint(slot, u)],
             doing(u) || (behind(u) && `Melee behind ${unitDef(behind(u).id).name}: strikes nothing yet`))
-          : mem
-            ? unitCard(mem, {
-              mods: [...partyMods(run), ...bondMods(all, mem, alias)],
-              live: doing(null, mem) || (falters ? `Falters ×${TUNING.monarch.falter}: outside the domain` : `${unitDef(captainOf(mem).id).name}'s banner · muster ${s.muster}`),
-              notes: [`Rank-and-file of ${unitDef(captainOf(mem).id).name}'s banner (${SHAPES[captainOf(mem).cohort.shape].name}), at muster level ${s.muster}. In the camp: ${campRowLabel(r).toLowerCase()}.`,
-                det && `Detachment ${det.id}: it follows its captain's plan, ${planText(det.plan)}.`,
-                domainLine(slot, mem), ...bondNotes(all, mem, alias), approachNote(tile), ...squareNotes(tile), aim == null && slotHint(slot, null, mem)]
-            })
-            : tileTipOf(campRowLabel(r), !faltersAt(s, slot), tile,
-              (aim == null && slotHint(slot, null)) || (full() ? `The field is full (${cap} souls): swap or bench one first.` : 'Drag a soul here.')))
+          : tileTipOf(campRowLabel(r), !faltersAt(s, slot), tile,
+            (aim == null && slotHint(slot, null)) || (full() ? `The field is full (${cap} souls): swap, or put one in the ossuary first.` : 'Drag a soul here.')))
       }
     }
     // The open ground: one row of the board between your camp's front and their formation (camp row −1).
@@ -2293,24 +1986,35 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     const ground = { tip: groundTip, notes: squareNotes }
     const theirs = foeTiles(run, facing, dom, ground)
     for (const [tile, tip] of theirs.tips) tips.set(tile, tip)
+    // The summons, faint and small on the tiles they will likely take, ringed in their soul's banner colour; a
+    // click there selects their soul, a soul dropped there sends them elsewhere.
+    for (const x of army.summons) {
+      if (field.some((u) => u.hp <= 0 && deployTile('party', u.slot) === x.tile)) continue
+      const d = detOf(summonerOf(x))
+      units.push({
+        key: summonKey.get(x), id: x.id, tile: x.tile, side: 'party', rank: true, summon: true, hp: 1, maxHp: 1, lvl: x.lvl, banner: colours.get(x.summoner) ?? null,
+        det: detMark(d, true), falters: startsFaltering(s, x), led: !!picked && x.summoner === picked.uid, ghost: 0.6
+      })
+      const slot = x.slot
+      const doing = () => (aim != null && squareNotes(x.tile).at(-1)) || (aim == null && slot >= 0 && mover() && slotHint(slot, null, x)) || null
+      tips.set(x.tile, () => summonTip(x, x.tile, doing()))
+    }
     // Past the camp's front lie only DEPTH − CAMP_ROWS rows: the open ground, then their formation's.
     const reachText = !dom.beyond ? 'It stays inside your camp.'
       : dom.beyond > DEPTH - CAMP_ROWS ? 'It reaches past your front to the far edge of the board.'
         : `It reaches ${dom.beyond} row${dom.beyond > 1 ? 's' : ''} past your front: ${['the open ground', 'their front row', 'their middle row', 'their back row'][dom.beyond - 1]}.`
-    const out = [...fieldSouls.filter((u) => u.hp > 0 && !held.has(u.uid)), ...army.members].filter((u) => startsFaltering(s, u))
-    const boardCap = TUNING.army.board
-    // Held bodies, by detachment, in the order they enter once called.
+    const out = [...fieldSouls.filter((u) => u.hp > 0 && !held.has(u.uid)), ...army.summons].filter((u) => startsFaltering(s, u))
+    // Held souls, by detachment, in the order they enter once called.
     const heldBy = [...new Set(army.held.map((b) => b.det))].map((id) => s.detachments.find((d) => d.id === id)).map((d) => [d, army.held.filter((b) => b.det === d.id)])
-    const waiting = army.reserve.length + army.held.length
+    const waiting = army.held.length
     // From each Move detachment to its square: from its souls' cells, or from the Monarch for a held one
     // (it enters beside it).
     const arrows = s.detachments.filter((d) => d.plan.where === 'move' && takesPart(s, d)).map((d) => ({
       color: d.color, to: d.plan.square, far: far(d), held: waits(d),
       from: waits(d) ? [mTile] : fieldSouls.filter((u) => d.members.includes(u.uid) && u.hp > 0).map((u) => deployTile('party', u.slot))
     })).filter((a) => a.from.length)
-    tips.set('reserve', () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, 'Behind the camp'), ` · ${onBoard}/${boardCap} bodies on the board`),
-      heldBy.length > 0 && h('div', { class: 'dim' }, `Held: ${heldBy.map(([d, bs]) => `${d.id} (${bs.length}) enters ${whenText(d.plan.when)}`).join('; ')}.`),
-      h('div', { class: 'dim' }, army.reserve.length ? ARMY_TEXT.reserve(army.reserve.length) : heldBy.length ? null : 'No one waits here.')))
+    tips.set('reserve', () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, 'Behind the camp'), ' · held detachments, with the summons they raise as they enter'),
+      h('div', { class: 'dim' }, heldBy.length ? `Held: ${heldBy.map(([d, bs]) => `${d.id} (${bs.length}) enters ${whenText(d.plan.when)}`).join('; ')}.` : 'No one waits here.')))
     const picture = {
       walls: [...walls], facing: !!facing, units: [...units, ...theirs.units],
       domain: { centre: cTile, r: realm.domain, crowned },
@@ -2322,9 +2026,13 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
         tile, color: ds[0].color, far: ds.every(far), tags: ds.map((d) => ({ text: waits(d) ? `${d.id} · ${capsTag(whenTag(d.plan.when))}` : String(d.id), color: d.color }))
       })),
       arrows,
+      // Behind the camp: each held soul, then its summons to come, smaller (board.js drawWaiting).
       waiting: waiting > 0 ? {
-        held: heldBy.map(([d, bs]) => ({ tag: `${d.id} · ${capsTag(whenTag(d.plan.when))}`, color: d.color, bodies: bs.map((b) => ({ id: b.id, banner: b.rank ? colours.get(b.cohortOf) ?? null : null })) })),
-        reserve: army.reserve.map((b) => ({ id: b.id, banner: colours.get(b.cohortOf) ?? null }))
+        held: heldBy.map(([d, bs]) => ({
+          tag: `${d.id} · ${capsTag(whenTag(d.plan.when))}`, color: d.color,
+          bodies: bs.flatMap((b) => [{ id: b.id }, ...summonsOf(b).flatMap((x) => Array(x.count).fill({ id: x.id, banner: colours.get(b.uid) ?? null, summon: true }))])
+        })),
+        reserve: []
       } : null,
       selTile, selKey: picked ? `s${picked.uid}` : selTile != null ? `t${selTile}` : null, drop, aim: aim != null
     }
@@ -2333,34 +2041,42 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     // A column of chips in its corner, or a row over the board, whichever leaves the board bigger (board.js picks,
     // and the next legend starts as the last one was).
     const legend = h('div', { class: 'board-legend', 'data-forms': 'col row', 'data-form': el.querySelector('.board-legend')?.dataset.form ?? 'col' },
-      // The camp's name, who stands and who is held are on hover: the chip is the two counts.
+      // The camp's name, who stands and who is held are on hover: the chip is the souls on the field, and the
+      // summons they will raise.
       h('span', {
         class: 'bk bk-camp',
-        tip: () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, campDef(s.camp).name), ` · this floor's camp, ${fieldSouls.length} of ${cap} souls (${fieldRule(run)})`),
+        tip: () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, campDef(s.camp).name), ` · this floor's camp, ${fieldSouls.length} of ${cap} souls on the field (${fieldRule(run)})`),
           (alive < fieldSouls.length || held.size > 0) && h('div', null, [alive < fieldSouls.length && `${alive} standing`, held.size && `${held.size} held behind the camp`].filter(Boolean).join(' · ') + '.'),
-          h('div', { class: 'dim' }, `${onBoard} of ${boardCap} bodies on the board. ${ARMY_TEXT.board}`))
-      }, h('b', null, `${fieldSouls.length}/${cap}`), ' souls · ', h('b', null, `${onBoard}/${boardCap}`), ' bodies'),
+          army.summons.length > 0 && h('div', null, `${army.summons.length} summon${army.summons.length === 1 ? '' : 's'} as the battle begins, drawn faint where they will likely appear.`),
+          h('div', { class: 'dim' }, ARMY_TEXT.board))
+      }, h('b', null, `${fieldSouls.length}/${cap}`), ' souls', army.summons.length > 0 && [' · ', h('b', null, `+${army.summons.length}`), ' summoned']),
       h('span', {
         class: 'bk' + (crowned ? ' crowned' : ''),
         tip: () => h('div', { class: 'syn-tip tile-tip' },
-          h('div', null, h('b', null, `Domain ${realm.domain}`), ` · within ${realm.domain} of ${crowned ? 'your front-most captain' : 'the Monarch'}; outside, yours falter ×${TUNING.monarch.falter}`),
+          h('div', null, h('b', null, `Domain ${realm.domain}`), ` · within ${realm.domain} of ${crowned ? 'your front-most soul' : 'the Monarch'}; outside, yours falter ×${TUNING.monarch.falter}`),
           h('div', { class: out.length ? 'falter-note' : 'dim' }, out.length ? `${out.length} of yours stand${out.length === 1 ? 's' : ''} outside and will falter.` : reachText))
       }, h('i', { class: 'dk-box' }), `Domain ${realm.domain}`, out.length > 0 && h('span', { class: 'falter-note' }, ` · ${out.length} falter`)),
       lineKey(lineY, mTile, approach, bare),
       marshals.length > 0 && h('span', {
         class: 'bk',
         tip: () => h('div', { class: 'syn-tip tile-tip' }, h('div', null, h('b', null, `Marshal ${TUNING.ranks.domain}`), ` · ${marshals.map(({ x }) => unitDef(x.id).name).join(', ')}'s own domain (dashed)`),
-          h('div', { class: 'dim' }, 'Its banner never falters within it; it moves with the Marshal.'))
+          h('div', { class: 'dim' }, 'Its banner (itself, its summons, the shadows that join it) never falters within it; it moves with the Marshal.'))
       }, marshals.map(({ colour }) => h('i', { class: 'mk-box', style: `--m:${colour}` })), `Marshal ${TUNING.ranks.domain}`))
     stage.className = 'board-stage' + (aim != null ? ' aiming' : '') + (moving && aim == null ? ' moving' : '') + (keyed ? ' kb' : '')
-    // The bench beside the board: where a soul is dropped (or a selected one clicked) to bench it.
+    // The ossuary beside the board, your souls not on the field: where a soul is dropped (or a selected one
+    // clicked) to keep it out of battle. Its count is all your souls, of the most you may hold.
+    const held2 = souls(s.party).length
     const benchEl = h('div', { class: 'bench-row' },
-      h('span', { class: 'rs-label', tip: () => 'Souls here are kept but do not fight, and lead no cohort into battle. Swap them onto the field at any time before a battle. The Monarch never comes here.' }, `Bench ${bench.length}`),
+      h('span', {
+        class: 'rs-label',
+        tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Ossuary · souls ${held2}/${rosterCap(run)}`), h('p', null, ARMY_TEXT.ossuary(run)),
+          h('p', { class: 'dim' }, 'Swap them onto the field at any time before a battle. The Monarch never comes here.'))
+      }, 'Ossuary', h('span', { class: 'rs-count' }, h('b', null, `${held2}/${rosterCap(run)}`), ' souls')),
       h('div', {
         class: 'bench' + (benchable(moving) ? ' target' : ''),
         onclick: (e) => { if (e.target === e.currentTarget) clickBenchSpace() },
-        tip: () => benchable(moving) ? `Click empty space here (or drop a soul here) to bench ${unitDef(moving.id).name}.`
-          : moving && isMonarch(moving) ? 'The Monarch never goes to the bench.' : 'Benched souls. Drag a soul here to bench it, or select it and click here.'
+        tip: () => benchable(moving) ? `Click empty space here (or drop a soul here) to put ${unitDef(moving.id).name} in the ossuary.`
+          : moving && isMonarch(moving) ? 'The Monarch never goes to the ossuary.' : 'Your souls not on the field. Drag a soul here to keep it out of battle, or select it and click here.'
       },
       bench.length
         ? bench.map((u) => h('button', {
@@ -2370,13 +2086,13 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
           onpointerdown: (e) => pressBench(e, u),
           onclick: (e) => { if (swallow) { swallow = false; return } clickBench(u, e) },
           tip: () => {
-            const act = picked === u ? 'Click again to deselect.' : moving && isMonarch(moving) ? 'The Monarch cannot trade places with a benched soul.'
+            const act = picked === u ? 'Click again to deselect.' : moving && isMonarch(moving) ? 'The Monarch cannot trade places with a soul in the ossuary.'
               : moving && moving.slot >= 0 ? `Click to select it. Drag ${unitDef(moving.id).name} onto it to swap them.`
                 : sel?.slot != null ? (full() ? fullText(u) : 'Click to place it in the selected cell.') : null
-            return soulTip(u, 'On the bench: does not fight.', act ?? 'Drag it onto the field to place it.', act)
+            return soulTip(u, 'In the ossuary: does not fight.', act ?? 'Drag it onto the field to place it.', act)
           }
         }, cellBody(u, detOf(u))))
-        : h('span', { class: 'dim empty-bench', onclick: clickBenchSpace }, benchable(moving) ? say('Click here to bench the selected soul.', 'Tap here to bench the selected soul.') : 'Empty.')))
+        : h('span', { class: 'dim empty-bench', onclick: clickBenchSpace }, benchable(moving) ? say('Click here to keep the selected soul here.', 'Tap here to keep the selected soul here.') : 'Empty.')))
 
     // The tray: one tab at a time. Selecting a soul opens its tab, the Monarch its own, and picking souls
     // for a detachment the orders (unless the orders are already open: there a click joins or starts one).
@@ -2387,10 +2103,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     lastPick = pick.length
     const synergies = synergyTracker(all, alias)
     const tabs = [
-      { id: 'soul', name: 'Soul', ico: 'hood', desc: 'The selected soul: its level, path, rank and cohort. With none selected, what essence buys.' },
+      { id: 'soul', name: 'Soul', ico: 'hood', desc: 'The selected soul: its level, paths, summons and rank. With none selected, what essence buys.' },
       { id: 'monarch', name: 'Monarch', ico: 'crown', desc: 'Dominion, Command and Will: the Monarch\'s three stats.' },
       { id: 'orders', name: 'Orders', ico: 'o-move', count: s.detachments.length, desc: 'Detachments and their plans: Hunt, Stay or Move, now or later.' },
-      { id: 'ossuary', name: 'Ossuary', short: 'Bones', ico: 'bone', count: armyCount(s, 'standing'), desc: 'Your rank-and-file bodies and the muster level they fight at.' },
       { id: 'bonuses', name: 'Bonuses', short: 'Bonus', ico: 'bonuses', count: synergies.querySelectorAll('.syn.on').length + s.relics.length + s.keystones.length, desc: 'Synergies, bonds, relics and keystones in effect.' }]
     const pickTab = openTab
     const body = {
@@ -2399,7 +2114,6 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
         : picked ? h('p', { class: 'dim upgrade-hint' }, 'The Monarch grows by its own points: see the Monarch tab.') : spendPanel(),
       monarch: () => monarchPanel(picked && isMonarch(picked)),
       orders: () => ordersPanel(picked),
-      ossuary: () => ossuaryPanel(),
       // Each kind of bonus a labelled row of chips: lit when in effect; hover one for its rule.
       bonuses: () => h('div', { class: 'bonuses' },
         h('div', { class: 'bn-sec' }, h('div', { class: 'bn-k' }, kw('synergy', 'Synergies')), synergies),
@@ -2432,7 +2146,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   }
 
   // ── the board under the pointer ──
-  // A press on the board (or on a benched soul) is a click, unless it moves past a few pixels with a soul under
+  // A press on the board (or on a soul in the ossuary) is a click, unless it moves past a few pixels with a soul under
   // it: then that soul lifts and follows, and the drop does what a click on it and then on the tile would. The
   // tooltip follows the pointer from tile to tile; the board rings the tile under it.
 
@@ -2542,9 +2256,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     hover = null
   }
 
-  // A finger on a benched soul scrolls the bench (its souls keep the touch from the browser, for the drag) only
-  // when the bench has more than it shows, the finger sets off straight up or down (within 25° of it) before a
-  // long press, and it stays over the bench: any other way, or once it leaves the bench, the soul lifts.
+  // A finger on a soul in the ossuary scrolls the ossuary (its souls keep the touch from the browser, for the
+  // drag) only when it has more than it shows, the finger sets off straight up or down (within 25° of it) before
+  // a long press, and it stays over the ossuary: any other way, or once it leaves it, the soul lifts.
   const STEEP = Math.tan(25 * Math.PI / 180)
   const inside = (list, e) => { const r = list.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right }
   function onMove (e) {
@@ -2568,7 +2282,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
   }
 
   // A click on the board goes where the old cells' clicks went: a camp cell to clickSlot, any tile (theirs too)
-  // to the square while a detachment aims; a benched soul's button clicks itself. A long press is no click.
+  // to the square while a detachment aims; a soul in the ossuary's button clicks itself. A long press is no click.
   function onUp (e) {
     if (!el.isConnected) return release()
     if (press && e.pointerId !== press.e.pointerId) return
@@ -2609,7 +2323,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     board.hover(null)
     stage.classList.add('dragging')
     document.body.classList.add('dragging')
-    // Off the board (over the bench, the tray) the canvas is under the page: a picture of the soul carries it
+    // Off the board (over the ossuary, the tray) the canvas is under the page: a picture of the soul carries it
     // there, at the board's size (the board's zoom is in viewport px, the ghost in the frame's).
     const size = Math.round(Math.max(40, 92 * board.zoom()) / frame.k)
     drag.ghost = h('div', { class: 'drag-ghost', hidden: true, style: `--s:${size}px` }, portrait(u.id, size, u.hp <= 0))
@@ -2639,7 +2353,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     board.follow(e.clientX, e.clientY, preview, off)
   }
 
-  // Where a drop would land: a camp cell (its slot), the bench or a benched soul on it, or nowhere (null); and
+  // Where a drop would land: a camp cell (its slot), the ossuary or a soul in it, or nowhere (null); and
   // whether the rules take it (a refused one is still put down there, for its message).
   function dropAt (u, t, bench, onto) {
     if (bench) return { bench: true, onto, ok: !isMonarch(u) && (onto ? onto !== u && (u.slot >= 0) : u.slot >= 0) }
@@ -2652,19 +2366,20 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
 
   // What a drop would make of the board, read off a copy of the camp with the move made (the rules read, never
   // run): where the domain would centre (it moves with a dragged Monarch, and under Vanguard Crown with the
-  // front), every tile whose soul or body would start the battle faltering, the Monarch's approach tiles and
-  // which would be held, and the soul it would displace and where to (a tile, or null for the bench). A drop
+  // front), every tile whose soul or summon would start the battle faltering, the Monarch's approach tiles and
+  // which would be held, and the soul it would displace and where to (a tile, or null for the ossuary). A drop
   // the rules refuse, or off the camp, tells none of it: nothing would change.
   function dragPreview (u, target) {
     if (!target?.ok) return { tile: target?.tile ?? null, ok: false, centre: null, falter: null, approach: null, swap: null }
     const other = target.bench ? target.onto : s.party.find((x) => x.slot === target.slot && x !== u)
-    const to = target.bench ? -1 : target.slot
+    const to = target.bench ? OSSUARY : target.slot
     const party = s.party.map((x) => x === u ? { ...x, slot: to } : x === other ? { ...x, slot: u.slot } : x)
     const s2 = { ...s, party }
     const standing = souls(fielded(party)).filter((x) => x.hp > 0 && !isMonarch(x) && !isHeld(s2, x))
-    const starters = [...standing, ...armyLayout(s2).members]
-    const falter = starters.filter((x) => startsFaltering(s2, x)).map((x) => deployTile('party', x.slot))
-    const held = new Set(starters.map((x) => deployTile('party', x.slot)))
+    const starters = [...standing, ...armyOf(run, s2).summons]
+    const tileOf = (x) => x.summoned ? x.tile : deployTile('party', x.slot)
+    const falter = starters.filter((x) => startsFaltering(s2, x)).map(tileOf)
+    const held = new Set(starters.map(tileOf))
     const walls = new Set(wallTiles(s.camp))
     const approach = neighbours(deployTile('party', monarchOf(s2).slot)).filter((t) => !walls.has(t) && tileY(t) <= CAMP_ROWS)
       .map((tile) => ({ tile, bare: !held.has(tile) }))
@@ -2678,10 +2393,9 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
     const { uid, target } = drag
     cancelDrag(false)
     const u = soulOf(uid)
-    // A drop that does nothing (off the camp, back on its own tile or bench) clears an old message too.
+    // A drop that does nothing (off the camp, back on its own tile or the ossuary) clears an old message too.
     if (!target) { error = ''; return render() }
     sel = { uid }
-    soft = false
     if (target.bench) {
       if (u.slot < 0) { sel = null; error = ''; return render() }
       return target.onto ? clickBench(target.onto, null, true) : clickBenchSpace()
@@ -2712,7 +2426,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
       if (drag) { end(); return cancelDrag() }
       if (aim != null) aim = null
       else if (pick.length || picking) unpick()
-      else if (sel) { sel = null; soft = false }
+      else if (sel) sel = null
       else if (!error) return
       error = ''
       render()
@@ -2722,7 +2436,7 @@ function retinueEditor ({ run, act, facing = null, onChange = null, head = null,
 
 // ── parts ────────────────────────────────────────────────────────────────────────────────────────
 
-// Field first, front to back, then the bench.
+// Field first, front to back, then the ossuary.
 const fieldOrder = (a, b) => (a.slot < 0) - (b.slot < 0) || a.slot - b.slot || a.uid - b.uid
 
 function hpBar (u) {
@@ -2741,11 +2455,11 @@ function rankPort (u, size) {
 }
 
 // A soul in a list (the map's Route tab, the end screen): its name, level, rank and paths on one line; its HP,
-// and what it leads or that it waits on the bench, on the next, then its kin, role and camp row where the row
-// is wide enough (style.css, a container query); they are on its card (hover) too.
+// and what it raises or that it waits in the ossuary, on the next, then its kin, role and camp row where the
+// row is wide enough (style.css, a container query); they are on its card (hover) too.
 function unitRow (run, u, extra = null) {
   const d = unitDef(u.id)
-  const more = [d.monarch ? 'you' : u.slot < 0 && 'bench', u.cohort && `leads ${bodies(u.cohort.kind, u.cohort.count)}`].filter(Boolean).join(' · ')
+  const more = [d.monarch ? 'you' : u.slot < 0 && 'ossuary', summonCount(u) > 0 && `raises ${summonsOf(u).map((x) => named(x.id, x.count)).join(', ')}`].filter(Boolean).join(' · ')
   const kin = !d.monarch && `${KIN[d.kin].name} ${ROLES[d.role].name}${u.slot >= 0 ? ` · ${campRowLabel(rowOf(u.slot)).toLowerCase()}` : ''}`
   return h('div', { class: 'unit' + (u.hp <= 0 ? ' fallen' : '') + (d.monarch ? ' monarch' : ''), tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run) }) },
     rankPort(u, 40),
@@ -2757,8 +2471,8 @@ function unitRow (run, u, extra = null) {
     extra)
 }
 
-// A soul's cell on the bench (the board draws the field's). A captain wears its banner's flag (its colour comes
-// from the cell's --b) with its cohort's size, a Knight or Marshal its insignia, and its path tiers as pips (a
+// A soul's cell in the ossuary (the board draws the field's). A summoner wears its banner's flag (its colour comes
+// from the cell's --b) with how many it raises, a Knight or Marshal its insignia, and its path tiers as pips (a
 // second path's in violet). A soul in a detachment (`det`) wears its tag (the cell's --d): its id, ■ on Stay,
 // → on Move; a held one's start sits at its top.
 const WHERE_MARK = { hunt: '', stay: ' ■', move: ' →' }
@@ -2766,13 +2480,13 @@ function cellBody (u, det = null) {
   return [
     det && waits(det) && onField(u) && h('span', { class: 'start-tag', 'aria-label': `enters ${whenText(det.plan.when)}` }, whenTag(det.plan.when)),
     portrait(u.id, 52, u.hp <= 0),
-    // The marks are badges (board.css sizes them for the bench): the level, a path's tiers as one ▴ and their
-    // count (a second path's beside it), the rank's insignia, a captain's flag, a detachment's tag.
+    // The marks are badges (board.css sizes them for the ossuary): the level, a path's tiers as one ▴ and their
+    // count (a second path's beside it), the rank's insignia, a summoner's flag, a detachment's tag.
     h('span', { class: 'badge' }, ` ${u.lvl}`),
     (u.tier > 0 || u.tier2 > 0) && h('span', { class: 'tier-pips pill', 'aria-label': `path tier ${u.tier}${u.tier2 ? `, second path tier ${u.tier2}` : ''}` },
       u.tier > 0 && `▴${u.tier}`, u.tier2 > 0 && h('span', { class: 'p2' }, `▴${u.tier2}`)),
     u.grade > 0 && h('span', { class: `rank-mark g${u.grade}`, 'aria-label': GRADES[u.grade].name }, icon(GRADE_ICON[u.grade], 16)),
-    u.cohort && h('span', { class: 'flag pill', 'aria-label': `leads ${u.cohort.count}` }, u.cohort.count),
+    summonCount(u) > 0 && h('span', { class: 'flag pill', 'aria-label': `raises ${summonCount(u)}` }, `+${summonCount(u)}`),
     det && h('span', { class: 'det-tag pill', 'aria-label': `detachment ${det.id}, ${det.plan.where}` }, det.id, WHERE_MARK[det.plan.where]),
     u.maxHp && hpBar(u)]
 }

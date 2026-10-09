@@ -6,7 +6,7 @@ import { TUNING } from './tuning.js'
 import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, BONDS, relicDef, SYNERGIES } from './content.js'
 import { stepBattle, nextCost, rulesOf } from './sim/battle.js'
 import { foeEssence } from './sim/run.js'
-import { tileX, tileY, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf } from './sim/unit.js'
+import { tileX, tileY, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, summonsOf } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy } from './dom.js'
 import { frame } from './frame.js'
@@ -114,6 +114,7 @@ export function legible (t, zoom, kind) {
 }
 const TITHE = '#ff6a8a'  // the HP Blood Tithe takes from the Monarch
 const SHADE_ALPHA = 0.8 // a shadow is see-through
+const SUMMON_ALPHA = 0.82 // a summon a little less so: raised for this battle only
 const RANK_SCALE = 0.8  // rank-and-file stand smaller than the named souls who lead them
 const PLAN_ALPHA = 0.38 // the plans are drawn faint under the units: they are what you asked, not what happens
 // A held detachment's start, short, for its square's label and the reserve HUD.
@@ -285,8 +286,8 @@ export function falterGround (scene, size = 1) {
 
 // A soul's growth, the same on the prep board and in battle so the picture carries over: a ring at its feet
 // in its rank's metal (style.css --c-soldier, --c-knight, --c-marshal; a Knight's and a Marshal's glowing), a
-// diamond a path tier under its bars (--c-path, a second path's --c-path2), and for a captain a bone flag
-// (the ossuary's) edged in its banner's colour (`banner`, '#rrggbb') with the bodies it leads (`count`).
+// diamond a path tier under its bars (--c-path, a second path's --c-path2), and for a summoner a bone flag
+// edged in its banner's colour (`banner`, '#rrggbb') with how many it raises (`count`).
 // `size`: the picture's, as addActor's. → { parts, place(x, y, depth, chest, lift) }, placed every frame from
 // the feet.
 export function growthMarks (scene, u, { banner = null, count = 0, size = 1 } = {}) {
@@ -569,8 +570,9 @@ class BattleScene extends Phaser.Scene {
       a.growth?.place(x, a.sprite.y, a.sprite.depth, a.chest, a.lift)
       if (a.realm) this.realm(a)
       a.flag?.setPosition(x - BAR / 2 - 7, y + 2).setDepth(ground + 0.3)
-      a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : 1))
+      a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : a.summon ? SUMMON_ALPHA : 1))
       a.detRing?.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 1.5).setAlpha(a.gone ? 0 : 0.55 * a.rise.v)
+      a.sumRing?.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 1.4).setAlpha(a.gone ? 0 : 0.85 * a.rise.v)
       const u = this.units.get(a.uid)
       if (!a.gone && u.hp > 0) {
         const cost = nextCost(b, u)
@@ -637,7 +639,7 @@ class BattleScene extends Phaser.Scene {
   // A captain (any soul of yours; theirs who lead a cohort), a boss or the Monarch: its fall shakes and holds.
   heavy (uid) {
     const u = this.units.get(uid)
-    return !!u && !u.rank && !u.shadow && (!!unitDef(u.id).boss || u.uid === this.monarch || u.side === 'party' || this.foeCaptains.has(u.uid))
+    return !!u && !u.rank && !u.shadow && !u.summoned && (!!unitDef(u.id).boss || u.uid === this.monarch || u.side === 'party' || this.foeCaptains.has(u.uid))
   }
 
   flashScreen (ms, r, g, b) {
@@ -663,8 +665,9 @@ class BattleScene extends Phaser.Scene {
   }
 
   // A shadow (u.shadow, raised by Arise, or on the foes' side by Grave Tide) wears the shade pictures; the
-  // Monarch's HP bar is thicker, in a gold frame; rank-and-file (u.rank, of either side) stand at RANK_SCALE;
-  // a foe captain carries a small red flag beside its bars.
+  // Monarch's HP bar is thicker, in a gold frame; a foe's rank-and-file (u.rank) and your summons (u.summoned)
+  // stand at RANK_SCALE, a summon see-through a little and ringed thin in its soul's banner colour; a foe
+  // captain carries a small red flag beside its bars.
   addActor (u) {
     const home = this.posFor(u.tile)
     const art = unitDef(u.id).art
@@ -675,9 +678,10 @@ class BattleScene extends Phaser.Scene {
     const side = u.shadow ? (theirs ? 0xe0a0bc : RISE) : u.side === 'party' ? PARTY : FOE
     const sprite = this.add.image(home.x, home.y, `${skin}:${art}:alive`).setOrigin(0.5, FEET).setDepth(home.y)
       .setFlipX(u.side === 'foe')
-    const scale = SCALE / RES * (u.rank ? RANK_SCALE : 1)
+    const small = u.rank || u.summoned
+    const scale = SCALE / RES * (small ? RANK_SCALE : 1)
     // Pictures are drawn on a 96 box, the boss on a bigger one; the shadow and FX heights follow.
-    const size = sprite.width / RES / 96 * (u.rank ? RANK_SCALE : 1)
+    const size = sprite.width / RES / 96 * (small ? RANK_SCALE : 1)
     // A shadow stands in a pale-green glow of its own instead of a dark pool.
     const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size, 13 * size, u.shadow ? (theirs ? ROT : RISE) : 0x000000, u.shadow ? 0.4 : 0.5).setDepth(home.y - 2)
     if (u.shadow) shadow.setBlendMode(Phaser.BlendModes.ADD)
@@ -705,9 +709,10 @@ class BattleScene extends Phaser.Scene {
     // entered), `halt` (stopped to fight off its plan, until it walks on).
     const order = u.det != null ? this.orders.get(u.det) : null
     const detRing = order ? this.add.ellipse(home.x, home.y + 4, 50 * size, 15 * size).setStrokeStyle(1.5, order.colour, 1).setDepth(home.y - 1.5) : null
+    const sumRing = u.summoned ? this.add.ellipse(home.x, home.y + 4, 40 * size, 12 * size).setStrokeStyle(1.25, this.bannerOf(u.summoner), 1).setDepth(home.y - 1.4) : null
     const actor = {
       uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar, mark, wilt, flag,
-      det: order ? u.det : null, detRing, where: order?.where ?? 'hunt', anchor: u.tile, halt: false, cohortOf: u.cohortOf ?? null,
+      det: order ? u.det : null, detRing, sumRing, summon: !!u.summoned, where: order?.where ?? 'hunt', anchor: u.tile, halt: false, cohortOf: u.cohortOf ?? null,
       // chest: how far above the feet blows land and bolts fly from. fade: 0 once a corpse has risen
       // as a shadow; rise.v: a shadow coming up out of the ground (apart from `fade`, so a walk that kills
       // the actor's tweens never leaves it invisible).
@@ -716,11 +721,11 @@ class BattleScene extends Phaser.Scene {
     // A Knight's shield or a Marshal's standard beside its bars; a Marshal also carries its own domain.
     if (u.grade > 0) this.small.push(legible(actor.insignia = this.insignia(u.grade, this.bannerOf(u.uid)), this.cameras.main.zoom, 'num'))
     // A soul's growth, worn as the prep board showed it (growthMarks): its rank's ring, its path tiers, and a
-    // captain's flag with the bodies it leads into this battle (on the board and still to enter).
-    if (u.side === 'party' && !u.rank && !u.shadow && !crowned) {
+    // summoner's flag with how many it raises (those on the board, or for a held soul the ones to come with it).
+    if (u.side === 'party' && !u.rank && !u.shadow && !u.summoned && !crowned) {
       const whole = this.units.get(u.uid) ?? u
-      const led = [...this.battle.units, ...this.battle.reserve].filter((x) => x.cohortOf === u.uid && x.side !== 'foe').length
-      actor.growth = growthMarks(this, whole, { banner: this.args.banners?.get(u.uid), count: led, size })
+      const led = this.battle.units.filter((x) => x.summoner === u.uid).length
+      actor.growth = growthMarks(this, whole, { banner: this.args.banners?.get(u.uid), count: Math.max(led, summonsOf(whole).reduce((n, x) => n + x.count, 0)), size })
       actor.growth.legible(this.cameras.main.zoom)
     }
     if (u.grade >= 2 && u.side === 'party') actor.realm = { g: this.add.graphics().setDepth(-394), colour: this.bannerOf(u.uid), x: null, y: null }
@@ -1036,6 +1041,26 @@ class BattleScene extends Phaser.Scene {
     this.burst(a.home.x, a.home.y - 4, glow, 8, { up: true, speed: 50 })
     this.reserve = this.reserve.filter((r) => r.uid !== ev.unit.uid)
     this.showReserve()
+  }
+
+  // A held soul's summon appears beside it as it enters (sim event `summon`): it swells up out of a small ring of
+  // its soul's banner colour, a spark or two rising.
+  summonIn (ev) {
+    if (this.actors.has(ev.unit.uid)) return
+    this.units.set(ev.unit.uid, this.battle.byUid.get(ev.unit.uid) ?? this.battle.units.find((x) => x.uid === ev.unit.uid))
+    this.addActor(ev.unit)
+    const a = this.actors.get(ev.unit.uid)
+    const glow = this.bannerOf(ev.unit.summoner)
+    a.rise.v = 0
+    a.pose = { ...REST, sx: -0.2, sy: -0.5 }
+    for (const part of this.parts(a)) part.setAlpha(0)
+    this.tweens.add({ targets: a.rise, v: 1, duration: 380, ease: 'Sine.Out' })
+    this.tweens.add({ targets: this.parts(a), alpha: 1, delay: 160, duration: 260 })
+    this.animate(a, [{ to: { sx: 0.06, sy: 0.08, dy: -4 }, ms: 300, ease: 'Back.Out' }, { to: REST, ms: 200 }])
+    const ring = this.add.image(a.home.x, a.home.y + 4, 'glow').setTint(glow).setBlendMode(Phaser.BlendModes.ADD)
+      .setDisplaySize(24, 8).setAlpha(0.8).setDepth(a.home.y - 1)
+    this.tweens.add({ targets: ring, displayWidth: 70, displayHeight: 20, alpha: 0, duration: 480, ease: 'Cubic.Out', onComplete: () => ring.destroy() })
+    this.burst(a.home.x, a.home.y - 4, glow, 5, { up: true, speed: 40 })
   }
 
   // A foe of a later wave comes down out of the dark past the far edge onto its tile in a few hops, a red glow
@@ -1582,6 +1607,7 @@ class BattleScene extends Phaser.Scene {
     }
     if (ev.type === 'arise') { sfx.play('arise'); return this.arise(ev) }
     if (ev.type === 'enter') return this.enter(ev)
+    if (ev.type === 'summon') return this.summonIn(ev)
     if (ev.type === 'wave') return this.waveBanner(ev.wave)
     if (ev.type === 'call') return this.call(ev)
     if (ev.type === 'arrive') {
@@ -1669,7 +1695,7 @@ class BattleScene extends Phaser.Scene {
         // A captain (any soul of yours; theirs who lead a cohort), a boss or the Monarch falling holds the frame.
         const u = this.units.get(a.uid)
         const big = u && (unitDef(u.id).boss || u.uid === this.monarch)
-        if (u && !ev.crumble && !u.rank && !u.shadow && (big || u.side === 'party' || this.foeCaptains.has(u.uid))) this.hitStop(big ? 150 : 80)
+        if (u && !ev.crumble && !u.rank && !u.shadow && !u.summoned && (big || u.side === 'party' || this.foeCaptains.has(u.uid))) this.hitStop(big ? 150 : 80)
         break
       }
       // Undying: the captain that just fell stands again.
@@ -1960,7 +1986,7 @@ class TimelinePlayer {
       // A move, a shadow rising (see arise) and a body entering (see enter) play at once: the newcomer may
       // act within a few ticks. An Echo's second pass lands a beat after the first (echoed).
       const at = impact + echoed(beat, i)
-      if (at && ev.type !== 'move' && ev.type !== 'arise' && ev.type !== 'enter') this.scheduled.push({ at: this.playhead + at, run })
+      if (at && ev.type !== 'move' && ev.type !== 'arise' && ev.type !== 'enter' && ev.type !== 'summon') this.scheduled.push({ at: this.playhead + at, run })
       else run()
     })
     if (!beat.action) return

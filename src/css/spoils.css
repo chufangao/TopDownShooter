@@ -1,11 +1,10 @@
 /* spoils: the reap screen's cards (picked the Slay the Spire way), the title's four steps and the end
    screen's sting. Owned by titleScreen, reapScreen, endScreen and deathPanel in ui.js. Each card wears its
-   system's colour as --f: a recruit essence, a relic gold, a keystone lilac, a path tier the orders' blue, a
-   body to bind bone. */
+   system's colour as --f: a recruit essence, a relic gold, a keystone lilac, a path tier the path's cyan. */
 
 /* ── reap: the frame ──────────────────────────────────────────────────────────────────────────── */
-/* Fitted to the frame (.screen.fit): the head, the cards in the middle (the one part that may scroll, a long
-   list of kinds to bind), the foot (the retinue strip and the actions). Wider frames widen it. */
+/* Fitted to the frame (.screen.fit): the head, the cards in the middle (the one part that may scroll, rows of
+   recruits), the foot (the souls' strip and the actions). Wider frames widen it. */
 .reap-main { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; max-width: 1480px; margin: 0 auto; text-align: center; }
 .reap-head { flex: none; display: flex; align-items: center; justify-content: center; gap: 10px 28px; flex-wrap: wrap; padding-top: 14px; }
 .reap-title h1 { white-space: nowrap; }
@@ -14,9 +13,8 @@
 /* The middle: whatever the cards, it holds them, scrolling inside itself when they outgrow it, so the foot and
    its actions always stand clear below. */
 .reap-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 4px 10px; overflow-y: auto; overscroll-behavior: contain; }
-/* Centred in what is left, never pushed off the top when it is tall (a bind panel keeps its own scroll). */
+/* Centred in what is left, never pushed off the top when it is tall. */
 .reap-screen .reap-body > * { margin-top: auto; margin-bottom: auto; flex: none; }
-.reap-screen .reap-body > .bind-row { flex: 0 1 auto; min-height: 0; }
 .reap-foot { position: relative; flex: none; display: flex; align-items: center; gap: 12px 18px; padding-top: 10px; border-top: 1px solid var(--line2); }
 
 /* ── reap: the cards ──────────────────────────────────────────────────────────────────────────── */
@@ -24,7 +22,6 @@
 .reap-screen .o-relic { --f: var(--c-relic); }
 .reap-screen .o-keystone { --f: var(--c-keystone); }
 .reap-screen .o-tier { --f: var(--c-path); }
-.reap-screen .o-bind { --f: var(--c-ossuary); }
 
 /* Rows of --cols cards (ui.js: as many as the width holds, the rows as even as they come), every card the
    same width, 168 to 250, a short last row centred. */
@@ -102,54 +99,10 @@
 .lede-more { display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); vertical-align: middle; color: var(--dim); cursor: help; }
 .lede-more:hover, .lede-more:focus-visible { color: var(--bright); }
 
-/* ── reap: the slain to bind ──────────────────────────────────────────────────────────────────── */
-/* Compact tiles, two to a row in a 4:3 frame and three on a wide one, in a panel that scrolls when an elite
-   lays out a dozen kinds. A tile: the picture (its key on the corner), then the name and count over the
-   stepper and Bind. */
-.bind-row {
-  display: flex; flex-direction: column; min-height: 0; width: 100%; padding: 10px 12px 12px; border-radius: 16px; text-align: left;
-  border: 1px solid color-mix(in srgb, var(--c-ossuary) 18%, transparent); background: #0f0d18b0;
-}
-.bind-row > h2.bind-head { flex: none; margin: 2px 0 10px; color: var(--c-ossuary); text-align: center; }
-.reap-screen .offers.binds {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 10px; min-height: 0;
-  overflow-y: auto; overscroll-behavior: contain; padding: 6px 6px 2px; margin: 0;
-}
-.reap-screen .o-bind {
-  display: grid; grid-template-columns: 68px 1fr; grid-template-rows: auto auto; column-gap: 14px; row-gap: 6px; align-items: center;
-  width: auto; max-width: none; padding: 10px 12px; gap: 6px 14px; cursor: default; text-align: left;
-}
-.reap-screen .o-bind:hover { transform: none; }
-.reap-screen .o-bind .offer-art { grid-row: 1 / 3; width: 68px; height: 68px; margin: 0; border-radius: 12px; background: radial-gradient(circle, #b8ac9833, transparent 68%), #0b0914; }
-.reap-screen .o-bind .offer-art .portrait { width: 60px; height: 60px; opacity: .85; }
-.reap-screen .o-bind .offer-art kbd { position: absolute; top: -8px; left: -8px; }
-.reap-screen .bind-info { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.reap-screen .o-bind .offer-name { font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.reap-screen .o-bind .offer-line { flex: none; font-size: var(--fs-sm); color: var(--dim); white-space: nowrap; }
-.reap-screen .bind-ctl { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.reap-screen .o-bind .step-btn { width: var(--tap); padding: 0; font-size: var(--fs-lg); }
-.reap-screen .o-bind .bind-btn { margin: 0; padding: 0 14px; border-color: color-mix(in srgb, var(--f) 45%, transparent); white-space: nowrap; }
-.reap-screen .o-bind .bind-btn .price { color: var(--c-essence); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
-.reap-screen .o-bind .bind-btn.poor .price { color: var(--c-foe); }
-/* A short frame: the tiles tighter, so more kinds stand in view. */
-@container frame (max-height: 640px) {
-  .reap-screen .o-bind { padding: 6px 10px; row-gap: 4px; grid-template-columns: 56px 1fr; }
-  .reap-screen .o-bind .offer-art { width: 56px; height: 56px; }
-  .reap-screen .o-bind .offer-art .portrait { width: 50px; height: 50px; }
-  .bind-row { padding: 6px 10px 8px; }
-  .bind-row > h2.bind-head { margin: 0 0 6px; }
-}
-button.bind-all {
-  font-weight: 600; color: #17130c; border-color: var(--c-ossuary);
-  background: linear-gradient(180deg, #ece4cf, #bfb498); box-shadow: 0 0 18px #d8cfb833;
-}
-button.bind-all:hover:not([aria-disabled]) { color: #17130c; border-color: #fff; box-shadow: 0 0 26px #d8cfb866; }
-button.bind-all kbd { background: #17130c22; border-color: #17130c55; color: #17130c; }
-
 .reap-actions { flex: none; display: flex; justify-content: flex-end; gap: 10px; margin: 0 0 0 auto; }
 .reap-actions .move-on { min-width: 150px; }
 
-/* ── reap: a room of several groups, a step each (Recruit · Relic · Bind), one group in view ────── */
+/* ── reap: a room of several groups, a step each (Recruit · Relic · Keystone), one group in view ── */
 .reap-steps {
   display: inline-flex; align-items: stretch; gap: 4px; padding: 4px; border-radius: 16px;
   border: 1px solid var(--line2); background: #0d0b16c0;
@@ -158,7 +111,6 @@ button.bind-all kbd { background: #17130c22; border-color: #17130c55; color: #17
 .reap-step.s-relic { --f: var(--c-relic); }
 .reap-step.s-keystone { --f: var(--c-keystone); }
 .reap-step.s-tier { --f: var(--c-path); }
-.reap-step.s-bind { --f: var(--c-ossuary); }
 button.reap-step {
   display: flex; align-items: center; gap: 10px; min-height: var(--tap-lg); padding: 6px 16px 6px 10px; border-radius: 12px; text-align: left;
   border: 1px solid transparent; background: transparent; color: var(--dim);

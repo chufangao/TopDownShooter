@@ -188,30 +188,3 @@
 .det-time { display: flex; align-items: center; gap: 6px; margin: 6px 0 0 46px; color: var(--c-orders); }
 .det-time b { min-width: 3em; text-align: center; color: var(--bright); }
 
-/* ── ossuary tab, in bone ─────────────────────────────────────────────────────────────────────── */
-.ossuary-panel h2 { color: var(--c-ossuary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.oss-count { font: 500 12px var(--sans); color: var(--dim); letter-spacing: 0; text-transform: none; }
-.oss-count b { color: var(--c-ossuary); }
-.oss-count.fell b { color: #e07a88; }
-.muster-row {
-  display: flex; align-items: center; gap: 8px; padding: 7px 10px; margin: 6px 0 10px; border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--c-ossuary) 30%, transparent); background: color-mix(in srgb, var(--c-ossuary) 6%, #0c0a16);
-}
-.mu-name { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--c-ossuary); }
-.mu-lvl { font: 600 20px var(--serif); color: var(--bright); }
-.mu-next { font: 600 15px var(--serif); color: var(--c-essence); }
-.muster-row .grow { flex: 1; min-width: 0; }
-.muster-row .buy { margin: 0; }
-.chip-cap { font-size: 11px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--dim); }
-.bone-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
-.bone-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 5px; border-radius: 10px; background: #141122; border: 1px solid var(--line2); cursor: help; text-align: center; }
-.bone-tile:hover { border-color: color-mix(in srgb, var(--c-ossuary) 50%, transparent); }
-.bone-tile.gone { opacity: .6; }
-.bt-port { position: relative; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 10px; background: radial-gradient(circle, #2a2440, #13101f); }
-.bt-stand, .bt-fell { position: absolute; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; font: 700 11px/18px var(--sans); text-align: center; }
-.bt-stand { right: -6px; bottom: -4px; background: var(--c-ossuary); color: #16121f; }
-.bt-fell { right: -6px; top: -4px; background: #5a1f2a; color: #ffc4cc; }
-.bt-fell::before { content: '✝'; margin-right: 1px; font-size: 9px; }
-.bt-name { font-size: 11px; line-height: 1.2; color: var(--text); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.bt-led { font-size: 10px; color: var(--dim); }
-.bt-led.on { color: var(--c-orders); }

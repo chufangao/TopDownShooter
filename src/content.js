@@ -239,6 +239,74 @@ export const UNIT_LIST = [
     foeOrders: ['hunt'],
     flavour: 'It does not fight alone: its court walks with it, and the dead of the field rise at its tide. Without it, they are dust.',
     art: 'hollow_sovereign'
+  },
+  // Summons (`summon: true`): raised for one battle by a soul's path tier (PATHS, a tier's `summon`), never
+  // spawned, offered or recruited, and gone when the battle ends. They fight at their summoner's level
+  // (TUNING.summon), count toward synergies and bonds like anyone, and borrow the art of a kind of their kin.
+  {
+    id: 'skeleton',
+    name: 'Skeleton',
+    kin: 'undead',
+    role: 'vanguard',
+    tier: 1,
+    summon: true,
+    base: { hp: 56, atk: 11, def: 8, spd: 16, acc: 40, eva: 6, crt: 4 },
+    growth: { hp: 6, atk: 1.4, def: 0.7, spd: 0.6 },
+    abilities: ['strike'],
+    flavour: 'Bones a chanter sings up out of the field, for one fight.',
+    art: 'grave_ghoul'
+  },
+  {
+    id: 'drone',
+    name: 'Drone',
+    kin: 'insect',
+    role: 'skirmisher',
+    tier: 1,
+    summon: true,
+    base: { hp: 40, atk: 11, def: 5, spd: 30, acc: 44, eva: 20, crt: 8 },
+    growth: { hp: 5, atk: 1.5, def: 0.4, spd: 1.6 },
+    abilities: ['strike'],
+    flavour: 'Hatched for the fight, spent by its end.',
+    art: 'mantis_reaper'
+  },
+  {
+    id: 'wisp',
+    name: 'Wisp',
+    kin: 'fae',
+    role: 'channeler',
+    tier: 1,
+    summon: true,
+    base: { hp: 30, atk: 10, def: 2, spd: 26, acc: 44, eva: 24, crt: 5 },
+    growth: { hp: 4, atk: 1.4, def: 0.2, spd: 1.4 },
+    abilities: ['witchfire'],
+    flavour: 'A light from the grove, gone with the battle.',
+    art: 'will_o_wisp'
+  },
+  {
+    id: 'tin_soldier',
+    name: 'Tin Soldier',
+    kin: 'construct',
+    role: 'vanguard',
+    tier: 1,
+    summon: true,
+    base: { hp: 60, atk: 10, def: 12, spd: 14, acc: 40, eva: 4, crt: 3 },
+    growth: { hp: 7, atk: 1.3, def: 1, spd: 0.5 },
+    abilities: ['strike'],
+    flavour: 'Wound up to march, and to run down.',
+    art: 'clockwork_page'
+  },
+  {
+    id: 'whelp',
+    name: 'Whelp',
+    kin: 'drake',
+    role: 'vanguard',
+    tier: 1,
+    summon: true,
+    base: { hp: 54, atk: 13, def: 7, spd: 20, acc: 46, eva: 10, crt: 8 },
+    growth: { hp: 6, atk: 1.8, def: 0.5, spd: 0.9 },
+    abilities: ['strike'],
+    flavour: "A wyrm's brood, out of the egg for one battle.",
+    art: 'ember_drake'
   }
 ]
 
@@ -1035,7 +1103,10 @@ const ABILITY_LIST = [
 // Each kind of soul has up to three paths. A soul commits to one with its first tier, then buys tiers
 // II and III along it with essence (TUNING.essence.tier). A tier can carry `mods` (always on, like a
 // relic's, for that soul alone), `ability` ({ id, replace } swaps one of its abilities; { id, at }
-// adds one at that place in its priority list, first by default) and `aura` (replaces its aura).
+// adds one at that place in its priority list, first by default), `aura` (replaces its aura) and `summon`
+// ({ id, count }: each battle `count` of that summon kind appear beside it, its first summon tier raising
+// TUNING.ranks.summons[grade] more for a Knight or a Marshal; they keep to it, follow its plan and are gone
+// when the battle ends: unit.js summonsOf, battle.js summon). Summons are how the army grows past the field.
 // Tier IV is a Knight's or a Marshal's (GRADES): a rule, never a percentage (a new or remade ability).
 // A Knight may instead start a second path, and a Marshal take its tiers I–III: its tiers come on top of
 // the first path's, so two paths that remake the same ability, or both grant an aura, never pair (see
@@ -1048,9 +1119,9 @@ export const PATHS = {
       { desc: '+20% damage dealt.', mods: [m('damage.dealt', 'mul', 1.2)] },
       { desc: 'Dirge becomes Requiem: Hasten for 7 s to every ally within 3 tiles, in the first 10 s.', ability: { id: 'requiem', replace: 'dirge' } },
       { desc: 'Requiem becomes Dirge Unending: Hasten to every ally within 3 tiles whenever one lacks it, all battle long.', ability: { id: 'dirge_unending', replace: 'requiem' } }] },
-    { id: 'marrowcaller', name: 'Marrowcaller', desc: 'Bolts that pierce a whole lane.', tiers: [
+    { id: 'marrowcaller', name: 'Marrowcaller', desc: 'Bones that rise, bolts that pierce a lane.', tiers: [
       { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
-      { desc: '+15 ACC, +8 CRT.', mods: [m('acc', 'add', 15), m('crt', 'add', 8)] },
+      { desc: 'Raises 2 Skeletons beside it each battle.', summon: { id: 'skeleton', count: 2 } },
       { desc: 'Marrow Bolt becomes Marrow Spear: hits a foe and everyone in its lane.', ability: { id: 'marrow_spear', replace: 'marrow_bolt' } },
       { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles, while 3+ foes stand there.', ability: { id: 'bone_storm' } }] },
     { id: 'grave_mender', name: 'Grave Mender', desc: 'Knits bone back together.', tiers: [
@@ -1096,9 +1167,9 @@ export const PATHS = {
       { desc: 'Learns Deep Winter: frosts every foe within 3 tiles, draining 40 gauge, while 2+ foes stand there.', ability: { id: 'deep_winter' } }] }
   ],
   hive_warden: [
-    { id: 'brood_mother', name: 'Brood Mother', desc: 'Mends the whole swarm.', tiers: [
+    { id: 'brood_mother', name: 'Brood Mother', desc: 'Hatches a swarm, and mends it.', tiers: [
       { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
-      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Hatches 2 Drones beside it each battle.', summon: { id: 'drone', count: 2 } },
       { desc: 'Mend becomes Swarm Mend: heals every ally within 2 tiles.', ability: { id: 'swarm_mend', replace: 'mend' } },
       { desc: 'Swarm Mend becomes Brood Surge: heals every ally within 3 tiles and gives them Regen.', ability: { id: 'brood_surge', replace: 'swarm_mend' } }] },
     { id: 'chitin_guard', name: 'Chitin Guard', desc: 'Armours those beside it.', tiers: [
@@ -1113,9 +1184,9 @@ export const PATHS = {
       { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
       { desc: 'Strike becomes Spanner in the Works: 30 power, drains 40 gauge.', ability: { id: 'spanner', replace: 'strike' } },
       { desc: "Spanner becomes Wrench the Works: it empties a foe's gauge.", ability: { id: 'wrench', replace: 'spanner' } }] },
-    { id: 'gearwright', name: 'Gearwright', desc: 'Keeps the others ticking.', tiers: [
+    { id: 'gearwright', name: 'Gearwright', desc: 'Winds up soldiers, and keeps them ticking.', tiers: [
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: 'Winds up 2 Tin Soldiers beside it each battle.', summon: { id: 'tin_soldier', count: 2 } },
       { desc: 'Purge becomes Overclock: Hasten and one debuff removed, on the most wounded ally.', ability: { id: 'overclock', replace: 'purge' } },
       { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
   ],
@@ -1150,9 +1221,9 @@ export const PATHS = {
       { desc: 'Learns Veil: Veiled (+20 EVA) for itself and every ally within 2 tiles, while one is below 75% HP.', ability: { id: 'veil' } }] }
   ],
   thorn_dryad: [
-    { id: 'heartwood', name: 'Heartwood', desc: 'Deep-rooted healing.', tiers: [
+    { id: 'heartwood', name: 'Heartwood', desc: "Deep-rooted healing, and the grove's lights.", tiers: [
       { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
-      { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+      { desc: 'Calls 2 Wisps beside it each battle.', summon: { id: 'wisp', count: 2 } },
       { desc: 'Mend becomes Bloom: 34 power and Regen every time.', ability: { id: 'bloom', replace: 'mend' } },
       { desc: 'Bloom becomes Verdant Bloom: it heals every ally within 2 tiles, with Regen.', ability: { id: 'verdant_bloom', replace: 'bloom' } }] },
     { id: 'bramble', name: 'Bramble', desc: 'A healer with thorns.', tiers: [
@@ -1198,9 +1269,9 @@ export const PATHS = {
       { desc: 'Dread Wail becomes Death Knell: it Withers every foe within 3 tiles.', ability: { id: 'death_knell', replace: 'dread_wail' } }] }
   ],
   frost_wyrm: [
-    { id: 'ancient', name: 'Ancient', desc: 'Older, thicker, colder.', tiers: [
+    { id: 'ancient', name: 'Ancient', desc: 'Older, colder, and never alone.', tiers: [
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
+      { desc: 'Hatches 2 Whelps beside it each battle.', summon: { id: 'whelp', count: 2 } },
       { desc: 'Glacial Breath becomes Blizzard: freezes a foe and everyone level with it.', ability: { id: 'blizzard', replace: 'glacial_breath' } },
       { desc: 'Blizzard becomes Ice Age: it freezes every foe within 3 tiles.', ability: { id: 'ice_age', replace: 'blizzard' } }] },
     { id: 'rime_tyrant', name: 'Rime Tyrant', desc: 'Pure killing cold.', tiers: [
@@ -1294,7 +1365,7 @@ const STATUS_LIST = [
     ]
   },
   {
-    // A relic's gift to a body as it enters (Tower Shield).
+    // A relic's gift to a soul as it enters (Tower Shield), and a held soul's as it enters fresh.
     id: 'shield',
     desc: 'Takes 40% less damage.',
     name: 'Shielded',
@@ -1384,7 +1455,7 @@ export const SYNERGIES = [
   { id: 'grave_vigil', name: 'Grave Vigil', desc: 'Undead 4 + Warden 2: +12% max HP.', needs: { kin: { undead: 4 }, role: { warden: 2 } }, mods: [{ path: 'hp', op: 'mul', v: 1.12 }] },
   { id: 'ember_choir', name: 'Ember Choir', desc: 'Drake 2 + Channeler 2: +10% damage dealt, +3 CRT.', needs: { kin: { drake: 2 }, role: { channeler: 2 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.1 }, { path: 'crt', op: 'add', v: 3 }] },
   // The deep steps, 4 and 6, then 8: a kin or role five units deep (most are two or three) reaches them only
-  // with cohorts and shadows, which count like anyone else. Steps stack: Undead 6 also has Undead 2 and 4.
+  // with summons and shadows, which count like anyone else. Steps stack: Undead 6 also has Undead 2 and 4.
   // Ranger's first step stays at 3. An 8 is a rule, not a number (`rule`: the battle reads it, see battle.js
   // rulesOf); it holds for whichever side has it, foes deep in the endless floors too.
   { id: 'undead_6', name: 'Undead 6', desc: '+8% DEF, +10% max HP.', needs: { kin: { undead: 6 } }, mods: [{ path: 'def', op: 'mul', v: 1.08 }, { path: 'hp', op: 'mul', v: 1.1 }] },
@@ -1434,47 +1505,13 @@ export const BONDS = [
 
 // ── ranks ────────────────────────────────────────────────────────────────────────────────────
 
-// A captain's rank (u.grade: 0, 1, 2), bought with bodies of its kin, not essence (TUNING.ranks). Each rank
+// A soul's rank (u.grade: 0, 1, 2), bought with essence once the soul has the level (TUNING.ranks). Each rank
 // removes a limit instead of adding a percentage.
 export const GRADES = [
   { id: 'soldier', name: 'Soldier', desc: 'Tiers I–III on one path.' },
-  { id: 'knight', name: 'Knight', desc: 'Tier IV on its path, or tier I of a second path. Leads 2 more bodies in its cohort.' },
-  { id: 'marshal', name: 'Marshal', desc: 'A domain of its own: within it its banner never falters and heeds every order, and the dead raised there join its banner. Tier IV and tiers I–III of a second path, both. Leads 4 more bodies in its cohort.' }
+  { id: 'knight', name: 'Knight', desc: 'Tier IV on its path, or tier I of a second path. Its summon tier raises 1 more.' },
+  { id: 'marshal', name: 'Marshal', desc: 'A domain of its own: within it its banner (itself, its summons, the dead raised there) never falters and heeds every order. Tier IV and tiers I–III of a second path, both. Its summon tier raises 2 more.' }
 ]
-
-// ── banner shapes ────────────────────────────────────────────────────────────────────────────
-
-// How a captain's cohort stands around it in the camp: `offsets` are [dRow, dCol] from the captain's cell,
-// in the order its members take them (dRow > 0 is further back, toward the camp's rear, dRow < 0 ahead; dCol
-// > 0 the next lane right). A member whose offset is walled, off the camp or taken takes the next free one, then the
-// open cell nearest its captain. In battle a member keeps within a tile of its captain, so a shape is
-// how the banner meets the first blow, which bonds it holds, and how fast it closes up.
-export const SHAPES = {
-  pair: {
-    name: 'Pair', desc: 'Two abreast, filing back behind the captain: narrow, and deep.',
-    offsets: [[0, 1], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0], [3, 1], [4, 0], [4, 1], [5, 0], [5, 1], [6, 0], [6, 1]]
-  },
-  line: {
-    name: 'Line', desc: 'One rank abreast of the captain, lanes out to either side, then a second rank behind.',
-    offsets: [[0, -1], [0, 1], [0, -2], [0, 2], [0, -3], [0, 3], [1, 0], [1, -1], [1, 1], [1, -2], [1, 2], [1, -3], [1, 3]]
-  },
-  wedge: {
-    name: 'Wedge', desc: 'The captain at the point, its cohort fanning out behind it on the diagonals.',
-    offsets: [[1, -1], [1, 1], [2, -2], [2, 2], [2, 0], [3, -3], [3, 3], [3, -1], [3, 1], [4, -2], [4, 2], [4, 0]]
-  },
-  block: {
-    name: 'Block', desc: 'Three lanes wide with the captain at the front and centre: packed close around it.',
-    offsets: [[0, -1], [0, 1], [1, -1], [1, 0], [1, 1], [2, -1], [2, 0], [2, 1], [3, -1], [3, 0], [3, 1], [4, -1], [4, 0], [4, 1]]
-  },
-  // reDESIGN §10: a deliberate gap is a trap. The tile ahead of the captain is left open between two horns: a
-  // foe that walks into it stands beside the captain and both horns at once. All seven around the captain
-  // keep their leash of a tile with the mouth still open; an eighth and on stand two out, and closing up on
-  // their captain in battle, may fill it.
-  mouth: {
-    name: 'Mouth', desc: 'Two horns a step ahead on either side of the captain, the tile before it left open: a foe that walks in is met on three sides. Past seven, the rest may close it.',
-    offsets: [[-1, -1], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 1], [1, 0], [0, -2], [0, 2], [1, -2], [1, 2], [-1, -2], [-1, 2], [2, 0]]
-  }
-}
 
 // ── orders ───────────────────────────────────────────────────────────────────────────────────
 
@@ -1483,8 +1520,8 @@ export const SHAPES = {
 // Monarch when its start comes. The reaction rule comes before every plan: a unit that can hit a foe hits
 // it, a melee unit steps to engage a foe within 2 tiles, a ranged one holds while a foe is in its range.
 // Outside the Monarch's domain only Hunt is heeded. A held detachment, once called, still enters only while
-// fewer than TUNING.army.board of the party's bodies stand on the board (it waits for room, as the reserve
-// does), so on a full board every later start enters as bodies fall.
+// it has room: its souls take TUNING.orders.reserve places of their own past the board's TUNING.army.board. A
+// soul's summons go with it: they appear beside it as it enters, on its plan.
 export const ORDERS = {
   where: {
     hunt: { name: 'Hunt', desc: 'Each walks as its role does: Advance to the nearest foe, Hold back until a foe is in range, Flank through the line to whoever hides at the back. Every soul with no order Hunts.' },
@@ -1496,7 +1533,7 @@ export const ORDERS = {
     time: { name: 'At a time', desc: 'Waits behind the camp, and enters beside the Monarch when the time comes, as the board has room.' },
     struck: { name: 'Monarch struck', desc: 'Waits behind the camp, and enters beside the Monarch once a blow lands on it, as the board has room.' },
     wave: { name: 'A wave', desc: 'Waits behind the camp, and enters beside the Monarch once more foes enter the field, as the board has room.' },
-    falls: { name: 'A body falls', desc: 'Waits behind the camp, and enters beside the Monarch once one of yours on the board falls, as the board has room.' }
+    falls: { name: 'One falls', desc: 'Waits behind the camp, and enters beside the Monarch once one of yours on the board falls, as the board has room.' }
   }
 }
 
@@ -1533,14 +1570,14 @@ export const CAMP_LIST = [
 // ability's do; a heal with `pct` mends that share of the target's max HP, whoever casts it). Each moment
 // has a subject, a place and the one on its other end: 'kill' (one of yours slays a foe: the killer, where
 // the slain fell, the slain), 'fall' (one of yours falls, the Monarch aside, whose fall ends the battle: the
-// fallen, where it fell, its killer), 'enter' (one of yours enters from behind the camp, a reserve body or a
-// held detachment's: the newcomer, where it enters)
+// fallen, where it fell, its killer; a summon too), 'enter' (one of yours enters from behind the camp, a held
+// detachment's soul: the newcomer, where it enters; its summons appear with it, and do not fire it)
 // and 'struck' (a blow lands on the Monarch and it stands: the Monarch, where it stands, its attacker). An
 // effect's `to` picks its targets: 'self' (the subject) or 'other', if it stands; 'monarch'; or 'allies' /
 // 'foes' (yours / theirs standing within `range` tiles of the place).
 export const RELIC_LIST = [
   { id: 'whetstone', name: 'Whetstone', desc: '+12% ATK.', mods: [{ path: 'atk', op: 'mul', v: 1.12 }] },
-  { id: 'grave_banner', name: 'Grave Banner', desc: '+1 field slot.', field: 1 },
+  { id: 'grave_banner', name: 'Grave Banner', desc: '+1 soul on the field.', field: 1 },
   { id: 'soul_lantern', name: 'Soul Lantern', desc: 'Recruited souls rise 2 levels higher.', soulLevel: 2 },
   { id: 'hourglass', name: 'Hourglass', desc: 'When the Monarch is struck: Arise gains 30 gauge.', on: 'struck', effects: [{ op: 'gauge', amount: 30, to: 'monarch' }] },
   { id: 'heartwood', name: 'Heartwood', desc: '+15% max HP.', mods: [{ path: 'hp', op: 'mul', v: 1.15 }] },
@@ -1552,7 +1589,7 @@ export const RELIC_LIST = [
   { id: 'grave_ledger', name: 'Grave Ledger', desc: 'Levels cost 25% less essence.', levelDiscount: 0.25 },
   { id: 'rite_candle', name: 'Rite Candle', desc: 'Path tiers cost 25% less essence.', tierDiscount: 0.25 },
   { id: 'binding_chain', name: 'Binding Chain', desc: 'Recruiting a soul costs 30% less essence.', recruitDiscount: 0.3 },
-  { id: 'ossuary_key', name: 'Ossuary Key', desc: 'Your retinue holds 3 more souls.', roster: 3 },
+  { id: 'ossuary_key', name: 'Ossuary Key', desc: 'Your ossuary holds 3 more souls.', roster: 3 },
   { id: 'iron_oath', name: 'Iron Oath', desc: 'When the Monarch is struck: your side within 2 tiles of it gains Barkskin (+25% DEF).', on: 'struck', effects: [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }] },
   { id: 'arcane_focus', name: 'Arcane Focus', desc: 'When one of yours slays a foe: the killer gains 40 gauge.', on: 'kill', effects: [{ op: 'gauge', amount: 40, to: 'self' }] },
   { id: 'hunters_mark', name: "Hunter's Mark", desc: 'When one of yours slays a foe: the foes next to the slain turn Brittle.', on: 'kill', effects: [{ op: 'apply_status', status: 'brittle', to: 'foes', range: 1 }] },
@@ -1568,21 +1605,21 @@ export const TRIGGERS = ['kill', 'fall', 'enter', 'struck']
 // ── keystones ────────────────────────────────────────────────────────────────────────────────
 
 // Rules that rewrite the game, two or three a run (offered at elites and rites from floor 2, free; see
-// TUNING.keystone). Each holds one or more of: `field` (more banners), `mods` (on every party unit in
-// battle but the Monarch: your souls, their cohorts and shadows), `rise` (a fallen captain rises once a
-// battle at that share of its max HP), `pool` (each banner's captain and cohort share one HP pool), `alias`
-// ({ role: role }: a unit of the first counts as the second too, for your synergies and bonds), `crown` (the
-// domain centres on your front-most captain), `domain` (tiles more or fewer), `keep` (shadows stay after a
-// battle as rank-and-file), `raises` (Arise's cap a battle times this), `tithe` (each shadow costs the
-// Monarch this share of its max HP) and `unhealable` (nothing heals the Monarch, in battle or out). Nothing
-// ever revives the Monarch.
+// TUNING.keystone). Each holds one or more of: `field` (more souls on the field), `mods` (on every party unit in
+// battle but the Monarch: your souls, their summons and shadows), `rise` (a fallen soul rises once a battle at
+// that share of its max HP), `pool` (each soul shares one HP pool with its summons and the shadows that joined
+// it), `alias` ({ role: role }: a unit of the first counts as the second too, for your synergies and bonds),
+// `crown` (the domain centres on your front-most soul), `domain` (tiles more or fewer), `reap` (Arise's shadows
+// still standing when a battle is won pay their essence again), `raises` (Arise's cap a battle times this),
+// `tithe` (each shadow costs the Monarch this share of its max HP) and `unhealable` (nothing heals the Monarch,
+// in battle or out). Nothing ever revives the Monarch.
 export const KEYSTONE_LIST = [
-  { id: 'legion', name: 'Legion', desc: 'Two more banners, but every soul has 15% less HP.', field: 2, mods: [{ path: 'hp', op: 'mul', v: 0.85 }] },
-  { id: 'undying', name: 'Undying', desc: 'Fallen captains rise once a battle, at 50% HP.', rise: 0.5 },
-  { id: 'one_army', name: 'One Army', desc: 'Each banner shares one HP pool between its captain and its cohort.', pool: true },
+  { id: 'legion', name: 'Legion', desc: 'Two more souls on the field, but every soul has 15% less HP.', field: 2, mods: [{ path: 'hp', op: 'mul', v: 0.85 }] },
+  { id: 'undying', name: 'Undying', desc: 'Fallen souls rise once a battle, at 50% HP.', rise: 0.5 },
+  { id: 'one_army', name: 'One Army', desc: 'Each soul shares one HP pool with its summons.', pool: true },
   { id: 'mimicry', name: 'Mimicry', desc: 'Vanguards count as Wardens too, for synergies and bonds.', alias: { vanguard: 'warden' } },
-  { id: 'vanguard_crown', name: 'Vanguard Crown', desc: 'The domain is centred on your front-most captain, not the Monarch, and is 1 tile smaller.', crown: true, domain: -1 },
-  { id: 'hollow_court', name: 'Hollow Court', desc: 'Shadows raised by Arise that still stand when a battle ends stay, as rank-and-file in the ossuary.', keep: true },
+  { id: 'vanguard_crown', name: 'Vanguard Crown', desc: 'The domain is centred on your front-most soul, not the Monarch, and is 1 tile smaller.', crown: true, domain: -1 },
+  { id: 'hollow_court', name: 'Hollow Court', desc: 'Shadows raised by Arise that still stand when a battle is won are reaped: each pays its essence again.', reap: true },
   { id: 'blood_tithe', name: 'Blood Tithe', desc: "Arise's cap a battle is doubled, but each shadow costs the Monarch 3% of its max HP.", raises: 2, tithe: 0.03 },
   { id: 'court_of_bone', name: 'Court of Bone', desc: 'The domain is 2 tiles larger, but nothing heals the Monarch, in battle or out.', domain: 2, unhealable: true }
 ]

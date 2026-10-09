@@ -16,7 +16,7 @@ export function baseStats (id, lvl = 1) {
 }
 
 // A unit as the run keeps it between battles; createBattle adds the per-battle fields.
-// slot −1 is the bench: the unit is kept but does not fight. `path` is the upgrade path it has
+// slot −1 is the ossuary: the soul is kept but does not fight. `path` is the upgrade path it has
 // committed to (null before its first tier) and `tier` how far along it (0–4: IV is a Knight's);
 // `grade` its rank (0 Soldier, 1 Knight, 2 Marshal: GRADES), and `path2`/`tier2` the second path a
 // Knight or Marshal may take (null and 0 until it does).
@@ -58,6 +58,15 @@ export function abilitiesOf (u) {
 }
 
 export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
+
+// What a soul raises each battle: [{ id, count, lvl }], one entry a summon tier it holds (its path's, then its
+// second path's), its first raising TUNING.ranks.summons[grade] more for a Knight or a Marshal; each at
+// TUNING.summon.level × its level (rounded, at least 1). Empty for a soul with no summon tier.
+export function summonsOf (u) {
+  const list = tiersOf(u).filter((t) => t.summon)
+  const lvl = Math.max(1, Math.round(u.lvl * TUNING.summon.level))
+  return list.map((t, i) => ({ id: t.summon.id, count: t.summon.count + (i ? 0 : TUNING.ranks.summons[u.grade ?? 0] ?? 0), lvl }))
+}
 
 // The least and the most gauge any of its abilities costs: below the cheapest a unit can only bank (or
 // walk, which is off the gauge), and its gauge never banks past the costliest.

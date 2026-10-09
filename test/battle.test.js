@@ -34,10 +34,10 @@ function encounter (seed, floor) {
 
 // In one of the floor's camps, picked by seed, walls and all, against that encounter. `tune` may edit
 // the party before it fights; with `monarch`, the Monarch stands among them (mid-camp, its role's row)
-// with `will` Will; with `army`, the first soul leads a cohort of that many (Bone Chanters and Ghouls) on
-// the field and as many Ghouls again in reserve. With `orders`, every soul takes a plan drawn on the seed
-// (Hunt, Stay, or Move to an open tile anywhere on the board; a cohort its captain's), and the second soul
-// is held back for a later start (a time, the Monarch struck, a body fallen).
+// with `will` Will; with `army`, the first soul has that many summons (Bone Chanters and Ghouls) on the field
+// and as many Ghouls again waiting in the battle's reserve. With `orders`, every soul takes a plan drawn on the
+// seed (Hunt, Stay, or Move to an open tile anywhere on the board; a summon its summoner's), and the second soul
+// is held back for a later start (a time, the Monarch struck, one fallen).
 const fresh = (seed, floor = 1, { ids = START, tune = () => {}, monarch = false, will = 0, army = 0, orders = false } = {}) => {
   const { foes, boss } = encounter(seed, floor)
   const camp = createRng(seed).stream('camp').pick(CAMP_LIST.filter((c) => c.floor === floor)).id
@@ -53,7 +53,8 @@ const fresh = (seed, floor = 1, { ids = START, tune = () => {}, monarch = false,
     })
   }
   const body = (id, uid) => ({ ...makeUnit(id, { uid, lvl: 1 + floor }), cohortOf: party[0].uid, rank: true, ...(orders && { det: 1, plan: party[0].plan }) })
-  const members = Array.from({ length: army }, (_, k) => body(k % 2 ? 'grave_ghoul' : 'bone_chanter', 60 + k))
+  const summon = (id, uid) => ({ ...makeUnit(id, { uid, lvl: 1 + floor }), cohortOf: party[0].uid, summoned: true, summoner: party[0].uid, ...(orders && { det: 1, plan: party[0].plan }) })
+  const members = Array.from({ length: army }, (_, k) => summon(k % 2 ? 'grave_ghoul' : 'bone_chanter', 60 + k))
   autoPlace([...party, ...members], { grid: campGrid(camp) })
   const reserve = Array.from({ length: army }, (_, k) => body('grave_ghoul', 80 + k))
   tune(party)
@@ -107,7 +108,7 @@ function scene (units, { moving = [], ...opts } = {}) {
   return b
 }
 
-// Plain, and with plans: a Monarch, a cohort, every soul on a plan and one held for a later start.
+// Plain, and with plans: a Monarch, summons, every soul on a plan and one held for a later start.
 const PLANNED = { orders: true, army: 3, monarch: true }
 
 test('the same seed gives the same timeline; a different seed does not', () => {
@@ -697,7 +698,9 @@ test('units made mid-battle take uids from nextUid, past every uid there by defa
 
 // ── the army ─────────────────────────────────────────────────────────────────────────────────────
 
-const member = (id, uid, captain, x, y, lvl = 3) => ({ ...on(id, uid, 'party', x, y, lvl), cohortOf: captain, rank: true })
+// A summon of `captain`'s on a tile (as battle.js summon makes them: on its leash). A unit waiting in the
+// battle's reserve on a leash (`waiting`) is the battle's generic reserve rule; the run fills it with held souls.
+const member = (id, uid, captain, x, y, lvl = 3) => ({ ...on(id, uid, 'party', x, y, lvl), cohortOf: captain, summoned: true, summoner: captain })
 const waiting = (id, uid, captain, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), cohortOf: captain, rank: true })
 
 test('the reserve enters beside the Monarch, one a tick, once fewer than 14 bodies stand (a board of 14); each entry restarts the escalation clock', () => boardOf(14, () => {
@@ -772,7 +775,7 @@ test('an Arise shadow stands past the board\'s cap: it holds back no reserve bod
   assert.deepEqual(stepBattle(b).filter((e) => e.type === 'enter').map((e) => e.unit.uid), [71], 'a body fell: the reserve enters')
 }))
 
-test('a cohort keeps within a tile of its captain while it stands: it walks back to it, and steps only where it stays beside it', () => {
+test('summons keep within a tile of their summoner while it stands: they walk back to it, and step only where they stay beside it', () => {
   // The captain, a knight at (3,3), stands still; a Ghoul and a Clockwork Page of its cohort start in the
   // rear corners; the only foe stands frozen at the far edge, out of everyone's reach.
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), member('grave_ghoul', 2, 1, 0, 0), member('clockwork_page', 3, 1, 6, 0),
@@ -818,7 +821,7 @@ test('a member strikes what is in reach before it walks back to its captain', ()
   assert.deepEqual(first.targets, [50])
 })
 
-test('a cohort too big for the tiles around its captain stands a ring deeper instead of idling', () => {
+test('summons too many for the tiles around their summoner stand a ring deeper instead of idling', () => {
   // A still captain at (3,1) with eight of its ten members already all around it; the other two start
   // far off in the camp's rear corners. With no room beside it, they keep to the next ring, as near as
   // there is room, and never stand idle where they started.
@@ -827,11 +830,11 @@ test('a cohort too big for the tiles around its captain stands a ring deeper ins
     ...ring.map(([x, y], k) => member('grave_ghoul', 10 + k, 1, x, y)), on('iron_golem', 50, 'foe', 3, 10)],
   { moving: ring.map((_, k) => 10 + k) })
   for (let k = 0; k < 400; k++) stepBattle(b)
-  const near = b.units.filter((u) => u.rank).map((u) => distance(u.tile, tileAt(3, 1))).sort()
+  const near = b.units.filter((u) => u.summoned).map((u) => distance(u.tile, tileAt(3, 1))).sort()
   assert.deepEqual(near, [1, 1, 1, 1, 1, 1, 1, 1, 2, 2])
 })
 
-test('when a captain falls its cohort falters for the rest of the battle, and Hunts', () => {
+test('when a summoner (or a foe captain) falls its summons (its cohort) falter for the rest of the battle, and Hunt', () => {
   // The captain, at 1 HP, is the weakest thing a Frost Sprite can see; its Ghoul starts in the corner,
   // inside the domain. The Sprite stands still.
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), member('grave_ghoul', 2, 1, 0, 1),
@@ -970,7 +973,7 @@ test('a flanker on any plan walks through bodies: on Move it hops its own line t
   assert.ok(moves.every((e) => tileX(e.to) === 3), 'straight up its lane to the square, not off toward its quarry')
 })
 
-test('a cohort follows its captain\'s plan by the leash: it holds with a captain on Stay, walks with one on Move, and Hunts once it arrives', () => {
+test('summons follow their summoner\'s plan by the leash: they hold with it on Stay, walk with it on Move, and Hunt once it arrives', () => {
   const still = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 2), 'stay'), ordered(member('grave_ghoul', 2, 1, 3, 1), 'stay'),
     on('iron_golem', 10, 'foe', 3, 10, 1)], { moving: [1, 2] })
   for (let k = 0; k < 200; k++) assert.ok(!stepBattle(still).some((e) => e.type === 'move'), 'a Stay banner holds')
@@ -1137,7 +1140,7 @@ test('a held Move unit that enters beside its square has arrived on entry, and H
   assert.ok(distance(knight.tile, tileAt(3, 10)) < distance(at, tileAt(3, 10)), 'it hunts the golem')
 })
 
-test('the reaction rule holds for a cohort member too: it steps out past its leash to engage a foe within 2, and holds with none', () => {
+test('the reaction rule holds for a summon (or a foe cohort member) too: it steps out past its leash to engage a foe within 2, and holds with none', () => {
   // A still captain on Stay at (3,2), its Ghoul on Stay at (3,3); a foe Ghoul frozen 2 tiles from the member
   // and 3 from the captain. The member's step to engage takes it 2 from its captain, past its leash of 1.
   const at = (y) => scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 2), 'stay'), ordered(member('grave_ghoul', 2, 1, 3, 3), 'stay'),

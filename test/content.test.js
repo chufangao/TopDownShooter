@@ -1,8 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, PATHS, THREATS, SHAPES, ORDERS, DETACHMENT_COLORS } from '../src/content.js'
-import { statsOf, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, baseStats, activeSynergies, activeBonds, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile, wallTiles, steps } from '../src/sim/unit.js'
+import { UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, PATHS, THREATS, ORDERS, DETACHMENT_COLORS } from '../src/content.js'
+import { statsOf, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, baseStats, activeSynergies, activeBonds, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile, wallTiles, steps, summonsOf } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 
 
@@ -11,7 +11,7 @@ const checkEffect = (e, where) => {
   if (e.status) assert.ok(STATUSES[e.status], `${where}: status ${e.status}`)
 }
 
-test('every unit reference resolves; every foe carries its threats', () => {
+test('every unit reference resolves; every foe carries its threats; a summon is no foe', () => {
   for (const u of Object.values(UNITS)) {
     if (u.monarch) continue
     assert.ok(KIN[u.kin], `${u.id} kin`)
@@ -19,11 +19,17 @@ test('every unit reference resolves; every foe carries its threats', () => {
     assert.ok(Number.isInteger(u.tier) && u.tier >= 1, `${u.id} tier`)
     for (const a of u.abilities) assert.ok(ABILITIES[a], `${u.id} ability ${a}`)
     for (const p of u.phases ?? []) assert.ok(STATUSES[p.grant], `${u.id} phase ${p.grant}`)
+    // A summon never spawns, threatens or takes orders: it is raised by a soul's path tier, for one battle.
+    if (u.summon) {
+      assert.ok(!u.spawn && !u.threats && !u.foeOrders && !u.boss && u.flavour, `${u.id}: a summon`)
+      continue
+    }
     assert.ok(u.boss || u.spawn, `${u.id} spawns`)
     assert.ok(u.threats?.length && u.threats.every((t) => THREATS[t]), `${u.id} threats`)
     assert.equal(new Set(u.threats).size, u.threats.length, `${u.id} threats repeat`)
   }
-  assert.equal(Object.keys(UNITS).length, 15)
+  assert.equal(Object.keys(UNITS).length, 20)
+  assert.deepEqual(Object.values(UNITS).filter((u) => u.summon).map((u) => u.id), ['skeleton', 'drone', 'wisp', 'tin_soldier', 'whelp'])
   // Floor 1's pool carries every threat type but depth (a room's, not a kind's: it comes with waves).
   const floor1 = Object.values(UNITS).filter((u) => u.spawn?.minFloor === 1)
   assert.deepEqual(new Set(floor1.flatMap((u) => u.threats)), new Set(Object.keys(THREATS).filter((t) => t !== 'depth')))
@@ -56,7 +62,7 @@ test('the Monarch: one of a kind, never spawned, never striking, its HP from the
 test('every soul has two or three upgrade paths of four tiers (IV a rank\'s), and every tier resolves', () => {
   for (const u of Object.values(UNITS)) {
     const paths = PATHS[u.id] ?? []
-    if (u.boss || u.monarch) { assert.equal(paths.length, 0); continue }
+    if (u.boss || u.monarch || u.summon) { assert.equal(paths.length, 0); continue }
     assert.ok(paths.length >= 2 && paths.length <= 3, `${u.id} paths`)
     assert.equal(new Set(paths.map((p) => p.id)).size, paths.length, `${u.id} path ids`)
     for (const p of paths) {
@@ -64,7 +70,13 @@ test('every soul has two or three upgrade paths of four tiers (IV a rank\'s), an
       const soul = { ...makeUnit(u.id, { uid: 1 }), path: p.id }
       for (const [i, t] of p.tiers.entries()) {
         const where = `${u.id} ${p.id} ${i + 1}`
-        assert.ok(t.desc && (t.mods || t.ability || t.aura), where)
+        assert.ok(t.desc && (t.mods || t.ability || t.aura || t.summon), where)
+        // A summon tier names a summon kind, at least one of it; the soul raises it from that tier on.
+        if (t.summon) {
+          assert.ok(UNITS[t.summon.id]?.summon && Number.isInteger(t.summon.count) && t.summon.count >= 1, `${where}: summon`)
+          assert.ok(!summonsOf({ ...soul, tier: i }).some((x) => x.id === t.summon.id), where)
+          assert.ok(summonsOf({ ...soul, tier: i + 1 }).some((x) => x.id === t.summon.id && x.count >= t.summon.count), where)
+        }
         const before = abilitiesOf({ ...soul, tier: i })
         if (t.ability) {
           assert.ok(ABILITIES[t.ability.id], `${where}: ability ${t.ability.id}`)
@@ -155,28 +167,23 @@ test('camps: every floor has some; each is 7×7 with every open cell reachable f
   for (const r of Object.values(ROLES)) assert.ok(BEHAVIOURS[r.move], `${r.id} moves by a known behaviour`)
 })
 
-// A banner's shape: offsets from its captain's cell, each a different cell, never the captain's own, behind or
-// level with it (the camp's rows rise toward the rear) but for the mouth's horns, a row ahead; within the
-// camp's reach; enough of them for a cohort as large as the board holds bodies besides its captain, before the
-// nearest open cell takes the rest.
-test('banner shapes: pair, line, wedge, block and mouth, each an ordered list of distinct offsets from the captain', () => {
-  assert.deepEqual(Object.keys(SHAPES), ['pair', 'line', 'wedge', 'block', 'mouth'])
-  for (const [id, shape] of Object.entries(SHAPES)) {
-    assert.ok(shape.name && shape.desc, id)
-    const keys = shape.offsets.map(([r, c]) => `${r},${c}`)
-    assert.equal(new Set(keys).size, keys.length, `${id}: repeats an offset`)
-    assert.ok(!keys.includes('0,0'), `${id}: the captain's own cell`)
-    for (const [r, c] of shape.offsets) assert.ok(Number.isInteger(r) && Number.isInteger(c) && r >= (id === 'mouth' ? -1 : 0) && r < CAMP_ROWS && Math.abs(c) < COLS, `${id}: ${r},${c}`)
-    assert.ok(shape.offsets.length >= TUNING.army.board - 2, `${id}: ${shape.offsets.length} offsets`)
+// The cohorts are gone, and their banner shapes with them.
+test('banner shapes are gone', async () => {
+  assert.ok(!('SHAPES' in await import('../src/content.js')))
+})
+
+// Summons: one summon tier per kin, on a path of a kind of that kin, raising a summon of the same kin.
+test('summon tiers: one kin each, the summon of the summoner\'s kin, at tier II', () => {
+  const tiers = Object.entries(PATHS).flatMap(([id, paths]) => paths.flatMap((p) => p.tiers.flatMap((t, i) => (t.summon ? [{ id, path: p.id, i, summon: t.summon }] : []))))
+  assert.deepEqual(tiers.map((t) => [t.id, t.path, t.summon.id]), [
+    ['bone_chanter', 'marrowcaller', 'skeleton'], ['hive_warden', 'brood_mother', 'drone'], ['clockwork_page', 'gearwright', 'tin_soldier'],
+    ['thorn_dryad', 'heartwood', 'wisp'], ['frost_wyrm', 'ancient', 'whelp']
+  ])
+  for (const t of tiers) {
+    assert.equal(UNITS[t.summon.id].kin, UNITS[t.id].kin, t.id)
+    assert.equal(t.i, 1, `${t.id}: tier II`)
   }
-  // Each shape is its own: the first members of a cohort stand differently in each.
-  assert.equal(new Set(Object.values(SHAPES).map((x) => JSON.stringify(x.offsets.slice(0, 3)))).size, 5)
-  // The mouth: its first seven all within a tile of the captain (none walks to close it), and the tile ahead
-  // of the captain never among them: the gap the trap is.
-  const mouth = SHAPES.mouth.offsets.slice(0, 7)
-  assert.ok(mouth.every(([r, c]) => Math.max(Math.abs(r), Math.abs(c)) === 1))
-  assert.ok(!SHAPES.mouth.offsets.some(([r, c]) => r === -1 && c === 0))
-  assert.deepEqual(mouth.slice(0, 2), [[-1, -1], [-1, 1]], 'the horns first')
+  assert.equal(new Set(tiers.map((t) => UNITS[t.id].kin)).size, 5, 'every kin has one')
 })
 
 test('orders: where (Hunt, Stay, Move) and when (at once, a time, three triggers), and a colour for every detachment', () => {

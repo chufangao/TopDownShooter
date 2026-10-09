@@ -3,23 +3,18 @@
 //   basic   rules of thumb: rooms by weighted dice, the strongest souls fielded, the Monarch parked on
 //           the camp's rear row in the middle lane, the best of three drafted formations, the first free
 //           offer (a relic, a tier, a keystone), recruits only to fill the field, essence on the lowest level (a path tier once a soul
-//           is ready for it), and Command only once two standing souls would wait on the bench with
-//           every banner filled; only the free bodies bound (kinds its captains can lead first), each
-//           captain a cohort of the most numerous kind it can lead, as many as Command allows, in a line,
-//           and muster once it is the cheapest thing to buy while a cohort fights; default orders (every
-//           soul Hunts, at once: a detachment it finds is disbanded); it never promotes a captain
+//           is ready for it), and Command only once two standing souls would wait in the ossuary with
+//           the field full; default orders (every soul Hunts, at once: a detachment it finds is disbanded); it
+//           never promotes a soul
 //   expert  plans: every route over the next few ranks played out, wounds counted when fielding, the
-//           formation (the Monarch's cell and the cohorts' kinds, counts and shapes too) hill-climbed
-//           over cells and the ossuary, and the captains' orders (Stay, Hunt, Move to the domain's edge or a
-//           wing, held for a body falling, the Monarch struck or, where more foes come, a wave) with them; a
-//           Stay line, a screen beside the Monarch and a reserve among its drafts; free offers (keystones too)
-//           weighed by rehearsing the fights ahead, recruits that
-//           would make the field, essence on whatever buys the most worth per essence, and Monarch points,
-//           muster and paid bodies when rehearsing the fights ahead says they beat the same essence spent
-//           on the souls; the free bodies on the kind that rehearses best; a captain promoted when the rank
-//           buys something (a Knight once its tier IV is next or rehearsal says the rank beats its bodies, a Marshal when rehearsal says the domain beats
-//           the bodies; the strongest fielded first), and a Knight's or Marshal's tier IV and second path
-//           bought by worth like any tier
+//           formation (the Monarch's cell too) hill-climbed over cells and the ossuary, and the souls' orders
+//           (Stay, Hunt, Move to the domain's edge or a wing, held for one of its own falling, the Monarch
+//           struck or, where more foes come, a wave) with them; a Stay line, a screen beside the Monarch and a
+//           reserve among its drafts; free offers (keystones too) weighed by rehearsing the fights ahead,
+//           recruits that would make the field, essence on whatever buys the most worth per essence (a summon
+//           tier worth its summons), and Monarch points and ranks when rehearsing the fights ahead says they beat
+//           the same essence spent on the souls (a Knight at once when its tier IV is next; the strongest
+//           fielded first), and a Knight's or Marshal's tier IV and second path bought by worth like any tier
 // It knows the rules, not the rolls: rehearsals and rollouts never use a battle's own seed, nor the orders an
 // elite's captains were given (never shown: it rehearses them on orders guessed from what their kinds may be
 // bidden, a different guess each rehearsal seed). A rehearsal ends once its result is settled (battle.js settled), and
@@ -29,7 +24,7 @@
 // for the gap between the levels:     … --ladder [--runs 8]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above)
-// for how much each mechanic carries the expert, full runs:  … --ablations [--runs 8] [--variants full,orders,army] [--out runs.json]
+// for how much each mechanic carries the expert, full runs:  … --ablations [--runs 8] [--variants full,orders,summons] [--out runs.json]
 // or as a fast battle-level proxy (its battles refought stripped): … --necessity [--runs 8] [--setups file]
 // (the defaults, RUNS, are sized to one expert run per core: an expert run takes minutes; see README)
 import { createHash } from 'node:crypto'
@@ -40,17 +35,17 @@ import { createRng } from './rng.js'
 import {
   statsOf, pathsOf, tiersOf, autoPlace, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campGrid, campOpen, wallTiles, steps, deployTile,
   tileAt, tileX, tileY, TILES, LANES, DEPTH, rowOf, colOf, rangeOf, isAllyShape, distance, makeUnit, nearestOpen, slotAt, baseStats,
-  seatNear, sealedBy
+  seatNear, sealedBy, summonsOf
 } from './unit.js'
 import { createBattle, playOut, timelineHash } from './battle.js'
 import {
-  createRun, apply, availableNodes, fieldCap, rosterCap, fielded, benched, currentNode, battleSetup, levelCost, tierCost,
-  isMonarch, monarchOf, souls, MONARCH_STATS, monarchCost, monarchPoints, canLead, musterCost, bindCost, standingOf, domainOf, isSquare,
-  canPromote, canAdvance, advanced, holds, domainCentre, feedOf, promoteNeed, kinStanding, cohortCap
+  createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, levelCost, tierCost,
+  isMonarch, monarchOf, souls, MONARCH_STATS, monarchCost, monarchPoints, domainOf, isSquare,
+  canPromote, canAdvance, advanced, holds, domainCentre, promoteLevel, promoteCost
 } from './run.js'
 import { nodeOf, RANKS } from './map.js'
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, campDef, ROLES, SHAPES, DETACHMENT_COLORS, FOE_ORDERS } from '../content.js'
+import { unitDef, abilityDef, campDef, ROLES, DETACHMENT_COLORS, FOE_ORDERS } from '../content.js'
 
 // seeds: rehearsals per formation (0: take the first draft unrehearsed); drafts: how many of the
 // drafts to try (all by default); search: formations tried by hill-climbing from the best draft;
@@ -58,7 +53,7 @@ import { unitDef, abilityDef, campDef, ROLES, SHAPES, DETACHMENT_COLORS, FOE_ORD
 // weighted dice), over the next `horizon` rooms; reap: weigh free offers by rehearsing the fights
 // ahead, and recruit by worth; spend: buy by worth per essence (and Monarch points by rehearsal) rather
 // than by rule of thumb; park: the Monarch always on the rear row, middle lane, never moved by the search;
-// orders: draft and search the captains' orders (else every soul Hunts, at once); finalists, validate: the best
+// orders: draft and search the souls' orders (else every soul Hunts, at once); finalists, validate: the best
 // `finalists` formations of the search fought again on `validate` fresh rolls, the best of them taken; keepOrders (no level has
 // it: the fuzz test's) fights on whatever orders it finds instead of disbanding them, when it plans none.
 export const LEVELS = {
@@ -77,26 +72,25 @@ const RISK = { ...ROLLOUT, seeds: 2, orders: true }
 // takes ONE mechanic from it and changes nothing else; essence it would have spent there goes where its
 // spending logic already sends it. Everything it plays ahead with (rehearsals, rollouts, sizing up an offer
 // or a point) carries the same ablation:
-//   monarch-stats  never buys a Monarch point (Dominion, Command, Will); a cohort holds only its captain's rank's bodies (TUNING.ranks.cohort)
-//                  (run.js canCohort), so this takes the army with it
+//   monarch-stats  never buys a Monarch point (Dominion, Command, Will): the field stays at TUNING.party.field
 //   arise          the Monarch's Arise never casts (a rules switch: the run's `ablate`, carried in every
 //                  battle's setup) and it never buys Will
 //   orders         no Stay or Move: every detachment's plan is Hunt (a held start is still allowed)
 //   reserves       no held start: every detachment starts at once (Stay and Move still allowed)
-//   army           no cohorts: never leads a body, never musters, never gives a cohort; it still binds bodies, as
-//                  rank food only (chooseFood), so ranks stay within reach
+//   summons        no soul raises its summons (a rules switch, as arise), and a summon tier is worth only its
+//                  place on the path (worth: its summons not counted), so the essence goes elsewhere
 //   ranks          never promotes
 //   paths          never buys a path tier, and takes nothing of a rite's tiers; with tier IV out of reach a Knight
 //                  is weighed as the step toward a Marshal (promotion)
 //   keystones      never takes a keystone
 //   relics         never takes a relic
 //   synergies      the party holds no synergy in battle, at any step (a rules switch, as arise)
-//   formation      no formation search: its souls in basic's first draft's cells (who it fields, its cohorts and
+//   formation      no formation search: its souls in basic's first draft's cells (who it fields and its
 //                  orders still its own) and the Monarch parked where basic parks it
 //   levels         never buys a level (reported, not targeted)
 // A run of an ablation that is a rules switch must be made with it (ablatedRun); policy refuses one that is not.
-export const ABLATIONS = ['monarch-stats', 'arise', 'orders', 'reserves', 'army', 'ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation', 'levels']
-export const RULE_SWITCHES = ['arise', 'synergies']
+export const ABLATIONS = ['monarch-stats', 'arise', 'orders', 'reserves', 'summons', 'ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation', 'levels']
+export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 export const ablatedRun = (seed, ablate = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null })
 // A level as it plays ahead for L: the same ablation carried.
 const as = (base, L) => (L.ablate ? { ...base, ablate: L.ablate } : base)
@@ -121,7 +115,7 @@ function allowed (run, party, L) {
 
 // Basic's first draft's cells for these units (L's fielding order, as its drafts take them): the Monarch on
 // basic's parking cell, the souls by role row from the middle lane (every other lane against blasts).
-// Cohorts and orders are kept.
+// Orders are kept.
 function basicCells (run, party, L) {
   const s = run.state
   const camp = campGrid(s.camp)
@@ -140,16 +134,18 @@ const byPower = (a, b) => power(b) - power(a) || a.uid - b.uid
 const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b.uid
 
 // Rough fighting worth from its stats, path tiers included: how long it lasts times how hard it hits,
-// square-rooted. A tier that grants an ability or an aura counts as a tenth more. 0 for the fallen, and
+// square-rooted. A tier that grants an ability or an aura counts as a tenth more, and the summons its tiers
+// raise each add their own worth (unless `summons` is false: the summons ablation's). 0 for the fallen, and
 // for the Monarch, which never strikes: what it is worth only a rehearsal can tell.
-function worth (u) {
+function worth (u, summons = true) {
   if (u.hp <= 0 || isMonarch(u)) return 0
   const s = statsOf(u)
   const lasts = s.hp * (1 + s.def / 100) / s.damage.taken * (1 + s.eva / 60)
   const hits = s.atk * s.damage.dealt * (TUNING.gauge.base + s.spd / TUNING.gauge.spdDivisor) * s.gauge.rate *
     (1 + s.crt / 100 * (TUNING.crit.mult - 1)) * (s.acc / (s.acc + 15)) * (1 + 0.3 * (s.heal.given - 1))
   const signature = tiersOf(u).filter((t) => t.ability || t.aura).length
-  return Math.sqrt(lasts * hits) * (1 + 0.1 * signature)
+  const raised = summons ? summonsOf(u).reduce((n, x) => n + x.count * worth(makeUnit(x.id, { lvl: x.lvl })), 0) : 0
+  return Math.sqrt(lasts * hits) * (1 + 0.1 * signature) + raised
 }
 const power = worth
 const fieldPower = (u) => worth(u) * Math.sqrt(hpPct(u))
@@ -229,12 +225,11 @@ function rollout (sim, start, depth, R, route = []) {
   })
 }
 
-// What a retinue brings to its next fight: the fieldable souls' wounded power and the bodies their
-// cohorts lead, raised by relics.
+// What a retinue brings to its next fight: the fieldable souls' wounded power (their summons counted), raised
+// by relics.
 function strength (s) {
   const best = souls(s.party).map(fieldPower).sort((a, b) => b - a).slice(0, fieldCap({ state: s }))
-  const bodies = souls(s.party).reduce((n, u) => n + (u.cohort ? u.cohort.count * worth(makeUnit(u.cohort.kind, { lvl: s.muster })) : 0), 0)
-  return (best.reduce((n, p) => n + p, 0) + bodies) * (1 + 0.08 * s.relics.length) || 1
+  return best.reduce((n, p) => n + p, 0) * (1 + 0.08 * s.relics.length) || 1
 }
 
 // ── prep: the formation ──────────────────────────────────────────────────────────────────────────────
@@ -247,19 +242,19 @@ function strength (s) {
 //   sheltered  the melee where foes walking in arrive first; ranged souls behind the walls, where foes
 //              must walk furthest to reach them for how close they stand
 // An expert then hill-climbs from the best draft: swapping two souls, moving one to another cell, trading
-// one for a standing soul from the bench, changing a cohort's shape, kind or count, or a captain's order
-// (replan), keeping each change that rehearses better.
+// one for a standing soul from the ossuary, or changing a soul's order (replan), keeping each change that
+// rehearses better.
 // The Monarch takes its cell first: basic parks it on the rear row, middle lane; an expert drafts it
 // mid-camp (its role's row, behind the souls) and once at the back, and its search moves it like a soul
-// (it is never traded away). Every draft gives the captains their cohorts by rule of thumb (cohortsFor).
-// An expert also drafts orders: on the first mid-camp formation every captain on Stay (a line where it
-// stands), and that line with its toughest captain on Stay on the cell ahead of the Monarch (a screen); with
-// the Monarch at the back, every captain on Stay at the domain's edge (a line as far ahead as the domain
-// holds it); the first formation with its weakest captain held back until a body falls (a reserve that
+// (it is never traded away).
+// An expert also drafts orders: on the first mid-camp formation every soul on Stay (a line where it
+// stands), and that line with its toughest soul on Stay on the cell ahead of the Monarch (a screen); with
+// the Monarch at the back, every soul on Stay at the domain's edge (a line as far ahead as the domain
+// holds it); the first formation with its weakest soul held back until one of its own falls (a reserve that
 // plugs the breach), and in a room with waves one held for the wave; and the Monarch in its pocket, the
-// cell with the fewest approach tiles, with all of them,
-// or half, held by its toughest captains on Stay (a screen against flankers). A soul's order rides on its formation entry as `order` ({ where, square, when }, or
-// null for Hunt at once); captains with the same order make one detachment (detachmentsOf).
+// cell with the fewest approach tiles, with all of them, or half, held by its toughest souls on Stay (a
+// screen against flankers). A soul's order rides on its formation entry as `order` ({ where, square, when },
+// or null for Hunt at once); souls with the same order make one detachment (detachmentsOf).
 
 const SPREAD = [3, 1, 5, 2, 4, 0, 6]
 const blasts = (foes) => foes.some((f) => unitDef(f.id).abilities.some((id) => abilityDef(id).shape === 'blast'))
@@ -301,25 +296,10 @@ function sheltered (units, camp, taken) {
 const rearCell = (camp) => seatNear(camp)
 const midCell = (camp) => seatNear(camp, slotAt(ROLES.monarch.autoRow, CENTRE_OUT[0]))
 
-// Cohorts by rule of thumb: the captains in turn (strongest first) each take the kind they can lead with
-// the most bodies left (ties to the higher tier), as many as Command allows, in `shape`. Mutates captains.
-function cohortsFor (s, captains, shape = 'line', L = {}) {
-  if (L.ablate === 'army') return captains.map((c) => Object.assign(c, { cohort: null }))
-  const left = Object.fromEntries(Object.keys(s.ossuary).map((k) => [k, standingOf(s, k)]))
-  for (const c of captains) {
-    const kind = Object.keys(left).filter((k) => left[k] > 0 && canLead(c, k))
-      .sort((a, b) => left[b] - left[a] || unitDef(b).tier - unitDef(a).tier || (a < b ? -1 : 1))[0]
-    const count = kind ? Math.min(cohortCap(s, c), left[kind]) : 0
-    c.cohort = count ? { kind, count, shape } : null
-    if (count) left[kind] -= count
-  }
-  return captains
-}
-
 function drafts (run, want, L) {
   const s = run.state
   const camp = campGrid(s.camp)
-  const blank = () => cohortsFor(s, want.map((u) => ({ ...u, slot: -1 })), 'line', L)
+  const blank = () => want.map((u) => ({ ...u, slot: -1 }))
   const lanes = blasts(currentNode(run).foes) ? [SPREAD, CENTRE_OUT] : [CENTRE_OUT, SPREAD]
   const around = (cell) => {
     const m = { ...monarchOf(s), slot: cell }
@@ -344,24 +324,10 @@ function drafts (run, want, L) {
   const nook = around(pocketCell(s.camp)).rows(lanes[0])
   // Where more foes will come, that reserve held for the wave instead.
   const wave = currentNode(run).waves && last && want.length > 1 ? copy(reserve).map((u) => (u.uid === last.uid ? { ...u, order: WAVE } : u)) : null
-  // The banners that would find no place on the board (fielding order, captain and cohort counted) held until
-  // a body falls: held, they stand past the board's cap in places of their own.
-  const spill = (party) => {
-    let n = 0
-    const over = new Set()
-    for (const w of want) {
-      const u = party.find((x) => x.uid === w.uid)
-      if (!u) continue
-      n += 1 + (u.cohort?.count ?? 0)
-      if (n > TUNING.army.board && w !== want[0]) over.add(u.uid)
-    }
-    return over.size ? party.map((u) => (over.has(u.uid) ? { ...u, order: FALLS } : u)) : null
-  }
-  const spills = [spill(copy(out[0])), spill(copy(line))].filter(Boolean)
   return [
     ...out, line, ...(toughest ? [screen(copy(line), toughest.uid, open)] : []), edgeLine(copy(out[3]), s),
     ...(last && want.length > 1 ? [reserve] : []), pocket(copy(nook), s, Infinity), pocket(copy(nook), s, Math.ceil(want.length / 2)),
-    ...(wave ? [wave] : []), ...spills
+    ...(wave ? [wave] : [])
   ]
 }
 
@@ -376,7 +342,7 @@ function pocketCell (camp) {
 }
 
 // A screen against flankers, who walk through any line to the deepest foe: the Monarch's approach tiles in
-// the camp held by its toughest captains on Stay, up to `n` of them (ahead first), so a flanker finds no
+// the camp held by its toughest souls on Stay, up to `n` of them (ahead first), so a flanker finds no
 // open tile beside it.
 function pocket (out, s, n) {
   const m = deployTile('party', out.find(isMonarch).slot)
@@ -387,7 +353,7 @@ function pocket (out, s, n) {
   return out
 }
 
-// What a captain is worth on a tile it must hold: how much it takes to fell.
+// What a soul is worth on a tile it must hold: how much it takes to fell.
 const toughness = (u) => {
   const st = statsOf(u)
   return st.hp * (1 + st.def / 100)
@@ -402,7 +368,7 @@ const WAVE = { where: 'hunt', square: null, when: { at: 'wave' } }
 // The camp row at the domain's edge: the furthest ahead of its centre still inside it.
 export const edgeRow = (s, party) => CAMP_ROWS - 1 - Math.min(CAMP_ROWS - 1, tileY(centreOf(s, party)) + domainOf(s))
 
-// A line at the domain's edge: each captain, front ones first, on Stay on the open cell nearest the edge row
+// A line at the domain's edge: each soul, front ones first, on Stay on the open cell nearest the edge row
 // in its lane.
 function edgeLine (out, s) {
   const row = edgeRow(s, out)
@@ -413,9 +379,9 @@ function edgeLine (out, s) {
   return out
 }
 
-// The detachments a formation's orders make: captains with the same order, in formation order, as the run
+// The detachments a formation's orders make: souls with the same order, in formation order, as the run
 // keeps them (ids from 1, each with its colour). No more than the run allows (TUNING.army.detachments): a
-// formation's search keeps within that (replan), and any order past it is dropped here (those captains
+// formation's search keeps within that (replan), and any order past it is dropped here (those souls
 // Hunt, at once), so a rehearsal fights what the run can be told, and pickPrep never asks for an order
 // the run refuses.
 export function detachmentsOf (party) {
@@ -431,12 +397,12 @@ export function detachmentsOf (party) {
 }
 
 // The tile a formation's domain centres on as the battle begins (domainCentre, on its cells and the
-// detachments its orders make): the Monarch's, or under Vanguard Crown its front-most captain's.
+// detachments its orders make): the Monarch's, or under Vanguard Crown its front-most soul's.
 const centreOf = (s, party) => deployTile('party', domainCentre({ ...s, party, detachments: detachmentsOf(party) }))
 
-// The menu a captain's order is drawn from: where (Stay; Hunt; Move to the domain's edge in its lane, the
+// The menu a soul's order is drawn from: where (Stay; Hunt; Move to the domain's edge in its lane, the
 // furthest tile ahead of its centre still inside the domain; Move to a wing of the foes' front) and when (at once, or
-// held until a body falls or the Monarch is struck, or in a room with waves until one enters). Hunt at once is
+// held until one of its own falls or the Monarch is struck, or in a room with waves until one enters). Hunt at once is
 // no order at all: null.
 function drawOrder (s, party, c, rng) {
   const where = rng.pick(['stay', 'hunt', 'edge', 'wing'])
@@ -453,7 +419,7 @@ function drawOrder (s, party, c, rng) {
   return { where: square === null ? (where === 'hunt' ? 'hunt' : 'stay') : 'move', square, when: { at } }
 }
 
-// Moves a captain to `slot` (whoever stands there takes its old cell), on Stay: the cell is its post.
+// Moves a soul to `slot` (whoever stands there takes its old cell), on Stay: the cell is its post.
 function post (out, uid, slot) {
   const c = out.find((u) => u.uid === uid)
   const other = out.find((u) => u.slot === slot && u !== c)
@@ -463,7 +429,7 @@ function post (out, uid, slot) {
   return out
 }
 
-// A screen: the captain on Stay on an open cell beside the Monarch, the cells ahead of it first, then the
+// A screen: the soul on Stay on an open cell beside the Monarch, the cells ahead of it first, then the
 // nearest lanes (never the Monarch's own cell).
 function screen (out, uid, open) {
   const m = out.find(isMonarch)
@@ -474,10 +440,10 @@ function screen (out, uid, open) {
   return slot === undefined ? out : post(out, uid, slot)
 }
 
-// One change to the orders: a captain's order cleared (it Hunts), set to one another detachment has (it
-// joins it), set afresh from the menu (drawOrder), or the captain posted on Stay: beside the Monarch (a
+// One change to the orders: a soul's order cleared (it Hunts), set to one another detachment has (it
+// joins it), set afresh from the menu (drawOrder), or the soul posted on Stay: beside the Monarch (a
 // screen) or on the camp's cell nearest the domain's edge in its lane (a line). Never more than
-// TUNING.army.detachments different orders, whichever way the change came: a captain whose new order
+// TUNING.army.detachments different orders, whichever way the change came: a soul whose new order
 // would be one past that joins an existing one instead (where it was posted, if it was).
 export function replan (out, s, rng, open) {
   const caps = out.filter((u) => !isMonarch(u))
@@ -505,23 +471,23 @@ const rehearsalSeed = (setup, k) => setup.seed + '|rehearsal' + (k ? '|' + k : '
 
 // The budget rehearsals run on (TUNING.autoplay): a battle still going at `ceiling` ticks counts as a loss,
 // and a battle of more than `bigBattle` units on the board at the start is rehearsed on one roll (the
-// reserve is not counted: it only enters as bodies fall, which they seldom do). Foe waves need no more: a
+// reserve is not counted: it only enters as its start comes; summons are, two to a summon tier). Foe waves need no more: a
 // ceiling counts from the last foe to enter (battle.js checkEnd), so a rehearsal always meets every wave
 // (each comes at most TUNING.spawn.waves.t after the one before, well inside the budget). → { seeds, ceiling }
 export function rehearsalBudget (setup, seeds) {
   const A = TUNING.autoplay
-  const big = setup.party.length + setup.foes.length > A.bigBattle
+  const summons = setup.ablate?.includes('summons') ? 0 : setup.party.reduce((n, u) => n + summonsOf(u).reduce((k, x) => k + x.count, 0), 0)
+  const big = setup.party.length + summons + setup.foes.length > A.bigBattle
   return { seeds: big ? Math.min(seeds, 1) : seeds, ceiling: A.rehearsalCeiling }
 }
 
 // A rehearsal's worth, averaged over its budget's rolls: a win by how much HP it keeps (wounds carry
-// over; the Monarch's counts as much as all the souls', and shadows leave anyway), from 1 to 2; a loss by how
+// over; the Monarch's counts as much as all the souls', and shadows and summons leave anyway), from 1 to 2; a loss by how
 // much of the foes' HP it took, from −LOSS − 1 to −LOSS. A fallen Monarch is a loss, whoever else stands, and
 // so is the ceiling. A loss ends the run, so it weighs LOSS more than the worst win: a formation that loses
 // one roll in six to save a few wounds in the other five is not the better one.
 // The formation is rehearsed in the run's party order with the detachments its orders make, as the real
-// fight will set it up: the order decides which captain's bodies take the board first and which wait in
-// reserve (armyLayout).
+// fight will set it up: the order decides which held souls enter first (armyLayout).
 export function rehearse (run, party, want = 1, { from = 0, full = false, beats = null } = {}) {
   const order = new Map(run.state.party.map((u, i) => [u.uid, i]))
   const rank = (u) => order.get(u.uid) ?? Infinity
@@ -649,17 +615,20 @@ export const BEST = 2
 export function scoreOf (b) {
   const share = (us) => us.length ? us.reduce((n, u) => n + u.hp, 0) / us.reduce((n, u) => n + u.maxHp, 0) : 0
   if (b.winner !== 'party') return -LOSS - share(b.units.filter((u) => u.side === 'foe'))
-  const party = b.units.filter((u) => u.side === 'party' && !u.shadow)
+  const party = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.summoned)
   const kept = share(party.filter((u) => u !== b.monarch))
   return 1 + (b.monarch ? (kept + share([b.monarch])) / 2 : kept)
 }
 
 // Who stands in the camp: the strongest standing souls, wounds counted at the expert's level.
 const standing = (party) => party.filter((u) => u.hp > 0)
-const wanted = (run, L) => standing(souls(run.state.party)).sort(L.wounds ? byFieldPower : byPower).slice(0, fieldCap(run))
+const wanted = (run, L) => {
+  const w = (u) => worth(u, L.ablate !== 'summons') * (L.wounds ? Math.sqrt(hpPct(u)) : 1)
+  return standing(souls(run.state.party)).sort((a, b) => w(b) - w(a) || a.uid - b.uid).slice(0, fieldCap(run))
+}
 
 // → { party, score }: the best formation found for the current room. Formations that put everyone in
-// the same cells with the same cohorts and orders are only rehearsed once. `enough` (the room veto's: pickRoute):
+// the same cells with the same orders are only rehearsed once. `enough` (the room veto's: pickRoute):
 // the caller asks only whether the best score reaches it; with pruning on, the plan stops at the first formation
 // that does, and a formation that cannot reach it is not fought on its remaining rolls. The answer is the same.
 function plan (run, L, { enough = Infinity } = {}) {
@@ -686,7 +655,7 @@ function plan (run, L, { enough = Infinity } = {}) {
   // could never reach the fight.
   const score = (party) => {
     if (sealedBy(run.state.camp, party.find(isMonarch).slot).length) return -Infinity
-    const key = party.map((u) => `${u.uid}@${u.slot}${u.cohort ? `:${u.cohort.kind}×${u.cohort.count}:${u.cohort.shape}` : ''}${u.order ? JSON.stringify(u.order) : ''}`).sort().join()
+    const key = party.map((u) => `${u.uid}@${u.slot}${u.order ? JSON.stringify(u.order) : ''}`).sort().join()
     if (!tried.has(key)) {
       const bar = cut()
       const beats = enough < Infinity ? (most) => most >= enough : (most) => most > bar
@@ -727,26 +696,22 @@ function plan (run, L, { enough = Infinity } = {}) {
   return pick ? { party: forms.get(pick.key), score: pick.fresh } : { party: best, score: bestScore }
 }
 
-// One change to a formation: trade a soul for one from the bench (it takes over the cohort if it can lead
-// it, and the order), swap two, move one to a free cell (a near one more often than not), or, with bodies
-// to lead, a third of the time change a cohort; with `orders`, a third of the time change an order first.
-// The Monarch is never traded, and with `park` never moved. With 'formation' ablated nothing is moved (the cells
-// are basic's: see allowed): a change is a trade, an order or a cohort.
+// One change to a formation: trade a soul for one from the ossuary (it takes over the order), swap two, move
+// one to a free cell (a near one more often than not); with `orders`, a third of the time change an order
+// first. The Monarch is never traded, and with `park` never moved. With 'formation' ablated nothing is moved
+// (the cells are basic's: see allowed): a change is a trade or an order.
 function mutate (party, pool, open, rng, s, L) {
   const out = party.map((u) => ({ ...u }))
   const fixed = L.ablate === 'formation'
   if (L.orders && rng.chance(0.35)) return replan(out, s, rng, open)
-  if (armed(s, out, L) && rng.chance(0.3)) return recohort(out, s, rng)
   const movable = L.park || fixed ? out.filter((u) => !isMonarch(u)) : out
   const a = movable[rng.int(movable.length)]
   const spare = pool.filter((u) => !out.some((x) => x.uid === u.uid))
   const roll = rng()
-  if (fixed && !(spare.length && a)) return L.orders ? replan(out, s, rng, open) : armed(s, out, L) ? recohort(out, s, rng) : out
+  if (fixed && !(spare.length && a)) return L.orders ? replan(out, s, rng, open) : out
   if (spare.length && (roll < 0.2 || fixed) && !isMonarch(a)) {
     const b = rng.pick(spare)
-    // The cohort passes only as far as the newcomer's rank leads (cohortCap).
-    const n = a.cohort && canLead(b, a.cohort.kind) ? Math.min(a.cohort.count, cohortCap(s, b)) : 0
-    return out.map((u) => (u === a ? { ...b, slot: a.slot, cohort: n > 0 ? { ...a.cohort, count: n } : null, order: a.order ?? null } : u))
+    return out.map((u) => (u === a ? { ...b, slot: a.slot, order: a.order ?? null } : u))
   }
   if (movable.length > 1 && roll < 0.55) {
     const b = rng.pick(movable.filter((u) => u !== a));
@@ -759,52 +724,25 @@ function mutate (party, pool, open, rng, s, L) {
   return out
 }
 
-// Whether any captain of the formation could lead a body: Command, and bodies of a kind it can lead.
-const armed = (s, party, L = {}) => L.ablate !== 'army' && party.some((c) => !isMonarch(c) && cohortCap(s, c) > 0 && Object.keys(s.ossuary).some((k) => standingOf(s, k) > 0 && canLead(c, k)))
-
-// One change to the cohorts: a captain's shape, its kind (as many as it can take of another it can lead),
-// or one body more or fewer, always within Command and the bodies the other captains leave.
-function recohort (out, s, rng) {
-  const caps = out.filter((c) => !isMonarch(c))
-  const left = (c, k) => standingOf(s, k) - caps.reduce((n, x) => n + (x !== c && x.cohort?.kind === k ? x.cohort.count : 0), 0)
-  const c = rng.pick(caps.filter((x) => x.cohort || Object.keys(s.ossuary).some((k) => left(x, k) > 0 && canLead(x, k))))
-  const kinds = Object.keys(s.ossuary).filter((k) => left(c, k) > 0 && canLead(c, k))
-  const roll = rng()
-  if (c.cohort && roll < 0.5) {
-    c.cohort = { ...c.cohort, shape: rng.pick(Object.keys(SHAPES).filter((x) => x !== c.cohort.shape)) }
-  } else if (c.cohort && roll < 0.75) {
-    const most = Math.min(cohortCap(s, c), left(c, c.cohort.kind))
-    const count = c.cohort.count + (c.cohort.count < most && rng.chance(0.5) ? 1 : -1)
-    c.cohort = count > 0 ? { ...c.cohort, count } : null
-  } else if (kinds.length) {
-    const kind = rng.pick(kinds)
-    c.cohort = { kind, count: Math.min(cohortCap(s, c), left(c, kind)), shape: c.cohort?.shape ?? 'line' }
-  }
-  return out
-}
-
-// The plan only depends on the room, the camp, the relics, who is standing (not where, nor whom it leads),
-// the bodies standing, the muster and the uids the foes will take, so it is made once per prep however many
-// steps carry it out.
+// The plan only depends on the room, the camp, the relics, who is standing (not where), their tiers and ranks
+// (what they summon), and the uids the foes will take, so it is made once per prep however many steps carry it
+// out.
 const plans = new WeakMap()
 export function planFor (run, L) {
   const s = run.state
-  const key = JSON.stringify([L, s.floor, s.at, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.muster, bodiesKey(s), s.party.map((u) => [u.uid, u.id, u.lvl, u.hp])])
+  const key = JSON.stringify([L, s.floor, s.at, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.party.map((u) => [u.uid, u.id, u.lvl, u.hp, u.tier, u.tier2, u.grade])])
   const have = plans.get(run)
   if (have?.key === key) return have.plan
-  const made = plan(run, L).party.map((u) => ({ uid: u.uid, slot: u.slot, cohort: u.cohort ?? null, order: u.order ?? null }))
+  const made = plan(run, L).party.map((u) => ({ uid: u.uid, slot: u.slot, order: u.order ?? null }))
   plans.set(run, { key, plan: made })
   return made
 }
-const bodiesKey = (s) => Object.entries(s.ossuary).map(([k, o]) => `${k}:${o.standing}`).join()
-const sameCohort = (a, b) => (a ?? null) === (b ?? null) || (!!a && !!b && a.kind === b.kind && a.count === b.count && a.shape === b.shape)
 
-// One step toward the plan: the souls it leaves out benched, then the Monarch to its cell (no one else
+// One step toward the plan: the souls it leaves out to the ossuary, then the Monarch to its cell (no one else
 // is planned there, so it is never displaced again), then each soul in its planned cell (whoever stood
-// there takes the mover's old one; a soul in place is never moved again), then every cohort that differs
-// from the plan cleared (so the bodies are free), then the planned ones given; then every detachment the
-// plan does not hold disbanded, then the planned ones ordered (basic plans none: it fights on default
-// orders); then fight.
+// there takes the mover's old one; a soul in place is never moved again); then every detachment the plan
+// does not hold disbanded, then the planned ones ordered (basic plans none: it fights on default orders);
+// then fight.
 function pickPrep (run, L) {
   const s = run.state
   const spend = pickSpend(run, L)
@@ -816,12 +754,6 @@ function pickPrep (run, L) {
   if (m && monarchOf(s).slot !== m.slot) return { type: 'place', uid: m.uid, slot: m.slot }
   const off = goal.find((p) => s.party.find((u) => u.uid === p.uid).slot !== p.slot)
   if (off) return { type: 'place', uid: off.uid, slot: off.slot }
-  const want = (u) => goal.find((p) => p.uid === u.uid)?.cohort ?? null
-  const differs = souls(s.party).filter((u) => !sameCohort(u.cohort, want(u)))
-  const clear = differs.find((u) => u.cohort)
-  if (clear) return { type: 'cohort', uid: clear.uid, kind: null }
-  const give = differs.find((u) => want(u))
-  if (give) return { type: 'cohort', uid: give.uid, ...want(give) }
   if (!L.orders && L.keepOrders) return { type: 'fight' }
   const orders = L.orders ? detachmentsOf(goal) : []
   const same = (a, b) => a.members.length === b.members.length && a.members.every((uid) => b.members.includes(uid)) && JSON.stringify(a.plan) === JSON.stringify(b.plan)
@@ -836,80 +768,54 @@ function pickPrep (run, L) {
 
 // Essence goes to the souls that will fight: the strongest standing ones. Basic levels the lowest of
 // them, but buys a path tier (its first path, or the one it is on) once a soul's level is three per
-// tier it would hold; it buys Command first once two standing souls would wait on the bench with every
-// banner filled (counted from the cap, not the camp: it spends before it places, so the souls a new banner
-// will take still sit on the bench), and no other Monarch point; then the muster, once it is the cheapest
-// thing to buy (musterFirst). An expert buys whatever adds the most worth per essence, committing a soul to
-// the path whose three tiers add the most, unless rehearsal says a Monarch point or the next muster level is
-// worth more (armyWish): then it saves for that and buys it. Before any of that, as promotion costs bodies,
-// not essence, an expert promotes whenever a rank would buy something (promotion).
+// tier it would hold; it buys Command first once two standing souls would wait in the ossuary with the field
+// full (counted from the cap, not the camp: it spends before it places, so the souls a wider field will take
+// still sit in the ossuary), and no other Monarch point. An expert buys whatever adds the most worth per
+// essence, committing a soul to the path whose three tiers add the most, unless rehearsal says a Monarch point
+// is worth more (armyWish): then it saves for that and buys it. Before any of that, an expert promotes whenever
+// a rank would buy something (promotion).
 function pickSpend (run, L) {
   const s = run.state
   const up = L.spend && L.ablate !== 'ranks' && promotion(run, L)
   if (up) return up
   if (!L.spend) {
     if (statsFor(L).includes('command') && standing(souls(s.party)).length - fieldCap(run) >= 2 && s.essence >= monarchCost(run)) return { type: 'monarch', stat: 'command' }
-    if (L.ablate !== 'army' && musterFirst(run, L)) return { type: 'muster' }
   } else {
     const wish = armyWish(run, L)
-    if (wish === 'muster') return s.essence >= musterCost(run) ? { type: 'muster' } : null
     if (wish) return s.essence >= monarchCost(run) ? { type: 'monarch', stat: wish } : null
   }
   return soulSpend(run, L)
 }
 
-// The expert's rule for ranks: a rank only when it buys something, for the strongest fielded standing captain
-// first, or null. A captain is made a Knight once its path stands at tier III (tier IV is next); a rank's might,
-// cohort and a Marshal's domain show in a battle, so a Knight is made a Marshal, or (round 3) the strongest
-// fielded Soldier a Knight, when rehearsing the fights ahead with it promoted, and its bodies eaten, beats keeping
-// the bodies.
-// (Promoting whenever bodies allowed made Knights of every captain on floor 2 and left their cohorts empty.)
+// The expert's rule for ranks: a rank only when it buys something, for the strongest fielded standing soul
+// first, or null; only a soul with the level, and the essence there to pay (canPromote). A soul is made a
+// Knight at once when its path stands at tier III (tier IV is next). Otherwise a rank's might, its summons and
+// a Marshal's domain show in a battle, so a Knight is made a Marshal, or the strongest fielded Soldier a
+// Knight, when rehearsing the fights ahead with it promoted beats the same essence spent on its souls.
 // With paths ablated tier IV is out of reach, so a Knight buys nothing by itself; it is weighed as the step
-// toward a Marshal instead: rehearsing both ranks taken (a Marshal, a Knight's bodies and a Marshal's eaten)
-// against neither, once the kin's bodies stand for both.
+// toward a Marshal instead: rehearsing both ranks taken against the essence for both spent on the souls, once
+// the soul has a Marshal's level and both prices in hand.
 const promotions = new WeakMap()
 function promotion (run, L) {
   const s = run.state
   const ready = standing(fielded(souls(s.party))).sort(byFieldPower).filter((x) => canPromote(run, x))
-  const knight = ready.find((u) => !u.grade && u.tier >= 3)
+  const knight = ready.find((u) => !u.grade && u.tier >= 3 && L.ablate !== 'paths')
   if (knight) return { type: 'promote', uid: knight.uid }
-  const twoStep = (x) => !x.grade && kinStanding(s, unitDef(x.id).kin) >= TUNING.ranks.knight + TUNING.ranks.marshal
-  // A Knight's might and cohort (ranks.might, ranks.cohort) show in a battle too: with no Knight's rule firing,
-  // the strongest fielded Soldier is weighed as a Knight (necessity round 3: with Command 0 the expert never
-  // promoted, so it led no bodies at all).
+  const both = TUNING.ranks.cost[0] + TUNING.ranks.cost[1]
+  const twoStep = (x) => !x.grade && x.lvl >= TUNING.ranks.level[1] && s.essence >= both
   const u = ready.find((x) => x.grade === 1) ?? (L.ablate === 'paths' ? ready.find(twoStep) : null) ?? ready.find((x) => !x.grade)
   if (!u) return null
   const to = u.grade === 1 || (L.ablate === 'paths' && twoStep(u)) ? 2 : 1
-  const key = JSON.stringify([L.ablate, s.floor, s.at, s.phase, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.muster, bodiesKey(s), s.party.map((x) => [x.uid, x.id, x.lvl, x.grade, x.tier, x.hp > 0])])
+  const key = JSON.stringify([L.ablate, u.uid, to, s.floor, s.at, s.phase, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.party.map((x) => [x.uid, x.id, x.lvl, x.grade, x.tier, x.hp > 0])])
   const have = promotions.get(run)
   if (have?.key === key) return have.up
   const value = valueAhead(run, L)
-  const kin = unitDef(u.id).kin
-  let ossuary = s.ossuary
-  for (let g = u.grade ?? 0; g < to; g++) ossuary = eaten({ ...s, ossuary }, kin, promoteNeed({ grade: g }))
+  let cost = 0
+  for (let g = u.grade ?? 0; g < to; g++) cost += TUNING.ranks.cost[g]
   const party = s.party.map((x) => (x.uid === u.uid ? { ...x, grade: to } : x))
-  const up = value({ party, ossuary }) - value({}) > 0.01 ? { type: 'promote', uid: u.uid } : null
+  const up = value({ party }) - soulsValue(run, value, cost, L) > 0.01 ? { type: 'promote', uid: u.uid } : null
   promotions.set(run, { key, up })
   return up
-}
-
-// The ossuary once a promotion has eaten `n` bodies of `kin` (by the run's own rule: feedOf).
-function eaten (s, kin, n) {
-  const fed = feedOf(s, kin, n)
-  return Object.fromEntries(Object.entries(s.ossuary).map(([k, o]) => [k, { ...o, standing: o.standing - (fed[k] ?? 0) }]))
-}
-
-// Basic's muster rule: while a fielded captain leads a cohort, muster once it costs no more than any level
-// or path tier its fighting souls could take next (of those L may buy: none of an ablated kind).
-function musterFirst (run, L = {}) {
-  const s = run.state
-  if (s.muster >= TUNING.army.muster.cap || s.essence < musterCost(run)) return false
-  if (!fielded(souls(s.party)).some((u) => u.cohort && u.hp > 0)) return false
-  const field = standing(souls(s.party)).sort(byFieldPower).slice(0, fieldCap(run))
-  // Each path it could advance on, at that path's own price: a Marshal past tier IV still has its second.
-  const costs = field.flatMap((u) => [u.lvl < TUNING.level.cap && L.ablate !== 'levels' ? levelCost(run, u) : Infinity,
-    ...(L.ablate === 'paths' ? [] : nextPaths(u).map((path) => tierCost(run, u, path)))])
-  return musterCost(run) <= Math.min(...costs)
 }
 
 function soulSpend (run, L) {
@@ -928,10 +834,12 @@ function soulSpend (run, L) {
     const pick = ready ?? options.filter((o) => o.type === 'level').sort((a, b) => a.u.lvl - b.u.lvl || a.uid - b.uid)[0]
     return pick ? { type: pick.type, uid: pick.uid, ...(pick.path && { path: pick.path }) } : null
   }
-  const gain = (o) => (o.type === 'upgrade' && !o.u.path ? pathWorth(o.u, o.path) / 3 : worth(o.after) - worth(o.u)) / o.cost
+  // Under the summons ablation a summon tier is worth only its place on the path: its summons never rise.
+  const raised = L.ablate !== 'summons'
+  const gain = (o) => (o.type === 'upgrade' && !o.u.path ? pathWorth(o.u, o.path, raised) / 3 : worth(o.after, raised) - worth(o.u, raised)) / o.cost
   const best = options.sort((a, b) => gain(b) - gain(a) || a.uid - b.uid)[0]
   if (best.type === 'upgrade' && !best.u.path) {
-    const path = nextPaths(best.u).sort((a, b) => pathWorth(best.u, b) - pathWorth(best.u, a))[0]
+    const path = nextPaths(best.u).sort((a, b) => pathWorth(best.u, b, raised) - pathWorth(best.u, a, raised))[0]
     return { type: 'upgrade', uid: best.uid, path }
   }
   return { type: best.type, uid: best.uid, ...(best.path && { path: best.path }) }
@@ -940,23 +848,21 @@ function soulSpend (run, L) {
 // The paths it could take a tier on next: its own up to tier III (or any, before it commits); a Knight's or
 // Marshal's tier IV and second path too.
 const nextPaths = (u) => pathsOf(u.id).map((p) => p.id).filter((path) => canAdvance(u, path))
-// What a whole path adds to a soul that has not chosen one.
-const pathWorth = (u, path) => worth({ ...u, path, tier: 3 }) - worth(u)
+// What a whole path adds to a soul that has not chosen one (its summons counted unless `summons` is false).
+const pathWorth = (u, path, summons = true) => worth({ ...u, path, tier: 3 }, summons) - worth(u, summons)
 
-// What an expert would put its next essence into besides its souls: a Monarch stat or the muster ('muster'),
-// or null for the souls. Worth only shows in a battle, so it rehearses the fights ahead (as weighOffers
-// does) with the next point bought each way, and with the next muster level while a captain could lead
-// bodies, against the same essence spent on its souls its usual way, and wants what does best if it beats
-// the souls. Made once per room, retinue, Monarch and army (not per purchase of levels).
+// What an expert would put its next essence into besides its souls: a Monarch stat, or null for the souls.
+// Worth only shows in a battle, so it rehearses the fights ahead (as weighOffers does) with the next point
+// bought each way, against the same essence spent on its souls its usual way, and wants what does best if it
+// beats the souls. Made once per room, retinue and Monarch (not per purchase of levels).
 const wishes = new WeakMap()
 export function armyWish (run, L = LEVELS.expert) {
   const s = run.state
-  const key = JSON.stringify([L.ablate, s.floor, s.at, s.phase, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.muster, bodiesKey(s), s.party.map((u) => [u.uid, u.id, u.hp > 0])])
+  const key = JSON.stringify([L.ablate, s.floor, s.at, s.phase, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.party.map((u) => [u.uid, u.id, u.hp > 0, u.tier, u.tier2, u.grade])])
   const have = wishes.get(run)
   if (have?.key === key) return have.wish
   const value = valueAhead(run, L)
   const candidates = statsFor(L).map((stat) => ({ wish: stat, cost: monarchCost(run), state: withPoint(s, stat) }))
-  if (s.muster < TUNING.army.muster.cap && armed(s, souls(s.party), L)) candidates.push({ wish: 'muster', cost: musterCost(run), state: { muster: s.muster + 1 } })
   const base = new Map()
   let wish = null
   let gain = 0.01
@@ -977,7 +883,7 @@ function valueAhead (run, L = LEVELS.expert) {
 }
 
 // The same rooms with `cost` essence spent on the souls as the expert would, on a copy (bought as on the
-// map, whatever the phase: a reap weighs bodies against the levels it would buy next).
+// map, whatever the phase).
 function soulsValue (run, value, cost, L = LEVELS.expert) {
   const sim = fork(run)
   sim.state.essence = cost
@@ -1013,132 +919,22 @@ function roomsAhead (run) {
 
 // ── reap ─────────────────────────────────────────────────────────────────────────────────────────
 
-// The bodies a player binds after a win, or null for none. Basic binds only the free ones, on the kinds
-// its fielded captains can lead first (then in offer order). An expert binds its free ones on the kind
-// that rehearses best in the fights ahead (ties: one its captains can lead, then the higher tier), and
-// pays for more of a kind its cohorts have room for (Command a captain that can lead it, past what stands)
-// when rehearsing the bodies beats the same essence spent on its souls. With the army ablated bodies are
-// never led, but they still feed ranks: it binds its free ones and pays for more as rank food (chooseFood).
-const binds = new WeakMap()
-function pickBind (run, L) {
-  const s = run.state
-  const offers = s.offers.filter((o) => o.type === 'bind')
-  if (!offers.length) return null
-  const key = JSON.stringify([L, s.at, s.essence, s.freeBinds, offers, s.ossuary, s.monarch, s.muster, s.party.map((u) => [u.uid, u.id, u.lvl, u.hp, u.slot])])
-  const have = binds.get(run)
-  if (have?.key === key) return have.bind
-  const bind = chooseBind(run, L, offers)
-  binds.set(run, { key, bind })
-  return bind
-}
-
-function chooseBind (run, L, offers) {
-  const s = run.state
-  if (L.ablate === 'army' && L.reap) return chooseFood(run, L, offers)
-  const captains = fielded(souls(s.party))
-  const leads = (id) => captains.some((c) => canLead(c, id))
-  if (s.freeBinds > 0) {
-    const n = (o) => Math.min(s.freeBinds, o.max)
-    let pick = offers.slice().sort((a, b) => leads(b.id) - leads(a.id))[0]
-    if (L.reap) {
-      const value = valueAhead(run, L)
-      const v = new Map(offers.map((o) => [o, value({ ossuary: withBodies(s, o.id, n(o)) })]))
-      pick = offers.slice().sort((a, b) => v.get(b) - v.get(a) || leads(b.id) - leads(a.id) || unitDef(b.id).tier - unitDef(a.id).tier)[0]
-    }
-    return { type: 'bind', id: pick.id, count: n(pick) }
-  }
-  if (!L.reap) return null
-  const value = valueAhead(run, L)
-  let best = null
-  let gain = 0.01
-  for (const o of offers) {
-    const per = bindCost(run, o.id, 1)
-    const room = captains.filter((c) => canLead(c, o.id)).reduce((n, c) => n + cohortCap(s, c), 0) - standingOf(s, o.id)
-    const count = Math.min(o.max, room, Math.floor(s.essence / per))
-    if (count < 1) continue
-    const g = value({ ossuary: withBodies(s, o.id, count) }) - soulsValue(run, value, per * count, L)
-    if (g > gain) { best = { type: 'bind', id: o.id, count }; gain = g }
-  }
-  return best
-}
-
-// Bodies as rank food only (the army ablated): what they are worth is the ranks they let the expert's own rule
-// take (fedRanks). Its free ones go on the kind whose ranks rehearse best (ties: the kin of its strongest
-// fielded captain short of Marshal, then the most bodies); it pays for as many of a kind as its next rank still
-// needs when rehearsing that rank beats the same essence spent on its souls.
-function chooseFood (run, L, offers) {
-  const s = run.state
-  const value = valueAhead(run, L)
-  const fed = (ossuary) => value(fedRanks(run, ossuary))
-  const hungry = standing(fielded(souls(s.party))).sort(byFieldPower).filter((c) => (c.grade ?? 0) < 2)
-  const rankOf = (id) => { const i = hungry.findIndex((c) => unitDef(c.id).kin === unitDef(id).kin); return i < 0 ? Infinity : i }
-  if (s.freeBinds > 0) {
-    const n = (o) => Math.min(s.freeBinds, o.max)
-    const v = new Map(offers.map((o) => [o, fed(withBodies(s, o.id, n(o)))]))
-    const pick = offers.slice().sort((a, b) => v.get(b) - v.get(a) || rankOf(a.id) - rankOf(b.id) || n(b) - n(a))[0]
-    return { type: 'bind', id: pick.id, count: n(pick) }
-  }
-  const base = fed(s.ossuary)
-  let best = null
-  let gain = 0.01
-  for (const o of offers) {
-    const c = hungry[rankOf(o.id)]
-    if (!c) continue
-    const per = bindCost(run, o.id, 1)
-    // The bodies still missing for its next rank not yet covered (a Knight's, then a Marshal's on top).
-    const have = kinStanding(s, unitDef(c.id).kin)
-    let short = 0
-    for (let g = c.grade ?? 0, total = 0; g < 2 && !short; g++) { total += promoteNeed({ grade: g }); short = Math.max(0, total - have) }
-    const count = Math.min(o.max, Math.floor(s.essence / per), short)
-    if (!short || count < short) continue
-    const g = fed(withBodies(s, o.id, count)) - base - (soulsValue(run, value, per * count, L) - value({}))
-    if (g > gain) { best = { type: 'bind', id: o.id, count }; gain = g }
-  }
-  return best
-}
-
-// The retinue once these bodies have fed the ranks the expert's rule takes (promotion), strongest fielded
-// captain first: a Knight once its path stands at tier III (its tier IV bought with it), a Knight to Marshal;
-// as { party, ossuary } for valueAhead.
-function fedRanks (run, ossuary) {
-  const s = run.state
-  const order = standing(fielded(souls(s.party))).sort(byFieldPower).map((c) => c.uid)
-  let party = s.party
-  for (const uid of order) {
-    let c = party.find((x) => x.uid === uid)
-    const kin = unitDef(c.id).kin
-    for (;;) {
-      const need = promoteNeed(c)
-      if (need === null || kinStanding({ ...s, ossuary }, kin) < need || (!c.grade && c.tier < 3)) break
-      ossuary = eaten({ ...s, party, ossuary }, kin, need)
-      c = { ...c, grade: (c.grade ?? 0) + 1 }
-      if (c.grade === 1 && c.path && canAdvance(c, c.path)) c = advanced(c, c.path)
-      const next = c
-      party = party.map((x) => (x.uid === uid ? next : x))
-    }
-  }
-  return { party, ossuary }
-}
-
-const withBodies = (s, id, n) => ({ ...s.ossuary, [id]: { standing: standingOf(s, id) + n, fallen: s.ossuary[id]?.fallen ?? 0 } })
-
 // Free offers (a relic, a rite's tier, a keystone) first: basic takes the first, an expert rehearses the
 // retinue each would make against the battle rooms within two steps and the floor's last room (or the room
-// just won, at the floor's end): a keystone, like a relic, as the run holding it. Then the bodies it binds (pickBind). Then the one recruit a battle allows: basic buys the highest tier it can
-// afford while the field has room, an expert the soul worth most if it beats the weakest it would
-// field (or nearly, with no one on the bench). A full retinue lets its weakest benched soul go to make room.
+// just won, at the floor's end): a keystone, like a relic, as the run holding it. Then the one recruit a
+// battle allows: basic buys the highest tier it can afford while the field has room, an expert the soul worth
+// most if it beats the weakest it would field (or nearly, with no one standing in the ossuary). A full retinue
+// lets its weakest soul in the ossuary go to make room.
 function pickReap (run, L) {
   const s = run.state
-  const free = s.offers.flatMap((o, index) => (o.type === 'soul' || o.type === 'bind' || o.type === BANNED[L.ablate] ? [] : [index]))
+  const free = s.offers.flatMap((o, index) => (o.type === 'soul' || o.type === BANNED[L.ablate] ? [] : [index]))
   if (free.length) return { type: 'reap', index: L.reap ? weighOffers(run, free, L) : free[0] }
-  const bind = pickBind(run, L)
-  if (bind) return bind
   const index = recruit(run, L)
   if (index === null || souls(s.party).length < rosterCap(run)) return { type: 'reap', index }
   // Never the last soul standing (the run refuses that release): with every other soul fallen, the recruit
   // is passed over instead.
   const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
-  const weakest = benched(s.party).filter(spare).sort(L.wounds ? byFieldPower : byPower).at(-1)
+  const weakest = inOssuary(s.party).filter(spare).sort(L.wounds ? byFieldPower : byPower).at(-1)
   return weakest ? { type: 'release', uid: weakest.uid } : { type: 'reap', index: null }
 }
 
@@ -1151,9 +947,9 @@ function recruit (run, L) {
     if (!room) return null
     return affordable.sort((a, b) => unitDef(b.o.id).tier - unitDef(a.o.id).tier || a.index - b.index)[0]?.index ?? null
   }
-  // With no standing soul on the bench, one nearly as good as the weakest fielded is worth keeping for the
-  // next banner Command buys (and makes that point worth buying in rehearsal).
-  const weakest = room ? 0 : fieldPower(field.at(-1)) * (benched(standing(souls(s.party))).length ? 1.1 : 0.8)
+  // With no standing soul in the ossuary, one nearly as good as the weakest fielded is worth keeping for the
+  // next place Command buys on the field (and makes that point worth buying in rehearsal).
+  const weakest = room ? 0 : fieldPower(field.at(-1)) * (inOssuary(standing(souls(s.party))).length ? 1.1 : 0.8)
   const best = affordable.sort((a, b) => b.w - a.w || a.index - b.index)[0]
   return best && best.w > weakest ? best.index : null
 }
@@ -1210,7 +1006,7 @@ export function autoplay (run, { rng = createRng(run.state.seed).stream('autopla
 
 // ── playing many runs ─────────────────────────────────────────────────────────────────────────────
 
-// Of a battle's army (your souls and bodies that took the board, the reserve's that entered included; not the
+// Of a battle's army (your souls and summons that took the board, the reserve's that entered included; not the
 // Monarch, not shadows): how many there were, how many acted at least once (an action event of theirs), and
 // the share of their time on the board they spent faltering (from the falter events; a unit is on the board
 // from the start or its entry to its last death, or the end).
@@ -1257,8 +1053,8 @@ const buildOf = (s) => {
 
 // One seeded run at `level` (with `ablate`, that level with one mechanic taken away: ABLATIONS), as the
 // reports need it: each battle as the retinue entered it (its souls: not the Monarch, not the shadows it
-// raised, not the rank-and-file), its army (bodies on the board at the start, in reserve, how many of those
-// entered, how many bodies fell; how many acted, the share of time spent faltering: armyMeasures), with
+// raised, not the summons), its army (the summons raised and how many fell, the souls held in reserve and how
+// many entered; how many acted, the share of time spent faltering: armyMeasures), with
 // `setups` what it was built from (for refighting) and with `snapshots` the run's state just before the fight
 // (for refighting with a mechanic stripped: necessity; its log left out); how the run ended, what felled the
 // Monarch, the army it ended with, its build (buildOf), and how many of each action it took (`acts`, by type;
@@ -1276,7 +1072,7 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
     beforeFight: snapshots ? (r) => { snap = structuredClone({ ...r.state, log: [] }) } : null,
     onBattle: (b, r) => {
       if (b.winner !== 'party') fell = { rank: currentNode(r).rank, share: foeShare(b) }
-      const party = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.rank && u !== b.monarch)
+      const party = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.summoned && u !== b.monarch)
       // The reserve ends with the foe waves' bodies (`side: 'foe'`, each with a `when`), and foes on a
       // flank order arrive too: the army columns count your side only.
       const reserve = r.setup.reserve.filter((u) => u.side !== 'foe')
@@ -1292,10 +1088,10 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
         foes: b.units.filter((u) => u.side === 'foe').length,
         relics: r.state.relics.length,
         raised: b.raised,
-        members: r.setup.party.filter((u) => u.rank).length,
+        summons: b.units.filter((u) => u.summoned).length,
         reserve: reserve.length,
         entered: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'party').length,
-        fell: b.units.filter((u) => u.rank && u.side === 'party' && u.hp <= 0).length,
+        fell: b.units.filter((u) => u.summoned && u.hp <= 0).length,
         waves: b.events.filter((e) => e.type === 'wave').length,
         foesIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').length,
         detachments: r.setup.detachments.length,
@@ -1316,7 +1112,7 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
   return {
     battles, result: s.result, floor: s.floor, camp: s.camp, relics: s.relics.length, reaped: s.stats.reaped,
     points: monarchPoints(s), monarch: s.monarch, death: s.death, keystones: s.keystones, build: buildOf(s),
-    muster: s.muster, bound: s.stats.bound, bodies: Object.values(s.ossuary).reduce((n, o) => n + o.standing, 0),
+    summoned: battles.reduce((n, b) => n + b.summons, 0), ossuary: souls(s.party).filter((u) => u.slot < 0).length,
     acts: s.log.reduce((n, a) => ({ ...n, [a.type]: (n[a.type] ?? 0) + 1 }), {}),
     tiers: souls(s.party).reduce((n, u) => n + u.tier + u.tier2, 0),
     grades: souls(s.party).reduce((n, u) => n + (u.grade ?? 0), 0),
@@ -1511,18 +1307,18 @@ async function ladder ({ runs, seed: seed0 }) {
     const raised = (battles.reduce((n, b) => n + b.raised, 0) / Math.max(1, battles.length)).toFixed(2)
     console.log(`${level.padEnd(6)}  ${avg((r) => r.points).padStart(11)}  ${avg((r) => r.monarch.dominion).padStart(3)}  ${avg((r) => r.monarch.command).padStart(3)}  ${avg((r) => r.monarch.will).padStart(4)}  ${raised.padStart(13)}  ${tally}`)
   })
-  // The army: the muster, bodies bound and standing by the run's end; per battle, the bodies on the board
-  // at the start, those in reserve, those of the reserve that entered, and the bodies that fell.
-  console.log('\nlevel   muster  bound  standing  members/battle  reserve/battle  entered/battle  fell/battle')
+  // The army: summons raised over the run and souls in the ossuary at its end; per battle, the summons raised,
+  // the souls held in reserve, those of the reserve that entered, and the summons that fell.
+  console.log('\nlevel   summoned  ossuary  summons/battle  reserve/battle  entered/battle  fell/battle')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
     const avg = (f) => (mine.reduce((n, r) => n + f(r), 0) / runs).toFixed(1)
     const battles = mine.flatMap((r) => r.battles)
     const per = (key) => (battles.reduce((n, b) => n + b[key], 0) / Math.max(1, battles.length)).toFixed(2)
-    console.log(`${level.padEnd(6)}  ${avg((r) => r.muster).padStart(6)}  ${avg((r) => r.bound).padStart(5)}  ${avg((r) => r.bodies).padStart(8)}  ${per('members').padStart(14)}  ${per('reserve').padStart(14)}  ${per('entered').padStart(14)}  ${per('fell').padStart(11)}`)
+    console.log(`${level.padEnd(6)}  ${avg((r) => r.summoned).padStart(8)}  ${avg((r) => r.ossuary).padStart(7)}  ${per('summons').padStart(14)}  ${per('reserve').padStart(14)}  ${per('entered').padStart(14)}  ${per('fell').padStart(11)}`)
   })
-  // Orders, per battle: detachments with orders, units on the board starting on Stay or Move, bodies held
-  // for a later start, held detachments called and held bodies that entered, and Move units that arrived.
+  // Orders, per battle: detachments with orders, souls on the board starting on Stay or Move, souls held
+  // for a later start, held detachments called and held souls that entered, and Move units that arrived.
   console.log('\nlevel   detachments/battle  stay|move/battle  held/battle  called/battle  held in/battle  arrived/battle')
   levels.forEach((level, i) => {
     const battles = played.slice(i * runs, (i + 1) * runs).flatMap((r) => r.battles)
@@ -1613,7 +1409,7 @@ async function decisions ({ runs, seed: seed0, level, tries = 8 }) {
   for (const setup of setups) {
     const fight = (party) => {
       const b = playOut(createBattle({ ...setup, party, quiet: true }))
-      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow)
+      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.summoned)
       const hp = b.winner === 'party' ? mine.reduce((n, u) => n + u.hp, 0) / mine.reduce((n, u) => n + u.maxHp, 0) : 0
       return { won: b.winner === 'party', hp }
     }
@@ -1661,7 +1457,7 @@ async function decisions ({ runs, seed: seed0, level, tries = 8 }) {
 // end, keystones and relics taken), so an ablation can be seen to take its mechanic away. `variants` (the CLI's
 // `--variants orders,reserves`) plays only those ablations beside the full expert, for a quicker check. Each drop
 // is checked against its band (BANDS): a core mechanic should cost 25–50 points, an extra one 8–25.
-export const CORE = ['monarch-stats', 'arise', 'orders', 'reserves', 'army']
+export const CORE = ['monarch-stats', 'arise', 'orders', 'reserves', 'summons']
 export const EXTRA = ['ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation']
 export const BANDS = { ...Object.fromEntries(CORE.map((m) => [m, [25, 50]])), ...Object.fromEntries(EXTRA.map((m) => [m, [8, 25]])) }
 async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null }) {
@@ -1691,12 +1487,12 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
     const drop = ablate ? (100 * (full - clear(mine))).toFixed(0) : '-'
     console.log(`${(ablate ?? 'full').padEnd(13)}  ${(100 * clear(mine)).toFixed(0).padStart(4)}%  ${' '.repeat(13)}${[1, 2, 3, 4].map(died).join('')}  ${drop.padStart(5)}  ${tally}`)
   }
-  console.log('\nuses over the runs: Monarch points, promotions, binds, cohorts given, musters, orders, path tiers held,')
-  console.log('levels bought, keystones and relics held at the end')
-  console.log('variant        points  promote  bind  cohort  muster  order  tiers  levels  keyst  relics')
+  console.log('\nuses over the runs: Monarch points, promotions, summons raised, orders, path tiers held, levels bought,')
+  console.log('keystones and relics held at the end')
+  console.log('variant        points  promote  summons  order  tiers  levels  keyst  relics')
   for (const { ablate, mine } of rows) {
     const sum = (f) => String(mine.reduce((n, r) => n + f(r), 0)).padStart(6)
-    console.log(`${(ablate ?? 'full').padEnd(13)}  ${[(r) => r.points, (r) => r.acts.promote ?? 0, (r) => r.acts.bind ?? 0, (r) => r.acts.cohort ?? 0, (r) => r.acts.muster ?? 0,
+    console.log(`${(ablate ?? 'full').padEnd(13)}  ${[(r) => r.points, (r) => r.acts.promote ?? 0, (r) => r.summoned,
       (r) => r.acts.order ?? 0, (r) => r.tiers, (r) => r.acts.level ?? 0, (r) => r.keystones.length, (r) => r.relics].map(sum).join(' ')}`)
   }
   // Progress (progressOf): continuous, so it reads a mechanic's cost on far fewer runs than the clear rate. Runs
@@ -1743,16 +1539,14 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
 // The run, as it stood just before a fight (a snapshot of record), with one mechanic stripped (null: as it
 // was), for battleSetup to set the battle up from. → a run { state, battle, setup }
 //   monarch-stats  the Monarch at 0 points: its base HP (its wounds kept as a share), base domain, Will 0 and
-//                  Command 0: only the base banners fight (the strongest standing captains), each cohort
-//                  cut to its rank's (TUNING.ranks.cohort)
-//   arise, synergies  the rules switch (as the full ablation's)
+//                  Command 0: only the base field fights (the strongest standing souls)
+//   arise, synergies, summons  the rules switch (as the full ablation's)
 //   orders         every plan Hunts (its start kept)
 //   reserves       every held detachment starts at once
-//   army           no cohort: no rank-and-file on the board or in reserve
-//   ranks          every captain a Soldier: no tier IV, no second path
+//   ranks          every soul a Soldier: no tier IV, no second path
 //   paths          no tier on any path
-//   keystones      none (the domain and banners as without them)
-//   relics         none (no relic mods, no trigger relics, the banners as without them)
+//   keystones      none (the domain and the field as without them)
+//   relics         none (no relic mods, no trigger relics, the field as without them)
 //   formation      the souls in basic's first draft's cells, the Monarch parked where basic parks it
 //   levels         every soul at level 2 (its wounds kept as a share)
 export const NECESSITY = ABLATIONS
@@ -1775,8 +1569,6 @@ export function stripped (state, mechanic = null) {
     for (const d of s.detachments) d.plan = { ...d.plan, where: 'hunt', square: null }
   } else if (mechanic === 'reserves') {
     for (const d of s.detachments) d.plan = { ...d.plan, when: { at: 'once' } }
-  } else if (mechanic === 'army') {
-    for (const u of team) u.cohort = null
   } else if (mechanic === 'ranks') {
     for (const u of team) Object.assign(u, { grade: 0, tier: Math.min(u.tier, 3), path2: null, tier2: 0 })
   } else if (mechanic === 'paths') {
@@ -1793,9 +1585,7 @@ export function stripped (state, mechanic = null) {
   } else if (mechanic !== null) {
     throw new Error(`unknown mechanic "${mechanic}": ${NECESSITY.join(', ')}`)
   }
-  // Each cohort cut to what its captain now leads (cohortCap: Command plus its rank's), none at 0.
-  for (const u of team) if (u.cohort) u.cohort = cohortCap(s, u) > 0 ? { ...u.cohort, count: Math.min(u.cohort.count, cohortCap(s, u)) } : null
-  // Fewer banners (no Command, keystone or relic adding any): the weakest standing captains past them benched.
+  // A smaller field (no Command, keystone or relic adding any): the weakest standing souls past it to the ossuary.
   const cap = fieldCap(run)
   const over = standing(fielded(team)).sort(byFieldPower).slice(cap)
   for (const u of over) u.slot = -1
@@ -1814,7 +1604,7 @@ export function refight ({ snaps, variants = [null, ...NECESSITY] }) {
     for (const m of variants) {
       // Only the as-it-stood refight is compared event by event; the rest keep no events.
       const b = playOut(createBattle({ ...battleSetup(stripped(snapshot, m)), quiet: m !== null }))
-      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow)
+      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.summoned)
       const won = b.winner === 'party'
       out[m ?? 'full'] = { won, alive: !!b.monarch && b.monarch.hp > 0, hp: won ? mine.reduce((n, u) => n + u.hp, 0) / mine.reduce((n, u) => n + u.maxHp, 0) : 0 }
       if (m === null) out.same = !!outcome && timelineHash(b.events) === outcome.hash

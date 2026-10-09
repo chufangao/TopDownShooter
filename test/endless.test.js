@@ -98,9 +98,9 @@ test('every kin and role has its steps up to 8: the steps below are numbers, the
   }
 })
 
-test('cohorts and shadows count toward the steps, the Monarch never; the steps stack; a battle announces its rules', () => {
+test('summons and shadows count toward the steps, the Monarch never; the steps stack; a battle announces its rules', () => {
   const captain = makeUnit('grave_ghoul', { uid: 1, slot: 0 })
-  const members = Array.from({ length: 7 }, (_, k) => ({ ...makeUnit(k % 2 ? 'bone_chanter' : 'grave_ghoul', { uid: 10 + k, slot: 1 + k }), rank: true, cohortOf: 1 }))
+  const members = Array.from({ length: 7 }, (_, k) => ({ ...makeUnit(k % 2 ? 'bone_chanter' : 'skeleton', { uid: 10 + k, slot: 1 + k }), summoned: true, summoner: 1, cohortOf: 1 }))
   const ids = (units) => activeSynergies(units).map((s) => s.id).filter((id) => id.startsWith('undead'))
   assert.deepEqual(ids([captain, ...members]), ['undead_2', 'undead_4', 'undead_6', 'undead_8'])
   assert.deepEqual(ids([captain, ...members.slice(1), makeUnit('monarch', { uid: 0, lvl: 0 })]), ['undead_2', 'undead_4', 'undead_6'])
@@ -169,8 +169,8 @@ test('Undead 8 works for the foes too: one of yours slain rises on their side', 
 })
 
 // A run's reap after the foes' Legion: a soul of yours that rose against you is no foe's soul. It is not for
-// sale, not to bind, and pays no essence (iron golem: a kind none of the eight ghouls is).
-test('Undead 8 on the foes\' side: your fallen risen against you are not sold back, bound, or paid for', () => {
+// sale and pays no essence (iron golem: a kind none of the eight ghouls is).
+test('Undead 8 on the foes\' side: your fallen risen against you are not sold back or paid for', () => {
   // The foes hold their rules only in the deep (TUNING.spawn.endless.rules): here, on floor 1, from the start.
   const was = TUNING.spawn.endless.rules
   TUNING.spawn.endless.rules = 0
@@ -197,7 +197,7 @@ function legionReap () {
   const { run, earned } = won
   const b = run.battle
   assert.ok(b.units.some((u) => u.side === 'foe' && u.shadow && u.id === 'iron_golem' && u.hp <= 0), 'the golem rose against you, and fell')
-  assert.ok(!run.state.offers.some((o) => ['soul', 'bind'].includes(o.type) && o.id === 'iron_golem'))
+  assert.ok(!run.state.offers.some((o) => o.type === 'soul' && o.id === 'iron_golem'))
   assert.ok(run.state.offers.some((o) => o.type === 'soul' && o.id === 'grave_ghoul'))
   const paid = b.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
   assert.equal(earned, Math.round(paid))
@@ -558,7 +558,8 @@ test('their Deathblow slays one of yours outright on a crit, but never the Monar
 // Last Stand meets the keystones: under One Army the banner stands and falls together, so its stand holds the
 // whole banner at 1 HP each; with Undying the stand comes first, and the rise after the next killing blow.
 test('Last Stand under One Army holds the whole banner at 1 HP each; under Undying it comes before the rise', () => {
-  const member = (id, uid, cap, x, y) => ({ ...on(id, uid, 'party', x, y), rank: true, cohortOf: cap })
+  // Summons of the golem's (a banner under One Army).
+  const member = (id, uid, cap, x, y) => ({ ...on(id, uid, 'party', x, y), summoned: true, summoner: cap, cohortOf: cap })
   const constructs = [[0, 1], [1, 1], [2, 1], [4, 1], [5, 1]].map(([x, y], i) => on('clockwork_page', 20 + i, 'party', x, y))
   const b = scene([on('iron_golem', 1, 'party', 3, 4), member('clockwork_page', 2, 1, 2, 4), member('clockwork_page', 3, 1, 4, 4), ...constructs,
     on('will_o_wisp', 101, 'foe', 3, 8, 20)], { keystones: ['one_army'] })

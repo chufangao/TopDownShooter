@@ -68,7 +68,8 @@ function strong (run, monarch = 40) {
 test('every foe kind carries the orders its elite captains may take, hinted only in its flavour; depth is a room\'s threat', () => {
   assert.deepEqual(Object.keys(FOE_ORDERS), ['stay', 'hunt', 'flank'])
   for (const u of Object.values(UNITS)) {
-    if (u.monarch) {
+    // The Monarch and the summons are never foes: no orders to take.
+    if (u.monarch || u.summon) {
       assert.equal(u.foeOrders, undefined)
       continue
     }
@@ -500,9 +501,9 @@ test('a siege is one battle of three waves with no prep between them, paying ess
   const again = createBattle(structuredClone(run.setup))
   runBattle(again)
   assert.deepEqual(again.events, b.events)
-  // The reap offers the bodies of every wave's kinds.
+  // The reap offers a soul of every wave's kinds, one to recruit.
   const kinds = new Set(real.map((u) => u.id))
-  assert.deepEqual(new Set(s.offers.filter((o) => o.type === 'bind').map((o) => o.id)), kinds)
+  assert.deepEqual(new Set(s.offers.filter((o) => o.type === 'soul').map((o) => o.id)), kinds)
   assert.equal(s.nextUid, b.nextUid)
 })
 

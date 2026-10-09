@@ -1,25 +1,29 @@
-// Slice 6, ranks: promotion by bodies of the captain's kin, a Knight's tier IV or second path, a Marshal's
-// domain, second path and the shadows that join its banner; and how the autoplayer uses them.
+// Slice 6, ranks: promotion by level and essence, a Knight's tier IV or second path, a Marshal's domain, second
+// path and the shadows and summons of its banner; and how the autoplayer uses them.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createRun, apply, legalActions, join, souls, monarchCost, tierCost, promoteNeed, kinStanding, feedOf, canAdvance,
-  nextTier, freeBodies, battleSetup, availableNodes, musterCost, faltersIn, faltersAt, fielded, armyLayout
+  createRun, apply, legalActions, join, souls, monarchCost, tierCost, promoteLevel, promoteCost, canPromote, canAdvance,
+  nextTier, battleSetup, availableNodes, faltersIn, faltersAt, fielded, inOssuary, OSSUARY
 } from '../src/sim/run.js'
 import { createBattle, stepBattle, falters, stats } from '../src/sim/battle.js'
 import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
-// The ranks and tier prices these scenes were built on (4 bodies for a Knight, 8 more for a Marshal, a reach of
-// 2, tiers at 30/60/100/150), with Arise as first built: the rules under test read TUNING.
-const FIRST_RANKS = { ...FIRST_ARISE, ranks: { knight: 4, marshal: 8, domain: 2 }, essence: { tier: [30, 60, 100, 150] } }
+// The Marshal's reach and tier prices these scenes were built on (a reach of 2, tiers at 30/60/100/150), with
+// Arise as first built: the rules under test read TUNING.
+const FIRST_RANKS = { ...FIRST_ARISE, ranks: { domain: 2 }, essence: { tier: [30, 60, 100, 150] } }
 import { UNITS, ABILITIES, PATHS, GRADES } from '../src/content.js'
 import {
   makeUnit, abilitiesOf, auraOf, statsOf, pathsOf, pathsClash, tiersOf, expand, slotAt, tileAt, tileX, tileY, distance, DEPTH, deployTile
 } from '../src/sim/unit.js'
 
-const bones = (counts) => Object.fromEntries(Object.entries(counts).map(([id, n]) => [id, { standing: n, fallen: 0 }]))
+// A soul brought to the level its next rank takes, and promoted (the run pays the essence).
+function rankUp (run, u) {
+  u.lvl = Math.max(u.lvl, promoteLevel(u))
+  apply(run, { type: 'promote', uid: u.uid })
+}
 const soul = (run, id) => run.state.party.find((u) => u.id === id)
 const copyOf = (run) => ({ ...run, state: structuredClone(run.state) })
 function command (run, n) {
@@ -85,58 +89,59 @@ test('an `all` ability with a range reaches every foe within it of the caster, a
 
 // ── promotion ────────────────────────────────────────────────────────────────────────────────────
 
-test('promotion eats bodies of the captain\'s kin: 4 for a Knight, 8 more for a Marshal; free ones first, the lowest tier first', () => tuned(FIRST_RANKS, () => {
+test('promotion takes the level and the essence: a Knight at level[0] for cost[0], a Marshal at level[1] for cost[1]', () => {
   const run = createRun({ seed: 'ranks' })
   const s = run.state
-  command(run, 3)
   const knight = soul(run, 'tomb_knight')
   const chanter = soul(run, 'bone_chanter')
-  const sprite = soul(run, 'frost_sprite')
-  s.ossuary = bones({ grave_ghoul: 6, bone_chanter: 2, frost_sprite: 3 })
-  apply(run, { type: 'cohort', uid: chanter.uid, kind: 'grave_ghoul', count: 3, shape: 'line' })
-  assert.deepEqual([promoteNeed(knight), kinStanding(s, 'undead'), kinStanding(s, 'fae')], [4, 8, 3])
-  // Undead: 3 free Ghouls (tier 1) first, then a free Chanter; the cohort's Ghouls are left alone.
-  assert.deepEqual(feedOf(s, 'undead', 4), { grave_ghoul: 3, bone_chanter: 1 })
-  const legal = legalActions(run).filter((a) => a.type === 'promote')
-  assert.deepEqual(legal, [{ type: 'promote', uid: knight.uid }, { type: 'promote', uid: chanter.uid }], 'the Sprite has only 3 Fae to eat')
-  const essence = s.essence
-  apply(run, { type: 'promote', uid: knight.uid })
-  assert.deepEqual([knight.grade, s.ossuary.grave_ghoul, s.ossuary.bone_chanter, s.essence], [1, { standing: 3, fallen: 0 }, { standing: 1, fallen: 0 }, essence])
-  assert.deepEqual(chanter.cohort, { kind: 'grave_ghoul', count: 3, shape: 'line' })
-  assert.equal(promoteNeed(knight), TUNING.ranks.marshal)
-  assert.throws(() => apply(run, { type: 'promote', uid: knight.uid }), /cannot promote/, '4 undead stand, a Marshal takes 8')
-  assert.throws(() => apply(run, { type: 'promote', uid: sprite.uid }), /cannot promote/)
-  assert.throws(() => apply(run, { type: 'promote', uid: 0 }), /cannot promote/, 'never the Monarch')
-  assert.throws(() => apply(run, { type: 'promote', uid: 99 }), /cannot promote/)
-  // Fallen bodies are not eaten: only the standing count.
-  s.ossuary.grave_ghoul.fallen = 20
+  const [L0, L1] = TUNING.ranks.level
+  const [C0, C1] = TUNING.ranks.cost
+  assert.deepEqual([promoteLevel(knight), promoteCost(run, knight)], [L0, C0])
+  s.essence = 1000
+  // Below the level: never, essence or not.
+  knight.lvl = L0 - 1
+  assert.ok(!canPromote(run, knight))
   assert.throws(() => apply(run, { type: 'promote', uid: knight.uid }), /cannot promote/)
-  // With 6 more Ghouls: 6 free Ghouls and the free Chanter, then one led Ghoul; the cohort shrinks to 2.
-  s.ossuary.grave_ghoul.standing += 6
-  assert.deepEqual(feedOf(s, 'undead', 8), { grave_ghoul: 7, bone_chanter: 1 })
+  // At the level with too little essence: never.
+  knight.lvl = L0
+  s.essence = C0 - 1
+  assert.ok(!canPromote(run, knight) && !legalActions(run).some((a) => a.type === 'promote'))
+  // At the level with the essence: a Knight, for exactly its price.
+  s.essence = C0 + 5
+  assert.deepEqual(legalActions(run).filter((a) => a.type === 'promote'), [{ type: 'promote', uid: knight.uid }], 'the others are below the level')
   apply(run, { type: 'promote', uid: knight.uid })
-  assert.deepEqual([knight.grade, s.ossuary.grave_ghoul.standing, s.ossuary.bone_chanter.standing], [2, 2, 0])
-  assert.deepEqual(chanter.cohort, { kind: 'grave_ghoul', count: 2, shape: 'line' })
-  assert.equal(freeBodies(s, 'grave_ghoul'), 0)
-  assert.equal(promoteNeed(knight), null)
-  s.ossuary.grave_ghoul.standing += 30
+  assert.deepEqual([knight.grade, s.essence, s.stats.spent], [1, 5, C0])
+  // A Marshal takes the next level and price.
+  assert.deepEqual([promoteLevel(knight), promoteCost(run, knight)], [L1, C1])
+  s.essence = 1000
+  assert.throws(() => apply(run, { type: 'promote', uid: knight.uid }), /cannot promote/, `a Marshal takes level ${L1}`)
+  knight.lvl = L1
+  apply(run, { type: 'promote', uid: knight.uid })
+  assert.deepEqual([knight.grade, s.essence], [2, 1000 - C1])
+  // A Marshal is the top; never the Monarch, never a soul that is not there.
+  assert.deepEqual([promoteLevel(knight), promoteCost(run, knight)], [null, null])
+  knight.lvl = TUNING.level.cap
   assert.throws(() => apply(run, { type: 'promote', uid: knight.uid }), /cannot promote/, 'a Marshal is the top')
   assert.ok(!legalActions(run).some((a) => a.type === 'promote' && a.uid === knight.uid))
-  // A benched soul may be promoted too; promote is a map and prep action, never a reap one.
-  apply(run, { type: 'place', uid: chanter.uid, slot: -1 })
-  apply(run, { type: 'promote', uid: chanter.uid })
+  assert.throws(() => apply(run, { type: 'promote', uid: 0 }), /cannot promote/, 'never the Monarch')
+  assert.throws(() => apply(run, { type: 'promote', uid: 99 }), /cannot promote/)
+  // A soul in the ossuary may be promoted too; promote is a map and prep action, never a reap one.
+  apply(run, { type: 'place', uid: chanter.uid, slot: OSSUARY })
+  assert.ok(inOssuary(souls(s.party)).includes(chanter))
+  rankUp(run, chanter)
   assert.equal(chanter.grade, 1)
   s.phase = 'reap'
   assert.throws(() => apply(run, { type: 'promote', uid: chanter.uid }), /needs phase/)
-}))
+})
 
 test('legalActions lists exactly the promotions apply accepts', () => {
   const run = createRun({ seed: 'ranks-legal' })
   const s = run.state
   join(run, 'grave_ghoul')
   join(run, 'will_o_wisp')
-  for (const ossuary of [{}, { grave_ghoul: 3 }, { grave_ghoul: 4, will_o_wisp: 1 }, { frost_sprite: 2, will_o_wisp: 2 }, { iron_golem: 9 }]) {
-    s.ossuary = bones(ossuary)
+  for (const [lvl, essence, grade] of [[2, 0, 0], [4, 39, 0], [4, 40, 0], [7, 200, 1], [6, 200, 1], [10, 500, 2]]) {
+    for (const u of souls(s.party)) Object.assign(u, { lvl, grade })
+    s.essence = essence
     const listed = legalActions(run).filter((a) => a.type === 'promote').map((a) => a.uid)
     const accepted = souls(s.party).filter((u) => {
       try {
@@ -146,7 +151,7 @@ test('legalActions lists exactly the promotions apply accepts', () => {
         return false
       }
     }).map((u) => u.uid)
-    assert.deepEqual(listed, accepted, JSON.stringify(ossuary))
+    assert.deepEqual(listed, accepted, JSON.stringify([lvl, essence, grade]))
   }
 })
 
@@ -167,8 +172,7 @@ test('a Knight takes tier IV on its path (150) or tier I of a second path, not b
   assert.throws(() => apply(run, { type: 'upgrade', uid: knight.uid, path: 'bulwark' }), /cannot upgrade/)
   assert.throws(() => apply(run, { type: 'upgrade', uid: knight.uid, path: 'reaver' }), /cannot upgrade/)
   // A Knight: tier IV costs 150.
-  s.ossuary = bones({ grave_ghoul: 4 })
-  apply(run, { type: 'promote', uid: knight.uid })
+  rankUp(run, knight)
   const ups = () => legalActions(run).filter((a) => a.type === 'upgrade' && a.uid === knight.uid).map((a) => a.path)
   assert.deepEqual(ups(), ['bulwark', 'reaver'])
   assert.deepEqual([tierCost(run, knight), tierCost(run, knight, 'bulwark'), tierCost(run, knight, 'reaver')], [150, 150, 30])
@@ -178,8 +182,7 @@ test('a Knight takes tier IV on its path (150) or tier I of a second path, not b
   assert.deepEqual(ups(), [], 'tier IV taken: no second path for a Knight')
   assert.throws(() => apply(run, { type: 'upgrade', uid: knight.uid, path: 'reaver' }), /cannot upgrade/)
   // A Marshal takes the second path too, I to III, and no more.
-  s.ossuary = bones({ grave_ghoul: 8 })
-  apply(run, { type: 'promote', uid: knight.uid })
+  rankUp(run, knight)
   for (const cost of [30, 60, 100]) {
     const was = s.essence
     assert.deepEqual(ups(), ['reaver'])
@@ -191,13 +194,11 @@ test('a Knight takes tier IV on its path (150) or tier I of a second path, not b
   assert.deepEqual(abilitiesOf(knight), ['shield_wall', 'cleave', 'rending_strike'])
   // The other choice: a Knight starts a second path, and then tier IV waits for the Marshal.
   const other = ready('tiers2')
-  other.s.ossuary = bones({ bone_chanter: 2, grave_ghoul: 2 })
-  apply(other.run, { type: 'promote', uid: other.knight.uid })
+  rankUp(other.run, other.knight)
   apply(other.run, { type: 'upgrade', uid: other.knight.uid, path: 'reaver' })
   assert.deepEqual([other.knight.path2, other.knight.tier2, nextTier(other.knight, 'reaver'), nextTier(other.knight, 'bulwark')], ['reaver', 1, 1, 3])
   assert.ok(!canAdvance(other.knight, 'bulwark') && !canAdvance(other.knight, 'reaver'), 'one more tier is all a Knight gets')
-  other.s.ossuary = bones({ grave_ghoul: 8 })
-  apply(other.run, { type: 'promote', uid: other.knight.uid })
+  rankUp(other.run, other.knight)
   assert.ok(canAdvance(other.knight, 'bulwark') && canAdvance(other.knight, 'reaver'))
 }))
 
@@ -207,9 +208,8 @@ test('a second path never clashes with the first; a rite offers a Knight its tie
   s.essence = 5000
   const ghoul = join(run, 'grave_ghoul')
   for (let k = 0; k < 3; k++) apply(run, { type: 'upgrade', uid: ghoul.uid, path: 'glutton' })
-  s.ossuary = bones({ grave_ghoul: 12 })
-  apply(run, { type: 'promote', uid: ghoul.uid })
-  apply(run, { type: 'promote', uid: ghoul.uid })
+  rankUp(run, ghoul)
+  rankUp(run, ghoul)
   assert.throws(() => apply(run, { type: 'upgrade', uid: ghoul.uid, path: 'plague_bearer' }), /cannot upgrade/, 'both remake Gnaw')
   apply(run, { type: 'upgrade', uid: ghoul.uid, path: 'pack_leader' })
   assert.equal(ghoul.path2, 'pack_leader')
@@ -249,18 +249,20 @@ test('the battle fights with both paths: battleSetup carries the ranks and the s
 // ── the Marshal's domain ─────────────────────────────────────────────────────────────────────────
 
 const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-const member = (id, uid, captain, x, y) => ({ ...on(id, uid, 'party', x, y), cohortOf: captain, rank: true })
+// A summon of `captain`'s on a tile (as battle.js summon makes them: on its leash, `summoned`).
+const member = (id, uid, captain, x, y) => ({ ...on(id, uid, 'party', x, y), cohortOf: captain, summoned: true, summoner: captain })
 const ordered = (u, where, square = null, det = 1) => ({ ...u, det, plan: { where, square } })
 const marshal = (u, grade = 2) => ({ ...u, grade })
 
-// A battle of units on tiles (as battle.test.js builds them): those not in `moving` never step.
+// A battle of units on tiles (as battle.test.js builds them): those not in `moving` never step. Summon tiers
+// raise nothing here (the summons switch): the scenes place every unit themselves.
 function scene (units, { moving = [], ...opts } = {}) {
   const foeRow0 = DEPTH - 3
   const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
   const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
     : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
   const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...opts })
+  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ablate: ['summons'], ...opts })
   for (const u of b.units) {
     const want = units.find((x) => x.uid === u.uid).tile
     if (u.tile !== want) {
@@ -378,7 +380,7 @@ test('a shadow that rises within a Marshal\'s domain joins its banner, on its pl
   }
   const { b, events, arise, shadow } = build(3, 3)
   assert.deepEqual([arise.unit.cohortOf, arise.unit.det, shadow.cohortOf, shadow.det, shadow.where], [1, 4, 1, 4, 'stay'])
-  assert.ok(!shadow.rank, 'never rank-and-file: it goes back to no ossuary')
+  assert.ok(!shadow.rank && !shadow.summoned, 'a shadow, not a summon: nothing of it goes back to the run')
   assert.ok(!falters(b, shadow) && !events.some((e) => e.type === 'falter' && e.target === shadow.uid && e.on), 'within the domain it holds firm')
   // Three tiles from the Marshal (still inside the Monarch's domain): an ordinary shadow, faltering.
   const out = build(6, 3)
@@ -390,31 +392,34 @@ test('a shadow that rises within a Marshal\'s domain joins its banner, on its pl
 
 // ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
 
-test('the autoplayer: basic never promotes; the expert makes a Knight of a captain whose tier IV is next, or when the rank rehearses better', () => {
+test('the autoplayer: basic never promotes; the expert makes a Knight of a soul whose tier IV is next, and never one the rank does nothing for', () => {
   const run = createRun({ seed: 'promoter' })
   const s = run.state
-  s.ossuary = bones({ grave_ghoul: 4 })
+  const chanter = soul(run, 'bone_chanter')
+  chanter.lvl = promoteLevel(chanter)
+  s.essence = promoteCost(run, chanter)
   assert.ok(legalActions(run).some((a) => a.type === 'promote'))
   const rng = createRng('promoter').stream('autoplay')
   assert.notEqual(policy(run, rng, 'basic').type, 'promote')
-  // Bodies enough, but with no rank cohort and no might a Knight's rank would buy nothing yet: the bodies stay.
-  tuned({ ranks: { cohort: [0, 0, 0], might: [1, 1, 1] } }, () => {
-    assert.notEqual(policy(copyOf(run), rng, 'expert').type, 'promote', 'no captain stands at tier III, and a Knight buys nothing in battle')
+  // With no might and no summons a Knight's rank does nothing in battle yet: no soul at tier III, no promotion.
+  tuned({ ranks: { might: [1, 1, 1], summons: [0, 0, 0] } }, () => {
+    assert.notEqual(policy(copyOf(run), rng, 'expert').type, 'promote', 'no soul stands at tier III, and a Knight buys nothing in battle')
   })
-  // With the rank's might and cohort (round 3), the strongest fielded Soldier is weighed as a Knight by rehearsal.
-  const weighed = policy(run, rng, 'expert')
-  assert.equal(weighed.type, 'promote', 'a Knight rehearses better than its bodies here')
-  const knight = s.party.find((u) => u.uid === weighed.uid)
-  assert.ok(fielded([knight]).length === 1 && !knight.grade && knight.tier < 3, 'a fielded Soldier short of tier III')
-  const chanter = soul(run, 'bone_chanter')
   Object.assign(chanter, { path: pathsOf('bone_chanter')[0].id, tier: 3 })
   const up = policy(run, rng, 'expert')
   assert.deepEqual(up, { type: 'promote', uid: chanter.uid }, 'its tier IV is next')
+  // Short of the essence, or of the level, it waits.
+  s.essence = promoteCost(run, chanter) - 1
+  assert.notEqual(policy(copyOf(run), rng, 'expert').type, 'promote')
+  s.essence = promoteCost(run, chanter)
+  chanter.lvl = promoteLevel(chanter) - 1
+  assert.notEqual(policy(copyOf(run), rng, 'expert').type, 'promote')
+  chanter.lvl = promoteLevel(chanter)
   apply(run, up)
-  assert.notEqual(policy(run, rng, 'expert').type, 'promote', 'no bodies left')
-  // A whole basic run with bodies to spare never promotes.
+  assert.equal(chanter.grade, 1)
+  // A whole basic run never promotes.
   const basic = createRun({ seed: 'promoter-basic' })
-  basic.state.ossuary = bones({ grave_ghoul: 12, will_o_wisp: 12 })
+  basic.state.essence = 500
   autoplay(basic, { level: 'basic' })
   assert.ok(!basic.state.log.some((a) => a.type === 'promote'))
 })
@@ -422,101 +427,85 @@ test('the autoplayer: basic never promotes; the expert makes a Knight of a capta
 
 // ── fuzz: ranks bought at random, then a fight ───────────────────────────────────────────────────
 
-// The run fuzz seldom gets a captain past Knight; here every run starts rich in bodies and essence, so
-// random promotions, tiers and cohorts reach Marshals, tier IV and second paths, and then fight with them.
-test('ranks fuzz: random promotions, tiers and cohorts keep every rank rule, and the battle fights them', () => {
-  const seen = { marshal: 0, iv: 0, second: 0, joined: 0 }
+// The run fuzz seldom gets a soul past Knight; here every run starts rich in essence, so random levels,
+// promotions and tiers reach Marshals, tier IV, second paths and summons, and then fight with them.
+test('ranks fuzz: random levels, promotions and tiers keep every rank rule, and the battle fights them', () => {
+  const seen = { marshal: 0, iv: 0, second: 0, joined: 0, summoned: 0 }
   for (let i = 0; i < 24; i++) {
     const run = createRun({ seed: 'rankfuzz' + i })
     const s = run.state
     const rng = createRng('rankfuzz' + i).stream('fuzz')
     command(run, 3)
-    s.essence = 3000
+    s.essence = 6000
     s.monarch.will = 2
-    s.ossuary = bones({ grave_ghoul: 20, bone_chanter: 8, frost_sprite: 12, will_o_wisp: 6, clockwork_page: 10 })
     join(run, 'grave_ghoul')
     join(run, 'clockwork_page')
     const node = availableNodes(run)[0]
     node.type = 'fight'
     node.foes ??= s.map.nodes.find((n) => n.foes).foes
     apply(run, { type: 'node', id: node.id })
-    for (let k = 0; k < 80; k++) {
-      // A kind of action first, then one of that kind: cohorts and places would drown out the rest.
-      const legal = legalActions(run).filter((a) => ['promote', 'upgrade', 'cohort', 'place'].includes(a.type))
+    for (let k = 0; k < 120; k++) {
+      // A kind of action first, then one of that kind: places would drown out the rest.
+      const legal = legalActions(run).filter((a) => ['promote', 'upgrade', 'level', 'place'].includes(a.type))
       if (!legal.length) break
       const type = rng.pick([...new Set(legal.map((a) => a.type))])
       apply(run, rng.pick(legal.filter((a) => a.type === type)))
       for (const u of souls(s.party)) {
-        const where = `rankfuzz${i}: ${u.id} ${JSON.stringify([u.grade, u.path, u.tier, u.path2, u.tier2])}`
+        const where = `rankfuzz${i}: ${u.id} ${JSON.stringify([u.lvl, u.grade, u.path, u.tier, u.path2, u.tier2])}`
         const extra = (u.tier === 4 ? 1 : 0) + (u.tier2 ? 1 : 0)
         assert.ok(u.grade === 2 ? u.tier2 <= 3 : u.grade === 1 ? extra <= 1 && u.tier2 <= 1 : extra === 0 && u.tier <= 3, where)
         if (u.path2) assert.ok(u.path2 !== u.path && !pathsClash(u.id, u.path, u.path2), where)
+        // A rank is never held below its level.
+        if (u.grade) assert.ok(u.lvl >= TUNING.ranks.level[u.grade - 1], where)
       }
-      for (const o of Object.values(s.ossuary)) assert.ok(o.standing >= 0)
     }
     for (const u of souls(s.party)) {
       seen.marshal += u.grade === 2
       seen.iv += u.tier === 4
       seen.second += u.tier2 > 0
     }
-    const before = structuredClone(s.ossuary)
+    const before = s.party.length
     apply(run, { type: 'fight' })
     const b = run.battle
     seen.joined += b.units.filter((u) => u.shadow && u.cohortOf != null).length
-    // Joined shadows are never rank-and-file: only members that fell left the standing count.
-    const fell = b.units.filter((u) => u.rank && u.hp <= 0).length
-    const lost = Object.keys(before).reduce((n, k) => n + before[k].standing - s.ossuary[k].standing, 0)
-    assert.equal(lost, fell)
+    seen.summoned += b.units.filter((u) => u.summoned).length
+    // Summons and shadows never come back to the run.
+    assert.equal(s.party.length, before)
+    assert.ok(!s.party.some((u) => u.summoned || u.shadow))
   }
-  assert.ok(seen.marshal && seen.iv && seen.second, JSON.stringify(seen))
+  assert.ok(seen.marshal && seen.iv && seen.second && seen.summoned, JSON.stringify(seen))
 })
 
 // ── fixes round 1 ────────────────────────────────────────────────────────────────────────────────
 
-test('promotion: the kind with the most bodies is eaten first within a tier, and a fallen soul may be promoted', () => tuned(FIRST_RANKS, () => {
-  const run = createRun({ seed: 'ranks-feed' })
+test('promotion: a fallen soul may be promoted, and its rank stands when it is raised again', () => {
+  const run = createRun({ seed: 'ranks-fallen' })
   const s = run.state
   const sprite = soul(run, 'frost_sprite')
-  // Two tier-1 Fae kinds: the Wisps, the more numerous, go first.
-  s.ossuary = bones({ frost_sprite: 2, will_o_wisp: 5 })
-  assert.deepEqual(feedOf(s, 'fae', 4), { will_o_wisp: 4 })
-  assert.deepEqual(feedOf(s, 'fae', 6), { will_o_wisp: 5, frost_sprite: 1 })
+  sprite.lvl = promoteLevel(sprite)
   sprite.hp = 0
+  s.essence = promoteCost(run, sprite)
   assert.ok(legalActions(run).some((a) => a.type === 'promote' && a.uid === sprite.uid), 'a fallen soul is listed')
   apply(run, { type: 'promote', uid: sprite.uid })
-  assert.deepEqual([sprite.grade, s.ossuary.will_o_wisp.standing, s.ossuary.frost_sprite.standing], [1, 1, 2])
-}))
+  assert.deepEqual([sprite.grade, s.essence], [1, 0])
+})
 
-test('the expert promotes its strongest fielded standing captain first: not a weaker one, not a benched one, not a purchase', () => {
+test('the expert promotes its strongest fielded standing soul first: not a weaker one, not one in the ossuary, not a purchase', () => {
   const run = createRun({ seed: 'promoter-pick' })
   const s = run.state
   const knight = soul(run, 'tomb_knight')
   const chanter = soul(run, 'bone_chanter')
   knight.lvl = 6
+  chanter.lvl = promoteLevel(chanter)
   chanter.hp = Math.ceil(chanter.maxHp * 0.2)
-  // A stronger undead soul on the bench, and essence enough to buy anything; every one of them at tier III.
+  // A stronger undead soul in the ossuary, and essence enough to buy anything; every one of them at tier III.
   const wight = join(run, 'barrow_wight', { lvl: 10 })
-  if (wight.slot >= 0) apply(run, { type: 'place', uid: wight.uid, slot: -1 })
+  if (wight.slot >= 0) apply(run, { type: 'place', uid: wight.uid, slot: OSSUARY })
   for (const u of [knight, chanter, wight]) Object.assign(u, { path: pathsOf(u.id)[0].id, tier: 3 })
-  s.ossuary = bones({ grave_ghoul: 4 })
   s.essence = 2000
   assert.ok([knight, chanter, wight].every((u) => legalActions(run).some((a) => a.type === 'promote' && a.uid === u.uid)))
   assert.deepEqual(policy(run, createRng('pick').stream('autoplay'), 'expert'), { type: 'promote', uid: knight.uid })
 })
-
-test('a Marshal past tier IV still prices its second path: basic musters once the muster is the cheapest buy', () => tuned(FIRST_RANKS, () => {
-  const run = createRun({ seed: 'muster-marshal' })
-  const s = run.state
-  command(run, 3)
-  const knight = soul(run, 'tomb_knight')
-  Object.assign(knight, { grade: 2, path: 'bulwark', tier: 4 })
-  for (const u of fielded(souls(s.party))) u.lvl = TUNING.level.cap
-  s.ossuary = bones({ grave_ghoul: 3 })
-  apply(run, { type: 'cohort', uid: knight.uid, kind: 'grave_ghoul', count: 3, shape: 'line' })
-  s.essence = musterCost(run)
-  assert.ok(musterCost(run) <= tierCost(run, knight, 'reaver'))
-  assert.deepEqual(policy(run, createRng('muster').stream('autoplay'), 'basic'), { type: 'muster' })
-}))
 
 test('the expert rehearses a rite\'s second-path offer as the run would make it', () => {
   const u = { ...makeUnit('tomb_knight', { uid: 1, lvl: 5 }), grade: 1, path: 'bulwark', tier: 3 }
@@ -530,29 +519,34 @@ test('the expert rehearses a rite\'s second-path offer as the run would make it'
   assert.deepEqual(offerState(s, { type: 'relic', id: 'x' }), { relics: ['x'] })
 })
 
-test('prep reads a Marshal\'s domain as the battle does: its banner within 2 tiles does not start faltering', () => {
+test('prep reads a Marshal\'s domain as the battle does: it does not start faltering, nor its summons within 2 tiles', () => {
   const run = createRun({ seed: 'prep-marshal' })
   const s = run.state
   command(run, 3)
-  const knight = soul(run, 'tomb_knight')
-  s.ossuary = bones({ grave_ghoul: 3 })
-  apply(run, { type: 'cohort', uid: knight.uid, kind: 'grave_ghoul', count: 3, shape: 'line' })
+  // The chanter raises Skeletons (Marrowcaller II): its banner in battle.
+  const chanter = soul(run, 'bone_chanter')
+  Object.assign(chanter, { path: 'marrowcaller', tier: 2 })
   const node = availableNodes(run)[0]
   node.type = 'fight'
   node.foes ??= s.map.nodes.find((n) => n.foes).foes
   apply(run, { type: 'node', id: node.id })
-  // The knight as far forward as it may stand, its banner beyond the Monarch's domain.
-  const front = legalActions(run).filter((a) => a.type === 'place' && a.uid === knight.uid && a.slot >= 0).sort((a, b) => a.slot - b.slot)[0]
-  apply(run, { type: 'place', uid: knight.uid, slot: front.slot })
+  // The chanter as far forward as it may stand, beyond the Monarch's domain.
+  const front = legalActions(run).filter((a) => a.type === 'place' && a.uid === chanter.uid && a.slot >= 0).sort((a, b) => a.slot - b.slot)[0]
+  apply(run, { type: 'place', uid: chanter.uid, slot: front.slot })
+  assert.ok(faltersAt(s, chanter.slot), 'outside the Monarch\'s domain')
   for (const grade of [0, 2]) {
-    knight.grade = grade
-    const banner = [knight, ...armyLayout(s).members.filter((m) => m.cohortOf === knight.uid)]
-    assert.ok(banner.length > 1 && banner.every((u) => faltersAt(s, u.slot)), 'all outside the Monarch\'s domain')
+    chanter.grade = grade
     const b = createBattle(battleSetup(run))
-    for (const u of banner) assert.equal(faltersIn(s, u), falters(b, b.at[deployTile('party', u.slot)]), `grade ${grade}, ${u.id} at ${u.slot}`)
-    // A Soldier's banner all falters; a Marshal's holds where its 2 tiles reach (the Marshal and a member at least).
-    const held = banner.filter((u) => !faltersIn(s, u))
-    assert.ok(grade ? held.includes(knight) && held.length >= 2 : !held.length)
+    const me = b.units.find((u) => u.uid === chanter.uid)
+    assert.equal(faltersIn(s, chanter), falters(b, me), `grade ${grade}`)
+    assert.equal(faltersIn(s, chanter), !grade)
+    // Its summons stand beside it: a Soldier's falter with it; a Marshal's hold where its own domain reaches.
+    const summons = b.units.filter((u) => u.summoner === chanter.uid)
+    assert.equal(summons.length, 2 + TUNING.ranks.summons[grade])
+    for (const x of summons) {
+      if (distance(x.tile, b.monarch.tile) <= b.domain) continue
+      assert.equal(falters(b, x), !grade || distance(x.tile, me.tile) > TUNING.ranks.domain, `grade ${grade}, summon at ${x.tile}`)
+    }
   }
 })
 

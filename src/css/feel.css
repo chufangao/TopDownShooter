@@ -51,10 +51,7 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 /* ── arrivals: what is taken flies to where it now lives (ui.js flyOne) ─────────────────────────── */
 .fly-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
 .flyer { position: absolute; left: 0; top: 0; display: inline-grid; place-items: center; will-change: transform, opacity; }
-.bone-chip {
-  width: 24px; height: 24px; border-radius: 50%; color: #2a2418;
-  background: radial-gradient(circle at 35% 30%, #fffaf0, var(--c-ossuary) 60%, #a89c80); box-shadow: 0 0 10px color-mix(in srgb, var(--c-ossuary) 60%, transparent);
-}
+.soul-flyer .portrait { width: 64px; height: 64px; border-radius: 50%; background: #1d1930; box-shadow: 0 0 14px color-mix(in srgb, var(--c-essence) 50%, transparent); }
 .trinket-flyer { color: var(--c-relic); filter: drop-shadow(0 0 10px currentColor); }
 .trinket-flyer.f-keystone { color: var(--c-keystone); }
 .fly-word {
@@ -64,10 +61,11 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 }
 @keyframes fly-word { from { opacity: 0; transform: translate(-50%, -60%) scale(.7); } 15% { opacity: 1; transform: translate(-50%, -100%) scale(1.1); } 70% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -190%); } }
 @keyframes fly-word-still { from { opacity: 1; } 70% { opacity: 1; } to { opacity: 0; } }
-/* The ossuary's count in the top bar: bone, and the bodies standing. Bound bodies fly to it (ui.js flyBones). */
-.chip-stat.bodies { align-items: center; color: var(--c-ossuary); border-color: color-mix(in srgb, var(--c-ossuary) 30%, var(--line2)); cursor: help; }
-.chip-stat.bodies b { color: var(--bright); }
-.chip-stat.bodies.gain { animation: bones-gain .6s ease-out; }
+/* Your souls in the top bar, of the most you may hold: a recruit's face flies to it (ui.js flyTrinket). */
+.chip-stat.souls { align-items: center; color: var(--c-ossuary); border-color: color-mix(in srgb, var(--c-ossuary) 30%, var(--line2)); cursor: help; }
+.chip-stat.souls b { color: var(--bright); }
+.chip-stat.souls .of { color: var(--dim); }
+.chip-stat.souls.gain { animation: bones-gain .6s ease-out; }
 @keyframes bones-gain { 0% { transform: scale(1.16); border-color: var(--c-ossuary); box-shadow: 0 0 16px color-mix(in srgb, var(--c-ossuary) 60%, transparent); } }
 
 /* The purse and the Monarch's HP flash when they change: green up, red down (the number rolls meanwhile). */
@@ -119,6 +117,6 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 .seg.skip { border: 1px solid var(--line); }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen-in > *, .trinket.new, .chip-stat.gain, .chip-stat.spend, .chip-stat.bodies.gain, .purse.gain, .battlebar.paused .seg.pause, .battlebar.paused .pause-veil { animation: none; }
+  .screen-in > *, .trinket.new, .chip-stat.gain, .chip-stat.spend, .chip-stat.souls.gain, .purse.gain, .battlebar.paused .seg.pause, .battlebar.paused .pause-veil { animation: none; }
   .fly-word { animation-name: fly-word-still; }
 }

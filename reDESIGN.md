@@ -15,6 +15,14 @@ bodies beyond Command and deal ×1.2 and ×1.4 (taking ÷ as much); a Stay post 
 fresh; a retinue holds at most 6 relics. The final balance ladders, the necessity sweep, and the targets met
 and missed are under "How to measure it".
 
+**2026-10-08, the army became souls and summons.** Rank-and-file, cohorts, banner shapes, the muster and
+binding are gone. The army is the souls you field (3 + Command), each a full soul recruited one a battle, the
+rest kept in the ossuary, which is now your collection of souls; it grows past the field through summons, sub-units
+that a soul's path tier raises beside it every battle. Ranks are bought with essence once a soul has the level.
+Will hastens Arise instead of freeing binds. Hollow Court reaps its standing shadows for essence; One Army pools
+a soul with its summons. Sections 1, 2, 5, 6 and 7 below are updated; the measurements under "How to measure it"
+predate the change.
+
 ## The goal
 
 A run should end with the player feeling invincible, and every run should get there differently. The
@@ -122,13 +130,13 @@ with it.
 | Stat | Rule it changes |
 |---|---|
 | Dominion | Its **domain**: a radius of 3 + Dominion tiles. Souls inside fight at full strength and obey their orders. Souls outside **falter**: 30% less damage dealt, and the only order they heed is Hunt. Marshals (see *Ranks*) project a domain of their own. |
-| Command | Banners: 3 + Command. Rank-and-file per banner: Command. The board holds at most 14 bodies, two ranks; the rest of the army stands in reserve. So the army is 3 souls at the start, 24 at Command 3 with 10 in reserve, and 48 at Command 5 with 34 in reserve. |
-| Will | Arise raises corpses of tier up to 1 + Will, at most 1 + Will a battle. Between battles, Will also sets how many of the slain bind for free (see *Extraction*). |
+| Command | Souls on the field: 3 + Command (relics and Legion add more), never more than the board's 10. Summons stand past it, beside their summoners. |
+| Will | Arise raises corpses of tier up to 2 + Will, at most 3 × (1 + Will) a battle, and each point fills the Monarch's gauge 10% faster, so Arise comes sooner (`TUNING.monarch.willHaste`; this replaced the free binds Will used to set). |
 
 **Where it stands matters.** At the start the domain is 3 tiles: from the middle of the camp it covers
 all of it, from the back row only the rear four rows. So the safest place has the shortest reach, and
 an army that pushes onto the foes' ground leaves the domain unless Dominion or a Marshal goes with it.
-The Monarch is placed in prep like any soul, can never be benched or released, and takes no order: it
+The Monarch is placed in prep like any soul, can never be put in the ossuary or released, and takes no order: it
 stands where you put it for the whole battle. Reserves enter beside it, so a Monarch at a flank
 reinforces that flank. Because the camp is fixed for the floor, where the Monarch stands is one decision
 per floor, and the most important one.
@@ -154,29 +162,38 @@ formation problem, never a stat purchase: there is no Might.
 altar. A Monarch that enters a room at 40% is the weakest target on the board, so the route to the altar
 and the threat reading on the map are part of keeping it alive.
 
-### 2. The army: banners, cohorts and rank-and-file
+### 2. The army: souls, the ossuary and summons
 
-The field is counted in **banners**, not souls. A banner is a **captain**, a named soul with a level,
-a path and a rank, plus a **cohort** of rank-and-file of one kin or role. A banner is placed as one
-piece with a shape (pair, line, wedge, block), so prep at 30 souls is still six drags. The captain's
-aura, bonds and synergies count its cohort: a Grave Ghoul with four ghouls behind it is Undead 5 in one
-drop.
+The field is counted in **souls**: named units with a level, paths and a rank, each recruited from the slain.
+You field 3 + Command of them. Every other soul you hold waits in the **ossuary**, your collection of souls, like
+a box of caught monsters: you choose which to field before each battle, and the ossuary and the field together
+hold at most 12 (the Ossuary Key holds 3 more).
 
-**Rank-and-file are counts, not cards.** The ossuary holds, per kind of soul, how many stand and how
-many have fallen. They have no paths. They all fight at one **muster level**, bought once for the whole
-army with essence, so levelling thirty bodies is one purchase. The fallen stay fallen until an altar
-raises them, as souls do today, so attrition is real and cheap bodies are still a resource.
+**Summons are how the army grows.** One path of one kind per kin has a tier that raises sub-units every battle
+(a tier's `summon: { id, count }` in `content.js`):
 
-**A cohort moves with its captain.** Rank-and-file keep within a tile of their captain and strike what
-comes in reach. If the captain falls, the cohort falters until the battle ends. Killing captains wins
-battles, on both sides.
+| Soul | Path, tier | Raises |
+|---|---|---|
+| Bone Chanter | Marrowcaller II | 2 Skeletons (undead Vanguards) |
+| Hive Warden | Brood Mother II | 2 Drones (insect Skirmishers) |
+| Clockwork Page | Gearwright II | 2 Tin Soldiers (construct Vanguards) |
+| Thorn Dryad | Heartwood II | 2 Wisps (fae Channelers) |
+| Frost Wyrm | Ancient II | 2 Whelps (drake Vanguards) |
 
-**Ranks that break caps.** Feed a captain rank-and-file of its kin to promote it: Soldier → Knight (4
-bodies) → Marshal (8 more). Each rank removes a limit instead of adding a percentage:
+Summons appear at the start of a battle on the open tiles nearest their summoner (or when it enters from the
+reserve), at its level (`TUNING.summon.level` × its level), and follow its detachment's plan on a leash, as a
+foe's cohort keeps to its captain. If the summoner falls they falter and Hunt. They count toward synergies and
+bonds, take no place on the field or the board, pay no essence, are never recruited, kept, ranked or raised as a
+shadow, and are gone when the battle ends. They are what makes the 6 and 8 synergy steps reachable.
 
-- Knight: tier IV on its path, or tier I of a second path.
-- Marshal: projects a domain of 2 tiles in which its banner heeds every order, so a wing can fight
-  beyond the Monarch's reach; a second ability slot; shadows that rise within its reach join its banner.
+**Ranks that break caps.** A soul with the level is promoted for essence: Soldier → Knight at level 4 for 40,
+Knight → Marshal at level 7 for 80 (`TUNING.ranks`). Each rank removes a limit and adds might:
+
+- Knight: tier IV on its path, or tier I of a second path; its summon tier raises 1 more; ×1.2 damage dealt,
+  ÷1.2 taken.
+- Marshal: projects a domain of 3 tiles in which its banner (itself, its summons, and the shadows that rise
+  there and join it) never falters and heeds every order; tier IV and a second path's I–III; its summon tier
+  raises 2 more; ×1.4 dealt, ÷1.4 taken.
 
 ### 3. Orders: plans the Monarch draws
 
@@ -195,7 +212,7 @@ So a screen is a detachment on Stay on the Monarch's approach tiles; a reserve i
 start; a flanking party is Tricksters sent to a square on a wing, from which they Hunt the deepest foe,
 their quarry by role. A line is a square at the domain's edge for the front and Stay once it is there,
 or simply souls placed there on Stay. The defaults are Hunt, at once, so an army with no orders plays
-exactly as the game plays now. A cohort's members path to the square like anyone else.
+exactly as the game plays now. A soul's summons take its plan and keep to it on the way.
 
 **The plan is drawn.** In prep each detachment has a colour. Its square is marked in that colour, an
 arrow runs to it from the detachment, and the start condition is a tag on the square. A square outside
@@ -221,25 +238,22 @@ court.
 
 ### 5. Extraction and the economy
 
-After a win the slain linger, as today, but the reap changes:
+After a win the slain linger, and the reap offers:
 
-- **Bind the fallen.** Every kind slain offers its bodies as rank-and-file. Up to 1 + Will of them bind
-  free; more cost `3 × tier` each. Bodies go to the ossuary count, standing.
-- **Bind a captain.** One slain foe per kind may rise as a named soul at the level it fought at, for
-  today's recruit price. This is how new captains enter the army.
+- **Recruit a soul.** One soul for sale per kind slain, at the level it fought at, for
+  `8 × tier × (1 + 0.35 × (level − 1))` essence. Recruiting one takes the others off the table: one a battle.
+  The soul joins whole (its level, its paths to come) and goes to the field if there is room, else the ossuary.
 - Elites still offer a relic, and from floor 2 a **keystone** (see below).
 
-Sinks and sources have to be retuned together. Sources scale with the army (more foes slain pays more).
-The sinks, roughly in the order a run meets them:
+There is no binding: the slain give essence and one soul, nothing else.
 
 | Sink | Price |
 |---|---|
-| Captain level | `6 × level^1.2`, cap 10, as today |
-| Captain path tier | 30 / 60 / 100, as today; tier IV for Knights at 150 |
+| Soul level | `8 × level^1.2`, cap 10 |
+| Path tier | 20 / 45 / 75; tier IV for Knights at 120 |
 | Monarch stat point | `20 + 10 × points spent`, uncapped |
-| Muster level | `9 × level^1.2`, cap 10 |
-| Bodies past the free ones | `3 × tier` each |
-| Promotion | bodies, not essence |
+| Promotion | 40 essence for a Knight (level 4), 80 for a Marshal (level 7) |
+| Recruit | as above |
 
 ### 6. Keystones and trigger relics
 
@@ -249,12 +263,12 @@ revives it, ever.
 
 | Keystone | Rule |
 |---|---|
-| Legion | Two more banners, but every soul has 25% less HP. |
-| Undying | Fallen captains rise once per battle at 20% HP. |
-| One Army | Each banner shares one HP pool between its captain and cohort. |
+| Legion | Two more souls on the field, but every soul has 15% less HP. |
+| Undying | Fallen souls rise once per battle at 50% HP. |
+| One Army | Each soul shares one HP pool with its summons (and the shadows that joined a Marshal). |
 | Mimicry | Vanguards count as Wardens for synergies and bonds. |
-| Vanguard Crown | The domain is centred on your front-most captain, not the Monarch, and is 1 tile smaller. |
-| Hollow Court | Shadows raised by Arise stay after the battle as rank-and-file. |
+| Vanguard Crown | The domain is centred on your front-most soul, not the Monarch, and is 1 tile smaller. |
+| Hollow Court | Shadows raised by Arise that still stand when a battle is won pay their essence again. (It kept them as rank-and-file until the bodies went.) |
 | Blood Tithe | Arise's cap is doubled, but each shadow costs the Monarch 5% of its HP. |
 | Court of Bone | The domain is 2 tiles larger, but the Monarch cannot be healed. |
 
@@ -267,8 +281,8 @@ reserve enters: …", "when the Monarch is struck: …". Keep a few flat stat re
 ### 7. Synergies with big breakpoints
 
 Use 2/4/6/8 breakpoints instead of 2/4, with the top step absurd, e.g. *Undead 8: every foe slain
-rises.* Cohorts are what make 6 and 8 reachable: a kin is five units deep today, construct and drake
-only two, so without cheap bodies the deep steps would be fiction.
+rises.* Summons and shadows are what make 6 and 8 reachable: a kin is five units deep today, construct and drake
+only two, and the field holds 3 + Command souls, so without summons the deep steps would be fiction.
 
 ### 8. The enemy as an army
 
@@ -441,9 +455,9 @@ What the player does with it:
 - **Melee behind melee does nothing.** The front is on Stay, the second rank is ranged and shoots over
   it, the Tricksters are sent to a square on a wing, and a detachment waits behind for its trigger. The editor says so
   when a melee banner stands behind another.
-- **The board is the front; the army is the reserve.** Fourteen bodies on the board, two ranks, and
-  Command buys banners and reserve depth. A 48-soul army is a 14-body front with 34 behind it, which is
-  how a phalanx works and how a siege stays legible.
+- **The board is the front; the army is the reserve.** At most 10 souls on the field, their summons
+  beside them, and held detachments waiting behind with places of their own: Command buys souls, summons buy
+  bodies, and a later start buys depth.
 - **Gauge is capped** at a unit's costliest action, so a unit that was blocked or walking arrives with
   one fresh action, not a banked flurry. Otherwise killing the enemy front would release the rank
   behind it all at once.
@@ -496,8 +510,8 @@ Because the defaults lose, floor 1 runs end fast and often, so the floor has to 
 the defeat screen has to say what killed the Monarch and from where. That is how the game teaches:
 by a death that was readable in prep.
 
-- **Floors 2 and 3 are the cohort economy.** Bodies, muster, captains and promotions compete for
-  essence; the enemy gains captains and waves.
+- **Floors 2 and 3 are the soul economy.** Levels, paths (summons among them), ranks, recruits and the
+  Monarch's points compete for essence; the enemy gains captains and waves.
 - **Floor 4 is the siege.** Reserves and orders decide it. A finished build should outgrow the foes by
   now, and the siege is where that shows.
 - **Endless floors for people who broke it.** Past the Sovereign the floors keep coming, each deeper
@@ -574,7 +588,7 @@ minus the ablated expert's, in points. The targets:
 | | Mechanics | Target |
 |---|---|---|
 | Full expert | | 90%+ clear |
-| Core | monarch-stats, arise, orders, reserves, army | 25–50 point drop each |
+| Core | monarch-stats, arise, orders, reserves, summons (army before 2026-10-08) | 25–50 point drop each |
 | Extra | ranks, paths, keystones, relics, synergies, formation | 8–25 point drop each |
 | Reference | levels | reported, not targeted |
 

@@ -44,9 +44,19 @@ code). Then send the starting message in section 2.
 
 RETINUE is a browser necromancer autobattler: plain ES modules, no build step, Phaser 3 vendored at
 `src/vendor/phaser.js`. `node serve.js [port]` serves it (default 5173); `npm test` runs the rule simulation
-(238 tests, about 25 s). The rules live in `src/sim/*`, `src/tuning.js` and `src/content.js`; the interface in
+(236 tests, about 20 s). The rules live in `src/sim/*`, `src/tuning.js` and `src/content.js`; the interface in
 `src/ui.js`, `src/codex.js`, `src/engine.js`, `src/board.js` and the CSS. `reDESIGN.md` is the rules design
 and the balance record.
+
+**Rules change, 2026-10-08 (on the `recruit-only` branch; the interface-only rule in §4 was lifted for it).**
+Bind, rank-and-file bodies, cohorts, banner shapes and the muster are gone. The army is the souls you field
+(3 + Command) and recruit one a battle, Pokémon-style, as full souls; the rest wait in the **ossuary**, now the
+soul collection (slot −1, `inOssuary`). Five path tiers raise **summons** each battle (`summon: { id, count }`;
+battle units marked `summoned`, `summoner`). Ranks cost essence at a level (Knight L4/40, Marshal L7/80). Will
+hastens Arise. Hollow Court reaps standing shadows for essence; One Army pools a soul with its summons. The
+interface still reads the old names through harmless stubs (`run.js` and `content.js` say which) until its own
+pass. Three strength-dependent scenario tests (a "rich" run must win) now fail on the shifted difficulty and are
+left failing until the balance pass; `reDESIGN.md` §2 and §5 have the new systems.
 
 ## 4. Standing decisions (also in auto-memory; don't relitigate)
 

@@ -4,34 +4,39 @@
 //
 // Battles take no input. The player's part is the retinue: which souls it recruits, keeps and lets go,
 // what it spends its essence on, and which souls stand in the camp, where. Slain foes pay essence; it
-// buys levels, path tiers, recruits and the Monarch's stats. Each floor draws its camp, a 7×7 walled
+// buys levels, path tiers, ranks, recruits and the Monarch's stats. Each floor draws its camp, a 7×7 walled
 // layout, on arrival.
 //
 // The Monarch is you: a party unit with uid MONARCH_UID that stands in the camp like a soul but can never
-// be benched, released, levelled or upgraded, and counts toward no cap. Its level is the points bought
-// for Dominion (its domain's reach), Command (banners: the field cap) and Will (Arise's raises and their
-// tier), and its HP grows with it. If it falls, the battle is lost and so is the run.
+// be put in the ossuary, released, levelled or upgraded, and counts toward no cap. Its level is the points
+// bought for Dominion (its domain's reach), Command (the field cap: how many souls fight) and Will (Arise's
+// raises, their tier, and how soon it casts), and its HP grows with it. If it falls, the battle is lost and so
+// is the run.
 //
-// The army: every soul is a captain, and a fielded captain may lead a cohort of rank-and-file, bodies of
-// one kind whose kin or role matches its own, kept as counts in the ossuary (standing and fallen) and all
-// fighting at the muster level. Up to Command bodies a cohort, never more of a kind than stand; at most
-// TUNING.army.board bodies take the board, and the rest wait in reserve to enter beside the Monarch. After
-// a win the slain may be bound into the ossuary, the first 1 + Will free.
+// The ossuary: your collection of souls. Every soul recruited and not on the field waits there (slot OSSUARY,
+// −1); you field the ones you want, up to the field cap (fieldCap: TUNING.party.field + Command, relics and
+// keystones, never more than TUNING.army.board), and the ossuary and the field together hold at most rosterCap.
+// After a win you may recruit one of the slain, a full soul at the level it fought at, for essence.
 //
-// Ranks: a captain fed standing bodies of its kin is promoted, Soldier → Knight → Marshal (u.grade 0–2,
-// TUNING.ranks). A Knight may take tier IV on its path or tier I of a second path; a Marshal both, and the
-// second path's tiers II–III; in battle a Marshal's banner keeps to orders within its own domain.
+// The army: the souls fielded, and the summons their path tiers raise (a tier's `summon`, content.js PATHS):
+// they appear beside their summoner each battle, follow it and its plan, and are gone when it ends
+// (battle.js summon). Summons count toward no cap and never reach the run: no essence, no recruit, no rank.
 //
-// Orders: captains may be grouped into detachments (up to TUNING.army.detachments), each with a plan:
+// Ranks: a soul with the level is promoted for essence, Soldier → Knight → Marshal (u.grade 0–2,
+// TUNING.ranks: level[grade], cost[grade]). A Knight may take tier IV on its path or tier I of a second path;
+// a Marshal both, and the second path's tiers II–III; in battle a Marshal's banner keeps to orders within its
+// own domain. A Knight's first summon tier raises 1 more, a Marshal's 2 (TUNING.ranks.summons).
+//
+// Orders: fielded souls may be grouped into detachments (up to TUNING.army.detachments), each with a plan:
 // where (Hunt, Stay, or Move to a square, a board tile) and when (at once, at a time, or when the Monarch
-// is struck, a wave enters or a body falls). A cohort goes with its captain. A detachment that starts later
-// waits off the board (its bodies count toward no cap there) and enters beside the Monarch when its start
+// is struck, a wave enters or one of yours falls). A soul's summons go with it. A detachment that starts later
+// waits off the board (its souls count toward no cap there) and enters beside the Monarch when its start
 // comes. Every soul in no detachment Hunts, at once. The battle carries the plans out (battle.js).
 //
 // Keystones: rules that rewrite the game (KEYSTONE_LIST), offered free at won elites and at rites from floor
 // TUNING.keystone.fromFloor, never one the run holds, up to TUNING.keystone.max a run (s.keystones). Most of
-// them bend the battle (battle.js); Legion's banners, the domain's size and centre, Hollow Court's shadows
-// kept and Court of Bone's Monarch that nothing heals are the run's to apply. Nothing revives the Monarch.
+// them bend the battle (battle.js); Legion's field, the domain's size and centre, Hollow Court's shadows
+// reaped and Court of Bone's Monarch that nothing heals are the run's to apply. Nothing revives the Monarch.
 //
 // The enemy is an army too (drawRoom): from floor 2 its rooms have captains leading cohorts, an elite's with
 // orders of their own (never shown); a floor-1 elite brings a late pair; from floor 3 rooms come in waves,
@@ -44,27 +49,25 @@
 //   phase            action
 //   map              { type: 'node', id }           walk to a connected room (a battle room, a siege too, opens prep)
 //   map, prep        { type: 'place', uid, slot }   move a soul (or the Monarch) to an open camp slot (0–48)
-//                                                   or a soul to the bench (−1); a unit already there takes
-//                                                   the mover's old place (never the bench, for the Monarch)
+//                                                   or a soul to the ossuary (OSSUARY, −1); a unit already
+//                                                   there takes the mover's old place (never the ossuary, for
+//                                                   the Monarch); a soul from the ossuary only while the
+//                                                   field has room, or onto another soul's cell (a swap)
 //   map, prep        { type: 'level', uid }         buy a soul its next level
 //   map, prep        { type: 'upgrade', uid, path } buy a soul its next tier on `path` (the first commits it;
 //                                                   a Knight's or Marshal's on another path, its second path)
 //   map, prep        { type: 'monarch', stat }      buy the Monarch a point of 'dominion', 'command' or 'will'
-//   map, prep        { type: 'muster' }             buy the rank-and-file their next muster level
-//   map, prep        { type: 'cohort', uid, kind,   give a fielded captain a cohort: `count` bodies of `kind`
-//                      count, shape }               standing in `shape` (SHAPES); kind null clears it (benched too)
 //   map, prep, reap  { type: 'release', uid }       let a soul go (never the last one standing)
 //   prep             { type: 'fight' }              the battle plays out; the run moves on by itself
 //   reap             { type: 'reap', index }        take offer `index` (recruit one soul for its price, a
 //                                                   free relic, a free tier, a free keystone), or null to move on
-//   map, prep        { type: 'order', uids, plan }  a detachment of these fielded captains (out of any other;
+//   map, prep        { type: 'order', uids, plan }  a detachment of these fielded souls (out of any other;
 //                                                   a detachment left empty is gone) with `plan`:
 //                                                   { where: 'hunt'|'stay'|'move', square, when: { at, t? } }
 //   map, prep        { type: 'order', id, plan }    detachment `id` takes a new plan
-//   map, prep        { type: 'disband', id }        detachment `id` is no more: its captains Hunt, at once
-//   reap             { type: 'bind', id, count }    bind `count` of the slain of kind `id` into the ossuary
-//                                                   (the first 1 + Will a battle free, then 3 × tier each)
-//   map, prep        { type: 'promote', uid }       feed a soul bodies of its kin: Soldier → Knight → Marshal
+//   map, prep        { type: 'disband', id }        detachment `id` is no more: its souls Hunt, at once
+//   map, prep        { type: 'promote', uid }       a soul at its rank's level rises a rank for its essence:
+//                                                   Soldier → Knight → Marshal (promoteLevel, promoteCost)
 //   over             { type: 'descend' }            the Sovereign slain (result 'victory'): on to the endless
 //                                                   floors, each deeper than the last; nothing after a fall
 //
@@ -74,11 +77,11 @@
 // elite; past it the floors simply go on. A fall in the deep ends the run as any defeat does (s.death says
 // what felled the Monarch) but leaves the clear standing: s.result stays 'victory'.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, UNITS, relicDef, unitDef, RELIC_LIST, CAMP_LIST, SHAPES, ORDERS, DETACHMENT_COLORS, KEYSTONE_LIST, keystoneDef, FOE_ORDERS, THREATS } from '../content.js'
+import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, CAMP_LIST, ORDERS, DETACHMENT_COLORS, KEYSTONE_LIST, keystoneDef, FOE_ORDERS, THREATS } from '../content.js'
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CAMP_SLOTS, CAMP_ROWS, baseStats, onField, CENTRE_OUT, campGrid, campOpen, wallTiles, pathsOf,
-  pathDef, nearestOpen, deployTile, distance, rowOf, colOf, COLS, TILES, DEPTH, tileAt, pathsClash, FORMATION, LANES, SLOTS, seatNear
+  pathDef, nearestOpen, deployTile, distance, rowOf, colOf, TILES, DEPTH, tileAt, pathsClash, FORMATION, LANES, SLOTS, seatNear
 } from './unit.js'
 import { createBattle, playOut } from './battle.js'
 import { generateFloor, nodeOf, RANKS } from './map.js'
@@ -86,6 +89,8 @@ import { generateFloor, nodeOf, RANKS } from './map.js'
 export const START_PARTY = ['tomb_knight', 'bone_chanter', 'frost_sprite']
 export const MONARCH_UID = 0
 export const MONARCH_STATS = ['dominion', 'command', 'will']
+// The slot of a soul in the ossuary: kept, not fighting.
+export const OSSUARY = -1
 const START_LEVEL = 2
 const BATTLE_NODES = ['fight', 'elite', 'boss', 'siege']
 const ROMAN = ['I', 'II', 'III', 'IV']
@@ -95,8 +100,8 @@ const BOSS = UNIT_LIST.find((u) => u.boss).id
 // start souls take the cells nearest their roles' rows inside its domain: the formation a run opens on
 // is one the game itself would not mark as faltering (any soul the domain has no room for goes by its
 // row on the whole camp). `death` is what felled the Monarch, once something has. The ossuary starts
-// empty: bodies come from binding the slain. `freeBinds` is how many more bodies bind free in this reap.
-// No detachments: every soul Hunts, at once. No keystones (ids, in the order taken).
+// empty: every start soul is fielded. No detachments: every soul Hunts, at once. No keystones (ids, in the
+// order taken).
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
 // every battle of the run, carried in each battle's setup (battle.js createBattle: 'arise', 'synergies'). A run
 // made without it has no such field, as before.
@@ -104,9 +109,8 @@ export function createRun ({ seed, ablate = null }) {
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [],
     essence: TUNING.essence.start, result: null, death: null, monarch: { dominion: 0, command: 0, will: 0 },
-    ossuary: {}, muster: TUNING.army.muster.start, freeBinds: 0, detachments: [],
-    keystones: [],
-    stats: { fights: 0, wins: 0, reaped: 0, bound: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
+    detachments: [], keystones: [],
+    stats: { fights: 0, wins: 0, reaped: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
   }
   state.party = [
     makeUnit('monarch', { uid: MONARCH_UID, lvl: 0 }),
@@ -144,10 +148,7 @@ export function legalActions (run) {
   if (s.phase === 'prep') return [...(canFight(s) ? [{ type: 'fight' }] : []), ...rosterActions(run)]
   if (s.phase === 'reap') {
     const offers = s.offers.flatMap((o, index) => (canTake(run, o) ? [{ type: 'reap', index }] : []))
-    const binds = s.offers.filter((o) => o.type === 'bind')
-      .flatMap((o) => Array.from({ length: o.max }, (_, k) => ({ type: 'bind', id: o.id, count: k + 1 })))
-      .filter((a) => canBind(run, a))
-    return [...offers, ...binds, { type: 'reap', index: null }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid }))]
+    return [...offers, { type: 'reap', index: null }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid }))]
   }
   if (s.phase === 'over') return canDescend(s) ? [{ type: 'descend' }] : []
   return []
@@ -165,42 +166,23 @@ function rosterActions (run) {
     if (canPromote(run, u)) out.push({ type: 'promote', uid: u.uid })
   }
   out.push(...MONARCH_STATS.filter((stat) => canCrown(run, stat)).map((stat) => ({ type: 'monarch', stat })))
-  if (canMuster(run)) out.push({ type: 'muster' })
-  for (const u of souls(s.party)) out.push(...cohortActions(run, u))
   out.push(...orderActions(run))
   out.push(...releasable(s).map((u) => ({ type: 'release', uid: u.uid })))
   return out
 }
 
 // The orders a player could give now, sampled so the list stays short (apply takes any plan; these are a
-// representative few): each fielded captain alone and all of them together, and each detachment's plan
+// representative few): each fielded soul alone and all of them together, and each detachment's plan
 // changed, to every plan of PLAN_MENU; and each detachment disbanded.
 function orderActions (run) {
   const s = run.state
-  const captains = fielded(souls(s.party)).map((u) => u.uid)
-  const groups = [...captains.map((uid) => [uid]), ...(captains.length > 1 ? [captains] : [])]
+  const field = fielded(souls(s.party)).map((u) => u.uid)
+  const groups = [...field.map((uid) => [uid]), ...(field.length > 1 ? [field] : [])]
   const out = [
     ...groups.flatMap((uids) => PLAN_MENU.map((plan) => ({ type: 'order', uids, plan }))),
     ...s.detachments.flatMap((d) => PLAN_MENU.map((plan) => ({ type: 'order', id: d.id, plan })))
   ].filter((a) => canOrder(run, a))
   return [...out, ...s.detachments.map((d) => ({ type: 'disband', id: d.id }))]
-}
-
-// Every cohort a captain could take now (each kind it can lead with bodies to spare, each count, each
-// shape), and clearing the one it has.
-function cohortActions (run, u) {
-  const s = run.state
-  const out = u.cohort ? [{ type: 'cohort', uid: u.uid, kind: null }] : []
-  if (!onField(u)) return out
-  for (const kind of Object.keys(s.ossuary)) {
-    for (let count = 1; count <= Math.min(cohortCap(s, u), freeBodies(s, kind, u)); count++) {
-      for (const shape of Object.keys(SHAPES)) {
-        const a = { type: 'cohort', uid: u.uid, kind, count, shape }
-        if (canCohort(run, u, a)) out.push(a)
-      }
-    }
-  }
-  return out
 }
 
 export const currentNode = (run) => nodeOf(run.state.map, run.state.at)
@@ -216,26 +198,25 @@ const keystoneSum = (s, key) => s.keystones.reduce((n, id) => n + (keystoneDef(i
 // Whether the run holds a keystone with this rule (KEYSTONE_LIST: keep, unhealable, crown…).
 export const holds = (s, key) => s.keystones.some((id) => keystoneDef(id)[key])
 // Hollow Court: the shadows Arise raised (`arisen`; a party shadow raised any other way is not one) that
-// still stood when the battle last fought ended, if it was fought under the keystone. The rules it was
-// fought with decide (run.setup), not the keystones held now: one taken on the spoils keeps nothing of the
-// battle before it.
-export const keptShadows = (run) => run.battle && run.setup?.keystones?.some((id) => keystoneDef(id).keep)
+// still stood when the battle last fought was won, if it was fought under the keystone: each pays its essence
+// again (finishBattle). The rules it was fought with decide (run.setup), not the keystones held now: one taken
+// on the spoils reaps nothing of the battle before it.
+export const reapedShadows = (run) => run.battle && run.battle.winner === 'party' && run.setup?.keystones?.some((id) => keystoneDef(id).reap)
   ? run.battle.units.filter((u) => u.arisen && u.side === 'party' && u.hp > 0) : []
-// Caps count souls: the Monarch takes no room on the field or in the retinue. Command adds banners, up to
-// as many as the board holds bodies (and so do Legion's two).
-// The banners every Monarch holds: TUNING.party.field, and fieldPerFloor more a floor down (to the Sovereign's), so
-// Command is not the only way to a wider field (necessity round 2: Monarch points decided whole runs).
+// Caps count souls: the Monarch takes no room on the field or in the retinue, and summons none anywhere.
+// Command adds a soul to the field a point, up to as many as the board holds (and so do Legion's two).
+// The souls every Monarch fields: TUNING.party.field, and fieldPerFloor more a floor down (to the Sovereign's;
+// 0 now: Command alone widens the field).
 export const baseField = (s) => TUNING.party.field + TUNING.party.fieldPerFloor * (Math.min(s.floor, TUNING.run.floors) - 1)
 export const fieldCap = (run) => Math.min(TUNING.army.board, baseField(run.state) + run.state.monarch.command + relicSum(run.state, 'field') + keystoneSum(run.state, 'field'))
-// How many rank-and-file a captain's cohort holds: Command, plus its rank's (TUNING.ranks.cohort: a Knight and a
-// Marshal lead more, Command or not).
-export const cohortCap = (s, u) => s.monarch.command + (TUNING.ranks.cohort[u?.grade ?? 0] ?? 0)
+// How many souls the retinue holds, on the field and in the ossuary together.
 export const rosterCap = (run) => TUNING.party.roster + relicSum(run.state, 'roster')
 export const fielded = (party) => party.filter(onField)
-export const benched = (party) => party.filter((u) => !onField(u))
+// The souls in the ossuary: kept, not fielded.
+export const inOssuary = (party) => party.filter((u) => !onField(u))
 export const isMonarch = (u) => u.uid === MONARCH_UID
 export const monarchOf = (s) => s.party.find(isMonarch)
-// The party without the Monarch: what the caps, the bench and the offers count.
+// The party without the Monarch: what the caps, the ossuary and the offers count.
 export const souls = (party) => party.filter((u) => !isMonarch(u))
 
 // ── the Monarch ──────────────────────────────────────────────────────────────────────────────────
@@ -254,7 +235,7 @@ export const faltersAt = (s, slot) => {
 }
 
 // The camp cell the domain centres on as a battle begins: the Monarch's, or with Vanguard Crown its
-// front-most captain's (a living fielded soul that takes the field at once; the front row first, then the
+// front-most soul's (a living fielded soul that takes the field at once; the front row first, then the
 // middle lane, then the lowest uid), as the battle finds it (it then moves with the front).
 export function domainCentre (s) {
   const m = monarchOf(s)
@@ -263,13 +244,10 @@ export function domainCentre (s) {
     .sort((a, b) => rowOf(a.slot) - rowOf(b.slot) || Math.abs(colOf(a.slot) - CENTRE_OUT[0]) - Math.abs(colOf(b.slot) - CENTRE_OUT[0]) || a.uid - b.uid)[0]
   return front ? front.slot : m.slot
 }
-// The Marshal whose own domain covers a fielded soul or member (armyLayout's) at the start: the soul itself
-// if it is one, else its captain if that is a Marshal standing on the field; null for anyone else.
-export const marshalOf = (s, u) => {
-  const c = (u.grade ?? 0) >= 2 ? u : u.cohortOf != null ? s.party.find((x) => x.uid === u.cohortOf) : null
-  return c && c.grade >= 2 && onField(c) && c.hp > 0 ? c : null
-}
-// Whether a fielded soul or member starts the battle faltering, as the battle's `falters` reads its first
+// The Marshal whose own domain covers a fielded soul at the start: the soul itself if it is a Marshal standing on
+// the field (its summons, which appear beside it, are its banner); null for anyone else.
+export const marshalOf = (s, u) => ((u.grade ?? 0) >= 2 && onField(u) && u.hp > 0 ? u : null)
+// Whether a fielded soul starts the battle faltering, as the battle's `falters` reads its first
 // tick: outside the Monarch's domain (faltersAt), unless it is a Marshal or stands within its Marshal's
 // own domain (TUNING.ranks.domain; camp distance is board distance). Prep marks and estimates use this.
 export const faltersIn = (s, u) => {
@@ -278,132 +256,34 @@ export const faltersIn = (s, u) => {
   return !m || distance(deployTile('party', u.slot), deployTile('party', m.slot)) > TUNING.ranks.domain
 }
 
-// ── the army: rank-and-file, muster, cohorts ────────────────────────────────────────────────────
+// ── the army: held detachments ──────────────────────────────────────────────────────────────────
 
-// A captain may lead bodies of any kind that shares its kin or its role (never the Monarch, nor a boss).
-export const canLead = (captain, kind) => {
-  const c = unitDef(captain.id)
-  const k = unitDef(kind)
-  return !c.monarch && !k.monarch && !k.boss && (k.kin === c.kin || k.role === c.role)
-}
-export const standingOf = (s, kind) => s.ossuary[kind]?.standing ?? 0
-// The bodies of `kind` standing in the ossuary that no cohort but `except`'s leads.
-export const freeBodies = (s, kind, except = null) =>
-  standingOf(s, kind) - souls(s.party).reduce((n, u) => n + (u !== except && u.cohort?.kind === kind ? u.cohort.count : 0), 0)
-
-// The next muster level, bought once for every body: a level, so a level discount cuts it too.
-export const musterCost = (run) => price(run, TUNING.army.muster.cost * Math.pow(run.state.muster, TUNING.army.muster.exponent), 'levelDiscount')
-const canMuster = (run) => run.state.muster < TUNING.army.muster.cap && run.state.essence >= musterCost(run)
-
-// A cohort for a fielded captain: a kind it can lead, 1 to Command bodies of it that no other cohort
-// leads, in a known shape (a change, not the one it has). Clearing (kind null) works on any soul with a
-// cohort, benched or not, so a benched captain never holds bodies hostage.
-function canCohort (run, u, { kind, count, shape }) {
-  const s = run.state
-  if (!u || isMonarch(u)) return false
-  if (kind === null) return !!u.cohort
-  if (!onField(u) || typeof kind !== 'string' || !Object.hasOwn(UNITS, kind) || !Object.hasOwn(SHAPES, shape)) return false
-  if (u.cohort && u.cohort.kind === kind && u.cohort.count === count && u.cohort.shape === shape) return false
-  return Number.isInteger(count) && count >= 1 && count <= cohortCap(s, u) && canLead(u, kind) && count <= freeBodies(s, kind, u)
-}
-
-// Where the army stands for a battle, from the living fielded captains on their cells: each cohort's
-// members at its shape's offsets in turn (each captain's first, then each one's second…, in party order),
-// an offset walled, off the camp or taken giving way to the next free one, then to the open cell nearest
-// the captain. Once TUNING.army.board bodies stand (captains and members; the Monarch not counted), or no
-// cell is left, the rest go to the reserve in that order. Dead souls hold no cell: they do not fight.
-// A detachment that starts later (`detachments`, the run's by default) is held: its captains and all their
-// bodies wait off the board, count toward no cap, and enter in `held`'s order (detachment by detachment,
-// in the party order of their first captains, not the order they were formed in, so a rehearsal of the
-// same captains and plans lines them up as the fight will; within one, its captains in party order, then
-// their bodies round-robin, so no body enters before its captain). A held captain's camp cell stays its own.
-// → { members: [{ cohortOf, id, slot }], reserve: [{ cohortOf, id }], held: [{ det, uid, id } | { det, cohortOf, id }] }
+// Who waits off the board for a battle: the living fielded souls of each detachment that starts later, in
+// `held`'s order (detachment by detachment, in the party order of their first souls, not the order they were
+// formed in, so a rehearsal of the same souls and plans lines them up as the fight will; within one, its souls
+// in party order). They count toward no cap there, and a held soul's camp cell stays its own. Dead souls hold
+// no cell: they do not fight. Every other living fielded soul stands on its cell from the start, its summons
+// beside it. `members` and `reserve` (the cohorts' bodies, once) are always empty.
+// → { members: [], reserve: [], held: [{ det, uid, id }] }
 export function armyLayout (s, party = fielded(s.party), detachments = s.detachments) {
-  const grid = campGrid(s.camp)
   const standing = party.filter((u) => onField(u) && u.hp > 0)
-  const taken = new Set(standing.map((u) => u.slot))
-  const out = (u) => isMonarch(u) || waits(detachmentOf(s, u.uid, detachments))
-  let board = standing.filter((u) => !out(u)).length
-  const members = []
-  const reserve = []
-  round(standing.filter((u) => !out(u) && u.cohort), (body, c) => {
-    const slot = board < TUNING.army.board ? memberCell(grid, c, taken) : -1
-    if (slot < 0) return reserve.push(body)
-    taken.add(slot)
-    board++
-    members.push({ ...body, slot })
-  })
   const held = []
   const first = (d) => standing.findIndex((u) => d.members.includes(u.uid))
   for (const d of detachments.filter(waits).sort((a, b) => first(a) - first(b))) {
-    const captains = standing.filter((u) => !isMonarch(u) && d.members.includes(u.uid))
-    held.push(...captains.map((u) => ({ det: d.id, uid: u.uid, id: u.id })))
-    round(captains.filter((u) => u.cohort), (body) => held.push({ det: d.id, ...body }))
+    held.push(...standing.filter((u) => !isMonarch(u) && d.members.includes(u.uid)).map((u) => ({ det: d.id, uid: u.uid, id: u.id })))
   }
-  return { members, reserve, held }
-}
-
-// Each captain's first body, then each one's second, and so on: `fn({ cohortOf, id }, captain)`.
-function round (captains, fn) {
-  for (let k = 0; captains.some((c) => c.cohort.count > k); k++) {
-    for (const c of captains) if (k < c.cohort.count) fn({ cohortOf: c.uid, id: c.cohort.kind }, c)
-  }
-}
-
-function memberCell (grid, captain, taken) {
-  const row = rowOf(captain.slot)
-  const col = colOf(captain.slot)
-  for (const [dr, dc] of SHAPES[captain.cohort.shape].offsets) {
-    const r = row + dr
-    const c = col + dc
-    if (r < 0 || r >= grid.rows || c < 0 || c >= COLS) continue
-    const slot = slotAt(r, c)
-    if (grid.open(slot) && !taken.has(slot)) return slot
-  }
-  return nearestOpen(grid, captain.slot, taken)
-}
-
-// After deaths a kind may have fewer standing than its cohorts lead: they shrink, the first captains in
-// the party keeping theirs; one left with none has none.
-function fitCohorts (s) {
-  const left = {}
-  for (const u of souls(s.party)) {
-    if (!u.cohort) continue
-    const k = u.cohort.kind
-    left[k] ??= standingOf(s, k)
-    const count = Math.min(u.cohort.count, left[k])
-    left[k] -= count
-    u.cohort = count ? { ...u.cohort, count } : null
-  }
+  return { members: [], reserve: [], held }
 }
 
 // ── ranks ────────────────────────────────────────────────────────────────────────────────────────
 
-// A soul's next rank takes TUNING.ranks.knight bodies of its kin (a Soldier's) or TUNING.ranks.marshal more
-// (a Knight's): how many, or null for a Marshal, the top.
-export const promoteNeed = (u) => [TUNING.ranks.knight, TUNING.ranks.marshal][u.grade ?? 0] ?? null
-// The bodies of a kin standing in the ossuary, every kind of it.
-export const kinStanding = (s, kin) => Object.keys(s.ossuary).reduce((n, k) => n + (unitDef(k).kin === kin ? standingOf(s, k) : 0), 0)
-// Any soul, fielded, benched or fallen, may be promoted while enough bodies of its kin stand; never the Monarch.
-export const canPromote = (run, u) => !!u && !isMonarch(u) && promoteNeed(u) !== null && kinStanding(run.state, unitDef(u.id).kin) >= promoteNeed(u)
-
-// The bodies a promotion takes, as { kind: count }: those no cohort leads first, then led ones (their
-// cohorts shrink, as after deaths); either way the lowest tier first, then the kind with the most, then by id.
-export function feedOf (s, kin, n) {
-  const kinds = Object.keys(s.ossuary).filter((k) => unitDef(k).kin === kin)
-  const take = {}
-  const eat = (count) => {
-    for (const k of kinds.slice().sort((a, b) => unitDef(a).tier - unitDef(b).tier || count(b) - count(a) || (a < b ? -1 : 1))) {
-      const x = Math.min(n, count(k))
-      if (x <= 0) continue
-      take[k] = (take[k] ?? 0) + x
-      n -= x
-    }
-  }
-  eat((k) => Math.max(0, freeBodies(s, k)))
-  eat((k) => standingOf(s, k) - (take[k] ?? 0))
-  return take
-}
+// A soul's next rank takes level TUNING.ranks.level[grade] and TUNING.ranks.cost[grade] essence: the level it
+// needs and the price, or null for a Marshal, the top.
+export const promoteLevel = (u) => TUNING.ranks.level[u?.grade ?? 0] ?? null
+export const promoteCost = (run, u) => TUNING.ranks.cost[u?.grade ?? 0] ?? null
+// Any soul, fielded, in the ossuary or fallen, may be promoted once it has the level and the essence; never the
+// Monarch.
+export const canPromote = (run, u) => !!u && !isMonarch(u) && promoteLevel(u) !== null && u.lvl >= promoteLevel(u) && run.state.essence >= promoteCost(run, u)
 
 // ── orders: detachments and their plans ─────────────────────────────────────────────────────────
 
@@ -438,7 +318,7 @@ const samePlan = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 export const waits = (d) => !!d && d.plan.when.at !== 'once'
 export const detachmentOf = (s, uid, detachments = s.detachments) => detachments.find((d) => d.members.includes(uid)) ?? null
 
-// An order: forming a detachment of fielded captains (`uids`, distinct, no Monarch; none of them left in
+// An order: forming a detachment of fielded souls (`uids`, distinct, no Monarch; none of them left in
 // another), within TUNING.army.detachments once those emptied are gone, and not one that already stands
 // with this plan; or a new plan for detachment `id` (a change, not the one it has).
 function canOrder (run, a) {
@@ -478,7 +358,8 @@ function fitSquares (s) {
 
 // ── the retinue: placing, releasing, buying ─────────────────────────────────────────────────────
 
-// The Monarch is never benched: not by a place to −1, nor by a benched soul taking its cell.
+// The Monarch never goes to the ossuary: not by a place to OSSUARY, nor by a soul from the ossuary taking its
+// cell. A soul leaves the ossuary for an open cell only while the field has room (fieldCap: Command).
 function canPlace (run, u, slot) {
   if (slot === u.slot || (slot !== -1 && !campOpen(run.state.camp, slot))) return false
   if (slot === -1 && isMonarch(u)) return false
@@ -496,7 +377,7 @@ function releasable (s) {
 // The Monarch alone may fight (and will likely fall).
 const canFight = (s) => s.party.some((u) => onField(u) && u.hp > 0)
 
-// A new soul takes a free field slot if there is one, else waits on the bench.
+// A new soul takes a free field slot if there is one, else waits in the ossuary.
 export function join (run, id, { lvl = medianLevel(souls(run.state.party)), uid = run.state.nextUid++ } = {}) {
   const s = run.state
   if (unitDef(id).monarch) throw new Error('there is one Monarch')
@@ -516,14 +397,11 @@ const HANDLERS = {
   upgrade: { phases: ['map', 'prep'], run: upgrade },
   release: { phases: ['map', 'prep', 'reap'], run: release },
   monarch: { phases: ['map', 'prep'], run: crown },
-  muster: { phases: ['map', 'prep'], run: muster },
   promote: { phases: ['map', 'prep'], run: promote },
-  cohort: { phases: ['map', 'prep'], run: cohort },
   order: { phases: ['map', 'prep'], run: order },
   disband: { phases: ['map', 'prep'], run: disband },
   fight: { phases: ['prep'], run: fight },
   reap: { phases: ['reap'], run: reap },
-  bind: { phases: ['reap'], run: bind },
   descend: { phases: ['over'], run: descend }
 }
 
@@ -543,15 +421,11 @@ function walk (run, { id }) {
     s.phase = 'reap'
     if (!s.offers.length) nextRoom(run)
   } else if (node.type === 'altar') {
+    // Every soul heals, in the ossuary too, and a fallen one stands again.
     const t = TUNING.run
     for (const u of s.party) {
       if (isMonarch(u) && holds(s, 'unhealable')) continue
       u.hp = u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive)
-    }
-    // The fallen rank-and-file stand again.
-    for (const o of Object.values(s.ossuary)) {
-      o.standing += o.fallen
-      o.fallen = 0
     }
     nextRoom(run)
   } else {
@@ -588,19 +462,7 @@ function crown (run, { stat }) {
   if (holds(s, 'unhealable')) m.hp = hp
 }
 
-function muster (run) {
-  if (!canMuster(run)) throw new Error('cannot muster')
-  pay(run, musterCost(run))
-  run.state.muster++
-}
-
-function cohort (run, { uid, kind, count, shape }) {
-  const u = run.state.party.find((x) => x.uid === uid)
-  if (!canCohort(run, u, { kind, count, shape })) throw new Error(`cannot give ${uid} a cohort of ${count} ${kind} in ${shape}`)
-  u.cohort = kind === null ? null : { kind, count, shape }
-}
-
-// A new detachment takes the first id free (1 up) and that id's colour; its captains stand in party order.
+// A new detachment takes the first id free (1 up) and that id's colour; its souls stand in party order.
 function order (run, a) {
   const s = run.state
   if (!canOrder(run, a)) throw new Error(`cannot give the order ${JSON.stringify(a)}`)
@@ -629,14 +491,12 @@ function upgrade (run, { uid, path }) {
   advance(u, path)
 }
 
-// The bodies are eaten (gone, not fallen) and the soul rises a rank; cohorts left with too few shrink.
+// The essence is paid and the soul rises a rank.
 function promote (run, { uid }) {
-  const s = run.state
-  const u = s.party.find((x) => x.uid === uid)
+  const u = run.state.party.find((x) => x.uid === uid)
   if (!canPromote(run, u)) throw new Error(`cannot promote ${uid}`)
-  for (const [k, n] of Object.entries(feedOf(s, unitDef(u.id).kin, promoteNeed(u)))) s.ossuary[k].standing -= n
+  pay(run, promoteCost(run, u))
   u.grade = (u.grade ?? 0) + 1
-  fitCohorts(s)
 }
 
 // A released soul's rite offers go with it; a rite left with none ends.
@@ -693,34 +553,8 @@ function reap (run, { index }) {
   if (!s.offers.length) nextRoom(run)
 }
 
-// Bodies bound go to the ossuary, standing. The offer keeps what is left of it, and the room's other offers
-// stay on the table; a room left with no offer at all ends.
-function bind (run, { id, count }) {
-  const s = run.state
-  if (!canBind(run, { id, count })) throw new Error(`cannot bind ${count} ${id}`)
-  const o = s.offers.find((x) => x.type === 'bind' && x.id === id)
-  pay(run, bindCost(run, id, count))
-  s.freeBinds = Math.max(0, s.freeBinds - count)
-  const bones = (s.ossuary[id] ??= { standing: 0, fallen: 0 })
-  bones.standing += count
-  s.stats.bound += count
-  o.max -= count
-  if (!o.max) s.offers = s.offers.filter((x) => x !== o)
-  if (!s.offers.length) nextRoom(run)
-}
-
-// The first 1 + Will bodies bound after a battle are free (s.freeBinds counts down); each more costs
-// TUNING.army.bindPerTier × its tier.
-export const bindCost = (run, id, count) => Math.max(0, count - run.state.freeBinds) * TUNING.army.bindPerTier * unitDef(id).tier
-function canBind (run, { id, count }) {
-  const o = run.state.offers.find((x) => x.type === 'bind' && x.id === id)
-  return !!o && Number.isInteger(count) && count >= 1 && count <= o.max && run.state.essence >= bindCost(run, id, count)
-}
-
-// A bind offer is taken by `bind`, never by `reap`.
 function canTake (run, o) {
   const s = run.state
-  if (o.type === 'bind') return false
   if (o.type === 'soul') return souls(s.party).length < rosterCap(run) && s.essence >= o.cost
   if (o.type === 'tier') return s.party.some((u) => u.uid === o.uid && canAdvance(u, o.path))
   if (o.type === 'keystone') return !s.keystones.includes(o.id) && s.keystones.length < TUNING.keystone.max
@@ -754,7 +588,6 @@ function enterFloor (run) {
 function nextRoom (run) {
   const s = run.state
   s.phase = 'map'
-  s.freeBinds = 0
   if (s.at !== s.map.end) return
   s.stats.floorsCleared++
   s.floor++
@@ -946,13 +779,11 @@ function foeOrder (rng, captain) {
 
 // What createBattle needs in the current room, with copies of the fielded souls so the UI can rebuild
 // the same battle. Leaves the run untouched: the foes take the next free uids, and fight() claims them.
-// `party`, `detachments` and `seed` override the fielded souls (with their cohorts), the detachments and the
-// room's seed, for a rehearsal. The Monarch's domain and Will go with it. The cohorts stand as armyLayout
-// says: their members join the party as battle units { cohortOf, rank: true } at the muster level, and the
-// bodies with no room on the board make up the reserve, in order, after the held detachments (captains and
-// bodies, each with its detachment's `when`); members take uids after the foes', then the held bodies, then
-// the reserve's, and shadows after them all. Every unit of a detachment (a captain, its cohort) carries
-// `det` and its plan; `detachments` lists those that take part, for the renderer.
+// `party`, `detachments` and `seed` override the fielded souls, the detachments and the room's seed, for a
+// rehearsal. The Monarch's domain and Will go with it. The held detachments' souls (armyLayout) make up the
+// party's reserve, in order, each with its detachment's `when`. Summons and shadows take uids after the foes'
+// (the battle makes them: battle.js summon, raise). Every soul of a detachment carries `det` and its plan (its
+// summons take them from it); `detachments` lists those that take part, for the renderer.
 // The foes (foeUnits): the room's formation stands from the start, and its later waves wait at the end of
 // the reserve, each foe with `side: 'foe'`, its `wave`, its slot's `lane` and the wave's `when`; the foes take
 // the first uids, the formation's then each wave's in order. With `scout`, the setup is the room as a player
@@ -969,22 +800,14 @@ export function battleSetup (run, { party = fielded(run.state.party), seed = nul
   }
   const start = (uid) => ({ when: detachmentOf(s, uid, detachments).plan.when })
   const foes = foeUnits(node, s.nextUid, scout)
-  let uid = s.nextUid + foes.length
-  const body = (b, slot) => ({ ...makeUnit(b.id, { uid: uid++, lvl: s.muster, slot }), cohortOf: b.cohortOf, rank: true, ...orders(b.cohortOf) })
-  const members = army.members.map((b) => body(b, b.slot))
-  const held = army.held.map((h) => h.uid !== undefined
-    ? { ...party.find((u) => u.uid === h.uid), slot: -1, ...orders(h.uid), ...start(h.uid) }
-    : { ...body(h, -1), ...start(h.cohortOf) })
-  // Bodies with no room on the board sit the battle out unless TUNING.army.overflow (necessity round 2): only a
-  // held detachment enters once the battle is under way, so a later start is the only way more than the board's
-  // bodies fight.
-  const reserve = TUNING.army.overflow ? army.reserve.map((b) => body(b, -1)) : []
+  const uid = s.nextUid + foes.length
+  const held = army.held.map((h) => ({ ...party.find((u) => u.uid === h.uid), slot: -1, ...orders(h.uid), ...start(h.uid) }))
   const away = new Set(held.map((u) => u.uid))
-  const units = [...party.filter((u) => !away.has(u.uid)).map((u) => ({ ...u, ...orders(u.uid) })), ...members]
-  const taking = new Set([...units, ...held, ...reserve].filter((u) => u.det !== undefined && (u.slot < 0 || u.hp > 0)).map((u) => u.det))
+  const units = party.filter((u) => !away.has(u.uid)).map((u) => ({ ...u, ...orders(u.uid) }))
+  const taking = new Set([...units, ...held].filter((u) => u.det !== undefined && (u.slot < 0 || u.hp > 0)).map((u) => u.det))
   return {
     party: units,
-    reserve: [...held, ...reserve, ...foes.filter((f) => f.wave)],
+    reserve: [...held, ...foes.filter((f) => f.wave)],
     detachments: detachments.filter((d) => taking.has(d.id)).map((d) => ({ id: d.id, color: d.color, ...d.plan })),
     foes: foes.filter((f) => !f.wave),
     seed: seed ?? `${s.seed}|${s.floor}|${node.id}`,
@@ -1035,16 +858,7 @@ function finishBattle (run) {
     const bu = byUid.get(u.uid)
     if (bu) u.hp = bu.hp > 0 ? Math.max(1, Math.round(bu.hp / bu.maxHp * u.maxHp)) : 0
   }
-  // Rank-and-file who fell lie with the fallen until an altar; the reserve that never entered still stands.
-  for (const u of b.units) {
-    if (!u.rank || u.side !== 'party' || u.hp > 0) continue
-    const bones = (s.ossuary[u.id] ??= { standing: 0, fallen: 0 })
-    bones.standing--
-    bones.fallen++
-  }
-  fitCohorts(s)
-  // Hollow Court: the shadows still standing stay, as rank-and-file of their kind.
-  for (const u of keptShadows(run)) (s.ossuary[u.id] ??= { standing: 0, fallen: 0 }).standing++
+  // Summons and shadows are the battle's alone: nothing of them comes back to the run.
   s.stats.fights++
   if (b.winner !== 'party') {
     s.phase = 'over'
@@ -1054,7 +868,9 @@ function finishBattle (run) {
     return
   }
   s.stats.wins++
-  const earned = Math.round(battleEssence(b) * (1 + relicSum(s, 'essence')))
+  // Hollow Court: the shadows Arise raised that still stand pay their essence again.
+  const court = reapedShadows(run).reduce((n, u) => n + foeEssence(u), 0)
+  const earned = Math.round((battleEssence(b) + court) * (1 + relicSum(s, 'essence')))
   s.essence += earned
   s.stats.essence += earned
   for (const u of s.party) {
@@ -1068,8 +884,7 @@ function finishBattle (run) {
     s.result = 'victory'
     return
   }
-  s.offers = [...soulOffers(run, b), ...bindOffers(b, keptShadows(run)), ...(node.type === 'elite' ? [...relicOffers(s, TUNING.essence.eliteRelics), ...keystoneOffers(s)] : [])]
-  s.freeBinds = 1 + s.monarch.will
+  s.offers = [...soulOffers(run, b), ...(node.type === 'elite' ? [...relicOffers(s, TUNING.essence.eliteRelics), ...keystoneOffers(s)] : [])]
   s.phase = 'reap'
 }
 
@@ -1195,25 +1010,15 @@ export function foeMods (floor, boss) {
 
 // ── rewards ──────────────────────────────────────────────────────────────────────────────────────
 
-// One soul for sale per kind of foe slain, rising at the level that foe fought at. A foe shadow is no foe's soul
-// (it rose from one of yours: the Legion, Undead 8, on the foes' side).
+// One soul for sale per kind of foe slain, rising at the level that foe fought at: a full soul (its level, its
+// paths), one of them a battle (reap). A foe shadow is no foe's soul (it rose from one of yours: the Legion,
+// Undead 8, on the foes' side), and a summon is never anyone's.
 function soulOffers (run, battle) {
   const s = run.state
   const slain = battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0)
   return [...new Set(slain.map((u) => u.id))].map((id) => {
     const lvl = Math.min(TUNING.level.cap, Math.max(...slain.filter((u) => u.id === id).map((u) => u.lvl)) + relicSum(s, 'soulLevel'))
     return { type: 'soul', id, lvl, cost: recruitCost(run, id, lvl), name: unitDef(id).name, desc: `Rises at level ${lvl}.` }
-  })
-}
-
-// The slain may be bound as rank-and-file: one offer per kind, for as many as fell (real foes only). A corpse
-// whose shadow Hollow Court keeps (`kept`) is already in the ossuary: it is not bound twice.
-function bindOffers (battle, kept = []) {
-  const gone = new Set(kept.map((u) => u.corpse))
-  const slain = battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0 && !unitDef(u.id).boss && !gone.has(u.uid))
-  return [...new Set(slain.map((u) => u.id))].map((id) => {
-    const max = slain.filter((u) => u.id === id).length
-    return { type: 'bind', id, max, name: unitDef(id).name, desc: `${max} slain may rise as rank-and-file.` }
   })
 }
 

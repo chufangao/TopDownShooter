@@ -23,15 +23,14 @@ export const FIRST_ARISE = { monarch: { raises: 1, raiseTier: 1, raiseHp: 0.5, s
 // The board of 14 the army was first built with.
 export const BOARD_14 = { army: { board: 14 } }
 // The balance the army and its expert were first tested on (before necessity round 1): Arise as first built, the
-// Monarch's HP, the board of 14, ranks of 4 and 8 bodies with a reach of 2 and no rank cohorts (a cohort holds
-// Command), the first tier prices, and orders with no payoff of their own (no bracing, no fresh entry); and (round
-// 2) bodies with no room on the board waiting in reserve, no banners gained by floor, and ranks with no might; and
-// (round 3) flankers that vault a braced line.
+// Monarch's HP, the board of 14, a Marshal's reach of 2, the first tier prices, and orders with no payoff of their
+// own (no bracing, no fresh entry); and (round 2) no souls gained by floor and ranks with no might; and (round 3)
+// flankers that vault a braced line. (The cohorts, binds and muster it also set are gone from the rules.)
 export const FIRST_BALANCE = {
   orders: { braced: 1, fresh: 0, holdFlank: false },
   monarch: { ...FIRST_ARISE.monarch, hp: 140, hpPerPoint: 24 },
-  army: { board: 14, overflow: true },
+  army: { board: 14 },
   party: { fieldPerFloor: 0 },
-  ranks: { knight: 4, marshal: 8, domain: 2, cohort: [0, 0, 0], might: [1, 1, 1] },
+  ranks: { domain: 2, might: [1, 1, 1] },
   essence: { tier: [30, 60, 100, 150] }
 }
