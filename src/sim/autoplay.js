@@ -1,16 +1,18 @@
 // A player for tests and balance runs: a policy that picks one action at a time for apply(). It plays at
 // one of two levels (LEVELS), on the same choices and the same scouting a player has:
-//   both    a standing piece the field has no place for stacks onto the strongest fielded piece of its kind, and
-//           with room on the field and none standing left in the ossuary a stack splits a body off (pickStack)
-//   basic   rules of thumb: rooms by weighted dice, the strongest souls fielded, the Monarch parked on
+//   basic   rules of thumb: a standing piece the field has no place for stacks onto the strongest fielded piece
+//           of its kind, and with room on the field and none standing left in the ossuary a stack splits a body off
+//           (pickStack); rooms by weighted dice, the strongest souls fielded, the Monarch parked on
 //           the camp's rear row in the middle lane, the best of three drafted formations, the first free
 //           offer (a relic, a tier, a keystone), recruits only to fill the field, essence on the lowest kind's level (a
 //           track tier once a kind is ready for it), and Command only once two standing souls would wait in the
 //           ossuary with the field full; no lines (every soul holds: a line it finds is cleared)
 //   expert  plans: every route over the next few ranks played out, wounds counted when fielding, the
-//           formation (the Monarch's seat too) hill-climbed over cells and the ossuary, and the souls' lines
-//           (a march straight up its lane, at once or at a time) with them; a short advance, a screen beside the
-//           Monarch and the Monarch in a pocket among its drafts; free offers (keystones too) weighed by
+//           formation hill-climbed over cells and the ossuary, every seat screened for the Monarch, and the souls'
+//           lines in every shape (up the lane, onto the foes' road, toward their shooters, back to the Monarch:
+//           SHAPES) on every signal with them; an advance, a charge on the first blow, a hold for the last wave, a
+//           guard, a reach, a Banner's wing, a screen beside the Monarch and the Monarch in a pocket among its
+//           drafts; stacks and splits weighed once a room by rehearsal (deliberate); free offers (keystones too) weighed by
 //           rehearsing the fights ahead, recruits that would make the field (or join a fielded piece of their
 //           kind), essence on whatever buys the most worth per essence for a kind's every soul (a tier that adds
 //           bodies worth them), and Monarch points when
@@ -24,6 +26,7 @@
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate lines  (a report as above)
 // for how much each mechanic carries the expert, full runs:  … --ablations [--runs 8] [--variants full,lines,bodies] [--out runs.json]
 // or as a fast battle-level proxy (its battles refought stripped): … --necessity [--runs 8] [--setups file]
+// or what the expert considers against what it chooses, mechanic by mechanic (AUDIT):  … --audit [--runs 4] [--seed audit]
 // (the defaults, RUNS, are sized to one expert run per core: an expert run takes minutes; see README)
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -33,16 +36,16 @@ import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campGrid, campOpen, wallTiles, steps, deployTile, tileAt, tileY, TILES,
   LANES, rowOf, colOf, rangeOf, isAllyShape, distance, makeUnit, slotAt, baseStats, seatNear, sealedBy, bodiesOf, isSeat, onBoard, tileX,
-  livingBodies
+  livingBodies, DEPTH, bannerOf
 } from './unit.js'
-import { createBattle, playOut, timelineHash } from './battle.js'
+import { createBattle, playOut, timelineHash, field } from './battle.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, levelCost, tierCost,
   isMonarch, monarchOf, souls, MONARCH_STATS, monarchCost, monarchPoints, canAdvance, holds, isMarch, soulCount
 } from './run.js'
 import { nodeOf, RANKS } from './map.js'
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, campDef } from '../content.js'
+import { unitDef, abilityDef, campDef, SIGNALS } from '../content.js'
 
 // seeds: rehearsals per formation (0: take the first draft unrehearsed); drafts: how many of the
 // drafts to try (all by default); search: formations tried by hill-climbing from the best draft;
@@ -50,12 +53,14 @@ import { unitDef, abilityDef, campDef } from '../content.js'
 // weighted dice), over the next `horizon` rooms; reap: weigh free offers by rehearsing the fights
 // ahead, and recruit by worth; spend: buy by worth per essence (and Monarch points by rehearsal) rather
 // than by rule of thumb; park: the Monarch always on the rear row, middle lane, never moved by the search;
-// lines: draft and search the souls' lines (else every soul holds); finalists, validate: the best
+// lines: draft and search the souls' lines (else every soul holds); shapes: draft them in every shape on every signal
+// too (shapedDrafts); seats: screen every seat for the Monarch (each on one roll, the best two rehearsed in full);
+// finalists, validate: the best
 // `finalists` formations of the search fought again on `validate` fresh rolls, the best of them taken; keepLines (no level has
 // it: the fuzz test's) fights on whatever lines it finds instead of clearing them, when it plans none.
 export const LEVELS = {
   basic: { seeds: 1, search: 0, wounds: false, rollouts: 0, reap: false, spend: false, park: true, lines: false },
-  expert: { seeds: 4, search: 12, finalists: 8, validate: 4, wounds: true, rollouts: 1, horizon: 3, reap: true, spend: true, park: false, lines: true }
+  expert: { seeds: 4, search: 12, finalists: 8, validate: 4, wounds: true, rollouts: 1, horizon: 3, reap: true, spend: true, park: false, lines: true, seats: true, shapes: true }
 }
 // How an expert imagines a route (quick formations, basic offers), and sizes up an offer.
 const ROLLOUT = { seeds: 0, search: 0, wounds: true, rollouts: 0, reap: false, spend: false, park: false, lines: false }
@@ -337,8 +342,47 @@ function drafts (run, want, L) {
   const nook = around(pocketCell(s.camp)).rows(lanes[0])
   return [
     ...out, advance(copy(out[0]), 2, walls), advance(copy(out[0]), 4, walls), ...(toughest ? [screen(copy(out[0]), toughest.uid, open)] : []),
-    pocket(copy(nook), s, Infinity), pocket(copy(nook), s, Math.ceil(want.length / 2))
+    pocket(copy(nook), s, Infinity), pocket(copy(nook), s, Math.ceil(want.length / 2)), ...(L.shapes ? shapedDrafts(s, out[0]) : [])
   ]
+}
+
+// The first draft with its lines drawn to a plan, one each (SHAPES, whensFor): the melee meeting the foes on their
+// road; every piece charging on the first blow; every piece holding for the room's last wave (with none, a time)
+// and then advancing; a guard (the toughest falls back on the Monarch once it is struck, the melee step onto the
+// road once one of yours falls); the ranged reaching for the foes' shooters; and a Banner's wing (wing).
+function shapedDrafts (s, base) {
+  const ctx = lineContext(s, base)
+  const draw = (pick) => base.map((u) => (isMonarch(u) ? { ...u } : { ...u, line: pick(u) }))
+  const melee = (u) => reachOf(u) === 1
+  const last = ctx.node?.waves?.length ? { at: 'wave', wave: ctx.node.waves.length } : { at: 'time', t: 200 }
+  const toughest = base.filter((u) => !isMonarch(u)).sort((a, b) => toughness(b) - toughness(a) || a.uid - b.uid)[0]
+  const wings = wing(base, ctx)
+  return [
+    draw((u) => (melee(u) ? shapedLine(ctx, u.slot, 'intercept') : null)),
+    draw((u) => shapedLine(ctx, u.slot, 'up', { at: 'blow' })),
+    draw((u) => shapedLine(ctx, u.slot, 'up', last)),
+    draw((u) => (u === toughest ? shapedLine(ctx, u.slot, 'back', { at: 'struck' }) : melee(u) ? shapedLine(ctx, u.slot, 'intercept', { at: 'falls' }) : null)),
+    draw((u) => (melee(u) ? null : shapedLine(ctx, u.slot, 'reach'))),
+    ...(wings ? [wings] : [])
+  ]
+}
+
+// A Banner's wing, planned (DESIGN §2.8): the first fielded piece with Banner keeps its cell and takes a line (to meet
+// the foes on their road, else up its lane), and the two toughest of the rest stand on the open cells beside it
+// (behind it first, then at its sides), where the battle makes them its followers. Null with no Banner fielded.
+export function wing (base, ctx) {
+  const lead = base.find((u) => !isMonarch(u) && u.slot >= 0 && bannerOf(u))
+  if (!lead) return null
+  const out = base.map((u) => ({ ...u }))
+  const banner = out.find((u) => u.uid === lead.uid)
+  const tile = deployTile('party', banner.slot)
+  const cells = [...Array(CAMP_SLOTS).keys()]
+    .filter((slot) => campOpen(ctx.s.camp, slot) && distance(deployTile('party', slot), tile) === 1 && !out.some((u) => u.slot === slot && (isMonarch(u) || bannerOf(u))))
+    .sort((a, b) => rowOf(b) - rowOf(a) || Math.abs(colOf(a) - colOf(banner.slot)) - Math.abs(colOf(b) - colOf(banner.slot)) || a - b)
+  const mates = out.filter((u) => !isMonarch(u) && u !== banner && !bannerOf(u)).sort((a, b) => toughness(b) - toughness(a) || a.uid - b.uid)
+  for (let k = 0; k < 2 && k < mates.length && k < cells.length; k++) post(out, mates[k].uid, cells[k])
+  banner.line = shapedLine(ctx, banner.slot, 'intercept') ?? shapedLine(ctx, banner.slot, 'up')
+  return out
 }
 
 // The Monarch's pocket: the seat with the fewest approach tiles (the open tiles a step onto it can come from:
@@ -405,19 +449,103 @@ function screen (out, uid, open) {
   return slot === undefined ? out : post(out, uid, slot)
 }
 
-// One change to the lines: a soul's line cleared (it holds), or redrawn up its lane 1 to 6 tiles, at once or
-// held for a time.
+// ── the shapes of lines ─────────────────────────────────────────────────────────────────────────
+
+// The lines the expert draws, beside a march up the lane, each waiting on any signal the room can give (whensFor):
+//   intercept  to the busiest road tile in the camp nearest it: where the foes walk to the Monarch, to meet them
+//   reach      to the camp's front row in the lane of the foes' farthest-reaching piece, to bring it in range: a
+//              line that turns when that lane is not its own
+//   back       to the free tile nearest the Monarch: to fall back on it (on Struck or Fallen, a guard)
+// Each is the shortest march there past the walls (pathTo), so always a legal line; none where it stands already.
+export const SHAPES = ['up', 'intercept', 'reach', 'back']
+
+// The foes' roads to a Monarch on cell `seat` (battle.js field, the camp's walls only): each tile's traffic, a foe
+// from each lane of the board's top edge walking the arrows. Made once per camp and seat.
+const roadCache = new Map()
+export function roadsTo (camp, seat) {
+  const key = `${camp}|${seat}`
+  if (!roadCache.has(key)) {
+    const f = field({ root: deployTile('party', seat), walls: wallTiles(camp) })
+    const traffic = new Map()
+    for (let x = 0; x < LANES; x++) {
+      for (let t = tileAt(x, DEPTH - 1), n = 0; t >= 0 && n < TILES; t = f.arrow[t], n++) traffic.set(t, (traffic.get(t) ?? 0) + 1)
+    }
+    roadCache.set(key, { field: f, traffic })
+  }
+  return roadCache.get(key)
+}
+
+// The shortest march from tile `from` to tile `to` past `walls` (a Set), as a line's tiles (`from` left out), its
+// steps in unit.js's order; null when there is none, when it is no step at all, or when it is longer than `max`.
+function pathTo (from, to, walls, max = 8) {
+  if (from === to) return null
+  const prev = new Map([[from, -1]])
+  const queue = [from]
+  for (let i = 0; i < queue.length && !prev.has(to); i++) {
+    for (const n of steps(queue[i], walls)) if (!prev.has(n)) { prev.set(n, queue[i]); queue.push(n) }
+  }
+  if (!prev.has(to)) return null
+  const tiles = []
+  for (let t = to; t !== from; t = prev.get(t)) tiles.unshift(t)
+  return tiles.length <= max ? tiles : null
+}
+
+// Every signal a line may wait on in a room (content.js SIGNALS): at once, two times, the first blow, each later
+// wave of the room, a blow on the Monarch, and one of yours fallen.
+export const whensFor = (node) => [
+  { at: 'once' }, { at: 'time', t: 100 }, { at: 'time', t: 200 }, { at: 'blow' },
+  ...Array.from({ length: node?.waves?.length ?? 0 }, (_, k) => ({ at: 'wave', wave: k + 1 })), { at: 'struck' }, { at: 'falls' }
+]
+
+// What drawing a formation's lines reads: the room (its foes, its waves), the camp's walls, and the roads to its
+// Monarch's seat.
+export function lineContext (s, party) {
+  const node = nodeOf(s.map, s.at)
+  const m = party.find(isMonarch)
+  const seat = m && m.slot >= 0 ? m.slot : seatNear(s.camp)
+  return { s, node, seat, walls: new Set(wallTiles(s.camp)), roads: roadsTo(s.camp, seat), whens: whensFor(node), taken: new Set(party.map((u) => u.slot)) }
+}
+
+// A line of `shape` (SHAPES) for the soul on cell `slot`, waiting on `when`; `n` the length of a march up its lane.
+// Null where the shape has no way there (or it stands there already).
+export function shapedLine (ctx, slot, shape, when = { at: 'once' }, n = 3) {
+  if (shape === 'up') return march(slot, n, ctx.walls, when)
+  const from = deployTile('party', slot)
+  const monarch = deployTile('party', ctx.seat)
+  let to = -1
+  if (shape === 'intercept') {
+    const busy = [...ctx.roads.traffic].filter(([t, k]) => k >= 2 && t !== monarch && tileY(t) < CAMP_ROWS)
+    to = busy.sort((a, b) => distance(a[0], from) - distance(b[0], from) || b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? -1
+  } else if (shape === 'reach') {
+    const shooters = (ctx.node?.foes ?? []).filter((f) => unitDef(f.id).ring >= 3)
+    if (!shooters.length) return null
+    const lane = colOf(shooters.slice().sort((a, b) => unitDef(b.id).ring - unitDef(a.id).ring || CENTRE_OUT.indexOf(colOf(a.slot)) - CENTRE_OUT.indexOf(colOf(b.slot)))[0].slot)
+    const row = [...Array(LANES).keys()].map((x) => tileAt(x, CAMP_ROWS - 1)).filter((t) => !ctx.walls.has(t))
+    to = row.sort((a, b) => Math.abs(tileX(a) - lane) - Math.abs(tileX(b) - lane) || a - b)[0] ?? -1
+  } else if (shape === 'back') {
+    const beside = [...Array(TILES).keys()].filter((t) => distance(t, monarch) === 1 && tileY(t) < CAMP_ROWS && !ctx.walls.has(t))
+    to = beside.sort((a, b) => distance(a, from) - distance(b, from) || a - b)[0] ?? -1
+  }
+  const tiles = to < 0 ? null : pathTo(from, to, ctx.walls)
+  return tiles ? { tiles, when } : null
+}
+
+// Whether a line turns: steps off its lane.
+export const turns = (line, slot) => !!line && line.tiles.some((t) => tileX(t) !== colOf(slot))
+
+// One change to the lines: a soul's line cleared (it holds), or redrawn in any shape (SHAPES; a march up its lane 1
+// to 6 tiles) on any signal the room can give (whensFor).
 export function redraw (out, s, rng) {
   const caps = out.filter((u) => !isMonarch(u))
   if (!caps.length) return out
   const c = rng.pick(caps)
-  const roll = rng()
-  if (c.line && roll < 0.3) {
+  if (c.line && rng.chance(0.25)) {
     c.line = null
-  } else {
-    const when = roll < 0.85 ? { at: 'once' } : { at: 'time', t: rng.pick([100, 200, 400]) }
-    c.line = march(c.slot, rng.pick([1, 2, 3, 4, 6]), new Set(wallTiles(s.camp)), when)
+    return out
   }
+  const ctx = lineContext(s, out)
+  const when = rng.pick(ctx.whens)
+  c.line = shapedLine(ctx, c.slot, rng.pick(SHAPES), when, rng.pick([1, 2, 3, 4, 6])) ?? march(c.slot, rng.pick([1, 2, 3]), ctx.walls, when)
   return out
 }
 
@@ -559,7 +687,7 @@ const wanted = (run, L) => {
 // the same cells with the same lines are only rehearsed once. `enough` (the room veto's: pickRoute):
 // the caller asks only whether the best score reaches it; with pruning on, the plan stops at the first formation
 // that does, and a formation that cannot reach it is not fought on its remaining rolls. The answer is the same.
-function plan (run, L, { enough = Infinity } = {}) {
+function plan (run, L, { enough = Infinity, onCandidate = null } = {}) {
   const want = wanted(run, L)
   const options = drafts(run, want, L).slice(0, L.drafts ?? Infinity).map((party) => allowed(run, party, L))
   if (!L.seeds) return { party: options[0], score: 0 }
@@ -590,15 +718,33 @@ function plan (run, L, { enough = Infinity } = {}) {
       const beats = enough < Infinity ? (most) => most >= enough : (most) => most > bar
       tried.set(key, rehearse(run, party, L.seeds, { beats: TUNING.autoplay.prune && beats }) ?? -Infinity)
       forms.set(key, party)
+      if (!screenedKeys.has(key)) onCandidate?.(party)
     }
     return tried.get(key)
   }
+  const screenedKeys = new Set()
   let best = null
   let bestScore = -Infinity
   for (const party of options) {
     const v = score(party)
     if (!best || v > bestScore) { best = party; bestScore = v }
     if (bestScore >= enough && TUNING.autoplay.prune) return { party: best, score: bestScore }
+  }
+  // Every seat (L.seats): the best draft with the Monarch moved there (whoever stood there takes its old seat), each
+  // fought on one roll of its own; the two best go on to the full rehearsal. The seat centres the domain and is
+  // where the shadows rise beside (DESIGN §2.7). Never with the Monarch parked, nor under the formation ablation.
+  if (L.seats && !L.park && L.ablate !== 'formation') {
+    const m = best.find(isMonarch)
+    const screened = [...Array(CAMP_SLOTS).keys()].filter((slot) => isSeat(run.state.camp, slot) && slot !== m.slot).map((slot) => {
+      const party = allowed(run, post(best.map((u) => ({ ...u })), m.uid, slot), L)
+      screenedKeys.add(party.map((u) => `${u.uid}@${u.slot}${u.line ? JSON.stringify(u.line) : ''}`).sort().join())
+      onCandidate?.(party)
+      return { party, v: rehearse(run, party, 1, { from: 300, full: true }) }
+    })
+    for (const { party } of screened.sort((a, b) => b.v - a.v).slice(0, 2)) {
+      const v = score(party)
+      if (v > bestScore) { best = party; bestScore = v }
+    }
   }
   const rng = createRng(JSON.stringify([run.state.seed, run.state.floor, run.state.at, best.map((u) => u.uid)])).stream('climb')
   const open = [...Array(CAMP_SLOTS).keys()].filter((slot) => campOpen(run.state.camp, slot))
@@ -627,13 +773,14 @@ function plan (run, L, { enough = Infinity } = {}) {
 
 // One change to a formation: trade a soul for one from the ossuary (it takes over the cell and the line), swap
 // two, move one to a free cell (a near one more often than not; a soul moved loses its line, as in the run); with
-// `lines`, a third of the time redraw a line first. The Monarch is never traded, moves only over the seats, and
-// with `park` never moves. With 'formation' ablated nothing is moved (the cells are basic's: see allowed): a
-// change is a trade or a line.
+// `lines`, a third of the time redraw a line first (any shape, any signal: redraw), and now and then form a
+// Banner's wing (wing). The Monarch is never traded, moves only over the seats, and with `park` never moves. With
+// 'formation' ablated nothing is moved (the cells are basic's: see allowed): a change is a trade or a line.
 function mutate (party, pool, open, rng, s, L) {
   const out = party.map((u) => ({ ...u }))
   const fixed = L.ablate === 'formation'
   if (L.lines && rng.chance(0.35)) return redraw(out, s, rng)
+  if (L.lines && !fixed && rng.chance(0.1)) return wing(out, lineContext(s, out)) ?? out
   const movable = L.park || fixed ? out.filter((u) => !isMonarch(u)) : out
   const a = movable[rng.int(movable.length)]
   const spare = pool.filter((u) => !out.some((x) => x.uid === u.uid))
@@ -669,7 +816,8 @@ export function planFor (run, L) {
   const key = JSON.stringify([L, s.floor, s.at, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.party.map((u) => [u.uid, u.id, u.lvl, u.count, u.hp, u.tracks])])
   const have = plans.get(run)
   if (have?.key === key) return have.plan
-  const made = plan(run, L).party.map((u) => ({ uid: u.uid, slot: u.slot, line: u.line ?? null }))
+  const onCandidate = audited(run) ? (party) => { AUDIT.candidates++; for (const f of new Set(featuresOf(s, party))) note('considered', f) } : null
+  const made = plan(run, L, { onCandidate }).party.map((u) => ({ uid: u.uid, slot: u.slot, line: u.line ?? null }))
   plans.set(run, { key, plan: made })
   return made
 }
@@ -698,16 +846,101 @@ function pickPrep (run, L) {
   return { type: 'fight' }
 }
 
-// Stacks, at either level: a standing piece the field has no place for (not among the strongest fieldCap) joins
-// the strongest of those of its kind, a body more where it fights; and while the field has room for more pieces
-// than stand, a stack splits its hindmost body off (the plan then fields it, if it stands). Never both at once.
+// Stacks. Basic by rule of thumb: a standing piece the field has no place for (not among the strongest fieldCap)
+// joins the strongest of those of its kind, a body more where it fights; and while the field has room for more
+// pieces than stand, a stack splits its hindmost body off (the plan then fields it, if it stands). Never both at
+// once. The expert (`spend`) weighs it instead (deliberate).
 function pickStack (run, L) {
+  if (L.spend) return deliberate(run, L)
   const s = run.state
   const want = wanted(run, L)
   const spare = standing(souls(s.party)).find((u) => !want.includes(u) && want.some((w) => w.id === u.id))
   if (spare) return { type: 'stack', uid: spare.uid, onto: want.find((w) => w.id === spare.id).uid }
   const big = want.length < fieldCap(run) && want.find((u) => u.count > 1)
   return big ? { type: 'split', uid: big.uid, n: 1 } : null
+}
+
+// The stacks and splits the expert weighs, beside keeping what it has (null, first): each standing piece onto the
+// strongest fielded piece of its kind (one stack, bodies on one tile), and a body off each standing stack (spread
+// over two tiles), at most STACK_OPTIONS of them.
+const STACK_OPTIONS = 6
+export function stackOptions (run) {
+  const s = run.state
+  const all = standing(souls(s.party))
+  const out = []
+  for (const kind of [...new Set(all.map((u) => u.id))]) {
+    const onto = all.filter((u) => u.id === kind && u.slot >= 0).sort(byFieldPower)[0]
+    if (onto) for (const u of all) if (u.id === kind && u !== onto) out.push({ type: 'stack', uid: u.uid, onto: onto.uid })
+  }
+  for (const u of all) if (u.count > 1) out.push({ type: 'split', uid: u.uid, n: 1 })
+  return [null, ...out.slice(0, STACK_OPTIONS)]
+}
+
+// The expert's stacks, once a room: each option (stackOptions) rehearsed over the rooms ahead (valueAhead) with the
+// party as it would leave it, the best taken if it beats keeping what it has (ties keep). → the action, or null.
+const decided = new WeakMap()
+function deliberate (run, L) {
+  const s = run.state
+  const key = `${s.floor}|${s.at}`
+  if (decided.get(run) === key) return null
+  decided.set(run, key)
+  const options = stackOptions(run)
+  if (options.length < 2) return null
+  const value = valueAhead(run, L)
+  let best = value({})
+  let pick = null
+  for (const a of options.slice(1)) {
+    if (audited(run)) note('considered', a.type)
+    const sim = fork(run)
+    apply(sim, a)
+    const v = value({ party: sim.state.party, nextUid: sim.state.nextUid })
+    if (v > best + 0.01) { best = v; pick = a }
+  }
+  return pick
+}
+
+// ── audit: what the expert considers, and what it chooses ───────────────────────────────────────────
+
+// Off but for the audit (--audit): per mechanic, how many of the formations the plans rehearsed use it
+// (`considered`; and each stack, split or Monarch point weighed), and how many of the formations fought do
+// (`chosen`), with the lines fought by signal, their length and the Monarch's seats (`lines`, `seats`). Only the
+// audited run's own plans and choices count (`run`: none of the copies it plays ahead on), and with no run named,
+// every plan the audit sees.
+export const AUDIT = { on: false, run: undefined, candidates: 0, plans: 0, considered: {}, chosen: {}, lines: {}, length: 0, seats: {} }
+const note = (book, key, n = 1) => { if (AUDIT.on) AUDIT[book][key] = (AUDIT[book][key] ?? 0) + n }
+const audited = (run) => AUDIT.on && (AUDIT.run === undefined || AUDIT.run === run)
+export function resetAudit (on = true, run = undefined) {
+  Object.assign(AUDIT, { on, run, candidates: 0, plans: 0, considered: {}, chosen: {}, lines: {}, length: 0, seats: {} })
+}
+
+// What a formation uses: a line (by signal; turning off its lane), a Banner's wing (a Banner with a line and a piece
+// beside it), the Monarch off the rear row's middle lane, a stack fielded, a ring-2 kind fielded.
+export function featuresOf (s, party) {
+  const out = []
+  const pieces = party.filter((u) => !isMonarch(u) && u.slot >= 0).map((p) => ({ ...s.party.find((x) => x.uid === p.uid), ...p }))
+  for (const u of pieces) {
+    if (u.line) out.push('line', `line:${u.line.when?.at ?? 'once'}`, ...(turns(u.line, u.slot) ? ['turning line'] : []))
+    if (u.count > 1) out.push('stack fielded')
+    if (unitDef(u.id).ring === 2) out.push('ring-2 fielded')
+  }
+  const at = (u) => deployTile('party', u.slot)
+  if (pieces.some((b) => bannerOf(b) && b.line && pieces.some((x) => x !== b && distance(at(x), at(b)) === 1))) out.push('Banner wing')
+  const m = party.find(isMonarch)
+  if (m && m.slot !== seatNear(s.camp)) out.push('seat off the rear middle')
+  return out
+}
+
+// A formation fought: its features once each, its lines one by one.
+function chose (s, goal) {
+  AUDIT.plans++
+  for (const f of new Set(featuresOf(s, goal))) note('chosen', f)
+  for (const p of goal) {
+    if (!p.line) continue
+    note('lines', p.line.when?.at ?? 'once')
+    AUDIT.length += p.line.tiles.length
+  }
+  const m = goal.find((p) => isMonarch(p))
+  if (m) note('seats', m.slot)
 }
 
 // ── essence ──────────────────────────────────────────────────────────────────────────────────────
@@ -783,6 +1016,7 @@ export function armyWish (run, L = LEVELS.expert) {
   if (have?.key === key) return have.wish
   const value = valueAhead(run, L)
   const candidates = statsFor(L).map((stat) => ({ wish: stat, cost: monarchCost(run), state: withPoint(s, stat) }))
+  if (audited(run)) for (const c of candidates) note('considered', `Monarch ${c.wish}`)
   const base = new Map()
   let wish = null
   let gain = 0.01
@@ -1020,6 +1254,72 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
     secs: (Date.now() - t0) / 1000,
     // Its rehearsals: how many were fought, and how many the memo already had (rehearsed).
     rehearsals: { fought: memoStats.misses - memo0.misses, memo: memoStats.hits - memo0.hits }
+  }
+}
+
+// One seeded run at `level` with the audit on (AUDIT): what its plans considered and what it fought with, the
+// stacks, splits and Monarch points it weighed and took, and per battle Arise's raises and the party's synergies.
+export function auditRecord ({ seed, level }) {
+  const t0 = Date.now()
+  const battles = { n: 0, won: 0, raised: 0, synergies: 0 }
+  const run = createRun({ seed })
+  resetAudit(true, run)
+  autoplay(run, {
+    level,
+    beforeFight: (r) => chose(r.state, fielded(r.state.party).map((u) => ({ ...u, line: r.state.lines[u.uid] ?? null }))),
+    onBattle: (b) => {
+      battles.n++
+      battles.won += b.winner === 'party'
+      battles.raised += b.raised
+      battles.synergies += b.events[0]?.synergies.filter((x) => x.side === 'party').length ?? 0
+    }
+  })
+  const s = run.state
+  const acts = {}
+  for (const a of s.log) {
+    const k = a.type === 'monarch' ? `Monarch ${a.stat}` : a.type === 'reap' && a.onto != null ? 'reap onto' : a.type
+    acts[k] = (acts[k] ?? 0) + 1
+  }
+  const out = {
+    seed, level, result: s.result, floor: s.floor, secs: (Date.now() - t0) / 1000, battles, acts,
+    candidates: AUDIT.candidates, plans: AUDIT.plans, considered: AUDIT.considered, chosen: AUDIT.chosen, lines: AUDIT.lines, length: AUDIT.length, seats: AUDIT.seats
+  }
+  resetAudit(false)
+  return out
+}
+
+// The audit (--audit): `runs` expert runs and one basic run, side by side, per mechanic: how often its plans
+// considered it (formations rehearsed that use it, options weighed) and how often it chose it (formations fought
+// that use it, actions taken).
+async function audit ({ runs, seed: seed0 }) {
+  const t0 = Date.now()
+  const jobs = [...Array.from({ length: runs }, (_, k) => ({ seed: `${seed0}-${k + 1}`, level: 'expert', audit: true })), { seed: `${seed0}-1`, level: 'basic', audit: true }]
+  const played = await playAll(jobs)
+  const groups = [['expert', played.filter((r) => r.level === 'expert')], ['basic', played.filter((r) => r.level === 'basic')]]
+  const sum = (rs, f) => rs.reduce((n, r) => n + (f(r) ?? 0), 0)
+  console.log(`audit: ${runs} expert run(s) (seeds ${seed0}-1…${runs}) and one basic, ${((Date.now() - t0) / 1000).toFixed(0)} s`)
+  for (const [level, rs] of groups) {
+    console.log(`  ${level}: ${rs.map((r) => `${r.seed} ${r.result ?? 'over'} floor ${r.floor}, ${r.battles.n} battles, ${r.secs.toFixed(0)} s`).join('; ')}`)
+  }
+  const row = (name, considered, chosen) => console.log(`${name.padEnd(34)}${groups.map(([, rs]) => `${String(considered(rs)).padStart(11)}${String(chosen(rs)).padStart(9)}`).join('   ')}`)
+  console.log(`\n${''.padEnd(34)}${groups.map(([l]) => `${l.padStart(11)} ${''.padStart(8)}`).join('   ')}`)
+  console.log(`${'mechanic'.padEnd(34)}${groups.map(() => `${'considered'.padStart(11)}${'chosen'.padStart(9)}`).join('   ')}`)
+  row('formations (rehearsed/fought)', (rs) => sum(rs, (r) => r.candidates), (rs) => sum(rs, (r) => r.plans))
+  const features = ['line', ...Object.keys(SIGNALS).map((k) => `line:${k}`), 'turning line', 'Banner wing', 'seat off the rear middle', 'stack fielded', 'ring-2 fielded']
+  for (const f of features) row(f, (rs) => sum(rs, (r) => r.considered[f]), (rs) => sum(rs, (r) => r.chosen[f]))
+  for (const k of ['stack', 'split']) row(`${k} (weighed/done)`, (rs) => sum(rs, (r) => r.considered[k]), (rs) => sum(rs, (r) => r.acts[k]))
+  row('reap onto a piece (done)', () => '-', (rs) => sum(rs, (r) => r.acts['reap onto']))
+  for (const stat of MONARCH_STATS) row(`Monarch ${stat} (weighed/bought)`, (rs) => sum(rs, (r) => r.considered[`Monarch ${stat}`]), (rs) => sum(rs, (r) => r.acts[`Monarch ${stat}`]))
+  console.log('\nfought, per level:')
+  for (const [level, rs] of groups) {
+    const n = Math.max(1, sum(rs, (r) => r.battles.n))
+    const lines = Object.keys(SIGNALS).map((k) => `${k} ${sum(rs, (r) => r.lines[k])}`).join(', ')
+    const all = sum(rs, (r) => Object.values(r.lines).reduce((a, b) => a + b, 0))
+    const seats = {}
+    for (const r of rs) for (const [slot, k] of Object.entries(r.seats)) seats[slot] = (seats[slot] ?? 0) + k
+    console.log(`  ${level}: lines by signal: ${lines}; mean length ${(sum(rs, (r) => r.length) / Math.max(1, all)).toFixed(1)} tiles; ` +
+      `${Object.keys(seats).length} seats used (${Object.entries(seats).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(' ')}); ` +
+      `Arise ${(sum(rs, (r) => r.battles.raised) / n).toFixed(2)} raises and ${(sum(rs, (r) => r.battles.synergies) / n).toFixed(2)} synergies a battle; ${sum(rs, (r) => r.battles.won)}/${n} won`)
   }
 }
 
@@ -1553,7 +1853,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
   const { isMainThread, parentPort, workerData } = await import('node:worker_threads')
   if (!isMainThread) {
     // A pool's worker (playAll): job after job, until it is let go.
-    const play = (job) => (job.refight ? refight(job) : record(job))
+    const play = (job) => (job.audit ? auditRecord(job) : job.refight ? refight(job) : record(job))
     if (workerData?.pool) {
       shareMemo(workerData.memo)
       parentPort.on('message', (job) => parentPort.postMessage(play(job)))
@@ -1571,7 +1871,8 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     // `--variants full` (alone or with others): the full expert only, beside whatever ablations are named.
     const variants = arg('variants', null)?.split(',').filter((v) => v !== 'full') ?? ABLATIONS
     for (const v of variants) if (!ABLATIONS.includes(v)) throw new Error(`unknown ablation "${v}": ${ABLATIONS.join(', ')}`)
-    if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
+    if (process.argv.includes('--audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)) })
+    else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
     else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
     else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
     else if (process.argv.includes('--ladder')) await ladder({ ...opts, runs: Number(arg('runs', RUNS.ladder)) })

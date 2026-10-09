@@ -6,7 +6,7 @@ import {
   foeEssence, baseField, inOssuary, OSSUARY, cleanLine, LINE_MAX, soulCount
 } from '../src/sim/run.js'
 import { createBattle, runBattle, stepBattle, timingMarks } from '../src/sim/battle.js'
-import { autoplay, policy, rehearsalBudget, LEVELS, scoreOf, planFor, armyWish, rehearse, redraw, linesOf } from '../src/sim/autoplay.js'
+import { autoplay, policy, rehearsalBudget, LEVELS, scoreOf, planFor, armyWish, rehearse, redraw, linesOf, stackOptions } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { generateFloor } from '../src/sim/map.js'
 import { TUNING } from '../src/tuning.js'
@@ -958,31 +958,48 @@ test('a level heals each living body by its gain, an altar each body: the living
   assert.equal(knight.hp, Math.max(10, Math.round(b2 * T.altarHeal)) + 2 * Math.ceil(b2 * T.altarRevive))
 })
 
-test('the autoplayer stacks a standing piece the field has no place for onto its kind, and splits a stack while the field has room', () => {
+test('stacks: basic stacks a standing piece the field has no place for onto its kind, and splits a stack while the field has room; the expert weighs each, once a room', () => {
   const rng = createRng('auto-stack').stream('autoplay')
-  for (const level of ['basic', 'expert']) {
-    // A spare of each start kind in turn: the one of the kind left off the field joins that kind's piece.
-    const picks = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((kind) => {
-      const run = createRun({ seed: 'auto-stack' })
-      visit(run, 'fight')
-      run.state.essence = 0
-      const spare = join(run, kind)
-      return { a: policy(run, rng, level), spare, piece: run.state.party.find((u) => u.id === kind) }
-    })
-    const stacked = picks.filter((p) => p.a.type === 'stack')
-    assert.ok(stacked.length >= 1, `${level}: ${JSON.stringify(picks.map((p) => p.a))}`)
-    for (const p of stacked) assert.deepEqual(p.a, { type: 'stack', uid: p.spare.uid, onto: p.piece.uid }, level)
-    // A stack with a place free on the field: a body splits off, and the plan fields it.
+  // A spare of each start kind in turn: basic stacks the one of the kind left off the field onto that kind's piece.
+  const spares = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((kind) => {
+    const run = createRun({ seed: 'auto-stack' })
+    visit(run, 'fight')
+    run.state.essence = 0
+    const spare = join(run, kind)
+    return { run, a: policy(run, rng, 'basic'), spare, piece: run.state.party.find((u) => u.id === kind) }
+  })
+  const stacked = spares.filter((p) => p.a.type === 'stack')
+  assert.ok(stacked.length >= 1, JSON.stringify(spares.map((p) => p.a)))
+  for (const p of stacked) assert.deepEqual(p.a, { type: 'stack', uid: p.spare.uid, onto: p.piece.uid })
+  // The expert weighs keeping against that stack (and any other), and takes one of them.
+  for (const { run, spare, piece } of spares) {
+    const options = stackOptions(run)
+    assert.equal(options[0], null)
+    assert.ok(options.some((o) => o?.type === 'stack' && o.uid === spare.uid && o.onto === piece.uid), JSON.stringify(options))
+    const a = policy(run, rng, 'expert')
+    assert.ok(a.type !== 'stack' && a.type !== 'split' ? true : options.some((o) => JSON.stringify(o) === JSON.stringify(a)), JSON.stringify(a))
+  }
+  // A stack with a place free on the field: basic splits a body off, and the plan fields it.
+  const room = () => {
     const run = createRun({ seed: 'auto-split' })
     visit(run, 'fight')
     const [knight] = souls(run.state.party)
     apply(run, { type: 'stack', uid: join(run, 'tomb_knight').uid, onto: knight.uid })
     command(run, 1)
     run.state.essence = 0
-    assert.deepEqual(policy(run, rng, level), { type: 'split', uid: knight.uid, n: 1 }, level)
-    for (let a; (a = policy(run, rng, level)).type !== 'fight';) apply(run, a)
-    assert.deepEqual([fielded(souls(run.state.party)).length, knight.count], [4, 1], level)
+    return { run, knight }
   }
+  const { run, knight } = room()
+  assert.deepEqual(policy(run, rng, 'basic'), { type: 'split', uid: knight.uid, n: 1 })
+  for (let a; (a = policy(run, rng, 'basic')).type !== 'fight';) apply(run, a)
+  assert.deepEqual([fielded(souls(run.state.party)).length, knight.count], [4, 1])
+  // The expert weighs the split against keeping the stack, once a room: asked again, it has decided.
+  const e = room()
+  assert.ok(stackOptions(e.run).some((o) => o?.type === 'split' && o.uid === e.knight.uid))
+  const first = policy(e.run, rng, 'expert')
+  if (first.type === 'split') apply(e.run, first)
+  const again = policy(e.run, rng, 'expert')
+  assert.ok(again.type !== 'stack' && again.type !== 'split', JSON.stringify(again))
 })
 
 test('a foe piece pays essence for each of its bodies', () => {
@@ -1220,14 +1237,18 @@ function checkState (s) {
 
 // A fifth of the time a uniformly random legal action, else the autoplay policy at `level`: a floor is 15
 // rooms long, and random play rarely gets past the first. `fought(run)` sees each battle once it is over.
-function fuzz (seed, seen, level = STEADY, fought = () => {}) {
+function fuzz (seed, seen, level = STEADY, fought = () => {}, offered = { keystones: 0 }) {
   const rng = createRng(seed).stream('fuzz')
   const run = createRun({ seed })
   for (let steps = 0; run.state.phase !== 'over'; steps++) {
     assert.ok(steps < 1e5, 'stuck')
     const legal = legalActions(run)
     assert.ok(legal.length > 0)
-    const action = rng.chance(0.2) ? rng.pick(legal) : policy(run, rng, level)
+    if (legal.some((a) => a.type === 'reap' && a.index !== null && run.state.offers[a.index]?.type === 'keystone')) offered.keystones++
+    // A keystone on offer is taken half the time (the policies would take a tier or a relic first), so the runs that
+    // reach one carry keystones into their battles.
+    const keystone = legal.find((a) => a.type === 'reap' && a.index !== null && run.state.offers[a.index]?.type === 'keystone')
+    const action = keystone && rng.chance(0.5) ? keystone : rng.chance(0.2) ? rng.pick(legal) : policy(run, rng, level)
     seen.add(action.type)
     if (action.onto !== undefined) seen.add('reap onto')
     apply(run, action)
@@ -1266,8 +1287,9 @@ test('fuzz: 140 runs of random legal actions keep every invariant, cover every a
     plans.marched += battle.events.some((e) => e.type === 'move' && battle.byUid.get(e.actor).side === 'party')
   }
   let keystones = 0
+  const offered = { keystones: 0 }
   for (let i = 0; i < 100; i++) {
-    const run = fuzz('fuzz' + i, seen)
+    const run = fuzz('fuzz' + i, seen, STEADY, () => {}, offered)
     results[run.state.floor] = (results[run.state.floor] ?? 0) + 1
     keystones += run.state.keystones.length
     assert.deepEqual(replay(run.state.seed, run.state.log).state, run.state)
@@ -1279,7 +1301,8 @@ test('fuzz: 140 runs of random legal actions keep every invariant, cover every a
   // Floor 1's late pairs and floor 2's captains make the deeper floors rare for these policies: the deeper
   // floors' rooms (waves, sieges, the Sovereign's court) are played through in test/enemy.test.js.
   assert.ok(Object.keys(results).length > 1, `fuzz runs should end on different floors: ${JSON.stringify(results)}`)
-  assert.ok(keystones > 0, 'some runs took keystones')
+  // Keystones come from floor 2's elites and rites, which these policies seldom live to see: those offered are taken.
+  assert.ok(!offered.keystones || keystones > 0, `keystones offered ${offered.keystones} times, taken ${keystones}: ${JSON.stringify(results)}`)
   // Every action the run has, a recruit onto a piece too (tracks.test.js fuzzes the levels and tiers harder).
   assert.deepEqual([...seen].sort(), ['fight', 'level', 'line', 'monarch', 'node', 'place', 'reap', 'reap onto', 'release', 'split', 'stack', 'upgrade'])
   assert.ok(Object.values(plans).every((n) => n >= 5), `battles with lines: ${JSON.stringify(plans)}`)

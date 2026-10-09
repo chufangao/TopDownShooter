@@ -110,7 +110,8 @@ export function createBattle ({
     // settle check (settled).
     harm: { party: 0, foe: 0 },
     // settle, probes: the settle rule and its look back (every HP and the party's harm, every `every` ticks).
-    settle, probes: settle ? [] : null,
+    // won: the tick the 'won' verdict began to hold, unbroken since (null while it does not).
+    settle, probes: settle ? [] : null, won: null,
     syn: {}, cache: new Map(),
     // ks: the keystones' rules (keystoneRules); triggers: the relics that fire, by moment.
     ks, triggers: triggersOf(relics)
@@ -322,14 +323,19 @@ export function playOut (battle) {
 //         ticks with k·T still short of the ceiling, while the Monarch's HP exceeds k times what the foes dealt the
 //         party in T at their rate over that window: even every blow on the Monarch would not fell it in k times
 //         the time the party needs. The Monarch's fall is the only way to lose that does not wait on the ceiling.
+//         The verdict must hold unbroken for `window` ticks: a stack's opening volley can fell most of a room in a
+//         few ticks while the last foe walks out of every ring and round to the Monarch (pieces with no line never
+//         follow it), and that battle is lost.
 //   lost  the Monarch stands alone: no other unit of its side standing, and Arise spent (or taken away): the
 //         battle can only end in its fall or at the ceiling, both losses.
 // k is the margin. The battle ends there, scored by the units as they stand (rehearse's scoreOf): a win keeps a
 // little more HP than it would by the end (or less, if healers would mend it after the last foe falls). Measured
 // on 27,905 rehearsal battles (Speed 2 in the necessity report): at k 4, 29 verdicts (about 1 battle in 960) differ
-// from the full battle's, 23 of them a stalemate that runs to the ceiling, 6 a late fall of the Monarch.
+// from the full battle's, 23 of them a stalemate that runs to the ceiling, 6 a late fall of the Monarch. (That was
+// before stacks: a nine-body stack's volley could then settle a battle won at its first check that its last foe,
+// walking out of every ring and round to the Monarch, went on to win; hence the window the verdict must hold.)
 function settled (battle) {
-  const { k, window, recent, every } = battle.settle
+  const { window, every } = battle.settle
   const probes = battle.probes
   probes.push({ hp: battle.units.map((u) => u.hp), harm: battle.harm.party })
   if (probes.length > window / every + 1) probes.shift()
@@ -337,7 +343,19 @@ function settled (battle) {
   if (!m || probes.length <= window / every) return
   if (!battle.units.some((u) => u.side === 'party' && alive(u) && u !== m) &&
     (battle.ablate.has('arise') || battle.raised >= ariseCap(battle.will, battle.ks.raises))) return settle(battle, 'foe')
-  if (battle.reserve.length) return
+  if (!winning(battle)) {
+    battle.won = null
+    return
+  }
+  battle.won ??= battle.t
+  if (battle.t - battle.won >= window) settle(battle, 'party')
+}
+
+// The 'won' verdict, now (see settled).
+function winning (battle) {
+  const { k, window, recent, every } = battle.settle
+  const probes = battle.probes
+  if (battle.reserve.length) return false
   const then = probes[0]
   const lately = probes[probes.length - 1 - recent / every]
   let now = 0
@@ -347,15 +365,16 @@ function settled (battle) {
     if (u.side !== 'foe') continue
     if (i < then.hp.length) was += then.hp[i]
     if (!alive(u)) continue
-    if (!(i < lately.hp.length && lately.hp[i] > u.hp)) return
+    if (!(i < lately.hp.length && lately.hp[i] > u.hp)) return false
     now += u.hp
   }
   const rate = (was - now) / window
-  if (!(rate > 0)) return
+  if (!(rate > 0)) return false
   const T = now / rate
   const dealt = (battle.harm.party - then.harm) / window
-  if (battle.t + k * T < battle.foeIn + battle.ceiling && m.hp > k * dealt * T) settle(battle, 'party')
+  return battle.t + k * T < battle.foeIn + battle.ceiling && battle.monarch.hp > k * dealt * T
 }
+
 function settle (battle, winner) {
   battle.over = true
   battle.winner = winner

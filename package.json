@@ -12,7 +12,8 @@
     "decisions": "node src/sim/autoplay.js --decisions",
     "ladder": "node src/sim/autoplay.js --ladder",
     "ablations": "node src/sim/autoplay.js --ablations",
-    "necessity": "node src/sim/autoplay.js --necessity"
+    "necessity": "node src/sim/autoplay.js --necessity",
+    "audit": "node src/sim/autoplay.js --audit"
   },
   "engines": {
     "node": ">=22"

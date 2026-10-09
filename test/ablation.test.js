@@ -11,7 +11,8 @@ import { createBattle, runBattle, timelineHash } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
 import { seatNear, baseStats } from '../src/sim/unit.js'
 import {
-  autoplay, policy, LEVELS, ABLATIONS, RULE_SWITCHES, ablatedRun, planFor, armyWish, stripped, refight, NECESSITY, statsFor, CORE, EXTRA, BANDS
+  autoplay, policy, LEVELS, ABLATIONS, RULE_SWITCHES, ablatedRun, planFor, armyWish, stripped, refight, NECESSITY, statsFor, CORE, EXTRA, BANDS,
+  AUDIT, resetAudit
 } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
 
@@ -183,18 +184,26 @@ test('ablating Monarch stats, or Arise: no point (or no Will) is wished for', ()
   assert.notEqual(policy(waiting, basicRng, { ...LEVELS.basic, ablate: 'monarch-stats' }).type, 'monarch')
 })
 
-test('ablating lines: no planned soul draws a line, where the full expert draws some', () => {
-  let drawn = 0
-  for (const seed of ['ord-0', 'ord-1', 'ord-2']) {
+test('ablating lines: no formation considered draws a line, and no planned soul does, where the full expert considers some', () => {
+  const considered = (L, run) => {
+    resetAudit(true)
+    try {
+      const plan = planFor(run, L)
+      return { lines: AUDIT.considered.line ?? 0, plan }
+    } finally {
+      resetAudit(false)
+    }
+  }
+  for (const seed of ['ord-0', 'ord-1']) {
     const run = createRun({ seed })
     join(run, 'grave_ghoul', { lvl: 3 })
     run.state.essence = monarchCost(run)
     apply(run, { type: 'monarch', stat: 'command' })
     visit(run, 'fight')
-    drawn += planFor(run, LEVELS.expert).filter((p) => p.line).length
-    assert.ok(planFor(run, without('lines')).every((p) => p.line === null))
+    assert.ok(considered(LEVELS.expert, run).lines > 0, 'the full expert considers lines here')
+    const off = considered(without('lines'), run)
+    assert.ok(off.lines === 0 && off.plan.every((p) => p.line === null))
   }
-  assert.ok(drawn > 0, 'the full expert does draw lines here')
 })
 
 test('ablating tracks, levels: never bought; tracks: a rite\'s tiers declined; keystones, relics: never taken', () => {
