@@ -81,10 +81,8 @@ export const touchy = () => finger
 export const say = (mouse, touch) => (finger ? touch : mouse)
 
 // The tooltips speak to the mouse and the keyboard ("Click to…", "(Enter)"); to a finger they say Tap, and
-// drop the key in brackets (the button is the way). A modifier-click is the Orders tab's Pick.
+// drop the key in brackets (the button is the way).
 const WORDS = [
-  [/Shift-?,? or Ctrl-click/g, 'Pick (in Orders)'],
-  [/Shift-click/g, 'Pick (in Orders)'],
   [/\b([Cc])lick(s|ed|ing)?\b/g, (_, c, end = '') => (c === 'C' ? 'T' : 't') + 'ap' + ({ s: 's', ed: 'ped', ing: 'ping' }[end] ?? '')],
   [/\bHover\b/g, 'Long-press'],
   [/\bhover\b/g, 'long press'],
@@ -166,7 +164,7 @@ function moreButton () {
 // scrolls, a long press pins the next tooltip). Its click is eaten only on nothing that answers a click (that tap
 // just closes the tooltip); and on a button that cannot be taken back (SURE) the press is not the button's at
 // all: it only closes the tooltip, and a second tap acts. A tap inside it (on its buttons) acts as ever.
-const SURE = '.primary, .danger, .begin-btn, .move-on, .offer, .buy, .bind-btn, .bind-all, .tnode, .battlebar .skip, .end-actions button'
+const SURE = '.primary, .danger, .begin-btn, .move-on, .offer, .buy, .tnode, .battlebar .skip, .end-actions button'
 const ACTIVE = 'button, a, input, select, textarea, label, summary, [role="tab"], [tabindex], .node, .stage-wrap, .bench, #game'
 let eat = false
 window.addEventListener('pointerdown', (e) => {
@@ -260,10 +258,6 @@ const PATHS = {
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   // The Monarch: a circlet under a crown of three flames.
   crown: '<path d="M5.5 20.5h13l-.8-4.5H6.3z"/><path d="M8.5 16c-1.6-1.8-1-3.8 0-5.2.4 1.4 1.4 2 1.4 2M12 16c-2.2-2.6-1.4-6 0-8.5 1.4 2.5 2.2 5.9 0 8.5M15.5 16c1.6-1.8 1-3.8 0-5.2-.4 1.4-1.4 2-1.4 2"/>',
-  // A captain's rank insignia (GRADES): a Soldier's chevron, a Knight's shield, a Marshal's standard.
-  soldier: '<path d="M6 15.5l6-6 6 6" stroke-width="2.4"/>',
-  knight: '<path d="M12 3l7 2.8v5.4c0 4.6-3 7.9-7 9.8-4-1.9-7-5.2-7-9.8V5.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.5 12.5l3.5-3.5 3.5 3.5"/>',
-  marshal: '<path d="M6 21.5V2.5" stroke-width="2"/><path d="M6 3.5h13l-3.2 4.5 3.2 4.5H6z" fill="currentColor" fill-opacity=".3"/><path d="M10.5 8h4"/>',
   // A keystone: the wedge at the crown of an arch, holding up the stones on either side.
   keystone: '<path d="M8.6 3h6.8l-1.2 7.2H9.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.6 3h6.8l-1.2 7.2H9.8z"/><path d="M8.8 5.2C5.6 6.6 3.5 9.8 3.5 13.5V21h4v-7c0-1.6 1-3 2.3-3.8M15.2 5.2c3.2 1.4 5.3 4.6 5.3 8.3V21h-4v-7c0-1.6-1-3-2.3-3.8"/>',
   // A siege: a crenellated wall and its gate, wave after wave against it.
@@ -290,19 +284,21 @@ const PATHS = {
   acc: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/>',
   eva: '<path d="M4 7h9M2.5 12h8M4 17h9"/><path d="M14.5 5.5c3.5 1.5 5 4 5 6.5s-1.5 5-5 6.5" />',
   crt: '<path d="M12 2.5l1.8 6 6-1.8-4.2 4.8 4.2 4.8-6-1.8-1.8 6-1.8-6-6 1.8 4.2-4.8L4.2 6.7l6 1.8z" fill="currentColor" fill-opacity=".2"/>',
-  // A plan's Where: Hunt a crosshair arrow, Stay an anchor post, Move a flag on its square.
-  'o-hunt': '<path d="M4 20L18 6M18 6h-6M18 6v6"/><circle cx="18" cy="6" r="3.2" stroke-opacity=".5"/>',
-  'o-stay': '<path d="M12 4v15"/><circle cx="12" cy="5" r="1.8"/><path d="M5 13c0 4 3 6.5 7 6.5s7-2.5 7-6.5M8.5 9h7"/>',
-  'o-move': '<path d="M7 21V4"/><path d="M7 4.5h10l-2.5 3.5L17 11.5H7z" fill="currentColor" fill-opacity=".25"/><path d="M3.5 21h10" stroke-dasharray="2 2"/>',
-  // A plan's When: at once a bolt, a time a clock, the Monarch struck a cracked crown, a wave, a body falling.
+  // The run's tabs: the Field a board of tiles, the Map a route of rooms, the Codex a book.
+  field: '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"/><circle cx="12" cy="17.6" r="1.4" fill="currentColor"/>',
+  map: '<circle cx="5" cy="17.5" r="2"/><circle cx="12" cy="7" r="2"/><circle cx="19" cy="15" r="2"/><path d="M6.4 16l4.2-7.4M13.6 8.3l4 5.2" stroke-dasharray="2 1.6"/>',
+  codex: '<path d="M4 5.5c2.7-1.3 5.4-1.3 8 0v14c-2.6-1.3-5.3-1.3-8 0zM20 5.5c-2.7-1.3-5.4-1.3-8 0v14c2.6-1.3 5.3-1.3 8 0z" fill="currentColor" fill-opacity=".15"/>',
+  // A piece's ring: the tile it stands on in the square it fights within.
+  ring: '<rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="3.2 2.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/>',
+  // A line's signal: at once a bolt, a time a clock, the first blow two blades, the Monarch struck a cracked
+  // crown, a wave, a body falling.
   'w-once': '<path d="M13.5 2.5L5.5 13.5h6l-1 8 8-11h-6z"/>',
   'w-time': '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2.5"/>',
+  'w-blow': '<path d="M4.5 4.5l11 11M19.5 4.5l-11 11M13.5 17.5l3.5-3.5M10.5 17.5L7 14M17 17l2.5 2.5M7 17l-2.5 2.5"/>',
   'w-struck': '<path d="M4.5 18.5h15l-1-8-4 3-2.5-6-2.5 6-4-3z"/><path d="M13 3.5l-2 4 2.5 1.5-2 4" stroke-width="1.4"/>',
   'w-wave': '<path d="M2.5 9c2-2 4-2 6 0s4 2 6 0 4-2 7 0M2.5 15c2-2 4-2 6 0s4 2 6 0 4-2 7 0"/>',
   'w-falls': '<path d="M12 3.5v10M8 10l4 4 4-4"/><path d="M5 20.5h14"/>',
   search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>',
-  // The prep tray's Bonuses tab: what is in effect, as a large spark and a small one.
-  bonuses: '<path d="M10 3l1.8 5.2L17 10l-5.2 1.8L10 17l-1.8-5.2L3 10l5.2-1.8z" fill="currentColor" fill-opacity=".2"/><path d="M18 14l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z"/>',
   // A glyph per relic (ui.js RELIC_ICON maps each relic id to its own), so no two tiles look alike.
   'r-whetstone': '<path d="M3.5 17.5h17l-2 3h-13z" fill="currentColor" fill-opacity=".25"/><path d="M6.5 14.5L18 3.5l1.8 1.8L9 16.3zM6.5 14.5l-2 2"/>',
   'r-banner': '<path d="M4 3.5h16"/><path d="M6.5 3.5v15l5.5-3.5 5.5 3.5v-15" fill="currentColor" fill-opacity=".2"/><circle cx="12" cy="8.5" r="2"/><path d="M11 10.5v1.5M13 10.5v1.5"/>',

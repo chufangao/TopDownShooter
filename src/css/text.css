@@ -15,10 +15,6 @@
 .card-tip.compact.open { width: 420px; }
 .card-tip.compact .ct-name { font-size: var(--fs-lg); line-height: 1.25; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .card-tip.compact .ct-nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card-tip.compact .ct-rank { display: inline-flex; flex: none; gap: 4px; align-items: center; font: 600 var(--fs-sm) var(--sans); }
-.card-tip.compact .ct-rank.g0 { color: var(--c-soldier); }
-.card-tip.compact .ct-rank.g1 { color: var(--c-knight); }
-.card-tip.compact .ct-rank.g2 { color: var(--c-marshal); }
 .card-tip.compact .ct-lv { flex: none; font: 500 var(--fs-sm) var(--sans); }
 .ct-kind { font-size: var(--fs-sm); margin-top: 6px; }
 .card-tip.compact .ct-hp { display: inline-flex; flex: none; align-items: center; gap: 6px; margin: 0 0 0 auto; font: 600 var(--fs-sm) var(--sans); color: var(--text); }
@@ -31,14 +27,12 @@
 .ct-lead { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .ct-more { flex: none; font-size: var(--fs-sm); color: var(--dim); white-space: nowrap; }
 .ct-mults { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
-
 .ct-stats { display: flex; flex-wrap: wrap; gap: 3px 10px; margin: 6px 0; padding: 5px 9px; border-radius: 8px; background: #0f0c18; }
 .sx { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); }
 .sx b { color: var(--bright); font-size: var(--fs-md); }
 .sx.mult { font-size: var(--fs-sm); padding: 0 6px; border-radius: 5px; background: #1a1630; }
 .sx.mult.up { color: var(--c-essence); }
 .sx.mult.down { color: var(--c-foe); }
-
 .ct-abs { display: flex; flex-direction: column; gap: 3px; }
 .card-tip.compact .ability { display: block; padding: 5px 9px; margin: 0; border-radius: 7px; font-size: var(--fs-sm); line-height: 1.35; }
 .card-tip.compact .ability > b:first-child { color: var(--bright); }
@@ -49,13 +43,10 @@
 /* A path's tiers: the numeral in its own column; tier IV's rank tag leads its line, never mid-sentence. */
 .tiers li { display: grid; grid-template-columns: 2.2em 1fr; align-items: baseline; }
 .tiers li b { width: auto; }
-.tiers .tier-iv { display: inline-block; margin-right: 6px; padding: 0 5px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--c-knight) 45%, transparent); line-height: 1.5; vertical-align: 1px; opacity: 1; }
-
 .ct-tiers { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); color: var(--text); }
 .ct-tier b { color: var(--c-knight); font-weight: 600; }
 .ct-statuses { margin-top: 6px; font-size: var(--fs-sm); }
 .status-line .kw { cursor: default; }
-
 .card-tip.compact .ct-foot { margin-top: 8px; padding-top: 7px; gap: 3px; font-size: var(--fs-sm); }
 .ct-role b { color: var(--text); }
 .card-tip.compact .flavour { font-size: var(--fs-sm); line-height: 1.4; }
@@ -107,13 +98,6 @@
 .relic.trig { position: relative; }
 .relic.trig::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--c-relic); box-shadow: 0 0 6px var(--c-relic); margin-left: 2px; }
 
-/* ── bonuses tab ──────────────────────────────────────────────────────────────────────────────── */
-.bonuses { display: flex; flex-direction: column; gap: 12px; }
-.bn-sec { display: flex; flex-direction: column; gap: 6px; }
-.bn-k { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; display: flex; gap: 8px; align-items: baseline; }
-.bn-n { color: var(--dim); font-size: 11px; letter-spacing: 0; }
-.bonuses p { margin: 0; font-size: 12px; }
-
 /* ── how to play: the primer and the glossary ─────────────────────────────────────────────────── */
 /* Most of the frame, full height whatever the search leaves showing (so it never re-centres as you type): a
    head (the title, the search, close), the tabs, and the view under them scrolling in the body. */
@@ -121,6 +105,17 @@
   width: min(1240px, 100%); height: calc(var(--frame-h) - 40px); align-self: start; overflow: hidden;
   display: flex; flex-direction: column; padding: 16px 20px 0 28px;
 }
+/* The codex itself, in the dialog or in the Codex tab: its head, its tabs, its body scrolling. */
+.codex { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.codex .gestures { margin: 0 0 16px; font-size: var(--fs-md); line-height: 1.5; color: var(--text); }
+/* The bestiary: a card a kind, the ones not met a shade. */
+.beasts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-top: 12px; }
+.beast { display: flex; gap: 12px; align-items: flex-start; padding: 8px 12px 10px 8px; border-radius: 10px; border: 1px solid #3d2330; background: #140b10cc; }
+.beast-port { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 10px; background: radial-gradient(circle, #3a1a26, #160b10); }
+.beast-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-md); }
+.beast-text .flavour { font-style: italic; color: #b9a8c8; }
+.beast.unknown { border-style: dashed; border-color: var(--line2); background: #0c0a12cc; }
+.beast.unknown .portrait { filter: brightness(0) opacity(.45); }
 .help-head { flex: none; display: flex; align-items: center; gap: 22px; }
 .help-head .modal-title { flex: none; margin: 0; }
 .help-head .close { position: static; flex: none; }
@@ -152,7 +147,6 @@
 .gl-items { columns: 360px; column-gap: 32px; padding: 0 18px 14px; }
 .gl-entry { break-inside: avoid; padding: 6px 0; font-size: var(--fs-md); line-height: 1.45; }
 .gl-row { display: block; }
-.gl-ico { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--dim); }
 .gl-term { color: var(--k, var(--bright)); }
 .gl-line { color: var(--text); }
 /* An entry with more to it: the whole entry is the fold's toggle (at least --tap tall), a ▸ at its end. */
@@ -165,26 +159,3 @@
 .gl-more[open] > summary::after { content: ' ▾'; }
 .gl-more p { margin: 0 0 6px; color: var(--dim); font-size: var(--fs-md); }
 .gl-none { grid-column: 1 / -1; }
-
-/* ── orders tab, in the orders colour ─────────────────────────────────────────────────────────── */
-.orders-panel { border-color: color-mix(in srgb, var(--c-orders) 30%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--c-orders) 7%, #100e1c), #100e1c 70%); }
-.orders-panel h2 { color: var(--c-orders); display: flex; align-items: center; gap: 6px; }
-.ord-count { margin-left: 4px; font: 600 12px var(--sans); color: var(--dim); letter-spacing: 0; }
-.orders-panel .pick-row button.primary-ord { border-color: var(--c-orders); color: var(--c-orders); }
-.orders-panel .det { border-radius: 10px; }
-.det-state { font-size: 12.5px; line-height: 1.35; color: var(--text); min-width: 0; }
-.det-row { align-items: center; }
-.det-k { width: 38px; flex: none; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
-.segs.icon-segs { display: flex; flex-wrap: wrap; border: none; overflow: visible; gap: 3px; }
-.segs.icon-segs .seg {
-  flex-direction: column; gap: 1px; min-width: 42px; padding: 4px 4px 3px; font-size: 11px; line-height: 1.1;
-  border: 1px solid var(--line); border-radius: 8px; background: #141126; color: var(--dim);
-}
-.segs.icon-segs .seg:last-child { border-right: 1px solid var(--line); }
-.segs.icon-segs .seg.active { color: var(--bright); border-color: var(--c-orders); background: color-mix(in srgb, var(--c-orders) 16%, #141126); box-shadow: 0 0 10px color-mix(in srgb, var(--c-orders) 25%, transparent); }
-.segs.icon-segs .seg.active .ico { color: var(--c-orders); }
-.det-note { margin: 5px 0 0 46px !important; }
-.det .aim-hint { margin: 5px 0 0 46px; color: var(--c-orders); display: flex; align-items: center; gap: 4px; }
-.det-time { display: flex; align-items: center; gap: 6px; margin: 6px 0 0 46px; color: var(--c-orders); }
-.det-time b { min-width: 3em; text-align: center; color: var(--bright); }
-

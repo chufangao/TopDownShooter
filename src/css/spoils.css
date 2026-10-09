@@ -82,23 +82,11 @@
 .reap-screen .offer-price.poor, .reap-screen .offer-price.full { color: var(--c-foe); border-color: #e0566a66; }
 .reap-screen .offer.locked { opacity: .6; }
 .reap-screen .offer.locked .offer-art { filter: grayscale(.6); }
-/* A rite's soul wears its rank on its picture, as on its card. */
-.offer-ins {
-  position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-  color: var(--rk); background: #0f0d18; border: 1.5px solid var(--rk); --rk: var(--c-soldier);
-}
-.offer-ins.g1 { --rk: var(--c-knight); }
-.offer-ins.g2 { --rk: var(--c-marshal); }
-/* A rite's path as the soul card's track (card.css): held tiers lit, the one offered glowing. Shown, not pressed. */
-.reap-screen .offer-track { align-self: stretch; padding: 4px 6px 2px; }
-.reap-screen .offer-track .tnode { display: inline-grid; place-items: center; width: 34px; height: 34px; font-size: var(--fs-sm); cursor: inherit; }
-.reap-screen .offer-track .tlink.to { background: linear-gradient(90deg, var(--c-essence), color-mix(in srgb, var(--c-essence) 25%, var(--line))); }
 
 /* The lede (one group): one line, the rules behind it on the ⓘ. */
 .reap-lede { color: var(--dim); margin: 0; font-size: var(--fs-md); }
 .lede-more { display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); vertical-align: middle; color: var(--dim); cursor: help; }
 .lede-more:hover, .lede-more:focus-visible { color: var(--bright); }
-
 .reap-actions { flex: none; display: flex; justify-content: flex-end; gap: 10px; margin: 0 0 0 auto; }
 .reap-actions .move-on { min-width: 150px; }
 
@@ -191,17 +179,11 @@ button.ret-toggle {
   border: 2px solid var(--rk); background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--rk) 18%, transparent), #0d0b16 72%);
   box-shadow: 0 0 0 1px #0008 inset;
 }
-.rank-port.g1 { --rk: var(--c-knight); }
-.rank-port.g2 { --rk: var(--c-marshal); box-shadow: 0 0 10px color-mix(in srgb, var(--c-marshal) 30%, transparent); }
 .rank-port.monarch { --rk: var(--c-monarch); }
-.rank-port .rp-ins {
-  position: absolute; left: -6px; bottom: -6px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
-  color: var(--rk); background: #0f0d18; border: 1.5px solid var(--rk);
-}
+
 /* The fallen: their living picture, greyed and dimmed but clear, the frame's metal dulled. */
 .rank-port.fallen { border-color: color-mix(in srgb, var(--rk) 40%, #2a2536); }
 .rank-port.fallen .portrait { filter: grayscale(1) brightness(.78) contrast(1.05); opacity: .85; }
-.rank-port.fallen .rp-ins { color: color-mix(in srgb, var(--rk) 50%, var(--dim)); border-color: color-mix(in srgb, var(--rk) 40%, #2a2536); }
 .units .unit.fallen { opacity: 1; }
 .units .unit.fallen b { color: var(--dim); }
 
@@ -335,3 +317,9 @@ button.ret-toggle {
   .reap-screen .offers .offer.refuse { animation: refuse-edge .6s ease-out; }
   .reap-screen .offer:hover:not([aria-disabled]) { transform: none; }
 }
+
+/* A recruit straight onto a fielded piece of its kind: a row of presses under the cards. */
+.onto-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin-top: 16px; font-size: var(--fs-sm); }
+.onto-row .onto { gap: 8px; min-height: var(--tap); padding: 4px 14px 4px 6px; font-size: var(--fs-md); }
+.onto-row .onto .portrait { width: 30px; height: 30px; }
+.onto-row .price { display: inline-flex; align-items: center; gap: 3px; color: var(--c-essence); font-weight: 700; }

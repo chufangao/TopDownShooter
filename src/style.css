@@ -103,7 +103,6 @@ b { font-weight: 600; color: var(--bright); }
 .small { font-size: var(--fs-sm); }
 .warn { color: var(--c-warn); }
 .center { max-width: 820px; margin: 0 auto; text-align: center; }
-.center-text { text-align: center; }
 
 /* ── screens and backdrop ─────────────────────────────────────────────────────────────────────── */
 .screen {
@@ -127,8 +126,8 @@ b { font-weight: 600; color: var(--bright); }
 /* A screen that fits the frame: as tall as it, a column whose middle takes what is left (and scrolls a long
    list inside itself), so the page itself never scrolls. */
 .screen.fit { height: 100%; min-height: 0; display: flex; flex-direction: column; padding-bottom: 14px; }
-/* A toast: what just happened (the map's note), in the tabs' row right of the tabs, so it covers nothing
-   (ui.js mapScreen); at most two lines. A tap dismisses it; it fades by itself after a while. */
+/* A toast: what just happened (the run's note), over the foot of the view (board.css), at most two lines. A tap
+   dismisses it; it fades by itself after a while. */
 .note {
   flex: 0 1 auto; min-width: 0; max-width: 760px; padding: 5px 14px; border-radius: 10px; background: #1b2a26f2; border: 1px solid #2d5248;
   color: var(--c-essence2); font-size: var(--fs-sm); line-height: 1.35; cursor: pointer;
@@ -181,8 +180,6 @@ b { font-weight: 600; color: var(--bright); }
   position: sticky; top: 0; z-index: 5; flex: none; display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-height: 60px;
   margin: 0 -22px; padding: 6px 10px 6px 22px; background: #0b0a12e6; border-bottom: 1px solid var(--line2); backdrop-filter: blur(8px);
 }
-/* Edge to edge on the screens padded 16 instead of 22 (board.css: prep, and the map's Camp tab). */
-:is(.prep-screen, .map-screen):has(.board-stage) .topbar { margin: 0 -16px; padding-left: 16px; }
 .floors { display: flex; align-items: center; gap: 7px; min-height: var(--tap); font-weight: 600; font-size: var(--fs-md); white-space: nowrap; }
 .floors > span:last-child { margin-left: 5px; }
 .pip { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--line); background: #0c0a14; }
@@ -233,57 +230,8 @@ b { font-weight: 600; color: var(--bright); }
 .tab:hover:not(.on):not([aria-disabled]) { color: var(--text) !important; border-color: transparent; border-bottom-color: var(--line); }
 .tab.on { color: var(--bright); border-bottom-color: var(--c-essence); }
 .tab kbd { min-width: 1.5em; }
-.tab-count { min-width: 22px; padding: 0 6px; border-radius: 99px; background: #17302a; color: var(--c-essence2); font-size: var(--fs-xs); font-weight: 700; line-height: 22px; text-align: center; }
-.screen-tabs { max-width: 1040px; margin: 10px auto 0; }
-.screen-tabs .tab { font-size: var(--fs-lg); min-height: 52px; padding: 6px 22px; }
-@container frame (max-height: 640px) {
-  .screen-tabs { margin-top: 6px; }
-  .screen-tabs.tabs { margin-bottom: 10px; }
-  .screen-tabs .tab { min-height: var(--tap); padding: 4px 18px; }
-  .guide { margin-top: 6px; }
-}
-/* The prep tray's tabs: always one row. Each an icon with its count as a small pill on the icon's corner, and
-   its label (a short one: Bones, Bonus) while the row has room; short of it, only the open tab keeps its
-   label, and on the narrowest row none does (the full name and what the tab holds are on hover). */
-.tray-tabs { flex-wrap: nowrap; gap: 0; container-type: inline-size; }
-.tray-tabs .tab { flex: 1 1 auto; justify-content: center; min-width: var(--tap); padding: 8px 4px 7px; gap: 6px; font-size: var(--fs-sm); letter-spacing: 0; white-space: nowrap; }
-.tab-ico { position: relative; flex: none; display: inline-grid; place-items: center; }
-.tab-ico .tab-count {
-  position: absolute; top: -9px; left: calc(100% - 8px); min-width: 20px; padding: 0 4px; font-size: var(--fs-xs); font-weight: 700; line-height: 19px;
-  box-shadow: 0 0 0 2px var(--panel2); pointer-events: none;
-}
-/* A badge overhangs its icon's corner: the label keeps clear of it. */
-.tab-ico:has(.tab-count) + .tab-name { margin-left: 5px; }
-@container (max-width: 330px) { .tray-tabs .tab:not(.on) .tab-name { display: none; } }
-@container (max-width: 200px) { .tray-tabs .tab-name { display: none; } }
-.tab-body > h2:first-child, .tab-body > div:first-child > h2:first-child { margin-top: 0; }
 
 /* ── map ──────────────────────────────────────────────────────────────────────────────────────── */
-.cols { display: flex; gap: 22px; flex-wrap: wrap; margin: 0 auto; max-width: 1040px; align-items: flex-start; }
-.camp-panel { max-width: 1040px; margin: 0 auto; }
-.mapcol { flex: none; width: 440px; max-width: 100%; }
-.side { flex: 1; min-width: 320px; }
-/* The map screen: the tabs (a toast and Tips at the row's end), then the Route tab filling the rest of the
-   frame: the whole floor across it, start on the left and its end on the right, never scrolling; the retinue
-   under it, in as many columns as the width holds, scrolling inside its own panel. */
-.map-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.map-body > .screen-tabs { flex: none; width: 100%; max-width: 1600px; flex-wrap: nowrap; align-items: center; }
-.tabs-extra { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-left: 16px; }
-.tips-btn { flex: none; gap: 6px; color: var(--dim); }
-.tips-btn[hidden] { display: none; }
-.route-cols { flex: 1; min-height: 0; width: 100%; max-width: 1600px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
-.route-cols > .panel { min-height: 0; display: flex; flex-direction: column; }
-/* The floor takes about three fifths of the height (never under 220, the four lanes' rooms clear of each
-   other; never over 380, where the lanes would only spread); the retinue the rest. */
-.route-cols .mapcol { flex: 3 1 0; width: auto; min-height: 220px; max-height: 380px; padding: 0; }
-.route-cols .side { flex: 2 1 0; min-width: 0; padding: 10px 8px 8px 16px; }
-.route-cols .side > h2 { flex: none; margin: 0 0 8px; }
-.route-cols .units {
-  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 8px; align-content: start;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 8px;
-}
-/* A short frame keeps more souls in view, three to a row, their kin and role on their cards only. */
-@container frame (max-height: 640px) { .route-cols .units { grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); } }
 /* The floor's box, inset by half a room on every side so the rooms at its edges stay whole; the rooms and the
    edges placed in its % (ui.js pos), so it fits whatever the panel's size. A container: the rooms' names show
    where the lanes and the ranks leave them room. */
@@ -343,29 +291,9 @@ b { font-weight: 600; color: var(--bright); }
 .node.t-boss .medal { width: 60px; height: 60px; border-color: #7a2a38; }
 .node.reach .medal { color: var(--bright); }
 
-/* ── prep ─────────────────────────────────────────────────────────────────────────────────────── */
-.prep-screen > .panel { max-width: 1040px; margin: 16px auto 0; }
-.prep-head { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(240px, 1.2fr) auto; gap: 22px; align-items: center; }
-.ph-title { display: flex; gap: 12px; align-items: center; }
-.ph-title h2 { margin: 0; font: 600 20px var(--serif); letter-spacing: .04em; text-transform: none; color: var(--bright); }
-.room-ico { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #1a1628; border: 1px solid var(--line); }
-.begin-btn { justify-self: end; }
-.retinue { display: flex; gap: 30px; flex-wrap: wrap; }
-.board-col { flex: none; }
-.tray { flex: 1; min-width: 280px; align-self: flex-start; position: sticky; top: 70px; max-height: calc(var(--frame-h) - 86px); overflow-y: auto; overscroll-behavior: contain; }
-.bench-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 0 0; }
-.bench-row .rs-label { width: 48px; flex: none; text-align: right; }
-.bench-row .bench { flex: 1; min-height: 64px; }
-.gridlabel { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 8px 58px; color: var(--c-essence2); font-weight: 600; width: 0; min-width: calc(100% - 58px); }
-.gridlabel.foe { color: #f08a98; }
-.vs { display: flex; align-items: center; gap: 10px; margin: 14px 0 14px 58px; color: var(--dim); font: 600 12px var(--serif); letter-spacing: .3em; }
-.vs::before, .vs::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, var(--dim), transparent); opacity: .5; }
-
 /* ── grids and cells ──────────────────────────────────────────────────────────────────────────── */
 .grid { display: inline-flex; flex-direction: column; gap: 6px; }
 .grid .row { display: flex; gap: 6px; align-items: center; }
-.rowname { width: 52px; color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
-.rowname.foe { color: #9a5a62; }
 .cell {
   position: relative; width: 66px; height: 66px; padding: 2px; flex-direction: column; gap: 3px;
   background: radial-gradient(circle at 50% 40%, #1d1930, #110e1c); border: 1px solid var(--line); border-radius: 9px;
@@ -378,23 +306,15 @@ b { font-weight: 600; color: var(--bright); }
 .cell.foe { cursor: default; border-color: #3d2330; background: radial-gradient(circle at 50% 40%, #2a1520, #140b10); }
 .cell.foe.empty { border-color: #2a1d26; background: #0f0a0e; }
 .cell .badge { position: absolute; top: 2px; right: 5px; font-size: 10px; color: var(--dim); font-weight: 600; }
-.cell .tier-pips { position: absolute; bottom: 9px; right: 4px; font-size: 11px; letter-spacing: -1px; color: var(--c-path); }
+
 /* The Monarch's cell, and its domain (a tint and an outline drawn half into the gaps, so neighbours join up). */
 .cell.monarch { border-color: #8a6a2a; background: radial-gradient(circle at 50% 40%, #3a2e14, #15110a); box-shadow: 0 0 14px color-mix(in srgb, var(--c-monarch) 20%, transparent); }
 .cell.dom:not(.monarch):not(.foe.has) { background-color: #0f1d19; }
 .cell.empty.dom { background: #0d1a16; border-color: #24443a; }
 .cell.foe.empty.dom { background: #12161a; border-color: #2c3b37; }
 .cell.dom::before { content: ""; position: absolute; inset: -4px; pointer-events: none; border: 0 solid var(--c-domain); border-radius: 2px; }
-.cell.d-t::before { border-top-width: 2px; }
-.cell.d-b::before { border-bottom-width: 2px; }
-.cell.d-l::before { border-left-width: 2px; }
-.cell.d-r::before { border-right-width: 2px; }
 .cell.out.empty { opacity: .62; }
 .vs.dom::before, .vs.dom::after { background: linear-gradient(90deg, transparent, var(--c-essence), transparent); opacity: .7; }
-/* width 0 + min-width: the key wraps to the grid's width instead of widening the board. */
-.domain-key { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; margin: 10px 0 0 58px; width: 0; min-width: calc(100% - 58px); font-size: 12px; }
-.dk-box { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--c-domain); border-radius: 3px; background: #181d0c; }
-.falter-note { color: var(--c-foe); }
 .cell.wall { cursor: default; border-color: #3d3552; background: url(assets/props/wall-0.svg) center 70% / 92% no-repeat, radial-gradient(circle at 50% 40%, #1d1930, #110e1c); }
 .cell.wall:nth-child(3n) { background-image: url(assets/props/wall-1.svg), radial-gradient(circle at 50% 40%, #1d1930, #110e1c); }
 .cell.wall:nth-child(3n+1) { background-image: url(assets/props/wall-2.svg), radial-gradient(circle at 50% 40%, #1d1930, #110e1c); }
@@ -421,28 +341,22 @@ b { font-weight: 600; color: var(--bright); }
 .unit { container-type: inline-size; }
 .unit .grow { flex: 1; min-width: 0; }
 .unit .u-name { line-height: 1.3; }
-.unit .u-name .path-tag, .unit .u-name .rank-tag { white-space: nowrap; }
+.unit .u-name .path-tag { white-space: nowrap; }
 .unit .line { display: flex; gap: 6px 10px; align-items: center; margin-top: 2px; font-size: var(--fs-sm); white-space: nowrap; }
 .unit .line > .dim { overflow: hidden; text-overflow: ellipsis; }
 /* Short of room, the kin gives way before the HP. */
 .unit .line > .u-kin { display: none; margin-left: -4px; flex: 0 1000 auto; min-width: 0; }
 @container (min-width: 400px) { .unit .line > .u-kin { display: inline; } }
-.cell-port { width: 40px; height: 40px; border-radius: 8px; display: grid; place-items: center; background: #1d1930; border: 1px solid var(--line); }
 .syns { display: flex; flex-direction: column; gap: 4px; }
 .syn { display: flex; justify-content: space-between; gap: 10px; padding: 5px 10px; border-radius: 6px; background: #120f1e; border: 1px solid var(--line2); font-size: var(--fs-sm); color: var(--dim); }
 /* Synergies wear the orders' blue as filled tints (orders are outlines and dashes). */
 .syn.on { color: var(--bright); border-color: color-mix(in srgb, var(--c-synergy) 35%, #120f1e); background: linear-gradient(90deg, color-mix(in srgb, var(--c-synergy) 16%, #120f1e), #120f1e); }
-.syn.on .syn-prog { color: var(--c-synergy); }
-.syn-prog { font-weight: 600; white-space: nowrap; }
-/* A kin's or role's steps (2/4/6/8): lit once reached; the rule step (the 8) lit brightest. */
-.syn-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .syn-steps { display: inline-flex; gap: 3px; }
 .syn-steps i { font: 700 var(--fs-sm)/20px var(--sans); font-style: normal; width: 22px; height: 22px; text-align: center; border-radius: 3px; border: 1px solid var(--line); color: #a39cb8; background: #0c0a14; }
 .syn-steps i.held { border-color: color-mix(in srgb, var(--c-synergy) 60%, #0c0a14); background: color-mix(in srgb, var(--c-synergy) 28%, #0c0a14); color: #d6e8ff; }
 .syn-steps i.rule { border-color: color-mix(in srgb, var(--c-synergy) 35%, #0c0a14); color: #8fb8e8; }
 .syn-steps i.rule.held { border-color: var(--c-synergy); background: color-mix(in srgb, var(--c-synergy) 40%, #0c0a14); color: #fff; box-shadow: 0 0 6px color-mix(in srgb, var(--c-synergy) 55%, transparent); }
 .syn.top { border-color: color-mix(in srgb, var(--c-synergy) 60%, #120f1e); background: linear-gradient(90deg, color-mix(in srgb, var(--c-synergy) 28%, #120f1e), #120f1e); }
-.syn.top .syn-prog { color: var(--c-synergy); }
 .tag-rule { font-size: var(--fs-sm); padding: 0 7px; border-radius: 5px; background: color-mix(in srgb, var(--c-synergy) 28%, #0c0a14); color: #cfe3ff; font-weight: 600; }
 .steps-list { margin: 6px 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-sm); color: var(--dim); }
 .steps-list li.held { color: var(--text); }
@@ -456,7 +370,7 @@ b { font-weight: 600; color: var(--bright); }
 .threat-head b { color: var(--t); }
 .threat-bar { height: 9px; margin: 6px 0 4px; border-radius: 5px; background: linear-gradient(90deg, #2d6b5a, #3cc79c); overflow: hidden; }
 .threat-bar .theirs { display: block; height: 100%; background: linear-gradient(90deg, #8a2534, var(--t)); border-right: 2px solid #07060b; }
-.threat-legend { display: flex; justify-content: space-between; font-size: var(--fs-sm); }
+
 /* One scale, neutral to warning to harm: no system's colours but the warning amber and the foes' red. */
 .t-low { --t: #a9a3bd; } .t-mod { --t: color-mix(in srgb, var(--c-warn) 50%, #a9a3bd); } .t-high { --t: var(--c-warn); }
 .t-sev { --t: color-mix(in srgb, var(--c-foe) 85%, var(--c-warn)); } .t-dead { --t: var(--c-foe); }
@@ -468,7 +382,7 @@ b { font-weight: 600; color: var(--bright); }
 .reap-screen:has(.o-tier) .reap-title { color: var(--c-path); }
 .reap-screen:has(.o-keystone) .reap-title { color: var(--c-keystone); }
 .reap-screen:has(.o-relic) .reap-title { color: var(--c-relic); }
-.reap-screen:has(.o-soul) .reap-title, .reap-screen:has(.o-bind) .reap-title { color: var(--c-essence); }
+.reap-screen:has(.o-soul) .reap-title { color: var(--c-essence); }
 .offers { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin: 26px 0; }
 .offer {
   width: 200px; min-height: 250px; flex-direction: column; justify-content: flex-start; gap: 8px; padding: 14px;
@@ -485,7 +399,6 @@ b { font-weight: 600; color: var(--bright); }
 .o-soul { border-color: #2d5248; }
 .o-relic { border-color: #6a3a1c; }
 .offer-name { font: 600 var(--fs-lg) var(--serif); color: var(--bright); }
-.offer-desc { font-size: var(--fs-md); color: var(--text); }
 .offer.locked { opacity: .45; cursor: not-allowed; }
 .o-tier { border-color: #1f4a54; }
 .o-tier .offer-art { background: radial-gradient(circle, #3fd3ea33, transparent 68%); color: var(--c-path); }
@@ -522,13 +435,23 @@ b { font-weight: 600; color: var(--bright); }
 .legend { display: flex; gap: 18px; align-items: center; font-size: var(--fs-sm); flex-wrap: nowrap; white-space: nowrap; }
 .legend span { display: inline-flex; gap: 8px; align-items: center; }
 .legend > span:not(.purse) { min-height: var(--tap); cursor: help; }
-/* The hint to inspect a unit: where the bar has room for it. */
-.bar-hint { display: none !important; }
-@container frame (min-width: 1240px) { .bar-hint { display: inline-flex !important; } }
 .lg { display: inline-block; width: 22px; height: 5px; border-radius: 3px; }
 .lg.hp { background: var(--c-essence); }
 .lg.gauge { background: var(--c-gauge); }
 .controls { display: flex; gap: 10px; align-items: center; }
+/* The wave under way, of how many, and the escalation bar: it runs down from the last foe to enter, its mark
+   where every blow starts to climb; hot past the mark, red when nearly out. */
+.wave-n { color: #f0a0ac; font-weight: 600; }
+.wave-n[hidden] { display: none !important; }
+.wave-n b { color: #ffd0d6; }
+.esc { gap: 8px; }
+.esc-bar { position: relative; display: block !important; width: 150px; height: 12px; border-radius: 6px; background: #07060b; box-shadow: inset 0 0 0 1px #3a3258; overflow: hidden; }
+.esc-fill { position: absolute; left: 0; top: 0; bottom: 0; display: block !important; background: linear-gradient(90deg, #6a5a9a, #9a8ad0); transition: width .4s linear; }
+.esc-ramp { position: absolute; top: -2px; bottom: -2px; width: 2px; display: block !important; background: var(--c-warn); box-shadow: 0 0 6px var(--c-warn); }
+.esc.hot .esc-fill { background: linear-gradient(90deg, #c0394c, #ff8a5a); }
+.esc.low .esc-bar { box-shadow: inset 0 0 0 1px var(--c-foe), 0 0 10px #e0566a88; }
+.esc-n { min-width: 3ch; color: #ff9a7a; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .esc-fill { transition: none; } }
 .clock { min-width: 3.5ch; text-align: right; color: var(--dim); font-weight: 600; font-size: var(--fs-md); }
 .segs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .segs .seg { border: none; border-radius: 0; border-right: 1px solid var(--line); }
@@ -549,20 +472,12 @@ b { font-weight: 600; color: var(--bright); }
 .tip.on { opacity: 1; transform: none; }
 .tip p { margin: 5px 0; }
 .card-tip { width: 400px; }
-.ct-head { display: flex; gap: 12px; align-items: center; }
-.ct-port { width: 66px; height: 66px; border-radius: 12px; display: grid; place-items: center; background: radial-gradient(circle, #2a2440, #13101f); border: 1px solid var(--line); flex: none; }
-.card-tip.foe .ct-port { background: radial-gradient(circle, #3a1a26, #160b10); border-color: #4a2432; }
 .ct-name { font: 600 var(--fs-lg) var(--serif); color: var(--bright); }
 .ct-hp { display: flex; gap: 8px; align-items: center; font-size: var(--fs-sm); margin-top: 3px; }
-.stats-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 10px 0 4px; }
-.stats-grid.three { grid-template-columns: repeat(3, 1fr); }
 .stat { display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 6px; background: #0f0c18; font-size: var(--fs-sm); }
 .stat b { font-size: var(--fs-md); }
-.ct-sec { margin: 10px 0 4px; font-size: var(--fs-sm); letter-spacing: .1em; text-transform: uppercase; color: var(--c-essence2); font-weight: 600; }
 .ability { padding: 6px 8px; border-radius: 8px; background: #0f0c18; margin-bottom: 4px; }
-.ab-head { display: flex; gap: 6px; align-items: center; }
-.ab-head .right { margin-left: auto; font-size: var(--fs-sm); }
-.ab-body { font-size: var(--fs-sm); margin-top: 2px; }
+
 /* Small tags (a chip, melee or ranged, the domain's) at --fs-sm in sentence case: no shouting capitals. */
 .chip { font-size: var(--fs-sm); padding: 0 8px; border-radius: 99px; border: 1px solid var(--c); color: var(--c); }
 .tag-melee, .tag-ranged { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; border-radius: 5px; background: #2a1d26; color: #f0a0ac; }
@@ -594,29 +509,9 @@ b { font-weight: 600; color: var(--bright); }
 .modal .close { position: absolute; top: 14px; right: 14px; }
 .modal-title { font: 600 var(--fs-2xl) var(--serif); text-transform: none; letter-spacing: .06em; color: var(--bright); margin: 0 0 6px; }
 .lede { color: #c5bdd6; font-size: var(--fs-lg); line-height: 1.4; margin: 0 0 18px; }
-.help-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-.help-cols section { background: #0f0c18aa; border: 1px solid var(--line2); border-radius: var(--radius); padding: 14px 16px; font-size: var(--fs-md); }
-.help-cols section p { margin: 0 0 8px; }
-.room-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.room-list li { display: flex; gap: 8px; align-items: flex-start; }
-.room-list .room-ico { width: 26px; height: 26px; }
-.rows-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 12px; }
-.rows-table th, .rows-table td { padding: 3px 6px; text-align: left; border-bottom: 1px solid var(--line2); }
-.rows-table th { color: var(--dim); font-weight: 600; }
-.syn-table { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
-/* The synergies and relics sections run the width of the help (one after the other, so neither leaves half a
-   row empty), their long lists in columns. */
-.help-cols section.wide { grid-column: 1 / -1; }
-.syn-table.flow { display: block; columns: 280px; column-gap: 22px; }
-.help-cols section.wide .syn-table { margin-bottom: 8px; }
-.syn-table.flow > div { break-inside: avoid; margin-bottom: 3px; }
 .bar-slot { display: contents; }
 
 /* ── essence: the upgrade panel and path tiers ───────────────────────────────────────────────────── */
-.upgrade { margin-top: 14px; padding: 12px; border: 1px solid #23495e; border-radius: 10px; background: #0f1520; }
-.upgrade h2 { margin-top: 0; }
-.upgrade-hint { margin-top: 12px; }
-.paths { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .path { padding: 8px 10px; border: 1px solid var(--line2); border-radius: 8px; background: #141122; }
 .path.on { border-color: var(--c-path); }
 .buy { display: inline-flex; gap: 8px; align-items: center; margin-top: 6px; border-color: #2d5248; }
@@ -628,185 +523,52 @@ b { font-weight: 600; color: var(--bright); }
 .tiers li b { display: inline-block; width: 2.2em; color: var(--dim); }
 .tiers li.held { color: var(--text); }
 .tiers li.held b { color: var(--c-path); }
-.ct-path, .path-tag { color: var(--c-path); font-size: var(--fs-sm); }
+.path-tag { color: var(--c-path); font-size: var(--fs-sm); }
 
 /* ── the Monarch's panel ─────────────────────────────────────────────────────────────────────────── */
-.monarch-panel { margin-top: 14px; padding: 12px; border: 1px solid #5a4520; border-radius: 10px; background: #17130b; }
-.monarch-panel.on { border-color: var(--c-monarch); box-shadow: 0 0 16px color-mix(in srgb, var(--c-monarch) 20%, transparent); }
-.monarch-panel h2 { margin-top: 0; color: #f3d9a0; }
-.monarch-panel > p { margin: 8px 0 0; }
-.mstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.mstat { padding: 8px; border: 1px solid #3a2e14; border-radius: 8px; background: #120f09; display: flex; flex-direction: column; gap: 2px; }
-.mstat-name { display: flex; justify-content: space-between; align-items: baseline; }
-.mstat-pts { font: 600 18px var(--serif); color: var(--c-monarch); }
-.mstat .buy { align-self: flex-start; margin-top: auto; }
 .unit.monarch { border-color: #5a4520; }
 
 /* ── the army: banners in the camp, the reserve, the cohort and ossuary panels, binding ────────────── */
 /* A banner wears one colour (--b, set per cell): its captain's flag and its members' edges. Members are
    ghosted: they are counts, not souls, and their cells are open ground to a soul being placed. */
-.cell.member { border: 1px dashed var(--b, #5a5470); background: radial-gradient(circle at 50% 40%, #17142a, #0e0c17); }
-.cell.member .portrait { opacity: .55; filter: grayscale(.35) drop-shadow(0 2px 2px #000a); }
-.cell.member.drop { background: #10201c; }
-.cell.member.led { box-shadow: 0 0 0 1px var(--b), 0 0 12px color-mix(in srgb, var(--b) 45%, transparent); }
 .cell.captain { border-color: var(--b); }
 .cell .flag {
   position: absolute; top: 20px; left: 3px; min-width: 14px; height: 13px; padding: 0 3px; border-radius: 2px 2px 2px 0;
   background: var(--b); color: #0b0a12; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center;
 }
-.reserve-strip {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 8px 0 0 58px; width: 0; min-width: calc(100% - 58px);
-  padding: 6px 10px; border-radius: 8px; border: 1px dashed #2a2440; background: linear-gradient(180deg, #0b0a12, #060509); font-size: 12px;
-}
-.reserve-strip.on { border-color: #3a3258; }
-.rs-label { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); font-weight: 600; }
-.rs-count { color: var(--c-essence2); font-weight: 600; }
-.rs-bodies { display: flex; flex-wrap: wrap; gap: 2px; }
-.rs-body { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 5px; border-bottom: 2px solid var(--b, var(--line)); background: #120f1e; }
-.rs-body .portrait { opacity: .6; }
-.cohort-panel, .ossuary-panel { margin-top: 14px; padding: 12px; border: 1px solid #2c2a4a; border-radius: 10px; background: #100e1c; }
-.cohort-panel h2, .ossuary-panel h2 { margin-top: 0; }
-.cohort-panel > p, .ossuary-panel > p { margin: 4px 0 8px; }
 .kinds { display: flex; flex-wrap: wrap; gap: 6px; }
 .kind { padding: 3px 8px 3px 4px; gap: 6px; font-size: 13px; }
 .kind.on { border-color: var(--c-essence); background: #15302a; color: var(--bright); }
 .kind.locked { opacity: .45; cursor: not-allowed; }
-.cohort-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
-.cohort-row b { min-width: 1.4em; text-align: center; font-size: 15px; }
-.step-btn { width: 26px; padding: 2px 0; }
-.step-btn[aria-disabled] { opacity: .4; cursor: not-allowed; }
 .shapes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0 8px; }
 .shape { flex-direction: column; gap: 4px; padding: 6px 4px; font-size: 12px; }
 .shape.on { border-color: var(--c-essence); background: #15302a; color: var(--bright); }
-.glyph { display: grid; gap: 1px; grid-auto-rows: 5px; min-height: 16px; align-content: center; }
-.glyph i { width: 5px; height: 5px; border-radius: 1px; }
-.glyph i.cap { background: var(--c-essence); }
-.glyph i.mem { background: var(--c-ossuary); opacity: .7; }
-.muster { display: flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; padding: 8px; border: 1px solid var(--line2); border-radius: 8px; background: #0c0a16; }
-.muster .mstat-name { gap: 8px; }
-.muster .buy { margin: 0; }
-.muster .grow { flex: 1; min-width: 120px; }
-.bones { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .bone { display: flex; gap: 10px; align-items: center; padding: 4px 8px; border-radius: 8px; background: #141122; border: 1px solid var(--line2); }
 .bone .grow { flex: 1; min-width: 0; }
 .bone .fell { color: #c06070; }
-.o-bind { display: flex; align-items: center; border: 1px solid #3a3258; cursor: default; }
-.o-bind .offer-art { background: radial-gradient(circle, #b8ac9833, transparent 68%); }
-.o-bind .offer-art .portrait { opacity: .8; }
-.o-bind.locked { opacity: 1; cursor: default; }
-.stepper { display: flex; align-items: center; gap: 6px; }
-.stepper b { min-width: 1.6em; text-align: center; font-size: var(--fs-lg); }
-.bind-btn { margin-top: auto; }
 
 /* ── orders: detachments, their plans on the camp, the open ground, the reserve's held detachments ──── */
 /* A detachment wears one colour (--d, set per cell): its tag on its souls, a dot on its bodies, its Move
    square (--q on the square's cell) and the arrow to it, an SVG laid over the board. */
 .board { position: relative; }
-.plan-arrows { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 3; }
-.cell .det-tag {
-  position: absolute; top: 36px; left: 3px; min-width: 14px; height: 13px; padding: 0 3px; border-radius: 0 2px 2px 2px;
-  background: var(--d); color: #0b0a12; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; white-space: nowrap;
-}
-.cell .det-dot { position: absolute; bottom: 5px; left: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--d); box-shadow: 0 0 0 1px #0b0a12; }
-.cell .start-tag {
-  position: absolute; top: 2px; left: 3px; height: 12px; padding: 0 3px; border-radius: 3px; white-space: nowrap;
-  background: var(--d); color: #0b0a12; font-size: 8px; font-weight: 700; line-height: 12px;
-}
+
 /* A held soul waits behind the camp: ghosted on its own cell. */
 .cell.held { border: 1px dashed var(--d); }
 .cell.held .portrait { opacity: .4; filter: grayscale(.4) drop-shadow(0 2px 2px #000a); }
 .cell.pick { box-shadow: 0 0 0 2px var(--c-orders), 0 0 14px color-mix(in srgb, var(--c-orders) 33%, transparent); }
 .cell.square { box-shadow: inset 0 0 0 2px var(--q), inset 0 0 18px color-mix(in srgb, var(--q) 30%, transparent); }
 .cell.square.far { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--q) 40%, transparent); }
-.sq-tags { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; z-index: 1; }
-.sq-tag {
-  min-width: 13px; height: 13px; padding: 0 2px; border-radius: 7px; background: var(--d); color: #0b0a12;
-  font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; box-shadow: 0 0 0 1px #0b0a12; white-space: nowrap;
-}
-.cell.square.far .sq-tag { opacity: .55; }
-.board.aiming .cell.aim { cursor: crosshair; }
-.board.aiming .cell.aim:hover { border-color: var(--c-essence2); box-shadow: 0 0 0 2px #8ff7d666; }
-.board.aiming .cell.wall { cursor: not-allowed; }
 .grid.gap { display: flex; width: max-content; margin: 10px 0 12px; }
 .grid.gap .cell { height: 30px; background: #0c0b14; border: 1px dashed #2a2440; }
 .grid.gap .cell.dom { background: #0d1a16; border-color: #24443a; }
-.grid.gap .cell .sq-tags { top: 8px; }
-.rs-held { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 2px; border: 1px dashed var(--d); border-radius: 6px; }
-.rs-tag { padding: 0 4px; border-radius: 3px; background: var(--d); color: #0b0a12; font-size: 9px; font-weight: 700; line-height: 14px; white-space: nowrap; }
-.rs-body.soul { border-bottom-color: var(--c-essence); }
-.orders-panel { margin-top: 14px; padding: 12px; border: 1px solid #2c2a4a; border-radius: 10px; background: #100e1c; }
-.orders-panel h2 { margin-top: 0; }
-.pick-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.pick-row button.on { border-color: var(--c-orders); color: var(--c-orders); background: #101a2e; }
-.picked { display: inline-flex; gap: 2px; padding: 1px 3px; border: 1px dashed var(--c-orders); border-radius: 6px; }
-.det {
-  margin-top: 10px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--d) 35%, var(--line)); border-left: 3px solid var(--d);
-  border-radius: 8px; background: #0c0a16;
-}
-.det.aiming { box-shadow: 0 0 14px color-mix(in srgb, var(--d) 35%, transparent); }
-.det-head { display: flex; align-items: center; gap: 8px; }
-.det-head .grow, .det-souls .grow { flex: 1; min-width: 0; }
-.det-sw { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 5px; background: var(--d); color: #0b0a12; font-weight: 700; font-size: 12px; }
-.det-souls { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0 2px; }
-.det-soul { padding: 1px; border-radius: 6px; }
-.det-soul.on { border-color: var(--c-essence); }
-.det-soul.benched { opacity: .45; }
-.det-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-.det-k { width: 40px; flex: none; }
-.det .segs .seg { padding: 3px 8px; font-size: 12px; }
-.det > p { margin: 6px 0 0; }
-.aim-hint { color: var(--c-essence2); }
-.det .cohort-row { margin-top: 6px; }
-/* The start buttons wrap as separate pills; aiming lights every cell the square may take. */
-.det .segs.wrap { display: flex; flex-wrap: wrap; gap: 4px; border: none; overflow: visible; }
-.det .segs.wrap .seg { border: 1px solid var(--line); border-radius: 7px; }
-.det .segs.wrap .seg:last-child { border-right: 1px solid var(--line); }
-.board.aiming .cell.aim:not(.wall) { border-color: #8ff7d644; }
 
 /* ── ranks: insignia, the rank panel, the tiers past III, a Marshal's own domain ─────────────────── */
 /* A Knight's shield and a Marshal's standard sit in a captain's cell, bottom left; a second path's tier
    pips stack above the first's, in violet. */
-.cell .rank-mark { position: absolute; bottom: 8px; left: 3px; color: var(--c-knight); filter: drop-shadow(0 0 3px #000); }
-.cell .rank-mark.g2 { color: var(--c-marshal); }
-/* A detachment's tag takes the left edge under the flag: the insignia moves to the right edge, under the
-   level badge. */
-.cell:has(.det-tag) .rank-mark { display: flex; bottom: auto; top: 18px; left: auto; right: 4px; }
-.cell .tier-pips.p2 { bottom: 20px; color: var(--c-path2); }
-/* A Marshal's domain: a dashed square in its banner's colour (--m), drawn halfway into the gaps so the
-   cells' pieces join up, just inside the Monarch's outline where the two meet. */
-.cell .mdom { position: absolute; inset: -3px; pointer-events: none; border: 0 dashed var(--m); border-radius: 3px; background: color-mix(in srgb, var(--m) 7%, transparent); }
-.cell .mdom.m-t { border-top-width: 2px; }
-.cell .mdom.m-b { border-bottom-width: 2px; }
-.cell .mdom.m-l { border-left-width: 2px; }
-.cell .mdom.m-r { border-right-width: 2px; }
-.marshal-key { margin-top: 4px; }
 .mk { display: inline-flex; align-items: center; gap: 5px; margin-right: 6px; }
-.mk-box { display: inline-block; width: 14px; height: 14px; border: 2px dashed var(--m); border-radius: 3px; }
-.rank-panel { margin-top: 14px; padding: 12px; border: 1px solid #5a4520; border-radius: 10px; background: #14110c; }
-.rank-panel h2 { margin-top: 0; }
-.rank-panel > p { margin: 6px 0 0; }
-.rank-row { display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
-.rank-row .grow { flex: 1; min-width: 0; }
-.rank-ins { display: inline-flex; color: var(--c-knight); vertical-align: -2px; margin-right: 4px; }
-.rank-ins.g0 { color: var(--dim); }
-.rank-ins.g2 { color: var(--c-marshal); }
-.rank-ins.big { width: 38px; height: 38px; flex: none; margin: 0; border-radius: 50%; display: grid; place-items: center; background: #1f1910; border: 1px solid #5a4520; }
-.rank-ins.big.g0 { border-color: var(--line); background: #141122; }
-.buy.promote { border-color: #5a4520; }
-.buy.promote .price { color: #f3d9a0; }
-.rank-tag { display: inline-flex; gap: 4px; align-items: center; margin: 0 2px 0 8px; color: var(--c-knight); font-size: var(--fs-sm); vertical-align: -2px; }
-.rank-tag.g2 { color: var(--c-marshal); }
-.ct-rank { display: flex; gap: 4px; align-items: center; color: var(--c-knight); font-size: 12px; }
-.ct-rank.g0 { color: var(--c-soldier); }
-.ct-rank.g2 { color: var(--c-marshal); }
-.ct-rank.g0 { color: var(--dim); }
-.path-tag.p2 { color: var(--c-path2); }
-.tier-iv { white-space: nowrap; font-size: var(--fs-sm); letter-spacing: .04em; color: var(--c-knight); opacity: .75; }
 .path.second { border-style: dashed; }
 .path.second.on { border-color: var(--c-path2); }
-.path.clash { opacity: .6; }
-.path .shut { margin: 6px 0 0; }
-.rank-list { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; }
+
 /* ── keystones and trigger relics ─────────────────────────────────────────────────────────────── */
 /* A keystone rewrites a rule: carved-stone lilac, apart from the relics' gold and the binds' dim violet. */
 .o-keystone { border: 1px solid #8a6ad8; background: linear-gradient(180deg, #221a3a, #120e20); box-shadow: 0 0 0 1px #8a6ad833 inset, 0 0 22px #8a6ad826; }
@@ -821,12 +583,10 @@ b { font-weight: 600; color: var(--bright); }
 .ks-tag, .trig-tag { display: inline-block; align-self: flex-start; margin: 2px 0; font-size: var(--fs-sm); font-weight: 600; padding: 0 8px; border-radius: 5px; }
 .ks-tag { background: #2a2046; color: #c9b4ff; }
 .trig-tag { background: #2a170c; color: var(--c-relic); }
-.syn-table .trig-tag { margin: 0 4px; }
+
 /* Vanguard Crown: the captain the domain centres on wears a small crown. */
 .cell.centre { box-shadow: 0 0 12px color-mix(in srgb, var(--c-monarch) 27%, transparent); }
-.cell .centre-mark { position: absolute; bottom: 9px; left: 4px; color: var(--c-monarch); line-height: 0; filter: drop-shadow(0 0 3px #000); }
-/* A Knight's or Marshal's insignia holds that corner (unless a detachment tag moved it): the crown sits beside it. */
-.cell:has(.rank-mark):not(:has(.det-tag)) .centre-mark { left: 20px; }
+
 /* …and the domain's outline turns gold, as it does in battle. */
 .board.crowned .cell.dom::before { border-color: #c9a45a; }
 
@@ -834,12 +594,9 @@ b { font-weight: 600; color: var(--bright); }
 .t-siege .medal, .room-ico.t-siege, .rt-head.t-siege { color: #ff9a5a; }
 .node.t-siege .medal { border-color: #6a3a22; }
 .node.reach.t-siege .medal { border-color: var(--c-essence); }
-/* A foe captain wears a red flag with its cohort's size; its members stand a size smaller, edged like it. */
-.cell.foe-cap { --b: #f08a98; border-color: #8a3a4c; }
-.cell.foe-mem { border-style: dashed; border-color: #6a3040; }
 .mini-cell { position: relative; }
 .mini-cell.cap { border-color: #b04a5c; }
-.mini-cell.mem { border-style: dashed; border-color: #6a3040; }
+
 /* A foe captain's flag on a scouted cell: its cohort's size, a badge's number. */
 .mini-flag {
   position: absolute; top: -6px; left: -6px; z-index: 1; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 4px 4px 4px 0;
@@ -854,25 +611,11 @@ b { font-weight: 600; color: var(--bright); }
 .waves {
   display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px 58px; width: 0; min-width: calc(100% - 58px);
 }
-.wave-card { padding: 8px 10px; border: 1px dashed #4a2432; border-radius: 9px; background: #120a10cc; width: 186px; font-size: 12px; }
-.wave-card > .dim.small { font-size: 11px; line-height: 1.35; margin-top: 4px; }
-.wave-head b { color: #f0a0ac; }
-.wgrid { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
-.wrow { display: flex; gap: 2px; }
-.wcell { position: relative; width: 22px; height: 22px; border-radius: 4px; display: grid; place-items: center; background: #0f0a0e; border: 1px solid #2a1d26; }
-.wcell.has { background: #2a1520; border-color: #4a2432; cursor: default; }
-.wcell.cap { border-color: #b04a5c; }
-.wcell.mem { border-style: dashed; border-color: #6a3040; }
 .wave-pay { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px; margin: 0 auto; padding: 5px 12px; border-radius: 99px; background: #141122; border: 1px solid #2d5248; color: var(--c-essence2); font-size: 13px; }
 .flavour { font: italic var(--fs-sm)/1.45 var(--serif); color: #c5aab4; }
 
 /* The Monarch's approach tiles in the camp editor: the open tiles beside it, dashed red while no one holds
    them; a melee captain standing right behind another melee unit; a Monarch seat that seals souls in. */
-.cell.approach { outline: 1px dashed #e0566a55; outline-offset: -4px; }
-.cell.approach.bare { outline-color: #e0566acc; }
-.cell .behind-mark { position: absolute; bottom: 1px; left: 3px; font-size: 10px; font-weight: 700; color: var(--c-foe); text-shadow: 0 0 4px #000; }
-.cell.seal { border-color: var(--c-foe); box-shadow: 0 0 10px #e0566a66; }
-.line-key { margin-top: 4px; }
 
 /* ── keywords ─────────────────────────────────────────────────────────────────────────────────── */
 .kw { font-weight: 600; color: var(--k, var(--bright)); text-decoration: underline dotted color-mix(in srgb, var(--k, var(--bright)) 45%, transparent); text-underline-offset: 3px; cursor: help; }

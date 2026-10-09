@@ -6,12 +6,12 @@ import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, holds, depthOf } from './sim/run.js'
 import { createBattle, stats, ariseCap } from './sim/battle.js'
 import { TUNING } from './tuning.js'
-import { unitDef, ORDERS, relicDef } from './content.js'
-import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleBar, battleSides, bannerColours } from './ui.js'
-import { helpOverlay, unitCard, tileText, whenText, ENEMY_TEXT, ARMY_TEXT, tipDetail } from './codex.js'
+import { unitDef, relicDef } from './content.js'
+import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleBar, battleSides } from './ui.js'
+import { helpOverlay, unitCard, tipDetail, deathText, signalText, bestiary } from './codex.js'
+import { livingBodies } from './sim/unit.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, touchy } from './dom.js'
 import { sfx } from './sfx.js'
-import { distance } from './sim/unit.js'
 import { board } from './board.js'
 
 const ui = document.getElementById('ui')
@@ -176,7 +176,7 @@ function route () {
     show(mapScreen({ run, trail: trail.ids, note, onNode, act, onHelp: toggleHelp }))
     note = ''
   } else if (s.phase === 'prep') {
-    show(prepScreen({ run, act, onFight: fight, onHelp: toggleHelp }))
+    show(prepScreen({ run, trail: trail.ids, act, onFight: fight, onHelp: toggleHelp }))
   } else if (s.phase === 'reap') {
     const title = { reliquary: 'Reliquary', rite: 'Rite' }[currentNode(run).type] ?? 'Spoils'
     show(reapScreen({ run, title, act, onDone: reap, onHelp: toggleHelp }))
@@ -212,10 +212,11 @@ function descend () {
 // the notes add up for the map.
 const addNote = (line) => { note = note ? `${note} ${line}` : line }
 
-function reap (index) {
+// `onto`: a recruit joins that fielded piece of its kind.
+function reap (index, onto = null) {
   const o = index === null ? null : run.state.offers[index]
-  apply(run, { type: 'reap', index })
-  if (o?.type === 'soul') addNote(`${o.name} rises to serve you.`)
+  apply(run, { type: 'reap', index, ...(onto != null && { onto }) })
+  if (o?.type === 'soul') addNote(onto != null ? `${o.name} rises, and joins its kind's stack.` : `${o.name} rises to serve you.`)
   else if (o?.type === 'relic') addNote(`${o.name} claimed.`)
   else if (o?.type === 'tier') addNote(`${o.name}: the rite is done.`)
   else if (o?.type === 'keystone') addNote(`${o.name}: a rule of the run is rewritten.`)
@@ -225,7 +226,8 @@ function reap (index) {
 // The run settles the battle the moment it starts; the scene rebuilds the same battle from run.setup
 // and plays it out, then routes to wherever the run went (reap, or the end).
 // From prep, the board you arranged stays up while the battle is built under it, then fades into it with
-// everyone where they stood (board.leave); the battle skips its own fade in.
+// everyone where they stood (board.leave); the battle skips its own fade in. A lost battle ends on a replay
+// beat of what felled the Monarch (engine.js finish), the facts the end screen keeps.
 async function fight () {
   const node = currentNode(run)
   const handoff = board.leave()
@@ -236,6 +238,8 @@ async function fight () {
   const sides = battleSides()
   bar.el.before(sides.el)
   const battle = createBattle(run.setup)
+  const s = run.state
+  const lost = s.death && run.battle.winner !== 'party'
   const scene = await engine.battle({
     battle,
     hud: sides,
@@ -246,126 +250,50 @@ async function fight () {
       const r = bar.el.getBoundingClientRect()
       return r.height ? Math.max(0, engine.game.canvas.getBoundingClientRect().bottom - r.top) : 0
     },
-    banners: bannerColours(run.state.party),
     onChange: (st) => bar.update(st),
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
-    essence: 1 + run.state.relics.reduce((n, id) => n + (relicDef(id).essence ?? 0), 0),
-    // Live stats and statuses for the unit under the pointer, and what the Monarch's rules and its orders do
-    // to it. Only your own plans are told: a foe's never are. A foe's card tells its banner and its wave,
-    // never where it is bound. `pin`: a long press (touch), the card stays until the next tap.
+    essence: 1 + s.relics.reduce((n, id) => n + (relicDef(id).essence ?? 0), 0),
+    death: lost ? { ...deathText(s, run.battle), from: s.death.from ?? null, by: s.death.uid ?? null } : null,
+    // Live stats and statuses for the unit under the pointer. Only your own plans are told: a foe's never are.
+    // `pin`: a long press (touch), the card stays until the next tap.
     onHover: (u, at, pin = false) => {
       if (!u) return hideTip()
       const foe = u.side === 'foe'
-      const captain = u.cohortOf != null ? battle.byUid.get(u.cohortOf) : null
-      const mine = battle.reserve.filter((r) => r.side !== 'foe')
-      const held = mine.filter((r) => r.when && r.when.at !== 'once' && !battle.called.has(r.det))
-      const n = mine.length - held.length
-      // A foe captain's cohort still standing or still to come (the fallen no longer keep by it).
-      const led = battle.units.filter((x) => x.cohortOf === u.uid && x.side === u.side && x.hp > 0).length + battle.reserve.filter((x) => x.cohortOf === u.uid && x.side === u.side).length
-      // An elite's captain or cohort may march under orders (never shown which); an orphan only Hunts.
-      const ordered = foe && node.type === 'elite' && !u.orphan && (u.rank || battle.units.some((x) => x.cohortOf === u.uid) || led > 0)
-      // A Marshal's banner (itself, its summons, the shadows that joined it) within its own domain.
-      const R = TUNING.ranks.domain
-      const marshal = foe ? null : u.grade >= 2 ? u : captain?.grade >= 2 && captain.hp > 0 ? captain : null
-      const kept = marshal && battle.monarch && distance(u.tile, marshal.tile) <= R && distance(u.tile, battle.centre ?? battle.monarch.tile) > battle.domain
-      // Faltering drops a plan for good, so one back inside may only be hunting: say so (Stay never ends in
-      // a Hunt otherwise; Move may have arrived, so that stays neutral).
-      const orders = u.where !== 'hunt' ? ', orders kept' : u.plan?.where === 'stay' ? ', orders dropped when it faltered' : ', hunting'
+      const lead = u.leader != null ? battle.byUid.get(u.leader) : null
+      const wing = battle.units.filter((x) => x.leader === u.uid && x.hp > 0).length
       // A shadow the Legion (Undead 8) raised is marked on its arise event; on the foes' side it is one of yours.
       const legion = u.shadow && battle.events.some((e) => e.type === 'arise' && e.rule === 'legion' && e.unit.uid === u.uid)
       const me = u.uid === battle.monarch?.uid
-      // Short phrases, most a few words: the card above carries the numbers, the glossary the rules.
-      const notes = [
-        u.shadow && (foe
-          ? legion ? 'Your fallen, raised against you by their Legion: it falters.' : 'Raised by Grave Tide: it falters, and crumbles with the Sovereign.'
-          : `${legion ? 'Legion' : 'Arise'} shadow${captain ? ` of ${unitDef(captain.id).name}'s banner` : ''}` +
-            (u.arisen && holds(run.state, 'reap') ? '; gone after the battle, but Hollow Court reaps its essence if it stands.' : '; gone after the battle.')),
-        foe && u.wave && (u.when?.at === 'time' ? 'Came with the late pair.' : `Came with wave ${u.wave + 1}.`),
-        foe && !u.rank && led > 0 && ENEMY_TEXT.captain(led, unitDef(u.id).boss),
-        u.grade >= 2 && !foe && `Marshal: its banner never falters within ${R} tiles.`,
-        kept && u !== marshal && !u.shadow && `Past the domain, in its Marshal's: full strength${orders}.`,
-        u.rank && (captain ? ENEMY_TEXT.of(captain.id) : 'Of a captain\'s cohort.'),
-        u.summoned && `${captain ? `${unitDef(captain.id).name}'s summon` : 'A summon'}: ${ARMY_TEXT.summon}`,
-        u.orphan && (u.summoned ? 'Its soul fell: it falters and hunts.' : 'Its captain fell: it falters and hunts.'),
-        !foe && !u.orphan && !kept && u.falter && `Faltering ×${TUNING.monarch.falter}: outside the domain${battle.ks.crown ? ' (it follows your front soul)' : ''}.`,
-        u.rose && 'Risen by Undying: its next fall is final.',
-        battle.ks.pool && !foe && !u.shadow && (u.cohortOf != null ? !u.orphan : battle.units.some((x) => x.cohortOf === u.uid && !x.orphan && x.hp > 0)) &&
-          'One Army: shares one HP pool with its soul\'s summons.',
-        ...(!foe ? planNotes(battle, u, captain) : []),
-        me && [`Arise ${battle.raised}/${ariseCap(battle.will, battle.ks.raises)}`,
-          battle.ks.tithe > 0 && `${Math.ceil(u.maxHp * battle.ks.tithe)} HP a shadow`,
-          battle.ks.unhealable && 'unhealable',
-          n > 0 && `${n} still to enter`,
-          held.length > 0 && `held: ${[...new Set(held.map((r) => r.det))].map((id) => `${id} ${whenText(held.find((r) => r.det === id).when)}`).join(', ')}`].filter(Boolean).join(' · ')]
-      // The card's one live line: the first of these that holds, most pressing first (the notes above wait
-      // under Shift).
-      const plan = !foe && planLine(battle, u, captain)
+      const left = u.line ? u.line.tiles.length - u.leg : 0
       const live = [
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
         me && `Arise ${battle.raised}/${ariseCap(battle.will, battle.ks.raises)} · if it falls, the run ends`,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
-          : u.arisen && holds(run.state, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: gone after the battle'),
-        u.orphan && (u.summoned ? 'Its soul fell: it falters and hunts' : 'Its captain fell: it falters and hunts'),
-        !foe && !kept && u.falter && `Faltering ×${TUNING.monarch.falter}: outside the domain`,
-        kept && u !== marshal && 'In its Marshal\'s domain: full strength',
+          : u.arisen && holds(s, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: holds where it rose, gone after the battle'),
         u.rose && 'Risen by Undying: its next fall is final',
-        plan,
-        u.grade >= 2 && !foe && `Marshal: no falter within ${R} tiles`,
-        foe && !u.rank && led > 0 && (unitDef(u.id).boss ? `Leads a court of ${led}` : `Captain of ${led}: kill it, they falter`),
-        u.rank && captain && `Of ${unitDef(captain.id).name}'s ${unitDef(captain.id).boss ? 'court' : 'cohort'}`,
-        u.summoned && captain && `${unitDef(captain.id).name}'s summon: gone after the battle`,
-        foe && u.wave && (u.when?.at === 'time' ? 'Came with the late pair' : `Came with wave ${u.wave + 1}`),
-        !foe && 'Hunting'].find(Boolean) || null
-      const realm = { domain: battle.domain, will: battle.will, raises: battle.ks.raises, tithe: battle.ks.tithe, reap: holds(run.state, 'reap') }
+        lead && `In ${unitDef(lead.id).name}'s wing: it walks the Banner's line`,
+        wing > 0 && `Banner: ${wing} in its wing`,
+        !foe && !me && (u.line ? (left > 0 ? `Line: ${left} step${left === 1 ? '' : 's'} to go, ${signalText(u.line.when)}` : 'Line walked: it holds') : 'No line: it holds its tile'),
+        u.count > 1 && `A stack: ${livingBodies(u)} of ${u.count} bodies standing`,
+        foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
+      const realm = { domain: battle.domain, will: battle.will, raises: battle.ks.raises, tithe: battle.ks.tithe, reap: holds(s, 'reap') }
       const tip = pin ? pinTip : showTip
-      tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, notes, ordered, live }))
+      tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, live }))
     },
     onDone: () => {
       // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).
       if (!scene?.ending) sfx.play(run.battle.winner === 'party' ? 'win' : 'lose')
-      // Shadows and summons are not souls: they were never yours to keep. The fallen souls wait for an altar.
-      const fallen = run.battle.units.filter((u) => u.side === 'party' && !u.shadow && !u.summoned && u.hp <= 0 && u.uid !== run.battle.monarch?.uid).map((u) => unitDef(u.id).name)
-      if (fallen.length && run.state.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. An altar will raise them.`
+      // Every foe kind that took the field is met: its ring and its way are told from now on (the bestiary).
+      bestiary.record(run.battle.units.filter((u) => u.side === 'foe' && !u.shadow).map((u) => u.id))
+      // Shadows are not souls: they were never yours to keep. The fallen souls wait for an altar.
+      const fallen = run.battle.units.filter((u) => u.side === 'party' && !u.shadow && u.hp <= 0 && u.uid !== run.battle.monarch?.uid).map((u) => unitDef(u.id).name)
+      if (fallen.length && s.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. An altar will raise them.`
       route()
     }
   })
   handoff?.(scene)
   bar.attach(scene)
   hush()
-}
-
-// A unit's orders in a battle, live: its detachment's plan, and what it is doing with it now (holding its
-// ground, moving to its square, arrived, dropped outside the domain, following its captain into the Hunt).
-function planNotes (battle, u, captain) {
-  const p = planNow(battle, u, captain)
-  if (!p) return []
-  const now = p.following ? 'hunting with its captain'
-    : u.where === 'stay' ? `holding ${tileText(u.anchor)}`
-      : u.where === 'move' ? `moving to ${tileText(u.square)}`
-        : p.arrived ? 'arrived, now hunting'
-          : p.dropped ? (p.placed ? 'placed outside the domain, so hunting' : 'stepped out of the domain, so hunting') : null
-  return [`Detachment ${u.det}, ${ORDERS.where[u.plan.where].name}${u.when ? ` (entered ${whenText(u.when)})` : ''}${now ? `: ${now}` : ''}.`]
-}
-
-// The same in a few words, for the card's live line: "A, Stay: holding its tile".
-function planLine (battle, u, captain) {
-  const p = planNow(battle, u, captain)
-  if (!p) return null
-  const now = p.following ? 'hunting with its captain' : u.where === 'stay' ? 'holding its tile' : u.where === 'move' ? 'moving to its square'
-    : p.arrived ? 'arrived, hunting' : p.dropped ? 'faltered, so hunting' : null
-  return `${u.det}, ${ORDERS.where[u.plan.where].name}${now ? `: ${now}` : ''}`
-}
-
-// Where a unit stands with its detachment's plan: following its captain into the Hunt, arrived at its square,
-// or dropped (outside the domain: `placed` there from t 0, when it never stepped anywhere). Null with no plan.
-function planNow (battle, u, captain) {
-  if (u.det == null || !u.plan) return null
-  return {
-    arrived: u.plan.where === 'move' && battle.events.some((e) => e.type === 'arrive' && e.uid === u.uid),
-    following: captain && captain.hp > 0 && captain.where === 'hunt' && u.where !== 'hunt',
-    placed: battle.events.find((e) => e.type === 'falter' && e.target === u.uid && e.on)?.t === 0,
-    dropped: u.plan.where !== 'hunt' && !u.orphan && u.where === 'hunt'
-  }
 }
 
 // The frame rescaled (a resize, a rotation, the iOS toolbar): a battle playing fits itself under its bar again.
@@ -378,5 +306,6 @@ onFrame(() => {
 const seed = new URLSearchParams(location.search).get('seed') ?? newSeed()
 title(seed)
 
-// Console access for debugging: retinue.run.state, retinue.run.state.log, …
-window.retinue = { engine, get run () { return run } }
+// Console access for debugging: retinue.run.state, retinue.run.state.log, retinue.route() (redraw the screen after
+// applying actions by hand), …
+window.retinue = { engine, route, get run () { return run } }

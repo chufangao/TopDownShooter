@@ -53,33 +53,25 @@
    thing pressable, so no two grown areas meet: a row with no gaps (tabs, the speed buttons) grows only up and
    down. (Measured: scratchpad u-hits.mjs.) */
 @media (pointer: coarse) {
-  .topbar .icon-btn, .battlebar .icon-btn, .battlebar .seg, .tray-tabs .tab, .uc-tabs button, .tnode, .uc-kind,
-  .tray .step-btn, .uc-shape, .uc-clear, .pick-btn, .det-x, .tip .tip-act, .tip .tip-more,
-  .ret-pop .danger, .kw, .screen-tabs .tab, .help-tabs .tab { position: relative; }
+  .topbar .icon-btn, .battlebar .icon-btn, .battlebar .seg, .tnode, .tip .tip-act, .tip .tip-more,
+  .ret-pop .danger, .kw, .help-tabs .tab { position: relative; }
   /* (How to play's ✕ is placed absolutely already: it is its own hit area's frame.) */
-  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tray-tabs .tab::before,
-  .uc-tabs button::before, .tnode::before, .uc-kind::before, .tray .step-btn::before, .uc-shape::before,
-  .uc-clear::before, .pick-btn::before, .det-x::before, .tip .tip-act::before, .tip .tip-more::before,
-  .overlay .close::before, .ret-pop .danger::before, .kw::before, .screen-tabs .tab::before,
+  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tnode::before, .tip .tip-act::before, .tip .tip-more::before,
+  .overlay .close::before, .ret-pop .danger::before, .kw::before,
   .help-tabs .tab::before { content: ''; position: absolute; }
   /* Rows edge to edge: up and down only. */
-  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tray-tabs .tab::before,
-  .uc-tabs button::before, .tip .tip-act::before, .tip .tip-more::before, .screen-tabs .tab::before,
+  .topbar .icon-btn::before, .battlebar .icon-btn::before, .battlebar .seg::before, .tip .tip-act::before, .tip .tip-more::before,
   .help-tabs .tab::before { inset: -6px 0; }
   /* The speeds' strip clips its corners: they are rounded on the buttons instead, so their hit areas get out. */
   .battlebar .segs { overflow: visible; }
   .battlebar .segs .seg:first-child { border-radius: 7px 0 0 7px; }
   .battlebar .segs .seg:last-child { border-radius: 0 7px 7px 0; }
   /* Alone in their space: all round. */
-  .tnode::before, .overlay .close::before, .det-x::before { inset: -6px; }
-  /* 8 px from their neighbours above, below and beside. */
-  .uc-kind::before, .uc-shape::before { inset: -4px; }
-  .tray .step-btn::before, .uc-clear::before { inset: -4px -6px; }
-  .pick-btn::before { inset: -6px -6px -4px -2px; }
+  .tnode::before, .overlay .close::before { inset: -6px; }
   .ret-pop .danger::before { inset: -6px -3px; }
   /* Wide buttons a row to themselves: a little up and down. */
-  .tray .buy, .new-det, .primary-ord { position: relative; }
-  .tray .buy::before, .new-det::before, .primary-ord::before { content: ''; position: absolute; inset: -4px 0; }
+  .tray .buy { position: relative; }
+  .tray .buy::before { content: ''; position: absolute; inset: -4px 0; }
   /* A keyword in running text: a line's height more to hold, none to the side (its neighbours touch it). */
   .kw::before { inset: -6px 0; }
 }
