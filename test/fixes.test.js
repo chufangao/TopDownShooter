@@ -110,15 +110,12 @@ test('the Monarch takes no synergy\'s, relic\'s or keystone\'s stats: its HP in 
 
 // ── the run ──────────────────────────────────────────────────────────────────────────────────────
 
-test('the Monarch\'s seat seals no one in where a seat can, on every camp; a new floor that walls its cell seats it again', () => {
+test('the Monarch\'s seat seals no one in, on every camp; a new floor that walls its cell seats it again', () => {
   for (const c of CAMP_LIST) {
     const seat = seatNear(c.id)
     assert.ok(isSeat(c.id, seat), c.id)
-    // The rear row's middle lane, but in Spiral, whose every seat stands on the way round to its heart: there, the
-    // seat that seals the fewest cells.
-    if (c.id !== 'spiral') assert.deepEqual([seat, sealedBy(c.id, seat).length], [slotAt(CAMP_ROWS - 1, CENTRE_OUT[0]), 0], c.id)
-    const fewest = Math.min(...[...Array(49).keys()].filter((x) => isSeat(c.id, x)).map((x) => sealedBy(c.id, x).length))
-    assert.equal(sealedBy(c.id, seat).length, fewest, c.id)
+    // The rear row's middle lane: no seat of any camp seals a cell (test/battle.test.js checks every one).
+    assert.deepEqual([seat, sealedBy(c.id, seat).length], [slotAt(CAMP_ROWS - 1, CENTRE_OUT[0]), 0], c.id)
   }
   // A run whose third floor is the Crossroads, its Monarch on a seat the Crossroads walls (row 5, lane 1): it is
   // seated again on a seat that seals nothing.

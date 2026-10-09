@@ -7,15 +7,18 @@
 // `${art}.attack.svg` and `${art}.dead.svg` (see artUrl). The battle animates them in code: no frames.
 // `aura`: mods every ally (not itself) within `range` tiles gets while it stands. `threats`: what a foe
 // of this kind does to a Monarch (THREATS), for the encounter draw's variety rule; never shown as intent.
-// `ring`: the radius in tiles it fights within (DESIGN §2.3): 1 for melee, a ranged kind's reach. `stride`
-// (optional, 1 by default) scales how fast it walks. `behaviour`: how it walks the roads as a foe (BEHAVIOURS),
-// learnt by meeting it; `flavour`: a line of lore that hints at it.
+// `ring`: the radius in tiles it fights within (DESIGN §2.3): a ranged kind's reach; for a melee kind 1, or 2 for
+// one that lunges (one of yours steps in to strike what its ring holds, then back). `stride` (optional, 1 by
+// default) scales how fast it walks: 0.5 and 0.75 for the slow, 1.5 for the quick. Each kind does one legible
+// thing on the board. `behaviour`: how it walks the roads as a foe (BEHAVIOURS), learnt by meeting it: a few
+// kinds whose nature is to go round Flank, and carry the `flank` threat; `flavour`: a line of lore that hints at
+// it, never naming it.
 
 export const UNIT_LIST = [
   {
     // You. It stands where it is placed, never strikes, and raises the dead in its domain; if it falls the
-    // battle and the run are lost. Its HP and level come from the run (TUNING.monarch: level = points
-    // spent on Dominion, Command and Will), not from base + growth. Never offered, never spawns.
+    // battle and the run are lost. Its HP and level come from the run (TUNING.monarch: level = the points
+    // bought for its HP), not from base + growth. Never offered, never spawns.
     id: 'monarch',
     name: 'The Monarch',
     kin: null,
@@ -38,6 +41,7 @@ export const UNIT_LIST = [
     base: { hp: 78, atk: 14, def: 6, spd: 22, acc: 40, eva: 12, crt: 5 },
     growth: { hp: 9, atk: 2.1, def: 0.6, spd: 1.2 },
     abilities: ['dirge', 'marrow_bolt'],
+    // The singer at the back: four tiles of reach, and its dirge quickens those about it.
     ring: 4,
     spawn: { weight: 14, minFloor: 1 },
     threats: ['reach', 'drain', 'clock'],
@@ -54,12 +58,14 @@ export const UNIT_LIST = [
     base: { hp: 142, atk: 16, def: 22, spd: 12, acc: 45, eva: 6, crt: 4 },
     growth: { hp: 16, atk: 2.4, def: 2, spd: 0.5 },
     abilities: ['cleave', 'strike'],
+    // The wall: it holds a tile, and walks slowly in its old plate.
     ring: 1,
+    stride: 0.75,
     aura: { range: 1, desc: 'Allies next to it take 15% less damage.', mods: [{ path: 'damage.taken', op: 'mul', v: 0.85 }] },
     spawn: { weight: 10, minFloor: 1 },
     threats: ['shape'],
     behaviour: 'walk',
-    flavour: "Some knights hold the barrow's mouth to the last; some march out to meet the living.",
+    flavour: "A tomb knight's plate is older than its barrow, and it moves like the barrow does: slowly, and never back.",
     art: 'tomb_knight'
   },
   {
@@ -71,11 +77,12 @@ export const UNIT_LIST = [
     base: { hp: 96, atk: 24, def: 10, spd: 26, acc: 52, eva: 14, crt: 12 },
     growth: { hp: 11, atk: 3.2, def: 0.9, spd: 1.4 },
     abilities: ['ember_burst', 'strike'],
+    // The burster: four tiles of reach, and a blast where they stand thickest.
     ring: 4,
     spawn: { weight: 8, minFloor: 2 },
     threats: ['shape', 'reach'],
-    behaviour: 'flank',
-    flavour: 'Drakes circle wide of a fight before they burn it, or roost where they can see the whole field.',
+    behaviour: 'walk',
+    flavour: 'A drake comes down the straightest way to the thickest crowd, and the ground it breathes on burns all round.',
     art: 'ember_drake'
   },
   {
@@ -87,11 +94,13 @@ export const UNIT_LIST = [
     base: { hp: 54, atk: 15, def: 4, spd: 38, acc: 48, eva: 30, crt: 9 },
     growth: { hp: 6, atk: 2, def: 0.3, spd: 2.1 },
     abilities: ['frost_lance'],
+    // The quick one: it darts three tiles' reach in half the time, and its frost slows what it touches.
     ring: 3,
+    stride: 1.5,
     spawn: { weight: 12, minFloor: 1 },
     threats: ['reach', 'drain'],
-    behaviour: 'flank',
-    flavour: 'Sprites come at you sideways, along the edge of the field where the frost runs thin.',
+    behaviour: 'walk',
+    flavour: 'A sprite is there before its frost is, and whatever the frost touches moves as if through snow.',
     art: 'frost_sprite'
   },
   {
@@ -103,6 +112,7 @@ export const UNIT_LIST = [
     base: { hp: 110, atk: 13, def: 15, spd: 18, acc: 42, eva: 10, crt: 3 },
     growth: { hp: 13, atk: 1.6, def: 1.4, spd: 0.9 },
     abilities: ['mend', 'purge', 'strike'],
+    // The mender at the front: it heals whoever is hurt worst beside it.
     ring: 1,
     spawn: { weight: 9, minFloor: 1 },
     threats: ['clock'],
@@ -119,11 +129,12 @@ export const UNIT_LIST = [
     base: { hp: 68, atk: 12, def: 9, spd: 30, acc: 44, eva: 18, crt: 7 },
     growth: { hp: 7, atk: 1.7, def: 0.8, spd: 1.6 },
     abilities: ['purge', 'strike'],
+    // The tender: it picks the curses off its fellows and marches on.
     ring: 1,
     spawn: { weight: 12, minFloor: 1 },
-    threats: ['flank'],
-    behaviour: 'flank',
-    flavour: 'Pages were wound to run errands round the back of things, and their fellows follow the errand.',
+    threats: ['clock'],
+    behaviour: 'walk',
+    flavour: 'A page was wound to tend its betters: it oils the seized joint, picks the curse from the plate, and marches on.',
     art: 'clockwork_page'
   },
   {
@@ -135,11 +146,12 @@ export const UNIT_LIST = [
     base: { hp: 96, atk: 13, def: 9, spd: 18, acc: 42, eva: 10, crt: 6 },
     growth: { hp: 11, atk: 1.8, def: 0.8, spd: 0.9 },
     abilities: ['gnaw', 'strike'],
-    ring: 1,
+    // The lunger: what passes within two tiles, it leaps on, and then it goes back to its place.
+    ring: 2,
     spawn: { weight: 13, minFloor: 1 },
     threats: ['drain'],
     behaviour: 'walk',
-    flavour: 'A ghoul with a pack behind it goes straight for the meat.',
+    flavour: 'A ghoul leaps on any meat that passes within a bound of it, then slinks back to wait for more.',
     art: 'grave_ghoul'
   },
   {
@@ -151,11 +163,12 @@ export const UNIT_LIST = [
     base: { hp: 50, atk: 15, def: 3, spd: 32, acc: 46, eva: 28, crt: 6 },
     growth: { hp: 6, atk: 2.1, def: 0.3, spd: 1.8 },
     abilities: ['witchfire'],
+    // Flank: it never keeps to the road, and burns from four tiles off.
     ring: 4,
     spawn: { weight: 11, minFloor: 1 },
-    threats: ['reach'],
+    threats: ['reach', 'flank'],
     behaviour: 'flank',
-    flavour: 'Wisps drift to the edges of a field, and wait for travellers to come to them.',
+    flavour: 'Follow a wisp and you will never walk the road: it leads the long way, where no one keeps watch, to whatever is warm.',
     art: 'will_o_wisp'
   },
   {
@@ -167,11 +180,13 @@ export const UNIT_LIST = [
     base: { hp: 104, atk: 12, def: 12, spd: 20, acc: 42, eva: 14, crt: 3 },
     growth: { hp: 12, atk: 1.6, def: 1.1, spd: 1 },
     abilities: ['barkskin', 'mend', 'strike'],
+    // The rooted one: it walks at half pace, and its grove grows thick about it.
     ring: 1,
+    stride: 0.5,
     spawn: { weight: 9, minFloor: 2 },
     threats: ['clock'],
     behaviour: 'walk',
-    flavour: 'A dryad is rooted where it stands, and its grove grows thick about it.',
+    flavour: 'A dryad is rooted where it stands, and pulls its roots up slowly when it must move.',
     art: 'thorn_dryad'
   },
   {
@@ -183,11 +198,13 @@ export const UNIT_LIST = [
     base: { hp: 92, atk: 25, def: 9, spd: 32, acc: 50, eva: 20, crt: 16 },
     growth: { hp: 10, atk: 3.1, def: 0.8, spd: 1.8 },
     abilities: ['reap', 'strike'],
-    ring: 1,
+    // Flank, quick, and a lunger: it springs two tiles on what it finds.
+    ring: 2,
+    stride: 1.5,
     spawn: { weight: 7, minFloor: 2 },
     threats: ['flank'],
     behaviour: 'flank',
-    flavour: 'A mantis stalks the margins with its brood, and strikes from where no one is looking.',
+    flavour: 'A mantis stalks the margins with its brood, quick as a thought, and springs from where no one is looking.',
     art: 'mantis_reaper'
   },
   {
@@ -199,11 +216,13 @@ export const UNIT_LIST = [
     base: { hp: 220, atk: 17, def: 30, spd: 9, acc: 44, eva: 2, crt: 3 },
     growth: { hp: 22, atk: 2.2, def: 2.4, spd: 0.4 },
     abilities: ['quake', 'strike'],
+    // The juggernaut: slowest of all, and its quake shakes everything about it.
     ring: 1,
+    stride: 0.5,
     spawn: { weight: 6, minFloor: 2 },
     threats: ['shape'],
     behaviour: 'walk',
-    flavour: 'A golem keeps its post until it is told otherwise, and then nothing turns it.',
+    flavour: 'A golem moves at the pace of settling stone, and nothing turns it once it does.',
     art: 'iron_golem'
   },
   {
@@ -215,11 +234,12 @@ export const UNIT_LIST = [
     base: { hp: 128, atk: 27, def: 13, spd: 30, acc: 52, eva: 22, crt: 10 },
     growth: { hp: 14, atk: 3.4, def: 1.1, spd: 1.6 },
     abilities: ['wither', 'strike'],
+    // Flank: it goes about a living line through the cold places, and withers from three tiles off.
     ring: 3,
     spawn: { weight: 6, minFloor: 3 },
-    threats: ['reach', 'drain'],
+    threats: ['reach', 'drain', 'flank'],
     behaviour: 'flank',
-    flavour: 'Wights lead their dead up out of the barrows, hungry for any warmth, wherever it hides.',
+    flavour: 'A wight will not cross a living line: it goes about it, through the cold places, to the warmth hidden behind.',
     art: 'barrow_wight'
   },
   {
@@ -231,7 +251,9 @@ export const UNIT_LIST = [
     base: { hp: 190, atk: 29, def: 16, spd: 16, acc: 50, eva: 6, crt: 8 },
     growth: { hp: 20, atk: 3.4, def: 1.5, spd: 0.7 },
     abilities: ['glacial_breath', 'strike'],
+    // The slow breath: it walks at three-quarter pace and freezes a whole lane three tiles long.
     ring: 3,
+    stride: 0.75,
     spawn: { weight: 6, minFloor: 3 },
     threats: ['shape', 'reach'],
     behaviour: 'walk',
@@ -340,8 +362,6 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
-    when: (s) => s.enemies.length >= 2,
-    cond: 'while 2+ foes stand',
     effects: [{ op: 'damage', power: 26 }]
   },
   {
@@ -526,8 +546,6 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
-    when: (s) => s.enemies.length >= 2,
-    cond: 'while 2+ foes stand',
     effects: [{ op: 'damage', power: 32 }]
   },
   {
@@ -740,8 +758,6 @@ const ABILITY_LIST = [
     range: 5,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
-    when: (s) => s.enemies.length >= 2,
-    cond: 'while 2+ foes stand',
     effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.4 }]
   },
   {
@@ -966,8 +982,8 @@ const ABILITY_LIST = [
 // (always on, like a relic's, for the souls of the kind alone), `ability` ({ id, replace } swaps one of its
 // abilities; { id, at } adds one at that place in its priority list, first by default), `aura` (replaces its
 // aura), `count` (bodies more in its piece each battle, whole, gone when it ends: unit.js bodiesOf), `ring`
-// (tiles more), `stride` (× how fast it walks) and `banner`. Tier IV is a
-// rule, never a percentage (a new or remade ability, or Banner); no tier I–II of one track remakes an ability
+// (tiles more: a tier whose blow reaches past the ring raises the ring with it, so the card never lies),
+// `stride` (× how fast it walks) and `banner`. Tier IV is a rule, never a percentage (a new or remade ability, or Banner); no tier I–II of one track remakes an ability
 // or grants an aura, so the other track's tiers III–IV never undo it. Banner (tier IV of a front-line kind's
 // first track): the piece leads a wing, the pieces placed beside it in prep its followers (battle.js).
 const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
@@ -1003,12 +1019,12 @@ export const TRACKS = {
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
       { desc: 'Ember Burst becomes Inferno: 32 power to a foe and everyone next to it.', ability: { id: 'inferno', replace: 'ember_burst' } },
-      { desc: 'Inferno becomes Cataclysm: reaches 5 tiles, and leaves the burnt Withered.', ability: { id: 'cataclysm', replace: 'inferno' } }] },
+      { desc: 'Inferno becomes Cataclysm: reaches 5 tiles, and leaves the burnt Withered. Its ring grows to 5.', ability: { id: 'cataclysm', replace: 'inferno' }, ring: 1 }] },
     { id: 'skyhunter', name: 'Skyhunter', desc: 'Picks off whoever strays.', tiers: [
       { desc: '+12 ACC, +10% gauge rate.', mods: [m('acc', 'add', 12), m('gauge.rate', 'mul', 1.1)] },
       { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
-      { desc: 'Learns Searing Bolt: 34 power at range 5, when Ember Burst has no use.', ability: { id: 'searing_bolt', at: 1 } },
-      { desc: 'Searing Bolt becomes Skyfall: it reaches any foe on the board.', ability: { id: 'skyfall', replace: 'searing_bolt' } }] }
+      { desc: 'Learns Searing Bolt: 34 power at range 5, past Ember Burst\'s reach. Its ring grows to 5.', ability: { id: 'searing_bolt', at: 1 }, ring: 1 },
+      { desc: 'Searing Bolt becomes Skyfall: it reaches any foe on the board, and so does its ring.', ability: { id: 'skyfall', replace: 'searing_bolt' }, ring: 5 }] }
   ],
   frost_sprite: [
     { id: 'rimeblade', name: 'Rimeblade', desc: 'A colder, crueller lance.', tiers: [
@@ -1080,7 +1096,7 @@ export const TRACKS = {
       { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
       { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
       { desc: 'Learns Thorn Lash: damage to a foe and everyone level with it.', ability: { id: 'thorn_lash' } },
-      { desc: 'Thorn Lash becomes Briar Lash: it reaches 2 tiles, and leaves everyone level with its target Brittle.', ability: { id: 'briar_lash', replace: 'thorn_lash' } }] }
+      { desc: 'Thorn Lash becomes Briar Lash: it reaches 2 tiles, and leaves everyone level with its target Brittle. Its ring grows to 2.', ability: { id: 'briar_lash', replace: 'thorn_lash' }, ring: 1 }] }
   ],
   mantis_reaper: [
     { id: 'executioner', name: 'Executioner', desc: 'One cut, one corpse.', tiers: [
@@ -1092,7 +1108,7 @@ export const TRACKS = {
       { desc: '+10 EVA.', mods: [m('eva', 'add', 10)] },
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
       { desc: '+15 EVA, +15% damage dealt.', mods: [m('eva', 'add', 15), m('damage.dealt', 'mul', 1.15)] },
-      { desc: 'Learns Phantom Edge: it strikes from up to 3 tiles away when nothing is next to it.', ability: { id: 'phantom_edge', at: 1 } }] }
+      { desc: 'Learns Phantom Edge: it strikes from up to 3 tiles away when nothing is next to it. Its ring grows to 3.', ability: { id: 'phantom_edge', at: 1 }, ring: 1 }] }
   ],
   iron_golem: [
     { id: 'juggernaut', name: 'Juggernaut', desc: 'An iron wall that shelters others.', tiers: [
@@ -1128,7 +1144,7 @@ export const TRACKS = {
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
       { desc: '+20% damage dealt, +10 CRT.', mods: [m('damage.dealt', 'mul', 1.2), m('crt', 'add', 10)] },
-      { desc: 'Learns Killing Cold: 40 power to the most wounded foe anywhere on the board, once one is below half HP.', ability: { id: 'killing_cold' } }] }
+      { desc: 'Learns Killing Cold: 40 power to the most wounded foe anywhere on the board, once one is below half HP; its ring covers the board.', ability: { id: 'killing_cold' }, ring: 7 }] }
   ]
 }
 
@@ -1343,21 +1359,35 @@ export const SIGNALS = {
 // ── camps ────────────────────────────────────────────────────────────────────────────────────
 
 // Where your souls stand and fight: a 7×7 camp, listed front row first (the foes come from above it).
-// '#' is a wall: it blocks walking, not attacks. Each floor draws one of its camps when you arrive.
-// Every open cell must be reachable from the front row (test/content.test.js checks).
+// '#' is a wall: it blocks walking, not attacks, and the walls are the foes' track: the roads run round them to
+// the Monarch (battle.js field). Each floor draws one of its camps when you arrive. From every seat (the rear two
+// rows) a road reaches the Monarch from the foes' rows, and no seat cuts a cell off from the open ground ahead of
+// the camp (test/battle.test.js checks); each camp gives the roads one shape:
+//   stones      open ground: the roads run straight, past a few stones to stand behind
+//   palisade    a wall across the front with two breaches: two chokepoints, close together
+//   firepit     a pit in the middle: the road forks round the fire and meets again behind it
+//   gates       a wall with gates at the far edges: the roads come down both flanks
+//   ditch       a trench open at the right end only: the long way round, one side
+//   barracks    two long halls: three single-file alleys, the middle one straight at the rear centre
+//   switchback  two walls from opposite sides: the road zig-zags the width of the camp twice
+//   crossroads  four blocks with staggered streets: the road jogs at the crossing
+//   funnel      walls sloping in to one gap mid-camp: a single choke, a killing ground before it
+//   labyrinth   gates at the centre that lead out to the edges and back in: a maze of turns
+//   keep        a walled court open to the front: the roads split round it, your pieces hold its gate
+//   spiral      a wall across the front open at the right, then a coil: the road winds round it
 export const CAMP_LIST = [
   { id: 'stones', name: 'Standing Stones', floor: 1, map: ['.......', '.#...#.', '.......', '...#...', '.......', '.#...#.', '.......'] },
   { id: 'palisade', name: 'Broken Palisade', floor: 1, map: ['.......', '##.#.##', '.......', '.......', '.......', '.......', '.......'] },
-  { id: 'firepit', name: 'Firepit', floor: 1, map: ['.......', '.......', '..#.#..', '...#...', '..#.#..', '.......', '.......'] },
+  { id: 'firepit', name: 'Firepit', floor: 1, map: ['.......', '.......', '...#...', '..###..', '...#...', '.......', '.......'] },
   { id: 'gates', name: 'Twin Gates', floor: 2, map: ['.......', '#.###.#', '.......', '.......', '...#...', '.......', '.......'] },
-  { id: 'ditch', name: 'The Ditch', floor: 2, map: ['.......', '.......', '.#####.', '.......', '.......', '.......', '.......'] },
-  { id: 'barracks', name: 'Barracks', floor: 2, map: ['.......', '.##.##.', '.#...#.', '.......', '.#...#.', '.##.##.', '.......'] },
+  { id: 'ditch', name: 'The Ditch', floor: 2, map: ['.......', '.......', '######.', '.......', '.......', '.......', '.......'] },
+  { id: 'barracks', name: 'Barracks', floor: 2, map: ['.......', '.##.##.', '.##.##.', '.##.##.', '.##.##.', '.......', '.......'] },
   { id: 'switchback', name: 'Switchback', floor: 3, map: ['.......', '.######', '.......', '######.', '.......', '.......', '.......'] },
-  { id: 'crossroads', name: 'Crossroads', floor: 3, map: ['.......', '.##.##.', '.##.##.', '.......', '.##.##.', '.##.##.', '.......'] },
+  { id: 'crossroads', name: 'Crossroads', floor: 3, map: ['.......', '.#.###.', '.#.###.', '.......', '.###.#.', '.###.#.', '.......'] },
   { id: 'funnel', name: 'Funnel', floor: 3, map: ['.......', '#.....#', '##...##', '###.###', '.......', '.......', '.......'] },
-  { id: 'labyrinth', name: 'Labyrinth', floor: 4, map: ['...#...', '.#.#.#.', '.#...#.', '.#####.', '.......', '.#.#.#.', '.......'] },
-  { id: 'keep', name: 'The Keep', floor: 4, map: ['.......', '.#####.', '.#...#.', '.#...#.', '.##.##.', '.......', '.......'] },
-  { id: 'spiral', name: 'Spiral', floor: 4, map: ['.......', '######.', '.....#.', '.###.#.', '.#...#.', '.#####.', '.......'] }
+  { id: 'labyrinth', name: 'Labyrinth', floor: 4, map: ['...#...', '##.#.##', '...#...', '.#####.', '...#...', '.......', '.......'] },
+  { id: 'keep', name: 'The Keep', floor: 4, map: ['.......', '.##.##.', '.#...#.', '.#...#.', '.#####.', '.......', '.......'] },
+  { id: 'spiral', name: 'Spiral', floor: 4, map: ['.......', '######.', '.......', '.#####.', '.#...#.', '.#.#.#.', '.......'] }
 ]
 
 // ── relics ───────────────────────────────────────────────────────────────────────────────────
@@ -1370,9 +1400,9 @@ export const CAMP_LIST = [
 // ability's do; a heal with `pct` mends that share of the target's max HP, whoever casts it). Each moment
 // has a subject, a place and the one on its other end: 'kill' (one of yours slays a foe: the killer, where
 // the slain fell, the slain), 'fall' (one of yours falls, the Monarch aside, whose fall ends the battle: the
-// fallen, where it fell, its killer), 'enter' (one of yours enters a battle under way: the
-// newcomer, where it enters; nothing of yours does since held starts went, so these wait for the content pass)
-// and 'struck' (a blow lands on the Monarch and it stands: the Monarch, where it stands, its attacker). An
+// fallen, where it fell, its killer), 'march' (one of yours sets out on its line, its signal come: the marcher,
+// where it steps), 'blow' (the battle's first blow lands, either side's: the Monarch, where it stands, the
+// striker) and 'struck' (a blow lands on the Monarch and it stands: the Monarch, where it stands, its attacker). An
 // effect's `to` picks its targets: 'self' (the subject) or 'other', if it stands; 'monarch'; or 'allies' /
 // 'foes' (yours / theirs standing within `range` tiles of the place).
 export const RELIC_LIST = [
@@ -1381,7 +1411,7 @@ export const RELIC_LIST = [
   { id: 'soul_lantern', name: 'Soul Lantern', desc: 'Recruited souls rise 2 levels higher.', soulLevel: 2 },
   { id: 'hourglass', name: 'Hourglass', desc: 'When the Monarch is struck: Arise gains 30 gauge.', on: 'struck', effects: [{ op: 'gauge', amount: 30, to: 'monarch' }] },
   { id: 'heartwood', name: 'Heartwood', desc: '+15% max HP.', mods: [{ path: 'hp', op: 'mul', v: 1.15 }] },
-  { id: 'tower_shield', name: 'Tower Shield', desc: 'When one of yours enters from behind the camp: it is Shielded for 8 s (takes 40% less damage).', on: 'enter', effects: [{ op: 'apply_status', status: 'shield', dur: 160, to: 'self' }] },
+  { id: 'tower_shield', name: 'Tower Shield', desc: 'When one of yours sets out on its line: it is Shielded for 8 s (takes 40% less damage).', on: 'march', effects: [{ op: 'apply_status', status: 'shield', dur: 160, to: 'self' }] },
   { id: 'blood_chalice', name: 'Blood Chalice', desc: 'When one of yours slays a foe: the killer heals 10% of its max HP.', on: 'kill', effects: [{ op: 'heal', pct: 0.1, to: 'self' }] },
   { id: 'war_drum', name: 'War Drum', desc: 'When one of yours falls: your side within 2 tiles of it gains Hasten.', on: 'fall', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
   { id: 'balm', name: 'Balm', desc: 'When one of yours falls: your side within 2 tiles of it heals 12% of its max HP.', on: 'fall', effects: [{ op: 'heal', pct: 0.12, to: 'allies', range: 2 }] },
@@ -1396,11 +1426,11 @@ export const RELIC_LIST = [
   { id: 'bone_idol', name: 'Bone Idol', desc: 'When one of yours falls: Arise gains 40 gauge.', on: 'fall', effects: [{ op: 'gauge', amount: 40, to: 'monarch' }] },
   { id: 'glass_crown', name: 'Glass Crown', desc: '+25% damage dealt, but +15% damage taken.', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.25 }, { path: 'damage.taken', op: 'mul', v: 1.15 }] },
   { id: 'grave_bell', name: 'Grave Bell', desc: 'When the Monarch is struck: its attacker is Withered (−20% ATK).', on: 'struck', effects: [{ op: 'apply_status', status: 'withered', to: 'other' }] },
-  { id: 'rally_horn', name: 'Rally Horn', desc: 'When one of yours enters from behind the camp: your side within 2 tiles of it gains Hasten.', on: 'enter', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] }
+  { id: 'rally_horn', name: 'Rally Horn', desc: 'When the first blow of a battle lands: your side within 2 tiles of the Monarch gains Hasten.', on: 'blow', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] }
 ]
 
 // The moments a relic can trigger on.
-export const TRIGGERS = ['kill', 'fall', 'enter', 'struck']
+export const TRIGGERS = ['kill', 'fall', 'march', 'blow', 'struck']
 
 // ── keystones ────────────────────────────────────────────────────────────────────────────────
 

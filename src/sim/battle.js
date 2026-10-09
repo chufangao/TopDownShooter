@@ -210,7 +210,8 @@ const fresh = (u, t) => {
 // A unit takes its place in the battle: on the board's index, in the order it acts (after everyone
 // already there), with what its kit makes fixed for the battle: its abilities in priority order, its aura,
 // its cheapest and costliest ability, its ring, how often it may step (`every` ticks: never, for the Monarch),
-// how it walks the roads as a foe, whether it lunges (one of yours whose every blow is a melee one: see lunge),
+// how it walks the roads as a foe, whether it lunges (one of yours, not a shadow, whose every blow is a melee one: see
+// lunge; a shadow holds its tile, DESIGN §2.7),
 // and whether it leads a wing (Banner). Everything that enters mid-battle comes through here too (enterBattle).
 function occupy (battle, u) {
   if (!alive(u)) throw new Error(`${u.id} has no HP to fight with`)
@@ -228,7 +229,7 @@ function occupy (battle, u) {
   if (u.every === Infinity) u.nextStep = Infinity
   u.behaviour = behaviourOf(u)
   const blows = u.kit.filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse')
-  u.lunges = u.side === 'party' && blows.length > 0 && blows.every((a) => a.melee)
+  u.lunges = u.side === 'party' && !u.shadow && blows.length > 0 && blows.every((a) => a.melee)
   u.banner = u.side === 'party' && bannerOf(u)
   battle.units.push(u)
   battle.byUid.set(u.uid, u)
@@ -384,6 +385,8 @@ function act (battle, u) {
 // line's next tile; a lunge remembers the tile it left (u.home), and a step back onto that tile ends the lunge.
 function step (battle, u, { to, kind }) {
   emit(battle, { type: 'move', actor: u.uid, from: u.tile, to })
+  // One of yours setting out on its line: the 'march' moment, once it stands on the line's first tile.
+  const sets = kind === 'line' && u.leg === 0
   if (kind === 'line') u.leg++
   else if (kind === 'lunge') u.home ??= u.tile
   else if (kind === 'back' && to === u.home) u.home = null
@@ -391,6 +394,7 @@ function step (battle, u, { to, kind }) {
   battle.at[to] = u
   u.tile = to
   u.nextStep = battle.t + u.every
+  if (sets) trigger(battle, 'march', u, to)
 }
 function tickStatuses (battle) {
   for (const u of battle.units) {
@@ -863,7 +867,7 @@ function heal (battle, actor, target, power, pct = 0) {
 // its side holds the rule, it is not the Monarch, and its stand is unspent (target.stood).
 const stands = (battle, u) => !u.stood && u !== battle.monarch && rulesOf(battle, u.side).has('last_stand')
 
-// A blow lands: the Blow signal, and a blow the Monarch stands the 'struck' moment. Last Stand (see stands, a
+// A blow lands: the Blow signal (the first one the 'blow' moment), and a blow the Monarch stands the 'struck' moment. Last Stand (see stands, a
 // Deathblow included) turns the first blow that would fell its target: the target is left at 1 HP. Last Stand
 // comes first and Undying after it: a unit that stood falls to a later blow, and may rise then.
 function applyDamage (battle, target, amount, { actor, isCrit, ability }) {
@@ -874,12 +878,15 @@ function applyDamage (battle, target, amount, { actor, isCrit, ability }) {
   }
   target.hp = Math.max(0, target.hp - amount)
   battle.harm[target.side] += amount
+  const first = !battle.signals.blow
   battle.signals.blow = true
   emit(battle, { type: 'damage', actor: actor.uid, target: target.uid, damage: amount, isCrit, ability, hp: target.hp })
   if (stand) emit(battle, { type: 'rule', rule: 'last_stand', side: target.side, target: target.uid })
   if (target === battle.monarch) battle.signals.struck = true
   if (!alive(target)) fall(battle, target, actor, ability)
   if (target === battle.monarch && alive(target)) trigger(battle, 'struck', target, target.tile, actor)
+  // The battle's first blow: the 'blow' moment, at the Monarch while it stands.
+  if (first && battle.monarch && alive(battle.monarch)) trigger(battle, 'blow', battle.monarch, battle.monarch.tile, actor)
 }
 
 // A unit falls to `actor`'s blow. With Undying a soul rises at once where it fell, once a battle. A fallen party

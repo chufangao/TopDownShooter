@@ -75,9 +75,9 @@ test('every foe kind walks the roads by Walk or Flank, hinted only in its flavou
     // Flavour hints; it never names the behaviour it hints at.
     assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|stays?|hunts?|orders?)\b/i, u.id)
   }
-  // What dove or went round as an elite's flank now Flanks; the rest Walk.
-  assert.deepEqual(Object.values(UNITS).filter((u) => u.behaviour === 'flank').map((u) => u.id).sort(),
-    ['barrow_wight', 'clockwork_page', 'ember_drake', 'frost_sprite', 'mantis_reaper', 'will_o_wisp'])
+  // Flank is rare: a kind whose nature is to go round, one first met on each of floors 1–3; the rest Walk.
+  assert.deepEqual(Object.values(UNITS).filter((u) => u.behaviour === 'flank').map((u) => [u.id, u.spawn.minFloor]).sort(),
+    [['barrow_wight', 3], ['mantis_reaper', 2], ['will_o_wisp', 1]])
   assert.ok(THREATS.depth.name && THREATS.depth.desc)
   assert.deepEqual(ABILITIES.grave_tide.effects.at(-1), { op: 'raise', count: 2 })
 })
@@ -334,14 +334,14 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
 })
 
 test('a Monarch felled by a foe of a later wave is recorded with that wave, under the killer\'s own threat', () => {
-  const fell = (wave, id = 'clockwork_page') => {
+  const fell = (wave, id = 'mantis_reaper') => {
     const b = scene([on('monarch', 0, 'party', 3, 0), { ...on(id, 50, 'foe', 3, 1, 5), ...(wave && { wave }) }])
     b.monarch.hp = 1
     while (!b.over) stepBattle(b)
     return b.death
   }
   assert.deepEqual([fell(0).threat, fell(0).wave], ['flank', undefined])
-  assert.deepEqual([fell(1).threat, fell(1).wave, fell(1).by], ['flank', 1, 'clockwork_page'])
+  assert.deepEqual([fell(1).threat, fell(1).wave, fell(1).by], ['flank', 1, 'mantis_reaper'])
   // The Sovereign and its court come in the boss room's last wave: still what they are, never 'depth'.
   assert.deepEqual([fell(2, 'hollow_sovereign').threat, fell(2, 'hollow_sovereign').wave], [UNITS.hollow_sovereign.threats[0], 2])
   assert.deepEqual([fell(2, 'barrow_wight').threat, fell(2, 'barrow_wight').wave], [UNITS.barrow_wight.threats[0], 2])

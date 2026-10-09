@@ -7,7 +7,7 @@ import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import {
   makeUnit, autoPlace, distance, slotAt, campGrid, wallTiles, steps, costliestOf, abilitiesOf, deployTile, tileAt, tileX, tileY, baseStats, DEPTH,
-  foesNextTo as listFoesNextTo, auraGivers as listAuraGivers, seatNear, TILES, livingBodies
+  foesNextTo as listFoesNextTo, auraGivers as listAuraGivers, seatNear, TILES, livingBodies, CAMP_SLOTS, isSeat, sealedBy, ROWS
 } from '../src/sim/unit.js'
 import { createRng } from '../src/sim/rng.js'
 import { UNIT_LIST, unitDef, abilityDef, CAMP_LIST } from '../src/content.js'
@@ -222,7 +222,7 @@ test('every step is a legal step onto a free tile, one a step clock: a foe on it
         assert.equal(tile.get(u.uid), e.from)
         assert.ok(steps(e.from, b.walls).includes(e.to), `${where}: into or past a wall`)
         assert.ok(!holder(e.to), `${where}: onto a body`)
-        assert.ok(!last.has(u.uid) || e.t - last.get(u.uid) >= TUNING.board.stepTicks, `${where}: stepped again too soon`)
+        assert.ok(!last.has(u.uid) || e.t - last.get(u.uid) >= u.every, `${where}: stepped again too soon`)
         last.set(u.uid, e.t)
         if (u.side === 'foe') {
           if (u.behaviour === 'walk') assert.equal(e.to, walk.arrow[e.from], `${where}: off its road`)
@@ -266,16 +266,19 @@ test('a step costs no gauge: a marcher steps every stepTicks while its gauge kee
     gauge = knight.gauge
   }
   assert.ok(steps.length >= 4, `${steps}`)
-  assert.deepEqual(steps, steps.map((_, k) => k * TUNING.board.stepTicks), 'one step per clock, from the first tick')
+  // The Tomb Knight walks at stride 0.75: a step every stepTicks ÷ 0.75 ticks.
+  assert.equal(knight.every, Math.round(TUNING.board.stepTicks / unitDef('tomb_knight').stride))
+  assert.deepEqual(steps, steps.map((_, k) => k * knight.every), 'one step per clock, from the first tick')
   // A kind's stride scales its clock.
   const def = unitDef('tomb_knight')
+  const was = def.stride
   def.stride = 2
   try {
     const fast = scene([lined(on('tomb_knight', 1, 'party', 3, 0), lane(3, 0, 4)), on('iron_golem', 10, 'foe', 3, 10)], { moving: [1] })
     while (fast.t < 40) stepBattle(fast)
     assert.deepEqual(moves(fast.events, 1).map((e) => e.t), [0, 8, 16, 24])
   } finally {
-    delete def.stride
+    def.stride = was
   }
 })
 
@@ -302,6 +305,22 @@ test('roads: a flood from the root through every tile but walls; every arrow poi
   // Pure: the same answer every time, and none of its inputs touched.
   const walls = wallTiles('spiral')
   assert.deepEqual(field({ root: tileAt(3, 0), walls }), field({ root: tileAt(3, 0), walls: [...walls] }))
+})
+
+// The camps are road layouts (DESIGN §2.6, step 6): from every seat the Monarch may take, a road runs to it from every
+// tile of the foes' rows, and no seat cuts a cell of the camp off from the open ground ahead of it.
+test('every camp, from every seat: a road from every tile of the foes\' rows to the Monarch, and no cell sealed in', () => {
+  let pairs = 0
+  for (const c of CAMP_LIST) {
+    const walls = wallTiles(c.id)
+    for (const seat of [...Array(CAMP_SLOTS).keys()].filter((x) => isSeat(c.id, x))) {
+      pairs++
+      const f = field({ root: deployTile('party', seat), walls })
+      for (let t = tileAt(0, DEPTH - ROWS); t < TILES; t++) assert.ok(f.dist[t] < Infinity, `${c.id} seat ${seat}: no road from tile ${t}`)
+      assert.deepEqual(sealedBy(c.id, seat), [], `${c.id} seat ${seat}`)
+    }
+  }
+  assert.ok(pairs >= 12 * 7, `${pairs} camp and seat pairs`)
 })
 
 test('a tie between arrows goes to the tile nearest the root\'s lane, then nearest its row, then the centre lane', () => {
@@ -365,20 +384,20 @@ test('a foe queues behind a foe: it waits while its next tile is held, and steps
 test('a Flank field routes round your pieces, is made again only when one rises or falls, and falls back on the Walk field with none', () => {
   // A line of knights across y 3, every lane but the last; the Monarch behind it at (3, 0).
   const line = (lanes) => lanes.map((x) => on('tomb_knight', 1 + x, 'party', x, 3, 9))
-  const b = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5]), on('clockwork_page', 20, 'foe', 3, 6, 9), on('grave_ghoul', 21, 'foe', 2, 6, 1)], { moving: [20, 21] })
+  const b = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5]), on('mantis_reaper', 20, 'foe', 3, 6, 9), on('grave_ghoul', 21, 'foe', 2, 6, 1)], { moving: [20, 21] })
   const flank = fieldOf(b, true)
   const walk = fieldOf(b)
   assert.ok(flank.dist[tileAt(3, 6)] > walk.dist[tileAt(3, 6)], 'round the line is further')
   assert.equal(flank.dist[tileAt(3, 3)], Infinity, 'your pieces are walls to it')
-  const page = b.byUid.get(20)
+  const mantis = b.byUid.get(20)
   const ghoul = b.byUid.get(21)
   assert.equal(arrowOf(b, ghoul), walk.arrow[ghoul.tile], 'a Walk kind walks the arrows')
-  assert.equal(arrowOf(b, page), flank.arrow[page.tile])
-  // The Page heads round for the gap at (6, 3), every step on the Flank field's arrows (its first not the Walk
+  assert.equal(arrowOf(b, mantis), flank.arrow[mantis.tile])
+  // The Mantis heads round for the gap at (6, 3), every step on the Flank field's arrows (its first not the Walk
   // field's), until the line is in its ring; the Ghoul walks straight into the line.
   const path = []
-  while (!b.over && b.t < 200 && !foesNextTo(b, page).length) {
-    const from = page.tile
+  while (!b.over && b.t < 200 && !foesNextTo(b, mantis).length) {
+    const from = mantis.tile
     for (const e of moves(stepBattle(b), 20)) {
       assert.equal(e.to, flank.arrow[from])
       path.push(e.to)
@@ -398,7 +417,7 @@ test('a Flank field routes round your pieces, is made again only when one rises 
   assert.notEqual(now, was)
   assert.ok(now.dist[tileAt(0, 3)] < Infinity, 'its tile is open ground again')
   // A line across every lane: no road round it, so a Flank kind walks the Walk field's arrows into it.
-  const sealed = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5, 6]), on('clockwork_page', 20, 'foe', 3, 6, 9)], { moving: [20] })
+  const sealed = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5, 6]), on('mantis_reaper', 20, 'foe', 3, 6, 9)], { moving: [20] })
   const shut = sealed.byUid.get(20)
   assert.equal(fieldOf(sealed, true).dist[shut.tile], Infinity)
   assert.equal(arrowOf(sealed, shut), fieldOf(sealed).arrow[shut.tile])
@@ -891,6 +910,13 @@ test('a Shape hit lands on a stack once: one target, one blow on its pool', () =
   assert.ok(bursts > 0)
 })
 
+test('an Ember Drake bursts on a lone foe in its ring: no blow of its waits for a crowd', () => {
+  const b = scene([on('ember_drake', 1, 'party', 3, 4), on('iron_golem', 50, 'foe', 3, 7, 9)])
+  let burst = null
+  while (!b.over && b.t < 400 && !burst) burst = stepBattle(b).find((e) => e.type === 'action' && e.actor === 1)
+  assert.deepEqual([burst?.ability, burst?.targets], ['ember_burst', [50]])
+})
+
 test('a synergy counts a stack once, whatever its count', () => {
   const ghouls = (count) => scene([stackOn('grave_ghoul', 1, 'party', 3, 5, count), on('iron_golem', 50, 'foe', 6, 10, 1)])
   const party = (b) => b.events[0].synergies.filter((x) => x.side === 'party').map((x) => x.id)
@@ -1064,10 +1090,11 @@ test('timing marks: where each piece stands at 5, 10 and 15 s, walking the lines
   const step = TUNING.board.stepTicks
   assert.deepEqual(Object.keys(marks).map(Number), [0, 1, 2, 3, 4])
   // The knight is held at (3, 2) behind the Ghoul until the Ghoul's own line takes it off at tick 150; it follows
-  // that tick (the Ghoul acts first), and a step a clock takes it to its last tile, (3, 6), at 198.
-  assert.deepEqual(marks[1], [tileAt(3, 2), tileAt(3, 6), tileAt(3, 6)])
+  // that tick (the Ghoul acts first), and a step every 21 ticks (its stride, 0.75) takes it to its last tile,
+  // (3, 6), at 213: at 200 it is a tile short.
+  assert.deepEqual(marks[1], [tileAt(3, 2), tileAt(3, 5), tileAt(3, 6)])
   assert.deepEqual(marks[2], [tileAt(3, 3), tileAt(2, 4), tileAt(2, 4)])
-  // The Sprite waits for tick 120, then walks its three tiles a step a clock.
+  // The Sprite waits for tick 120, then walks its three tiles a step every 11 ticks (its stride, 1.5).
   assert.deepEqual(marks[3], [tileAt(5, 1), tileAt(5, 4), tileAt(5, 4)])
   // A Blow never comes on an empty field: the Chanter holds; the Monarch never steps.
   assert.deepEqual(marks[4], [tileAt(1, 1), tileAt(1, 1), tileAt(1, 1)])

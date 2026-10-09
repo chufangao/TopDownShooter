@@ -378,8 +378,8 @@ test('the autoplayer and the Monarch: basic parks it on the rear row, the expert
   // The expert's drafts put the Monarch on the rear row's middle seat or the one ahead of it (or in a pocket);
   // the hill-climb takes it to other seats.
   // (A seed whose expert clears floor 1: floor 1 is hard, and one lost before a point is bought proves nothing.)
-  const run = createRun({ seed: 'monarch-expert0' })
-  const rng = createRng('monarch-expert0').stream('autoplay')
+  const run = createRun({ seed: 'monarch-expert3' })
+  const rng = createRng('monarch-expert3').stream('autoplay')
   const fights = []
   const bought = []
   while (run.state.floor === 1 && run.state.phase !== 'over') {
@@ -1071,25 +1071,25 @@ test('moving a piece clears its line (and the line of the one it swaps with); a 
   assert.ok(!(knight.uid in s.lines))
   apply(run, { type: 'release', uid: sprite.uid })
   assert.deepEqual(s.lines, {})
-  // A seed whose first floor is the Standing Stones and whose second the Ditch (row 2 walled from lane 1 to 5):
+  // A seed whose first floor is the Standing Stones and whose second the Ditch (row 2 walled from lane 0 to 5):
   // lines down lanes 3 and 2 lose their tiles from the Ditch's wall on; one whose first step is now a wall goes;
-  // one on lane 0, untouched, stays; a soul whose cell the Ditch walls moves and loses its own.
+  // one on lane 6, untouched, stays.
   const clip = createRun({ seed: 'clip7' })
   const c = clip.state
   assert.equal(c.camp, 'stones')
   const souls3 = souls(c.party)
-  const cells = [slotAt(0, 3), slotAt(0, 2), slotAt(1, 4), slotAt(0, 0)]
+  const cells = [slotAt(0, 3), slotAt(0, 2), slotAt(1, 4), slotAt(0, 6)]
   join(clip, 'grave_ghoul')
   c.essence += monarchCost(clip)
   apply(clip, { type: 'monarch', stat: 'command' })
   const four = souls(c.party)
   for (const [i, u] of four.entries()) u.slot = cells[i]
-  const lines = [[tileAt(3, 5), tileAt(3, 4)], [tileAt(2, 5), tileAt(2, 4)], [tileAt(4, 4)], [tileAt(0, 5), tileAt(0, 4)]]
+  const lines = [[tileAt(3, 5), tileAt(3, 4)], [tileAt(2, 5), tileAt(2, 4)], [tileAt(4, 4)], [tileAt(6, 5), tileAt(6, 4)]]
   for (const [i, u] of four.entries()) apply(clip, { type: 'line', uid: u.uid, tiles: lines[i] })
   Object.assign(c, { at: c.map.end, phase: 'reap', offers: [] })
   apply(clip, { type: 'reap', index: null })
   assert.deepEqual([c.floor, c.camp], [2, 'ditch'])
-  assert.deepEqual(four.map((u) => c.lines[u.uid]?.tiles ?? null), [[tileAt(3, 5)], [tileAt(2, 5)], null, [tileAt(0, 5), tileAt(0, 4)]])
+  assert.deepEqual(four.map((u) => c.lines[u.uid]?.tiles ?? null), [[tileAt(3, 5)], [tileAt(2, 5)], null, [tileAt(6, 5), tileAt(6, 4)]])
   assert.ok(souls3.length === 3 && four.every((u) => campOpen('ditch', u.slot)))
   checkState(c)
 })

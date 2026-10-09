@@ -156,13 +156,13 @@ test('Undead 8: every foe slain rises at once as a shadow of yours, past Arise\'
 
 test('Undead 8 works for the foes too: one of yours slain rises on their side', () => {
   const b = scene([
-    on('clockwork_page', 1, 'party', 3, 5), on('monarch', MONARCH_UID, 'party', 3, 0),
+    on('mantis_reaper', 1, 'party', 3, 5), on('monarch', MONARCH_UID, 'party', 3, 0),
     ...[[2, 6], [3, 6], [4, 6], [2, 7], [3, 7], [4, 7], [1, 7], [5, 7]].map(([x, y], i) => on('grave_ghoul', 101 + i, 'foe', x, y))
   ])
   set(b, 1, 1)
   until(b, () => unit(b, 1).hp <= 0)
   const risen = b.events.find((e) => e.type === 'arise')
-  assert.deepEqual([risen.corpse, risen.unit.id, risen.unit.side, risen.rule], [1, 'clockwork_page', 'foe', 'legion'])
+  assert.deepEqual([risen.corpse, risen.unit.id, risen.unit.side, risen.rule], [1, 'mantis_reaper', 'foe', 'legion'])
   // A foe's shadow is a foe like any other: it walks the roads.
   const shade = unit(b, risen.unit.uid)
   assert.ok(shade.shadow && shade.side === 'foe' && shade.behaviour === 'flank')

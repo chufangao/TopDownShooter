@@ -238,13 +238,27 @@ test('Shielded: the same blow lands 40% lighter', () => {
   assert.ok(Math.abs(shielded.hit.damage - bare.hit.damage * 0.6) <= 1, `${shielded.hit.damage} vs ${bare.hit.damage}`)
 })
 
+test('Tower Shield: one of yours setting out on its line is Shielded, once; Rally Horn: the battle\'s first blow hastens your side about the Monarch', () => {
+  // A knight on a line up the edge lane, at once: the march moment comes with its first step, and only then.
+  const lined = { ...on('tomb_knight', 1, 'party', 0, 1), line: { tiles: [tileAt(0, 2), tileAt(0, 3)], when: { at: 'once' } } }
+  const b = scene([on('monarch', 0, 'party', 3, 0), lined, on('iron_golem', 50, 'foe', 6, 10)], { relics: ['tower_shield'], moving: [1] })
+  const ev = until(b, (e) => e.filter((x) => x.type === 'move' && x.actor === 1).length >= 2, 200)
+  assert.deepEqual(ev.filter((e) => e.type === 'trigger').map((e) => [e.relic, e.on, e.unit]), [['tower_shield', 'march', 1]])
+  assert.ok(unit(b, 1).statuses.some((x) => x.id === 'shield'))
+  // Rally Horn: the Wisp's blow on the Monarch is the battle's first; the Knight beside the Monarch is hastened, the
+  // Sprite three tiles off is not.
+  const { b: s } = striking(['rally_horn'])
+  assert.deepEqual(s.events.filter((e) => e.type === 'trigger').map((e) => [e.relic, e.on, e.unit]), [['rally_horn', 'blow', 0]])
+  assert.ok(unit(s, 1).statuses.some((x) => x.id === 'hasten') && !unit(s, 3).statuses.some((x) => x.id === 'hasten'))
+})
+
 test('trigger relics fire for your side only: a foe slaying, falling or entering triggers nothing', () => {
   const relics = RELIC_LIST.filter((r) => r.on).map((r) => r.id)
-  // A foe knight slays a party Ghoul: 'fall' fires (yours fell), never 'kill'.
+  // A foe knight slays a party Ghoul: 'fall' fires (yours fell), never 'kill' (the battle's first blow is 'blow').
   const { next } = falling(relics)
-  assert.ok(next.filter((e) => e.type === 'trigger').every((e) => e.on === 'fall'))
+  assert.ok(next.filter((e) => e.type === 'trigger').every((e) => e.on === 'fall' || e.on === 'blow'))
   // A foe falls to a party blow: 'kill' only; a foe that enters (a wave): nothing.
-  assert.ok(killing(relics).next.filter((e) => e.type === 'trigger').every((e) => e.on === 'kill'))
+  assert.ok(killing(relics).next.filter((e) => e.type === 'trigger').every((e) => e.on === 'kill' || e.on === 'blow'))
   const b = scene([on('monarch', 0, 'party', 3, 1), on('iron_golem', 50, 'foe', 3, 10)],
     { relics, reserve: [{ ...makeUnit('grave_ghoul', { uid: 70, lvl: 2 }), side: 'foe', when: { at: 'time', t: 3 } }] })
   const ev = until(b, (e) => e.some((x) => x.type === 'enter'))

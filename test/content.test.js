@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, TRACKS, THREATS, SIGNALS } from '../src/content.js'
 import {
   statsOf, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, baseStats, activeSynergies, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf,
-  deployTile, wallTiles, steps, bodiesOf, rangeOf, isAllyShape, ringOf, bannerOf
+  deployTile, wallTiles, steps, bodiesOf, rangeOf, isAllyShape, ringOf, bannerOf, DEPTH
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 
@@ -21,10 +21,14 @@ test('every unit reference resolves; every foe carries its threats', () => {
     assert.ok(Number.isInteger(u.tier) && u.tier >= 1, `${u.id} tier`)
     for (const a of u.abilities) assert.ok(ABILITIES[a], `${u.id} ability ${a}`)
     for (const p of u.phases ?? []) assert.ok(STATUSES[p.grant], `${u.id} phase ${p.grant}`)
-    // A ring: 1 for a kind whose blows are all melee, a ranged kind's reach (its farthest blow's range).
+    // A ring: a ranged kind's reach (its farthest blow's range); a melee kind's 1, or 2 for a lunger. A stride, if
+    // any: slow (0.5, 0.75) or quick (1.5).
     const blows = u.abilities.map((a) => ABILITIES[a]).filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse' && a.range)
-    assert.equal(u.ring, Math.max(1, ...blows.map(rangeOf)), `${u.id} ring`)
-    assert.ok(u.stride === undefined || u.stride > 0, `${u.id} stride`)
+    if (blows.length) assert.equal(u.ring, Math.max(...blows.map(rangeOf)), `${u.id} ring`)
+    else assert.ok([1, 2].includes(u.ring), `${u.id} ring`)
+    assert.ok(u.stride === undefined || [0.5, 0.75, 1.5].includes(u.stride), `${u.id} stride`)
+    // Flank is rare, and a Flank kind carries the flank threat; a Walk kind never does.
+    assert.equal(u.behaviour === 'flank', !!u.threats?.includes('flank'), `${u.id} flank`)
     assert.ok(!('summon' in u), `${u.id}: no summon kinds: a tier adds bodies to its own piece`)
     assert.ok(u.boss || u.spawn, `${u.id} spawns`)
     assert.ok(BEHAVIOURS[u.behaviour] && u.flavour, `${u.id} walks the roads by a known behaviour`)
@@ -32,6 +36,12 @@ test('every unit reference resolves; every foe carries its threats', () => {
     assert.equal(new Set(u.threats).size, u.threats.length, `${u.id} threats repeat`)
   }
   assert.equal(Object.keys(UNITS).length, 15)
+  // Identity on the board: two lungers, the slow and the quick, three Flank kinds.
+  const of = (f) => Object.values(UNITS).filter(f).map((u) => u.id).sort()
+  assert.deepEqual(of((u) => u.ring === 2), ['grave_ghoul', 'mantis_reaper'])
+  assert.deepEqual(of((u) => u.stride < 1), ['frost_wyrm', 'iron_golem', 'thorn_dryad', 'tomb_knight'])
+  assert.deepEqual(of((u) => u.stride > 1), ['frost_sprite', 'mantis_reaper'])
+  assert.deepEqual(of((u) => u.behaviour === 'flank'), ['barrow_wight', 'mantis_reaper', 'will_o_wisp'])
   // Floor 1's pool carries every threat type but depth (a room's, not a kind's: it comes with waves).
   const floor1 = Object.values(UNITS).filter((u) => u.spawn?.minFloor === 1)
   assert.deepEqual(new Set(floor1.flatMap((u) => u.threats)), new Set(Object.keys(THREATS).filter((t) => t !== 'depth')))
@@ -89,6 +99,10 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
         if (t.aura) assert.ok(t.aura.range >= 1 && t.aura.mods.length && auraOf(at(i + 1)) === t.aura, where)
         assert.equal(bannerOf(at(i + 1)), !!t.banner, where)
         assert.ok(ringOf(at(i + 1)) >= ringOf(at(i)), where)
+        // The card never lies: no blow it holds reaches past its ring (one with no range reaches the board, and so
+        // must the ring).
+        const reach = Math.max(1, ...abilitiesOf(at(i + 1)).map((a) => ABILITIES[a]).filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse').map((a) => Math.min(rangeOf(a), DEPTH - 1)))
+        assert.ok(ringOf(at(i + 1)) >= reach, `${where}: ring ${ringOf(at(i + 1))}, reach ${reach}`)
         statsOf(at(i + 1))
         // The gauge saves toward abilities only (a step is free) and banks no further than the dearest.
         const costs = abilitiesOf(at(i + 1)).map((a) => ABILITIES[a].castCost)

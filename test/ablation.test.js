@@ -98,9 +98,10 @@ test('ablation: the names, the rules switches carried by the run and its replay,
 test('the arise switch: the party Monarch raises no one; the synergies switch: the party holds no synergy, the foes keep theirs', () => {
   let raised = 0
   let held = 0
+  // Each refought with a domain over the whole camp, so that the corpses fall in Arise's reach.
   for (const snap of [...snapshots('switch-a'), ...snapshots('switch-b')]) {
     const fight = (mechanic) => {
-      const b = createBattle(battleSetup(stripped(snap, mechanic)))
+      const b = createBattle(battleSetup(stripped({ ...snap, monarch: { ...snap.monarch, dominion: 8 } }, mechanic)))
       runBattle(b)
       return b
     }
