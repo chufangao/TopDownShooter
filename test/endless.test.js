@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, stepBattle, runBattle, enterBattle, rulesOf } from '../src/sim/battle.js'
-import { makeUnit, slotAt, tileAt, tileX, tileY, DEPTH, activeSynergies, alive, SLOTS, campOpen } from '../src/sim/unit.js'
+import { makeUnit, slotAt, tileAt, tileX, tileY, DEPTH, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
 import { SYNERGIES, KIN, ROLES, UNITS, CAMP_LIST, abilityDef } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE, BOARD_14 } from './tuned.js'
@@ -131,7 +131,9 @@ test('Undead 8: every foe slain rises at once as a shadow of yours, past Arise\'
     [[101, 'clockwork_page', 'party', true, 'legion'], [102, 'iron_golem', 'party', true, 'legion'], [103, 'frost_sprite', 'party', true, 'legion']])
   for (const e of risen) {
     const corpse = unit(b, e.corpse)
-    assert.equal(e.unit.tile, corpse.tile)
+    // Risen on your side, it stands beside the Monarch, not where it fell.
+    assert.equal(e.from, corpse.tile)
+    assert.ok(distance(e.unit.tile, b.monarch.tile) < distance(corpse.tile, b.monarch.tile), `${e.unit.tile} from ${corpse.tile}`)
     assert.ok(corpse.raised)
     assert.ok(unit(b, e.unit.uid).shadow && unit(b, e.unit.uid).line === null, 'a shadow, with no line: it holds')
     // The rule is announced right before the shadow rises, by its raiser.

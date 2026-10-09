@@ -332,14 +332,14 @@ test('Undying: a fallen soul rises where it fell at 50% HP, once a battle (a sta
   const fell = until(stack, (ev) => ev.some((e) => e.type === 'death' && e.target === 2))
   assert.deepEqual(after(fell, (e) => e.type === 'death' && e.target === 2)[0], { t: fell.at(-1).t, type: 'rise', target: 2, hp: Math.round(unit(stack, 2).maxHp * RISE) })
   // A shadow never rises.
-  // The shadow: raised beside a ready lvl-9 foe knight and left at 1 HP, it falls for good.
-  const sh = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 1), on('grave_ghoul', 10, 'foe', 3, 5, 1), on('tomb_knight', 40, 'foe', 3, 6, 9)],
+  // The shadow: raised beside the Monarch, next to a ready lvl-9 foe knight, and left at 1 HP, it falls for good.
+  const sh = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 1), on('grave_ghoul', 10, 'foe', 3, 5, 1), on('tomb_knight', 40, 'foe', 3, 2, 9)],
     { keystones: ['undying'], domain: 6 })
   slay(sh, unit(sh, 10))
   sh.monarch.gauge = 200
   stepBattle(sh)
   const shadow = sh.units.find((u) => u.shadow)
-  assert.equal(shadow.tile, tileAt(3, 5))
+  assert.equal(shadow.tile, tileAt(3, 1))
   shadow.hp = 1
   unit(sh, 40).gauge = unit(sh, 40).costliest
   until(sh, (ev) => ev.some((e) => e.type === 'death' && e.target === shadow.uid))
@@ -484,11 +484,15 @@ test('Court of Bone: nothing heals the Monarch out of battle: not a win, not an 
 
 test('Hollow Court: the shadows still standing when a battle is won pay their essence again; the fallen do not', () => tuned(FIRST_ARISE, () => {
   // A Monarch with a wide domain and Will 2 raises shadows; find a won fight where some still stand and
-  // some fell.
+  // some fell. Shadows rise beside the Monarch, so the foes must reach it for one to fall: one soul fields, and the
+  // Monarch has HP enough to outlast them.
   const fight = (seed, keystones) => {
     const run = createRun({ seed })
     Object.assign(run.state, { keystones })
     Object.assign(run.state.monarch, { dominion: 6, will: 2 })
+    const m = monarchOf(run.state)
+    m.maxHp = m.hp = 3000
+    for (const u of souls(run.state.party).slice(1)) u.slot = -1
     visit(run, 'fight')
     apply(run, { type: 'fight' })
     return run

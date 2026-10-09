@@ -30,8 +30,9 @@ import {
 // Banners (DESIGN §2.8): a piece of yours with Banner (a tier IV) and a line leads a wing: each piece of yours
 // standing beside it as the battle begins (the first Banner's, in acting order, if beside two) is its follower,
 // and walks its line shifted by where it stands from it (`offset`), never a step ahead of it while it stands; a
-// follower's own line is set aside. A shadow of yours that rises on a tile of a Banner's line falls in the same
-// way, from where it rose (see raise).
+// follower's own line is set aside. A shadow of yours that rises on a tile of a Banner's line joins the wing
+// (`leader` the Banner's uid, no offset): it walks the rest of that line from where it rose, on the Banner's
+// signal, ahead of the Banner or behind it, a marcher like any other (see raise, join).
 //
 // Stacks (DESIGN §2.2): a unit is a piece, `count` bodies of one kind on one tile, its HP one pool of count ×
 // `body` (one body's HP, fitted as it takes its place: see fit). Its living bodies are ⌈hp ÷ body⌉ (unit.js
@@ -642,9 +643,32 @@ function corpses (battle, actor) {
   // Arise is bounded by its own cap, not the board's: its shadows rise past it (they take no place a body needs).
   if (battle.raised >= ariseCap(battle.will, battle.ks.raises) || (actor !== battle.monarch && !roomFor(battle, actor.side))) return []
   if (actor === battle.monarch && battle.ks.tithe && actor.hp <= titheOf(battle, actor)) return []
+  // A shadow of yours rises beside the Monarch, whoever stands on its corpse; with no free tile for it, none rises.
+  const mine = actor.side === 'party'
+  if (mine && riseTile(battle, actor.tile) < 0) return []
   return battle.units.filter((c) => c.side !== actor.side && !alive(c) && !c.raised && !c.shadow &&
-    !unitDef(c.id).boss && unitDef(c.id).tier <= ariseTier(battle.will) && battle.at[c.tile] === null &&
+    !unitDef(c.id).boss && unitDef(c.id).tier <= ariseTier(battle.will) && (mine || battle.at[c.tile] === null) &&
     distance(c.tile, actor.tile) <= battle.domain)
+}
+
+// Where a shadow of yours rises (DESIGN §2.7): never where it fell, so the enemy's dead never block its roads, but
+// on the free tile (open ground no one stands on) closest to the Monarch (with none, to the tile the roads run to);
+// ties to the tile nearest `from`, where it fell, then lane order (CENTRE_OUT), then the lower tile. −1 when no tile
+// on the board is free.
+function riseTile (battle, from) {
+  const to = battle.monarch?.tile ?? battle.root
+  let best = -1
+  let bestK = null
+  for (let t = 0; t < TILES; t++) {
+    if (battle.at[t] !== null || battle.walls.has(t)) continue
+    // Scanned in tile order, so a tie on all three keeps the lower tile.
+    const k = [distance(t, to), distance(t, from), LANE[tileX(t)]]
+    if (bestK === null || (k[0] - bestK[0] || k[1] - bestK[1] || k[2] - bestK[2]) < 0) {
+      best = t
+      bestK = k
+    }
+  }
+  return best
 }
 
 // The units an ability hits, as unit.js's expand: a blast is its primary and its side's units around it.
@@ -782,8 +806,10 @@ function runEffect (battle, effect, actor, targets, ability = null) {
   if (effect.op === 'raise') {
     if (effect.count) return raiseDead(battle, actor, effect.count)
     return targets.forEach((corpse) => {
+      const shadow = raise(battle, actor, corpse)
+      if (!shadow) return
       battle.raised++
-      raise(battle, actor, corpse).arisen = true
+      shadow.arisen = true
     })
   }
   const a = stats(battle, actor)
@@ -936,6 +962,8 @@ function fall (battle, target, actor, ability) {
   // Tithe takes nothing for it and Hollow Court reaps none. A crumbled court never rises (crumble is no blow).
   const side = enemySide(target.side)
   if (alive(target) || target.raised || target.shadow || unitDef(target.id).boss || !rulesOf(battle, side).has('legion') || !roomFor(battle, side)) return
+  // One rising on your side needs a free tile beside the Monarch (raise); with none, the Legion raises nothing.
+  if (side === 'party' && riseTile(battle, target.tile) < 0) return
   emit(battle, { type: 'rule', rule: 'legion', side, actor: actor.side === side ? actor.uid : null, target: target.uid })
   raise(battle, actor.side === side ? actor : null, target, { side, rule: 'legion' })
 }
@@ -956,21 +984,25 @@ function crumble (battle, boss) {
 }
 
 // Arise: the corpse rises on the actor's side as a shadow of itself, at its level with its own kit and its count,
-// each body at TUNING.monarch.raiseHp of its HP (see fit), where it fell (DESIGN §2.7). A shadow counts toward synergies and leaves when
-// the battle ends; its corpse cannot rise again. One of yours has no line: it holds the tile it rose on, unless
-// that tile lies on a Banner's line, when it falls in with the Banner's wing (follow). One on the foes' side is a
-// foe like any other, and walks the roads. The shadow keeps the uid of the corpse it rose from
-// (`corpse`). The Legion raises on `side` with no actor (null) when no one of that side slew it, its event marked
-// `rule: 'legion'` (`rule`). Arise's cap is counted by the caller (runEffect). Returns the shadow.
+// each body at TUNING.monarch.raiseHp of its HP (see fit) (DESIGN §2.7). One of yours rises on the free tile
+// closest to the Monarch (riseTile), never where it fell: with none free it does not rise (null; its corpse may
+// rise later). It has no line: it holds the tile it rose on, unless that tile lies on a Banner's line, when it
+// falls in with the Banner's wing (follow). One on the foes' side rises where it fell, a foe like any other, and
+// walks the roads. A shadow counts toward synergies and leaves when the battle ends; its corpse cannot rise again.
+// The shadow keeps the uid of the corpse it rose from (`corpse`); the event says where it fell (`from`). The
+// Legion raises on `side` with no actor (null) when no one of that side slew it, its event marked `rule:
+// 'legion'` (`rule`). Arise's cap is counted by the caller (runEffect). Returns the shadow, or null.
 function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) {
+  const tile = side === 'party' ? riseTile(battle, corpse.tile) : corpse.tile
+  if (tile < 0) return null
   const u = makeUnit(corpse.id, { uid: battle.nextUid++, lvl: corpse.lvl, count: corpse.count })
   corpse.raised = true
-  const shadow = enterBattle(battle, { ...u, side, shadow: true, corpse: corpse.uid, tile: corpse.tile })
+  const shadow = enterBattle(battle, { ...u, side, shadow: true, corpse: corpse.uid, tile })
   const lead = side === 'party' ? battle.units.find((x) => x.banner && alive(x) && x.leader === null && x.line?.tiles.includes(shadow.tile)) : null
-  if (lead) follow(shadow, lead)
+  if (lead) join(shadow, lead)
   emit(battle, {
-    type: 'arise', actor: actor?.uid ?? null, corpse: corpse.uid,
-    unit: { uid: shadow.uid, id: shadow.id, side: shadow.side, tile: shadow.tile, lvl: shadow.lvl, hp: shadow.hp, maxHp: shadow.maxHp, shadow: true, ...marks(shadow) },
+    type: 'arise', actor: actor?.uid ?? null, corpse: corpse.uid, from: corpse.tile,
+    unit: { uid: shadow.uid, id: shadow.id, side: shadow.side, tile: shadow.tile, lvl: shadow.lvl, hp: shadow.hp, maxHp: shadow.maxHp, shadow: true, ...marks(shadow), ...(shadow.line && { line: shadow.line }) },
     ...(rule && { rule })
   })
   // Blood Tithe: the Monarch pays for each shadow with its own HP (never its last: see corpses).
@@ -982,10 +1014,10 @@ function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) 
   return shadow
 }
 
-// The Sovereign's Grave Tide: up to `count` of the field's dead rise on the actor's side as shadows, as Arise
-// raises them: the fallen of either side, never a shadow, a boss, the Monarch or one risen already, lying
-// where no one living stands; the strongest first, then the nearest, then the first to have stood. Arise's
-// cap does not count them.
+// The Sovereign's Grave Tide: up to `count` of the field's dead rise on the actor's side as shadows, where they fell
+// (raise): the fallen of either side, never a shadow, a boss, the Monarch or one risen already, lying where no one
+// living stands; the strongest first, then the nearest, then the first to have stood. Arise's cap does not count
+// them.
 function raiseDead (battle, actor, count) {
   const d = (c) => distance(actor.tile, c.tile)
   const dead = battle.units.filter((c) => !alive(c) && !c.raised && !c.shadow && !unitDef(c.id).boss && !unitDef(c.id).monarch)
@@ -1202,9 +1234,10 @@ function stepOf (battle, u) {
 
 // The next tile of a unit's line, once the signal it waits for has come: −1 before then, past its last tile, and
 // where the line breaks off (a tile no step from here reaches: a wall, or one not beside it). A follower walks
-// its Banner's line shifted by its offset, and never takes a step its living Banner has not taken.
+// its Banner's line shifted by its offset, and never takes a step its living Banner has not taken. (A shadow that
+// joined a wing has no offset: it walks a line of its own, the rest of the Banner's: see join.)
 function lineStep (battle, u) {
-  const lead = u.leader === null ? u : battle.byUid.get(u.leader)
+  const lead = u.offset === null ? u : battle.byUid.get(u.leader)
   const line = lead.line
   if (line === null || u.leg >= line.tiles.length || !fired(battle, line.when)) return -1
   if (lead !== u && alive(lead) && u.leg >= lead.leg) return -1
@@ -1225,6 +1258,16 @@ function follow (u, lead) {
   u.offset = [tileX(u.tile) - tileX(lead.tile), tileY(u.tile) - tileY(lead.tile)]
   u.leg = lead.leg
   u.line = null
+}
+
+// A shadow risen on a tile of a Banner's line joins its wing (DESIGN §2.7): it walks the rest of the line from that
+// tile, on the Banner's signal. Rising beside the Monarch, it may stand on the Banner's way ahead: walking the
+// line itself, it clears the way (a follower held to the Banner's steps never would).
+function join (u, lead) {
+  const rest = lead.line.tiles.slice(lead.line.tiles.indexOf(u.tile) + 1)
+  u.leader = lead.uid
+  u.leg = 0
+  u.line = rest.length ? { tiles: rest, when: lead.line.when } : null
 }
 
 // A lunge (DESIGN §2.3): one of yours whose ring holds a foe, and none it can strike, steps toward its ring's

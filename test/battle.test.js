@@ -637,10 +637,10 @@ test('the Monarch stands where it is put, never strikes, and banks for Arise whi
   assert.equal(scene([on('tomb_knight', 1, 'party', 3, 5), on('frost_sprite', 10, 'foe', 3, 10)]).root, tileAt(3, 0))
 })
 
-test('Arise raises the strongest corpse in the domain, then the nearest, as a shadow of half a body\'s HP where it fell', () => tuned(FIRST_ARISE, () => {
+test('Arise raises the strongest corpse in the domain, then the nearest, whoever stands on it, as a shadow of half a body\'s HP beside the Monarch', () => tuned(FIRST_ARISE, () => {
   // The Monarch at (3, 2), domain 3. Corpses: a Bone Chanter (tier 2) 3 tiles off, two Ghouls (tier 1),
   // one 2 tiles off and one 3 off, a Tomb Knight (tier 2) 4 tiles off (outside), and a Wisp (tier 1) a
-  // tile off, the nearest of all, but under a living knight. A living foe far away keeps the battle going.
+  // tile off, the nearest of all, under a living knight. A living foe far away keeps the battle going.
   const build = (will) => {
     const b = scene([
       on('monarch', 0, 'party', 3, 2), on('tomb_knight', 1, 'party', 0, 0, 1),
@@ -660,30 +660,98 @@ test('Arise raises the strongest corpse in the domain, then the nearest, as a sh
     const events = stepBattle(b)
     return { action: events.find((e) => e.type === 'action' && e.actor === 0), arise: events.find((e) => e.type === 'arise'), events }
   }
-  // Will 0: tier 1 only, so the nearer Ghoul (the Wisp, nearer still, lies under the living); one raise a battle.
+  // Will 0: tier 1 only, so the nearest, the Wisp, though the living knight stands on it; one raise a battle. It
+  // rises beside the Monarch: of the free tiles a step from it, those a step from where it fell, then the centre
+  // lane, then the lower: (3, 1).
   const b = build(0)
   const roster = b.roster
   const nextUid = b.nextUid
   const { action, arise } = rise(b)
-  assert.deepEqual([action.ability, action.targets], ['arise', [11]])
-  const ghoul = b.units.find((u) => u.uid === 11)
-  const body = Math.round(baseStats('grave_ghoul', 2).hp / 2)
+  assert.deepEqual([action.ability, action.targets], ['arise', [14]])
+  const wisp = b.units.find((u) => u.uid === 14)
+  const body = Math.round(baseStats('will_o_wisp', 2).hp / 2)
   assert.deepEqual(arise, {
-    t: 0, type: 'arise', actor: 0, corpse: 11,
-    unit: { uid: nextUid, id: 'grave_ghoul', side: 'party', tile: ghoul.tile, lvl: 2, hp: body, maxHp: body, shadow: true, count: 1 }
+    t: 0, type: 'arise', actor: 0, corpse: 14, from: tileAt(2, 2),
+    unit: { uid: nextUid, id: 'will_o_wisp', side: 'party', tile: tileAt(3, 1), lvl: 2, hp: body, maxHp: body, shadow: true, count: 1 }
   })
   const shadow = b.units.find((u) => u.uid === nextUid)
-  assert.ok(ghoul.raised && shadow.shadow && b.at[shadow.tile] === shadow && shadow.tile === ghoul.tile)
+  assert.ok(wisp.raised && shadow.shadow && b.at[shadow.tile] === shadow && b.at[wisp.tile].uid === 1)
   assert.deepEqual([b.roster, b.nextUid, b.raised], [roster + 1, nextUid + 1, 1])
   b.monarch.gauge = 200
   for (let k = 0; k < 5; k++) assert.ok(!rise(b).action, 'one raise a battle at Will 0')
-  // Will 1: tier 2 now, so the Chanter; the Knight lies beyond the domain, the Wisp under the living.
+  // Will 1: tier 2 now, so the Chanter; the Knight lies beyond the domain.
   const w = build(1)
   assert.deepEqual(rise(w).action.targets, [10])
   w.monarch.gauge = 200
-  assert.deepEqual(rise(w).action.targets, [11], 'then the nearest of the rest')
+  assert.deepEqual(rise(w).action.targets, [14], 'then the nearest of the rest')
   w.monarch.gauge = 200
   assert.ok(!rise(w).action, 'two raises a battle at Will 1')
+}))
+
+test('a shadow rises on the free tile closest to the Monarch: ties to the tile nearest where it fell, then lane order', () => tuned(FIRST_ARISE, () => {
+  // The Monarch at (3, 0), domain 9; a Ghoul slain at `at`, with party Knights on `taken`.
+  const rise = (at, taken = []) => {
+    const b = scene([on('monarch', 0, 'party', 3, 0), ...taken.map(([x, y], i) => on('tomb_knight', 1 + i, 'party', x, y)), on('grave_ghoul', 10, 'foe', ...at, 2),
+      on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)], { domain: 9 })
+    slay(b, b.byUid.get(10))
+    b.monarch.gauge = 200
+    return stepBattle(b).find((e) => e.type === 'arise')?.unit.tile ?? null
+  }
+  // A step from the Monarch: (2, 0), (4, 0), (2, 1), (3, 1), (4, 1). From up the centre lane, (3, 1) is nearest.
+  assert.equal(rise([3, 6]), tileAt(3, 1))
+  // From (0, 3), (2, 1) is nearest, two tiles off.
+  assert.equal(rise([0, 3]), tileAt(2, 1))
+  // From (1, 3), (2, 1) and (3, 1) are both two off: lane 3 comes first in lane order.
+  assert.equal(rise([1, 3]), tileAt(3, 1))
+  // From (6, 1), (4, 0) and (4, 1) are both two off, and in one lane: the lower tile.
+  assert.equal(rise([6, 1]), tileAt(4, 0))
+  // With (3, 1) taken, from straight up the centre: (2, 1) and (4, 1) are equally near; lane 2 comes first.
+  assert.equal(rise([3, 6], [[3, 1]]), tileAt(2, 1))
+  // Every tile a step off taken: two steps off, nearest where it fell.
+  assert.equal(rise([3, 6], [[2, 0], [4, 0], [2, 1], [3, 1], [4, 1]]), tileAt(3, 2))
+}))
+
+test('a shadow never rises where it fell unless that is the free tile closest to the Monarch; with none free, nothing rises and no raise is spent', () => tuned(FIRST_ARISE, () => {
+  // Slain two tiles up from the Monarch, it rises a tile from it, and its death tile stays clear.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('grave_ghoul', 10, 'foe', 3, 2, 2), on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)])
+  slay(b, b.byUid.get(10))
+  b.monarch.gauge = 200
+  const arise = stepBattle(b).find((e) => e.type === 'arise')
+  assert.deepEqual([arise.from, arise.unit.tile, b.at[tileAt(3, 2)]], [tileAt(3, 2), tileAt(3, 1), null])
+  // Every tile but four walled: the Monarch's, a Knight's, the Ghoul's and the golem's. The Ghoul slain, a Sprite of
+  // yours steps onto its tile: no tile is free, so Arise does not cast, and spends nothing.
+  const open = [deployTile('party', slotAt(6, 3)), deployTile('party', slotAt(5, 3)), deployTile('foe', slotAt(0, 3)), deployTile('foe', slotAt(0, 4))]
+  const walls = [...Array(TILES).keys()].filter((t) => !open.includes(t))
+  const full = createBattle({
+    party: [makeUnit('monarch', { uid: 0, lvl: 3, slot: slotAt(6, 3) }), makeUnit('tomb_knight', { uid: 1, lvl: 3, slot: slotAt(5, 3) })],
+    foes: [makeUnit('grave_ghoul', { uid: 10, lvl: 2, slot: slotAt(0, 3) }), makeUnit('iron_golem', { uid: 50, lvl: 1, slot: slotAt(0, 4) })],
+    seed: 'full', walls, domain: 9, will: 1
+  })
+  const corpse = full.byUid.get(10)
+  slay(full, corpse)
+  enterBattle(full, { ...makeUnit('frost_sprite', { uid: 5, lvl: 1 }), side: 'party', tile: corpse.tile })
+  full.monarch.gauge = 200
+  for (let k = 0; k < 20; k++) assert.ok(!stepBattle(full).some((e) => e.type === 'arise' || (e.type === 'action' && e.actor === 0)), 'no tile, no Arise')
+  assert.deepEqual([full.raised, full.monarch.gauge >= 200], [0, true])
+  // The Sprite falls: its tile, the Ghoul's death tile, is the one free tile, and there the Ghoul rises.
+  slay(full, full.byUid.get(5))
+  const rose = stepBattle(full).find((e) => e.type === 'arise')
+  assert.deepEqual([rose.corpse, rose.unit.tile, full.raised], [10, corpse.tile, 1])
+}))
+
+test('a foe road through the domain stays clear of its dead: the next foe walks over where the first fell', () => tuned(FIRST_ARISE, () => {
+  // Two Ghouls in file down the centre lane, the first slain at (3, 3), inside the domain; the Monarch raises it.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('grave_ghoul', 10, 'foe', 3, 3, 2), on('grave_ghoul', 11, 'foe', 3, 5, 2),
+    on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)], { moving: [11] })
+  slay(b, b.byUid.get(10))
+  b.monarch.gauge = 200
+  const arise = stepBattle(b).find((e) => e.type === 'arise')
+  assert.deepEqual([arise.from, arise.unit.tile], [tileAt(3, 3), tileAt(3, 1)])
+  const road = fieldOf(b)
+  assert.equal(road.arrow[tileAt(3, 4)], tileAt(3, 3), 'the road runs through where it fell')
+  let over = false
+  for (let k = 0; k < 200 && !over; k++) over = moves(stepBattle(b), 11).some((e) => e.to === tileAt(3, 3))
+  assert.ok(over, 'the second Ghoul walks onto the tile the first fell on')
 }))
 
 test('Arise by the numbers: raises × (1 + Will) a battle, of tier raiseTier + Will, each body at raiseHp of its HP', () => {
@@ -722,11 +790,11 @@ test('a shadow holds its tile, and counts for synergies', () => tuned(FIRST_ARIS
   stepBattle(b)
   const shadow = b.units.find((u) => u.shadow)
   assert.ok(shadow, 'it rose')
-  assert.deepEqual([shadow.tile, shadow.line, shadow.nextStep], [tileAt(3, 3), null, b.t - 1], 'where it fell, with no line, free to step')
+  assert.deepEqual([shadow.tile, shadow.line, shadow.nextStep], [tileAt(3, 2), null, b.t - 1], 'beside the Monarch, toward where it fell, with no line, free to step')
   // Undead 2 and Vanguard 2 now, for both: the shadow counts.
   assert.ok(stats(b, ghoul).def > before.def, 'the shadow made a synergy')
   for (let k = 0; k < 300; k++) assert.deepEqual(moves(stepBattle(b), shadow.uid), [], 'it holds')
-  assert.equal(shadow.tile, tileAt(3, 3))
+  assert.equal(shadow.tile, tileAt(3, 2))
 }))
 
 test('Arise breaks a tie by the lowest uid, and never raises a boss, a shadow, or its own side\'s dead', () => {
@@ -1056,24 +1124,28 @@ test('a Banner\'s wing waits on it: held up, they hold; fallen, they walk the re
   assert.equal(still.byUid.get(2).tile, tileAt(2, 1))
 })
 
-test('a shadow that rises on a Banner\'s line falls in with its wing; off the line, or on a line no Banner leads, it holds', () => tuned(FIRST_ARISE, () => {
-  // The Banner at (3, 1), its line up its lane from 30 ticks; a Ghoul foe slain at (3, 3), on that line, rises.
-  const rise = (lead, x) => {
-    const b = scene([on('monarch', 0, 'party', 0, 0), lined(lead, lane(3, 1, 4), { at: 'time', t: 30 }), on('grave_ghoul', 10, 'foe', x, 3, 2),
-      on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)], { moving: [1], domain: 9 })
+test('a shadow that rises on a Banner\'s line joins its wing, walking the rest of the line; off the line, or on a line no Banner leads, it holds', () => tuned(FIRST_ARISE, () => {
+  // The Monarch in the corner (0, 0), Knights on (1, 0) and (0, 1): the free tile closest to it is (1, 1). The
+  // Banner at (3, 1), its line along the rear and up the edge lane through (1, 1), from 30 ticks; a Ghoul foe slain
+  // up the board rises there.
+  const line = [tileAt(2, 1), tileAt(1, 1), tileAt(0, 2), tileAt(0, 3)]
+  const rise = (lead, tiles = line) => {
+    const b = scene([on('monarch', 0, 'party', 0, 0), on('tomb_knight', 2, 'party', 1, 0), on('tomb_knight', 3, 'party', 0, 1),
+      lined(lead, tiles, { at: 'time', t: 30 }), on('grave_ghoul', 10, 'foe', 2, 4, 2), on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)], { moving: [1], domain: 9 })
     slay(b, b.byUid.get(10))
     b.monarch.gauge = 200
     const arise = stepBattle(b).find((e) => e.type === 'arise')
     const shadow = b.byUid.get(arise.unit.uid)
     for (let k = 0; k < 300; k++) stepBattle(b)
-    return { arise, shadow }
+    return { arise, shadow, b }
   }
-  const { arise, shadow } = rise(banner(1, 3, 1), 3)
-  assert.deepEqual([arise.unit.leader, shadow.offset], [1, [0, 2]])
-  assert.equal(shadow.tile, tileAt(3, 7), 'it walks the Banner\'s line two tiles ahead of it')
-  for (const [lead, x] of [[banner(1, 3, 1), 4], [{ ...on('tomb_knight', 1, 'party', 3, 1), tracks: [3, 0] }, 3]]) {
-    const off = rise(lead, x)
-    assert.deepEqual([off.arise.unit.leader, off.shadow.leader, off.shadow.tile], [undefined, null, tileAt(x, 3)])
+  const { arise, shadow, b } = rise(banner(1, 3, 1))
+  assert.deepEqual([arise.unit.tile, arise.unit.leader, arise.unit.line], [tileAt(1, 1), 1, { tiles: line.slice(2), when: { at: 'time', t: 30 } }])
+  // It walks on ahead and clears the Banner's way: the Banner comes up behind it to the tile before its end.
+  assert.deepEqual([shadow.tile, b.byUid.get(1).tile], [tileAt(0, 3), tileAt(0, 2)])
+  for (const [lead, tiles] of [[banner(1, 3, 1), [tileAt(3, 2), tileAt(3, 3)]], [{ ...on('tomb_knight', 1, 'party', 3, 1), tracks: [3, 0] }, line]]) {
+    const off = rise(lead, tiles)
+    assert.deepEqual([off.arise.unit.leader, off.shadow.leader, off.shadow.line, off.shadow.tile], [undefined, null, null, tileAt(1, 1)])
   }
 }))
 

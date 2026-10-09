@@ -122,11 +122,12 @@ new. Five is a ceiling, not a target: cut any that go unused in the content pass
 ### 2.7 Domain and the risen
 
 - The **domain** is the tiles within `domain` + Dominion of the Monarch (Chebyshev, so a square, as today).
-- A foe piece that falls inside the domain rises on that tile as a **shadow** piece of yours, if its tier is
-  at most `raiseTier` + Will and the Monarch has raises left (`raises` × (1 + Will) a battle). It keeps the
-  fallen count at `raiseHp` of body HP, holds its tile for the rest of the battle, and is gone when the
-  battle ends. A road blocked by its own dead is the point. Arise's casting time and Will's haste stay as
-  they are.
+- A foe piece that falls inside the domain rises as a **shadow** piece of yours, if its tier is at most
+  `raiseTier` + Will and the Monarch has raises left (`raises` × (1 + Will) a battle). It rises on the free
+  tile closest to the Monarch (ties: nearest where it fell, then lane order), never where it fell: the
+  enemy's dead never block its roads. It keeps the fallen count at `raiseHp` of body HP, holds its tile for
+  the rest of the battle, and is gone when the battle ends. With no free tile it does not rise. Arise's
+  casting time and Will's haste stay as they are. (Decided 2026-10-09, replacing "rises where it fell".)
 - A shadow on a tile a Banner's line (§2.8) passes through joins it: it follows the Banner's last follower.
   Otherwise shadows never move.
 - Recruiting stays as decided earlier: one slain foe a battle, as a full soul into the ossuary.
@@ -287,7 +288,8 @@ Taken (each can be reversed before step 2 starts; after it, it costs a rewrite o
 - Standing orders persist between battles; moving a piece clears its line.
 - A stack counts once toward synergies; stack damage scales with living bodies.
 - Upgrades are per kind.
-- Shadows rise where they fell at the fallen count and hold, unless a Banner's line passes them.
+- Shadows rise on the free tile closest to the Monarch at the fallen count and hold, unless a Banner's line
+  passes them. The enemy's dead never block its roads.
 - Foe behaviour is Walk or Flank plus a ring; nothing else.
 - Relics, keystones and the board size are left alone in this pass.
 
