@@ -185,13 +185,19 @@ and crossings are visible before the horn.
 The standing interface rules hold: one scaled landscape layout for every device (`src/frame.js`), one view at
 a time behind tabs, nothing that needs hover, Shift or a key.
 
-- **Field tab** (the default). The board in the centre. A bench strip under it holds ossuary souls; drag one
-  onto an open camp tile to place it, onto a same-kind piece to stack. The panel on the right is the selected
-  piece's: its card, ring, count, the kind's Level and two tracks. Nothing selected means the Monarch's panel
-  (HP, Dominion, Command, Will); Escape, or tapping empty ground, returns to it.
+- **Layout** (decided 2026-10-09, "make the field larger, like BTD"). The board lies on its side, as in
+  Bloons TD: its rows run across the screen, the camp on the right beside the panel, the foes entering from
+  the left, the seven lanes running down. Above it a thin bar (floor, essence, Monarch HP, the tabs as icons);
+  beside it one slim panel (the room and Begin, the selected piece's card or the Monarch's four stats two by
+  two, the ossuary at its foot like a tower shop). The board takes everything else, in prep and in battle
+  alike. On a phone a tile is never under 44 CSS px.
+- **Field tab** (the default). Drag an ossuary soul onto an open camp tile to place it, onto a same-kind piece
+  to stack. The panel shows the selected piece: its card, ring, count, the kind's Level and two tracks.
+  Nothing selected means the Monarch's panel (HP, Dominion, Command, Will); Escape, or tapping empty ground,
+  returns to it.
 - **Prep overlays**: the roads (arrows), the domain, the selected piece's ring, its line with its signal
-  marker, timing marks, synergy glow. A drag from a piece along tiles draws its line; tapping the marker
-  cycles its signal; a drag of the piece itself moves it (and clears the line).
+  marker, timing marks, synergy glow. Tap selects; dragging an unselected piece moves it (and clears its
+  line); dragging from the selected piece draws its line; tapping the marker cycles its signal.
 - **Battle**: the same board, with the wave counter, the escalation bar, counts on pieces, and the horde drawn
   as many small sprites per tile while the sim counts one piece. Pause and speed stay (`src/engine.js`).
 - **End**: the death panel's facts (`deathPanel` in `src/ui.js`) shown as a replay beat on the board.
