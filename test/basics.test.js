@@ -5,7 +5,7 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import {
   autoPlace, reachable, expand, makeUnit, deployTile, slotAt, tileAt, distance, foesNextTo, DEPTH, CENTRE_OUT, CAMP_ROWS, campGrid, steps, wallTiles,
-  summonTile, tileX, tileY, domainTiles, isSeat, seatNear, SEAT_ROWS, ringOf
+  domainTiles, isSeat, seatNear, SEAT_ROWS, ringOf, baseStats, bodyHp, livingBodies, bodiesHp
 } from '../src/sim/unit.js'
 
 test('hit and crit are clamped', () => {
@@ -124,15 +124,17 @@ test('camp: placement skips walls; the Monarch\'s seats are the rear two rows; s
   assert.equal(seatNear('palisade', slotAt(0, 3)), slotAt(CAMP_ROWS - 2, 3), 'never off the seats')
 })
 
-test('summons appear on the nearest open tile: beside the summoner, then behind, then ahead, diagonals last', () => {
-  const from = tileAt(3, 3)
-  const taken = new Set([from])
-  const order = []
-  for (let i = 0; i < 8; i++) {
-    const t = summonTile(from, (x) => !taken.has(x))
-    taken.add(t)
-    order.push([tileX(t) - 3, tileY(t) - 3])
+test('a piece\'s pool: count × body HP; its living bodies ⌈hp ÷ body HP⌉, falling one at a time; its bodies whole, then the one wounded, then the fallen', () => {
+  const b = baseStats('grave_ghoul', 3).hp
+  const u = makeUnit('grave_ghoul', { uid: 1, lvl: 3, count: 4 })
+  assert.deepEqual([u.count, u.hp, u.maxHp, bodyHp(u), livingBodies(u)], [4, 4 * b, 4 * b, b, 4])
+  assert.deepEqual(makeUnit('grave_ghoul', { lvl: 3 }).count, 1)
+  for (const [hp, living] of [[4 * b - 1, 4], [3 * b, 3], [3 * b - 1, 3], [2 * b + 1, 3], [b, 1], [1, 1], [0, 0]]) {
+    assert.equal(livingBodies({ ...u, hp }), living, `hp ${hp}`)
   }
-  assert.deepEqual(order, [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]])
-  assert.equal(summonTile(from, () => false), -1)
+  assert.deepEqual(bodiesHp({ ...u, hp: 2 * b + 5 }), [b, b, 5, 0])
+  assert.deepEqual(bodiesHp({ ...u, hp: 3 * b }), [b, b, b, 0])
+  assert.deepEqual(bodiesHp({ ...u, hp: 0 }), [0, 0, 0, 0])
+  // A battle unit's body is the one the battle fitted.
+  assert.equal(livingBodies({ ...u, body: 10, hp: 25 }), 3)
 })

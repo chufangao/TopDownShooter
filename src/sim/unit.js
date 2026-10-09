@@ -1,5 +1,5 @@
-// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring and stride, where
-// it deploys (the party's camp, the foes' formation) and the board it fights on.
+// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring and stride, its
+// bodies, where it deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
 import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, TRACKS } from '../content.js'
 
@@ -15,17 +15,31 @@ export function baseStats (id, lvl = 1) {
   return out
 }
 
-// A unit as the run keeps it between battles; createBattle adds the per-battle fields. slot −1 is the
-// ossuary: the soul is kept but does not fight. `lvl` and `tracks` (the tier held on each of its kind's two
-// tracks, 0–4) are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own.
-export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {}) {
-  const hp = baseStats(id, lvl).hp
-  return { uid, id, lvl, tracks: tracks.slice(), hp, maxHp: hp, slot }
+// A piece (DESIGN §2.2) as the run keeps it between battles; createBattle adds the per-battle fields. One kind
+// on one tile with `count` bodies: its HP is one pool of count × body HP (`maxHp`). slot −1 is the ossuary: the
+// piece is kept but does not fight. `lvl` and `tracks` (the tier held on each of its kind's two tracks, 0–4)
+// are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own.
+export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0], count = 1 } = {}) {
+  const hp = count * baseStats(id, lvl).hp
+  return { uid, id, lvl, tracks: tracks.slice(), count, hp, maxHp: hp, slot }
+}
+
+// ── bodies ───────────────────────────────────────────────────────────────────────────────────────
+
+// One body's HP: a battle unit's as the battle fitted it (`body`: its HP mods, a shadow's raise), else its share
+// of the pool. Its living bodies: ⌈hp ÷ body HP⌉, so they fall one at a time, the first ones first.
+export const bodyHp = (u) => u.body ?? u.maxHp / (u.count ?? 1)
+export const livingBodies = (u) => (u.hp > 0 ? Math.ceil(u.hp / bodyHp(u) - 1e-9) : 0)
+// A pool's bodies one by one, from the front: the whole ones, then the one wounded, then the fallen.
+export function bodiesHp (u) {
+  const b = bodyHp(u)
+  const whole = Math.min(u.count, Math.floor(u.hp / b + 1e-9))
+  return Array.from({ length: u.count }, (_, i) => (i < whole ? b : i === whole ? u.hp - whole * b : 0))
 }
 
 // ── upgrade tracks ───────────────────────────────────────────────────────────────────────────────
 
-// A kind's two tracks (content.js TRACKS); none for the Monarch or a summon.
+// A kind's two tracks (content.js TRACKS); none for the Monarch.
 export const tracksOf = (id) => TRACKS[id] ?? []
 // The tiers a unit holds: its first track's, then its second's.
 export const tiersOf = (u) => tracksOf(u.id).flatMap((t, i) => t.tiers.slice(0, u.tracks?.[i] ?? 0))
@@ -57,12 +71,9 @@ export const strideOf = (u) => tiersOf(u).reduce((x, t) => x * (t.stride ?? 1), 
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
 export const bannerOf = (u) => tiersOf(u).some((t) => t.banner)
 
-// What a soul raises each battle: [{ id, count, lvl }], one entry a summon tier it holds; each at
-// TUNING.summon.level × its level (rounded, at least 1). Empty for a soul with no summon tier.
-export function summonsOf (u) {
-  const lvl = Math.max(1, Math.round(u.lvl * TUNING.summon.level))
-  return tiersOf(u).filter((t) => t.summon).map((t) => ({ id: t.summon.id, count: t.summon.count, lvl }))
-}
+// The bodies a piece's tiers add for each battle (a tier's `count`): they fight in its pool, whole, and are gone
+// when the battle ends.
+export const bodiesOf = (u) => tiersOf(u).reduce((n, t) => n + (t.count ?? 0), 0)
 
 // The least and the most gauge any of its abilities costs: below the cheapest a unit can only bank (or
 // walk, which is off the gauge), and its gauge never banks past the costliest.
@@ -229,22 +240,6 @@ export const distance = (a, b) => Math.max(Math.abs(tileX(a) - tileX(b)), Math.a
 
 // The domain (DESIGN §2.7): the tiles within `reach` of `centre` (the Monarch's tile), a square.
 export const domainTiles = (centre, reach) => [...Array(TILES).keys()].filter((t) => distance(t, centre) <= reach)
-
-// Where a soul's summon appears: the open tile (`open(t)`) nearest `from` in a straight line, so side by side
-// before a diagonal; at equal distance level with it first, then behind it (toward the camp's back), then
-// ahead. A party tile's ahead is up the board, toward the foes. -1 when no tile is open.
-export function summonTile (from, open) {
-  let best = -1
-  let bestK = Infinity
-  for (let t = 0; t < TILES; t++) {
-    if (!open(t)) continue
-    const dx = tileX(t) - tileX(from)
-    const dy = tileY(t) - tileY(from)
-    const k = (dx * dx + dy * dy) * 1e4 + (dy === 0 ? 0 : dy < 0 ? 1 : 2) * 1e3 + Math.abs(dx) * 100 + t / TILES
-    if (k < bestK) { best = t; bestK = k }
-  }
-  return best
-}
 
 export function deployTile (side, slot) {
   const y = side === 'party' ? CAMP_ROWS - 1 - rowOf(slot) : DEPTH - ROWS + rowOf(slot)

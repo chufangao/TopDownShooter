@@ -19,19 +19,19 @@ import { makeUnit, tileAt, tileX, tileY, slotAt, DEPTH, alive, activeSynergies, 
 
 // A unit placed on a board tile directly, for battles built tile by tile.
 const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-// A summon of `captain`'s, standing on a tile from the start (as battle.js summon makes them: holding there).
-const member = (id, uid, captain, x, y, lvl = 3) => ({ ...on(id, uid, 'party', x, y, lvl), summoned: true, summoner: captain })
+// A stack of `count` placed on a board tile.
+const stackOn = (id, uid, side, x, y, count, lvl = 3) => ({ ...makeUnit(id, { uid, lvl, count }), side, tile: tileAt(x, y) })
 
 // A battle of units placed on tiles (the party in its camp, y 0–6; a foe anywhere). The ones not named in
-// `moving` never step. A soul's summon tiers raise nothing here (the summons switch) unless `summons`: the
-// scenes place every unit themselves.
-function scene (units, { moving = [], summons = false, ...opts } = {}) {
+// `moving` never step. A soul's tiers add no bodies here (the bodies switch) unless `bodies`: the scenes set
+// every piece's count themselves.
+function scene (units, { moving = [], bodies = false, ...opts } = {}) {
   const foeRow0 = DEPTH - 3
   const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
   const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
     : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
   const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...(!summons && { ablate: ['summons'] }), ...opts })
+  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...(!bodies && { ablate: ['bodies'] }), ...opts })
   for (const u of b.units) {
     const want = units.find((x) => x.uid === u.uid)?.tile
     if (want === undefined) continue
@@ -253,7 +253,7 @@ test('trigger relics fire for your side only: a foe slaying, falling or entering
 
 // ── keystones in battle ──────────────────────────────────────────────────────────────────────────
 
-test('Legion: two more souls on the field, and every soul (summons and shadows too, never the Monarch) fights at 85% max HP', () => {
+test('Legion: two more souls on the field, and every soul (stacks and shadows too, never the Monarch) fights at 85% max HP', () => {
   const run = createRun({ seed: 'legion' })
   const s = run.state
   assert.equal(fieldCap(run), 3)
@@ -269,9 +269,9 @@ test('Legion: two more souls on the field, and every soul (summons and shadows t
   const legion = mine(['legion'])
   for (const u of souls(s.party)) assert.equal(legion[u.uid], Math.round(plain[u.uid] * LEGION_HP), u.id)
   assert.equal(legion[0], plain[0], 'the Monarch keeps its HP')
-  // A summon as well.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), member('grave_ghoul', 2, 1, 2, 3), on('iron_golem', 50, 'foe', 3, 10)], { keystones: ['legion'] })
-  assert.equal(unit(b, 2).maxHp, Math.round(baseStats('grave_ghoul', 3).hp * LEGION_HP))
+  // A stack's every body as well.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), stackOn('grave_ghoul', 2, 'party', 2, 3, 2), on('iron_golem', 50, 'foe', 3, 10)], { keystones: ['legion'] })
+  assert.equal(unit(b, 2).maxHp, 2 * Math.round(baseStats('grave_ghoul', 3).hp * LEGION_HP))
   assert.equal(b.monarch.maxHp, baseStats('monarch', 3).hp)
   // And a shadow Arise raises.
   const shade = (keystones) => {
@@ -292,8 +292,8 @@ function felled (units, victim, keystones, relics = []) {
   return b
 }
 
-test('Undying: a fallen soul rises where it fell at 50% HP, once a battle; summons, shadows and the Monarch never rise', () => {
-  const units = [on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5), member('grave_ghoul', 2, 1, 0, 1), on('iron_golem', 50, 'foe', 6, 10)]
+test('Undying: a fallen soul rises where it fell at 50% HP, once a battle (a stack as one piece); shadows and the Monarch never rise', () => {
+  const units = [on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5), stackOn('grave_ghoul', 2, 'party', 0, 1, 2), on('iron_golem', 50, 'foe', 6, 10)]
   const b = felled(units, 1, ['undying'], ['bone_idol'])
   const knight = unit(b, 1)
   const roster = b.roster
@@ -313,10 +313,11 @@ test('Undying: a fallen soul rises where it fell at 50% HP, once a battle; summo
   const plain = felled(units, 1, [])
   until(plain, (ev) => ev.some((e) => e.type === 'death' && e.target === 1))
   assert.ok(!alive(unit(plain, 1)) && !plain.events.some((e) => e.type === 'rise'))
-  // A summon never rises, nor a shadow.
-  const body = felled(units, 2, ['undying'])
-  until(body, (ev) => ev.some((e) => e.type === 'death' && e.target === 2))
-  assert.ok(!alive(unit(body, 2)) && !body.events.some((e) => e.type === 'rise'))
+  // A stack rises as one piece, at 50% of its pool: both its bodies stand again.
+  const stack = felled(units, 2, ['undying'])
+  const fell = until(stack, (ev) => ev.some((e) => e.type === 'death' && e.target === 2))
+  assert.deepEqual(after(fell, (e) => e.type === 'death' && e.target === 2)[0], { t: fell.at(-1).t, type: 'rise', target: 2, hp: Math.round(unit(stack, 2).maxHp * RISE) })
+  // A shadow never rises.
   // The shadow: raised beside a ready lvl-9 foe knight and left at 1 HP, it falls for good.
   const sh = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 1), on('grave_ghoul', 10, 'foe', 3, 5, 1), on('tomb_knight', 40, 'foe', 3, 6, 9)],
     { keystones: ['undying'], domain: 6 })
@@ -643,7 +644,7 @@ test('every keystone, alone and together, plays deterministically and keeps the 
     const node = visit(run, 'elite')
     node.foes = encounter(s.seed, 2 + (i % 3), node)
     const caps = fielded(souls(s.party))
-    // The chanter raises Skeletons (Marrowcaller II).
+    // The chanter fights with a body more (Marrowcaller II).
     Object.assign(caps.find((u) => u.id === 'bone_chanter'), { tracks: [0, 2] })
     apply(run, legalActions(run).find((a) => a.type === 'line' && a.uid === caps.at(-1).uid && a.when?.at === 'time'))
     for (const u of caps) Object.assign(u, { lvl: 9, maxHp: baseStats(u.id, 9).hp, hp: Math.max(1, Math.round(baseStats(u.id, 9).hp * (i % 2 ? 0.25 : 0.6))) })

@@ -6,14 +6,14 @@ import { unitDef, statusDef, abilityDef, keystoneDef, relicDef, TRIGGERS } from 
 import { createRng, hashString } from './rng.js'
 import {
   alive, livingOn, statsOf, activeSynergies, expand, enemySide, isAllyShape, deployTile, distance, steps, NEIGHBOURS, rangeOf, TILES,
-  tileX, tileY, tileAt, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, ROWS, CENTRE_OUT, LANES, DEPTH, summonsOf,
-  summonTile, ringOf, strideOf, behaviourOf, bannerOf
+  tileX, tileY, tileAt, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, ROWS, CENTRE_OUT, LANES, DEPTH, bodiesOf,
+  livingBodies, ringOf, strideOf, behaviourOf, bannerOf
 } from './unit.js'
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
 
-// party/foes are run units { uid, id, lvl, tracks, hp, maxHp, slot }; the battle works on copies, and
-// only units on the field (slot ≥ 0) with HP left take part. Each starts on its slot's board tile (the
+// party/foes are run pieces { uid, id, lvl, tracks, count, hp, maxHp, slot }; the battle works on copies, and
+// only pieces on the field (slot ≥ 0) with HP left take part. Each starts on its slot's board tile (the
 // party's in its camp, past `walls`, a list of board tiles). A battle still going at `ceiling` ticks ends
 // undecided (the autoplayer rehearses on a shorter budget than the real fight's); the ticks count from the
 // last foe to enter (see checkEnd).
@@ -21,7 +21,7 @@ import {
 // The Monarch (a party unit whose def is `monarch`) stands in the party's camp and never steps: the roads run
 // to it (fieldOf). Its domain reaches `domain` tiles from it; `will` is its Will (Arise raises corpses of tier up
 // to raiseTier + will, raises × (1 + will) a battle, and its gauge fills willHaste × will faster). Units created
-// mid-battle (shadows, summons) take uids from `nextUid` on (by default, past every uid here, the reserve's
+// mid-battle (shadows) take uids from `nextUid` on (by default, past every uid here, the reserve's
 // included); battle.nextUid is the first one still free when the battle ends. A battle with no Monarch (a test,
 // a sample) has no domain, its roads run to the camp's rear middle tile, and it ends on a wipe.
 //
@@ -33,10 +33,12 @@ import {
 // follower's own line is set aside. A shadow of yours that rises on a tile of a Banner's line falls in the same
 // way, from where it rose (see raise).
 //
-// Summons: a party soul whose track tiers raise summons (unit.js summonsOf) has them appear on the open tiles
-// nearest it as the battle begins, battle units `summoned`, with `summoner` its uid, that hold the tile they
-// appear on and are gone when the battle ends. They take no place on the board (TUNING.army.board), pay
-// nothing, and never rise as anyone's shadow. The `summons` switch (ablate) raises none.
+// Stacks (DESIGN §2.2): a unit is a piece, `count` bodies of one kind on one tile, its HP one pool of count ×
+// `body` (one body's HP, fitted as it takes its place: see fit). Its living bodies are ⌈hp ÷ body⌉ (unit.js
+// livingBodies): they fall one at a time, the pool's blows and heals scale with them, and a heal never lifts a
+// fallen body. Every hit lands on the pool once, a Shape's too: the piece is one target on one tile. A soul whose
+// tiers add bodies (unit.js bodiesOf) fights with them in its pool, whole, for the battle alone; the `bodies`
+// switch (ablate) adds none.
 //
 // The foes: `reserve` lists the foes still to come, in the order they enter, one a tick, each at the top edge in
 // its `lane` when its `when` fires. A foe's `wave` is the wave it comes in: 0 (or none) for the foes on the board
@@ -50,7 +52,7 @@ import {
 //
 // `ablate` (a measuring switch, never a player's: the autoplayer's ablation reports, autoplay.js ABLATIONS) lists
 // rules taken away from the party's side: 'arise' (the Monarch's Arise never casts), 'synergies' (the party
-// holds no synergy, at any step, its 8-step rules too) and 'summons' (no soul raises its summons). Empty in
+// holds no synergy, at any step, its 8-step rules too) and 'bodies' (no tier adds a body). Empty in
 // every real run.
 //
 // `quiet` (a rehearsal's, autoplay.js): the battle keeps no events (battle.events stays empty). It plays out
@@ -63,7 +65,10 @@ export function createBattle ({
   domain = TUNING.monarch.domain, will = 0, nextUid = null, reserve = [],
   keystones = [], relics = [], foeRules = true, ablate = [], quiet = false, settle = null
 }) {
-  const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot) }, 0)
+  // A living soul's piece takes the bodies its tiers add, whole (not the Monarch's; none with the `bodies` switch).
+  const added = (u) => (u.hp > 0 && !unitDef(u.id).monarch && !ablate.includes('bodies') ? bodiesOf(u) : 0)
+  const grown = (u, k) => (k ? { count: u.count + k, hp: u.hp + k * u.maxHp / u.count, maxHp: u.maxHp + k * u.maxHp / u.count } : {})
+  const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot), ...(side === 'party' && grown(u, added(u))) }, 0)
   const units = [...party.map((u) => stamp(u, 'party')), ...foes.map((u) => stamp(u, 'foe'))]
     .filter((u) => u.hp > 0 && u.slot >= 0)
     .sort((a, b) => (a.side < b.side ? -1 : a.side > b.side ? 1 : a.slot - b.slot))
@@ -111,8 +116,7 @@ export function createBattle ({
   }
   for (const u of units) occupy(battle, u)
   for (const u of units) fit(battle, u)
-  // The souls' summons appear beside them, announced with everyone in the start event; then the Banners' wings form.
-  for (const u of units) summon(battle, u)
+  // The Banners' wings form.
   for (const lead of battle.units) {
     if (!lead.banner || lead.line === null || lead.leader !== null) continue
     for (const u of battle.units) if (u.side === 'party' && u !== lead && u !== battle.monarch && !u.banner && u.leader === null && distance(u.tile, lead.tile) === 1) follow(u, lead)
@@ -138,28 +142,9 @@ export function createBattle ({
   return battle
 }
 
-// What marks a unit in the events that announce it: a foe's rank-and-file and whose cohort, a summon and whose
-// (`summoned`, `summoner`), a Banner's follower and whose (`leader`), and a foe's wave (k ≥ 1: it came after the
-// first formation).
-const marks = (u) => ({
-  ...(u.rank && { rank: true, cohortOf: u.cohortOf }), ...(u.summoned && { summoned: true, summoner: u.summoner }),
-  ...(u.leader != null && { leader: u.leader }), ...(u.wave && { wave: u.wave })
-})
-
-// A soul's summons (summonsOf) appear one by one on the open tile nearest it, beside it first, then behind
-// (unit.js summonTile): each a unit of its own, `summoned`, with `summoner` its uid, at its level, with no line:
-// it holds the tile it appears on. Only a living party soul raises them (not the Monarch, a shadow or a summon),
-// none with the `summons` switch, and none once the board has no open tile.
-function summon (battle, u) {
-  if (u.side !== 'party' || u === battle.monarch || u.shadow || u.summoned || !alive(u) || battle.ablate.has('summons')) return
-  for (const { id, count, lvl } of summonsOf(u)) {
-    for (let k = 0; k < count; k++) {
-      const tile = summonTile(u.tile, (t) => battle.at[t] === null && !battle.walls.has(t))
-      if (tile < 0) return
-      enterBattle(battle, { ...makeUnit(id, { uid: battle.nextUid++, lvl }), side: 'party', tile, summoned: true, summoner: u.uid })
-    }
-  }
-}
+// What marks a unit in the events that announce it: its count (its living bodies are ⌈hp ÷ (maxHp ÷ count)⌉), a
+// Banner's follower and whose (`leader`), and a foe's wave (k ≥ 1: it came after the first formation).
+const marks = (u) => ({ count: u.count ?? 1, ...(u.leader != null && { leader: u.leader }), ...(u.wave && { wave: u.wave }) })
 
 // The per-battle fields a unit fights with: an empty gauge, a step due at once (`nextStep`), no statuses, the
 // next tile of its line to walk (`leg`), the tile it lunged from (`home`, null while it has not), and the Banner
@@ -168,10 +153,10 @@ function summon (battle, u) {
 // the battle sets later, is there as undefined, which reads as its absence does), so all of them share one
 // shape and the tick loop's reads of them stay fast. A field outside the list is copied on after them.
 const UNIT_FIELDS = new Set([
-  'uid', 'id', 'lvl', 'tracks', 'hp', 'maxHp', 'slot', 'side', 'tile', 'line', 'cohortOf', 'rank',
-  'summoned', 'summoner', 'when', 'wave', 'lane', 'shadow', 'corpse', 'arisen', 'raised', 'foiled', 'rose', 'stood',
+  'uid', 'id', 'lvl', 'tracks', 'count', 'hp', 'maxHp', 'slot', 'side', 'tile', 'line',
+  'when', 'wave', 'lane', 'shadow', 'corpse', 'arisen', 'raised', 'foiled', 'rose', 'stood',
   'gauge', 'nextStep', 'statuses', 'phase', 'leg', 'home', 'leader', 'offset', 'ord', 'kit', 'aura', 'cheapest', 'costliest', 'ring', 'every',
-  'behaviour', 'lunges', 'banner'
+  'behaviour', 'lunges', 'banner', 'body'
 ])
 const fresh = (u, t) => {
   const out = {
@@ -179,16 +164,13 @@ const fresh = (u, t) => {
     id: u.id,
     lvl: u.lvl,
     tracks: u.tracks,
+    count: u.count ?? 1,
     hp: u.hp,
     maxHp: u.maxHp,
     slot: u.slot,
     side: u.side,
     tile: u.tile,
     line: u.line ?? null,
-    cohortOf: u.cohortOf,
-    rank: u.rank,
-    summoned: u.summoned,
-    summoner: u.summoner,
     when: u.when,
     wave: u.wave,
     lane: u.lane,
@@ -217,7 +199,9 @@ const fresh = (u, t) => {
     every: undefined,
     behaviour: undefined,
     lunges: undefined,
-    banner: undefined
+    banner: undefined,
+    // set as it is fitted (fit)
+    body: undefined
   }
   for (const k in u) if (!UNIT_FIELDS.has(k)) out[k] = u[k]
   return out
@@ -254,18 +238,23 @@ function occupy (battle, u) {
   if (phasesOf(u.id)) battle.phased.push(u)
 }
 
-// Max HP includes the unit's HP mods (synergies, relics, track tiers); current HP keeps its fraction.
-// Read once, as it takes its place: HP mods that come and go mid-battle do not stretch the bar. The
-// Monarch's max HP is its points' and nothing else's (see modsFor): the one the camp shows.
+// One body's HP includes the unit's HP mods (synergies, relics, track tiers), and a shadow's bodies rise at
+// TUNING.monarch.raiseHp of it; max HP is count × body, and current HP keeps its fraction. Read once, as it takes
+// its place: HP mods that come and go mid-battle do not stretch the bar. The Monarch's max HP is its points' and
+// nothing else's (see modsFor): the one the camp shows.
 function fit (battle, u) {
-  if (u === battle.monarch) return
-  const max = Math.max(1, Math.round(stats(battle, u).hp))
+  if (u === battle.monarch) {
+    u.body = u.maxHp
+    return
+  }
+  u.body = Math.max(1, Math.round(stats(battle, u).hp * (u.shadow ? TUNING.monarch.raiseHp : 1)))
+  const max = u.count * u.body
   if (max === u.maxHp) return
   u.hp = Math.max(1, Math.round(u.hp * max / u.maxHp))
   u.maxHp = max
 }
 
-// A unit joins a battle under way (a shadow, a summon, a foe from the reserve): `u` is a living run unit with its
+// A unit joins a battle under way (a shadow, a foe from the reserve): `u` is a living run unit with its
 // `side` and an open `tile` on the board; it gets the per-battle fields and its max HP fitted to its mods, as a
 // unit there from the start does, acts after everyone already there (this very tick, if it enters before the
 // turns are done), and may step at once. The caller emits the event that announces it. The roster changes, so
@@ -468,13 +457,13 @@ function checkEnd (battle) {
 
 // ── signals and the reserve ──────────────────────────────────────────────────────────────────────
 
-// The party's units on the board: everyone living but the Monarch (shadows and summons too).
-const bodies = (battle) => battle.units.reduce((n, u) => n + (u.side === 'party' && alive(u) && u !== battle.monarch ? 1 : 0), 0)
-// Whether a shadow may rise on `side`: for the party, only while it has fewer than TUNING.army.board bodies on
+// The party's pieces on the board: everyone living but the Monarch (shadows too), each once whatever its count.
+const pieces = (battle) => battle.units.reduce((n, u) => n + (u.side === 'party' && alive(u) && u !== battle.monarch ? 1 : 0), 0)
+// Whether a shadow may rise on `side`: for the party, only while it has fewer than TUNING.army.board pieces on
 // the board. Unbounded, the Legion's shadows (one for every foe slain) would pack the board in a long fight of
 // waves until a later wave found no tile to enter on, and a battle already won would stall to the ceiling. A foe
 // side needs no bound: its shadows only ever rise from your dead.
-const roomFor = (battle, side) => side !== 'party' || bodies(battle) < TUNING.army.board
+const roomFor = (battle, side) => side !== 'party' || pieces(battle) < TUNING.army.board
 
 // Whether a signal has come (DESIGN §2.5): a line's `when`, or a foe's still to come. None, or 'once': at once;
 // 'time': once the clock reaches `t`; 'wave': once wave `wave` has begun to enter; 'blow', 'struck', 'falls': once
@@ -693,7 +682,8 @@ function synergiesOf (battle, side) {
 
 // The rules a side holds now (the `rule` of each active synergy: the 8 steps). Every rule works for either
 // side, but the foes hold theirs only where `foeRules` lets them (the deep: see TUNING.spawn.endless.rules;
-// above it, with cohorts making eight of a kind common from floor 3, their ladders stop at the stat steps). A rule that changes what happens announces it ({ type: 'rule', rule, side, … }); those that only
+// above it their ladders stop at the stat steps). A rule that changes what happens announces it ({ type: 'rule',
+// rule, side, … }); those that only
 // reshape an attack (Dragonfire, Sanctuary) or its roll (Deadeye) show in the attack itself.
 export function rulesOf (battle, side) {
   synergiesOf(battle, side)
@@ -812,7 +802,8 @@ function runEffect (battle, effect, actor, targets, ability = null) {
         continue
       }
       const isCrit = deadeye || battle.rng.chance(critChance(a.crt))
-      const mul = a.damage.dealt * d.damage.taken * escalation(battle)
+      // A stack strikes with every living body (DESIGN §2.2).
+      const mul = a.damage.dealt * d.damage.taken * escalation(battle) * livingBodies(actor)
       let damage = computeDamage({
         power: effect.power,
         atk: a.atk,
@@ -821,12 +812,13 @@ function runEffect (battle, effect, actor, targets, ability = null) {
         variance: rollVariance(battle.rng),
         mul
       })
-      // Deathblow (Trickster 8): a crit from a side holding it slays outright, a boss and the Monarch excepted
-      // (no rule ends the run on one roll). Last Stand outranks it: the blow is still raised to a felling one,
-      // but a target with its stand unspent takes it at 1 HP (applyDamage), so Deathblow is announced only when
-      // it truly slays.
-      if (isCrit && foe && damage < target.hp && !unitDef(target.id).boss && target !== battle.monarch && rulesOf(battle, actor.side).has('deathblow')) {
-        damage = target.hp
+      // Deathblow (Trickster 8): a crit from a side holding it slays a body outright (a stack's first: the one
+      // wounded, if one is), a boss and the Monarch excepted (no rule ends the run on one roll). Last Stand outranks
+      // it: the blow is still raised to a felling one, but a target with its stand unspent takes it at 1 HP
+      // (applyDamage), so Deathblow is announced only when it truly slays.
+      const front = target.hp - (livingBodies(target) - 1) * target.body
+      if (isCrit && foe && damage < front && !unitDef(target.id).boss && target !== battle.monarch && rulesOf(battle, actor.side).has('deathblow')) {
+        damage = front
         if (!stands(battle, target)) emit(battle, { type: 'rule', rule: 'deathblow', side: actor.side, actor: actor.uid, target: target.uid })
       }
       applyDamage(battle, target, damage, { actor, isCrit, ability: ability?.id })
@@ -850,8 +842,9 @@ function runEffect (battle, effect, actor, targets, ability = null) {
   }
 }
 
-// A heal mends `power` scaled by the healer's ATK and healing given, or with `pct` that share of the
-// target's max HP (a relic's). With Court of Bone nothing heals the Monarch.
+// A heal mends `power` scaled by the healer's ATK and healing given and its living bodies, or with `pct` that
+// share of the target's max HP (a relic's). It mends the living bodies only: a body fallen stays down. With Court
+// of Bone nothing heals the Monarch.
 function heal (battle, actor, target, power, pct = 0) {
   if (target === battle.monarch && battle.ks.unhealable) return
   let amount
@@ -859,10 +852,10 @@ function heal (battle, actor, target, power, pct = 0) {
     amount = Math.max(1, Math.round(target.maxHp * pct))
   } else {
     const a = stats(battle, actor)
-    amount = Math.max(1, Math.round(power * a.atk / TUNING.damage.atkDivisor * a.heal.given))
+    amount = Math.max(1, Math.round(power * a.atk / TUNING.damage.atkDivisor * a.heal.given * livingBodies(actor)))
   }
   const before = target.hp
-  target.hp = Math.min(target.maxHp, target.hp + amount)
+  target.hp = Math.min(livingBodies(target) * target.body, target.hp + amount)
   emit(battle, { type: 'heal', actor: actor.uid, target: target.uid, heal: target.hp - before, hp: target.hp })
 }
 
@@ -931,11 +924,11 @@ function fall (battle, target, actor, ability) {
   else if (actor.side === 'party') trigger(battle, 'kill', actor, target.tile, target)
   // The Legion (Undead 8), last (the relics fire over the corpse before it rises): a unit slain rises at
   // once as a shadow of the side holding it against its own, past Arise's limit and its tier, never a boss,
-  // a shadow, a summon or a Monarch, while that side has room for it (roomFor: the party's board cap). Its raiser is
+  // a shadow or a Monarch, while that side has room for it (roomFor: the party's board cap). Its raiser is
   // the killer when it stands on that side, else no one (a status ran it down). It is not Arise's: Blood
   // Tithe takes nothing for it and Hollow Court reaps none. A crumbled court never rises (crumble is no blow).
   const side = enemySide(target.side)
-  if (alive(target) || target.raised || target.shadow || target.summoned || unitDef(target.id).boss || !rulesOf(battle, side).has('legion') || !roomFor(battle, side)) return
+  if (alive(target) || target.raised || target.shadow || unitDef(target.id).boss || !rulesOf(battle, side).has('legion') || !roomFor(battle, side)) return
   emit(battle, { type: 'rule', rule: 'legion', side, actor: actor.side === side ? actor.uid : null, target: target.uid })
   raise(battle, actor.side === side ? actor : null, target, { side, rule: 'legion' })
 }
@@ -955,17 +948,17 @@ function crumble (battle, boss) {
   battle.roster++
 }
 
-// Arise: the corpse rises on the actor's side as a shadow of itself, at its level with its own kit and
-// TUNING.monarch.raiseHp of its HP, where it fell (DESIGN §2.7). A shadow counts toward synergies and leaves when
+// Arise: the corpse rises on the actor's side as a shadow of itself, at its level with its own kit and its count,
+// each body at TUNING.monarch.raiseHp of its HP (see fit), where it fell (DESIGN §2.7). A shadow counts toward synergies and leaves when
 // the battle ends; its corpse cannot rise again. One of yours has no line: it holds the tile it rose on, unless
 // that tile lies on a Banner's line, when it falls in with the Banner's wing (follow). One on the foes' side is a
 // foe like any other, and walks the roads. The shadow keeps the uid of the corpse it rose from
 // (`corpse`). The Legion raises on `side` with no actor (null) when no one of that side slew it, its event marked
 // `rule: 'legion'` (`rule`). Arise's cap is counted by the caller (runEffect). Returns the shadow.
 function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) {
-  const u = makeUnit(corpse.id, { uid: battle.nextUid++, lvl: corpse.lvl })
+  const u = makeUnit(corpse.id, { uid: battle.nextUid++, lvl: corpse.lvl, count: corpse.count })
   corpse.raised = true
-  const shadow = enterBattle(battle, { ...u, side, shadow: true, corpse: corpse.uid, hp: Math.ceil(u.maxHp * TUNING.monarch.raiseHp), tile: corpse.tile })
+  const shadow = enterBattle(battle, { ...u, side, shadow: true, corpse: corpse.uid, tile: corpse.tile })
   const lead = side === 'party' ? battle.units.find((x) => x.banner && alive(x) && x.leader === null && x.line?.tiles.includes(shadow.tile)) : null
   if (lead) follow(shadow, lead)
   emit(battle, {
@@ -983,12 +976,12 @@ function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) 
 }
 
 // The Sovereign's Grave Tide: up to `count` of the field's dead rise on the actor's side as shadows, as Arise
-// raises them: the fallen of either side, never a shadow, a summon, a boss, the Monarch or one risen already, lying
+// raises them: the fallen of either side, never a shadow, a boss, the Monarch or one risen already, lying
 // where no one living stands; the strongest first, then the nearest, then the first to have stood. Arise's
 // cap does not count them.
 function raiseDead (battle, actor, count) {
   const d = (c) => distance(actor.tile, c.tile)
-  const dead = battle.units.filter((c) => !alive(c) && !c.raised && !c.shadow && !c.summoned && !unitDef(c.id).boss && !unitDef(c.id).monarch)
+  const dead = battle.units.filter((c) => !alive(c) && !c.raised && !c.shadow && !unitDef(c.id).boss && !unitDef(c.id).monarch)
     .sort((a, b) => unitDef(b.id).tier - unitDef(a.id).tier || d(a) - d(b) || a.uid - b.uid)
   for (const c of dead) {
     if (count <= 0) break
@@ -1298,17 +1291,16 @@ export function arrowOf (battle, u) {
 }
 
 // Timing marks (DESIGN §3): where each piece of yours stands at each tick of `at` (5, 10 and 15 s by default),
-// walking its line against an empty field with your pieces (summons too) the only blockers, as a battle with no
+// walking its line against an empty field with your pieces the only blockers, as a battle with no
 // foe in reach walks it. `party` is the fielded run units (the Monarch too), `lines` their lines by uid (a unit's
 // own `line` if it carries one), `walls` the camp's tiles. A Time signal fires at its tick; no other signal ever
 // does, so a line waiting on one holds. → { [uid]: [tile at each tick of `at`] }, for every soul and the Monarch.
 export function timingMarks ({ party, lines = {}, walls = [], at = [100, 200, 300] }) {
   const b = createBattle({ party: party.map((u) => (lines[u.uid] ? { ...u, line: lines[u.uid] } : u)), foes: [], walls, seed: 'marks', quiet: true })
   const out = {}
-  const pieces = b.units.filter((u) => !u.summoned)
-  for (const u of pieces) out[u.uid] = []
+  for (const u of b.units) out[u.uid] = []
   for (const end = Math.max(...at); b.t <= end; b.t++) {
-    if (at.includes(b.t)) for (const u of pieces) out[u.uid][at.indexOf(b.t)] = u.tile
+    if (at.includes(b.t)) for (const u of b.units) out[u.uid][at.indexOf(b.t)] = u.tile
     for (const u of b.units) {
       if (b.t < u.nextStep) continue
       const go = stepOf(b, u)
@@ -1363,8 +1355,8 @@ function triggered (battle, effect, subject, place, other) {
   }
 }
 
-// A soul: a party unit that is neither the Monarch, a summon nor a shadow.
-const isSoul = (battle, u) => u.side === 'party' && u !== battle.monarch && !u.summoned && !u.shadow
+// A soul: a party unit that is neither the Monarch nor a shadow.
+const isSoul = (battle, u) => u.side === 'party' && u !== battle.monarch && !u.shadow
 
 // Blood Tithe: what a shadow costs the Monarch.
 const titheOf = (battle, m) => Math.ceil(m.maxHp * battle.ks.tithe)

@@ -98,12 +98,13 @@ test('every kin and role has its steps up to 8: the steps below are numbers, the
   }
 })
 
-test('summons and shadows count toward the steps, the Monarch never; the steps stack; a battle announces its rules', () => {
+test('shadows count toward the steps, a stack once, the Monarch never; the steps stack; a battle announces its rules', () => {
   const captain = makeUnit('grave_ghoul', { uid: 1, slot: 0 })
-  const members = Array.from({ length: 7 }, (_, k) => ({ ...makeUnit(k % 2 ? 'bone_chanter' : 'skeleton', { uid: 10 + k, slot: 1 + k }), summoned: true, summoner: 1 }))
+  const members = Array.from({ length: 7 }, (_, k) => makeUnit(k % 2 ? 'bone_chanter' : 'grave_ghoul', { uid: 10 + k, slot: 1 + k }))
   const ids = (units) => activeSynergies(units).map((s) => s.id).filter((id) => id.startsWith('undead'))
   assert.deepEqual(ids([captain, ...members]), ['undead_2', 'undead_4', 'undead_6', 'undead_8'])
   assert.deepEqual(ids([captain, ...members.slice(1), makeUnit('monarch', { uid: 0, lvl: 0 })]), ['undead_2', 'undead_4', 'undead_6'])
+  assert.deepEqual(ids([makeUnit('grave_ghoul', { uid: 1, count: 8 })]), [], 'eight bodies in one piece are one')
   const b = scene([...squad(['grave_ghoul', 'bone_chanter'], eight(2)), on('clockwork_page', 100, 'foe', 3, 9)])
   assert.ok(b.events[0].synergies.some((s) => s.side === 'party' && s.id === 'undead_8'))
   assert.deepEqual([...rulesOf(b, 'party')], ['legion'])
@@ -569,8 +570,8 @@ test('Last Stand under Undying comes before the rise', () => {
   assert.deepEqual(order.slice(0, 3), ['last_stand', 'death', 'rise'])
 })
 
-// The foes hold their rules only in the deep: above it their cohorts make eight of a kind common, and their
-// ladders stop at the stat steps (TUNING.spawn.endless.rules).
+// The foes hold their rules only in the deep: above it their ladders stop at the stat steps
+// (TUNING.spawn.endless.rules).
 test('the foes hold their 8-step rules only in the deep; their stat steps hold everywhere', () => {
   const drakes = (opts) => scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(8)), on('tomb_knight', 1, 'party', 3, 4)], opts)
   const shallow = drakes({ foeRules: false })
@@ -633,13 +634,12 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
         const tier = Math.min(sp.tierMax, 1 + Math.floor((F - 1) * sp.tierPerFloor)) + (elite ? sp.eliteTier : 0) + sp.tierOverCap
         for (const foes of forms) {
           rooms++
-          const led = foes.filter((f) => f.cohortOf == null)
-          assert.equal(led.length, n, `${floor} ${node.id}: foes a wave`)
+          assert.equal(foes.length, n, `${floor} ${node.id}: foes a wave`)
           assert.ok(foes.length <= SLOTS && new Set(foes.map((f) => f.slot)).size === foes.length)
-          // Every captain leads the deep's bigger cohort, unless the formation ran out of slots.
-          const captains = new Set(foes.filter((f) => f.cohortOf != null).map((f) => f.cohortOf))
-          if (n < SLOTS) assert.equal(captains.size, elite ? sp.captains.elite : sp.captains.fight, `${floor} ${node.id}: captains`)
-          if (foes.length < SLOTS) for (const c of captains) assert.equal(foes.filter((f) => f.cohortOf === c).length, cohort, `${floor} ${node.id}: cohort`)
+          // Every captain is one piece with the deep's bigger cohort in it.
+          const captains = foes.filter((f) => f.count !== undefined)
+          assert.equal(captains.length, elite ? sp.captains.elite : sp.captains.fight, `${floor} ${node.id}: captains`)
+          assert.ok(captains.every((c) => c.count === 1 + cohort), `${floor} ${node.id}: cohort`)
           assert.ok(foes.every((f) => UNITS[f.id].spawn.minFloor <= F && UNITS[f.id].tier <= tier), `${floor} ${node.id} ${foes.map((f) => f.id)}`)
           assert.ok(foes.every((f) => f.lvl === lvl), `${floor} ${node.id} ${foes.map((f) => f.lvl)} ${lvl}`)
         }

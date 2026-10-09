@@ -7,7 +7,7 @@ import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import {
   makeUnit, autoPlace, distance, slotAt, campGrid, wallTiles, steps, costliestOf, abilitiesOf, deployTile, tileAt, tileX, tileY, baseStats, DEPTH,
-  foesNextTo as listFoesNextTo, auraGivers as listAuraGivers, seatNear, TILES, summonTile
+  foesNextTo as listFoesNextTo, auraGivers as listAuraGivers, seatNear, TILES, livingBodies
 } from '../src/sim/unit.js'
 import { createRng } from '../src/sim/rng.js'
 import { UNIT_LIST, unitDef, abilityDef, CAMP_LIST } from '../src/content.js'
@@ -46,21 +46,24 @@ function drawLine (rng, tile, walls, n = 6) {
 
 // In one of the floor's camps, picked by seed, walls and all, against that encounter. `tune` may edit
 // the party before it fights; with `monarch`, the Monarch stands among them (on the rear row's seat) with
-// `will` Will; with `army`, the first soul has that many summons (Bone Chanters and Ghouls) on the field
-// beside it. With `lines`, every soul walks a line drawn on the seed, on a signal drawn on it.
+// `will` Will; with `army`, the first soul is a stack of that many bodies more, and its second foe one too. With
+// `lines`, every soul walks a line drawn on the seed, on a signal drawn on it.
 const fresh = (seed, floor = 1, { ids = START, tune = () => {}, monarch = false, will = 0, army = 0, lines = false } = {}) => {
   const { foes, boss } = encounter(seed, floor)
   const camp = createRng(seed).stream('camp').pick(CAMP_LIST.filter((c) => c.floor === floor)).id
   const party = team(ids, { lvl: 1 + floor, camp })
   if (monarch) party.push(makeUnit('monarch', { uid: 0, lvl: 0, slot: seatNear(camp) }))
   const walls = wallTiles(camp)
-  const summon = (id, uid) => ({ ...makeUnit(id, { uid, lvl: 1 + floor }), summoned: true, summoner: party[0].uid })
-  const members = Array.from({ length: army }, (_, k) => summon(k % 2 ? 'grave_ghoul' : 'bone_chanter', 60 + k))
-  autoPlace([...party, ...members], { grid: campGrid(camp) })
+  const stacked = (u) => Object.assign(u, makeUnit(u.id, { uid: u.uid, lvl: u.lvl, slot: u.slot, count: 1 + army }))
+  if (army) {
+    stacked(party[0])
+    if (foes[1]) stacked(foes[1])
+  }
+  autoPlace(party, { grid: campGrid(camp) })
   tune(party)
   const rng = createRng(seed).stream('lines')
   if (lines) for (const u of party) if (u.id !== 'monarch') u.line = drawLine(rng, deployTile('party', u.slot), new Set(walls))
-  return createBattle({ party: [...party, ...members], foes, seed, floor, boss, walls, will })
+  return createBattle({ party, foes, seed, floor, boss, walls, will })
 }
 
 // With the board holding only `n` bodies.
@@ -114,7 +117,7 @@ const lane = (x, y, n, dy = 1) => Array.from({ length: n }, (_, k) => tileAt(x, 
 const lined = (u, tiles, when = { at: 'once' }) => ({ ...u, line: { tiles, when } })
 const moves = (events, uid) => events.filter((e) => e.type === 'move' && e.actor === uid)
 
-// Plain, and with lines: a Monarch, summons, and every soul on a line.
+// Plain, and with lines: a Monarch, a stack on each side, and every soul on a line.
 const LINED = { lines: true, army: 3, monarch: true }
 
 test('the same seed gives the same timeline; a different seed does not', () => {
@@ -161,6 +164,7 @@ test('300 seeded battles across floors end by the ceiling with sane HP', () => {
     assert.ok([null, 'party', 'foe'].includes(r.winner))
     for (const u of b.units) {
       assert.ok(Number.isInteger(u.hp) && u.hp >= 0 && u.hp <= u.maxHp, `seed ${i}: ${u.id} hp ${u.hp}`)
+      assert.equal(u.maxHp, u.count * u.body, `seed ${i}: ${u.id} a pool of count × body`)
     }
     for (const e of r.events) if (e.type === 'damage') assert.ok(Number.isInteger(e.damage) && e.damage >= 0)
   }
@@ -193,7 +197,7 @@ test('only fielded souls with HP fight', () => {
   assert.deepEqual(b.units.filter((u) => u.side === 'party').map((u) => u.uid).sort(), [1, 2])
 })
 
-test('every step is a legal step onto a free tile, one a step clock: a foe on its road, one of yours on its line; the Monarch, summons and shadows hold', () => boardOf(5, () => {
+test('every step is a legal step onto a free tile, one a step clock: a foe on its road, one of yours on its line; the Monarch and shadows hold', () => boardOf(5, () => {
   let roads = 0
   let marches = 0
   for (let i = 0; i < 60; i++) {
@@ -224,7 +228,7 @@ test('every step is a legal step onto a free tile, one a step clock: a foe on it
           if (u.behaviour === 'walk') assert.equal(e.to, walk.arrow[e.from], `${where}: off its road`)
           roads++
         } else {
-          assert.ok(u !== b.monarch && !u.summoned && !(u.shadow && u.ring === 1), `${where}: one with no line stepped`)
+          assert.ok(u !== b.monarch && !(u.shadow && u.ring === 1), `${where}: one with no line stepped`)
           const k = leg.get(u.uid) ?? 0
           assert.equal(e.to, u.line.tiles[k], `${where}: off its line`)
           leg.set(u.uid, k + 1)
@@ -530,7 +534,8 @@ test('a unit can enter a battle under way: on the index, acting, and versioning 
   for (let k = 0; k < 40; k++) stepBattle(b)
   const roster = b.roster
   const ours = b.ours
-  const tile = summonTile(b.units.find((x) => x.side === 'foe' && x.hp > 0).tile, (t) => b.at[t] === null && !b.walls.has(t))
+  const foe = b.units.find((x) => x.side === 'foe' && x.hp > 0)
+  const tile = [...Array(TILES).keys()].filter((t) => b.at[t] === null && !b.walls.has(t)).sort((x, y) => distance(x, foe.tile) - distance(y, foe.tile) || x - y)[0]
   const u = enterBattle(b, { ...makeUnit('frost_sprite', { uid: 99, lvl: 3 }), side: 'party', tile })
   assert.equal(b.at[tile], u)
   assert.deepEqual([b.roster, b.ours], [roster + 1, ours + 1])
@@ -613,7 +618,7 @@ test('the Monarch stands where it is put, never strikes, and banks for Arise whi
   assert.equal(scene([on('tomb_knight', 1, 'party', 3, 5), on('frost_sprite', 10, 'foe', 3, 10)]).root, tileAt(3, 0))
 })
 
-test('Arise raises the strongest corpse in the domain, then the nearest, as a shadow at half HP where it fell', () => tuned(FIRST_ARISE, () => {
+test('Arise raises the strongest corpse in the domain, then the nearest, as a shadow of half a body\'s HP where it fell', () => tuned(FIRST_ARISE, () => {
   // The Monarch at (3, 2), domain 3. Corpses: a Bone Chanter (tier 2) 3 tiles off, two Ghouls (tier 1),
   // one 2 tiles off and one 3 off, a Tomb Knight (tier 2) 4 tiles off (outside), and a Wisp (tier 1) a
   // tile off, the nearest of all, but under a living knight. A living foe far away keeps the battle going.
@@ -643,10 +648,10 @@ test('Arise raises the strongest corpse in the domain, then the nearest, as a sh
   const { action, arise } = rise(b)
   assert.deepEqual([action.ability, action.targets], ['arise', [11]])
   const ghoul = b.units.find((u) => u.uid === 11)
-  const max = baseStats('grave_ghoul', 2).hp
+  const body = Math.round(baseStats('grave_ghoul', 2).hp / 2)
   assert.deepEqual(arise, {
     t: 0, type: 'arise', actor: 0, corpse: 11,
-    unit: { uid: nextUid, id: 'grave_ghoul', side: 'party', tile: ghoul.tile, lvl: 2, hp: Math.ceil(max / 2), maxHp: max, shadow: true }
+    unit: { uid: nextUid, id: 'grave_ghoul', side: 'party', tile: ghoul.tile, lvl: 2, hp: body, maxHp: body, shadow: true, count: 1 }
   })
   const shadow = b.units.find((u) => u.uid === nextUid)
   assert.ok(ghoul.raised && shadow.shadow && b.at[shadow.tile] === shadow && shadow.tile === ghoul.tile)
@@ -662,8 +667,8 @@ test('Arise raises the strongest corpse in the domain, then the nearest, as a sh
   assert.ok(!rise(w).action, 'two raises a battle at Will 1')
 }))
 
-test('Arise by the numbers: raises × (1 + Will) a battle, of tier raiseTier + Will, at raiseHp of max HP', () => {
-  const { raises, raiseTier, raiseHp } = TUNING.monarch
+test('Arise by the numbers: raises × (1 + Will) a battle, of tier raiseTier + Will, each body at raiseHp of its HP', () => {
+  const { raises, raiseTier } = TUNING.monarch
   // Corpses of every tier up to 5 at the Monarch's feet, more than any cap; a far golem keeps the battle going.
   const ids = ['grave_ghoul', 'bone_chanter', 'tomb_knight', 'iron_golem']
   for (const will of [0, 1]) {
@@ -679,12 +684,13 @@ test('Arise by the numbers: raises × (1 + Will) a battle, of tier raiseTier + W
     assert.equal(risen.length, Math.min(reach, raises * (1 + will)), `Will ${will}`)
     for (const e of risen) {
       assert.ok(unitDef(e.unit.id).tier <= raiseTier + will)
-      assert.equal(e.unit.hp, Math.ceil(e.unit.maxHp * raiseHp))
+      const body = b.byUid.get(e.unit.uid).body
+      assert.deepEqual([e.unit.count, e.unit.hp, e.unit.maxHp], [1, body, body])
     }
   }
 })
 
-test('a shadow holds its tile, and counts for synergies; so does a summon', () => tuned(FIRST_ARISE, () => {
+test('a shadow holds its tile, and counts for synergies', () => tuned(FIRST_ARISE, () => {
   // A Grave Ghoul corpse beside a party Grave Ghoul, inside the domain; a Ghoul foe walks in later from far off.
   const b = scene([
     on('monarch', 0, 'party', 3, 1), on('grave_ghoul', 1, 'party', 2, 3),
@@ -702,14 +708,6 @@ test('a shadow holds its tile, and counts for synergies; so does a summon', () =
   assert.ok(stats(b, ghoul).def > before.def, 'the shadow made a synergy')
   for (let k = 0; k < 300; k++) assert.deepEqual(moves(stepBattle(b), shadow.uid), [], 'it holds')
   assert.equal(shadow.tile, tileAt(3, 3))
-  // A Bone Chanter two tiers up its Marrowcaller track raises Skeletons beside it, and they hold there too.
-  const chanter = { ...on('bone_chanter', 1, 'party', 3, 3), tracks: [0, 2] }
-  const s = scene([on('monarch', 0, 'party', 0, 0), chanter, on('iron_golem', 11, 'foe', 6, 10, 1)])
-  const skeletons = s.units.filter((u) => u.summoned)
-  assert.ok(skeletons.length > 0 && skeletons.every((u) => u.summoner === 1 && u.line === null))
-  const at = skeletons.map((u) => u.tile)
-  for (let k = 0; k < 300; k++) stepBattle(s)
-  assert.deepEqual(skeletons.map((u) => u.tile), at)
 }))
 
 test('Arise breaks a tie by the lowest uid, and never raises a boss, a shadow, or its own side\'s dead', () => {
@@ -814,7 +812,7 @@ test('a foe still to come enters at the top edge in its lane on its time, and ke
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 9), on('grave_ghoul', 10, 'foe', 3, 10, 1)], {
     reserve: [{ ...makeUnit('grave_ghoul', { uid: 70, lvl: 1 }), side: 'foe', lane: 5, wave: 1, when: { at: 'time', t: 20 } }]
   })
-  assert.deepEqual(b.events[0].reserve, [{ uid: 70, id: 'grave_ghoul', lvl: 1, wave: 1, when: { at: 'time', t: 20 }, side: 'foe' }])
+  assert.deepEqual(b.events[0].reserve, [{ uid: 70, id: 'grave_ghoul', lvl: 1, count: 1, wave: 1, when: { at: 'time', t: 20 }, side: 'foe' }])
   slay(b, b.units.find((u) => u.uid === 10))
   const seen = []
   while (b.t < 25) seen.push(...stepBattle(b).filter((e) => e.type === 'enter' || e.type === 'wave'))
@@ -823,6 +821,109 @@ test('a foe still to come enters at the top edge in its lane on its time, and ke
   assert.equal(seen[1].unit.tile, tileAt(5, DEPTH - 1), 'at the top edge, in its lane')
   assert.deepEqual([b.foeIn, b.waveAt[1]], [20, 20])
 })
+
+// ── stacks (DESIGN §2.2) ─────────────────────────────────────────────────────────────────────────
+
+// A piece of `count` bodies on a tile, for battles built tile by tile.
+const stackOn = (id, uid, side, x, y, count, lvl = 3) => ({ ...makeUnit(id, { uid, lvl, count }), side, tile: tileAt(x, y) })
+const firstBlow = (b, uid) => {
+  while (!b.over && b.t < 2000) {
+    const hit = stepBattle(b).find((e) => e.type === 'damage' && e.actor === uid)
+    if (hit) return hit.damage
+  }
+  return null
+}
+
+test('a stack is one piece of count × body HP that strikes with every living body: three hit three times as hard as one, two of three twice', () => {
+  // A Frost Sprite piece at (3, 4) shoots a golem 3 tiles up, out of the golem's ring: the same rolls each time.
+  const sprite = (count, hp) => {
+    const u = stackOn('frost_sprite', 1, 'party', 3, 4, count)
+    return scene([hp ? { ...u, hp } : u, on('iron_golem', 50, 'foe', 3, 7, 9)])
+  }
+  const one = sprite(1)
+  const u = one.byUid.get(1)
+  const three = sprite(3)
+  assert.deepEqual([three.byUid.get(1).count, three.byUid.get(1).body, three.byUid.get(1).maxHp, three.byUid.get(1).hp], [3, u.body, 3 * u.body, 3 * u.body])
+  assert.equal(three.events[0].units.find((x) => x.uid === 1).count, 3, 'announced with its count')
+  const d1 = firstBlow(one, 1)
+  const d3 = firstBlow(three, 1)
+  const d2 = firstBlow(sprite(3, 2 * u.body), 1)
+  assert.ok(d1 > 0 && Math.abs(d3 - 3 * d1) <= 2 && Math.abs(d2 - 2 * d1) <= 2, JSON.stringify([d1, d2, d3]))
+})
+
+test('bodies fall one at a time, from the pool; a heal mends only the living, never lifting a fallen body', () => {
+  // A stack of three Ghouls at (3, 6) under a golem's blows, a Hive Warden behind it mending.
+  // A golem of twenty times its HP and three its ATK, so the stack falls before it does.
+  const foeMods = [{ path: 'hp', op: 'mul', v: 20 }, { path: 'atk', op: 'mul', v: 3 }]
+  const b = scene([stackOn('grave_ghoul', 1, 'party', 3, 6, 3), on('hive_warden', 2, 'party', 3, 4, 3), on('iron_golem', 50, 'foe', 3, 7, 6)], { foeMods })
+  const stack = b.byUid.get(1)
+  let living = livingBodies(stack)
+  let hp = stack.hp
+  const seen = new Set([living])
+  let heals = 0
+  while (!b.over && b.t < 3000 && stack.hp > 0) {
+    for (const e of stepBattle(b)) {
+      if (e.target !== 1) continue
+      if (e.type === 'damage') assert.equal(e.hp, Math.max(0, hp - e.damage), 'the blow lands on the pool')
+      if (e.type === 'heal') heals++
+      if (e.type === 'damage' || e.type === 'heal') hp = e.hp
+    }
+    assert.equal(stack.hp, hp)
+    assert.ok(livingBodies(stack) <= living && stack.hp <= livingBodies(stack) * stack.body, `t ${b.t}: ${stack.hp} hp, ${livingBodies(stack)} living, was ${living}`)
+    living = livingBodies(stack)
+    seen.add(living)
+  }
+  assert.ok(seen.has(2) && seen.has(1) && heals > 0, `living ${[...seen]}, ${heals} heals`)
+})
+
+test('a Shape hit lands on a stack once: one target, one blow on its pool', () => {
+  // An Ember Drake bursts on the thickest spot: a stack of three Ghouls beside a lone one.
+  const b = scene([stackOn('grave_ghoul', 1, 'party', 3, 5, 3), on('grave_ghoul', 2, 'party', 2, 5), on('ember_drake', 50, 'foe', 3, 8, 5)])
+  let bursts = 0
+  while (!b.over && b.t < 2000 && bursts < 3) {
+    const events = stepBattle(b)
+    const burst = events.find((e) => e.type === 'action' && e.ability === 'ember_burst')
+    if (!burst) continue
+    bursts++
+    assert.equal(burst.targets.filter((uid) => uid === 1).length, 1, 'the stack is one target')
+    assert.ok(events.filter((e) => e.type === 'damage' && e.target === 1).length <= 1, 'one blow on its pool')
+  }
+  assert.ok(bursts > 0)
+})
+
+test('a synergy counts a stack once, whatever its count', () => {
+  const ghouls = (count) => scene([stackOn('grave_ghoul', 1, 'party', 3, 5, count), on('iron_golem', 50, 'foe', 6, 10, 1)])
+  const party = (b) => b.events[0].synergies.filter((x) => x.side === 'party').map((x) => x.id)
+  assert.deepEqual(party(ghouls(4)), [])
+  const two = scene([stackOn('grave_ghoul', 1, 'party', 3, 5, 4), on('tomb_knight', 2, 'party', 2, 5), on('iron_golem', 50, 'foe', 6, 10, 1)])
+  assert.ok(party(two).includes('undead_2') && !party(two).includes('undead_4'))
+})
+
+test('a soul\'s tiers add bodies for the battle, whole; none with the bodies switch, none to a fallen piece', () => {
+  const chanter = (tracks, hp, ablate = []) => {
+    const u = { ...makeUnit('bone_chanter', { uid: 1, lvl: 4, count: 2, slot: slotAt(3, 3), tracks }), ...(hp !== undefined && { hp }) }
+    return createBattle({ party: [u], foes: [makeUnit('iron_golem', { uid: 50, lvl: 1, slot: slotAt(0, 3) })], seed: 'bodies', ablate }).byUid.get(1)
+  }
+  const plain = chanter([0, 0])
+  const b = plain.body
+  const marrow = chanter([0, 2])
+  assert.deepEqual([plain.count, marrow.count, marrow.hp, marrow.maxHp, marrow.body], [2, 3, 3 * b, 3 * b, b])
+  const hurt = chanter([0, 2], b)
+  assert.deepEqual([hurt.count, hurt.hp, livingBodies(hurt)], [3, 2 * b, 2], 'the added body whole, beside the wounded')
+  assert.equal(chanter([0, 2], 2 * plain.maxHp / 2, ['bodies']).count, 2)
+  assert.equal(chanter([0, 2], 0), undefined, 'a fallen piece does not fight')
+})
+
+test('a shadow rises with the fallen piece\'s count, each body at raiseHp of its HP, and holds', () => tuned(FIRST_ARISE, () => {
+  const b = scene([on('monarch', 0, 'party', 3, 1), stackOn('grave_ghoul', 10, 'foe', 3, 3, 3, 2), on('iron_golem', 11, 'foe', 6, 10, 1)])
+  slay(b, b.byUid.get(10))
+  b.monarch.gauge = 200
+  const arise = stepBattle(b).find((e) => e.type === 'arise')
+  const shadow = b.byUid.get(arise.unit.uid)
+  const body = Math.round(stats(b, shadow).hp * TUNING.monarch.raiseHp)
+  assert.deepEqual([shadow.count, shadow.body, shadow.hp, shadow.maxHp, livingBodies(shadow), arise.unit.count], [3, body, 3 * body, 3 * body, 3, 3])
+  for (let k = 0; k < 200; k++) assert.deepEqual(moves(stepBattle(b), shadow.uid), [], 'it holds')
+}))
 
 // ── lines ────────────────────────────────────────────────────────────────────────────────────────
 

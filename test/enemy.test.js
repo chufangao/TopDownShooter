@@ -65,8 +65,8 @@ function strong (run, monarch = 40) {
 
 test('every foe kind walks the roads by Walk or Flank, hinted only in its flavour; depth is a room\'s threat', () => {
   for (const u of Object.values(UNITS)) {
-    // The Monarch and the summons are never foes: no behaviour to learn.
-    if (u.monarch || u.summon) {
+    // The Monarch is never a foe: no behaviour to learn.
+    if (u.monarch) {
       assert.equal(u.behaviour, undefined)
       continue
     }
@@ -106,7 +106,7 @@ test('sieges: from floor 3, one or two of the late ranks\' fights, never two in 
 
 const groups = (room) => [room.foes, ...(room.waves ?? []).map((w) => w.foes)]
 
-test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 2; waves from floor 3; the last room ends in the Sovereign\'s court', () => {
+test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 2, each one piece; waves from floor 3; the last room ends in the Sovereign\'s court', () => {
   const count = {}
   const pairTiers = []
   for (let i = 0; i < 30; i++) {
@@ -132,19 +132,19 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
           assert.equal(new Set(g.map((f) => f.slot)).size, g.length, `${w}: slots`)
           assert.ok(g.every((f) => Number.isInteger(f.slot) && f.slot >= 0 && f.slot < 21 && f.lvl === lvl), w)
           if (k) assert.deepEqual(room.waves[k - 1].when, floor === 1 ? { at: 'time', t: sp.late.t } : { at: 'break', t: W.t }, w)
-          const members = g.filter((f) => f.cohortOf != null)
-          const captains = g.filter((f) => members.some((m) => m.cohortOf === f.slot))
+          // A captain is one piece, its cohort's bodies its count; no foe stands apart as another's cohort.
+          const captains = g.filter((f) => f.count !== undefined)
+          assert.ok(!g.some((f) => 'cohortOf' in f), w)
           if (boss && k === waves - 1) {
             // The Sovereign at the centre of the front row, its court of undead about it.
             assert.deepEqual(g[0], { id: 'hollow_sovereign', lvl, slot: slotAt(0, CENTRE_OUT[0]) }, w)
-            assert.equal(members.length, sp.court, w)
-            assert.ok(members.every((m) => m.cohortOf === g[0].slot && unitDef(m.id).kin === 'undead' && !unitDef(m.id).boss), w)
             assert.equal(g.length, 1 + sp.court, w)
+            assert.ok(g.slice(1).every((m) => unitDef(m.id).kin === 'undead' && !unitDef(m.id).boss && m.count === undefined), w)
             continue
           }
           assert.ok(!g.some((f) => unitDef(f.id).boss), w)
           if (floor === 1) {
-            assert.equal(members.length, 0, `${w}: no captains on floor 1`)
+            assert.equal(captains.length, 0, `${w}: no captains on floor 1`)
             assert.equal(g.length, k ? sp.late.n : at(elite ? sp.elite : sp.fight, floor), w)
             // The late pair comes from the floor's own pool: within its tier cap, and weighted to its tier.
             if (k) {
@@ -156,12 +156,8 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
           }
           const cohort = at(sp.cohort, floor)
           assert.equal(captains.length, elite ? sp.captains.elite : sp.captains.fight, w)
-          for (const c of captains) {
-            const led = members.filter((m) => m.cohortOf === c.slot)
-            assert.equal(led.length, cohort, w)
-            assert.ok(led.every((m) => m.id === c.id), `${w}: a cohort of its own kind`)
-          }
-          assert.equal(g.length, at(elite ? sp.elite : sp.fight, floor) + captains.length * cohort, w)
+          assert.ok(captains.every((c) => c.count === 1 + cohort), `${w}: a captain and its cohort, one piece`)
+          assert.equal(g.length, at(elite ? sp.elite : sp.fight, floor), w)
           assert.ok(!g.some((f) => 'order' in f || 'square' in f), `${w}: no foe carries orders`)
         }
       }
@@ -175,7 +171,7 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
 
 // ── the battle: foes as an army ──────────────────────────────────────────────────────────────────
 
-test('a run\'s room becomes battle units: foes take the first uids, formation then waves; a cohort knows its captain\'s uid; waves wait in the reserve', () => {
+test('a run\'s room becomes battle units: foes take the first uids, formation then waves; a captain and its cohort are one piece; waves wait in the reserve', () => {
   const run = createRun({ seed: 'army5' })
   const s = run.state
   const node = availableNodes(run)[0]
@@ -194,18 +190,16 @@ test('a run\'s room becomes battle units: foes take the first uids, formation th
   assert.deepEqual(foeBodies.map((f) => [f.uid, f.id, f.slot, f.wave, f.lane]), node.waves[0].foes.map((f, i) => [first + node.foes.length + i, f.id, -1, 1, colOf(f.slot)]))
   assert.ok(foeBodies.every((f) => JSON.stringify(f.when) === JSON.stringify({ at: 'break', t: W.t, wave: 1 })))
   assert.equal(setup.nextUid, first + total, 'shadows after every foe')
-  // Cohorts, wave by wave: a member's cohortOf is its captain's uid; no foe carries a plan.
+  // Cohorts, wave by wave: a captain's piece holds its cohort's bodies (its count, its pool); no foe carries a plan.
   for (const [k, g] of all.entries()) {
     const units = k ? foeBodies : setup.foes
     for (const [i, f] of g.entries()) {
       const u = units[i]
-      const captain = f.cohortOf != null ? g.find((c) => c.slot === f.cohortOf) : f
-      if (f.cohortOf != null) assert.deepEqual([u.cohortOf, u.rank], [units[g.indexOf(captain)].uid, true])
-      else assert.equal(u.cohortOf, undefined)
-      assert.ok(!('plan' in u), `${k} ${f.id} ${f.slot}`)
+      assert.deepEqual([u.count, u.maxHp], [f.count ?? 1, (f.count ?? 1) * baseStats(f.id, f.lvl).hp], `${k} ${f.id} ${f.slot}`)
+      assert.ok(!('plan' in u) && !('cohortOf' in u) && !('rank' in u), `${k} ${f.id} ${f.slot}`)
     }
   }
-  assert.ok(setup.foes.some((u) => u.cohortOf !== undefined))
+  assert.ok(setup.foes.some((u) => u.count > 1))
   // The battle plays it: the second wave announced and entering, and the run moves past every uid it made. (A
   // Monarch that outlasts the wave: twelve level-1 foes with their Drake 6 and Ranger 6 steps outfight three
   // level-10 souls, so the wave would otherwise come to a battle already lost.)
@@ -221,10 +215,10 @@ test('a run\'s room becomes battle units: foes take the first uids, formation th
   assert.ok(uids.every((uid) => uid < s.nextUid) && s.nextUid === b.nextUid)
 })
 
-test('a late pair enters at the top edge at 20 s, each in its lane, one a tick; a cohort member enters in its own lane too', () => {
+test('a late pair enters at the top edge at 20 s, each in its lane, one a tick; a stack enters as one piece', () => {
   const t = sp.late.t
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 9), on('grave_ghoul', 10, 'foe', 3, 10, 1)], {
-    reserve: [coming('frost_sprite', 70, 1, { at: 'time', t }, 1), coming('will_o_wisp', 71, 1, { at: 'time', t }, 5, { cohortOf: 10, rank: true })]
+    reserve: [coming('frost_sprite', 70, 1, { at: 'time', t }, 1), { ...coming('will_o_wisp', 71, 1, { at: 'time', t }, 5), ...makeUnit('will_o_wisp', { uid: 71, lvl: 1, count: 3 }) }]
   })
   assert.deepEqual(b.events[0].reserve.map((r) => [r.uid, r.wave, r.side]), [[70, 1, 'foe'], [71, 1, 'foe']], 'announced as foes still to come, in their wave')
   while (b.t < t) assert.ok(!stepBattle(b).some((e) => e.type === 'enter' || e.type === 'wave'), 'nothing before 20 s')
@@ -234,7 +228,8 @@ test('a late pair enters at the top edge at 20 s, each in its lane, one a tick; 
   assert.equal(at400[1].unit.wave, 1)
   const at401 = stepBattle(b).filter((e) => ['wave', 'enter'].includes(e.type))
   assert.deepEqual(at401.map((e) => [e.t, e.type, e.unit?.uid]), [[t + 1, 'enter', 71]], 'one a tick')
-  assert.equal(at401[0].unit.tile, tileAt(5, DEPTH - 1), 'in its own lane, wherever its captain stands')
+  assert.equal(at401[0].unit.tile, tileAt(5, DEPTH - 1), 'in its own lane')
+  assert.deepEqual([at401[0].unit.count, at401[0].unit.maxHp], [3, 3 * unit(b, 71).body], 'one piece of three')
   assert.equal(b.foeIn, t + 1)
 })
 
@@ -315,7 +310,7 @@ test('the Sovereign\'s Grave Tide raises two of the field\'s dead on its side: t
 test('killing the Sovereign ends the battle: its court and every foe still standing crumble and pay as if slain, and the foes still to come never enter', () => {
   const b = scene([
     on('tomb_knight', 1, 'party', 3, 6, 9),
-    { ...on('hollow_sovereign', 50, 'foe', 3, 7, 1), wave: 2 }, { ...on('grave_ghoul', 51, 'foe', 5, 9, 1), wave: 2, cohortOf: 50, rank: true },
+    { ...on('hollow_sovereign', 50, 'foe', 3, 7, 1), wave: 2 }, { ...on('grave_ghoul', 51, 'foe', 5, 9, 1), wave: 2 },
     { ...on('bone_chanter', 52, 'foe', 0, 10, 1), shadow: true }, on('will_o_wisp', 53, 'foe', 6, 10, 1)
   ], { reserve: [coming('grave_ghoul', 60, 3, { at: 'time', t: 2000 })] })
   b.waveAt[2] = 0

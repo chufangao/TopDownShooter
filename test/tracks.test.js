@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createRun, apply, legalActions, join, souls, monarchCost, monarchOf, levelCost, tierCost, canAdvance, heldKinds, battleSetup, availableNodes,
-  OSSUARY, MONARCH_STATS, monarchPoints, fieldCap, domainOf
+  OSSUARY, MONARCH_STATS, monarchPoints, fieldCap, domainOf, fielded
 } from '../src/sim/run.js'
 import { createBattle, stepBattle } from '../src/sim/battle.js'
 import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
@@ -284,9 +284,10 @@ test('a tier IV area ability waits for something in its area: the soul still att
 
 // ── fuzz: levels and tiers bought at random, then a fight ────────────────────────────────────────
 
-// Every run starts rich in essence, so random levels and tiers reach tier IV, Banners and summons, and then fight.
-test('kinds fuzz: random levels and tiers keep the crosspath rule, every soul of a kind holds its kind\'s, and the battle fights them', () => tuned({}, () => {
-  const seen = { iv: 0, banner: 0, summoned: 0 }
+// Every run starts rich in essence, so random levels and tiers reach tier IV, Banners and added bodies, and then
+// fight; random stacks and splits move the bodies between pieces as they go.
+test('kinds fuzz: random levels, tiers, stacks and splits keep the crosspath rule, every piece of a kind holds its kind\'s, and the battle fights them', () => tuned({}, () => {
+  const seen = { iv: 0, banner: 0, added: 0, stacked: 0 }
   for (let i = 0; i < 24; i++) {
     const run = createRun({ seed: 'kindfuzz' + i })
     const s = run.state
@@ -296,29 +297,32 @@ test('kinds fuzz: random levels and tiers keep the crosspath rule, every soul of
     s.monarch.will = 2
     join(run, 'grave_ghoul')
     join(run, 'clockwork_page')
+    join(run, 'grave_ghoul')
+    join(run, 'clockwork_page')
     const node = availableNodes(run)[0]
     node.type = 'fight'
     node.foes ??= s.map.nodes.find((n) => n.foes).foes
     apply(run, { type: 'node', id: node.id })
     for (let k = 0; k < 120; k++) {
       // A kind of action first, then one of that kind: places would drown out the rest.
-      const legal = legalActions(run).filter((a) => ['upgrade', 'level', 'place', 'line'].includes(a.type))
+      const legal = legalActions(run).filter((a) => ['upgrade', 'level', 'place', 'line', 'stack', 'split'].includes(a.type))
       if (!legal.length) break
       const type = rng.pick([...new Set(legal.map((a) => a.type))])
       apply(run, rng.pick(legal.filter((a) => a.type === type)))
       for (const [kind, st] of Object.entries(s.kinds)) {
         assert.ok(st.tracks.every((t) => t >= 0 && t <= 4) && !(st.tracks[0] > 2 && st.tracks[1] > 2), `kindfuzz${i}: ${kind} ${st.tracks}`)
-        for (const u of souls(s.party).filter((x) => x.id === kind)) assert.deepEqual([u.lvl, u.tracks, u.maxHp], [st.lvl, st.tracks, baseStats(kind, st.lvl).hp], `kindfuzz${i}: ${u.uid}`)
+        for (const u of souls(s.party).filter((x) => x.id === kind)) assert.deepEqual([u.lvl, u.tracks, u.maxHp], [st.lvl, st.tracks, u.count * baseStats(kind, st.lvl).hp], `kindfuzz${i}: ${u.uid}`)
       }
     }
     for (const st of Object.values(s.kinds)) seen.iv += st.tracks.includes(4)
-    const before = s.party.length
+    seen.stacked += souls(s.party).some((u) => u.count > 1)
+    const before = s.party.map((u) => [u.uid, u.count])
     apply(run, { type: 'fight' })
     const b = run.battle
     seen.banner += b.units.filter((u) => u.banner).length
-    seen.summoned += b.units.filter((u) => u.summoned).length
-    assert.equal(s.party.length, before)
-    assert.ok(!s.party.some((u) => u.summoned || u.shadow))
+    seen.added += fielded(souls(s.party)).filter((u) => b.byUid.get(u.uid)?.count > u.count).length
+    assert.deepEqual(s.party.map((u) => [u.uid, u.count]), before, 'the run keeps its pieces and their counts')
+    assert.ok(!s.party.some((u) => u.shadow))
   }
-  assert.ok(seen.iv && seen.banner && seen.summoned, JSON.stringify(seen))
+  assert.ok(seen.iv && seen.banner && seen.added && seen.stacked, JSON.stringify(seen))
 }))

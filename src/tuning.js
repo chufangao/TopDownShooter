@@ -17,15 +17,16 @@ export const TUNING = {
   // After startTick (×bossMult for bosses) all damage ramps by perTick, capped at max: no stalemates. The
   // ticks count from the last foe to enter (a wave), so newcomers never meet ramped blows.
   escalation: { startTick: 900, perTick: 0.005, max: 8, bossMult: 2 },
-  // field: the souls that fight before Command; the field cap is field + fieldPerFloor × (floor − 1) + Command (+
-  // relics, keystones), never more than army.board. fieldPerFloor is 0 since the army became souls and summons
-  // (it was 1 in necessity round 2): Command alone widens the field. roster: the souls a retinue holds, on the
-  // field and in the ossuary together. The Monarch counts toward neither, and summons toward nothing.
+  // field: the pieces that fight before Command (a stack is one piece, whatever its count); the field cap is
+  // field + fieldPerFloor × (floor − 1) + Command (+ relics, keystones), never more than army.board. fieldPerFloor
+  // is 0 since the army became souls (it was 1 in necessity round 2): Command alone widens the field. roster: the
+  // souls (bodies) a retinue holds, on the field and in the ossuary together, stacked or not. The Monarch counts
+  // toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
   // The Monarch: four stats bought a point at a time, HP, Dominion, Command and Will (DESIGN §2.8). HP hp +
   // hpPerPoint × HP points (its level); a point of any costs cost + costPerPoint × points spent on all four.
   // Its domain reaches `domain` + Dominion tiles (Chebyshev) from its tile: Arise raises the foes that
-  // fall inside it. A shadow rises with `raiseHp` of its max HP. Nothing else
+  // fall inside it. A shadow rises with the fallen piece's count, each body at `raiseHp` of its body HP. Nothing else
   // touches its HP (no synergy, relic or keystone), so hp and hpPerPoint carry all of it: 140 and +24 a point
   // (the final balance pass; it was 90 and +12 while synergies still raised it some 40%). Only a run that buys
   // points gains by hpPerPoint: the expert buys some 14 by floor 4, a rule-of-thumb run none.
@@ -36,12 +37,9 @@ export const TUNING = {
   // was worth less than the points its Will took). Ranks gained `might`; relics a cap (relicMax).
   // Round 3: hp 220 + 14 a point (was 280 + 10).
   monarch: { hp: 220, hpPerPoint: 14, cost: 20, costPerPoint: 10, domain: 3, raiseHp: 1, raises: 3, raiseTier: 2, willHaste: 0.1 },
-  // The board (14 → 10 in necessity round 1): the field cap never passes `board` souls, and the Legion's shadows
-  // rise only while fewer than `board` of yours stand on it (Arise's are bounded by its own cap).
+  // The board (14 → 10 in necessity round 1): the field cap never passes `board` pieces, and the Legion's shadows
+  // rise only while fewer than `board` pieces of yours stand on it (Arise's are bounded by its own cap).
   army: { board: 10 },
-  // Summons (a track tier's `summon`): each battle they appear beside their summoner at `level` × its level
-  // (rounded, at least 1), hold the tile they appear on, and are gone when the battle ends.
-  summon: { level: 1 },
   // A kind's level (every soul of it) costs cost × level^exponent essence, up to cap.
   level: { cap: 10, cost: 8, exponent: 1.2 },
   // Essence: each foe slain pays perTier × tier × (1 + perLevel × (level − 1)); a run starts with
@@ -65,8 +63,8 @@ export const TUNING = {
     // one is drawn again wanting it, up to `routeTries` times a type (run.js varyRoutes).
     variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 6 },
     // The enemy as an army. From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave,
-    // `captains.elite` in an elite), each with a cohort of cohort[floor − 1] more of its own kind beside it in the
-    // formation (each a foe of its own on the roads; your side is souls and their summons). A floor-1
+    // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind: one piece
+    // of 1 + cohort bodies on the captain's slot (DESIGN §2.2). A floor-1
     // elite brings a late pair: `late.n` more foes of its pool, entering at the top edge at tick `late.t`. From
     // floor `waves.floor` an elite, a fight from rank `waves.fightRank`, a siege and the last room come in
     // waves (`waves.elite`, `.fight`, `.siege` in all, the first included): each next one enters at the top
@@ -86,7 +84,7 @@ export const TUNING = {
     // `hp` and `atk` of the base per floor deep. The floor's last room is a big elite: `final.count` more
     // foes, `final.level` levels higher. The enemy grows as an army too: floor(`waves` × deep) more waves to
     // every room (a single formation becomes a room of waves; never more than `maxWaves`, the first
-    // included) and floor(`cohort` × deep) more bodies in every captain's cohort. The foes hold their
+    // included) and floor(`cohort` × deep) more bodies in every captain's piece. The foes hold their
     // synergies' 8-step rules only from `rules` floors deep (above it their cohorts reach eight of a kind
     // too easily: their ladders stop at the stat steps there). Tuned in the final balance pass on twelve expert
     // clears played on down: at +3 levels, +12% HP, +8% ATK and a body more a cohort a floor, with rules from the
@@ -95,8 +93,9 @@ export const TUNING = {
     // strongest three, each floor's broods (flank, mantis) and final elite the usual end.
     endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, rules: 2, final: { count: 2, level: 1 } }
   },
-  // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). An
-  // altar heals every soul to altarHeal of its max HP and raises a fallen one at altarRevive.
+  // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). A won
+  // battle heals each living body postBattleHeal of its HP; an altar heals each to altarHeal of its HP and raises a
+  // fallen one at altarRevive (a stack's pool keeps the sum: run.js).
   run: { floors: 4, postBattleHeal: 0.5, altarHeal: 1, altarRevive: 0.5 },
   // The autoplayer's rehearsals: a battle budget of `rehearsalCeiling` ticks (one still going is scored
   // as a loss), and a single rehearsal seed for a battle of more than `bigBattle` units. `settle`: a rehearsal
