@@ -1,14 +1,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, stepBattle, runBattle, timelineHash, stats, enterBattle, nextCost, isEngaged, foesNextTo, auraGivers, falters, escalation } from '../src/sim/battle.js'
+import {
+  createBattle, stepBattle, runBattle, timelineHash, stats, enterBattle, nextCost, foesNextTo, auraGivers, field, fieldOf, arrowOf, ringTarget, timingMarks
+} from '../src/sim/battle.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import {
-  makeUnit, autoPlace, distance, slotAt, campGrid, wallTiles, steps, costliestOf, abilitiesOf, deployTile, tileAt, tileX, tileY, baseStats, DEPTH, alive,
-  isEngaged as listEngaged, foesNextTo as listFoesNextTo, auraGivers as listAuraGivers
+  makeUnit, autoPlace, distance, slotAt, campGrid, wallTiles, steps, costliestOf, abilitiesOf, deployTile, tileAt, tileX, tileY, baseStats, DEPTH,
+  foesNextTo as listFoesNextTo, auraGivers as listAuraGivers, seatNear, TILES, summonTile
 } from '../src/sim/unit.js'
 import { createRng } from '../src/sim/rng.js'
-import { UNIT_LIST, unitDef, abilityDef, ROLES, BEHAVIOURS, CAMP_LIST } from '../src/content.js'
+import { UNIT_LIST, unitDef, abilityDef, CAMP_LIST } from '../src/content.js'
 import { foeLevel, START_PARTY } from '../src/sim/run.js'
 
 function team (ids, { side = 'party', lvl = 2, uid = side === 'party' ? 1 : 100, camp = null } = {}) {
@@ -32,37 +34,36 @@ function encounter (seed, floor) {
   return { foes: team(ids, { side: 'foe', lvl: lvl + (n === 4 ? 1 : 0) }), boss: false }
 }
 
-// In one of the floor's camps, picked by seed, walls and all, against that encounter. `tune` may edit
-// the party before it fights; with `monarch`, the Monarch stands among them (mid-camp, its role's row)
-// with `will` Will; with `army`, the first soul has that many summons (Bone Chanters and Ghouls) on the field
-// and as many Ghouls again waiting in the battle's reserve. With `orders`, every soul takes a plan drawn on the
-// seed (Hunt, Stay, or Move to an open tile anywhere on the board; a summon its summoner's), and the second soul
-// is held back for a later start (a time, the Monarch struck, one fallen).
-const fresh = (seed, floor = 1, { ids = START, tune = () => {}, monarch = false, will = 0, army = 0, orders = false } = {}) => {
-  const { foes, boss } = encounter(seed, floor)
-  const camp = createRng(seed).stream('camp').pick(CAMP_LIST.filter((c) => c.floor === floor)).id
-  const party = team(monarch ? [...ids, 'monarch'] : ids, { lvl: 1 + floor, camp })
-  const walls = wallTiles(camp)
-  const rng = createRng(seed).stream('orders')
-  if (orders) {
-    party.forEach((u, k) => {
-      if (u.id === 'monarch') return
-      const where = rng.pick(['hunt', 'stay', 'move'])
-      const square = where === 'move' ? rng.pick([...Array(DEPTH * 7).keys()].filter((t) => !walls.includes(t))) : null
-      Object.assign(u, { det: k + 1, plan: { where, square } })
-    })
-  }
-  const body = (id, uid) => ({ ...makeUnit(id, { uid, lvl: 1 + floor }), cohortOf: party[0].uid, rank: true, ...(orders && { det: 1, plan: party[0].plan }) })
-  const summon = (id, uid) => ({ ...makeUnit(id, { uid, lvl: 1 + floor }), cohortOf: party[0].uid, summoned: true, summoner: party[0].uid, ...(orders && { det: 1, plan: party[0].plan }) })
-  const members = Array.from({ length: army }, (_, k) => summon(k % 2 ? 'grave_ghoul' : 'bone_chanter', 60 + k))
-  autoPlace([...party, ...members], { grid: campGrid(camp) })
-  const reserve = Array.from({ length: army }, (_, k) => body('grave_ghoul', 80 + k))
-  tune(party)
-  const held = orders ? party.splice(1, 1).map((u) => ({ ...u, slot: -1, when: rng.pick([{ at: 'time', t: 60 }, { at: 'struck' }, { at: 'falls' }]) })) : []
-  return createBattle({ party: [...party, ...members], foes, seed, floor, boss, walls, will, reserve: [...held, ...reserve] })
+// The signals a drawn line may wait for.
+const WHENS = [{ at: 'once' }, { at: 'time', t: 60 }, { at: 'blow' }, { at: 'wave', wave: 1 }, { at: 'struck' }, { at: 'falls' }]
+
+// A line of up to `n` legal steps from `tile` past `walls` (a Set), each drawn on `rng`, on a signal drawn on it.
+function drawLine (rng, tile, walls, n = 6) {
+  const tiles = []
+  for (let k = 1 + rng.int(n), t = tile; k > 0; k--) tiles.push((t = rng.pick(steps(t, walls))))
+  return { tiles, when: rng.pick(WHENS) }
 }
 
-// With the board holding only `n` bodies, so that a reserve enters mid-battle.
+// In one of the floor's camps, picked by seed, walls and all, against that encounter. `tune` may edit
+// the party before it fights; with `monarch`, the Monarch stands among them (on the rear row's seat) with
+// `will` Will; with `army`, the first soul has that many summons (Bone Chanters and Ghouls) on the field
+// beside it. With `lines`, every soul walks a line drawn on the seed, on a signal drawn on it.
+const fresh = (seed, floor = 1, { ids = START, tune = () => {}, monarch = false, will = 0, army = 0, lines = false } = {}) => {
+  const { foes, boss } = encounter(seed, floor)
+  const camp = createRng(seed).stream('camp').pick(CAMP_LIST.filter((c) => c.floor === floor)).id
+  const party = team(ids, { lvl: 1 + floor, camp })
+  if (monarch) party.push(makeUnit('monarch', { uid: 0, lvl: 0, slot: seatNear(camp) }))
+  const walls = wallTiles(camp)
+  const summon = (id, uid) => ({ ...makeUnit(id, { uid, lvl: 1 + floor }), summoned: true, summoner: party[0].uid })
+  const members = Array.from({ length: army }, (_, k) => summon(k % 2 ? 'grave_ghoul' : 'bone_chanter', 60 + k))
+  autoPlace([...party, ...members], { grid: campGrid(camp) })
+  tune(party)
+  const rng = createRng(seed).stream('lines')
+  if (lines) for (const u of party) if (u.id !== 'monarch') u.line = drawLine(rng, deployTile('party', u.slot), new Set(walls))
+  return createBattle({ party: [...party, ...members], foes, seed, floor, boss, walls, will })
+}
+
+// With the board holding only `n` bodies.
 function boardOf (n, fn) {
   const was = TUNING.army.board
   TUNING.army.board = n
@@ -73,13 +74,13 @@ function boardOf (n, fn) {
   }
 }
 
-// Lays a unit dead where it stands, as a blow would (the index, the roster).
+// Lays a unit dead where it stands, as a blow would (the index, the roster; one of yours, the Flank field's too).
 function slay (b, u) {
   u.hp = 0
   u.statuses = []
   b.at[u.tile] = null
   b.roster++
-  b.paths.clear()
+  if (u.side === 'party') b.ours++
 }
 
 // A unit placed on a board tile directly, for battles built tile by tile.
@@ -87,7 +88,7 @@ const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), s
 
 // A battle of units placed on tiles: party and foes are made with `on`, the party in its camp (y 0–6).
 // A foe may stand anywhere: it deploys in a spare slot of its formation and is moved there. The ones not
-// named in `moving` never step (so a scene stays put).
+// named in `moving` never step (so a scene stays put); summons stand where they appear.
 function scene (units, { moving = [], ...opts } = {}) {
   const foeRow0 = DEPTH - 3
   const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
@@ -96,11 +97,11 @@ function scene (units, { moving = [], ...opts } = {}) {
   const placed = units.map((u) => ({ ...u, slot: slot(u) }))
   const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...opts })
   for (const u of b.units) {
-    const want = units.find((x) => x.uid === u.uid).tile
+    const want = units.find((x) => x.uid === u.uid)?.tile
+    if (want === undefined) continue
     if (u.tile !== want) {
       b.at[u.tile] = null
       u.tile = want
-      u.anchor = want
       b.at[want] = u
     }
     if (!moving.includes(u.uid)) u.nextStep = Infinity
@@ -108,11 +109,16 @@ function scene (units, { moving = [], ...opts } = {}) {
   return b
 }
 
-// Plain, and with plans: a Monarch, summons, every soul on a plan and one held for a later start.
-const PLANNED = { orders: true, army: 3, monarch: true }
+// A line straight up (dy 1) or down (dy −1) the lane from (x, y), `n` tiles.
+const lane = (x, y, n, dy = 1) => Array.from({ length: n }, (_, k) => tileAt(x, y + dy * (k + 1)))
+const lined = (u, tiles, when = { at: 'once' }) => ({ ...u, line: { tiles, when } })
+const moves = (events, uid) => events.filter((e) => e.type === 'move' && e.actor === uid)
+
+// Plain, and with lines: a Monarch, summons, and every soul on a line.
+const LINED = { lines: true, army: 3, monarch: true }
 
 test('the same seed gives the same timeline; a different seed does not', () => {
-  for (const opts of [{}, PLANNED]) {
+  for (const opts of [{}, LINED]) {
     const a = runBattle(fresh('det', 1, opts))
     const b = runBattle(fresh('det', 1, opts))
     assert.equal(a.hash, b.hash)
@@ -122,7 +128,7 @@ test('the same seed gives the same timeline; a different seed does not', () => {
 })
 
 test('stepping tick by tick equals runBattle', () => {
-  for (const opts of [{}, PLANNED]) {
+  for (const opts of [{}, LINED]) {
     const live = fresh('step', 1, opts)
     const seen = [...live.events]
     while (!live.over) seen.push(...stepBattle(live))
@@ -146,13 +152,13 @@ test('battles start with an event, stamp every event with t, and only bring the 
   assert.equal(party[0].gauge, undefined, 'the run unit is untouched')
 })
 
-test('300 seeded battles across floors end before the ceiling with sane HP', () => {
+test('300 seeded battles across floors end by the ceiling with sane HP', () => {
   for (let i = 0; i < 300; i++) {
     const floor = 1 + (i % 4)
-    const b = fresh('fuzz' + i, floor)
+    const b = fresh('fuzz' + i, floor, i % 3 ? {} : LINED)
     const r = runBattle(b)
-    assert.ok(r.ticks < TUNING.tick.ceiling, `seed ${i} reached the ceiling`)
-    assert.ok(r.winner === 'party' || r.winner === 'foe')
+    assert.ok(r.ticks <= TUNING.tick.ceiling, `seed ${i} passed the ceiling`)
+    assert.ok([null, 'party', 'foe'].includes(r.winner))
     for (const u of b.units) {
       assert.ok(Number.isInteger(u.hp) && u.hp >= 0 && u.hp <= u.maxHp, `seed ${i}: ${u.id} hp ${u.hp}`)
     }
@@ -184,61 +190,60 @@ test('only fielded souls with HP fight', () => {
   party.push(makeUnit('tomb_knight', { uid: 9, lvl: 3, slot: 10 }))
   party[3].hp = 0
   const b = createBattle({ party, foes: team(['clockwork_page'], { side: 'foe' }), seed: 'bench' })
-  assert.deepEqual(b.units.filter((u) => u.side === 'party').map((u) => u.uid), [1, 2])
+  assert.deepEqual(b.units.filter((u) => u.side === 'party').map((u) => u.uid).sort(), [1, 2])
 })
 
-test('units step at most once per step clock, onto a free tile; only a flanker hops bodies; the engaged hold unless they slip', () => boardOf(5, () => {
-  let moves = 0
-  let flanks = 0
-  let entries = 0
+test('every step is a legal step onto a free tile, one a step clock: a foe on its road, one of yours on its line; the Monarch, summons and shadows hold', () => boardOf(5, () => {
+  let roads = 0
+  let marches = 0
   for (let i = 0; i < 60; i++) {
-    const b = fresh('walk' + i, 1 + (i % 4), { monarch: i % 3 === 0, will: i % 2, army: i % 4 === 1 ? 3 : 0, orders: i % 5 === 2 })
+    const b = fresh('walk' + i, 1 + (i % 4), { monarch: i % 3 === 0, will: i % 2, army: i % 4 === 1 ? 3 : 0, lines: i % 2 === 0 })
+    const walk = fieldOf(b)
     const tile = new Map(b.units.map((u) => [u.uid, u.tile]))
+    const leg = new Map()
     const last = new Map()
     const dead = new Set()
     const holder = (t) => b.units.find((x) => !dead.has(x.uid) && tile.get(x.uid) === t)
-    const engaged = (u) => b.units.some((e) => e.side !== u.side && !dead.has(e.uid) && distance(tile.get(e.uid), tile.get(u.uid)) === 1)
     while (!b.over) {
       for (const e of stepBattle(b)) {
         if (e.type === 'death') dead.add(e.target)
+        if (e.type === 'rise') dead.delete(e.target)
         if (e.type === 'arise' || e.type === 'enter') {
           assert.ok(!holder(e.unit.tile) && !b.walls.has(e.unit.tile), `seed ${i} t ${e.t}: ${e.type} on a body or a wall`)
           tile.set(e.unit.uid, e.unit.tile)
-          if (e.type === 'enter') entries++
         }
         if (e.type !== 'move') continue
-        const u = b.units.find((x) => x.uid === e.actor)
+        const u = b.byUid.get(e.actor)
         const where = `seed ${i} t ${e.t}: ${u.id} ${e.from}→${e.to}`
-        assert.ok(u !== b.monarch, `${where}: the Monarch stepped`)
         assert.equal(tile.get(u.uid), e.from)
+        assert.ok(steps(e.from, b.walls).includes(e.to), `${where}: into or past a wall`)
+        assert.ok(!holder(e.to), `${where}: onto a body`)
         assert.ok(!last.has(u.uid) || e.t - last.get(u.uid) >= TUNING.board.stepTicks, `${where}: stepped again too soon`)
         last.set(u.uid, e.t)
-        const slips = BEHAVIOURS[ROLES[unitDef(u.id).role].move].slips
-        assert.ok(slips || !engaged(u), `${where}: walked away while engaged`)
-        assert.ok(slips || !e.via, `${where}: only a flanker passes through bodies`)
-        // A step, or a hop: a chain of steps through the living to the first open tile.
-        const chain = [e.from, ...(e.via ?? []), e.to]
-        for (let k = 1; k < chain.length; k++) assert.ok(steps(chain[k - 1], b.walls).includes(chain[k]), `${where}: into or past a wall`)
-        for (const t of e.via ?? []) assert.ok(holder(t), `${where}: hopped over an empty tile ${t}`)
-        assert.ok(!holder(e.to), `${where}: onto a body`)
+        if (u.side === 'foe') {
+          if (u.behaviour === 'walk') assert.equal(e.to, walk.arrow[e.from], `${where}: off its road`)
+          roads++
+        } else {
+          assert.ok(u !== b.monarch && !u.summoned && !(u.shadow && u.ring === 1), `${where}: one with no line stepped`)
+          const k = leg.get(u.uid) ?? 0
+          assert.equal(e.to, u.line.tiles[k], `${where}: off its line`)
+          leg.set(u.uid, k + 1)
+          marches++
+        }
         tile.set(u.uid, e.to)
         const held = b.units.filter((x) => !dead.has(x.uid)).map((x) => tile.get(x.uid))
         assert.equal(new Set(held).size, held.length, `${where}: two units on one tile`)
-        moves++
-        if (slips) flanks++
       }
     }
   }
-  assert.ok(moves > 0 && flanks > 0 && entries > 0, `${moves} moves, ${flanks} by flankers, ${entries} entries`)
+  assert.ok(roads > 0 && marches > 0, `${roads} steps on roads, ${marches} on lines`)
 }))
 
-test('a step costs no gauge: a walker steps every stepTicks while its gauge keeps filling', () => {
-  const party = [makeUnit('tomb_knight', { uid: 1, lvl: 3, slot: slotAt(6, 3) })]
-  const foes = [makeUnit('tomb_knight', { uid: 10, lvl: 3, slot: slotAt(2, 3) })]
-  const b = createBattle({ party, foes, seed: 'clock' })
-  const knight = b.units.find((u) => u.uid === 1)
-  const foe = b.units.find((u) => u.uid === 10)
-  foe.nextStep = Infinity
+test('a step costs no gauge: a marcher steps every stepTicks while its gauge keeps filling', () => {
+  // A knight on a long line up its lane; a golem frozen at the far edge, out of its ring until it arrives.
+  const b = scene([lined(on('tomb_knight', 1, 'party', 3, 0), lane(3, 0, 9)), on('iron_golem', 10, 'foe', 3, 10)], { moving: [1] })
+  const knight = b.byUid.get(1)
+  const foe = b.byUid.get(10)
   // What its gauge bar saves toward: with no foe in reach, its cheapest ability (a step is no cost).
   const cheapest = Math.min(...abilitiesOf(knight).map((a) => abilityDef(a).castCost))
   const steps = []
@@ -252,84 +257,232 @@ test('a step costs no gauge: a walker steps every stepTicks while its gauge keep
       assert.equal(abilityDef(action.ability).castCost, saving, 'it saved for the ability it used')
       break
     }
-    steps.push(...events.filter((e) => e.type === 'move' && e.actor === 1).map((e) => e.t))
+    steps.push(...moves(events, 1).map((e) => e.t))
     assert.ok(knight.gauge >= gauge, `t ${b.t}: the gauge fell from ${gauge} to ${knight.gauge}`)
     gauge = knight.gauge
   }
   assert.ok(steps.length >= 4, `${steps}`)
   assert.deepEqual(steps, steps.map((_, k) => k * TUNING.board.stepTicks), 'one step per clock, from the first tick')
+  // A kind's stride scales its clock.
+  const def = unitDef('tomb_knight')
+  def.stride = 2
+  try {
+    const fast = scene([lined(on('tomb_knight', 1, 'party', 3, 0), lane(3, 0, 4)), on('iron_golem', 10, 'foe', 3, 10)], { moving: [1] })
+    while (fast.t < 40) stepBattle(fast)
+    assert.deepEqual(moves(fast.events, 1).map((e) => e.t), [0, 8, 16, 24])
+  } finally {
+    delete def.stride
+  }
 })
 
-test('a flanker hops through walls of bodies, theirs and its own, and never shares a tile', () => {
-  // A Clockwork Page on the camp's back row; its own line two rows ahead of it, all seven lanes; the
-  // foes' line in front of its quarry, all seven lanes. Everyone but the Page stands still.
-  const line = (row, uid) => Array.from({ length: 7 }, (_, c) => makeUnit('tomb_knight', { uid: uid + c, lvl: 1, slot: slotAt(row, c) }))
-  const b = createBattle({
-    party: [makeUnit('clockwork_page', { uid: 1, lvl: 10, slot: slotAt(6, 3) }), ...line(4, 2)],
-    foes: [...line(0, 20), makeUnit('tomb_knight', { uid: 30, lvl: 1, slot: slotAt(2, 3) })],
-    seed: 'hop'
-  })
-  const page = b.units.find((u) => u.uid === 1)
-  const quarry = b.units.find((u) => u.uid === 30)
-  for (const u of b.units) if (u !== page) u.nextStep = Infinity
-  const hops = []
-  while (!b.over && page.hp > 0 && distance(page.tile, quarry.tile) > 1) {
+// ── roads ────────────────────────────────────────────────────────────────────────────────────────
+
+test('roads: a flood from the root through every tile but walls; every arrow points strictly closer, by a legal step', () => {
+  for (const c of CAMP_LIST) {
+    const walls = wallTiles(c.id)
+    const root = deployTile('party', seatNear(c.id))
+    const f = field({ root, walls })
+    assert.equal(f.root, root)
+    assert.deepEqual([f.dist[root], f.arrow[root]], [0, -1])
+    for (let t = 0; t < TILES; t++) {
+      if (walls.includes(t)) {
+        assert.deepEqual([f.dist[t], f.arrow[t]], [Infinity, -1], `${c.id}: a wall has no road`)
+        continue
+      }
+      assert.ok(f.dist[t] < Infinity, `${c.id}: tile ${t} has no road`)
+      if (t === root) continue
+      assert.equal(f.dist[f.arrow[t]], f.dist[t] - 1, `${c.id}: tile ${t}`)
+      assert.ok(steps(t, new Set(walls)).includes(f.arrow[t]), `${c.id}: tile ${t} squeezes past a wall`)
+    }
+  }
+  // Pure: the same answer every time, and none of its inputs touched.
+  const walls = wallTiles('spiral')
+  assert.deepEqual(field({ root: tileAt(3, 0), walls }), field({ root: tileAt(3, 0), walls: [...walls] }))
+})
+
+test('a tie between arrows goes to the tile nearest the root\'s lane, then nearest its row, then the centre lane', () => {
+  // The root at (3, 0) on open ground. From (3, 3) three tiles are a step nearer: (2, 2), (3, 2), (4, 2); the
+  // root's lane wins.
+  const open = field({ root: tileAt(3, 0) })
+  assert.equal(open.arrow[tileAt(3, 3)], tileAt(3, 2))
+  // From (1, 1), (2, 0) and (2, 1) are both a lane off the root's: the one in its row wins (straight ahead).
+  assert.equal(open.arrow[tileAt(1, 1)], tileAt(2, 0))
+  // The root at (2, 0), a wall on (2, 2): no step from (2, 3) squeezes past its corners, so (1, 3) and (3, 3) are the
+  // ways on, a lane off either side and level: the lane nearer the centre, 3, wins.
+  const side = field({ root: tileAt(2, 0), walls: [tileAt(2, 2)] })
+  assert.deepEqual([side.dist[tileAt(2, 3)], side.dist[tileAt(1, 3)], side.dist[tileAt(3, 3)]], [4, 3, 3])
+  assert.equal(side.arrow[tileAt(2, 3)], tileAt(3, 3))
+  // The root on the centre lane (3, 0), a wall on (3, 2): from (3, 3), (2, 3) and (4, 3) tie on every count but
+  // CENTRE_OUT's order, which takes lane 2 before lane 4.
+  assert.equal(field({ root: tileAt(3, 0), walls: [tileAt(3, 2)] }).arrow[tileAt(3, 3)], tileAt(2, 3))
+})
+
+test('a foe on tile T steps to the arrow of T; two foes on the road walk the same way', () => {
+  // A lone Ghoul at the far edge walks the Spiral's road to the Monarch, every step to its tile's arrow.
+  const walls = wallTiles('spiral')
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('grave_ghoul', 10, 'foe', 0, 10, 1)], { moving: [10], walls })
+  const ghoul = b.byUid.get(10)
+  const road = field({ root: tileAt(3, 0), walls })
+  const path = []
+  while (!b.over && b.t < 2000 && distance(ghoul.tile, b.monarch.tile) > 1) {
+    const from = ghoul.tile
+    const to = arrowOf(b, ghoul)
+    assert.equal(to, road.arrow[from])
+    for (const e of moves(stepBattle(b), 10)) {
+      assert.deepEqual([e.from, e.to], [from, to])
+      path.push(e.to)
+    }
+  }
+  assert.equal(path.length, road.dist[tileAt(0, 10)] - 1, 'the shortest road, a step at a time, to beside the Monarch')
+  while (!b.over && b.t < 2500 && !b.events.some((e) => e.type === 'action' && e.actor === 10)) stepBattle(b)
+  assert.ok(b.events.some((e) => e.type === 'action' && e.actor === 10 && e.targets.includes(0)), 'and it strikes the Monarch')
+})
+
+test('a foe queues behind a foe: it waits while its next tile is held, and steps the tick it is free', () => {
+  // The Monarch at (3, 0); a frozen Ghoul at (3, 5) and a walking one behind it at (3, 6), whose arrow is (3, 5).
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('grave_ghoul', 10, 'foe', 3, 5, 1), on('grave_ghoul', 11, 'foe', 3, 6, 1)], { moving: [11] })
+  const [front, back] = [10, 11].map((uid) => b.byUid.get(uid))
+  assert.equal(arrowOf(b, back), front.tile)
+  for (let k = 0; k < 50; k++) assert.deepEqual(moves(stepBattle(b), 11), [], 'it queues')
+  front.nextStep = b.t
+  let first = null
+  while (!first && b.t < 200) {
     const events = stepBattle(b)
-    hops.push(...events.filter((e) => e.type === 'move' && e.actor === 1 && e.via))
-    // With a way to its quarry it has eyes for nothing else: it waits out its step beside the foes'
-    // line, gauge and all, and strikes none of it.
-    assert.ok(!events.some((e) => e.type === 'action' && e.actor === 1), `t ${b.t}: the Page struck on its way`)
-    const living = b.units.filter((u) => u.hp > 0)
-    assert.equal(new Set(living.map((u) => u.tile)).size, living.length, `t ${b.t}: two units on one tile`)
+    first = moves(events, 11)[0] ?? null
+    if (first) assert.equal(moves(events, 10)[0]?.to, tileAt(3, 4), 'the front one stepped first, the same tick')
   }
-  assert.ok(page.hp > 0 && distance(page.tile, quarry.tile) <= 1, 'the Page reached its quarry')
-  assert.equal(hops.length, 2, 'one hop over each line')
-  assert.deepEqual(hops.map((e) => e.via.length), [1, 1])
+  assert.deepEqual([first.from, first.to], [tileAt(3, 6), tileAt(3, 5)])
+  // A foe whose next tile holds a piece of yours fights it: it never walks round it.
+  const blocked = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 4, 9), on('grave_ghoul', 10, 'foe', 3, 5, 1)], { moving: [10] })
+  while (!blocked.over && blocked.t < 300) assert.deepEqual(moves(stepBattle(blocked), 10), [], 'it fights what stands on its road')
+  assert.ok(blocked.events.some((e) => e.type === 'action' && e.actor === 10 && e.targets.includes(1)))
 })
 
-test('a braced line holds flankers: a foe flanker cannot vault a unit on Stay at its post, and is engaged beside one', () => {
-  // A foe Clockwork Page; the party's line two rows ahead of its quarry, all seven lanes, on Stay (braced) or on
-  // Hunt; its quarry, a Tomb Knight, behind the line. Nobody but the Page moves.
-  const run = (where, hold = true) => tuned({ orders: { holdFlank: hold } }, () => {
-    const line = Array.from({ length: 7 }, (_, c) => ({ ...makeUnit('tomb_knight', { uid: 2 + c, lvl: 10, slot: slotAt(4, c) }), plan: { where, square: null } }))
-    const b = createBattle({
-      party: [makeUnit('tomb_knight', { uid: 1, lvl: 1, slot: slotAt(6, 3) }), ...line],
-      foes: [makeUnit('clockwork_page', { uid: 30, lvl: 10, slot: slotAt(0, 3) })],
-      seed: 'hold'
-    })
-    const page = b.units.find((u) => u.uid === 30)
-    const quarry = b.units.find((u) => u.uid === 1)
-    for (const u of b.units) if (u !== page) u.nextStep = Infinity
-    while (!b.over && page.hp > 0 && b.t < 300 && distance(page.tile, quarry.tile) > 1) stepBattle(b)
-    return distance(page.tile, quarry.tile) <= 1
-  })
-  assert.ok(run('hunt'), 'it vaults a line on Hunt')
-  assert.ok(run('stay', false), 'and a braced one without the rule')
-  assert.ok(!run('stay'), 'a braced line holds it')
+test('a Flank field routes round your pieces, is made again only when one rises or falls, and falls back on the Walk field with none', () => {
+  // A line of knights across y 3, every lane but the last; the Monarch behind it at (3, 0).
+  const line = (lanes) => lanes.map((x) => on('tomb_knight', 1 + x, 'party', x, 3, 9))
+  const b = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5]), on('clockwork_page', 20, 'foe', 3, 6, 9), on('grave_ghoul', 21, 'foe', 2, 6, 1)], { moving: [20, 21] })
+  const flank = fieldOf(b, true)
+  const walk = fieldOf(b)
+  assert.ok(flank.dist[tileAt(3, 6)] > walk.dist[tileAt(3, 6)], 'round the line is further')
+  assert.equal(flank.dist[tileAt(3, 3)], Infinity, 'your pieces are walls to it')
+  const page = b.byUid.get(20)
+  const ghoul = b.byUid.get(21)
+  assert.equal(arrowOf(b, ghoul), walk.arrow[ghoul.tile], 'a Walk kind walks the arrows')
+  assert.equal(arrowOf(b, page), flank.arrow[page.tile])
+  // The Page heads round for the gap at (6, 3), every step on the Flank field's arrows (its first not the Walk
+  // field's), until the line is in its ring; the Ghoul walks straight into the line.
+  const path = []
+  while (!b.over && b.t < 200 && !foesNextTo(b, page).length) {
+    const from = page.tile
+    for (const e of moves(stepBattle(b), 20)) {
+      assert.equal(e.to, flank.arrow[from])
+      path.push(e.to)
+    }
+  }
+  assert.ok(path.length >= 2 && path[0] !== walk.arrow[tileAt(3, 6)] && tileX(path.at(-1)) > 3, `round toward the gap: ${path}`)
+  assert.ok(moves(b.events, 21).every((e) => e.to === walk.arrow[e.from]))
+  // The field stands while your pieces only walk; a piece fallen makes it again.
+  const was = fieldOf(b, true)
+  const knight = b.byUid.get(4)
+  b.at[knight.tile] = null
+  knight.tile = tileAt(3, 2)
+  b.at[knight.tile] = knight
+  assert.equal(fieldOf(b, true), was, 'a piece that walks changes nothing')
+  slay(b, b.byUid.get(1))
+  const now = fieldOf(b, true)
+  assert.notEqual(now, was)
+  assert.ok(now.dist[tileAt(0, 3)] < Infinity, 'its tile is open ground again')
+  // A line across every lane: no road round it, so a Flank kind walks the Walk field's arrows into it.
+  const sealed = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5, 6]), on('clockwork_page', 20, 'foe', 3, 6, 9)], { moving: [20] })
+  const shut = sealed.byUid.get(20)
+  assert.equal(fieldOf(sealed, true).dist[shut.tile], Infinity)
+  assert.equal(arrowOf(sealed, shut), fieldOf(sealed).arrow[shut.tile])
+  while (!sealed.over && sealed.t < 300 && !sealed.events.some((e) => e.type === 'action' && e.actor === 20)) stepBattle(sealed)
+  assert.equal(tileY(shut.tile), 4, 'it walked up to the line')
+  assert.ok(sealed.events.some((e) => e.type === 'action' && e.actor === 20), 'and fights it')
 })
 
-test('a flanker whose quarry is sealed off fights what is in reach, through its own line if need be', () => {
-  // The quarry, a Tomb Knight in the foes' back corner, has a knight on every tile around it. A lone
-  // foe knight stands in the front centre lane; the Page starts behind its own front line, which it has
-  // to pass to get there. Nobody but the Page moves.
-  const run = (screen) => {
-    const party = [makeUnit('clockwork_page', { uid: 1, lvl: 5, slot: slotAt(screen ? 1 : 0, 3) })]
-    if (screen) party.push(...[2, 3, 4].map((c, k) => makeUnit('tomb_knight', { uid: 2 + k, lvl: 1, slot: slotAt(0, c) })))
-    const foes = [[2, 0], [2, 1], [1, 0], [1, 1]].map(([r, c], k) => makeUnit('tomb_knight', { uid: 20 + k, lvl: 1, slot: slotAt(r, c) }))
-    foes.push(makeUnit('tomb_knight', { uid: 24, lvl: 5, slot: slotAt(0, 3) }))
-    const b = createBattle({ party, foes, seed: 'sealed' })
-    const page = b.units.find((u) => u.uid === 1)
-    for (const u of b.units) if (u !== page) u.nextStep = Infinity
-    const events = []
-    while (!b.over && b.t < 400 && !events.some((e) => e.type === 'action' && e.actor === 1)) events.push(...stepBattle(b))
-    assert.equal(page.quarry, 20, 'the quarry is the deepest foe')
-    const strike = events.find((e) => e.type === 'action' && e.actor === 1)
-    assert.ok(strike, 'the Page struck')
-    assert.deepEqual(strike.targets, [24], 'at the foe it could reach')
-    return events.filter((e) => e.type === 'move' && e.actor === 1)
+// ── rings ────────────────────────────────────────────────────────────────────────────────────────
+
+test('a ring\'s target: yours aim at the foe furthest along its road, ties by lane; a foe at the piece on its road, else the nearest', () => {
+  // A Bone Chanter (ring 4) at (3, 2), the Monarch at (3, 0); in its ring, Ghouls at (5, 5) and (1, 5), five
+  // steps from the Monarch, and at (3, 6), six. Of the two nearer the Monarch, CENTRE_OUT takes lane 1 first.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 3, 2), on('grave_ghoul', 10, 'foe', 5, 5, 1),
+    on('grave_ghoul', 11, 'foe', 1, 5, 1), on('grave_ghoul', 12, 'foe', 3, 6, 1), on('grave_ghoul', 13, 'foe', 3, 7, 1)])
+  const chanter = b.byUid.get(1)
+  assert.equal(ringTarget(b, chanter).uid, 11)
+  slay(b, b.byUid.get(11))
+  assert.equal(ringTarget(b, chanter).uid, 10)
+  slay(b, b.byUid.get(10))
+  assert.equal(ringTarget(b, chanter).uid, 12, 'the one at (3, 7) is past its ring')
+  let shot = null
+  while (!shot && b.t < 200) shot = stepBattle(b).find((e) => e.type === 'action' && e.actor === 1 && e.ability === 'marrow_bolt')
+  assert.deepEqual(shot.targets, [12], 'and its blows go there')
+  // A Frost Wyrm (ring 3, a Walk kind) at (3, 5) on its road down lane 3: the knight on its next tile, (3, 4),
+  // before the Ghoul beside it; with the knight gone, the nearest; of two as near, CENTRE_OUT's lane first.
+  const f = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 4), on('grave_ghoul', 2, 'party', 2, 5),
+    on('grave_ghoul', 3, 'party', 5, 3), on('grave_ghoul', 4, 'party', 1, 3), on('frost_wyrm', 10, 'foe', 3, 5)])
+  const sprite = f.byUid.get(10)
+  assert.equal(arrowOf(f, sprite), tileAt(3, 4))
+  assert.equal(ringTarget(f, sprite).uid, 1)
+  slay(f, f.byUid.get(1))
+  assert.equal(ringTarget(f, sprite).uid, 2)
+  slay(f, f.byUid.get(2))
+  assert.equal(ringTarget(f, sprite).uid, 4)
+  assert.equal(ringTarget(f, f.monarch), null, 'the Monarch\'s ring is none')
+})
+
+test('a piece fights whatever is in its ring and otherwise follows its line: a ranged one never steps while a foe is in reach', () => {
+  // A Frost Sprite (ring 3) marching up lane 3; a Ghoul frozen at (3, 7). It halts with the Ghoul 3 tiles off,
+  // shoots it from there, and walks on once it has fallen.
+  const b = scene([on('monarch', 0, 'party', 3, 0), lined(on('frost_sprite', 1, 'party', 3, 1, 6), lane(3, 1, 8)), on('grave_ghoul', 10, 'foe', 3, 7, 1),
+    on('iron_golem', 11, 'foe', 0, 10, 1)], { moving: [1] })
+  const sprite = b.byUid.get(1)
+  const ghoul = b.byUid.get(10)
+  while (ghoul.hp > 0 && b.t < 2000) {
+    const events = stepBattle(b)
+    if (moves(events, 1).length) assert.ok(distance(sprite.tile, ghoul.tile) >= 3, `t ${b.t}: walked into its ring`)
+    if (distance(sprite.tile, ghoul.tile) <= 3) assert.deepEqual(moves(events, 1).filter((e) => distance(e.from, ghoul.tile) <= 3), [], 'no step with a foe in its ring')
   }
-  run(false)
-  assert.ok(run(true).some((e) => e.via), 'it hopped its own line on the way')
+  assert.equal(sprite.tile, tileAt(3, 4), 'it held three tiles off')
+  assert.ok(b.events.some((e) => e.type === 'action' && e.actor === 1 && e.targets.includes(10)))
+  while (b.t < 2200 && sprite.tile === tileAt(3, 4)) stepBattle(b)
+  assert.equal(sprite.tile, tileAt(3, 5), 'then on along its line')
+})
+
+test('a piece with ring 2 lunges at a foe two tiles off, strikes from beside it, and walks back once its ring is clear', () => {
+  // A Grave Ghoul at (3, 3) given ring 2; a frail Ghoul frozen at (3, 5); a golem far off keeps the battle going.
+  const build = (extra = []) => {
+    const b = scene([on('monarch', 0, 'party', 0, 0), on('grave_ghoul', 1, 'party', 3, 3, 9), ...extra, on('grave_ghoul', 10, 'foe', 3, 5, 1),
+      on('iron_golem', 11, 'foe', 6, 10, 1)], { moving: [1] })
+    b.byUid.get(1).ring = 2
+    return b
+  }
+  const b = build()
+  const ghoul = b.byUid.get(1)
+  const foe = b.byUid.get(10)
+  assert.ok(ghoul.lunges)
+  const lunge = moves(stepBattle(b), 1)[0]
+  assert.deepEqual([lunge?.from, lunge?.to], [tileAt(3, 3), tileAt(3, 4)], 'the straight step, beside the foe')
+  assert.equal(ghoul.home, tileAt(3, 3))
+  while (foe.hp > 0 && b.t < 1000) {
+    stepBattle(b)
+    assert.ok(distance(ghoul.tile, ghoul.home ?? ghoul.tile) <= 1, 'never further from its line than its ring')
+  }
+  assert.ok(b.events.some((e) => e.type === 'action' && e.actor === 1 && e.targets.includes(10)), 'it struck')
+  while (b.t < 1200 && ghoul.tile !== tileAt(3, 3)) stepBattle(b)
+  assert.deepEqual([ghoul.tile, ghoul.home], [tileAt(3, 3), null], 'back on the tile it left')
+  // With no open tile beside the foe within its reach, it waits: three frozen knights hold them, and the foe is
+  // a golem that outlasts the watch.
+  const walled = scene([on('monarch', 0, 'party', 0, 0), on('grave_ghoul', 1, 'party', 3, 3, 9), ...[2, 3, 4].map((x) => on('tomb_knight', x, 'party', x, 4, 1)),
+    on('iron_golem', 10, 'foe', 3, 5, 9)], { moving: [1] })
+  walled.byUid.get(1).ring = 2
+  for (let k = 0; k < 100; k++) assert.deepEqual(moves(stepBattle(walled), 1), [], 'no open tile: it waits')
+  // A ring of 1 never lunges: a foe two tiles off is out of its ring.
+  const short = build()
+  short.byUid.get(1).ring = 1
+  for (let k = 0; k < 100; k++) assert.deepEqual(moves(stepBattle(short), 1), [])
 })
 
 test('gauge never banks past the costliest ability, the tile index matches the living, and caches are never stale', () => {
@@ -337,7 +490,7 @@ test('gauge never banks past the costliest ability, the tile index matches the l
   for (let i = 0; i < 40; i++) {
     // Half the battles bring a Tomb Knight whose Bulwark aura reaches 2 tiles, the widest on the board.
     const bulwark = (party) => Object.assign(party.find((u) => u.id === 'tomb_knight'), { path: 'bulwark', tier: 3 })
-    const b = boardOf(5, () => fresh('index' + i, 1 + (i % 4), i % 2 ? { monarch: true, will: 1, army: i % 4 === 3 ? 3 : 0, orders: i % 8 === 1 } : { ids: [...START, 'tomb_knight', 'bone_chanter'], tune: bulwark }))
+    const b = boardOf(5, () => fresh('index' + i, 1 + (i % 4), i % 2 ? { monarch: true, will: 1, army: i % 4 === 3 ? 3 : 0, lines: i % 8 === 1 } : { ids: [...START, 'tomb_knight', 'bone_chanter'], tune: bulwark }))
     const check = () => {
       const living = b.units.filter((u) => u.hp > 0)
       for (const u of b.units) {
@@ -352,7 +505,6 @@ test('gauge never banks past the costliest ability, the tile index matches the l
       // The index answers the list helpers' questions the same way.
       if (b.t % 5) continue
       for (const u of b.units.filter((x) => x.hp > 0)) {
-        assert.equal(isEngaged(b, u), listEngaged(b.units, u))
         assert.deepEqual(foesNextTo(b, u), listFoesNextTo(b.units, u))
         const givers = auraGivers(b, u)
         assert.deepEqual(givers, listAuraGivers(b.units, u))
@@ -377,11 +529,12 @@ test('a unit can enter a battle under way: on the index, acting, and versioning 
   const b = fresh('enter')
   for (let k = 0; k < 40; k++) stepBattle(b)
   const roster = b.roster
-  const tile = b.at.findIndex((u, t) => u === null && !b.walls.has(t))
+  const ours = b.ours
+  const tile = summonTile(b.units.find((x) => x.side === 'foe' && x.hp > 0).tile, (t) => b.at[t] === null && !b.walls.has(t))
   const u = enterBattle(b, { ...makeUnit('frost_sprite', { uid: 99, lvl: 3 }), side: 'party', tile })
   assert.equal(b.at[tile], u)
-  assert.equal(b.roster, roster + 1)
-  assert.deepEqual([u.gauge, u.nextStep, u.statuses], [0, b.t, []])
+  assert.deepEqual([b.roster, b.ours], [roster + 1, ours + 1])
+  assert.deepEqual([u.gauge, u.nextStep, u.statuses, u.line, u.home], [0, b.t, [], null, null])
   assert.throws(() => enterBattle(b, { ...makeUnit('frost_sprite', { uid: 98 }), side: 'party', tile }), /taken/)
   const open = b.at.findIndex((x, t) => x === null && !b.walls.has(t))
   assert.throws(() => enterBattle(b, { ...makeUnit('frost_sprite', { uid: 97 }), side: 'party', tile: open, hp: 0 }), /no HP/)
@@ -412,7 +565,7 @@ test('a battle ends undecided at its ceiling', () => {
   assert.deepEqual([r.ticks, r.winner, b.reason], [30, null, 'tick-ceiling'])
 })
 
-test('a Tomb Knight shields the allies next to it; bonds are set at the start and announced', () => {
+test('a Tomb Knight shields the allies next to it', () => {
   const soul = (id, uid, row, col) => makeUnit(id, { uid, slot: slotAt(row, col), lvl: 3 })
   const party = [soul('tomb_knight', 1, 0, 3), soul('frost_sprite', 2, 1, 4), soul('bone_chanter', 3, 2, 0), soul('tomb_knight', 4, 0, 2)]
   const b = createBattle({ party, foes: [soul('clockwork_page', 10, 2, 3)], seed: 'aura' })
@@ -420,15 +573,7 @@ test('a Tomb Knight shields the allies next to it; bonds are set at the start an
   assert.equal(stats(b, unit(2)).damage.taken, 0.85, 'next to a knight')
   assert.equal(stats(b, unit(3)).damage.taken, 1, 'three lanes away')
   assert.equal(stats(b, unit(1)).damage.taken, 0.85, "the other knight's aura, not its own")
-  assert.ok(Math.abs(stats(b, unit(1)).def / stats(b, { ...unit(3), uid: 99, id: 'tomb_knight', lvl: 3, tile: unit(3).tile }).def - 1.2) < 1e-9, 'Phalanx: +20% DEF')
-  const start = b.events[0]
-  assert.deepEqual(start.bonds.filter((x) => x.id === 'phalanx').map((x) => x.uid).sort(), [1, 4])
-  // Walking apart does not break a bond: it was set by the formation.
-  b.at[unit(4).tile] = null
-  unit(4).tile = unit(3).tile + 1
-  b.at[unit(4).tile] = unit(4)
-  b.cache.clear()
-  assert.ok(stats(b, unit(1)).def > stats(b, { ...unit(1), uid: 98 }).def)
+  assert.ok(!('bonds' in b.events[0]), 'bonds are gone')
 })
 
 test('path tiers fight: a self heal mends the user, and a `who` mod touches only souls it names', () => {
@@ -443,8 +588,8 @@ test('path tiers fight: a self heal mends the user, and a `who` mod touches only
   const vanguardsOnly = [{ path: 'def', op: 'mul', v: 2, who: { role: ['vanguard'] } }]
   const knight = makeUnit('tomb_knight', { uid: 2 })
   const sprite = makeUnit('frost_sprite', { uid: 3 })
-  const field = createBattle({ party: autoPlace([knight, sprite]), foes: team(['clockwork_page'], { side: 'foe' }), seed: 'who', partyMods: vanguardsOnly })
-  const of = (id) => stats(field, field.units.find((u) => u.id === id)).def
+  const army = createBattle({ party: autoPlace([knight, sprite]), foes: team(['clockwork_page'], { side: 'foe' }), seed: 'who', partyMods: vanguardsOnly })
+  const of = (id) => stats(army, army.units.find((u) => u.id === id)).def
   assert.equal(of('tomb_knight'), 2 * unitDef('tomb_knight').base.def)
   assert.equal(of('frost_sprite'), unitDef('frost_sprite').base.def)
 })
@@ -456,6 +601,7 @@ test('the Monarch stands where it is put, never strikes, and banks for Arise whi
   const b = scene([on('monarch', 0, 'party', 3, 2), on('tomb_knight', 1, 'party', 3, 5), on('frost_sprite', 10, 'foe', 3, 10)], { moving: [0] })
   const m = b.monarch
   assert.equal(m.uid, 0)
+  assert.equal(b.root, m.tile, 'the roads run to it')
   for (let k = 0; k < 200; k++) {
     for (const e of stepBattle(b)) assert.ok(e.actor !== 0, `t ${e.t}: the Monarch did ${e.type}`)
     assert.ok(m.gauge <= 200)
@@ -463,6 +609,8 @@ test('the Monarch stands where it is put, never strikes, and banks for Arise whi
   assert.equal(m.tile, tileAt(3, 2), 'it never stepped')
   assert.equal(m.gauge, 200, 'Arise is banked, and no more')
   assert.equal(nextCost(b, m), 200)
+  // With no Monarch the roads run to the camp's rear middle tile.
+  assert.equal(scene([on('tomb_knight', 1, 'party', 3, 5), on('frost_sprite', 10, 'foe', 3, 10)]).root, tileAt(3, 0))
 })
 
 test('Arise raises the strongest corpse in the domain, then the nearest, as a shadow at half HP where it fell', () => tuned(FIRST_ARISE, () => {
@@ -492,7 +640,7 @@ test('Arise raises the strongest corpse in the domain, then the nearest, as a sh
   const b = build(0)
   const roster = b.roster
   const nextUid = b.nextUid
-  const { action, arise, events } = rise(b)
+  const { action, arise } = rise(b)
   assert.deepEqual([action.ability, action.targets], ['arise', [11]])
   const ghoul = b.units.find((u) => u.uid === 11)
   const max = baseStats('grave_ghoul', 2).hp
@@ -501,11 +649,8 @@ test('Arise raises the strongest corpse in the domain, then the nearest, as a sh
     unit: { uid: nextUid, id: 'grave_ghoul', side: 'party', tile: ghoul.tile, lvl: 2, hp: Math.ceil(max / 2), maxHp: max, shadow: true }
   })
   const shadow = b.units.find((u) => u.uid === nextUid)
-  // It rose on the corpse's tile (and may already have taken a step: it acts the tick it enters).
-  assert.ok(ghoul.raised && shadow.shadow && b.at[shadow.tile] === shadow)
+  assert.ok(ghoul.raised && shadow.shadow && b.at[shadow.tile] === shadow && shadow.tile === ghoul.tile)
   assert.deepEqual([b.roster, b.nextUid, b.raised], [roster + 1, nextUid + 1, 1])
-  assert.ok(events.some((e) => e.type === 'falter' && e.target === nextUid && e.on), 'a shadow always falters')
-  assert.ok(falters(b, shadow))
   b.monarch.gauge = 200
   for (let k = 0; k < 5; k++) assert.ok(!rise(b).action, 'one raise a battle at Will 0')
   // Will 1: tier 2 now, so the Chanter; the Knight lies beyond the domain, the Wisp under the living.
@@ -517,9 +662,8 @@ test('Arise raises the strongest corpse in the domain, then the nearest, as a sh
   assert.ok(!rise(w).action, 'two raises a battle at Will 1')
 }))
 
-test('Arise by the numbers: raises × (1 + Will) a battle, of tier raiseTier + Will, at raiseHp of max HP; its shadows falter only outside the domain', () => {
+test('Arise by the numbers: raises × (1 + Will) a battle, of tier raiseTier + Will, at raiseHp of max HP', () => {
   const { raises, raiseTier, raiseHp } = TUNING.monarch
-  assert.equal(TUNING.monarch.shadowFalter, false)
   // Corpses of every tier up to 5 at the Monarch's feet, more than any cap; a far golem keeps the battle going.
   const ids = ['grave_ghoul', 'bone_chanter', 'tomb_knight', 'iron_golem']
   for (const will of [0, 1]) {
@@ -536,41 +680,36 @@ test('Arise by the numbers: raises × (1 + Will) a battle, of tier raiseTier + W
     for (const e of risen) {
       assert.ok(unitDef(e.unit.id).tier <= raiseTier + will)
       assert.equal(e.unit.hp, Math.ceil(e.unit.maxHp * raiseHp))
-      // It falters as a soul on its tile would: inside the domain, not at all.
-      const shadow = b.units.find((u) => u.uid === e.unit.uid)
-      if (distance(shadow.tile, b.monarch.tile) <= b.domain) assert.ok(!falters(b, shadow), 'inside the domain: no falter')
     }
   }
 })
 
-test('shadows falter, count for synergies, and hold the bonds of where they rise', () => tuned(FIRST_ARISE, () => {
-  // A Grave Ghoul corpse lies beside a party Grave Ghoul (same board row, next lane), inside the domain.
+test('a shadow holds its tile, and counts for synergies; so does a summon', () => tuned(FIRST_ARISE, () => {
+  // A Grave Ghoul corpse beside a party Grave Ghoul, inside the domain; a Ghoul foe walks in later from far off.
   const b = scene([
     on('monarch', 0, 'party', 3, 1), on('grave_ghoul', 1, 'party', 2, 3),
     on('grave_ghoul', 10, 'foe', 3, 3, 3), on('iron_golem', 11, 'foe', 6, 10, 1)
   ])
-  const ghoul = b.units.find((u) => u.uid === 1)
+  const ghoul = b.byUid.get(1)
   const before = stats(b, ghoul)
-  slay(b, b.units.find((u) => u.uid === 10))
+  slay(b, b.byUid.get(10))
   b.monarch.gauge = 200
   stepBattle(b)
   const shadow = b.units.find((u) => u.shadow)
   assert.ok(shadow, 'it rose')
+  assert.deepEqual([shadow.tile, shadow.line, shadow.nextStep], [tileAt(3, 3), null, b.t - 1], 'where it fell, with no line, free to step')
   // Undead 2 and Vanguard 2 now, for both: the shadow counts.
   assert.ok(stats(b, ghoul).def > before.def, 'the shadow made a synergy')
-  // Phalanx and Kinship, held by the shadow (with the ghoul as partner); the ghoul's own are unchanged.
-  const held = b.bonds.filter((x) => x.uid === shadow.uid).map((x) => x.bond.id).sort()
-  assert.deepEqual(held, ['kinship', 'phalanx'])
-  assert.ok(b.bonds.filter((x) => x.uid === shadow.uid).every((x) => x.partner === 1))
-  assert.ok(!b.bonds.some((x) => x.uid === 1), 'those already there keep theirs')
-  // It falters wherever it stands; the ghoul beside it, inside the domain, does not.
-  assert.ok(falters(b, shadow) && !falters(b, ghoul))
-  const dealt = stats(b, shadow).damage.dealt
-  const tile = shadow.tile
-  shadow.tile = ghoul.tile + 1 // were it not a shadow, here it would stand inside the domain
-  shadow.shadow = false
-  assert.ok(!falters(b, shadow))
-  assert.ok(Math.abs(dealt / stats(b, shadow).damage.dealt - TUNING.monarch.falter) < 1e-9)
+  for (let k = 0; k < 300; k++) assert.deepEqual(moves(stepBattle(b), shadow.uid), [], 'it holds')
+  assert.equal(shadow.tile, tileAt(3, 3))
+  // A Bone Chanter on its Marrowcaller path raises Skeletons beside it, and they hold there too.
+  const chanter = { ...on('bone_chanter', 1, 'party', 3, 3), path: 'marrowcaller', tier: 2 }
+  const s = scene([on('monarch', 0, 'party', 0, 0), chanter, on('iron_golem', 11, 'foe', 6, 10, 1)])
+  const skeletons = s.units.filter((u) => u.summoned)
+  assert.ok(skeletons.length > 0 && skeletons.every((u) => u.summoner === 1 && u.line === null))
+  const at = skeletons.map((u) => u.tile)
+  for (let k = 0; k < 300; k++) stepBattle(s)
+  assert.deepEqual(skeletons.map((u) => u.tile), at)
 }))
 
 test('Arise breaks a tie by the lowest uid, and never raises a boss, a shadow, or its own side\'s dead', () => {
@@ -601,35 +740,13 @@ test('Arise breaks a tie by the lowest uid, and never raises a boss, a shadow, o
   assert.ok(!own.events.some((e) => e.type === 'arise'))
 })
 
-test('a party unit outside the domain falters, announced as it walks out; foes, the Monarch and battles without one never do', () => {
-  // The Monarch at (3, 2); a knight walks up its lane toward a foe frozen at the far edge. It leaves the
-  // domain (3 tiles) on the step to y 6.
-  const b = scene([on('monarch', 0, 'party', 3, 2), on('tomb_knight', 1, 'party', 3, 4), on('tomb_knight', 10, 'foe', 3, 10)], { moving: [1] })
-  const knight = b.units.find((u) => u.uid === 1)
-  const foe = b.units.find((u) => u.uid === 10)
-  const events = []
-  while (distance(knight.tile, foe.tile) > 1) events.push(...stepBattle(b))
-  const marks = events.filter((e) => e.type === 'falter')
-  assert.deepEqual(marks.map((e) => [e.target, e.on]), [[1, true]], 'one change, when it stepped out')
-  const out = events.find((e) => e.type === 'move' && e.actor === 1 && distance(e.to, b.monarch.tile) > b.domain)
-  assert.equal(out.t, marks[0].t)
-  assert.equal(tileY(out.to) - tileY(b.monarch.tile), b.domain + 1)
-  assert.ok(Math.abs(stats(b, knight).damage.dealt - TUNING.monarch.falter) < 1e-9)
-  assert.ok(!falters(b, foe) && !falters(b, b.monarch))
-  assert.equal(stats(b, foe).damage.dealt, 1)
-  // A wider domain holds it.
-  const wide = scene([on('monarch', 0, 'party', 3, 2), on('tomb_knight', 1, 'party', 3, 4), on('tomb_knight', 10, 'foe', 3, 10)], { moving: [1], domain: 7 })
-  while (!wide.over && wide.t < 200) stepBattle(wide)
-  assert.ok(!wide.events.some((e) => e.type === 'falter'))
-  // A soul placed outside is announced at the start, right after battle:start; no one else is.
-  const placed = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5), on('tomb_knight', 10, 'foe', 3, 10)])
-  assert.deepEqual(placed.events.slice(0, 2).map((e) => e.type), ['battle:start', 'falter'])
-  assert.deepEqual(placed.events[1], { t: 0, type: 'falter', target: 1, on: true })
-  assert.ok(!placed.events.some((e) => e.type === 'falter' && e.target !== 1))
-  // No Monarch, no domain.
-  const none = scene([on('tomb_knight', 1, 'party', 3, 0), on('tomb_knight', 10, 'foe', 3, 10)])
-  assert.ok(!falters(none, none.units[0]) && !none.events.some((e) => e.type === 'falter'))
-})
+test('Arise raises past the board\'s cap: its shadows take no place a soul needs', () => boardOf(1, () => {
+  const b = scene([on('monarch', 0, 'party', 3, 1), on('tomb_knight', 1, 'party', 0, 4), on('tomb_knight', 2, 'party', 6, 4), on('tomb_knight', 40, 'foe', 3, 2, 1),
+    on('iron_golem', 50, 'foe', 3, 10)], { will: 1 })
+  slay(b, b.byUid.get(40))
+  b.monarch.gauge = 200
+  assert.ok(stepBattle(b).some((e) => e.type === 'arise'), 'two souls on a board of one, and the Monarch raised it')
+}))
 
 test('the battle is lost the instant the Monarch falls, and the killer is recorded', () => {
   // The Monarch, its one soul away in the far corner, and a Wisp shooting at it from 4 tiles off.
@@ -688,481 +805,117 @@ test('units made mid-battle take uids from nextUid, past every uid there by defa
   const units = [on('monarch', 0, 'party', 3, 2), on('tomb_knight', 7, 'party', 3, 4), on('grave_ghoul', 40, 'foe', 3, 5, 1)]
   assert.equal(scene(units).nextUid, 41)
   assert.equal(scene(units, { nextUid: 100 }).nextUid, 100)
-  // Past the reserve's too: a shadow never takes the uid of a body still to enter.
-  const reserve = [{ ...makeUnit('grave_ghoul', { uid: 60, lvl: 3 }), cohortOf: 7, rank: true }]
+  // Past the reserve's too: a shadow never takes the uid of a foe still to enter.
+  const reserve = [{ ...makeUnit('grave_ghoul', { uid: 60, lvl: 3 }), side: 'foe', when: { at: 'time', t: 9999 } }]
   assert.equal(scene(units, { reserve }).nextUid, 61)
 })
 
-// ── the army ─────────────────────────────────────────────────────────────────────────────────────
-
-// A summon of `captain`'s on a tile (as battle.js summon makes them: on its leash). A unit waiting in the
-// battle's reserve on a leash (`waiting`) is the battle's generic reserve rule; the run fills it with held souls.
-const member = (id, uid, captain, x, y, lvl = 3) => ({ ...on(id, uid, 'party', x, y, lvl), cohortOf: captain, summoned: true, summoner: captain })
-const waiting = (id, uid, captain, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), cohortOf: captain, rank: true })
-
-test('the reserve enters beside the Monarch, one a tick, once fewer than 14 bodies stand (a board of 14); each entry restarts the escalation clock', () => boardOf(14, () => {
-  // The Monarch at (3,1); fourteen knights in rows 3 and 4 (the captain, uid 4, at (3,3)); three ghouls of
-  // its cohort in reserve. Row 3 stays full, so no one has a way to walk anywhere.
-  const knights = [...Array(14).keys()].map((k) => on('tomb_knight', k + 1, 'party', k % 7, 3 + Math.floor(k / 7)))
-  const reserve = [waiting('grave_ghoul', 30, 4), waiting('grave_ghoul', 31, 4), waiting('grave_ghoul', 32, 4)]
-  const b = scene([on('monarch', 0, 'party', 3, 1), ...knights, on('iron_golem', 50, 'foe', 3, 10)], { reserve })
-  assert.deepEqual(b.events[0].reserve, [30, 31, 32].map((uid) => ({ uid, id: 'grave_ghoul', lvl: 3, rank: true, cohortOf: 4 })))
-  for (let k = 0; k < 5; k++) assert.ok(!stepBattle(b).some((e) => e.type === 'enter'), 'fourteen bodies: no room')
-  // (Early enough that an entry restarts the ramp in full: see the ceiling test in enemy.test.js.)
-  b.t = 1000
-  assert.ok(escalation(b) > 1, 'blows have ramped')
-  for (const uid of [8, 9, 10]) slay(b, b.units.find((u) => u.uid === uid))
-  // Three fell at once: one enters a tick, ahead of the Monarch first (the middle lane, then the lower
-  // tile), the newcomer last in the turn order, the roster bumped, the clock restarted.
-  const entered = []
-  for (let k = 0; k < 4; k++) {
-    const roster = b.roster
-    const events = stepBattle(b)
-    const e = events.filter((x) => x.type === 'enter')
-    if (k === 3) {
-      assert.deepEqual(e, [], 'the reserve is spent')
-      break
-    }
-    assert.equal(e.length, 1, `tick ${b.t - 1}: one a tick`)
-    entered.push(e[0])
-    assert.equal(b.roster, roster + 1)
-    assert.equal(b.entered, b.t - 1)
-    assert.equal(escalation(b), 1, 'escalation counts from the last entry')
-    assert.equal(b.units.at(-1).uid, e[0].unit.uid)
-  }
-  // Its max HP is fitted as it enters: Undead 4 and 6 (the knights and it) add 5% and 10%.
-  const ghoul = Math.round(baseStats('grave_ghoul', 3).hp * 1.05 * 1.1)
-  assert.deepEqual(entered.map((e) => [e.t, e.unit]), [[0, tileAt(3, 2), 30], [1, tileAt(2, 2), 31], [2, tileAt(4, 2), 32]].map(([dt, tile, uid]) =>
-    [1000 + dt, { uid, id: 'grave_ghoul', side: 'party', tile, lvl: 3, hp: ghoul, maxHp: ghoul, rank: true, cohortOf: 4 }]))
-  assert.ok(entered.every((e) => b.at[e.unit.tile]?.uid === e.unit.uid), 'on the index, where they entered')
-  assert.ok(!entered.some((e) => falters(b, b.units.find((u) => u.uid === e.unit.uid))), 'inside the domain, captain standing')
-  // With room on the board from the start, the reserve enters at once, a tick apiece.
-  const thin = scene([on('monarch', 0, 'party', 3, 1), on('tomb_knight', 1, 'party', 3, 4), on('iron_golem', 50, 'foe', 3, 10)],
-    { reserve: [waiting('grave_ghoul', 30, 1), waiting('grave_ghoul', 31, 1)] })
-  assert.deepEqual([stepBattle(thin), stepBattle(thin)].map((ev) => ev.filter((e) => e.type === 'enter').map((e) => [e.t, e.unit.uid])), [[[0, 30]], [[1, 31]]])
-  // A body whose captain is gone enters faltering. With no Monarch it enters at the rear centre, and a
-  // party with bodies still to enter is not wiped.
-  const lone = scene([on('tomb_knight', 1, 'party', 0, 4), on('iron_golem', 50, 'foe', 3, 10)], { reserve: [waiting('grave_ghoul', 30, 99)] })
-  slay(lone, lone.units.find((u) => u.uid === 1))
-  lone.reserve.push(waiting('grave_ghoul', 31, 99))
-  const ev = stepBattle(lone)
-  assert.ok(!lone.over, 'bodies still in reserve')
-  const e = ev.find((x) => x.type === 'enter')
-  assert.equal(e.unit.tile, tileAt(3, 0))
-  assert.ok(ev.some((x) => x.type === 'falter' && x.target === 30 && x.on), 'its captain is gone: it falters')
-  assert.ok(lone.units.find((u) => u.uid === 30).orphan)
-  // A member on the board from the start whose captain never took the field is an orphan from the
-  // start, announced at t 0.
-  const astray = scene([on('monarch', 0, 'party', 3, 1), member('grave_ghoul', 2, 99, 3, 2), on('iron_golem', 50, 'foe', 3, 10)])
-  assert.ok(astray.units.find((u) => u.uid === 2).orphan)
-  assert.deepEqual(astray.events.filter((x) => x.type === 'falter'), [{ t: 0, type: 'falter', target: 2, on: true }])
-}))
-
-test('an Arise shadow stands past the board\'s cap: it holds back no reserve body', () => boardOf(14, () => {
-  // Thirteen knights in rows 4 and 5, the Monarch at (3,1) with Arise ready, a slain Tomb Knight at its feet.
-  const knights = [...Array(13).keys()].map((k) => on('tomb_knight', k + 1, 'party', k % 7, 4 + Math.floor(k / 7)))
-  const b = scene([on('monarch', 0, 'party', 3, 1), ...knights, on('tomb_knight', 40, 'foe', 3, 2, 1), on('iron_golem', 50, 'foe', 3, 10)], { will: 1 })
-  slay(b, b.units.find((u) => u.uid === 40))
-  b.monarch.gauge = 200
-  assert.ok(stepBattle(b).some((e) => e.type === 'arise'), 'the Monarch raised it')
-  b.reserve.push(waiting('grave_ghoul', 70, 1), waiting('grave_ghoul', 71, 1))
-  assert.deepEqual(stepBattle(b).filter((e) => e.type === 'enter').map((e) => e.unit.uid), [70], 'thirteen and a shadow: room for one more')
-  for (let k = 0; k < 5; k++) assert.ok(!stepBattle(b).some((e) => e.type === 'enter'), 'fourteen bodies and a shadow: full')
-  slay(b, b.units.find((u) => u.uid === 13))
-  assert.deepEqual(stepBattle(b).filter((e) => e.type === 'enter').map((e) => e.unit.uid), [71], 'a body fell: the reserve enters')
-}))
-
-test('summons keep within a tile of their summoner while it stands: they walk back to it, and step only where they stay beside it', () => {
-  // The captain, a knight at (3,3), stands still; a Ghoul and a Clockwork Page of its cohort start in the
-  // rear corners; the only foe stands frozen at the far edge, out of everyone's reach.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), member('grave_ghoul', 2, 1, 0, 0), member('clockwork_page', 3, 1, 6, 0),
-    on('iron_golem', 50, 'foe', 3, 10)], { moving: [2, 3] })
-  const captain = b.units.find((u) => u.uid === 1)
-  const ghoul = b.units.find((u) => u.uid === 2)
-  const page = b.units.find((u) => u.uid === 3)
-  const joined = new Map()
-  for (let k = 0; k < 300; k++) {
-    for (const e of stepBattle(b)) {
-      if (e.type !== 'move') continue
-      const u = b.units.find((x) => x.uid === e.actor)
-      const before = distance(e.from, captain.tile)
-      const after = distance(e.to, captain.tile)
-      if (joined.has(u.uid)) assert.ok(after <= 1, `t ${e.t}: ${u.id} strayed from its captain to ${e.to}`)
-      else assert.ok(after < before, `t ${e.t}: ${u.id} walked away from its captain`)
-      if (after <= 1 && !joined.has(u.uid)) joined.set(u.uid, e.t)
-    }
-  }
-  assert.ok(joined.has(2) && joined.has(3), 'both reached it')
-  assert.ok(distance(ghoul.tile, captain.tile) <= 1 && distance(page.tile, captain.tile) <= 1)
-  // Beside its captain, it still takes its role's step toward the foes, where the step keeps it beside.
-  const by = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), member('grave_ghoul', 2, 1, 3, 2),
-    on('iron_golem', 50, 'foe', 3, 10)], { moving: [2] })
-  let step = null
-  while (!step && by.t < TUNING.board.stepTicks) step = stepBattle(by).find((e) => e.type === 'move' && e.actor === 2)
-  assert.ok(step, 'it stepped within one step clock')
-  assert.ok(distance(step.to, tileAt(3, 3)) <= 1, 'still beside its captain')
-  assert.ok(distance(step.to, tileAt(3, 10)) < distance(tileAt(3, 2), tileAt(3, 10)), 'nearer the foes')
-  // The same Page with no captain hunts its quarry across the board.
-  const free = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('clockwork_page', 3, 'party', 6, 0), on('iron_golem', 50, 'foe', 3, 10)], { moving: [3] })
-  for (let k = 0; k < 300; k++) stepBattle(free)
-  assert.ok(distance(free.units.find((u) => u.uid === 3).tile, tileAt(3, 10)) <= 1, 'a free flanker reaches its quarry')
-})
-
-test('a member strikes what is in reach before it walks back to its captain', () => {
-  // The captain far behind at (3,1); its Ghoul at (3,5), a step due, a foe right in front of it.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 1), member('grave_ghoul', 2, 1, 3, 5),
-    on('iron_golem', 50, 'foe', 3, 6, 1)], { moving: [2] })
-  let first = null
-  while (!first && b.t < 400) first = stepBattle(b).find((e) => (e.type === 'move' || e.type === 'action') && e.actor === 2)
-  assert.equal(first?.type, 'action', 'its first deed is the strike, not a walk back')
-  assert.deepEqual(first.targets, [50])
-})
-
-test('summons too many for the tiles around their summoner stand a ring deeper instead of idling', () => {
-  // A still captain at (3,1) with eight of its ten members already all around it; the other two start
-  // far off in the camp's rear corners. With no room beside it, they keep to the next ring, as near as
-  // there is room, and never stand idle where they started.
-  const ring = [[2, 0], [3, 0], [4, 0], [2, 1], [4, 1], [2, 2], [3, 2], [4, 2], [0, 6], [6, 6]]
-  const b = scene([on('monarch', 0, 'party', 0, 0), on('tomb_knight', 1, 'party', 3, 1),
-    ...ring.map(([x, y], k) => member('grave_ghoul', 10 + k, 1, x, y)), on('iron_golem', 50, 'foe', 3, 10)],
-  { moving: ring.map((_, k) => 10 + k) })
-  for (let k = 0; k < 400; k++) stepBattle(b)
-  const near = b.units.filter((u) => u.summoned).map((u) => distance(u.tile, tileAt(3, 1))).sort()
-  assert.deepEqual(near, [1, 1, 1, 1, 1, 1, 1, 1, 2, 2])
-})
-
-test('when a summoner (or a foe captain) falls its summons (its cohort) falter for the rest of the battle, and Hunt', () => {
-  // The captain, at 1 HP, is the weakest thing a Frost Sprite can see; its Ghoul starts in the corner,
-  // inside the domain. The Sprite stands still.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), member('grave_ghoul', 2, 1, 0, 1),
-    on('frost_sprite', 50, 'foe', 3, 6, 6)], { moving: [2] })
-  const captain = b.units.find((u) => u.uid === 1)
-  const ghoul = b.units.find((u) => u.uid === 2)
-  captain.hp = 1
-  const dealt = stats(b, ghoul).damage.dealt
-  const events = []
-  while (alive(captain) && b.t < 2000) events.push(...stepBattle(b))
-  assert.ok(!alive(captain), 'the captain fell')
-  const death = events.findIndex((e) => e.type === 'death' && e.target === 1)
-  assert.deepEqual(events.slice(death + 1).filter((e) => e.type === 'falter'), [{ t: events[death].t, type: 'falter', target: 2, on: true }])
-  assert.ok(ghoul.orphan && falters(b, ghoul))
-  assert.ok(Math.abs(stats(b, ghoul).damage.dealt / dealt - TUNING.monarch.falter) < 1e-9)
-  // It Hunts: it walks to the Sprite, leaving its captain's tile behind, and fights it.
-  const fell = captain.tile
-  while (!b.over && distance(ghoul.tile, b.units.find((u) => u.uid === 50).tile) > 1) stepBattle(b)
-  assert.ok(distance(ghoul.tile, fell) > 1, 'it left its captain behind')
-  assert.ok(falters(b, ghoul), 'still faltering')
-})
-
-// ── plans and the reaction rule ──────────────────────────────────────────────────────────────────
-
-// A unit placed on a tile with a plan ({ where, square }) and its detachment.
-const ordered = (u, where, square = null, det = 1) => ({ ...u, det, plan: { where, square } })
-
-test('the reaction rule: a melee unit engages a foe within 2 tiles, not 3; on Stay it walks back to its tile after', () => {
-  // The Monarch at (3,0) with a domain wide enough to hold the fight; a Tomb Knight on Stay at (3,3); a foe
-  // Ghoul frozen 3 tiles off, out of the rule's reach.
-  const far = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 3), 'stay'), on('grave_ghoul', 10, 'foe', 3, 6, 1)], { moving: [1], domain: 7 })
-  for (let k = 0; k < 100; k++) assert.ok(!stepBattle(far).some((e) => e.type === 'move'), 'Stay: nothing within 2, so it holds')
-  // On Hunt it walks at the same foe.
-  const hunt = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('grave_ghoul', 10, 'foe', 3, 6, 1)], { moving: [1], domain: 7 })
-  assert.equal(stepBattle(hunt).find((e) => e.type === 'move')?.to, tileAt(3, 4), 'Hunt walks in')
-  // Two tiles off: it steps out to engage, fights, and once the foe is gone walks back onto its tile. A
-  // golem far off keeps the battle going.
-  const near = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 3), 'stay'), on('grave_ghoul', 10, 'foe', 3, 5, 1),
-    on('iron_golem', 11, 'foe', 6, 10, 1)], { moving: [1], domain: 7 })
-  const knight = near.units.find((u) => u.uid === 1)
-  const first = stepBattle(near).find((e) => e.type === 'move')
-  assert.deepEqual([first?.from, first?.to], [tileAt(3, 3), tileAt(3, 4)], 'it steps to engage')
-  while (!near.over && near.units.find((u) => u.uid === 10).hp > 0 && near.t < 1000) stepBattle(near)
-  assert.ok(near.events.some((e) => e.type === 'action' && e.actor === 1), 'it fought')
-  while (!near.over && knight.tile !== knight.anchor && near.t < 1200) stepBattle(near)
-  assert.equal(knight.tile, tileAt(3, 3), 'back on its tile')
-  assert.equal(knight.where, 'stay')
-  for (let k = 0; k < 60; k++) assert.ok(!stepBattle(near).some((e) => e.type === 'move' && e.actor === 1), 'and it holds there')
-  // A ranged unit on Stay never walks out: a Frost Sprite holds while a Ghoul walks up, and shoots it from
-  // its tile once it is in range.
-  const sprite = scene([on('monarch', 0, 'party', 0, 0), ordered(on('frost_sprite', 1, 'party', 3, 2), 'stay'), on('grave_ghoul', 10, 'foe', 3, 10, 1)], { moving: [1, 10], domain: 7 })
-  while (!sprite.over && sprite.t < 1500) assert.ok(!stepBattle(sprite).some((e) => e.type === 'move' && e.actor === 1), `t ${sprite.t}: the Sprite left its tile`)
-  assert.ok(sprite.events.some((e) => e.type === 'action' && e.actor === 1 && e.targets.includes(10)), 'it shot the Ghoul')
-})
-
-test('Move: a unit walks to its square, arrives on it or next to it (announced), and Hunts from then on; a ranged one shoots on its way', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 0, 1), 'move', tileAt(6, 5)), on('iron_golem', 10, 'foe', 3, 10, 1)], { moving: [1], domain: 7 })
-  const knight = b.units.find((u) => u.uid === 1)
-  const path = []
-  let arrival = null
-  while (!arrival && b.t < 400) {
-    for (const e of stepBattle(b)) {
-      if (e.type === 'move' && e.actor === 1) path.push(e.to)
-      if (e.type === 'arrive') arrival = e
-    }
-  }
-  assert.deepEqual(arrival, { t: b.t - 1, type: 'arrive', uid: 1 })
-  assert.ok(distance(path.at(-1), tileAt(6, 5)) <= 1 && path.slice(0, -1).every((t) => distance(t, tileAt(6, 5)) > 1), 'it arrived on its last step, not before')
-  assert.ok(path.every((t, k) => k === 0 || distance(t, tileAt(6, 5)) < distance(path[k - 1], tileAt(6, 5))), 'every step nearer the square')
-  assert.equal(knight.where, 'hunt')
-  const at = knight.tile
-  while (b.t < 600 && knight.tile === at) stepBattle(b)
-  assert.ok(distance(knight.tile, tileAt(3, 10)) < distance(at, tileAt(3, 10)), 'then it hunts the golem')
-  assert.equal(b.events.filter((e) => e.type === 'arrive').length, 1)
-  // A unit that starts next to its square has arrived at once.
-  const there = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 2, 2), 'move', tileAt(3, 3)), on('iron_golem', 10, 'foe', 3, 10, 1)], { domain: 7 })
-  assert.ok(there.events.some((e) => e.type === 'arrive' && e.uid === 1 && e.t === 0))
-  // A Sprite sent past a foe in its range stops to shoot it, and walks on when it has fallen.
-  const sprite = scene([on('monarch', 0, 'party', 3, 0), ordered(on('frost_sprite', 1, 'party', 3, 1), 'move', tileAt(3, 9)), on('grave_ghoul', 10, 'foe', 3, 4, 1),
-    on('iron_golem', 11, 'foe', 0, 10, 1)], { moving: [1], domain: 9 })
-  let shot = false
-  while (sprite.units.find((u) => u.uid === 10).hp > 0 && sprite.t < 2000) {
-    for (const e of stepBattle(sprite)) {
-      if (e.type === 'action' && e.actor === 1) shot = true
-      assert.ok(!(e.type === 'move' && e.actor === 1 && shot), 'no step while the ghoul is in range')
-    }
-  }
-  assert.ok(shot)
-  const tile = sprite.units.find((u) => u.uid === 1).tile
-  while (sprite.t < 2100 && sprite.units.find((u) => u.uid === 1).tile === tile) stepBattle(sprite)
-  assert.ok(tileY(sprite.units.find((u) => u.uid === 1).tile) > tileY(tile), 'on toward its square')
-})
-
-test('outside the domain only Hunt is heeded: a unit that falters drops its plan for the rest of the battle', () => {
-  // A knight sent to the foes' ground from beside the Monarch: it falters on the step past the domain and
-  // Hunts from there, never arriving, even back inside.
-  const b = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 2), 'move', tileAt(3, 9)), on('iron_golem', 10, 'foe', 0, 10, 1)], { moving: [1] })
-  const knight = b.units.find((u) => u.uid === 1)
-  let out = null
-  while (!out && b.t < 400) out = stepBattle(b).find((e) => e.type === 'falter' && e.target === 1 && e.on)
-  assert.ok(out, 'it stepped out of the domain')
-  assert.equal(tileY(knight.tile), b.domain + 1)
-  assert.equal(knight.where, 'hunt', 'its plan is dropped at once')
-  knight.tile = tileAt(3, 1) // were it back inside, it would still Hunt
-  b.at[tileAt(3, b.domain + 1)] = null
-  b.at[knight.tile] = knight
-  assert.equal(knight.where, 'hunt')
-  while (!b.over && b.t < 1500) stepBattle(b)
-  assert.ok(!b.events.some((e) => e.type === 'arrive'), 'it never arrived')
-  // On Stay, placed outside the domain: it falters at the start and Hunts at once.
-  const placed = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 5), 'stay'), on('iron_golem', 10, 'foe', 3, 10, 1)], { moving: [1] })
-  assert.equal(placed.units.find((u) => u.uid === 1).where, 'hunt')
-  assert.equal(stepBattle(placed).find((e) => e.type === 'move')?.to, tileAt(3, 6))
-  // Foes have no domain: a foe's plan is never dropped, unless its captain's fell with it (an orphan Hunts).
-  const foe = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0), ordered(on('grave_ghoul', 10, 'foe', 3, 9, 1), 'stay'),
-    { ...ordered(on('grave_ghoul', 11, 'foe', 5, 9, 1), 'stay'), cohortOf: 99, rank: true }])
-  assert.equal(foe.units.find((u) => u.uid === 10).where, 'stay')
-  assert.equal(foe.units.find((u) => u.uid === 11).where, 'hunt')
-})
-
-test('a flanker on any plan walks through bodies: on Move it hops its own line to its square, chasing no quarry on the way', () => {
-  // A Clockwork Page behind a wall of its own knights across all seven lanes, sent to (3,6); a golem in the
-  // foes' corner would be its quarry on Hunt. No one but the Page moves.
-  const wall = Array.from({ length: 7 }, (_, x) => on('tomb_knight', 2 + x, 'party', x, 2))
-  const b = scene([ordered(on('clockwork_page', 1, 'party', 3, 0), 'move', tileAt(3, 6)), ...wall, on('iron_golem', 20, 'foe', 6, 10, 1)], { moving: [1] })
-  const page = b.units.find((u) => u.uid === 1)
-  const moves = []
-  while (page.where === 'move' && b.t < 400) {
-    const events = stepBattle(b)
-    moves.push(...events.filter((e) => e.type === 'move' && e.actor === 1))
-    const living = b.units.filter((u) => u.hp > 0)
-    assert.equal(new Set(living.map((u) => u.tile)).size, living.length, `t ${b.t}: two units on one tile`)
-  }
-  assert.ok(distance(page.tile, tileAt(3, 6)) <= 1 && b.events.some((e) => e.type === 'arrive' && e.uid === 1), 'it arrived')
-  assert.deepEqual(moves.filter((e) => e.via).map((e) => e.via), [[tileAt(3, 2)]], 'one hop, over its own line')
-  assert.ok(moves.every((e) => tileX(e.to) === 3), 'straight up its lane to the square, not off toward its quarry')
-})
-
-test('summons follow their summoner\'s plan by the leash: they hold with it on Stay, walk with it on Move, and Hunt once it arrives', () => {
-  const still = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 2), 'stay'), ordered(member('grave_ghoul', 2, 1, 3, 1), 'stay'),
-    on('iron_golem', 10, 'foe', 3, 10, 1)], { moving: [1, 2] })
-  for (let k = 0; k < 200; k++) assert.ok(!stepBattle(still).some((e) => e.type === 'move'), 'a Stay banner holds')
-  // On Move, the cohort keeps its leash all the way, and Hunts with its captain once it has arrived.
-  const b = scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 2), 'move', tileAt(0, 5)), ordered(member('grave_ghoul', 2, 1, 3, 1), 'move', tileAt(0, 5)),
-    on('iron_golem', 10, 'foe', 6, 10, 1)], { moving: [1, 2], domain: 7 })
-  const [captain, ghoul] = [1, 2].map((uid) => b.units.find((u) => u.uid === uid))
-  while (captain.where === 'move' && b.t < 600) {
-    stepBattle(b)
-    assert.ok(distance(ghoul.tile, captain.tile) <= 2, `t ${b.t}: the ghoul strayed`)
-  }
-  assert.ok(distance(captain.tile, tileAt(0, 5)) <= 1, 'the captain arrived')
-  const at = ghoul.tile
-  while (b.t < 900 && ghoul.tile === at) stepBattle(b)
-  assert.ok(distance(ghoul.tile, tileAt(6, 10)) < distance(at, tileAt(6, 10)), 'the cohort hunts with it')
-  // Its own copy of the plan does not hold it back: with its captain on Hunt (arrived, or faltering), a
-  // member whose copy says Stay takes the Hunt step its leash allows, round its still captain.
-  const led = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), ordered(member('grave_ghoul', 2, 1, 3, 2), 'stay'),
-    on('iron_golem', 10, 'foe', 3, 10, 1)], { moving: [2], domain: 7 })
-  const step = stepBattle(led).find((e) => e.type === 'move' && e.actor === 2)
-  assert.ok(step && tileY(step.to) === 3 && distance(step.to, tileAt(3, 3)) === 1, 'it steps up beside its captain')
-})
-
-test('a held detachment waits off the board and enters beside the Monarch when its start comes, captain first, on its plan', () => {
-  const held = (when) => [
-    { ...makeUnit('tomb_knight', { uid: 5, lvl: 3 }), det: 2, plan: { where: 'stay', square: null }, when },
-    { ...waiting('grave_ghoul', 6, 5), det: 2, plan: { where: 'stay', square: null }, when }
-  ]
-  const orders = [{ id: 2, color: '#000', where: 'stay', square: null, when: { at: 'time', t: 30 } }]
-  // At a time: nothing before tick 30; then the call, the captain, and its ghoul the tick after, never an
-  // orphan; each holds the tile it entered on.
-  const b = scene([on('monarch', 0, 'party', 3, 1), on('tomb_knight', 1, 'party', 3, 4), on('iron_golem', 50, 'foe', 3, 10)], { reserve: held({ at: 'time', t: 30 }), detachments: orders })
-  assert.deepEqual(b.events[0].reserve.map((u) => [u.uid, u.det, u.when]), [[5, 2, { at: 'time', t: 30 }], [6, 2, { at: 'time', t: 30 }]])
-  assert.deepEqual(b.events[1], { t: 0, type: 'order', detachment: 2, color: '#000', where: 'stay', square: null, when: { at: 'time', t: 30 } })
-  const seen = []
-  while (b.t < 40) seen.push(...stepBattle(b).filter((e) => e.type === 'call' || e.type === 'enter'))
-  assert.deepEqual(seen.map((e) => [e.t, e.type, e.unit?.uid]), [[30, 'call', undefined], [30, 'enter', 5], [31, 'enter', 6]])
-  assert.deepEqual(seen[0], { t: 30, type: 'call', detachment: 2, at: 'time' })
-  assert.equal(seen[1].unit.det, 2)
-  const [knight, ghoul] = [5, 6].map((uid) => b.units.find((u) => u.uid === uid))
-  assert.ok(!ghoul.orphan && knight.where === 'stay' && knight.anchor === seen[1].unit.tile && ghoul.anchor === seen[2].unit.tile)
-  // Off the board it is no body, and on it it stands past the board's cap, in TUNING.orders.reserve places
-  // of its own: fourteen stand (a board of 14) and the overflow waits, while the held captain enters on its
-  // start all the same, fresh (a full gauge, Shielded).
-  boardOf(14, () => {
-    const knights = [...Array(14).keys()].map((k) => on('tomb_knight', k + 1, 'party', k % 7, 3 + Math.floor(k / 7)))
-    const full = scene([on('monarch', 0, 'party', 3, 1), ...knights, on('iron_golem', 50, 'foe', 3, 10)],
-      { reserve: [...held({ at: 'time', t: 5 }).slice(0, 1).map((u) => ({ ...u, uid: 40 })), waiting('grave_ghoul', 41, 1)] })
-    const came = []
-    while (full.t < 15) came.push(...stepBattle(full).filter((e) => e.type === 'enter').map((e) => [e.t, e.unit.uid]))
-    assert.deepEqual(came, [[5, 40]], 'the held captain at its start, past the full board; the overflow waits')
-    const fresh = full.units.find((u) => u.uid === 40)
-    assert.ok(fresh.statuses.some((x) => x.id === 'shield'), 'it entered fresh: Shielded')
-    slay(full, full.units.find((u) => u.uid === 9))
-    assert.deepEqual(stepBattle(full).filter((e) => e.type === 'enter').map((e) => e.unit.uid), [41], 'a body fell: the overflow enters')
-  })
-  // Its places are TUNING.orders.reserve: held bodies past them wait like the overflow.
-  tuned({ orders: { reserve: 1 } }, () => boardOf(1, () => {
-    const two = [{ ...held({ at: 'time', t: 2 })[0], uid: 40 }, { ...held({ at: 'time', t: 2 })[0], uid: 41 }]
-    const b = scene([on('monarch', 0, 'party', 3, 1), on('tomb_knight', 1, 'party', 3, 4), on('iron_golem', 50, 'foe', 3, 10)], { reserve: two })
-    const came = []
-    while (b.t < 12) came.push(...stepBattle(b).filter((e) => e.type === 'enter').map((e) => e.unit.uid))
-    assert.deepEqual(came, [40], 'one place of its own')
-  }))
-  // The Monarch struck: the start comes the tick after the blow.
-  const struck = scene([on('monarch', 0, 'party', 3, 2), on('tomb_knight', 1, 'party', 0, 0), on('will_o_wisp', 50, 'foe', 3, 6, 3)], { reserve: held({ at: 'struck' }) })
-  while (!struck.events.some((e) => e.type === 'damage' && e.target === 0) && struck.t < 400) stepBattle(struck)
-  const blow = struck.events.find((e) => e.type === 'damage' && e.target === 0).t
-  assert.ok(!struck.events.some((e) => e.type === 'enter'))
-  assert.deepEqual(stepBattle(struck).filter((e) => e.type === 'call' || e.type === 'enter').map((e) => [e.t, e.type]), [[blow + 1, 'call'], [blow + 1, 'enter']])
-  // A body falls: a ghoul at 1 HP beside a golem.
-  const falls = scene([on('monarch', 0, 'party', 3, 0), member('grave_ghoul', 2, 99, 3, 5), on('iron_golem', 50, 'foe', 3, 6, 5)], { reserve: held({ at: 'falls' }) })
-  falls.units.find((u) => u.uid === 2).hp = 1
-  while (!falls.events.some((e) => e.type === 'death') && falls.t < 400) stepBattle(falls)
-  const death = falls.events.find((e) => e.type === 'death').t
-  assert.ok(!falls.events.some((e) => e.type === 'enter'))
-  assert.deepEqual(stepBattle(falls).filter((e) => e.type === 'enter').map((e) => [e.t, e.unit.uid]), [[death + 1, 5]])
-})
-
-test('a foe still to come enters at the top edge on its time and keeps the battle going; its entry is the wave a held detachment can wait for', () => {
+test('a foe still to come enters at the top edge in its lane on its time, and keeps the battle going', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 9), on('grave_ghoul', 10, 'foe', 3, 10, 1)], {
-    reserve: [
-      { ...makeUnit('tomb_knight', { uid: 5, lvl: 3 }), det: 1, plan: { where: 'hunt', square: null }, when: { at: 'wave' } },
-      { ...makeUnit('grave_ghoul', { uid: 70, lvl: 1 }), side: 'foe', when: { at: 'time', t: 20 } }
-    ]
+    reserve: [{ ...makeUnit('grave_ghoul', { uid: 70, lvl: 1 }), side: 'foe', lane: 5, wave: 1, when: { at: 'time', t: 20 } }]
   })
+  assert.deepEqual(b.events[0].reserve, [{ uid: 70, id: 'grave_ghoul', lvl: 1, wave: 1, when: { at: 'time', t: 20 }, side: 'foe' }])
   slay(b, b.units.find((u) => u.uid === 10))
   const seen = []
-  while (b.t < 25) seen.push(...stepBattle(b).filter((e) => e.type === 'enter'))
+  while (b.t < 25) seen.push(...stepBattle(b).filter((e) => e.type === 'enter' || e.type === 'wave'))
   assert.ok(!b.over, 'a foe still to enter: not won')
-  assert.deepEqual(seen.map((e) => [e.t, e.unit.uid, e.unit.side]), [[20, 70, 'foe'], [21, 5, 'party']])
-  assert.equal(tileY(seen[0].unit.tile), DEPTH - 1, 'at the top edge')
-  assert.equal(b.entered, 21)
+  assert.deepEqual(seen.map((e) => [e.t, e.type]), [[20, 'wave'], [20, 'enter']])
+  assert.equal(seen[1].unit.tile, tileAt(5, DEPTH - 1), 'at the top edge, in its lane')
+  assert.deepEqual([b.foeIn, b.waveAt[1]], [20, 20])
 })
 
-test('each start comes only on its own signal: a foe slain is no body fallen, a blow on a soul is no blow on the Monarch, a body of yours entering is no wave', () => {
-  const held = (when, uid = 5) => ({ ...makeUnit('tomb_knight', { uid, lvl: 3 }), det: 2, plan: { where: 'hunt', square: null }, when })
-  const calls = (b) => b.events.filter((e) => e.type === 'call' || (e.type === 'enter' && e.unit.uid === 5))
-  // A body falls: a knight slays a foe at 1 HP, and nothing is called; then a Ghoul of yours at 1 HP, left
-  // alone by a still golem until now, falls to it, and the held knight is called the tick after. (No
-  // Monarch: it would raise the slain foe, and the shadow might fall first.)
-  const falls = scene([on('tomb_knight', 1, 'party', 0, 5, 9), on('grave_ghoul', 10, 'foe', 0, 6, 1),
-    on('grave_ghoul', 2, 'party', 6, 1), on('iron_golem', 50, 'foe', 6, 3, 5), on('iron_golem', 51, 'foe', 3, 10)], { reserve: [held({ at: 'falls' })] })
-  falls.units.find((u) => u.uid === 10).hp = 1
-  while (!falls.events.some((e) => e.type === 'death') && falls.t < 400) stepBattle(falls)
-  assert.deepEqual(falls.events.filter((e) => e.type === 'death').map((e) => e.target), [10], 'a foe fell first')
-  for (let k = 0; k < 20; k++) stepBattle(falls)
-  assert.deepEqual(calls(falls), [], 'a foe slain calls nothing')
-  const ghoul = falls.units.find((u) => u.uid === 2)
-  ghoul.hp = 1
-  falls.units.find((u) => u.uid === 50).nextStep = falls.t
-  while (alive(ghoul) && falls.t < 800) stepBattle(falls)
-  const death = falls.events.find((e) => e.type === 'death' && e.target === 2)?.t
-  assert.ok(death !== undefined, 'the ghoul fell')
-  assert.deepEqual(calls(falls), [])
-  stepBattle(falls)
-  assert.deepEqual(calls(falls).map((e) => [e.t, e.type]), [[death + 1, 'call'], [death + 1, 'enter']])
-  // The Monarch struck: a Wisp shoots the knight in front first, and nothing is called; once the knight is
-  // gone and the Wisp's fire reaches the Monarch, the held knight is called the tick after the blow.
-  const struck = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 4, 9), on('will_o_wisp', 50, 'foe', 3, 8, 3)],
-    { reserve: [held({ at: 'struck' })], moving: [50], domain: 7 })
-  while (!struck.events.some((e) => e.type === 'damage' && e.target === 1) && struck.t < 400) stepBattle(struck)
-  assert.ok(struck.events.some((e) => e.type === 'damage' && e.target === 1), 'the knight was hit')
-  for (let k = 0; k < 20; k++) stepBattle(struck)
-  assert.ok(!struck.events.some((e) => e.type === 'damage' && e.target === 0), 'the Monarch untouched so far')
-  assert.deepEqual(calls(struck), [], 'a blow on a soul calls nothing')
-  slay(struck, struck.units.find((u) => u.uid === 1))
-  while (!struck.events.some((e) => e.type === 'damage' && e.target === 0) && struck.t < 1200) stepBattle(struck)
-  const blow = struck.events.find((e) => e.type === 'damage' && e.target === 0)?.t
-  assert.ok(blow !== undefined, 'the Monarch was struck')
-  assert.deepEqual(calls(struck), [])
-  stepBattle(struck)
-  assert.deepEqual(calls(struck).map((e) => [e.t, e.type]), [[blow + 1, 'call'], [blow + 1, 'enter']])
-  // A wave: on a board of one, a body of yours from the reserve enters as the knight falls, and nothing is
-  // called; a foe entering is the wave, and the held knight is called the tick after (the board is full,
-  // but a held body stands past it, in places of its own: it enters on the call).
-  boardOf(1, () => {
-    const wave = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 9), on('iron_golem', 51, 'foe', 3, 10)], {
-      reserve: [held({ at: 'wave' }), waiting('grave_ghoul', 30, 1), { ...makeUnit('grave_ghoul', { uid: 70, lvl: 1 }), side: 'foe', when: { at: 'time', t: 40 } }]
-    })
-    slay(wave, wave.units.find((u) => u.uid === 1))
-    const seen = []
-    while (wave.t < 45) seen.push(...stepBattle(wave).filter((e) => e.type === 'enter' || e.type === 'call'))
-    assert.deepEqual(seen.map((e) => [e.t, e.type, e.unit?.uid]), [[0, 'enter', 30], [40, 'enter', 70], [41, 'call', undefined], [41, 'enter', 5]])
-  })
+// ── lines ────────────────────────────────────────────────────────────────────────────────────────
+
+test('a line waits for its signal: a time, the first blow, a wave, a blow on the Monarch, a piece of yours fallen', () => {
+  // A knight at (0, 1) with a line up its lane, waiting on `when`. The first step comes on the signal's tick or the
+  // next (it acts after whoever gave it, or before): never earlier.
+  const signalled = (when, units, opts = {}, until = (b) => b.t >= 400) => {
+    const b = scene([lined(on('tomb_knight', 1, 'party', 0, 1, 9), lane(0, 1, 3), when), ...units], { moving: [1, ...(opts.moving ?? [])], ...opts })
+    while (!b.over && !until(b) && !moves(b.events, 1).length) stepBattle(b)
+    return { b, step: moves(b.events, 1)[0]?.t ?? null }
+  }
+  const golem = on('iron_golem', 50, 'foe', 6, 10, 1)
+  assert.equal(signalled({ at: 'once' }, [golem]).step, 0)
+  assert.equal(signalled({ at: 'time', t: 30 }, [golem]).step, 30)
+  // Blow: a Wisp frozen in range of a soul across the board; its first blow, either side's, is the signal.
+  const shot = signalled({ at: 'blow' }, [on('monarch', 0, 'party', 3, 0), on('grave_ghoul', 2, 'party', 6, 3, 9), on('will_o_wisp', 51, 'foe', 6, 7, 3)])
+  const blow = shot.b.events.find((e) => e.type === 'damage').t
+  assert.ok(shot.step >= blow && shot.step <= blow + 1, `blow at ${blow}, step at ${shot.step}`)
+  // Wave 1: the reserve's first foe of wave 1 enters at 40; one of wave 0 (on the board from the start) is none.
+  const reserve = [{ ...makeUnit('grave_ghoul', { uid: 70, lvl: 1 }), side: 'foe', lane: 6, wave: 1, when: { at: 'time', t: 40 } }]
+  const wave = signalled({ at: 'wave', wave: 1 }, [golem], { reserve })
+  assert.ok(wave.step === 40 || wave.step === 41, `step at ${wave.step}`)
+  assert.equal(signalled({ at: 'wave', wave: 2 }, [golem], { reserve }).step, null, 'no wave 2 ever comes')
+  // Struck: a frozen Wisp shoots the knight on its road first (no signal), and only its blow on the Monarch starts
+  // the line, the marcher at (0, 0) out of its ring.
+  const struck = scene([lined(on('tomb_knight', 1, 'party', 0, 0, 9), lane(0, 0, 3), { at: 'struck' }), on('monarch', 0, 'party', 3, 1),
+    on('tomb_knight', 2, 'party', 3, 4, 1), on('will_o_wisp', 51, 'foe', 3, 5, 3)], { moving: [1] })
+  struck.byUid.get(2).hp = 1
+  while (!struck.over && struck.t < 1500 && !moves(struck.events, 1).length) stepBattle(struck)
+  struck.step = moves(struck.events, 1)[0]?.t ?? null
+  const hits = struck.events.filter((e) => e.type === 'damage')
+  const onMonarch = hits.find((e) => e.target === 0)?.t
+  assert.ok(hits.some((e) => e.target === 2 && e.t < onMonarch), 'a soul was struck first')
+  assert.ok(struck.step >= onMonarch && struck.step <= onMonarch + 1, `struck at ${onMonarch}, step at ${struck.step}`)
+  // Fallen: a foe slain is none; a Ghoul of yours at 1 HP beside a golem falls, and that is.
+  const units = [on('monarch', 0, 'party', 3, 0), on('tomb_knight', 3, 'party', 6, 5, 9), on('grave_ghoul', 52, 'foe', 6, 6, 1), on('grave_ghoul', 2, 'party', 3, 4), on('iron_golem', 53, 'foe', 3, 5, 9)]
+  const fallen = signalled({ at: 'falls' }, units, {}, (b) => b.t >= 1500)
+  const deaths = fallen.b.events.filter((e) => e.type === 'death')
+  const ours = deaths.find((e) => e.target === 2)?.t
+  assert.ok(deaths.some((e) => e.target === 52 && e.t < ours), 'a foe fell first')
+  assert.ok(fallen.step >= ours && fallen.step <= ours + 1, `fell at ${ours}, step at ${fallen.step}`)
 })
 
-test('a held Move unit that enters beside its square has arrived on entry, and Hunts from there', () => {
-  // The Monarch at (3,1); a knight held for 5 ticks, sent to (3,3): it enters at (3,2), next to its square.
-  const b = scene([on('monarch', 0, 'party', 3, 1), on('iron_golem', 50, 'foe', 3, 10)], {
-    reserve: [{ ...makeUnit('tomb_knight', { uid: 5, lvl: 3 }), det: 1, plan: { where: 'move', square: tileAt(3, 3) }, when: { at: 'time', t: 5 } }],
-    detachments: [{ id: 1, color: '#000', where: 'move', square: tileAt(3, 3), when: { at: 'time', t: 5 } }],
-    domain: 7
-  })
-  const seen = []
-  while (b.t < 7) seen.push(...stepBattle(b).filter((e) => e.type === 'enter' || e.type === 'arrive'))
-  assert.deepEqual(seen.map((e) => [e.t, e.type]), [[5, 'enter'], [5, 'arrive']])
-  assert.equal(seen[0].unit.tile, tileAt(3, 2))
-  assert.equal(seen[1].uid, 5)
-  const knight = b.units.find((u) => u.uid === 5)
-  assert.equal(knight.where, 'hunt')
-  const at = knight.tile
-  while (b.t < 200 && knight.tile === at) stepBattle(b)
-  assert.ok(distance(knight.tile, tileAt(3, 10)) < distance(at, tileAt(3, 10)), 'it hunts the golem')
+test('a marcher waits behind a friend on its next tile, and walks on the tick the tile is free; at its last tile it holds', () => {
+  // A knight on (3, 1) with a line up its lane to (3, 5); a Ghoul of yours holds (3, 3); a golem far off.
+  const b = scene([lined(on('tomb_knight', 1, 'party', 3, 1), lane(3, 1, 4)), on('grave_ghoul', 2, 'party', 3, 3), on('iron_golem', 50, 'foe', 6, 10, 1)], { moving: [1] })
+  const knight = b.byUid.get(1)
+  for (let k = 0; k < 100; k++) stepBattle(b)
+  assert.deepEqual(moves(b.events, 1).map((e) => e.to), [tileAt(3, 2)], 'one step, then it waits')
+  slay(b, b.byUid.get(2))
+  const freed = b.t
+  stepBattle(b)
+  assert.deepEqual(moves(b.events, 1).map((e) => [e.t, e.to]).at(-1), [freed, tileAt(3, 3)], 'on at once')
+  for (let k = 0; k < 100; k++) stepBattle(b)
+  assert.equal(knight.tile, tileAt(3, 5), 'its last tile')
+  assert.equal(moves(b.events, 1).length, 4, 'and there it holds')
+  // Two marchers in file: the one behind waits on the one ahead, step for step.
+  const file = scene([lined(on('tomb_knight', 1, 'party', 3, 1), lane(3, 1, 3)), lined(on('tomb_knight', 2, 'party', 3, 0), lane(3, 0, 3)), on('iron_golem', 50, 'foe', 6, 10, 1)], { moving: [1, 2] })
+  for (let k = 0; k < 100; k++) stepBattle(file)
+  assert.deepEqual([file.byUid.get(1).tile, file.byUid.get(2).tile], [tileAt(3, 4), tileAt(3, 3)])
 })
 
-test('the reaction rule holds for a summon (or a foe cohort member) too: it steps out past its leash to engage a foe within 2, and holds with none', () => {
-  // A still captain on Stay at (3,2), its Ghoul on Stay at (3,3); a foe Ghoul frozen 2 tiles from the member
-  // and 3 from the captain. The member's step to engage takes it 2 from its captain, past its leash of 1.
-  const at = (y) => scene([on('monarch', 0, 'party', 3, 0), ordered(on('tomb_knight', 1, 'party', 3, 2), 'stay'), ordered(member('grave_ghoul', 2, 1, 3, 3), 'stay'),
-    on('grave_ghoul', 10, 'foe', 3, y, 1), on('iron_golem', 50, 'foe', 6, 10, 1)], { moving: [2], domain: 7 })
-  const near = at(5)
-  let step = null
-  while (!step && near.t < 100) step = stepBattle(near).find((e) => e.type === 'move' && e.actor === 2)
-  assert.ok(step, 'the member stepped')
-  assert.ok(distance(step.to, tileAt(3, 5)) === 1 && distance(step.to, tileAt(3, 2)) === 2, `to ${step.to}: beside the foe, past its leash`)
-  // Three tiles off, it holds by its captain.
-  const far = at(6)
-  for (let k = 0; k < 100; k++) assert.ok(!stepBattle(far).some((e) => e.type === 'move' && e.actor === 2), 'nothing within 2: it holds')
-})
-
-test('Stay with its tile taken: the unit holds where it is, and takes its tile back once it is free', () => {
-  // A knight on Stay whose tile is (3,3), moved to (3,1) by the scene; an ally stands still on (3,3).
-  const b = scene([on('monarch', 0, 'party', 0, 0), ordered(on('tomb_knight', 1, 'party', 3, 3), 'stay'), on('grave_ghoul', 2, 'party', 5, 3),
-    on('iron_golem', 50, 'foe', 3, 10, 1)], { moving: [1], domain: 7 })
-  const [knight, ally] = [1, 2].map((uid) => b.units.find((u) => u.uid === uid))
-  const put = (u, tile) => { b.at[u.tile] = null; u.tile = tile; b.at[tile] = u }
-  put(knight, tileAt(3, 1))
-  put(ally, tileAt(3, 3))
-  assert.equal(knight.anchor, tileAt(3, 3))
-  for (let k = 0; k < 60; k++) assert.ok(!stepBattle(b).some((e) => e.type === 'move' && e.actor === 1), 'its tile is taken: it holds')
-  slay(b, ally)
-  while (b.t < 200 && knight.tile !== knight.anchor) stepBattle(b)
-  assert.equal(knight.tile, tileAt(3, 3), 'back on its tile')
+test('timing marks: where each piece stands at 5, 10 and 15 s, walking the lines with your pieces the only blockers, as a battle walks them', () => {
+  const at = (id, uid, x, y) => makeUnit(id, { uid, lvl: 3, slot: slotAt(6 - y, x) })
+  const party = [at('monarch', 0, 3, 0), at('tomb_knight', 1, 3, 1), at('grave_ghoul', 2, 3, 3), at('frost_sprite', 3, 5, 1), at('bone_chanter', 4, 1, 1)]
+  const lines = {
+    1: { tiles: lane(3, 1, 5), when: { at: 'once' } },
+    2: { tiles: [tileAt(2, 4)], when: { at: 'time', t: 150 } },
+    3: { tiles: lane(5, 1, 3), when: { at: 'time', t: 120 } },
+    4: { tiles: lane(1, 1, 3), when: { at: 'blow' } }
+  }
+  const marks = timingMarks({ party, lines })
+  const step = TUNING.board.stepTicks
+  assert.deepEqual(Object.keys(marks).map(Number), [0, 1, 2, 3, 4])
+  // The knight is held at (3, 2) behind the Ghoul until the Ghoul's own line takes it off at tick 150; it follows
+  // that tick (the Ghoul acts first), and a step a clock takes it to its last tile, (3, 6), at 198.
+  assert.deepEqual(marks[1], [tileAt(3, 2), tileAt(3, 6), tileAt(3, 6)])
+  assert.deepEqual(marks[2], [tileAt(3, 3), tileAt(2, 4), tileAt(2, 4)])
+  // The Sprite waits for tick 120, then walks its three tiles a step a clock.
+  assert.deepEqual(marks[3], [tileAt(5, 1), tileAt(5, 4), tileAt(5, 4)])
+  // A Blow never comes on an empty field: the Chanter holds; the Monarch never steps.
+  assert.deepEqual(marks[4], [tileAt(1, 1), tileAt(1, 1), tileAt(1, 1)])
+  assert.deepEqual(marks[0], [tileAt(3, 0), tileAt(3, 0), tileAt(3, 0)])
+  // The run units are untouched, and other ticks may be asked for.
+  assert.deepEqual(party.map((u) => u.line), [undefined, undefined, undefined, undefined, undefined])
+  assert.deepEqual(timingMarks({ party, lines, at: [0, step, 2 * step] })[1], [tileAt(3, 1), tileAt(3, 2), tileAt(3, 2)])
+  // Against a battle whose foes stand off out of every ring, the marks are where the pieces stand.
+  const b = createBattle({ party: party.map((u) => ({ ...u, ...(lines[u.uid] && { line: lines[u.uid] }) })), foes: [makeUnit('iron_golem', { uid: 50, lvl: 1, slot: slotAt(2, 0) })], seed: 'marks' })
+  b.byUid.get(50).nextStep = Infinity
+  const seen = { 0: [], 1: [], 2: [], 3: [], 4: [] }
+  while (b.t <= 300) {
+    if ([100, 200, 300].includes(b.t)) for (const uid of Object.keys(seen)) seen[uid].push(b.byUid.get(Number(uid)).tile)
+    stepBattle(b)
+  }
+  assert.deepEqual(seen, marks)
 })

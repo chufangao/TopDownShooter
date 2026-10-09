@@ -1,4 +1,4 @@
-// All game content: units, abilities, upgrade paths, statuses, kin and roles, behaviours, synergies, bonds,
+// All game content: units, abilities, upgrade paths, statuses, kin and roles, behaviours, signals, synergies,
 // camps, relics and attack animations, plus id lookups. Data only; balance numbers live in tuning.js.
 
 // ── units ────────────────────────────────────────────────────────────────────────────────────
@@ -7,8 +7,9 @@
 // `${art}.attack.svg` and `${art}.dead.svg` (see artUrl). The battle animates them in code: no frames.
 // `aura`: mods every ally (not itself) within `range` tiles gets while it stands. `threats`: what a foe
 // of this kind does to a Monarch (THREATS), for the encounter draw's variety rule; never shown as intent.
-// `foeOrders`: the orders (FOE_ORDERS) it may carry as an elite's captain, one drawn per room; `flavour`: a
-// line of lore that hints at them. The order itself is never shown: only the flavour, and the fighting.
+// `ring`: the radius in tiles it fights within (DESIGN §2.3): 1 for melee, a ranged kind's reach. `stride`
+// (optional, 1 by default) scales how fast it walks. `behaviour`: how it walks the roads as a foe (BEHAVIOURS),
+// learnt by meeting it; `flavour`: a line of lore that hints at it.
 
 export const UNIT_LIST = [
   {
@@ -25,6 +26,7 @@ export const UNIT_LIST = [
     base: { hp: 0, atk: 6, def: 8, spd: 22, acc: 40, eva: 10, crt: 0 },
     growth: {},
     abilities: ['arise'],
+    ring: 0,
     art: 'monarch'
   },
   {
@@ -36,9 +38,10 @@ export const UNIT_LIST = [
     base: { hp: 78, atk: 14, def: 6, spd: 22, acc: 40, eva: 12, crt: 5 },
     growth: { hp: 9, atk: 2.1, def: 0.6, spd: 1.2 },
     abilities: ['dirge', 'marrow_bolt'],
+    ring: 4,
     spawn: { weight: 14, minFloor: 1 },
     threats: ['reach', 'drain', 'clock'],
-    foeOrders: ['stay', 'hunt'],
+    behaviour: 'walk',
     flavour: 'Its warband marches to the dirge, or waits close about the singer while the song lasts.',
     art: 'bone_chanter'
   },
@@ -51,10 +54,11 @@ export const UNIT_LIST = [
     base: { hp: 142, atk: 16, def: 22, spd: 12, acc: 45, eva: 6, crt: 4 },
     growth: { hp: 16, atk: 2.4, def: 2, spd: 0.5 },
     abilities: ['cleave', 'strike'],
+    ring: 1,
     aura: { range: 1, desc: 'Allies next to it take 15% less damage.', mods: [{ path: 'damage.taken', op: 'mul', v: 0.85 }] },
     spawn: { weight: 10, minFloor: 1 },
     threats: ['shape'],
-    foeOrders: ['stay', 'hunt'],
+    behaviour: 'walk',
     flavour: "Some knights hold the barrow's mouth to the last; some march out to meet the living.",
     art: 'tomb_knight'
   },
@@ -67,9 +71,10 @@ export const UNIT_LIST = [
     base: { hp: 96, atk: 24, def: 10, spd: 26, acc: 52, eva: 14, crt: 12 },
     growth: { hp: 11, atk: 3.2, def: 0.9, spd: 1.4 },
     abilities: ['ember_burst', 'strike'],
+    ring: 4,
     spawn: { weight: 8, minFloor: 2 },
     threats: ['shape', 'reach'],
-    foeOrders: ['stay', 'flank'],
+    behaviour: 'flank',
     flavour: 'Drakes circle wide of a fight before they burn it, or roost where they can see the whole field.',
     art: 'ember_drake'
   },
@@ -82,9 +87,10 @@ export const UNIT_LIST = [
     base: { hp: 54, atk: 15, def: 4, spd: 38, acc: 48, eva: 30, crt: 9 },
     growth: { hp: 6, atk: 2, def: 0.3, spd: 2.1 },
     abilities: ['frost_lance'],
+    ring: 3,
     spawn: { weight: 12, minFloor: 1 },
     threats: ['reach', 'drain'],
-    foeOrders: ['hunt', 'flank'],
+    behaviour: 'flank',
     flavour: 'Sprites come at you sideways, along the edge of the field where the frost runs thin.',
     art: 'frost_sprite'
   },
@@ -97,9 +103,10 @@ export const UNIT_LIST = [
     base: { hp: 110, atk: 13, def: 15, spd: 18, acc: 42, eva: 10, crt: 3 },
     growth: { hp: 13, atk: 1.6, def: 1.4, spd: 0.9 },
     abilities: ['mend', 'purge', 'strike'],
+    ring: 1,
     spawn: { weight: 9, minFloor: 1 },
     threats: ['clock'],
-    foeOrders: ['stay'],
+    behaviour: 'walk',
     flavour: 'A warden never strays far from its comb, and its swarm keeps close about it.',
     art: 'hive_warden'
   },
@@ -112,9 +119,10 @@ export const UNIT_LIST = [
     base: { hp: 68, atk: 12, def: 9, spd: 30, acc: 44, eva: 18, crt: 7 },
     growth: { hp: 7, atk: 1.7, def: 0.8, spd: 1.6 },
     abilities: ['purge', 'strike'],
+    ring: 1,
     spawn: { weight: 12, minFloor: 1 },
     threats: ['flank'],
-    foeOrders: ['flank'],
+    behaviour: 'flank',
     flavour: 'Pages were wound to run errands round the back of things, and their fellows follow the errand.',
     art: 'clockwork_page'
   },
@@ -127,9 +135,10 @@ export const UNIT_LIST = [
     base: { hp: 96, atk: 13, def: 9, spd: 18, acc: 42, eva: 10, crt: 6 },
     growth: { hp: 11, atk: 1.8, def: 0.8, spd: 0.9 },
     abilities: ['gnaw', 'strike'],
+    ring: 1,
     spawn: { weight: 13, minFloor: 1 },
     threats: ['drain'],
-    foeOrders: ['hunt'],
+    behaviour: 'walk',
     flavour: 'A ghoul with a pack behind it goes straight for the meat.',
     art: 'grave_ghoul'
   },
@@ -142,9 +151,10 @@ export const UNIT_LIST = [
     base: { hp: 50, atk: 15, def: 3, spd: 32, acc: 46, eva: 28, crt: 6 },
     growth: { hp: 6, atk: 2.1, def: 0.3, spd: 1.8 },
     abilities: ['witchfire'],
+    ring: 4,
     spawn: { weight: 11, minFloor: 1 },
     threats: ['reach'],
-    foeOrders: ['stay', 'flank'],
+    behaviour: 'flank',
     flavour: 'Wisps drift to the edges of a field, and wait for travellers to come to them.',
     art: 'will_o_wisp'
   },
@@ -157,9 +167,10 @@ export const UNIT_LIST = [
     base: { hp: 104, atk: 12, def: 12, spd: 20, acc: 42, eva: 14, crt: 3 },
     growth: { hp: 12, atk: 1.6, def: 1.1, spd: 1 },
     abilities: ['barkskin', 'mend', 'strike'],
+    ring: 1,
     spawn: { weight: 9, minFloor: 2 },
     threats: ['clock'],
-    foeOrders: ['stay'],
+    behaviour: 'walk',
     flavour: 'A dryad is rooted where it stands, and its grove grows thick about it.',
     art: 'thorn_dryad'
   },
@@ -172,9 +183,10 @@ export const UNIT_LIST = [
     base: { hp: 92, atk: 25, def: 9, spd: 32, acc: 50, eva: 20, crt: 16 },
     growth: { hp: 10, atk: 3.1, def: 0.8, spd: 1.8 },
     abilities: ['reap', 'strike'],
+    ring: 1,
     spawn: { weight: 7, minFloor: 2 },
     threats: ['flank'],
-    foeOrders: ['flank', 'hunt'],
+    behaviour: 'flank',
     flavour: 'A mantis stalks the margins with its brood, and strikes from where no one is looking.',
     art: 'mantis_reaper'
   },
@@ -187,9 +199,10 @@ export const UNIT_LIST = [
     base: { hp: 220, atk: 17, def: 30, spd: 9, acc: 44, eva: 2, crt: 3 },
     growth: { hp: 22, atk: 2.2, def: 2.4, spd: 0.4 },
     abilities: ['quake', 'strike'],
+    ring: 1,
     spawn: { weight: 6, minFloor: 2 },
     threats: ['shape'],
-    foeOrders: ['stay', 'hunt'],
+    behaviour: 'walk',
     flavour: 'A golem keeps its post until it is told otherwise, and then nothing turns it.',
     art: 'iron_golem'
   },
@@ -202,9 +215,10 @@ export const UNIT_LIST = [
     base: { hp: 128, atk: 27, def: 13, spd: 30, acc: 52, eva: 22, crt: 10 },
     growth: { hp: 14, atk: 3.4, def: 1.1, spd: 1.6 },
     abilities: ['wither', 'strike'],
+    ring: 3,
     spawn: { weight: 6, minFloor: 3 },
     threats: ['reach', 'drain'],
-    foeOrders: ['hunt', 'flank'],
+    behaviour: 'flank',
     flavour: 'Wights lead their dead up out of the barrows, hungry for any warmth, wherever it hides.',
     art: 'barrow_wight'
   },
@@ -217,9 +231,10 @@ export const UNIT_LIST = [
     base: { hp: 190, atk: 29, def: 16, spd: 16, acc: 50, eva: 6, crt: 8 },
     growth: { hp: 20, atk: 3.4, def: 1.5, spd: 0.7 },
     abilities: ['glacial_breath', 'strike'],
+    ring: 3,
     spawn: { weight: 6, minFloor: 3 },
     threats: ['shape', 'reach'],
-    foeOrders: ['stay', 'hunt'],
+    behaviour: 'walk',
     flavour: 'An old wyrm makes the field come to it, and its brood waits with it.',
     art: 'frost_wyrm'
   },
@@ -234,15 +249,16 @@ export const UNIT_LIST = [
     base: { hp: 2800, atk: 65, def: 30, spd: 18, acc: 70, eva: 8, crt: 8 },
     growth: { hp: 280, atk: 6.5, def: 2, spd: 0.8 },
     abilities: ['grave_tide', 'sovereign_sweep', 'strike'],
+    ring: 1,
     phases: [{ at: 0.6, grant: 'enraged' }, { at: 0.25, grant: 'desperate' }],
     threats: ['shape', 'clock'],
-    foeOrders: ['hunt'],
+    behaviour: 'walk',
     flavour: 'It does not fight alone: its court walks with it, and the dead of the field rise at its tide. Without it, they are dust.',
     art: 'hollow_sovereign'
   },
   // Summons (`summon: true`): raised for one battle by a soul's path tier (PATHS, a tier's `summon`), never
   // spawned, offered or recruited, and gone when the battle ends. They fight at their summoner's level
-  // (TUNING.summon), count toward synergies and bonds like anyone, and borrow the art of a kind of their kin.
+  // (TUNING.summon), count toward synergies like anyone, and borrow the art of a kind of their kin.
   {
     id: 'skeleton',
     name: 'Skeleton',
@@ -253,6 +269,7 @@ export const UNIT_LIST = [
     base: { hp: 56, atk: 11, def: 8, spd: 16, acc: 40, eva: 6, crt: 4 },
     growth: { hp: 6, atk: 1.4, def: 0.7, spd: 0.6 },
     abilities: ['strike'],
+    ring: 1,
     flavour: 'Bones a chanter sings up out of the field, for one fight.',
     art: 'grave_ghoul'
   },
@@ -266,6 +283,7 @@ export const UNIT_LIST = [
     base: { hp: 40, atk: 11, def: 5, spd: 30, acc: 44, eva: 20, crt: 8 },
     growth: { hp: 5, atk: 1.5, def: 0.4, spd: 1.6 },
     abilities: ['strike'],
+    ring: 1,
     flavour: 'Hatched for the fight, spent by its end.',
     art: 'mantis_reaper'
   },
@@ -279,6 +297,7 @@ export const UNIT_LIST = [
     base: { hp: 30, atk: 10, def: 2, spd: 26, acc: 44, eva: 24, crt: 5 },
     growth: { hp: 4, atk: 1.4, def: 0.2, spd: 1.4 },
     abilities: ['witchfire'],
+    ring: 4,
     flavour: 'A light from the grove, gone with the battle.',
     art: 'will_o_wisp'
   },
@@ -292,6 +311,7 @@ export const UNIT_LIST = [
     base: { hp: 60, atk: 10, def: 12, spd: 14, acc: 40, eva: 4, crt: 3 },
     growth: { hp: 7, atk: 1.3, def: 1, spd: 0.5 },
     abilities: ['strike'],
+    ring: 1,
     flavour: 'Wound up to march, and to run down.',
     art: 'clockwork_page'
   },
@@ -305,6 +325,7 @@ export const UNIT_LIST = [
     base: { hp: 54, atk: 13, def: 7, spd: 20, acc: 46, eva: 10, crt: 8 },
     growth: { hp: 6, atk: 1.8, def: 0.5, spd: 0.9 },
     abilities: ['strike'],
+    ring: 1,
     flavour: "A wyrm's brood, out of the egg for one battle.",
     art: 'ember_drake'
   }
@@ -1028,7 +1049,7 @@ const ABILITY_LIST = [
     effects: [{ op: 'damage', power: 34 }]
   },
   {
-    // Only once engaged: a melee soul walks in to strike, never halting at 2 tiles to cast this.
+    // Only once a foe is next to it: a melee soul strikes first, never banking for this at 2 tiles.
     id: 'magnetize',
     name: 'Magnetize',
     castCost: 190,
@@ -1105,7 +1126,7 @@ const ABILITY_LIST = [
 // relic's, for that soul alone), `ability` ({ id, replace } swaps one of its abilities; { id, at }
 // adds one at that place in its priority list, first by default), `aura` (replaces its aura) and `summon`
 // ({ id, count }: each battle `count` of that summon kind appear beside it, its first summon tier raising
-// TUNING.ranks.summons[grade] more for a Knight or a Marshal; they keep to it, follow its plan and are gone
+// TUNING.ranks.summons[grade] more for a Knight or a Marshal; each holds the tile it appears on and is gone
 // when the battle ends: unit.js summonsOf, battle.js summon). Summons are how the army grows past the field.
 // Tier IV is a Knight's or a Marshal's (GRADES): a rule, never a percentage (a new or remade ability).
 // A Knight may instead start a second path, and a Marshal take its tiers I–III: its tiers come on top of
@@ -1365,7 +1386,7 @@ const STATUS_LIST = [
     ]
   },
   {
-    // A relic's gift to a soul as it enters (Tower Shield), and a held soul's as it enters fresh.
+    // A relic's gift to a soul as it enters (Tower Shield).
     id: 'shield',
     desc: 'Takes 40% less damage.',
     name: 'Shielded',
@@ -1386,29 +1407,23 @@ const KIN_LIST = [
   { id: 'drake', name: 'Drake' }
 ]
 
-// autoRow: 0 front, 1 mid, 2 back (3 mid-camp, behind them). `move` is how the role behaves on the board
-// (BEHAVIOURS); `target` picks among the foes in reach: the nearest, or the lowest HP%. A `hidden` role
-// (the Monarch's) counts toward no synergy and holds no bond.
+// A `hidden` role (the Monarch's) counts toward no synergy.
 export const ROLE_LIST = [
-  { id: 'vanguard', name: 'Vanguard', autoRow: 0, move: 'advance', target: 'nearest' },
-  { id: 'skirmisher', name: 'Skirmisher', autoRow: 1, move: 'keep', target: 'weakest' },
-  { id: 'ranger', name: 'Ranger', autoRow: 2, move: 'keep', target: 'weakest' },
-  { id: 'channeler', name: 'Channeler', autoRow: 2, move: 'keep', target: 'nearest' },
-  { id: 'warden', name: 'Warden', autoRow: 1, move: 'advance', target: 'nearest' },
-  { id: 'trickster', name: 'Trickster', autoRow: 1, move: 'flank', target: 'weakest' },
-  { id: 'monarch', name: 'Monarch', autoRow: 3, move: 'stand', target: 'nearest', hidden: true }
+  { id: 'vanguard', name: 'Vanguard' },
+  { id: 'skirmisher', name: 'Skirmisher' },
+  { id: 'ranger', name: 'Ranger' },
+  { id: 'channeler', name: 'Channeler' },
+  { id: 'warden', name: 'Warden' },
+  { id: 'trickster', name: 'Trickster' },
+  { id: 'monarch', name: 'Monarch', hidden: true }
 ]
 
-// How a unit moves, by its role's `move`. Everyone steps at one pace (TUNING.board.stepTicks). Nobody
-// moves while an ability has a target in reach, except a flanker whose quarry is out of reach.
-// `slips`: it can walk away from a foe next to it; everyone else is held in place. A flanker also walks
-// through the living to an open tile beyond; bodies block everyone else.
+// How a foe walks the roads to the Monarch (DESIGN §2.6), by its kind's `behaviour`: one step a
+// TUNING.board.stepTicks, fighting whatever is in its ring, waiting behind a foe on its next tile.
 export const BEHAVIOURS = {
-  advance: { name: 'Advance', slips: false, desc: 'Walks to the nearest foe and fights it.' },
-  keep: { name: 'Hold back', slips: false, desc: 'Walks only until a foe is in range, and never steps next to a foe while it has a ranged attack.' },
-  // Who exactly a flanker hunts is left for the player to discover; the text only hints.
-  flank: { name: 'Flank', slips: true, desc: 'Slips through the line, friend and foe alike, to hunt whoever hides at the back. Only walls stop it.' },
-  stand: { name: 'Stand', slips: false, desc: 'Never takes a step: it stands where it was placed for the whole battle.' }
+  walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch, and fights whatever stands in its way.' },
+  // Which kinds Flank is learnt by meeting them; the text only says what it does.
+  flank: { name: 'Flank', desc: 'Walks round your pieces to the Monarch where a way round is open; where none is, it walks the arrows.' }
 }
 
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
@@ -1423,18 +1438,10 @@ export const THREATS = {
   depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' }
 }
 
-// What an elite's captain may be bidden to do (UNIT_LIST `foeOrders`), as a plan in battle: hold its ground,
-// hunt (the default), or walk to a wing of your camp and hunt from there. Never shown to the player.
-export const FOE_ORDERS = {
-  stay: { where: 'stay' },
-  hunt: { where: 'hunt' },
-  flank: { where: 'move' }
-}
-
 // ── synergies ────────────────────────────────────────────────────────────────────────────────
 
 // Active while a side's living units meet every count in `needs` ({ kin: {…}, role: {…} }).
-// A mod with `pos` only applies while the unit is 'engaged' (a foe next to it) or 'free' (none).
+// A mod with `pos` only applies while the unit has a foe next to it ('engaged') or has none ('free').
 export const SYNERGIES = [
   { id: 'undead_2', name: 'Undead 2', desc: 'The dead do not flinch. +6% DEF.', needs: { kin: { undead: 2 } }, mods: [{ path: 'def', op: 'mul', v: 1.06 }] },
   { id: 'undead_4', name: 'Undead 4', desc: '+15% DEF, +5% max HP.', needs: { kin: { undead: 4 } }, mods: [{ path: 'def', op: 'mul', v: 1.15 }, { path: 'hp', op: 'mul', v: 1.05 }] },
@@ -1491,18 +1498,6 @@ export const SYNERGIES = [
   { id: 'trickster_8', name: 'Trickster 8', desc: 'Deathblow: a critical hit of yours slays any foe but a boss or a Monarch outright (a Last Stand still holds, once).', needs: { role: { trickster: 8 } }, rule: 'deathblow', mods: [] }
 ]
 
-// ── formation bonds ──────────────────────────────────────────────────────────────────────────
-
-// Fixed when a battle begins, from where souls stand in their formation: a unit matching `who` gets the
-// mods if one matching `with` stands `at` it: 'beside' (same row, next lane), 'behind' (same lane, one
-// row further back) or 'ahead' (same lane, one row further forward).
-export const BONDS = [
-  { id: 'phalanx', name: 'Phalanx', desc: 'A Vanguard with another Vanguard beside it: +20% DEF.', who: { role: 'vanguard' }, with: { role: 'vanguard' }, at: 'beside', mods: [{ path: 'def', op: 'mul', v: 1.2 }] },
-  { id: 'vigil', name: 'Vigil', desc: 'A Vanguard with a Warden right behind it: takes 12% less damage.', who: { role: 'vanguard' }, with: { role: 'warden' }, at: 'behind', mods: [{ path: 'damage.taken', op: 'mul', v: 0.88 }] },
-  { id: 'spotter', name: 'Spotter', desc: 'A Ranger or Channeler with a Skirmisher right ahead of it: +12 ACC, +10 CRT.', who: { role: ['ranger', 'channeler'] }, with: { role: 'skirmisher' }, at: 'ahead', mods: [{ path: 'acc', op: 'add', v: 12 }, { path: 'crt', op: 'add', v: 10 }] },
-  { id: 'kinship', name: 'Kinship', desc: 'Two souls of one kin side by side: +8% damage dealt.', who: {}, with: { kin: 'same' }, at: 'beside', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.08 }] }
-]
-
 // ── ranks ────────────────────────────────────────────────────────────────────────────────────
 
 // A soul's rank (u.grade: 0, 1, 2), bought with essence once the soul has the level (TUNING.ranks). Each rank
@@ -1510,35 +1505,21 @@ export const BONDS = [
 export const GRADES = [
   { id: 'soldier', name: 'Soldier', desc: 'Tiers I–III on one path.' },
   { id: 'knight', name: 'Knight', desc: 'Tier IV on its path, or tier I of a second path. Its summon tier raises 1 more.' },
-  { id: 'marshal', name: 'Marshal', desc: 'A domain of its own: within it its banner (itself, its summons, the dead raised there) never falters and heeds every order. Tier IV and tiers I–III of a second path, both. Its summon tier raises 2 more.' }
+  { id: 'marshal', name: 'Marshal', desc: 'Tier IV and tiers I–III of a second path, both. Its summon tier raises 2 more.' }
 ]
 
-// ── orders ───────────────────────────────────────────────────────────────────────────────────
+// ── signals ──────────────────────────────────────────────────────────────────────────────────
 
-// A detachment's plan: where it goes once nothing calls for a reaction, and when it takes the field. A
-// detachment that starts later waits off the board, in the dark behind the camp, and enters beside the
-// Monarch when its start comes. The reaction rule comes before every plan: a unit that can hit a foe hits
-// it, a melee unit steps to engage a foe within 2 tiles, a ranged one holds while a foe is in its range.
-// Outside the Monarch's domain only Hunt is heeded. A held detachment, once called, still enters only while
-// it has room: its souls take TUNING.orders.reserve places of their own past the board's TUNING.army.board. A
-// soul's summons go with it: they appear beside it as it enters, on its plan.
-export const ORDERS = {
-  where: {
-    hunt: { name: 'Hunt', desc: 'Each walks as its role does: Advance to the nearest foe, Hold back until a foe is in range, Flank through the line to whoever hides at the back. Every soul with no order Hunts.' },
-    stay: { name: 'Stay', desc: 'Holds the ground it starts or enters on, and walks back to it after each fight.' },
-    move: { name: 'Move', desc: 'Walks to its square by the cheapest open way; on the square or next to it, it has arrived and Hunts.' }
-  },
-  when: {
-    once: { name: 'At once', desc: 'On the board from the start.' },
-    time: { name: 'At a time', desc: 'Waits behind the camp, and enters beside the Monarch when the time comes, as the board has room.' },
-    struck: { name: 'Monarch struck', desc: 'Waits behind the camp, and enters beside the Monarch once a blow lands on it, as the board has room.' },
-    wave: { name: 'A wave', desc: 'Waits behind the camp, and enters beside the Monarch once more foes enter the field, as the board has room.' },
-    falls: { name: 'One falls', desc: 'Waits behind the camp, and enters beside the Monarch once one of yours on the board falls, as the board has room.' }
-  }
+// What a line may wait for before it starts (DESIGN §2.5), as its `when`: { at } with `t` (a tick) for a time and
+// `wave` (1 on) for a wave. Until then the piece holds its tile, fighting what comes into its ring.
+export const SIGNALS = {
+  once: { name: 'At once', desc: 'Walks from the first tick.' },
+  time: { name: 'Time', desc: 'Walks once the battle clock reaches its time.' },
+  blow: { name: 'Blow', desc: 'Walks once the first blow lands, either side.' },
+  wave: { name: 'Wave', desc: 'Walks once its wave of foes begins to enter.' },
+  struck: { name: 'Struck', desc: 'Walks once a blow lands on the Monarch.' },
+  falls: { name: 'Fallen', desc: 'Walks once the first piece of yours falls.' }
 }
-
-// Each detachment's colour, by its id (1 to TUNING.army.detachments): its mark on the camp and the board.
-export const DETACHMENT_COLORS = ['#f020c8', '#fcbdb5', '#5a5cff', '#1bab62']
 
 // ── camps ────────────────────────────────────────────────────────────────────────────────────
 
@@ -1570,8 +1551,8 @@ export const CAMP_LIST = [
 // ability's do; a heal with `pct` mends that share of the target's max HP, whoever casts it). Each moment
 // has a subject, a place and the one on its other end: 'kill' (one of yours slays a foe: the killer, where
 // the slain fell, the slain), 'fall' (one of yours falls, the Monarch aside, whose fall ends the battle: the
-// fallen, where it fell, its killer; a summon too), 'enter' (one of yours enters from behind the camp, a held
-// detachment's soul: the newcomer, where it enters; its summons appear with it, and do not fire it)
+// fallen, where it fell, its killer; a summon too), 'enter' (one of yours enters a battle under way: the
+// newcomer, where it enters; nothing of yours does since held starts went, so these wait for the content pass)
 // and 'struck' (a blow lands on the Monarch and it stands: the Monarch, where it stands, its attacker). An
 // effect's `to` picks its targets: 'self' (the subject) or 'other', if it stands; 'monarch'; or 'allies' /
 // 'foes' (yours / theirs standing within `range` tiles of the place).
@@ -1607,18 +1588,15 @@ export const TRIGGERS = ['kill', 'fall', 'enter', 'struck']
 // Rules that rewrite the game, two or three a run (offered at elites and rites from floor 2, free; see
 // TUNING.keystone). Each holds one or more of: `field` (more souls on the field), `mods` (on every party unit in
 // battle but the Monarch: your souls, their summons and shadows), `rise` (a fallen soul rises once a battle at
-// that share of its max HP), `pool` (each soul shares one HP pool with its summons and the shadows that joined
-// it), `alias` ({ role: role }: a unit of the first counts as the second too, for your synergies and bonds),
-// `crown` (the domain centres on your front-most soul), `domain` (tiles more or fewer), `reap` (Arise's shadows
+// that share of its max HP), `alias` ({ role: role }: a unit of the first counts as the second too, for your
+// synergies), `domain` (tiles more or fewer), `reap` (Arise's shadows
 // still standing when a battle is won pay their essence again), `raises` (Arise's cap a battle times this),
 // `tithe` (each shadow costs the Monarch this share of its max HP) and `unhealable` (nothing heals the Monarch,
 // in battle or out). Nothing ever revives the Monarch.
 export const KEYSTONE_LIST = [
   { id: 'legion', name: 'Legion', desc: 'Two more souls on the field, but every soul has 15% less HP.', field: 2, mods: [{ path: 'hp', op: 'mul', v: 0.85 }] },
   { id: 'undying', name: 'Undying', desc: 'Fallen souls rise once a battle, at 50% HP.', rise: 0.5 },
-  { id: 'one_army', name: 'One Army', desc: 'Each soul shares one HP pool with its summons.', pool: true },
-  { id: 'mimicry', name: 'Mimicry', desc: 'Vanguards count as Wardens too, for synergies and bonds.', alias: { vanguard: 'warden' } },
-  { id: 'vanguard_crown', name: 'Vanguard Crown', desc: 'The domain is centred on your front-most soul, not the Monarch, and is 1 tile smaller.', crown: true, domain: -1 },
+  { id: 'mimicry', name: 'Mimicry', desc: 'Vanguards count as Wardens too, for synergies.', alias: { vanguard: 'warden' } },
   { id: 'hollow_court', name: 'Hollow Court', desc: 'Shadows raised by Arise that still stand when a battle is won are reaped: each pays its essence again.', reap: true },
   { id: 'blood_tithe', name: 'Blood Tithe', desc: "Arise's cap a battle is doubled, but each shadow costs the Monarch 3% of its max HP.", raises: 2, tithe: 0.03 },
   { id: 'court_of_bone', name: 'Court of Bone', desc: 'The domain is 2 tiles larger, but nothing heals the Monarch, in battle or out.', domain: 2, unhealable: true }

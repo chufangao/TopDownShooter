@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
   createRun, apply, availableNodes, battleSetup, join, monarchCost, souls, fieldCap, currentNode, fielded, isMonarch, replay,
-  promoteLevel, promoteCost
+  promoteLevel, promoteCost, legalActions
 } from '../src/sim/run.js'
 import { createBattle, runBattle, timelineHash } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
@@ -69,14 +69,14 @@ test('the un-ablated players are unchanged: the same actions as before the harne
 })
 
 test('ablation: the names, the rules switches carried by the run and its replay, and a policy that refuses a run without its switch', () => {
-  assert.deepEqual(ABLATIONS, ['monarch-stats', 'arise', 'orders', 'reserves', 'summons', 'ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation', 'levels'])
+  assert.deepEqual(ABLATIONS, ['monarch-stats', 'arise', 'lines', 'summons', 'ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation', 'levels'])
   assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons'])
-  assert.deepEqual(CORE, ['monarch-stats', 'arise', 'orders', 'reserves', 'summons'])
+  assert.deepEqual(CORE, ['monarch-stats', 'arise', 'lines', 'summons'])
   // Every ablation but levels is targeted: a core one at 25–50 points, an extra one at 8–25.
   assert.deepEqual([...CORE, ...EXTRA, 'levels'].sort(), ABLATIONS.slice().sort())
   assert.ok(CORE.every((m) => BANDS[m].join() === '25,50') && EXTRA.every((m) => BANDS[m].join() === '8,25') && !BANDS.levels)
   assert.deepEqual(ablatedRun('sw', 'arise').state.ablate, ['arise'])
-  assert.ok(!('ablate' in ablatedRun('sw', 'orders').state))
+  assert.ok(!('ablate' in ablatedRun('sw', 'lines').state))
   const run = ablatedRun('sw', 'synergies')
   visit(run, 'fight')
   assert.deepEqual(battleSetup(run).ablate, ['synergies'])
@@ -169,26 +169,25 @@ test('ablating Monarch stats, or Arise: no point (or no Will) is wished for', ()
   assert.deepEqual(statsFor(LEVELS.expert), ['dominion', 'command', 'will'])
   assert.deepEqual(statsFor(without('monarch-stats')), [])
   assert.deepEqual(statsFor(without('arise')), ['dominion', 'command'])
-  assert.deepEqual(statsFor(without('orders')), ['dominion', 'command', 'will'])
+  assert.deepEqual(statsFor(without('lines')), ['dominion', 'command', 'will'])
   // Basic's rule of thumb (as the expert's rollouts play) buys no Command either with the stats ablated.
   const basicRng = createRng('wish-b').stream('autoplay')
   assert.deepEqual(policy(waiting, basicRng, 'basic'), { type: 'monarch', stat: 'command' })
   assert.notEqual(policy(waiting, basicRng, { ...LEVELS.basic, ablate: 'monarch-stats' }).type, 'monarch')
 })
 
-test('ablating orders: every planned order Hunts; ablating reserves: every planned order starts at once', () => {
-  let stays = 0
+test('ablating lines: no planned soul draws a line, where the full expert draws some', () => {
+  let drawn = 0
   for (const seed of ['ord-0', 'ord-1', 'ord-2']) {
     const run = createRun({ seed })
     join(run, 'grave_ghoul', { lvl: 3 })
-    run.state.monarch.command = 1
+    run.state.essence = monarchCost(run)
+    apply(run, { type: 'monarch', stat: 'command' })
     visit(run, 'fight')
-    const full = planFor(run, LEVELS.expert)
-    stays += full.filter((p) => p.order && p.order.where !== 'hunt').length
-    for (const p of planFor(run, without('orders'))) assert.ok(!p.order || (p.order.where === 'hunt' && p.order.square === null && p.order.when.at !== 'once'))
-    for (const p of planFor(run, without('reserves'))) assert.ok(!p.order || (p.order.when.at === 'once' && p.order.where !== 'hunt'))
+    drawn += planFor(run, LEVELS.expert).filter((p) => p.line).length
+    assert.ok(planFor(run, without('lines')).every((p) => p.line === null))
   }
-  assert.ok(stays > 0, 'the full expert does plan Stay or Move here')
+  assert.ok(drawn > 0, 'the full expert does draw lines here')
 })
 
 test('ablating ranks: no promotion even when a Knight would buy tier IV', () => {
@@ -253,11 +252,9 @@ test('ablating paths, levels: never bought; paths: a rite\'s tiers declined; key
   assert.equal(mixed.state.offers[pick.index].type, 'tier')
 })
 
-test('ablating paths: a Knight (tier IV out of reach) is weighed as the step to a Marshal, once it has the level and the essence for both', () => {
+test('ablating paths: a Knight (tier IV out of reach) is weighed as the step to a Marshal, and only for what the ranks change in battle', () => {
   // Every other soul at the level cap, so that with paths ablated the purse has nothing else to buy for the souls:
-  // the ranks are weighed against keeping it; and foes at level 9, so that a fight is close enough for the
-  // Marshal's domain to show (it depends on balance: at floor 1's own levels every fight is a rout either way, and
-  // at 8, 10 or 12 the domain changes no rehearsal's score by the 0.01 the expert asks).
+  // the ranks are weighed against keeping it; and foes at level 9, so that a fight is close.
   const at = (lvl, essence) => {
     const run = createRun({ seed: 'tw-0' })
     for (const n of run.state.map.nodes) if (n.foes) n.foes = n.foes.map((f) => ({ ...f, lvl: 9 }))
@@ -276,23 +273,23 @@ test('ablating paths: a Knight (tier IV out of reach) is weighed as the step to 
   const knight = at(top, C0 + C1)
   const u = knight.state.party.find((x) => x.id === 'tomb_knight')
   assert.deepEqual([u.tier, u.grade], [0, 0])
-  // With no might and no summons a Knight of a tier-0 soul buys nothing: the full expert makes none; with paths
-  // ablated it does when both ranks (the Marshal's domain) rehearse better than the essence on the souls.
+  // With no might and no summons neither rank changes a battle (the Marshal's domain is gone with Falter): a
+  // tier-0 soul is never promoted, by the full expert or with paths ablated, weighed as one step or both.
   tuned({ ranks: { might: [1, 1, 1], summons: [0, 0, 0] } }, () => {
     assert.notEqual(policy(knight, rng, 'expert').type, 'promote')
-    assert.deepEqual(policy(at(top, C0 + C1), rng, without('paths')), { type: 'promote', uid: u.uid })
-    // Short of a Marshal's level, or of the essence for both: the Knight alone is weighed, and buys nothing.
+    assert.notEqual(policy(at(top, C0 + C1), rng, without('paths')).type, 'promote')
     assert.notEqual(policy(at(L1 - 1, C0 + C1), rng, without('paths')).type, 'promote')
     assert.notEqual(policy(at(top, C0 + C1 - 1), rng, without('paths')).type, 'promote')
     assert.ok(L0 <= L1)
   })
 })
 
-test('ablating formation: basic\'s first draft\'s cells and the Monarch where basic parks it; who fights and their orders still the expert\'s', () => {
+test('ablating formation: basic\'s first draft\'s cells and the Monarch where basic parks it; who fights and their lines still the expert\'s', () => {
   for (const seed of ['form-0', 'form-1']) {
     const run = createRun({ seed })
     join(run, 'grave_ghoul', { lvl: 3 })
-    run.state.monarch.command = 1
+    run.state.essence = monarchCost(run)
+    apply(run, { type: 'monarch', stat: 'command' })
     visit(run, 'fight')
     const plan = planFor(run, without('formation'))
     const s = run.state
@@ -307,8 +304,8 @@ test('ablating formation: basic\'s first draft\'s cells and the Monarch where ba
 test('necessity: the snapshots refight exactly as recorded, and each mechanic is stripped from the setup', () => {
   const snaps = []
   const run = createRun({ seed: 'nec-0' })
-  // A retinue with everything to strip: points, a summoner, tiers, a Marshal, a keystone, a relic, orders, a held
-  // detachment.
+  // A retinue with everything to strip: points, a summoner, tiers, a Marshal, a keystone, a relic, a line, and one
+  // waiting on a signal.
   const s = run.state
   s.essence = 0
   const rng = createRng('nec-0').stream('autoplay')
@@ -319,12 +316,13 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   Object.assign(knight, { path: pathsOf(knight.id)[0].id, tier: 4, grade: 2, path2: pathsOf(knight.id)[1].id, tier2: 1 })
   // The chanter raises Skeletons (Marrowcaller II).
   Object.assign(chanter, { path: 'marrowcaller', tier: 2 })
-  s.keystones = ['vanguard_crown']
+  s.keystones = ['court_of_bone']
   s.relics = ['bone_idol']
   for (let a; (a = policy(run, rng, 'basic')).type !== 'fight';) apply(run, a)
   assert.ok(fielded(souls(s.party)).includes(chanter), 'the summoner fights')
-  apply(run, { type: 'order', uids: [knight.uid], plan: { where: 'stay', square: null, when: { at: 'once' } } })
-  apply(run, { type: 'order', uids: [sprite.uid], plan: { where: 'hunt', square: null, when: { at: 'struck' } } })
+  const lineOf = (u) => legalActions(run).find((a) => a.type === 'line' && a.uid === u.uid && a.tiles)
+  apply(run, lineOf(knight))
+  apply(run, { ...lineOf(sprite), when: { at: 'struck' } })
   snaps.push({ snapshot: structuredClone({ ...s, log: [] }) })
   apply(run, { type: 'fight' })
   snaps[0].outcome = { hash: timelineHash(run.battle.events) }
@@ -334,15 +332,14 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   const setup = (m) => battleSetup(stripped(snaps[0].snapshot, m))
   const full = setup(null)
   const raised = (x) => createBattle(x).units.filter((u) => u.summoned).length
-  assert.ok(raised(full) > 0 && full.will === 1 && full.detachments.length === 2 && full.keystones.length && full.partyMods.length + full.relics.length > 0)
+  assert.ok(raised(full) > 0 && full.will === 1 && full.party.filter((u) => u.line).length === 2 && full.keystones.length && full.partyMods.length + full.relics.length > 0)
   const m = setup('monarch-stats')
   const monarch = m.party.find((u) => u.uid === 0)
-  assert.deepEqual([monarch.lvl, monarch.maxHp, m.will, m.domain], [0, baseStats('monarch', 0).hp, 0, TUNING.monarch.domain - 1])
-  // Command 0: only the base field fights.
-  assert.ok(m.party.filter((u) => u.uid !== 0).length + m.reserve.filter((u) => u.side !== 'foe').length <= TUNING.party.field)
-  assert.ok(setup('orders').party.every((u) => !u.plan || u.plan.where === 'hunt'))
-  assert.ok(setup('orders').reserve.some((u) => u.when), 'a held start kept')
-  assert.ok(setup('reserves').reserve.every((u) => !u.when))
+  assert.deepEqual([monarch.lvl, monarch.maxHp, m.will, m.domain], [0, baseStats('monarch', 0).hp, 0, TUNING.monarch.domain + 2])
+  // Command 0: only the base field fights, and the souls past it lose their lines.
+  assert.ok(m.party.filter((u) => u.uid !== 0).length <= TUNING.party.field)
+  assert.ok(m.party.filter((u) => u.line).length <= 2)
+  assert.ok(setup('lines').party.every((u) => !u.line))
   assert.deepEqual(setup('summons').ablate, ['summons'])
   assert.equal(raised(setup('summons')), 0)
   assert.equal(raised(setup('paths')), 0, 'no summon tier, no summons')

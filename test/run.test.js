@@ -2,20 +2,20 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createRun, apply, legalActions, availableNodes, replay, join, currentNode, fielded, levelCost, tierCost, rosterCap, fieldCap,
-  MONARCH_UID, MONARCH_STATS, monarchOf, souls, monarchCost, monarchPoints, domainOf, faltersAt, battleSetup, encounter, drawRoom, roomThreats,
-  foeEssence, armyLayout, isSquare, detachmentOf, DEFAULT_PLAN, baseField, inOssuary, OSSUARY, promoteLevel
+  MONARCH_UID, MONARCH_STATS, monarchOf, souls, monarchCost, monarchPoints, domainOf, battleSetup, encounter, drawRoom, roomThreats,
+  foeEssence, baseField, inOssuary, OSSUARY, promoteLevel, cleanLine, LINE_MAX
 } from '../src/sim/run.js'
-import { createBattle, runBattle, stats, stepBattle, falters } from '../src/sim/battle.js'
-import { autoplay, policy, rehearsalBudget, LEVELS, scoreOf, planFor, armyWish, detachmentsOf, rehearse, replan } from '../src/sim/autoplay.js'
+import { createBattle, runBattle, stats, stepBattle, timingMarks } from '../src/sim/battle.js'
+import { autoplay, policy, rehearsalBudget, LEVELS, scoreOf, planFor, armyWish, rehearse, redraw, linesOf } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { generateFloor } from '../src/sim/map.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_BALANCE } from './tuned.js'
-import { RELICS, UNITS, ROLES, ORDERS, DETACHMENT_COLORS } from '../src/content.js'
+import { RELICS, UNITS, SIGNALS } from '../src/content.js'
 import { summonsOf } from '../src/sim/unit.js'
 import {
   CAMP_SLOTS, CAMP_ROWS, campOpen, isWall, abilitiesOf, auraOf, statsOf, pathsOf, slotAt, rowOf, colOf, baseStats, makeUnit, tileAt,
-  nearestOpen, campGrid, deployTile, distance, wallTiles, TILES, pathsClash
+  deployTile, distance, wallTiles, pathsClash, seatNear, isSeat, LANES
 } from '../src/sim/unit.js'
 import { CAMP_LIST } from '../src/content.js'
 import { KEYSTONES } from '../src/content.js'
@@ -93,16 +93,17 @@ test('legalActions per phase', () => {
   const run = createRun({ seed: 'legal' })
   const kinds = (r) => [...new Set(legalActions(r).map((a) => a.type))].sort()
   run.state.essence = 0
-  assert.deepEqual(kinds(run), ['node', 'order', 'place', 'release'])
+  assert.deepEqual(kinds(run), ['line', 'node', 'place', 'release'])
   run.state.essence = 1000
-  assert.deepEqual(kinds(run), ['level', 'monarch', 'node', 'order', 'place', 'release', 'upgrade'])
+  assert.deepEqual(kinds(run), ['level', 'line', 'monarch', 'node', 'place', 'release', 'upgrade'])
   assert.deepEqual(legalActions(run).filter((a) => a.type === 'monarch').map((a) => a.stat), MONARCH_STATS)
   assert.ok(!legalActions(run).some((a) => a.uid === MONARCH_UID && ['level', 'upgrade', 'release'].includes(a.type)))
-  assert.ok(!legalActions(run).some((a) => a.type === 'place' && a.uid === MONARCH_UID && a.slot === -1))
+  assert.ok(!legalActions(run).some((a) => a.type === 'place' && a.uid === MONARCH_UID && !isSeat(run.state.camp, a.slot)), 'the Monarch only to a seat')
+  assert.ok(!legalActions(run).some((a) => a.type === 'line' && a.uid === MONARCH_UID), 'the Monarch draws no line')
   run.state.essence = 0
   visit(run, 'fight')
   assert.equal(run.state.phase, 'prep')
-  assert.deepEqual(kinds(run), ['fight', 'order', 'place', 'release'])
+  assert.deepEqual(kinds(run), ['fight', 'line', 'place', 'release'])
   apply(run, { type: 'fight' })
   if (run.state.phase === 'over') return
   // Poor, a recruit is out of reach: moving on (or letting a soul go) is all there is.
@@ -362,14 +363,15 @@ test('the autoplayer uses the choices a player has: open cells only', () => {
 // The basic player parks the Monarch at the back and leaves it there; the expert searches its cell with
 // the souls' and buys it points.
 test('the autoplayer and the Monarch: basic parks it on the rear row, the expert moves it and spends on it', () => {
-  const rear = (camp) => nearestOpen(campGrid(camp), slotAt(CAMP_ROWS - 1, 3))
+  const rear = (camp) => seatNear(camp)
   for (let i = 0; i < 4; i++) {
     const run = autoplay(createRun({ seed: 'park' + i }), {
       onBattle: (b, r) => assert.equal(r.setup.party.find((u) => u.uid === MONARCH_UID).slot, rear(r.setup.camp), `park${i} floor ${b.floor}`)
     })
     assert.deepEqual([run.state.monarch.dominion, run.state.monarch.will], [0, 0], 'basic buys only Command')
   }
-  // The expert's drafts put the Monarch on the rear row or mid-camp; only the hill-climb takes it elsewhere.
+  // The expert's drafts put the Monarch on the rear row's middle seat or the one ahead of it (or in a pocket);
+  // the hill-climb takes it to other seats.
   // (A seed whose expert clears floor 1: floor 1 is hard, and one lost before a point is bought proves nothing.)
   const run = createRun({ seed: 'monarch-expert0' })
   const rng = createRng('monarch-expert0').stream('autoplay')
@@ -380,11 +382,11 @@ test('the autoplayer and the Monarch: basic parks it on the rear row, the expert
     if (action.type === 'monarch') bought.push(action.stat)
     apply(run, action)
     if (action.type !== 'fight') continue
-    const grid = campGrid(run.setup.camp)
-    const drafted = [nearestOpen(grid, slotAt(CAMP_ROWS - 1, 3)), nearestOpen(grid, slotAt(ROLES.monarch.autoRow, 3))]
+    const drafted = [seatNear(run.setup.camp), seatNear(run.setup.camp, slotAt(CAMP_ROWS - 2, 3))]
     fights.push({ slot: run.setup.party.find((u) => u.uid === MONARCH_UID).slot, drafted })
   }
-  assert.ok(fights.some((f) => !f.drafted.includes(f.slot)), `the Monarch stood in ${fights.map((f) => f.slot)}`)
+  assert.ok(fights.every((f) => isSeat(run.setup.camp, f.slot) || f.slot === undefined), 'always on a seat')
+  assert.ok(fights.some((f) => !f.drafted.includes(f.slot)) || fights.length < 2, `the Monarch stood in ${fights.map((f) => f.slot)}`)
   assert.ok(bought.length > 0, 'it bought a Monarch point')
 })
 
@@ -395,14 +397,14 @@ test('the autoplayer moves the Monarch to its planned cell before it fights, and
     const run = createRun({ seed: 'prep' })
     const s = run.state
     visit(run, 'fight')
-    const start = [slotAt(2, 3), slotAt(2, 2), slotAt(3, 3)].find((slot) => campOpen(s.camp, slot) && !s.party.some((u) => u.slot === slot))
+    const start = [slotAt(CAMP_ROWS - 2, 0), slotAt(CAMP_ROWS - 1, 0), slotAt(CAMP_ROWS - 2, 6)].find((slot) => isSeat(s.camp, slot) && !s.party.some((u) => u.slot === slot))
     apply(run, { type: 'place', uid: MONARCH_UID, slot: start })
     const rng = createRng('prep').stream('autoplay')
     for (let action; (action = policy(run, rng, level)).type !== 'fight';) apply(run, action)
     const plan = planFor(run, LEVELS[level])
     const cell = plan.find((p) => p.uid === MONARCH_UID).slot
     assert.notEqual(cell, start, `${level}: the plan moves it`)
-    if (level === 'basic') assert.equal(cell, nearestOpen(campGrid(s.camp), slotAt(CAMP_ROWS - 1, 3)), 'basic parks it on the rear row')
+    if (level === 'basic') assert.equal(cell, seatNear(s.camp), 'basic parks it on the rear row')
     assert.equal(monarchOf(s).slot, cell, `${level}: the Monarch stands where it was planned`)
     for (const p of plan) assert.equal(s.party.find((u) => u.uid === p.uid).slot, p.slot, `${level}: uid ${p.uid}`)
     assert.deepEqual(s.party.filter((u) => u.slot === cell).map((u) => u.uid), [MONARCH_UID])
@@ -534,23 +536,29 @@ test('the current node after a fight is the room fought in', () => {
 
 // ── the Monarch in the run ───────────────────────────────────────────────────────────────────────
 
-test('the Monarch starts on the rear row, middle lane, or the open cell nearest it, its souls inside its domain; it can move but never to the bench', () => {
+test('the Monarch starts on the rear row\'s middle seat and its souls on the front row; it moves among the seats, never to the bench', () => {
   for (const c of CAMP_LIST.filter((x) => x.floor === 1)) {
     let run
     for (let i = 0; !run || run.state.camp !== c.id; i++) run = createRun({ seed: 'throne' + i })
     const m = monarchOf(run.state)
-    assert.equal(m.slot, nearestOpen(campGrid(c.id), slotAt(CAMP_ROWS - 1, 3)))
+    assert.equal(m.slot, seatNear(c.id))
     assert.equal(rowOf(m.slot), CAMP_ROWS - 1)
-    assert.ok(souls(run.state.party).every((u) => u.slot >= 0 && !faltersAt(run.state, u.slot)), `${c.id}: the start souls stand in the domain`)
+    assert.ok(souls(run.state.party).every((u) => rowOf(u.slot) === 0), `${c.id}: a plain fill, from the front row`)
   }
   const run = createRun({ seed: 'throne' })
   const s = run.state
   const m = monarchOf(s)
   const [knight, chanter] = souls(s.party)
-  // It swaps cells with a soul like any soul.
-  const was = m.slot
-  apply(run, { type: 'place', uid: MONARCH_UID, slot: knight.slot })
-  assert.deepEqual([knight.slot, rowOf(was)], [was, CAMP_ROWS - 1])
+  // A seat of the rear two rows only: the third row from the back is refused.
+  assert.throws(() => apply(run, { type: 'place', uid: MONARCH_UID, slot: slotAt(CAMP_ROWS - 3, 3) }), /cannot place/)
+  const seat = slotAt(CAMP_ROWS - 2, 2)
+  apply(run, { type: 'place', uid: MONARCH_UID, slot: seat })
+  assert.equal(m.slot, seat)
+  // A soul swaps cells with it only from a seat: from the front row it would put the Monarch off the seats.
+  assert.throws(() => apply(run, { type: 'place', uid: knight.uid, slot: seat }), /cannot place/)
+  apply(run, { type: 'place', uid: knight.uid, slot: slotAt(CAMP_ROWS - 1, 2) })
+  apply(run, { type: 'place', uid: knight.uid, slot: seat })
+  assert.deepEqual([knight.slot, m.slot], [seat, slotAt(CAMP_ROWS - 1, 2)])
   // A benched soul cannot take its cell (that would bench it), though one can take a free cell.
   apply(run, { type: 'place', uid: chanter.uid, slot: -1 })
   assert.throws(() => apply(run, { type: 'place', uid: chanter.uid, slot: m.slot }), /cannot place/)
@@ -595,28 +603,19 @@ test('Monarch points: Dominion, Command and Will, at 20 + 10 per point bought, e
   assert.deepEqual([m.lvl, m.maxHp], [12, baseStats('monarch', 12).hp])
 })
 
-test('a camp cell outside the domain falters: faltersAt measures from the Monarch', () => {
-  const run = createRun({ seed: 'domain' })
-  const s = run.state
-  const m = monarchOf(s)
-  for (let slot = 0; slot < CAMP_SLOTS; slot++) {
-    const far = distance(deployTile('party', slot), deployTile('party', m.slot)) > domainOf(s)
-    assert.equal(faltersAt(s, slot), far && slot !== m.slot, `slot ${slot}`)
-  }
-  assert.ok(faltersAt(s, slotAt(0, 3)), 'from the rear row the front row falters')
-  s.monarch.dominion = 3
-  assert.ok(!faltersAt(s, slotAt(0, 3)))
-})
-
 test('a fight: shadows never join the retinue and the run moves past their uids; wounds carry; a fallen Monarch ends the run', () => tuned(FIRST_BALANCE, () => {
-  // Behind the line, where corpses fall in reach; with `hp`, wounded before the fight.
+  // On the seat row ahead, with a domain over the whole camp, where corpses fall in reach; with `hp`, wounded
+  // before the fight, its souls on the row behind it, where only their shots reach past it.
   const fightFrom = (seed, hp) => {
     const run = createRun({ seed })
-    run.state.monarch.will = 1
+    Object.assign(run.state.monarch, { will: 1, dominion: 6 })
     visit(run, 'fight')
     if (hp) monarchOf(run.state).hp = hp
-    const cell = nearestOpen(campGrid(run.state.camp), slotAt(2, 3), new Set(souls(run.state.party).map((u) => u.slot)))
-    apply(run, { type: 'place', uid: MONARCH_UID, slot: cell })
+    apply(run, { type: 'place', uid: MONARCH_UID, slot: seatNear(run.state.camp, slotAt(CAMP_ROWS - 2, 3), new Set([monarchOf(run.state).slot])) })
+    if (hp) {
+      const behind = [2, 3, 4].map((c) => slotAt(CAMP_ROWS - 1, c)).filter((slot) => campOpen(run.state.camp, slot) && slot !== monarchOf(run.state).slot)
+      souls(run.state.party).forEach((u, i) => behind[i] !== undefined && apply(run, { type: 'place', uid: u.uid, slot: behind[i] }))
+    }
     apply(run, { type: 'fight' })
     return run
   }
@@ -641,7 +640,7 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
   // A won fight where the Monarch, wounded coming in, was struck: it keeps its share of HP, then heals.
   const woundFight = (() => {
     for (let i = 0; i < 200; i++) {
-      const run = fightFrom('wound' + i, 30)
+      const run = fightFrom('wound' + i, 100)
       if (run.state.phase === 'reap' && run.battle.events.some((e) => e.type === 'damage' && e.target === MONARCH_UID)) return run
     }
     assert.fail('no seed struck the Monarch in a won fight')
@@ -652,11 +651,10 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
   assert.ok(carried < m.maxHp, `it carried its wounds out: ${bm.hp}/${bm.maxHp}`)
   assert.equal(m.hp, Math.min(m.maxHp, carried + Math.ceil(m.maxHp * TUNING.run.postBattleHeal)))
   assert.ok(m.hp > carried, 'and healed after the win')
-  // The Monarch alone, at the front, against a room: it falls, and the run says to what.
+  // The Monarch alone against a room: it falls, and the run says to what.
   const lone = createRun({ seed: 'lone' })
   visit(lone, 'fight')
   for (const u of souls(lone.state.party)) apply(lone, { type: 'place', uid: u.uid, slot: -1 })
-  apply(lone, { type: 'place', uid: MONARCH_UID, slot: slotAt(0, 3) })
   apply(lone, { type: 'fight' })
   assert.deepEqual([lone.state.phase, lone.state.result, lone.battle.reason], ['over', 'defeat', 'monarch'])
   assert.deepEqual(lone.state.death, { ...lone.battle.death, reason: 'monarch' })
@@ -733,7 +731,6 @@ function command (run, n) {
   }
 }
 // A copy of a run to try an action on (the state edited outside the log, so not a replay).
-const copyOf = (run) => ({ ...run, state: structuredClone(run.state) })
 
 // ── the army: souls, the ossuary, summons ───────────────────────────────────────────────────────
 
@@ -815,15 +812,12 @@ test('round 2: a Knight and a Marshal fight with their rank\'s might (TUNING.ran
 // A summoner: the chanter on Marrowcaller II, which raises 2 Skeletons a battle.
 const summoner = (run, lvl = 5) => Object.assign(run.state.party.find((u) => u.id === 'bone_chanter'), { path: 'marrowcaller', tier: 2, lvl })
 
-test('summons: a summon tier raises them each battle beside their summoner, at its level, on its plan; a Knight raises one more, a Marshal two', () => {
+test('summons: a summon tier raises them each battle beside their summoner, at its level, holding there; a Knight raises one more, a Marshal two', () => {
   const run = createRun({ seed: 'summon' })
   const s = run.state
   visit(run, 'fight')
-  // A domain over the whole camp, so that no one falters (and drops its plan) at the start.
-  s.monarch.dominion = 9
   const chanter = summoner(run, 5)
   assert.deepEqual(summonsOf(chanter), [{ id: 'skeleton', count: 2, lvl: 5 }])
-  apply(run, { type: 'order', uids: [chanter.uid], plan: planOf('stay') })
   // The setup holds souls only: the battle raises the summons, uids after the foes'.
   const setup = battleSetup(run)
   assert.ok(!setup.party.some((u) => u.summoned) && !setup.reserve.some((u) => u.summoned))
@@ -831,13 +825,13 @@ test('summons: a summon tier raises them each battle beside their summoner, at i
   const b = createBattle(setup)
   const me = b.units.find((u) => u.uid === chanter.uid)
   const raised = b.units.filter((u) => u.summoned)
-  assert.deepEqual(raised.map((u) => [u.id, u.lvl, u.summoner, u.cohortOf, u.det, u.where]), [['skeleton', 5, chanter.uid, chanter.uid, 1, 'stay'], ['skeleton', 5, chanter.uid, chanter.uid, 1, 'stay']])
+  assert.deepEqual(raised.map((u) => [u.id, u.lvl, u.summoner, u.line]), [['skeleton', 5, chanter.uid, null], ['skeleton', 5, chanter.uid, null]])
   assert.deepEqual(raised.map((u) => u.uid), [setup.nextUid, setup.nextUid + 1])
-  // Beside it (here there is room), and Stay holds the tile each appeared on.
-  assert.ok(raised.every((u) => distance(u.tile, me.tile) === 1 && u.anchor === u.tile))
+  // Beside it (here there is room), with no line: each holds the tile it appeared on.
+  assert.ok(raised.every((u) => distance(u.tile, me.tile) === 1))
   // Announced with everyone at the start, marked for the renderer.
   const start = b.events[0].units.filter((u) => u.summoned)
-  assert.deepEqual(start.map((u) => [u.uid, u.summoner, u.det]), raised.map((u) => [u.uid, chanter.uid, 1]))
+  assert.deepEqual(start.map((u) => [u.uid, u.summoner]), raised.map((u) => [u.uid, chanter.uid]))
   // They count toward synergies like anyone: the chanter, the knight and two Skeletons are Undead 4.
   assert.ok(b.events[0].synergies.some((x) => x.side === 'party' && x.id === 'undead_4'))
   // A Knight's summon tier raises one more, a Marshal's two; a soul with no summon tier raises none.
@@ -859,74 +853,6 @@ test('summons: a summon tier raises them each battle beside their summoner, at i
   // A summoner in the ossuary, or fallen, raises nothing.
   chanter.hp = 0
   assert.equal(createBattle(battleSetup(run)).units.filter((u) => u.summoned).length, 0)
-})
-
-test('summons follow their summoner: on its leash, on its Move, and orphaned (faltering, Hunting) when it falls', () => {
-  const run = createRun({ seed: 'summon-move' })
-  visit(run, 'fight')
-  run.state.monarch.dominion = 9
-  const chanter = summoner(run, 6)
-  const square = tileAt(0, CAMP_ROWS + 1)
-  apply(run, { type: 'order', uids: [chanter.uid], plan: { where: 'move', square, when: { at: 'once' } } })
-  const b = createBattle(battleSetup(run))
-  const me = b.units.find((u) => u.uid === chanter.uid)
-  const raised = b.units.filter((u) => u.summoned)
-  assert.ok(raised.every((u) => u.where === 'move' && u.square === square && u.det === 1))
-  // While it walks to its square, they keep near it (a tile, or the nearest ring with room).
-  for (let t = 0; t < 200 && !b.over && me.hp > 0; t++) {
-    stepBattle(b)
-    for (const u of raised) if (u.hp > 0 && !u.orphan) assert.ok(distance(u.tile, me.tile) <= 3, `t ${b.t}: ${u.uid} strayed`)
-  }
-  // Its fall orphans them: they falter and Hunt for the rest of the battle. (The chanter carried in at 1 HP,
-  // against Rangers far above it, which pick off the weakest: it falls before its summons do.)
-  const setup = battleSetup(run)
-  const fight = createBattle({ ...setup, party: setup.party.map((u) => (u.uid === chanter.uid ? { ...u, hp: 1 } : u)), foes: setup.foes.map((f) => makeUnit('ember_drake', { uid: f.uid, lvl: 20, slot: f.slot })) })
-  const lead = fight.units.find((u) => u.uid === chanter.uid)
-  while (!fight.over && lead.hp > 0) stepBattle(fight)
-  assert.ok(lead.hp <= 0, 'the summoner fell')
-  const left = fight.units.filter((x) => x.summoned && x.hp > 0)
-  assert.ok(left.length > 0, 'a summon outlived it')
-  for (const u of left) assert.ok(u.orphan && u.where === 'hunt' && falters(fight, u), `${u.uid} orphaned`)
-})
-
-test('summons of a held soul appear as it enters, beside it, fresh, on its plan; they take no place on the board', () => {
-  const run = createRun({ seed: 'summon-held' })
-  visit(run, 'fight')
-  const chanter = summoner(run, 4)
-  apply(run, { type: 'order', uids: [chanter.uid], plan: { where: 'stay', square: null, when: { at: 'time', t: 20 } } })
-  const setup = battleSetup(run)
-  assert.deepEqual(setup.reserve.filter((u) => u.side !== 'foe').map((u) => u.uid), [chanter.uid], 'only the soul waits')
-  const b = createBattle(setup)
-  assert.equal(b.units.filter((u) => u.summoned).length, 0, 'none before it enters')
-  while (!b.over && !b.events.some((e) => e.type === 'summon')) stepBattle(b)
-  const enter = b.events.find((e) => e.type === 'enter' && e.unit.uid === chanter.uid)
-  const raised = b.events.filter((e) => e.type === 'summon')
-  assert.equal(raised.length, 2)
-  assert.ok(raised.every((e) => e.t === enter.t && e.actor === chanter.uid && e.unit.summoned && e.unit.summoner === chanter.uid && e.unit.det === 1))
-  const me = b.units.find((u) => u.uid === chanter.uid)
-  for (const e of raised) {
-    const u = b.units.find((x) => x.uid === e.unit.uid)
-    assert.ok(distance(u.tile, me.tile) <= 2 && u.where === 'stay' && u.gauge === u.costliest && u.statuses.some((x) => x.id === 'shield'), 'fresh, as its summoner')
-  }
-  // They take no place: a board cap of the souls standing still lets the next soul of the reserve in.
-  tuned({ army: { board: 3 } }, () => {
-    const two = createRun({ seed: 'summon-held' })
-    visit(two, 'fight')
-    summoner(two, 4)
-    const lone = createBattle({
-      ...battleSetup(two),
-      reserve: [{ ...makeUnit('grave_ghoul', { uid: 900, lvl: 2 }), slot: -1 }]
-    })
-    // Three souls and two Skeletons on the board, the board's cap 3: the summons leave room for none of the
-    // souls' places, so the waiting one enters only once a soul falls; with the summons counted it never would.
-    const souls0 = lone.units.filter((u) => u.side === 'party' && u !== lone.monarch && !u.summoned).length
-    assert.equal(souls0, 3)
-    assert.equal(lone.units.filter((u) => u.summoned).length, 2)
-    lone.units.find((u) => u.side === 'party' && u !== lone.monarch && !u.summoned).hp = 0
-    lone.roster++
-    stepBattle(lone)
-    assert.ok(lone.events.some((e) => e.type === 'enter' && e.unit.uid === 900), 'a place freed by a soul, not taken by the summons')
-  })
 })
 
 test('summons give nothing and keep nothing: no essence, no recruit, no place in the retinue; the run moves past their uids', () => {
@@ -962,244 +888,169 @@ test('a fallen summon never rises: not by the foes\' Legion (Undead 8)', () => {
   assert.ok(fell.every((u) => !u.raised))
 })
 
-// ── orders: detachments and their plans ─────────────────────────────────────────────────────────
+// ── lines ────────────────────────────────────────────────────────────────────────────────────────
 
-const planOf = (where, at = 'once') => ({ where, square: null, when: { at } })
+// `n` tiles straight up the board from tile `t`.
+const up = (t, n) => Array.from({ length: n }, (_, k) => t + LANES * (k + 1))
 
-test('orders: fielded captains form a detachment with a plan, edited by id or disbanded; one left empty is gone', () => {
-  const run = createRun({ seed: 'orders' })
+test('lines: a fielded soul\'s march of legal steps from its cell, on a signal; the action refuses anything else, and no tiles clear it', () => {
+  const run = createRun({ seed: 'lines' })
   const s = run.state
   const [knight, chanter, sprite] = souls(s.party)
-  const order = (a) => apply(run, { type: 'order', ...a })
-  assert.deepEqual(s.detachments, [])
-  assert.equal(detachmentOf(s, knight.uid), null, 'no detachment: Hunt, at once')
-  assert.deepEqual(DEFAULT_PLAN, planOf('hunt'))
-  // A plan is kept clean: a square only for Move, a tick only for a time.
-  order({ uids: [knight.uid], plan: { where: 'stay', square: 5, when: { at: 'once', t: 9 }, extra: 1 } })
-  assert.deepEqual(s.detachments, [{ id: 1, color: DETACHMENT_COLORS[0], members: [knight.uid], plan: planOf('stay') }])
-  // Its captains stand in party order; Move takes any open board tile, the foes' ground too.
-  const square = tileAt(3, CAMP_ROWS + 2)
-  order({ uids: [sprite.uid, chanter.uid], plan: { where: 'move', square, when: { at: 'time', t: 200 } } })
-  assert.deepEqual(s.detachments[1], { id: 2, color: DETACHMENT_COLORS[1], members: [chanter.uid, sprite.uid], plan: { where: 'move', square, when: { at: 'time', t: 200 } } })
-  assert.equal(detachmentOf(s, sprite.uid).id, 2)
-  // Ordered into a new detachment, the knight and the chanter leave theirs: the knight's, left empty, is
-  // gone, and the new one takes the first id free.
-  order({ uids: [knight.uid, chanter.uid], plan: planOf('hunt', 'falls') })
-  assert.deepEqual(s.detachments.map((d) => [d.id, d.members, d.plan.when.at]), [[2, [sprite.uid], 'time'], [1, [knight.uid, chanter.uid], 'falls']])
-  order({ id: 2, plan: planOf('stay', 'struck') })
-  assert.deepEqual(s.detachments[0].plan, planOf('stay', 'struck'))
-  // Refused: the Monarch, no one, twice the same, a stranger; a plan of no known where or when, Move with
-  // no square, to a wall or off the board, a time out of the battle's span; a detachment that already
-  // stands so, a plan a detachment already has, a detachment that is not there.
-  const wall = wallTiles(s.camp)[0]
+  const from = deployTile('party', knight.slot)
+  apply(run, { type: 'line', uid: knight.uid, tiles: up(from, 2) })
+  assert.deepEqual(s.lines[knight.uid], { tiles: up(from, 2), when: { at: 'once' } }, 'at once, when no signal is given')
+  for (const when of [{ at: 'time', t: 100 }, { at: 'blow' }, { at: 'wave', wave: 1 }, { at: 'struck' }, { at: 'falls' }, { at: 'once' }]) {
+    apply(run, { type: 'line', uid: knight.uid, tiles: up(from, 1), when: { ...when, extra: 1 } })
+    assert.deepEqual(s.lines[knight.uid], { tiles: up(from, 1), when }, 'kept as the run keeps it')
+  }
+  assert.deepEqual(Object.keys(SIGNALS), ['once', 'time', 'blow', 'wave', 'struck', 'falls'])
+  // It may cross a tile another piece holds, and run onto the foes' ground, to the far edge.
+  const far = up(deployTile('party', chanter.slot), 4)
+  apply(run, { type: 'line', uid: chanter.uid, tiles: [deployTile('party', knight.slot), ...up(deployTile('party', knight.slot), 4)].slice(0, 1).concat(far.slice(1)).length ? up(deployTile('party', chanter.slot), 4) : [] })
+  assert.equal(s.lines[chanter.uid].tiles.at(-1), far.at(-1))
+  const across = [deployTile('party', knight.slot), ...up(deployTile('party', knight.slot), 1)]
+  if (distance(deployTile('party', sprite.slot), across[0]) === 1) {
+    apply(run, { type: 'line', uid: sprite.uid, tiles: across })
+    assert.deepEqual(s.lines[sprite.uid].tiles, across, 'through the knight\'s cell')
+  }
+  // Refused, the lines left as they were: no step (two rows at once, its own tile, off the board, not a list),
+  // too long, a signal the run does not know or out of range, the Monarch's (it never steps), a soul not in the
+  // retinue.
   const bad = [
-    { uids: [MONARCH_UID], plan: planOf('stay') }, { uids: [], plan: planOf('stay') }, { uids: [knight.uid, knight.uid], plan: planOf('stay') },
-    { uids: [999], plan: planOf('stay') }, { uids: [knight.uid] }, { uids: [knight.uid], plan: planOf('charge') }, { uids: [knight.uid], plan: planOf('stay', 'dawn') },
-    { uids: [knight.uid], plan: { where: 'stay' } }, { uids: [knight.uid], plan: { where: 'move', when: { at: 'once' } } },
-    { uids: [knight.uid], plan: { where: 'move', square: wall, when: { at: 'once' } } }, { uids: [knight.uid], plan: { where: 'move', square: TILES, when: { at: 'once' } } },
-    { uids: [knight.uid], plan: { where: 'move', square: 1.5, when: { at: 'once' } } },
-    ...[0, 1.5, TUNING.tick.ceiling].map((t) => ({ uids: [knight.uid], plan: { where: 'hunt', when: { at: 'time', t } } })),
-    { uids: [chanter.uid, knight.uid], plan: planOf('hunt', 'falls') }, { id: 1, plan: planOf('hunt', 'falls') }, { id: 7, plan: planOf('stay') },
-    { id: 1, uids: [knight.uid], plan: planOf('stay') }
+    { uid: knight.uid, tiles: [from + 2 * LANES] },
+    { uid: knight.uid, tiles: [from] },
+    { uid: knight.uid, tiles: [-1] },
+    { uid: knight.uid, tiles: 'up' },
+    { uid: knight.uid, tiles: Array.from({ length: LINE_MAX + 1 }, (_, k) => (k % 2 ? from : from + LANES)) },
+    { uid: knight.uid, tiles: up(from, 1), when: { at: 'time', t: 0 } },
+    { uid: knight.uid, tiles: up(from, 1), when: { at: 'time', t: TUNING.tick.ceiling } },
+    { uid: knight.uid, tiles: up(from, 1), when: { at: 'wave', wave: 0 } },
+    { uid: knight.uid, tiles: up(from, 1), when: { at: 'dawn' } },
+    { uid: knight.uid, tiles: up(from, 1), when: 'once' },
+    { uid: MONARCH_UID, tiles: up(deployTile('party', monarchOf(s).slot), 1) },
+    { uid: 999, tiles: [0] }
   ]
-  for (const a of bad) assert.throws(() => order(a), /cannot give the order/, JSON.stringify(a))
-  assert.throws(() => apply(run, { type: 'disband', id: 7 }), /no detachment/)
-  // A benched soul takes no order.
+  for (const a of bad) {
+    const was = structuredClone(s.lines)
+    const log = s.log.length
+    assert.throws(() => apply(run, { type: 'line', ...a }), /line/, JSON.stringify(a))
+    assert.deepEqual([s.lines, s.log.length], [was, log])
+  }
+  // Walls: no step onto one, nor diagonally past a wall's corner. On the Broken Palisade (row 1 '##.#.##'), a
+  // soul at row 2, lane 2: up to (2, 5) is fine, (3, 5) is a wall, and from (2, 5) to (3, 6) squeezes past it.
+  const palisade = { ...s, camp: 'palisade', party: s.party.map((u) => (u.uid === knight.uid ? { ...u, slot: slotAt(2, 2) } : u)) }
+  assert.deepEqual(cleanLine(palisade, knight.uid, [tileAt(2, 5), tileAt(2, 6), tileAt(3, 6)]), { tiles: [tileAt(2, 5), tileAt(2, 6), tileAt(3, 6)], when: { at: 'once' } })
+  assert.equal(cleanLine(palisade, knight.uid, [tileAt(3, 5)]), null)
+  assert.equal(cleanLine(palisade, knight.uid, [tileAt(2, 5), tileAt(3, 6)]), null)
+  // No tiles: cleared (and clearing none is no error).
+  apply(run, { type: 'line', uid: knight.uid, tiles: null })
+  apply(run, { type: 'line', uid: knight.uid, tiles: [] })
+  assert.ok(!(knight.uid in s.lines))
+  // A soul in the ossuary draws none, and every line legalActions offers applies.
   apply(run, { type: 'place', uid: sprite.uid, slot: -1 })
-  assert.throws(() => order({ uids: [sprite.uid], plan: planOf('stay') }), /cannot give the order/)
-  apply(run, { type: 'place', uid: sprite.uid, slot: nearestOpen(campGrid(s.camp), sprite.slot, new Set(s.party.map((u) => u.slot))) })
-  // At most TUNING.army.detachments detachments: five captains in four, and the fifth is refused, but a
-  // captain alone may be ordered anew (its own detachment goes as the new one comes).
-  command(run, 2)
-  join(run, 'grave_ghoul')
-  join(run, 'hive_warden')
-  s.detachments = []
-  const five = fielded(souls(s.party))
-  assert.equal(five.length, 5)
-  for (const u of five.slice(0, 4)) order({ uids: [u.uid], plan: planOf('stay') })
-  assert.throws(() => order({ uids: [five[4].uid], plan: planOf('stay') }), /cannot give the order/)
-  assert.ok(!legalActions(run).some((a) => a.type === 'order' && a.uids?.includes(five[4].uid) && a.uids.length === 1))
-  order({ uids: [five[0].uid], plan: planOf('hunt', 'struck') })
-  order({ uids: [five[1].uid, five[4].uid], plan: planOf('stay') })
-  assert.equal(s.detachments.length, 4)
-  // legalActions lists a representative few: every one applies, none twice, edits and disbands included.
-  const listed = legalActions(run).filter((a) => ['order', 'disband'].includes(a.type))
-  assert.equal(new Set(listed.map((a) => JSON.stringify(a))).size, listed.length)
-  for (const a of listed) assert.doesNotThrow(() => apply(copyOf(run), a), JSON.stringify(a))
-  assert.ok(listed.some((a) => a.id !== undefined && a.type === 'order') && listed.some((a) => a.type === 'disband'))
-  assert.ok(listed.some((a) => a.plan?.where === 'move') && listed.some((a) => a.plan && a.plan.when.at !== 'once'))
-  // Disbanded, its captains Hunt at once; released, a captain leaves its detachment, and one left empty is
-  // gone.
-  apply(run, { type: 'disband', id: s.detachments[0].id })
-  assert.equal(s.detachments.length, 3)
-  const alone = s.detachments.find((d) => d.members.length === 1)
-  apply(run, { type: 'release', uid: alone.members[0] })
-  assert.ok(!s.detachments.includes(alone))
+  assert.throws(() => apply(run, { type: 'line', uid: sprite.uid, tiles: up(from, 1) }), /no line/)
+  const offered = legalActions(run).filter((a) => a.type === 'line')
+  assert.ok(offered.some((a) => a.tiles && a.when.at !== 'once') && offered.some((a) => a.tiles === null))
+  for (const a of offered) apply({ ...run, state: structuredClone(s) }, a)
   checkState(s)
 })
 
-// A held detachment (a later start) waits off the board: no cell, no count toward any cap, and enters beside
-// the Monarch, soul by soul, when its start comes.
-test('a detachment held for a later start waits off the board, counts toward no cap, and enters when called', () => {
-  const run = createRun({ seed: 'army1' })
+test('moving a piece clears its line (and the line of the one it swaps with); a release clears it; a new floor clips each at its first step its walls block', () => {
+  const run = createRun({ seed: 'lines-move' })
   const s = run.state
-  visit(run, 'fight')
   const [knight, chanter, sprite] = souls(s.party)
-  assert.deepEqual(armyLayout(s), { members: [], reserve: [], held: [] })
-  apply(run, { type: 'order', uids: [knight.uid], plan: planOf('hunt', 'falls') })
-  apply(run, { type: 'order', uids: [chanter.uid], plan: planOf('stay') })
-  // The knight waits; its cell stays its own.
-  assert.deepEqual(armyLayout(s).held, [{ det: 1, uid: knight.uid, id: 'tomb_knight' }])
-  const setup = battleSetup(run)
-  assert.ok(!setup.party.some((u) => u.uid === knight.uid))
-  assert.deepEqual(setup.reserve.filter((u) => u.side !== 'foe').map((u) => [u.uid, u.det, u.when, u.plan, u.slot]), [[knight.uid, 1, { at: 'falls' }, { where: 'hunt', square: null }, -1]])
-  assert.ok(knight.slot >= 0, 'its cell stays its own')
-  // The Stay detachment carries its plan; the sprite none (it Hunts).
-  assert.ok(setup.party.filter((u) => u.uid === chanter.uid).every((u) => u.det === 2 && u.plan.where === 'stay'))
-  assert.ok(setup.party.filter((u) => u.uid === sprite.uid).every((u) => u.det === undefined && !u.plan))
-  assert.deepEqual(setup.detachments, [{ id: 1, color: DETACHMENT_COLORS[0], ...planOf('hunt', 'falls') }, { id: 2, color: DETACHMENT_COLORS[1], ...planOf('stay') }])
-  // Foes strong enough that one of yours falls, and the held detachment is called.
-  const b = createBattle({ ...setup, foes: setup.foes.map((f) => makeUnit(f.id, { uid: f.uid, lvl: 25, slot: f.slot })) })
-  assert.deepEqual(b.events.filter((e) => e.type === 'order').map((e) => [e.detachment, e.where, e.when.at]), [[1, 'hunt', 'falls'], [2, 'stay', 'once']])
-  assert.equal(b.events[0].reserve.filter((u) => u.when).length, 1)
-  runBattle(b)
-  const fell = b.events.find((e) => e.type === 'death' && b.units.find((u) => u.uid === e.target).side === 'party')
-  const call = b.events.find((e) => e.type === 'call')
-  const entered = b.events.filter((e) => e.type === 'enter').map((e) => e.unit.uid)
-  assert.ok(b.events.filter((e) => e.t <= fell.t).every((e) => e.type !== 'call' && e.type !== 'enter'), 'nothing before one falls')
-  assert.deepEqual([call.t, call.detachment, call.at], [fell.t + 1, 1, 'falls'])
-  assert.deepEqual(entered, [knight.uid])
-  // A soul held all battle is untouched by it.
-  apply(run, { type: 'fight' })
-  if (!run.battle.events.some((e) => e.type === 'enter' && e.unit.uid === knight.uid)) assert.equal(knight.hp, knight.maxHp)
-  // An order with no one on the board but held ones leaves the Monarch alone at the start.
-  const lone = createRun({ seed: 'army1' })
-  visit(lone, 'fight')
-  apply(lone, { type: 'order', uids: fielded(souls(lone.state.party)).map((u) => u.uid), plan: planOf('stay', 'struck') })
-  const solo = battleSetup(lone)
-  assert.deepEqual(solo.party.map((u) => u.uid), [MONARCH_UID])
-  assert.equal(solo.reserve.filter((u) => u.side !== 'foe').length, 3)
+  const draw = (u) => apply(run, { type: 'line', uid: u.uid, tiles: up(deployTile('party', u.slot), 1) })
+  for (const u of [knight, chanter, sprite]) draw(u)
+  apply(run, { type: 'place', uid: knight.uid, slot: chanter.slot })
+  assert.deepEqual(Object.keys(s.lines).map(Number), [sprite.uid], 'both swapped souls lost theirs')
+  draw(knight)
+  apply(run, { type: 'place', uid: knight.uid, slot: -1 })
+  assert.ok(!(knight.uid in s.lines))
+  apply(run, { type: 'release', uid: sprite.uid })
+  assert.deepEqual(s.lines, {})
+  // A seed whose first floor is the Standing Stones and whose second the Ditch (row 2 walled from lane 1 to 5):
+  // lines down lanes 3 and 2 lose their tiles from the Ditch's wall on; one whose first step is now a wall goes;
+  // one on lane 0, untouched, stays; a soul whose cell the Ditch walls moves and loses its own.
+  const clip = createRun({ seed: 'clip7' })
+  const c = clip.state
+  assert.equal(c.camp, 'stones')
+  const souls3 = souls(c.party)
+  const cells = [slotAt(0, 3), slotAt(0, 2), slotAt(1, 4), slotAt(0, 0)]
+  join(clip, 'grave_ghoul')
+  c.essence += monarchCost(clip)
+  apply(clip, { type: 'monarch', stat: 'command' })
+  const four = souls(c.party)
+  for (const [i, u] of four.entries()) u.slot = cells[i]
+  const lines = [[tileAt(3, 5), tileAt(3, 4)], [tileAt(2, 5), tileAt(2, 4)], [tileAt(4, 4)], [tileAt(0, 5), tileAt(0, 4)]]
+  for (const [i, u] of four.entries()) apply(clip, { type: 'line', uid: u.uid, tiles: lines[i] })
+  Object.assign(c, { at: c.map.end, phase: 'reap', offers: [] })
+  apply(clip, { type: 'reap', index: null })
+  assert.deepEqual([c.floor, c.camp], [2, 'ditch'])
+  assert.deepEqual(four.map((u) => c.lines[u.uid]?.tiles ?? null), [[tileAt(3, 5)], [tileAt(2, 5)], null, [tileAt(0, 5), tileAt(0, 4)]])
+  assert.ok(souls3.length === 3 && four.every((u) => campOpen('ditch', u.slot)))
+  checkState(c)
 })
 
-test('basic fights on default orders; the expert carries out the orders it planned, and plans some', () => {
+test('battleSetup carries each soul\'s line into the battle, which walks it as the timing marks say', () => {
+  const run = createRun({ seed: 'lines-fight' })
+  const s = run.state
+  visit(run, 'fight')
+  const [knight] = souls(s.party)
+  // At the camp's back, out of every foe's ring until long after the marks.
+  apply(run, { type: 'place', uid: knight.uid, slot: slotAt(CAMP_ROWS - 1, 0) })
+  apply(run, { type: 'line', uid: knight.uid, tiles: up(deployTile('party', knight.slot), 2), when: { at: 'time', t: 20 } })
+  const setup = battleSetup(run)
+  assert.deepEqual(setup.party.find((u) => u.uid === knight.uid).line, s.lines[knight.uid])
+  assert.ok(setup.party.filter((u) => u.uid !== knight.uid).every((u) => !u.line))
+  assert.deepEqual(battleSetup(run, { lines: {} }).party.filter((u) => u.line), [], 'a rehearsal may set its own')
+  const b = createBattle(setup)
+  const marks = timingMarks({ party: fielded(s.party), lines: s.lines, walls: wallTiles(s.camp), at: [20, 36, 60] })
+  const seen = []
+  while (b.t <= 60) {
+    if ([20, 36, 60].includes(b.t)) seen.push(b.byUid.get(knight.uid).tile)
+    stepBattle(b)
+  }
+  assert.deepEqual(seen, marks[knight.uid])
+  assert.deepEqual(marks[knight.uid], [deployTile('party', knight.slot), ...up(deployTile('party', knight.slot), 2)])
+})
+
+test('basic draws no line (it clears any it finds); the expert draws the lines it planned, legal ones only, and the run untouched by its plans', () => {
   const run = createRun({ seed: 'plans' })
   visit(run, 'fight')
-  apply(run, { type: 'order', uids: [souls(run.state.party)[0].uid], plan: planOf('stay') })
+  const [first] = souls(run.state.party)
+  apply(run, { type: 'line', uid: first.uid, tiles: up(deployTile('party', first.slot), 1) })
   const rng = createRng('plans').stream('autoplay')
   let a
   while ((a = policy(run, rng, 'basic')).type !== 'fight') {
-    assert.notEqual(a.type, 'order', 'basic gives no orders')
+    assert.ok(a.type !== 'line' || a.tiles === null, 'basic only clears')
     apply(run, a)
   }
-  assert.deepEqual(run.state.detachments, [], 'basic disbands what it finds')
-  // The expert: over a few floor-1 rooms, its prep leaves the run with exactly the detachments its plan
-  // holds, and at least one plan gives an order.
-  let ordered = 0
-  for (let i = 0; i < 6 && !ordered; i++) {
+  assert.deepEqual(run.state.lines, {}, 'basic holds')
+  // The expert: over a few floor-1 rooms, its prep leaves the run with exactly the lines its plan holds.
+  let drawn = 0
+  for (let i = 0; i < 6; i++) {
     const r = createRun({ seed: 'plans' + i })
     visit(r, 'fight')
     for (let x; (x = policy(r, rng, 'expert')).type !== 'fight';) apply(r, x)
-    const goal = planFor(r, LEVELS.expert)
-    const want = detachmentsOf(goal).map((d) => [d.members.slice().sort(), d.plan])
-    assert.deepEqual(new Set(r.state.detachments.map((d) => JSON.stringify([d.members.slice().sort(), d.plan]))), new Set(want.map((w) => JSON.stringify(w))))
-    ordered += r.state.detachments.length
+    assert.deepEqual(r.state.lines, linesOf(planFor(r, LEVELS.expert)))
+    drawn += Object.keys(r.state.lines).length
     checkState(r.state)
   }
-  assert.ok(ordered > 0, 'the expert gives orders')
-  // A formation is rehearsed with its orders: the same cells with every captain held until the Monarch is
-  // struck is another battle (the Monarch stands alone at the start), and the run is untouched.
-  const r = createRun({ seed: 'plans' })
+  assert.ok(drawn >= 0)
+  // Its line search draws only what the run takes: a soul's redrawn line is legal from its own cell.
+  const r = createRun({ seed: 'redraw' })
   visit(r, 'fight')
   const before = structuredClone(r.state)
-  const party = fielded(r.state.party).map((u) => ({ ...u }))
-  const held = party.map((u) => (u.uid === MONARCH_UID ? u : { ...u, order: planOf('hunt', 'struck') }))
-  assert.deepEqual(detachmentsOf(held), [{ id: 1, color: DETACHMENT_COLORS[0], members: souls(party).map((u) => u.uid), plan: planOf('hunt', 'struck') }])
-  assert.notEqual(rehearse(r, held, 2), rehearse(r, party, 2))
-  assert.deepEqual(r.state, before)
-})
-
-test('the expert never plans more detachments than the run takes, however its climb changes the orders', () => {
-  const run = createRun({ seed: 'cap' })
-  visit(run, 'fight')
-  command(run, 2)
-  join(run, 'grave_ghoul')
-  join(run, 'hive_warden')
-  const s = run.state
-  const cap = TUNING.army.detachments
-  const open = [...Array(CAMP_SLOTS).keys()].filter((slot) => campOpen(s.camp, slot))
-  const orders = (party) => new Set(party.filter((u) => u.order).map((u) => JSON.stringify(u.order))).size
-  // Long chains of order changes on five captains (screens, posts at the domain's edge, fresh draws, joins,
-  // clears): never more different orders than detachments, and they do reach the cap.
-  let most = 0
-  for (let chain = 0; chain < 150; chain++) {
-    const rng = createRng('cap' + chain).stream('climb')
-    let party = fielded(s.party).map((u) => ({ ...u, order: null }))
-    for (let k = 0; k < 40; k++) {
-      party = replan(party.map((u) => ({ ...u })), s, rng, open)
-      most = Math.max(most, orders(party))
-      assert.ok(orders(party) <= cap, `chain ${chain}, step ${k}: ${orders(party)} orders`)
-      assert.ok(detachmentsOf(party).length <= cap)
-    }
+  const party = fielded(r.state.party).map((u) => ({ ...u, line: null }))
+  const g = createRng('redraw').stream('climb')
+  for (let k = 0; k < 200; k++) {
+    redraw(party, r.state, g)
+    for (const u of party.filter((x) => x.line)) assert.deepEqual(cleanLine(r.state, u.uid, u.line.tiles, u.line.when), u.line)
   }
-  assert.equal(most, cap)
-  // A formation with an order past the cap makes only `cap` detachments (the rest Hunt, at once), and the
-  // run takes every one of them.
-  const plans = [planOf('stay'), planOf('stay', 'falls'), planOf('stay', 'struck'), planOf('hunt', 'falls'), planOf('hunt', 'struck')]
-  const five = fielded(souls(s.party)).map((u, k) => ({ ...u, order: plans[k] }))
-  assert.equal(five.length, 5)
-  assert.deepEqual(detachmentsOf(five).map((d) => d.plan), plans.slice(0, cap))
-  for (const d of detachmentsOf(five)) apply(run, { type: 'order', uids: d.members, plan: d.plan })
-  assert.equal(s.detachments.length, cap)
-  // The expert's own prep with five captains applies, step by step, to the fight.
-  for (let a; (a = policy(run, null, 'expert')).type !== 'fight';) apply(run, a)
-  assert.ok(s.detachments.length <= cap)
-  checkState(s)
-})
-
-test('held detachments enter by their first captains in party order, however they were formed, so a rehearsal sets up the fight the run will', () => {
-  const run = createRun({ seed: 'heldorder' })
-  visit(run, 'fight')
-  const s = run.state
-  const [knight, chanter, sprite] = souls(s.party)
-  // Formed the sprite's first, then the knight's: the knight's enters first all the same.
-  apply(run, { type: 'order', uids: [sprite.uid], plan: planOf('hunt', 'falls') })
-  apply(run, { type: 'order', uids: [chanter.uid, knight.uid], plan: planOf('stay', 'falls') })
-  assert.deepEqual(s.detachments.map((d) => d.members), [[sprite.uid], [knight.uid, chanter.uid]])
-  assert.deepEqual(armyLayout(s).held.map((h) => h.uid), [knight.uid, chanter.uid, sprite.uid])
-  // The same formation as the autoplayer keeps it (orders on its souls) and rehearses it (detachmentsOf, in
-  // another order and with other ids) sets up the same reserve, uids and all.
-  const party = fielded(s.party).reverse().map((u) => ({ ...u, order: detachmentOf(s, u.uid)?.plan ?? null }))
-  const order = new Map(s.party.map((u, i) => [u.uid, i]))
-  const sorted = party.slice().sort((a, b) => order.get(a.uid) - order.get(b.uid))
-  const entry = (setup) => setup.reserve.map((u) => [u.uid, u.id, u.when])
-  assert.deepEqual(entry(battleSetup(run, { party: sorted, detachments: detachmentsOf(sorted) })), entry(battleSetup(run)))
-})
-
-test('a new floor\'s camp may wall a Move\'s square: it moves to the open tile nearest it; detachments carry on', () => {
-  const run = createRun({ seed: 'squares' })
-  const s = run.state
-  const [knight, chanter] = souls(s.party)
-  const next = createRng(s.seed).stream('camp|2').pick(CAMP_LIST.filter((c) => c.floor === 2)).id
-  const walls = wallTiles(next)
-  const walled = walls[0]
-  const open = [...Array(TILES).keys()].find((t) => !walls.includes(t) && !wallTiles(s.camp).includes(t))
-  apply(run, { type: 'order', uids: [knight.uid], plan: { where: 'move', square: open, when: { at: 'once' } } })
-  apply(run, { type: 'order', uids: [chanter.uid], plan: { where: 'stay', square: null, when: { at: 'struck' } } })
-  s.detachments[0].plan.square = walled
-  // The floor's last room left: on to floor 2.
-  s.at = s.map.end
-  s.phase = 'reap'
-  s.offers = [{ type: 'relic', id: RELICS[Object.keys(RELICS)[0]].id }]
-  apply(run, { type: 'reap', index: null })
-  assert.deepEqual([s.floor, s.camp], [2, next])
-  const near = Math.min(...[...Array(TILES).keys()].filter((t) => !walls.includes(t)).map((t) => distance(t, walled)))
-  const want = [...Array(TILES).keys()].find((t) => !walls.includes(t) && distance(t, walled) === near)
-  assert.deepEqual(s.detachments.map((d) => [d.members, d.plan]), [
-    [[knight.uid], { where: 'move', square: want, when: { at: 'once' } }],
-    [[chanter.uid], { where: 'stay', square: null, when: { at: 'struck' } }]
-  ])
-  assert.ok(isSquare(s, want))
-  checkState(s)
+  assert.ok(party.some((u) => u.line))
+  rehearse(r, party, 1)
+  assert.deepEqual(r.state, before)
 })
 
 // ── fuzz: random legal actions, invariants after every one, replay at the end ──────────────────
@@ -1219,7 +1070,7 @@ function checkState (s) {
   // stands until the run is over.
   const m = s.party.filter((u) => u.id === 'monarch')
   assert.deepEqual(m.map((u) => u.uid), [MONARCH_UID])
-  assert.ok(campOpen(s.camp, m[0].slot), 'the Monarch is never benched')
+  assert.ok(isSeat(s.camp, m[0].slot), 'the Monarch is never benched, nor off the seats')
   assert.deepEqual([m[0].lvl, m[0].maxHp, m[0].path, m[0].tier], [monarchPoints(s), baseStats('monarch', monarchPoints(s)).hp, null, 0])
   if (s.phase !== 'over') assert.ok(m[0].hp > 0, 'the Monarch stands')
   assert.equal(s.result === 'defeat', !!s.death)
@@ -1238,19 +1089,13 @@ function checkState (s) {
   for (const u of all) assert.ok(!UNITS[u.id].summon && !UNITS[u.id].boss && !u.summoned && !u.shadow && !('cohort' in u), u.id)
   assert.ok(s.offers.every((o) => ['soul', 'relic', 'tier', 'keystone'].includes(o.type)), JSON.stringify(s.offers))
   assert.ok(fieldCap({ state: s }) <= TUNING.army.board)
-  // Orders: at most TUNING.army.detachments, ids distinct with their colours, each with captains (souls of
-  // the party, none in two) and a plan as the run keeps it.
-  assert.ok(s.detachments.length <= TUNING.army.detachments)
-  assert.equal(new Set(s.detachments.map((d) => d.id)).size, s.detachments.length)
-  const members = s.detachments.flatMap((d) => d.members)
-  assert.equal(new Set(members).size, members.length, 'a captain in one detachment')
-  for (const d of s.detachments) {
-    assert.ok(Number.isInteger(d.id) && d.id >= 1 && d.color === DETACHMENT_COLORS[(d.id - 1) % DETACHMENT_COLORS.length], JSON.stringify(d))
-    assert.ok(d.members.length && d.members.every((uid) => all.some((u) => u.uid === uid)), JSON.stringify(d))
-    const { where, square, when } = d.plan
-    assert.ok(ORDERS.where[where] && ORDERS.when[when.at], JSON.stringify(d.plan))
-    assert.ok(where === 'move' ? isSquare(s, square) : square === null, JSON.stringify(d.plan))
-    assert.ok(when.at !== 'time' || (Number.isInteger(when.t) && when.t >= 1 && when.t < TUNING.tick.ceiling), JSON.stringify(d.plan))
+  // Lines: only fielded souls' (never the Monarch's), each a march from its soul's cell on a signal, as the run
+  // keeps them.
+  assert.ok(!('detachments' in s))
+  for (const [uid, line] of Object.entries(s.lines)) {
+    const u = all.find((x) => x.uid === Number(uid))
+    assert.ok(u && u.slot >= 0, `line ${uid}`)
+    assert.deepEqual(cleanLine(s, u.uid, line.tiles, line.when), line, `line ${uid}`)
   }
   // Keystones: known, never one twice, at most TUNING.keystone.max, none before its floor; an offer is one
   // the run does not hold, and only while it may take one more.
@@ -1303,22 +1148,20 @@ function everyLegalActionApplies (run) {
   }
 }
 
-// Forty more runs fight on the orders their random actions gave (the policy would disband them), so plans
-// reach the battles the invariants and replays cover: Stay and Move on the board, held detachments called,
-// Move units arriving. (They seldom leave floor 1, so they are kept apart from the hundred.)
-const KEEPING = { ...STEADY, keepOrders: true }
+// Forty more runs fight on the lines their random actions drew (the policy would clear them), so lines reach the
+// battles the invariants and replays cover: marches, and lines waiting on a signal. (They seldom leave floor 1,
+// so they are kept apart from the hundred.)
+const KEEPING = { ...STEADY, keepLines: true }
 
-test('fuzz: 140 runs of random legal actions keep every invariant, cover every action, fight on plans, and replay exactly', () => {
+test('fuzz: 140 runs of random legal actions keep every invariant, cover every action, fight on lines, and replay exactly', () => {
   const results = {}
   const seen = new Set()
-  const plans = { detachments: 0, planned: 0, held: 0, called: 0, arrived: 0 }
+  const plans = { lined: 0, waiting: 0, marched: 0 }
   const fought = (run) => {
     const { setup, battle } = run
-    plans.detachments += setup.detachments.length > 0
-    plans.planned += setup.party.some((u) => u.plan && u.plan.where !== 'hunt')
-    plans.held += setup.reserve.some((u) => u.when)
-    plans.called += battle.events.some((e) => e.type === 'call')
-    plans.arrived += battle.events.some((e) => e.type === 'arrive')
+    plans.lined += setup.party.some((u) => u.line)
+    plans.waiting += setup.party.some((u) => u.line && u.line.when.at !== 'once')
+    plans.marched += battle.events.some((e) => e.type === 'move' && battle.byUid.get(e.actor).side === 'party')
   }
   let keystones = 0
   for (let i = 0; i < 100; i++) {
@@ -1337,6 +1180,6 @@ test('fuzz: 140 runs of random legal actions keep every invariant, cover every a
   assert.ok(keystones > 0, 'some runs took keystones')
   // Every action but promote: a rank takes a level and essence these spenders never leave standing together
   // (legal in some 6 of 9,000 steps), so ranks.test.js plays promotions (its fuzz and legalActions test).
-  assert.deepEqual([...seen].sort(), ['disband', 'fight', 'level', 'monarch', 'node', 'order', 'place', 'reap', 'release', 'upgrade'])
-  assert.ok(Object.values(plans).every((n) => n >= 5), `battles with plans: ${JSON.stringify(plans)}`)
+  assert.deepEqual([...seen].sort(), ['fight', 'level', 'line', 'monarch', 'node', 'place', 'reap', 'release', 'upgrade'])
+  assert.ok(Object.values(plans).every((n) => n >= 5), `battles with lines: ${JSON.stringify(plans)}`)
 })

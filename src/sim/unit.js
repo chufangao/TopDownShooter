@@ -1,7 +1,7 @@
-// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, where it
-// deploys (the party's camp, the foes' formation) and the board it fights on.
+// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring and stride, where
+// it deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
-import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, BONDS, PATHS } from '../content.js'
+import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, PATHS } from '../content.js'
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -59,6 +59,12 @@ export function abilitiesOf (u) {
 
 export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
 
+// Its ring (DESIGN §2.3): the radius in tiles it fights within, its kind's. Its stride: how many times faster
+// than TUNING.board.stepTicks it walks (1 by default). How it walks the roads as a foe: 'walk' or 'flank'.
+export const ringOf = (u) => unitDef(u.id).ring
+export const strideOf = (u) => unitDef(u.id).stride ?? 1
+export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
+
 // What a soul raises each battle: [{ id, count, lvl }], one entry a summon tier it holds (its path's, then its
 // second path's), its first raising TUNING.ranks.summons[grade] more for a Knight or a Marshal; each at
 // TUNING.summon.level × its level (rounded, at least 1). Empty for a soul with no summon tier.
@@ -87,8 +93,8 @@ function setPath (o, path, value) {
   o[keys[keys.length - 1]] = value
 }
 
-// Modifiers { path, op: add|mul|set, v, pos?, who? } apply add → mul → set; a `pos` mod ('engaged' or
-// 'free') only applies to a battle unit in that position (unit.pos), never outside a battle, and a
+// Modifiers { path, op: add|mul|set, v, pos?, who? } apply add → mul → set; a `pos` mod ('engaged': a foe next
+// to it, or 'free') only applies to a battle unit in that position (unit.pos), never outside a battle, and a
 // `who` mod ({ role?, kin? }, one or a list; `boss`, true or false) only to units it matches. The unit's own path tiers count
 // too. Several sets on one path: the largest wins, so order never matters.
 export function statsOf (unit, mods = []) {
@@ -117,7 +123,7 @@ export function statsOf (unit, mods = []) {
   return s
 }
 
-// A unit of a hidden role (the Monarch) counts toward no synergy and holds no bond.
+// A unit of a hidden role (the Monarch) counts toward no synergy.
 const hidden = (u) => !!ROLES[unitDef(u.id).role].hidden
 
 // Synergies active for these units, from their counts per kin and role. `alias` ({ role: role }, a
@@ -187,65 +193,19 @@ export function nearestOpen (grid, slot, taken = new Set()) {
   return best
 }
 
-// ── formation bonds ──────────────────────────────────────────────────────────────────────────────
-
-// Where each bond relation looks from (row, col), rows rising toward the back of the formation.
-const RELATION = {
-  beside: (r, c) => [[r, c - 1], [r, c + 1]],
-  behind: (r, c) => [[r + 1, c]],
-  ahead: (r, c) => [[r - 1, c]]
-}
-
-// A unit's place for bonds as [row, col], rows rising toward its side's back: its formation slot (null
-// off the field), or, for a unit that enters mid-battle, its board tile (the party's back is y 0).
-const slotPlace = (u) => (onField(u) ? [rowOf(u.slot), colOf(u.slot)] : null)
-export const boardPlace = (u) => [u.side === 'party' ? -tileY(u.tile) : tileY(u.tile), tileX(u.tile)]
-
-// Whether a unit matches { role?, kin?, boss? } (role and kin: one or a list; 'same': as `other`'s; boss:
-// whether it is a boss, or either when unset), its roles as `alias` has them.
-function matches (u, need, other = null, alias = null) {
+// Whether a unit matches { role?, kin?, boss? } (role and kin: one or a list; boss: whether it is a boss, or
+// either when unset).
+function matches (u, need) {
   if (need.boss !== undefined && !!unitDef(u.id).boss !== need.boss) return false
-  const of = (x, axis) => (axis === 'role' ? rolesOf(unitDef(x.id), alias) : [unitDef(x.id)[axis]])
   return ['role', 'kin'].every((axis) => {
     const want = need[axis]
-    if (want === undefined) return true
-    const mine = of(u, axis)
-    if (want === 'same') return !!other && of(other, axis).some((v) => mine.includes(v))
-    return mine.some((v) => (Array.isArray(want) ? want.includes(v) : v === want))
+    return want === undefined || (Array.isArray(want) ? want.includes(unitDef(u.id)[axis]) : unitDef(u.id)[axis] === want)
   })
 }
 
-// Bonds held by one side's units, from where they stand (`place`: their formation slots by default):
-// [{ bond, uid, partner }]. Only the living on the field count (a scouted foe has no HP yet and counts),
-// never a hidden role; a unit holds each bond once, with the first partner found. `holders`, if given,
-// limits who holds them (a newcomer takes its own bonds; those already there keep theirs); `alias`, as for
-// activeSynergies.
-export function activeBonds (units, { place = slotPlace, holders = null, alias = null } = {}) {
-  const at = new Map()
-  for (const u of units) {
-    const p = (u.hp ?? 1) > 0 && !hidden(u) && place(u)
-    if (p) at.set(`${p[0]}:${p[1]}`, u)
-  }
-  const out = []
-  for (const u of at.values()) {
-    if (holders && !holders.includes(u)) continue
-    const [row, col] = place(u)
-    for (const bond of BONDS) {
-      if (!matches(u, bond.who, null, alias)) continue
-      const partner = RELATION[bond.at](row, col)
-        .filter(([, c]) => c >= 0 && c < COLS)
-        .map(([r, c]) => at.get(`${r}:${c}`))
-        .find((p) => p && matches(p, bond.with, u, alias))
-      if (partner) out.push({ bond, uid: u.uid, partner: partner.uid })
-    }
-  }
-  return out
-}
-
-// Keep units already in an open free slot; place the rest (slot −1, clashing or walled) in the first
-// open free slot of their role's preferred row, spilling to the nearest rows. Columns are tried in
-// `cols` order, the middle lane first by default; `grid` is FORMATION or a campGrid. Mutates and
-// returns units.
+// Keep units already in an open free slot; place the rest (slot −1, clashing or walled) in the first open free
+// slot, the front row first, its columns in `cols` order (the middle lane first by default); `grid` is
+// FORMATION or a campGrid. Mutates and returns units.
 export function autoPlace (units, { cols = CENTRE_OUT, grid = FORMATION } = {}) {
   const taken = new Set()
   const rest = []
@@ -253,18 +213,9 @@ export function autoPlace (units, { cols = CENTRE_OUT, grid = FORMATION } = {}) 
     if (grid.open(u.slot) && !taken.has(u.slot)) taken.add(u.slot)
     else rest.push(u)
   }
-  const rows = [...Array(grid.rows).keys()]
-  for (const u of rest) {
-    const pref = ROLES[unitDef(u.id).role]?.autoRow ?? 1
-    u.slot = -1
-    for (const row of rows.slice().sort((a, b) => Math.abs(a - pref) - Math.abs(b - pref) || a - b)) {
-      for (const c of cols) {
-        const slot = slotAt(row, c)
-        if (u.slot < 0 && grid.open(slot) && !taken.has(slot)) { u.slot = slot; taken.add(slot) }
-      }
-      if (u.slot >= 0) break
-    }
-  }
+  const free = []
+  for (let row = 0; row < grid.rows; row++) for (const c of cols) if (grid.open(slotAt(row, c)) && !taken.has(slotAt(row, c))) free.push(slotAt(row, c))
+  for (const u of rest) u.slot = free.shift() ?? -1
   return units
 }
 
@@ -285,6 +236,9 @@ export const tileY = (tile) => Math.floor(tile / LANES)
 export const tileAt = (x, y) => y * LANES + x
 export const onBoard = (x, y) => x >= 0 && x < LANES && y >= 0 && y < DEPTH
 export const distance = (a, b) => Math.max(Math.abs(tileX(a) - tileX(b)), Math.abs(tileY(a) - tileY(b)))
+
+// The domain (DESIGN §2.7): the tiles within `reach` of `centre` (the Monarch's tile), a square.
+export const domainTiles = (centre, reach) => [...Array(TILES).keys()].filter((t) => distance(t, centre) <= reach)
 
 // Where a soul's summon appears: the open tile (`open(t)`) nearest `from` in a straight line, so side by side
 // before a diagonal; at equal distance level with it first, then behind it (toward the camp's back), then
@@ -309,9 +263,6 @@ export function deployTile (side, slot) {
 
 // The board tiles a camp's walls stand on.
 export const wallTiles = (camp) => [...Array(CAMP_SLOTS).keys()].filter((slot) => isWall(camp, slot)).map((slot) => deployTile('party', slot))
-
-// How deep into its own formation a tile is for `side`: 0 at the board's middle, rising to its back edge.
-export const depthFor = (side, tile) => side === 'party' ? DEPTH - 1 - tileY(tile) : tileY(tile)
 
 export function neighbours (tile) {
   const x = tileX(tile)
@@ -341,8 +292,7 @@ export function steps (tile, walls) {
 export const rangeOf = (ability) => ability.range ?? (ability.melee ? 1 : Infinity)
 
 // The open cells of `camp` (slots) that a unit standing for good on cell `slot` (the Monarch: it never steps)
-// cuts off from the open ground ahead of the camp: everything there has to walk past it, and no one but a
-// flanker walks through a body. Funnel's and Switchback's gaps, and Spiral's rear row, seal half a camp.
+// cuts off from the open ground ahead of the camp: no line out of them can pass it.
 export function sealedBy (camp, slot) {
   const walls = new Set(wallTiles(camp))
   const block = deployTile('party', slot)
@@ -357,17 +307,24 @@ export function sealedBy (camp, slot) {
   return [...Array(CAMP_SLOTS).keys()].filter((c) => c !== slot && campOpen(camp, c) && !seen.has(deployTile('party', c)))
 }
 
+// The Monarch's seats: the open cells of the camp's rear SEAT_ROWS rows (DESIGN §2.1).
+export const SEAT_ROWS = 2
+export const isSeat = (camp, slot) => campOpen(camp, slot) && rowOf(slot) >= CAMP_ROWS - SEAT_ROWS
+
 // Where the Monarch takes its seat near `slot` (by default the rear row's middle lane, as a run begins, or
-// when a new floor's camp walls its cell): the open cell nearest it, skipping `taken`, that seals no one in
-// (sealedBy); −1 if none.
+// when a new floor's camp walls its cell): of the seats, skipping `taken`, the one that seals the fewest cells
+// in (sealedBy: none, but in a camp like the Spiral, whose every seat seals some), then the nearest; −1 if none.
 export function seatNear (camp, slot = slotAt(CAMP_ROWS - 1, CENTRE_OUT[0]), taken = new Set()) {
-  const grid = campGrid(camp)
+  const grid = { rows: CAMP_ROWS, open: (c) => isSeat(camp, c) }
   const skip = new Set(taken)
-  for (let c = nearestOpen(grid, slot, skip); c >= 0; c = nearestOpen(grid, slot, skip)) {
-    if (!sealedBy(camp, c).length) return c
+  let best = -1
+  let fewest = Infinity
+  for (let c = nearestOpen(grid, slot, skip); c >= 0 && fewest > 0; c = nearestOpen(grid, slot, skip)) {
+    const n = sealedBy(camp, c).length
+    if (n < fewest) { best = c; fewest = n }
     skip.add(c)
   }
-  return -1
+  return best
 }
 
 // These list-based helpers serve callers outside a battle (the UI, the codex); a battle answers the same
@@ -377,9 +334,8 @@ export function seatNear (camp, slot = slotAt(CAMP_ROWS - 1, CENTRE_OUT[0]), tak
 export const auraGivers = (units, u) => units.filter((a) => a !== u && a.side === u.side && alive(a) && auraOf(a) &&
   distance(a.tile, u.tile) <= auraOf(a).range)
 
-// A unit with a living foe next to it is engaged: it stays put unless its role slips free.
+// The living foes next to a unit.
 export const foesNextTo = (units, u) => units.filter((e) => e.side !== u.side && alive(e) && distance(e.tile, u.tile) === 1)
-export const isEngaged = (units, u) => foesNextTo(units, u).length > 0
 
 // Candidate primary targets for an ability: units on the side it aims at within its range (an ally
 // ability without a range reaches every ally).

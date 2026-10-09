@@ -1,23 +1,21 @@
-// Slice 6, ranks: promotion by level and essence, a Knight's tier IV or second path, a Marshal's domain, second
-// path and the shadows and summons of its banner; and how the autoplayer uses them.
+// Slice 6, ranks: promotion by level and essence, a Knight's tier IV or second path, a Marshal's second path and
+// its summons; and how the autoplayer uses them.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createRun, apply, legalActions, join, souls, monarchCost, tierCost, promoteLevel, promoteCost, canPromote, canAdvance,
-  nextTier, battleSetup, availableNodes, faltersIn, faltersAt, fielded, inOssuary, OSSUARY
+  nextTier, battleSetup, availableNodes, inOssuary, OSSUARY
 } from '../src/sim/run.js'
-import { createBattle, stepBattle, falters, stats } from '../src/sim/battle.js'
+import { createBattle, stepBattle } from '../src/sim/battle.js'
 import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
-// The Marshal's reach and tier prices these scenes were built on (a reach of 2, tiers at 30/60/100/150), with
-// Arise as first built: the rules under test read TUNING.
-const FIRST_RANKS = { ...FIRST_ARISE, ranks: { domain: 2 }, essence: { tier: [30, 60, 100, 150] } }
+// The tier prices these scenes were built on (30/60/100/150), with Arise as first built: the rules under test
+// read TUNING.
+const FIRST_RANKS = { ...FIRST_ARISE, essence: { tier: [30, 60, 100, 150] } }
 import { UNITS, ABILITIES, PATHS, GRADES } from '../src/content.js'
-import {
-  makeUnit, abilitiesOf, auraOf, statsOf, pathsOf, pathsClash, tiersOf, expand, slotAt, tileAt, tileX, tileY, distance, DEPTH, deployTile
-} from '../src/sim/unit.js'
+import { makeUnit, abilitiesOf, auraOf, statsOf, pathsOf, pathsClash, tiersOf, expand, slotAt, tileAt, distance } from '../src/sim/unit.js'
 
 // A soul brought to the level its next rank takes, and promoted (the run pays the essence).
 function rankUp (run, u) {
@@ -246,152 +244,6 @@ test('the battle fights with both paths: battleSetup carries the ranks and the s
   assert.equal(b.events[0].units.find((x) => x.uid === knight.uid).grade, 2, 'battle:start marks a Marshal')
 })
 
-// ── the Marshal's domain ─────────────────────────────────────────────────────────────────────────
-
-const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-// A summon of `captain`'s on a tile (as battle.js summon makes them: on its leash, `summoned`).
-const member = (id, uid, captain, x, y) => ({ ...on(id, uid, 'party', x, y), cohortOf: captain, summoned: true, summoner: captain })
-const ordered = (u, where, square = null, det = 1) => ({ ...u, det, plan: { where, square } })
-const marshal = (u, grade = 2) => ({ ...u, grade })
-
-// A battle of units on tiles (as battle.test.js builds them): those not in `moving` never step. Summon tiers
-// raise nothing here (the summons switch): the scenes place every unit themselves.
-function scene (units, { moving = [], ...opts } = {}) {
-  const foeRow0 = DEPTH - 3
-  const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
-  const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
-    : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
-  const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ablate: ['summons'], ...opts })
-  for (const u of b.units) {
-    const want = units.find((x) => x.uid === u.uid).tile
-    if (u.tile !== want) {
-      b.at[u.tile] = null
-      u.tile = want
-      u.anchor = want
-      b.at[want] = u
-    }
-    if (!moving.includes(u.uid)) u.nextStep = Infinity
-  }
-  return b
-}
-const unit = (b, uid) => b.units.find((u) => u.uid === uid)
-
-test('a Marshal carries its own domain: its banner keeps its plan beyond the Monarch\'s, and never falters there', () => {
-  // A Marshal on Move to the foes' ground with its Ghoul: both pass far beyond the Monarch's domain (3), and
-  // neither falters nor drops the plan; it arrives. The same banner under a Knight drops it at the edge.
-  const build = (grade) => scene([on('monarch', 0, 'party', 3, 0), marshal(ordered(on('tomb_knight', 1, 'party', 3, 2), 'move', tileAt(3, 9)), grade),
-    ordered(member('grave_ghoul', 2, 1, 3, 1), 'move', tileAt(3, 9)), on('iron_golem', 10, 'foe', 0, 10, 1)], { moving: [1, 2] })
-  const b = build(2)
-  const [m, ghoul] = [1, 2].map((uid) => unit(b, uid))
-  let arrived = false
-  while (!arrived && b.t < 600) {
-    for (const e of stepBattle(b)) {
-      assert.ok(!(e.type === 'falter' && e.on), `t ${e.t}: ${e.target} faltered`)
-      if (e.type === 'arrive' && e.uid === 1) arrived = true
-    }
-    assert.ok(!falters(b, m) && (distance(ghoul.tile, m.tile) > TUNING.ranks.domain || !falters(b, ghoul)))
-  }
-  assert.ok(arrived, 'the Marshal arrived')
-  assert.ok(tileY(m.tile) > b.domain + 1 && tileY(ghoul.tile) > b.domain, 'both far outside the Monarch\'s domain')
-  // Full damage there: as a Knight, standing where it stands, it would deal the faltering share of it (and a
-  // Knight's might, not a Marshal's: TUNING.ranks.might).
-  const full = stats(b, m).damage.dealt
-  m.grade = 1
-  const might = TUNING.ranks.might[1] / TUNING.ranks.might[2]
-  assert.ok(Math.abs(stats(b, m).damage.dealt / full - TUNING.monarch.falter * might) < 1e-9)
-  m.grade = 2
-  const k = build(1)
-  while (!k.events.some((e) => e.type === 'falter' && e.target === 1 && e.on) && k.t < 600) stepBattle(k)
-  assert.equal(unit(k, 1).where, 'hunt', 'a Knight has no domain of its own: it drops its plan at the edge')
-  assert.ok(!k.events.some((e) => e.type === 'arrive'))
-})
-
-test('a Marshal\'s domain reaches 2 tiles: a member beyond it falters, and a Marshal\'s step carries the domain away from it', () => tuned(FIRST_RANKS, () => {
-  // The Marshal at (2,5) on Move to the far left; its Ghoul frozen at (4,5), 2 tiles off, outside the
-  // Monarch's domain. The step that takes the Marshal 3 tiles from it makes it falter, in that very tick, but
-  // a step behind its Marshal it keeps its plan (the grace): its own next step decides.
-  const b = scene([on('monarch', 0, 'party', 3, 0), marshal(ordered(on('tomb_knight', 1, 'party', 2, 5), 'move', tileAt(0, 9))),
-    ordered(member('grave_ghoul', 2, 1, 4, 5), 'stay'), on('iron_golem', 10, 'foe', 6, 10, 1)], { moving: [1] })
-  const ghoul = unit(b, 2)
-  assert.ok(!falters(b, ghoul) && ghoul.where === 'stay', 'within 2 of its Marshal')
-  const steps = []
-  let mark = null
-  while (!mark && b.t < 200) {
-    const events = stepBattle(b)
-    steps.push(...events.filter((e) => e.type === 'move' && e.actor === 1))
-    mark = events.find((e) => e.type === 'falter' && e.target === 2)
-  }
-  assert.deepEqual(mark, { t: steps.at(-1).t, type: 'falter', target: 2, on: true })
-  assert.ok(distance(steps.at(-1).from, ghoul.tile) <= TUNING.ranks.domain && distance(steps.at(-1).to, ghoul.tile) > TUNING.ranks.domain)
-  assert.ok(steps.length > 1, 'the steps before it kept the Ghoul inside')
-  assert.equal(ghoul.where, 'stay', 'left a step behind, it keeps its plan for now')
-  // The Marshal walks on; the Ghoul, let go, steps after it but is still beyond its domain: that step reads
-  // its place again, and outside every domain only Hunt is heeded.
-  const m = unit(b, 1)
-  while (distance(m.tile, ghoul.tile) <= TUNING.ranks.domain + 1 && b.t < 300) stepBattle(b)
-  assert.equal(ghoul.where, 'stay', 'the Marshal\'s steps never cast it off')
-  ghoul.nextStep = b.t
-  const own = []
-  while (!own.length && b.t < 400) own.push(...stepBattle(b).filter((e) => e.type === 'move' && e.actor === 2))
-  assert.ok(own.length && distance(m.tile, ghoul.tile) > TUNING.ranks.domain && falters(b, ghoul))
-  assert.equal(ghoul.where, 'hunt', 'outside every domain only Hunt is heeded')
-  // A Ghoul starting 3 tiles from its Marshal, outside the Monarch's domain, falters from the start.
-  const far = scene([on('monarch', 0, 'party', 3, 0), marshal(on('tomb_knight', 1, 'party', 0, 5)), member('grave_ghoul', 2, 1, 3, 5),
-    on('iron_golem', 10, 'foe', 6, 10, 1)])
-  assert.ok(falters(far, unit(far, 2)) && !falters(far, unit(far, 1)))
-  // Without a Monarch there is no domain to leave: a Marshal changes nothing.
-  const none = scene([marshal(on('tomb_knight', 1, 'party', 0, 5)), member('grave_ghoul', 2, 1, 3, 5), on('iron_golem', 10, 'foe', 6, 10, 1)])
-  assert.ok(!falters(none, unit(none, 2)))
-}))
-
-test('a member trailing two behind its Marshal is not cast off by the Marshal\'s step: it falters for a moment, closes up, and keeps the plan', () => tuned(FIRST_RANKS, () => {
-  // The Monarch at (0,0), its domain far behind; a Marshal at (5,5) on Move to (5,9), its Ghoul 2 tiles behind
-  // it at (5,3), on the same plan. The Marshal steps first: 3 tiles off, the Ghoul falters, then closes up.
-  const b = scene([on('monarch', 0, 'party', 0, 0), marshal(ordered(on('tomb_knight', 1, 'party', 5, 5), 'move', tileAt(5, 9))),
-    ordered(member('grave_ghoul', 2, 1, 5, 3), 'move', tileAt(5, 9)), on('iron_golem', 10, 'foe', 0, 10, 1)], { moving: [1, 2] })
-  const ghoul = unit(b, 2)
-  assert.ok(!falters(b, ghoul) && ghoul.where === 'move')
-  const marks = []
-  let arrived = false
-  while (!arrived && b.t < 600) {
-    for (const e of stepBattle(b)) {
-      if (e.type === 'falter' && e.target === 2) marks.push(e.on)
-      if (e.type === 'arrive' && e.uid === 1) arrived = true
-    }
-    if (!arrived && !b.events.some((e) => e.type === 'arrive' && e.uid === 2)) assert.equal(ghoul.where, 'move', `t ${b.t}: it kept the plan`)
-  }
-  assert.ok(arrived, 'the Marshal arrived')
-  assert.deepEqual(marks.slice(0, 2), [true, false], 'it faltered while it trailed, and no longer once it closed up')
-}))
-
-test('a shadow that rises within a Marshal\'s domain joins its banner, on its plan, and does not falter there', () => tuned(FIRST_RANKS, () => {
-  // The Monarch at (3,0); a Marshal on Stay at (3,2); a Ghoul corpse a tile from it, inside both domains.
-  const build = (x, y, grade = 2) => {
-    const b = scene([on('monarch', 0, 'party', 3, 0), marshal(ordered(on('tomb_knight', 1, 'party', 3, 2), 'stay', null, 4), grade),
-      on('grave_ghoul', 10, 'foe', x, y, 2), on('iron_golem', 11, 'foe', 6, 10, 1)])
-    const corpse = unit(b, 10)
-    corpse.hp = 0
-    b.at[corpse.tile] = null
-    b.roster++
-    b.monarch.gauge = 200
-    const events = stepBattle(b)
-    return { b, events, arise: events.find((e) => e.type === 'arise'), shadow: b.units.find((u) => u.shadow) }
-  }
-  const { b, events, arise, shadow } = build(3, 3)
-  assert.deepEqual([arise.unit.cohortOf, arise.unit.det, shadow.cohortOf, shadow.det, shadow.where], [1, 4, 1, 4, 'stay'])
-  assert.ok(!shadow.rank && !shadow.summoned, 'a shadow, not a summon: nothing of it goes back to the run')
-  assert.ok(!falters(b, shadow) && !events.some((e) => e.type === 'falter' && e.target === shadow.uid && e.on), 'within the domain it holds firm')
-  // Three tiles from the Marshal (still inside the Monarch's domain): an ordinary shadow, faltering.
-  const out = build(6, 3)
-  assert.ok(out.arise && out.arise.unit.cohortOf === undefined && out.shadow.cohortOf === undefined && falters(out.b, out.shadow))
-  // A Knight takes no shadows into its banner.
-  const knight = build(3, 3, 1)
-  assert.ok(knight.shadow.cohortOf === undefined && falters(knight.b, knight.shadow))
-}))
-
-// ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
-
 test('the autoplayer: basic never promotes; the expert makes a Knight of a soul whose tier IV is next, and never one the rank does nothing for', () => {
   const run = createRun({ seed: 'promoter' })
   const s = run.state
@@ -519,44 +371,13 @@ test('the expert rehearses a rite\'s second-path offer as the run would make it'
   assert.deepEqual(offerState(s, { type: 'relic', id: 'x' }), { relics: ['x'] })
 })
 
-test('prep reads a Marshal\'s domain as the battle does: it does not start faltering, nor its summons within 2 tiles', () => {
-  const run = createRun({ seed: 'prep-marshal' })
-  const s = run.state
-  command(run, 3)
-  // The chanter raises Skeletons (Marrowcaller II): its banner in battle.
-  const chanter = soul(run, 'bone_chanter')
-  Object.assign(chanter, { path: 'marrowcaller', tier: 2 })
-  const node = availableNodes(run)[0]
-  node.type = 'fight'
-  node.foes ??= s.map.nodes.find((n) => n.foes).foes
-  apply(run, { type: 'node', id: node.id })
-  // The chanter as far forward as it may stand, beyond the Monarch's domain.
-  const front = legalActions(run).filter((a) => a.type === 'place' && a.uid === chanter.uid && a.slot >= 0).sort((a, b) => a.slot - b.slot)[0]
-  apply(run, { type: 'place', uid: chanter.uid, slot: front.slot })
-  assert.ok(faltersAt(s, chanter.slot), 'outside the Monarch\'s domain')
-  for (const grade of [0, 2]) {
-    chanter.grade = grade
-    const b = createBattle(battleSetup(run))
-    const me = b.units.find((u) => u.uid === chanter.uid)
-    assert.equal(faltersIn(s, chanter), falters(b, me), `grade ${grade}`)
-    assert.equal(faltersIn(s, chanter), !grade)
-    // Its summons stand beside it: a Soldier's falter with it; a Marshal's hold where its own domain reaches.
-    const summons = b.units.filter((u) => u.summoner === chanter.uid)
-    assert.equal(summons.length, 2 + TUNING.ranks.summons[grade])
-    for (const x of summons) {
-      if (distance(x.tile, b.monarch.tile) <= b.domain) continue
-      assert.equal(falters(b, x), !grade || distance(x.tile, me.tile) > TUNING.ranks.domain, `grade ${grade}, summon at ${x.tile}`)
-    }
-  }
-})
-
 // A tier IV whose condition reads the whole board would bank for a cast its area cannot use: each reads
-// only what it reaches, so the soul goes on walking and attacking.
-test('a tier IV area ability waits for something in its area: the soul still attacks and still walks in', () => {
-  const fight = (id, path, tier, party, foes, ticks) => {
+// only what it reaches, so the soul goes on marching and attacking.
+test('a tier IV area ability waits for something in its area: the soul still attacks and still marches in', () => {
+  const fight = (id, path, tier, party, foes, ticks, line = null) => {
     const b = createBattle({
       party: [{ ...makeUnit('monarch', { uid: 0, lvl: 3 }), slot: slotAt(6, 3) },
-        { ...makeUnit(id, { uid: 1, lvl: 6 }), path, tier, grade: tier > 3 ? 1 : 0, slot: party }, ...foes.party],
+        { ...makeUnit(id, { uid: 1, lvl: 6 }), path, tier, grade: tier > 3 ? 1 : 0, slot: party, ...(line && { line }) }, ...foes.party],
       foes: foes.foes, seed: 'tier4', domain: 9
     })
     const acts = {}
@@ -577,9 +398,11 @@ test('a tier IV area ability waits for something in its area: the soul still att
     foes: [0, 2, 4, 6].map((c, i) => ({ ...makeUnit('iron_golem', { uid: 10 + i, lvl: 4 }), slot: slotAt(1, c) })) }
   const chanter = fight('bone_chanter', 'dirgemaster', 4, slotAt(3, 3), line, 1500)
   assert.ok(chanter.acts.marrow_bolt > 0 && chanter.acts.dirge_unending > 0, JSON.stringify(chanter))
-  // A Juggernaut IV walks into melee as soon as a Juggernaut III does: Magnetize never halts it 2 tiles short.
-  const sprites = { party: [], foes: [2, 3, 4].map((c, i) => ({ ...makeUnit('frost_sprite', { uid: 10 + i, lvl: 2 }), slot: slotAt(2, c) })) }
-  const [g3, g4] = [3, 4].map((tier) => fight('iron_golem', 'juggernaut', tier, slotAt(0, 3), sprites, 400))
+  // A Juggernaut IV marching up its lane walks into melee as soon as a Juggernaut III does: Magnetize never halts
+  // it 2 tiles short.
+  const sprites = { party: [], foes: [2, 3, 4].map((c, i) => ({ ...makeUnit('grave_ghoul', { uid: 10 + i, lvl: 2 }), slot: slotAt(2, c) })) }
+  const up = { tiles: [7, 8, 9].map((y) => tileAt(3, y)), when: { at: 'once' } }
+  const [g3, g4] = [3, 4].map((tier) => fight('iron_golem', 'juggernaut', tier, slotAt(0, 3), sprites, 400, up))
   assert.ok(g4.moves > 0 && g4.engaged !== null && g4.engaged === g3.engaged, JSON.stringify([g3, g4]))
   // Molt only when a debuff lies within its 2 tiles: each cast strips at least one.
   const b = createBattle({
@@ -600,46 +423,3 @@ test('a tier IV area ability waits for something in its area: the soul still att
   }
   assert.ok(stripped >= molts, `${molts} Molts stripped ${stripped} debuffs`)
 })
-
-test('a joined shadow left behind by its Marshal\'s step falters on that step; the nearest Marshal claims a shadow', () => tuned(FIRST_RANKS, () => {
-  // The Monarch at (3,0); a Marshal on Stay at (3,2); a Ghoul corpse beside it at (3,3).
-  const raised = (units) => {
-    const b = scene([on('monarch', 0, 'party', 3, 0), ...units, on('grave_ghoul', 10, 'foe', 3, 3, 2), on('iron_golem', 11, 'foe', 6, 10, 1)])
-    const corpse = unit(b, 10)
-    corpse.hp = 0
-    b.at[corpse.tile] = null
-    b.roster++
-    b.monarch.gauge = 200
-    const events = stepBattle(b)
-    return { b, arise: events.find((e) => e.type === 'arise'), shadow: b.units.find((u) => u.shadow) }
-  }
-  const { b, shadow } = raised([marshal(ordered(on('tomb_knight', 1, 'party', 3, 2), 'stay'))])
-  assert.equal(shadow.cohortOf, 1)
-  // The Marshal walks off to the left; the shadow, frozen, stays where it rose.
-  const m = unit(b, 1)
-  Object.assign(m, { where: 'move', square: tileAt(0, 9), nextStep: b.t })
-  shadow.nextStep = Infinity
-  const steps = []
-  let mark = null
-  while (!mark && b.t < 300) {
-    const events = stepBattle(b)
-    steps.push(...events.filter((e) => e.type === 'move' && e.actor === 1))
-    mark = events.find((e) => e.type === 'falter' && e.target === shadow.uid)
-  }
-  assert.deepEqual(mark, { t: steps.at(-1).t, type: 'falter', target: shadow.uid, on: true }, 'on the Marshal\'s step')
-  assert.ok(distance(steps.at(-1).to, shadow.tile) > TUNING.ranks.domain)
-  // A step behind, it keeps its plan (the grace); anything that reads its place again while it is still
-  // out (here the Monarch's domain moving under Vanguard Crown would; its own step does) drops it to Hunt.
-  assert.equal(shadow.where, 'stay')
-  while (distance(m.tile, shadow.tile) <= TUNING.ranks.domain + 1 && b.t < 400) stepBattle(b)
-  shadow.nextStep = b.t
-  const own = []
-  while (!own.length && b.t < 500) own.push(...stepBattle(b).filter((e) => e.type === 'move' && e.actor === shadow.uid))
-  assert.equal(shadow.where, 'hunt')
-  // Two Marshals: the one 2 tiles off acts first, but the one beside the corpse claims the shadow.
-  const two = raised([marshal(on('tomb_knight', 1, 'party', 3, 5)), marshal(on('tomb_knight', 5, 'party', 4, 2))])
-  assert.equal(two.arise.unit.cohortOf, 5)
-  // A shadow that rises beside its Marshal's square has arrived, as any entrant would.
-  const moved = raised([marshal(ordered(on('tomb_knight', 1, 'party', 2, 2), 'move', tileAt(3, 4)))])
-  assert.ok(moved.b.events.some((e) => e.type === 'arrive' && e.uid === moved.shadow.uid) && moved.shadow.where === 'hunt')
-}))

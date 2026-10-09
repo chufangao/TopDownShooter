@@ -3,7 +3,10 @@ import assert from 'node:assert/strict'
 import { hitChance, critChance, computeDamage } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
-import { autoPlace, reachable, expand, rowOf, makeUnit, deployTile, slotAt, tileAt, distance, isEngaged, DEPTH, CENTRE_OUT, activeBonds, CAMP_ROWS, campGrid, steps, wallTiles, summonTile, tileX, tileY } from '../src/sim/unit.js'
+import {
+  autoPlace, reachable, expand, makeUnit, deployTile, slotAt, tileAt, distance, foesNextTo, DEPTH, CENTRE_OUT, CAMP_ROWS, campGrid, steps, wallTiles,
+  summonTile, tileX, tileY, domainTiles, isSeat, seatNear, SEAT_ROWS, ringOf
+} from '../src/sim/unit.js'
 
 test('hit and crit are clamped', () => {
   assert.equal(hitChance(50, 50), 0.5)
@@ -43,10 +46,10 @@ test('rng is seeded, string seeds work, and streams are independent', () => {
   assert.ok(['p', 'q'].includes(r.pick(['p', 'q'])))
 })
 
-test('formation: auto-fill by role keeps legal slots and fills the rest in column order', () => {
+test('formation: a plain fill keeps legal slots and fills the rest from the front row, in column order', () => {
   assert.deepEqual(CENTRE_OUT, [3, 2, 4, 1, 5, 0, 6])
   const party = autoPlace(['bone_chanter', 'tomb_knight', 'frost_sprite'].map((id, i) => makeUnit(id, { uid: i + 1 })))
-  assert.deepEqual(party.map((u) => rowOf(u.slot)), [2, 0, 1])
+  assert.deepEqual(party.map((u) => u.slot), [slotAt(0, 3), slotAt(0, 2), slotAt(0, 4)], 'by no role: the front row, the middle lane first')
   const kept = autoPlace([{ ...makeUnit('tomb_knight', { uid: 1 }), slot: 9 }, makeUnit('tomb_knight', { uid: 2 })])
   assert.deepEqual(kept.map((u) => u.slot), [9, slotAt(0, 3)], 'the middle lane fills first')
   const shuffled = autoPlace([makeUnit('tomb_knight', { uid: 1 }), makeUnit('tomb_knight', { uid: 2 })], { cols: [2, 0, 1, 3] })
@@ -70,13 +73,13 @@ test('board: formations deploy facing each other, and reach is by distance', () 
   assert.deepEqual(reachable(units, knight, { shape: 'single', range: 3 }).map((u) => u.uid), [10, 11, 12])
   assert.deepEqual(reachable(units, knight, { shape: 'all' }).map((u) => u.uid), [10, 11, 12])
   assert.deepEqual(reachable(units, knight, { shape: 'ally' }).map((u) => u.uid), [1, 2])
-  assert.ok(isEngaged(units, knight))
-  assert.ok(!isEngaged(units, units[1]))
+  assert.deepEqual(foesNextTo(units, knight).map((u) => u.uid), [10])
+  assert.deepEqual(foesNextTo(units, units[1]), [])
   assert.deepEqual(expand(units, knight, { shape: 'row' }, units[3]).map((u) => u.uid), [11, 12])
   assert.deepEqual(expand(units, knight, { shape: 'column' }, units[3]).map((u) => u.uid), [11])
   units[2].hp = 0
   assert.deepEqual(reachable(units, knight, melee), [])
-  assert.ok(!isEngaged(units, knight), 'the dead engage no one')
+  assert.deepEqual(foesNextTo(units, knight), [], 'the dead stand next to no one')
 })
 
 test('board shapes: a blast hits its target and everyone next to it; ally abilities can have a range', () => {
@@ -91,29 +94,21 @@ test('board shapes: a blast hits its target and everyone next to it; ally abilit
   assert.deepEqual(reachable(units, caster, { shape: 'ally' }).map((u) => u.uid), [1, 2, 3])
 })
 
-test('bonds: beside, behind and ahead, by role or same kin; the fallen hold none', () => {
-  const soul = (id, uid, row, col) => makeUnit(id, { uid, slot: slotAt(row, col) })
-  const held = (units) => activeBonds(units).map((b) => `${b.bond.id}:${b.uid}>${b.partner}`).sort()
-  // Two Tomb Knights side by side: Phalanx and Kinship both ways; a Warden behind one: Vigil.
-  const units = [soul('tomb_knight', 1, 0, 3), soul('tomb_knight', 2, 0, 4), soul('hive_warden', 3, 1, 3)]
-  assert.deepEqual(held(units), ['kinship:1>2', 'kinship:2>1', 'phalanx:1>2', 'phalanx:2>1', 'vigil:1>3'])
-  // A Frost Sprite (skirmisher) right ahead of a Bone Chanter (channeler): Spotter. Not diagonal.
-  assert.deepEqual(held([soul('bone_chanter', 1, 2, 3), soul('frost_sprite', 2, 1, 3)]), ['spotter:1>2'])
-  assert.deepEqual(held([soul('bone_chanter', 1, 2, 3), soul('frost_sprite', 2, 1, 4)]), [])
-  // Lanes do not wrap from one row's end to the next row's start.
-  assert.deepEqual(held([soul('tomb_knight', 1, 0, 6), soul('tomb_knight', 2, 1, 0)]), [])
-  units[1].hp = 0
-  assert.deepEqual(held(units), ['vigil:1>3'])
-  // Scouted foes have no HP yet and still bond.
-  assert.equal(activeBonds([{ id: 'tomb_knight', uid: 0, slot: 0 }, { id: 'tomb_knight', uid: 1, slot: 1 }]).length, 4)
+test('rings and domain: a melee kind fights within 1, a ranged kind within its reach, the Monarch within none; the domain is a square', () => {
+  assert.equal(ringOf({ id: 'tomb_knight' }), 1)
+  assert.equal(ringOf({ id: 'frost_sprite' }), 3)
+  assert.equal(ringOf({ id: 'bone_chanter' }), 4)
+  assert.equal(ringOf({ id: 'monarch' }), 0)
+  const square = domainTiles(tileAt(3, 1), 2)
+  assert.equal(square.length, 5 * 4, 'clipped by the board\'s bottom edge')
+  assert.ok(square.every((t) => distance(t, tileAt(3, 1)) <= 2) && square.includes(tileAt(5, 3)) && !square.includes(tileAt(6, 1)))
 })
 
-test('camp: placement skips walls and spills to the nearest row; steps never cut a wall corner', () => {
-  // Broken Palisade: row 1 is '##.#.##'. A Bone Chanter prefers the back row (2), a Frost Sprite row 1.
+test('camp: placement skips walls; the Monarch\'s seats are the rear two rows; steps never cut a wall corner', () => {
+  // Broken Palisade: row 1 is '##.#.##'. Seven souls fill the front row; the next two row 1's open cells.
   const grid = campGrid('palisade')
-  const [sprite, chanter] = autoPlace([makeUnit('frost_sprite', { uid: 1 }), makeUnit('bone_chanter', { uid: 2 })], { grid })
-  assert.equal(sprite.slot, slotAt(1, 2), 'row 1 lane 3 is a wall; lane 2 is the first open cell')
-  assert.equal(chanter.slot, slotAt(2, 3))
+  const placed = autoPlace(Array.from({ length: 9 }, (_, k) => makeUnit('frost_sprite', { uid: k + 1 })), { grid })
+  assert.deepEqual(placed.slice(7).map((u) => u.slot), [slotAt(1, 2), slotAt(1, 4)], 'row 1 lane 3 is a wall; lanes 2 and 4 are open')
   const walled = autoPlace([{ ...makeUnit('tomb_knight', { uid: 3 }), slot: slotAt(1, 0) }], { grid })
   assert.equal(walled[0].slot, slotAt(0, 3), 'a soul on a wall moves off it')
   // A wall at (1, 1) and (2, 2) on a toy board: no diagonal step from (1, 2) to (2, 1) between them.
@@ -122,6 +117,11 @@ test('camp: placement skips walls and spills to the nearest row; steps never cut
   assert.ok(steps(tileAt(1, 2), walls).includes(tileAt(0, 3)), 'a diagonal past open ground is fine')
   assert.ok(!steps(tileAt(1, 2), walls).includes(tileAt(1, 1)))
   assert.equal(wallTiles('palisade').length, 5)
+  assert.equal(SEAT_ROWS, 2)
+  assert.ok(isSeat('palisade', slotAt(CAMP_ROWS - 1, 0)) && isSeat('palisade', slotAt(CAMP_ROWS - 2, 6)))
+  assert.ok(!isSeat('palisade', slotAt(CAMP_ROWS - 3, 3)) && !isSeat('palisade', slotAt(1, 0)))
+  assert.equal(seatNear('palisade'), slotAt(CAMP_ROWS - 1, 3), 'the rear row\'s middle lane')
+  assert.equal(seatNear('palisade', slotAt(0, 3)), slotAt(CAMP_ROWS - 2, 3), 'never off the seats')
 })
 
 test('summons appear on the nearest open tile: beside the summoner, then behind, then ahead, diagonals last', () => {

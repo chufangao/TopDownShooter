@@ -3,15 +3,15 @@
 // and the log of applied actions replays the run exactly: replay(seed, log).
 //
 // Battles take no input. The player's part is the retinue: which souls it recruits, keeps and lets go,
-// what it spends its essence on, and which souls stand in the camp, where. Slain foes pay essence; it
-// buys levels, path tiers, ranks, recruits and the Monarch's stats. Each floor draws its camp, a 7×7 walled
-// layout, on arrival.
+// what it spends its essence on, which souls stand in the camp, where, and the lines they walk. Slain foes
+// pay essence; it buys levels, path tiers, ranks, recruits and the Monarch's stats. Each floor draws its
+// camp, a 7×7 walled layout, on arrival.
 //
-// The Monarch is you: a party unit with uid MONARCH_UID that stands in the camp like a soul but can never
-// be put in the ossuary, released, levelled or upgraded, and counts toward no cap. Its level is the points
-// bought for Dominion (its domain's reach), Command (the field cap: how many souls fight) and Will (Arise's
-// raises, their tier, and how soon it casts), and its HP grows with it. If it falls, the battle is lost and so
-// is the run.
+// The Monarch is you: a party unit with uid MONARCH_UID that stands on a seat of the camp (its rear SEAT_ROWS
+// rows) but can never be put in the ossuary, released, levelled or upgraded, and counts toward no cap. Its
+// level is the points bought for Dominion (its domain's reach), Command (the field cap: how many souls fight)
+// and Will (Arise's raises, their tier, and how soon it casts), and its HP grows with it. It never steps: the
+// roads run to it (battle.js field). If it falls, the battle is lost and so is the run.
 //
 // The ossuary: your collection of souls. Every soul recruited and not on the field waits there (slot OSSUARY,
 // −1); you field the ones you want, up to the field cap (fieldCap: TUNING.party.field + Command, relics and
@@ -19,40 +19,39 @@
 // After a win you may recruit one of the slain, a full soul at the level it fought at, for essence.
 //
 // The army: the souls fielded, and the summons their path tiers raise (a tier's `summon`, content.js PATHS):
-// they appear beside their summoner each battle, follow it and its plan, and are gone when it ends
+// they appear beside their summoner each battle, hold where they appear, and are gone when it ends
 // (battle.js summon). Summons count toward no cap and never reach the run: no essence, no recruit, no rank.
 //
 // Ranks: a soul with the level is promoted for essence, Soldier → Knight → Marshal (u.grade 0–2,
 // TUNING.ranks: level[grade], cost[grade]). A Knight may take tier IV on its path or tier I of a second path;
-// a Marshal both, and the second path's tiers II–III; in battle a Marshal's banner keeps to orders within its
-// own domain. A Knight's first summon tier raises 1 more, a Marshal's 2 (TUNING.ranks.summons).
+// a Marshal both, and the second path's tiers II–III. A Knight's first summon tier raises 1 more, a Marshal's 2
+// (TUNING.ranks.summons).
 //
-// Orders: fielded souls may be grouped into detachments (up to TUNING.army.detachments), each with a plan:
-// where (Hunt, Stay, or Move to a square, a board tile) and when (at once, at a time, or when the Monarch
-// is struck, a wave enters or one of yours falls). A soul's summons go with it. A detachment that starts later
-// waits off the board (its souls count toward no cap there) and enters beside the Monarch when its start
-// comes. Every soul in no detachment Hunts, at once. The battle carries the plans out (battle.js).
+// Lines (DESIGN §2.4): a fielded soul may have a line, its march for the battle (s.lines[uid]: { tiles, when }):
+// board tiles from its cell's, each a legal step from the one before, and the signal it waits for (content.js
+// SIGNALS). A soul with none holds its cell. Lines stand from battle to battle; moving a soul clears its line,
+// and a new floor's camp clips each at its first step its walls now block. The battle walks them (battle.js).
 //
 // Keystones: rules that rewrite the game (KEYSTONE_LIST), offered free at won elites and at rites from floor
 // TUNING.keystone.fromFloor, never one the run holds, up to TUNING.keystone.max a run (s.keystones). Most of
-// them bend the battle (battle.js); Legion's field, the domain's size and centre, Hollow Court's shadows
-// reaped and Court of Bone's Monarch that nothing heals are the run's to apply. Nothing revives the Monarch.
+// them bend the battle (battle.js); Legion's field, the domain's size, Hollow Court's shadows reaped and
+// Court of Bone's Monarch that nothing heals are the run's to apply. Nothing revives the Monarch.
 //
-// The enemy is an army too (drawRoom): from floor 2 its rooms have captains leading cohorts, an elite's with
-// orders of their own (never shown); a floor-1 elite brings a late pair; from floor 3 rooms come in waves,
-// and a siege room is one battle of three. The last room is a siege whose last wave is the Hollow Sovereign
-// and its court; its fall ends the battle.
+// The enemy is an army too (drawRoom): from floor 2 its rooms have captains with cohorts; a floor-1 elite
+// brings a late pair; from floor 3 rooms come in waves, and a siege room is one battle of three. The last room
+// is a siege whose last wave is the Hollow Sovereign and its court; its fall ends the battle.
 //
 // `fight` resolves the whole battle at once; run.setup is what it was built from, so the UI can play it
 // back tick by tick.
 //
 //   phase            action
 //   map              { type: 'node', id }           walk to a connected room (a battle room, a siege too, opens prep)
-//   map, prep        { type: 'place', uid, slot }   move a soul (or the Monarch) to an open camp slot (0–48)
-//                                                   or a soul to the ossuary (OSSUARY, −1); a unit already
-//                                                   there takes the mover's old place (never the ossuary, for
-//                                                   the Monarch); a soul from the ossuary only while the
-//                                                   field has room, or onto another soul's cell (a swap)
+//   map, prep        { type: 'place', uid, slot }   move a soul to an open camp slot (0–48), or the Monarch to
+//                                                   a seat (isSeat), or a soul to the ossuary (OSSUARY, −1);
+//                                                   a unit already there takes the mover's old place (never
+//                                                   the ossuary, nor off the seats, for the Monarch); a soul
+//                                                   from the ossuary only while the field has room, or onto
+//                                                   another soul's cell (a swap); whoever moves loses its line
 //   map, prep        { type: 'level', uid }         buy a soul its next level
 //   map, prep        { type: 'upgrade', uid, path } buy a soul its next tier on `path` (the first commits it;
 //                                                   a Knight's or Marshal's on another path, its second path)
@@ -61,11 +60,9 @@
 //   prep             { type: 'fight' }              the battle plays out; the run moves on by itself
 //   reap             { type: 'reap', index }        take offer `index` (recruit one soul for its price, a
 //                                                   free relic, a free tier, a free keystone), or null to move on
-//   map, prep        { type: 'order', uids, plan }  a detachment of these fielded souls (out of any other;
-//                                                   a detachment left empty is gone) with `plan`:
-//                                                   { where: 'hunt'|'stay'|'move', square, when: { at, t? } }
-//   map, prep        { type: 'order', id, plan }    detachment `id` takes a new plan
-//   map, prep        { type: 'disband', id }        detachment `id` is no more: its souls Hunt, at once
+//   map, prep        { type: 'line', uid, tiles, when }  a fielded soul's line (cleanLine): `tiles` its march,
+//                                                   `when` the signal it waits for ({ at: 'once' } if left out);
+//                                                   no tiles (null or []) clears it: the soul holds
 //   map, prep        { type: 'promote', uid }       a soul at its rank's level rises a rank for its essence:
 //                                                   Soldier → Knight → Marshal (promoteLevel, promoteCost)
 //   over             { type: 'descend' }            the Sovereign slain (result 'victory'): on to the endless
@@ -77,11 +74,11 @@
 // elite; past it the floors simply go on. A fall in the deep ends the run as any defeat does (s.death says
 // what felled the Monarch) but leaves the clear standing: s.result stays 'victory'.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, CAMP_LIST, ORDERS, DETACHMENT_COLORS, KEYSTONE_LIST, keystoneDef, FOE_ORDERS, THREATS } from '../content.js'
+import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, CAMP_LIST, KEYSTONE_LIST, keystoneDef, THREATS, SIGNALS } from '../content.js'
 import { createRng } from './rng.js'
 import {
-  makeUnit, autoPlace, slotAt, CAMP_SLOTS, CAMP_ROWS, baseStats, onField, CENTRE_OUT, campGrid, campOpen, wallTiles, pathsOf,
-  pathDef, nearestOpen, deployTile, distance, rowOf, colOf, TILES, DEPTH, tileAt, pathsClash, FORMATION, LANES, SLOTS, seatNear
+  makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campGrid, campOpen, wallTiles, pathsOf, pathDef, nearestOpen,
+  deployTile, colOf, TILES, tileX, tileY, tileAt, onBoard, steps, pathsClash, FORMATION, SLOTS, seatNear, isSeat
 } from './unit.js'
 import { createBattle, playOut } from './battle.js'
 import { generateFloor, nodeOf, RANKS } from './map.js'
@@ -96,11 +93,9 @@ const BATTLE_NODES = ['fight', 'elite', 'boss', 'siege']
 const ROMAN = ['I', 'II', 'III', 'IV']
 const BOSS = UNIT_LIST.find((u) => u.boss).id
 
-// The Monarch starts on the camp's rear row, in the middle lane (or the open cell nearest it), and the
-// start souls take the cells nearest their roles' rows inside its domain: the formation a run opens on
-// is one the game itself would not mark as faltering (any soul the domain has no room for goes by its
-// row on the whole camp). `death` is what felled the Monarch, once something has. The ossuary starts
-// empty: every start soul is fielded. No detachments: every soul Hunts, at once. No keystones (ids, in the
+// The Monarch starts on the camp's rear row, in the middle lane (or the seat nearest it), and the start souls
+// fill the camp from its front row, middle lanes first. `death` is what felled the Monarch, once something has.
+// The ossuary starts empty: every start soul is fielded. No lines: every soul holds. No keystones (ids, in the
 // order taken).
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
 // every battle of the run, carried in each battle's setup (battle.js createBattle: 'arise', 'synergies'). A run
@@ -109,7 +104,7 @@ export function createRun ({ seed, ablate = null }) {
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [],
     essence: TUNING.essence.start, result: null, death: null, monarch: { dominion: 0, command: 0, will: 0 },
-    detachments: [], keystones: [],
+    lines: {}, keystones: [],
     stats: { fights: 0, wins: 0, reaped: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
   }
   state.party = [
@@ -119,10 +114,8 @@ export function createRun ({ seed, ablate = null }) {
   if (ablate?.length) state.ablate = ablate.slice()
   const run = { state, battle: null, setup: null }
   enterFloor(run)
-  const grid = campGrid(state.camp)
   monarchOf(state).slot = seatNear(state.camp)
-  autoPlace(state.party, { grid: { rows: grid.rows, open: (slot) => grid.open(slot) && !faltersAt(state, slot) } })
-  autoPlace(state.party, { grid })
+  autoPlace(state.party, { grid: campGrid(state.camp) })
   return run
 }
 
@@ -166,23 +159,30 @@ function rosterActions (run) {
     if (canPromote(run, u)) out.push({ type: 'promote', uid: u.uid })
   }
   out.push(...MONARCH_STATS.filter((stat) => canCrown(run, stat)).map((stat) => ({ type: 'monarch', stat })))
-  out.push(...orderActions(run))
+  out.push(...lineActions(run))
   out.push(...releasable(s).map((u) => ({ type: 'release', uid: u.uid })))
   return out
 }
 
-// The orders a player could give now, sampled so the list stays short (apply takes any plan; these are a
-// representative few): each fielded soul alone and all of them together, and each detachment's plan
-// changed, to every plan of PLAN_MENU; and each detachment disbanded.
-function orderActions (run) {
+// The lines a player could draw now, sampled so the list stays short (apply takes any legal line; these are a
+// representative few): for each fielded soul, straight up its lane for each of LINE_MENU's lengths (as far as
+// walls and the board's edge let it), the shorter on every signal of WHEN_MENU, the longer at once; and its
+// line cleared, if it has one.
+const LINE_MENU = [2, 5]
+const WHEN_MENU = [{ at: 'once' }, { at: 'time', t: 100 }, { at: 'blow' }, { at: 'wave', wave: 1 }, { at: 'struck' }, { at: 'falls' }]
+function lineActions (run) {
   const s = run.state
-  const field = fielded(souls(s.party)).map((u) => u.uid)
-  const groups = [...field.map((uid) => [uid]), ...(field.length > 1 ? [field] : [])]
-  const out = [
-    ...groups.flatMap((uids) => PLAN_MENU.map((plan) => ({ type: 'order', uids, plan }))),
-    ...s.detachments.flatMap((d) => PLAN_MENU.map((plan) => ({ type: 'order', id: d.id, plan })))
-  ].filter((a) => canOrder(run, a))
-  return [...out, ...s.detachments.map((d) => ({ type: 'disband', id: d.id }))]
+  const walls = new Set(wallTiles(s.camp))
+  const out = []
+  for (const u of fielded(souls(s.party))) {
+    for (const [k, n] of LINE_MENU.entries()) {
+      const tiles = []
+      for (let t = deployTile('party', u.slot); tiles.length < n && onBoard(tileX(t), tileY(t) + 1) && steps(t, walls).includes(t + UP); t += UP) tiles.push(t + UP)
+      if (tiles.length) out.push(...(k ? WHEN_MENU.slice(0, 1) : WHEN_MENU).map((when) => ({ type: 'line', uid: u.uid, tiles, when })))
+    }
+    if (s.lines[u.uid]) out.push({ type: 'line', uid: u.uid, tiles: null })
+  }
+  return out
 }
 
 export const currentNode = (run) => nodeOf(run.state.map, run.state.at)
@@ -195,7 +195,7 @@ export function availableNodes (run) {
 const relicDefs = (s) => s.relics.map(relicDef)
 const relicSum = (s, key) => relicDefs(s).reduce((n, r) => n + (r[key] ?? 0), 0)
 const keystoneSum = (s, key) => s.keystones.reduce((n, id) => n + (keystoneDef(id)[key] ?? 0), 0)
-// Whether the run holds a keystone with this rule (KEYSTONE_LIST: keep, unhealable, crown…).
+// Whether the run holds a keystone with this rule (KEYSTONE_LIST: reap, unhealable…).
 export const holds = (s, key) => s.keystones.some((id) => keystoneDef(id)[key])
 // Hollow Court: the shadows Arise raised (`arisen`; a party shadow raised any other way is not one) that
 // still stood when the battle last fought was won, if it was fought under the keystone: each pays its essence
@@ -226,54 +226,9 @@ export const monarchPoints = (s) => MONARCH_STATS.reduce((n, k) => n + s.monarch
 export const monarchCost = (run) => TUNING.monarch.cost + TUNING.monarch.costPerPoint * monarchPoints(run.state)
 const canCrown = (run, stat) => MONARCH_STATS.includes(stat) && run.state.essence >= monarchCost(run)
 
-// How far its domain reaches (Chebyshev, in tiles; keystones bend it, never below 0) and whether a camp cell
-// lies outside it: a soul placed there falters from the first tick (it deals less damage).
+// How far its domain reaches (Chebyshev, in tiles, from the Monarch's tile; keystones bend it, never below 0):
+// Arise raises the foes that fall inside it (unit.js domainTiles lists its tiles).
 export const domainOf = (s) => Math.max(0, TUNING.monarch.domain + s.monarch.dominion + keystoneSum(s, 'domain'))
-export const faltersAt = (s, slot) => {
-  const m = monarchOf(s)
-  return !!m && onField(m) && slot >= 0 && slot !== m.slot && distance(deployTile('party', slot), deployTile('party', domainCentre(s))) > domainOf(s)
-}
-
-// The camp cell the domain centres on as a battle begins: the Monarch's, or with Vanguard Crown its
-// front-most soul's (a living fielded soul that takes the field at once; the front row first, then the
-// middle lane, then the lowest uid), as the battle finds it (it then moves with the front).
-export function domainCentre (s) {
-  const m = monarchOf(s)
-  if (!holds(s, 'crown')) return m.slot
-  const front = souls(s.party).filter((u) => onField(u) && u.hp > 0 && !waits(detachmentOf(s, u.uid)))
-    .sort((a, b) => rowOf(a.slot) - rowOf(b.slot) || Math.abs(colOf(a.slot) - CENTRE_OUT[0]) - Math.abs(colOf(b.slot) - CENTRE_OUT[0]) || a.uid - b.uid)[0]
-  return front ? front.slot : m.slot
-}
-// The Marshal whose own domain covers a fielded soul at the start: the soul itself if it is a Marshal standing on
-// the field (its summons, which appear beside it, are its banner); null for anyone else.
-export const marshalOf = (s, u) => ((u.grade ?? 0) >= 2 && onField(u) && u.hp > 0 ? u : null)
-// Whether a fielded soul starts the battle faltering, as the battle's `falters` reads its first
-// tick: outside the Monarch's domain (faltersAt), unless it is a Marshal or stands within its Marshal's
-// own domain (TUNING.ranks.domain; camp distance is board distance). Prep marks and estimates use this.
-export const faltersIn = (s, u) => {
-  if (!faltersAt(s, u.slot)) return false
-  const m = marshalOf(s, u)
-  return !m || distance(deployTile('party', u.slot), deployTile('party', m.slot)) > TUNING.ranks.domain
-}
-
-// ── the army: held detachments ──────────────────────────────────────────────────────────────────
-
-// Who waits off the board for a battle: the living fielded souls of each detachment that starts later, in
-// `held`'s order (detachment by detachment, in the party order of their first souls, not the order they were
-// formed in, so a rehearsal of the same souls and plans lines them up as the fight will; within one, its souls
-// in party order). They count toward no cap there, and a held soul's camp cell stays its own. Dead souls hold
-// no cell: they do not fight. Every other living fielded soul stands on its cell from the start, its summons
-// beside it. `members` and `reserve` (the cohorts' bodies, once) are always empty.
-// → { members: [], reserve: [], held: [{ det, uid, id }] }
-export function armyLayout (s, party = fielded(s.party), detachments = s.detachments) {
-  const standing = party.filter((u) => onField(u) && u.hp > 0)
-  const held = []
-  const first = (d) => standing.findIndex((u) => d.members.includes(u.uid))
-  for (const d of detachments.filter(waits).sort((a, b) => first(a) - first(b))) {
-    held.push(...standing.filter((u) => !isMonarch(u) && d.members.includes(u.uid)).map((u) => ({ det: d.id, uid: u.uid, id: u.id })))
-  }
-  return { members: [], reserve: [], held }
-}
 
 // ── ranks ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -285,86 +240,60 @@ export const promoteCost = (run, u) => TUNING.ranks.cost[u?.grade ?? 0] ?? null
 // Monarch.
 export const canPromote = (run, u) => !!u && !isMonarch(u) && promoteLevel(u) !== null && u.lvl >= promoteLevel(u) && run.state.essence >= promoteCost(run, u)
 
-// ── orders: detachments and their plans ─────────────────────────────────────────────────────────
+// ── lines ────────────────────────────────────────────────────────────────────────────────────────
 
-// A soul in no detachment Hunts, at once.
-export const DEFAULT_PLAN = { where: 'hunt', square: null, when: { at: 'once' } }
-// The plans legalActions lists: at once, Hunt, Stay, or Move to the open ground's middle or left wing or
-// the foes' middle row; and Hunt or Stay held for each later start (a time: 20 s).
-const PLAN_MENU = [
-  ...[null, null, tileAt(3, CAMP_ROWS), tileAt(0, CAMP_ROWS), tileAt(3, DEPTH - 2)]
-    .map((square, i) => ({ where: i === 0 ? 'hunt' : i === 1 ? 'stay' : 'move', square, when: { at: 'once' } })),
-  ...['hunt', 'stay'].flatMap((where) => Object.keys(ORDERS.when).filter((at) => at !== 'once')
-    .map((at) => ({ where, square: null, when: at === 'time' ? { at, t: 400 } : { at } })))
-]
+// One step up the board, toward the foes.
+const UP = tileAt(0, 1)
+// The longest line: as many steps as the board has tiles.
+export const LINE_MAX = TILES
 
-// The plan as the run keeps it, or null if it is none: `where` one of ORDERS.where; `square` a board tile no
-// wall of the camp stands on, for Move (null otherwise); `when` one of ORDERS.when, 'time' with a tick
-// `t` from 1 to before the battle's ceiling.
-function cleanPlan (s, plan) {
-  if (!plan || typeof plan !== 'object' || !Object.hasOwn(ORDERS.where, plan.where)) return null
-  const w = plan.when
-  if (!w || typeof w !== 'object' || !Object.hasOwn(ORDERS.when, w.at)) return null
-  if (w.at === 'time' && !(Number.isInteger(w.t) && w.t >= 1 && w.t < TUNING.tick.ceiling)) return null
-  const square = plan.where === 'move' ? plan.square : null
-  if (plan.where === 'move' && !isSquare(s, square)) return null
-  return { where: plan.where, square, when: w.at === 'time' ? { at: w.at, t: w.t } : { at: w.at } }
+// A signal as the run keeps it (content.js SIGNALS), or null if it is none: 'time' with a tick `t` from 1 to
+// before the battle's ceiling, 'wave' with a wave from 1 to before TUNING.spawn.endless.maxWaves, the rest bare.
+export function cleanWhen (when = { at: 'once' }) {
+  if (!when || typeof when !== 'object' || !Object.hasOwn(SIGNALS, when.at)) return null
+  if (when.at === 'time') return Number.isInteger(when.t) && when.t >= 1 && when.t < TUNING.tick.ceiling ? { at: 'time', t: when.t } : null
+  if (when.at === 'wave') return Number.isInteger(when.wave) && when.wave >= 1 && when.wave < TUNING.spawn.endless.maxWaves ? { at: 'wave', wave: when.wave } : null
+  return { at: when.at }
 }
 
-// A square a Move may be sent to: any board tile, the foes' ground included, but no wall.
-export const isSquare = (s, tile) => Number.isInteger(tile) && tile >= 0 && tile < TILES && !wallTiles(s.camp).includes(tile)
-const samePlan = (a, b) => JSON.stringify(a) === JSON.stringify(b)
-// A detachment that waits for a later start: it begins the battle off the board, in reserve.
-export const waits = (d) => !!d && d.plan.when.at !== 'once'
-export const detachmentOf = (s, uid, detachments = s.detachments) => detachments.find((d) => d.members.includes(uid)) ?? null
+// Whether `tiles` is a march from board tile `from` past `walls` (a Set): 1 to LINE_MAX board tiles, each a legal
+// step from the one before (unit.js steps: no wall, no squeeze past a wall's corner). It may cross tiles other
+// pieces hold and run anywhere on the board.
+export const isMarch = (from, tiles, walls) => Array.isArray(tiles) && tiles.length >= 1 && tiles.length <= LINE_MAX &&
+  tiles.every((t, i) => Number.isInteger(t) && t >= 0 && t < TILES && steps(i ? tiles[i - 1] : from, walls).includes(t))
 
-// An order: forming a detachment of fielded souls (`uids`, distinct, no Monarch; none of them left in
-// another), within TUNING.army.detachments once those emptied are gone, and not one that already stands
-// with this plan; or a new plan for detachment `id` (a change, not the one it has).
-function canOrder (run, a) {
-  const s = run.state
-  const plan = cleanPlan(s, a.plan)
-  if (!plan) return false
-  if (a.id !== undefined) {
-    const d = a.uids === undefined && s.detachments.find((x) => x.id === a.id)
-    return !!d && !samePlan(d.plan, plan)
-  }
-  const uids = a.uids
-  if (!Array.isArray(uids) || !uids.length || new Set(uids).size !== uids.length) return false
-  if (!uids.every((uid) => s.party.some((u) => u.uid === uid && !isMonarch(u) && onField(u)))) return false
-  const left = s.detachments.filter((d) => d.members.some((uid) => !uids.includes(uid)))
-  if (left.length >= TUNING.army.detachments) return false
-  return !s.detachments.some((d) => d.members.length === uids.length && uids.every((uid) => d.members.includes(uid)) && samePlan(d.plan, plan))
+// A line as the run keeps it ({ tiles, when }), or null if it is none: for a fielded soul (never the Monarch, which
+// never steps), a march from its cell's tile (isMarch) and a signal (cleanWhen).
+export function cleanLine (s, uid, tiles, when) {
+  const u = s.party.find((x) => x.uid === uid)
+  if (!u || isMonarch(u) || !onField(u)) return null
+  const w = cleanWhen(when)
+  if (!w || !isMarch(deployTile('party', u.slot), tiles, new Set(wallTiles(s.camp)))) return null
+  return { tiles: tiles.slice(), when: w }
 }
 
-// A soul leaves its detachment (released, or ordered into another); a detachment left empty is gone.
-function leave (s, uids) {
-  for (const d of s.detachments) d.members = d.members.filter((uid) => !uids.includes(uid))
-  s.detachments = s.detachments.filter((d) => d.members.length)
-}
-
-// A new floor's camp may wall a Move's square: the square moves to the open tile nearest it (fewest steps
-// apart, then the lower tile).
-function fitSquares (s) {
+// A new floor's camp: each line cut short at its first step the camp's walls now block, and gone if none is left.
+function clipLines (s) {
   const walls = new Set(wallTiles(s.camp))
-  for (const d of s.detachments) {
-    const sq = d.plan.square
-    if (sq === null || !walls.has(sq)) continue
-    let best = -1
-    for (let t = 0; t < TILES; t++) if (!walls.has(t) && (best < 0 || distance(t, sq) < distance(best, sq))) best = t
-    d.plan = { ...d.plan, square: best }
+  for (const [uid, line] of Object.entries(s.lines)) {
+    const from = deployTile('party', s.party.find((u) => u.uid === Number(uid)).slot)
+    const k = line.tiles.findIndex((t, i) => !steps(i ? line.tiles[i - 1] : from, walls).includes(t))
+    if (k === 0) delete s.lines[uid]
+    else if (k > 0) s.lines[uid] = { ...line, tiles: line.tiles.slice(0, k) }
   }
 }
 
 // ── the retinue: placing, releasing, buying ─────────────────────────────────────────────────────
 
-// The Monarch never goes to the ossuary: not by a place to OSSUARY, nor by a soul from the ossuary taking its
-// cell. A soul leaves the ossuary for an open cell only while the field has room (fieldCap: Command).
+// The Monarch only ever stands on a seat (isSeat): it never goes to the ossuary, nor to a cell off the seats,
+// whether it moves or a soul swaps cells with it (so a soul from the ossuary never takes its cell). A soul leaves
+// the ossuary for an open cell only while the field has room (fieldCap: Command).
 function canPlace (run, u, slot) {
-  if (slot === u.slot || (slot !== -1 && !campOpen(run.state.camp, slot))) return false
-  if (slot === -1 && isMonarch(u)) return false
+  const camp = run.state.camp
+  if (slot === u.slot || (slot !== -1 && !campOpen(camp, slot))) return false
+  if (isMonarch(u) && !isSeat(camp, slot)) return false
   const other = slot >= 0 && run.state.party.find((x) => x.slot === slot)
-  if (other && isMonarch(other) && !onField(u)) return false
+  if (other && isMonarch(other) && !isSeat(camp, u.slot)) return false
   return onField(u) || !!other || fielded(souls(run.state.party)).length < fieldCap(run)
 }
 
@@ -398,8 +327,7 @@ const HANDLERS = {
   release: { phases: ['map', 'prep', 'reap'], run: release },
   monarch: { phases: ['map', 'prep'], run: crown },
   promote: { phases: ['map', 'prep'], run: promote },
-  order: { phases: ['map', 'prep'], run: order },
-  disband: { phases: ['map', 'prep'], run: disband },
+  line: { phases: ['map', 'prep'], run: line },
   fight: { phases: ['prep'], run: fight },
   reap: { phases: ['reap'], run: reap },
   descend: { phases: ['over'], run: descend }
@@ -439,8 +367,12 @@ function place (run, { uid, slot }) {
   if (!u) throw new Error(`no soul ${uid}`)
   if (!canPlace(run, u, slot)) throw new Error(`cannot place ${uid} at ${slot}`)
   const other = slot >= 0 ? s.party.find((x) => x.slot === slot) : null
-  if (other) other.slot = u.slot
+  if (other) {
+    other.slot = u.slot
+    delete s.lines[other.uid]
+  }
   u.slot = slot
+  delete s.lines[u.uid]
 }
 
 function level (run, { uid }) {
@@ -462,26 +394,18 @@ function crown (run, { stat }) {
   if (holds(s, 'unhealable')) m.hp = hp
 }
 
-// A new detachment takes the first id free (1 up) and that id's colour; its souls stand in party order.
-function order (run, a) {
+// A line drawn (cleanLine), or with no tiles cleared.
+function line (run, { uid, tiles, when }) {
   const s = run.state
-  if (!canOrder(run, a)) throw new Error(`cannot give the order ${JSON.stringify(a)}`)
-  const plan = cleanPlan(s, a.plan)
-  if (a.id !== undefined) {
-    s.detachments.find((d) => d.id === a.id).plan = plan
+  const u = s.party.find((x) => x.uid === uid)
+  if (!u || isMonarch(u) || !onField(u)) throw new Error(`${uid} has no line to draw`)
+  if (tiles === null || tiles === undefined || (Array.isArray(tiles) && !tiles.length)) {
+    delete s.lines[uid]
     return
   }
-  leave(s, a.uids)
-  let id = 1
-  while (s.detachments.some((d) => d.id === id)) id++
-  const members = s.party.filter((u) => a.uids.includes(u.uid)).map((u) => u.uid)
-  s.detachments.push({ id, color: DETACHMENT_COLORS[(id - 1) % DETACHMENT_COLORS.length], members, plan })
-}
-
-function disband (run, { id }) {
-  const s = run.state
-  if (!s.detachments.some((d) => d.id === id)) throw new Error(`no detachment ${id}`)
-  s.detachments = s.detachments.filter((d) => d.id !== id)
+  const drawn = cleanLine(s, uid, tiles, when)
+  if (!drawn) throw new Error(`not a line for ${uid}: ${JSON.stringify({ tiles, when })}`)
+  s.lines[uid] = drawn
 }
 
 function upgrade (run, { uid, path }) {
@@ -504,7 +428,7 @@ function release (run, { uid }) {
   const s = run.state
   if (!releasable(s).some((u) => u.uid === uid)) throw new Error(`cannot release ${uid}`)
   s.party = s.party.filter((u) => u.uid !== uid)
-  leave(s, [uid])
+  delete s.lines[uid]
   if (s.phase !== 'reap') return
   s.offers = s.offers.filter((o) => o.uid !== uid)
   if (!s.offers.length) nextRoom(run)
@@ -565,20 +489,22 @@ function canTake (run, o) {
 
 // Every battle room's foes are fixed when the floor is made, so the map can show them: `foes`, and `waves`
 // for a room with more to come (see drawRoom). The floor's camp is drawn from its list; souls standing on its
-// walls move to open ground. A Monarch whose cell is walled takes its seat as a run begins (seatNear: the rear
-// row's middle lane, or the open cell nearest it that seals no one in), not its role's row: that row is a
-// wall's in some camps, its one gap where the Monarch, which never steps, would shut the army in behind it.
+// walls move to open ground and lose their lines, and every other line is clipped to the new walls (clipLines).
+// A Monarch whose cell is walled takes its seat as a run begins (seatNear: the rear row's middle lane, or the
+// seat nearest it that seals no one in).
 function enterFloor (run) {
   const s = run.state
   s.map = generateFloor({ seed: s.seed, floor: s.floor, last: s.floor === TUNING.run.floors })
   s.camp = createRng(s.seed).stream(`camp|${s.floor}`).pick(CAMP_LIST.filter((c) => c.floor === poolFloor(s.floor))).id
   const m = monarchOf(s)
-  if (onField(m) && !campOpen(s.camp, m.slot)) {
+  if (onField(m) && !isSeat(s.camp, m.slot)) {
     const seat = seatNear(s.camp, undefined, new Set(souls(fielded(s.party)).map((u) => u.slot)))
     m.slot = seat >= 0 ? seat : seatNear(s.camp)
   }
+  const was = new Map(s.party.map((u) => [u.uid, u.slot]))
   autoPlace(fielded(s.party), { grid: campGrid(s.camp) })
-  fitSquares(s)
+  for (const u of s.party) if (u.slot !== was.get(u.uid)) delete s.lines[u.uid]
+  clipLines(s)
   for (const n of s.map.nodes) if (BATTLE_NODES.includes(n.type)) Object.assign(n, drawRoom(s.seed, s.floor, n))
   varyRoutes(s)
   s.at = s.map.start
@@ -661,8 +587,7 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 // lane, when `when` comes ({ at: 'time', t }: at tick t; { at: 'break', t }: once the wave before is down to
 // TUNING.spawn.waves.share of its foes, or t ticks after it began to enter). A foe is { id, lvl, slot }, and in
 // a formation of its own (a wave's slots are its own) a captain's cohort carries `cohortOf`: the captain's
-// slot; an elite's captain carries the order it was given (`order`, one of its kind's foeOrders, and for a
-// flank the wing's `square`), which is never shown.
+// slot.
 // What comes, by room (TUNING.spawn):
 //   fight   a formation of `fight` foes, floor 3+ from rank waves.fightRank: waves.fight such waves
 //   elite   `elite` foes of a higher tier; floor 1: and a late pair of the floor's own pool at late.t;
@@ -671,7 +596,7 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 //   boss    waves.siege waves, the last the Hollow Sovereign at the centre of its court of `court` undead
 // From floor 2 each wave (but the Sovereign's) has captains: captains.fight (captains.elite in an elite) of
 // its foes, each leading cohort[floor − 1] more of its own kind, on the nearest free slots of the formation.
-// Each wave's foes stand in their roles' rows, filling the middle lanes first, each band of lanes (centre
+// Each wave's foes stand from its front row back, filling the middle lanes first, each band of lanes (centre
 // three, then the next pair out…) in shuffled order.
 // From rank `variety.from` on, a room must carry enough distinct threats that one answer never covers it
 // (TUNING.spawn.variety, waves and depth counted; a siege or the last room as a fight): a draw short of it
@@ -728,7 +653,7 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null } = {}) 
   const level = lvl + (elite ? sp.eliteLevel : 0)
   const forms = ids.map((list, k) => boss && k === waves - 1
     ? courtOf(list, level)
-    : formation(rng, list, level, pair && k === waves ? 0 : elite ? sp.captains.elite : sp.captains.fight, at(sp.cohort, floor) + grow.cohort, elite))
+    : formation(rng, list, level, pair && k === waves ? 0 : elite ? sp.captains.elite : sp.captains.fight, at(sp.cohort, floor) + grow.cohort))
   const room = { foes: forms[0] }
   if (forms.length > 1) room.waves = forms.slice(1).map((foes, k) => ({ foes, when: pair ? { at: 'time', t: sp.late.t } : { at: 'break', t: W.t } }))
   return room
@@ -747,16 +672,15 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null } = {}) 
   }
 }
 
-// A wave's formation: `ids` placed by role, then `captains` of them (if they lead anyone: `cohort` > 0) each
-// leading `cohort` more of its kind on the free slots nearest it; an elite's captain takes an order.
-function formation (rng, ids, lvl, captains, cohort, elite) {
+// A wave's formation: `ids` placed from the front row, then `captains` of them (if they lead anyone: `cohort` > 0)
+// each with `cohort` more of its kind on the free slots nearest it.
+function formation (rng, ids, lvl, captains, cohort) {
   const foes = ids.map((id) => ({ id, lvl, slot: -1 }))
   const cols = [CENTRE_OUT.slice(0, 3), ...[3, 5].map((i) => CENTRE_OUT.slice(i, i + 2))].flatMap((band) => rng.shuffle(band))
   autoPlace(foes, { cols })
   if (!cohort || !captains) return foes
   const taken = new Set(foes.map((f) => f.slot))
   for (const c of rng.shuffle(foes).slice(0, captains)) {
-    if (elite) Object.assign(c, foeOrder(rng, c))
     for (let k = 0; k < cohort; k++) {
       const slot = nearestOpen(FORMATION, c.slot, taken)
       if (slot < 0) break
@@ -767,48 +691,22 @@ function formation (rng, ids, lvl, captains, cohort, elite) {
   return foes
 }
 
-// An elite captain's order, drawn from its kind's foeOrders: Stay, Hunt, or a flank, which walks to the open
-// ground beside your camp on the wing nearer it (either, from the middle lane) and Hunts from there.
-function foeOrder (rng, captain) {
-  const order = rng.pick(unitDef(captain.id).foeOrders)
-  if (order !== 'flank') return { order }
-  const lane = colOf(captain.slot)
-  const wing = lane * 2 < LANES - 1 ? 0 : lane * 2 > LANES - 1 ? LANES - 1 : rng.pick([0, LANES - 1])
-  return { order, square: tileAt(wing, CAMP_ROWS) }
-}
-
 // What createBattle needs in the current room, with copies of the fielded souls so the UI can rebuild
 // the same battle. Leaves the run untouched: the foes take the next free uids, and fight() claims them.
-// `party`, `detachments` and `seed` override the fielded souls, the detachments and the room's seed, for a
-// rehearsal. The Monarch's domain and Will go with it. The held detachments' souls (armyLayout) make up the
-// party's reserve, in order, each with its detachment's `when`. Summons and shadows take uids after the foes'
-// (the battle makes them: battle.js summon, raise). Every soul of a detachment carries `det` and its plan (its
-// summons take them from it); `detachments` lists those that take part, for the renderer.
-// The foes (foeUnits): the room's formation stands from the start, and its later waves wait at the end of
-// the reserve, each foe with `side: 'foe'`, its `wave`, its slot's `lane` and the wave's `when`; the foes take
-// the first uids, the formation's then each wave's in order. With `scout`, the setup is the room as a player
-// knows it: the elite captains' orders, never shown, are left out (they and their cohorts Hunt), for a
-// rehearsal that must not fight on what it cannot know.
-export function battleSetup (run, { party = fielded(run.state.party), seed = null, detachments = run.state.detachments, scout = false } = {}) {
+// `party`, `lines` and `seed` override the fielded souls, their lines (by uid) and the room's seed, for a
+// rehearsal. Each soul with a line carries it (`line`). The Monarch's domain and Will go with it. Summons and
+// shadows take uids after the foes' (the battle makes them: battle.js summon, raise).
+// The foes (foeUnits): the room's formation stands from the start, and its later waves wait in the reserve, each
+// foe with `side: 'foe'`, its `wave`, its slot's `lane` and the wave's `when`; the foes take the first uids, the
+// formation's then each wave's in order.
+export function battleSetup (run, { party = fielded(run.state.party), seed = null, lines = run.state.lines } = {}) {
   const s = run.state
   const node = currentNode(run)
   const boss = node.type === 'boss'
-  const army = armyLayout(s, party, detachments)
-  const orders = (uid) => {
-    const d = detachmentOf(s, uid, detachments)
-    return d ? { det: d.id, plan: { where: d.plan.where, square: d.plan.square } } : {}
-  }
-  const start = (uid) => ({ when: detachmentOf(s, uid, detachments).plan.when })
-  const foes = foeUnits(node, s.nextUid, scout)
-  const uid = s.nextUid + foes.length
-  const held = army.held.map((h) => ({ ...party.find((u) => u.uid === h.uid), slot: -1, ...orders(h.uid), ...start(h.uid) }))
-  const away = new Set(held.map((u) => u.uid))
-  const units = party.filter((u) => !away.has(u.uid)).map((u) => ({ ...u, ...orders(u.uid) }))
-  const taking = new Set([...units, ...held].filter((u) => u.det !== undefined && (u.slot < 0 || u.hp > 0)).map((u) => u.det))
+  const foes = foeUnits(node, s.nextUid)
   return {
-    party: units,
-    reserve: [...held, ...foes.filter((f) => f.wave)],
-    detachments: detachments.filter((d) => taking.has(d.id)).map((d) => ({ id: d.id, color: d.color, ...d.plan })),
+    party: party.map((u) => (lines[u.uid] ? { ...u, line: lines[u.uid] } : { ...u })),
+    reserve: foes.filter((f) => f.wave),
     foes: foes.filter((f) => !f.wave),
     seed: seed ?? `${s.seed}|${s.floor}|${node.id}`,
     floor: s.floor,
@@ -821,7 +719,7 @@ export function battleSetup (run, { party = fielded(run.state.party), seed = nul
     foeMods: foeMods(s.floor, boss),
     domain: domainOf(s),
     will: s.monarch.will,
-    nextUid: uid,
+    nextUid: s.nextUid + foes.length,
     keystones: s.keystones.slice(),
     relics: s.relics.slice(),
     ...(s.ablate && { ablate: s.ablate.slice() })
@@ -829,19 +727,15 @@ export function battleSetup (run, { party = fielded(run.state.party), seed = nul
 }
 
 // A room's foes as battle units, uids from `uid` on: a captain's cohort with `cohortOf` (its captain's uid) and
-// `rank: true`, an elite's captain and its cohort with the plan of its order (FOE_ORDERS; none when `scout`);
-// a later wave's foes off the board (slot −1) with what they wait for (see battleSetup).
-function foeUnits (node, uid, scout = false) {
+// `rank: true`; a later wave's foes off the board (slot −1) with what they wait for (see battleSetup).
+function foeUnits (node, uid) {
   const out = []
   for (const [k, foes] of [node.foes, ...(node.waves ?? []).map((w) => w.foes)].entries()) {
     const uids = new Map(foes.map((f, i) => [f.slot, uid + i]))
-    const plan = (f) => !scout && f?.order && { plan: { where: FOE_ORDERS[f.order].where, square: f.square ?? null } }
     for (const [i, f] of foes.entries()) {
-      const captain = f.cohortOf != null ? foes.find((c) => c.slot === f.cohortOf) : f
       out.push({
         ...makeUnit(f.id, { uid: uid + i, lvl: f.lvl, slot: k ? -1 : f.slot }),
         ...(f.cohortOf != null && { cohortOf: uids.get(f.cohortOf), rank: true }),
-        ...plan(captain),
         ...(k && { side: 'foe', wave: k, lane: colOf(f.slot), when: { ...node.waves[k - 1].when, wave: k } })
       })
     }

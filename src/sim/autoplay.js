@@ -4,27 +4,24 @@
 //           the camp's rear row in the middle lane, the best of three drafted formations, the first free
 //           offer (a relic, a tier, a keystone), recruits only to fill the field, essence on the lowest level (a path tier once a soul
 //           is ready for it), and Command only once two standing souls would wait in the ossuary with
-//           the field full; default orders (every soul Hunts, at once: a detachment it finds is disbanded); it
-//           never promotes a soul
+//           the field full; no lines (every soul holds: a line it finds is cleared); it never promotes a soul
 //   expert  plans: every route over the next few ranks played out, wounds counted when fielding, the
-//           formation (the Monarch's cell too) hill-climbed over cells and the ossuary, and the souls' orders
-//           (Stay, Hunt, Move to the domain's edge or a wing, held for one of its own falling, the Monarch
-//           struck or, where more foes come, a wave) with them; a Stay line, a screen beside the Monarch and a
-//           reserve among its drafts; free offers (keystones too) weighed by rehearsing the fights ahead,
-//           recruits that would make the field, essence on whatever buys the most worth per essence (a summon
-//           tier worth its summons), and Monarch points and ranks when rehearsing the fights ahead says they beat
-//           the same essence spent on the souls (a Knight at once when its tier IV is next; the strongest
-//           fielded first), and a Knight's or Marshal's tier IV and second path bought by worth like any tier
-// It knows the rules, not the rolls: rehearsals and rollouts never use a battle's own seed, nor the orders an
-// elite's captains were given (never shown: it rehearses them on orders guessed from what their kinds may be
-// bidden, a different guess each rehearsal seed). A rehearsal ends once its result is settled (battle.js settled), and
-// the formation search fights a formation's remaining rolls only while they could still change its choice (plan:
-// TUNING.autoplay.settle, prune).
+//           formation (the Monarch's seat too) hill-climbed over cells and the ossuary, and the souls' lines
+//           (a march straight up its lane, at once or at a time) with them; a short advance, a screen beside the
+//           Monarch and the Monarch in a pocket among its drafts; free offers (keystones too) weighed by
+//           rehearsing the fights ahead, recruits that would make the field, essence on whatever buys the most
+//           worth per essence (a summon tier worth its summons), and Monarch points and ranks when rehearsing the
+//           fights ahead says they beat the same essence spent on the souls (a Knight at once when its tier IV is
+//           next; the strongest fielded first), and a Knight's or Marshal's tier IV and second path bought by worth
+//           like any tier
+// It knows the rules, not the rolls: rehearsals and rollouts never use a battle's own seed. A rehearsal ends once
+// its result is settled (battle.js settled), and the formation search fights a formation's remaining rolls only
+// while they could still change its choice (plan: TUNING.autoplay.settle, prune).
 // Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert]
 // for the gap between the levels:     … --ladder [--runs 8]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
-// or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above)
-// for how much each mechanic carries the expert, full runs:  … --ablations [--runs 8] [--variants full,orders,summons] [--out runs.json]
+// or the expert with one mechanic taken away (ABLATIONS):  … --ablate lines  (a report as above)
+// for how much each mechanic carries the expert, full runs:  … --ablations [--runs 8] [--variants full,lines,summons] [--out runs.json]
 // or as a fast battle-level proxy (its battles refought stripped): … --necessity [--runs 8] [--setups file]
 // (the defaults, RUNS, are sized to one expert run per core: an expert run takes minutes; see README)
 import { createHash } from 'node:crypto'
@@ -33,19 +30,17 @@ import os from 'node:os'
 import path from 'node:path'
 import { createRng } from './rng.js'
 import {
-  statsOf, pathsOf, tiersOf, autoPlace, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campGrid, campOpen, wallTiles, steps, deployTile,
-  tileAt, tileX, tileY, TILES, LANES, DEPTH, rowOf, colOf, rangeOf, isAllyShape, distance, makeUnit, nearestOpen, slotAt, baseStats,
-  seatNear, sealedBy, summonsOf
+  statsOf, pathsOf, tiersOf, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campGrid, campOpen, wallTiles, steps, deployTile, tileAt, tileY, TILES,
+  LANES, rowOf, colOf, rangeOf, isAllyShape, distance, makeUnit, slotAt, baseStats, seatNear, sealedBy, summonsOf, isSeat, onBoard, tileX
 } from './unit.js'
 import { createBattle, playOut, timelineHash } from './battle.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, levelCost, tierCost,
-  isMonarch, monarchOf, souls, MONARCH_STATS, monarchCost, monarchPoints, domainOf, isSquare,
-  canPromote, canAdvance, advanced, holds, domainCentre, promoteLevel, promoteCost
+  isMonarch, monarchOf, souls, MONARCH_STATS, monarchCost, monarchPoints, canPromote, canAdvance, advanced, holds, isMarch
 } from './run.js'
 import { nodeOf, RANKS } from './map.js'
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, campDef, ROLES, DETACHMENT_COLORS, FOE_ORDERS } from '../content.js'
+import { unitDef, abilityDef, campDef } from '../content.js'
 
 // seeds: rehearsals per formation (0: take the first draft unrehearsed); drafts: how many of the
 // drafts to try (all by default); search: formations tried by hill-climbing from the best draft;
@@ -53,18 +48,18 @@ import { unitDef, abilityDef, campDef, ROLES, DETACHMENT_COLORS, FOE_ORDERS } fr
 // weighted dice), over the next `horizon` rooms; reap: weigh free offers by rehearsing the fights
 // ahead, and recruit by worth; spend: buy by worth per essence (and Monarch points by rehearsal) rather
 // than by rule of thumb; park: the Monarch always on the rear row, middle lane, never moved by the search;
-// orders: draft and search the souls' orders (else every soul Hunts, at once); finalists, validate: the best
-// `finalists` formations of the search fought again on `validate` fresh rolls, the best of them taken; keepOrders (no level has
-// it: the fuzz test's) fights on whatever orders it finds instead of disbanding them, when it plans none.
+// lines: draft and search the souls' lines (else every soul holds); finalists, validate: the best
+// `finalists` formations of the search fought again on `validate` fresh rolls, the best of them taken; keepLines (no level has
+// it: the fuzz test's) fights on whatever lines it finds instead of clearing them, when it plans none.
 export const LEVELS = {
-  basic: { seeds: 1, search: 0, wounds: false, rollouts: 0, reap: false, spend: false, park: true, orders: false },
-  expert: { seeds: 4, search: 12, finalists: 8, validate: 4, wounds: true, rollouts: 1, horizon: 3, reap: true, spend: true, park: false, orders: true }
+  basic: { seeds: 1, search: 0, wounds: false, rollouts: 0, reap: false, spend: false, park: true, lines: false },
+  expert: { seeds: 4, search: 12, finalists: 8, validate: 4, wounds: true, rollouts: 1, horizon: 3, reap: true, spend: true, park: false, lines: true }
 }
 // How an expert imagines a route (quick formations, basic offers), and sizes up an offer.
-const ROLLOUT = { seeds: 0, search: 0, wounds: true, rollouts: 0, reap: false, spend: false, park: false, orders: false }
+const ROLLOUT = { seeds: 0, search: 0, wounds: true, rollouts: 0, reap: false, spend: false, park: false, lines: false }
 const SIZE_UP = { ...ROLLOUT, seeds: 1, drafts: 1 }
-// How it sizes up a room it could walk into next: every draft, orders too, on two rolls (pickRoute).
-const RISK = { ...ROLLOUT, seeds: 2, orders: true }
+// How it sizes up a room it could walk into next: every draft, lines too, on two rolls (pickRoute).
+const RISK = { ...ROLLOUT, seeds: 2, lines: true }
 
 // ── ablation: the expert with one mechanic taken away ─────────────────────────────────────────────
 
@@ -75,8 +70,7 @@ const RISK = { ...ROLLOUT, seeds: 2, orders: true }
 //   monarch-stats  never buys a Monarch point (Dominion, Command, Will): the field stays at TUNING.party.field
 //   arise          the Monarch's Arise never casts (a rules switch: the run's `ablate`, carried in every
 //                  battle's setup) and it never buys Will
-//   orders         no Stay or Move: every detachment's plan is Hunt (a held start is still allowed)
-//   reserves       no held start: every detachment starts at once (Stay and Move still allowed)
+//   lines          no line: every soul holds its cell
 //   summons        no soul raises its summons (a rules switch, as arise), and a summon tier is worth only its
 //                  place on the path (worth: its summons not counted), so the essence goes elsewhere
 //   ranks          never promotes
@@ -86,10 +80,10 @@ const RISK = { ...ROLLOUT, seeds: 2, orders: true }
 //   relics         never takes a relic
 //   synergies      the party holds no synergy in battle, at any step (a rules switch, as arise)
 //   formation      no formation search: its souls in basic's first draft's cells (who it fields and its
-//                  orders still its own) and the Monarch parked where basic parks it
+//                  lines still its own, each from its new cell) and the Monarch parked where basic parks it
 //   levels         never buys a level (reported, not targeted)
 // A run of an ablation that is a rules switch must be made with it (ablatedRun); policy refuses one that is not.
-export const ABLATIONS = ['monarch-stats', 'arise', 'orders', 'reserves', 'summons', 'ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation', 'levels']
+export const ABLATIONS = ['monarch-stats', 'arise', 'lines', 'summons', 'ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation', 'levels']
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 export const ablatedRun = (seed, ablate = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null })
 // A level as it plays ahead for L: the same ablation carried.
@@ -99,32 +93,38 @@ export const statsFor = (L) => MONARCH_STATS.filter((stat) => L.ablate !== 'mona
 // The free offer type L never takes.
 const BANNED = { paths: 'tier', keystones: 'keystone', relics: 'relic' }
 
-// A formation as L may field it: under 'orders' every plan Hunts (its start kept), under 'reserves' every plan
-// starts at once (a plan left Hunting at once is no order: null); under 'formation' the cells basic's first draft
-// gives (basicCells). Anything else as it is.
+// A formation as L may field it: under 'lines' with no line (every soul holds); under 'formation' the cells
+// basic's first draft gives (basicCells). Anything else as it is.
 function allowed (run, party, L) {
-  if (L.ablate === 'orders' || L.ablate === 'reserves') {
-    party = party.map((u) => {
-      if (!u.order) return u
-      const o = L.ablate === 'orders' ? { where: 'hunt', square: null, when: u.order.when } : { ...u.order, when: { at: 'once' } }
-      return { ...u, order: o.where === 'hunt' && o.when.at === 'once' ? null : o }
-    })
-  }
+  if (L.ablate === 'lines') party = party.map((u) => (u.line ? { ...u, line: null } : u))
   return L.ablate === 'formation' ? basicCells(run, party, L) : party
 }
 
 // Basic's first draft's cells for these units (L's fielding order, as its drafts take them): the Monarch on
-// basic's parking cell, the souls by role row from the middle lane (every other lane against blasts).
-// Orders are kept.
+// basic's parking cell, the souls by role row from the middle lane (every other lane against blasts). Each line
+// is kept, moved with its soul to its new cell (shifted), unless it no longer fits the camp there.
 function basicCells (run, party, L) {
   const s = run.state
   const camp = campGrid(s.camp)
   const cell = rearCell(s.camp)
   const cols = blasts(currentNode(run).foes) ? SPREAD : CENTRE_OUT
   const grid = { rows: camp.rows, open: (slot) => slot !== cell && camp.open(slot) }
-  const placed = autoPlace(party.filter((u) => !isMonarch(u) && u.hp > 0).sort(L.wounds ? byFieldPower : byPower).map((u) => ({ ...u, slot: -1 })), { cols, grid })
+  const placed = byRows(party.filter((u) => !isMonarch(u) && u.hp > 0).sort(L.wounds ? byFieldPower : byPower).map((u) => ({ ...u, slot: -1 })), cols, grid)
   const at = new Map(placed.map((u) => [u.uid, u.slot]))
-  return party.map((u) => ({ ...u, slot: isMonarch(u) ? cell : at.get(u.uid) ?? -1 }))
+  const walls = new Set(wallTiles(s.camp))
+  return party.map((u) => {
+    const slot = isMonarch(u) ? cell : at.get(u.uid) ?? -1
+    return { ...u, slot, line: u.line && slot >= 0 ? shifted(u.line, u.slot, slot, walls) : null }
+  })
+}
+
+// A line moved with its soul from cell `from` to cell `to`: every tile shifted alike, or null if that leaves the
+// board or the steps the walls allow.
+function shifted (line, from, to, walls) {
+  const d = deployTile('party', to) - deployTile('party', from)
+  const dx = colOf(to) - colOf(from)
+  const tiles = line.tiles.map((t) => t + d)
+  return line.tiles.every((t) => tileX(t) + dx >= 0 && tileX(t) + dx < LANES) && isMarch(deployTile('party', to), tiles, walls) ? { ...line, tiles } : null
 }
 
 const hpPct = (u) => u.hp / u.maxHp
@@ -152,14 +152,10 @@ const fieldPower = (u) => worth(u) * Math.sqrt(hpPct(u))
 
 // The run as it would be standing in another room: what battleSetup needs, nothing copied.
 const atNode = (run, node, state = {}) => ({ ...run, state: { ...run.state, ...state, at: node.id } })
-// A copy to play ahead on, with its own rolls. A rollout's copy (`roll`) is the floor as a player knows it:
-// the elite captains' orders, never shown, are struck from its rooms, so its fights are rehearsals too.
+// A copy to play ahead on, with its own rolls (`roll`: a rollout's).
 function fork (run, roll) {
   const state = structuredClone(run.state)
-  if (roll !== undefined) {
-    state.seed = `${state.seed}|rollout|${roll}`
-    for (const n of state.map.nodes) for (const f of [n.foes ?? [], ...(n.waves ?? []).map((w) => w.foes)].flat()) { delete f.order; delete f.square }
-  }
+  if (roll !== undefined) state.seed = `${state.seed}|rollout|${roll}`
   return { state, battle: null, setup: null }
 }
 
@@ -189,7 +185,7 @@ function pickNode (run, rng, L) {
 // The expert walks every route over the next `horizon` rooms `rollouts` times on its own rolls, with
 // quick formations and basic offers, and takes the first room of the route that ends best on average. A
 // rollout's quick formation can win a fight by luck, so first it sizes up each battle room it could walk into
-// next (RISK: every draft, its orders' too, on two rolls): a room where its best formation still loses a
+// next (RISK: every draft, its lines' too, on two rolls): a room where its best formation still loses a
 // rehearsal is walked into only when every room ahead is one. A loss ends the run; an elite's relic does not
 // pay for a coin flip.
 function pickRoute (run, L) {
@@ -234,31 +230,53 @@ function strength (s) {
 
 // ── prep: the formation ──────────────────────────────────────────────────────────────────────────────
 
-// The autoplayer arranges its souls with the same choice a player has: any open camp cell. It drafts a
-// few formations and rehearses each against the scouted foes on a different battle seed (it knows the
+// The autoplayer arranges its souls with the same choice a player has: any open camp cell, and a line for each.
+// It drafts a few formations and rehearses each against the scouted foes on a different battle seed (it knows the
 // rules, not the rolls), keeping the one that does best; ties keep the earlier draft:
-//   rows       each role's row, packed from the middle lane (bonds and auras want neighbours)
+//   rows       each role's row (ROW), packed from the middle lane (auras want neighbours)
 //   spread     each role's row, every other lane first (against area attacks)
 //   sheltered  the melee where foes walking in arrive first; ranged souls behind the walls, where foes
 //              must walk furthest to reach them for how close they stand
 // An expert then hill-climbs from the best draft: swapping two souls, moving one to another cell, trading
-// one for a standing soul from the ossuary, or changing a soul's order (replan), keeping each change that
+// one for a standing soul from the ossuary, or redrawing a soul's line (redraw), keeping each change that
 // rehearses better.
-// The Monarch takes its cell first: basic parks it on the rear row, middle lane; an expert drafts it
-// mid-camp (its role's row, behind the souls) and once at the back, and its search moves it like a soul
-// (it is never traded away).
-// An expert also drafts orders: on the first mid-camp formation every soul on Stay (a line where it
-// stands), and that line with its toughest soul on Stay on the cell ahead of the Monarch (a screen); with
-// the Monarch at the back, every soul on Stay at the domain's edge (a line as far ahead as the domain
-// holds it); the first formation with its weakest soul held back until one of its own falls (a reserve that
-// plugs the breach), and in a room with waves one held for the wave; and the Monarch in its pocket, the
-// cell with the fewest approach tiles, with all of them, or half, held by its toughest souls on Stay (a
-// screen against flankers). A soul's order rides on its formation entry as `order` ({ where, square, when },
-// or null for Hunt at once); souls with the same order make one detachment (detachmentsOf).
+// The Monarch takes its seat first: basic parks it on the rear row, middle lane; an expert drafts it there and
+// on the seat row ahead, and its search moves it like a soul, over the seats only (it is never traded away).
+// An expert also drafts lines and placements: the first formation with every soul marching a short way up its
+// lane, and a longer way; that formation with its toughest soul beside the Monarch (a screen); and the Monarch
+// in its pocket, the seat with the fewest approach tiles, with all of them, or half, held by its toughest souls.
+// A soul's line rides on its formation entry as `line` ({ tiles, when }, or null: it holds).
 
 const SPREAD = [3, 1, 5, 2, 4, 0, 6]
 const blasts = (foes) => foes.some((f) => unitDef(f.id).abilities.some((id) => abilityDef(id).shape === 'blast'))
 const reachOf = (u) => Math.max(1, ...unitDef(u.id).abilities.map(abilityDef).filter((a) => !isAllyShape(a.shape)).map(rangeOf))
+// Each role's row in a drafted formation (0 the camp's front): the line holders ahead, the ranged behind.
+const ROW = { vanguard: 0, skirmisher: 1, warden: 1, trickster: 1, ranger: 2, channeler: 2 }
+const rowFor = (u) => ROW[unitDef(u.id).role] ?? 1
+
+// Keep units already in an open free slot of `grid`; place the rest in the first open free slot of their role's
+// row (rowFor), spilling to the nearest rows, columns in `cols` order. Mutates and returns units.
+function byRows (units, cols, grid) {
+  const taken = new Set()
+  const rest = []
+  for (const u of units) {
+    if (grid.open(u.slot) && !taken.has(u.slot)) taken.add(u.slot)
+    else rest.push(u)
+  }
+  const rows = [...Array(grid.rows).keys()]
+  for (const u of rest) {
+    const pref = rowFor(u)
+    u.slot = -1
+    for (const row of rows.slice().sort((a, b) => Math.abs(a - pref) - Math.abs(b - pref) || a - b)) {
+      for (const c of cols) {
+        const slot = slotAt(row, c)
+        if (u.slot < 0 && grid.open(slot) && !taken.has(slot)) { u.slot = slot; taken.add(slot) }
+      }
+      if (u.slot >= 0) break
+    }
+  }
+  return units
+}
 
 // How many steps a foe needs from the open ground above the camp to each camp cell, around its walls.
 function walkIn (camp) {
@@ -280,10 +298,9 @@ function sheltered (units, camp, taken) {
   const free = [...Array(CAMP_SLOTS).keys()].filter((slot) => campOpen(camp, slot) && slot !== taken)
   const lane = (slot) => CENTRE_OUT.indexOf(colOf(slot))
   const melee = (u) => reachOf(u) === 1
-  const row = (u) => ROLES[unitDef(u.id).role].autoRow
-  const order = units.slice().sort((a, b) => melee(b) - melee(a) || row(a) - row(b))
+  const order = units.slice().sort((a, b) => melee(b) - melee(a) || rowFor(a) - rowFor(b))
   for (const u of order) {
-    const off = (slot) => Math.abs(rowOf(slot) - row(u))
+    const off = (slot) => Math.abs(rowOf(slot) - rowFor(u))
     const score = melee(u) ? (slot) => walk(slot) : (slot) => -(walk(slot) - rowOf(slot) - 1)
     free.sort((a, b) => score(a) - score(b) || off(a) - off(b) || lane(a) - lane(b))
     u.slot = free.shift()
@@ -291,59 +308,53 @@ function sheltered (units, camp, taken) {
   return units
 }
 
-// The Monarch's parking spot: the rear row's middle lane, or the open cell nearest it; the expert's other
-// draft, mid-camp. Neither ever a cell where the Monarch would seal souls in (seatNear).
+// The Monarch's parking seat: the rear row's middle lane, or the seat nearest it; the expert's other draft, the
+// seat row ahead of it. Each the seat that seals the fewest cells in (seatNear: none, but on the Spiral).
 const rearCell = (camp) => seatNear(camp)
-const midCell = (camp) => seatNear(camp, slotAt(ROLES.monarch.autoRow, CENTRE_OUT[0]))
+const nearCell = (camp) => seatNear(camp, slotAt(CAMP_ROWS - 2, CENTRE_OUT[0]))
 
 function drafts (run, want, L) {
   const s = run.state
   const camp = campGrid(s.camp)
-  const blank = () => want.map((u) => ({ ...u, slot: -1 }))
+  const blank = () => want.map((u) => ({ ...u, slot: -1, line: null }))
   const lanes = blasts(currentNode(run).foes) ? [SPREAD, CENTRE_OUT] : [CENTRE_OUT, SPREAD]
   const around = (cell) => {
-    const m = { ...monarchOf(s), slot: cell }
+    const m = { ...monarchOf(s), slot: cell, line: null }
     const grid = { rows: camp.rows, open: (slot) => slot !== cell && camp.open(slot) }
     return {
-      rows: (cols) => [m, ...autoPlace(blank(), { cols, grid })].map((u) => ({ ...u })),
+      rows: (cols) => [m, ...byRows(blank(), cols, grid)].map((u) => ({ ...u })),
       sheltered: () => [{ ...m }, ...sheltered(blank(), s.camp, cell)]
     }
   }
   const rear = around(rearCell(s.camp))
   if (L.park) return [rear.rows(lanes[0]), rear.rows(lanes[1]), rear.sheltered()]
-  const mid = around(midCell(s.camp))
-  const out = [mid.rows(lanes[0]), mid.rows(lanes[1]), mid.sheltered(), rear.rows(lanes[0])]
-  if (!L.orders) return out
+  const near = around(nearCell(s.camp))
+  const out = [rear.rows(lanes[0]), rear.rows(lanes[1]), rear.sheltered(), near.rows(lanes[0])]
+  if (!L.lines) return out
   const copy = (party) => party.map((u) => ({ ...u }))
-  const line = out[0].map((u) => (isMonarch(u) ? { ...u } : { ...u, order: STAY }))
-  const toughest = line.filter((u) => !isMonarch(u)).sort((a, b) => toughness(b) - toughness(a) || a.uid - b.uid)[0]
+  const walls = new Set(wallTiles(s.camp))
+  const toughest = out[0].filter((u) => !isMonarch(u)).sort((a, b) => toughness(b) - toughness(a) || a.uid - b.uid)[0]
   const open = [...Array(CAMP_SLOTS).keys()].filter((slot) => campOpen(s.camp, slot))
-  const reserve = copy(out[0])
-  const last = reserve.find((u) => u.uid === want.at(-1)?.uid)
-  if (last && want.length > 1) last.order = FALLS
   const nook = around(pocketCell(s.camp)).rows(lanes[0])
-  // Where more foes will come, that reserve held for the wave instead.
-  const wave = currentNode(run).waves && last && want.length > 1 ? copy(reserve).map((u) => (u.uid === last.uid ? { ...u, order: WAVE } : u)) : null
   return [
-    ...out, line, ...(toughest ? [screen(copy(line), toughest.uid, open)] : []), edgeLine(copy(out[3]), s),
-    ...(last && want.length > 1 ? [reserve] : []), pocket(copy(nook), s, Infinity), pocket(copy(nook), s, Math.ceil(want.length / 2)),
-    ...(wave ? [wave] : [])
+    ...out, advance(copy(out[0]), 2, walls), advance(copy(out[0]), 4, walls), ...(toughest ? [screen(copy(out[0]), toughest.uid, open)] : []),
+    pocket(copy(nook), s, Infinity), pocket(copy(nook), s, Math.ceil(want.length / 2))
   ]
 }
 
-// The Monarch's pocket: the open camp cell with the fewest approach tiles (the open tiles a step onto it
-// can come from: walls and the board's edge close the rest), the rearmost first, then the middle lanes.
+// The Monarch's pocket: the seat with the fewest approach tiles (the open tiles a step onto it can come from:
+// walls and the board's edge close the rest), the rearmost first, then the middle lanes.
 function pocketCell (camp) {
   const walls = new Set(wallTiles(camp))
   const lane = (slot) => CENTRE_OUT.indexOf(colOf(slot))
   const ways = (slot) => steps(deployTile('party', slot), walls).length
-  return [...Array(CAMP_SLOTS).keys()].filter((slot) => campOpen(camp, slot))
-    .sort((a, b) => ways(a) - ways(b) || rowOf(b) - rowOf(a) || lane(a) - lane(b))[0]
+  const sealed = (slot) => sealedBy(camp, slot).length
+  return [...Array(CAMP_SLOTS).keys()].filter((slot) => isSeat(camp, slot))
+    .sort((a, b) => sealed(a) - sealed(b) || ways(a) - ways(b) || rowOf(b) - rowOf(a) || lane(a) - lane(b))[0]
 }
 
-// A screen against flankers, who walk through any line to the deepest foe: the Monarch's approach tiles in
-// the camp held by its toughest souls on Stay, up to `n` of them (ahead first), so a flanker finds no
-// open tile beside it.
+// A screen against flankers: the Monarch's approach tiles in the camp held by its toughest souls, up to `n` of
+// them (ahead first).
 function pocket (out, s, n) {
   const m = deployTile('party', out.find(isMonarch).slot)
   const cells = steps(m, new Set(wallTiles(s.camp))).filter((t) => tileY(t) < CAMP_ROWS)
@@ -359,78 +370,33 @@ const toughness = (u) => {
   return st.hp * (1 + st.def / 100)
 }
 
-// ── orders ───────────────────────────────────────────────────────────────────────────────────────
+// ── lines ────────────────────────────────────────────────────────────────────────────────────────
 
-const STAY = { where: 'stay', square: null, when: { at: 'once' } }
-const FALLS = { where: 'hunt', square: null, when: { at: 'falls' } }
-const WAVE = { where: 'hunt', square: null, when: { at: 'wave' } }
-
-// The camp row at the domain's edge: the furthest ahead of its centre still inside it.
-export const edgeRow = (s, party) => CAMP_ROWS - 1 - Math.min(CAMP_ROWS - 1, tileY(centreOf(s, party)) + domainOf(s))
-
-// A line at the domain's edge: each soul, front ones first, on Stay on the open cell nearest the edge row
-// in its lane.
-function edgeLine (out, s) {
-  const row = edgeRow(s, out)
-  for (const c of out.filter((u) => !isMonarch(u)).sort((a, b) => rowOf(a.slot) - rowOf(b.slot) || a.uid - b.uid)) {
-    const slot = nearestOpen(campGrid(s.camp), slotAt(row, colOf(c.slot)), new Set(out.filter((u) => u !== c).map((u) => u.slot)))
-    if (slot >= 0) post(out, c.uid, slot)
-  }
-  return out
+// A march `n` tiles straight up the lane from `slot` (fewer where a wall or the board's edge stops it), at once
+// or on `when`; null if it cannot take a step.
+function march (slot, n, walls, when = { at: 'once' }) {
+  const tiles = []
+  for (let t = deployTile('party', slot); tiles.length < n && onBoard(tileX(t), tileY(t) + 1) && steps(t, walls).includes(t + LANES); t += LANES) tiles.push(t + LANES)
+  return tiles.length ? { tiles, when } : null
 }
 
-// The detachments a formation's orders make: souls with the same order, in formation order, as the run
-// keeps them (ids from 1, each with its colour). No more than the run allows (TUNING.army.detachments): a
-// formation's search keeps within that (replan), and any order past it is dropped here (those souls
-// Hunt, at once), so a rehearsal fights what the run can be told, and pickPrep never asks for an order
-// the run refuses.
-export function detachmentsOf (party) {
-  const groups = new Map()
-  for (const u of party) {
-    if (!u.order || isMonarch(u)) continue
-    const key = JSON.stringify(u.order)
-    if (!groups.has(key)) groups.set(key, { plan: u.order, members: [] })
-    groups.get(key).members.push(u.uid)
-  }
-  return [...groups.values()].slice(0, TUNING.army.detachments)
-    .map((g, i) => ({ id: i + 1, color: DETACHMENT_COLORS[i % DETACHMENT_COLORS.length], members: g.members, plan: g.plan }))
-}
+// Every soul of a formation on a march `n` tiles up its lane.
+const advance = (out, n, walls) => out.map((u) => (isMonarch(u) ? u : { ...u, line: march(u.slot, n, walls) }))
 
-// The tile a formation's domain centres on as the battle begins (domainCentre, on its cells and the
-// detachments its orders make): the Monarch's, or under Vanguard Crown its front-most soul's.
-const centreOf = (s, party) => deployTile('party', domainCentre({ ...s, party, detachments: detachmentsOf(party) }))
+// The lines a formation's souls walk, by uid.
+export const linesOf = (party) => Object.fromEntries(party.filter((u) => u.line).map((u) => [u.uid, u.line]))
 
-// The menu a soul's order is drawn from: where (Stay; Hunt; Move to the domain's edge in its lane, the
-// furthest tile ahead of its centre still inside the domain; Move to a wing of the foes' front) and when (at once, or
-// held until one of its own falls or the Monarch is struck, or in a room with waves until one enters). Hunt at once is
-// no order at all: null.
-function drawOrder (s, party, c, rng) {
-  const where = rng.pick(['stay', 'hunt', 'edge', 'wing'])
-  const at = rng.pick(['once', 'once', 'falls', 'struck', ...(nodeOf(s.map, s.at)?.waves ? ['wave'] : [])])
-  if (where === 'hunt' && at === 'once') return null
-  const m = centreOf(s, party)
-  const lane = colOf(c.slot)
-  let square = null
-  if (where === 'edge') {
-    for (let y = Math.min(DEPTH - 1, tileY(m) + domainOf(s)); square === null && y >= tileY(m); y--) if (isSquare(s, tileAt(lane, y))) square = tileAt(lane, y)
-  } else if (where === 'wing') {
-    square = tileAt(rng.chance(0.5) ? 0 : LANES - 1, CAMP_ROWS + 1)
-  }
-  return { where: square === null ? (where === 'hunt' ? 'hunt' : 'stay') : 'move', square, when: { at } }
-}
-
-// Moves a soul to `slot` (whoever stands there takes its old cell), on Stay: the cell is its post.
+// Moves a soul to `slot` (whoever stands there takes its old cell); both lose their lines, as in the run.
 function post (out, uid, slot) {
   const c = out.find((u) => u.uid === uid)
   const other = out.find((u) => u.slot === slot && u !== c)
-  if (other) other.slot = c.slot
-  c.slot = slot
-  c.order = STAY
+  if (other) Object.assign(other, { slot: c.slot, line: null })
+  Object.assign(c, { slot, line: null })
   return out
 }
 
-// A screen: the soul on Stay on an open cell beside the Monarch, the cells ahead of it first, then the
-// nearest lanes (never the Monarch's own cell).
+// A screen: the soul on an open cell beside the Monarch, the cells ahead of it first, then the nearest lanes
+// (never the Monarch's own cell).
 function screen (out, uid, open) {
   const m = out.find(isMonarch)
   const cells = open.filter((slot) => slot !== m.slot && distance(deployTile('party', slot), deployTile('party', m.slot)) === 1)
@@ -440,30 +406,19 @@ function screen (out, uid, open) {
   return slot === undefined ? out : post(out, uid, slot)
 }
 
-// One change to the orders: a soul's order cleared (it Hunts), set to one another detachment has (it
-// joins it), set afresh from the menu (drawOrder), or the soul posted on Stay: beside the Monarch (a
-// screen) or on the camp's cell nearest the domain's edge in its lane (a line). Never more than
-// TUNING.army.detachments different orders, whichever way the change came: a soul whose new order
-// would be one past that joins an existing one instead (where it was posted, if it was).
-export function replan (out, s, rng, open) {
+// One change to the lines: a soul's line cleared (it holds), or redrawn up its lane 1 to 6 tiles, at once or
+// held for a time.
+export function redraw (out, s, rng) {
   const caps = out.filter((u) => !isMonarch(u))
   if (!caps.length) return out
   const c = rng.pick(caps)
-  const others = [...new Set(caps.filter((u) => u !== c && u.order).map((u) => JSON.stringify(u.order)))]
   const roll = rng()
-  if (c.order && roll < 0.15) {
-    c.order = null
-  } else if (others.length && roll < 0.35) {
-    c.order = JSON.parse(rng.pick(others))
-  } else if (roll < 0.5) {
-    screen(out, c.uid, open)
-  } else if (roll < 0.65) {
-    const slot = nearestOpen(campGrid(s.camp), slotAt(edgeRow(s, out), colOf(c.slot)), new Set(out.filter((u) => u !== c).map((u) => u.slot)))
-    if (slot >= 0) post(out, c.uid, slot)
+  if (c.line && roll < 0.3) {
+    c.line = null
   } else {
-    c.order = drawOrder(s, out, c, rng)
+    const when = roll < 0.85 ? { at: 'once' } : { at: 'time', t: rng.pick([100, 200, 400]) }
+    c.line = march(c.slot, rng.pick([1, 2, 3, 4, 6]), new Set(wallTiles(s.camp)), when)
   }
-  if (c.order && others.length >= TUNING.army.detachments && !others.includes(JSON.stringify(c.order))) c.order = JSON.parse(rng.pick(others))
   return out
 }
 
@@ -471,7 +426,7 @@ const rehearsalSeed = (setup, k) => setup.seed + '|rehearsal' + (k ? '|' + k : '
 
 // The budget rehearsals run on (TUNING.autoplay): a battle still going at `ceiling` ticks counts as a loss,
 // and a battle of more than `bigBattle` units on the board at the start is rehearsed on one roll (the
-// reserve is not counted: it only enters as its start comes; summons are, two to a summon tier). Foe waves need no more: a
+// reserve's waves are not counted: they only enter as their time comes; summons are). Foe waves need no more: a
 // ceiling counts from the last foe to enter (battle.js checkEnd), so a rehearsal always meets every wave
 // (each comes at most TUNING.spawn.waves.t after the one before, well inside the budget). → { seeds, ceiling }
 export function rehearsalBudget (setup, seeds) {
@@ -486,28 +441,23 @@ export function rehearsalBudget (setup, seeds) {
 // much of the foes' HP it took, from −LOSS − 1 to −LOSS. A fallen Monarch is a loss, whoever else stands, and
 // so is the ceiling. A loss ends the run, so it weighs LOSS more than the worst win: a formation that loses
 // one roll in six to save a few wounds in the other five is not the better one.
-// The formation is rehearsed in the run's party order with the detachments its orders make, as the real
-// fight will set it up: the order decides which held souls enter first (armyLayout).
+// The formation is rehearsed in the run's party order with the lines it carries (each entry's `line`), as
+// the real fight will set it up.
 export function rehearse (run, party, want = 1, { from = 0, full = false, beats = null } = {}) {
   const order = new Map(run.state.party.map((u, i) => [u.uid, i]))
   const rank = (u) => order.get(u.uid) ?? Infinity
   party = party.slice().sort((a, b) => rank(a) - rank(b))
-  // Scouted: the foes' orders are what it cannot know. What it does know, as a player who has met them does,
-  // is what each kind may be bidden (its foeOrders, hinted in its flavour): so in an elite each rehearsal
-  // gives every captain an order drawn from its kind's list on the rehearsal's own seed (guessOrders), never
-  // the one it was given, and an elite is rehearsed on at least two seeds (two guesses) where it may.
   // `from`, `full`: a validation (plan) rehearses on seeds of its own, from `from` on, all `want` of them
   // however big the battle. `beats` (a search's: plan): told the best mean the rolls still to come could reach
   // (every one of them scoring BEST), whether that could still change the search's choice; once it could not,
   // the rest are not fought and the formation's score is null. Exact: the score it would have had is no higher.
-  const setup = battleSetup(run, { party, detachments: detachmentsOf(party), scout: true })
-  const elite = currentNode(run).type === 'elite'
+  const setup = battleSetup(run, { party, lines: linesOf(party) })
   const budget = rehearsalBudget(setup, want)
   const { ceiling } = budget
-  const seeds = full ? want : elite ? Math.max(budget.seeds, Math.min(want, 2)) : budget.seeds
+  const seeds = full ? want : budget.seeds
   let total = 0
   for (let k = from; k < from + seeds; k++) {
-    total += rehearsed({ ...setup, ...(elite && guessOrders(setup, rehearsalSeed(setup, k))), seed: rehearsalSeed(setup, k), ceiling })
+    total += rehearsed({ ...setup, seed: rehearsalSeed(setup, k), ceiling })
     if (beats && k + 1 < from + seeds) {
       // Added roll by roll, as the total itself is: rounding is monotone, so the mean it ends on is no higher.
       let most = total
@@ -589,26 +539,6 @@ function tablePut (digest, score) {
   }
 }
 
-// An elite's captains with the orders a rehearsal guesses for them (see rehearse): each foe that leads a
-// cohort takes one of its kind's foeOrders, drawn on `seed`, a flank toward the wing nearer its lane as the
-// room's own draw makes it (run.js foeOrder), and its cohort with it. → { foes, reserve }
-export function guessOrders (setup, seed) {
-  const rng = createRng(seed).stream('orders')
-  const all = [...setup.foes, ...setup.reserve.filter((u) => u.side === 'foe')]
-  const plans = new Map()
-  for (const c of all.filter((u) => all.some((m) => m.cohortOf === u.uid))) {
-    const order = rng.pick(unitDef(c.id).foeOrders ?? ['hunt'])
-    const lane = c.lane ?? colOf(c.slot)
-    const wing = lane * 2 < LANES - 1 ? 0 : lane * 2 > LANES - 1 ? LANES - 1 : rng.pick([0, LANES - 1])
-    plans.set(c.uid, { where: FOE_ORDERS[order].where, square: order === 'flank' ? tileAt(wing, CAMP_ROWS) : null })
-  }
-  const give = (u) => {
-    const plan = plans.get(u.uid) ?? plans.get(u.cohortOf)
-    return plan ? { ...u, plan } : u
-  }
-  return { foes: setup.foes.map(give), reserve: setup.reserve.map((u) => (u.side === 'foe' ? give(u) : u)) }
-}
-
 const LOSS = 3
 // The best a rehearsal can score: a win that keeps every HP (heals never pass max HP).
 export const BEST = 2
@@ -628,7 +558,7 @@ const wanted = (run, L) => {
 }
 
 // → { party, score }: the best formation found for the current room. Formations that put everyone in
-// the same cells with the same orders are only rehearsed once. `enough` (the room veto's: pickRoute):
+// the same cells with the same lines are only rehearsed once. `enough` (the room veto's: pickRoute):
 // the caller asks only whether the best score reaches it; with pruning on, the plan stops at the first formation
 // that does, and a formation that cannot reach it is not fought on its remaining rolls. The answer is the same.
 function plan (run, L, { enough = Infinity } = {}) {
@@ -651,11 +581,12 @@ function plan (run, L, { enough = Infinity } = {}) {
     if (vs.length < L.finalists) return -Infinity
     return vs.sort((a, b) => b - a)[L.finalists - 1]
   }
-  // A formation whose Monarch seals part of the camp in (sealedBy) is never taken: whoever stands behind it
-  // could never reach the fight.
+  // A formation whose Monarch seals a soul in (sealedBy) is never taken: no line out of there passes it, and no
+  // road in leads anywhere but to the Monarch.
   const score = (party) => {
-    if (sealedBy(run.state.camp, party.find(isMonarch).slot).length) return -Infinity
-    const key = party.map((u) => `${u.uid}@${u.slot}${u.order ? JSON.stringify(u.order) : ''}`).sort().join()
+    const sealed = sealedBy(run.state.camp, party.find(isMonarch).slot)
+    if (party.some((u) => !isMonarch(u) && sealed.includes(u.slot))) return -Infinity
+    const key = party.map((u) => `${u.uid}@${u.slot}${u.line ? JSON.stringify(u.line) : ''}`).sort().join()
     if (!tried.has(key)) {
       const bar = cut()
       const beats = enough < Infinity ? (most) => most >= enough : (most) => most > bar
@@ -696,31 +627,38 @@ function plan (run, L, { enough = Infinity } = {}) {
   return pick ? { party: forms.get(pick.key), score: pick.fresh } : { party: best, score: bestScore }
 }
 
-// One change to a formation: trade a soul for one from the ossuary (it takes over the order), swap two, move
-// one to a free cell (a near one more often than not); with `orders`, a third of the time change an order
-// first. The Monarch is never traded, and with `park` never moved. With 'formation' ablated nothing is moved
-// (the cells are basic's: see allowed): a change is a trade or an order.
+// One change to a formation: trade a soul for one from the ossuary (it takes over the cell and the line), swap
+// two, move one to a free cell (a near one more often than not; a soul moved loses its line, as in the run); with
+// `lines`, a third of the time redraw a line first. The Monarch is never traded, moves only over the seats, and
+// with `park` never moves. With 'formation' ablated nothing is moved (the cells are basic's: see allowed): a
+// change is a trade or a line.
 function mutate (party, pool, open, rng, s, L) {
   const out = party.map((u) => ({ ...u }))
   const fixed = L.ablate === 'formation'
-  if (L.orders && rng.chance(0.35)) return replan(out, s, rng, open)
+  if (L.lines && rng.chance(0.35)) return redraw(out, s, rng)
   const movable = L.park || fixed ? out.filter((u) => !isMonarch(u)) : out
   const a = movable[rng.int(movable.length)]
   const spare = pool.filter((u) => !out.some((x) => x.uid === u.uid))
   const roll = rng()
-  if (fixed && !(spare.length && a)) return L.orders ? replan(out, s, rng, open) : out
+  if (fixed && !(spare.length && a)) return L.lines ? redraw(out, s, rng) : out
   if (spare.length && (roll < 0.2 || fixed) && !isMonarch(a)) {
     const b = rng.pick(spare)
-    return out.map((u) => (u === a ? { ...b, slot: a.slot, order: a.order ?? null } : u))
+    return out.map((u) => (u === a ? { ...b, slot: a.slot, line: a.line ?? null } : u))
   }
+  const seat = (u, slot) => !isMonarch(u) || isSeat(s.camp, slot)
   if (movable.length > 1 && roll < 0.55) {
-    const b = rng.pick(movable.filter((u) => u !== a));
-    [a.slot, b.slot] = [b.slot, a.slot]
+    const b = rng.pick(movable.filter((u) => u !== a))
+    if (seat(a, b.slot) && seat(b, a.slot)) {
+      [a.slot, b.slot] = [b.slot, a.slot]
+      a.line = b.line = null
+    }
     return out
   }
-  const free = open.filter((slot) => !out.some((u) => u.slot === slot))
+  const free = open.filter((slot) => !out.some((u) => u.slot === slot) && seat(a, slot))
+  if (!free.length) return out
   const near = free.filter((slot) => distance(deployTile('party', slot), deployTile('party', a.slot)) <= 2)
   a.slot = rng.pick(near.length && rng.chance(0.7) ? near : free)
+  a.line = null
   return out
 }
 
@@ -733,16 +671,15 @@ export function planFor (run, L) {
   const key = JSON.stringify([L, s.floor, s.at, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.party.map((u) => [u.uid, u.id, u.lvl, u.hp, u.tier, u.tier2, u.grade])])
   const have = plans.get(run)
   if (have?.key === key) return have.plan
-  const made = plan(run, L).party.map((u) => ({ uid: u.uid, slot: u.slot, order: u.order ?? null }))
+  const made = plan(run, L).party.map((u) => ({ uid: u.uid, slot: u.slot, line: u.line ?? null }))
   plans.set(run, { key, plan: made })
   return made
 }
 
-// One step toward the plan: the souls it leaves out to the ossuary, then the Monarch to its cell (no one else
+// One step toward the plan: the souls it leaves out to the ossuary, then the Monarch to its seat (no one else
 // is planned there, so it is never displaced again), then each soul in its planned cell (whoever stood
-// there takes the mover's old one; a soul in place is never moved again); then every detachment the plan
-// does not hold disbanded, then the planned ones ordered (basic plans none: it fights on default orders);
-// then fight.
+// there takes the mover's old one; a soul in place is never moved again); then each fielded soul's line as the
+// plan draws it (basic draws none, and clears any it finds); then fight.
 function pickPrep (run, L) {
   const s = run.state
   const spend = pickSpend(run, L)
@@ -754,13 +691,10 @@ function pickPrep (run, L) {
   if (m && monarchOf(s).slot !== m.slot) return { type: 'place', uid: m.uid, slot: m.slot }
   const off = goal.find((p) => s.party.find((u) => u.uid === p.uid).slot !== p.slot)
   if (off) return { type: 'place', uid: off.uid, slot: off.slot }
-  if (!L.orders && L.keepOrders) return { type: 'fight' }
-  const orders = L.orders ? detachmentsOf(goal) : []
-  const same = (a, b) => a.members.length === b.members.length && a.members.every((uid) => b.members.includes(uid)) && JSON.stringify(a.plan) === JSON.stringify(b.plan)
-  const stale = s.detachments.find((d) => !orders.some((o) => same(o, d)))
-  if (stale) return { type: 'disband', id: stale.id }
-  const missing = orders.find((o) => !s.detachments.some((d) => same(o, d)))
-  if (missing) return { type: 'order', uids: missing.members, plan: missing.plan }
+  if (!L.lines && L.keepLines) return { type: 'fight' }
+  const want = (uid) => (L.lines ? goal.find((p) => p.uid === uid)?.line ?? null : null)
+  const redrawn = fielded(souls(s.party)).find((u) => JSON.stringify(s.lines[u.uid] ?? null) !== JSON.stringify(want(u.uid)))
+  if (redrawn) return want(redrawn.uid) ? { type: 'line', uid: redrawn.uid, ...want(redrawn.uid) } : { type: 'line', uid: redrawn.uid, tiles: null }
   return { type: 'fight' }
 }
 
@@ -789,9 +723,10 @@ function pickSpend (run, L) {
 
 // The expert's rule for ranks: a rank only when it buys something, for the strongest fielded standing soul
 // first, or null; only a soul with the level, and the essence there to pay (canPromote). A soul is made a
-// Knight at once when its path stands at tier III (tier IV is next). Otherwise a rank's might, its summons and
-// a Marshal's domain show in a battle, so a Knight is made a Marshal, or the strongest fielded Soldier a
-// Knight, when rehearsing the fights ahead with it promoted beats the same essence spent on its souls.
+// Knight at once when its path stands at tier III (tier IV is next). Otherwise a rank's might and its summons
+// show in a battle, so a Knight is made a Marshal, or the strongest fielded Soldier a Knight, when rehearsing the
+// fights ahead with it promoted beats the same essence spent on its souls; a rank that changes neither is never
+// weighed.
 // With paths ablated tier IV is out of reach, so a Knight buys nothing by itself; it is weighed as the step
 // toward a Marshal instead: rehearsing both ranks taken against the essence for both spent on the souls, once
 // the soul has a Marshal's level and both prices in hand.
@@ -806,6 +741,8 @@ function promotion (run, L) {
   const u = ready.find((x) => x.grade === 1) ?? (L.ablate === 'paths' ? ready.find(twoStep) : null) ?? ready.find((x) => !x.grade)
   if (!u) return null
   const to = u.grade === 1 || (L.ablate === 'paths' && twoStep(u)) ? 2 : 1
+  const might = (grade) => TUNING.ranks.might[grade] ?? 1
+  if (might(to) === might(u.grade ?? 0) && JSON.stringify(summonsOf({ ...u, grade: to })) === JSON.stringify(summonsOf(u))) return null
   const key = JSON.stringify([L.ablate, u.uid, to, s.floor, s.at, s.phase, s.camp, s.relics, s.keystones, s.monarch, s.nextUid, s.party.map((x) => [x.uid, x.id, x.lvl, x.grade, x.tier, x.hp > 0])])
   const have = promotions.get(run)
   if (have?.key === key) return have.up
@@ -1006,39 +943,20 @@ export function autoplay (run, { rng = createRng(run.state.seed).stream('autopla
 
 // ── playing many runs ─────────────────────────────────────────────────────────────────────────────
 
-// Of a battle's army (your souls and summons that took the board, the reserve's that entered included; not the
-// Monarch, not shadows): how many there were, how many acted at least once (an action event of theirs), and
-// the share of their time on the board they spent faltering (from the falter events; a unit is on the board
-// from the start or its entry to its last death, or the end).
+// Of a battle's army (your souls and summons that took the board; not the Monarch, not shadows): how many there
+// were, and how many acted at least once (an action event of theirs).
 export function armyMeasures (b) {
   const mine = (uid) => {
     const u = b.byUid.get(uid)
     return !!u && u.side === 'party' && !u.shadow && u !== b.monarch
   }
-  const since = new Map()
-  const until = new Map()
+  const army = new Set()
   const acted = new Set()
-  const from = new Map()
-  let faltered = 0
   for (const e of b.events) {
-    if (e.type === 'battle:start') {
-      for (const u of e.units) if (mine(u.uid)) since.set(u.uid, 0)
-    } else if (e.type === 'enter') {
-      if (mine(e.unit.uid)) since.set(e.unit.uid, e.t)
-    } else if (e.type === 'action') {
-      if (mine(e.actor)) acted.add(e.actor)
-    } else if (e.type === 'death') {
-      if (mine(e.target)) until.set(e.target, e.t)
-    } else if (e.type === 'falter' && mine(e.target)) {
-      if (e.on) from.set(e.target, e.t)
-      else if (from.has(e.target)) faltered += e.t - from.get(e.target)
-      if (!e.on) from.delete(e.target)
-    }
+    if (e.type === 'battle:start') for (const u of e.units) if (mine(u.uid)) army.add(u.uid)
+    if (e.type === 'action' && mine(e.actor)) acted.add(e.actor)
   }
-  const end = (uid) => (b.byUid.get(uid).hp > 0 ? b.t : until.get(uid) ?? b.t)
-  for (const [uid, t] of from) faltered += Math.max(0, end(uid) - t)
-  const time = [...since].reduce((n, [uid, t]) => n + Math.max(0, end(uid) - t), 0)
-  return { army: since.size, acted: [...since.keys()].filter((uid) => acted.has(uid)).length, falter: time ? faltered / time : 0 }
+  return { army: army.size, acted: [...army].filter((uid) => acted.has(uid)).length }
 }
 
 // A run's build, as the ladder's spread reads it: its keystones, the kin most of its fielded souls share
@@ -1053,8 +971,8 @@ const buildOf = (s) => {
 
 // One seeded run at `level` (with `ablate`, that level with one mechanic taken away: ABLATIONS), as the
 // reports need it: each battle as the retinue entered it (its souls: not the Monarch, not the shadows it
-// raised, not the summons), its army (the summons raised and how many fell, the souls held in reserve and how
-// many entered; how many acted, the share of time spent faltering: armyMeasures), with
+// raised, not the summons), its army (the summons raised and how many fell, the souls on a line, how many acted:
+// armyMeasures), with
 // `setups` what it was built from (for refighting) and with `snapshots` the run's state just before the fight
 // (for refighting with a mechanic stripped: necessity; its log left out); how the run ended, what felled the
 // Monarch, the army it ended with, its build (buildOf), and how many of each action it took (`acts`, by type;
@@ -1073,10 +991,6 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
     onBattle: (b, r) => {
       if (b.winner !== 'party') fell = { rank: currentNode(r).rank, share: foeShare(b) }
       const party = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.summoned && u !== b.monarch)
-      // The reserve ends with the foe waves' bodies (`side: 'foe'`, each with a `when`), and foes on a
-      // flank order arrive too: the army columns count your side only.
-      const reserve = r.setup.reserve.filter((u) => u.side !== 'foe')
-      const ours = (uid) => b.byUid.get(uid)?.side === 'party'
       battles.push({
         floor: b.floor + (b.boss ? 'B' : ''),
         t: b.t,
@@ -1089,17 +1003,10 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
         relics: r.state.relics.length,
         raised: b.raised,
         summons: b.units.filter((u) => u.summoned).length,
-        reserve: reserve.length,
-        entered: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'party').length,
         fell: b.units.filter((u) => u.summoned && u.hp <= 0).length,
         waves: b.events.filter((e) => e.type === 'wave').length,
         foesIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').length,
-        detachments: r.setup.detachments.length,
-        planned: r.setup.party.filter((u) => u.plan && u.plan.where !== 'hunt').length,
-        held: reserve.filter((u) => u.when).length,
-        called: b.events.filter((e) => e.type === 'call').length,
-        heldIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'party' && reserve.some((u) => u.when && u.uid === e.unit.uid)).length,
-        arrived: b.events.filter((e) => e.type === 'arrive' && ours(e.uid)).length,
+        lines: r.setup.party.filter((u) => u.line).length,
         ...armyMeasures(b),
         camp: r.state.camp,
         setup: setups ? r.setup : undefined,
@@ -1308,22 +1215,14 @@ async function ladder ({ runs, seed: seed0 }) {
     console.log(`${level.padEnd(6)}  ${avg((r) => r.points).padStart(11)}  ${avg((r) => r.monarch.dominion).padStart(3)}  ${avg((r) => r.monarch.command).padStart(3)}  ${avg((r) => r.monarch.will).padStart(4)}  ${raised.padStart(13)}  ${tally}`)
   })
   // The army: summons raised over the run and souls in the ossuary at its end; per battle, the summons raised,
-  // the souls held in reserve, those of the reserve that entered, and the summons that fell.
-  console.log('\nlevel   summoned  ossuary  summons/battle  reserve/battle  entered/battle  fell/battle')
+  // the summons that fell, and the souls that walked a line.
+  console.log('\nlevel   summoned  ossuary  summons/battle  fell/battle  lines/battle')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
     const avg = (f) => (mine.reduce((n, r) => n + f(r), 0) / runs).toFixed(1)
     const battles = mine.flatMap((r) => r.battles)
     const per = (key) => (battles.reduce((n, b) => n + b[key], 0) / Math.max(1, battles.length)).toFixed(2)
-    console.log(`${level.padEnd(6)}  ${avg((r) => r.summoned).padStart(8)}  ${avg((r) => r.ossuary).padStart(7)}  ${per('summons').padStart(14)}  ${per('reserve').padStart(14)}  ${per('entered').padStart(14)}  ${per('fell').padStart(11)}`)
-  })
-  // Orders, per battle: detachments with orders, souls on the board starting on Stay or Move, souls held
-  // for a later start, held detachments called and held souls that entered, and Move units that arrived.
-  console.log('\nlevel   detachments/battle  stay|move/battle  held/battle  called/battle  held in/battle  arrived/battle')
-  levels.forEach((level, i) => {
-    const battles = played.slice(i * runs, (i + 1) * runs).flatMap((r) => r.battles)
-    const per = (key) => (battles.reduce((n, b) => n + b[key], 0) / Math.max(1, battles.length)).toFixed(2)
-    console.log(`${level.padEnd(6)}  ${per('detachments').padStart(18)}  ${per('planned').padStart(16)}  ${per('held').padStart(11)}  ${per('called').padStart(13)}  ${per('heldIn').padStart(14)}  ${per('arrived').padStart(14)}`)
+    console.log(`${level.padEnd(6)}  ${avg((r) => r.summoned).padStart(8)}  ${avg((r) => r.ossuary).padStart(7)}  ${per('summons').padStart(14)}  ${per('fell').padStart(11)}  ${per('lines').padStart(12)}`)
   })
   // The enemy as an army: foe waves that entered and foes that entered after the start, per battle; and the
   // Monarch's deaths by threat, floor by floor.
@@ -1343,18 +1242,15 @@ async function ladder ({ runs, seed: seed0 }) {
     console.log(`${level.padEnd(6)}  ${per('waves').padStart(12)}  ${per('foesIn').padStart(14)}  ${tally}`)
   })
   // reDESIGN's "How to measure it", against its targets: the share of the army that acted at least once
-  // (70%+), of battles from floor 3 where a reserve entered (30%+), of defeats where the Monarch died (30–60%),
-  // the largest single cause's share of those deaths (no threat above 40%), and the deaths by a foe of a later
-  // wave (depth); the share of the army's time spent faltering (a diagnostic); the median battle length by
-  // floor; and the build spread in wins (no build in more than ~25%): the commonest keystones, kin and paths.
-  console.log('\nlevel   acted   reserve in fl3+  faltering  Monarch deaths/defeats  top threat  depth  ceiling')
+  // (70%+), of defeats where the Monarch died (30–60%), the largest single cause's share of those deaths (no threat
+  // above 40%), and the deaths by a foe of a later wave (depth); the median battle length by floor; and the build
+  // spread in wins (no build in more than ~25%): the commonest keystones, kin and paths.
+  console.log('\nlevel   acted  Monarch deaths/defeats  top threat  depth  ceiling')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
     const battles = mine.flatMap((r) => r.battles)
     const share = (n, d) => (d ? `${(100 * n / d).toFixed(0)}%` : '-')
     const army = battles.reduce((n, b) => n + b.army, 0)
-    const late = battles.filter((b) => parseInt(b.floor) >= 3)
-    const time = battles.reduce((n, b) => n + b.falter, 0) / Math.max(1, battles.length)
     const lost = mine.filter((r) => r.death)
     const killed = lost.filter((r) => r.death.reason === 'monarch')
     const causes = {}
@@ -1363,8 +1259,6 @@ async function ladder ({ runs, seed: seed0 }) {
     const cols = [
       level.padEnd(6),
       share(battles.reduce((n, b) => n + b.acted, 0), army).padStart(5),
-      share(late.filter((b) => b.entered > 0).length, late.length).padStart(15),
-      `${(100 * time).toFixed(0)}%`.padStart(9),
       `${killed.length}/${lost.length} ${share(killed.length, lost.length)}`.padStart(22),
       (top ? `${top[0]} ${share(top[1], killed.length)}` : '-').padStart(10),
       String(killed.filter((r) => r.death.wave).length).padStart(5),
@@ -1455,9 +1349,9 @@ async function decisions ({ runs, seed: seed0, level, tries = 8 }) {
 // in one pool: clear rate, where the runs died, what felled the Monarch, and the clear rate's drop against the
 // full expert in points. `uses` counts what each variant did over its runs (actions by type, tiers held at the
 // end, keystones and relics taken), so an ablation can be seen to take its mechanic away. `variants` (the CLI's
-// `--variants orders,reserves`) plays only those ablations beside the full expert, for a quicker check. Each drop
+// `--variants lines,summons`) plays only those ablations beside the full expert, for a quicker check. Each drop
 // is checked against its band (BANDS): a core mechanic should cost 25–50 points, an extra one 8–25.
-export const CORE = ['monarch-stats', 'arise', 'orders', 'reserves', 'summons']
+export const CORE = ['monarch-stats', 'arise', 'lines', 'summons']
 export const EXTRA = ['ranks', 'paths', 'keystones', 'relics', 'synergies', 'formation']
 export const BANDS = { ...Object.fromEntries(CORE.map((m) => [m, [25, 50]])), ...Object.fromEntries(EXTRA.map((m) => [m, [8, 25]])) }
 async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null }) {
@@ -1487,13 +1381,13 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
     const drop = ablate ? (100 * (full - clear(mine))).toFixed(0) : '-'
     console.log(`${(ablate ?? 'full').padEnd(13)}  ${(100 * clear(mine)).toFixed(0).padStart(4)}%  ${' '.repeat(13)}${[1, 2, 3, 4].map(died).join('')}  ${drop.padStart(5)}  ${tally}`)
   }
-  console.log('\nuses over the runs: Monarch points, promotions, summons raised, orders, path tiers held, levels bought,')
+  console.log('\nuses over the runs: Monarch points, promotions, summons raised, lines drawn, path tiers held, levels bought,')
   console.log('keystones and relics held at the end')
-  console.log('variant        points  promote  summons  order  tiers  levels  keyst  relics')
+  console.log('variant        points  promote  summons   line  tiers  levels  keyst  relics')
   for (const { ablate, mine } of rows) {
     const sum = (f) => String(mine.reduce((n, r) => n + f(r), 0)).padStart(6)
     console.log(`${(ablate ?? 'full').padEnd(13)}  ${[(r) => r.points, (r) => r.acts.promote ?? 0, (r) => r.summoned,
-      (r) => r.acts.order ?? 0, (r) => r.tiers, (r) => r.acts.level ?? 0, (r) => r.keystones.length, (r) => r.relics].map(sum).join(' ')}`)
+      (r) => r.acts.line ?? 0, (r) => r.tiers, (r) => r.acts.level ?? 0, (r) => r.keystones.length, (r) => r.relics].map(sum).join(' ')}`)
   }
   // Progress (progressOf): continuous, so it reads a mechanic's cost on far fewer runs than the clear rate. Runs
   // are paired by seed: a variant's drop and its standard error are those of the seed-by-seed difference from
@@ -1541,13 +1435,13 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
 //   monarch-stats  the Monarch at 0 points: its base HP (its wounds kept as a share), base domain, Will 0 and
 //                  Command 0: only the base field fights (the strongest standing souls)
 //   arise, synergies, summons  the rules switch (as the full ablation's)
-//   orders         every plan Hunts (its start kept)
-//   reserves       every held detachment starts at once
+//   lines          no line: every soul holds
 //   ranks          every soul a Soldier: no tier IV, no second path
 //   paths          no tier on any path
 //   keystones      none (the domain and the field as without them)
 //   relics         none (no relic mods, no trigger relics, the field as without them)
-//   formation      the souls in basic's first draft's cells, the Monarch parked where basic parks it
+//   formation      the souls in basic's first draft's cells (their lines moved with them), the Monarch parked
+//                  where basic parks it
 //   levels         every soul at level 2 (its wounds kept as a share)
 export const NECESSITY = ABLATIONS
 export function stripped (state, mechanic = null) {
@@ -1565,10 +1459,8 @@ export function stripped (state, mechanic = null) {
     relevel(monarchOf(s), 0)
   } else if (RULE_SWITCHES.includes(mechanic)) {
     s.ablate = [...(s.ablate ?? []), mechanic]
-  } else if (mechanic === 'orders') {
-    for (const d of s.detachments) d.plan = { ...d.plan, where: 'hunt', square: null }
-  } else if (mechanic === 'reserves') {
-    for (const d of s.detachments) d.plan = { ...d.plan, when: { at: 'once' } }
+  } else if (mechanic === 'lines') {
+    s.lines = {}
   } else if (mechanic === 'ranks') {
     for (const u of team) Object.assign(u, { grade: 0, tier: Math.min(u.tier, 3), path2: null, tier2: 0 })
   } else if (mechanic === 'paths') {
@@ -1578,8 +1470,13 @@ export function stripped (state, mechanic = null) {
   } else if (mechanic === 'relics') {
     s.relics = []
   } else if (mechanic === 'formation') {
-    const at = new Map(basicCells(run, fielded(s.party), LEVELS.expert).map((u) => [u.uid, u.slot]))
-    for (const u of s.party) if (at.has(u.uid)) u.slot = at.get(u.uid)
+    const at = new Map(basicCells(run, fielded(s.party).map((u) => ({ ...u, line: s.lines[u.uid] ?? null })), LEVELS.expert).map((u) => [u.uid, u]))
+    for (const u of s.party) {
+      if (!at.has(u.uid)) continue
+      u.slot = at.get(u.uid).slot
+      if (at.get(u.uid).line) s.lines[u.uid] = at.get(u.uid).line
+      else delete s.lines[u.uid]
+    }
   } else if (mechanic === 'levels') {
     for (const u of team) relevel(u, 2)
   } else if (mechanic !== null) {
@@ -1588,9 +1485,9 @@ export function stripped (state, mechanic = null) {
   // A smaller field (no Command, keystone or relic adding any): the weakest standing souls past it to the ossuary.
   const cap = fieldCap(run)
   const over = standing(fielded(team)).sort(byFieldPower).slice(cap)
-  for (const u of over) u.slot = -1
-  if (over.length) {
-    s.detachments = s.detachments.map((d) => ({ ...d, members: d.members.filter((uid) => !over.some((u) => u.uid === uid)) })).filter((d) => d.members.length)
+  for (const u of over) {
+    u.slot = -1
+    delete s.lines[u.uid]
   }
   return run
 }
