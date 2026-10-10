@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 
-const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'rite', 'boss', 'siege']
+// No 'rite': the rite merged into the reliquary (2026-10-09).
+const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'boss', 'siege']
 
 function reach (map, from, edges) {
   const seen = new Set([from])
@@ -16,7 +17,7 @@ test('the same seed gives the same floor', () => {
   assert.notDeepEqual(generateFloor({ seed: 'm', floor: 2 }), generateFloor({ seed: 'm', floor: 3 }))
 })
 
-test('500 seeded floors keep the rank, link and type rules', () => {
+test('500 seeded floors keep the rank, link and type rules: one to three reliquaries in the middle, no rite', () => {
   for (let i = 0; i < 500; i++) {
     const floor = 1 + (i % 4)
     const last = floor === 4
@@ -42,10 +43,8 @@ test('500 seeded floors keep the rank, link and type rules', () => {
     assert.ok(ranks[1].every((n) => n.type === 'fight'), `${where} rank 1 is all fights`)
     const late = ranks[RANKS - 2]
     assert.equal(late.filter((n) => n.type === 'altar').length, 1, `${where} one altar before the end`)
-    for (const type of ['reliquary', 'rite']) {
-      const count = map.nodes.filter((n) => n.type === type && n.rank < RANKS - 2).length
-      assert.ok(count >= 1 && count <= 2, `${where} ${type} ${count}`)
-    }
+    const reliquaries = map.nodes.filter((n) => n.type === 'reliquary' && n.rank < RANKS - 2).length
+    assert.ok(reliquaries >= 1 && reliquaries <= 3, `${where} reliquaries ${reliquaries}`)
 
     for (const n of map.nodes) {
       for (const id of n.next) assert.equal(nodeOf(map, id).rank, n.rank + 1, `${where} ${n.id} → ${id}`)

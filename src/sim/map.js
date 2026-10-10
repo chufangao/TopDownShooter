@@ -6,12 +6,13 @@ import { createRng } from './rng.js'
 export const RANKS = 16
 export const WIDTH = 4 // the most rooms in a rank
 
-const MID_TYPES = ['fight', 'elite', 'reliquary', 'altar', 'rite']
-const MID_WEIGHTS = [5, 1.5, 1, 1, 1]
+// The reliquary is the rite and the reliquary merged (2026-10-09, late): its weight is the two rooms' together.
+const MID_TYPES = ['fight', 'elite', 'reliquary', 'altar']
+const MID_WEIGHTS = [5, 1.5, 2, 1]
 const LATE_TYPES = ['fight', 'elite', 'reliquary']
 const LATE_WEIGHTS = [3, 1, 0.5]
 const ELITE_FROM = 4 // the first rank an elite may stand in
-const RARE = ['reliquary', 'rite'] // a floor's middle holds one or two of each
+const RARE = { reliquary: 3 } // a floor's middle holds one to this many of each
 const SIEGE_FLOOR = 3 // the first floor with sieges
 export const SIEGE_RANK = 9 // the first rank a siege may stand in
 
@@ -45,8 +46,8 @@ function link (rng, a, b) {
 }
 
 // Rank 1 is all fights; the middle ranks mix rooms, with no elite before ELITE_FROM, at most one elite a
-// rank, one or two reliquaries and rites, and no rank all of one kind but fights; the rank before the last always holds exactly
-// one altar.
+// rank, one to three reliquaries (RARE), and no rank all of one kind but fights; the rank before the last always holds
+// exactly one altar.
 function assignTypes (rng, ranks, last) {
   const pick = (types, weights) => rng.weighted(types, weights)
   const late = RANKS - 2
@@ -60,9 +61,9 @@ function assignTypes (rng, ranks, last) {
     }
   }
   const mid = ranks.slice(2, late).flat()
-  for (const type of RARE) {
+  for (const [type, most] of Object.entries(RARE)) {
     const rooms = mid.filter((n) => n.type === type)
-    for (const n of rng.shuffle(rooms).slice(2)) n.type = 'fight'
+    for (const n of rng.shuffle(rooms).slice(most)) n.type = 'fight'
     if (!rooms.length) {
       const fights = mid.filter((n) => n.type === 'fight')
       rng.pick(fights.length ? fights : mid).type = type

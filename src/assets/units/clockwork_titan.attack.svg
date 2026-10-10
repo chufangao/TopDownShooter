@@ -1,0 +1,330 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Clockwork Titan, attack key pose (Piston Slam): the instant both anvil fists, driven by their pistons at full stroke, slam down into the ground before its feet. A shockwave ring races out over cracked earth, dust and rock chips fly, the arcane core flares and steam blasts from the shoulder vents. Feet planted on the same anchor; the body hunched down. Lit from the upper left. -->
+  <defs>
+    <linearGradient id="cta-iron" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4bcb0"/><stop offset="0.45" stop-color="#7f766d"/><stop offset="1" stop-color="#3b3335"/></linearGradient>
+    <linearGradient id="cta-irondk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#968b81"/><stop offset="1" stop-color="#2c2527"/></linearGradient>
+    <linearGradient id="cta-plate" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b0a08f"/><stop offset="0.45" stop-color="#6e6058"/><stop offset="1" stop-color="#33292b"/></linearGradient>
+    <linearGradient id="cta-platedk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#857568"/><stop offset="1" stop-color="#271f21"/></linearGradient>
+    <linearGradient id="cta-brass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbe5a2"/><stop offset="0.45" stop-color="#d09c48"/><stop offset="1" stop-color="#76491a"/></linearGradient>
+    <linearGradient id="cta-brass-dark" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d2a356"/><stop offset="1" stop-color="#5a3812"/></linearGradient>
+    <linearGradient id="cta-copper" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2ae80"/><stop offset="0.5" stop-color="#b9673b"/><stop offset="1" stop-color="#5c2a15"/></linearGradient>
+    <linearGradient id="cta-steel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f4f6fa"/><stop offset="0.45" stop-color="#b8c0cc"/><stop offset="0.55" stop-color="#6a7282"/><stop offset="1" stop-color="#3a404e"/></linearGradient>
+    <linearGradient id="cta-anvil" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a8a29c"/><stop offset="0.5" stop-color="#56504e"/><stop offset="1" stop-color="#1e1a1c"/></linearGradient>
+    <linearGradient id="cta-porcelain" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffbf3"/><stop offset="0.55" stop-color="#ebe0d0"/><stop offset="1" stop-color="#b7a697"/></linearGradient>
+    <linearGradient id="cta-crystal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6f1ff"/><stop offset="0.45" stop-color="#b99fff"/><stop offset="1" stop-color="#5e3fcf"/></linearGradient>
+    <radialGradient id="cta-glass" cx="0.38" cy="0.32" r="0.7"><stop offset="0" stop-color="#4a3878"/><stop offset="1" stop-color="#140d26"/></radialGradient>
+    <radialGradient id="cta-glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff"/><stop offset="0.25" stop-color="#e3d6ff"/><stop offset="0.55" stop-color="#a98bff" stop-opacity="0.7"/><stop offset="1" stop-color="#a98bff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="cta-haze" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#a98bff" stop-opacity="0.55"/><stop offset="1" stop-color="#a98bff" stop-opacity="0"/></radialGradient>
+    <radialGradient id="cta-steam" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#f4f6fa" stop-opacity="0.8"/><stop offset="0.5" stop-color="#d6dce4" stop-opacity="0.42"/><stop offset="1" stop-color="#d6dce4" stop-opacity="0"/></radialGradient>
+    <radialGradient id="cta-shadow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#0d0a12" stop-opacity="0.5"/><stop offset="0.6" stop-color="#0d0a12" stop-opacity="0.28"/><stop offset="1" stop-color="#0d0a12" stop-opacity="0"/></radialGradient>
+    <radialGradient id="cta-dust" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#b5a58e" stop-opacity="0.85"/><stop offset="0.6" stop-color="#8a7b68" stop-opacity="0.5"/><stop offset="1" stop-color="#6e6152" stop-opacity="0"/></radialGradient>
+    <radialGradient id="cta-flash" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffffff"/><stop offset="0.25" stop-color="#fff3c4" stop-opacity="0.95"/><stop offset="0.6" stop-color="#ffd27a" stop-opacity="0.45"/><stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/></radialGradient>
+    <linearGradient id="cta-ring" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f5e9d0" stop-opacity="0.15"/><stop offset="0.3" stop-color="#fff3d6" stop-opacity="0.95"/><stop offset="0.7" stop-color="#fff3d6" stop-opacity="0.95"/><stop offset="1" stop-color="#f5e9d0" stop-opacity="0.15"/></linearGradient>
+    <linearGradient id="cta-smear" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3e7d0" stop-opacity="0"/><stop offset="0.6" stop-color="#f3e7d0" stop-opacity="0.25"/><stop offset="1" stop-color="#fff3d6" stop-opacity="0.7"/></linearGradient>
+    <linearGradient id="cta-jet" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#f4f6fa" stop-opacity="0.85"/><stop offset="0.5" stop-color="#e0e6ee" stop-opacity="0.5"/><stop offset="1" stop-color="#d6dce4" stop-opacity="0"/></linearGradient>
+  </defs>
+  <!-- ===== the ground: a shockwave ring racing out, cracks running from both fists ===== -->
+  <ellipse cx="48" cy="88.6" rx="44" ry="4.6" fill="url(#cta-shadow)"/>
+  <path d="M2 89.6 A46 6.4 0 0 1 94 89.6" fill="none" stroke="#f5e9d0" stroke-width="3.6" opacity="0.14"/>
+  <path d="M2 89.6 A46 6.4 0 0 1 94 89.6" fill="none" stroke="url(#cta-ring)" stroke-width="1.2" opacity="0.6"/>
+  <path d="M13 90 L5 88.4 L1 89.6 M13 90 L8 93.2 L2.6 94.4 M14 90.6 L19.6 93.4 L27 92.6 L33 94.8 M20 93.4 L22.4 95.6 M83 90 L91 88.4 L95 89.4 M83 90 L88 93.4 L93.6 94.6 M82 90.6 L76.4 93.4 L69 92.6 L63 94.8 M76 93.4 L73.6 95.6" fill="none" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M13 90 L5 88.4 L1 89.6 M13 90 L8 93.2 L2.6 94.4 M14 90.6 L19.6 93.4 L27 92.6 L33 94.8 M20 93.4 L22.4 95.6 M83 90 L91 88.4 L95 89.4 M83 90 L88 93.4 L93.6 94.6 M82 90.6 L76.4 93.4 L69 92.6 L63 94.8 M76 93.4 L73.6 95.6" fill="none" stroke="#6e6152" stroke-width="0.4" stroke-linejoin="round" transform="translate(0.3 0.5)"/>
+  <!-- dust billowing up behind -->
+  <circle cx="4" cy="82" r="9" fill="url(#cta-dust)"/><circle cx="92" cy="82" r="9" fill="url(#cta-dust)"/>
+  <circle cx="24" cy="84" r="5.4" fill="url(#cta-dust)"/><circle cx="72" cy="84" r="5.4" fill="url(#cta-dust)"/>
+
+  <g transform="translate(0 3)">
+  <!-- ===== the great wind-up key, turning in its back ===== -->
+  <path d="M41 22 L26 11" stroke="#0d0a12" stroke-width="5.4" stroke-linecap="round"/>
+  <path d="M41 22 L26 11" stroke="url(#cta-brass)" stroke-width="3.6" stroke-linecap="round"/>
+  <path d="M40.2 20.6 L26.4 10.4" stroke="#fff1c4" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M41 23.2 L27.4 13.2" stroke="#6e4618" stroke-width="0.6" stroke-linecap="round"/>
+  <g transform="translate(31.4 15) rotate(36)">
+    <rect x="-1.7" y="-3.2" width="3.4" height="6.4" rx="0.8" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.8"/>
+    <path d="M-0.9 -2.4 L-0.9 2.4" stroke="#fff1c4" stroke-width="0.45"/>
+  </g>
+  <g transform="translate(26 11) rotate(216) scale(0.84 -0.4)">
+    <path d="M0 0 C1.6 -1.8 0.2 -9 5.2 -9.6 C10.6 -10.2 11.8 -4.2 7.4 -1.2 L7.4 1.2 C11.8 4.2 10.6 10.2 5.2 9.6 C0.2 9 1.6 1.8 0 0 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <ellipse cx="5.6" cy="-5.2" rx="2.1" ry="2.3" fill="#2a1a10" stroke="#5a3812" stroke-width="0.5"/>
+    <ellipse cx="5.6" cy="5.2" rx="2.1" ry="2.3" fill="#2a1a10" stroke="#5a3812" stroke-width="0.5"/>
+    <path d="M1.6 -3 C1.4 -7 3 -8.6 5.6 -8.7 C8.4 -8.8 10 -7 9.6 -4.6" fill="none" stroke="#fff1c4" stroke-width="0.7" stroke-linecap="round"/>
+    <path d="M9.8 4 C10.2 7 8.6 9 5.6 8.8" fill="none" stroke="#5a3812" stroke-width="0.7" stroke-linecap="round"/>
+    <circle cx="2.6" cy="0" r="1.8" fill="#d9a650" stroke="#0d0a12" stroke-width="0.55"/>
+    <circle cx="2.2" cy="-0.4" r="0.55" fill="#fff4cf"/>
+    <path d="M4 -6.8 q1 -0.8 2 0 M4 6.8 q1 0.8 2 0 M8.6 -2.2 q0.8 0.4 0.6 1.2 M8.6 2.2 q0.8 -0.4 0.6 -1.2" fill="none" stroke="#7a4f1c" stroke-width="0.4"/>
+  </g>
+  <!-- the turn of the key -->
+  <path d="M14.6 6 Q12.2 9.6 15.8 13.2 M31.4 2.6 Q34.6 4.6 33.6 8 M15.8 13.2 l-1.6 -0.2 M15.8 13.2 l0.2 -1.6" fill="none" stroke="#fff1c4" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <!-- ===== the vents blasting steam ===== -->
+  <path d="M8 21.4 L8.4 14.4 L13.6 14.4 L14 21.4 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M9.2 16.4 L12.8 16.4 M9.1 18 L12.9 18 M9 19.6 L13 19.6" stroke="#3a2309" stroke-width="0.6"/>
+  <path d="M8.9 15.4 L8.6 20.8" stroke="#fff1c4" stroke-width="0.5"/>
+  <ellipse cx="11" cy="14.4" rx="3.1" ry="1.1" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.8"/>
+  <ellipse cx="11" cy="14.4" rx="2" ry="0.55" fill="#1a1012"/>
+  <path d="M82 21.4 L82.4 14.4 L87.6 14.4 L88 21.4 Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M83.2 16.4 L86.8 16.4 M83.1 18 L86.9 18 M83 19.6 L87 19.6" stroke="#3a2309" stroke-width="0.6"/>
+  <path d="M82.9 15.4 L82.6 20.8" stroke="#e0b45a" stroke-width="0.5"/>
+  <ellipse cx="85" cy="14.4" rx="3.1" ry="1.1" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.8"/>
+  <ellipse cx="85" cy="14.4" rx="2" ry="0.55" fill="#1a1012"/>
+  </g>
+
+  <!-- ===== far arm, driven down, its piston at full stroke ===== -->
+  <!-- upper arm: a riveted iron drum with a filigreed brass band -->
+  <path d="M74.8 35 L89.2 35 L88.2 48 L75.8 48 Z" fill="url(#cta-irondk)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M76.2 36 L77 47" stroke="#a59d93" stroke-width="0.9" stroke-linecap="round" opacity="0.85"/>
+  <path d="M87.8 36 L87 47" stroke="#241d20" stroke-width="0.7"/>
+  <path d="M75 40 L89 40 L88.7 43.2 L75.3 43.2 Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M76.6 42.2 C77.3 41.3 78.6 41.2 78.9 42.1 C79.1 42.9 78.3 43.3 77.8 42.8 C77.5 42.4 77.9 41.9 78.2 42.1 M78.9 42.1 C79.5 41.4 80.3 41.5 80.8 42.2 M87.4 42.2 C86.7 41.3 85.4 41.2 85.1 42.1 C84.9 42.9 85.8 43.3 86.2 42.8 C86.5 42.4 86.1 41.9 85.8 42.1 M85.1 42.1 C84.5 41.4 83.7 41.5 83.2 42.2" fill="none" stroke="#5a3812" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3"><circle cx="77" cy="37.6" r="0.6"/><circle cx="82" cy="37.4" r="0.6"/><circle cx="87" cy="37.6" r="0.6"/><circle cx="77.2" cy="45.6" r="0.6"/><circle cx="86.8" cy="45.6" r="0.6"/></g>
+  <path d="M86.5 49.7 87.6 50.1 87.3 51.2 86.2 51.1 85.4 52.3 86.1 53.3 85.3 54 84.4 53.2 83.1 53.7 83 54.9 82 55 81.7 53.9 80.3 53.6 79.6 54.5 78.7 53.9 79.1 52.8 78.2 51.8 77.1 52.1 76.7 51.1 77.7 50.5 77.5 49.1 76.4 48.7 76.7 47.6 77.8 47.7 78.6 46.5 77.9 45.5 78.7 44.8 79.6 45.6 80.9 45.1 81 43.9 82 43.8 82.3 44.9 83.7 45.2 84.4 44.3 85.3 44.9 84.9 46 85.8 47 86.9 46.7 87.3 47.7 86.3 48.3Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="83.5" cy="51.8" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="79.6" cy="50.9" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="80.5" cy="47" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="84.4" cy="47.9" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="82" cy="49.4" r="3.7" fill="none" stroke="#0d0a12" stroke-width="0.3" opacity="0.55"/><circle cx="82" cy="49.4" r="1.6" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="81.5" cy="48.9" r="0.6" fill="#e0b45a"/><path d="M78.2 48 A4 4 0 0 1 80.6 45.6" fill="none" stroke="#e0b45a" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+  <!-- forearm: an iron sleeve at the elbow, the gauntlet below, driven by a ram and two side pistons (here at full stroke) -->
+  <path d="M78.6 55 L85.4 55 L85.4 67.6 L78.6 67.6 Z" fill="url(#cta-steel)" stroke="#0d0a12" stroke-width="0.7"/>
+  <path d="M79.8 56 L79.8 66.6" stroke="#ffffff" stroke-width="0.5" opacity="0.9"/>
+  <path d="M78.8 58.6 L85.2 58.6 M78.8 61.4 L85.2 61.4" stroke="#4a5262" stroke-width="0.35"/>
+  <path d="M75.2 52 L88.8 52 L88.6 57.2 L75.4 57.2 Z" fill="url(#cta-irondk)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M75.4 55.8 L88.6 55.8" stroke="#e0b45a" stroke-width="0.7"/>
+  <path d="M74.8 66.6 L89.2 66.6 L90.6 76 L73.4 76 Z" fill="url(#cta-irondk)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M75.6 67.6 L74.4 75.2" stroke="#a59d93" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M74.4 71.2 L89.6 71.2" stroke="#3a3134" stroke-width="0.6"/>
+  <path d="M78.8 70 C79.4 69.2 80.6 69.1 80.9 69.9 C81.1 70.6 80.3 71 79.9 70.5 C79.6 70.2 80 69.8 80.3 69.9 M80.9 69.9 C81.4 69.3 82.2 69.4 82.6 70 M85.2 70 C84.6 69.2 83.4 69.1 83.1 69.9 C82.9 70.6 83.7 71 84.1 70.5 C84.4 70.2 84.1 69.8 83.8 69.9 M83.1 69.9 C82.6 69.3 81.8 69.4 81.4 70" fill="none" stroke="#1d1618" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3"><circle cx="76.4" cy="68.2" r="0.6"/><circle cx="87.6" cy="68.2" r="0.6"/><circle cx="75.4" cy="73.8" r="0.6"/><circle cx="82" cy="73.8" r="0.6"/><circle cx="88.6" cy="73.8" r="0.6"/></g>
+  <path d="M90.5 56 L91.9 56 L91.9 70.2 L90.5 70.2 Z" fill="url(#cta-steel)" stroke="#0d0a12" stroke-width="0.45"/>
+  <path d="M89.6 51 L92.8 51 L92.7 56.6 L89.7 56.6 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M90.3 51.6 L90.3 56" stroke="#fff1c4" stroke-width="0.35"/>
+  <path d="M72.1 56 L73.5 56 L73.5 70.2 L72.1 70.2 Z" fill="url(#cta-steel)" stroke="#0d0a12" stroke-width="0.45"/>
+  <path d="M71.2 51 L74.4 51 L74.3 56.6 L71.3 56.6 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M71.9 51.6 L71.9 56" stroke="#fff1c4" stroke-width="0.35"/>
+  <path d="M72.2 76 L91.8 76 L91.4 78.6 L72.6 78.6 Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M73 76.7 L91 76.7" stroke="#fff1c4" stroke-width="0.4" opacity="0.8"/>
+  <path d="M70 91.4 L70 88 L72.4 88 L72.4 86 Q76 85 75.4 82 L72.6 81.2 L72.6 78.6 L90.4 78.6 L90.4 81.2 L87 82 Q86.4 84.8 88.4 86 Q92.8 86.6 95.4 89 Q92.2 90.8 88 91.4 Z" fill="url(#cta-anvil)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M73 81.2 L90 81.2" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M73.4 79.4 L89.6 79.4 M70.8 88.8 L72.4 88.8" stroke="#a8a29c" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M76.6 78.8 L76.6 81 M80.4 78.8 L80.4 81 M84.2 78.8 L84.2 81 M87.6 78.8 L87.6 81" stroke="#241d20" stroke-width="0.5"/>
+  <path d="M73 87 L87.8 87" stroke="#a8a29c" stroke-width="0.5" stroke-linecap="round" opacity="0.8"/>
+  <path d="M88.8 87 Q92 87.4 94.2 88.8" fill="none" stroke="#a8a29c" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M70.8 90.6 L87.8 90.6" stroke="#eef1f6" stroke-width="0.8" stroke-linecap="round" opacity="0.9"/>
+  <rect x="74.4" y="87.8" width="1.6" height="1.6" fill="#140f12"/>
+  <circle cx="77.6" cy="88.6" r="0.65" fill="#140f12"/>
+  <path d="M76.6 82.6 Q77.2 84.4 75.6 85.6" fill="none" stroke="#a8a29c" stroke-width="0.4" opacity="0.7"/>
+
+  <!-- ===== legs, planted where they stood ===== -->
+  <!-- ===== short pillar legs: riveted thighs, gear knees, great iron boots capped in brass ===== -->
+  <path d="M28.4 68.6 L42.4 69.4 L41.8 80 L29 80 Z" fill="url(#cta-iron)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M53.6 69.4 L67.6 68.6 L67 80 L54.2 80 Z" fill="url(#cta-irondk)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M30 71 L30.4 78.4" stroke="#f4eee4" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M28.8 75 L42.1 75.4 M53.9 75.4 L67.3 75" stroke="#3a3134" stroke-width="0.6"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3"><circle cx="31.4" cy="73" r="0.5"/><circle cx="35.4" cy="73.2" r="0.5"/><circle cx="39.4" cy="73.4" r="0.5"/><circle cx="31.6" cy="77.6" r="0.5"/><circle cx="39.6" cy="77.8" r="0.5"/></g>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3"><circle cx="56.4" cy="73.4" r="0.5"/><circle cx="60.6" cy="73.2" r="0.5"/><circle cx="64.8" cy="73" r="0.5"/><circle cx="56.4" cy="77.8" r="0.5"/><circle cx="64.6" cy="77.6" r="0.5"/></g>
+  <!-- boots -->
+  <g stroke="#0d0a12" stroke-linejoin="round"><path d="M21.4 88 Q20.6 83.2 25.6 81.4 L43 81.4 Q47.4 82.4 47.6 86.2 L47.8 88 Z" fill="url(#cta-iron)" stroke-width="1.1"/>
+  <path d="M38.6 81.6 L43 81.4 Q47.4 82.4 47.6 86.2 L47.8 88 L40.6 88 Q39.6 84.6 38.6 81.6 Z" fill="url(#cta-brass)" stroke-width="0.9"/>
+  <path d="M49.6 88 L49.8 86.2 Q50 82.4 54.4 81.4 L70.4 81.4 Q75.4 83 74.6 88 Z" fill="url(#cta-irondk)" stroke-width="1.1"/>
+  <path d="M66 81.4 L70.4 81.4 Q75.4 83 74.6 88 L67.8 88 Q67 84.4 66 81.4 Z" fill="url(#cta-brass-dark)" stroke-width="0.9"/></g>
+  <path d="M21.2 87 L47.8 87 M49.6 87 L74.8 87" stroke="#1a1416" stroke-width="1.2"/>
+  <path d="M22.6 84.6 Q23.4 82.6 26 82.2" fill="none" stroke="#f4eee4" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M40 82.6 Q43.4 82.4 45.6 84.4 M67.4 82.6 Q70.6 82.6 72.6 84.4" fill="none" stroke="#fff1c4" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M51.2 84.6 Q51.8 82.8 54.4 82.2" fill="none" stroke="#a59d93" stroke-width="0.6" stroke-linecap="round"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3"><circle cx="26.4" cy="84.6" r="0.6"/><circle cx="30.6" cy="84.6" r="0.6"/><circle cx="34.8" cy="84.6" r="0.6"/></g><g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3"><circle cx="54.4" cy="84.6" r="0.6"/><circle cx="58.4" cy="84.6" r="0.6"/><circle cx="62.4" cy="84.6" r="0.6"/></g>
+  <!-- knee gears -->
+  <path d="M38.6 79.6 39.6 79.8 39.6 80.6 38.6 80.8 38.3 81.9 39 82.5 38.5 83.2 37.6 82.8 36.7 83.5 36.8 84.4 36 84.7 35.6 83.8 34.4 83.8 34 84.7 33.2 84.4 33.3 83.5 32.4 82.8 31.5 83.2 31 82.5 31.7 81.9 31.4 80.8 30.4 80.6 30.4 79.8 31.4 79.6 31.7 78.5 31 77.9 31.5 77.2 32.4 77.6 33.3 76.9 33.2 76 34 75.7 34.4 76.6 35.6 76.6 36 75.7 36.8 76 36.7 76.9 37.6 77.6 38.5 77.2 39 77.9 38.3 78.5Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="35" cy="80.2" r="3" fill="none" stroke="#0d0a12" stroke-width="0.3" opacity="0.55"/><circle cx="35" cy="80.2" r="1.3" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="34.6" cy="79.8" r="0.5" fill="#fff1c4"/><path d="M31.9 79.1 A3.3 3.3 0 0 1 33.9 77.1" fill="none" stroke="#fff1c4" stroke-width="0.3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M64.9 80.2 65.8 80.5 65.7 81.3 64.7 81.3 64.2 82.4 64.7 83.1 64.1 83.7 63.4 83.2 62.3 83.7 62.3 84.7 61.5 84.8 61.2 83.9 60.1 83.7 59.5 84.5 58.7 84.1 59 83.2 58.2 82.4 57.3 82.7 56.9 81.9 57.7 81.3 57.5 80.2 56.6 79.9 56.7 79.1 57.7 79.1 58.2 78 57.7 77.3 58.3 76.7 59 77.2 60.1 76.7 60.1 75.7 60.9 75.6 61.2 76.5 62.3 76.7 62.9 75.9 63.7 76.3 63.4 77.2 64.2 78 65.1 77.7 65.5 78.5 64.7 79.1Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="61.2" cy="80.2" r="3" fill="none" stroke="#0d0a12" stroke-width="0.3" opacity="0.55"/><circle cx="61.2" cy="80.2" r="1.3" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="60.8" cy="79.8" r="0.5" fill="#e0b45a"/><path d="M58.1 79.1 A3.3 3.3 0 0 1 60.1 77.1" fill="none" stroke="#e0b45a" stroke-width="0.3" stroke-linecap="round" opacity="0.85"/>
+
+  <g transform="translate(0 3)">
+  <!-- ===== the riveted iron barrel of the body ===== -->
+  <path d="M13.6 30 Q48 15.6 82.4 30 Q88.6 45 78 57 Q66 67.6 48 67.6 Q30 67.6 18 57 Q7.4 45 13.6 30 Z" fill="url(#cta-iron)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <!-- pectoral plates meeting behind the window, edged in brass filigree -->
+  <g stroke="#0d0a12" stroke-linejoin="round"><path d="M16.6 31.6 Q28 24.6 48 24.8 L48 58.6 Q30.6 59.8 20.4 53 Q12.6 43 16.6 31.6 Z" fill="url(#cta-plate)" stroke-width="1.1"/>
+  <path d="M79.4 31.6 Q68 24.6 48 24.8 L48 58.6 Q65.4 59.8 75.6 53 Q83.4 43 79.4 31.6 Z" fill="url(#cta-platedk)" stroke-width="1.1"/>
+  <path d="M16.6 31.6 Q28 24.6 48 24.8 Q68 24.6 79.4 31.6 L78.6 34.6 Q68 28 48 28 Q28 28 17.4 34.6 Z" fill="url(#cta-brass)" stroke-width="0.9"/></g>
+  <path d="M18 32 Q28.4 25.8 48 25.8" fill="none" stroke="#fff1c4" stroke-width="0.5"/>
+  <path d="M22.4 31.4 C22.9 29.9 24.6 29.3 25.3 30.3 C26 31.2 25 32.1 24.2 31.6 C23.7 31.2 23.9 30.5 24.4 30.6 M25.3 30.3 C25.8 29.2 27 29 27.8 29.6 M30.4 28.6 C31.1 27.2 32.9 26.9 33.5 28 C33.9 29 32.8 29.8 32.1 29.1 C31.7 28.6 32.1 28 32.5 28.1 M33.5 28 C34.1 27 35.3 27 36 27.8 M73.6 31.4 C73.1 29.9 71.4 29.3 70.7 30.3 C70 31.2 71 32.1 71.8 31.6 C72.3 31.2 72.1 30.5 71.6 30.6 M70.7 30.3 C70.2 29.2 69 29 68.2 29.6 M65.6 28.6 C64.9 27.2 63.1 26.9 62.5 28 C62.1 29 63.2 29.8 63.9 29.1 C64.3 28.6 63.9 28 63.5 28.1 M62.5 28 C61.9 27 60.7 27 60 27.8" fill="none" stroke="#6e4618" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M19 37.4 Q17.6 44 19.8 50.6" fill="none" stroke="#f4eee4" stroke-width="1" stroke-linecap="round" opacity="0.85"/>
+  <path d="M79.6 46 Q78.6 52 73.6 55.8" fill="none" stroke="#241d20" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M18 45 Q26 43.4 36.4 44.2 M62.8 44.2 Q71 43.4 79 45" fill="none" stroke="#3a3134" stroke-width="0.7"/>
+  <path d="M18.2 46 Q26 44.6 36.2 45.4" fill="none" stroke="#d9d1c5" stroke-width="0.45"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3"><circle cx="18.8" cy="36" r="0.7"/><circle cx="21" cy="50.6" r="0.7"/><circle cx="26.4" cy="54.8" r="0.7"/><circle cx="33.6" cy="57.2" r="0.7"/><circle cx="24.6" cy="40.2" r="0.7"/><circle cx="31" cy="38.2" r="0.7"/></g>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3"><circle cx="77.2" cy="36" r="0.7"/><circle cx="75" cy="50.6" r="0.7"/><circle cx="69.6" cy="54.8" r="0.7"/><circle cx="62.4" cy="57.2" r="0.7"/><circle cx="71.4" cy="40.2" r="0.7"/><circle cx="65" cy="38.2" r="0.7"/></g>
+  <!-- scars and rust on the plates -->
+  <path d="M22.6 47.6 L27 45.8 L26 47.4 L28.6 46.6" fill="none" stroke="#1c1618" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M28.6 49 Q29.2 52 28.4 54.4 M70.6 47 Q71.2 50.4 70.4 53.4" fill="none" stroke="#9a5230" stroke-width="0.7" opacity="0.7"/>
+    <!-- ===== the glass chest: gears turning behind it, the violet arcane core at their heart ===== -->
+  <circle cx="49.6" cy="41.6" r="20.3" fill="url(#cta-haze)"/>
+  <circle cx="49.6" cy="41.6" r="12.4" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="1.1"/>
+  <circle cx="49.6" cy="41.6" r="10.2" fill="url(#cta-glass)" stroke="#0d0a12" stroke-width="0.7"/>
+  <path d="M49.9 46.2 50.9 46.7 50.6 47.6 49.4 47.3 48.7 48.3 49.3 49.3 48.6 49.8 47.8 49 46.6 49.5 46.7 50.7 45.8 50.8 45.4 49.6 44.2 49.5 43.7 50.5 42.8 50.2 43.1 49 42.1 48.3 41.1 48.9 40.6 48.2 41.4 47.4 40.9 46.2 39.7 46.3 39.6 45.4 40.8 45 40.9 43.8 39.9 43.3 40.2 42.4 41.4 42.7 42.1 41.7 41.5 40.7 42.2 40.2 43 41 44.2 40.5 44.1 39.3 45 39.2 45.4 40.4 46.6 40.5 47.1 39.5 48 39.8 47.7 41 48.7 41.7 49.7 41.1 50.2 41.8 49.4 42.6 49.9 43.8 51.1 43.7 51.2 44.6 50 45Z" fill="url(#cta-copper)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/><circle cx="46.5" cy="47.7" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="42.7" cy="46.1" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="44.3" cy="42.3" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="48.1" cy="43.9" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="45.4" cy="45" r="3.8" fill="none" stroke="#0d0a12" stroke-width="0.3" opacity="0.55"/><circle cx="45.4" cy="45" r="1.4" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="45" cy="44.6" r="0.5" fill="#ffd2ad"/><path d="M41.5 43.6 A4.2 4.2 0 0 1 44 41.1" fill="none" stroke="#ffd2ad" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+  <path d="M57.4 35.8 58.2 35.7 58.5 36.4 57.7 36.8 57.7 37.9 58.5 38.3 58.3 39 57.4 38.9 56.8 39.7 57.2 40.5 56.6 41 56 40.4 55 40.7 54.9 41.6 54.1 41.6 53.9 40.7 52.9 40.4 52.3 41 51.7 40.6 52.1 39.8 51.4 39 50.6 39.1 50.3 38.4 51.1 38 51.1 36.9 50.3 36.5 50.5 35.8 51.4 35.9 52 35.1 51.6 34.3 52.2 33.8 52.8 34.4 53.8 34.1 53.9 33.2 54.7 33.2 54.9 34.1 55.9 34.4 56.5 33.8 57.1 34.2 56.7 35Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="56.3" cy="38.3" r="0.7" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="52.7" cy="38.6" r="0.7" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="54.3" cy="35.3" r="0.7" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="54.4" cy="37.4" r="2.8" fill="none" stroke="#0d0a12" stroke-width="0.3" opacity="0.55"/><circle cx="54.4" cy="37.4" r="1.1" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="54.1" cy="37.1" r="0.4" fill="#fff1c4"/><path d="M51.6 36.4 A3 3 0 0 1 53.4 34.6" fill="none" stroke="#fff1c4" stroke-width="0.3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M57.6 48.5 58 49 57.5 49.5 57 49.2 56.1 49.5 56 50.2 55.3 50.2 55.2 49.6 54.3 49.2 53.8 49.6 53.3 49.1 53.6 48.6 53.3 47.7 52.6 47.6 52.6 46.9 53.2 46.8 53.6 45.9 53.2 45.4 53.7 44.9 54.2 45.2 55.1 44.9 55.2 44.2 55.9 44.2 56 44.8 56.9 45.2 57.4 44.8 57.9 45.3 57.6 45.8 57.9 46.7 58.6 46.8 58.6 47.5 58 47.6Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="55.6" cy="47.2" r="0.9" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="55.3" cy="46.9" r="0.3" fill="#e0b45a"/><path d="M53.6 46.5 A2.2 2.2 0 0 1 54.9 45.2" fill="none" stroke="#e0b45a" stroke-width="0.3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M45.3 36.4 45.7 36.7 45.5 37.3 45 37.2 44.4 37.8 44.5 38.4 43.9 38.6 43.6 38.1 42.7 38 42.4 38.4 41.8 38 42 37.5 41.6 36.8 41.1 36.8 41 36.1 41.5 36 41.8 35.2 41.5 34.7 42 34.3 42.4 34.6 43.2 34.3 43.4 33.8 44 33.9 44.1 34.4 44.8 34.9 45.3 34.7 45.6 35.2 45.2 35.6Z" fill="url(#cta-copper)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="43.4" cy="36.2" r="0.7" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/>
+  <!-- motion arcs of the spinning wheels -->
+  <path d="M38.8 42.6 A7.2 7.2 0 0 1 43 38.4 M51.6 45.6 A7.2 7.2 0 0 1 46.6 52.2 M58.2 35 A5.4 5.4 0 0 1 59.6 39.6" fill="none" stroke="#c9b6ff" stroke-width="0.45" stroke-linecap="round" opacity="0.7"/>
+  <!-- the arcane core, caged in a brass ring -->
+  <circle cx="49.6" cy="41.6" r="8.6" fill="url(#cta-glow)"/>
+  <path d="M49.6 32.6 L49.6 35.4 M49.6 47.8 L49.6 50.6 M40.8 41.6 L43.6 41.6 M55.6 41.6 L58.4 41.6 M43.4 35.4 L45 37 M54.2 46.2 L55.8 47.8 M55.8 35.4 L54.2 37 M43.4 47.8 L45 46.2" stroke="#e3d6ff" stroke-width="0.6" stroke-linecap="round" opacity="0.85"/>
+  <ellipse cx="49.6" cy="41.6" rx="4.8" ry="1.7" transform="rotate(-24 49.6 41.6)" fill="none" stroke="#0d0a12" stroke-width="1.1"/>
+  <ellipse cx="49.6" cy="41.6" rx="4.8" ry="1.7" transform="rotate(-24 49.6 41.6)" fill="none" stroke="#e0b45a" stroke-width="0.5"/>
+  <path d="M49.6 36.2 L52.4 41.4 L49.6 47.4 L46.8 41.4 Z" fill="url(#cta-crystal)" stroke="#2c1660" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M49.6 36.2 L49.6 47.4 M46.8 41.4 L52.4 41.4" stroke="#ffffff" stroke-width="0.3" opacity="0.7"/>
+  <path d="M49.6 36.2 L52.4 41.4 L49.6 47.4 Z" fill="#3a1f8a" opacity="0.3"/>
+  <circle cx="48.8" cy="39.4" r="0.6" fill="#ffffff"/>
+  <!-- glass glints -->
+  <path d="M41.4 38.6 Q42.8 34.6 46.8 33" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round" opacity="0.7"/>
+  <path d="M57 46.4 Q55.8 48.6 53.6 49.8" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.4"/>
+  <!-- bezel rivets, highlight and shadow -->
+  <g fill="#fff1c4" stroke="#0d0a12" stroke-width="0.3"><circle cx="60.5" cy="44.5" r="0.6"/><circle cx="57.6" cy="49.6" r="0.6"/><circle cx="52.5" cy="52.5" r="0.6"/><circle cx="46.7" cy="52.5" r="0.6"/><circle cx="41.6" cy="49.6" r="0.6"/><circle cx="38.7" cy="44.5" r="0.6"/><circle cx="38.7" cy="38.7" r="0.6"/><circle cx="41.6" cy="33.6" r="0.6"/><circle cx="46.7" cy="30.7" r="0.6"/><circle cx="52.5" cy="30.7" r="0.6"/><circle cx="57.6" cy="33.6" r="0.6"/><circle cx="60.5" cy="38.7" r="0.6"/></g>
+  <path d="M38.6 37.4 Q40.6 32.4 46 30.4" fill="none" stroke="#fff4cf" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M60.6 45.8 Q58.6 50.8 53.2 52.8" fill="none" stroke="#5a3812" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- ===== brass girdle, worked with filigree, over iron tassets ===== -->
+  <g stroke="#0d0a12" stroke-linejoin="round"><path d="M19.6 62.4 L34 66.6 L32.6 75 Q25 75.8 20.6 72 Z" fill="url(#cta-iron)" stroke-width="1"/>
+  <path d="M76.4 62.4 L62 66.6 L63.4 75 Q71 75.8 75.4 72 Z" fill="url(#cta-irondk)" stroke-width="1"/>
+  <path d="M36 66.8 L60 66.8 L58.8 75.4 L48 77.6 L37.2 75.4 Z" fill="url(#cta-plate)" stroke-width="1"/></g>
+  <path d="M21 64 L22 71.4" stroke="#f4eee4" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <path d="M37.4 68.2 L38.4 74.8" stroke="#d9d1c5" stroke-width="0.6" opacity="0.8"/>
+  <path d="M20.6 68.2 L33.2 71.6 M62.8 71.6 L75.4 68.2" stroke="#3a3134" stroke-width="0.6"/>
+  <path d="M50.5 71.3 51.2 71.4 51.2 72.2 50.5 72.3 50.1 73.2 50.5 73.8 50 74.3 49.4 73.9 48.5 74.3 48.4 75 47.6 75 47.5 74.3 46.6 73.9 46 74.3 45.5 73.8 45.9 73.2 45.5 72.3 44.8 72.2 44.8 71.4 45.5 71.3 45.9 70.4 45.5 69.8 46 69.3 46.6 69.7 47.5 69.3 47.6 68.6 48.4 68.6 48.5 69.3 49.4 69.7 50 69.3 50.5 69.8 50.1 70.4Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="48" cy="71.8" r="0.9" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="47.7" cy="71.5" r="0.3" fill="#fff1c4"/><path d="M45.8 71 A2.3 2.3 0 0 1 47.2 69.6" fill="none" stroke="#fff1c4" stroke-width="0.3" stroke-linecap="round" opacity="0.85"/>
+  <path d="M19.6 56.4 Q48 66.6 76.4 56.4 L77.4 62 Q48 72.4 18.6 62 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M20.4 57.8 Q48 67.8 75.6 57.8" fill="none" stroke="#fff1c4" stroke-width="0.5"/>
+  <path d="M19.2 60.8 Q48 71.2 76.8 60.8" fill="none" stroke="#5a3812" stroke-width="0.5"/>
+  <path d="M24 60.8 C25.2 59.8 26.9 60.1 27.1 61.4 C27.1 62.5 25.8 62.8 25.4 61.9 C25.2 61.3 25.8 60.9 26.1 61.2 M27.1 61.4 C28 60.7 29.2 61.2 29.5 62.2 M32.4 63.8 C33.5 62.7 35.3 62.9 35.5 64.1 C35.7 65.2 34.4 65.6 33.9 64.8 C33.6 64.2 34.2 63.7 34.6 64 M35.5 64.1 C36.4 63.4 37.6 63.7 38 64.7 M63.6 63.8 C62.5 62.7 60.7 62.9 60.5 64.1 C60.3 65.2 61.6 65.6 62.1 64.8 C62.4 64.2 61.8 63.7 61.4 64 M60.5 64.1 C59.6 63.4 58.4 63.7 58 64.7 M72 60.8 C70.8 59.8 69.1 60.1 68.9 61.4 C68.9 62.5 70.2 62.8 70.6 61.9 C70.8 61.3 70.2 60.9 69.9 61.2 M68.9 61.4 C68 60.7 66.8 61.2 66.5 62.2" fill="none" stroke="#6e4618" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <g fill="#fff1c4" stroke="#0d0a12" stroke-width="0.3"><circle cx="22.4" cy="59.6" r="0.6"/><circle cx="29.6" cy="62.2" r="0.6"/><circle cx="37" cy="64" r="0.6"/><circle cx="43" cy="64.8" r="0.6"/><circle cx="53" cy="64.8" r="0.6"/><circle cx="59" cy="64" r="0.6"/><circle cx="66.4" cy="62.2" r="0.6"/><circle cx="73.6" cy="59.6" r="0.6"/></g>
+  <path d="M44.4 64.2 L51.6 64.2 L51.4 68 L44.6 68 Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <circle cx="48" cy="66.1" r="1.1" fill="url(#cta-crystal)" stroke="#0d0a12" stroke-width="0.4"/>
+  <!-- ===== far pauldron ===== -->
+  <path d="M91.6 31.4 C92.4 23.4 86.6 17.6 78.4 17 C71.2 16.6 65.4 19.6 63.2 24.4 L64 30.2 C69.6 28.2 77.4 29 83.4 33.2 C86.4 35.2 90.2 34.8 91.6 31.4 Z" fill="url(#cta-platedk)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M67 20.6 Q72 17.8 78.6 18.4" fill="none" stroke="#b0a08f" stroke-width="0.8" stroke-linecap="round" opacity="0.8"/>
+  <path d="M88.4 30.2 Q80 23.4 64.8 24.6 M90.6 33.2 Q82 26.8 64.4 27.8" fill="none" stroke="#1d1618" stroke-width="0.6"/>
+  <path d="M83.4 23.4 C83.2 22 81.8 21.1 80.9 21.9 C80.2 22.6 80.9 23.7 81.7 23.3 C82.3 23 82.1 22.3 81.7 22.3 M80.9 21.9 C80.6 20.8 79.6 20.4 78.7 20.9" fill="none" stroke="#1d1618" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M64 30.2 C69.6 28.2 77.4 29 83.4 33.2 C86.4 35.2 90.2 34.8 91.6 31.4 L91.2 34.2 C89.4 37.4 85.6 37.4 82.6 35.6 C76.6 31.6 69.4 31 64.2 33 Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <g fill="#e0b45a" stroke="#0d0a12" stroke-width="0.3"><circle cx="88" cy="35.2" r="0.5"/><circle cx="83" cy="34.2" r="0.5"/><circle cx="77.6" cy="31.6" r="0.5"/><circle cx="72" cy="30.6" r="0.5"/><circle cx="66.6" cy="30.8" r="0.5"/></g>
+  <g fill="#9a8f86" stroke="#0d0a12" stroke-width="0.3"><circle cx="76.4" cy="20.4" r="0.6"/><circle cx="69.4" cy="21.6" r="0.6"/></g>
+  <circle cx="80" cy="25" r="1.7" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.6"/>
+  </g>
+
+  <!-- the helm, ducked down behind the slam -->
+  <g transform="translate(0 5)">
+  <!-- ===== the helm, sunk between the shoulders, a porcelain page-mask set in its face ===== -->
+  <path d="M37.6 23.4 Q49.6 20 61.6 23.4 L62.2 29.6 Q49.6 33 37 29.6 Z" fill="url(#cta-irondk)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M37.4 28.4 Q49.6 31.6 62 28.4" fill="none" stroke="#e0b45a" stroke-width="0.6"/>
+  <path d="M37.2 22.6 C36 12.4 41.6 4.4 49.6 4.2 C57.8 4.2 63 11.2 62.2 21.6 L61.6 26.6 Q49.6 29.8 37.8 26.8 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M39.4 15 Q40.6 8 46.6 5.6" fill="none" stroke="#fff1c4" stroke-width="1" stroke-linecap="round" opacity="0.95"/>
+  <path d="M60.8 12 Q62 18 61 24" fill="none" stroke="#5a3812" stroke-width="0.7"/>
+  <path d="M41.4 11.6 C41 10.2 42.1 8.9 43.2 9.3 C44.1 9.7 43.8 10.9 42.9 10.9 C42.3 10.8 42.2 10.1 42.6 10 M43.2 9.3 C43 8.2 43.8 7.4 44.8 7.5 M56.6 9.6 C56.7 8.3 55.6 7.2 54.6 7.7 C53.8 8.3 54.3 9.3 55.1 9.2 C55.6 9 55.7 8.4 55.2 8.3 M54.6 7.7 C54.6 6.7 53.7 6.2 52.8 6.4" fill="none" stroke="#6e4618" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <!-- a comb crest -->
+  <path d="M44.4 5.4 C46.2 2.2 51.8 1.2 55.6 3.6 L54.2 5.8 C51.4 4.6 47.8 4.8 46 6.6 Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M45.6 4.4 Q49 2.4 53 2.8" fill="none" stroke="#fff1c4" stroke-width="0.45"/>
+  <!-- the iron brow band -->
+  <path d="M37.2 14.6 Q49.6 10.8 62.4 14.2 L62.4 17.4 Q49.6 14.4 37.2 18.2 Z" fill="url(#cta-iron)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M38 15.4 Q49.6 11.8 61.6 14.8" fill="none" stroke="#f4eee4" stroke-width="0.45"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3"><circle cx="39.6" cy="16.4" r="0.5"/><circle cx="43.8" cy="15" r="0.5"/><circle cx="48" cy="14" r="0.5"/><circle cx="58.6" cy="14.6" r="0.5"/></g>
+  <!-- cheek guard and the ear cog at the back of the helm -->
+  <path d="M37.6 18.2 L45.4 17 L46 26.8 L38.2 26.4 Z" fill="url(#cta-brass-dark)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M43.4 21.6 44 21.7 44 22.3 43.4 22.4 43.1 23.2 43.4 23.7 42.9 24.2 42.4 23.9 41.6 24.2 41.5 24.8 40.9 24.8 40.8 24.2 40 23.9 39.5 24.2 39 23.7 39.3 23.2 39 22.4 38.4 22.3 38.4 21.7 39 21.6 39.3 20.8 39 20.3 39.5 19.8 40 20.1 40.8 19.8 40.9 19.2 41.5 19.2 41.6 19.8 42.4 20.1 42.9 19.8 43.4 20.3 43.1 20.8Z" fill="url(#cta-copper)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="41.2" cy="22" r="0.9" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="40.9" cy="21.7" r="0.3" fill="#ffd2ad"/>
+  <!-- the face opening -->
+  <ellipse cx="53.2" cy="20.8" rx="7.2" ry="8" fill="#1a1012" stroke="#0d0a12" stroke-width="1"/>
+  <ellipse cx="53.2" cy="20.8" rx="7.2" ry="8" fill="none" stroke="url(#cta-brass)" stroke-width="0.8"/>
+  <!-- the porcelain mask -->
+  <path d="M47.6 17.2 Q49.4 13.6 53.6 13.6 Q57.8 13.8 58.8 17.6 Q59.6 22.4 57.6 25.6 Q55.6 28.2 52.8 28.2 Q49.4 27.8 48 25 Q46.6 21.4 47.6 17.2 Z" fill="url(#cta-porcelain)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M48.4 19 Q49 15.2 52.4 14.6" fill="none" stroke="#ffffff" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M58.4 20.8 Q58.2 24.4 55.8 26.8" fill="none" stroke="#a08b7c" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- painted brows -->
+  <path d="M48.4 17.4 Q50.2 16 52.2 17 M54.2 17 Q56 16.2 57.8 17.2" fill="none" stroke="#3a2a4a" stroke-width="0.55" stroke-linecap="round"/>
+  <!-- the arcane eyes -->
+  <ellipse cx="50.6" cy="19.6" rx="6.2" ry="4.8" fill="url(#cta-haze)"/>
+  <ellipse cx="56" cy="19.4" rx="5.6" ry="4.5" fill="url(#cta-haze)"/>
+  <path d="M48.6 19.6 Q50.6 18 52.4 19.6 Q50.6 21 48.6 19.6 Z M54 19.4 Q55.8 17.8 57.6 19.4 Q55.8 20.8 54 19.4 Z" fill="#1a1030" stroke="#3a2a4a" stroke-width="0.35"/>
+  <circle cx="50.6" cy="19.5" r="3.1" fill="url(#cta-glow)"/>
+  <circle cx="55.8" cy="19.3" r="2.8" fill="url(#cta-glow)"/>
+  <circle cx="50.6" cy="19.5" r="0.6" fill="#ffffff"/><circle cx="55.8" cy="19.3" r="0.55" fill="#ffffff"/>
+  <!-- harlequin teardrop, nose, and the thin painted mouth -->
+  <path d="M50.4 21.6 l0.6 1 l-0.6 1 l-0.6 -1 Z" fill="#7a55c8"/>
+  <path d="M53.4 20.4 Q52.8 22.4 53.8 23" fill="none" stroke="#a08b7c" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M51 25 Q53.6 25.8 56.2 24.8" fill="none" stroke="#5a1f3e" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M50.8 25.6 L51 27.4 M56.2 25.4 L56 27.2" stroke="#a08b7c" stroke-width="0.4"/>
+  
+  </g>
+
+  <g transform="translate(0 3)">
+  <!-- ===== near pauldron: riveted iron lames under a filigreed brass rim ===== -->
+  <path d="M4.4 31.4 C3.6 23.4 9.4 17.6 17.6 17 C24.8 16.6 30.6 19.6 32.8 24.4 L32 30.2 C26.4 28.2 18.6 29 12.6 33.2 C9.6 35.2 5.8 34.8 4.4 31.4 Z" fill="url(#cta-plate)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M6.4 26.4 Q9.2 20.2 17.4 18.6" fill="none" stroke="#f4eee4" stroke-width="1.1" stroke-linecap="round" opacity="0.9"/>
+  <path d="M7.6 30.2 Q16 23.4 31.2 24.6 M5.4 33.2 Q14 26.8 31.6 27.8" fill="none" stroke="#33292b" stroke-width="0.6"/>
+  <path d="M8 31 Q16 24.4 31 25.4" fill="none" stroke="#d9c9b8" stroke-width="0.4"/>
+  <path d="M12.6 23.4 C12.8 22 14.2 21.1 15.1 21.9 C15.8 22.6 15.1 23.7 14.3 23.3 C13.7 23 13.9 22.3 14.3 22.3 M15.1 21.9 C15.4 20.8 16.4 20.4 17.3 20.9" fill="none" stroke="#33292b" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M32 30.2 C26.4 28.2 18.6 29 12.6 33.2 C9.6 35.2 5.8 34.8 4.4 31.4 L4.8 34.2 C6.6 37.4 10.4 37.4 13.4 35.6 C19.4 31.6 26.6 31 31.8 33 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M31.4 31 C26 29.4 19 30 13 34" fill="none" stroke="#fff1c4" stroke-width="0.45"/>
+  <g fill="#fff1c4" stroke="#0d0a12" stroke-width="0.3"><circle cx="8" cy="35.2" r="0.5"/><circle cx="13" cy="34.2" r="0.5"/><circle cx="18.4" cy="31.6" r="0.5"/><circle cx="24" cy="30.6" r="0.5"/><circle cx="29.4" cy="30.8" r="0.5"/></g>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3"><circle cx="19.6" cy="20.4" r="0.6"/><circle cx="26.6" cy="21.6" r="0.6"/></g>
+  <circle cx="16" cy="25" r="1.7" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.6"/><circle cx="15.5" cy="24.5" r="0.5" fill="#fff4cf"/>
+  </g>
+
+  <!-- ===== near arm, driven down, its piston at full stroke ===== -->
+  <!-- upper arm: a riveted iron drum with a filigreed brass band -->
+  <path d="M6.8 35 L21.2 35 L20.2 48 L7.8 48 Z" fill="url(#cta-iron)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M8.2 36 L9 47" stroke="#f4eee4" stroke-width="0.9" stroke-linecap="round" opacity="0.85"/>
+  <path d="M19.8 36 L19 47" stroke="#241d20" stroke-width="0.7"/>
+  <path d="M7 40 L21 40 L20.7 43.2 L7.3 43.2 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M8.6 42.2 C9.3 41.3 10.6 41.2 10.9 42.1 C11.1 42.9 10.3 43.3 9.8 42.8 C9.5 42.4 9.9 41.9 10.2 42.1 M10.9 42.1 C11.5 41.4 12.3 41.5 12.8 42.2 M19.4 42.2 C18.7 41.3 17.4 41.2 17.1 42.1 C16.9 42.9 17.8 43.3 18.2 42.8 C18.5 42.4 18.1 41.9 17.8 42.1 M17.1 42.1 C16.5 41.4 15.7 41.5 15.2 42.2" fill="none" stroke="#5a3812" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3"><circle cx="9" cy="37.6" r="0.6"/><circle cx="14" cy="37.4" r="0.6"/><circle cx="19" cy="37.6" r="0.6"/><circle cx="9.2" cy="45.6" r="0.6"/><circle cx="18.8" cy="45.6" r="0.6"/></g>
+  <path d="M18.5 49 19.6 49.3 19.5 50.3 18.4 50.4 17.8 51.7 18.6 52.6 17.9 53.4 16.9 52.8 15.8 53.5 15.9 54.7 14.8 54.9 14.4 53.9 13 53.8 12.4 54.8 11.4 54.4 11.7 53.2 10.6 52.3 9.6 52.8 9 51.9 9.9 51.2 9.5 49.8 8.4 49.5 8.5 48.5 9.6 48.4 10.2 47.1 9.4 46.2 10.1 45.4 11.1 46 12.2 45.3 12.1 44.1 13.2 43.9 13.6 44.9 15 45 15.6 44 16.6 44.4 16.3 45.6 17.4 46.5 18.4 46 19 46.9 18.1 47.6Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/><circle cx="15.8" cy="51.5" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="11.9" cy="51.2" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="12.2" cy="47.3" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="16.1" cy="47.6" r="1" fill="#1a1012" stroke="#0d0a12" stroke-width="0.25"/><circle cx="14" cy="49.4" r="3.7" fill="none" stroke="#0d0a12" stroke-width="0.3" opacity="0.55"/><circle cx="14" cy="49.4" r="1.6" fill="#3a2418" stroke="#0d0a12" stroke-width="0.3"/><circle cx="13.5" cy="48.9" r="0.6" fill="#fff1c4"/><path d="M10.2 48 A4 4 0 0 1 12.6 45.6" fill="none" stroke="#fff1c4" stroke-width="0.4" stroke-linecap="round" opacity="0.85"/>
+  <!-- forearm: an iron sleeve at the elbow, the gauntlet below, driven by a ram and two side pistons (here at full stroke) -->
+  <path d="M10.6 55 L17.4 55 L17.4 67.6 L10.6 67.6 Z" fill="url(#cta-steel)" stroke="#0d0a12" stroke-width="0.7"/>
+  <path d="M11.8 56 L11.8 66.6" stroke="#ffffff" stroke-width="0.5" opacity="0.9"/>
+  <path d="M10.8 58.6 L17.2 58.6 M10.8 61.4 L17.2 61.4" stroke="#4a5262" stroke-width="0.35"/>
+  <path d="M7.2 52 L20.8 52 L20.6 57.2 L7.4 57.2 Z" fill="url(#cta-iron)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M7.4 55.8 L20.6 55.8" stroke="#e0b45a" stroke-width="0.7"/>
+  <path d="M6.8 66.6 L21.2 66.6 L22.6 76 L5.4 76 Z" fill="url(#cta-iron)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M7.6 67.6 L6.4 75.2" stroke="#f4eee4" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M6.4 71.2 L21.6 71.2" stroke="#3a3134" stroke-width="0.6"/>
+  <path d="M10.8 70 C11.4 69.2 12.6 69.1 12.9 69.9 C13.1 70.6 12.3 71 11.9 70.5 C11.7 70.2 12 69.8 12.3 69.9 M12.9 69.9 C13.4 69.3 14.2 69.4 14.6 70 M17.2 70 C16.6 69.2 15.4 69.1 15.1 69.9 C14.9 70.6 15.7 71 16.1 70.5 C16.3 70.2 16.1 69.8 15.8 69.9 M15.1 69.9 C14.6 69.3 13.8 69.4 13.4 70" fill="none" stroke="#3a3134" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <g fill="#efe8dc" stroke="#0d0a12" stroke-width="0.3"><circle cx="8.4" cy="68.2" r="0.6"/><circle cx="19.6" cy="68.2" r="0.6"/><circle cx="7.4" cy="73.8" r="0.6"/><circle cx="14" cy="73.8" r="0.6"/><circle cx="20.6" cy="73.8" r="0.6"/></g>
+  <path d="M4.1 56 L5.5 56 L5.5 70.2 L4.1 70.2 Z" fill="url(#cta-steel)" stroke="#0d0a12" stroke-width="0.45"/>
+  <path d="M3.2 51 L6.4 51 L6.3 56.6 L3.3 56.6 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M3.9 51.6 L3.9 56" stroke="#fff1c4" stroke-width="0.35"/>
+  <path d="M22.5 56 L23.9 56 L23.9 70.2 L22.5 70.2 Z" fill="url(#cta-steel)" stroke="#0d0a12" stroke-width="0.45"/>
+  <path d="M21.6 51 L24.8 51 L24.7 56.6 L21.7 56.6 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M22.3 51.6 L22.3 56" stroke="#fff1c4" stroke-width="0.35"/>
+  <path d="M4.2 76 L23.8 76 L23.4 78.6 L4.6 78.6 Z" fill="url(#cta-brass)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M5 76.7 L23 76.7" stroke="#fff1c4" stroke-width="0.4" opacity="0.8"/>
+  <path d="M2 91.4 L2 88 L4.4 88 L4.4 86 Q8 85 7.4 82 L4.6 81.2 L4.6 78.6 L22.4 78.6 L22.4 81.2 L19 82 Q18.4 84.8 20.4 86 Q24.8 86.6 27.4 89 Q24.2 90.8 20 91.4 Z" fill="url(#cta-anvil)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M5 81.2 L22 81.2" stroke="#0d0a12" stroke-width="0.6"/>
+  <path d="M5.4 79.4 L21.6 79.4 M2.8 88.8 L4.4 88.8" stroke="#e6e0d8" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M8.6 78.8 L8.6 81 M12.4 78.8 L12.4 81 M16.2 78.8 L16.2 81 M19.6 78.8 L19.6 81" stroke="#241d20" stroke-width="0.5"/>
+  <path d="M5 87 L19.8 87" stroke="#e6e0d8" stroke-width="0.5" stroke-linecap="round" opacity="0.8"/>
+  <path d="M20.8 87 Q24 87.4 26.2 88.8" fill="none" stroke="#e6e0d8" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M2.8 90.6 L19.8 90.6" stroke="#eef1f6" stroke-width="0.8" stroke-linecap="round" opacity="0.9"/>
+  <rect x="6.4" y="87.8" width="1.6" height="1.6" fill="#140f12"/>
+  <circle cx="9.6" cy="88.6" r="0.65" fill="#140f12"/>
+  <path d="M8.6 82.6 Q9.2 84.4 7.6 85.6" fill="none" stroke="#e6e0d8" stroke-width="0.4" opacity="0.7"/>
+
+  <!-- ===== the slam: speed streaks down the pistons, flashes where the anvils bite the earth ===== -->
+  <path d="M2.6 44 L2.6 80 M26 46 L26 80 M70 46 L70 80 M93.4 44 L93.4 80" fill="none" stroke="url(#cta-smear)" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M4.6 50 L4.6 78 M24 52 L24 78 M72 52 L72 78 M91.4 50 L91.4 78" fill="none" stroke="url(#cta-smear)" stroke-width="0.5" stroke-linecap="round"/>
+  <ellipse cx="13" cy="90.4" rx="13" ry="4.4" fill="url(#cta-flash)" opacity="0.85"/>
+  <ellipse cx="83" cy="90.4" rx="13" ry="4.4" fill="url(#cta-flash)" opacity="0.85"/>
+  <!-- earth heaved up around the sunken fists -->
+  <g fill="#6e6152" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round">
+    <path d="M1 92 L3.6 88.6 L6.4 89.8 L5.6 92.6 Z M19.6 92.4 L22 89 L25.6 90.4 L24.6 93 Z M9.6 93.4 L12 91.6 L15 92.2 L14 94.2 Z M70.4 92.4 L72 89 L75.6 90.2 L75 93 Z M89.6 92 L92.4 88.6 L95 90 L94.6 92.6 Z M80.6 93.4 L83.4 91.6 L86 92.4 L85 94.2 Z"/>
+  </g>
+  <path d="M3.8 89.2 L5.8 90 M22.4 89.6 L25 90.6 M72.4 89.6 L75 90.6 M92.6 89.2 L94.6 90.2" stroke="#b5a58e" stroke-width="0.45"/>
+  <!-- the front half of the shockwave ring -->
+  <path d="M2 89.6 A46 6.4 0 0 0 94 89.6" fill="none" stroke="#fff3d6" stroke-width="3.4" opacity="0.18"/>
+  <path d="M2 89.6 A46 6.4 0 0 0 94 89.6" fill="none" stroke="url(#cta-ring)" stroke-width="1.3" opacity="0.85"/>
+  <path d="M10 92.4 A40 4.2 0 0 0 86 92.4" fill="none" stroke="#fff3d6" stroke-width="0.6" opacity="0.5"/>
+  <!-- rock chips and sparks thrown up -->
+  <g fill="#8a7b68" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round">
+    <path d="M28 80 l1.6 -1 l0.8 1.2 l-1.4 1 Z M33.6 74.6 l1.2 -0.8 l0.8 1 l-1.2 0.8 Z M66 80 l1.4 -1.2 l1 1 l-1.2 1.2 Z M61.4 75 l1.2 -0.8 l0.6 1.2 l-1.2 0.6 Z M1.4 74 l1.2 -1 l0.8 1 l-1.2 0.8 Z M93.2 73 l1.2 -0.8 l0.6 1.2 l-1.2 0.6 Z"/>
+  </g>
+  <path d="M25.2 84.4 l2.6 -2.4 M27 86.6 l3 -1 M70.8 84.4 l-2.6 -2.4 M69 86.6 l-3 -1 M6 84.6 l-2 -2.6 M90 84.6 l2 -2.6" stroke="#ffd27a" stroke-width="0.5" stroke-linecap="round"/>
+
+  <!-- ===== steam blasting from the shoulder vents ===== -->
+  <g transform="translate(0 3)">
+  <path d="M8.6 14.6 Q3.6 9 1 0.4 L13.6 0 Q12.6 7.6 13.4 14.6 Z M87.4 14.6 Q92.4 9 95 0.4 L82.4 0 Q83.4 7.6 82.6 14.6 Z" fill="url(#cta-jet)"/>
+  <g transform="translate(10.4 13.8) scale(-1.2 1.2)" opacity="1"><circle cx="0.4" cy="-3.6" r="3.6" fill="url(#cta-steam)"/><circle cx="2.6" cy="-7.8" r="2.9" fill="url(#cta-steam)"/><circle cx="-0.4" cy="-11" r="2.3" fill="url(#cta-steam)"/><path d="M0 0 C-1.8 -1.8 1.6 -3.4 0.2 -5.4 C-1.2 -7.2 1.4 -8.8 2.8 -8.4 C4 -8 3.8 -6.6 2.8 -6.8" fill="none" stroke="#eef3f8" stroke-width="0.75" stroke-linecap="round" opacity="0.75"/></g>
+  <g transform="translate(85.6 13.8) scale(1.2 1.2)" opacity="1"><circle cx="0.4" cy="-3.6" r="3.6" fill="url(#cta-steam)"/><circle cx="2.6" cy="-7.8" r="2.9" fill="url(#cta-steam)"/><circle cx="-0.4" cy="-11" r="2.3" fill="url(#cta-steam)"/><path d="M0 0 C-1.8 -1.8 1.6 -3.4 0.2 -5.4 C-1.2 -7.2 1.4 -8.8 2.8 -8.4 C4 -8 3.8 -6.6 2.8 -6.8" fill="none" stroke="#eef3f8" stroke-width="0.75" stroke-linecap="round" opacity="0.75"/></g>
+  <circle cx="5.4" cy="3.4" r="5" fill="url(#cta-steam)"/><circle cx="10.6" cy="1.6" r="3.6" fill="url(#cta-steam)"/>
+  <circle cx="90.6" cy="3.4" r="5" fill="url(#cta-steam)"/><circle cx="85.4" cy="1.6" r="3.6" fill="url(#cta-steam)"/>
+  <path d="M11 13.2 Q7 8 5.8 1 M85 13.2 Q89 8 90.2 1" fill="none" stroke="#f4f6fa" stroke-width="0.7" stroke-linecap="round" opacity="0.65"/>
+  </g>
+  <!-- steam hissing out of the pistons -->
+  <circle cx="24.8" cy="62" r="2.6" fill="url(#cta-steam)"/><circle cx="71.2" cy="62" r="2.6" fill="url(#cta-steam)"/>
+  <path d="M22.6 62.4 Q24.6 61.6 26.4 59.6 M73.4 62.4 Q71.4 61.6 69.6 59.6" fill="none" stroke="#eef1f6" stroke-width="0.5" stroke-linecap="round" opacity="0.7"/>
+</svg>

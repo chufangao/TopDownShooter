@@ -1,0 +1,208 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Pyre Hound: a lean, long-legged hound of the funeral pyre at a low-headed trot, charcoal hide split with ember cracks, a mane and tail of flame, smoke curling off it. Lit from the upper left. -->
+  <defs>
+    <linearGradient id="ph-hide" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6e646c"/>
+      <stop offset="0.45" stop-color="#38323c"/>
+      <stop offset="1" stop-color="#16131b"/>
+    </linearGradient>
+    <linearGradient id="ph-hide-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#433c46"/>
+      <stop offset="1" stop-color="#0e0c12"/>
+    </linearGradient>
+    <linearGradient id="ph-head" x1="0.1" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#7a7078"/>
+      <stop offset="0.5" stop-color="#3c3540"/>
+      <stop offset="1" stop-color="#17141c"/>
+    </linearGradient>
+    <linearGradient id="ph-flame" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffb04a"/>
+      <stop offset="0.45" stop-color="#ff7a32"/>
+      <stop offset="1" stop-color="#c22e1c"/>
+    </linearGradient>
+    <linearGradient id="ph-flame-mid" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#fff3c4"/>
+      <stop offset="0.4" stop-color="#ffd27a"/>
+      <stop offset="1" stop-color="#ff8a3d"/>
+    </linearGradient>
+    <linearGradient id="ph-claw" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c4b6aa"/>
+      <stop offset="1" stop-color="#3e353a"/>
+    </linearGradient>
+    <radialGradient id="ph-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff3c4"/>
+      <stop offset="0.3" stop-color="#ffd27a"/>
+      <stop offset="0.6" stop-color="#ff8a3d" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ph-glow-soft" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff8a3d" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ph-eye" cx="0.4" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#fff6d8"/>
+      <stop offset="0.45" stop-color="#ffd27a"/>
+      <stop offset="1" stop-color="#ff7a2a"/>
+    </radialGradient>
+    <radialGradient id="ph-smoke" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8e8896" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#8e8896" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="ph-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0d0a12" stop-opacity="0.5"/>
+      <stop offset="0.65" stop-color="#0d0a12" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- soft ground shadow -->
+  <ellipse cx="48" cy="88.2" rx="38" ry="3.6" fill="url(#ph-shadow)"/>
+
+  <!-- ===== smoke curling up off the back, drifting behind ===== -->
+  <ellipse cx="38" cy="19" rx="8" ry="6" fill="url(#ph-smoke)"/>
+  <ellipse cx="59" cy="11" rx="7" ry="5" fill="url(#ph-smoke)"/>
+  <ellipse cx="8" cy="11" rx="6" ry="5" fill="url(#ph-smoke)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M44 38 C40 34.4 44.4 30.6 40.6 26.6 C37 22.8 41 18.6 37.6 14.6 C35.4 12 36.6 9.4 38.8 8.4" stroke="#8e8896" stroke-width="1.6" opacity="0.28"/>
+    <path d="M44 38 C40.6 34.6 44.6 30.8 41 26.8 C37.6 23.2 41.4 19 38.4 15.2" stroke="#c4bec8" stroke-width="0.5" opacity="0.35"/>
+    <path d="M60 29 C57.6 24.4 62 21.6 59.4 17 C57.2 13.2 60.6 10 58.4 6.4 C57.4 4.6 58.6 3 60.4 2.6" stroke="#8e8896" stroke-width="1.4" opacity="0.25"/>
+    <path d="M60 29 C57.8 24.6 62.2 21.8 59.6 17.2" stroke="#c4bec8" stroke-width="0.45" opacity="0.3"/>
+    <path d="M7 19 C4.6 15.6 8.6 12.6 6.4 8.6 C5 6 6.6 3.6 9 3" stroke="#8e8896" stroke-width="1.3" opacity="0.25"/>
+    <path d="M30 41 C27.4 37.6 30.8 34.6 28.4 31 C26.6 28.4 28.4 25.6 30.6 25" stroke="#8e8896" stroke-width="1.1" opacity="0.2"/>
+  </g>
+
+  <!-- ===== tail: a charcoal whip swallowed by a plume of flame, streaming back ===== -->
+  <ellipse cx="13" cy="31" rx="14" ry="14" fill="url(#ph-glow-soft)"/>
+  <path d="M27 47.4 C20 46 14.6 42.4 11.4 36.4 C10.8 35 12.4 34 13.4 35.2 C16.4 39.2 21 42.6 27.6 44 Z" fill="url(#ph-hide)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M22.6 43.4 C17.6 45 10.6 42.4 6.4 35.6 C5 33 4.6 29.6 2.4 26.2 C5.6 27.4 7.4 29.6 8.2 31.4 C7.4 26.6 8.2 21.4 11.6 17.4 C11.2 21.6 12.4 25.4 14.2 27.8 C14.6 25.4 16.4 23 19 22 C17.4 26 17.8 30 19.2 33.2 C20 36.4 20.8 40 22.6 43.4 Z" fill="url(#ph-flame)" stroke="#7a1c14" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M21.2 42.4 C16.4 43 11.8 40 9.6 35.4 C8.8 33.6 8.8 31.6 7.8 29.8 C9.8 31 11 32.6 11.6 33.8 C11.2 30.2 12.2 26.8 14.4 24.6 C14.2 27.6 15 30.2 16.4 32 C16.8 30.4 17.8 29 19.2 28.2 C18.2 31.4 18.6 34.6 19.4 37.2 C19.8 39 20.4 40.8 21.2 42.4 Z" fill="url(#ph-flame-mid)"/>
+  <path d="M19.8 41.4 C17 41 14.8 39.4 13.8 37 C14.8 37.6 15.6 37.8 16.2 37.6 C15.8 35.4 16.4 33.4 17.8 32.2 C17.8 34.6 18.2 36.6 18.8 38.2 C19.2 39.4 19.6 40.4 19.8 41.4 Z" fill="#fffbea" opacity="0.9"/>
+  <!-- the whip of the tail still showing at the root, ember-cracked -->
+  <path d="M25.6 43.6 C23.6 43 21.8 42.2 20.4 41.2" fill="none" stroke="#8a7e86" stroke-width="0.5" stroke-linecap="round"/>
+
+  <!-- ===== far legs, in shadow ===== -->
+  <!-- far foreleg, planted -->
+  <path d="M55.6 56 C55 62 55.6 70 56.4 76.4 C56.6 79 56.4 82 57 84.6 C56.6 85.8 56.4 87 57.2 87.8 C59.4 88.4 62.4 88.4 64.6 88 C65.6 87.6 65.4 86.2 64.2 85.6 C62.4 84.8 61 83.4 60.4 81.6 C59.8 79.4 60.2 77.4 60.6 75.6 C61 69 61.4 62 61.6 56 Z" fill="url(#ph-hide-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M59.4 85.4 L59.6 88 M61.8 85.8 L62.2 88.2" stroke="#0d0a12" stroke-width="0.45"/>
+  <path d="M64.4 86.4 L66.4 88 L64.2 88.2 Z" fill="#6e6268" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <path d="M60.2 76.4 Q60.8 77.4 60.4 78.6" fill="none" stroke="#0d0a12" stroke-width="0.5"/>
+  <!-- far hind leg, swinging forward, paw lifted -->
+  <path d="M30 55 C34 57.6 36.6 60.8 36.2 64.2 C34.8 66.2 32.4 68 31.2 69.6 C32.8 72.6 34.8 75.4 36.6 77.6 C37.8 78.6 37.8 80.2 36.6 80.6 C34.8 81.2 32.8 80.8 32.2 79.6 C30.8 77.2 28.8 74.2 27.4 71.4 C26.6 69.6 26.8 68 27.8 66.8 C29 64 28.6 60 27 57.4 Z" fill="url(#ph-hide-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M36.8 79.4 L38.6 80.6 L36.6 81 Z" fill="#6e6268" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <!-- dim cracks on the far legs -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58.4 62 L57.6 68 L58.8 73.6 L58 79 M30.4 70.6 L32.6 74.4 L34.6 76.6" stroke="#1a0806" stroke-width="1.2"/>
+    <path d="M58.4 62 L57.6 68 L58.8 73.6 L58 79 M30.4 70.6 L32.6 74.4 L34.6 76.6" stroke="#c4501e" stroke-width="0.6" opacity="0.85"/>
+  </g>
+
+  <!-- ===== mane of flame, back layer (behind the neck) ===== -->
+  <ellipse cx="60" cy="38" rx="17" ry="11" fill="url(#ph-glow-soft)"/>
+  <path d="M75.6 48.6 C75 43.6 71.6 38 65.6 33.6 C68.6 37.6 69.4 40.4 68.4 42 C66.4 37 62.6 32 56.6 29.6 C59.6 33.6 61 37.4 60.6 40.6 C58 36.4 54 33.6 48.6 32.8 C51.6 35.6 53.4 38.4 53.4 41.4 C50.4 38.4 46.2 36.6 41 37 C44.4 38.8 46.4 40.8 47 43 L60 44 L72 50 Z" fill="url(#ph-flame)" stroke="#7a1c14" stroke-width="0.6" stroke-linejoin="round"/>
+
+  <!-- ===== torso: deep chest, tucked waist ===== -->
+  <path d="M58 41.6 C50 40.6 40 42 32.4 43.4 C27 44.2 22.2 45.6 20.4 49.4 C19 53 20 57.6 23 60 C24.4 61.2 25.6 61.6 27 61.4 C31.4 61.4 36 57.6 42 57.2 C49 57 55 62 61 62.6 C65.6 62.6 68.4 59 68.6 54 C68.8 50 66.6 45.6 63 43.4 C61.4 42.4 59.8 41.8 58 41.6 Z" fill="url(#ph-hide)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- belly shadow and the faint rack of ribs -->
+  <path d="M24 58 C30 59 36 55.6 42 55.2 C50 55.2 56 59.6 62 60.2 C64.6 60 66.6 58.4 67.8 55.8 C67.4 59.6 65 62.6 61 62.6 C55 62 49 57 42 57.2 C36 57.6 31.4 61.4 27 61.4 C25.6 61.6 24.4 61 24 58 Z" fill="#0a080e" opacity="0.55"/>
+  <path d="M46 46.4 Q47.6 51 46.6 55.4 M52.4 46 Q54 51.4 53 57.6 M58.4 46.4 Q60 52 59.4 59.4" fill="none" stroke="#0d0a12" stroke-width="0.5" opacity="0.55"/>
+  <!-- lit back line and rump -->
+  <path d="M56 42.8 C48 41.8 40 43 32.4 44.6 C27.6 45.4 23.8 46.6 22.2 49" fill="none" stroke="#9a8e96" stroke-width="0.8" stroke-linecap="round" opacity="0.75"/>
+  <!-- warm rim of firelight down the chest -->
+  <path d="M67.2 50.4 C68 54 67.6 57.6 65.6 60.6" fill="none" stroke="#ff8a3d" stroke-width="0.7" stroke-linecap="round" opacity="0.55"/>
+  <!-- char flecks -->
+  <path d="M38 47 l1.2 0.4 M45 44.6 l1 0.6 M36.4 53 l1 -0.4 M53 44.6 l1.2 0.2 M30 47 l0.8 0.8" stroke="#0a080e" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M33.6 45.6 l1 -0.2 M41 45 l1 -0.1 M49 43.6 l1 0" stroke="#b0a4aa" stroke-width="0.4" stroke-linecap="round" opacity="0.6"/>
+  <!-- ember cracks across the barrel: glow, dark seam, ember line, white-hot core -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M56.2 44 L55 48.4 L56.8 52 L55.4 56.4 L57 60 M49.4 43.6 L48 48.6 L50 53 L48.8 57.2 M42 44 L43.2 48.4 L41.2 52.2 L42.2 56.4 M34.6 44.6 L36 48.6 L34 51.6 M50 53 L52.8 55.2 M43.2 48.4 L46 49.4 M55 48.4 L52.4 47.4 M41.2 52.2 L38.6 53.6" stroke="#ff6a24" stroke-width="2.8" opacity="0.22"/>
+    <path d="M56.2 44 L55 48.4 L56.8 52 L55.4 56.4 L57 60 M49.4 43.6 L48 48.6 L50 53 L48.8 57.2 M42 44 L43.2 48.4 L41.2 52.2 L42.2 56.4 M34.6 44.6 L36 48.6 L34 51.6 M50 53 L52.8 55.2 M43.2 48.4 L46 49.4 M55 48.4 L52.4 47.4 M41.2 52.2 L38.6 53.6" stroke="#1a0806" stroke-width="1.4"/>
+    <path d="M56.2 44 L55 48.4 L56.8 52 L55.4 56.4 L57 60 M49.4 43.6 L48 48.6 L50 53 L48.8 57.2 M42 44 L43.2 48.4 L41.2 52.2 L42.2 56.4 M34.6 44.6 L36 48.6 L34 51.6 M50 53 L52.8 55.2 M43.2 48.4 L46 49.4 M55 48.4 L52.4 47.4 M41.2 52.2 L38.6 53.6" stroke="#ff6a24" stroke-width="0.8"/>
+    <path d="M56.2 44 L55 48.4 L56.8 52 L55.4 56.4 M49.4 43.6 L48 48.6 L50 53 M42 44 L43.2 48.4 L41.2 52.2 M34.6 44.6 L36 48.6" stroke="#ffe08a" stroke-width="0.3"/>
+  </g>
+
+  <!-- ===== near hind leg: thigh, stifle, hock, planted and pushing back ===== -->
+  <path d="M22 46.8 C28 46.6 33.6 50.6 35.2 56.6 C36.2 60.4 35.6 63.4 34 65 C31.6 67 28 69.4 25 72 C23.4 74.8 22.2 78.6 21.6 82.2 C21.6 83.6 22.4 84.8 23.4 85.4 C24.4 86.2 24.2 87.8 22.6 88 C20.2 88.4 17.4 88.2 15.8 87.6 C15 86.8 15.6 85.6 16.4 84.8 C17.2 81.4 18 77.6 18.8 74.6 C19.4 72.6 19.2 71 18.6 69.8 C17.6 67.6 17.8 64.8 18.6 62.2 C19.4 58 19.6 51.4 22 46.8 Z" fill="url(#ph-hide)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M33.8 60 C33 63 30.4 65.4 27.4 67.6 C29.4 67.4 32.6 65.8 34.4 63 Z" fill="#0a080e" opacity="0.5"/>
+  <path d="M24 48.6 C29 48.8 32.8 52 34.2 56.6" fill="none" stroke="#9a8e96" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <path d="M19.6 64 C19.2 67 19.6 69 20.2 70.6 M18.6 76 L17.6 82.6" fill="none" stroke="#8a7e86" stroke-width="0.5" stroke-linecap="round" opacity="0.7"/>
+  <path d="M18.8 86 L18.8 88 M20.8 86 L21 88.2" stroke="#0d0a12" stroke-width="0.4"/>
+  <path d="M23.4 86.2 L25.6 87.8 L23 88.2 Z" fill="url(#ph-claw)" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24.6 50.4 L27.6 54.4 L26.4 58.6 L29.4 62.6 L28.4 66 M27.6 54.4 L31.4 54.6 M21.8 74 L20.4 78.4 L21 81.6" stroke="#ff6a24" stroke-width="2.6" opacity="0.22"/>
+    <path d="M24.6 50.4 L27.6 54.4 L26.4 58.6 L29.4 62.6 L28.4 66 M27.6 54.4 L31.4 54.6 M21.8 74 L20.4 78.4 L21 81.6" stroke="#1a0806" stroke-width="1.3"/>
+    <path d="M24.6 50.4 L27.6 54.4 L26.4 58.6 L29.4 62.6 L28.4 66 M27.6 54.4 L31.4 54.6 M21.8 74 L20.4 78.4 L21 81.6" stroke="#ff6a24" stroke-width="0.75"/>
+    <path d="M24.6 50.4 L27.6 54.4 L26.4 58.6 L29.4 62.6" stroke="#ffe08a" stroke-width="0.3"/>
+  </g>
+
+  <!-- ===== near foreleg: shoulder to a reaching, lifted paw ===== -->
+  <path d="M60.4 46 C64.6 46.4 67.6 50 67.8 55 C68 58 68.6 61.6 70 64.6 C71.4 67.4 72.6 69.6 73.4 71 C74.4 72.6 75.8 74.2 76.6 76.4 C77.2 78 76.8 79.6 75.4 80 C73.6 80.4 72 79.8 71.4 78.6 C70.6 76.8 70.2 75 69.6 73.6 C67.4 71 64.6 67 62.6 63.6 C61.6 62 60.2 61.4 59.6 60.2 C58.4 56 58.4 50 60.4 46 Z" fill="url(#ph-hide)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M61.4 47.6 C60 51 60 55.6 61 59" fill="none" stroke="#9a8e96" stroke-width="0.7" stroke-linecap="round" opacity="0.8"/>
+  <path d="M68.6 60.6 C69.6 63.6 71.6 67 73.6 70" fill="none" stroke="#ff8a3d" stroke-width="0.55" stroke-linecap="round" opacity="0.5"/>
+  <path d="M72.6 78.4 L73.2 80.2 M74.4 78 L75 80" stroke="#0d0a12" stroke-width="0.4"/>
+  <path d="M75.4 79.4 L76.6 81.6 L77 79.2 Z" fill="url(#ph-claw)" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M62.6 49 L61.8 53.6 L63.8 57.6 L65.4 62.4 L68.8 67.6 L71.6 70.6 M63.8 57.6 L66.6 56.6" stroke="#ff6a24" stroke-width="2.6" opacity="0.22"/>
+    <path d="M62.6 49 L61.8 53.6 L63.8 57.6 L65.4 62.4 L68.8 67.6 L71.6 70.6 M63.8 57.6 L66.6 56.6" stroke="#1a0806" stroke-width="1.3"/>
+    <path d="M62.6 49 L61.8 53.6 L63.8 57.6 L65.4 62.4 L68.8 67.6 L71.6 70.6 M63.8 57.6 L66.6 56.6" stroke="#ff6a24" stroke-width="0.75"/>
+    <path d="M62.6 49 L61.8 53.6 L63.8 57.6 L65.4 62.4" stroke="#ffe08a" stroke-width="0.3"/>
+  </g>
+
+  <!-- ===== neck, stretched forward and low ===== -->
+  <path d="M48 43.4 C56 40.4 66 41.4 73 46.6 L76.6 56.6 C73.4 59.6 69.4 58.8 66.4 55.4 C62.4 51.4 56 49.6 48 49 Z" fill="url(#ph-hide)"/>
+  <path d="M54 41.8 C60 40.8 67 42 73 46.6 M76.6 56.6 C73.4 59.6 69.4 58.8 67.6 56.8" fill="none" stroke="#0d0a12" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M68 54.6 C70.4 57 73 58.4 75.6 57.4 C73.2 59.6 69.6 58.8 67 56 Z" fill="#0a080e" opacity="0.5"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58.6 44.4 L62.6 47.4 L66.4 47 L69.4 51.6 L68.6 55 M66.4 47 L68 44.6" stroke="#ff6a24" stroke-width="2.6" opacity="0.22"/>
+    <path d="M58.6 44.4 L62.6 47.4 L66.4 47 L69.4 51.6 L68.6 55 M66.4 47 L68 44.6" stroke="#1a0806" stroke-width="1.3"/>
+    <path d="M58.6 44.4 L62.6 47.4 L66.4 47 L69.4 51.6 L68.6 55 M66.4 47 L68 44.6" stroke="#ff6a24" stroke-width="0.75"/>
+    <path d="M58.6 44.4 L62.6 47.4 L66.4 47 L69.4 51.6" stroke="#ffe08a" stroke-width="0.3"/>
+  </g>
+
+  <!-- ===== mane of flame, front layer, licking up off the neck ===== -->
+  <path d="M74 49 C73 45 70.4 41.4 66.6 38.4 C67.4 41 67.4 43 66.6 44.4 C64.4 41 61 38.2 57 36.8 C58.4 39.4 59 41.6 58.4 43.6 C56.2 41.4 52.6 39.8 49 39.8 C51 41.6 52 43.4 52 45 C56 46.4 62 47.4 66 48.4 C69 49.2 71.6 50 74 49 Z" fill="url(#ph-flame-mid)" stroke="#b8401c" stroke-width="0.4" stroke-linejoin="round"/>
+  <path d="M72.4 48.6 C71.6 45.6 69.6 43 67.4 41.4 C67.6 43.2 67.2 44.8 66.4 46 C64.4 43.6 61.6 41.6 59 41 C59.8 42.8 59.8 44.4 59.2 45.8 C62 46.4 66 47.6 72.4 48.6 Z" fill="#fffbea" opacity="0.85"/>
+
+  <!-- ===== head, carried low and level, muzzle long and narrow ===== -->
+  <!-- ear laid back into the mane -->
+  <path d="M74.6 47.8 L68.8 39.4 Q73.8 41 77.8 46.2 Z" fill="url(#ph-hide)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M74.2 46.4 L70.8 41.6 Q73.8 43 76 45.8 Z" fill="#ff8a3d" opacity="0.75"/>
+  <path d="M73.4 46.6 L69.8 40.6" stroke="#a0949c" stroke-width="0.4" stroke-linecap="round"/>
+  <!-- skull and muzzle -->
+  <path d="M71 47.4 C74 45.4 78.6 45.6 81.4 48 C82 48.6 82.4 49.2 82.6 49.6 C85.4 51 88.6 53 90.6 55.4 C91.8 56.4 92.2 57.8 91.4 58.8 C90.8 59.4 90 59.4 89.4 59.2 L86 59.6 C83.6 60.4 80.4 60.8 78 60.4 C75.6 60.4 73.4 59.4 72 57.4 C70.4 54.6 69.6 50 71 47.4 Z" fill="url(#ph-head)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <!-- cheek and jaw shadow, brow and muzzle highlights -->
+  <path d="M73 55.6 C74.6 58.4 77 59.6 80 59.6 C77.4 60.6 74 60 72.4 57.6 Z" fill="#0a080e" opacity="0.55"/>
+  <path d="M72.4 48.4 Q76.4 46.2 80.6 48" fill="none" stroke="#aca0a8" stroke-width="0.8" stroke-linecap="round" opacity="0.9"/>
+  <path d="M83.4 50.8 Q87 52.6 90 55.2" fill="none" stroke="#8a7e86" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M84 55.6 Q87 56.4 89.6 56.6" fill="none" stroke="#0d0a12" stroke-width="0.4" opacity="0.6"/>
+  <!-- ember cracks on the skull and muzzle -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M72.8 51.6 L75.6 53 L76.6 56 M81.6 52.6 L84.2 53.4 L86.8 55.6 M76 48.6 L78.4 48.2" stroke="#ff6a24" stroke-width="2.2" opacity="0.22"/>
+    <path d="M72.8 51.6 L75.6 53 L76.6 56 M81.6 52.6 L84.2 53.4 L86.8 55.6 M76 48.6 L78.4 48.2" stroke="#1a0806" stroke-width="1.1"/>
+    <path d="M72.8 51.6 L75.6 53 L76.6 56 M81.6 52.6 L84.2 53.4 L86.8 55.6 M76 48.6 L78.4 48.2" stroke="#ff6a24" stroke-width="0.6"/>
+  </g>
+  <!-- ember eye -->
+  <ellipse cx="79.4" cy="51" rx="4" ry="2.8" fill="url(#ph-glow)" opacity="0.85"/>
+  <path d="M77.2 51.4 Q79.2 49.6 81.8 50.6 Q79.8 52.4 77.2 51.4 Z" fill="url(#ph-eye)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M79.8 50.2 L79.6 51.8" stroke="#2a0a0a" stroke-width="0.6" stroke-linecap="round"/>
+  <circle cx="78.6" cy="50.9" r="0.35" fill="#ffffff"/>
+  <path d="M76.4 50 Q79.4 48.2 82.4 49.6" fill="none" stroke="#0d0a12" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- nose, and a thread of smoke from it -->
+  <path d="M89.8 55.4 Q92 55.2 92.2 57.4 Q91.8 58.8 90.2 58.4 Q89.2 57 89.8 55.4 Z" fill="#0d0a12"/>
+  <circle cx="90.8" cy="56" r="0.35" fill="#7a7078"/>
+  <path d="M91.6 54.6 C92.8 52.6 91.2 51.2 92.4 49.4 C93 48.4 92.6 47.4 92 46.8" fill="none" stroke="#8e8896" stroke-width="0.6" stroke-linecap="round" opacity="0.4"/>
+  <!-- mouth, closed, fire leaking at the lips -->
+  <path d="M78 59.8 Q83.6 59.8 89.4 58.8" fill="none" stroke="#0d0a12" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M79 59.4 Q83.6 59.4 88.4 58.6" fill="none" stroke="#ff8a3d" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M81 59.3 Q83.6 59.3 86 59" fill="none" stroke="#ffe08a" stroke-width="0.2" stroke-linecap="round"/>
+  <path d="M84.6 59.4 L85.2 61.2 L85.8 59.3 Z" fill="#e9dbbd" stroke="#0d0a12" stroke-width="0.3" stroke-linejoin="round"/>
+
+  <!-- ===== sparks lifting off the mane and tail ===== -->
+  <g fill="#ffd27a">
+    <circle cx="62" cy="26" r="0.6"/><circle cx="52" cy="28" r="0.5" opacity="0.9"/><circle cx="44" cy="31" r="0.45" opacity="0.8"/>
+    <circle cx="68.4" cy="31" r="0.4" opacity="0.8"/><circle cx="4" cy="20" r="0.5" opacity="0.85"/><circle cx="12" cy="13" r="0.5" opacity="0.8"/>
+    <circle cx="20.4" cy="18" r="0.4" opacity="0.7"/>
+  </g>
+  <g fill="#ff8a3d">
+    <circle cx="56" cy="24" r="0.45" opacity="0.8"/><circle cx="47" cy="27" r="0.4" opacity="0.7"/><circle cx="9" cy="17" r="0.4" opacity="0.7"/>
+    <circle cx="16" cy="14.6" r="0.35" opacity="0.6"/><circle cx="38.6" cy="34" r="0.35" opacity="0.6"/>
+  </g>
+</svg>

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createBattle, stepBattle, runBattle, escalation } from '../src/sim/battle.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
-  essenceByWave, monarchPoints, MONARCH_STATS, MONARCH_UID, currentNode
+  essenceByWave, MONARCH_UID, currentNode
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS, rehearsalBudget } from '../src/sim/autoplay.js'
@@ -13,6 +13,7 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
 import { makeUnit, tileAt, tileX, tileY, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT } from '../src/sim/unit.js'
+import { sturdy, grant } from './tuned.js'
 
 const sp = TUNING.spawn
 const W = sp.waves
@@ -32,9 +33,10 @@ function scene (units, { moving = [], ...opts } = {}) {
     const want = units.find((x) => x.uid === u.uid)?.tile
     if (want === undefined) continue
     if (u.tile !== want) {
-      b.at[u.tile] = null
+      const layer = u.flies ? b.sky : b.at
+      layer[u.tile] = null
       u.tile = want
-      b.at[want] = u
+      layer[want] = u
     }
     if (!moving.includes(u.uid)) u.nextStep = Infinity
   }
@@ -44,40 +46,47 @@ function scene (units, { moving = [], ...opts } = {}) {
 function slay (b, u) {
   u.hp = 0
   u.statuses = []
-  b.at[u.tile] = null
+  const layer = u.flies ? b.sky : b.at
+  layer[u.tile] = null
   b.roster++
   if (u.side === 'party') b.ours++
 }
 const unit = (b, uid) => b.units.find((u) => u.uid === uid)
 // A foe still to come: off the board, in its wave, entering in `lane` when `when` comes.
 const coming = (id, uid, wave, when, lane = 3, extra = {}) => ({ ...makeUnit(id, { uid, lvl: 1 }), side: 'foe', wave, lane, when: { ...when, wave }, ...extra })
-// A run's souls at level 10 and a Monarch that takes a while to fell (level `monarch`), so a battle runs its
-// course (the state edited outside the log: not a replay).
+// A run's souls at level 10 and a Monarch that takes a while to fell (the HP `monarch` points once gave: tuned.js
+// sturdy), so a battle runs its course (the state edited outside the log: not a replay).
 function strong (run, monarch = 40) {
   for (const u of run.state.party) {
-    const lvl = u.id === 'monarch' ? monarch : 10
-    u.lvl = lvl
-    u.hp = u.maxHp = baseStats(u.id, lvl).hp
+    if (u.id === 'monarch') {
+      const { hp, maxHp } = sturdy({ ...u, lvl: monarch })
+      Object.assign(u, { hp, maxHp })
+      continue
+    }
+    u.lvl = 10
+    u.hp = u.maxHp = baseStats(u.id, 10).hp
   }
 }
 
 // ── content ──────────────────────────────────────────────────────────────────────────────────────
 
-test('every foe kind walks the roads by Walk or Flank, hinted only in its flavour; depth is a room\'s threat', () => {
+test('every foe kind comes by Walk, Flank or Fly, hinted only in its flavour; depth is a room\'s threat', () => {
   for (const u of Object.values(UNITS)) {
-    // The Monarch is never a foe: no behaviour to learn.
-    if (u.monarch) {
-      assert.equal(u.behaviour, undefined)
+    // The Monarch is never a foe, nor is a fused kind: no behaviour to learn.
+    if (u.monarch || u.fused) {
+      assert.equal(u.behaviour, undefined, u.id)
       continue
     }
     assert.ok(BEHAVIOURS[u.behaviour], `${u.id} behaviour`)
     assert.ok(typeof u.flavour === 'string' && u.flavour.length > 20, `${u.id} flavour`)
     // Flavour hints; it never names the behaviour it hints at.
-    assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|stays?|hunts?|orders?)\b/i, u.id)
+    assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|fl(y|ies|ying|ight)|stays?|hunts?|orders?)\b/i, u.id)
   }
-  // Flank is rare: a kind whose nature is to go round, one first met on each of floors 1–3; the rest Walk.
-  assert.deepEqual(Object.values(UNITS).filter((u) => u.behaviour === 'flank').map((u) => [u.id, u.spawn.minFloor]).sort(),
-    [['barrow_wight', 3], ['mantis_reaper', 2], ['will_o_wisp', 1]])
+  // Flank is rare: a kind whose nature is to go round, one first met on each of floors 1–3; the rest Walk, but the
+  // flyers, first met on floors 2 and 3.
+  const by = (b) => Object.values(UNITS).filter((u) => u.behaviour === b).map((u) => [u.id, u.spawn.minFloor]).sort()
+  assert.deepEqual(by('flank'), [['barrow_wight', 3], ['mantis_reaper', 2], ['will_o_wisp', 1]])
+  assert.deepEqual(by('fly'), [['ash_wyvern', 3], ['hive_drone', 2]])
   assert.ok(THREATS.depth.name && THREATS.depth.desc)
   assert.deepEqual(ABILITIES.grave_tide.effects.at(-1), { op: 'raise', count: 2 })
 })
@@ -411,17 +420,22 @@ test('the deep floors play: every legal action applying on the way, every deep f
   const run = createRun({ seed: 'rich' })
   const s = run.state
   const rng = createRng(s.seed).stream('autoplay')
-  const STEADY = { ...LEVELS.basic, wounds: true, park: false }
+  const STEADY = { ...LEVELS.basic, wounds: true }
   const fought = []
+  // Each floor, the relics a rich run might have taken (outside the log, as the purse): HP and three Command.
+  let granted = 0
   for (let steps = 0; s.phase !== 'over'; steps++) {
     if (s.essence < 5000) s.essence = 1e5
-    const points = monarchPoints(s)
+    if (['map', 'prep'].includes(s.phase) && granted < s.floor) {
+      granted++
+      grant(run, ['bone_mantle', 'grave_banner', 'grave_banner', 'grave_banner'])
+    }
     if (s.floor >= W.floor && steps % 23 === 0) {
       for (const a of legalActions(run).filter((_, i, all) => i % Math.ceil(all.length / 8) === 0)) {
         assert.doesNotThrow(() => apply({ ...run, state: structuredClone(s) }, a), JSON.stringify(a))
       }
     }
-    const action = ['map', 'prep'].includes(s.phase) && points < 6 * s.floor ? { type: 'monarch', stat: MONARCH_STATS[points % MONARCH_STATS.length] } : policy(run, rng, STEADY)
+    const action = policy(run, rng, STEADY)
     const floor = s.floor
     apply(run, action)
     if (action.type === 'fight') fought.push({ floor, type: currentNode(run).type, b: run.battle })

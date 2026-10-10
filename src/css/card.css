@@ -4,7 +4,6 @@
    scale (style.css :root): body text --fs-md, secondary --fs-sm, badge numbers --fs-xs; anything pressed --tap
    on its short side. */
 .tray .price { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--c-essence); font-weight: 700; }
-.tray .price.poor { color: var(--c-foe); }
 .tray button { min-height: var(--tap); }
 .tray .buy { margin: 0; padding: 8px 14px; font-size: var(--fs-md); }
 
@@ -43,7 +42,6 @@
 .uc p { margin: 8px 0 0; }
 .uc .uc-note { font-size: var(--fs-sm); line-height: 1.3; }
 
-/* The card's one big buy: the level-up, under its head. */
 
 /* Section labels inside a card. */
 .uc-sec {
@@ -54,25 +52,30 @@
 
 /* Its ring and gait, a line under its stats (the rule on hover). */
 .uc-ring { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--fs-sm); color: var(--text); cursor: help; }
-.uc-ring .ico { color: var(--c-orders); }
+.uc-ring .ico { color: var(--c-plan); }
 .uc.foe .uc-ring .ico { color: var(--c-foe); }
-/* Its line: the signals, a row of chips (icon and name), the one it waits for lit in your lines' blue. */
-.uc-line { margin-top: 4px; }
-.signals { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.tray .sig {
-  min-height: 40px; padding: 4px 10px 4px 8px; gap: 6px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600;
-  background: #0c1220; border-color: #23314d; color: var(--dim);
+/* Fuse (DESIGN §4): the recipes the kind is part of, one row each: the result's picture, its name and parts (each
+   part's bodies held of those it needs), and its button, lit when every part is held and the essence suffices. */
+.uc-fuse { margin-top: 4px; }
+.fuse-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.fuse-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: 8px 10px; border-radius: 10px;
+  background: #0f0d18; border: 1px solid var(--line2);
 }
-.tray .sig .ico { color: #6f8fc4; }
-.tray .sig.on { color: var(--bright); border-color: var(--c-orders); background: color-mix(in srgb, var(--c-orders) 22%, #0c1220); box-shadow: 0 0 10px color-mix(in srgb, var(--c-orders) 30%, transparent); }
-.tray .sig.on .ico { color: #cfe3ff; }
-.tray .sig.never { border-style: dashed; opacity: .6; }
+.fuse-row.ready { border-color: color-mix(in srgb, var(--c-path) 60%, var(--line)); background: color-mix(in srgb, var(--c-path) 10%, #0f0d18); }
+.fuse-row .portrait { flex: none; }
+.fuse-text { flex: 1; min-width: 0; font-size: var(--fs-sm); line-height: 1.3; }
+.fuse-text b { color: var(--bright); }
+.fuse-parts { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.fuse-parts .short { color: var(--c-foe); }
+.fuse-parts .met { color: var(--c-path2); }
+.tray .fuse-row .buy { grid-column: 1 / -1; justify-self: end; padding: 6px 14px; }
 .uc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; }
 .tray .uc-acts button { gap: 6px; }
 .uc-abs .ability { font-size: var(--fs-sm); }
 .uc .flavour { font-style: italic; color: #b9a8c8; }
 
-/* ── tracks (Step 5, part 2: the kind's two tracks) ─────────────────────────────────────────────────────────────────────────────── */
+/* ── tracks: the kind's two, each a row of tiers I–IV ──────────────────────────────────────────── */
 .tracks { display: grid; gap: 8px; }
 .track { padding: 6px 10px 8px; border: 1px solid var(--line2); border-radius: 10px; background: #0c0a15; min-width: 0; }
 .track { --p: var(--c-path); }
@@ -107,34 +110,34 @@
   background: linear-gradient(180deg, #2a2110, #120f09 130px);
   box-shadow: 0 0 0 1px #00000088, 0 0 18px color-mix(in srgb, var(--c-monarch) 13%, transparent), inset 0 1px 0 #ffffff10;
 }
-.mc.on { box-shadow: 0 0 0 1px #00000088, 0 0 26px color-mix(in srgb, var(--c-monarch) 33%, transparent), inset 0 1px 0 #ffffff10; }
 .mc .uc-art { background: radial-gradient(circle at 50% 40%, #4a3a18, #120f09 75%); }
 .mc .uc-name { color: #f6e2b0; }
 .mc-hp { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-sm); }
 .mc-hp .hpbar { flex: 1; width: auto; height: 10px; }
 .mc-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .mc-cols.four { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
-/* Four stats as two rows of two, compact so all four show in the slim panel: its icon, name and points on one
-   line; what it gives now and its +1 on the next. */
+/* Its numbers two by two, a read-out (nothing to buy), compact so all show in the slim panel: its icon, name and
+   value on one line, what that gives under it. */
 .mc-cols.four .mc-col {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ico name pts" "now now now" "buy buy buy";
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ico name pts" "now now now";
   align-items: center; gap: 2px 4px; padding: 6px; text-align: left;
 }
 .mc-cols.four .mc-ico { grid-area: ico; display: flex; }
 .mc-cols.four .mc-name { grid-area: name; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mc-cols.four .mc-pts { grid-area: pts; font-size: var(--fs-lg); }
 .mc-cols.four .mc-now { grid-area: now; min-height: 0; overflow-wrap: normal; }
-.tray .mc-cols.four .buy { grid-area: buy; width: auto; margin: 0; padding: 4px 10px; min-height: 40px; }
 .mc .uc-art { width: 52px; height: 52px; }
+/* Arise's numbers under a line naming the relic. */
+.mc-arise { margin: 8px 0 -2px; font-size: var(--fs-sm); }
 /* On a short frame (a phone's) tighter still, what a stat gives now waiting on its hover. */
 @container frame (max-height: 640px) {
   .mc { padding: 5px 8px 6px; }
   .mc .uc-art { width: 40px; height: 40px; }
   .mc .uc-art .portrait { width: 34px; height: 34px; }
   .mc-cols.four { gap: 4px; margin-top: 5px; }
-  .mc-cols.four .mc-col { grid-template-areas: "ico name pts" "buy buy buy"; padding: 3px 6px; }
+  .mc-cols.four .mc-col { grid-template-areas: "ico name pts"; padding: 3px 6px; }
   .mc-cols.four .mc-now { display: none; }
-  .tray .mc-cols.four .buy { min-height: 34px; padding: 2px 8px; }
+  .mc-arise { margin-top: 5px; }
 }
 .mc-col {
   display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 8px; text-align: center;
@@ -144,7 +147,6 @@
 .mc-name { font: 600 var(--fs-sm)/1.3 var(--sans); letter-spacing: .02em; color: #f3d9a0; }
 .mc-pts { font: 600 var(--fs-2xl)/1.05 var(--serif); color: var(--c-monarch); }
 .mc-now { font-size: var(--fs-sm); line-height: 1.25; color: var(--dim); min-height: 2.5em; overflow-wrap: anywhere; }
-.tray .mc-col .buy { margin-top: auto; width: 100%; padding: 6px 4px; gap: 6px; border-color: #5a4520; font-size: var(--fs-md); }
 
 /* ── your synergies, under the Monarch's card: a chip each, lit in its colour (the board's glow, --g); a
    lit one is a press that lights its pieces on the board ──────────────────────────────────────── */
@@ -163,43 +165,36 @@
 .legend-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); line-height: 1.35; }
 .legend-list i { display: inline-block; width: 18px; height: 10px; margin-right: 8px; vertical-align: 1px; border-radius: 2px; }
 .lg-road { border-top: 2px dashed var(--c-foe); border-radius: 0 !important; height: 0 !important; vertical-align: 4px !important; }
-.lg-line { background: var(--c-orders); height: 4px !important; vertical-align: 3px !important; }
+.lg-cover { background: color-mix(in srgb, var(--c-plan) 45%, transparent); border: 1px solid var(--c-plan); }
+.lg-seat { background: var(--c-monarch); border-radius: 50% !important; width: 12px !important; height: 12px !important; margin: 0 11px 0 3px !important; }
 .lg-dom { border: 1.5px solid var(--c-domain); }
 
 /* ── feedback ────────────────────────────────────────────────────────────────────────────────── */
 
 @keyframes uc-pulse { 50% { box-shadow: 0 0 0 3px #5ef0c022, 0 0 12px #5ef0c066; } }
-@keyframes uc-pop {
-  0% { transform: scale(.7); box-shadow: 0 0 0 0 #8ff7d6cc; }
-  45% { transform: scale(1.22); box-shadow: 0 0 0 8px #8ff7d600, 0 0 18px #5ef0c0aa; }
-  100% { transform: scale(1); }
-}
-@keyframes uc-flash {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--rank, var(--c-essence)) 90%, transparent); filter: brightness(1.6); }
-  100% { box-shadow: 0 0 0 12px transparent; filter: none; }
-}
-@keyframes uc-num { 0% { transform: scale(1.6); color: var(--bright); } 100% { transform: scale(1); } }
 @keyframes uc-shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
-.tnode.pop { animation: uc-pop .5s ease-out; }
-.buy.pop, .uc.pop, .mc-col.pop { animation: uc-flash .6s ease-out; }
-.mc-col.pop .mc-pts { animation: uc-num .5s ease-out; }
 .shake { animation: uc-shake .32s ease-in-out; }
 @media (prefers-reduced-motion: reduce) {
-  .tnode.next, .tnode.pop, .buy.pop, .uc.pop, .mc-col.pop, .mc-col.pop .mc-pts, .shake { animation: none; }
+  .tnode.next, .shake { animation: none; }
 }
 
-/* ── a stack and its kind (Step 5's part 2: soulPanel's stackSection and kindPanel) ──────────────── */
+/* ── a stack and its kind (soulPanel's stackSection and kindPanel) ────────────────────────────── */
 
 /* A piece's count by its name, on cards and in lists. */
 .uc-count, .ct-count, .u-count { color: var(--c-essence2); font-family: var(--sans); font-weight: 700; }
 .card-tip.foe .ct-count, .uc.foe .uc-count { color: #ffb0bb; }
 .uc-stack, .uc-kind { margin-top: 4px; }
-/* The kind's tracks: a row each, the second in the paler cyan; a Banner's tier IV wears its flag. */
+/* The kind's tracks: a row each, the second in the paler cyan; a Colossus tier IV (2×2) wears its badge. */
 .uc-kind .tracks { margin-top: 8px; }
+/* The kind's level, a read-out of its tiers (never bought): it rises as they do. */
+.uc-level { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: var(--fs-sm); color: var(--text); cursor: help; }
+.uc-level .ico { color: var(--c-path); }
+.uc-level .num { color: var(--bright); }
 .track.second { --p: var(--c-path2); }
 .track-next.warn { color: var(--c-warn); }
 .tbadge {
   position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; display: grid; place-items: center;
-  border-radius: 50%; background: #0f0d18; border: 1px solid var(--c-orders); color: var(--c-orders);
+  border-radius: 50%; background: #0f0d18; border: 1px solid var(--c-plan); color: var(--c-plan);
+  font: 700 9px/1 var(--sans); letter-spacing: -.02em;
 }
-.tnode.banner { border-color: color-mix(in srgb, var(--c-orders) 60%, var(--line)); }
+.tnode.colossus { border-color: color-mix(in srgb, var(--c-plan) 60%, var(--line)); }

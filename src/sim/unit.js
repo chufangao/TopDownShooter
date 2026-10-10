@@ -1,16 +1,17 @@
-// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring and stride, its
-// bodies, where it deploys (the party's camp, the foes' formation) and the board it fights on.
+// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring, its bodies and its
+// footprint, where it deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
 import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, TRACKS } from '../content.js'
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 
-// The Monarch's level is the points bought for its HP (TUNING.monarch); nothing else of it grows.
+// The Monarch has no level: its base HP is TUNING.monarch.hp, whatever `lvl` says; the HP relics add to the run's
+// Monarch (run.js monarchHp), and the battle takes the run's (battle.js fit).
 export function baseStats (id, lvl = 1) {
   const def = unitDef(id)
   const out = {}
   for (const [k, v] of Object.entries(def.base)) out[k] = v + (def.growth[k] ?? 0) * (lvl - 1)
-  if (def.monarch) out.hp = TUNING.monarch.hp + TUNING.monarch.hpPerPoint * lvl
+  if (def.monarch) out.hp = TUNING.monarch.hp
   out.hp = Math.round(out.hp)
   return out
 }
@@ -43,8 +44,8 @@ export function bodiesHp (u) {
 export const tracksOf = (id) => TRACKS[id] ?? []
 // The tiers a unit holds: its first track's, then its second's.
 export const tiersOf = (u) => tracksOf(u.id).flatMap((t, i) => t.tiers.slice(0, u.tracks?.[i] ?? 0))
-export const trackMods = (u) => tiersOf(u).flatMap((t) => t.mods ?? [])
-// The crosspath rule (DESIGN §2.8): whether a kind holding `tracks` may take the next tier on track `t`: up to
+const trackMods = (u) => tiersOf(u).flatMap((t) => t.mods ?? [])
+// The crosspath rule (DESIGN §2.6): whether a kind holding `tracks` may take the next tier on track `t`: up to
 // IV, but while one track stands past II the other stops at II.
 export const canTrack = (tracks, t) => tracks[t] < 4 && (tracks[t] < 2 || tracks[1 - t] <= 2)
 // The kind's tracks with the next tier taken on `t`.
@@ -63,13 +64,12 @@ export function abilitiesOf (u) {
 
 export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
 
-// Its ring (DESIGN §2.3): the radius in tiles it fights within, its kind's and the tiles its tiers add. Its
-// stride: how many times faster than TUNING.board.stepTicks it walks (1 by default, × its tiers'). How it walks
-// the roads as a foe: 'walk' or 'flank'. Whether it leads a wing (Banner, a tier IV).
+// Its ring (DESIGN §2.3): the radius in tiles it fights within, its kind's and the tiles its tiers add. A foe's
+// stride: how many times faster than TUNING.board.stepTicks it walks (1 by default, × its tiers'); your pieces
+// never walk. How it goes for the Monarch as a foe: 'walk', 'flank' or 'fly' (BEHAVIOURS).
 export const ringOf = (u) => tiersOf(u).reduce((r, t) => r + (t.ring ?? 0), unitDef(u.id).ring)
 export const strideOf = (u) => tiersOf(u).reduce((x, t) => x * (t.stride ?? 1), unitDef(u.id).stride ?? 1)
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
-export const bannerOf = (u) => tiersOf(u).some((t) => t.banner)
 
 // The bodies a piece's tiers add for each battle (a tier's `count`): they fight in its pool, whole, and are gone
 // when the battle ends.
@@ -127,8 +127,9 @@ export function statsOf (unit, mods = []) {
 // A unit of a hidden role (the Monarch) counts toward no synergy.
 const hidden = (u) => !!ROLES[unitDef(u.id).role].hidden
 
-// Synergies active for these units, from their counts per kin and role. `alias` ({ role: role }, a
-// keystone's: Mimicry) counts a unit of the first role as one of the second too.
+// Synergies active for these units, from their counts per kin and role. `alias` ({ role: [role, …] }, the
+// Legendary relic Mimicry's, a role once a copy; a lone role for one) counts a unit of the first role as one of the
+// second too, once for each time it is named.
 export function activeSynergies (units, alias = null) {
   const c = { kin: {}, role: {} }
   for (const u of units) {
@@ -140,8 +141,8 @@ export function activeSynergies (units, alias = null) {
   return SYNERGIES.filter((s) => synergyActive(s, c))
 }
 
-// The roles a unit of def `d` counts as: its own, and the one an alias adds.
-const rolesOf = (d, alias) => (alias?.[d.role] && alias[d.role] !== d.role ? [d.role, alias[d.role]] : [d.role])
+// The roles a unit of def `d` counts as: its own, and each one its alias adds (a role named twice counts twice).
+const rolesOf = (d, alias) => [d.role, ...[alias?.[d.role] ?? []].flat().filter((r) => r !== d.role)]
 
 export const synergyActive = (syn, counts) =>
   ['kin', 'role'].every((axis) => Object.entries(syn.needs[axis] ?? {}).every(([id, n]) => (counts[axis][id] ?? 0) >= n))
@@ -174,9 +175,10 @@ export const CENTRE_OUT = Array.from({ length: COLS }, (_, i) => (COLS - 1) / 2 
 export const isWall = (camp, slot) => campDef(camp).map[rowOf(slot)][colOf(slot)] === '#'
 export const campOpen = (camp, slot) => Number.isInteger(slot) && slot >= 0 && slot < CAMP_SLOTS && !isWall(camp, slot)
 
-// A grid to place on: how many rows it has and which slots a unit may stand on.
-export const FORMATION = { rows: ROWS, open: (slot) => Number.isInteger(slot) && slot >= 0 && slot < SLOTS }
-export const campGrid = (camp) => ({ rows: CAMP_ROWS, open: (slot) => campOpen(camp, slot) })
+// A grid to place on: how many rows it has, which slots a piece may stand on, and the size a piece stands at on it
+// (a foe piece always 1; one of yours its kind's and its tiers', sizeOf).
+export const FORMATION = { rows: ROWS, open: (slot) => Number.isInteger(slot) && slot >= 0 && slot < SLOTS, size: () => 1 }
+export const campGrid = (camp) => ({ rows: CAMP_ROWS, open: (slot) => campOpen(camp, slot), size: sizeOf })
 
 // The open slot of `grid` nearest `slot` (fewest rows and lanes apart, then fewest rows, then the lower
 // slot), skipping `taken`; −1 if there is none.
@@ -204,19 +206,29 @@ function matches (u, need) {
   })
 }
 
-// Keep units already in an open free slot; place the rest (slot −1, clashing or walled) in the first open free
-// slot, the front row first, its columns in `cols` order (the middle lane first by default); `grid` is
-// FORMATION or a campGrid. Mutates and returns units.
-export function autoPlace (units, { cols = CENTRE_OUT, grid = FORMATION } = {}) {
-  const taken = new Set()
+// Pieces onto `grid` (FORMATION or a campGrid) by their footprints (DESIGN §2.2): in order, each standing where its
+// footprint still fits keeps its slot; the rest (slot −1, clashing or walled) take the first slot theirs fits, the
+// front row first, its columns in `cols` order (the middle lane first by default), or −1 with none left (off the
+// field: for yours, the ossuary). A footprint fits where every cell of it is open on the grid and not in `taken`
+// (the cells others hold: the Monarch's seat, the pieces not being placed; it grows as these are). Mutates and
+// returns units.
+export function autoPlace (units, { cols = CENTRE_OUT, grid = FORMATION, taken = new Set() } = {}) {
+  const cells = (slot, u) => footprintSlots(slot, grid.size(u))
+  const fitsAt = (slot, u) => cells(slot, u)?.every((c) => grid.open(c) && !taken.has(c)) ?? false
+  const hold = (u) => { for (const c of cells(u.slot, u)) taken.add(c) }
   const rest = []
   for (const u of units) {
-    if (grid.open(u.slot) && !taken.has(u.slot)) taken.add(u.slot)
+    if (u.slot >= 0 && fitsAt(u.slot, u)) hold(u)
     else rest.push(u)
   }
-  const free = []
-  for (let row = 0; row < grid.rows; row++) for (const c of cols) if (grid.open(slotAt(row, c)) && !taken.has(slotAt(row, c))) free.push(slotAt(row, c))
-  for (const u of rest) u.slot = free.shift() ?? -1
+  for (const u of rest) {
+    u.slot = -1
+    for (let row = 0; row < grid.rows && u.slot < 0; row++) {
+      const c = cols.find((col) => fitsAt(slotAt(row, col), u))
+      if (c !== undefined) u.slot = slotAt(row, c)
+    }
+    if (u.slot >= 0) hold(u)
+  }
   return units
 }
 
@@ -235,10 +247,10 @@ export const TILES = LANES * DEPTH
 export const tileX = (tile) => tile % LANES
 export const tileY = (tile) => Math.floor(tile / LANES)
 export const tileAt = (x, y) => y * LANES + x
-export const onBoard = (x, y) => x >= 0 && x < LANES && y >= 0 && y < DEPTH
+const onBoard = (x, y) => x >= 0 && x < LANES && y >= 0 && y < DEPTH
 export const distance = (a, b) => Math.max(Math.abs(tileX(a) - tileX(b)), Math.abs(tileY(a) - tileY(b)))
 
-// The domain (DESIGN §2.7): the tiles within `reach` of `centre` (the Monarch's tile), a square.
+// The domain (DESIGN §2.5): the tiles within `reach` of `centre` (the Monarch's tile), a square.
 export const domainTiles = (centre, reach) => [...Array(TILES).keys()].filter((t) => distance(t, centre) <= reach)
 
 export function deployTile (side, slot) {
@@ -272,12 +284,13 @@ export function steps (tile, walls) {
     (tileX(n) === x || tileY(n) === y || (!walls.has(tileAt(tileX(n), y)) && !walls.has(tileAt(x, tileY(n))))))
 }
 
-// Melee reaches the 8 tiles around; a ranged ability its `range`; one without a range (an `all`
-// shape) reaches the whole board.
+// An ability's own range, as the list helpers read it: melee the 8 tiles around; a ranged ability its `range`;
+// one without a range (an `all` shape) the whole board. In a battle a blow reaches no further than its ring, and a
+// melee one with no range of its own the whole ring (battle.js reachOf).
 export const rangeOf = (ability) => ability.range ?? (ability.melee ? 1 : Infinity)
 
-// The open cells of `camp` (slots) that a unit standing for good on cell `slot` (the Monarch: it never steps)
-// cuts off from the open ground ahead of the camp: no line out of them can pass it.
+// The open cells of `camp` (slots) that a unit standing for good on cell `slot` (the Monarch on its seat) cuts
+// off from the open ground ahead of the camp: no road into them can pass it.
 export function sealedBy (camp, slot) {
   const walls = new Set(wallTiles(camp))
   const block = deployTile('party', slot)
@@ -292,35 +305,77 @@ export function sealedBy (camp, slot) {
   return [...Array(CAMP_SLOTS).keys()].filter((c) => c !== slot && campOpen(camp, c) && !seen.has(deployTile('party', c)))
 }
 
-// The Monarch's seats: the open cells of the camp's rear SEAT_ROWS rows (DESIGN §2.1).
-export const SEAT_ROWS = 2
-export const isSeat = (camp, slot) => campOpen(camp, slot) && rowOf(slot) >= CAMP_ROWS - SEAT_ROWS
+// ── footprints and the seat (DESIGN §2.1–§2.2) ──────────────────────────────────────────────────
 
-// Where the Monarch takes its seat near `slot` (by default the rear row's middle lane, as a run begins, or
-// when a new floor's camp walls its cell): of the seats, skipping `taken`, the one that seals the fewest cells
-// in (sealedBy: none, but in a camp like the Spiral, whose every seat seals some), then the nearest; −1 if none.
-export function seatNear (camp, slot = slotAt(CAMP_ROWS - 1, CENTRE_OUT[0]), taken = new Set()) {
-  const grid = { rows: CAMP_ROWS, open: (c) => isSeat(camp, c) }
-  const skip = new Set(taken)
-  let best = -1
-  let fewest = Infinity
-  for (let c = nearestOpen(grid, slot, skip); c >= 0 && fewest > 0; c = nearestOpen(grid, slot, skip)) {
-    const n = sealedBy(camp, c).length
-    if (n < fewest) { best = c; fewest = n }
-    skip.add(c)
-  }
-  return best
+// A piece's size: 1, or 2 for a kind of size 2 (a fused kind's) or one holding a Colossus tier (`size: 2`).
+export const sizeOf = (u) => Math.max(unitDef(u.id).size ?? 1, ...tiersOf(u).map((t) => t.size ?? 1))
+
+// The tiles a piece of `size` anchored at `tile` covers: its anchor, the next lane (+x) and the row ahead (+y,
+// toward the foes) of both; null where any would leave the board.
+export function footprint (tile, size = 1) {
+  if (size === 1) return [tile]
+  const x = tileX(tile)
+  const y = tileY(tile)
+  if (x + size > LANES || y + size > DEPTH) return null
+  const out = []
+  for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) out.push(tileAt(x + dx, y + dy))
+  return out
 }
 
-// These list-based helpers serve callers outside a battle (the UI, the codex); a battle answers the same
-// questions from its tile index (battle.js).
+// The camp cells a piece of `size` anchored at `slot` covers: its cell, the next lane, and the row ahead of both
+// (a row nearer the front: row − 1); null where any would leave the camp.
+export function footprintSlots (slot, size = 1) {
+  if (size === 1) return [slot]
+  const r = rowOf(slot)
+  const c = colOf(slot)
+  if (c + size > COLS || r - (size - 1) < 0) return null
+  const out = []
+  for (let dr = 0; dr < size; dr++) for (let dc = 0; dc < size; dc++) out.push(slotAt(r - dr, c + dc))
+  return out
+}
+
+// The Monarch's seat: the camp's 'M' cell (DESIGN §2.1). It is pre-placed there and never moves.
+export function monarchSlot (camp) {
+  const map = campDef(camp).map
+  for (let r = 0; r < map.length; r++) {
+    const c = map[r].indexOf('M')
+    if (c >= 0) return slotAt(r, c)
+  }
+  throw new Error(`camp "${camp}" has no seat`)
+}
+export const isMonarchCell = (camp, slot) => Number.isInteger(slot) && slot >= 0 && slot < CAMP_SLOTS && campDef(camp).map[rowOf(slot)][colOf(slot)] === 'M'
+
+// Whether a piece of `size` anchored at `slot` stands wholly on open cells of `camp`, none the seat, none in
+// `taken` (a Set of cells other pieces hold).
+export function fits (camp, slot, size = 1, taken = new Set()) {
+  const cells = footprintSlots(slot, size)
+  return !!cells && cells.every((c) => campOpen(camp, c) && !isMonarchCell(camp, c) && !taken.has(c))
+}
+
+// The least Chebyshev distance between two footprints, a square of side `sa` at anchor `a` and one of `sb` at `b`
+// (the gap between them, 0 where they overlap); and between two units' footprints (a battle unit carries its size,
+// `u.size`; a run piece reads its kind and tiers).
+export function distanceBetween (a, sa, b, sb) {
+  const dx = Math.max(0, tileX(b) - tileX(a) - sa + 1, tileX(a) - tileX(b) - sb + 1)
+  const dy = Math.max(0, tileY(b) - tileY(a) - sa + 1, tileY(a) - tileY(b) - sb + 1)
+  return Math.max(dx, dy)
+}
+export const unitDistance = (a, b) => distanceBetween(a.tile, a.size ?? sizeOf(a), b.tile, b.size ?? sizeOf(b))
+
+// Whether two spans of lanes (or of rows), [a, a + sa) and [b, b + sb), overlap: two footprints sharing a lane (or
+// a row).
+const overlap = (a, sa, b, sb) => a < b + sb && b < a + sa
+
+// These list-based helpers answer from a list of units what a battle answers from its tile index (battle.js), the
+// plain reckoning the tests hold the index to; a battle expands its Shapes with `expand`. Every distance is between
+// footprints (unitDistance).
 
 // The living allies whose aura reaches this unit.
 export const auraGivers = (units, u) => units.filter((a) => a !== u && a.side === u.side && alive(a) && auraOf(a) &&
-  distance(a.tile, u.tile) <= auraOf(a).range)
+  unitDistance(a, u) <= auraOf(a).range)
 
 // The living foes next to a unit.
-export const foesNextTo = (units, u) => units.filter((e) => e.side !== u.side && alive(e) && distance(e.tile, u.tile) === 1)
+export const foesNextTo = (units, u) => units.filter((e) => e.side !== u.side && alive(e) && unitDistance(e, u) === 1)
 
 // Candidate primary targets for an ability: units on the side it aims at within its range (an ally
 // ability without a range reaches every ally).
@@ -328,21 +383,23 @@ export function reachable (units, actor, ability) {
   if (ability.shape === 'self') return [actor]
   const side = isAllyShape(ability.shape) ? actor.side : enemySide(actor.side)
   const range = rangeOf(ability)
-  return livingOn(units, side).filter((u) => distance(actor.tile, u.tile) <= range)
+  return livingOn(units, side).filter((u) => unitDistance(actor, u) <= range)
 }
 
-// row: everyone on the primary's side across the board in its row; column: everyone in its lane;
-// blast: the primary and everyone on its side next to it; all_allies: every ally within range; all:
-// everyone on the primary's side, within range of the actor if it has one.
+// row: everyone on the primary's side across the board in its row (any row its footprint spans); column: everyone
+// in its lane (likewise); blast: the primary and everyone on its side next to it; all_allies: every ally within
+// range; all: everyone on the primary's side, within range of the actor if it has one. A unit counts once whatever
+// its footprint, and is in a row or lane if any tile of it is.
 export function expand (units, actor, ability, primary) {
   const living = livingOn(units, primary.side)
+  const size = (u) => u.size ?? sizeOf(u)
   switch (ability.shape) {
     case 'self': return [actor]
-    case 'column': return living.filter((u) => tileX(u.tile) === tileX(primary.tile))
-    case 'row': return living.filter((u) => tileY(u.tile) === tileY(primary.tile))
-    case 'blast': return living.filter((u) => distance(u.tile, primary.tile) <= 1)
-    case 'all_allies': return living.filter((u) => distance(u.tile, actor.tile) <= rangeOf(ability))
-    case 'all': return ability.range ? living.filter((u) => distance(u.tile, actor.tile) <= ability.range) : living
+    case 'column': return living.filter((u) => overlap(tileX(u.tile), size(u), tileX(primary.tile), size(primary)))
+    case 'row': return living.filter((u) => overlap(tileY(u.tile), size(u), tileY(primary.tile), size(primary)))
+    case 'blast': return living.filter((u) => unitDistance(u, primary) <= 1)
+    case 'all_allies': return living.filter((u) => unitDistance(u, actor) <= rangeOf(ability))
+    case 'all': return ability.range ? living.filter((u) => unitDistance(u, actor) <= ability.range) : living
     default: return [primary]
   }
 }

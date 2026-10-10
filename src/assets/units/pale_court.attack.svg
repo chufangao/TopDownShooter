@@ -1,0 +1,336 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Pale Court, casting Pale Fire: it leans into the stroke and sweeps the sceptre forward, the lantern flaring white and a lance of cold ghost-fire spearing out of it, the three crown flames blazing high, gown and veil streaming back, the attendants whirling. Lit from the upper left. -->
+  <defs>
+    <linearGradient id="pca-mist" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6f9ff"/>
+      <stop offset="0.45" stop-color="#c3d0f0"/>
+      <stop offset="1" stop-color="#7686c0"/>
+    </linearGradient>
+    <linearGradient id="pca-gown" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#eef3ff"/>
+      <stop offset="0.4" stop-color="#b6c4ea"/>
+      <stop offset="0.78" stop-color="#8797d0" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#7b8bc8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pca-under" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6c78b4"/>
+      <stop offset="0.7" stop-color="#55609c" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#4a5490" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pca-line" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d0a12"/>
+      <stop offset="0.72" stop-color="#0d0a12" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pca-veil" x1="1" y1="0" x2="0" y2="0.4">
+      <stop offset="0" stop-color="#e6edff" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#a8b6e2" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#8a98d0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pca-collar" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#cdd8f6" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#8e9cd4" stop-opacity="0.55"/>
+    </linearGradient>
+    <linearGradient id="pca-face" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#dfe6fb"/>
+      <stop offset="1" stop-color="#9eacd8"/>
+    </linearGradient>
+    <linearGradient id="pca-sash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c9b6ff"/>
+      <stop offset="0.5" stop-color="#8a6ae8"/>
+      <stop offset="1" stop-color="#4b2f9a"/>
+    </linearGradient>
+    <linearGradient id="pca-silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f1f3fa"/>
+      <stop offset="0.5" stop-color="#a3abc2"/>
+      <stop offset="1" stop-color="#4f566c"/>
+    </linearGradient>
+    <linearGradient id="pca-rod" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b9a48c"/>
+      <stop offset="0.5" stop-color="#6e5644"/>
+      <stop offset="1" stop-color="#2e2018"/>
+    </linearGradient>
+    <linearGradient id="pca-outer" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c9b6ff"/>
+      <stop offset="0.5" stop-color="#8a6ae8"/>
+      <stop offset="1" stop-color="#4b2f9a"/>
+    </linearGradient>
+    <linearGradient id="pca-inner" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#f4eeff"/>
+      <stop offset="1" stop-color="#c4b0ff"/>
+    </linearGradient>
+    <linearGradient id="pca-tail" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#c9b6ff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#a98bff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pca-vapour" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a9b8e6" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#8e9cd4" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pca-lance" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cfe6ff" stop-opacity="0.95"/>
+      <stop offset="0.6" stop-color="#9ed2ff" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#a98bff" stop-opacity="0.5"/>
+    </linearGradient>
+    <linearGradient id="pca-iron" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9a7a5e"/>
+      <stop offset="0.5" stop-color="#5f4230"/>
+      <stop offset="1" stop-color="#2e1f16"/>
+    </linearGradient>
+    <linearGradient id="pca-iron-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6e5140"/>
+      <stop offset="1" stop-color="#24180f"/>
+    </linearGradient>
+    <radialGradient id="pca-glass" cx="0.5" cy="0.55" r="0.6">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#e2f2ff"/>
+      <stop offset="1" stop-color="#7f9cc8"/>
+    </radialGradient>
+    <radialGradient id="pca-aura" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c8d4ff" stop-opacity="0.48"/>
+      <stop offset="0.55" stop-color="#a9b8f0" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#a9b8f0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pca-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#e3d6ff"/>
+      <stop offset="0.6" stop-color="#a98bff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#a98bff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pca-cold" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#e2f2ff"/>
+      <stop offset="0.6" stop-color="#9ed2ff" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#9ed2ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pca-cyan" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f0fffa"/>
+      <stop offset="0.35" stop-color="#8ff7d6"/>
+      <stop offset="1" stop-color="#8ff7d6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pca-pool" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c8d4ff" stop-opacity="0.36"/>
+      <stop offset="1" stop-color="#c8d4ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pca-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0d0a12" stop-opacity="0.38"/>
+      <stop offset="0.7" stop-color="#0d0a12" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- the court's light, swollen and thrown forward by the cast -->
+  <ellipse cx="52" cy="44" rx="44" ry="44" fill="url(#pca-aura)"/>
+
+  <!-- ===== the ground beneath ===== -->
+  <ellipse cx="50" cy="87.2" rx="30" ry="4.6" fill="url(#pca-pool)"/>
+  <ellipse cx="48" cy="88" rx="19" ry="2.6" fill="url(#pca-shadow)"/>
+  <path d="M30 88.6 Q34 87.8 38 88.4 M58 88.8 Q62 88 66 88.6 M46 89.8 Q49 89.4 52 89.8" fill="none" stroke="#dfe8ff" stroke-width="0.45" stroke-linecap="round" opacity="0.5"/>
+  <path d="M72.6 87 l0 1.4 M71.9 87.7 l1.4 0 M80.4 86.4 l0 1.2 M79.8 87 l1.2 0" stroke="#e6f0ff" stroke-width="0.35" stroke-linecap="round" opacity="0.8"/>
+
+  <!-- ===== speed streaks behind the sweep ===== -->
+  <path d="M4 36 L13 36.4 M2 42 L11.6 42.2 M6 60 L15 59.6 M3.6 66 L12 65.6" fill="none" stroke="#dfe8ff" stroke-width="0.6" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- ===== the orbit, the attendants whipped round it ===== -->
+  <ellipse cx="46" cy="52" rx="36" ry="8" transform="rotate(-10 46 52)" fill="none" stroke="#c9b8ff" stroke-width="0.5" stroke-dasharray="1.2 2" opacity="0.35"/>
+
+  <!-- ===== the far attendant, flaring as it swings behind ===== -->
+  <path d="M11.4 58.6 A36 8 -10 0 1 16.2 52.6" fill="none" stroke="#e3d6ff" stroke-width="1.6" stroke-linecap="round" opacity="0.35"/>
+  <g transform="translate(16.2 52.6)">
+    <circle cx="0" cy="0" r="6.4" fill="url(#pca-glow)" opacity="0.8"/>
+    <path d="M0.6 -6 C2.6 -3.6 3.6 -1.6 3.4 0.8 C3.2 3 1.6 4.4 0 4.4 C-1.6 4.4 -3.2 3 -3.2 0.8 C-3.2 -1.6 -1.4 -3.4 0.6 -6 Z" fill="url(#pca-outer)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M0.2 -2.4 C1.4 -1 2.1 0.3 2 1.6 C2 2.8 1 3.4 0 3.4 C-1 3.4 -2 2.8 -2 1.6 C-2 0.2 -1 -1 0.2 -2.4 Z" fill="url(#pca-inner)"/>
+    <path d="M-1.6 0.2 L-0.4 0.8 M0.6 0.8 L1.8 0.2" fill="none" stroke="#1f0f4a" stroke-width="0.45" stroke-linecap="round"/>
+    <path d="M-0.9 2 Q0.2 2.9 1.3 2" fill="#24104f" stroke="#1f0f4a" stroke-width="0.3" stroke-linecap="round"/>
+  </g>
+
+  <!-- ===== the body, leaning into the stroke ===== -->
+  <g transform="rotate(4 47 82)">
+    <!-- the veil streaming flat behind -->
+    <path d="M42.4 13.6 C34 13.6 26 18 19 24 C14.6 27.8 9.6 30 4 30.6 C8.6 32.4 13.6 32.4 18 30.6 C22.6 28.6 26.6 26 31 24.4 C34 23.2 37 22.8 40 22.8 Z" fill="url(#pca-veil)" stroke="url(#pca-line)" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M40 16 C33 16.6 26.6 20.4 21 25.4 C17 28.6 12.4 30.4 7.6 31" fill="none" stroke="#ffffff" stroke-width="0.45" stroke-linecap="round" opacity="0.6"/>
+    <!-- the mist train, dragged out behind -->
+    <path d="M36.6 56 C28 61 18 66 4 69.6 C8.6 71.4 13 73.4 16.4 76.4 C22.6 71.6 28.4 67.8 33.6 65.6 Z" fill="url(#pca-veil)" opacity="0.9"/>
+    <path d="M32.6 60.4 C25 64.4 17 67.6 8.6 70.4" fill="none" stroke="#ffffff" stroke-width="0.45" stroke-linecap="round" opacity="0.45"/>
+    <!-- under-gown -->
+    <path d="M38 48 C31 57 23 67 13.6 78.4 C17 78.4 19.4 80 22 81.8 L38 80.4 L54 80.4 L68.6 83.2 C70.4 81.8 72 80.6 74 80.6 C68 68 62 58 57 48 Z" fill="url(#pca-under)" stroke="url(#pca-line)" stroke-width="0.8" stroke-linejoin="round"/>
+    <!-- the gown, its hem swept back -->
+    <path d="M39.4 46 C34.6 55 27.6 65 18.6 76.6 C21.6 76.4 24.4 78.6 26.6 80.4 C29 78.2 32 78.2 34.2 80.8 C36.8 79 39.8 79.2 42 81.4 C44.6 79.4 47.6 79.4 49.8 81.2 C52.4 79.2 55.2 79.4 57.4 80.8 C59.8 78.8 62.6 79 65 80.2 C66 78.6 67.4 78 68.8 78.2 C63.6 67.6 58.8 56.8 55.4 46 Z" fill="url(#pca-gown)" stroke="url(#pca-line)" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M40.6 52 C37.6 60 33.6 68 28.6 75.6 M45 52 C43.6 60 41.8 68 39.6 76" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" opacity="0.65"/>
+    <path d="M43 54 C41 62 38.4 70 35 77 M50.4 52 C50.8 60 51.6 68 52.6 76.6 M54 50 C55.6 58 58 67 61.4 76" fill="none" stroke="#5a67a6" stroke-width="0.7" stroke-linecap="round" opacity="0.6"/>
+    <path d="M57.4 52 C59.6 59 62.6 66 66.4 73.6" fill="none" stroke="#dff2ff" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+    <path d="M25.6 72 Q46 76.6 64.6 71.6" fill="none" stroke="#a98bff" stroke-width="0.6" stroke-dasharray="1.6 1.2" opacity="0.6"/>
+    <!-- vapour tendrils torn back off the hem -->
+    <g fill="url(#pca-vapour)">
+      <path d="M26 80 C25.4 82.4 23.6 84 20.6 85 C24 85.4 26.8 84 28.6 81.4 Z"/>
+      <path d="M38.6 80.6 C38.4 83 37 85 34.6 86.2 C37.8 86.4 40.4 84.6 41.6 81.6 Z"/>
+      <path d="M51.4 80.4 C51.6 82.8 50.8 84.8 48.8 86.2 C52 85.8 54 83.8 54.6 81 Z"/>
+      <path d="M62.6 79.8 C62.8 82 62.2 83.6 60.6 85 C63.4 84.6 65.2 82.8 65.8 80.4 Z"/>
+    </g>
+    <!-- the far sleeve, flung back -->
+    <path d="M38.4 31.6 C34.4 32 30 34 26 36.6 C22.6 38.8 18.6 40 14.4 40 C17.6 42.2 21.6 43.2 25.6 42.6 C29.6 42 33.6 40.6 37.4 38.6 Z" fill="url(#pca-mist)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M36.4 32.8 C32.6 33.6 29 35.4 25.6 37.4 C22.8 39 20 40 17.2 40.4" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+    <path d="M15 40.4 C11.4 40.6 8 40 4.6 38.6 C8 41.6 11.6 43.2 15.8 43 Z" fill="url(#pca-veil)"/>
+    <!-- the far hand, splayed open behind -->
+    <g fill="none" stroke-linecap="round">
+      <path d="M24.4 40.2 L21.6 37.6 M24 41.4 L20.6 40.4 M24.2 42.4 L21 43.4 M25.4 42.8 L23.6 45.2" stroke="#0d0a12" stroke-width="1.4"/>
+      <path d="M24.4 40.2 L21.6 37.6 M24 41.4 L20.6 40.4 M24.2 42.4 L21 43.4 M25.4 42.8 L23.6 45.2" stroke="#e8eeff" stroke-width="0.65"/>
+    </g>
+    <!-- bodice, sash, girdle, brooch -->
+    <path d="M37.6 31.4 C36.6 37 38 42 39.4 47 Q47.4 49.6 55.4 47 C56.8 42 58.2 37 57.2 31.4 Q52 29.6 47.4 29.6 Q42.8 29.6 37.6 31.4 Z" fill="url(#pca-mist)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M38.8 33 C38.4 37.6 39.2 41.6 40.4 45.4" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" opacity="0.85"/>
+    <path d="M56 33.6 C56.2 38 55.6 42 54.4 45.6" fill="none" stroke="#dff2ff" stroke-width="0.7" stroke-linecap="round" opacity="0.85"/>
+    <path d="M41.4 31 Q47.4 37 53.4 31" fill="#dfe6fb" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M38 31.8 L41.2 31 L56.4 44.6 L55.6 48 Z" fill="url(#pca-sash)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M39.4 32 L55.4 45.6" stroke="#e3d6ff" stroke-width="0.4" opacity="0.8"/>
+    <path d="M39.4 47 Q47.4 49.8 55.4 47" fill="none" stroke="#0d0a12" stroke-width="1.6"/>
+    <path d="M39.4 47 Q47.4 49.8 55.4 47" fill="none" stroke="url(#pca-silver)" stroke-width="0.8"/>
+    <!-- the pendant swung back on its chain -->
+    <path d="M47.4 48.8 L43.4 56.6" stroke="#4f566c" stroke-width="0.5"/>
+    <path d="M42.4 56.2 L44.4 57 L42.4 59.4 Z" fill="url(#pca-silver)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+    <circle cx="47.4" cy="39.4" r="3.6" fill="url(#pca-glow)" opacity="0.75"/>
+    <circle cx="47.4" cy="39.4" r="1.7" fill="url(#pca-silver)" stroke="#0d0a12" stroke-width="0.6"/>
+    <circle cx="47.4" cy="39.4" r="0.9" fill="#c9b6ff" stroke="#3a2390" stroke-width="0.3"/>
+    <circle cx="47.1" cy="39.1" r="0.3" fill="#ffffff"/>
+    <!-- the lace collar, rippling -->
+    <path d="M36.4 30 Q33.2 27.6 34 24.6 Q32.6 21.6 34.4 19 Q34 15.8 36.6 14 Q37.2 10.8 40.4 10.2 Q42.2 7.8 45.2 8.4 Q47.4 6.8 49.8 8.2 Q52.8 7.8 54.2 10.2 Q57.4 10.8 58 14 Q60.6 15.8 60.2 19 Q62 21.6 60.6 24.6 Q61.4 27.6 58.2 30 Z" fill="url(#pca-collar)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <g fill="none" stroke="#7d8cc6" stroke-width="0.4" opacity="0.8">
+      <path d="M47.4 27 L34.6 24.4 M47.4 27 L35 19 M47.4 27 L37.2 13.8 M47.4 27 L40.8 10 M47.4 27 L45.2 8.6 M47.4 27 L50 8.4 M47.4 27 L54 10.4 M47.4 27 L57.6 14 M47.4 27 L59.8 19 M47.4 27 L60.2 24.4"/>
+    </g>
+    <path d="M35.4 25 Q34 21.8 35.4 19 Q35 16.2 37.4 14.6 Q38 11.6 41 11" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round" opacity="0.85"/>
+    <path d="M58.6 14.4 Q60.8 16.4 60.4 19.2 Q61.6 21.6 60.4 24.4" fill="none" stroke="#dff2ff" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+    <!-- neck and face, the eyes blazing -->
+    <path d="M45 24.6 L45.2 30.4 L50.2 30.4 L50.4 24.6 Z" fill="url(#pca-mist)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M42 17.4 C41.8 12.8 44.4 10.4 47.6 10.4 C51 10.4 53.6 12.8 53.4 17.4 C53.2 20.4 52 23.6 49.6 25.8 C48.4 26.8 46.6 26.8 45.4 25.8 C43.2 23.8 42.2 20.6 42 17.4 Z" fill="url(#pca-face)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+    <path d="M52.6 17 C52.4 20.4 51.2 23.4 49.2 25.2 C50.4 22.6 51.2 20 51.4 17.4 Z" fill="#8e9cd4" opacity="0.6"/>
+    <path d="M43 17 C43 14.2 44.4 12.2 46.6 11.6" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round" opacity="0.9"/>
+    <ellipse cx="45.8" cy="17.6" rx="3.6" ry="2.6" fill="url(#pca-cyan)" opacity="0.85"/>
+    <ellipse cx="50.8" cy="17.4" rx="3.2" ry="2.4" fill="url(#pca-cyan)" opacity="0.8"/>
+    <path d="M44 16.8 L47.6 17.6 Q45.8 19.4 44.2 18 Z" fill="#232458" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/>
+    <path d="M52.6 16.6 L49.4 17.6 Q51 19.2 52.4 17.8 Z" fill="#232458" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/>
+    <circle cx="45.9" cy="17.8" r="0.6" fill="#ffffff"/><circle cx="51" cy="17.7" r="0.55" fill="#ffffff"/>
+    <path d="M43.8 15.8 L47.6 16.8 M52.8 15.6 L49.4 16.6" fill="none" stroke="#3a3f72" stroke-width="0.7" stroke-linecap="round"/>
+    <path d="M49.4 18.4 L50.4 21.4 L49.2 21.8" fill="none" stroke="#7d8cc6" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- the mouth open on a cold, ringing note -->
+    <ellipse cx="48.8" cy="23.6" rx="1.2" ry="0.9" fill="#232458" stroke="#0d0a12" stroke-width="0.4"/>
+    <ellipse cx="48.8" cy="23.7" rx="0.6" ry="0.4" fill="#9ed2ff"/>
+    <!-- the crown: three witchflames blazing high, licking back -->
+    <circle cx="47.6" cy="7" r="12" fill="url(#pca-glow)" opacity="0.7"/>
+    <g fill="url(#pca-tail)">
+      <path d="M41.2 6.6 C38.6 5.6 36 5.8 33.6 7.4 C36 7.4 38.2 8 40.4 9.4 Z"/>
+      <path d="M46 4 C43.4 2.6 40.8 2.4 38.2 3.4 C40.6 3.8 42.8 4.6 45 6 Z"/>
+      <path d="M51 6.4 C49.4 5 47.8 4.4 46 4.4 C47.6 5.2 49 6.2 50.2 7.6 Z"/>
+    </g>
+    <path d="M42.6 2.6 C44.8 5 45.8 7.4 45.6 9.6 C45.4 11.6 44.2 12.6 42.8 12.6 C41.2 12.6 40 11.4 40.2 9.8 C40.4 8.4 41 7.2 41.8 6 C42.4 5 42.6 3.8 42.6 2.6 Z" fill="url(#pca-outer)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M42.8 6.6 C43.8 7.8 44.4 8.8 44.3 9.9 C44.2 10.9 43.6 11.4 42.9 11.4 C42.2 11.4 41.5 10.9 41.5 10.1 C41.5 9 42 7.8 42.8 6.6 Z" fill="url(#pca-inner)"/>
+    <path d="M52.8 2.4 C52.8 3.8 53.2 5 53.8 6 C54.6 7.2 55.4 8.4 55.4 9.8 C55.4 11.4 54.2 12.6 52.8 12.6 C51.4 12.6 50.2 11.4 50.2 9.6 C50.2 7.4 51 5 52.8 2.4 Z" fill="url(#pca-outer)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M52.8 6.4 C53.6 7.6 54.1 8.6 54.1 9.8 C54.1 10.8 53.5 11.4 52.8 11.4 C52 11.4 51.4 10.8 51.4 9.8 C51.4 8.8 52 7.6 52.8 6.4 Z" fill="url(#pca-inner)"/>
+    <path d="M47.6 0.4 C50.4 3.6 52 6.4 51.8 9 C51.6 11.4 49.8 12.6 47.6 12.6 C45.4 12.6 43.6 11.2 43.6 9 C43.6 7.4 44.4 6 45.4 4.8 C45.6 6 45.8 6.8 46.4 7.2 C47 5 47.8 2.8 47.6 0.4 Z" fill="url(#pca-outer)" stroke="#0d0a12" stroke-width="0.75" stroke-linejoin="round"/>
+    <path d="M47.6 4.4 C49.2 6.2 50 7.8 49.9 9.2 C49.8 10.6 48.8 11.6 47.6 11.6 C46.4 11.6 45.4 10.8 45.4 9.4 C45.4 7.8 46.4 6.2 47.6 4.4 Z" fill="url(#pca-inner)"/>
+    <!-- the flames' faces, fierce now -->
+    <path d="M42 9.4 L42.8 9.9 M43.4 9.9 L44.2 9.4 M51.8 9.4 L52.6 9.9 M53.2 9.9 L54 9.4 M46.2 8.4 L47.2 9 M48 9 L49 8.4" stroke="#1f0f4a" stroke-width="0.45" stroke-linecap="round"/>
+    <path d="M46.6 10.2 Q47.6 11.2 48.6 10.2 Z" fill="#24104f" stroke="#1f0f4a" stroke-width="0.3" stroke-linejoin="round"/>
+    <path d="M41.8 13.6 Q47.6 10.6 53.4 13.4 L53.2 15.2 Q47.6 12.6 42 15.4 Z" fill="url(#pca-silver)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M42.8 13.6 Q47.6 11.4 52.6 13.4" fill="none" stroke="#ffffff" stroke-width="0.35" opacity="0.9"/>
+    <circle cx="47.6" cy="12.6" r="0.6" fill="#c9b6ff" stroke="#0d0a12" stroke-width="0.3"/>
+  </g>
+  <!-- sparks thrown off the blazing crown -->
+  <circle cx="44" cy="2" r="0.45" fill="#ffffff"/><circle cx="40.6" cy="4.6" r="0.4" fill="#e3d6ff"/><circle cx="62" cy="3.4" r="0.35" fill="#e3d6ff"/><circle cx="36.4" cy="10" r="0.35" fill="#8ff7d6"/>
+  <path d="M60.4 1.4 L60.4 3.6 M59.3 2.5 L61.5 2.5" stroke="#ffffff" stroke-width="0.45" stroke-linecap="round"/>
+
+  <!-- ===== the near arm: sleeve streaming back as the sceptre sweeps forward ===== -->
+  <path d="M57.8 31.4 C61.4 32 64 34.6 65.6 37.6 L66.4 40 L64.4 42.6 C61.2 46.2 57.2 48.8 52.4 50.2 C53.8 47 55 44 55.8 41 C56.6 37.6 57.2 34.4 57.8 31.4 Z" fill="url(#pca-mist)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M59.4 33.2 C61.8 34.4 63.4 36.2 64.6 38.4" fill="none" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M63.2 43.6 C60.6 46.4 57.6 48.2 54.4 49.2" fill="none" stroke="#dff2ff" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M52.6 50 C49.6 51.6 46.4 52.2 42.6 51.8 C46 50.8 48.8 49.6 51.2 48 Z" fill="url(#pca-veil)"/>
+
+  <!-- ===== the sceptre, swept forward ===== -->
+  <path d="M45 51.6 L75 33.6 L75.8 35 L45.8 53 Z" fill="url(#pca-rod)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M46 51.8 L74.6 34.6" stroke="#d8c6ae" stroke-width="0.35" opacity="0.7"/>
+  <path d="M45 51.6 L43 53.8 L45.8 53 Z" fill="url(#pca-silver)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M54 46.4 q1.2 -0.2 2.2 -1.2" fill="none" stroke="#a5532c" stroke-width="0.5" opacity="0.8"/>
+  <!-- the crook, curling over the lantern -->
+  <path d="M75.4 34.3 C77 32.2 78.4 30.4 80.4 30.2 C82.4 30 83.6 31.6 83.2 33.6" fill="none" stroke="#0d0a12" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M75.4 34.3 C77 32.2 78.4 30.4 80.4 30.2 C82.4 30 83.6 31.6 83.2 33.6" fill="none" stroke="url(#pca-rod)" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M76.6 32.4 C77.8 31.2 79 30.6 80.4 30.6" fill="none" stroke="#d8c6ae" stroke-width="0.35" stroke-linecap="round"/>
+  <ellipse cx="75.2" cy="34.3" rx="1.8" ry="1" transform="rotate(-31 75.2 34.3)" fill="url(#pca-silver)" stroke="#0d0a12" stroke-width="0.6"/>
+  <ellipse cx="69.4" cy="37.9" rx="1.8" ry="1.1" transform="rotate(-31 69.4 37.9)" fill="url(#pca-silver)" stroke="#0d0a12" stroke-width="0.6"/>
+  <ellipse cx="59" cy="44.1" rx="1.5" ry="0.9" transform="rotate(-31 59 44.1)" fill="url(#pca-silver)" stroke="#0d0a12" stroke-width="0.5"/>
+  <!-- the hand, gripping hard -->
+  <path d="M63.8 39.4 Q65.6 38.2 67.4 38.8 L68 42.2 Q66.2 43.2 64.4 42.6 Z" fill="url(#pca-face)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M65.8 38.6 Q67.6 37.4 68.4 38.4 M66.6 40 Q68.6 39 69.2 40.2 M66.8 41.6 Q68.6 40.8 69.2 41.8" stroke="#0d0a12" stroke-width="1.3"/>
+    <path d="M65.8 38.6 Q67.6 37.4 68.4 38.4 M66.6 40 Q68.6 39 69.2 40.2 M66.8 41.6 Q68.6 40.8 69.2 41.8" stroke="#eef3ff" stroke-width="0.6"/>
+  </g>
+  <circle cx="69" cy="40.1" r="0.5" fill="#a98bff" stroke="#0d0a12" stroke-width="0.3"/>
+
+  <!-- ===== the lantern, swung back on its chain and flaring white ===== -->
+  <g transform="translate(60.8 -23.7) rotate(12 22.4 57.5)">
+    <g fill="none" stroke="#2a1d14" stroke-width="1.1">
+      <ellipse cx="22.4" cy="58.6" rx="0.7" ry="1.1"/>
+      <ellipse cx="22.4" cy="61" rx="0.45" ry="1.1"/>
+    </g>
+    <g fill="none" stroke="#a07a58" stroke-width="0.5">
+      <ellipse cx="22.4" cy="58.6" rx="0.7" ry="1.1"/>
+      <path d="M22.4 59.9 L22.4 62.1"/>
+    </g>
+    <path d="M19.4 64.6 Q19.4 61.6 22.4 61.6 Q25.4 61.6 25.4 64.6" fill="none" stroke="#0d0a12" stroke-width="1.4"/>
+    <path d="M19.4 64.6 Q19.4 61.6 22.4 61.6 Q25.4 61.6 25.4 64.6" fill="none" stroke="#8a6a52" stroke-width="0.6"/>
+    <circle cx="22.4" cy="70.2" r="14" fill="url(#pca-cold)" opacity="0.85"/>
+    <path d="M17.2 66.2 L20.4 63.4 L24.4 63.4 L27.6 66.2 Z" fill="url(#pca-iron)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M16.6 66 L28.2 66 L28 67.4 L16.8 67.4 Z" fill="url(#pca-iron-dark)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M18.4 65.6 L20.8 63.8 L22.6 63.8" fill="none" stroke="#c7a27a" stroke-width="0.4" stroke-linecap="round"/>
+    <circle cx="22.4" cy="63" r="0.8" fill="#6e5140" stroke="#0d0a12" stroke-width="0.5"/>
+    <path d="M17.6 67.4 L27.2 67.4 L26.8 73.6 L18 73.6 Z" fill="url(#pca-glass)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <!-- the ghost-fire, roaring inside -->
+    <path d="M23.4 67.6 C24.6 69.2 25.2 70.6 25 71.8 C24.8 73 23.6 73.4 22.4 73.3 C21 73.2 20.2 72.4 20.3 71.2 C20.4 69.8 21.6 68.6 23.4 67.6 Z" fill="#ffffff" stroke="#9ed2ff" stroke-width="0.35"/>
+    <path d="M20.2 67.4 L20.4 73.6 M24.6 67.4 L24.4 73.6" stroke="#3a2618" stroke-width="0.9"/>
+    <path d="M17.8 70.4 L27 70.4" stroke="#3a2618" stroke-width="0.6"/>
+    <path d="M18.4 68 L18.6 69.6" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+    <path d="M26.9 68.6 L27.9 68.6 L27.9 69.8 L26.9 69.8 Z M26.8 71.4 L27.7 71.4 L27.7 72.4 L26.8 72.4 Z" fill="#4a3324" stroke="#0d0a12" stroke-width="0.3"/>
+    <path d="M16.8 73.4 L28 73.4 L27.4 75.2 L17.4 75.2 Z" fill="url(#pca-iron)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M20.6 75.2 L24.2 75.2 L22.4 77.2 Z" fill="url(#pca-iron-dark)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M17.6 74 L23 74" stroke="#c7a27a" stroke-width="0.35" stroke-linecap="round"/>
+    <circle cx="18" cy="66.7" r="0.35" fill="#d2b08a"/><circle cx="26.8" cy="66.7" r="0.35" fill="#7a5a44"/>
+    <circle cx="18.2" cy="74.3" r="0.35" fill="#d2b08a"/><circle cx="26.6" cy="74.3" r="0.35" fill="#7a5a44"/>
+    <path d="M25.8 66.6 q0.6 1 0.2 2 M21 75 q0.4 0.8 0 1.4" fill="none" stroke="#a5532c" stroke-width="0.5" opacity="0.8"/>
+    <path d="M23.4 64.4 q1.2 -0.4 1.8 0.6 q-0.8 0.6 -1.8 -0.6 Z" fill="#4f8f7a" opacity="0.85"/>
+  </g>
+
+  <!-- ===== the lance of pale cold fire ===== -->
+  <path d="M82.4 40.4 C87 42.4 91.4 44.4 96.6 46.4 C91.4 48.4 87 50.4 82.4 52.6 C84.6 49.4 84.6 43.8 82.4 40.4 Z" fill="url(#pca-lance)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M83.8 43.4 C87.6 44.6 91.6 45.6 96.4 46.4 C91.6 47.2 87.6 48.2 83.8 49.6 C85 47.6 85 45.4 83.8 43.4 Z" fill="#ffffff"/>
+  <path d="M85 45.2 C88.6 45.8 92.4 46.2 96 46.4" fill="none" stroke="#8ff7d6" stroke-width="0.4" stroke-linecap="round" opacity="0.8"/>
+  <!-- release flare -->
+  <circle cx="82.4" cy="46.4" r="6" fill="url(#pca-cold)"/>
+  <path d="M82.4 38.4 L82.4 41.2 M82.4 51.6 L82.4 54.4 M77 46.4 L79 46.4 M78.6 42.6 L80.2 44 M78.6 50.2 L80.2 48.8" stroke="#ffffff" stroke-width="0.55" stroke-linecap="round" opacity="0.9"/>
+  <!-- frost-streaks peeling off the lance -->
+  <path d="M86 41 L93.4 43.4 M86 51.8 L93.4 49.4 M88.6 39.2 L94 41.2" fill="none" stroke="#cfe6ff" stroke-width="0.5" stroke-linecap="round" opacity="0.8"/>
+  <path d="M93.6 41.6 l0.8 -0.8 M93.4 50.6 l0.8 0.8" stroke="#ffffff" stroke-width="0.4" stroke-linecap="round"/>
+  <circle cx="91" cy="38.4" r="0.45" fill="#ffffff"/><circle cx="90" cy="54.6" r="0.4" fill="#cfe6ff"/><circle cx="94.6" cy="52.8" r="0.35" fill="#e3d6ff"/>
+
+  <!-- ===== the near side of the orbit and the near attendant, darting round ===== -->
+  <path d="M81.5 45.7 A36 8 -10 0 1 10.5 58.3" fill="none" stroke="#c9b8ff" stroke-width="0.55" stroke-dasharray="1.2 2" opacity="0.5"/>
+  <path d="M75.6 50.8 A36 8 -10 0 1 64.9 55.7" fill="none" stroke="#e3d6ff" stroke-width="1.8" stroke-linecap="round" opacity="0.4"/>
+  <g transform="translate(64.9 55.7)">
+    <circle cx="0" cy="0" r="6.8" fill="url(#pca-glow)" opacity="0.85"/>
+    <path d="M-0.8 -6 C1.6 -3.8 3.2 -1.8 3.4 0.6 C3.6 3 2 4.6 0 4.6 C-1.8 4.6 -3.4 3.2 -3.4 1 C-3.4 -1.4 -2.4 -3.4 -0.8 -6 Z" fill="url(#pca-outer)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+    <path d="M-0.4 -2.6 C0.9 -1.2 2 0.2 2.1 1.6 C2.1 2.9 1.1 3.6 0 3.6 C-1.1 3.6 -2.1 2.9 -2.1 1.6 C-2.1 0.2 -1.4 -1.2 -0.4 -2.6 Z" fill="url(#pca-inner)"/>
+    <path d="M-1.8 0.2 L-0.5 0.8 M0.6 0.8 L1.9 0.2" fill="none" stroke="#1f0f4a" stroke-width="0.45" stroke-linecap="round"/>
+    <path d="M-1 2 Q0.2 3.1 1.4 2 Z" fill="#24104f" stroke="#1f0f4a" stroke-width="0.3" stroke-linejoin="round"/>
+  </g>
+
+  <!-- ===== motes whirled up by the cast ===== -->
+  <circle cx="22" cy="16" r="2" fill="url(#pca-cold)" opacity="0.8"/>
+  <circle cx="22" cy="16" r="0.45" fill="#ffffff"/>
+  <circle cx="72" cy="20" r="1.8" fill="url(#pca-glow)" opacity="0.8"/>
+  <circle cx="72" cy="20" r="0.4" fill="#ffffff"/>
+  <circle cx="78" cy="66" r="1.6" fill="url(#pca-cold)" opacity="0.75"/>
+  <circle cx="78" cy="66" r="0.35" fill="#ffffff"/>
+  <circle cx="88" cy="28" r="0.45" fill="#e3d6ff" opacity="0.9"/>
+  <circle cx="20" cy="74" r="0.4" fill="#cfe6ff" opacity="0.8"/>
+  <path d="M86 60 L86 62.4 M84.8 61.2 L87.2 61.2" stroke="#cfe6ff" stroke-width="0.45" stroke-linecap="round"/>
+</svg>

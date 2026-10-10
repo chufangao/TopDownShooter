@@ -11,41 +11,47 @@ export const TUNING = {
   variance: [0.95, 1.05],
   // gauge per tick = (base + spd / spdDivisor) × gauge.rate
   gauge: { base: 1.6, spdDivisor: 25 },
-  // The shared board: each side's 3×7 formation at its own end, `gap` empty rows between the fronts.
-  // Walking is off the gauge: a unit steps to a neighbouring tile once per `stepTicks` (0.8 s), ÷ its stride.
+  // The shared board: the foes' 3×7 formation at the top, your 7×7 camp at the bottom, `gap` empty rows between.
+  // Walking is off the gauge: a foe steps to a neighbouring tile once per `stepTicks` (0.8 s), ÷ its stride (your
+  // pieces never move).
   board: { gap: 1, stepTicks: 16 },
   // After startTick (×bossMult for bosses) all damage ramps by perTick, capped at max: no stalemates. The
   // ticks count from the last foe to enter (a wave), so newcomers never meet ramped blows.
   escalation: { startTick: 900, perTick: 0.005, max: 8, bossMult: 2 },
-  // field: the pieces that fight before Command (a stack is one piece, whatever its count); the field cap is
-  // field + fieldPerFloor × (floor − 1) + Command (+ relics, keystones), never more than army.board. fieldPerFloor
-  // is 0 since the army became souls (it was 1 in necessity round 2): Command alone widens the field. roster: the
-  // souls (bodies) a retinue holds, on the field and in the ossuary together, stacked or not. The Monarch counts
-  // toward neither.
+  // field: the Monarch's base Command, the pieces that fight (a stack is one piece, whatever its count); the field cap
+  // is field + fieldPerFloor × (floor − 1) + the Command relics add (run.js commandOf), never more than army.board.
+  // fieldPerFloor is 0 since the army became souls (it was 1 in necessity round 2): Command alone widens the field.
+  // roster: the souls (bodies) a retinue holds, on the field and in the ossuary together, stacked or not. The Monarch
+  // counts toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
-  // The Monarch: four stats bought a point at a time, HP, Dominion, Command and Will (DESIGN §2.8). HP hp +
-  // hpPerPoint × HP points (its level); a point of any costs cost + costPerPoint × points spent on all four.
-  // Its domain reaches `domain` + Dominion tiles (Chebyshev) from its tile: Arise raises the foes that
-  // fall inside it. A shadow rises with the fallen piece's count, each body at `raiseHp` of its body HP. Nothing else
-  // touches its HP (no synergy, relic or keystone), so hp and hpPerPoint carry all of it: 140 and +24 a point
-  // (the final balance pass; it was 90 and +12 while synergies still raised it some 40%). Only a run that buys
-  // points gains by hpPerPoint: the expert buys some 14 by floor 4, a rule-of-thumb run none.
-  // Arise raises up to raises × (1 + Will) a battle, foes of tier up to raiseTier + Will, and each point of Will
-  // fills the Monarch's gauge willHaste faster (×(1 + willHaste × Will)): Arise comes sooner. That is the half of
-  // Will that free binds were, until binding went.
-  // Necessity round 2: hp 280 + 10 a point (was 200 + 16: points decided whole runs), raises 3 (was 2: Arise
-  // was worth less than the points its Will took). Ranks gained `might`; relics a cap (relicMax).
-  // Round 3: hp 220 + 14 a point (was 280 + 10).
-  monarch: { hp: 220, hpPerPoint: 14, cost: 20, costPerPoint: 10, domain: 3, raiseHp: 1, raises: 3, raiseTier: 2, willHaste: 0.1 },
+  // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (content.js
+  // RELIC_LIST `monarchHp`), and nothing else touches it (no synergy, no other relic). No points are bought: its HP
+  // and its Command (party.field) grow only by relics (2026-10-09, late; the points were hp 220 + 14 a point, for
+  // 20 + 10 a point bought on all four).
+  // The rest is Arise's, a Legendary relic (content.js RELIC_LIST): without it no foe rises. Its domain reaches
+  // `domain` + Dominion tiles (Chebyshev) from the Monarch's tile, and it raises the foes that fall inside it, of tier up
+  // to raiseTier + Will, up to raises × (copies + Will) a battle, each shadow at the fallen piece's count, each body at
+  // `raiseHp` of its body HP; each point of Will fills the Monarch's gauge willHaste faster (×(1 + willHaste × Will)).
+  // Dominion and Will are Arise's, not the Monarch's: each copy of Arise past the first adds `dominion` to its
+  // Dominion and `will` to its Will (run.js ariseOf), on top of the `raises` each copy adds. Placeholders until the
+  // balance pass. Necessity round 2: raises 3 (was 2: Arise was worth less than the points its Will took). The balance
+  // pass: domain 5 and raiseTier 3 (were 3 and 2: few foes fell inside the domain, and Arise's ablation cost nothing).
+  monarch: { hp: 220, domain: 5, raiseHp: 1, raises: 3, raiseTier: 3, willHaste: 0.1, dominion: 1, will: 1 },
   // The board (14 → 10 in necessity round 1): the field cap never passes `board` pieces, and the Legion's shadows
   // rise only while fewer than `board` pieces of yours stand on it (Arise's are bounded by its own cap).
   army: { board: 10 },
-  // A kind's level (every soul of it) costs cost × level^exponent essence, up to cap.
-  level: { cap: 10, cost: 8, exponent: 1.2 },
+  // A kind's level (every soul of it) is its tiers' (DESIGN §2.6): base + perTier × the tiers it holds on both tracks,
+  // rounded down (run.js levelOf), so six tiers (IV and II) make level 5. No level is bought (2026-10-09, late;
+  // levels cost 8 × level^1.2 up to 10). A fused kind stands at least at the highest level of the kinds that went
+  // into it. Foes keep their floor's levels (spawn). The balance pass (DESIGN §5 Step 8) made it base 2, 0.5 a tier
+  // (was 1 and 1.5: six tiers made level 10, and the tracks carried the expert alone, an 88-point ablation).
+  level: { base: 2, perTier: 0.5 },
   // Essence: each foe slain pays perTier × tier × (1 + perLevel × (level − 1)); a run starts with
-  // `start`. A kind's track tiers I–IV cost tier[] (either track); recruiting a soul costs recruit × tier ×
-  // (1 + perLevel × (level − 1)). An elite offers `eliteRelics` relics to choose one from.
-  essence: { start: 20, perTier: 2.5, perLevel: 0.35, tier: [20, 45, 75, 120], recruit: 8, eliteRelics: 2, relicMax: 6 },
+  // `start`. It buys only kinds, recruits and fusions: a kind's track tiers I–IV cost tier[] (either track);
+  // recruiting a soul costs recruit × tier × (1 + perLevel × (level − 1)), at the level it joins at (its kind's).
+  // What a won elite offers in relics is TUNING.relic's.
+  // A fusion (DESIGN §2.6) costs fuse × the fused kind's tier, on top of the souls it consumes.
+  essence: { start: 20, perTier: 2.5, perLevel: 0.35, tier: [20, 45, 75, 120], recruit: 8, fuse: 8 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
   // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
   // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1
@@ -54,14 +60,16 @@ export const TUNING = {
   // souls are still level 1–2. So floor 1's elite is 2 foes of the higher tier (and the late pair), and its
   // foes ×0.8 (was ×0.75): 57 of 64 basic runs and 2 of 64 expert runs die on floor 1.
   spawn: {
-    levelPerFloor: 2, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 1, tierFalloff: 3,
+    levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 1, tierFalloff: 3,
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
-    foeHp: [1.08, 0.88, 0.76, 0.95], foeAtk: [1.02, 0.83, 0.76, 0.9], bossHp: 1, bossAtk: 1,
+    // The balance pass: levelPerFloor 1 (was 2) with floors 2–4's foeHp/foeAtk ×1.15 (were 0.88/0.83, 0.76/0.76,
+    // 0.95/0.9), so a floor's foes grow less by level and the expert's margin is thin enough to show each mechanic.
+    foeHp: [1.08, 1.01, 0.87, 1.09], foeAtk: [1.02, 0.95, 0.87, 1.04], bossHp: 1, bossAtk: 1,
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses
-    // one is drawn again wanting it, up to `routeTries` times a type (run.js varyRoutes).
-    variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 6 },
+    // one is drawn again wanting it, up to `routeTries` times a type in each of `routePasses` passes (run.js varyRoutes).
+    variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 6, routePasses: 4 },
     // The enemy as an army. From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave,
     // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind: one piece
     // of 1 + cohort bodies on the captain's slot (DESIGN §2.2). A floor-1
@@ -104,7 +112,20 @@ export const TUNING = {
   // for its search to fight it on its remaining rolls (autoplay.js plan): 'best' the best so far, 'finalists'
   // a place among the finalists (exact: the same plan as with every roll fought).
   autoplay: { rehearsalCeiling: 1400, bigBattle: 24, settle: { k: 4, window: 100, recent: 50, every: 10 }, prune: 'best' },
-  // Keystones (KEYSTONE_LIST): from floor `fromFloor`, a won elite and a rite each offer `offer` you do not
-  // hold, one of them free for the taking, until a run holds `max`.
-  keystone: { offer: 2, max: 3, fromFloor: 2 }
+  // Relics (content.js RELIC_LIST, RELIC_TIERS). A reliquary lays out `offer.reliquary` relics and a won elite
+  // `offer.elite`, free: each of a tier drawn by `weights[room]`, the entry for the floor (index floor − 1; the last
+  // one for every floor past them), then a relic of that tier, never the same one twice in one offer; a won elite's
+  // always holds a Command relic (run.js relicOffers). A relic held may be offered again (copies stack; no cap). A
+  // reliquary also lays out up to `offer.tiers` free next tiers of your kinds (what a rite gave, before the two rooms
+  // merged), and from floor `legendary.fromFloor` a won elite and a reliquary lay out `legendary.offer` Legendaries
+  // (the ones that need Arise only once it is held). A reliquary's offers are one pick in all; an elite's, one of
+  // each kind. The weights are placeholders until the balance pass.
+  relic: {
+    offer: { reliquary: 3, elite: 2, tiers: 3 },
+    weights: {
+      reliquary: [{ common: 6, uncommon: 3, rare: 1 }, { common: 4, uncommon: 4, rare: 2 }, { common: 3, uncommon: 4, rare: 3 }, { common: 2, uncommon: 4, rare: 4 }],
+      elite: [{ common: 4, uncommon: 4, rare: 2 }, { common: 3, uncommon: 4, rare: 3 }, { common: 2, uncommon: 4, rare: 4 }, { common: 1, uncommon: 4, rare: 5 }]
+    },
+    legendary: { offer: 2, fromFloor: 2 }
+  }
 }

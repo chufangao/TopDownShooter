@@ -1,5 +1,5 @@
-// All game content: units, abilities, upgrade tracks, statuses, kin and roles, behaviours, signals, synergies,
-// camps, relics and attack animations, plus id lookups. Data only; balance numbers live in tuning.js.
+// All game content: units, abilities, upgrade tracks, statuses, kin and roles, behaviours, synergies, camps,
+// fusions, relics and attack animations, plus id lookups. Data only; balance numbers live in tuning.js.
 
 // ── units ────────────────────────────────────────────────────────────────────────────────────
 
@@ -7,18 +7,22 @@
 // `${art}.attack.svg` and `${art}.dead.svg` (see artUrl). The battle animates them in code: no frames.
 // `aura`: mods every ally (not itself) within `range` tiles gets while it stands. `threats`: what a foe
 // of this kind does to a Monarch (THREATS), for the encounter draw's variety rule; never shown as intent.
-// `ring`: the radius in tiles it fights within (DESIGN §2.3): a ranged kind's reach; for a melee kind 1, or 2 for
-// one that lunges (one of yours steps in to strike what its ring holds, then back). `stride` (optional, 1 by
-// default) scales how fast it walks: 0.5 and 0.75 for the slow, 1.5 for the quick. Each kind does one legible
-// thing on the board. `behaviour`: how it walks the roads as a foe (BEHAVIOURS), learnt by meeting it: a few
-// kinds whose nature is to go round Flank, and carry the `flank` threat; `flavour`: a line of lore that hints at
-// it, never naming it.
+// `ring`: the radius in tiles it fights within, measured from its footprint (DESIGN §2.3): a ranged kind's reach;
+// for a melee kind 1, or 2 for a long arm (it strikes two tiles off without stepping). `stride` (optional, 1 by
+// default) scales how fast a foe of the kind walks: 0.5 and 0.75 for the slow, 1.5 for the quick (your pieces
+// never move). `size` (optional, 1 by default): 2 for a 2×2 footprint (DESIGN §2.2). `flies`: it keeps no road
+// and only a ranged blow can strike it (DESIGN §2.4 Fly). `onFall`: a death burst, its effects run from where it
+// fell on the other side's living within `range`. `fused`: a fusion's result (FUSION_LIST), never spawned nor
+// recruited, so no threats nor behaviour. Each kind does one legible thing on the board. `behaviour`: how it walks
+// the roads as a foe (BEHAVIOURS), learnt by meeting it: a few kinds whose nature is to go round Flank, and carry
+// the `flank` threat, and the flyers, which carry `fly`; `flavour`: a line of lore that hints at it, never naming
+// it.
 
 export const UNIT_LIST = [
   {
     // You. It stands where it is placed, never strikes, and raises the dead in its domain; if it falls the
-    // battle and the run are lost. Its HP and level come from the run (TUNING.monarch: level = the points
-    // bought for its HP), not from base + growth. Never offered, never spawns.
+    // battle and the run are lost. Its HP comes from the run (TUNING.monarch.hp and the HP relics: run.js
+    // monarchHp), not from base + growth; it has no level. Never offered, never spawns.
     id: 'monarch',
     name: 'The Monarch',
     kin: null,
@@ -58,7 +62,7 @@ export const UNIT_LIST = [
     base: { hp: 142, atk: 16, def: 22, spd: 12, acc: 45, eva: 6, crt: 4 },
     growth: { hp: 16, atk: 2.4, def: 2, spd: 0.5 },
     abilities: ['cleave', 'strike'],
-    // The wall: it holds a tile, and walks slowly in its old plate.
+    // The wall: it holds a tile, and as a foe walks slowly in its old plate.
     ring: 1,
     stride: 0.75,
     aura: { range: 1, desc: 'Allies next to it take 15% less damage.', mods: [{ path: 'damage.taken', op: 'mul', v: 0.85 }] },
@@ -77,7 +81,7 @@ export const UNIT_LIST = [
     base: { hp: 96, atk: 24, def: 10, spd: 26, acc: 52, eva: 14, crt: 12 },
     growth: { hp: 11, atk: 3.2, def: 0.9, spd: 1.4 },
     abilities: ['ember_burst', 'strike'],
-    // The burster: four tiles of reach, and a blast where they stand thickest.
+    // The burster: four tiles of reach, and a blast on whatever it aims at and everyone next to it.
     ring: 4,
     spawn: { weight: 8, minFloor: 2 },
     threats: ['shape', 'reach'],
@@ -112,7 +116,7 @@ export const UNIT_LIST = [
     base: { hp: 110, atk: 13, def: 15, spd: 18, acc: 42, eva: 10, crt: 3 },
     growth: { hp: 13, atk: 1.6, def: 1.4, spd: 0.9 },
     abilities: ['mend', 'purge', 'strike'],
-    // The mender at the front: it heals whoever is hurt worst beside it.
+    // The mender at the front: it heals whichever ally is hurt worst, wherever it stands.
     ring: 1,
     spawn: { weight: 9, minFloor: 1 },
     threats: ['clock'],
@@ -146,7 +150,7 @@ export const UNIT_LIST = [
     base: { hp: 96, atk: 13, def: 9, spd: 18, acc: 42, eva: 10, crt: 6 },
     growth: { hp: 11, atk: 1.8, def: 0.8, spd: 0.9 },
     abilities: ['gnaw', 'strike'],
-    // The lunger: what passes within two tiles, it leaps on, and then it goes back to its place.
+    // The long arm: it strikes whatever passes within two tiles of it.
     ring: 2,
     spawn: { weight: 13, minFloor: 1 },
     threats: ['drain'],
@@ -198,7 +202,7 @@ export const UNIT_LIST = [
     base: { hp: 92, atk: 25, def: 9, spd: 32, acc: 50, eva: 20, crt: 16 },
     growth: { hp: 10, atk: 3.1, def: 0.8, spd: 1.8 },
     abilities: ['reap', 'strike'],
-    // Flank, quick, and a lunger: it springs two tiles on what it finds.
+    // Flank, quick, and a long arm: it strikes two tiles off.
     ring: 2,
     stride: 1.5,
     spawn: { weight: 7, minFloor: 2 },
@@ -261,6 +265,181 @@ export const UNIT_LIST = [
     art: 'frost_wyrm'
   },
   {
+    // The burner of floor 1: quick, and its bite leaves Burning, which outlasts the hound.
+    id: 'pyre_hound',
+    name: 'Pyre Hound',
+    kin: 'drake',
+    role: 'skirmisher',
+    tier: 2,
+    base: { hp: 84, atk: 16, def: 8, spd: 30, acc: 46, eva: 16, crt: 8 },
+    growth: { hp: 9, atk: 2.2, def: 0.7, spd: 1.5 },
+    abilities: ['pyre_bite'],
+    ring: 1,
+    stride: 1.5,
+    spawn: { weight: 10, minFloor: 1 },
+    threats: ['burn'],
+    behaviour: 'walk',
+    flavour: 'A hound of the pyre runs ahead of the pack, and what it bites smoulders long after it has let go.',
+    art: 'pyre_hound'
+  },
+  {
+    // The flyer of floor 2 (DESIGN §2.4 Fly): over the walls, straight at the Monarch; only a ranged blow touches it.
+    id: 'hive_drone',
+    name: 'Hive Drone',
+    kin: 'insect',
+    role: 'skirmisher',
+    tier: 1,
+    base: { hp: 46, atk: 12, def: 3, spd: 36, acc: 46, eva: 26, crt: 6 },
+    growth: { hp: 5, atk: 1.7, def: 0.3, spd: 2 },
+    abilities: ['drone_sting'],
+    ring: 1,
+    flies: true,
+    spawn: { weight: 10, minFloor: 2 },
+    threats: ['fly'],
+    behaviour: 'fly',
+    flavour: 'Walls mean nothing to a drone: the hive points, and it goes there by the shortest air.',
+    art: 'hive_drone'
+  },
+  {
+    // The death burst of floor 2 (DESIGN §2.4): slow and thick, and when it falls what stood next to it is Withered.
+    id: 'rot_bloat',
+    name: 'Rot Bloat',
+    kin: 'undead',
+    role: 'vanguard',
+    tier: 2,
+    base: { hp: 150, atk: 12, def: 10, spd: 12, acc: 40, eva: 4, crt: 2 },
+    growth: { hp: 16, atk: 1.6, def: 0.9, spd: 0.5 },
+    abilities: ['bile', 'strike'],
+    ring: 1,
+    stride: 0.75,
+    onFall: { range: 1, effects: [{ op: 'apply_status', status: 'withered', dur: 140 }] },
+    spawn: { weight: 8, minFloor: 2 },
+    threats: ['drain'],
+    behaviour: 'walk',
+    flavour: 'A bloat is a corpse that kept its gas: it waddles, and no one who knows stands near when one is opened.',
+    art: 'rot_bloat'
+  },
+  {
+    // The hexer of floor 3: from three tiles off, its curse leaves Hexed, a slower gauge.
+    id: 'marsh_hag',
+    name: 'Marsh Hag',
+    kin: 'fae',
+    role: 'channeler',
+    tier: 3,
+    base: { hp: 88, atk: 20, def: 8, spd: 24, acc: 48, eva: 16, crt: 7 },
+    growth: { hp: 10, atk: 2.7, def: 0.7, spd: 1.3 },
+    abilities: ['hex', 'strike'],
+    ring: 3,
+    spawn: { weight: 7, minFloor: 3 },
+    threats: ['reach', 'drain'],
+    behaviour: 'walk',
+    flavour: 'A hag mutters a word over whatever she means to keep, and after it moves as if the bog had its ankles.',
+    art: 'marsh_hag'
+  },
+  {
+    // The flying burner of floor 3: over the walls, and its breath leaves Burning on a crowd.
+    id: 'ash_wyvern',
+    name: 'Ash Wyvern',
+    kin: 'drake',
+    role: 'ranger',
+    tier: 3,
+    base: { hp: 100, atk: 22, def: 9, spd: 26, acc: 50, eva: 18, crt: 10 },
+    growth: { hp: 11, atk: 3, def: 0.8, spd: 1.4 },
+    abilities: ['cinder_breath', 'strike'],
+    ring: 2,
+    flies: true,
+    spawn: { weight: 7, minFloor: 3 },
+    threats: ['fly', 'burn'],
+    behaviour: 'fly',
+    flavour: 'An ash wyvern is seen first as a shadow on the ground, and the ground its breath falls on goes on smouldering.',
+    art: 'ash_wyvern'
+  },
+  {
+    // A fused kind (DESIGN §2.6): Tomb Knight ×2 + Bone Chanter. A 2×2 wall whose sweep strikes every foe in its
+    // ring, and whose aura shelters allies within 2.
+    id: 'bone_colossus',
+    name: 'Bone Colossus',
+    kin: 'undead',
+    role: 'vanguard',
+    tier: 4,
+    fused: true,
+    size: 2,
+    base: { hp: 1050, atk: 68, def: 28, spd: 12, acc: 48, eva: 2, crt: 4 },
+    growth: { hp: 101, atk: 8.5, def: 2.4, spd: 0.5 },
+    abilities: ['colossal_sweep', 'strike'],
+    ring: 1,
+    aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [{ path: 'damage.taken', op: 'mul', v: 0.85 }] },
+    flavour: 'Two knights and the singer who bound them, standing as one: a wall that remembers how to fight.',
+    art: 'bone_colossus'
+  },
+  {
+    // A fused kind: Ember Drake + Frost Sprite ×2. Fire that freezes: its blast burns a crowd and slows it, from
+    // four tiles off.
+    id: 'rime_drake',
+    name: 'Rime Drake',
+    kin: 'drake',
+    role: 'ranger',
+    tier: 4,
+    fused: true,
+    base: { hp: 575, atk: 82, def: 13, spd: 26, acc: 52, eva: 14, crt: 12 },
+    growth: { hp: 60, atk: 10.8, def: 1.2, spd: 1.4 },
+    abilities: ['rimefire', 'frost_lance'],
+    ring: 4,
+    flavour: 'A drake and the two sprites that rode it, breathing as one: the fire comes out cold, and the frost burns.',
+    art: 'rime_drake'
+  },
+  {
+    // A fused kind: Hive Warden ×2 + Mantis Reaper. A 2×2 mender with a reaper's arms: its jelly mends every ally
+    // within 2, and its scythe falls on whatever comes next to it.
+    id: 'hive_queen',
+    name: 'Hive Queen',
+    kin: 'insect',
+    role: 'warden',
+    tier: 4,
+    fused: true,
+    size: 2,
+    base: { hp: 975, atk: 69, def: 20, spd: 18, acc: 48, eva: 8, crt: 10 },
+    growth: { hp: 98, atk: 8.8, def: 1.8, spd: 0.9 },
+    abilities: ['royal_jelly', 'royal_scythe', 'strike'],
+    ring: 1,
+    flavour: 'Two wardens and the reaper they kept, crowned: the comb is wherever she stands, and so is the harvest.',
+    art: 'hive_queen'
+  },
+  {
+    // A fused kind: Clockwork Page ×2 + Iron Golem. A 2×2 wall of gears: its slam shakes the gauge out of a crowd,
+    // and its works quicken the allies beside it.
+    id: 'clockwork_titan',
+    name: 'Clockwork Titan',
+    kin: 'construct',
+    role: 'vanguard',
+    tier: 4,
+    fused: true,
+    size: 2,
+    base: { hp: 1125, atk: 60, def: 32, spd: 10, acc: 46, eva: 2, crt: 4 },
+    growth: { hp: 109, atk: 7.1, def: 2.6, spd: 0.5 },
+    abilities: ['piston_slam', 'strike'],
+    ring: 1,
+    aura: { range: 1, desc: 'Allies next to it get +10% gauge rate.', mods: [{ path: 'gauge.rate', op: 'mul', v: 1.1 }] },
+    flavour: 'Two pages wound the golem tighter than its makers dared, and climbed inside to keep it ticking.',
+    art: 'clockwork_titan'
+  },
+  {
+    // A fused kind: Will-o'-Wisp ×3. Three witchfires crowned as one: a flame on a crowd, and pale fire that Hexes,
+    // from four tiles off.
+    id: 'pale_court',
+    name: 'Pale Court',
+    kin: 'fae',
+    role: 'channeler',
+    tier: 3,
+    fused: true,
+    base: { hp: 350, atk: 72, def: 6, spd: 32, acc: 50, eva: 28, crt: 8 },
+    growth: { hp: 40, atk: 10, def: 0.5, spd: 1.8 },
+    abilities: ['triune_flame', 'pale_fire'],
+    ring: 4,
+    flavour: 'Three wisps that led the lost into the same bog, and found one another there: now they hold court.',
+    art: 'pale_court'
+  },
+  {
     // Bosses never spawn from the pool and leave no soul.
     id: 'hollow_sovereign',
     name: 'The Hollow Sovereign',
@@ -283,16 +462,16 @@ export const UNIT_LIST = [
 // ── abilities ────────────────────────────────────────────────────────────────────────────────
 
 // Shapes: single, ally, self; row (everyone level with the target), column (its lane); blast (the
-// target and everyone next to it, aimed where they stand thickest); all, all_allies (within `range`);
+// target and everyone next to it; aimed as any blow is, battle.js pick); all, all_allies (within `range`);
 // corpse (a fallen foe: Arise's).
 // `when(s)` gets { self, allies, enemies, t } (living units; allies includes self); `cond` says the
 // same in words for tooltips. The AI banks gauge for the first ability whose `when` passes and that
-// has a target in reach, so gates keep pricey ones reachable. Reach: melee hits the 8 tiles around,
-// `range` is in tiles, and ally abilities and `all` reach the whole board.
+// has a target in reach, so gates keep pricey ones reachable. Reach, from the caster's footprint: melee hits
+// the tiles around (its ring, for a long arm) and never a flyer, `range` is in tiles, and ally abilities and
+// `all` without a range reach the whole board. A blow never reaches past the caster's ring.
 const hpPct = (u) => u.hp / u.maxHp
 // The units of a list within r tiles of the caster (the view's `dist`): a tier IV's area condition reads
-// only what its area reaches, so a soul never banks for a cast that would touch no one it was meant for,
-// nor halts short of a foe for a reach it has no use for yet.
+// only what its area reaches, so a soul never banks for a cast that would touch no one it was meant for.
 const near = (s, list, r) => list.filter((u) => s.dist(u) <= r)
 
 const ABILITY_LIST = [
@@ -546,7 +725,7 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 32 }]
+    effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'burning', dur: 120 }]
   },
   {
     id: 'searing_bolt',
@@ -600,7 +779,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#b57bff',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -40 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -40 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
   },
   {
     id: 'overclock',
@@ -758,7 +937,7 @@ const ABILITY_LIST = [
     range: 5,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.4 }]
+    effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'burning', dur: 120 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.4 }]
   },
   {
     // No range: it reaches the whole board.
@@ -824,7 +1003,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#b57bff',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -1000 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -1000 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
   },
   {
     id: 'perpetual_motion',
@@ -961,7 +1140,8 @@ const ABILITY_LIST = [
     effects: [{ op: 'damage', power: 22 }, { op: 'gauge', amount: -30 }]
   },
   {
-    // No range: it reaches the whole board, and as a Ranger's it picks the most wounded foe.
+    // No range: it reaches as far as the ring (the tier that teaches it widens that to the whole board), aimed as
+    // any blow is (battle.js pick).
     id: 'killing_cold',
     name: 'Killing Cold',
     castCost: 160,
@@ -971,24 +1151,455 @@ const ABILITY_LIST = [
     when: (s) => s.enemies.some((u) => hpPct(u) < 0.5),
     cond: 'once a foe is below half HP',
     effects: [{ op: 'damage', power: 40 }]
+  },
+  // ── the foes of the deeper floors, and the fused kinds ──
+  {
+    // Its Burning outlasts the hound.
+    id: 'pyre_bite',
+    name: 'Pyre Bite',
+    castCost: 110,
+    shape: 'single',
+    melee: true,
+    tint: '#ff7a33',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'drone_sting',
+    name: 'Sting',
+    castCost: 100,
+    shape: 'single',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 24 }]
+  },
+  {
+    id: 'bile',
+    name: 'Bile',
+    castCost: 130,
+    shape: 'single',
+    melee: true,
+    tint: '#9bc25a',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 24 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.4 }]
+  },
+  {
+    id: 'hex',
+    name: 'Hex',
+    castCost: 120,
+    shape: 'single',
+    range: 3,
+    tint: '#9b6cd8',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
+  },
+  {
+    id: 'cinder_breath',
+    name: 'Cinder Breath',
+    castCost: 150,
+    shape: 'blast',
+    range: 2,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 22 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    // Every foe within 1 of its footprint.
+    id: 'colossal_sweep',
+    name: 'Colossal Sweep',
+    castCost: 160,
+    shape: 'all',
+    range: 1,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 26 }]
+  },
+  {
+    id: 'rimefire',
+    name: 'Rimefire',
+    castCost: 160,
+    shape: 'blast',
+    range: 4,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 26 }, { op: 'gauge', amount: -20 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'royal_jelly',
+    name: 'Royal Jelly',
+    castCost: 150,
+    shape: 'all_allies',
+    range: 2,
+    tint: '#ffe9a8',
+    anim: 'cast_beam',
+    when: (s) => near(s, s.allies, 2).some((u) => hpPct(u) < 0.6),
+    cond: 'while an ally within 2 tiles is below 60% HP',
+    effects: [{ op: 'heal', power: 20 }, { op: 'apply_status', status: 'regen', dur: 200, chance: 0.5 }]
+  },
+  {
+    id: 'royal_scythe',
+    name: 'Royal Scythe',
+    castCost: 140,
+    shape: 'single',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 44 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.3 }]
+  },
+  {
+    id: 'piston_slam',
+    name: 'Piston Slam',
+    castCost: 170,
+    shape: 'blast',
+    melee: true,
+    tint: '#b57bff',
+    anim: 'melee_lunge',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 24 }, { op: 'gauge', amount: -35 }]
+  },
+  {
+    id: 'triune_flame',
+    name: 'Triune Flame',
+    castCost: 150,
+    shape: 'blast',
+    range: 4,
+    tint: '#b57bff',
+    anim: 'cast_beam',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 24 }]
+  },
+  {
+    id: 'pale_fire',
+    name: 'Pale Fire',
+    castCost: 120,
+    shape: 'single',
+    range: 4,
+    tint: '#cfe3ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'hexed', dur: 120, chance: 0.5 }]
+  },
+  // ── abilities their tracks grant ──
+  {
+    id: 'cinder_fang',
+    name: 'Cinder Fang',
+    castCost: 120,
+    shape: 'single',
+    melee: true,
+    tint: '#ff7a33',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 34 }, { op: 'apply_status', status: 'burning', dur: 200 }]
+  },
+  {
+    id: 'hellmaw',
+    name: 'Hellmaw',
+    castCost: 150,
+    shape: 'blast',
+    melee: true,
+    tint: '#ff7a33',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'burning', dur: 200 }]
+  },
+  {
+    id: 'cinder_spit',
+    name: 'Cinder Spit',
+    castCost: 120,
+    shape: 'single',
+    range: 3,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'venom_sting',
+    name: 'Venom Sting',
+    castCost: 110,
+    shape: 'single',
+    melee: true,
+    tint: '#9bc25a',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.5 }]
+  },
+  {
+    id: 'hexing_sting',
+    name: 'Hexing Sting',
+    castCost: 120,
+    shape: 'single',
+    melee: true,
+    tint: '#9b6cd8',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.5 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
+  },
+  {
+    id: 'swarm_cloud',
+    name: 'Swarm Cloud',
+    castCost: 150,
+    shape: 'blast',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 22 }]
+  },
+  {
+    id: 'spew',
+    name: 'Spew',
+    castCost: 140,
+    shape: 'blast',
+    melee: true,
+    tint: '#9bc25a',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 22 }, { op: 'apply_status', status: 'withered', dur: 140, chance: 0.5 }]
+  },
+  {
+    id: 'miasma',
+    name: 'Miasma',
+    castCost: 190,
+    shape: 'all',
+    range: 2,
+    tint: '#9bc25a',
+    anim: 'cast_beam',
+    when: (s) => near(s, s.enemies, 2).length >= 2,
+    cond: 'while 2+ foes stand within 2 tiles',
+    effects: [{ op: 'damage', power: 12 }, { op: 'apply_status', status: 'withered', dur: 140 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
+  },
+  {
+    id: 'bog_curse',
+    name: 'Bog Curse',
+    castCost: 130,
+    shape: 'single',
+    range: 3,
+    tint: '#9b6cd8',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'hexed', dur: 140 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 }]
+  },
+  {
+    id: 'mire',
+    name: 'Mire',
+    castCost: 200,
+    shape: 'all',
+    range: 3,
+    tint: '#9b6cd8',
+    anim: 'cast_beam',
+    when: (s) => near(s, s.enemies, 3).length >= 2,
+    cond: 'while 2+ foes stand within 3 tiles',
+    effects: [{ op: 'damage', power: 12 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
+  },
+  {
+    id: 'long_curse',
+    name: 'Long Curse',
+    castCost: 130,
+    shape: 'single',
+    range: 5,
+    tint: '#9b6cd8',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 28 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
+  },
+  {
+    id: 'ashfall',
+    name: 'Ashfall',
+    castCost: 160,
+    shape: 'blast',
+    range: 3,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'pyre_rain',
+    name: 'Pyre Rain',
+    castCost: 200,
+    shape: 'all',
+    range: 3,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    when: (s) => near(s, s.enemies, 3).length >= 2,
+    cond: 'while 2+ foes stand within 3 tiles',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'burning', dur: 160 }]
+  },
+  {
+    id: 'ember_lance',
+    name: 'Ember Lance',
+    castCost: 130,
+    shape: 'single',
+    range: 4,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 34 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'bone_quake',
+    name: 'Bone Quake',
+    castCost: 170,
+    shape: 'all',
+    range: 1,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 26 }, { op: 'gauge', amount: -30 }]
+  },
+  {
+    id: 'grave_breaker',
+    name: 'Grave Breaker',
+    castCost: 190,
+    shape: 'all',
+    range: 2,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    when: (s) => near(s, s.enemies, 2).length >= 2,
+    cond: 'while 2+ foes stand within 2 tiles',
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.6 }]
+  },
+  {
+    id: 'rimestorm',
+    name: 'Rimestorm',
+    castCost: 170,
+    shape: 'blast',
+    range: 5,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 28 }, { op: 'gauge', amount: -20 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'equinox',
+    name: 'Equinox',
+    castCost: 220,
+    shape: 'all',
+    range: 5,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    when: (s) => near(s, s.enemies, 5).length >= 3,
+    cond: 'while 3+ foes stand within 5 tiles',
+    effects: [{ op: 'damage', power: 16 }, { op: 'gauge', amount: -30 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'kindled_lance',
+    name: 'Kindled Lance',
+    castCost: 130,
+    shape: 'single',
+    range: 3,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 38 }, { op: 'gauge', amount: -30 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'hive_mind',
+    name: 'Hive Mind',
+    castCost: 180,
+    shape: 'all_allies',
+    range: 3,
+    tint: '#ffe9a8',
+    anim: 'cast_beam',
+    when: (s) => near(s, s.allies, 3).some((u) => hpPct(u) < 0.6),
+    cond: 'while an ally within 3 tiles is below 60% HP',
+    effects: [{ op: 'heal', power: 22 }, { op: 'cleanse', tag: 'debuff', count: 1 }]
+  },
+  {
+    id: 'swarm_scythe',
+    name: 'Swarm Scythe',
+    castCost: 150,
+    shape: 'blast',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 34 }]
+  },
+  {
+    // A long arm: it reaches 2 tiles from her footprint, and still no flyer.
+    id: 'reaping_swarm',
+    name: 'Reaping Swarm',
+    castCost: 160,
+    shape: 'blast',
+    range: 2,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 34 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.3 }]
+  },
+  {
+    id: 'steam_hammer',
+    name: 'Steam Hammer',
+    castCost: 180,
+    shape: 'blast',
+    melee: true,
+    tint: '#b57bff',
+    anim: 'melee_lunge',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -40 }]
+  },
+  {
+    id: 'gear_lock',
+    name: 'Gear Lock',
+    castCost: 200,
+    shape: 'all',
+    range: 1,
+    melee: true,
+    tint: '#b57bff',
+    anim: 'melee_lunge',
+    when: (s) => near(s, s.enemies, 1).length >= 2,
+    cond: 'while 2+ foes stand next to it',
+    effects: [{ op: 'damage', power: 10 }, { op: 'gauge', amount: -1000 }]
+  },
+  {
+    id: 'pale_pyre',
+    name: 'Pale Pyre',
+    castCost: 160,
+    shape: 'blast',
+    range: 4,
+    tint: '#b57bff',
+    anim: 'cast_beam',
+    when: (s) => s.enemies.length >= 2,
+    cond: 'while 2+ foes stand',
+    effects: [{ op: 'damage', power: 24 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'danse_macabre',
+    name: 'Danse Macabre',
+    castCost: 220,
+    shape: 'all',
+    range: 4,
+    tint: '#b57bff',
+    anim: 'cast_beam',
+    when: (s) => near(s, s.enemies, 4).length >= 3,
+    cond: 'while 3+ foes stand within 4 tiles',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+  },
+  {
+    id: 'court_summons',
+    name: 'Court Summons',
+    castCost: 130,
+    shape: 'single',
+    range: 6,
+    tint: '#cfe3ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
   }
 ]
 
 // ── upgrade tracks ───────────────────────────────────────────────────────────────────────────
 
-// Each kind of soul has two tracks of four tiers (DESIGN §2.8), bought with essence for the kind
+// Each kind of soul has two tracks of four tiers (DESIGN §2.6), bought with essence for the kind
 // (TUNING.essence.tier): every soul of the kind holds them (run.js s.kinds). The crosspath rule, as Bloons TD
 // 6's: one track may pass tier II, and the other then stops at II (unit.js canTrack). A tier can carry `mods`
 // (always on, like a relic's, for the souls of the kind alone), `ability` ({ id, replace } swaps one of its
 // abilities; { id, at } adds one at that place in its priority list, first by default), `aura` (replaces its
 // aura), `count` (bodies more in its piece each battle, whole, gone when it ends: unit.js bodiesOf), `ring`
-// (tiles more: a tier whose blow reaches past the ring raises the ring with it, so the card never lies),
-// `stride` (× how fast it walks) and `banner`. Tier IV is a rule, never a percentage (a new or remade ability, or Banner); no tier I–II of one track remakes an ability
-// or grants an aura, so the other track's tiers III–IV never undo it. Banner (tier IV of a front-line kind's
-// first track): the piece leads a wing, the pieces placed beside it in prep its followers (battle.js).
+// (tiles more: a tier whose blow reaches past the ring raises the ring with it, so the card never lies) and `size`
+// (2: Colossus, every piece of the kind grows to 2×2, and one that no longer fits where it stands goes to the
+// ossuary; unit.js sizeOf). Tier IV is a rule, never a percentage: a new or remade ability, an aura, a wider ring,
+// or Colossus. No tier I–II of one track remakes an ability or grants an aura, so the other track's tiers III–IV
+// never undo it.
 const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
-// Banner, a tier IV.
-const BANNER = { desc: 'Banner: it leads. The pieces placed beside it follow its line, keeping their places, and a shadow that rises on its line falls in with them.', banner: true }
 export const TRACKS = {
   bone_chanter: [
     { id: 'dirgemaster', name: 'Dirgemaster', desc: 'Quickens the whole line.', tiers: [
@@ -998,16 +1609,16 @@ export const TRACKS = {
       { desc: 'Requiem becomes Dirge Unending: Hasten to every ally within 3 tiles whenever one lacks it, all battle long.', ability: { id: 'dirge_unending', replace: 'requiem' } }] },
     { id: 'marrowcaller', name: 'Marrowcaller', desc: 'Bones that rise, bolts that pierce a lane.', tiers: [
       { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
-      { desc: 'Bones rise to its call: +1 body in every battle.', count: 1 },
+      { desc: 'Bones rise to its call: +3 bodies in every battle.', count: 3 },
       { desc: 'Marrow Bolt becomes Marrow Spear: hits a foe and everyone in its lane.', ability: { id: 'marrow_spear', replace: 'marrow_bolt' } },
       { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles, while 3+ foes stand there.', ability: { id: 'bone_storm' } }] }
   ],
   tomb_knight: [
-    { id: 'bulwark', name: 'Bulwark', desc: 'A wall the line hides behind.', tiers: [
+    { id: 'bulwark', name: 'Bulwark', desc: 'A wall the others shelter behind.', tiers: [
       { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
       { desc: 'Its aura reaches allies within 2 tiles.', aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } },
-      BANNER] },
+      { desc: 'Barrow Wall (Colossus): every piece of the kind grows to 2×2, its ring and aura reaching from all four tiles.', size: 2 }] },
     { id: 'reaver', name: 'Reaver', desc: 'Trades the shield for the edge.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+15% damage dealt while a foe is next to it.', mods: [m('damage.dealt', 'mul', 1.15, 'engaged')] },
@@ -1018,8 +1629,8 @@ export const TRACKS = {
     { id: 'pyroclast', name: 'Pyroclast', desc: 'Bigger fires.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
-      { desc: 'Ember Burst becomes Inferno: 32 power to a foe and everyone next to it.', ability: { id: 'inferno', replace: 'ember_burst' } },
-      { desc: 'Inferno becomes Cataclysm: reaches 5 tiles, and leaves the burnt Withered. Its ring grows to 5.', ability: { id: 'cataclysm', replace: 'inferno' }, ring: 1 }] },
+      { desc: 'Ember Burst becomes Inferno: 32 power to a foe and everyone next to it, and leaves them Burning.', ability: { id: 'inferno', replace: 'ember_burst' } },
+      { desc: 'Inferno becomes Cataclysm: reaches 5 tiles, and leaves the burnt Withered as well. Its ring grows to 5.', ability: { id: 'cataclysm', replace: 'inferno' }, ring: 1 }] },
     { id: 'skyhunter', name: 'Skyhunter', desc: 'Picks off whoever strays.', tiers: [
       { desc: '+12 ACC, +10% gauge rate.', mods: [m('acc', 'add', 12), m('gauge.rate', 'mul', 1.1)] },
       { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
@@ -1041,7 +1652,7 @@ export const TRACKS = {
   hive_warden: [
     { id: 'brood_mother', name: 'Brood Mother', desc: 'Hatches a swarm, and mends it.', tiers: [
       { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
-      { desc: 'Its brood hatches with it: +1 body in every battle.', count: 1 },
+      { desc: 'Its brood hatches with it: +3 bodies in every battle.', count: 3 },
       { desc: 'Mend becomes Swarm Mend: heals every ally within 2 tiles.', ability: { id: 'swarm_mend', replace: 'mend' } },
       { desc: 'Swarm Mend becomes Brood Surge: heals every ally within 3 tiles and gives them Regen.', ability: { id: 'brood_surge', replace: 'swarm_mend' } }] },
     { id: 'chitin_guard', name: 'Chitin Guard', desc: 'Armours those beside it.', tiers: [
@@ -1054,11 +1665,11 @@ export const TRACKS = {
     { id: 'saboteur', name: 'Saboteur', desc: 'Jams the enemy back line.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
-      { desc: 'Strike becomes Spanner in the Works: 30 power, drains 40 gauge.', ability: { id: 'spanner', replace: 'strike' } },
-      { desc: "Spanner becomes Wrench the Works: it empties a foe's gauge.", ability: { id: 'wrench', replace: 'spanner' } }] },
+      { desc: 'Strike becomes Spanner in the Works: 30 power, drains 40 gauge, and leaves it Hexed.', ability: { id: 'spanner', replace: 'strike' } },
+      { desc: "Spanner becomes Wrench the Works: it empties a foe's gauge, and leaves it Hexed.", ability: { id: 'wrench', replace: 'spanner' } }] },
     { id: 'gearwright', name: 'Gearwright', desc: 'Winds up soldiers, and keeps them ticking.', tiers: [
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Winds up a spare: +1 body in every battle.', count: 1 },
+      { desc: 'Winds up three spares: +3 bodies in every battle.', count: 3 },
       { desc: 'Purge becomes Overclock: Hasten and one debuff removed, on the most wounded ally.', ability: { id: 'overclock', replace: 'purge' } },
       { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
   ],
@@ -1067,7 +1678,7 @@ export const TRACKS = {
       { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
       { desc: 'Gains an aura: allies next to it deal 10% more damage.', aura: { range: 1, desc: 'Allies next to it deal 10% more damage.', mods: [m('damage.dealt', 'mul', 1.1)] } },
-      BANNER] },
+      { desc: 'Charnel Brute (Colossus): every piece of the kind grows to 2×2, its ring and aura reaching from all four tiles.', size: 2 }] },
     { id: 'glutton', name: 'Glutton', desc: 'Eats to stay standing.', tiers: [
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
       { desc: 'Takes 8% less damage.', mods: [m('damage.taken', 'mul', 0.92)] },
@@ -1089,7 +1700,7 @@ export const TRACKS = {
   thorn_dryad: [
     { id: 'heartwood', name: 'Heartwood', desc: "Deep-rooted healing, and the grove's lights.", tiers: [
       { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
-      { desc: 'Wakes a sapling of its grove: +1 body in every battle.', count: 1 },
+      { desc: 'Wakes three saplings of its grove: +3 bodies in every battle.', count: 3 },
       { desc: 'Mend becomes Bloom: 34 power and Regen every time.', ability: { id: 'bloom', replace: 'mend' } },
       { desc: 'Bloom becomes Verdant Bloom: it heals every ally within 2 tiles, with Regen.', ability: { id: 'verdant_bloom', replace: 'bloom' } }] },
     { id: 'bramble', name: 'Bramble', desc: 'A healer with thorns.', tiers: [
@@ -1115,7 +1726,7 @@ export const TRACKS = {
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
       { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
       { desc: 'Gains an aura: allies next to it take 10% less damage.', aura: { range: 1, desc: 'Allies next to it take 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] } },
-      BANNER] },
+      { desc: 'Iron Bastion (Colossus): every piece of the kind grows to 2×2, its ring and aura reaching from all four tiles.', size: 2 }] },
     { id: 'siegebreaker', name: 'Siegebreaker', desc: 'Breaks whole formations.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
@@ -1137,14 +1748,134 @@ export const TRACKS = {
   frost_wyrm: [
     { id: 'ancient', name: 'Ancient', desc: 'Older, colder, and never alone.', tiers: [
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'A whelp of its brood: +1 body in every battle.', count: 1 },
+      { desc: 'Whelps of its brood: +3 bodies in every battle.', count: 3 },
       { desc: 'Glacial Breath becomes Blizzard: freezes a foe and everyone level with it.', ability: { id: 'blizzard', replace: 'glacial_breath' } },
       { desc: 'Blizzard becomes Ice Age: it freezes every foe within 3 tiles.', ability: { id: 'ice_age', replace: 'blizzard' } }] },
     { id: 'rime_tyrant', name: 'Rime Tyrant', desc: 'Pure killing cold.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
       { desc: '+20% damage dealt, +10 CRT.', mods: [m('damage.dealt', 'mul', 1.2), m('crt', 'add', 10)] },
-      { desc: 'Learns Killing Cold: 40 power to the most wounded foe anywhere on the board, once one is below half HP; its ring covers the board.', ability: { id: 'killing_cold' }, ring: 7 }] }
+      { desc: 'Learns Killing Cold: 40 power to a foe anywhere on the board, once one is below half HP; its ring covers the board.', ability: { id: 'killing_cold' }, ring: 7 }] }
+  ],
+  pyre_hound: [
+    { id: 'cinder', name: 'Cinder', desc: 'A hotter bite, and a longer burn.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Pyre Bite becomes Cinder Fang: 34 power, and its Burning lasts 10 s.', ability: { id: 'cinder_fang', replace: 'pyre_bite' } },
+      { desc: 'Cinder Fang becomes Hellmaw: it bites a foe and every foe next to it, and leaves them all Burning.', ability: { id: 'hellmaw', replace: 'cinder_fang' } }] },
+    { id: 'firebrand', name: 'Firebrand', desc: 'The pack runs hot about it.', tiers: [
+      { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: 'Gains an aura: allies next to it get +8 CRT.', aura: { range: 1, desc: 'Allies next to it get +8 CRT.', mods: [m('crt', 'add', 8)] } },
+      { desc: 'Learns Cinder Spit: 26 power and Burning at range 3. Its ring grows to 3.', ability: { id: 'cinder_spit', at: 1 }, ring: 2 }] }
+  ],
+  hive_drone: [
+    { id: 'venom', name: 'Venom', desc: 'A worse sting.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Sting becomes Venom Sting: 30 power, 50% chance of Withered.', ability: { id: 'venom_sting', replace: 'drone_sting' } },
+      { desc: 'Venom Sting becomes Hexing Sting: it leaves its target Hexed too.', ability: { id: 'hexing_sting', replace: 'venom_sting' } }] },
+    { id: 'hum', name: 'Hum of the Hive', desc: 'The swarm keeps time with it.', tiers: [
+      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
+      { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+      { desc: 'Gains an aura: allies next to it get +10% gauge rate.', aura: { range: 1, desc: 'Allies next to it get +10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] } },
+      { desc: 'Learns Swarm Cloud: it stings a foe and every foe next to it, while 2+ foes stand.', ability: { id: 'swarm_cloud' } }] }
+  ],
+  rot_bloat: [
+    { id: 'swollen', name: 'Swollen', desc: 'Harder to open.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+      { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+      { desc: 'Bursting Hulk (Colossus): every piece of the kind swells to 2×2, its ring reaching from all four tiles.', size: 2 }] },
+    { id: 'putrid', name: 'Putrid', desc: 'It rots what it touches.', tiers: [
+      { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: 'Bile becomes Spew: 22 power to a foe and everyone next to it, 50% chance of Withered.', ability: { id: 'spew', replace: 'bile' } },
+      { desc: 'Learns Miasma: Withers and Hexes every foe within 2 tiles, while 2+ stand there. Its ring grows to 2.', ability: { id: 'miasma' }, ring: 1 }] }
+  ],
+  marsh_hag: [
+    { id: 'crone', name: 'Crone', desc: 'Deeper curses.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+15 ACC.', mods: [m('acc', 'add', 15)] },
+      { desc: 'Hex becomes Bog Curse: 30 power, Hexed, and 50% chance of Brittle.', ability: { id: 'bog_curse', replace: 'hex' } },
+      { desc: 'Learns Mire: Hexes every foe within 3 tiles, while 2+ stand there.', ability: { id: 'mire' } }] },
+    { id: 'charmwife', name: 'Charmwife', desc: 'Charms for her own, and a longer reach.', tiers: [
+      { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
+      { desc: 'Gains an aura: allies within 2 tiles get +6 EVA.', aura: { range: 2, desc: 'Allies within 2 tiles get +6 EVA.', mods: [m('eva', 'add', 6)] } },
+      { desc: 'Hex becomes Long Curse: it reaches 5 tiles. Its ring grows to 5.', ability: { id: 'long_curse', replace: 'hex' }, ring: 2 }] }
+  ],
+  ash_wyvern: [
+    { id: 'ashstorm', name: 'Ashstorm', desc: 'Wider fires.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Cinder Breath becomes Ashfall: it reaches 3 tiles. Its ring grows to 3.', ability: { id: 'ashfall', replace: 'cinder_breath' }, ring: 1 },
+      { desc: 'Ashfall becomes Pyre Rain: Burning on every foe within 3 tiles, while 2+ stand there.', ability: { id: 'pyre_rain', replace: 'ashfall' } }] },
+    { id: 'skyrend', name: 'Skyrend', desc: 'Strikes from high and far.', tiers: [
+      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
+      { desc: 'Learns Ember Lance: 34 power and Burning at range 4. Its ring grows to 4.', ability: { id: 'ember_lance', at: 1 }, ring: 2 }] }
+  ],
+  bone_colossus: [
+    { id: 'rampart', name: 'Rampart', desc: 'A thicker wall, a wider shelter.', tiers: [
+      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+      { desc: 'Its aura reaches allies within 3 tiles.', aura: { range: 3, desc: 'Allies within 3 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } }] },
+    { id: 'wrecker', name: 'Wrecker', desc: 'A heavier sweep.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Colossal Sweep becomes Bone Quake: every foe within 1 tile, draining 30 gauge.', ability: { id: 'bone_quake', replace: 'colossal_sweep' } },
+      { desc: 'Bone Quake becomes Grave Breaker: every foe within 2 tiles, left Brittle. Its ring grows to 2.', ability: { id: 'grave_breaker', replace: 'bone_quake' }, ring: 1 }] }
+  ],
+  rime_drake: [
+    { id: 'frostfire', name: 'Frostfire', desc: 'A wider storm.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Rimefire becomes Rimestorm: it reaches 5 tiles. Its ring grows to 5.', ability: { id: 'rimestorm', replace: 'rimefire' }, ring: 1 },
+      { desc: 'Rimestorm becomes Equinox: it burns and slows every foe within 5 tiles, while 3+ stand there.', ability: { id: 'equinox', replace: 'rimestorm' } }] },
+    { id: 'glacier_heart', name: 'Glacier Heart', desc: 'A colder heart, a hotter lance.', tiers: [
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
+      { desc: 'Frost Lance becomes Kindled Lance: 38 power, drains 30 gauge, and leaves Burning.', ability: { id: 'kindled_lance', replace: 'frost_lance' } }] }
+  ],
+  hive_queen: [
+    { id: 'matriarch', name: 'Matriarch', desc: 'The comb is wherever she stands.', tiers: [
+      { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Gains an aura: allies within 2 tiles take 10% less damage.', aura: { range: 2, desc: 'Allies within 2 tiles take 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] } },
+      { desc: 'Royal Jelly becomes Hive Mind: it heals every ally within 3 tiles and strips a debuff from each.', ability: { id: 'hive_mind', replace: 'royal_jelly' } }] },
+    { id: 'swarmblade', name: 'Swarmblade', desc: "A reaper's arms, and longer.", tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
+      { desc: 'Royal Scythe becomes Swarm Scythe: 34 power to a foe and every foe next to it.', ability: { id: 'swarm_scythe', replace: 'royal_scythe' } },
+      { desc: 'Swarm Scythe becomes Reaping Swarm: it reaches 2 tiles, 30% chance of Brittle. Its ring grows to 2.', ability: { id: 'reaping_swarm', replace: 'swarm_scythe' }, ring: 1 }] }
+  ],
+  clockwork_titan: [
+    { id: 'bastion', name: 'Bastion', desc: 'A wall that locks the works of all about it.', tiers: [
+      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+      { desc: 'Learns Gear Lock: it empties the gauge of every foe next to it, while 2+ stand there.', ability: { id: 'gear_lock' } }] },
+    { id: 'overdrive', name: 'Overdrive', desc: 'Faster works, and those beside it keep time.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
+      { desc: 'Piston Slam becomes Steam Hammer: 30 power, drains 40 gauge.', ability: { id: 'steam_hammer', replace: 'piston_slam' } },
+      { desc: 'Its aura reaches allies within 2 tiles, and quickens them more: +15% gauge rate.', aura: { range: 2, desc: 'Allies within 2 tiles get +15% gauge rate.', mods: [m('gauge.rate', 'mul', 1.15)] } }] }
+  ],
+  pale_court: [
+    { id: 'ghostlight', name: 'Ghostlight', desc: 'Its flames catch.', tiers: [
+      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+      { desc: '+15 ACC.', mods: [m('acc', 'add', 15)] },
+      { desc: 'Triune Flame becomes Pale Pyre: it leaves its targets Burning.', ability: { id: 'pale_pyre', replace: 'triune_flame' } },
+      { desc: 'Pale Pyre becomes Danse Macabre: Burning on every foe within 4 tiles, while 3+ stand there.', ability: { id: 'danse_macabre', replace: 'pale_pyre' } }] },
+    { id: 'masque', name: 'Masque', desc: 'A court of veils, and a long summons.', tiers: [
+      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
+      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+      { desc: 'Gains an aura: allies within 2 tiles get +8 EVA.', aura: { range: 2, desc: 'Allies within 2 tiles get +8 EVA.', mods: [m('eva', 'add', 8)] } },
+      { desc: 'Pale Fire becomes Court Summons: it reaches 6 tiles, and always Hexes. Its ring grows to 6.', ability: { id: 'court_summons', replace: 'pale_fire' }, ring: 2 }] }
   ]
 }
 
@@ -1231,7 +1962,29 @@ const STATUS_LIST = [
     ]
   },
   {
-    // A relic's gift to a soul as it enters (Tower Shield).
+    // A damage-over-time (DESIGN §2.4): each tick interval it deals `power` true damage per stack (battle.js 'dot':
+    // never missing, no DEF, no crit), up to 3 stacks.
+    id: 'burning',
+    desc: 'Takes 6 true damage a second per stack, up to 3 stacks.',
+    name: 'Burning',
+    tags: ['debuff'],
+    dur: 120,
+    stacks: 3,
+    mods: [],
+    tick: [{ op: 'dot', power: 6 }],
+    tickEvery: 20
+  },
+  {
+    id: 'hexed',
+    desc: '−30% gauge rate: acts less often.',
+    name: 'Hexed',
+    tags: ['debuff'],
+    dur: 140,
+    stacks: 1,
+    mods: [{ path: 'gauge.rate', op: 'mul', v: 0.7 }]
+  },
+  {
+    // A relic's gift (Tower Shield: your side about the Monarch, as the battle begins and as each later wave enters).
     id: 'shield',
     desc: 'Takes 40% less damage.',
     name: 'Shielded',
@@ -1253,7 +2006,7 @@ const KIN_LIST = [
 ]
 
 // A `hidden` role (the Monarch's) counts toward no synergy.
-export const ROLE_LIST = [
+const ROLE_LIST = [
   { id: 'vanguard', name: 'Vanguard' },
   { id: 'skirmisher', name: 'Skirmisher' },
   { id: 'ranger', name: 'Ranger' },
@@ -1263,12 +2016,14 @@ export const ROLE_LIST = [
   { id: 'monarch', name: 'Monarch', hidden: true }
 ]
 
-// How a foe walks the roads to the Monarch (DESIGN §2.6), by its kind's `behaviour`: one step a
-// TUNING.board.stepTicks, fighting whatever is in its ring, waiting behind a foe on its next tile.
+// How a foe comes to the Monarch (DESIGN §2.4), by its kind's `behaviour`: one step a TUNING.board.stepTicks ÷ its
+// stride, fighting whatever is in its ring, waiting behind a foe on its next tile.
 export const BEHAVIOURS = {
   walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch, and fights whatever stands in its way.' },
   // Which kinds Flank is learnt by meeting them; the text only says what it does.
-  flank: { name: 'Flank', desc: 'Walks round your pieces to the Monarch where a way round is open, striking nothing on the way but the Monarch and what stands in its path; where no way round is open, it walks the arrows and fights as any foe does.' }
+  flank: { name: 'Flank', desc: 'Walks round your pieces to the Monarch where a way round is open, striking nothing on the way but the Monarch and what stands in its path; where no way round is open, it walks the arrows and fights as any foe does.' },
+  // A flyer keeps no road and no wall stops it; only a ranged blow can touch it.
+  fly: { name: 'Fly', desc: 'Flies over walls and pieces alike, each step onto the free tile nearest the Monarch, and may hover over a wall. Only a ranged blow can strike it.' }
 }
 
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
@@ -1279,6 +2034,8 @@ export const THREATS = {
   shape: { name: 'Shape', desc: 'Hits a whole row, lane or crowd at once.' },
   drain: { name: 'Drain', desc: 'Saps gauge or rots defence.' },
   clock: { name: 'Clock', desc: 'Drags a fight on into escalation.' },
+  fly: { name: 'Fly', desc: 'Comes over the walls, and only a ranged blow can touch it.' },
+  burn: { name: 'Burn', desc: 'Leaves a fire that keeps hurting after the blow.' },
   // A room's, not a kind's: more foes enter behind the first (a late pair, waves).
   depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' }
 }
@@ -1343,113 +2100,146 @@ export const SYNERGIES = [
   { id: 'trickster_8', name: 'Trickster 8', desc: 'Deathblow: a critical hit of yours slays any foe but a boss or a Monarch outright (a Last Stand still holds, once).', needs: { role: { trickster: 8 } }, rule: 'deathblow', mods: [] }
 ]
 
-// ── signals ──────────────────────────────────────────────────────────────────────────────────
-
-// What a line may wait for before it starts (DESIGN §2.5), as its `when`: { at } with `t` (a tick) for a time and
-// `wave` (1 on) for a wave. Until then the piece holds its tile, fighting what comes into its ring.
-export const SIGNALS = {
-  once: { name: 'At once', desc: 'Walks from the first tick.' },
-  time: { name: 'Time', desc: 'Walks once the battle clock reaches its time.' },
-  blow: { name: 'Blow', desc: 'Walks once the first blow lands, either side.' },
-  wave: { name: 'Wave', desc: 'Walks once its wave of foes begins to enter.' },
-  struck: { name: 'Struck', desc: 'Walks once a blow lands on the Monarch.' },
-  falls: { name: 'Fallen', desc: 'Walks once the first piece of yours falls.' }
-}
-
 // ── camps ────────────────────────────────────────────────────────────────────────────────────
 
 // Where your souls stand and fight: a 7×7 camp, listed front row first (the foes come from above it).
-// '#' is a wall: it blocks walking, not attacks, and the walls are the foes' track: the roads run round them to
-// the Monarch (battle.js field). Each floor draws one of its camps when you arrive. From every seat (the rear two
-// rows) a road reaches the Monarch from the foes' rows, and no seat cuts a cell off from the open ground ahead of
-// the camp (test/battle.test.js checks); each camp gives the roads one shape:
-//   stones      open ground: the roads run straight, past a few stones to stand behind
-//   palisade    a wall across the front with two breaches: two chokepoints, close together
-//   firepit     a pit in the middle: the road forks round the fire and meets again behind it
-//   gates       a wall with gates at the far edges: the roads come down both flanks
-//   ditch       a trench open at the right end only: the long way round, one side
-//   barracks    two long halls: three single-file alleys, the middle one straight at the rear centre
-//   switchback  two walls from opposite sides: the road zig-zags the width of the camp twice
-//   crossroads  four blocks with staggered streets: the road jogs at the crossing
-//   funnel      walls sloping in to one gap mid-camp: a single choke, a killing ground before it
-//   labyrinth   gates at the centre that lead out to the edges and back in: a maze of turns
-//   keep        a walled court open to the front: the roads split round it, your pieces hold its gate
-//   spiral      a wall across the front open at the right, then a coil: the road winds round it
+// '#' is a wall: it blocks walking, not attacks or flight, and the walls are the foes' track: the roads run round
+// them to the Monarch (battle.js field). 'M' is the Monarch's seat (DESIGN §2.1): it is pre-placed there and never
+// moves, and no piece may stand on its cell. Each floor draws one of its camps when you arrive. From the seat a road
+// reaches every tile of the foes' rows, and the seat cuts no cell off from the open ground ahead of the camp
+// (test/battle.test.js checks). Each camp is a placement puzzle around its seat:
+//   stones      the seat amid a ring of stones, open on every side: four doors to hold, and the rear is no refuge
+//   palisade    a fence with two breaches two wide, the seat at the rear right: a near road, a long one, and a 2×2
+//               plugs a breach alone
+//   firepit     the seat with its back to the fire: the road forks round the pit and meets again at its feet
+//   gates       a wall across the middle, the seat behind it between two narrow gates: the open ground before
+//               the wall, the gates, or the seat's own flanks
+//   ditch       a trench open at the far right, the seat at its left end: one long road along the inside, rings
+//               over the trench reach it twice
+//   barracks    the seat at the end of the middle alley between two halls: one straight file at it, two more
+//               round behind it, and room for a 2×2 only at the rear
+//   switchback  the road zig-zags the width of the camp twice to the seat in the rear corner: a ring can reach
+//               two legs at once
+//   crossroads  four blocks, the seat at the foot of the narrow street: the road jogs at the crossing, the wide
+//               way round is longer
+//   funnel      walls sloping in to one gap, the seat off to the side behind it: a single choke, and a killing
+//               ground between the choke and the seat
+//   labyrinth   two gates at the centre lead out to the edges and round to a niche at the rear: the seat faces
+//               away from the foes, and every road ends behind it
+//   keep        the seat inside a walled court whose one gate faces the foes: every road comes through the gate,
+//               and the galleries outside its walls lie off every road
+//   spiral      a wall across the front open at the right, then a coil: the longest road, wound round the seat at
+//               its heart, with a 2×2 pocket beside it
 export const CAMP_LIST = [
-  { id: 'stones', name: 'Standing Stones', floor: 1, map: ['.......', '.#...#.', '.......', '...#...', '.......', '.#...#.', '.......'] },
-  { id: 'palisade', name: 'Broken Palisade', floor: 1, map: ['.......', '##.#.##', '.......', '.......', '.......', '.......', '.......'] },
-  { id: 'firepit', name: 'Firepit', floor: 1, map: ['.......', '.......', '...#...', '..###..', '...#...', '.......', '.......'] },
-  { id: 'gates', name: 'Twin Gates', floor: 2, map: ['.......', '#.###.#', '.......', '.......', '...#...', '.......', '.......'] },
-  { id: 'ditch', name: 'The Ditch', floor: 2, map: ['.......', '.......', '######.', '.......', '.......', '.......', '.......'] },
-  { id: 'barracks', name: 'Barracks', floor: 2, map: ['.......', '.##.##.', '.##.##.', '.##.##.', '.##.##.', '.......', '.......'] },
-  { id: 'switchback', name: 'Switchback', floor: 3, map: ['.......', '.######', '.......', '######.', '.......', '.......', '.......'] },
-  { id: 'crossroads', name: 'Crossroads', floor: 3, map: ['.......', '.#.###.', '.#.###.', '.......', '.###.#.', '.###.#.', '.......'] },
-  { id: 'funnel', name: 'Funnel', floor: 3, map: ['.......', '#.....#', '##...##', '###.###', '.......', '.......', '.......'] },
-  { id: 'labyrinth', name: 'Labyrinth', floor: 4, map: ['...#...', '##.#.##', '...#...', '.#####.', '...#...', '.......', '.......'] },
-  { id: 'keep', name: 'The Keep', floor: 4, map: ['.......', '.##.##.', '.#...#.', '.#...#.', '.#####.', '.......', '.......'] },
-  { id: 'spiral', name: 'Spiral', floor: 4, map: ['.......', '######.', '.......', '.#####.', '.#...#.', '.#.#.#.', '.......'] }
+  { id: 'stones', name: 'Standing Stones', floor: 1, map: ['.......', '.......', '..#.#..', '#..M..#', '..#.#..', '.......', '.......'] },
+  { id: 'palisade', name: 'Broken Palisade', floor: 1, map: ['.......', '#..#..#', '.......', '.......', '.......', '.......', '.....M.'] },
+  { id: 'firepit', name: 'Firepit', floor: 1, map: ['.......', '.......', '..###..', '..###..', '...M...', '.......', '.......'] },
+  { id: 'gates', name: 'Twin Gates', floor: 2, map: ['.......', '.......', '.......', '#.###.#', '.......', '...M...', '.......'] },
+  { id: 'ditch', name: 'The Ditch', floor: 2, map: ['.......', '.......', '######.', 'M......', '.......', '.......', '.......'] },
+  { id: 'barracks', name: 'Barracks', floor: 2, map: ['.......', '.##.##.', '.##.##.', '.##.##.', '.##M##.', '.......', '.......'] },
+  { id: 'switchback', name: 'Switchback', floor: 3, map: ['.......', '.######', '.......', '.......', '######.', '.......', 'M......'] },
+  { id: 'crossroads', name: 'Crossroads', floor: 3, map: ['.......', '##.##..', '##.##..', '.......', '..##.#.', '..##.#.', '....M..'] },
+  { id: 'funnel', name: 'Funnel', floor: 3, map: ['.......', '#.....#', '##...##', '####.##', '.......', '.......', '.M.....'] },
+  { id: 'labyrinth', name: 'Labyrinth', floor: 4, map: ['.......', '##.#.##', '.......', '..###..', '..###..', '..#M#..', '.......'] },
+  { id: 'keep', name: 'The Keep', floor: 4, map: ['.......', '.......', '.##.##.', '.#...#.', '.#.M.#.', '.#...#.', '.#####.'] },
+  { id: 'spiral', name: 'Spiral', floor: 4, map: ['.......', '.......', '######.', '.....#.', '.#M..#.', '.#####.', '.......'] }
+]
+
+// ── fusions ──────────────────────────────────────────────────────────────────────────────────
+
+// A recipe (DESIGN §2.6): `needs` counts bodies per kind, consumed exactly from your pieces, fielded or in the
+// ossuary (a bigger stack gives the bodies asked and keeps the rest, as a split would); `result` is the fused kind
+// (a unit def with `fused: true`, never spawned, never recruited) that rises as one piece, count 1, full HP, in the
+// ossuary. It costs TUNING.essence.fuse × the result's tier. Recipes are public: the Codex lists every one from the
+// start.
+export const FUSION_LIST = [
+  { id: 'bone_colossus', name: 'Bone Colossus', result: 'bone_colossus', needs: { tomb_knight: 2, bone_chanter: 1 }, desc: 'Two Tomb Knights and a Bone Chanter become a 2×2 wall whose sweep strikes every foe around it.' },
+  { id: 'rime_drake', name: 'Rime Drake', result: 'rime_drake', needs: { ember_drake: 1, frost_sprite: 2 }, desc: 'An Ember Drake and two Frost Sprites become a drake whose fire freezes: a blast that burns a crowd and slows it.' },
+  { id: 'hive_queen', name: 'Hive Queen', result: 'hive_queen', needs: { hive_warden: 2, mantis_reaper: 1 }, desc: 'Two Hive Wardens and a Mantis Reaper become a 2×2 queen who mends every ally about her and reaps whatever comes near.' },
+  { id: 'clockwork_titan', name: 'Clockwork Titan', result: 'clockwork_titan', needs: { clockwork_page: 2, iron_golem: 1 }, desc: 'Two Clockwork Pages and an Iron Golem become a 2×2 titan whose slam shakes the gauge out of a crowd, and whose works quicken those beside it.' },
+  { id: 'pale_court', name: 'Pale Court', result: 'pale_court', needs: { will_o_wisp: 3 }, desc: "Three Will-o'-Wisps become one crowned flame: fire on a crowd, and pale fire that Hexes from four tiles off." }
 ]
 
 // ── relics ───────────────────────────────────────────────────────────────────────────────────
 
-// Run-long passives. `mods` apply to every fielded soul in battle (a `pos` mod only in that position, a
-// `who` mod only to souls of that role or kin); `field` adds field slots; `roster` adds room in the
-// retinue; `soulLevel` adds levels to every soul you recruit; `essence` raises the essence battles
-// pay by that share; `levelDiscount`, `tierDiscount` and `recruitDiscount` cut those prices by theirs.
-// Most are triggers: `on` names a moment of a battle, for your side only, and `effects` run then (as an
+// A relic's tier, from the most often offered to the rarest (`colour`: the interface's colour token for it). The
+// first three come from reliquaries and won elites, deeper floors weighted toward the rarer (TUNING.relic.weights);
+// a Legendary comes from won elites and reliquaries from floor TUNING.relic.legendary.fromFloor (run.js
+// relicOffers, legendaryOffers). Legendaries are the rules that rewrite the game.
+export const RELIC_TIERS = [
+  { id: 'common', name: 'Common', colour: '--c-common' },
+  { id: 'uncommon', name: 'Uncommon', colour: '--c-uncommon' },
+  { id: 'rare', name: 'Rare', colour: '--c-rare' },
+  { id: 'legendary', name: 'Legendary', colour: '--c-legendary' }
+]
+
+// Run-long passives, each of a `tier` (RELIC_TIERS). A relic held may be offered and taken again: copies stack, and
+// every copy applies in full (its mods compound, a trigger fires once a copy, a number adds once a copy). `mods`
+// apply to every party unit in battle but the Monarch: your souls and shadows (a `pos` mod only in that position, a
+// `who` mod only to souls of that role or kin). The Monarch's own two numbers come only from relics (DESIGN §2.6):
+// `command` adds Command (a piece more on the field: run.js commandOf) and `monarchHp` adds to its max HP (and heals
+// it by as much, unless nothing may heal it); a won elite always lays out a Command relic (run.js relicOffers).
+// `roster` adds room in the retinue; `soulTiers` gives a kind new to the run that you recruit that many free tiers,
+// each on its lower track (run.js reap); `essence` raises the essence battles pay by that share; `tierDiscount`,
+// `lowTierDiscount` (tiers I and II only) and `recruitDiscount` cut those prices by theirs (never below 1 essence).
+// Many are triggers: `on` names a moment of a battle, for your side only, and `effects` run then (as an
 // ability's do; a heal with `pct` mends that share of the target's max HP, whoever casts it). Each moment
 // has a subject, a place and the one on its other end: 'kill' (one of yours slays a foe: the killer, where
 // the slain fell, the slain), 'fall' (one of yours falls, the Monarch aside, whose fall ends the battle: the
-// fallen, where it fell, its killer), 'march' (one of yours sets out on its line, its signal come: the marcher,
-// where it steps), 'blow' (the battle's first blow lands, either side's: the Monarch, where it stands, the
+// fallen, where it fell, its killer), 'wave' (a foe wave begins: the battle's opening, the foes standing from the
+// start its first wave, then each later wave as it begins to enter; the Monarch, where it stands, no one),
+// 'blow' (the battle's first blow lands, either side's: the Monarch, where it stands, the
 // striker) and 'struck' (a blow lands on the Monarch and it stands: the Monarch, where it stands, its attacker). An
 // effect's `to` picks its targets: 'self' (the subject) or 'other', if it stands; 'monarch'; or 'allies' /
 // 'foes' (yours / theirs standing within `range` tiles of the place).
+//
+// The Legendaries' rules (battle.js relicRules, run.js): `arise` (the Monarch's Arise: without a copy no foe rises
+// as a shadow; each copy TUNING.monarch.raises more a battle, and each past the first its Dominion and Will a point
+// more: run.js ariseOf), `rise` (a fallen
+// soul rises at that share of its max HP, once a battle a copy), `alias` ({ role: role }: a unit of the first counts
+// as one of the second more a copy, for your synergies), `domain` (tiles more or fewer), `reap` (Arise's shadows
+// still standing when a battle is won pay their essence again, once a copy), `raises` (Arise's cap a battle grows by
+// this share of itself a copy), `tithe` (each shadow costs the Monarch this share of its max HP) and `unhealable`
+// (nothing heals the Monarch, in battle or out). `needsArise`: offered only once the run holds Arise (it does
+// nothing without it). Nothing ever revives the Monarch.
 export const RELIC_LIST = [
-  { id: 'whetstone', name: 'Whetstone', desc: '+12% ATK.', mods: [{ path: 'atk', op: 'mul', v: 1.12 }] },
-  { id: 'grave_banner', name: 'Grave Banner', desc: '+1 soul on the field.', field: 1 },
-  { id: 'soul_lantern', name: 'Soul Lantern', desc: 'Recruited souls rise 2 levels higher.', soulLevel: 2 },
-  { id: 'hourglass', name: 'Hourglass', desc: 'When the Monarch is struck: Arise gains 30 gauge.', on: 'struck', effects: [{ op: 'gauge', amount: 30, to: 'monarch' }] },
-  { id: 'heartwood', name: 'Heartwood', desc: '+15% max HP.', mods: [{ path: 'hp', op: 'mul', v: 1.15 }] },
-  { id: 'tower_shield', name: 'Tower Shield', desc: 'When one of yours sets out on its line: it is Shielded for 8 s (takes 40% less damage).', on: 'march', effects: [{ op: 'apply_status', status: 'shield', dur: 160, to: 'self' }] },
-  { id: 'blood_chalice', name: 'Blood Chalice', desc: 'When one of yours slays a foe: the killer heals 10% of its max HP.', on: 'kill', effects: [{ op: 'heal', pct: 0.1, to: 'self' }] },
-  { id: 'war_drum', name: 'War Drum', desc: 'When one of yours falls: your side within 2 tiles of it gains Hasten.', on: 'fall', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
-  { id: 'balm', name: 'Balm', desc: 'When one of yours falls: your side within 2 tiles of it heals 12% of its max HP.', on: 'fall', effects: [{ op: 'heal', pct: 0.12, to: 'allies', range: 2 }] },
-  { id: 'tithe_bowl', name: 'Tithe Bowl', desc: 'Battles pay 25% more essence.', essence: 0.25 },
-  { id: 'grave_ledger', name: 'Grave Ledger', desc: 'Levels cost 25% less essence.', levelDiscount: 0.25 },
-  { id: 'rite_candle', name: 'Rite Candle', desc: 'Track tiers cost 25% less essence.', tierDiscount: 0.25 },
-  { id: 'binding_chain', name: 'Binding Chain', desc: 'Recruiting a soul costs 30% less essence.', recruitDiscount: 0.3 },
-  { id: 'ossuary_key', name: 'Ossuary Key', desc: 'Your ossuary holds 3 more souls.', roster: 3 },
-  { id: 'iron_oath', name: 'Iron Oath', desc: 'When the Monarch is struck: your side within 2 tiles of it gains Barkskin (+25% DEF).', on: 'struck', effects: [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }] },
-  { id: 'arcane_focus', name: 'Arcane Focus', desc: 'When one of yours slays a foe: the killer gains 40 gauge.', on: 'kill', effects: [{ op: 'gauge', amount: 40, to: 'self' }] },
-  { id: 'hunters_mark', name: "Hunter's Mark", desc: 'When one of yours slays a foe: the foes next to the slain turn Brittle.', on: 'kill', effects: [{ op: 'apply_status', status: 'brittle', to: 'foes', range: 1 }] },
-  { id: 'bone_idol', name: 'Bone Idol', desc: 'When one of yours falls: Arise gains 40 gauge.', on: 'fall', effects: [{ op: 'gauge', amount: 40, to: 'monarch' }] },
-  { id: 'glass_crown', name: 'Glass Crown', desc: '+25% damage dealt, but +15% damage taken.', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.25 }, { path: 'damage.taken', op: 'mul', v: 1.15 }] },
-  { id: 'grave_bell', name: 'Grave Bell', desc: 'When the Monarch is struck: its attacker is Withered (−20% ATK).', on: 'struck', effects: [{ op: 'apply_status', status: 'withered', to: 'other' }] },
-  { id: 'rally_horn', name: 'Rally Horn', desc: 'When the first blow of a battle lands: your side within 2 tiles of the Monarch gains Hasten.', on: 'blow', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] }
+  { id: 'whetstone', tier: 'common', name: 'Whetstone', desc: '+18% ATK.', mods: [{ path: 'atk', op: 'mul', v: 1.18 }] },
+  { id: 'heartwood', tier: 'common', name: 'Heartwood', desc: '+22% max HP.', mods: [{ path: 'hp', op: 'mul', v: 1.22 }] },
+  { id: 'blood_chalice', tier: 'common', name: 'Blood Chalice', desc: 'When one of yours slays a foe: the killer heals 15% of its max HP.', on: 'kill', effects: [{ op: 'heal', pct: 0.15, to: 'self' }] },
+  { id: 'balm', tier: 'common', name: 'Balm', desc: 'When one of yours falls: your side within 2 tiles of it heals 18% of its max HP.', on: 'fall', effects: [{ op: 'heal', pct: 0.18, to: 'allies', range: 2 }] },
+  { id: 'binding_chain', tier: 'common', name: 'Binding Chain', desc: 'Recruiting a soul costs 30% less essence.', recruitDiscount: 0.3 },
+  { id: 'ossuary_key', tier: 'common', name: 'Ossuary Key', desc: 'Your ossuary holds 3 more souls.', roster: 3 },
+  { id: 'grave_shroud', tier: 'common', name: 'Grave Shroud', desc: 'The Monarch has 30 more max HP.', monarchHp: 30 },
+  { id: 'bone_horn', tier: 'common', name: 'Bone Horn', desc: '+1 Command (a piece more on the field), but every soul has 10% less HP.', command: 1, mods: [{ path: 'hp', op: 'mul', v: 0.9 }] },
+  { id: 'iron_oath', tier: 'common', name: 'Iron Oath', desc: 'When the Monarch is struck: your side within 2 tiles of it gains Barkskin (+25% DEF).', on: 'struck', effects: [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }] },
+  { id: 'grave_bell', tier: 'common', name: 'Grave Bell', desc: 'When the Monarch is struck: its attacker is Withered (−20% ATK).', on: 'struck', effects: [{ op: 'apply_status', status: 'withered', to: 'other' }] },
+  { id: 'war_drum', tier: 'uncommon', name: 'War Drum', desc: 'When one of yours falls: your side within 2 tiles of it gains Hasten.', on: 'fall', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
+  { id: 'rally_horn', tier: 'uncommon', name: 'Rally Horn', desc: 'When the first blow of a battle lands: your side within 2 tiles of the Monarch gains Hasten.', on: 'blow', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
+  { id: 'soul_lantern', tier: 'uncommon', name: 'Soul Lantern', desc: 'A kind new to the run that you recruit joins with a free tier, on its lower track. Each copy: a tier more.', soulTiers: 1 },
+  { id: 'tower_shield', tier: 'uncommon', name: 'Tower Shield', desc: 'As the battle begins, and as each later wave begins to enter: your side within 2 tiles of the Monarch is Shielded for 8 s (takes 40% less damage).', on: 'wave', effects: [{ op: 'apply_status', status: 'shield', dur: 160, to: 'allies', range: 2 }] },
+  { id: 'grave_ledger', tier: 'uncommon', name: 'Grave Ledger', desc: 'Tiers I and II cost 30% less essence.', lowTierDiscount: 0.3 },
+  { id: 'bone_mantle', tier: 'uncommon', name: 'Bone Mantle', desc: 'The Monarch has 65 more max HP.', monarchHp: 65 },
+  { id: 'muster_roll', tier: 'uncommon', name: 'Muster Roll', desc: '+1 Command (a piece more on the field), but every soul has 5% less HP.', command: 1, mods: [{ path: 'hp', op: 'mul', v: 0.95 }] },
+  { id: 'hunters_mark', tier: 'uncommon', name: "Hunter's Mark", desc: 'When one of yours slays a foe: the foes next to the slain turn Brittle.', on: 'kill', effects: [{ op: 'apply_status', status: 'brittle', to: 'foes', range: 1 }] },
+  { id: 'hourglass', tier: 'uncommon', name: 'Hourglass', desc: 'When the Monarch is struck: Arise gains 30 gauge.', on: 'struck', effects: [{ op: 'gauge', amount: 30, to: 'monarch' }], needsArise: true },
+  { id: 'bone_idol', tier: 'uncommon', name: 'Bone Idol', desc: 'When one of yours falls: Arise gains 40 gauge.', on: 'fall', effects: [{ op: 'gauge', amount: 40, to: 'monarch' }], needsArise: true },
+  { id: 'grave_banner', tier: 'rare', name: 'Grave Banner', desc: '+1 Command (a piece more on the field).', command: 1 },
+  { id: 'phylactery', tier: 'rare', name: 'Phylactery', desc: 'The Monarch has 110 more max HP.', monarchHp: 110 },
+  { id: 'tithe_bowl', tier: 'rare', name: 'Tithe Bowl', desc: 'Battles pay 35% more essence.', essence: 0.35 },
+  { id: 'rite_candle', tier: 'rare', name: 'Rite Candle', desc: 'Track tiers cost 25% less essence.', tierDiscount: 0.25 },
+  { id: 'arcane_focus', tier: 'rare', name: 'Arcane Focus', desc: 'When one of yours slays a foe: the killer gains 40 gauge.', on: 'kill', effects: [{ op: 'gauge', amount: 40, to: 'self' }] },
+  { id: 'glass_crown', tier: 'rare', name: 'Glass Crown', desc: '+32% damage dealt, but +15% damage taken.', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.32 }, { path: 'damage.taken', op: 'mul', v: 1.15 }] },
+  { id: 'arise', tier: 'legendary', name: 'Arise', desc: 'Foes slain in your domain rise as your shadows (tier 3 or lower), 3 a battle. Each copy: 3 more a battle, and past the first a point more of Dominion (the domain a tile wider) and of Will (a tier higher, 3 more a battle, its gauge 10% faster).', arise: 1 },
+  { id: 'legion', tier: 'legendary', name: 'Legion', desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', command: 2, mods: [{ path: 'hp', op: 'mul', v: 0.85 }] },
+  { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'Fallen souls rise once a battle, at 60% HP. Each copy: once more a battle.', rise: 0.6 },
+  { id: 'mimicry', tier: 'legendary', name: 'Mimicry', desc: 'Vanguards count as Wardens too, for synergies. Each copy: a Vanguard counts as one Warden more.', alias: { vanguard: 'warden' } },
+  { id: 'hollow_court', tier: 'legendary', name: 'Hollow Court', desc: 'Shadows raised by Arise that still stand when a battle is won are reaped: each pays its essence again. Each copy: once more.', reap: 1, needsArise: true },
+  { id: 'blood_tithe', tier: 'legendary', name: 'Blood Tithe', desc: "Arise's cap a battle is doubled, but each shadow costs the Monarch 2% of its max HP. Each copy: the cap grows by as much again, and the cost by 2%.", raises: 1, tithe: 0.02, needsArise: true },
+  { id: 'court_of_bone', tier: 'legendary', name: 'Court of Bone', desc: 'The domain is 2 tiles larger, but nothing heals the Monarch, in battle or out. Each copy: 2 tiles more.', domain: 2, unhealable: true, needsArise: true }
 ]
 
 // The moments a relic can trigger on.
-export const TRIGGERS = ['kill', 'fall', 'march', 'blow', 'struck']
-
-// ── keystones ────────────────────────────────────────────────────────────────────────────────
-
-// Rules that rewrite the game, two or three a run (offered at elites and rites from floor 2, free; see
-// TUNING.keystone). Each holds one or more of: `field` (more souls on the field), `mods` (on every party unit in
-// battle but the Monarch: your souls and shadows), `rise` (a fallen soul rises once a battle at
-// that share of its max HP), `alias` ({ role: role }: a unit of the first counts as the second too, for your
-// synergies), `domain` (tiles more or fewer), `reap` (Arise's shadows
-// still standing when a battle is won pay their essence again), `raises` (Arise's cap a battle times this),
-// `tithe` (each shadow costs the Monarch this share of its max HP) and `unhealable` (nothing heals the Monarch,
-// in battle or out). Nothing ever revives the Monarch.
-export const KEYSTONE_LIST = [
-  { id: 'legion', name: 'Legion', desc: 'Two more souls on the field, but every soul has 15% less HP.', field: 2, mods: [{ path: 'hp', op: 'mul', v: 0.85 }] },
-  { id: 'undying', name: 'Undying', desc: 'Fallen souls rise once a battle, at 50% HP.', rise: 0.5 },
-  { id: 'mimicry', name: 'Mimicry', desc: 'Vanguards count as Wardens too, for synergies.', alias: { vanguard: 'warden' } },
-  { id: 'hollow_court', name: 'Hollow Court', desc: 'Shadows raised by Arise that still stand when a battle is won are reaped: each pays its essence again.', reap: true },
-  { id: 'blood_tithe', name: 'Blood Tithe', desc: "Arise's cap a battle is doubled, but each shadow costs the Monarch 3% of its max HP.", raises: 2, tithe: 0.03 },
-  { id: 'court_of_bone', name: 'Court of Bone', desc: 'The domain is 2 tiles larger, but nothing heals the Monarch, in battle or out.', domain: 2, unhealable: true }
-]
+export const TRIGGERS = ['kill', 'fall', 'wave', 'blow', 'struck']
 
 // ── attack animations ────────────────────────────────────────────────────────────────────────
 
@@ -1503,8 +2293,8 @@ export const KIN = byId(KIN_LIST)
 export const ROLES = byId(ROLE_LIST)
 export const RELICS = byId(RELIC_LIST)
 export const ANIMS = byId(ANIM_LIST)
-export const CAMPS = byId(CAMP_LIST)
-export const KEYSTONES = byId(KEYSTONE_LIST)
+const CAMPS = byId(CAMP_LIST)
+export const FUSIONS = byId(FUSION_LIST)
 
 function lookup (map, kind) {
   return (id) => {
@@ -1520,7 +2310,7 @@ export const statusDef = lookup(STATUSES, 'status')
 export const relicDef = lookup(RELICS, 'relic')
 export const animDef = lookup(ANIMS, 'anim')
 export const campDef = lookup(CAMPS, 'camp')
-export const keystoneDef = lookup(KEYSTONES, 'keystone')
+export const fusionDef = lookup(FUSIONS, 'fusion')
 
 // A unit's picture as a URL the page and the battle both load. pose: 'alive', 'attack' or 'dead'.
 export const ART_POSES = ['alive', 'attack', 'dead']

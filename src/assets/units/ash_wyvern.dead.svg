@@ -1,0 +1,184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Ash Wyvern, fallen: crashed to the ground in a scatter of ash, one wing crumpled over its body and the other snapped upright behind, its seams gone cold but for a few dying embers, a thread of smoke rising off it. -->
+  <defs>
+    <linearGradient id="awd-scale" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b6b0aa"/>
+      <stop offset="0.5" stop-color="#7a7472"/>
+      <stop offset="1" stop-color="#3e3a3c"/>
+    </linearGradient>
+    <linearGradient id="awd-head" x1="0.1" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#c0bab4"/>
+      <stop offset="0.5" stop-color="#827c78"/>
+      <stop offset="1" stop-color="#3e3a3c"/>
+    </linearGradient>
+    <linearGradient id="awd-belly" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#d4cec4"/>
+      <stop offset="0.55" stop-color="#a39b90"/>
+      <stop offset="1" stop-color="#6c635c"/>
+    </linearGradient>
+    <linearGradient id="awd-wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7e7470"/>
+      <stop offset="0.55" stop-color="#4e4648"/>
+      <stop offset="1" stop-color="#262124"/>
+    </linearGradient>
+    <linearGradient id="awd-wing-far" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a4244"/>
+      <stop offset="1" stop-color="#1a161a"/>
+    </linearGradient>
+    <linearGradient id="awd-horn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ddd4c4"/>
+      <stop offset="0.5" stop-color="#a89c88"/>
+      <stop offset="1" stop-color="#544a3e"/>
+    </linearGradient>
+    <radialGradient id="awd-ash" cx="0.45" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#9a949a"/>
+      <stop offset="0.6" stop-color="#77717a"/>
+      <stop offset="1" stop-color="#55505a"/>
+    </radialGradient>
+    <radialGradient id="awd-smoke" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#9a94a2" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#9a94a2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="awd-ember" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff8a3d" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="awd-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0d0a12" stop-opacity="0.5"/>
+      <stop offset="0.65" stop-color="#0d0a12" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- soft ground shadow, and the scatter of ash thrown up by the crash -->
+  <ellipse cx="48" cy="88.4" rx="44" ry="5.4" fill="url(#awd-shadow)"/>
+  <path d="M3 87 Q4 81 15 80.2 Q28 78 46 78.8 Q64 77.6 79 79.6 Q91.6 81 93 86.4 Q93.4 91 82 92.4 Q64 94.4 46 93.8 Q26 94.4 11 92.4 Q2.6 90.8 3 87 Z" fill="url(#awd-ash)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M7 84.6 Q12 81.4 21 80.8 M70 80.4 Q84 81 89.4 84 M16 91.6 Q40 93.4 62 92.6" fill="none" stroke="#b4aeb4" stroke-width="0.6" opacity="0.7"/>
+  <path d="M9 89.6 Q24 91.8 36 91.8 M60 91.4 Q74 91 84 89.6" fill="none" stroke="#4a454c" stroke-width="0.5" opacity="0.7"/>
+
+  <!-- ===== far wing, snapped and jutting up behind, its torn sail hanging ===== -->
+  <path fill-rule="evenodd" d="M54 68 L62 54 L70 46 L86 52 C85 55 84.6 57.6 85.4 59.6 L83.4 59.4 L87.6 62.4 C84.4 63.6 82.2 65.6 81 68 L79.6 66.6 L78.4 69.6 C74 69.4 70 70 66 71.4 Z M75 55 L77.4 55.4 L77.8 57.8 L75.6 58.4 L74.4 56.8 Z" fill="url(#awd-wing-far)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M72 58 Q76 62 78 68 M66 56 Q70 62 70 69" fill="none" stroke="#0d0a12" stroke-width="0.6" opacity="0.7"/>
+  <path d="M70 46 L77.4 49 L80 47.2 L86 52 M70 46 Q80 54 87.6 62.4 M70 46 Q74 58 78.4 69.6" fill="none" stroke="#0d0a12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M70 46 L77.4 49 L80 47.2 L86 52 M70 46 Q80 54 87.6 62.4 M70 46 Q74 58 78.4 69.6" fill="none" stroke="#5e5658" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M77.4 49 l0.6 -0.8 l0.6 0.6 l0.8 -0.6" fill="none" stroke="#d8ccb8" stroke-width="0.4" stroke-linejoin="round"/>
+  <path d="M54 68 L62 54 L70 46" fill="none" stroke="#0d0a12" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M54 68 L62 54 L70 46" fill="none" stroke="#5e5658" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="62" cy="54" r="1.4" fill="#544c4e" stroke="#0d0a12" stroke-width="0.5"/>
+  <path d="M70.4 46 Q70.6 42 73.4 40.4 Q72.6 43.2 73 45.6 Z" fill="#7e7466" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <circle cx="70" cy="46" r="1.3" fill="#544c4e" stroke="#0d0a12" stroke-width="0.5"/>
+  <path d="M86.4 51.6 L88.4 51.2 L87 53 Z M88 62 L90 62.6 L88.2 63.4 Z" fill="#7e7466" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+
+  <!-- ===== tail, flung out behind on the ash ===== -->
+  <path d="M26 78 C20 79.6 14 82 9.4 84.4 C7.6 85.2 6.2 85.4 5 85 L5.2 87 C7.4 87.6 9.6 87.4 11.6 86.6 C16 84.8 21 83.4 27 83 Z" fill="url(#awd-scale)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M23.4 79.2 C18.6 80.6 14 82.6 10 84.6" fill="none" stroke="#d8d2cc" stroke-width="0.5" stroke-linecap="round" opacity="0.7"/>
+  <path d="M20.6 80 Q21.4 82 21 84.2 M16 81.8 Q16.8 83.6 16.4 85.6 M11.6 84 Q12.2 85.4 12 86.8" fill="none" stroke="#1e1416" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M18.4 80.6 L17.4 78 L20.2 79.6 Z M13.6 82.6 L12.4 80.2 L15.2 81.6 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+  <path d="M0.8 85.6 L4.6 82.4 L7.6 81 L6 84.2 L6 87.2 L7.6 90 L4.6 88.8 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M1.6 85.6 L5.4 85.6" stroke="#4a2a22" stroke-width="0.5" stroke-linecap="round"/>
+
+  <!-- ===== body, crashed on its side ===== -->
+  <path d="M62 70 C64 74 63 80 58 83.6 C52 87 40 88 32 86.6 C25 85.4 22 82 22.6 78 C23.2 73.6 28 69.6 35 67.6 C44 65.2 57 65.6 62 70 Z" fill="url(#awd-scale)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M60.6 76 C58 81 50 84.6 40 85.4 C33 86 27 84.6 24 82 C25 85 28 86.4 32 86.6 C40 88 52 87 58 83.6 C61 81.4 62.4 78.6 60.6 76 Z" fill="url(#awd-belly)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M30 85.2 L29.6 86.6 M35 85.8 L34.8 87.2 M40 85.6 L40 87.2 M45 85.2 L45.2 86.8 M50 84.2 L50.4 86 M55 82.4 L55.6 84.4" fill="none" stroke="#1e1416" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- the seams, cold now: dark gaps with a dull red still in one or two -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M26 76.6 Q42 72 60.6 73 M34 69 Q36 72 35 75 M42 67 Q44 70.4 43.4 73.6 M50 66.6 Q52 70 51.4 73 M56.6 67.6 Q58.4 70.4 58 73.4 M30 77.4 L30.6 81 M38 75.6 L38.8 80.6 M46 74.4 L46.8 79.8 M54 74 L54.8 79" stroke="#1e1416" stroke-width="1"/>
+    <path d="M42 67 Q44 70.4 43.4 73.6 M46 74.4 L46.8 79.8" stroke="#7a2e1e" stroke-width="0.4"/>
+  </g>
+  <path d="M29.6 70.6 Q33 68.6 38 67.4 M40 66.6 Q45 65.8 50 66" fill="none" stroke="#e2dcd6" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <ellipse cx="46.4" cy="77" rx="2.4" ry="2" fill="url(#awd-ember)"/>
+  <circle cx="46.4" cy="77" r="0.45" fill="#d4561e"/>
+  <!-- dorsal spines along the back, some snapped -->
+  <path d="M36 67.4 L35 64.6 L38 66.6 Z M42 66.2 L41.4 63.4 L44.2 65.6 Z M48.6 66 L48.4 64.4 L50.4 65.6 Z M54.6 66.6 L54.4 63.8 L57 66.4 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+
+  <!-- ===== near leg, crumpled out from under the body, talons curled ===== -->
+  <path d="M42 76 C47 74.6 52 76.4 53 80 C53.6 82.4 52.4 84 51 84.6 L55.6 86 C57 86 58 87 57.6 88.2 L55 88.8 L52.6 88.4 C52 87.8 52 87 52.6 86.6 L47 86.4 C43 86 40.6 83.6 40.2 80.6 C40 78.6 40.6 77 42 76 Z" fill="url(#awd-scale)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M43 77.2 Q47.6 75.6 51.4 77.6" fill="none" stroke="#e2dcd6" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M57.4 87.6 Q59.6 87 59.8 85.2 M55.6 88.6 Q57.4 89.6 58.8 88.6 M53 88.4 Q53.4 90 55 90.2" fill="none" stroke="#0d0a12" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M57.4 87.6 Q59.6 87 59.8 85.2 M55.6 88.6 Q57.4 89.6 58.8 88.6 M53 88.4 Q53.4 90 55 90.2" fill="none" stroke="#bfb3a0" stroke-width="0.7" stroke-linecap="round"/>
+
+  <!-- ===== neck, slumped down to the ground ===== -->
+  <path d="M56 68.4 C62 67.4 66.6 70 68.6 75.6 L70.4 85.6 C67 87 63.4 86 61.6 83 C60 80 58.4 77 55 75 Z" fill="url(#awd-scale)"/>
+  <path d="M69.6 84 C66.8 85.4 64 84.6 62.6 82.4 L61.4 83.4 C63 86 67 87 70.4 85.6 Z" fill="url(#awd-belly)"/>
+  <path d="M57.4 68.2 C62.6 67.6 66.6 70 68.6 75.6 M70.4 85.6 C67 87 63.4 86 61.6 83" fill="none" stroke="#0d0a12" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M60.4 69.4 Q62.4 73 61.6 77 M64.4 71.4 Q66.4 75 65.8 79.6" fill="none" stroke="#1e1416" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M61 68 L60.6 65.4 L63.2 67.6 Z M65.4 70 L65.6 67.2 L67.6 70.2 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.45" stroke-linejoin="round"/>
+
+  <!-- ===== head, cheek down in the ash ===== -->
+  <g transform="translate(-1 47) rotate(6 68 32)">
+    <path d="M74.4 26.4 C71.6 22.6 68.4 19.6 64 18.4 C67 21 69.4 24 70.8 27.4 Z" fill="#7e7466" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M72 27.4 C68 24.4 64.4 23 59.6 22.8 C63.4 24.6 66.4 27 68.8 30 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <path d="M70.4 26.8 C67.2 24.8 64.2 23.8 61.2 23.4" fill="none" stroke="#f2ece0" stroke-width="0.4" stroke-linecap="round"/>
+    <!-- slack jaw, the mouth dark and fireless -->
+    <path d="M75 38.4 L89 36.6 Q89.6 38 88.4 38.8 L76.4 40.4 Z" fill="#2a1a1c"/>
+    <path d="M73.6 38.6 L88.6 37.4 C89.6 38.4 89.4 39.8 88.2 40.4 C84.4 41.2 79.6 41.6 75.6 41.2 C73.6 41 72.6 39.4 73.6 38.6 Z" fill="url(#awd-head)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+    <g fill="#d8cfbe" stroke="#0d0a12" stroke-width="0.3" stroke-linejoin="round">
+      <path d="M80.4 38.2 L80.8 39.6 L81.4 38.1 Z"/><path d="M85 37.8 L85.4 39 L85.8 37.7 Z"/>
+    </g>
+    <path d="M67.4 30.4 C69 27.4 72.6 25.6 76.4 26 C78.8 26.2 80.6 27.2 81.8 28.6 C84.8 29.6 88 31.2 90.4 32.8 C91.8 33.8 92.2 35.2 91.4 36.2 C90.6 37 89.4 37.2 88.4 37 L83 37.6 C81 38.4 78 38.8 75 38.8 C71.6 38.8 68.6 37.4 67.4 35 C66.8 33.4 66.8 31.8 67.4 30.4 Z" fill="url(#awd-head)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M69 36.4 L64.6 37.4 L68.4 38.6 L65.6 40.4 L70.6 39.4 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+    <path d="M69 30 Q71.6 27.2 76 27.2" fill="none" stroke="#ece6de" stroke-width="0.9" stroke-linecap="round" opacity="0.85"/>
+    <path d="M82 29.6 Q86.4 31.2 89.8 33.4" fill="none" stroke="#d8d2cc" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+    <path d="M73.6 33.4 L76 34.4 M82.4 31.2 L84.6 32.6 M86 34.4 L88.4 34.8" fill="none" stroke="#1e1416" stroke-width="0.9" stroke-linecap="round"/>
+    <!-- the eye shut, its ember out -->
+    <path d="M75.2 29.6 Q78.4 27.6 82 29" fill="none" stroke="#0d0a12" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M76.4 30.8 Q78.6 31.8 81 30.6" fill="none" stroke="#1a1012" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M76.6 30 Q78.6 29.6 80.8 30" fill="none" stroke="#6a6266" stroke-width="0.35" stroke-linecap="round"/>
+    <path d="M88.4 33.2 Q89.6 32.8 90 33.8 Q89.2 34.4 88.4 33.2 Z" fill="#1a1012"/>
+  </g>
+
+  <!-- ===== near wing, crumpled over the body, a finger snapped ===== -->
+  <path fill-rule="evenodd" d="M44 70 L52 56 L38 50 L18 54 C17 58 15.4 60.6 13.6 61.6 L15 62.8 L12 66 C14.4 69.6 15 73 14.4 75.4 L16.4 75.8 L16 78 C19.6 78.6 22.6 80 24.4 81.6 L26 80.6 L28 82 C31 81.4 34 80.6 36.4 80 Z M24 64 L26.4 64.4 L26.8 66.8 L24.6 67.4 L23.2 65.8 Z M30 72 L32 72.2 L32.4 74.4 L30.4 74.8 L29.4 73.4 Z" fill="url(#awd-wing)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- creases where the membrane folded as it fell -->
+  <path d="M36 54 Q30 60 28.6 70 M24 58 Q21.6 66 22.6 74 M42 60 Q38 66 36 76" fill="none" stroke="#1a1418" stroke-width="0.8" opacity="0.8"/>
+  <path d="M36.8 54.6 Q31 60.6 29.6 70 M24.8 58.4 Q22.6 66 23.6 73.6" fill="none" stroke="#9a908a" stroke-width="0.45" opacity="0.6"/>
+  <path d="M24 64 L26.4 64.4 L26.8 66.8 L24.6 67.4 L23.2 65.8 Z M30 72 L32 72.2 L32.4 74.4 L30.4 74.8 L29.4 73.4 Z" fill="none" stroke="#4a2a22" stroke-width="0.45" stroke-linejoin="round"/>
+  <!-- the burnt trailing edge, its glow gone grey, one ember hanging on -->
+  <path d="M17.6 55 C16.8 58 15.6 60 14.2 61.2 M13 66.4 C14.8 69.6 15.2 72.6 14.8 74.8 M17 78.4 C20 79.2 22.4 80.2 23.8 81.2" fill="none" stroke="#6a5c58" stroke-width="0.5" stroke-linecap="round"/>
+  <ellipse cx="14.6" cy="72" rx="1.8" ry="1.8" fill="url(#awd-ember)"/>
+  <circle cx="14.7" cy="72" r="0.35" fill="#d4561e"/>
+  <!-- finger bones: one bent, one snapped at the knuckle -->
+  <path d="M38 50 Q28 48 18 54 M38 50 L24 57 L12 66 M38 50 Q26 64 16 78 M38 50 Q34 68 28 82" fill="none" stroke="#0d0a12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M38 50 Q28 48 18 54 M38 50 L24 57 L12 66 M38 50 Q26 64 16 78 M38 50 Q34 68 28 82" fill="none" stroke="#968e88" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M36 49.4 Q28 48.4 21 52" fill="none" stroke="#e2dcd6" stroke-width="0.4" stroke-linecap="round"/>
+  <path d="M24 57 l0.8 -0.9 l0.5 0.8 l0.9 -0.6" fill="none" stroke="#e6dcc8" stroke-width="0.45" stroke-linejoin="round"/>
+  <path d="M18.6 53.4 L16.4 52.8 L17.6 55 Z M12.6 65.4 L10.6 66 L12.4 67.2 Z M16.4 77.4 L14.6 79 L16.8 79 Z M28.6 81.4 L27.8 83.6 L29.6 82.6 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.4" stroke-linejoin="round"/>
+  <!-- arm, folded back on itself -->
+  <path d="M44 70 L52 56 L38 50" fill="none" stroke="#0d0a12" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M44 70 L52 56 L38 50" fill="none" stroke="#968e88" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M43 68.4 L50.4 56 L39 51" fill="none" stroke="#e2dcd6" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="52" cy="56" r="1.8" fill="#8a827c" stroke="#0d0a12" stroke-width="0.6"/>
+  <circle cx="51.5" cy="55.4" r="0.5" fill="#e2dcd6"/>
+  <path d="M53.4 55 L55.6 53.6 L55 55.8 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.35"/>
+  <path d="M38.4 50 Q37.6 45.8 40.4 43.6 Q40 46.8 41 49.4 Z" fill="url(#awd-horn)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <circle cx="38" cy="50" r="1.6" fill="#968e88" stroke="#0d0a12" stroke-width="0.6"/>
+  <ellipse cx="44.2" cy="70.2" rx="3" ry="2.4" fill="url(#awd-scale)" stroke="#0d0a12" stroke-width="0.8"/>
+
+  <!-- ===== a thread of smoke rising off the wreck ===== -->
+  <ellipse cx="44" cy="30" rx="7" ry="9" fill="url(#awd-smoke)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M47 62 C44 57 48.6 53 46 48 C43.6 43.4 47.6 39.6 45.4 34.6 C43.6 30.6 46.4 27 44.4 22.6 C43 19.6 44.6 16.4 47 15.6" stroke="#8e8896" stroke-width="1.4" opacity="0.4"/>
+    <path d="M47 62 C44.2 57.2 48.8 53.2 46.2 48.2 C43.8 43.6 47.8 39.8 45.6 34.8" stroke="#d2ccd4" stroke-width="0.45" opacity="0.5"/>
+  </g>
+
+  <!-- ===== dying embers and ash in the scatter ===== -->
+  <g fill="#8a848c" stroke="#0d0a12" stroke-width="0.35">
+    <ellipse cx="8.6" cy="91" rx="2" ry="1"/><ellipse cx="62" cy="92" rx="1.8" ry="0.8"/><ellipse cx="91" cy="88.4" rx="1.6" ry="0.9"/>
+    <ellipse cx="74" cy="91.2" rx="1.4" ry="0.7"/><ellipse cx="30" cy="91.4" rx="1.2" ry="0.6"/>
+  </g>
+  <path d="M8 90.6 Q8.6 90 9.6 90.2 M90.4 88 Q91 87.6 91.8 87.8 M61.2 91.6 Q62 91.2 62.8 91.4" fill="none" stroke="#c4bec6" stroke-width="0.4"/>
+  <g fill="#3a3036" stroke="#0d0a12" stroke-width="0.3">
+    <path d="M38 91.6 l1.2 -0.6 l0.8 0.8 l-1 0.8 Z"/><path d="M80 89.2 l1 -0.8 l1 0.6 l-0.8 1 Z"/><path d="M18 90.6 l1 -0.6 l0.8 0.8 l-0.9 0.7 Z"/>
+    <path d="M68 92 l0.8 -0.6 l0.9 0.5 l-0.6 0.9 Z"/><path d="M48 92.6 l0.9 -0.5 l0.6 0.7 l-0.8 0.6 Z"/>
+  </g>
+  <ellipse cx="80.8" cy="89" rx="1.8" ry="1.2" fill="url(#awd-ember)"/>
+  <ellipse cx="38.8" cy="91.4" rx="1.6" ry="1.1" fill="url(#awd-ember)"/>
+  <g fill="#d4561e">
+    <circle cx="80.8" cy="89" r="0.35"/><circle cx="38.8" cy="91.4" r="0.3"/><circle cx="18.8" cy="90.6" r="0.25" opacity="0.7"/>
+  </g>
+  <g fill="#5e5860">
+    <circle cx="24" cy="92.6" r="0.4"/><circle cx="34" cy="92.8" r="0.3"/><circle cx="56" cy="92.8" r="0.35"/><circle cx="86" cy="90.6" r="0.3"/>
+    <circle cx="12" cy="83.6" r="0.3"/><circle cx="84" cy="81.4" r="0.3"/>
+  </g>
+</svg>

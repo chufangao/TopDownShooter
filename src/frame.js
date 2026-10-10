@@ -11,22 +11,21 @@
 // pixels. So two coordinate spaces meet here:
 //   viewport px: an event's clientX/clientY, any getBoundingClientRect(), the canvas, board.rectOf/tileAt;
 //   logical px: every CSS length inside #frame (a style.left, a width), and offsetWidth/offsetHeight there.
-// toLocal / toLocalRect take viewport to logical (to place something in the frame by what is on screen);
-// toViewport takes logical to viewport (one logical px is frame.k viewport px).
+// toLocal / toLocalRect take viewport to logical (to place something in the frame by what is on screen); one
+// logical px is frame.k viewport px.
 // CSS reads the frame as --frame-w and --frame-h (its logical size, in px: use them where vw and vh were),
 // --frame-k (the scale) and --frame-x, --frame-y (its viewport offset); #frame is also the size container
 // `frame`, for @container frame (max-height: …) where a viewport @media was.
 
-export const H = 720
-export const H_MIN = 540
-export const MIN_W = 960 // 4:3 of H; a shorter frame keeps 4:3 of its own height
+const H = 720
+const H_MIN = 540
+const MIN_W = 960 // 4:3 of H; a shorter frame keeps 4:3 of its own height
 
 // k: viewport px per logical px; x, y: the frame's top left in the viewport; w, h: its logical size;
 // el: #frame, where anything positioned over the page (a tooltip, an overlay, a drag's ghost) is appended.
 export const frame = { k: 1, x: 0, y: 0, w: MIN_W, h: H, el: null }
 
 export const toLocal = (x, y) => ({ x: (x - frame.x) / frame.k, y: (y - frame.y) / frame.k })
-export const toViewport = (x, y) => ({ x: frame.x + x * frame.k, y: frame.y + y * frame.k })
 // A rect ({ left, top, right, bottom }, a DOMRect or a board tile's) from the viewport into the frame.
 export function toLocalRect (r) {
   const a = toLocal(r.left, r.top)

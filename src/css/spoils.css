@@ -1,6 +1,6 @@
 /* spoils: the reap screen's cards (picked the Slay the Spire way), the title's four steps and the end
    screen's sting. Owned by titleScreen, reapScreen, endScreen and deathPanel in ui.js. Each card wears its
-   system's colour as --f: a recruit essence, a relic gold, a keystone lilac, a path tier the path's cyan. */
+   system's colour as --f: a recruit essence, a relic its tier's (--rt: common to legendary), a path tier the path's cyan. */
 
 /* ── reap: the frame ──────────────────────────────────────────────────────────────────────────── */
 /* Fitted to the frame (.screen.fit): the head, the cards in the middle (the one part that may scroll, rows of
@@ -19,8 +19,7 @@
 
 /* ── reap: the cards ──────────────────────────────────────────────────────────────────────────── */
 .reap-screen .offer { --f: var(--c-essence); }
-.reap-screen .o-relic { --f: var(--c-relic); }
-.reap-screen .o-keystone { --f: var(--c-keystone); }
+.reap-screen .o-relic { --f: var(--rt, var(--c-relic)); }
 .reap-screen .o-tier { --f: var(--c-path); }
 
 /* Rows of --cols cards (ui.js: as many as the width holds, the rows as even as they come), every card the
@@ -65,12 +64,23 @@
 .reap-screen .offers.picks.rows .offer-art > .ico svg { width: 56px; height: 56px; }
 .reap-screen .offers.picks.rows .offer { gap: 6px; padding-bottom: 12px; }
 .reap-screen .offers.picks.rows .offer-art > .portrait { width: 68px; height: 68px; }
+/* …the effect kept to three lines (all of it on the hover), and a free card's price left to the lede: rows come
+   in a reliquary's one pick, where every card is free. */
+.reap-screen .offers.picks.rows .offer-line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.reap-screen .offers.picks.rows .offer:not(.o-soul) .offer-price { display: none; }
 @container frame (max-height: 640px) {
   .reap-screen .offers.picks .offer-art > .portrait { width: 84px; height: 84px; }
   .reap-screen .offers.picks .offer-art { height: 96px; }
   .reap-screen .offers.picks .offer-art > .ico svg { width: 56px; height: 56px; }
   .reap-screen .offers.picks .offer { gap: 6px; padding: 10px 12px 12px; }
   .reap-screen .offer-price { min-height: 34px; }
+  .reap-screen .offers.picks.rows .offer-art { height: 52px; }
+  .reap-screen .offers.picks.rows .offer-art > .portrait { width: 50px; height: 50px; }
+  .reap-screen .offers.picks.rows .offer-art > .ico svg { width: 40px; height: 40px; }
+  .reap-screen .offers.picks.rows { gap: 10px 12px; }
+  .reap-screen .offers.picks.rows .offer { gap: 4px; padding: 8px 10px 10px; }
+  .reap-screen .offers.picks.rows .offer-line { -webkit-line-clamp: 2; line-clamp: 2; }
+  .reap-screen .offers.picks.rows .offer-tag { top: 14px; left: 16px; }
   .reap-head { padding-top: 8px; }
   .reap-body { padding-top: 10px; padding-bottom: 6px; }
 }
@@ -81,6 +91,11 @@
 }
 .reap-screen .offer-price.poor, .reap-screen .offer-price.full { color: var(--c-foe); border-color: #e0566a66; }
 .reap-screen .offer.locked { opacity: .6; }
+/* By touch, the card chosen (its full text pinned beside it, a second tap takes it). */
+.reap-screen .offer.chosen {
+  border-color: var(--f); transform: translateY(-4px);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--f) 55%, transparent), 0 14px 30px #000a, 0 0 26px color-mix(in srgb, var(--f) 35%, transparent);
+}
 .reap-screen .offer.locked .offer-art { filter: grayscale(.6); }
 
 /* The lede (one group): one line, the rules behind it on the ⓘ. */
@@ -90,14 +105,14 @@
 .reap-actions { flex: none; display: flex; justify-content: flex-end; gap: 10px; margin: 0 0 0 auto; }
 .reap-actions .move-on { min-width: 150px; }
 
-/* ── reap: a room of several groups, a step each (Recruit · Relic · Keystone), one group in view ── */
+/* ── reap: a room of several groups, a step each (Recruit · Relic · Legendary · Tier), one group in view ── */
 .reap-steps {
   display: inline-flex; align-items: stretch; gap: 4px; padding: 4px; border-radius: 16px;
   border: 1px solid var(--line2); background: #0d0b16c0;
 }
 .reap-step { --f: var(--c-essence); }
 .reap-step.s-relic { --f: var(--c-relic); }
-.reap-step.s-keystone { --f: var(--c-keystone); }
+.reap-step.s-legendary { --f: var(--c-legendary); }
 .reap-step.s-tier { --f: var(--c-path); }
 button.reap-step {
   display: flex; align-items: center; gap: 10px; min-height: var(--tap-lg); padding: 6px 16px 6px 10px; border-radius: 12px; text-align: left;
@@ -136,8 +151,6 @@ button.reap-step.done { opacity: .5; cursor: default; }
 }
 .reap-screen .offers .offer.taking { animation: take .3s ease-in forwards; z-index: 2; pointer-events: none; }
 .reap-screen.picking .offers .offer:not(.taking) { opacity: .3; filter: saturate(.4); transition: opacity .2s, filter .2s; }
-@keyframes pulse { 45% { transform: scale(1.05); box-shadow: 0 0 0 2px var(--f), 0 0 40px color-mix(in srgb, var(--f) 55%, transparent); } }
-.reap-screen .offers .offer.pulse { animation: pulse .3s ease-out; }
 @keyframes refuse {
   0%, 100% { transform: none; }
   20% { transform: translateX(-8px) rotate(-1deg); }
@@ -172,7 +185,7 @@ button.ret-toggle {
 .ret-pop .unit { padding: 6px 10px; }
 .ret-pop .unit > button { flex: none; gap: 4px; padding: 0 12px; }
 
-/* ── a soul's portrait framed in its rank's metal (ui.js rankPort): the retinue strip, the lists ─────── */
+/* ── a soul's portrait framed in its rank's metal (ui.js unitRow): the lists ─────────────────────────── */
 .rank-port {
   --rk: var(--c-soldier);
   position: relative; flex: none; display: inline-grid; place-items: center; padding: 2px; border-radius: 9px;
@@ -286,12 +299,12 @@ button.ret-toggle {
 /* The crypt floor the battle stands on, a cell per tile; their ground and your camp edged as the board's daises. */
 .db {
   --c: 28px; --pad: 6px;
-  position: relative; display: grid; grid-template-columns: repeat(var(--lanes), var(--c)); grid-auto-rows: var(--c);
+  position: relative; display: grid; grid-template-columns: repeat(var(--depth), var(--c)); grid-auto-rows: var(--c);
   padding: var(--pad); border-radius: 10px; overflow: hidden; border: 1px solid #2c2540;
   background: url("../assets/props/floor.svg") 0 0 / 128px 128px, #1d1829; box-shadow: 0 0 0 1px #0008 inset, 0 10px 24px #0007;
 }
 .db::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 55%, transparent 40%, #07060bb0); }
-.db-zone { position: absolute; left: calc(var(--pad) - 2px); right: calc(var(--pad) - 2px); border-radius: 8px; pointer-events: none; }
+.db-zone { position: absolute; top: calc(var(--pad) - 2px); bottom: calc(var(--pad) - 2px); border-radius: 8px; pointer-events: none; }
 .db-zone.db-foe { background: color-mix(in srgb, var(--c-foe) 9%, transparent); border: 1px solid color-mix(in srgb, var(--c-foe) 32%, transparent); }
 .db-zone.db-camp { background: color-mix(in srgb, var(--c-essence) 6%, transparent); border: 1px solid color-mix(in srgb, var(--c-essence) 30%, transparent); }
 .db-cell { position: relative; z-index: 1; display: grid; place-items: center; }

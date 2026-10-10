@@ -1,0 +1,278 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Rot Bloat, waddling: a gas-swollen corpse, belly first, its stitched seams and weeping boils leaking green miasma. Lit from the upper left. -->
+  <defs>
+    <radialGradient id="rb-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0d0a12" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#0d0a12" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rb-skin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c3cca6"/>
+      <stop offset="0.45" stop-color="#87956f"/>
+      <stop offset="1" stop-color="#46513b"/>
+    </linearGradient>
+    <linearGradient id="rb-skin-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#93a07c"/>
+      <stop offset="1" stop-color="#39432f"/>
+    </linearGradient>
+    <radialGradient id="rb-belly" cx="0.3" cy="0.26" r="0.82">
+      <stop offset="0" stop-color="#e6edcf"/>
+      <stop offset="0.2" stop-color="#b6c398"/>
+      <stop offset="0.5" stop-color="#88966d"/>
+      <stop offset="0.8" stop-color="#5a674b"/>
+      <stop offset="1" stop-color="#3a4431"/>
+    </radialGradient>
+    <linearGradient id="rb-patch" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b4a283"/>
+      <stop offset="1" stop-color="#6a5944"/>
+    </linearGradient>
+    <radialGradient id="rb-boil" cx="0.38" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="#fff7c8"/>
+      <stop offset="0.35" stop-color="#dccb6c"/>
+      <stop offset="0.75" stop-color="#a08c3c"/>
+      <stop offset="1" stop-color="#6c4c2c"/>
+    </radialGradient>
+    <radialGradient id="rb-gas" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#d6f57c" stop-opacity="0.6"/>
+      <stop offset="0.5" stop-color="#a8d84a" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#8ac03a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rb-eye" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f6ffcc"/>
+      <stop offset="0.3" stop-color="#c8e84c"/>
+      <stop offset="1" stop-color="#b0d83c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rb-maw" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#3a1a1c"/>
+      <stop offset="1" stop-color="#120708"/>
+    </radialGradient>
+    <linearGradient id="rb-rag" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#b0a684"/>
+      <stop offset="1" stop-color="#5a523f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- soft ground shadow under the feet -->
+  <ellipse cx="49" cy="88.4" rx="29" ry="4" fill="url(#rb-shadow)"/>
+
+  <!-- the haze of gas it carries about with it -->
+  <ellipse cx="28" cy="38" rx="13" ry="10" fill="url(#rb-gas)" opacity="0.55"/>
+  <ellipse cx="76" cy="30" rx="11" ry="9" fill="url(#rb-gas)" opacity="0.45"/>
+  <ellipse cx="18" cy="70" rx="10" ry="8" fill="url(#rb-gas)" opacity="0.4"/>
+
+  <!-- far arm, stubby, hanging off the back of the belly -->
+  <path d="M34 33 C28.5 32.6 25 36.4 23 41.6 L20.4 47.6 C19.4 50.6 20.8 53.2 23.2 53.4 C25.2 53.5 26.4 52 27.2 50 L30.4 44 C32 41 34.6 37.8 34 33 Z" fill="url(#rb-skin-dark)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M25.6 38.6 Q23.6 42 21.8 46.6" fill="none" stroke="#c9d2ae" stroke-width="0.6" opacity="0.7"/>
+  <path d="M28.6 44.6 Q27 48 25.6 51" fill="none" stroke="#2a3322" stroke-width="0.6"/>
+  <!-- puffy hand -->
+  <path d="M18.2 51.8 C18.6 49.6 21.6 48.8 23.8 50.2 C25.6 51.6 25.6 54.6 24 56.2 C22.2 57.8 19 57.2 18.2 55.2 Z" fill="url(#rb-skin)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M18.8 53.8 l1.8 0.5 M19.2 55.4 l1.7 0.3 M20 51.6 l1.4 0.8" stroke="#3a4431" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M19 51.2 Q20.4 50 22 50.2" fill="none" stroke="#e3ebcd" stroke-width="0.45"/>
+  <path d="M18.4 55.6 l-0.6 0.6 M19.6 56.8 l-0.4 0.8" stroke="#c8b46a" stroke-width="0.6" stroke-linecap="round"/>
+
+  <!-- stubby bowed legs, waddling: the near leg planted, the far one rolling onto its heel -->
+  <g stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round">
+    <path d="M35.6 73.6 C33.2 77.6 33 81.6 35 85.2 L43.8 85.2 C45 82 46 78 45.2 73.6 Z" fill="url(#rb-skin-dark)"/>
+    <path d="M55 74.6 C53.8 78.6 54.6 82.6 57 85.6 L66 85.6 C67.4 82 67.4 78 65.2 74.6 Z" fill="url(#rb-skin)"/>
+  </g>
+  <!-- knee folds and shin light -->
+  <path d="M35 79.6 Q39 81.4 44.4 79.4 M55.6 80.6 Q60 82.6 66.4 80.2" fill="none" stroke="#2a3322" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M35.4 81.4 Q35.6 83.2 36.4 84.6 M56.4 82.6 Q56.8 84 57.8 85" fill="none" stroke="#d6dfba" stroke-width="0.6" opacity="0.8"/>
+  <!-- broad flat bare feet, toes pointing the way it waddles -->
+  <path d="M31 88.4 C30 86.4 31.6 84.6 34.4 84.4 L42.6 84.4 C45.8 84.6 47.6 86.2 47.4 88.4 Z" fill="#66745a" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M54.8 88.4 C54 86.2 55.6 84.8 58 84.6 L66.8 84.6 C70.4 84.8 72.6 86.6 72.4 88.4 Z" fill="#8c9a77" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M32.6 85.6 Q37 84.8 41 85.4 M56.6 85.8 Q61 85 65.6 85.6" fill="none" stroke="#d2dbbb" stroke-width="0.5"/>
+  <!-- toes and yellowed nails -->
+  <path d="M43.6 86.4 l0 2 M45.4 86.6 l0 1.8 M68.4 86.6 l0 1.8 M70.4 87 l0 1.4" stroke="#2a3322" stroke-width="0.5"/>
+  <path d="M46 86.6 q1 0.2 1.1 1 M71 87 q1 0.2 1.1 1" fill="none" stroke="#d8c47a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M33.8 87.2 q2 -0.8 4 0 M58.6 87.4 q2 -0.8 4 0" fill="none" stroke="#2a3322" stroke-width="0.45" opacity="0.7"/>
+  <!-- dirt clinging to the soles -->
+  <path d="M31.6 88 q1.6 -0.6 2.6 0.2 M60 88 q1.4 -0.6 2.6 0.1" fill="none" stroke="#3a2e22" stroke-width="0.7" stroke-linecap="round"/>
+
+  <!-- filthy loin-rag, peeping out under the overhang -->
+  <path d="M41.6 75 L59.4 75.6 L58.4 83.4 L55.6 81 L53.6 84.6 L50.8 81.2 L48 84.8 L45.6 81 L43 83.6 Z" fill="url(#rb-rag)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M46.4 77 L46 81 M51.6 77.4 L51.4 81.6 M56 77.2 L56.4 81" stroke="#4a4232" stroke-width="0.5"/>
+  <path d="M53 79.6 q1.6 0.4 2 2" fill="none" stroke="#6b5a2e" stroke-width="0.7" opacity="0.8"/>
+
+  <!-- back, shoulders and chest: hunched, sagging -->
+  <path d="M27.6 66 C23 56 23.4 40 30.4 32 C33.6 28.6 38.4 27 44 26.6 C50 26.2 55.6 26.8 60 28.2 C65.6 30 69.4 34 69.6 39 C69.8 43 68 46 65 48 L40 60 Z" fill="url(#rb-skin)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M27.4 46 Q27.6 36.4 33.4 31 Q37.4 28.6 43 28" fill="none" stroke="#e3ebcd" stroke-width="1" stroke-linecap="round" opacity="0.85"/>
+  <!-- sagging pectoral folds over the belly -->
+  <path d="M31 40.4 Q37.6 44.6 45 41.6 M50 41.6 Q58.4 44.4 66 39" fill="none" stroke="#2f3828" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M31.4 39 Q37 42.4 43.6 40 M51 40.2 Q57.6 42.4 63.6 38.6" fill="none" stroke="#d6dfba" stroke-width="0.5" opacity="0.6"/>
+  <!-- mottled lividity on the shoulders -->
+  <ellipse cx="36" cy="33" rx="2.4" ry="1.4" fill="#6a5872" opacity="0.35" transform="rotate(-20 36 33)"/>
+  <ellipse cx="62" cy="34" rx="2" ry="1.3" fill="#4f5c3a" opacity="0.5"/>
+  <circle cx="44" cy="31" r="0.6" fill="#4f5c3a" opacity="0.6"/><circle cx="40.6" cy="35.4" r="0.5" fill="#4f5c3a" opacity="0.6"/>
+
+  <!-- ===== the belly: a great taut drum of gas, stretched to shining ===== -->
+  <path d="M26.4 58 C25.6 48 34 42.4 46 42 C58 41.6 70 43 77 50.6 C82.4 56.6 81.6 68 74.6 74.6 C68.6 80.2 58.6 81.8 49 81.4 C38.6 81 29.4 77.4 27 69 C26.2 65.4 26.2 61.6 26.4 58 Z" fill="url(#rb-belly)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <!-- shadow the chest throws on the top of the belly -->
+  <path d="M29.4 50.6 C33.4 45.4 41 43.2 49 43.2 C57.6 43.2 66.6 45 73 49.6 C65 47 57 46 49 46.2 C41 46.4 34 48 29.4 50.6 Z" fill="#2e3826" opacity="0.35"/>
+  <!-- underside in shadow, and the dark rim where it turns away from the light -->
+  <path d="M80.2 58.6 C80.6 68.6 72 78.6 58 80.6 C48 81.8 37 80 31 75 C38 78 50 79 60 77.4 C70.6 75.6 78 68 80.2 58.6 Z" fill="#26301e" opacity="0.5"/>
+  <!-- stretched-tight sheen -->
+  <ellipse cx="38.6" cy="51.4" rx="7.4" ry="3.6" fill="#f4f8e4" opacity="0.3" transform="rotate(-28 38.6 51.4)"/>
+  <ellipse cx="36.8" cy="50.4" rx="2.6" ry="1" fill="#ffffff" opacity="0.55" transform="rotate(-32 36.8 50.4)"/>
+  <!-- bruising where the gas has pooled -->
+  <ellipse cx="68" cy="70" rx="5.4" ry="3.4" fill="#6a5872" opacity="0.35" transform="rotate(-25 68 70)"/>
+  <ellipse cx="74.6" cy="57" rx="3" ry="4.4" fill="#4f5c3a" opacity="0.45"/>
+  <ellipse cx="44" cy="73.4" rx="4" ry="2.2" fill="#6a5872" opacity="0.25"/>
+  <!-- stretch marks splitting along the lit flank -->
+  <path d="M28.6 56 q1.8 -2.6 4.6 -3.4 M28.2 60.6 q2 -2.2 4.8 -2.6 M28.6 65 q2 -1.6 4.4 -1.6" fill="none" stroke="#3e4a32" stroke-width="0.55" stroke-linecap="round"/>
+  <path d="M28.6 55.2 q1.8 -2.6 4.6 -3.4 M28.2 59.8 q2 -2.2 4.8 -2.6 M28.6 64.2 q2 -1.6 4.4 -1.6" fill="none" stroke="#e8eed4" stroke-width="0.4" stroke-linecap="round" opacity="0.6"/>
+  <!-- purple veins spidering out over the drum -->
+  <g fill="none" stroke="#4b3f58" stroke-width="0.5" stroke-linecap="round" opacity="0.65">
+    <path d="M66 62 q3 -2.4 6 -1.6 q2 0.6 3.6 -0.8 M66 62 q1.6 3 5 4 q2 0.6 3 2.6 M66 62 q-1 3.6 0.6 6 M71 64.6 l2.2 -0.6"/>
+    <path d="M44 66 q-3 1 -5 4 M44 66 q-1.4 -3 -4.6 -3.8 M41.6 68.2 l-2 0.2"/>
+    <path d="M63.6 47.6 q2.6 1.6 5.4 1 M66.2 48.4 l1 2"/>
+  </g>
+  <!-- the stretched-out navel -->
+  <ellipse cx="66" cy="62" rx="1.8" ry="1.1" fill="#1e2418" stroke="#0d0a12" stroke-width="0.4"/>
+  <path d="M64.4 61.4 Q66 60.4 67.6 61.4" fill="none" stroke="#c6d0ae" stroke-width="0.4"/>
+
+  <!-- a patch of someone else's hide, stitched over a split on the flank -->
+  <path d="M30.6 60.6 L39.4 59 L41.6 67.6 L33.4 70.2 Z" fill="url(#rb-patch)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M31.6 61.4 L38.8 60.1" stroke="#e4d6b6" stroke-width="0.4" opacity="0.7"/>
+  <g stroke="#1f1712" stroke-width="0.6" stroke-linecap="round">
+    <path d="M32.2 59.4 l0.4 2.2 M34.8 59 l0.4 2.2 M37.4 58.4 l0.4 2.2 M40.4 61 l-2.2 0.6 M41 63.6 l-2.2 0.6 M41.6 66.2 l-2.2 0.6 M38.6 69.4 l-0.6 -2.2 M35.8 70.4 l-0.6 -2.2 M32.6 68.4 l2 -1 M31.8 65.6 l2 -1 M31 62.8 l2 -0.8"/>
+  </g>
+  <g stroke="#9a8a62" stroke-width="0.3" stroke-linecap="round">
+    <path d="M32.2 59.4 l0.4 2.2 M34.8 59 l0.4 2.2 M37.4 58.4 l0.4 2.2 M40.4 61 l-2.2 0.6 M41 63.6 l-2.2 0.6"/>
+  </g>
+  <path d="M35 63.6 q2 1.2 3.4 0" fill="none" stroke="#4a3a2a" stroke-width="0.5"/>
+
+  <!-- the Y of the old embalmer's cut, sewn shut with butcher's twine and splitting at every stitch -->
+  <path d="M38.4 30.8 Q44 35.6 50 41 M56.6 33.4 Q53.4 37 50 41" fill="none" stroke="#2a1418" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M50 42 C56 52 60 64 56 78" fill="none" stroke="#2a1418" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- gas glowing faintly through the slit -->
+  <path d="M50.4 44 C55.6 52.6 59.4 63.6 56.6 76" fill="none" stroke="#b4e05a" stroke-width="0.4" opacity="0.7"/>
+  <path d="M49.2 42.6 C55 52.4 58.8 64 55 77.6" fill="none" stroke="#dfe7c4" stroke-width="0.45" opacity="0.5"/>
+  <!-- the stitches: crude bars across the cut, with the puncture holes at their ends -->
+  <g stroke="#1f1712" stroke-width="0.8" stroke-linecap="round">
+    <path d="M50 46 L53.4 44.2 M51.6 49 L55 47.4 M53 52.4 L56.5 50.8 M54.1 55.6 L57.7 54.4 M55 59 L58.6 58 M55.5 62.6 L59.2 61.8 M55.8 66.2 L59.4 65.8 M55.6 70 L59.4 69.8 M55.2 73.6 L58.8 74.2"/>
+    <path d="M40.4 34.6 L42.4 31.6 M43.4 37.2 L45.6 34.4 M46.4 39.8 L48.6 37.2 M52 39.6 L54.4 41.2 M54 36.8 L56.4 38.4"/>
+  </g>
+  <g stroke="#a08c5c" stroke-width="0.35" stroke-linecap="round">
+    <path d="M50.2 45.8 L53.2 44.2 M51.8 48.8 L54.8 47.4 M53.2 52.2 L56.3 50.8 M54.3 55.4 L57.5 54.4 M55.2 58.8 L58.4 58 M55.7 62.4 L59 61.8 M56 66 L59.2 65.8 M55.8 69.8 L59.2 69.6 M55.4 73.4 L58.6 74"/>
+  </g>
+  <g fill="#1a120e">
+    <circle cx="50" cy="46" r="0.45"/><circle cx="53.4" cy="44.2" r="0.45"/><circle cx="54.1" cy="55.6" r="0.45"/><circle cx="57.7" cy="54.4" r="0.45"/>
+    <circle cx="55.5" cy="62.6" r="0.45"/><circle cx="59.2" cy="61.8" r="0.45"/><circle cx="55.6" cy="70" r="0.45"/><circle cx="59.4" cy="69.8" r="0.45"/>
+  </g>
+  <!-- one stitch has torn through: a pucker where the gas forces its way out -->
+  <path d="M56.6 57 Q58.6 58.4 56.8 60.4" fill="none" stroke="#1a120e" stroke-width="0.9"/>
+  <ellipse cx="57.4" cy="58.6" rx="1.1" ry="1.6" fill="#3c4a22"/>
+  <ellipse cx="57.4" cy="58.6" rx="0.5" ry="0.9" fill="#b4e05a" opacity="0.8"/>
+
+  <!-- weeping boils -->
+  <g stroke="#0d0a12" stroke-width="0.5">
+    <circle cx="42.6" cy="66" r="3" fill="#8a4a50" opacity="0.45" stroke="none"/>
+    <circle cx="42.6" cy="66" r="2.1" fill="url(#rb-boil)"/>
+    <circle cx="69.4" cy="50.6" r="2.6" fill="#8a4a50" opacity="0.45" stroke="none"/>
+    <circle cx="69.4" cy="50.6" r="1.8" fill="url(#rb-boil)"/>
+    <circle cx="36" cy="47.2" r="2" fill="#8a4a50" opacity="0.4" stroke="none"/>
+    <circle cx="36" cy="47.2" r="1.3" fill="url(#rb-boil)"/>
+    <circle cx="72.4" cy="66.8" r="2" fill="#8a4a50" opacity="0.4" stroke="none"/>
+    <circle cx="72.4" cy="66.8" r="1.4" fill="url(#rb-boil)"/>
+    <circle cx="47.6" cy="35" r="1.6" fill="#8a4a50" opacity="0.4" stroke="none"/>
+    <circle cx="47.6" cy="35" r="1.1" fill="url(#rb-boil)"/>
+    <circle cx="61.6" cy="74.6" r="1.1" fill="url(#rb-boil)"/>
+  </g>
+  <g fill="#ffffff" opacity="0.8">
+    <circle cx="41.8" cy="65.2" r="0.5"/><circle cx="68.8" cy="50" r="0.45"/><circle cx="35.6" cy="46.8" r="0.35"/><circle cx="72" cy="66.4" r="0.35"/><circle cx="47.3" cy="34.7" r="0.3"/>
+  </g>
+  <!-- one has burst: pus running down the drum -->
+  <path d="M69.6 52.4 Q70.4 54.6 69.8 56.6 Q69.4 57.8 70.2 58.6" fill="none" stroke="#c9b85a" stroke-width="0.9" stroke-linecap="round"/>
+  <circle cx="70.3" cy="59.1" r="0.7" fill="#d8c86a" stroke="#0d0a12" stroke-width="0.3"/>
+  <path d="M43 68 Q43.6 70 43 71.6" fill="none" stroke="#c9b85a" stroke-width="0.7" stroke-linecap="round"/>
+
+  <!-- near arm: a short fat sausage of an arm, the hand cradling the belly's crest -->
+  <path d="M60.4 31.4 C65 29 70 31 72.4 35.6 L76.4 42.2 C78 45.2 77 48.2 74.4 48.8 C72.2 49.2 70.8 47.8 69.8 46 L65 40 C62.2 37.4 59.2 35 60.4 31.4 Z" fill="url(#rb-skin)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M62 32.2 Q66.6 31 70 34.4" fill="none" stroke="#e3ebcd" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M69.4 40.4 Q71 41.6 72.8 40.6" fill="none" stroke="#2a3322" stroke-width="0.6"/>
+  <path d="M75.6 44 Q75.4 46.6 73.6 47.6" fill="none" stroke="#2a3322" stroke-width="0.6"/>
+  <!-- a stitched sleeve-seam where the arm was sewn back on -->
+  <path d="M63.4 34.6 Q65.6 32.6 68.4 32.8" fill="none" stroke="#2a1418" stroke-width="0.7"/>
+  <path d="M64.2 33 l0.6 1.6 M65.8 32.4 l0.4 1.6 M67.4 32.2 l0.2 1.6" stroke="#1f1712" stroke-width="0.5"/>
+  <!-- the hand: swollen fingers splayed over the curve -->
+  <path d="M72 47.4 C73 45.2 76.6 45 78.4 47 C80 48.8 79.8 51.6 78.2 52.8 C76.2 54.2 73.2 53.4 72.2 51.4 Z" fill="url(#rb-skin)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M73.6 51.4 Q73 53.8 74.6 55 M75.6 52.6 Q75.6 55 77.2 55.6 M77.6 51.8 Q78.6 54 80.2 54" fill="none" stroke="#0d0a12" stroke-width="1.9" stroke-linecap="round"/>
+  <path d="M73.6 51.4 Q73 53.8 74.6 55 M75.6 52.6 Q75.6 55 77.2 55.6 M77.6 51.8 Q78.6 54 80.2 54" fill="none" stroke="#8c9a77" stroke-width="1" stroke-linecap="round"/>
+  <path d="M73.2 47.6 Q74.8 46.2 76.8 46.6" fill="none" stroke="#e3ebcd" stroke-width="0.45"/>
+  <circle cx="74.8" cy="55.1" r="0.45" fill="#d8c47a"/><circle cx="77.4" cy="55.7" r="0.45" fill="#d8c47a"/><circle cx="80.3" cy="54.1" r="0.45" fill="#d8c47a"/>
+
+  <!-- the neck: a wattled roll of slack skin -->
+  <path d="M55.2 31.4 C55.6 26.8 60 24.6 64.4 25.4 C68 26 69.8 28.8 69.4 32.6 C67 35.6 59.6 35.4 55.2 31.4 Z" fill="#7d8b66"/>
+  <path d="M55.2 31.4 C55.6 26.8 60 24.6 64.4 25.4 C68 26 69.8 28.8 69.4 32.6" fill="none" stroke="#0d0a12" stroke-width="1" stroke-linecap="round"/>
+  <path d="M57.4 31.4 Q62 33.4 67.8 31.6 M58.6 29.2 Q62.6 30.8 67 29.6" fill="none" stroke="#2a3322" stroke-width="0.55" stroke-linecap="round"/>
+  <path d="M57.2 30.4 Q61.6 32.2 66.4 30.8" fill="none" stroke="#c6d0ae" stroke-width="0.4" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- the small head, lolling forward and over onto one shoulder -->
+  <g transform="rotate(22 64 24)">
+    <!-- ear -->
+    <path d="M58.2 18 C56.4 17.6 55.4 19.6 56 21.4 C56.6 23 57.8 23.4 58.6 22.4 Z" fill="url(#rb-skin-dark)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+    <path d="M57 19.4 Q56.8 20.8 57.6 21.6" fill="none" stroke="#2a3322" stroke-width="0.4"/>
+    <!-- skull -->
+    <path d="M57.4 19.6 C56.8 13.8 60.4 10.8 64.6 10.8 C69.2 10.8 72.2 14 72.2 18.6 C72.2 21.8 71.2 24.4 69.6 26 C68 27.6 66 28.2 64 28 C60.4 27.6 58 24.4 57.4 19.6 Z" fill="url(#rb-skin)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+    <path d="M58.8 16.8 Q60 12.8 64.4 12.2" fill="none" stroke="#e8efd2" stroke-width="0.9" stroke-linecap="round" opacity="0.9"/>
+    <path d="M71.2 16 Q71.8 21.4 69 25.4" fill="none" stroke="#2a3322" stroke-width="0.8" opacity="0.8"/>
+    <!-- a crude seam across the scalp -->
+    <path d="M60.2 13 Q64 14.6 69.6 12.8" fill="none" stroke="#2a1418" stroke-width="0.6"/>
+    <path d="M61.4 12.6 l0.4 1.6 M63.4 13.2 l0.2 1.6 M65.6 13.4 l0 1.6 M67.8 13 l-0.2 1.6" stroke="#1f1712" stroke-width="0.45"/>
+    <!-- lank hair -->
+    <path d="M59.6 13.4 Q57.2 16.6 57.8 21.4 M61 12 Q58.4 15.2 59.2 19.4 M62.6 11.4 Q61 13.4 61.2 16" fill="none" stroke="#2f2e22" stroke-width="0.5" stroke-linecap="round"/>
+    <!-- mottling -->
+    <circle cx="61.4" cy="22.6" r="0.9" fill="#4f5c3a" opacity="0.5"/><circle cx="62.6" cy="17" r="0.6" fill="#6a5872" opacity="0.45"/>
+    <!-- heavy drooping brow -->
+    <path d="M63.4 16.2 Q66.6 14.8 69.2 15.8 Q70.8 16.2 71.6 17.2" fill="none" stroke="#2a3322" stroke-width="0.9" stroke-linecap="round"/>
+    <!-- eyes: one clouded milk-white, one a sickly pinprick -->
+    <ellipse cx="66" cy="18.5" rx="1.8" ry="1.5" fill="#20261a"/>
+    <ellipse cx="70.2" cy="18.7" rx="1.3" ry="1.3" fill="#20261a"/>
+    <circle cx="66.1" cy="18.7" r="1.15" fill="#e3e2c6"/>
+    <circle cx="66.5" cy="18.9" r="0.5" fill="#b9b590"/>
+    <circle cx="65.7" cy="18.3" r="0.3" fill="#ffffff"/>
+    <circle cx="70.2" cy="18.8" r="2.1" fill="url(#rb-eye)" opacity="0.75"/>
+    <circle cx="70.3" cy="18.8" r="0.5" fill="#eaffb0"/>
+    <!-- the nose rotted away -->
+    <path d="M71.2 20.6 L72.4 22.4 L70.6 22.2 Z" fill="#1a1410"/>
+    <!-- slack mouth hanging open, a few brown stumps, a swollen tongue -->
+    <path d="M65.6 24 Q68.6 23 71 23.8 Q70.8 27.6 68.2 28 Q65.8 27.6 65.6 24 Z" fill="url(#rb-maw)" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M66.6 24 l0.6 1.1 l0.6 -1.1 Z M68.6 23.8 l0.5 1 l0.6 -1 Z" fill="#c9c098" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M66.8 26.8 Q68.4 25.6 70 26.6 Q68.6 28 66.8 26.8 Z" fill="#5a3a46"/>
+    <path d="M65.2 24.2 Q65.4 26.6 66.6 27.8" fill="none" stroke="#2a3322" stroke-width="0.5"/>
+  </g>
+  <!-- a rope of green bile drooling from the slack jaw -->
+  <path d="M66.8 28.8 Q66.4 31.6 67.2 33.6 Q67.8 35 67.4 36.6" fill="none" stroke="#0d0a12" stroke-width="1.3" stroke-linecap="round"/>
+  <path d="M66.8 28.8 Q66.4 31.6 67.2 33.6 Q67.8 35 67.4 36.6" fill="none" stroke="#a8d048" stroke-width="0.6" stroke-linecap="round"/>
+  <circle cx="67.4" cy="37.4" r="0.9" fill="#a8d048" stroke="#0d0a12" stroke-width="0.4"/>
+  <circle cx="67.1" cy="37.1" r="0.3" fill="#eaffb0"/>
+
+  <!-- ===== sickly green gas leaking from the seams ===== -->
+  <ellipse cx="58" cy="57" rx="4" ry="3.4" fill="url(#rb-gas)"/>
+  <path d="M57.6 57.4 C60.4 54.4 57.6 51.2 60.8 48.2 C63.2 46 66.4 47 66.6 43.4 C66.8 41 69 39.6 71 40" fill="none" stroke="#a8d84a" stroke-width="2.6" stroke-linecap="round" opacity="0.28"/>
+  <path d="M57.6 57.4 C60.4 54.4 57.6 51.2 60.8 48.2 C63.2 46 66.4 47 66.6 43.4 C66.8 41 69 39.6 71 40" fill="none" stroke="#dcf59a" stroke-width="0.7" stroke-linecap="round" opacity="0.6"/>
+  <ellipse cx="50" cy="40" rx="3.4" ry="2.6" fill="url(#rb-gas)"/>
+  <path d="M50 40.4 C47.6 37 51 34.6 48.8 31 C47.4 28.6 49.4 25.6 52 25" fill="none" stroke="#a8d84a" stroke-width="2.2" stroke-linecap="round" opacity="0.26"/>
+  <path d="M50 40.4 C47.6 37 51 34.6 48.8 31 C47.4 28.6 49.4 25.6 52 25" fill="none" stroke="#dcf59a" stroke-width="0.6" stroke-linecap="round" opacity="0.55"/>
+  <ellipse cx="32" cy="62" rx="3.4" ry="2.8" fill="url(#rb-gas)"/>
+  <path d="M31.4 61.6 C28.4 59 31 55.6 28.2 52.6 C26.2 50.4 23 51 22 48" fill="none" stroke="#a8d84a" stroke-width="2.2" stroke-linecap="round" opacity="0.26"/>
+  <path d="M31.4 61.6 C28.4 59 31 55.6 28.2 52.6 C26.2 50.4 23 51 22 48" fill="none" stroke="#dcf59a" stroke-width="0.6" stroke-linecap="round" opacity="0.55"/>
+  <path d="M57 72 C60 72.6 61.6 70.6 64.4 71.4 C66.6 72 67.4 74 70 73.6" fill="none" stroke="#a8d84a" stroke-width="1.8" stroke-linecap="round" opacity="0.25"/>
+  <path d="M57 72 C60 72.6 61.6 70.6 64.4 71.4 C66.6 72 67.4 74 70 73.6" fill="none" stroke="#dcf59a" stroke-width="0.5" stroke-linecap="round" opacity="0.5"/>
+  <!-- drifting motes of rot -->
+  <g fill="#c8ec6a">
+    <circle cx="72.6" cy="38.6" r="0.5" opacity="0.7"/><circle cx="53.4" cy="23.6" r="0.45" opacity="0.6"/><circle cx="20.6" cy="45.6" r="0.5" opacity="0.6"/>
+    <circle cx="74" cy="76" r="0.4" opacity="0.5"/><circle cx="24" cy="66" r="0.4" opacity="0.5"/>
+  </g>
+
+  <!-- flies, keeping it company -->
+  <g>
+    <ellipse cx="77.6" cy="17.6" rx="1.2" ry="0.6" fill="#c8d0e0" opacity="0.55" transform="rotate(-30 77.6 17.6)"/>
+    <ellipse cx="78" cy="18.6" rx="0.75" ry="0.5" fill="#141018"/>
+    <ellipse cx="54" cy="16.4" rx="1.1" ry="0.55" fill="#c8d0e0" opacity="0.55" transform="rotate(25 54 16.4)"/>
+    <ellipse cx="53.6" cy="17.2" rx="0.7" ry="0.45" fill="#141018"/>
+    <ellipse cx="82.6" cy="62" rx="1" ry="0.5" fill="#c8d0e0" opacity="0.5" transform="rotate(-15 82.6 62)"/>
+    <ellipse cx="82.8" cy="62.8" rx="0.65" ry="0.42" fill="#141018"/>
+  </g>
+</svg>

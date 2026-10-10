@@ -1,4 +1,4 @@
-/* feel: motion and the run's icon row. Screen fades (main.js show), the top bar's relic and keystone tiles,
+/* feel: motion and the run's icon row. Screen fades (main.js show), the top bar's relic tiles,
    the purse rolling and flashing as it changes (ui.js roll), the sound toggle, and the battle bar's essence
    counter and playback states. Everything that moves stands still under prefers-reduced-motion. */
 
@@ -19,12 +19,12 @@ html[data-muted="1"] .mute-btn .ico:first-child { display: none; }
 html[data-muted="1"] .mute-btn .ico + .ico { display: inline-flex; }
 html[data-muted="1"] .mute-btn { color: #5a5470; }
 
-/* A tile per relic (gold) and keystone (lilac): its glyph, and a keystone's letter pair in the corner. Each a
-   --tap box edge to edge (no gaps, so six relics and three keystones fit a 4:3 bar); the tile drawn 3 px inside
-   it (a transparent border, the ring an inset shadow). */
+/* A tile per relic held, in its tier's colour (--rt): its glyph, a Legendary's letter pair in the corner, and ×N
+   at the top for copies. Each a --tap box edge to edge (no gaps, so nine fit a 4:3 bar); the tile drawn 3 px
+   inside it (a transparent border, the ring an inset shadow). */
 .trinkets { display: flex; align-items: center; gap: 0; flex-wrap: nowrap; min-width: 0; }
 .trinket {
-  --tc: var(--c-relic);
+  --tc: var(--rt, var(--c-relic));
   position: relative; flex: none; display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); border-radius: 11px; cursor: help;
   color: var(--tc); border: 3px solid transparent; background: color-mix(in srgb, var(--tc) 12%, #0c0a14) padding-box;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 45%, transparent);
@@ -34,9 +34,13 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
   position: absolute; right: -4px; bottom: -4px; min-width: 20px; padding: 0 3px; border-radius: 5px;
   font: 700 var(--fs-sm)/18px var(--sans); font-style: normal; text-align: center; color: #0c0a14; background: var(--tc);
 }
-.trinket.t-keystone { --tc: var(--c-keystone); border-radius: 6px 6px 13px 13px; }
-/* A keystone's glyph sits up and left, clear of its initials in the corner. */
-.trinket.t-keystone > .ico { transform: translate(-4px, -4px) scale(.85); }
+.trinket i.count {
+  position: absolute; right: -4px; top: -6px; padding: 0 3px; border-radius: 5px; z-index: 1;
+  font: 700 var(--fs-xs)/16px var(--sans); font-style: normal; color: var(--tc); background: #0c0a14; box-shadow: 0 0 0 1px var(--tc);
+}
+.trinket.rt-legendary { border-radius: 6px 6px 13px 13px; }
+/* A Legendary's glyph sits up and left, clear of its initials in the corner. */
+.trinket.rt-legendary > .ico { transform: translate(-4px, -4px) scale(.85); }
 /* Seven or more: the boxes overlap by their transparent borders (each still a --tap box, the later on top). */
 .trinkets.crowded .trinket + .trinket { margin-left: -6px; }
 /* A trigger relic (it fires in battle) wears a small spark at its top left. */
@@ -52,8 +56,7 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 .fly-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
 .flyer { position: absolute; left: 0; top: 0; display: inline-grid; place-items: center; will-change: transform, opacity; }
 .soul-flyer .portrait { width: 64px; height: 64px; border-radius: 50%; background: #1d1930; box-shadow: 0 0 14px color-mix(in srgb, var(--c-essence) 50%, transparent); }
-.trinket-flyer { color: var(--c-relic); filter: drop-shadow(0 0 10px currentColor); }
-.trinket-flyer.f-keystone { color: var(--c-keystone); }
+.trinket-flyer { color: var(--rt, var(--c-relic)); filter: drop-shadow(0 0 10px currentColor); }
 
 /* Your souls in the top bar, of the most you may hold: a recruit's face flies to it (ui.js flyTrinket). */
 .chip-stat.souls { align-items: center; color: var(--c-ossuary); border-color: color-mix(in srgb, var(--c-ossuary) 30%, var(--line2)); cursor: help; }

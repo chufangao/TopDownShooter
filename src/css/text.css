@@ -1,6 +1,6 @@
 /* text: the colour and keyword language and the text diet (codex.js, keywords.js). Compact tooltips (the unit
-   card, rooms, relics, keystones, keyword hovers), the synergy and bond chips, How to play's primer and
-   glossary, and the Orders and Ossuary tabs in their systems' colours. Loaded after style.css: it overrides. */
+   card, rooms, relics and their tiers, keyword hovers), the synergy and bond chips, How to play's primer and
+   glossary, and the Ossuary tab in their systems' colours. Loaded after style.css: it overrides. */
 
 /* ── keyword hover ────────────────────────────────────────────────────────────────────────────── */
 .kw-tip { max-width: 380px; font-size: var(--fs-md); }
@@ -9,10 +9,9 @@
 /* ── tooltip panel: opaque, so nothing behind it shows through ────────────────────────────────── */
 .tip { background-color: #120f1e; }
 
-/* ── unit card: three lines (name, stats, one live fact); Shift opens the rest ────────────────── */
-/* Its name --fs-lg, its live line --fs-md, the rest --fs-sm. */
+/* ── unit card: three lines (name, stats, one live fact); Shift or More opens the rest ─────────── */
+/* Its name --fs-lg, its live line --fs-md, the rest --fs-sm. Open or not, as wide: inside the tooltip's 440. */
 .card-tip.compact { width: 400px; font-size: var(--fs-sm); line-height: 1.4; }
-.card-tip.compact.open { width: 420px; }
 .card-tip.compact .ct-name { font-size: var(--fs-lg); line-height: 1.25; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .card-tip.compact .ct-nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-tip.compact .ct-lv { flex: none; font: 500 var(--fs-sm) var(--sans); }
@@ -40,9 +39,6 @@
 .tag-shape { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; margin-left: 4px; border-radius: 5px; background: #241d36; color: #c9bce8; }
 .ability.arise { border-left: 2px solid var(--c-shadow); }
 
-/* A path's tiers: the numeral in its own column; tier IV's rank tag leads its line, never mid-sentence. */
-.tiers li { display: grid; grid-template-columns: 2.2em 1fr; align-items: baseline; }
-.tiers li b { width: auto; }
 .ct-tiers { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); color: var(--text); }
 .ct-tier b { color: var(--c-knight); font-weight: 600; }
 .ct-statuses { margin-top: 6px; font-size: var(--fs-sm); }
@@ -83,18 +79,34 @@
 .syn.chip.on > b { color: var(--c-synergy); }
 .syn.chip.top { border-color: var(--c-synergy); background: color-mix(in srgb, var(--c-synergy) 22%, #120f1e); }
 .syn.chip.top > b { color: #f6c6fa; }
-.syn.chip.bond.on { border-color: color-mix(in srgb, var(--c-synergy) 55%, transparent); background: color-mix(in srgb, var(--c-synergy) 12%, #120f1e); }
-.syn.chip.bond.on > b { color: var(--c-synergy); }
 .syn.chip.far { font-weight: 600; }
 .syn.chip .syn-steps { gap: 2px; }
 .syn.chip .syn-steps i { width: 22px; height: 22px; font-size: var(--fs-sm); line-height: 20px; }
 .syn.chip .syn-steps i.next { border-style: dashed; border-color: var(--dim); color: var(--text); }
 
-/* ── relics and keystones ─────────────────────────────────────────────────────────────────────── */
+/* ── relics and their tiers ─────────────────────────────────────────────────────────────────────── */
 .c-relic { color: var(--c-relic); }
-.c-keystone { color: var(--c-keystone); }
-.relic-tip .trig-tag, .ks-tip .ks-tag { margin: 0 2px 0 0; }
-.relic-tip > .dim, .ks-tip > .dim { margin-top: 4px; }
+.c-common { color: var(--c-common); }
+.c-uncommon { color: var(--c-uncommon); }
+.c-rare { color: var(--c-rare); }
+.c-legendary { color: var(--c-legendary); }
+/* A relic's tier (content.js RELIC_TIERS) as --rt on whatever wears rt-<tier>: its chip, tile, card, tag. */
+.rt-common { --rt: var(--c-common); }
+.rt-uncommon { --rt: var(--c-uncommon); }
+.rt-rare { --rt: var(--c-rare); }
+.rt-legendary { --rt: var(--c-legendary); }
+.relic[class*="rt-"] { background: color-mix(in srgb, var(--rt) 13%, #0c0a14); border-color: color-mix(in srgb, var(--rt) 45%, transparent); color: color-mix(in srgb, var(--rt) 72%, #fff); }
+/* Copies of one relic: one chip, ×N on it. */
+.relic-n { font-weight: 700; color: var(--rt, var(--c-relic)); }
+/* The relics held, grouped by tier (codex.js relicsByTier): a row each, its tag first. */
+.relics.by-tier { flex-direction: column; align-items: flex-start; }
+.relic-tier { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.gl-relics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.gl-relics .relic-tier .relic { min-height: 0; padding: 2px 10px; font-size: var(--fs-sm); cursor: help; }
+.relic-tip .trig-tag, .relic-tip .tier-tag { margin: 0 2px 0 0; }
+.relic-tip > .dim { margin-top: 4px; }
+/* The Monarch's panel without Arise: its domain, Will and raises locked, a line naming the relic. */
+.mc-lock { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: var(--fs-sm); cursor: help; }
 .relic.trig { position: relative; }
 .relic.trig::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--c-relic); box-shadow: 0 0 6px var(--c-relic); margin-left: 2px; }
 
@@ -116,6 +128,21 @@
 .beast-text .flavour { font-style: italic; color: #b9a8c8; }
 .beast.unknown { border-style: dashed; border-color: var(--line2); background: #0c0a12cc; }
 .beast.unknown .portrait { filter: brightness(0) opacity(.45); }
+/* The fusions: a recipe a row, its result's portrait, name, parts and price, its card beside (under, when narrow). */
+.fusion-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.fusion {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 10px 16px; align-items: start;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--c-path) 35%, var(--line)); background: #0b1418cc;
+}
+.fusion.ready { border-color: var(--c-path); box-shadow: 0 0 12px color-mix(in srgb, var(--c-path) 25%, transparent); }
+.fusion-head { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
+.fusion .beast-port { background: radial-gradient(circle, #123038, #0a1418); }
+.fusion-parts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
+.fusion-part { display: inline-flex; align-items: center; gap: 4px; }
+.fusion-part.met { color: var(--c-path2); }
+.fusion-part.short { color: var(--dim); }
+.fusion-ready { color: var(--c-path); font-weight: 600; }
+.fusion .card-tip, .fusion .card-tip.compact { margin: 0; width: auto; max-width: none; box-sizing: border-box; }
 .help-head { flex: none; display: flex; align-items: center; gap: 22px; }
 .help-head .modal-title { flex: none; margin: 0; }
 .help-head .close { position: static; flex: none; }

@@ -5,8 +5,9 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import {
   autoPlace, reachable, expand, makeUnit, deployTile, slotAt, tileAt, distance, foesNextTo, DEPTH, CENTRE_OUT, CAMP_ROWS, campGrid, steps, wallTiles,
-  domainTiles, isSeat, seatNear, SEAT_ROWS, ringOf, baseStats, bodyHp, livingBodies, bodiesHp
+  domainTiles, monarchSlot, isMonarchCell, fits, campOpen, rowOf, colOf, CAMP_SLOTS, ringOf, baseStats, bodyHp, livingBodies, bodiesHp
 } from '../src/sim/unit.js'
+import { campDef } from '../src/content.js'
 
 test('hit and crit are clamped', () => {
   assert.equal(hitChance(50, 50), 0.5)
@@ -104,8 +105,8 @@ test('rings and domain: a melee kind fights within 1, a ranged kind within its r
   assert.ok(square.every((t) => distance(t, tileAt(3, 1)) <= 2) && square.includes(tileAt(5, 3)) && !square.includes(tileAt(6, 1)))
 })
 
-test('camp: placement skips walls; the Monarch\'s seats are the rear two rows; steps never cut a wall corner', () => {
-  // Broken Palisade: row 1 is '##.#.##'. Seven souls fill the front row; the next two row 1's open cells.
+test('camp: placement skips walls; the Monarch\'s seat is the camp\'s \'M\' cell; steps never cut a wall corner', () => {
+  // Broken Palisade: row 1 is '#..#..#'. Seven souls fill the front row; the next two row 1's open cells.
   const grid = campGrid('palisade')
   const placed = autoPlace(Array.from({ length: 9 }, (_, k) => makeUnit('frost_sprite', { uid: k + 1 })), { grid })
   assert.deepEqual(placed.slice(7).map((u) => u.slot), [slotAt(1, 2), slotAt(1, 4)], 'row 1 lane 3 is a wall; lanes 2 and 4 are open')
@@ -116,12 +117,31 @@ test('camp: placement skips walls; the Monarch\'s seats are the rear two rows; s
   assert.ok(!steps(tileAt(1, 2), walls).includes(tileAt(2, 1)))
   assert.ok(steps(tileAt(1, 2), walls).includes(tileAt(0, 3)), 'a diagonal past open ground is fine')
   assert.ok(!steps(tileAt(1, 2), walls).includes(tileAt(1, 1)))
-  assert.equal(wallTiles('palisade').length, 5)
-  assert.equal(SEAT_ROWS, 2)
-  assert.ok(isSeat('palisade', slotAt(CAMP_ROWS - 1, 0)) && isSeat('palisade', slotAt(CAMP_ROWS - 2, 6)))
-  assert.ok(!isSeat('palisade', slotAt(CAMP_ROWS - 3, 3)) && !isSeat('palisade', slotAt(1, 0)))
-  assert.equal(seatNear('palisade'), slotAt(CAMP_ROWS - 1, 3), 'the rear row\'s middle lane')
-  assert.equal(seatNear('palisade', slotAt(0, 3)), slotAt(CAMP_ROWS - 2, 3), 'never off the seats')
+  assert.equal(wallTiles('palisade').length, campDef('palisade').map.join('').split('#').length - 1)
+  // The seat (DESIGN §2.1): the one 'M' cell, open ground that no piece may stand on.
+  const seat = monarchSlot('palisade')
+  assert.equal(campDef('palisade').map[rowOf(seat)][colOf(seat)], 'M')
+  assert.deepEqual([...Array(CAMP_SLOTS).keys()].filter((slot) => isMonarchCell('palisade', slot)), [seat])
+  assert.ok(campOpen('palisade', seat) && !fits('palisade', seat))
+})
+
+test('camp placement honours footprints: a 2×2 keeps a cell where it fits, takes the first where it fits, or none', () => {
+  // Broken Palisade (row 1 '#..#..#'): no 2×2 is anchored on the front row (it covers the row ahead), nor across a
+  // wall; the first that fits from the front, its lanes from the middle out, is anchored at row 1, lane 4 (cells rows
+  // 0–1, lanes 4–5), then at row 1, lane 1.
+  const grid = campGrid('palisade')
+  const big = (uid, slot = -1) => ({ ...makeUnit('bone_colossus', { uid }), slot })
+  const [placed] = autoPlace([big(1)], { grid })
+  assert.equal(placed.slot, slotAt(1, 4))
+  // One anchored on the front row cannot stay there; one where it fits stays, and the rest go round it.
+  const [moved, kept, next] = autoPlace([big(1, slotAt(0, 3)), big(2, slotAt(3, 3)), big(3)], { grid })
+  assert.deepEqual([moved.slot, kept.slot, next.slot], [slotAt(1, 4), slotAt(3, 3), slotAt(1, 1)])
+  assert.ok([moved, kept, next].every((u) => fits('palisade', u.slot, 2)))
+  // Cells held by others (`taken`) are not open to it; with no cell left it goes off the field (−1).
+  const taken = new Set([...Array(CAMP_SLOTS).keys()].filter((c) => rowOf(c) > 0))
+  assert.equal(autoPlace([big(1)], { grid, taken })[0].slot, -1)
+  // A foe formation holds every piece at size 1.
+  assert.equal(autoPlace([big(1)])[0].slot, slotAt(0, 3))
 })
 
 test('a piece\'s pool: count × body HP; its living bodies ⌈hp ÷ body HP⌉, falling one at a time; its bodies whole, then the one wounded, then the fallen', () => {

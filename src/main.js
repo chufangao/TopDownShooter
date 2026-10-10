@@ -3,14 +3,13 @@
 // The DOM screens are laid out at one logical size and scaled to the screen (frame.js); the canvas is not.
 import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
-import { createRun, apply, currentNode, holds, depthOf } from './sim/run.js'
+import { createRun, apply, currentNode, holds, depthOf, relicCount } from './sim/run.js'
 import { createBattle, stats, ariseCap } from './sim/battle.js'
-import { TUNING } from './tuning.js'
-import { unitDef, relicDef } from './content.js'
+import { unitDef, relicDef, RELICS } from './content.js'
 import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleChrome } from './ui.js'
-import { helpOverlay, unitCard, tipDetail, deathText, signalText, bestiary } from './codex.js'
+import { helpOverlay, unitCard, tipDetail, deathText, bestiary } from './codex.js'
 import { livingBodies } from './sim/unit.js'
-import { showTip, pinTip, hideTip, refreshTip, tipMore, touchy } from './dom.js'
+import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from './dom.js'
 import { sfx } from './sfx.js'
 import { board } from './board.js'
 
@@ -161,8 +160,25 @@ function start (seed) {
   route()
 }
 
+// A run state from before relics had tiers (one with `keystones`, its Arise free) carries on under the new rules:
+// its keystones join its relics (the same ids, now Legendaries), it holds Arise, and an id no longer known is
+// dropped, so an old state never breaks the page. One from before the Monarch lost its points drops them, and its
+// rites are reliquaries.
+function migrate (s) {
+  if (!Array.isArray(s.relics)) s.relics = []
+  if ('keystones' in s) {
+    s.relics.push(...(s.keystones ?? []))
+    if (!s.relics.includes('arise')) s.relics.push('arise')
+    delete s.keystones
+  }
+  s.relics = s.relics.filter((id) => RELICS[id])
+  delete s.monarch
+  for (const n of s.map?.nodes ?? []) if (n.type === 'rite') n.type = 'reliquary'
+}
+
 function route () {
   const s = run.state
+  migrate(s)
   if (!trail || trail.floor !== s.floor) {
     if (trail && s.phase === 'map') {
       const deep = depthOf(s.floor)
@@ -178,7 +194,7 @@ function route () {
   } else if (s.phase === 'prep') {
     show(prepScreen({ run, trail: trail.ids, act, onFight: fight, onHelp: toggleHelp }))
   } else if (s.phase === 'reap') {
-    const title = { reliquary: 'Reliquary', rite: 'Rite' }[currentNode(run).type] ?? 'Spoils'
+    const title = currentNode(run).type === 'reliquary' ? 'Reliquary' : 'Spoils'
     show(reapScreen({ run, title, act, onDone: reap, onHelp: toggleHelp }))
   } else {
     show(endScreen({ run, onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
@@ -193,12 +209,8 @@ function onNode (id) {
       ? 'The altar burns: your souls are healed, and the fallen rise again. Under Court of Bone the Monarch is not healed.'
       : 'The altar burns: everyone is healed, and the fallen rise again.'
   }
-  // A reliquary with nothing to offer (the relics already at their most) is used up on the spot.
-  if (currentNode(run).type === 'reliquary' && run.state.phase === 'map') {
-    note = run.state.relics.length >= TUNING.essence.relicMax
-      ? `The reliquary stands empty to you: you already hold ${TUNING.essence.relicMax} relics, the most you can carry.`
-      : 'The reliquary holds nothing you do not already carry.'
-  }
+  // A reliquary with nothing to offer is used up on the spot.
+  if (currentNode(run).type === 'reliquary' && run.state.phase === 'map') note = 'The reliquary holds nothing for you.'
   route()
 }
 
@@ -208,7 +220,7 @@ function descend () {
   route()
 }
 
-// The spoils may take several steps (a recruit, a relic, a keystone), each re-showing the room until it ends:
+// The spoils may take several steps (a recruit, a relic, a Legendary), each re-showing the room until it ends:
 // the notes add up for the map.
 const addNote = (line) => { note = note ? `${note} ${line}` : line }
 
@@ -217,9 +229,11 @@ function reap (index, onto = null) {
   const o = index === null ? null : run.state.offers[index]
   apply(run, { type: 'reap', index, ...(onto != null && { onto }) })
   if (o?.type === 'soul') addNote(onto != null ? `${o.name} rises, and joins its kind's stack.` : `${o.name} rises to serve you.`)
-  else if (o?.type === 'relic') addNote(`${o.name} claimed.`)
-  else if (o?.type === 'tier') addNote(`${o.name}: the rite is done.`)
-  else if (o?.type === 'keystone') addNote(`${o.name}: a rule of the run is rewritten.`)
+  else if (o?.type === 'relic') {
+    const n = relicCount(run.state, o.id)
+    addNote(o.id === 'arise' ? (n > 1 ? `Arise ×${n}: its domain widens and its Will grows; more of the dead rise.` : 'Arise: the dead in your domain are yours to raise.')
+      : o.tier === 'legendary' ? `${o.name}${n > 1 ? ` ×${n}` : ''}: a rule of the run is rewritten.` : `${o.name} claimed${n > 1 ? `: ×${n}` : ''}.`)
+  } else if (o?.type === 'tier') addNote(`${o.name}: every one you hold has it.`)
   route()
 }
 
@@ -249,28 +263,24 @@ async function fight () {
     essence: 1 + s.relics.reduce((n, id) => n + (relicDef(id).essence ?? 0), 0),
     death: lost ? { ...deathText(s, run.battle), from: s.death.from ?? null, by: s.death.uid ?? null } : null,
     // Live stats and statuses for the unit under the pointer. Only your own plans are told: a foe's never are.
-    // `pin`: a long press (touch), the card stays until the next tap.
+    // `pin`: a long press (touch) or a click, the card stays until the next press, the pointer leaving it or not.
     onHover: (u, at, pin = false) => {
-      if (!u) return hideTip()
+      if (!u) return tipPinned() || hideTip()
       const foe = u.side === 'foe'
-      const lead = u.leader != null ? battle.byUid.get(u.leader) : null
-      const wing = battle.units.filter((x) => x.leader === u.uid && x.hp > 0).length
       // A shadow the Legion (Undead 8) raised is marked on its arise event; on the foes' side it is one of yours.
       const legion = u.shadow && battle.events.some((e) => e.type === 'arise' && e.rule === 'legion' && e.unit.uid === u.uid)
       const me = u.uid === battle.monarch?.uid
-      const left = u.line ? u.line.tiles.length - u.leg : 0
       const live = [
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
-        me && `Arise ${battle.raised}/${ariseCap(battle.will, battle.ks.raises)} · if it falls, the run ends`,
+        me && `${battle.held.arise ? `Arise ${battle.raised}/${ariseCap(battle.will, battle.held)} · ` : ''}if it falls, the run ends`,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
           : u.arisen && holds(s, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: holds where it rose, gone after the battle'),
-        u.rose && 'Risen by Undying: its next fall is final',
-        lead && `In ${unitDef(lead.id).name}'s wing: it walks the Banner's line`,
-        wing > 0 && `Banner: ${wing} in its wing`,
-        !foe && !me && (u.line ? (left > 0 ? `Line: ${left} step${left === 1 ? '' : 's'} to go, ${signalText(u.line.when)}` : 'Line walked: it holds') : 'No line: it holds its tile'),
+        u.rose && (u.rose >= battle.held.rises ? 'Risen by Undying: its next fall is final' : `Risen by Undying: it may rise ${battle.held.rises - u.rose} more`),
         u.count > 1 && `A stack: ${livingBodies(u)} of ${u.count} bodies standing`,
+        u.flies && 'Flying: only a ranged blow can strike it',
+        !foe && !me && 'It fights from its cell all battle',
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
-      const realm = { domain: battle.domain, will: battle.will, raises: battle.ks.raises, tithe: battle.ks.tithe, reap: holds(s, 'reap') }
+      const realm = { domain: battle.domain, will: battle.will, held: battle.held, reap: holds(s, 'reap') }
       const tip = pin ? pinTip : showTip
       tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, live }))
     },

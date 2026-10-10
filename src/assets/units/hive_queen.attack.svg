@@ -1,0 +1,361 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Hive Queen, attack (Royal Scythe): wings flared, the sceptre raised high and blazing, both serrated scythes brought down from overhead and crossed in front of her in an X, leaving two pale crescent smears. Lit from the upper left. -->
+  <defs>
+    <linearGradient id="hqa-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe7a0"/>
+      <stop offset="0.45" stop-color="#eaa83c"/>
+      <stop offset="1" stop-color="#8a4c12"/>
+    </linearGradient>
+    <linearGradient id="hqa-gold-dk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d8902e"/>
+      <stop offset="1" stop-color="#6a360c"/>
+    </linearGradient>
+    <linearGradient id="hqa-band" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5e4854"/>
+      <stop offset="1" stop-color="#22171f"/>
+    </linearGradient>
+    <linearGradient id="hqa-abd" x1="0.4" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#ffe28e"/>
+      <stop offset="0.5" stop-color="#eda73a"/>
+      <stop offset="1" stop-color="#8a4810"/>
+    </linearGradient>
+    <linearGradient id="hqa-abd-band" x1="0.4" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#6a5460"/>
+      <stop offset="1" stop-color="#22161e"/>
+    </linearGradient>
+    <linearGradient id="hqa-fur" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#e8c886"/>
+    </linearGradient>
+    <linearGradient id="hqa-wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2fbff" stop-opacity="0.66"/>
+      <stop offset="0.6" stop-color="#bfe0ee" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#9cc6d8" stop-opacity="0.26"/>
+    </linearGradient>
+    <linearGradient id="hqa-blade" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2fde2"/>
+      <stop offset="0.4" stop-color="#b2e29a"/>
+      <stop offset="1" stop-color="#3f8358"/>
+    </linearGradient>
+    <linearGradient id="hqa-blade-dk" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d4f0bc"/>
+      <stop offset="0.45" stop-color="#86c27a"/>
+      <stop offset="1" stop-color="#2d6644"/>
+    </linearGradient>
+    <linearGradient id="hqa-resin-v" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#fffbe0"/>
+      <stop offset="0.35" stop-color="#ffe27a"/>
+      <stop offset="0.75" stop-color="#f0a530"/>
+      <stop offset="1" stop-color="#b8640e"/>
+    </linearGradient>
+    <radialGradient id="hqa-eye" cx="0.36" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#f6b04c"/>
+      <stop offset="0.45" stop-color="#b24a1c"/>
+      <stop offset="1" stop-color="#4a170f"/>
+    </radialGradient>
+    <radialGradient id="hqa-resin" cx="0.4" cy="0.38" r="0.65">
+      <stop offset="0" stop-color="#fffbe0"/>
+      <stop offset="0.35" stop-color="#ffe27a"/>
+      <stop offset="0.75" stop-color="#f0a530"/>
+      <stop offset="1" stop-color="#b8640e"/>
+    </radialGradient>
+    <radialGradient id="hqa-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0d0a12" stop-opacity="0.42"/>
+      <stop offset="0.55" stop-color="#0d0a12" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hqa-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fffbe0"/>
+      <stop offset="0.25" stop-color="#ffe27a" stop-opacity="0.75"/>
+      <stop offset="0.6" stop-color="#ffb83a" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#ff9a30" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="hqa-smearL" x1="40" y1="2" x2="24" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d8ffc8" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#b8f0a0" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#e8ffd8" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="hqa-smearR" x1="64" y1="2" x2="91" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d8ffc8" stop-opacity="0"/>
+      <stop offset="0.45" stop-color="#b8f0a0" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#e8ffd8" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="hqa-smearEdge" x1="50" y1="2" x2="50" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#f4ffec" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="1"/>
+    </linearGradient>
+    <radialGradient id="hqa-spark" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#e8ffd8" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#9fe08a" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="hqa-aclip">
+      <path d="M2 -6 C-2 -13.6 -10 -16 -18 -15.6 C-28 -15 -38 -9 -45 -1.6 C-46.4 0 -46 1.6 -44.6 2.6 C-37 9 -27 14.4 -17 15 C-8 15.4 -1 12 2 6 C3.2 2.6 3.2 -2.6 2 -6 Z"/>
+    </clipPath>
+    <clipPath id="hqa-tclip">
+      <path d="M40.4 37 C41.5 35 44 34 46 33.2 C48 32.4 50.3 32.4 52.6 32.4 C54.9 32.4 57.6 32.5 59.6 33.4 C61.6 34.3 63.5 35.7 64.4 37.6 C65.3 39.5 65.5 42.5 65.2 45 C64.9 47.5 63.9 50.7 62.4 52.6 C60.9 54.5 58.3 56 56 56.6 C53.7 57.2 50.8 57.1 48.6 56.4 C46.4 55.7 44.1 54.5 42.6 52.6 C41.1 50.7 40 47.6 39.6 45 C39.2 42.4 39.3 39 40.4 37 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="46" cy="88.2" rx="41" ry="3.6" fill="url(#hqa-shadow)"/>
+  <ellipse cx="48" cy="88.2" rx="22" ry="1.8" fill="#0d0a12" opacity="0.14"/>
+
+  <!-- far wing flared up behind her right shoulder -->
+  <path d="M57.6 34 C58.6 35.3 61.6 33.6 63.2 33.1 C64.9 32.5 66.1 31.4 67.5 30.4 C68.9 29.5 70.2 28.5 71.5 27.4 C72.8 26.4 74.1 25.3 75.4 24.2 C76.6 23.1 77.8 22 79.1 20.9 C80.3 19.7 81.5 18.5 82.7 17.3 C83.8 16.1 85 15 86.1 13.6 C87.2 12.3 89.7 10.1 89.1 9.4 C88.6 8.7 84.7 9.2 82.8 9.4 C80.9 9.7 79.3 10.4 77.7 11 C76 11.5 74.4 12.2 72.8 12.9 C71.3 13.6 69.8 14.4 68.3 15.2 C66.9 16.1 65.5 17 64.1 18 C62.8 19 61.5 20.1 60.4 21.3 C59.2 22.6 57.8 23.4 57.3 25.5 C56.9 27.6 56.6 32.7 57.6 34 Z" fill="url(#hqa-wing)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+  <path d="M59.6 32.6 C60.5 32 63.2 29.9 64.9 28.6 C66.7 27.2 68.5 25.8 70.2 24.4 C72 23.1 73.8 21.7 75.5 20.3 C77.3 18.9 79 17.5 80.8 16.1 C82.5 14.7 85.2 12.6 86 11.9 M60.8 31.5 C61 30.6 61.9 28.3 62.4 26.2 C63 24 63.6 19.9 63.9 18.6 M60.8 31.5 C61.6 30.1 64.4 25.9 66.1 23 C67.7 20.1 69.9 15.8 70.6 14.3 M60.8 31.5 C62.3 29.6 67 23.5 69.9 20.1 C72.8 16.7 76.8 12.5 78.2 11 M68.5 28.5 L66.7 24.2 M73.5 24.5 L71.8 20.3 M78.4 20.3 L77 16.6" fill="none" stroke="#7fa6b8" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M59.7 34.1 C60.6 33.6 63.5 32.2 65.3 31.1 C67 30 68.7 28.7 70.3 27.4 C72 26.2 73.6 24.8 75.2 23.5 C76.7 22.1 78.3 20.7 79.8 19.3 C81.4 17.9 83.6 15.7 84.4 15" fill="none" stroke="#ffffff" stroke-width="0.55" stroke-linecap="round" opacity="0.75"/>
+  <!-- near wings flared wide behind her back -->
+  <path d="M44.6 37.4 C44.9 35.8 41.7 34.8 40.2 34 C38.7 33.2 37 32.9 35.4 32.5 C33.8 32 32.2 31.7 30.6 31.3 C28.9 31 27.3 30.7 25.6 30.4 C24 30.2 22.3 29.9 20.7 29.7 C19 29.5 17.3 29.3 15.7 29.2 C14 29 12.3 28.8 10.6 28.8 C8.9 28.8 5.7 28.2 5.5 29.1 C5.3 30 8.1 32.9 9.5 34.3 C10.9 35.7 12.4 36.5 13.9 37.5 C15.4 38.5 16.9 39.3 18.5 40.1 C20 40.9 21.6 41.6 23.1 42.2 C24.7 42.8 26.3 43.3 27.9 43.7 C29.6 44 31.2 44.3 32.9 44.4 C34.6 44.4 36.2 45 38.1 43.8 C40.1 42.7 44.3 39 44.6 37.4 Z" fill="url(#hqa-wing)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+  <path d="M42.3 36.8 C41.2 36.6 37.9 35.9 35.7 35.4 C33.5 34.9 31.3 34.5 29.1 34 C26.9 33.5 24.7 33.1 22.6 32.6 C20.4 32.1 18.2 31.7 16 31.2 C13.8 30.8 10.5 30.1 9.4 29.9 M40.7 36.6 C39.8 37 37.4 38 35.4 39.1 C33.4 40.3 29.7 42.7 28.6 43.4 M40.7 36.6 C39 36.9 33.9 37.6 30.7 38.4 C27.4 39.1 22.6 40.5 21 40.9 M40.7 36.6 C38.2 36.7 30.5 37.2 26 37.3 C21.5 37.4 15.7 37.1 13.6 37 M33.3 32.9 L31.2 37 M27 31.6 L24.9 35.6 M20.7 30.5 L18.7 34" fill="none" stroke="#7fa6b8" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M43.3 35.9 C42.3 35.5 39.4 34.3 37.4 33.7 C35.4 33.1 33.3 32.6 31.3 32.2 C29.3 31.7 27.2 31.4 25.2 31 C23.1 30.7 21.1 30.3 19 30.1 C16.9 29.8 13.8 29.4 12.8 29.3" fill="none" stroke="#ffffff" stroke-width="0.55" stroke-linecap="round" opacity="0.75"/>
+  <path d="M45.6 35 C46.6 33.9 44.1 30.8 43 29.1 C41.9 27.4 40.4 26.3 39 25 C37.6 23.6 36.2 22.4 34.7 21.2 C33.2 19.9 31.7 18.7 30.2 17.6 C28.7 16.4 27.1 15.3 25.5 14.2 C23.9 13.1 22.4 12 20.7 11 C19.1 9.9 17.5 8.8 15.8 7.9 C14.1 7 10.9 4.8 10.4 5.4 C9.8 6.1 11.7 9.8 12.6 11.7 C13.5 13.6 14.7 15.1 15.9 16.7 C17 18.4 18.2 19.9 19.5 21.4 C20.7 22.9 22 24.4 23.3 25.8 C24.7 27.1 26 28.5 27.5 29.7 C29 31 30.5 32.2 32.1 33.2 C33.7 34.2 35.1 35.6 37.3 35.9 C39.6 36.2 44.6 36.1 45.6 35 Z" fill="url(#hqa-wing)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+  <path d="M43.6 33.1 C42.6 32.2 39.7 29.7 37.8 28 C35.8 26.3 33.8 24.7 31.9 23 C29.9 21.4 27.9 19.7 25.9 18.1 C23.9 16.4 22 14.8 20 13.2 C18 11.5 15 9.1 14 8.3 M42.1 32 C41.1 31.8 38.5 31.1 36.2 30.8 C33.9 30.4 29.5 30.1 28.2 29.9 M42.1 32 C40.4 31.3 35.2 28.8 31.8 27.4 C28.4 26 23.3 24.2 21.6 23.5 M42.1 32 C39.7 30.7 32 26.4 27.6 23.8 C23.2 21.2 17.7 17.5 15.7 16.2 M36.6 24.2 L32.8 26.7 M31 19.5 L27.1 21.9 M25.1 15 L21.7 17" fill="none" stroke="#7fa6b8" stroke-width="0.4" stroke-linecap="round" opacity="0.9"/>
+  <path d="M45.1 32.7 C44.3 31.8 42 29 40.3 27.2 C38.7 25.5 36.8 24 35 22.4 C33.2 20.9 31.3 19.4 29.4 17.9 C27.5 16.5 25.6 15.1 23.6 13.7 C21.7 12.3 18.7 10.2 17.7 9.6" fill="none" stroke="#ffffff" stroke-width="0.55" stroke-linecap="round" opacity="0.75"/>
+  <!-- motion ticks off the wing edges -->
+  <path d="M6.6 2.6 l-1.6 -1.4 M2.4 13 l-1.8 -0.6 M1.6 30.6 l-1.6 0.4 M90.4 4.2 l1.6 -1.6 M93.4 18 l1.8 -0.4" stroke="#e8f6fc" stroke-width="0.6" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- ===== two crescent smears: each scythe came down from high overhead ===== -->
+  <path d="M40 2 C37 3.3 27.1 5.3 22 10 C16.9 14.7 11.6 22.7 9.4 30 C7.2 37.3 6.1 45.4 8.6 54 C11.1 62.6 21.6 76.8 24.2 81.4 L18 64 L15.6 46 L19.6 26 L28.6 12 L40 2 Z" fill="url(#hqa-smearL)"/>
+  <path d="M64 2 C67 3.2 77.2 4.7 82 9 C86.8 13.3 90.5 20.5 92.6 28 C94.7 35.5 94.6 45.3 94.4 54 C94.2 62.7 91.9 75.7 91.4 80 L89.2 62 L87.6 42 L83.4 24 L74.6 10.6 L64 2 Z" fill="url(#hqa-smearR)"/>
+  <path d="M40 2 C37 3.3 27.1 5.3 22 10 C16.9 14.7 11.6 22.7 9.4 30 C7.2 37.3 6.1 45.4 8.6 54 C11.1 62.6 21.6 76.8 24.2 81.4 M64 2 C67 3.2 77.2 4.7 82 9 C86.8 13.3 90.5 20.5 92.6 28 C94.7 35.5 94.6 45.3 94.4 54 C94.2 62.7 91.9 75.7 91.4 80" fill="none" stroke="url(#hqa-smearEdge)" stroke-width="1" stroke-linecap="round"/>
+  <path d="M86 18 C86.8 20.7 90 28.3 91 34 C92 39.7 92.3 46.3 92.2 52 C92.1 57.7 90.7 65.3 90.4 68 M16 20 C15.3 22.7 12.4 30.3 11.6 36 C10.8 41.7 10.6 48.3 11.4 54 C12.2 59.7 15.7 67.3 16.6 70" fill="none" stroke="#f0ffe6" stroke-width="0.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- far legs, braced -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44 57 L28.4 63.6" stroke="#0d0a12" stroke-width="4.7"/>
+    <path d="M28.4 63.6 L21.6 86.4" stroke="#0d0a12" stroke-width="3.9"/>
+    <path d="M21.6 86.4 L17 88" stroke="#0d0a12" stroke-width="3.2"/>
+    <path d="M21.6 86.4 L17 88" stroke="#c98a2e" stroke-width="1.5"/>
+    <path d="M28.4 63.6 L21.6 86.4" stroke="#b8701e" stroke-width="2.2"/>
+    <path d="M44 57 L28.4 63.6" stroke="#1e141c" stroke-width="3"/>
+    <path d="M17 88 Q15.6 88.3 15.1 87.5 M17 88 Q15.7 88.6 15.9 89.6" stroke="#0d0a12" stroke-width="0.8"/>
+  </g>
+  <g fill="#1e141c" stroke="#0d0a12" stroke-width="0.5"><circle cx="28.4" cy="63.6" r="1.4"/><circle cx="21.6" cy="86.4" r="1"/></g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M54 55.4 L64.4 61.6" stroke="#0d0a12" stroke-width="4.7"/>
+    <path d="M64.4 61.6 L62.4 86.4" stroke="#0d0a12" stroke-width="3.9"/>
+    <path d="M62.4 86.4 L66.4 88" stroke="#0d0a12" stroke-width="3.2"/>
+    <path d="M62.4 86.4 L66.4 88" stroke="#c98a2e" stroke-width="1.5"/>
+    <path d="M64.4 61.6 L62.4 86.4" stroke="#b8701e" stroke-width="2.2"/>
+    <path d="M54 55.4 L64.4 61.6" stroke="#1e141c" stroke-width="3"/>
+    <path d="M66.4 88 Q67.7 88.7 67.5 89.6 M66.4 88 Q67.8 88.4 68.3 87.6" stroke="#0d0a12" stroke-width="0.8"/>
+  </g>
+  <g fill="#1e141c" stroke="#0d0a12" stroke-width="0.5"><circle cx="64.4" cy="61.6" r="1.4"/><circle cx="62.4" cy="86.4" r="1"/></g>
+
+  <!-- the swollen royal abdomen, banded gold and black -->
+  <g transform="translate(47 55.6) rotate(-27)">
+  <path d="M-44 -0.6 L-51 1.4 L-44 2.4 Z" fill="#3a2a20" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M2 -6 C-2 -13.6 -10 -16 -18 -15.6 C-28 -15 -38 -9 -45 -1.6 C-46.4 0 -46 1.6 -44.6 2.6 C-37 9 -27 14.4 -17 15 C-8 15.4 -1 12 2 6 C3.2 2.6 3.2 -2.6 2 -6 Z" fill="url(#hqa-abd)"/>
+  <g clip-path="url(#hqa-aclip)">
+    <path d="M4 -18 Q0 0 4 18 L-5.6 18 Q-9.6 0 -5.6 -18 Z" fill="url(#hqa-abd-band)"/><path d="M-13.4 -18 Q-17.4 0 -13.4 18 L-17.2 18 Q-21.2 0 -17.2 -18 Z" fill="url(#hqa-abd-band)"/><path d="M-24.6 -18 Q-28.6 0 -24.6 18 L-28.2 18 Q-32.2 0 -28.2 -18 Z" fill="url(#hqa-abd-band)"/><path d="M-34.6 -18 Q-38.6 0 -34.6 18 L-37.6 18 Q-41.6 0 -37.6 -18 Z" fill="url(#hqa-abd-band)"/><path d="M-42.6 -18 Q-46.6 0 -42.6 18 L-60 18 Q-64 0 -60 -18 Z" fill="url(#hqa-abd-band)"/>
+    <path d="M-6.4 -15 Q-10.2 0 -6.4 15 M-18 -15 Q-21.8 0 -18 15 M-29 -15 Q-32.8 0 -29 15 M-38.4 -15 Q-42.2 0 -38.4 15" fill="none" stroke="#fff3c4" stroke-width="0.6" opacity="0.75"/>
+    <path d="M-13.4 -15 Q-17.2 0 -13.4 15 M-24.6 -15 Q-28.4 0 -24.6 15 M-34.6 -15 Q-38.4 0 -34.6 15 M-42.6 -15 Q-46.4 0 -42.6 15" fill="none" stroke="#9a5514" stroke-width="0.6"/>
+    <path d="M-1 -9.6 Q-12 -15.6 -28 -12.4" fill="none" stroke="#fff3c4" stroke-width="1.8" stroke-linecap="round" opacity="0.75"/>
+    <path d="M-8 -11.4 Q-12 -12.6 -16 -12.6" fill="none" stroke="#ffffff" stroke-width="0.9" stroke-linecap="round" opacity="0.8"/>
+    <path d="M-15 -14 Q-16.4 -14.2 -17.6 -14 M-26.4 -12 Q-27.6 -11.6 -28.6 -11 M-36 -7 Q-37 -6.4 -37.8 -5.6" fill="none" stroke="#9a8290" stroke-width="0.7" stroke-linecap="round"/>
+    <path d="M2 8.6 Q-12 16.6 -34 10.6" fill="none" stroke="#4a2008" stroke-width="2.6" opacity="0.38"/>
+  </g>
+  <path d="M2 -6 C-2 -13.6 -10 -16 -18 -15.6 C-28 -15 -38 -9 -45 -1.6 C-46.4 0 -46 1.6 -44.6 2.6 C-37 9 -27 14.4 -17 15 C-8 15.4 -1 12 2 6 C3.2 2.6 3.2 -2.6 2 -6 Z" fill="none" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <g fill="#3a1a08"><circle cx="-9" cy="3" r="0.7"/><circle cx="-21" cy="3.4" r="0.65"/><circle cx="-31.6" cy="2.6" r="0.55"/></g>
+  <path d="M-4 -13 l-0.3 -1.3 M-8 -14.6 l-0.2 -1.3 M-12.6 -15.4 l0 -1.3 M-21 -15.4 l0.2 -1.3 M-25 -14.6 l0.3 -1.2 M-32 -11.6 l0.4 -1.1 M-36 -8.8 l0.5 -1 M-6 13.4 l-0.2 1.2 M-12 14.8 l0 1.2 M-22 14.6 l0.2 1.2 M-30 12.4 l0.3 1.1" stroke="#c07a22" stroke-width="0.55" stroke-linecap="round"/>
+  
+  </g>
+
+  <!-- the sceptre, raised high in the far lower hand, its orb blazing -->
+  <path d="M32 55.4 L21.4 16.6" stroke="#0d0a12" stroke-width="3.8" stroke-linecap="round"/>
+  <path d="M32 55.4 L21.4 16.6" stroke="#d8a040" stroke-width="2.3" stroke-linecap="round"/>
+  <path d="M32.5 55.3 L21.9 16.5" stroke="#8a5418" stroke-width="0.7"/>
+  <path d="M31.5 55.5 L20.9 16.7" stroke="#fff0b8" stroke-width="0.55"/>
+  <path d="M32.3 50.3 L29.2 51.2 M31.8 48.8 L28.8 49.6 M28.2 35.6 L25.2 36.4 M27.8 34 L24.7 34.9 M24.4 21.6 L21.3 22.5" stroke="#0d0a12" stroke-width="1.3"/>
+  <path d="M32.3 50.3 L29.2 51.2 M31.8 48.8 L28.8 49.6 M28.2 35.6 L25.2 36.4 M27.8 34 L24.7 34.9 M24.4 21.6 L21.3 22.5" stroke="#3d2c36" stroke-width="0.7"/>
+  <path d="M30.8 53.6 Q32.4 52.8 33.4 54.4 L33.4 57 L30.6 57.4 Z" fill="#d8a040" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44 47 L34.6 50.6 L26.8 39" stroke="#0d0a12" stroke-width="5"/>
+    <path d="M44 47 L34.6 50.6 L26.8 39" stroke="#b8701e" stroke-width="3"/>
+    <path d="M44 47 L34.6 50.6 L26.8 39" stroke="#5a2c0c" stroke-width="1.1" transform="translate(0.6 0.6)"/>
+  </g>
+  <circle cx="34.6" cy="50.6" r="1.6" fill="#1e141c" stroke="#0d0a12" stroke-width="0.6"/>
+  <g transform="translate(26.4 37.6) rotate(-72)">
+  <path d="M-2.6 -1.8 Q0 -2.8 2.4 -1.6 Q3.2 0.4 2.2 2 Q-0.2 2.8 -2.4 1.8 Q-3.2 0 -2.6 -1.8 Z" fill="url(#hqa-gold-dk)" stroke="#0d0a12" stroke-width="0.85" stroke-linejoin="round"/>
+  <path d="M-2.2 -0.5 Q0 -1.2 2.4 -0.4 M-2.2 0.9 Q0 0.3 2.2 1" fill="none" stroke="#9a5514" stroke-width="0.45"/>
+  <path d="M-1.8 -1.9 Q-0.4 -2.5 1 -2.3" fill="none" stroke="#fff3c4" stroke-width="0.45"/>
+  </g>
+  <!-- rays from the raised orb -->
+  <path d="M26.1 12.3 L34.5 13.5 M24.8 15.5 L28.3 18.2 M22.1 17.5 L25.2 25.3 M18.7 17.9 L18.1 22.3 M15.5 16.6 L10.4 23.2 M13.5 13.9 L9.4 15.5 M13.1 10.5 L4.7 9.3 M14.4 7.3 L10.9 4.6 M17.1 5.3 L14 -2.5 M20.5 4.9 L21.1 0.5 M23.7 6.2 L28.8 -0.4 M25.7 8.9 L29.8 7.3" stroke="#fff2b0" stroke-width="0.6" stroke-linecap="round" opacity="0.75"/>
+  <path d="M15.2 14.6 Q19.6 19 24 14.6 L22.6 18 Q19.6 19.8 16.6 18 Z" fill="#d8a040" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M15.8 15.4 Q19.6 18.8 23.4 15.4" fill="none" stroke="#fff0b8" stroke-width="0.45"/>
+  <path d="M15.4 14.8 Q13.2 10.4 16 7.2 M23.8 14.8 Q26 10.4 23.2 7.2 M20 16.2 Q21.2 12.4 20.2 9.2" fill="none" stroke="#0d0a12" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M15.4 14.8 Q13.2 10.4 16 7.2 M23.8 14.8 Q26 10.4 23.2 7.2 M20 16.2 Q21.2 12.4 20.2 9.2" fill="none" stroke="#e8c060" stroke-width="0.7" stroke-linecap="round"/>
+  <g fill="#f1d08a" stroke="#0d0a12" stroke-width="0.3"><circle cx="16" cy="7.2" r="0.65"/><circle cx="23.2" cy="7.2" r="0.65"/><circle cx="20.2" cy="9.2" r="0.55"/></g>
+  <ellipse cx="19.6" cy="11.4" rx="18.2" ry="18.2" fill="url(#hqa-glow)" opacity="0.7"/>
+  <circle cx="19.6" cy="11.4" r="4.8" fill="url(#hqa-resin)" stroke="#0d0a12" stroke-width="1"/>
+  <ellipse cx="18.2" cy="10.1" rx="2" ry="1.6" fill="#fffde8" opacity="0.9"/>
+  <path d="M20.5 11.2 Q22.5 13.6 20.6 14.4 Q18.9 13.6 20.5 11.2 Z" fill="#fff8e4" opacity="0.8"/>
+  <path d="M16 11.9 Q16.6 14.4 18.9 15.3" fill="none" stroke="#b8640e" stroke-width="0.5" opacity="0.8"/>
+
+  <!-- thorax: a gold breastplate of chitin, banded low, a resin medallion on a gold chain -->
+  <path d="M40.4 37 C41.5 35 44 34 46 33.2 C48 32.4 50.3 32.4 52.6 32.4 C54.9 32.4 57.6 32.5 59.6 33.4 C61.6 34.3 63.5 35.7 64.4 37.6 C65.3 39.5 65.5 42.5 65.2 45 C64.9 47.5 63.9 50.7 62.4 52.6 C60.9 54.5 58.3 56 56 56.6 C53.7 57.2 50.8 57.1 48.6 56.4 C46.4 55.7 44.1 54.5 42.6 52.6 C41.1 50.7 40 47.6 39.6 45 C39.2 42.4 39.3 39 40.4 37 Z" fill="url(#hqa-gold)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <g clip-path="url(#hqa-tclip)">
+    <path d="M36 46.6 Q52.6 52.6 69 45.6 L69 60 L36 60 Z" fill="url(#hqa-band)"/>
+    <path d="M38 47.6 Q46 50.6 52 51" fill="none" stroke="#7a6270" stroke-width="0.6"/>
+    <path d="M36 46.6 Q52.6 52.6 69 45.6" fill="none" stroke="#ffe08a" stroke-width="0.7"/>
+    <path d="M36 52 Q52.6 58 69 51" fill="none" stroke="#c09048" stroke-width="1.6"/>
+    <path d="M36 52.6 Q52.6 58.6 69 51.6" fill="none" stroke="#7a4a14" stroke-width="0.5"/>
+    <path d="M40.6 44 Q40.4 40 43 37" fill="none" stroke="#fff3c4" stroke-width="1.1" stroke-linecap="round"/>
+    <path d="M61.6 38.6 Q64 42 63.6 46" fill="none" stroke="#8a4810" stroke-width="1" stroke-linecap="round" opacity="0.7"/>
+  </g>
+  <path d="M52.6 33.4 L52.6 46.6" stroke="#9a5514" stroke-width="0.7"/>
+  <path d="M51.9 34 L51.9 45.8" stroke="#fff3c4" stroke-width="0.4" opacity="0.8"/>
+  <path d="M42.6 42 Q47.4 44.2 51.6 44 M53.6 44 Q58 44.2 62.6 42" fill="none" stroke="#9a5514" stroke-width="0.6"/>
+  <g fill="none" stroke="#c49b52" stroke-width="0.35" opacity="0.8">
+    <polygon points="45,46.5 46.1,47.2 46.1,48.4 45,49.1 43.9,48.4 43.9,47.2"/><polygon points="48.4,48.1 49.5,48.8 49.5,50.1 48.4,50.7 47.3,50.1 47.3,48.8"/><polygon points="56.8,48.1 57.9,48.8 57.9,50.1 56.8,50.7 55.7,50.1 55.7,48.8"/><polygon points="60.2,46.5 61.3,47.2 61.3,48.4 60.2,49.1 59.1,48.4 59.1,47.2"/>
+  </g>
+  <!-- the gold chain and its medallion -->
+  <path d="M43 36 Q47.6 41.6 52.6 41.8 Q57.6 41.6 62.4 36" fill="none" stroke="#0d0a12" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M43 36 Q47.6 41.6 52.6 41.8 Q57.6 41.6 62.4 36" fill="none" stroke="#e8c060" stroke-width="0.8" stroke-linecap="round" stroke-dasharray="1.1 0.5"/>
+  <polygon points="52.6,41.3 55.3,42.9 55.3,45.9 52.6,47.5 49.9,45.9 49.9,42.9" fill="#7a3f10" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <polygon points="52.6,42 54.7,43.2 54.7,45.6 52.6,46.8 50.5,45.6 50.5,43.2" fill="url(#hqa-resin)" stroke="#f1d08a" stroke-width="0.45"/>
+  <circle cx="51.8" cy="43.4" r="0.6" fill="#ffffff"/>
+
+  <!-- near legs, lunging forward -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M47.6 57.6 L33.6 63.4" stroke="#0d0a12" stroke-width="4.7"/>
+    <path d="M33.6 63.4 L29.6 86.2" stroke="#0d0a12" stroke-width="3.9"/>
+    <path d="M29.6 86.2 L24.8 88" stroke="#0d0a12" stroke-width="3.2"/>
+    <path d="M29.6 86.2 L24.8 88" stroke="#f0c060" stroke-width="1.5"/>
+    <path d="M33.6 63.4 L29.6 86.2" stroke="#e9a43a" stroke-width="2.2"/>
+    <path d="M47.6 57.6 L33.6 63.4" stroke="#3d2c36" stroke-width="3"/>
+    <path d="M44.5 58 L36.1 61.5 M32.4 67.1 L30 80.7 M28.4 86.2 L25.6 87.3" stroke="#ffe9a8" stroke-width="0.7" opacity="0.8"/>
+    <path d="M24.8 88 Q23.4 88.4 22.9 87.5 M24.8 88 Q23.5 88.7 23.7 89.6" stroke="#0d0a12" stroke-width="0.8"/>
+  </g>
+  <g fill="#3d2c36" stroke="#0d0a12" stroke-width="0.5"><circle cx="33.6" cy="63.4" r="1.4"/><circle cx="29.6" cy="86.2" r="1"/></g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M56.8 56.4 L68.4 61.4" stroke="#0d0a12" stroke-width="4.7"/>
+    <path d="M68.4 61.4 L71.6 86.2" stroke="#0d0a12" stroke-width="3.9"/>
+    <path d="M71.6 86.2 L76.2 88" stroke="#0d0a12" stroke-width="3.2"/>
+    <path d="M71.6 86.2 L76.2 88" stroke="#f0c060" stroke-width="1.5"/>
+    <path d="M68.4 61.4 L71.6 86.2" stroke="#e9a43a" stroke-width="2.2"/>
+    <path d="M56.8 56.4 L68.4 61.4" stroke="#3d2c36" stroke-width="3"/>
+    <path d="M58.3 56.7 L65.2 59.7 M68.5 65.4 L70.5 80.3 M72.1 86.2 L74.9 87.3" stroke="#ffe9a8" stroke-width="0.7" opacity="0.8"/>
+    <path d="M76.2 88 Q77.5 88.7 77.3 89.6 M76.2 88 Q77.6 88.4 78.1 87.5" stroke="#0d0a12" stroke-width="0.8"/>
+  </g>
+  <g fill="#3d2c36" stroke="#0d0a12" stroke-width="0.5"><circle cx="68.4" cy="61.4" r="1.4"/><circle cx="71.6" cy="86.2" r="1"/></g>
+  <path d="M31.6 70 l-1.4 0.3 M31 74.4 l-1.4 0.2 M30.4 78.8 l-1.4 0.2 M69.6 68.4 l1.4 0 M70.2 73 l1.4 0 M70.8 77.4 l1.4 0" stroke="#0d0a12" stroke-width="0.6" stroke-linecap="round"/>
+
+  <g transform="rotate(6 53 33) translate(1 0.6)">
+  <!-- the royal ruff of white-gold fur, fluted all round the neck -->
+  <path d="M66.6 31.6 C66.6 32.1 68.5 32.8 68.1 33.2 C67.8 33.7 65.2 33.9 64.4 34.3 C63.6 34.8 64.3 35.7 63.3 36 C62.4 36.3 60 35.9 58.6 36.2 C57.3 36.4 56.5 37.3 55.2 37.4 C54 37.4 52.5 36.6 51.1 36.6 C49.6 36.5 47.6 37.1 46.4 36.9 C45.3 36.7 45.2 35.7 44.1 35.4 C43 35 40.4 35.1 39.7 34.8 C39 34.4 40.4 33.5 40 33 C39.6 32.5 37.2 32.1 37.2 31.6 C37.2 31.1 39.6 30.7 40 30.2 C40.4 29.7 39 28.8 39.7 28.4 C40.4 28.1 43 28.2 44.1 27.8 C45.2 27.5 45.3 26.5 46.4 26.3 C47.6 26.1 49.6 26.7 51.1 26.6 C52.5 26.6 54 25.8 55.2 25.8 C56.5 25.9 57.3 26.8 58.6 27 C60 27.3 62.4 26.9 63.3 27.2 C64.3 27.5 63.6 28.4 64.4 28.9 C65.2 29.3 67.8 29.5 68.1 30 C68.5 30.4 66.6 31.1 66.6 31.6 Z" fill="#c9a457" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M65.6 31.6 C65.6 32.1 67.3 32.7 67 33.1 C66.7 33.5 64.3 33.7 63.6 34.1 C62.8 34.5 63.5 35.4 62.6 35.7 C61.7 36 59.5 35.6 58.2 35.8 C57 36 56.2 36.9 55.1 36.9 C53.9 37 52.6 36.3 51.2 36.2 C49.9 36.1 48 36.7 46.9 36.5 C45.9 36.3 45.8 35.4 44.8 35.1 C43.7 34.8 41.4 34.9 40.7 34.5 C40.1 34.2 41.3 33.4 41 32.9 C40.6 32.4 38.4 32 38.4 31.6 C38.4 31.2 40.6 30.8 41 30.3 C41.3 29.8 40.1 29 40.7 28.7 C41.4 28.3 43.7 28.4 44.8 28.1 C45.8 27.8 45.9 26.9 46.9 26.7 C48 26.5 49.9 27.1 51.2 27 C52.6 26.9 53.9 26.2 55.1 26.3 C56.2 26.3 57 27.2 58.2 27.4 C59.5 27.6 61.7 27.2 62.6 27.5 C63.5 27.8 62.8 28.7 63.6 29.1 C64.3 29.5 66.7 29.7 67 30.1 C67.3 30.5 65.6 31.1 65.6 31.6 Z" fill="url(#hqa-fur)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M60.3 31.6 L65.3 31.6 M59.1 33.1 L63.3 34.1 M56 34.1 L58.1 35.7 M52 34.3 L51.3 36.1 M48.2 33.6 L45 35 M46 32.4 L41.2 32.9 M46 30.8 L41.2 30.3 M48.2 29.6 L45 28.2 M52 28.9 L51.3 27.1 M56 29.1 L58.1 27.5 M59.1 30.1 L63.3 29.1" fill="none" stroke="#c99a48" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M39.6 30.5 C40.1 30 41.3 28.3 42.8 27.6 C44.3 26.9 47.6 26.5 48.6 26.3" fill="none" stroke="#ffffff" stroke-width="0.7" stroke-linecap="round" opacity="0.85"/>
+  <!-- head: a broad mantis-wedge of gold chitin with great amber eyes -->
+  <path d="M41 13.4 C41.7 11.9 44 11 46 10.4 C48 9.8 50.7 9.6 53 9.6 C55.3 9.6 57.9 9.8 60 10.4 C62.1 11 64.3 11.9 65.4 13.2 C66.5 14.5 66.8 16.6 66.4 18.4 C66 20.2 64.3 22.3 63 24 C61.7 25.7 60.1 27.5 58.8 28.6 C57.5 29.7 56.6 30.4 55.4 30.4 C54.2 30.4 53.1 29.4 51.6 28.4 C50.1 27.4 48 26.1 46.4 24.6 C44.8 23.1 42.9 21.5 42 19.6 C41.1 17.7 40.3 14.9 41 13.4 Z" fill="url(#hqa-gold)" stroke="#0d0a12" stroke-width="1.3" stroke-linejoin="round"/>
+  <path d="M42.4 18.6 Q44.6 23.4 49 26.4" fill="none" stroke="#8a4810" stroke-width="0.9" opacity="0.6"/>
+  <path d="M64.6 19.6 Q62.6 24.4 58.6 28" fill="none" stroke="#6a360c" stroke-width="1" opacity="0.7"/>
+  <!-- furred face plate -->
+  <path d="M48.8 14.6 Q53.4 12.8 57.6 14.6 L57.2 25.4 Q54.6 28 51.6 25.6 Z" fill="#ffd57a" stroke="#9a5514" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M49.8 15.8 Q51.4 14.6 53.4 14.6" fill="none" stroke="#fff8dc" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M50.6 18.8 l0.6 1 M52.2 19.4 l0.3 1.1 M53.8 19.4 l-0.1 1.1 M55.4 18.8 l-0.4 1 M51 22 l0.5 1 M52.8 22.4 l0.2 1.1 M54.6 22.2 l-0.3 1" stroke="#d09840" stroke-width="0.45" stroke-linecap="round"/>
+  <g fill="#f0a540" stroke="#0d0a12" stroke-width="0.3"><circle cx="53.2" cy="13.2" r="0.7"/><circle cx="51.6" cy="14.2" r="0.5"/><circle cx="54.8" cy="14.2" r="0.5"/></g>
+  <!-- mandibles -->
+  <g transform="rotate(-18 52.6 27.4)"><path d="M52.8 26.4 Q49.4 29 51.2 32.4 Q53.2 33.4 54.4 31.6 Q52.8 31 52.8 29.4 Q53 28.2 53.8 27.6 Z" fill="url(#hqa-band)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/></g>
+  <g transform="rotate(18 58.6 27)"><path d="M58.2 26 Q61.8 28.6 60 32 Q58 33 56.8 31.2 Q58.4 30.6 58.4 29 Q58.2 27.8 57.4 27.2 Z" fill="#1e141c" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M57.4 31.4 l1.2 -0.3" stroke="#f1d08a" stroke-width="0.45" stroke-linecap="round"/></g>
+  <path d="M52.4 31.6 l1.2 -0.4" stroke="#f1d08a" stroke-width="0.45" stroke-linecap="round"/>
+  <path d="M54 26.4 Q55.4 25.6 56.8 26.4 L56.4 28.4 Q55.4 29 54.4 28.4 Z" fill="#c47a22" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <!-- the eyes -->
+  <ellipse cx="44.2" cy="16.4" rx="3.6" ry="5.2" transform="rotate(18 44.2 16.4)" fill="url(#hqa-eye)" stroke="#0d0a12" stroke-width="1.1"/>
+  <ellipse cx="61.4" cy="16.4" rx="4.8" ry="6.2" transform="rotate(-14 61.4 16.4)" fill="url(#hqa-eye)" stroke="#0d0a12" stroke-width="1.2"/>
+  <g fill="none" stroke="#5a1a0e" stroke-width="0.25" opacity="0.6"><path d="M45 11.2l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM44 13l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM46 13l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM43 14.7l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM45 14.7l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM47 14.7l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM42 16.4l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM44 16.4l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM46 16.4l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM43 18.1l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1zM45 18.1l0.9 0.5 0 1.1 -0.9 0.5 -0.9 -0.5 0 -1.1z"/><path d="M61.2 10.2l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM58.3 11.9l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM60.2 11.9l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM62.1 11.9l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM64 11.9l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM57.4 13.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM59.3 13.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM61.2 13.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM63.1 13.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM65 13.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM58.3 15.2l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM60.2 15.2l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM62.1 15.2l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM64 15.2l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM59.3 16.8l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM61.2 16.8l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM63.1 16.8l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM65 16.8l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM58.3 18.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM60.2 18.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM62.1 18.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM64 18.5l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM61.2 20.1l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1zM63.1 20.1l0.9 0.5 0 1 -0.9 0.5 -0.9 -0.5 0 -1z"/></g>
+  <ellipse cx="42.9" cy="14" rx="1.4" ry="0.8" fill="#fff4dc" opacity="0.85" transform="rotate(-50 42.9 14)"/>
+  <ellipse cx="59.6" cy="13.2" rx="1.9" ry="1.05" fill="#fff4dc" opacity="0.9" transform="rotate(-40 59.6 13.2)"/>
+  <circle cx="62.6" cy="16" r="0.55" fill="#fff4dc" opacity="0.8"/><circle cx="45" cy="17.4" r="0.4" fill="#fff4dc" opacity="0.6"/>
+  <path d="M63.8 21.6 Q63 23.4 61 24.4" fill="none" stroke="#ffe9a0" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>
+  <path d="M46.6 9.1 L47.4 7.1 M46.6 9.1 L44.5 9.4 M44.9 8 L44.9 6 M44.9 8 L43.3 9.1 M43.1 7 L43.1 5.2 M43.1 7 L41.6 8 M41.3 6.1 L41.3 4.4 M41.3 6.1 L39.9 7 M39.4 5.7 L38.5 4.5 M39.4 5.7 L38.8 7.1 M37.4 5.9 L36.6 4.8 M37.4 5.9 L36.9 7.2 M35.4 6.2 L34.7 5.1 M35.4 6.2 L34.9 7.3" fill="none" stroke="#0d0a12" stroke-width="1" stroke-linecap="round"/>
+  <path d="M46.6 9.1 L47.4 7.1 M46.6 9.1 L44.5 9.4 M44.9 8 L44.9 6 M44.9 8 L43.3 9.1 M43.1 7 L43.1 5.2 M43.1 7 L41.6 8 M41.3 6.1 L41.3 4.4 M41.3 6.1 L39.9 7 M39.4 5.7 L38.5 4.5 M39.4 5.7 L38.8 7.1 M37.4 5.9 L36.6 4.8 M37.4 5.9 L36.9 7.2 M35.4 6.2 L34.7 5.1 M35.4 6.2 L34.9 7.3" fill="none" stroke="#e2ab52" stroke-width="0.42" stroke-linecap="round"/>
+  <path d="M50.4 13.8 C49.7 13 48.1 10.2 46.4 8.8 C44.7 7.4 42.6 6 40.4 5.6 C38.2 5.2 34.6 6.3 33.4 6.4" fill="none" stroke="#0d0a12" stroke-width="1.9" stroke-linecap="round"/>
+  <path d="M50.4 13.8 C49.7 13 48.1 10.2 46.4 8.8 C44.7 7.4 42.6 6 40.4 5.6 C38.2 5.2 34.6 6.3 33.4 6.4" fill="none" stroke="#6a5260" stroke-width="0.9" stroke-linecap="round"/>
+  <circle cx="33.4" cy="6.4" r="0.9" fill="#f1d08a" stroke="#0d0a12" stroke-width="0.45"/>
+  <path d="M60.7 8.4 L62.7 8.8 M60.7 8.4 L59.9 6.5 M62.4 7.2 L64.1 8.3 M62.4 7.2 L62.4 5.3 M64.3 6.2 L65.8 7.2 M64.3 6.2 L64.3 4.4 M66.2 5.2 L67.6 6.2 M66.2 5.2 L66.2 3.6 M68.2 4.6 L68.9 6 M68.2 4.6 L69 3.3 M70.3 4.8 L70.9 6 M70.3 4.8 L71.1 3.6 M72.5 4.9 L73 6 M72.5 4.9 L73.1 3.8" fill="none" stroke="#0d0a12" stroke-width="1" stroke-linecap="round"/>
+  <path d="M60.7 8.4 L62.7 8.8 M60.7 8.4 L59.9 6.5 M62.4 7.2 L64.1 8.3 M62.4 7.2 L62.4 5.3 M64.3 6.2 L65.8 7.2 M64.3 6.2 L64.3 4.4 M66.2 5.2 L67.6 6.2 M66.2 5.2 L66.2 3.6 M68.2 4.6 L68.9 6 M68.2 4.6 L69 3.3 M70.3 4.8 L70.9 6 M70.3 4.8 L71.1 3.6 M72.5 4.9 L73 6 M72.5 4.9 L73.1 3.8" fill="none" stroke="#e2ab52" stroke-width="0.42" stroke-linecap="round"/>
+  <path d="M56.6 13.4 C57.3 12.5 59.2 9.5 61 8 C62.8 6.5 65.1 5.1 67.4 4.6 C69.7 4.1 73.4 4.9 74.6 5" fill="none" stroke="#0d0a12" stroke-width="1.9" stroke-linecap="round"/>
+  <path d="M56.6 13.4 C57.3 12.5 59.2 9.5 61 8 C62.8 6.5 65.1 5.1 67.4 4.6 C69.7 4.1 73.4 4.9 74.6 5" fill="none" stroke="#6a5260" stroke-width="0.9" stroke-linecap="round"/>
+  <circle cx="74.6" cy="5" r="0.9" fill="#f1d08a" stroke="#0d0a12" stroke-width="0.45"/>
+  <!-- the resin crown: five spires of glowing amber set in a gold circlet -->
+  <ellipse cx="53.2" cy="4.4" rx="6.4" ry="6.4" fill="url(#hqa-glow)" opacity="0.55"/>
+  <polygon points="43.1,11.3 42.1,8.2 42.8,6.3 45.2,8.2 45.9,11.3" fill="url(#hqa-resin-v)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M44.2 10.7 L43.2 8.2 L42.8 6.3" fill="none" stroke="#fffbe0" stroke-width="0.45" opacity="0.85"/>
+  <path d="M45.2 10.7 L44.5 8.2" fill="none" stroke="#b8640e" stroke-width="0.4" opacity="0.7"/>
+  <polygon points="47.1,9.9 46.5,5.6 47.9,2.5 50.2,5.6 50.5,9.9" fill="url(#hqa-resin-v)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M48.4 9.3 L47.9 5.6 L47.9 2.5" fill="none" stroke="#fffbe0" stroke-width="0.45" opacity="0.85"/>
+  <path d="M49.7 9.3 L49.4 5.6" fill="none" stroke="#b8640e" stroke-width="0.4" opacity="0.7"/>
+  <polygon points="51.1,9.4 50.9,3.6 53.2,-0.6 55.4,3.6 55.3,9.4" fill="url(#hqa-resin-v)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M52.6 8.8 L52.5 3.6 L53.2 -0.6" fill="none" stroke="#fffbe0" stroke-width="0.45" opacity="0.85"/>
+  <path d="M54.2 8.8 L54.5 3.6" fill="none" stroke="#b8640e" stroke-width="0.4" opacity="0.7"/>
+  <polygon points="55.8,9.6 56.1,5.3 58.4,2.2 59.8,5.3 59.2,9.6" fill="url(#hqa-resin-v)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M57.1 9 L57.5 5.3 L58.4 2.2" fill="none" stroke="#fffbe0" stroke-width="0.45" opacity="0.85"/>
+  <path d="M58.4 9 L59 5.3" fill="none" stroke="#b8640e" stroke-width="0.4" opacity="0.7"/>
+  <polygon points="60.6,10.6 61.3,7.6 63.7,5.6 64.4,7.6 63.4,10.6" fill="url(#hqa-resin-v)" stroke="#0d0a12" stroke-width="0.7" stroke-linejoin="round"/>
+  <path d="M61.6 10 L62.4 7.6 L63.7 5.6" fill="none" stroke="#fffbe0" stroke-width="0.45" opacity="0.85"/>
+  <path d="M62.7 10 L63.7 7.6" fill="none" stroke="#b8640e" stroke-width="0.4" opacity="0.7"/>
+  <path d="M42.4 11.6 Q53 6.4 64.2 10.8 L64.6 13.4 Q53 9 42.2 14 Z" fill="url(#hqa-gold)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M43 12 Q53 7.2 63.6 11.2" fill="none" stroke="#fff3c4" stroke-width="0.45"/>
+  <g fill="#f1d08a" stroke="#0d0a12" stroke-width="0.3"><circle cx="46.7" cy="9.2" r="0.75"/><circle cx="51" cy="8.3" r="0.75"/><circle cx="55.3" cy="8.1" r="0.75"/><circle cx="59.7" cy="8.7" r="0.75"/></g>
+  <polygon points="53.3,7.4 55,8.4 55,10.4 53.3,11.4 51.6,10.4 51.6,8.4" fill="url(#hqa-resin)" stroke="#0d0a12" stroke-width="0.5"/>
+  <circle cx="52.8" cy="8.6" r="0.45" fill="#ffffff"/>
+  </g>
+
+  <!-- far scythe-arm, swung across her front and down to the right -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M44.6 39 L40.6 46.6" stroke="#0d0a12" stroke-width="6.6"/>
+    <path d="M44.6 39 L40.6 46.6" stroke="#327a4e" stroke-width="4.6"/>
+    <path d="M44.6 39 L40.6 46.6" stroke="#123222" stroke-width="1.7" transform="translate(0.9 0.9)"/>
+  </g>
+  <circle cx="40.6" cy="46.6" r="2.7" fill="url(#hqa-gold-dk)" stroke="#0d0a12" stroke-width="0.9"/>
+  <path d="M39 49.6 C40.2 51.5 45 52.8 49.4 54.8 C53.8 56.9 62.4 61.4 65.4 62 C68.4 62.5 69.6 60.2 67.4 58 C65.3 55.9 56.8 51.2 52.6 48.8 C48.4 46.4 44.4 43.4 42.2 43.6 C39.9 43.7 37.8 47.7 39 49.6 Z" fill="#327a4e" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M43.5 46 L64.3 57.7" stroke="#327a4e" stroke-width="0.9" stroke-linecap="round" opacity="0.85"/>
+  <path d="M41.9 49.2 L63.4 59.5" stroke="#123222" stroke-width="1.1" stroke-linecap="round" opacity="0.8"/>
+  <path d="M46.1 46.1 L48.4 44.7 L47.2 46.7 Z M49.4 48 L51.3 47.4 L50.4 48.5 Z M52.7 49.9 L55 48.5 L53.7 50.4 Z M56 51.7 L57.8 51.1 L57 52.3 Z M59.2 53.6 L61.5 52.2 L60.3 54.2 Z M62.5 55.5 L64.4 54.9 L63.6 56 Z" fill="#cfd8b8" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <path d="M46.9 53.3 L49.7 47.9 M55.9 57.5 L58.3 52.8" stroke="#0d0a12" stroke-width="1.5"/>
+  <path d="M46.9 53.3 L49.7 47.9 M55.9 57.5 L58.3 52.8" stroke="#b88a3e" stroke-width="0.8"/>
+  <path d="M66.5 57.9 C66.9 57.8 68.1 57.6 68.9 57.6 C69.7 57.5 70.6 57.6 71.4 57.7 C72.3 57.8 73.1 57.9 74 58.2 C74.9 58.4 75.8 58.7 76.6 59.1 C77.5 59.5 78.4 59.9 79.2 60.5 C80.1 61 80.9 61.6 81.7 62.2 C82.5 62.9 83.3 63.6 84 64.4 C84.7 65.1 85.4 66 86.1 66.9 C86.7 67.8 87.3 68.7 87.9 69.7 C88.5 70.7 89 71.8 89.4 72.9 C89.9 74 90.3 75.1 90.7 76.3 C91 77.5 91.3 79.4 91.4 80 L91.4 80 L89.3 78 L87.3 76.2 L85.4 74.6 L82.5 73.4 L84.4 73.7 L83.6 73.2 L81.8 72 L79.6 71.7 L81.5 71.7 L80.1 70.9 L76.8 70.3 L78.9 70.1 L78.4 69.9 L76.8 69 L74.3 69.2 L76.4 68.7 L75.3 68.1 L72 68.2 L74.1 67.4 L73.9 67.3 L72.5 66.5 L69.9 67.4 L71.9 66.2 L71.2 65.8 L68 66.6 L69.9 65.1 L69.9 65.1 L68.7 64.3 L66.2 65.8 L68 64 L67.5 63.6 L66.2 62.9 Z" fill="url(#hqa-blade-dk)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M67.9 60 C68.3 60.1 69.5 60.2 70.3 60.4 C71.1 60.6 71.9 60.9 72.8 61.2 C73.6 61.5 74.4 61.8 75.3 62.2 C76.1 62.7 77 63.1 77.8 63.6 C78.7 64.2 79.5 64.7 80.4 65.4 C81.2 66 82 66.7 82.8 67.4 C83.6 68.2 84.4 69 85.1 69.9 C85.9 70.8 87 72.2 87.3 72.7" fill="none" stroke="#2a5e3e" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+  <path d="M67.9 63 C68.3 63.1 69.4 63.7 70.2 64 C71 64.4 71.7 64.8 72.6 65.2 C73.4 65.7 74.2 66.1 75 66.6 C75.9 67 76.7 67.5 77.6 68.1 C78.5 68.6 79.5 69.2 80.4 69.9 C81.3 70.5 82.3 71.2 83.3 72 C84.3 72.8 85.3 73.6 86.3 74.6 C87.3 75.5 88.8 77.2 89.3 77.7" fill="none" stroke="#e4f2d4" stroke-width="0.75" stroke-linecap="round" opacity="0.7"/>
+  <circle cx="66.4" cy="60" r="2.6" fill="url(#hqa-gold-dk)" stroke="#0d0a12" stroke-width="0.9"/>
+  <circle cx="66" cy="59.6" r="1" fill="url(#hqa-resin)" stroke="#0d0a12" stroke-width="0.3"/>
+  <!-- near scythe-arm, swung across in front of it and down to the left -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M62.6 37.4 L69.4 42.6" stroke="#0d0a12" stroke-width="6.6"/>
+    <path d="M62.6 37.4 L69.4 42.6" stroke="#4fb466" stroke-width="4.6"/>
+    <path d="M62.6 37.4 L69.4 42.6" stroke="#1b5539" stroke-width="1.7" transform="translate(0.9 0.9)"/>
+    <path d="M62.6 37.4 L69.4 42.6" stroke="#d4f7b0" stroke-width="1.2" transform="translate(-0.8 -0.8)" opacity="0.85"/>
+  </g>
+  <circle cx="69.4" cy="42.6" r="2.7" fill="url(#hqa-gold)" stroke="#0d0a12" stroke-width="0.9"/>
+  <path d="M67.3 39.9 C65.1 40.3 61.9 44.1 58.2 47.3 C54.5 50.4 46.8 56.4 45 58.9 C43.3 61.4 44.9 63.4 47.8 62.3 C50.6 61.3 58.4 55.5 62.4 52.6 C66.4 49.8 70.7 47.4 71.5 45.3 C72.3 43.2 69.5 39.6 67.3 39.9 Z" fill="#4fb466" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M66.4 42.6 L48 57.9" stroke="#d4f7b0" stroke-width="0.9" stroke-linecap="round" opacity="0.85"/>
+  <path d="M68.6 45.4 L49.3 59.6" stroke="#1b5539" stroke-width="1.1" stroke-linecap="round" opacity="0.8"/>
+  <path d="M63.9 43.2 L61.4 42.2 L63 43.9 Z M61 45.6 L59 45.4 L60.1 46.3 Z M58.1 48.1 L55.6 47.1 L57.2 48.8 Z M55.2 50.5 L53.2 50.3 L54.3 51.3 Z M52.3 53 L49.8 52 L51.3 53.7 Z M49.4 55.4 L47.4 55.2 L48.4 56.2 Z" fill="#f2fbe0" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <path d="M60.6 45.6 L64.4 50.4 M53.1 52 L56.3 56.2" stroke="#0d0a12" stroke-width="1.5"/>
+  <path d="M60.6 45.6 L64.4 50.4 M53.1 52 L56.3 56.2" stroke="#e8c060" stroke-width="0.8"/>
+  <path d="M46.2 58.4 C45.8 58.4 44.7 58.2 43.9 58.2 C43 58.2 42.2 58.2 41.3 58.3 C40.5 58.5 39.6 58.7 38.8 58.9 C38 59.2 37.1 59.6 36.3 60 C35.5 60.4 34.7 60.9 33.9 61.5 C33.1 62 32.3 62.6 31.6 63.3 C30.9 64 30.2 64.8 29.6 65.6 C29 66.4 28.4 67.3 27.9 68.2 C27.3 69.1 26.8 70.1 26.4 71.1 C26 72.1 25.6 73.2 25.3 74.3 C24.9 75.4 24.7 76.5 24.5 77.7 C24.3 78.9 24.2 80.8 24.2 81.4 L24.2 81.4 L26.1 79.3 L27.8 77.4 L29.5 75.7 L32.2 74.2 L30.4 74.8 L31.2 74.2 L32.8 72.9 L34.9 72.4 L33 72.7 L34.3 71.8 L37.4 71 L35.4 71 L35.8 70.7 L37.1 69.8 L39.7 69.8 L37.6 69.5 L38.5 68.9 L41.7 68.9 L39.6 68.2 L39.7 68.1 L40.9 67.4 L43.5 68.1 L41.5 67 L42.1 66.6 L45.2 67.3 L43.3 65.9 L43.2 65.8 L44.3 65.1 L46.8 66.5 L45 64.7 L45.5 64.3 L46.6 63.6 Z" fill="url(#hqa-blade)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M44.9 60.6 C44.5 60.7 43.4 60.9 42.6 61.1 C41.8 61.4 41 61.6 40.2 62 C39.5 62.3 38.7 62.7 37.9 63.1 C37.1 63.5 36.3 64 35.6 64.6 C34.8 65.1 34 65.7 33.3 66.4 C32.6 67.1 31.8 67.8 31.2 68.6 C30.5 69.3 29.8 70.2 29.2 71.1 C28.5 72 27.6 73.5 27.3 73.9" fill="none" stroke="#2a5e3e" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+  <path d="M45 63.7 C44.6 63.8 43.6 64.4 42.9 64.8 C42.2 65.2 41.5 65.6 40.8 66 C40 66.5 39.3 66.9 38.6 67.4 C37.8 67.9 37 68.4 36.3 69 C35.5 69.5 34.7 70.1 33.8 70.8 C33 71.5 32.2 72.2 31.3 73 C30.4 73.8 29.6 74.7 28.7 75.7 C27.8 76.7 26.5 78.4 26 78.9" fill="none" stroke="#f6ffe6" stroke-width="0.75" stroke-linecap="round" opacity="1"/>
+  <circle cx="46.4" cy="60.6" r="2.6" fill="url(#hqa-gold)" stroke="#0d0a12" stroke-width="0.9"/>
+  <circle cx="46" cy="60.2" r="1" fill="url(#hqa-resin)" stroke="#0d0a12" stroke-width="0.3"/>
+  <!-- the near shoulder carapace -->
+  <path d="M58.4 37.6 C58 32.6 61.8 30.6 65.6 31.6 C68.4 32.6 69.4 35.6 68.2 38.4 C65.6 38 62 38.6 59.8 40.6 Z" fill="url(#hqa-gold)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M59.2 35.6 C60.4 33 63 32.2 65.6 32.8 L67.6 35 C64.6 34.6 61.6 35.4 59.4 37.6 Z" fill="url(#hqa-band)"/>
+  <path d="M59.4 34.4 Q60.8 32 64 31.8" fill="none" stroke="#fff3c4" stroke-width="0.8" stroke-linecap="round"/>
+
+  <!-- glints where the honed edges bite, and where the blades cross -->
+  <circle cx="91.4" cy="80" r="4.6" fill="url(#hqa-spark)"/>
+  <circle cx="24.2" cy="81.4" r="4.2" fill="url(#hqa-spark)" opacity="0.9"/>
+  <path d="M91.4 75.4 L91.4 84.6 M86.8 80 L95.6 80 M24.2 77.6 L24.2 85.2 M20.4 81.4 L28 81.4" stroke="#ffffff" stroke-width="0.6" stroke-linecap="round"/>
+  <circle cx="56.4" cy="54.6" r="3.6" fill="url(#hqa-spark)" opacity="0.8"/>
+  <g fill="#f0ffe6"><circle cx="94" cy="74.6" r="0.55"/><circle cx="86.6" cy="85.4" r="0.45"/><circle cx="19.4" cy="76" r="0.5"/><circle cx="29" cy="86.6" r="0.4"/><circle cx="60.4" cy="50.4" r="0.4"/></g>
+  <!-- healing motes thrown off the orb -->
+  <g fill="#f0ffd0"><circle cx="8.6" cy="22" r="0.6" opacity="0.85"/><circle cx="31.4" cy="6" r="0.55" opacity="0.8"/><circle cx="4.6" cy="9.6" r="0.45" opacity="0.7"/><circle cx="32.4" cy="20" r="0.5" opacity="0.7"/></g>
+  <path d="M6 16 l1.8 0 M6.9 15.1 l0 1.8 M33.6 12.2 l1.6 0 M34.4 11.4 l0 1.6" stroke="#f4ffd0" stroke-width="0.5" stroke-linecap="round"/>
+</svg>

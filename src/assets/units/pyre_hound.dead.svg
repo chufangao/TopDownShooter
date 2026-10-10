@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Pyre Hound, fallen: collapsed on its side in a drift of grey ash, legs splayed and limp, its ember cracks gone dark, the mane burnt down to a charred ridge and the tail flame snuffed to a curl of smoke. -->
+  <defs>
+    <linearGradient id="phd-hide" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5e565c"/>
+      <stop offset="0.5" stop-color="#2f2a31"/>
+      <stop offset="1" stop-color="#141218"/>
+    </linearGradient>
+    <linearGradient id="phd-hide-dark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a343c"/>
+      <stop offset="1" stop-color="#0c0a10"/>
+    </linearGradient>
+    <linearGradient id="phd-head" x1="0.1" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#686068"/>
+      <stop offset="0.5" stop-color="#342e36"/>
+      <stop offset="1" stop-color="#141218"/>
+    </linearGradient>
+    <linearGradient id="phd-claw" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a89c94"/>
+      <stop offset="1" stop-color="#3a3236"/>
+    </linearGradient>
+    <radialGradient id="phd-ash" cx="0.45" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#9a949a"/>
+      <stop offset="0.6" stop-color="#77717a"/>
+      <stop offset="1" stop-color="#55505a"/>
+    </radialGradient>
+    <radialGradient id="phd-smoke" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#9a94a2" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#9a94a2" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="phd-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0d0a12" stop-opacity="0.5"/>
+      <stop offset="0.65" stop-color="#0d0a12" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#0d0a12" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="phd-ember" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff8a3d" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- soft ground shadow, and the drift of grey ash the pyre left -->
+  <ellipse cx="48" cy="88.4" rx="44" ry="5.4" fill="url(#phd-shadow)"/>
+  <path d="M4 86.4 Q5 80.4 16 79.4 Q30 77 48 77.8 Q66 76.8 80 78.8 Q91 80.4 92 86 Q92.6 90.8 82 92.2 Q64 94.2 46 93.6 Q26 94.2 12 92.2 Q3.6 90.6 4 86.4 Z" fill="url(#phd-ash)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M8 84 Q13 80.6 22 80 M72 79.6 Q84 80.4 88.6 83.4 M18 91.4 Q40 93.2 62 92.4" fill="none" stroke="#b4aeb4" stroke-width="0.6" opacity="0.7"/>
+  <path d="M10 89.4 Q24 91.6 36 91.6 M60 91.2 Q74 90.8 84 89.4" fill="none" stroke="#4a454c" stroke-width="0.5" opacity="0.7"/>
+
+  <!-- ===== tail, lying in the ash, its flame snuffed ===== -->
+  <path d="M22 71.4 C16 71.6 11 73.6 8 77.4 C6.6 79.2 6 81.4 6.6 83 C7 84 8.4 83.8 8.6 82.8 C9 80.6 10.4 78.4 13 76.6 C15.6 74.8 19 74.2 22.6 74.4 Z" fill="url(#phd-hide)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M20 72.2 C15.6 72.6 11.6 74.4 9.2 77.4" fill="none" stroke="#7a727a" stroke-width="0.5" stroke-linecap="round"/>
+  <!-- charred stub of the tip, ash-crusted -->
+  <path d="M6.2 81.6 C5.4 82.8 5.6 84.4 6.8 84.8 C8 85.2 9 84.4 8.8 83.2 Z" fill="#1a161c" stroke="#0d0a12" stroke-width="0.6"/>
+  <circle cx="6.8" cy="83.4" r="0.6" fill="#8a848a"/>
+  <circle cx="7.6" cy="84.2" r="0.3" fill="#a8401e" opacity="0.7"/>
+  <!-- the curl of smoke where the tail flame was -->
+  <ellipse cx="9" cy="62" rx="7" ry="8" fill="url(#phd-smoke)"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M7.4 82 C4.8 78.6 8.8 75.4 6.6 71.6 C5 68.8 6.8 65.4 9.6 65.4 C12 65.4 12.4 68.2 10.4 68.8 C9.2 69.2 8.4 68.2 9 67.4" stroke="#8e8896" stroke-width="1.3" opacity="0.45"/>
+    <path d="M7.4 82 C5 78.8 9 75.6 6.8 71.8 C5.4 69.2 7 66 9.4 66" stroke="#d2ccd4" stroke-width="0.45" opacity="0.5"/>
+    <path d="M9.6 65.4 C7.4 61.6 11 58.4 9 54.6 C7.6 52 9.6 49 12 48.6" stroke="#8e8896" stroke-width="0.9" opacity="0.22"/>
+  </g>
+
+  <!-- ===== far legs, underneath ===== -->
+  <path d="M30 80 C33.6 79.4 37 80.2 39.6 82 C41.6 83.4 43.6 84.6 45.6 85.4 C47 86 47.2 87.6 46 88.2 C44.4 89 42 89 40 88.4 C37 87.6 34 86.4 31.6 85.2 C28.6 83.8 27.6 80.8 30 80 Z" fill="url(#phd-hide-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M46.2 86.6 L48.4 87.8 L46.2 88.4 Z" fill="#5a5056" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <path d="M56 76 C60 75.6 64 77.4 67 79.6 C69 81 71.4 82 73.4 82.6 C74.8 83 75 84.6 74 85.4 C72.6 86.2 70.4 86.2 68.6 85.6 C65.4 84.6 61.4 83.4 58.4 82 C55 80.6 53.6 77 56 76 Z" fill="url(#phd-hide-dark)" stroke="#0d0a12" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M74.2 83.6 L76.4 84.6 L74.2 85.4 Z" fill="#5a5056" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <path d="M60 79.6 L64 81 L68 82.6 M36 82.6 L40 84.8" fill="none" stroke="#0a0709" stroke-width="0.9" stroke-linecap="round"/>
+
+  <!-- ===== torso, slumped on its side ===== -->
+  <path d="M56 64 C48 61.6 38 61.6 30 63.6 C24.4 65 20 68.6 19.4 73.4 C18.8 78.4 21.6 82.4 26.4 83.6 C32.4 85.2 40.4 84.6 46.6 83.2 C52.4 82 57.6 82 61.4 80 C65.6 77.6 67 73.2 65.4 69.4 C64.2 66.6 60.4 64.8 56 64 Z" fill="url(#phd-hide)" stroke="#0d0a12" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- belly shadow, the rack of ribs sunk under the hide -->
+  <path d="M22 78.6 C26 82 34 83 42 82 C50 81 56 81 61 78.6 C58 82 52.4 82 46.6 83.2 C40.4 84.6 32.4 85.2 26.4 83.6 C24.2 83 22.8 81 22 78.6 Z" fill="#0a080e" opacity="0.55"/>
+  <path d="M43 66 Q45 72 43.6 79 M50 65.4 Q52 72 50.8 80 M36.4 66.6 Q38 72 36.8 78" fill="none" stroke="#0d0a12" stroke-width="0.55" opacity="0.6"/>
+  <path d="M54 64.6 C46 62.6 38 62.8 30.6 64.8 C25.8 66.2 22.4 69 21.2 72.4" fill="none" stroke="#8e8690" stroke-width="0.8" stroke-linecap="round" opacity="0.7"/>
+  <!-- the ember cracks, cold now: dark seams, their cooled lips catching a little light -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M54 65 L53 69 L54.6 72.6 L53.2 76.4 L54.6 80 M47 63.4 L45.8 68 L47.6 72 L46.4 76 L47.4 80.4 M39.6 63.6 L40.8 68 L38.8 71.6 L39.8 75.6 M47.6 72 L50.4 74 M40.8 68 L43.6 69 M53 69 L50.4 68.2 M32 65.6 L33.4 69.4 L31.4 72" stroke="#0a0709" stroke-width="1.3"/>
+    <path d="M54 65 L53 69 L54.6 72.6 L53.2 76.4 M47 63.4 L45.8 68 L47.6 72 L46.4 76 M39.6 63.6 L40.8 68 L38.8 71.6 M32 65.6 L33.4 69.4" stroke="#6a626a" stroke-width="0.35" transform="translate(-0.5 -0.4)"/>
+  </g>
+  <!-- one last ember dying in a seam -->
+  <ellipse cx="47.6" cy="72" rx="2.2" ry="2" fill="url(#phd-ember)"/>
+  <circle cx="47.6" cy="72" r="0.45" fill="#c4501e"/>
+  <!-- ash settled on the flank -->
+  <g fill="#8a848a" opacity="0.8">
+    <ellipse cx="34" cy="64.2" rx="1.6" ry="0.5"/><ellipse cx="44" cy="62.6" rx="1.4" ry="0.45"/><ellipse cx="27" cy="66.6" rx="1" ry="0.4"/>
+    <circle cx="38" cy="68" r="0.3"/><circle cx="51" cy="66" r="0.3"/><circle cx="30" cy="70" r="0.25"/>
+  </g>
+
+  <!-- ===== near hind leg, flung back across the ash ===== -->
+  <path d="M24 66 C31 65 37.6 69 38.8 74.6 C39.6 78.4 38 81 35.4 82.2 C32 83.8 28 84.6 25 85.6 C22.4 86.6 20 87.6 17.6 88.4 C15.4 89.2 12.6 89.4 11 88.8 C9.8 88.2 10 86.8 11.4 86.2 C13.6 85.2 16.2 84.2 18.4 83 C20.4 81.8 21 80.6 20.4 78.6 C19.6 75.6 19.4 71.4 20.6 68.8 C21.4 67.2 22.6 66.2 24 66 Z" fill="url(#phd-hide)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M25.4 67.6 C30.6 67.2 35.4 70 37 74" fill="none" stroke="#8e8690" stroke-width="0.7" stroke-linecap="round" opacity="0.75"/>
+  <path d="M37.6 77.4 C36.4 80.4 33 82 28.6 83.2 C32 83.4 36 82.4 38 79.8 Z" fill="#0a080e" opacity="0.5"/>
+  <path d="M13 87 L13.6 88.8 M15 86.4 L15.8 88.4" stroke="#0d0a12" stroke-width="0.4"/>
+  <path d="M10.8 87 L8.6 87.6 L10.8 88.6 Z" fill="url(#phd-claw)" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M23.6 69 L26.6 72.4 L25.6 76.4 L28.6 80 M26.6 72.4 L30.4 72.6 M19.2 84.2 L16 85.8" stroke="#0a0709" stroke-width="1.2"/>
+    <path d="M23.6 69 L26.6 72.4 L25.6 76.4 M26.6 72.4 L30.4 72.6" stroke="#6a626a" stroke-width="0.35" transform="translate(-0.5 -0.4)"/>
+  </g>
+
+  <!-- ===== near foreleg, splayed down onto the ash ===== -->
+  <path d="M50 70 C54.4 68 58.6 70 59.4 74 C60 77 61 80 62.6 82.6 C63.8 84.4 65.6 85.6 67.4 86.6 C68.6 87.4 68.4 89 67 89.4 C65 89.8 62.6 89.6 61 88.8 C59.6 88 58.8 86.8 58 85.6 C56.6 83.4 54.6 81.2 52.4 79.6 C49.6 77.6 47.6 72.6 50 70 Z" fill="url(#phd-hide)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M51 71 C49.6 73.4 50.4 76.6 52.6 78.6" fill="none" stroke="#8e8690" stroke-width="0.6" stroke-linecap="round" opacity="0.75"/>
+  <path d="M62.8 87.2 L63.2 89.4 M64.8 86.8 L65.4 89.2" stroke="#0d0a12" stroke-width="0.4"/>
+  <path d="M67.8 87.4 L70 88.6 L67.6 89.4 Z" fill="url(#phd-claw)" stroke="#0d0a12" stroke-width="0.35" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M53 72 L54.6 76 L57.6 79.4 L60.6 83.4" stroke="#0a0709" stroke-width="1.2"/>
+    <path d="M53 72 L54.6 76 L57.6 79.4" stroke="#6a626a" stroke-width="0.35" transform="translate(-0.5 -0.4)"/>
+  </g>
+
+  <!-- ===== neck, stretched out along the ground ===== -->
+  <path d="M54 64 C60 63.4 66 65.6 70 70.4 L72 80.8 C69.4 83 65.6 83 62.6 81 C58.6 78.6 55 76 52 74 Z" fill="url(#phd-hide)"/>
+  <path d="M58 63.8 C63 64.2 67 66.6 70 70.4 M72 80.8 C69.4 83 66 83 63.6 81.6" fill="none" stroke="#0d0a12" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58 66 L61.6 69 L65 68.6 L67.6 72.6" stroke="#0a0709" stroke-width="1.2"/>
+    <path d="M58 66 L61.6 69 L65 68.6" stroke="#6a626a" stroke-width="0.35" transform="translate(-0.5 -0.4)"/>
+  </g>
+  <!-- the mane, burnt down to a charred, ash-tipped ridge -->
+  <path d="M71 71.4 C69.6 68.4 67.4 66.4 64.4 65 L64.8 62.4 L61.6 63.6 L60.6 60.6 L58.2 62.8 L56.4 60.2 L54.8 62.8 L51.8 61 L51.4 64 C56 64.6 62 66.2 66 68 C68.4 69.2 70 70.4 71 71.4 Z" fill="#241f27" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M64.8 62.4 l-0.5 0.6 M60.6 60.6 l-0.2 0.8 M56.4 60.2 l0 0.8 M51.8 61 l0.2 0.8" stroke="#a8a2a8" stroke-width="0.6" stroke-linecap="round"/>
+  <circle cx="60.4" cy="65" r="0.35" fill="#a8401e" opacity="0.8"/>
+  <!-- a thread of smoke still rising off the ridge -->
+  <path d="M58.6 61.4 C56.6 57.6 60.4 54.6 58.4 50.6 C57 48 58.6 45 61 44.4" fill="none" stroke="#8e8896" stroke-width="0.9" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- ===== head, cheek down in the ash ===== -->
+  <!-- ear, flopped back -->
+  <path d="M70.6 72.2 L63.4 68.6 Q68.4 67.6 73 70.6 Z" fill="url(#phd-hide)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M69.8 71.2 L65.8 69.2 Q68.6 69 71.4 70.6 Z" fill="#3a2a2c"/>
+  <!-- slack lower jaw and the dark, fireless mouth -->
+  <path d="M75 82.6 L88.6 82.4 Q89.8 83.6 88.4 84.4 L76.4 84.6 Z" fill="#2a1416"/>
+  <path d="M76 83.2 L88 82.8 C89 84 88.8 85.6 87.4 86.2 C84 86.8 79.6 86.6 76.6 85.8 C75 85.2 74.8 83.8 76 83.2 Z" fill="url(#phd-head)" stroke="#0d0a12" stroke-width="0.9" stroke-linejoin="round"/>
+  <path d="M77.4 85.6 Q82 86.6 86.6 86" fill="none" stroke="#0a080e" stroke-width="0.6" opacity="0.6"/>
+  <!-- tongue lolling out onto the ash -->
+  <path d="M84 84.2 Q88.6 83.8 89.8 86.4 Q90.2 88.2 88.8 88.8 L88.2 87.6 L87.2 88.6 Q86.2 87.6 86.8 86.2 Q86.4 85 84 85 Z" fill="#6a3c42" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <path d="M85.4 84.4 Q88 84.6 88.8 86.6" fill="none" stroke="#9a6a70" stroke-width="0.35" stroke-linecap="round"/>
+  <!-- skull and muzzle -->
+  <path d="M68 72.4 C71 69.6 76.6 69.4 79.8 71.8 C80.6 72.4 81 73 81.4 73.6 C84.4 74.8 87.6 76.6 89.8 78.8 C91 79.8 91.4 81.2 90.6 82.2 C90 82.8 89.2 82.8 88.6 82.6 L84.6 82.8 C82 83.4 79 83.8 76.6 83.4 C74 83.2 71.4 82 70 80 C68.2 77.6 67 74.6 68 72.4 Z" fill="url(#phd-head)" stroke="#0d0a12" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M69.4 73 Q73.4 70.2 78.6 71.4" fill="none" stroke="#968e96" stroke-width="0.8" stroke-linecap="round" opacity="0.85"/>
+  <path d="M82.2 74.6 Q86 76.2 89 78.6" fill="none" stroke="#7a727a" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M70.6 79 C72.4 81.6 75 82.8 78 82.8 C75.2 83.8 71.6 83 70 80.4 Z" fill="#0a080e" opacity="0.55"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M70.6 76 L73.2 77.4 M80.6 76.4 L83.4 77.2 L86 79.4" stroke="#0a0709" stroke-width="1"/>
+    <path d="M80.6 76.4 L83.4 77.2" stroke="#6a626a" stroke-width="0.3" transform="translate(-0.4 -0.4)"/>
+  </g>
+  <!-- the eye shut, its fire out -->
+  <path d="M75 74.6 Q78 72.8 81 74.2" fill="none" stroke="#0d0a12" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M75.6 75.6 Q78 76.6 80.6 75.4" fill="none" stroke="#0a0709" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M75.8 74.8 Q78 74.4 80.2 74.8" fill="none" stroke="#6a626a" stroke-width="0.35" stroke-linecap="round"/>
+  <!-- cold nose and a dull fang -->
+  <path d="M88.8 78.6 Q91 78.4 91.2 80.6 Q90.8 82 89.2 81.6 Q88.2 80.2 88.8 78.6 Z" fill="#0d0a12"/>
+  <path d="M83.4 82.8 L84 84.4 L84.6 82.7 Z" fill="#c4b8a8" stroke="#0d0a12" stroke-width="0.3" stroke-linejoin="round"/>
+
+  <!-- ===== ash heaps and dead cinders ===== -->
+  <g fill="#8a848c" stroke="#0d0a12" stroke-width="0.35">
+    <ellipse cx="9" cy="90.2" rx="2" ry="1"/><ellipse cx="52" cy="91.8" rx="1.8" ry="0.8"/><ellipse cx="89.4" cy="87.4" rx="1.6" ry="0.9"/>
+    <ellipse cx="78" cy="90.6" rx="1.4" ry="0.7"/><ellipse cx="30" cy="91" rx="1.2" ry="0.6"/>
+  </g>
+  <path d="M8.4 89.8 Q9 89.2 10 89.4 M88.8 87 Q89.4 86.6 90.2 86.8 M51.2 91.4 Q52 91 52.8 91.2" fill="none" stroke="#c4bec6" stroke-width="0.4"/>
+  <g fill="#3a3036" stroke="#0d0a12" stroke-width="0.3">
+    <path d="M56.4 91 l1.2 -0.6 l0.8 0.8 l-1 0.8 Z"/><path d="M82 88.6 l1 -0.8 l1 0.6 l-0.8 1 Z"/><path d="M16 91 l1 -0.6 l0.8 0.8 l-0.9 0.7 Z"/>
+    <path d="M71 90.6 l0.8 -0.6 l0.9 0.5 l-0.6 0.9 Z"/><path d="M40 92.2 l0.9 -0.5 l0.6 0.7 l-0.8 0.6 Z"/>
+  </g>
+  <g fill="#a8401e" opacity="0.7">
+    <circle cx="57.2" cy="91" r="0.3"/><circle cx="82.8" cy="88.6" r="0.25"/><circle cx="16.8" cy="91" r="0.25"/>
+  </g>
+  <g fill="#5e5860">
+    <circle cx="25" cy="92.6" r="0.4"/><circle cx="35" cy="92.8" r="0.3"/><circle cx="66" cy="92.6" r="0.35"/><circle cx="86" cy="90.4" r="0.3"/>
+    <circle cx="12" cy="84.6" r="0.3"/><circle cx="84.6" cy="80.6" r="0.3"/>
+  </g>
+</svg>

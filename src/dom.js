@@ -34,7 +34,7 @@ let anchor = null
 
 // A mouse or a pen shows an element's tooltip while over it (and the keyboard while focused on it); a finger
 // shows it by a long press (hold), pinned until the next tap. A plain tap only does what the element does.
-export function tip (el, content) {
+function tip (el, content) {
   el.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') showTip(el, content) })
   el.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch' && !pinned) hideTip() })
   // A tap focuses a button too: only the keyboard's focus (or a mouse's) shows the tooltip.
@@ -44,16 +44,25 @@ export function tip (el, content) {
   el.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'touch' && e.isPrimary && !tipEl.contains(el)) hold(e, () => { pinTip(el, content); felt(el) })
   })
+  // A mouse's click on a unit's card that is no control (a portrait, a row, a face in a wave) pins it as a long
+  // press does by touch, so its details open by More ▾ and never need Shift (DESIGN §7).
+  el.addEventListener('click', (e) => {
+    if (finger || tipEl.contains(el) || e.target.closest?.(ACTIVE)) return
+    if (content()?.classList?.contains('card-tip')) pinTip(el, content)
+  })
   return el
 }
 const focusVisible = (el) => { try { return el.matches(':focus-visible') } catch { return true } }
 
 // target: an element, or a { left, top, right, bottom } rect in viewport pixels. None while a soul is dragged.
-// `pin` (a long press, pinTip): it stays after the finger lifts, until the next tap anywhere or a scroll.
+// `pin` (a long press, a click on a card, pinTip): it stays after the finger lifts, until the next tap anywhere or
+// a scroll.
 export function showTip (target, content, pin = false) {
   if (document.body.classList.contains('dragging')) return hideTip()
-  // Another tooltip in a pinned one's place: that one goes first (its anchor lets go, its details close).
-  if (pinned && (!pin || target !== anchor)) hideTip()
+  // A pinned tooltip stays over whatever the pointer passes; another pinned in its place goes first (its anchor
+  // lets go, its details close).
+  if (pinned && !pin) return
+  if (pinned && target !== anchor) hideTip()
   anchor = target
   shown = content
   pinned = pin
@@ -88,7 +97,7 @@ const WORDS = [
   [/\bhover\b/g, 'long press'],
   [/\s?\((?:⇧?[A-Z0-9?]|Enter|Esc|Space|[A-Z0-9] or [A-Z0-9?]+|S or Esc|← →|→|←|Shift)\)/g, '']
 ]
-export const touchText = (s) => WORDS.reduce((t, [re, to]) => t.replace(re, to), s)
+const touchText = (s) => WORDS.reduce((t, [re, to]) => t.replace(re, to), s)
 function touchWords (el) {
   const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
   for (let n = walk.nextNode(); n; n = walk.nextNode()) {
@@ -100,7 +109,7 @@ function touchWords (el) {
 // A long press: HOLD ms still (within SLOP px) under one finger. → { fired, cancel }; fire() runs as it fires.
 // Its release is then no tap: the click it would make is eaten (and a press that starts anew forgets that).
 export const HOLD = 400
-export const SLOP = 8
+const SLOP = 8
 export function hold (e, fire) {
   const { pointerId: id, clientX: x0, clientY: y0 } = e
   const press = { fired: false, cancel }
@@ -150,8 +159,8 @@ function ring (x, y) {
   setTimeout(() => r.remove(), 600)
 }
 
-// A card's details (Shift with a mouse) on a pinned tooltip: More ▾ opens them, Less ▴ closes them. main.js
-// links it to codex.js's tipDetail; only a tooltip with details (a unit card) shows it.
+// A card's details (Shift, held) on a pinned tooltip: More ▾ opens them, Less ▴ closes them. main.js links it to
+// codex.js's tipDetail; only a tooltip with details (a unit card) shows it.
 export const tipMore = { get: () => false, set: () => {} }
 function moreButton () {
   if (!tipEl.querySelector('.card-tip')) return null
@@ -245,7 +254,7 @@ const PATHS = {
   elite: '<path d="M12 3a7 7 0 0 0-7 7c0 2.6 1.4 4.3 3 5.3V19h8v-3.7c1.6-1 3-2.7 3-5.3a7 7 0 0 0-7-7z"/><circle cx="9.3" cy="10.5" r="1.4" fill="currentColor"/><circle cx="14.7" cy="10.5" r="1.4" fill="currentColor"/><path d="M10.5 19v2M13.5 19v2"/>',
   boss: '<path d="M3.5 18.5h17M4.5 18.5L3 8l5 4 4-7 4 7 5-4-1.5 10.5"/><circle cx="12" cy="14" r="1.2" fill="currentColor"/>',
   reliquary: '<path d="M6.5 3.5h11l3.5 5.5-9 11.5L3 9z"/><path d="M3 9h18M9 3.5L12 9l3-5.5M12 9v11.5"/>',
-  rite: '<path d="M12 2.5l2.4 6.6h7l-5.7 4.2 2.2 6.7L12 15.9 6.1 20l2.2-6.7L2.6 9.1h7z" fill="none"/><circle cx="12" cy="12.2" r="2.2"/>',
+  tier: '<path d="M12 2.5l2.4 6.6h7l-5.7 4.2 2.2 6.7L12 15.9 6.1 20l2.2-6.7L2.6 9.1h7z" fill="none"/><circle cx="12" cy="12.2" r="2.2"/>',
   altar: '<path d="M12 3c2.2 3 4 4.6 4 7.5a4 4 0 0 1-8 0C8 7.8 10 6.2 12 3z"/><path d="M5 21h14M8 21v-5h8v5"/>',
   soul: '<path d="M12 3c3 3.5 6 6 6 10a6 6 0 0 1-12 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3 1-5.5 2-8.5z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.8-2.5 2.3-2.5 3.8"/><circle cx="12" cy="17" r=".9" fill="currentColor"/>',
@@ -256,8 +265,8 @@ const PATHS = {
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   // The Monarch: a circlet under a crown of three flames.
   crown: '<path d="M5.5 20.5h13l-.8-4.5H6.3z"/><path d="M8.5 16c-1.6-1.8-1-3.8 0-5.2.4 1.4 1.4 2 1.4 2M12 16c-2.2-2.6-1.4-6 0-8.5 1.4 2.5 2.2 5.9 0 8.5M15.5 16c1.6-1.8 1-3.8 0-5.2-.4 1.4-1.4 2-1.4 2"/>',
-  // A keystone: the wedge at the crown of an arch, holding up the stones on either side.
-  keystone: '<path d="M8.6 3h6.8l-1.2 7.2H9.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.6 3h6.8l-1.2 7.2H9.8z"/><path d="M8.8 5.2C5.6 6.6 3.5 9.8 3.5 13.5V21h4v-7c0-1.6 1-3 2.3-3.8M15.2 5.2c3.2 1.4 5.3 4.6 5.3 8.3V21h-4v-7c0-1.6-1-3-2.3-3.8"/>',
+  // A Legendary relic: the keystone, the wedge at the crown of an arch, holding up the stones on either side.
+  legendary: '<path d="M8.6 3h6.8l-1.2 7.2H9.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.6 3h6.8l-1.2 7.2H9.8z"/><path d="M8.8 5.2C5.6 6.6 3.5 9.8 3.5 13.5V21h4v-7c0-1.6 1-3 2.3-3.8M15.2 5.2c3.2 1.4 5.3 4.6 5.3 8.3V21h-4v-7c0-1.6-1-3-2.3-3.8"/>',
   // A siege: a crenellated wall and its gate, wave after wave against it.
   siege: '<path d="M3.5 20.5V9h3v2.5h3V9h5v2.5h3V9h3v11.5z"/><path d="M9.5 20.5v-4a2.5 2.5 0 0 1 5 0v4M3.5 4.5c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 3.5.4"/>',
   // Sound on (a speaker and its waves) and muted (the speaker crossed out).
@@ -288,14 +297,8 @@ const PATHS = {
   codex: '<path d="M4 5.5c2.7-1.3 5.4-1.3 8 0v14c-2.6-1.3-5.3-1.3-8 0zM20 5.5c-2.7-1.3-5.4-1.3-8 0v14c2.6-1.3 5.3-1.3 8 0z" fill="currentColor" fill-opacity=".15"/>',
   // A piece's ring: the tile it stands on in the square it fights within.
   ring: '<rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="3.2 2.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/>',
-  // A line's signal: at once a bolt, a time a clock, the first blow two blades, the Monarch struck a cracked
-  // crown, a wave, a body falling.
-  'w-once': '<path d="M13.5 2.5L5.5 13.5h6l-1 8 8-11h-6z"/>',
-  'w-time': '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3.5 2.5"/>',
-  'w-blow': '<path d="M4.5 4.5l11 11M19.5 4.5l-11 11M13.5 17.5l3.5-3.5M10.5 17.5L7 14M17 17l2.5 2.5M7 17l-2.5 2.5"/>',
-  'w-struck': '<path d="M4.5 18.5h15l-1-8-4 3-2.5-6-2.5 6-4-3z"/><path d="M13 3.5l-2 4 2.5 1.5-2 4" stroke-width="1.4"/>',
-  'w-wave': '<path d="M2.5 9c2-2 4-2 6 0s4 2 6 0 4-2 7 0M2.5 15c2-2 4-2 6 0s4 2 6 0 4-2 7 0"/>',
-  'w-falls': '<path d="M12 3.5v10M8 10l4 4 4-4"/><path d="M5 20.5h14"/>',
+  // A fusion: three souls drawn into one.
+  fuse: '<circle cx="5.5" cy="6.5" r="2.2"/><circle cx="18.5" cy="6.5" r="2.2"/><circle cx="12" cy="3.8" r="1.8"/><path d="M7 8.5l3.2 4.2M17 8.5l-3.2 4.2M12 5.8v6"/><circle cx="12" cy="16.5" r="4.5" fill="currentColor" fill-opacity=".25"/>',
   search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>',
   // A glyph per relic (ui.js RELIC_ICON maps each relic id to its own), so no two tiles look alike.
   'r-whetstone': '<path d="M3.5 17.5h17l-2 3h-13z" fill="currentColor" fill-opacity=".25"/><path d="M6.5 14.5L18 3.5l1.8 1.8L9 16.3zM6.5 14.5l-2 2"/>',

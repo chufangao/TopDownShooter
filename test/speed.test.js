@@ -60,8 +60,8 @@ test('settle: a rehearsal may end once its result is settled, never a battle wit
   for (const seed of ['settle-0', 'settle-1', 'settle-2', 'settle-3', 'settle-4', 'settle-5']) {
     const run = inFight(seed)
     for (let a; (a = policy(run, createRng(seed).stream('autoplay'), 'basic')).type !== 'fight';) apply(run, a)
-    // Foes of four times their HP: a fight long enough for a won verdict to hold its window.
-    const setup = { ...battleSetup(run), foeMods: [...battleSetup(run).foeMods, { path: 'hp', op: 'mul', v: 4 }] }
+    // Foes of four times their HP and half their ATK: a fight long enough for a won verdict to hold its window.
+    const setup = { ...battleSetup(run), foeMods: [...battleSetup(run).foeMods, { path: 'hp', op: 'mul', v: 4 }, { path: 'atk', op: 'mul', v: 0.5 }] }
     const full = playOut(createBattle({ ...setup, quiet: true }))
     const quick = playOut(createBattle({ ...setup, quiet: true, settle: S }))
     assert.notEqual(full.reason, 'settled')

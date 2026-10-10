@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Pale Court, dispersed: the rusted lantern lies on its side in a frost-scorched ring, the sceptre snapped with its crook still through the lantern's ring, the fallen circlet beside it, three dim embers that were the crown guttering apart while the last of the mist drifts up and thins away. -->
+  <defs>
+    <linearGradient id="pcd-iron" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a6e58"/>
+      <stop offset="0.5" stop-color="#553c2c"/>
+      <stop offset="1" stop-color="#2a1d15"/>
+    </linearGradient>
+    <linearGradient id="pcd-iron-dark" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#644b3c"/>
+      <stop offset="1" stop-color="#21160f"/>
+    </linearGradient>
+    <linearGradient id="pcd-glass" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c6d2ea"/>
+      <stop offset="0.5" stop-color="#7d8aa8"/>
+      <stop offset="1" stop-color="#3c4258"/>
+    </linearGradient>
+    <linearGradient id="pcd-rod" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ad987e"/>
+      <stop offset="0.5" stop-color="#65503f"/>
+      <stop offset="1" stop-color="#2a1d16"/>
+    </linearGradient>
+    <linearGradient id="pcd-silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d9dce6"/>
+      <stop offset="0.5" stop-color="#8a90a4"/>
+      <stop offset="1" stop-color="#454a5c"/>
+    </linearGradient>
+    <linearGradient id="pcd-ember" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a596cc"/>
+      <stop offset="0.5" stop-color="#6a5ca0"/>
+      <stop offset="1" stop-color="#3a2f62"/>
+    </linearGradient>
+    <linearGradient id="pcd-mist" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#c8d4f4" stop-opacity="0.8"/>
+      <stop offset="0.5" stop-color="#b0bee6" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#a2b0dc" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pcd-veil" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a8b6e2" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#c3cff0" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#dfe7fb" stop-opacity="0.75"/>
+    </linearGradient>
+    <radialGradient id="pcd-scorch" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#1a1820" stop-opacity="0"/>
+      <stop offset="0.6" stop-color="#1a1820" stop-opacity="0.15"/>
+      <stop offset="0.8" stop-color="#14121a" stop-opacity="0.75"/>
+      <stop offset="0.9" stop-color="#2a2a3a" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#2a2a3a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pcd-rime" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#cfe0ff" stop-opacity="0"/>
+      <stop offset="0.82" stop-color="#cfe0ff" stop-opacity="0"/>
+      <stop offset="0.9" stop-color="#dfeaff" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#dfeaff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pcd-floor" cx="0.45" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#3a3c4c"/>
+      <stop offset="0.7" stop-color="#282a36"/>
+      <stop offset="1" stop-color="#1c1d26"/>
+    </radialGradient>
+    <radialGradient id="pcd-dim" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c3b6e8" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7a6aa8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pcd-puff" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c8d4f4" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#c8d4f4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ===== the ring scorched into the ground by cold fire, rimed with frost ===== -->
+  <ellipse cx="48" cy="82.6" rx="40" ry="12" fill="url(#pcd-scorch)"/>
+  <ellipse cx="48" cy="82.6" rx="40" ry="12" fill="url(#pcd-rime)"/>
+  <path d="M18.6 83 C18.6 78 31 74 48 74 C65 74 77.4 78 77.4 83 C77.4 88 65 91.8 48 91.8 C31 91.8 18.6 88 18.6 83 Z" fill="url(#pcd-floor)" stroke="#0d0a12" stroke-width="0.9" opacity="0.9"/>
+  <path d="M19.6 82 C20.4 77.8 32 74.8 48 74.8 C64 74.8 75.6 77.8 76.4 82" fill="none" stroke="#5a5e78" stroke-width="0.6" stroke-linecap="round" opacity="0.7"/>
+  <!-- the burnt rim, frosted white where the ghost-fire touched -->
+  <path d="M18.6 83 C18.6 78 31 74 48 74 C65 74 77.4 78 77.4 83 C77.4 88 65 91.8 48 91.8 C31 91.8 18.6 88 18.6 83 Z" fill="none" stroke="#dfeaff" stroke-width="0.6" stroke-dasharray="3 1 1 2.4 0.6 1.8 2 3" opacity="0.4"/>
+  <g stroke="#e6f0ff" stroke-width="0.4" stroke-linecap="round" opacity="0.75">
+    <path d="M14.8 80.4 l0 2.2 M13.7 81.5 l2.2 0 M14 80.7 l1.6 1.6 M15.6 80.7 l-1.6 1.6"/>
+    <path d="M80.6 79 l0 1.8 M79.7 79.9 l1.8 0"/>
+    <path d="M70 92.4 l0 1.8 M69.1 93.3 l1.8 0 M69.4 92.7 l1.2 1.2 M70.6 92.7 l-1.2 1.2"/>
+    <path d="M24.4 92 l0 1.6 M23.6 92.8 l1.6 0"/>
+    <path d="M60 72.6 l0 1.6 M59.2 73.4 l1.6 0"/>
+  </g>
+  <!-- ash and frost flecks -->
+  <g fill="#9aa2bc" opacity="0.75">
+    <circle cx="17.6" cy="86.4" r="0.45"/><circle cx="22" cy="76.4" r="0.4"/><circle cx="76.6" cy="78" r="0.45"/>
+    <circle cx="81" cy="85.4" r="0.4"/><circle cx="66" cy="93.2" r="0.45"/><circle cx="30" cy="93" r="0.4"/>
+  </g>
+  <!-- thin glints on the cold floor -->
+  <path d="M26 80.4 Q30 79.4 34 80 M62 88.4 Q66 87.6 70 88.2 M42 90 Q46 89.6 50 90" fill="none" stroke="#b6c4e6" stroke-width="0.45" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- ===== the sceptre's lower half, lying behind ===== -->
+  <path d="M63 71.4 L88.6 76.6 L88.2 78.4 L62.6 73.2 Z" fill="url(#pcd-rod)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M63.4 72 L88.2 77.2" stroke="#cdbba2" stroke-width="0.35" opacity="0.6"/>
+  <!-- the silver ferrule at its foot -->
+  <path d="M88.6 76.6 L92 78.4 L88.2 78.4 Z" fill="url(#pcd-silver)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <ellipse cx="76" cy="74.6" rx="0.9" ry="1.4" transform="rotate(11 76 74.6)" fill="url(#pcd-silver)" stroke="#0d0a12" stroke-width="0.5"/>
+  <!-- splintered break -->
+  <path d="M63 71.4 L61.2 71.4 L62.4 72.2 L61 72.8 L62.6 73.2" fill="#65503f" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+
+  <!-- ===== a scrap of the veil, settling and fading ===== -->
+  <path d="M8 86 C12 83 17 82.4 22 83.4 C26 84.2 29.4 83.4 32.4 81.6 C31 85 28 87.4 23.6 87.6 C18 87.8 13 87.6 8 86 Z" fill="url(#pcd-veil)"/>
+  <path d="M12 85 C16 83.6 20 83.6 24 84.6 C27 85.2 29.4 84.6 31 83.4" fill="none" stroke="#eef3ff" stroke-width="0.4" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- ===== the sceptre's upper half, its crook still hooked through the lantern ring ===== -->
+  <path d="M13.4 86.4 L35.2 81.8 L35.6 83.6 L13.8 88.2 Z" fill="url(#pcd-rod)" stroke="#0d0a12" stroke-width="0.8" stroke-linejoin="round"/>
+  <path d="M14.4 86.8 L35 82.4" stroke="#cdbba2" stroke-width="0.35" opacity="0.6"/>
+  <path d="M13.4 86.4 L11.4 86.2 L12.8 87 L11 87.8 L13.8 88.2" fill="#65503f" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+  <ellipse cx="24.6" cy="85" rx="1" ry="1.5" transform="rotate(-12 24.6 85)" fill="url(#pcd-silver)" stroke="#0d0a12" stroke-width="0.5"/>
+  <path d="M28.6 83.6 q0.6 0.8 0.2 1.8" fill="none" stroke="#9a4e2c" stroke-width="0.45" opacity="0.85"/>
+  <!-- the crook, curled up and over -->
+  <path d="M35.4 82.7 C37.6 82.2 38.4 79.8 37.6 78 C36.8 76.2 34.4 75.8 33 77" fill="none" stroke="#0d0a12" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M35.4 82.7 C37.6 82.2 38.4 79.8 37.6 78 C36.8 76.2 34.4 75.8 33 77" fill="none" stroke="url(#pcd-rod)" stroke-width="1.2" stroke-linecap="round"/>
+  <ellipse cx="35" cy="82.7" rx="1" ry="1.5" transform="rotate(-12 35 82.7)" fill="url(#pcd-silver)" stroke="#0d0a12" stroke-width="0.5"/>
+
+  <!-- ===== the lantern, lying on its side, cold ===== -->
+  <g transform="translate(49 80.6) rotate(-86) scale(1.55)">
+    <path d="M-3 -4.8 Q-3.2 -7.6 0.2 -7.8 Q2.6 -7.6 2.6 -5.2" fill="none" stroke="#0d0a12" stroke-width="1.2"/>
+    <path d="M-3 -4.8 Q-3.2 -7.6 0.2 -7.8 Q2.6 -7.6 2.6 -5.2" fill="none" stroke="#7a5e4a" stroke-width="0.5"/>
+    <path d="M-5.2 -3.2 L-2 -6 L2 -6 L5.2 -3.2 Z" fill="url(#pcd-iron)" stroke="#0d0a12" stroke-width="0.75" stroke-linejoin="round"/>
+    <path d="M-5.8 -3.4 L5.8 -3.4 L5.6 -2 L-5.6 -2 Z" fill="url(#pcd-iron-dark)" stroke="#0d0a12" stroke-width="0.65" stroke-linejoin="round"/>
+    <path d="M4.6 -3.6 L1.8 -5.6 L0 -5.6" fill="none" stroke="#b08e70" stroke-width="0.35" stroke-linecap="round"/>
+    <circle cx="0" cy="-6.4" r="0.7" fill="#5a4334" stroke="#0d0a12" stroke-width="0.4"/>
+    <!-- glass gone grey, a bloom of frost on it -->
+    <path d="M-4.8 -2 L4.8 -2 L4.4 4.2 L-4.4 4.2 Z" fill="url(#pcd-glass)" stroke="#0d0a12" stroke-width="0.75" stroke-linejoin="round"/>
+    <path d="M-4.2 -1.6 Q0 -2.2 4.2 -1.6 L4 -0.4 Q0 -1 -4 -0.4 Z" fill="#e6f0ff" opacity="0.35"/>
+    <path d="M-2.4 2.6 l0.8 -0.8 M-2 1.8 l0 1.4 M-2.8 2.2 l1.6 0" stroke="#eef4ff" stroke-width="0.25" stroke-linecap="round" opacity="0.8"/>
+    <path d="M3.9 1.8 L3.8 3.6 M-3.6 -1.2 L-3.8 0.8" stroke="#eef4ff" stroke-width="0.35" stroke-linecap="round" opacity="0.7"/>
+    <!-- the dead wick -->
+    <path d="M0 3.6 L0 1.8 L0.5 1.2" fill="none" stroke="#151119" stroke-width="0.7" stroke-linecap="round"/>
+    <circle cx="0.5" cy="1.2" r="0.35" fill="#8a8aa0"/>
+    <!-- a crack across the pane -->
+    <path d="M1.4 -1.6 L2.4 0.2 L1.6 1.6 L2.6 3.4 M2.4 0.2 L3.8 0.6" fill="none" stroke="#1b1a26" stroke-width="0.3"/>
+    <path d="M-1.6 -4.6 Q-0.6 -3.8 0.6 -4.4" fill="none" stroke="#1a110c" stroke-width="0.4" stroke-linecap="round"/>
+    <path d="M4.5 -0.8 L5.4 -0.8 L5.4 0.4 L4.5 0.4 Z M4.4 2 L5.2 2 L5.2 3 L4.4 3 Z" fill="#3e2a1e" stroke="#0d0a12" stroke-width="0.25"/>
+    <path d="M-2.2 -2 L-2 4.2 M2.2 -2 L2 4.2" stroke="#33221a" stroke-width="0.75"/>
+    <path d="M2.4 -1.8 L2.2 4" stroke="#a88566" stroke-width="0.25"/>
+    <path d="M-4.6 1 L4.6 1" stroke="#33221a" stroke-width="0.5"/>
+    <path d="M-5.6 4 L5.6 4 L5 5.8 L-5 5.8 Z" fill="url(#pcd-iron)" stroke="#0d0a12" stroke-width="0.65" stroke-linejoin="round"/>
+    <path d="M-1.8 5.8 L1.8 5.8 L0 7.8 Z" fill="url(#pcd-iron-dark)" stroke="#0d0a12" stroke-width="0.5" stroke-linejoin="round"/>
+    <path d="M5 4.6 L0 4.6" stroke="#b08e70" stroke-width="0.3" stroke-linecap="round"/>
+    <circle cx="-4.4" cy="-2.7" r="0.3" fill="#6a5040"/><circle cx="4.4" cy="-2.7" r="0.3" fill="#c09e7c"/>
+    <circle cx="-4.2" cy="4.9" r="0.3" fill="#6a5040"/><circle cx="4.2" cy="4.9" r="0.3" fill="#c09e7c"/>
+    <path d="M3.4 -2.8 q0.6 1 0.2 2 M-1.4 5.6 q0.4 0.8 0 1.4" fill="none" stroke="#9a4e2c" stroke-width="0.45" opacity="0.85"/>
+    <path d="M1 -5 q1.2 -0.4 1.8 0.6 q-0.8 0.6 -1.8 -0.6 Z" fill="#4a7a6a" opacity="0.85"/>
+  </g>
+  <!-- frost creeping up the lantern's underside -->
+  <path d="M41 85.6 Q44 84.6 47 85.4 Q50 86.2 53 85.2 Q55.6 84.4 58 85.4" fill="none" stroke="#dfeaff" stroke-width="0.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- ===== the fallen circlet ===== -->
+  <ellipse cx="27.6" cy="90.2" rx="4.4" ry="1.6" fill="none" stroke="#0d0a12" stroke-width="1.6"/>
+  <ellipse cx="27.6" cy="90.2" rx="4.4" ry="1.6" fill="none" stroke="url(#pcd-silver)" stroke-width="0.8"/>
+  <path d="M23.8 89.4 Q27.6 88 31.4 89.4" fill="none" stroke="#f1f3fa" stroke-width="0.3" opacity="0.8"/>
+  <!-- its three empty settings -->
+  <g fill="#2a2a3a" stroke="#0d0a12" stroke-width="0.3">
+    <circle cx="24.4" cy="89" r="0.55"/><circle cx="27.6" cy="88.6" r="0.6"/><circle cx="30.8" cy="89" r="0.55"/>
+  </g>
+
+  <!-- ===== the mist of the court, drifting up and coming apart ===== -->
+  <circle cx="48" cy="62" r="11" fill="url(#pcd-puff)"/>
+  <circle cx="44" cy="44" r="9" fill="url(#pcd-puff)"/>
+  <path d="M44.6 78 C41.6 73.6 45.6 70.6 45 66 C44.4 61.6 39.4 59.6 39.8 54.6 C40.2 50 45 48.2 47.2 50.6 C48.8 52.4 47.4 54.8 45.6 54.2 C46.8 53.2 46 51.6 44.6 52 C42.8 52.6 42.8 55.4 44.4 57.6 C46.8 60.8 49.2 63.4 48.8 67.6 C48.4 71.6 46.4 74.6 47.4 78 Z" fill="url(#pcd-mist)"/>
+  <path d="M52.6 77.4 C55.6 73.4 52.8 69.6 55 65.4 C57 61.6 61.8 61.2 62.6 57 C63.2 53.8 61 51.4 58.6 51.8 C60.6 52.8 60.6 55 59.4 56.4 C57 59.2 53 61.6 52 66 C51.2 69.6 52.8 72.6 50.6 77 Z" fill="url(#pcd-mist)" opacity="0.85"/>
+  <path d="M38.6 79 C35.6 76 33.6 72.4 34.8 68.4 C35.6 65.6 34.6 63 32.4 61.6 C35.4 62 37.4 64.6 37 67.6 C36.6 71 37.6 74.6 40.6 77.6 Z" fill="url(#pcd-mist)" opacity="0.75"/>
+  <!-- thinner wisps peeling away, the last as faint as breath -->
+  <path d="M43 48 C40.6 44.4 41.6 40.6 44.6 39 C47 37.8 49 39 48.4 40.8" fill="none" stroke="#c8d4f4" stroke-width="0.8" stroke-linecap="round" opacity="0.35"/>
+  <path d="M60.6 50.6 C63 47.4 66.4 46.8 68 44" fill="none" stroke="#c8d4f4" stroke-width="0.7" stroke-linecap="round" opacity="0.3"/>
+  <path d="M46.6 36 C45 32.4 46.4 29 49.4 28" fill="none" stroke="#c8d4f4" stroke-width="0.6" stroke-linecap="round" opacity="0.2"/>
+  <path d="M33.4 60.4 C31 58.4 30.4 55.4 31.8 53" fill="none" stroke="#c8d4f4" stroke-width="0.6" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- ===== the three embers that were the crown, guttering apart ===== -->
+  <circle cx="64.4" cy="84.4" r="5" fill="url(#pcd-dim)" opacity="0.7"/>
+  <circle cx="73.6" cy="86.6" r="4" fill="url(#pcd-dim)" opacity="0.6"/>
+  <circle cx="58.4" cy="88.6" r="3.6" fill="url(#pcd-dim)" opacity="0.55"/>
+  <!-- the largest, slumped over, eyes shut -->
+  <path d="M61 85.4 C61 83.4 62.4 82.2 64.2 81 C64.6 82.2 65.4 82.8 66.4 83.2 C67.4 83.8 67.8 84.6 67.8 85.4 C67.8 87 66.2 88 64.4 88 C62.6 88 61 87.2 61 85.4 Z" fill="url(#pcd-ember)" stroke="#0d0a12" stroke-width="0.75" stroke-linejoin="round"/>
+  <path d="M62 85 C62.2 84 62.8 83.4 63.6 83" fill="none" stroke="#d6cdee" stroke-width="0.4" stroke-linecap="round" opacity="0.8"/>
+  <path d="M62.6 85.4 Q63.1 85.9 63.6 85.4 M65 85.4 Q65.5 85.9 66 85.4" fill="none" stroke="#1f1840" stroke-width="0.4" stroke-linecap="round"/>
+  <path d="M63.8 86.7 Q64.2 87 64.6 86.7" fill="none" stroke="#1f1840" stroke-width="0.3" stroke-linecap="round"/>
+  <path d="M64.2 81 C63.6 79.4 64.8 78.4 64.2 76.8 C63.8 75.6 64.4 74.6 65 74.2" fill="none" stroke="#b6b0c8" stroke-width="0.5" stroke-linecap="round" opacity="0.55"/>
+  <!-- the second, smaller, rolled a little way off -->
+  <path d="M71.4 87.4 C71.4 86 72.4 84.8 73.6 84 C74 84.8 74.6 85.2 75.2 85.6 C75.8 86 76 86.8 76 87.4 C76 88.6 74.8 89.4 73.6 89.4 C72.4 89.4 71.4 88.6 71.4 87.4 Z" fill="url(#pcd-ember)" stroke="#0d0a12" stroke-width="0.65" stroke-linejoin="round"/>
+  <path d="M72.6 87.4 Q73 87.8 73.4 87.4 M74.2 87.4 Q74.6 87.8 75 87.4" fill="none" stroke="#1f1840" stroke-width="0.35" stroke-linecap="round"/>
+  <path d="M73.6 84 C73.2 82.6 74.2 81.6 73.8 80.2" fill="none" stroke="#b6b0c8" stroke-width="0.45" stroke-linecap="round" opacity="0.5"/>
+  <!-- the third, nearly out -->
+  <path d="M56.6 89.2 C56.6 88.2 57.4 87.4 58.4 86.8 C58.6 87.4 59.2 87.8 59.6 88.2 C60 88.6 60.2 89 60.2 89.4 C60.2 90.4 59.4 90.8 58.4 90.8 C57.4 90.8 56.6 90.2 56.6 89.2 Z" fill="#4e4478" stroke="#0d0a12" stroke-width="0.6" stroke-linejoin="round"/>
+  <path d="M57.6 89.4 Q57.9 89.7 58.2 89.4 M58.8 89.4 Q59.1 89.7 59.4 89.4" fill="none" stroke="#1a1438" stroke-width="0.3" stroke-linecap="round"/>
+  <path d="M58.4 86.8 C58 85.6 58.8 84.6 58.4 83.4 C58.2 82.6 58.6 82 59 81.6" fill="none" stroke="#a9a4b8" stroke-width="0.4" stroke-linecap="round" opacity="0.45"/>
+
+  <!-- ===== a few last motes, going grey ===== -->
+  <circle cx="30" cy="66" r="1.6" fill="url(#pcd-dim)" opacity="0.6"/>
+  <circle cx="30" cy="66" r="0.4" fill="#b7aed6"/>
+  <circle cx="70" cy="60" r="1.4" fill="url(#pcd-dim)" opacity="0.5"/>
+  <circle cx="70" cy="60" r="0.35" fill="#a59bc6"/>
+  <circle cx="56" cy="40" r="0.35" fill="#a8b0c8" opacity="0.7"/>
+  <circle cx="38" cy="34" r="0.3" fill="#a8b0c8" opacity="0.5"/>
+  <circle cx="22" cy="72" r="0.35" fill="#a8b0c8" opacity="0.7"/>
+  <circle cx="80" cy="70" r="0.3" fill="#a8b0c8" opacity="0.7"/>
+</svg>

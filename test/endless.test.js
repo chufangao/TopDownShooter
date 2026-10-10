@@ -5,10 +5,10 @@ import { createBattle, stepBattle, runBattle, enterBattle, rulesOf } from '../sr
 import { makeUnit, slotAt, tileAt, tileX, tileY, DEPTH, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
 import { SYNERGIES, KIN, ROLES, UNITS, CAMP_LIST, abilityDef } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
-import { tuned, FIRST_ARISE, BOARD_14 } from './tuned.js'
+import { tuned, FIRST_ARISE, BOARD_14, grant } from './tuned.js'
 import {
-  createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend, monarchPoints,
-  MONARCH_STATS, MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join
+  createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend,
+  MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join
 } from '../src/sim/run.js'
 import { autoplay, policy, LEVELS } from '../src/sim/autoplay.js'
 import { generateFloor, RANKS } from '../src/sim/map.js'
@@ -23,21 +23,23 @@ const F = TUNING.run.floors
 const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
 
 // A battle of units placed on tiles: the party in its camp (y 0–6), a foe anywhere (it deploys in a spare
-// slot of its formation and is moved there). Nobody but those named in `moving` ever steps.
+// slot of its formation and is moved there). Nobody but those named in `moving` ever steps. The run holds Arise (a
+// Legendary relic: without it the Monarch raises no one) unless the scene names its own `relics`.
 function scene (units, { moving = [], ...opts } = {}) {
   const foeRow0 = DEPTH - 3
   const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
   const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
     : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
   const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...opts })
+  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', relics: ['arise'], ...opts })
   for (const u of b.units) {
     const want = units.find((x) => x.uid === u.uid)?.tile
     if (want === undefined) continue
     if (u.tile !== want) {
-      b.at[u.tile] = null
+      const layer = u.flies ? b.sky : b.at
+      layer[u.tile] = null
       u.tile = want
-      b.at[want] = u
+      layer[want] = u
     }
     if (!moving.includes(u.uid)) u.nextStep = Infinity
   }
@@ -135,7 +137,7 @@ test('Undead 8: every foe slain rises at once as a shadow of yours, past Arise\'
     assert.equal(e.from, corpse.tile)
     assert.ok(distance(e.unit.tile, b.monarch.tile) < distance(corpse.tile, b.monarch.tile), `${e.unit.tile} from ${corpse.tile}`)
     assert.ok(corpse.raised)
-    assert.ok(unit(b, e.unit.uid).shadow && unit(b, e.unit.uid).line === null, 'a shadow, with no line: it holds')
+    assert.ok(unit(b, e.unit.uid).shadow && unit(b, e.unit.uid).nextStep === Infinity, 'a shadow: it holds')
     // The rule is announced right before the shadow rises, by its raiser.
     const i = b.events.indexOf(e)
     assert.deepEqual([b.events[i - 1].type, b.events[i - 1].rule, b.events[i - 1].target, b.events[i - 1].actor], ['rule', 'legion', e.corpse, e.actor])
@@ -179,13 +181,14 @@ test('Undead 8 on the foes\' side: your fallen risen against you are not sold ba
   try { legionReap() } finally { TUNING.spawn.endless.rules = was }
 })
 function legionReap () {
+  // Souls of level 20, so that some seed wins (the reap needs a won battle).
   let won = null
   for (let i = 0; i < 20 && !won; i++) {
     const run = createRun({ seed: `legion-reap${i}` })
     const s = run.state
-    s.party = s.party.map((u) => u.uid === MONARCH_UID ? u : { ...makeUnit(u.id, { uid: u.uid, lvl: 12 }), slot: u.slot })
-    for (const k of Object.values(s.kinds)) k.lvl = 12
-    const golem = join(run, 'iron_golem', { lvl: 2 })
+    s.party = s.party.map((u) => u.uid === MONARCH_UID ? u : { ...makeUnit(u.id, { uid: u.uid, lvl: 20 }), slot: u.slot })
+    for (const k of Object.values(s.kinds)) k.lvl = 20
+    const golem = join(run, 'iron_golem')
     Object.assign(golem, { slot: -1, hp: 1 })
     const node = availableNodes(run)[0]
     node.type = 'fight'
@@ -444,8 +447,8 @@ const foeRules = (b, rule) => rules(b, rule).filter((e) => e.side === 'foe')
 test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, Bodyguard, Deadeye, Ambush, Echo, Sanctuary', () => {
   // Mirage (their Fae 8): the first blow each of yours would land on them misses.
   {
-    const knight = (x, i) => ({ ...on('tomb_knight', 1 + i, 'party', x, 6, 10), line: { tiles: [tileAt(x, 7)], when: { at: 'once' } } })
-    const b = scene([...foeSquad(['frost_sprite', 'will_o_wisp', 'thorn_dryad'], theirEight(8)), ...[1, 3, 5].map(knight)], { moving: [1, 2, 3] })
+    const knight = (x, i) => on('tomb_knight', 1 + i, 'party', x, 6, 10)
+    const b = scene([...foeSquad(['frost_sprite', 'will_o_wisp', 'thorn_dryad'], theirEight(7)), ...[1, 3, 5].map(knight)])
     until(b, () => false, 400)
     const m = foeRules(b, 'mirage')
     assert.ok(m.length >= 1 && m.length === rules(b, 'mirage').length)
@@ -563,7 +566,7 @@ test('their Deathblow slays one of yours outright on a crit, but never the Monar
 test('Last Stand under Undying comes before the rise', () => {
   const constructs = [[0, 1], [1, 1], [2, 1], [4, 1], [5, 1]].map(([x, y], i) => on('clockwork_page', 20 + i, 'party', x, y))
   const u = scene([on('iron_golem', 1, 'party', 3, 4), ...constructs, on('clockwork_page', 26, 'party', 6, 1), on('clockwork_page', 27, 'party', 6, 0),
-    on('will_o_wisp', 101, 'foe', 3, 8, 20)], { keystones: ['undying'] })
+    on('will_o_wisp', 101, 'foe', 3, 8, 20)], { relics: ['arise', 'undying'] })
   assert.ok(rulesOf(u, 'party').has('last_stand'))
   const golem = unit(u, 1)
   golem.hp = 1
@@ -656,7 +659,7 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
   assert.equal(deepest.waves.length + 1, E.maxWaves)
 })
 
-// A rich run (purse topped up, Monarch points bought, as run.test.js's strong run) to the Sovereign, through rooms
+// A rich run (purse topped up, and each floor an HP relic and three Command relics given, outside the log) to the Sovereign, through rooms
 // emptied of foes and to a frail Sovereign alone in its room: the descent is under test here, not the fights on
 // the way (whether a run gets there is the final balance pass's business).
 function clear (seed) {
@@ -666,15 +669,18 @@ function clear (seed) {
     const run = createRun({ seed })
     const s = run.state
     const rng = createRng(seed).stream('autoplay')
-    while (s.phase !== 'over') {
+    for (let granted = 0; s.phase !== 'over';) {
       if (s.essence < 5000) s.essence = 1e5
-      const points = monarchPoints(s)
-      apply(run, ['map', 'prep'].includes(s.phase) && points < 6 * s.floor ? { type: 'monarch', stat: MONARCH_STATS[points % MONARCH_STATS.length] } : policy(run, rng, STEADY))
+      if (['map', 'prep'].includes(s.phase) && granted < s.floor) {
+        granted++
+        grant(run, ['bone_mantle', 'grave_banner', 'grave_banner', 'grave_banner'])
+      }
+      apply(run, policy(run, rng, STEADY))
     }
     return run
   })
 }
-const STEADY = { ...LEVELS.basic, wounds: true, park: false }
+const STEADY = { ...LEVELS.basic, wounds: true }
 // The 'deep' clear is played once and shared: each test takes its own copy of the state.
 let cleared = null
 const clearDeep = () => {
@@ -749,12 +755,8 @@ function deepWalk () {
   const deepFights = []
   for (let steps = 0; s.phase !== 'over' && s.floor <= F + 2 && steps < 4000; steps++) {
     const legal = legalActions(run)
-    // Monarch points as on the way down, from the purse the clear left (in the log: the deep replays). Its HP
-    // is its points' alone.
-    const points = monarchPoints(s)
-    const action = ['map', 'prep'].includes(s.phase) && points < 8 * s.floor && s.essence > 2000
-      ? { type: 'monarch', stat: MONARCH_STATS[points % MONARCH_STATS.length] }
-      : rng.chance(0.2) ? rng.pick(legal) : policy(run, rng, STEADY)
+    // Every action in the log, so the deep replays (no relic given here: nothing is bought for the Monarch).
+    const action = rng.chance(0.2) ? rng.pick(legal) : policy(run, rng, STEADY)
     apply(run, action)
     if (action.type === 'fight') deepFights.push(run.setup)
     checkDeep(run)
@@ -791,13 +793,14 @@ function deepWalk () {
 }
 
 // replay(seed, log) across the endless floors, with no help from outside the log: the Sovereign stands on
-// floor 1 here, alone and frail, so rules of thumb can beat it, and the fuzz (a fifth random actions) goes on
-// two floors into the deep. `descend` is legal and taken there.
+// floor 1 here, alone and frail, and every foe at 60% of its HP and ATK (the souls start at their first level and
+// nothing is bought for the Monarch since 2026-10-09), so rules of thumb can beat it, and the fuzz (a fifth random
+// actions) goes on two floors into the deep. `descend` is legal and taken there.
 test('fuzz with the Sovereign on floor 1: runs descend, play two floors deep, keep every invariant, and replay exactly', () => {
-  const was = [TUNING.run.floors, TUNING.spawn.bossHp, TUNING.spawn.bossAtk, TUNING.spawn.court, TUNING.spawn.waves.siege]
+  const was = [TUNING.run.floors, TUNING.spawn.bossHp, TUNING.spawn.bossAtk, TUNING.spawn.court, TUNING.spawn.waves.siege, TUNING.spawn.foeHp, TUNING.spawn.foeAtk]
   Object.assign(TUNING.run, { floors: 1 })
   // The Sovereign's room is a siege of floor 1's foes ending in the Sovereign alone (no court, no other waves).
-  Object.assign(TUNING.spawn, { bossHp: 0.02, bossAtk: 0.2, court: 0 })
+  Object.assign(TUNING.spawn, { bossHp: 0.02, bossAtk: 0.2, court: 0, foeHp: was[5].map((v) => v * 0.6), foeAtk: was[6].map((v) => v * 0.6) })
   TUNING.spawn.waves.siege = 1
   try {
     const seen = new Set()
@@ -829,5 +832,6 @@ test('fuzz with the Sovereign on floor 1: runs descend, play two floors deep, ke
     TUNING.spawn.bossAtk = was[2]
     TUNING.spawn.court = was[3]
     TUNING.spawn.waves.siege = was[4]
+    Object.assign(TUNING.spawn, { foeHp: was[5], foeAtk: was[6] })
   }
 })
