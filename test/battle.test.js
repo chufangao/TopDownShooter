@@ -857,7 +857,7 @@ test('a synergy counts a stack once, whatever its count', () => {
   assert.ok(party(two).includes('undead_2') && !party(two).includes('undead_4'))
 })
 
-test('a soul\'s tiers add bodies for the battle, whole; none with the bodies switch, none to a fallen piece', () => {
+test('a soul\'s tiers add bodies for the battle, each bringing a little HP; none with the bodies switch, none to a fallen piece', () => {
   const chanter = (tracks, hp, ablate = []) => {
     const u = { ...makeUnit('bone_chanter', { uid: 1, lvl: 4, count: 2, slot: slotAt(3, 3), tracks }), ...(hp !== undefined && { hp }) }
     return createBattle({ party: [u], foes: [makeUnit('iron_golem', { uid: 50, lvl: 1, slot: slotAt(0, 3) })], seed: 'bodies', ablate }).byUid.get(1)
@@ -866,9 +866,14 @@ test('a soul\'s tiers add bodies for the battle, whole; none with the bodies swi
   const b = plain.body
   const marrow = chanter([0, 2])
   const n = TRACKS.bone_chanter[1].tiers[1].count
-  assert.deepEqual([plain.count, marrow.count, marrow.hp, marrow.maxHp, marrow.body], [2, 2 + n, (2 + n) * b, (2 + n) * b, b])
+  // Each added body brings TUNING.bodies.hp of a body's HP; the piece's bodies thin to share the pool.
+  const pool = (2 + n * TUNING.bodies.hp) * b
+  assert.deepEqual([plain.count, marrow.count], [2, 2 + n])
+  assert.ok(Math.abs(marrow.maxHp - pool) <= 2 + n && marrow.hp === marrow.maxHp, `${marrow.maxHp} ≈ ${pool}`)
+  assert.equal(marrow.body, Math.round(pool / (2 + n)))
+  assert.equal(livingBodies(marrow), 2 + n)
   const hurt = chanter([0, 2], b)
-  assert.deepEqual([hurt.count, hurt.hp, livingBodies(hurt)], [2 + n, (1 + n) * b, 1 + n], 'the added bodies whole, beside the wounded')
+  assert.ok(Math.abs(hurt.hp - (1 + n * TUNING.bodies.hp) * b) <= 2 + n, 'the added bodies whole, beside the wounded')
   assert.equal(chanter([0, 2], 2 * plain.maxHp / 2, ['bodies']).count, 2)
   assert.equal(chanter([0, 2], 0), undefined, 'a fallen piece does not fight')
 })

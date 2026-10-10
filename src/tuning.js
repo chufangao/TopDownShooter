@@ -30,6 +30,10 @@ export const TUNING = {
   // 20 + 10 a point bought on all four). The fourth balance pass (2026-10-10): 250 (was 220), so one Pyre Hound's
   // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1 (its deaths there 4% → 1%).
   monarch: { hp: 250 },
+  // The bodies a soul's tiers add (unit.js bodiesOf): each strikes as a body does, but brings only `hp` of a body's HP
+  // to the pool, the piece's bodies thinning to share it (battle.js grown, fit); its HP spent first, so it never
+  // refills a wound (run.js finishBattle). The user's (2026-10-10): bodies add a little HP, not a body's each.
+  bodies: { hp: 0.1 },
   // Arise, a Legendary relic (content.js RELIC_LIST), and its numbers are its own, a copy at a time (DESIGN §2.5):
   // without it no foe rises. One copy: a foe of tier up to `tier` slain within `domain` tiles (Chebyshev) of the
   // Monarch's tile rises as a shadow of yours, up to `raises` a battle, each shadow at the fallen piece's count, each
@@ -93,7 +97,9 @@ export const TUNING = {
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses
     // one is drawn again wanting it, up to `routeTries` times a type in each of `routePasses` passes (run.js varyRoutes).
-    variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 6, routePasses: 4 },
+    // routeTries 24 (was 6) since 2026-10-10: Bleed is the Mantis's alone, and 6 tries left 15 of 24 floor-2 maps
+    // with a walk that met none.
+    variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 24, routePasses: 4 },
     // The enemy as an army. From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave,
     // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind: one piece
     // of 1 + cohort bodies on the captain's slot (DESIGN §2.2). A floor-1

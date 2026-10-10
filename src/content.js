@@ -212,13 +212,13 @@ export const UNIT_LIST = [
     base: { hp: 92, atk: 25, def: 9, spd: 32, acc: 50, eva: 20, crt: 16 },
     growth: { hp: 10, atk: 3.1, def: 0.8, spd: 1.8 },
     abilities: ['reap', 'strike'],
-    // Quick, and a long arm: yours strikes two tiles off (a foe's melee reaches only beside it). Its threat, Shape, is
-    // a stand-in: every foe carries one, and none names a lone hard melee blow (DESIGN §6, 2026-10-10).
+    // Quick, and a long arm: yours strikes two tiles off (a foe's melee reaches only beside it). Its Reap opens a wound
+    // that Bleeds.
     ring: 2,
     arm: 2,
     stride: 1.5,
     spawn: { weight: 7, minFloor: 2 },
-    threats: ['shape'],
+    threats: ['bleed'],
     behaviour: 'walk',
     flavour: 'A mantis stalks the road with its brood about it, quick as a thought, and its scythes fall before its shadow does.',
     art: 'mantis_reaper'
@@ -637,7 +637,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#d8d4cc',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 42 }]
+    effects: [{ op: 'damage', power: 42 }, { op: 'apply_status', status: 'bleeding', dur: 100 }]
   },
   {
     id: 'quake',
@@ -1996,6 +1996,18 @@ const STATUS_LIST = [
     tickEvery: 20
   },
   {
+    // The Mantis's wound: a damage-over-time as Burning is, slower, stacking deeper.
+    id: 'bleeding',
+    desc: 'Takes 4 true damage a second per stack, up to 5 stacks.',
+    name: 'Bleeding',
+    tags: ['debuff'],
+    dur: 100,
+    stacks: 5,
+    mods: [],
+    tick: [{ op: 'dot', power: 4 }],
+    tickEvery: 20
+  },
+  {
     id: 'hexed',
     desc: '−30% gauge rate: acts less often.',
     name: 'Hexed',
@@ -2060,6 +2072,7 @@ export const THREATS = {
   clock: { name: 'Clock', desc: 'Drags a fight on into escalation.' },
   fly: { name: 'Fly', desc: 'Comes over the walls, never through your pieces, and only a ranged blow (or a flyer\'s melee) can touch it.' },
   burn: { name: 'Burn', desc: 'Leaves a fire that keeps hurting after the blow.' },
+  bleed: { name: 'Bleed', desc: 'Opens wounds that bleed deeper with every blow.' },
   // A room's, not a kind's: more foes enter behind the first (a late pair, waves).
   depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' }
 }

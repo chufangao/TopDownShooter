@@ -73,8 +73,15 @@ export function createBattle ({
   relics = [], foeRules = true, ablate = [], quiet = false, settle = null
 }) {
   // A living soul's piece takes the bodies its tiers add, whole (not the Monarch's; none with the `bodies` switch).
+  // Each brings only TUNING.bodies.hp of a body's HP to the pool (`extra`: the bodies' worth they bring), so its
+  // bodies thin to share the pool (`thin`, read by fit): they strike as bodies do, and add little HP.
   const added = (u) => (u.hp > 0 && !unitDef(u.id).monarch && !ablate.includes('bodies') ? bodiesOf(u) : 0)
-  const grown = (u, k) => (k ? { count: u.count + k, hp: u.hp + k * u.maxHp / u.count, maxHp: u.maxHp + k * u.maxHp / u.count } : {})
+  const grown = (u, k) => {
+    if (!k) return {}
+    const extra = k * TUNING.bodies.hp
+    const hp = extra * u.maxHp / u.count
+    return { count: u.count + k, hp: u.hp + hp, maxHp: u.maxHp + hp, thin: (u.count + extra) / (u.count + k), extra }
+  }
   const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot), ...(side === 'party' && grown(u, added(u))) }, 0)
   const units = [...party.map((u) => stamp(u, 'party')), ...foes.map((u) => stamp(u, 'foe'))]
     .filter((u) => u.hp > 0 && u.slot >= 0)
@@ -250,7 +257,7 @@ function fit (battle, u) {
     u.body = u.maxHp
     return
   }
-  u.body = Math.max(1, Math.round(stats(battle, u).hp * (u.shadow ? TUNING.arise.hp : 1)))
+  u.body = Math.max(1, Math.round(stats(battle, u).hp * (u.shadow ? TUNING.arise.hp : 1) * (u.thin ?? 1)))
   const max = u.count * u.body
   if (max === u.maxHp) return
   u.hp = Math.max(1, Math.round(u.hp * max / u.maxHp))

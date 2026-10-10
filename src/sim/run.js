@@ -920,15 +920,17 @@ function finishBattle (run) {
   const s = run.state
   const byUid = new Map(b.units.map((u) => [u.uid, u]))
   // A piece keeps the HP of its own bodies that stood as the battle began (u is still as it came in): the bodies its
-  // tiers added were the first to fall, and go, and a body fallen before it stays down (only an altar raises the
-  // fallen), whatever the added bodies left in the pool. A piece whose every body fell leaves the field (DESIGN
+  // tiers added were the first to fall, and go, their HP (`extra` bodies' worth, whole: battle.js grown) spent before
+  // any of its own, and a body fallen before it stays down (only an altar raises the fallen). `whole`: one of its own
+  // bodies, whole, in the battle's HP (its bodies thinned to share the pool with the added ones: battle.js fit). A piece whose every body fell leaves the field (DESIGN
   // §2.2): it lies fallen in the ossuary, its cell and its Command free, until an altar raises it (canPlace keeps it
   // there).
   for (const u of s.party) {
     const bu = byUid.get(u.uid)
     if (!bu) continue
-    const kept = Math.min(bu.hp, livingBodies(u) * bu.body)
-    u.hp = kept > 0 ? Math.max(1, Math.round(kept / bu.body * bodyHp(u))) : 0
+    const whole = bu.body / (bu.thin ?? 1)
+    const kept = Math.min(bu.hp - (bu.extra ?? 0) * whole, livingBodies(u) * whole)
+    u.hp = kept > 0 ? Math.max(1, Math.round(kept / whole * bodyHp(u))) : 0
     if (u.hp <= 0 && !isMonarch(u)) u.slot = OSSUARY
   }
   // Shadows are the battle's alone: nothing of them comes back to the run.

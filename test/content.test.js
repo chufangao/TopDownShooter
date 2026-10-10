@@ -68,11 +68,12 @@ test('every unit reference resolves; every foe carries its threats; a fused kind
   assert.deepEqual(of((u) => u.onFall), ['rot_bloat'])
   assert.deepEqual(of((u) => u.size === 2), ['bone_colossus', 'clockwork_titan', 'hive_queen'])
   // The foes scale in kind by floor (DESIGN §2.4): floor 1's pool carries every threat type but depth (a room's, not
-  // a kind's: it comes with waves) and fly; floor 2 brings the flyer and the death burst; floor 3 the hex and the
-  // flying burner.
+  // a kind's: it comes with waves), fly and bleed; floor 2 brings the flyer, the death burst and the Mantis's Bleed;
+  // floor 3 the hex and the flying burner.
   const pool = (floor) => Object.values(UNITS).filter((u) => u.spawn?.minFloor === floor)
-  assert.deepEqual(new Set(pool(1).flatMap((u) => u.threats)), new Set(Object.keys(THREATS).filter((t) => t !== 'depth' && t !== 'fly')))
+  assert.deepEqual(new Set(pool(1).flatMap((u) => u.threats)), new Set(Object.keys(THREATS).filter((t) => t !== 'depth' && t !== 'fly' && t !== 'bleed')))
   assert.ok(pool(1).some((u) => u.abilities.some((a) => ABILITIES[a].effects.some((e) => e.status === 'burning'))), 'Burning on floor 1')
+  assert.ok(pool(2).some((u) => u.threats.includes('bleed') && u.abilities.some((a) => ABILITIES[a].effects.some((e) => e.status === 'bleeding'))), 'Bleed on floor 2')
   assert.ok(pool(2).some((u) => u.flies) && pool(2).some((u) => u.onFall), 'Fly and the death burst on floor 2')
   assert.ok(!pool(1).some((u) => u.flies || u.onFall))
   assert.ok(pool(3).some((u) => u.abilities.some((a) => ABILITIES[a].effects.some((e) => e.status === 'hexed'))), 'Hexed on floor 3')

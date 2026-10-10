@@ -1084,6 +1084,17 @@ level 0.67 a tier; every synergy's stat step doubled. The expert clears about 90
 there); basic clears none and dies on floor 1 in three runs of four; the expert still spends all it earns and wants
 more; every ablation is in its band by clear rate but fusions (under, as always) and legendaries (a standard error over).
 
+Taken after that (2026-10-10), the user's two calls on the bug hunt's open questions:
+
+- **The Mantis Reaper Bleeds.** Its Reap lays **Bleeding** (a damage-over-time as Burning is: 4 true damage a second a
+  stack, up to 5 stacks, a debuff Purge cleanses), and its threat is **Bleed**, in place of the Shape stand-in. Bleed
+  is the Mantis's alone, so the route variety rule redraws harder (`spawn.variety.routeTries` 24, was 6) to put it on
+  every walk through floors 2 and on.
+- **Bodies a tier adds bring little HP.** Each strikes as a body does but brings only `TUNING.bodies.hp` (0.1) of a
+  body's HP to the pool, the piece's bodies thinning to share it (battle.js `grown`, `fit`). Their HP is spent first,
+  so a piece leaves a battle with its own bodies' HP, never more (run.js `finishBattle`): a Bone Chanter that comes in
+  at 30% leaves at 30%, not 100%. Not measured: the next balance pass reads both.
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):
