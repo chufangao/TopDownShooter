@@ -173,7 +173,7 @@ export const MONARCH_TEXT = {
     name: 'HP', icon: 'hp', value: (run) => monarchHp(run.state), now: (run) => monarchHp(run.state) > TUNING.monarch.hp ? `${TUNING.monarch.hp} + ${monarchHp(run.state) - TUNING.monarch.hp} relics` : 'max, no relics yet',
     rule: (run) => [`Its health: if it runs out, the run ends. ${TUNING.monarch.hp} to begin; only relics raise it, every copy in full, and heal it by as much: ${giversOf('monarchHp').join(', ')}.`,
       heldGivers(run, 'monarchHp') ? `Yours: ${heldGivers(run, 'monarchHp')}.` : 'You hold none yet.',
-      holds(run.state, 'unhealable') && 'Court of Bone: nothing heals it.']
+      holds(run.state, 'unhealable') ? 'Court of Bone: nothing heals it.' : `Its wounds carry: ${WOUNDS_TEXT}.`]
   },
   command: {
     // Its pieces on the field now, of the most it may field (the value says the Command itself).
@@ -184,12 +184,14 @@ export const MONARCH_TEXT = {
 }
 // Nothing is bought for the Monarch, in a line.
 export const MONARCH_RULE = 'Nothing is bought for the Monarch: its HP and Command grow only by relics.'
+// What mends between battles (TUNING.run: postBattleHeal, altarHeal), in words: wounds carry from room to room.
+export const WOUNDS_TEXT = `a win heals each living body ${pct(TUNING.run.postBattleHeal)} of its HP; an altar heals ${TUNING.run.altarHeal >= 1 ? 'every body to full' : `each to ${pct(TUNING.run.altarHeal)} of its HP`}`
 
 // ── rings ────────────────────────────────────────────────────────────────────────────────────────
 
 // The blows a kind strikes: its abilities aimed at the other side (not an ally ability, nor Arise's raise).
 const blowsOf = (u) => abilitiesOf(u).map(abilityDef).filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse')
-// Whether every blow a kind strikes is a melee one (a melee blow never touches a flyer: DESIGN §2.3).
+// Whether every blow a kind strikes is a melee one (melee from the ground never touches a flyer: DESIGN §2.3).
 const meleeOnly = (u) => {
   const blows = blowsOf(u)
   return blows.length > 0 && blows.every((a) => a.melee)
@@ -224,7 +226,7 @@ export function ringRule (u, foe = false) {
   if (unitDef(u.id).monarch) return `It stands on its seat, never moves and never strikes; the roads run to it, and a foe that comes within ${ringOf(u)} tile of it halts there.`
   if (foe && !bestiary.has(u.id)) return 'Not met yet: how far it fights, and how it walks the roads, you learn by meeting it.'
   const tiles = (r) => `${r} tile${r === 1 ? '' : 's'} ${sizeOf(u) > 1 ? 'of its four tiles' : 'of its tile'}`
-  const melee = meleeOnly(u) ? ' Its blows are melee: they never touch a flyer.' : ''
+  const melee = meleeOnly(u) && !unitDef(u.id).flies ? ` Its blows are melee: they never reach up to a flyer${foe ? '' : ', though a flyer whose way it stands in is held there'}.` : ''
   if (!foe) {
     const arm = Math.min(ringOf(u), armOf(u))
     const farther = blowsOf(u).some((a) => a.melee && a.range > arm) ? ', farther where a blow says so' : ''
@@ -235,15 +237,13 @@ export function ringRule (u, foe = false) {
       : 'A foe walking into that ring halts there only once it can strike something of yours from where it stands.'
     return `It fights whatever its blows reach within ${tiles(ringOf(u))}${how ? ` (${how})` : ''}. ${halt}${melee} It never moves: with nothing to strike, it waits.`
   }
-  // What its melee strikes is in its way's own words (BEHAVIOURS) for Walk and Flank; a flyer's is said here. Its way
-  // is the air: nothing of yours on the ground stands in it (battle.js closeIn).
+  // What its melee strikes is in its way's own words (BEHAVIOURS): a walker's and a flyer's alike, what blocks it (a
+  // flyer's way held by a piece of yours, on the ground or in the air: battle.js closeIn), the Monarch, and a piece
+  // beside it that struck it.
   const way = behaviourOf(u)
-  const close = 'the Monarch beside it, or a piece of yours beside it that struck it'
   const r = foeReach(u)
   const reach = way === 'flank' ? (r > 0 ? `Its ranged blows reach ${tiles(r)}; its melee, only what stands beside it.` : 'It has no reach: its melee strikes only what stands beside it.')
-    : way === 'walk' ? (r > 0 ? `Halted, it shoots whatever it can within ${tiles(r)}.` : 'It has no reach.')
-      : r > 0 ? `Halted, it shoots whatever it can within ${tiles(r)}${hasMelee(u) ? `; its melee strikes only ${close}` : ''}.`
-        : `It has no reach: halted, its melee strikes only ${close}.`
+    : r > 0 ? `Halted, it shoots whatever it can within ${tiles(r)}.` : 'It has no reach.'
   return `${reach}${melee} ${BEHAVIOURS[way].desc}`
 }
 // Whether a kind strikes any melee blow.
@@ -717,8 +717,8 @@ export const priceScaleText = (run) => `every price is its floor-1 price ${[1, 2
 const WORD_MORE = {
   piece: () => `Command sets how many pieces you field (at most ${TUNING.army.board}); the rest of your souls wait in the ossuary. A 2×2 piece (a fused kind, or a kind with a Colossus tier) needs four open cells and plugs a two-wide breach alone. The Monarch is a piece too: it stands on the seat the camp marks with a crown, never moves and never strikes (though a foe that comes beside it halts there), and nothing else may stand there.`,
   stack: () => 'Drag a soul of the same kind onto a piece to add a body; split one off from its panel. A stack covers its footprint and nothing more, and a blow that hits it hits the whole pool once: the reason not to stack everything. It counts once toward synergies.',
-  ring: () => 'Measured from the footprint: the ring 1 of a 2×2 piece is the twelve tiles around it. A piece fights what its blows reach within it: a ranged blow its range, a melee blow the tiles beside it (two tiles for a long-armed kind, without stepping), or as far as the blow says; a tier that widens the ring lengthens no arm. Your rings are what the foes see you by: a foe walking into a ring of yours that can strike it halts there only once it can strike something of yours from where it stands (a shooter, a piece of yours in its reach; a melee foe, the piece in its way, the Monarch, or a piece beside it that struck it), and otherwise walks on. A ring holds a foe only as far as the piece\'s blows that need no condition reach: where a blow with a condition reaches farther, it strikes there once the condition holds, but no foe halts there for it, and the shading and the stop line stop short of it too. Within the Monarch\'s ring of 1 every foe halts. Yours aim at the foe in the ring furthest along its road, the centre lane first on a tie. A melee blow never touches a flyer, so a melee ring never holds one, and a ring holding only flyers it cannot strike reads as empty. Rings reach through walls. In prep the road tiles are shaded by how many of your rings cover them, and a bar marks the stop line, where a walker first comes into them: the earliest it can halt there, not where it will.',
-  road: () => 'Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch. Two foes on one tile always walk the same way. A foe walks, doing nothing else, until it halts where it can hit back: in one of your rings with something of yours its blows reach, or with its next tile held (a piece of yours, the seat, or a foe ahead of it that has stopped; behind one still on the move it only waits). Halted, it fights: its ranged blows to their range, never past its own ring, so one queued behind a stopped one shoots over it; its melee only what blocks its way, the Monarch, and a piece beside it that struck it, so a melee foe walks on through your rings until one of those is there. Some kinds Flank, walking round your pieces where a way is open; some Fly, straight over walls and pieces: you learn which by meeting them.',
+  ring: () => 'Measured from the footprint: the ring 1 of a 2×2 piece is the twelve tiles around it. A piece fights what its blows reach within it: a ranged blow its range, a melee blow the tiles beside it (two tiles for a long-armed kind, without stepping), or as far as the blow says; a tier that widens the ring lengthens no arm. Your rings are what the foes see you by: a foe walking into a ring of yours that can strike it halts there only once it can strike something of yours from where it stands (a shooter, a piece of yours in its reach; a melee foe, the piece in its way, the Monarch, or a piece beside it that struck it), and otherwise walks on. A ring holds a foe only as far as the piece\'s blows that need no condition reach: where a blow with a condition reaches farther, it strikes there once the condition holds, but no foe halts there for it, and the shading and the stop line stop short of it too. Within the Monarch\'s ring of 1 every foe halts. Yours aim at the foe in the ring furthest along its road, the centre lane first on a tie. A melee blow from the ground never reaches up to a flyer, so a melee ring on the ground never holds one (a flyer\'s melee meets a flyer in the air), and a ring holding only flyers it cannot strike reads as empty (a piece standing in a flyer\'s way still holds it there, as any blocker does). Rings reach through walls. In prep the road tiles are shaded by how many of your rings cover them, and a bar marks the stop line, where a walker first comes into them: the earliest it can halt there, not where it will.',
+  road: () => 'Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch. Two foes on one tile always walk the same way. A foe walks, doing nothing else, until it halts where it can hit back: in one of your rings with something of yours its blows reach, or with its next tile held (a piece of yours, the seat, or a foe ahead of it that has stopped; behind one still on the move it only waits). Halted, it fights: its ranged blows to their range, never past its own ring, so one queued behind a stopped one shoots over it; its melee only what blocks its way, the Monarch, and a piece beside it that struck it, so a melee foe walks on through your rings until one of those is there. Some kinds Flank, walking round your pieces where a way is open; some Fly, straight over the walls but never through your pieces, which hold them where they stand in their way: you learn which by meeting them.',
   wave: () => `${ENEMY_TEXT.waves} ${ENEMY_TEXT.entry}`,
   // Arise, and Hollow Court (offered only once Arise is held), only while the run holds the relic (DESIGN §4).
   shadow: (run) => `${run && ariseHeld(run.state) ? 'The Arise relic raises foes slain near the Monarch; ' : ''}Undead 8 raises every foe slain. A shadow of yours rises on the free tile nearest the Monarch, never where it fell, so the dead never block a road, and holds there. A shadow of a flying kind flies. Shadows count toward your synergies and are gone after the battle.` +
@@ -820,9 +820,9 @@ export function codexView (run = null, { onClose = null } = {}) {
     h('p', { class: 'lede' }, `Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),
     h('ol', { class: 'primer' },
       h('li', null, 'You are the Monarch. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
-      h('li', null, 'Foes walk the ', kw('road', 'roads'), ', the arrows on the board, to your seat, the crowned cell, and halt to fight only where they can hit back: in one of your ', kw('ring', 'rings'), ' with something of yours in their reach, beside the Monarch, or with the way ahead held. Some ', kw('flank'), ' round your pieces; some ', kw('fly'), ' over everything.'),
+      h('li', null, 'Foes walk the ', kw('road', 'roads'), ', the arrows on the board, to your seat, the crowned cell, and halt to fight only where they can hit back: in one of your ', kw('ring', 'rings'), ' with something of yours in their reach, beside the Monarch, or with the way ahead held. Some ', kw('flank'), ' round your pieces; some ', kw('fly'), ' over the walls.'),
       h('li', null, 'Place your souls in the camp: each ', kw('piece'), ' fights whatever its blows reach in its ', kw('ring'), ' from where you put it (its melee only beside it, two tiles for a long arm), and ', h('b', null, 'never moves'), '. The shading on the roads is how many rings cover them; the blue bars, the stop line, are where a foe first comes into them: the earliest it can halt.'),
-      h('li', null, 'Begin, and the battle plays out alone.'),
+      h('li', null, `Begin, and the battle plays out alone. Wounds carry: ${WOUNDS_TEXT}.`),
       h('li', null, 'Spend ', kw('essence'), ' on your kinds\' ', kw('tier', 'tiers'), ' (each raises the kind\'s level) and on ', kw('fusion', 'fusions'), '; after a win, recruit one of the slain. The Monarch grows only by ', kw('relic', 'relics'), ': its HP and its ', kw('command'), '.')),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, onto a piece of its kind to ', kw('stack'), ' it, onto another piece to swap them; ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades and Fuse. ', say('Hover', 'Long-press'), ' anything for what it is.'),

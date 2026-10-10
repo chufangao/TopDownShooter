@@ -37,7 +37,7 @@ import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campOpen, wallTiles, steps, deployTile, tileAt, TILES, LANES,
   rowOf, colOf, rangeOf, isAllyShape, distance, makeUnit, slotAt, baseStats, bodiesOf, livingBodies, DEPTH, sizeOf, footprintSlots, fits,
-  monarchSlot, ringOf, abilitiesOf, isBlow, tileX, tileY, NEIGHBOURS
+  monarchSlot, ringOf, abilitiesOf, isBlow
 } from './unit.js'
 import { createBattle, playOut, timelineHash, field } from './battle.js'
 import {
@@ -360,7 +360,8 @@ export function drafts (run, want, L) {
 
 // The scouted room as a threat map: every foe piece, the opening's from where it stands and each later wave's from
 // the top edge of its lane, walked to the seat, a walker by the camp's arrows (roadsTo; a Flank kind too: its way
-// round is the pieces', unknown till they stand), a flyer by its fly steps (flyLine); each tile it passes takes its
+// round is the pieces', unknown till they stand), a flyer by the air road's (roadsTo's `air`, over the walls; a piece
+// on it holds the flyer there, but where the pieces stand is what the map is for); each tile it passes takes its
 // bodies × (1 + road distance)^−steep: the nearer the seat, where every road ends and the fighting gathers, the more.
 // → { ground, air }, each a Float64Array by tile.
 const threats = new Map()
@@ -369,37 +370,24 @@ function threatOf (run, steep = 1) {
   const node = currentNode(run)
   const key = JSON.stringify([s.camp, steep, node.foes, node.waves?.map((w) => w.foes)])
   if (threats.has(key)) return threats.get(key)
-  const { field: f } = roadsTo(s.camp)
+  const roads = roadsTo(s.camp)
   const ground = new Float64Array(TILES)
   const air = new Float64Array(TILES)
   const foes = [...node.foes.map((x) => [x, deployTile('foe', x.slot)]), ...(node.waves ?? []).flatMap((w) => w.foes.map((x) => [x, tileAt(colOf(x.slot), DEPTH - 1)]))]
   for (const [foe, from] of foes) {
     const flies = !!unitDef(foe.id).flies
-    const path = flies ? flyLine(from, f.root) : roadFrom(from, f)
-    for (const t of path) {
-      const d = flies ? distance(t, f.root) : f.dist[t]
-      ;(flies ? air : ground)[t] += (foe.count ?? 1) / (1 + d) ** steep
-    }
+    const f = flies ? roads.air : roads.field
+    for (const t of roadFrom(from, f)) (flies ? air : ground)[t] += (foe.count ?? 1) / (1 + f.dist[t]) ** steep
   }
   const out = { ground, air }
   if (threats.size > 500) threats.clear()
   threats.set(key, out)
   return out
 }
-// A walker's road from `t` to the root, by the arrows; a flyer's, each step to the neighbour nearest the root, ties
-// to the root's lane, then its row (as battle.js flyStep, with the air empty).
+// A foe's road from `t` to the root, by a field's arrows (a walker's the camp's roads, a flyer's the air road).
 function roadFrom (t, f) {
   const out = []
   for (let n = 0; t >= 0 && n < TILES; t = f.arrow[t], n++) out.push(t)
-  return out
-}
-function flyLine (t, root) {
-  const out = [t]
-  const key = (n) => distance(n, root) * 1e6 + Math.abs(tileX(n) - tileX(root)) * 1e3 + Math.abs(tileY(n) - tileY(root))
-  while (t !== root && out.length < TILES) {
-    t = NEIGHBOURS[t].reduce((a, b) => (key(b) < key(a) ? b : a))
-    out.push(t)
-  }
   return out
 }
 
@@ -513,10 +501,14 @@ function gated (units, camp, threat) {
   return zone(units, camp, threat, { taken })
 }
 
-// The foes' roads to the Monarch on its seat (battle.js field, the camp's walls only). Made once per camp.
+// The foes' roads to the Monarch on its seat (battle.js field): `field` the walkers', the camp's walls only, and `air`
+// the flyers' air road, over every tile, walls and all (battle.js airOf). Made once per camp.
 const roadCache = new Map()
 export function roadsTo (camp) {
-  if (!roadCache.has(camp)) roadCache.set(camp, { field: field({ root: deployTile('party', monarchSlot(camp)), walls: wallTiles(camp) }) })
+  if (!roadCache.has(camp)) {
+    const root = deployTile('party', monarchSlot(camp))
+    roadCache.set(camp, { field: field({ root, walls: wallTiles(camp) }), air: field({ root, walls: [] }) })
+  }
   return roadCache.get(camp)
 }
 
@@ -908,11 +900,11 @@ function chose (s, goal) {
 // ── growth: essence, fusions and stacks ──────────────────────────────────────────────────────────────
 
 // Basic buys by rule of thumb (basicSpend) and never fuses. The expert grows by one search (grow): every choice it
-// has — a fusion it can make, any held kind's next tier; a stack or a split, once a room; a recruit (weighRecruits) —
-// sketched (sketch: the strength of the field it leaves, and what the book says it is worth ahead), the best taken if
-// it beats keeping what it has. The free offers are rehearsed over the fights ahead besides (weighOffers: prospects),
-// for a relic's worth is in the battle, not the field's numbers. Nothing is bought for the Monarch: its HP and Command
-// are relics.
+// has — a fusion it can make, any held kind's next tier (and that tier with the one after it on its track, as one); a
+// stack or a split, once a room; a recruit (weighRecruits) — sketched (sketch: the strength of the field it leaves, and
+// what the book says it is worth ahead), the best taken if it beats keeping what it has. The free offers are rehearsed
+// over the fights ahead besides (weighOffers: prospects), for a relic's worth is in the battle, not the field's
+// numbers. Nothing is bought for the Monarch: its HP and Command are relics.
 function pickSpend (run, L) {
   if (!L.spend) return basicSpend(run, L)
   return grow(run, L, [...fusionOptions(run, L), ...spendOptions(run, L)], 'spend')
@@ -960,9 +952,13 @@ const EPS = 0.005
 const sketch = (s, L) => Math.log(strength(s, L.ablate !== 'bodies')) + (L.book ? BOOK_WEIGHT * bookValue(s) : 0)
 
 // The growth search: `options` (actions legal now) each applied to a copy and sketched, the best taken if it beats
-// keeping what it has by EPS. Rehearsal is spent where it decides (the formation, the free offers); a purchase's worth
-// to the fights to come is the book's to say. Weighed once for each run state and purpose (`why`). → the action, or
-// null.
+// keeping what it has by EPS. A kind's next tier is weighed twice: alone, and with the tier after it on the same track
+// as one candidate (where the crosspath rule allows it and the purse holds both prices together: nextTier), at their
+// gain together, the first of the two bought for it; for a level is base + perTier × tiers, rounded down, and a tier
+// whose level rounds away shows its worth only with the next (2026-10-10: on seed sim-0 the expert held 2,364 essence
+// and declined a Frost Sprite tier of 194 for want of it). Rehearsal is spent where it decides (the formation, the free
+// offers); a purchase's worth to the fights to come is the book's to say. Weighed once for each run state and purpose
+// (`why`). → the action, or null.
 const growths = new WeakMap()
 const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : a.type)
 function grow (run, L, options, why) {
@@ -980,11 +976,19 @@ function grow (run, L, options, why) {
     apply(sim, a)
     const gain = sketch(sim.state, L) - base
     if (gain > best) { best = gain; pick = a }
+    if (!nextTier(sim, a)) continue
+    apply(sim, a)
+    const both = sketch(sim.state, L) - base
+    if (both > best) { best = both; pick = a }
   }
   growths.set(run, { ...seen, [why]: { key, pick } })
   if (pick && audited(run)) note('done', label(pick))
   return pick
 }
+
+// Whether, on `sim` with tier `a` (an upgrade) just bought, the tier after it on the same track may be bought too: the
+// crosspath rule allows it, and what is left of the purse pays its price (the two priced together, grow).
+const nextTier = (sim, a) => a.type === 'upgrade' && canAdvance(sim.state, a.kind, a.track) && sim.state.essence >= tierCost(sim, a.kind, a.track)
 
 // A kind's state ({ lvl, tracks, least? }) with the next tier on `track` taken: its level with it (run.js levelOf).
 const afterTier = (k, track) => {

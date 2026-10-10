@@ -82,7 +82,8 @@ export const armOf = (u) => unitDef(u.id).arm ?? 1
 // hold when the foe stands there: Killing Cold, Briar Lash, Miasma, Pyre Rain), so a shooter never halts where it
 // can strike a piece that cannot strike back; its ring, where it fights once a condition holds, stays its own. On the
 // ground the longest reach of those blows (a melee one its own range, else its kind's arm: armOf; a ranged one its
-// range), never past its ring; in the air only the ranged ones' (−1 with none, for no melee blow touches a flyer); −1
+// range), never past its ring; in the air only the ranged ones' (−1 with none, for no melee blow from the ground
+// touches a flyer), a flyer's every blow's (its melee meets a flyer in the air); −1
 // for both with no such blow at all. The Monarch never strikes, but holds whatever comes within its ring, on the
 // ground and in the air. Each measured from its footprint. → { ground, air }.
 export function holdOf (u) {
@@ -90,7 +91,7 @@ export function holdOf (u) {
   if (unitDef(u.id).monarch) return { ground: ring, air: ring }
   const sure = abilitiesOf(u).map(abilityDef).filter((a) => isBlow(a) && !a.when)
   const reach = (list) => Math.min(ring, Math.max(-1, ...list.map((a) => (a.melee ? a.range ?? armOf(u) : rangeOf(a)))))
-  return { ground: reach(sure), air: reach(sure.filter((a) => !a.melee)) }
+  return { ground: reach(sure), air: reach(unitDef(u.id).flies ? sure : sure.filter((a) => !a.melee)) }
 }
 
 // The bodies a piece's tiers add for each battle (a tier's `count`): they fight in its pool, whole, and are gone

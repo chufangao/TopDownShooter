@@ -4,7 +4,7 @@
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, monarchOf } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, monarchOf, levelOf } from '../src/sim/run.js'
 import {
   drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf,
   roomsAhead, rehearseAhead
@@ -12,7 +12,7 @@ import {
 import { TUNING } from '../src/tuning.js'
 import { createRng } from '../src/sim/rng.js'
 import { CAMP_LIST, FUSION_LIST, unitDef, fusionDef, relicDef, TRACKS } from '../src/content.js'
-import { slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot } from '../src/sim/unit.js'
+import { slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot, makeUnit } from '../src/sim/unit.js'
 
 // A run standing in a fight's prep whose room has a second wave and a far-reaching foe on lane 6.
 function prep (seed) {
@@ -184,6 +184,54 @@ test('idle essence: when its fielded kinds can buy nothing, the expert weighs ev
   // The expert's purchase, if it makes one, is one of them.
   const a = policy(run, createRng('idle').stream('autoplay'), 'expert')
   assert.ok(a.type === 'node' || spendOptions(run, LEVELS.expert).some((o) => JSON.stringify(o) === JSON.stringify(a)), JSON.stringify(a))
+})
+
+test('the expert weighs a track\'s next two tiers together: a tier whose level rounds away is bought when the two make a level, and essence holds both', () => {
+  // The Knight's and the Chanter's tracks full, the Chanter a stack of eight; a lone Frost Sprite at the first of these
+  // tiers where its next tier on either track leaves its level as it is (the level rounds down) and the one after it
+  // makes a level (at TUNING.level's 2 + 0.67 a tier: II and I, level 4; at 0.5 a tier it was I and I, level 3).
+  // With essence for both, the expert buys the first (it declined it, weighing one tier at a time); then, any tier the
+  // Sprite takes making the level, the next.
+  const up = (tracks, track, n) => [0, 1].map((t) => tracks[t] + (t === track ? n : 0))
+  const start = [[1, 1], [2, 1], [0, 0], [2, 2]].find((tracks) => [0, 1].every((track) =>
+    levelOf({ tracks: up(tracks, track, 1) }) === levelOf({ tracks }) && levelOf({ tracks: up(tracks, track, 2) }) === levelOf({ tracks }) + 1))
+  assert.ok(start, 'a Sprite whose next tier rounds away on both tracks')
+  const build = () => {
+    const run = createRun({ seed: 'pair' })
+    const s = run.state
+    const [knight, chanter, sprite] = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((id) => souls(s.party).find((u) => u.id === id))
+    const tier = (u, tracks) => {
+      s.kinds[u.id] = { tracks, lvl: levelOf({ tracks }) }
+      Object.assign(u, makeUnit(u.id, { uid: u.uid, slot: u.slot, lvl: s.kinds[u.id].lvl, tracks, count: u.count }))
+    }
+    tier(knight, [4, 2])
+    chanter.count = 8
+    tier(chanter, [4, 2])
+    tier(sprite, start)
+    const tracks = s.kinds.frost_sprite.tracks
+    s.essence = Math.max(...[0, 1].map((t) => TUNING.essence.tier[tracks[t]] + TUNING.essence.tier[tracks[t] + 1]))
+    return run
+  }
+  const { state } = build()
+  const lvl = state.kinds.frost_sprite.lvl
+  const after = (n, track) => levelOf({ tracks: [0, 1].map((t) => state.kinds.frost_sprite.tracks[t] + (t === track ? n : 0)) })
+  for (const track of [0, 1]) assert.deepEqual([after(1, track), after(2, track)], [lvl, lvl + 1], `track ${track}`)
+  // The expert, and the expert with its book aside (a tier on the tracks of the combo it plays toward is worth something
+  // to it alone): the field's own worth decides.
+  for (const L of [LEVELS.expert, { ...LEVELS.expert, book: false }]) {
+    const run = build()
+    const s = run.state
+    assert.deepEqual(spendOptions(run, L), [0, 1].map((track) => ({ type: 'upgrade', kind: 'frost_sprite', track })), 'nothing else to buy')
+    const rng = createRng('pair').stream('autoplay')
+    const a = policy(run, rng, L)
+    assert.deepEqual([a.type, a.kind], ['upgrade', 'frost_sprite'], JSON.stringify(a))
+    apply(run, a)
+    assert.equal(s.kinds.frost_sprite.lvl, lvl)
+    const b = policy(run, rng, L)
+    assert.deepEqual([b.type, b.kind], ['upgrade', 'frost_sprite'], JSON.stringify(b))
+    apply(run, b)
+    assert.equal(s.kinds.frost_sprite.lvl, lvl + 1)
+  }
 })
 
 test('the expert lets a soul go only for a recruit it weighed worth it: the release, then that recruit', () => {

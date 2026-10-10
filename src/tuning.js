@@ -122,8 +122,9 @@ export const TUNING = {
   },
   // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). A won
   // battle heals each living body postBattleHeal of its HP; an altar heals each to altarHeal of its HP and raises a
-  // fallen one at altarRevive (a stack's pool keeps the sum: run.js).
-  run: { floors: 4, postBattleHeal: 0.5, altarHeal: 1, altarRevive: 0.5 },
+  // fallen one at altarRevive (a stack's pool keeps the sum: run.js). Wounds carry (2026-10-10): a win mends a fifth
+  // (it was half), so HP, DEF, Undying and Heartwood count between rooms, and an altar is worth walking to.
+  run: { floors: 4, postBattleHeal: 0.2, altarHeal: 1, altarRevive: 0.5 },
   // The autoplayer's rehearsals: a battle budget of `rehearsalCeiling` ticks (one still going is scored
   // as a loss), and a single rehearsal seed for a battle of more than `bigBattle` units. `settle`: a rehearsal
   // ends once its result is settled (battle.js settled: margin k, looking back `window` ticks, every foe hit

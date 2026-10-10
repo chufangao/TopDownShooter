@@ -25,7 +25,7 @@ import { board } from './board.js'
 import { frame, toLocal } from './frame.js'
 import {
   unitCard, partyMods, roomFoeMods, roomTip, threatMeter, foeSynergyLine, synergyTracker, synergyGroups, relicTip, ROOM, campRowLabel, realmOf,
-  MONARCH_TEXT, MONARCH_RULE, deathText, tileText, fieldRule, foeCountText, waveName, waveWhen,
+  MONARCH_TEXT, MONARCH_RULE, WOUNDS_TEXT, deathText, tileText, fieldRule, foeCountText, waveName, waveWhen,
   ENEMY_TEXT, DEEP_TEXT, ROMAN, relicName, relicsByTier, aliasOf, TRIGGER_TEXT, codexView, ringText, ringRule, foeReach, bestiary, standing, abilityBlock,
   auraBlock, hpBar, poolHp, foeRulesOn
 } from './codex.js'
@@ -192,7 +192,7 @@ function monarchChip (run) {
       realm: realmOf(run),
       notes: [holds(run.state, 'unhealable')
         ? 'The Monarch is you. Its wounds carry from battle to battle, and under Court of Bone nothing heals them: not a win, not an altar.'
-        : 'The Monarch is you. Its wounds carry from battle to battle: it heals like a soul after a win and at altars.']
+        : `The Monarch is you. Its wounds carry from battle to battle, as a soul's do: ${WOUNDS_TEXT}.`]
     })
   }, icon('crown', 20), h('b', null, `${m.hp}/${m.maxHp}`))
 }

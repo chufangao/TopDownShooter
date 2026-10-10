@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createBattle, stepBattle, runBattle, timelineHash, stats, enterBattle, nextCost, foesNextTo, auraGivers, field, fieldOf, arrowOf, ringTarget, flyStep
+  createBattle, stepBattle, runBattle, timelineHash, stats, enterBattle, nextCost, foesNextTo, auraGivers, field, fieldOf, airOf, arrowOf, ringTarget
 } from '../src/sim/battle.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
@@ -141,19 +141,24 @@ test('only fielded souls with HP fight', () => {
   assert.deepEqual(b.units.filter((u) => u.side === 'party').map((u) => u.uid).sort(), [1, 2])
 })
 
-test('every step is a foe\'s, a legal one onto a tile free in its layer, one a step clock: a walker on its road, a flyer nearer the Monarch; your pieces never step', () => boardOf(5, () => {
+test('every step is a foe\'s, a legal one onto a tile free in its layer, one a step clock: a walker on its road (or round a comrade of the other kind, nearer by it), a flyer on the air road and never onto a piece of yours; your pieces never step', () => boardOf(5, () => {
   let roads = 0
   let flights = 0
   for (let i = 0; i < 60; i++) {
     const b = fresh('walk' + i, 1 + (i % 4), { monarch: i % 3 === 0, arise: 1 + i % 2, army: i % 4 === 1 ? 3 : 0 })
     const walk = fieldOf(b)
+    const air = airOf(b)
     const tile = new Map(b.units.map((u) => [u.uid, u.tile]))
     const last = new Map()
     const dead = new Set()
     // Who holds tile t on the ground, or in the air (`flies`): a flyer and a ground unit may share one.
     const holder = (t, flies) => b.units.find((x) => !dead.has(x.uid) && tile.get(x.uid) === t && !!x.flies === flies)
     while (!b.over) {
-      for (const e of stepBattle(b)) {
+      // A loop of foes steps at once, each onto the next one's tile (battle.js rotate): a tile is free for a step if
+      // whoever held it steps away this tick too, and no two units share a tile in a layer once the tick is done.
+      const evs = stepBattle(b)
+      const moving = new Set(evs.filter((e) => e.type === 'move').map((e) => e.actor))
+      for (const e of evs) {
         if (e.type === 'death') dead.add(e.target)
         if (e.type === 'rise') dead.delete(e.target)
         if (e.type === 'arise' || e.type === 'enter') {
@@ -166,21 +171,24 @@ test('every step is a foe\'s, a legal one onto a tile free in its layer, one a s
         const where = `seed ${i} t ${e.t}: ${u.id} ${e.from}→${e.to}`
         assert.equal(u.side, 'foe', `${where}: one of yours stepped`)
         assert.equal(tile.get(u.uid), e.from)
-        assert.ok(!holder(e.to, u.flies), `${where}: onto a body`)
+        const there = holder(e.to, u.flies)
+        assert.ok(!there || moving.has(there.uid), `${where}: onto a body`)
         assert.ok(!last.has(u.uid) || e.t - last.get(u.uid) >= u.every, `${where}: stepped again too soon`)
         last.set(u.uid, e.t)
         if (u.flies) {
           assert.ok(NEIGHBOURS[e.from].includes(e.to) && distance(e.to, b.root) < distance(e.from, b.root), `${where}: no nearer the Monarch`)
+          assert.equal(e.to, air.arrow[e.from], `${where}: off the air road`)
+          assert.ok(!b.units.some((x) => x.side === 'party' && !dead.has(x.uid) && !x.flies && footprint(tile.get(x.uid), x.size).includes(e.to)), `${where}: through a piece of yours`)
           flights++
         } else {
           assert.ok(steps(e.from, b.walls).includes(e.to), `${where}: into or past a wall`)
-          if (u.behaviour === 'walk') assert.equal(e.to, walk.arrow[e.from], `${where}: off its road`)
+          if (u.behaviour === 'walk' && e.to !== walk.arrow[e.from]) assert.ok(walk.dist[e.to] < walk.dist[e.from], `${where}: off its road, and no nearer by it`)
           roads++
         }
         tile.set(u.uid, e.to)
-        const held = b.units.filter((x) => !dead.has(x.uid)).map((x) => `${tile.get(x.uid)}${x.flies ? ' air' : ''}`)
-        assert.equal(new Set(held).size, held.length, `${where}: two units on one tile in one layer`)
       }
+      const held = b.units.filter((x) => !dead.has(x.uid)).map((x) => `${tile.get(x.uid)}${x.flies ? ' air' : ''}`)
+      assert.equal(new Set(held).size, held.length, `seed ${i} t ${b.t}: two units on one tile in one layer`)
     }
     for (const u of b.units) if (u.side === 'party') assert.equal(u.tile, tile.get(u.uid), `seed ${i}: ${u.id} moved`)
   }
@@ -983,45 +991,32 @@ test('a 2×2 piece blocks the Flank field two wide: a gap it fills is shut, and 
 
 // ── flyers (DESIGN §2.4) ─────────────────────────────────────────────────────────────────────────
 
-test('a flyer flies over the walls straight at the Monarch: each step to the free tile beside it nearest the Monarch, ties in the arrows\' order', () => {
-  // A wall across the board at y 5: no road reaches the foes' rows. A Hive Drone at (3, 9) flies down the centre lane,
-  // over the wall, to beside the Monarch at (3, 0), and strikes it.
+test('the air road: the roads flooded from the Monarch over every tile, walls and all, a flyer\'s road; your aim at a flyer reads it', () => {
+  // A wall across the board at y 5: no road for a walker reaches the foes' rows, and the air road reaches every tile,
+  // each its Chebyshev distance from the Monarch, every arrow a step nearer, the walls' tiles among them.
   const walls = [...Array(7).keys()].map((x) => tileAt(x, 5))
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('hive_drone', 10, 'foe', 3, 9, 1)], { moving: [10], walls })
-  const drone = b.byUid.get(10)
-  assert.ok(drone.flies)
-  assert.equal(fieldOf(b).dist[drone.tile], Infinity, 'no road for a walker')
-  const path = []
-  let over = false
-  while (!b.over && b.t < 1000 && distance(drone.tile, b.monarch.tile) > drone.ring) {
-    const to = flyStep(b, drone)
-    for (const e of moves(stepBattle(b), 10)) {
-      assert.equal(e.to, to)
-      path.push(e.to)
-    }
-    over ||= b.walls.has(drone.tile)
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('hive_drone', 10, 'foe', 3, 9, 1)], { walls })
+  const air = airOf(b)
+  assert.equal(airOf(b), air, 'made once')
+  assert.equal(fieldOf(b).dist[tileAt(3, 9)], Infinity, 'no road for a walker')
+  for (let t = 0; t < TILES; t++) {
+    assert.equal(air.dist[t], distance(t, b.root), `tile ${t}`)
+    if (t !== b.root) assert.ok(NEIGHBOURS[t].includes(air.arrow[t]) && air.dist[air.arrow[t]] === air.dist[t] - 1, `tile ${t}`)
   }
-  assert.deepEqual(path, [8, 7, 6, 5, 4, 3, 2, 1].map((y) => tileAt(3, y)), 'straight down its lane')
-  assert.ok(over, 'hovering over the wall on the way')
-  while (!b.over && b.t < 1500 && !b.events.some((e) => e.type === 'action' && e.actor === 10)) stepBattle(b)
-  assert.ok(b.events.some((e) => e.type === 'action' && e.actor === 10 && e.targets.includes(0)), 'and it strikes the Monarch')
-  // Your pieces on the ground never hold it back; with every tile beside it that is nearer held in the air (flyers of
-  // yours), it waits.
-  const under = scene([on('monarch', 0, 'party', 3, 0), ...[2, 3, 4].map((x) => on('tomb_knight', x, 'party', x, 1)), on('hive_drone', 10, 'foe', 3, 2, 1)])
-  assert.equal(flyStep(under, under.byUid.get(10)), tileAt(3, 1))
-  const held = scene([on('monarch', 0, 'party', 3, 0), ...[2, 3, 4].map((x) => on('hive_drone', x, 'party', x, 1)), on('hive_drone', 10, 'foe', 3, 2, 1)])
-  assert.equal(flyStep(held, held.byUid.get(10)), -1)
-  // Your aim at a flyer reads its distance to the Monarch as its road: a Drone hovering over a wall at (2, 4), four from
-  // the Monarch, comes before a Ghoul at (5, 5), five along its road.
+  assert.deepEqual(air, field({ root: b.root }), 'the roads with no walls')
+  assert.equal(arrowOf(b, b.byUid.get(10)), tileAt(3, 8), 'a flyer\'s road')
+  // Your aim at a flyer reads its air road as its road: a Drone hovering over a wall at (2, 4), four from the Monarch,
+  // comes before a Ghoul at (5, 5), five along its road.
   const aim = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 3, 3), on('hive_drone', 10, 'foe', 2, 4, 1), on('grave_ghoul', 11, 'foe', 5, 5, 1)],
     { walls: [tileAt(2, 4)] })
-  assert.deepEqual([fieldOf(aim).dist[tileAt(2, 4)], fieldOf(aim).dist[tileAt(5, 5)]], [Infinity, 5])
+  assert.deepEqual([fieldOf(aim).dist[tileAt(2, 4)], airOf(aim).dist[tileAt(2, 4)], fieldOf(aim).dist[tileAt(5, 5)]], [Infinity, 4, 5])
   assert.equal(ringTarget(aim, aim.byUid.get(1)).uid, 10)
 })
 
 test('a melee blow never strikes a flyer, a ranged one does: a ring holding only flyers reads empty to a melee piece', () => {
-  // A Hive Drone beside a Tomb Knight of yours and a Frost Sprite, halted by the Sprite's ranged ring.
-  const b = scene([on('tomb_knight', 1, 'party', 3, 3, 9), on('frost_sprite', 2, 'party', 4, 3, 9), on('hive_drone', 10, 'foe', 3, 4, 9)])
+  // A Hive Drone beside a Tomb Knight of yours and a Frost Sprite, off its air road (it runs down lane 3 to the camp's
+  // rear middle), halted by the Sprite's ranged ring.
+  const b = scene([on('tomb_knight', 1, 'party', 2, 3, 9), on('frost_sprite', 2, 'party', 4, 3, 9), on('hive_drone', 10, 'foe', 3, 4, 9)])
   const [knight, sprite] = [1, 2].map((uid) => b.byUid.get(uid))
   assert.deepEqual([holdOf(knight).air, holdOf(sprite).air], [-1, 3], 'what each can strike in the air')
   assert.equal(ringTarget(b, knight), null, 'its ring reads empty')
@@ -1033,7 +1028,7 @@ test('a melee blow never strikes a flyer, a ranged one does: a ring holding only
   assert.ok(b.events.some((e) => e.type === 'action' && e.actor === 10 && e.targets.includes(2)), 'the flyer strikes back at the Sprite that shot it')
   assert.ok(!b.events.some((e) => e.type === 'action' && e.actor === 10 && e.targets.includes(1)), 'never at the knight, which never could')
   // With a Ghoul beside the knight too, in the Drone's row, the knight's blows (its Cleave strikes the whole row) fall on
-  // the Ghoul alone.
+  // the Ghoul alone (the Drone, its way down lane 3 held by the knight, stings it, and is never struck back).
   const both = scene([on('tomb_knight', 1, 'party', 3, 3, 9), on('grave_ghoul', 11, 'foe', 2, 4, 9), on('hive_drone', 10, 'foe', 3, 4, 9)])
   let blows = 0
   while (!both.over && both.t < 600 && blows < 3) {
@@ -1063,7 +1058,7 @@ test('flyers hold the air: a flyer and a ground unit share a tile and never bloc
   }
   assert.ok(under, 'the Mantis stands under the drone')
   assert.deepEqual([b.at[drone.tile], b.sky[drone.tile]], [mantis, drone])
-  // A foe flyer enters over a foe standing on its tile at the top edge, and flies over your ground pieces.
+  // A foe flyer enters over a foe standing on its tile at the top edge.
   const top = deployTile('foe', slotAt(ROWS - 1, 3))
   const sky = scene([on('monarch', 0, 'party', 3, 0), on('iron_golem', 50, 'foe', 3, 10, 1)],
     { reserve: [{ ...makeUnit('hive_drone', { uid: 60, lvl: 1 }), side: 'foe', lane: 3, when: { at: 'time', t: 0 } }] })

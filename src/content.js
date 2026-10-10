@@ -15,13 +15,13 @@
 // can strike it (its ring, as far as its blows that need no condition reach), once it can strike something of yours
 // from there (unit.js holdOf, battle.js wayOf). `stride`
 // (optional, 1 by default) scales how fast a foe of the kind walks: 0.5 and 0.75 for the slow, 1.5 for the quick
-// (your pieces never move). `size` (optional, 1 by default): 2 for a 2×2 footprint (DESIGN §2.2). `flies`: it keeps
-// no road and only a ranged blow can strike it (DESIGN §2.4 Fly). `onFall`: a death burst, its effects run from
-// where it fell on the other side's living within `range`. `fused`: a fusion's result (FUSION_LIST), never spawned
-// nor recruited, so no threats nor behaviour. Each kind does one legible thing on the board. `behaviour`: how it walks
-// the roads as a foe (BEHAVIOURS), learnt by meeting it: a few kinds whose nature is to go round Flank, and carry
-// the `flank` threat, and the flyers, which carry `fly`; `flavour`: a line of lore that hints at it, never naming
-// it.
+// (your pieces never move). `size` (optional, 1 by default): 2 for a 2×2 footprint (DESIGN §2.2). `flies`: it flies
+// the air road, over the walls but never through your pieces, and only a ranged blow can strike it (DESIGN §2.4 Fly).
+// `onFall`: a death burst, its effects run from where it fell on the other side's living within `range`. `fused`: a
+// fusion's result (FUSION_LIST), never spawned nor recruited, so no threats nor behaviour. Each kind does one legible
+// thing on the board. `behaviour`: how it walks the roads as a foe (BEHAVIOURS), learnt by meeting it: a few kinds
+// whose nature is to go round Flank, and carry the `flank` threat, and the flyers, which carry `fly`; `flavour`: a line
+// of lore that hints at it, never naming it.
 
 export const UNIT_LIST = [
   {
@@ -292,7 +292,8 @@ export const UNIT_LIST = [
     art: 'pyre_hound'
   },
   {
-    // The flyer of floor 2 (DESIGN §2.4 Fly): over the walls, straight at the Monarch; only a ranged blow touches it.
+    // The flyer of floor 2 (DESIGN §2.4 Fly): over the walls, straight at the Monarch, never through your pieces; only a
+    // ranged blow touches it.
     id: 'hive_drone',
     name: 'Hive Drone',
     kin: 'insect',
@@ -306,7 +307,7 @@ export const UNIT_LIST = [
     spawn: { weight: 10, minFloor: 2 },
     threats: ['fly'],
     behaviour: 'fly',
-    flavour: 'Walls mean nothing to a drone: the hive points, and it goes there by the shortest air.',
+    flavour: 'Walls mean nothing to a drone: the hive points, and it goes there by the shortest air, and stings whatever stands in it.',
     art: 'hive_drone'
   },
   {
@@ -346,7 +347,7 @@ export const UNIT_LIST = [
     art: 'marsh_hag'
   },
   {
-    // The flying burner of floor 3: over the walls, and its breath leaves Burning on a crowd.
+    // The flying burner of floor 3: over the walls, never through your pieces, and its breath leaves Burning on a crowd.
     id: 'ash_wyvern',
     name: 'Ash Wyvern',
     kin: 'drake',
@@ -477,9 +478,9 @@ export const UNIT_LIST = [
 // same in words for tooltips. The AI banks gauge for the first ability whose `when` passes and that
 // has a target in reach, so gates keep pricey ones reachable. Reach, from the caster's footprint: melee hits
 // the tiles around (yours its own `range` where it has one, else its kind's arm, 2 for a long arm; a foe's melee only
-// what blocks it, the Monarch beside it, and a piece beside it that struck it: battle.js closeIn) and never a flyer,
-// `range` is in tiles, and ally abilities and `all` without a range reach the whole board. A blow never reaches past
-// the caster's ring.
+// what blocks it, the Monarch beside it, and a piece beside it that struck it: battle.js closeIn) and never a flyer
+// unless the caster flies too, `range` is in tiles, and ally abilities and `all` without a range reach the whole
+// board. A blow never reaches past the caster's ring.
 const hpPct = (u) => u.hp / u.maxHp
 // The units of a list within r tiles of the caster (the view's `dist`): a tier IV's area condition reads
 // only what its area reaches, so a soul never banks for a cast that would touch no one it was meant for.
@@ -2038,9 +2039,10 @@ export const BEHAVIOURS = {
   walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch, doing nothing else, until it can strike something of yours from inside one of your rings, or something stands in its way; there it halts and fights. Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' },
   // Which kinds Flank is learnt by meeting them; the text only says what it does.
   flank: { name: 'Flank', desc: 'Heeds none of your rings: it walks round your pieces to the Monarch where a way round is open, and halts once its blows reach the Monarch from where it stands, or something stands in its way; it strikes nothing but the Monarch and what stands in its path. Where no way round is open, it walks the arrows until a piece of yours stands in its way.' },
-  // A flyer keeps no road and no wall stops it; only a ranged blow can touch it, so only a ranged ring (or the
-  // Monarch's) may halt it, and only where it can strike back.
-  fly: { name: 'Fly', desc: 'Flies over walls and pieces alike, each step onto the free tile nearest the Monarch, and may hover over a wall. Only a ranged blow can strike it, so only a ranged ring (or the Monarch\'s) may halt it, and only where its own blows reach something of yours.' }
+  // A flyer flies the air road (battle.js airOf): no wall stops it, but a piece of yours in its way does, and it never
+  // goes round. Only a ranged blow can touch it, so only a ranged ring (or the Monarch's) may halt it in your rings, and
+  // only where it can strike back.
+  fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls, and may hover over one, but never through your pieces: one of yours in its way, on the ground or in the air, holds it there, and it never goes round. Only a ranged blow can strike it, so in your rings only a ranged ring (or the Monarch\'s) may halt it, and only where its own blows reach something of yours. Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' }
 }
 
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
@@ -2051,7 +2053,7 @@ export const THREATS = {
   shape: { name: 'Shape', desc: 'Hits a whole row, lane or crowd at once.' },
   drain: { name: 'Drain', desc: 'Saps gauge or rots defence.' },
   clock: { name: 'Clock', desc: 'Drags a fight on into escalation.' },
-  fly: { name: 'Fly', desc: 'Comes over the walls, and only a ranged blow can touch it.' },
+  fly: { name: 'Fly', desc: 'Comes over the walls, never through your pieces, and only a ranged blow can touch it.' },
   burn: { name: 'Burn', desc: 'Leaves a fire that keeps hurting after the blow.' },
   // A room's, not a kind's: more foes enter behind the first (a late pair, waves).
   depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' }

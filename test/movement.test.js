@@ -1,19 +1,20 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stepBattle, field, fieldOf, sight, stopLine, ringTarget } from '../src/sim/battle.js'
+import { stepBattle, field, fieldOf, airOf, sight, stopLine, ringTarget, arrowOf } from '../src/sim/battle.js'
 import {
   makeUnit, tileAt, tileX, tileY, DEPTH, ROWS, TILES, distance, holdOf, ringOf, sizeOf, fits, footprintSlots,
   distanceBetween, deployTile, monarchSlot, wallTiles, unitDistance, armOf
 } from '../src/sim/unit.js'
 import { CAMP_LIST } from '../src/content.js'
 import { frontier, START_PARTY } from '../src/sim/run.js'
-import { on, scene, moves, actions } from './scene.js'
+import { on, scene, moves, actions, slay } from './scene.js'
 
-// How a foe comes at you (DESIGN §2.3–§2.4): it walks its road, doing nothing else, until it halts where it can hit
-// back: in a ring of yours that can strike it (a flyer only a ranged ring; the Monarch's ring of 1 holds anything)
-// once one of its blows has a target there, a Flank kind once its blows reach the Monarch, or with its next tile held
-// (by a comrade, only one halted itself); halted, it fights, its melee reaching only the piece in its way, the
-// Monarch, and a piece beside it that struck it. Your melee reaches 1, or 2 for a long arm.
+// How a foe comes at you (DESIGN §2.3–§2.4): it walks its road (a flyer the air road, over the walls), doing nothing
+// else, until it halts where it can hit back: in a ring of yours that can strike it (a flyer only a ranged ring; the
+// Monarch's ring of 1 holds anything) once one of its blows has a target there, a Flank kind once its blows reach the
+// Monarch, or with its next tile held (a flyer's by a piece of yours, ground or air, or a flyer; by a comrade, only one
+// halted itself); halted, it fights, its melee reaching only the piece in its way, the Monarch, and a piece beside it
+// that struck it. Your melee reaches 1, or 2 for a long arm.
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ test('a piece sees only as far as its blows that need no condition reach: no sho
   assert.deepEqual(holdOf(wyrm), { ground: 3, air: 3 })
   assert.deepEqual(holdOf({ id: 'thorn_dryad', tracks: [0, 4] }), { ground: 1, air: -1 })
   assert.deepEqual(holdOf({ id: 'rot_bloat', tracks: [0, 4] }), { ground: 1, air: -1 })
-  assert.deepEqual(holdOf({ id: 'ash_wyvern', tracks: [4, 0] }), { ground: 1, air: -1 }, 'its only ranged blow needs 2+ foes')
+  assert.deepEqual(holdOf({ id: 'ash_wyvern', tracks: [4, 0] }), { ground: 1, air: 1 }, 'its only ranged blow needs 2+ foes: it holds by its Strike, which a flyer\'s reaches up as well as down')
   assert.deepEqual(holdOf({ id: 'ash_wyvern', tracks: [3, 0] }), { ground: 3, air: 3 })
   // The stall it was: a Wyrm of yours at (3, 2), the Monarch at (3, 0), and a foe Bone Chanter (its reach 4) down the
   // centre lane. At (3, 6) it has the Wyrm in its reach, and the Wyrm's ring covers it, but only Killing Cold reaches
@@ -276,26 +277,106 @@ test('a Flank kind walks through your rings: it halts once its blows reach the M
   assert.ok(steps.every((e) => e.t <= actions(b.events, 10)[0].t))
 })
 
-test('a flyer flies on past your rings to the Monarch, and halts only where it can strike back', () => {
-  // A Hive Drone flies down the centre lane over a Tomb Knight of yours at (3, 5): the knight's melee ring never holds
-  // it, and it halts only beside the Monarch, never over the seat, and strikes it there.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5, 9), on('hive_drone', 10, 'foe', 3, 10, 9)], { moving: [10] })
+test('a flyer flies the air road over the walls: each step its arrow, hovering over a wall on the way, to the Monarch', () => {
+  // A wall across the board at y 5: no road reaches the foes' rows. A Hive Drone flies down the centre lane by the air
+  // road (airOf: the roads flooded over every tile, walls and all), over the wall, to beside the Monarch at (3, 0), and
+  // strikes it there.
+  const walls = [...Array(7).keys()].map((x) => tileAt(x, 5))
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('hive_drone', 10, 'foe', 3, 9, 1)], { moving: [10], walls })
+  assert.equal(fieldOf(b).dist[tileAt(3, 9)], Infinity, 'no road for a walker')
   until(b, () => actions(b.events, 10).length > 0)
-  assert.deepEqual(moves(b.events, 10).map((e) => e.to), [9, 8, 7, 6, 5, 4, 3, 2, 1].map((y) => tileAt(3, y)), 'over the knight, on to the Monarch')
+  const path = moves(b.events, 10)
+  assert.deepEqual(path.map((e) => e.to), [8, 7, 6, 5, 4, 3, 2, 1].map((y) => tileAt(3, y)), 'straight down its lane')
+  assert.ok(path.every((e) => e.to === airOf(b).arrow[e.from]), 'each step the air road\'s arrow')
+  assert.ok(path.some((e) => walls.includes(e.to)), 'hovering over the wall on the way')
   assert.deepEqual(actions(b.events, 10)[0].targets, [0])
+})
+
+test('a flyer is blocked by a piece of yours on its air road: it halts there and strikes it; a melee blocker cannot strike it back, a ranged piece can', () => {
+  // A Tomb Knight of yours at (3, 5), on the air road down the centre lane, and a Frost Sprite of yours at (0, 3), whose
+  // reach (3) takes in (3, 6) and nothing of the lane above it. A Hive Drone flies down from the top edge: nothing that
+  // can strike it holds it on the way (the Knight's melee never touches a flyer), but at (3, 6) the Knight holds its
+  // next tile, and it halts there and stings the Knight. The Knight, beside it all the while, never strikes it: the
+  // Sprite shoots it down.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5, 9), on('frost_sprite', 2, 'party', 0, 3, 3),
+    on('hive_drone', 10, 'foe', 3, 10, 3)], { moving: [10] })
+  until(b, () => b.byUid.get(10).hp <= 0, 3000)
+  const path = moves(b.events, 10)
+  assert.deepEqual(path.map((e) => e.to), [9, 8, 7, 6].map((y) => tileAt(3, y)), 'held before the Knight')
+  const stings = actions(b.events, 10)
+  assert.ok(stings.length > 0 && stings.every((e) => e.t > path.at(-1).t && e.targets[0] === 1), 'it stings the Knight in its way')
+  assert.deepEqual(actions(b.events, 1), [], 'the Knight never strikes it')
+  assert.ok(actions(b.events, 2).length > 0 && actions(b.events, 2).every((e) => e.targets[0] === 10), 'the Sprite shoots it')
+  assert.equal(b.events.find((e) => e.type === 'death' && e.target === 10)?.actor, 2, 'and brings it down')
+})
+
+test('a flyer queues behind a foe flyer in its way: behind one halted it stands, and flies on once the way clears', () => {
+  // Two Hive Drones down the centre lane at a Tomb Knight of yours at (3, 5): the first halts at (3, 6), blocked by the
+  // Knight, and stings it; the second comes up behind it to (3, 7), its next tile held in the air by its comrade, and
+  // stands there, with nothing of yours beside it to sting. Once the first falls it flies on to (3, 6), and stings the
+  // Knight in its turn.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5, 9), on('hive_drone', 10, 'foe', 3, 9, 3),
+    on('hive_drone', 11, 'foe', 3, 10, 3)], { moving: [10, 11] })
+  until(b, () => actions(b.events, 10).length >= 2)
   until(b, () => false, b.t + 100)
-  assert.equal(b.byUid.get(10).tile, tileAt(3, 1), 'held beside the Monarch, though the air over the seat is free')
-  // A Frost Sprite of yours at (5, 5), two lanes off: its ranged ring (3) holds the air the Drone flies through, and it
-  // shoots the Drone, but nothing of yours is ever beside it to strike back at: it flies on to the Monarch.
+  assert.deepEqual([b.byUid.get(10).tile, b.byUid.get(11).tile], [tileAt(3, 6), tileAt(3, 7)])
+  assert.deepEqual(actions(b.events, 11), [], 'the one behind never acted')
+  const t = b.t
+  slay(b, b.byUid.get(10))
+  until(b, () => actions(b.events, 11).length > 0, t + 600)
+  assert.deepEqual(moves(b.events, 11).filter((e) => e.t >= t).map((e) => e.to), [tileAt(3, 6)])
+  assert.ok(actions(b.events, 11).every((e) => e.targets[0] === 1))
+})
+
+test('a ground foe and a flyer never block each other: a drone flies over a comrade standing on its road, a walker walks under one hovering on its', () => {
+  // A Hive Drone flies down the centre lane over an Iron Golem standing at (3, 6), and on to the Monarch.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('iron_golem', 20, 'foe', 3, 6, 1), on('hive_drone', 10, 'foe', 3, 10, 3)], { moving: [10] })
+  until(b, () => actions(b.events, 10).length > 0)
+  assert.deepEqual(moves(b.events, 10).map((e) => e.to), [9, 8, 7, 6, 5, 4, 3, 2, 1].map((y) => tileAt(3, y)))
+  // A Grave Ghoul walks the same lane under a Hive Drone hovering at (3, 6), and on to the Monarch.
+  const w = scene([on('monarch', 0, 'party', 3, 0), on('hive_drone', 20, 'foe', 3, 6, 1), on('grave_ghoul', 10, 'foe', 3, 10, 3)], { moving: [10] })
+  until(w, () => actions(w.events, 10).length > 0)
+  assert.deepEqual(moves(w.events, 10).map((e) => e.to), [9, 8, 7, 6, 5, 4, 3, 2, 1].map((y) => tileAt(3, y)))
+})
+
+test('a flyer halts in a ranged ring only where it can strike back', () => {
+  // A Frost Sprite of yours at (5, 5), two lanes off the air road: its ranged ring (3) holds the air the Drone flies
+  // through, and it shoots the Drone, but nothing of yours is ever beside it to strike back at: it flies on to the
+  // Monarch, halts beside it, never over the seat, and strikes it there.
   const r = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 5, 5, 1), on('hive_drone', 10, 'foe', 3, 10, 9)], { moving: [10] })
   until(r, () => actions(r.events, 10).length > 0)
   const hit = r.events.find((e) => e.type === 'damage' && e.target === 10)
   assert.ok(hit && moves(r.events, 10).some((e) => e.t > hit.t), 'struck, and flying on')
   assert.deepEqual([r.byUid.get(10).tile, actions(r.events, 10)[0].targets], [tileAt(3, 1), [0]])
-  // The Sprite on its line, at (3, 5): it shoots the Drone, which halts as it comes beside it, at (3, 6), and stings it.
-  const s = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 3, 5, 1), on('hive_drone', 10, 'foe', 3, 10, 9)], { moving: [10] })
+  until(r, () => false, r.t + 100)
+  assert.equal(r.byUid.get(10).tile, tileAt(3, 1), 'held beside the Monarch')
+  // The Sprite beside the air road, at (4, 5): it shoots the Drone, which halts as it comes beside it, at (3, 6), its
+  // way still open, and stings it.
+  const s = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 4, 5, 1), on('hive_drone', 10, 'foe', 3, 10, 9)], { moving: [10] })
   until(s, () => actions(s.events, 10).length > 0)
   assert.deepEqual([s.byUid.get(10).tile, actions(s.events, 10)[0].targets], [tileAt(3, 6), [1]])
+  assert.equal(airOf(s).arrow[tileAt(3, 6)], tileAt(3, 5))
+})
+
+test('a flyer of yours blocks a foe flyer as any piece of yours does, and the two meet in the air; melee from the ground never reaches up', () => {
+  // A shadow Hive Drone of yours hovers at (3, 4), on the air road down the centre lane. A foe Hive Drone flies down to
+  // (3, 5) and is held there, and stings the shadow in its way: a flyer's melee meets a flyer in the air. The shadow,
+  // a flyer too, stings it back.
+  const shadow = { ...on('hive_drone', 1, 'party', 3, 4, 3), shadow: true }
+  const b = scene([on('monarch', 0, 'party', 3, 0), shadow, on('hive_drone', 10, 'foe', 3, 10, 3)], { moving: [10] })
+  until(b, () => actions(b.events, 10).length > 0 && actions(b.events, 1).length > 0, 400)
+  assert.deepEqual(moves(b.events, 10).map((e) => e.to), [9, 8, 7, 6, 5].map((y) => tileAt(3, y)))
+  assert.deepEqual([actions(b.events, 10)[0].targets, actions(b.events, 1)[0].targets], [[1], [10]])
+  // A Tomb Knight on the ground in the drone's way holds it as well, stung, but never reaches up to strike it.
+  const k = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 4, 3), on('hive_drone', 10, 'foe', 3, 10, 3)], { moving: [10] })
+  until(k, () => actions(k.events, 10).length > 0, 400)
+  until(k, () => false, 200)
+  assert.equal(k.byUid.get(10).tile, tileAt(3, 5))
+  assert.deepEqual([actions(k.events, 10)[0].targets, actions(k.events, 1)], [[1], []])
+  // An Ash Wyvern held so breathes its fire on the shadow (a ranged blow touches a flyer).
+  const w = scene([on('monarch', 0, 'party', 3, 0), shadow, on('ash_wyvern', 10, 'foe', 3, 10, 3)], { moving: [10] })
+  until(w, () => actions(w.events, 10).length > 0)
+  assert.deepEqual([w.byUid.get(10).tile, actions(w.events, 10)[0].targets[0]], [tileAt(3, 5), 1])
 })
 
 test('the Monarch\'s ring of 1 halts a foe beside it, on the ground too', () => {
@@ -407,4 +488,35 @@ test('yours aim at the foe furthest along its own road: a Flank kind\'s is the w
   const flank = fieldOf(b, true).dist
   assert.ok(walk[wisp.tile] < walk[knight.tile] && walk[knight.tile] < flank[wisp.tile])
   assert.equal(ringTarget(b, b.units.find((u) => u.uid === 4)), knight)
+})
+
+test('walkers and flankers never jam each other: a foe held up by a comrade of the other kind steps round it; one kind\'s queue stays a queue', () => {
+  // A Will-o'-Wisp (Flank, reach 4) stands four tiles before the Monarch and halts there to shoot it, on the Walk road
+  // down the centre lane. The Grave Ghoul behind it steps round it, onto a free tile nearer by its own road.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('will_o_wisp', 10, 'foe', 3, 4), on('grave_ghoul', 11, 'foe', 3, 5)], { moving: [11] })
+  until(b, () => moves(b.events, 11).length > 0, 60)
+  const walk = fieldOf(b).dist
+  const first = moves(b.events, 11)[0]
+  assert.ok(first, 'the Ghoul steps round the Wisp')
+  assert.ok(walk[first.to] < walk[tileAt(3, 5)] && first.to !== tileAt(3, 4))
+  // Two Ghouls, the first halted fighting a Tomb Knight in its way: the second waits behind it, and never steps round.
+  const q = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('grave_ghoul', 10, 'foe', 3, 4), on('grave_ghoul', 11, 'foe', 3, 5)], { moving: [10, 11] })
+  until(q, () => false, 150)
+  assert.deepEqual(moves(q.events, 11), [])
+})
+
+test('foes standing each in the next one\'s way change places: a Walk foe and a Flank foe on two roads never stand stuck for good', () => {
+  // A walled corridor down the centre lane to a Tomb Knight before the Monarch. The Walk road runs down it through the
+  // Knight; the Flank road, the Knight a wall to it, leads back out of the corridor and round. A Mantis Reaper (Flank)
+  // at (3, 2) and a Grave Ghoul (Walk) at (3, 3) each hold the other's next tile: they change places, and the Ghoul,
+  // now before the Knight, fights it.
+  const walls = [[2, 1], [2, 2], [2, 3], [4, 1], [4, 2], [4, 3]].map(([x, y]) => tileAt(x, y))
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 1), on('mantis_reaper', 10, 'foe', 3, 2), on('grave_ghoul', 11, 'foe', 3, 3)], { moving: [10, 11], walls })
+  const [mantis, ghoul] = [10, 11].map((uid) => b.byUid.get(uid))
+  assert.deepEqual([arrowOf(b, mantis), arrowOf(b, ghoul)], [tileAt(3, 3), tileAt(3, 2)], 'each in the other\'s way')
+  until(b, () => moves(b.events, 10).length > 0 && moves(b.events, 11).length > 0, 60)
+  assert.deepEqual([moves(b.events, 10)[0]?.to, moves(b.events, 11)[0]?.to], [tileAt(3, 3), tileAt(3, 2)])
+  assert.deepEqual([b.at[tileAt(3, 3)], b.at[tileAt(3, 2)]], [mantis, ghoul])
+  until(b, () => actions(b.events, 11).length > 0, 200)
+  assert.deepEqual(actions(b.events, 11)[0].targets, [1])
 })
