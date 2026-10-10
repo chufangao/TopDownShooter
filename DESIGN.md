@@ -23,8 +23,9 @@ Placement has to be a puzzle, or the game is a shop. It is one because the roads
 camp's, fixed and drawn before you place anything, and every foe on the ground walks the road the board draws;
 because a ring covers some road tiles and not others; because Shape blows punish pieces that bunch while auras reward
 it; because a 2×2 piece needs four open cells and plugs a two-wide breach alone; because flying foes come straight
-over the walls, held only by a piece in their way, and only a ranged blow can touch them; and because Burning and
-Hexed punish the piece that fights longest. Every one of those is a rule you can read on a card or on the board.
+over the walls, held only by a piece in their way, and only a ranged blow or a flyer's melee can touch them; and
+because Burning and Hexed punish the piece that fights longest. Every one of those is a rule you can read on a card
+or on the board.
 
 Power has to come from combos you build, or upgrading is a stat ladder. It comes from **fusions**, recipes that
 consume specific souls and give one much stronger piece, usually 2×2; from **Colossus tiers**, a kind's tier IV
@@ -72,6 +73,16 @@ Reversed here, from the morning:
   Nothing stacks by itself. A 2×2 piece stacks like any other: footprint and count are independent.
 - A stack's HP pool is count × body HP; its damage is living bodies × body damage, living bodies being
   ⌈hp ÷ body HP⌉. Any hit that lands on the piece lands on the pool once, a Shape hit too, whatever its footprint.
+- **A heal mends the living bodies only**: it never lifts a fallen body (only an altar raises the fallen, §2.6). So a
+  stack whose living bodies are whole has nothing to mend, however many of its bodies lie fallen, and **a heal counts
+  only the allies it can mend**, in its condition and in its aim: within its reach (anywhere under Sanctuary), their
+  living bodies not whole, never a Monarch nothing can heal (Court of Bone); one that also cleanses (Purge, Hive Mind)
+  counts an ally carrying a debuff it would strip (`helps` in `src/sim/battle.js`). Both sides' heals alike: a healer
+  with no one to mend strikes.
+- A soul whose kind's tiers add bodies (a **count tier**: `count` on a tier, Brood Mother II's six) fights with them
+  in its pool, whole, for that battle alone; they stand in front of its own bodies and fall first. **A body fallen
+  before a battle stays down after it**, whatever the added bodies leave in the pool: a piece keeps at most the
+  living bodies it came in with (`finishBattle` in `src/sim/run.js`).
 - **Command** is how many pieces you may field: the Monarch's base and its Command relics' (§2.6), never past the
   board's cap. The rest wait in the ossuary.
 - **A fallen piece leaves the field.** A piece whose every body fell in a battle goes to the ossuary as the battle
@@ -103,8 +114,9 @@ Every kind has a **ring**, a radius in tiles, drawn around the piece in prep.
   `src/sim/battle.js`). A ring-2 melee piece of a long arm strikes two tiles off without stepping. **A tier that grows
   the ring grows no arm**: the ring grows for the blow the tier teaches (Briar Lash, Phantom Edge, Miasma, a tier's
   "reaches N tiles", which the content test holds to the truth), and the kind's other melee blows reach as far as
-  they did. A melee blow cannot strike a **flying** foe (§2.4), so a melee ring never holds one, and a piece whose ring
-  holds only flyers it cannot strike treats its ring as empty (it still blocks a flyer whose way it stands in: §2.4).
+  they did. A melee blow from the ground cannot strike a **flying** foe (§2.4; a flyer's melee can), so a melee ring
+  on the ground never holds one, and a piece whose ring holds only flyers it cannot strike treats its ring as empty (it
+  still blocks a flyer whose way it stands in: §2.4).
 - **A foe has no melee reach.** Its melee blow strikes only the piece of yours on its next tile, the Monarch once
   beside it, and a piece of yours beside it (footprints counted) that has aimed a blow at it this battle, hit or
   miss: it strikes back at that one while both stand beside each other. A Shape blow still spreads from that target
@@ -152,14 +164,15 @@ Every kind has a **ring**, a radius in tiles, drawn around the piece in prep.
   - **Fly** (`flies: true`): walks the air road, over the walls (it may hover over one), **never through your
     pieces**. It is blocked as a walker is: a piece of yours on its next air-road tile, on the ground or in the air (a
     shadow of a flying kind too), holds it there, and it fights the blocker; a flyer of its own side there queues it,
-    as walkers queue. Only a ranged blow can strike it, so in your rings only a ranged ring (or the Monarch's) halts
-    it, and only where it can strike back (a Hive Drone: beside the Monarch, beside a piece of yours that shot it, or
-    before the piece that blocks it). A melee piece on the ground in its way holds it but cannot strike it, nor can a
-    ground foe's melee strike a flyer of yours: your ranged pieces bring it down. Melee from the ground never reaches
-    up; a flyer's melee meets a flyer in the air, either side's. Its own blows are its kind's. Flyers of either side
-    hold the air, not the ground: a flyer and a ground unit may share a tile, and a ground foe and a flyer never block
-    each other (nor does a flyer of yours block a walker: a walker's way is held only on the ground), but two flyers
-    never share a tile, nor two on the ground.
+    as walkers queue. **Only a ranged blow, or a flyer's melee, can strike it**: melee from the ground never reaches
+    up, while a flyer's melee meets a flyer in the air, either side's (`aloft` in `src/sim/battle.js`). So in your
+    rings only a ranged ring, a flyer's or the Monarch's halts it, and only where it can strike back (a Hive Drone:
+    beside the Monarch, beside a piece of yours that struck it, or before the piece that blocks it). A melee piece on
+    the ground in its way holds it but cannot strike it, nor can a ground foe's melee strike a flyer of yours: your
+    ranged pieces and your flyers bring it down. Its own blows are its kind's. Flyers of either side hold the air, not
+    the ground: a flyer and a ground unit may share a tile, and a ground foe and a flyer never block each other (nor
+    does a flyer of yours block a walker: a walker's way is held only on the ground), but two flyers never share a
+    tile, nor two on the ground.
 - **Statuses the foes bring**, on top of Brittle and Withered: **Burning** (a damage-over-time: `power` true
   damage per tick interval per stack, never missing, no DEF, no crit; up to 3 stacks) and **Hexed** (a slower
   gauge). Both are debuffs Purge and Molt cleanse. Your kinds can learn to inflict them too (tiers, fusions).
@@ -199,7 +212,8 @@ relic: one slain foe a battle, as a full soul into the ossuary.
   down buys less there.
 - **Wounds carry.** A won battle heals each living body `TUNING.run.postBattleHeal` of its HP (20% since 2026-10-10,
   §6; it was half), the Monarch too unless Court of Bone holds; an altar heals every body to full and raises the
-  fallen (`altarHeal`, `altarRevive`). So HP, DEF, Undying and Heartwood count between rooms.
+  fallen (`altarHeal`, `altarRevive`), and nothing else raises them (§2.2). So HP, DEF, Undying and Heartwood count
+  between rooms.
 - **Upgrades belong to the kind.** A kind's panel: **two tracks** of tiers I–IV with the crosspath rule (the first
   track past II may reach IV; the other stops at II). Tier IV is a rule, never a percentage: a new or remade ability,
   an aura, +ring, or **Colossus** (`size: 2`). Banner is gone.
@@ -287,14 +301,15 @@ a word to learn.
    has stopped; behind one still walking they only wait). Only then do they fight, and their melee reaches only what
    blocks them, the Monarch, or a piece beside them that struck them, so a melee foe walks on through your rings to
    the first of those. Every foe on the ground keeps to the arrows; a Fly kind flies straight at the Monarch over the
-   walls but never through your pieces: one in its way holds it, though only a ranged blow can strike it. Which kinds
-   fly is learnt by meeting them, and the bestiary keeps it.
+   walls but never through your pieces: one in its way holds it, though only a ranged blow, or a flyer's melee, can
+   strike it. Which kinds fly is learnt by meeting them, and the bestiary keeps it.
 3. **The roads and the seat are the camp's**, drawn before you place anything. **Coverage**: in prep every road
-   tile is shaded by how many of your rings cover it (melee rings count; they cannot reach a flyer, which the
-   bestiary will have told you). **The stop line**: a bar on each road tile where a walker first comes under one of
-   your rings, the Monarch's among them (`stopLine` in `src/sim/battle.js`): the earliest a walker can halt, never
-   that it will (a melee walker passes the bars to what blocks it). It previews nothing of any foe's own: what a
-   kind does there is learnt by meeting it.
+   tile is shaded by how many of your rings cover it (melee rings count, though one on the ground cannot reach a
+   flyer, which the bestiary will have told you). **The stop line**: a bar on each road tile where a walker first
+   comes under one of your rings, the Monarch's among them (`stopLine` in `src/sim/battle.js`): the earliest it can
+   halt in them, never that it will (a melee walker passes the bars to what blocks it; a ranged one queued behind a
+   stopped comrade halts and shoots before it reaches them). It previews nothing of any foe's own: what a kind does
+   there is learnt by meeting it.
 4. **The fallen leave the field.** A piece that falls whole goes to the ossuary as the battle ends, its cell and its
    Command free, and stays there until an altar raises it.
 
@@ -318,8 +333,8 @@ that needs hover, Shift or a key.
   the copies, Hollow Court and Blood Tithe), the held relic's tooltip the same (`ariseOf`), and the board draws its
   reach ("ARISE · 5").
 - **Prep overlays**: the roads (arrows), Arise's reach (once held), the selected piece's ring, coverage, the stop
-  line (where a walker first comes into your rings: the earliest it can halt, so its legend, its tile's tooltip and
-  the help say), synergy glow.
+  line (where a walker first comes into your rings: the earliest it can halt in them, so its legend, its tile's
+  tooltip and the help say), synergy glow.
 - **The default frontier**: at the run's start and on each floor's arrival the fielded pieces take a default
   placement (`frontier` in `src/sim/run.js`): the tankiest melee piece on the road tile most entry roads pass
   before the seat, outside the Monarch's ring, and each other piece where its ring reaches all round it while
@@ -909,6 +924,45 @@ completely. All units use the same pathing algo."
 - The balance waits for the pass that follows: three kinds now meet your rings and blockers as walkers do, which moves
   floors 1 to 3 (the Wisp on floor 1 above all), and nothing was measured or tuned here. `combos.json` is to be
   regenerated then (`--combos`).
+
+Taken after that (2026-10-10): **the bug hunt before the balance pass.** A sweep for places the code broke its own
+rules, fixed where they broke; no number moved. The rules as they now stand:
+
+- **A heal counts only the allies it can mend** (§2.2). A heal never lifts a fallen body, yet Mend's condition (an
+  ally below 50%), Purge's (below 90%) and a heal's aim (the lowest share of max HP) read a stack's HP against its
+  fallen bodies too, so a stack that lost a body in an earlier room (wounds carry) read as hurt for good, its living
+  bodies whole. Purge reaches every ally: a Clockwork Page Purged such a stack 26 times for 0 and fell beside an Iron
+  Golem it never struck. Your Hive Warden and a foe Warden captain (three bodies, two fallen), each with only a broken
+  stack to mend, Mended for 0 every turn, and the battle ran to the tick ceiling with no blow struck: a run lost. Now
+  a heal's condition and its aim count only the allies whose living bodies are not whole, and for one that cleanses
+  (Purge, Hive Mind) an ally carrying a debuff it would strip: the Court of Bone rule (no heal counts the Monarch it
+  cannot heal) widened, both sides alike (`helps`, `View`, `pickTarget` in `src/sim/battle.js`); the content's
+  conditions are unchanged. It counts only the allies within the heal's reach too (anywhere under Sanctuary): Swarm
+  Mend (Brood Mother III, every ally within 2 tiles) read the whole board, and with its one wound out of reach healed
+  for 0 every cast, all battle; it waits now for a wound within its 2 tiles, as Brood Surge, Verdant Bloom and Royal
+  Jelly always did (its card still says "an ally"). Barkskin and Veil read an ally's HP the same way, but each lays a
+  real ward and then waits for its own to lapse, so neither loops; they stand. A Regen tick on a whole stack still
+  mends 0: a status's tick, not a choice.
+- **A body fallen before a battle stays down after it** (§2.2), though count tiers add bodies that fight in its pool:
+  the added bodies stand in front and fall first, and what they left in the pool stood a fallen body up again.
+  `finishBattle` (`src/sim/run.js`) now keeps at most the living bodies a piece came in with.
+- **Undying's rise refreshes its side's synergies.** A soul that burst as it fell had its side's synergies read
+  without it, and once risen went uncounted (what it made dropped, for every piece) until the roster next moved; they
+  are read again as it rises.
+- **The codex tells a foe's melee reach only of a kind with a melee blow** (`BEHAVIOURS`' `melee`, `ringRule` in
+  `src/codex.js`): a shooter's card no longer says what its melee strikes.
+- **The expert's gate reads the drawn roads** (`src/sim/autoplay.js`).
+- The words caught up with two rules. A flyer's melee strikes a flyer in the air, either side's; only melee from the
+  ground never reaches up (§1, §2.3, §2.4, §3, as the Fly behaviour and threat say). The stop line is the earliest a
+  walker can halt in your rings (§3, §4, as the board says), for a ranged foe queued behind a stopped comrade halts
+  and shoots before it reaches them.
+
+Open, for the user:
+
+- **Count tiers also refill wounds on living bodies.** The added bodies take the blows first, so a piece leaves with
+  its living bodies whole unless the blows ate through the added ones too: a Bone Chanter coming in at 30% with +6
+  bodies leaves at 100%. Cap what a piece keeps at the HP it came in with (a count tier then only shields), or leave
+  it (a count tier then mends between rooms too).
 
 ## 7. Standing rules
 

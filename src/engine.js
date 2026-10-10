@@ -436,6 +436,11 @@ class BattleScene extends Phaser.Scene {
     this.small = [] // labels kept legible as the camera zooms (fit)
     this.announced = new Set() // `side|rule`: the rules already named this battle
     this.noisy = new Map() // `side|rule` → playMs its name last rose, for the NOISY rules
+    // On this battle's clock (playMs), so none carries over from the last battle the scene played: the Monarch's
+    // last shake when struck, and the last wave-paid popup with how many stack under it (wavePaid).
+    this.monarchShook = -Infinity
+    this.payAt = -1e9
+    this.payStack = 0
   }
 
   create () {

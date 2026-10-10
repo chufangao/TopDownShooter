@@ -37,7 +37,7 @@ import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campOpen, wallTiles, steps, deployTile, tileAt, TILES, LANES,
   rowOf, colOf, rangeOf, isAllyShape, distance, makeUnit, slotAt, baseStats, bodiesOf, livingBodies, DEPTH, sizeOf, footprintSlots, fits,
-  monarchSlot, ringOf, abilitiesOf, isBlow
+  monarchSlot, ringOf, abilitiesOf, isBlow, armOf, ROWS
 } from './unit.js'
 import { createBattle, playOut, timelineHash, field } from './battle.js'
 import {
@@ -240,9 +240,10 @@ function strength (s, bodies = true) {
 // seat. The scouted room becomes a threat map (threatOf: each tile a foe will pass, by its bodies, a flyer's in
 // the air apart), a cell is worth to a piece what of that its ring reaches (reach: the air only with a ranged
 // blow), and its drafts are filled greedily from that (zone): at a few radii about the seat, the reach shared
-// out or bunched; with its gate held where the camp has one (gated: the fewest cells that close every ground
-// road, so every walker meets one of them). Then one search: it hill-climbs from the best draft (mutate),
-// and fights the best few again on fresh rolls (plan). A piece that fits nowhere waits in the ossuary (slot −1).
+// out or bunched; with its gate held where the camp has one (gated: the fewest cells every drawn ground road
+// crosses, so every walker's road runs into a piece that holds it there). Then one search: it hill-climbs from the
+// best draft (mutate), and fights the best few again on fresh rolls (plan). A piece that fits nowhere waits in the
+// ossuary (slot −1).
 
 const SPREAD = [3, 1, 5, 2, 4, 0, 6]
 const blasts = (foes) => foes.some((f) => unitDef(f.id).abilities.some((id) => abilityDef(id).shape === 'blast'))
@@ -359,10 +360,11 @@ export function drafts (run, want, L) {
 }
 
 // The scouted room as a threat map: every foe piece, the opening's from where it stands and each later wave's from
-// the top edge of its lane, walked to the seat, a walker by the camp's arrows (roadsTo), a flyer by the air road's
-// (roadsTo's `air`, over the walls; a piece on it holds the flyer there, but where the pieces stand is what the map is
-// for); each tile it passes takes its bodies × (1 + road distance)^−steep: the nearer the seat, where every road ends
-// and the fighting gathers, the more.
+// the top edge of its lane, walked to the seat on the road the board draws, a walker by the Walk field's arrows
+// (roadsTo's `field`, round the walls), a flyer by the air road's (roadsTo's `air`, over them). A piece of yours on a
+// foe's road holds it there and no one routes round it (the gate, gateOf, is cut on these same roads), but where the
+// pieces stand is what the map is for, so it walks every road to its end. Each tile a foe passes takes its bodies ×
+// (1 + road distance)^−steep: the nearer the seat, where every road ends and the fighting gathers, the more.
 // → { ground, air }, each a Float64Array by tile.
 const threats = new Map()
 function threatOf (run, steep = 1) {
@@ -392,12 +394,14 @@ function roadFrom (t, f) {
 }
 
 // What a piece anchored on `slot` reaches of a threat map: the ground's tiles within its ring of its footprint, the
-// air's within its ranged reach (its ranged blows' range, never past its ring; none for a piece with only melee
-// blows). Where it fights, whatever its blows' conditions: not only where it holds a foe (unit.js holdOf).
+// air's within its reach there (its ranged blows' range, and a flyer's melee too, for a flyer's melee meets a flyer in
+// the air: DESIGN §2.4; never past its ring; none for a piece on the ground with only melee blows). Where it fights,
+// whatever its blows' conditions: not only where it holds a foe (unit.js holdOf).
 function reach (u, slot, { ground, air }) {
   const at = tilesAt(u, slot)
   const ring = ringOf(u)
-  const sky = Math.min(ring, Math.max(-1, ...abilitiesOf(u).map(abilityDef).filter((a) => isBlow(a) && !a.melee).map(rangeOf)))
+  const flies = !!unitDef(u.id).flies
+  const sky = Math.min(ring, Math.max(-1, ...abilitiesOf(u).map(abilityDef).filter((a) => isBlow(a) && (!a.melee || flies)).map((a) => (a.melee ? a.range ?? armOf(u) : rangeOf(a)))))
   let n = 0
   for (let t = 0; t < TILES; t++) {
     if (!ground[t] && !air[t]) continue
@@ -432,66 +436,49 @@ function zone (units, camp, threat, { radius = Infinity, keep = 1, taken = seate
   return units
 }
 
-// The camp's gate: the fewest open cells (never the seat, at most GATE) that, held, close every ground road from the
-// board's top edge to the Monarch (the cells counted as walls, steps' corner rule included), so every walker's road
-// runs into a piece there, none of them beside the seat if that can be had, and the furthest along the roads from it
-// of those; none where it takes more. Made once per camp.
+// The camp's gate (DESIGN §2.4): the fewest open cells (never the seat, at most GATE) that every drawn ground road
+// crosses, so every walker's road runs into a piece there. The roads are the Walk field's arrows (roadsTo's `field`),
+// one from each tile of the foes' rows (where the opening stands and every later wave enters: battle.js entryTile) to
+// the seat; a piece on one holds there each walker whose road it is, and no one routes round it (battle.js stepOf), so
+// a cell no road crosses is never weighed. None of them beside the seat (a road step from it) if that can be had, and
+// the furthest along the roads from it of those; none where it takes more than GATE. Flyers keep the air road: the
+// gate is the ground's. Made once per camp. → [slot, …], [] for none.
 const GATE = 3
 const gates = new Map()
 export function gateOf (camp) {
   if (gates.has(camp)) return gates.get(camp)
   const seat = monarchSlot(camp)
-  const root = deployTile('party', seat)
-  const { dist } = roadsTo(camp).field
-  const d = (slot) => dist[deployTile('party', slot)]
-  const walls = new Uint8Array(TILES)
-  for (const t of wallTiles(camp)) walls[t] = 1
-  // Whether the Monarch is cut off from the top edge with `cells` held: a flood from the top edge (steps, inlined).
-  const closes = (cells) => {
-    const shut = walls.slice()
-    for (const c of cells) shut[deployTile('party', c)] = 1
-    const seen = new Uint8Array(TILES)
-    const queue = []
-    for (let x = 0; x < LANES; x++) { const t = tileAt(x, DEPTH - 1); seen[t] = 1; queue.push(t) }
-    for (let i = 0; i < queue.length; i++) {
-      const x = queue[i] % LANES
-      const y = (queue[i] - x) / LANES
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx
-          const ny = y + dy
-          if ((!dx && !dy) || nx < 0 || nx >= LANES || ny < 0 || ny >= DEPTH) continue
-          const n = tileAt(nx, ny)
-          if (seen[n] || shut[n] || (dx && dy && (shut[tileAt(nx, y)] || shut[tileAt(x, ny)]))) continue
-          if (n === root) return false
-          seen[n] = 1
-          queue.push(n)
-        }
-      }
-    }
-    return true
+  const f = roadsTo(camp).field
+  const d = (slot) => f.dist[deployTile('party', slot)]
+  // Each road as the set of camp cells it crosses, the seat aside (roadFrom: the arrows to the root).
+  const cellAt = new Map(openCells(camp).filter((c) => c !== seat).map((c) => [deployTile('party', c), c]))
+  const roads = []
+  for (let t = tileAt(0, DEPTH - ROWS); t < TILES; t++) {
+    if (f.dist[t] < Infinity) roads.push(new Set(roadFrom(t, f).filter((x) => cellAt.has(x)).map((x) => cellAt.get(x))))
   }
+  const crosses = (cells) => roads.length > 0 && roads.every((road) => cells.some((c) => road.has(c)))
   const sets = (cells, k, from = 0) => (k === 0 ? [[]] : cells.slice(from).flatMap((c, i) => sets(cells, k - 1, from + i + 1).map((rest) => [c, ...rest])))
   const far = (set) => set.reduce((n, c) => n + d(c), 0)
-  const open = openCells(camp).filter((c) => c !== seat && d(c) < Infinity)
+  const crossed = openCells(camp).filter((c) => roads.some((road) => road.has(c)))
   let gate = []
-  for (const cells of [open.filter((c) => d(c) > 1), open]) {
-    for (let k = 1; k <= GATE && !gate.length; k++) gate = sets(cells, k).sort((a, b) => far(b) - far(a)).find(closes) ?? []
+  for (const cells of [crossed.filter((c) => d(c) > 1), crossed]) {
+    for (let k = 1; k <= GATE && !gate.length; k++) gate = sets(cells, k).sort((a, b) => far(b) - far(a)).find(crosses) ?? []
     if (gate.length) break
   }
   gates.set(camp, gate)
   return gate
 }
 
-// The gate held (gateOf): its cells each by the toughest piece left whose footprint covers it, then every other piece
-// as a zone draft fills it (zone, from the threat map). Null where the camp has no gate or the field too few pieces
-// to hold it and fight beside it.
+// The gate held (gateOf): its cells each by the toughest piece left whose footprint covers it (a 2×2 piece's covers
+// four cells, and a gate cell already under one is held), then every other piece as a zone draft fills it (zone, from
+// the threat map). Null where the camp has no gate or the field too few pieces to hold it and fight beside it.
 function gated (units, camp, threat) {
   const gate = gateOf(camp)
   if (!gate.length || units.length <= gate.length) return null
   const taken = seated(camp)
   const left = units.slice().sort((a, b) => toughness(b) - toughness(a) || a.uid - b.uid)
   for (const cell of gate) {
+    if (taken.has(cell)) continue
     const anchors = (u) => (sizeOf(u) === 1 ? [cell] : [cell, cell - 1, cell + LANES, cell + LANES - 1].filter((a) => footprintSlots(a, 2)?.includes(cell)))
     const u = left.find((x) => x.slot < 0 && anchors(x).some((a) => fits(camp, a, sizeOf(x), taken)))
     if (!u) return null
@@ -1230,8 +1217,9 @@ function bookArmy (combo, floor, relics = []) {
   const monarch = { ...monarchOf(s), maxHp: F.hp, hp: F.hp }
   s.party = [monarch, ...ids.map((id, i) => makeUnit(id, { uid: i + 1, lvl: s.kinds[id].lvl, tracks: s.kinds[id].tracks, count: F.bodies }))]
   s.nextUid = ids.length + 1
-  s.relics = [...Array(Math.max(0, F.command - commandOf({ ...s, relics: [] }))).fill('grave_banner'), ...relics]
+  // The floor first: the base Command the banners make up to F.command is the floor's (run.js baseField).
   s.floor = floor
+  s.relics = [...Array(Math.max(0, F.command - commandOf({ ...s, relics: [] }))).fill('grave_banner'), ...relics]
   s.phase = 'prep'
   return run
 }

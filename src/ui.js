@@ -512,7 +512,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
         h('div', { class: 'dim' }, wall ? 'It blocks walking, not shots: the roads bend round it.'
           : Number.isFinite(d) ? `Its road runs ${d} step${d === 1 ? '' : 's'} to the Monarch.` : 'No road runs from here.'),
         !wall && Number.isFinite(d) && h('div', { class: 'dim' }, cover[t] ? `${cover[t]} of your rings cover it.` : 'None of your rings covers it.'),
-        stops.includes(t) && h('div', { class: 'dim' }, 'On the stop line: a foe walking this road comes into your rings here, the earliest it can halt. It halts only where it can strike something of yours.')))
+        stops.includes(t) && h('div', { class: 'dim' }, 'On the stop line: a foe walking this road comes into your rings here, the earliest it can halt in them. It halts only where it can strike something of yours.')))
     }
     // The selected piece's ring; a scouted foe's met kind, how far it shoots (codex.js foeReach): a foe has no melee
     // reach, so one whose every blow is melee draws none, and its panel says why.
@@ -802,7 +802,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
     h('ul', { class: 'legend-list dim' },
       h('li', null, h('i', { class: 'lg-road' }), kw('road', 'Roads'), ': the arrows the foes walk to the Monarch.'),
       h('li', null, h('i', { class: 'lg-cover' }), 'Coverage: each road tile shaded by how many of your ', kw('ring', 'rings'), ' reach it.'),
-      h('li', null, h('i', { class: 'lg-stop' }), 'The stop line: where a foe walking a road first comes into your ', kw('ring', 'rings'), ': the earliest it can halt. It halts only where it can strike something of yours.'),
+      h('li', null, h('i', { class: 'lg-stop' }), 'The stop line: where a foe walking a road first comes into your ', kw('ring', 'rings'), ': the earliest it can halt in them. It halts only where it can strike something of yours.'),
       h('li', null, h('i', { class: 'lg-seat' }), 'The crown: the Monarch\'s seat, the camp\'s own. It never moves.'),
       ariseHeld(s) && h('li', null, h('i', { class: 'lg-dom' }), relicName('arise'), '\'s reach: where a slain foe may rise for you.'))]
   }

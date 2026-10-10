@@ -1046,6 +1046,27 @@ test('a stack fights as one piece and keeps the bodies it kept: those its tiers 
   checkState(s)
 })
 
+test('a body fallen before a battle stays down after it, though its kind\'s tiers add bodies that fight in its pool', () => {
+  // A stack of two Bone Chanters, one fallen in an earlier battle, its kind on Marrowcaller II (bodies more each
+  // battle): it fights with them in its pool, and comes out of a won battle with its one living body, never two. Only
+  // an altar raises the fallen. (The bodies its tiers added stood in front of the fallen one, and their HP left over
+  // stood it up again.)
+  const run = win('fallen-stay', (r) => {
+    const s = r.state
+    const chanter = souls(s.party).find((u) => u.id === 'bone_chanter')
+    apply(r, { type: 'stack', uid: join(r, 'bone_chanter').uid, onto: chanter.uid })
+    s.essence += TUNING.essence.tier[0] + TUNING.essence.tier[1]
+    for (let k = 0; k < 2; k++) apply(r, { type: 'upgrade', kind: 'bone_chanter', track: 1 })
+    chanter.hp = bodyHp(chanter)
+  })
+  const chanter = souls(run.state.party).find((u) => u.id === 'bone_chanter')
+  const bu = run.battle.byUid.get(chanter.uid)
+  assert.equal(bu.count, 2 + TRACKS.bone_chanter[1].tiers[1].count, 'the tiers\' bodies fought in its pool')
+  assert.ok(bu.hp > bu.body, `more than one body's HP left in the pool (${bu.hp} of ${bu.body} a body)`)
+  assert.equal(livingBodies(chanter), 1, 'its fallen body stays down')
+  assert.equal(bodiesHp(chanter)[1], 0)
+})
+
 test('a tier\'s level heals each living body by its gain, an altar each body: the living to altarHeal, the fallen to altarRevive', () => tuned(LEVEL_A_TIER, () => {
   const run = createRun({ seed: 'stack-heal' })
   const s = run.state

@@ -7,7 +7,7 @@ import {
   statsOf, activeSynergies, synergyActive, COLS, ROWS, slotAt, rangeOf, isAllyShape, CAMP_ROWS, abilitiesOf, auraOf, tiersOf,
   tileX, tileY, DEPTH, distance, deployTile, ringOf, strideOf, behaviourOf, bodiesOf, sizeOf, armOf, holdOf
 } from './sim/unit.js'
-import { foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, holds, isMonarch, depthOf, rosterCap, inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice } from './sim/run.js'
+import { foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, holds, isMonarch, depthOf, rosterCap, soulCount, inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice } from './sim/run.js'
 import { ariseCap, ariseTier, ariseHaste, relicRules } from './sim/battle.js'
 import { h, fill, icon, portrait, prefs, say } from './dom.js'
 import { KEYWORDS, kw, secs } from './keywords.js'
@@ -237,12 +237,13 @@ export function ringRule (u, foe = false) {
       : 'A foe walking into that ring halts there only once it can strike something of yours from where it stands.'
     return `It fights whatever its blows reach within ${tiles(ringOf(u))}${how ? ` (${how})` : ''}. ${halt}${melee} It never moves: with nothing to strike, it waits.`
   }
-  // What its melee strikes is in its way's own words (BEHAVIOURS): a walker's and a flyer's alike, what blocks it (a
-  // flyer's way held by a piece of yours, on the ground or in the air: battle.js closeIn), the Monarch, and a piece
-  // beside it that struck it.
+  // What its melee strikes is in its way's own words (BEHAVIOURS `melee`): a walker's and a flyer's alike, what blocks
+  // it (a flyer's way held by a piece of yours, on the ground or in the air: battle.js closeIn), the Monarch, and a
+  // piece beside it that struck it; said only of a kind with a melee blow (a shooter's card tells of no melee).
   const r = foeReach(u)
   const reach = r > 0 ? `Halted, it shoots whatever it can within ${tiles(r)}.` : 'It has no reach.'
-  return `${reach}${melee} ${BEHAVIOURS[behaviourOf(u)].desc}`
+  const way = BEHAVIOURS[behaviourOf(u)]
+  return `${reach}${melee} ${way.desc}${hasMelee(u) && way.melee ? ` ${way.melee}` : ''}`
 }
 // Whether a kind strikes any melee blow.
 const hasMelee = (u) => blowsOf(u).some((a) => a.melee)
@@ -819,14 +820,14 @@ export function codexView (run = null, { onClose = null } = {}) {
     h('ol', { class: 'primer' },
       h('li', null, 'You are the Monarch. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
       h('li', null, 'Foes walk the ', kw('road', 'roads'), ', the arrows on the board, to your seat, the crowned cell, and halt to fight only where they can hit back: in one of your ', kw('ring', 'rings'), ' with something of yours in their reach, beside the Monarch, or with the way ahead held. Some ', kw('fly'), ' over the walls.'),
-      h('li', null, 'Place your souls in the camp: each ', kw('piece'), ' fights whatever its blows reach in its ', kw('ring'), ' from where you put it (its melee only beside it, two tiles for a long arm), and ', h('b', null, 'never moves'), '. The shading on the roads is how many rings cover them; the blue bars, the stop line, are where a foe first comes into them: the earliest it can halt.'),
+      h('li', null, 'Place your souls in the camp: each ', kw('piece'), ' fights whatever its blows reach in its ', kw('ring'), ' from where you put it (its melee only beside it, two tiles for a long arm), and ', h('b', null, 'never moves'), '. The shading on the roads is how many rings cover them; the blue bars, the stop line, are where a foe first comes into them: the earliest it can halt in them.'),
       h('li', null, `Begin, and the battle plays out alone. Wounds carry: ${WOUNDS_TEXT}.`),
       h('li', null, 'Spend ', kw('essence'), ' on your kinds\' ', kw('tier', 'tiers'), ' (each raises the kind\'s level) and on ', kw('fusion', 'fusions'), '; after a win, recruit one of the slain. The Monarch grows only by ', kw('relic', 'relics'), ': its HP and its ', kw('command'), '.')),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, onto a piece of its kind to ', kw('stack'), ' it, onto another piece to swap them; ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades and Fuse. ', say('Hover', 'Long-press'), ' anything for what it is.'),
     s && h('div', { class: 'gl-run' },
       h('span', null, `The Monarch ${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · Command ${commandOf(s)}${ariseHeld(s) ? ` · Arise ×${relicCount(s, 'arise')}: tier ≤ ${ariseOf(s).tier} within ${ariseOf(s).domain} tiles, ${ariseOf(s).raises} a battle` : ''}`),
-      h('span', null, `Souls ${souls(s.party).length}/${rosterCap(run)} · ${fielded(souls(s.party)).length}/${fieldCap(run)} on the field · ${inOssuary(souls(s.party)).length} in the ossuary`),
+      h('span', null, `Souls ${soulCount(s.party)}/${rosterCap(run)} · ${fielded(souls(s.party)).length}/${fieldCap(run)} on the field · ${inOssuary(souls(s.party)).length} in the ossuary`),
       h('span', { class: 'gl-relics' }, kw('relic', 'Relics'), s.relics.length ? relicsByTier(s.relics, ({ id, n }) => h('span', { class: `relic rt-${relicTier(id)}`, tip: () => relicTip(id, run) }, relicDef(id).name, n > 1 && h('span', { class: 'relic-n' }, `×${n}`))) : ' none'),
       depthOf(s.floor) > 0 && h('span', null, DEEP_TEXT.now(s.floor)),
       holds(s, 'unhealable') && h('span', { class: 'warn' }, 'Court of Bone: nothing heals the Monarch.')),

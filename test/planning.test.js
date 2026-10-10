@@ -12,7 +12,11 @@ import {
 import { TUNING } from '../src/tuning.js'
 import { createRng } from '../src/sim/rng.js'
 import { CAMP_LIST, FUSION_LIST, unitDef, fusionDef, relicDef, TRACKS } from '../src/content.js'
-import { slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot, makeUnit } from '../src/sim/unit.js'
+import {
+  slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot, makeUnit, campOpen, wallTiles, deployTile, tileAt, TILES, DEPTH, ROWS,
+  LANES
+} from '../src/sim/unit.js'
+import { field } from '../src/sim/battle.js'
 
 // A run standing in a fight's prep whose room has a second wave and a far-reaching foe on lane 6.
 function prep (seed) {
@@ -46,6 +50,8 @@ test('the drafts, in every camp: the Monarch on its seat, every piece where its 
       // has a gate (gateOf) its pieces can hold.
       if (L === LEVELS.basic) assert.equal(all.length, 3, c.id)
       else assert.ok(all.length === 7 || (all.length === 8 && gateOf(c.id).length > 0), `${c.id}: ${all.length}`)
+      // The gate's draft, after the four zone drafts: every gate cell under a piece's footprint, a 2×2 piece's too.
+      if (all.length === 8) for (const cell of gateOf(c.id)) assert.ok(covered(all[4]).has(cell), `${c.id}: gate cell ${cell} held`)
       for (const [k, party] of all.entries()) {
         const at = `${c.id} draft ${k}`
         assert.equal(party[0].uid, MONARCH_UID, at)
@@ -62,6 +68,44 @@ test('the drafts, in every camp: the Monarch on its seat, every piece where its 
       }
       assert.ok(all.some((party) => party.some((u) => sizeOf(u) === 2 && u.slot >= 0)), `${c.id}: some draft fields a 2×2 piece`)
     }
+  }
+})
+
+// The Walk roads of `camp` (battle.js field: the arrows the board draws, round the walls to the seat), one from each
+// tile of the foes' rows, where the opening stands and every later wave enters; each as the set of camp cells it
+// crosses, the seat aside. And each cell's road distance.
+function walkRoads (camp) {
+  const seat = monarchSlot(camp)
+  const f = field({ root: deployTile('party', seat), walls: wallTiles(camp) })
+  const cellAt = new Map([...Array(CAMP_SLOTS).keys()].filter((c) => c !== seat).map((c) => [deployTile('party', c), c]))
+  const roads = []
+  for (let t = tileAt(0, DEPTH - ROWS); t < TILES; t++) {
+    if (f.dist[t] === Infinity) continue
+    const cells = new Set()
+    for (let x = t; x >= 0; x = f.arrow[x]) if (cellAt.has(x)) cells.add(cellAt.get(x))
+    roads.push(cells)
+  }
+  return { roads, d: (c) => f.dist[deployTile('party', c)] }
+}
+
+test('the gate, in every camp: every Walk road from the foes\' rows crosses one of its cells, and it holds none no road crosses', () => {
+  for (const c of CAMP_LIST) {
+    const gate = gateOf(c.id)
+    const { roads, d } = walkRoads(c.id)
+    const at = `${c.id}: gate ${gate}`
+    assert.equal(roads.length, ROWS * LANES, `${c.id}: a road from every tile of the foes' rows`)
+    assert.ok(gate.length >= 1 && gate.length <= 3, at)
+    assert.equal(new Set(gate).size, gate.length, at)
+    for (const r of roads) assert.ok(gate.some((x) => r.has(x)), `${at}: a road crosses none of it`)
+    for (const cell of gate) {
+      assert.ok(campOpen(c.id, cell) && cell !== monarchSlot(c.id), `${at}: ${cell} an open cell, not the seat`)
+      assert.ok(roads.some((r) => r.has(cell)), `${at}: no road crosses ${cell}`)
+      // The fewest: without it, some road would cross none of the gate.
+      assert.ok(roads.some((r) => !gate.some((x) => x !== cell && r.has(x))), `${at}: ${cell} idle`)
+    }
+    // Where one cell not beside the seat carries every road, the gate is that cell alone, the furthest along the roads.
+    const every = [...Array(CAMP_SLOTS).keys()].filter((x) => d(x) > 1 && roads.every((r) => r.has(x)))
+    if (every.length) assert.deepEqual(gate, [every.sort((a, b) => d(b) - d(a))[0]], at)
   }
 })
 

@@ -28,9 +28,9 @@ export const KEYWORDS = {
 }
 for (const k of Object.values(KEYWORDS)) k.group = 'Words'
 
-// The foes' ways on the board (content.js BEHAVIOURS): what each does, never which kinds do it (that is learnt by
-// meeting them, and the bestiary keeps it).
-for (const [id, b] of Object.entries(BEHAVIOURS)) KEYWORDS[id] ??= { name: b.name, sys: 'foe', group: 'Behaviours', line: b.desc }
+// The foes' ways on the board (content.js BEHAVIOURS): what each does, and what a foe's melee strikes on it, never
+// which kinds do it (that is learnt by meeting them, and the bestiary keeps it).
+for (const [id, b] of Object.entries(BEHAVIOURS)) KEYWORDS[id] ??= { name: b.name, sys: 'foe', group: 'Behaviours', line: [b.desc, b.melee].filter(Boolean).join(' ') }
 
 // The statuses, from the content, so they stay true; LINE holds the few whose content text says less than the
 // rules do.

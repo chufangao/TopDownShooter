@@ -343,6 +343,24 @@ test('Undying: a fallen soul rises where it fell at 50% HP, once a battle (a sta
   assert.ok(!m.events.some((e) => e.type === 'rise'))
 })
 
+test('Undying: a soul that bursts as it falls and rises again still counts toward your synergies', () => {
+  // A Rot Bloat of yours (undead, a vanguard) and a Tomb Knight: Undead 2 and Vanguard 2 hold. A foe falls (the roster
+  // moves on), then Burning fells the Bloat, its Last Stand spent: it bursts (its burst reads the stats of the fallen),
+  // and Undying lifts it. Both synergies still hold, for the Knight and the Bloat alike. (The burst read the side's
+  // synergies while the Bloat lay dead, and they stayed so until the next unit entered or fell.)
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('rot_bloat', 1, 'party', 0, 2), on('tomb_knight', 2, 'party', 6, 2),
+    on('iron_golem', 10, 'foe', 0, 10), on('iron_golem', 11, 'foe', 6, 10)], { relics: ['undying'] })
+  const [bloat, knight] = [unit(b, 1), unit(b, 2)]
+  const before = [stats(b, knight).def, stats(b, bloat).def]
+  slay(b, unit(b, 11))
+  Object.assign(bloat, { hp: 1, stood: true })
+  bloat.statuses.push({ id: 'burning', dur: 100, stacks: 3, age: STATUSES.burning.tickEvery - 1, by: 10 })
+  const events = stepBattle(b)
+  assert.deepEqual(events.filter((e) => e.target === 1 || e.actor === 1).map((e) => e.type), ['damage', 'death', 'burst', 'rise'])
+  assert.ok(alive(bloat))
+  assert.deepEqual([stats(b, knight).def, stats(b, bloat).def], before, 'Undead 2 and Vanguard 2 still hold')
+})
+
 test('Mimicry: Vanguards count as Wardens too, for your synergies, not the foes\'', () => {
   // Unit-level: two Vanguards make Warden 2 with the alias, not without it.
   const two = [makeUnit('tomb_knight', { uid: 1 }), makeUnit('grave_ghoul', { uid: 2 })]

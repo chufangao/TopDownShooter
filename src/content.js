@@ -16,7 +16,8 @@
 // from there (unit.js holdOf, battle.js wayOf). `stride`
 // (optional, 1 by default) scales how fast a foe of the kind walks: 0.5 and 0.75 for the slow, 1.5 for the quick
 // (your pieces never move). `size` (optional, 1 by default): 2 for a 2×2 footprint (DESIGN §2.2). `flies`: it flies
-// the air road, over the walls but never through your pieces, and only a ranged blow can strike it (DESIGN §2.4 Fly).
+// the air road, over the walls but never through your pieces, and only a ranged blow (or a flyer's melee) can strike
+// it (DESIGN §2.4 Fly).
 // `onFall`: a death burst, its effects run from where it fell on the other side's living within `range`. `fused`: a
 // fusion's result (FUSION_LIST), never spawned nor recruited, so no threats nor behaviour. Each kind does one legible
 // thing on the board. `behaviour`: how it comes down the roads as a foe (BEHAVIOURS), learnt by meeting it: every
@@ -475,8 +476,8 @@ export const UNIT_LIST = [
 // Shapes: single, ally, self; row (everyone level with the target), column (its lane); blast (the
 // target and everyone next to it; aimed as any blow is, battle.js pick); all, all_allies (within `range`);
 // corpse (a fallen foe: Arise's).
-// `when(s)` gets { self, allies, enemies, t } (living units; allies includes self); `cond` says the
-// same in words for tooltips. The AI banks gauge for the first ability whose `when` passes and that
+// `when(s)` gets { self, allies, enemies, t } (living units; allies includes self, but a heal's lists only the allies
+// it can mend: battle.js helps); `cond` says the same in words for tooltips. The AI banks gauge for the first ability whose `when` passes and that
 // has a target in reach, so gates keep pricey ones reachable. Reach, from the caster's footprint: melee hits
 // the tiles around (yours its own `range` where it has one, else its kind's arm, 2 for a long arm; a foe's melee only
 // what blocks it, the Monarch beside it, and a piece beside it that struck it: battle.js closeIn) and never a flyer
@@ -782,7 +783,7 @@ const ABILITY_LIST = [
     tint: '#ffe9a8',
     anim: 'cast_beam',
     when: (s) => s.allies.some((u) => hpPct(u) < 0.6),
-    cond: 'while an ally is below 60% HP',
+    cond: 'while an ally within 2 tiles is below 60% HP',
     effects: [{ op: 'heal', power: 18 }]
   },
   {
@@ -2037,23 +2038,25 @@ const ROLE_LIST = [
 // How a foe comes to the Monarch (DESIGN §2.4), by its kind's `behaviour`: two ways, Walk for every ground kind (the
 // one drawn road, the Walk field) and Fly for the flyers (the air road, battle.js airOf). One step a
 // TUNING.board.stepTicks ÷ its stride, doing nothing else, until it halts where it can hit back (battle.js wayOf);
-// only then does it fight. Which kinds fly is learnt by meeting them; the text only says what each way does.
+// only then does it fight. Which kinds fly is learnt by meeting them; the text only says what each way does. `desc`
+// is the way; `melee`, what a foe's melee strikes on it (battle.js closeIn), told on a kind's card only where the
+// kind has a melee blow (codex.js ringRule), and in the glossary after the way.
 export const BEHAVIOURS = {
-  walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch, doing nothing else, until it can strike something of yours from inside one of your rings, or something stands in its way; there it halts and fights. Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' },
+  walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch, doing nothing else, until it can strike something of yours from inside one of your rings, or something stands in its way; there it halts and fights.', melee: 'Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' },
   // A flyer flies the air road (battle.js airOf): no wall stops it, but a piece of yours in its way does, and it never
-  // goes round. Only a ranged blow can touch it, so only a ranged ring (or the Monarch's) may halt it in your rings, and
-  // only where it can strike back.
-  fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls, and may hover over one, but never through your pieces: one of yours in its way, on the ground or in the air, holds it there, and it never goes round. Only a ranged blow can strike it, so in your rings only a ranged ring (or the Monarch\'s) may halt it, and only where its own blows reach something of yours. Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' }
+  // goes round. Only a ranged blow, or a flyer's melee, can touch it, so only a ranged ring, a flyer's or the
+  // Monarch's may halt it in your rings, and only where it can strike back.
+  fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls, and may hover over one, but never through your pieces: one of yours in its way, on the ground or in the air, holds it there, and it never goes round. Only a ranged blow, or a flyer\'s melee, can strike it, so in your rings only a ranged ring, a flyer\'s or the Monarch\'s may halt it, and only where its own blows reach something of yours.', melee: 'Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' }
 }
 
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
 // does is learnt by fighting it.
 export const THREATS = {
-  reach: { name: 'Reach', desc: 'Strikes from afar once the line gives way.' },
+  reach: { name: 'Reach', desc: 'Strikes from afar, over whatever stands in front of it.' },
   shape: { name: 'Shape', desc: 'Hits a whole row, lane or crowd at once.' },
   drain: { name: 'Drain', desc: 'Saps gauge or rots defence.' },
   clock: { name: 'Clock', desc: 'Drags a fight on into escalation.' },
-  fly: { name: 'Fly', desc: 'Comes over the walls, never through your pieces, and only a ranged blow can touch it.' },
+  fly: { name: 'Fly', desc: 'Comes over the walls, never through your pieces, and only a ranged blow (or a flyer\'s melee) can touch it.' },
   burn: { name: 'Burn', desc: 'Leaves a fire that keeps hurting after the blow.' },
   // A room's, not a kind's: more foes enter behind the first (a late pair, waves).
   depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' }

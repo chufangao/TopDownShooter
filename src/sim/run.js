@@ -919,13 +919,15 @@ function finishBattle (run) {
   const b = run.battle
   const s = run.state
   const byUid = new Map(b.units.map((u) => [u.uid, u]))
-  // A piece keeps the HP of its own bodies: the bodies its tiers added were the first to fall, and go. A piece whose
-  // every body fell leaves the field (DESIGN §2.2): it lies fallen in the ossuary, its cell and its Command free,
-  // until an altar raises it (canPlace keeps it there).
+  // A piece keeps the HP of its own bodies that stood as the battle began (u is still as it came in): the bodies its
+  // tiers added were the first to fall, and go, and a body fallen before it stays down (only an altar raises the
+  // fallen), whatever the added bodies left in the pool. A piece whose every body fell leaves the field (DESIGN
+  // §2.2): it lies fallen in the ossuary, its cell and its Command free, until an altar raises it (canPlace keeps it
+  // there).
   for (const u of s.party) {
     const bu = byUid.get(u.uid)
     if (!bu) continue
-    const kept = Math.min(bu.hp, u.count * bu.body)
+    const kept = Math.min(bu.hp, livingBodies(u) * bu.body)
     u.hp = kept > 0 ? Math.max(1, Math.round(kept / bu.body * bodyHp(u))) : 0
     if (u.hp <= 0 && !isMonarch(u)) u.slot = OSSUARY
   }

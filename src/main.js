@@ -277,7 +277,7 @@ async function fight () {
           : u.arisen && holds(s, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: holds where it rose, gone after the battle'),
         u.rose && (u.rose >= battle.held.rises ? 'Risen by Undying: its next fall is final' : `Risen by Undying: it may rise ${battle.held.rises - u.rose} more`),
         u.count > 1 && `A stack: ${livingBodies(u)} of ${u.count} bodies standing`,
-        u.flies && 'Flying: only a ranged blow can strike it',
+        u.flies && 'Flying: only a ranged blow (or a flyer\'s melee) can strike it',
         !foe && !me && 'It fights from its cell all battle',
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
       const realm = { domain: battle.domain, held: battle.held, reap: holds(s, 'reap') }

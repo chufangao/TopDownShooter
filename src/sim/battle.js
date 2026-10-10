@@ -39,9 +39,10 @@ import {
 // Stacks and footprints (DESIGN §2.2): a unit is a piece, `count` bodies of one kind on a footprint, its HP one
 // pool of count × `body` (one body's HP, fitted as it takes its place: see fit). Its living bodies are ⌈hp ÷
 // body⌉ (unit.js livingBodies): they fall one at a time, the pool's blows and heals scale with them, and a heal
-// never lifts a fallen body. A piece of yours of size 2 (its kind's, or a Colossus tier's) stands on a 2×2
-// footprint: its tile is the footprint's anchor, and the tile index holds it on all four tiles; a foe piece is
-// always size 1. Every hit lands on the pool once, a Shape's too, whatever the footprint: the piece is one target.
+// never lifts a fallen body (so a heal's condition and aim count no stack whose living bodies are whole: helps). A
+// piece of yours of size 2 (its kind's, or a Colossus tier's) stands on a 2×2 footprint: its tile is the footprint's
+// anchor, and the tile index holds it on all four tiles; a foe piece is always size 1. Every hit lands on the pool
+// once, a Shape's too, whatever the footprint: the piece is one target.
 // A soul whose tiers add bodies (unit.js bodiesOf) fights with them in its pool, whole, for the battle alone; the
 // `bodies` switch (ablate) adds none.
 //
@@ -1054,6 +1055,10 @@ function fall (battle, target, actor, ability) {
     target.rose = (target.rose ?? 0) + 1
     target.hp = Math.max(1, Math.round(target.maxHp * battle.held.rise))
     battle.risen++
+    // Its burst read its stats while it lay dead, and with them its side's synergies without it (synergiesOf, kept
+    // until the roster moves on): both are read again.
+    battle.syn[target.side] = null
+    battle.cache.delete(target.uid)
     emit(battle, { type: 'rise', target: target.uid, hp: target.hp })
     trigger(battle, 'fall', target, target, actor)
     return
@@ -1196,10 +1201,11 @@ function addStatus (battle, target, id, dur, by = null) {
 
 // ── unit AI ──────────────────────────────────────────────────────────────────────────────────────
 
-// For a heal under Court of Bone (`mend`), its allies leave out the Monarch nothing can heal: a healer whose
-// only wounded ally is that Monarch has no one to mend, and strikes instead of casting heals that land for 0.
-// Its lists are made when a condition first reads them (nothing changes the board while conditions are read).
-const view = (battle, unit, mend = false) => new View(battle, unit, mend)
+// What a condition reads (content.js `when`). For a heal of others (`mend`, the ability: mends), its allies are only
+// those it can do something for (helps): a healer with no one to mend strikes instead of casting heals that land for
+// 0, both sides' alike. Its lists are made when a condition first reads them (nothing changes the board while
+// conditions are read).
+const view = (battle, unit, mend = null) => new View(battle, unit, mend)
 class View {
   constructor (battle, unit, mend) {
     this.self = unit
@@ -1213,7 +1219,7 @@ class View {
   get allies () {
     if (this._allies === null) {
       const allies = livingNow(this.battle, this.self.side)
-      this._allies = this.mend ? allies.filter((u) => u !== this.battle.monarch) : allies
+      this._allies = this.mend ? allies.filter((u) => helps(this.battle, this.self, this.mend, u)) : allies
     }
     return this._allies
   }
@@ -1242,14 +1248,12 @@ function livingNow (battle, side) {
 
 // The first ability in def order that passes its condition and has a target in reach, or null, its candidates not
 // listed (use lists them). Both tests are pure, so the cheap one comes first: whether anything is in reach (no list
-// made), then its condition. The view a condition reads is only made if one asks (a heal's, under Court of Bone, its
-// own: see view).
+// made), then its condition. The view a condition reads is only made if one asks (a heal's its own: see view).
 function firstAbility (battle, unit) {
   let s = null
-  let m = null
   for (const ability of unit.kit) {
     if (!inReach(battle, unit, ability)) continue
-    if (ability.when && !ability.when(mends(battle, ability) ? (m ??= view(battle, unit, true)) : (s ??= view(battle, unit)))) continue
+    if (ability.when && !ability.when(mends(ability) ? view(battle, unit, ability) : (s ??= view(battle, unit)))) continue
     return ability
   }
   return null
@@ -1271,8 +1275,19 @@ function inReach (battle, actor, ability) {
   return false
 }
 
-// Whether an ability heals others while nothing can heal the Monarch (Court of Bone).
-const mends = (battle, ability) => battle.held.unhealable && ability.effects.some((e) => e.op === 'heal' && !e.self)
+// Whether an ability heals others (a heal not its caster's own: `self`).
+const mends = (ability) => ability.effects.some((e) => e.op === 'heal' && !e.self)
+
+// Whether a heal of others (`ability`: mends) cast by `actor` can do anything for its ally `u`: it reaches it (its
+// range; anywhere under Sanctuary, which touches every ally), and either it can mend it, its living bodies not whole
+// (a heal never lifts a fallen body: DESIGN §2.2) and it no Monarch that nothing can heal (Court of Bone), or the
+// ability cleanses and `u` carries a status it would strip (Purge, Hive Mind: a debuff). A stack whose living bodies
+// are whole is no one's to mend, however many of its bodies lie fallen.
+function helps (battle, actor, ability, u) {
+  if (unitDistance(actor, u) > rangeOf(ability) && !rulesOf(battle, actor.side).has('sanctuary')) return false
+  if (u.hp < livingBodies(u) * u.body && !(u === battle.monarch && battle.held.unhealable)) return true
+  return ability.effects.some((e) => e.op === 'cleanse' && u.statuses.some((x) => statusDef(x.id).tags.includes(e.tag)))
+}
 
 // The gauge the unit is saving for: its next ability (firstAbility), or with nothing in reach its cheapest.
 export const nextCost = (battle, unit) => firstAbility(battle, unit)?.castCost ?? unit.cheapest
@@ -1310,8 +1325,9 @@ const roadLeft = (battle, x) => roadOf(battle, x).dist[x.tile]
 
 function pickTarget (battle, unit, ability, candidates) {
   if (isAllyShape(ability.shape)) {
-    // A heal is not spent on a Monarch nothing can heal (Court of Bone) while anyone else could use it.
-    const mendable = mends(battle, ability) ? candidates.filter((u) => u !== battle.monarch) : candidates
+    // A heal goes to the lowest of those it can do something for (helps), never to a stack whose living bodies are
+    // whole or a Monarch nothing can heal (Court of Bone) while anyone else could use it.
+    const mendable = mends(ability) ? candidates.filter((u) => helps(battle, unit, ability, u)) : candidates
     return lowest(mendable.length ? mendable : candidates)
   }
   if (ability.shape === 'corpse') {
@@ -1446,12 +1462,13 @@ export function sight (holders) {
 
 // The stop line (DESIGN §3): the road tiles where a walker coming down the Walk field (`roads`, a field()) first comes
 // into the sight of one of `holders` on the ground (sight: the battle's own, so a ring whose far blows need a
-// condition draws its bar only as far as its other blows reach): the earliest it can halt, never that it will (it
-// halts only where it can hit back, wayOf: a melee walker walks on past the bars to what blocks it). A walker starts
-// on a tile of the foes' rows (in the formation, or entering at the top edge) and keeps to the arrows from there to
-// the root: on each such road, every held tile it comes to from a tile nothing holds, and its first tile if one is
-// held (where it may halt where it stands). Only tiles a road from the foes' rows passes count: a held tile beside the
-// roads, where no walker ever comes, is none of it. In tile order. Pure: the prep board draws it.
+// condition draws its bar only as far as its other blows reach): the earliest it can halt in them, never that it will
+// (it halts only where it can hit back, wayOf: a melee walker walks on past the bars to what blocks it; a ranged one
+// queued behind a stopped comrade halts and shoots before it reaches them). A walker starts on a tile of the foes'
+// rows (in the formation, or entering at the top edge) and keeps to the arrows from there to the root: on each such
+// road, every held tile it comes to from a tile nothing holds, and its first tile if one is held (where it may halt
+// where it stands). Only tiles a road from the foes' rows passes count: a held tile beside the roads, where no walker
+// ever comes, is none of it. In tile order. Pure: the prep board draws it.
 export function stopLine (roads, holders) {
   const held = sight(holders).ground
   const out = new Set()
