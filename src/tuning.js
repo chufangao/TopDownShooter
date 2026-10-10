@@ -27,8 +27,9 @@ export const TUNING = {
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (content.js
   // RELIC_LIST `monarchHp`), and nothing else touches it (no synergy, no other relic). No points are bought: its HP
   // and its Command (party.field) grow only by relics (2026-10-09, late; the points were hp 220 + 14 a point, for
-  // 20 + 10 a point bought on all four).
-  monarch: { hp: 220 },
+  // 20 + 10 a point bought on all four). The fourth balance pass (2026-10-10): 250 (was 220), so one Pyre Hound's
+  // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1 (its deaths there 4% → 1%).
+  monarch: { hp: 250 },
   // Arise, a Legendary relic (content.js RELIC_LIST), and its numbers are its own, a copy at a time (DESIGN §2.5):
   // without it no foe rises. One copy: a foe of tier up to `tier` slain within `domain` tiles (Chebyshev) of the
   // Monarch's tile rises as a shadow of yours, up to `raises` a battle, each shadow at the fallen piece's count, each
@@ -45,15 +46,17 @@ export const TUNING = {
   // rise only while fewer than `board` pieces of yours stand on it (Arise's are bounded by its own cap, `arise.raises`).
   army: { board: 10 },
   // A kind's level (every soul of it) is its tiers' (DESIGN §2.6): base + perTier × the tiers it holds on both tracks,
-  // rounded down (run.js levelOf), so two tiers make level 3 and six (IV and II) level 5. No level is bought
+  // rounded down (run.js levelOf), so two tiers make level 3, three level 4 and six (IV and II) level 6. No level is bought
   // (2026-10-09, late; levels cost 8 × level^1.2 up to 10). A fused kind stands at least at the highest level of the
   // kinds that went into it. Foes keep their floor's levels (spawn). The balance pass (DESIGN §5 Step 8) made it base
   // 2, 0.5 a tier (was 1 and 1.5: six tiers made level 10, and the tracks carried the expert alone, an 88-point
   // ablation); the second pass (2026-10-09, night) 0.34 a tier, a level less at the top, so the power the tracks give
   // leans on their count tiers (six bodies, were three) and the bodies ablation reads apart from the tracks'. The
   // economy pass (2026-10-10) 0.5 again: with essence scarce the expert holds about 60% of its kinds' tiers, not all,
-  // and at 0.34 a tier the tracks' ablation fell to 19 points (under its band) as fusions and recruits stood in.
-  level: { base: 2, perTier: 0.5 },
+  // and at 0.34 a tier the tracks' ablation fell to 19 points (under its band) as fusions and recruits stood in. The
+  // fourth balance pass (2026-10-10) 0.67, taken with the cheaper tiers below (the tracks' ablation stood at 23–25
+  // points, on its band's floor; 27 after, on 128 seeds).
+  level: { base: 2, perTier: 0.67 },
   // Essence (DESIGN §2.6): each foe piece slain pays perTier × its tier, whatever its count or level (run.js
   // foeEssence); a run starts with `start`. It buys only tiers, recruits and fusions, and every price is its base ×
   // the floor's price scale, 1 + perFloor × (floor − 1) (run.js floorPrice: ×1, ×2.1, ×3.2, ×4.3 on floors 1–4):
@@ -64,8 +67,10 @@ export const TUNING = {
   // 2.5 × tier × (1 + 0.35 × (level − 1)) for each of its bodies and prices were flat, so a floor-4 battle paid
   // twenty times a floor-1 battle and the expert ended a clear with ~4,000 essence unspent, every tier it wanted
   // held from floor 3. Paying by the piece and by tier alone (perTier 3.5 keeps floor 1's pay) and prices that grow
-  // 1.1 a floor keep what a battle buys about level from floor to floor.
-  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [20, 45, 75, 120], recruit: 8, fuse: 8 },
+  // 1.1 a floor keep what a battle buys about level from floor to floor. The fourth balance pass (2026-10-10): tiers
+  // 16 / 36 / 60 / 96 (were 20 / 45 / 75 / 120), so the expert holds more of them (19.8 at a clear, was 15.4) and the
+  // tracks carry it; it still spends ~97% of what it earns and ends each floor with at most half a tier II's price.
+  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
   // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
   // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1

@@ -189,7 +189,9 @@ function legionReap () {
 // Mirage (Fae 8): each foe's first blow that would land misses.
 test('Fae 8: the first blow each foe would land in a battle misses, and only the first', () => {
   const play = (tiles) => {
-    const b = scene([...squad(['frost_sprite', 'will_o_wisp', 'thorn_dryad'], tiles(5)), ...[1, 3, 5].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
+    // No Frost Sprite among them: since the synergy steps doubled (the fourth balance pass), the sprites' Frost Lance,
+    // quickened by Fae 6, drained the middle knight's gauge until it fell without a blow.
+    const b = scene([...squad(['will_o_wisp', 'thorn_dryad'], tiles(5)), ...[1, 3, 5].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
     return until(b, () => false, 400)
   }
   const b = play(eight)
@@ -216,7 +218,9 @@ test('Fae 8: the first blow each foe would land in a battle misses, and only the
 // Last Stand (Construct 8): the first blow that would fell each of yours leaves it at 1 HP; never the Monarch.
 test('Construct 8: the first killing blow leaves a unit standing at 1 HP, once; never the Monarch', () => {
   const party = (tiles) => squad(['clockwork_page', 'clockwork_page', 'iron_golem'], tiles(5))
-  const b = scene([...party(eight), on('barrow_wight', 101, 'foe', 2, 6), on('grave_ghoul', 102, 'foe', 4, 6)])
+  // The wight at level 6: at 3, since the synergy steps doubled (the fourth balance pass), the eight constructs' DEF and
+  // the pages' Purge outlast its blows and nothing ever fells the page.
+  const b = scene([...party(eight), on('barrow_wight', 101, 'foe', 2, 6, 6), on('grave_ghoul', 102, 'foe', 4, 6)])
   const page = b.units.find((u) => u.side === 'party' && tileX(u.tile) === 3 && tileY(u.tile) === 5)
   page.hp = 5
   until(b, () => page.hp <= 0)
@@ -228,7 +232,7 @@ test('Construct 8: the first killing blow leaves a unit standing at 1 HP, once; 
   assert.deepEqual([b.events[i - 1].type, b.events[i - 1].target, b.events[i - 1].hp], ['damage', page.uid, 1])
   assert.ok(page.stood && page.hp <= 0, 'the next killing blow fells it')
   // Seven constructs: no Last Stand.
-  const c = scene([...party(seven), on('barrow_wight', 101, 'foe', 2, 6), on('grave_ghoul', 102, 'foe', 4, 6)])
+  const c = scene([...party(seven), on('barrow_wight', 101, 'foe', 2, 6, 6), on('grave_ghoul', 102, 'foe', 4, 6)])
   until(c, () => false, 300)
   assert.equal(rules(c, 'last_stand').length, 0)
   // The Monarch has no last stand: it falls, and the battle is lost.

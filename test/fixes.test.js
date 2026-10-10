@@ -152,8 +152,8 @@ test('the Monarch takes no synergy\'s or relic\'s stats (a Legendary\'s neither)
   const base = baseStats('monarch', 4)
   assert.deepEqual([b.monarch.hp, b.monarch.maxHp], [base.hp, base.hp])
   assert.equal(stats(b, b.monarch).def, base.def, 'no Undead 4 DEF, no relic DEF')
-  // Its souls take them all: Undead 4 (+5%), the relic (+15%), Legion (×0.85).
-  assert.equal(unit(b, 1).maxHp, Math.round(baseStats('tomb_knight', 3).hp * 1.05 * 1.15 * 0.85))
+  // Its souls take them all: Undead 4 (+10%), the relic (+15%), Legion (×0.85).
+  assert.equal(unit(b, 1).maxHp, Math.round(baseStats('tomb_knight', 3).hp * 1.1 * 1.15 * 0.85))
   // In the run: with Heartwood and four undead fielded, the battle's Monarch is the camp's.
   const run = createRun({ seed: 'no-might' })
   const s = run.state

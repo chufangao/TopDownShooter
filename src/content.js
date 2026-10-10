@@ -173,10 +173,11 @@ export const UNIT_LIST = [
     kin: 'fae',
     role: 'channeler',
     tier: 1,
-    base: { hp: 50, atk: 15, def: 3, spd: 32, acc: 46, eva: 28, crt: 6 },
+    base: { hp: 50, atk: 15, def: 3, spd: 32, acc: 46, eva: 22, crt: 6 },
     growth: { hp: 6, atk: 2.1, def: 0.3, spd: 1.8 },
     abilities: ['witchfire'],
-    // The far fire: it strikes from four tiles off.
+    // The far fire: it strikes from four tiles off. EVA 22 since the fourth balance pass (2026-10-10; 28 before):
+    // walking the road now, it halts in your rings and duels there, and at 28 it outlasted a floor-1 chanter's bolts.
     ring: 4,
     spawn: { weight: 11, minFloor: 1 },
     threats: ['reach'],
@@ -1170,7 +1171,8 @@ const ABILITY_LIST = [
   },
   // ── the foes of the deeper floors, and the fused kinds ──
   {
-    // Its Burning outlasts the hound.
+    // Its Burning outlasts the hound, by 4 s (6 s until the fourth balance pass, 2026-10-10: a floor-1 hound that
+    // reached the Monarch burned it for about 190, much of it after the hound fell: the expert's commonest floor-1 death).
     id: 'pyre_bite',
     name: 'Pyre Bite',
     castCost: 110,
@@ -1178,7 +1180,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#ff7a33',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 80 }]
   },
   {
     id: 'drone_sting',
@@ -2066,59 +2068,61 @@ export const THREATS = {
 
 // Active while a side's living units meet every count in `needs` ({ kin: {…}, role: {…} }).
 // A mod with `pos` only applies while the unit has a foe next to it ('engaged') or has none ('free').
+// The fourth balance pass (2026-10-10; DESIGN §5 Step 8) doubled every stat step (each was half what it is now): at
+// the old steps the expert lost nothing without its synergies (their ablation −2 points); doubled, 18 (128 seeds).
 export const SYNERGIES = [
-  { id: 'undead_2', name: 'Undead 2', desc: 'The dead do not flinch. +6% DEF.', needs: { kin: { undead: 2 } }, mods: [{ path: 'def', op: 'mul', v: 1.06 }] },
-  { id: 'undead_4', name: 'Undead 4', desc: '+15% DEF, +5% max HP.', needs: { kin: { undead: 4 } }, mods: [{ path: 'def', op: 'mul', v: 1.15 }, { path: 'hp', op: 'mul', v: 1.05 }] },
-  { id: 'drake_2', name: 'Drake 2', desc: '+8% ATK.', needs: { kin: { drake: 2 } }, mods: [{ path: 'atk', op: 'mul', v: 1.08 }] },
-  { id: 'fae_2', name: 'Fae 2', desc: '+4 EVA.', needs: { kin: { fae: 2 } }, mods: [{ path: 'eva', op: 'add', v: 4 }] },
-  { id: 'insect_2', name: 'Insect 2', desc: '+3% gauge rate.', needs: { kin: { insect: 2 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.03 }] },
-  { id: 'construct_2', name: 'Construct 2', desc: '+5 DEF.', needs: { kin: { construct: 2 } }, mods: [{ path: 'def', op: 'add', v: 5 }] },
-  { id: 'vanguard_2', name: 'Vanguard 2', desc: 'The front holds. +7% DEF.', needs: { role: { vanguard: 2 } }, mods: [{ path: 'def', op: 'mul', v: 1.07 }] },
-  { id: 'ranger_3', name: 'Ranger 3', desc: 'Souls with no foe next to them deal +12% damage.', needs: { role: { ranger: 3 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.12, pos: 'free' }] },
-  { id: 'skirmisher_2', name: 'Skirmisher 2', desc: '+4 SPD.', needs: { role: { skirmisher: 2 } }, mods: [{ path: 'spd', op: 'add', v: 4 }] },
-  { id: 'channeler_2', name: 'Channeler 2', desc: '+6% damage dealt.', needs: { role: { channeler: 2 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.06 }] },
-  { id: 'warden_2', name: 'Warden 2', desc: '+12% healing given.', needs: { role: { warden: 2 } }, mods: [{ path: 'heal.given', op: 'mul', v: 1.12 }] },
-  { id: 'trickster_2', name: 'Trickster 2', desc: '+3 CRT, +3 EVA.', needs: { role: { trickster: 2 } }, mods: [{ path: 'crt', op: 'add', v: 3 }, { path: 'eva', op: 'add', v: 3 }] },
+  { id: 'undead_2', name: 'Undead 2', desc: 'The dead do not flinch. +12% DEF.', needs: { kin: { undead: 2 } }, mods: [{ path: 'def', op: 'mul', v: 1.12 }] },
+  { id: 'undead_4', name: 'Undead 4', desc: '+30% DEF, +10% max HP.', needs: { kin: { undead: 4 } }, mods: [{ path: 'def', op: 'mul', v: 1.3 }, { path: 'hp', op: 'mul', v: 1.1 }] },
+  { id: 'drake_2', name: 'Drake 2', desc: '+16% ATK.', needs: { kin: { drake: 2 } }, mods: [{ path: 'atk', op: 'mul', v: 1.16 }] },
+  { id: 'fae_2', name: 'Fae 2', desc: '+8 EVA.', needs: { kin: { fae: 2 } }, mods: [{ path: 'eva', op: 'add', v: 8 }] },
+  { id: 'insect_2', name: 'Insect 2', desc: '+6% gauge rate.', needs: { kin: { insect: 2 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.06 }] },
+  { id: 'construct_2', name: 'Construct 2', desc: '+10 DEF.', needs: { kin: { construct: 2 } }, mods: [{ path: 'def', op: 'add', v: 10 }] },
+  { id: 'vanguard_2', name: 'Vanguard 2', desc: 'The front holds. +14% DEF.', needs: { role: { vanguard: 2 } }, mods: [{ path: 'def', op: 'mul', v: 1.14 }] },
+  { id: 'ranger_3', name: 'Ranger 3', desc: 'Souls with no foe next to them deal +24% damage.', needs: { role: { ranger: 3 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.24, pos: 'free' }] },
+  { id: 'skirmisher_2', name: 'Skirmisher 2', desc: '+8 SPD.', needs: { role: { skirmisher: 2 } }, mods: [{ path: 'spd', op: 'add', v: 8 }] },
+  { id: 'channeler_2', name: 'Channeler 2', desc: '+12% damage dealt.', needs: { role: { channeler: 2 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.12 }] },
+  { id: 'warden_2', name: 'Warden 2', desc: '+24% healing given.', needs: { role: { warden: 2 } }, mods: [{ path: 'heal.given', op: 'mul', v: 1.24 }] },
+  { id: 'trickster_2', name: 'Trickster 2', desc: '+6 CRT, +6 EVA.', needs: { role: { trickster: 2 } }, mods: [{ path: 'crt', op: 'add', v: 6 }, { path: 'eva', op: 'add', v: 6 }] },
   // Pacts: cross-axis recipes.
-  { id: 'scaled_wall', name: 'Scaled Wall', desc: 'Drake 2 + Vanguard 2: engaged souls take 10% less damage.', needs: { kin: { drake: 2 }, role: { vanguard: 2 } }, mods: [{ path: 'damage.taken', op: 'mul', v: 0.9, pos: 'engaged' }] },
-  { id: 'glamour', name: 'Glamour', desc: 'Fae 2 + Trickster 2: +5 EVA, +4% gauge rate.', needs: { kin: { fae: 2 }, role: { trickster: 2 } }, mods: [{ path: 'eva', op: 'add', v: 5 }, { path: 'gauge.rate', op: 'mul', v: 1.04 }] },
-  { id: 'swarm_logic', name: 'Swarm Logic', desc: 'Insect 4 + Skirmisher 2: +8% gauge rate.', needs: { kin: { insect: 4 }, role: { skirmisher: 2 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.08 }] },
-  { id: 'grave_vigil', name: 'Grave Vigil', desc: 'Undead 4 + Warden 2: +12% max HP.', needs: { kin: { undead: 4 }, role: { warden: 2 } }, mods: [{ path: 'hp', op: 'mul', v: 1.12 }] },
-  { id: 'ember_choir', name: 'Ember Choir', desc: 'Drake 2 + Channeler 2: +10% damage dealt, +3 CRT.', needs: { kin: { drake: 2 }, role: { channeler: 2 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.1 }, { path: 'crt', op: 'add', v: 3 }] },
+  { id: 'scaled_wall', name: 'Scaled Wall', desc: 'Drake 2 + Vanguard 2: engaged souls take 20% less damage.', needs: { kin: { drake: 2 }, role: { vanguard: 2 } }, mods: [{ path: 'damage.taken', op: 'mul', v: 0.8, pos: 'engaged' }] },
+  { id: 'glamour', name: 'Glamour', desc: 'Fae 2 + Trickster 2: +10 EVA, +8% gauge rate.', needs: { kin: { fae: 2 }, role: { trickster: 2 } }, mods: [{ path: 'eva', op: 'add', v: 10 }, { path: 'gauge.rate', op: 'mul', v: 1.08 }] },
+  { id: 'swarm_logic', name: 'Swarm Logic', desc: 'Insect 4 + Skirmisher 2: +16% gauge rate.', needs: { kin: { insect: 4 }, role: { skirmisher: 2 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.16 }] },
+  { id: 'grave_vigil', name: 'Grave Vigil', desc: 'Undead 4 + Warden 2: +24% max HP.', needs: { kin: { undead: 4 }, role: { warden: 2 } }, mods: [{ path: 'hp', op: 'mul', v: 1.24 }] },
+  { id: 'ember_choir', name: 'Ember Choir', desc: 'Drake 2 + Channeler 2: +20% damage dealt, +6 CRT.', needs: { kin: { drake: 2 }, role: { channeler: 2 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.2 }, { path: 'crt', op: 'add', v: 6 }] },
   // The deep steps, 4 and 6, then 8: a kin or role five pieces deep (most are two or three) reaches them only
   // with shadows, which count like anyone else (a stack counts once, whatever its count). Steps stack: Undead 6 also has Undead 2 and 4.
   // Ranger's first step stays at 3. An 8 is a rule, not a number (`rule`: the battle reads it, see battle.js
   // rulesOf); it holds for whichever side has it, foes deep in the endless floors too.
-  { id: 'undead_6', name: 'Undead 6', desc: '+8% DEF, +10% max HP.', needs: { kin: { undead: 6 } }, mods: [{ path: 'def', op: 'mul', v: 1.08 }, { path: 'hp', op: 'mul', v: 1.1 }] },
+  { id: 'undead_6', name: 'Undead 6', desc: '+16% DEF, +20% max HP.', needs: { kin: { undead: 6 } }, mods: [{ path: 'def', op: 'mul', v: 1.16 }, { path: 'hp', op: 'mul', v: 1.2 }] },
   { id: 'undead_8', name: 'Undead 8', desc: 'The Legion: every foe slain rises at once as a shadow on your side, past Arise\'s limit and tier (never a boss, a shadow or a Monarch), while your side has room on the board for it.', needs: { kin: { undead: 8 } }, rule: 'legion', mods: [] },
-  { id: 'drake_4', name: 'Drake 4', desc: '+10% damage dealt.', needs: { kin: { drake: 4 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.1 }] },
-  { id: 'drake_6', name: 'Drake 6', desc: '+12% ATK, +5 CRT.', needs: { kin: { drake: 6 } }, mods: [{ path: 'atk', op: 'mul', v: 1.12 }, { path: 'crt', op: 'add', v: 5 }] },
+  { id: 'drake_4', name: 'Drake 4', desc: '+20% damage dealt.', needs: { kin: { drake: 4 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.2 }] },
+  { id: 'drake_6', name: 'Drake 6', desc: '+24% ATK, +10 CRT.', needs: { kin: { drake: 6 } }, mods: [{ path: 'atk', op: 'mul', v: 1.24 }, { path: 'crt', op: 'add', v: 10 }] },
   { id: 'drake_8', name: 'Drake 8', desc: 'Dragonfire: every single-target attack of yours bursts, striking its target and every foe next to it.', needs: { kin: { drake: 8 } }, rule: 'dragonfire', mods: [] },
-  { id: 'fae_4', name: 'Fae 4', desc: '+6 EVA.', needs: { kin: { fae: 4 } }, mods: [{ path: 'eva', op: 'add', v: 6 }] },
-  { id: 'fae_6', name: 'Fae 6', desc: '+8 EVA, +5% gauge rate.', needs: { kin: { fae: 6 } }, mods: [{ path: 'eva', op: 'add', v: 8 }, { path: 'gauge.rate', op: 'mul', v: 1.05 }] },
+  { id: 'fae_4', name: 'Fae 4', desc: '+12 EVA.', needs: { kin: { fae: 4 } }, mods: [{ path: 'eva', op: 'add', v: 12 }] },
+  { id: 'fae_6', name: 'Fae 6', desc: '+16 EVA, +10% gauge rate.', needs: { kin: { fae: 6 } }, mods: [{ path: 'eva', op: 'add', v: 16 }, { path: 'gauge.rate', op: 'mul', v: 1.1 }] },
   { id: 'fae_8', name: 'Fae 8', desc: 'Mirage: the first blow each foe would land on one of yours in a battle strikes only an illusion, and misses.', needs: { kin: { fae: 8 } }, rule: 'mirage', mods: [] },
-  { id: 'insect_4', name: 'Insect 4', desc: '+5% gauge rate.', needs: { kin: { insect: 4 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.05 }] },
-  { id: 'insect_6', name: 'Insect 6', desc: '+10% gauge rate, +2 SPD.', needs: { kin: { insect: 6 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.1 }, { path: 'spd', op: 'add', v: 2 }] },
+  { id: 'insect_4', name: 'Insect 4', desc: '+10% gauge rate.', needs: { kin: { insect: 4 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.1 }] },
+  { id: 'insect_6', name: 'Insect 6', desc: '+20% gauge rate, +4 SPD.', needs: { kin: { insect: 6 } }, mods: [{ path: 'gauge.rate', op: 'mul', v: 1.2 }, { path: 'spd', op: 'add', v: 4 }] },
   { id: 'insect_8', name: 'Insect 8', desc: 'Frenzy: one of yours that slays a foe has its gauge filled at once, ready to strike again.', needs: { kin: { insect: 8 } }, rule: 'frenzy', mods: [] },
-  { id: 'construct_4', name: 'Construct 4', desc: '+8 DEF.', needs: { kin: { construct: 4 } }, mods: [{ path: 'def', op: 'add', v: 8 }] },
-  { id: 'construct_6', name: 'Construct 6', desc: '+12 DEF, +8% max HP.', needs: { kin: { construct: 6 } }, mods: [{ path: 'def', op: 'add', v: 12 }, { path: 'hp', op: 'mul', v: 1.08 }] },
+  { id: 'construct_4', name: 'Construct 4', desc: '+16 DEF.', needs: { kin: { construct: 4 } }, mods: [{ path: 'def', op: 'add', v: 16 }] },
+  { id: 'construct_6', name: 'Construct 6', desc: '+24 DEF, +16% max HP.', needs: { kin: { construct: 6 } }, mods: [{ path: 'def', op: 'add', v: 24 }, { path: 'hp', op: 'mul', v: 1.16 }] },
   { id: 'construct_8', name: 'Construct 8', desc: 'Last Stand: the first blow that would fell each of yours in a battle leaves it standing at 1 HP (never the Monarch).', needs: { kin: { construct: 8 } }, rule: 'last_stand', mods: [] },
-  { id: 'vanguard_4', name: 'Vanguard 4', desc: '+10% DEF.', needs: { role: { vanguard: 4 } }, mods: [{ path: 'def', op: 'mul', v: 1.1 }] },
-  { id: 'vanguard_6', name: 'Vanguard 6', desc: 'Engaged souls take 10% less damage.', needs: { role: { vanguard: 6 } }, mods: [{ path: 'damage.taken', op: 'mul', v: 0.9, pos: 'engaged' }] },
+  { id: 'vanguard_4', name: 'Vanguard 4', desc: '+20% DEF.', needs: { role: { vanguard: 4 } }, mods: [{ path: 'def', op: 'mul', v: 1.2 }] },
+  { id: 'vanguard_6', name: 'Vanguard 6', desc: 'Engaged souls take 20% less damage.', needs: { role: { vanguard: 6 } }, mods: [{ path: 'damage.taken', op: 'mul', v: 0.8, pos: 'engaged' }] },
   { id: 'vanguard_8', name: 'Vanguard 8', desc: 'Bodyguard: a single-target blow at one of yours that is not a Vanguard lands instead on a Vanguard of yours standing next to it.', needs: { role: { vanguard: 8 } }, rule: 'bodyguard', mods: [] },
-  { id: 'ranger_6', name: 'Ranger 6', desc: 'Souls with no foe next to them deal +15% damage.', needs: { role: { ranger: 6 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.15, pos: 'free' }] },
+  { id: 'ranger_6', name: 'Ranger 6', desc: 'Souls with no foe next to them deal +30% damage.', needs: { role: { ranger: 6 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.3, pos: 'free' }] },
   { id: 'ranger_8', name: 'Ranger 8', desc: 'Deadeye: ranged blows of yours never miss, and every one is a critical hit.', needs: { role: { ranger: 8 } }, rule: 'deadeye', mods: [] },
-  { id: 'skirmisher_4', name: 'Skirmisher 4', desc: '+5 SPD.', needs: { role: { skirmisher: 4 } }, mods: [{ path: 'spd', op: 'add', v: 5 }] },
-  { id: 'skirmisher_6', name: 'Skirmisher 6', desc: '+8 SPD, +5 EVA.', needs: { role: { skirmisher: 6 } }, mods: [{ path: 'spd', op: 'add', v: 8 }, { path: 'eva', op: 'add', v: 5 }] },
+  { id: 'skirmisher_4', name: 'Skirmisher 4', desc: '+10 SPD.', needs: { role: { skirmisher: 4 } }, mods: [{ path: 'spd', op: 'add', v: 10 }] },
+  { id: 'skirmisher_6', name: 'Skirmisher 6', desc: '+16 SPD, +10 EVA.', needs: { role: { skirmisher: 6 } }, mods: [{ path: 'spd', op: 'add', v: 16 }, { path: 'eva', op: 'add', v: 10 }] },
   { id: 'skirmisher_8', name: 'Skirmisher 8', desc: 'Ambush: yours start the battle, and enter it, with a full gauge.', needs: { role: { skirmisher: 8 } }, rule: 'ambush', mods: [] },
-  { id: 'channeler_4', name: 'Channeler 4', desc: '+8% damage dealt.', needs: { role: { channeler: 4 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.08 }] },
-  { id: 'channeler_6', name: 'Channeler 6', desc: '+10% damage dealt, +5% gauge rate.', needs: { role: { channeler: 6 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.1 }, { path: 'gauge.rate', op: 'mul', v: 1.05 }] },
+  { id: 'channeler_4', name: 'Channeler 4', desc: '+16% damage dealt.', needs: { role: { channeler: 4 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.16 }] },
+  { id: 'channeler_6', name: 'Channeler 6', desc: '+20% damage dealt, +10% gauge rate.', needs: { role: { channeler: 6 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.2 }, { path: 'gauge.rate', op: 'mul', v: 1.1 }] },
   { id: 'channeler_8', name: 'Channeler 8', desc: 'Echo: every ability yours use rings out twice, its effects striking its targets again for free (Arise never echoes).', needs: { role: { channeler: 8 } }, rule: 'echo', mods: [] },
-  { id: 'warden_4', name: 'Warden 4', desc: '+15% healing given.', needs: { role: { warden: 4 } }, mods: [{ path: 'heal.given', op: 'mul', v: 1.15 }] },
-  { id: 'warden_6', name: 'Warden 6', desc: '+20% healing given, +8% max HP.', needs: { role: { warden: 6 } }, mods: [{ path: 'heal.given', op: 'mul', v: 1.2 }, { path: 'hp', op: 'mul', v: 1.08 }] },
+  { id: 'warden_4', name: 'Warden 4', desc: '+30% healing given.', needs: { role: { warden: 4 } }, mods: [{ path: 'heal.given', op: 'mul', v: 1.3 }] },
+  { id: 'warden_6', name: 'Warden 6', desc: '+40% healing given, +16% max HP.', needs: { role: { warden: 6 } }, mods: [{ path: 'heal.given', op: 'mul', v: 1.4 }, { path: 'hp', op: 'mul', v: 1.16 }] },
   { id: 'warden_8', name: 'Warden 8', desc: 'Sanctuary: every ability yours aim at an ally (a heal, a ward, a cleanse) touches every one of yours on the board.', needs: { role: { warden: 8 } }, rule: 'sanctuary', mods: [] },
-  { id: 'trickster_4', name: 'Trickster 4', desc: '+4 CRT, +4 ACC.', needs: { role: { trickster: 4 } }, mods: [{ path: 'crt', op: 'add', v: 4 }, { path: 'acc', op: 'add', v: 4 }] },
-  { id: 'trickster_6', name: 'Trickster 6', desc: '+6 CRT, +8% damage dealt.', needs: { role: { trickster: 6 } }, mods: [{ path: 'crt', op: 'add', v: 6 }, { path: 'damage.dealt', op: 'mul', v: 1.08 }] },
+  { id: 'trickster_4', name: 'Trickster 4', desc: '+8 CRT, +8 ACC.', needs: { role: { trickster: 4 } }, mods: [{ path: 'crt', op: 'add', v: 8 }, { path: 'acc', op: 'add', v: 8 }] },
+  { id: 'trickster_6', name: 'Trickster 6', desc: '+12 CRT, +16% damage dealt.', needs: { role: { trickster: 6 } }, mods: [{ path: 'crt', op: 'add', v: 12 }, { path: 'damage.dealt', op: 'mul', v: 1.16 }] },
   { id: 'trickster_8', name: 'Trickster 8', desc: 'Deathblow: a critical hit of yours slays any foe but a boss or a Monarch outright (a Last Stand still holds, once).', needs: { role: { trickster: 8 } }, rule: 'deathblow', mods: [] }
 ]
 

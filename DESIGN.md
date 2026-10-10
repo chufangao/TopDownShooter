@@ -207,7 +207,7 @@ relic: one slain foe a battle, as a full soul into the ossuary.
   or level (`foeEssence` in `src/sim/run.js`; a shadow pays nothing, but Hollow Court's pay again). It buys only tiers,
   recruits and fusions, and **money always matters** (§6): every price is its floor-1 price × the floor's price scale,
   1 + `perFloor` × (floor − 1) (`floorPrice`: ×1, ×2.1, ×3.2, ×4.3 on floors 1–4, and on down), after the discount
-  relics. Floor-1 prices: a tier 20 / 45 / 75 / 120 (I–IV), a recruit 8 × its tier × (1 + 0.35 × (level − 1)), a
+  relics. Floor-1 prices: a tier 16 / 36 / 60 / 96 (I–IV), a recruit 8 × its tier × (1 + 0.35 × (level − 1)), a
   fusion 8 × the result's tier. What a battle buys stays about level from floor to floor, and a floor's pay carried
   down buys less there.
 - **Wounds carry.** A won battle heals each living body `TUNING.run.postBattleHeal` of its HP (20% since 2026-10-10,
@@ -218,7 +218,7 @@ relic: one slain foe a battle, as a full soul into the ossuary.
   track past II may reach IV; the other stops at II). Tier IV is a rule, never a percentage: a new or remade ability,
   an aura, +ring, or **Colossus** (`size: 2`). Banner is gone.
 - **A kind's level is its tiers'.** No level is bought: a kind stands at `TUNING.level.base` + `perTier` × the tiers
-  it holds on both tracks, rounded down (`levelOf`; 2 and 0.5 since the economy pass, 0.34 in the second balance pass, so two tiers make level 3 and IV and II level 5), and every soul of it with it, healed by what it gains. The stat growth levels gave comes with each tier. A
+  it holds on both tracks, rounded down (`levelOf`; 2 and 0.67 since the fourth balance pass, 0.5 in the economy pass, 0.34 in the second balance pass, so two tiers make level 3, three level 4, and IV and II level 6), and every soul of it with it, healed by what it gains. The stat growth levels gave comes with each tier. A
   recruit joins at its kind's level (a kind new to the run at its first, with no tiers), and its offer is priced by
   that level. Foes keep their floor's levels.
 - **Fusions** (`FUSION_LIST` in `src/content.js`: `{ id, name, result, needs: { kind: n }, desc }`). A fusion
@@ -695,6 +695,120 @@ Missed, and why:
   the ones the expert makes. Fusions and synergies stay what the two passes before found: the expert substitutes for
   them (tiers and recruits for a fusion; another kin's stat steps for a synergy), and no number tried here moved them.
 
+**The fourth balance pass (2026-10-10), done** (the economy pass was the third). Why: since the economy pass the rules
+moved under the numbers (§6): foes walk until they can hit back, flyers are blocked by your pieces, wounds carry
+(`run.postBattleHeal` 0.2), Flank is gone (the Will-o'-Wisp, Mantis Reaper and Barrow Wight walk the drawn road and
+halt in your sight), and the bug hunt fixed the zero heals, the fallen bodies and the gate. `combos.json` predated all
+of it. With the book regenerated, the expert cleared 83.6% of 128 and died on floor 1 in seven runs (5.5%: a Pyre
+Hound's burn four times, a long duel with a floor-1 shooter three), and two extras read nothing: synergies −2, fusions 2.
+
+Method, as the economy pass's: the combo book regenerated first, after every material change and at the end (the last
+regeneration byte-identical to the one measured); the economy harness outside the repo (the autoplayer unchanged; it
+reproduces `--ladder`'s runs exactly, checked on 64 seeds before and after), here also able to stop at a floor (floor 1
+alone, 256 seeds a level on the set `f`, under a minute) and to play an ablated expert, with numbers patched into its
+workers for screens; screens and rounds on 64 expert seeds (`sim`), the confirmation on 128 (`sim` and `b`), and
+`--ablations` on 64 seeds of each set read together, paired by seed (128, a drop's standard error 2–5 points). Four
+rounds, numbers only, about 2.5 hours of measurement.
+
+| | before (128 seeds) | after (128 seeds) |
+|---|---|---|
+| expert clear | 83.6% (died fl 1 ×7: burn 4, reach 3; fl 2 ×2: reach, shape; fl 3 ×5: fly 2, shape 2, reach; fl 4 ×7: shape 4, reach 2, none) | 90.6% (fl 1 ×2: burn 2; fl 2 ×1: reach; fl 3 ×8: fly 3, shape 3, reach 2; fl 4 ×1: reach) |
+| basic clear | 0% (89.8% of deaths on fl 1: reach 74, burn 31, drain 6, clock 2, shape 2; fl 2 12; fl 3 1) | 0% (76.6% on fl 1: reach 60, burn 29, drain 4, clock 3, shape 2; fl 2 27; fl 3 3) |
+| floor 1 alone (256 seeds a level, `f`) | the expert dies there 3.9%, basic 90.6% | the expert 1.2%, basic 84.4% |
+
+The former Flank kinds as killers, in the 128 whole runs a level before and after: the Wisp killed the expert once before and never
+after, basic 30 and 31 times (nearly all on floor 1, one of its three commonest killers there with the Frost Sprite and
+the Pyre Hound); the
+Mantis killed the expert once before (a floor-4 elite), never after; the Wight never killed anyone.
+
+The expert's economy, floor by floor (medians over 128 seeds, read as the economy pass read them: "unspent" as the
+floor's last fight began, beside a tier II's price there; "still wanted": what its growth search would buy then with
+essence no object; recruits refused for price, of its recruit rooms):
+
+| floor | earned | spent | unspent | tier II | still wanted | recruits refused |
+|---|---|---|---|---|---|---|
+| 1, before | 174 | 178 | 6 | 45 | 1,150, 19.0 tiers | 15% |
+| 2, before | 244 | 197 | 19 | 95 | 2,252, 17.2 | 18% |
+| 3, before | 877 | 771 | 50 | 144 | 2,432, 12.4 | 11% |
+| 4, before | 956 | 860 | 104 | 194 | 1,855, 7.7 | 20% |
+| 1, after | 172 | 176 | 6 | 36 | 952, 19.7 tiers | 18% |
+| 2, after | 249 | 217 | 15 | 76 | 1,920, 17.7 | 20% |
+| 3, after | 874 | 771 | 32 | 115 | 2,341, 13.4 | 14% |
+| 4, after | 941 | 860 | 77 | 155 | 2,220, 9.0 | 24% |
+
+Over a run: spent of what it could spend, median 96% → 97% (pooled over the clears 93% both); at a clear, the share of
+its fielded kinds' tiers held, median 63% → 56% (mean 63% → 61%; 11.9 tiers over 3.6 kinds → 15.9 over 4.6); tiers held
+in all 15.4 → 19.8; fusions 0.83 → 0.86 a run; bodies lost a battle 0.54 of 20.5 → 0.42 of 19.9. Money still binds on
+every floor: the expert ends each with at most half a tier II's price, still wants 950–2,340 essence of growth, and
+refuses 14–24% of its recruits for price.
+
+Ablations of the expert, drop in clear-rate points (clear-eq in brackets); before, 64 seeds (`sim`), the full expert
+81.3%; after, the sweeps on `sim` and `b` and the two paired by seed (128), the full expert 92.2%, 89.1%, 90.6%:
+
+| | tracks | formation | bodies | fusions | legendaries | relics | synergies |
+|---|---|---|---|---|---|---|---|
+| band | 25–50 | 25–50 | 25–50 | 8–25 | 8–25 | 8–25 | 8–25 |
+| before (`sim`) | 25 (12) | 53 (63) | 44 (12) | 2 (1) | 9 (4) | 14 (6) | −2 (2) |
+| after (`sim`) | 34 (20) | 47 (61) | 36 (17) | 3 (1) | 30 (9) | 11 (7) | 17 (6) |
+| after (`b`) | 20 (7) | 44 (54) | 30 (9) | −2 (−1) | 28 (8) | 11 (4) | 19 (7) |
+| after (128) | 27 ± 5 (13) | 45 ± 5 (58) | 33 ± 4 (13) | 1 ± 2 (0) | 29 ± 4 (9) | 11 ± 4 (6) | 18 ± 4 (7) |
+
+Clear-eq reads low for everything but formation, and that is the fit, not the mechanics: k is the slope through all
+seven, and the formation-ablated expert dies on floor 1 (a third to a half of its runs, its progress drop 38–49 points for a clear
+drop of 45–53), while every other ablated expert dies on floors 3–4 (3–5 clear points per progress point), so k (1.3
+before, 1.5 after) reads the others at about a third of their clear drops. Fit without formation (k 3.9), the 128 after
+read tracks 32, bodies 32, legendaries 22, relics 14, synergies 17, fusions 0.
+
+What changed, and why:
+
+- **Pyre Bite's Burning lasts 4 s** (`pyre_bite` dur 120 → 80; Cinder Fang's 10 s still the longer burn). The hound was
+  the expert's commonest floor-1 death: one that reached the Monarch laid three stacks (18 true damage a second) and
+  burned it for about 190, most of it after the hound fell.
+- **The Will-o'-Wisp's EVA 22** (was 28). Walking the road, it halts in your rings and duels from four tiles; at 28 (32
+  beside a Frost Sprite, Fae 2) a floor-1 Bone Chanter's bolts landed about half the time, and the duel ran into
+  escalation (the expert's floor-1 reach deaths came at 900–1,400 ticks). The two together (with the level step below),
+  floor 1 alone: the expert's deaths there 3.9% → 2.3%, basic's 90.6% → 91.0%. The Mantis and the Wight were looked at and left: neither killed the
+  expert after the pass (above).
+- **The Monarch's base HP 250** (`monarch.hp`, was 220). Floor 1 alone, on top of the two above: the expert 2.3% → 1.6%,
+  basic 91% → 89%; and every defeat of the expert is the Monarch's, on every floor.
+- **Tiers cost 16 / 36 / 60 / 96** (`essence.tier`, was 20 / 45 / 75 / 120: ×0.8). The expert needed about six points
+  more. Floors 2–4's foes ×0.9 gave them (88% of 128) but shrank the drops with the foes (tracks 23, relics 9 on 64);
+  cheaper tiers, with the foes left at the economy pass's numbers, gave the expert 91% and the tracks 39 (64 `sim`): it
+  holds 19.8 tiers at a clear, not 15.4, and the tracks-ablated expert none. It still spends 97% of its essence.
+- **A level is 0.67 a tier** (`level.perTier`, was 0.5): three tiers make level 4 and six level 6 (were 3 and 5); two
+  stay level 3, so basic's floor 1 is as it was. Taken with the cheaper tiers, not measured apart from them.
+- **Every synergy's stat step doubled**, each `desc` with it (Undead 2 +12% DEF, Undead 4 +30% DEF and +10% max HP, Drake
+  2 +16% ATK, Fae 2 +8 EVA, Channeler 2 +12% damage dealt, Scaled Wall and Vanguard 6 20% less damage, and so on; the
+  8-step rules unchanged). At the old steps the synergies ablation read −2 and −3 (64); doubled, 17 and 19. Both sides'
+  steps doubled, and the ablation strips only yours, so part of what it now reads is the foes' cohorts (Drake 2, Undead
+  4) met without yours on floors 3–4. Basic's floor-1 deaths were unchanged by it (floor 1 alone 86% → 84%). Two scene
+  tests were rebuilt for it (`test/endless.test.js`: Fae 8's squad without its Frost Sprites, whose Fae-6-quickened
+  Frost Lance drained a knight until it fell without a blow; Construct 8's Barrow Wight at level 6, as at 3 the doubled
+  DEF and the pages' Purge outlasted it), and `test/fixes.test.js`'s Undead 4 HP step reads 1.1.
+
+Tried and reverted: Burning 5 or 4 a stack (floor 1 alone, the expert 2.3% and 2.0% beside 2.3%, and it weakens every
+burn of yours too); floor 1's foe ATK 1.02 → 0.94 (the expert's floor-1 deaths 5.5% of 256, no better); floors 2–4's
+foes ×0.9 (above); a level 1.0 a tier (the expert 80% of 64, basic's floor-1 share 75%: two tiers made level 4); the
+fusion price 8 → 4 a tier (the fusions ablation 3 → 4); the stat relics up (Whetstone +25% ATK, Heartwood +30% max HP,
+Glass Crown +42%, Arcane Focus 55 gauge, Blood Chalice 20%: the relics ablation 8 → 6); the Ember Drake's spawn weight
+8 → 6 (the expert's commonest late killer, at floor 3–4 elites: 84% → 83%).
+
+Missed, and why:
+
+- **Fusions (1 ± 2)**, as every pass before found. The expert fuses 0.86 times a run, and without fusions spends their
+  parts and essence on tiers and recruits; halving the fusion price changed nothing. Left.
+- **Legendaries (29 ± 4)**, a standard error over 25, as in the economy pass (30). They rose with the doubled
+  synergies: Mimicry (102 copies held in 64 runs) counts Vanguards as Wardens for them, and Undying (134) is the
+  expert's commonest relic. A number on either (Undying's 60%) was not tried: within the noise, left for the next pass.
+- **Tracks (27 ± 5)** are in by clear rate but sit near the floor, and read 34 and 20 on the two sets.
+- **Clear-eq** reads all but formation under, and formation over, for the reason above; fit without formation all but
+  fusions are in.
+- Floor 3 now holds 8 of the expert's 12 defeats (Ember Drakes, Bone Chanters, Ash Wyverns and a Hive Drone, all but
+  one at elites). Basic's floor-1
+  share fell from 90% to 77% (the Monarch's 30 HP and the shorter burn let it through floor 1 more often; it dies on floor
+  2, mostly to reach), still above the 70% the user set. Left open, as asked: the Mantis's stand-in Shape threat, and count
+  tiers refilling wounds.
+
 ## 6. Decisions taken, and open
 
 Taken:
@@ -963,6 +1077,12 @@ Open, for the user:
   its living bodies whole unless the blows ate through the added ones too: a Bone Chanter coming in at 30% with +6
   bodies leaves at 100%. Cap what a piece keeps at the HP it came in with (a count tier then only shields), or leave
   it (a count tier then mends between rooms too).
+
+Taken in the fourth balance pass (2026-10-10; §5 Step 8), numbers only, after Flank went and wounds came to carry: the
+Monarch's base HP 250; Pyre Bite's Burning 4 s; the Will-o'-Wisp's EVA 22; tiers 16 / 36 / 60 / 96 on floor 1 and a
+level 0.67 a tier; every synergy's stat step doubled. The expert clears about 90% and almost never dies on floor 1 (1%
+there); basic clears none and dies on floor 1 in three runs of four; the expert still spends all it earns and wants
+more; every ablation is in its band by clear rate but fusions (under, as always) and legendaries (a standard error over).
 
 ## 7. Standing rules
 
