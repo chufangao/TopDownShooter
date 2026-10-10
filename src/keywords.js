@@ -13,17 +13,17 @@ export const secs = (ticks) => `${+(ticks * TUNING.tick.ms / 1000).toFixed(1)} s
 
 // The twelve, in the order a player meets them.
 export const KEYWORDS = {
-  piece: { name: 'Piece', sys: 'essence', line: 'One kind on one cell, or four for a 2×2, as many bodies as its count. Yours never move: each fights from where you put it, all battle.' },
-  stack: { name: 'Stack', sys: 'essence', line: 'The bodies in one piece. Their HP is one pool; they fall one at a time, and a smaller stack hits softer.' },
+  piece: { name: 'Piece', sys: 'essence', line: 'One soul on one cell, or four for a 2×2. Yours never move: each fights from where you put it, all battle.' },
   ring: { name: 'Ring', sys: 'plan', line: 'How far a piece fights, in tiles from its footprint: its ranged blows to their range, its melee only beside it (two tiles for a long arm). A foe walking into it halts there once it can strike something of yours, but only as far as a blow that needs no condition reaches.' },
   road: { name: 'Road', sys: 'foe', line: 'The arrows the foes walk to the Monarch, doing nothing else until they can hit back: in a ring of yours with something in reach, or with the way ahead held. Walls bend them; your pieces do not.' },
   wave: { name: 'Wave', sys: 'foe', line: `More foes over the far edge, once the last wave is down to a third or after ${secs(W.t)}; a floor-1 elite's late pair at a set time. The scouts tell each wave's coming.` },
   shadow: { name: 'Shadow', sys: 'shadow', line: 'A slain foe risen to fight for you, on the free tile nearest the Monarch. It holds there, and is gone when the battle ends.' },
+  summon: { name: 'Summon', sys: 'shadow', line: `A shadow of its own kind that a tier calls up beside a piece of yours as each battle begins, at ${Math.round(TUNING.summon.hp * 100)}% of its HP. It holds there, and is gone when the battle ends.` },
   essence: { name: 'Essence', sys: 'essence', line: 'Paid by every foe slain, by its tier; buys tiers, fusions and recruits, every price dearer each floor down.' },
   tier: { name: 'Tier', sys: 'path', line: 'A step, I–IV, on one of a kind\'s two tracks: it upgrades every soul of that kind and raises the kind\'s level.' },
   fusion: { name: 'Fusion', sys: 'path', line: 'A recipe: souls of set kinds become one much stronger piece, most of them 2×2. The Codex lists every one.' },
   synergy: { name: 'Synergy', sys: 'synergy', line: 'A bonus for fielding pieces of one kin or role, in steps at 2, 4, 6 and 8. Its pieces glow in its colour.' },
-  relic: { name: 'Relic', sys: 'relic', line: 'A lasting bonus, often a trigger: Common, Uncommon, Rare, or Legendary, a rule that rewrites the game. Copies stack.' },
+  relic: { name: 'Relic', sys: 'relic', line: 'A lasting bonus, often a trigger: Common, Uncommon, Rare, or Legendary, a rule that rewrites the game. Copies add up.' },
   command: { name: 'Command', sys: 'monarch', line: `How many pieces the Monarch fields: ${TUNING.party.field} to begin, more with each Command relic, at most ${TUNING.army.board}.` }
 }
 for (const k of Object.values(KEYWORDS)) k.group = 'Words'

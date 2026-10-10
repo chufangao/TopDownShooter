@@ -14,7 +14,7 @@ import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import { RELIC_LIST, RELICS, RELIC_TIERS, TRIGGERS, STATUSES, UNIT_LIST, unitDef } from '../src/content.js'
 import { makeUnit, tileAt, tileX, tileY, slotAt, alive, activeSynergies, baseStats, footprint } from '../src/sim/unit.js'
-import { on, stackOn, scene as sceneOf, slay, unit } from './scene.js'
+import { on, scene as sceneOf, slay, unit } from './scene.js'
 import { visit, win } from './rooms.js'
 // The Legendaries' numbers, as content sets them: Legion's HP share, Undying's rise, Blood Tithe's tithe.
 const LEGION = RELICS.legion.mods
@@ -27,9 +27,9 @@ const NEEDS_ARISE = ['hollow_court', 'blood_tithe', 'court_of_bone']
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
-// A battle of units placed on tiles (scene.js scene). A soul's tiers add no bodies here (the bodies switch) unless
-// `bodies`: the scenes set every piece's count themselves.
-const scene = (units, { bodies = false, ...opts } = {}) => sceneOf(units, { ...(!bodies && { ablate: ['bodies'] }), ...opts })
+// A battle of units placed on tiles (scene.js scene). A soul's tiers call no summons here (the summons switch) unless
+// `summons`: the scenes set every piece themselves.
+const scene = (units, { summons = false, ...opts } = {}) => sceneOf(units, { ...(!summons && { ablate: ['summons'] }), ...opts })
 
 // Steps until `done(events so far)` holds; the events of every tick stepped.
 function until (b, done, limit = 600) {
@@ -259,7 +259,7 @@ test('trigger relics fire for your side only: a foe slaying, falling or entering
 
 // ── Legendaries in battle ──────────────────────────────────────────────────────────────────────────
 
-test('Legion: two more souls on the field, and every soul (stacks and shadows too, never the Monarch) fights at 85% max HP', () => {
+test('Legion: two more souls on the field, and every soul (shadows too, never the Monarch) fights at 85% max HP', () => {
   const run = createRun({ seed: 'legion' })
   const s = run.state
   assert.equal(fieldCap(run), 3)
@@ -275,9 +275,9 @@ test('Legion: two more souls on the field, and every soul (stacks and shadows to
   const legion = mine(['legion'])
   for (const u of souls(s.party)) assert.equal(legion[u.uid], Math.round(plain[u.uid] * LEGION_HP), u.id)
   assert.equal(legion[0], plain[0], 'the Monarch keeps its HP')
-  // A stack's every body as well.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), stackOn('grave_ghoul', 2, 'party', 2, 3, 2), on('iron_golem', 50, 'foe', 3, 10)], { relics: ['legion'], partyMods: LEGION })
-  assert.equal(unit(b, 2).maxHp, 2 * Math.round(baseStats('grave_ghoul', 3).hp * LEGION_HP))
+  // A scene's soul as well.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('grave_ghoul', 2, 'party', 2, 3), on('iron_golem', 50, 'foe', 3, 10)], { relics: ['legion'], partyMods: LEGION })
+  assert.equal(unit(b, 2).maxHp, Math.round(baseStats('grave_ghoul', 3).hp * LEGION_HP))
   assert.equal(b.monarch.maxHp, baseStats('monarch', 3).hp)
   // And a shadow Arise raises.
   const shade = (partyMods) => {
@@ -298,8 +298,8 @@ function felled (units, victim, relics) {
   return b
 }
 
-test('Undying: a fallen soul rises where it fell at 50% HP, once a battle (a stack as one piece); shadows and the Monarch never rise', () => {
-  const units = [on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5), stackOn('grave_ghoul', 2, 'party', 0, 1, 2), on('iron_golem', 50, 'foe', 6, 10)]
+test('Undying: a fallen soul rises where it fell at 50% HP, once a battle; shadows and the Monarch never rise', () => {
+  const units = [on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5), on('grave_ghoul', 2, 'party', 0, 1), on('iron_golem', 50, 'foe', 6, 10)]
   const b = felled(units, 1, ['undying', 'bone_idol'])
   const knight = unit(b, 1)
   const roster = b.roster
@@ -319,10 +319,10 @@ test('Undying: a fallen soul rises where it fell at 50% HP, once a battle (a sta
   const plain = felled(units, 1, [])
   until(plain, (ev) => ev.some((e) => e.type === 'death' && e.target === 1))
   assert.ok(!alive(unit(plain, 1)) && !plain.events.some((e) => e.type === 'rise'))
-  // A stack rises as one piece, at 50% of its pool: both its bodies stand again.
-  const stack = felled(units, 2, ['undying'])
-  const fell = until(stack, (ev) => ev.some((e) => e.type === 'death' && e.target === 2))
-  assert.deepEqual(after(fell, (e) => e.type === 'death' && e.target === 2)[0], { t: fell.at(-1).t, type: 'rise', target: 2, hp: Math.round(unit(stack, 2).maxHp * RISE) })
+  // Another soul rises likewise, at 50% of its max HP.
+  const ghoul = felled(units, 2, ['undying'])
+  const fell = until(ghoul, (ev) => ev.some((e) => e.type === 'death' && e.target === 2))
+  assert.deepEqual(after(fell, (e) => e.type === 'death' && e.target === 2)[0], { t: fell.at(-1).t, type: 'rise', target: 2, hp: Math.round(unit(ghoul, 2).maxHp * RISE) })
   // A shadow never rises.
   // The shadow: raised beside the Monarch, next to a ready lvl-9 foe knight, and left at 1 HP, it falls for good.
   const sh = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 1), on('grave_ghoul', 10, 'foe', 3, 5, 1), on('tomb_knight', 40, 'foe', 3, 2, 9)],

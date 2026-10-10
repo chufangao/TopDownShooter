@@ -77,13 +77,12 @@ test('every kin and role has its steps up to 8: the steps below are numbers, the
   }
 })
 
-test('shadows count toward the steps, a stack once, the Monarch never; the steps stack; a battle announces its rules', () => {
+test('shadows count toward the steps, the Monarch never; the steps stack; a battle announces its rules', () => {
   const captain = makeUnit('grave_ghoul', { uid: 1, slot: 0 })
   const members = Array.from({ length: 7 }, (_, k) => makeUnit(k % 2 ? 'bone_chanter' : 'grave_ghoul', { uid: 10 + k, slot: 1 + k }))
   const ids = (units) => activeSynergies(units).map((s) => s.id).filter((id) => id.startsWith('undead'))
   assert.deepEqual(ids([captain, ...members]), ['undead_2', 'undead_4', 'undead_6', 'undead_8'])
   assert.deepEqual(ids([captain, ...members.slice(1), makeUnit('monarch', { uid: 0, lvl: 0 })]), ['undead_2', 'undead_4', 'undead_6'])
-  assert.deepEqual(ids([makeUnit('grave_ghoul', { uid: 1, count: 8 })]), [], 'eight bodies in one piece are one')
   const b = scene([...squad(['grave_ghoul', 'bone_chanter'], eight(2)), on('clockwork_page', 100, 'foe', 3, 9)])
   assert.ok(b.events[0].synergies.some((s) => s.side === 'party' && s.id === 'undead_8'))
   assert.deepEqual([...rulesOf(b, 'party')], ['legion'])
@@ -629,12 +628,15 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
         const tier = Math.min(sp.tierMax, 1 + Math.floor((F - 1) * sp.tierPerFloor)) + (elite ? sp.eliteTier : 0) + sp.tierOverCap
         for (const foes of forms) {
           rooms++
-          assert.equal(foes.length, n, `${floor} ${node.id}: foes a wave`)
+          // The foes drawn, then every captain's cohort, the deep's bigger one, foes of their own of its kind.
+          const captains = elite ? sp.captains.elite : sp.captains.fight
+          assert.equal(foes.length, Math.min(SLOTS, n + captains * cohort), `${floor} ${node.id}: foes a wave`)
           assert.ok(foes.length <= SLOTS && new Set(foes.map((f) => f.slot)).size === foes.length)
-          // Every captain is one piece with the deep's bigger cohort in it.
-          const captains = foes.filter((f) => f.count !== undefined)
-          assert.equal(captains.length, elite ? sp.captains.elite : sp.captains.fight, `${floor} ${node.id}: captains`)
-          assert.ok(captains.every((c) => c.count === 1 + cohort), `${floor} ${node.id}: cohort`)
+          assert.ok(!foes.some((f) => 'count' in f), `${floor} ${node.id}: no counts`)
+          for (let c = 0; c < captains && n + (c + 1) * cohort <= SLOTS; c++) {
+            const band = foes.slice(n + c * cohort, n + (c + 1) * cohort)
+            assert.ok(band.every((f) => f.id === band[0].id) && foes.slice(0, n).some((f) => f.id === band[0].id), `${floor} ${node.id}: cohort ${c}`)
+          }
           assert.ok(foes.every((f) => UNITS[f.id].spawn.minFloor <= F && UNITS[f.id].tier <= tier), `${floor} ${node.id} ${foes.map((f) => f.id)}`)
           assert.ok(foes.every((f) => f.lvl === lvl), `${floor} ${node.id} ${foes.map((f) => f.lvl)} ${lvl}`)
         }

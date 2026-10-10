@@ -73,20 +73,20 @@ test('the un-ablated players: a level with no ablation plays exactly as the leve
 
 test('ablation: the names, the rules switches carried by the run and its replay, and a policy that refuses a run without its switch', () => {
   // No monarch-stats and no levels: the Monarch's points and the bought levels are gone (2026-10-09).
-  assert.deepEqual(ABLATIONS, ['fusions', 'bodies', 'tracks', 'legendaries', 'relics', 'synergies', 'formation'])
-  assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'bodies'])
-  assert.deepEqual(CORE, ['tracks', 'formation', 'bodies'])
+  assert.deepEqual(ABLATIONS, ['fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation'])
+  assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons'])
+  assert.deepEqual(CORE, ['tracks', 'formation', 'summons'])
   // Every ablation is targeted: a core one at 25–50 points, an extra one at 8–25.
   assert.deepEqual([...CORE, ...EXTRA].sort(), ABLATIONS.slice().sort())
   assert.ok(CORE.every((m) => BANDS[m].join() === '25,50') && EXTRA.every((m) => BANDS[m].join() === '8,25'))
   assert.throws(() => policy(createRun({ seed: 'sw' }), createRng('sw').stream('autoplay'), without('monarch-stats')), /unknown ablation/)
-  assert.deepEqual(ablatedRun('sw', 'bodies').state.ablate, ['bodies'])
+  assert.deepEqual(ablatedRun('sw', 'summons').state.ablate, ['summons'])
   assert.ok(!('ablate' in ablatedRun('sw', 'fusions').state))
   const run = ablatedRun('sw', 'synergies')
   visit(run, 'fight')
   assert.deepEqual(battleSetup(run).ablate, ['synergies'])
   const rng = createRng('sw').stream('autoplay')
-  assert.throws(() => policy(createRun({ seed: 'sw' }), rng, without('bodies')), /needs a run made with it/)
+  assert.throws(() => policy(createRun({ seed: 'sw' }), rng, without('summons')), /needs a run made with it/)
   assert.throws(() => policy(createRun({ seed: 'sw' }), rng, without('nothing')), /unknown ablation/)
   // replay carries the switch: the same run, battle for battle.
   const played = ablatedRun('swr', 'synergies')
@@ -121,20 +121,20 @@ test('the arise switch: the party Monarch raises no one; the synergies switch: t
   assert.ok(held > 0, 'and do hold synergies with them on')
 }))
 
-test('ablating bodies: no tier adds a body in battle, and such a tier is worth only its place on the track', () => {
-  // The switch: the same setup fights the chanter's piece with Marrowcaller II's body without it, none with it.
-  const run = ablatedRun('ablate-sum', 'bodies')
-  assert.deepEqual(run.state.ablate, ['bodies'])
+test('ablating summons: no tier calls a summon in battle, and such a tier is worth only its place on the track', () => {
+  // The switch: the same setup fights the chanter with Marrowcaller II's summons without it, none with it.
+  const run = ablatedRun('ablate-sum', 'summons')
+  assert.deepEqual(run.state.ablate, ['summons'])
   visit(run, 'fight')
   const chanter = hold(run, 'bone_chanter', [0, 2])
-  const count = (r) => createBattle(battleSetup(r)).byUid.get(chanter.uid).count
-  assert.equal(count(run), 1)
+  const called = (r) => createBattle(battleSetup(r)).units.filter((u) => u.summoned && u.summoner === chanter.uid).length
+  assert.equal(called(run), 0)
   const plain = createRun({ seed: 'ablate-sum' })
   visit(plain, 'fight')
   hold(plain, 'bone_chanter', [0, 2])
-  assert.equal(count(plain), 1 + TRACKS.bone_chanter[1].tiers[1].count)
-  // Spending: with a rich purse, the full expert takes Marrowcaller II (its body) for chanters at Marrowcaller I;
-  // ablated, it never values the tier for its body (it buys something else first, or the tier for the track's
+  assert.equal(called(plain), TRACKS.bone_chanter[1].tiers[1].summon)
+  // Spending: with a rich purse, the full expert takes Marrowcaller II (its summons) for chanters at Marrowcaller I;
+  // ablated, it never values the tier for its summons (it buys something else first, or the tier for the track's
   // sake only).
   const rich = (seed, ablate) => {
     const r = ablatedRun(seed, ablate)
@@ -151,15 +151,15 @@ test('ablating bodies: no tier adds a body in battle, and such a tier is worth o
   const full = buys(rich('sum-buy', null), LEVELS.expert)
   const marrow = (a) => a.type === 'upgrade' && a.kind === 'bone_chanter' && a.track === 1
   assert.ok(full.some(marrow), 'the full expert buys the tier')
-  const off = rich('sum-buy', 'bodies')
-  const order = buys(off, without('bodies')).filter((a) => a.type === 'upgrade')
+  const off = rich('sum-buy', 'summons')
+  const order = buys(off, without('summons')).filter((a) => a.type === 'upgrade')
   const at = (list) => list.findIndex(marrow)
-  // (The combo book still values the track itself: so no earlier, never sooner for its body.)
+  // (The combo book still values the track itself: so no earlier, never sooner for its summons.)
   assert.ok(at(order) === -1 || at(order) >= at(full.filter((a) => a.type === 'upgrade')), 'ablated, the tier comes no earlier, or never')
   // A run under the ablation fights every battle with the switch.
-  const short = ablatedRun('ablate-b3', 'bodies')
-  const battles = playTo(short, without('bodies'), 4)
-  assert.ok(battles.length && battles.every((b) => b.ablate.has('bodies')))
+  const short = ablatedRun('ablate-b3', 'summons')
+  const battles = playTo(short, without('summons'), 4)
+  assert.ok(battles.length && battles.every((b) => b.ablate.has('summons')))
 })
 
 test('ablating relics: neither an HP nor a Command relic is taken, so the field stays at the base Command; the legendaries ablation passes Legion\'s Command over', () => {
@@ -291,7 +291,7 @@ test('ablating formation: basic\'s first draft\'s cells, the Monarch on its seat
 test('necessity: the snapshots refight exactly as recorded, and each mechanic is stripped from the setup', () => {
   const snaps = []
   const run = createRun({ seed: 'nec-0' })
-  // A retinue with everything to strip: a tier that adds a body, tiers (a Colossus among them), a fused piece, two
+  // A retinue with everything to strip: a tier that calls summons, tiers (a Colossus among them), a fused piece, two
   // copies of Arise and another Legendary, relics (the Monarch's HP and Command among them).
   const s = run.state
   s.essence = 0
@@ -302,7 +302,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   join(run, 'grave_ghoul')
   join(run, 'pale_court')
   const chanter = souls(s.party).find((u) => u.id === 'bone_chanter')
-  // The Knight's kind at Bulwark IV (Barrow Wall: 2×2) and Reaver II; the chanter's fights a body more (Marrowcaller II).
+  // The Knight's kind at Bulwark IV (Barrow Wall: 2×2) and Reaver II; the chanter's calls summons (Marrowcaller II).
   hold(run, 'tomb_knight', [4, 2])
   hold(run, 'bone_chanter', [0, 2])
   for (let a; (a = policy(run, rng, 'basic')).type !== 'fight';) apply(run, a)
@@ -316,21 +316,18 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   assert.deepEqual(Object.keys(r).filter((k) => k !== 'same'), ['full', ...NECESSITY])
   const setup = (m) => battleSetup(stripped(snaps[0].snapshot, m))
   const full = setup(null)
-  // The bodies the tiers add: the battle's pieces' counts past the setup's.
-  const raised = (x) => {
-    const b = createBattle(x)
-    return x.party.reduce((n, u) => n + (b.byUid.get(u.uid)?.count ?? u.count) - u.count, 0)
-  }
+  // The summons the tiers call as the battle begins.
+  const raised = (x) => createBattle(x).units.filter((u) => u.summoned).length
   assert.ok(raised(full) > 0 && full.relics.filter((id) => id === 'arise').length === 2 && full.relics.length === 6)
   assert.deepEqual([full.domain, full.party.find((u) => u.uid === 0).maxHp], [TUNING.arise.domain + TUNING.arise.more.domain + RELICS.court_of_bone.domain, monarchHp(s)])
-  // Fusions: the Pale Court back in its three Wisps, a piece of them, wounded as it was; no fused piece fights.
+  // Fusions: the Pale Court back in its three Wisps, three pieces, wounded as it was; no fused piece fights.
   const unfused = stripped(snaps[0].snapshot, 'fusions').state
   assert.ok(!souls(unfused.party).some((u) => unitDef(u.id).fused))
-  assert.ok(souls(unfused.party).some((u) => u.id === 'will_o_wisp' && u.count === 3))
+  assert.equal(souls(unfused.party).filter((u) => u.id === 'will_o_wisp').length, 3)
   assert.ok(full.party.some((u) => unitDef(u.id).fused) && !setup('fusions').party.some((u) => unitDef(u.id).fused))
-  assert.deepEqual(setup('bodies').ablate, ['bodies'])
-  assert.equal(raised(setup('bodies')), 0)
-  assert.equal(raised(setup('tracks')), 0, 'no tier, no body added')
+  assert.deepEqual(setup('summons').ablate, ['summons'])
+  assert.equal(raised(setup('summons')), 0)
+  assert.equal(raised(setup('tracks')), 0, 'no tier, no summons')
   assert.ok(setup('tracks').party.every((u) => u.tracks.join() === '0,0'))
   assert.ok(setup('tracks').party.filter((u) => u.uid !== 0).every((u) => u.lvl === TUNING.level.base), 'and so no level past the first')
   const colossus = (x) => createBattle(x).units.some((u) => u.side === 'party' && u.id === 'tomb_knight' && u.size === 2)

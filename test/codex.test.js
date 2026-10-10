@@ -44,11 +44,11 @@ const page = {
 }
 for (const [k, value] of Object.entries(page)) Object.defineProperty(globalThis, k, { value, configurable: true, writable: true })
 
-const { ringRule, ringText, bestiary, codexView } = await import('../src/codex.js')
+const { ringRule, ringText, bestiary, codexView, recruitWorth } = await import('../src/codex.js')
 const { KEYWORDS } = await import('../src/keywords.js')
-const { UNIT_LIST, BEHAVIOURS, abilityDef } = await import('../src/content.js')
+const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, abilityDef } = await import('../src/content.js')
 const { abilitiesOf, isBlow, makeUnit, behaviourOf } = await import('../src/sim/unit.js')
-const { createRun, soulCount, rosterCap } = await import('../src/sim/run.js')
+const { createRun, souls, rosterCap } = await import('../src/sim/run.js')
 
 const FOES = UNIT_LIST.filter((u) => u.spawn || u.boss)
 bestiary.record(FOES.map((u) => u.id))
@@ -75,10 +75,32 @@ test('the glossary tells each way, then what a foe\'s melee strikes on it; no wo
   for (const k of Object.values(KEYWORDS)) assert.ok(!/flank/i.test(k.line), k.name)
 })
 
-test('How to play counts your souls as the cap does, by bodies: a stack of three is three', () => {
+test('How to play counts your souls as the cap does: one soul, one piece', () => {
   const run = createRun({ seed: 'codex' })
-  run.state.party.push({ ...makeUnit('tomb_knight', { uid: 50, count: 3 }), slot: -1 })
+  run.state.party.push({ ...makeUnit('tomb_knight', { uid: 50 }), slot: -1 })
   const text = codexView(run).textContent
-  assert.ok(text.includes(`Souls ${soulCount(run.state.party)}/${rosterCap(run)} `), text.match(/Souls [^·]*/)?.[0])
+  assert.ok(text.includes(`Souls ${souls(run.state.party).length}/${rosterCap(run)} `), text.match(/Souls [^·]*/)?.[0])
   assert.ok(!/flank/i.test(text))
+})
+
+test('no word and no line of How to play speaks of stacked pieces or their bodies (a status\'s stacks are its own)', () => {
+  for (const [id, k] of Object.entries(KEYWORDS)) {
+    if (k.group === 'Words') assert.ok(!/stack|\bbod(y|ies)\b|\bpool\b/i.test(k.line), `${id}: ${k.line}`)
+  }
+  assert.ok(!('stack' in KEYWORDS))
+  const text = codexView(createRun({ seed: 'codex' })).textContent
+  assert.ok(!/stack|\bbod(y|ies)\b/i.test(text), text.match(/.{0,40}(stack|bod(y|ies)).{0,40}/i)?.[0])
+})
+
+test('a recruit of a kind held says what one more is worth: how many you hold, and each fusion its kind is part of', () => {
+  const run = createRun({ seed: 'codex' })
+  const held = new Set(souls(run.state.party).map((u) => u.id))
+  for (const id of held) {
+    const w = recruitWorth(run, id)
+    assert.equal(w.held, souls(run.state.party).filter((u) => u.id === id).length, id)
+    assert.equal(w.recipes.length, FUSION_LIST.filter((f) => Object.hasOwn(f.needs, id)).length, id)
+    assert.ok(w.lines.length >= 3 && w.chips[0].text === `Held ${w.held}`, id)
+  }
+  const stranger = UNIT_LIST.find((u) => u.spawn && !held.has(u.id))
+  assert.equal(recruitWorth(run, stranger.id), null)
 })

@@ -18,11 +18,10 @@ export const TUNING = {
   // After startTick (×bossMult for bosses) all damage ramps by perTick, capped at max: no stalemates. The
   // ticks count from the last foe to enter (a wave), so newcomers never meet ramped blows.
   escalation: { startTick: 900, perTick: 0.005, max: 8, bossMult: 2 },
-  // field: the Monarch's base Command, the pieces that fight (a stack is one piece, whatever its count); the field cap
-  // is field + fieldPerFloor × (floor − 1) + the Command relics add (run.js commandOf), never more than army.board.
-  // fieldPerFloor is 0 since the army became souls (it was 1 in necessity round 2): Command alone widens the field.
-  // roster: the souls (bodies) a retinue holds, on the field and in the ossuary together, stacked or not. The Monarch
-  // counts toward neither.
+  // field: the Monarch's base Command, the pieces that fight (one soul each); the field cap is field + fieldPerFloor
+  // × (floor − 1) + the Command relics add (run.js commandOf), never more than army.board. fieldPerFloor is 0 since
+  // the army became souls (it was 1 in necessity round 2): Command alone widens the field. roster: the souls a
+  // retinue holds, on the field and in the ossuary together. The Monarch counts toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (content.js
   // RELIC_LIST `monarchHp`), and nothing else touches it (no synergy, no other relic). No points are bought: its HP
@@ -30,14 +29,14 @@ export const TUNING = {
   // 20 + 10 a point bought on all four). The fourth balance pass (2026-10-10): 250 (was 220), so one Pyre Hound's
   // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1 (its deaths there 4% → 1%).
   monarch: { hp: 250 },
-  // The bodies a soul's tiers add (unit.js bodiesOf): each strikes as a body does, but brings only `hp` of a body's HP
-  // to the pool, the piece's bodies thinning to share it (battle.js grown, fit); its HP spent first, so it never
-  // refills a wound (run.js finishBattle). The user's (2026-10-10): bodies add a little HP, not a body's each.
-  bodies: { hp: 0.1 },
+  // The summons a soul's tiers bring (unit.js summonsOf; 2026-10-10, when stacking left the game and the tiers that
+  // added bodies came to call summons instead): shadows of its kind that rise beside it as each battle begins, each
+  // at `hp` of a whole one's max HP (battle.js summon, fit), gone when it ends. A placeholder until the balance pass.
+  summon: { hp: 0.4 },
   // Arise, a Legendary relic (content.js RELIC_LIST), and its numbers are its own, a copy at a time (DESIGN §2.5):
   // without it no foe rises. One copy: a foe of tier up to `tier` slain within `domain` tiles (Chebyshev) of the
-  // Monarch's tile rises as a shadow of yours, up to `raises` a battle, each shadow at the fallen piece's count, each
-  // body at `hp` of its body HP (every shadow's, the Legion's and Grave Tide's too: battle.js fit). Each copy past the
+  // Monarch's tile rises as a shadow of yours, up to `raises` a battle, each at `hp` of the fallen one's HP (every
+  // shadow's but a summon's, the Legion's and Grave Tide's too: battle.js fit). Each copy past the
   // first: `more.domain` tiles farther, `more.tier` tiers higher, `more.raises` more a battle, and the Monarch's gauge
   // (Arise's casting) `more.haste` faster (×(1 + more.haste × the copies past the first)). Court of Bone's tiles and
   // Blood Tithe's share come on top (run.js domainOf, battle.js ariseCap). Placeholders until the balance pass.
@@ -61,8 +60,8 @@ export const TUNING = {
   // fourth balance pass (2026-10-10) 0.67, taken with the cheaper tiers below (the tracks' ablation stood at 23–25
   // points, on its band's floor; 27 after, on 128 seeds).
   level: { base: 2, perTier: 0.67 },
-  // Essence (DESIGN §2.6): each foe piece slain pays perTier × its tier, whatever its count or level (run.js
-  // foeEssence); a run starts with `start`. It buys only tiers, recruits and fusions, and every price is its base ×
+  // Essence (DESIGN §2.6): each foe slain pays perTier × its tier, whatever its level (run.js foeEssence); a run
+  // starts with `start`. It buys only tiers, recruits and fusions, and every price is its base ×
   // the floor's price scale, 1 + perFloor × (floor − 1) (run.js floorPrice: ×1, ×2.1, ×3.2, ×4.3 on floors 1–4):
   // a kind's track tiers I–IV tier[] (either track); recruiting a soul recruit × tier × (1 + perLevel × (level − 1)),
   // at the level it joins at (its kind's); a fusion fuse × the fused kind's tier, on top of the souls it consumes.
@@ -74,7 +73,9 @@ export const TUNING = {
   // 1.1 a floor keep what a battle buys about level from floor to floor. The fourth balance pass (2026-10-10): tiers
   // 16 / 36 / 60 / 96 (were 20 / 45 / 75 / 120), so the expert holds more of them (19.8 at a clear, was 15.4) and the
   // tracks carry it; it still spends ~97% of what it earns and ends each floor with at most half a tier II's price.
-  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8 },
+  // refund: a soul released pays back that share of what recruiting it would cost now (run.js releaseRefund; since
+  // 2026-10-10, when stacking left the game), rounded down.
+  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
   // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
   // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1
@@ -101,8 +102,9 @@ export const TUNING = {
     // with a walk that met none.
     variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 24, routePasses: 4 },
     // The enemy as an army. From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave,
-    // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind: one piece
-    // of 1 + cohort bodies on the captain's slot (DESIGN §2.2). A floor-1
+    // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind: foes of their
+    // own, each on the free slot of the formation nearest the captain (run.js formation; a stack of 1 + cohort bodies
+    // on the captain's slot until 2026-10-10, when stacking left the game). A floor-1
     // elite brings a late pair: `late.n` more foes of its pool, entering at the top edge at tick `late.t`. From
     // floor `waves.floor` an elite, a fight from rank `waves.fightRank`, a siege and the last room come in
     // waves (`waves.elite`, `.fight`, `.siege` in all, the first included): each next one enters at the top
@@ -122,7 +124,7 @@ export const TUNING = {
     // `hp` and `atk` of the base per floor deep. The floor's last room is a big elite: `final.count` more
     // foes, `final.level` levels higher. The enemy grows as an army too: floor(`waves` × deep) more waves to
     // every room (a single formation becomes a room of waves; never more than `maxWaves`, the first
-    // included) and floor(`cohort` × deep) more bodies in every captain's piece. The foes hold their
+    // included) and floor(`cohort` × deep) more foes in every captain's cohort. The foes hold their
     // synergies' 8-step rules only from `rules` floors deep (above it their cohorts reach eight of a kind
     // too easily: their ladders stop at the stat steps there). Tuned in the final balance pass on twelve expert
     // clears played on down: at +3 levels, +12% HP, +8% ATK and a body more a cohort a floor, with rules from the
@@ -133,8 +135,8 @@ export const TUNING = {
     endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, rules: 2, final: { count: 2, level: 1 } }
   },
   // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). A won
-  // battle heals each living body postBattleHeal of its HP; an altar heals each to altarHeal of its HP and raises a
-  // fallen one at altarRevive (a stack's pool keeps the sum: run.js). Wounds carry (2026-10-10): a win mends a fifth
+  // battle heals each living soul postBattleHeal of its max HP; an altar heals each to altarHeal of it and raises a
+  // fallen one at altarRevive (run.js). Wounds carry (2026-10-10): a win mends a fifth
   // (it was half), so HP, DEF, Undying and Heartwood count between rooms, and an altar is worth walking to.
   run: { floors: 4, postBattleHeal: 0.2, altarHeal: 1, altarRevive: 0.5 },
   // The autoplayer's rehearsals: a battle budget of `rehearsalCeiling` ticks (one still going is scored

@@ -7,7 +7,7 @@ import {
 } from '../src/content.js'
 import {
   statsOf, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, baseStats, activeSynergies, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf,
-  deployTile, wallTiles, steps, bodiesOf, rangeOf, isAllyShape, isBlow, ringOf, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH, ROWS, TILES, armOf
+  deployTile, wallTiles, steps, summonsOf, canTrack, nextTracks, rangeOf, isAllyShape, isBlow, ringOf, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH, ROWS, TILES, armOf
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 
@@ -36,7 +36,7 @@ test('every unit reference resolves; every foe carries its threats; a fused kind
     assert.ok(u.stride === undefined || [0.5, 0.75, 1.5].includes(u.stride), `${u.id} stride`)
     assert.ok(u.size === undefined || u.size === 2, `${u.id} size`)
     assert.equal(sizeOf(makeUnit(u.id, { uid: 1 })), u.size ?? 1, `${u.id} sizeOf`)
-    assert.ok(!('summon' in u), `${u.id}: no summon kinds: a tier adds bodies to its own piece`)
+    assert.ok(!('summon' in u), `${u.id}: no summon kinds: a tier calls summons, never a kind`)
     for (const k of ['line', 'leg', 'home', 'leader', 'offset', 'lunges', 'banner']) assert.ok(!(k in u), `${u.id}: no ${k}`)
     assert.ok(u.flavour, `${u.id} flavour`)
     // A death burst: its effects resolve and reach a tile or more.
@@ -125,10 +125,14 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
       }
       for (const [i, t] of p.tiers.entries()) {
         const where = `${u.id} ${p.id} ${i + 1}`
-        assert.ok(t.desc && (t.mods || t.ability || t.aura || t.count || t.ring || t.size), where)
-        for (const gone of ['summon', 'banner', 'stride']) assert.ok(!(gone in t), `${where}: no ${gone}`)
-        // A tier with a count adds that many bodies to the piece each battle, from that tier on.
-        if (t.count) assert.ok(Number.isInteger(t.count) && t.count >= 1 && bodiesOf(at(i + 1)) === bodiesOf(at(i)) + t.count, `${where}: count`)
+        assert.ok(t.desc && (t.mods || t.ability || t.aura || t.summon || t.ring || t.size), where)
+        for (const gone of ['count', 'banner', 'stride']) assert.ok(!(gone in t), `${where}: no ${gone}`)
+        // A tier with a summon calls that many shadows of its kind each battle, from that tier on, and its card says
+        // how many.
+        if (t.summon) {
+          assert.ok(Number.isInteger(t.summon) && t.summon >= 1 && summonsOf(at(i + 1)) === summonsOf(at(i)) + t.summon, `${where}: summon`)
+          assert.ok(t.desc.includes(`${t.summon} of its kind`), `${where}: the card names its ${t.summon}`)
+        }
         const before = abilitiesOf(at(i))
         if (t.ability) {
           assert.ok(ABILITIES[t.ability.id], `${where}: ability ${t.ability.id}`)
@@ -296,13 +300,13 @@ test('banner shapes, orders, bonds, signals, Banner and Flank are gone', async (
   assert.ok(Object.values(UNITS).every((u) => !('foeOrders' in u)))
 })
 
-// The tiers that once raised summons add bodies to their kind's piece instead (DESIGN §2.6): one such tier per
-// kin, at tier II (six bodies since the second balance pass; three after the first).
-test('count tiers: one kin each, at tier II, bodies more each battle', () => {
-  const tiers = Object.entries(TRACKS).flatMap(([id, tracks]) => tracks.flatMap((p) => p.tiers.flatMap((t, i) => (t.count ? [{ id, track: p.id, i, count: t.count }] : []))))
-  assert.deepEqual(tiers.map((t) => [t.id, t.track, t.count]), [
-    ['bone_chanter', 'marrowcaller', 6], ['hive_warden', 'brood_mother', 6], ['clockwork_page', 'gearwright', 6],
-    ['thorn_dryad', 'heartwood', 6], ['frost_wyrm', 'ancient', 6]
+// The tiers that once added bodies to their kind's piece call summons instead (DESIGN §2.6; 2026-10-10, when stacking
+// left the game): one such tier per kin, at tier II, two summons each.
+test('summon tiers: one kin each, at tier II, two summons each battle', () => {
+  const tiers = Object.entries(TRACKS).flatMap(([id, tracks]) => tracks.flatMap((p) => p.tiers.flatMap((t, i) => (t.summon ? [{ id, track: p.id, i, summon: t.summon }] : []))))
+  assert.deepEqual(tiers.map((t) => [t.id, t.track, t.summon]), [
+    ['bone_chanter', 'marrowcaller', 2], ['hive_warden', 'brood_mother', 2], ['clockwork_page', 'gearwright', 2],
+    ['thorn_dryad', 'heartwood', 2], ['frost_wyrm', 'ancient', 2]
   ])
   assert.ok(tiers.every((t) => t.i === 1), 'tier II')
   assert.equal(new Set(tiers.map((t) => UNITS[t.id].kin)).size, 5, 'every kin has one')
@@ -325,7 +329,7 @@ test('fusions: every recipe\'s parts and result resolve, the result is fused, an
     const result = UNITS[r.result]
     assert.ok(result?.fused && TRACKS[r.result]?.length === 2, `${r.id}: the result is a fused kind with two tracks`)
     const parts = Object.entries(r.needs)
-    assert.ok(parts.reduce((n, [, k]) => n + k, 0) >= 2, `${r.id}: more than one body`)
+    assert.ok(parts.reduce((n, [, k]) => n + k, 0) >= 2, `${r.id}: more than one piece`)
     for (const [kind, n] of parts) {
       const def = UNITS[kind]
       assert.ok(def && def.spawn && !def.fused && !def.boss && !def.monarch && Number.isInteger(n) && n >= 1, `${r.id}: part ${kind}`)
@@ -334,4 +338,41 @@ test('fusions: every recipe\'s parts and result resolve, the result is fused, an
   assert.throws(() => fusionDef('nothing'))
   const fused = Object.values(UNITS).filter((u) => u.fused).map((u) => u.id).sort()
   assert.deepEqual(FUSION_LIST.map((r) => r.result).sort(), fused, 'every fused kind, once')
+})
+
+// A tier that replaces an ability (DESIGN §2.6) replaces one the kind holds at that point, whatever the other track
+// holds: every holding the crosspath rule allows (canTrack), for every kind, makes a whole kit of known abilities.
+// One that does not is a content error, and abilitiesOf says so rather than leaving a hole in the kit.
+test('abilitiesOf: every legal holding of every kind\'s tiers makes a whole kit; a tier replacing an ability the kit lacks throws', () => {
+  let holdings = 0
+  for (const id of Object.keys(TRACKS)) {
+    const seen = new Set(['0,0'])
+    const queue = [[0, 0]]
+    while (queue.length) {
+      const tracks = queue.shift()
+      holdings++
+      const kit = abilitiesOf({ id, tracks })
+      assert.ok(kit.length > 0 && kit.every((a) => ABILITIES[a]), `${id} ${tracks}: ${kit}`)
+      assert.equal(new Set(kit).size, kit.length, `${id} ${tracks}: no ability twice`)
+      for (const t of [0, 1]) {
+        if (TRACKS[id].length < t + 1 || !canTrack(tracks, t)) continue
+        const next = nextTracks(tracks, t)
+        if (next[t] > TRACKS[id][t].tiers.length || seen.has(String(next))) continue
+        seen.add(String(next))
+        queue.push(next)
+      }
+    }
+  }
+  assert.ok(holdings > Object.keys(TRACKS).length * 10, `${holdings} holdings walked`)
+  // A tier remade to replace what the kit lacks: a clear error, naming the kind and the ability.
+  const tier = TRACKS.bone_chanter[0].tiers[0]
+  const was = tier.ability
+  tier.ability = { id: 'requiem', replace: 'nothing_held' }
+  try {
+    assert.throws(() => abilitiesOf({ id: 'bone_chanter', tracks: [1, 0] }), /bone_chanter.*"nothing_held"/)
+  } finally {
+    if (was === undefined) delete tier.ability
+    else tier.ability = was
+  }
+  assert.deepEqual(abilitiesOf({ id: 'bone_chanter', tracks: [1, 0] }), abilitiesOf({ id: 'bone_chanter', tracks: [0, 0] }))
 })

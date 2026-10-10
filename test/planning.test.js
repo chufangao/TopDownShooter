@@ -1,6 +1,6 @@
 // The expert plans with every mechanic (Job: the measuring instrument): formations drafted and climbed with each
-// piece where its footprint fits, 2×2 pieces too, every fusion it can make weighed by rehearsal, and stacks against
-// splits weighed by rehearsal; basic never fuses; and the audit that says what it considered against what it chose.
+// piece where its footprint fits, 2×2 pieces too, every fusion it can make weighed by rehearsal; basic never fuses;
+// and the audit that says what it considered against what it chose.
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -231,7 +231,7 @@ test('idle essence: when its fielded kinds can buy nothing, the expert weighs ev
 })
 
 test('the expert weighs a track\'s next two tiers together: a tier whose level rounds away is bought when the two make a level, and essence holds both', () => {
-  // The Knight's and the Chanter's tracks full, the Chanter a stack of eight; a lone Frost Sprite at the first of these
+  // The Knight's and the Chanter's tracks full; a lone Frost Sprite at the first of these
   // tiers where its next tier on either track leaves its level as it is (the level rounds down) and the one after it
   // makes a level (at TUNING.level's 2 + 0.67 a tier: II and I, level 4; at 0.5 a tier it was I and I, level 3).
   // With essence for both, the expert buys the first (it declined it, weighing one tier at a time); then, any tier the
@@ -246,10 +246,9 @@ test('the expert weighs a track\'s next two tiers together: a tier whose level r
     const [knight, chanter, sprite] = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((id) => souls(s.party).find((u) => u.id === id))
     const tier = (u, tracks) => {
       s.kinds[u.id] = { tracks, lvl: levelOf({ tracks }) }
-      Object.assign(u, makeUnit(u.id, { uid: u.uid, slot: u.slot, lvl: s.kinds[u.id].lvl, tracks, count: u.count }))
+      Object.assign(u, makeUnit(u.id, { uid: u.uid, slot: u.slot, lvl: s.kinds[u.id].lvl, tracks }))
     }
     tier(knight, [4, 2])
-    chanter.count = 8
     tier(chanter, [4, 2])
     tier(sprite, start)
     const tracks = s.kinds.frost_sprite.tracks
@@ -285,14 +284,14 @@ test('the expert lets a soul go only for a recruit it weighed worth it: the rele
     const run = createRun({ seed: 'letgo' + i })
     const node = availableNodes(run)[0]
     node.type = 'fight'
-    // A Tomb Knight slain: its soul may join the fielded Knight's piece.
+    // A Tomb Knight slain: its soul, a second Knight, is on offer.
     node.foes = [{ id: 'tomb_knight', lvl: 1, slot: slotAt(0, 3) }]
     apply(run, { type: 'node', id: node.id })
     apply(run, { type: 'fight' })
     if (run.state.phase !== 'reap') continue
     const s = run.state
     s.essence = 1000
-    while (souls(s.party).reduce((n, u) => n + u.count, 0) < 12) join(run, 'clockwork_page')
+    while (souls(s.party).length < 12) join(run, 'clockwork_page')
     const rng = createRng('letgo').stream('autoplay')
     const a = policy(run, rng, 'expert')
     if (a.type !== 'release') {

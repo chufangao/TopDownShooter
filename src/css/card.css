@@ -1,4 +1,4 @@
-/* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head and ring, its stack, its kind's
+/* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head and ring, its summons, its kind's
    tracks, Fuse, its abilities), a foe's (foePanel), and with nothing selected the Monarch's (a gold card, its HP and
    Command) over your synergies and the board's key. Every purchase pops, every refusal shakes. Sizes are the shared
    scale (style.css :root): body text --fs-md, secondary --fs-sm, badge numbers --fs-xs; anything pressed --tap
@@ -55,7 +55,7 @@
 .uc-ring .ico { color: var(--c-plan); }
 .uc.foe .uc-ring .ico { color: var(--c-foe); }
 /* Fuse (DESIGN §4): the recipes the kind is part of, one row each: the result's picture, its name and parts (each
-   part's bodies held of those it needs), and its button, lit when every part is held and the essence suffices. */
+   the souls of its kind held of those it needs), and its button, lit when every part is held and the essence suffices. */
 .uc-fuse { margin-top: 4px; }
 .fuse-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .fuse-row {
@@ -169,12 +169,12 @@
   .tnode.next, .shake { animation: none; }
 }
 
-/* ── a stack and its kind (soulPanel's stackSection and kindPanel) ────────────────────────────── */
+/* ── its summons and its kind (soulPanel's summons line and kindPanel) ───────────────────────────── */
 
-/* A piece's count by its name, on cards and in lists. */
-.uc-count, .ct-count, .u-count { color: var(--c-essence2); font-family: var(--sans); font-weight: 700; }
-.card-tip.foe .ct-count, .uc.foe .uc-count { color: #ffb0bb; }
-.uc-stack, .uc-kind { margin-top: 4px; }
+/* The summons its kind's tiers bring each battle, in the shadows' colour. */
+.uc-summons { margin-top: 4px; color: var(--text); }
+.uc-summons b { color: var(--c-shadow); }
+.uc-kind { margin-top: 4px; }
 /* The kind's tracks: a row each, the second in the paler cyan; a Colossus tier IV (2×2) wears its badge. */
 .uc-kind .tracks { margin-top: 8px; }
 /* The kind's level, a read-out of its tiers (never bought): it rises as they do. */

@@ -263,35 +263,6 @@ export function growthMarks (scene, u) {
   }
 }
 
-// ── the horde ────────────────────────────────────────────────────────────────────────────────────
-
-// A piece of several bodies is drawn as that many figures on its tile (DESIGN §4), up to HORDE.max, while the sim
-// counts one piece: its own sprite in front, a little smaller (HORDE.front), the rest round and behind it, smaller
-// still, each let go as a body falls. A slot: world px from the piece's feet, and a scale, back to front.
-export const HORDE = { max: 6, front: 0.84, slots: [[-25, -9, 0.7], [25, -9, 0.7], [-12, -19, 0.64], [12, -19, 0.64], [0, -27, 0.6]] }
-// The figures behind a piece's own (a.horde), kept to `n` bodies in all: made, or let go, fading. → those let go.
-export function syncHorde (scene, a, n, key, flip) {
-  a.horde ??= []
-  const want = Math.max(0, Math.min(HORDE.max, n) - 1)
-  const gone = []
-  while (a.horde.length < want) a.horde.push(scene.add.image(0, 0, key).setOrigin(0.5, FEET).setFlipX(flip))
-  while (a.horde.length > want) {
-    const o = a.horde.pop()
-    gone.push(o)
-    scene.tweens.add({ targets: o, alpha: 0, duration: 260, onComplete: () => o.destroy() })
-  }
-  return gone
-}
-// Each frame: the figures round the piece's own at (x, y), at `scale` (a whole body's), behind `depth`, breathing;
-// a 2×2's spread wider (a.big).
-export function placeHorde (a, x, y, depth, scale, alpha, breath = 0) {
-  const big = a.big ?? 1
-  a.horde?.forEach((o, i) => {
-    const [dx, dy, k] = HORDE.slots[i]
-    o.setPosition(x + dx * big, y + dy * big).setScale(scale * k, scale * k * (1 + (i % 2 ? -breath : breath))).setDepth(depth - 0.4 - i * 0.01).setAlpha(alpha)
-  })
-}
-
 // ── the board on screen ──────────────────────────────────────────────────────────────────────────
 
 // The board lies on its side (DESIGN §4), the Bloons TD way, so it can take the screen's width: its long axis, the
@@ -313,12 +284,12 @@ const posAt = (tile, size = 1) => {
   const p = posOf(tile)
   return size > 1 ? { x: p.x - (size - 1) * TILE_W / 2, y: p.y - (size - 1) * TILE_H / 2 } : p
 }
-// A 2×2 piece is drawn this much larger than a body (DESIGN §4: large over its four tiles); a flyer hovers HOVER
+// A 2×2 piece is drawn this much larger than a one-tile one (DESIGN §4: large over its four tiles); a flyer hovers HOVER
 // world px over its shadow, bobbing BOB px.
 const BIG = 1.75
 const HOVER = 26
 const BOB = 3
-// A flyer and a body on the ground on one tile (the sim's air, battle.sky, over its ground, battle.at): each eases
+// A flyer and a unit on the ground on one tile (the sim's air, battle.sky, over its ground, battle.at): each eases
 // SHARE.x world px aside, the flyer right and SHARE.up higher, and their bars narrow to SHARE.bar of their width, so
 // the two read apart. A 2×2 on the ground stands still; the flyer moves for both.
 const SHARE = { x: 20, up: 6, bar: 0.6, ms: 140 }
@@ -452,13 +423,13 @@ class BattleScene extends Phaser.Scene {
     // The Monarch's uid (null in a battle without one) and Arise's reach about it (the domain).
     this.monarch = start.monarch
     this.domain = start.domain
-    // The foes by wave (0: the formation on the board), for the banner as each arrives (its bodies, `size`) and
-    // the essence each pays as its pieces are slain (`left`: its pieces still standing).
+    // The foes by wave (0: the formation on the board), for the banner as each arrives (how many foes, `size`) and
+    // the essence each pays as its foes are slain (`left`: its foes still standing).
     const foes = [...start.units.filter((u) => u.side === 'foe'), ...(start.reserve ?? []).filter((r) => r.side === 'foe')]
     this.waves = []
     for (const f of foes) {
       const w = (this.waves[f.wave ?? 0] ??= { size: 0, left: 0, paid: 0, shown: false, when: f.when ?? null, boss: false })
-      w.size += f.count ?? 1
+      w.size++
       w.left++
       w.boss ||= !!unitDef(f.id).boss
     }
@@ -582,9 +553,6 @@ class BattleScene extends Phaser.Scene {
       a.gaugeBar.setPosition(x - BAR * k / 2, y + 5).setScale(k, 1).setDepth(foot + 0.2)
       a.growth?.place(x, a.sprite.y)
       a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : 1))
-      if (Math.ceil(a.hp / a.body - 1e-9) !== a.living || (a.gone && a.living)) this.bodies(a)
-      placeHorde(a, x, a.sprite.y - a.hover - a.up - bob, a.sprite.depth, a.base, a.sprite.alpha, breath)
-      a.count.setPosition(x - BAR * k / 2 - 5, y + 2).setDepth(foot + 0.3).setAlpha(a.fade * a.rise.v)
       const u = this.units.get(a.uid)
       this.wear(a, u)
       if (!a.gone && u.hp > 0) {
@@ -661,10 +629,10 @@ class BattleScene extends Phaser.Scene {
     if (!calm) this.cameras.main.shake(ms, mag)
   }
 
-  // A piece of yours, a stack of theirs, a boss or the Monarch: its fall shakes and holds.
+  // A piece of yours, a boss or the Monarch: its fall shakes and holds.
   heavy (uid) {
     const u = this.units.get(uid)
-    return !!u && !u.shadow && (!!unitDef(u.id).boss || u.uid === this.monarch || u.side === 'party' || (u.count ?? 1) > 1)
+    return !!u && !u.shadow && (!!unitDef(u.id).boss || u.uid === this.monarch || u.side === 'party')
   }
 
   flashScreen (ms, r, g, b) {
@@ -685,9 +653,8 @@ class BattleScene extends Phaser.Scene {
 
   // ── stage ────────────────────────────────────────────────────────────────────────────────────
 
-  // A shadow (u.shadow, raised by Arise, or on the foes' side by Grave Tide) wears the shade pictures; the
-  // Monarch's HP bar is thicker, in a gold frame; a stack is drawn as its horde (syncHorde), its living bodies
-  // counted beside its bars.
+  // A shadow (u.shadow, raised by Arise, summoned by a kind's tier, or on the foes' side by Grave Tide) wears the
+  // shade pictures; the Monarch's HP bar is thicker, in a gold frame. One unit, one figure.
   // A 2×2 piece is drawn BIG× over the middle of its four tiles; a flyer (its kind's `flies`, a shadow of one too)
   // hovers HOVER over its shadow, which is fainter.
   addActor (u) {
@@ -704,11 +671,9 @@ class BattleScene extends Phaser.Scene {
     const sprite = this.add.image(home.x, home.y, `${skin}:${art}:alive`).setOrigin(0.5, FEET).setDepth(home.y)
       .setFlipX(facesLeft(u.side))
     const whole = this.units.get(u.uid) ?? u
-    const n = u.count ?? 1
-    const front = n > 1 ? HORDE.front : 1
-    const scale = SCALE / RES * front * big
+    const scale = SCALE / RES * big
     // Pictures are drawn on a 96 box, the boss on a bigger one; the shadow and FX heights follow.
-    const size = sprite.width / RES / 96 * front * big
+    const size = sprite.width / RES / 96 * big
     // A shadow stands in a pale-green glow of its own instead of a dark pool.
     const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size * (fly ? 0.8 : 1), 13 * size * (fly ? 0.8 : 1), u.shadow ? (theirs ? ROT : RISE) : 0x000000,
       (u.shadow ? 0.4 : 0.5) * (fly ? 0.65 : 1)).setDepth(home.y - 2)
@@ -719,14 +684,10 @@ class BattleScene extends Phaser.Scene {
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
     const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, side).setOrigin(0, 0.5)
     const gaugeBar = this.add.rectangle(home.x - BAR / 2, home.y + 17, 0, 2, GOLD).setOrigin(0, 0.5)
-    // Its living bodies, left of its bars, while it has more than one (bodies).
-    const count = this.text(0, 0, '', 11, theirs ? '#ffb0bb' : C.soul2, 3).setOrigin(1, 0.5).setVisible(false)
-    ;(this.small ??= []).push(legible(count.setData('size', 11), this.cameras.main.zoom, 'num'))
     const actor = {
-      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar, count,
-      // base: a whole body's scale, the horde's; body: one body's HP, so its living bodies are ⌈hp ÷ body⌉. fp: its
-      // footprint's side, big: its picture's scale for it; hover: how high it floats now (fly: when standing).
-      base: SCALE / RES * big, body: whole.body ?? u.maxHp / n, living: 0, horde: [], fp, big, fly, hover: fly,
+      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar,
+      // fp: its footprint's side, big: its picture's scale for it; hover: how high it floats now (fly: when standing).
+      fp, big, fly, hover: fly,
       // chest: how far above the feet blows land and bolts fly from. fade: 0 once a corpse has risen
       // as a shadow; rise.v: a shadow coming up out of the ground (apart from `fade`, so a walk that kills
       // the actor's tweens never leaves it invisible).
@@ -734,7 +695,6 @@ class BattleScene extends Phaser.Scene {
       // share: how far it has eased aside for another on its tile (SHARE, 0 to 1); vx, up: where that puts it.
       share: 0, vx: home.x, up: 0
     }
-    this.bodies(actor)
     // A soul's growth, worn as the prep board showed it (growthMarks): its tiers.
     if (u.side === 'party' && !u.shadow && !crowned) actor.growth = growthMarks(this, whole)
     sprite.setInteractive(this.input.makePixelPerfect())
@@ -877,16 +837,6 @@ class BattleScene extends Phaser.Scene {
     return [a.bar, a.trail, a.barBg, a.gaugeBar, a.shadow, ...(a.growth?.parts ?? [])].filter(Boolean)
   }
 
-  // A piece's living bodies as its HP shown has them (a.hp, ⌈hp ÷ body⌉; none once gone): its horde made or
-  // thinned to them, a puff of dust where each that fell stood, and its count beside its bars.
-  bodies (a) {
-    const n = a.gone ? 0 : Math.max(0, Math.ceil(a.hp / a.body - 1e-9))
-    const fell = n < a.living && n > 0
-    a.living = n
-    for (const o of syncHorde(this, a, n, `${a.skin}:${a.art}:alive`, facesLeft(a.side))) if (fell) this.dust.explode(8, o.x, o.y - 4)
-    a.count.setText(`×${n}`).setVisible(n > 1)
-  }
-
   // The Sovereign has fallen, and every foe left crumbles to dust where it stands, out from it like a ripple,
   // the nearest first: no blow before, so its bar empties at once. Their souls stream to you (they pay as if
   // slain); a foe's shadow just goes. The first to crumble sends a shudder out from the Sovereign.
@@ -972,7 +922,7 @@ class BattleScene extends Phaser.Scene {
     })
   }
 
-  // A body enters a battle under way: a foe of a later wave comes in over the far edge (see arrive); one of
+  // A unit enters a battle under way: a foe of a later wave comes in over the far edge (see arrive); one of
   // yours fades in out of the dark in a soft ring of soulfire. It plays at once, not at an action's impact: it
   // may step or act within the same tick.
   enter (ev) {
@@ -1354,7 +1304,7 @@ class BattleScene extends Phaser.Scene {
         else this.fall(a, this.actors.get(ev.actor))
         this.slain(a)
         sfx.play('kill')
-        // A piece of yours, a stack of theirs, a boss or the Monarch falling holds the frame (heavy), a boss or the
+        // A piece of yours, a boss or the Monarch falling holds the frame (heavy), a boss or the
         // Monarch the longest.
         if (!ev.crumble && this.heavy(a.uid)) {
           const u = this.units.get(a.uid)
@@ -1654,7 +1604,7 @@ class TimelinePlayer {
     const impact = tpl?.steps.find((s) => s.op === 'popup')?.t ?? 0
     beat.results.forEach((ev, i) => {
       const run = () => this.onEvent?.(ev, !!beat.action, this.seq.get(ev))
-      // A move, a shadow rising (see arise) and a body entering (see enter) play at once: the newcomer may
+      // A move, a shadow rising (see arise) and a unit entering (see enter) play at once: the newcomer may
       // act within a few ticks. An Echo's second pass lands a beat after the first (echoed).
       const at = impact + echoed(beat, i)
       if (at && ev.type !== 'move' && ev.type !== 'arise' && ev.type !== 'enter') this.scheduled.push({ at: this.playhead + at, run })

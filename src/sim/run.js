@@ -17,26 +17,22 @@
 // Arise relic's own, growing with each copy past the first (ariseOf). The roads run to it (battle.js field). If it
 // falls, the battle is lost and so is the run.
 //
-// Pieces, stacks and footprints (DESIGN §2.2): the party is pieces, each one kind with a `count` of bodies, one
-// soul a body, its HP one pool (count × body HP: unit.js makeUnit), and a size (unit.js sizeOf: 2 for a kind of
-// size 2 or one holding a Colossus tier, else 1). A piece's `slot` is its anchor cell; it covers its footprint
-// (unit.js footprintSlots: a 2×2 also the next lane and the row ahead of both), every cell of it open ground, none
-// the Monarch's seat, none another piece's (unit.js fits). A soul recruited is a piece of one; `stack` puts a piece
-// onto another of its kind (one piece, the bodies and the HP of both), `split` takes bodies off one into a new
-// piece (the hindmost: the fallen first, then the one wounded, then the whole ones: unit.js bodiesHp). Nothing
-// stacks or splits by itself. A body fallen in battle stays down, as a fallen soul does: a won battle's heal and a
-// level's HP go to the living bodies, and only an altar raises the fallen. A piece whose every body fell leaves the
-// field as the battle ends (finishBattle): it lies fallen in the ossuary, its cell and its Command free, and nothing
-// fields it again (canPlace) until an altar raises it.
+// Pieces and footprints (DESIGN §2.2): one soul is one piece is one body, everywhere. The party is pieces, each one
+// soul of one kind with its own HP (unit.js makeUnit) and a size (unit.js sizeOf: 2 for a kind of size 2 or one
+// holding a Colossus tier, else 1). A piece's `slot` is its anchor cell; it covers its footprint (unit.js
+// footprintSlots: a 2×2 also the next lane and the row ahead of both), every cell of it open ground, none the
+// Monarch's seat, none another piece's (unit.js fits). Nothing stacks: a second soul of a kind is a second piece. A
+// piece that fell in battle leaves the field as the battle ends (finishBattle): it lies fallen in the ossuary, its
+// cell and its Command free, and nothing fields it again (canPlace) until an altar raises it.
 //
 // The ossuary: your collection of souls. Every piece not on the field waits there (slot OSSUARY, −1); you field
-// the ones you want, up to the field cap (fieldCap: the Monarch's Command, never more than TUNING.army.board), a
-// stack one piece whatever its count or size, and the ossuary and the field together hold at most rosterCap souls
-// (bodies). After a win you may recruit one of the slain, a full soul at its kind's level (a kind new to the run at
-// its first), for essence: a piece of its own, or straight onto a fielded piece of its kind (`onto`).
+// the ones you want, up to the field cap (fieldCap: the Monarch's Command, never more than TUNING.army.board), and
+// the ossuary and the field together hold at most rosterCap souls. After a win you may recruit one of the slain, a
+// full soul at its kind's level (a kind new to the run at its first), for essence: a piece of its own. A soul let go
+// pays back part of what recruiting it would cost now (releaseRefund).
 //
-// The army: the pieces fielded, and the bodies their kinds' track tiers add each battle (a tier's `count`,
-// content.js TRACKS: battle.js), whole, in the piece's pool; they are the battle's alone, the first to fall.
+// The army: the pieces fielded, and the summons their kinds' track tiers bring each battle (a tier's `summon`,
+// content.js TRACKS: battle.js summon), shadows of their kind beside them, the battle's alone.
 //
 // Kinds (DESIGN §2.6): upgrades belong to the kind, not the soul. s.kinds[id] = { lvl, tracks: [tier, tier], least? }:
 // the tiers the kind holds on its two tracks (content.js TRACKS, with the crosspath rule: unit.js canTrack), and the
@@ -47,9 +43,9 @@
 // run starts with no tiers (and Soul Lantern's free ones). A Colossus tier (`size: 2`) grows every piece of the kind
 // to 2×2: each that no longer fits where it stands goes to the ossuary until it is placed again.
 //
-// Fusions (DESIGN §2.6, content.js FUSION_LIST): a recipe consumes exactly `needs` bodies of each kind from your
-// pieces, fielded or in the ossuary (a bigger stack gives the bodies asked, the hindmost, and keeps the rest, as a
-// split would), costs fuseCost, and gives one piece of its fused kind, count 1, full HP, in the ossuary. It joins
+// Fusions (DESIGN §2.6, content.js FUSION_LIST): a recipe consumes exactly `needs` pieces of each kind from your
+// pieces, fielded or in the ossuary, whole, costs fuseCost, and gives one piece of its fused kind, full HP, in the
+// ossuary. It joins
 // its kind, with the kind's tiers (none for a kind new to the run), at the kind's level, which is never below the
 // highest level of the kinds consumed (the kind's `least` rises to it): a fused piece is never weaker than what went
 // into it. Recipes are public: legalActions lists one fuse a recipe that can be made (fuseParts).
@@ -66,9 +62,9 @@
 // Command relics' field (Legion's too), the HP relics' Monarch, the domain's size, Hollow Court's shadows reaped and
 // Court of Bone's Monarch that nothing heals are the run's to apply. Nothing revives the Monarch.
 //
-// The enemy is an army too (drawRoom): from floor 2 its rooms have captains, each one piece with its cohort's
-// bodies (a count); a floor-1 elite brings a late pair; from floor 3 rooms come in waves, and a siege room is one
-// battle of three. The last room is a siege whose last wave is the Hollow Sovereign and its court; its fall ends the
+// The enemy is an army too (drawRoom): from floor 2 its rooms have captains, each with a cohort of foes of its kind
+// around it, each a foe of its own; a floor-1 elite brings a late pair; from floor 3 rooms come in waves, and a siege
+// room is one battle of three. The last room is a siege whose last wave is the Hollow Sovereign and its court; its fall ends the
 // battle.
 //
 // `fight` resolves the whole battle at once; run.setup is what it was built from, so the UI can play it
@@ -78,28 +74,23 @@
 //   map              { type: 'node', id }           walk to a connected room (a battle room, a siege too, opens prep)
 //   map, prep        { type: 'place', uid, slot }   move a soul (never the Monarch) to the camp cell `slot` (0–48),
 //                                                   its anchor, where its footprint fits (canPlace), or to the
-//                                                   ossuary (OSSUARY, −1); the piece covering that cell takes the
-//                                                   mover's old place (the ossuary, if it came from there), where
-//                                                   it fits; a soul from the ossuary only while the field has room,
-//                                                   or in such a swap
-//   map, prep        { type: 'stack', uid, onto }   put piece `uid` onto piece `onto` of its kind: one piece of
-//                                                   both counts and both pools, where `onto` stands; `uid` is gone
-//   map, prep        { type: 'split', uid, n, slot }  take `n` bodies (1 to count − 1) off piece `uid` into a new
-//                                                   piece of its kind, the hindmost (see above), at `slot`: a
-//                                                   camp cell where it fits while the field has room, or the
-//                                                   ossuary (OSSUARY, the default)
-//   map, prep        { type: 'fuse', id, parts }    make fusion `id` (content.js FUSIONS) of `parts`, [{ uid, n }]:
-//                                                   `n` bodies off each piece, the hindmost (the whole piece when
-//                                                   `n` is its count), exactly the recipe's needs, for fuseCost;
-//                                                   the fused piece waits in the ossuary
+//                                                   ossuary (OSSUARY, −1); the one piece its footprint there
+//                                                   covers (swapWith) takes the mover's old place (the ossuary, if
+//                                                   it came from there), where it fits; never a footprint over two
+//                                                   pieces or the seat; a soul from the ossuary only while the
+//                                                   field has room, or in such a swap
+//   map, prep        { type: 'fuse', id, parts }    make fusion `id` (content.js FUSIONS) of `parts`, [uid, …]:
+//                                                   whole pieces, exactly the recipe's needs, for fuseCost; the
+//                                                   fused piece waits in the ossuary
 //   map, prep        { type: 'upgrade', kind, track }  buy a kind you hold its next tier on track 0 or 1 (and
 //                                                   with it the kind's level: levelOf)
-//   map, prep, reap  { type: 'release', uid }       let a soul go (never the last one standing)
+//   map, prep, reap  { type: 'release', uid }       let a soul go (never the last one standing), for its refund
+//                                                   (releaseRefund)
 //   prep             { type: 'fight' }              the battle plays out; the run moves on by itself
-//   reap             { type: 'reap', index, onto }  take offer `index` (recruit one soul for its price, a
+//   reap             { type: 'reap', index }        take offer `index` (recruit one soul for its price, a
 //                                                   free relic, a free Legendary, a free tier), or null to move on;
-//                                                   a soul with `onto` joins that fielded piece of its kind; one of
-//                                                   each group (offerGroup), one in all in a reliquary (onePick)
+//                                                   one of each group (offerGroup), one in all in a reliquary
+//                                                   (onePick)
 //   over             { type: 'descend' }            the Sovereign slain (result 'victory'): on to the endless
 //                                                   floors, each deeper than the last; nothing after a fall
 //
@@ -113,7 +104,7 @@ import { UNIT_LIST, relicDef, unitDef, abilityDef, RELIC_LIST, RELIC_TIERS, CAMP
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campOpen, wallTiles, tracksOf, canTrack, nextTracks,
-  nearestOpen, colOf, FORMATION, SLOTS, bodyHp, livingBodies, bodiesHp, sizeOf, footprintSlots, fits, monarchSlot,
+  nearestOpen, colOf, FORMATION, SLOTS, sizeOf, footprintSlots, fits, monarchSlot, isMonarchCell,
   abilitiesOf, isBlow, ringOf, deployTile, distance, distanceBetween, tileAt, tileX, TILES, DEPTH, ROWS
 } from './unit.js'
 import { createBattle, playOut, relicRules, ariseCap, ariseTier, ariseHaste, field } from './battle.js'
@@ -131,7 +122,7 @@ const BOSS = UNIT_LIST.find((u) => u.boss).id
 // `death` is what felled the Monarch, once something has. The ossuary starts empty: every start soul is fielded, its
 // kind with no tiers, at its first level. No relics (ids, in the order taken, a copy each).
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
-// every battle of the run, carried in each battle's setup (battle.js createBattle: 'arise', 'synergies', 'bodies').
+// every battle of the run, carried in each battle's setup (battle.js createBattle: 'arise', 'synergies', 'summons').
 // A run made without it has no such field.
 export function createRun ({ seed, ablate = null }) {
   const state = {
@@ -172,9 +163,7 @@ export function legalActions (run) {
   if (s.phase === 'map') return [...availableNodes(run).map((n) => ({ type: 'node', id: n.id })), ...rosterActions(run)]
   if (s.phase === 'prep') return [...(canFight(s) ? [{ type: 'fight' }] : []), ...rosterActions(run)]
   if (s.phase === 'reap') {
-    const offers = s.offers.flatMap((o, index) => (canTake(run, o)
-      ? [{ type: 'reap', index }, ...(o.type === 'soul' ? fielded(souls(s.party)).filter((u) => u.id === o.id).map((u) => ({ type: 'reap', index, onto: u.uid })) : [])]
-      : []))
+    const offers = s.offers.flatMap((o, index) => (canTake(run, o) ? [{ type: 'reap', index }] : []))
     return [...offers, { type: 'reap', index: null }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid }))]
   }
   if (s.phase === 'over') return canDescend(s) ? [{ type: 'descend' }] : []
@@ -186,12 +175,6 @@ function rosterActions (run) {
   const out = []
   for (const u of souls(s.party)) {
     for (let slot = -1; slot < CAMP_SLOTS; slot++) if (canPlace(run, u, slot)) out.push({ type: 'place', uid: u.uid, slot })
-  }
-  for (const u of souls(s.party)) {
-    for (const v of souls(s.party)) if (canStack(s, u, v)) out.push({ type: 'stack', uid: u.uid, onto: v.uid })
-    for (let n = 1; n < u.count; n++) {
-      for (let slot = -1; slot < CAMP_SLOTS; slot++) if (canSplit(run, u, n, slot)) out.push({ type: 'split', uid: u.uid, n, slot })
-    }
   }
   for (const kind of heldKinds(s)) for (const track of [0, 1]) if (canUpgrade(run, kind, track)) out.push({ type: 'upgrade', kind, track })
   // One fuse a recipe that can be made, of its canonical parts (fuseParts: the ossuary's pieces first).
@@ -243,8 +226,8 @@ export const onePick = (run) => run.state.phase === 'reap' && currentNode(run)?.
 const reapsOf = (ids = []) => ids.reduce((n, id) => n + (relicDef(id).reap ?? 0), 0)
 export const reapedShadows = (run) => run.battle && run.battle.winner === 'party' && reapsOf(run.setup?.relics) > 0
   ? run.battle.units.filter((u) => u.arisen && u.side === 'party' && u.hp > 0) : []
-// The field cap counts pieces (a stack is one), the roster souls (a stack's every body): the Monarch takes no room
-// in either. It is the Monarch's Command, up to as many as the board holds.
+// The field cap counts the pieces fielded, the roster every soul held: the Monarch takes no room in either. The field
+// cap is the Monarch's Command, up to as many as the board holds.
 // The souls every Monarch fields, its base Command: TUNING.party.field, and fieldPerFloor more a floor down (to the
 // Sovereign's; 0 now: the Command relics alone widen the field).
 export const baseField = (s) => TUNING.party.field + TUNING.party.fieldPerFloor * (Math.min(s.floor, TUNING.run.floors) - 1)
@@ -252,10 +235,10 @@ export const baseField = (s) => TUNING.party.field + TUNING.party.fieldPerFloor 
 // field is not: fieldCap).
 export const commandOf = (s) => baseField(s) + relicSum(s, 'command')
 export const fieldCap = (run) => Math.min(TUNING.army.board, commandOf(run.state))
-// How many souls the retinue holds, on the field and in the ossuary together, stacked or not.
+// How many souls the retinue holds, on the field and in the ossuary together.
 export const rosterCap = (run) => TUNING.party.roster + relicSum(run.state, 'roster')
-// The souls (bodies) in these pieces.
-export const soulCount = (party) => souls(party).reduce((n, u) => n + u.count, 0)
+// The souls among these pieces (one a piece; the Monarch is none).
+export const soulCount = (party) => souls(party).length
 export const fielded = (party) => party.filter(onField)
 // The souls in the ossuary: kept, not fielded.
 export const inOssuary = (party) => party.filter((u) => !onField(u))
@@ -286,8 +269,17 @@ function takenBy (s, except = []) {
   return out
 }
 
-// The fielded piece but `except` whose footprint covers camp cell `slot`, if any.
-const coverOf = (s, slot, except = null) => s.party.find((x) => x !== except && onField(x) && cellsOf(x).includes(slot)) ?? null
+// What piece `u`'s footprint would cover anchored at camp cell `slot`, but `u` itself: the one fielded piece under
+// it, which a place swaps with (canPlace, place); null with none (or no footprint there); 'many' when two or more
+// pieces, or the Monarch's seat, are under it: no place swaps with two, nor with the Monarch.
+export function swapWith (run, u, slot) {
+  const s = run.state
+  const cells = footprintSlots(slot, sizeOf(u))
+  if (!cells) return null
+  if (cells.some((c) => isMonarchCell(s.camp, c))) return 'many'
+  const under = s.party.filter((x) => x !== u && onField(x) && cellsOf(x).some((c) => cells.includes(c)))
+  return under.length > 1 || under.some(isMonarch) ? 'many' : under[0] ?? null
+}
 
 // A piece new to the field (a recruit) beside the Monarch: on the free cell nearest its seat that its footprint fits
 // beside every other fielded piece (ties: the middle lanes first, then the lower cell), or the ossuary (OSSUARY, −1)
@@ -375,16 +367,17 @@ function muster (s, pieces) {
 
 // A soul to camp cell `slot`, its anchor, or to the ossuary (OSSUARY). Never the Monarch, which keeps its seat,
 // and never onto the seat; never a fallen piece onto the camp (it waits in the ossuary for an altar). On the camp
-// the piece's footprint must fit (unit.js fits) but for the piece covering `slot` (coverOf), which swaps with it: it
-// takes the mover's old place, where it must fit beside the mover, or the ossuary if the mover came from there. A
-// soul leaves the ossuary for open ground only while the field has room (fieldCap: Command), or in a swap.
+// the piece's footprint must fit (unit.js fits) but for the one piece it covers there (swapWith), which swaps with
+// it: that one takes the mover's old place, where it must fit beside the mover, or the ossuary if the mover came
+// from there. A footprint over two pieces, or over the seat, places nowhere. A soul leaves the ossuary for open
+// ground only while the field has room (fieldCap: Command), or in a swap.
 export function canPlace (run, u, slot) {
   const s = run.state
   if (!u || isMonarch(u) || !s.party.includes(u) || slot === u.slot) return false
   if (slot === OSSUARY) return true
   if (u.hp <= 0 || !campOpen(s.camp, slot)) return false
-  const other = coverOf(s, slot, u)
-  if (other && isMonarch(other)) return false
+  const other = swapWith(run, u, slot)
+  if (other === 'many') return false
   const taken = takenBy(s, [u, other])
   if (!fits(s.camp, slot, sizeOf(u), taken)) return false
   if (!other) return onField(u) || fielded(souls(s.party)).length < fieldCap(run)
@@ -402,36 +395,19 @@ function releasable (s) {
 // The Monarch alone may fight (and will likely fall).
 const canFight = (s) => s.party.some((u) => onField(u) && u.hp > 0)
 
-// Stacking: two pieces of one kind (never the Monarch), either fielded or in the ossuary.
-const canStack = (s, u, v) => !!u && !!v && u !== v && !isMonarch(u) && !isMonarch(v) && u.id === v.id && s.party.includes(u) && s.party.includes(v)
-// Splitting `n` bodies off a piece: 1 to count − 1 of them, to the ossuary, or to a camp cell where a piece of its
-// size fits while the field has room for one more piece, and only if one of them stands (the hindmost, the fallen
-// first: a piece of the fallen alone is no piece to field).
-function canSplit (run, u, n, slot) {
-  if (!u || isMonarch(u) || !Number.isInteger(n) || n < 1 || n >= u.count) return false
-  if (slot === OSSUARY) return true
-  const s = run.state
-  return bodiesHp(u).slice(u.count - n).some((hp) => hp > 0) &&
-    campOpen(s.camp, slot) && fits(s.camp, slot, sizeOf(u), takenBy(s)) && fielded(souls(s.party)).length < fieldCap(run)
-}
+// What letting soul `u` go pays back: TUNING.essence.refund of what recruiting it would cost now, at its level
+// (recruitCost), rounded down; a fallen soul's too. The Monarch is never released.
+export const releaseRefund = (run, u) => Math.floor(TUNING.essence.refund * recruitCost(run, u.id, u.lvl))
 
 // A new soul takes the free cell nearest the Monarch (besideSeat) while the field has room, else waits in the ossuary,
-// a piece of one; or with `onto` it is a body more in that piece of its kind, whole. It joins its kind at the kind's
-// level and tiers; a kind new to the run starts with no tiers, at its first level. Returns the piece it is in.
-export function join (run, id, { uid = run.state.nextUid++, onto = null } = {}) {
+// a piece of its own. It joins its kind at the kind's level and tiers; a kind new to the run starts with no tiers, at
+// its first level. Returns the piece.
+export function join (run, id, { uid = run.state.nextUid++ } = {}) {
   const s = run.state
   if (unitDef(id).monarch) throw new Error('there is one Monarch')
   if (soulCount(s.party) >= rosterCap(run)) throw new Error('the retinue is full')
-  const piece = onto === null ? null : s.party.find((u) => u.uid === onto)
-  if (onto !== null && !(piece && piece.id === id && onField(piece))) throw new Error(`no fielded ${id} ${onto} to join`)
   if (!s.kinds[id]) s.kinds[id] = { lvl: levelOf({ tracks: [0, 0] }), tracks: [0, 0] }
   const u = makeUnit(id, { uid, lvl: s.kinds[id].lvl, tracks: s.kinds[id].tracks })
-  if (piece) {
-    piece.count++
-    piece.hp += u.hp
-    piece.maxHp += u.maxHp
-    return piece
-  }
   s.party.push(u)
   if (fielded(souls(s.party)).length < fieldCap(run)) besideSeat(s, u)
   return u
@@ -442,43 +418,35 @@ export function join (run, id, { uid = run.state.nextUid++, onto = null } = {}) 
 // What fusion `id` costs: TUNING.essence.fuse × its fused kind's tier, × the floor's price scale (floorPrice).
 export const fuseCost = (run, id) => price(run, TUNING.essence.fuse * unitDef(fusionDef(id).result).tier)
 
-// The parts fusion `id` takes when the run chooses them, [{ uid, n }], or null if the retinue lacks the bodies (or
-// there is no such recipe): for each kind it needs, in the recipe's order, from that kind's pieces in the ossuary
-// first, then the fielded, the smallest stacks first (party order among equals), as many bodies of each as are
-// still needed.
+// The parts fusion `id` takes when the run chooses them, an array of uids, or null if the retinue lacks the pieces (or
+// there is no such recipe): for each kind it needs, in the recipe's order, as many of that kind's pieces as it needs,
+// those in the ossuary first, then the fielded (party order among equals).
 export function fuseParts (run, id) {
   const recipe = Object.hasOwn(FUSIONS, id) ? FUSIONS[id] : null
   if (!recipe) return null
   const out = []
   for (const [kind, need] of Object.entries(recipe.needs)) {
-    let left = need
-    const pieces = souls(run.state.party).filter((u) => u.id === kind).sort((a, b) => onField(a) - onField(b) || a.count - b.count)
-    for (const u of pieces) {
-      if (!left) break
-      const n = Math.min(left, u.count)
-      out.push({ uid: u.uid, n })
-      left -= n
-    }
-    if (left) return null
+    const pieces = souls(run.state.party).filter((u) => u.id === kind).sort((a, b) => onField(a) - onField(b))
+    if (pieces.length < need) return null
+    out.push(...pieces.slice(0, need).map((u) => u.uid))
   }
   return out
 }
 
-// Whether fusion `id` can be made now: the run holds the bodies it needs (fuseParts) and the essence it costs.
+// Whether fusion `id` can be made now: the run holds the pieces it needs (fuseParts) and the essence it costs.
 export const canFuse = (run, id) => Object.hasOwn(FUSIONS, id) && run.state.essence >= fuseCost(run, id) && fuseParts(run, id) !== null
 
-// `parts` ([{ uid, n }]) as the pieces they name, each with its `n`, if they are exactly `recipe`'s: souls of the run
-// (never the Monarch), each named once, 1 to its count bodies off each, every one of a kind the recipe needs, and of
-// each kind the bodies it needs; else null.
+// `parts` (uids) as the pieces they name, if they are exactly `recipe`'s: souls of the run (never the Monarch), each
+// named once, every one of a kind the recipe needs, and of each kind as many as it needs; else null.
 function partsOf (s, recipe, parts) {
   if (!Array.isArray(parts)) return null
   const out = []
   const got = {}
-  for (const p of parts) {
-    const u = s.party.find((x) => x.uid === p?.uid)
-    if (!u || isMonarch(u) || out.some((x) => x.u === u) || !Number.isInteger(p.n) || p.n < 1 || p.n > u.count || !Object.hasOwn(recipe.needs, u.id)) return null
-    out.push({ u, n: p.n })
-    got[u.id] = (got[u.id] ?? 0) + p.n
+  for (const uid of parts) {
+    const u = s.party.find((x) => x.uid === uid)
+    if (!u || isMonarch(u) || out.includes(u) || !Object.hasOwn(recipe.needs, u.id)) return null
+    out.push(u)
+    got[u.id] = (got[u.id] ?? 0) + 1
   }
   return Object.entries(recipe.needs).every(([kind, n]) => got[kind] === n) ? out : null
 }
@@ -488,8 +456,6 @@ function partsOf (s, recipe, parts) {
 const HANDLERS = {
   node: { phases: ['map'], run: walk },
   place: { phases: ['map', 'prep'], run: place },
-  stack: { phases: ['map', 'prep'], run: stack },
-  split: { phases: ['map', 'prep'], run: split },
   upgrade: { phases: ['map', 'prep'], run: upgrade },
   release: { phases: ['map', 'prep', 'reap'], run: release },
   fuse: { phases: ['map', 'prep'], run: fuse },
@@ -512,13 +478,11 @@ function walk (run, { id }) {
     s.phase = 'reap'
     if (!s.offers.length) nextRoom(run)
   } else if (node.type === 'altar') {
-    // Every soul heals, in the ossuary too, and a fallen one stands again: body by body, into its pool. A piece that
-    // fell whole stands again where it lies, in the ossuary, to be placed.
+    // Every soul heals, in the ossuary too, and a fallen one stands again, where it lies, in the ossuary, to be placed.
     const t = TUNING.run
     for (const u of s.party) {
       if (isMonarch(u) && holds(s, 'unhealable')) continue
-      const b = bodyHp(u)
-      u.hp = bodiesHp(u).reduce((n, hp) => n + (hp > 0 ? Math.max(hp, Math.round(b * t.altarHeal)) : Math.ceil(b * t.altarRevive)), 0)
+      u.hp = u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive)
     }
     nextRoom(run)
   } else {
@@ -531,47 +495,15 @@ function place (run, { uid, slot }) {
   const u = s.party.find((x) => x.uid === uid)
   if (!u) throw new Error(`no soul ${uid}`)
   if (!canPlace(run, u, slot)) throw new Error(`cannot place ${uid} at ${slot}`)
-  const other = slot >= 0 ? coverOf(s, slot, u) : null
+  const other = slot >= 0 ? swapWith(run, u, slot) : null
   if (other) other.slot = u.slot
   u.slot = slot
 }
 
-// A piece onto another of its kind: one piece, where `onto` stands.
-function stack (run, { uid, onto }) {
-  const s = run.state
-  const u = s.party.find((x) => x.uid === uid)
-  const v = s.party.find((x) => x.uid === onto)
-  if (!canStack(s, u, v)) throw new Error(`cannot stack ${uid} onto ${onto}`)
-  v.count += u.count
-  v.hp += u.hp
-  v.maxHp += u.maxHp
-  s.party = s.party.filter((x) => x !== u)
-}
-
-// `n` bodies off a piece, the hindmost, into a new piece of its kind at `slot`.
-function split (run, { uid, n, slot = OSSUARY }) {
-  const s = run.state
-  const u = s.party.find((x) => x.uid === uid)
-  if (!canSplit(run, u, n, slot)) throw new Error(`cannot split ${n} off ${uid} to ${slot}`)
-  const v = makeUnit(u.id, { uid: s.nextUid++, lvl: u.lvl, tracks: u.tracks, count: n, slot })
-  v.hp = takeBodies(u, n)
-  s.party.push(v)
-}
-
-// `n` bodies (fewer than its count) off piece `u`, the hindmost (unit.js bodiesHp): its pool loses their HP and
-// their share of its max HP. → the HP they took with them.
-function takeBodies (u, n) {
-  const hp = bodiesHp(u).slice(u.count - n).reduce((a, b) => a + b, 0)
-  u.count -= n
-  u.hp -= hp
-  u.maxHp -= n * baseStats(u.id, u.lvl).hp
-  return hp
-}
-
-// A fusion (partsOf): its parts' bodies consumed (a whole piece gone, a bigger stack keeping the rest), its price
-// paid, and its fused piece in the ossuary, count 1, full HP, with its kind's tiers (none for a kind new to the run),
-// at its kind's level: the kind's `least` rises to the highest level of the kinds consumed, so the fused piece (and
-// every other of its kind) is never at a lower level than its parts (DESIGN §2.6).
+// A fusion (partsOf): its parts consumed, whole, its price paid, and its fused piece in the ossuary, full HP, with its
+// kind's tiers (none for a kind new to the run), at its kind's level: the kind's `least` rises to the highest level of
+// the kinds consumed, so the fused piece (and every other of its kind) is never at a lower level than its parts
+// (DESIGN §2.6).
 function fuse (run, { id, parts }) {
   const s = run.state
   const recipe = Object.hasOwn(FUSIONS, id) ? FUSIONS[id] : null
@@ -579,11 +511,8 @@ function fuse (run, { id, parts }) {
   if (!took) throw new Error(`cannot fuse ${id} of ${JSON.stringify(parts)}`)
   if (s.essence < fuseCost(run, id)) throw new Error(`cannot fuse ${id}: not enough essence`)
   pay(run, fuseCost(run, id))
-  const least = Math.max(...took.map(({ u }) => kindLevel(s, u.id)))
-  for (const { u, n } of took) {
-    if (n === u.count) s.party = s.party.filter((x) => x !== u)
-    else takeBodies(u, n)
-  }
+  const least = Math.max(...took.map((u) => kindLevel(s, u.id)))
+  s.party = s.party.filter((x) => !took.includes(x))
   const kind = recipe.result
   s.kinds[kind] ??= { lvl: levelOf({ tracks: [0, 0] }), tracks: [0, 0] }
   s.kinds[kind].least = Math.max(s.kinds[kind].least ?? 0, least)
@@ -597,11 +526,14 @@ function upgrade (run, { kind, track }) {
   advance(run.state, kind, track)
 }
 
-// Releasing the last soul of a kind withdraws a reliquary's tier offers for that kind; a room left with none ends.
+// A soul let go pays back its refund (releaseRefund). Releasing the last soul of a kind withdraws a reliquary's tier
+// offers for that kind; a room left with none ends.
 function release (run, { uid }) {
   const s = run.state
-  if (!releasable(s).some((u) => u.uid === uid)) throw new Error(`cannot release ${uid}`)
-  s.party = s.party.filter((u) => u.uid !== uid)
+  const u = releasable(s).find((x) => x.uid === uid)
+  if (!u) throw new Error(`cannot release ${uid}`)
+  s.essence += releaseRefund(run, u)
+  s.party = s.party.filter((x) => x !== u)
   if (s.phase !== 'reap') return
   const held = heldKinds(s)
   s.offers = s.offers.filter((o) => o.type !== 'tier' || held.includes(o.kind))
@@ -633,31 +565,32 @@ function descend (run) {
 // and taking a free relic or Legendary the others of its group, so an elite still leaves its relic and its Legendary
 // after a recruit. A reliquary's offers are one pick (onePick): taking any ends it. The room ends on null, or once
 // nothing is left. A relic is taken as takeRelic says; a recruit of a kind new to the run joins with Soul Lantern's
-// free tiers, a copy each, each on its lower track (lanternSteps).
-function reap (run, { index, onto }) {
+// free tiers, a copy each, each on its lower track (lanternSteps). A soul is priced as it stands when taken
+// (soulOffer), and the souls still on the table are priced again after every pick: a relic taken first (Soul
+// Lantern, Binding Chain) prices and levels them.
+function reap (run, { index }) {
   const s = run.state
   const o = index === null ? null : s.offers[index]
   if (index !== null && !o) throw new Error(`no offer ${index}`)
-  if (onto != null && !(o?.type === 'soul' && fielded(souls(s.party)).some((u) => u.uid === onto && u.id === o.id))) throw new Error(`offer ${index} cannot join ${onto}`)
   if (o && !canTake(run, o)) {
     throw new Error(o.type !== 'soul' ? `offer ${index} can't be taken` : soulCount(s.party) >= rosterCap(run) ? 'the retinue is full: release a soul first' : 'not enough essence')
   }
   if (o?.type === 'relic') takeRelic(s, o.id)
   else if (o?.type === 'tier') advance(s, o.kind, o.track)
   else if (o?.type === 'soul') {
-    pay(run, o.cost)
+    pay(run, soulOffer(run, o).cost)
     const steps = s.kinds[o.id] ? [] : lanternSteps(s)
-    join(run, o.id, { onto: onto ?? null })
+    join(run, o.id)
     for (const t of steps) if (canAdvance(s, o.id, t)) advance(s, o.id, t)
     s.stats.reaped++
   }
-  s.offers = o && !onePick(run) ? s.offers.filter((x) => offerGroup(x) !== offerGroup(o)) : []
+  s.offers = o && !onePick(run) ? s.offers.filter((x) => offerGroup(x) !== offerGroup(o)).map((x) => soulOffer(run, x)) : []
   if (!s.offers.length) nextRoom(run)
 }
 
-function canTake (run, o) {
+export function canTake (run, o) {
   const s = run.state
-  if (o.type === 'soul') return soulCount(s.party) < rosterCap(run) && s.essence >= o.cost
+  if (o.type === 'soul') return soulCount(s.party) < rosterCap(run) && s.essence >= soulOffer(run, o).cost
   if (o.type === 'tier') return canAdvance(s, o.kind, o.track)
   return true
 }
@@ -769,7 +702,7 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 // `waves`: [{ foes, when }], each a formation of its own that enters at the top edge, each foe in its slot's
 // lane, when `when` comes ({ at: 'time', t }: at tick t; { at: 'break', t }: once the wave before is down to
 // TUNING.spawn.waves.share of its foes, or t ticks after it began to enter). A foe is a piece { id, lvl, slot },
-// in a formation of its own (a wave's slots are its own), and a captain's carries `count`: itself and its cohort.
+// in a formation of its own (a wave's slots are its own); a captain's cohort are foes of their own beside it.
 // What comes, by room (TUNING.spawn):
 //   fight   a formation of `fight` foes, floor 3+ from rank waves.fightRank: waves.fight such waves
 //   elite   `elite` foes of a higher tier; floor 1: and a late pair of the floor's own pool at late.t;
@@ -777,7 +710,7 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 //   siege   waves.siege fight-sized waves, from floor 3
 //   boss    waves.siege waves, the last the Hollow Sovereign at the centre of its court of `court` undead
 // From floor 2 each wave (but the Sovereign's) has captains: captains.fight (captains.elite in an elite) of
-// its foes, each one piece leading cohort[floor − 1] more bodies of its own kind.
+// its foes, each leading cohort[floor − 1] more foes of its own kind (formation).
 // Each wave's foes stand from its front row back, filling the middle lanes first, each band of lanes (centre
 // three, then the next pair out…) in shuffled order.
 // From rank `variety.from` on, a room must carry enough distinct threats that one answer never covers it
@@ -855,13 +788,23 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null } = {}) 
 }
 
 // A wave's formation: `ids` placed from the front row, then `captains` of them (if they lead anyone: `cohort` > 0)
-// each one piece with `cohort` more bodies of its kind (`count`).
+// each with `cohort` more foes of its kind, each on the free slot nearest the captain (unit.js nearestOpen: the
+// fewest rows and lanes apart, then the fewest rows, then the lower slot, so the front rows first), and dropped when
+// the formation has no free slot left. Each is an ordinary foe: it pays essence, and may be recruited.
 function formation (rng, ids, lvl, captains, cohort) {
   const foes = ids.map((id) => ({ id, lvl, slot: -1 }))
   const cols = [CENTRE_OUT.slice(0, 3), ...[3, 5].map((i) => CENTRE_OUT.slice(i, i + 2))].flatMap((band) => rng.shuffle(band))
   autoPlace(foes, { cols })
   if (!cohort || !captains) return foes
-  for (const c of rng.shuffle(foes).slice(0, captains)) c.count = 1 + cohort
+  const taken = new Set(foes.map((f) => f.slot))
+  for (const c of rng.shuffle(foes.slice()).slice(0, captains)) {
+    for (let k = 0; k < cohort; k++) {
+      const slot = nearestOpen(FORMATION, c.slot, taken)
+      if (slot < 0) break
+      taken.add(slot)
+      foes.push({ id: c.id, lvl, slot })
+    }
+  }
   return foes
 }
 
@@ -899,14 +842,14 @@ export function battleSetup (run, { party = fielded(run.state.party), seed = nul
   }
 }
 
-// A room's foes as battle units, uids from `uid` on, each piece with its count; a later wave's foes off the board
-// (slot −1) with what they wait for (see battleSetup).
+// A room's foes as battle units, uids from `uid` on; a later wave's foes off the board (slot −1) with what they wait
+// for (see battleSetup).
 function foeUnits (node, uid) {
   const out = []
   for (const [k, foes] of [node.foes, ...(node.waves ?? []).map((w) => w.foes)].entries()) {
     for (const [i, f] of foes.entries()) {
       out.push({
-        ...makeUnit(f.id, { uid: uid + i, lvl: f.lvl, slot: k ? -1 : f.slot, count: f.count ?? 1 }),
+        ...makeUnit(f.id, { uid: uid + i, lvl: f.lvl, slot: k ? -1 : f.slot }),
         ...(k && { side: 'foe', wave: k, lane: colOf(f.slot), when: { ...node.waves[k - 1].when, wave: k } })
       })
     }
@@ -919,21 +862,16 @@ function finishBattle (run) {
   const b = run.battle
   const s = run.state
   const byUid = new Map(b.units.map((u) => [u.uid, u]))
-  // A piece keeps the HP of its own bodies that stood as the battle began (u is still as it came in): the bodies its
-  // tiers added were the first to fall, and go, their HP (`extra` bodies' worth, whole: battle.js grown) spent before
-  // any of its own, and a body fallen before it stays down (only an altar raises the fallen). `whole`: one of its own
-  // bodies, whole, in the battle's HP (its bodies thinned to share the pool with the added ones: battle.js fit). A piece whose every body fell leaves the field (DESIGN
-  // §2.2): it lies fallen in the ossuary, its cell and its Command free, until an altar raises it (canPlace keeps it
-  // there).
+  // A piece keeps the share of its HP it ended the battle with (the battle's max HP is fitted to its mods: battle.js
+  // fit). A piece that fell leaves the field (DESIGN §2.2): it lies fallen in the ossuary, its cell and its Command
+  // free, until an altar raises it (canPlace keeps it there).
   for (const u of s.party) {
     const bu = byUid.get(u.uid)
     if (!bu) continue
-    const whole = bu.body / (bu.thin ?? 1)
-    const kept = Math.min(bu.hp - (bu.extra ?? 0) * whole, livingBodies(u) * whole)
-    u.hp = kept > 0 ? Math.max(1, Math.round(kept / whole * bodyHp(u))) : 0
+    u.hp = bu.hp > 0 ? Math.min(u.maxHp, Math.max(1, Math.round(bu.hp / bu.maxHp * u.maxHp))) : 0
     if (u.hp <= 0 && !isMonarch(u)) u.slot = OSSUARY
   }
-  // Shadows are the battle's alone: nothing of them comes back to the run.
+  // Shadows and summons are the battle's alone: nothing of them comes back to the run.
   s.stats.fights++
   if (b.winner !== 'party') {
     s.phase = 'over'
@@ -948,10 +886,10 @@ function finishBattle (run) {
   const earned = Math.round((battleEssence(b) + court) * (1 + relicSum(s, 'essence')))
   s.essence += earned
   s.stats.essence += earned
-  // Each living body heals (a stack's whole ones are whole already: the one wounded takes it).
+  // Each living soul heals; the fallen stay down.
   for (const u of s.party) {
     if (isMonarch(u) && holds(s, 'unhealable')) continue
-    if (u.hp > 0) u.hp = Math.min(livingBodies(u) * bodyHp(u), u.hp + Math.ceil(bodyHp(u) * TUNING.run.postBattleHeal))
+    if (u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + Math.ceil(u.maxHp * TUNING.run.postBattleHeal))
   }
   const node = currentNode(run)
   if (node.type === 'boss') {
@@ -966,8 +904,7 @@ function finishBattle (run) {
 
 // ── progression: the retinue ─────────────────────────────────────────────────────────────────────
 
-// Every foe piece slain pays essence by its tier alone (perTier × tier), whatever its count or level; it all goes to
-// one purse. Only real foes pay: a shadow (of either side) was paid for once already, as the corpse it rose from.
+// Every foe slain pays essence by its tier alone (perTier × tier), whatever its level; it all goes to one purse. Only real foes pay: a shadow (of either side) was paid for once already, as the corpse it rose from.
 export const foeEssence = (u) => TUNING.essence.perTier * unitDef(u.id).tier
 const battleEssence = (battle) => battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
 // What each foe wave of a battle paid (the formation's first), before relics: a siege pays wave by wave,
@@ -987,7 +924,7 @@ export const tierCost = (run, kind, track) => {
   const next = run.state.kinds[kind].tracks[track]
   return price(run, TUNING.essence.tier[next], 'tierDiscount', ...(next < 2 ? ['lowTierDiscount'] : []))
 }
-const recruitCost = (run, id, lvl) => price(run, TUNING.essence.recruit * unitDef(id).tier * (1 + TUNING.essence.perLevel * (lvl - 1)), 'recruitDiscount')
+export const recruitCost = (run, id, lvl) => price(run, TUNING.essence.recruit * unitDef(id).tier * (1 + TUNING.essence.perLevel * (lvl - 1)), 'recruitDiscount')
 
 // The kinds the run holds a soul of, in party order (the Monarch is no kind).
 export const heldKinds = (s) => [...new Set(souls(s.party).map((u) => u.id))]
@@ -1033,13 +970,12 @@ function syncKind (s, kind) {
   for (const u of s.party) if (u.id === kind && u.lvl !== s.kinds[kind].lvl) setLevel(u, s.kinds[kind].lvl)
 }
 
-// A level-up raises each body's HP and heals each living body by the difference; the fallen stay at 0.
+// A level-up raises the soul's max HP and heals a living one by the difference; the fallen stay at 0.
 function setLevel (u, lvl) {
-  const before = bodyHp(u)
-  const living = livingBodies(u)
+  const before = u.maxHp
   u.lvl = lvl
-  u.maxHp = u.count * baseStats(u.id, u.lvl).hp
-  u.hp += living * (bodyHp(u) - before)
+  u.maxHp = baseStats(u.id, u.lvl).hp
+  if (u.hp > 0) u.hp += u.maxHp - before
 }
 
 // The track a free tier goes on (Soul Lantern): the one with fewer tiers (the first on a tie) while it may take one,
@@ -1109,17 +1045,23 @@ export function foeMods (floor, boss) {
 
 // ── rewards ──────────────────────────────────────────────────────────────────────────────────────
 
-// One soul for sale per kind of foe slain: a full soul (one body) that joins its kind at the kind's level, with its
-// kind's tiers (a kind new to the run at its first, with Soul Lantern's tiers: lanternSteps), priced by that level;
-// one of them a battle (reap). A foe shadow is no foe's soul (it rose from one of yours: the Legion, Undead 8, on the
-// foes' side).
+// One soul for sale per kind of foe slain: a full soul that joins its kind at the kind's level, with its kind's tiers
+// (a kind new to the run at its first, with Soul Lantern's tiers: lanternSteps), priced by that level; one of them a
+// battle (reap). A foe shadow is no foe's soul (it rose from one of yours: the Legion, Undead 8, on the foes' side).
 function soulOffers (run, battle) {
-  const s = run.state
   const slain = battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0)
-  return [...new Set(slain.map((u) => u.id))].map((id) => {
-    const lvl = s.kinds[id] ? kindLevel(s, id) : levelOf({ tracks: lanternSteps(s).reduce(nextTracks, [0, 0]) })
-    return { type: 'soul', id, lvl, cost: recruitCost(run, id, lvl), name: unitDef(id).name, desc: `Rises at level ${lvl}.` }
-  })
+  return [...new Set(slain.map((u) => u.id))].map((id) => soulOffer(run, { type: 'soul', id, name: unitDef(id).name }))
+}
+
+// A soul offer as the run stands now: the level it would join at (its kind's; a kind new to the run its first, with
+// the free tiers Soul Lantern would give it), what it costs at that level (recruitCost) and the card's line. Every
+// reading of an offer's price or level goes through here (canTake, reap, the spoils screen), so a relic taken first
+// in the same room (Soul Lantern, Binding Chain) is in the price. Any other offer comes back as it is.
+export function soulOffer (run, o) {
+  if (o.type !== 'soul') return o
+  const s = run.state
+  const lvl = s.kinds[o.id] ? kindLevel(s, o.id) : levelOf({ tracks: lanternSteps(s).reduce(nextTracks, [0, 0]) })
+  return { ...o, lvl, cost: recruitCost(run, o.id, lvl), desc: `Rises at level ${lvl}.` }
 }
 
 // A reliquary offers free tiers (what a rite did): up to `n` of the next tiers your kinds could take, each for a

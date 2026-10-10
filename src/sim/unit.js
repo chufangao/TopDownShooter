@@ -1,4 +1,4 @@
-// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring, its bodies and its
+// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring, its summons and its
 // footprint, where it deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
 import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, TRACKS } from '../content.js'
@@ -16,26 +16,13 @@ export function baseStats (id, lvl = 1) {
   return out
 }
 
-// A piece (DESIGN §2.2) as the run keeps it between battles; createBattle adds the per-battle fields. One kind
-// on one tile with `count` bodies: its HP is one pool of count × body HP (`maxHp`). slot −1 is the ossuary: the
-// piece is kept but does not fight. `lvl` and `tracks` (the tier held on each of its kind's two tracks, 0–4)
-// are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own.
-export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0], count = 1 } = {}) {
-  const hp = count * baseStats(id, lvl).hp
-  return { uid, id, lvl, tracks: tracks.slice(), count, hp, maxHp: hp, slot }
-}
-
-// ── bodies ───────────────────────────────────────────────────────────────────────────────────────
-
-// One body's HP: a battle unit's as the battle fitted it (`body`: its HP mods, a shadow's raise), else its share
-// of the pool. Its living bodies: ⌈hp ÷ body HP⌉, so they fall one at a time, the first ones first.
-export const bodyHp = (u) => u.body ?? u.maxHp / (u.count ?? 1)
-export const livingBodies = (u) => (u.hp > 0 ? Math.ceil(u.hp / bodyHp(u) - 1e-9) : 0)
-// A pool's bodies one by one, from the front: the whole ones, then the one wounded, then the fallen.
-export function bodiesHp (u) {
-  const b = bodyHp(u)
-  const whole = Math.min(u.count, Math.floor(u.hp / b + 1e-9))
-  return Array.from({ length: u.count }, (_, i) => (i < whole ? b : i === whole ? u.hp - whole * b : 0))
+// A piece (DESIGN §2.2) as the run keeps it between battles; createBattle adds the per-battle fields. One soul of
+// one kind on one tile, one body, its HP its own (`hp` of `maxHp`): it stands while it has HP left. slot −1 is the
+// ossuary: the piece is kept but does not fight. `lvl` and `tracks` (the tier held on each of its kind's two
+// tracks, 0–4) are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own.
+export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {}) {
+  const hp = baseStats(id, lvl).hp
+  return { uid, id, lvl, tracks: tracks.slice(), hp, maxHp: hp, slot }
 }
 
 // ── upgrade tracks ───────────────────────────────────────────────────────────────────────────────
@@ -51,13 +38,20 @@ export const canTrack = (tracks, t) => tracks[t] < 4 && (tracks[t] < 2 || tracks
 // The kind's tracks with the next tier taken on `t`.
 export const nextTracks = (tracks, t) => tracks.map((tier, i) => (i === t ? tier + 1 : tier))
 
-// Its abilities in priority order, with the swaps and additions its tiers grant.
+// Its abilities in priority order, with the swaps and additions its tiers grant. A tier that replaces an ability the
+// list does not hold (its kind's, or one an earlier tier taught) is a content error, and says so: it would otherwise
+// write the new ability past the list's end and leave a hole in the kit.
 export function abilitiesOf (u) {
   const list = unitDef(u.id).abilities.slice()
   for (const { ability: a } of tiersOf(u)) {
     if (!a) continue
-    if (a.replace) list[list.indexOf(a.replace)] = a.id
-    else list.splice(a.at ?? 0, 0, a.id)
+    if (a.replace) {
+      const i = list.indexOf(a.replace)
+      if (i < 0) throw new Error(`${u.id}: a tier replaces "${a.replace}" with "${a.id}", but its abilities are ${list.join(', ')}`)
+      list[i] = a.id
+    } else {
+      list.splice(a.at ?? 0, 0, a.id)
+    }
   }
   return list
 }
@@ -94,9 +88,9 @@ export function holdOf (u) {
   return { ground: reach(sure), air: reach(unitDef(u.id).flies ? sure : sure.filter((a) => !a.melee)) }
 }
 
-// The bodies a piece's tiers add for each battle (a tier's `count`): they fight in its pool, whole, and are gone
-// when the battle ends.
-export const bodiesOf = (u) => tiersOf(u).reduce((n, t) => n + (t.count ?? 0), 0)
+// The summons a piece's tiers bring to each battle (a tier's `summon`): shadows of its kind that rise beside it as
+// the battle begins and are gone when it ends (battle.js summon). A summon is a shadow, and brings none of its own.
+export const summonsOf = (u) => tiersOf(u).reduce((n, t) => n + (t.summon ?? 0), 0)
 
 // The least and the most gauge any of its abilities costs: below the cheapest a unit can only bank (or
 // walk, which is off the gauge), and its gauge never banks past the costliest.

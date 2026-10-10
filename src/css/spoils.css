@@ -333,8 +333,11 @@ button.ret-toggle {
   .reap-screen .offer:hover:not([aria-disabled]) { transform: none; }
 }
 
-/* A recruit straight onto a fielded piece of its kind: a row of presses under the cards. */
-.onto-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; margin-top: 16px; font-size: var(--fs-sm); }
-.onto-row .onto { gap: 8px; min-height: var(--tap); padding: 4px 14px 4px 6px; font-size: var(--fs-md); }
-.onto-row .onto .portrait { width: 30px; height: 30px; }
-.onto-row .price { display: inline-flex; align-items: center; gap: 3px; color: var(--c-essence); font-weight: 700; }
+/* A recruit of a kind already held: what one more is worth, as small chips on its face (codex.js recruitWorth):
+   how many you hold, a synergy step it would reach (lit), the tiers it shares, a fusion's parts (lit where it
+   completes them). */
+.reap-screen .offer-worth { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin-top: -2px; }
+.reap-screen .ow-chip { padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line2); background: #0b0914; color: var(--dim); font-size: var(--fs-xs); line-height: 1.5; }
+.reap-screen .ow-chip.up { border-color: color-mix(in srgb, var(--c-synergy) 55%, transparent); color: var(--c-synergy); }
+/* The essence a release pays back, on its button. */
+.ret-pop .unit > button .price { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; color: var(--c-essence); font-weight: 700; }

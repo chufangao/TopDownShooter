@@ -1,11 +1,10 @@
-// Battles built tile by tile, for the tests: units made on board tiles (on, stackOn), a battle of them (scene), and
+// Battles built tile by tile, for the tests: units made on board tiles (on), a battle of them (scene), and
 // what the tests read of one or do to it (unit, moves, actions, slay).
 import { createBattle } from '../src/sim/battle.js'
 import { makeUnit, slotAt, tileAt, tileX, tileY, DEPTH, ROWS, footprint } from '../src/sim/unit.js'
 
-// A unit placed on a board tile directly (its kind's tiers `tracks`), and a stack of `count` so placed.
+// A unit placed on a board tile directly (its kind's tiers `tracks`).
 export const on = (id, uid, side, x, y, lvl = 3, tracks = [0, 0]) => ({ ...makeUnit(id, { uid, lvl, tracks }), side, tile: tileAt(x, y) })
-export const stackOn = (id, uid, side, x, y, count, lvl = 3) => ({ ...makeUnit(id, { uid, lvl, count }), side, tile: tileAt(x, y) })
 
 // A battle of units placed on tiles: the party in its camp (y 0–6), a foe anywhere (it deploys in a spare slot of its
 // formation and is moved there). The ones not named in `moving` never step (all of them do with `moving: true`), so a

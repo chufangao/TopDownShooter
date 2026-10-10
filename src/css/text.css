@@ -60,7 +60,6 @@
 .rt-body { display: flex; gap: 12px; align-items: flex-start; }
 .rt-body .mini-grid { flex: none; }
 .rt-body .mini-cell { width: 28px; height: 28px; border-radius: 5px; }
-.rt-body .mini-flag { top: -5px; left: -5px; min-width: 18px; height: 18px; line-height: 18px; }
 .rt-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 6px; line-height: 1.35; }
 .room-tip.compact .threat { margin-top: 6px; }
 .room-tip.compact .rt-foot { margin-top: 6px; }

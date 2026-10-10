@@ -279,7 +279,6 @@ b { font-weight: 600; color: var(--bright); }
 .cell.sel { border-color: var(--c-essence) !important; box-shadow: 0 0 0 2px #5ef0c066, 0 0 18px #5ef0c055 !important; transform: translateY(-2px); }
 .cell.fallen .portrait { opacity: .75; }
 .cell.fallen::after { content: "fallen"; position: absolute; bottom: 4px; font-size: 9px; letter-spacing: .1em; color: #c06070; text-transform: uppercase; }
-.cell .badge { position: absolute; top: 2px; right: 5px; font-size: 10px; color: var(--dim); font-weight: 600; }
 
 .cell .hpbar { width: 46px; height: 4px; }
 .bench {
@@ -493,18 +492,11 @@ b { font-weight: 600; color: var(--bright); }
 .tier-tag { background: color-mix(in srgb, var(--rt, var(--c-relic)) 18%, #0c0a14); color: var(--rt, var(--c-relic)); }
 .trig-tag { background: #2a170c; color: var(--c-relic); }
 
-/* ── the enemy army: siege rooms, foe stacks, waves still to come ─────────────────────────────────── */
+/* ── the enemy army: siege rooms, waves still to come ───────────────────────────────────────────────── */
 .t-siege .medal, .room-ico.t-siege, .rt-head.t-siege { color: #ff9a5a; }
 .node.t-siege .medal { border-color: #6a3a22; }
 .node.reach.t-siege .medal { border-color: var(--c-essence); }
 .mini-cell { position: relative; }
-.mini-cell.cap { border-color: #b04a5c; }
-
-/* A foe stack's flag on a scouted cell: its count, a badge's number. */
-.mini-flag {
-  position: absolute; top: -6px; left: -6px; z-index: 1; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 4px 4px 4px 0;
-  background: #f08a98; color: #0b0a12; font: 700 var(--fs-sm)/20px var(--sans); font-style: normal; text-align: center;
-}
 .mini-grid.small { gap: 2px; margin: 4px 0; }
 .mini-grid.small .mini-row { gap: 2px; }
 .mini-grid.small .mini-cell { width: 22px; height: 22px; border-radius: 4px; }

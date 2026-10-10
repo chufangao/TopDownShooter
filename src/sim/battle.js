@@ -6,13 +6,13 @@ import { unitDef, statusDef, abilityDef, relicDef, TRIGGERS } from '../content.j
 import { createRng, hashString } from './rng.js'
 import {
   alive, livingOn, statsOf, activeSynergies, expand, enemySide, isAllyShape, isBlow, deployTile, distance, steps, NEIGHBOURS, rangeOf, TILES,
-  tileX, tileY, tileAt, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, ROWS, CENTRE_OUT, LANES, DEPTH, bodiesOf,
-  livingBodies, ringOf, strideOf, sizeOf, footprint, unitDistance, distanceBetween, holdOf, armOf
+  tileX, tileY, tileAt, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, ROWS, CENTRE_OUT, LANES, DEPTH, summonsOf,
+  ringOf, strideOf, sizeOf, footprint, unitDistance, distanceBetween, holdOf, armOf, CAMP_ROWS
 } from './unit.js'
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
 
-// party/foes are run pieces { uid, id, lvl, tracks, count, hp, maxHp, slot }; the battle works on copies, and
+// party/foes are run pieces { uid, id, lvl, tracks, hp, maxHp, slot }; the battle works on copies, and
 // only pieces on the field (slot ≥ 0) with HP left take part. Each starts on its slot's board tile (the
 // party's in its camp, past `walls`, a list of board tiles). A battle still going at `ceiling` ticks ends
 // undecided (the autoplayer rehearses on a shorter budget than the real fight's); the ticks count from the
@@ -36,15 +36,13 @@ import {
 // its melee reaching no further than what blocks it, the Monarch, and a piece beside it that struck it (DESIGN §2.4;
 // see chooseAction, wayOf, closeIn).
 //
-// Stacks and footprints (DESIGN §2.2): a unit is a piece, `count` bodies of one kind on a footprint, its HP one
-// pool of count × `body` (one body's HP, fitted as it takes its place: see fit). Its living bodies are ⌈hp ÷
-// body⌉ (unit.js livingBodies): they fall one at a time, the pool's blows and heals scale with them, and a heal
-// never lifts a fallen body (so a heal's condition and aim count no stack whose living bodies are whole: helps). A
-// piece of yours of size 2 (its kind's, or a Colossus tier's) stands on a 2×2 footprint: its tile is the footprint's
-// anchor, and the tile index holds it on all four tiles; a foe piece is always size 1. Every hit lands on the pool
-// once, a Shape's too, whatever the footprint: the piece is one target.
-// A soul whose tiers add bodies (unit.js bodiesOf) fights with them in its pool, whole, for the battle alone; the
-// `bodies` switch (ablate) adds none.
+// Pieces and footprints (DESIGN §2.2): a unit is a piece, one soul of one kind on a footprint, one body, its HP its
+// own (fitted to its HP mods as it takes its place: see fit); it stands while it has HP left. A piece of yours of
+// size 2 (its kind's, or a Colossus tier's) stands on a 2×2 footprint: its tile is the footprint's anchor, and the
+// tile index holds it on all four tiles; a foe piece is always size 1. Every hit lands on the piece once, a Shape's
+// too, whatever the footprint: the piece is one target.
+// A soul whose tiers bring summons (unit.js summonsOf) has them rise beside it as the battle begins, shadows of its
+// kind at TUNING.summon.hp of its HP, the battle's alone (see summon); the `summons` switch (ablate) brings none.
 //
 // The foes: `reserve` lists the foes still to come, in the order they enter, one a tick, each at the top edge in
 // its `lane` when its `when` fires. A foe's `wave` is the wave it comes in: 0 (or none) for the foes on the board
@@ -59,7 +57,7 @@ import {
 //
 // `ablate` (a measuring switch, never a player's: the autoplayer's ablation reports, autoplay.js ABLATIONS) lists
 // rules taken away from the party's side: 'arise' (the Monarch's Arise never casts, held or not), 'synergies'
-// (the party holds no synergy, at any step, its 8-step rules too) and 'bodies' (no tier adds a body). Empty in
+// (the party holds no synergy, at any step, its 8-step rules too) and 'summons' (no tier brings a summon). Empty in
 // every real run.
 //
 // `quiet` (a rehearsal's, autoplay.js): the battle keeps no events (battle.events stays empty). It plays out
@@ -72,17 +70,7 @@ export function createBattle ({
   domain = TUNING.arise.domain, nextUid = null, reserve = [],
   relics = [], foeRules = true, ablate = [], quiet = false, settle = null
 }) {
-  // A living soul's piece takes the bodies its tiers add, whole (not the Monarch's; none with the `bodies` switch).
-  // Each brings only TUNING.bodies.hp of a body's HP to the pool (`extra`: the bodies' worth they bring), so its
-  // bodies thin to share the pool (`thin`, read by fit): they strike as bodies do, and add little HP.
-  const added = (u) => (u.hp > 0 && !unitDef(u.id).monarch && !ablate.includes('bodies') ? bodiesOf(u) : 0)
-  const grown = (u, k) => {
-    if (!k) return {}
-    const extra = k * TUNING.bodies.hp
-    const hp = extra * u.maxHp / u.count
-    return { count: u.count + k, hp: u.hp + hp, maxHp: u.maxHp + hp, thin: (u.count + extra) / (u.count + k), extra }
-  }
-  const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot), ...(side === 'party' && grown(u, added(u))) }, 0)
+  const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot) }, 0)
   const units = [...party.map((u) => stamp(u, 'party')), ...foes.map((u) => stamp(u, 'foe'))]
     .filter((u) => u.hp > 0 && u.slot >= 0)
     .sort((a, b) => (a.side < b.side ? -1 : a.side > b.side ? 1 : a.slot - b.slot))
@@ -130,14 +118,18 @@ export function createBattle ({
   }
   for (const u of units) occupy(battle, u)
   for (const u of units) fit(battle, u)
-  // Ambush (Skirmisher 8): a side holding it starts with every gauge full.
-  for (const u of units) if (rulesOf(battle, u.side).has('ambush')) u.gauge = u.costliest
+  // Each soul of yours whose tiers bring summons calls them now, in acting order (none with the `summons` switch).
+  if (!battle.ablate.has('summons')) for (const u of units) if (u.side === 'party' && u !== monarch) summon(battle, u)
+  // Ambush (Skirmisher 8): a side holding it starts with every gauge full, its summons' too.
+  for (const u of battle.units) if (rulesOf(battle, u.side).has('ambush')) u.gauge = u.costliest
 
   emit(battle, {
     type: 'battle:start',
     walls: [...battle.walls],
+    // A summon is marked as a shadow (and `summoned`), with the uid of the soul that called it (`summoner`).
     units: battle.units.map((u) => ({
-      uid: u.uid, id: u.id, side: u.side, slot: u.slot, tile: u.tile, lvl: u.lvl, hp: u.hp, maxHp: u.maxHp, ...marks(u)
+      uid: u.uid, id: u.id, side: u.side, slot: u.slot, tile: u.tile, lvl: u.lvl, hp: u.hp, maxHp: u.maxHp, ...marks(u),
+      ...(u.summoned && { shadow: true, summoned: true, summoner: u.summoner })
     })),
     synergies: ['party', 'foe'].flatMap((side) => synergiesOf(battle, side).filter((s) => !s.rule || rulesOf(battle, side).has(s.rule)).map((s) => ({ side, id: s.id, name: s.name }))),
     // The Monarch's uid (null without one), its domain's reach, and the tile the roads run to, for the renderer.
@@ -151,9 +143,9 @@ export function createBattle ({
   return battle
 }
 
-// What marks a unit in the events that announce it: its count (its living bodies are ⌈hp ÷ (maxHp ÷ count)⌉), a
-// foe's wave (k ≥ 1: it came after the first formation), and a 2×2 piece's size.
-const marks = (u) => ({ count: u.count ?? 1, ...(u.wave && { wave: u.wave }), ...(u.size > 1 && { size: u.size }) })
+// What marks a unit in the events that announce it: a foe's wave (k ≥ 1: it came after the first formation), and a
+// 2×2 piece's size.
+const marks = (u) => ({ ...(u.wave && { wave: u.wave }), ...(u.size > 1 && { size: u.size }) })
 
 // The per-battle fields a unit fights with: an empty gauge, a step due at once (`nextStep`: a foe's; one of
 // yours never steps), no statuses, no one yet who has aimed a blow at it (`struck`: their uids, a Set made at
@@ -163,10 +155,10 @@ const marks = (u) => ({ count: u.count ?? 1, ...(u.wave && { wave: u.wave }), ..
 // the battle sets later, is there as undefined, which reads as its absence does), so all of them share one
 // shape and the tick loop's reads of them stay fast. A field outside the list is copied on after them.
 const UNIT_FIELDS = new Set([
-  'uid', 'id', 'lvl', 'tracks', 'count', 'hp', 'maxHp', 'slot', 'side', 'tile',
-  'when', 'wave', 'lane', 'shadow', 'corpse', 'arisen', 'raised', 'foiled', 'rose', 'stood',
+  'uid', 'id', 'lvl', 'tracks', 'hp', 'maxHp', 'slot', 'side', 'tile',
+  'when', 'wave', 'lane', 'shadow', 'summoned', 'summoner', 'corpse', 'arisen', 'raised', 'foiled', 'rose', 'stood',
   'gauge', 'nextStep', 'statuses', 'phase', 'struck', 'walking', 'ord', 'kit', 'aura', 'cheapest', 'costliest', 'ring', 'arm',
-  'every', 'flies', 'size', 'body'
+  'every', 'flies', 'size'
 ])
 const fresh = (u, t) => {
   const out = {
@@ -174,7 +166,6 @@ const fresh = (u, t) => {
     id: u.id,
     lvl: u.lvl,
     tracks: u.tracks,
-    count: u.count ?? 1,
     hp: u.hp,
     maxHp: u.maxHp,
     slot: u.slot,
@@ -184,6 +175,8 @@ const fresh = (u, t) => {
     wave: u.wave,
     lane: u.lane,
     shadow: u.shadow,
+    summoned: u.summoned,
+    summoner: u.summoner,
     corpse: u.corpse,
     arisen: u.arisen,
     raised: u.raised,
@@ -206,9 +199,7 @@ const fresh = (u, t) => {
     arm: undefined,
     every: undefined,
     flies: undefined,
-    size: undefined,
-    // set as it is fitted (fit)
-    body: undefined
+    size: undefined
   }
   for (const k in u) if (!UNIT_FIELDS.has(k)) out[k] = u[k]
   return out
@@ -248,17 +239,13 @@ function occupy (battle, u) {
   if (phasesOf(u.id)) battle.phased.push(u)
 }
 
-// One body's HP includes the unit's HP mods (synergies, relics, track tiers), and a shadow's bodies rise at
-// TUNING.arise.hp of it; max HP is count × body, and current HP keeps its fraction. Read once, as it takes
-// its place: HP mods that come and go mid-battle do not stretch the bar. The Monarch's max HP is the run's (its
-// base and its HP relics) and nothing else's (see modsFor): the one the camp shows.
+// Max HP includes the unit's HP mods (synergies, relics, track tiers); a shadow rises at TUNING.arise.hp of it, a
+// summon at TUNING.summon.hp; current HP keeps its fraction. Read once, as it takes its place: HP mods that come and
+// go mid-battle do not stretch the bar. The Monarch's max HP is the run's (its base and its HP relics) and nothing
+// else's (see modsFor): the one the camp shows.
 function fit (battle, u) {
-  if (u === battle.monarch) {
-    u.body = u.maxHp
-    return
-  }
-  u.body = Math.max(1, Math.round(stats(battle, u).hp * (u.shadow ? TUNING.arise.hp : 1) * (u.thin ?? 1)))
-  const max = u.count * u.body
+  if (u === battle.monarch) return
+  const max = Math.max(1, Math.round(stats(battle, u).hp * (u.summoned ? TUNING.summon.hp : u.shadow ? TUNING.arise.hp : 1)))
   if (max === u.maxHp) return
   u.hp = Math.max(1, Math.round(u.hp * max / u.maxHp))
   u.maxHp = max
@@ -334,17 +321,17 @@ export function playOut (battle) {
 //         ticks with k·T still short of the ceiling, while the Monarch's HP exceeds k times what the foes dealt the
 //         party in T at their rate over that window: even every blow on the Monarch would not fell it in k times
 //         the time the party needs. The Monarch's fall is the only way to lose that does not wait on the ceiling.
-//         The verdict must hold unbroken for `window` ticks: a stack's opening volley can fell most of a room in a
-//         few ticks while the last foe walks on through every ring to the Monarch (your pieces never follow it),
-//         and that battle is lost.
+//         The verdict must hold unbroken for `window` ticks: an opening volley can fell most of a room in a few
+//         ticks while the last foe walks on through every ring to the Monarch (your pieces never follow it), and
+//         that battle is lost.
 //   lost  the Monarch stands alone: no other unit of its side standing, and Arise spent (or taken away): the
 //         battle can only end in its fall or at the ceiling, both losses.
 // k is the margin. The battle ends there, scored by the units as they stand (rehearse's scoreOf): a win keeps a
 // little more HP than it would by the end (or less, if healers would mend it after the last foe falls). Measured
 // on 27,905 rehearsal battles (Speed 2 in the necessity report): at k 4, 29 verdicts (about 1 battle in 960) differ
 // from the full battle's, 23 of them a stalemate that runs to the ceiling, 6 a late fall of the Monarch. (That was
-// before stacks: a nine-body stack's volley could then settle a battle won at its first check that its last foe,
-// walking on through every ring to the Monarch, went on to win; hence the window the verdict must hold.)
+// before the stacks the game once had: a nine-body stack's volley could settle a battle won at its first check that
+// its last foe, walking on through every ring to the Monarch, went on to win; hence the window the verdict must hold.)
 function settled (battle) {
   const { window, every } = battle.settle
   const probes = battle.probes
@@ -495,7 +482,7 @@ function checkEnd (battle) {
 
 // ── the reserve ──────────────────────────────────────────────────────────────────────────────────
 
-// The party's pieces on the board: everyone living but the Monarch (shadows too), each once whatever its count.
+// The party's pieces on the board: everyone living but the Monarch (shadows and summons too).
 const pieces = (battle) => battle.units.reduce((n, u) => n + (u.side === 'party' && alive(u) && u !== battle.monarch ? 1 : 0), 0)
 // Whether a shadow may rise on `side`: for the party, only while it has fewer than TUNING.army.board pieces on
 // the board. Unbounded, the Legion's shadows (one for every foe slain) would pack the board in a long fight of
@@ -531,10 +518,11 @@ function broken (battle, { wave, t }) {
   return left <= size * TUNING.spawn.waves.share
 }
 
-// The next foe whose time has come enters, one a tick, in reserve order, at the top edge in its lane. It acts this
-// very tick, after everyone already there. Every entry restarts the escalation clock (within bounds: see
-// escalation); the first foe of a wave announces it ({ type: 'wave', wave }) and is the 'wave' moment, before it
-// enters.
+// The next foe whose time has come enters, one a tick, in reserve order, at the top edge in its lane: the first due
+// one with a free entry tile in its layer (entryTile), so a walker waiting for room on the ground never holds back a
+// flyer that has room in the air, nor the other way round. It acts this very tick, after everyone already there.
+// Every entry restarts the escalation clock (within bounds: see escalation); the first foe of a wave announces it
+// ({ type: 'wave', wave }) and is the 'wave' moment, before it enters.
 function reinforce (battle) {
   if (!battle.reserve.length) return
   // A wave's foes all wait on the same break: it is read once a look down the reserve (nothing changes while
@@ -546,8 +534,11 @@ function reinforce (battle) {
     if (!breaks.has(key)) breaks.set(key, broken(battle, when))
     return breaks.get(key)
   }
-  const body = battle.reserve.find((b) => due(b.when))
-  if (body) enter(battle, body)
+  for (const foe of battle.reserve) {
+    if (!due(foe.when)) continue
+    const tile = entryTile(battle, foe.lane, !!unitDef(foe.id).flies)
+    if (tile >= 0) return enter(battle, foe, tile)
+  }
 }
 
 // The battle's opening formation, the foes standing from the start, is its first wave (DESIGN §2.6): its moment, the
@@ -557,16 +548,15 @@ function open (battle) {
   if (battle.monarch && alive(battle.monarch) && battle.units.some((u) => u.side === 'foe' && alive(u))) trigger(battle, 'wave', battle.monarch, battle.monarch)
 }
 
-function enter (battle, body) {
-  const tile = entryTile(battle, body.lane, !!unitDef(body.id).flies)
-  if (tile < 0) return
-  battle.reserve.splice(battle.reserve.indexOf(body), 1)
-  if (body.wave && battle.waveAt[body.wave] === undefined) {
-    battle.waveAt[body.wave] = battle.t
-    emit(battle, { type: 'wave', wave: body.wave })
+// A foe of the reserve enters on `tile`, a free entry tile (entryTile).
+function enter (battle, foe, tile) {
+  battle.reserve.splice(battle.reserve.indexOf(foe), 1)
+  if (foe.wave && battle.waveAt[foe.wave] === undefined) {
+    battle.waveAt[foe.wave] = battle.t
+    emit(battle, { type: 'wave', wave: foe.wave })
     if (battle.monarch) trigger(battle, 'wave', battle.monarch, battle.monarch)
   }
-  const unit = enterBattle(battle, { ...body, side: 'foe', tile })
+  const unit = enterBattle(battle, { ...foe, side: 'foe', tile })
   battle.foeIn = battle.t
   emit(battle, {
     type: 'enter',
@@ -792,6 +782,46 @@ function riseTile (battle, from, size = 1, flies = false) {
   return best
 }
 
+// A soul's summons (unit.js summonsOf: its tiers' `summon`), called as the battle begins (createBattle; DESIGN §2.2):
+// each a shadow of its kind on your side (`shadow`, `summoned`, and `summoner`: the soul's uid), at its level and with
+// its tiers, at TUNING.summon.hp of a whole one's HP (see fit), on the free tile nearest it (summonTile); with no
+// free tile left, fewer rise. A summon is a shadow in every other way: it holds where it rose all battle, counts
+// toward synergies, pays nothing, and is gone when the battle ends (nothing of it comes back to the run). It brings
+// no summons of its own: only the souls standing in the camp call them.
+function summon (battle, u) {
+  const size = sizeOf(u)
+  const flies = !!unitDef(u.id).flies
+  for (let k = summonsOf(u); k > 0; k--) {
+    const tile = summonTile(battle, u, size, flies)
+    if (tile < 0) return
+    const piece = makeUnit(u.id, { uid: battle.nextUid++, lvl: u.lvl, tracks: u.tracks })
+    enterBattle(battle, { ...piece, side: 'party', shadow: true, summoned: true, summoner: u.uid, tile })
+  }
+}
+
+// Where a summon of `u` (of `size`, a flyer's when `flies`) rises: anchored where its whole footprint lies on the camp
+// (its rows, y below CAMP_ROWS), on no wall and not on the Monarch's seat, free in its layer (free: open ground, or
+// the air for a flyer's), nearest the summoner's footprint (Chebyshev); ties as riseTile's: nearest the Monarch (with
+// none, the tile the roads run to), then lane order (CENTRE_OUT), then the lower tile. −1 when no such footprint is
+// free.
+function summonTile (battle, u, size, flies) {
+  const to = battle.monarch?.tile ?? battle.root
+  const seat = battle.monarch?.tile ?? -1
+  let best = -1
+  let bestK = null
+  for (let t = 0; t < TILES; t++) {
+    const tiles = footprint(t, size)
+    if (!tiles || tiles.some((x) => tileY(x) >= CAMP_ROWS || x === seat || battle.walls.has(x)) || !free(battle, t, size, flies)) continue
+    // Scanned in tile order, so a tie on all three keeps the lower tile.
+    const k = [distanceBetween(t, size, u.tile, u.size), distanceBetween(t, size, to, 1), LANE[tileX(t)]]
+    if (bestK === null || (k[0] - bestK[0] || k[1] - bestK[1] || k[2] - bestK[2]) < 0) {
+      best = t
+      bestK = k
+    }
+  }
+  return best
+}
+
 // The units an ability hits, as unit.js's expand: a blast is its primary and its side's units around its
 // footprint. Dragonfire (Drake 8) bursts a single-target attack like a blast; Sanctuary (Warden 8) carries an ally
 // ability to every ally on the board. A melee blow from the ground never strikes a flyer, whatever its shape; a
@@ -965,8 +995,7 @@ function runEffect (battle, effect, actor, targets, ability = null, status = nul
         continue
       }
       const isCrit = deadeye || battle.rng.chance(critChance(a.crt))
-      // A stack strikes with every living body (DESIGN §2.2); a fallen piece's death burst (onFall) as one.
-      const mul = a.damage.dealt * d.damage.taken * escalation(battle) * Math.max(1, livingBodies(actor))
+      const mul = a.damage.dealt * d.damage.taken * escalation(battle)
       let damage = computeDamage({
         power: effect.power,
         atk: a.atk,
@@ -975,13 +1004,12 @@ function runEffect (battle, effect, actor, targets, ability = null, status = nul
         variance: rollVariance(battle.rng),
         mul
       })
-      // Deathblow (Trickster 8): a crit from a side holding it slays a body outright (a stack's first: the one
-      // wounded, if one is), a boss and the Monarch excepted (no rule ends the run on one roll). Last Stand outranks
-      // it: the blow is still raised to a felling one, but a target with its stand unspent takes it at 1 HP
-      // (applyDamage), so Deathblow is announced only when it truly slays.
-      const front = target.hp - (livingBodies(target) - 1) * target.body
-      if (isCrit && foe && damage < front && !unitDef(target.id).boss && target !== battle.monarch && rulesOf(battle, actor.side).has('deathblow')) {
-        damage = front
+      // Deathblow (Trickster 8): a crit from a side holding it slays the unit outright, a boss and the Monarch
+      // excepted (no rule ends the run on one roll). Last Stand outranks it: the blow is still raised to a felling
+      // one, but a target with its stand unspent takes it at 1 HP (applyDamage), so Deathblow is announced only when
+      // it truly slays.
+      if (isCrit && foe && damage < target.hp && !unitDef(target.id).boss && target !== battle.monarch && rulesOf(battle, actor.side).has('deathblow')) {
+        damage = target.hp
         if (!stands(battle, target)) emit(battle, { type: 'rule', rule: 'deathblow', side: actor.side, actor: actor.uid, target: target.uid })
       }
       applyDamage(battle, target, damage, { actor, isCrit, ability: ability?.id })
@@ -1005,9 +1033,8 @@ function runEffect (battle, effect, actor, targets, ability = null, status = nul
   }
 }
 
-// A heal mends `power` scaled by the healer's ATK and healing given and its living bodies, or with `pct` that
-// share of the target's max HP (a relic's). It mends the living bodies only: a body fallen stays down. With Court
-// of Bone nothing heals the Monarch.
+// A heal mends `power` scaled by the healer's ATK and healing given, or with `pct` that share of the target's max
+// HP (a relic's), never past its max HP. With Court of Bone nothing heals the Monarch.
 function heal (battle, actor, target, power, pct = 0) {
   if (target === battle.monarch && battle.held.unhealable) return
   let amount
@@ -1015,10 +1042,10 @@ function heal (battle, actor, target, power, pct = 0) {
     amount = Math.max(1, Math.round(target.maxHp * pct))
   } else {
     const a = stats(battle, actor)
-    amount = Math.max(1, Math.round(power * a.atk / TUNING.damage.atkDivisor * a.heal.given * livingBodies(actor)))
+    amount = Math.max(1, Math.round(power * a.atk / TUNING.damage.atkDivisor * a.heal.given))
   }
   const before = target.hp
-  target.hp = Math.min(livingBodies(target) * target.body, target.hp + amount)
+  target.hp = Math.min(target.maxHp, target.hp + amount)
   emit(battle, { type: 'heal', actor: actor.uid, target: target.uid, heal: target.hp - before, hp: target.hp })
 }
 
@@ -1114,7 +1141,7 @@ function vacate (battle, u) {
 }
 
 // A death burst (DESIGN §2.4: its kind's `onFall`, { range, effects }): as a piece of the kind falls, its effects run
-// from where it fell, the fallen piece their caster (as one body), on the other side's living within `range` of
+// from where it fell, the fallen piece their caster, on the other side's living within `range` of
 // its footprint. Announced first ({ type: 'burst', actor, tile, targets }).
 function burst (battle, u) {
   const on = unitDef(u.id).onFall
@@ -1144,8 +1171,8 @@ function crumble (battle, boss) {
 // holds no tiers).
 const shadowSize = (corpse, side) => (side === 'party' ? sizeOf({ id: corpse.id }) : 1)
 
-// Arise: the corpse rises on the actor's side as a shadow of itself, at its level with its own kit and its count,
-// each body at TUNING.arise.hp of its HP (see fit) (DESIGN §2.5). One of yours rises where its footprint is
+// Arise: the corpse rises on the actor's side as a shadow of itself, at its level with its own kit, at
+// TUNING.arise.hp of its HP (see fit) (DESIGN §2.5). One of yours rises where its footprint is
 // free closest to the Monarch (riseTile; in the air, for a flying kind's), never where it fell: with none free it
 // does not rise (null; its corpse may rise later), and holds there all battle, as every piece of yours does. One on
 // the foes' side rises where it fell, if no one holds that tile in its layer (else null), a foe like any other, and
@@ -1157,7 +1184,7 @@ function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) 
   const tile = side === 'party' ? riseTile(battle, corpse.tile, shadowSize(corpse, side), corpse.flies)
     : layerOf(battle, corpse)[corpse.tile] === null ? corpse.tile : -1
   if (tile < 0) return null
-  const u = makeUnit(corpse.id, { uid: battle.nextUid++, lvl: corpse.lvl, count: corpse.count })
+  const u = makeUnit(corpse.id, { uid: battle.nextUid++, lvl: corpse.lvl })
   corpse.raised = true
   const shadow = enterBattle(battle, { ...u, side, shadow: true, corpse: corpse.uid, tile })
   emit(battle, {
@@ -1286,13 +1313,12 @@ function inReach (battle, actor, ability) {
 const mends = (ability) => ability.effects.some((e) => e.op === 'heal' && !e.self)
 
 // Whether a heal of others (`ability`: mends) cast by `actor` can do anything for its ally `u`: it reaches it (its
-// range; anywhere under Sanctuary, which touches every ally), and either it can mend it, its living bodies not whole
-// (a heal never lifts a fallen body: DESIGN §2.2) and it no Monarch that nothing can heal (Court of Bone), or the
-// ability cleanses and `u` carries a status it would strip (Purge, Hive Mind: a debuff). A stack whose living bodies
-// are whole is no one's to mend, however many of its bodies lie fallen.
+// range; anywhere under Sanctuary, which touches every ally), and either it can mend it, its HP short of its max and
+// it no Monarch that nothing can heal (Court of Bone), or the ability cleanses and `u` carries a status it would strip
+// (Purge, Hive Mind: a debuff).
 function helps (battle, actor, ability, u) {
   if (unitDistance(actor, u) > rangeOf(ability) && !rulesOf(battle, actor.side).has('sanctuary')) return false
-  if (u.hp < livingBodies(u) * u.body && !(u === battle.monarch && battle.held.unhealable)) return true
+  if (u.hp < u.maxHp && !(u === battle.monarch && battle.held.unhealable)) return true
   return ability.effects.some((e) => e.op === 'cleanse' && u.statuses.some((x) => statusDef(x.id).tags.includes(e.tag)))
 }
 
@@ -1332,13 +1358,13 @@ const roadLeft = (battle, x) => roadOf(battle, x).dist[x.tile]
 
 function pickTarget (battle, unit, ability, candidates) {
   if (isAllyShape(ability.shape)) {
-    // A heal goes to the lowest of those it can do something for (helps), never to a stack whose living bodies are
-    // whole or a Monarch nothing can heal (Court of Bone) while anyone else could use it.
+    // A heal goes to the lowest of those it can do something for (helps), never to one at full HP or a Monarch
+    // nothing can heal (Court of Bone) while anyone else could use it.
     const mendable = mends(ability) ? candidates.filter((u) => helps(battle, unit, ability, u)) : candidates
     return lowest(mendable.length ? mendable : candidates)
   }
   if (ability.shape === 'corpse') {
-    // The strongest body first, then the nearest, then the first to have stood.
+    // The strongest corpse first (its kind's tier), then the nearest, then the first to have stood.
     const d = (c) => unitDistance(unit, c)
     return candidates.slice().sort((a, b) => unitDef(b.id).tier - unitDef(a.id).tier || d(a) - d(b) || a.uid - b.uid)[0]
   }

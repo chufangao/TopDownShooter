@@ -8,7 +8,6 @@ import { createBattle, stats, ariseCap } from './sim/battle.js'
 import { unitDef, relicDef, RELICS } from './content.js'
 import { titleScreen, runScreen, NODE, reapScreen, endScreen, battleChrome } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary } from './codex.js'
-import { livingBodies } from './sim/unit.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from './dom.js'
 import { sfx } from './sfx.js'
 import { board } from './board.js'
@@ -224,11 +223,11 @@ function descend () {
 // the notes add up for the map.
 const addNote = (line) => { note = note ? `${note} ${line}` : line }
 
-// `onto`: a recruit joins that fielded piece of its kind.
-function reap (index, onto = null) {
+// A recruit rises a piece of its own.
+function reap (index) {
   const o = index === null ? null : run.state.offers[index]
-  apply(run, { type: 'reap', index, ...(onto != null && { onto }) })
-  if (o?.type === 'soul') addNote(onto != null ? `${o.name} rises, and joins its kind's stack.` : `${o.name} rises to serve you.`)
+  apply(run, { type: 'reap', index })
+  if (o?.type === 'soul') addNote(`${o.name} rises to serve you.`)
   else if (o?.type === 'relic') {
     const n = relicCount(run.state, o.id)
     addNote(o.id === 'arise' ? (n > 1 ? `Arise ×${n}: it reaches farther, raises stronger dead and more of them, and comes sooner.` : 'Arise: the dead about the Monarch are yours to raise.')
@@ -267,16 +266,17 @@ async function fight () {
     onHover: (u, at, pin = false) => {
       if (!u) return tipPinned() || hideTip()
       const foe = u.side === 'foe'
-      // A shadow the Legion (Undead 8) raised is marked on its arise event; on the foes' side it is one of yours.
+      // A shadow the Legion (Undead 8) raised is marked on its arise event; on the foes' side it is one of yours. A
+      // summon (a kind's tier called it up as the battle began) holds beside the piece of its kind that called it.
       const legion = u.shadow && battle.events.some((e) => e.type === 'arise' && e.rule === 'legion' && e.unit.uid === u.uid)
       const me = u.uid === battle.monarch?.uid
       const live = [
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
         me && `${battle.held.arise ? `Arise ${battle.raised}/${ariseCap(battle.held)} · ` : ''}if it falls, the run ends`,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
-          : u.arisen && holds(s, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: holds where it rose, gone after the battle'),
+          : u.summoned ? `Summoned by its ${unitDef(u.id).name}: gone after the battle`
+            : u.arisen && holds(s, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: holds where it rose, gone after the battle'),
         u.rose && (u.rose >= battle.held.rises ? 'Risen by Undying: its next fall is final' : `Risen by Undying: it may rise ${battle.held.rises - u.rose} more`),
-        u.count > 1 && `A stack: ${livingBodies(u)} of ${u.count} bodies standing`,
         u.flies && 'Flying: only a ranged blow (or a flyer\'s melee) can strike it',
         !foe && !me && 'It fights from its cell all battle',
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null

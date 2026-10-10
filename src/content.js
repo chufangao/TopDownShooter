@@ -1614,7 +1614,8 @@ const ABILITY_LIST = [
 // 6's: one track may pass tier II, and the other then stops at II (unit.js canTrack). A tier can carry `mods`
 // (always on, like a relic's, for the souls of the kind alone), `ability` ({ id, replace } swaps one of its
 // abilities; { id, at } adds one at that place in its priority list, first by default), `aura` (replaces its
-// aura), `count` (bodies more in its piece each battle, whole, gone when it ends: unit.js bodiesOf), `ring`
+// aura), `summon` (shadows of its kind that rise beside each soul of it as a battle begins, gone when it ends:
+// unit.js summonsOf, battle.js summon), `ring`
 // (tiles more: a tier whose blow reaches past the ring raises the ring with it, so the card never lies) and `size`
 // (2: Colossus, every piece of the kind grows to 2×2, and one that no longer fits where it stands goes to the
 // ossuary; unit.js sizeOf). Tier IV is a rule, never a percentage: a new or remade ability, an aura, a wider ring,
@@ -1630,7 +1631,7 @@ export const TRACKS = {
       { desc: 'Requiem becomes Dirge Unending: Hasten to every ally within 3 tiles whenever one lacks it, all battle long.', ability: { id: 'dirge_unending', replace: 'requiem' } }] },
     { id: 'marrowcaller', name: 'Marrowcaller', desc: 'Bones that rise, bolts that pierce a lane.', tiers: [
       { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
-      { desc: 'Bones rise to its call: +6 bodies in every battle.', count: 6 },
+      { desc: 'Bones rise to its call: 2 of its kind rise beside it in every battle, gone after it.', summon: 2 },
       { desc: 'Marrow Bolt becomes Marrow Spear: hits a foe and everyone in its lane.', ability: { id: 'marrow_spear', replace: 'marrow_bolt' } },
       { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles, while 3+ foes stand there.', ability: { id: 'bone_storm' } }] }
   ],
@@ -1673,7 +1674,7 @@ export const TRACKS = {
   hive_warden: [
     { id: 'brood_mother', name: 'Brood Mother', desc: 'Hatches a swarm, and mends it.', tiers: [
       { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
-      { desc: 'Its brood hatches with it: +6 bodies in every battle.', count: 6 },
+      { desc: 'Its brood hatches with it: 2 of its kind hatch beside it in every battle, gone after it.', summon: 2 },
       { desc: 'Mend becomes Swarm Mend: heals every ally within 2 tiles.', ability: { id: 'swarm_mend', replace: 'mend' } },
       { desc: 'Swarm Mend becomes Brood Surge: heals every ally within 3 tiles and gives them Regen.', ability: { id: 'brood_surge', replace: 'swarm_mend' } }] },
     { id: 'chitin_guard', name: 'Chitin Guard', desc: 'Armours those beside it.', tiers: [
@@ -1690,7 +1691,7 @@ export const TRACKS = {
       { desc: "Spanner becomes Wrench the Works: it empties a foe's gauge, and leaves it Hexed.", ability: { id: 'wrench', replace: 'spanner' } }] },
     { id: 'gearwright', name: 'Gearwright', desc: 'Winds up soldiers, and keeps them ticking.', tiers: [
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Winds up six spares: +6 bodies in every battle.', count: 6 },
+      { desc: 'Winds up its spares: 2 of its kind tick beside it in every battle, run down after it.', summon: 2 },
       { desc: 'Purge becomes Overclock: Hasten and one debuff removed, on the most wounded ally.', ability: { id: 'overclock', replace: 'purge' } },
       { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
   ],
@@ -1721,7 +1722,7 @@ export const TRACKS = {
   thorn_dryad: [
     { id: 'heartwood', name: 'Heartwood', desc: "Deep-rooted healing, and the grove's lights.", tiers: [
       { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
-      { desc: 'Wakes six saplings of its grove: +6 bodies in every battle.', count: 6 },
+      { desc: 'Wakes saplings of its grove: 2 of its kind take root beside it in every battle, gone after it.', summon: 2 },
       { desc: 'Mend becomes Bloom: 34 power and Regen every time.', ability: { id: 'bloom', replace: 'mend' } },
       { desc: 'Bloom becomes Verdant Bloom: it heals every ally within 2 tiles, with Regen.', ability: { id: 'verdant_bloom', replace: 'bloom' } }] },
     { id: 'bramble', name: 'Bramble', desc: 'A healer with thorns.', tiers: [
@@ -1769,7 +1770,7 @@ export const TRACKS = {
   frost_wyrm: [
     { id: 'ancient', name: 'Ancient', desc: 'Older, colder, and never alone.', tiers: [
       { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Whelps of its brood: +6 bodies in every battle.', count: 6 },
+      { desc: 'Whelps of its brood: 2 of its kind rise beside it in every battle, gone after it.', summon: 2 },
       { desc: 'Glacial Breath becomes Blizzard: freezes a foe and everyone level with it.', ability: { id: 'blizzard', replace: 'glacial_breath' } },
       { desc: 'Blizzard becomes Ice Age: it freezes every foe within 3 tiles.', ability: { id: 'ice_age', replace: 'blizzard' } }] },
     { id: 'rime_tyrant', name: 'Rime Tyrant', desc: 'Pure killing cold.', tiers: [
@@ -2103,7 +2104,7 @@ export const SYNERGIES = [
   { id: 'grave_vigil', name: 'Grave Vigil', desc: 'Undead 4 + Warden 2: +24% max HP.', needs: { kin: { undead: 4 }, role: { warden: 2 } }, mods: [{ path: 'hp', op: 'mul', v: 1.24 }] },
   { id: 'ember_choir', name: 'Ember Choir', desc: 'Drake 2 + Channeler 2: +20% damage dealt, +6 CRT.', needs: { kin: { drake: 2 }, role: { channeler: 2 } }, mods: [{ path: 'damage.dealt', op: 'mul', v: 1.2 }, { path: 'crt', op: 'add', v: 6 }] },
   // The deep steps, 4 and 6, then 8: a kin or role five pieces deep (most are two or three) reaches them only
-  // with shadows, which count like anyone else (a stack counts once, whatever its count). Steps stack: Undead 6 also has Undead 2 and 4.
+  // with shadows and summons, which count like anyone else. Steps stack: Undead 6 also has Undead 2 and 4.
   // Ranger's first step stays at 3. An 8 is a rule, not a number (`rule`: the battle reads it, see battle.js
   // rulesOf); it holds for whichever side has it, foes deep in the endless floors too.
   { id: 'undead_6', name: 'Undead 6', desc: '+16% DEF, +20% max HP.', needs: { kin: { undead: 6 } }, mods: [{ path: 'def', op: 'mul', v: 1.16 }, { path: 'hp', op: 'mul', v: 1.2 }] },
@@ -2186,10 +2187,9 @@ export const CAMP_LIST = [
 
 // ── fusions ──────────────────────────────────────────────────────────────────────────────────
 
-// A recipe (DESIGN §2.6): `needs` counts bodies per kind, consumed exactly from your pieces, fielded or in the
-// ossuary (a bigger stack gives the bodies asked and keeps the rest, as a split would); `result` is the fused kind
-// (a unit def with `fused: true`, never spawned, never recruited) that rises as one piece, count 1, full HP, in the
-// ossuary. It costs TUNING.essence.fuse × the result's tier, × the floor's price scale (run.js floorPrice). Recipes are public: the Codex lists every one from the
+// A recipe (DESIGN §2.6): `needs` counts pieces (souls) per kind, consumed whole from your pieces, fielded or in the
+// ossuary; `result` is the fused kind (a unit def with `fused: true`, never spawned, never recruited) that rises as
+// one piece, full HP, in the ossuary. It costs TUNING.essence.fuse × the result's tier, × the floor's price scale (run.js floorPrice). Recipes are public: the Codex lists every one from the
 // start.
 export const FUSION_LIST = [
   { id: 'bone_colossus', name: 'Bone Colossus', result: 'bone_colossus', needs: { tomb_knight: 2, bone_chanter: 1 }, desc: 'Two Tomb Knights and a Bone Chanter become a 2×2 wall whose sweep strikes every foe around it.' },

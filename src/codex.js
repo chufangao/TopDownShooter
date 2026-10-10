@@ -5,9 +5,9 @@ import { TUNING } from './tuning.js'
 import { unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, BEHAVIOURS, SYNERGIES, THREATS, RELIC_TIERS, RELIC_LIST, UNIT_LIST, FUSION_LIST } from './content.js'
 import {
   statsOf, activeSynergies, synergyActive, COLS, ROWS, slotAt, rangeOf, isAllyShape, CAMP_ROWS, abilitiesOf, auraOf, tiersOf,
-  tileX, tileY, DEPTH, distance, deployTile, ringOf, strideOf, behaviourOf, bodiesOf, sizeOf, armOf, holdOf
+  tileX, tileY, DEPTH, distance, deployTile, ringOf, strideOf, behaviourOf, summonsOf, sizeOf, armOf, holdOf, tracksOf
 } from './sim/unit.js'
-import { foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, holds, isMonarch, depthOf, rosterCap, soulCount, inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice } from './sim/run.js'
+import { foeMods, fielded, souls, monarchOf, domainOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, holds, isMonarch, depthOf, rosterCap, inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice } from './sim/run.js'
 import { ariseCap, ariseTier, ariseHaste, relicRules } from './sim/battle.js'
 import { h, fill, icon, portrait, prefs, say } from './dom.js'
 import { KEYWORDS, kw, secs } from './keywords.js'
@@ -108,11 +108,19 @@ export function auraBlock (u) {
   return aura && h('div', { class: 'ability' }, h('b', null, 'Aura'), ' ', h('span', { class: 'tag-shape' }, `≤${aura.range}`), ' ', aura.desc)
 }
 
-// A piece's HP as one pool of its bodies at the stats it fights with (`st`), its wounds kept in proportion:
-// [hp, max].
-export function poolHp (u, st) {
-  const max = Math.round(st.hp * (u.count ?? 1))
+// A piece's HP at the stats it fights with (`st`), its wounds kept in proportion: [hp, max]. A shadow in battle has
+// only its share of a whole one's (battle.js fit): a summon TUNING.summon.hp, any other TUNING.arise.hp.
+export function hpAt (u, st) {
+  const max = Math.max(1, Math.round(st.hp * (u.summoned ? TUNING.summon.hp : u.shadow ? TUNING.arise.hp : 1)))
   return [u.hp == null ? max : Math.max(0, Math.round(u.hp / (u.maxHp || 1) * max)), max]
+}
+
+// The summons a soul's kind's tiers bring it each battle (unit.js summonsOf), in a sentence for its panel; a
+// summon brings none. "Brings 2 summons each battle: …".
+export function summonText (u) {
+  const n = summonsOf(u)
+  return [h('b', null, `Brings ${n} `), kw('summon', `summon${n === 1 ? '' : 's'}`), h('b', null, ' each battle'),
+    `: ${n === 1 ? 'a shadow' : `${n} shadows`} of its kind rise on the free tiles nearest it at ${pct(TUNING.summon.hp)} of its HP, hold there, and are gone after the battle.`]
 }
 
 // An HP bar, red under 35%, marked dead when empty (a card's, a panel's, a list's).
@@ -170,7 +178,7 @@ const heldGivers = (run, key) => {
 // words on what that gives, and its rule in full for the hover.
 export const MONARCH_TEXT = {
   hp: {
-    name: 'HP', icon: 'hp', value: (run) => monarchHp(run.state), now: (run) => monarchHp(run.state) > TUNING.monarch.hp ? `${TUNING.monarch.hp} + ${monarchHp(run.state) - TUNING.monarch.hp} relics` : 'max, no relics yet',
+    name: 'HP', icon: 'hp', value: (run) => monarchHp(run.state), now: (run) => monarchHp(run.state) > TUNING.monarch.hp ? `${TUNING.monarch.hp} + ${monarchHp(run.state) - TUNING.monarch.hp} relics` : 'max, no HP relics yet',
     rule: (run) => [`Its health: if it runs out, the run ends. ${TUNING.monarch.hp} to begin; only relics raise it, every copy in full, and heal it by as much: ${giversOf('monarchHp').join(', ')}.`,
       heldGivers(run, 'monarchHp') ? `Yours: ${heldGivers(run, 'monarchHp')}.` : 'You hold none yet.',
       holds(run.state, 'unhealable') ? 'Court of Bone: nothing heals it.' : `Its wounds carry: ${WOUNDS_TEXT}.`]
@@ -185,7 +193,7 @@ export const MONARCH_TEXT = {
 // Nothing is bought for the Monarch, in a line.
 export const MONARCH_RULE = 'Nothing is bought for the Monarch: its HP and Command grow only by relics.'
 // What mends between battles (TUNING.run: postBattleHeal, altarHeal), in words: wounds carry from room to room.
-export const WOUNDS_TEXT = `a win heals each living body ${pct(TUNING.run.postBattleHeal)} of its HP; an altar heals ${TUNING.run.altarHeal >= 1 ? 'every body to full' : `each to ${pct(TUNING.run.altarHeal)} of its HP`}`
+export const WOUNDS_TEXT = `a win heals each piece still standing ${pct(TUNING.run.postBattleHeal)} of its HP; an altar heals ${TUNING.run.altarHeal >= 1 ? 'every piece to full' : `each to ${pct(TUNING.run.altarHeal)} of its HP`}`
 
 // ── rings ────────────────────────────────────────────────────────────────────────────────────────
 
@@ -250,16 +258,14 @@ const hasMelee = (u) => blowsOf(u).some((a) => a.melee)
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
 
-// The enemy as an army: stacks, waves, the Sovereign's court. Who comes and where they stand, never what they
-// mean to do.
+// The enemy as an army: captains with their cohorts (each one more foe of the captain's kind beside it), waves,
+// the Sovereign's court. Who comes and where they stand, never what they mean to do.
 const SP = TUNING.spawn
 const W = SP.waves
 // A share in words: "a third", "half", or a percentage.
 const shareText = (f) => (Math.abs(f - 1 / 3) < 1e-9 ? 'a third' : f === 0.5 ? 'half' : pct(f))
 
 export const ENEMY_TEXT = {
-  // A foe piece of several bodies (`n`), one pool on one tile.
-  stack: (n) => `A stack of ${n}: one pool of HP on one tile, its bodies falling one at a time.`,
   waves: `From floor ${W.floor}: elites (${W.elite} waves), fights from rank ${W.fightRank} (${W.fight}) and sieges (${W.siege}). Each enters at the far edge once the last is down to ${shareText(W.share)}, or after ${secs(W.t)}.`,
   late: `A floor-1 elite: ${SP.late.n} more foes come over the far edge at ${secs(SP.late.t)}.`,
   entry: 'Each foe that enters restarts the escalation clock.'
@@ -270,21 +276,14 @@ const roomFoes = (node) => [node.foes ?? [], ...(node.waves ?? []).map((w) => w.
 // A later wave (node.waves[k]) by name, and when it comes, as the scouts can tell it.
 export const waveName = (node, k) => node.waves[k].foes.some((f) => unitDef(f.id).boss) ? `Wave ${k + 2}: the Sovereign` : `Wave ${k + 2}`
 export const waveWhen = (w) => w.when.at === 'time'
-  ? `${bodies(w.foes)} more at ${secs(w.when.t)}.`
+  ? `${w.foes.length} more at ${secs(w.when.t)}.`
   : `At ${shareText(W.share)} of the last, or ${secs(w.when.t)}.`
-// "5 foes", "15 foes in 3 waves": bodies, a stack counting each of its own.
-const bodies = (foes) => foes.reduce((n, f) => n + (f.count ?? 1), 0)
+// "5 foes", "15 foes in 3 waves".
 export function foeCountText (node) {
-  const n = bodies(node.foes)
+  const n = node.foes.length
   const later = node.waves ?? []
-  const more = later.reduce((m, w) => m + bodies(w.foes), 0)
+  const more = later.reduce((m, w) => m + w.foes.length, 0)
   return !later.length ? `${n} foe${n > 1 ? 's' : ''}` : `${n + more} foes in ${later.length + 1} waves`
-}
-// A formation's stacks, a line: "Stacks: Grave Ghoul ×3, Drone ×3."
-function stackLine (foes) {
-  const big = foes.filter((f) => (f.count ?? 1) > 1)
-  if (!big.length) return null
-  return h('div', { class: 'dim small' }, 'Stacks: ', big.map((f, i) => [i ? ', ' : '', h('b', null, unitDef(f.id).name), ` ×${f.count}`]), '.')
 }
 
 // Where a board tile lies, in words: a camp row and lane, the open ground, or a row of their formation.
@@ -360,13 +359,13 @@ const firstSentence = (n) => typeof n === 'string' ? n.split(/(?<=[.:;])\s/)[0].
 // without a copy of the relic the Monarch's card lists no Arise). `live`: the one fact the card leads with; without
 // one, the first note's first sentence, else its ring. `open`: the details shown whatever Shift says (a panel, not a
 // tooltip).
-// Three lines: name and level; the stats; the live line. The rest waits under Shift or More ▾ (tipDetail).
-// A piece of several bodies shows its count by its name and its HP as the pool's.
+// Three lines: name and level; the stats; the live line. The rest waits under Shift or More ▾ (tipDetail), a soul
+// of yours whose kind's tiers bring summons saying how many among them (a summon brings none).
 export function unitCard (u, { mods = [], stats = null, statuses = null, notes = [], foe = false, realm = null, live = null, open = false } = {}) {
   const d = unitDef(u.id)
   const st = stats ?? statsOf(u, mods)
-  const n = u.count ?? 1
-  const [shown, maxHp] = poolHp(u, st)
+  const [shown, maxHp] = hpAt(u, st)
+  const summons = !foe && !u.shadow && u.side !== 'foe' ? summonsOf(u) : 0
   const stat = (key, label, v) => h('span', { class: 'sx', title: label }, icon(key, 13), h('b', null, v))
   const more = open || tipDetail.on
   // A multiplier on top of the stats, as a chip: ×1.20 dealt, ×0.80 taken, ×1.10 gauge.
@@ -378,7 +377,7 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
   const lead = live ?? (d.monarch ? 'Never strikes; if it falls, the run ends' : firstSentence(notes.find((n) => typeof n === 'string')) ?? ringText(u, foe))
   return h('div', { class: 'card-tip compact' + (foe ? ' foe' : '') + (d.monarch ? ' monarch' : '') + (more ? ' open' : '') },
     h('div', { class: 'ct-name' },
-      h('span', { class: 'ct-nm' }, d.name, n > 1 && h('span', { class: 'ct-count' }, ` ×${n}`)),
+      h('span', { class: 'ct-nm' }, d.name),
       // The Monarch has no level: nothing is bought for it.
       !d.monarch && h('span', { class: 'ct-lv dim' }, `Lv ${u.lvl}`),
       h('span', { class: 'ct-hp' }, hpBar(shown, maxHp), h('span', null, shown <= 0 ? 'fallen' : `${shown}/${maxHp}`))),
@@ -394,7 +393,8 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
       h('span', { class: 'ct-lead' }, lead, statuses?.length > 0 && statuses.slice(0, 2).map((x) => [' · ', kw(x.id, statusDef(x.id).name)]), statuses?.length > 2 && ` +${statuses.length - 2}`),
       !open && shiftHint()),
     more && [
-      h('div', { class: 'ct-kind dim' }, kind, u.shadow && [' · ', kw('shadow')], n > 1 && [' · ', kw('stack', `a stack of ${n}`)], sizeOf(u) > 1 && ' · 2×2', d.fused && [' · ', kw('fusion', 'fused')]),
+      h('div', { class: 'ct-kind dim' }, kind, u.shadow && [' · ', kw(u.summoned ? 'summon' : 'shadow')], sizeOf(u) > 1 && ' · 2×2', d.fused && [' · ', kw('fusion', 'fused')],
+        summons > 0 && [' · brings ', kw('summon', `${summons} summon${summons === 1 ? '' : 's'}`), ' each battle']),
       [mult(st.damage.dealt, 'dealt'), mult(st.damage.taken, 'taken'), mult(st.gauge.rate, 'gauge')].some(Boolean) &&
         h('div', { class: 'ct-mults' }, mult(st.damage.dealt, 'dealt'), mult(st.damage.taken, 'taken'), mult(st.gauge.rate, 'gauge')),
       (abs.length > 0 || aura) && h('div', { class: 'ct-abs' }, abs, aura),
@@ -415,12 +415,12 @@ export const ROMAN = ['I', 'II', 'III', 'IV']
 // Rough fighting power: √(HP × ATK × damage dealt × gauge rate), wounds included. The ratio of the two sides,
 // measured on the old rules (to be measured again in the balance pass): below 0.6 every battle won, 0.6–0.8
 // 98%, 0.8–1.0 79%, 1.0–1.2 42%, above 1.2 19%.
-// A stack of n bodies has n times the HP and deals n times the damage, so n times the power; a soul's tiers may
-// add bodies for the battle (`extra`).
-function power (u, mods, extra = 0) {
+// A soul whose kind's tiers bring summons (`summons`: unit.js summonsOf) adds each one's power: a whole one's at
+// TUNING.summon.hp of its HP, so √(that share) of a whole one's.
+function power (u, mods, summons = 0) {
   const s = statsOf(u, mods)
   const hpFrac = u.maxHp ? u.hp / u.maxHp : 1
-  return ((u.count ?? 1) * hpFrac + extra) * Math.sqrt(Math.max(0, s.hp) * s.atk * s.damage.dealt * gaugeRate(s))
+  return (hpFrac + summons * Math.sqrt(TUNING.summon.hp)) * Math.sqrt(Math.max(0, s.hp) * s.atk * s.damage.dealt * gaugeRate(s))
 }
 
 const THREAT = [
@@ -435,7 +435,7 @@ const UNFIELDED = { label: 'Deadly', cls: 't-dead', text: 'Nothing of yours on t
 
 function threat (run, node) {
   const mods = partyMods(run)
-  const mine = souls(standing(run)).reduce((n, u) => n + power(u, mods, bodiesOf(u)), 0)
+  const mine = souls(standing(run)).reduce((n, u) => n + power(u, mods, summonsOf(u)), 0)
   // Each wave with its own formation's synergies. Waves come one after another, and a side's strength in a
   // melee grows as the square of its numbers, so the waves add as the root of their squared powers.
   const forms = [node.foes, ...(node.waves ?? []).map((w) => w.foes)]
@@ -483,7 +483,7 @@ export const ROOM = {
 const DEEP = TUNING.spawn.endless
 const every = (k, what) => k >= 1 ? `${k} ${what} every floor deeper` : `one ${what} every ${+(1 / k).toFixed(1)} floors`
 const perDeepWaves = every(DEEP.waves, 'more wave to every room')
-const perDeepCohort = every(DEEP.cohort, 'more body in every stack')
+const perDeepCohort = every(DEEP.cohort, 'more foe beside every captain')
 const perDeep = DEEP.count >= 1 ? `${DEEP.count} more foe${DEEP.count === 1 ? '' : 's'} a wave` : `one more foe a wave every ${+(1 / DEEP.count).toFixed(1)} floors`
 export const DEEP_TEXT = {
   descend: 'Slaying the Sovereign clears the run for good; then you may descend into the deep, floor after floor, for as long as the Monarch lasts.',
@@ -497,12 +497,12 @@ export const DEEP_TEXT = {
     const cohort = Math.floor(d * DEEP.cohort)
     const up = d * DEEP.level
     return `Deep ${d}: foes ×${(1 + DEEP.hp * d).toFixed(2)} HP, ×${(1 + DEEP.atk * d).toFixed(2)} ATK${up ? `, +${up} level${up === 1 ? '' : 's'}` : ''}` +
-      `${more ? `, +${more} a wave` : ''}${waves ? `, +${waves} wave${waves === 1 ? '' : 's'} a room` : ''}${cohort ? `, +${cohort} a stack` : ''}.`
+      `${more ? `, +${more} a wave` : ''}${waves ? `, +${waves} wave${waves === 1 ? '' : 's'} a room` : ''}${cohort ? `, +${cohort} beside every captain` : ''}.`
   }
 }
 
-// A small read-only formation: front row at the bottom, facing the player's grid. A stack carries a flag with
-// its count. `small`: a later wave's, in a row of them.
+// A small read-only formation: front row at the bottom, facing the player's grid, a foe to a cell. `small`: a later
+// wave's, in a row of them.
 function miniGrid (foes, { small = false } = {}) {
   const at = new Map(foes.map((f) => [f.slot, f]))
   const rows = []
@@ -510,8 +510,7 @@ function miniGrid (foes, { small = false } = {}) {
     const cells = []
     for (let c = 0; c < COLS; c++) {
       const f = at.get(slotAt(r, c))
-      cells.push(h('span', { class: 'mini-cell' + (f ? ' on' : '') + (f?.count > 1 ? ' cap' : '') },
-        f && portrait(f.id, small ? 16 : 24), f?.count > 1 && h('i', { class: 'mini-flag' }, f.count)))
+      cells.push(h('span', { class: 'mini-cell' + (f ? ' on' : '') }, f && portrait(f.id, small ? 16 : 24)))
     }
     rows.push(h('div', { class: 'mini-row' }, cells))
   }
@@ -533,7 +532,6 @@ export function roomTip (run, node, { reachable, enter = false, scout = false })
     node.foes && [
       h('div', { class: 'rt-body' }, miniGrid(node.foes), h('div', { class: 'rt-info' },
         h('div', { class: 'dim small' }, kinds.join(', ')),
-        stackLine(node.foes),
         syns.length > 0 && h('div', { class: 'dim small' }, kw('synergy', 'Synergies'), ': ', syns.map((n, i) => [i ? ' · ' : '', h('b', null, n)])))),
       node.waves && h('div', { class: 'rt-waves' }, node.waves.map((w, k) => h('div', { class: 'rt-wave' },
         h('b', null, waveName(node, k)), miniGrid(w.foes, { small: true }), h('div', { class: 'dim small' }, waveWhen(w))))),
@@ -558,7 +556,7 @@ const rolesOf = (d, alias) => (alias?.[d.role] && alias[d.role] !== d.role ? [d.
 const needsOf = (syn) => ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, n]) => ({ axis, id, n })))
 
 // The synergies as steps: each kin's and role's own ladder (one need, at 2/4/6/8, Ranger's at 3/6/8), whose
-// steps stack and whose top step is a rule; and the pacts, which need a kin and a role at once.
+// steps add up and whose top step is a rule; and the pacts, which need a kin and a role at once.
 const LADDERS = Object.values(Object.groupBy(SYNERGIES.filter((syn) => needsOf(syn).length === 1), (syn) => `${needsOf(syn)[0].axis}:${needsOf(syn)[0].id}`))
   .map((steps) => {
     const { axis, id } = needsOf(steps[0])[0]
@@ -640,7 +638,7 @@ export function synergyTracker (units, alias = null, { focus = null, onFocus = n
     h('b', null, `${l.name} ${have}`), h('span', { class: 'dim' }, ` · ${who(l.axis, l.id)}`),
     h('ol', { class: 'steps-list' }, l.steps.map(({ n, syn }) => h('li', { class: have >= n ? 'held' : '' },
       h('b', null, n), ' ', syn.rule ? [ruleTag(), ' ', h('b', null, ruleName(syn)), ': ', ruleText(syn)] : syn.desc.replace(`${l.name} ${n}: `, '')))),
-    h('p', { class: 'dim' }, next ? `${next.n - have} more for ${next.syn.name}. ` : 'Every step reached. ', 'Steps stack. ', COUNT_NOTE))
+    h('p', { class: 'dim' }, next ? `${next.n - have} more for ${next.syn.name}. ` : 'Every step reached. ', 'Steps add up. ', COUNT_NOTE))
   const ladderChip = (x) => h(x.on && onFocus ? 'button' : 'span', {
     class: 'syn chip' + (x.on ? ' on' : '') + (x.near ? ' near' : '') + (!x.next ? ' top' : '') + (focus === x.key ? ' focus' : ''),
     style: x.on ? `--g:${SYN_COLOUR[x.l.id]}` : null, onclick: press(x), tip: () => ladderTip(x)
@@ -665,6 +663,35 @@ export function synergyTracker (units, alias = null, { focus = null, onFocus = n
         ? h('div', { class: 'small' }, `${x.l.name} ${x.have}/${x.next.n}`, h('span', { class: 'dim' }, ` · ${x.next.syn.desc}`))
         : h('div', { class: 'small' }, `${x.syn.name} ${x.needs.map((n) => `${n.have}/${n.n}`).join('+')}`, h('span', { class: 'dim' }, ` · ${x.syn.desc}`))))
     }, `+${far.length}`))
+}
+
+// What one more soul of kind `id` is worth to the run (a recruit offer of a kind already held), read from what it
+// holds now: how many of the kind; the synergy steps one more fielded beside your standing pieces would reach; the
+// tiers it shares with its kind ("Rimeblade II"); and each fusion its kind is part of, with how many of the kind
+// you hold of how many the recipe needs ("1/2 for Rime Drake"). Null for a kind not held.
+// → { held, steps, tiers, recipes: [{ name, have, n }], lines (for the card's notes), chips (for its face: { text, up }) }
+export function recruitWorth (run, id) {
+  const s = run.state
+  const held = souls(s.party).filter((u) => u.id === id).length
+  if (!held) return null
+  const alias = aliasOf(run)
+  const now = souls(standing(run))
+  const before = activeSynergies(now, alias)
+  const steps = activeSynergies([...now, { id, uid: -1, hp: 1 }], alias).filter((syn) => !before.includes(syn))
+    .map((syn) => (syn.rule ? `${syn.name}: ${ruleName(syn)}` : syn.name))
+  const k = s.kinds[id]
+  const tiers = tracksOf(id).flatMap((tr, t) => (k?.tracks[t] > 0 ? [`${tr.name} ${ROMAN[k.tracks[t] - 1]}`] : []))
+  const recipes = FUSION_LIST.filter((f) => Object.hasOwn(f.needs, id)).map((f) => ({ name: f.name, have: held, n: f.needs[id] }))
+  const part = (r) => `${Math.min(r.have, r.n)}/${r.n} for ${r.name}${r.have < r.n ? ` (${r.have + 1}/${r.n} with it)` : ''}`
+  return {
+    held, steps, tiers, recipes,
+    lines: [`You already hold ${held} of its kind; this one is a piece of its own.`,
+      steps.length ? `Fielded beside your standing pieces, it reaches ${steps.join(', ')}.` : 'Fielded, it reaches no new synergy step.',
+      tiers.length ? `It shares its kind's tiers: ${tiers.join(', ')}.` : 'Its kind holds no tiers yet.',
+      recipes.length > 0 && `Fusion: ${recipes.map(part).join(', ')}.`].filter(Boolean),
+    chips: [{ text: `Held ${held}` }, ...steps.map((n) => ({ text: `→ ${n}`, up: true })), tiers.length > 0 && { text: `Shares ${tiers.join(', ')}` },
+      ...recipes.map((r) => ({ text: `${Math.min(r.have, r.n)}/${r.n} ${r.name}`, up: r.have < r.n && r.have + 1 >= r.n }))].filter(Boolean)
+  }
 }
 
 // Names with repeats counted: "Tomb Knight, Grave Ghoul ×3".
@@ -715,19 +742,19 @@ export const priceScaleText = (run) => `every price is its floor-1 price ${[1, 2
 // where it stands now.
 const WORD_MORE = {
   piece: () => `Command sets how many pieces you field (at most ${TUNING.army.board}); the rest of your souls wait in the ossuary. A 2×2 piece (a fused kind, or a kind with a Colossus tier) needs four open cells and plugs a two-wide breach alone. The Monarch is a piece too: it stands on the seat the camp marks with a crown, never moves and never strikes (though a foe that comes beside it halts there), and nothing else may stand there.`,
-  stack: () => 'Drag a soul of the same kind onto a piece to add a body; split one off from its panel. A stack covers its footprint and nothing more, and a blow that hits it hits the whole pool once: the reason not to stack everything. It counts once toward synergies.',
+  summon: () => `A tier of a few kinds calls up shadows of the kind itself: at each battle's start, as many as the tiers say rise for every piece of the kind on the field, each on the free tile of the camp nearest that piece (fewer where too few are free), at ${pct(TUNING.summon.hp)} of a whole one's HP, with its level and tiers. A summon holds where it rose, counts toward your synergies as any shadow, pays no essence, brings no summons of its own, and is gone after the battle.`,
   ring: () => 'Measured from the footprint: the ring 1 of a 2×2 piece is the twelve tiles around it. A piece fights what its blows reach within it: a ranged blow its range, a melee blow the tiles beside it (two tiles for a long-armed kind, without stepping), or as far as the blow says; a tier that widens the ring lengthens no arm. Your rings are what the foes see you by: a foe walking into a ring of yours that can strike it halts there only once it can strike something of yours from where it stands (a shooter, a piece of yours in its reach; a melee foe, the piece in its way, the Monarch, or a piece beside it that struck it), and otherwise walks on. A ring holds a foe only as far as the piece\'s blows that need no condition reach: where a blow with a condition reaches farther, it strikes there once the condition holds, but no foe halts there for it, and the shading and the stop line stop short of it too. Within the Monarch\'s ring of 1 every foe halts. Yours aim at the foe in the ring furthest along its road, the centre lane first on a tie. A melee blow from the ground never reaches up to a flyer, so a melee ring on the ground never holds one (a flyer\'s melee meets a flyer in the air), and a ring holding only flyers it cannot strike reads as empty (a piece standing in a flyer\'s way still holds it there, as any blocker does). Rings reach through walls. In prep the road tiles are shaded by how many of your rings cover them, and a bar marks the stop line, where a walker first comes into them: the earliest it can halt there, not where it will.',
   road: () => 'Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch. Two foes on one tile always walk the same way. A foe walks, doing nothing else, until it halts where it can hit back: in one of your rings with something of yours its blows reach, or with its next tile held (a piece of yours, the seat, or a foe ahead of it that has stopped; behind one still on the move it only waits). Halted, it fights: its ranged blows to their range, never past its own ring, so one queued behind a stopped one shoots over it; its melee only what blocks its way, the Monarch, and a piece beside it that struck it, so a melee foe walks on through your rings until one of those is there. Every foe on the ground walks these arrows. Some kinds Fly instead, straight over the walls but never through your pieces: one in a flyer\'s way holds it there. You learn which by meeting them.',
   wave: () => `${ENEMY_TEXT.waves} ${ENEMY_TEXT.entry}`,
   // Arise, and Hollow Court (offered only once Arise is held), only while the run holds the relic (DESIGN §4).
   shadow: (run) => `${run && ariseHeld(run.state) ? 'The Arise relic raises foes slain near the Monarch; ' : ''}Undead 8 raises every foe slain. A shadow of yours rises on the free tile nearest the Monarch, never where it fell, so the dead never block a road, and holds there. A shadow of a flying kind flies. Shadows count toward your synergies and are gone after the battle.` +
     (run && holds(run.state, 'reap') ? ' Under Hollow Court, those standing at a win pay their essence again.' : ''),
-  essence: (run) => `Each foe slain pays ${TUNING.essence.perTier} × its tier, whatever its count or level, into one purse. It buys only tiers, fusions (${TUNING.essence.fuse} × the result's tier) and one recruit after a win (${TUNING.essence.recruit} × its tier, more for a higher level), and ${priceScaleText(run)}: what a floor pays is worth less on the next. Nothing is bought for the Monarch, and no level is bought: a kind's level is its tiers'.`,
+  essence: (run) => `Each foe slain pays ${TUNING.essence.perTier} × its tier, whatever its level, into one purse. It buys only tiers, fusions (${TUNING.essence.fuse} × the result's tier) and one recruit after a win (${TUNING.essence.recruit} × its tier, more for a higher level), and ${priceScaleText(run)}: what a floor pays is worth less on the next. Nothing is bought for the Monarch, and no level is bought: a kind's level is its tiers'.`,
   tier: (run) => `Two tracks a kind, four tiers each (${TUNING.essence.tier.join(' / ')} essence on floor 1; ${priceScaleText(run)}). The first track you take may reach IV; the other then stops at II. A tier IV is a rule: a new ability, an aura, more ring, or Colossus, which grows every piece of the kind to 2×2 (one that no longer fits where it stands goes to the ossuary). A kind's level is its tiers': ${TUNING.level.base} + ${TUNING.level.perTier} × the tiers it holds on both tracks, rounded down; every soul of it rises with each tier, and a recruit joins at it.`,
-  fusion: () => `It takes exactly the bodies the recipe names, from pieces on the field or in the ossuary (a bigger stack gives what is asked and keeps the rest), costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one piece of the fused kind in the ossuary, to be placed. The result joins its kind with its tiers, at its level, never below the highest level of the kinds that went into it. Select a piece for the recipes its kind is part of; the Codex's Fusions lists them all.`,
+  fusion: () => `It takes exactly the souls the recipe names, each a whole piece, from the ossuary first, then the field, costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one piece of the fused kind in the ossuary, to be placed. The result joins its kind with its tiers, at its level, never below the highest level of the kinds that went into it. Select a piece for the recipes its kind is part of; the Codex's Fusions lists them all.`,
   command: (run) => `${TUNING.party.field} to begin. Nothing is bought for the Monarch: only Command relics raise it, every copy in full (${giversOf('command').join(', ')}); the rarer, the cleaner. A won elite's relics always hold one. The field stops at ${TUNING.army.board} pieces however high it goes.` + (run ? ` Now: ${fieldRule(run)}.` : ''),
-  synergy: () => `Steps stack: Undead 6 holds Undead 2 and 4 too. Ranger's are at 3, 6 and 8, and every 8 is a rule that changes what happens. A fused piece counts once, with its own kin and role. ${COUNT_NOTE}`,
-  relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Reliquaries and won elites offer Common to Rare, free, deeper floors the rarer; a won elite's always hold a Command relic. From floor ${R.legendary.fromFloor} both also offer ${R.legendary.offer} Legendaries, rules that rewrite the game${run && ariseHeld(run.state) ? ': Arise, the Monarch\'s raising of the dead, is one' : ''}. A reliquary is one pick in all: a relic, a Legendary or a free tier. A relic you hold may come again: copies stack with no cap, and every copy applies in full. A trigger fires in battle for your side only, once a copy, and its name flashes over the one it fired for.`
+  synergy: () => `Steps add up: Undead 6 holds Undead 2 and 4 too. Ranger's are at 3, 6 and 8, and every 8 is a rule that changes what happens. A fused piece counts once, with its own kin and role. ${COUNT_NOTE}`,
+  relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Reliquaries and won elites offer Common to Rare, free, deeper floors the rarer; a won elite's always hold a Command relic. From floor ${R.legendary.fromFloor} both also offer ${R.legendary.offer} Legendaries, rules that rewrite the game${run && ariseHeld(run.state) ? ': Arise, the Monarch\'s raising of the dead, is one' : ''}. A reliquary is one pick in all: a relic, a Legendary or a free tier. A relic you hold may come again: copies add up with no cap, and every copy applies in full. A trigger fires in battle for your side only, once a copy, and its name flashes over the one it fired for.`
 }
 
 // The glossary: the twelve words, the foes' ways, then the statuses. { name, entries: [{ name, line, more?, sys? }] }
@@ -738,9 +765,9 @@ function glossary (run) {
 }
 
 // The fusions (DESIGN §2.6): every recipe, public from the start, each with its result's card, its parts and its
-// price; with a run in play, how many of each part's bodies you hold, and whether it can be made now.
+// price; with a run in play, how many souls of each part's kind you hold, and whether it can be made now.
 function fusionsView (run = null) {
-  const held = (kind) => run ? souls(run.state.party).filter((u) => u.id === kind).reduce((n, u) => n + u.count, 0) : null
+  const held = (kind) => run ? souls(run.state.party).filter((u) => u.id === kind).length : null
   return h('div', { class: 'help-view fusions' },
     h('p', { class: 'dim' }, 'Every recipe, from the start: they are the plan. Select a piece on the Field for the ones its kind is part of, and fuse there.'),
     h('div', { class: 'fusion-list' }, FUSION_LIST.map((f) => {
@@ -823,11 +850,11 @@ export function codexView (run = null, { onClose = null } = {}) {
       h('li', null, 'Place your souls in the camp: each ', kw('piece'), ' fights whatever its blows reach in its ', kw('ring'), ' from where you put it (its melee only beside it, two tiles for a long arm), and ', h('b', null, 'never moves'), '. The shading on the roads is how many rings cover them; the blue bars, the stop line, are where a foe first comes into them: the earliest it can halt in them.'),
       h('li', null, `Begin, and the battle plays out alone. Wounds carry: ${WOUNDS_TEXT}.`),
       h('li', null, 'Spend ', kw('essence'), ' on your kinds\' ', kw('tier', 'tiers'), ' (each raises the kind\'s level) and on ', kw('fusion', 'fusions'), '; after a win, recruit one of the slain. The Monarch grows only by ', kw('relic', 'relics'), ': its HP and its ', kw('command'), '.')),
-    h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, onto a piece of its kind to ', kw('stack'), ' it, onto another piece to swap them; ',
+    h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades and Fuse. ', say('Hover', 'Long-press'), ' anything for what it is.'),
     s && h('div', { class: 'gl-run' },
       h('span', null, `The Monarch ${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · Command ${commandOf(s)}${ariseHeld(s) ? ` · Arise ×${relicCount(s, 'arise')}: tier ≤ ${ariseOf(s).tier} within ${ariseOf(s).domain} tiles, ${ariseOf(s).raises} a battle` : ''}`),
-      h('span', null, `Souls ${soulCount(s.party)}/${rosterCap(run)} · ${fielded(souls(s.party)).length}/${fieldCap(run)} on the field · ${inOssuary(souls(s.party)).length} in the ossuary`),
+      h('span', null, `Souls ${souls(s.party).length}/${rosterCap(run)} · ${fielded(souls(s.party)).length}/${fieldCap(run)} on the field · ${inOssuary(souls(s.party)).length} in the ossuary`),
       h('span', { class: 'gl-relics' }, kw('relic', 'Relics'), s.relics.length ? relicsByTier(s.relics, ({ id, n }) => h('span', { class: `relic rt-${relicTier(id)}`, tip: () => relicTip(id, run) }, relicDef(id).name, n > 1 && h('span', { class: 'relic-n' }, `×${n}`))) : ' none'),
       depthOf(s.floor) > 0 && h('span', null, DEEP_TEXT.now(s.floor)),
       holds(s, 'unhealable') && h('span', { class: 'warn' }, 'Court of Bone: nothing heals the Monarch.')),

@@ -17,7 +17,7 @@ That makes prep two decisions and only two:
 
 1. **How to upgrade**: tiers (a kind's level comes with them), fusions and recruits, bought with essence; the
    Monarch's HP and Command, and Arise and its growth, come as relics.
-2. **Where to place**: which cell each piece holds, and which pieces stand together as a stack.
+2. **Where to place**: which cell each piece holds, and which souls take the field at all.
 
 Placement has to be a puzzle, or the game is a shop. It is one because the roads and the Monarch's seat are the
 camp's, fixed and drawn before you place anything, and every foe on the ground walks the road the board draws;
@@ -38,7 +38,7 @@ burst on death) on top of Walk, reach, Shape, drain, clock and waves.
 Reversed here, from the morning:
 
 - **"Static placement makes the roster turrets and the army never advances."** Turrets are the genre, and the
-  army advances by growing: a 2×2 colossus, a fusion of three souls, a stack of eight. Movement bought nothing a
+  army advances by growing: a 2×2 colossus, a fusion of three souls, a kind of four with its summons. Movement bought nothing a
   BTD player wants.
 - **"A lunge keeps a ring-2 melee piece honest."** A ring is a reach. A melee piece with ring 2 strikes two tiles
   away without stepping; the sprite lunges, the sim does not.
@@ -57,10 +57,13 @@ Reversed here, from the morning:
   in `src/sim/unit.js`). If it falls the run is over. The camps are designed around the seat: it is the end of
   every road and the shape of the puzzle.
 
-### 2.2 Pieces, stacks and footprints
+### 2.2 Pieces and footprints
 
-- A **piece** is one kind on one tile (its **anchor**) with a **count**, the bodies in it, and a **size**, 1 or 2.
-  Your pieces are souls from the ossuary; a foe piece is a captain and its cohort, or any group the room lists.
+- A **piece** is one soul, one body, of one kind on one tile (its **anchor**), with a **size**, 1 or 2. Your pieces
+  are souls from the ossuary; a foe piece is one foe. Nothing stacks: no piece, yours or the enemy's, ever holds more
+  than one body. (Stacks were cut on 2026-10-10: merging two wounded souls into one pool felled one of them, and a
+  stack counting once toward synergies made merging a trap. A duplicate is a decision as a piece: a Command slot and
+  a cell, a synergy count, a fusion part, a second piece the kind's tiers grow, a second position.)
 - A size-2 piece has a 2×2 **footprint**: its anchor, the tile in the next lane (+x), and the two ahead of those
   toward the foes (+y). `footprint(tile, size)` (a battle unit's: `footprint(u.tile, u.size)`). It stands only where
   all four are open ground in the camp with nothing else on them (`fits(camp, slot, size, taken)`). A foe piece is
@@ -69,28 +72,27 @@ Reversed here, from the morning:
   **Colossus** tier): `sizeOf(u)`. When a kind takes a Colossus tier, each of its pieces that no longer fits where
   it stands goes to the ossuary until you place it again. Size is a footprint and a ring, nothing else: no stat
   comes with it that the tier's or the kind's own numbers do not say.
-- Stacking is manual: in prep, drag a soul of the same kind onto a piece to add a body, drag a body off to split.
-  Nothing stacks by itself. A 2×2 piece stacks like any other: footprint and count are independent.
-- A stack's HP pool is count × body HP; its damage is living bodies × body damage, living bodies being
-  ⌈hp ÷ body HP⌉. Any hit that lands on the piece lands on the pool once, a Shape hit too, whatever its footprint.
-- **A heal mends the living bodies only**: it never lifts a fallen body (only an altar raises the fallen, §2.6). So a
-  stack whose living bodies are whole has nothing to mend, however many of its bodies lie fallen, and **a heal counts
-  only the allies it can mend**, in its condition and in its aim: within its reach (anywhere under Sanctuary), their
-  living bodies not whole, never a Monarch nothing can heal (Court of Bone); one that also cleanses (Purge, Hive Mind)
-  counts an ally carrying a debuff it would strip (`helps` in `src/sim/battle.js`). Both sides' heals alike: a healer
-  with no one to mend strikes.
-- A soul whose kind's tiers add bodies (a **count tier**: `count` on a tier, Brood Mother II's six) fights with them
-  in its pool, whole, for that battle alone; they stand in front of its own bodies and fall first. **A body fallen
-  before a battle stays down after it**, whatever the added bodies leave in the pool: a piece keeps at most the
-  living bodies it came in with (`finishBattle` in `src/sim/run.js`).
+- **A swap is by footprint.** A piece moved onto cells another one piece covers swaps with it (`swapWith` in
+  `src/sim/run.js`): the other takes the mover's old place where it fits there, or the ossuary if the mover came
+  from there. Never with the Monarch, and never with two pieces at once.
+- **A heal counts only the allies it can mend**, in its condition and in its aim: within its reach (anywhere under
+  Sanctuary), below their max HP, never a Monarch nothing can heal (Court of Bone); one that also cleanses (Purge,
+  Hive Mind) counts an ally carrying a debuff it would strip (`helps` in `src/sim/battle.js`). Both sides' heals
+  alike: a healer with no one to mend strikes.
+- A soul whose kind holds a **summon tier** (`summon` on a tier: Marrowcaller II, Brood Mother II, Gearwright II,
+  Heartwood II, Ancient II) brings that many **summons** to every battle: shadows of its own kind (§2.5), at
+  `TUNING.summon.hp` of a whole one's HP, risen as the battle begins on the free ground nearest it. They hold where
+  they rose, count toward synergies as shadows do, pay nothing, bring no summons of their own, and are gone after
+  the battle (`summonsOf` in `src/sim/unit.js`).
 - **Command** is how many pieces you may field: the Monarch's base and its Command relics' (§2.6), never past the
   board's cap. The rest wait in the ossuary.
-- **A fallen piece leaves the field.** A piece whose every body fell in a battle goes to the ossuary as the battle
-  ends (`finishBattle` in `src/sim/run.js`), freeing its cell and its Command slot, and lies there fallen until an
-  altar raises it (where it lies: then it may be placed again). No action places a fallen soul (`canPlace`), nor
-  splits a piece of fallen bodies onto the camp; the ossuary strip marks it fallen. It may still be stacked into a
-  piece of its kind (a body down in that pool), fused, or released.
-- A piece counts once toward synergies whatever its count or size (§2.7).
+- **A fallen piece leaves the field.** A piece that falls in a battle goes to the ossuary as the battle ends
+  (`finishBattle` in `src/sim/run.js`), freeing its cell and its Command slot, and lies there fallen until an altar
+  raises it (where it lies: then it may be placed again). No action places a fallen soul (`canPlace`); the ossuary
+  strip marks it fallen. It may still be fused or released.
+- **Releasing a soul pays back** `TUNING.essence.refund` of what recruiting it would cost now (`releaseRefund`), a
+  fallen one too: a third Grave Ghoul is a choice of field, fuse or sell.
+- A piece counts once toward synergies whatever its size (§2.7).
 
 ### 2.3 Rings
 
@@ -179,7 +181,7 @@ Every kind has a **ring**, a radius in tiles, drawn around the piece in prep.
 - **Death burst** (`onFall: { range, effects }` on a kind): when a piece of the kind falls, its effects run from
   where it fell on the other side's living within `range`. The first: Rot Bloat, which Withers what stood near it.
 - Complexity by floor, from the spawn pool's `minFloor`: floor 1 brings Burning (Pyre Hound) beside Walk, reach,
-  Shape, drain and clock; floor 2 brings Fly (Hive Drone, in cohorts) and the death burst (Rot Bloat);
+  Shape, drain and clock; floor 2 brings Fly (Hive Drone, its captains leading cohorts of their kind: separate foes) and the death burst (Rot Bloat);
   floor 3 brings Hexed (Marsh Hag) and a flying burner (Ash Wyvern); floor 4 the Sovereign's court.
 - Waves, bosses, crumbling and escalation stay as they are in `src/sim/battle.js`.
 
@@ -195,7 +197,7 @@ and 10% a copy more: two copies are 6, ≤ 4, 9 a battle; three 7, ≤ 5, 15. `a
 where Arise stands: `{ copies, domain, raises, tier, haste }`. The domain (the code's word; the player reads
 "Arise's reach") is the square within that reach, Court of Bone's tiles added, of the Monarch (`domainOf`, given the
 battle as `domain`); a foe that falls inside it rises as a shadow of yours on the free tile closest to the Monarch
-(never where it fell: the enemy's dead never block its roads), at the fallen count, if its tier is in reach and
+(never where it fell: the enemy's dead never block its roads), if its tier is in reach and
 raises are left (`ariseCap`, `ariseTier` and `ariseHaste` in `src/sim/battle.js`, read from the copies the battle
 holds; Blood Tithe grows the cap). A shadow holds its tile and is gone when the battle ends. A shadow of a flying
 kind flies (it holds, blocks a foe flyer in its way, and melee from the ground cannot touch it). Recruiting is unchanged and needs no
@@ -203,8 +205,8 @@ relic: one slain foe a battle, as a full soul into the ossuary.
 
 ### 2.6 Growth
 
-- **Essence** from slain foes: each foe piece slain pays `TUNING.essence.perTier` (3.5) × its tier, whatever its count
-  or level (`foeEssence` in `src/sim/run.js`; a shadow pays nothing, but Hollow Court's pay again). It buys only tiers,
+- **Essence** from slain foes: each foe slain pays `TUNING.essence.perTier` (3.5) × its tier, whatever its level
+  (`foeEssence` in `src/sim/run.js`; a shadow pays nothing, but Hollow Court's pay again). It buys only tiers,
   recruits and fusions, and **money always matters** (§6): every price is its floor-1 price × the floor's price scale,
   1 + `perFloor` × (floor − 1) (`floorPrice`: ×1, ×2.1, ×3.2, ×4.3 on floors 1–4, and on down), after the discount
   relics. Floor-1 prices: a tier 16 / 36 / 60 / 96 (I–IV), a recruit 8 × its tier × (1 + 0.35 × (level − 1)), a
@@ -222,9 +224,9 @@ relic: one slain foe a battle, as a full soul into the ossuary.
   recruit joins at its kind's level (a kind new to the run at its first, with no tiers), and its offer is priced by
   that level. Foes keep their floor's levels.
 - **Fusions** (`FUSION_LIST` in `src/content.js`: `{ id, name, result, needs: { kind: n }, desc }`). A fusion
-  consumes bodies from pieces of yours, fielded or in the ossuary, exactly `needs` of each kind (a stack of two
-  Tomb Knights is two; a bigger stack gives the bodies asked and keeps the rest, as a split would), costs `TUNING.essence.fuse` × the result's tier (× the floor's price scale), and
-  gives one piece of the fused kind, count 1, full HP, in the ossuary, to be placed. The result joins its kind, with
+  consumes whole pieces of yours, fielded or in the ossuary, exactly `needs` of each kind, costs
+  `TUNING.essence.fuse` × the result's tier (× the floor's price scale), and gives one piece of the fused kind, full
+  HP, in the ossuary, to be placed. The result joins its kind, with
   the kind's tiers (none for a kind new to the run), at the kind's level, which never falls below the highest level
   of the kinds consumed (the kind's `least`, kept and only ever raised): **a fused piece is never weaker than what
   went into it**. Fused kinds (`fused: true`) never spawn and are never recruited; they have two tracks like any
@@ -284,7 +286,7 @@ stats bought with essence), bought levels, the Rite as a room, and then the two 
 numbers are the relic's now: §2.5). On 2026-10-10: Flank, a second ground road round your pieces, and its threat
 (§6).
 
-Vocabulary after the cut: Piece, Stack, Ring, Road, Wave, Shadow, Essence, Tier, Fusion, Synergy, Relic (Common,
+Vocabulary after the cut: Piece, Summon, Ring, Road, Wave, Shadow, Essence, Tier, Fusion, Synergy, Relic (Common,
 Uncommon, Rare, Legendary), Command. Twelve, plus the behaviours (Walk, Fly) and the statuses. Keystone left
 the list on 2026-10-09 (night): the keystones are Legendary relics. Command joined it late that night: with nothing
 to buy for the Monarch, relics name it ("+1 Command") and the player has to read it. Domain left it later that
@@ -322,10 +324,11 @@ that needs hover, Shift or a key.
   entering from the left; a thin bar above (floor, essence, Monarch HP, the tabs as icons). On a phone a tile is
   never under 44 CSS px.
 - **Field tab** (the default). Drag an ossuary soul onto an open camp cell to place it (a 2×2 shows its footprint
-  under the finger, red where it does not fit), onto a same-kind piece to stack. Tap selects. The Monarch cannot
-  be dragged; its cell wears a crown. The panel shows the selected piece: its card, ring, count, the kind's two
+  under the finger, red where it does not fit), onto a piece of yours to swap them. Tap selects. The Monarch cannot
+  be dragged; its cell wears a crown. The panel shows the selected piece: its card, ring, summons, the kind's two
   tracks and the level they give (no level button), and **Fuse**: the recipes this kind is part of, each lit when
-  every part is held and essence suffices, one button each (a stack bigger than the recipe needs is split for you).
+  every part is held and essence suffices, one button each. A recruit card of a kind you hold says what one more is
+  worth: the synergy steps it reaches, the tiers it shares, the recipes it fills.
   Nothing selected means the Monarch's panel, with nothing to buy: its HP and Command (the relics that give them),
   and nothing else; Escape or tapping empty ground returns to it.
 - **Arise is shown only once held.** Without the relic the Monarch's card lists no Arise, its panel has no line of
@@ -376,9 +379,9 @@ names below); the autoplayer and the integration pass follow.
 `FUSION_LIST`, `FUSIONS`, `fusionDef`; `BEHAVIOURS` walk, fly (flank too, until 2026-10-10: §6); camp maps carry
 `'M'`; `SIGNALS` and `BANNER` go; `TRIGGERS` = kill, fall, wave, blow, struck.
 
-`src/sim/run.js` (owned by the run agent): the action `{ type: 'fuse', id, parts: [{ uid, n }] }` (n bodies off
-each piece, the hindmost, the whole piece when n is its count); `fuseParts(run, id)` → the canonical parts (the
-ossuary's pieces first, then the fielded, the smallest stacks first) or null; `canFuse(run, id)`; `fuseCost(run, id)`;
+`src/sim/run.js` (owned by the run agent): the action `{ type: 'fuse', id, parts: [uid, …] }` (whole pieces; since 2026-10-10,
+when stacks were cut); `fuseParts(run, id)` → the canonical parts (the ossuary's pieces first, then the fielded) or
+null; `canFuse(run, id)`; `fuseCost(run, id)`;
 no `lines`, no Monarch placement.
 
 `src/tuning.js`: `essence.fuse` (seeded: 20, × the result's tier). `board.stepTicks` stays for the foes.
@@ -816,13 +819,22 @@ Taken:
 - Your pieces never move. Rings are reaches; ring-2 melee strikes without stepping.
 - The Monarch is pre-placed by the camp map.
 - Size is a footprint: 1 or 2; from a kind or a tier IV; nothing else comes with it.
-- A fusion consumes exact bodies, costs essence by the result's tier, lands in the ossuary; recipes are public.
+- A fusion consumes exact pieces, costs essence by the result's tier, lands in the ossuary; recipes are public.
 - Fly: over walls; only ranged blows touch it. (Its step was the free neighbour nearest the Monarch, over everything;
   since 2026-10-10 it walks the air road and your pieces block it: below.)
 - Burning is true damage per stack; Hexed slows the gauge; both cleansable.
 - Walk foes fight through your pieces; only Flank routes round them.
-- Shadows rise beside the Monarch at the fallen count and hold.
+- Shadows rise beside the Monarch and hold.
 - The board size is left alone. (Relics and keystones were too, until the night's merge below.)
+
+Taken 2026-10-10, after a manual playthrough:
+
+- **Stacks are cut.** One soul is one piece is one body, on both sides. Merging two wounded souls felled one of
+  them (the pool's living bodies are ⌈hp ÷ body⌉), and a stack counting once toward synergies made merging a
+  trap. A duplicate stays a decision as a piece (§2.2). The five count tiers became summon tiers (2 summons, shadows
+  of the kind, gone after the battle); a foe captain's cohort became separate foes of its kind; fusions take whole
+  pieces; releasing a soul refunds half its recruit price. Balance for all of it waits for the balance pass.
+- **A 2×2 swaps by its footprint**, with the one piece under it, not only the one under its anchor.
 
 Taken while building (2026-10-09):
 

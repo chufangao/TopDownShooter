@@ -12,13 +12,12 @@ import { unitDef } from './content.js'
 import { LANES, DEPTH, TILES, ROWS, CAMP_ROWS, tileX, tileY, footprint } from './sim/unit.js'
 import {
   RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, posAt, BIG, HOVER, BOB, tileUnder, cellsBox, ringBox, fitBox, facesLeft, drawGround,
-  WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, NEUTRAL, FONT, hex, growthMarks, palette, reducedMotion,
-  legible, domainLabel, placeOutside, overlap, HORDE, syncHorde, placeHorde
+  WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, NEUTRAL, hex, growthMarks, palette, reducedMotion,
+  legible, domainLabel, placeOutside, overlap
 } from './engine.js'
 import { sfx } from './sfx.js'
 
 const HIT_UP = 14                // a tile takes the pointer over its unit's body: centred this far above the feet
-const MARK_X = 30                // the marks beside a unit's feet stand this far either side of it (a tile is TILE_W)
 const GROUND = 6                 // a tile's ground lies this far under its centre: the arrows run on it
 // A drag by touch: the piece is drawn LIFT CSS px above the finger (feet first), so the finger hides neither it
 // nor the tile it would land on, and the drop goes by its feet. Where a tile stands under ZOOM_UNDER CSS px tall
@@ -170,7 +169,7 @@ class PrepScene extends Phaser.Scene {
   // field().arrow), ring ({ tile, r, size, foe } or null), seat (the Monarch's tile), cover (by tile, how many of your
   // rings reach it), stops (the stop line's tiles, battle.js stopLine), drop (the anchors a drag may land on), dropSize
   // (the dragged piece's size), selKey }. A unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp, maxHp,
-  // lvl, tracks, count, monarch, fallen, sel, glow (colours), lit, flies (hovers) }.
+  // lvl, tracks, monarch, fallen, sel, glow (colours), lit, flies (hovers) }.
   draw (p) {
     const old = this.picture
     this.picture = p
@@ -372,7 +371,7 @@ class PrepScene extends Phaser.Scene {
     const size = sprite.width / RES / 96
     const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size * big, 13 * size * big, 0x000000, 0.5)
     const a = {
-      key: u.key, sprite, shadow, scale: SCALE / RES, size, fp, big, hover: u.flies ? HOVER : 0, chest: 30 * size * big, tile: u.tile, u, parts: [], growth: null, horde: [],
+      key: u.key, sprite, shadow, scale: SCALE / RES * big, size, fp, big, hover: u.flies ? HOVER : 0, chest: 30 * size * big, tile: u.tile, u, parts: [], growth: null,
       pop: { v: 0 }, rise: { v: appear ? 0 : 1 }, seed: Math.random() * 6
     }
     if (appear && reducedMotion()) a.rise.v = 1
@@ -383,13 +382,13 @@ class PrepScene extends Phaser.Scene {
 
   dropActor (a, fade) {
     this.actors.delete(a.key)
-    const all = [a.sprite, a.shadow, ...a.parts.map((x) => x.o), ...(a.growth?.parts ?? []), ...a.horde].filter(Boolean)
+    const all = [a.sprite, a.shadow, ...a.parts.map((x) => x.o), ...(a.growth?.parts ?? [])].filter(Boolean)
     if (!fade) return all.forEach((o) => o.destroy())
     this.tweens.add({ targets: all, alpha: 0, duration: 220, onComplete: () => all.forEach((o) => o.destroy()) })
   }
 
-  // A unit's marks, made anew from its picture entry: its bars, its growth (growthMarks, as in battle), its
-  // level, the glow of each synergy it counts toward, and the selection. Each part keeps an offset from the feet
+  // A unit's marks, made anew from its picture entry: its bars, its growth (growthMarks, as in battle: its tiers),
+  // the glow of each synergy it counts toward, and the selection. Each part keeps an offset from the feet
   // and a layer: 'under' the unit, 'ground' with its bars, 'mark' and 'top' over everyone.
   dress (a) {
     for (const x of a.parts) x.o.destroy()
@@ -398,12 +397,7 @@ class PrepScene extends Phaser.Scene {
     a.growth = null
     const u = a.u
     const part = (o, dx, dy, layer, extra = {}) => { a.parts.push({ o, dx, dy, layer, ...extra }); return o }
-    const txt = (str, size, colour, stroke = 3) => this.add.text(0, 0, str, { fontFamily: FONT, fontSize: `${size}px`, fontStyle: 'bold', color: colour, stroke: '#07060b', strokeThickness: stroke }).setResolution(3)
     const foe = u.side === 'foe'
-    // A stack is its horde (engine.js syncHorde): its own sprite in front, a little smaller, the rest behind it.
-    const n = u.fallen ? 1 : u.count ?? 1
-    a.scale = SCALE / RES * (n > 1 ? HORDE.front : 1) * a.big
-    syncHorde(this, a, n, `unit:${unitDef(u.id).art}:alive`, facesLeft(u.side))
     a.sprite.setTexture(`unit:${unitDef(u.id).art}:${u.fallen ? 'dead' : 'alive'}`)
     if (u.fallen) a.sprite.setTint(0xc4bfd0)
     else a.sprite.clearTint()
@@ -436,16 +430,6 @@ class PrepScene extends Phaser.Scene {
     part(this.add.rectangle(0, 0, BAR + 2, crowned ? 12 : 10, 0x07060b, 0.92).setStrokeStyle(1, crowned ? CROWN : 0x2c2740), 0, BAR_DROP + 2, 'ground', { keep: true })
     const f = u.maxHp ? Math.max(0, u.hp / u.maxHp) : 1
     if (f > 0) part(this.add.rectangle(0, 0, BAR * f, crowned ? 6 : 4, colour).setOrigin(0, 0.5), -BAR / 2, BAR_DROP, 'ground', { z: 0.2, keep: true })
-    // Every mark that carries print is kept legible at the board's zoom (engine.js legible), and placed by the
-    // size it then has (layoutMarks nudges each clear of the rest).
-    const z = this.labelZ
-    const L = (o, size, kind = 'num') => legible(o.setData('size', size), z, kind)
-    // Left of the feet, a stack's count (×3), on a plate in its side's colour.
-    if (n > 1) {
-      const t = txt(`×${n}`, 12, foe ? '#ffd0d6' : '#e6fff6', 0).setOrigin(0.5)
-      const kids = [this.add.rectangle(0, 0, t.width + 10, 19, 0x07060b, 0.92).setStrokeStyle(1.5, foe ? FOE : PARTY), t]
-      part(L(this.add.container(0, 0, kids), 12), -MARK_X * a.big, -7, 'mark', { z: 0.3, move: 1, box: [-(t.width + 10) / 2, -9.5, (t.width + 10) / 2, 9.5] })
-    }
     // Yours wear their growth as in battle: their tiers.
     if (!foe && !u.monarch) a.growth = growthMarks(this, u)
   }
@@ -552,7 +536,6 @@ class PrepScene extends Phaser.Scene {
       }
       a.growth?.place(s.x, s.y)
       for (const o of a.growth?.parts ?? []) o?.setVisible(seen(a) > 0)
-      placeHorde(a, s.x, s.y - a.hover, s.depth, SCALE / RES * a.big * (0.6 + 0.4 * a.rise.v), s.alpha, breath)
     }
     this.glowG.setAlpha(0.55 + 0.45 * v)
     this.live(v)
@@ -572,7 +555,7 @@ class PrepScene extends Phaser.Scene {
 
   // Redrawn every frame: the tile under the pointer, the keyboard's tile, and while a piece is moved the cells the
   // drop would take (a 2×2's four), green where they fit and red where they do not (all red, the bad ones
-  // brightest, where the drop is refused); a stack's target ringed again, pulsing.
+  // brightest, where the drop is refused).
   live (v) {
     const g = this.liveG.clear()
     const p = this.picture
@@ -603,12 +586,6 @@ class PrepScene extends Phaser.Scene {
         g.fillStyle(red ? FOE : SOUL, 0.12).fillEllipse(x, y + GROUND, 66, 21)
         g.lineStyle(2.5, red ? FOE : SOUL, 0.95).strokeEllipse(x, y + GROUND, 66, 21)
       }
-    }
-    // A stack onto a piece of its kind: a second ring, pulsing, round its feet.
-    if (pv.stack) {
-      const k = (pv.size ?? 1) > 1 ? BIG : 1
-      const c = posAt(at, pv.size ?? 1)
-      g.lineStyle(2, SOUL, 0.4 + 0.5 * v).strokeEllipse(c.x, c.y + GROUND, 84 * k, 28 * k)
     }
   }
 
@@ -809,8 +786,7 @@ class PrepScene extends Phaser.Scene {
     this.follow(x, y, null)
   }
 
-  // The lifted piece follows the pointer (its feet under it); a new `preview` ({ tile, size, cells, bad, ok, stack,
-  // swap }) shows a piece it would displace, ghosted where it would go (live draws the cells).
+  // The lifted piece follows the pointer (its feet under it); a new `preview` ({ tile, size, cells, bad, ok, swap }) shows a piece it would displace, ghosted where it would go (live draws the cells).
   follow (x, y, preview, off = this.drag?.off) {
     const d = this.drag
     if (!d?.piece || !this.view) return
@@ -940,5 +916,5 @@ function boundsOf (o) {
   return { l: b.x, t: b.y, r: b.x + b.width, b: b.y + b.height }
 }
 
-// Whether a unit grew between two pictures: a level, a tier, its count, its HP.
-const grew = (a, b) => a.lvl !== b.lvl || String(a.tracks) !== String(b.tracks) || a.count !== b.count || a.maxHp !== b.maxHp
+// Whether a unit grew between two pictures: a level, a tier, its HP.
+const grew = (a, b) => a.lvl !== b.lvl || String(a.tracks) !== String(b.tracks) || a.maxHp !== b.maxHp

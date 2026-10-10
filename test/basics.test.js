@@ -5,7 +5,7 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import {
   autoPlace, reachable, expand, makeUnit, deployTile, slotAt, tileAt, distance, foesNextTo, DEPTH, CENTRE_OUT, CAMP_ROWS, campGrid, steps, wallTiles,
-  domainTiles, monarchSlot, isMonarchCell, fits, campOpen, rowOf, colOf, CAMP_SLOTS, ringOf, baseStats, bodyHp, livingBodies, bodiesHp
+  domainTiles, monarchSlot, isMonarchCell, fits, campOpen, rowOf, colOf, CAMP_SLOTS, ringOf, baseStats, summonsOf
 } from '../src/sim/unit.js'
 import { campDef } from '../src/content.js'
 
@@ -144,17 +144,12 @@ test('camp placement honours footprints: a 2×2 keeps a cell where it fits, take
   assert.equal(autoPlace([big(1)])[0].slot, slotAt(0, 3))
 })
 
-test('a piece\'s pool: count × body HP; its living bodies ⌈hp ÷ body HP⌉, falling one at a time; its bodies whole, then the one wounded, then the fallen', () => {
+test('a piece is one soul: its HP its kind\'s at its level, no count, whatever is asked of makeUnit; its summons its tiers\'', () => {
   const b = baseStats('grave_ghoul', 3).hp
   const u = makeUnit('grave_ghoul', { uid: 1, lvl: 3, count: 4 })
-  assert.deepEqual([u.count, u.hp, u.maxHp, bodyHp(u), livingBodies(u)], [4, 4 * b, 4 * b, b, 4])
-  assert.deepEqual(makeUnit('grave_ghoul', { lvl: 3 }).count, 1)
-  for (const [hp, living] of [[4 * b - 1, 4], [3 * b, 3], [3 * b - 1, 3], [2 * b + 1, 3], [b, 1], [1, 1], [0, 0]]) {
-    assert.equal(livingBodies({ ...u, hp }), living, `hp ${hp}`)
-  }
-  assert.deepEqual(bodiesHp({ ...u, hp: 2 * b + 5 }), [b, b, 5, 0])
-  assert.deepEqual(bodiesHp({ ...u, hp: 3 * b }), [b, b, b, 0])
-  assert.deepEqual(bodiesHp({ ...u, hp: 0 }), [0, 0, 0, 0])
-  // A battle unit's body is the one the battle fitted.
-  assert.equal(livingBodies({ ...u, body: 10, hp: 25 }), 3)
+  assert.deepEqual([u.count, u.hp, u.maxHp], [undefined, b, b])
+  assert.deepEqual(Object.keys(u).sort(), ['hp', 'id', 'lvl', 'maxHp', 'slot', 'tracks', 'uid'])
+  // A Bone Chanter calls none until Marrowcaller II, then that tier's (and none more past it).
+  assert.deepEqual([[0, 0], [0, 1], [0, 2], [0, 4], [2, 2]].map((tracks) => summonsOf({ id: 'bone_chanter', tracks })), [0, 0, 2, 2, 2])
+  assert.equal(summonsOf({ id: 'tomb_knight', tracks: [4, 0] }), 0)
 })

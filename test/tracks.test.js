@@ -339,11 +339,11 @@ test('a tier IV area ability waits for something in its area: the soul still att
 // The kinds whose tier IV is a Colossus tier (`size: 2`).
 const COLOSSI = Object.keys(TRACKS).filter((id) => TRACKS[id].some((t) => t.tiers[3].size === 2))
 
-// Every run starts rich in essence, so random tiers reach tier IV, Colossus tiers and added bodies, and
-// then fight; random places, stacks, splits and fusions move the bodies between pieces as they go. A soul of a kind
-// with a Colossus tier and the souls a recipe needs are among them.
-test('kinds fuzz: random tiers, stacks, splits and fusions keep the crosspath rule and the footprints, every piece of a kind holds its kind\'s, and the battle fights them', () => tuned({}, () => {
-  const seen = { iv: 0, colossus: 0, added: 0, stacked: 0, fused: 0 }
+// Every run starts rich in essence, so random tiers reach tier IV, Colossus tiers and summon tiers, and then fight;
+// random places and fusions move the pieces about as they go. A soul of a kind with a Colossus tier and the souls a
+// recipe needs are among them.
+test('kinds fuzz: random tiers, places and fusions keep the crosspath rule and the footprints, every piece of a kind holds its kind\'s, and the battle fights them with their summons', () => tuned({}, () => {
+  const seen = { iv: 0, colossus: 0, summoned: 0, fused: 0 }
   for (let i = 0; i < 24; i++) {
     const run = createRun({ seed: 'kindfuzz' + i })
     const s = run.state
@@ -362,14 +362,14 @@ test('kinds fuzz: random tiers, stacks, splits and fusions keep the crosspath ru
     apply(run, { type: 'node', id: node.id })
     for (let k = 0; k < 120; k++) {
       // A kind of action first, then one of that kind: places would drown out the rest.
-      const legal = legalActions(run).filter((a) => ['upgrade', 'place', 'stack', 'split', 'fuse'].includes(a.type))
+      const legal = legalActions(run).filter((a) => ['upgrade', 'place', 'fuse'].includes(a.type))
       if (!legal.length) break
       const type = rng.pick([...new Set(legal.map((a) => a.type))])
       apply(run, rng.pick(legal.filter((a) => a.type === type)))
       for (const [kind, st] of Object.entries(s.kinds)) {
         assert.ok(st.tracks.every((t) => t >= 0 && t <= 4) && !(st.tracks[0] > 2 && st.tracks[1] > 2), `kindfuzz${i}: ${kind} ${st.tracks}`)
         assert.equal(st.lvl, levelOf(st), `kindfuzz${i}: ${kind}'s level is its tiers'`)
-        for (const u of souls(s.party).filter((x) => x.id === kind)) assert.deepEqual([u.lvl, u.tracks, u.maxHp], [st.lvl, st.tracks, u.count * baseStats(kind, st.lvl).hp], `kindfuzz${i}: ${u.uid}`)
+        for (const u of souls(s.party).filter((x) => x.id === kind)) assert.deepEqual([u.lvl, u.tracks, u.maxHp], [st.lvl, st.tracks, baseStats(kind, st.lvl).hp], `kindfuzz${i}: ${u.uid}`)
       }
       // Every fielded piece wholly on open ground, none on another's cells, only the Monarch on the seat.
       const cells = s.party.filter((u) => u.slot >= 0).flatMap((u) => (u.id === 'monarch' ? [u.slot] : footprintSlots(u.slot, sizeOf(u)) ?? [null]))
@@ -378,14 +378,13 @@ test('kinds fuzz: random tiers, stacks, splits and fusions keep the crosspath ru
     }
     seen.fused += s.log.some((a) => a.type === 'fuse')
     for (const st of Object.values(s.kinds)) seen.iv += st.tracks.includes(4)
-    seen.stacked += souls(s.party).some((u) => u.count > 1)
-    const before = s.party.map((u) => [u.uid, u.count])
+    const before = s.party.map((u) => u.uid)
     seen.colossus += fielded(souls(s.party)).some((u) => sizeOf(u) === 2)
     apply(run, { type: 'fight' })
     const b = run.battle
-    seen.added += fielded(souls(s.party)).filter((u) => b.byUid.get(u.uid)?.count > u.count).length
-    assert.deepEqual(s.party.map((u) => [u.uid, u.count]), before, 'the run keeps its pieces and their counts')
-    assert.ok(!s.party.some((u) => u.shadow))
+    seen.summoned += b.units.filter((u) => u.summoned).length
+    assert.deepEqual(s.party.map((u) => u.uid), before, 'the run keeps its pieces, and no summon joins them')
+    assert.ok(!s.party.some((u) => u.shadow || u.summoned || 'count' in u))
   }
-  assert.ok(seen.iv && seen.colossus && seen.added && seen.stacked && seen.fused, JSON.stringify(seen))
+  assert.ok(seen.iv && seen.colossus && seen.summoned && seen.fused, JSON.stringify(seen))
 }))
