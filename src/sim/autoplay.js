@@ -1,7 +1,7 @@
 // A player for tests and balance runs: a policy that picks one action at a time for apply(). It plays at
 // one of two levels (LEVELS), on the same choices and the same scouting a player has:
 //   basic   rules of thumb: rooms by weighted dice, the strongest souls fielded in the best of three drafted
-//           formations, the first free offer (a relic, a Legendary, a tier), recruits only to fill the field,
+//           formations, in a Shop a Command relic it can pay for (pickShop), recruits only to fill the field,
 //           essence on the lowest kind's next tier (on the track it is on); it never fuses
 //   expert  plans, and has studied the combo book (BOOK, src/sim/combos.json, made by --combos): every route over
 //           the next few ranks played out; the formation drafted as the puzzle it is (zone drafts from the scouted
@@ -38,10 +38,11 @@ import {
   monarchSlot, ringOf, abilitiesOf, isBlow, armOf, ROWS
 } from './unit.js'
 import { createBattle, playOut, timelineHash, field } from './battle.js'
+import { expertTurn, basicTurn } from './policy.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
   isMonarch, monarchOf, souls, canAdvance, holds, soulCount, heldKinds, canPlace, canFuse, fuseParts, OSSUARY,
-  relicTier, levelOf, kindLevel, monarchHp, ariseOf, drawRoom, commandOf
+  relicTier, levelOf, kindLevel, monarchHp, ariseOf, drawRoom, commandOf, canBuy, isRunPath
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -79,7 +80,7 @@ const RISK = { ...ROLLOUT, seeds: 2 }
 //   fusions        never fuses (fusionOptions lists none)
 //   summons        no tier brings a summon in battle (a rules switch, as arise), and such a tier is worth only its
 //                  place on the track (worth: its summons not counted), so the essence goes elsewhere
-//   tracks         never buys a track tier, and takes nothing of a reliquary's tiers (its kinds stay at their first
+//   tracks         never buys a track tier, and takes no free tier offered (its kinds stay at their first
 //                  level: a level is its tiers')
 //   legendaries    never takes a Legendary relic but Arise (Arise is its own: arise)
 //   relics         never takes a Common, Uncommon or Rare relic (so neither HP nor Command: the field stays at
@@ -170,7 +171,7 @@ function pickNode (run, rng, L) {
   const nodes = availableNodes(run)
   if (L.rollouts && nodes.length > 1) return { type: 'node', id: pickRoute(run, L) }
   const health = partyHealth(run.state.party)
-  const w = { fight: 3, elite: health > 0.7 ? 1.5 : 0.3, reliquary: 2, altar: health < 0.6 ? 5 : 0.5, boss: 1, siege: health > 0.7 ? 1.5 : 0.3 }
+  const w = { fight: 3, elite: health > 0.7 ? 1.5 : 0.3, shop: 2, altar: health < 0.6 ? 5 : 0.5, boss: 1, siege: health > 0.7 ? 1.5 : 0.3 }
   return { type: 'node', id: rng.weighted(nodes, nodes.map((n) => w[n.type])).id }
 }
 
@@ -178,7 +179,7 @@ function pickNode (run, rng, L) {
 // quick formations and basic offers, and takes the first room of the route that ends best on average. A
 // rollout's quick formation can win a fight by luck, so first it sizes up each battle room it could walk into
 // next (RISK: every draft, the expert's too, on two rolls): a room where its best formation still loses a
-// rehearsal is walked into only when every room ahead is one. A loss ends the run; an elite's relic does not
+// rehearsal is walked into only when every room ahead is one. A loss ends the run; an elite's purse does not
 // pay for a coin flip.
 function pickRoute (run, L) {
   const start = strength(run.state)
@@ -207,7 +208,7 @@ function rollout (sim, start, depth, R, route = []) {
     const branch = i === next.length - 1 ? sim : fork(sim)
     const floor = branch.state.floor
     apply(branch, { type: 'node', id })
-    while (branch.state.phase === 'prep' || branch.state.phase === 'reap') apply(branch, policy(branch, null, R))
+    while (['prep', 'reap', 'shop'].includes(branch.state.phase)) apply(branch, policy(branch, null, R))
     const s = branch.state
     const here = [...route, id]
     if (s.phase === 'over') return [[here.join(' '), s.result === 'victory' && !s.death ? 2 : 0]]
@@ -1067,8 +1068,12 @@ const BOOK_FLOORS = [
 ]
 // The plain army: the souls a run starts with, then the kinds floor 1 meets most.
 const FILLER = ['tomb_knight', 'bone_chanter', 'frost_sprite', 'grave_ghoul', 'clockwork_page', 'will_o_wisp', 'hive_warden', 'pyre_hound', 'thorn_dryad']
-// The relics a battle reads (not the purse's, the ossuary's, nor Command or the Monarch's HP, which rehearsal weighs).
-const BATTLE_RELICS = () => RELIC_LIST.filter((r) => (r.mods || r.on || r.arise || r.rise || r.alias || r.raises || r.domain) && !r.command && !r.monarchHp).map((r) => r.id)
+// Whether relic def `r` has a mod on run-level stat path `path` (run.js RUN_PATHS).
+const gives = (r, path) => (r.mods ?? []).some((m) => m.path === path)
+// The relics a battle reads: their mods on a unit, their triggers, their rules, and Arise's reach and tier (not the
+// purse's, the ossuary's, nor Command or the Monarch's HP, which rehearsal weighs).
+const BATTLE_RELICS = () => RELIC_LIST.filter((r) => (r.mods?.some((m) => !isRunPath(m.path) || m.path.startsWith('arise.')) || r.on || r.arise || r.rise || r.alias || r.raises) &&
+  !gives(r, 'run.command') && !gives(r, 'run.monarchHp')).map((r) => r.id)
 const RECRUITED = () => UNIT_LIST.filter((u) => u.spawn && TRACKS[u.id]?.length === 2)
 
 // The book's combos, as content makes them; `cores` (id → mean gain), once ranked, picks each kin's and role's kinds.
@@ -1340,10 +1345,11 @@ const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Object.ke
 
 // ── reap ─────────────────────────────────────────────────────────────────────────────────────────
 
-// Free offers (a relic, a Legendary, a reliquary's tier) first: basic takes the first, an expert rehearses the retinue
-// each would make against the battle rooms within two steps and the floor's last room (or the room just won, at the
-// floor's end; roomsAhead), fought in a row with the Monarch's HP carried (rehearseAhead): a relic (a Legendary too, a
-// copy more of one held too) as the run holding it, an HP relic's Monarch with its HP. Then the one recruit a battle
+// Free offers (a relic, a Legendary, a tier; none laid out since relics are bought: redesign.md §2.11) first: basic
+// takes the first, an expert rehearses the retinue each would make against the battle rooms within two steps and the
+// floor's last room (or the room just won, at the floor's end; roomsAhead), fought in a row with the Monarch's HP
+// carried (rehearseAhead): a relic (a Legendary too, a copy more of one held too) as the run holding it, an HP relic's
+// Monarch with its HP. Then the one recruit a battle
 // allows: basic buys the highest tier it can afford while the field has room, an expert the soul that grows its sketch
 // most (weighRecruits). A full retinue lets its weakest soul in the ossuary go to make room.
 function pickReap (run, L) {
@@ -1429,7 +1435,7 @@ function recruit (run) {
 export function offerState (s, o) {
   if (o.type === 'relic') {
     const relics = [...s.relics, o.id]
-    const gain = relicDef(o.id).monarchHp ?? 0
+    const gain = monarchHp({ ...s, relics }) - monarchHp(s)
     if (!gain) return { relics }
     const heal = !holds(s, 'unhealable') && !relicDef(o.id).unhealable
     return { relics, party: s.party.map((u) => (isMonarch(u) ? { ...u, maxHp: monarchHp({ ...s, relics }), hp: u.hp + (heal ? gain : 0) } : u)) }
@@ -1437,6 +1443,15 @@ export function offerState (s, o) {
   if (o.type !== 'tier') return {}
   const k = afterTier(s.kinds[o.kind], o.track)
   return { kinds: { ...s.kinds, [o.kind]: k }, party: s.party.map((u) => (u.id === o.kind ? { ...u, lvl: k.lvl, tracks: k.tracks } : u)) }
+}
+
+// ── the Shop ─────────────────────────────────────────────────────────────────────────────────────
+
+// The least a Shop needs to keep the autoplayer walking, until it learns to weigh a relic against the tiers it
+// displaces (redesign.md §5 Step 5): a Command relic it can pay for and L may take, the first on the shelf, else out.
+function pickShop (run, L) {
+  const index = run.state.shop.findIndex((id, i) => id && gives(relicDef(id), 'run.command') && !banned(L, { type: 'relic', id }) && canBuy(run, i))
+  return index >= 0 ? { type: 'buy', index } : { type: 'leave' }
 }
 
 function weighOffers (run, indices, L) {
@@ -1463,6 +1478,10 @@ export function policy (run, rng, level = 'basic') {
   if (s.phase === 'map') return pickNode(run, rng, L)
   if (s.phase === 'prep') return pickPrep(run, L)
   if (s.phase === 'reap') return pickReap(run, L)
+  if (s.phase === 'shop') return pickShop(run, L)
+  // A battle on turns (TUNING.turns): the level's turn policy, an order at a time (its rehearsals stay the old
+  // battle's until the autoplayer's conversion, redesign.md §5 Step 5).
+  if (s.phase === 'battle') return (L.search ? expertTurn : basicTurn)(run.battle)[0]
   throw new Error(`no policy for phase "${s.phase}"`)
 }
 
@@ -1473,10 +1492,12 @@ export function policy (run, rng, level = 'basic') {
 export function autoplay (run, { rng = createRng(run.state.seed).stream('autoplay'), level = 'basic', onBattle = null, beforeFight = null } = {}) {
   for (let guard = 0; run.state.phase !== 'over'; guard++) {
     if (guard > 1e5) throw new Error('autoplay is stuck')
+    const was = run.state.phase
     const action = policy(run, rng, level)
     if (action.type === 'fight') beforeFight?.(run)
     apply(run, action)
-    if (action.type === 'fight') onBattle?.(run.battle, run)
+    // On turns a battle ends with an order, not with the fight that opened it.
+    if (run.state.phase !== 'battle' && (action.type === 'fight' || was === 'battle')) onBattle?.(run.battle, run)
   }
   return run
 }

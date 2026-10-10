@@ -3,21 +3,24 @@ import assert from 'node:assert/strict'
 import {
   createRun, apply, legalActions, availableNodes, replay, join, currentNode, fielded, rosterCap, fieldCap,
   MONARCH_UID, monarchOf, souls, domainOf, battleSetup, encounter, drawRoom, roomThreats,
-  foeEssence, baseField, inOssuary, OSSUARY, soulCount, canPlace, canFuse, fuseCost, fuseParts, offerGroup, onePick,
-  levelOf, kindLevel, commandOf, monarchHp, ariseOf, frontier, tierCost, floorPrice, releaseRefund
+  foeEssence, baseField, inOssuary, OSSUARY, soulCount, canPlace, canFuse, fuseCost, fuseParts,
+  levelOf, kindLevel, commandOf, monarchHp, ariseOf, frontier, tierCost, floorPrice, releaseRefund, relicPrice, canBuy, shopOffers,
+  eliteBonus, relicTier
 } from '../src/sim/run.js'
 import { createBattle, runBattle } from '../src/sim/battle.js'
 import { autoplay, policy, rehearsalBudget, LEVELS, scoreOf, planFor } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { generateFloor } from '../src/sim/map.js'
 import { TUNING } from '../src/tuning.js'
-import { tuned, FIRST_BALANCE, LEVEL_A_TIER } from './tuned.js'
+import { tuned, FIRST_BALANCE, LEVEL_A_TIER, relicMod } from './tuned.js'
 import { RELICS, UNITS, UNIT_LIST, TRACKS, FUSION_LIST, CAMP_LIST } from '../src/content.js'
 import {
   CAMP_SLOTS, COLS, campOpen, isWall, abilitiesOf, auraOf, statsOf, slotAt, rowOf, colOf, baseStats, makeUnit, canTrack,
   sizeOf, footprintSlots, fits, monarchSlot, isMonarchCell
 } from '../src/sim/unit.js'
 import { visit, win } from './rooms.js'
+import { legalOrders } from '../src/sim/turns.js'
+import { basicTurn, expertTurn } from '../src/sim/policy.js'
 
 const play = (seed) => autoplay(createRun({ seed }), { rng: createRng(seed).stream('autoplay') })
 
@@ -281,47 +284,148 @@ test('a piece that falls in a won battle goes to the ossuary: its cell and Comma
   assert.ok([...Array(CAMP_SLOTS).keys()].some((slot) => canPlace(won, u, slot)))
 })
 
-test('a reliquary (the rite merged into it) offers distinct relics and free next tiers, no Legendary on floor 1, one pick in all; taking one keeps it and ends the room, skipping takes nothing', () => {
-  const run = createRun({ seed: 'gold' })
+// ── the Shop (redesign.md §2.11) ─────────────────────────────────────────────────────────────────
+
+// Walks into a Shop on `floor` with `essence` in the purse.
+function shopAt (seed, floor = 1, essence = 0) {
+  const run = createRun({ seed })
+  run.state.floor = floor
+  run.state.essence = essence
+  visit(run, 'shop')
+  return run
+}
+const isCommand = (id) => relicMod(id, 'run.command') > 0
+
+test('a Shop stocks distinct relics, one always a Command relic, no Legendary on floor 1 and one from floor 2; nothing else is sold', () => {
+  for (let k = 0; k < 40; k++) {
+    for (const floor of [1, 2, 4]) {
+      const run = shopAt('stock' + k, floor)
+      const s = run.state
+      assert.equal(s.phase, 'shop')
+      assert.equal(s.shop.length, TUNING.shop.relics, `${k} floor ${floor}`)
+      assert.equal(new Set(s.shop).size, s.shop.length, 'never the same relic twice on one shelf')
+      assert.ok(s.shop.every((id) => RELICS[id] && (!RELICS[id].needsArise || s.relics.includes('arise'))), JSON.stringify(s.shop))
+      assert.ok(s.shop.some((id) => isCommand(id) && relicTier(id) !== 'legendary'), `a Command relic: ${s.shop}`)
+      assert.equal(s.shop.filter((id) => relicTier(id) === 'legendary').length, floor >= TUNING.relic.legendary.fromFloor ? 1 : 0, `${s.shop}`)
+      assert.deepEqual(new Set(legalActions(run).map((a) => a.type)), new Set(['leave', ...(souls(s.party).length > 1 ? ['release'] : [])]), 'an empty purse buys nothing')
+    }
+  }
+  // No room is a reliquary (nor a rite) any more, on any floor.
+  for (let floor = 1; floor <= TUNING.run.floors; floor++) assert.ok(!generateFloor({ seed: 'gold', floor }).nodes.some((n) => ['rite', 'reliquary'].includes(n.type)))
+})
+
+test('a Shop sells any number of its relics while the purse allows, a bought slot gone; a buy it cannot pay for is refused; leaving is free', () => {
+  const run = shopAt('buy-any')
   const s = run.state
-  visit(run, 'reliquary')
-  const offers = s.offers.slice()
-  assert.equal(s.phase, 'reap')
-  assert.ok(onePick(run))
-  const relics = offers.filter((o) => o.type === 'relic')
-  const tiers = offers.filter((o) => o.type === 'tier')
-  assert.equal(relics.length, TUNING.relic.offer.reliquary)
-  assert.ok(relics.every((o) => RELICS[o.id] && o.tier === RELICS[o.id].tier && o.tier !== 'legendary'))
-  assert.equal(new Set(relics.map((o) => o.id)).size, relics.length)
-  assert.equal(tiers.length, Math.min(TUNING.relic.offer.tiers, 3), 'a tier for each start kind')
-  assert.ok(tiers.every((o) => canTrack(s.kinds[o.kind].tracks, o.track)))
-  assert.equal(new Set(tiers.map((o) => o.kind)).size, tiers.length)
-  assert.deepEqual(offers.map((o) => o.type), [...relics.map(() => 'relic'), ...tiers.map(() => 'tier')], 'its relics, then its tiers')
-  // A relic: kept; the tiers go with the others.
-  apply(run, { type: 'reap', index: 1 })
-  assert.deepEqual([s.relics, s.offers, s.phase], [[offers[1].id], [], 'map'])
-  // A tier: free, the kind's every soul holds it (and the level it gives); the relics go.
-  visit(run, 'reliquary')
-  const index = s.offers.findIndex((o) => o.type === 'tier')
-  const o = s.offers[index]
+  const stock = s.shop.slice()
+  const prices = stock.map((id) => relicPrice(run, id))
+  assert.deepEqual(shopOffers(run).map((o) => [o.index, o.id, o.tier, o.cost]), stock.map((id, i) => [i, id, relicTier(id), prices[i]]))
+  // An empty purse: every buy refused, nothing changes.
+  assert.ok(!canBuy(run, 0))
+  assert.throws(() => apply(run, { type: 'buy', index: 0 }), /not enough essence/)
+  assert.deepEqual([s.shop, s.relics, s.essence], [stock, [], 0])
+  // Enough for all but the dearest: every one it can pay for, one after another, each slot emptied as it sells.
+  const order = stock.map((_, i) => i).sort((a, b) => prices[a] - prices[b])
+  s.essence = prices.reduce((n, p) => n + p, 0) - 1
+  for (const i of order.slice(0, -1)) {
+    assert.ok(legalActions(run).some((a) => a.type === 'buy' && a.index === i))
+    apply(run, { type: 'buy', index: i })
+    assert.equal(s.shop[i], null)
+    assert.equal(shopOffers(run)[i], null)
+  }
+  assert.deepEqual(s.relics, order.slice(0, -1).map((i) => stock[i]))
+  assert.equal(s.essence, prices[order.at(-1)] - 1)
+  assert.equal(s.stats.spent, prices.reduce((n, p) => n + p, 0) - prices[order.at(-1)])
+  assert.throws(() => apply(run, { type: 'buy', index: order.at(-1) }), /not enough essence/, 'the dearest is out of reach')
+  assert.throws(() => apply(run, { type: 'buy', index: order[0] }), /no relic in slot/, 'a bought slot is gone')
+  assert.ok(!legalActions(run).some((a) => a.type === 'buy'))
+  // Leaving: free, and on to the map; the stock left on the shelf goes with the room.
   const essence = s.essence
-  apply(run, { type: 'reap', index })
-  const tracks = [0, 0].map((x, i) => (i === o.track ? 1 : 0))
-  assert.deepEqual([s.kinds[o.kind].tracks, s.party.find((x) => x.id === o.kind).tracks, s.kinds[o.kind].lvl, s.essence, s.relics.length, s.phase],
-    [tracks, tracks, levelOf({ tracks }), essence, 1, 'map'])
-  // Skipping takes nothing.
-  visit(run, 'reliquary')
-  apply(run, { type: 'reap', index: null })
-  assert.equal(s.relics.length, 1)
-  // From floor 2 its Legendaries come too, in the same one pick.
-  s.floor = 2
-  visit(run, 'reliquary')
-  assert.equal(s.offers.filter((x) => offerGroup(x) === 'legendary').length, TUNING.relic.legendary.offer)
-  assert.ok(s.offers.some((x) => x.type === 'tier') && s.offers.some((x) => offerGroup(x) === 'relic'))
-  apply(run, { type: 'reap', index: s.offers.findIndex((x) => offerGroup(x) === 'legendary') })
-  assert.deepEqual([s.relics.length, s.offers, s.phase], [2, [], 'map'])
-  // No room is a rite any more, on any floor.
-  for (let floor = 1; floor <= TUNING.run.floors; floor++) assert.ok(!generateFloor({ seed: 'gold', floor }).nodes.some((n) => n.type === 'rite'))
+  apply(run, { type: 'leave' })
+  assert.deepEqual([s.phase, s.shop, s.essence], ['map', [], essence])
+  assert.throws(() => apply(run, { type: 'buy', index: 0 }), /needs phase shop/)
+  // A Command relic bought widens the field at once; an HP relic raises the Monarch's max HP and heals it by as much.
+  const more = shopAt('buy-more', 1, 1000)
+  more.state.shop = ['grave_banner', 'phylactery']
+  monarchOf(more.state).hp = 100
+  apply(more, { type: 'buy', index: 0 })
+  apply(more, { type: 'buy', index: 1 })
+  assert.deepEqual([fieldCap(more), monarchOf(more.state).maxHp, monarchOf(more.state).hp],
+    [TUNING.party.field + 1, TUNING.monarch.hp + relicMod('phylactery', 'run.monarchHp'), 100 + relicMod('phylactery', 'run.monarchHp')])
+  checkState(more.state)
+})
+
+test('a relic\'s price is its tier\'s, scaled by the floor and cut by the relics that cut it', () => {
+  for (const floor of [1, 2, 3, 4, 6]) {
+    const run = shopAt('price', floor)
+    for (const r of [RELICS.whetstone, RELICS.war_drum, RELICS.grave_banner, RELICS.arise]) {
+      assert.equal(relicPrice(run, r.id), Math.round(TUNING.shop.price[r.tier] * floorPrice(floor)), `${r.id} floor ${floor}`)
+    }
+  }
+  assert.ok(relicPrice(shopAt('price', 3), 'whetstone') > relicPrice(shopAt('price', 1), 'whetstone'))
+  // A relic that cuts a relic's price (`price.relic`; none is content yet), a copy at a time, never below 1.
+  RELICS.test_haggle = { id: 'test_haggle', tier: 'common', name: 'Haggle', desc: '', mods: [{ path: 'price.relic', op: 'add', v: -0.25 }] }
+  try {
+    const run = shopAt('price', 2)
+    const full = TUNING.shop.price.rare * floorPrice(2)
+    run.state.relics = ['test_haggle']
+    assert.equal(relicPrice(run, 'grave_banner'), Math.round(full * 0.75))
+    run.state.relics = ['test_haggle', 'test_haggle']
+    assert.equal(relicPrice(run, 'grave_banner'), Math.round(full * 0.5))
+    run.state.relics = Array(5).fill('test_haggle')
+    assert.equal(relicPrice(run, 'grave_banner'), 1)
+    // The other price cuts are not a relic's.
+    run.state.relics = ['rite_candle', 'grave_ledger', 'binding_chain']
+    assert.equal(relicPrice(run, 'grave_banner'), Math.round(full))
+  } finally {
+    delete RELICS.test_haggle
+  }
+})
+
+test('a won elite pays its bonus on top of its foes\' pay, lays out no relic, and offers its recruit like any fight', () => {
+  for (const floor of [1, 2]) {
+    const run = win('elite-pay', (r) => { r.state.floor = floor }, 'elite')
+    const s = run.state
+    const pay = run.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+    assert.equal(eliteBonus(floor), Math.round(TUNING.essence.eliteBonus * floorPrice(floor)))
+    assert.equal(s.stats.essence, Math.round(pay + eliteBonus(floor)), `floor ${floor}`)
+    assert.equal(s.essence, TUNING.essence.start + s.stats.essence)
+    assert.ok(s.offers.length > 0 && s.offers.every((o) => o.type === 'soul'), JSON.stringify(s.offers))
+    assert.deepEqual(s.relics, [])
+    apply(run, { type: 'reap', index: null })
+    assert.deepEqual([s.phase, s.relics], ['map', []])
+  }
+  // A fight pays no bonus; Tithe Bowl's share counts the bonus too.
+  const fight = win('elite-pay')
+  const paid = fight.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+  assert.equal(fight.state.stats.essence, Math.round(paid))
+  const bowl = win('elite-pay', (r) => { r.state.relics = ['tithe_bowl'] }, 'elite')
+  const foes = bowl.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+  assert.equal(bowl.state.stats.essence, Math.round((foes + eliteBonus(1)) * (1 + relicMod('tithe_bowl', 'essence.gain'))))
+})
+
+test('a run that buys in a Shop replays exactly: the stock is drawn from the seed and the room', () => {
+  const run = createRun({ seed: 'shop-replay' })
+  const s = run.state
+  const node = availableNodes(run)[0]
+  node.type = 'shop'
+  // Outside the log: the room made a Shop and the purse filled, so the replay below is given the same.
+  s.essence = 500
+  s.log = []
+  apply(run, { type: 'node', id: node.id })
+  const stock = s.shop.slice()
+  const a = legalActions(run).find((x) => x.type === 'buy')
+  apply(run, a)
+  apply(run, legalActions(run).find((x) => x.type === 'buy') ?? { type: 'leave' })
+  if (s.phase === 'shop') apply(run, { type: 'leave' })
+  const again = createRun({ seed: 'shop-replay' })
+  again.state.map.nodes.find((n) => n.id === node.id).type = 'shop'
+  again.state.essence = 500
+  apply(again, s.log[0])
+  assert.deepEqual(again.state.shop, stock, 'the same stock')
+  for (const x of s.log.slice(1)) apply(again, x)
+  assert.deepEqual(again.state, s)
+  assert.ok(s.relics.length >= 1)
 })
 
 test('a won fight pays essence and puts one soul per kind slain up for sale; one may be recruited', () => {
@@ -379,28 +483,16 @@ test('essence buys a kind its track tiers, and with them its level; never a leve
   assert.equal(s.stats.spent, 5000 - s.essence)
 }))
 
-test('releasing the last soul of a kind in a reliquary withdraws its kind\'s tier, and a reliquary left with nothing ends', () => {
-  const run = createRun({ seed: 'rite-release' })
+test('a soul may be let go in a Shop, for its refund, and the Shop stays open with its stock', () => {
+  const run = shopAt('shop-release')
   const s = run.state
   join(run, s.party[1].id)
-  visit(run, 'reliquary')
-  const ofKind = (kind) => s.party.filter((u) => u.id === kind)
-  const tiers = s.offers.filter((o) => o.type === 'tier')
-  const [first, ...rest] = tiers
-  const all = s.offers.slice()
-  // A second soul of the kind keeps the offer; the last one takes it away; the relics stay.
-  if (ofKind(first.kind).length > 1) {
-    apply(run, { type: 'release', uid: ofKind(first.kind)[0].uid })
-    assert.deepEqual(s.offers, all)
-  }
-  apply(run, { type: 'release', uid: ofKind(first.kind)[0].uid })
-  assert.deepEqual(s.offers, all.filter((o) => o !== first))
-  for (const o of rest) for (const u of ofKind(o.kind)) if (souls(s.party).length > 1) apply(run, { type: 'release', uid: u.uid })
-  assert.ok(s.offers.every((o) => o.type === 'relic' || ofKind(o.kind).length))
-  // With only tiers laid out, the last kind's release ends the room.
-  s.offers = s.offers.filter((o) => o.type === 'tier')
-  for (const o of s.offers.slice()) for (const u of ofKind(o.kind)) if (souls(s.party).length > 1) apply(run, { type: 'release', uid: u.uid })
-  assert.equal(s.phase, s.offers.length ? 'reap' : 'map')
+  const stock = s.shop.slice()
+  const u = souls(s.party).at(-1)
+  const refund = releaseRefund(run, u)
+  assert.ok(legalActions(run).some((a) => a.type === 'release' && a.uid === u.uid))
+  apply(run, { type: 'release', uid: u.uid })
+  assert.deepEqual([s.phase, s.shop, s.essence], ['shop', stock, refund])
 })
 
 test('a full retinue must release a soul before it can recruit', () => {
@@ -512,39 +604,27 @@ test('the autoplayer carries out its plan before it fights: every piece in its p
   }
 })
 
-// The expert weighs a Command relic as it weighs any relic, by rehearsing the fights ahead with the run holding it:
-// with two souls waiting it beats a relic that changes no battle (Binding Chain: a recruit's price). It fields its
-// strongest souls, so a soul waits only behind souls as strong: here a fresh run's five, each at its kind's level, for
-// three places, against floor 1's fights ahead, where the fourth piece is the difference between losing rooms and
-// winning.
-test('the expert weighs a Command relic by rehearsal: the place it adds for souls that wait beats a relic that changes no battle', () => {
-  const rng = createRng('wish').stream('autoplay')
-  const offers = [{ type: 'relic', id: 'binding_chain', tier: 'common', name: '', desc: '' }, { type: 'relic', id: 'grave_banner', tier: 'rare', name: '', desc: '' }]
-  const waiting = createRun({ seed: 'wish' })
-  visit(waiting, 'fight')
-  for (const id of ['grave_ghoul', 'frost_sprite']) join(waiting, id)
-  assert.equal(new Set(souls(waiting.state.party).map((u) => u.lvl)).size, 1, 'the souls waiting as strong as those fielded')
-  assert.deepEqual([fieldCap(waiting), souls(waiting.state.party).filter((u) => u.slot < 0).length], [3, 2])
-  Object.assign(waiting.state, { phase: 'reap', offers: offers.slice() })
-  assert.deepEqual(policy(waiting, rng, 'expert'), { type: 'reap', index: 1 })
-  apply(waiting, { type: 'reap', index: 1 })
-  assert.equal(fieldCap(waiting), 4)
-})
-
-// Basic takes the first free offer, whatever it is: a Command relic too, and then it fields a soul that waited.
-test('basic takes the first free offer, a Command relic too, and fields the souls waiting for the place it adds', () => {
-  const b = createRun({ seed: 'command' })
-  const s = b.state
-  const rng = createRng('command').stream('autoplay')
-  join(b, 'grave_ghoul')
-  join(b, 'grave_ghoul')
-  Object.assign(s, { phase: 'reap', offers: [{ type: 'relic', id: 'grave_banner', tier: 'rare', name: '', desc: '' }, { type: 'relic', id: 'whetstone', tier: 'common', name: '', desc: '' }] })
-  assert.deepEqual(policy(b, rng, 'basic'), { type: 'reap', index: 0 })
-  apply(b, { type: 'reap', index: 0 })
-  assert.deepEqual([s.relics, s.phase], [['grave_banner'], 'map'])
-  visit(b, 'fight')
-  for (let action; (action = policy(b, rng, 'basic')).type !== 'fight';) apply(b, action)
-  assert.deepEqual([fieldCap(b), fielded(souls(s.party)).length, soulCount(s.party)], [4, 4, 5])
+// In a Shop both levels buy a Command relic they can pay for, and nothing else (autoplay.js pickShop: the least that
+// keeps them walking until the expert learns to weigh a relic against the tiers it displaces, redesign.md §5 Step 5);
+// the place it adds fields a soul that waited.
+test('in a Shop the autoplayer buys a Command relic it can pay for, then leaves, and fields the soul waiting for the place it adds', () => {
+  for (const level of ['basic', 'expert']) {
+    const b = shopAt('command')
+    const s = b.state
+    const rng = createRng('command').stream('autoplay')
+    join(b, 'grave_ghoul')
+    s.shop = ['whetstone', 'grave_banner']
+    assert.deepEqual(policy(b, rng, level), { type: 'leave' }, `${level}: an empty purse buys nothing`)
+    s.essence = relicPrice(b, 'grave_banner') + relicPrice(b, 'whetstone')
+    assert.deepEqual(policy(b, rng, level), { type: 'buy', index: 1 }, level)
+    apply(b, { type: 'buy', index: 1 })
+    assert.deepEqual(policy(b, rng, level), { type: 'leave' }, `${level}: and nothing but Command`)
+    apply(b, { type: 'leave' })
+    assert.deepEqual([s.relics, s.phase], [['grave_banner'], 'map'])
+    visit(b, 'fight')
+    for (let action; (action = policy(b, rng, level)).type !== 'fight';) apply(b, action)
+    assert.deepEqual([fieldCap(b), fielded(souls(s.party)).length, soulCount(s.party)], [4, 4, 4], level)
+  }
 })
 
 test('a rehearsal scores a fallen Monarch as a loss, whoever else stands, a win by what it keeps after the heal, and leaves shadows out', () => {
@@ -605,7 +685,7 @@ test('the autoplayer rehearses and plays ahead without touching the run', () => 
         apply(run, action)
       }
     }
-    assert.deepEqual([...seen].sort(), ['map', 'prep', 'reap'], level)
+    assert.ok(['map', 'prep', 'reap'].every((p) => seen.has(p)) && [...seen].every((p) => ['map', 'prep', 'reap', 'shop'].includes(p)), `${level}: ${[...seen]}`)
   }
 })
 
@@ -667,7 +747,7 @@ test('no Monarch points: no action buys it anything; its HP and Command are its 
   assert.equal(fieldCap(run), TUNING.party.field + 3)
   assert.equal(commandOf(s), baseField(s) + 3)
   const a = ariseOf(s)
-  assert.deepEqual([a.copies, a.domain, domainOf(s)], [2, TUNING.arise.domain + TUNING.arise.more.domain + RELICS.court_of_bone.domain, a.domain])
+  assert.deepEqual([a.copies, a.domain, domainOf(s)], [2, TUNING.arise.domain + TUNING.arise.more.domain + relicMod('court_of_bone', 'arise.domain'), a.domain])
   visit(run, 'fight')
   const setup = battleSetup(run)
   assert.deepEqual([setup.domain, setup.relics.filter((id) => id === 'arise').length, setup.nextUid], [domainOf(s), 2, s.nextUid + setup.foes.length])
@@ -1210,14 +1290,14 @@ test('legalActions lists one fuse a recipe that can be made, of its canonical pa
 // ── fuzz: random legal actions, invariants after every one, replay at the end ──────────────────
 
 function checkState (s) {
-  assert.ok(['map', 'prep', 'reap', 'over'].includes(s.phase), s.phase)
+  assert.ok(['map', 'prep', 'reap', 'shop', 'over'].includes(s.phase), s.phase)
   const all = souls(s.party)
   assert.ok(all.length >= 1 && soulCount(s.party) <= TUNING.party.roster + 3 * s.relics.filter((r) => r === 'ossuary_key').length)
   assert.ok(Number.isInteger(s.essence) && s.essence >= 0, `essence ${s.essence}`)
   assert.equal(new Set(s.party.map((u) => u.uid)).size, s.party.length, 'unique uids')
   assert.ok(s.party.every((u) => u.uid < s.nextUid || u.uid === MONARCH_UID), 'uids below nextUid')
   checkField(s)
-  const command = s.relics.reduce((n, id) => n + (RELICS[id].command ?? 0), 0)
+  const command = s.relics.reduce((n, id) => n + relicMod(id, 'run.command'), 0)
   assert.equal(commandOf(s), baseField(s) + command)
   assert.ok(fielded(all).length <= commandOf(s), 'field cap')
   // The Monarch: one, always on its camp's seat, with no level and no points: its max HP its base and its HP relics';
@@ -1246,26 +1326,25 @@ function checkState (s) {
   }
   assert.ok(Number.isInteger(m[0].hp) && m[0].hp >= 0 && m[0].hp <= m[0].maxHp)
   // The army is souls, a piece each: no muster or binds kept; no shadow or boss ever in the retinue (the ossuary is the
-  // pieces off the field); the offers are souls, relics (Legendaries among them) and tiers.
+  // pieces off the field); the spoils' offers are souls alone (relics are bought: redesign.md §2.11).
   for (const k of ['ossuary', 'muster', 'freeBinds']) assert.ok(!(k in s), k)
   for (const u of all) assert.ok(!UNITS[u.id].boss && !u.shadow && !('cohort' in u), u.id)
-  assert.ok(s.offers.every((o) => ['soul', 'relic', 'tier'].includes(o.type)), JSON.stringify(s.offers))
+  assert.ok(s.offers.every((o) => o.type === 'soul'), JSON.stringify(s.offers))
   assert.ok(fieldCap({ state: s }) <= TUNING.army.board)
   // No lines, no detachments: a piece holds its cell.
   assert.ok(!('detachments' in s) && !('lines' in s))
-  // Relics: known, as many copies as taken (no cap); an offer is a known relic of its tier, one that needs Arise
-  // only once it is held; nothing bought for the Monarch, no level bought.
+  // Relics: known, as many copies as bought (no cap); a Shop's shelf (only while in one) holds known relics, or null
+  // where one sold, one that needs Arise only once it is held; nothing bought for the Monarch, no level bought.
   assert.ok(s.relics.every((id) => RELICS[id]), JSON.stringify(s.relics))
-  for (const o of s.offers.filter((x) => x.type === 'relic')) {
-    assert.ok(RELICS[o.id] && o.tier === RELICS[o.id].tier && (!RELICS[o.id].needsArise || s.relics.includes('arise')), JSON.stringify(o))
-  }
+  assert.ok(s.phase === 'shop' || s.shop.length === 0, JSON.stringify(s.shop))
+  for (const id of s.shop.filter(Boolean)) assert.ok(RELICS[id] && (!RELICS[id].needsArise || s.relics.includes('arise')), id)
   assert.ok(!s.log.some((a) => a.type === 'monarch' || a.type === 'level'), 'no Monarch points, no levels bought')
 }
 
 
 // A steady hand, standing in for a player (the autoplayer is tested on its own): it makes any fusion it can, walks
-// to a random room, fields a piece from the ossuary or buys a tier now and then before it fights, and takes the
-// first offer it can afford.
+// to a random room, fields a piece from the ossuary or buys a tier now and then before it fights, recruits the first
+// soul it can afford, and in a Shop buys the first relic it can pay for until it can pay for none, then leaves.
 function steady (run, rng) {
   const s = run.state
   const legal = legalActions(run)
@@ -1329,10 +1408,10 @@ function fuzz (seed, k, seen, fought = () => {}, offered = { legendaries: 0 }) {
     assert.ok(steps < 1e5, 'stuck')
     const legal = legalActions(run)
     assert.ok(legal.length > 0)
-    const isLegendary = (a) => a.type === 'reap' && a.index !== null && offerGroup(run.state.offers[a.index]) === 'legendary'
+    const isLegendary = (a) => a.type === 'buy' && relicTier(run.state.shop[a.index]) === 'legendary'
     if (legal.some(isLegendary)) offered.legendaries++
-    // A Legendary on offer is taken half the time (the steady hand would take a soul or a relic first), so the runs
-    // that reach one carry Legendaries into their battles.
+    // A Legendary a Shop sells that the purse can pay for is bought half the time (the steady hand buys the first it
+    // can), so the runs that reach one carry Legendaries into their battles.
     const legendary = legal.find(isLegendary)
     const action = legendary && rng.chance(0.5) ? legendary : rng.chance(0.2) ? anyLegal(legal, rng) : steady(run, rng)
     seen.add(action.type)
@@ -1369,9 +1448,89 @@ test('fuzz: 120 runs of random legal actions keep every invariant, cover every a
     assert.deepEqual(rebuilt(run, k).state, run.state)
   }
   assert.ok(Object.keys(results).length > 1, `fuzz runs should end on different floors: ${JSON.stringify(results)}`)
-  // Legendaries come from floor 2's elites and rites: those offered are taken.
+  // Legendaries come from Shops from floor 2: those the purse could pay for are bought.
   assert.ok(!offered.legendaries || legendaries > 0, `Legendaries offered ${offered.legendaries} times, taken ${legendaries}: ${JSON.stringify(results)}`)
   // Every action the run has (tracks.test.js fuzzes the levels and tiers harder).
-  assert.deepEqual([...seen].sort(), ['fight', 'fuse', 'node', 'place', 'reap', 'release', 'upgrade'])
+  assert.deepEqual([...seen].sort(), ['buy', 'fight', 'fuse', 'leave', 'node', 'place', 'reap', 'release', 'upgrade'])
   assert.ok(big > 0, 'a 2×2 piece fought')
+})
+
+// ── the battle on turns (redesign.md §2.3: TUNING.turns) ─────────────────────────────────────────
+
+// Runs fn with the battle on turns, restoring the switch after.
+function onTurns (fn) {
+  const was = TUNING.turns
+  TUNING.turns = true
+  try {
+    return fn()
+  } finally {
+    TUNING.turns = was
+  }
+}
+
+// A new run walked into the first battle room it can reach (by the log: replay walks it too).
+function atBattle (seed) {
+  const run = createRun({ seed })
+  const node = availableNodes(run).find((n) => ['fight', 'elite'].includes(n.type))
+  apply(run, { type: 'node', id: node.id })
+  return run
+}
+
+test('on turns a fight opens the battle: its orders are the run\'s actions, each returning its events, and the run replays exactly', () => {
+  onTurns(() => {
+    for (const [k, turn] of [basicTurn, expertTurn].entries()) {
+      const run = atBattle(`turnsrun${k}`)
+      assert.equal(apply(run, { type: 'fight' }), undefined)
+      assert.equal(run.state.phase, 'battle')
+      assert.deepEqual(legalActions(run), legalOrders(run.battle))
+      assert.throws(() => apply(run, { type: 'release', uid: souls(run.state.party)[0].uid }), 'no other action in battle')
+      while (run.state.phase === 'battle') {
+        for (const o of turn(run.battle)) {
+          const events = apply(run, o)
+          assert.ok(Array.isArray(events) && events.length > 0, JSON.stringify(o))
+          if (run.state.phase !== 'battle') break
+        }
+      }
+      assert.ok(['reap', 'over'].includes(run.state.phase), run.state.phase)
+      assert.ok(run.battle.over && run.state.log.some((a) => a.type === 'end'))
+      const again = replay(run.state.seed, run.state.log)
+      assert.deepEqual(again.battle.events, run.battle.events)
+      assert.deepEqual(again.state, run.state)
+    }
+  })
+})
+
+test('on turns a fusion in battle pays from the purse, its parts leave the party, its piece joins it and its kind', () => {
+  onTurns(() => {
+    const run = atBattle('fusebattle')
+    const s = run.state
+    join(run, 'tomb_knight')
+    const [a, b] = souls(s.party).filter((u) => u.id === 'tomb_knight')
+    const c = souls(s.party).find((u) => u.id === 'bone_chanter')
+    for (const u of souls(s.party)) u.slot = OSSUARY
+    // Two Knights side by side, the Chanter before the first, and the fourth cell of the Colossus's 2×2 open.
+    const slot = [...Array(CAMP_SLOTS).keys()].find((x) => rowOf(x) > 0 && fits(s.camp, x, 2, new Set([monarchSlot(s.camp)])))
+    Object.assign(a, { slot })
+    Object.assign(b, { slot: slot + 1 })
+    Object.assign(c, { slot: slot - COLS })
+    s.essence = 200
+    const spent = s.stats.spent
+    const earned = s.stats.essence
+    apply(run, { type: 'fight' })
+    const o = legalActions(run).find((x) => x.type === 'fuse' && x.uid === a.uid)
+    assert.deepEqual([o.id, [...o.parts].sort((x, y) => x - y)], ['bone_colossus', [a.uid, b.uid, c.uid].sort((x, y) => x - y)])
+    const price = run.setup.fuse.bone_colossus.price
+    assert.equal(price, fuseCost(run, 'bone_colossus'))
+    apply(run, o)
+    assert.equal(run.battle.purse, 200 - price)
+    while (s.phase === 'battle') apply(run, { type: 'end' })
+    assert.equal(s.stats.spent, spent + price)
+    assert.equal(s.essence, 200 - price + s.stats.essence - earned)
+    for (const uid of o.parts) assert.ok(!s.party.some((u) => u.uid === uid), `part ${uid} gone`)
+    const piece = s.party.find((u) => u.uid === run.battle.fused[0].uid)
+    assert.ok(piece && piece.id === 'bone_colossus')
+    assert.deepEqual([piece.lvl, piece.tracks], [s.kinds.bone_colossus.lvl, s.kinds.bone_colossus.tracks])
+    assert.ok(piece.lvl >= kindLevel(s, 'tomb_knight'))
+    assert.equal(piece.slot, piece.hp > 0 ? slot : OSSUARY, 'on the fuser\'s cell, or fallen')
+  })
 })

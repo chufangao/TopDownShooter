@@ -1,12 +1,15 @@
 // Phaser, used for battles only: the one Phaser Game, the scene that loads the unit and prop pictures and
 // makes the FX textures, the battle scene, and the timeline player that turns sim events into tweens and
-// FX. It never decides anything: it steps a battle that takes no input and plays back what the sim emitted.
+// FX. It never decides anything: on the old battle it steps a battle that takes no input and plays back what the sim
+// emitted; on turns (TUNING.turns) it takes the player's taps as orders (args.order: the run applies each) and plays
+// back the events each one made, the foes' turn among them.
 import Phaser from './vendor/phaser.js'
 import { TUNING } from './tuning.js'
-import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES } from './content.js'
+import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, FUSIONS } from './content.js'
 import { stepBattle, nextCost, rulesOf, escalation } from './sim/battle.js'
+import { reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, deadline, nextWave } from './sim/turns.js'
 import { foeEssence } from './sim/run.js'
-import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, footprint } from './sim/unit.js'
+import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, footprint, alive, isBlow } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy } from './dom.js'
 import { frame } from './frame.js'
@@ -28,12 +31,12 @@ export function createEngine (parent) {
     game,
     // Resolves once the pictures are loaded (the prep board, board.js, waits on it too).
     ready: loaded,
-    // data: { battle (fresh, from createBattle), title, stage() (the viewport rect the board fits in), hud (the
-    // chrome's words: start, hp, announce), onChange(state), onHover(unit | null, rect, pin),
-    // onDone(), essence (what the purse multiplies a slain foe's essence by: 1 + the relics'), seamless (the prep
-    // board fades into it: no fade in from black),
-    // death (what felled the Monarch, codex.js deathText, for the end's replay beat) }. Resolves with the scene
-    // once built.
+    // data: { battle (fresh, from createBattle; on turns the run's own, run.battle), title, stage() (the viewport
+    // rect the board fits in), hud (the chrome's words: start, hp, announce), onChange(state), onHover(unit | null,
+    // rect, pin), onDone(), essence (what the purse multiplies a slain foe's essence by), seamless (the prep board
+    // fades into it: no fade in from black), death() (what felled the Monarch, codex.js deathText, for the end's
+    // replay beat, or null), and on turns: turns (true), order(o) (gives an order, returns its events; throws on an
+    // illegal one) }. Resolves with the scene once built.
     async battle (data) {
       await loaded
       return new Promise((resolve) => game.scene.start('Battle', { ...data, onReady: resolve }))
@@ -359,6 +362,11 @@ export function drawGround (scene) {
 // outcome was fixed when it began.
 
 const WALK_MS = 300
+const STEP_MS = 190     // on turns, a tile of a move's path
+// On turns, a skill's cooldown pip under a piece's bars: lit (the Monarch's gold) once ready, `rest` while it rests.
+const PIP = { w: 7, h: 4, step: 9, rest: 0x3a3258 }
+// On turns: a tap moves no more than this (CSS px) between press and release, and the ground's marks (plan).
+const TAP_SLOP = 10
 const SCALE = 0.95      // world px per unit of a picture's viewBox
 const WALL_SCALE = 1
 const BREATH = 0.014    // idle breathing: the share of its height a unit swells by
@@ -396,9 +404,17 @@ class BattleScene extends Phaser.Scene {
   init (data) {
     this.args = data
     this.battle = data.battle
+    // On turns: no clock to step; the playback runs on its own time (TimelinePlayer, by beat), and between orders
+    // the board waits for the player. `sel`: the piece selected ({ uid, ability: the act armed, aim: the target
+    // previewed, reach: its Move range, targets }); `waiting`: an order's events still playing (input locked);
+    // `clock`: the turn, the last turn before the cap and the next wave, as the playback last announced them.
+    this.turns = !!data.turns
     this.speed = 1
     this.paused = false
-    this.playMs = this.battle.t * TUNING.tick.ms
+    this.playMs = this.turns ? 0 : this.battle.t * TUNING.tick.ms
+    this.sel = null
+    this.waiting = false
+    this.clock = this.turns ? { turn: this.battle.turn, cap: deadline(this.battle), next: nextWave(this.battle) } : null
     this.ending = false
     this.hover = null
     // The end's replay beat (finish), drawn each frame once the battle is lost (drawEnd).
@@ -459,8 +475,12 @@ class BattleScene extends Phaser.Scene {
       template: (id) => animDef(id),
       actorOf: (uid) => this.actors.get(uid),
       tickMs: TUNING.tick.ms,
+      beats: this.turns,
       onEvent: (ev, inAction, seq) => this.applyEvent(ev, inAction, seq)
     })
+    // On turns: what the selection lights (plan), under the units, and the preview's numbers over them.
+    this.planG = this.add.graphics().setDepth(-390)
+    this.aimMarks = []
     // battle:start is already in battle.events; anything after it has not been played.
     this.player.enqueue(this.battle.events.slice(this.battle.events.indexOf(start) + 1))
     this.player.setSpeed(this.speed)
@@ -469,8 +489,11 @@ class BattleScene extends Phaser.Scene {
     this.scale.on('resize', this.fit, this)
     // By touch a unit's card comes by a long press on it, pinned (dom.js hold), never by a finger passing over; a
     // mouse's click pins it too, so its details open by More ▾ and never need Shift.
+    // On turns a tap (a click, or a finger lifted where it went down) gives orders (tap); a long press still pins the
+    // card, and a mouse reads it on the hover.
     const canvas = this.game.canvas
     const press = (e) => {
+      if (this.turns) return this.down(e)
       if (e.pointerType !== 'touch') { if (e.button === 0) this.pressAt(e.clientX, e.clientY, this.hover) } else if (e.isPrimary) hold(e, () => this.pressAt(e.clientX, e.clientY))
     }
     canvas.addEventListener('pointerdown', press)
@@ -483,6 +506,8 @@ class BattleScene extends Phaser.Scene {
     // From prep the board fades into it instead (board.js): the units already stand where they will start.
     if (!this.args.seamless) this.cameras.main.fadeIn(260, 6, 5, 10)
     this.lastSecond = -1
+    // On turns the opening (the first turn's announcement) plays before the board takes orders.
+    this.waiting = this.turns
     this.changed()
     this.args.onReady?.(this)
   }
@@ -510,12 +535,19 @@ class BattleScene extends Phaser.Scene {
     if (!this.paused && !held) {
       if (!this.begun) { this.begun = true; sfx.play('begin') }
       this.playMs += Math.min(delta, 250) * this.speed
-      const want = Math.floor(this.playMs / TUNING.tick.ms)
-      const events = []
-      while (!b.over && b.t < want) events.push(...stepBattle(b))
-      if (events.length) this.player.enqueue(events)
+      if (!this.turns) {
+        const want = Math.floor(this.playMs / TUNING.tick.ms)
+        const events = []
+        while (!b.over && b.t < want) events.push(...stepBattle(b))
+        if (events.length) this.player.enqueue(events)
+      }
     }
     this.player.update(this.playMs)
+    // An order's events played out: the board takes orders again.
+    if (this.waiting && this.player.finished && !b.over) {
+      this.waiting = false
+      this.settle()
+    }
     // The end waits for the crumble (see crumble) to play out.
     if (b.over && this.player.finished && !this.ending && this.playMs >= this.holdUntil) this.finish()
 
@@ -551,11 +583,14 @@ class BattleScene extends Phaser.Scene {
       a.trail.setPosition(x - BAR * k / 2, y).setScale(k, 1).setDepth(foot + 0.1)
       a.bar.setPosition(x - BAR * k / 2, y).setScale(k, 1).setDepth(foot + 0.2)
       a.gaugeBar.setPosition(x - BAR * k / 2, y + 5).setScale(k, 1).setDepth(foot + 0.2)
+      a.pips?.forEach((p, i) => p.setPosition(x - BAR * k / 2 + i * PIP.step * k, y + 7).setScale(k, 1).setDepth(foot + 0.2))
       a.growth?.place(x, a.sprite.y)
       a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : 1))
       const u = this.units.get(a.uid)
       this.wear(a, u)
-      if (!a.gone && u.hp > 0) {
+      // On turns a skill's cooldown pip: lit once it may be used again (sim, u.cooldowns), dark while it rests.
+      if (a.pips && !a.gone) a.skills.forEach((id, i) => a.pips[i].setFillStyle(u.cooldowns?.[id] > 0 ? PIP.rest : GOLD, u.cooldowns?.[id] > 0 ? 0.9 : 1))
+      if (!this.turns && !a.gone && u.hp > 0) {
         const cost = nextCost(b, u)
         const fill = Math.min(1, u.gauge / cost)
         a.gaugeBar.width = BAR * fill
@@ -565,7 +600,7 @@ class BattleScene extends Phaser.Scene {
 
     this.drawEnd(time)
 
-    const second = Math.floor(b.t * TUNING.tick.ms / 1000)
+    const second = this.turns ? this.lastSecond : Math.floor(b.t * TUNING.tick.ms / 1000)
     if (second !== this.lastSecond) {
       this.lastSecond = second
       this.changed()
@@ -592,8 +627,10 @@ class BattleScene extends Phaser.Scene {
     this.setPaused(!this.paused)
   }
 
-  // Leave now; the run already knows how the battle ended.
+  // Leave now; the run already knows how the battle ended. On turns the battle is the player's to play, so Skip only
+  // hurries the playback (flush) until the battle is over and its banner up.
   skip () {
+    if (this.turns && !this.ending) return this.flush()
     const done = this.args.onDone
     if (!done) return
     this.args.onDone = null
@@ -605,8 +642,18 @@ class BattleScene extends Phaser.Scene {
   // the escalation bar: `left`, the share of the window before the ceiling still to run (it counts from the
   // last foe to enter, so a wave fills it again), `ramp`, the share at which every blow starts to climb, and
   // `esc`, the multiplier now.
+  // On turns instead: the turn as the playback has reached it, the last turn before the cap, the next wave (turn
+  // events), the wave under way, whether input waits (busy), and the selected piece's panel (panel).
   changed () {
     const b = this.battle
+    if (this.turns) {
+      const c = this.clock
+      return this.args.onChange?.({
+        turns: true, paused: this.paused, speed: this.speed, over: this.ending, essence: this.purse,
+        turn: c.turn, last: c.cap, cap: b.cap, next: c.next, wave: Math.max(1, b.waveAt.length), waves: Math.max(b.waveAt.length, this.waves.length),
+        busy: this.locked(), panel: this.panel()
+      })
+    }
     const E = TUNING.escalation
     const ceiling = b.ceiling ?? TUNING.tick.ceiling
     this.args.onChange?.({
@@ -684,6 +731,9 @@ class BattleScene extends Phaser.Scene {
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
     const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, side).setOrigin(0, 0.5)
     const gaugeBar = this.add.rectangle(home.x - BAR / 2, home.y + 17, 0, 2, GOLD).setOrigin(0, 0.5)
+    // On turns a piece of yours carries a pip a skill under its bars (its cooldown: update); the Monarch, the shadows
+    // and the foes none (a foe's readiness would tell its coming turn).
+    const skills = this.turns && u.side === 'party' && !u.shadow && !crowned ? (whole.kit ?? []).filter((a) => isSkill(whole, a)).map((a) => a.id) : []
     const actor = {
       uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar,
       // fp: its footprint's side, big: its picture's scale for it; hover: how high it floats now (fly: when standing).
@@ -693,7 +743,8 @@ class BattleScene extends Phaser.Scene {
       // the actor's tweens never leaves it invisible).
       chest: 30 * size + fly, pose: { ...REST }, hp: u.hp, maxHp: u.maxHp, gone: false, fade: 1, rise: { v: 1 },
       // share: how far it has eased aside for another on its tile (SHARE, 0 to 1); vx, up: where that puts it.
-      share: 0, vx: home.x, up: 0
+      share: 0, vx: home.x, up: 0,
+      skills, pips: skills.length ? skills.map(() => this.add.rectangle(home.x, home.y + 19, PIP.w, PIP.h, GOLD).setOrigin(0, 0.5)) : null
     }
     // A soul's growth, worn as the prep board showed it (growthMarks): its tiers.
     if (u.side === 'party' && !u.shadow && !crowned) actor.growth = growthMarks(this, whole)
@@ -725,6 +776,295 @@ class BattleScene extends Phaser.Scene {
       if (!best || a.sprite.y > best.sprite.y + 0.5 || (a.sprite.y > best.sprite.y - 0.5 && off(a) < off(best))) best = a
     }
     if (best) this.args.onHover?.(this.units.get(best.uid), { left: x + 14, right: x + 14, top: y - 10, bottom: y + 10 }, true)
+  }
+
+  // ── orders (on turns) ────────────────────────────────────────────────────────────────────────
+
+  // A press on the board: a tap once the pointer lifts where it went down (tap); by touch, held still, the card of
+  // the unit under the finger instead, pinned (pressAt), and no tap.
+  down (e) {
+    if (e.pointerType === 'touch' ? !e.isPrimary : e.button !== 0) return
+    const at = { id: e.pointerId, x: e.clientX, y: e.clientY, held: false }
+    const press = e.pointerType === 'touch' ? hold(e, () => { at.held = true; this.pressAt(e.clientX, e.clientY) }) : null
+    const off = () => {
+      window.removeEventListener('pointerup', up, true)
+      window.removeEventListener('pointercancel', cancel, true)
+    }
+    const up = (m) => {
+      if (m.pointerId !== at.id) return
+      off()
+      press?.cancel()
+      if (!at.held && Math.hypot(m.clientX - at.x, m.clientY - at.y) <= TAP_SLOP) this.tap(m.clientX, m.clientY)
+    }
+    const cancel = (m) => { if (m.pointerId === at.id) off() }
+    window.addEventListener('pointerup', up, true)
+    window.addEventListener('pointercancel', cancel, true)
+  }
+
+  // The world point under viewport point (x, y).
+  worldAt (x, y) {
+    const r = this.game.canvas.getBoundingClientRect()
+    return this.cameras.main.getWorldPoint((x - r.left) * this.scale.width / r.width, (y - r.top) * this.scale.height / r.height)
+  }
+
+  // Whether the board takes no orders now: an order's events still playing, the battle over, or the run not
+  // taking them (the foes' turn resolves inside End Turn, so this is the playback).
+  locked () {
+    return this.waiting || !this.player.finished || this.battle.over || this.battle.phase !== 'orders' || this.ending
+  }
+
+  // A tap (redesign.md §4): with a piece selected, a target of its armed act is aimed (its numbers shown), and tapped
+  // again struck; a lit tile is a move; its old tile undoes the move. Else a piece of yours is selected (again: let
+  // go), anyone else's card shows, and empty ground lets go. Nothing while the playback runs or the battle is paused.
+  tap (x, y) {
+    if (!this.sys.isActive() || this.ending || this.paused || this.locked()) return
+    const w = this.worldAt(x, y)
+    const tile = tileUnder(w.x, w.y)
+    const b = this.battle
+    const hits = this.unitsAt(w, tile)
+    const s = this.sel
+    const u = s && b.byUid.get(s.uid)
+    if (u) {
+      const t = hits.find((x) => s.targets.has(x.uid))
+      if (t) return t.uid === s.aim ? this.commit() : this.aim(t.uid)
+      if (this.undoable(u) && footprint(u.from, u.size ?? 1).includes(tile) && !hits.some((x) => x !== u && alive(x))) return this.undo()
+      const to = this.anchorFor(u, tile)
+      if (to != null) return this.send({ type: 'move', uid: u.uid, tile: to })
+    }
+    const mine = hits.find((x) => alive(x) && orderable(b, x))
+    if (mine) return this.select(mine.uid === s?.uid ? null : mine.uid)
+    const other = hits.find(alive)
+    if (other) {
+      if (s) this.aim(null)
+      return this.pressAt(x, y, other.uid)
+    }
+    this.select(null)
+  }
+
+  // The units at a world point, as a tap reads it: whoever stands on the tile under it or whose picture covers it,
+  // the living first, then those whose picture is under the point, the nearest its middle first (two sharing a tile,
+  // a flyer over one on the ground, are told apart by which body is tapped), then those on the tile. The fused away
+  // and the risen are gone.
+  unitsAt (w, tile) {
+    const out = []
+    for (const u of this.battle.units) {
+      const a = this.actors.get(u.uid)
+      if (!a || a.fade <= 0.05) continue
+      const on = (footprint(u.tile, u.size ?? 1) ?? [u.tile]).includes(tile)
+      const box = a.sprite.getBounds()
+      const over = a.sprite.visible && box.contains(w.x, w.y)
+      if (!on && !over) continue
+      out.push({ u, on, over, d: Math.hypot(box.centerX - w.x, box.centerY - w.y) })
+    }
+    return out.sort((p, q) => alive(q.u) - alive(p.u) || q.over - p.over || (p.over ? p.d - q.d : 0) || q.on - p.on).map((x) => x.u)
+  }
+
+  // The anchor the selected piece would move to for a tap on `tile`: the tile, or for a 2×2 an anchor whose
+  // footprint covers it; null outside its Move range.
+  anchorFor (u, tile) {
+    const r = this.sel.reach
+    if (r.has(tile)) return tile
+    if ((u.size ?? 1) > 1) for (const t of r.keys()) if (footprint(t, u.size).includes(tile)) return t
+    return null
+  }
+
+  undoable (u) {
+    return u.moved > 0 && !u.acted && endable(this.battle, u, u.from)
+  }
+
+  // Selects a piece of yours (null: none), its act armed: the one the player armed for it, else the first it may
+  // use now (firstAct).
+  select (uid) {
+    const b = this.battle
+    const u = uid == null ? null : b.byUid.get(uid)
+    const same = u && this.sel?.uid === uid
+    this.dropMarks()
+    this.sel = u ? { uid, ability: same ? this.sel.ability : this.firstAct(u), chosen: same && this.sel.chosen, aim: null, reach: new Map(), targets: new Set() } : null
+    if (u) sfx.play('select')
+    this.plan()
+    this.changed()
+  }
+
+  // A piece's first act to arm: its basic blow if it has a target from here, else its basic heal, else any act
+  // with a target, else its basic (the Monarch's is Arise).
+  firstAct (u) {
+    const b = this.battle
+    const list = [u.basic, u.mend, ...u.kit.filter((a) => a !== u.basic && a !== u.mend)].filter(Boolean)
+    return (list.find((a) => canAct(b, u) && usable(b, u, a) && targetsFrom(b, u, a).length) ?? list[0])?.id ?? null
+  }
+
+  // The panel's act buttons: arm another act for the selected piece.
+  arm (id) {
+    const s = this.sel
+    if (!s || this.locked()) return
+    s.ability = id
+    s.chosen = true
+    this.aim(null)
+    this.plan()
+    this.changed()
+  }
+
+  // What the selection lights, from the sim (only while the board takes orders): a soft ring under every piece of
+  // yours that may still act; for the selected piece its Move range (the tiles it may stand on), the tile Undo goes
+  // back to, a ring under it, and under each target its armed act may take from where it stands (a foe red, an ally
+  // the synergies' blue, a corpse Arise's green), the aimed one brighter. Nothing of the foes' coming turn.
+  plan () {
+    const g = this.planG.clear()
+    if (!this.turns || this.locked()) return
+    const b = this.battle
+    const s = this.sel
+    const u = s && b.byUid.get(s.uid)
+    if (s && (!u || !alive(u) || !orderable(b, u))) this.sel = null
+    const foot = (x) => posAt(x.tile, x.size ?? 1)
+    const ring = (x, colour, alpha, line, grow = 0) => {
+      const p = foot(x)
+      const k = (x.size ?? 1) > 1 ? BIG : 1
+      g.lineStyle(line, colour, alpha).strokeEllipse(p.x, p.y + 4, (58 + grow) * k, (18 + grow / 3) * k)
+    }
+    for (const x of b.units) {
+      if (x === u || !orderable(b, x) || !canAct(b, x)) continue
+      if (x === b.monarch && !x.kit.some((a) => a.shape === 'corpse' && targetsFrom(b, x, a).length)) continue
+      ring(x, PARTY, 0.5, 2)
+    }
+    if (!this.sel) return
+    s.reach = u.acted ? new Map() : reach(b, u)
+    const a = u.kit.find((x) => x.id === s.ability)
+    s.targets = new Set(a && canAct(b, u) && usable(b, u, a) ? targetsFrom(b, u, a).map((x) => x.uid) : [])
+    const cell = (c, fill, line, colour) => {
+      const box = cellsBox(tileX(c), tileX(c), tileY(c), tileY(c), 4)
+      if (fill) g.fillStyle(colour, fill).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
+      g.lineStyle(1.5, colour, line).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
+    }
+    const cells = new Set()
+    for (const t of s.reach.keys()) for (const c of footprint(t, u.size ?? 1) ?? [t]) cells.add(c)
+    for (const c of cells) cell(c, 0.16, 0.5, PLAN)
+    if (this.undoable(u)) for (const c of footprint(u.from, u.size ?? 1)) cell(c, 0, 0.55, 0xffffff)
+    const p = foot(u)
+    const k = (u.size ?? 1) > 1 ? BIG : 1
+    g.fillStyle(0xffffff, 0.1).fillEllipse(p.x, p.y + 4, 70 * k, 22 * k)
+    ring(u, 0xffffff, 0.95, 3, 6)
+    const colour = a?.shape === 'corpse' ? DOMAIN : a && !isBlow(a) ? BOON : FOE
+    for (const uid of s.targets) {
+      const x = b.byUid.get(uid)
+      const q = foot(x)
+      const kx = (x.size ?? 1) > 1 ? BIG : 1
+      g.fillStyle(colour, uid === s.aim ? 0.3 : 0.14).fillEllipse(q.x, q.y + 4, 58 * kx, 18 * kx)
+      ring(x, colour, uid === s.aim ? 1 : 0.85, uid === s.aim ? 4 : 2.5, uid === s.aim ? 8 : 0)
+    }
+  }
+
+  // Aims the selected piece's armed act at `uid` (null: none): what it would do, from the sim's preview (the same
+  // code that deals it), in numbers over the struck and, for a melee blow answered, the counter over the striker.
+  aim (uid) {
+    const s = this.sel
+    this.dropMarks()
+    if (!s) return
+    s.aim = null
+    const p = uid == null ? null : preview(this.battle, s.uid, s.ability, uid)
+    if (p) {
+      s.aim = uid
+      const hits = Object.entries(p.hits).filter(([, d]) => d > 0)
+      for (const [x, d] of hits) this.mark(+x, `−${d}${+x === uid && p.kills ? ' · FALLS' : ''}`, +x === uid && p.kills ? '#ff8a9a' : '#ffe6c8')
+      if (p.heal > 0) this.mark(uid, `+${p.heal}`, '#7be0a0')
+      if (!hits.length && !(p.heal > 0)) this.mark(uid, abilityDef(s.ability).name, '#d8d0ff', 12)
+      if (p.counter > 0) this.mark(s.uid, `↩ −${p.counter}`, '#ffb27a')
+      sfx.play('click')
+    }
+    this.plan()
+    this.changed()
+  }
+
+  // A preview's number over a unit, held until the aim changes.
+  mark (uid, text, colour, size = 15) {
+    const a = this.actors.get(uid)
+    if (!a) return
+    const z = this.cameras.main.zoom
+    const t = this.text(a.vx ?? a.sprite.x, a.sprite.y - a.chest - a.hover - 24, text, labelSize(size, z, 'num'), colour, 4).setOrigin(0.5, 1).setDepth(9700)
+    this.aimMarks.push(t)
+  }
+
+  dropMarks () {
+    for (const t of this.aimMarks) t.destroy()
+    this.aimMarks = []
+  }
+
+  // The second tap on the aimed target: the act is given.
+  commit () {
+    const s = this.sel
+    this.send({ type: 'act', uid: s.uid, ability: s.ability, target: s.aim })
+  }
+
+  undo () {
+    if (this.sel && !this.locked()) this.send({ type: 'undo', uid: this.sel.uid })
+  }
+
+  // End Turn (the panel's): the untouched act, the foes take their turn, and it all plays back.
+  endTurn () {
+    if (this.locked() || this.paused) return
+    this.select(null)
+    this.send({ type: 'end' })
+  }
+
+  fuse (o) {
+    if (!this.locked()) this.send(o)
+  }
+
+  // Gives an order (args.order: the run applies it) and plays back its events; the board waits until they have
+  // played (settle).
+  send (o) {
+    let events
+    try {
+      events = this.args.order(o)
+    } catch (e) {
+      console.warn(`order refused: ${e.message}`)
+      sfx.play('poor')
+      return this.plan()
+    }
+    this.dropMarks()
+    if (this.sel) this.sel.aim = null
+    this.planG.clear()
+    this.waiting = true
+    this.player.enqueue(events ?? [])
+    this.changed()
+  }
+
+  // An order played out: the selection stays on a piece that may still do something (after a move, its act), its
+  // act re-armed unless the player chose it; one that acted, fell or fused away is let go of.
+  settle () {
+    const s = this.sel
+    const u = s && this.battle.byUid.get(s.uid)
+    if (u && (!alive(u) || !orderable(this.battle, u) || u.acted)) this.sel = null
+    else if (u && !s.chosen) s.ability = this.firstAct(u)
+    this.plan()
+    this.changed()
+  }
+
+  // Skip, on turns: every beat queued plays now.
+  flush () {
+    if (!this.player.finished) this.playMs = Math.max(this.playMs, this.player.end)
+  }
+
+  // The selected piece's panel for the chrome (ui.js battleChrome): its HP and Move, each act it has (a skill's rest,
+  // whether it may be used now and on how many), Undo, the fusions lit beside it, and on the Monarch whether Arise is
+  // held. Null with none selected.
+  panel () {
+    const b = this.battle
+    const s = this.sel
+    const u = s && b.byUid.get(s.uid)
+    if (!u || !alive(u)) return null
+    const free = !this.locked()
+    const arise = u === b.monarch && b.relics.includes('arise')
+    // The Monarch's one act is Arise, and only while the relic is held; no other piece raises.
+    const mine = u === b.monarch ? (arise ? u.kit.filter((a) => a.shape === 'corpse') : []) : u.kit.filter((a) => a.shape !== 'corpse')
+    const acts = mine.map((a) => {
+      const can = free && canAct(b, u) && usable(b, u, a)
+      return { id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, armed: a.id === s.ability, can, targets: can ? targetsFrom(b, u, a).length : 0 }
+    })
+    return {
+      uid: u.uid, id: u.id, monarch: u === b.monarch, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, acted: u.acted, hexed: hexed(u),
+      acts, aim: s.aim != null, undo: free && this.undoable(u), arise,
+      fusions: free ? legalOrders(b).filter((o) => o.type === 'fuse' && o.uid === u.uid).map((o) => ({ order: o, name: FUSIONS[o.id].name, price: b.fuse?.[o.id]?.price ?? null })) : []
+    }
   }
 
   // ── animation ────────────────────────────────────────────────────────────────────────────────
@@ -779,19 +1119,41 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
-  // A step to the next tile, hopping; whatever tween was moving the sprite (an entrance, a step) gives way.
+  // A step to the next tile, hopping; whatever tween was moving the sprite (an entrance, a step) gives way. On turns
+  // a move walks its whole path (ev.path), a hop a tile, STEP_MS each; an undo goes straight back.
   walk (ev) {
     const a = this.actors.get(ev.actor)
     if (!a || a.gone) return
+    const path = ev.type === 'move' && ev.path?.length ? ev.path : [ev.to]
     a.tile = ev.to
     a.home = posAt(ev.to, a.fp)
-    this.tweens.killTweensOf([a.sprite, a])
-    this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: WALK_MS, ease: 'Sine.InOut' })
+    this.halt(a)
+    const ms = this.turns ? STEP_MS : WALK_MS
     const lean = Math.sign(a.home.x - a.sprite.x) || 1
-    this.animate(a, [
-      { to: { lean: 5 * lean, sy: 0.05, dy: -7 }, ms: WALK_MS * 0.4, ease: 'Sine.Out' },
-      { to: { lean: -2 * lean, sx: 0.06, sy: -0.07 }, ms: WALK_MS * 0.4, ease: 'Sine.In' },
-      { to: REST, ms: WALK_MS * 0.2 }])
+    if (path.length === 1) this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: ms, ease: 'Sine.InOut' })
+    else {
+      const points = [{ x: a.sprite.x, y: a.sprite.y }, ...path.map((t) => posAt(t, a.fp))]
+      a.walker = this.tweens.addCounter({
+        from: 0, to: path.length, duration: ms * path.length,
+        onUpdate: (tw) => {
+          const v = tw.getValue()
+          const i = Math.min(path.length - 1, Math.floor(v))
+          const f = v - i
+          a.sprite.setPosition(points[i].x + (points[i + 1].x - points[i].x) * f, points[i].y + (points[i + 1].y - points[i].y) * f)
+        }
+      })
+    }
+    this.animate(a, path.flatMap(() => [
+      { to: { lean: 5 * lean, sy: 0.05, dy: -7 }, ms: ms * 0.4, ease: 'Sine.Out' },
+      { to: { lean: -2 * lean, sx: 0.06, sy: -0.07 }, ms: ms * 0.4, ease: 'Sine.In' },
+      { to: REST, ms: ms * 0.2 }]))
+  }
+
+  // Whatever is moving a unit's sprite stops where it is (a walk along a path, a glide, a step).
+  halt (a) {
+    a.walker?.stop()
+    a.walker = null
+    this.tweens.killTweensOf([a.sprite, a])
   }
 
   // A flyer that falls comes down to the ground.
@@ -815,6 +1177,7 @@ class BattleScene extends Phaser.Scene {
     a.ring.setVisible(false)
     this.picture(a, 'alive')
     // A unit can die mid-step: it is sent the rest of the way to its tile now.
+    a.walker?.stop()
     this.tweens.killTweensOf(a.sprite)
     this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: 200, ease: 'Sine.Out' })
     const away = killer ? Math.sign(a.sprite.x - killer.sprite.x) || (a.uid % 2 ? 1 : -1) : 1
@@ -834,7 +1197,7 @@ class BattleScene extends Phaser.Scene {
 
   // What stands beside a unit's picture: its bars, its pool of shadow, its growth.
   parts (a) {
-    return [a.bar, a.trail, a.barBg, a.gaugeBar, a.shadow, ...(a.growth?.parts ?? [])].filter(Boolean)
+    return [a.bar, a.trail, a.barBg, a.gaugeBar, a.shadow, ...(a.pips ?? []), ...(a.growth?.parts ?? [])].filter(Boolean)
   }
 
   // The Sovereign has fallen, and every foe left crumbles to dust where it stands, out from it like a ripple,
@@ -854,6 +1217,7 @@ class BattleScene extends Phaser.Scene {
     a.gaugeBar.width = 0
     a.bar.width = 0
     a.ring.setVisible(false)
+    a.walker?.stop()
     this.tweens.killTweensOf([a.sprite, a.trail])
     this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: 200, ease: 'Sine.Out' })
     this.tweens.add({ targets: a.trail, width: 0, duration: 300, ease: 'Quad.Out' })
@@ -983,6 +1347,45 @@ class BattleScene extends Phaser.Scene {
     this.shake(180, 0.003)
   }
 
+  // On turns: a turn of yours begins. Its counts go to the chrome, and its number shows a moment over the board.
+  newTurn (ev) {
+    this.clock = { turn: ev.turn, cap: ev.cap, next: ev.next }
+    this.changed()
+    this.flag(`TURN ${ev.turn}`, C.soul2, SOUL)
+  }
+
+  // A word across the middle of the board a moment (a turn, the foes' turn), on a dark plate in its side's colour;
+  // the last one gives way to the next.
+  flag (word, colour, edge) {
+    this.flagged?.forEach((o) => o.destroy())
+    const z = this.cameras.main.zoom
+    const t = this.text(0, 0, word, labelSize(16, z), colour, 4, faceFor(16, z)).setOrigin(0.5).setDepth(9600).setAlpha(0)
+    const plate = this.add.rectangle(0, 0, t.width + 48, t.height + 14, 0x07060b, 0.8).setStrokeStyle(1, edge, 0.5).setDepth(9590).setAlpha(0)
+    this.flagged = [plate, t]
+    this.tweens.add({ targets: this.flagged, alpha: 1, duration: 140 })
+    this.tweens.add({ targets: this.flagged, alpha: 0, delay: 650, duration: 300, onComplete: () => { plate.destroy(); t.destroy() } })
+  }
+
+  // On turns, a fusion in battle: its parts are drawn into the fuser's tile and go, and the fused piece rises there
+  // out of soulfire (enter).
+  fused (ev) {
+    const at = posAt(ev.unit.tile, ev.unit.size ?? 1)
+    for (const uid of ev.parts) {
+      const p = this.actors.get(uid)
+      if (!p) continue
+      p.gone = true
+      this.halt(p)
+      p.ring.setVisible(false)
+      p.sprite.disableInteractive()
+      this.tweens.add({ targets: p.sprite, x: at.x, y: at.y, duration: 360, ease: 'Quad.In' })
+      this.tweens.add({ targets: p, fade: 0, duration: 420, ease: 'Quad.In' })
+      this.tweens.add({ targets: this.parts(p), alpha: 0, duration: 260 })
+    }
+    this.burst(at.x, at.y - 20, SOUL, 18, { up: true, speed: 90 })
+    sfx.play('arise')
+    this.time.delayedCall(300, () => this.enter({ unit: ev.unit }))
+  }
+
   // A foe slain in a battle of waves: its essence goes to its wave's tally, and once the whole wave is slain
   // (or the battle ends, for one cut short by the Sovereign's fall) a popup says what that wave paid, relics
   // included, before the purse rounds the battle's total. Shadows pay nothing.
@@ -1017,8 +1420,9 @@ class BattleScene extends Phaser.Scene {
   // ── the board, statuses, HP and essence ──────────────────────────────────────────────────────
 
   // Burning and Hexed, worn while held (DESIGN §4), read from the unit each frame: flames licking up a burning
-  // picture, quicker for each stack, and a violet pall over a hexed one. Gone with the status, or the unit. The
-  // flames keep the playback clock, so pause holds them.
+  // picture, quicker for each stack, and a violet pall over a hexed one; on turns every other status a fainter pall
+  // in its def's colour (palls). Gone with the status, or the unit. The flames keep the playback clock, so pause
+  // holds them.
   wear (a, u) {
     const held = (id) => (!a.gone && u?.hp > 0 && u.statuses?.find((x) => x.id === id)) || null
     const burn = held('burning')
@@ -1028,6 +1432,7 @@ class BattleScene extends Phaser.Scene {
       const w = a.sprite.displayWidth * 0.26
       this.flames.explode(1, a.vx + (Math.random() * 2 - 1) * w, top + (a.chest - a.fly) * (0.1 + Math.random() * 0.7))
     }
+    if (this.turns) this.palls(a, u, top)
     const hexed = !!held('hexed')
     if (hexed && !a.pall) a.pall = this.add.image(0, 0, 'glow').setTint(HEX).setBlendMode(Phaser.BlendModes.ADD)
     if (!a.pall) return
@@ -1038,9 +1443,26 @@ class BattleScene extends Phaser.Scene {
       .setDepth(a.sprite.depth + 0.2).setAlpha(pulse * a.fade * a.rise.v)
   }
 
+  // On turns (redesign.md §2.8): each status held but the two drawn their own way, a pall in its colour, faint and
+  // layered a little lower and narrower each, made as it lands and gone with it.
+  palls (a, u, top) {
+    const want = !a.gone && u?.hp > 0 ? u.statuses.filter((x) => x.id !== 'hexed' && x.id !== 'burning' && statusDef(x.id).colour) : []
+    if (!want.length && !a.palls?.size) return
+    a.palls ??= new Map()
+    for (const [id, img] of a.palls) if (!want.some((x) => x.id === id)) { img.destroy(); a.palls.delete(id) }
+    want.forEach((x, i) => {
+      let img = a.palls.get(x.id)
+      if (!img) a.palls.set(x.id, img = this.add.image(0, 0, 'glow').setTint(hex(statusDef(x.id).colour)).setBlendMode(Phaser.BlendModes.ADD))
+      const pulse = calm ? 0.3 : 0.27 + 0.08 * Math.sin(this.playMs / 340 + a.uid + i)
+      img.setPosition(a.vx, top + 6 * i).setDisplaySize(a.sprite.displayWidth * (0.9 - 0.12 * i), a.sprite.displayHeight * (0.8 - 0.1 * i))
+        .setDepth(a.sprite.depth + 0.1).setAlpha(pulse * a.fade * a.rise.v)
+    })
+  }
+
   decorate (start) {
     drawGround(this)
-    // The camp's walls, and a rune under every other tile, in its side's colour; the tiles the battle starts on glow.
+    // The camp's walls, and a rune under every other tile, in its side's colour; the tiles the battle starts on glow
+    // (not on turns, where the pieces move off them).
     const g = this.add.graphics().setDepth(-400)
     const zone = (y) => (y < CAMP_ROWS ? PARTY : y >= DEPTH - ROWS ? FOE : NEUTRAL)
     const walls = new Set(start.walls)
@@ -1050,7 +1472,7 @@ class BattleScene extends Phaser.Scene {
       this.add.image(p.x, p.y + 8, WALLS[(tile * 7 + (tile >> 3)) % WALLS.length]).setOrigin(0.5, WALL_FOOT)
         .setScale(WALL_SCALE / RES).setFlipX(tile % 2 === 1).setDepth(p.y)
     }
-    const occupied = new Set(start.units.flatMap((u) => footprint(u.tile, u.size ?? 1) ?? [u.tile]))
+    const occupied = new Set(this.turns ? [] : start.units.flatMap((u) => footprint(u.tile, u.size ?? 1) ?? [u.tile]))
     for (let tile = 0; tile < TILES; tile++) {
       if (walls.has(tile)) continue
       const p = posOf(tile)
@@ -1245,12 +1667,20 @@ class BattleScene extends Phaser.Scene {
 
   // `seq`: the event's place in the battle's stream (TimelinePlayer), for the HP shown.
   applyEvent (ev, inAction, seq) {
-    if (ev.type === 'move') return this.walk(ev)
+    if (ev.type === 'move' || ev.type === 'undo') return this.walk(ev)
     if (ev.type === 'arise') { sfx.play('arise'); return this.arise(ev) }
     if (ev.type === 'enter') return this.enter(ev)
     // The opening formation is wave 1 but stands there from the start: only a later wave is announced.
     if (ev.type === 'wave') { this.changed(); return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined }
-    if (ev.type === 'action') return this.reshaped(ev, this.actors.get(ev.actor))
+    // On turns: a turn of yours begins (its counts for the chrome), the foes' turn begins, a fusion in battle.
+    if (ev.type === 'turn') return this.newTurn(ev)
+    if (ev.type === 'stage') return ev.stage === 'foes' ? this.flag('THE FOES\' TURN', '#ff8a9a', FOE) : undefined
+    if (ev.type === 'fuse') return this.fused(ev)
+    if (ev.type === 'action') {
+      // A counter: the struck answers at once, and says so over itself.
+      if (ev.counter) { const x = this.actors.get(ev.actor); if (x) this.floating(x, 'COUNTER', '#ffb27a', 11) }
+      return this.reshaped(ev, this.actors.get(ev.actor))
+    }
     if (ev.type === 'rule') return this.rule(ev)
     // A trigger relic fired for this unit: its name flashes over it (its effects follow as their own events).
     if (ev.type === 'trigger') {
@@ -1333,6 +1763,11 @@ class BattleScene extends Phaser.Scene {
         break
       case 'gauge':
         this.burst(a.sprite.x, a.sprite.y - a.chest, GAUGE, 6, { speed: 60 })
+        break
+      // On turns: a Hexed unit's act is lost.
+      case 'hexed':
+        this.floating(a, 'HEXED', '#c9a6ff', 12)
+        this.burst(a.sprite.x, a.sprite.y - a.chest, HEX, 8, { up: true, speed: 50 })
         break
       case 'miss': {
         // A sidestep out of the blow's way.
@@ -1477,15 +1912,17 @@ class BattleScene extends Phaser.Scene {
     // The domain's caption (over the units) gives way to the banner.
     if (this.domLabel?.t.active) this.tweens.add({ targets: this.domLabel.t, alpha: 0, duration: 200 })
     const reason = this.battle.reason
-    const death = !won ? this.args.death : null
+    // The clock ran out: the old battle's ceiling, or on turns its cap.
+    const capped = reason === 'tick-ceiling' || reason === 'turn-cap'
+    const death = !won ? this.args.death?.() ?? null : null
     // A wave the Sovereign's fall cut short pays for the slain it had (a lost battle pays nothing).
     if (won && this.waves.length > 1) this.waves.forEach((_, k) => this.wavePaid(k))
     const clear = this.battle.floor > TUNING.run.floors ? ' The clear stands.' : ''
     // A boss room (battle.boss, as finishBattle reads it) has no reap: the Sovereign's fall clears the run.
     const [title, line] = won ? (this.battle.boss ? ['THE SOVEREIGN FALLS', `${reason === 'sovereign' ? 'Its court crumbled with it. ' : ''}The run is cleared.`] : ['VICTORY', 'The souls of the slain linger, waiting to be reaped.'])
-      : death ? [reason === 'tick-ceiling' ? 'THE DARK CLOSES IN' : 'THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
+      : death ? [capped ? 'THE DARK CLOSES IN' : 'THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
         : reason === 'monarch' ? ['THE MONARCH FALLS', `Its retinue crumbles with it. The run is over.${clear}`]
-          : reason === 'tick-ceiling' ? ['THE DARK CLOSES IN', `Still undecided at the last moment: the run is lost.${clear}`]
+          : capped ? ['THE DARK CLOSES IN', `Still undecided at the last ${this.turns ? 'turn' : 'moment'}: the run is lost.${clear}`]
             : ['YOUR RETINUE FALLS', 'The dead return to the dark.']
     const killer = death && reason === 'monarch' && death.from != null && death.by !== this.monarch ? death.from : null
     const crown = this.actors.get(this.monarch)
@@ -1535,17 +1972,24 @@ class BattleScene extends Phaser.Scene {
 
 // Sim events → tweens, poses and FX. The player only reads events; it never computes a result.
 // Events are appended as the battle steps (always in tick order) and played when the playhead,
-// which the scene drives with the same clock as the sim, reaches their tick.
+// which the scene drives with the same clock as the sim, reaches their tick. On turns (`beats`) there is no clock:
+// events come an order at a time, stamped with a beat, and each beat plays once the one before has had its time
+// (spanOf: an action its animation, a move its path), never before now.
 
 const ESSENTIAL = new Set(['anim', 'popup', 'tween'])
 
 class TimelinePlayer {
-  constructor (scene, { template, actorOf, tickMs = 50, onEvent = null }) {
+  constructor (scene, { template, actorOf, tickMs = 50, beats = false, onEvent = null }) {
     this.scene = scene
     this.template = template
     this.actorOf = actorOf
     this.tickMs = tickMs
+    this.beats = beats
     this.onEvent = onEvent
+    // On turns: when the last beat began (tail), how long it takes (span), and its index (last).
+    this.tail = 0
+    this.span = 0
+    this.last = null
     this.playhead = 0
     this.speed = 1
     this.queue = []       // beats: { at, action, results }
@@ -1556,17 +2000,19 @@ class TimelinePlayer {
     this.count = 0
   }
 
-  // An `action` owns the events that follow it in the same batch and tick (its damage, statuses…).
-  // One stepBattle call is one tick, so a beat never spans two enqueue calls.
+  // An `action` owns the events that follow it in the same batch and tick (its damage, statuses…), or on turns the
+  // same beat. One stepBattle call is one tick, and one order's events end its beats, so a beat never spans two
+  // enqueue calls.
   enqueue (events) {
     let beat = null
+    const key = (ev) => (this.beats ? ev.beat : ev.t)
     for (const ev of events) {
       this.seq.set(ev, this.count++)
-      const at = ev.t * this.tickMs
+      const at = this.beats ? this.slot(ev) : ev.t * this.tickMs
       if (ev.type === 'action') {
         beat = { at, action: ev, results: [] }
         this.queue.push(beat)
-      } else if (beat && ev.t === beat.action.t) {
+      } else if (beat && key(ev) === key(beat.action)) {
         beat.results.push(ev)
       } else {
         this.queue.push({ at, action: null, results: [ev] })
@@ -1575,13 +2021,30 @@ class TimelinePlayer {
     }
   }
 
+  // On turns: when `ev` plays (its beat's start), each beat after the last has had its span, and none before now.
+  slot (ev) {
+    if (ev.beat !== this.last) {
+      this.tail = Math.max(this.tail + this.span, this.playhead)
+      this.span = 0
+      this.last = ev.beat
+    }
+    this.span = Math.max(this.span, spanOf(ev, this.template))
+    return this.tail
+  }
+
+  // On turns, the playhead skips ahead to the last beat's end: every beat queued plays now (Skip).
+  get end () {
+    return this.tail + this.span
+  }
+
   setSpeed (n) {
     this.speed = n
     this.scene.tweens.timeScale = n
   }
 
+  // Every beat played (on turns, the last one's time run too).
   get finished () {
-    return this.cursor >= this.queue.length && this.scheduled.length === 0
+    return this.cursor >= this.queue.length && this.scheduled.length === 0 && (!this.beats || this.playhead >= this.tail + this.span)
   }
 
   update (playhead) {
@@ -1655,6 +2118,26 @@ class TimelinePlayer {
       }
       default: return { ...actor.home }
     }
+  }
+}
+
+// On turns, how long a beat takes once begun, by its longest event (playhead ms, so a faster speed shortens it): an
+// action its animation's (content.js ANIMS dur), a move a tile of its path a STEP_MS, the rest what their pictures
+// need to read (a wave's banner, a shadow rising, the foes' turn's word).
+function spanOf (ev, template) {
+  switch (ev.type) {
+    case 'action': return ev.anim ? template(ev.anim).dur ?? 600 : 300
+    case 'move': return (ev.path?.length ?? 1) * STEP_MS + 60
+    case 'undo': return STEP_MS + 60
+    case 'stage': return ev.stage === 'foes' ? 650 : 120
+    case 'turn': return 300
+    case 'wave': return 900
+    case 'enter': return 600
+    case 'arise': return 1100
+    case 'fuse': return 1000
+    case 'death': return 450
+    case 'hexed': return 500
+    default: return 100
   }
 }
 

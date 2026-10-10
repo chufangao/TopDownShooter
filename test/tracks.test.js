@@ -11,7 +11,7 @@ import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, LEVEL_A_TIER } from './tuned.js'
-import { ABILITIES, TRACKS, FUSION_LIST, unitDef } from '../src/content.js'
+import { ABILITIES, TRACKS, FUSION_LIST, RELICS, unitDef } from '../src/content.js'
 import {
   makeUnit, abilitiesOf, auraOf, statsOf, tiersOf, canTrack, nextTracks, expand, slotAt, tileAt, baseStats, sizeOf, footprintSlots, campOpen,
   isMonarchCell
@@ -212,23 +212,27 @@ test('legalActions lists exactly the tiers apply accepts, and no level', () => {
   }
 })
 
-test('a reliquary offers a kind its next tiers, each for a different kind where it can, after its relics', () => {
-  const rite = createRun({ seed: 'rite-kinds' })
-  const r = rite.state
+// The reliquary's free tiers went with it (redesign.md §2.11): a Shop sells relics alone, and a kind's next tier is
+// bought on the field, at its price, as ever.
+test('no room gives a tier: a Shop sells relics alone, and the Knight\'s Bulwark IV is bought on the field once out of it', () => {
+  const run = createRun({ seed: 'rite-kinds' })
+  const r = run.state
   // Every kind past II on track 0 but the Knight, which stands at III with Reaver at II: Bulwark IV is its only tier.
   for (const k of Object.keys(r.kinds)) r.kinds[k].tracks = [4, 2]
   r.kinds.tomb_knight.tracks = [3, 2]
   for (const u of souls(r.party)) u.tracks = r.kinds[u.id].tracks.slice()
-  const node = availableNodes(rite)[0]
-  node.type = 'reliquary'
-  apply(rite, { type: 'node', id: node.id })
-  // Its relics (TUNING.relic.offer.reliquary; no Legendary on floor 1), then its tiers.
-  assert.deepEqual(r.offers.filter((o) => o.type === 'tier').map((o) => [o.type, o.kind, o.track, o.name]), [['tier', 'tomb_knight', 0, 'Tomb Knight: Bulwark IV']])
-  assert.deepEqual(r.offers.map((o) => o.type), [...Array(TUNING.relic.offer.reliquary).fill('relic'), 'tier'])
-  const index = r.offers.findIndex((o) => o.type === 'tier')
-  assert.equal(r.offers[index].desc, TRACKS.tomb_knight[0].tiers[3].desc)
-  apply(rite, { type: 'reap', index })
-  assert.deepEqual([r.kinds.tomb_knight.tracks, soul(rite, 'tomb_knight').tracks], [[4, 2], [4, 2]])
+  r.essence = 1000
+  const node = availableNodes(run)[0]
+  node.type = 'shop'
+  apply(run, { type: 'node', id: node.id })
+  assert.equal(r.phase, 'shop')
+  assert.ok(r.offers.length === 0 && r.shop.every((id) => RELICS[id]), JSON.stringify(r.shop))
+  assert.ok(!legalActions(run).some((a) => a.type === 'upgrade'))
+  assert.throws(() => apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 }), /needs phase/)
+  apply(run, { type: 'leave' })
+  assert.deepEqual(legalActions(run).filter((a) => a.type === 'upgrade'), [{ type: 'upgrade', kind: 'tomb_knight', track: 0 }])
+  apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 })
+  assert.deepEqual([r.kinds.tomb_knight.tracks, soul(run, 'tomb_knight').tracks], [[4, 2], [4, 2]])
 })
 
 test('the battle fights with a kind\'s tiers: battleSetup carries them into the kit', () => {
@@ -286,7 +290,7 @@ test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, o
 })
 
 // On the level scale of one a tier (LEVEL_A_TIER), so the tier offered gives a level.
-test('the expert rehearses a reliquary\'s tier offer as the run would make it: the kind\'s every soul with the tier and the level it gives', () => tuned(LEVEL_A_TIER, () => {
+test('the expert rehearses a tier as the run would make it: the kind\'s every soul with the tier and the level it gives', () => tuned(LEVEL_A_TIER, () => {
   const lvl = levelOf({ tracks: [3, 0] })
   const u = { ...makeUnit('tomb_knight', { uid: 1, lvl }), tracks: [3, 0] }
   const v = { ...makeUnit('tomb_knight', { uid: 2, lvl }), tracks: [3, 0] }

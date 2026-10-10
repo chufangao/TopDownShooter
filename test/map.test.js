@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 
-// No 'rite': the rite merged into the reliquary (2026-10-09).
-const TYPES = ['fight', 'elite', 'reliquary', 'altar', 'boss', 'siege']
+// No 'rite' (it merged into the reliquary, 2026-10-09) and no reliquary: the Shop replaced it (redesign.md §2.11).
+const TYPES = ['fight', 'elite', 'shop', 'altar', 'boss', 'siege']
 
 function reach (map, from, edges) {
   const seen = new Set([from])
@@ -17,7 +17,8 @@ test('the same seed gives the same floor', () => {
   assert.notDeepEqual(generateFloor({ seed: 'm', floor: 2 }), generateFloor({ seed: 'm', floor: 3 }))
 })
 
-test('500 seeded floors keep the rank, link and type rules: one to three reliquaries in the middle, no rite', () => {
+test('500 seeded floors keep the rank, link and type rules: one to four Shops in the middle, no reliquary, no rite', () => {
+  let lateShops = 0
   for (let i = 0; i < 500; i++) {
     const floor = 1 + (i % 4)
     const last = floor === 4
@@ -43,8 +44,9 @@ test('500 seeded floors keep the rank, link and type rules: one to three reliqua
     assert.ok(ranks[1].every((n) => n.type === 'fight'), `${where} rank 1 is all fights`)
     const late = ranks[RANKS - 2]
     assert.equal(late.filter((n) => n.type === 'altar').length, 1, `${where} one altar before the end`)
-    const reliquaries = map.nodes.filter((n) => n.type === 'reliquary' && n.rank < RANKS - 2).length
-    assert.ok(reliquaries >= 1 && reliquaries <= 3, `${where} reliquaries ${reliquaries}`)
+    const shops = map.nodes.filter((n) => n.type === 'shop' && n.rank < RANKS - 2).length
+    assert.ok(shops >= 1 && shops <= 4, `${where} shops ${shops}`)
+    lateShops += ranks[RANKS - 2].some((n) => n.type === 'shop')
 
     for (const n of map.nodes) {
       for (const id of n.next) assert.equal(nodeOf(map, id).rank, n.rank + 1, `${where} ${n.id} → ${id}`)
@@ -62,4 +64,6 @@ test('500 seeded floors keep the rank, link and type rules: one to three reliqua
       }
     }
   }
+  // The rank before the last may hold a Shop beside its altar (LATE_WEIGHTS).
+  assert.ok(lateShops > 0, 'a late Shop on some floor')
 })

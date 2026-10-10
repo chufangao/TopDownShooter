@@ -64,6 +64,13 @@ export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unit
 // as a foe: 'walk' or 'fly' (BEHAVIOURS).
 export const ringOf = (u) => tiersOf(u).reduce((r, t) => r + (t.ring ?? 0), unitDef(u.id).ring)
 export const strideOf = (u) => tiersOf(u).reduce((x, t) => x * (t.stride ?? 1), unitDef(u.id).stride ?? 1)
+// Its kind's Move on turns (redesign.md §2.2), before mods: the def's `move`, else the placeholder its old stride gives
+// (TUNING.move; a flyer's `fly`), and the Monarch's 0. A stat path (statsOf `move`), so tiers, auras and statuses add to it.
+export function baseMove (id) {
+  const d = unitDef(id)
+  if (d.monarch) return 0
+  return d.move ?? d.base.move ?? (d.flies ? TUNING.move.fly : TUNING.move[d.stride ?? 1] ?? TUNING.move[1])
+}
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
 // Its arm (DESIGN §2.3): how far a melee blow of yours with no range of its own reaches, never past the ring: the
 // kind's `arm`, 1, or 2 for a long-armed kind (Grave Ghoul, Mantis Reaper). The kind's alone: a tier that widens the
@@ -114,11 +121,14 @@ function setPath (o, path, value) {
 // Modifiers { path, op: add|mul|set, v, pos?, who? } apply add → mul → set; a `pos` mod ('engaged': a foe next
 // to it, or 'free') only applies to a battle unit in that position (unit.pos), never outside a battle, and a
 // `who` mod ({ role?, kin? }, one or a list; `boss`, true or false) only to units it matches. The unit's own track tiers count
-// too. Several sets on one path: the largest wins, so order never matters.
+// too. Several sets on one path: the largest wins, so order never matters. `move` and `cooldown.rate` are the turns'
+// (turns.js): tiles a turn (baseMove), and how many turns its skills' cooldowns fall at each turn's end (1; Hasten's 2).
 export function statsOf (unit, mods = []) {
   const b = baseStats(unit.id, unit.lvl)
   const s = {
     hp: b.hp, atk: b.atk, def: b.def, spd: b.spd, acc: b.acc, eva: b.eva, crt: b.crt,
+    move: baseMove(unit.id),
+    cooldown: { rate: 1 },
     gauge: { rate: 1 },
     damage: { dealt: 1, taken: 1 },
     heal: { given: 1 }

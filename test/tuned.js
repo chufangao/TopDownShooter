@@ -49,12 +49,15 @@ export const sturdy = (u) => {
   return { ...u, hp, maxHp: hp }
 }
 
-// Gives a run relics as if taken (outside the log: a run made so is not replayed): each copy held, and the
+// What one copy of relic `id` adds to stat path `path` (content.js RELIC_LIST: its `add` mods there; 0 for none).
+export const relicMod = (id, path) => (RELICS[id].mods ?? []).filter((m) => m.path === path && m.op === 'add').reduce((n, m) => n + m.v, 0)
+
+// Gives a run relics as if bought (outside the log: a run made so is not replayed): each copy held, and the
 // Monarch's max HP raised (and healed) by the HP relics among them, as run.js takeRelic does.
 export function grant (run, ids) {
   const s = run.state
   s.relics.push(...ids)
   const m = s.party.find((u) => u.id === 'monarch')
-  const gain = ids.reduce((n, id) => n + (RELICS[id].monarchHp ?? 0), 0)
+  const gain = ids.reduce((n, id) => n + relicMod(id, 'run.monarchHp'), 0)
   Object.assign(m, { maxHp: m.maxHp + gain, hp: m.hp + gain })
 }

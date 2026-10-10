@@ -12,10 +12,10 @@
 // floor, all run. No action moves it or puts anything on its cell; it can never be put in the ossuary, released or
 // upgraded, has no level, and counts toward no cap. Nothing is bought for it (DESIGN §2.6): its two numbers come from
 // relics, a copy each, with no cap: its max HP (TUNING.monarch.hp and the HP relics: monarchHp) and its Command, the
-// field cap, how many pieces fight (TUNING.party.field and the Command relics: commandOf); a won elite always lays out
-// a Command relic. Arise's numbers (how far it reaches, the tier and how many it raises, how soon it casts) are the
-// Arise relic's own, growing with each copy past the first (ariseOf). The roads run to it (battle.js field). If it
-// falls, the battle is lost and so is the run.
+// field cap, how many pieces fight (TUNING.party.field and the Command relics: commandOf); every Shop stocks a Command
+// relic. Arise's numbers (how far it reaches, the tier and how many it raises, how soon it casts) are the Arise
+// relic's own, growing with each copy past the first (ariseOf). The roads run to it (battle.js field). If it falls,
+// the battle is lost and so is the run.
 //
 // Pieces and footprints (DESIGN §2.2): one soul is one piece is one body, everywhere. The party is pieces, each one
 // soul of one kind with its own HP (unit.js makeUnit) and a size (unit.js sizeOf: 2 for a kind of size 2 or one
@@ -50,16 +50,17 @@
 // highest level of the kinds consumed (the kind's `least` rises to it): a fused piece is never weaker than what went
 // into it. Recipes are public: legalActions lists one fuse a recipe that can be made (fuseParts).
 //
-// Relics (content.js RELIC_LIST, RELIC_TIERS): s.relics, their ids in the order taken, a relic taken twice named
-// twice (relicCount). Copies stack with no cap: every copy applies in full. A reliquary and a won elite lay out
-// Common, Uncommon and Rare relics by TUNING.relic's weights for the room and the floor (relicOffers), a won elite's
-// always one Command relic among them; from floor TUNING.relic.legendary.fromFloor both also lay out Legendaries, the
-// rules that rewrite the game (legendaryOffers). A reliquary (the rite merged into it) lays out free next tiers of
-// your kinds too (tierOffers), and all it lays out is one pick (onePick); an elite's are one of each group
-// (offerGroup). Arise is a Legendary: without it no foe rises as a shadow (ariseHeld); each copy past the first grows
-// its numbers (ariseOf); a relic that does nothing without it (`needsArise`: Hollow Court, Blood Tithe, Court of Bone,
-// the gauge relics) is offered only once it is held. Most Legendaries bend the battle (battle.js relicRules); the
-// Command relics' field (Legion's too), the HP relics' Monarch, the domain's size, Hollow Court's shadows reaped and
+// Relics (content.js RELIC_LIST, RELIC_TIERS): s.relics, their ids in the order bought, a relic bought twice named
+// twice (relicCount). Copies stack with no cap: every copy applies in full. Relics are bought in Shops, and only there
+// (redesign.md §2.11): a Shop stocks TUNING.shop.relics, drawn by tier from TUNING.relic.weights.shop for the floor,
+// one of them always a Command relic and from floor TUNING.relic.legendary.fromFloor one a Legendary, the rules that
+// rewrite the game (stockShop); each priced by its tier and the floor (relicPrice), and any number bought while the
+// purse allows. A won elite lays out no relic: it pays essence on top of its foes' (eliteBonus). Arise is a
+// Legendary: without it no foe rises as a shadow (ariseHeld); each copy past the first grows its numbers (ariseOf); a
+// relic that does nothing without it (`needsArise`: Hollow Court, Blood Tithe, Court of Bone, Hourglass, Bone Idol) is
+// stocked only once it is held. A relic's mods on the run's own paths (RUN_PATHS: Command, the Monarch's HP, the
+// roster, the prices, essence gain, Arise's reach and tier) are the run's to apply (runStat), the rest go to the
+// battle (battleSetup); most Legendaries bend the battle (battle.js relicRules), and Hollow Court's shadows reaped and
 // Court of Bone's Monarch that nothing heals are the run's to apply. Nothing revives the Monarch.
 //
 // The enemy is an army too (drawRoom): from floor 2 its rooms have captains, each with a cohort of foes of its kind
@@ -68,7 +69,9 @@
 // battle.
 //
 // `fight` resolves the whole battle at once; run.setup is what it was built from, so the UI can play it
-// back tick by tick.
+// back tick by tick. On turns (TUNING.turns: redesign.md §2.3) `fight` opens the battle instead (run.battle, phase
+// 'battle'), and the player's orders are actions of the run like any other, logged, so replay plays the battle back
+// order by order: apply returns each order's events, and once the battle is over the run moves on by itself (closeBattle).
 //
 //   phase            action
 //   map              { type: 'node', id }           walk to a connected room (a battle room, a siege too, opens prep)
@@ -84,13 +87,17 @@
 //                                                   fused piece waits in the ossuary
 //   map, prep        { type: 'upgrade', kind, track }  buy a kind you hold its next tier on track 0 or 1 (and
 //                                                   with it the kind's level: levelOf)
-//   map, prep, reap  { type: 'release', uid }       let a soul go (never the last one standing), for its refund
+//   map, prep, reap, shop  { type: 'release', uid }  let a soul go (never the last one standing), for its refund
 //                                                   (releaseRefund)
-//   prep             { type: 'fight' }              the battle plays out; the run moves on by itself
-//   reap             { type: 'reap', index }        take offer `index` (recruit one soul for its price, a
-//                                                   free relic, a free Legendary, a free tier), or null to move on;
-//                                                   one of each group (offerGroup), one in all in a reliquary
-//                                                   (onePick)
+//   prep             { type: 'fight' }              the battle plays out; the run moves on by itself (on turns: the
+//                                                   battle opens, phase 'battle')
+//   battle           an order (turns.js legalOrders: { type: 'move' | 'undo' | 'act' | 'fuse' | 'end', … })
+//                                                   given in the battle (turns.js order); returns its events
+//   reap             { type: 'reap', index }        recruit offer `index`, one soul for its price, or null to move
+//                                                   on; one a battle
+//   shop             { type: 'buy', index }         buy stock slot `index` (s.shop: a relic id, null once bought)
+//                                                   for its price (relicPrice), any number while the purse allows
+//   shop             { type: 'leave' }              walk on, free
 //   over             { type: 'descend' }            the Sovereign slain (result 'victory'): on to the endless
 //                                                   floors, each deeper than the last; nothing after a fall
 //
@@ -108,6 +115,7 @@ import {
   abilitiesOf, isBlow, ringOf, deployTile, distance, distanceBetween, tileAt, tileX, TILES, DEPTH, ROWS
 } from './unit.js'
 import { createBattle, playOut, relicRules, ariseCap, ariseTier, ariseHaste, field } from './battle.js'
+import { createBattle as openBattle, order, legalOrders } from './turns.js'
 import { generateFloor, nodeOf, RANKS } from './map.js'
 
 export const START_PARTY = ['tomb_knight', 'bone_chanter', 'frost_sprite']
@@ -115,18 +123,18 @@ export const MONARCH_UID = 0
 // The slot of a soul in the ossuary: kept, not fighting.
 export const OSSUARY = -1
 const BATTLE_NODES = ['fight', 'elite', 'boss', 'siege']
-const ROMAN = ['I', 'II', 'III', 'IV']
 const BOSS = UNIT_LIST.find((u) => u.boss).id
 
 // The Monarch takes the camp's seat, and the start souls take the camp's default frontier (frontier).
 // `death` is what felled the Monarch, once something has. The ossuary starts empty: every start soul is fielded, its
-// kind with no tiers, at its first level. No relics (ids, in the order taken, a copy each).
+// kind with no tiers, at its first level. No relics (ids, in the order bought, a copy each); `shop`, the stock of the
+// Shop the run stands in (stockShop), empty elsewhere.
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
 // every battle of the run, carried in each battle's setup (battle.js createBattle: 'arise', 'synergies', 'summons').
 // A run made without it has no such field.
 export function createRun ({ seed, ablate = null }) {
   const state = {
-    seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [],
+    seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [], shop: [],
     essence: TUNING.essence.start, result: null, death: null,
     kinds: Object.fromEntries(START_PARTY.map((id) => [id, { lvl: levelOf({ tracks: [0, 0] }), tracks: [0, 0] }])),
     stats: { fights: 0, wins: 0, reaped: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
@@ -148,9 +156,11 @@ export function replay (seed, log, { ablate = null } = {}) {
   return run
 }
 
-// Applies one action, or throws if it is not legal now.
+// Applies one action, or throws if it is not legal now. In a battle on turns the action is an order (ORDERS), and
+// apply returns the events it made.
 export function apply (run, action) {
   const s = run.state
+  if (s.phase === 'battle') return command(run, action)
   const handler = HANDLERS[action?.type]
   if (!handler) throw new Error(`unknown action "${action?.type}"`)
   if (!handler.phases.includes(s.phase)) throw new Error(`"${action.type}" needs phase ${handler.phases.join('/')}, run is in "${s.phase}"`)
@@ -160,11 +170,16 @@ export function apply (run, action) {
 
 export function legalActions (run) {
   const s = run.state
+  if (s.phase === 'battle') return legalOrders(run.battle)
   if (s.phase === 'map') return [...availableNodes(run).map((n) => ({ type: 'node', id: n.id })), ...rosterActions(run)]
   if (s.phase === 'prep') return [...(canFight(s) ? [{ type: 'fight' }] : []), ...rosterActions(run)]
   if (s.phase === 'reap') {
     const offers = s.offers.flatMap((o, index) => (canTake(run, o) ? [{ type: 'reap', index }] : []))
     return [...offers, { type: 'reap', index: null }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid }))]
+  }
+  if (s.phase === 'shop') {
+    const buys = s.shop.flatMap((id, index) => (canBuy(run, index) ? [{ type: 'buy', index }] : []))
+    return [...buys, { type: 'leave' }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid }))]
   }
   if (s.phase === 'over') return canDescend(s) ? [{ type: 'descend' }] : []
   return []
@@ -190,9 +205,33 @@ export function availableNodes (run) {
   return currentNode(run).next.map((id) => nodeOf(run.state.map, id))
 }
 
-// The relics held, a copy each, and a rule's sum over every copy.
+// The relics held, a copy each.
 const relicDefs = (s) => s.relics.map(relicDef)
-const relicSum = (s, key) => relicDefs(s).reduce((n, r) => n + (r[key] ?? 0), 0)
+
+// The stat paths a relic's mods may name that are the run's, not a unit's (redesign.md §2.13.3; content.js
+// RELIC_LIST): Command, the Monarch's max HP, the retinue's room, the free tiers a new kind joins with, the shares the
+// prices are cut by (a tier, tiers I–II besides, a recruit, a relic), the share more battles pay, and Arise's reach
+// and tier. Every other path is a unit's, and goes to the battle (battleSetup's partyMods).
+export const RUN_PATHS = ['run.command', 'run.monarchHp', 'run.roster', 'run.soulTiers', 'price.tier', 'price.lowTier', 'price.recruit', 'price.relic', 'essence.gain', 'arise.domain', 'arise.tier']
+export const isRunPath = (path) => RUN_PATHS.includes(path)
+// A run-level stat: `base` with the mods every relic held (a copy each) puts on `paths` (one path, or several read as
+// one: a tier's price cut and a low tier's add up), as a unit's mods apply (unit.js statsOf): add, then mul, then the
+// largest set.
+export function runStat (s, paths, base) {
+  const on = [paths].flat()
+  let add = 0
+  let mul = 1
+  let set = null
+  for (const r of relicDefs(s)) {
+    for (const m of r.mods ?? []) {
+      if (!on.includes(m.path)) continue
+      if (m.op === 'add') add += m.v
+      else if (m.op === 'mul') mul *= m.v
+      else if (m.op === 'set') set = set === null ? m.v : Math.max(set, m.v)
+    }
+  }
+  return set ?? (base + add) * mul
+}
 // How many copies of relic `id` the run holds (0: none).
 export const relicCount = (s, id) => s.relics.reduce((n, x) => n + (x === id), 0)
 // Whether the run holds a relic with this rule (RELIC_LIST: reap, unhealable…).
@@ -205,20 +244,19 @@ export const ariseHeld = (s) => relicCount(s, 'arise') > 0
 // a battle (battle.js ariseCap: TUNING.arise.raises, more.raises a copy past the first, grown by Blood Tithe; 0
 // without it), the highest `tier` it raises (ariseTier: TUNING.arise.tier, more.tier a copy past the first), and the
 // `haste` it gives the Monarch's gauge (ariseHaste: more.haste a copy past the first).
+// Bone Idol's tiers (`arise.tier`) come on top of the relic's own (the old battle's raise reads ariseTier alone).
 export function ariseOf (s) {
   const held = relicRules(s.relics)
-  return { copies: held.arise, domain: domainOf(s), raises: ariseCap(held), tier: ariseTier(held), haste: ariseHaste(held) }
+  return { copies: held.arise, domain: domainOf(s), raises: ariseCap(held), tier: runStat(s, 'arise.tier', ariseTier(held)), haste: ariseHaste(held) }
 }
 // The copies of Arise past the first: each reaches a tile farther (TUNING.arise.more.domain).
 const pastFirst = (s) => Math.max(0, relicCount(s, 'arise') - 1)
 // The relic's tier (RELIC_TIERS id).
 export const relicTier = (id) => relicDef(id).tier
-// What an offer is taken as one of (one of each a room): 'soul', 'relic', 'legendary' (a Legendary relic, apart
-// from the others) or 'tier'.
-export const offerGroup = (o) => (o.type === 'relic' && relicTier(o.id) === 'legendary' ? 'legendary' : o.type)
-// Whether the room's offers are one pick in all, whatever their groups: a reliquary's (its relics, its Legendaries and
-// its tiers, the rite's and the reliquary's offers merged); elsewhere one of each group.
-export const onePick = (run) => run.state.phase === 'reap' && currentNode(run)?.type === 'reliquary'
+// Shims for the interface until its Shop lands (redesign.md §2.11): a spoils' offers are souls alone now, one to
+// recruit, so an offer's group is its type and no room is a reliquary's one pick.
+export const offerGroup = (o) => o.type
+export const onePick = () => false
 // Hollow Court: the shadows Arise raised (`arisen`; a party shadow raised any other way is not one) that
 // still stood when the battle last fought was won, if it was fought under the relic: each pays its essence
 // again, once a copy (finishBattle: reapsOf). The relics it was fought with decide (run.setup), not the ones held
@@ -233,10 +271,10 @@ export const reapedShadows = (run) => run.battle && run.battle.winner === 'party
 export const baseField = (s) => TUNING.party.field + TUNING.party.fieldPerFloor * (Math.min(s.floor, TUNING.run.floors) - 1)
 // The Monarch's Command: its base, and what its Command relics add, a copy each (Legion's two too); uncapped (the
 // field is not: fieldCap).
-export const commandOf = (s) => baseField(s) + relicSum(s, 'command')
+export const commandOf = (s) => runStat(s, 'run.command', baseField(s))
 export const fieldCap = (run) => Math.min(TUNING.army.board, commandOf(run.state))
 // How many souls the retinue holds, on the field and in the ossuary together.
-export const rosterCap = (run) => TUNING.party.roster + relicSum(run.state, 'roster')
+export const rosterCap = (run) => runStat(run.state, 'run.roster', TUNING.party.roster)
 // The souls among these pieces (one a piece; the Monarch is none).
 export const soulCount = (party) => souls(party).length
 export const fielded = (party) => party.filter(onField)
@@ -250,12 +288,13 @@ export const souls = (party) => party.filter((u) => !isMonarch(u))
 // ── the Monarch ──────────────────────────────────────────────────────────────────────────────────
 
 // Its max HP: TUNING.monarch.hp and what its HP relics add, a copy each. Nothing else raises it.
-export const monarchHp = (s) => TUNING.monarch.hp + relicSum(s, 'monarchHp')
+export const monarchHp = (s) => runStat(s, 'run.monarchHp', TUNING.monarch.hp)
 
 // How far Arise reaches, its domain (Chebyshev, in tiles, from the Monarch's tile; relics bend it, never below 0):
-// TUNING.arise.domain, more.domain a copy of Arise past the first, and Court of Bone's tiles. Arise raises the foes
-// that fall inside it (unit.js domainTiles lists its tiles). Without Arise it does nothing.
-export const domainOf = (s) => Math.max(0, TUNING.arise.domain + TUNING.arise.more.domain * pastFirst(s) + relicSum(s, 'domain'))
+// TUNING.arise.domain, more.domain a copy of Arise past the first, and the relics' `arise.domain` (Court of Bone's,
+// Hourglass's). Arise raises the foes that fall inside it (unit.js domainTiles lists its tiles). Without Arise it does
+// nothing.
+export const domainOf = (s) => Math.max(0, runStat(s, 'arise.domain', TUNING.arise.domain + TUNING.arise.more.domain * pastFirst(s)))
 
 // ── the camp: footprints ─────────────────────────────────────────────────────────────────────────
 
@@ -457,10 +496,12 @@ const HANDLERS = {
   node: { phases: ['map'], run: walk },
   place: { phases: ['map', 'prep'], run: place },
   upgrade: { phases: ['map', 'prep'], run: upgrade },
-  release: { phases: ['map', 'prep', 'reap'], run: release },
+  release: { phases: ['map', 'prep', 'reap', 'shop'], run: release },
   fuse: { phases: ['map', 'prep'], run: fuse },
   fight: { phases: ['prep'], run: fight },
   reap: { phases: ['reap'], run: reap },
+  buy: { phases: ['shop'], run: buy },
+  leave: { phases: ['shop'], run: leave },
   descend: { phases: ['over'], run: descend }
 }
 
@@ -471,12 +512,9 @@ function walk (run, { id }) {
   s.at = id
   if (BATTLE_NODES.includes(node.type)) {
     s.phase = 'prep'
-  } else if (node.type === 'reliquary') {
-    // The rite's and the reliquary's offers in one: its relics, its Legendaries (from their floor), and free tiers;
-    // one pick in all (onePick).
-    s.offers = [...relicOffers(s, 'reliquary'), ...legendaryOffers(s), ...tierOffers(run, TUNING.relic.offer.tiers)]
-    s.phase = 'reap'
-    if (!s.offers.length) nextRoom(run)
+  } else if (node.type === 'shop') {
+    s.shop = stockShop(s)
+    s.phase = 'shop'
   } else if (node.type === 'altar') {
     // Every soul heals, in the ossuary too, and a fallen one stands again, where it lies, in the ossuary, to be placed.
     const t = TUNING.run
@@ -511,13 +549,31 @@ function fuse (run, { id, parts }) {
   if (!took) throw new Error(`cannot fuse ${id} of ${JSON.stringify(parts)}`)
   if (s.essence < fuseCost(run, id)) throw new Error(`cannot fuse ${id}: not enough essence`)
   pay(run, fuseCost(run, id))
+  const u = fused(s, recipe.result, took, s.nextUid++)
+  s.party.push(u)
+}
+
+// The parts `took` leave the party, and the fused piece of `kind` comes (uid `uid`, in the ossuary), its kind's level
+// never below theirs. Returns it.
+function fused (s, kind, took, uid) {
   const least = Math.max(...took.map((u) => kindLevel(s, u.id)))
   s.party = s.party.filter((x) => !took.includes(x))
-  const kind = recipe.result
   s.kinds[kind] ??= { lvl: levelOf({ tracks: [0, 0] }), tracks: [0, 0] }
   s.kinds[kind].least = Math.max(s.kinds[kind].least ?? 0, least)
   syncKind(s, kind)
-  s.party.push(makeUnit(kind, { uid: s.nextUid++, lvl: s.kinds[kind].lvl, tracks: s.kinds[kind].tracks }))
+  return makeUnit(kind, { uid, lvl: s.kinds[kind].lvl, tracks: s.kinds[kind].tracks })
+}
+
+// A fusion made in a battle on turns (turns.js `fused`: its price already paid, closeBattle): its parts leave the party
+// and its piece joins it with the uid it fought under, on the fuser's cell where its footprint fits there, else in the
+// ossuary (its HP the battle's, as any piece's: finishBattle).
+function fuseIn (run, f) {
+  const s = run.state
+  const took = s.party.filter((u) => f.parts.includes(u.uid))
+  const fuser = took.find((u) => u.uid === f.by)
+  const u = fused(s, f.id, took, f.uid)
+  if (fuser?.slot >= 0 && fits(s.camp, fuser.slot, sizeOf(u), takenBy(s))) u.slot = fuser.slot
+  s.party.push(u)
 }
 
 function upgrade (run, { kind, track }) {
@@ -526,28 +582,53 @@ function upgrade (run, { kind, track }) {
   advance(run.state, kind, track)
 }
 
-// A soul let go pays back its refund (releaseRefund). Releasing the last soul of a kind withdraws a reliquary's tier
-// offers for that kind; a room left with none ends.
+// A soul let go pays back its refund (releaseRefund).
 function release (run, { uid }) {
   const s = run.state
   const u = releasable(s).find((x) => x.uid === uid)
   if (!u) throw new Error(`cannot release ${uid}`)
   s.essence += releaseRefund(run, u)
   s.party = s.party.filter((x) => x !== u)
-  if (s.phase !== 'reap') return
-  const held = heldKinds(s)
-  s.offers = s.offers.filter((o) => o.type !== 'tier' || held.includes(o.kind))
-  if (!s.offers.length) nextRoom(run)
 }
 
-// The battle takes uids for its foes and for the shadows it raises; the run moves past all of them.
+// The battle takes uids for its foes and for the shadows it raises; the run moves past all of them. On turns it only
+// opens: the orders play it (command).
 function fight (run) {
   const s = run.state
   if (!canFight(s)) throw new Error('nobody standing on the field')
   run.setup = battleSetup(run)
+  if (TUNING.turns) {
+    run.battle = openBattle(run.setup)
+    s.phase = 'battle'
+    if (run.battle.over) closeBattle(run)
+    return
+  }
   run.battle = createBattle(run.setup)
   playOut(run.battle)
   s.nextUid = run.battle.nextUid
+  finishBattle(run)
+}
+
+// The orders a battle on turns takes (turns.js order).
+const ORDERS = ['move', 'undo', 'act', 'fuse', 'end']
+
+// An order in the battle on turns: given (turns.js order, which throws on one not legal now), logged, and its events
+// returned; the battle over, the run moves on (closeBattle).
+function command (run, action) {
+  if (!ORDERS.includes(action?.type)) throw new Error(`"${action?.type}" is no order, and the run is in battle`)
+  const events = order(run.battle, action)
+  run.state.log.push({ ...action })
+  if (run.battle.over) closeBattle(run)
+  return events
+}
+
+// A battle on turns is over: the run takes the uids it used, pays what it spent of the purse (its fusions), takes its
+// fusions' pieces in place of their parts (fuseIn), and moves on as after any battle (finishBattle).
+function closeBattle (run) {
+  const b = run.battle
+  run.state.nextUid = b.nextUid
+  if (b.spent) pay(run, b.spent)
+  for (const f of b.fused) fuseIn(run, f)
   finishBattle(run)
 }
 
@@ -561,13 +642,9 @@ function descend (run) {
   enterFloor(run)
 }
 
-// One of each group per room (offerGroup): recruiting a soul (for its price) takes the other souls off the table,
-// and taking a free relic or Legendary the others of its group, so an elite still leaves its relic and its Legendary
-// after a recruit. A reliquary's offers are one pick (onePick): taking any ends it. The room ends on null, or once
-// nothing is left. A relic is taken as takeRelic says; a recruit of a kind new to the run joins with Soul Lantern's
-// free tiers, a copy each, each on its lower track (lanternSteps). A soul is priced as it stands when taken
-// (soulOffer), and the souls still on the table are priced again after every pick: a relic taken first (Soul
-// Lantern, Binding Chain) prices and levels them.
+// The spoils' one recruit (a battle's only offers are its souls): offer `index` for its price, or null to take none;
+// either way the room ends. A recruit of a kind new to the run joins with Soul Lantern's free tiers, a copy each, each
+// on its lower track (lanternSteps). A soul is priced as it stands when taken (soulOffer).
 function reap (run, { index }) {
   const s = run.state
   const o = index === null ? null : s.offers[index]
@@ -575,35 +652,61 @@ function reap (run, { index }) {
   if (o && !canTake(run, o)) {
     throw new Error(o.type !== 'soul' ? `offer ${index} can't be taken` : soulCount(s.party) >= rosterCap(run) ? 'the retinue is full: release a soul first' : 'not enough essence')
   }
-  if (o?.type === 'relic') takeRelic(s, o.id)
-  else if (o?.type === 'tier') advance(s, o.kind, o.track)
-  else if (o?.type === 'soul') {
+  if (o) {
     pay(run, soulOffer(run, o).cost)
     const steps = s.kinds[o.id] ? [] : lanternSteps(s)
     join(run, o.id)
     for (const t of steps) if (canAdvance(s, o.id, t)) advance(s, o.id, t)
     s.stats.reaped++
   }
-  s.offers = o && !onePick(run) ? s.offers.filter((x) => offerGroup(x) !== offerGroup(o)).map((x) => soulOffer(run, x)) : []
-  if (!s.offers.length) nextRoom(run)
+  s.offers = []
+  nextRoom(run)
 }
 
 export function canTake (run, o) {
   const s = run.state
-  if (o.type === 'soul') return soulCount(s.party) < rosterCap(run) && s.essence >= soulOffer(run, o).cost
-  if (o.type === 'tier') return canAdvance(s, o.kind, o.track)
-  return true
+  return o.type === 'soul' && soulCount(s.party) < rosterCap(run) && s.essence >= soulOffer(run, o).cost
 }
 
-// A relic taken: a copy more in s.relics. An HP relic raises the Monarch's max HP by its `monarchHp` and heals it by
-// as much, unless nothing may heal it (Court of Bone, held before or taken now).
+// A relic bought: a copy more in s.relics. One that raises the Monarch's max HP (`run.monarchHp`) heals it by as much,
+// unless nothing may heal it (Court of Bone, held before or bought now).
 function takeRelic (s, id) {
+  const gain = monarchHp({ ...s, relics: [...s.relics, id] }) - monarchHp(s)
   s.relics.push(id)
-  const gain = relicDef(id).monarchHp ?? 0
   if (!gain) return
   const m = monarchOf(s)
   m.maxHp += gain
   if (!holds(s, 'unhealable')) m.hp += gain
+}
+
+// ── the Shop (redesign.md §2.11) ─────────────────────────────────────────────────────────────────
+
+// What relic `id` costs: TUNING.shop.price for its tier × the floor's price scale (floorPrice), after the relics that
+// cut it (`price.relic`), never below 1.
+export const relicPrice = (run, id) => price(run, TUNING.shop.price[relicTier(id)], 'price.relic')
+// Whether stock slot `index` can be bought now: a relic still on the shelf, and the purse holds its price.
+export const canBuy = (run, index) => {
+  const id = run.state.shop[index]
+  return !!id && run.state.essence >= relicPrice(run, id)
+}
+// The stock as the interface shows it: each slot's relic and its price now, null for one bought.
+export const shopOffers = (run) => run.state.shop.map((id, index) => id && { ...relicOffer(relicDef(id)), index, cost: relicPrice(run, id) })
+
+// A slot bought: its price paid, the relic held (takeRelic), the slot empty. The Shop stays open for more.
+function buy (run, { index }) {
+  const s = run.state
+  const id = s.shop[index]
+  if (!id) throw new Error(`no relic in slot ${index}`)
+  if (!canBuy(run, index)) throw new Error('not enough essence')
+  pay(run, relicPrice(run, id))
+  takeRelic(s, id)
+  s.shop[index] = null
+}
+
+// Out of the Shop, free; what is left on its shelves is left behind with the room.
+function leave (run) {
+  run.state.shop = []
+  nextRoom(run)
 }
 
 // ── internals ────────────────────────────────────────────────────────────────────────────────────
@@ -833,12 +936,19 @@ export function battleSetup (run, { party = fielded(run.state.party), seed = nul
     boss,
     camp: s.camp,
     walls: wallTiles(s.camp),
-    partyMods: relicDefs(s).flatMap((r) => r.mods ?? []),
+    partyMods: relicDefs(s).flatMap((r) => (r.mods ?? []).filter((m) => !isRunPath(m.path))),
     foeMods: foeMods(s.floor, boss),
     domain: domainOf(s),
     nextUid: s.nextUid + foes.length,
     relics: s.relics.slice(),
-    ...(s.ablate && { ablate: s.ablate.slice() })
+    ...(s.ablate && { ablate: s.ablate.slice() }),
+    // On turns (turns.js createBattle): the purse a fusion in battle pays from, each recipe's price and its fused kind's
+    // level and tiers, and the highest tier Arise raises (its copies and the relics' `arise.tier`).
+    ...(TUNING.turns && {
+      essence: s.essence,
+      fuse: Object.fromEntries(FUSION_LIST.map((r) => [r.id, { price: fuseCost(run, r.id), lvl: kindLevel(s, r.result), tracks: (s.kinds[r.result]?.tracks ?? [0, 0]).slice() }])),
+      ariseTier: ariseOf(s).tier
+    })
   }
 }
 
@@ -881,9 +991,12 @@ function finishBattle (run) {
     return
   }
   s.stats.wins++
-  // Hollow Court: the shadows Arise raised that still stand pay their essence again, once a copy.
+  // Hollow Court: the shadows Arise raised that still stand pay their essence again, once a copy. A won elite pays its
+  // bonus on top (eliteBonus), and what relics add to a battle's pay (`essence.gain`) counts it too.
+  const node = currentNode(run)
   const court = reapedShadows(run).reduce((n, u) => n + foeEssence(u), 0) * reapsOf(run.setup.relics)
-  const earned = Math.round((battleEssence(b) + court) * (1 + relicSum(s, 'essence')))
+  const bonus = node.type === 'elite' ? eliteBonus(s.floor) : 0
+  const earned = Math.round((battleEssence(b) + court + bonus) * runStat(s, 'essence.gain', 1))
   s.essence += earned
   s.stats.essence += earned
   // Each living soul heals; the fallen stay down.
@@ -891,14 +1004,13 @@ function finishBattle (run) {
     if (isMonarch(u) && holds(s, 'unhealable')) continue
     if (u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + Math.ceil(u.maxHp * TUNING.run.postBattleHeal))
   }
-  const node = currentNode(run)
   if (node.type === 'boss') {
     s.stats.floorsCleared++
     s.phase = 'over'
     s.result = 'victory'
     return
   }
-  s.offers = [...soulOffers(run, b), ...(node.type === 'elite' ? [...relicOffers(s, 'elite'), ...legendaryOffers(s)] : [])]
+  s.offers = soulOffers(run, b)
   s.phase = 'reap'
 }
 
@@ -906,6 +1018,9 @@ function finishBattle (run) {
 
 // Every foe slain pays essence by its tier alone (perTier × tier), whatever its level; it all goes to one purse. Only real foes pay: a shadow (of either side) was paid for once already, as the corpse it rose from.
 export const foeEssence = (u) => TUNING.essence.perTier * unitDef(u.id).tier
+// What a won elite pays on top of its foes (TUNING.essence.eliteBonus × the floor's price scale), before the relics
+// that raise a battle's pay. It lays out no relic: relics are bought (redesign.md §2.11).
+export const eliteBonus = (floor) => Math.round(TUNING.essence.eliteBonus * floorPrice(floor))
 const battleEssence = (battle) => battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
 // What each foe wave of a battle paid (the formation's first), before relics: a siege pays wave by wave,
 // and a boss's crumbled court as if slain.
@@ -915,16 +1030,17 @@ export function essenceByWave (battle) {
   return Array.from(out, (v) => v ?? 0)
 }
 
-// Prices: every price (a tier, a recruit, a fusion) is its base × the floor's price scale (floorPrice: 1 on floor 1,
-// rising by TUNING.essence.perFloor a floor), after the relics' discounts: a kind's next tier on `track` (tiers I and
-// II cut by lowTierDiscount too), a recruit (recruitDiscount).
+// Prices: every price (a tier, a recruit, a fusion, a relic) is its base × the floor's price scale (floorPrice: 1 on
+// floor 1, rising by TUNING.essence.perFloor a floor), × what the relics' `price.…` mods leave of it (runStat, the
+// paths read as one: their cuts add up): a kind's next tier on `track` (`price.tier`, and `price.lowTier` too for
+// tiers I and II), a recruit (`price.recruit`), a relic (`price.relic`: relicPrice).
 export const floorPrice = (floor) => 1 + TUNING.essence.perFloor * (floor - 1)
-const price = (run, base, ...discounts) => Math.max(1, Math.round(base * floorPrice(run.state.floor) * (1 - discounts.reduce((n, d) => n + relicSum(run.state, d), 0))))
+const price = (run, base, ...paths) => Math.max(1, Math.round(base * floorPrice(run.state.floor) * runStat(run.state, paths, 1)))
 export const tierCost = (run, kind, track) => {
   const next = run.state.kinds[kind].tracks[track]
-  return price(run, TUNING.essence.tier[next], 'tierDiscount', ...(next < 2 ? ['lowTierDiscount'] : []))
+  return price(run, TUNING.essence.tier[next], 'price.tier', ...(next < 2 ? ['price.lowTier'] : []))
 }
-export const recruitCost = (run, id, lvl) => price(run, TUNING.essence.recruit * unitDef(id).tier * (1 + TUNING.essence.perLevel * (lvl - 1)), 'recruitDiscount')
+export const recruitCost = (run, id, lvl) => price(run, TUNING.essence.recruit * unitDef(id).tier * (1 + TUNING.essence.perLevel * (lvl - 1)), 'price.recruit')
 
 // The kinds the run holds a soul of, in party order (the Monarch is no kind).
 export const heldKinds = (s) => [...new Set(souls(s.party).map((u) => u.id))]
@@ -985,7 +1101,7 @@ export const lowerTrack = (tracks) => [tracks[1] < tracks[0] ? 1 : 0, tracks[1] 
 // in order, each the lower track then (lowerTrack).
 function lanternSteps (s) {
   const steps = []
-  for (let tracks = [0, 0], t; steps.length < relicSum(s, 'soulTiers') && (t = lowerTrack(tracks)) !== null; tracks = nextTracks(tracks, t)) steps.push(t)
+  for (let tracks = [0, 0], t; steps.length < runStat(s, 'run.soulTiers', 0) && (t = lowerTrack(tracks)) !== null; tracks = nextTracks(tracks, t)) steps.push(t)
   return steps
 }
 
@@ -1055,8 +1171,8 @@ function soulOffers (run, battle) {
 
 // A soul offer as the run stands now: the level it would join at (its kind's; a kind new to the run its first, with
 // the free tiers Soul Lantern would give it), what it costs at that level (recruitCost) and the card's line. Every
-// reading of an offer's price or level goes through here (canTake, reap, the spoils screen), so a relic taken first
-// in the same room (Soul Lantern, Binding Chain) is in the price. Any other offer comes back as it is.
+// reading of an offer's price or level goes through here (canTake, reap, the spoils screen), so the relics held now
+// (Soul Lantern, Binding Chain) are in the price. Any other offer comes back as it is.
 export function soulOffer (run, o) {
   if (o.type !== 'soul') return o
   const s = run.state
@@ -1064,56 +1180,35 @@ export function soulOffer (run, o) {
   return { ...o, lvl, cost: recruitCost(run, o.id, lvl), desc: `Rises at level ${lvl}.` }
 }
 
-// A reliquary offers free tiers (what a rite did): up to `n` of the next tiers your kinds could take, each for a
-// different kind where it can.
-function tierOffers (run, n) {
-  const s = run.state
-  const rng = createRng(s.seed).stream(`tiers|${s.floor}|${s.at}`)
-  const options = rng.shuffle(heldKinds(s).flatMap((kind) => [0, 1].filter((track) => canAdvance(s, kind, track)).map((track) => ({ kind, track }))))
-  const picked = [...options.filter((o, i) => options.findIndex((x) => x.kind === o.kind) === i), ...options].filter((o, i, all) => all.indexOf(o) === i).slice(0, n)
-  return picked.map(({ kind, track }) => {
-    const next = s.kinds[kind].tracks[track]
-    const t = tracksOf(kind)[track]
-    return { type: 'tier', kind, track, name: `${unitDef(kind).name}: ${t.name} ${ROMAN[next]}`, desc: t.tiers[next].desc }
-  })
-}
-
-// A relic offer: `tier` (RELIC_TIERS id) for the card.
+// A relic as the Shop's card shows it (shopOffers): `tier` (RELIC_TIERS id).
 const relicOffer = (r) => ({ type: 'relic', id: r.id, name: r.name, desc: r.desc, tier: r.tier })
-// Whether relic `r` may be offered to the run: one that needs Arise only once it is held; one held, again.
+// Whether relic `r` may be stocked for the run: one that needs Arise only once it is held; one held, again.
 const offerable = (s, r) => !r.needsArise || ariseHeld(s)
-// The tier weights of `room` on the floor (TUNING.relic.weights: the floor's entry, the last for every floor past).
+// The tier weights of `room` ('shop') on the floor (TUNING.relic.weights: the floor's entry, the last for every floor
+// past).
 export const relicWeights = (room, floor) => {
   const w = TUNING.relic.weights[room]
   return w[Math.min(floor, w.length) - 1]
 }
 
-// What `room` ('reliquary' or 'elite') lays out: TUNING.relic.offer[room] relics, each of a tier drawn by the room's
-// weights on the floor (relicWeights; a tier with nothing left to draw is passed over), then one of that tier, never
-// one already in this offer; one the run holds may come again. A won elite's first is drawn from the Command relics
-// alone (`command`), so the field never grows by luck alone, and its relics are laid out in shuffled order.
-function relicOffers (s, room) {
-  const rng = createRng(s.seed).stream(`relics|${s.floor}|${s.at}`)
-  const weights = relicWeights(room, s.floor)
+// A Shop's stock (redesign.md §2.11): TUNING.shop.relics relic ids, drawn on a stream of the room's own, so a replay
+// stocks it again. Each Common to Rare relic is of a tier drawn by the Shop's weights on the floor (relicWeights; a
+// tier with nothing left to draw is passed over), then one of that tier, never one already on the shelf; the first
+// drawn from the Command relics alone, so the field never grows by luck. From floor TUNING.relic.legendary.fromFloor
+// one slot is a Legendary. One the run holds may come again. Laid out in shuffled order.
+function stockShop (s) {
+  const rng = createRng(s.seed).stream(`shop|${s.floor}|${s.at}`)
+  const weights = relicWeights('shop', s.floor)
+  const command = (r) => (r.mods ?? []).some((m) => m.path === 'run.command' && m.v > 0)
   const out = []
-  for (let k = 0; k < TUNING.relic.offer[room]; k++) {
-    const command = room === 'elite' && k === 0
-    const left = (tier) => RELIC_LIST.filter((r) => r.tier === tier && offerable(s, r) && !out.includes(r) && (!command || r.command > 0))
+  const legendary = s.floor >= TUNING.relic.legendary.fromFloor ? 1 : 0
+  for (let k = 0; k < TUNING.shop.relics - legendary; k++) {
+    const left = (tier) => RELIC_LIST.filter((r) => r.tier === tier && offerable(s, r) && !out.includes(r) && (k > 0 || command(r)))
     const tiers = RELIC_TIERS.filter((t) => t.id !== 'legendary' && (weights[t.id] ?? 0) > 0 && left(t.id).length)
     if (!tiers.length) break
-    const tier = rng.weighted(tiers, tiers.map((t) => weights[t.id])).id
-    out.push(rng.pick(left(tier)))
+    out.push(rng.pick(left(rng.weighted(tiers, tiers.map((t) => weights[t.id])).id)))
   }
-  return (room === 'elite' ? rng.shuffle(out) : out).map(relicOffer)
-}
-
-// From floor TUNING.relic.legendary.fromFloor, an elite won and a reliquary each lay out TUNING.relic.legendary.offer
-// Legendaries, free, one to take; one held may come again, and one that needs Arise only once it is held.
-function legendaryOffers (s) {
-  const k = TUNING.relic.legendary
-  if (s.floor < k.fromFloor) return []
-  const rng = createRng(s.seed).stream(`legendaries|${s.floor}|${s.at}`)
-  return rng.shuffle(RELIC_LIST.filter((r) => r.tier === 'legendary' && offerable(s, r)))
-    .slice(0, k.offer)
-    .map(relicOffer)
+  const legendaries = RELIC_LIST.filter((r) => r.tier === 'legendary' && offerable(s, r))
+  if (legendary && legendaries.length) out.push(rng.pick(legendaries))
+  return rng.shuffle(out).map((r) => r.id)
 }

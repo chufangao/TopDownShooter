@@ -1,5 +1,9 @@
 # RETINUE: the dead hold the line
 
+> **2026-10-10, later:** `redesign.md` supersedes §1, §2.3–2.4, §2.7, §3.1, the rings, the gauge, the dice, the
+> Reliquary and the elites' relic offers: combat is turn-based, the enemy one opponent, relics sold in Shops only,
+> content one record apiece. Read it first; the rest of this file stands.
+
 The rules redesign decided on 2026-10-09 (evening), and the plan for building it. For Chufan and for any Claude
 Code session working in this repo: read this before touching `src/`. It replaces "the dead keep the plan"
 (this file's morning version, commits `30f29b4` to `041093f`), whose lines, signals, lunges, Banners and timing

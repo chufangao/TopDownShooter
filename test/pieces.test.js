@@ -14,7 +14,7 @@ import {
   makeUnit, tileAt, tileX, tileY, distanceBetween, summonsOf, footprintSlots, fits, monarchSlot, CAMP_ROWS, CAMP_SLOTS, COLS, LANES, SLOTS
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
-import { TRACKS, RELICS, unitDef } from '../src/content.js'
+import { TRACKS, unitDef } from '../src/content.js'
 import { tuned } from './tuned.js'
 import { on, scene, unit, moves } from './scene.js'
 
@@ -249,7 +249,7 @@ test('a 1×1 moved onto any cell of a 2×2 swaps with it (the 2×2 to the mover\
 
 // ── soul offers ──────────────────────────────────────────────────────────────────────────────────
 
-// A run on the spoils of a fight (not a reliquary: one of each group), its offers `offers`.
+// A run on the spoils of a fight, its offers `offers` (souls: relics are bought in Shops, never laid out here).
 function spoils (seed, offers, relics = []) {
   const run = createRun({ seed })
   const s = run.state
@@ -259,28 +259,26 @@ function spoils (seed, offers, relics = []) {
   s.offers = offers.map((o) => soulOffer(run, o))
   return run
 }
-const relic = (id) => ({ type: 'relic', id, name: RELICS[id].name, desc: RELICS[id].desc, tier: RELICS[id].tier })
 
-test('a soul offer is levelled and priced as the run stands when it is read: Soul Lantern taken first levels it, Binding Chain prices it', () => {
-  // A kind new to the run, with a Soul Lantern held and another on offer: one free tier makes no level, two do.
-  const run = spoils('lantern', [{ type: 'soul', id: 'grave_ghoul', name: unitDef('grave_ghoul').name }, relic('soul_lantern')], ['soul_lantern'])
+test('a soul offer is levelled and priced as the run stands when it is read: Soul Lantern levels it, Binding Chain prices it', () => {
+  // A kind new to the run, with a Soul Lantern held: one free tier makes no level; a second copy held, two do.
+  const run = spoils('lantern', [{ type: 'soul', id: 'grave_ghoul', name: unitDef('grave_ghoul').name }], ['soul_lantern'])
   const s = run.state
   s.essence = 1000
   const before = soulOffer(run, s.offers[0])
   assert.deepEqual([before.lvl, before.cost], [levelOf({ tracks: [1, 0] }), recruitCost(run, 'grave_ghoul', levelOf({ tracks: [1, 0] }))])
-  apply(run, { type: 'reap', index: 1 })
+  s.relics.push('soul_lantern')
   const lvl = levelOf({ tracks: [1, 1] })
   assert.ok(lvl > before.lvl)
-  assert.deepEqual(s.offers.map((o) => [o.type, o.lvl, o.cost]), [['soul', lvl, recruitCost(run, 'grave_ghoul', lvl)]], 'the offer on the table re-priced')
-  assert.deepEqual(soulOffer(run, s.offers[0]), s.offers[0])
-  assert.equal(s.offers[0].desc, `Rises at level ${lvl}.`)
+  const now = soulOffer(run, s.offers[0])
+  assert.deepEqual([now.lvl, now.cost, now.desc], [lvl, recruitCost(run, 'grave_ghoul', lvl), `Rises at level ${lvl}.`], 'the offer read again')
   const purse = s.essence
   apply(run, { type: 'reap', index: 0 })
   assert.equal(s.essence, purse - recruitCost(run, 'grave_ghoul', lvl))
   assert.deepEqual([s.kinds.grave_ghoul.tracks, kindLevel(s, 'grave_ghoul'), souls(s.party).find((u) => u.id === 'grave_ghoul').lvl], [[1, 1], lvl, lvl])
-  // A kind held, and Binding Chain on offer, the purse between the two prices: the recruit is not to be had until the
-  // relic is taken, then it is, at the lower price.
-  const chain = spoils('chain', [{ type: 'soul', id: 'tomb_knight', name: unitDef('tomb_knight').name }, relic('binding_chain')])
+  // A kind held, the purse between the two prices: the recruit is not to be had without Binding Chain, and with it held
+  // it is, at the lower price.
+  const chain = spoils('chain', [{ type: 'soul', id: 'tomb_knight', name: unitDef('tomb_knight').name }])
   const c = chain.state
   const full = soulOffer(chain, c.offers[0]).cost
   const cut = recruitCost({ state: { ...c, relics: ['binding_chain'] } }, 'tomb_knight', kindLevel(c, 'tomb_knight'))
@@ -288,8 +286,8 @@ test('a soul offer is levelled and priced as the run stands when it is read: Sou
   c.essence = cut
   assert.ok(!legalActions(chain).some((x) => x.type === 'reap' && x.index === 0))
   assert.throws(() => apply(chain, { type: 'reap', index: 0 }), /not enough essence/)
-  apply(chain, { type: 'reap', index: 1 })
-  assert.equal(c.offers[0].cost, cut)
+  c.relics.push('binding_chain')
+  assert.equal(soulOffer(chain, c.offers[0]).cost, cut)
   assert.ok(legalActions(chain).some((x) => x.type === 'reap' && x.index === 0))
   apply(chain, { type: 'reap', index: 0 })
   assert.equal(c.essence, 0)

@@ -1,6 +1,21 @@
 // Every balance constant in one place.
 
 export const TUNING = {
+  // Turns (redesign.md §2.3–2.10). `turns` is the slice's switch: false plays today's battle (battle.js), true the
+  // turn-based one (turns.js); it goes, with battle.js, when the full conversion lands. `turn.cap`: the clock, in
+  // turns from the last wave's entry; a battle undecided at the cap is lost. `dice` false: every blow hits, none
+  // crits, no variance (the dice path is kept behind it). `move`: a kind's Move from its old stride until its def
+  // carries `move` (flyers `fly`, the Monarch 0). `policy.press`: the camp's pressure, 0 at turn 1 rising to 1 at
+  // the cap, nudged ± `strength` by the trade it could make. Placeholders until the balance pass.
+  turns: false,
+  turn: { cap: 20 },
+  dice: false,
+  move: { 0.5: 1, 0.75: 2, 1: 2, 1.5: 3, fly: 3 },
+  policy: { press: { strength: 0.25 } },
+  // The Shop (redesign.md §2.11): `relics` stocked, one always a Command relic, and from floor 2 one a Legendary;
+  // each priced price[tier] × the floor's price scale (run.js relicPrice, floorPrice), after the discount relics
+  // (`price.relic`). Placeholders.
+  shop: { relics: 4, price: { common: 36, uncommon: 60, rare: 96, legendary: 144 } },
   // A battle still undecided at `ceiling` ticks ends with no winner (a defeat for the run). The ticks count
   // from the last foe to enter, so a late wave (the Sovereign's) still meets the escalation ramp first.
   tick: { ms: 50, ceiling: 2400 },
@@ -24,7 +39,7 @@ export const TUNING = {
   // retinue holds, on the field and in the ossuary together. The Monarch counts toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (content.js
-  // RELIC_LIST `monarchHp`), and nothing else touches it (no synergy, no other relic). No points are bought: its HP
+  // RELIC_LIST, mods on `run.monarchHp`), and nothing else touches it (no synergy, no other relic). No points are bought: its HP
   // and its Command (party.field) grow only by relics (2026-10-09, late; the points were hp 220 + 14 a point, for
   // 20 + 10 a point bought on all four). The fourth balance pass (2026-10-10): 250 (was 220), so one Pyre Hound's
   // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1 (its deaths there 4% → 1%).
@@ -61,11 +76,12 @@ export const TUNING = {
   // points, on its band's floor; 27 after, on 128 seeds).
   level: { base: 2, perTier: 0.67 },
   // Essence (DESIGN §2.6): each foe slain pays perTier × its tier, whatever its level (run.js foeEssence); a run
-  // starts with `start`. It buys only tiers, recruits and fusions, and every price is its base ×
+  // starts with `start`. It buys tiers, recruits, fusions and relics (TUNING.shop), and every price is its base ×
   // the floor's price scale, 1 + perFloor × (floor − 1) (run.js floorPrice: ×1, ×2.1, ×3.2, ×4.3 on floors 1–4):
   // a kind's track tiers I–IV tier[] (either track); recruiting a soul recruit × tier × (1 + perLevel × (level − 1)),
   // at the level it joins at (its kind's); a fusion fuse × the fused kind's tier, on top of the souls it consumes.
-  // What a won elite offers in relics is TUNING.relic's.
+  // A won elite pays eliteBonus on top of its foes' pay, × the floor's price scale (a tier IV's price, a
+  // placeholder: run.js eliteBonus); it lays out no relic (redesign.md §2.11).
   // The economy pass (2026-10-10; DESIGN §5 Step 8): "money should always matter". Before it a foe paid
   // 2.5 × tier × (1 + 0.35 × (level − 1)) for each of its bodies and prices were flat, so a floor-4 battle paid
   // twenty times a floor-1 battle and the expert ended a clear with ~4,000 essence unspent, every tier it wanted
@@ -75,7 +91,7 @@ export const TUNING = {
   // tracks carry it; it still spends ~97% of what it earns and ends each floor with at most half a tier II's price.
   // refund: a soul released pays back that share of what recruiting it would cost now (run.js releaseRefund; since
   // 2026-10-10, when stacking left the game), rounded down.
-  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5 },
+  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
   // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
   // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1
@@ -115,7 +131,7 @@ export const TUNING = {
     // 2026-10-10) felled the Monarch in 8 s and ended half the expert's runs (the final balance pass).
     captains: { fight: 1, elite: 2 }, cohort: [0, 2, 2, 3],
     late: { n: 2, t: 400 },
-    waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, share: 1 / 3, t: 600 },
+    waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, share: 1 / 3, t: 600, every: 4 },
     court: 4,
     // Endless floors, past the Sovereign's (run.floors): each floor `deep` floors down reuses the last floor's
     // camps and spawn pool (foe and elite counts and HP/ATK multipliers at their last entries), and grows from
@@ -146,19 +162,17 @@ export const TUNING = {
   // for its search to fight it on its remaining rolls (autoplay.js plan): 'best' the best so far, 'finalists'
   // a place among the finalists (exact: the same plan as with every roll fought).
   autoplay: { rehearsalCeiling: 1400, bigBattle: 24, settle: { k: 4, window: 100, recent: 50, every: 10 }, prune: 'best' },
-  // Relics (content.js RELIC_LIST, RELIC_TIERS). A reliquary lays out `offer.reliquary` relics and a won elite
-  // `offer.elite`, free: each of a tier drawn by `weights[room]`, the entry for the floor (index floor − 1; the last
-  // one for every floor past them), then a relic of that tier, never the same one twice in one offer; a won elite's
-  // always holds a Command relic (run.js relicOffers). A relic held may be offered again (copies stack; no cap). A
-  // reliquary also lays out up to `offer.tiers` free next tiers of your kinds (what a rite gave, before the two rooms
-  // merged), and from floor `legendary.fromFloor` a won elite and a reliquary lay out `legendary.offer` Legendaries
-  // (the ones that need Arise only once it is held). A reliquary's offers are one pick in all; an elite's, one of
-  // each kind. The weights are placeholders until the balance pass.
+  // Relics (content.js RELIC_LIST, RELIC_TIERS), bought in Shops and only there (TUNING.shop; redesign.md §2.11). A
+  // Shop draws each relic's tier by `weights.shop`, the entry for the floor (index floor − 1; the last one for every
+  // floor past them), then a relic of that tier, never the same one twice in one stock; one held may come again
+  // (copies stack; no cap). From floor `legendary.fromFloor` one of its relics is a Legendary (the ones that need Arise
+  // only once it is held). The weights are placeholders until the balance pass. `offer` and `legendary.offer` are the
+  // reliquary's and the elites' offers, gone with them: kept only for codex.js's room text until the interface's
+  // Shop lands.
   relic: {
     offer: { reliquary: 3, elite: 2, tiers: 3 },
     weights: {
-      reliquary: [{ common: 6, uncommon: 3, rare: 1 }, { common: 4, uncommon: 4, rare: 2 }, { common: 3, uncommon: 4, rare: 3 }, { common: 2, uncommon: 4, rare: 4 }],
-      elite: [{ common: 4, uncommon: 4, rare: 2 }, { common: 3, uncommon: 4, rare: 3 }, { common: 2, uncommon: 4, rare: 4 }, { common: 1, uncommon: 4, rare: 5 }]
+      shop: [{ common: 6, uncommon: 3, rare: 1 }, { common: 4, uncommon: 4, rare: 2 }, { common: 3, uncommon: 4, rare: 3 }, { common: 2, uncommon: 4, rare: 4 }]
     },
     legendary: { offer: 2, fromFloor: 2 }
   }

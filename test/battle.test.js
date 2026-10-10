@@ -323,6 +323,9 @@ test('a ring\'s target: yours aim at the foe furthest along its road, ties by la
   assert.equal(ringTarget(b, chanter).uid, 10)
   slay(b, b.byUid.get(10))
   assert.equal(ringTarget(b, chanter).uid, 12, 'the one at (3, 7) is past its ring')
+  // Its song set aside (Dirge sings while an ally near it has no Hasten, and the shadows Arise raises beside it
+  // have none), its blows go there.
+  chanter.kit = chanter.kit.filter((a) => a.id !== 'dirge')
   let shot = null
   while (!shot && b.t < 200) shot = stepBattle(b).find((e) => e.type === 'action' && e.actor === 1 && e.ability === 'marrow_bolt')
   assert.deepEqual(shot.targets, [12], 'and its blows go there')

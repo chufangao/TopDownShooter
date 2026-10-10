@@ -6,13 +6,14 @@ import { createRng } from './rng.js'
 export const RANKS = 16
 export const WIDTH = 4 // the most rooms in a rank
 
-// The reliquary is the rite and the reliquary merged (2026-10-09, late): its weight is the two rooms' together.
-const MID_TYPES = ['fight', 'elite', 'reliquary', 'altar']
-const MID_WEIGHTS = [5, 1.5, 2, 1]
-const LATE_TYPES = ['fight', 'elite', 'reliquary']
-const LATE_WEIGHTS = [3, 1, 0.5]
+// The Shop is where relics are bought, and the only place they come from (redesign.md §2.11): the reliquary it
+// replaced weighed 2 in the middle and 0.5 late, with 3 at most; a Shop is commoner, about 2.5 to a walk.
+const MID_TYPES = ['fight', 'elite', 'shop', 'altar']
+const MID_WEIGHTS = [5, 1.5, 3, 1]
+const LATE_TYPES = ['fight', 'elite', 'shop']
+const LATE_WEIGHTS = [3, 1, 1]
 const ELITE_FROM = 4 // the first rank an elite may stand in
-const RARE = { reliquary: 3 } // a floor's middle holds one to this many of each
+const RARE = { shop: 4 } // a floor's middle holds one to this many of each
 const SIEGE_FLOOR = 3 // the first floor with sieges
 export const SIEGE_RANK = 9 // the first rank a siege may stand in
 
@@ -46,7 +47,7 @@ function link (rng, a, b) {
 }
 
 // Rank 1 is all fights; the middle ranks mix rooms, with no elite before ELITE_FROM, at most one elite a
-// rank, one to three reliquaries (RARE), and no rank all of one kind but fights; the rank before the last always holds
+// rank, one to four Shops (RARE), and no rank all of one kind but fights; the rank before the last always holds
 // exactly one altar.
 function assignTypes (rng, ranks, last) {
   const pick = (types, weights) => rng.weighted(types, weights)

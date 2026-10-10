@@ -3,6 +3,40 @@
 
 // ── units ────────────────────────────────────────────────────────────────────────────────────
 
+// How a kind thinks on turns (redesign.md §2.9.4): `temper` on its def, three values the one policy reads
+// (policy.js score). aggression: how much road gained and a kill are worth; caution: how much the damage it would
+// take is feared; prey: whom it would rather strike. A new temperament is three values, never code.
+export const TEMPERS = {
+  charger: { aggression: 1.5, caution: 0.3, prey: 'weakest' },
+  shooter: { aggression: 0.5, caution: 1.5, prey: 'weakest' },
+  seeker: { aggression: 1, caution: 0.8, prey: 'monarch' },
+  keeper: { aggression: 0, caution: 1.5, prey: 'weakest' },
+  sieger: { aggression: 1.5, caution: 0, prey: 'monarch' },
+  stalker: { aggression: 1.5, caution: 0.8, prey: 'wounded' },
+  hexer: { aggression: 0.5, caution: 1.5, prey: 'rested' },
+  crowd: { aggression: 1, caution: 1, prey: 'crowd' },
+  court: { aggression: 1, caution: 0.5, prey: 'weakest' }
+}
+
+const PREY_WORDS = {
+  weakest: 'hunts the weakest',
+  wounded: 'hunts the wounded',
+  unarmoured: 'hunts where the armour is thinnest',
+  monarch: 'hunts the Monarch',
+  crowd: 'strikes where you stand thickest',
+  rested: 'hunts the one with the most left to give'
+}
+
+// The bestiary's way line, generated from the three values so it can never say what the kind does not do.
+export const temperLine = ({ aggression, caution, prey }) => [
+  aggression >= 1.25 ? 'bold' : aggression >= 0.75 ? 'steady' : aggression > 0 ? 'patient' : 'never presses',
+  caution >= 1.25 ? 'wary, keeps its distance' : caution >= 0.6 ? 'careful' : 'heedless',
+  PREY_WORDS[prey]
+].join('; ').replace(/^./, (c) => c.toUpperCase())
+
+// A mod (unit.js statsOf), as tiers, auras and relics write them.
+const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
+
 // base + growth × (lvl − 1). `art` names the unit's three pictures in `assets/units/`: `${art}.alive.svg`,
 // `${art}.attack.svg` and `${art}.dead.svg` (see artUrl). The battle animates them in code: no frames.
 // `aura`: mods every ally (not itself) within `range` tiles gets while it stands. `threats`: what a foe
@@ -23,6 +57,11 @@
 // thing on the board. `behaviour`: how it comes down the roads as a foe (BEHAVIOURS), learnt by meeting it: every
 // ground kind walks the one drawn road, and the flyers, which carry the `fly` threat, fly the air road; `flavour`: a
 // line of lore that hints at it, never naming it.
+// On turns (redesign.md §2.13.1) a unit is one record: `move`, how many tiles it may go in a turn (§2.2; a stat
+// path, so tiers, auras and statuses may add to it; it replaces `stride`, which the old battle reads until it goes);
+// `temper`, how it thinks as a foe (TEMPERS, a preset or a copy of one tweaked); `tracks`, its two tracks of four
+// tiers (TRACKS says what a tier may carry), on the def itself. The floor-1 kinds are records so far; the rest keep
+// their tracks in TRACKS's table until the full conversion (§5 Step 4).
 
 export const UNIT_LIST = [
   {
@@ -55,6 +94,20 @@ export const UNIT_LIST = [
     abilities: ['dirge', 'marrow_bolt'],
     // The singer at the back: four tiles of reach, and its dirge quickens those about it.
     ring: 4,
+    move: 2,
+    temper: TEMPERS.shooter,
+    tracks: [
+      { id: 'dirgemaster', name: 'Dirgemaster', desc: 'Quickens the whole line.', tiers: [
+        { desc: '+1 Move.', mods: [m('move', 'add', 1)] },
+        { desc: '+20% damage dealt.', mods: [m('damage.dealt', 'mul', 1.2)] },
+        { desc: 'Dirge becomes Requiem: Hasten for 3 turns to every ally within 3 tiles.', ability: { id: 'requiem', replace: 'dirge' } },
+        { desc: 'Requiem becomes Dirge Unending: Hasten to every ally within 3 tiles, for the rest of the battle.', ability: { id: 'dirge_unending', replace: 'requiem' } }] },
+      { id: 'marrowcaller', name: 'Marrowcaller', desc: 'Bones that rise, bolts that pierce a lane.', tiers: [
+        { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
+        { desc: 'Bones rise to its call: 2 of its kind rise beside it in every battle, gone after it.', summon: 2 },
+        { desc: 'Marrow Bolt becomes Marrow Spear: hits a foe and everyone in its lane.', ability: { id: 'marrow_spear', replace: 'marrow_bolt' } },
+        { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles.', ability: { id: 'bone_storm' } }] }
+    ],
     spawn: { weight: 14, minFloor: 1 },
     threats: ['reach', 'drain', 'clock'],
     behaviour: 'walk',
@@ -73,7 +126,21 @@ export const UNIT_LIST = [
     // The wall: it holds a tile, and as a foe walks slowly in its old plate.
     ring: 1,
     stride: 0.75,
+    move: 2,
+    temper: TEMPERS.charger,
     aura: { range: 1, desc: 'Allies next to it take 15% less damage.', mods: [{ path: 'damage.taken', op: 'mul', v: 0.85 }] },
+    tracks: [
+      { id: 'bulwark', name: 'Bulwark', desc: 'A wall the others shelter behind.', tiers: [
+        { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Its aura reaches allies within 2 tiles.', aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } },
+        { desc: 'Barrow Wall (Colossus): every piece of the kind grows to 2×2, its blows and aura reaching from all four tiles.', size: 2 }] },
+      { id: 'reaver', name: 'Reaver', desc: 'Trades the shield for the edge.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+15% damage dealt while a foe is next to it.', mods: [m('damage.dealt', 'mul', 1.15, 'engaged')] },
+        { desc: 'Strike becomes Rending Strike: 36 power, 50% chance of Brittle.', ability: { id: 'rending_strike', replace: 'strike' } },
+        { desc: 'Cleave becomes Reaving Cleave: everyone level with its target, left Brittle.', ability: { id: 'reaving_cleave', replace: 'cleave' } }] }
+    ],
     spawn: { weight: 10, minFloor: 1 },
     threats: ['shape'],
     behaviour: 'walk',
@@ -109,6 +176,20 @@ export const UNIT_LIST = [
     // The quick one: it darts three tiles' reach in half the time, and its frost slows what it touches.
     ring: 3,
     stride: 1.5,
+    move: 3,
+    temper: TEMPERS.shooter,
+    tracks: [
+      { id: 'rimeblade', name: 'Rimeblade', desc: 'A colder, crueller lance.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Frost Lance becomes Shatter Lance: 38 power, 30% chance of Brittle.', ability: { id: 'shatter_lance', replace: 'frost_lance' } },
+        { desc: "Shatter Lance becomes Glacier Lance: it pierces everyone in its target's lane.", ability: { id: 'glacier_lance', replace: 'shatter_lance' } }] },
+      { id: 'winters_herald', name: "Winter's Herald", desc: 'Slows everything near it.', tiers: [
+        { desc: '+1 Move.', mods: [m('move', 'add', 1)] },
+        { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
+        { desc: 'Learns Hoarfrost: frosts a foe and everyone next to it, and leaves them Hexed.', ability: { id: 'hoarfrost' } },
+        { desc: 'Learns Deep Winter: frosts every foe within 3 tiles, and leaves them Hexed.', ability: { id: 'deep_winter' } }] }
+    ],
     spawn: { weight: 12, minFloor: 1 },
     threats: ['reach', 'drain'],
     behaviour: 'walk',
@@ -126,6 +207,20 @@ export const UNIT_LIST = [
     abilities: ['mend', 'purge', 'strike'],
     // The mender at the front: it heals whichever ally is hurt worst, wherever it stands.
     ring: 1,
+    move: 2,
+    temper: TEMPERS.keeper,
+    tracks: [
+      { id: 'brood_mother', name: 'Brood Mother', desc: 'Hatches a swarm, and mends it.', tiers: [
+        { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
+        { desc: 'Its brood hatches with it: 2 of its kind hatch beside it in every battle, gone after it.', summon: 2 },
+        { desc: 'Mend becomes Swarm Mend: heals every ally within 2 tiles.', ability: { id: 'swarm_mend', replace: 'mend' } },
+        { desc: 'Swarm Mend becomes Brood Surge: heals every ally within 3 tiles and gives them Regen.', ability: { id: 'brood_surge', replace: 'swarm_mend' } }] },
+      { id: 'chitin_guard', name: 'Chitin Guard', desc: 'Armours those beside it.', tiers: [
+        { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+        { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+        { desc: 'Gains an aura: allies next to it get +15% DEF.', aura: { range: 1, desc: 'Allies next to it get +15% DEF.', mods: [m('def', 'mul', 1.15)] } },
+        { desc: 'Learns Molt: strips up to 3 debuffs from itself and every ally within 2 tiles.', ability: { id: 'molt' } }] }
+    ],
     spawn: { weight: 9, minFloor: 1 },
     threats: ['clock'],
     behaviour: 'walk',
@@ -143,6 +238,20 @@ export const UNIT_LIST = [
     abilities: ['purge', 'strike'],
     // The tender: it picks the curses off its fellows and marches on.
     ring: 1,
+    move: 2,
+    temper: TEMPERS.keeper,
+    tracks: [
+      { id: 'saboteur', name: 'Saboteur', desc: 'Jams the enemy back line.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Strike becomes Spanner in the Works: 30 power, and leaves it Hexed.', ability: { id: 'spanner', replace: 'strike' } },
+        { desc: 'Spanner becomes Wrench the Works: it leaves a foe Hexed for 2 turns.', ability: { id: 'wrench', replace: 'spanner' } }] },
+      { id: 'gearwright', name: 'Gearwright', desc: 'Winds up soldiers, and keeps them ticking.', tiers: [
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Winds up its spares: 2 of its kind tick beside it in every battle, run down after it.', summon: 2 },
+        { desc: 'Purge becomes Overclock: Hasten and one debuff removed, on the most wounded ally.', ability: { id: 'overclock', replace: 'purge' } },
+        { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
+    ],
     spawn: { weight: 12, minFloor: 1 },
     threats: ['clock'],
     behaviour: 'walk',
@@ -161,6 +270,20 @@ export const UNIT_LIST = [
     // The long arm: yours strikes whatever passes within two tiles of it (a foe's melee reaches only beside it).
     ring: 2,
     arm: 2,
+    move: 2,
+    temper: { ...TEMPERS.charger, prey: 'unarmoured' },
+    tracks: [
+      { id: 'pack_leader', name: 'Pack Leader', desc: 'The pack runs at its heel.', tiers: [
+        { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
+        { desc: '+1 Move.', mods: [m('move', 'add', 1)] },
+        { desc: 'Gains an aura: allies next to it deal 10% more damage.', aura: { range: 1, desc: 'Allies next to it deal 10% more damage.', mods: [m('damage.dealt', 'mul', 1.1)] } },
+        { desc: 'Charnel Brute (Colossus): every piece of the kind grows to 2×2, its blows and aura reaching from all four tiles.', size: 2 }] },
+      { id: 'glutton', name: 'Glutton', desc: 'Eats to stay standing.', tiers: [
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Takes 8% less damage.', mods: [m('damage.taken', 'mul', 0.92)] },
+        { desc: 'Gnaw becomes Devour: 34 power, and it heals itself.', ability: { id: 'devour', replace: 'gnaw' } },
+        { desc: 'Devour becomes Gorge: it bites a foe and every foe next to it, and heals itself once.', ability: { id: 'gorge', replace: 'devour' } }] }
+    ],
     spawn: { weight: 13, minFloor: 1 },
     threats: ['drain'],
     behaviour: 'walk',
@@ -179,6 +302,20 @@ export const UNIT_LIST = [
     // The far fire: it strikes from four tiles off. EVA 22 since the fourth balance pass (2026-10-10; 28 before):
     // walking the road now, it halts in your rings and duels there, and at 28 it outlasted a floor-1 chanter's bolts.
     ring: 4,
+    move: 2,
+    temper: TEMPERS.seeker,
+    tracks: [
+      { id: 'lantern', name: 'Lantern', desc: 'Its light spreads to crowds.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: 'Learns Wildfire: 24 power to a foe and everyone next to it.', ability: { id: 'wildfire' } },
+        { desc: 'Wildfire becomes Conflagration: it burns every foe within 4 tiles.', ability: { id: 'conflagration', replace: 'wildfire' } }] },
+      { id: 'will_ward', name: 'Will-Ward', desc: 'Hard to pin down, and so are its friends.', tiers: [
+        { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Gains an aura: allies next to it get +8% DEF.', aura: { range: 1, desc: 'Allies next to it get +8% DEF.', mods: [m('def', 'mul', 1.08)] } },
+        { desc: 'Learns Veil: Veiled (+20% DEF) for itself and every ally within 2 tiles.', ability: { id: 'veil' } }] }
+    ],
     spawn: { weight: 11, minFloor: 1 },
     threats: ['reach'],
     behaviour: 'walk',
@@ -288,6 +425,20 @@ export const UNIT_LIST = [
     abilities: ['pyre_bite'],
     ring: 1,
     stride: 1.5,
+    move: 3,
+    temper: TEMPERS.charger,
+    tracks: [
+      { id: 'cinder', name: 'Cinder', desc: 'A hotter bite, and a longer burn.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Pyre Bite becomes Cinder Fang: 34 power, and its Burning lasts 5 turns.', ability: { id: 'cinder_fang', replace: 'pyre_bite' } },
+        { desc: 'Cinder Fang becomes Hellmaw: it bites a foe and every foe next to it, and leaves them all Burning.', ability: { id: 'hellmaw', replace: 'cinder_fang' } }] },
+      { id: 'firebrand', name: 'Firebrand', desc: 'The pack runs hot about it.', tiers: [
+        { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+        { desc: '+1 Move.', mods: [m('move', 'add', 1)] },
+        { desc: 'Gains an aura: allies next to it get +8% ATK.', aura: { range: 1, desc: 'Allies next to it get +8% ATK.', mods: [m('atk', 'mul', 1.08)] } },
+        { desc: 'Learns Cinder Spit: 26 power and Burning at range 3.', ability: { id: 'cinder_spit', at: 1 }, ring: 2 }] }
+    ],
     spawn: { weight: 10, minFloor: 1 },
     threats: ['burn'],
     behaviour: 'walk',
@@ -484,10 +635,22 @@ export const UNIT_LIST = [
 // what blocks it, the Monarch beside it, and a piece beside it that struck it: battle.js closeIn) and never a flyer
 // unless the caster flies too, `range` is in tiles, and ally abilities and `all` without a range reach the whole
 // board. A blow never reaches past the caster's ring.
+// On turns (redesign.md §2.7, §2.13.2) an ability is ops, a shape and an anim: the effect ops are damage, heal,
+// cleanse, apply_status (`turns`, when it sets its own, beside the old battle's `dur`), raise and cooldown (`amount`
+// turns added to every cooldown of its target: −1 brings its skills a turn sooner), with dot for a status's tick. Every
+// skill rests a turn (`cooldown`, 2 where absent; set only where the balance pass grants an exception). On turns a
+// skill's timing is yours, and a foe's is scored (policy.js), so a `when` that only timed the old AI goes (the
+// floor-1 kinds' have: no "first 7.5 s", no "below 50% HP", no "while 2+ foes stand"); one that is the rule itself
+// stays (Killing Cold's execute). A heal, a cleanse or a buff of the floor-1 kinds keeps one condition: that it has
+// someone to land on (a wounded ally, a debuff to strip, an ally without the buff), which turns.js reads as any rule
+// and the old battle needs (its AI reads `helps` only through `when`: without one a healer or a singer casts for
+// nothing all battle). `castCost` is the old battle's gauge alone, until it goes.
 const hpPct = (u) => u.hp / u.maxHp
 // The units of a list within r tiles of the caster (the view's `dist`): a tier IV's area condition reads
 // only what its area reaches, so a soul never banks for a cast that would touch no one it was meant for.
 const near = (s, list, r) => list.filter((u) => s.dist(u) <= r)
+// Whether one of a list lacks status `id`: a buff that would land on no one new is no cast.
+const lacks = (list, id) => list.some((u) => !u.statuses.some((x) => x.id === id))
 
 const ABILITY_LIST = [
   {
@@ -520,8 +683,6 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#d8d4cc',
     anim: 'melee_lunge',
-    when: (s) => s.enemies.length >= 2,
-    cond: 'while 2+ foes stand',
     effects: [{ op: 'damage', power: 22 }]
   },
   {
@@ -534,7 +695,7 @@ const ABILITY_LIST = [
     anim: 'cast_beam',
     effects: [
       { op: 'damage', power: 34 },
-      { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.35 }
+      { op: 'apply_status', status: 'brittle', dur: 120, turns: 3, chance: 0.35 }
     ]
   },
   {
@@ -545,9 +706,9 @@ const ABILITY_LIST = [
     range: 2,
     tint: '#7a5c9e',
     anim: 'cast_beam',
-    when: (s) => s.t < 150,
-    cond: 'in the first 7.5 s of a battle',
-    effects: [{ op: 'apply_status', status: 'hasten', dur: 100 }]
+    when: (s) => lacks(near(s, s.allies, 2), 'hasten'),
+    cond: 'while an ally within 2 tiles has no Hasten',
+    effects: [{ op: 'apply_status', status: 'hasten', dur: 100, turns: 2 }]
   },
   {
     id: 'ember_burst',
@@ -567,7 +728,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#66c8ff',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -20 }]
+    effects: [{ op: 'damage', power: 30 }]
   },
   {
     id: 'mend',
@@ -576,11 +737,11 @@ const ABILITY_LIST = [
     shape: 'ally',
     tint: '#ffe9a8',
     anim: 'cast_beam',
-    when: (s) => s.allies.some((u) => hpPct(u) < 0.5),
-    cond: 'while an ally is below 50% HP',
+    when: (s) => s.allies.length > 0,
+    cond: 'while an ally is wounded',
     effects: [
       { op: 'heal', power: 28 },
-      { op: 'apply_status', status: 'regen', dur: 200, chance: 0.5 }
+      { op: 'apply_status', status: 'regen', dur: 200, turns: 5, chance: 0.5 }
     ]
   },
   {
@@ -590,8 +751,8 @@ const ABILITY_LIST = [
     shape: 'ally',
     tint: '#ffe9a8',
     anim: 'cast_beam',
-    when: (s) => s.allies.some((u) => hpPct(u) < 0.9),
-    cond: 'while an ally is below 90% HP',
+    when: (s) => s.allies.length > 0,
+    cond: 'while an ally is wounded or suffers a debuff',
     effects: [{ op: 'cleanse', tag: 'debuff', count: 2 }, { op: 'heal', power: 8 }]
   },
   {
@@ -604,7 +765,7 @@ const ABILITY_LIST = [
     anim: 'melee_lunge',
     effects: [
       { op: 'damage', power: 30 },
-      { op: 'apply_status', status: 'brittle', dur: 100, chance: 0.25 }
+      { op: 'apply_status', status: 'brittle', dur: 100, turns: 2, chance: 0.25 }
     ]
   },
   {
@@ -709,9 +870,9 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#7a5c9e',
     anim: 'cast_beam',
-    when: (s) => s.t < 200,
-    cond: 'in the first 10 s of a battle',
-    effects: [{ op: 'apply_status', status: 'hasten', dur: 140 }]
+    when: (s) => lacks(near(s, s.allies, 3), 'hasten'),
+    cond: 'while an ally within 3 tiles has no Hasten',
+    effects: [{ op: 'apply_status', status: 'hasten', dur: 140, turns: 3 }]
   },
   {
     id: 'marrow_spear',
@@ -721,7 +882,7 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#7a5c9e',
     anim: 'cast_beam',
-    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle', dur: 120, turns: 3, chance: 0.5 }]
   },
   {
     id: 'rending_strike',
@@ -731,7 +892,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#d8d4cc',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 36 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.5 }]
+    effects: [{ op: 'damage', power: 36 }, { op: 'apply_status', status: 'brittle', dur: 120, turns: 3, chance: 0.5 }]
   },
   {
     id: 'inferno',
@@ -761,7 +922,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#66c8ff',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 38 }, { op: 'gauge', amount: -20 }, { op: 'apply_status', status: 'brittle', dur: 100, chance: 0.3 }]
+    effects: [{ op: 'damage', power: 38 }, { op: 'apply_status', status: 'brittle', dur: 100, turns: 2, chance: 0.3 }]
   },
   {
     id: 'hoarfrost',
@@ -771,9 +932,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#66c8ff',
     anim: 'ranged_bolt',
-    when: (s) => s.enemies.length >= 2,
-    cond: 'while 2+ foes stand',
-    effects: [{ op: 'damage', power: 18 }, { op: 'gauge', amount: -30 }]
+    effects: [{ op: 'damage', power: 18 }, { op: 'apply_status', status: 'hexed' }]
   },
   {
     id: 'swarm_mend',
@@ -783,8 +942,8 @@ const ABILITY_LIST = [
     range: 2,
     tint: '#ffe9a8',
     anim: 'cast_beam',
-    when: (s) => s.allies.some((u) => hpPct(u) < 0.6),
-    cond: 'while an ally within 2 tiles is below 60% HP',
+    when: (s) => near(s, s.allies, 2).length > 0,
+    cond: 'while an ally within 2 tiles is wounded',
     effects: [{ op: 'heal', power: 18 }]
   },
   {
@@ -795,7 +954,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#b57bff',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -40 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'hexed' }]
   },
   {
     id: 'overclock',
@@ -804,9 +963,9 @@ const ABILITY_LIST = [
     shape: 'ally',
     tint: '#b57bff',
     anim: 'cast_beam',
-    when: (s) => s.allies.length >= 2,
-    cond: 'while it has an ally',
-    effects: [{ op: 'apply_status', status: 'hasten', dur: 100 }, { op: 'cleanse', tag: 'debuff', count: 1 }]
+    when: (s) => lacks(s.allies.filter((u) => u !== s.self), 'hasten'),
+    cond: 'while another ally has no Hasten',
+    effects: [{ op: 'apply_status', status: 'hasten', dur: 100, turns: 2 }, { op: 'cleanse', tag: 'debuff', count: 1 }]
   },
   {
     id: 'devour',
@@ -826,8 +985,6 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#b57bff',
     anim: 'cast_beam',
-    when: (s) => s.enemies.length >= 2,
-    cond: 'while 2+ foes stand',
     effects: [{ op: 'damage', power: 24 }]
   },
   {
@@ -916,9 +1073,9 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#7a5c9e',
     anim: 'cast_beam',
-    when: (s) => near(s, s.allies, 3).some((u) => !u.statuses.some((x) => x.id === 'hasten')),
+    when: (s) => lacks(near(s, s.allies, 3), 'hasten'),
     cond: 'while an ally within 3 tiles has no Hasten',
-    effects: [{ op: 'apply_status', status: 'hasten', dur: 140 }]
+    effects: [{ op: 'apply_status', status: 'hasten', dur: 'battle', turns: 'battle' }]
   },
   {
     // `all` with a range: every foe within it of the caster.
@@ -929,9 +1086,7 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#7a5c9e',
     anim: 'cast_beam',
-    when: (s) => near(s, s.enemies, 4).length >= 3,
-    cond: 'while 3+ foes stand within 4 tiles',
-    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.3 }]
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'brittle', dur: 120, turns: 3, chance: 0.3 }]
   },
   {
     id: 'reaving_cleave',
@@ -941,9 +1096,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#d8d4cc',
     anim: 'melee_lunge',
-    when: (s) => s.enemies.length >= 2,
-    cond: 'while 2+ foes stand',
-    effects: [{ op: 'damage', power: 22 }, { op: 'apply_status', status: 'brittle', dur: 120, chance: 0.6 }]
+    effects: [{ op: 'damage', power: 22 }, { op: 'apply_status', status: 'brittle', dur: 120, turns: 3, chance: 0.6 }]
   },
   {
     id: 'cataclysm',
@@ -973,7 +1126,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#66c8ff',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 34 }, { op: 'gauge', amount: -20 }, { op: 'apply_status', status: 'brittle', dur: 100, chance: 0.3 }]
+    effects: [{ op: 'damage', power: 34 }, { op: 'apply_status', status: 'brittle', dur: 100, turns: 2, chance: 0.3 }]
   },
   {
     id: 'deep_winter',
@@ -983,9 +1136,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#66c8ff',
     anim: 'ranged_bolt',
-    when: (s) => near(s, s.enemies, 3).length >= 2,
-    cond: 'while 2+ foes stand within 3 tiles',
-    effects: [{ op: 'damage', power: 12 }, { op: 'gauge', amount: -40 }]
+    effects: [{ op: 'damage', power: 12 }, { op: 'apply_status', status: 'hexed' }]
   },
   {
     id: 'brood_surge',
@@ -995,9 +1146,9 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#ffe9a8',
     anim: 'cast_beam',
-    when: (s) => near(s, s.allies, 3).some((u) => hpPct(u) < 0.6),
-    cond: 'while an ally within 3 tiles is below 60% HP',
-    effects: [{ op: 'heal', power: 18 }, { op: 'apply_status', status: 'regen', dur: 200 }]
+    when: (s) => near(s, s.allies, 3).length > 0,
+    cond: 'while an ally within 3 tiles is wounded',
+    effects: [{ op: 'heal', power: 18 }, { op: 'apply_status', status: 'regen', dur: 200, turns: 5 }]
   },
   {
     id: 'molt',
@@ -1019,7 +1170,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#b57bff',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 30 }, { op: 'gauge', amount: -1000 }, { op: 'apply_status', status: 'hexed', dur: 140 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'hexed', turns: 2 }]
   },
   {
     id: 'perpetual_motion',
@@ -1029,9 +1180,9 @@ const ABILITY_LIST = [
     range: 2,
     tint: '#b57bff',
     anim: 'cast_beam',
-    when: (s) => near(s, s.allies, 2).length >= 2,
-    cond: 'while an ally stands within 2 tiles',
-    effects: [{ op: 'apply_status', status: 'hasten', dur: 100 }, { op: 'cleanse', tag: 'debuff', count: 1 }]
+    when: (s) => lacks(near(s, s.allies, 2), 'hasten'),
+    cond: 'while an ally within 2 tiles has no Hasten',
+    effects: [{ op: 'apply_status', status: 'hasten', dur: 100, turns: 2 }, { op: 'cleanse', tag: 'debuff', count: 1 }]
   },
   {
     id: 'gorge',
@@ -1051,8 +1202,6 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#b57bff',
     anim: 'cast_beam',
-    when: (s) => near(s, s.enemies, 4).length >= 3,
-    cond: 'while 3+ foes stand within 4 tiles',
     effects: [{ op: 'damage', power: 18 }]
   },
   {
@@ -1063,9 +1212,9 @@ const ABILITY_LIST = [
     range: 2,
     tint: '#b57bff',
     anim: 'cast_beam',
-    when: (s) => near(s, s.allies, 2).some((u) => hpPct(u) < 0.75) && !s.self.statuses.some((x) => x.id === 'veiled'),
-    cond: 'while an ally within 2 tiles is below 75% HP and it is not Veiled itself',
-    effects: [{ op: 'apply_status', status: 'veiled', dur: 120 }]
+    when: (s) => lacks(near(s, s.allies, 2), 'veiled'),
+    cond: 'while an ally within 2 tiles is not Veiled',
+    effects: [{ op: 'apply_status', status: 'veiled', dur: 120, turns: 3 }]
   },
   {
     id: 'verdant_bloom',
@@ -1180,7 +1329,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#ff7a33',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 80 }]
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 80, turns: 2 }]
   },
   {
     id: 'drone_sting',
@@ -1311,7 +1460,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#ff7a33',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 34 }, { op: 'apply_status', status: 'burning', dur: 200 }]
+    effects: [{ op: 'damage', power: 34 }, { op: 'apply_status', status: 'burning', dur: 200, turns: 5 }]
   },
   {
     id: 'hellmaw',
@@ -1321,7 +1470,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#ff7a33',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'burning', dur: 200 }]
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'burning', dur: 200, turns: 5 }]
   },
   {
     id: 'cinder_spit',
@@ -1331,7 +1480,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 120 }]
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning', dur: 120, turns: 3 }]
   },
   {
     id: 'venom_sting',
@@ -1569,7 +1718,8 @@ const ABILITY_LIST = [
     anim: 'melee_lunge',
     when: (s) => near(s, s.enemies, 1).length >= 2,
     cond: 'while 2+ foes stand next to it',
-    effects: [{ op: 'damage', power: 10 }, { op: 'gauge', amount: -1000 }]
+    // It emptied the gauge: Hexed for two turns, as Wrench the Works (redesign.md §2.7).
+    effects: [{ op: 'damage', power: 10 }, { op: 'apply_status', status: 'hexed', turns: 2 }]
   },
   {
     id: 'pale_pyre',
@@ -1620,33 +1770,11 @@ const ABILITY_LIST = [
 // (2: Colossus, every piece of the kind grows to 2×2, and one that no longer fits where it stands goes to the
 // ossuary; unit.js sizeOf). Tier IV is a rule, never a percentage: a new or remade ability, an aura, a wider ring,
 // or Colossus. No tier I–II of one track remakes an ability or grants an aura, so the other track's tiers III–IV
-// never undo it.
-const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
-export const TRACKS = {
-  bone_chanter: [
-    { id: 'dirgemaster', name: 'Dirgemaster', desc: 'Quickens the whole line.', tiers: [
-      { desc: '+15% gauge rate.', mods: [m('gauge.rate', 'mul', 1.15)] },
-      { desc: '+20% damage dealt.', mods: [m('damage.dealt', 'mul', 1.2)] },
-      { desc: 'Dirge becomes Requiem: Hasten for 7 s to every ally within 3 tiles, in the first 10 s.', ability: { id: 'requiem', replace: 'dirge' } },
-      { desc: 'Requiem becomes Dirge Unending: Hasten to every ally within 3 tiles whenever one lacks it, all battle long.', ability: { id: 'dirge_unending', replace: 'requiem' } }] },
-    { id: 'marrowcaller', name: 'Marrowcaller', desc: 'Bones that rise, bolts that pierce a lane.', tiers: [
-      { desc: '+12% ATK.', mods: [m('atk', 'mul', 1.12)] },
-      { desc: 'Bones rise to its call: 2 of its kind rise beside it in every battle, gone after it.', summon: 2 },
-      { desc: 'Marrow Bolt becomes Marrow Spear: hits a foe and everyone in its lane.', ability: { id: 'marrow_spear', replace: 'marrow_bolt' } },
-      { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles, while 3+ foes stand there.', ability: { id: 'bone_storm' } }] }
-  ],
-  tomb_knight: [
-    { id: 'bulwark', name: 'Bulwark', desc: 'A wall the others shelter behind.', tiers: [
-      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
-      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Its aura reaches allies within 2 tiles.', aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } },
-      { desc: 'Barrow Wall (Colossus): every piece of the kind grows to 2×2, its ring and aura reaching from all four tiles.', size: 2 }] },
-    { id: 'reaver', name: 'Reaver', desc: 'Trades the shield for the edge.', tiers: [
-      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
-      { desc: '+15% damage dealt while a foe is next to it.', mods: [m('damage.dealt', 'mul', 1.15, 'engaged')] },
-      { desc: 'Strike becomes Rending Strike: 36 power, 50% chance of Brittle.', ability: { id: 'rending_strike', replace: 'strike' } },
-      { desc: 'Cleave becomes Reaving Cleave: everyone level with its target, left Brittle.', ability: { id: 'reaving_cleave', replace: 'cleave' } }] }
-  ],
+// never undo it. On turns a tier that quickened the gauge adds Move instead (a `move` mod), and one of ACC, EVA or CRT
+// adds as much ATK or DEF (redesign.md §2.6–2.7).
+// A kind converted to turns carries its tracks on its def (`tracks`, §2.13.1); the rest are still in the table below
+// until the full conversion. TRACKS reads both, in UNIT_LIST's order, so unit.js tracksOf reads one map.
+const TRACK_TABLE = {
   ember_drake: [
     { id: 'pyroclast', name: 'Pyroclast', desc: 'Bigger fires.', tiers: [
       { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
@@ -1658,66 +1786,6 @@ export const TRACKS = {
       { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
       { desc: 'Learns Searing Bolt: 34 power at range 5, past Ember Burst\'s reach. Its ring grows to 5.', ability: { id: 'searing_bolt', at: 1 }, ring: 1 },
       { desc: 'Searing Bolt becomes Skyfall: it reaches any foe on the board, and so does its ring.', ability: { id: 'skyfall', replace: 'searing_bolt' }, ring: 5 }] }
-  ],
-  frost_sprite: [
-    { id: 'rimeblade', name: 'Rimeblade', desc: 'A colder, crueller lance.', tiers: [
-      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
-      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
-      { desc: 'Frost Lance becomes Shatter Lance: 38 power, drains gauge, 30% chance of Brittle.', ability: { id: 'shatter_lance', replace: 'frost_lance' } },
-      { desc: "Shatter Lance becomes Glacier Lance: it pierces everyone in its target's lane.", ability: { id: 'glacier_lance', replace: 'shatter_lance' } }] },
-    { id: 'winters_herald', name: "Winter's Herald", desc: 'Slows everything near it.', tiers: [
-      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
-      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
-      { desc: 'Learns Hoarfrost: frosts a foe and everyone next to it, draining 30 gauge.', ability: { id: 'hoarfrost' } },
-      { desc: 'Learns Deep Winter: frosts every foe within 3 tiles, draining 40 gauge, while 2+ foes stand there.', ability: { id: 'deep_winter' } }] }
-  ],
-  hive_warden: [
-    { id: 'brood_mother', name: 'Brood Mother', desc: 'Hatches a swarm, and mends it.', tiers: [
-      { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
-      { desc: 'Its brood hatches with it: 2 of its kind hatch beside it in every battle, gone after it.', summon: 2 },
-      { desc: 'Mend becomes Swarm Mend: heals every ally within 2 tiles.', ability: { id: 'swarm_mend', replace: 'mend' } },
-      { desc: 'Swarm Mend becomes Brood Surge: heals every ally within 3 tiles and gives them Regen.', ability: { id: 'brood_surge', replace: 'swarm_mend' } }] },
-    { id: 'chitin_guard', name: 'Chitin Guard', desc: 'Armours those beside it.', tiers: [
-      { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
-      { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
-      { desc: 'Gains an aura: allies next to it get +15% DEF.', aura: { range: 1, desc: 'Allies next to it get +15% DEF.', mods: [m('def', 'mul', 1.15)] } },
-      { desc: 'Learns Molt: strips up to 3 debuffs from itself and every ally within 2 tiles.', ability: { id: 'molt' } }] }
-  ],
-  clockwork_page: [
-    { id: 'saboteur', name: 'Saboteur', desc: 'Jams the enemy back line.', tiers: [
-      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
-      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
-      { desc: 'Strike becomes Spanner in the Works: 30 power, drains 40 gauge, and leaves it Hexed.', ability: { id: 'spanner', replace: 'strike' } },
-      { desc: "Spanner becomes Wrench the Works: it empties a foe's gauge, and leaves it Hexed.", ability: { id: 'wrench', replace: 'spanner' } }] },
-    { id: 'gearwright', name: 'Gearwright', desc: 'Winds up soldiers, and keeps them ticking.', tiers: [
-      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Winds up its spares: 2 of its kind tick beside it in every battle, run down after it.', summon: 2 },
-      { desc: 'Purge becomes Overclock: Hasten and one debuff removed, on the most wounded ally.', ability: { id: 'overclock', replace: 'purge' } },
-      { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
-  ],
-  grave_ghoul: [
-    { id: 'pack_leader', name: 'Pack Leader', desc: 'The pack runs at its heel.', tiers: [
-      { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
-      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
-      { desc: 'Gains an aura: allies next to it deal 10% more damage.', aura: { range: 1, desc: 'Allies next to it deal 10% more damage.', mods: [m('damage.dealt', 'mul', 1.1)] } },
-      { desc: 'Charnel Brute (Colossus): every piece of the kind grows to 2×2, its ring and aura reaching from all four tiles.', size: 2 }] },
-    { id: 'glutton', name: 'Glutton', desc: 'Eats to stay standing.', tiers: [
-      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Takes 8% less damage.', mods: [m('damage.taken', 'mul', 0.92)] },
-      { desc: 'Gnaw becomes Devour: 34 power, and it heals itself.', ability: { id: 'devour', replace: 'gnaw' } },
-      { desc: 'Devour becomes Gorge: it bites a foe and every foe next to it, and heals itself once.', ability: { id: 'gorge', replace: 'devour' } }] }
-  ],
-  will_o_wisp: [
-    { id: 'lantern', name: 'Lantern', desc: 'Its light spreads to crowds.', tiers: [
-      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
-      { desc: '+15 ACC.', mods: [m('acc', 'add', 15)] },
-      { desc: 'Learns Wildfire: 24 power to a foe and everyone next to it.', ability: { id: 'wildfire' } },
-      { desc: 'Wildfire becomes Conflagration: it burns every foe within 4 tiles, while 3+ foes stand there.', ability: { id: 'conflagration', replace: 'wildfire' } }] },
-    { id: 'will_ward', name: 'Will-Ward', desc: 'Hard to pin down, and so are its friends.', tiers: [
-      { desc: '+8 EVA.', mods: [m('eva', 'add', 8)] },
-      { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
-      { desc: 'Gains an aura: allies next to it get +8 EVA.', aura: { range: 1, desc: 'Allies next to it get +8 EVA.', mods: [m('eva', 'add', 8)] } },
-      { desc: 'Learns Veil: Veiled (+20 EVA) for itself and every ally within 2 tiles, while one is below 75% HP.', ability: { id: 'veil' } }] }
   ],
   thorn_dryad: [
     { id: 'heartwood', name: 'Heartwood', desc: "Deep-rooted healing, and the grove's lights.", tiers: [
@@ -1778,18 +1846,6 @@ export const TRACKS = {
       { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
       { desc: '+20% damage dealt, +10 CRT.', mods: [m('damage.dealt', 'mul', 1.2), m('crt', 'add', 10)] },
       { desc: 'Learns Killing Cold: 40 power to a foe anywhere on the board, once one is below half HP; its ring covers the board.', ability: { id: 'killing_cold' }, ring: 7 }] }
-  ],
-  pyre_hound: [
-    { id: 'cinder', name: 'Cinder', desc: 'A hotter bite, and a longer burn.', tiers: [
-      { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
-      { desc: '+10 CRT.', mods: [m('crt', 'add', 10)] },
-      { desc: 'Pyre Bite becomes Cinder Fang: 34 power, and its Burning lasts 10 s.', ability: { id: 'cinder_fang', replace: 'pyre_bite' } },
-      { desc: 'Cinder Fang becomes Hellmaw: it bites a foe and every foe next to it, and leaves them all Burning.', ability: { id: 'hellmaw', replace: 'cinder_fang' } }] },
-    { id: 'firebrand', name: 'Firebrand', desc: 'The pack runs hot about it.', tiers: [
-      { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
-      { desc: '+10% gauge rate.', mods: [m('gauge.rate', 'mul', 1.1)] },
-      { desc: 'Gains an aura: allies next to it get +8 CRT.', aura: { range: 1, desc: 'Allies next to it get +8 CRT.', mods: [m('crt', 'add', 8)] } },
-      { desc: 'Learns Cinder Spit: 26 power and Burning at range 3. Its ring grows to 3.', ability: { id: 'cinder_spit', at: 1 }, ring: 2 }] }
   ],
   hive_drone: [
     { id: 'venom', name: 'Venom', desc: 'A worse sting.', tiers: [
@@ -1900,35 +1956,47 @@ export const TRACKS = {
       { desc: 'Pale Fire becomes Court Summons: it reaches 6 tiles, and always Hexes. Its ring grows to 6.', ability: { id: 'court_summons', replace: 'pale_fire' }, ring: 2 }] }
   ]
 }
+export const TRACKS = Object.fromEntries(UNIT_LIST.map((u) => [u.id, u.tracks ?? TRACK_TABLE[u.id]]).filter(([, t]) => t))
 
 // ── statuses ─────────────────────────────────────────────────────────────────────────────────
 
-// dur is in ticks (20 per second); 'battle' lasts the fight. Tick effects fire every `tickEvery`.
+// dur is in ticks (20 per second); 'battle' lasts the fight. Tick effects fire every `tickEvery`. On turns
+// (redesign.md §2.8) a status lasts `turns` (dur ÷ 40, rounded down; the longest and 'battle' the battle; Hexed's
+// are the acts it costs) and a damage-over-time ticks once a turn, at its end; `colour` is the pall the board draws
+// it in where it has no bespoke effect.
 const STATUS_LIST = [
   {
     id: 'brittle',
     desc: '−25% DEF per stack, up to 3 stacks.',
     name: 'Brittle',
     tags: ['debuff'],
+    colour: '#d9c9a3',
     dur: 120,
+    turns: 3,
     stacks: 3,
     mods: [{ path: 'def', op: 'mul', v: 0.75 }]
   },
   {
+    // Its gauge mod, and Enraged's and Desperate's, are the old battle's; on turns each is +1 Move, and cooldowns
+    // falling by 2 a turn (`cooldown.rate`; redesign.md §2.7).
     id: 'hasten',
-    desc: '+25% gauge rate: acts more often.',
+    desc: '+1 Move, and its skills come back a turn sooner.',
     name: 'Hasten',
     tags: ['buff'],
+    colour: '#ffd34d',
     dur: 100,
+    turns: 2,
     stacks: 1,
-    mods: [{ path: 'gauge.rate', op: 'mul', v: 1.25 }]
+    mods: [m('gauge.rate', 'mul', 1.25), m('move', 'add', 1), m('cooldown.rate', 'add', 1)]
   },
   {
     id: 'regen',
-    desc: 'Heals 24 power every second and takes 5% less damage.',
+    desc: 'Heals 48 power each turn and takes 5% less damage.',
     name: 'Regen',
     tags: ['buff'],
+    colour: '#7fe08a',
     dur: 200,
+    turns: 5,
     stacks: 1,
     mods: [{ path: 'damage.taken', op: 'mul', v: 0.95 }],
     tick: [{ op: 'heal', power: 24 }],
@@ -1939,58 +2007,72 @@ const STATUS_LIST = [
     desc: '+25% DEF.',
     name: 'Barkskin',
     tags: ['buff'],
+    colour: '#a0763f',
     dur: 160,
+    turns: 4,
     stacks: 1,
     mods: [{ path: 'def', op: 'mul', v: 1.25 }]
   },
   {
     id: 'veiled',
-    desc: '+20 EVA.',
+    desc: '+20% DEF.',
     name: 'Veiled',
     tags: ['buff'],
+    colour: '#9fb6d9',
     dur: 120,
+    turns: 3,
     stacks: 1,
-    mods: [{ path: 'eva', op: 'add', v: 20 }]
+    mods: [{ path: 'def', op: 'mul', v: 1.2 }]
   },
   {
     id: 'withered',
     desc: '−20% ATK.',
     name: 'Withered',
     tags: ['debuff'],
+    colour: '#8a8a4a',
     dur: 140,
+    turns: 3,
     stacks: 1,
     mods: [{ path: 'atk', op: 'mul', v: 0.8 }]
   },
   {
     id: 'enraged',
-    desc: '+35% ATK and +20% gauge rate for the rest of the battle.',
+    desc: '+35% ATK, +1 Move, and its skills come back a turn sooner, for the rest of the battle.',
     name: 'Enraged',
     tags: ['buff'],
+    colour: '#e04040',
     dur: 'battle',
+    turns: 'battle',
     stacks: 1,
-    mods: [{ path: 'atk', op: 'mul', v: 1.35 }, { path: 'gauge.rate', op: 'mul', v: 1.2 }]
+    mods: [m('atk', 'mul', 1.35), m('gauge.rate', 'mul', 1.2), m('move', 'add', 1), m('cooldown.rate', 'add', 1)]
   },
   {
     id: 'desperate',
-    desc: '+50% damage dealt, +25% damage taken, +15% gauge rate.',
+    desc: '+50% damage dealt, +25% damage taken, +1 Move, and its skills come back a turn sooner.',
     name: 'Desperate',
     tags: ['buff'],
+    colour: '#ff5a8a',
     dur: 'battle',
+    turns: 'battle',
     stacks: 1,
     mods: [
       { path: 'damage.dealt', op: 'mul', v: 1.5 },
       { path: 'damage.taken', op: 'mul', v: 1.25 },
-      { path: 'gauge.rate', op: 'mul', v: 1.15 }
+      { path: 'gauge.rate', op: 'mul', v: 1.15 },
+      m('move', 'add', 1),
+      m('cooldown.rate', 'add', 1)
     ]
   },
   {
     // A damage-over-time (DESIGN §2.4): each tick interval it deals `power` true damage per stack (battle.js 'dot':
-    // never missing, no DEF, no crit), up to 3 stacks.
+    // never missing, no DEF, no crit), up to 3 stacks; on turns, once a turn for twice that (a turn is two seconds).
     id: 'burning',
-    desc: 'Takes 6 true damage a second per stack, up to 3 stacks.',
+    desc: 'Takes 12 true damage each turn per stack, up to 3 stacks.',
     name: 'Burning',
     tags: ['debuff'],
+    colour: '#ff7a33',
     dur: 120,
+    turns: 3,
     stacks: 3,
     mods: [],
     tick: [{ op: 'dot', power: 6 }],
@@ -1999,21 +2081,28 @@ const STATUS_LIST = [
   {
     // The Mantis's wound: a damage-over-time as Burning is, slower, stacking deeper.
     id: 'bleeding',
-    desc: 'Takes 4 true damage a second per stack, up to 5 stacks.',
+    desc: 'Takes 8 true damage each turn per stack, up to 5 stacks.',
     name: 'Bleeding',
     tags: ['debuff'],
+    colour: '#c0202e',
     dur: 100,
+    turns: 2,
     stacks: 5,
     mods: [],
     tick: [{ op: 'dot', power: 4 }],
     tickEvery: 20
   },
   {
+    // On turns the one disabling status (redesign.md §2.8): no act and no counter while it holds, so its `turns` are
+    // the acts it costs, one (a drain that emptied the gauge laid two: Wrench the Works). Its `dur` and mods are the old
+    // battle's slower gauge, until it goes.
     id: 'hexed',
-    desc: '−30% gauge rate: acts less often.',
+    desc: 'Loses its next act, and does not counter until then.',
     name: 'Hexed',
     tags: ['debuff'],
+    colour: '#9b5cff',
     dur: 140,
+    turns: 1,
     stacks: 1,
     mods: [{ path: 'gauge.rate', op: 'mul', v: 0.7 }]
   },
@@ -2023,7 +2112,9 @@ const STATUS_LIST = [
     desc: 'Takes 40% less damage.',
     name: 'Shielded',
     tags: ['buff'],
+    colour: '#cfe3ff',
     dur: 160,
+    turns: 4,
     stacks: 1,
     mods: [{ path: 'damage.taken', op: 'mul', v: 0.6 }]
   }
@@ -2062,6 +2153,12 @@ export const BEHAVIOURS = {
   // goes round. Only a ranged blow, or a flyer's melee, can touch it, so only a ranged ring, a flyer's or the
   // Monarch's may halt it in your rings, and only where it can strike back.
   fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls, and may hover over one, but never through your pieces: one of yours in its way, on the ground or in the air, holds it there, and it never goes round. Only a ranged blow, or a flyer\'s melee, can strike it, so in your rings only a ranged ring, a flyer\'s or the Monarch\'s may halt it, and only where its own blows reach something of yours.', melee: 'Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' }
+}
+
+// What laying a status is worth to the policy (policy.js score), in HP-equivalents a stack. Placeholders.
+export const STATUS_WORTH = {
+  brittle: 20, hasten: 20, regen: 40, barkskin: 25, veiled: 20, withered: 20, enraged: 25, desperate: 20,
+  burning: 24, bleeding: 16, hexed: 40, shield: 30
 }
 
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
@@ -2201,10 +2298,10 @@ export const FUSION_LIST = [
 
 // ── relics ───────────────────────────────────────────────────────────────────────────────────
 
-// A relic's tier, from the most often offered to the rarest (`colour`: the interface's colour token for it). The
-// first three come from reliquaries and won elites, deeper floors weighted toward the rarer (TUNING.relic.weights);
-// a Legendary comes from won elites and reliquaries from floor TUNING.relic.legendary.fromFloor (run.js
-// relicOffers, legendaryOffers). Legendaries are the rules that rewrite the game.
+// A relic's tier, from the most often stocked to the rarest (`colour`: the interface's colour token for it). A Shop
+// draws the first three by TUNING.relic.weights.shop, deeper floors weighted toward the rarer, and from floor
+// TUNING.relic.legendary.fromFloor stocks one Legendary (run.js stockShop). Legendaries are the rules that rewrite the
+// game.
 export const RELIC_TIERS = [
   { id: 'common', name: 'Common', colour: '--c-common' },
   { id: 'uncommon', name: 'Uncommon', colour: '--c-uncommon' },
@@ -2212,69 +2309,72 @@ export const RELIC_TIERS = [
   { id: 'legendary', name: 'Legendary', colour: '--c-legendary' }
 ]
 
-// Run-long passives, each of a `tier` (RELIC_TIERS). A relic held may be offered and taken again: copies stack, and
-// every copy applies in full (its mods compound, a trigger fires once a copy, a number adds once a copy). `mods`
-// apply to every party unit in battle but the Monarch: your souls and shadows (a `pos` mod only in that position, a
-// `who` mod only to souls of that role or kin). The Monarch's own two numbers come only from relics (DESIGN §2.6):
-// `command` adds Command (a piece more on the field: run.js commandOf) and `monarchHp` adds to its max HP (and heals
-// it by as much, unless nothing may heal it); a won elite always lays out a Command relic (run.js relicOffers).
-// `roster` adds room in the retinue; `soulTiers` gives a kind new to the run that you recruit that many free tiers,
-// each on its lower track (run.js reap); `essence` raises the essence battles pay by that share; `tierDiscount`,
-// `lowTierDiscount` (tiers I and II only) and `recruitDiscount` cut those prices by theirs (never below 1 essence).
-// Many are triggers: `on` names a moment of a battle, for your side only, and `effects` run then (as an
-// ability's do; a heal with `pct` mends that share of the target's max HP, whoever casts it). Each moment
-// has a subject, a place and the one on its other end: 'kill' (one of yours slays a foe: the killer, where
-// the slain fell, the slain), 'fall' (one of yours falls, the Monarch aside, whose fall ends the battle: the
-// fallen, where it fell, its killer), 'wave' (a foe wave begins: the battle's opening, the foes standing from the
-// start its first wave, then each later wave as it begins to enter; the Monarch, where it stands, no one),
-// 'blow' (the battle's first blow lands, either side's: the Monarch, where it stands, the
-// striker) and 'struck' (a blow lands on the Monarch and it stands: the Monarch, where it stands, its attacker). An
-// effect's `to` picks its targets: 'self' (the subject) or 'other', if it stands; 'monarch'; or 'allies' /
-// 'foes' (yours / theirs standing within `range` tiles of the place).
+// Run-long passives, each of a `tier` (RELIC_TIERS), bought in Shops (run.js stockShop, buy). A relic held may be
+// stocked and bought again: copies stack, and every copy applies in full (its mods compound, a trigger fires once a
+// copy). Each is one of three forms (redesign.md §2.13.3), and a Common, Uncommon or Rare relic never has a rule.
 //
-// The Legendaries' rules (battle.js relicRules, run.js): `arise` (the Monarch's Arise: without a copy no foe rises
-// as a shadow; its numbers are its own, TUNING.arise's for one copy and TUNING.arise.more's more for each copy past
-// the first: run.js ariseOf; its desc keeps in step with them), `rise` (a fallen soul rises at that share of its max
-// HP, once a battle a copy), `alias` ({ role: role }: a unit of the first counts as one of the second more a copy,
-// for your synergies), `domain` (Arise reaches that many tiles more or fewer), `reap` (Arise's shadows
-// still standing when a battle is won pay their essence again, once a copy), `raises` (Arise's cap a battle grows by
-// this share of itself a copy), `tithe` (each shadow costs the Monarch this share of its max HP) and `unhealable`
-// (nothing heals the Monarch, in battle or out). `needsArise`: offered only once the run holds Arise (it does
-// nothing without it). Nothing ever revives the Monarch.
+// `mods`, on a unit's stat path: every party unit in battle but the Monarch, your souls and shadows (a `pos` mod only
+// in that position, a `who` mod only to souls of that role or kin). Or on one of the run's own paths (run.js
+// RUN_PATHS, read by runStat): the Monarch's Command (`run.command`, a piece more on the field) and max HP
+// (`run.monarchHp`, healing it by as much unless nothing may heal it), the retinue's room (`run.roster`), the free
+// tiers a kind new to the run joins with, each on its lower track (`run.soulTiers`), the share a price is cut by
+// (`price.tier`, `price.lowTier` for tiers I and II, `price.recruit`, `price.relic`; never below 1 essence), the share
+// more battles pay (`essence.gain`), and Arise's reach and tier (`arise.domain`, `arise.tier`). A Shop always stocks
+// a Command relic.
+//
+// `on` + `effects`, a trigger: `on` names a moment of a battle, for your side only, and `effects` run then (as an
+// ability's do; a heal with `pct` mends that share of the target's max HP, whoever casts it). Each moment has a
+// subject, a place and the one on its other end: 'kill' (one of yours slays a foe: the killer, where the slain fell,
+// the slain), 'fall' (one of yours falls, the Monarch aside, whose fall ends the battle: the fallen, where it fell,
+// its killer), 'wave' (a foe wave begins: the battle's opening, the foes standing from the start its first wave, then
+// each later wave as it begins to enter; the Monarch, where it stands, no one), 'blow' (the battle's first blow
+// lands, either side's: the Monarch, where it stands, the striker) and 'struck' (a blow lands on the Monarch and it
+// stands: the Monarch, where it stands, its attacker). An effect's `to` picks its targets: 'self' (the subject) or
+// 'other', if it stands; 'monarch'; or 'allies' / 'foes' (yours / theirs standing within `range` tiles of the place).
+//
+// A rule, the Legendaries' alone: their own keys until the rules registry takes them (§5 Step 4; battle.js
+// relicRules reads them, and run.js). `arise` (the Monarch's Arise: without a copy no foe rises as a shadow; its
+// numbers are its own, TUNING.arise's for one copy and TUNING.arise.more's more for each copy past the first: run.js
+// ariseOf; its desc keeps in step with them), `rise` (a fallen soul rises at that share of its max HP, once a battle a
+// copy), `alias` ({ role: role }: a unit of the first counts as one of the second more a copy, for your synergies),
+// `reap` (Arise's shadows still standing when a battle is won pay their essence again, once a copy), `raises`
+// (Arise's cap a battle grows by this share of itself a copy), `tithe` (each shadow costs the Monarch this share of
+// its max HP) and `unhealable` (nothing heals the Monarch, in battle or out). `needsArise`: stocked only once the run
+// holds Arise (it does nothing without it). Nothing ever revives the Monarch.
 export const RELIC_LIST = [
   { id: 'whetstone', tier: 'common', name: 'Whetstone', desc: '+18% ATK.', mods: [{ path: 'atk', op: 'mul', v: 1.18 }] },
   { id: 'heartwood', tier: 'common', name: 'Heartwood', desc: '+22% max HP.', mods: [{ path: 'hp', op: 'mul', v: 1.22 }] },
   { id: 'blood_chalice', tier: 'common', name: 'Blood Chalice', desc: 'When one of yours slays a foe: the killer heals 15% of its max HP.', on: 'kill', effects: [{ op: 'heal', pct: 0.15, to: 'self' }] },
   { id: 'balm', tier: 'common', name: 'Balm', desc: 'When one of yours falls: your side within 2 tiles of it heals 18% of its max HP.', on: 'fall', effects: [{ op: 'heal', pct: 0.18, to: 'allies', range: 2 }] },
-  { id: 'binding_chain', tier: 'common', name: 'Binding Chain', desc: 'Recruiting a soul costs 30% less essence.', recruitDiscount: 0.3 },
-  { id: 'ossuary_key', tier: 'common', name: 'Ossuary Key', desc: 'Your ossuary holds 3 more souls.', roster: 3 },
-  { id: 'grave_shroud', tier: 'common', name: 'Grave Shroud', desc: 'The Monarch has 30 more max HP.', monarchHp: 30 },
-  { id: 'bone_horn', tier: 'common', name: 'Bone Horn', desc: '+1 Command (a piece more on the field), but every soul has 10% less HP.', command: 1, mods: [{ path: 'hp', op: 'mul', v: 0.9 }] },
+  { id: 'binding_chain', tier: 'common', name: 'Binding Chain', desc: 'Recruiting a soul costs 30% less essence.', mods: [m('price.recruit', 'add', -0.3)] },
+  { id: 'ossuary_key', tier: 'common', name: 'Ossuary Key', desc: 'Your ossuary holds 3 more souls.', mods: [m('run.roster', 'add', 3)] },
+  { id: 'grave_shroud', tier: 'common', name: 'Grave Shroud', desc: 'The Monarch has 30 more max HP.', mods: [m('run.monarchHp', 'add', 30)] },
+  { id: 'bone_horn', tier: 'common', name: 'Bone Horn', desc: '+1 Command (a piece more on the field), but every soul has 10% less HP.', mods: [m('run.command', 'add', 1), m('hp', 'mul', 0.9)] },
   { id: 'iron_oath', tier: 'common', name: 'Iron Oath', desc: 'When the Monarch is struck: your side within 2 tiles of it gains Barkskin (+25% DEF).', on: 'struck', effects: [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }] },
   { id: 'grave_bell', tier: 'common', name: 'Grave Bell', desc: 'When the Monarch is struck: its attacker is Withered (−20% ATK).', on: 'struck', effects: [{ op: 'apply_status', status: 'withered', to: 'other' }] },
   { id: 'war_drum', tier: 'uncommon', name: 'War Drum', desc: 'When one of yours falls: your side within 2 tiles of it gains Hasten.', on: 'fall', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
   { id: 'rally_horn', tier: 'uncommon', name: 'Rally Horn', desc: 'When the first blow of a battle lands: your side within 2 tiles of the Monarch gains Hasten.', on: 'blow', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
-  { id: 'soul_lantern', tier: 'uncommon', name: 'Soul Lantern', desc: 'A kind new to the run that you recruit joins with a free tier, on its lower track. Each copy: a tier more.', soulTiers: 1 },
-  { id: 'tower_shield', tier: 'uncommon', name: 'Tower Shield', desc: 'As the battle begins, and as each later wave begins to enter: your side within 2 tiles of the Monarch is Shielded for 8 s (takes 40% less damage).', on: 'wave', effects: [{ op: 'apply_status', status: 'shield', dur: 160, to: 'allies', range: 2 }] },
-  { id: 'grave_ledger', tier: 'uncommon', name: 'Grave Ledger', desc: 'Tiers I and II cost 30% less essence.', lowTierDiscount: 0.3 },
-  { id: 'bone_mantle', tier: 'uncommon', name: 'Bone Mantle', desc: 'The Monarch has 65 more max HP.', monarchHp: 65 },
-  { id: 'muster_roll', tier: 'uncommon', name: 'Muster Roll', desc: '+1 Command (a piece more on the field), but every soul has 5% less HP.', command: 1, mods: [{ path: 'hp', op: 'mul', v: 0.95 }] },
+  { id: 'soul_lantern', tier: 'uncommon', name: 'Soul Lantern', desc: 'A kind new to the run that you recruit joins with a free tier, on its lower track. Each copy: a tier more.', mods: [m('run.soulTiers', 'add', 1)] },
+  { id: 'tower_shield', tier: 'uncommon', name: 'Tower Shield', desc: 'As the battle begins, and as each later wave begins to enter: your side within 2 tiles of the Monarch is Shielded for 4 turns (takes 40% less damage).', on: 'wave', effects: [{ op: 'apply_status', status: 'shield', dur: 160, turns: 4, to: 'allies', range: 2 }] },
+  { id: 'grave_ledger', tier: 'uncommon', name: 'Grave Ledger', desc: 'Tiers I and II cost 30% less essence.', mods: [m('price.lowTier', 'add', -0.3)] },
+  { id: 'bone_mantle', tier: 'uncommon', name: 'Bone Mantle', desc: 'The Monarch has 65 more max HP.', mods: [m('run.monarchHp', 'add', 65)] },
+  { id: 'muster_roll', tier: 'uncommon', name: 'Muster Roll', desc: '+1 Command (a piece more on the field), but every soul has 5% less HP.', mods: [m('run.command', 'add', 1), m('hp', 'mul', 0.95)] },
   { id: 'hunters_mark', tier: 'uncommon', name: "Hunter's Mark", desc: 'When one of yours slays a foe: the foes next to the slain turn Brittle.', on: 'kill', effects: [{ op: 'apply_status', status: 'brittle', to: 'foes', range: 1 }] },
-  { id: 'hourglass', tier: 'uncommon', name: 'Hourglass', desc: 'When the Monarch is struck: Arise gains 30 gauge.', on: 'struck', effects: [{ op: 'gauge', amount: 30, to: 'monarch' }], needsArise: true },
-  { id: 'bone_idol', tier: 'uncommon', name: 'Bone Idol', desc: 'When one of yours falls: Arise gains 40 gauge.', on: 'fall', effects: [{ op: 'gauge', amount: 40, to: 'monarch' }], needsArise: true },
-  { id: 'grave_banner', tier: 'rare', name: 'Grave Banner', desc: '+1 Command (a piece more on the field).', command: 1 },
-  { id: 'phylactery', tier: 'rare', name: 'Phylactery', desc: 'The Monarch has 110 more max HP.', monarchHp: 110 },
-  { id: 'tithe_bowl', tier: 'rare', name: 'Tithe Bowl', desc: 'Battles pay 35% more essence.', essence: 0.35 },
-  { id: 'rite_candle', tier: 'rare', name: 'Rite Candle', desc: 'Track tiers cost 25% less essence.', tierDiscount: 0.25 },
-  { id: 'arcane_focus', tier: 'rare', name: 'Arcane Focus', desc: 'When one of yours slays a foe: the killer gains 40 gauge.', on: 'kill', effects: [{ op: 'gauge', amount: 40, to: 'self' }] },
+  { id: 'hourglass', tier: 'uncommon', name: 'Hourglass', desc: 'Arise reaches a tile farther.', mods: [m('arise.domain', 'add', 1)], needsArise: true },
+  { id: 'bone_idol', tier: 'uncommon', name: 'Bone Idol', desc: 'Arise raises a foe of a tier higher.', mods: [m('arise.tier', 'add', 1)], needsArise: true },
+  { id: 'grave_banner', tier: 'rare', name: 'Grave Banner', desc: '+1 Command (a piece more on the field).', mods: [m('run.command', 'add', 1)] },
+  { id: 'phylactery', tier: 'rare', name: 'Phylactery', desc: 'The Monarch has 110 more max HP.', mods: [m('run.monarchHp', 'add', 110)] },
+  { id: 'tithe_bowl', tier: 'rare', name: 'Tithe Bowl', desc: 'Battles pay 35% more essence.', mods: [m('essence.gain', 'add', 0.35)] },
+  { id: 'rite_candle', tier: 'rare', name: 'Rite Candle', desc: 'Track tiers cost 25% less essence.', mods: [m('price.tier', 'add', -0.25)] },
+  { id: 'arcane_focus', tier: 'rare', name: 'Arcane Focus', desc: 'When one of yours slays a foe: the killer\'s skills come back a turn sooner.', on: 'kill', effects: [{ op: 'cooldown', amount: -1, to: 'self' }] },
   { id: 'glass_crown', tier: 'rare', name: 'Glass Crown', desc: '+32% damage dealt, but +15% damage taken.', mods: [{ path: 'damage.dealt', op: 'mul', v: 1.32 }, { path: 'damage.taken', op: 'mul', v: 1.15 }] },
-  { id: 'arise', tier: 'legendary', name: 'Arise', desc: 'A foe of tier 3 or lower slain within 5 tiles of the Monarch rises as your shadow, 3 a battle. Each copy: a tile farther, a tier higher, 6 more a battle, and it comes 10% sooner.', arise: 1 },
-  { id: 'legion', tier: 'legendary', name: 'Legion', desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', command: 2, mods: [{ path: 'hp', op: 'mul', v: 0.85 }] },
+  { id: 'arise', tier: 'legendary', rule: 'arise', name: 'Arise', desc: 'A foe of tier 3 or lower slain within 5 tiles of the Monarch rises as your shadow, 3 a battle. Each copy: a tile farther, a tier higher, 6 more a battle, and it comes 10% sooner.', arise: 1 },
+  { id: 'legion', tier: 'legendary', name: 'Legion', desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', mods: [m('run.command', 'add', 2), m('hp', 'mul', 0.85)] },
   { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'Fallen souls rise once a battle, at 60% HP. Each copy: once more a battle.', rise: 0.6 },
   { id: 'mimicry', tier: 'legendary', name: 'Mimicry', desc: 'Vanguards count as Wardens too, for synergies. Each copy: a Vanguard counts as one Warden more.', alias: { vanguard: 'warden' } },
   { id: 'hollow_court', tier: 'legendary', name: 'Hollow Court', desc: 'Shadows raised by Arise that still stand when a battle is won are reaped: each pays its essence again. Each copy: once more.', reap: 1, needsArise: true },
   { id: 'blood_tithe', tier: 'legendary', name: 'Blood Tithe', desc: "Arise's cap a battle is doubled, but each shadow costs the Monarch 2% of its max HP. Each copy: the cap grows by as much again, and the cost by 2%.", raises: 1, tithe: 0.02, needsArise: true },
-  { id: 'court_of_bone', tier: 'legendary', name: 'Court of Bone', desc: 'Arise reaches 2 tiles farther, but nothing heals the Monarch, in battle or out. Each copy: 2 tiles more.', domain: 2, unhealable: true, needsArise: true }
+  { id: 'court_of_bone', tier: 'legendary', name: 'Court of Bone', desc: 'Arise reaches 2 tiles farther, but nothing heals the Monarch, in battle or out. Each copy: 2 tiles more.', mods: [m('arise.domain', 'add', 2)], unhealable: true, needsArise: true }
 ]
 
 // The moments a relic can trigger on.

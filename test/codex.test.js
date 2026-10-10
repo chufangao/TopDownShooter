@@ -104,3 +104,47 @@ test('a recruit of a kind held says what one more is worth: how many you hold, a
   const stranger = UNIT_LIST.find((u) => u.spawn && !held.has(u.id))
   assert.equal(recruitWorth(run, stranger.id), null)
 })
+
+// On turns (redesign.md §4, the slice behind TUNING.turns): the words are built under the flag as the page loads
+// (flag.js), so the glossary is read from a copy of keywords.js loaded under it; the cards and How to play read the
+// flag as they are drawn.
+const { TUNING } = await import('../src/tuning.js')
+const { temperLine } = await import('../src/content.js')
+const { temperOf } = await import('../src/sim/turns.js')
+async function onTurns (fn) {
+  const was = TUNING.turns
+  TUNING.turns = true
+  try { return await fn() } finally { TUNING.turns = was }
+}
+
+test('on turns the glossary\'s words are the seventeen: Ring and the gauge gone, Turn, Move, Skill, Cooldown, Counter, Shop come', async () => {
+  const words = await onTurns(async () => (await import('../src/keywords.js?turns')).KEYWORDS)
+  const names = Object.values(words).filter((k) => k.group === 'Words').map((k) => k.name)
+  assert.deepEqual(names.slice().sort(), ['Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
+    'Summon', 'Synergy', 'Tier', 'Turn', 'Wave'])
+  for (const k of Object.values(words)) assert.ok(!/\bring|gauge/i.test(k.line), `${k.name}: ${k.line}`)
+})
+
+test('on turns a met foe\'s card gives its way line, generated from its temperament; one not met tells nothing', async () => {
+  await onTurns(() => {
+    const tempered = FOES.filter((u) => u.temper)
+    assert.ok(tempered.length >= 8, 'the floor-1 kinds carry a temperament')
+    for (const u of tempered) {
+      const text = ringRule({ id: u.id, lvl: 1 }, true)
+      assert.ok(text.includes(temperLine(temperOf(u.id)).toLowerCase()), `${u.id}: ${text}`)
+      assert.ok(!/\bring|gauge|halts?\b/i.test(text + ringText({ id: u.id, lvl: 1 }, true)), `${u.id}: ${text}`)
+      assert.match(ringText({ id: u.id, lvl: 1 }, true), /^Reach \d+ · (melee|ranged) · Move \d+/)
+    }
+  })
+  const met = localStorage.getItem('retinue:met')
+  localStorage.setItem('retinue:met', '')
+  await onTurns(() => assert.match(ringRule({ id: FOES[0].id, lvl: 1 }, true), /^Not met yet/))
+  localStorage.setItem('retinue:met', met)
+})
+
+test('on turns How to play is the turn\'s: a turn is yours, the untouched strike with their basics, no dice', async () => {
+  const text = await onTurns(() => codexView(createRun({ seed: 'codex' })).textContent)
+  assert.ok(text.includes('A turn is yours'), text.slice(0, 200))
+  assert.ok(text.includes('never a skill') && text.includes('No dice'))
+  assert.ok(!/never moves'?\.|stop line|rings cover/.test(text), text.match(/.{0,40}(never moves|stop line|rings cover).{0,40}/)?.[0])
+})

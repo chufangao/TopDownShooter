@@ -1,18 +1,20 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import {
-  UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, RELICS, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, TRACKS, THREATS, TRIGGERS,
-  FUSION_LIST, FUSIONS, fusionDef
+  UNITS, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, RELICS, RELIC_TIERS, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, TRACKS, THREATS, TRIGGERS,
+  FUSION_LIST, FUSIONS, fusionDef, TEMPERS, temperLine, STATUS_WORTH
 } from '../src/content.js'
+import { isRunPath, START_PARTY } from '../src/sim/run.js'
 import {
   statsOf, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, baseStats, activeSynergies, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf,
   deployTile, wallTiles, steps, summonsOf, canTrack, nextTracks, rangeOf, isAllyShape, isBlow, ringOf, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH, ROWS, TILES, armOf
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
+import { RULES } from '../src/sim/rules.js'
 
 const checkEffect = (e, where) => {
-  assert.ok(['damage', 'heal', 'apply_status', 'cleanse', 'gauge', 'raise', 'dot'].includes(e.op), `${where}: op ${e.op}`)
+  assert.ok(['damage', 'heal', 'apply_status', 'cleanse', 'gauge', 'cooldown', 'raise', 'dot'].includes(e.op), `${where}: op ${e.op}`)
   if (e.status) assert.ok(STATUSES[e.status], `${where}: status ${e.status}`)
 }
 
@@ -198,19 +200,31 @@ test('every ability, status and synergy reference resolves', () => {
     for (const e of s.tick ?? []) checkEffect(e, s.id)
     statsOf(unit, s.mods)
   }
-  for (const s of [...SYNERGIES, ...RELIC_LIST]) statsOf(unit, s.mods ?? [])
+  // A relic's mods on the run's own paths are the run's (run.js runStat); the rest a unit's.
+  for (const s of [...SYNERGIES, ...RELIC_LIST]) statsOf(unit, (s.mods ?? []).filter((x) => !isRunPath(x.path)))
   for (const s of SYNERGIES) {
     for (const id of Object.keys(s.needs.kin ?? {})) assert.ok(KIN[id], `${s.id} kin ${id}`)
     for (const id of Object.keys(s.needs.role ?? {})) assert.ok(ROLES[id], `${s.id} role ${id}`)
   }
   for (const a of Object.values(ABILITIES)) assert.equal(!!a.when, !!a.cond, `${a.id}: a when needs a cond`)
   for (const s of Object.values(STATUSES)) assert.ok(s.desc, `${s.id} desc`)
-  // The statuses the foes bring (DESIGN §2.4): Burning a damage-over-time up to 3 stacks, Hexed a slower gauge; both
-  // debuffs, so Purge and Molt cleanse them.
+  // The statuses the foes bring (DESIGN §2.4): Burning a damage-over-time up to 3 stacks, Hexed the one that disables
+  // (on turns it loses its next act: redesign.md §2.8; its slower gauge is the old battle's); both debuffs, so Purge
+  // and Molt cleanse them.
   const { burning, hexed } = STATUSES
   assert.deepEqual([burning.stacks, burning.tick.map((e) => e.op), burning.tags], [3, ['dot'], ['debuff']])
   assert.ok(burning.tick[0].power > 0 && burning.tickEvery > 0)
-  assert.ok(hexed.tags.includes('debuff') && hexed.mods.some((x) => x.path === 'gauge.rate' && x.op === 'mul' && x.v < 1))
+  assert.ok(hexed.tags.includes('debuff') && /next act/.test(hexed.desc))
+  // On turns (redesign.md §2.8) every status lasts `turns`, its old `dur` ÷ 40 rounded down ('battle' for the
+  // battle), but Hexed, whose turns are the acts it costs: its next; and is drawn in its `colour`; the policy knows
+  // what laying each is worth.
+  assert.equal(hexed.turns, 1)
+  for (const s of Object.values(STATUSES)) {
+    if (s !== hexed) assert.equal(s.turns, s.dur === 'battle' ? 'battle' : Math.floor(s.dur / 40), `${s.id} turns`)
+    assert.match(s.colour, /^#[0-9a-f]{6}$/, `${s.id} colour`)
+    assert.ok(STATUS_WORTH[s.id] > 0, `${s.id} worth`)
+    assert.doesNotMatch(s.desc, /\bgauge\b|a second/, `${s.id}: its text for turns`)
+  }
   // A relic's moments: no march, the wave instead.
   assert.deepEqual(TRIGGERS, ['kill', 'fall', 'wave', 'blow', 'struck'])
   for (const r of RELIC_LIST) if (r.on) assert.ok(TRIGGERS.includes(r.on), `${r.id} on ${r.on}`)
@@ -375,4 +389,114 @@ test('abilitiesOf: every legal holding of every kind\'s tiers makes a whole kit;
     else tier.ability = was
   }
   assert.deepEqual(abilitiesOf({ id: 'bone_chanter', tracks: [1, 0] }), abilitiesOf({ id: 'bone_chanter', tracks: [0, 0] }))
+})
+
+// ── content is data (redesign.md §2.13): the checklist ───────────────────────────────────────────
+
+// The floor-1 kinds, the slice's (§5 Step 2): records so far. The rest join them in the full conversion.
+const SLICE = ['tomb_knight', 'bone_chanter', 'frost_sprite', 'hive_warden', 'clockwork_page', 'grave_ghoul', 'will_o_wisp', 'pyre_hound']
+// The vocabulary an ability is made of (§2.13.2): its ops, its shapes (the ally shapes too) and its anims.
+const OPS = ['damage', 'heal', 'cleanse', 'apply_status', 'raise', 'cooldown']
+const SHAPES = ['single', 'blast', 'column', 'row', 'all', 'corpse', 'ally', 'all_allies', 'self']
+const ANIM_IDS = ['cast_beam', 'melee_lunge', 'ranged_bolt']
+const PREYS = ['weakest', 'wounded', 'unarmoured', 'monarch', 'crowd', 'rested']
+// Gone with the dice and the gauge (§2.6–2.7): no mod of the slice's names them, and no card of it says gauge or ring.
+const GONE_PATHS = ['acc', 'eva', 'crt', 'gauge.rate']
+const GONE_WORDS = /\bgauge\b|\bring\b/i
+const turnsOk = (t) => t === undefined || t === 'battle' || (Number.isInteger(t) && t >= 1)
+
+// An ability of the slice: ops, a shape and an anim from the vocabulary, every status it lays known, a cooldown only
+// where it is not 2, and no condition that only timed the old AI: a blow none, a heal, cleanse or buff only that it
+// has someone to land on (content.js), never a time or an HP threshold.
+function checkSliceAbility (id, where) {
+  const a = ABILITIES[id]
+  assert.ok(a, `${where}: ability ${id}`)
+  assert.ok(SHAPES.includes(a.shape) && ANIM_IDS.includes(a.anim), `${where} ${id}: shape ${a.shape}, anim ${a.anim}`)
+  if (isBlow(a)) assert.ok(!a.when, `${where} ${id}: a blow's timing is yours`)
+  else if (a.when) assert.doesNotMatch(String(a.when), /\bs\.t\b|hpPct|>= ?[23]/, `${where} ${id}: ${a.cond}`)
+  assert.ok(a.cooldown === undefined || (Number.isInteger(a.cooldown) && a.cooldown !== 2), `${where} ${id}: cooldown ${a.cooldown}`)
+  for (const e of a.effects) {
+    assert.ok(OPS.includes(e.op), `${where} ${id}: op ${e.op}`)
+    if (e.op === 'apply_status') assert.ok(STATUSES[e.status] && turnsOk(e.turns), `${where} ${id}: ${e.status} for ${e.turns}`)
+  }
+}
+
+test('the floor-1 kinds are records: two tracks of four on the def, a Move, a temper with a known prey, a threat, pictures, every ability in the vocabulary', () => {
+  assert.deepEqual(Object.values(UNITS).filter((u) => u.spawn?.minFloor === 1).map((u) => u.id).sort(), [...SLICE].sort(), 'the floor-1 pool')
+  assert.ok(START_PARTY.every((id) => SLICE.includes(id)), 'the start souls among them')
+  for (const id of SLICE) {
+    const u = UNITS[id]
+    assert.ok(Array.isArray(u.tracks) && u.tracks.length === 2 && u.tracks.every((t) => t.tiers.length === 4), `${id}: two tracks of four, on its def`)
+    assert.equal(TRACKS[id], u.tracks, `${id}: TRACKS reads the def`)
+    assert.ok(Number.isInteger(u.move) && u.move >= 1, `${id}: a Move`)
+    const t = u.temper
+    assert.ok(t && t.aggression >= 0 && t.caution >= 0 && PREYS.includes(t.prey), `${id}: a temper with a known prey`)
+    assert.ok(Object.values(TEMPERS).some((p) => p.aggression === t.aggression && p.caution === t.caution), `${id}: a preset's values`)
+    assert.match(temperLine(t), /^[A-Z][a-z].*; .*; .+/, `${id}: its way line`)
+    assert.ok(u.threats?.length && u.threats.every((x) => THREATS[x]), `${id}: a threat`)
+    for (const pose of ART_POSES) assert.ok(existsSync(new URL(artUrl(id, pose))), `${id}: its ${pose} picture`)
+    for (const a of u.abilities) checkSliceAbility(a, id)
+    if (u.aura) assert.ok(!u.aura.mods.some((x) => GONE_PATHS.includes(x.path)), `${id}: aura`)
+    for (const track of u.tracks) {
+      assert.doesNotMatch(track.desc, GONE_WORDS, `${id} ${track.id}`)
+      for (const [i, tier] of track.tiers.entries()) {
+        const where = `${id} ${track.id} ${i + 1}`
+        assert.doesNotMatch(tier.desc, GONE_WORDS, where)
+        for (const x of [...(tier.mods ?? []), ...(tier.aura?.mods ?? [])]) assert.ok(!GONE_PATHS.includes(x.path), `${where}: ${x.path}`)
+        if (tier.aura) assert.doesNotMatch(tier.aura.desc, GONE_WORDS, where)
+        if (tier.ability) checkSliceAbility(tier.ability.id, where)
+      }
+    }
+  }
+  // The Move placeholders (redesign.md §2.2): from the old stride, the quick at 3.
+  assert.deepEqual(SLICE.filter((id) => UNITS[id].move === 3).sort(), ['frost_sprite', 'pyre_hound'])
+  // A preset by name, or a copy of one tweaked: the Ghoul hunts where the armour is thinnest.
+  assert.equal(UNITS.grave_ghoul.temper.prey, 'unarmoured')
+  assert.equal(UNITS.tomb_knight.temper, TEMPERS.charger)
+  // The gauge table (§2.7): a drain of 30–40 Hexes for its one act, an emptied gauge for two.
+  const hex = (id) => ABILITIES[id].effects.find((e) => e.status === 'hexed')
+  assert.deepEqual(['spanner', 'hoarfrost', 'deep_winter', 'wrench'].map((id) => hex(id).turns ?? STATUSES.hexed.turns), [1, 1, 1, 2])
+  // Hasten, Enraged and Desperate quickened the gauge: +1 Move, and cooldowns a turn faster (`cooldown.rate`).
+  for (const id of ['hasten', 'enraged', 'desperate']) {
+    const mods = STATUSES[id].mods
+    assert.ok(['move', 'cooldown.rate'].every((path) => mods.some((x) => x.path === path && x.op === 'add' && x.v === 1)), id)
+  }
+})
+
+// A relic is one of three forms (§2.13.3): `mods` (a unit's stat paths or the run's own), `on` + `effects`, or a rule;
+// only a Legendary may hold a rule. The sixteen bespoke keys are gone below Legendary, and the run-level ones from all.
+test('every relic is in one of the three forms, its tier and form matching: no rule below Legendary', () => {
+  const RULES = ['arise', 'rise', 'alias', 'reap', 'raises', 'tithe', 'unhealable', 'rule']
+  const GONE = ['command', 'monarchHp', 'roster', 'recruitDiscount', 'tierDiscount', 'lowTierDiscount', 'soulTiers', 'essence', 'domain']
+  const unit = makeUnit('tomb_knight', { uid: 1 })
+  for (const r of RELIC_LIST) {
+    assert.ok(RELIC_TIERS.some((t) => t.id === r.tier) && r.name && r.desc, r.id)
+    for (const k of GONE) assert.ok(!(k in r), `${r.id}: no ${k}`)
+    const rule = RULES.filter((k) => k in r)
+    assert.ok(r.mods || r.on || rule.length, `${r.id}: a form`)
+    if (r.tier !== 'legendary') assert.deepEqual(rule, [], `${r.id}: no rule below Legendary`)
+    assert.equal(!!r.on, !!r.effects, `${r.id}: a trigger is its moment and its effects`)
+    if (r.on) {
+      assert.ok(TRIGGERS.includes(r.on), `${r.id} on ${r.on}`)
+      for (const e of r.effects) assert.ok(OPS.includes(e.op) && (!e.status || STATUSES[e.status]) && turnsOk(e.turns), `${r.id}: ${e.op}`)
+    }
+    for (const x of r.mods ?? []) {
+      assert.ok(['add', 'mul', 'set'].includes(x.op) && typeof x.v === 'number', `${r.id}: ${JSON.stringify(x)}`)
+      if (!isRunPath(x.path)) statsOf(unit, [x])
+    }
+  }
+  // Arcane Focus: the killer's skills come back a turn sooner (the gauge it gave goes: §2.7).
+  assert.deepEqual(RELICS.arcane_focus.effects, [{ op: 'cooldown', amount: -1, to: 'self' }])
+  // The gauge relics became Arise's reach and tier, and need it still.
+  assert.deepEqual([RELICS.hourglass.mods, RELICS.bone_idol.mods].map((x) => x.map((y) => y.path)), [['arise.domain'], ['arise.tier']])
+  assert.ok(RELICS.hourglass.needsArise && RELICS.bone_idol.needsArise)
+})
+
+// One registry for rules (§2.13.4): what a relic or a synergy names as its rule is an entry of it, and every entry is
+// brought by one (a boss's override, when one comes, names its rule the same way).
+test('the rules registry: every rule a relic or a synergy names is in it, and every rule in it is named by one', () => {
+  const named = [...SYNERGIES, ...RELIC_LIST].filter((x) => x.rule)
+  for (const x of named) assert.ok(Object.hasOwn(RULES, x.rule), `${x.id}: rule ${x.rule}`)
+  for (const r of RELIC_LIST) if (r.rule) assert.equal(r.tier, 'legendary', `${r.id}: a rule is a Legendary's`)
+  for (const id of Object.keys(RULES)) assert.ok(named.some((x) => x.rule === id), `${id}: named by nothing`)
 })

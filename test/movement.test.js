@@ -170,7 +170,9 @@ test('a melee foe in a long ring with nothing beside it walks on; blocked by a p
 test('a melee foe passing a piece of yours that strikes it halts there and strikes back; one that never strikes it, it walks past', () => {
   // A foe Grave Ghoul walks down the centre lane past a Tomb Knight of yours at (4, 5), beside its road: as it comes
   // beside the Knight, at (3, 6), the Knight strikes it, and it halts there and strikes the Knight back.
+  // The Knight swings its Strike alone (its Cleave, which waits for nothing now, banks longer: content.js).
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 4, 5, 6), on('grave_ghoul', 10, 'foe', 3, 10, 9)], { moving: [10] })
+  b.byUid.get(1).kit = b.byUid.get(1).kit.filter((a) => a.id === 'strike')
   until(b, () => actions(b.events, 10).length >= 2)
   const swing = actions(b.events, 1)[0]
   assert.deepEqual([b.byUid.get(10).tile, swing.targets], [tileAt(3, 6), [10]])

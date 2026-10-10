@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, stepBattle, runBattle, stats } from '../src/sim/battle.js'
 import {
-  createRun, apply, battleSetup, monarchOf, drawRoom, varyRoutes, walkWithout, routeThreats, roomThreats, fielded, availableNodes
+  createRun, apply, battleSetup, monarchOf, drawRoom, varyRoutes, walkWithout, routeThreats, roomThreats, fielded, availableNodes, isRunPath
 } from '../src/sim/run.js'
 import { policy, causesOf, armyMeasures } from '../src/sim/autoplay.js'
 import { generateFloor } from '../src/sim/map.js'
@@ -48,6 +48,19 @@ test('the Legion raises only while your side has room: a room of four waves of t
   assert.ok(risen > 0 && risen < 80, `${risen} risen of 80 slain: some, not all`)
 })
 
+// The heals `uid` casts: those its actions land, in the action's own tick (a Regen it holds ticks for its holder, at
+// full HP for nothing, and is no cast).
+function castHeals (b, uid) {
+  const out = []
+  let acting = null
+  for (const e of b.events) {
+    if (e.type === 'action') acting = e
+    else if (acting && e.t !== acting.t) acting = null
+    if (e.type === 'heal' && e.actor === uid && acting?.actor === uid) out.push(e)
+  }
+  return out
+}
+
 test('Court of Bone: a healer whose only wounded ally is the Monarch strikes instead of casting heals that land for nothing', () => {
   const fight = (relics) => {
     const mon = { ...makeUnit('monarch', { uid: 0, lvl: 2 }), slot: slotAt(6, 3) }
@@ -59,11 +72,13 @@ test('Court of Bone: a healer whose only wounded ally is the Monarch strikes ins
     runBattle(b)
     return {
       heals: b.events.filter((e) => e.type === 'heal' && e.actor === 1),
+      cast: castHeals(b, 1),
       strikes: b.events.filter((e) => e.type === 'action' && e.actor === 1 && e.ability === 'strike').length
     }
   }
   const cob = fight(['court_of_bone'])
-  assert.ok(cob.heals.length > 0 && cob.heals.every((e) => e.target !== 0 && e.heal > 0), JSON.stringify(cob.heals.slice(0, 3)))
+  assert.ok(cob.heals.length > 0 && cob.heals.every((e) => e.target !== 0), JSON.stringify(cob.heals.slice(0, 3)))
+  assert.ok(cob.cast.length > 0 && cob.cast.every((e) => e.heal > 0), JSON.stringify(cob.cast.slice(0, 3)))
   assert.ok(cob.strikes > 0, 'it strikes when no one it can mend is wounded')
   // Without the relic the wounded Monarch is mended.
   assert.ok(fight([]).heals.some((e) => e.target === 0 && e.heal > 0))
@@ -140,7 +155,9 @@ test('a heal counts only whom it reaches: Swarm Mend waits for a wound within it
 test('the Monarch takes no synergy\'s or relic\'s stats (a Legendary\'s neither): its HP in battle is the one the camp shows', () => {
   const units = [on('monarch', 0, 'party', 3, 0, 4), ...[1, 2, 3, 4].map((uid) => on(uid % 2 ? 'tomb_knight' : 'grave_ghoul', uid, 'party', uid, 3)),
     on('iron_golem', 50, 'foe', 3, 10)]
-  const b = scene(units, { partyMods: [{ path: 'hp', op: 'mul', v: 1.15 }, { path: 'def', op: 'add', v: 20 }, ...RELICS.legion.mods], relics: ['legion'] })
+  // Legion's mods on your souls (its Command is the run's: run.js RUN_PATHS).
+  const legion = RELICS.legion.mods.filter((m) => !isRunPath(m.path))
+  const b = scene(units, { partyMods: [{ path: 'hp', op: 'mul', v: 1.15 }, { path: 'def', op: 'add', v: 20 }, ...legion], relics: ['legion'] })
   const base = baseStats('monarch', 4)
   assert.deepEqual([b.monarch.hp, b.monarch.maxHp], [base.hp, base.hp])
   assert.equal(stats(b, b.monarch).def, base.def, 'no Undead 4 DEF, no relic DEF')
@@ -210,21 +227,21 @@ test('every walk through a floor meets every threat type its foes can bring', ()
 
 // ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
 
-test('the dice weigh every room type: a reliquary is a choice like any other, and a missing weight fails loudly', () => {
+test('the dice weigh every room type: a Shop is a choice like any other, and a missing weight fails loudly', () => {
   assert.throws(() => createRng('w').weighted(['a', 'b'], [1, undefined]), /finite/)
   assert.throws(() => createRng('w').weighted(['a', 'b'], [1, NaN]), /finite/)
   const picks = new Set()
   for (let k = 0; k < 40; k++) {
     const run = createRun({ seed: 'rites' })
-    const [reliquary, ...rest] = availableNodes(run)
-    reliquary.type = 'reliquary'
+    const [shop, ...rest] = availableNodes(run)
+    shop.type = 'shop'
     for (const n of rest) n.type = 'fight'
     const rng = createRng(`rites${k}`).stream('autoplay')
     let act
     while ((act = policy(run, rng, 'basic')).type !== 'node') apply(run, act)
-    picks.add(act.id === availableNodes(run)[0].id ? 'reliquary' : 'fight')
+    picks.add(act.id === availableNodes(run)[0].id ? 'shop' : 'fight')
   }
-  assert.deepEqual([...picks].sort(), ['fight', 'reliquary'], 'the reliquary and a fight are each taken, on different rolls')
+  assert.deepEqual([...picks].sort(), ['fight', 'shop'], 'the Shop and a fight are each taken, on different rolls')
 })
 
 test('the ladder\'s measures: a ceiling is its own cause, depth no second one; the army\'s actors', () => {

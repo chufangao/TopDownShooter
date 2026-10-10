@@ -685,7 +685,7 @@ const clearDeep = () => {
 // the floors cleared count every floor left behind.
 function checkDeep (run) {
   const s = run.state
-  assert.ok(['map', 'prep', 'reap', 'over'].includes(s.phase), s.phase)
+  assert.ok(['map', 'prep', 'reap', 'shop', 'over'].includes(s.phase), s.phase)
   assert.ok(Number.isInteger(s.essence) && s.essence >= 0)
   assert.equal(new Set(s.party.map((u) => u.uid)).size, s.party.length)
   const m = monarchOf(s)

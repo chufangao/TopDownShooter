@@ -1,5 +1,5 @@
-/* spoils: the reap screen's cards (picked the Slay the Spire way), the title's four steps and the end
-   screen's sting. Owned by titleScreen, reapScreen, endScreen and deathPanel in ui.js. Each card wears its
+/* spoils: the reap screen's and the Shop's cards (picked the Slay the Spire way), the title's four steps and the end
+   screen's sting. Owned by titleScreen, reapScreen, shopScreen, endScreen and deathPanel in ui.js. Each card wears its
    system's colour as --f: a recruit essence, a relic its tier's (--rt: common to legendary), a tier the tracks' cyan. */
 
 /* ── reap: the frame ──────────────────────────────────────────────────────────────────────────── */
@@ -20,7 +20,6 @@
 /* ── reap: the cards ──────────────────────────────────────────────────────────────────────────── */
 .reap-screen .offer { --f: var(--c-essence); }
 .reap-screen .o-relic { --f: var(--rt, var(--c-relic)); }
-.reap-screen .o-tier { --f: var(--c-path); }
 
 /* Rows of --cols cards (ui.js: as many as the width holds, the rows as even as they come), every card the
    same width, 168 to 250, a short last row centred. */
@@ -64,10 +63,11 @@
 .reap-screen .offers.picks.rows .offer-art > .ico svg { width: 56px; height: 56px; }
 .reap-screen .offers.picks.rows .offer { gap: 6px; padding-bottom: 12px; }
 .reap-screen .offers.picks.rows .offer-art > .portrait { width: 68px; height: 68px; }
-/* …the effect kept to three lines (all of it on the hover), and a free card's price left to the lede: rows come
-   in a reliquary's one pick, where every card is free. */
+/* …the effect kept to three lines (all of it on the hover). */
 .reap-screen .offers.picks.rows .offer-line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
-.reap-screen .offers.picks.rows .offer:not(.o-soul) .offer-price { display: none; }
+/* The Shop (ui.js shopScreen): the spoils' cards, each relic with its price; a slot bought stays as a faint card. */
+.shop-screen .o-sold { --f: var(--line); justify-content: center; opacity: .4; color: var(--dim); }
+.shop-screen .o-sold .offer-art { color: var(--dim); }
 @container frame (max-height: 640px) {
   .reap-screen .offers.picks .offer-art > .portrait { width: 84px; height: 84px; }
   .reap-screen .offers.picks .offer-art { height: 96px; }
@@ -98,46 +98,12 @@
 }
 .reap-screen .offer.locked .offer-art { filter: grayscale(.6); }
 
-/* The lede (one group): one line, the rules behind it on the ⓘ. */
+/* The lede: one line, the rules behind it on the ⓘ. */
 .reap-lede { color: var(--dim); margin: 0; font-size: var(--fs-md); }
 .lede-more { display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); vertical-align: middle; color: var(--dim); cursor: help; }
 .lede-more:hover, .lede-more:focus-visible { color: var(--bright); }
 .reap-actions { flex: none; display: flex; justify-content: flex-end; gap: 10px; margin: 0 0 0 auto; }
 .reap-actions .move-on { min-width: 150px; }
-
-/* ── reap: a room of several groups, a step each (Recruit · Relic · Legendary · Tier), one group in view ── */
-.reap-steps {
-  display: inline-flex; align-items: stretch; gap: 4px; padding: 4px; border-radius: 16px;
-  border: 1px solid var(--line2); background: #0d0b16c0;
-}
-.reap-step { --f: var(--c-essence); }
-.reap-step.s-relic { --f: var(--c-relic); }
-.reap-step.s-legendary { --f: var(--c-legendary); }
-.reap-step.s-tier { --f: var(--c-path); }
-button.reap-step {
-  display: flex; align-items: center; gap: 10px; min-height: var(--tap-lg); padding: 6px 16px 6px 10px; border-radius: 12px; text-align: left;
-  border: 1px solid transparent; background: transparent; color: var(--dim);
-}
-button.reap-step:hover:not([aria-disabled]) { color: var(--text); border-color: color-mix(in srgb, var(--f) 40%, transparent); }
-button.reap-step.on {
-  color: var(--text); border-color: color-mix(in srgb, var(--f) 60%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--f) 16%, #17142a), #110e1d);
-}
-.reap-step .rs-num {
-  flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: var(--fs-sm); font-weight: 700;
-  color: var(--f); border: 1.5px solid color-mix(in srgb, var(--f) 55%, transparent);
-}
-.reap-step.on .rs-num { color: #0b0913; background: var(--f); border-color: var(--f); }
-.reap-step .rs-text { display: flex; flex-direction: column; line-height: 1.25; }
-.reap-step .rs-text b { font-size: var(--fs-sm); letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--f) 85%, var(--dim)); }
-.reap-step .rs-part { font-size: var(--fs-sm); white-space: nowrap; }
-/* In a 4:3 frame only the step in view carries its line (four steps would not fit); a wide frame shows all. */
-.reap-step:not(.on) .rs-part { display: none; }
-@container frame (min-width: 1240px) { .reap-step:not(.on) .rs-part { display: inline; } }
-.reap-step .num { color: var(--f); }
-button.reap-step.done { opacity: .5; cursor: default; }
-.reap-step.done .rs-num { color: var(--dim); border-color: var(--line); }
-.reap-steps > .lede-more { align-self: center; }
 
 /* ── reap: dealing, picking, refusing ─────────────────────────────────────────────────────────── */
 @keyframes deal {

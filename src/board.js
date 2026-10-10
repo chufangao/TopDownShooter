@@ -2,8 +2,9 @@
 // is arranged on the very picture the battle plays on. It draws a picture of plain data that the editor builds
 // on every render (ui.js: the picture), with the plan laid over it (DESIGN §4): the roads as arrows, coverage (each
 // road tile shaded by how many of your rings reach it), the stop line (where a walker first comes under a ring: the
-// earliest it can halt), Arise's reach once held, the crown on the Monarch's seat, the selected piece's ring, and
-// each synergy's glow; a 2×2 piece drawn large over its four tiles, a flyer hovering over its shadow. It tells the
+// earliest it can halt), or on turns in place of those three the danger map (redesign.md §4: what your side could
+// deal next turn to a foe on each tile), Arise's reach once held, the crown on the Monarch's seat, the selected
+// piece's ring, and each synergy's glow; a 2×2 piece drawn large over its four tiles, a flyer hovering over its shadow. It tells the
 // editor which tile lies under the pointer, lifts a piece while it is dragged (a 2×2's four cells lit under it, red
 // where they do not fit), and at Begin fades into the battle with everyone where they stood. It decides nothing:
 // every rule, every tooltip and every action stays in ui.js.
@@ -167,7 +168,8 @@ class PrepScene extends Phaser.Scene {
 
   // p: { walls, units, domain: { centre, r } (Arise's reach, null until held), roads (each tile's arrow,
   // field().arrow), ring ({ tile, r, size, foe } or null), seat (the Monarch's tile), cover (by tile, how many of your
-  // rings reach it), stops (the stop line's tiles, battle.js stopLine), drop (the anchors a drag may land on), dropSize
+  // rings reach it), stops (the stop line's tiles, battle.js stopLine), danger (on turns, by tile, the damage your side
+  // could deal there next turn: policy.js danger's ground), drop (the anchors a drag may land on), dropSize
   // (the dragged piece's size), selKey }. A unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp, maxHp,
   // lvl, tracks, monarch, fallen, sel, glow (colours), lit, flies (hovers) }.
   draw (p) {
@@ -175,7 +177,7 @@ class PrepScene extends Phaser.Scene {
     this.picture = p
     this.drawWalls(p.walls)
     this.drawTiles(p)
-    this.drawCover(p.cover)
+    this.drawCover(p.cover, p.danger)
     this.drawRoads(p.roads)
     this.drawStops(p.stops, p.roads)
     this.drawDomain(p.domain?.centre ?? null)
@@ -257,9 +259,21 @@ class PrepScene extends Phaser.Scene {
   }
 
   // Coverage (DESIGN §3): every road tile your rings reach, shaded in the plan's blue by how many do, deeper with
-  // each (the tile's tooltip says how many). Terrain-like, under the roads' arrows.
-  drawCover (cover) {
+  // each (the tile's tooltip says how many). Terrain-like, under the roads' arrows. On turns the danger map in its
+  // place, the same blue, deeper with the damage (by its square, so a tile two pieces reach reads apart from one that
+  // one reaches), the most on the board the deepest (the tooltip says how much).
+  drawCover (cover, danger) {
     const g = this.covG.clear()
+    if (danger) {
+      const most = Math.max(...danger)
+      if (!(most > 0)) return
+      for (let t = 0; t < TILES; t++) {
+        if (!(danger[t] > 0)) continue
+        const b = cellsBox(tileX(t), tileX(t), tileY(t), tileY(t), 3)
+        g.fillStyle(PLAN, 0.03 + 0.27 * (danger[t] / most) ** 2).fillRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 7)
+      }
+      return
+    }
     if (!cover) return
     for (let t = 0; t < TILES; t++) {
       const n = cover[t]

@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createRun, apply, battleSetup, join, souls, fielded, replay, offerGroup, levelOf, monarchHp, monarchOf, commandOf
+  createRun, apply, battleSetup, join, souls, fielded, replay, levelOf, monarchHp, monarchOf, commandOf
 } from '../src/sim/run.js'
 import { createBattle, runBattle, timelineHash } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
@@ -216,7 +216,7 @@ test('ablating fusions: never fuses, nor weighs one, where the full expert weigh
   }
 })
 
-test('ablating tracks: never bought, a reliquary\'s tiers declined; Legendaries, Arise, relics: never taken', () => {
+test('ablating tracks: never bought; in a Shop, the relics and Legendaries ablations leave what they ablate on the shelf', () => {
   const rng = createRng('spend').stream('autoplay')
   const rich = () => {
     const run = createRun({ seed: 'spend' })
@@ -232,44 +232,19 @@ test('ablating tracks: never bought, a reliquary\'s tiers declined; Legendaries,
   assert.ok(full.includes('upgrade') && !full.includes('level') && !full.includes('monarch'))
   assert.ok(!buys(rich(), without('tracks')).includes('upgrade'))
   assert.ok(!buys(rich(), { ...LEVELS.basic, ablate: 'tracks' }).includes('upgrade'))
-  // A reliquary of tiers only: taken, declined ablated (the room ends with nothing).
-  const rite = (seed) => {
-    const run = createRun({ seed })
-    visit(run, 'reliquary')
-    run.state.offers = run.state.offers.filter((o) => o.type === 'tier')
+  // A Shop stocked by hand, the purse full: a Command relic is bought (autoplay.js pickShop), but not ablated.
+  const shop = (stock, floor = 1) => {
+    const run = createRun({ seed: 'shopx' })
+    run.state.floor = floor
+    visit(run, 'shop')
+    Object.assign(run.state, { shop: stock.slice(), essence: 5000 })
     return run
   }
-  const taken = rite('rite-x')
-  assert.equal(taken.state.offers[policy(taken, rng, 'expert').index]?.type, 'tier')
-  const declined = rite('rite-x')
-  const a = policy(declined, rng, without('tracks'))
-  assert.deepEqual(a, { type: 'reap', index: null })
-  // Legendaries at a reliquary on floor 2 (Arise apart: the arise ablation's); relics at a reliquary.
-  const ks = createRun({ seed: 'ksauto' })
-  ks.state.floor = 2
-  visit(ks, 'reliquary')
-  const legend = (id) => ({ type: 'relic', id, tier: 'legendary', name: '', desc: '' })
-  ks.state.offers = [legend('legion'), legend('undying')]
-  assert.equal(offerGroup(ks.state.offers[policy(ks, rng, 'expert').index]), 'legendary')
-  assert.deepEqual(policy(ks, rng, without('legendaries')), { type: 'reap', index: null })
-  const arise = createRun({ seed: 'ksauto' })
-  arise.state.floor = 2
-  visit(arise, 'reliquary')
-  arise.state.offers = [legend('arise')]
-  assert.deepEqual(policy(arise, rng, 'basic'), { type: 'reap', index: 0 })
-  assert.deepEqual(policy(arise, rng, { ...LEVELS.basic, ablate: 'legendaries' }), { type: 'reap', index: null }, 'Arise is one of the legendaries ablation\'s')
-  const rel = createRun({ seed: 'relx' })
-  visit(rel, 'reliquary')
-  rel.state.offers = rel.state.offers.filter((o) => o.type === 'relic')
-  assert.equal(rel.state.offers[policy(rel, rng, 'expert').index].type, 'relic')
-  assert.deepEqual(policy(rel, rng, without('relics')), { type: 'reap', index: null })
-  // Mixed offers: the Legendaries ablated take the reliquary's tier instead (Arise, its own ablation's, left out).
-  const mixed = createRun({ seed: 'ksauto' })
-  mixed.state.floor = 2
-  visit(mixed, 'reliquary')
-  mixed.state.offers = mixed.state.offers.filter((o) => o.type === 'tier' || (offerGroup(o) === 'legendary' && o.id !== 'arise'))
-  const pick = policy(mixed, rng, without('legendaries'))
-  assert.equal(mixed.state.offers[pick.index].type, 'tier')
+  for (const L of ['basic', 'expert']) assert.deepEqual(policy(shop(['whetstone', 'grave_banner']), rng, L), { type: 'buy', index: 1 }, L)
+  assert.deepEqual(policy(shop(['whetstone', 'grave_banner']), rng, without('relics')), { type: 'leave' })
+  assert.deepEqual(policy(shop(['legion'], 2), rng, 'expert'), { type: 'buy', index: 0 })
+  assert.deepEqual(policy(shop(['legion'], 2), rng, without('legendaries')), { type: 'leave' })
+  assert.deepEqual(policy(shop(['grave_banner'], 2), rng, without('legendaries')), { type: 'buy', index: 0 }, 'a Common–Rare relic is not a Legendary')
 })
 
 test('ablating formation: basic\'s first draft\'s cells, the Monarch on its seat; who fights still the expert\'s', () => {
@@ -319,7 +294,8 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   // The summons the tiers call as the battle begins.
   const raised = (x) => createBattle(x).units.filter((u) => u.summoned).length
   assert.ok(raised(full) > 0 && full.relics.filter((id) => id === 'arise').length === 2 && full.relics.length === 6)
-  assert.deepEqual([full.domain, full.party.find((u) => u.uid === 0).maxHp], [TUNING.arise.domain + TUNING.arise.more.domain + RELICS.court_of_bone.domain, monarchHp(s)])
+  const bone = RELICS.court_of_bone.mods.find((m) => m.path === 'arise.domain').v
+  assert.deepEqual([full.domain, full.party.find((u) => u.uid === 0).maxHp], [TUNING.arise.domain + TUNING.arise.more.domain + bone, monarchHp(s)])
   // Fusions: the Pale Court back in its three Wisps, three pieces, wounded as it was; no fused piece fights.
   const unfused = stripped(snaps[0].snapshot, 'fusions').state
   assert.ok(!souls(unfused.party).some((u) => unitDef(u.id).fused))
