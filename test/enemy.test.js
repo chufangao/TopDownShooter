@@ -40,7 +40,7 @@ function strong (run, monarch = 40) {
 
 // ── content ──────────────────────────────────────────────────────────────────────────────────────
 
-test('every foe kind comes by Walk, Flank or Fly, hinted only in its flavour; depth is a room\'s threat', () => {
+test('every foe kind comes by Walk or Fly, hinted only in its flavour; depth is a room\'s threat', () => {
   for (const u of Object.values(UNITS)) {
     // The Monarch is never a foe, nor is a fused kind: no behaviour to learn.
     if (u.monarch || u.fused) {
@@ -52,11 +52,9 @@ test('every foe kind comes by Walk, Flank or Fly, hinted only in its flavour; de
     // Flavour hints; it never names the behaviour it hints at.
     assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|fl(y|ies|ying|ight)|stays?|hunts?|orders?)\b/i, u.id)
   }
-  // Flank is rare: a kind whose nature is to go round, one first met on each of floors 1–3; the rest Walk, but the
-  // flyers, first met on floors 2 and 3.
-  const by = (b) => Object.values(UNITS).filter((u) => u.behaviour === b).map((u) => [u.id, u.spawn.minFloor]).sort()
-  assert.deepEqual(by('flank'), [['barrow_wight', 3], ['mantis_reaper', 2], ['will_o_wisp', 1]])
-  assert.deepEqual(by('fly'), [['ash_wyvern', 3], ['hive_drone', 2]])
+  // Every kind Walks but the flyers, first met on floors 2 and 3.
+  const flyers = Object.values(UNITS).filter((u) => u.behaviour === 'fly').map((u) => [u.id, u.spawn.minFloor]).sort()
+  assert.deepEqual(flyers, [['ash_wyvern', 3], ['hive_drone', 2]])
   assert.ok(THREATS.depth.name && THREATS.depth.desc)
   assert.deepEqual(ABILITIES.grave_tide.effects.at(-1), { op: 'raise', count: 2 })
 })
@@ -336,8 +334,8 @@ test('a Monarch felled by a foe of a later wave is recorded with that wave, unde
     while (!b.over) stepBattle(b)
     return b.death
   }
-  assert.deepEqual([fell(0).threat, fell(0).wave], ['flank', undefined])
-  assert.deepEqual([fell(1).threat, fell(1).wave, fell(1).by], ['flank', 1, 'mantis_reaper'])
+  assert.deepEqual([fell(0).threat, fell(0).wave], [UNITS.mantis_reaper.threats[0], undefined])
+  assert.deepEqual([fell(1).threat, fell(1).wave, fell(1).by], [UNITS.mantis_reaper.threats[0], 1, 'mantis_reaper'])
   // The Sovereign and its court come in the boss room's last wave: still what they are, never 'depth'.
   assert.deepEqual([fell(2, 'hollow_sovereign').threat, fell(2, 'hollow_sovereign').wave], [UNITS.hollow_sovereign.threats[0], 2])
   assert.deepEqual([fell(2, 'barrow_wight').threat, fell(2, 'barrow_wight').wave], [UNITS.barrow_wight.threats[0], 2])

@@ -1,4 +1,4 @@
-// Keywords: the game's twelve words (DESIGN §2.9), the foes' three ways and the statuses, each a bold word in its
+// Keywords: the game's twelve words (DESIGN §2.9), the foes' two ways and the statuses, each a bold word in its
 // system's colour with a one-line hover (the Slay the Spire style). Write kw('ring') in any text instead of
 // explaining the rule again; the full rules live in the codex's glossary. `sys` picks the colour token
 // (--c-<sys> in style.css); `group` files the term under a heading of the glossary. Every number comes from

@@ -521,17 +521,17 @@ test('the autoplayer carries out its plan before it fights: every piece in its p
 })
 
 // The expert weighs a Command relic as it weighs any relic, by rehearsing the fights ahead with the run holding it:
-// with two strong souls waiting it beats a relic that changes no battle; with none waiting, the place it adds is
-// filled by a body split off a stack, as the expert would.
+// with two souls waiting it beats a relic that changes no battle (Binding Chain: a recruit's price); with none
+// waiting, the place it adds is filled by a body split off a stack, as the expert would. It fields its strongest
+// souls, so a soul waits only behind souls as strong: here a fresh run's five, each at its kind's level, for three
+// places, against floor 1's fights ahead, where the fourth piece is the difference between losing rooms and winning.
 test('the expert weighs a Command relic by rehearsal: the place it adds for souls that wait beats a relic that changes no battle', () => {
   const rng = createRng('wish').stream('autoplay')
   const offers = [{ type: 'relic', id: 'binding_chain', tier: 'common', name: '', desc: '' }, { type: 'relic', id: 'grave_banner', tier: 'rare', name: '', desc: '' }]
   const waiting = createRun({ seed: 'wish' })
   visit(waiting, 'fight')
-  for (const id of ['grave_ghoul', 'tomb_knight']) {
-    const u = join(waiting, id)
-    Object.assign(u, { lvl: 8, hp: baseStats(id, 8).hp, maxHp: baseStats(id, 8).hp })
-  }
+  for (const id of ['grave_ghoul', 'frost_sprite']) join(waiting, id)
+  assert.equal(new Set(souls(waiting.state.party).map((u) => u.lvl)).size, 1, 'the souls waiting as strong as those fielded')
   assert.deepEqual([fieldCap(waiting), souls(waiting.state.party).filter((u) => u.slot < 0).length], [3, 2])
   Object.assign(waiting.state, { phase: 'reap', offers: offers.slice() })
   assert.deepEqual(policy(waiting, rng, 'expert'), { type: 'reap', index: 1 })

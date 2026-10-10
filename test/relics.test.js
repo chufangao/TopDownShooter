@@ -163,8 +163,8 @@ test('Bone Idol: when one of yours falls, Arise gains 40 gauge', () => {
   ])
 })
 
-// The 'struck' moment: a Wisp (10), a Flank kind, halted beside the Monarch, shoots it (a diver aims at nothing
-// else); a knight (1) stands beside the Monarch, a Sprite (3) far off.
+// The 'struck' moment: a Wisp (10) halted beside the Monarch shoots it, the piece in its way (on its next road tile);
+// a knight (1) stands beside the Monarch, a Sprite (3) far off.
 function striking (relics, hp = null) {
   const b = scene([on('monarch', 0, 'party', 3, 2), on('tomb_knight', 1, 'party', 2, 1), on('frost_sprite', 3, 'party', 6, 0),
     on('will_o_wisp', 10, 'foe', 3, 3, 1)], { relics })

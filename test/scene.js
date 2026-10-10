@@ -36,7 +36,7 @@ export const moves = (events, uid) => events.filter((e) => e.type === 'move' && 
 export const actions = (events, uid) => events.filter((e) => e.type === 'action' && e.actor === uid)
 
 // Lays a unit dead where it stands (a corpse for Arise), as a blow would: off the index, every tile of it; the roster
-// bumped; one of yours, the rings and the Flank field too.
+// bumped; one of yours, your sight too.
 export function slay (b, u) {
   u.hp = 0
   u.statuses = []

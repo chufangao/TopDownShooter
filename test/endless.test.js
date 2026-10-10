@@ -144,9 +144,9 @@ test('Undead 8 works for the foes too: one of yours slain rises on their side', 
   until(b, () => unit(b, 1).hp <= 0)
   const risen = b.events.find((e) => e.type === 'arise')
   assert.deepEqual([risen.corpse, risen.unit.id, risen.unit.side, risen.rule], [1, 'mantis_reaper', 'foe', 'legion'])
-  // A foe's shadow is a foe like any other: it walks the roads.
+  // A foe's shadow is a foe like any other: it walks the roads, on a foe's step clock.
   const shade = unit(b, risen.unit.uid)
-  assert.ok(shade.shadow && shade.side === 'foe' && shade.behaviour === 'flank')
+  assert.ok(shade.shadow && shade.side === 'foe' && shade.every < Infinity)
 })
 
 // A run's reap after the foes' Legion: a soul of yours that rose against you is no foe's soul. It is not for
@@ -280,7 +280,7 @@ test('Drake 8: every single-target attack of yours strikes its target and every 
 test('Vanguard 8: a single-target blow at a non-Vanguard of yours falls on a Vanguard beside it: the Monarch is guarded', () => {
   const play = (n) => {
     const line = squad(['tomb_knight', 'grave_ghoul', 'iron_golem'], eight(1).slice(0, n - 1))
-    // A Wisp (a Flank kind) halts beside the Monarch and shoots it.
+    // A Wisp halts beside the Monarch, the piece in its way, and shoots it.
     const b = scene([...line, on('tomb_knight', 8, 'party', 2, 5), on('monarch', MONARCH_UID, 'party', 3, 6), on('will_o_wisp', 101, 'foe', 3, 7)])
     until(b, () => b.events.some((e) => e.type === 'action' && e.actor === 101))
     return b
@@ -397,8 +397,8 @@ test('Trickster 8: a critical hit of yours slays any foe outright, but not a bos
   assert.equal(rules(c, 'deathblow').length, 0)
   // Last Stand outranks Deathblow: against foes at Construct 8, the first crit is turned at 1 HP and no
   // Deathblow is announced; once the stand is spent it falls as any foe does. Every Deathblow announced slays.
-  // (The other seven constructs stand out of everyone's reach and shallower than the golem, so it stays the
-  // flankers' quarry.)
+  // (The other seven constructs stand out of everyone's reach and shallower than the golem, so it stays the one your
+  // pieces strike.)
   const d = scene([...squad(['clockwork_page', 'mantis_reaper'], ring), on('monarch', MONARCH_UID, 'party', 3, 0), on('iron_golem', 101, 'foe', 3, 4),
     ...[[0, 0], [0, 1], [0, 2], [6, 0], [6, 1], [6, 2], [1, 0]].map(([x, y], i) => on(i % 2 ? 'iron_golem' : 'clockwork_page', 102 + i, 'foe', x, y))])
   const g = unit(d, 101)
@@ -448,14 +448,17 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
     const i = b.events.indexOf(mine[0])
     assert.deepEqual([b.events[i - 1].type, b.events[i - 1].target, b.events[i - 1].hp], ['damage', 104, 1])
   }
-  // Frenzy (their Insect 8): a foe that slays one of yours has its gauge filled: once for each page slain (at 1 HP, a
-  // blow slays it; a page no foe can strike back at, nothing in its way and never striking, outlives the rest).
+  // Frenzy (their Insect 8): a foe that slays one of yours has its gauge filled: once for each page slain while they
+  // hold it (at 1 HP, a blow slays it; a page that fells one of their insects breaks the rule).
   {
     const b = scene([...foeSquad(['mantis_reaper', 'hive_warden'], theirEight(7)), ...[0, 2, 4, 6].map((x, i) => on('clockwork_page', 1 + i, 'party', x, 6))])
     for (let uid = 1; uid <= 4; uid++) set(b, uid, 1)
     let frenzies = 0
-    while (!b.over) {
-      for (const e of stepBattle(b).filter((x) => x.type === 'rule' && x.rule === 'frenzy')) {
+    let slain = 0
+    while (!b.over && rulesOf(b, 'foe').has('frenzy')) {
+      for (const e of stepBattle(b)) {
+        if (e.type === 'death' && unit(b, e.target).side === 'party') slain++
+        if (e.type !== 'rule' || e.rule !== 'frenzy') continue
         assert.equal(e.side, 'foe')
         const slayer = unit(b, e.actor)
         assert.ok(slayer.side === 'foe' && slayer.gauge === slayer.costliest)
@@ -464,7 +467,7 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
       }
     }
     assert.ok(frenzies > 0)
-    assert.equal(frenzies, [1, 2, 3, 4].filter((uid) => !alive(unit(b, uid))).length)
+    assert.equal(frenzies, slain)
   }
   // Dragonfire (their Drake 8): a foe's single-target attack bursts on yours next to its target (the Sprite halted in
   // the pages' rings).
@@ -503,8 +506,8 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
     const late = enterBattle(b, { ...makeUnit('grave_ghoul', { uid: 150, lvl: 3 }), side: 'foe', tile: tileAt(3, 7) })
     assert.equal(late.gauge, late.costliest)
   }
-  // Echo (their Channeler 8): their abilities ring out twice (the Chanters beside the knight halted in its ring, the
-  // Wisp behind one of them halted by it: a Flank kind heeds no ring).
+  // Echo (their Channeler 8): their abilities ring out twice (the Chanters and the Wisp beside the knight halted in its
+  // ring, the Wisp behind that one queued behind it, shooting over it).
   {
     const b = scene([...foeSquad(['bone_chanter', 'will_o_wisp'], theirEight(7)), on('tomb_knight', 1, 'party', 3, 6, 20)])
     until(b, () => false, 500)
@@ -528,7 +531,6 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
 // end the run on one roll.
 test('their Deathblow slays one of yours outright on a crit, but never the Monarch', () => {
   const ring = [[2, 3], [3, 3], [4, 3], [2, 5], [3, 5], [4, 5], [2, 4], [4, 4]]
-  // (No Monarch here: flankers hunt the deepest of yours, and would pass the golem by for it.)
   const b = scene([...foeSquad(['clockwork_page', 'mantis_reaper'], ring), on('iron_golem', 1, 'party', 3, 4)])
   const golem = unit(b, 1)
   until(b, () => golem.hp <= 0)

@@ -49,9 +49,7 @@ test('every unit reference resolves; every foe carries its threats; a fused kind
       assert.ok(!u.spawn && !u.boss && !u.threats && !u.behaviour && !u.flies && !u.onFall, `${u.id}: fused`)
       continue
     }
-    // Flank is rare, and a Flank kind carries the flank threat; a Walk kind never does. A flyer flies, carries the
-    // fly threat and keeps no road; no other kind does.
-    assert.equal(u.behaviour === 'flank', !!u.threats?.includes('flank'), `${u.id} flank`)
+    // A flyer flies, carries the fly threat and keeps no road; no other kind does.
     assert.equal(u.behaviour === 'fly', !!u.flies, `${u.id} flies`)
     assert.equal(u.behaviour === 'fly', !!u.threats?.includes('fly'), `${u.id} fly threat`)
     assert.ok(u.boss || u.spawn, `${u.id} spawns`)
@@ -60,13 +58,12 @@ test('every unit reference resolves; every foe carries its threats; a fused kind
     assert.equal(new Set(u.threats).size, u.threats.length, `${u.id} threats repeat`)
   }
   assert.equal(Object.keys(UNITS).length, 25)
-  // Identity on the board: two long arms, the slow and the quick, three Flank kinds, two flyers, one death burst.
+  // Identity on the board: two long arms, the slow and the quick, two flyers, one death burst.
   const of = (f) => Object.values(UNITS).filter(f).map((u) => u.id).sort()
   assert.deepEqual(of((u) => u.ring === 2 && !rangedBlows(u).length), ['grave_ghoul', 'mantis_reaper'])
   assert.deepEqual(of((u) => u.arm === 2), ['grave_ghoul', 'mantis_reaper'])
   assert.deepEqual(of((u) => u.stride < 1), ['frost_wyrm', 'iron_golem', 'rot_bloat', 'thorn_dryad', 'tomb_knight'])
   assert.deepEqual(of((u) => u.stride > 1), ['frost_sprite', 'mantis_reaper', 'pyre_hound'])
-  assert.deepEqual(of((u) => u.behaviour === 'flank'), ['barrow_wight', 'mantis_reaper', 'will_o_wisp'])
   assert.deepEqual(of((u) => u.flies), ['ash_wyvern', 'hive_drone'])
   assert.deepEqual(of((u) => u.onFall), ['rot_bloat'])
   assert.deepEqual(of((u) => u.size === 2), ['bone_colossus', 'clockwork_titan', 'hive_queen'])
@@ -286,11 +283,13 @@ test('camps: twelve, every floor some; each 7×7 with one seat, a road from ever
 })
 
 // The cohorts are gone, and their banner shapes with them; orders, detachments, bonds and foes' orders too; and with
-// the lines, the signals and Banner (DESIGN §2.9).
-test('banner shapes, orders, bonds, signals and Banner are gone', async () => {
+// the lines, the signals and Banner (DESIGN §2.9); and Flank.
+test('banner shapes, orders, bonds, signals, Banner and Flank are gone', async () => {
   const content = await import('../src/content.js')
   for (const name of ['SHAPES', 'ORDERS', 'DETACHMENT_COLORS', 'FOE_ORDERS', 'BONDS', 'GRADES', 'PATHS', 'SIGNALS', 'BANNER']) assert.ok(!(name in content), name)
-  assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'flank', 'fly'])
+  // Every foe on the ground walks the one road: a behaviour is Walk or Fly.
+  assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'fly'])
+  assert.ok(!('flank' in THREATS))
   for (const b of Object.values(BEHAVIOURS)) assert.ok(b.name && b.desc, JSON.stringify(b))
   assert.ok(Object.values(ROLES).every((r) => !('move' in r) && !('target' in r) && !('autoRow' in r)))
   assert.ok(Object.values(UNITS).every((u) => !('foeOrders' in u)))

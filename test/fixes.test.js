@@ -162,7 +162,7 @@ test('the dice weigh every room type: a reliquary is a choice like any other, an
 test('the ladder\'s measures: a ceiling is its own cause, depth no second one; the army\'s actors', () => {
   assert.deepEqual(causesOf(null), [])
   assert.deepEqual(causesOf({ by: null, reason: 'tick-ceiling', threat: 'clock' }), ['ceiling'])
-  assert.deepEqual(causesOf({ by: 'mantis_reaper', reason: 'monarch', threat: 'flank', wave: 2 }), ['flank'])
+  assert.deepEqual(causesOf({ by: 'will_o_wisp', reason: 'monarch', threat: 'reach', wave: 2 }), ['reach'])
   // One knight fights the Golem beside it all its life; one never has anything in its ring. Half the army acted.
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5), on('tomb_knight', 2, 'party', 0, 0), on('iron_golem', 50, 'foe', 3, 6, 9)])
   runBattle(b)

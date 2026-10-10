@@ -67,7 +67,7 @@ export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unit
 // Its ring (DESIGN §2.3): the radius in tiles it fights within (the Monarch's, which never strikes, is only how near
 // it holds a foe: holdOf), its kind's and the tiles its tiers add. A foe's stride: how many times faster than
 // TUNING.board.stepTicks it walks (1 by default, × its tiers'); your pieces never walk. How it goes for the Monarch
-// as a foe: 'walk', 'flank' or 'fly' (BEHAVIOURS).
+// as a foe: 'walk' or 'fly' (BEHAVIOURS).
 export const ringOf = (u) => tiersOf(u).reduce((r, t) => r + (t.ring ?? 0), unitDef(u.id).ring)
 export const strideOf = (u) => tiersOf(u).reduce((x, t) => x * (t.stride ?? 1), unitDef(u.id).stride ?? 1)
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'

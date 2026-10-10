@@ -241,7 +241,7 @@ function strength (s, bodies = true) {
 // the air apart), a cell is worth to a piece what of that its ring reaches (reach: the air only with a ranged
 // blow), and its drafts are filled greedily from that (zone): at a few radii about the seat, the reach shared
 // out or bunched; with its gate held where the camp has one (gated: the fewest cells that close every ground
-// road, so a Flank foe must Walk through them). Then one search: it hill-climbs from the best draft (mutate),
+// road, so every walker meets one of them). Then one search: it hill-climbs from the best draft (mutate),
 // and fights the best few again on fresh rolls (plan). A piece that fits nowhere waits in the ossuary (slot −1).
 
 const SPREAD = [3, 1, 5, 2, 4, 0, 6]
@@ -359,10 +359,10 @@ export function drafts (run, want, L) {
 }
 
 // The scouted room as a threat map: every foe piece, the opening's from where it stands and each later wave's from
-// the top edge of its lane, walked to the seat, a walker by the camp's arrows (roadsTo; a Flank kind too: its way
-// round is the pieces', unknown till they stand), a flyer by the air road's (roadsTo's `air`, over the walls; a piece
-// on it holds the flyer there, but where the pieces stand is what the map is for); each tile it passes takes its
-// bodies × (1 + road distance)^−steep: the nearer the seat, where every road ends and the fighting gathers, the more.
+// the top edge of its lane, walked to the seat, a walker by the camp's arrows (roadsTo), a flyer by the air road's
+// (roadsTo's `air`, over the walls; a piece on it holds the flyer there, but where the pieces stand is what the map is
+// for); each tile it passes takes its bodies × (1 + road distance)^−steep: the nearer the seat, where every road ends
+// and the fighting gathers, the more.
 // → { ground, air }, each a Float64Array by tile.
 const threats = new Map()
 function threatOf (run, steep = 1) {
@@ -433,9 +433,9 @@ function zone (units, camp, threat, { radius = Infinity, keep = 1, taken = seate
 }
 
 // The camp's gate: the fewest open cells (never the seat, at most GATE) that, held, close every ground road from the
-// board's top edge to the Monarch (your pieces as walls, as a Flank foe floods round them, steps' corner rule
-// included), none of them beside the seat if that can be had, and the furthest along the roads from it of those;
-// none where it takes more. Made once per camp.
+// board's top edge to the Monarch (the cells counted as walls, steps' corner rule included), so every walker's road
+// runs into a piece there, none of them beside the seat if that can be had, and the furthest along the roads from it
+// of those; none where it takes more. Made once per camp.
 const GATE = 3
 const gates = new Map()
 export function gateOf (camp) {

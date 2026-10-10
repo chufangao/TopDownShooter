@@ -20,12 +20,11 @@ That makes prep two decisions and only two:
 2. **Where to place**: which cell each piece holds, and which pieces stand together as a stack.
 
 Placement has to be a puzzle, or the game is a shop. It is one because the roads and the Monarch's seat are the
-camp's, fixed and drawn before you place anything; because a ring covers some road tiles and not others; because
-Shape blows punish pieces that bunch while auras reward it; because a 2×2 piece needs four open cells and plugs a
-two-wide breach alone; because flying foes come straight over the walls, held only by a piece in their way, and only a
-ranged blow can touch them;
-because Flank foes go round your pieces wherever a way round is open; and because Burning and Hexed punish the
-piece that fights longest. Every one of those is a rule you can read on a card or on the board.
+camp's, fixed and drawn before you place anything, and every foe on the ground walks the road the board draws;
+because a ring covers some road tiles and not others; because Shape blows punish pieces that bunch while auras reward
+it; because a 2×2 piece needs four open cells and plugs a two-wide breach alone; because flying foes come straight
+over the walls, held only by a piece in their way, and only a ranged blow can touch them; and because Burning and
+Hexed punish the piece that fights longest. Every one of those is a rule you can read on a card or on the board.
 
 Power has to come from combos you build, or upgrading is a stat ladder. It comes from **fusions**, recipes that
 consume specific souls and give one much stronger piece, usually 2×2; from **Colossus tiers**, a kind's tier IV
@@ -33,7 +32,7 @@ that grows every piece of the kind to 2×2; and from the synergies, as before. G
 from a handful of souls to a wall of colossi, which is the squad-to-army scale the project has wanted all along.
 
 The enemy scales in kind, not only in number: each floor's pool brings a new thing a foe can do (burn, fly, hex,
-burst on death) on top of Walk, Flank, reach, Shape, drain, clock and waves.
+burst on death) on top of Walk, reach, Shape, drain, clock and waves.
 
 Reversed here, from the morning:
 
@@ -111,19 +110,20 @@ Every kind has a **ring**, a radius in tiles, drawn around the piece in prep.
   miss: it strikes back at that one while both stand beside each other. A Shape blow still spreads from that target
   as its shape says. The long arm is yours alone. A foe's ranged blow reaches its range, never past its ring, as
   yours does (`closeIn`, `reachOf` in `src/sim/battle.js`).
-- Target, yours: the foe in reach furthest along its own road (lowest road distance to the Monarch, §2.4: a Flank
-  kind's on the Flank field while a way round your pieces reaches it, a flyer's on the air road, its Chebyshev distance
-  to the Monarch); ties by lane, centre first (`CENTRE_OUT`).
+- Target, yours: the foe in reach furthest along its own road (lowest road distance to the Monarch, §2.4: a ground
+  foe's on the Walk field, a flyer's on the air road, its Chebyshev distance to the Monarch); ties by lane, centre
+  first (`CENTRE_OUT`).
   Target, a foe's: of what its blow may strike, the piece on its next road tile first, else the nearest, ties by
-  lane. A Flank kind on a road round your pieces strikes only the Monarch and the piece in its way (as before).
+  lane.
 
-### 2.4 Foes: roads, Walk, Flank, Fly
+### 2.4 Foes: roads, Walk, Fly
 
 - Before every battle the game floods outward from the Monarch's tile through every open tile (walls block,
   pieces do not), giving each tile its road distance and one **arrow**: the neighbouring tile with the lowest
   distance; among equals the tile nearest the Monarch's lane, then straight ahead, then nearer the centre. Drawn
-  on the board in prep. Arrows point strictly closer, so a queue never deadlocks. The **air road** is the same flood
-  over every tile, walls included (`airOf`): a flyer's road, every arrow a step nearer the Monarch.
+  on the board in prep. This is the **Walk field**, the one ground road: **every foe on the ground walks the arrows
+  the board draws**. They point strictly closer, so a queue never deadlocks. The **air road** is the same flood over
+  every tile, walls included (`airOf`): a flyer's road, every arrow a step nearer the Monarch.
 - Foes come from the top edge as pieces, in numbered waves, each in a lane, and **swarm the Monarch**. A foe
   **walks** its road and does nothing else, struck or not, its gauge filling (never past its costliest), until it
   **halts where it can hit back** (`wayOf` in `src/sim/battle.js`):
@@ -142,42 +142,31 @@ Every kind has a **ring**, a radius in tiles, drawn around the piece in prep.
     or queued it behind one on the move: the unit's `walking`, set each turn and read as it stands, so the order two
     foes act in delays a halt by a tick at most and a battle stays a function of its setup) a foe waits its turn,
     doing nothing. Stuck with nothing to strike, it stands and does nothing too.
-  - **Walkers and Flankers never jam each other.** Their roads are two fields, so one may stand in the other's way
-    for good (a Wisp halted on the Walk road to shoot the Monarch, the walkers behind it; a Walk foe and a Flank foe
-    each on the other's next tile). Held up by a comrade of the other kind, a foe steps round it onto the free tile
-    beside it nearest the Monarch by its own road (`roundOf`); foes standing each in the next one's way round a loop
-    change places, all at once (`loopOf`, `rotate`). One kind's queue stays a queue: a walker never steps round a
-    walker, so your pieces block as they did.
 
   Halted, it fights: its ranged blows at whatever they reach, its ally abilities (heals, purges, wards, Grave Tide) as
   before, its melee only at what §2.3 allows. A foe standing unhalted, walking or waiting, uses none of them. Once
   nothing halts it (the piece fell, the tile cleared, the one that struck it fell) it walks on, on its step clock
-  (`chooseAction` in `src/sim/battle.js`). Three behaviours, learnt by meeting a kind (§7), and recorded in the
+  (`chooseAction` in `src/sim/battle.js`). Two behaviours, learnt by meeting a kind (§7), and recorded in the
   bestiary:
-  - **Walk**: the arrows, into your rings, halting as above.
-  - **Flank**: floods with your pieces counted as walls and walks round them, striking nothing but the Monarch
-    and what stands in its way; with no way round it walks the arrows. It **heeds none of your rings**: it halts once
-    one of its blows reaches the Monarch from where it stands (a ranged one within its reach, a melee one beside it:
-    `reachesMonarch`), or when blocked (as above), and fights from there. It never strikes back at a piece that struck
-    it. Recomputed when a piece of yours rises or falls.
+  - **Walk**, every ground foe's: the arrows, into your rings, halting as above.
   - **Fly** (`flies: true`): walks the air road, over the walls (it may hover over one), **never through your
     pieces**. It is blocked as a walker is: a piece of yours on its next air-road tile, on the ground or in the air (a
     shadow of a flying kind too), holds it there, and it fights the blocker; a flyer of its own side there queues it,
-    as walkers queue. It never goes round (flyers never Flank). Only a ranged blow can strike it, so in your rings only
-    a ranged ring (or the Monarch's) halts it, and only where it can strike back (a Hive Drone: beside the Monarch,
-    beside a piece of yours that shot it, or before the piece that blocks it). A melee piece on the ground in its way
-    holds it but cannot strike it, nor can a ground foe's melee strike a flyer of yours: your ranged pieces bring it
-    down. Melee from the ground never reaches up; a flyer's melee meets a flyer in the air, either side's. Its own blows are
-    its kind's. Flyers of either side hold the air, not the ground: a flyer and a ground unit may share a tile, and a
-    ground foe and a flyer never block each other (nor does a flyer of yours block a walker: the Walk and Flank fields
-    ignore flyers), but two flyers never share a tile, nor two on the ground.
+    as walkers queue. Only a ranged blow can strike it, so in your rings only a ranged ring (or the Monarch's) halts
+    it, and only where it can strike back (a Hive Drone: beside the Monarch, beside a piece of yours that shot it, or
+    before the piece that blocks it). A melee piece on the ground in its way holds it but cannot strike it, nor can a
+    ground foe's melee strike a flyer of yours: your ranged pieces bring it down. Melee from the ground never reaches
+    up; a flyer's melee meets a flyer in the air, either side's. Its own blows are its kind's. Flyers of either side
+    hold the air, not the ground: a flyer and a ground unit may share a tile, and a ground foe and a flyer never block
+    each other (nor does a flyer of yours block a walker: a walker's way is held only on the ground), but two flyers
+    never share a tile, nor two on the ground.
 - **Statuses the foes bring**, on top of Brittle and Withered: **Burning** (a damage-over-time: `power` true
   damage per tick interval per stack, never missing, no DEF, no crit; up to 3 stacks) and **Hexed** (a slower
   gauge). Both are debuffs Purge and Molt cleanse. Your kinds can learn to inflict them too (tiers, fusions).
 - **Death burst** (`onFall: { range, effects }` on a kind): when a piece of the kind falls, its effects run from
   where it fell on the other side's living within `range`. The first: Rot Bloat, which Withers what stood near it.
-- Complexity by floor, from the spawn pool's `minFloor`: floor 1 brings Burning (Pyre Hound) beside Walk, Flank,
-  reach, Shape, drain and clock; floor 2 brings Fly (Hive Drone, in cohorts) and the death burst (Rot Bloat);
+- Complexity by floor, from the spawn pool's `minFloor`: floor 1 brings Burning (Pyre Hound) beside Walk, reach,
+  Shape, drain and clock; floor 2 brings Fly (Hive Drone, in cohorts) and the death burst (Rot Bloat);
   floor 3 brings Hexed (Marsh Hag) and a flying burner (Ash Wyvern); floor 4 the Sovereign's court.
 - Waves, bosses, crumbling and escalation stay as they are in `src/sim/battle.js`.
 
@@ -278,10 +267,11 @@ One escalation bar is always visible. Won when no foe stands and no wave is left
 Line, Signal, Lunge, Banner, timing marks, the Monarch's seats and moving the Monarch, stride for your side (a
 foe keeps its gait), horns (closed: no), the `march` moment. Late on 2026-10-09: the Monarch's points (its four
 stats bought with essence), bought levels, the Rite as a room, and then the two points Arise's copies gave it (its
-numbers are the relic's now: §2.5).
+numbers are the relic's now: §2.5). On 2026-10-10: Flank, a second ground road round your pieces, and its threat
+(§6).
 
 Vocabulary after the cut: Piece, Stack, Ring, Road, Wave, Shadow, Essence, Tier, Fusion, Synergy, Relic (Common,
-Uncommon, Rare, Legendary), Command. Twelve, plus the behaviours (Walk, Flank, Fly) and the statuses. Keystone left
+Uncommon, Rare, Legendary), Command. Twelve, plus the behaviours (Walk, Fly) and the statuses. Keystone left
 the list on 2026-10-09 (night): the keystones are Legendary relics. Command joined it late that night: with nothing
 to buy for the Monarch, relics name it ("+1 Command") and the player has to read it. Domain left it later that
 night: it is Arise's reach, and the player meets it only once Arise is held, in the relic's own words. Level is a
@@ -296,10 +286,9 @@ a word to learn.
    in their own reach; beside the Monarch; or with the way ahead held (a piece of yours, the seat, or a comrade that
    has stopped; behind one still walking they only wait). Only then do they fight, and their melee reaches only what
    blocks them, the Monarch, or a piece beside them that struck them, so a melee foe walks on through your rings to
-   the first of those. A Flank kind heeds no ring and goes round your pieces, stopping once it can strike the
-   Monarch; a Fly kind flies straight at the Monarch over the walls but never through your pieces: one in its way holds
-   it, though only a ranged blow can strike it. Which kinds do which is learnt by meeting them, and the bestiary keeps
-   it.
+   the first of those. Every foe on the ground keeps to the arrows; a Fly kind flies straight at the Monarch over the
+   walls but never through your pieces: one in its way holds it, though only a ranged blow can strike it. Which kinds
+   fly is learnt by meeting them, and the bestiary keeps it.
 3. **The roads and the seat are the camp's**, drawn before you place anything. **Coverage**: in prep every road
    tile is shaded by how many of your rings cover it (melee rings count; they cannot reach a flyer, which the
    bestiary will have told you). **The stop line**: a bar on each road tile where a walker first comes under one of
@@ -369,8 +358,8 @@ names below); the autoplayer and the integration pass follow.
 
 `src/content.js` (owned by the content agent; seeded already): unit defs may carry `size`, `flies`, `onFall`,
 `fused`; a tier may carry `size: 2`; statuses `burning` (`tick: [{ op: 'dot', power }]`) and `hexed`;
-`FUSION_LIST`, `FUSIONS`, `fusionDef`; `BEHAVIOURS` walk, flank, fly; camp maps carry `'M'`; `SIGNALS` and
-`BANNER` go; `TRIGGERS` = kill, fall, wave, blow, struck.
+`FUSION_LIST`, `FUSIONS`, `fusionDef`; `BEHAVIOURS` walk, fly (flank too, until 2026-10-10: §6); camp maps carry
+`'M'`; `SIGNALS` and `BANNER` go; `TRIGGERS` = kill, fall, wave, blow, struck.
 
 `src/sim/run.js` (owned by the run agent): the action `{ type: 'fuse', id, parts: [{ uid, n }] }` (n bodies off
 each piece, the hindmost, the whole piece when n is its count); `fuseParts(run, id)` → the canonical parts (the
@@ -407,9 +396,9 @@ Done when `DESIGN.md` is written.
   and when each later wave begins to enter; `ringTarget` with a flyer's road distance.
 - `chooseAction` becomes: a strikable foe in the ring → the first blow it can afford, else bank; else an ally
   ability it can afford; a foe steps (its behaviour) when due.
-- Tests: footprint occupancy and rings; a 2×2 blocks the Flank field two wide; a flyer's path over a wall; melee
-  misses a flyer and a ranged blow does not; Burning ticks true damage per stack and ends; a death burst; a
-  `wave` trigger; every line, lunge, Banner and timing-mark test deleted.
+- Tests: footprint occupancy and rings; a flyer's path over a wall; melee misses a flyer and a ranged blow does not;
+  Burning ticks true damage per stack and ends; a death burst; a `wave` trigger; every line, lunge, Banner and
+  timing-mark test deleted. (A 2×2 blocking the Flank field two wide was tested until Flank went on 2026-10-10: §6.)
 
 ### Step 3. Sim: the run (`src/sim/run.js`; `test/run.test.js` but its autoplayer tests, `test/tracks.test.js`)
 
@@ -435,7 +424,7 @@ Done when `DESIGN.md` is written.
 - `THREATS` gains `fly` and `burn`; `BEHAVIOURS` gains `fly`; `SIGNALS` and `BANNER` go; `tower_shield` fires on
   `wave`.
 - Tests: every reference resolves; every kind two tracks; every unit its art; every recipe's parts and result
-  resolve and the result is `fused`; camps as above; behaviours walk, flank, fly.
+  resolve and the result is `fused`; camps as above; behaviours walk, fly.
 
 ### Step 5. Interface (`src/board.js`, `src/ui.js`, `src/engine.js`, `src/codex.js`, `src/keywords.js`, `src/main.js`, `src/css/*`, `src/style.css`)
 
@@ -895,12 +884,38 @@ and Walk pathing deadlock. A foe held up by a comrade of the other kind steps ro
 own road; foes standing each in the next one's way round a loop change places. One kind's queue is unchanged, so
 blocking with your pieces is too. Not measured, at the user's word.
 
+Taken after that (2026-10-10): **Flank is gone; every foe on the ground walks the one drawn road.** A Will-o'-Wisp, a
+Flank kind, killed the Monarch on floor 1: it walked a hidden road round the player's pieces (the Flank field) instead
+of the drawn arrows, heeded none of the rings, and parked four rows off, out of reach, shooting the Monarch. The arrows
+on the board lied about where a Flank kind went, so the board could not be read. The user: "Just remove flanking
+completely. All units use the same pathing algo."
+
+- **Two behaviours, Walk and Fly** (§2.4). Every ground foe walks the Walk field, the arrows drawn on the board, and
+  halts as any walker does: in the sight of a piece of yours once it can hit back, or with its next tile held. Flyers
+  are unchanged: they fly the air road over the walls, and your pieces still block them. The `flank` behaviour and
+  threat are gone, and with them a Flank kind's deafness to your rings, its halt once its blows reached the Monarch,
+  and its striking only the Monarch and the piece in its way.
+- **Will-o'-Wisp, Mantis Reaper and Barrow Wight walk.** Their flavour hints at what is true now: the Wisp keeps the
+  road and its fire leaps four tiles, the Wight withers from three, the Mantis is quick and stalks with its brood. The
+  Mantis's one threat was Flank, and every foe carries one, so it carries **Shape** as a stand-in, though its Reap and
+  Strike each hit one target where Shape says a crowd: no threat names a lone hard melee blow, and Reach would
+  contradict its card's "Melee, no reach". A threat of its own is open. The help, the bestiary's way line and the
+  glossary drop Flank.
+- It supersedes that day's **walkers and Flankers never jam each other** (above): with one road for every foe on the
+  ground, each queue is walkers on the same arrows, which never deadlocks (§2.4), so `roundOf`, `loopOf` and `rotate`
+  are gone too. The older entries that state Flank as a rule (the first list's "only Flank routes round them", the
+  night's **Flank kinds ignore your rings** and **Ranged Flankers stop once the Monarch is in range**, the Walk foe and
+  Flank foe stuck on each other, a flyer that "never Flanks") are history now.
+- The balance waits for the pass that follows: three kinds now meet your rings and blockers as walkers do, which moves
+  floors 1 to 3 (the Wisp on floor 1 above all), and nothing was measured or tuned here. `combos.json` is to be
+  regenerated then (`--combos`).
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):
 
-- Enemy behaviour is discovered, never previewed: roads are terrain and are shown; which kinds Flank or Fly and
-  what ring a kind has are learnt by meeting it, then recorded.
+- Enemy behaviour is discovered, never previewed: roads are terrain and are shown; which kinds Fly and what ring a
+  kind has are learnt by meeting it, then recorded.
 - Defeat is absolute. No lives, no retreat.
 - Floor 1 is hard, and the skill gap opens in prep, never in dice.
 - Balance comes once, at the end. No tuning while building.

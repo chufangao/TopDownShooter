@@ -98,8 +98,8 @@ export const TUNING = {
     // edge once the one before is down to `waves.share` of its foes, or `waves.t` ticks after it entered. The
     // last room's last wave is the Hollow Sovereign leading a court of `court` undead (they and its waves take
     // foeHp/foeAtk; only the boss takes bossHp/bossAtk). Floor 3 keeps floor 2's cohorts of 2: at 3, a floor-3
-    // elite's mantis brood (a captain and three more, flanking together) felled the Monarch in 8 s and ended
-    // half the expert's runs (the final balance pass).
+    // elite's mantis brood (a captain and three more, going round your pieces together: the Mantis Flanked until
+    // 2026-10-10) felled the Monarch in 8 s and ended half the expert's runs (the final balance pass).
     captains: { fight: 1, elite: 2 }, cohort: [0, 2, 2, 3],
     late: { n: 2, t: 400 },
     waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, share: 1 / 3, t: 600 },
@@ -117,7 +117,8 @@ export const TUNING = {
     // clears played on down: at +3 levels, +12% HP, +8% ATK and a body more a cohort a floor, with rules from the
     // first floor down and a final elite of +3 foes and +2 levels, seven of the twelve fell on the first deep
     // floor (its final elite) and none got past a second; at these, ten clear one deep floor or more and the
-    // strongest three, each floor's broods (flank, mantis) and final elite the usual end.
+    // strongest three, each floor's broods (the Flank kinds' then, the Mantis's above all) and final elite the
+    // usual end.
     endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, rules: 2, final: { count: 2, level: 1 } }
   },
   // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). A won

@@ -6,7 +6,7 @@ import {
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import {
-  makeUnit, autoPlace, distance, slotAt, campGrid, wallTiles, steps, costliestOf, abilitiesOf, deployTile, tileAt, tileX, tileY, baseStats, DEPTH,
+  makeUnit, autoPlace, distance, slotAt, campGrid, wallTiles, steps, costliestOf, abilitiesOf, deployTile, tileAt, tileY, baseStats, DEPTH,
   foesNextTo as listFoesNextTo, auraGivers as listAuraGivers, monarchSlot, TILES, livingBodies, ROWS, NEIGHBOURS, footprint, holdOf
 } from '../src/sim/unit.js'
 import { createRng } from '../src/sim/rng.js'
@@ -141,7 +141,7 @@ test('only fielded souls with HP fight', () => {
   assert.deepEqual(b.units.filter((u) => u.side === 'party').map((u) => u.uid).sort(), [1, 2])
 })
 
-test('every step is a foe\'s, a legal one onto a tile free in its layer, one a step clock: a walker on its road (or round a comrade of the other kind, nearer by it), a flyer on the air road and never onto a piece of yours; your pieces never step', () => boardOf(5, () => {
+test('every step is a foe\'s, a legal one onto a tile free in its layer, one a step clock: a walker on the Walk field\'s arrows, a flyer on the air road and never onto a piece of yours; your pieces never step', () => boardOf(5, () => {
   let roads = 0
   let flights = 0
   for (let i = 0; i < 60; i++) {
@@ -154,11 +154,7 @@ test('every step is a foe\'s, a legal one onto a tile free in its layer, one a s
     // Who holds tile t on the ground, or in the air (`flies`): a flyer and a ground unit may share one.
     const holder = (t, flies) => b.units.find((x) => !dead.has(x.uid) && tile.get(x.uid) === t && !!x.flies === flies)
     while (!b.over) {
-      // A loop of foes steps at once, each onto the next one's tile (battle.js rotate): a tile is free for a step if
-      // whoever held it steps away this tick too, and no two units share a tile in a layer once the tick is done.
-      const evs = stepBattle(b)
-      const moving = new Set(evs.filter((e) => e.type === 'move').map((e) => e.actor))
-      for (const e of evs) {
+      for (const e of stepBattle(b)) {
         if (e.type === 'death') dead.add(e.target)
         if (e.type === 'rise') dead.delete(e.target)
         if (e.type === 'arise' || e.type === 'enter') {
@@ -171,8 +167,7 @@ test('every step is a foe\'s, a legal one onto a tile free in its layer, one a s
         const where = `seed ${i} t ${e.t}: ${u.id} ${e.from}→${e.to}`
         assert.equal(u.side, 'foe', `${where}: one of yours stepped`)
         assert.equal(tile.get(u.uid), e.from)
-        const there = holder(e.to, u.flies)
-        assert.ok(!there || moving.has(there.uid), `${where}: onto a body`)
+        assert.ok(!holder(e.to, u.flies), `${where}: onto a body`)
         assert.ok(!last.has(u.uid) || e.t - last.get(u.uid) >= u.every, `${where}: stepped again too soon`)
         last.set(u.uid, e.t)
         if (u.flies) {
@@ -182,7 +177,7 @@ test('every step is a foe\'s, a legal one onto a tile free in its layer, one a s
           flights++
         } else {
           assert.ok(steps(e.from, b.walls).includes(e.to), `${where}: into or past a wall`)
-          if (u.behaviour === 'walk' && e.to !== walk.arrow[e.from]) assert.ok(walk.dist[e.to] < walk.dist[e.from], `${where}: off its road, and no nearer by it`)
+          assert.equal(e.to, walk.arrow[e.from], `${where}: off the Walk road`)
           roads++
         }
         tile.set(u.uid, e.to)
@@ -318,53 +313,6 @@ test('a foe queues behind a foe: it waits while its next tile is held, and steps
   assert.ok(blocked.events.some((e) => e.type === 'action' && e.actor === 10 && e.targets.includes(1)))
 })
 
-test('a Flank field routes round your pieces, is made again only when one rises or falls, and falls back on the Walk field with none', () => {
-  // A line of knights across y 3, every lane but the last; the Monarch behind it at (3, 0).
-  const line = (lanes) => lanes.map((x) => on('tomb_knight', 1 + x, 'party', x, 3, 9))
-  const b = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5]), on('mantis_reaper', 20, 'foe', 3, 6, 9), on('grave_ghoul', 21, 'foe', 2, 6, 1)], { moving: [20, 21] })
-  const flank = fieldOf(b, true)
-  const walk = fieldOf(b)
-  assert.ok(flank.dist[tileAt(3, 6)] > walk.dist[tileAt(3, 6)], 'round the line is further')
-  assert.equal(flank.dist[tileAt(3, 3)], Infinity, 'your pieces are walls to it')
-  const mantis = b.byUid.get(20)
-  const ghoul = b.byUid.get(21)
-  assert.equal(arrowOf(b, ghoul), walk.arrow[ghoul.tile], 'a Walk kind walks the arrows')
-  assert.equal(arrowOf(b, mantis), flank.arrow[mantis.tile])
-  // The Mantis heads round for the gap at (6, 3), every step on the Flank field's arrows (its first not the Walk
-  // field's), until the line is in its ring; the Ghoul walks straight into the line.
-  const path = []
-  while (!b.over && b.t < 200 && !foesNextTo(b, mantis).length) {
-    const from = mantis.tile
-    for (const e of moves(stepBattle(b), 20)) {
-      assert.equal(e.to, flank.arrow[from])
-      path.push(e.to)
-    }
-  }
-  assert.ok(path.length >= 2 && path[0] !== walk.arrow[tileAt(3, 6)] && tileX(path.at(-1)) > 3, `round toward the gap: ${path}`)
-  assert.ok(moves(b.events, 21).every((e) => e.to === walk.arrow[e.from]))
-  // The field stands while your pieces only walk; a piece fallen makes it again.
-  const was = fieldOf(b, true)
-  const knight = b.byUid.get(4)
-  b.at[knight.tile] = null
-  knight.tile = tileAt(3, 2)
-  b.at[knight.tile] = knight
-  assert.equal(fieldOf(b, true), was, 'a piece that walks changes nothing')
-  slay(b, b.byUid.get(1))
-  const now = fieldOf(b, true)
-  assert.notEqual(now, was)
-  assert.ok(now.dist[tileAt(0, 3)] < Infinity, 'its tile is open ground again')
-  // A line across every lane: no road round it, so a Flank kind walks the Walk field's arrows into it, heeding none of
-  // the knights' rings, and halts only where a knight holds its next tile.
-  const sealed = scene([on('monarch', 0, 'party', 3, 0), ...line([0, 1, 2, 3, 4, 5, 6]), on('mantis_reaper', 20, 'foe', 3, 6, 9)], { moving: [20] })
-  const shut = sealed.byUid.get(20)
-  assert.equal(fieldOf(sealed, true).dist[shut.tile], Infinity)
-  assert.equal(arrowOf(sealed, shut), fieldOf(sealed).arrow[shut.tile])
-  while (!sealed.over && sealed.t < 300 && !sealed.events.some((e) => e.type === 'action' && e.actor === 20)) stepBattle(sealed)
-  assert.equal(tileY(shut.tile), 4, 'it walked up to the line, beside it (a foe has no long arm)')
-  const blow = sealed.events.find((e) => e.type === 'action' && e.actor === 20)
-  assert.deepEqual(blow?.targets, [sealed.at[arrowOf(sealed, shut)].uid], 'and fights the knight in its way')
-})
-
 // ── rings ────────────────────────────────────────────────────────────────────────────────────────
 
 test('a ring\'s target: yours aim at the foe furthest along its road, ties by lane; a foe at the piece on its road, else the nearest', () => {
@@ -381,7 +329,7 @@ test('a ring\'s target: yours aim at the foe furthest along its road, ties by la
   let shot = null
   while (!shot && b.t < 200) shot = stepBattle(b).find((e) => e.type === 'action' && e.actor === 1 && e.ability === 'marrow_bolt')
   assert.deepEqual(shot.targets, [12], 'and its blows go there')
-  // A Frost Wyrm (ring 3, a Walk kind) at (3, 5) on its road down lane 3: the knight on its next tile, (3, 4),
+  // A Frost Wyrm (ring 3) at (3, 5) on its road down lane 3: the knight on its next tile, (3, 4),
   // before the Ghoul beside it; with the knight gone, the nearest; of two as near, CENTRE_OUT's lane first.
   const f = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 4), on('grave_ghoul', 2, 'party', 2, 5),
     on('grave_ghoul', 3, 'party', 5, 3), on('grave_ghoul', 4, 'party', 1, 3), on('frost_wyrm', 10, 'foe', 3, 5)])
@@ -973,22 +921,6 @@ test('a 2×2 piece stands on its whole footprint: on the index four times, every
   assert.ok(tiles.every((t) => b.at[t] === null), 'off the index on every tile')
 })
 
-test('a 2×2 piece blocks the Flank field two wide: a gap it fills is shut, and its fall opens it', () => {
-  // Knights across y 3 on lanes 0–4, the Monarch behind them. A knight on (5, 3) leaves a way round through (6, 3); a
-  // Colossus anchored there fills both lanes.
-  const line = [0, 1, 2, 3, 4].map((x) => on('tomb_knight', 1 + x, 'party', x, 3, 9))
-  const build = (piece) => scene([on('monarch', 0, 'party', 3, 0), ...line, piece, on('mantis_reaper', 20, 'foe', 3, 8, 9)])
-  const single = build(on('tomb_knight', 6, 'party', 5, 3, 9))
-  assert.ok(fieldOf(single, true).dist[tileAt(3, 8)] < Infinity, 'round through (6, 3)')
-  const b = build(on('bone_colossus', 6, 'party', 5, 3, 9))
-  const flank = fieldOf(b, true)
-  for (const t of footprint(tileAt(5, 3), 2)) assert.equal(flank.dist[t], Infinity, 'every tile of it a wall to the Flank field')
-  assert.equal(flank.dist[tileAt(3, 8)], Infinity, 'no way round')
-  assert.equal(arrowOf(b, b.byUid.get(20)), fieldOf(b).arrow[tileAt(3, 8)], 'so the Flank kind walks the arrows')
-  slay(b, b.byUid.get(6))
-  assert.ok(fieldOf(b, true).dist[tileAt(3, 8)] < Infinity, 'its fall opens the way')
-})
-
 // ── flyers (DESIGN §2.4) ─────────────────────────────────────────────────────────────────────────
 
 test('the air road: the roads flooded from the Monarch over every tile, walls and all, a flyer\'s road; your aim at a flyer reads it', () => {
@@ -1041,15 +973,16 @@ test('a melee blow never strikes a flyer, a ranged one does: a ring holding only
   assert.equal(blows, 3)
 })
 
-test('flyers hold the air: a flyer and a ground unit share a tile and never block each other; two of one layer never share one; the Flank field ignores flyers', () => {
+test('flyers hold the air: a flyer and a ground unit share a tile and never block each other; two of one layer never share one', () => {
   // A corridor down lane 3 to the Monarch at (3, 0), a Hive Drone of yours hovering in it at (3, 2), a Mantis Reaper
-  // walking it (a Flank kind: no ring of yours halts it but the Monarch's).
+  // walking it (a melee walker: nothing of yours on the ground beside it, so no ring of yours halts it but the
+  // Monarch's).
   const walls = [1, 2, 3, 4, 5, 6].flatMap((y) => [0, 1, 2, 4, 5, 6].map((x) => tileAt(x, y)))
   const b = scene([on('monarch', 0, 'party', 3, 0, 30), on('hive_drone', 1, 'party', 3, 2, 1), on('mantis_reaper', 10, 'foe', 3, 6, 9),
     on('iron_golem', 50, 'foe', 6, 10, 1)], { moving: [10], walls })
   const [drone, mantis] = [1, 10].map((uid) => b.byUid.get(uid))
   assert.deepEqual([b.sky[drone.tile], b.at[drone.tile]], [drone, null], 'the drone in the air index, the ground under it free')
-  assert.ok(fieldOf(b, true).dist[mantis.tile] < Infinity, 'no wall to the Flank field')
+  assert.equal(fieldOf(b).arrow[tileAt(3, 3)], drone.tile, 'its road runs under the drone')
   // The Mantis walks under the drone and on: its next tile is never held by a flyer.
   let under = false
   while (!b.over && b.t < 600 && !under) {

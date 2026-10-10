@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stepBattle, field, fieldOf, airOf, sight, stopLine, ringTarget, arrowOf } from '../src/sim/battle.js'
+import { stepBattle, field, fieldOf, airOf, sight, stopLine } from '../src/sim/battle.js'
 import {
   makeUnit, tileAt, tileX, tileY, DEPTH, ROWS, TILES, distance, holdOf, ringOf, sizeOf, fits, footprintSlots,
   distanceBetween, deployTile, monarchSlot, wallTiles, unitDistance, armOf
@@ -9,12 +9,12 @@ import { CAMP_LIST } from '../src/content.js'
 import { frontier, START_PARTY } from '../src/sim/run.js'
 import { on, scene, moves, actions, slay } from './scene.js'
 
-// How a foe comes at you (DESIGN §2.3–§2.4): it walks its road (a flyer the air road, over the walls), doing nothing
-// else, until it halts where it can hit back: in a ring of yours that can strike it (a flyer only a ranged ring; the
-// Monarch's ring of 1 holds anything) once one of its blows has a target there, a Flank kind once its blows reach the
-// Monarch, or with its next tile held (a flyer's by a piece of yours, ground or air, or a flyer; by a comrade, only one
-// halted itself); halted, it fights, its melee reaching only the piece in its way, the Monarch, and a piece beside it
-// that struck it. Your melee reaches 1, or 2 for a long arm.
+// How a foe comes at you (DESIGN §2.3–§2.4): it walks its road (every walker the Walk field, a flyer the air road, over
+// the walls), doing nothing else, until it halts where it can hit back: in a ring of yours that can strike it (a flyer
+// only a ranged ring; the Monarch's ring of 1 holds anything) once one of its blows has a target there, or with its
+// next tile held (a flyer's by a piece of yours, ground or air, or a flyer; by a comrade, only one halted itself);
+// halted, it fights, its melee reaching only the piece in its way, the Monarch, and a piece beside it that struck it.
+// Your melee reaches 1, or 2 for a long arm.
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -102,17 +102,6 @@ test('a walking foe never acts, struck or not: it fights only once halted', () =
   const first = actions(b.events, 10)[0]
   assert.ok(moves(b.events, 10).every((e) => e.t <= first.t), 'every step before its first shot')
   assert.deepEqual([b.byUid.get(10).tile, first.targets], [tileAt(3, 1), [0]])
-  // A Wisp (a Flank kind) walks through the ring of a Frost Sprite of yours, which shoots it as it goes: struck, it walks
-  // on all the same, and halts as soon as its witchfire (range 4) reaches the Monarch, at (3, 4), and shoots it from
-  // there.
-  const w = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 5, 5, 1), on('will_o_wisp', 10, 'foe', 3, 10, 15)], { moving: [10] })
-  until(w, () => actions(w.events, 10).length > 1)
-  const [shot, again] = actions(w.events, 10)
-  const hit = w.events.find((e) => e.type === 'damage' && e.target === 10)
-  assert.ok(hit && moves(w.events, 10).some((e) => e.t > hit.t), 'struck, and still walking after')
-  assert.ok(moves(w.events, 10).every((e) => e.t <= shot.t))
-  assert.deepEqual([w.byUid.get(10).tile, shot.targets, again.targets], [tileAt(3, 4), [0], [0]])
-  assert.equal(unitDistance(w.byUid.get(10), w.monarch), 4, 'its range from the Monarch, never beside it')
 })
 
 // ── fighting, halted ─────────────────────────────────────────────────────────────────────────────
@@ -263,16 +252,70 @@ test('your melee reaches 1, or 2 for a long arm: a tier that widens the ring len
   assert.ok(at(mantis, [3, 6])(10).every((id) => id === 'phantom_edge') && at(mantis, [3, 6])(10).length > 0)
 })
 
-// ── Flank and Fly ────────────────────────────────────────────────────────────────────────────────
+// ── one road for every walker, and Fly ──────────────────────────────────────────────────────────
 
-test('a Flank kind walks through your rings: it halts once its blows reach the Monarch (a melee one beside it), or where its next tile is held', () => {
-  // A Bone Chanter of yours at (0, 5): its ring (4) spans lanes 0 to 4 from y 1 to 9. A Mantis Reaper walks down the
-  // centre lane through all of it, and halts beside the Monarch at (3, 0), and strikes it. (A Wisp, a ranged Flank
-  // kind, halts at its range from the Monarch: see above.)
+test('every walker takes the one road: a Wisp steps along the Walk field\'s arrows, as a Ghoul does, never round your pieces', () => {
+  // A line of Tomb Knights of yours across y 3 on lanes 0–5, the Monarch behind it at (3, 0), a way round it open on
+  // lane 6. A Wisp walks down the centre lane from (3, 9), and a Ghoul from the same tile in a battle of its own: each
+  // step its tile's arrow on the Walk field, straight at the knight on (3, 3), never round the line, to (3, 4) before
+  // it, where the Wisp halts (the knights in its sight, and in its reach) and shoots the knight in its way.
+  const line = [0, 1, 2, 3, 4, 5].map((x) => on('tomb_knight', 1 + x, 'party', x, 3, 9))
+  const walk = (id) => {
+    const b = scene([on('monarch', 0, 'party', 3, 0), ...line, on(id, 10, 'foe', 3, 9, 9)], { moving: [10] })
+    const u = b.byUid.get(10)
+    const road = fieldOf(b)
+    while (!b.over && b.t < 600 && !actions(b.events, 10).length) {
+      const from = u.tile
+      for (const e of moves(stepBattle(b), 10)) assert.deepEqual([e.from, e.to], [from, road.arrow[from]], `${id}: off the arrows`)
+    }
+    return { b, path: moves(b.events, 10).map((e) => e.to) }
+  }
+  const wisp = walk('will_o_wisp')
+  assert.deepEqual(wisp.path, [8, 7, 6, 5, 4].map((y) => tileAt(3, y)), 'into the line, never round it')
+  assert.deepEqual(walk('grave_ghoul').path, wisp.path, 'the road a Walk foe takes')
+  assert.deepEqual(actions(wisp.b.events, 10)[0].targets, [4], 'it shoots the knight in its way')
+  // Your pieces off to the side, Tomb Knights at (0, 5) and (6, 5), each in the Wisp's reach as it passes but neither
+  // holding the lane: the Wisp walks the arrows on past them, every step its arrow, to beside the Monarch, and shoots it.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 5, 9), on('tomb_knight', 2, 'party', 6, 5, 9),
+    on('will_o_wisp', 10, 'foe', 3, 9, 9)], { moving: [10] })
+  until(b, () => actions(b.events, 10).length > 0)
+  const path = moves(b.events, 10)
+  assert.ok(path.every((e) => e.to === fieldOf(b).arrow[e.from]), 'every step the Walk field\'s arrow')
+  assert.deepEqual(path.map((e) => e.to), [8, 7, 6, 5, 4, 3, 2, 1].map((y) => tileAt(3, y)))
+  assert.deepEqual(actions(b.events, 10)[0].targets, [0])
+})
+
+test('a Wisp halts in your sight once it can hit something there, and fights there: it never walks on to shoot the Monarch from its range', () => {
+  // A Frost Sprite of yours at (5, 5), off the centre lane: its sight (3) holds the lane from (3, 8) down to (3, 2). A
+  // Wisp (reach 4) walks down the lane from the far edge: at (3, 8) it comes into the Sprite's sight with the Sprite in
+  // its reach, halts there, and the two shoot it out. It never walks on to (3, 4), four tiles from the Monarch, nor
+  // ever shoots the Monarch.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 5, 5, 9), on('will_o_wisp', 10, 'foe', 3, 10, 3)], { moving: [10] })
+  const wisp = b.byUid.get(10)
+  until(b, () => wisp.hp <= 0, 1500)
+  const shots = actions(b.events, 10)
+  assert.ok(wisp.hp <= 0 && shots.length > 0, `${shots.length} shots, and the Sprite brought it down`)
+  assert.deepEqual(moves(b.events, 10).map((e) => e.to), [9, 8].map((y) => tileAt(3, y)), 'halted on coming into the Sprite\'s sight')
+  assert.ok(moves(b.events, 10).every((e) => e.t < shots[0].t), 'it never walked on once halted')
+  assert.ok(shots.every((e) => e.targets[0] === 1), 'it shoots the Sprite')
+  assert.ok(!b.events.some((e) => e.type === 'damage' && e.target === 0), 'never the Monarch')
+  // A Bone Chanter of yours on the lane at (3, 2), its sight (4) holding it up to (3, 6): the Wisp halts there, the
+  // Chanter four tiles off and in its reach, six from the Monarch, and shoots the Chanter.
+  const c = scene([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 3, 2, 9), on('will_o_wisp', 10, 'foe', 3, 10, 9)], { moving: [10] })
+  until(c, () => actions(c.events, 10).length > 0)
+  assert.deepEqual([c.byUid.get(10).tile, actions(c.events, 10)[0].targets], [tileAt(3, 6), [1]])
+  assert.equal(unitDistance(c.byUid.get(10), c.monarch), 6)
+})
+
+test('a Mantis Reaper walks on through your rings as any melee walker: it halts beside the Monarch, and strikes it', () => {
+  // A Bone Chanter of yours at (0, 5): its ring (4) spans lanes 0 to 4 from y 1 to 9. A Mantis Reaper (a long arm for
+  // you, no reach as a foe) walks down the centre lane through all of it, every step its arrow, with nothing of yours
+  // beside it to strike, and halts beside the Monarch at (3, 0), and strikes it.
   const b = scene([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 0, 5, 1), on('mantis_reaper', 10, 'foe', 3, 10, 9)], { moving: [10] })
   until(b, () => actions(b.events, 10).length > 0)
   const steps = moves(b.events, 10)
   assert.ok(steps.filter((e) => distance(e.from, tileAt(0, 5)) <= 4).length >= 5, 'it stepped on inside the ring')
+  assert.ok(steps.every((e) => e.to === fieldOf(b).arrow[e.from]))
   assert.deepEqual([b.byUid.get(10).tile, actions(b.events, 10)[0].targets], [tileAt(3, 1), [0]])
   assert.ok(steps.every((e) => e.t <= actions(b.events, 10)[0].t))
 })
@@ -380,8 +423,8 @@ test('a flyer of yours blocks a foe flyer as any piece of yours does, and the tw
 })
 
 test('the Monarch\'s ring of 1 halts a foe beside it, on the ground too', () => {
-  // A Mantis Reaper (a Flank kind) stands frozen beside the Monarch, off its road's end: only the Monarch's ring holds
-  // it, and it strikes; two tiles off, nothing holds it, and it does nothing.
+  // A Mantis Reaper stands frozen beside the Monarch, off its road's end: only the Monarch's ring holds it, and it
+  // strikes; two tiles off, nothing holds it, and it does nothing.
   const near = scene([on('monarch', 0, 'party', 3, 0), on('mantis_reaper', 10, 'foe', 4, 1, 9)])
   until(near, () => actions(near.events, 10).length > 0, 200)
   assert.deepEqual(actions(near.events, 10)[0]?.targets, [0])
@@ -473,50 +516,4 @@ test('the stop line: on each road from the foes\' rows, each tile where a walker
     const entered = new Set(out.flatMap((road) => road.filter((t, i) => held[t] && (i === 0 || !held[road[i - 1]]))))
     assert.deepEqual(stops, [...entered].sort((a, b) => a - b), c.id)
   }
-})
-
-test('yours aim at the foe furthest along its own road: a Flank kind\'s is the way round your pieces, not the Walk road', () => {
-  // A wall of knights before the Monarch: the Wisp stands nearer by the Walk road, but its own road, the Flank
-  // field's, goes the long way round them, and the Knight foe is nearer the end of its road.
-  const b = scene([
-    on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 2, 1), on('tomb_knight', 2, 'party', 3, 1),
-    on('tomb_knight', 3, 'party', 4, 1), on('bone_chanter', 4, 'party', 1, 2),
-    on('will_o_wisp', 10, 'foe', 3, 3), on('tomb_knight', 11, 'foe', 0, 4)
-  ])
-  const [wisp, knight] = [10, 11].map((uid) => b.units.find((u) => u.uid === uid))
-  const walk = fieldOf(b).dist
-  const flank = fieldOf(b, true).dist
-  assert.ok(walk[wisp.tile] < walk[knight.tile] && walk[knight.tile] < flank[wisp.tile])
-  assert.equal(ringTarget(b, b.units.find((u) => u.uid === 4)), knight)
-})
-
-test('walkers and flankers never jam each other: a foe held up by a comrade of the other kind steps round it; one kind\'s queue stays a queue', () => {
-  // A Will-o'-Wisp (Flank, reach 4) stands four tiles before the Monarch and halts there to shoot it, on the Walk road
-  // down the centre lane. The Grave Ghoul behind it steps round it, onto a free tile nearer by its own road.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('will_o_wisp', 10, 'foe', 3, 4), on('grave_ghoul', 11, 'foe', 3, 5)], { moving: [11] })
-  until(b, () => moves(b.events, 11).length > 0, 60)
-  const walk = fieldOf(b).dist
-  const first = moves(b.events, 11)[0]
-  assert.ok(first, 'the Ghoul steps round the Wisp')
-  assert.ok(walk[first.to] < walk[tileAt(3, 5)] && first.to !== tileAt(3, 4))
-  // Two Ghouls, the first halted fighting a Tomb Knight in its way: the second waits behind it, and never steps round.
-  const q = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('grave_ghoul', 10, 'foe', 3, 4), on('grave_ghoul', 11, 'foe', 3, 5)], { moving: [10, 11] })
-  until(q, () => false, 150)
-  assert.deepEqual(moves(q.events, 11), [])
-})
-
-test('foes standing each in the next one\'s way change places: a Walk foe and a Flank foe on two roads never stand stuck for good', () => {
-  // A walled corridor down the centre lane to a Tomb Knight before the Monarch. The Walk road runs down it through the
-  // Knight; the Flank road, the Knight a wall to it, leads back out of the corridor and round. A Mantis Reaper (Flank)
-  // at (3, 2) and a Grave Ghoul (Walk) at (3, 3) each hold the other's next tile: they change places, and the Ghoul,
-  // now before the Knight, fights it.
-  const walls = [[2, 1], [2, 2], [2, 3], [4, 1], [4, 2], [4, 3]].map(([x, y]) => tileAt(x, y))
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 1), on('mantis_reaper', 10, 'foe', 3, 2), on('grave_ghoul', 11, 'foe', 3, 3)], { moving: [10, 11], walls })
-  const [mantis, ghoul] = [10, 11].map((uid) => b.byUid.get(uid))
-  assert.deepEqual([arrowOf(b, mantis), arrowOf(b, ghoul)], [tileAt(3, 3), tileAt(3, 2)], 'each in the other\'s way')
-  until(b, () => moves(b.events, 10).length > 0 && moves(b.events, 11).length > 0, 60)
-  assert.deepEqual([moves(b.events, 10)[0]?.to, moves(b.events, 11)[0]?.to], [tileAt(3, 3), tileAt(3, 2)])
-  assert.deepEqual([b.at[tileAt(3, 3)], b.at[tileAt(3, 2)]], [mantis, ghoul])
-  until(b, () => actions(b.events, 11).length > 0, 200)
-  assert.deepEqual(actions(b.events, 11)[0].targets, [1])
 })

@@ -19,9 +19,9 @@
 // the air road, over the walls but never through your pieces, and only a ranged blow can strike it (DESIGN §2.4 Fly).
 // `onFall`: a death burst, its effects run from where it fell on the other side's living within `range`. `fused`: a
 // fusion's result (FUSION_LIST), never spawned nor recruited, so no threats nor behaviour. Each kind does one legible
-// thing on the board. `behaviour`: how it walks the roads as a foe (BEHAVIOURS), learnt by meeting it: a few kinds
-// whose nature is to go round Flank, and carry the `flank` threat, and the flyers, which carry `fly`; `flavour`: a line
-// of lore that hints at it, never naming it.
+// thing on the board. `behaviour`: how it comes down the roads as a foe (BEHAVIOURS), learnt by meeting it: every
+// ground kind walks the one drawn road, and the flyers, which carry the `fly` threat, fly the air road; `flavour`: a
+// line of lore that hints at it, never naming it.
 
 export const UNIT_LIST = [
   {
@@ -175,12 +175,12 @@ export const UNIT_LIST = [
     base: { hp: 50, atk: 15, def: 3, spd: 32, acc: 46, eva: 28, crt: 6 },
     growth: { hp: 6, atk: 2.1, def: 0.3, spd: 1.8 },
     abilities: ['witchfire'],
-    // Flank: it never keeps to the road, and burns from four tiles off.
+    // The far fire: it strikes from four tiles off.
     ring: 4,
     spawn: { weight: 11, minFloor: 1 },
-    threats: ['reach', 'flank'],
-    behaviour: 'flank',
-    flavour: 'Follow a wisp and you will never walk the road: it leads the long way, where no one keeps watch, to whatever is warm.',
+    threats: ['reach'],
+    behaviour: 'walk',
+    flavour: 'A wisp keeps the road as meekly as any pilgrim, yet its cold fire leaps four paces ahead of it to whatever is warm.',
     art: 'will_o_wisp'
   },
   {
@@ -210,14 +210,15 @@ export const UNIT_LIST = [
     base: { hp: 92, atk: 25, def: 9, spd: 32, acc: 50, eva: 20, crt: 16 },
     growth: { hp: 10, atk: 3.1, def: 0.8, spd: 1.8 },
     abilities: ['reap', 'strike'],
-    // Flank, quick, and a long arm: yours strikes two tiles off (a foe's melee reaches only beside it).
+    // Quick, and a long arm: yours strikes two tiles off (a foe's melee reaches only beside it). Its threat, Shape, is
+    // a stand-in: every foe carries one, and none names a lone hard melee blow (DESIGN §6, 2026-10-10).
     ring: 2,
     arm: 2,
     stride: 1.5,
     spawn: { weight: 7, minFloor: 2 },
-    threats: ['flank'],
-    behaviour: 'flank',
-    flavour: 'A mantis stalks the margins with its brood, quick as a thought, and springs from where no one is looking.',
+    threats: ['shape'],
+    behaviour: 'walk',
+    flavour: 'A mantis stalks the road with its brood about it, quick as a thought, and its scythes fall before its shadow does.',
     art: 'mantis_reaper'
   },
   {
@@ -247,12 +248,12 @@ export const UNIT_LIST = [
     base: { hp: 128, atk: 27, def: 13, spd: 30, acc: 52, eva: 22, crt: 10 },
     growth: { hp: 14, atk: 3.4, def: 1.1, spd: 1.6 },
     abilities: ['wither', 'strike'],
-    // Flank: it goes about a living line through the cold places, and withers from three tiles off.
+    // The cold reach: it withers from three tiles off.
     ring: 3,
     spawn: { weight: 6, minFloor: 3 },
-    threats: ['reach', 'drain', 'flank'],
-    behaviour: 'flank',
-    flavour: 'A wight will not cross a living line: it goes about it, through the cold places, to the warmth hidden behind.',
+    threats: ['reach', 'drain'],
+    behaviour: 'walk',
+    flavour: 'A wight treads the road it was once borne down to its barrow, and the living wither three paces before it ever touches them.',
     art: 'barrow_wight'
   },
   {
@@ -2033,12 +2034,12 @@ const ROLE_LIST = [
   { id: 'monarch', name: 'Monarch', hidden: true }
 ]
 
-// How a foe comes to the Monarch (DESIGN §2.4), by its kind's `behaviour`: one step a TUNING.board.stepTicks ÷ its
-// stride, doing nothing else, until it halts where it can hit back (battle.js wayOf); only then does it fight.
+// How a foe comes to the Monarch (DESIGN §2.4), by its kind's `behaviour`: two ways, Walk for every ground kind (the
+// one drawn road, the Walk field) and Fly for the flyers (the air road, battle.js airOf). One step a
+// TUNING.board.stepTicks ÷ its stride, doing nothing else, until it halts where it can hit back (battle.js wayOf);
+// only then does it fight. Which kinds fly is learnt by meeting them; the text only says what each way does.
 export const BEHAVIOURS = {
   walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch, doing nothing else, until it can strike something of yours from inside one of your rings, or something stands in its way; there it halts and fights. Its melee reaches only what blocks it, the Monarch beside it, or a piece beside it that struck it.' },
-  // Which kinds Flank is learnt by meeting them; the text only says what it does.
-  flank: { name: 'Flank', desc: 'Heeds none of your rings: it walks round your pieces to the Monarch where a way round is open, and halts once its blows reach the Monarch from where it stands, or something stands in its way; it strikes nothing but the Monarch and what stands in its path. Where no way round is open, it walks the arrows until a piece of yours stands in its way.' },
   // A flyer flies the air road (battle.js airOf): no wall stops it, but a piece of yours in its way does, and it never
   // goes round. Only a ranged blow can touch it, so only a ranged ring (or the Monarch's) may halt it in your rings, and
   // only where it can strike back.
@@ -2048,7 +2049,6 @@ export const BEHAVIOURS = {
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
 // does is learnt by fighting it.
 export const THREATS = {
-  flank: { name: 'Flank', desc: 'Slips through the line to whoever hides at the back.' },
   reach: { name: 'Reach', desc: 'Strikes from afar once the line gives way.' },
   shape: { name: 'Shape', desc: 'Hits a whole row, lane or crowd at once.' },
   drain: { name: 'Drain', desc: 'Saps gauge or rots defence.' },
