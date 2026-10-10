@@ -14,34 +14,12 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { CAMP_LIST, RELICS } from '../src/content.js'
 import {
-  makeUnit, tileAt, tileX, tileY, slotAt, colOf, DEPTH, baseStats, sealedBy, monarchSlot
+  makeUnit, slotAt, colOf, baseStats, monarchSlot
 } from '../src/sim/unit.js'
+import { on, scene as sceneOf, unit } from './scene.js'
 
-const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-
-// A battle of units placed on tiles (the party in its camp, y 0–6; a foe anywhere). The ones not named in
-// `moving` never step (all step with `moving: true`).
-function scene (units, { moving = [], ...opts } = {}) {
-  const foeRow0 = DEPTH - 3
-  const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
-  const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
-    : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
-  const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'fixes', ...opts })
-  for (const u of b.units) {
-    const want = units.find((x) => x.uid === u.uid)?.tile
-    if (want === undefined) continue
-    if (u.tile !== want) {
-      const layer = u.flies ? b.sky : b.at
-      layer[u.tile] = null
-      u.tile = want
-      layer[want] = u
-    }
-    if (moving !== true && !moving.includes(u.uid)) u.nextStep = Infinity
-  }
-  return b
-}
-const unit = (b, uid) => b.units.find((u) => u.uid === uid)
+// A battle of units placed on tiles (scene.js scene).
+const scene = (units, opts) => sceneOf(units, { seed: 'fixes', ...opts })
 const bodies = (b) => b.units.filter((u) => u.side === 'party' && u.hp > 0 && u !== b.monarch).length
 
 // ── the battle ───────────────────────────────────────────────────────────────────────────────────
@@ -112,8 +90,7 @@ test('the Monarch takes no synergy\'s or relic\'s stats (a Legendary\'s neither)
 
 // ── the run ──────────────────────────────────────────────────────────────────────────────────────
 
-test('the Monarch\'s seat seals no one in, on every camp; a new floor seats it on its new camp\'s seat', () => {
-  for (const c of CAMP_LIST) assert.equal(sealedBy(c.id, monarchSlot(c.id)).length, 0, c.id)
+test('a new floor seats the Monarch on its new camp\'s seat, and a soul standing there moves off it', () => {
   // A run whose third floor is the Crossroads, a soul standing on the cell that is the Crossroads' seat: the
   // Monarch takes its seat there, and the soul moves off it.
   const seed = [...Array(200).keys()].map((i) => `seat${i}`).find((x) => createRng(x).stream('camp|3').pick(CAMP_LIST.filter((c) => c.floor === 3)).id === 'crossroads')

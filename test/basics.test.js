@@ -95,11 +95,11 @@ test('board shapes: a blast hits its target and everyone next to it; ally abilit
   assert.deepEqual(reachable(units, caster, { shape: 'ally' }).map((u) => u.uid), [1, 2, 3])
 })
 
-test('rings and domain: a melee kind fights within 1, a ranged kind within its reach, the Monarch within none; the domain is a square', () => {
+test('rings and domain: a melee kind fights within 1, a ranged kind within its reach, the Monarch holds within 1 and strikes nothing; the domain is a square', () => {
   assert.equal(ringOf({ id: 'tomb_knight' }), 1)
   assert.equal(ringOf({ id: 'frost_sprite' }), 3)
   assert.equal(ringOf({ id: 'bone_chanter' }), 4)
-  assert.equal(ringOf({ id: 'monarch' }), 0)
+  assert.equal(ringOf({ id: 'monarch' }), 1)
   const square = domainTiles(tileAt(3, 1), 2)
   assert.equal(square.length, 5 * 4, 'clipped by the board\'s bottom edge')
   assert.ok(square.every((t) => distance(t, tileAt(3, 1)) <= 2) && square.includes(tileAt(5, 3)) && !square.includes(tileAt(6, 1)))

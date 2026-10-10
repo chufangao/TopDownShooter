@@ -28,30 +28,44 @@ export const TUNING = {
   // RELIC_LIST `monarchHp`), and nothing else touches it (no synergy, no other relic). No points are bought: its HP
   // and its Command (party.field) grow only by relics (2026-10-09, late; the points were hp 220 + 14 a point, for
   // 20 + 10 a point bought on all four).
-  // The rest is Arise's, a Legendary relic (content.js RELIC_LIST): without it no foe rises. Its domain reaches
-  // `domain` + Dominion tiles (Chebyshev) from the Monarch's tile, and it raises the foes that fall inside it, of tier up
-  // to raiseTier + Will, up to raises × (copies + Will) a battle, each shadow at the fallen piece's count, each body at
-  // `raiseHp` of its body HP; each point of Will fills the Monarch's gauge willHaste faster (×(1 + willHaste × Will)).
-  // Dominion and Will are Arise's, not the Monarch's: each copy of Arise past the first adds `dominion` to its
-  // Dominion and `will` to its Will (run.js ariseOf), on top of the `raises` each copy adds. Placeholders until the
-  // balance pass. Necessity round 2: raises 3 (was 2: Arise was worth less than the points its Will took). The balance
-  // pass: domain 5 and raiseTier 3 (were 3 and 2: few foes fell inside the domain, and Arise's ablation cost nothing).
-  monarch: { hp: 220, domain: 5, raiseHp: 1, raises: 3, raiseTier: 3, willHaste: 0.1, dominion: 1, will: 1 },
+  monarch: { hp: 220 },
+  // Arise, a Legendary relic (content.js RELIC_LIST), and its numbers are its own, a copy at a time (DESIGN §2.5):
+  // without it no foe rises. One copy: a foe of tier up to `tier` slain within `domain` tiles (Chebyshev) of the
+  // Monarch's tile rises as a shadow of yours, up to `raises` a battle, each shadow at the fallen piece's count, each
+  // body at `hp` of its body HP (every shadow's, the Legion's and Grave Tide's too: battle.js fit). Each copy past the
+  // first: `more.domain` tiles farther, `more.tier` tiers higher, `more.raises` more a battle, and the Monarch's gauge
+  // (Arise's casting) `more.haste` faster (×(1 + more.haste × the copies past the first)). Court of Bone's tiles and
+  // Blood Tithe's share come on top (run.js domainOf, battle.js ariseCap). Placeholders until the balance pass.
+  // Necessity round 2: 3 a battle (was 2: Arise was worth less than the points it took). The balance pass: domain 5 and
+  // tier 3 (were 3 and 2: few foes fell inside its reach, and Arise's ablation cost nothing). Late on 2026-10-09 the
+  // two points a copy past the first gave it (one a tile; the other a tier, 3 raises and 10% haste, on top of the 3
+  // raises every copy gave) became `more`, every number as it was: 3, 9, 15… a battle.
+  arise: { domain: 5, tier: 3, raises: 3, hp: 1, more: { domain: 1, tier: 1, raises: 6, haste: 0.1 } },
   // The board (14 → 10 in necessity round 1): the field cap never passes `board` pieces, and the Legion's shadows
-  // rise only while fewer than `board` pieces of yours stand on it (Arise's are bounded by its own cap).
+  // rise only while fewer than `board` pieces of yours stand on it (Arise's are bounded by its own cap, `arise.raises`).
   army: { board: 10 },
   // A kind's level (every soul of it) is its tiers' (DESIGN §2.6): base + perTier × the tiers it holds on both tracks,
-  // rounded down (run.js levelOf), so six tiers (IV and II) make level 5. No level is bought (2026-10-09, late;
-  // levels cost 8 × level^1.2 up to 10). A fused kind stands at least at the highest level of the kinds that went
-  // into it. Foes keep their floor's levels (spawn). The balance pass (DESIGN §5 Step 8) made it base 2, 0.5 a tier
-  // (was 1 and 1.5: six tiers made level 10, and the tracks carried the expert alone, an 88-point ablation).
+  // rounded down (run.js levelOf), so two tiers make level 3 and six (IV and II) level 5. No level is bought
+  // (2026-10-09, late; levels cost 8 × level^1.2 up to 10). A fused kind stands at least at the highest level of the
+  // kinds that went into it. Foes keep their floor's levels (spawn). The balance pass (DESIGN §5 Step 8) made it base
+  // 2, 0.5 a tier (was 1 and 1.5: six tiers made level 10, and the tracks carried the expert alone, an 88-point
+  // ablation); the second pass (2026-10-09, night) 0.34 a tier, a level less at the top, so the power the tracks give
+  // leans on their count tiers (six bodies, were three) and the bodies ablation reads apart from the tracks'. The
+  // economy pass (2026-10-10) 0.5 again: with essence scarce the expert holds about 60% of its kinds' tiers, not all,
+  // and at 0.34 a tier the tracks' ablation fell to 19 points (under its band) as fusions and recruits stood in.
   level: { base: 2, perTier: 0.5 },
-  // Essence: each foe slain pays perTier × tier × (1 + perLevel × (level − 1)); a run starts with
-  // `start`. It buys only kinds, recruits and fusions: a kind's track tiers I–IV cost tier[] (either track);
-  // recruiting a soul costs recruit × tier × (1 + perLevel × (level − 1)), at the level it joins at (its kind's).
+  // Essence (DESIGN §2.6): each foe piece slain pays perTier × its tier, whatever its count or level (run.js
+  // foeEssence); a run starts with `start`. It buys only tiers, recruits and fusions, and every price is its base ×
+  // the floor's price scale, 1 + perFloor × (floor − 1) (run.js floorPrice: ×1, ×2.1, ×3.2, ×4.3 on floors 1–4):
+  // a kind's track tiers I–IV tier[] (either track); recruiting a soul recruit × tier × (1 + perLevel × (level − 1)),
+  // at the level it joins at (its kind's); a fusion fuse × the fused kind's tier, on top of the souls it consumes.
   // What a won elite offers in relics is TUNING.relic's.
-  // A fusion (DESIGN §2.6) costs fuse × the fused kind's tier, on top of the souls it consumes.
-  essence: { start: 20, perTier: 2.5, perLevel: 0.35, tier: [20, 45, 75, 120], recruit: 8, fuse: 8 },
+  // The economy pass (2026-10-10; DESIGN §5 Step 8): "money should always matter". Before it a foe paid
+  // 2.5 × tier × (1 + 0.35 × (level − 1)) for each of its bodies and prices were flat, so a floor-4 battle paid
+  // twenty times a floor-1 battle and the expert ended a clear with ~4,000 essence unspent, every tier it wanted
+  // held from floor 3. Paying by the piece and by tier alone (perTier 3.5 keeps floor 1's pay) and prices that grow
+  // 1.1 a floor keep what a battle buys about level from floor to floor.
+  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [20, 45, 75, 120], recruit: 8, fuse: 8 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
   // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
   // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1
@@ -64,7 +78,12 @@ export const TUNING = {
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
     // The balance pass: levelPerFloor 1 (was 2) with floors 2–4's foeHp/foeAtk ×1.15 (were 0.88/0.83, 0.76/0.76,
     // 0.95/0.9), so a floor's foes grow less by level and the expert's margin is thin enough to show each mechanic.
-    foeHp: [1.08, 1.01, 0.87, 1.09], foeAtk: [1.02, 0.95, 0.87, 1.04], bossHp: 1, bossAtk: 1,
+    // The second pass (2026-10-09, night; DESIGN §5 Step 8), after foes came to walk past your pieces doing nothing
+    // until they can hit back: floors 2–4 ×1.44, ×1.71, ×2.03 (were 1.01/0.95, 0.87/0.87, 1.09/1.04), steepest at
+    // the bottom, where the expert's army has grown most; floor 1 untouched (it is the basic player's wall already).
+    // The economy pass (2026-10-10): floors 2–4 ×0.75, ×0.75, ×0.68 of that (were 1.46/1.37, 1.49/1.49, 2.22/2.12),
+    // for an army that holds about 60% of its kinds' tiers at a clear where it held them all; floor 1 untouched.
+    foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: 1, bossAtk: 1,
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses

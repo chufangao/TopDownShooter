@@ -1,6 +1,6 @@
-/* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head, its ring, its line and the
-   signals to pick from, its abilities), a foe's (foePanel), and with nothing selected the Monarch's (a gold card
-   with a column a stat) over your synergies. Every purchase pops, every refusal shakes. Sizes are the shared
+/* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head and ring, its stack, its kind's
+   tracks, Fuse, its abilities), a foe's (foePanel), and with nothing selected the Monarch's (a gold card, its HP and
+   Command) over your synergies and the board's key. Every purchase pops, every refusal shakes. Sizes are the shared
    scale (style.css :root): body text --fs-md, secondary --fs-sm, badge numbers --fs-xs; anything pressed --tap
    on its short side. */
 .tray .price { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--c-essence); font-weight: 700; }
@@ -114,39 +114,28 @@
 .mc .uc-name { color: #f6e2b0; }
 .mc-hp { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-sm); }
 .mc-hp .hpbar { flex: 1; width: auto; height: 10px; }
-.mc-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-.mc-cols.four { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
-/* Its numbers two by two, a read-out (nothing to buy), compact so all show in the slim panel: its icon, name and
-   value on one line, what that gives under it. */
-.mc-cols.four .mc-col {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ico name pts" "now now now";
-  align-items: center; gap: 2px 4px; padding: 6px; text-align: left;
+/* Its HP and Command side by side, a read-out (nothing to buy), compact so both show in the slim panel: its icon,
+   name and value on one line, what that gives under it. */
+.mc-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.mc-col {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ico name val" "now now now";
+  align-items: center; gap: 2px 4px; padding: 6px; text-align: left; min-width: 0;
+  border: 1px solid #4a3a18; border-radius: 10px; background: #15110a; cursor: help;
 }
-.mc-cols.four .mc-ico { grid-area: ico; display: flex; }
-.mc-cols.four .mc-name { grid-area: name; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mc-cols.four .mc-pts { grid-area: pts; font-size: var(--fs-lg); }
-.mc-cols.four .mc-now { grid-area: now; min-height: 0; overflow-wrap: normal; }
+.mc-ico { grid-area: ico; display: flex; color: var(--c-monarch); }
+.mc-name { grid-area: name; font: 600 var(--fs-sm)/1.3 var(--sans); color: #f3d9a0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-val { grid-area: val; font: 600 var(--fs-lg)/1.05 var(--serif); color: var(--c-monarch); }
+.mc-now { grid-area: now; font-size: var(--fs-sm); line-height: 1.25; color: var(--dim); }
 .mc .uc-art { width: 52px; height: 52px; }
-/* Arise's numbers under a line naming the relic. */
-.mc-arise { margin: 8px 0 -2px; font-size: var(--fs-sm); }
 /* On a short frame (a phone's) tighter still, what a stat gives now waiting on its hover. */
 @container frame (max-height: 640px) {
   .mc { padding: 5px 8px 6px; }
   .mc .uc-art { width: 40px; height: 40px; }
   .mc .uc-art .portrait { width: 34px; height: 34px; }
-  .mc-cols.four { gap: 4px; margin-top: 5px; }
-  .mc-cols.four .mc-col { grid-template-areas: "ico name pts"; padding: 3px 6px; }
-  .mc-cols.four .mc-now { display: none; }
-  .mc-arise { margin-top: 5px; }
+  .mc-cols { gap: 4px; margin-top: 5px; }
+  .mc-col { grid-template-areas: "ico name val"; padding: 3px 6px; }
+  .mc-now { display: none; }
 }
-.mc-col {
-  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 8px; text-align: center;
-  border: 1px solid #4a3a18; border-radius: 10px; background: #15110a; cursor: help; min-width: 0;
-}
-.mc-ico { color: var(--c-monarch); }
-.mc-name { font: 600 var(--fs-sm)/1.3 var(--sans); letter-spacing: .02em; color: #f3d9a0; }
-.mc-pts { font: 600 var(--fs-2xl)/1.05 var(--serif); color: var(--c-monarch); }
-.mc-now { font-size: var(--fs-sm); line-height: 1.25; color: var(--dim); min-height: 2.5em; overflow-wrap: anywhere; }
 
 /* ── your synergies, under the Monarch's card: a chip each, lit in its colour (the board's glow, --g); a
    lit one is a press that lights its pieces on the board ──────────────────────────────────────── */
@@ -164,8 +153,10 @@
 /* The board's key, short. */
 .legend-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); line-height: 1.35; }
 .legend-list i { display: inline-block; width: 18px; height: 10px; margin-right: 8px; vertical-align: 1px; border-radius: 2px; }
-.lg-road { border-top: 2px dashed var(--c-foe); border-radius: 0 !important; height: 0 !important; vertical-align: 4px !important; }
+/* A road's chevron, as the board draws it (board.js drawRoads): the foes' red, faint, pointing on down the road. */
+.lg-road { width: 8px !important; height: 8px !important; border-top: 3px solid color-mix(in srgb, var(--c-foe) 70%, transparent); border-right: 3px solid color-mix(in srgb, var(--c-foe) 70%, transparent); border-radius: 0 !important; transform: rotate(45deg); margin: 0 12px 0 3px !important; vertical-align: 1px !important; }
 .lg-cover { background: color-mix(in srgb, var(--c-plan) 45%, transparent); border: 1px solid var(--c-plan); }
+.lg-stop { border-top: 3px solid var(--c-plan); border-radius: 0 !important; height: 0 !important; width: 12px !important; margin: 0 11px 0 3px !important; vertical-align: 3px !important; }
 .lg-seat { background: var(--c-monarch); border-radius: 50% !important; width: 12px !important; height: 12px !important; margin: 0 11px 0 3px !important; }
 .lg-dom { border: 1.5px solid var(--c-domain); }
 

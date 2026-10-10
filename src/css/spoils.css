@@ -1,6 +1,6 @@
 /* spoils: the reap screen's cards (picked the Slay the Spire way), the title's four steps and the end
    screen's sting. Owned by titleScreen, reapScreen, endScreen and deathPanel in ui.js. Each card wears its
-   system's colour as --f: a recruit essence, a relic its tier's (--rt: common to legendary), a path tier the path's cyan. */
+   system's colour as --f: a recruit essence, a relic its tier's (--rt: common to legendary), a tier the tracks' cyan. */
 
 /* ── reap: the frame ──────────────────────────────────────────────────────────────────────────── */
 /* Fitted to the frame (.screen.fit): the head, the cards in the middle (the one part that may scroll, rows of
@@ -162,8 +162,8 @@ button.reap-step.done { opacity: .5; cursor: default; }
 .reap-screen .offers .offer.refuse { animation: refuse .36s ease-in-out, refuse-edge .6s ease-out; }
 
 /* ── reap: the retinue, at the foot ───────────────────────────────────────────────────────────── */
-/* One line: its count. Full on the Recruit step, a press on it opens the souls (as the map lists them, each
-   with Release) in a panel over the cards, up from the foot; the foot and its actions stay where they are. */
+/* One line: its count. Full on the Recruit step, a press on it opens the souls (a row each, as the end screen lists
+   them, with Release) in a panel over the cards, up from the foot; the foot and its actions stay where they are. */
 .ret-line { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); color: var(--dim); font-size: var(--fs-md); white-space: nowrap; cursor: help; }
 .ret-line .ico { color: var(--c-essence); }
 .ret-line b { color: var(--text); }
@@ -293,7 +293,9 @@ button.ret-toggle {
 .end-screen .end-seed { margin: 4px 0 0; font-size: var(--fs-sm); }
 
 /* ── end: what felled the Monarch, on the battle's own board ──────────────────────────────────── */
-.end-screen .death { display: flex; align-items: flex-start; flex-wrap: nowrap; gap: 18px 20px; text-align: left; }
+/* Side by side where the panel has room; on a narrow one (a 4:3 screen) the board goes under the words rather than
+   squeeze them to a word a line. */
+.end-screen .death { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 18px 20px; text-align: left; }
 .end-screen .death-text { flex: 1 1 200px; min-width: 0; padding-top: 2px; }
 .end-screen .death-board { flex: none; margin: 0; cursor: help; }
 /* The crypt floor the battle stands on, a cell per tile; their ground and your camp edged as the board's daises. */

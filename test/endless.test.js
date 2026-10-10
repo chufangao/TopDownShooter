@@ -1,8 +1,8 @@
 // Slice 8: synergy steps at 2/4/6/8 with a rule at the top, and the endless floors past the Sovereign.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, stepBattle, runBattle, enterBattle, rulesOf } from '../src/sim/battle.js'
-import { makeUnit, slotAt, tileAt, tileX, tileY, DEPTH, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
+import { stepBattle, runBattle, enterBattle, rulesOf } from '../src/sim/battle.js'
+import { makeUnit, tileAt, tileX, tileY, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
 import { SYNERGIES, KIN, ROLES, UNITS, CAMP_LIST, abilityDef } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE, BOARD_14, grant } from './tuned.js'
@@ -13,45 +13,22 @@ import {
 import { autoplay, policy, LEVELS } from '../src/sim/autoplay.js'
 import { generateFloor, RANKS } from '../src/sim/map.js'
 import { createRng } from '../src/sim/rng.js'
+import { on, scene as sceneOf, unit } from './scene.js'
 
 const E = TUNING.spawn.endless
 const F = TUNING.run.floors
 
-// ── helpers (as battle.test.js's) ────────────────────────────────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
-// A unit placed on a board tile directly, for battles built tile by tile.
-const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-
-// A battle of units placed on tiles: the party in its camp (y 0–6), a foe anywhere (it deploys in a spare
-// slot of its formation and is moved there). Nobody but those named in `moving` ever steps. The run holds Arise (a
-// Legendary relic: without it the Monarch raises no one) unless the scene names its own `relics`.
-function scene (units, { moving = [], ...opts } = {}) {
-  const foeRow0 = DEPTH - 3
-  const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
-  const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
-    : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
-  const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', relics: ['arise'], ...opts })
-  for (const u of b.units) {
-    const want = units.find((x) => x.uid === u.uid)?.tile
-    if (want === undefined) continue
-    if (u.tile !== want) {
-      const layer = u.flies ? b.sky : b.at
-      layer[u.tile] = null
-      u.tile = want
-      layer[want] = u
-    }
-    if (!moving.includes(u.uid)) u.nextStep = Infinity
-  }
-  return b
-}
+// A battle of units placed on tiles (scene.js scene). The run holds Arise (a Legendary relic: without it the Monarch
+// raises no one) unless the scene names its own `relics`.
+const scene = (units, opts) => sceneOf(units, { relics: ['arise'], ...opts })
 
 // `n` party units of `ids` (cycled) on the tiles of `tiles` (cycled from the first), uids from `uid`.
 const squad = (ids, tiles, uid = 1) => tiles.map(([x, y], i) => on(ids[i % ids.length], uid + i, 'party', x, y))
 // Eight tiles: the front row of the camp's back half and one more behind its middle, or any row `y`.
 const eight = (y) => [...Array(7).keys()].map((x) => [x, y]).concat([[3, y - 1]])
 const seven = (y) => eight(y).slice(0, 7)
-const unit = (b, uid) => b.units.find((u) => u.uid === uid)
 const set = (b, uid, hp) => { unit(b, uid).hp = hp }
 // Steps until `done(b)` or the battle ends (or `max` ticks).
 function until (b, done, max = 3000) {
@@ -143,7 +120,7 @@ test('Undead 8: every foe slain rises at once as a shadow of yours, past Arise\'
     assert.deepEqual([b.events[i - 1].type, b.events[i - 1].rule, b.events[i - 1].target, b.events[i - 1].actor], ['rule', 'legion', e.corpse, e.actor])
     assert.equal(unit(b, e.actor).side, 'party')
   }
-  assert.equal(b.raised, 0, 'Arise\'s count is untouched (a tier-3 golem rose at Will 0)')
+  assert.equal(b.raised, 0, 'Arise\'s count is untouched (a tier-3 golem rose with one copy)')
   // Seven undead: no Legion; only Arise raises, once.
   const c = fight(squad(['grave_ghoul'], seven(5)))
   assert.equal(rules(c, 'legion').length, 0)
@@ -303,7 +280,8 @@ test('Drake 8: every single-target attack of yours strikes its target and every 
 test('Vanguard 8: a single-target blow at a non-Vanguard of yours falls on a Vanguard beside it: the Monarch is guarded', () => {
   const play = (n) => {
     const line = squad(['tomb_knight', 'grave_ghoul', 'iron_golem'], eight(1).slice(0, n - 1))
-    const b = scene([...line, on('tomb_knight', 8, 'party', 2, 5), on('monarch', MONARCH_UID, 'party', 3, 6), on('will_o_wisp', 101, 'foe', 3, 9)])
+    // A Wisp (a Flank kind) halts beside the Monarch and shoots it.
+    const b = scene([...line, on('tomb_knight', 8, 'party', 2, 5), on('monarch', MONARCH_UID, 'party', 3, 6), on('will_o_wisp', 101, 'foe', 3, 7)])
     until(b, () => b.events.some((e) => e.type === 'action' && e.actor === 101))
     return b
   }
@@ -470,7 +448,8 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
     const i = b.events.indexOf(mine[0])
     assert.deepEqual([b.events[i - 1].type, b.events[i - 1].target, b.events[i - 1].hp], ['damage', 104, 1])
   }
-  // Frenzy (their Insect 8): a foe that slays one of yours has its gauge filled.
+  // Frenzy (their Insect 8): a foe that slays one of yours has its gauge filled: once for each page slain (at 1 HP, a
+  // blow slays it; a page no foe can strike back at, nothing in its way and never striking, outlives the rest).
   {
     const b = scene([...foeSquad(['mantis_reaper', 'hive_warden'], theirEight(7)), ...[0, 2, 4, 6].map((x, i) => on('clockwork_page', 1 + i, 'party', x, 6))])
     for (let uid = 1; uid <= 4; uid++) set(b, uid, 1)
@@ -484,11 +463,13 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
         frenzies++
       }
     }
-    assert.equal(frenzies, 4)
+    assert.ok(frenzies > 0)
+    assert.equal(frenzies, [1, 2, 3, 4].filter((uid) => !alive(unit(b, uid))).length)
   }
-  // Dragonfire (their Drake 8): a foe's single-target attack bursts on yours next to its target.
+  // Dragonfire (their Drake 8): a foe's single-target attack bursts on yours next to its target (the Sprite halted in
+  // the pages' rings).
   {
-    const b = scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(9)), on('frost_sprite', 120, 'foe', 3, 7), ...[2, 3, 4].map((x, i) => on('clockwork_page', 1 + i, 'party', x, 5))])
+    const b = scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(9)), on('frost_sprite', 120, 'foe', 3, 6), ...[2, 3, 4].map((x, i) => on('clockwork_page', 1 + i, 'party', x, 5))])
     until(b, () => b.events.some((e) => e.type === 'action' && e.actor === 120))
     const burst = b.events.find((e) => e.type === 'action' && e.actor === 120)
     assert.equal(burst.ability, 'frost_lance')
@@ -504,9 +485,10 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
     assert.deepEqual([b.events[i - 1].type, b.events[i - 1].rule, b.events[i - 1].side, b.events[i - 1].actor, b.events[i - 1].target], ['rule', 'bodyguard', 'foe', 108, 120])
     assert.deepEqual(b.events[i].targets, [108])
   }
-  // Deadeye (their Ranger 8): their ranged blows never miss and always crit.
+  // Deadeye (their Ranger 8): their ranged blows never miss and always crit (the foes halted in the rings of yours, or
+  // behind a comrade).
   {
-    const b = scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(8)), ...[[1, 5], [3, 5], [5, 5], [2, 4], [4, 4]].map(([x, y], i) => on(i < 3 ? 'clockwork_page' : 'tomb_knight', 1 + i, 'party', x, y))])
+    const b = scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(7)), ...[[1, 6], [3, 6], [5, 6], [2, 5], [4, 5]].map(([x, y], i) => on(i < 3 ? 'clockwork_page' : 'tomb_knight', 1 + i, 'party', x, y))])
     until(b, () => false, 600)
     const sure = outcomes(b.events).filter((o) => o.action.actor > 100 && !abilityDef(o.action.ability).melee).flatMap((o) => o.outcomes)
     assert.ok(sure.length > 3, `${sure.length} ranged outcomes`)
@@ -521,18 +503,20 @@ test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, B
     const late = enterBattle(b, { ...makeUnit('grave_ghoul', { uid: 150, lvl: 3 }), side: 'foe', tile: tileAt(3, 7) })
     assert.equal(late.gauge, late.costliest)
   }
-  // Echo (their Channeler 8): their abilities ring out twice.
+  // Echo (their Channeler 8): their abilities ring out twice (the Chanters beside the knight halted in its ring, the
+  // Wisp behind one of them halted by it: a Flank kind heeds no ring).
   {
-    const b = scene([...foeSquad(['will_o_wisp', 'bone_chanter'], theirEight(8)), on('tomb_knight', 1, 'party', 3, 5, 20)])
+    const b = scene([...foeSquad(['bone_chanter', 'will_o_wisp'], theirEight(7)), on('tomb_knight', 1, 'party', 3, 6, 20)])
     until(b, () => false, 500)
     const echoes = rules(b, 'echo')
     assert.ok(echoes.length >= 3 && echoes.every((e) => e.side === 'foe' && unit(b, e.actor).side === 'foe'))
     const fire = outcomes(b.events).find((o) => o.action.ability === 'witchfire' && o.action.targets[0] === 1)
     assert.equal(fire.outcomes.filter((x) => x.target === 1).length, 2)
   }
-  // Sanctuary (their Warden 8): a foe's ally ability touches every foe on the board.
+  // Sanctuary (their Warden 8): a foe's ally ability touches every foe on the board (cast by those halted in a page's
+  // ring).
   {
-    const b = scene([...foeSquad(['hive_warden', 'thorn_dryad'], theirEight(9)), on('clockwork_page', 120, 'foe', 3, 7), on('clockwork_page', 1, 'party', 3, 0)])
+    const b = scene([...foeSquad(['hive_warden', 'thorn_dryad'], theirEight(7)), on('clockwork_page', 120, 'foe', 0, 9), on('clockwork_page', 1, 'party', 3, 6)])
     set(b, 120, 10)
     until(b, () => b.events.some((e) => e.type === 'action' && e.ability === 'mend'))
     const mend = b.events.find((e) => e.type === 'action' && e.ability === 'mend')
@@ -566,7 +550,7 @@ test('their Deathblow slays one of yours outright on a crit, but never the Monar
 test('Last Stand under Undying comes before the rise', () => {
   const constructs = [[0, 1], [1, 1], [2, 1], [4, 1], [5, 1]].map(([x, y], i) => on('clockwork_page', 20 + i, 'party', x, y))
   const u = scene([on('iron_golem', 1, 'party', 3, 4), ...constructs, on('clockwork_page', 26, 'party', 6, 1), on('clockwork_page', 27, 'party', 6, 0),
-    on('will_o_wisp', 101, 'foe', 3, 8, 20)], { relics: ['arise', 'undying'] })
+    on('frost_sprite', 101, 'foe', 3, 5, 20)], { relics: ['arise', 'undying'] })
   assert.ok(rulesOf(u, 'party').has('last_stand'))
   const golem = unit(u, 1)
   golem.hp = 1

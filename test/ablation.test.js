@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createRun, apply, availableNodes, battleSetup, join, souls, fielded, replay, offerGroup, levelOf, monarchHp, monarchOf, commandOf
+  createRun, apply, battleSetup, join, souls, fielded, replay, offerGroup, levelOf, monarchHp, monarchOf, commandOf
 } from '../src/sim/run.js'
 import { createBattle, runBattle, timelineHash } from '../src/sim/battle.js'
 import { createRng } from '../src/sim/rng.js'
@@ -16,6 +16,7 @@ import {
 import { unitDef, RELICS, TRACKS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned } from './tuned.js'
+import { visit } from './rooms.js'
 
 const without = (ablate) => ({ ...LEVELS.expert, ablate })
 
@@ -24,14 +25,6 @@ function hold (run, kind, tracks, lvl = levelOf({ tracks })) {
   run.state.kinds[kind] = { lvl, tracks }
   for (const u of souls(run.state.party)) if (u.id === kind) Object.assign(u, { tracks: tracks.slice(), lvl })
   return run.state.party.find((u) => u.id === kind)
-}
-
-function visit (run, type) {
-  const node = availableNodes(run)[0]
-  node.type = type
-  if (['fight', 'elite', 'boss'].includes(type)) node.foes ??= run.state.map.nodes.find((n) => n.foes).foes
-  apply(run, { type: 'node', id: node.id })
-  return node
 }
 
 // Plays `level` from a fresh run of `seed` until `fights` fights are fought (or the run ends).
@@ -102,7 +95,7 @@ test('ablation: the names, the rules switches carried by the run and its replay,
   assert.equal(timelineHash(again.battle.events), timelineHash(played.battle.events))
 })
 
-test('the arise switch: the party Monarch raises no one; the synergies switch: the party holds no synergy, the foes keep theirs', () => tuned({ monarch: { domain: 11 } }, () => {
+test('the arise switch: the party Monarch raises no one; the synergies switch: the party holds no synergy, the foes keep theirs', () => tuned({ arise: { domain: 11 } }, () => {
   let raised = 0
   let held = 0
   // Each refought holding Arise, with a domain over the whole camp, so that the corpses fall in its reach.
@@ -299,7 +292,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   const snaps = []
   const run = createRun({ seed: 'nec-0' })
   // A retinue with everything to strip: a tier that adds a body, tiers (a Colossus among them), a fused piece, two
-  // copies of Arise (Will 1) and another Legendary, relics (the Monarch's HP and Command among them).
+  // copies of Arise and another Legendary, relics (the Monarch's HP and Command among them).
   const s = run.state
   s.essence = 0
   const rng = createRng('nec-0').stream('autoplay')
@@ -328,8 +321,8 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
     const b = createBattle(x)
     return x.party.reduce((n, u) => n + (b.byUid.get(u.uid)?.count ?? u.count) - u.count, 0)
   }
-  assert.ok(raised(full) > 0 && full.will === 1 && full.relics.length === 6)
-  assert.deepEqual([full.domain, full.party.find((u) => u.uid === 0).maxHp], [TUNING.monarch.domain + 1 + RELICS.court_of_bone.domain, monarchHp(s)])
+  assert.ok(raised(full) > 0 && full.relics.filter((id) => id === 'arise').length === 2 && full.relics.length === 6)
+  assert.deepEqual([full.domain, full.party.find((u) => u.uid === 0).maxHp], [TUNING.arise.domain + TUNING.arise.more.domain + RELICS.court_of_bone.domain, monarchHp(s)])
   // Fusions: the Pale Court back in its three Wisps, a piece of them, wounded as it was; no fused piece fights.
   const unfused = stripped(snaps[0].snapshot, 'fusions').state
   assert.ok(!souls(unfused.party).some((u) => unitDef(u.id).fused))
@@ -342,7 +335,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   assert.ok(setup('tracks').party.filter((u) => u.uid !== 0).every((u) => u.lvl === TUNING.level.base), 'and so no level past the first')
   const colossus = (x) => createBattle(x).units.some((u) => u.side === 'party' && u.id === 'tomb_knight' && u.size === 2)
   assert.ok(colossus(full) && !colossus(setup('tracks')), 'Barrow Wall makes the Knight 2×2; without tiers it is not')
-  assert.deepEqual([setup('legendaries').relics, setup('legendaries').domain], [['bone_idol', 'grave_banner', 'bone_mantle'], TUNING.monarch.domain])
+  assert.deepEqual([setup('legendaries').relics, setup('legendaries').domain], [['bone_idol', 'grave_banner', 'bone_mantle'], TUNING.arise.domain])
   // The relics stripped: the Monarch at its base HP (its wounds a share), the field at its base Command.
   const bare = setup('relics')
   assert.deepEqual([bare.relics, bare.partyMods, bare.party.find((u) => u.uid === 0).maxHp], [['arise', 'arise', 'court_of_bone'], [], TUNING.monarch.hp])

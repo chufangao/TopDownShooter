@@ -5,9 +5,9 @@ import { TUNING } from '../tuning.js'
 import { unitDef, statusDef, abilityDef, relicDef, TRIGGERS } from '../content.js'
 import { createRng, hashString } from './rng.js'
 import {
-  alive, livingOn, statsOf, activeSynergies, expand, enemySide, isAllyShape, deployTile, distance, steps, NEIGHBOURS, rangeOf, TILES,
+  alive, livingOn, statsOf, activeSynergies, expand, enemySide, isAllyShape, isBlow, deployTile, distance, steps, NEIGHBOURS, rangeOf, TILES,
   tileX, tileY, tileAt, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, slotAt, ROWS, CENTRE_OUT, LANES, DEPTH, bodiesOf,
-  livingBodies, ringOf, strideOf, behaviourOf, sizeOf, footprint, unitDistance, distanceBetween
+  livingBodies, ringOf, strideOf, behaviourOf, sizeOf, footprint, unitDistance, distanceBetween, holdOf, armOf
 } from './unit.js'
 
 // ── battle loop ──────────────────────────────────────────────────────────────────────────────────
@@ -19,16 +19,21 @@ import {
 // last foe to enter (see checkEnd).
 //
 // The Monarch (a party unit whose def is `monarch`) stands on its seat in the party's camp: the roads run to it
-// (fieldOf). Its domain reaches `domain` tiles from it; `will` is Arise's Will (run.js ariseOf: a point a copy of
-// Arise past the first; while the run holds the relic, Arise raises corpses of tier up to raiseTier + will, raises ×
-// (copies + will) a battle, and the Monarch's gauge fills willHaste × will faster: ariseCap, ariseTier). Units created
-// mid-battle (shadows) take uids from `nextUid` on (by default, past every uid here, the reserve's
-// included); battle.nextUid is the first one still free when the battle ends. A battle with no Monarch (a test,
-// a sample) has no domain, its roads run to the camp's rear middle tile, and it ends on a wipe.
+// (fieldOf). Its domain, Arise's reach, is `domain` tiles from it (the run's: run.js domainOf); the rest of Arise's
+// numbers the battle reads from the copies of the relic it holds (`relics`: ariseCap, ariseTier, ariseHaste): while
+// the run holds it, Arise raises corpses up to a tier, up to a number a battle, and with a copy past the first the
+// Monarch's gauge fills faster. Units created mid-battle (shadows) take uids from `nextUid` on (by default, past
+// every uid here, the reserve's included); battle.nextUid is the first one still free when the battle ends. A battle
+// with no Monarch (a test, a sample) has no domain, its roads run to the camp's rear middle tile, and it ends on a
+// wipe.
 //
-// Your pieces never move (DESIGN §2.3): each fights from the tile it was given, all battle, whatever is in its
-// ring, and otherwise waits. Only the foes step: along the roads, or straight at the Monarch over everything if
-// they fly (see stepOf).
+// Your pieces never move (DESIGN §2.3): each fights from the tile it was given, all battle, whatever its blows
+// reach in its ring (a melee one its kind's arm: reachOf), and otherwise waits. Only the foes step: along the roads,
+// or straight at the Monarch over everything if they fly (see stepOf). A foe walks, doing nothing else, until it
+// halts where it can hit back: in the sight of a piece of yours (as far as its blows that need no condition reach:
+// unit.js holdOf) with something of yours its blows reach (a Flank kind once they reach the Monarch), or with its way
+// held; and only fights once halted, its melee reaching no further than what blocks it, the Monarch, and a piece
+// beside it that struck it (DESIGN §2.4; see chooseAction, wayOf, closeIn).
 //
 // Stacks and footprints (DESIGN §2.2): a unit is a piece, `count` bodies of one kind on a footprint, its HP one
 // pool of count × `body` (one body's HP, fitted as it takes its place: see fit). Its living bodies are ⌈hp ÷
@@ -62,7 +67,7 @@ import {
 // result is settled (see settled), with the units as they stand then: reason 'settled'.
 export function createBattle ({
   party, foes, seed, floor = 1, boss = false, partyMods = [], foeMods = [], walls = [], ceiling = TUNING.tick.ceiling,
-  domain = TUNING.monarch.domain, will = 0, nextUid = null, reserve = [],
+  domain = TUNING.arise.domain, nextUid = null, reserve = [],
   relics = [], foeRules = true, ablate = [], quiet = false, settle = null
 }) {
   // A living soul's piece takes the bodies its tiers add, whole (not the Monarch's; none with the `bodies` switch).
@@ -80,7 +85,7 @@ export function createBattle ({
     // monarch: its battle unit, or null; death: what felled it ({ by, uid, ability, from, shape, threat });
     // raised: how many shadows Arise has raised.
     monarch, death: null,
-    domain, will, raised: 0, nextUid: nextUid ?? Math.max(0, ...units.map((u) => u.uid), ...reserve.map((u) => u.uid)) + 1,
+    domain, raised: 0, nextUid: nextUid ?? Math.max(0, ...units.map((u) => u.uid), ...reserve.map((u) => u.uid)) + 1,
     // reserve: the foes still to enter, in order; byUid: every unit that has taken its place, by uid.
     reserve: reserve.map((u) => ({ ...u })), byUid: new Map(),
     // waveAt: the tick each foe wave began to enter (wave 0 stands from the start); crumbled: a boss fell and
@@ -90,8 +95,10 @@ export function createBattle ({
     units: [], events: [], walls: new Set(walls),
     // root: the tile the roads run to (the Monarch's; with none, the camp's rear middle). roads: the Walk field
     // and the Flank field, each made when first read (fieldOf), the Flank field again whenever `ours` (bumped as
-    // a unit of yours enters or falls) has moved on from `at`.
+    // a unit of yours enters or falls) has moved on from `at`. watch: what your pieces' sight holds (watchOf), made
+    // again likewise.
     root: monarch?.tile ?? tileAt(CENTRE_OUT[0], 0), roads: { walk: null, flank: null, at: -1 }, ours: 0,
+    watch: { ground: null, air: null, at: -1 },
     partyMods, foeMods,
     rng: createRng(seed).stream('battle'),
     // at: the living unit on the ground on each tile (a 2×2 piece on each of its four), or null; sky: the living
@@ -141,15 +148,17 @@ export function createBattle ({
 const marks = (u) => ({ count: u.count ?? 1, ...(u.wave && { wave: u.wave }), ...(u.size > 1 && { size: u.size }) })
 
 // The per-battle fields a unit fights with: an empty gauge, a step due at once (`nextStep`: a foe's; one of
-// yours never steps), and no statuses.
+// yours never steps), no statuses, no one yet who has aimed a blow at it (`struck`: their uids, a Set made at
+// the first: a foe strikes back at one beside it, closeIn), and on the move (`walking`: whether a foe's last turn
+// walked it, or kept it waiting behind a comrade on the move, which a comrade queued behind it reads: wayOf).
 // Every battle unit is made with the same fields in the same order (UNIT_FIELDS; one it was not given, or that
 // the battle sets later, is there as undefined, which reads as its absence does), so all of them share one
 // shape and the tick loop's reads of them stay fast. A field outside the list is copied on after them.
 const UNIT_FIELDS = new Set([
   'uid', 'id', 'lvl', 'tracks', 'count', 'hp', 'maxHp', 'slot', 'side', 'tile',
   'when', 'wave', 'lane', 'shadow', 'corpse', 'arisen', 'raised', 'foiled', 'rose', 'stood',
-  'gauge', 'nextStep', 'statuses', 'phase', 'ord', 'kit', 'aura', 'cheapest', 'costliest', 'ring', 'air', 'every',
-  'behaviour', 'flies', 'size', 'body'
+  'gauge', 'nextStep', 'statuses', 'phase', 'struck', 'walking', 'ord', 'kit', 'aura', 'cheapest', 'costliest', 'ring', 'arm',
+  'every', 'behaviour', 'flies', 'size', 'body'
 ])
 const fresh = (u, t) => {
   const out = {
@@ -177,6 +186,8 @@ const fresh = (u, t) => {
     nextStep: t,
     statuses: [],
     phase: 0,
+    struck: null,
+    walking: true,
     // set as it takes its place (occupy)
     ord: undefined,
     kit: undefined,
@@ -184,7 +195,7 @@ const fresh = (u, t) => {
     cheapest: undefined,
     costliest: undefined,
     ring: undefined,
-    air: undefined,
+    arm: undefined,
     every: undefined,
     behaviour: undefined,
     flies: undefined,
@@ -197,10 +208,9 @@ const fresh = (u, t) => {
 }
 
 // A unit takes its place in the battle: on the board's index (on every tile of its footprint; a flyer's in the air,
-// battle.sky, anyone else's on the ground, battle.at), in the order it
-// acts (after everyone already there), with what its kit makes fixed for the battle: its abilities in priority
-// order, its aura, its cheapest and costliest ability, its ring, how far it can strike a flyer (`air`: its
-// longest ranged blow's reach, −1 with none: a melee blow never strikes one), how often it may step (`every`
+// battle.sky, anyone else's on the ground, battle.at), in the order it acts (after everyone already there), with
+// what its kit makes fixed for the battle: its abilities in priority order, its aura, its cheapest and costliest
+// ability, its ring, its arm (unit.js armOf: how far a melee blow of yours reaches), how often it may step (`every`
 // ticks: a foe's, by its stride; never, for one of yours: your pieces never move, DESIGN §2.3), how it walks the
 // roads as a foe, whether it flies, and its size (a piece of yours its kind's and tiers', a foe piece always 1).
 // A flyer may hover over a wall; nothing else stands on one. Two flyers never share a tile, nor two on the ground.
@@ -219,7 +229,7 @@ function occupy (battle, u) {
   u.cheapest = cheapestOf(u)
   u.costliest = costliestOf(u)
   u.ring = ringOf(u)
-  u.air = Math.max(-1, ...u.kit.filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse' && !a.melee).map((a) => reachOf(u, a)))
+  u.arm = armOf(u)
   u.every = u.side === 'foe' ? Math.max(1, Math.round(TUNING.board.stepTicks / strideOf(u))) : Infinity
   if (u.every === Infinity) u.nextStep = Infinity
   u.behaviour = behaviourOf(u)
@@ -232,15 +242,15 @@ function occupy (battle, u) {
 }
 
 // One body's HP includes the unit's HP mods (synergies, relics, track tiers), and a shadow's bodies rise at
-// TUNING.monarch.raiseHp of it; max HP is count × body, and current HP keeps its fraction. Read once, as it takes
-// its place: HP mods that come and go mid-battle do not stretch the bar. The Monarch's max HP is the run's (its base and its HP relics) and
-// nothing else's (see modsFor): the one the camp shows.
+// TUNING.arise.hp of it; max HP is count × body, and current HP keeps its fraction. Read once, as it takes
+// its place: HP mods that come and go mid-battle do not stretch the bar. The Monarch's max HP is the run's (its
+// base and its HP relics) and nothing else's (see modsFor): the one the camp shows.
 function fit (battle, u) {
   if (u === battle.monarch) {
     u.body = u.maxHp
     return
   }
-  u.body = Math.max(1, Math.round(stats(battle, u).hp * (u.shadow ? TUNING.monarch.raiseHp : 1)))
+  u.body = Math.max(1, Math.round(stats(battle, u).hp * (u.shadow ? TUNING.arise.hp : 1)))
   const max = u.count * u.body
   if (max === u.maxHp) return
   u.hp = Math.max(1, Math.round(u.hp * max / u.maxHp))
@@ -336,7 +346,7 @@ function settled (battle) {
   const m = battle.monarch
   if (!m || probes.length <= window / every) return
   if (!battle.units.some((u) => u.side === 'party' && alive(u) && u !== m) &&
-    (battle.ablate.has('arise') || battle.raised >= ariseCap(battle.will, battle.held))) return settle(battle, 'foe')
+    (battle.ablate.has('arise') || battle.raised >= ariseCap(battle.held))) return settle(battle, 'foe')
   if (!winning(battle)) {
     battle.won = null
     return
@@ -386,6 +396,9 @@ function act (battle, u) {
   u.gauge -= cost
   if (guard) emit(battle, { type: 'rule', rule: 'bodyguard', side: guard.side, actor: guard.uid, target: guard.for })
   emit(battle, { type: 'action', actor: u.uid, ability: ability.id, anim: ability.anim, targets: targets.map((x) => x.uid) })
+  // A blow is aimed at each of the other side it targets, hit or miss, and each remembers who aimed it: a foe strikes
+  // back at a piece beside it that struck it (closeIn).
+  if (isBlow(ability)) for (const x of targets) if (x.side !== u.side) (x.struck ??= new Set()).add(u.uid)
   for (const effect of ability.effects) runEffect(battle, effect, u, targets, ability)
   // Echo (Channeler 8): the ability rings out once more, free, on the same targets (those still standing);
   // Arise never echoes.
@@ -554,15 +567,16 @@ function enter (battle, body) {
   })
 }
 
-// Where a foe enters: the open tile nearest the top edge in its `lane` (the middle one by default), in the air for a
-// flyer (over anyone on the ground, or a wall), ties going to tiles ahead of it (down the board), then level with it,
-// then the nearest lane, then the lower tile; −1 if the board is full.
+// Where a foe enters: the open tile of the foes' rows nearest the top edge in its `lane` (the middle one by default),
+// in the air for a flyer (over anyone on the ground, or a wall), ties going to tiles ahead of it (down the board),
+// then level with it, then the nearest lane, then the lower tile; −1 while the foes' rows are full (it waits in the
+// reserve: foes come from the top edge, never out of the gap row or your camp, past the pieces you placed).
 function entryTile (battle, lane = CENTRE_OUT[0], flies = false) {
   const from = deployTile('foe', slotAt(ROWS - 1, lane))
   const layer = flies ? battle.sky : battle.at
   let best = -1
   let bestK = Infinity
-  for (let t = 0; t < TILES; t++) {
+  for (let t = tileAt(0, DEPTH - ROWS); t < TILES; t++) {
     if (layer[t] !== null || (!flies && battle.walls.has(t))) continue
     const dy = tileY(from) - tileY(t)
     const k = distance(t, from) * 1e4 + (dy > 0 ? 0 : dy === 0 ? 1 : 2) * 1e3 + Math.abs(tileX(t) - tileX(from)) * 100 + t / TILES
@@ -651,32 +665,50 @@ export const auraGivers = (battle, u) => battle.auraReach
   ? around(battle, u.tile, battle.auraReach, u.side, u.size).filter((a) => a !== u && a.aura && unitDistance(a, u) <= a.aura.range)
   : []
 
-// How far a unit's ability reaches a foe (DESIGN §2.3): its ring, or a blow's range where that is shorter. A melee
-// blow with no range of its own reaches the whole ring (a ring-2 melee piece strikes two tiles off, never stepping).
-const reachOf = (u, ability) => Math.min(ability.range ?? Infinity, u.ring)
+// How far a unit's blow reaches a foe (DESIGN §2.3), never past its ring: a ranged blow its range (with none, the ring);
+// a melee blow of yours its own range where it has one, else its kind's arm (u.arm: 1, or 2 for a long arm, which
+// strikes two tiles off, never stepping; a tier that widens the ring lengthens no arm); a foe's melee never past 1, and
+// only what closeIn lets it (DESIGN §2.4).
+const reachOf = (u, ability) => Math.min(u.ring, !ability.melee ? ability.range ?? Infinity : u.side === 'foe' ? 1 : ability.range ?? u.arm)
 
 // Candidate primary targets for an ability: Arise's corpses; an ally ability's allies within its range (all of
-// them, with none); a blow's foes within its reach (reachOf), a flyer only for a ranged blow (DESIGN §2.4).
+// them, with none); a blow's foes within its reach (reachOf), a flyer only for a ranged blow (DESIGN §2.4); a foe's
+// melee blow only what closeIn lets it strike.
 function reachableOn (battle, actor, ability) {
   if (ability.shape === 'corpse') return corpses(battle, actor)
   if (ability.shape === 'self' || isAllyShape(ability.shape)) return reachableIn(battle, actor, ability)
   const r = reachOf(actor, ability)
-  const air = ability.melee ? -1 : r
   if (preyed(battle, actor)) return preyOf(battle, actor, r)
-  return around(battle, actor.tile, r, enemySide(actor.side), actor.size, air)
+  if (actor.side === 'foe' && ability.melee) return closeIn(battle, actor)
+  return around(battle, actor.tile, r, enemySide(actor.side), actor.size, ability.melee ? -1 : r)
+}
+
+// What a foe's melee blow may strike (DESIGN §2.4: a foe has no melee reach): of your pieces on the ground beside it,
+// in acting order, the one in its way (on its next road tile), the Monarch, and any that has aimed a blow at it this
+// battle (u.struck), which it strikes back at for as long as both stand beside each other. Never a flyer.
+function closeIn (battle, u) {
+  const block = u.flies ? null : inWay(battle, u)
+  const out = around(battle, u.tile, 1, enemySide(u.side), u.size, -1)
+  return out.filter((x) => x === block || x === battle.monarch || u.struck?.has(x.uid))
+}
+
+// Whoever stands on the ground on a foe's next road tile (arrowOf), its side's or the other's, or null: the one in
+// its way. (A flyer keeps no road: its callers ask this of walkers alone.)
+function inWay (battle, u) {
+  const next = arrowOf(battle, u)
+  return next >= 0 ? battle.at[next] : null
 }
 
 // A Flank kind on a road round your pieces dives (DESIGN §2.4): it goes for the Monarch and fights nothing else
 // but a piece of yours standing on its next road tile; with no road round them it fights as any foe does.
 const preyed = (battle, u) => u.side === 'foe' && u.behaviour === 'flank' && battle.monarch !== null && fieldOf(battle, true).dist[u.tile] < Infinity
-// What a diver may strike within `r` tiles: the Monarch, and the piece in its way (on the ground on its next road
-// tile: a flyer over it is in no one's way).
+// What a diver may strike within `r` tiles: the Monarch, and the piece in its way (inWay: a flyer over its next road
+// tile is in no one's way).
 function preyOf (battle, u, r) {
   const out = []
   const m = battle.monarch
   if (alive(m) && unitDistance(m, u) <= r) out.push(m)
-  const next = arrowOf(battle, u)
-  const block = next >= 0 ? battle.at[next] : null
+  const block = inWay(battle, u)
   if (block && block.side !== u.side && block !== m && unitDistance(block, u) <= r) out.push(block)
   return out
 }
@@ -691,21 +723,28 @@ function reachableIn (battle, actor, ability) {
   return out
 }
 
-// What Arise may raise: the other side's fallen, not raised yet, never a boss, of tier up to raiseTier + Will,
-// lying within the domain (DESIGN §2.5: `domain` tiles of the Monarch); a foe's raise only where no one living holds
-// the corpse's tile in its layer (the ground, or the air for a flyer's); and only while the battle's raises last. A shadow is never a corpse to raise: it fights on the actor's side.
-// Blood Tithe grows the raises (battle.held.raises), and the Monarch never pays a tithe that would fell it.
-// Arise's cap a battle: TUNING.monarch.raises a copy of the Arise relic and a point of its Will (`arise`: the copies,
-// one by default), grown by Blood Tithe's share a copy (`raises`); 0 without the relic, so no shadow rises. And the
-// highest tier it raises.
-export const ariseCap = (will, { arise = 1, raises = 0 } = {}) => (arise > 0 ? TUNING.monarch.raises * (arise + will) * (1 + raises) : 0)
-export const ariseTier = (will) => TUNING.monarch.raiseTier + will
+// Arise's numbers are the relic's own, for the copies held (`held`: relicRules, `arise` the copies, `raises` Blood
+// Tithe's share): TUNING.arise's for one copy, and TUNING.arise.more's more for each copy past the first. Its cap a
+// battle, grown by Blood Tithe's share a copy (0 without the relic, so no shadow rises); the highest tier it raises;
+// and how much faster the Monarch's gauge fills (modsFor). Its reach is the run's (run.js domainOf), as `domain`.
+const arisePast = (held) => Math.max(0, (held?.arise ?? 0) - 1)
+export const ariseCap = (held = {}) => (held.arise > 0 ? (TUNING.arise.raises + TUNING.arise.more.raises * arisePast(held)) * (1 + (held.raises ?? 0)) : 0)
+export const ariseTier = (held = {}) => TUNING.arise.tier + TUNING.arise.more.tier * arisePast(held)
+export const ariseHaste = (held = {}) => TUNING.arise.more.haste * arisePast(held)
 
+// What Arise may raise: the other side's fallen, not raised yet, never a shadow (it fights on the actor's side) nor a
+// boss, of tier up to Arise's (ariseTier), lying within the domain (DESIGN §2.5: `domain` tiles of the Monarch); a
+// foe's raise only where no one living holds the corpse's tile in its layer (the ground, or the air for a flyer's);
+// and only while the battle's raises last (ariseCap, grown by Blood Tithe), the Monarch never paying a tithe that
+// would fell it.
 function corpses (battle, actor) {
   if (actor === battle.monarch && battle.ablate.has('arise')) return []
+  // A boss's fall has won the battle: its crumbled court never rises (crumble), nor does anyone else, though the units
+  // after its slayer still take their turns in the tick it fell.
+  if (battle.crumbled) return []
   // Arise is bounded by its own cap, not the board's: its shadows rise past it (they take no place a body needs).
   // Without the Arise relic its cap is 0: no corpse is Arise's to raise.
-  if (battle.raised >= ariseCap(battle.will, battle.held) || (actor !== battle.monarch && !roomFor(battle, actor.side))) return []
+  if (battle.raised >= ariseCap(battle.held) || (actor !== battle.monarch && !roomFor(battle, actor.side))) return []
   if (actor === battle.monarch && battle.held.tithe && actor.hp <= titheOf(battle, actor)) return []
   // A shadow of yours rises beside the Monarch, whoever stands on its corpse; with no free tile for it in its layer
   // (the air for a flyer's), none rises.
@@ -713,7 +752,7 @@ function corpses (battle, actor) {
   const room = mine && { ground: riseTile(battle, actor.tile) >= 0, air: riseTile(battle, actor.tile, 1, true) >= 0 }
   if (mine && !room.ground && !room.air) return []
   return battle.units.filter((c) => c.side !== actor.side && !alive(c) && !c.raised && !c.shadow &&
-    !unitDef(c.id).boss && unitDef(c.id).tier <= ariseTier(battle.will) &&
+    !unitDef(c.id).boss && unitDef(c.id).tier <= ariseTier(battle.held) &&
     (mine ? (c.flies ? room.air : room.ground) : layerOf(battle, c)[c.tile] === null) && unitDistance(c, actor) <= battle.domain)
 }
 
@@ -807,8 +846,9 @@ function modsFor (battle, unit) {
   if (own) for (const syn of synergiesOf(battle, unit.side)) mods.push(...syn.mods)
   for (const giver of auraGivers(battle, unit)) mods.push(...giver.aura.mods)
   if (own) mods.push(...(unit.side === 'party' ? battle.partyMods : battle.foeMods))
-  // Arise's Will hastens the Monarch's gauge: Arise comes sooner (TUNING.monarch.willHaste a point).
-  if (unit === battle.monarch && battle.will && TUNING.monarch.willHaste) mods.push({ path: 'gauge.rate', op: 'mul', v: 1 + TUNING.monarch.willHaste * battle.will })
+  // Each copy of Arise past the first hastens the Monarch's gauge: Arise comes sooner (TUNING.arise.more.haste a copy).
+  const haste = unit === battle.monarch ? ariseHaste(battle.held) : 0
+  if (haste) mods.push({ path: 'gauge.rate', op: 'mul', v: 1 + haste })
   return mods
 }
 
@@ -1095,15 +1135,14 @@ function crumble (battle, boss) {
 const shadowSize = (corpse, side) => (side === 'party' ? sizeOf({ id: corpse.id }) : 1)
 
 // Arise: the corpse rises on the actor's side as a shadow of itself, at its level with its own kit and its count,
-// each body at TUNING.monarch.raiseHp of its HP (see fit) (DESIGN §2.5). One of yours rises where its footprint is
+// each body at TUNING.arise.hp of its HP (see fit) (DESIGN §2.5). One of yours rises where its footprint is
 // free closest to the Monarch (riseTile; in the air, for a flying kind's), never where it fell: with none free it
 // does not rise (null; its corpse may rise later), and holds there all battle, as every piece of yours does. One on
 // the foes' side rises where it fell, if no one holds that tile in its layer (else null), a foe like any other, and
-// walks the roads or flies. A shadow counts toward
-// synergies and leaves when the battle ends; its corpse cannot rise again. The shadow keeps the uid of the corpse
-// it rose from (`corpse`); the event says where it fell (`from`). The Legion raises on `side` with no actor (null)
-// when no one of that side slew it, its event marked `rule: 'legion'` (`rule`). Arise's cap is counted by the
-// caller (runEffect). Returns the shadow, or null.
+// walks the roads or flies. A shadow counts toward synergies and leaves when the battle ends; its corpse cannot rise
+// again. The shadow keeps the uid of the corpse it rose from (`corpse`); the event says where it fell (`from`). The
+// Legion raises on `side` with no actor (null) when no one of that side slew it, its event marked `rule: 'legion'`
+// (`rule`). Arise's cap is counted by the caller (runEffect). Returns the shadow, or null.
 function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) {
   const tile = side === 'party' ? riseTile(battle, corpse.tile, shadowSize(corpse, side), corpse.flies)
     : layerOf(battle, corpse)[corpse.tile] === null ? corpse.tile : -1
@@ -1203,15 +1242,10 @@ function livingNow (battle, side) {
   return list
 }
 
-// The first ability in def order that passes its condition and has a target in reach, or null. The
-// view a condition reads is only made if one asks (a heal's, under Court of Bone, its own: see view).
-function nextAbility (battle, unit) {
-  const ability = firstAbility(battle, unit)
-  return ability ? { ability, candidates: reachableOn(battle, unit, ability) } : null
-}
-
-// That ability alone, its candidates not listed. Both tests are pure, so the cheap one comes first: whether
-// anything is in reach (no list made), then its condition.
+// The first ability in def order that passes its condition and has a target in reach, or null, its candidates not
+// listed (use lists them). Both tests are pure, so the cheap one comes first: whether anything is in reach (no list
+// made), then its condition. The view a condition reads is only made if one asks (a heal's, under Court of Bone, its
+// own: see view).
 function firstAbility (battle, unit) {
   let s = null
   let m = null
@@ -1224,14 +1258,16 @@ function firstAbility (battle, unit) {
 }
 
 // Whether reachableOn would list anyone: Arise a corpse, a blow a foe within its reach (reachOf; a flyer only for a
-// ranged one), anything else a living unit of the side it aims at within its range.
+// ranged one; a foe's melee blow what closeIn lets it strike), anything else a living unit of the side it aims at
+// within its range.
 function inReach (battle, actor, ability) {
   if (ability.shape === 'corpse') return corpses(battle, actor).length > 0
   if (ability.shape === 'self') return true
   if (!isAllyShape(ability.shape)) {
     const r = reachOf(actor, ability)
-    const air = ability.melee ? -1 : r
-    return preyed(battle, actor) ? preyOf(battle, actor, r).length > 0 : foeWithin(battle, actor.tile, r, actor.side, actor.size, air)
+    if (preyed(battle, actor)) return preyOf(battle, actor, r).length > 0
+    if (actor.side === 'foe' && ability.melee) return closeIn(battle, actor).length > 0
+    return foeWithin(battle, actor.tile, r, actor.side, actor.size, ability.melee ? -1 : r)
   }
   const range = rangeOf(ability)
   for (const u of battle.units) if (u.side === actor.side && u.hp > 0 && unitDistance(actor, u) <= range) return true
@@ -1241,8 +1277,8 @@ function inReach (battle, actor, ability) {
 // Whether an ability heals others while nothing can heal the Monarch (Court of Bone).
 const mends = (battle, ability) => battle.held.unhealable && ability.effects.some((e) => e.op === 'heal' && !e.self)
 
-// The gauge the unit is saving for: its next ability, or with nothing in reach its cheapest.
-export const nextCost = (battle, unit) => nextAbility(battle, unit)?.ability.castCost ?? unit.cheapest
+// The gauge the unit is saving for: its next ability (firstAbility), or with nothing in reach its cheapest.
+export const nextCost = (battle, unit) => firstAbility(battle, unit)?.castCost ?? unit.cheapest
 
 const byHpPct = (a, b) => a.hp / a.maxHp - b.hp / b.maxHp || a.uid - b.uid
 const lowest = (list) => list.slice().sort(byHpPct)[0]
@@ -1250,20 +1286,17 @@ const lowest = (list) => list.slice().sort(byHpPct)[0]
 // Each lane's place in CENTRE_OUT: the centre first.
 const LANE = CENTRE_OUT.reduce((rank, x, i) => { rank[x] = i; return rank }, [])
 
-// Whom a blow is aimed at among `list` (DESIGN §2.3). Yours aim at the foe furthest along its road (the lowest road
-// distance to the Monarch; a flyer's, which keeps no road, its distance to the Monarch), ties by lane, centre
-// first, then the nearest, then the first to act. A foe that walks the roads aims at the piece of yours on the ground
+// Whom a blow is aimed at among `list` (DESIGN §2.3). Yours aim at the foe furthest along its road (roadLeft: the
+// lowest road distance to the Monarch), ties by lane, centre first, then the nearest, then the first to act. A foe that walks the roads aims at the piece of yours on the ground
 // on its next road tile if listed (whatever tile of its footprint that is), else the nearest, ties by lane, then the
 // first to act; a flyer, with no road, at the nearest.
 function pick (battle, u, list) {
   if (list.length <= 1) return list[0] ?? null
   if (u.side === 'foe' && !u.flies) {
-    const next = arrowOf(battle, u)
-    const there = next >= 0 ? battle.at[next] : null
+    const there = inWay(battle, u)
     if (there !== null && list.includes(there)) return there
   }
-  const dist = fieldOf(battle).dist
-  const road = (x) => (x.flies ? distance(x.tile, battle.root) : dist[x.tile])
+  const road = (x) => roadLeft(battle, x)
   let best = list[0]
   for (let i = 1; i < list.length; i++) {
     const x = list[i]
@@ -1272,6 +1305,18 @@ function pick (battle, u, list) {
     if ((u.side === 'party' ? (road(x) - road(best)) || lane || near : near || lane) < 0) best = x
   }
   return best
+}
+
+// How far a foe's road still runs to the Monarch: a flyer's, which keeps no road, its distance to it; a Flank kind's
+// along the Flank field while a road round your pieces reaches it there (as arrowOf walks it); anyone else's along
+// the Walk field.
+function roadLeft (battle, x) {
+  if (x.flies) return distance(x.tile, battle.root)
+  if (x.behaviour === 'flank') {
+    const d = fieldOf(battle, true).dist[x.tile]
+    if (d < Infinity) return d
+  }
+  return fieldOf(battle).dist[x.tile]
 }
 
 function pickTarget (battle, unit, ability, candidates) {
@@ -1289,38 +1334,162 @@ function pickTarget (battle, unit, ability, candidates) {
 }
 
 // The target of a unit's ring: the foe its blows aim at (pick) among those it can strike within its ring of its
-// footprint (a flyer only within `air`), or null with none.
-export const ringTarget = (battle, u) => pick(battle, u, around(battle, u.tile, u.ring, enemySide(u.side), u.size, u.air))
+// footprint (a flyer only within its longest ranged blow's reach: none with only melee blows), or null with none. A
+// foe's ranged blows aim so too; its melee reaches only what closeIn allows.
+export const ringTarget = (battle, u) => pick(battle, u, around(battle, u.tile, u.ring, enemySide(u.side), u.size,
+  Math.max(-1, ...u.kit.filter((a) => isBlow(a) && !a.melee).map((a) => reachOf(u, a)))))
 
 // ── rings and roads ──────────────────────────────────────────────────────────────────────────────
 
-// Each tick a unit does the first of these that applies (DESIGN §2.3–§2.4):
-//   1. with a foe it can strike in its ring (u.ring tiles of its footprint, through walls; a ring holding only
-//      flyers it cannot strike, a melee piece's, reads empty), it fights: the first ability in its list whose
-//      condition holds and that has a target (a blow's within its reach: reachOf) is used, or banked for;
-//   2. a foe whose step is due walks (stepOf): along its road, or a flyer straight at the Monarch;
-//   3. otherwise it uses what it can afford (a heal, a ward, Arise).
-// Your pieces never step (u.every is Infinity): with nothing in its ring a piece of yours banks gauge and casts
-// what it can on its allies. Walking is off the gauge: a foe steps once per TUNING.board.stepTicks ÷ its stride
-// (u.every), whatever its speed, so an arrival time is a distance. The Monarch never strikes; it banks for Arise
-// until a corpse lies in its domain.
+// Each tick (DESIGN §2.3–§2.4):
+//   - a foe takes its way (wayOf): it walks while nothing halts it, doing nothing else, struck or not: it steps when
+//     its step is due (along its road, or a flyer straight at the Monarch), and its gauge fills meanwhile. It halts
+//     only where it can hit back, and fights there; queued behind a comrade still on the move, or stuck with nothing
+//     to strike, it waits, and does nothing. Once nothing halts it any more (the piece fell, the tile cleared, the one
+//     that struck it fell) it walks on;
+//   - anyone else, a halted foe and every piece of yours, uses the first ability in its list whose condition holds
+//     and that has a target (a blow's within its reach: reachOf; a foe's melee only what closeIn allows), or banks
+//     for it; with none, it banks. A halted foe's ally abilities are among them, though they never halt it.
+// Your pieces never step (u.every is Infinity): a piece of yours strikes what its blows reach in its ring, and with
+// nothing there banks gauge and casts what it can on its allies. Walking is off the gauge: a foe steps once per
+// TUNING.board.stepTicks ÷ its stride (u.every), whatever its speed, so an arrival time is a distance. The Monarch
+// never strikes; it banks for Arise until a corpse lies in its domain.
 // → { ability, targets, cost }, a foe's step { to }, or null (banking, waiting, or nothing to do).
 function chooseAction (battle, u) {
-  const due = battle.t >= u.nextStep
-  if (!due && u.gauge < u.cheapest) return null
-  if (ringHolds(battle, u)) {
-    const ability = firstAbility(battle, u)
-    if (ability) return u.gauge < ability.castCost ? null : use(battle, u, ability)
-    if (!due) return null
+  if (u.side === 'foe') {
+    const way = wayOf(battle, u)
+    u.walking = way >= 0 || way === QUEUE
+    if (way !== HALT) return way >= 0 && battle.t >= u.nextStep ? { to: way } : null
   }
-  const to = due ? stepOf(battle, u) : -1
-  if (to >= 0) return { to }
+  if (u.gauge < u.cheapest) return null
   const ability = firstAbility(battle, u)
   return ability && u.gauge >= ability.castCost ? use(battle, u, ability) : null
 }
 
-// Whether a unit's ring holds a foe it can strike (a diver's: the Monarch or the piece in its way).
-const ringHolds = (battle, u) => preyed(battle, u) ? preyOf(battle, u, u.ring).length > 0 : foeWithin(battle, u.tile, u.ring, u.side, u.size, u.air)
+// A foe's way where it stands now (DESIGN §2.4): HALT (it fights), QUEUE or STUCK (it stands and does nothing), or the
+// tile it walks to, as its step comes due. It halts only where it can hit back:
+//   - a Walk or Fly kind in the sight of a piece of yours that can strike it (sighted: as far as the piece's blows
+//     that need no condition reach, never past its ring), once one of its blows has a target there (armed: a ranged
+//     blow a piece of yours within its reach, a melee one what closeIn lets it strike: the piece in its way, the
+//     Monarch beside it, a piece beside it that struck it). A melee walker passing a ring with none of those beside
+//     it walks on; struck by a piece beside it, it halts and strikes back;
+//   - a Flank kind, which heeds none of your rings, once one of its blows reaches the Monarch (reachesMonarch);
+//   - any foe whose way is held (stepOf −1: its next tile held in its layer, or nowhere to go), once it is armed
+//     there: blocked by a piece of yours or the seat, a melee foe fights the blocker; queued behind a comrade that
+//     has stopped (halted, or stuck itself), a ranged one shoots over it. Queued behind a comrade still on the move
+//     (`walking`: its last turn walked it, or queued it behind one on the move), it waits its turn (QUEUE): a moving
+//     queue is no halt. The flag is set each turn and read as it stands, this tick's if the comrade has acted, else
+//     the last tick's: the order the two act in delays a halt a tick at most, and the battle stays a function of its
+//     setup. (A Walk foe and a Flank foe may each hold the other's next tile, their roads being two fields: the pair
+//     stands stuck, never queued on each other for good.) Stuck with nothing to strike (STUCK), it stands too.
+// Ally abilities halt no one (armed reads the blows alone): a foe halted uses them, a walker or a waiter never.
+const HALT = -1
+const STUCK = -2
+const QUEUE = -3
+function wayOf (battle, u) {
+  if (u.behaviour === 'flank' ? reachesMonarch(battle, u) : sighted(battle, u) && armed(battle, u)) return HALT
+  const to = stepOf(battle, u)
+  if (to >= 0) return to
+  const by = blockerOf(battle, u)
+  if (by !== null && by.side === u.side && by.walking && blockerOf(battle, by) !== u) return QUEUE
+  return armed(battle, u) ? HALT : STUCK
+}
+
+// Whether your sight holds foe `u` where it stands (DESIGN §2.4; watchOf): the sight of a piece of yours that can
+// strike it there with a blow that needs no condition (a flyer only within a ranged reach; unit.js holdOf), or the
+// Monarch's ring. (A Flank kind heeds none of them: wayOf.)
+function sighted (battle, u) {
+  const w = watchOf(battle)
+  return (u.flies ? w.air : w.ground)[u.tile] > 0
+}
+
+// Whether a unit has a blow with a target where it stands (DESIGN §2.4: a foe halts only where it can hit back): the
+// test firstAbility makes, its reach (inReach) and its condition, over its blows alone, whatever its gauge.
+const armed = (battle, u) => blowWith(battle, u, (a) => inReach(battle, u, a))
+
+// Whether a blow of foe `u` reaches the Monarch where it stands (DESIGN §2.4 Flank): a ranged one within its reach, a
+// melee one beside it (reachOf); its condition holding, whatever its gauge.
+function reachesMonarch (battle, u) {
+  const m = battle.monarch
+  if (m === null || !alive(m)) return false
+  const d = unitDistance(m, u)
+  return d <= u.ring && blowWith(battle, u, (a) => d <= reachOf(u, a))
+}
+
+// Whether one of `u`'s blows, in kit order, passes `can` with its condition holding, whatever its gauge (the view the
+// condition reads made only if one asks).
+function blowWith (battle, u, can) {
+  let s = null
+  for (const ability of u.kit) {
+    if (!isBlow(ability) || !can(ability)) continue
+    if (ability.when && !ability.when(s ??= view(battle, u))) continue
+    return true
+  }
+  return false
+}
+
+// Who holds a foe's way when it cannot step (stepOf −1): the unit on its next road tile on the ground; for a flyer,
+// the one in the air over the tile it would fly to were the air empty (flyStep's `open`); null where no one stands
+// there (a wall, the roads' end, nowhere nearer to fly).
+function blockerOf (battle, u) {
+  const next = u.flies ? flyStep(battle, u, true) : arrowOf(battle, u)
+  return next >= 0 ? layerOf(battle, u)[next] : null
+}
+
+// What your living units' sight holds, as sight() reckons it from each one's holdOf (the Monarch's ring among them),
+// made when first read and again only once a unit of yours has entered or fallen since (battle.ours): your pieces
+// never move.
+function watchOf (battle) {
+  const w = battle.watch
+  if (w.at !== battle.ours) {
+    const holders = []
+    for (const u of battle.units) if (u.side === 'party' && alive(u)) holders.push({ tile: u.tile, size: u.size, ...holdOf(u) })
+    Object.assign(w, sight(holders), { at: battle.ours })
+  }
+  return w
+}
+
+// What a side's sight holds (DESIGN §2.4), for a battle and the prep board alike: `holders` are footprints ({ tile,
+// size }), each holding the tiles within `ground` of it on the ground and within `air` of it in the air (unit.js
+// holdOf: as far as its blows that need no condition reach; −1: none). → { ground, air }: by tile, how many hold
+// it. Pure.
+export function sight (holders) {
+  const ground = new Array(TILES).fill(0)
+  const air = new Array(TILES).fill(0)
+  for (const { tile, size = 1, ground: g, air: a } of holders) {
+    for (const [list, r] of [[ground, g], [air, a]]) {
+      if (!(r >= 0)) continue
+      const x0 = tileX(tile)
+      const y0 = tileY(tile)
+      for (let y = Math.max(0, y0 - r); y <= Math.min(DEPTH - 1, y0 + size - 1 + r); y++) {
+        for (let x = Math.max(0, x0 - r); x <= Math.min(LANES - 1, x0 + size - 1 + r); x++) list[y * LANES + x]++
+      }
+    }
+  }
+  return { ground, air }
+}
+
+// The stop line (DESIGN §3): the road tiles where a walker coming down the Walk field (`roads`, a field()) first comes
+// into the sight of one of `holders` on the ground (sight: the battle's own, so a ring whose far blows need a
+// condition draws its bar only as far as its other blows reach): the earliest it can halt, never that it will (it
+// halts only where it can hit back, wayOf: a melee walker walks on past the bars to what blocks it). A walker starts
+// on a tile of the foes' rows (in the formation, or entering at the top edge) and keeps to the arrows from there to
+// the root: on each such road, every held tile it comes to from a tile nothing holds, and its first tile if one is
+// held (where it may halt where it stands). Only tiles a road from the foes' rows passes count: a held tile beside the
+// roads, where no walker ever comes, is none of it. In tile order. Pure: the prep board draws it.
+export function stopLine (roads, holders) {
+  const held = sight(holders).ground
+  const out = new Set()
+  for (let from = tileAt(0, DEPTH - ROWS); from < TILES; from++) {
+    if (roads.dist[from] === Infinity) continue
+    let was = false
+    for (let t = from; t >= 0; t = roads.arrow[t]) {
+      if (held[t] && !was) out.add(t)
+      was = held[t] > 0
+    }
+  }
+  return [...out].sort((a, b) => a - b)
+}
 
 // An ability used: its target picked among its candidates, and a blow turned by a Bodyguard.
 function use (battle, unit, ability) {
@@ -1334,23 +1503,29 @@ function use (battle, unit, ability) {
 
 // Where a foe walks now (DESIGN §2.4): a flyer to its fly step (flyStep), anyone else to its road's next tile
 // (arrowOf); −1 while that tile is held in its layer (a walker by anyone on the ground, a flyer by a flyer: neither
-// blocks the other), or with nowhere to go.
+// blocks the other), or with nowhere to go (a walker never onto a wall: in a battle with no Monarch the roads' root
+// may be one).
 function stepOf (battle, u) {
-  const to = u.flies ? flyStep(battle, u) : arrowOf(battle, u)
-  return to >= 0 && layerOf(battle, u)[to] === null ? to : -1
+  if (u.flies) {
+    const to = flyStep(battle, u)
+    return to >= 0 && battle.sky[to] === null ? to : -1
+  }
+  const to = arrowOf(battle, u)
+  return to >= 0 && battle.at[to] === null && !battle.walls.has(to) ? to : -1
 }
 
 // A flyer's step (DESIGN §2.4 Fly): it keeps no road and no wall stops it (it may hover over one), and nothing on
 // the ground holds it back. Of the tiles beside it free in the air (no flyer over them) nearer the Monarch (the tile
-// the roads run to) than it is, the nearest, ties in the arrows' order (arrowKey); −1 with none: it waits.
-export function flyStep (battle, u) {
+// the roads run to) than it is, the nearest, ties in the arrows' order (arrowKey); −1 with none: it waits. With
+// `open`, the air read as empty: where it would fly were no flyer in its way (blockerOf).
+export function flyStep (battle, u, open = false) {
   const root = battle.root
   const d0 = distance(u.tile, root)
   let best = -1
   let bestK = Infinity
   for (const n of NEIGHBOURS[u.tile]) {
     const d = distance(n, root)
-    if (d >= d0 || battle.sky[n] !== null) continue
+    if (d >= d0 || (!open && battle.sky[n] !== null)) continue
     const k = d * 1e6 + arrowKey(root, n)
     if (k < bestK) { best = n; bestK = k }
   }
@@ -1415,12 +1590,12 @@ export function arrowOf (battle, u) {
 // ── relics: the Legendaries' rules and the triggers ──────────────────────────────────────────────
 
 // The relics' rules (content.js RELIC_LIST), every copy counted, as the battle reads them: `arise`, the copies of
-// Arise (0: the Monarch raises no one); `rise`, the share of max HP a fallen soul rises with (0: none), and `rises`,
-// how many times a battle it may (a copy of Undying each); `alias` (a role → [role, …] map for the party's
-// synergies, a role once a copy, or null); `raises`, the share Arise's cap a battle grows by; `tithe`, the share of
-// the Monarch's max HP a shadow costs; and `unhealable` (Court of Bone). Their mods come with the party's
-// (battleSetup's partyMods); the domain's size comes from the run (domainOf), already bent, and Hollow Court's
-// reaping is the run's too (reapedShadows).
+// Arise (0: the Monarch raises no one; each past the first grows its numbers: ariseCap, ariseTier, ariseHaste);
+// `rise`, the share of max HP a fallen soul rises with (0: none), and `rises`, how many times a battle it may (a copy
+// of Undying each); `alias` (a role → [role, …] map for the party's synergies, a role once a copy, or null);
+// `raises`, the share Arise's cap a battle grows by; `tithe`, the share of the Monarch's max HP a shadow costs; and
+// `unhealable` (Court of Bone). Their mods come with the party's (battleSetup's partyMods); the domain's size comes
+// from the run (domainOf), already bent, and Hollow Court's reaping is the run's too (reapedShadows).
 export function relicRules (ids = []) {
   const rs = ids.map(relicDef)
   const sum = (key) => rs.reduce((n, r) => n + (r[key] ?? 0), 0)
@@ -1473,27 +1648,27 @@ const titheOf = (battle, m) => Math.ceil(m.maxHp * battle.held.tithe)
 
 const clamp = (lo, hi, v) => Math.min(hi, Math.max(lo, v))
 
-export function hitChance (acc, eva, tuning = TUNING) {
+export function hitChance (acc, eva) {
   const denom = acc + eva
-  return clamp(tuning.hit.min, tuning.hit.max, denom <= 0 ? 0.5 : acc / denom)
+  return clamp(TUNING.hit.min, TUNING.hit.max, denom <= 0 ? 0.5 : acc / denom)
 }
 
-export function critChance (crt, tuning = TUNING) {
-  const t = tuning.crit
+export function critChance (crt) {
+  const t = TUNING.crit
   return clamp(t.min, t.max, crt / t.divisor)
 }
 
-function rollVariance (rng, tuning = TUNING) {
-  const [lo, hi] = tuning.variance
+function rollVariance (rng) {
+  const [lo, hi] = TUNING.variance
   return rng.range(lo, hi)
 }
 
-// p: { power, atk, def, isCrit, critMul, variance, mul }
-export function computeDamage (p, tuning = TUNING) {
-  const t = tuning.damage
+// p: { power, atk, def, isCrit, variance, mul }
+export function computeDamage (p) {
+  const t = TUNING.damage
   const raw = p.power * (p.atk / t.atkDivisor)
   const mitigated = raw * (t.defConstant / (t.defConstant + Math.max(0, p.def)))
-  const crit = p.isCrit ? (p.critMul ?? tuning.crit.mult) : 1
+  const crit = p.isCrit ? TUNING.crit.mult : 1
   const total = mitigated * crit * (p.variance ?? 1) * (p.mul ?? 1)
   return Math.max(t.min, Math.round(total))
 }

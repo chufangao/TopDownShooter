@@ -57,7 +57,7 @@ test('settle: a rehearsal may end once its result is settled, never a battle wit
   const S = TUNING.autoplay.settle
   assert.ok(S && S.k >= 1)
   let settledWins = 0
-  for (const seed of ['settle-0', 'settle-1', 'settle-2', 'settle-3', 'settle-4', 'settle-5']) {
+  for (const seed of ['settle-0', 'settle-1', 'settle-2', 'settle-3', 'settle-4', 'settle-5', 'settle-6', 'settle-7', 'settle-8']) {
     const run = inFight(seed)
     for (let a; (a = policy(run, createRng(seed).stream('autoplay'), 'basic')).type !== 'fight';) apply(run, a)
     // Foes of four times their HP and half their ATK: a fight long enough for a won verdict to hold its window.

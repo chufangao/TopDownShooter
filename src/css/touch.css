@@ -26,7 +26,7 @@
   .hold-ring { animation: none; opacity: 0; }
 }
 
-/* A room chosen by a first tap (ui.js mapScreen): a second tap, or Enter ▸, goes in. */
+/* A room chosen by a first tap (ui.js mapView): a second tap, or Enter ▸, goes in. */
 .node.chosen .medal {
   transform: scale(1.12); border-color: var(--bright); animation: none;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-essence) 55%, transparent), 0 0 26px color-mix(in srgb, var(--c-essence) 50%, transparent);

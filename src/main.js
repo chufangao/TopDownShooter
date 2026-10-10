@@ -6,7 +6,7 @@ import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, holds, depthOf, relicCount } from './sim/run.js'
 import { createBattle, stats, ariseCap } from './sim/battle.js'
 import { unitDef, relicDef, RELICS } from './content.js'
-import { titleScreen, mapScreen, NODE, prepScreen, reapScreen, endScreen, battleChrome } from './ui.js'
+import { titleScreen, runScreen, NODE, reapScreen, endScreen, battleChrome } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary } from './codex.js'
 import { livingBodies } from './sim/unit.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from './dom.js'
@@ -15,7 +15,7 @@ import { board } from './board.js'
 
 const ui = document.getElementById('ui')
 const engine = createEngine('game')
-// The retinue editor's board (prep, the map's Camp) is the battle's own, drawn by the same Phaser game.
+// The Field's board (prep's, and the map's Field tab) is the battle's own, drawn by the same Phaser game.
 board.attach(engine)
 let screen = null
 let run = null
@@ -189,10 +189,10 @@ function route () {
     trail = { floor: s.floor, ids: [s.map.start] }
   }
   if (s.phase === 'map') {
-    show(mapScreen({ run, trail: trail.ids, note, onNode, act, onHelp: toggleHelp }))
+    show(runScreen({ run, trail: trail.ids, note, onNode, act, onHelp: toggleHelp }))
     note = ''
   } else if (s.phase === 'prep') {
-    show(prepScreen({ run, trail: trail.ids, act, onFight: fight, onHelp: toggleHelp }))
+    show(runScreen({ run, trail: trail.ids, act, onFight: fight, onHelp: toggleHelp }))
   } else if (s.phase === 'reap') {
     const title = currentNode(run).type === 'reliquary' ? 'Reliquary' : 'Spoils'
     show(reapScreen({ run, title, act, onDone: reap, onHelp: toggleHelp }))
@@ -206,8 +206,8 @@ function onNode (id) {
   trail.ids.push(id)
   if (currentNode(run).type === 'altar') {
     note = holds(run.state, 'unhealable')
-      ? 'The altar burns: your souls are healed, and the fallen rise again. Under Court of Bone the Monarch is not healed.'
-      : 'The altar burns: everyone is healed, and the fallen rise again.'
+      ? 'The altar burns: your souls are healed, and the fallen rise again in the ossuary, to be placed. Under Court of Bone the Monarch is not healed.'
+      : 'The altar burns: everyone is healed, and the fallen rise again in the ossuary, to be placed.'
   }
   // A reliquary with nothing to offer is used up on the spot.
   if (currentNode(run).type === 'reliquary' && run.state.phase === 'map') note = 'The reliquary holds nothing for you.'
@@ -231,7 +231,7 @@ function reap (index, onto = null) {
   if (o?.type === 'soul') addNote(onto != null ? `${o.name} rises, and joins its kind's stack.` : `${o.name} rises to serve you.`)
   else if (o?.type === 'relic') {
     const n = relicCount(run.state, o.id)
-    addNote(o.id === 'arise' ? (n > 1 ? `Arise ×${n}: its domain widens and its Will grows; more of the dead rise.` : 'Arise: the dead in your domain are yours to raise.')
+    addNote(o.id === 'arise' ? (n > 1 ? `Arise ×${n}: it reaches farther, raises stronger dead and more of them, and comes sooner.` : 'Arise: the dead about the Monarch are yours to raise.')
       : o.tier === 'legendary' ? `${o.name}${n > 1 ? ` ×${n}` : ''}: a rule of the run is rewritten.` : `${o.name} claimed${n > 1 ? `: ×${n}` : ''}.`)
   } else if (o?.type === 'tier') addNote(`${o.name}: every one you hold has it.`)
   route()
@@ -247,7 +247,7 @@ async function fight () {
   const handoff = board.leave()
   apply(run, { type: 'fight' })
   // The battle's chrome keeps prep's layout (ui.js battleChrome): the board fits its stage, as prep's did.
-  const bar = battleChrome({ onHelp: toggleHelp })
+  const bar = battleChrome({ onHelp: toggleHelp, node })
   show(bar)
   const battle = createBattle(run.setup)
   const s = run.state
@@ -272,7 +272,7 @@ async function fight () {
       const me = u.uid === battle.monarch?.uid
       const live = [
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
-        me && `${battle.held.arise ? `Arise ${battle.raised}/${ariseCap(battle.will, battle.held)} · ` : ''}if it falls, the run ends`,
+        me && `${battle.held.arise ? `Arise ${battle.raised}/${ariseCap(battle.held)} · ` : ''}if it falls, the run ends`,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
           : u.arisen && holds(s, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: holds where it rose, gone after the battle'),
         u.rose && (u.rose >= battle.held.rises ? 'Risen by Undying: its next fall is final' : `Risen by Undying: it may rise ${battle.held.rises - u.rose} more`),
@@ -280,7 +280,7 @@ async function fight () {
         u.flies && 'Flying: only a ranged blow can strike it',
         !foe && !me && 'It fights from its cell all battle',
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
-      const realm = { domain: battle.domain, will: battle.will, held: battle.held, reap: holds(s, 'reap') }
+      const realm = { domain: battle.domain, held: battle.held, reap: holds(s, 'reap') }
       const tip = pin ? pinTip : showTip
       tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, live }))
     },
@@ -289,9 +289,10 @@ async function fight () {
       if (!scene?.ending) sfx.play(run.battle.winner === 'party' ? 'win' : 'lose')
       // Every foe kind that took the field is met: its ring and its way are told from now on (the bestiary).
       bestiary.record(run.battle.units.filter((u) => u.side === 'foe' && !u.shadow).map((u) => u.id))
-      // Shadows are not souls: they were never yours to keep. The fallen souls wait for an altar.
+      // Shadows are not souls: they were never yours to keep. The fallen souls have left the field for the ossuary
+      // (run.js finishBattle), their cells and Command free, and wait there for an altar.
       const fallen = run.battle.units.filter((u) => u.side === 'party' && !u.shadow && u.hp <= 0 && u.uid !== run.battle.monarch?.uid).map((u) => unitDef(u.id).name)
-      if (fallen.length && s.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. An altar will raise them.`
+      if (fallen.length && s.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. ${fallen.length > 1 ? 'They lie' : 'It lies'} in the ossuary, ${fallen.length > 1 ? 'their cells' : 'its cell'} and Command free, until an altar raises ${fallen.length > 1 ? 'them' : 'it'}.`
       route()
     }
   })

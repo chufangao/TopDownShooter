@@ -29,7 +29,7 @@ export function createEngine (parent) {
     // Resolves once the pictures are loaded (the prep board, board.js, waits on it too).
     ready: loaded,
     // data: { battle (fresh, from createBattle), title, stage() (the viewport rect the board fits in), hud (the
-    // chrome's words: start, hp, announce), onChange(state), onHover(unit | null, rect),
+    // chrome's words: start, hp, announce), onChange(state), onHover(unit | null, rect, pin),
     // onDone(), essence (what the purse multiplies a slain foe's essence by: 1 + the relics'), seamless (the prep
     // board fades into it: no fade in from black),
     // death (what felled the Monarch, codex.js deathText, for the end's replay beat) }. Resolves with the scene
@@ -75,7 +75,7 @@ export function palette () {
   GOLD = CROWN = hex(C.monarch)
   DOMAIN = hex(C.domain)
   RISE = hex(C.shadow)
-  UNDYING = hex(C.legendary) // a captain rising again (Undying, a Legendary relic)
+  UNDYING = hex(C.legendary) // a piece rising again (Undying, a Legendary relic)
   GAUGE = hex(C.gauge)
   BOON = hex(C.synergy)     // a buff, a cleanse, a rule of yours: the synergies' (the plan's) blue
   PLAN = hex(C.plan)      // what you set: a ring, coverage
@@ -208,10 +208,11 @@ function shadeTextures (scene, art, skin = 'shade') {
 
 // ── a soul's marks, shared with the prep board (board.js) ─────────────────────────────────────────
 
-// The domain's caption, "DOMAIN · 3", a legend on a dark plate, standing just outside the box (placeOutside),
-// over the units: never inside it, where the marks of whoever stands in its edge row are.
+// The domain's caption, "ARISE · 5" (Arise's reach, in tiles: the player's word for it is the relic's), a legend on
+// a dark plate, standing just outside the box (placeOutside), over the units: never inside it, where the marks of
+// whoever stands in its edge row are.
 export function domainLabel (scene, r) {
-  return scene.add.text(0, 0, `DOMAIN · ${r}`,
+  return scene.add.text(0, 0, `ARISE · ${r}`,
     { fontFamily: FONT, fontSize: '11px', fontStyle: 'bold', color: C.domain, backgroundColor: '#07060bd9', padding: { x: 5, y: 2 } })
     .setResolution(3).setOrigin(0, 0)
 }
@@ -238,9 +239,9 @@ export function placeOutside (t, box, limit, blocked = []) {
 }
 
 // A soul's growth, the same on the prep board and in battle so the picture carries over: a diamond a tier under
-// its bars, --c-path its kind's first track and --c-path2 its second. `size`: the picture's, as addActor's.
-// → { parts, place(x, y, depth) }, placed every frame from the feet.
-export function growthMarks (scene, u, { size = 1 } = {}) {
+// its bars, --c-path its kind's first track and --c-path2 its second. → { parts, place(x, y) }, placed every frame
+// from the feet.
+export function growthMarks (scene, u) {
   // A diamond a tier, centred under the bars: the first track's, then a gap, then the second's. Kept inside the
   // unit's lane (PIP_SPAN wide): many tiers stand closer, overlapping like a chain.
   const pips = scene.add.container(0, 0)
@@ -387,10 +388,6 @@ export function drawGround (scene) {
 // outcome was fixed when it began.
 
 const WALK_MS = 300
-// A flanker's vault over bodies: base + perBody per body vaulted, at most max (a unit steps every 800 ms).
-const LEAP_MS = { base: 340, perBody: 120, max: 700 }
-const LEAP_HURRY = 3
-const AIR = 2 * HALF_H + 2 * TILE_H // depth added while vaulting: above every unit, below the FX
 const SCALE = 0.95      // world px per unit of a picture's viewBox
 const WALL_SCALE = 1
 const BREATH = 0.014    // idle breathing: the share of its height a unit swells by
@@ -433,7 +430,6 @@ class BattleScene extends Phaser.Scene {
     this.playMs = this.battle.t * TUNING.tick.ms
     this.ending = false
     this.hover = null
-    this.domainArt = null
     // The end's replay beat (finish), drawn each frame once the battle is lost (drawEnd).
     this.endBeat = null
     this.endG = null
@@ -448,7 +444,7 @@ class BattleScene extends Phaser.Scene {
     this.units = new Map(this.battle.units.map((u) => [u.uid, u]))
     this.emitters = new Map()
     const start = this.battle.events.find((e) => e.type === 'battle:start')
-    // The Monarch's uid (null in a battle without one) and its domain's reach.
+    // The Monarch's uid (null in a battle without one) and Arise's reach about it (the domain).
     this.monarch = start.monarch
     this.domain = start.domain
     // The foes by wave (0: the formation on the board), for the banner as each arrives (its bodies, `size`) and
@@ -560,17 +556,16 @@ class BattleScene extends Phaser.Scene {
       const x = a.vx = a.sprite.x + sx
       const y = a.sprite.y + BAR_DROP
       // The pose (see animate) and breathing, which keeps the playback clock so pause holds it. The pose's
-      // dx, dy (and a vault's lift, see leap) move the picture off its feet through the origin, leaving x, y
-      // to the steps.
+      // dx, dy move the picture off its feet through the origin, leaving x, y to the steps.
       const p = a.pose
       const breath = a.gone || calm ? 0 : BREATH * Math.sin(this.playMs / 640 + a.uid)
       a.sprite.setScale(a.scale * (1 + p.sx), a.scale * (1 + p.sy + breath))
       a.sprite.angle = p.lean
       // A flyer floats a.hover over its shadow, bobbing (DESIGN §4); its bars and shadow stay on the ground.
       const bob = a.hover && !calm ? BOB * Math.sin(this.playMs / 420 + a.uid) * a.hover / HOVER : 0
-      a.sprite.setOrigin(0.5 - (p.dx + sx) / a.sprite.displayWidth, FEET - (p.dy - a.lift - a.hover - a.up - bob) / a.sprite.displayHeight)
+      a.sprite.setOrigin(0.5 - (p.dx + sx) / a.sprite.displayWidth, FEET - (p.dy - a.hover - a.up - bob) / a.sprite.displayHeight)
       // The dead lie under the living who step over them; a flyer over whoever shares its row.
-      a.sprite.setDepth(a.gone ? a.sprite.y - TILE_H / 2 : a.sprite.y + (a.lift > 0 ? AIR : 0) + (a.hover ? 1 : 0))
+      a.sprite.setDepth(a.gone ? a.sprite.y - TILE_H / 2 : a.sprite.y + (a.hover ? 1 : 0))
       a.shadow.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 2)
       a.ring.setPosition(x, a.sprite.y + 4).setDepth(a.sprite.y - 1)
       // The bars lie on the ground under the feet, sorted with the units: whoever stands in front draws
@@ -580,7 +575,7 @@ class BattleScene extends Phaser.Scene {
       a.trail.setPosition(x - BAR * k / 2, y).setScale(k, 1).setDepth(foot + 0.1)
       a.bar.setPosition(x - BAR * k / 2, y).setScale(k, 1).setDepth(foot + 0.2)
       a.gaugeBar.setPosition(x - BAR * k / 2, y + 5).setScale(k, 1).setDepth(foot + 0.2)
-      a.growth?.place(x, a.sprite.y, a.sprite.depth, a.chest, a.lift)
+      a.growth?.place(x, a.sprite.y)
       a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : 1))
       if (Math.ceil(a.hp / a.body - 1e-9) !== a.living || (a.gone && a.living)) this.bodies(a)
       placeHorde(a, x, a.sprite.y - a.hover - a.up - bob, a.sprite.depth, a.base, a.sprite.alpha, breath)
@@ -655,8 +650,8 @@ class BattleScene extends Phaser.Scene {
     })
   }
 
-  // The camera's shudder and flash, kept for what matters (a crit, a captain's or a boss's fall, the Monarch
-  // struck, a boss's turn): routine blows and falls never shake. None at all under reduced motion.
+  // The camera's shudder and flash, kept for what matters (a crit, a heavy fall, the Monarch struck, a
+  // boss's turn): routine blows and falls never shake. None at all under reduced motion.
   shake (ms, mag) {
     if (!calm) this.cameras.main.shake(ms, mag)
   }
@@ -671,7 +666,7 @@ class BattleScene extends Phaser.Scene {
     if (!calm) this.cameras.main.flash(ms, r, g, b)
   }
 
-  // A beat of stillness on a heavy blow (a crit, a captain's or a boss's fall): the clock stops and the tweens
+  // A beat of stillness on a heavy blow (a crit, a heavy fall): the clock stops and the tweens
   // all but freeze for `ms`, shorter at 2×, none at 4×; at most one every 300 ms, so a melee never stutters.
   // None under reduced motion.
   hitStop (ms) {
@@ -684,10 +679,6 @@ class BattleScene extends Phaser.Scene {
   }
 
   // ── stage ────────────────────────────────────────────────────────────────────────────────────
-
-  posFor (tile) {
-    return posOf(tile)
-  }
 
   // A shadow (u.shadow, raised by Arise, or on the foes' side by Grave Tide) wears the shade pictures; the
   // Monarch's HP bar is thicker, in a gold frame; a stack is drawn as its horde (syncHorde), its living bodies
@@ -734,13 +725,13 @@ class BattleScene extends Phaser.Scene {
       // chest: how far above the feet blows land and bolts fly from. fade: 0 once a corpse has risen
       // as a shadow; rise.v: a shadow coming up out of the ground (apart from `fade`, so a walk that kills
       // the actor's tweens never leaves it invisible).
-      chest: 30 * size + fly, pose: { ...REST }, hp: u.hp, maxHp: u.maxHp, gone: false, lift: 0, leaping: null, fade: 1, rise: { v: 1 },
+      chest: 30 * size + fly, pose: { ...REST }, hp: u.hp, maxHp: u.maxHp, gone: false, fade: 1, rise: { v: 1 },
       // share: how far it has eased aside for another on its tile (SHARE, 0 to 1); vx, up: where that puts it.
       share: 0, vx: home.x, up: 0
     }
     this.bodies(actor)
     // A soul's growth, worn as the prep board showed it (growthMarks): its tiers.
-    if (u.side === 'party' && !u.shadow && !crowned) actor.growth = growthMarks(this, whole, { size })
+    if (u.side === 'party' && !u.shadow && !crowned) actor.growth = growthMarks(this, whole)
     sprite.setInteractive(this.input.makePixelPerfect())
     sprite.on('pointerover', (p) => {
       if (p.wasTouch || touchy()) return
@@ -824,17 +815,12 @@ class BattleScene extends Phaser.Scene {
   }
 
   // A step to the next tile, hopping; whatever tween was moving the sprite (an entrance, a step) gives way.
-  // A flanker's step can carry `via`, the bodies it vaults in that one step: see leap.
   walk (ev) {
     const a = this.actors.get(ev.actor)
     if (!a || a.gone) return
     a.tile = ev.to
     a.home = posAt(ev.to, a.fp)
     this.tweens.killTweensOf([a.sprite, a])
-    a.leaping?.stop()
-    a.leaping = null
-    a.lift = 0
-    if (ev.via?.length) return this.leap(a, ev.via.map((t) => this.posFor(t)))
     this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: WALK_MS, ease: 'Sine.InOut' })
     const lean = Math.sign(a.home.x - a.sprite.x) || 1
     this.animate(a, [
@@ -843,58 +829,9 @@ class BattleScene extends Phaser.Scene {
       { to: REST, ms: WALK_MS * 0.2 }])
   }
 
-  // One vault over the bodies on the tiles `over`, to a.home: a crouch, an arc high above their heads
-  // along the path the sim took (through each body's tile), and a squashed landing. Longer hops take
-  // longer but stay well inside one step (TUNING.board.stepTicks). The arc's height is `a.lift`, apart
-  // from the pose, so a blow taken in the air doesn't drop it onto the bodies below; while aloft it draws
-  // over everyone, its shadow and bars staying on the ground beneath it. A flanker often strikes the
-  // moment it comes down: acting hurries the rest of the flight (see hurry).
-  leap (a, over) {
-    const points = [{ x: a.sprite.x, y: a.sprite.y }, ...over, a.home]
-    const lens = points.slice(1).map((p, i) => Math.hypot(p.x - points[i].x, p.y - points[i].y))
-    const total = lens.reduce((n, l) => n + l, 0) || 1
-    const ms = Math.min(LEAP_MS.max, LEAP_MS.base + LEAP_MS.perBody * over.length)
-    const [crouch, air, land] = [ms * 0.18, ms * 0.62, ms * 0.2]
-    const height = Math.min(60, 34 + 8 * over.length)
-    const lean = Math.sign(a.home.x - a.sprite.x) || 1
-    // Progress along the path, eased once over the whole flight so it doesn't stall at each body.
-    const flight = { at: 0 }
-    a.leaping = this.tweens.add({
-      targets: flight, at: 1, delay: crouch, duration: air, ease: 'Sine.InOut',
-      onUpdate: () => {
-        let d = flight.at * total
-        let i = 0
-        while (i < lens.length - 1 && d > lens[i]) d -= lens[i++]
-        const f = lens[i] ? Math.min(1, d / lens[i]) : 1
-        a.sprite.setPosition(points[i].x + (points[i + 1].x - points[i].x) * f, points[i].y + (points[i + 1].y - points[i].y) * f)
-        a.lift = height * Math.sin(Math.PI * flight.at)
-      },
-      // A flight cut short by the next step ends inside it: that step owns the position by then.
-      onComplete: () => { a.leaping = null; a.lift = 0; if (!this.tweens.isTweening(a.sprite)) a.sprite.setPosition(a.home.x, a.home.y) }
-    })
-    this.animate(a, [
-      { to: { lean: -4 * lean, sx: 0.1, sy: -0.14 }, ms: crouch, ease: 'Quad.Out' },
-      { to: { lean: 12 * lean, sx: -0.06, sy: 0.1 }, ms: air / 2, ease: 'Sine.Out' },
-      { to: { lean: 4 * lean, sy: 0.04 }, ms: air / 2, ease: 'Sine.In' },
-      { to: { sx: 0.12, sy: -0.14 }, ms: land * 0.4, ease: 'Quad.Out' },
-      { to: REST, ms: land * 0.6, ease: 'Back.Out' }])
-  }
-
-  // A unit that acts in mid-flight finishes the vault at LEAP_HURRY× speed, still arcing, so it comes down
-  // swinging.
-  hurry (a) {
-    if (a?.leaping) a.leaping.timeScale = LEAP_HURRY
-    return a
-  }
-
-  // A unit that falls in mid-flight drops where it is, onto its tile.
+  // A flyer that falls comes down to the ground.
   drop (a) {
-    // A flyer falling comes down to the ground.
     if (a.hover) this.tweens.add({ targets: a, hover: 0, duration: 260, ease: 'Quad.In' })
-    if (!a.leaping && !a.lift) return
-    a.leaping?.stop()
-    a.leaping = null
-    this.tweens.add({ targets: a, lift: 0, duration: 200, ease: 'Quad.In' })
   }
 
   // Death: the unit staggers back from its killer and topples over at the feet; where it hits the ground
@@ -994,7 +931,7 @@ class BattleScene extends Phaser.Scene {
     }
     this.addActor(ev.unit)
     const a = this.actors.get(ev.unit.uid)
-    const from = ev.from != null && ev.from !== ev.unit.tile ? this.posFor(ev.from) : null
+    const from = ev.from != null && ev.from !== ev.unit.tile ? posOf(ev.from) : null
     const at = from ?? a.home
     if (from) a.sprite.setPosition(from.x, from.y)
     a.rise.v = 0
@@ -1153,7 +1090,7 @@ class BattleScene extends Phaser.Scene {
     const zone = (y) => (y < CAMP_ROWS ? PARTY : y >= DEPTH - ROWS ? FOE : NEUTRAL)
     const walls = new Set(start.walls)
     for (const tile of walls) {
-      const p = this.posFor(tile)
+      const p = posOf(tile)
       // One of the wall pictures, picked by the tile so a camp always looks the same.
       this.add.image(p.x, p.y + 8, WALLS[(tile * 7 + (tile >> 3)) % WALLS.length]).setOrigin(0.5, WALL_FOOT)
         .setScale(WALL_SCALE / RES).setFlipX(tile % 2 === 1).setDepth(p.y)
@@ -1161,7 +1098,7 @@ class BattleScene extends Phaser.Scene {
     const occupied = new Set(start.units.flatMap((u) => footprint(u.tile, u.size ?? 1) ?? [u.tile]))
     for (let tile = 0; tile < TILES; tile++) {
       if (walls.has(tile)) continue
-      const p = this.posFor(tile)
+      const p = posOf(tile)
       const colour = zone(tileY(tile))
       const on = occupied.has(tile)
       g.lineStyle(1.2, colour, on ? 0.5 : 0.14).strokeEllipse(p.x, p.y + 6, 50, 15)
@@ -1177,7 +1114,7 @@ class BattleScene extends Phaser.Scene {
     this.crownHp(m)
   }
 
-  // The domain: every tile within `this.domain` of `centre` (the Monarch's), clipped to the board.
+  // Arise's reach (the domain): every tile within `this.domain` of `centre` (the Monarch's), clipped to the board.
   drawDomain (centre) {
     const box = ringBox(centre, this.domain, 4)
     const d = this.add.graphics().setDepth(-395)
@@ -1190,7 +1127,6 @@ class BattleScene extends Phaser.Scene {
     ;(this.small ??= []).push(label)
     this.domLabel = { t: label, box }
     this.placeDomain()
-    this.domainArt = [d, label]
   }
 
   // The domain's caption, outside its box where it covers the fewest bodies and bars standing now, inside the
@@ -1207,7 +1143,7 @@ class BattleScene extends Phaser.Scene {
     placeOutside(d.t, d.box, BOX, blocked)
   }
 
-  // Undying: a captain that just fell is up again at once, on its own tile. Its fall is cut short: it slumps
+  // Undying: a piece that just fell is up again at once, on its own tile. Its fall is cut short: it slumps
   // and springs back up in a ring of warm light, its bars back under it.
   rise (a, ev) {
     a.gone = false
@@ -1359,7 +1295,7 @@ class BattleScene extends Phaser.Scene {
     if (ev.type === 'enter') return this.enter(ev)
     // The opening formation is wave 1 but stands there from the start: only a later wave is announced.
     if (ev.type === 'wave') { this.changed(); return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined }
-    if (ev.type === 'action') return this.reshaped(ev, this.hurry(this.actors.get(ev.actor)))
+    if (ev.type === 'action') return this.reshaped(ev, this.actors.get(ev.actor))
     if (ev.type === 'rule') return this.rule(ev)
     // A trigger relic fired for this unit: its name flashes over it (its effects follow as their own events).
     if (ev.type === 'trigger') {
@@ -1413,13 +1349,15 @@ class BattleScene extends Phaser.Scene {
         else this.fall(a, this.actors.get(ev.actor))
         this.slain(a)
         sfx.play('kill')
-        // A piece of yours, a stack of theirs, a boss or the Monarch falling holds the frame.
-        const u = this.units.get(a.uid)
-        const big = u && (unitDef(u.id).boss || u.uid === this.monarch)
-        if (u && !ev.crumble && !u.shadow && (big || u.side === 'party' || (u.count ?? 1) > 1)) this.hitStop(big ? 150 : 80)
+        // A piece of yours, a stack of theirs, a boss or the Monarch falling holds the frame (heavy), a boss or the
+        // Monarch the longest.
+        if (!ev.crumble && this.heavy(a.uid)) {
+          const u = this.units.get(a.uid)
+          this.hitStop(unitDef(u.id).boss || u.uid === this.monarch ? 150 : 80)
+        }
         break
       }
-      // Undying: the captain that just fell stands again.
+      // Undying: the piece that just fell stands again.
       case 'rise':
         if (!(seq < a.seq)) a.seq = seq
         this.rise(a, ev)
@@ -1596,7 +1534,7 @@ class BattleScene extends Phaser.Scene {
             : ['YOUR RETINUE FALLS', 'The dead return to the dark.']
     const killer = death && reason === 'monarch' && death.from != null && death.by !== this.monarch ? death.from : null
     const crown = this.actors.get(this.monarch)
-    if (killer != null && crown) this.endBeat = { from: this.posFor(killer), to: { x: crown.home.x, y: crown.home.y }, t0: this.time.now }
+    if (killer != null && crown) this.endBeat = { from: posOf(killer), to: { x: crown.home.x, y: crown.home.y }, t0: this.time.now }
     // Over their half of the board (the left) while the blow is replayed on yours, else across the middle.
     const [x, y] = [killer != null ? -HALF_W / 2 : 0, 0]
     const z = this.cameras.main.zoom

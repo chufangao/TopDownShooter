@@ -174,9 +174,9 @@ b { font-weight: 600; color: var(--bright); }
   background: #0c0a14; border: 1px solid var(--line); border-radius: 10px;
 }
 
-/* ── top bar and guide ────────────────────────────────────────────────────────────────────────── */
-/* One row, 60 tall: the floors, the purse, the Monarch's HP, the ossuary, a tile per relic held, then
-   sound and help. Every piece is a --tap box (a tooltip on hover, on a long press, on focus). */
+/* ── top bar ────────────────────────────────────────────────────────────────────────────────────── */
+/* One row, 60 tall: the floors, the purse, the Monarch's HP, your souls, the run's tabs, a tile per relic held,
+   then sound and help. Every piece is a --tap box (a tooltip on hover, on a long press, on focus). */
 .topbar {
   position: sticky; top: 0; z-index: 5; flex: none; display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; min-height: 60px;
   margin: 0 -22px; padding: 6px 10px 6px 22px; background: #0b0a12e6; border-bottom: 1px solid var(--line2); backdrop-filter: blur(8px);
@@ -299,14 +299,17 @@ b { font-weight: 600; color: var(--bright); }
 .unit:hover { border-color: var(--line); }
 .unit.fallen { opacity: .55; }
 /* A row is a container: its kin, role and camp row join its second line where the row is wide enough. Its
-   first line wraps rather than cut a path's name. */
+   first line wraps rather than cut its tiers. */
 .unit { container-type: inline-size; }
 .unit .grow { flex: 1; min-width: 0; }
 .unit .u-name { line-height: 1.3; }
-.unit .u-name .path-tag { white-space: nowrap; }
+.unit .u-name .path-tag, .unit .u-name > .dim { white-space: nowrap; }
 .unit .line { display: flex; gap: 6px 10px; align-items: center; margin-top: 2px; font-size: var(--fs-sm); white-space: nowrap; }
 .unit .line > .dim { overflow: hidden; text-overflow: ellipsis; }
-/* Short of room, the kin gives way before the HP. */
+/* Short of room, the kin gives way before the HP, and the HP's bar before its figure ("107/321", "fallen"), which is
+   never cut (the spoils' Release list, three to a row). */
+.unit .line > .hpbar { flex: 0 1 90px; min-width: 36px; }
+.unit .line > .dim:not(.u-kin) { flex: none; }
 .unit .line > .u-kin { display: none; margin-left: -4px; flex: 0 1000 auto; min-width: 0; }
 @container (min-width: 400px) { .unit .line > .u-kin { display: inline; } }
 .syns { display: flex; flex-direction: column; gap: 4px; }
@@ -435,16 +438,13 @@ b { font-weight: 600; color: var(--bright); }
 .card-tip { width: 400px; }
 .ct-name { font: 600 var(--fs-lg) var(--serif); color: var(--bright); }
 .ct-hp { display: flex; gap: 8px; align-items: center; font-size: var(--fs-sm); margin-top: 3px; }
-.stat { display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 6px; background: #0f0c18; font-size: var(--fs-sm); }
-.stat b { font-size: var(--fs-md); }
 .ability { padding: 6px 8px; border-radius: 8px; background: #0f0c18; margin-bottom: 4px; }
 
-/* Small tags (a chip, melee or ranged, the domain's) at --fs-sm in sentence case: no shouting capitals. */
+/* Small tags (a chip, melee or ranged, Arise's reach) at --fs-sm in sentence case: no shouting capitals. */
 .chip { font-size: var(--fs-sm); padding: 0 8px; border-radius: 99px; border: 1px solid var(--c); color: var(--c); }
 .tag-melee, .tag-ranged { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; border-radius: 5px; background: #2a1d26; color: #f0a0ac; }
 .tag-ranged { background: #1a2433; color: #9ac8ff; }
 .tag-domain { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; border-radius: 5px; background: #15302a; color: var(--c-essence2); }
-.status { color: var(--c-synergy); }
 .ct-foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line2); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 3px; }
 .note-line { color: var(--c-essence2); }
 .syn-tip { max-width: 400px; }
@@ -479,7 +479,7 @@ b { font-weight: 600; color: var(--bright); }
 .buy.poor .price { color: var(--c-foe); }
 .path-tag { color: var(--c-path); font-size: var(--fs-sm); }
 
-/* ── the Monarch's panel ─────────────────────────────────────────────────────────────────────────── */
+/* ── the Monarch in a list ──────────────────────────────────────────────────────────────────────── */
 .unit.monarch { border-color: #5a4520; }
 
 /* ── Legendary and trigger relics ─────────────────────────────────────────────────────────────── */
@@ -493,14 +493,14 @@ b { font-weight: 600; color: var(--bright); }
 .tier-tag { background: color-mix(in srgb, var(--rt, var(--c-relic)) 18%, #0c0a14); color: var(--rt, var(--c-relic)); }
 .trig-tag { background: #2a170c; color: var(--c-relic); }
 
-/* ── the enemy army: siege rooms, foe banners, waves still to come ────────────────────────────────── */
+/* ── the enemy army: siege rooms, foe stacks, waves still to come ─────────────────────────────────── */
 .t-siege .medal, .room-ico.t-siege, .rt-head.t-siege { color: #ff9a5a; }
 .node.t-siege .medal { border-color: #6a3a22; }
 .node.reach.t-siege .medal { border-color: var(--c-essence); }
 .mini-cell { position: relative; }
 .mini-cell.cap { border-color: #b04a5c; }
 
-/* A foe captain's flag on a scouted cell: its cohort's size, a badge's number. */
+/* A foe stack's flag on a scouted cell: its count, a badge's number. */
 .mini-flag {
   position: absolute; top: -6px; left: -6px; z-index: 1; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 4px 4px 4px 0;
   background: #f08a98; color: #0b0a12; font: 700 var(--fs-sm)/20px var(--sans); font-style: normal; text-align: center;

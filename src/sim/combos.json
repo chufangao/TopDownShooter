@@ -7,11 +7,16 @@
   "4": 0
  },
  "plain": {
-  "arise": 0.578,
-  "glass_crown": 0.319,
-  "whetstone": 0.28,
-  "grave_bell": 0.033,
-  "blood_tithe": 0.021
+  "glass_crown": 1.201,
+  "heartwood": 0.876,
+  "whetstone": 0.616,
+  "arise": 0.585,
+  "blood_chalice": 0.574,
+  "arcane_focus": 0.569,
+  "undying": 0.562,
+  "war_drum": 0.545,
+  "tower_shield": 0.258,
+  "rally_horn": 0.252
  },
  "combos": [
   {
@@ -26,10 +31,10 @@
    },
    "from": 2,
    "gain": [
-    2.072,
-    3.871,
-    1.851,
-    2.326
+    1.241,
+    2.848,
+    2.416,
+    1.753
    ],
    "draft": 0,
    "relics": {}
@@ -46,168 +51,13 @@
    },
    "from": 2,
    "gain": [
-    2.072,
-    3.865,
-    1.83,
-    2.337
-   ],
-   "draft": 1,
-   "relics": {}
-  },
-  {
-   "id": "fusion:pale_court:0",
-   "needs": {
-    "will_o_wisp": 3
-   },
-   "fuse": "pale_court",
-   "tracks": {
-    "pale_court": 0
-   },
-   "from": 1,
-   "gain": [
-    0.944,
-    3.854,
-    1.842,
-    2.307
-   ],
-   "draft": 1,
-   "relics": {}
-  },
-  {
-   "id": "fusion:pale_court:1",
-   "needs": {
-    "will_o_wisp": 3
-   },
-   "fuse": "pale_court",
-   "tracks": {
-    "pale_court": 1
-   },
-   "from": 1,
-   "gain": [
-    0.944,
-    3.507,
-    1.845,
-    2.318
-   ],
-   "draft": 1,
-   "relics": {
-    "undying": 0.031,
-    "heartwood": 0.028,
-    "arise": 0.024,
-    "tower_shield": 0.023,
-    "whetstone": 0.022,
-    "blood_chalice": 0.021
-   }
-  },
-  {
-   "id": "role:ranger:6",
-   "needs": {
-    "ember_drake": 2,
-    "frost_wyrm": 2,
-    "ash_wyvern": 2
-   },
-   "tracks": {
-    "ember_drake": 0,
-    "frost_wyrm": 1,
-    "ash_wyvern": 1
-   },
-   "from": 3,
-   "role": {
-    "ranger": 6
-   },
-   "gain": [
-    null,
-    null,
-    1.814,
-    2.335
-   ],
-   "draft": 3,
-   "relics": {}
-  },
-  {
-   "id": "kin:drake:6",
-   "needs": {
-    "pyre_hound": 2,
-    "ember_drake": 2,
-    "frost_wyrm": 1,
-    "ash_wyvern": 1
-   },
-   "tracks": {
-    "pyre_hound": 1,
-    "ember_drake": 0,
-    "frost_wyrm": 1,
-    "ash_wyvern": 1
-   },
-   "from": 3,
-   "kin": {
-    "drake": 6
-   },
-   "gain": [
-    null,
-    null,
-    1.533,
-    2.314
+    1.241,
+    2.836,
+    2.395,
+    1.76
    ],
    "draft": 0,
    "relics": {}
-  },
-  {
-   "id": "kin:drake:4",
-   "needs": {
-    "pyre_hound": 1,
-    "ember_drake": 1,
-    "frost_wyrm": 1,
-    "ash_wyvern": 1
-   },
-   "tracks": {
-    "pyre_hound": 1,
-    "ember_drake": 0,
-    "frost_wyrm": 1,
-    "ash_wyvern": 1
-   },
-   "from": 3,
-   "kin": {
-    "drake": 4
-   },
-   "gain": [
-    null,
-    2.518,
-    1.511,
-    2.314
-   ],
-   "draft": 0,
-   "relics": {
-    "undying": 0.328,
-    "arise": 0.328
-   }
-  },
-  {
-   "id": "role:ranger:3",
-   "needs": {
-    "ember_drake": 1,
-    "frost_wyrm": 1,
-    "ash_wyvern": 1
-   },
-   "tracks": {
-    "ember_drake": 0,
-    "frost_wyrm": 1,
-    "ash_wyvern": 1
-   },
-   "from": 3,
-   "role": {
-    "ranger": 3
-   },
-   "gain": [
-    2.466,
-    3.152,
-    1.498,
-    2.298
-   ],
-   "draft": 3,
-   "relics": {
-    "undying": 0.037,
-    "arise": 0.027
-   }
   },
   {
    "id": "pact:ember_choir",
@@ -232,174 +82,37 @@
    "from": 2,
    "gain": [
     null,
-    3.084,
-    1.19,
-    1.38
+    2.79,
+    2.043,
+    1.672
    ],
    "draft": 0,
-   "relics": {
-    "undying": 0.612,
-    "glass_crown": 0.575,
-    "arise": 0.33,
-    "whetstone": 0.325,
-    "arcane_focus": 0.302,
-    "blood_chalice": 0.3,
-    "rally_horn": 0.295,
-    "war_drum": 0.293,
-    "heartwood": 0.287,
-    "blood_tithe": 0.287,
-    "tower_shield": 0.283,
-    "mimicry": 0.28,
-    "hunters_mark": 0.274,
-    "balm": 0.271,
-    "grave_bell": 0.259
-   }
+   "relics": {}
   },
   {
-   "id": "core:ember_drake:0",
+   "id": "role:ranger:6",
    "needs": {
-    "ember_drake": 2
+    "ember_drake": 2,
+    "frost_wyrm": 2,
+    "ash_wyvern": 2
    },
    "tracks": {
-    "ember_drake": 0
+    "ember_drake": 0,
+    "frost_wyrm": 0,
+    "ash_wyvern": 1
    },
-   "from": 2,
-   "gain": [
-    1.768,
-    1.369,
-    1.789,
-    2.308
-   ],
-   "draft": 0,
-   "relics": {
-    "undying": 0.375,
-    "glass_crown": 0.331,
-    "whetstone": 0.026
-   }
-  },
-  {
-   "id": "core:ember_drake:1",
-   "needs": {
-    "ember_drake": 2
-   },
-   "tracks": {
-    "ember_drake": 1
-   },
-   "from": 2,
-   "gain": [
-    1.78,
-    1.691,
-    1.184,
-    2.306
-   ],
-   "draft": 0,
-   "relics": {
-    "glass_crown": 0.718,
-    "undying": 0.403,
-    "whetstone": 0.397,
-    "heartwood": 0.062,
-    "tower_shield": 0.057,
-    "rally_horn": 0.028
-   }
-  },
-  {
-   "id": "role:channeler:2",
-   "needs": {
-    "bone_chanter": 1,
-    "will_o_wisp": 1
-   },
-   "tracks": {
-    "bone_chanter": 1,
-    "will_o_wisp": 0
-   },
-   "from": 1,
+   "from": 3,
    "role": {
-    "channeler": 2
+    "ranger": 6
    },
    "gain": [
-    1.131,
-    3.129,
-    1.172,
-    1.446
+    null,
+    null,
+    2.427,
+    1.748
    ],
    "draft": 0,
-   "relics": {
-    "undying": 0.337,
-    "whetstone": 0.309,
-    "arise": 0.3,
-    "heartwood": 0.3,
-    "glass_crown": 0.293,
-    "blood_tithe": 0.281,
-    "mimicry": 0.275
-   }
-  },
-  {
-   "id": "core:frost_wyrm:1",
-   "needs": {
-    "frost_wyrm": 2
-   },
-   "tracks": {
-    "frost_wyrm": 1
-   },
-   "from": 3,
-   "gain": [
-    1.244,
-    2.516,
-    0.929,
-    2.345
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:bone_chanter:1",
-   "needs": {
-    "bone_chanter": 2
-   },
-   "tracks": {
-    "bone_chanter": 1
-   },
-   "from": 1,
-   "gain": [
-    -0.013,
-    3.796,
-    1.22,
-    0.915
-   ],
-   "draft": 0
-  },
-  {
-   "id": "core:barrow_wight:0",
-   "needs": {
-    "barrow_wight": 2
-   },
-   "tracks": {
-    "barrow_wight": 0
-   },
-   "from": 3,
-   "gain": [
-    2.431,
-    2.147,
-    1.176,
-    1.737
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:barrow_wight:1",
-   "needs": {
-    "barrow_wight": 2
-   },
-   "tracks": {
-    "barrow_wight": 1
-   },
-   "from": 3,
-   "gain": [
-    2.424,
-    1.703,
-    1.094,
-    1.722
-   ],
-   "draft": 3
+   "relics": {}
   },
   {
    "id": "core:frost_wyrm:0",
@@ -411,36 +124,132 @@
    },
    "from": 3,
    "gain": [
-    1.255,
-    3.869,
-    0.917,
-    1.691
+    0.699,
+    2.851,
+    2.396,
+    1.744
    ],
-   "draft": 3
+   "draft": 0,
+   "relics": {}
   },
   {
-   "id": "role:channeler:4",
+   "id": "role:ranger:3",
    "needs": {
-    "bone_chanter": 2,
-    "will_o_wisp": 1,
-    "marsh_hag": 1
+    "ember_drake": 1,
+    "frost_wyrm": 1,
+    "ash_wyvern": 1
    },
    "tracks": {
-    "bone_chanter": 1,
-    "will_o_wisp": 0,
-    "marsh_hag": 0
+    "ember_drake": 0,
+    "frost_wyrm": 0,
+    "ash_wyvern": 1
    },
    "from": 3,
    "role": {
-    "channeler": 4
+    "ranger": 3
+   },
+   "gain": [
+    1.306,
+    2.837,
+    2.375,
+    1.698
+   ],
+   "draft": 0,
+   "relics": {
+    "tower_shield": 0.022
+   }
+  },
+  {
+   "id": "kin:drake:6",
+   "needs": {
+    "pyre_hound": 2,
+    "ember_drake": 2,
+    "frost_wyrm": 1,
+    "ash_wyvern": 1
+   },
+   "tracks": {
+    "pyre_hound": 1,
+    "ember_drake": 0,
+    "frost_wyrm": 0,
+    "ash_wyvern": 1
+   },
+   "from": 3,
+   "kin": {
+    "drake": 6
    },
    "gain": [
     null,
-    3.415,
-    1.223,
-    1.064
+    null,
+    2.389,
+    1.675
    ],
-   "draft": 3
+   "draft": 0,
+   "relics": {}
+  },
+  {
+   "id": "fusion:pale_court:0",
+   "needs": {
+    "will_o_wisp": 3
+   },
+   "fuse": "pale_court",
+   "tracks": {
+    "pale_court": 0
+   },
+   "from": 1,
+   "gain": [
+    0.613,
+    2.828,
+    2.391,
+    1.744
+   ],
+   "draft": 3,
+   "relics": {}
+  },
+  {
+   "id": "kin:drake:4",
+   "needs": {
+    "pyre_hound": 1,
+    "ember_drake": 1,
+    "frost_wyrm": 1,
+    "ash_wyvern": 1
+   },
+   "tracks": {
+    "pyre_hound": 1,
+    "ember_drake": 0,
+    "frost_wyrm": 0,
+    "ash_wyvern": 1
+   },
+   "from": 3,
+   "kin": {
+    "drake": 4
+   },
+   "gain": [
+    null,
+    2.833,
+    2.362,
+    1.421
+   ],
+   "draft": 0,
+   "relics": {}
+  },
+  {
+   "id": "fusion:pale_court:1",
+   "needs": {
+    "will_o_wisp": 3
+   },
+   "fuse": "pale_court",
+   "tracks": {
+    "pale_court": 1
+   },
+   "from": 1,
+   "gain": [
+    0.613,
+    2.825,
+    2.386,
+    1.722
+   ],
+   "draft": 0,
+   "relics": {}
   },
   {
    "id": "pact:grave_vigil",
@@ -454,9 +263,9 @@
    },
    "tracks": {
     "bone_chanter": 1,
-    "grave_ghoul": 0,
+    "grave_ghoul": 1,
     "tomb_knight": 1,
-    "rot_bloat": 1,
+    "rot_bloat": 0,
     "hive_warden": 0,
     "thorn_dryad": 0
    },
@@ -470,149 +279,19 @@
    "gain": [
     null,
     null,
-    1.189,
-    0.908
+    2.42,
+    1.168
    ],
-   "draft": 0
-  },
-  {
-   "id": "kin:undead:6",
-   "needs": {
-    "bone_chanter": 2,
-    "grave_ghoul": 1,
-    "tomb_knight": 1,
-    "rot_bloat": 1,
-    "barrow_wight": 1
-   },
-   "tracks": {
-    "bone_chanter": 1,
-    "grave_ghoul": 0,
-    "tomb_knight": 1,
-    "rot_bloat": 1,
-    "barrow_wight": 0
-   },
-   "from": 3,
-   "kin": {
-    "undead": 6
-   },
-   "gain": [
-    null,
-    null,
-    1.186,
-    0.799
-   ],
-   "draft": 0
-  },
-  {
-   "id": "core:ash_wyvern:1",
-   "needs": {
-    "ash_wyvern": 2
-   },
-   "tracks": {
-    "ash_wyvern": 1
-   },
-   "from": 3,
-   "gain": [
-    0.082,
-    3.142,
-    0.541,
-    1.415
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:ash_wyvern:0",
-   "needs": {
-    "ash_wyvern": 2
-   },
-   "tracks": {
-    "ash_wyvern": 0
-   },
-   "from": 3,
-   "gain": [
-    0.082,
-    2.826,
-    0.834,
-    1.116
-   ],
-   "draft": 3
-  },
-  {
-   "id": "kin:fae:6",
-   "needs": {
-    "frost_sprite": 2,
-    "will_o_wisp": 2,
-    "thorn_dryad": 1,
-    "marsh_hag": 1
-   },
-   "tracks": {
-    "frost_sprite": 0,
-    "will_o_wisp": 0,
-    "thorn_dryad": 0,
-    "marsh_hag": 0
-   },
-   "from": 3,
-   "kin": {
-    "fae": 6
-   },
-   "gain": [
-    null,
-    null,
-    0.628,
-    1.081
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:bone_chanter:0",
-   "needs": {
-    "bone_chanter": 2
-   },
-   "tracks": {
-    "bone_chanter": 0
-   },
-   "from": 1,
-   "gain": [
-    0.877,
-    1.055,
-    -1.237,
-    2.295
-   ],
-   "draft": 0
-  },
-  {
-   "id": "core:mantis_reaper:1",
-   "needs": {
-    "mantis_reaper": 2
-   },
-   "tracks": {
-    "mantis_reaper": 1
-   },
-   "from": 2,
-   "gain": [
-    -0.053,
-    1.642,
-    -0.913,
-    1.42
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:frost_sprite:0",
-   "needs": {
-    "frost_sprite": 2
-   },
-   "tracks": {
-    "frost_sprite": 0
-   },
-   "from": 1,
-   "gain": [
-    0.819,
-    1.374,
-    -0.373,
-    0.816
-   ],
-   "draft": 3
+   "draft": 2,
+   "relics": {
+    "undying": 0.289,
+    "mimicry": 0.287,
+    "whetstone": 0.287,
+    "arise": 0.287,
+    "arcane_focus": 0.285,
+    "tower_shield": 0.282,
+    "glass_crown": 0.28
+   }
   },
   {
    "id": "fusion:hive_queen:1",
@@ -626,29 +305,58 @@
    },
    "from": 2,
    "gain": [
-    0.026,
-    1.698,
-    0.045,
-    0.197
+    0.74,
+    2.093,
+    1.508,
+    1.709
    ],
-   "draft": 3
+   "draft": 3,
+   "relics": {
+    "glass_crown": 0.352,
+    "whetstone": 0.045,
+    "undying": 0.025
+   }
   },
   {
-   "id": "core:marsh_hag:0",
+   "id": "role:channeler:4",
    "needs": {
-    "marsh_hag": 2
+    "bone_chanter": 2,
+    "will_o_wisp": 1,
+    "marsh_hag": 1
    },
    "tracks": {
-    "marsh_hag": 0
+    "bone_chanter": 1,
+    "will_o_wisp": 0,
+    "marsh_hag": 1
    },
    "from": 3,
+   "role": {
+    "channeler": 4
+   },
    "gain": [
-    -0.282,
-    1.073,
-    0.215,
-    0.83
+    null,
+    2.819,
+    2.076,
+    1.416
    ],
-   "draft": 3
+   "draft": 0
+  },
+  {
+   "id": "core:ember_drake:0",
+   "needs": {
+    "ember_drake": 2
+   },
+   "tracks": {
+    "ember_drake": 0
+   },
+   "from": 2,
+   "gain": [
+    0.612,
+    2.008,
+    1.192,
+    1.749
+   ],
+   "draft": 0
   },
   {
    "id": "fusion:hive_queen:0",
@@ -662,155 +370,10 @@
    },
    "from": 2,
    "gain": [
-    0.026,
-    1.687,
-    0.104,
-    -0.316
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:marsh_hag:1",
-   "needs": {
-    "marsh_hag": 2
-   },
-   "tracks": {
-    "marsh_hag": 1
-   },
-   "from": 3,
-   "gain": [
-    -0.603,
-    0.981,
-    -0.006,
-    0.824
-   ],
-   "draft": 3
-  },
-  {
-   "id": "role:trickster:2",
-   "needs": {
-    "clockwork_page": 1,
-    "mantis_reaper": 1
-   },
-   "tracks": {
-    "clockwork_page": 1,
-    "mantis_reaper": 1
-   },
-   "from": 2,
-   "role": {
-    "trickster": 2
-   },
-   "gain": [
-    -0.32,
-    1.523,
-    -2.189,
-    1.718
-   ],
-   "draft": 0
-  },
-  {
-   "id": "core:will_o_wisp:0",
-   "needs": {
-    "will_o_wisp": 2
-   },
-   "tracks": {
-    "will_o_wisp": 0
-   },
-   "from": 1,
-   "gain": [
-    1.154,
-    0.717,
-    -0.926,
-    0.271
-   ],
-   "draft": 0
-  },
-  {
-   "id": "kin:fae:4",
-   "needs": {
-    "frost_sprite": 1,
-    "will_o_wisp": 1,
-    "thorn_dryad": 1,
-    "marsh_hag": 1
-   },
-   "tracks": {
-    "frost_sprite": 0,
-    "will_o_wisp": 0,
-    "thorn_dryad": 0,
-    "marsh_hag": 0
-   },
-   "from": 3,
-   "kin": {
-    "fae": 4
-   },
-   "gain": [
-    null,
-    2.534,
-    0.887,
-    -0.321
-   ],
-   "draft": 3
-  },
-  {
-   "id": "pact:glamour",
-   "needs": {
-    "frost_sprite": 1,
-    "will_o_wisp": 1,
-    "clockwork_page": 1,
-    "mantis_reaper": 1
-   },
-   "tracks": {
-    "frost_sprite": 0,
-    "will_o_wisp": 0,
-    "clockwork_page": 1,
-    "mantis_reaper": 1
-   },
-   "kin": {
-    "fae": 2
-   },
-   "role": {
-    "trickster": 2
-   },
-   "from": 2,
-   "gain": [
-    null,
-    1.856,
-    -0.634,
-    -0.403
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:will_o_wisp:1",
-   "needs": {
-    "will_o_wisp": 2
-   },
-   "tracks": {
-    "will_o_wisp": 1
-   },
-   "from": 1,
-   "gain": [
-    0.773,
-    0.328,
-    -0.291,
-    0.228
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:frost_sprite:1",
-   "needs": {
-    "frost_sprite": 2
-   },
-   "tracks": {
-    "frost_sprite": 1
-   },
-   "from": 1,
-   "gain": [
-    0.571,
-    0.699,
-    -0.593,
-    0.272
+    0.74,
+    2.1,
+    1.516,
+    1.167
    ],
    "draft": 3
   },
@@ -829,111 +392,57 @@
     "warden": 2
    },
    "gain": [
-    -3.362,
-    1.497,
-    -1.42,
-    0.257
+    -4.264,
+    2.85,
+    1.234,
+    0.586
    ],
    "draft": 1
   },
   {
-   "id": "core:thorn_dryad:0",
+   "id": "kin:undead:6",
    "needs": {
-    "thorn_dryad": 2
+    "bone_chanter": 2,
+    "grave_ghoul": 1,
+    "tomb_knight": 1,
+    "rot_bloat": 1,
+    "barrow_wight": 1
    },
    "tracks": {
-    "thorn_dryad": 0
-   },
-   "from": 2,
-   "gain": [
-    -3.306,
-    1.208,
-    -0.909,
-    -0.046
-   ],
-   "draft": 3
-  },
-  {
-   "id": "role:skirmisher:2",
-   "needs": {
-    "frost_sprite": 1,
-    "pyre_hound": 1
-   },
-   "tracks": {
-    "frost_sprite": 0,
-    "pyre_hound": 1
-   },
-   "from": 1,
-   "role": {
-    "skirmisher": 2
-   },
-   "gain": [
-    0.191,
-    1.008,
-    -1.217,
-    0.27
-   ],
-   "draft": 2
-  },
-  {
-   "id": "kin:undead:4",
-   "needs": {
     "bone_chanter": 1,
     "grave_ghoul": 1,
     "tomb_knight": 1,
-    "rot_bloat": 1
+    "rot_bloat": 0,
+    "barrow_wight": 0
    },
-   "tracks": {
-    "bone_chanter": 1,
-    "grave_ghoul": 0,
-    "tomb_knight": 1,
-    "rot_bloat": 1
-   },
-   "from": 2,
+   "from": 3,
    "kin": {
-    "undead": 4
+    "undead": 6
    },
    "gain": [
     null,
-    0.32,
-    0.871,
-    -1.249
+    null,
+    2.341,
+    0.711
    ],
    "draft": 2
   },
   {
-   "id": "core:thorn_dryad:1",
+   "id": "core:bone_chanter:1",
    "needs": {
-    "thorn_dryad": 2
+    "bone_chanter": 2
    },
    "tracks": {
-    "thorn_dryad": 1
+    "bone_chanter": 1
    },
-   "from": 2,
+   "from": 1,
    "gain": [
-    -3.299,
-    1.708,
-    -1.461,
-    -0.305
+    -0.282,
+    2.832,
+    1.803,
+    1.743
    ],
-   "draft": 3
-  },
-  {
-   "id": "core:mantis_reaper:0",
-   "needs": {
-    "mantis_reaper": 2
-   },
-   "tracks": {
-    "mantis_reaper": 0
-   },
-   "from": 2,
-   "gain": [
-    -0.04,
-    0.782,
-    -1.229,
-    0.275
-   ],
-   "draft": 3
+   "draft": 2
   },
   {
    "id": "pact:swarm_logic",
@@ -946,7 +455,7 @@
    "tracks": {
     "hive_warden": 0,
     "mantis_reaper": 1,
-    "frost_sprite": 0,
+    "frost_sprite": 1,
     "pyre_hound": 1
    },
    "kin": {
@@ -959,58 +468,143 @@
    "gain": [
     null,
     null,
-    -2.359,
-    2.033
+    1.239,
+    1.737
    ],
-   "draft": 3
+   "draft": 0
   },
   {
-   "id": "pact:scaled_wall",
+   "id": "role:channeler:2",
    "needs": {
-    "pyre_hound": 1,
-    "ember_drake": 1,
-    "grave_ghoul": 1,
-    "tomb_knight": 1
+    "bone_chanter": 1,
+    "will_o_wisp": 1
    },
    "tracks": {
-    "pyre_hound": 1,
-    "ember_drake": 0,
-    "grave_ghoul": 0,
-    "tomb_knight": 1
+    "bone_chanter": 1,
+    "will_o_wisp": 0
    },
-   "kin": {
-    "drake": 2
-   },
+   "from": 1,
    "role": {
-    "vanguard": 2
+    "channeler": 2
+   },
+   "gain": [
+    0.303,
+    2.795,
+    1.777,
+    0.871
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:frost_wyrm:1",
+   "needs": {
+    "frost_wyrm": 2
+   },
+   "tracks": {
+    "frost_wyrm": 1
+   },
+   "from": 3,
+   "gain": [
+    0.703,
+    1.77,
+    0.906,
+    1.751
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:ember_drake:1",
+   "needs": {
+    "ember_drake": 2
+   },
+   "tracks": {
+    "ember_drake": 1
    },
    "from": 2,
    "gain": [
-    null,
-    -0.672,
-    0.518,
-    -0.612
+    0.636,
+    1.719,
+    0.6,
+    1.438
    ],
    "draft": 2
   },
   {
-   "id": "fusion:clockwork_titan:1",
+   "id": "core:barrow_wight:0",
    "needs": {
-    "clockwork_page": 2,
-    "iron_golem": 1
+    "barrow_wight": 2
    },
-   "fuse": "clockwork_titan",
    "tracks": {
-    "clockwork_titan": 1
+    "barrow_wight": 0
+   },
+   "from": 3,
+   "gain": [
+    1.268,
+    2.079,
+    1.489,
+    0.845
+   ],
+   "draft": 0
+  },
+  {
+   "id": "kin:undead:4",
+   "needs": {
+    "bone_chanter": 1,
+    "grave_ghoul": 1,
+    "tomb_knight": 1,
+    "rot_bloat": 1
+   },
+   "tracks": {
+    "bone_chanter": 1,
+    "grave_ghoul": 1,
+    "tomb_knight": 1,
+    "rot_bloat": 0
+   },
+   "from": 2,
+   "kin": {
+    "undead": 4
+   },
+   "gain": [
+    null,
+    2.389,
+    1.744,
+    -0.928
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:thorn_dryad:0",
+   "needs": {
+    "thorn_dryad": 2
+   },
+   "tracks": {
+    "thorn_dryad": 0
    },
    "from": 2,
    "gain": [
-    -3.31,
-    0.987,
-    -2.395,
-    0.253
+    -3.052,
+    2.837,
+    -0.253,
+    0.285
    ],
-   "draft": 1
+   "draft": 3
+  },
+  {
+   "id": "core:barrow_wight:1",
+   "needs": {
+    "barrow_wight": 2
+   },
+   "tracks": {
+    "barrow_wight": 1
+   },
+   "from": 3,
+   "gain": [
+    1.26,
+    2.071,
+    0.266,
+    1.421
+   ],
+   "draft": 0
   },
   {
    "id": "kin:insect:4",
@@ -1030,92 +624,67 @@
    },
    "gain": [
     null,
-    -0.894,
-    -1.133,
-    0.852
+    0.221,
+    1.273,
+    0.862
    ],
-   "draft": 3
+   "draft": 0
   },
   {
-   "id": "role:skirmisher:4",
+   "id": "core:mantis_reaper:1",
    "needs": {
-    "frost_sprite": 1,
-    "pyre_hound": 1,
-    "hive_drone": 1,
-    "barrow_wight": 1
+    "mantis_reaper": 2
    },
    "tracks": {
-    "frost_sprite": 0,
-    "pyre_hound": 1,
-    "hive_drone": 1,
-    "barrow_wight": 0
+    "mantis_reaper": 1
    },
-   "from": 3,
+   "from": 2,
+   "gain": [
+    0.658,
+    2.051,
+    -0.61,
+    0.855
+   ],
+   "draft": 0
+  },
+  {
+   "id": "role:trickster:2",
+   "needs": {
+    "clockwork_page": 1,
+    "mantis_reaper": 1
+   },
+   "tracks": {
+    "clockwork_page": 1,
+    "mantis_reaper": 1
+   },
+   "from": 2,
    "role": {
-    "skirmisher": 4
+    "trickster": 2
    },
    "gain": [
-    null,
-    0.361,
-    -0.934,
-    -0.022
+    0.696,
+    2.5,
+    -1.263,
+    0.83
    ],
-   "draft": 3
+   "draft": 0
   },
   {
-   "id": "core:hive_warden:0",
+   "id": "core:mantis_reaper:0",
    "needs": {
-    "hive_warden": 2
+    "mantis_reaper": 2
    },
    "tracks": {
-    "hive_warden": 0
+    "mantis_reaper": 0
    },
-   "from": 1,
+   "from": 2,
    "gain": [
-    -3.395,
-    1.153,
-    -0.045,
-    0.267
+    0.663,
+    2.071,
+    -0.601,
+    0.533
    ],
-   "draft": 1
-  },
-  {
-   "id": "fusion:bone_colossus:1",
-   "needs": {
-    "tomb_knight": 2,
-    "bone_chanter": 1
-   },
-   "fuse": "bone_colossus",
-   "tracks": {
-    "bone_colossus": 1
-   },
-   "from": 1,
-   "gain": [
-    -1.506,
-    0.98,
-    -1.824,
-    0.264
-   ],
-   "draft": 1
-  },
-  {
-   "id": "fusion:bone_colossus:0",
-   "needs": {
-    "tomb_knight": 2,
-    "bone_chanter": 1
-   },
-   "fuse": "bone_colossus",
-   "tracks": {
-    "bone_colossus": 0
-   },
-   "from": 1,
-   "gain": [
-    -1.506,
-    0.968,
-    -1.818,
-    0.25
-   ],
-   "draft": 1
+   "draft": 0
   },
   {
    "id": "kin:insect:6",
@@ -1136,63 +705,96 @@
    "gain": [
     null,
     null,
-    -3.12,
-    2.024
+    -0.495,
+    1.739
    ],
-   "draft": 1
+   "draft": 2
   },
   {
-   "id": "fusion:clockwork_titan:0",
+   "id": "kin:fae:6",
    "needs": {
-    "clockwork_page": 2,
-    "iron_golem": 1
-   },
-   "fuse": "clockwork_titan",
-   "tracks": {
-    "clockwork_titan": 0
-   },
-   "from": 2,
-   "gain": [
-    -3.31,
-    0.959,
-    -2.393,
-    -0.34
-   ],
-   "draft": 1
-  },
-  {
-   "id": "core:hive_warden:1",
-   "needs": {
-    "hive_warden": 2
+    "frost_sprite": 2,
+    "will_o_wisp": 2,
+    "thorn_dryad": 1,
+    "marsh_hag": 1
    },
    "tracks": {
-    "hive_warden": 1
+    "frost_sprite": 1,
+    "will_o_wisp": 0,
+    "thorn_dryad": 0,
+    "marsh_hag": 1
    },
-   "from": 1,
+   "from": 3,
+   "kin": {
+    "fae": 6
+   },
    "gain": [
-    -3.421,
-    1.029,
-    -0.837,
-    -0.034
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:pyre_hound:1",
-   "needs": {
-    "pyre_hound": 2
-   },
-   "tracks": {
-    "pyre_hound": 1
-   },
-   "from": 1,
-   "gain": [
-    -2.439,
-    -0.353,
-    -2.531,
-    1.687
+    null,
+    null,
+    0.925,
+    0.259
    ],
    "draft": 0
+  },
+  {
+   "id": "core:ash_wyvern:1",
+   "needs": {
+    "ash_wyvern": 2
+   },
+   "tracks": {
+    "ash_wyvern": 1
+   },
+   "from": 3,
+   "gain": [
+    0.721,
+    2.143,
+    0.315,
+    0.849
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:ash_wyvern:0",
+   "needs": {
+    "ash_wyvern": 2
+   },
+   "tracks": {
+    "ash_wyvern": 0
+   },
+   "from": 3,
+   "gain": [
+    0.721,
+    2.155,
+    0.33,
+    0.818
+   ],
+   "draft": 0
+  },
+  {
+   "id": "kin:fae:4",
+   "needs": {
+    "frost_sprite": 1,
+    "will_o_wisp": 1,
+    "thorn_dryad": 1,
+    "marsh_hag": 1
+   },
+   "tracks": {
+    "frost_sprite": 1,
+    "will_o_wisp": 0,
+    "thorn_dryad": 0,
+    "marsh_hag": 1
+   },
+   "from": 3,
+   "kin": {
+    "fae": 4
+   },
+   "gain": [
+    null,
+    2.824,
+    0.91,
+    0.232
+   ],
+   "draft": 3
   },
   {
    "id": "role:warden:4",
@@ -1210,11 +812,397 @@
    },
    "gain": [
     null,
-    -1.634,
-    -1.127,
-    -0.297
+    0.246,
+    1.173,
+    0.294
    ],
    "draft": 3
+  },
+  {
+   "id": "fusion:clockwork_titan:1",
+   "needs": {
+    "clockwork_page": 2,
+    "iron_golem": 1
+   },
+   "fuse": "clockwork_titan",
+   "tracks": {
+    "clockwork_titan": 1
+   },
+   "from": 2,
+   "gain": [
+    -4.192,
+    0.333,
+    -0.05,
+    1.176
+   ],
+   "draft": 0
+  },
+  {
+   "id": "fusion:clockwork_titan:0",
+   "needs": {
+    "clockwork_page": 2,
+    "iron_golem": 1
+   },
+   "fuse": "clockwork_titan",
+   "tracks": {
+    "clockwork_titan": 0
+   },
+   "from": 2,
+   "gain": [
+    -4.192,
+    -0.26,
+    -0.064,
+    1.743
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:frost_sprite:1",
+   "needs": {
+    "frost_sprite": 2
+   },
+   "tracks": {
+    "frost_sprite": 1
+   },
+   "from": 1,
+   "gain": [
+    0.625,
+    1.007,
+    -0.311,
+    0.259
+   ],
+   "draft": 0
+  },
+  {
+   "id": "pact:glamour",
+   "needs": {
+    "frost_sprite": 1,
+    "will_o_wisp": 1,
+    "clockwork_page": 1,
+    "mantis_reaper": 1
+   },
+   "tracks": {
+    "frost_sprite": 1,
+    "will_o_wisp": 0,
+    "clockwork_page": 1,
+    "mantis_reaper": 1
+   },
+   "kin": {
+    "fae": 2
+   },
+   "role": {
+    "trickster": 2
+   },
+   "from": 2,
+   "gain": [
+    null,
+    2.527,
+    -0.061,
+    -1.564
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:frost_sprite:0",
+   "needs": {
+    "frost_sprite": 2
+   },
+   "tracks": {
+    "frost_sprite": 0
+   },
+   "from": 1,
+   "gain": [
+    0.627,
+    0.374,
+    -0.345,
+    0.539
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:bone_chanter:0",
+   "needs": {
+    "bone_chanter": 2
+   },
+   "tracks": {
+    "bone_chanter": 0
+   },
+   "from": 1,
+   "gain": [
+    0.567,
+    0.336,
+    -1.824,
+    1.75
+   ],
+   "draft": 2
+  },
+  {
+   "id": "fusion:bone_colossus:1",
+   "needs": {
+    "tomb_knight": 2,
+    "bone_chanter": 1
+   },
+   "fuse": "bone_colossus",
+   "tracks": {
+    "bone_colossus": 1
+   },
+   "from": 1,
+   "gain": [
+    -1.192,
+    0.074,
+    -0.067,
+    1.718
+   ],
+   "draft": 2
+  },
+  {
+   "id": "role:skirmisher:4",
+   "needs": {
+    "frost_sprite": 1,
+    "pyre_hound": 1,
+    "hive_drone": 1,
+    "barrow_wight": 1
+   },
+   "tracks": {
+    "frost_sprite": 1,
+    "pyre_hound": 1,
+    "hive_drone": 1,
+    "barrow_wight": 0
+   },
+   "from": 3,
+   "role": {
+    "skirmisher": 4
+   },
+   "gain": [
+    null,
+    0.379,
+    0.594,
+    -0.358
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:marsh_hag:1",
+   "needs": {
+    "marsh_hag": 2
+   },
+   "tracks": {
+    "marsh_hag": 1
+   },
+   "from": 3,
+   "gain": [
+    -0.254,
+    0.997,
+    -0.337,
+    0.533
+   ],
+   "draft": 0
+  },
+  {
+   "id": "fusion:bone_colossus:0",
+   "needs": {
+    "tomb_knight": 2,
+    "bone_chanter": 1
+   },
+   "fuse": "bone_colossus",
+   "tracks": {
+    "bone_colossus": 0
+   },
+   "from": 1,
+   "gain": [
+    -1.192,
+    0.066,
+    -0.077,
+    1.451
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:thorn_dryad:1",
+   "needs": {
+    "thorn_dryad": 2
+   },
+   "tracks": {
+    "thorn_dryad": 1
+   },
+   "from": 2,
+   "gain": [
+    -3.045,
+    0.029,
+    -1.243,
+    1.132
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:marsh_hag:0",
+   "needs": {
+    "marsh_hag": 2
+   },
+   "tracks": {
+    "marsh_hag": 0
+   },
+   "from": 3,
+   "gain": [
+    0.317,
+    0.698,
+    -0.601,
+    0.524
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:will_o_wisp:0",
+   "needs": {
+    "will_o_wisp": 2
+   },
+   "tracks": {
+    "will_o_wisp": 0
+   },
+   "from": 1,
+   "gain": [
+    0.056,
+    1.005,
+    -1.753,
+    0.505
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:hive_warden:0",
+   "needs": {
+    "hive_warden": 2
+   },
+   "tracks": {
+    "hive_warden": 0
+   },
+   "from": 1,
+   "gain": [
+    -4.323,
+    2.193,
+    0.929,
+    0.862
+   ],
+   "draft": 1
+  },
+  {
+   "id": "core:pyre_hound:1",
+   "needs": {
+    "pyre_hound": 2
+   },
+   "tracks": {
+    "pyre_hound": 1
+   },
+   "from": 1,
+   "gain": [
+    0.625,
+    0.373,
+    -1.923,
+    0.558
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:pyre_hound:0",
+   "needs": {
+    "pyre_hound": 2
+   },
+   "tracks": {
+    "pyre_hound": 0
+   },
+   "from": 1,
+   "gain": [
+    0.624,
+    0.032,
+    -1.908,
+    0.55
+   ],
+   "draft": 0
+  },
+  {
+   "id": "role:skirmisher:2",
+   "needs": {
+    "frost_sprite": 1,
+    "pyre_hound": 1
+   },
+   "tracks": {
+    "frost_sprite": 1,
+    "pyre_hound": 1
+   },
+   "from": 1,
+   "role": {
+    "skirmisher": 2
+   },
+   "gain": [
+    0.577,
+    0.086,
+    -1.822,
+    0.25
+   ],
+   "draft": 0
+  },
+  {
+   "id": "pact:scaled_wall",
+   "needs": {
+    "pyre_hound": 1,
+    "ember_drake": 1,
+    "grave_ghoul": 1,
+    "tomb_knight": 1
+   },
+   "tracks": {
+    "pyre_hound": 1,
+    "ember_drake": 0,
+    "grave_ghoul": 1,
+    "tomb_knight": 1
+   },
+   "kin": {
+    "drake": 2
+   },
+   "role": {
+    "vanguard": 2
+   },
+   "from": 2,
+   "gain": [
+    null,
+    -1.318,
+    -0.616,
+    0.503
+   ],
+   "draft": 3
+  },
+  {
+   "id": "core:will_o_wisp:1",
+   "needs": {
+    "will_o_wisp": 2
+   },
+   "tracks": {
+    "will_o_wisp": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.257,
+    -0.258,
+    -1.807,
+    0.241
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:hive_drone:1",
+   "needs": {
+    "hive_drone": 2
+   },
+   "tracks": {
+    "hive_drone": 1
+   },
+   "from": 2,
+   "gain": [
+    -2.668,
+    -0.679,
+    -1.347,
+    0.259
+   ],
+   "draft": 2
   },
   {
    "id": "role:trickster:4",
@@ -1232,96 +1220,11 @@
    },
    "gain": [
     null,
-    -0.197,
-    -1.897,
-    -0.97
+    0.255,
+    -0.644,
+    -1.861
    ],
-   "draft": 3
-  },
-  {
-   "id": "core:pyre_hound:0",
-   "needs": {
-    "pyre_hound": 2
-   },
-   "tracks": {
-    "pyre_hound": 0
-   },
-   "from": 1,
-   "gain": [
-    -2.439,
-    -0.055,
-    -2.53,
-    0.586
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:iron_golem:1",
-   "needs": {
-    "iron_golem": 2
-   },
-   "tracks": {
-    "iron_golem": 1
-   },
-   "from": 2,
-   "gain": [
-    -3.11,
-    -0.726,
-    -2.58,
-    -0.03
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:clockwork_page:1",
-   "needs": {
-    "clockwork_page": 2
-   },
-   "tracks": {
-    "clockwork_page": 1
-   },
-   "from": 1,
-   "gain": [
-    -3.364,
-    1.441,
-    -3.094,
-    0.556
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:hive_drone:1",
-   "needs": {
-    "hive_drone": 2
-   },
-   "tracks": {
-    "hive_drone": 1
-   },
-   "from": 2,
-   "gain": [
-    -2.493,
-    -0.688,
-    -2.469,
-    -0.336
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:iron_golem:0",
-   "needs": {
-    "iron_golem": 2
-   },
-   "tracks": {
-    "iron_golem": 0
-   },
-   "from": 2,
-   "gain": [
-    -3.162,
-    -0.369,
-    -2.564,
-    -0.69
-   ],
-   "draft": 1
+   "draft": 0
   },
   {
    "id": "core:hive_drone:0",
@@ -1333,27 +1236,117 @@
    },
    "from": 2,
    "gain": [
-    -2.432,
-    -0.379,
-    -2.713,
-    -0.577
+    -1.762,
+    -0.661,
+    -1.625,
+    -0.015
    ],
    "draft": 2
   },
   {
-   "id": "core:clockwork_page:0",
+   "id": "core:clockwork_page:1",
    "needs": {
     "clockwork_page": 2
    },
    "tracks": {
-    "clockwork_page": 0
+    "clockwork_page": 1
    },
    "from": 1,
    "gain": [
-    -3.366,
-    -0.654,
-    -1.569,
-    0.269
+    -4.37,
+    2.203,
+    -1.662,
+    0.541
+   ],
+   "draft": 1
+  },
+  {
+   "id": "core:iron_golem:1",
+   "needs": {
+    "iron_golem": 2
+   },
+   "tracks": {
+    "iron_golem": 1
+   },
+   "from": 2,
+   "gain": [
+    -2.986,
+    -0.661,
+    -1.899,
+    -0.034
+   ],
+   "draft": 0
+  },
+  {
+   "id": "role:vanguard:2",
+   "needs": {
+    "grave_ghoul": 1,
+    "tomb_knight": 1
+   },
+   "tracks": {
+    "grave_ghoul": 1,
+    "tomb_knight": 1
+   },
+   "from": 1,
+   "role": {
+    "vanguard": 2
+   },
+   "gain": [
+    -2.122,
+    -0.681,
+    -1.922,
+    0.242
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:hive_warden:1",
+   "needs": {
+    "hive_warden": 2
+   },
+   "tracks": {
+    "hive_warden": 1
+   },
+   "from": 1,
+   "gain": [
+    -4.372,
+    1.107,
+    -1.232,
+    -0.046
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:grave_ghoul:1",
+   "needs": {
+    "grave_ghoul": 2
+   },
+   "tracks": {
+    "grave_ghoul": 1
+   },
+   "from": 1,
+   "gain": [
+    -2.053,
+    -1.005,
+    -1.294,
+    -0.312
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:rot_bloat:0",
+   "needs": {
+    "rot_bloat": 2
+   },
+   "tracks": {
+    "rot_bloat": 0
+   },
+   "from": 2,
+   "gain": [
+    -4.284,
+    -1.424,
+    -1.33,
+    -0.929
    ],
    "draft": 2
   },
@@ -1367,119 +1360,46 @@
    },
    "from": 2,
    "gain": [
-    -3.304,
-    -1.124,
-    -2.575,
-    -0.849
+    -4.016,
+    -1.724,
+    -1.931,
+    -0.036
    ],
-   "draft": 3
+   "draft": 0
   },
   {
-   "id": "core:grave_ghoul:0",
+   "id": "core:iron_golem:0",
    "needs": {
-    "grave_ghoul": 2
+    "iron_golem": 2
    },
    "tracks": {
-    "grave_ghoul": 0
-   },
-   "from": 1,
-   "gain": [
-    -2.527,
-    -1.581,
-    -1.773,
-    -0.682
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:tomb_knight:1",
-   "needs": {
-    "tomb_knight": 2
-   },
-   "tracks": {
-    "tomb_knight": 1
-   },
-   "from": 1,
-   "gain": [
-    -3.293,
-    -0.426,
-    -2.579,
-    -0.34
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:tomb_knight:0",
-   "needs": {
-    "tomb_knight": 2
-   },
-   "tracks": {
-    "tomb_knight": 0
-   },
-   "from": 1,
-   "gain": [
-    -3.311,
-    -0.394,
-    -2.534,
-    -0.416
-   ],
-   "draft": 1
-  },
-  {
-   "id": "core:grave_ghoul:1",
-   "needs": {
-    "grave_ghoul": 2
-   },
-   "tracks": {
-    "grave_ghoul": 1
-   },
-   "from": 1,
-   "gain": [
-    -2.727,
-    -0.97,
-    -2.338,
-    -0.623
-   ],
-   "draft": 3
-  },
-  {
-   "id": "role:vanguard:2",
-   "needs": {
-    "grave_ghoul": 1,
-    "tomb_knight": 1
-   },
-   "tracks": {
-    "grave_ghoul": 0,
-    "tomb_knight": 1
-   },
-   "from": 1,
-   "role": {
-    "vanguard": 2
-   },
-   "gain": [
-    -2.629,
-    -1.048,
-    -2.49,
-    -0.631
-   ],
-   "draft": 3
-  },
-  {
-   "id": "core:rot_bloat:0",
-   "needs": {
-    "rot_bloat": 2
-   },
-   "tracks": {
-    "rot_bloat": 0
+    "iron_golem": 0
    },
    "from": 2,
    "gain": [
-    -3.323,
-    -1.135,
-    -3.012,
-    -1.24
+    -2.984,
+    -1.54,
+    -1.916,
+    -0.306
    ],
-   "draft": 1
+   "draft": 2
+  },
+  {
+   "id": "core:clockwork_page:0",
+   "needs": {
+    "clockwork_page": 2
+   },
+   "tracks": {
+    "clockwork_page": 0
+   },
+   "from": 1,
+   "gain": [
+    -4.347,
+    -0.004,
+    -1.292,
+    0.596
+   ],
+   "draft": 2
   },
   {
    "id": "kin:construct:4",
@@ -1497,11 +1417,62 @@
    },
    "gain": [
     null,
-    -1.797,
-    -2.816,
-    -1.383
+    -1.168,
+    -0.8,
+    -1.884
    ],
-   "draft": 3
+   "draft": 0
+  },
+  {
+   "id": "core:grave_ghoul:0",
+   "needs": {
+    "grave_ghoul": 2
+   },
+   "tracks": {
+    "grave_ghoul": 0
+   },
+   "from": 1,
+   "gain": [
+    -2.073,
+    -1.324,
+    -1.298,
+    -0.92
+   ],
+   "draft": 2
+  },
+  {
+   "id": "core:tomb_knight:1",
+   "needs": {
+    "tomb_knight": 2
+   },
+   "tracks": {
+    "tomb_knight": 1
+   },
+   "from": 1,
+   "gain": [
+    -3.136,
+    -0.637,
+    -1.954,
+    -0.347
+   ],
+   "draft": 0
+  },
+  {
+   "id": "core:tomb_knight:0",
+   "needs": {
+    "tomb_knight": 2
+   },
+   "tracks": {
+    "tomb_knight": 0
+   },
+   "from": 1,
+   "gain": [
+    -3.459,
+    -1.265,
+    -1.914,
+    -0.051
+   ],
+   "draft": 0
   },
   {
    "id": "role:vanguard:4",
@@ -1512,10 +1483,10 @@
     "rot_bloat": 1
    },
    "tracks": {
-    "grave_ghoul": 0,
+    "grave_ghoul": 1,
     "tomb_knight": 1,
     "iron_golem": 1,
-    "rot_bloat": 1
+    "rot_bloat": 0
    },
    "from": 2,
    "role": {
@@ -1523,9 +1494,9 @@
    },
    "gain": [
     null,
-    -1.935,
-    -3.198,
-    -1.619
+    -2.878,
+    -1.959,
+    -1.806
    ],
    "draft": 3
   },
@@ -1546,10 +1517,10 @@
    "gain": [
     null,
     null,
-    -4.008,
-    -0.996
+    -3.183,
+    -1.53
    ],
-   "draft": 3
+   "draft": 2
   }
  ]
 }

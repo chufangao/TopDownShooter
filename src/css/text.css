@@ -1,6 +1,6 @@
 /* text: the colour and keyword language and the text diet (codex.js, keywords.js). Compact tooltips (the unit
-   card, rooms, relics and their tiers, keyword hovers), the synergy and bond chips, How to play's primer and
-   glossary, and the Ossuary tab in their systems' colours. Loaded after style.css: it overrides. */
+   card, rooms, relics and their tiers, keyword hovers), the synergy and pact chips, and the codex (How to play's
+   primer, glossary, fusions and bestiary) in their systems' colours. Loaded after style.css: it overrides. */
 
 /* ── keyword hover ────────────────────────────────────────────────────────────────────────────── */
 .kw-tip { max-width: 380px; font-size: var(--fs-md); }
@@ -19,7 +19,7 @@
 .card-tip.compact .ct-hp { display: inline-flex; flex: none; align-items: center; gap: 6px; margin: 0 0 0 auto; font: 600 var(--fs-sm) var(--sans); color: var(--text); }
 .card-tip.compact .ct-hp .hpbar { width: 48px; }
 .ct-live { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: var(--fs-md); color: var(--text); }
-/* A board tile's tooltip: two short lines. */
+/* A board tile's tooltip: a few short lines. */
 .tile-tip { max-width: 440px; font-size: var(--fs-md); line-height: 1.4; }
 .tile-tip > div + div { margin-top: 3px; }
 /* The live line wraps to a second line rather than cut a status short; past two it ends in an ellipsis. */
@@ -67,7 +67,7 @@
 .num { font-weight: 700; color: var(--c-essence); }
 .num.foe { color: var(--c-foe); }
 
-/* ── synergy and bond chips ───────────────────────────────────────────────────────────────────── */
+/* ── synergy and pact chips ───────────────────────────────────────────────────────────────────── */
 .syns.chips { flex-direction: row; flex-wrap: wrap; gap: 5px; }
 .syn.chip {
   display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 99px; font-size: var(--fs-sm); cursor: help;
@@ -85,7 +85,6 @@
 .syn.chip .syn-steps i.next { border-style: dashed; border-color: var(--dim); color: var(--text); }
 
 /* ── relics and their tiers ─────────────────────────────────────────────────────────────────────── */
-.c-relic { color: var(--c-relic); }
 .c-common { color: var(--c-common); }
 .c-uncommon { color: var(--c-uncommon); }
 .c-rare { color: var(--c-rare); }
@@ -105,8 +104,6 @@
 .gl-relics .relic-tier .relic { min-height: 0; padding: 2px 10px; font-size: var(--fs-sm); cursor: help; }
 .relic-tip .trig-tag, .relic-tip .tier-tag { margin: 0 2px 0 0; }
 .relic-tip > .dim { margin-top: 4px; }
-/* The Monarch's panel without Arise: its domain, Will and raises locked, a line naming the relic. */
-.mc-lock { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: var(--fs-sm); cursor: help; }
 .relic.trig { position: relative; }
 .relic.trig::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--c-relic); box-shadow: 0 0 6px var(--c-relic); margin-left: 2px; }
 

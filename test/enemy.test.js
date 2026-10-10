@@ -12,46 +12,16 @@ import { policy, LEVELS, rehearsalBudget } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
-import { makeUnit, tileAt, tileX, tileY, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT } from '../src/sim/unit.js'
+import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT } from '../src/sim/unit.js'
 import { sturdy, grant } from './tuned.js'
+import { on, scene as sceneOf, slay, unit } from './scene.js'
 
 const sp = TUNING.spawn
 const W = sp.waves
 const at = (list, floor) => list[Math.min(floor, list.length) - 1]
 
-// A unit placed on a board tile directly; a battle of such units (as in battle.test.js): foes deploy in spare
-// slots of their formation and are moved to their tiles; the ones not named in `moving` never step.
-const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-function scene (units, { moving = [], ...opts } = {}) {
-  const foeRow0 = DEPTH - 3
-  const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
-  const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
-    : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
-  const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'enemy', ...opts })
-  for (const u of b.units) {
-    const want = units.find((x) => x.uid === u.uid)?.tile
-    if (want === undefined) continue
-    if (u.tile !== want) {
-      const layer = u.flies ? b.sky : b.at
-      layer[u.tile] = null
-      u.tile = want
-      layer[want] = u
-    }
-    if (!moving.includes(u.uid)) u.nextStep = Infinity
-  }
-  return b
-}
-// Lays a unit dead where it stands, as a blow would (the index, the roster), without the blow's consequences.
-function slay (b, u) {
-  u.hp = 0
-  u.statuses = []
-  const layer = u.flies ? b.sky : b.at
-  layer[u.tile] = null
-  b.roster++
-  if (u.side === 'party') b.ours++
-}
-const unit = (b, uid) => b.units.find((u) => u.uid === uid)
+// A battle of units placed on tiles (scene.js scene).
+const scene = (units, opts) => sceneOf(units, { seed: 'enemy', ...opts })
 // A foe still to come: off the board, in its wave, entering in `lane` when `when` comes.
 const coming = (id, uid, wave, when, lane = 3, extra = {}) => ({ ...makeUnit(id, { uid, lvl: 1 }), side: 'foe', wave, lane, when: { ...when, wave }, ...extra })
 // A run's souls at level 10 and a Monarch that takes a while to fell (the HP `monarch` points once gave: tuned.js
@@ -302,7 +272,7 @@ test('the Sovereign\'s Grave Tide raises two of the field\'s dead on its side: t
   for (const e of risen) {
     const u = unit(b, e.unit.uid)
     assert.ok(alive(u) && u.shadow && u.side === 'foe')
-    assert.equal(u.hp, Math.ceil(baseStats(u.id, u.lvl).hp * TUNING.monarch.raiseHp))
+    assert.equal(u.hp, Math.ceil(baseStats(u.id, u.lvl).hp * TUNING.arise.hp))
   }
   assert.equal(b.raised, 0, 'Arise\'s count is the Monarch\'s alone')
   assert.ok(unit(b, 2).raised && unit(b, 51).raised && !unit(b, 52).raised && !unit(b, 53).raised)
@@ -340,6 +310,23 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
   assert.equal(pay[2], foeEssence(sov) + foeEssence(unit(b, 51)))
   assert.equal(pay[0], foeEssence(unit(b, 53)))
   assert.equal(pay[1], 0)
+})
+
+test('the Sovereign\'s crumbled court never rises: not even to an Arise cast later in the tick it fell (no shadow for Hollow Court to reap)', () => {
+  // A Frost Sprite of yours fells the Sovereign at (3, 4) with its first shot; two Pages of its court stand beside it,
+  // well inside Arise's reach of the Monarch at (3, 0), whose gauge is full and who acts after the Sprite.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 1, 1, 20),
+    on('hollow_sovereign', 10, 'foe', 3, 4, 1), on('clockwork_page', 11, 'foe', 2, 4, 1), on('clockwork_page', 12, 'foe', 4, 4, 1)],
+  { relics: ['arise', 'hollow_court'], boss: true })
+  unit(b, 10).hp = 1
+  unit(b, 1).gauge = unit(b, 1).costliest
+  b.monarch.gauge = b.monarch.costliest
+  assert.ok(unit(b, 1).ord < b.monarch.ord, 'the Monarch acts after the Sprite')
+  while (!b.over) stepBattle(b)
+  assert.deepEqual([b.winner, b.reason, b.t], ['party', 'sovereign', 1])
+  assert.deepEqual(b.events.filter((e) => e.type === 'death' && e.crumble).map((e) => e.target), [11, 12])
+  assert.deepEqual(b.events.filter((e) => e.type === 'arise' || (e.type === 'action' && e.actor === 0)), [], 'Arise never cast')
+  assert.equal(b.units.filter((u) => u.shadow).length, 0)
 })
 
 test('a Monarch felled by a foe of a later wave is recorded with that wave, under the killer\'s own threat', () => {

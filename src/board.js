@@ -1,11 +1,12 @@
 // The prep board: the battle's own board, drawn in Phaser under the Field tab (ui.js fieldEditor), so the army
 // is arranged on the very picture the battle plays on. It draws a picture of plain data that the editor builds
 // on every render (ui.js: the picture), with the plan laid over it (DESIGN §4): the roads as arrows, coverage (each
-// road tile shaded by how many of your rings reach it), the domain, the crown on the Monarch's seat, the selected
-// piece's ring, and each synergy's glow; a 2×2 piece drawn large over its four tiles, a flyer hovering over its
-// shadow. It tells the editor which tile lies under the pointer, lifts a piece while it is dragged (a 2×2's four
-// cells lit under it, red where they do not fit), and at Begin fades into the battle with everyone where they
-// stood. It decides nothing: every rule, every tooltip and every action stays in ui.js.
+// road tile shaded by how many of your rings reach it), the stop line (where a walker first comes under a ring: the
+// earliest it can halt), Arise's reach once held, the crown on the Monarch's seat, the selected piece's ring, and
+// each synergy's glow; a 2×2 piece drawn large over its four tiles, a flyer hovering over its shadow. It tells the
+// editor which tile lies under the pointer, lifts a piece while it is dragged (a 2×2's four cells lit under it, red
+// where they do not fit), and at Begin fades into the battle with everyone where they stood. It decides nothing:
+// every rule, every tooltip and every action stays in ui.js.
 import Phaser from './vendor/phaser.js'
 import { unitDef } from './content.js'
 import { LANES, DEPTH, TILES, ROWS, CAMP_ROWS, tileX, tileY, footprint } from './sim/unit.js'
@@ -26,15 +27,21 @@ const DRAG = { lift: 48, zoomUnder: 40, ms: 200, zoom: 1.8 }
 const TOUCH_SLOP = 8
 // The pointer of the last press (touch or not), read when a drag lifts.
 let pointerType = 'mouse'
-// Every tile becomes a point by the board's one transform (engine.js posOf: the board on its side).
-const posFor = posOf
-const groundOf = (tile) => { const p = posFor(tile); return { x: p.x, y: p.y + GROUND } }
+// Every tile becomes a point by the board's one transform (engine.js posOf: the board on its side); its ground lies
+// GROUND under it.
+const groundOf = (tile) => { const p = posOf(tile); return { x: p.x, y: p.y + GROUND } }
+// A road's step from tile `t` to `to` (its arrow), on the ground: where it starts, and its unit direction.
+function stepOn (t, to) {
+  const a = groundOf(t)
+  const b = groundOf(to)
+  const len = Math.hypot(b.x - a.x, b.y - a.y)
+  return { a, ux: (b.x - a.x) / len, uy: (b.y - a.y) / len }
+}
 
 let engine = null
 let scene = null    // the PrepScene while it runs
 let starting = false
-// What to show: { stage (the editor's board element, which the camera keeps the board inside), avoid (the
-// elements laid over the stage, kept clear), picture }.
+// What to show: { stage (the editor's board element, which the camera keeps the board inside), picture }.
 let want = null
 // An editor draws before its screen is on the page: the last picture asked of each stage not yet on it.
 const pending = new WeakMap()
@@ -56,11 +63,11 @@ export const board = {
   // Draws `picture` inside `stage`; starts the scene the first time, and wakes it when it slept (see update).
   // A stage not on the page is drawn once it is, if that is still its last picture (an editor builds before
   // its screen goes up); one that never arrives, or left (an old screen's), is ignored.
-  show (stage, picture, avoid = []) {
-    const w = { stage, picture, avoid: avoid.filter(Boolean) }
+  show (stage, picture) {
+    const w = { stage, picture }
     if (!stage.isConnected) {
       pending.set(stage, w)
-      queueMicrotask(() => { if (pending.get(stage) === w && stage.isConnected) board.show(stage, picture, avoid) })
+      queueMicrotask(() => { if (pending.get(stage) === w && stage.isConnected) board.show(stage, picture) })
       return
     }
     pending.delete(stage)
@@ -115,7 +122,6 @@ class PrepScene extends Phaser.Scene {
     scene = this
     starting = false
     this.actors = new Map() // key → { sprite, shadow, scale, size, chest, tile, u, parts, growth, pop, rise, lifted }
-    this.layer = []         // the picture's texts, made anew on every draw
     this.picture = null
     this.view = null        // the camera's mapping (see fit)
     this.fitted = null      // the board's own view, the one fit chose; a drag by touch may ease in from it (dragView)
@@ -129,11 +135,13 @@ class PrepScene extends Phaser.Scene {
     this.into = null
     this.beat = { v: 0 }
     this.tweens.add({ targets: this.beat, v: 1, duration: 750, yoyo: true, repeat: -1, ease: 'Sine.InOut' })
-    this.ground()
+    // The floor, the vignette, the two daises and the seam between them, and the motes: the battle's own.
+    drawGround(this)
     this.wallArt = { key: null, art: [] }
     this.tileG = this.add.graphics().setDepth(-400)
     this.covG = this.add.graphics().setDepth(-399)
     this.roadG = this.add.graphics().setDepth(-398)
+    this.stopG = this.add.graphics().setDepth(-397)
     this.domG = this.add.graphics().setDepth(-395)
     // While a piece is dragged: the domain lit (pulsing, see update) and the ground outside it dimmed.
     this.glowG = this.add.graphics().setDepth(-394)
@@ -156,34 +164,21 @@ class PrepScene extends Phaser.Scene {
     if (want) this.draw(want.picture)
   }
 
-  // The floor, the vignette, the two daises and the seam between them, and the motes: the battle's own.
-  ground () {
-    drawGround(this)
-  }
-
-  text (x, y, str, size, colour, stroke = 0, font = FONT) {
-    const t = this.add.text(x, y, str, { fontFamily: font, fontSize: `${size}px`, fontStyle: 'bold', color: colour, stroke: '#07060b', strokeThickness: stroke })
-      .setResolution(3)
-    this.layer.push(t)
-    return t
-  }
-
   // ── the picture ──────────────────────────────────────────────────────────────────────────────
 
-  // p: { walls, facing, units, domain: { centre, r }, roads (each tile's arrow, field().arrow), ring ({ tile, r, size,
-  // foe } or null), seat (the Monarch's tile), cover (by tile, how many of your rings reach it), drop (the anchors a
-  // drag may land on), dropSize (the dragged piece's size), selTile, selKey }. A unit: { key, id, tile (its anchor),
-  // size (1, or 2: a 2×2), side, hp, maxHp, lvl, tracks, count, monarch, fallen, sel, glow (colours), lit, ghost,
-  // flies (hovers) }.
+  // p: { walls, units, domain: { centre, r } (Arise's reach, null until held), roads (each tile's arrow,
+  // field().arrow), ring ({ tile, r, size, foe } or null), seat (the Monarch's tile), cover (by tile, how many of your
+  // rings reach it), stops (the stop line's tiles, battle.js stopLine), drop (the anchors a drag may land on), dropSize
+  // (the dragged piece's size), selKey }. A unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp, maxHp,
+  // lvl, tracks, count, monarch, fallen, sel, glow (colours), lit, flies (hovers) }.
   draw (p) {
     const old = this.picture
     this.picture = p
-    for (const o of this.layer) o.destroy()
-    this.layer = []
     this.drawWalls(p.walls)
     this.drawTiles(p)
     this.drawCover(p.cover)
     this.drawRoads(p.roads)
+    this.drawStops(p.stops, p.roads)
     this.drawDomain(p.domain?.centre ?? null)
     this.drawRing(p.ring)
     this.drawSeat(p.seat)
@@ -227,16 +222,15 @@ class PrepScene extends Phaser.Scene {
     this.wallArt = {
       key,
       art: walls.map((tile) => {
-        const p = posFor(tile)
+        const p = posOf(tile)
         return this.add.image(p.x, p.y + 8, WALLS[(tile * 7 + (tile >> 3)) % WALLS.length]).setOrigin(0.5, WALL_FOOT)
           .setScale(WALL_SCALE / RES).setFlipX(tile % 2 === 1).setDepth(p.y)
       })
     }
   }
 
-  // A rune under every open tile, in its side's colour; brighter where someone stands (each tile of a 2×2's), where
-  // a dragged piece may go (`drop`: a 2×2's at the middle of the four cells it would take), and under a selected
-  // tile.
+  // A rune under every open tile, in its side's colour; brighter where someone stands (each tile of a 2×2's), and
+  // where a dragged piece may go (`drop`: a 2×2's at the middle of the four cells it would take).
   drawTiles (p) {
     const g = this.tileG.clear()
     const walls = new Set(p.walls)
@@ -252,17 +246,13 @@ class PrepScene extends Phaser.Scene {
     }
     for (let tile = 0; tile < TILES; tile++) {
       if (walls.has(tile)) continue
-      const { x, y } = posFor(tile)
+      const { x, y } = posOf(tile)
       const ty = tileY(tile)
       const colour = ty < CAMP_ROWS ? PARTY : ty >= DEPTH - ROWS ? FOE : NEUTRAL
       g.lineStyle(1.2, colour, taken.has(tile) ? 0.45 : 0.14).strokeEllipse(x, y + GROUND, 50, 15)
       if (drop.has(tile)) {
         g.fillStyle(SOUL, 0.08).fillEllipse(x, y + GROUND, 56, 18)
         g.lineStyle(1.5, SOUL, 0.55).strokeEllipse(x, y + GROUND, 56, 18)
-      }
-      if (tile === p.selTile) {
-        g.fillStyle(SOUL, 0.14).fillEllipse(x, y + GROUND, 62, 20)
-        g.lineStyle(2.5, SOUL, 0.95).strokeEllipse(x, y + GROUND, 62, 20)
       }
     }
   }
@@ -286,12 +276,8 @@ class PrepScene extends Phaser.Scene {
     const g = this.roadG.clear()
     if (!arrow) return
     for (let t = 0; t < TILES; t++) {
-      const to = arrow[t]
-      if (to < 0) continue
-      const a = groundOf(t)
-      const b = groundOf(to)
-      const len = Math.hypot(b.x - a.x, b.y - a.y)
-      const [ux, uy] = [(b.x - a.x) / len, (b.y - a.y) / len]
+      if (arrow[t] < 0) continue
+      const { a, ux, uy } = stepOn(t, arrow[t])
       const [cx, cy] = [a.x + ux * 12, a.y + uy * 12]
       g.lineStyle(3, FOE, 0.42)
       g.lineBetween(cx + ux * 9, cy + uy * 9, cx - ux * 5 - uy * 9, cy - uy * 5 + ux * 9)
@@ -299,8 +285,23 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
-  // The Monarch's domain around `centre`. While a piece is dragged the domain lights up and the ground outside
-  // it dims.
+  // The stop line (DESIGN §3): on each tile where a walker coming down the road first comes under one of your rings,
+  // a short bar across the road at the tile's upstream edge, in the plan's blue, over the road's chevrons. `arrow`:
+  // each tile's next tile, the bar drawn square to the road there.
+  drawStops (stops, arrow) {
+    const g = this.stopG.clear()
+    if (!stops || !arrow) return
+    g.lineStyle(3.5, PLAN, 0.9)
+    for (const t of stops) {
+      if (!(arrow[t] >= 0)) continue
+      const { a, ux, uy } = stepOn(t, arrow[t])
+      const [cx, cy] = [a.x - ux * 15, a.y - uy * 15]
+      g.lineBetween(cx - uy * 13, cy + ux * 13, cx + uy * 13, cy - ux * 13)
+    }
+  }
+
+  // Arise's reach (the domain) round `centre`, the Monarch's tile. While a piece is dragged it lights up and the
+  // ground outside it dims.
   drawDomain (centre) {
     const p = this.picture
     const g = this.domG.clear()
@@ -406,7 +407,6 @@ class PrepScene extends Phaser.Scene {
     a.sprite.setTexture(`unit:${unitDef(u.id).art}:${u.fallen ? 'dead' : 'alive'}`)
     if (u.fallen) a.sprite.setTint(0xc4bfd0)
     else a.sprite.clearTint()
-    a.ghost = u.ghost ?? 1
     const k = a.size * a.big
     const ring = (w, colour, alpha, line = 2) => part(this.add.ellipse(0, 0, w * k, w * 0.3 * k).setStrokeStyle(line, colour, alpha), 0, 4, 'under')
     const glow = (w, colour, alpha) => part(this.add.image(0, 0, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(w * k, w * 0.32 * k).setAlpha(alpha), 0, 4, 'under')
@@ -447,7 +447,7 @@ class PrepScene extends Phaser.Scene {
       part(L(this.add.container(0, 0, kids), 12), -MARK_X * a.big, -7, 'mark', { z: 0.3, move: 1, box: [-(t.width + 10) / 2, -9.5, (t.width + 10) / 2, 9.5] })
     }
     // Yours wear their growth as in battle: their tiers.
-    if (!foe && !u.monarch) a.growth = growthMarks(this, u, { size: a.size })
+    if (!foe && !u.monarch) a.growth = growthMarks(this, u)
   }
 
   // A unit's body as drawn at its tile (its picture's middle, from its head down to its bars; a flyer's head
@@ -460,14 +460,14 @@ class PrepScene extends Phaser.Scene {
 
   // The marks that carry print, laid out together so none covers another: the selected piece's first, then
   // front to back, each mark (by its `move`) nudged the least way clear of every one placed before it, and of
-  // the board's labels and the domain's caption.
+  // the domain's caption.
   layoutMarks () {
     const placed = []
     const units = [...this.actors.values()].sort((a, b) => (b.u.sel ? 1 : 0) - (a.u.sel ? 1 : 0) || this.homeOf(b).y - this.homeOf(a).y)
     const hasText = (o) => o.type === 'Text' || o.list?.some((c) => c.type === 'Text')
     for (const a of units) {
       const home = this.homeOf(a)
-      a.growth?.place(home.x, home.y, 0, a.chest, 0)
+      a.growth?.place(home.x, home.y)
       for (const o of a.growth?.parts ?? []) if (hasText(o)) placed.push(boundsOf(o))
       for (const x of a.parts) {
         if (x.move != null || x.layer !== 'ground' || !hasText(x.o)) continue
@@ -475,7 +475,6 @@ class PrepScene extends Phaser.Scene {
         placed.push(boundsOf(x.o))
       }
     }
-    for (const t of this.layer) if (t.type === 'Text' && t.visible) placed.push(boundsOf(t))
     const dom = this.placeDomain(placed)
     if (dom) placed.push(dom)
     for (const a of units) {
@@ -513,7 +512,7 @@ class PrepScene extends Phaser.Scene {
     const t = this.domLabel
     if (!t?.active || !this.domBox) return null
     const bodies = [...this.actors.values()].filter((a) => !a.lifted).map((a) => this.bodyOf(a))
-    return placeOutside(t, this.domBox, this.bounds(), [...bodies, ...marks.map((m) => ({ ...m, w: 4 }))])
+    return placeOutside(t, this.domBox, BOX, [...bodies, ...marks.map((m) => ({ ...m, w: 4 }))])
   }
 
   update (time) {
@@ -532,7 +531,7 @@ class PrepScene extends Phaser.Scene {
       // A flyer floats over its shadow, bobbing (held still under reduced motion); its marks stay on the ground.
       if (a.hover) s.setOrigin(0.5, FEET + (a.hover + (reducedMotion() ? 0 : BOB * Math.sin(time / 420 + a.seed))) / Math.max(1, s.displayHeight))
       s.setDepth(a.lifted ? 9500 + s.y : s.y)
-      s.setAlpha((a.lifted ? 0.92 : a.ghost) * a.rise.v * seen(a))
+      s.setAlpha((a.lifted ? 0.92 : 1) * a.rise.v * seen(a))
       const ground = a.lifted ? a.drop : { x: s.x, y: s.y }
       a.shadow.setPosition(ground.x, ground.y + 4).setDepth(ground.y - 2).setAlpha((a.hover ? 0.32 : 0.5) * a.rise.v * seen(a))
       for (const x of a.parts) {
@@ -548,10 +547,10 @@ class PrepScene extends Phaser.Scene {
           alpha = reducedMotion() ? 0 : 0.9 * (1 - t)
         }
         const base = x.o.getData?.('still') ? x.o.alpha : 1
-        if (!x.o.getData?.('still')) x.o.setAlpha(hide ? 0 : alpha * a.rise.v * (x.layer === 'ground' && a.ghost < 1 ? 0.8 : 1) * seen(a))
+        if (!x.o.getData?.('still')) x.o.setAlpha(hide ? 0 : alpha * a.rise.v * seen(a))
         else x.o.setVisible(!hide && base > 0)
       }
-      a.growth?.place(s.x, s.y, s.depth, a.chest, 0)
+      a.growth?.place(s.x, s.y)
       for (const o of a.growth?.parts ?? []) o?.setVisible(seen(a) > 0)
       placeHorde(a, s.x, s.y - a.hover, s.depth, SCALE / RES * a.big * (0.6 + 0.4 * a.rise.v), s.alpha, breath)
     }
@@ -626,27 +625,19 @@ class PrepScene extends Phaser.Scene {
 
   // ── the camera ───────────────────────────────────────────────────────────────────────────────
 
-  // The world box the board takes, the battle's (engine.js BOX): the board, with room over its top lane for heads.
-  bounds () {
-    return BOX
-  }
-
-  // Fits the board inside the stage's rect (in the viewport, so a scroll or a resize carries it along), clear
-  // of the `avoid` elements laid over the stage (see around). Checked every frame; it only moves when something
-  // did.
+  // Fits the board's world box (the battle's, engine.js BOX: the board, with room over its top lane for heads) inside
+  // the stage's rect, in the viewport, so a scroll or a resize carries it along. Checked every frame; it only moves
+  // when something did.
   fit () {
     const w = want
     // A drag's eased-in view holds until the camera is back on the board's own (dragView).
     if (!w?.stage.isConnected || this.leaving || this.camAnim || this.drag?.zoomed) return
     const r = w.stage.getBoundingClientRect()
     const c = this.game.canvas.getBoundingClientRect()
-    const els = w.avoid.filter((e) => e.isConnected)
-    const b = this.bounds()
     const cam = this.cameras.main
-    const keyOf = () => [r.left, r.top, r.width, r.height, c.left, c.top, c.width, c.height,
-      ...els.flatMap((e) => { const a = e.getBoundingClientRect(); return [a.left, a.top, a.right, a.bottom] })].join()
-    if (!r.width || !r.height || keyOf() === this.fitKey) return
-    const v = this.around(r, b, els)
+    const key = [r.left, r.top, r.width, r.height, c.left, c.top, c.width, c.height].join()
+    if (!r.width || !r.height || key === this.fitKey) return
+    const v = fitBox(r, BOX)
     cam.setViewport(0, 0, Math.round(c.width), Math.round(c.height))
     const [ox, oy] = [c.left + cam.x, c.top + cam.y]
     const mx = v.wx - (v.sx - ox - cam.width / 2) / v.z
@@ -655,13 +646,13 @@ class PrepScene extends Phaser.Scene {
     cam.centerOn(mx, my)
     const was = this.labelZ
     this.view = this.fitted = { mx, my, z: v.z, w: cam.width, h: cam.height, ox, oy }
-    this.fitKey = keyOf()
+    this.fitKey = key
     // A new zoom: the labels laid out by their size are laid out again at it; a small change only rescales them.
     if (this.picture && (was == null || Math.abs(v.z / was - 1) > 0.02)) {
       this.draw(this.picture)
-      this.fitKey = keyOf()
+      this.fitKey = key
     } else {
-      for (const t of [...this.layer, this.domLabel]) if (t?.getData?.('legible')) legible(t, v.z)
+      if (this.domLabel?.getData?.('legible')) legible(this.domLabel, v.z)
       for (const a of this.actors.values()) {
         for (const x of a.parts) if (x.o.getData?.('legible')) legible(x.o, v.z)
       }
@@ -729,28 +720,6 @@ class PrepScene extends Phaser.Scene {
   unzoom () {
     this.camAnim = null
     if (this.fitted && this.view !== this.fitted) this.applyView(this.fitted)
-  }
-
-  // The biggest board the stage holds clear of the overlays: each overlay it would cover is cleared either
-  // beside the board (a column off that side) or over it (a band off the top), every way tried.
-  around (r, b, els) {
-    const [bw, bh] = [b.r - b.l, b.b - b.t]
-    const solve = (g) => {
-      const { z, sx: cx, sy: cy } = fitBox({ left: g.l, top: g.t, width: Math.max(60, g.r - g.l), height: Math.max(60, g.b - g.t) }, b)
-      return { g, z, cx, cy, box: { l: cx - bw / 2 * z, r: cx + bw / 2 * z, t: cy - bh / 2 * z, b: cy + bh / 2 * z } }
-    }
-    const clear = (v, rs) => {
-      const x = v.box
-      const i = rs.findIndex((a) => !(a.right <= x.l || a.left >= x.r || a.bottom <= x.t || a.top >= x.b))
-      if (i < 0) return v
-      const a = rs[i]
-      const rest = rs.filter((_, k) => k !== i)
-      const left = a.left + a.width / 2 < (v.g.l + v.g.r) / 2
-      return [left ? { ...v.g, l: Math.max(v.g.l, a.right + 6) } : { ...v.g, r: Math.min(v.g.r, a.left - 6) }, { ...v.g, t: Math.max(v.g.t, a.bottom + 6) }]
-        .map((g) => clear(solve(g), rest)).reduce((m, n) => (n.z > m.z + 1e-3 ? n : m))
-    }
-    const v = clear(solve({ l: r.left, r: r.right, t: r.top, b: r.bottom }), els.map((e) => e.getBoundingClientRect()).filter((a) => a.width && a.height))
-    return { z: v.z, wx: (b.l + b.r) / 2, wy: (b.t + b.b) / 2, sx: v.cx, sy: v.cy }
   }
 
   toWorld (x, y) {
@@ -901,7 +870,7 @@ class PrepScene extends Phaser.Scene {
     this.focused = null
     this.scene.bringToTop()
     // What the battle draws too (the bars, the growth) stays; the rest fades.
-    const marks = [this.roadG, this.covG, this.ringG, this.seatG, this.crownG, this.domG, this.liveG, this.domLabel, ...this.layer,
+    const marks = [this.roadG, this.stopG, this.covG, this.ringG, this.seatG, this.crownG, this.domG, this.liveG, this.domLabel,
       ...[...this.actors.values()].flatMap((a) => a.parts.filter((x) => !x.keep).map((x) => x.o))].filter(Boolean)
     for (const a of this.actors.values()) a.parts = a.parts.filter((x) => x.keep)
     this.tweens.add({ targets: marks, alpha: 0, duration: 260 })

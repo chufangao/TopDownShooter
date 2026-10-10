@@ -74,7 +74,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .bench-label b { color: var(--c-ossuary); font-weight: 600; letter-spacing: .04em; }
 .bench-label > span::before { content: " · "; white-space: pre; }
 .bench-strip .bench {
-  display: flex; align-items: center; gap: 6px; min-height: 64px; padding: 2px; border-radius: 8px;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-height: 64px; padding: 2px; border-radius: 8px;
   overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; scrollbar-width: thin;
 }
 .bench.target { box-shadow: inset 0 0 0 1px #5ef0c044; background: #5ef0c00a; }
@@ -115,8 +115,9 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .prep-head .room-ico { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #1a1628; border: 1px solid var(--line); }
 .prep-head .ph-id { min-width: 0; }
 .prep-head .ph-id h2 { margin: 0; font: 600 var(--fs-lg)/1.1 var(--serif); letter-spacing: .03em; text-transform: none; color: var(--bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prep-head .ph-id .dim { font-size: var(--fs-sm); line-height: 1.25; white-space: nowrap; }
-.prep-head .begin-btn { flex: none; justify-self: auto; min-height: var(--tap-lg); padding: 0 16px; font-size: var(--fs-lg); gap: 8px; }
+/* The count under the room's name wraps rather than run under Begin ("4 foes in 2 waves · Lv 2" beside the Enter key). */
+.prep-head .ph-id .dim { font-size: var(--fs-sm); line-height: 1.25; text-wrap: balance; }
+.prep-head .begin-btn { flex: none; justify-self: auto; min-height: var(--tap-lg); padding: 0 12px; font-size: var(--fs-lg); gap: 6px; }
 .prep-head .begin-btn kbd { display: none; font-size: var(--fs-xs); }
 @container frame (min-width: 1100px) { .prep-head .begin-btn kbd { display: inline-block; } }
 .prep-head > .dim.small { font-size: var(--fs-sm); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -174,7 +175,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   .bench-strip .bench { min-height: 58px; }
   .bench-strip .bench:has(.empty-bench) { min-height: 0; }
   .bench-strip { padding: 4px 8px 6px; }
-  /* Holding souls, the ossuary is one row, its counts beside them, so the Monarch's four stats show whole. */
+  /* Holding souls, the ossuary is one row, its counts beside them, so the Monarch's card shows whole. */
   .bench-strip:has(.cell) { flex-direction: row; align-items: center; gap: 6px; padding: 3px 6px; }
   .bench-strip:has(.cell) .bench-label { flex-direction: column; width: 74px; white-space: normal; font-size: var(--fs-xs); line-height: 1.25; }
   .bench-strip:has(.cell) .bench-label > span::before { content: none; }
@@ -182,4 +183,6 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   .bench .cell { width: 50px; height: 50px; }
   .bench .cell .portrait { width: 36px; height: 36px; }
   .bench .cell .hpbar { width: 40px; }
+  /* "fallen" fits the slimmer cell in lower case, unspaced, never smaller than --fs-xs. */
+  .bench .cell.fallen::after { letter-spacing: 0; text-transform: none; }
 }

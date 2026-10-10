@@ -64,12 +64,34 @@ export function abilitiesOf (u) {
 
 export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
 
-// Its ring (DESIGN §2.3): the radius in tiles it fights within, its kind's and the tiles its tiers add. A foe's
-// stride: how many times faster than TUNING.board.stepTicks it walks (1 by default, × its tiers'); your pieces
-// never walk. How it goes for the Monarch as a foe: 'walk', 'flank' or 'fly' (BEHAVIOURS).
+// Its ring (DESIGN §2.3): the radius in tiles it fights within (the Monarch's, which never strikes, is only how near
+// it holds a foe: holdOf), its kind's and the tiles its tiers add. A foe's stride: how many times faster than
+// TUNING.board.stepTicks it walks (1 by default, × its tiers'); your pieces never walk. How it goes for the Monarch
+// as a foe: 'walk', 'flank' or 'fly' (BEHAVIOURS).
 export const ringOf = (u) => tiersOf(u).reduce((r, t) => r + (t.ring ?? 0), unitDef(u.id).ring)
 export const strideOf = (u) => tiersOf(u).reduce((x, t) => x * (t.stride ?? 1), unitDef(u.id).stride ?? 1)
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
+// Its arm (DESIGN §2.3): how far a melee blow of yours with no range of its own reaches, never past the ring: the
+// kind's `arm`, 1, or 2 for a long-armed kind (Grave Ghoul, Mantis Reaper). The kind's alone: a tier that widens the
+// ring lengthens no arm. A foe's melee has no reach at all, whatever its arm (battle.js closeIn).
+export const armOf = (u) => unitDef(u.id).arm ?? 1
+
+// How far a piece of yours holds a walking foe, its sight (DESIGN §2.4): your rings are what the foes see you by, and
+// a foe may halt in the sight of one that can strike it (only once it can strike something of yours from there:
+// battle.js wayOf). A piece sees only as far as its blows that need no condition reach (a blow with a `when` may not
+// hold when the foe stands there: Killing Cold, Briar Lash, Miasma, Pyre Rain), so a shooter never halts where it
+// can strike a piece that cannot strike back; its ring, where it fights once a condition holds, stays its own. On the
+// ground the longest reach of those blows (a melee one its own range, else its kind's arm: armOf; a ranged one its
+// range), never past its ring; in the air only the ranged ones' (−1 with none, for no melee blow touches a flyer); −1
+// for both with no such blow at all. The Monarch never strikes, but holds whatever comes within its ring, on the
+// ground and in the air. Each measured from its footprint. → { ground, air }.
+export function holdOf (u) {
+  const ring = ringOf(u)
+  if (unitDef(u.id).monarch) return { ground: ring, air: ring }
+  const sure = abilitiesOf(u).map(abilityDef).filter((a) => isBlow(a) && !a.when)
+  const reach = (list) => Math.min(ring, Math.max(-1, ...list.map((a) => (a.melee ? a.range ?? armOf(u) : rangeOf(a)))))
+  return { ground: reach(sure), air: reach(sure.filter((a) => !a.melee)) }
+}
 
 // The bodies a piece's tiers add for each battle (a tier's `count`): they fight in its pool, whole, and are gone
 // when the battle ends.
@@ -168,6 +190,8 @@ export const onField = (u) => u.slot >= 0
 export const livingOn = (units, side) => units.filter((u) => u.side === side && alive(u))
 export const enemySide = (side) => (side === 'party' ? 'foe' : 'party')
 export const isAllyShape = (shape) => shape === 'ally' || shape === 'all_allies' || shape === 'self'
+// A blow: an ability aimed at the other side (not an ally ability, nor Arise's raise).
+export const isBlow = (a) => !isAllyShape(a.shape) && a.shape !== 'corpse'
 
 // Columns from the middle lane outward: where a formation fills first.
 export const CENTRE_OUT = Array.from({ length: COLS }, (_, i) => (COLS - 1) / 2 + (i % 2 ? -1 : 1) * Math.ceil(i / 2))
@@ -286,7 +310,7 @@ export function steps (tile, walls) {
 
 // An ability's own range, as the list helpers read it: melee the 8 tiles around; a ranged ability its `range`;
 // one without a range (an `all` shape) the whole board. In a battle a blow reaches no further than its ring, and a
-// melee one with no range of its own the whole ring (battle.js reachOf).
+// melee one of yours with no range of its own its kind's arm (armOf; battle.js reachOf).
 export const rangeOf = (ability) => ability.range ?? (ability.melee ? 1 : Infinity)
 
 // The open cells of `camp` (slots) that a unit standing for good on cell `slot` (the Monarch on its seat) cuts
@@ -374,8 +398,9 @@ const overlap = (a, sa, b, sb) => a < b + sb && b < a + sa
 export const auraGivers = (units, u) => units.filter((a) => a !== u && a.side === u.side && alive(a) && auraOf(a) &&
   unitDistance(a, u) <= auraOf(a).range)
 
-// The living foes next to a unit.
-export const foesNextTo = (units, u) => units.filter((e) => e.side !== u.side && alive(e) && unitDistance(e, u) === 1)
+// The living foes next to a unit (on a tile beside it, or over or under it on its own: a flyer and a ground unit
+// share a tile).
+export const foesNextTo = (units, u) => units.filter((e) => e.side !== u.side && alive(e) && unitDistance(e, u) <= 1)
 
 // Candidate primary targets for an ability: units on the side it aims at within its range (an ally
 // ability without a range reaches every ally).

@@ -106,16 +106,14 @@ function touchWords (el) {
   }
 }
 
-// A long press: HOLD ms still (within SLOP px) under one finger. → { fired, cancel }; fire() runs as it fires.
+// A long press: HOLD ms still (within SLOP px) under one finger. → { cancel }; fire() runs as it fires.
 // Its release is then no tap: the click it would make is eaten (and a press that starts anew forgets that).
 export const HOLD = 400
 const SLOP = 8
 export function hold (e, fire) {
   const { pointerId: id, clientX: x0, clientY: y0 } = e
-  const press = { fired: false, cancel }
   const timer = setTimeout(() => {
     stop()
-    press.fired = true
     eat = true
     navigator.vibrate?.(10)
     ring(x0, y0)
@@ -132,7 +130,7 @@ export function hold (e, fire) {
   window.addEventListener('pointermove', move, true)
   window.addEventListener('pointerup', up, true)
   window.addEventListener('pointercancel', up, true)
-  return press
+  return { cancel }
 }
 
 // The tooltip pinned (a long press). `keep`: a tap on its anchor still goes through to it (a room on the map,
@@ -169,11 +167,9 @@ function moreButton () {
 }
 
 // The click a long press would make, eaten; a new press forgets it. A press while a tooltip is pinned closes it
-// and goes on to do what it would (a tap on another room scouts it, on the board selects, a drag drags, a swipe
-// scrolls, a long press pins the next tooltip). Its click is eaten only on nothing that answers a click (that tap
-// just closes the tooltip); and on a button that cannot be taken back (SURE) the press is not the button's at
-// all: it only closes the tooltip, and a second tap acts. A tap inside it (on its buttons) acts as ever.
-const SURE = '.primary, .danger, .begin-btn, .move-on, .offer, .buy, .tnode, .battle-panel .skip, .end-actions button'
+// and goes on to do what it would (a tap on a button presses it, Begin too; on another room scouts it, on the board
+// selects, a drag drags, a swipe scrolls, a long press pins the next tooltip). Its click is eaten only on nothing
+// that answers a click (that tap just closes the tooltip). A tap inside it (on its buttons) acts as ever.
 const ACTIVE = 'button, a, input, select, textarea, label, summary, [role="tab"], [tabindex], .node, .stage-wrap, .bench, #game'
 let eat = false
 window.addEventListener('pointerdown', (e) => {
@@ -184,8 +180,7 @@ window.addEventListener('pointerdown', (e) => {
   if (t.closest?.('.tip button')) return
   if (pinOpts.keep && anchor?.nodeType && anchor.contains(t)) return
   hideTip()
-  if (t.closest?.(SURE)) e.stopPropagation()
-  else if (t.closest?.(ACTIVE)) return
+  if (t.closest?.(ACTIVE)) return
   eat = true
 }, true)
 window.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') finger = false }, true)
@@ -267,6 +262,8 @@ const PATHS = {
   crown: '<path d="M5.5 20.5h13l-.8-4.5H6.3z"/><path d="M8.5 16c-1.6-1.8-1-3.8 0-5.2.4 1.4 1.4 2 1.4 2M12 16c-2.2-2.6-1.4-6 0-8.5 1.4 2.5 2.2 5.9 0 8.5M15.5 16c1.6-1.8 1-3.8 0-5.2-.4 1.4-1.4 2-1.4 2"/>',
   // A Legendary relic: the keystone, the wedge at the crown of an arch, holding up the stones on either side.
   legendary: '<path d="M8.6 3h6.8l-1.2 7.2H9.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.6 3h6.8l-1.2 7.2H9.8z"/><path d="M8.8 5.2C5.6 6.6 3.5 9.8 3.5 13.5V21h4v-7c0-1.6 1-3 2.3-3.8M15.2 5.2c3.2 1.4 5.3 4.6 5.3 8.3V21h-4v-7c0-1.6-1-3-2.3-3.8"/>',
+  // The battle bar's wave counter: two swells.
+  wave: '<path d="M2.5 9c2-2 4-2 6 0s4 2 6 0 4-2 7 0M2.5 15c2-2 4-2 6 0s4 2 6 0 4-2 7 0"/>',
   // A siege: a crenellated wall and its gate, wave after wave against it.
   siege: '<path d="M3.5 20.5V9h3v2.5h3V9h5v2.5h3V9h3v11.5z"/><path d="M9.5 20.5v-4a2.5 2.5 0 0 1 5 0v4M3.5 4.5c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 3.5.4"/>',
   // Sound on (a speaker and its waves) and muted (the speaker crossed out).
@@ -277,13 +274,10 @@ const PATHS = {
   atk: '<path d="M19.5 4.5L10 14M19.5 4.5h-4M19.5 4.5v4M7 11.5l5.5 5.5M9.8 14.2l-4.6 4.6"/><circle cx="4.6" cy="19.4" r="1"/>',
   def: '<path d="M12 3l7 2.8v5.4c0 4.6-3 7.9-7 9.8-4-1.9-7-5.2-7-9.8V5.8z" fill="currentColor" fill-opacity=".2"/>',
   spd: '<path d="M13.5 2.5L5.5 13.5h6l-1 8 8-11h-6z" fill="currentColor" fill-opacity=".2"/>',
-  lock: '<rect x="5.5" y="10.5" width="13" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
   levelup: '<path d="M6 12.5l6-6 6 6M6 18.5l6-6 6 6"/>',
-  // The Monarch's three stats: Dominion a domain's square, Command a banner, Will an open eye.
-  dominion: '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5" stroke-dasharray="3 2.2"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" fill-opacity=".35"/>',
+  // The Monarch's Command: a banner.
   command: '<path d="M6 21.5V2.5"/><path d="M6 4h12v8l-3-2.2L12 12H6z" fill="currentColor" fill-opacity=".25"/>',
-  will: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3" fill="currentColor" fill-opacity=".35"/>',
-  // The end screen's tally: floors as stairs down, a recruit as a hooded soul, a bound body as a bone.
+  // The end screen's tally: floors as stairs down, a recruit as a hooded soul, the souls held as a bone.
   stairs: '<path d="M3.5 6.5h4.5V11h4.5v4.5H17v4.5h3.5"/><path d="M3.5 20.5h17" stroke-opacity=".4"/>',
   hood: '<path d="M12 3c-4 0-6.5 3.6-6.5 8.2v9.3h13v-9.3C18.5 6.6 16 3 12 3z"/><path d="M9 13c0-2.2 1.3-3.8 3-3.8s3 1.6 3 3.8v2.5H9z" fill="currentColor" fill-opacity=".35"/>',
   bone: '<path d="M9.6 14.4l4.8-4.8"/><circle cx="6.4" cy="15.6" r="2"/><circle cx="8.4" cy="17.6" r="2"/><circle cx="15.6" cy="6.4" r="2"/><circle cx="17.6" cy="8.4" r="2"/>',

@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createRun, apply, legalActions, join, souls, monarchOf, tierCost, canAdvance, heldKinds, battleSetup, availableNodes,
-  OSSUARY, fielded, levelOf, kindLevel, lowerTrack
+  OSSUARY, fielded, levelOf, kindLevel, lowerTrack, floorPrice
 } from '../src/sim/run.js'
 import { createBattle, stepBattle } from '../src/sim/battle.js'
 import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
@@ -169,7 +169,7 @@ test('a recruit joins its kind at the kind\'s level and tiers (a kind new to the
   for (const o of w.offers.filter((x) => x.type === 'soul')) {
     assert.equal(o.lvl, kindLevel(w, o.id), o.id)
     assert.equal(o.desc, `Rises at level ${o.lvl}.`)
-    assert.equal(o.cost, Math.round(TUNING.essence.recruit * unitDef(o.id).tier * (1 + TUNING.essence.perLevel * (o.lvl - 1))), o.id)
+    assert.equal(o.cost, Math.round(TUNING.essence.recruit * unitDef(o.id).tier * (1 + TUNING.essence.perLevel * (o.lvl - 1)) * floorPrice(w.floor)), o.id)
   }
   const fresh = w.offers.findIndex((o) => o.type === 'soul' && !w.kinds[o.id])
   const id = w.offers[fresh].id
@@ -257,10 +257,11 @@ test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, o
   const a = policy(copyOf(run), rng, 'basic')
   assert.deepEqual([a.type, a.track], ['upgrade', 0])
   assert.ok(Object.keys(s.kinds).includes(a.kind))
-  // That kind ahead by two tiers: the lowest is another, on its own track; short of its price, basic waits.
+  // That kind a level ahead (two tiers or three, as TUNING.level has it): the lowest is another, on its own track;
+  // short of its price, basic waits.
   apply(run, { type: 'upgrade', kind: a.kind, track: 0 })
   s.essence = 1000
-  apply(run, { type: 'upgrade', kind: a.kind, track: 0 })
+  while (kindLevel(s, a.kind) <= levelOf({ tracks: [0, 0] })) apply(run, { type: 'upgrade', kind: a.kind, track: 0 })
   s.essence = TUNING.essence.tier[0]
   const b = policy(copyOf(run), rng, 'basic')
   assert.equal(b.type, 'upgrade')
@@ -284,7 +285,8 @@ test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, o
   }
 })
 
-test('the expert rehearses a reliquary\'s tier offer as the run would make it: the kind\'s every soul with the tier and the level it gives', () => {
+// On the level scale of one a tier (LEVEL_A_TIER), so the tier offered gives a level.
+test('the expert rehearses a reliquary\'s tier offer as the run would make it: the kind\'s every soul with the tier and the level it gives', () => tuned(LEVEL_A_TIER, () => {
   const lvl = levelOf({ tracks: [3, 0] })
   const u = { ...makeUnit('tomb_knight', { uid: 1, lvl }), tracks: [3, 0] }
   const v = { ...makeUnit('tomb_knight', { uid: 2, lvl }), tracks: [3, 0] }
@@ -297,14 +299,15 @@ test('the expert rehearses a reliquary\'s tier offer as the run would make it: t
   assert.equal(auraOf(after.party[0]).range, 2, 'Bulwark\'s aura stays')
   assert.deepEqual(offerState(s, { type: 'relic', id: 'whetstone' }), { relics: ['whetstone'] })
   assert.deepEqual(s.kinds.tomb_knight.tracks, [3, 0], 'the state as it was')
-})
+}))
 
 // A tier IV whose condition reads the whole board would bank for a cast its area cannot use: each reads
 // only what it reaches, so the soul goes on attacking.
 test('a tier IV area ability waits for something in its area: the soul still attacks', () => {
-  // A Dirgemaster IV whose far allies lack Hasten: it still bolts, and Hastens those near it.
+  // A Dirgemaster IV whose far allies lack Hasten: it still bolts (the golems halt as they enter its ring and the
+  // Ghoul's), and Hastens those near it.
   const b = createBattle({
-    party: [{ ...makeUnit('monarch', { uid: 0, lvl: 3 }), slot: slotAt(6, 3) }, { ...makeUnit('bone_chanter', { uid: 1, lvl: 6 }), tracks: [4, 0], slot: slotAt(3, 3) },
+    party: [{ ...makeUnit('monarch', { uid: 0, lvl: 3 }), slot: slotAt(6, 3) }, { ...makeUnit('bone_chanter', { uid: 1, lvl: 6 }), tracks: [4, 0], slot: slotAt(2, 3) },
       ...[[0, 3], [0, 0], [0, 6]].map(([r, c], i) => ({ ...makeUnit(i ? 'tomb_knight' : 'grave_ghoul', { uid: 2 + i, lvl: 5 }), slot: slotAt(r, c) }))],
     foes: [0, 2, 4, 6].map((c, i) => ({ ...makeUnit('iron_golem', { uid: 10 + i, lvl: 4 }), slot: slotAt(1, c) })), seed: 'tier4', domain: 9
   })

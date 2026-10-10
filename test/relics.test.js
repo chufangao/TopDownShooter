@@ -1,11 +1,11 @@
 // Relics (DESIGN §2.6): four tiers, the Legendaries the rules that rewrite the game (once keystones), copies that
 // stack with no cap, the Monarch's HP and Command (relics alone grow them), and Arise a Legendary that opens the
-// Monarch's raising, its copies its Dominion and its Will.
+// Monarch's raising, its numbers its own, a copy at a time.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, stepBattle, runBattle, relicRules, ariseCap, stats } from '../src/sim/battle.js'
+import { createBattle, stepBattle, runBattle, relicRules, ariseCap, ariseTier, ariseHaste, stats } from '../src/sim/battle.js'
 import {
-  createRun, apply, availableNodes, battleSetup, fieldCap, rosterCap, domainOf, souls, monarchOf, fielded, legalActions, join, reapedShadows, encounter,
+  createRun, apply, battleSetup, fieldCap, rosterCap, domainOf, souls, monarchOf, fielded, legalActions, join, reapedShadows, encounter,
   foeEssence, relicCount, ariseHeld, offerGroup, relicWeights, replay, tierCost, ariseOf, monarchHp, commandOf, onePick
 } from '../src/sim/run.js'
 import { policy, planFor, LEVELS, autoplay, offerState } from '../src/sim/autoplay.js'
@@ -13,6 +13,9 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import { RELIC_LIST, RELICS, RELIC_TIERS, TRIGGERS, STATUSES, UNIT_LIST, unitDef } from '../src/content.js'
+import { makeUnit, tileAt, tileX, tileY, slotAt, alive, activeSynergies, baseStats, footprint } from '../src/sim/unit.js'
+import { on, stackOn, scene as sceneOf, slay, unit } from './scene.js'
+import { visit, win } from './rooms.js'
 // The Legendaries' numbers, as content sets them: Legion's HP share, Undying's rise, Blood Tithe's tithe.
 const LEGION = RELICS.legion.mods
 const LEGION_HP = LEGION[0].v
@@ -21,50 +24,12 @@ const TITHE = RELICS.blood_tithe.tithe
 const LEGENDARIES = RELIC_LIST.filter((r) => r.tier === 'legendary').map((r) => r.id)
 // The Legendaries that need Arise, and the other relics that do (the Monarch's gauge is Arise's alone).
 const NEEDS_ARISE = ['hollow_court', 'blood_tithe', 'court_of_bone']
-import { makeUnit, tileAt, tileX, tileY, slotAt, DEPTH, alive, activeSynergies, baseStats, footprint } from '../src/sim/unit.js'
 
-// ── helpers (as battle.test.js and run.test.js have them) ───────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
-// A unit placed on a board tile directly, for battles built tile by tile.
-const on = (id, uid, side, x, y, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, tile: tileAt(x, y) })
-// A stack of `count` placed on a board tile.
-const stackOn = (id, uid, side, x, y, count, lvl = 3) => ({ ...makeUnit(id, { uid, lvl, count }), side, tile: tileAt(x, y) })
-
-// A battle of units placed on tiles (the party in its camp, y 0–6; a foe anywhere). The ones not named in
-// `moving` never step. A soul's tiers add no bodies here (the bodies switch) unless `bodies`: the scenes set
-// every piece's count themselves.
-function scene (units, { moving = [], bodies = false, ...opts } = {}) {
-  const foeRow0 = DEPTH - 3
-  const spare = [...Array(21).keys()].filter((slot) => !units.some((u) => u.side === 'foe' && tileY(u.tile) >= foeRow0 && slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) === slot))
-  const slot = (u) => u.side === 'party' ? slotAt(6 - tileY(u.tile), tileX(u.tile))
-    : tileY(u.tile) >= foeRow0 ? slotAt(tileY(u.tile) - foeRow0, tileX(u.tile)) : spare.shift()
-  const placed = units.map((u) => ({ ...u, slot: slot(u) }))
-  const b = createBattle({ party: placed.filter((u) => u.side === 'party'), foes: placed.filter((u) => u.side === 'foe'), seed: 'scene', ...(!bodies && { ablate: ['bodies'] }), ...opts })
-  for (const u of b.units) {
-    const want = units.find((x) => x.uid === u.uid)?.tile
-    if (want === undefined) continue
-    if (u.tile !== want) {
-      const layer = u.flies ? b.sky : b.at
-      layer[u.tile] = null
-      u.tile = want
-      layer[want] = u
-    }
-    if (!moving.includes(u.uid)) u.nextStep = Infinity
-  }
-  return b
-}
-
-// Lays a unit dead where it stands (a corpse for Arise), as a blow would.
-function slay (b, u) {
-  u.hp = 0
-  u.statuses = []
-  const layer = u.flies ? b.sky : b.at
-  layer[u.tile] = null
-  b.roster++
-  if (u.side === 'party') b.ours++
-}
-
-const unit = (b, uid) => b.units.find((u) => u.uid === uid)
+// A battle of units placed on tiles (scene.js scene). A soul's tiers add no bodies here (the bodies switch) unless
+// `bodies`: the scenes set every piece's count themselves.
+const scene = (units, { bodies = false, ...opts } = {}) => sceneOf(units, { ...(!bodies && { ablate: ['bodies'] }), ...opts })
 
 // Steps until `done(events so far)` holds; the events of every tick stepped.
 function until (b, done, limit = 600) {
@@ -79,15 +44,6 @@ const after = (events, first) => {
   const i = events.findIndex(first)
   assert.ok(i >= 0, 'the moment came')
   return events.slice(i + 1).filter((e) => e.t === events[i].t)
-}
-
-// Turn the first reachable node into `type` and walk in (battle rooms keep their foes).
-function visit (run, type) {
-  const node = availableNodes(run)[0]
-  node.type = type
-  if (['fight', 'elite', 'boss'].includes(type)) node.foes ??= run.state.map.nodes.find((n) => n.foes).foes
-  apply(run, { type: 'node', id: node.id })
-  return node
 }
 
 // ── content ──────────────────────────────────────────────────────────────────────────────────────
@@ -207,11 +163,11 @@ test('Bone Idol: when one of yours falls, Arise gains 40 gauge', () => {
   ])
 })
 
-// The 'struck' moment: a Wisp (10) shoots the Monarch from 4 tiles off (no one else in its range); a knight
-// (1) stands beside the Monarch, a Sprite (3) far off.
+// The 'struck' moment: a Wisp (10), a Flank kind, halted beside the Monarch, shoots it (a diver aims at nothing
+// else); a knight (1) stands beside the Monarch, a Sprite (3) far off.
 function striking (relics, hp = null) {
   const b = scene([on('monarch', 0, 'party', 3, 2), on('tomb_knight', 1, 'party', 2, 1), on('frost_sprite', 3, 'party', 6, 0),
-    on('will_o_wisp', 10, 'foe', 3, 6, 1)], { relics })
+    on('will_o_wisp', 10, 'foe', 3, 3, 1)], { relics })
   unit(b, 10).gauge = unit(b, 10).costliest
   if (hp !== null) b.monarch.hp = hp
   const events = until(b, (ev) => ev.some((e) => e.type === 'damage' && e.target === 0))
@@ -428,7 +384,7 @@ test('Blood Tithe: Arise\'s cap is doubled, each shadow costs the Monarch 3% of 
     assert.ok(!ev.some((e) => e.type === 'trigger' && !(e.on === 'wave' && e.t === 0)), 'no relic fires on a raise or a tithe')
     assert.equal(b.blown, false, 'the tithe is not a blow')
   }
-  assert.ok(!raise(b).some((e) => e.type === 'arise'), 'Will 0: two raises with the tithe')
+  assert.ok(!raise(b).some((e) => e.type === 'arise'), 'one copy: two raises with the tithe')
   // Without it, one raise and no tithe.
   const plain = build([])
   assert.ok(raise(plain).some((e) => e.type === 'arise') && !plain.events.some((e) => e.type === 'tithe'))
@@ -476,7 +432,7 @@ test('Court of Bone: nothing heals the Monarch in battle; healers spend their he
 test('the run bends the domain: Court of Bone 2 tiles larger a copy, and the battle gets the bent radius', () => {
   const run = createRun({ seed: 'domain' })
   const s = run.state
-  const D = TUNING.monarch.domain
+  const D = TUNING.arise.domain
   const C = RELICS.court_of_bone.domain
   assert.equal(domainOf(s), D)
   s.relics = ['arise', 'court_of_bone']
@@ -488,18 +444,6 @@ test('the run bends the domain: Court of Bone 2 tiles larger a copy, and the bat
   s.relics.push('court_of_bone')
   assert.equal(domainOf(s), D + 2 * C)
 })
-
-// A won fight on one of the seeds (with `ready` run first on each).
-function win (prefix, ready, type = 'fight') {
-  for (let i = 0; i < 200; i++) {
-    const run = createRun({ seed: prefix + i })
-    ready(run)
-    visit(run, type)
-    apply(run, { type: 'fight' })
-    if (run.state.phase === 'reap') return run
-  }
-  assert.fail(`no ${prefix} seed won`)
-}
 
 test('Court of Bone: nothing heals the Monarch out of battle: not a win, not an altar, not an HP relic taken', () => {
   const wound = (run) => {
@@ -522,8 +466,8 @@ test('Court of Bone: nothing heals the Monarch out of battle: not a win, not an 
   assert.ok(monarchOf(plain.state).hp > 40)
 })
 
-test('Hollow Court: the shadows still standing when a battle is won pay their essence again; the fallen do not', () => tuned({ monarch: { ...FIRST_ARISE.monarch, domain: 7 } }, () => {
-  // A Monarch with a wide domain and three copies of Arise (Will 2) raises shadows; find a won fight where some still
+test('Hollow Court: the shadows still standing when a battle is won pay their essence again; the fallen do not', () => tuned({ arise: { ...FIRST_ARISE.arise, domain: 7 } }, () => {
+  // A Monarch with a wide domain and three copies of Arise raises shadows; find a won fight where some still
   // stand and some fell. Shadows rise beside the Monarch, so the foes must reach it for one to fall: one soul fields,
   // and the Monarch has HP enough to outlast them.
   const fight = (seed, relics) => {
@@ -690,8 +634,8 @@ test('Court of Bone turns only heals away from the Monarch: a buff still goes to
 // ── the Legendaries soaked ─────────────────────────────────────────────────────────────────────────
 
 test('every Legendary, alone, together and twice over, plays deterministically and keeps the battle\'s invariants', () => {
-  // Real elites from floors 2–4, against souls of level 9 with a summoner, three copies of Arise (Will 2 and a wider
-  // domain, so Arise raises), every trigger relic, and souls carried in wounded (so some fall and rise).
+  // Real elites from floors 2–4, against souls of level 9 with a summoner, three copies of Arise (a wider domain
+  // and more raises, so Arise raises), every trigger relic, and souls carried in wounded (so some fall and rise).
   const all = LEGENDARIES
   const combos = [...all.map((id) => [id]), all, ['undying', 'legion'], ['court_of_bone', 'blood_tithe'], [...all, ...all], ['undying', 'undying', 'blood_tithe', 'blood_tithe']]
   const seen = new Set()
@@ -875,7 +819,7 @@ test('copies stack: two of a mod relic compound, a trigger relic held twice fire
   assert.ok(activeSynergies(lone, relicRules(['mimicry', 'mimicry']).alias).some((x) => x.id === 'warden_2'))
   // Blood Tithe twice: the cap grows by itself twice over, and each shadow costs twice the tithe.
   const tithe = relicRules(['arise', 'blood_tithe', 'blood_tithe'])
-  assert.deepEqual([ariseCap(0, tithe), tithe.tithe], [TUNING.monarch.raises * 3, 2 * TITHE])
+  assert.deepEqual([ariseCap(tithe), tithe.tithe], [TUNING.arise.raises * 3, 2 * TITHE])
 })
 
 test('no cap: a relic held is offered again and taken again, however many the run holds', () => {
@@ -924,7 +868,7 @@ test('the tiers a room draws: by TUNING.relic.weights for its floor, the last en
   })
 })
 
-test('Arise is a Legendary: without it no shadow rises; each copy raises more, and its Will (a copy past the first) more again', () => tuned(FIRST_ARISE, () => {
+test('Arise is a Legendary: without it no shadow rises; each copy past the first raises more', () => tuned(FIRST_ARISE, () => {
   // Six slain Ghouls about the Monarch, its gauge filled again and again.
   const raised = (relics) => {
     const ghouls = [[2, 2], [3, 2], [4, 2], [2, 3], [3, 3], [4, 3]].map(([x, y], k) => on('grave_ghoul', 10 + k, 'foe', x, y, 1))
@@ -939,13 +883,14 @@ test('Arise is a Legendary: without it no shadow rises; each copy raises more, a
   }
   assert.equal(raised([]), 0)
   assert.equal(raised(['hourglass', 'court_of_bone']), 0, 'nor with what needs it, without it')
-  assert.equal(raised(['arise']), TUNING.monarch.raises)
-  assert.equal(raised(['arise', 'arise']), 2 * TUNING.monarch.raises)
-  assert.equal(raised(['arise', 'arise', 'arise']), 3 * TUNING.monarch.raises)
-  assert.deepEqual([ariseCap(0, relicRules([])), ariseCap(1, relicRules(['arise'])), ariseCap(1, relicRules(['arise', 'arise']))],
-    [0, 2 * TUNING.monarch.raises, 3 * TUNING.monarch.raises])
+  const { raises, more } = TUNING.arise
+  assert.equal(raised(['arise']), raises)
+  assert.equal(raised(['arise', 'arise']), raises + more.raises)
+  assert.equal(raised(['arise', 'arise', 'arise']), raises + 2 * more.raises)
+  assert.deepEqual([ariseCap(relicRules([])), ariseCap(relicRules(['arise'])), ariseCap(relicRules(['arise', 'arise'])), ariseCap()],
+    [0, raises, raises + more.raises, 0])
   // In a run's battles: a wide domain raises no one without Arise, and some with it.
-  const fought = (relics) => tuned({ monarch: { domain: 9 } }, () => {
+  const fought = (relics) => tuned({ arise: { domain: 9 } }, () => {
     let n = 0
     for (let i = 0; i < 6; i++) {
       const run = createRun({ seed: 'arise-run' + i })
@@ -960,41 +905,84 @@ test('Arise is a Legendary: without it no shadow rises; each copy raises more, a
   assert.ok(fought(['arise', 'arise', 'arise']) > 0)
 }))
 
-test('Dominion and Will are Arise\'s: each copy past the first a point of each, growing its domain, its raises, their tier and its haste; the battle takes them from the run', () => {
+test('Arise\'s numbers are the relic\'s, a copy at a time: each past the first reaches farther, raises a tier higher and more a battle, and hastens its gauge; the battle takes them from the run', () => {
   const run = createRun({ seed: 'gate' })
   const s = run.state
-  const M = TUNING.monarch
+  const A = TUNING.arise
   assert.equal(ariseHeld(s), false)
-  assert.deepEqual(ariseOf(s), { copies: 0, dominion: 0, will: 0, domain: M.domain, raises: 0, tier: M.raiseTier, haste: 0 })
+  assert.deepEqual(ariseOf(s), { copies: 0, domain: A.domain, raises: 0, tier: A.tier, haste: 0 })
   assert.ok(!('monarch' in s), 'the Monarch has no stats of its own')
+  assert.deepEqual(Object.keys(TUNING.monarch), ['hp'], 'nor any of Arise\'s')
   for (const copies of [1, 2, 3, 4]) {
     s.relics = Array(copies).fill('arise')
     const more = copies - 1
     const a = ariseOf(s)
     assert.deepEqual(a, {
-      copies, dominion: M.dominion * more, will: M.will * more, domain: M.domain + M.dominion * more,
-      raises: M.raises * (copies + M.will * more), tier: M.raiseTier + M.will * more, haste: M.willHaste * M.will * more
+      copies, domain: A.domain + A.more.domain * more, raises: A.raises + A.more.raises * more, tier: A.tier + A.more.tier * more, haste: A.more.haste * more
     }, `${copies} copies`)
     assert.equal(domainOf(s), a.domain)
   }
-  // Court of Bone's tiles and Blood Tithe's raises come on top; the battle gets the domain and the Will.
+  // The relic's words keep in step with its numbers (content.js writes them out).
+  const step = (n, one, many) => (n === 1 ? `a ${one}` : `${n} ${many}`)
+  assert.equal(RELICS.arise.desc, `A foe of tier ${A.tier} or lower slain within ${A.domain} tiles of the Monarch rises as your shadow, ${A.raises} a battle. ` +
+    `Each copy: ${step(A.more.domain, 'tile', 'tiles')} farther, ${step(A.more.tier, 'tier', 'tiers')} higher, ${A.more.raises} more a battle, and it comes ${Math.round(A.more.haste * 100)}% sooner.`)
+  // Court of Bone's tiles and Blood Tithe's raises come on top; the battle gets the reach, and reads the rest from the
+  // relics it holds: its cap, its tier, and the Monarch's gauge.
   s.relics = ['arise', 'arise', 'court_of_bone', 'blood_tithe']
   const a = ariseOf(s)
-  assert.deepEqual([a.domain, a.raises], [M.domain + M.dominion + RELICS.court_of_bone.domain, ariseCap(a.will, relicRules(s.relics))])
-  assert.equal(a.raises, M.raises * (2 + M.will) * 2)
+  assert.deepEqual([a.domain, a.raises], [A.domain + A.more.domain + RELICS.court_of_bone.domain, ariseCap(relicRules(s.relics))])
+  assert.equal(a.raises, (A.raises + A.more.raises) * 2)
   visit(run, 'fight')
   const setup = battleSetup(run)
-  assert.deepEqual([setup.domain, setup.will], [a.domain, a.will])
-  // A corpse a tier past raiseTier rises only once Arise's Will reaches it (tier raiseTier + Will).
-  const corpse = UNIT_LIST.find((u) => u.spawn && !u.flies && u.tier === M.raiseTier + 1).id
+  assert.equal(setup.domain, a.domain)
+  const b = createBattle(setup)
+  assert.deepEqual([b.domain, ariseCap(b.held), ariseTier(b.held), ariseHaste(b.held)], [a.domain, a.raises, a.tier, a.haste])
+  assert.ok(Math.abs(stats(b, b.monarch).gauge.rate - (1 + a.haste)) < 1e-9, 'the Monarch\'s gauge, hastened')
+  // A corpse a tier past Arise's rises only with a copy more (a tier higher).
+  const corpse = UNIT_LIST.find((u) => u.spawn && !u.flies && u.tier === A.tier + 1).id
   const raisedTier = (relics) => {
-    const b = scene([on('monarch', 0, 'party', 3, 1), on(corpse, 10, 'foe', 3, 3, 1), on('iron_golem', 50, 'foe', 6, 10)], { relics, will: ariseOf({ relics }).will })
+    const b = scene([on('monarch', 0, 'party', 3, 1), on(corpse, 10, 'foe', 3, 3, 1), on('iron_golem', 50, 'foe', 6, 10)], { relics })
     slay(b, unit(b, 10))
     b.monarch.gauge = 200
     return stepBattle(b).filter((e) => e.type === 'arise').length
   }
-  assert.equal(unitDef(corpse).tier, M.raiseTier + 1)
+  assert.equal(unitDef(corpse).tier, A.tier + 1)
   assert.deepEqual([raisedTier(['arise']), raisedTier(['arise', 'arise'])], [0, 1])
+})
+
+test('Arise\'s numbers a copy at a time are the ones its two points a copy past the first gave, for 0 to 3 copies, with and without Blood Tithe and Court of Bone', () => {
+  // TUNING as it stood before (2026-10-09, late): the Monarch's domain, raiseTier, raises and willHaste, and a point
+  // of each of the two a copy past the first; the reach domain + a point (and Court of Bone's tiles), the tier
+  // raiseTier + the other point, the cap raises × (copies + that point) grown by Blood Tithe's share, the haste
+  // willHaste × that point. With TUNING.arise at today's numbers, every one is the same.
+  const was = { domain: 5, raiseTier: 3, raises: 3, haste: 0.1 }
+  const old = (relics) => {
+    const n = (id) => relics.filter((x) => x === id).length
+    const point = Math.max(0, n('arise') - 1)
+    return {
+      copies: n('arise'), domain: was.domain + point + RELICS.court_of_bone.domain * n('court_of_bone'),
+      raises: n('arise') ? was.raises * (n('arise') + point) * (1 + RELICS.blood_tithe.raises * n('blood_tithe')) : 0,
+      tier: was.raiseTier + point, haste: was.haste * point
+    }
+  }
+  tuned({ arise: { domain: 5, tier: 3, raises: 3, hp: 1, more: { domain: 1, tier: 1, raises: 6, haste: 0.1 } } }, () => {
+    const run = createRun({ seed: 'was' })
+    const s = run.state
+    visit(run, 'fight')
+    for (const copies of [0, 1, 2, 3]) {
+      for (const also of [[], ['blood_tithe'], ['court_of_bone'], ['blood_tithe', 'court_of_bone'], ['blood_tithe', 'blood_tithe', 'court_of_bone']]) {
+        s.relics = [...Array(copies).fill('arise'), ...also]
+        const now = ariseOf(s)
+        const then = old(s.relics)
+        const at = `${copies} copies, ${also.join(' ') || 'alone'}`
+        assert.deepEqual({ ...now, haste: +now.haste.toFixed(9) }, { ...then, haste: +then.haste.toFixed(9) }, at)
+        // As the battle takes them: the reach from the run, the cap, the tier and the haste from the relics.
+        const b = createBattle(battleSetup(run))
+        assert.deepEqual([b.domain, ariseCap(b.held), ariseTier(b.held)], [then.domain, then.raises, then.tier], at)
+        assert.ok(Math.abs(stats(b, b.monarch).gauge.rate - (1 + then.haste)) < 1e-9, at)
+      }
+    }
+  })
 })
 
 test('what needs Arise is offered only once it is held: Hollow Court, Blood Tithe, Court of Bone, Hourglass, Bone Idol', () => {

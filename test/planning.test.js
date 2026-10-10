@@ -4,10 +4,12 @@
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, monarchOf } from '../src/sim/run.js'
 import {
-  drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf
+  drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf,
+  roomsAhead, rehearseAhead
 } from '../src/sim/autoplay.js'
+import { TUNING } from '../src/tuning.js'
 import { createRng } from '../src/sim/rng.js'
 import { CAMP_LIST, FUSION_LIST, unitDef, fusionDef, relicDef, TRACKS } from '../src/content.js'
 import { slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot } from '../src/sim/unit.js'
@@ -119,6 +121,42 @@ test('fusions: the expert weighs every one it can make by rehearsal (as legalAct
     assert.notEqual(a.type, 'fuse')
     apply(basic, a)
   }
+})
+
+// The fights ahead are rehearsed in a row, the Monarch's HP carried from one into the next and mended only as the run
+// would mend it: under Court of Bone not at all, so a Monarch already low starts every rehearsal low, never whole;
+// without it, by a battle's heal. (Whatever the rehearsals' outcomes: a room none of whose rolls was won passes on the
+// HP it began with.)
+test('the expert rehearses the fights ahead in a row: the Monarch\'s HP carries from each into the next, mended only as the run would', () => {
+  const run = prep('carry')
+  const m = monarchOf(run.state)
+  const low = Math.round(m.maxHp * 0.3)
+  m.hp = low
+  const L = { seeds: 1, search: 0, wounds: true, rollouts: 0, reap: false, spend: false, fuse: false, more: true, drafts: 1 }
+  const rooms = roomsAhead(run)
+  assert.ok(rooms.length >= 2 && rooms[0].id === run.state.at, 'the room being prepared for first, then the rooms ahead')
+  const carried = (r) => (r.left >= 0 ? Math.max(1, Math.round(r.left)) : r.hp)
+  // Court of Bone held: each fight starts where the one before it left the Monarch, never mended.
+  run.state.relics = ['arise', 'court_of_bone']
+  const court = rehearseAhead(run, rooms, L)
+  assert.deepEqual(court.map((r) => r.node.id), rooms.map((n) => n.id))
+  assert.equal(court[0].hp, low)
+  for (let k = 1; k < court.length; k++) assert.equal(court[k].hp, carried(court[k - 1]), `room ${k}`)
+  assert.ok(court.every((r) => r.hp <= low && r.hp < m.maxHp), 'never whole again')
+  // The next fight is rehearsed at that HP: the same as rehearsing it alone from there.
+  const at = (hp) => ({ party: run.state.party.map((u) => (u === m ? { ...u, hp } : u)) })
+  assert.equal(rehearseAhead(run, [rooms[1]], L, at(court[1].hp))[0].score, court[1].score)
+  // Without it, a battle won mends the Monarch by the battle's heal on the way to the next (an altar the way cannot
+  // miss, to its altarHeal).
+  run.state.relics = ['arise']
+  const mended = rehearseAhead(run, rooms, L)
+  assert.equal(mended[0].hp, low)
+  const heal = Math.ceil(m.maxHp * TUNING.run.postBattleHeal)
+  for (let k = 1; k < mended.length; k++) {
+    const r = mended[k - 1]
+    assert.ok(mended[k].hp >= (r.left >= 0 ? Math.min(m.maxHp, carried(r) + heal) : r.hp) && mended[k].hp <= m.maxHp, `room ${k}`)
+  }
+  assert.equal(run.state.party.find((u) => u === m).hp, low, 'the run untouched')
 })
 
 test('the audit counts what a run considered and chose, and leaves the audit off after', () => {

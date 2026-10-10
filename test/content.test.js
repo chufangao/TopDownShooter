@@ -7,7 +7,7 @@ import {
 } from '../src/content.js'
 import {
   statsOf, abilitiesOf, auraOf, cheapestOf, costliestOf, makeUnit, baseStats, activeSynergies, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf,
-  deployTile, wallTiles, steps, bodiesOf, rangeOf, isAllyShape, ringOf, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH, ROWS, TILES
+  deployTile, wallTiles, steps, bodiesOf, rangeOf, isAllyShape, isBlow, ringOf, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH, ROWS, TILES, armOf
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 
@@ -17,7 +17,7 @@ const checkEffect = (e, where) => {
 }
 
 // The blows of a kind that carry a range of their own (a ranged kind's reach).
-const rangedBlows = (u) => u.abilities.map((a) => ABILITIES[a]).filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse' && a.range)
+const rangedBlows = (u) => u.abilities.map((a) => ABILITIES[a]).filter((a) => isBlow(a) && a.range)
 
 test('every unit reference resolves; every foe carries its threats; a fused kind none', () => {
   for (const u of Object.values(UNITS)) {
@@ -27,11 +27,12 @@ test('every unit reference resolves; every foe carries its threats; a fused kind
     assert.ok(Number.isInteger(u.tier) && u.tier >= 1, `${u.id} tier`)
     for (const a of u.abilities) assert.ok(ABILITIES[a], `${u.id} ability ${a}`)
     for (const p of u.phases ?? []) assert.ok(STATUSES[p.grant], `${u.id} phase ${p.grant}`)
-    // A ring: a ranged kind's reach (its farthest blow's range); a melee kind's 1, or 2 for a long arm. A stride, if
-    // any: slow (0.5, 0.75) or quick (1.5). A size, if any: 2.
+    // A ring: a ranged kind's reach (its farthest blow's range); a melee kind's its arm, 1, or 2 for a long arm (an
+    // `arm` of 2, never past the ring). A stride, if any: slow (0.5, 0.75) or quick (1.5). A size, if any: 2.
     const blows = rangedBlows(u)
     if (blows.length) assert.equal(u.ring, Math.max(...blows.map(rangeOf)), `${u.id} ring`)
-    else assert.ok([1, 2].includes(u.ring), `${u.id} ring`)
+    else assert.equal(u.ring, armOf(u), `${u.id} ring`)
+    assert.ok(u.arm === undefined || (u.arm === 2 && u.ring >= u.arm), `${u.id} arm`)
     assert.ok(u.stride === undefined || [0.5, 0.75, 1.5].includes(u.stride), `${u.id} stride`)
     assert.ok(u.size === undefined || u.size === 2, `${u.id} size`)
     assert.equal(sizeOf(makeUnit(u.id, { uid: 1 })), u.size ?? 1, `${u.id} sizeOf`)
@@ -62,6 +63,7 @@ test('every unit reference resolves; every foe carries its threats; a fused kind
   // Identity on the board: two long arms, the slow and the quick, three Flank kinds, two flyers, one death burst.
   const of = (f) => Object.values(UNITS).filter(f).map((u) => u.id).sort()
   assert.deepEqual(of((u) => u.ring === 2 && !rangedBlows(u).length), ['grave_ghoul', 'mantis_reaper'])
+  assert.deepEqual(of((u) => u.arm === 2), ['grave_ghoul', 'mantis_reaper'])
   assert.deepEqual(of((u) => u.stride < 1), ['frost_wyrm', 'iron_golem', 'rot_bloat', 'thorn_dryad', 'tomb_knight'])
   assert.deepEqual(of((u) => u.stride > 1), ['frost_sprite', 'mantis_reaper', 'pyre_hound'])
   assert.deepEqual(of((u) => u.behaviour === 'flank'), ['barrow_wight', 'mantis_reaper', 'will_o_wisp'])
@@ -84,7 +86,7 @@ test('every unit reference resolves; every foe carries its threats; a fused kind
 
 test('the Monarch: one of a kind, never spawned, never striking, its HP from the run, hidden from synergies', () => {
   const m = UNITS.monarch
-  assert.deepEqual([m.name, m.kin, m.role, m.tier, m.monarch, m.spawn, m.abilities, m.ring], ['The Monarch', null, 'monarch', 0, true, undefined, ['arise'], 0])
+  assert.deepEqual([m.name, m.kin, m.role, m.tier, m.monarch, m.spawn, m.abilities, m.ring], ['The Monarch', null, 'monarch', 0, true, undefined, ['arise'], 1])
   assert.equal(Object.values(UNITS).filter((u) => u.monarch).length, 1)
   assert.equal(ROLES.monarch.hidden, true)
   const arise = ABILITIES.arise
@@ -140,7 +142,7 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
         assert.ok(ringOf(at(i + 1)) >= ringOf(at(i)), where)
         // The card never lies: no blow it holds reaches past its ring (one with no range reaches the board, and so
         // must the ring).
-        const reach = Math.max(1, ...abilitiesOf(at(i + 1)).map((a) => ABILITIES[a]).filter((a) => !isAllyShape(a.shape) && a.shape !== 'corpse').map((a) => Math.min(rangeOf(a), DEPTH - 1)))
+        const reach = Math.max(1, ...abilitiesOf(at(i + 1)).map((a) => ABILITIES[a]).filter(isBlow).map((a) => Math.min(rangeOf(a), DEPTH - 1)))
         assert.ok(ringOf(at(i + 1)) >= reach, `${where}: ring ${ringOf(at(i + 1))}, reach ${reach}`)
         statsOf(at(i + 1))
         // The gauge saves toward abilities only (a step is free) and banks no further than the dearest.
@@ -157,6 +159,29 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
   const early = Object.keys(TRACKS).filter((id) => UNITS[id].spawn?.minFloor <= 2)
   const grants = (status) => early.filter((id) => TRACKS[id].some((p) => p.tiers.some((t) => t.ability && ABILITIES[t.ability.id].effects.some((e) => e.status === status))))
   assert.ok(grants('burning').includes('ember_drake') && grants('hexed').includes('clockwork_page'), `${grants('burning')} / ${grants('hexed')}`)
+})
+
+// The card never lies about reach (DESIGN §2.3): a tier that says how far the blow it grants reaches ("reaches 2
+// tiles", "at range 5", "within 3 tiles", "from up to 3 tiles") says what the battle gives it: never past the ring, a
+// ranged blow its range, a melee one its own range where it has one, else the kind's arm (a tier that grows the ring
+// grows no arm).
+test('a tier that says how far its blow reaches says what the battle gives it', () => {
+  const said = /(?:reaches (\d+) tiles?|within (\d+) tiles?|at range (\d+)|from up to (\d+) tiles?)/
+  let n = 0
+  for (const [id, tracks] of Object.entries(TRACKS)) {
+    for (const [k, p] of tracks.entries()) {
+      for (const [i, t] of p.tiers.entries()) {
+        const a = t.ability && ABILITIES[t.ability.id]
+        const m = a && !isAllyShape(a.shape) && said.exec(t.desc)
+        if (!m) continue
+        const u = { ...makeUnit(id, { uid: 1 }), tracks: k ? [0, i + 1] : [i + 1, 0] }
+        const reach = Math.min(ringOf(u), a.melee ? a.range ?? armOf(u) : a.range ?? Infinity)
+        assert.equal(reach, Number(m.slice(1).find(Boolean)), `${id} ${p.id} ${i + 1}: ${t.desc}`)
+        n++
+      }
+    }
+  }
+  assert.ok(n >= 20, `${n} tiers say a reach`)
 })
 
 test('every ability, status and synergy reference resolves', () => {
@@ -272,12 +297,12 @@ test('banner shapes, orders, bonds, signals and Banner are gone', async () => {
 })
 
 // The tiers that once raised summons add bodies to their kind's piece instead (DESIGN §2.6): one such tier per
-// kin, at tier II (three bodies since the balance pass).
+// kin, at tier II (six bodies since the second balance pass; three after the first).
 test('count tiers: one kin each, at tier II, bodies more each battle', () => {
   const tiers = Object.entries(TRACKS).flatMap(([id, tracks]) => tracks.flatMap((p) => p.tiers.flatMap((t, i) => (t.count ? [{ id, track: p.id, i, count: t.count }] : []))))
   assert.deepEqual(tiers.map((t) => [t.id, t.track, t.count]), [
-    ['bone_chanter', 'marrowcaller', 3], ['hive_warden', 'brood_mother', 3], ['clockwork_page', 'gearwright', 3],
-    ['thorn_dryad', 'heartwood', 3], ['frost_wyrm', 'ancient', 3]
+    ['bone_chanter', 'marrowcaller', 6], ['hive_warden', 'brood_mother', 6], ['clockwork_page', 'gearwright', 6],
+    ['thorn_dryad', 'heartwood', 6], ['frost_wyrm', 'ancient', 6]
   ])
   assert.ok(tiers.every((t) => t.i === 1), 'tier II')
   assert.equal(new Set(tiers.map((t) => UNITS[t.id].kin)).size, 5, 'every kin has one')
