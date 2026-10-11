@@ -154,7 +154,6 @@ button.ret-toggle {
 .ret-strip.relics button.ret-toggle { border-color: #6a3a24; background: #1a0f0aa8; color: var(--c-relic); }
 .ret-strip.relics .ret-toggle b { color: var(--c-relic); }
 .ret-strip.relics.open .ret-toggle { border-color: var(--c-relic); }
-.give-row { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 60%; }
 
 /* ── a soul's portrait framed in its rank's metal (ui.js unitRow): the lists ─────────────────────────── */
 .rank-port {
@@ -312,3 +311,15 @@ button.ret-toggle {
 .reap-screen .ow-chip.up { border-color: color-mix(in srgb, var(--c-synergy) 55%, transparent); color: var(--c-synergy); }
 /* The essence a release pays back, on its button. */
 .ret-pop .unit > button .price { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; color: var(--c-essence); font-weight: 700; }
+
+/* The Shop's and spoils' souls to give relics to (ui.js relicsStrip): the Field's Relics strip on top, then a compact
+   row a soul: its portrait and name (a tap gives the readied relic) and its relic slot (a tap takes it back). */
+.ret-pop .relic-strip { margin-bottom: 8px; }
+.give-hint { margin: 0 0 8px; font-size: var(--fs-sm); }
+.give-souls { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px; }
+.give-soul { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: var(--radius); border: 1px solid transparent; }
+.give-soul.offer { border-color: var(--c-relic); box-shadow: 0 0 0 2px #ff7f4533; }
+.give-soul .gs-soul { flex: 1; min-width: 0; justify-content: flex-start; gap: 8px; padding: 0 8px; min-height: var(--tap); overflow: hidden; }
+.give-soul .gs-soul b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.give-soul .give-relic { max-width: 50%; min-height: var(--tap); }
+.give-soul .give-relic.empty { border-style: dashed; color: var(--dim); }

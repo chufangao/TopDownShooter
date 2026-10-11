@@ -596,24 +596,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
   // ×N). A tap readies one to give, and the souls that may take it light up; a soul tapped then (on the board, in the
   // ossuary, or its panel's slot) takes it. Hidden while none waits.
   function relicStrip () {
-    const ids = unheld(s)
-    const kinds = [...new Set(ids)]
-    return [
-      h('div', {
-        class: 'bench-label',
-        tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Relics to give'),
-          h('p', null, `Piece relics work only through the soul holding them, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul. ${say('Click', 'Tap')} one, then the soul to give it to; a soul holding one swaps. Its panel's slot takes it back.`),
-          h('p', { class: 'dim' }, 'Give and take back freely out of battle, never in one.'))
-      }, h('b', null, 'Relics'), h('span', { class: 'dim' }, ` ${ids.length} unheld`)),
-      h('div', { class: 'relics-unheld' }, kinds.map((id) => {
-        const r = relicDef(id)
-        const n = ids.filter((x) => x === id).length
-        return h('button', {
-          class: `give-relic rt-${r.tier}` + (giving === id ? ' on' : ''), 'aria-pressed': giving === id ? 'true' : 'false',
-          onclick: () => { giving = giving === id ? null : id; error = ''; sfx.play('select'); render() },
-          tip: () => h('div', null, relicTip(id, run), h('p', { class: 'dim' }, giving === id ? `${say('Click', 'Tap')} a soul to give it, or this again to cancel.` : `${say('Click', 'Tap')} it, then a soul, to give it.`))
-        }, icon(relicIcon(id), 20), h('span', { class: 'gr-name' }, r.name), n > 1 && h('span', { class: 'relic-n' }, `×${n}`))
-      }))]
+    return relicChips(run, giving, (id) => { giving = giving === id ? null : id; error = ''; sfx.play('select'); render() })
   }
 
   // The relic readied (giving) goes to soul `u`, swapping out what it holds; refused in words where it cannot.
@@ -1358,34 +1341,74 @@ function soulsStrip ({ run, act, busy, again, why }) {
   }
 }
 
+// The Relics strip's parts (the Field's, and the Shop's and spoils' below): its label, and the piece relics held by no
+// soul, a button each (a copy more a ×N); `giving` is the one readied, `pick(id)` readies or lets go of one.
+function relicChips (run, giving, pick) {
+  const ids = unheld(run.state)
+  const kinds = [...new Set(ids)]
+  return [
+    h('div', {
+      class: 'bench-label',
+      tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Relics to give'),
+        h('p', null, `Piece relics work only through the soul holding them, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul. ${say('Click', 'Tap')} one, then the soul to give it to; a soul holding one swaps. Its slot takes it back.`),
+        h('p', { class: 'dim' }, 'Give and take back freely out of battle, never in one.'))
+    }, h('b', null, 'Relics'), h('span', { class: 'dim' }, ` ${ids.length} unheld`)),
+    h('div', { class: 'relics-unheld' }, kinds.map((id) => {
+      const r = relicDef(id)
+      const n = ids.filter((x) => x === id).length
+      return h('button', {
+        class: `give-relic rt-${r.tier}` + (giving === id ? ' on' : ''), 'aria-pressed': giving === id ? 'true' : 'false',
+        onclick: () => pick(id),
+        tip: () => h('div', null, relicTip(id, run), h('p', { class: 'dim' }, giving === id ? `${say('Click', 'Tap')} a soul to give it, or this again to cancel.` : `${say('Click', 'Tap')} it, then a soul, to give it.`))
+      }, icon(relicIcon(id), 20), h('span', { class: 'gr-name' }, r.name), n > 1 && h('span', { class: 'relic-n' }, `×${n}`))
+    }))]
+}
+
 // The piece relics, at the foot of the Shop and the spoils (redesign.md §2.15: give, take back and swap out of battle,
-// as the Field's Relics strip does): a line of how many wait unheld; a press opens your souls over the cards, a row
-// each with the relic it holds (a press takes it back) and a button for each unheld relic it may take (a soul holding
-// one swaps). Nothing while no piece relic is owned. `busy()`, `again()`: as soulsStrip's.
+// as the Field's Relics strip does, and by its gesture): a line of how many wait unheld; a press opens, over the cards,
+// the same strip of them and a compact list of your souls, a row each: tap a relic, then a soul to give it (a soul
+// holding one swaps); a soul's relic slot takes it back. Nothing while no piece relic is owned. `busy()`, `again()`:
+// as soulsStrip's.
 function relicsStrip ({ run, act, busy, again }) {
   const s = run.state
   let open = false
+  let giving = null
+  let error = ''
   return () => {
     if (!s.relics.some((id) => !isRunRelic(id))) return null
+    if (giving && !unheld(s).includes(giving)) giving = null
     const n = unheld(s).length
-    const ids = [...new Set(unheld(s))]
-    const press = (action) => () => { if (busy()) return; if (!act(action)) sfx.play('buy'); again() }
-    const row = (u) => unitRow(run, u, h('div', { class: 'give-row' },
-      (u.relics ?? []).map((id) => h('button', {
-        class: `give-relic small on rt-${relicDef(id).tier}`, onclick: press({ type: 'unhold', uid: u.uid, relic: id }),
-        tip: () => `Take ${relicDef(id).name} back from ${unitDef(u.id).name}: it waits unheld, to give again.`
-      }, icon(relicIcon(id), 16), relicDef(id).name, ' ✕')),
-      ids.filter((id) => canHold(s, id, u)).map((id) => h('button', {
-        class: `give-relic small rt-${relicDef(id).tier}`, onclick: press({ type: 'hold', relic: id, uid: u.uid }), tip: () => relicTip(id, run)
-      }, icon(relicIcon(id), 16), `${(u.relics?.length ?? 0) >= TUNING.relic.perPiece ? 'Swap:' : 'Give'} ${relicDef(id).name}`))))
+    const go = (action) => { if (busy()) return; error = act(action) ?? ''; if (!error) sfx.play('buy'); again() }
+    const give = (u) => {
+      if (!giving) return
+      if (!canHold(s, giving, u)) { error = `${unitDef(u.id).name} already holds ${relicDef(giving).name}.`; sfx.play('poor'); return again() }
+      const relic = giving
+      giving = null
+      go({ type: 'hold', relic, uid: u.uid })
+    }
+    const row = (u) => {
+      const held = u.relics ?? []
+      const slot = (id) => h('button', {
+        class: `give-relic small on rt-${relicDef(id).tier}`, onclick: () => (giving ? give(u) : go({ type: 'unhold', uid: u.uid, relic: id })),
+        tip: () => giving ? `Swap it for ${relicDef(id).name}, which waits unheld.` : `Take ${relicDef(id).name} back from ${unitDef(u.id).name}: it waits unheld, to give again.`
+      }, icon(relicIcon(id), 16), relicDef(id).name, giving ? '' : ' ✕')
+      return h('div', { class: 'give-soul' + (giving && canHold(s, giving, u) ? ' offer' : '') },
+        h('button', { class: 'gs-soul', onclick: () => give(u), tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run), run }) },
+          h('span', { class: 'rank-port' + (u.hp <= 0 ? ' fallen' : '') }, portrait(u.id, 32, u.hp <= 0)), h('b', null, unitDef(u.id).name)),
+        held.length ? held.map(slot) : h('button', { class: 'give-relic small empty dim', onclick: () => give(u) }, '◇ empty'))
+    }
     return h('div', { class: 'ret-strip relics' + (open ? ' open' : '') },
       h('button', {
         class: 'ret-toggle', 'aria-expanded': open ? 'true' : 'false',
-        onclick: () => { open = !open; hideTip(); again() },
+        onclick: () => { open = !open; giving = null; error = ''; hideTip(); again() },
         tip: () => open ? 'Close the list.' : 'Give a piece relic to a soul, take one back, or swap: it works only through its holder.'
-      }, icon('reliquary', 20), h('b', null, `Relics ${n} unheld`), h('span', null, ' · Give'), h('span', { class: 'ret-caret', 'aria-hidden': 'true' }, open ? '▾' : '▴')),
+      }, icon('reliquary', 20), h('b', null, `Relics ${n} unheld`), h('span', { class: 'ret-caret', 'aria-hidden': 'true' }, open ? '▾' : '▴')),
       open && h('div', { class: 'ret-pop', role: 'region', 'aria-label': 'Give a relic' },
-        h('div', { class: 'units' }, souls(s.party).sort(fieldOrder).map(row))))
+        n > 0 ? h('div', { class: 'relic-strip' }, relicChips(run, giving, (id) => { giving = giving === id ? null : id; error = ''; sfx.play('select'); again() }))
+          : h('p', { class: 'dim' }, 'Every piece relic is held: a soul\'s slot takes one back.'),
+        giving && h('p', { class: 'give-hint' }, h('b', null, say('Click', 'Tap')), ' a soul to give it ', h('b', { class: `c-${relicDef(giving).tier}` }, relicDef(giving).name), ' · again to cancel'),
+        error && h('p', { class: 'warn' }, error),
+        h('div', { class: 'give-souls' }, souls(s.party).sort(fieldOrder).map(row))))
   }
 }
 
