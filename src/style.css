@@ -430,6 +430,7 @@ b { font-weight: 600; color: var(--bright); }
 .chip { font-size: var(--fs-sm); padding: 0 8px; border-radius: 99px; border: 1px solid var(--c); color: var(--c); }
 .tag-melee, .tag-ranged { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; border-radius: 5px; background: #2a1d26; color: #f0a0ac; }
 .tag-ranged { background: #1a2433; color: #9ac8ff; }
+.tag-arc { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; margin-left: 4px; border-radius: 5px; background: #1f2a1c; color: #b8e08a; }
 .tag-domain { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; border-radius: 5px; background: #15302a; color: var(--c-essence2); }
 .ct-foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line2); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 3px; }
 .note-line { color: var(--c-essence2); }

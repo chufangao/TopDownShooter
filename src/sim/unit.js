@@ -316,6 +316,65 @@ export function sealedBy (camp, slot) {
   return [...Array(CAMP_SLOTS).keys()].filter((c) => c !== slot && campOpen(camp, c) && !seen.has(deployTile('party', c)))
 }
 
+// ── lines of fire (redesign.md §2.19) ───────────────────────────────────────────────────────────
+
+// The tiles strictly between two tiles, in order from the first: a supercover line, every tile the segment between
+// their centres touches; one through a corner touches both tiles beside it (the lower first), so no blow slips between
+// two diagonal blockers. Made once for every pair, a flat list: pair a × TILES + b's tiles are LINE_TILES from
+// LINE_AT[pair] up to LINE_AT[pair + 1] (the board never changes size; a line is at most 17 tiles).
+export const LINE_AT = new Int32Array(TILES * TILES + 1)
+export const LINE_TILES = (() => {
+  const out = []
+  for (let a = 0; a < TILES; a++) {
+    for (let b = 0; b < TILES; b++) {
+      LINE_AT[a * TILES + b] = out.length
+      let x = tileX(a)
+      let y = tileY(a)
+      const nx = Math.abs(tileX(b) - x)
+      const ny = Math.abs(tileY(b) - y)
+      const sx = Math.sign(tileX(b) - x)
+      const sy = Math.sign(tileY(b) - y)
+      const start = out.length
+      // The next boundary the segment crosses: a lane's (x) when (ix + ½) / nx comes before (iy + ½) / ny, a row's when
+      // after, a corner when both at once (exact, in integers).
+      for (let ix = 0, iy = 0; ix < nx || iy < ny;) {
+        const k = (1 + 2 * ix) * ny - (1 + 2 * iy) * nx
+        if (k === 0) {
+          const p = tileAt(x + sx, y)
+          const q = tileAt(x, y + sy)
+          out.push(Math.min(p, q), Math.max(p, q))
+          x += sx
+          y += sy
+          ix++
+          iy++
+        } else if (k < 0) {
+          x += sx
+          ix++
+        } else {
+          y += sy
+          iy++
+        }
+        out.push(tileAt(x, y))
+      }
+      // The far end is no tile between.
+      if (out.length > start) out.pop()
+    }
+  }
+  LINE_AT[TILES * TILES] = out.length
+  return Int8Array.from(out)
+})()
+
+// The tiles strictly between tiles a and b, in order from a (LINE_TILES'), as a list.
+export const between = (a, b) => Array.from(LINE_TILES.subarray(LINE_AT[a * TILES + b], LINE_AT[a * TILES + b + 1]))
+
+// The ends of a line between two footprints (anchor `a` of side `sa`, `b` of `sb`): each the tile of its footprint
+// nearest the other (a 2×2 piece's nearest tile; lane and row each held within its footprint).
+export function lineEnds (a, sa, b, sb) {
+  const to = sb === 1 ? b : nearestIn(b, sb, a)
+  return [sa === 1 ? a : nearestIn(a, sa, to), to]
+}
+const nearestIn = (t, s, p) => tileAt(Math.min(Math.max(tileX(p), tileX(t)), tileX(t) + s - 1), Math.min(Math.max(tileY(p), tileY(t)), tileY(t) + s - 1))
+
 // ── footprints and the seat (DESIGN §2.1–§2.2) ──────────────────────────────────────────────────
 
 // A piece's size: 1, or 2 for a kind of size 2 (a fused kind's) or one holding a Colossus tier (`size: 2`).

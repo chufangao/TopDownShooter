@@ -785,7 +785,9 @@ export const UNIT_LIST = [
 // self; row (everyone level with the target), column (its lane); blast (the target and everyone next to it); all,
 // all_allies (within `range`); corpse (a fallen foe: Arise's). Reach, from the caster's footprint: a ranged blow its
 // `range` (none: the whole board); a melee blow (`melee`) its own `range` where it has one, else its kind's arm, and
-// never a flyer unless the caster flies too; ally abilities and `all` without a range reach the whole board. `anim`
+// never a flyer unless the caster flies too; ally abilities and `all` without a range reach the whole board. Lines of
+// fire (redesign.md §2.19): a ranged single-target blow strikes the first piece of its target's side in its way
+// (turns.js lineStruck), unless it arcs (`arc`: lobbed or cast, a blow whose text says it reaches anywhere). `anim`
 // and `tint`: how the board draws it. A kind's basic blow and basic heal are usable every turn; every other ability is
 // a skill and rests a turn (`cooldown`, 2 where absent: set only where the balance pass grants an exception, and its
 // text then says so). A skill's timing is yours, and a foe's is scored (policy.js), so an ability carries a condition
@@ -1185,10 +1187,11 @@ const ABILITY_LIST = [
     effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'burning' }, { op: 'apply_status', status: 'withered' }]
   },
   {
-    // No range: it reaches the whole board.
+    // No range: it reaches the whole board, falling from above (`arc`): no piece in the way takes it.
     id: 'skyfall',
     name: 'Skyfall',
     shape: 'single',
+    arc: true,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
     effects: [{ op: 'damage', power: 34 }]
@@ -1347,10 +1350,12 @@ const ABILITY_LIST = [
     effects: [{ op: 'damage', power: 22 }, { op: 'apply_status', status: 'hexed' }]
   },
   {
-    // No range: it reaches the whole board. Its condition is its rule, an execute: it waits for a foe below half HP.
+    // No range: it reaches the whole board, cast on its target (`arc`: no piece in the way takes it). Its condition is
+    // its rule, an execute: it waits for a foe below half HP.
     id: 'killing_cold',
     name: 'Killing Cold',
     shape: 'single',
+    arc: true,
     tint: '#66c8ff',
     anim: 'ranged_bolt',
     when: (s) => s.enemies.some((u) => hpPct(u) < 0.5),
@@ -1922,7 +1927,7 @@ export const STATUS_WORTH = {
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
 // does is learnt by fighting it.
 export const THREATS = {
-  reach: { name: 'Reach', desc: 'Strikes from afar, over whatever stands in front of it.' },
+  reach: { name: 'Reach', desc: 'Strikes from afar; a piece of yours on its line takes the blow.' },
   shape: { name: 'Shape', desc: 'Hits a whole row, lane or crowd at once.' },
   drain: { name: 'Drain', desc: 'Hexes, saps strength or rots defence.' },
   sustain: { name: 'Sustain', desc: 'Keeps its side fighting: mends, wards, hastens or cleanses it, or raises its dead, so what you deal may not stay dealt.' },

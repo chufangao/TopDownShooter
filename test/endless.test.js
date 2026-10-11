@@ -185,7 +185,8 @@ test('a preview reports the fall of whoever would take the blow, a Bodyguard tha
   set(theirs, 108, 1)
   const before = theirs.events.length
   const p = preview(theirs, 1, 'witchfire', 120)
-  assert.deepEqual([p.struck, p.kills, p.falls, p.damage], [108, true, [108], 0])
+  // The damage stands on the one that takes it (redesign.md §2.19: `damage` is the struck's since lines of fire).
+  assert.deepEqual([p.struck, p.kills, p.falls, p.damage], [108, true, [108], p.hits[108]])
   assert.ok(p.hits[108] > 0 && !(120 in p.hits))
   // Unguarded, the target is struck and falls as before.
   const plain = scene([on('frost_sprite', 120, 'foe', 3, 8), on('will_o_wisp', 1, 'party', 3, 4)])

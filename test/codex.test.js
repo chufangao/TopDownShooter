@@ -70,9 +70,11 @@ test('a met foe\'s card tells its reach, its Move, its way and its way line; no 
   localStorage.setItem('retinue:met', met)
 })
 
-test('the glossary\'s words are the seventeen; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
+// The seventeen of redesign.md §2.14, and Line of fire (§2.19, 2026-10-11): a rule the player must read to screen the
+// Monarch, so it is a word of its own.
+test('the glossary\'s words are the seventeen and Line of fire; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
   const names = Object.values(KEYWORDS).filter((k) => k.group === 'Words').map((k) => k.name)
-  assert.deepEqual(names.slice().sort(), ['Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
+  assert.deepEqual(names.slice().sort(), ['Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Line of fire', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
     'Summon', 'Synergy', 'Tier', 'Turn', 'Wave'])
   for (const [id, b] of Object.entries(BEHAVIOURS)) assert.equal(KEYWORDS[id].line, b.desc)
   for (const k of Object.values(KEYWORDS)) assert.ok(!/\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit|flank|chance/i.test(k.line), `${k.name}: ${k.line}`)
@@ -239,4 +241,25 @@ test('the foes\' synergies are told on every floor, a later wave\'s too, as the 
   assert.ok(tip.includes('Not counted: their Frenzy, Ambush, Legion, Bodyguard'), 'the threat names their rules')
   assert.deepEqual(roomSynergies({ ...node, foes: four('hive_drone').slice(1), waves: [] }), [])
   for (const text of [DEEP_TEXT.growth, DEEP_TEXT.now(7), tip]) assert.ok(!/NaN|undefined/.test(text), text)
+})
+
+// Lines of fire (redesign.md §2.19): a kind whose blow keeps to a line says so on its card, every lobbed blow's line
+// says it ignores lines, and How to play tells the rule.
+test('a kind with a blow that keeps to its line says so; a lobbed blow says it ignores lines; How to play tells the line of fire', async () => {
+  const { abilityBlock } = await import('../src/codex.js')
+  const { lined } = await import('../src/sim/turns.js')
+  const { ABILITIES, abilityDef } = await import('../src/content.js')
+  const { abilitiesOf } = await import('../src/sim/unit.js')
+  for (const d of UNIT_LIST.filter((x) => !x.monarch)) {
+    const u = { id: d.id, lvl: 1, tracks: [0, 0] }
+    const keeps = abilitiesOf(u).map(abilityDef).some(lined)
+    assert.equal(/line of fire/.test(reachRule(u)), keeps, `${d.id}: ${reachRule(u)}`)
+  }
+  const st = { atk: 10, heal: { given: 1 } }
+  for (const a of Object.values(ABILITIES).filter((x) => x.arc && x.shape !== 'corpse')) {
+    assert.ok(!lined(a), a.id)
+    assert.match(abilityBlock(a.id, st).textContent, /ignores lines/, a.id)
+  }
+  const text = codexView(createRun({ seed: 'codex' })).textContent
+  assert.ok(/line of fire/.test(text) && /SCREENED/.test(text), 'the primer and the battle gestures tell it')
 })

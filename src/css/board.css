@@ -224,6 +224,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 /* What a tap does next stays in view at the box's foot while the orders above it scroll. */
 .sel-line { position: sticky; bottom: calc(-1 * var(--pad)); margin-bottom: calc(-1 * var(--pad)); padding-bottom: var(--pad); background: #0b0a12; font-size: var(--fs-sm); line-height: 1.3; min-height: 1.3em; }
 .sel-line .aim-line { color: var(--c-warn); }
+.sel-line .aim-line .screened { color: #d8d0ff; }
 .battle-panel .end-turn { width: 100%; }
 .battle-screen.busy .end-turn, .end-turn[aria-disabled="true"] { opacity: .55; }
 .battle-screen .skip { flex: 1; min-height: var(--tap); font-size: var(--fs-md); }

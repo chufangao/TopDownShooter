@@ -473,8 +473,11 @@ function fuzz (b, rng, per = 8, log = null) {
       const shown = o.type === 'act' ? preview(b, o.uid, o.ability, o.target) : null
       const events = order(b, o)
       if (shown) {
+        // The preview names whom the blow strikes (the first in its line, a Bodyguard), and the damage it takes.
         const answer = events.findIndex((e) => e.type === 'action' && e.counter)
-        const dealt = events.slice(0, answer < 0 ? events.length : answer).filter((e) => e.type === 'damage' && !e.status && e.target === o.target).reduce((n, e) => n + e.damage, 0)
+        const act = events.find((e) => e.type === 'action' && e.actor === o.uid && !e.counter)
+        assert.equal(act.struck ?? act.primary, shown.struck, `preview of ${JSON.stringify(o)}: struck`)
+        const dealt = events.slice(0, answer < 0 ? events.length : answer).filter((e) => e.type === 'damage' && !e.status && e.target === shown.struck).reduce((n, e) => n + e.damage, 0)
         assert.equal(dealt, shown.damage, `preview of ${JSON.stringify(o)}`)
       }
       holds(b)
@@ -862,6 +865,8 @@ test('the tile index matches the living (every tile of a 2×2), and the caches a
     big += b.units.filter((u) => u.size > 1).length
     while (!b.over) {
       playTurns(b, 1, i % 4 === 1 ? expertTurn : basicTurn)
+      // Past the sim's bound a stall (lines of fire left one seed a flyer no one of yours can strike, out of its reach).
+      if (stalled(b)) order(b, { type: 'stall' })
       holds(b)
       const living = b.units.filter((u) => u.hp > 0)
       const indexed = [...b.at, ...b.sky].filter(Boolean)

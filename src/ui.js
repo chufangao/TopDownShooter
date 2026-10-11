@@ -1827,7 +1827,8 @@ export function battleChrome ({ onHelp = null } = {}) {
     const armed = p.acts.find((a) => a.armed)
     const line = p.hexed && !p.acted ? h('span', { class: 'warn' }, 'Hexed: it loses its act.')
       : p.acted ? h('span', { class: 'dim' }, 'Acted this turn.')
-        : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to raise it.', 'Tap it again to raise it.') : say('Click it again to strike.', 'Tap it again to strike.'))
+        : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to raise it.', 'Tap it again to raise it.') : say('Click it again to strike.', 'Tap it again to strike.'),
+          p.screen && [' ', h('span', { class: 'screened' }, 'Screened'), `: the ${p.screen} on its `, kw('line', 'line of fire'), ' takes it.'])
           : armed?.arise ? h('span', { class: 'dim' }, [say('Click', 'Tap'), ' a corpse ringed in green, again to raise it.'])
             : h('span', { class: 'dim' }, p.move > p.moved && armed?.targets ? [say('Click', 'Tap'), ' a lit tile to move, a ringed target to aim.']
               : p.move > p.moved ? [say('Click', 'Tap'), ' a lit tile to move.']

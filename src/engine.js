@@ -6,7 +6,8 @@ import Phaser from './vendor/phaser.js'
 import { TUNING } from './tuning.js'
 import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, FUSIONS } from './content.js'
 import {
-  reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf
+  reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
+  lined, lineOf, lineStruck
 } from './sim/turns.js'
 import { foeEssence } from './sim/run.js'
 import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, footprint, alive, isBlow } from './sim/unit.js'
@@ -342,6 +343,30 @@ export function ringBox (tile, r, pad = 0, size = 1) {
   return cellsBox(Math.max(0, x - r), Math.min(LANES - 1, x + size - 1 + r), Math.max(0, y - r), Math.min(DEPTH - 1, y + size - 1 + r), pad)
 }
 
+// A line of fire (redesign.md §2.19) on `g`, world points: solid from `from` (the shooter) to `to` (the piece that takes
+// the blow) over a dark edge, so it reads on any floor, with a ring where it lands; then, when another was aimed at
+// (`past`), on to it dashed and faint, a small cross there. Its widths kept legible however far the camera zooms out.
+function lineOfFire (g, from, to, past, colour, zoom, alpha = 1) {
+  if (!from || !to) return
+  const k = 1 / Math.max(0.35, Math.min(1, zoom || 1))
+  g.lineStyle(7 * k, 0x07060b, 0.55 * alpha).lineBetween(from.x, from.y, to.x, to.y)
+  g.lineStyle(3 * k, colour, 0.95 * alpha).lineBetween(from.x, from.y, to.x, to.y)
+  g.fillStyle(colour, 0.95 * alpha).fillCircle(from.x, from.y, 3.5 * k)
+  g.lineStyle(5.5 * k, 0x07060b, 0.5 * alpha).strokeCircle(to.x, to.y, 10 * k)
+  g.lineStyle(2.5 * k, colour, alpha).strokeCircle(to.x, to.y, 10 * k)
+  if (!past) return
+  const len = Math.hypot(past.x - to.x, past.y - to.y)
+  if (len < 1) return
+  const [ux, uy] = [(past.x - to.x) / len, (past.y - to.y) / len]
+  g.lineStyle(2 * k, colour, 0.5 * alpha)
+  for (let d = 14 * k; d < len - 8 * k; d += 14 * k) {
+    const e = Math.min(len - 8 * k, d + 7 * k)
+    g.lineBetween(to.x + ux * d, to.y + uy * d, to.x + ux * e, to.y + uy * e)
+  }
+  const c = 6 * k
+  g.lineStyle(2.5 * k, colour, 0.7 * alpha).lineBetween(past.x - c, past.y - c, past.x + c, past.y + c).lineBetween(past.x - c, past.y + c, past.x + c, past.y - c)
+}
+
 // The ground both boards stand on (the prep board's and the battle's, so one fades into the other): the crypt
 // floor, a vignette and the dark past it, a dais under your camp and one under their formation, a seam of
 // soulfire down the open ground between, and drifting motes.
@@ -475,8 +500,10 @@ class BattleScene extends Phaser.Scene {
       actorOf: (uid) => this.actors.get(uid),
       onEvent: (ev, inAction, seq) => this.applyEvent(ev, inAction, seq)
     })
-    // What the selection lights (plan), under the units, and the preview's numbers over them.
+    // What the selection lights (plan), under the units, and the preview's numbers over them; an aimed ranged blow's
+    // line of fire over the units (shotG, under the numbers), and the lines the playback shows as screened shots land.
     this.planG = this.add.graphics().setDepth(-390)
+    this.shotG = this.add.graphics().setDepth(9600)
     this.aimMarks = []
     // battle:start is already in battle.events; anything after it has not been played.
     this.player.enqueue(this.battle.events.slice(this.battle.events.indexOf(start) + 1))
@@ -884,6 +911,7 @@ class BattleScene extends Phaser.Scene {
   // (turns.js ariseOf). Nothing of the foes' coming turn.
   plan () {
     const g = this.planG.clear()
+    this.shotG.clear()
     if (this.locked()) return
     const b = this.battle
     const s = this.sel
@@ -920,13 +948,44 @@ class BattleScene extends Phaser.Scene {
     g.fillStyle(0xffffff, 0.1).fillEllipse(p.x, p.y + 4, 70 * k, 22 * k)
     ring(u, 0xffffff, 0.95, 3, 6)
     const colour = a?.shape === 'corpse' ? DOMAIN : a && !isBlow(a) ? BOON : FOE
+    // Aimed through a screen, the piece that takes the blow is lit as the aimed one is (the second tap is still on the
+    // aimed one).
+    const shot = s.aim != null ? s.shot : null
     for (const uid of s.targets) {
       const x = b.byUid.get(uid)
       const q = foot(x)
       const kx = (x.size ?? 1) > 1 ? BIG : 1
-      g.fillStyle(colour, uid === s.aim ? 0.3 : 0.14).fillEllipse(q.x, q.y + 4, 58 * kx, 18 * kx)
-      ring(x, colour, uid === s.aim ? 1 : 0.85, uid === s.aim ? 4 : 2.5, uid === s.aim ? 8 : 0)
+      const on = uid === s.aim || uid === shot?.hit
+      g.fillStyle(colour, on ? 0.3 : 0.14).fillEllipse(q.x, q.y + 4, 58 * kx, 18 * kx)
+      ring(x, colour, on ? 1 : 0.85, on ? 4 : 2.5, on ? 8 : 0)
     }
+    if (shot) this.drawShot(g, u, shot)
+  }
+
+  // An aimed blow's line of fire (redesign.md §2.19, preview's `line`): on the ground, the tiles it crosses up to the
+  // piece that takes it, faintly marked; over the units, the line from the shooter to that piece, and past it, dashed,
+  // to the one aimed at when it is screened (SCREENED stands over it: aim). The aim's colour (--c-warn), legible at any
+  // zoom. Only the player's own blow: nothing of the foes' coming turn.
+  drawShot (g, u, shot) {
+    const b = this.battle
+    const hit = b.byUid.get(shot.hit)
+    const aimed = b.byUid.get(shot.aim)
+    if (!hit || !aimed) return
+    const colour = hex(C.warn)
+    const covers = new Set(footprint(hit.tile, hit.size ?? 1) ?? [hit.tile])
+    for (const t of shot.line) {
+      if (covers.has(t)) break
+      const box = cellsBox(tileX(t), tileX(t), tileY(t), tileY(t), 10)
+      g.fillStyle(colour, 0.08).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
+      g.lineStyle(1.5, colour, 0.4).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
+    }
+    lineOfFire(this.shotG, this.chestOf(u.uid), this.chestOf(hit.uid), shot.aim !== shot.hit ? this.chestOf(aimed.uid) : null, colour, this.cameras.main.zoom)
+  }
+
+  // Where a blow flies from and lands on a unit (its chest, as the bolts: projectile), as it stands now.
+  chestOf (uid) {
+    const a = this.actors.get(uid)
+    return a ? { x: a.vx ?? a.sprite.x, y: a.sprite.y - a.chest } : null
   }
 
   // Aims the selected piece's armed act at `uid` (null: none): what it would do, from the sim's preview (the same
@@ -936,9 +995,15 @@ class BattleScene extends Phaser.Scene {
     this.dropMarks()
     if (!s) return
     s.aim = null
+    s.shot = null
     const p = uid == null ? null : preview(this.battle, s.uid, s.ability, uid)
     if (p) {
       s.aim = uid
+      // A ranged blow keeps to its line (redesign.md §2.19): who takes it, drawn (plan: drawShot), with SCREENED over
+      // the one aimed at when another takes it, or GUARDED over the one its line found when a Bodyguard steps in.
+      s.shot = this.shotOf(s, p, uid)
+      if (s.shot && s.shot.hit !== uid) this.mark(uid, 'SCREENED', '#d8d0ff', 12)
+      if (s.shot && p.struck != null && p.struck !== s.shot.hit) this.mark(s.shot.hit, 'GUARDED', '#d8d0ff', 12)
       // FALLS over every one the act would fell (preview's `falls`): a Bodyguard that takes the blow, a Shape's every
       // target, one a death burst fells with no number of its own.
       const hits = Object.entries(p.hits).filter(([, d]) => d > 0)
@@ -952,6 +1017,21 @@ class BattleScene extends Phaser.Scene {
     }
     this.plan()
     this.changed()
+  }
+
+  // The line of fire of the selected piece's act aimed at `uid` (preview `p`, the sim's): { line (the tiles strictly
+  // between, from the shooter: preview's `line`, turns.js lineOf), hit (the piece the line stops at: turns.js
+  // lineStruck, the first of the target's side on it, else the target), aim }; null for a blow that keeps to no line
+  // (melee, a shape, a lobbed blow: turns.js lined). Where a Bodyguard then takes the blow, `hit` is still the line's
+  // (preview's `struck` is the guard: aim marks it).
+  shotOf (s, p, uid) {
+    const b = this.battle
+    const u = b.byUid.get(s.uid)
+    const target = b.byUid.get(uid)
+    const a = u?.kit.find((x) => x.id === s.ability)
+    if (!a || !target || !lined(a) || target.side === u.side) return null
+    const line = p.line?.length ? p.line : lineOf(b, u, target, a)
+    return { line, hit: lineStruck(b, u, a, target).uid, aim: uid }
   }
 
   // A preview's number over a unit, held until the aim changes.
@@ -1002,8 +1082,9 @@ class BattleScene extends Phaser.Scene {
       return this.plan()
     }
     this.dropMarks()
-    if (this.sel) this.sel.aim = null
+    if (this.sel) { this.sel.aim = null; this.sel.shot = null }
     this.planG.clear()
+    this.shotG.clear()
     this.waiting = true
     this.player.enqueue(events ?? [])
     this.changed()
@@ -1048,6 +1129,8 @@ class BattleScene extends Phaser.Scene {
     return {
       uid: u.uid, id: u.id, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, acted: u.acted, hexed: hexed(u), relics: u.relics ?? [],
       acts, aim: s.aim != null, undo: free && this.undoable(u),
+      // Aimed through a screen: the kind of the piece on the line that takes the blow (redesign.md §2.19).
+      screen: s.aim != null && s.shot && s.shot.hit !== s.aim ? unitDef(b.byUid.get(s.shot.hit)?.id ?? b.byUid.get(s.aim).id).name : null,
       fusions: free ? legalOrders(b).filter((o) => o.type === 'fuse' && o.uid === u.uid).map((o) => ({ order: o, name: FUSIONS[o.id].name, price: b.fuse?.[o.id]?.price ?? null })) : []
     }
   }
@@ -1633,9 +1716,14 @@ class BattleScene extends Phaser.Scene {
       // A counter: the struck answers at once, and says so over itself.
       if (ev.counter) { const x = this.actors.get(ev.actor); if (x) this.floating(x, 'COUNTER', '#ffb27a', 11) }
       this.deadeye(ev)
+      this.screenedShot(ev)
       return this.reshaped(ev, this.actors.get(ev.actor))
     }
-    if (ev.type === 'rule') return this.rule(ev)
+    if (ev.type === 'rule') {
+      // A Bodyguard's step, kept a beat for the line its blow was loosed on (screenedShot).
+      if (ev.rule === 'bodyguard') this.guarded = ev
+      return this.rule(ev)
+    }
     // A trigger relic fired for this unit: its name flashes over it (its effects follow as their own events).
     if (ev.type === 'trigger') {
       const x = this.actors.get(ev.unit)
@@ -1811,6 +1899,26 @@ class BattleScene extends Phaser.Scene {
     const at = this.battle.byUid.get(ev.targets?.[0])
     if (!by || !at || by.side === at.side || !ev.ability || !isBlow(abilityDef(ev.ability)) || abilityDef(ev.ability).melee) return
     if (holds(this.battle, by.side, 'deadeye')) this.rule({ type: 'rule', rule: 'deadeye', side: by.side, actor: ev.actor })
+  }
+
+  // A shot a screen took (redesign.md §2.19), as it is loosed: its line from the shooter to the piece on it that takes
+  // the blow, and on, dashed, to the one it was aimed at, for a moment, SCREENED over that one; in the shooter's side's
+  // colour, the foes' or yours. What has happened, never what will.
+  // The action says whom it was aimed at (`primary`) and who took it (`struck`); a Bodyguard that took it from the
+  // piece the line found said so just before (its rule event, this beat: `guarded`), so the line ends on that piece.
+  screenedShot (ev) {
+    if (ev.counter || ev.struck == null || ev.struck === ev.primary || !ev.ability || !lined(abilityDef(ev.ability))) return
+    const guard = this.guarded?.beat === ev.beat && this.guarded.actor === ev.struck ? this.guarded : null
+    const hit = guard ? guard.target : ev.struck
+    if (hit === ev.primary) return
+    const from = this.chestOf(ev.actor)
+    const to = this.chestOf(hit)
+    if (!from || !to) return
+    const g = this.add.graphics().setDepth(9600)
+    lineOfFire(g, from, to, this.chestOf(ev.primary), this.units.get(ev.actor)?.side === 'foe' ? FOE : PARTY, this.cameras.main.zoom)
+    const aimed = this.actors.get(ev.primary)
+    if (aimed && !aimed.gone) this.floating(aimed, 'SCREENED', '#d8d0ff', 11)
+    this.tweens.add({ targets: g, alpha: 0, delay: 520, duration: 380, onComplete: () => g.destroy() })
   }
 
   // Canvas text, drawn at 3× so it stays sharp when the camera zooms.

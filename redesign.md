@@ -445,6 +445,35 @@ simulation (§2.17): a plan is read and kept, never played out.
   map for nothing; a road walled by two) and an ablation `moves` (the expert acts but never moves: what movement is
   worth). Then the weights are searched again (§6) and measured against the old expert's bar.
 
+- **Then (2026-10-11), after a search found no gain** (the expert at ~34–36%, its Monarch felled in 168 of 170 lost
+  runs, mostly by reach): the user took three expert changes and one rule (§2.19). **A, the line out of range**: the
+  target formation holds each road at the first tile where every scouted foe on it is out of reach of the Monarch
+  (not merely at the choke); **B, the Monarch's shooters first**: a hard rule: a foe whose reach covers the Monarch,
+  now or by the forecast next turn, is the focus, the kill list's first, and the plan turns to focus or push to reach
+  it; **C, the Monarch's HP is the run's**: its wounds carry between battles (it heals a fifth after a win, nothing
+  under Court of Bone), so the situation reads its carried HP: the route rules take an altar sooner and refuse an
+  elite when it is low, and in battle the protection weighs more as it falls.
+
+### 2.19 Lines of fire (2026-10-11)
+
+The user's choice, to make screening the Monarch a real skill and placement matter again (formation ablated to ~1
+point once pieces moved).
+
+- **A ranged blow strikes the first piece of the target's side on its line.** The line runs from the attacker's tile
+  to the target's (a 2×2 piece's nearest footprint tile), over the tiles it crosses (a supercover line: a tile the
+  line touches counts, so no blow slips between two diagonal blockers); a piece of the target's side on a tile
+  strictly between takes the blow instead, the first such piece from the attacker. The shooter's own side never
+  blocks it: a shooter fires over its friends. Both sides alike.
+- **What it applies to**: a single-target blow from range (`range` above 1). Melee (a reach-2 arm too), shapes
+  (blast, column, row, all) and a blow that `arc`s (a lobbed or a cast blow, marked on the ability: Skyfall, Killing
+  Cold, Grave Tide and the like, whose text says "anywhere") ignore lines. A flyer on the air layer blocks and is
+  blocked like any piece (the line is the board's, not a layer's).
+- **Shown before you commit**: the preview names the piece the blow will strike (`preview().struck`), the line is
+  drawn from the shooter, and the damage number stands on the piece that takes it. Your danger map and the foes'
+  scoring count lines; a foe's choice of target is unchanged in kind (it scores the piece it would actually strike).
+- Counters, Hexed, Bodyguard and the rest as before; a Bodyguard redirect comes after the line (the line picks who is
+  struck; Bodyguard may then take it from that piece).
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -485,7 +514,7 @@ Shift or a key; the board on its side, BTD-sized, a tile never under 44 CSS px o
   violet pall it is today; every other status a pall in its `colour`; a cooldown pip on a sprite's skill icon.
 - **The Shop**: the offer panel with a price on each relic and the purse in the bar; buy lights what can be paid for;
   a Leave button. A won elite's panel: its essence and its recruit.
-- **Codex**: the glossary's seventeen words; the bestiary's way line per kind once met, generated; the help page
+- **Codex**: the glossary's words (seventeen, and Line of fire since §2.19); the bestiary's way line per kind once met, generated; the help page
   rewritten for turns; Gauge and Ring gone from every tooltip; the Fusions page as now.
 - **End**: the death panel's facts as a replay beat, as now.
 - **Tabs**: Field · Map · Codex, as now.
@@ -763,6 +792,35 @@ under the core band, fusions over the extras', relics under. Open: the Legendari
 late (floors 3–4, in about four runs in ten) and without them the essence buys tiers: a question of when a Legendary can
 be had (a floor-2 price, the expert saving toward a Shop, Arise from elsewhere), not of Arise's numbers. Bone Idol now
 does nothing: tier 4 already reaches every foe but the Sovereign (tier 5, a boss, never raised).
+
+**Then (2026-10-11): the plan layer and a second search.** The plan layer (§2.18) came with hand-set placeholders and
+played level with 3b9ca75's parent (36% / progress 64.1 against 38% / 64.7 on 64 seeds). One agent, two hours. *The
+search*: sep-CMA-ES as before over 178 numbers of `TUNING.expert` (the 103, the plan's choose / roles / fit and its
+thresholds, the option's progress / role / listed / forecast, the protect mode set from the option's and the guard's own,
+the push's, `tree.stall`; logs with the sign kept, a 0 linear and held to its feature's sign; the hold's and protect's
+`strike` held at 0), λ 8 mirrored, σ 0.6, each candidate on 128 seeds `opt` by mean progress; **the puzzles a
+constraint**: a sample that failed one the start passed was drawn again (at σ 1, five of eight failed one). Runs had
+grown slow (18–24 min a generation: some candidates' battles ran long), so two generations: best 67.2 / 31% and 65.6 /
+36% on `opt` against the start's 59.0 / 32%. Checked on 128 seeds `sim` (progress / clear): 3b9ca75 61.4 / 35.9%; the
+start 57.5 / 29.7%; the first generation's best 59.1 / 35.2%; **their mean 61.6 / 31.3%, taken** (level with 3b9ca75 on
+progress, +0.2 ± 3.5; clears +16 −22). Moved most: the kill list's `listed` 5 → 8.2, `forecast` −0.15 → −0.23, the
+hold's `air` slot 3 → 4.8, the fit's `exposed` −1 → −1.7, focus's `cull` 2 → 1.05; the plan's biases barely (hold 0.74,
+focus −0.42). *Judgement*: **hold-the-line** (expert.js TREES.battle, after never-die): protecting, a piece the
+formation gives a choke ends on it where it can; holding, one standing on its choke keeps it. With 3b9ca75's weights it
+was level on `opt` (−0.2 ± 2.6, clears +12 −8) and cost on `sim` (−4.5 ± 2.9, clears +10 −18); the rule for every
+piece given a choke cost 3.5 more, holding alone the same. Kept, with the weights searched under it: it makes the
+`todo` puzzle pass (the Knight steps in front of the Monarch's attacker) and a new one (the line holds as the foes come),
+and no protect mode's pull ever had. *Focus at the start* (205 of 367 first plans in an audit of 16 runs) is chosen on a
+foe your pieces can strike that turn: no rule found it wrong (a no-chase rule, focus only on a foe within reach in
+`plan.far` turns or this one, never bound in 128 runs, and was dropped); the search left the biases where they were.
+*Measured* (the expert as written): ladder, 256 seeds `sim`: the expert clears **33.6%** (the parent's 36.3%), dies on
+floor 1 in 25.0% of runs, floor 2 14.1%, floor 3 14.8%, floor 4 12.5%, wins 97.7% of its battles, 2 stalls; Arise raises
+0.36 a battle; basic clears 0% and dies on floor 1 in 99.6%. **The bar's 64 seeds: 35.9% (the old rehearsing expert
+47%)**, progress 66.7 (3b9ca75 35.9% / 64.1). ABLATIONS_HERE
+Open: the expert is 11 points under the bar and the plan layer has not moved it; the search's noise (± 3.5 progress
+paired on 128 seeds) is now the size of what a generation finds, so a further search wants more seeds or a cheaper
+run; and what still limits the expert is the turn, not the weights: each piece commits alone against the board, the
+kill list and the stances the only joint orders, and boards are compared by a static read with no turn of the foes.
 
 ## 7. Standing rules
 

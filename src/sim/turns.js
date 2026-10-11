@@ -58,7 +58,8 @@ import { unitDef, abilityDef, statusDef, relicDef, FUSION_LIST, FUSIONS } from '
 import { hashString } from './rng.js'
 import {
   alive, livingOn, enemySide, isAllyShape, isBlow, footprint, distanceBetween, unitDistance, rangeOf, expand, makeUnit, sizeOf, tileX, tileY,
-  tileAt, NEIGHBOURS, deployTile, statsOf, activeSynergies, abilitiesOf, auraOf, armOf, blowReach, summonsOf, heldMods, CENTRE_OUT, TILES
+  tileAt, NEIGHBOURS, deployTile, statsOf, activeSynergies, abilitiesOf, auraOf, armOf, blowReach, summonsOf, heldMods, CENTRE_OUT, TILES,
+  LINE_AT, LINE_TILES, lineEnds, between
 } from './unit.js'
 import {
   LANE, field, fieldOf, airOf, roadOf, arrowOf, roadLeft, layerOf, around, foesNextTo, pressed, auraGivers, riseTile, summonTile, entryTile
@@ -770,11 +771,74 @@ export function corpses (battle, u, tile = u.tile) {
     (u.side !== 'party' || riseTile(battle, c.tile, shadowSize(c, u.side), c.flies) >= 0))
 }
 
-// Who an ability touches, aimed at `primary`: its shape's spread, turned first by the rules of the target's side (a
-// Bodyguard), then by the actor's (Dragonfire, Sanctuary). → { primary, targets }.
+// ── lines of fire (redesign.md §2.19) ────────────────────────────────────────────────────────────
+
+// Whether blow `a` keeps to a line: a single-target blow from range (its `range` above 1; none, the whole board), never
+// melee (a reach-2 arm's neither), never one that arcs (`arc`: lobbed or cast over everything, Skyfall, Killing Cold).
+// Shapes (blast, column, row, all) and Arise ignore lines.
+export const lined = (a) => a.shape === 'single' && !a.melee && !a.arc && (a.range ?? Infinity) > 1
+
+// The tiles a blow of `u`'s at `x` crosses, strictly between them, in order from u (u standing on `from`): from u's
+// footprint tile nearest x to x's nearest u (unit.js lineEnds, between). With an ability `a` that keeps to no line
+// (lined: melee, a shape, an arc), none; with none given, the line itself. The interface draws it (preview's `line`).
+export function lineOf (battle, u, x, a = null, from = u.tile) {
+  if (a && !lined(defOf(a))) return []
+  const [p, q] = lineEnds(from, u.size ?? 1, x.tile, x.size ?? 1)
+  return between(p, q)
+}
+
+// An ability given by its def or its id (the interface's).
+const defOf = (a) => (typeof a === 'string' ? abilityDef(a) : a)
+
+// The first unit of `side` on the tiles strictly between tiles p and q (a flyer as any piece: the line is the board's,
+// not a layer's; of two on one tile, the one on the ground), `not` aside; null for none.
+export function lineBlocker (battle, p, q, side, not = null) {
+  const k = p * TILES + q
+  for (let i = LINE_AT[k]; i < LINE_AT[k + 1]; i++) {
+    const t = LINE_TILES[i]
+    const g = battle.at[t]
+    if (g !== null && g.side === side && g !== not) return g
+    const s = battle.sky[t]
+    if (s !== null && s.side === side && s !== not) return s
+  }
+  return null
+}
+
+// Whom blow `a` of `u`'s aimed at `x` meets first on its line, u standing on `from`: the first piece of x's side on a
+// tile strictly between them (lineBlocker), else x. The shooter's own side never blocks: it fires over its friends.
+// x for a blow that keeps to no line.
+export function lineStruck (battle, u, a, x, from = u.tile) {
+  if (!lined(a) || x.side === u.side) return x
+  const [p, q] = lineEnds(from, u.size ?? 1, x.tile, x.size ?? 1)
+  return lineBlocker(battle, p, q, x.side, x) ?? x
+}
+
+// The unit blow `a` of `u`'s aimed at `x` strikes (u standing on `from`): the line's (lineStruck), then the rules of
+// that one's side may turn it (a Bodyguard takes it from that piece: rules.js `targets`, read here without a word
+// said). x itself for an ability that is no blow. What perform resolves, and what the policy scores.
+export function struckBy (battle, u, a, x, from = u.tile) {
+  a = defOf(a)
+  if (!isBlow(a)) return x
+  const ctx = { actor: u, ability: a, primary: lineStruck(battle, u, a, x, from), targets: null, as: 'target' }
+  const quiet = battle.quiet
+  battle.quiet = true
+  try {
+    call(battle, 'targets', ctx.primary.side, ctx)
+  } finally {
+    battle.quiet = quiet
+  }
+  return ctx.primary
+}
+
+// Who an ability touches, aimed at `primary`: a blow's line picks who is struck first (lineStruck), then the rules of
+// that one's side may turn it (a Bodyguard), then its shape spreads and the actor's rules turn that (Dragonfire,
+// Sanctuary). → { primary (who is struck), targets }.
 function spread (battle, u, a, primary) {
   const ctx = { actor: u, ability: a, primary, targets: null, as: 'target' }
-  if (isBlow(a)) call(battle, 'targets', primary.side, ctx)
+  if (isBlow(a)) {
+    ctx.primary = lineStruck(battle, u, a, primary)
+    call(battle, 'targets', ctx.primary.side, ctx)
+  }
   ctx.targets = shape(battle, u, a, ctx.primary)
   ctx.as = 'actor'
   call(battle, 'targets', u.side, ctx)
@@ -791,14 +855,16 @@ export function shape (battle, u, a, primary) {
 
 // ── acting ───────────────────────────────────────────────────────────────────────────────────────
 
-// `u` uses `a` on `primary`, from where it stands: its act for the turn. A skill rests (its cooldown set first, so a
-// rule that readies it, Frenzy's, may undo that); the rules hear of it (onStruck, onBlow: Echo); a blow is its
-// holder's 'blow' moment; a melee blow's target answers it (counter); the HP phases are read; the battle may end. The
-// battle is lost the instant the Monarch falls: once a blow has felled it, nothing of the blow follows.
+// `u` uses `a` on `primary`, from where it stands: its act for the turn. A blow strikes whom its line and the rules
+// say (spread: struckBy's); the action says whom it was aimed at (`primary`) and, where another takes it, who did
+// (`struck`). A skill rests (its cooldown set first, so a rule that readies it, Frenzy's, may undo that); the rules hear
+// of it (onStruck, onBlow: Echo); a blow is its holder's 'blow' moment; a melee blow's target answers it (counter); the
+// HP phases are read; the battle may end. The battle is lost the instant the Monarch falls: once a blow has felled it,
+// nothing of the blow follows.
 export function perform (battle, u, a, primary) {
   battle.beat++
   const { primary: aimed, targets } = spread(battle, u, a, primary)
-  emit(battle, { type: 'action', actor: u.uid, ability: a.id, anim: a.anim, primary: aimed.uid, targets: targets.map((x) => x.uid), tile: u.tile })
+  emit(battle, { type: 'action', actor: u.uid, ability: a.id, anim: a.anim, primary: primary.uid, ...(aimed !== primary && { struck: aimed.uid }), targets: targets.map((x) => x.uid), tile: u.tile })
   u.acted = true
   if (isSkill(u, a)) cool(battle, u, a.id, restOf(u, a))
   const before = targets.map((x) => x.hp)
@@ -1281,11 +1347,13 @@ export function playOut (battle, policy = basicTurn) {
   return battle
 }
 
-// What a blow would do, shown before it is committed (redesign.md §2.4): the act played on a copy of the battle
-// (fork), read back from its events: `damage` dealt to `target`, `counter` the damage its answer would deal the actor,
-// `heal` mended on it, `hits` damage by uid (a Shape's every target, a Bodyguard's), `struck` the uid the blow lands on
-// (`target`, or a Bodyguard that takes it in its place), `kills` whether that one would fall, and `falls` every one of
-// the other side the act would fell (uids: the interface marks FALLS on each). Null for an act that may not be given.
+// What a blow would do, shown before it is committed (redesign.md §2.4, §2.19): the act played on a copy of the battle
+// (fork), read back from its events: `struck` the uid the blow lands on (`target`; the first piece of its side on the
+// line where one stands in the way; a Bodyguard that takes it from that one), `line` the tiles between the actor and
+// `target` (lineOf: none for a blow that keeps to no line; the interface draws it to `struck`), `damage` dealt to the
+// struck, `counter` the damage its answer would deal the actor, `heal` mended on `target`, `hits` damage by uid (a
+// Shape's every target, a Bodyguard's), `kills` whether the struck would fall, and `falls` every one of the other side
+// the act would fell (uids: the interface marks FALLS on each). Null for an act that may not be given.
 export function preview (battle, uid, ability, target) {
   const f = fork(battle, { quiet: false })
   try {
@@ -1293,18 +1361,19 @@ export function preview (battle, uid, ability, target) {
   } catch {
     return null
   }
-  const out = { damage: 0, counter: 0, heal: 0, hits: {}, struck: target, kills: false, falls: [] }
+  const u = battle.byUid.get(uid)
+  const out = { damage: 0, counter: 0, heal: 0, hits: {}, struck: target, line: lineOf(battle, u, battle.byUid.get(target), ability), kills: false, falls: [] }
   let answered = false
   for (const e of f.events) {
     if (e.type === 'action' && e.counter) answered = true
-    else if (e.type === 'action' && e.actor === uid && e.primary != null && !answered) out.struck = e.primary
+    else if (e.type === 'action' && e.actor === uid && e.primary != null && !answered) out.struck = e.struck ?? e.primary
     else if (e.type === 'death' && !answered && f.byUid.get(e.target)?.side !== f.byUid.get(uid).side && !out.falls.includes(e.target)) out.falls.push(e.target)
     else if (e.type === 'damage' && !e.status) {
       if (answered) {
         if (e.target === uid) out.counter += e.damage
       } else {
         out.hits[e.target] = (out.hits[e.target] ?? 0) + e.damage
-        if (e.target === target) out.damage += e.damage
+        if (e.target === out.struck) out.damage += e.damage
       }
     } else if (e.type === 'heal' && e.target === target && !answered) out.heal += e.heal
   }

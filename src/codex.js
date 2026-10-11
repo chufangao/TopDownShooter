@@ -14,7 +14,7 @@ import {
   inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice, isRunPath, isRunRelic, unheld
 } from './sim/run.js'
 import { heldRules } from './sim/rules.js'
-import { basicOf, mendOf, temperOf } from './sim/turns.js'
+import { basicOf, mendOf, temperOf, lined } from './sim/turns.js'
 import { h, fill, icon, portrait, prefs, say } from './dom.js'
 import { KEYWORDS, kw, turnsText } from './keywords.js'
 
@@ -95,7 +95,7 @@ export function abilityBlock (id, st, arise = null, basic = false) {
     h('b', null, a.name), ' ',
     a.shape === 'corpse'
       ? [h('span', { class: 'tag-domain' }, `${arise.domain} tiles`), ` a foe corpse, tier ≤ ${arise.tier} → `, kw('shadow'), ', the corpse you choose']
-      : [reachTag(a), word && h('span', { class: 'tag-shape' }, word), ' ', a.effects.map((e, i) => [i ? ' · ' : '', effectText(e, st)]),
+      : [reachTag(a), word && h('span', { class: 'tag-shape' }, word), a.arc && h('span', { class: 'tag-arc' }, 'lobbed: ignores lines'), ' ', a.effects.map((e, i) => [i ? ' · ' : '', effectText(e, st)]),
           a.cond && h('span', { class: 'dim' }, ` · only ${a.cond}`)],
     h('span', { class: 'ab-cost dim' }, basic ? 'basic' : rest(a.shape === 'corpse' ? arise.cooldown ?? a.cooldown ?? 2 : a.cooldown ?? 2)))
 }
@@ -237,7 +237,9 @@ export function reachText (u, foe = false) {
   return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Move ${moveOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
 }
 // The same in a sentence: yours move, then strike what their blows reach; a foe met comes down its road as far as it
-// chooses and strikes what it reaches, and thinks as its way line says (temperLine, from its temperament).
+// chooses and strikes what it reaches, and thinks as its way line says (temperLine, from its temperament). A kind with
+// a blow that keeps to its line (turns.js lined: redesign.md §2.19) says so: the first piece of the target's side on
+// it takes the blow.
 export function reachRule (u, foe = false) {
   const d = unitDef(u.id)
   if (d.monarch) return 'It stands on its seat, never moves and never strikes; the roads run to it. If it falls, the run ends.'
@@ -245,9 +247,13 @@ export function reachRule (u, foe = false) {
   const r = reachOf(u)
   const tiles = `${r} tile${r === 1 ? '' : 's'}`
   const melee = meleeOnly(u) && !d.flies ? ' Its blows are melee: they never reach up to a flyer.' : ''
-  if (!foe) return `On your turn it moves up to ${moveOf(u)} tiles, then acts: its blows reach ${tiles} from where it stands. Left alone, it strikes with its basic blow, or mends.${melee}`
+  const line = abilitiesOf(u).map(abilityDef).some(lined)
+    ? foe ? ' Its shots take the first of yours on their line of fire: a piece of yours in the way screens the one behind it.'
+      : ' Its shots take the first foe on their line of fire: a foe in front screens the one behind it.'
+    : ''
+  if (!foe) return `On your turn it moves up to ${moveOf(u)} tiles, then acts: its blows reach ${tiles} from where it stands. Left alone, it strikes with its basic blow, or mends.${melee}${line}`
   const way = d.temper ? ` Its way: ${temperLine(temperOf(u.id)).toLowerCase()}.` : ''
-  return `${BEHAVIOURS[behaviourOf(u)].desc} It strikes whatever its blows reach, ${tiles} from where it stands.${melee}${way}`
+  return `${BEHAVIOURS[behaviourOf(u)].desc} It strikes whatever its blows reach, ${tiles} from where it stands.${melee}${line}${way}`
 }
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
@@ -746,10 +752,11 @@ const WORD_MORE = {
   move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its Move whole again, until it acts. Some tiers and statuses add Move.',
   skill: () => 'Every kind has a basic blow, usable every turn, and a mender a basic heal too; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise: Arise rests none. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
   cooldown: () => 'Every skill but Arise rests a turn once used: its pip under the piece\'s bars goes dark, and lights again as the turn after next begins. Arise rests none: its pip lights again as the next turn begins. Some statuses and relics hurry a rest.',
-  counter: () => 'A melee blow whose target survives, standing within its own basic blow\'s reach of the striker, is answered at once by that blow, if it is melee, on the striker alone. Ground melee never answers a flyer. One answer a blow; a counter is never answered; a Hexed piece and the Monarch never answer. A blow\'s preview shows the counter it would draw before you commit.'
+  counter: () => 'A melee blow whose target survives, standing within its own basic blow\'s reach of the striker, is answered at once by that blow, if it is melee, on the striker alone. Ground melee never answers a flyer. One answer a blow; a counter is never answered; a Hexed piece and the Monarch never answer. A blow\'s preview shows the counter it would draw before you commit.',
+  line: () => 'The line runs from the shooter\'s tile to the target\'s (a 2×2\'s nearest tile) over every tile it touches, so no blow slips between two pieces standing corner to corner. The first piece of the target\'s side on a tile strictly between takes the blow, as if it were aimed at it; the shooter\'s own side never blocks it. A flyer blocks and is blocked like any piece. Bodyguard comes after the line: the line picks who is struck, then a Vanguard beside that piece may take it. Melee (a long arm too), a blast, a row, a lane or every foe at once, and a lobbed blow (its card says so) ignore lines. Aim a ranged blow and its line is drawn from the shooter, the number on the piece that would take it, and SCREENED over the one you aimed at. Their shooters obey the same rule: a piece of yours standing in a shooter\'s line screens whoever is behind it, the Monarch too.'
 }
 
-// The glossary: the seventeen words, the foes' ways, then the statuses. { name, entries: [{ name, line, more?, sys? }] }
+// The glossary: the seventeen words and Line of fire (redesign.md §2.19), the foes' ways, then the statuses. { name, entries: [{ name, line, more?, sys? }] }
 function glossary (run) {
   // A status wears its colour (content.js `colour`), the pall it lays on the board, as a swatch by its name.
   const entry = (id) => ({ name: KEYWORDS[id].name, sys: KEYWORDS[id].sys, line: KEYWORDS[id].line, more: WORD_MORE[id]?.(run) ?? null, colour: STATUSES[id]?.colour ?? null })
@@ -871,7 +878,7 @@ export function codexView (run = null, { onClose = null } = {}) {
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades, Fuse and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),
-    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). ',
+    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ',
       h('b', null, 'End Turn'), ' when you are done.'),
     s && h('div', { class: 'gl-run' },
       h('span', null, `The Monarch ${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · Command ${commandOf(s)}${ariseHeld(s) ? ` · Arise: tier ≤ ${ariseOf(s).tier} within ${ariseOf(s).domain} tiles of its holder` : ''}`),
@@ -906,12 +913,13 @@ export function codexView (run = null, { onClose = null } = {}) {
     body)
 }
 
-// The primer (redesign.md §3: what the player may rely on; §2.15–2.16: held relics, no dice).
+// The primer (redesign.md §3: what the player may rely on; §2.15–2.16: held relics, no dice; §2.19: lines of fire).
 const primer = () => h('ol', { class: 'primer' },
   h('li', null, 'You are the Monarch. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
   h('li', null, 'Place your souls in the camp, then fight ', kw('turn'), ' by turn. ', h('b', null, 'A turn is yours'), ': each ', kw('piece'), ' may ', kw('move'), ', then act once: its basic blow, a ', kw('skill'), ', a heal, or Fuse. A blow shows its damage and the ', kw('counter'), ' it would draw before you commit; a move can be undone until the piece acts.'),
   h('li', null, 'What you leave alone strikes anyway at ', h('b', null, 'End Turn'), ', with its basic blow or heal, never a skill. Every skill rests a turn once used.'),
   h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. How far each comes is its own judgement: you learn each kind by meeting it. Nothing of their coming turn is shown. In prep the shading is what your side could deal there next turn.'),
+  h('li', null, 'A ranged blow at one target strikes the first piece of the target\'s side on its ', kw('line', 'line of fire'), ', both sides alike; a side never blocks its own shots. Stand a piece between their shooters and the Monarch, and mind who stands in front of the foe you aim at. Melee, blows that strike an area and lobbed blows ignore lines.'),
   h('li', null, `No dice: every blow lands and deals what its preview says; the same board and the same orders give the same battle. A battle is lost only when you fall, however long it lasts, and a horde that waits at the edge of your reach comes in time. Wounds carry: ${WOUNDS_TEXT}.`),
   h('li', null, 'Spend ', kw('essence'), ' on your kinds\' ', kw('tier', 'tiers'), ' and ', kw('fusion', 'fusions'), ', on a recruit after a win, and in a ', kw('shop'), ' on ', kw('relic', 'relics'), '. A run relic works for the whole run: the Monarch grows only by them, its HP and its ', kw('command'), '. A piece relic works through the soul you give it to, one a soul, out of battle; Arise is one, and its holder raises the slain.'))
 

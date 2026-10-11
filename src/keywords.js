@@ -1,4 +1,4 @@
-// Keywords: the game's words (the seventeen of redesign.md §2.14), the foes' two ways and the statuses, each a bold
+// Keywords: the game's words (the seventeen of redesign.md §2.14, and Line of fire, §2.19), the foes' two ways and the statuses, each a bold
 // word in its system's colour with a one-line hover (the Slay the Spire style). Write kw('road') in any text instead
 // of explaining the rule again; the full rules live in the codex's glossary. `sys` picks the colour token (--c-<sys>
 // in style.css); `group` files the term under a heading of the glossary. Every number comes from TUNING, so a line
@@ -28,6 +28,7 @@ export const KEYWORDS = {
   skill: { name: 'Skill', sys: 'plan', line: 'Any act but a piece\'s basic blow and basic heal. Only your orders use one: a piece left alone never does. Every skill rests a turn once used.' },
   cooldown: { name: 'Cooldown', sys: 'plan', line: 'The turn a skill rests once used: its pip goes dark, and lights again when it is ready.' },
   counter: { name: 'Counter', sys: 'foe', line: 'A melee blow whose target stands and can reach back is answered at once by its basic melee blow, both sides alike. A ranged blow never is; a Hexed piece never answers; a counter is never countered.' },
+  line: { name: 'Line of fire', sys: 'plan', line: 'A ranged blow at one target flies straight from the shooter: the first piece of the target\'s side on a tile it crosses takes it instead, both sides alike. A side never blocks its own shots. Melee, a blow that strikes an area and a lobbed blow ignore lines.' },
   shop: { name: 'Shop', sys: 'relic', line: `A room that sells relics for essence, ${TUNING.shop.relics} on its shelf, one always a Command relic: buy as many as you can pay for. Leaving is free.` }
 }
 for (const k of Object.values(KEYWORDS)) k.group = 'Words'
