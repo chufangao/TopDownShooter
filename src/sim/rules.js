@@ -28,9 +28,9 @@
 // Blood Tithe's raises paid in the Monarch's HP (`bleeds`: bleeds, the autoplayer's).
 import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef } from '../content.js'
-import { alive, livingOn } from './unit.js'
+import { alive, livingOn, unitDistance } from './unit.js'
 import { around, riseTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool } from './turns.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -179,13 +179,24 @@ export const RULES = {
       if (actor === r.holder) shadow.reap = (shadow.reap ?? 0) + r.params.reap
     }
   },
-  // Blood Tithe, an Arise variant: its holder's Arise rests no turn (cooldown 1), and each shadow it raises costs the
-  // Monarch `tithe` of its max HP; never its last (raisable).
+  // Blood Tithe, an Arise variant: its holder's Arise raises `count` corpses a turn, the one chosen and then the others
+  // in its reach (the highest tier first, then the nearest, then the first to have stood), and each shadow it raises
+  // costs the Monarch `tithe` of its max HP; never its last (raisable, and no more corpses than its HP pays for). It
+  // was "no turn's rest" until Arise itself lost the rest (2026-10-11; redesign.md §2.15).
   blood_tithe: {
     grants: 'arise',
     bleeds: true,
-    params: { tithe: 0.02, cooldown: 1 },
+    params: { tithe: 0.02, count: 2 },
     raisable: (battle, u, r) => !battle.monarch || battle.monarch.hp > titheOf(battle, r),
+    targets (battle, ctx, r) {
+      const { actor, ability, primary } = ctx
+      if (ctx.as !== 'actor' || actor !== r.holder || ability.shape !== 'corpse') return
+      const m = battle.monarch
+      const pays = m ? Math.floor((m.hp - 1) / titheOf(battle, r)) : Infinity
+      const more = corpses(battle, actor).filter((c) => c !== primary)
+        .sort((a, b) => unitDef(b.id).tier - unitDef(a.id).tier || unitDistance(actor, a) - unitDistance(actor, b) || a.ord - b.ord)
+      ctx.targets = [primary, ...more].slice(0, Math.max(1, Math.min(r.params.count, pays)))
+    },
     onRaise (battle, { actor }, r) {
       const m = battle.monarch
       if (actor !== r.holder || !m || !alive(m)) return
@@ -279,3 +290,5 @@ export const bleeds = (id) => !!RULES[relicDef(id).rule]?.bleeds
 
 // Whether relic `id` grants its holder Arise (an Arise relic: Arise and its variants; run.js needsArise).
 export const grantsArise = (id) => RULES[relicDef(id).rule]?.grants === 'arise'
+// The rules of the relics `u` holds that grant it Arise, as it holds them, its params among them (autoplay.js ariseIn).
+export const ariseGrants = (u) => heldRules(u).filter((r) => r.grants === 'arise')

@@ -154,6 +154,13 @@ export const TUNING = {
       save: 0.102, // keeping the essence for a fusion whose parts it holds and cannot pay for yet: its gain (autoplay.js
       //            saving), a share
       later: 0, // a recruit that completes such a fusion: the share of the fusion's gain it is worth
+      // Arise in the field's strength (autoplay.js ariseWorth; 2026-10-11, hand-set, after the balance pass found the
+      // expert never bought Arise: a relic held counted only as `worth.relic`, so its shadows were worth nothing to it):
+      // the shadows its holders would raise a battle, read from the floor's rooms and roads (no battle played), each
+      // counted at `share` of its worth (it rises mid-battle, strikes with its basic only, and the holder's act goes to
+      // it), and no more a battle than `turns` raises a holder (one corpse a turn: the turns a battle has corpses to
+      // raise; the ladder's median battle is 3–7 turns, the first with none).
+      raise: { share: 0.5, turns: 3 },
       // A soul's fighting worth (autoplay.js worth): √(how long it lasts × how hard it hits), its hits raised by `move`
       // a tile of Move and `heal` of its healing past 1; `signature` more a tier that grants an ability, an aura or a
       // Colossus's footprint, and `relic` more a relic it holds (a run relic, the field's). Basic's rules of thumb read
@@ -184,7 +191,11 @@ export const TUNING = {
   // (`price.relic`). Common 24 and Uncommon 48 since the balance pass (2026-10-11; were 36 and 60): with the Shops met
   // ~2.5 a floor, the expert still left 150–300 essence unspent on floors 3–4 and bought 1.5 relics a floor there; at
   // these prices it buys ~1.9–2.3 a floor from floor 3 and ~1 on floor 2, so a relic competes with a tier for the purse.
-  shop: { relics: 4, price: { common: 24, uncommon: 48, rare: 96, legendary: 144 } },
+  // Legendary 72 since 2026-10-11 (was 144), with Arise's content change: the expert now values Arise above any tier
+  // per essence, but carries a median 91 / 162 essence into a floor-3 / floor-4 Shop (64 runs), so at 144 (461 / 619
+  // there) one was affordable at 8–10% of those Shops, 12 bought in 128 runs and the Legendaries' ablation 0; at 72
+  // (230 / 310), 21–24%. Still dearer than an Uncommon; a floor-2 Shop affords none at either price.
+  shop: { relics: 4, price: { common: 24, uncommon: 48, rare: 96, legendary: 72 } },
   // raw = power × atk / atkDivisor, then × defConstant / (defConstant + def)
   damage: { atkDivisor: 40, defConstant: 100, min: 1 },
   // Deathblow (the Trickster's rule, rules.js): a blow of the side's on a foe below `below` of its max HP deals
@@ -206,10 +217,11 @@ export const TUNING = {
   summon: { hp: 0.4 },
   // Arise, a Legendary piece relic (content.js RELIC_LIST; redesign.md §2.15): its holder gains the skill Arise, one
   // corpse within `domain` tiles of the holder (Chebyshev, from its footprint), of tier up to `tier`, rises as a shadow of
-  // yours at full HP, the player's choice; a skill, so a turn's rest. Hourglass and Bone Idol add to both, run-wide
-  // (`arise.domain`, `arise.tier`: run.js ariseOf), and an Arise variant's rule may reach farther (Court of Bone).
-  // Placeholders until the balance pass.
-  arise: { domain: 5, tier: 3 },
+  // yours at full HP, the player's choice; a skill with no rest (content.js: usable every turn). Hourglass and Bone Idol
+  // add to both, run-wide (`arise.domain`, `arise.tier`: run.js ariseOf), and an Arise variant's rule may reach farther
+  // (Court of Bone). 2026-10-11, placeholders: reach 7 and tier 4 (were 5 and 3), with the rest gone, after the balance
+  // pass found the expert neither bought nor used Arise (0.00 raises a battle): the user's "content change".
+  arise: { domain: 7, tier: 4 },
   // The board: the field cap never passes `board` pieces, and the Legion's shadows rise only while fewer than `board`
   // pieces of yours stand on it (Arise's rise past it: a skill is its own bound).
   army: { board: 10 },

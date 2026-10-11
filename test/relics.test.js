@@ -280,20 +280,33 @@ test('Mimicry: its holder counts as a Warden too, for its side\'s synergies; cop
   assert.ok(sanctuary(wardens([['mimicry'], ['mimicry']])), 'two Wardens and two holders: four')
 })
 
-test('Blood Tithe: its holder\'s Arise rests no turn, and each shadow costs the Monarch its share of max HP, never its last', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['blood_tithe']), ...[0, 1, 2].map((x) => on('grave_ghoul', 10 + x, 'foe', x, 4, 1)),
-    on('iron_golem', 20, 'foe', 6, 10)])
+test('Blood Tithe: its holder\'s Arise raises two corpses a turn, the chosen then the highest tier, each costing the Monarch its share of max HP, never its last', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['blood_tithe']), on('tomb_knight', 2, 'party', 0, 0, 3, [0, 0], ['arise']),
+    ...[0, 1, 2].map((x) => on(x === 2 ? 'pyre_hound' : 'grave_ghoul', 10 + x, 'foe', x, 4, 1)), on('iron_golem', 20, 'foe', 6, 10)])
   for (const uid of [10, 11, 12]) slay(b, unit(b, uid))
   const m = b.monarch
   const tithe = Math.ceil(m.maxHp * RELICS.blood_tithe.params.tithe)
   const ev = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
-  assert.deepEqual(ev.filter((e) => e.type === 'tithe').map((e) => [e.target, e.damage]), [[0, tithe]])
-  assert.equal(m.hp, m.maxHp - tithe)
-  assert.ok(ev.some((e) => e.type === 'cooldown' && e.ability === 'arise' && e.turns === 1))
+  assert.deepEqual(ev.filter((e) => e.type === 'arise').map((e) => [e.actor, e.corpse]), [[1, 10], [1, 12]], 'the chosen, then the tier 2 over the tier 1')
+  assert.deepEqual(ev.filter((e) => e.type === 'tithe').map((e) => [e.target, e.damage]), [[0, tithe], [0, tithe]], 'a tithe a shadow')
+  assert.equal(m.hp, m.maxHp - 2 * tithe)
+  assert.equal(b.raised, 2)
+  assert.ok(ev.some((e) => e.type === 'cooldown' && e.ability === 'arise' && e.turns === 1), 'no rest, as every Arise')
+  // A plain Arise raises one: the holder beside it takes the last.
+  const plain = order(b, { type: 'act', uid: 2, ability: 'arise', target: 11 })
+  assert.deepEqual(plain.filter((e) => e.type === 'arise').map((e) => e.corpse), [11])
+  assert.ok(!plain.some((e) => e.type === 'tithe'), 'and pays no tithe')
+  // The next turn: one corpse left in reach, one raised; and no more than the Monarch's HP pays for, never its last.
   order(b, { type: 'end' })
-  assert.ok(legalOrders(b).some((o) => o.ability === 'arise'), 'ready the next turn')
-  m.hp = tithe
-  assert.deepEqual(corpses(b, unit(b, 1)), [], 'never with its last HP')
+  assert.ok(legalOrders(b).every((o) => o.ability !== 'arise'), 'no corpse left')
+  const two = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['blood_tithe']), ...[0, 1].map((x) => on('grave_ghoul', 10 + x, 'foe', x, 4, 1)),
+    on('iron_golem', 20, 'foe', 6, 10)])
+  for (const uid of [10, 11]) slay(two, unit(two, uid))
+  two.monarch.hp = 2 * tithe
+  const once = order(two, { type: 'act', uid: 1, ability: 'arise', target: 11 })
+  assert.deepEqual([once.filter((e) => e.type === 'arise').map((e) => e.corpse), two.monarch.hp], [[11], tithe], 'its HP pays for one')
+  order(two, { type: 'end' })
+  assert.deepEqual(corpses(two, unit(two, 1)), [], 'never with its last HP')
 })
 
 test('Court of Bone: its holder\'s Arise reaches 2 farther; and while the run holds it nothing heals the Monarch, in battle or out, though a buff still reaches it', () => {

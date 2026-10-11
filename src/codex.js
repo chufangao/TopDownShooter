@@ -97,7 +97,7 @@ export function abilityBlock (id, st, arise = null, basic = false) {
       ? [h('span', { class: 'tag-domain' }, `${arise.domain} tiles`), ` a foe corpse, tier ≤ ${arise.tier} → `, kw('shadow'), ', the corpse you choose']
       : [reachTag(a), word && h('span', { class: 'tag-shape' }, word), ' ', a.effects.map((e, i) => [i ? ' · ' : '', effectText(e, st)]),
           a.cond && h('span', { class: 'dim' }, ` · only ${a.cond}`)],
-    h('span', { class: 'ab-cost dim' }, basic ? 'basic' : rest(a.shape === 'corpse' ? arise.cooldown ?? 2 : a.cooldown ?? 2)))
+    h('span', { class: 'ab-cost dim' }, basic ? 'basic' : rest(a.shape === 'corpse' ? arise.cooldown ?? a.cooldown ?? 2 : a.cooldown ?? 2)))
 }
 
 // A unit's abilities, each a line (abilityBlock), each saying whether it is a basic, usable every turn, or a skill
@@ -145,13 +145,15 @@ function statusLine (s) {
 
 // Arise as soul `u` holds it (redesign.md §2.15), out of battle: the run's reach and tier (run.js ariseOf: Hourglass,
 // Bone Idol), and what the rule of the relic granting it adds on top (Court of Bone's tiles) and how long it rests
-// (Blood Tithe's none), as turns.js ariseOf and restOf read them in battle. Null for a soul holding no Arise relic.
+// (Arise's own cooldown, 1: none), as turns.js ariseOf and restOf read them in battle. Null for a soul holding no Arise
+// relic.
 export function ariseFor (s, u) {
   const grants = heldRules(u).filter((r) => r.grants === 'arise')
   if (!grants.length) return null
   const a = ariseOf(s)
   const sum = (k) => grants.reduce((n, r) => n + (r.params[k] ?? 0), 0)
-  return { domain: a.domain + sum('domain'), tier: a.tier + sum('tier'), cooldown: Math.min(2, ...grants.map((r) => r.params.cooldown ?? 2)) }
+  const own = abilityDef('arise').cooldown ?? 2
+  return { domain: a.domain + sum('domain'), tier: a.tier + sum('tier'), cooldown: Math.min(own, ...grants.map((r) => r.params.cooldown ?? own)) }
 }
 // What a card reads Arise from: out of battle the run's (ariseFor); a battle passes its own (turns.js ariseOf).
 export const realmOf = (run) => ({ arise: (u) => ariseFor(run.state, u) })
@@ -742,8 +744,8 @@ const WORD_MORE = {
   shop: (run) => `Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows; nothing else is sold there, and a relic bought is a tier not bought. A soul may be released there for part of its price.`,
   turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, and lost only the instant the Monarch falls, however long it lasts.`,
   move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its Move whole again, until it acts. Some tiers and statuses add Move.',
-  skill: () => 'Every kind has a basic blow, usable every turn, and a mender a basic heal too; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
-  cooldown: () => 'Every skill rests a turn once used: its pip under the piece\'s bars goes dark, and lights again as the turn after next begins. Some statuses and relics hurry it.',
+  skill: () => 'Every kind has a basic blow, usable every turn, and a mender a basic heal too; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise: Arise rests none. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
+  cooldown: () => 'Every skill but Arise rests a turn once used: its pip under the piece\'s bars goes dark, and lights again as the turn after next begins. Arise rests none: its pip lights again as the next turn begins. Some statuses and relics hurry a rest.',
   counter: () => 'A melee blow whose target survives, standing within its own basic blow\'s reach of the striker, is answered at once by that blow, if it is melee, on the striker alone. Ground melee never answers a flyer. One answer a blow; a counter is never answered; a Hexed piece and the Monarch never answer. A blow\'s preview shows the counter it would draw before you commit.'
 }
 

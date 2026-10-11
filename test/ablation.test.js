@@ -11,7 +11,7 @@ import { expertTurn } from '../src/sim/policy.js'
 import { createRng } from '../src/sim/rng.js'
 import { monarchSlot, tracksOf } from '../src/sim/unit.js'
 import {
-  autoplay, policy, LEVELS, ABLATIONS, RULE_SWITCHES, ablatedRun, planFor, stripped, refight, NECESSITY, CORE, EXTRA, BANDS,
+  autoplay, policy, LEVELS, ABLATIONS, RULE_SWITCHES, ablatedRun, planFor, stripped, refight, NECESSITY, CORE, EXTRA, MEASURED, BANDS,
   AUDIT, resetAudit
 } from '../src/sim/autoplay.js'
 import { unitDef, RELICS } from '../src/content.js'
@@ -76,10 +76,13 @@ test('ablation: the names, the rules switches carried by the run and its replay,
   // The orders given in battle are core (redesign.md §5 Step 5).
   assert.deepEqual(ABLATIONS, ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation'])
   assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons'])
-  assert.deepEqual(CORE, ['orders', 'tracks', 'formation', 'summons'])
-  // Every ablation is targeted: a core one at 25–50 points, an extra one at 8–25.
-  assert.deepEqual([...CORE, ...EXTRA].sort(), ABLATIONS.slice().sort())
+  // The formation measured with no band since 2026-10-11 (pieces move in battle: the orders absorb it).
+  assert.deepEqual(CORE, ['orders', 'tracks', 'summons'])
+  assert.deepEqual(MEASURED, ['formation'])
+  // Every ablation is played: a core one targeted at 25–50 points, an extra one at 8–25, a measured one at none.
+  assert.deepEqual([...CORE, ...EXTRA, ...MEASURED].sort(), ABLATIONS.slice().sort())
   assert.ok(CORE.every((m) => BANDS[m].join() === '25,50') && EXTRA.every((m) => BANDS[m].join() === '8,25'))
+  assert.ok(MEASURED.every((m) => !(m in BANDS)))
   assert.deepEqual(ablatedRun('sw', 'summons').state.ablate, ['summons'])
   assert.ok(!('ablate' in ablatedRun('sw', 'fusions').state) && !('ablate' in ablatedRun('sw', 'orders').state))
   const run = ablatedRun('sw', 'synergies')

@@ -326,7 +326,7 @@ test('the horde always comes: a camp of Keepers (aggression 0) holds out of reac
   assert.ok(b.over && ['party', 'foe'].includes(b.winner), `${b.winner} ${b.reason} turn ${b.turn}`)
 })
 
-test('Arise is a skill of the piece holding the relic: one corpse within its reach, the player\'s choice, then a turn\'s rest', () => {
+test('Arise is a skill of the piece holding the relic: one corpse within its reach, the player\'s choice, and another the next turn: no rest', () => {
   const b = field([
     { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
     { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 2, relics: ['arise'] },
@@ -342,13 +342,14 @@ test('Arise is a skill of the piece holding the relic: one corpse within its rea
   assert.ok(!legalOrders(b).some((o) => o.uid === 0), 'the Monarch takes no orders')
   const events = order(b, { type: 'act', uid: 1, ability: 'arise', target: 21 })
   assert.deepEqual(events.filter((e) => e.type === 'arise').map((e) => [e.actor, e.corpse]), [[1, 21]])
-  assert.ok(events.some((e) => e.type === 'cooldown' && e.target === 1 && e.ability === 'arise' && e.turns === 2), 'a skill: it rests')
+  assert.ok(events.some((e) => e.type === 'cooldown' && e.target === 1 && e.ability === 'arise' && e.turns === 1), 'a skill with no rest')
   const shadow = b.byUid.get(events.find((e) => e.type === 'arise').unit.uid)
   assert.deepEqual([shadow.hp, shadow.maxHp, shadow.shadow, orderable(b, shadow)], [shadow.maxHp, Math.round(stats(b, shadow).hp), true, false], 'at full HP, taking no orders')
+  assert.deepEqual(rises(), [], 'its act spent this turn')
   end(b)
-  assert.deepEqual(rises(), [], 'resting a turn')
-  end(b)
-  assert.deepEqual(rises().map((o) => o.target), [20], 'the other, the turn after')
+  assert.deepEqual(rises().map((o) => o.target), [20], 'the other, the very next turn')
+  order(b, { type: 'act', uid: 1, ability: 'arise', target: 20 })
+  assert.equal(b.units.filter((u) => u.arisen).length, 2, 'two turns, two raised')
   // Only within its reach (TUNING.arise.domain from the holder) and of a tier it allows; without the relic, none.
   assert.deepEqual(ariseOf(b, unit(b, 1)), { domain: TUNING.arise.domain, tier: TUNING.arise.tier })
   assert.equal(ariseOf(b, unit(b, 2)), null)
@@ -363,6 +364,24 @@ test('Arise is a skill of the piece holding the relic: one corpse within its rea
   assert.deepEqual(corpses(far, unit(far, 1)), [], 'one six tiles off, and a tier 3 beside it')
   far.arise.domain = 6
   assert.deepEqual(corpses(far, unit(far, 1)).map((c) => c.uid), [20])
+})
+
+// 2026-10-11 (redesign.md §2.15): Arise's placeholders, reach 7 and tier 4, as TUNING.arise holds them.
+test('Arise at its numbers: a corpse 7 tiles off rises, one 8 off does not; a tier 4 rises, and not under a tier of 3', () => {
+  assert.deepEqual(TUNING.arise, { domain: 7, tier: 4 })
+  const b = field([
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 0, y: 0, relics: ['arise'] },
+    { id: 'grave_ghoul', uid: 20, side: 'foe', x: 0, y: 7 },
+    { id: 'grave_ghoul', uid: 21, side: 'foe', x: 1, y: 8 },
+    { id: 'barrow_wight', uid: 22, side: 'foe', x: 6, y: 3 },
+    { id: 'iron_golem', uid: 23, side: 'foe', x: 6, y: 10, lvl: 30 }
+  ])
+  for (const uid of [20, 21, 22]) slay(b, unit(b, uid))
+  assert.deepEqual(ariseOf(b, unit(b, 1)), { domain: 7, tier: 4 })
+  assert.equal(unitDef('barrow_wight').tier, 4)
+  assert.deepEqual(corpses(b, unit(b, 1)).map((c) => c.uid).sort(), [20, 22], 'seven tiles and tier 4: yes; eight tiles: no')
+  b.arise.tier = 3
+  assert.deepEqual(corpses(b, unit(b, 1)).map((c) => c.uid), [20], 'a tier 4 past a tier of 3')
 })
 
 test('fuse in battle: the parts are consumed, the price paid, the piece placed on the fuser\'s anchor; refused where a 2×2 cannot fit', () => {

@@ -1037,8 +1037,8 @@ class BattleScene extends Phaser.Scene {
     const free = !this.locked()
     const acts = u.kit.map((a) => {
       const can = free && canAct(b, u) && usable(b, u, a)
-      // How many turns it rests once used (turns.js restOf: its def's cooldown, 2 where absent, or a granting rule's:
-      // Blood Tithe's Arise none), less the turn it is used in.
+      // How many turns it rests once used (turns.js restOf: its def's cooldown, 2 where absent, Arise's 1, or a granting
+      // rule's), less the turn it is used in: Arise none.
       const rests = isSkill(u, a) ? Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.grants === a.id && r.params.cooldown).map((r) => r.params.cooldown)) - 1 : 0
       return {
         id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, rests, armed: a.id === s.ability, can,

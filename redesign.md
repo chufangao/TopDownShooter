@@ -357,11 +357,14 @@ of the options, piece relics held, run relics not; Arise a skill that rests.
   away; a fallen holder keeps it. Copies of a piece relic stack only across holders, one each.
 - **Arise**, a Legendary piece relic: its holder gains the skill **Arise**: one corpse within `TUNING.arise.domain`
   tiles of the holder, of tier ≤ `TUNING.arise.tier`, rises as a shadow of yours, the player's choice among those
-  that qualify; a skill, so a turn's rest. More copies are more raisers; `arise.more` goes. Hourglass and Bone Idol
+  that qualify. **No turn's rest** (2026-10-11, after the balance pass found the expert never bought or used it:
+  "content change"): Arise is a skill usable every turn, its reach 7 and tier 4 (placeholders, were 5 and 3). More
+  copies are more raisers; `arise.more` goes. Hourglass and Bone Idol
   are run relics on `arise.domain` and `arise.tier`, every raiser's. The other Arise Legendaries are **Arise
   variants**, each a piece relic that grants Arise with its rule on top: Court of Bone (2 tiles farther; nothing
   heals the Monarch), Hollow Court (the shadows its holder raised that stand at a win pay their essence again),
-  Blood Tithe (as its rule today, scoped to the holder). `needsArise` reads "once an Arise relic is owned".
+  Blood Tithe (its holder's Arise raises two corpses a turn, each shadow costing the Monarch 2% of its max HP; it was
+  "no turn's rest" until Arise itself lost the rest). `needsArise` reads "once an Arise relic is owned".
 - The other Legendaries scope to the holder: Undying (the holder rises once a battle at 60% HP), Mimicry (the
   holder counts as a Warden too, for synergies). One a piece: a Legendary's copies are more holders.
 - **Interface**: a relic slot on every piece's card and panel; tap an unheld relic, then a piece (or the slot) to
@@ -705,6 +708,29 @@ Numbers that moved: every weight of `TUNING.expert` (tuning.js; `modes.guard.hit
 it the wrong sign), the book's offline weights, `shop.price` Common and Uncommon, `map.js` MID_WEIGHTS and RARE; the map
 test's Shop cap. Open: the bar (11 points); basic's floor 1; formation and summons under their band; the Legendaries
 and Arise unused by the expert (a judgement or a content question); fusions carrying the expert (0% without them).
+
+**Then (2026-10-11): Arise without rest; formation reclassified.** The user's calls: a content change for Arise, and
+the formation out of the core band. Arise (§2.15) is usable every turn (its ability's `cooldown` 1), reach 7 and tier 4
+(placeholders, were 5 and 3); Blood Tithe's Arise raises two corpses a turn (the one chosen, then the highest tier in
+reach), each shadow 2% of the Monarch's max HP. The expert now sees Arise's worth: the growth search's strength counts
+the shadows its holders would raise a battle, read from the floor's rooms and roads and never played (each foe of a tier
+Arise allows, by the share of its road within the holder's reach; at most `growth.raise.turns` 3 raises a holder a
+battle, each at `growth.raise.share` 0.5 of its worth: autoplay.js ariseWorth, hand-set); the formation's `arise` reads
+the holder's own reach. Held from floor 1 on 16 seeds, Arise raised 1.71 shadows a battle and the expert cleared 9.
+But the expert carries a median 91 / 162 essence into a floor-3 / floor-4 Shop, and no floor-2 Shop reaches a
+Legendary: at 144 it bought 12 Legendaries in 128 runs and their ablation was 0, so the Legendary's price went once to
+72 (230 / 310 there, affordable at 21–24% of those Shops; still dearer than an Uncommon). Nothing else was retuned.
+CORE is now orders, tracks and summons; the formation ablation is still played and reported, with no band (`MEASURED`).
+Ladder, 256 seeds `sim`: the expert clears **36.3%**, dies on floor 1 in 22.7% of runs, floor 2 15.6%, floor 3 9.4%,
+floor 4 16.0%, wins 97.9% of its battles, 3 stalls; Arise raises **0.33** a battle (was 0.00), a Legendary stands in
+51% of its wins; basic clears 0% and dies on floor 1 in 99.6%. Ablations, 128 seeds, the drop in clear-rate points (in
+progress points of the full's 63.1, and as a share of it): orders 33 (57.3, 91%), tracks 30 (28.4, 45%), summons 15
+(10.5, 17%); fusions 33 (10.7, 17%), synergies 15 (6.7, 11%), relics 6 (2.0, 3%), legendaries −2 (0.2, 0%); formation,
+no band, 1 (4.2, 7%). Legendaries bought: 51 in 128 runs. In band by clear rate: orders, tracks, synergies; summons
+under the core band, fusions over the extras', relics under. Open: the Legendaries still carry nothing, since they come
+late (floors 3–4, in about four runs in ten) and without them the essence buys tiers: a question of when a Legendary can
+be had (a floor-2 price, the expert saving toward a Shop, Arise from elsewhere), not of Arise's numbers. Bone Idol now
+does nothing: tier 4 already reaches every foe but the Sovereign (tier 5, a boss, never raised).
 
 ## 7. Standing rules
 

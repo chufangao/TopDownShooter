@@ -214,7 +214,7 @@ test('the Monarch: one of a kind, never spawned, never moving, never striking, n
   assert.equal(ROLES.monarch.hidden, true)
   // Arise is a skill of the piece that holds an Arise relic (§2.15): no kind holds it of its own.
   const arise = ABILITIES.arise
-  assert.deepEqual([arise.shape, arise.anim, arise.effects, arise.cooldown], ['corpse', 'cast_beam', [{ op: 'raise' }], undefined])
+  assert.deepEqual([arise.shape, arise.anim, arise.effects, arise.cooldown], ['corpse', 'cast_beam', [{ op: 'raise' }], 1])
   assert.ok(!UNIT_LIST.some((u) => u.abilities.includes('arise') || Object.values(u.tracks ?? []).some((t) => t.tiers.some((x) => x.ability?.id === 'arise'))))
   // No level and no points: its base HP whatever `lvl` says (its HP relics are the run's: run.js monarchHp).
   const T = TUNING.monarch
@@ -378,8 +378,8 @@ test('summon tiers: one kin each, at tier II, two summons each battle', () => {
 
 test('every ability is ops, a shape and an anim; Hexed for one act or two; no condition but the rule', () => {
   for (const id of Object.keys(ABILITIES)) checkAbility(id, 'ABILITIES')
-  // No cooldown exception yet (the balance pass grants them): every skill rests a turn.
-  assert.deepEqual(Object.values(ABILITIES).filter((a) => a.cooldown !== undefined).map((a) => a.id), [])
+  // One cooldown exception (the balance pass grants them): Arise rests no turn (2026-10-11); every other skill rests a turn.
+  assert.deepEqual(Object.values(ABILITIES).filter((a) => a.cooldown !== undefined).map((a) => [a.id, a.cooldown]), [['arise', 1]])
   // Hexed (§2.7): for one act, or two from Wrench and Gear Lock; the frost blows deal damage and lay none.
   const hex = (id) => ABILITIES[id].effects.find((e) => e.status === 'hexed')
   const one = ['quake', 'hoarfrost', 'spanner', 'earthshatter', 'deep_winter', 'worldbreaker', 'ice_age', 'piston_slam', 'bone_quake', 'equinox', 'kindled_lance', 'steam_hammer']
@@ -553,10 +553,11 @@ test('the Legendaries: a rule scoped to the holder, Arise a skill it teaches, an
   }
   // Arise's numbers are TUNING.arise's, and its card says them.
   assert.ok(RELICS.arise.desc.includes(`tier ${TUNING.arise.tier} `) && RELICS.arise.desc.includes(`within ${TUNING.arise.domain} tiles`), RELICS.arise.desc)
-  // The variants: Court of Bone reaches farther, and its card says how far; Blood Tithe's Arise rests no turn, for a
-  // share of the Monarch's HP; Undying rises at its share; Mimicry counts as a Warden.
+  // The variants: Court of Bone reaches farther, and its card says how far; Blood Tithe's Arise raises two corpses a
+  // turn, each for a share of the Monarch's HP; Undying rises at its share; Mimicry counts as a Warden.
   assert.ok(RELICS.court_of_bone.desc.includes(`${RELICS.court_of_bone.params.domain} tiles farther`))
-  assert.deepEqual(RELICS.blood_tithe.params, { cooldown: 1, tithe: 0.02 })
+  assert.deepEqual(RELICS.blood_tithe.params, { count: 2, tithe: 0.02 })
+  assert.ok(RELICS.blood_tithe.desc.includes('two corpses a turn'), RELICS.blood_tithe.desc)
   assert.ok(RELICS.blood_tithe.desc.includes(`${RELICS.blood_tithe.params.tithe * 100}%`))
   assert.ok(RELICS.undying.desc.includes(`${RELICS.undying.params.hp * 100}% HP`))
   assert.ok(ROLES[RELICS.mimicry.params.role] && RELICS.mimicry.desc.includes(ROLES[RELICS.mimicry.params.role].name))

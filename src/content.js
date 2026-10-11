@@ -797,10 +797,12 @@ const ABILITY_LIST = [
   {
     // The skill an Arise relic gives the piece that holds it (redesign.md §2.15; its rule's `grants`): a corpse
     // within Arise's reach of its holder, a fallen foe of a tier Arise allows (TUNING.arise, the run's `arise.domain` and
-    // `arise.tier` mods, a variant's own: the sim reads them), rises as a shadow of yours. A skill, so a turn's rest.
+    // `arise.tier` mods, a variant's own: the sim reads them), rises as a shadow of yours. A skill with no turn's rest
+    // (cooldown 1: usable every turn; 2026-10-11, after the balance pass found the expert never bought or used it).
     id: 'arise',
     name: 'Arise',
     shape: 'corpse',
+    cooldown: 1,
     tint: '#c8f5d2',
     anim: 'cast_beam',
     effects: [{ op: 'raise' }]
@@ -2077,12 +2079,12 @@ export const RELIC_LIST = [
   { id: 'rite_candle', tier: 'rare', name: 'Rite Candle', run: true, desc: 'Track tiers cost 25% less essence.', mods: [m('price.tier', 'add', -0.25)] },
   { id: 'arcane_focus', tier: 'rare', name: 'Arcane Focus', desc: 'When its holder slays a foe, its skills come back a turn sooner.', on: 'kill', effects: [{ op: 'cooldown', amount: -1, to: 'self' }] },
   { id: 'glass_crown', tier: 'rare', name: 'Glass Crown', desc: 'Its holder deals 32% more damage, but takes 15% more.', mods: [m('damage.dealt', 'mul', 1.32), m('damage.taken', 'mul', 1.15)] },
-  { id: 'arise', tier: 'legendary', name: 'Arise', desc: 'Its holder learns Arise, a skill: a foe of tier 3 or lower that fell within 5 tiles of it rises as your shadow, the corpse of your choosing.', rule: 'arise' },
+  { id: 'arise', tier: 'legendary', name: 'Arise', desc: 'Its holder learns Arise, a skill usable every turn: a foe of tier 4 or lower that fell within 7 tiles of it rises as your shadow, the corpse of your choosing.', rule: 'arise' },
   { id: 'legion', tier: 'legendary', name: 'Legion', run: true, desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', mods: [m('run.command', 'add', 2), m('hp', 'mul', 0.85)] },
   { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'When its holder falls, it rises at once at 60% HP, once a battle.', rule: 'undying', params: { hp: 0.6 } },
   { id: 'mimicry', tier: 'legendary', name: 'Mimicry', desc: 'Its holder counts as a Warden too, for synergies.', rule: 'mimicry', params: { role: 'warden' } },
   { id: 'hollow_court', tier: 'legendary', name: 'Hollow Court', desc: 'Its holder learns Arise, as the relic gives it; the shadows it raised that still stand when a battle is won are reaped, and each pays its essence again.', rule: 'hollow_court' },
-  { id: 'blood_tithe', tier: 'legendary', name: 'Blood Tithe', desc: "Its holder learns Arise, as the relic gives it but with no turn's rest; each shadow it raises costs the Monarch 2% of its max HP.", rule: 'blood_tithe', params: { cooldown: 1, tithe: 0.02 } },
+  { id: 'blood_tithe', tier: 'legendary', name: 'Blood Tithe', desc: 'Its holder learns Arise, as the relic gives it but raising two corpses a turn (the one you choose, then the highest tier in its reach); each shadow it raises costs the Monarch 2% of its max HP.', rule: 'blood_tithe', params: { count: 2, tithe: 0.02 } },
   { id: 'court_of_bone', tier: 'legendary', name: 'Court of Bone', desc: 'Its holder learns Arise, as the relic gives it but reaching 2 tiles farther; and nothing heals the Monarch, in battle or out.', rule: 'court_of_bone', params: { domain: 2 } }
 ]
 

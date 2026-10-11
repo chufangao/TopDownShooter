@@ -302,11 +302,11 @@ export const temperOf = (id) => unitDef(id).temper ?? null
 const basicIn = (list) => list.find((a) => a.basic) ?? list.at(-1) ?? null
 export const basicOf = (kit) => basicIn(kit.filter(isBlow))
 export const mendOf = (kit) => basicIn(kit.filter((a) => isAllyShape(a.shape) && a.shape !== 'self' && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse')))
-// A skill: anything not a basic. Every skill rests a turn: cooldown 2 unless its def says (restOf).
+// A skill: anything not a basic. Every skill rests a turn: cooldown 2 unless its def says (restOf; Arise's 1, no rest).
 export const isSkill = (u, a) => a !== u.basic && a !== u.mend
 
-// How long a skill of `u`'s rests once used: its def's `cooldown`, 2 where absent, or what a rule granting it says
-// (Blood Tithe's Arise rests no turn).
+// How long a skill of `u`'s rests once used: its def's `cooldown`, 2 where absent (Arise's 1: no rest), or less where
+// a rule granting it says (a `cooldown` in its params; none does since Arise itself lost its rest, 2026-10-11).
 const restOf = (u, a) => Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.grants === a.id && r.params.cooldown).map((r) => r.params.cooldown))
 
 // ── stats and synergies ──────────────────────────────────────────────────────────────────────────

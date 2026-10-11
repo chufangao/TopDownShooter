@@ -43,7 +43,7 @@ import { roadsTo } from './field.js'
 import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
 import { expertTurn, basicTurn, brief } from './policy.js'
 import { value, decide, standing as keysOf, outranks, TREES } from './expert.js'
-import { grantsArise, bleeds } from './rules.js'
+import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
@@ -95,7 +95,8 @@ const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' &
 // A run of an ablation that is a rules switch must be made with it (ablatedRun); policy refuses one that is not.
 // 'arise' is a rules switch too (no relic grants Arise: the necessity's and the tests'), not an ablation: Arise is
 // measured with the Legendaries (it is one), and fusions as an extra, both having substitutes the expert spends on
-// instead (the user's call after the balance pass, 2026-10-09).
+// instead (the user's call after the balance pass, 2026-10-09). The formation is measured with no band (MEASURED; the
+// user's call after the turns pass, 2026-10-11): pieces move in battle, and the orders absorb where they start.
 export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation']
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 export const ablatedRun = (seed, ablate = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null })
@@ -154,11 +155,80 @@ const mendOut = (u, s) => Math.max(0, ...kitOf(u).filter((a) => isAllyShape(a.sh
 const fork = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
 
 // What a retinue brings to its next fight: the fieldable pieces' wounded power (their summons and the relics they hold
-// counted), raised by each run relic as worth raises a piece by one it holds (a piece relic works only through its
-// holder).
+// counted) and the shadows the Arise holders among them would raise (ariseWorth, a share of their worth:
+// TUNING.expert.growth.raise), raised by each run relic as worth raises a piece by one it holds (a piece relic works
+// only through its holder).
 function strength (s, summons = true) {
-  const best = souls(s.party).map((u) => worth(u, summons) * Math.sqrt(hpPct(u))).sort((a, b) => b - a).slice(0, fieldCap({ state: s }))
-  return best.reduce((n, p) => n + p, 0) * (1 + TUNING.expert.growth.worth.relic * s.relics.filter(isRunRelic).length) || 1
+  const best = souls(s.party).map((u) => ({ u, p: worth(u, summons) * Math.sqrt(hpPct(u)) })).sort((a, b) => b.p - a.p).slice(0, fieldCap({ state: s }))
+  const raised = TUNING.expert.growth.raise.share * ariseWorth(s, best.filter((x) => x.p > 0).map((x) => x.u))
+  return (best.reduce((n, x) => n + x.p, 0) + raised) * (1 + TUNING.expert.growth.worth.relic * s.relics.filter(isRunRelic).length) || 1
+}
+
+// ── Arise's worth, read from the roads (redesign.md §2.15, §2.17) ────────────────────────────────
+
+// Arise as soul `u` holds it, out of battle: the run's reach and tier (run.js ariseOf), what the rules granting it add
+// (Court of Bone's tiles) and the corpses it raises a turn (Blood Tithe's `count`, else 1), as turns.js ariseOf and
+// rules.js read them in battle. Null for a soul holding no Arise relic, and for every soul under the 'arise' rules switch.
+function ariseIn (s, u) {
+  const grants = ariseGrants(u)
+  if (!grants.length || s.ablate?.includes('arise')) return null
+  const a = ariseOf(s)
+  const sum = (k) => grants.reduce((n, r) => n + (r.params[k] ?? 0), 0)
+  return { domain: a.domain + sum('domain'), tier: a.tier + sum('tier'), count: Math.max(1, ...grants.map((r) => r.params.count ?? 1)) }
+}
+
+// The share of a scouted foe's road (scoutAt) where it may fall within `domain` tiles of `tiles`: each tile of its road
+// but the seat weighed as threatOf weighs it, (1 + its road distance)^−1, the nearer the seat (where the fighting
+// gathers) the more.
+function fallShare (road, tiles, domain) {
+  let all = 0
+  let near = 0
+  for (let i = 0; i < road.length - 1; i++) {
+    const w = 1 / (road.length - i)
+    all += w
+    if (tiles.some((x) => distance(road[i], x) <= domain)) near += w
+  }
+  return all ? near / all : 0
+}
+
+// What the Arise holders among `pieces` (the souls strength counts) would raise a battle, in worth, with no battle
+// played: each battle room of the floor from where the run stands on (the map scouts every room), each of its foes but
+// a boss, of a tier a holder's Arise allows, rising with the share of its road within that holder's reach of where it
+// stands (fallShare: from its cell, or the seat's for one in the ossuary; the best holder's), at its worth at its level
+// (worth); a room's shadows no more than the holders' raises a battle (each its corpses a turn ×
+// TUNING.expert.growth.raise.turns), its worth cut in proportion; the mean over the rooms. 0 with no holder.
+function ariseWorth (s, pieces) {
+  const holders = []
+  for (const u of pieces) {
+    const a = ariseIn(s, u)
+    if (a) holders.push({ ...a, tiles: u.slot >= 0 ? tilesAt(u, u.slot) : [deployTile('party', monarchSlot(s.camp))] })
+  }
+  if (!holders.length || !s.map) return 0
+  const rank = nodeOf(s.map, s.at)?.rank ?? 0
+  const rooms = s.map.nodes.filter((n) => n.foes && n.rank >= rank)
+  if (!rooms.length) return 0
+  const cap = holders.reduce((n, h) => n + h.count, 0) * TUNING.expert.growth.raise.turns
+  let total = 0
+  for (const n of rooms) {
+    let shadows = 0
+    let worthOf = 0
+    for (const f of scoutAt(s, n)) {
+      if (f.boss) continue
+      const p = Math.max(0, ...holders.filter((h) => f.tier <= h.tier).map((h) => fallShare(f.road, h.tiles, h.domain)))
+      if (!p) continue
+      shadows += p
+      worthOf += p * shadowWorth(f.id, f.lvl)
+    }
+    total += shadows > cap ? worthOf * cap / shadows : worthOf
+  }
+  return total / rooms.length
+}
+// A shadow's worth: its kind's at the corpse's level, on your side (worth).
+const shadowWorths = new Map()
+function shadowWorth (id, lvl) {
+  const key = `${id}|${lvl}`
+  if (!shadowWorths.has(key)) shadowWorths.set(key, worth(makeUnit(id, { lvl })))
+  return shadowWorths.get(key)
 }
 
 // ── the survey: what the expert reads of the run (redesign.md §2.17) ─────────────────────────────
@@ -441,11 +511,11 @@ export function drafts (run, want, L) {
 // roadsTo: a ground foe's the camp's Walk field, a flyer's the air road; a wave's foe enters at the top edge in its
 // lane, as turns.js entryTile puts it), and what it strikes with (its hardest blow, raw, its floor's mods counted; how
 // far its blows reach a piece on the ground, and one in the air, −1 for none). → [{ flies, road: [tile, …, the seat],
-// raw, reach, air }]
+// raw, reach, air, hp, id, lvl, tier, boss }]
 const scouts = new Map()
-function scout (run) {
-  const s = run.state
-  const node = currentNode(run)
+const scout = (run) => scoutAt(run.state, currentNode(run))
+// The same for any battle room `node` of the run's floor (ariseWorth's). Each foe carries its kind, level and tier too.
+function scoutAt (s, node) {
   const key = JSON.stringify([s.camp, s.floor, node.id, node.type, node.foes, node.waves?.map((w) => w.foes)])
   if (scouts.has(key)) return scouts.get(key)
   const roads = roadsTo(s.camp)
@@ -458,7 +528,8 @@ function scout (run) {
       const blows = kitOf(u).filter(isBlow)
       const far = (list) => Math.min(DEPTH, Math.max(-1, ...list.map((b) => blowReach(u, b))))
       const from = deployTile('foe', k ? slotAt(ROWS - 1, colOf(f.slot)) : f.slot)
-      out.push({ flies, road: roadFrom(from, flies ? roads.air : roads.field), raw: punch(u, mods), reach: far(blows), air: far(blows.filter((b) => !b.melee || flies)), hp: statsOf(u, mods).hp })
+      out.push({ flies, road: roadFrom(from, flies ? roads.air : roads.field), raw: punch(u, mods), reach: far(blows), air: far(blows.filter((b) => !b.melee || flies)), hp: statsOf(u, mods).hp,
+        id: f.id, lvl: f.lvl, tier: unitDef(f.id).tier, boss: !!unitDef(f.id).boss })
     }
   }
   if (scouts.size > 500) scouts.clear()
@@ -618,8 +689,8 @@ const toughness = (u) => {
 // ── the formation's read (redesign.md §2.17) ─────────────────────────────────────────────────────
 
 // What a formation is read against, made once a plan: the scouted foes (scout), the threat map (threatOf) and its
-// total, the seat's tile, the field's best (the fielded souls' worth L would want, wounds counted: wanted), Arise's
-// reach, and whether your side holds synergies (not under their rules switch).
+// total, the seat's tile, the field's best (the fielded souls' worth L would want, wounds counted: wanted), and whether
+// your side holds synergies (not under their rules switch).
 function formationContext (run, L, want = wanted(run, L)) {
   const s = run.state
   const threat = threatOf(run)
@@ -631,7 +702,6 @@ function formationContext (run, L, want = wanted(run, L)) {
     best: want.reduce((n, u) => n + fieldPower(u), 0) || 1,
     tough: standing(souls(s.party)).map(tough).sort((a, b) => b - a).slice(0, fieldCap(run)).reduce((n, x) => n + x, 0) || 1,
     threats: new Set(scoutThreats(run)),
-    domain: ariseOf(s).domain,
     synergies: !s.ablate?.includes('synergies')
   }
 }
@@ -651,7 +721,7 @@ function formationContext (run, L, want = wanted(run, L)) {
 //   monarch    the share of the Monarch's HP the scouted foes that reach it could take in a turn, at most 2
 //   synergies  the synergy rules its souls hold (a summon counting as its kind)
 //   aura       the allies within an aura's range of its giver
-//   arise      each Arise holder: the share of the threat map within Arise's reach of it
+//   arise      each Arise holder: the share of the threat map within its Arise's reach of it (ariseIn)
 export function formationFeatures (run, party, ctx = formationContext(run, LEVELS.expert)) {
   const s = run.state
   const pieces = party.filter((u) => !isMonarch(u) && u.slot >= 0)
@@ -708,9 +778,10 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
     }
     const aura = auraOf(u)
     if (aura) for (const x of pieces) if (x !== u && apart(u, x) <= aura.range) v.aura++
-    if (u.relics?.some(grantsArise)) {
+    const raises = ariseIn(s, u)
+    if (raises) {
       let n = 0
-      for (let t = 0; t < TILES; t++) if (tiles.get(u).some((x) => distance(t, x) <= ctx.domain)) n += ctx.threat.ground[t] + ctx.threat.air[t]
+      for (let t = 0; t < TILES; t++) if (tiles.get(u).some((x) => distance(t, x) <= raises.domain)) n += ctx.threat.ground[t] + ctx.threat.air[t]
       v.arise += n / ctx.total
     }
   }
@@ -1999,9 +2070,12 @@ async function decisions ({ runs, seed: seed0, level, tries = 8 }) {
 // end, Legendaries and other relics taken), so an ablation can be seen to take its mechanic away. `variants` (the CLI's
 // `--variants fusions,summons`) plays only those ablations beside the full expert, for a quicker check. Each drop
 // is checked against its band (BANDS): a core mechanic should cost 25–50 points, an extra one 8–25. The core: the
-// orders given in battle, the tracks, the formation and the summons a piece's tiers bring.
-export const CORE = ['orders', 'tracks', 'formation', 'summons']
+// orders given in battle, the tracks and the summons a piece's tiers bring. MEASURED: played and reported, against no
+// band: the formation, reclassified out of the core on 2026-10-11 (the user's call, after the balance pass measured it
+// at 2 points: pieces move in battle, so the orders absorb most of where a piece starts; redesign.md §6).
+export const CORE = ['orders', 'tracks', 'summons']
 export const EXTRA = ['fusions', 'legendaries', 'relics', 'synergies']
+export const MEASURED = ['formation']
 export const BANDS = { ...Object.fromEntries(CORE.map((m) => [m, [25, 50]])), ...Object.fromEntries(EXTRA.map((m) => [m, [8, 25]])) }
 async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null }) {
   variants = [null, ...variants]
@@ -2050,7 +2124,7 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
   const sxy = pdrops.reduce((n, d) => n + d.drop * d.clearDrop, 0)
   const sxx = pdrops.reduce((n, d) => n + d.drop * d.drop, 0)
   const k = sxx > 0 ? sxy / sxx : 1
-  const verdict = (ablate, v) => !BANDS[ablate] ? '(not targeted)' : v < BANDS[ablate][0] ? 'under' : v > BANDS[ablate][1] ? 'over' : 'in'
+  const verdict = (ablate, v) => !BANDS[ablate] ? '(no band)' : v < BANDS[ablate][0] ? 'under' : v > BANDS[ablate][1] ? 'over' : 'in'
   console.log(`\nprogress: rooms completed of the ${routeRooms()} on the route to the Sovereign, the battle lost counted by the share of its`)
   console.log(`foe HP removed (1 = cleared); drops in points, paired by seed (± one standard error of the paired difference);`)
   console.log(`clear-eq = k × progress drop, k = ${sxx > 0 ? k.toFixed(2) : '1 (no drop to fit)'}: the least-squares slope through the origin of the clear drop on the progress drop (${pdrops.length} variants)`)
@@ -2063,7 +2137,7 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
   }
   const drops = rows.filter((r) => BANDS[r.ablate]).map((r) => ({ ablate: r.ablate, drop: 100 * (full - clear(r.mine)), band: BANDS[r.ablate] }))
   const list = (xs) => xs.map((d) => `${d.ablate} ${d.drop.toFixed(0)}`).join(', ') || '-'
-  console.log(`\ncheck: full expert ${(100 * full).toFixed(0)}% (target >= 90%), progress ${(100 * mean(prog[0])).toFixed(1)}; drops against their bands (core 25–50, extra 8–25)`)
+  console.log(`\ncheck: full expert ${(100 * full).toFixed(0)}% (target >= 90%), progress ${(100 * mean(prog[0])).toFixed(1)}; drops against their bands (core 25–50: ${CORE.join(', ')}; extra 8–25: ${EXTRA.join(', ')}; measured, no band: ${MEASURED.join(', ')})`)
   const eq = pdrops.filter((d) => BANDS[d.ablate]).map((d) => ({ ablate: d.ablate, drop: k * d.drop, band: BANDS[d.ablate] }))
   console.log('  by clear-eq (k × progress drop):')
   console.log(`    in band: ${list(eq.filter((d) => d.drop >= d.band[0] && d.drop <= d.band[1]))}`)
