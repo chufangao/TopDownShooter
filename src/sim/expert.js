@@ -65,6 +65,8 @@ export function outranks (a, b) {
 
 // The hard rules, a decision's list apiece. Each reads the situation (`sit`) and an option's features (`o.v`) only.
 const T = () => TUNING.expert.tree
+// The rooms that are battles (map.js types).
+const BATTLES = new Set(['fight', 'elite', 'siege', 'boss'])
 export const TREES = {
   // One piece's move and act in battle (policy.js choice; features policy.js features).
   battle: [
@@ -75,22 +77,31 @@ export const TREES = {
     { id: 'monarch-lethal', when: (sit) => !!sit.monarch?.lethal, keep: (o) => !o.v.lethal },
     // A foe that could strike the Monarch next turn, and can be felled now: felled first.
     { id: 'kill-first', when: (sit) => sit.monarch?.threats.length > 0, keep: (o) => o.v.cull > 0 },
-    // A piece never ends where the danger map (or its blow's counter) says it falls, unless its act kills or shields the
-    // Monarch.
-    { id: 'never-die', when: () => true, keep: (o) => !o.v.fall || o.v.kill > 0 || o.v.guard > 0 },
+    // A piece never ends where the danger map (or its blow's counter) says it falls, unless its act kills, shields the
+    // Monarch, or wounds a foe that could strike the Monarch next turn (the Monarch's fall is the run's: a piece is
+    // spent for it).
+    { id: 'never-die', when: () => true, keep: (o) => !o.v.fall || o.v.kill > 0 || o.v.guard > 0 || o.v.harry > 0 },
     // The Monarch within the foes' reach next turn: the guard's weights (TUNING.expert.battle.modes.guard).
-    { id: 'guard', when: (sit) => sit.monarch?.danger > 0, mode: 'guard' }
+    { id: 'guard', when: (sit) => sit.monarch?.danger > 0, mode: 'guard' },
+    // Never a battle held forever: long past the last wave (TUNING.expert.tree.stall turns of the camp's patience, as
+    // the counts show it), the press's weights (TUNING.expert.battle.modes.press): come on and trade.
+    { id: 'no-stall', when: (sit) => sit?.patience >= T().stall, mode: 'press' }
   ],
   // The boards a turn's orders leave, a few orders of the pieces apiece (policy.js expertTurn; features
   // policy.js boardFeatures).
   board: [
     // Never a board where the foes could fell the Monarch next turn, where another is not.
-    { id: 'no-doom', when: () => true, keep: (o) => !o.v.doom }
+    { id: 'no-doom', when: () => true, keep: (o) => !o.v.doom },
+    // And long past the last wave, the press's board weights (TUNING.expert.battle.boardModes.press), as the pieces'.
+    { id: 'no-stall', when: (sit) => sit?.patience >= T().stall, mode: 'press' }
   ],
   // A formation (autoplay.js plan; features autoplay.js formationFeatures).
   formation: [
     // The field filled: as many pieces as any formation fields (the Command, where their footprints fit).
     { id: 'fill-field', when: () => true, keep: (o) => o.v.fielded },
+    // A scouted flyer met by a field that can strike one (a ranged blow, or a flyer's own), where any formation fields
+    // such a piece: a field that cannot touch a flyer can only lose to it, or hold it forever.
+    { id: 'answer-air', when: (ctx) => !!ctx?.foes?.some((f) => f.flies), keep: (o) => o.v.air > 0 },
     // The roads into the Monarch held: as few scouted foes' roads open to the seat as the pieces allow.
     { id: 'block-roads', when: () => true, keep: (o) => -o.v.open }
   ],
@@ -99,7 +110,10 @@ export const TREES = {
     // A badly wounded army (TUNING.expert.tree.wounded) takes an altar where one is open,
     { id: 'wounded-altar', when: (sit) => sit.health < T().wounded, force: (rooms) => rooms.find((o) => o.node.type === 'altar') },
     // and never walks into an elite where another room is open.
-    { id: 'wounded-no-elite', when: (sit) => sit.health < T().wounded, keep: (o) => o.node.type !== 'elite' }
+    { id: 'wounded-no-elite', when: (sit) => sit.health < T().wounded, keep: (o) => o.node.type !== 'elite' },
+    // Never a battle the army is the underdog in (its strength over the room's scouted threat, as a log, below
+    // TUNING.expert.tree.odds) where another room is open, and of such battles the least long: a loss ends the run.
+    { id: 'no-long-odds', when: () => true, keep: (o) => (BATTLES.has(o.node.type) ? Math.min(o.v.odds, T().odds) : T().odds) }
   ],
   // A relic given, kept or taken back out of battle (autoplay.js pickHold: `o.free`, a hold onto a free slot).
   hold: [

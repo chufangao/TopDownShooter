@@ -217,12 +217,15 @@ test('the expert\'s piece blocks the road into the Monarch when nothing is in re
   const sit = situation(b)
   assert.equal(sit.roads.length, 1)
   const entry = sit.roads[0].tile
+  // The ghoul's road runs down lane 3 to the entry beside the seat: the knight ends on it, between the two (where it
+  // holds the road: a foe never passes through a piece), and once beside the seat its screen counts that road.
   const { option } = decided(b, 1)
-  assert.equal(option.tile, entry, `to ${where(entry)}, not ${where(option.tile)}`)
-  assert.ok(option.v.screen > 0)
-  // Played: its move is the turn's, and the road is held after it.
+  assert.ok(tileX(option.tile) === 3 && tileY(option.tile) >= tileY(entry) && tileY(option.tile) < 9, `on the road, not ${where(option.tile)}`)
+  if (option.tile === entry) assert.ok(option.v.screen > 0)
+  // Played: its move is the turn's, and the road stays held after it.
   for (const o of expertTurn(b)) order(b, o)
-  assert.equal(situation(b).roads.find((r) => r.tile === entry)?.held ?? 1, 1)
+  const knight = piece(b, 1)
+  assert.ok(tileX(knight.tile) === 3 && tileY(knight.tile) >= tileY(entry) && tileY(knight.tile) < tileY(piece(b, 9).tile), where(knight.tile))
 })
 
 // ── the tree's rules, one test each (expert.js TREES) ───────────────────────────────────────────

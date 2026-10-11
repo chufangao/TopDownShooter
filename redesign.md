@@ -653,6 +653,59 @@ Open, decided later:
   synergy step is to be added.
 - **The sidestep**, **two-part recipes**, **the camp spending**: later content (§5).
 
+### Balance, the turns pass (2026-10-11)
+
+Step 7's pass, by one agent after another was stopped. **The bar**: the old rehearsing expert (89ec1ff) cleared 47% on
+64 seeds `sim`. The scoring expert as inherited (the previous agent's threat read, its hand weights and a remade combo
+book) cleared 10.2%, progress 35.2 (128 seeds `sim`); with HEAD's own weights and book, 0%.
+
+**Phase A, the expert, game numbers frozen (2 h).** A black-box search, sep-CMA-ES (diagonal covariance, mirrored
+samples) over 103 numbers of `TUNING.expert` (log-scale with the sign kept where a weight was set, linear and held to
+its default's sign where it was 0, thresholds linear), each candidate scored by mean progress (clear % the tiebreak)
+on the same 128 seeds `opt`, on 8 cores: two runs (λ 10, then 8 from the first's best; 8 generations, ~70
+candidates), checked on the 128 seeds `sim` it never saw. The combo book proved the largest single lever: its offline
+weights were chosen by what the books they made won (synergy 0, hits 1.2, Move 0.6), and the book now has its own worth
+(`book.worth`), so `npm run combos` makes the same book whatever the search does to `growth.worth`. On `sim`: inherited
+35.2 / 10.2% → first run 46.5 / 18.0% → with the new book 52.7 / 21.1% → second run 59.3 / 36.7%. The weights that moved
+most: a piece's damage ×2.9, the foes' healing on the board ×6 (−6.2: kill or outpace the menders), counters ×2.9, the
+Monarch's danger on the board 0 → −1, the danger map at a piece's tile a third of what it was, the formation's synergies
+×2.2 and shooters behind blockers ×2, the growth search's field strength a third. Tried and reverted: a caution-aware
+threat read (a wary foe holding off at low patience): 15% less read error, but 30.5 progress against 35.2.
+
+The tree as it ended (`expert.js` TREES; the audit over 8 runs counts the decisions each decided): battle — no-waste
+(515), monarch-lethal, kill-first (126), never-die (92; it now also admits a blow on a foe that could strike the
+Monarch), guard (764, a mode), **no-stall** (new: past `tree.stall` 30 turns of the camp's patience, the `press` mode:
+come on, mend less); the weights decided 2754. Board — no-doom, **no-stall** (`boardModes.press`, with the new `closer`,
+the tiles the pieces came nearer a foe); weights 1533. Formation — fill-field, **answer-air** (new: a scouted flyer is
+met by a field that can strike one, where any formation fields such a piece), block-roads (192); weights 24. Route —
+wounded-altar (1), wounded-no-elite (2), no-long-odds (42; after the wounded rules now, reading the room's type);
+weights 110. Hold — give-relic (8). And a reading fixed: a ground piece's distance to the nearest foe is counted in
+steps round the walls (it was as the crow flies, so a piece behind a wall read itself beside a foe it never reached).
+
+**Phase B, the game's numbers (below the bar: foe HP/ATK and floor counts left alone).** Shops more common: the map's
+Shop weight 3 → 5 and a floor's middle up to 7 Shops (were 4): a room is a Shop one time in six, not ten, and the
+expert's walks meet 2.6 / 2.2 / 3.0 / 3.1 a floor. Common relics 36 → 24, Uncommon 60 → 48: the expert left 150–300
+essence on floors 3–4 and now buys ~2 relics a floor there. A Legendary at 72 was tried (bought four times as often, its
+ablation still 0) and reverted. Stalls fell from 6 to 3 in 256 runs by the expert's judgement (no-stall, answer-air,
+the walking distance). The elite's essence, temperaments, synergy rules, cooldowns, Arise and the healers were not
+changed.
+
+**Final (Phase C).** Ladder, 256 seeds `sim`: the expert clears **35.9%** (11 points under the bar), dies on floor 1 in
+22.7% of runs, floor 2 15.6%, floor 3 10.5%, floor 4 15.2%, wins 97.8% of its battles, 3 stalls in 256 runs; basic
+clears 0% and dies on floor 1 in **99.6%** (target ~75%: harder than wanted, left so while the expert is under the bar).
+Ablations, 128 seeds, the drop in clear-rate points (in progress points of the full's 62.9, and as a share of it):
+orders 34 (57.1, 91%), tracks 33 (28.5, 45%), summons 16 (11.0, 17%), formation 2 (4.0, 6%); fusions 34 (11.1, 18%),
+synergies 16 (6.6, 10%), relics 9 (1.7, 3%), legendaries −1 (0, 0%). In band by clear rate: orders, tracks, relics,
+synergies; summons and formation under the core band; fusions over the extras'; legendaries nothing (Arise raised 0.00
+a battle: the expert neither buys nor uses it). Essence per floor (256 runs): earned 301 / 754 / 1297 / 1253, spent
+234 / 599 / 1093 / 1438, left at the floor's last fight 14 / 56 / 135 / 314 (each under the next tier's price there);
+relics bought 0.1 / 1.0 / 1.9 / 2.3 a floor (none on floor 1: affordable, but the expert takes tiers first).
+
+Numbers that moved: every weight of `TUNING.expert` (tuning.js; `modes.guard.hit` held at 0, the search having given
+it the wrong sign), the book's offline weights, `shop.price` Common and Uncommon, `map.js` MID_WEIGHTS and RARE; the map
+test's Shop cap. Open: the bar (11 points); basic's floor 1; formation and summons under their band; the Legendaries
+and Arise unused by the expert (a judgement or a content question); fusions carrying the expert (0% without them).
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):

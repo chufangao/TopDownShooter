@@ -17,7 +17,7 @@ test('the same seed gives the same floor', () => {
   assert.notDeepEqual(generateFloor({ seed: 'm', floor: 2 }), generateFloor({ seed: 'm', floor: 3 }))
 })
 
-test('500 seeded floors keep the rank, link and type rules: one to four Shops in the middle', () => {
+test('500 seeded floors keep the rank, link and type rules: one to seven Shops in the middle', () => {
   let lateShops = 0
   for (let i = 0; i < 500; i++) {
     const floor = 1 + (i % 4)
@@ -45,7 +45,7 @@ test('500 seeded floors keep the rank, link and type rules: one to four Shops in
     const late = ranks[RANKS - 2]
     assert.equal(late.filter((n) => n.type === 'altar').length, 1, `${where} one altar before the end`)
     const shops = map.nodes.filter((n) => n.type === 'shop' && n.rank < RANKS - 2).length
-    assert.ok(shops >= 1 && shops <= 4, `${where} shops ${shops}`)
+    assert.ok(shops >= 1 && shops <= 7, `${where} shops ${shops}`)
     lateShops += ranks[RANKS - 2].some((n) => n.type === 'shop')
 
     for (const n of map.nodes) {

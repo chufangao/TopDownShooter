@@ -7,12 +7,14 @@ export const RANKS = 16
 export const WIDTH = 4 // the most rooms in a rank
 
 // The Shop is where relics are bought, and the only place they come from (redesign.md §2.11): about 2.5 to a walk.
+// Its weight 5 and a floor's middle up to 7 Shops since the balance pass (2026-10-11; were 3 and 4): at those a room
+// was a Shop one time in ten and a walk met ~1.5; now one in six, and the expert's walks meet 2–3 a floor.
 const MID_TYPES = ['fight', 'elite', 'shop', 'altar']
-const MID_WEIGHTS = [5, 1.5, 3, 1]
+const MID_WEIGHTS = [5, 1.5, 5, 1]
 const LATE_TYPES = ['fight', 'elite', 'shop']
 const LATE_WEIGHTS = [3, 1, 1]
 const ELITE_FROM = 4 // the first rank an elite may stand in
-const RARE = { shop: 4 } // a floor's middle holds one to this many of each
+const RARE = { shop: 7 } // a floor's middle holds one to this many of each
 const SIEGE_FLOOR = 3 // the first floor with sieges
 export const SIEGE_RANK = 9 // the first rank a siege may stand in
 
@@ -46,7 +48,7 @@ function link (rng, a, b) {
 }
 
 // Rank 1 is all fights; the middle ranks mix rooms, with no elite before ELITE_FROM, at most one elite a
-// rank, one to four Shops (RARE), and no rank all of one kind but fights; the rank before the last always holds
+// rank, one to seven Shops (RARE), and no rank all of one kind but fights; the rank before the last always holds
 // exactly one altar.
 function assignTypes (rng, ranks, last) {
   const pick = (types, weights) => rng.weighted(types, weights)

@@ -46,12 +46,12 @@ import { value, decide, standing as keysOf, outranks, TREES } from './expert.js'
 import { grantsArise, bleeds } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
-  isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, OSSUARY, START_PARTY,
+  isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
   relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold
 } from './run.js'
 import { nodeOf, RANKS } from './map.js'
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, campDef, relicDef, fusionDef, FUSION_LIST, UNIT_LIST, SYNERGIES, RELIC_LIST } from '../content.js'
+import { unitDef, abilityDef, campDef, relicDef, fusionDef, FUSION_LIST, UNIT_LIST, SYNERGIES, RELIC_LIST, STATUS_WORTH } from '../content.js'
 
 // search: formations met by hill-climbing from the best draft, on the static score (0: the first draft, basic's rule
 // of thumb); wounds: field by worth with wounds counted; route: choose the next room by its features (else weighted
@@ -134,17 +134,21 @@ const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b.uid
 // ablation's). A tier that grants an ability, an aura or a Colossus's footprint counts a share more, and each relic it
 // holds a share more besides its mods (what its triggers and rules are worth no static read can tell):
 // TUNING.expert.growth.worth. 0 for the fallen, and for the Monarch, which never strikes.
-function worth (u, summons = true, mods = heldMods(u)) {
+function worth (u, summons = true, mods = heldMods(u), h = TUNING.expert.growth.worth.hits, w = TUNING.expert.growth.worth) {
   if (u.hp <= 0 || isMonarch(u)) return 0
-  const w = TUNING.expert.growth.worth
   const s = statsOf(u, mods)
   const lasts = s.hp * (1 + s.def / 100) / s.damage.taken
-  const hits = s.atk * s.damage.dealt * (1 + w.move * s.move) * (1 + w.heal * (s.heal.given - 1))
+  const hits = s.atk * s.damage.dealt * (1 + w.move * s.move) + w.mend * mendOut(u, s)
   const signature = tiersOf(u).filter((t) => t.ability || t.aura || t.size).length
-  return Math.sqrt(lasts * hits) * (1 + w.signature * signature) * (1 + w.relic * (u.relics?.length ?? 0)) *
+  return lasts ** (1 - h) * hits ** h * (1 + w.signature * signature) * (1 + w.relic * (u.relics?.length ?? 0)) *
     (1 + (summons ? summonsOf(u) * Math.sqrt(TUNING.summon.hp) : 0))
 }
 const fieldPower = (u) => worth(u) * Math.sqrt(hpPct(u))
+// What a soul mends a turn (worth's `mend`): its best heal of others, each heal effect's HP and each ward it lays (its
+// STATUS_WORTH, a Regen's among them), by its ATK and healing given as a heal lands.
+const mendOut = (u, s) => Math.max(0, ...kitOf(u).filter((a) => isAllyShape(a.shape) && a.effects.some((e) => e.op === 'heal' && !e.self))
+  .map((a) => a.effects.reduce((n, e) => n + (e.op === 'heal' && !e.self ? e.power : e.op === 'apply_status' ? STATUS_WORTH[e.status] ?? 0 : 0), 0))) *
+  s.atk / TUNING.damage.atkDivisor * s.heal.given
 
 // A copy of the run to weigh a choice on (the growth search's): the state cloned, no battle.
 const fork = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
@@ -286,7 +290,7 @@ export function pickRoute (run, sit = survey(run)) {
 // wounds and the Monarch's (none while nothing may heal it); for a Shop the purse over the floor's cheapest relic, up
 // to 3; and an altar or a Shop on a route through it (`altarAhead`, `shopAhead`), the nearer the more.
 export function roomFeatures (sit, room) {
-  const fights = room.threat > 0
+  const fights = room.threat > 0 && room.type !== 'shop' && room.type !== 'altar'
   const odds = fights ? Math.log(sit.strength / room.threat) : 0
   const purse = sit.prices.relic ? Math.min(3, sit.purse / sit.prices.relic) : 0
   const v = { fight: 0, elite: 0, shop: 0, altar: 0, boss: 0, siege: 0 }
@@ -454,7 +458,7 @@ function scout (run) {
       const blows = kitOf(u).filter(isBlow)
       const far = (list) => Math.min(DEPTH, Math.max(-1, ...list.map((b) => blowReach(u, b))))
       const from = deployTile('foe', k ? slotAt(ROWS - 1, colOf(f.slot)) : f.slot)
-      out.push({ flies, road: roadFrom(from, flies ? roads.air : roads.field), raw: punch(u, mods), reach: far(blows), air: far(blows.filter((b) => !b.melee || flies)) })
+      out.push({ flies, road: roadFrom(from, flies ? roads.air : roads.field), raw: punch(u, mods), reach: far(blows), air: far(blows.filter((b) => !b.melee || flies)), hp: statsOf(u, mods).hp })
     }
   }
   if (scouts.size > 500) scouts.clear()
@@ -625,6 +629,8 @@ function formationContext (run, L, want = wanted(run, L)) {
     total: threat.ground.reduce((n, x) => n + x, 0) + threat.air.reduce((n, x) => n + x, 0) || 1,
     seat: deployTile('party', monarchSlot(s.camp)),
     best: want.reduce((n, u) => n + fieldPower(u), 0) || 1,
+    tough: standing(souls(s.party)).map(tough).sort((a, b) => b - a).slice(0, fieldCap(run)).reduce((n, x) => n + x, 0) || 1,
+    threats: new Set(scoutThreats(run)),
     domain: ariseOf(s).domain,
     synergies: !s.ablate?.includes('synergies')
   }
@@ -654,7 +660,7 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
   const ground = new Map()
   const air = new Map()
   for (const u of pieces) for (const t of tiles.get(u)) (flies(u) ? air : ground).set(t, u)
-  const v = { fielded: pieces.length, power: 0, cover: 0, exposed: 0, open: 0, blockers: 0, behind: 0, mend: 0, monarch: 0, synergies: 0, aura: 0, arise: 0 }
+  const v = { fielded: pieces.length, air: pieces.filter(ANSWERS.fly).length, power: 0, cover: 0, exposed: 0, open: 0, blockers: 0, behind: 0, mend: 0, monarch: 0, synergies: 0, aura: 0, arise: 0, lasts: 0, heals: 0, answers: 0, dps: 0, focus: 0, contact: 0 }
   const reached = new Map(pieces.map((u) => [u, 0]))
   let onSeat = 0
   for (const f of ctx.foes) {
@@ -667,6 +673,21 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
     const near = (list, r) => r >= 0 && stands.some((t) => list.some((x) => distance(t, x) <= r))
     for (const u of pieces) if (near(tiles.get(u), flies(u) ? f.air : f.reach)) reached.set(u, reached.get(u) + f.raw)
     if (near([ctx.seat], f.reach)) onSeat += f.raw
+    // Where it first comes within its reach of a piece of yours: what yours could deal it there next turn (each
+    // piece whose coverage takes that tile: its hardest blow), as a share of its HP, and the share of the HP of the
+    // frailest piece it reaches there that its blow would take.
+    const first = stands.find((t) => pieces.some((u) => tiles.get(u).some((x) => distance(t, x) <= (flies(u) ? f.air : f.reach))))
+    if (first !== undefined) {
+      let dealt = 0
+      for (const u of pieces) {
+        const c = coverage(u, u.slot, s.camp)
+        if ((f.flies ? c.air : c.ground).includes(first)) dealt += punch(u)
+      }
+      v.focus += Math.min(1, dealt / Math.max(1, f.hp))
+      let worst = 0
+      for (const u of pieces) if (tiles.get(u).some((x) => distance(first, x) <= (flies(u) ? f.air : f.reach))) worst = Math.max(worst, Math.min(1, f.raw * mitigation(u) / Math.max(1, u.hp)))
+      v.contact += worst
+    }
   }
   const share = new Map(pieces.map((u) => [u, Math.min(1, reached.get(u) * mitigation(u) / Math.max(1, u.hp))]))
   const apart = (a, b) => Math.min(...tiles.get(a).flatMap((x) => tiles.get(b).map((y) => distance(x, y))))
@@ -677,7 +698,10 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
     v.cover += punch(u) * covers
     v.exposed += share.get(u)
     if (!meleeOnly(u) && covers > 0 && reached.get(u) === 0) v.behind++
+    v.lasts += tough(u) / ctx.tough
+    v.dps += punch(u)
     const heals = kitOf(u).filter((a) => isAllyShape(a.shape) && a.shape !== 'self' && a.effects.some((e) => e.op === 'heal' && !e.self))
+    for (const a of heals) for (const e of a.effects) if (e.op === 'heal' && !e.self) v.heals += (e.pct ? e.pct * 100 : e.power * st.atk / TUNING.damage.atkDivisor * st.heal.given) / (a === heals[0] ? 1 : heals.length)
     if (heals.length) {
       const r = Math.max(...heals.map(rangeOf)) + Math.floor(st.move)
       for (const x of pieces) if (x !== u && apart(u, x) <= r) v.mend += share.get(x)
@@ -693,7 +717,19 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
   const m = monarchOf(s)
   v.monarch = Math.min(2, onSeat * mitigation(m) / Math.max(1, m.hp))
   if (ctx.synergies) v.synergies = activeSynergies(pieces.flatMap((u) => Array(1 + summonsOf(u)).fill(u))).length
+  for (const t of ctx.threats) if (ANSWERS[t]) v.answers += pieces.some(ANSWERS[t]) ? 1 : -1
   return v
+}
+
+// What a soul takes to fell, wounds counted: its HP standing, its DEF's mitigation and its damage taken.
+const tough = (u) => {
+  const st = statsOf(u, heldMods(u))
+  return Math.max(0, u.hp) * (1 + st.def / 100) / st.damage.taken
+}
+// The threat types of the room the run is in (its scouted foes').
+const scoutThreats = (run) => {
+  const n = currentNode(run)
+  return n?.foes ? [...roomThreats(n)] : []
 }
 
 // The share of a blow's raw a soul takes out of battle: its DEF's mitigation and its damage taken (policy.js mitigation,
@@ -956,14 +992,14 @@ function grow (run, L, actions, why, sit = null) {
     return { strength: v.strength - base.strength, book: v.book - base.book, keep: 0 }
   }
   const room = (uid) => (s.party.find((u) => u.uid === uid)?.relics?.length ?? 0) < TUNING.relic.perPiece
-  const options = [{ action: null, v: { strength: 0, book: 0, keep: 1 } }]
+  const options = [{ action: null, v: { strength: 0, book: 0, keep: 1, save: why === 'spend' ? saving(run, L) : 0 } }]
   for (const a of actions) {
     const sim = fork(run)
     apply(sim, a)
-    options.push({ action: a, free: a.type === 'hold' && room(a.uid), v: gain(sim.state) })
+    options.push({ action: a, free: a.type === 'hold' && room(a.uid), v: { ...gain(sim.state), save: 0 } })
     if (!nextTier(sim, a)) continue
     apply(sim, a)
-    options.push({ action: a, v: gain(sim.state) })
+    options.push({ action: a, v: { ...gain(sim.state), save: 0 } })
   }
   const decided = decide(TREES[why] ?? [], sit, options, TUNING.expert.growth)
   const pick = decided.option.action
@@ -1099,7 +1135,7 @@ function bookPower (run) {
   let power = 0
   for (const u of pieces) {
     const held = (u.relics ?? []).reduce((n, id) => n + (relicDef(id).on ? b.trigger : 0) + (relicDef(id).rule ? b.rule : 0), 0)
-    power += worth(u) * (1 + (unitDef(u.id).fused ? b.fused : 0) + held)
+    power += worth(u, true, heldMods(u), b.hits, b.worth) * (1 + (unitDef(u.id).fused ? b.fused : 0) + held)
   }
   const rules = activeSynergies(pieces.flatMap((u) => Array(1 + summonsOf(u)).fill(u))).length
   const arise = pieces.some((u) => u.relics?.some(grantsArise)) ? s.relics.filter((id) => isRunRelic(id) && (relicDef(id).mods ?? []).some((m) => m.path.startsWith('arise.'))).length : 0
@@ -1111,7 +1147,7 @@ function bookPower (run) {
 // (on floors 2 and 4), each against the same army without it. Kept: every combo, best first, with the relics that add
 // more than TUNING.expert.book.floor to it.
 const BOOK_FILE = new URL('./combos.json', import.meta.url)
-function makeBook ({ out = BOOK_FILE } = {}) {
+export function makeBook ({ out = BOOK_FILE, quiet = false } = {}) {
   const t0 = Date.now()
   const floors = BOOK_FLOORS.map((_, i) => i + 1)
   const power = (combo, floor, relics = []) => {
@@ -1156,6 +1192,7 @@ function makeBook ({ out = BOOK_FILE } = {}) {
   for (const e of book) e.relics = pairs(e)
   const data = { made: 'node src/sim/autoplay.js --combos', plain: pairs(null), combos: book }
   fs.writeFileSync(out, JSON.stringify(data, null, 1) + '\n')
+  if (quiet) return data
   console.log(`the combo book: ${book.length} combos ranked in ${((Date.now() - t0) / 1000).toFixed(1)} s; written to ${out.pathname ?? out}`)
   for (const e of book.slice(0, 15)) console.log(`  ${e.id.padEnd(34)} ${e.gain.map((g) => (g === null ? '    -   ' : g.toFixed(3).padStart(8))).join(' ')}  ${Object.keys(e.relics ?? {}).slice(0, 3).join(', ')}`)
 }
@@ -1204,7 +1241,8 @@ function comboWorth (s, c, work = atWork(s)) {
   const bled = unhealed(s)
   let relics = 0
   for (const id of work) relics += bled && bleeds(id) ? 0 : pairs[id] ?? 0
-  return Math.max(0, g.length ? g.reduce((n, x) => n + x, 0) / g.length : 0) + relics
+  // A combo whose kinds are not met before a later floor (`from`) is worth TUNING.expert.book.ahead of it until then.
+  return (Math.max(0, g.length ? g.reduce((n, x) => n + x, 0) / g.length : 0) + relics) * (c.from > s.floor ? TUNING.expert.book.ahead : 1)
 }
 // The relics at work in a state, each once: the run relics owned, and the piece relics a standing soul holds (one
 // unheld works for no one: redesign.md §2.15).
@@ -1279,8 +1317,9 @@ function weighRecruits (run, L, sit = null) {
     if (full) apply(sim, { type: 'release', uid: weakest.uid })
     apply(sim, { type: 'reap', index })
     if (audited(run)) note('considered', 'recruit')
-    // A recruit is worth what it adds to the field and the book, or what a fusion it completes would.
-    const gain = Math.max(...[sim, ...completes(sim, L)].map((x) => sketch(x.state, L))) - base
+    // A recruit is worth what it adds to the field and the book, or what a fusion it completes would (one the purse
+    // cannot pay for yet, TUNING.expert.growth.later of that).
+    const gain = Math.max(sketch(sim.state, L), ...completes(sim, L, true).map((x) => base + (sketch(x.state, L) - base) * (x.later ? TUNING.expert.growth.later : 1))) - base
     if (gain > best) {
       best = gain
       pick = { index, ...(full && { release: weakest.uid }) }
@@ -1292,14 +1331,33 @@ function weighRecruits (run, L, sit = null) {
   return pick
 }
 
-// The retinue as it would be after each fusion L may make on `sim` (a copy, after a recruit: weighed as on the map).
-function completes (sim, L) {
+// The retinue as it would be after each fusion L may make on `sim` (a copy, after a recruit: weighed as on the map);
+// with `later`, each fusion whose parts it holds though the purse is short of its price too (as if paid), marked
+// `later`.
+function completes (sim, L, later = false) {
   const map = { ...sim, state: { ...sim.state, phase: 'map' } }
-  return fusionOptions(map, L).map((a) => {
+  const out = fusionOptions(map, L).map((a) => {
     const next = fork(map)
     apply(next, a)
     return next
   })
+  if (!later || !L.fuse || L.ablate === 'fusions') return out
+  for (const r of FUSION_LIST) {
+    if (canFuse(map, r.id) || fuseParts(map, r.id) === null) continue
+    const next = fork(map)
+    next.state.essence = fuseCost(map, r.id)
+    apply(next, { type: 'fuse', id: r.id, parts: fuseParts(map, r.id) })
+    next.later = true
+    out.push(next)
+  }
+  return out
+}
+
+// What saving for a fusion is worth (grow's `save`): the most the sketch would gain from a fusion whose parts the run
+// holds while the purse is short of its price (completes' `later`), 0 for none.
+function saving (run, L) {
+  const base = sketch(run.state, L)
+  return Math.max(0, ...completes(fork(run), L, true).filter((x) => x.later).map((x) => sketch(x.state, L) - base))
 }
 
 // Basic's recruit (the expert's is weighRecruits'): while the field has room for another standing soul, the soul of
