@@ -10,13 +10,14 @@
 //           footprint fits; every purchase, fusion, recruit, relic bought and relic given weighed by one growth
 //           search on a sketch (the field's strength and the book's worth of the combo it plays toward: targetOf),
 //           a relic against the tiers its price displaces (buyFor); its target's kinds fielded first and never let
-//           go while another will do; in battle, every turn policy.js expertTurn's
+//           go while another will do; in battle, every turn policy.js expertTurn's (a search two rounds ahead), and
+//           in what it only plays ahead, greedyTurn's (one round: LEVELS `rehearsal`)
 // Essence buys tiers, recruits, fusions and relics (a Shop's): the Monarch's HP and Command come from run relics, a
 // kind's level from its tiers (run.js). The Monarch is the camp's (run.js: on its seat, monarchSlot); nothing moves it.
 // A battle reads no random number (redesign.md §2.16), so a rehearsal is one battle played out on turns (turns.js
-// playOut) under the level's turn policy (`turns`: policy.js basicTurn or expertTurn), fought once for each formation
-// weighed, and never again for the same setup (the memo). In a battle it gives the level's turn policy's orders, one at
-// a time.
+// playOut) under the level's rehearsal turn policy (`rehearsal`: policy.js basicTurn or greedyTurn), fought once for
+// each formation weighed, and never again for the same setup (the memo). In a battle it gives the level's turn policy's
+// orders, one at a time.
 // Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert]
 // for the gap between the levels:     … --ladder [--runs 8]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
@@ -38,8 +39,8 @@ import {
   monarchSlot, abilitiesOf, isBlow, blowReach, armOf, alive, heldMods, isRunPath, cellsOf, meleeOnly, ROWS
 } from './unit.js'
 import { roadOf, roadsTo } from './field.js'
-import { createBattle, order, playOut, timelineHash, legalOrders } from './turns.js'
-import { expertTurn, basicTurn } from './policy.js'
+import { createBattle, order, playOut, timelineHash, legalOrders, stalled } from './turns.js'
+import { expertTurn, greedyTurn, basicTurn } from './policy.js'
 import { grantsArise, bleeds } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
@@ -56,21 +57,36 @@ import { unitDef, abilityDef, campDef, relicDef, fusionDef, FUSION_LIST, UNIT_LI
 // grow by the growth search (grow: purchases, recruits, the Shop's relics, who holds them) rather than by rule of thumb;
 // fuse: weigh each fusion it can make (else it never fuses); book: play toward the combo book's best reachable combo
 // (targetOf); more: draft the expert's formations too (zone drafts about the Monarch, its gate held: drafts); turns:
-// how it plays its turns in a battle, and so in everything it plays ahead ('basic': End Turn alone; 'expert':
-// policy.js expertTurn).
+// how it plays its turns in the battles it fights ('basic': End Turn alone; 'expert': policy.js expertTurn, the
+// search that plays two rounds ahead); rehearsal: how it plays them in everything it only plays ahead (its rehearsals,
+// its rollouts, the combo book): 'greedy', policy.js greedyTurn (one round ahead), as its formation search fights
+// 12–60 rehearsals a room and the search would make a run take minutes (by default as it fights, the search's quick
+// form for the search: rehearsalOf).
 export const LEVELS = {
   basic: { rehearse: true, search: 0, wounds: false, rollouts: 0, spend: false, fuse: false, turns: 'basic' },
   expert: {
     rehearse: true, search: 12, hard: 60, comfort: 1.8, wounds: true, rollouts: 1, horizon: 3, spend: true, fuse: true, more: true, book: true,
-    turns: 'expert'
+    turns: 'expert', rehearsal: 'greedy'
   }
 }
-// The turn policies by name (LEVELS `turns`; `unfused`, the expert's that never fuses in battle: the fusions ablation's).
-const TURNS = { basic: basicTurn, expert: expertTurn, unfused: (b) => expertTurn(b, { fuse: false }) }
-// The turn policy L plays by: its `turns`, with its ablation's mechanic taken from them (ablatedTurns).
+// The turn policies by name (LEVELS `turns` and `rehearsal`; `unfused` and `greedy-unfused`, the expert's that never
+// fuse in battle: the fusions ablation's).
+const TURNS = {
+  basic: basicTurn,
+  expert: expertTurn,
+  unfused: (b) => expertTurn(b, { fuse: false }),
+  greedy: greedyTurn,
+  'greedy-unfused': (b) => greedyTurn(b, { fuse: false })
+}
+// The turn policy L fights by: its `turns`, with its ablation's mechanic taken from them (ablatedTurns).
 const turnsOf = (L) => ablatedTurns(L.turns ?? 'basic', L.ablate)
-// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, the expert's unfused without fusions.
-const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' && turns === 'expert' ? 'unfused' : turns)
+// The turn policy L plays ahead by (rehearse, rollouts): its `rehearsal`, else its `turns`' quick form (QUICK: the
+// expert's search never plays inside a rehearsal), ablated likewise.
+const QUICK = { expert: 'greedy', unfused: 'greedy-unfused' }
+const rehearsalOf = (L) => ablatedTurns(L.rehearsal ?? QUICK[L.turns] ?? L.turns ?? 'basic', L.ablate)
+// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, an expert's unfused without fusions.
+const UNFUSED = { expert: 'unfused', greedy: 'greedy-unfused' }
+const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' ? UNFUSED[turns] ?? turns : turns)
 // How an expert imagines a route: quick formations and basic offers (its own turns and ablation: as).
 const ROLLOUT = { rehearse: false, search: 0, wounds: true, rollouts: 0, spend: false, fuse: false, more: true }
 // How it sizes up a room it could walk into next: every draft rehearsed (pickRoute).
@@ -83,7 +99,8 @@ const RISK = { ...ROLLOUT, rehearse: true }
 // spending logic already sends it. Everything it plays ahead with (rehearsals, rollouts) carries the same ablation:
 //   orders         ends every turn of every battle without an order (policy.js basicTurn: what is left alone strikes
 //                  or mends with its basic, and no skill is ever used): what in-battle play is worth
-//   fusions        never fuses (fusionOptions lists none; its turns give no fuse order in battle either: TURNS unfused)
+//   fusions        never fuses (fusionOptions lists none; its turns give no fuse order in battle either: TURNS unfused,
+//                  greedy-unfused)
 //   summons        no tier brings a summon in battle (a rules switch: the run's `ablate`, carried in every battle's
 //                  setup, so a snapshot stripped of it, necessity, fights without it too), and such a tier is worth
 //                  only its place on the track (worth: its summons not counted), so the essence goes elsewhere
@@ -100,8 +117,8 @@ const RISK = { ...ROLLOUT, rehearse: true }
 export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation']
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 export const ablatedRun = (seed, ablate = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null })
-// A level as it plays ahead for L: L's turns, and the same ablation carried.
-const as = (base, L) => ({ ...base, turns: turnsOf(L), ...(L.ablate && { ablate: L.ablate }) })
+// A level as it plays ahead for L: L's rehearsal turns (rehearsalOf), and the same ablation carried.
+const as = (base, L) => ({ ...base, turns: rehearsalOf(L), ...(L.ablate && { ablate: L.ablate }) })
 // Whether L never buys relic `id`.
 const legendary = (id) => relicTier(id) === 'legendary'
 const BANNED = {
@@ -369,9 +386,9 @@ function threatOf (run, steep = 1) {
 // The scouted room played ahead: its battle set up as a fight here would be, with the Monarch alone on its seat (made
 // to stand whatever strikes it, so every wave comes), and played under End Turn, the camp's turns as it plays them
 // (policy.js foeTurn: each foe as far along its road as its temperament takes it, queued behind those ahead), until
-// every wave has entered and no foe has stood anywhere new for two turns, or the clock's cap. Each tile a foe's
-// footprint stands on as a turn of yours begins, where your blows will find it, once a foe: [{ tile, flies, dist (its
-// road distance) }]. Made once for each room and what its battle is set up from.
+// every wave has entered and no foe has stood anywhere new for two turns (the camp's impatience brings every foe in, so
+// this comes). Each tile a foe's footprint stands on as a turn of yours begins, where your blows will find it, once a
+// foe: [{ tile, flies, dist (its road distance) }]. Made once for each room and what its battle is set up from.
 const STAND = 1e9
 const standCache = new Map()
 function stands (run) {
@@ -540,9 +557,9 @@ const toughness = (u) => {
 
 // A rehearsal: the formation `party` (the cells L would field) fought once, as the real fight will set it up (in the
 // run's party order, its pieces on the field only: a piece it leaves at −1 waits in the ossuary), its turns played by
-// `turns` (TURNS: the level's, turnsOf), the foes made harder by `stress` (a share more HP and ATK: the book's margins).
-// A battle reads no random number, so once is all there is to know. → { score (scoreOf), left (the Monarch's HP as a
-// won battle leaves it; −1 for a loss) }.
+// `turns` (TURNS: the level's rehearsal policy, rehearsalOf), the foes made harder by `stress` (a share more HP and
+// ATK: the book's margins). A battle reads no random number, so once is all there is to know. → { score (scoreOf), left
+// (the Monarch's HP as a won battle leaves it; −1 for a loss) }.
 export function rehearse (run, party, { stress = 0, turns = 'basic' } = {}) {
   const order = new Map(run.state.party.map((u, i) => [u.uid, i]))
   const rank = (u) => order.get(u.uid) ?? Infinity
@@ -629,8 +646,8 @@ function tablePut (digest, { score, left }) {
 // heal (TUNING.run.postBattleHeal of its max HP), a fallen soul's 0 (it lies fallen until an altar, where a wounded one
 // mends), the souls' mean weighing twice the Monarch's (its HP is the camp's to spend, and mends as theirs does, but not
 // at all while nothing may heal it: Court of Bone; shadows leave anyway); a loss by how much of the foes' HP it took,
-// from −LOSS − 1 to −LOSS. A fallen Monarch is a loss, whoever else stands, and so is the clock's cap. A loss ends the
-// run, so it weighs LOSS more than the worst win: a formation that saves a few wounds is never worth a fight lost.
+// from −LOSS − 1 to −LOSS. A fallen Monarch is a loss, whoever else stands. A loss ends the run, so it weighs LOSS
+// more than the worst win: a formation that saves a few wounds is never worth a fight lost.
 const LOSS = 3
 export function scoreOf (b) {
   if (b.winner !== 'party') {
@@ -670,7 +687,7 @@ function plan (run, L, { enough = Infinity, onCandidate = null } = {}) {
   const fought = (party) => {
     const key = keyOf(party)
     if (!tried.has(key)) {
-      tried.set(key, rehearse(run, party, { turns: turnsOf(L) }))
+      tried.set(key, rehearse(run, party, { turns: rehearsalOf(L) }))
       onCandidate?.(party)
     }
     return tried.get(key)
@@ -933,10 +950,10 @@ function altarOnWay (map, from, to) {
 //                             one rule each, at 4), each of the kind its cores rank best, those met soonest first
 // Each is fought on every floor as the floor's army (BOOK_FLOORS: its Command, tiers and Monarch) with its
 // pieces in it and the plain army's in the rest (FILLER), in rooms drawn for the floor (bookRooms: a camp's in a row,
-// the Monarch's HP carried), from the best of the zone drafts, its turns the expert's; its `gain` is the score it adds
-// over the plain army (null on a floor its pieces cannot all stand). Then the relics that pair with it: the score each
-// battle relic adds to the best combos' armies (a piece relic held by one of its pieces; one that needs Arise with
-// Arise held too). An entry:
+// the Monarch's HP carried), from the best of the zone drafts, its turns the expert's rehearsal's; its `gain` is the
+// score it adds over the plain army (null on a floor its pieces cannot all stand). Then the relics that pair with it:
+// the score each battle relic adds to the best combos' armies (a piece relic held by one of its pieces; one that needs
+// Arise with Arise held too). An entry:
 //   { id, needs: { kind: pieces } (the pieces it is built from), fuse?: the recipe, tracks: { kind: track },
 //     kin?: { kin: n }, role?: { role: n }, from: the first floor its kinds are met, gain: [per floor],
 //     relics?: { relic: points }, draft: the zone draft its army fights best from (ZONES) }
@@ -1046,15 +1063,15 @@ function bookArmy (combo, floor, relics = []) {
 }
 
 // A combo's army fought in every room of the floor (bookRooms), from each zone draft at `stress`, its turns the
-// expert's: → { score (the best draft's, averaged over the rooms), drafts (each draft's average) }, or null where it
-// cannot stand. A camp's rooms are fought in a row, as a run comes to them: the Monarch whole at the first, its HP
-// carried from the best draft's rehearsal into the next and mended on the way as the run would mend it (mendOnWay), so
-// a relic that bleeds it or keeps it from mending (Blood Tithe, Court of Bone) is weighed at what it costs over a
-// floor's fights, not in one from a Monarch made whole each time.
+// expert's rehearsal's (greedyTurn): → { score (the best draft's, averaged over the rooms), drafts (each draft's
+// average) }, or null where it cannot stand. A camp's rooms are fought in a row, as a run comes to them: the Monarch
+// whole at the first, its HP carried from the best draft's rehearsal into the next and mended on the way as the run
+// would mend it (mendOnWay), so a relic that bleeds it or keeps it from mending (Blood Tithe, Court of Bone) is weighed
+// at what it costs over a floor's fights, not in one from a Monarch made whole each time.
 function bookScore (combo, floor, { relics = [], stress = 0 } = {}) {
   const base = bookArmy(combo, floor, relics)
   if (!base) return null
-  const L = { ...ROLLOUT, turns: 'expert' }
+  const L = { ...ROLLOUT, turns: rehearsalOf(LEVELS.expert) }
   const max = monarchOf(base.state).maxHp
   let score = 0
   const drafted = ZONES.map(() => 0)
@@ -1429,6 +1446,8 @@ const same = (a, o) => a.type === o.type && a.uid === o.uid && a.tile === o.tile
   String(a.parts) === String(o.parts)
 function battleOrder (run, L) {
   const b = run.battle
+  // Past the sim's bound on turns, as playOut ends it: a stall (a passive side may hold a battle forever).
+  if (stalled(b)) return { type: 'stall' }
   let p = planned.get(b)
   const stale = !p || p.turn !== b.turn || !p.orders.length || (p.orders[0].type !== 'end' && !legalOrders(b).some((a) => same(a, p.orders[0])))
   if (stale) planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b) }))
@@ -1507,7 +1526,7 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
       battles.push({
         floor: b.floor + (b.boss ? 'B' : ''),
         t: b.turn,
-        ceiling: b.reason === 'turn-cap',
+        stall: b.reason === 'stall',
         won: b.winner === 'party',
         lvl: party.reduce((n, u) => n + u.lvl, 0) / Math.max(1, party.length),
         size: party.length,
@@ -1738,7 +1757,7 @@ async function report ({ runs, seed: seed0, level, ablate = null }) {
   console.log(`clear rate        ${pct(played.filter((r) => r.result === 'victory').length)}`)
   for (let f = 1; f <= TUNING.run.floors; f++) console.log(`deaths on floor ${f} ${pct(deaths[f] ?? 0)}`)
   console.log(`battles           ${turns.length}, ${(turns.length / runs).toFixed(1)} per run`)
-  console.log(`battle turns      median ${q(0.5)}, p90 ${q(0.9)}, max ${turns.at(-1)}, at the cap ${battles.filter((b) => b.ceiling).length}`)
+  console.log(`battle turns      median ${q(0.5)}, p90 ${q(0.9)}, max ${turns.at(-1)}, stalls ${battles.filter((b) => b.stall).length}`)
   console.log(`mean souls reaped ${(sum('reaped') / runs).toFixed(2)}`)
   console.log('\nper floor, averaged over battles fought there (retinue as it entered the battle):')
   console.log('floor  battles  won    field lvl  fielded  roster  foes  relics')
@@ -1755,10 +1774,11 @@ async function report ({ runs, seed: seed0, level, ablate = null }) {
 
 // ── skill ladder ─────────────────────────────────────────────────────────────────────────────────
 
-// What ended a run, one cause per defeat: the Monarch's killer's own first threat, or 'ceiling' for a battle
-// still undecided at the clock's cap (no Monarch died); none for a run that did not end in one. Depth (the
-// killer came in a later wave: death.wave) is counted apart (see ladder), so the causes add up to the defeats.
-export const causesOf = (death) => !death ? [] : [death.reason === 'turn-cap' ? 'ceiling' : death.threat ?? 'none']
+// What ended a run, one cause per defeat: the Monarch's killer's own first threat, or 'stall' for a battle played
+// past the sim's bound on turns (turns.js stalled: no clock, a passive side held it); none for a run that did not end
+// in one. Depth (the killer came in a later wave: death.wave) is counted apart (see ladder), so the causes add up to
+// the defeats.
+export const causesOf = (death) => !death ? [] : [death.reason === 'stall' ? 'stall' : death.threat ?? 'none']
 
 // The same seeds at every level: how far planning lifts a run over rules of thumb. The gap between
 // basic and expert is the game's skill range; a gap near zero means the choices barely matter, and an
@@ -1777,7 +1797,7 @@ async function ladder ({ runs, seed: seed0 }) {
     console.log(`${level.padEnd(6)}  ${pct(mine.filter((r) => r.result === 'victory').length).padStart(6)}  ${' '.repeat(8)}${[1, 2, 3, 4].map(died).join('')}  ${pct(battles.filter((b) => b.won).length, battles.length).padStart(11)}  ${avg('relics').padStart(6)}  ${avg('reaped').padStart(6)}`)
   })
   // The Monarch at the run's end (its max HP, its Command, Arise's copies: all relics'), shadows raised per battle,
-  // and what ended the run, by the killer's first threat or the ceiling (causesOf).
+  // and what ended the run, by the killer's first threat or a stall (causesOf).
   console.log('\nlevel   monarch hp  com  arise  raised/battle  deaths by threat')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
@@ -1818,9 +1838,10 @@ async function ladder ({ runs, seed: seed0 }) {
   })
   // reDESIGN's "How to measure it", against its targets: the share of the army that acted at least once
   // (70%+), of defeats where the Monarch died (30–60%), the largest single cause's share of those deaths (no threat
-  // above 40%), and the deaths by a foe of a later wave (depth); the median battle length by floor; and the build
+  // above 40%), the deaths by a foe of a later wave (depth) and the defeats by a stall (no Monarch died: a battle
+  // played past the sim's bound on turns); the median battle length by floor; and the build
   // spread in wins (no build in more than ~25%): the commonest Legendaries, kin and tracks.
-  console.log('\nlevel   acted  Monarch deaths/defeats  top threat  depth  ceiling')
+  console.log('\nlevel   acted  Monarch deaths/defeats  top threat  depth  stalls')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
     const battles = mine.flatMap((r) => r.battles)
@@ -1837,7 +1858,7 @@ async function ladder ({ runs, seed: seed0 }) {
       `${killed.length}/${lost.length} ${share(killed.length, lost.length)}`.padStart(22),
       (top ? `${top[0]} ${share(top[1], killed.length)}` : '-').padStart(10),
       String(killed.filter((r) => r.death.wave).length).padStart(5),
-      String(lost.length - killed.length).padStart(7)
+      String(lost.length - killed.length).padStart(6)
     ]
     console.log(cols.join('  '))
   })

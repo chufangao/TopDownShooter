@@ -5,8 +5,12 @@
 // A round: your turn, where each piece of yours may move up to its Move and then act once (order); End Turn ('end'),
 // where every piece of yours given no act strikes or mends with its basic alone (untouched), the camp plays its turn
 // as one opponent (policy.js foeTurn), and the turn ends: statuses tick, cooldowns fall, a wave whose turn has come
-// enters, the clock advances, and the battle is checked for its end. It is won when no foe stands and none is still
-// to come, lost the instant the Monarch falls, and lost when the clock passes its cap (`deadline`).
+// enters, the turn count advances, and the battle is checked for its end. It is won when no foe stands and none is
+// still to come, and lost only the instant the Monarch falls: there is no clock (redesign.md §2.10). The camp's
+// impatience ends a battle that would drag (policy.js press: full `TUNING.policy.press.turns` after the last wave
+// entered, every foe comes, and tends no one). Only a side that never acts can still hold one forever (it mends the
+// Monarch as fast as the foes in reach hurt it): for the autoplayer and the tests, played out past TUNING.turn.guard
+// turns, a battle ends as a stall (playOut, the `stall` order), never in play order by order, as the interface's.
 //
 // The battle (createBattle) carries: `units` (every unit that has taken its place, in acting order, the dead too),
 // `at` and `sky` (the tile index: the living unit on the ground and in the air on each tile, a 2×2 piece on all four),
@@ -14,14 +18,14 @@
 // `relics` (the run's, every copy owned: run relics work unheld), `arise` (Arise's reach and tier for a holder, the
 // run's: run.js ariseOf), `over`, `winner`, `reason`, `death` (what felled the Monarch); and the turns':
 // `turn` (1-based), `phase` ('orders' while your orders are taken, 'resolving' inside End Turn), `stage` ('party',
-// 'foes' or 'end': whose part of the round it is), `beat` (the index its events carry), `cap` (turns, from the last
-// wave's entry), `waves` ([{ wave, turn, foes, entered }]: the later waves and the turn each enters on), `purse` (the
-// essence the run held as the battle began, less what it has spent here), `spent`, `fused` ([{ recipe, uid, id, lvl,
-// tracks, parts, by, price }]: the fusions made here, for the run; `by` the fuser). On each unit: `move` (its Move
-// now), `moved` (tiles spent this turn), `acted`, `from` (where it stood as its turn began: Undo's tile), `cooldowns`
-// ({ ability id: turns left }), `temper`, `basic` and `mend` (its basic blow and basic heal, ability defs or null),
-// `kit` (its abilities, with what its relics grant: Arise), `relics` (the piece relics it holds, ids: redesign.md
-// §2.15) and `held` (their rules, and its kind's override: rules.js heldRules).
+// 'foes' or 'end': whose part of the round it is), `beat` (the index its events carry), `foeIn` (the turn the last
+// wave came in: the camp's patience counts from it), `waves` ([{ wave, turn, foes, entered }]: the later waves and the
+// turn each enters on), `purse` (the essence the run held as the battle began, less what it has spent here), `spent`,
+// `fused` ([{ recipe, uid, id, lvl, tracks, parts, by, price }]: the fusions made here, for the run; `by` the fuser).
+// On each unit: `move` (its Move now), `moved` (tiles spent this turn), `acted`, `from` (where it stood as its turn
+// began: Undo's tile), `cooldowns` ({ ability id: turns left }), `temper`, `basic` and `mend` (its basic blow and
+// basic heal, ability defs or null), `kit` (its abilities, with what its relics grant: Arise), `relics` (the piece
+// relics it holds, ids: redesign.md §2.15) and `held` (their rules, and its kind's override: rules.js heldRules).
 //
 // Orders (legalOrders lists every one the player may give now; order applies one, throwing on an illegal one):
 //   { type: 'move', uid, tile }                a piece of yours moves to `tile` (reach: within its Move, by a path)
@@ -31,12 +35,13 @@
 //                                              corpse for Arise (a skill of the piece holding an Arise relic)
 //   { type: 'fuse', id, uid, parts }           piece `uid` fuses recipe `id` of `parts` (uids, `uid` among them)
 //   { type: 'end' }                            End Turn
+//   { type: 'stall' }                          past TUNING.turn.guard turns, the battle ends as a stall: never the
+//                                              player's (legalOrders never lists it), the autoplayer's and playOut's
 //
 // Events, each stamped with its `beat` (events of one beat play together):
 //   battle:start, enter, wave, action, damage, miss, heal, status (`dur` in turns), expire, cleanse, death, burst, arise,
-//   tithe, rise, rule, trigger, phase, battle:end (reason 'monarch', 'wipe', 'sovereign' or 'turn-cap')
-//   { type: 'turn', turn, cap, next }          a turn begins: `cap` the last turn before the battle is lost, `next` the
-//                                              next wave ({ wave, turn }) or null
+//   tithe, rise, rule, trigger, phase, battle:end (reason 'monarch', 'wipe', 'sovereign', or 'stall': no winner)
+//   { type: 'turn', turn, next }               a turn begins: `next` the next wave ({ wave, turn }) or null
 //   { type: 'stage', stage }                   'untouched', 'foes' or 'end': a part of the round begins
 //   { type: 'move', actor, from, to, path }    a move (`path`: each tile stepped onto, `to` the last)
 //   { type: 'undo', actor, from, to }          a move undone
@@ -76,16 +81,16 @@ export { rulesOf, holds } from './rules.js'
 // ariseOf; TUNING.arise by default); `essence`, the run's purse as the battle begins (what a fusion here may spend:
 // default 0); `fuse`, per recipe id { price, lvl, tracks }: what it costs here (run.js fuseCost), and the level and
 // tiers its fused kind stands at in the run (a recipe with no price is not made here; no level, the parts' highest; no
-// tiers, none); `cap`, the clock's cap (TUNING.turn.cap); `nextUid`: where the uids of units made here start (by
-// default past every uid here, the reserve's included); battle.nextUid is the first still free when it ends. The foes
-// hold their synergies' rules on every floor, as yours do (redesign.md §2.12).
+// tiers, none); `nextUid`: where the uids of units made here start (by default past every uid here, the reserve's
+// included); battle.nextUid is the first still free when it ends. The foes hold their synergies' rules on every floor,
+// as yours do (redesign.md §2.12).
 //
 // The Monarch (a party unit whose def is `monarch`) stands on its seat: the roads run to it. It holds no relic, never
 // moves, never strikes and never raises. A battle with no Monarch (a test, a sample) has its roads run to the camp's
 // rear middle tile, and ends on a wipe.
 export function createBattle ({
   party, foes, floor = 1, boss = false, partyMods = [], foeMods = [], walls = [], arise = TUNING.arise, nextUid = null,
-  reserve = [], relics = [], ablate = [], quiet = false, essence = 0, fuse = {}, cap = TUNING.turn.cap
+  reserve = [], relics = [], ablate = [], quiet = false, essence = 0, fuse = {}
 }) {
   const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot) })
   const units = [...party.map((u) => stamp(u, 'party')), ...foes.map((u) => stamp(u, 'foe'))]
@@ -102,7 +107,7 @@ export function createBattle ({
     partyMods, foeMods, relics: relics.slice(), unhealable: unhealable(relics),
     at: new Array(TILES).fill(null), sky: new Array(TILES).fill(null), roster: 0, auraReach: 0, auras: [], phased: [],
     syn: {}, cache: new Map(), ruleList: {},
-    turn: 1, phase: 'orders', stage: 'party', beat: 0, cap, foeIn: 1,
+    turn: 1, phase: 'orders', stage: 'party', beat: 0, foeIn: 1,
     purse: essence, spent: 0, fused: [], fuse
   }
   for (const u of units) occupy(battle, u)
@@ -228,9 +233,9 @@ export const nextWave = (battle) => {
   return w ? { wave: w.wave, turn: w.turn } : null
 }
 
-// The last turn played before the battle is lost: the cap counts from the last wave's entry (or the turn a wave still
-// to come is due).
-export const deadline = (battle) => Math.max(battle.foeIn, ...battle.waves.filter((w) => !w.entered).map((w) => w.turn)) + battle.cap - 1
+// How far the camp's patience has run, 0 to 1: the turns since the last wave came in (foeIn), of
+// TUNING.policy.press.turns. At 1 the camp is out of it (policy.js press, hasty): every foe comes. Never shown.
+export const impatience = (battle) => Math.min(1, Math.max(0, (battle.turn - battle.foeIn) / Math.max(1, TUNING.policy.press.turns)))
 
 // A turn of yours begins: every piece of yours whole again, the rules' moment, its Move read, the counts announced.
 function startTurn (battle) {
@@ -240,7 +245,7 @@ function startTurn (battle) {
   call(battle, 'onTurn', 'party', { side: 'party', turn: battle.turn })
   refresh(battle)
   battle.beat++
-  emit(battle, { type: 'turn', turn: battle.turn, cap: deadline(battle), next: nextWave(battle) })
+  emit(battle, { type: 'turn', turn: battle.turn, next: nextWave(battle) })
 }
 
 const ready = (u) => {
@@ -1112,6 +1117,11 @@ export function order (battle, o) {
     endTurn(battle)
     return battle.events.slice(from)
   }
+  if (o.type === 'stall') {
+    if (!stalled(battle) || battle.phase !== 'orders') throw new Error(`a battle stalls only past ${TUNING.turn.guard} turns`)
+    finish(battle, null, 'stall')
+    return battle.events.slice(from)
+  }
   const u = mine(battle, o.uid)
   if (o.type === 'move') {
     const path = u.acted ? null : reach(battle, u).get(o.tile)
@@ -1165,9 +1175,9 @@ function endTurn (battle) {
   battle.phase = 'orders'
 }
 
-// The turn's end: statuses tick and age, cooldowns fall, the clock advances, a wave whose turn has come enters, and
-// the battle is checked: lost once the clock has passed its cap. Each one's cooldowns fall at the rate it played the
-// turn at, read before its statuses age (rateOf).
+// The turn's end: statuses tick and age, cooldowns fall, the turn count advances, a wave whose turn has come enters,
+// and the battle is checked for its end. Each one's cooldowns fall at the rate it played the turn at, read before its
+// statuses age (rateOf).
 function closeTurn (battle) {
   battle.stage = 'end'
   battle.beat++
@@ -1183,9 +1193,11 @@ function closeTurn (battle) {
   }
   battle.turn++
   arrive(battle)
-  if (settle(battle)) return
-  if (battle.turn > deadline(battle)) finish(battle, null, 'turn-cap')
+  settle(battle)
 }
+
+// Whether the battle has run past the sim's bound on turns (TUNING.turn.guard) and may end as a stall (order 'stall').
+export const stalled = (battle) => !battle.over && battle.turn > TUNING.turn.guard
 
 // How many turns `u`'s cooldowns fall at this turn's end (`cooldown.rate`: Hasten's 2): as the turn was played, with
 // every status that held through it, the one whose last turn it was too (so a Hasten of one turn, Ambush's, brings a
@@ -1221,7 +1233,8 @@ function age (battle) {
 
 // The foes whose wave's turn has come enter at the top edge (entryTile: each its lane; one with no free entry tile
 // waits for a later turn's end). Each wave is announced as its first foe enters; once they are in, it is its holders'
-// moment ('wave') and the rules hear of it (onWave). The clock's cap counts from the last entry (foeIn).
+// moment ('wave') and the rules hear of it (onWave). The camp's patience counts from the last wave's first entry
+// (foeIn): a straggler that waited for a free tile is that wave's, and never sets it back.
 function arrive (battle) {
   const begun = []
   for (const foe of battle.reserve.slice()) {
@@ -1231,12 +1244,11 @@ function arrive (battle) {
     const wave = (foe.wave ||= 1)
     battle.reserve.splice(battle.reserve.indexOf(foe), 1)
     if (battle.waveAt[wave] === undefined) {
-      battle.waveAt[wave] = battle.turn
+      battle.waveAt[wave] = battle.foeIn = battle.turn
       begun.push(wave)
       emit(battle, { type: 'wave', wave })
     }
     const unit = enterBattle(battle, { ...foe, side: 'foe', tile })
-    battle.foeIn = battle.turn
     emit(battle, { type: 'enter', unit: { uid: unit.uid, id: unit.id, side: unit.side, tile: unit.tile, lvl: unit.lvl, hp: unit.hp, maxHp: unit.maxHp, ...marks(unit) } })
     const w = battle.waves.find((x) => x.wave === wave)
     if (w) w.entered = true
@@ -1261,8 +1273,13 @@ export function playTurns (battle, n, policy = basicTurn) {
   return battle
 }
 
-// Plays a battle to its end (playTurns). Returns the battle.
-export const playOut = (battle, policy = basicTurn) => playTurns(battle, Infinity, policy)
+// Plays a battle to its end (playTurns), or, still going once TUNING.turn.guard turns are played, to a stall (the
+// autoplayer's rehearsals and the tests: a passive side may hold a battle forever). Returns the battle.
+export function playOut (battle, policy = basicTurn) {
+  playTurns(battle, Math.max(0, TUNING.turn.guard + 1 - battle.turn), policy)
+  if (stalled(battle)) order(battle, { type: 'stall' })
+  return battle
+}
 
 // What a blow would do, shown before it is committed (redesign.md §2.4): the act played on a copy of the battle
 // (fork), read back from its events: `damage` dealt to `target`, `counter` the damage its answer would deal the actor,

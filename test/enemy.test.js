@@ -2,7 +2,7 @@
 // sieges, the Sovereign's court and its Grave Tide, the depth threat.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, perform, corpses, deadline, entryTurn, fork, addStatus } from '../src/sim/turns.js'
+import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode
@@ -232,8 +232,8 @@ test('waves come on fixed turns, whatever the field: wave k at turn 1 + k × eve
   const seen = []
   while (!b.over && b.turn <= 1 + 2 * W.every) seen.push(...turns(b).filter((e) => e.type === 'enter').map((e) => [b.turn, e.unit.uid]))
   assert.deepEqual(seen, [[1 + W.every, 20], [1 + W.every, 21], [1 + 2 * W.every, 30]])
-  // The clock's cap counts from the last wave's turn.
-  assert.equal(deadline(b), 1 + 2 * W.every + b.cap - 1)
+  // The camp's patience counts from the last wave's turn (no clock).
+  assert.deepEqual([b.foeIn, impatience(b)], [1 + 2 * W.every, (b.turn - b.foeIn) / TUNING.policy.press.turns])
   const empty = make()
   for (const uid of [10, 11, 12]) slay(empty, unit(empty, uid))
   turns(empty)

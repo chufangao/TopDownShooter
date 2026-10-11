@@ -45,7 +45,7 @@ const page = {
 }
 for (const [k, value] of Object.entries(page)) Object.defineProperty(globalThis, k, { value, configurable: true, writable: true })
 
-const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf, roomSynergies, roomTip, DEEP_TEXT } = await import('../src/codex.js')
+const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf, roomSynergies, roomTip, DEEP_TEXT, ENEMY_TEXT } = await import('../src/codex.js')
 const { KEYWORDS } = await import('../src/keywords.js')
 const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, temperLine } = await import('../src/content.js')
 const { makeUnit } = await import('../src/sim/unit.js')
@@ -113,6 +113,14 @@ test('How to play is the turn\'s: a turn is yours, the untouched strike with the
   assert.ok(text.includes('never a skill') && text.includes('No dice'))
   assert.ok(/piece relic works through the soul you give it to/.test(text) && /Arise is one/.test(text), 'held relics (redesign.md §2.15)')
   assert.ok(!/never moves'?\.|stop line|rings? cover|\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit/i.test(text), text.match(/.{0,40}(never moves|stop line|rings? cover|\bring\b|gauge|ACC|EVA|CRT|crit).{0,40}/i)?.[0])
+})
+
+// No clock (redesign.md §2.10): nothing the player reads speaks of one, of turns left, or of a battle lost by time.
+test('no word, no line of How to play and no wave tip speaks of a clock, a cap on turns or a battle lost undecided', () => {
+  const text = [codexView(createRun({ seed: 'codex' })).textContent, ...Object.values(KEYWORDS).map((k) => k.line), ...Object.values(ENEMY_TEXT)].join(' ')
+  const gone = /\bclock\b|undecided|turns? left|last turn|\bthe cap\b|dragged on/i
+  assert.ok(!gone.test(text), text.match(new RegExp(`.{0,40}(${gone.source}).{0,40}`, 'i'))?.[0])
+  assert.ok(/lost only the instant the Monarch falls|lasts until no foe is left, or the Monarch falls/.test(text), 'what ends a battle')
 })
 
 test('a relic card says Run or Held; a soul\'s card shows its relic slot, the Monarch\'s none, and no stat but HP, ATK, DEF and Move', () => {

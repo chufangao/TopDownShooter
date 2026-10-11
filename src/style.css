@@ -378,10 +378,9 @@ b { font-weight: 600; color: var(--bright); }
 .death-threat b { color: #f08a98; }
 
 /* ── the battle's chrome (ui.js battleChrome) ─────────────────────────────────────────────────── */
-/* Prep's layout kept: the thin strip over the board (the room, the turn and its clock bar, the wave, the purse), the
-   slim panel beside it (the Monarch's HP, the selected piece's orders, the synergies, the rules, the controls at its
-   foot), and
-   between them the stage, which takes no presses: the board is the canvas behind the page. */
+/* Prep's layout kept: the thin strip over the board (the room, the turn, the wave, the purse), the slim panel beside
+   it (the Monarch's HP, the selected piece's orders, the synergies, the rules, the controls at its foot), and between
+   them the stage, which takes no presses: the board is the canvas behind the page. */
 .battle-screen { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 10px 8px; pointer-events: none; }
 .battle-top {
   pointer-events: auto; flex: none; display: flex; align-items: center; gap: 16px; min-height: var(--top-h); margin: 0 -10px; padding: 0 14px;
@@ -400,13 +399,10 @@ b { font-weight: 600; color: var(--bright); }
 .bs-row { display: flex; align-items: center; gap: 8px; }
 .bs-row .segs { flex: 1; }
 .bs-row .segs .seg { flex: 1; }
-/* The wave under way, of how many; the bar the turn clock runs down (board.css .turn-clock). */
+/* The wave under way, of how many, and the next one's turn (the turn's count: board.css .turn-n). */
 .wave-n { color: #f0a0ac; font-weight: 600; }
 .wave-n[hidden] { display: none !important; }
 .wave-n b { color: #ffd0d6; }
-.esc-bar { position: relative; display: block !important; width: 150px; height: 12px; border-radius: 6px; background: #07060b; box-shadow: inset 0 0 0 1px #3a3258; overflow: hidden; }
-.esc-fill { position: absolute; left: 0; top: 0; bottom: 0; display: block !important; background: linear-gradient(90deg, #6a5a9a, #9a8ad0); transition: width .4s linear; }
-@media (prefers-reduced-motion: reduce) { .esc-fill { transition: none; } }
 .segs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .segs .seg { border: none; border-radius: 0; border-right: 1px solid var(--line); }
 .segs .seg:last-child { border-right: none; }

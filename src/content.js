@@ -99,7 +99,7 @@ export const UNIT_LIST = [
         { desc: 'Learns Bone Storm: shards strike every foe within 4 tiles.', ability: { id: 'bone_storm' } }] }
     ],
     spawn: { weight: 14, minFloor: 1 },
-    threats: ['reach', 'drain', 'clock'],
+    threats: ['reach', 'drain', 'sustain'],
     behaviour: 'walk',
     flavour: 'Its warband marches to the dirge, or waits close about the singer while the song lasts.'
   },
@@ -216,7 +216,7 @@ export const UNIT_LIST = [
         { desc: 'Learns Molt: strips up to 3 debuffs from itself and every ally within 2 tiles.', ability: { id: 'molt' } }] }
     ],
     spawn: { weight: 9, minFloor: 1 },
-    threats: ['clock'],
+    threats: ['sustain'],
     behaviour: 'walk',
     flavour: 'A warden never strays far from its comb, and its swarm keeps close about it.'
   },
@@ -245,7 +245,7 @@ export const UNIT_LIST = [
         { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
     ],
     spawn: { weight: 12, minFloor: 1 },
-    threats: ['clock'],
+    threats: ['sustain'],
     behaviour: 'walk',
     flavour: 'A page was wound to tend its betters: it oils the seized joint, picks the curse from the plate, and marches on.'
   },
@@ -333,7 +333,7 @@ export const UNIT_LIST = [
         { desc: 'Thorn Lash becomes Briar Lash: it reaches 2 tiles, and leaves everyone level with its target Brittle.', ability: { id: 'briar_lash', replace: 'thorn_lash' } }] }
     ],
     spawn: { weight: 9, minFloor: 2 },
-    threats: ['clock'],
+    threats: ['sustain'],
     behaviour: 'walk',
     flavour: 'A dryad is rooted where it stands, and pulls its roots up slowly when it must move.'
   },
@@ -689,7 +689,7 @@ export const UNIT_LIST = [
         { desc: 'Royal Scythe becomes Swarm Scythe: 34 power to a foe and every foe next to it.', ability: { id: 'swarm_scythe', replace: 'royal_scythe' } },
         { desc: 'Swarm Scythe becomes Reaping Swarm: it reaches 2 tiles, and leaves them Brittle.', ability: { id: 'reaping_swarm', replace: 'swarm_scythe' } }] }
     ],
-    threats: ['clock'],
+    threats: ['sustain'],
     flavour: 'Two wardens and the reaper they kept, crowned: the comb is wherever she stands, and so is the harvest.'
   },
   {
@@ -769,7 +769,7 @@ export const UNIT_LIST = [
     temper: TEMPERS.court,
     phases: [{ at: 0.6, grant: 'enraged' }, { at: 0.25, grant: 'desperate' }],
     rule: 'sovereign',
-    threats: ['shape', 'clock'],
+    threats: ['shape', 'sustain'],
     behaviour: 'walk',
     flavour: 'It does not fight alone: its court walks with it, and the dead of the field rise at its tide. Without it, they are dust.'
   }
@@ -1923,7 +1923,7 @@ export const THREATS = {
   reach: { name: 'Reach', desc: 'Strikes from afar, over whatever stands in front of it.' },
   shape: { name: 'Shape', desc: 'Hits a whole row, lane or crowd at once.' },
   drain: { name: 'Drain', desc: 'Hexes, saps strength or rots defence.' },
-  clock: { name: 'Clock', desc: 'Drags a fight on toward the end of the clock.' },
+  sustain: { name: 'Sustain', desc: 'Keeps its side fighting: mends, wards, hastens or cleanses it, or raises its dead, so what you deal may not stay dealt.' },
   fly: { name: 'Fly', desc: 'Comes over the walls, never through your pieces, and only a ranged blow (or a flyer\'s melee) can touch it.' },
   burn: { name: 'Burn', desc: 'Leaves a fire that keeps hurting after the blow.' },
   bleed: { name: 'Bleed', desc: 'Opens wounds that bleed deeper with every blow.' },

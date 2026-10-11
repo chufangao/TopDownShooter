@@ -629,8 +629,8 @@ function fight (run) {
   if (run.battle.over) closeBattle(run)
 }
 
-// The orders a battle takes (turns.js order).
-const ORDERS = ['move', 'undo', 'act', 'fuse', 'end']
+// The orders a battle takes (turns.js order): 'stall' only past the sim's bound on turns, the autoplayer's alone.
+const ORDERS = ['move', 'undo', 'act', 'fuse', 'end', 'stall']
 
 // An order in the battle: given (turns.js order, which throws on one not legal now), logged, and its events
 // returned; the battle over, the run moves on (closeBattle).
@@ -1000,7 +1000,9 @@ function finishBattle (run) {
     s.phase = 'over'
     // A fall in the deep, past the Sovereign, leaves the clear standing.
     if (s.result !== 'victory') s.result = 'defeat'
-    s.death = b.reason === 'monarch' ? { ...b.death, reason: 'monarch' } : { by: null, reason: b.reason, threat: 'clock' }
+    // Only the Monarch's fall loses a battle in play (no clock: redesign.md §2.10); the autoplayer's battle may also
+    // end as a stall (turns.js stalled), a loss that is no one's blow.
+    s.death = b.reason === 'monarch' ? { ...b.death, reason: 'monarch' } : { by: null, reason: b.reason, threat: null }
     return
   }
   s.stats.wins++

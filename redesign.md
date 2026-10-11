@@ -72,7 +72,7 @@ map, the Monarch pre-placed on `'M'`. Roads: the Walk field flooded from the Mon
 2. **The untouched act** (§2.5): every piece of yours that was given no act this turn strikes or mends by the old AI.
 3. **The foes' turn** (§2.9): the camp reads its pressure and its danger map, and each foe moves and acts.
 4. **The turn ends**: statuses tick (§2.8), cooldowns fall by one, a wave enters if its turn has come (§2.10), the
-   clock advances, the battle is checked for its end.
+   turn count advances, the battle is checked for its end.
 
 The run's `fight` action opens the battle (`phase: 'battle'`), and the orders go into the run's log like any
 action: `replay(seed, log)` plays the battle back exactly, order by order.
@@ -171,8 +171,8 @@ Every status carries a `colour`; the engine draws a generic pall in it unless a 
 
 The camp plays its side as one player would. Every foe turn:
 
-**1. Pressure (the side).** One number, `press`, from 0 to 1: it rises with the clock (0 at the first turn, 1 at
-the cap, §2.10) and is nudged by strength (up when the camp's foes could deal more to your pieces in reach than yours
+**1. Pressure (the side).** One number, `press`, from 0 to 1: it rises with the turns since the last wave entered
+(0 then, 1 after `TUNING.policy.press.turns`; never shown, §2.10) and is nudged by strength (up when the camp's foes could deal more to your pieces in reach than yours
 to them, down when less; `TUNING.policy.press`, placeholders). Low, the camp holds at the edge of your reach and
 shoots what it can; high, it comes in and trades; at 1 the Monarch is every foe's prey. The opponent gets impatient,
 not stronger. The player sees the horde stop at their rings and wait, then come. `press` in `src/sim/policy.js`.
@@ -231,15 +231,21 @@ slice.
 
 Walk and Fly stay as **how a kind moves** (the road, the air road); the way line says **how it thinks**.
 
-### 2.10 Waves and the clock
+### 2.10 Waves, and no clock
 
 - **Waves enter on fixed turns**, shown on the wave counter ("wave 2 on turn 5"): `TUNING.spawn.waves.every`
   turns apart (placeholder 4), the first at turn 1. The `share` and `t` triggers go. Sieges are three waves with no
-  prep between them. The clock is time, not behaviour, so showing it breaks no rule (§7).
-- **The clock counts turns**, from the last wave's entry: `TUNING.turn = { cap: 20 }` replaces `tick.ceiling` and
-  the whole of `escalation`. There is no damage ramp: the pressure (§2.9.1) rises to 1 at the cap, and a battle
-  undecided at the cap is lost. One clock bar, always visible.
-- Won when no foe stands and no wave is left; lost when the Monarch falls or the cap is reached. A boss's fall
+  prep between them. A wave's turn is time, not behaviour, so showing it breaks no rule (§7).
+- **There is no clock** (the user, 2026-10-10 night: "Remove clock from game"; it was a cap of 20 turns, a battle
+  undecided there lost, and a clock bar). No turn cap, no clock bar, no loss by time, no damage ramp. What ends a
+  battle is the camp's impatience: the pressure (§2.9.1) rises with the turns since the last wave, and **at full
+  pressure every foe advances along its road as far as its Move and the board allow** (its aggression is at least 1
+  there and the Monarch is its prey) **and tends no one** (no heal, cleanse or ward on its own side), so the horde
+  always comes and a battle always ends once you engage. Patience counts from each wave's first entry (a straggler
+  does not reset it). Only a passive side can still hold a battle forever (it heals the Monarch as fast as the foes
+  in reach hurt it); the autoplayer and the tests end such a battle at `TUNING.turn.guard` turns as a **stall**, a
+  loss with no killer, counted apart. Turn-by-turn play has no bound. The `clock` threat became `sustain`.
+- Won when no foe stands and no wave is left; lost when the Monarch falls. A boss's fall
   crumbles its side. Defeat ends the run.
 
 ### 2.11 Growth: the Shop
@@ -371,6 +377,16 @@ power. Deathblow (a sure crit) becomes an execute: a blow of yours on a foe belo
 (placeholder). The run's draws (the map, the rooms, the recruits, the Shop's stock) stay seeded: they are the run,
 not a roll. This reverses §2.6's "kept behind the switch" and closes §6's open question on dice.
 
+### 2.17 The expert plans ahead (2026-10-10, night)
+
+The user's word: "Expert should plan ahead". The expert's turn (`expertTurn`) was greedy piece by piece over three
+or four candidate plans, judged by one foe turn played ahead. It now searches: more candidate plans a turn (piece
+orders, focus on one foe, holding back out of the danger map, each fusion, each Arise), each judged by **two rounds
+played ahead** (the foes' turn, its own next turn by the greedy pass, the foes' turn again), valuing HP traded, kills,
+the Monarch's safety, and the wounds that carry out of the battle. It still reads only the board (the camp's policy
+is deterministic and learnable, §2.9.3). Its cost is bounded so that an expert run stays seconds, not minutes; the
+autoplayer's rehearsals may use the cheaper one-round turn where the formation search would otherwise cost minutes.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -382,8 +398,9 @@ not a roll. This reverses §2.6's "kept behind the switch" and closes §6's open
    comes into your reach at all, is the camp's judgement: it is learnt by meeting the kinds, and the bestiary keeps
    a line on each once met. Nothing of the foes' coming turn is drawn.
 5. **No dice.** The same board, the same orders, the same battle.
-6. **The clock is shown and the camp knows it**: the waves' turns are on the counter, and a horde that waits at the
-   edge of your reach comes as the clock runs down. It never hits harder; it only stops waiting.
+6. **No clock.** A battle is lost only when the Monarch falls. The waves' turns are on the counter, and a horde
+   that waits at the edge of your reach comes in time: the camp grows impatient. It never hits harder; it only stops
+   waiting.
 7. **Shops sell relics**, as many as you can pay for, and nothing else sells them. The fallen leave the field, wounds
    carry, essence binds, as `DESIGN.md` §3 has them.
 
@@ -406,7 +423,7 @@ Shift or a key; the board on its side, BTD-sized, a tile never under 44 CSS px o
   `src/engine.js` keeps its queue, hit-stop, speed and skip; events carry a beat index rather than a tick. At
   speed 4 only `ESSENTIAL` ops play, as now. The pressure is never shown; the player reads it from where the horde
   stops.
-- **Counts on the board**: the turn, the clock bar by turns, the wave counter with the next wave's turn; Hexed as the
+- **Counts on the board**: the turn, the wave counter with the next wave's turn; Hexed as the
   violet pall it is today; every other status a pall in its `colour`; a cooldown pip on a sprite's skill icon.
 - **The Shop**: the offer panel with a price on each relic and the purse in the bar; buy lights what can be paid for;
   a Leave button. A won elite's panel: its essence and its recruit.
@@ -606,7 +623,7 @@ model ("adding a new unit / relics / merges should be straightforward and modula
     checklist.
 
 Taken that night, after the slice (Step 3: "go"): **held relics** and **Arise a held skill** (§2.15); **no dice
-at all** (§2.16).
+at all** (§2.16). After the bug hunts: **no clock** (§2.10), and **the expert plans ahead** (§2.17).
 
 Open, decided later:
 
@@ -618,7 +635,7 @@ Open, decided later:
 
 Decided before this document and still in force (the project memory has the reasons):
 
-- Enemy behaviour is discovered, never previewed: roads are terrain and are shown; the clock and the waves' turns
+- Enemy behaviour is discovered, never previewed: roads are terrain and are shown; the waves' turns
   are time and are shown; a kind's reach, Move and way line are learnt by meeting it, then recorded; nothing of the
   foes' coming turn is drawn.
 - Defeat is absolute. No lives, no retreat.

@@ -242,7 +242,7 @@ export function runScreen ({ run, act, trail, note = '', onNode = null, onFight 
             ? h('div', { class: 'syn-tip' }, h('b', null, 'Begin the battle'), say(' (Enter)', ''),
               h('p', null, 'Turn by turn: each piece of yours moves, then acts, on your orders; then the foes take their turn.'),
               lone() && h('p', { class: 'warn' }, 'No soul stands on the field: the Monarch fights alone, and it never strikes.'),
-              h('p', { class: 'warn' }, `Losing ends the run: the Monarch falling loses at once, and so does a battle still undecided ${TUNING.turn.cap} turns after the last wave entered.`))
+              h('p', { class: 'warn' }, 'Losing ends the run: the battle is lost the instant the Monarch falls.'))
             : 'The Monarch has fallen.'
         }, icon('play', 22), ' Begin ', h('kbd', null, 'Enter'))),
       meter,
@@ -1616,17 +1616,15 @@ export function endScreen ({ run, onNew, onDescend, onHelp }) {
   const n = TUNING.run.floors
   const cleared = Math.min(s.stats.floorsCleared, n)
   const deeper = s.stats.floorsCleared - cleared
-  const fell = lost?.reason === 'turn-cap' ? 'a battle dragged on past its last turn, and the dark took you' : 'the Monarch fell'
   const tagline = descend ? 'The Hollow Sovereign falls, its court crumbles to dust with it, and its soul is yours. The run is cleared, and that stands whatever comes next.'
-    : won ? `The Hollow Sovereign fell to you. Then, on floor ${s.floor}, ${deep} floor${deep === 1 ? '' : 's'} below it, ${fell}. The clear stands.`
-      : lost?.reason === 'turn-cap' ? `On floor ${s.floor} the battle dragged on past its last turn, and the dark took you.`
-        : `The Monarch fell on floor ${s.floor}, and the run with it.`
+    : won ? `The Hollow Sovereign fell to you. Then, on floor ${s.floor}, ${deep} floor${deep === 1 ? '' : 's'} below it, the Monarch fell. The clear stands.`
+      : `The Monarch fell on floor ${s.floor}, and the run with it.`
   const newRun = h('button', { class: descend ? 'ghost big' : 'primary big', onclick: onNew, tip: () => `Start again with a new seed. (${descend ? 'N' : 'Enter'})` },
     'New run ', h('kbd', null, descend ? 'N' : 'Enter'))
   const stat = (ico, sys, v, label, name) => h('div', { class: 'end-stat', style: `--s:var(--c-${sys})`, tip: () => name }, h('span', { class: 'end-val' }, icon(ico, 22), h('b', null, v)), h('span', { class: 'lbl' }, label))
   const views = [
     descend && { id: 'deep', name: 'The deep', body: () => [h('p', null, DEEP_TEXT.descend), h('p', { class: 'dim' }, DEEP_TEXT.growth), h('p', { class: 'warn' }, DEEP_TEXT.fall)] },
-    lost && { id: 'death', name: lost.reason === 'turn-cap' ? 'How it ended' : 'What felled you', body: () => deathPanel(s, run.battle) },
+    lost && { id: 'death', name: 'What felled you', body: () => deathPanel(s, run.battle) },
     s.relics.length > 0 && { id: 'relics', name: 'Relics', body: () => [h('h2', null, 'Relics'), relicList(s.relics, run)] },
     { id: 'retinue', name: descend ? 'Your retinue' : 'Final retinue', body: () => h('div', { class: 'units' }, s.party.slice().sort(fieldOrder).map((u) => unitRow(run, u))) }].filter(Boolean)
   const tabs = h('div', { class: 'tabs end-tabs', role: 'tablist' })
@@ -1721,17 +1719,16 @@ const WALL_ART = ['wall-0', 'wall-1', 'wall-2'].map((w) => new URL(`./assets/pro
 // ── the battle's chrome ──────────────────────────────────────────────────────────────────────────
 
 // The battle keeps prep's layout, so the board does not move as one fades into the other: a thin strip over the
-// board (the room, the turn and the clock bar by turns: what is left before the cap, the wave counter with the next
-// wave's turn, the essence carried), and the slim panel beside it (redesign.md §4): the Monarch's HP, the selected
-// piece's orders (its acts, each skill with its cooldown pip, Arise for a holder of its relic, Undo, Fuse), their
-// synergies and yours (each with the rule it brings, live from the battle), the rules as they strike, and at its foot
-// End Turn, always, then pause, speed and skip, which change only how the playback is shown. The board takes the rest
-// (stage: engine.js fits it there).
+// board (the room, the turn, the wave counter with the next wave's turn, the essence carried; no clock: redesign.md
+// §2.10), and the slim panel beside it (redesign.md §4): the Monarch's HP, the selected piece's orders (its acts, each
+// skill with its cooldown pip, Arise for a holder of its relic, Undo, Fuse), their synergies and yours (each with the
+// rule it brings, live from the battle), the rules as they strike, and at its foot End Turn, always, then pause, speed
+// and skip, which change only how the playback is shown. The board takes the rest (stage: engine.js fits it there).
 const SPEEDS = [1, 2, 4]
 
 export function battleChrome ({ onHelp = null } = {}) {
   let scene = null
-  let st = { paused: false, speed: 1, over: false, essence: 0, wave: 1, waves: 1, turn: 1, last: 1, cap: 1, next: null, busy: true, panel: null }
+  let st = { paused: false, speed: 1, over: false, essence: 0, wave: 1, waves: 1, turn: 1, next: null, busy: true, panel: null }
   let carried = 0
   const noFocus = (e) => e.preventDefault()
   const btn = (attrs, ...kids) => h('button', { tabindex: '-1', onmousedown: noFocus, ...attrs }, ...kids)
@@ -1762,15 +1759,13 @@ export function battleChrome ({ onHelp = null } = {}) {
     ? syns.map((x) => h('span', { class: 'bs-syn rule', tip: () => h('div', { class: 'syn-tip' }, h('b', null, `${x.name}: ${x.rule}`), ' ', x.text) }, `${x.name} · `, h('b', null, x.rule)))
     : h('span', { class: 'dim' }, 'none'))
   const stage = h('div', { class: 'battle-stage' }, h('div', { class: 'pause-veil', 'aria-hidden': 'true' }, h('span', null, icon('pause', 26), 'Paused')))
-  // The turn and the clock bar (the turns left before the cap, of the cap), the wave counter.
+  // The turn and the wave counter: counts, never a clock.
   const turnN = h('b')
-  const clockFill = h('span', { class: 'esc-fill' })
-  const leftN = h('span', { class: 'turn-left' })
   const turnEl = h('span', {
-    class: 'turn-clock',
+    class: 'turn-n',
     tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Turn ${st.turn}`), ' ',
-      `The battle is lost if it is still undecided after turn ${st.last}: ${TUNING.turn.cap} turns from the last wave's entry. The foes know the clock too: the nearer the end, the less they wait.`)
-  }, icon('turn', 18), turnN, h('span', { class: 'esc-bar' }, clockFill), leftN)
+      'Yours, then the foes\'. The battle lasts until no foe is left, or the Monarch falls.')
+  }, icon('turn', 18), turnN)
   const waveT = h('b')
   const waveNext = h('span', { class: 'dim' })
   const waveTurn = h('span', {
@@ -1859,11 +1854,7 @@ export function battleChrome ({ onHelp = null } = {}) {
     pause.classList.toggle('active', st.paused)
     el.classList.toggle('paused', st.paused && !st.over)
     el.classList.toggle('over', !!st.over)
-    const left = Math.max(0, st.last - st.turn + 1)
     turnN.textContent = `Turn ${st.turn}`
-    leftN.textContent = `${left} left`
-    clockFill.style.width = `${Math.min(1, left / Math.max(1, st.cap)) * 100}%`
-    turnEl.classList.toggle('low', left <= 3)
     waveT.textContent = `${st.wave}/${st.waves}`
     waveNext.textContent = st.next ? ` · next on turn ${st.next.turn}` : ''
     waveTurn.hidden = st.waves < 2

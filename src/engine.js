@@ -6,7 +6,7 @@ import Phaser from './vendor/phaser.js'
 import { TUNING } from './tuning.js'
 import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, FUSIONS } from './content.js'
 import {
-  reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, deadline, nextWave, holds, synergiesOf, ariseOf
+  reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf
 } from './sim/turns.js'
 import { foeEssence } from './sim/run.js'
 import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, footprint, alive, isBlow } from './sim/unit.js'
@@ -405,15 +405,15 @@ class BattleScene extends Phaser.Scene {
     this.battle = data.battle
     // No clock to step: the playback runs on its own time (TimelinePlayer, by beat), and between orders the board
     // waits for the player. `sel`: the piece selected ({ uid, ability: the act armed, aim: the target previewed,
-    // reach: its Move range, targets }); `waiting`: an order's events still playing (input locked); `clock`: the turn,
-    // the last turn before the cap, the next wave and the wave under way, as the playback last announced them (the sim
-    // is a whole End Turn ahead of it); `synKey`: the synergies the chrome last showed.
+    // reach: its Move range, targets }); `waiting`: an order's events still playing (input locked); `counts`: the turn,
+    // the next wave and the wave under way, as the playback last announced them (the sim is a whole End Turn ahead of
+    // it); `synKey`: the synergies the chrome last showed.
     this.speed = 1
     this.paused = false
     this.playMs = 0
     this.sel = null
     this.waiting = false
-    this.clock = { turn: this.battle.turn, cap: deadline(this.battle), next: nextWave(this.battle), wave: 1 }
+    this.counts = { turn: this.battle.turn, next: nextWave(this.battle), wave: 1 }
     this.synKey = null
     this.ending = false
     this.hover = null
@@ -609,15 +609,15 @@ class BattleScene extends Phaser.Scene {
     done()
   }
 
-  // What the chrome shows: the turn as the playback has reached it, the last turn before the cap, the next wave (turn
-  // events), the wave under way (wave events), the purse, whether input waits (busy), and the selected piece's panel
-  // (panel); and each side's synergies with their rules, from the battle (a fuse, a fall, a rise or a wave may change
-  // them), sent only when they change. The sim is a whole order ahead of the playback, so they are read only once it
+  // What the chrome shows: the turn as the playback has reached it, the next wave (turn events), the wave under way
+  // (wave events), the purse, whether input waits (busy), and the selected piece's panel (panel); and each side's
+  // synergies with their rules, from the battle (a fuse, a fall, a rise or a wave may change them), sent only when they
+  // change. The sim is a whole order ahead of the playback, so they are read only once it
   // has played out (or at the start and the end): a fall in the foes' turn never shows before it is seen. Nothing of
   // the foes' coming turn.
   changed () {
     const b = this.battle
-    const c = this.clock
+    const c = this.counts
     if (this.synKey === null || !this.locked() || this.ending) {
       const syn = (side) => synergyLabels(synergiesOf(b, side))
       const now = { theirs: syn('foe'), mine: syn('party') }
@@ -626,7 +626,7 @@ class BattleScene extends Phaser.Scene {
     }
     this.args.onChange?.({
       paused: this.paused, speed: this.speed, over: this.ending, essence: this.purse,
-      turn: c.turn, last: c.cap, cap: b.cap, next: c.next, wave: c.wave, waves: Math.max(c.wave, this.waves.length),
+      turn: c.turn, next: c.next, wave: c.wave, waves: Math.max(c.wave, this.waves.length),
       busy: this.locked(), panel: this.panel()
     })
   }
@@ -1331,7 +1331,7 @@ class BattleScene extends Phaser.Scene {
 
   // A turn of yours begins. Its counts go to the chrome, and its number shows a moment over the board.
   newTurn (ev) {
-    this.clock = { ...this.clock, turn: ev.turn, cap: ev.cap, next: ev.next }
+    this.counts = { ...this.counts, turn: ev.turn, next: ev.next }
     this.changed()
     this.flag(`TURN ${ev.turn}`, C.soul2, SOUL)
   }
@@ -1617,10 +1617,10 @@ class BattleScene extends Phaser.Scene {
     // The opening formation is wave 1 but stands there from the start: only a later wave is announced.
     if (ev.type === 'wave') {
       // The wave under way, and the one after it by the schedule until the next turn's event tells it (turns.js waves).
-      this.clock.wave = Math.max(this.clock.wave, ev.wave + 1)
-      if (this.clock.next && this.clock.next.wave <= ev.wave) {
+      this.counts.wave = Math.max(this.counts.wave, ev.wave + 1)
+      if (this.counts.next && this.counts.next.wave <= ev.wave) {
         const w = this.battle.waves.find((x) => x.wave > ev.wave)
-        this.clock.next = w ? { wave: w.wave, turn: w.turn } : null
+        this.counts.next = w ? { wave: w.wave, turn: w.turn } : null
       }
       this.changed()
       return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined
@@ -1866,13 +1866,9 @@ class BattleScene extends Phaser.Scene {
   // The end. A win or a loss names itself in a banner across the board. A loss is the run's end, so it plays a
   // beat longer as a replay of the facts the end screen keeps (args.death, codex.js deathText): the killer
   // ringed in red where it struck from, the Monarch in gold, the blow struck between them, and who, with what,
-  // from where, in the banner, set over their half of the board so the camp stays in view. A battle that ran out
-  // its clock says so.
+  // from where, in the banner, set over their half of the board so the camp stays in view.
   finish () {
     const reason = this.battle.reason
-    // The clock ran out: its cap. The turn past it began (no turn event says so), and the bar reads 0 left.
-    const capped = reason === 'turn-cap'
-    if (capped) this.clock = { ...this.clock, turn: Math.max(this.clock.turn, this.battle.turn) }
     // No piece takes orders now: the panel says the battle is over.
     this.sel = null
     this.dropMarks()
@@ -1890,10 +1886,9 @@ class BattleScene extends Phaser.Scene {
     const clear = this.battle.floor > TUNING.run.floors ? ' The clear stands.' : ''
     // A boss room (battle.boss, as finishBattle reads it) has no reap: the Sovereign's fall clears the run.
     const [title, line] = won ? (this.battle.boss ? ['THE SOVEREIGN FALLS', `${reason === 'sovereign' ? 'Its court crumbled with it. ' : ''}The run is cleared.`] : ['VICTORY', 'The souls of the slain linger, waiting to be reaped.'])
-      : death ? [capped ? 'THE DARK CLOSES IN' : 'THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
+      : death ? ['THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
         : reason === 'monarch' ? ['THE MONARCH FALLS', `Its retinue crumbles with it. The run is over.${clear}`]
-          : capped ? ['THE DARK CLOSES IN', `Still undecided at the last turn: the run is lost.${clear}`]
-            : ['YOUR RETINUE FALLS', 'The dead return to the dark.']
+          : ['YOUR RETINUE FALLS', 'The dead return to the dark.']
     const killer = death && reason === 'monarch' && death.from != null && death.by !== this.monarch ? death.from : null
     const crown = this.actors.get(this.monarch)
     if (killer != null && crown) this.endBeat = { from: posOf(killer), to: { x: crown.home.x, y: crown.home.y }, t0: this.time.now }

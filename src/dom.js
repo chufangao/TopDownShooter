@@ -272,7 +272,8 @@ const PATHS = {
   pause: '<path d="M8 5v14M16 5v14" stroke-width="3"/>',
   skip: '<path d="M5 5l8 7-8 7zM13 5l8 7-8 7z" fill="currentColor"/>',
   undo: '<path d="M9 7L4.5 11.5 9 16"/><path d="M4.5 11.5H14a4.5 4.5 0 0 1 0 9h-4"/>',
-  turn: '<path d="M6.5 3h11M6.5 21h11M7.5 3c0 4.5 4.5 5.5 4.5 9s-4.5 4.5-4.5 9M16.5 3c0 4.5-4.5 5.5-4.5 9s4.5 4.5 4.5 9"/><path d="M9.5 19.5h5l-2.5-3z" fill="currentColor"/>',
+  // A turn: a round, two arrows chasing (yours, then the foes'), a count and never an hourglass: there is no clock.
+  turn: '<path d="M21.1 5.4v5h-5M2.9 18.6v-5h5"/><path d="M5 9.5a7.5 7.5 0 0 1 12.3-2.8l3.8 3.6M2.9 13.7l3.8 3.6a7.5 7.5 0 0 0 12.3-2.8"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   // The Monarch: a circlet under a crown of three flames.
   crown: '<path d="M5.5 20.5h13l-.8-4.5H6.3z"/><path d="M8.5 16c-1.6-1.8-1-3.8 0-5.2.4 1.4 1.4 2 1.4 2M12 16c-2.2-2.6-1.4-6 0-8.5 1.4 2.5 2.2 5.9 0 8.5M15.5 16c1.6-1.8 1-3.8 0-5.2-.4 1.4-1.4 2-1.4 2"/>',

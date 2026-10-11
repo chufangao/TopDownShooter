@@ -26,8 +26,9 @@ const PREYS = ['weakest', 'wounded', 'unarmoured', 'monarch', 'crowd', 'rested']
 const STATS = ['hp', 'atk', 'def']
 const GONE_PATHS = ['acc', 'eva', 'crt', 'spd', 'gauge.rate']
 const GONE_KEYS = ['ring', 'stride', 'castCost', 'chance', 'dur', 'tickEvery', 'acc', 'eva', 'crt', 'spd']
-// Every card speaks of turns and tiles (§2.14): no gauge, ring, dice, nor a clock in ticks and seconds.
-const GONE_WORDS = /\bgauge\b|\brings?\b|\bACC\b|\bEVA\b|\bCRT\b|\bSPD\b|\bchance\b|\bmiss(es)?\b|\bcrit|\bticks?\b|\bticking\b|\bseconds?\b|\d s\b/i
+// Every card speaks of turns and tiles (§2.14): no gauge, ring, dice, nor a clock at all (§2.10: a fight is never lost
+// by time), in ticks and seconds or in turns.
+const GONE_WORDS = /\bgauge\b|\brings?\b|\bACC\b|\bEVA\b|\bCRT\b|\bSPD\b|\bchance\b|\bmiss(es)?\b|\bcrit|\bticks?\b|\bticking\b|\bseconds?\b|\d s\b|\bclock\b/i
 // The conditions that are the rule itself, the only `when`s left (§2.7): Killing Cold's execute and Grave Tide's tide.
 const RULE_CONDITIONS = ['killing_cold', 'grave_tide']
 const turnsOk = (t) => t === undefined || t === 'battle' || (Number.isInteger(t) && t >= 1)
@@ -581,6 +582,18 @@ test('nothing in the sim but the registry branches on a rule\'s name', () => {
       if (!line.trim().startsWith('//')) assert.doesNotMatch(line, branch, `${file}:${i + 1}`)
     })
   }
+})
+
+// No clock (redesign.md §2.10): no module of the game keeps a turn cap, a deadline or a battle lost by time ('turn-cap');
+// TUNING.turn holds only the sim's bug guard.
+test('no clock anywhere: no turn cap, no deadline, no \'turn-cap\' end; TUNING.turn is the bug guard alone', () => {
+  const sim = ['turns.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'map.js', 'rules.js', 'autoplay.js'].map((f) => `sim/${f}`)
+  for (const file of [...sim, 'engine.js', 'ui.js', 'board.js', 'codex.js', 'keywords.js', 'main.js', 'dom.js', 'content.js', 'tuning.js']) {
+    readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8').split('\n').forEach((line, i) => {
+      assert.doesNotMatch(line, /turn-cap|\bdeadline\b|turn\.cap\b|\bceiling\b/, `${file}:${i + 1}`)
+    })
+  }
+  assert.deepEqual(Object.keys(TUNING.turn), ['guard'])
 })
 
 // ── no dice, no gauge, and the cards (§2.14–2.16) ──────────────────────────────────────────────────

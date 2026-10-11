@@ -1,13 +1,16 @@
 // Every balance constant in one place.
 
 export const TUNING = {
-  // Turns (redesign.md §2.3–2.10). `turn.cap`: the clock, in turns from the last wave's entry; a battle undecided at
-  // the cap is lost. `policy.press`: the camp's pressure, 0 at turn 1 rising to 1 at the cap, nudged ± `strength` by the
-  // trade it could make. A kind's Move is its def's (content.js `move`). No dice (§2.16): every blow hits, none crits,
-  // a blow deals computeDamage's mean, and nothing in a battle reads a random number. Placeholders until the balance
-  // pass.
-  turn: { cap: 20 },
-  policy: { press: { strength: 0.25 } },
+  // Turns (redesign.md §2.3–2.10). No clock (§2.10): a battle ends only when a side does. `turn.guard`: the sim's bound
+  // on turns, for the autoplayer and the tests alone (turns.js playOut, stalled): a battle still going past it ends as
+  // a stall, no one's win (a passive side that mends the Monarch as fast as the foes in reach hurt it holds a battle
+  // forever); play order by order, the interface's, has none. `policy.press`: the camp's pressure, 0 as the last wave
+  // enters rising to 1 `turns` turns later (the camp out of patience: every foe comes, and tends no one), nudged
+  // ± `strength` by the trade it could make. A kind's Move is its def's (content.js `move`). No dice (§2.16): every
+  // blow hits, none crits, a blow deals computeDamage's mean, and nothing in a battle reads a random number.
+  // Placeholders until the balance pass.
+  turn: { guard: 1000 },
+  policy: { press: { strength: 0.25, turns: 20 } },
   // The Shop (redesign.md §2.11): `relics` stocked, one always a Command relic, and from floor 2 one a Legendary;
   // each priced price[tier] × the floor's price scale (run.js relicPrice, floorPrice), after the discount relics
   // (`price.relic`). Placeholders.

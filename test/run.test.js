@@ -7,7 +7,7 @@ import {
   levelOf, kindLevel, commandOf, monarchHp, ariseOf, frontier, tierCost, floorPrice, releaseRefund, relicPrice, canBuy, shopOffers,
   eliteBonus, relicTier, ariseHeld, unheld
 } from '../src/sim/run.js'
-import { createBattle, playOut, fork, legalOrders } from '../src/sim/turns.js'
+import { createBattle, playOut, fork, legalOrders, stalled } from '../src/sim/turns.js'
 import { autoplay, policy, LEVELS, scoreOf, planFor } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { generateFloor } from '../src/sim/map.js'
@@ -497,9 +497,12 @@ test('autoplay finishes 20 seeded runs with a sane final state, and each defeat 
     assert.ok(s.stats.wins <= s.stats.fights)
     if (s.result === 'victory') assert.equal(s.stats.floorsCleared, TUNING.run.floors)
     if (s.result === 'defeat') {
-      assert.ok(s.death && ['monarch', 'turn-cap'].includes(s.death.reason), JSON.stringify(s.death))
-      // Always the killer's kind's first threat; a foe of a later wave (a late pair) also records its wave.
-      if (s.death.reason === 'monarch') {
+      // Only the Monarch's fall loses (no clock), or for the autoplayer a stall: End Turn alone may hold a battle
+      // forever (turns.js stalled). Always the killer's kind's first threat; a foe of a later wave (a late pair) also
+      // records its wave.
+      assert.ok(['monarch', 'stall'].includes(s.death?.reason), JSON.stringify(s.death))
+      if (s.death.reason === 'stall') assert.deepEqual(s.death, { by: null, reason: 'stall', threat: null })
+      else {
         assert.ok(UNITS[s.death.by] && Number.isInteger(s.death.from), JSON.stringify(s.death))
         assert.equal(s.death.threat, UNITS[s.death.by].threats[0], JSON.stringify(s.death))
         assert.ok(s.death.wave === undefined || s.death.wave >= 1, JSON.stringify(s.death))
@@ -805,13 +808,11 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
   assert.deepEqual(lone.state.death, { ...lone.battle.death, reason: 'monarch' })
   assert.ok(lone.state.death.by && lone.state.death.threat)
   assert.equal(monarchOf(lone.state).hp, 0)
-  // The clock: a battle still going at the cap is a defeat by it.
-  tuned({ turn: { cap: 1 } }, () => {
-    const slow = createRun({ seed: 'slow' })
-    visit(slow, 'fight')
-    fight(slow, basicTurn)
-    assert.deepEqual([slow.state.result, slow.state.death], ['defeat', { by: null, reason: 'turn-cap', threat: 'clock' }])
-  })
+  // No clock: a battle is never lost by time, only by the Monarch's fall.
+  const slow = createRun({ seed: 'slow' })
+  visit(slow, 'fight')
+  fight(slow, basicTurn)
+  assert.ok(slow.battle.winner === 'party' || slow.state.death?.reason === 'monarch', JSON.stringify(slow.state.death))
   // An altar heals it like a soul.
   const rest = createRun({ seed: 'rest' })
   monarchOf(rest.state).hp = 1
@@ -1365,9 +1366,12 @@ function rebuilt (run, k) {
 }
 
 // A fifth of the time a random legal action, else the steady hand's. `fought(run)` sees each battle once it is over.
+// `again` is the run rebuilt from `ready` and its log as the log grows (each entry applied once, as it is logged: with
+// no clock a run lives longer, and rebuilding it from the start at every check would refight it again and again).
 function fuzz (seed, k, seen, fought = () => {}, offered = { legendaries: 0 }) {
   const rng = createRng(seed).stream('fuzz')
   const run = ready(seed, k)
+  const again = ready(seed, k)
   for (let steps = 0; run.state.phase !== 'over'; steps++) {
     assert.ok(steps < 1e5, 'stuck')
     const legal = legalActions(run)
@@ -1377,20 +1381,22 @@ function fuzz (seed, k, seen, fought = () => {}, offered = { legendaries: 0 }) {
     // A Legendary a Shop sells that the purse can pay for is bought half the time (the steady hand buys the first it
     // can), so the runs that reach one carry Legendaries into their battles.
     const legendary = legal.find(isLegendary)
-    const action = legendary && rng.chance(0.5) ? legendary : rng.chance(0.2) ? anyLegal(legal, rng) : steady(run, rng)
+    // Past the sim's bound on turns a battle ends as a stall, as the autoplayer ends one (End Turn alone may hold it).
+    const action = run.state.phase === 'battle' && stalled(run.battle) ? { type: 'stall' }
+      : legendary && rng.chance(0.5) ? legendary : rng.chance(0.2) ? anyLegal(legal, rng) : steady(run, rng)
     seen.add(action.type)
     apply(run, action)
     if (action.type === 'fight') fought(run)
     checkState(run.state)
-    if (steps % 17 === 0) everyLegalActionApplies(run, k)
+    for (const a of run.state.log.slice(again.state.log.length)) apply(again, a)
+    if (steps % 17 === 0) everyLegalActionApplies(run, again)
   }
   return run
 }
 
-// The run rebuilt is the run, and each legal action applies cleanly to a copy of it (one rebuild, cloned per
-// action: a long run's log is a whole run of battles to refight).
-function everyLegalActionApplies (run, k) {
-  const base = rebuilt(run, k)
+// The run rebuilt (`base`: from `ready` and the log) is the run, and each legal action applies cleanly to a copy of it
+// (cloned per action, the rebuilt run itself never touched).
+function everyLegalActionApplies (run, base) {
   assert.deepEqual(base.state, run.state)
   const legal = legalActions(run)
   for (const action of legal.filter((_, i) => i % Math.ceil(legal.length / 12) === 0)) {

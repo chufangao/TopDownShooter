@@ -187,13 +187,10 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .bs-crown.low .bs-hpbar > span { background: #ff6a7a; }
 @media (prefers-reduced-motion: reduce) { .bs-hpbar > span, .bs-rule { transition: none; } }
 
-/* ── the turn (redesign.md §4): the clock by turns, the wave counter, the selected piece's orders, End Turn ──── */
-.turn-clock { color: var(--bright); font-weight: 600; }
-.turn-clock .esc-bar { width: 110px; }
-.turn-left { color: var(--dim); font-weight: 600; min-width: 6ch; }
-.turn-clock.low .esc-bar { box-shadow: inset 0 0 0 1px var(--c-foe), 0 0 10px #e0566a88; }
-.turn-clock.low .esc-fill { background: linear-gradient(90deg, #c0394c, #ff8a5a); }
-.turn-clock.low .turn-left { color: #ff9a7a; }
+/* ── the turn (redesign.md §4): the turn's count, the wave counter, the selected piece's orders, End Turn ──────── */
+/* A count, never a clock (§2.10): the turn's number holds its width, so the wave counter beside it never jumps. */
+.turn-n { color: var(--bright); font-weight: 600; }
+.turn-n b { min-width: 7ch; font-variant-numeric: tabular-nums; }
 /* When the panel runs short the synergies give way first, then the selected piece's orders (each scrolling inside
    itself): the Monarch's HP and the controls (End Turn, the speeds, Skip) always show whole. */
 .bs-syn-box { flex: 0 1000 auto; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }

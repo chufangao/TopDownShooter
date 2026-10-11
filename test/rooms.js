@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { createRun, apply, availableNodes } from '../src/sim/run.js'
 import { expertTurn } from '../src/sim/policy.js'
-import { createBattle, order } from '../src/sim/turns.js'
+import { createBattle, order, stalled } from '../src/sim/turns.js'
 
 // Turns the first reachable room into `type` and walks in. A battle room keeps its foes; one that had none gets the
 // floor's first battle room's.
@@ -15,11 +15,13 @@ export function visit (run, type) {
 }
 
 // Fights the room the run stands in: `fight` opens the battle, and `policy` (policy.js expertTurn by default; basicTurn
-// ends every turn) gives each turn's orders, as the run's actions, until it is over. Returns the run.
+// ends every turn) gives each turn's orders, as the run's actions, until it is over (past the sim's bound on turns, a
+// stall, as the autoplayer ends one). Returns the run.
 export function fight (run, policy = expertTurn) {
   apply(run, { type: 'fight' })
   while (run.state.phase === 'battle') {
-    for (const o of policy(run.battle)) {
+    if (stalled(run.battle)) apply(run, { type: 'stall' })
+    else for (const o of policy(run.battle)) {
       if (run.state.phase !== 'battle') break
       apply(run, o)
     }

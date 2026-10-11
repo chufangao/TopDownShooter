@@ -207,9 +207,9 @@ test('basic\'s weighted draws cover every room type: a Shop is a choice like any
   assert.deepEqual([...picks].sort(), ['fight', 'shop'], 'the Shop and a fight are each taken, on different rolls')
 })
 
-test('the ladder\'s measures: the clock\'s cap is its own cause, depth no second one; the army\'s actors', () => {
+test('the ladder\'s measures: one cause a defeat, the killer\'s threat or a stall, depth no second one; the army\'s actors', () => {
   assert.deepEqual(causesOf(null), [])
-  assert.deepEqual(causesOf({ by: null, reason: 'turn-cap', threat: 'clock' }), ['ceiling'])
+  assert.deepEqual(causesOf({ by: null, reason: 'stall', threat: null }), ['stall'])
   assert.deepEqual(causesOf({ by: 'will_o_wisp', reason: 'monarch', threat: 'reach', wave: 2 }), ['reach'])
   // One knight fights the Golem beside it; one never has anything in its reach. Half the army acted.
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5), on('tomb_knight', 2, 'party', 0, 0), on('iron_golem', 50, 'foe', 3, 6, 9)])

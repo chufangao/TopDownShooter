@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createBattle, legalOrders, order, preview, playOut, playTurns, reach, usable, deadline, fork, perform, corpses, roadAhead, addStatus, roadOf,
+  createBattle, legalOrders, order, preview, playOut, playTurns, reach, usable, impatience, stalled, fork, perform, corpses, roadAhead, addStatus, roadOf,
   timelineHash, stats, enterBattle, foesNextTo, auraGivers, field as roads, fieldOf, airOf, arrowOf, applyDamage, runEffect, riseTile, pick,
   targetsFrom, orderable, synergiesOf, ariseOf, phases
 } from '../src/sim/turns.js'
-import { basicTurn, expertTurn } from '../src/sim/policy.js'
+import { basicTurn, expertTurn, press } from '../src/sim/policy.js'
 import { TUNING } from '../src/tuning.js'
 import {
   makeUnit, autoPlace, campGrid, wallTiles, monarchSlot, tileAt, tileY, distance, footprint, slotAt, alive, deployTile, steps, TILES, DEPTH,
@@ -250,16 +250,80 @@ test('a wave enters on its turn, and the counter says which turn', () => {
   assert.ok(events.some((e) => e.type === 'wave' && e.wave === 1))
   assert.deepEqual(events.filter((e) => e.type === 'turn').map((e) => [e.turn, e.next]), [[due, null]])
   assert.ok(b.waves[0].entered)
-  assert.equal(deadline(b), due + TUNING.turn.cap - 1, 'the clock counts from it')
+  assert.deepEqual([b.foeIn, impatience(b)], [due, 0], 'the camp\'s patience counts from it')
 })
 
-test('the clock: a battle undecided at the cap is lost', () => {
+// No clock (redesign.md §2.10): the camp's impatience, 0 as the last wave enters, 1 TUNING.policy.press.turns later;
+// the pressure is 1 there whatever the trade, and a wave's entry starts it again.
+test('the pressure reaches 1 press.turns after the last wave entered, whatever the trade, and a wave resets it', () => {
+  const sprite = { ...makeUnit('frost_sprite', { uid: 50, lvl: 1 }), side: 'foe', wave: 1, lane: 3, slot: -1 }
   const b = field([
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 0, y: 0, lvl: 30 },
-    { id: 'iron_golem', uid: 9, side: 'foe', x: 6, y: 10, lvl: 30 }
-  ], { cap: 3 })
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 2, lvl: 30 },
+    { id: 'thorn_dryad', uid: 9, side: 'foe', x: 3, y: 10, lvl: 1 }
+  ], { reserve: [sprite] })
+  const T = TUNING.policy.press.turns
+  assert.equal(impatience(b), 0)
+  assert.ok(press(b) < 1, 'the trade alone never brings it to 1 on the first turn')
+  b.turn = b.foeIn + T - 1
+  assert.ok(impatience(b) < 1)
+  b.turn = b.foeIn + T
+  assert.deepEqual([impatience(b), press(b)], [1, 1])
+  b.turn = 1
+  while (b.turn < 1 + TUNING.spawn.waves.every) order(b, { type: 'end' })
+  assert.deepEqual([b.foeIn, impatience(b)], [b.turn, 0], 'the wave came: patience again')
+})
+
+// A camp that never runs out of patience and never comes: the battle simply goes on.
+const still = () => field([
+  { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+  { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 2, lvl: 30 },
+  { id: 'hive_warden', uid: 9, side: 'foe', x: 3, y: 10, lvl: 1 }
+])
+const PATIENT = { policy: { press: { turns: 1e6, strength: 0 } } }
+
+test('no clock: a battle is lost only when the Monarch falls, however long; order by order (the interface\'s) it never stalls', () => tuned(PATIENT, () => {
+  const b = still()
+  playTurns(b, 40, basicTurn)
+  assert.deepEqual([b.over, b.turn], [false, 41], 'forty turns on, nothing lost by time')
+  assert.ok(!b.events.some((e) => e.type === 'battle:end'))
+  tuned({ turn: { guard: 30 } }, () => {
+    assert.ok(stalled(b))
+    assert.ok(!legalOrders(b).some((o) => o.type === 'stall'), 'never the player\'s order')
+    order(b, { type: 'end' })
+    assert.deepEqual([b.over, b.turn], [false, 42], 'End Turn past the bound plays on')
+  })
+  assert.throws(() => order(b, { type: 'stall' }), /stalls only past/)
+}))
+
+// The sim's bound (TUNING.turn.guard), for the autoplayer and the tests: played out past it, a battle a passive side
+// holds ends as a stall, no winner, a loss that is no one's blow (run.js; autoplay.js counts them apart).
+test('played out, a battle still going past TUNING.turn.guard turns ends as a stall at the bound: reason \'stall\', no winner', () => tuned({ ...PATIENT, turn: { guard: 50 } }, () => {
+  const b = playOut(still(), basicTurn)
+  assert.deepEqual([b.over, b.winner, b.reason, b.turn], [true, null, 'stall', 51])
+  assert.deepEqual(b.events.at(-1), { beat: b.beat, type: 'battle:end', winner: null, reason: 'stall' })
+  assert.deepEqual(b.units.find((u) => u.uid === 0).hp, b.units.find((u) => u.uid === 0).maxHp, 'no one\'s blow')
+}))
+
+test('the horde always comes: a camp of Keepers (aggression 0) holds out of reach until the camp is out of patience, then comes, and the battle ends', () => {
+  const b = field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 2, lvl: 3 },
+    { id: 'frost_sprite', uid: 2, side: 'party', x: 2, y: 1, lvl: 3 },
+    { id: 'hive_warden', uid: 10, side: 'foe', x: 2, y: 10, lvl: 3 },
+    { id: 'thorn_dryad', uid: 11, side: 'foe', x: 4, y: 10, lvl: 3 },
+    { id: 'clockwork_page', uid: 12, side: 'foe', x: 3, y: 9, lvl: 3 }
+  ])
+  const keepers = () => b.units.filter((u) => u.side === 'foe')
+  assert.ok(keepers().every((u) => u.temper.aggression === 0), 'Keepers all')
+  const T = TUNING.policy.press.turns
+  playTurns(b, T, basicTurn)
+  assert.ok(!b.over && b.turn === 1 + T && keepers().every((u) => u.hp === u.maxHp), 'patient, they keep out of your reach')
+  const held = keepers().map((u) => u.tile)
+  playTurns(b, 1, basicTurn)
+  assert.ok(keepers().some((u, i) => u.tile !== held[i]), 'out of patience, they come')
   playOut(b, basicTurn)
-  assert.deepEqual([b.over, b.winner, b.reason, b.turn], [true, null, 'turn-cap', 4])
+  assert.ok(b.over && ['party', 'foe'].includes(b.winner), `${b.winner} ${b.reason} turn ${b.turn}`)
 })
 
 test('Arise is a skill of the piece holding the relic: one corpse within its reach, the player\'s choice, then a turn\'s rest', () => {
@@ -401,15 +465,16 @@ function fuzz (b, rng, per = 8, log = null) {
       end(b)
       holds(b)
     }
-    assert.ok(b.turn <= deadline(b) + 1, 'never past the cap')
+    // Past the sim's bound a stall (which fails the fuzz's verdict), never a hang.
+    if (stalled(b)) order(b, { type: 'stall' })
   }
   return b
 }
 
-test('fuzz: random legal orders to the end keep the foes on their roads, one unit a tile, HP in bounds, and end by the cap', () => {
+test('fuzz: random legal orders to the end keep the foes on their roads, one unit a tile, HP in bounds, and end (no clock: a side falls)', () => {
   for (let i = 0; i < 24; i++) {
     const b = fuzz(createBattle(floorOne(`fuzz${i}`)), createRng(`orders${i}`))
-    assert.ok(b.over && ['party', 'foe', null].includes(b.winner), `fuzz${i}`)
+    assert.ok(b.over && ['party', 'foe'].includes(b.winner), `fuzz${i}`)
     assert.ok(b.events.at(-1).type === 'battle:end')
   }
 })
@@ -611,12 +676,17 @@ test('turn by turn, or played out at once, the same battle', () => {
   }
 })
 
-test('120 seeded battles across floors under either policy end by the cap with sane HP', () => {
+// No clock: one with a Monarch ends by a side's fall (playOut would throw past TUNING.turn.guard). One without (a
+// sample) has no seat for the camp to take: its foes may stand at their roads' end with nothing in reach, so it is
+// played a bounded number of turns.
+test('120 seeded battles across floors under either policy end, won or the Monarch fallen, with sane HP', () => {
   for (let i = 0; i < 120; i++) {
     const floor = 1 + (i % 4)
-    const b = playOut(fresh('fuzz' + i, floor, i % 3 ? {} : SUMMONED), i % 5 ? basicTurn : expertTurn)
-    assert.ok(b.over && b.turn <= deadline(b) + 1, `seed ${i} passed the cap`)
-    assert.ok([null, 'party', 'foe'].includes(b.winner))
+    const b = fresh('fuzz' + i, floor, i % 3 ? {} : SUMMONED)
+    if (b.monarch) playOut(b, i % 5 ? basicTurn : expertTurn)
+    else playTurns(b, 100, i % 5 ? basicTurn : expertTurn)
+    assert.ok(b.over || !b.monarch, `seed ${i}`)
+    if (b.over) assert.ok(['monarch', 'wipe', 'sovereign'].includes(b.reason) && ['party', 'foe'].includes(b.winner), `seed ${i}: ${b.reason}`)
     for (const u of b.units) assert.ok(Number.isInteger(u.hp) && u.hp >= 0 && u.hp <= u.maxHp, `seed ${i}: ${u.id} hp ${u.hp}`)
     for (const e of b.events) if (e.type === 'damage') assert.ok(Number.isInteger(e.damage) && e.damage >= 0)
   }
@@ -655,7 +725,8 @@ test('under basic play every move is a foe\'s, along its road onto a tile free i
     const b = fresh('walk' + i, 1 + (i % 4), { monarch: i % 3 === 0 })
     const walk = fieldOf(b)
     const air = airOf(b)
-    while (!b.over) {
+    // Without a Monarch (no seat to take) the foes may end their roads with nothing in reach: a bounded watch.
+    while (!b.over && b.turn <= 100) {
       const before = new Map(b.units.map((u) => [u.uid, u.tile]))
       for (const e of turns(b)) {
         if (e.type !== 'move') continue
