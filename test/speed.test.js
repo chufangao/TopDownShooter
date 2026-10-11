@@ -1,10 +1,9 @@
-// The measuring speed-ups (necessity report, Speed 2): the progress score a run is read by, and the rehearsal memo (a
-// rehearsal is one battle, played to its end: redesign.md §2.16).
+// The measuring speed-ups (necessity report, Speed 2): the progress score a run is read by.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRun, apply, availableNodes, battleSetup } from '../src/sim/run.js'
 import { createBattle, playOut } from '../src/sim/turns.js'
-import { progressOf, foeShare, routeRooms, ROOMS_PER_FLOOR, record, planFor, LEVELS, memoStats } from '../src/sim/autoplay.js'
+import { progressOf, foeShare, routeRooms, ROOMS_PER_FLOOR, record } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
 
 // A run standing in its first fight's prep (rank 1 is all fights).
@@ -50,17 +49,4 @@ test('progress in a record: where the run fell and the share of that battle\'s f
   playOut(b)
   if (b.winner === 'party') assert.equal(foeShare(b), 1)
   assert.ok(foeShare(b) >= 0 && foeShare(b) <= 1)
-})
-
-// A battle reads no random number (redesign.md §2.16), so a formation is rehearsed once, and the same setup is never
-// fought again: the plan made again from a fresh run fights nothing.
-test('the rehearsal memo: a plan made again from the same room fights no rehearsal again', () => {
-  const before = memoStats.misses
-  const first = planFor(inFight('memo-0'), LEVELS.expert)
-  const fought = memoStats.misses - before
-  assert.ok(fought > 0)
-  const hits = memoStats.hits
-  assert.deepEqual(planFor(inFight('memo-0'), LEVELS.expert), first)
-  assert.equal(memoStats.misses - before, fought)
-  assert.ok(memoStats.hits - hits >= fought)
 })

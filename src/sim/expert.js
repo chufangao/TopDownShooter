@@ -1,0 +1,109 @@
+// The expert's judgement (redesign.md §2.17), one shape for every decision it makes. First a situation, read once a
+// decision from what the board, the run and the bestiary show a player, and the combo book (policy.js situation in
+// battle, autoplay.js survey out of it): never the camp's pressure, never what is still to come but the wave counter's
+// public turns, never a battle or a turn of the foes played ahead. Then its options, each read as a named vector of
+// features (`v`). Then two layers:
+//   1. the tree (TREES): hard rules, invariants a good player never breaks, taken in order. A node whose `when` holds
+//      on the situation either forces an option (`force`: the decision ends there), keeps only the options it ranks
+//      highest (`keep`: a filter, where a boolean keeps those that pass, if any does), or switches the weights to a
+//      mode of theirs (`mode`). Thresholds in TUNING.expert.tree.
+//   2. the weights (TUNING.expert): a weighted sum of the features (value) scores what the tree left, the best taken.
+// Every decision says which rule decided it (`by`: the rule that forced it, else the first that filtered, else
+// 'weights'), for the audit (autoplay.js --audit). `value` is the seam where a learned model may replace the sum.
+import { TUNING } from '../tuning.js'
+
+// The weighted sum of a feature vector. Every feature has a weight in its table (a missing one is NaN, and the tests
+// hold every vector to its table), so a feature and its weight never drift apart unseen.
+export function value (v, w) {
+  let n = 0
+  for (const k in v) n += w[k] * v[k]
+  return n
+}
+
+// One decision: `options` (each with its features `v`), `sit` the situation, `tree` its rules, `weights` its table
+// (`modes`: the weight sets a mode node switches to, each over `weights`). Ties keep the first, unless `better(o, best)`
+// says otherwise (the scores set on each as `o.score`). → { option, by, rules (every rule that fired, in order) }, the
+// option null with none.
+export function decide (tree, sit, options, weights, { modes = {}, better = null } = {}) {
+  let w = weights
+  let left = options
+  const rules = []
+  for (const node of tree) {
+    if (!left.length || !node.when(sit)) continue
+    if (node.force) {
+      const o = node.force(left, sit)
+      if (o) return { option: o, by: node.id, rules: [...rules, node.id] }
+    } else if (node.keep) {
+      const ranks = left.map((o) => +node.keep(o, sit))
+      const top = Math.max(...ranks)
+      if (ranks.every((r) => r === top)) continue
+      left = left.filter((_, i) => ranks[i] === top)
+      rules.push(node.id)
+    } else if (node.mode) {
+      w = { ...w, ...modes[node.mode] }
+      rules.push(node.id)
+    }
+  }
+  let best = null
+  for (const o of left) {
+    o.score = value(o.v, w)
+    if (best === null || (better ? better(o, best) : o.score > best.score)) best = o
+  }
+  return { option: best, by: rules[0] ?? 'weights', rules }
+}
+
+// The tree's filters as a candidate's standing, for a search that meets its candidates one at a time (the formation's
+// hill-climb): the `keep` of each filter whose `when` holds, in order, compared first to last, the higher the better,
+// and the score after them (outranks). Over candidates met all at once it orders them as decide's filters choose.
+export const standing = (tree, sit, o) => tree.filter((n) => n.keep && n.when(sit)).map((n) => +n.keep(o, sit))
+// Whether candidate `a` (its `keys`, standing, and its `score`) beats `b`; → the index of the first key it wins on, the
+// key count where only the score does, −1 where it does not.
+export function outranks (a, b) {
+  for (let i = 0; i < a.keys.length; i++) if (a.keys[i] !== b.keys[i]) return a.keys[i] > b.keys[i] ? i : -1
+  return a.score > b.score ? a.keys.length : -1
+}
+
+// The hard rules, a decision's list apiece. Each reads the situation (`sit`) and an option's features (`o.v`) only.
+const T = () => TUNING.expert.tree
+export const TREES = {
+  // One piece's move and act in battle (policy.js choice; features policy.js features).
+  battle: [
+    // An act that changes nothing (a heal on the whole, a ward or a debuff already at its full stacks) is no act.
+    { id: 'no-waste', when: () => true, keep: (o) => !o.v.waste },
+    // The foes could fell the Monarch next turn: only what brings their reach on it below its HP (a kill, a Hex, a
+    // piece on the road), where anything does.
+    { id: 'monarch-lethal', when: (sit) => !!sit.monarch?.lethal, keep: (o) => !o.v.lethal },
+    // A foe that could strike the Monarch next turn, and can be felled now: felled first.
+    { id: 'kill-first', when: (sit) => sit.monarch?.threats.length > 0, keep: (o) => o.v.cull > 0 },
+    // A piece never ends where the danger map (or its blow's counter) says it falls, unless its act kills or shields the
+    // Monarch.
+    { id: 'never-die', when: () => true, keep: (o) => !o.v.fall || o.v.kill > 0 || o.v.guard > 0 },
+    // The Monarch within the foes' reach next turn: the guard's weights (TUNING.expert.battle.modes.guard).
+    { id: 'guard', when: (sit) => sit.monarch?.danger > 0, mode: 'guard' }
+  ],
+  // The boards a turn's orders leave, a few orders of the pieces apiece (policy.js expertTurn; features
+  // policy.js boardFeatures).
+  board: [
+    // Never a board where the foes could fell the Monarch next turn, where another is not.
+    { id: 'no-doom', when: () => true, keep: (o) => !o.v.doom }
+  ],
+  // A formation (autoplay.js plan; features autoplay.js formationFeatures).
+  formation: [
+    // The field filled: as many pieces as any formation fields (the Command, where their footprints fit).
+    { id: 'fill-field', when: () => true, keep: (o) => o.v.fielded },
+    // The roads into the Monarch held: as few scouted foes' roads open to the seat as the pieces allow.
+    { id: 'block-roads', when: () => true, keep: (o) => -o.v.open }
+  ],
+  // The next room (autoplay.js pickRoute; features autoplay.js roomFeatures; `o.node` the room).
+  route: [
+    // A badly wounded army (TUNING.expert.tree.wounded) takes an altar where one is open,
+    { id: 'wounded-altar', when: (sit) => sit.health < T().wounded, force: (rooms) => rooms.find((o) => o.node.type === 'altar') },
+    // and never walks into an elite where another room is open.
+    { id: 'wounded-no-elite', when: (sit) => sit.health < T().wounded, keep: (o) => o.node.type !== 'elite' }
+  ],
+  // A relic given, kept or taken back out of battle (autoplay.js pickHold: `o.free`, a hold onto a free slot).
+  hold: [
+    // A piece relic waiting works for no one: given, where a standing soul has a free slot.
+    { id: 'give-relic', when: (sit) => sit.relics.unheld.length > 0 && sit.relics.free > 0, keep: (o) => !!o.free }
+  ]
+}

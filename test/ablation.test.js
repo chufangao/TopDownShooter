@@ -205,8 +205,7 @@ test('ablating relics: no Common, Uncommon or Rare relic is bought, so the field
   if (!run.state.relics.includes('legion')) assert.deepEqual([commandOf(run.state), monarchOf(run.state).maxHp], [TUNING.party.field, TUNING.monarch.hp])
 })
 
-// The expert's turns are policy.js expertTurn's; under the orders ablation it ends every turn without an order, and so
-// do the rehearsals it plans by.
+// The expert's turns are policy.js expertTurn's; under the orders ablation it ends every turn without an order.
 test('ablating orders: the expert gives no order in battle but End Turn, where the full expert moves and acts', () => {
   const orders = (L) => {
     const run = createRun({ seed: 'orders' })
@@ -300,7 +299,7 @@ test('ablating formation: basic\'s first draft\'s cells, the Monarch on its seat
     const s = run.state
     assert.equal(plan.find((p) => p.uid === 0).slot, monarchSlot(s.camp))
     // Basic's own first draft for the same souls, all at full health: the cells must match.
-    const basic = planFor({ ...run, state: structuredClone(s) }, { ...LEVELS.basic, rehearse: false })
+    const basic = planFor({ ...run, state: structuredClone(s) }, LEVELS.basic)
     const cells = (p) => Object.fromEntries(p.filter((u) => u.slot >= 0).map((u) => [u.uid, u.slot]))
     assert.deepEqual(cells(plan), cells(basic))
   }

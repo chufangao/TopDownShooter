@@ -1,13 +1,17 @@
-// The expert plans with every mechanic (Job: the measuring instrument): formations drafted and climbed with each
-// piece where its footprint fits, 2×2 pieces too, every fusion it can make weighed by rehearsal; basic never fuses;
-// and the audit that says what it considered against what it chose.
+// The expert decides with every mechanic (redesign.md §2.17: it scores, it never rehearses): formations drafted and
+// climbed on a static read of the scouted room with each piece where its footprint fits, 2×2 pieces too; the next room
+// by its features; every fusion it can make weighed by the growth search; the tree's rules out of battle; basic never
+// fuses; and the audit that says what it considered against what it chose, and which rule decided.
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf } from '../src/sim/run.js'
 import {
-  drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay
+  drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay, formationFeatures,
+  survey, pickRoute, roomFeatures, record
 } from '../src/sim/autoplay.js'
+import { value, decide, TREES } from '../src/sim/expert.js'
+import { tuned } from './tuned.js'
 import { TUNING } from '../src/tuning.js'
 import { createRng } from '../src/sim/rng.js'
 import { CAMP_LIST, FUSION_LIST, unitDef, fusionDef, relicDef } from '../src/content.js'
@@ -128,7 +132,7 @@ test('the expert\'s plan: drafts and climbs over the cells with a 2×2 piece amo
   resetAudit(true)
   try {
     const plan = planFor(run, LEVELS.expert)
-    assert.ok(AUDIT.candidates > 7, `${AUDIT.candidates} formations rehearsed`)
+    assert.ok(AUDIT.candidates > 7, `${AUDIT.candidates} formations met`)
     for (const f of ['2×2 fielded', 'fused fielded', 'beside the Monarch']) assert.ok(AUDIT.considered[f] > 0, `${f}: ${JSON.stringify(AUDIT.considered)}`)
     const pieces = plan.map((p) => ({ ...s.party.find((u) => u.uid === p.uid), slot: p.slot }))
     assert.equal(pieces.find((u) => u.uid === MONARCH_UID).slot, monarchSlot(s.camp))
@@ -142,7 +146,7 @@ test('the expert\'s plan: drafts and climbs over the cells with a 2×2 piece amo
   }
 })
 
-test('fusions: the expert weighs every one it can make by rehearsal (as legalActions lists them), and makes one only of those; basic never fuses', () => {
+test('fusions: the expert weighs every one it can make by the growth search (as legalActions lists them), and makes one only of those; basic never fuses', () => {
   const run = prep('fuse')
   const s = run.state
   s.essence = 2000
@@ -297,8 +301,9 @@ test('the expert lets a soul go only for a recruit it weighed worth it: the rele
   assert.ok(released > 0, 'some full retinue let a soul go for a recruit')
 })
 
-// The combo book (src/sim/combos.json, made by --combos): every id in it resolves against the content, so it is made
-// again whenever content or numbers change it out of date. Functional only: what it holds, never how it ranks.
+// The combo book (src/sim/combos.json, made by --combos, a static formula): every id in it resolves against the
+// content, so it is made again whenever content or numbers change it out of date. Functional only: what it holds,
+// never how it ranks.
 test('the combo book: every combo, kind, track, recipe, synergy and relic in it resolves, and the book covers every fusion and core', () => {
   assert.ok(BOOK.combos.length > 0, 'the book is made: node src/sim/autoplay.js --combos')
   const floors = BOOK.combos[0].gain.length
@@ -310,9 +315,177 @@ test('the combo book: every combo, kind, track, recipe, synergy and relic in it 
     for (const r of Object.keys(c.role ?? {})) assert.ok(Object.keys(c.needs).some((id) => unitDef(id).role === r), `${c.id}: role ${r}`)
     for (const id of Object.keys(c.relics ?? {})) assert.ok(relicDef(id), `${c.id}: relic ${id}`)
     assert.equal(c.gain.length, floors, c.id)
-    assert.ok(Number.isInteger(c.draft) && c.draft >= 0, c.id)
+    assert.ok(c.gain.every((g) => g === null || Number.isFinite(g)), c.id)
   }
   for (const id of Object.keys(BOOK.plain)) assert.ok(relicDef(id), `plain: relic ${id}`)
   const ids = new Set(BOOK.combos.map((c) => c.id))
   for (const c of combosOf()) assert.ok(ids.has(c.id), `the book is out of date: ${c.id} is missing (node src/sim/autoplay.js --combos)`)
+})
+
+// ── the expert's judgement out of battle (redesign.md §2.17) ────────────────────────────────────
+
+// A run standing in a fight's prep in camp `camp`, its three start souls fielded on `cells` (the Knight's, the
+// Chanter's, the Sprite's), against two ground foes up the middle.
+function formation (camp, cells) {
+  const run = createRun({ seed: 'form' })
+  const node = availableNodes(run)[0]
+  node.type = 'fight'
+  node.foes = [{ id: 'grave_ghoul', lvl: 1, slot: slotAt(0, 3) }, { id: 'tomb_knight', lvl: 1, slot: slotAt(1, 2) }]
+  node.waves = []
+  apply(run, { type: 'node', id: node.id })
+  const s = run.state
+  s.camp = camp
+  const m = { ...s.party.find((u) => u.uid === MONARCH_UID), slot: monarchSlot(camp) }
+  const ids = ['tomb_knight', 'bone_chanter', 'frost_sprite']
+  const party = [m, ...ids.map((id, i) => ({ ...souls(s.party).find((u) => u.id === id), slot: cells[i] }))]
+  return { run, party, v: formationFeatures(run, party) }
+}
+const scored = (v) => value(v, TUNING.expert.formation)
+
+test('the formation read: a melee piece holding the road with the shooters behind it scores over the reverse', () => {
+  for (const [camp, cells] of [['funnel', [10, 32, 39]], ['keep', [10, 24, 23]], ['funnel', [25, 32, 39]]]) {
+    const held = formation(camp, cells)
+    const reverse = formation(camp, [cells[2], cells[1], cells[0]])
+    assert.ok(held.v.blockers > reverse.v.blockers && held.v.behind > reverse.v.behind && held.v.exposed < reverse.v.exposed, `${camp} ${cells}`)
+    assert.ok(scored(held.v) > scored(reverse.v), `${camp} ${cells}: ${scored(held.v)} ≤ ${scored(reverse.v)}`)
+  }
+})
+
+test('rule fill-field: a formation that leaves a soul out where it fits never beats one that fields it', () => {
+  const full = formation('funnel', [10, 32, 39])
+  const short = formation('funnel', [10, 32, -1])
+  const options = [{ name: 'short', v: { ...short.v, power: 1e3 } }, { name: 'full', v: full.v }]
+  const pick = decide(TREES.formation, null, options, TUNING.expert.formation)
+  assert.deepEqual([pick.option.name, pick.by], ['full', 'fill-field'])
+})
+
+test('rule block-roads: as few roads into the Monarch open as the pieces allow, whatever the weights say', () => {
+  const held = formation('funnel', [10, 32, 39])
+  const open = formation('funnel', [28, 35, 42])
+  assert.ok(open.v.open > held.v.open, JSON.stringify([open.v.open, held.v.open]))
+  const options = [{ name: 'open', v: { ...open.v, cover: 1e4 } }, { name: 'held', v: held.v }]
+  const pick = decide(TREES.formation, null, options, TUNING.expert.formation)
+  assert.deepEqual([pick.option.name, pick.by], ['held', 'block-roads'])
+  // The expert's own plan for a room holds every road it can.
+  const run = prep('blocked')
+  const plan = planFor(run, LEVELS.expert)
+  const party = plan.map((p) => ({ ...run.state.party.find((u) => u.uid === p.uid), slot: p.slot }))
+  assert.equal(formationFeatures(run, party).open, 0)
+})
+
+// A run on the map with its next rooms made `types` (the first ones; a battle room keeps the floor's foes).
+function crossroads (seed, types) {
+  const run = createRun({ seed })
+  const nodes = availableNodes(run)
+  assert.ok(nodes.length >= types.length, `${seed}: ${nodes.length} rooms`)
+  const foes = run.state.map.nodes.find((n) => n.foes).foes
+  types.forEach((type, i) => {
+    nodes[i].type = type
+    if (['fight', 'elite'].includes(type)) nodes[i].foes ??= foes
+  })
+  return { run, nodes }
+}
+const seedWith = (n) => [...Array(40).keys()].map((k) => `route-${k}`).find((seed) => availableNodes(createRun({ seed })).length >= n)
+
+test('the route: a Shop with a full purse; the weights, no rule', () => {
+  const { run, nodes } = crossroads(seedWith(2), ['fight', 'shop'])
+  run.state.essence = 1e4
+  const sit = survey(run)
+  assert.equal(pickRoute(run, sit), nodes[1].id)
+  const shop = sit.rooms.find((r) => r.id === nodes[1].id)
+  assert.ok(roomFeatures(sit, shop).purse > 0)
+  // An empty purse: the Shop's purse is nothing.
+  run.state.essence = 0
+  assert.equal(roomFeatures(survey(run), shop).purse, 0)
+})
+
+test('rule wounded-altar: a badly wounded army takes the altar; rule wounded-no-elite: it never walks into an elite where another room is open', () => {
+  const wound = (run, share) => { for (const u of souls(run.state.party)) u.hp = Math.max(1, Math.floor(u.maxHp * share)) }
+  const seed = seedWith(3)
+  const altar = crossroads(seed, ['fight', 'altar', 'shop'])
+  wound(altar.run, 0.1)
+  resetAudit(true, altar.run)
+  try {
+    assert.equal(pickRoute(altar.run), altar.nodes[1].id)
+    assert.equal(AUDIT.rules['route: wounded-altar'], 1)
+  } finally {
+    resetAudit(false)
+  }
+  const elite = crossroads(seed, ['elite', 'fight'])
+  wound(elite.run, 0.3)
+  const sit = survey(elite.run)
+  const rooms = sit.rooms.map((room) => ({ node: elite.nodes.find((n) => n.id === room.id), v: { ...roomFeatures(sit, room), elite: room.type === 'elite' ? 1e3 : 0 } }))
+  const pick = decide(TREES.route, sit, rooms, TUNING.expert.route)
+  assert.deepEqual([pick.option.node.type, pick.by], ['fight', 'wounded-no-elite'])
+  // Whole, the elite is a room like another.
+  assert.ok(sit.health < TUNING.expert.tree.wounded && survey(crossroads(seed, ['elite', 'fight']).run).health >= TUNING.expert.tree.wounded)
+})
+
+test('rule give-relic: a piece relic waiting is given to a standing soul with room for it, though the weights would keep it', () => tuned({ expert: { ...TUNING.expert, growth: { ...TUNING.expert.growth, keep: 1e9 } } }, () => {
+  const run = createRun({ seed: 'give' })
+  run.state.relics.push('whetstone')
+  assert.deepEqual(survey(run).relics.unheld, ['whetstone'])
+  resetAudit(true, run)
+  try {
+    const a = policy(run, createRng('give').stream('autoplay'), 'expert')
+    assert.equal(a.type, 'hold', JSON.stringify(a))
+    assert.ok(souls(run.state.party).find((u) => u.uid === a.uid).hp > 0)
+    assert.equal(AUDIT.rules['hold: give-relic'], 1)
+  } finally {
+    resetAudit(false)
+  }
+}))
+
+test('the survey: where the run stands, its purse and prices, wounds, the target, the relics waiting, and the rooms ahead with their threats', () => {
+  const run = createRun({ seed: 'survey' })
+  const sit = survey(run)
+  assert.deepEqual([sit.floor, sit.phase, sit.purse, sit.fallen], [1, 'map', run.state.essence, 0])
+  assert.ok(sit.health === 1 && sit.monarch === 1 && sit.strength > 0)
+  assert.ok(sit.prices.tier > 0 && sit.prices.relic > 0 && sit.prices.recruit === null)
+  assert.deepEqual([sit.command, sit.fielded, sit.waiting], [TUNING.party.field, 3, 0])
+  assert.deepEqual(sit.rooms.map((r) => r.id), availableNodes(run).map((n) => n.id))
+  for (const r of sit.rooms) {
+    assert.ok(r.threat > 0 && r.threats.length > 0 && r.unanswered.every((t) => r.threats.includes(t)), JSON.stringify(r))
+    assert.ok(r.ahead.shop === null || r.ahead.shop >= 1)
+  }
+})
+
+// No decision of the expert's plays a battle or a turn of the foes: the camp's turn reads its pressure
+// (TUNING.policy.press) and a battle played out reads the sim's bound on turns (TUNING.turn.guard), so both are counted
+// while the expert decides, over whole runs (its turns' End Turns are the run's, made by apply, not by the policy; in
+// battle the policy reads the bound only to end a stall, so there only the pressure is counted).
+test('no decision of the expert plays a battle or a turn of the foes, over whole runs', () => {
+  const reads = { press: 0, guard: 0 }
+  const spy = (o, key, count) => {
+    const real = o[key]
+    Object.defineProperty(o, key, { get () { reads[count]++; return real }, configurable: true })
+    return () => Object.defineProperty(o, key, { value: real, writable: true, configurable: true, enumerable: true })
+  }
+  const undo = [spy(TUNING.policy, 'press', 'press'), spy(TUNING.turn, 'guard', 'guard')]
+  try {
+    for (const seed of ['norehearse-0', 'norehearse-1']) {
+      const run = createRun({ seed })
+      const rng = createRng(seed).stream('autoplay')
+      while (run.state.phase !== 'over') {
+        const phase = run.state.phase
+        reads.press = reads.guard = 0
+        const a = policy(run, rng, 'expert')
+        assert.equal(reads.press, 0, `${seed} ${phase}: the camp's pressure read`)
+        if (phase !== 'battle') assert.equal(reads.guard, 0, `${seed} ${phase}: a battle played`)
+        apply(run, a)
+      }
+    }
+  } finally {
+    for (const f of undo) f()
+  }
+})
+
+// A full expert run on a few seeds plays to its end, the same seed the same run. Functional only: never how far it gets.
+test('a full expert run finishes on a few seeds, the same seed the same run', () => {
+  for (const seed of ['full-0', 'full-1', 'full-2']) {
+    const r = record({ seed, level: 'expert' })
+    assert.ok(['victory', 'defeat'].includes(r.result) && r.battles.length > 0, seed)
+  }
+  const log = autoplay(createRun({ seed: 'full-0' }), { level: 'expert' }).state.log
+  assert.deepEqual(autoplay(createRun({ seed: 'full-0' }), { level: 'expert' }).state.log, log)
 })

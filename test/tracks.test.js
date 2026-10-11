@@ -293,7 +293,7 @@ test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, o
 })
 
 // On the level scale of one a tier (LEVEL_A_TIER), so the tier offered gives a level.
-test('the expert rehearses a tier as the run would make it: the kind\'s every soul with the tier and the level it gives', () => tuned(LEVEL_A_TIER, () => {
+test('the expert weighs a tier as the run would make it: the kind\'s every soul with the tier and the level it gives', () => tuned(LEVEL_A_TIER, () => {
   const lvl = levelOf({ tracks: [3, 0] })
   const u = { ...makeUnit('tomb_knight', { uid: 1, lvl }), tracks: [3, 0] }
   const v = { ...makeUnit('tomb_knight', { uid: 2, lvl }), tracks: [3, 0] }

@@ -11,6 +11,122 @@ export const TUNING = {
   // Placeholders until the balance pass.
   turn: { guard: 1000 },
   policy: { press: { strength: 0.25, turns: 20 } },
+  // The expert's judgement (redesign.md §2.17; expert.js): every decision it makes reads its situation, lists its
+  // options, reads each as a named vector of features, lets the tree of hard rules (expert.js TREES) force or filter
+  // them, and takes the one whose weighted sum is the highest (expert.js value: the seam where a learned model may
+  // replace the sum). Nothing it decides is decided by playing a battle or a turn of the foes. A table a decision; a
+  // weight's sign says which way it pulls; a weight of 0 marks a feature the tree reads. Placeholders until the balance
+  // pass, which tunes them with the game's numbers.
+  expert: {
+    // The tree's thresholds: `wounded`, the share of its souls' HP (the fallen's whole) below which the army is badly
+    // wounded (an altar where one is open, never an elite where another room is).
+    tree: { wounded: 0.5 },
+    // In battle (policy.js expertTurn), in HP. `option`: one piece's move and act, read off the board as it stands
+    // (policy.js features); `board`: the board a turn's orders leave before End Turn, which a few orders of the pieces
+    // are compared by (policy.js boardFeatures).
+    battle: {
+      option: {
+        damage: 1, // HP its act deals the foes, each as far as its HP
+        kill: 1, // each foe it fells: that foe's max HP
+        menace: 1, // each foe it fells: the hardest blow that foe would have dealt next turn
+        focus: 1, // its damage × the share of HP its target had lost already (focus fire: finish the wounded)
+        bane: 0.5, // its damage on a foe that mends (what the rest deal, it undoes)
+        harry: 1, // its damage on a foe that could strike the Monarch next turn
+        status: 1, // a status it lays (content.js STATUS_WORTH): a debuff on a foe, a ward on one of yours
+        mend: 1, // HP it mends
+        rescue: 1, // HP it mends on one of yours that the foes could fell next turn where it stands
+        danger: -0.5, // HP the foes could deal it next turn on the tile it ends on (the danger map: every foe that could
+        //               reach it counted, as if all struck it, so it is weighed at half)
+        fall: -1, // its max HP, where they could fell it there, or its blow's counter would
+        counter: -1, // HP the counter its blow draws would take
+        screen: 10, // foes' roads into the Monarch it holds from the tile it ends on (the tile beside the seat each
+        //             comes in by), less those it holds where it stands
+        guard: 2, // HP of what the foes could deal the Monarch next turn that it takes away (a kill, a Hex, a road held)
+        lethal: -500, // the foes could still fell the Monarch next turn after it (the tree's monarch-lethal)
+        cull: 50, // foes it fells that could strike the Monarch next turn (the tree's kill-first)
+        approach: 3, // tiles it ends nearer the nearest foe (with nothing to strike, it comes on)
+        shadow: 1, // a corpse it raises (Arise): the shadow's max HP
+        fuse: 1, // a fusion: the fused piece's HP, less what its parts stand at
+        essence: -1, // essence it spends (a fusion's price)
+        waste: -1 // an act that changes nothing (the tree's no-waste)
+      },
+      // The weight sets a mode node of the tree switches to, each over `option`: `guard` while the Monarch is within the
+      // foes' reach next turn.
+      modes: { guard: { guard: 4, harry: 2, screen: 20 } },
+      board: {
+        hp: 1.5, // your souls' HP (a soul's wounds leave the battle with it)
+        shadows: 1, // your shadows' and summons' HP
+        foeHp: -1, // the foes' HP
+        foes: -1, // the foes standing, each its max HP (what felling it takes)
+        danger: -0.5, // HP the foes could deal your pieces next turn where they stand
+        falls: -1, // the max HP of each of yours they could fell there
+        monarch: -3, // HP they could deal the Monarch next turn
+        doom: -1e6, // they could fell the Monarch next turn: the run's end
+        open: -20, // foes whose road into the Monarch nothing of yours holds
+        spent: -1, // essence spent this turn (a fusion's price)
+        won: 1e9, // the battle won
+        lost: -1e9 // the battle lost
+      }
+    },
+    // Prep (autoplay.js formationFeatures): a formation read against the scouted room's roads, no battle played. A road
+    // runs from where a scouted foe stands or enters to the Monarch's seat; a piece on it holds that foe there.
+    formation: {
+      fielded: 0, // the pieces fielded (the tree's fill-field)
+      power: 100, // the fielded souls' worth (wounds counted), a share of the best the field could hold
+      cover: 1, // the damage your pieces could deal, from where their Move takes them, on the roads' tiles (the nearer
+      //           the seat the more)
+      exposed: -20, // each piece: the share of its HP the scouted foes that reach it before they are held could take
+      open: -10, // scouted foes whose road reaches the seat with nothing of yours on it
+      blockers: 5, // scouted foes held first by a piece that fights in melee alone
+      behind: 5, // ranged pieces that cover the roads where no foe reaches them before it is held
+      mend: 10, // each healer: the exposure of the allies within its Move and heal's range
+      monarch: -40, // the share of the Monarch's HP the scouted foes that reach it could take in a turn
+      synergies: 10, // synergy rules the field holds (at 4)
+      aura: 2, // allies within an aura's range
+      arise: 10 // each Arise holder: the share of the roads' weight within its reach
+    },
+    // The map (autoplay.js roomFeatures): the next room, by its type and the army's state; no route is walked ahead.
+    route: {
+      fight: 1, // a room's type
+      elite: 0,
+      shop: 0,
+      altar: 0,
+      boss: 1,
+      siege: 0,
+      odds: 2, // a battle room: the log of the army's strength over the room's scouted threat
+      weak: -10, // the same where the room is the stronger (a loss ends the run)
+      wounds: 6, // an altar: the share of the souls' HP missing (the fallen's whole)
+      monarch: 4, // an altar: the share of the Monarch's HP missing (none while nothing may heal it)
+      purse: 2, // a Shop: the purse over the floor's cheapest relic price, up to 3
+      want: 0.5, // a battle room: its foes of a kind the combo it plays toward is built of (each a soul on offer)
+      unanswered: -1, // a battle room: its threat types the army has no answer to (autoplay.js ANSWERS)
+      altarAhead: 2, // an altar on a route through the room, 1 / (1 + rooms to it), × the share of the souls' HP missing
+      shopAhead: 0.5 // a Shop on a route through the room, 1 / (1 + rooms to it), × the purse feature
+    },
+    // Growth (autoplay.js grow, sketch): each purchase, recruit, fusion, relic bought and relic given, by what it adds
+    // to the state it leaves; keeping what it has is an option too.
+    growth: {
+      strength: 1, // the field's strength, as a log (what a choice adds, as a share)
+      book: 0.5, // the combo book's worth of the combo it plays toward, by how far along it the run is
+      keep: 0.005, // keeping the essence, or the relic where it is: what a choice must beat
+      // A soul's fighting worth (autoplay.js worth): √(how long it lasts × how hard it hits), its hits raised by `move`
+      // a tile of Move and `heal` of its healing past 1; `signature` more a tier that grants an ability, an aura or a
+      // Colossus's footprint, and `relic` more a relic it holds (a run relic, the field's). Basic's rules of thumb read
+      // it too.
+      worth: { move: 0.1, heal: 0.3, signature: 0.1, relic: 0.08 }
+    },
+    // The combo book (autoplay.js makeBook, --combos): each combo's army against the plain army on every floor, by a
+    // static formula on the souls' worth; and the relics that pair with it.
+    book: {
+      synergy: 0.15, // a synergy rule the army holds (at 4), a share of its power
+      fused: 0.1, // a fused piece, a share of its worth
+      trigger: 0.05, // a piece relic's trigger (`on`), a share of its holder's worth
+      rule: 0.1, // a Legendary's rule, a share of its holder's worth
+      arise: 0.05, // a run relic on Arise's reach or tier, a share of an army with an Arise holder
+      floor: 0.002, // a relic pairs with a combo when it adds more than this to its power (a log)
+      target: 0.25 // a soul of the combo's kinds is fielded as if worth this share more
+    }
+  },
   // The Shop (redesign.md §2.11): `relics` stocked, one always a Command relic, and from floor 2 one a Legendary;
   // each priced price[tier] × the floor's price scale (run.js relicPrice, floorPrice), after the discount relics
   // (`price.relic`). Placeholders.

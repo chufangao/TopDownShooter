@@ -1,106 +1,88 @@
-// A player for tests and balance runs: a policy that picks one action at a time for apply(). It plays at
-// one of two levels (LEVELS), on the same choices and the same scouting a player has:
-//   basic   rules of thumb: rooms by weighted draws, the strongest souls fielded in the best of three drafted
-//           formations, in a Shop a Command relic it can pay for (pickShop), recruits only to fill the field,
-//           essence on the lowest kind's next tier (on the track it is on); it never fuses, and in battle it ends
-//           every turn without an order (policy.js basicTurn: what it leaves alone strikes with its basic blow)
-//   expert  plans, and has studied the combo book (BOOK, src/sim/combos.json, made by --combos): every route over
-//           the next few ranks played out; the formation drafted as the puzzle it is (zone drafts from the scouted
-//           room played ahead, its gate held, basic's three) and hill-climbed by rehearsal, a 2×2 piece wherever its
-//           footprint fits; every purchase, fusion, recruit, relic bought and relic given weighed by one growth
-//           search on a sketch (the field's strength and the book's worth of the combo it plays toward: targetOf),
-//           a relic against the tiers its price displaces (buyFor); its target's kinds fielded first and never let
-//           go while another will do; in battle, every turn policy.js expertTurn's (a search two rounds ahead), and
-//           in what it only plays ahead, greedyTurn's (one round: LEVELS `rehearsal`)
+// A player for tests and balance runs: a policy that picks one action at a time for apply(). It plays at one of two
+// levels (LEVELS), on the same choices and the same scouting a player has:
+//   basic   rules of thumb: rooms by weighted draws, the strongest souls fielded in its first draft (each role's row,
+//           packed from the middle lane, every other lane against blasts), in a Shop a Command relic it can pay for
+//           (pickShop), recruits only to fill the field, essence on the lowest kind's next tier (on the track it is on);
+//           it never fuses, and in battle it ends every turn without an order (policy.js basicTurn: what it leaves alone
+//           strikes with its basic blow)
+//   expert  judges (redesign.md §2.17; expert.js), and has studied the combo book (BOOK, src/sim/combos.json, ranked
+//           by a static formula: --combos). Every decision is one shape: the situation read once (survey out of battle,
+//           policy.js situation in it: what a player is shown, and the book), the options listed, each read as a named
+//           vector of features, the tree of hard rules (expert.js TREES) forcing or filtering them, the weights
+//           (TUNING.expert) scoring the rest. The next room by its type and the army's state (roomFeatures); the
+//           formation drafted (zone drafts about the seat, its gate held, basic's three) and hill-climbed on a static
+//           score against the scouted room's roads (formationFeatures); every purchase, fusion, recruit, relic bought
+//           and relic given by one growth search on a sketch (the field's strength and the book's worth of the combo it
+//           plays toward: targetOf), a relic against the tiers its price displaces (buyFor); its target's kinds fielded
+//           first and never let go while another will do; in battle every turn policy.js expertTurn's (each piece's
+//           option scored on the board as it stands). It never plays a battle, a turn of the foes, or a route ahead to
+//           decide anything.
 // Essence buys tiers, recruits, fusions and relics (a Shop's): the Monarch's HP and Command come from run relics, a
 // kind's level from its tiers (run.js). The Monarch is the camp's (run.js: on its seat, monarchSlot); nothing moves it.
-// A battle reads no random number (redesign.md §2.16), so a rehearsal is one battle played out on turns (turns.js
-// playOut) under the level's rehearsal turn policy (`rehearsal`: policy.js basicTurn or greedyTurn), fought once for
-// each formation weighed, and never again for the same setup (the memo). In a battle it gives the level's turn policy's
-// orders, one at a time.
+// In a battle it gives the level's turn policy's orders, one at a time.
 // Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert]
 // for the gap between the levels:     … --ladder [--runs 8]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above)
 // for how much each mechanic carries the expert, full runs:  … --ablations [--runs 8] [--variants full,orders,fusions] [--out runs.json]
 // or as a fast battle-level proxy (its battles refought stripped): … --necessity [--runs 8] [--setups file]
-// or what the expert considers against what it chooses, mechanic by mechanic (AUDIT):  … --audit [--runs 4] [--seed audit]
-// or the expert's combo book, ranked by rehearsal and written to src/sim/combos.json (rerun when content or numbers
-// change):  … --combos  (npm run combos)
-// (the defaults, RUNS, are sized to one expert run per core: an expert run takes minutes; see README)
-import { createHash } from 'node:crypto'
+// or what the expert considers against what it chooses, and which rule decided (AUDIT):  … --audit [--runs 4] [--seed audit]
+// or the expert's combo book, ranked by its static formula and written to src/sim/combos.json (rerun when content or
+// numbers change):  … --combos  (npm run combos)
+// (--decisions and --necessity refight recorded battles to measure them: they decide nothing.)
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campOpen, wallTiles, steps, deployTile, tileAt, tileX, tileY, TILES,
-  LANES, rowOf, colOf, distance, makeUnit, slotAt, baseStats, summonsOf, DEPTH, sizeOf, footprint, footprintSlots, fits,
-  monarchSlot, abilitiesOf, isBlow, blowReach, armOf, alive, heldMods, isRunPath, cellsOf, meleeOnly, ROWS
+  LANES, rowOf, colOf, distance, makeUnit, slotAt, baseStats, summonsOf, DEPTH, sizeOf, footprintSlots, fits,
+  monarchSlot, abilitiesOf, isBlow, isAllyShape, blowReach, armOf, heldMods, isRunPath, cellsOf, meleeOnly, auraOf, activeSynergies, rangeOf, ROWS
 } from './unit.js'
-import { roadOf, roadsTo } from './field.js'
-import { createBattle, order, playOut, timelineHash, legalOrders, stalled } from './turns.js'
-import { expertTurn, greedyTurn, basicTurn } from './policy.js'
+import { roadsTo } from './field.js'
+import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
+import { expertTurn, basicTurn, brief } from './policy.js'
+import { value, decide, standing as keysOf, outranks, TREES } from './expert.js'
 import { grantsArise, bleeds } from './rules.js'
 import {
-  createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
+  createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, OSSUARY, START_PARTY,
-  relicTier, levelOf, kindLevel, monarchHp, ariseOf, drawRoom, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold
+  relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold
 } from './run.js'
-import { nodeOf, RANKS, generateFloor } from './map.js'
+import { nodeOf, RANKS } from './map.js'
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, campDef, relicDef, fusionDef, FUSION_LIST, UNIT_LIST, SYNERGIES, CAMP_LIST, RELIC_LIST } from '../content.js'
+import { unitDef, abilityDef, campDef, relicDef, fusionDef, FUSION_LIST, UNIT_LIST, SYNERGIES, RELIC_LIST } from '../content.js'
 
-// rehearse: weigh its formations by rehearsal (false: take the first draft unrehearsed); search: formations tried by
-// hill-climbing from the best draft, and up to `hard` while none scores `comfort`; wounds: field by worth with wounds
-// counted; rollouts: walks per route when choosing a room (0: weighted draws), over the next `horizon` rooms; spend:
-// grow by the growth search (grow: purchases, recruits, the Shop's relics, who holds them) rather than by rule of thumb;
-// fuse: weigh each fusion it can make (else it never fuses); book: play toward the combo book's best reachable combo
-// (targetOf); more: draft the expert's formations too (zone drafts about the Monarch, its gate held: drafts); turns:
-// how it plays its turns in the battles it fights ('basic': End Turn alone; 'expert': policy.js expertTurn, the
-// search that plays two rounds ahead); rehearsal: how it plays them in everything it only plays ahead (its rehearsals,
-// its rollouts, the combo book): 'greedy', policy.js greedyTurn (one round ahead), as its formation search fights
-// 12–60 rehearsals a room and the search would make a run take minutes (by default as it fights, the search's quick
-// form for the search: rehearsalOf).
+// search: formations met by hill-climbing from the best draft, on the static score (0: the first draft, basic's rule
+// of thumb); wounds: field by worth with wounds counted; route: choose the next room by its features (else weighted
+// draws); spend: grow by the growth search (grow: purchases, recruits, the Shop's relics, who holds them) rather than by
+// rule of thumb; fuse: weigh each fusion it can make (else it never fuses); book: play toward the combo book's best
+// reachable combo (targetOf); more: draft the expert's formations too (zone drafts about the Monarch, its gate held:
+// drafts); turns: how it plays its turns in battle ('basic': End Turn alone; 'expert': policy.js expertTurn).
 export const LEVELS = {
-  basic: { rehearse: true, search: 0, wounds: false, rollouts: 0, spend: false, fuse: false, turns: 'basic' },
-  expert: {
-    rehearse: true, search: 12, hard: 60, comfort: 1.8, wounds: true, rollouts: 1, horizon: 3, spend: true, fuse: true, more: true, book: true,
-    turns: 'expert', rehearsal: 'greedy'
-  }
+  basic: { search: 0, wounds: false, route: false, spend: false, fuse: false, turns: 'basic' },
+  expert: { search: 120, wounds: true, route: true, spend: true, fuse: true, more: true, book: true, turns: 'expert' }
 }
-// The turn policies by name (LEVELS `turns` and `rehearsal`; `unfused` and `greedy-unfused`, the expert's that never
-// fuse in battle: the fusions ablation's).
+// The turn policies by name (LEVELS `turns`; `unfused`, the expert's that never fuses in battle: the fusions
+// ablation's). Each takes the battle and options (expertTurn's `note`, the audit's).
 const TURNS = {
   basic: basicTurn,
-  expert: expertTurn,
-  unfused: (b) => expertTurn(b, { fuse: false }),
-  greedy: greedyTurn,
-  'greedy-unfused': (b) => greedyTurn(b, { fuse: false })
+  expert: (b, o) => expertTurn(b, o),
+  unfused: (b, o) => expertTurn(b, { ...o, fuse: false })
 }
 // The turn policy L fights by: its `turns`, with its ablation's mechanic taken from them (ablatedTurns).
 const turnsOf = (L) => ablatedTurns(L.turns ?? 'basic', L.ablate)
-// The turn policy L plays ahead by (rehearse, rollouts): its `rehearsal`, else its `turns`' quick form (QUICK: the
-// expert's search never plays inside a rehearsal), ablated likewise.
-const QUICK = { expert: 'greedy', unfused: 'greedy-unfused' }
-const rehearsalOf = (L) => ablatedTurns(L.rehearsal ?? QUICK[L.turns] ?? L.turns ?? 'basic', L.ablate)
-// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, an expert's unfused without fusions.
-const UNFUSED = { expert: 'unfused', greedy: 'greedy-unfused' }
-const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' ? UNFUSED[turns] ?? turns : turns)
-// How an expert imagines a route: quick formations and basic offers (its own turns and ablation: as).
-const ROLLOUT = { rehearse: false, search: 0, wounds: true, rollouts: 0, spend: false, fuse: false, more: true }
-// How it sizes up a room it could walk into next: every draft rehearsed (pickRoute).
-const RISK = { ...ROLLOUT, rehearse: true }
+// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, the expert's unfused without fusions.
+const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' && turns === 'expert' ? 'unfused' : turns)
 
 // ── ablation: the expert with one mechanic taken away ─────────────────────────────────────────────
 
 // For measuring how much each mechanic carries the expert (--ablations, --necessity): a level's `ablate`
 // takes ONE mechanic from it and changes nothing else; essence it would have spent there goes where its
-// spending logic already sends it. Everything it plays ahead with (rehearsals, rollouts) carries the same ablation:
+// spending logic already sends it:
 //   orders         ends every turn of every battle without an order (policy.js basicTurn: what is left alone strikes
 //                  or mends with its basic, and no skill is ever used): what in-battle play is worth
-//   fusions        never fuses (fusionOptions lists none; its turns give no fuse order in battle either: TURNS unfused,
-//                  greedy-unfused)
+//   fusions        never fuses (fusionOptions lists none; its turns give no fuse order in battle either: TURNS unfused)
 //   summons        no tier brings a summon in battle (a rules switch: the run's `ablate`, carried in every battle's
 //                  setup, so a snapshot stripped of it, necessity, fights without it too), and such a tier is worth
 //                  only its place on the track (worth: its summons not counted), so the essence goes elsewhere
@@ -117,8 +99,6 @@ const RISK = { ...ROLLOUT, rehearse: true }
 export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation']
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 export const ablatedRun = (seed, ablate = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null })
-// A level as it plays ahead for L: L's rehearsal turns (rehearsalOf), and the same ablation carried.
-const as = (base, L) => ({ ...base, turns: rehearsalOf(L), ...(L.ablate && { ablate: L.ablate }) })
 // Whether L never buys relic `id`.
 const legendary = (id) => relicTier(id) === 'legendary'
 const BANNED = {
@@ -148,115 +128,203 @@ const byPower = (a, b) => worth(b) - worth(a) || a.uid - b.uid
 // An expert counts wounds: a soul at 10% HP is not worth fielding at full price.
 const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b.uid
 
-// Rough fighting worth from its stats, track tiers and the relics it holds included: how long it lasts times how hard it
-// hits (and how far it goes in a turn), square-rooted, and as much again for each summon its tiers bring, at the root of
-// the share of HP a summon rises with (unless `summons` is false: the summons ablation's). A tier that grants an
-// ability, an aura or a Colossus's footprint counts as a tenth more, and each relic it holds RELIC_SHARE more besides
-// its mods (what its triggers and rules are worth, only a battle can tell). 0 for the fallen, and for the Monarch,
-// which never strikes: what it is worth only a rehearsal can tell.
-const RELIC_SHARE = 0.08
-function worth (u, summons = true) {
+// Rough fighting worth from its stats, track tiers and the relics it holds included (`mods`: a foe's, its floor's):
+// how long it lasts times how hard it hits (and how far it goes in a turn), square-rooted, and as much again for each
+// summon its tiers bring, at the root of the share of HP a summon rises with (unless `summons` is false: the summons
+// ablation's). A tier that grants an ability, an aura or a Colossus's footprint counts a share more, and each relic it
+// holds a share more besides its mods (what its triggers and rules are worth no static read can tell):
+// TUNING.expert.growth.worth. 0 for the fallen, and for the Monarch, which never strikes.
+function worth (u, summons = true, mods = heldMods(u)) {
   if (u.hp <= 0 || isMonarch(u)) return 0
-  const s = statsOf(u, heldMods(u))
+  const w = TUNING.expert.growth.worth
+  const s = statsOf(u, mods)
   const lasts = s.hp * (1 + s.def / 100) / s.damage.taken
-  const hits = s.atk * s.damage.dealt * (1 + 0.1 * s.move) * (1 + 0.3 * (s.heal.given - 1))
+  const hits = s.atk * s.damage.dealt * (1 + w.move * s.move) * (1 + w.heal * (s.heal.given - 1))
   const signature = tiersOf(u).filter((t) => t.ability || t.aura || t.size).length
-  return Math.sqrt(lasts * hits) * (1 + 0.1 * signature) * (1 + RELIC_SHARE * (u.relics?.length ?? 0)) *
+  return Math.sqrt(lasts * hits) * (1 + w.signature * signature) * (1 + w.relic * (u.relics?.length ?? 0)) *
     (1 + (summons ? summonsOf(u) * Math.sqrt(TUNING.summon.hp) : 0))
 }
 const fieldPower = (u) => worth(u) * Math.sqrt(hpPct(u))
 
-// The run as it would be standing in another room: what battleSetup needs, nothing copied.
-const atNode = (run, node, state = {}) => ({ ...run, state: { ...run.state, ...state, at: node.id } })
-// A copy to play ahead on, with its own rolls (`roll`: a rollout's).
-function fork (run, roll) {
-  const state = structuredClone(run.state)
-  if (roll !== undefined) state.seed = `${state.seed}|rollout|${roll}`
-  return { state, battle: null, setup: null }
+// A copy of the run to weigh a choice on (the growth search's): the state cloned, no battle.
+const fork = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
+
+// What a retinue brings to its next fight: the fieldable pieces' wounded power (their summons and the relics they hold
+// counted), raised by each run relic as worth raises a piece by one it holds (a piece relic works only through its
+// holder).
+function strength (s, summons = true) {
+  const best = souls(s.party).map((u) => worth(u, summons) * Math.sqrt(hpPct(u))).sort((a, b) => b - a).slice(0, fieldCap({ state: s }))
+  return best.reduce((n, p) => n + p, 0) * (1 + TUNING.expert.growth.worth.relic * s.relics.filter(isRunRelic).length) || 1
+}
+
+// ── the survey: what the expert reads of the run (redesign.md §2.17) ─────────────────────────────
+
+// What the expert reads of the run before a decision out of battle, once a decision (policy): what the map, the field,
+// the ossuary, the purse, the Shop and the bestiary show a player, and the combo book; never a room's battle played.
+//   floor, rank, phase       where the run stands
+//   purse, prices            its essence, and the cheapest next tier of a kind it holds (`tier`), recruit on offer
+//                            (`recruit`) and relic of the floor (`relic`): null where there is none
+//   health, fallen, monarch  its souls' HP over their max (the fallen's none), how many lie fallen, and the share of the
+//                            Monarch's HP it has; `unhealed`: nothing may heal the Monarch (Court of Bone)
+//   strength                 the field's (strength)
+//   command, fielded, waiting  the field cap, the standing souls fielded, and those waiting in the ossuary
+//   target                   the combo it plays toward ({ id, progress, missing: kinds still short }), null for none
+//   relics                   `unheld`: the piece relics waiting; `free`: standing souls with room to hold one
+//   rooms                    each room it may walk into next: { id, type, threat (its scouted foes' worth), threats
+//                            (their types), unanswered (those the army has no answer to: ANSWERS), want (its foes of the
+//                            target's kinds), ahead ({ shop, altar }: rooms to the nearest on a route through it, null
+//                            for none) }
+export function survey (run, L = LEVELS.expert) {
+  const s = run.state
+  const all = souls(s.party)
+  const up = standing(all)
+  const target = L.book ? targetOf(s) : null
+  const keeps = targetKinds(target)
+  const common = RELIC_LIST.find((r) => r.tier === 'common')
+  const tiers = heldKinds(s).flatMap((kind) => [0, 1].filter((t) => canAdvance(s, kind, t)).map((t) => tierCost(run, kind, t)))
+  const m = monarchOf(s)
+  return {
+    floor: s.floor,
+    rank: currentNode(run)?.rank ?? 0,
+    phase: s.phase,
+    purse: s.essence,
+    prices: {
+      tier: tiers.length ? Math.min(...tiers) : null,
+      recruit: s.offers?.length ? Math.min(...s.offers.map((o) => o.cost)) : null,
+      relic: common ? relicPrice(run, common.id) : null
+    },
+    health: all.reduce((n, u) => n + Math.max(0, u.hp), 0) / Math.max(1, all.reduce((n, u) => n + u.maxHp, 0)),
+    fallen: all.length - up.length,
+    monarch: m.hp / m.maxHp,
+    unhealed: unhealed(s),
+    strength: strength(s, L.ablate !== 'summons'),
+    command: fieldCap(run),
+    fielded: fielded(up).length,
+    waiting: inOssuary(up).length,
+    target: target && { id: target.id, progress: comboProgress(s, target), missing: Object.entries(target.needs).filter(([id, n]) => up.filter((u) => u.id === id).length < n).map(([id]) => id) },
+    relics: { unheld: unheld(s).filter((id) => !isRunRelic(id)), free: up.filter((u) => (u.relics?.length ?? 0) < TUNING.relic.perPiece).length },
+    rooms: s.phase === 'map' ? availableNodes(run).map((n) => scoutRoom(run, n, up, keeps)) : []
+  }
+}
+
+// A room the run may walk into, as the survey reads it (scouting shows its foes; the map, where the routes go).
+function scoutRoom (run, n, up, keeps) {
+  const s = run.state
+  const foes = [...(n.foes ?? []), ...(n.waves ?? []).flatMap((w) => w.foes)]
+  const mods = foeMods(s.floor, n.type === 'boss')
+  const threats = n.foes ? [...roomThreats(n)] : []
+  return {
+    id: n.id,
+    type: n.type,
+    threat: foes.reduce((t, f) => t + worth(makeUnit(f.id, { lvl: f.lvl }), false, mods), 0),
+    threats,
+    unanswered: threats.filter((t) => ANSWERS[t] && !up.some(ANSWERS[t])),
+    want: foes.filter((f) => keeps.has(f.id)).length,
+    ahead: { shop: roomsTo(s.map, n.id, 'shop'), altar: roomsTo(s.map, n.id, 'altar') }
+  }
+}
+
+// The army's answers to a room's threat types (content.js THREATS), by what a standing soul can do: Fly by a blow that
+// reaches a flyer (a ranged one, or a flyer's own), Reach by a ranged blow, Drain, Burn and Bleed by a heal of others or
+// a cleanse. Shape, Sustain and Depth are met by numbers alone, so the survey counts no answer short for them.
+const kitOf = (u) => abilitiesOf(u).map(abilityDef)
+const tends = (u) => kitOf(u).some((a) => isAllyShape(a.shape) && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse'))
+const ANSWERS = {
+  fly: (u) => kitOf(u).some((a) => isBlow(a) && (!a.melee || !!unitDef(u.id).flies)),
+  reach: (u) => kitOf(u).some((a) => isBlow(a) && !a.melee),
+  drain: tends,
+  burn: tends,
+  bleed: tends
+}
+
+// How many rooms on from room `from` the nearest room of `type` lies on a route through it (1: the next), null for
+// none on the floor.
+function roomsTo (map, from, type) {
+  const seen = new Set([from])
+  let edge = [from]
+  for (let d = 1; edge.length; d++) {
+    const next = []
+    for (const id of edge) {
+      for (const n of nodeOf(map, id).next) {
+        if (seen.has(n)) continue
+        if (nodeOf(map, n).type === type) return d
+        seen.add(n)
+        next.push(n)
+      }
+    }
+    edge = next
+  }
+  return null
 }
 
 // ── map: the route ───────────────────────────────────────────────────────────────────────────────
 
-function pickNode (run, rng, L) {
-  const spend = pickSpend(run, L)
+function pickNode (run, rng, L, sit) {
+  const spend = pickSpend(run, L, sit)
   if (spend) return spend
   const nodes = availableNodes(run)
-  if (L.rollouts && nodes.length > 1) return { type: 'node', id: pickRoute(run, L) }
+  if (L.route && nodes.length > 1) return { type: 'node', id: pickRoute(run, sit) }
   const health = partyHealth(run.state.party)
   const w = { fight: 3, elite: health > 0.7 ? 1.5 : 0.3, shop: 2, altar: health < 0.6 ? 5 : 0.5, boss: 1, siege: health > 0.7 ? 1.5 : 0.3 }
   return { type: 'node', id: rng.weighted(nodes, nodes.map((n) => w[n.type])).id }
 }
 
-// The expert walks every route over the next `horizon` rooms `rollouts` times on its own rolls (the Shops' stock),
-// with quick formations (the first draft, unrehearsed), basic offers and its own turns, and takes the first room of the
-// route that ends best on average. A quick formation can lose a fight a searched one would win, and win one it would
-// lose, so first it sizes up each battle room it could walk into next (RISK: every draft rehearsed, the expert's too):
-// a room where its best draft still loses is walked into only when every room ahead is one. A loss ends the run; an
-// elite's purse does not pay for it.
-function pickRoute (run, L) {
-  const start = strength(run.state)
-  const next = availableNodes(run)
-  const lost = new Set(next.filter((n) => n.foes && plan(atNode(run, n), as(RISK, L), { enough: 1 }).score < 1).map((n) => n.id))
-  const safe = (route) => lost.size === next.length || !lost.has(route.split(' ')[0])
-  const totals = new Map() // route → summed value
-  for (let k = 0; k < L.rollouts; k++) {
-    for (const [route, value] of rollout(fork(run, k), start, L.horizon, as(ROLLOUT, L))) totals.set(route, (totals.get(route) ?? 0) + value)
+// The expert's next room: each room it may walk into, read against the survey (roomFeatures), decided by the tree's
+// rules (TREES.route: a badly wounded army takes an altar, and walks into no elite) and then the weights
+// (TUNING.expert.route). No route is walked ahead and no room's battle played: a room is what scouting shows of it.
+// → the room's id.
+export function pickRoute (run, sit = survey(run)) {
+  const rooms = sit.rooms.map((room) => ({ node: nodeOf(run.state.map, room.id), v: roomFeatures(sit, room) }))
+  const pick = decide(TREES.route, sit, rooms, TUNING.expert.route)
+  noteRule(run, 'route', pick, surveyLine(sit))
+  return pick.option.node.id
+}
+
+// A room read as the features its decision weighs (TUNING.expert.route): its type, one of six; for a battle room the
+// odds (the log of the army's strength over the room's scouted threat; `weak` where the room is the stronger), its foes
+// of the target's kinds (`want`) and its threat types the army has no answer to (`unanswered`); for an altar the souls'
+// wounds and the Monarch's (none while nothing may heal it); for a Shop the purse over the floor's cheapest relic, up
+// to 3; and an altar or a Shop on a route through it (`altarAhead`, `shopAhead`), the nearer the more.
+export function roomFeatures (sit, room) {
+  const fights = room.threat > 0
+  const odds = fights ? Math.log(sit.strength / room.threat) : 0
+  const purse = sit.prices.relic ? Math.min(3, sit.purse / sit.prices.relic) : 0
+  const v = { fight: 0, elite: 0, shop: 0, altar: 0, boss: 0, siege: 0 }
+  v[room.type] = 1
+  return {
+    ...v,
+    odds,
+    weak: Math.max(0, -odds),
+    wounds: room.type === 'altar' ? 1 - sit.health : 0,
+    monarch: room.type === 'altar' && !sit.unhealed ? 1 - sit.monarch : 0,
+    purse: room.type === 'shop' ? purse : 0,
+    want: room.want,
+    unanswered: room.unanswered.length,
+    altarAhead: room.ahead.altar === null ? 0 : (1 - sit.health) / (1 + room.ahead.altar),
+    shopAhead: room.ahead.shop === null ? 0 : purse / (1 + room.ahead.shop)
   }
-  let best = null
-  for (const [route, value] of totals) if (safe(route) && (!best || value > best.value)) best = { route, value }
-  return best.route.split(' ')[0]
-}
-
-// Every route from here, `depth` rooms deep or to the floor's end, as [route, value]: 0 for a run lost
-// on the way (a fall in the deep too, though the clear stands), 2 for the boss slain, else 1 plus half the
-// retinue's strength at the route's end over its strength now, the Monarch's third of it (as a rehearsal weighs it
-// beside the souls: scoreOf) by the share of its HP it has left where nothing will mend it (Court of Bone: a Monarch
-// bled low there counts as low, never as whole; elsewhere the run mends it, and it counts as whole, as before). Its
-// HP is the run's own, carried room to room. Routes that share their first rooms share those fights: the walk only
-// branches where the map does.
-function rollout (sim, start, depth, R, route = []) {
-  const next = nodeOf(sim.state.map, sim.state.at).next
-  return next.flatMap((id, i) => {
-    const branch = i === next.length - 1 ? sim : fork(sim)
-    const floor = branch.state.floor
-    apply(branch, { type: 'node', id })
-    while (['prep', 'battle', 'reap', 'shop'].includes(branch.state.phase)) apply(branch, policy(branch, null, R))
-    const s = branch.state
-    const here = [...route, id]
-    if (s.phase === 'over') return [[here.join(' '), s.result === 'victory' && !s.death ? 2 : 0]]
-    const share = unhealed(s) ? (2 + hpPct(monarchOf(s))) / 3 : 1
-    if (s.floor !== floor || here.length >= depth) return [[here.join(' '), 1 + 0.5 * strength(s) / start * share]]
-    return rollout(branch, start, depth, R, here)
-  })
-}
-
-// What a retinue brings to its next fight: the fieldable pieces' wounded power (their summons and the relics they hold
-// counted), raised RELIC_SHARE by each run relic (a piece relic works only through its holder: worth).
-function strength (s, summons = true) {
-  const best = souls(s.party).map((u) => worth(u, summons) * Math.sqrt(hpPct(u))).sort((a, b) => b - a).slice(0, fieldCap({ state: s }))
-  return best.reduce((n, p) => n + p, 0) * (1 + RELIC_SHARE * s.relics.filter(isRunRelic).length) || 1
 }
 
 // ── prep: the formation ──────────────────────────────────────────────────────────────────────────────
 
 // The autoplayer arranges its souls with the same choice a player has: any camp cell where a piece's footprint
 // fits (unit.js fits: a 2×2 piece needs its four cells open), the Monarch on its seat (the camp's: it never
-// moves). It drafts a few formations and rehearses each against the scouted foes, keeping the one that does best;
-// ties keep the earlier draft. Basic's three:
+// moves). Basic takes its first draft, its rule of thumb; the expert drafts a few and decides between them, and
+// between them and the formations a hill-climb finds from the best, by a static read of the scouted room
+// (formationFeatures; plan). Basic's three drafts:
 //   rows       each role's row (ROW), packed from the middle lane (auras want neighbours)
 //   spread     each role's row, every other lane first (against area attacks)
 //   sheltered  the melee where foes walking in arrive first; ranged souls behind the walls, where foes
 //              must walk furthest to reach them for how close they stand
 // The expert (`more`) reads the placement as the puzzle it is. Every foe keeps to its road to the seat, and a piece
-// of yours strikes what it reaches once it has moved, so the fighting is where the foes stand within your pieces'
-// Move and reach, most of it where the roads meet at the seat. The scouted room played ahead becomes a threat map
-// (threatOf: where each foe stands as each of your turns begins, a flyer's in the air apart), a cell is worth to a
-// piece what of that it covers from there (coverage: as the danger map counts a piece of yours, every tile its Move
-// takes it to and its blows' reach from each, the air only for a blow that strikes a flyer), and its drafts are
-// filled greedily from that (zone): at a few radii about the seat, the coverage shared out or bunched; with its gate
-// held where the camp has one (gated: the fewest cells every drawn ground road crosses, so every ground foe's road runs
-// into a piece that blocks it there). Then one search: it hill-climbs from the best draft (mutate: plan). A piece that
-// fits nowhere waits in the ossuary (slot −1).
+// of yours strikes what it reaches once it has moved, so the fighting is where the foes' roads run within your pieces'
+// Move and reach, most of it where the roads meet at the seat. The scouted room's roads (scout: each foe's, from where
+// it stands or enters to the seat) become a threat map (threatOf: each road tile, the nearer the seat the more), a cell
+// is worth to a piece what of that it covers from there (coverage: as the danger map counts a piece of yours, every
+// tile its Move takes it to and its blows' reach from each, the air only for a blow that strikes a flyer), and its
+// drafts are filled greedily from that (zone): at a few radii about the seat, the coverage shared out or bunched; with
+// its gate held where the camp has one (gated: the fewest cells every drawn ground road crosses, so every ground foe's
+// road runs into a piece that blocks it there). A piece that fits nowhere waits in the ossuary (slot −1).
 
 const SPREAD = [3, 1, 5, 2, 4, 0, 6]
 const blasts = (foes) => foes.some((f) => unitDef(f.id).abilities.some((id) => abilityDef(id).shape === 'blast'))
@@ -345,11 +413,8 @@ function sheltered (units, camp, taken) {
 
 // The expert's zone drafts: [radius about the seat (Chebyshev, from a footprint's nearest tile), how much of a tile's
 // threat stays once a piece reaches it (1: bunched, every piece on the busiest tiles; less: shared out over the
-// roads), how steeply the threat grows toward the seat]. The first is the one a quick formation takes (SIZE_UP,
-// ROLLOUT).
+// roads), how steeply the threat grows toward the seat].
 const ZONES = [[2, 1, 1], [Infinity, 0.5, 0.5], [1, 1, 2], [3, 0.5, 1]]
-// The zone drafts with the `first` (the book's for its target: its `draft`) first.
-const zones = (first = 0) => [ZONES[first] ?? ZONES[0], ...ZONES.filter((_, i) => i !== (ZONES[first] ? first : 0))]
 
 // The formations L drafts for these units (`want`, in fielding order), each with the Monarch on its seat first.
 export function drafts (run, want, L) {
@@ -360,67 +425,58 @@ export function drafts (run, want, L) {
   const rows = (cols) => [{ ...m }, ...byRows(blank(), cols, s.camp, seated(s.camp))]
   const basic = [rows(lanes[0]), rows(lanes[1]), [{ ...m }, ...sheltered(blank(), s.camp, seated(s.camp))]]
   if (!L.more) return basic
-  const threat = threatOf(run)
-  const gate = gated(blank(), s.camp, threat)
+  const gate = gated(blank(), s.camp, threatOf(run))
   return [
-    ...zones(L.book ? targetOf(s)?.draft : 0).map(([radius, keep, steep]) => [{ ...m }, ...zone(blank(), s.camp, threatOf(run, steep), { radius, keep })]),
+    ...ZONES.map(([radius, keep, steep]) => [{ ...m }, ...zone(blank(), s.camp, threatOf(run, steep), { radius, keep })]),
     ...(gate ? [[{ ...m }, ...gate]] : []), ...basic
   ]
 }
 
-// The scouted room as a threat map: where its foes will stand as your turns begin (stands), each such tile taking
-// (1 + its road distance)^−steep, once a foe: the nearer the seat, where every road ends and the fighting gathers, the
-// more. → { ground, air }, each a Float64Array by tile, a flyer's in the air.
+// The scouted room's foes and their roads (made once a room; no battle is set up or played): each foe of the opening
+// formation and of every wave, the road it will walk to the Monarch's seat from where it stands or enters (field.js
+// roadsTo: a ground foe's the camp's Walk field, a flyer's the air road; a wave's foe enters at the top edge in its
+// lane, as turns.js entryTile puts it), and what it strikes with (its hardest blow, raw, its floor's mods counted; how
+// far its blows reach a piece on the ground, and one in the air, −1 for none). → [{ flies, road: [tile, …, the seat],
+// raw, reach, air }]
+const scouts = new Map()
+function scout (run) {
+  const s = run.state
+  const node = currentNode(run)
+  const key = JSON.stringify([s.camp, s.floor, node.id, node.type, node.foes, node.waves?.map((w) => w.foes)])
+  if (scouts.has(key)) return scouts.get(key)
+  const roads = roadsTo(s.camp)
+  const mods = foeMods(s.floor, node.type === 'boss')
+  const out = []
+  for (const [k, foes] of [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].entries()) {
+    for (const f of foes) {
+      const u = makeUnit(f.id, { lvl: f.lvl })
+      const flies = !!unitDef(f.id).flies
+      const blows = kitOf(u).filter(isBlow)
+      const far = (list) => Math.min(DEPTH, Math.max(-1, ...list.map((b) => blowReach(u, b))))
+      const from = deployTile('foe', k ? slotAt(ROWS - 1, colOf(f.slot)) : f.slot)
+      out.push({ flies, road: roadFrom(from, flies ? roads.air : roads.field), raw: punch(u, mods), reach: far(blows), air: far(blows.filter((b) => !b.melee || flies)) })
+    }
+  }
+  if (scouts.size > 500) scouts.clear()
+  scouts.set(key, out)
+  return out
+}
+
+// The scouted room as a threat map (the zone drafts' and `cover`'s): each tile of each scouted foe's road but the seat,
+// taking (1 + its road distance)^−steep, once a foe: the nearer the seat, where every road ends and the fighting
+// gathers, the more. → { ground, air } (a flyer's in the air), each a Float64Array by tile.
 const threats = new WeakMap()
 function threatOf (run, steep = 1) {
-  const list = stands(run)
+  const list = scout(run)
   const made = threats.get(list) ?? new Map()
   threats.set(list, made)
   if (made.has(steep)) return made.get(steep)
   const out = { ground: new Float64Array(TILES), air: new Float64Array(TILES) }
-  for (const { tile, flies, dist } of list) (flies ? out.air : out.ground)[tile] += 1 / (1 + dist) ** steep
+  for (const { road, flies } of list) {
+    const to = flies ? out.air : out.ground
+    for (let i = 0; i < road.length - 1; i++) to[road[i]] += 1 / (road.length - i) ** steep
+  }
   made.set(steep, out)
-  return out
-}
-
-// The scouted room played ahead: its battle set up as a fight here would be, with the Monarch alone on its seat (made
-// to stand whatever strikes it, so every wave comes), and played under End Turn, the camp's turns as it plays them
-// (policy.js foeTurn: each foe as far along its road as its temperament takes it, queued behind those ahead), until
-// every wave has entered and no foe has stood anywhere new for two turns (the camp's impatience brings every foe in, so
-// this comes). Each tile a foe's footprint stands on as a turn of yours begins, where your blows will find it, once a
-// foe: [{ tile, flies, dist (its road distance) }]. Made once for each room and what its battle is set up from.
-const STAND = 1e9
-const standCache = new Map()
-function stands (run) {
-  const s = run.state
-  const node = currentNode(run)
-  const key = JSON.stringify([s.camp, s.floor, node.type, node.foes, node.waves?.map((w) => w.foes), s.nextUid, s.relics])
-  if (standCache.has(key)) return standCache.get(key)
-  const m = { ...monarchOf(s), slot: monarchSlot(s.camp), hp: STAND, maxHp: STAND }
-  const b = createBattle({ ...battleSetup(run, { party: [m] }), quiet: true })
-  const seen = new Set()
-  const out = []
-  const look = () => {
-    let fresh = false
-    for (const u of b.units) {
-      if (u.side !== 'foe' || !alive(u)) continue
-      const road = roadOf(b, u)
-      for (const t of footprint(u.tile, u.size)) {
-        if (seen.has(u.uid * TILES + t)) continue
-        seen.add(u.uid * TILES + t)
-        fresh = true
-        out.push({ tile: t, flies: u.flies, dist: road.dist[t] })
-      }
-    }
-    return fresh
-  }
-  look()
-  for (let still = 0; !b.over && still < 2;) {
-    order(b, { type: 'end' })
-    still = look() || b.reserve.length ? 0 : still + 1
-  }
-  if (standCache.size > 500) standCache.clear()
-  standCache.set(key, out)
   return out
 }
 
@@ -555,159 +611,154 @@ const toughness = (u) => {
   return st.hp * (1 + st.def / 100)
 }
 
-// A rehearsal: the formation `party` (the cells L would field) fought once, as the real fight will set it up (in the
-// run's party order, its pieces on the field only: a piece it leaves at −1 waits in the ossuary), its turns played by
-// `turns` (TURNS: the level's rehearsal policy, rehearsalOf), the foes made harder by `stress` (a share more HP and
-// ATK: the book's margins). A battle reads no random number, so once is all there is to know. → { score (scoreOf), left
-// (the Monarch's HP as a won battle leaves it; −1 for a loss) }.
-export function rehearse (run, party, { stress = 0, turns = 'basic' } = {}) {
-  const order = new Map(run.state.party.map((u, i) => [u.uid, i]))
-  const rank = (u) => order.get(u.uid) ?? Infinity
-  const setup = battleSetup(run, { party: party.filter((u) => u.slot >= 0).sort((a, b) => rank(a) - rank(b)) })
-  if (stress) setup.foeMods = [...setup.foeMods, { path: 'hp', op: 'mul', v: 1 + stress }, { path: 'atk', op: 'mul', v: 1 + stress }]
-  return rehearsed(setup, turns)
+// ── the formation's read (redesign.md §2.17) ─────────────────────────────────────────────────────
+
+// What a formation is read against, made once a plan: the scouted foes (scout), the threat map (threatOf) and its
+// total, the seat's tile, the field's best (the fielded souls' worth L would want, wounds counted: wanted), Arise's
+// reach, and whether your side holds synergies (not under their rules switch).
+function formationContext (run, L, want = wanted(run, L)) {
+  const s = run.state
+  const threat = threatOf(run)
+  return {
+    foes: scout(run),
+    threat,
+    total: threat.ground.reduce((n, x) => n + x, 0) + threat.air.reduce((n, x) => n + x, 0) || 1,
+    seat: deployTile('party', monarchSlot(s.camp)),
+    best: want.reduce((n, u) => n + fieldPower(u), 0) || 1,
+    domain: ariseOf(s).domain,
+    synergies: !s.ablate?.includes('synergies')
+  }
 }
 
-// A rehearsal's outcome for one battle's input, fought under the turn policy `turns` (TURNS): { score (scoreOf),
-// left (the Monarch's HP as a won battle leaves it; −1 for a loss, or with no Monarch) }. A battle is a pure function
-// of its setup and its orders (and of TUNING and the content), and the policies of the board, so the same setup under
-// the same policy is never refought, from whichever plan, draft, climb step or route it comes. Keyed on the setup's
-// content and the policy (a SHA-1 digest of its JSON with TUNING's), not its identity. The memo is the thread's own (a Map, bounded: cleared when full), or in a pool's worker the table all its
-// workers share (shareMemo). Either way a miss only costs the fight.
-const MEMO_CAP = 600000
-const memo = new Map()
-export const memoStats = { hits: 0, misses: 0 }
-function rehearsed (input, turns = 'basic') {
-  const digest = createHash('sha1').update(tuningKey()).update(turns).update(JSON.stringify(input)).digest()
-  const have = table ? tableGet(digest) : memo.get(digest.toString('base64'))
-  if (have !== undefined) { memoStats.hits++; return have }
-  memoStats.misses++
-  const b = playOut(createBattle({ ...input, quiet: true }), TURNS[turns])
-  const out = { score: scoreOf(b), left: b.winner === 'party' && b.monarch ? b.monarch.hp : -1 }
-  if (table) {
-    tablePut(digest, out)
-  } else {
-    if (memo.size >= MEMO_CAP) memo.clear()
-    memo.set(digest.toString('base64'), out)
+// A formation read against the scouted room, no battle played: the features its decision weighs
+// (TUNING.expert.formation) and its tree's rules read (TREES.formation). Each scouted foe walks its road to the seat
+// and stops before the first piece of yours on it (a piece on the ground holds anyone, a flyer only a flyer): the tiles
+// it may stand on are its road up to there, and it strikes what is within its reach of one of them.
+//   fielded    the pieces fielded
+//   power      their worth, wounds counted (fieldPower), over the field's best (ctx.best)
+//   cover      each piece's hardest blow (raw) × the share of the threat map its coverage takes, summed
+//   exposed    each piece: the share of its HP the scouted foes that reach it could take in a turn, at most 1
+//   open       scouted foes whose road reaches the seat with nothing of yours on it
+//   blockers   scouted foes held first by a piece that fights in melee alone
+//   behind     ranged pieces that cover the roads where no scouted foe reaches them
+//   mend       each healer: the exposure of the allies within its Move and its heal's range
+//   monarch    the share of the Monarch's HP the scouted foes that reach it could take in a turn, at most 2
+//   synergies  the synergy rules its souls hold (a summon counting as its kind)
+//   aura       the allies within an aura's range of its giver
+//   arise      each Arise holder: the share of the threat map within Arise's reach of it
+export function formationFeatures (run, party, ctx = formationContext(run, LEVELS.expert)) {
+  const s = run.state
+  const pieces = party.filter((u) => !isMonarch(u) && u.slot >= 0)
+  const tiles = new Map(pieces.map((u) => [u, tilesAt(u, u.slot)]))
+  const flies = (u) => !!unitDef(u.id).flies
+  const ground = new Map()
+  const air = new Map()
+  for (const u of pieces) for (const t of tiles.get(u)) (flies(u) ? air : ground).set(t, u)
+  const v = { fielded: pieces.length, power: 0, cover: 0, exposed: 0, open: 0, blockers: 0, behind: 0, mend: 0, monarch: 0, synergies: 0, aura: 0, arise: 0 }
+  const reached = new Map(pieces.map((u) => [u, 0]))
+  let onSeat = 0
+  for (const f of ctx.foes) {
+    let k = 0
+    let by = null
+    for (; k < f.road.length - 1 && !by; k++) by = ground.get(f.road[k]) ?? (f.flies ? air.get(f.road[k]) : null) ?? null
+    const stands = f.road.slice(0, by ? k - 1 : k)
+    if (!by) v.open++
+    else if (meleeOnly(by)) v.blockers++
+    const near = (list, r) => r >= 0 && stands.some((t) => list.some((x) => distance(t, x) <= r))
+    for (const u of pieces) if (near(tiles.get(u), flies(u) ? f.air : f.reach)) reached.set(u, reached.get(u) + f.raw)
+    if (near([ctx.seat], f.reach)) onSeat += f.raw
   }
-  return out
-}
-// TUNING as JSON, for the memo's key: tests change it between runs. Re-read on every call (it is small).
-const tuningKey = () => JSON.stringify(TUNING)
-
-// The memo a pool's workers share (playAll): an open-addressed hash table in a SharedArrayBuffer, MEMO_SLOTS
-// slots of eight 32-bit words: [state, key, key, key, score, score, left, left] (state 0 empty, 1 being written, 2
-// ready; the key the digest's first 96 bits; the score and the Monarch's HP left each a float64). A worker claims an
-// empty slot by compare-and-swap, writes it, then marks it ready; a reader takes a slot only once it is ready. Two
-// workers may fight the same battle at once and both write it (the same outcome): that costs a fight, never a
-// result. Nothing is ever removed; a key that finds no free slot within MEMO_PROBES is not kept.
-const MEMO_SLOTS = 1 << 23
-const MEMO_BYTES = MEMO_SLOTS * 32
-const MEMO_PROBES = 64
-let table = null
-export function shareMemo (buffer) {
-  table = { words: new Int32Array(buffer), values: new Float64Array(buffer), mask: buffer.byteLength / 32 - 1 }
-}
-function tableGet (digest) {
-  const { words, values, mask } = table
-  const k0 = digest.readInt32LE(0)
-  const k1 = digest.readInt32LE(4)
-  const k2 = digest.readInt32LE(8)
-  for (let p = 0, i = k0 & mask; p < MEMO_PROBES; p++, i = (i + 1) & mask) {
-    const b = i * 8
-    const state = Atomics.load(words, b)
-    if (state === 0) return undefined
-    if (state === 2 && words[b + 1] === k0 && words[b + 2] === k1 && words[b + 3] === k2) return { score: values[i * 4 + 2], left: values[i * 4 + 3] }
-  }
-  return undefined
-}
-function tablePut (digest, { score, left }) {
-  const { words, values, mask } = table
-  const k0 = digest.readInt32LE(0)
-  const k1 = digest.readInt32LE(4)
-  const k2 = digest.readInt32LE(8)
-  for (let p = 0, i = k0 & mask; p < MEMO_PROBES; p++, i = (i + 1) & mask) {
-    const b = i * 8
-    const state = Atomics.load(words, b)
-    if (state === 2 && words[b + 1] === k0 && words[b + 2] === k1 && words[b + 3] === k2) return
-    if (state === 0 && Atomics.compareExchange(words, b, 0, 1) === 0) {
-      words[b + 1] = k0
-      words[b + 2] = k1
-      words[b + 3] = k2
-      values[i * 4 + 2] = score
-      values[i * 4 + 3] = left
-      Atomics.store(words, b, 2)
-      return
+  const share = new Map(pieces.map((u) => [u, Math.min(1, reached.get(u) * mitigation(u) / Math.max(1, u.hp))]))
+  const apart = (a, b) => Math.min(...tiles.get(a).flatMap((x) => tiles.get(b).map((y) => distance(x, y))))
+  for (const u of pieces) {
+    const st = statsOf(u, heldMods(u))
+    const covers = covered(coverage(u, u.slot, s.camp), ctx.threat) / ctx.total
+    v.power += fieldPower(u) / ctx.best
+    v.cover += punch(u) * covers
+    v.exposed += share.get(u)
+    if (!meleeOnly(u) && covers > 0 && reached.get(u) === 0) v.behind++
+    const heals = kitOf(u).filter((a) => isAllyShape(a.shape) && a.shape !== 'self' && a.effects.some((e) => e.op === 'heal' && !e.self))
+    if (heals.length) {
+      const r = Math.max(...heals.map(rangeOf)) + Math.floor(st.move)
+      for (const x of pieces) if (x !== u && apart(u, x) <= r) v.mend += share.get(x)
+    }
+    const aura = auraOf(u)
+    if (aura) for (const x of pieces) if (x !== u && apart(u, x) <= aura.range) v.aura++
+    if (u.relics?.some(grantsArise)) {
+      let n = 0
+      for (let t = 0; t < TILES; t++) if (tiles.get(u).some((x) => distance(t, x) <= ctx.domain)) n += ctx.threat.ground[t] + ctx.threat.air[t]
+      v.arise += n / ctx.total
     }
   }
+  const m = monarchOf(s)
+  v.monarch = Math.min(2, onSeat * mitigation(m) / Math.max(1, m.hp))
+  if (ctx.synergies) v.synergies = activeSynergies(pieces.flatMap((u) => Array(1 + summonsOf(u)).fill(u))).length
+  return v
 }
 
-// A rehearsal's worth: a win by what it leaves the run, from 1 to 2: each piece's share of its HP after the battle's
-// heal (TUNING.run.postBattleHeal of its max HP), a fallen soul's 0 (it lies fallen until an altar, where a wounded one
-// mends), the souls' mean weighing twice the Monarch's (its HP is the camp's to spend, and mends as theirs does, but not
-// at all while nothing may heal it: Court of Bone; shadows leave anyway); a loss by how much of the foes' HP it took,
-// from −LOSS − 1 to −LOSS. A fallen Monarch is a loss, whoever else stands. A loss ends the run, so it weighs LOSS
-// more than the worst win: a formation that saves a few wounds is never worth a fight lost.
-const LOSS = 3
-export function scoreOf (b) {
-  if (b.winner !== 'party') {
-    const foes = b.units.filter((u) => u.side === 'foe')
-    return -LOSS - (foes.length ? foes.reduce((n, u) => n + Math.max(0, u.hp), 0) / foes.reduce((n, u) => n + u.maxHp, 0) : 0)
-  }
-  const heal = TUNING.run.postBattleHeal
-  const mend = (u) => (u !== b.monarch || !b.unhealable ? heal : 0)
-  const kept = (u) => (u.hp > 0 ? Math.min(1, u.hp / u.maxHp + mend(u)) : 0)
-  // (A soul fused away in the battle is in its fused piece, not fallen.)
-  const souls = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.into && u !== b.monarch)
-  const army = souls.length ? souls.reduce((n, u) => n + kept(u), 0) / souls.length : 0
-  if (!b.monarch) return 1 + army
-  return 1 + (souls.length ? (2 * army + kept(b.monarch)) / 3 : kept(b.monarch))
+// The share of a blow's raw a soul takes out of battle: its DEF's mitigation and its damage taken (policy.js mitigation,
+// with no battle: its held relics' mods alone).
+const mitigation = (u) => {
+  const st = statsOf(u, heldMods(u))
+  return TUNING.damage.defConstant / (TUNING.damage.defConstant + Math.max(0, st.def)) * st.damage.taken
+}
+// A unit's hardest blow, raw (policy.js rawOf, out of battle), by `mods` (a soul's: its held relics'; a foe's: its
+// floor's).
+const punch = (u, mods = heldMods(u)) => {
+  const st = statsOf(u, mods)
+  return Math.max(0, ...kitOf(u).filter(isBlow).map((b) => b.effects.reduce((n, e) => n + (e.op === 'damage' ? e.power : 0), 0))) * st.atk / TUNING.damage.atkDivisor * st.damage.dealt
 }
 
-// Who stands in the camp: the strongest standing souls, wounds counted at the expert's level.
+// Who stands in the camp: the strongest standing souls, wounds counted at the expert's level, a soul of the combo
+// target's kinds as if worth TUNING.expert.book.target more.
 const standing = (party) => party.filter((u) => u.hp > 0)
-const TARGET_BONUS = 0.25
 const wanted = (run, L) => {
   const keeps = L.book ? targetKinds(targetOf(run.state)) : null
-  const w = (u) => worth(u, L.ablate !== 'summons') * (L.wounds ? Math.sqrt(hpPct(u)) : 1) * (keeps?.has(u.id) ? 1 + TARGET_BONUS : 1)
+  const w = (u) => worth(u, L.ablate !== 'summons') * (L.wounds ? Math.sqrt(hpPct(u)) : 1) * (keeps?.has(u.id) ? 1 + TUNING.expert.book.target : 1)
   return standing(souls(run.state.party)).sort((a, b) => w(b) - w(a) || a.uid - b.uid).slice(0, fieldCap(run))
 }
 
-// → { party, score, left }: the best formation found for the current room, and the Monarch's HP its rehearsal left
-// (rehearse; −1 with none won, or none rehearsed). L's drafts are rehearsed, each once (a formation that puts everyone
-// in the same cells as one already fought is not fought again), then it hill-climbs from the best (mutate): `search`
-// steps, and while no formation is `comfort`able, on up to `hard`. `enough` (the room veto's: pickRoute): the caller
-// asks only whether the best score reaches it, and the plan stops at the first formation that does.
-function plan (run, L, { enough = Infinity, onCandidate = null } = {}) {
+// → { party, by, rules }: the formation for the current room. Basic (no `search`) takes its first draft, its rule of
+// thumb. The expert decides between its drafts (the tree's rules, TREES.formation, then the weights,
+// TUNING.expert.formation, on formationFeatures) and hill-climbs from the best (mutate), `search` steps, a change kept
+// where it outranks the best (expert.js outranks: the tree's filters first, then the score). `by` and `rules` name the
+// rules that turned a comparison (else 'weights'); `onCandidate` hears each formation met, once.
+function plan (run, L, { onCandidate = null } = {}) {
   const want = wanted(run, L)
   const options = drafts(run, want, L).map((party) => allowed(run, party, L))
-  if (!L.rehearse) return { party: options[0], score: 0, left: -1 }
-  const tried = new Map()
-  const keyOf = (party) => party.map((u) => `${u.uid}@${u.slot}`).sort().join()
-  const fought = (party) => {
-    const key = keyOf(party)
-    if (!tried.has(key)) {
-      tried.set(key, rehearse(run, party, { turns: rehearsalOf(L) }))
+  if (!L.search) {
+    onCandidate?.(options[0])
+    return { party: options[0], by: 'first draft', rules: [] }
+  }
+  const ctx = formationContext(run, L, want)
+  const w = TUNING.expert.formation
+  const filters = TREES.formation.filter((n) => n.keep && n.when(ctx))
+  const met = new Map()
+  const judge = (party) => {
+    const key = party.map((u) => `${u.uid}@${u.slot}`).sort().join()
+    if (!met.has(key)) {
+      const v = formationFeatures(run, party, ctx)
+      met.set(key, { party, v, keys: keysOf(TREES.formation, ctx, { v }), score: value(v, w) })
       onCandidate?.(party)
     }
-    return tried.get(key)
+    return met.get(key)
   }
+  const turned = new Set()
   let best = null
-  let top = null
-  const take = (party) => {
-    const r = fought(party)
-    if (!best || r.score > top.score) { best = party; top = r }
+  const take = (c) => {
+    if (best === null) return (best = c)
+    const won = outranks(c, best)
+    const lost = won < 0 ? outranks(best, c) : -1
+    if (won >= 0 && won < filters.length) turned.add(won)
+    if (lost >= 0 && lost < filters.length) turned.add(lost)
+    if (won >= 0) best = c
   }
-  for (const party of options) {
-    take(party)
-    if (top.score >= enough) return { party: best, ...top }
-  }
-  const rng = createRng(JSON.stringify([run.state.seed, run.state.floor, run.state.at, best.map((u) => u.uid)])).stream('climb')
+  for (const party of options) take(judge(party))
+  const rng = createRng(JSON.stringify([run.state.seed, run.state.floor, run.state.at, best.party.map((u) => u.uid)])).stream('climb')
   const open = openCells(run.state.camp)
-  for (let i = 0; top.score < enough && (i < L.search || (i < (L.hard ?? 0) && top.score < L.comfort)); i++) {
-    take(allowed(run, mutate(best, standing(souls(run.state.party)), open, rng, run.state, L), L))
-  }
-  return { party: best, ...top }
+  for (let i = 0; i < L.search; i++) take(judge(allowed(run, mutate(best.party, standing(souls(run.state.party)), open, rng, run.state, L), L)))
+  const rules = [...turned].sort((a, b) => a - b).map((k) => filters[k].id)
+  return { party: best.party, by: rules[0] ?? 'weights', rules }
 }
 
 // One change to a formation: trade a soul for one from the ossuary (it takes over the cell), swap two, or move
@@ -752,18 +803,20 @@ export function planFor (run, L) {
   const have = plans.get(run)
   if (have?.key === key) return have.plan
   const onCandidate = audited(run) ? (party) => { AUDIT.candidates++; for (const f of new Set(featuresOf(s, party))) note('considered', f) } : null
-  const made = plan(run, L, { onCandidate }).party.map((u) => ({ uid: u.uid, slot: u.slot }))
-  plans.set(run, { key, plan: made })
-  return made
+  const made = plan(run, L, { onCandidate })
+  noteRule(run, 'formation', made, `floor ${s.floor}, ${currentNode(run).type} in ${s.camp}`)
+  const out = made.party.map((u) => ({ uid: u.uid, slot: u.slot }))
+  plans.set(run, { key, plan: out })
+  return out
 }
 
 // One step toward the plan (the Monarch is on its seat already, and stays): the souls it leaves out to the
 // ossuary; then a soul into its planned cell where it can go straight there (run.js canPlace: whoever covers that
 // cell takes its old one, never a soul in place, for no two planned footprints share a cell); with none that can,
 // a soul not yet in place to the ossuary, to clear the way; then fight.
-function pickPrep (run, L) {
+function pickPrep (run, L, sit) {
   const s = run.state
-  const spend = pickSpend(run, L)
+  const spend = pickSpend(run, L, sit)
   if (spend) return spend
   const goal = planFor(run, L).filter((p) => !isMonarch(p))
   const piece = (p) => s.party.find((u) => u.uid === p.uid)
@@ -777,18 +830,32 @@ function pickPrep (run, L) {
   return { type: 'fight' }
 }
 
-// ── audit: what the expert considers, and what it chooses ───────────────────────────────────────────
+// ── audit: what the expert considers, what it chooses, and which rule decided ─────────────────────
 
-// Off but for the audit (--audit): per mechanic, how many of the formations the plans rehearsed use it
-// (`considered`; and each fusion, recruit or tier weighed), and how many of the formations fought do
-// (`chosen`). Only the audited run's own plans and choices count (`run`: none of the copies it plays ahead on), and
-// with no run named, every plan the audit sees.
-export const AUDIT = { on: false, run: undefined, candidates: 0, plans: 0, considered: {}, chosen: {}, done: {} }
+// Off but for the audit (--audit): per mechanic, how many of the formations the plans met use it (`considered`; and
+// each fusion, recruit or tier weighed), and how many of the formations fought do (`chosen`); and per decision, the rule
+// of the tree that decided it, or the weights (`rules`, by "decision: rule"), with the situation the first such
+// decision was read in (`example`). Only the audited run's own plans and choices count (`run`), and with no run named,
+// every plan the audit sees.
+export const AUDIT = { on: false, run: undefined, candidates: 0, plans: 0, considered: {}, chosen: {}, done: {}, rules: {}, example: {} }
 const note = (book, key, n = 1) => { if (AUDIT.on) AUDIT[book][key] = (AUDIT[book][key] ?? 0) + n }
 const audited = (run) => AUDIT.on && (AUDIT.run === undefined || AUDIT.run === run)
 export function resetAudit (on = true, run = undefined) {
-  Object.assign(AUDIT, { on, run, candidates: 0, plans: 0, considered: {}, chosen: {}, done: {} })
+  Object.assign(AUDIT, { on, run, candidates: 0, plans: 0, considered: {}, chosen: {}, done: {}, rules: {}, example: {} })
 }
+// A decision of `run`'s (expert.js decide's { by }), for the audit: counted by "decision: rule", and `line`, the
+// situation it was read in, kept for the first of each.
+function noteRule (run, decision, pick, line) {
+  if (!audited(run)) return
+  const key = `${decision}: ${pick.by}`
+  note('rules', key)
+  AUDIT.example[key] ??= line
+}
+// The survey in a line, for the audit.
+const surveyLine = (sit) => `floor ${sit.floor} rank ${sit.rank}, ${sit.purse} essence, souls at ${Math.round(100 * sit.health)}% (${sit.fallen} fallen), ` +
+  `Monarch ${Math.round(100 * sit.monarch)}%, ${sit.fielded}/${sit.command} fielded, ${sit.relics.unheld.length} relic(s) waiting` +
+  (sit.target ? `, toward ${sit.target.id} (${Math.round(100 * sit.target.progress)}%)` : '') +
+  (sit.rooms.length ? `; next: ${sit.rooms.map((r) => r.type + (r.threat ? ` (${(sit.strength / r.threat).toFixed(1)}×)` : '')).join(', ')}` : '')
 
 // What a formation uses: a long-armed kind fielded, a 2×2 piece fielded, a fused piece fielded, a piece beside the
 // Monarch, a piece left in the ossuary though the field had room for it.
@@ -821,9 +888,9 @@ function chose (s, goal) {
 // the strength of the field it leaves, and what the book says it is worth ahead), the best taken if it beats keeping
 // what it has. Out of battle it gives its relics where they are worth most before it spends. Nothing is bought for the
 // Monarch: its HP and Command are run relics.
-function pickSpend (run, L) {
+function pickSpend (run, L, sit) {
   if (!L.spend) return basicSpend(run, L)
-  return pickHold(run, L) ?? grow(run, L, [...fusionOptions(run, L), ...spendOptions(run, L)], 'spend')
+  return pickHold(run, L, sit) ?? grow(run, L, [...fusionOptions(run, L), ...spendOptions(run, L)], 'spend', sit)
 }
 
 // Every purchase the purse affords L: a tier of any kind held (but under the tracks ablation).
@@ -857,46 +924,51 @@ function basicSpend (run, L) {
   return track === null ? null : { type: 'upgrade', kind: lowest, track }
 }
 
-// How much the book weighs beside the field (sketch), and by how much a choice must beat keeping what it has.
-const BOOK_WEIGHT = 0.5
-const EPS = 0.005
+// What a state is worth to grow toward, as the features the growth search weighs (TUNING.expert.growth): the field it
+// fields (strength, as a log: what a choice adds, as a share) and what the book says the combo it plays toward is worth
+// ahead (bookValue; none without the book). Under the summons ablation a tier's summons are not counted: they never
+// come. `sketch`: their weighted sum.
+const growthOf = (s, L) => ({ strength: Math.log(strength(s, L.ablate !== 'summons')), book: L.book ? bookValue(s) : 0 })
+const sketch = (s, L) => value(growthOf(s, L), TUNING.expert.growth)
+// What a choice must beat: keeping what it has (TUNING.expert.growth.keep).
+const KEEP = () => TUNING.expert.growth.keep
 
-// A choice's sketch, before any rehearsal: the field it leaves (strength, as a log: what it adds as a share) and what
-// the book says it is worth ahead (bookValue).
-// (Under the summons ablation a tier's summons are not counted: they never come.)
-const sketch = (s, L) => Math.log(strength(s, L.ablate !== 'summons')) + (L.book ? BOOK_WEIGHT * bookValue(s) : 0)
-
-// The growth search: `options` (actions legal now) each applied to a copy and sketched, the best taken if it beats
-// keeping what it has by EPS. A kind's next tier is weighed twice: alone, and with the tier after it on the same track
-// as one candidate (where the crosspath rule allows it and the purse holds both prices together: nextTier), at their
-// gain together, the first of the two bought for it; for a level is base + perTier × tiers, rounded down, and a tier
-// whose level rounds away shows its worth only with the next (2026-10-10: on seed sim-0 the expert held 2,364 essence
-// and declined a Frost Sprite tier of 194 for want of it). Rehearsal is spent where it decides (the formation); a
-// purchase's worth to the fights to come is the book's to say. Weighed once for each run state and purpose (`why`). →
-// the action, or null.
+// The growth search, one decision (expert.js decide): keeping what it has, and each of `actions` (legal now) applied
+// to a copy, read as what it adds to growthOf; the tree's rules for `why` (TREES.hold for a relic given), then the
+// weights. A kind's next tier is weighed twice: alone, and with the tier after it on the same track as one option
+// (where the crosspath rule allows it and the purse holds both prices together: nextTier), at their gain together,
+// the first of the two bought for it; for a level is base + perTier × tiers, rounded down, and a tier whose level
+// rounds away shows its worth only with the next (2026-10-10: on seed sim-0 the expert held 2,364 essence and declined
+// a Frost Sprite tier of 194 for want of it). A hold onto a soul with room for the relic is `free` (the tree's
+// give-relic). Weighed once for each run state and purpose (`why`). → the action, or null to keep.
 const growths = new WeakMap()
 const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : a.type)
-function grow (run, L, options, why) {
-  if (!options.length) return null
+function grow (run, L, actions, why, sit = null) {
+  if (!actions.length) return null
   const s = run.state
   const key = JSON.stringify([L.ablate, s.floor, s.at, s.phase, s.essence, s.kinds, s.relics, s.party.map((u) => [u.uid, u.hp, u.slot >= 0, u.relics])])
   const seen = growths.get(run) ?? {}
   if (seen[why]?.key === key) return seen[why].pick
-  if (audited(run)) for (const a of options) note('considered', label(a))
-  const base = sketch(s, L)
-  let best = EPS
-  let pick = null
-  for (const a of options) {
+  if (audited(run)) for (const a of actions) note('considered', label(a))
+  const base = growthOf(s, L)
+  const gain = (st) => {
+    const v = growthOf(st, L)
+    return { strength: v.strength - base.strength, book: v.book - base.book, keep: 0 }
+  }
+  const room = (uid) => (s.party.find((u) => u.uid === uid)?.relics?.length ?? 0) < TUNING.relic.perPiece
+  const options = [{ action: null, v: { strength: 0, book: 0, keep: 1 } }]
+  for (const a of actions) {
     const sim = fork(run)
     apply(sim, a)
-    const gain = sketch(sim.state, L) - base
-    if (gain > best) { best = gain; pick = a }
+    options.push({ action: a, free: a.type === 'hold' && room(a.uid), v: gain(sim.state) })
     if (!nextTier(sim, a)) continue
     apply(sim, a)
-    const both = sketch(sim.state, L) - base
-    if (both > best) { best = both; pick = a }
+    options.push({ action: a, v: gain(sim.state) })
   }
+  const decided = decide(TREES[why] ?? [], sit, options, TUNING.expert.growth)
+  const pick = decided.option.action
   growths.set(run, { ...seen, [why]: { key, pick } })
+  noteRule(run, why, decided, sit && surveyLine(sit))
   if (pick && audited(run)) note('done', label(pick))
   return pick
 }
@@ -911,52 +983,24 @@ const afterTier = (k, track) => {
   return { ...next, lvl: levelOf(next) }
 }
 
-// The Monarch's HP `hp` (of `max`) as the run mends it on its way from room `from` to room `to` on `s`'s floor:
-// TUNING.run.postBattleHeal of its max HP more for the battle won in `from` (`won`; run.js finishBattle), and up to
-// altarHeal of it at an altar every way between passes (run.js walk); neither while nothing may heal it (Court of
-// Bone).
-function mendOnWay (s, hp, max, from, to, won) {
-  if (unhealed(s)) return hp
-  const t = TUNING.run
-  if (won) hp = Math.min(max, hp + Math.ceil(max * t.postBattleHeal))
-  return altarOnWay(s.map, from, to) ? Math.max(hp, Math.round(max * t.altarHeal)) : hp
-}
-
-// Whether every way from room `from` to room `to` on `map` passes an altar (false where `to` is not ahead of `from`).
-function altarOnWay (map, from, to) {
-  const reaches = (avoid) => {
-    const seen = new Set([from])
-    for (const queue = [from]; queue.length;) {
-      for (const id of nodeOf(map, queue.shift()).next) {
-        if (id === to) return true
-        if (seen.has(id) || avoid(nodeOf(map, id))) continue
-        seen.add(id)
-        queue.push(id)
-      }
-    }
-    return false
-  }
-  return reaches(() => false) && !reaches((n) => n.type === 'altar')
-}
-
 // ── the combo book ───────────────────────────────────────────────────────────────────────────────
 
-// The expert comes to a run having studied every combo the content holds, ranked before the run by rehearsal
-// (--combos writes them to src/sim/combos.json; the expert loads it as BOOK). Basic has none of it. The combos:
+// The expert comes to a run having studied every combo the content holds, ranked before the run by a static formula
+// (--combos writes them to src/sim/combos.json, in under a second; the expert loads it as BOOK). Basic has none of it.
+// The combos:
 //   fusion:<recipe>:<track>   the recipe's parts, fused (on floor 1, its parts as they stand), the result on a track
 //   core:<kind>:<track>       two pieces of a kind, on one of its two tracks (to its tier IV: a Colossus, an aura, a
 //                             new or remade ability, Burning or Hexed)
 //   kin:<kin>:<n>, role:<role>:<n>   the n pieces of a kin or a role its synergy's rule needs (content.js SYNERGIES:
 //                             one rule each, at 4), each of the kind its cores rank best, those met soonest first
-// Each is fought on every floor as the floor's army (BOOK_FLOORS: its Command, tiers and Monarch) with its
-// pieces in it and the plain army's in the rest (FILLER), in rooms drawn for the floor (bookRooms: a camp's in a row,
-// the Monarch's HP carried), from the best of the zone drafts, its turns the expert's rehearsal's; its `gain` is the
-// score it adds over the plain army (null on a floor its pieces cannot all stand). Then the relics that pair with it:
-// the score each battle relic adds to the best combos' armies (a piece relic held by one of its pieces; one that needs
-// Arise with Arise held too). An entry:
+// Each is set up on every floor as the floor's army (BOOK_FLOORS: its Command, tiers and Monarch) with its pieces in it
+// and the plain army's in the rest (FILLER), and weighed by bookPower; its `gain` on a floor is the log of its army's
+// power over the plain army's (null on a floor its pieces cannot all stand). Then the relics that pair with it: what
+// each battle relic adds to its army's power on floors 2 and 4 (a piece relic held by one of its pieces; one that needs
+// Arise weighed against Arise alone). An entry:
 //   { id, needs: { kind: pieces } (the pieces it is built from), fuse?: the recipe, tracks: { kind: track },
 //     kin?: { kin: n }, role?: { role: n }, from: the first floor its kinds are met, gain: [per floor],
-//     relics?: { relic: points }, draft: the zone draft its army fights best from (ZONES) }
+//     relics?: { relic: points } }
 // The book also holds `plain`: the relics' points on the plain army.
 const BOOK_FLOORS = [
   { command: 3, tiers: 1, hp: 220 }, { command: 5, tiers: 2, hp: 265 },
@@ -965,7 +1009,7 @@ const BOOK_FLOORS = [
 // Whether relic def `r` has a mod on run-level stat path `path` (run.js RUN_PATHS).
 const gives = (r, path) => (r.mods ?? []).some((m) => m.path === path)
 // The relics a battle reads: their mods on a unit, their triggers, their rules, and Arise's reach and tier (not the
-// purse's, the ossuary's, nor Command or the Monarch's HP, which rehearsal weighs).
+// purse's, the ossuary's, nor Command or the Monarch's HP, which the field's strength weighs).
 const BATTLE_RELICS = () => RELIC_LIST.filter((r) => (r.mods?.some((m) => !isRunPath(m.path) || m.path.startsWith('arise.')) || r.on || r.rule) &&
   !gives(r, 'run.command') && !gives(r, 'run.monarchHp')).map((r) => r.id)
 const RECRUITED = () => UNIT_LIST.filter((u) => u.spawn && tracksOf(u.id).length === 2)
@@ -1004,30 +1048,12 @@ export function combosOf (cores = null) {
   return out
 }
 
-// The rooms a floor's armies are fought in: on each of the floor's camps, a floor drawn for the book, its last room,
-// an elite and its deepest fight, in the order a run comes to them (by rank: bookScore fights them in a row).
-const bookRoomCache = new Map()
-function bookRooms (floor) {
-  if (bookRoomCache.has(floor)) return bookRoomCache.get(floor)
-  const camps = CAMP_LIST.filter((c) => c.floor === floor)
-  const rooms = camps.flatMap((c, k) => {
-    const seed = `book|${k}`
-    const map = generateFloor({ seed, floor, last: floor === TUNING.run.floors })
-    const battles = map.nodes.filter((n) => ['fight', 'elite', 'boss', 'siege'].includes(n.type))
-    for (const n of battles) Object.assign(n, drawRoom(seed, floor, n))
-    const end = battles.find((n) => n.id === map.end)
-    const elite = battles.find((n) => n.type === 'elite' && n !== end)
-    const fight = battles.filter((n) => n.type === 'fight').sort((a, b) => b.rank - a.rank)[0]
-    return [end, elite, fight].filter(Boolean).sort((x, y) => x.rank - y.rank).map((node) => ({ camp: c.id, map, node }))
-  })
-  bookRoomCache.set(floor, rooms)
-  return rooms
-}
-
 // A combo's army on a floor (null for none: the plain army), as a run standing in a room's prep: its pieces (a fusion
 // made from floor 2, its parts as pieces on floor 1), each kind at the floor's tiers on its track (the plain kinds on
 // their first), the rest of the floor's Command filled with the plain army's, `relics` owned (and held), and the
 // Monarch the floor's. Null where its pieces outnumber the Command.
+let bookBase = null
+const bookRun = () => (bookBase ??= createRun({ seed: 'book' }))
 function bookArmy (combo, floor, relics = []) {
   const F = BOOK_FLOORS[Math.min(floor, BOOK_FLOORS.length) - 1]
   const tracks = { ...(combo?.tracks ?? {}) }
@@ -1036,7 +1062,7 @@ function bookArmy (combo, floor, relics = []) {
   else for (const [id, n] of Object.entries(combo?.needs ?? {})) for (let i = 0; i < n; i++) ids.push(id)
   if (ids.length > F.command) return null
   for (const id of FILLER) if (ids.length < F.command) ids.push(id)
-  const run = createRun({ seed: 'book' })
+  const run = { state: { ...bookRun().state }, battle: null, setup: null }
   const s = run.state
   const kindOf = (id) => {
     const t = tracks[id] ?? 0
@@ -1062,114 +1088,76 @@ function bookArmy (combo, floor, relics = []) {
   return run
 }
 
-// A combo's army fought in every room of the floor (bookRooms), from each zone draft at `stress`, its turns the
-// expert's rehearsal's (greedyTurn): → { score (the best draft's, averaged over the rooms), drafts (each draft's
-// average) }, or null where it cannot stand. A camp's rooms are fought in a row, as a run comes to them: the Monarch
-// whole at the first, its HP carried from the best draft's rehearsal into the next and mended on the way as the run
-// would mend it (mendOnWay), so a relic that bleeds it or keeps it from mending (Blood Tithe, Court of Bone) is weighed
-// at what it costs over a floor's fights, not in one from a Monarch made whole each time.
-function bookScore (combo, floor, { relics = [], stress = 0 } = {}) {
-  const base = bookArmy(combo, floor, relics)
-  if (!base) return null
-  const L = { ...ROLLOUT, turns: rehearsalOf(LEVELS.expert) }
-  const max = monarchOf(base.state).maxHp
-  let score = 0
-  const drafted = ZONES.map(() => 0)
-  let hp = max
-  let won = false
-  let last = null
-  for (const { camp, map, node } of bookRooms(floor)) {
-    if (camp !== last?.camp) {
-      hp = max
-      won = false
-    } else hp = mendOnWay({ ...base.state, map }, hp, max, last.node.id, node.id, won)
-    last = { camp, node }
-    const party = base.state.party.map((u) => (isMonarch(u) ? { ...u, hp } : u))
-    const run = { ...base, state: { ...base.state, party, camp, map, at: node.id } }
-    const results = drafts(run, wanted(run, L), L).slice(0, ZONES.length).map((p) => rehearse(run, p, { stress, turns: L.turns }))
-    const best = results.reduce((a, r) => (r.score > a.score ? r : a))
-    score += best.score
-    results.forEach((r, i) => { drafted[i] += r.score })
-    won = best.left >= 0
-    if (won) hp = Math.max(1, Math.round(best.left))
+// A combo army's power (bookArmy's run), the book's static formula (TUNING.expert.book): each soul's worth (worth: its
+// stats, its tiers and the summons they bring, and the relics it holds), a fused soul's a share more, and a share of
+// its holder's more for a relic's trigger or rule; the whole a share more for each synergy rule its souls hold (a summon
+// counting as its kind), and for each run relic on Arise's reach or tier while a soul holds Arise.
+function bookPower (run) {
+  const b = TUNING.expert.book
+  const s = run.state
+  const pieces = souls(s.party)
+  let power = 0
+  for (const u of pieces) {
+    const held = (u.relics ?? []).reduce((n, id) => n + (relicDef(id).on ? b.trigger : 0) + (relicDef(id).rule ? b.rule : 0), 0)
+    power += worth(u) * (1 + (unitDef(u.id).fused ? b.fused : 0) + held)
   }
-  const n = bookRooms(floor).length
-  return { score: score / n, drafts: drafted.map((v) => v / n) }
+  const rules = activeSynergies(pieces.flatMap((u) => Array(1 + summonsOf(u)).fill(u))).length
+  const arise = pieces.some((u) => u.relics?.some(grantsArise)) ? s.relics.filter((id) => isRunRelic(id) && (relicDef(id).mods ?? []).some((m) => m.path.startsWith('arise.'))).length : 0
+  return power * (1 + b.synergy * rules + b.arise * arise)
 }
 
-// A worker's book job (playAll): one combo (null: the plain army) on one floor, at the floor's margin, with relics.
-function bookJob ({ combo, floor, relics, stress }) {
-  return bookScore(combo, floor, { relics, stress })
-}
-
-// --combos: the book, made. Per floor first the margin: the greatest of MARGINS (a share more HP and ATK for its foes)
-// at which the plain army still wins its rooms on average, so the combos are told apart where the floor is hard for
-// it. Then every fusion and core on every floor, then the kin and role combos built from the best cores, each against
-// the plain army; then the battle relics on the plain army and on the best BOOK_TOP combos' (on floors 2 and 4), each
-// against the same army without it. Kept: every combo, best first, with the relics that add more than RELIC_FLOOR to
-// it.
-const MARGINS = [0, 0.3, 0.6, 1]
-const BOOK_TOP = 12
-const RELIC_FLOOR = 0.02
+// --combos: the book, made. Every fusion and core on every floor, then the kin and role combos built from the best
+// cores, each against the plain army (bookPower); then the battle relics on the plain army and on every combo's army
+// (on floors 2 and 4), each against the same army without it. Kept: every combo, best first, with the relics that add
+// more than TUNING.expert.book.floor to it.
 const BOOK_FILE = new URL('./combos.json', import.meta.url)
-async function makeBook ({ out = BOOK_FILE } = {}) {
+function makeBook ({ out = BOOK_FILE } = {}) {
   const t0 = Date.now()
   const floors = BOOK_FLOORS.map((_, i) => i + 1)
-  const tries = await playAll(floors.flatMap((floor) => MARGINS.map((stress) => ({ book: true, combo: null, floor, stress }))))
-  const margins = {}
-  const plainScores = {}
-  for (const [f, floor] of floors.entries()) {
-    const at = Math.max(0, MARGINS.findLastIndex((_, i) => tries[f * MARGINS.length + i].score >= 1))
-    margins[floor] = MARGINS[at]
-    plainScores[floor] = tries[f * MARGINS.length + at].score
+  const power = (combo, floor, relics = []) => {
+    const army = bookArmy(combo, floor, relics)
+    return army && Math.log(bookPower(army))
   }
-  const rank = async (combos) => {
-    const jobs = combos.flatMap((combo) => floors.map((floor) => ({ book: true, combo, floor, stress: margins[floor] })))
-    const done = await playAll(jobs)
-    return combos.map((combo, c) => {
-      const res = floors.map((floor, f) => done[c * floors.length + f])
-      const gain = res.map((r, f) => (r ? +(r.score - plainScores[floors[f]]).toFixed(3) : null))
-      const drafts = ZONES.map((_, d) => res.reduce((n, r) => n + (r ? r.drafts[d] : 0), 0))
-      return { ...combo, gain, draft: drafts.indexOf(Math.max(...drafts)) }
+  const plain = floors.map((floor) => power(null, floor))
+  const rank = (combos) => combos.map((combo) => ({
+    ...combo,
+    gain: floors.map((floor, f) => {
+      const p = power(combo, floor)
+      return p === null ? null : +(p - plain[f]).toFixed(4)
     })
-  }
+  }))
   const mean = (e) => {
     const g = e.gain.filter((x, f) => x !== null && f + 1 >= e.from)
     return g.length ? g.reduce((n, x) => n + x, 0) / g.length : -Infinity
   }
-  const first = await rank(combosOf())
+  const first = rank(combosOf())
   const cores = Object.fromEntries(first.filter((e) => e.id.startsWith('core:')).map((e) => [e.id, mean(e)]))
-  const second = await rank(combosOf(cores).filter((c) => !first.some((e) => e.id === c.id)))
+  const second = rank(combosOf(cores).filter((c) => !first.some((e) => e.id === c.id)))
   const book = [...first, ...second].sort((a, b) => mean(b) - mean(a) || (a.id < b.id ? -1 : 1))
-  // The relics: on floors 2 and 4, the plain army's and the best combos' armies, each relic against none.
+  // The relics: on floors 2 and 4, each against the army without it (one that needs Arise, against Arise alone).
   const relicFloors = [2, 4]
-  const armies = [null, ...book.slice(0, BOOK_TOP)]
-  const relics = BATTLE_RELICS()
-  const withArise = (id) => (relicDef(id).needsArise ? ['arise', id] : [id])
-  const jobs = armies.flatMap((combo) => relicFloors.flatMap((floor) => [[], ...relics.map(withArise)].map((held) => ({ book: true, combo, floor, relics: held, stress: margins[floor] }))))
-  const done = await playAll(jobs)
-  const per = relics.length + 1
-  armies.forEach((combo, a) => {
+  const pairs = (combo) => {
     const points = {}
-    relicFloors.forEach((floor, f) => {
-      const at = (a * relicFloors.length + f) * per
-      const none = done[at]
-      if (!none) return
-      relics.forEach((id, r) => {
-        const got = done[at + 1 + r]
-        // An Arise-gated relic is weighed against Arise alone.
-        const ref = relicDef(id).needsArise ? done[at + 1 + relics.indexOf('arise')] : none
-        if (got && ref) points[id] = (points[id] ?? 0) + (got.score - ref.score) / relicFloors.length
-      })
-    })
-    const kept = Object.fromEntries(Object.entries(points).filter(([, v]) => v > RELIC_FLOOR).sort((x, y) => y[1] - x[1]).map(([k, v]) => [k, +v.toFixed(3)]))
-    if (combo) book.find((e) => e.id === combo.id).relics = kept
-    else book.plain = kept
-  })
-  const data = { made: 'node src/sim/autoplay.js --combos', margins, plain: book.plain, combos: book }
+    for (const id of BATTLE_RELICS()) {
+      const base = relicDef(id).needsArise ? ['arise'] : []
+      let sum = 0
+      let n = 0
+      for (const floor of relicFloors) {
+        const got = power(combo, floor, [...base, id])
+        const ref = power(combo, floor, base)
+        if (got === null || ref === null) continue
+        sum += got - ref
+        n++
+      }
+      if (n && sum / n > TUNING.expert.book.floor) points[id] = +(sum / n).toFixed(4)
+    }
+    return Object.fromEntries(Object.entries(points).sort((x, y) => y[1] - x[1]))
+  }
+  for (const e of book) e.relics = pairs(e)
+  const data = { made: 'node src/sim/autoplay.js --combos', plain: pairs(null), combos: book }
   fs.writeFileSync(out, JSON.stringify(data, null, 1) + '\n')
-  console.log(`the combo book: ${book.length} combos ranked in ${((Date.now() - t0) / 1000).toFixed(0)} s, margins ${JSON.stringify(margins)}; written to ${out.pathname ?? out}`)
-  for (const e of book.slice(0, 15)) console.log(`  ${e.id.padEnd(34)} ${e.gain.map((g) => (g === null ? '   -  ' : g.toFixed(2).padStart(6))).join(' ')}  ${Object.keys(e.relics ?? {}).slice(0, 3).join(', ')}`)
+  console.log(`the combo book: ${book.length} combos ranked in ${((Date.now() - t0) / 1000).toFixed(1)} s; written to ${out.pathname ?? out}`)
+  for (const e of book.slice(0, 15)) console.log(`  ${e.id.padEnd(34)} ${e.gain.map((g) => (g === null ? '    -   ' : g.toFixed(3).padStart(8))).join(' ')}  ${Object.keys(e.relics ?? {}).slice(0, 3).join(', ')}`)
 }
 
 // The book as the expert reads it: { margins, plain, combos }, empty where none was made.
@@ -1206,8 +1194,8 @@ function comboProgress (s, c) {
 
 // A combo's worth from here: its gain over the plain army on the floors left (the last floor's past them, none
 // below 0), and the points of the relics at work that pair with it (its own, else the plain army's), each once. A relic
-// that costs the Monarch HP (Blood Tithe's tithe) was weighed with the Monarch mending between fights (bookScore): while
-// nothing may heal it (Court of Bone) those points do not hold, and the book counts none of them.
+// that costs the Monarch HP (Blood Tithe's tithe) pays for it only while the Monarch mends between fights: while
+// nothing may heal it (Court of Bone) the book counts none of its points.
 const BOOK_CAP = BOOK_FLOORS.length
 function comboWorth (s, c, work = atWork(s)) {
   const from = Math.min(s.floor, BOOK_CAP)
@@ -1247,10 +1235,10 @@ const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Object.ke
 // The one recruit a battle allows (a battle's spoils are its souls: relics are bought, redesign.md §2.11): basic buys
 // the highest tier it can afford while the field has room, an expert the soul that grows its sketch most
 // (weighRecruits). A full retinue lets its weakest soul in the ossuary go to make room.
-function pickReap (run, L) {
+function pickReap (run, L, sit) {
   const s = run.state
   if (L.spend) {
-    const pick = weighRecruits(run, L)
+    const pick = weighRecruits(run, L, sit)
     if (!pick) return { type: 'reap', index: null }
     if (pick.release != null && soulCount(s.party) >= rosterCap(run)) return { type: 'release', uid: pick.release }
     return { type: 'reap', index: pick.index }
@@ -1271,7 +1259,7 @@ function pickReap (run, L) {
 // Weighed once a room; a release it needs comes first, then the recruit it was for.
 // → { index, release? } or null
 const recruits = new WeakMap()
-function weighRecruits (run, L) {
+function weighRecruits (run, L, sit = null) {
   const s = run.state
   // Once a room, for the offers it has (a release leaves them as they were; a recruit takes the souls away).
   const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => o.id)])
@@ -1282,7 +1270,7 @@ function weighRecruits (run, L) {
   const weakest = inOssuary(s.party).filter(spare).sort((a, b) => keeps.has(b.id) - keeps.has(a.id) || byFieldPower(a, b)).at(-1)
   const base = sketch(s, L)
   let pick = null
-  let best = EPS
+  let best = KEEP()
   for (const [index, o] of s.offers.entries()) {
     if (o.cost > s.essence) continue
     const sim = fork(run)
@@ -1299,6 +1287,7 @@ function weighRecruits (run, L) {
     }
   }
   recruits.set(run, { key, pick })
+  noteRule(run, 'reap', { by: 'weights' }, sit && surveyLine(sit))
   if (pick && audited(run)) note('done', 'recruit')
   return pick
 }
@@ -1344,8 +1333,8 @@ export function offerState (s, o) {
 // the first fielded soul that holds none (the first such relic, the first such soul); else it leaves. The expert gives
 // what waits where it is worth most (pickHold), then buys what is worth its price (buyFor), a relic at a time, and
 // leaves when neither is.
-function pickShop (run, L) {
-  if (L.spend) return pickHold(run, L) ?? buyFor(run, L) ?? { type: 'leave' }
+function pickShop (run, L, sit) {
+  if (L.spend) return pickHold(run, L, sit) ?? buyFor(run, L, sit) ?? { type: 'leave' }
   const s = run.state
   const index = s.shop.findIndex((id, i) => id && gives(relicDef(id), 'run.command') && !banned(L, id) && canBuy(run, i))
   if (index >= 0) return { type: 'buy', index }
@@ -1359,7 +1348,7 @@ function pickShop (run, L) {
 // is worth most: held; the book's worth of the combo it plays toward counts it at work, comboWorth), if that beats the
 // tiers its price displaces, the best a tier of the retinue's kinds gives an essence (tierRate), and gains anything at
 // all. → a buy, or null.
-function buyFor (run, L) {
+function buyFor (run, L, sit = null) {
   const s = run.state
   const base = sketch(s, L)
   const bar = tierRate(run, L, base)
@@ -1369,8 +1358,9 @@ function buyFor (run, L) {
     if (!id || banned(L, id) || !canBuy(run, index)) continue
     const gain = held({ ...s, ...offerState(s, { type: 'relic', id }) }, id, L) - base
     const rate = gain / relicPrice(run, id)
-    if (gain > EPS && rate > most) { most = rate; pick = { type: 'buy', index } }
+    if (gain > KEEP() && rate > most) { most = rate; pick = { type: 'buy', index } }
   }
+  noteRule(run, 'buy', { by: 'weights' }, sit && surveyLine(sit))
   return pick
 }
 
@@ -1412,14 +1402,14 @@ function tierRate (run, L, base) {
 // back (it fights for no one until an altar), then each piece relic waiting goes to the standing soul where the sketch
 // says it is worth most (grow: one holding its fill gives back its first, which waits to be weighed again), if that
 // adds anything. → a hold or an unhold, or null.
-function pickHold (run, L) {
+function pickHold (run, L, sit) {
   const s = run.state
   const fallen = souls(s.party).find((u) => u.hp <= 0 && u.relics?.length)
   if (fallen) return { type: 'unhold', uid: fallen.uid }
   const ids = [...new Set(unheld(s))]
   if (!ids.length) return null
   const options = ids.flatMap((relic) => standing(souls(s.party)).filter((u) => canHold(s, relic, u)).map((u) => ({ type: 'hold', relic, uid: u.uid })))
-  return grow(run, L, options, 'hold')
+  return grow(run, L, options, 'hold', sit)
 }
 
 export function policy (run, rng, level = 'basic') {
@@ -1429,18 +1419,20 @@ export function policy (run, rng, level = 'basic') {
     if (!ABLATIONS.includes(L.ablate)) throw new Error(`unknown ablation "${L.ablate}": ${ABLATIONS.join(', ')}`)
     if (RULE_SWITCHES.includes(L.ablate) && !s.ablate?.includes(L.ablate)) throw new Error(`ablating ${L.ablate} needs a run made with it (ablatedRun)`)
   }
-  if (s.phase === 'map') return pickNode(run, rng, L)
-  if (s.phase === 'prep') return pickPrep(run, L)
-  if (s.phase === 'reap') return pickReap(run, L)
-  if (s.phase === 'shop') return pickShop(run, L)
   if (s.phase === 'battle') return battleOrder(run, L)
+  // The expert's survey of the run, read once for this decision (basic reads none).
+  const sit = L.spend || L.route ? survey(run, L) : null
+  if (s.phase === 'map') return pickNode(run, rng, L, sit)
+  if (s.phase === 'prep') return pickPrep(run, L, sit)
+  if (s.phase === 'reap') return pickReap(run, L, sit)
+  if (s.phase === 'shop') return pickShop(run, L, sit)
   throw new Error(`no policy for phase "${s.phase}"`)
 }
 
 // In a battle: the level's turn policy (turnsOf: LEVELS `turns`, End Turn alone under the orders ablation), planned
-// once at the turn's start and given an order at a
-// time, End Turn last, as playOut would give them (so a rehearsal, or a refight, under the same policy plays the same
-// battle); planned again should the next no longer be legal (an order given meanwhile by someone else: a test's).
+// once at the turn's start and given an order at a time, End Turn last, as playOut would give them (so a refight under
+// the same policy plays the same battle); planned again should the next no longer be legal (an order given meanwhile by
+// someone else: a test's). Under the audit, each of its decisions is noted with its rule.
 const planned = new WeakMap()
 const same = (a, o) => a.type === o.type && a.uid === o.uid && a.tile === o.tile && a.ability === o.ability && a.target === o.target && a.id === o.id &&
   String(a.parts) === String(o.parts)
@@ -1450,7 +1442,10 @@ function battleOrder (run, L) {
   if (stalled(b)) return { type: 'stall' }
   let p = planned.get(b)
   const stale = !p || p.turn !== b.turn || !p.orders.length || (p.orders[0].type !== 'end' && !legalOrders(b).some((a) => same(a, p.orders[0])))
-  if (stale) planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b) }))
+  if (stale) {
+    const note = audited(run) ? (r) => noteRule(run, r.decision, r, r.sit ? brief(r.sit) : `turn ${b.turn}`) : null
+    planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b, { note }) }))
+  }
   return p.orders.shift()
 }
 
@@ -1510,7 +1505,6 @@ const buildOf = (s) => {
 // `tiers`: track tiers its kinds hold at the end; `relics` held, every copy, and the `legendaries` among them).
 export function record ({ seed, level, ablate = null, setups = false, snapshots = false }) {
   const battles = []
-  const memo0 = { ...memoStats }
   const t0 = Date.now()
   const run = ablatedRun(seed, ablate)
   const L = ablate ? { ...LEVELS[level], ablate } : LEVELS[level]
@@ -1559,9 +1553,7 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
     progress: progressOf({ result: s.result, floor: s.floor, rank: fell?.rank ?? 1, share: fell?.share ?? 0 }),
     fell,
     // Wall time of the run, in seconds (the only field that is not a pure function of the job).
-    secs: (Date.now() - t0) / 1000,
-    // Its rehearsals: how many were fought, and how many the memo already had (rehearsed).
-    rehearsals: { fought: memoStats.misses - memo0.misses, memo: memoStats.hits - memo0.hits }
+    secs: (Date.now() - t0) / 1000
   }
 }
 
@@ -1589,14 +1581,15 @@ export function auditRecord ({ seed, level }) {
   }
   const out = {
     seed, level, result: s.result, floor: s.floor, secs: (Date.now() - t0) / 1000, battles, acts,
-    candidates: AUDIT.candidates, plans: AUDIT.plans, considered: AUDIT.considered, chosen: AUDIT.chosen, done: AUDIT.done
+    candidates: AUDIT.candidates, plans: AUDIT.plans, considered: AUDIT.considered, chosen: AUDIT.chosen, done: AUDIT.done, rules: AUDIT.rules,
+    example: AUDIT.example
   }
   resetAudit(false)
   return out
 }
 
 // The audit (--audit): `runs` expert runs and one basic run, side by side, per mechanic: how often its plans
-// considered it (formations rehearsed that use it, options weighed) and how often it chose it (formations fought
+// considered it (formations met that use it, options weighed) and how often it chose it (formations fought
 // that use it, actions taken).
 async function audit ({ runs, seed: seed0 }) {
   const t0 = Date.now()
@@ -1611,7 +1604,7 @@ async function audit ({ runs, seed: seed0 }) {
   const row = (name, considered, chosen) => console.log(`${name.padEnd(34)}${groups.map(([, rs]) => `${String(considered(rs)).padStart(11)}${String(chosen(rs)).padStart(9)}`).join('   ')}`)
   console.log(`\n${''.padEnd(34)}${groups.map(([l]) => `${l.padStart(11)} ${''.padStart(8)}`).join('   ')}`)
   console.log(`${'mechanic'.padEnd(34)}${groups.map(() => `${'considered'.padStart(11)}${'chosen'.padStart(9)}`).join('   ')}`)
-  row('formations (rehearsed/fought)', (rs) => sum(rs, (r) => r.candidates), (rs) => sum(rs, (r) => r.plans))
+  row('formations (met/fought)', (rs) => sum(rs, (r) => r.candidates), (rs) => sum(rs, (r) => r.plans))
   for (const f of FEATURES) row(f, (rs) => sum(rs, (r) => r.considered[f]), (rs) => sum(rs, (r) => r.chosen[f]))
   const fusions = (book) => (r) => Object.entries(r[book]).reduce((n, [k, v]) => n + (k.startsWith('fuse ') ? v : 0), 0)
   row('fuse (weighed/done)', (rs) => sum(rs, fusions('considered')), (rs) => sum(rs, (r) => r.acts.fuse))
@@ -1620,6 +1613,15 @@ async function audit ({ runs, seed: seed0 }) {
   row('relic bought (done)', () => '-', (rs) => sum(rs, (r) => r.acts.buy))
   row('relic given (weighed/done)', (rs) => sum(rs, (r) => r.considered.hold), (rs) => sum(rs, (r) => r.acts.hold))
   row('upgrade (weighed/bought)', (rs) => sum(rs, (r) => r.considered.upgrade), (rs) => sum(rs, (r) => r.done.upgrade))
+  // Which rule of the tree decided each decision, or the weights alone, over the expert's runs, with the situation
+  // the first such decision was read in.
+  const experts = groups[0][1]
+  const rules = {}
+  for (const r of experts) for (const [k, n] of Object.entries(r.rules)) rules[k] = (rules[k] ?? 0) + n
+  console.log('\nthe expert\'s decisions, by the rule that decided them (the weights where none did), and the first one\'s situation:')
+  for (const [k, n] of Object.entries(rules).sort((a, b) => (a[0] < b[0] ? -1 : 1))) {
+    console.log(`  ${k.padEnd(32)} ${String(n).padStart(7)}  ${experts.map((r) => r.example[k]).find(Boolean) ?? ''}`)
+  }
   console.log('\nfought, per level:')
   for (const [level, rs] of groups) {
     const n = Math.max(1, sum(rs, (r) => r.battles.n))
@@ -1653,38 +1655,20 @@ export function foeShare (b) {
 }
 
 // Plays every job in worker threads, one per core, and returns the results in the jobs' order. The workers live
-// for the whole call, each playing job after job, and share one rehearsal memo (shareMemo): a battle one run
-// rehearsed, no other run refights, so the same seed played again (an ablation, another variant) costs only
-// where it parts from the runs before it. So the jobs go in this order: the un-ablated runs first, seed by
-// seed (an expert's before a basic one's), so each seed's prefix is in the memo before its ablations come; then
-// the ablations, seed by seed, the longest of a seed first (jobTime: how long the job took the last time it was
-// played here, else a guess), so the pool ends on short jobs; and of those, a seed whose un-ablated runs have
-// all finished goes first. Which job runs where and when changes no result: a run is a pure function of its
-// job, and the memo only returns what the fight would.
+// for the whole call, each playing job after job, the longest first (jobTime: how long the job took the last time it
+// was played here, else a guess), so the pool ends on short jobs. Which job runs where and when changes no result: a
+// run is a pure function of its job.
 async function playAll (jobs) {
   const { Worker } = await import('node:worker_threads')
   const { availableParallelism } = await import('node:os')
   const times = loadTimes()
   const out = new Array(jobs.length)
-  const seeds = [...new Set(jobs.map((j) => j.seed))]
-  const rank = (j) => [j.ablate ? 1 : 0, seeds.indexOf(j.seed), j.level === 'basic' ? 1 : 0, -jobTime(j, times)]
-  const queue = [...jobs.keys()].sort((a, b) => {
-    const ra = rank(jobs[a])
-    const rb = rank(jobs[b])
-    for (let k = 0; k < ra.length; k++) if (ra[k] !== rb[k]) return ra[k] - rb[k]
-    return a - b
-  })
-  const memo = new SharedArrayBuffer(MEMO_BYTES)
-  const prefix = new Map(seeds.map((seed) => [seed, jobs.filter((j) => !j.ablate && j.seed === seed).length]))
-  const take = () => {
-    const k = Math.max(0, queue.findIndex((i) => !jobs[i].ablate || !prefix.get(jobs[i].seed)))
-    return queue.splice(k, 1)[0]
-  }
+  const queue = [...jobs.keys()].sort((a, b) => jobTime(jobs[b], times) - jobTime(jobs[a], times) || a - b)
   const worker = async () => {
-    const w = new Worker(new URL(import.meta.url), { workerData: { pool: true, memo } })
+    const w = new Worker(new URL(import.meta.url), { workerData: { pool: true } })
     try {
       while (queue.length) {
-        const i = take()
+        const i = queue.shift()
         const t0 = Date.now()
         out[i] = await new Promise((resolve, reject) => {
           const off = () => { w.off('message', done); w.off('error', fail); w.off('exit', exit) }
@@ -1697,7 +1681,6 @@ async function playAll (jobs) {
           w.postMessage(jobs[i])
         })
         times[timeKey(jobs[i])] = (Date.now() - t0) / 1000
-        if (!jobs[i].ablate) prefix.set(jobs[i].seed, prefix.get(jobs[i].seed) - 1)
       }
     } finally {
       await w.terminate()
@@ -1712,7 +1695,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight || job.book ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))
@@ -1724,7 +1707,7 @@ function saveTimes (times) {
 }
 // A job's expected length: its last time if known, else a guess (an expert run far longer than a basic one, the
 // full expert longest of all: it lives longest; a chunk of refights all alike).
-const jobTime = (job, times) => times[timeKey(job)] ?? (job.refight ? 1 : job.level === 'basic' ? 1 : job.ablate ? 100 : 200)
+const jobTime = (job, times) => times[timeKey(job)] ?? (job.refight || job.level === 'basic' ? 1 : job.ablate ? 4 : 5)
 
 // ── balance report ─────────────────────────────────────────────────────────────────────────────
 
@@ -1970,13 +1953,11 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
   if (out) {
     fs.writeFileSync(out, JSON.stringify({
       runs, seed: seed0, minutes: (Date.now() - t0) / 60000,
-      played: played.map((r, i) => ({ seed: `${seed0}-${i % runs}`, ablate: variants[Math.floor(i / runs)], result: r.result, floor: r.floor, fell: r.fell, progress: r.progress, secs: r.secs, rehearsals: r.rehearsals }))
+      played: played.map((r, i) => ({ seed: `${seed0}-${i % runs}`, ablate: variants[Math.floor(i / runs)], result: r.result, floor: r.floor, fell: r.fell, progress: r.progress, secs: r.secs }))
     }, null, 1))
   }
-  const fought = played.reduce((n, r) => n + r.rehearsals.fought, 0)
-  const memo = played.reduce((n, r) => n + r.rehearsals.memo, 0)
   console.log(`runs ${runs} per variant (seed ${seed0}), the expert with one mechanic taken away, the same seeds each; ${((Date.now() - t0) / 60000).toFixed(1)} min` +
-    ` (rehearsals: ${fought} fought, ${memo} from the memo, ${(100 * memo / Math.max(1, fought + memo)).toFixed(0)}%)`)
+    ` (${(played.reduce((n, r) => n + r.secs, 0) / played.length).toFixed(1)} s a run)`)
   console.log('variant        clear  died on floor 1    2    3    4   drop  Monarch deaths by threat')
   const clear = (mine) => mine.filter((r) => r.result === 'victory').length / runs
   const full = clear(played.slice(0, runs))
@@ -2204,11 +2185,8 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
   const { isMainThread, parentPort, workerData } = await import('node:worker_threads')
   if (!isMainThread) {
     // A pool's worker (playAll): job after job, until it is let go.
-    const play = (job) => (job.book ? bookJob(job) : job.audit ? auditRecord(job) : job.refight ? refight(job) : record(job))
-    if (workerData?.pool) {
-      shareMemo(workerData.memo)
-      parentPort.on('message', (job) => parentPort.postMessage(play(job)))
-    }
+    const play = (job) => (job.audit ? auditRecord(job) : job.refight ? refight(job) : record(job))
+    if (workerData?.pool) parentPort.on('message', (job) => parentPort.postMessage(play(job)))
     else parentPort.postMessage(play(workerData))
   } else {
     const arg = (name, def) => {
@@ -2222,7 +2200,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     // `--variants full` (alone or with others): the full expert only, beside whatever ablations are named.
     const variants = arg('variants', null)?.split(',').filter((v) => v !== 'full') ?? ABLATIONS
     for (const v of variants) if (!ABLATIONS.includes(v)) throw new Error(`unknown ablation "${v}": ${ABLATIONS.join(', ')}`)
-    if (process.argv.includes('--combos')) await makeBook()
+    if (process.argv.includes('--combos')) makeBook()
     else if (process.argv.includes('--audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)) })
     else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
     else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })

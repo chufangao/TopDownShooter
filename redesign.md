@@ -377,15 +377,39 @@ power. Deathblow (a sure crit) becomes an execute: a blow of yours on a foe belo
 (placeholder). The run's draws (the map, the rooms, the recruits, the Shop's stock) stay seeded: they are the run,
 not a roll. This reverses §2.6's "kept behind the switch" and closes §6's open question on dice.
 
-### 2.17 The expert plans ahead (2026-10-10, night)
+### 2.17 The expert scores; it never rehearses (2026-10-10, night)
 
-The user's word: "Expert should plan ahead". The expert's turn (`expertTurn`) was greedy piece by piece over three
-or four candidate plans, judged by one foe turn played ahead. It now searches: more candidate plans a turn (piece
-orders, focus on one foe, holding back out of the danger map, each fusion, each Arise), each judged by **two rounds
-played ahead** (the foes' turn, its own next turn by the greedy pass, the foes' turn again), valuing HP traded, kills,
-the Monarch's safety, and the wounds that carry out of the battle. It still reads only the board (the camp's policy
-is deterministic and learnable, §2.9.3). Its cost is bounded so that an expert run stays seconds, not minutes; the
-autoplayer's rehearsals may use the cheaper one-round turn where the formation search would otherwise cost minutes.
+The user's word, after the first try at a planner that played the foes' turn ahead and a run that cost 15–20 s:
+"the expert should be a very carefully balanced decision tree / score based with rules and whatnot (maybe a more
+advanced neural network later). It shouldn't rehearse each fight", and "in-battle turn be pure scoring too".
+
+- **Every decision the expert makes is one shape**: read the **situation** (one read a decision: threats to the
+  Monarch by road and turns-to-reach, each piece's danger, killable foes, cooldowns and Hexes on both sides, synergies
+  gained or about to break, waves due and where, the camp's patience as the public counts show it; out of battle the
+  purse against prices, wounds, the combo's progress, the scouted rooms ahead), then a **decision tree of hard
+  invariant rules** (the user: "a decision tree + weights for hard invariant rules", "and good situational
+  awareness"): named nodes in order that force an option, filter out the ones that break an invariant, or pick a
+  mode (never leave the Monarch to a lethal turn when an option prevents it; never end a move where the piece dies
+  for nothing; an unheld relic is always given; the field always filled), then **weights** score what the tree leaves.
+  The tree's thresholds and the weights live in one table, `TUNING.expert`, the seam where a learned model may later
+  replace them. Every decision records the node that decided it.
+  **Nothing is decided by simulating a battle or a turn of the foes**: no rehearsals, no route rollouts, no room
+  vetoes by rehearsal, no lookahead. The foes' policy is not called by the expert.
+- **In battle**: pieces commit one at a time against the board as it stands (so a kill, focus fire and a blow's
+  exact damage are known, the battle having no dice), each option scored by features: damage dealt, kills and their
+  worth, the danger map at the tile it ends on (what the foes could deal there next turn, a static read), the counter
+  drawn, the Monarch's exposure (open roads into it, foes within their Move and reach of it), screening, healing the
+  most threatened, a fusion's worth against its essence price, Arise's shadow. A few piece orders may be tried and the
+  resulting boards compared by a static evaluation; no foe turn is played.
+- **Out of battle**: the formation hill-climbed on a static score (the danger map your pieces project on the road
+  tiles the scouted foes will use, the foes' threat to each of your tiles, blockers on the roads into the Monarch,
+  shooters behind blockers, healers beside the most threatened, the Monarch's exposure, synergies, an Arise holder
+  near where foes will fall); the route by each room's type and the army's state (strength against the room's scouted
+  threat by a formula, wounds to an altar, the purse to a Shop, the combo target's wanted kinds); spending and holding
+  as the growth search already scores them; the combo book ranked by a static formula in seconds.
+- Basic keeps its rules of thumb and loses its rehearsal (its first draft). The analysis tools that refight saved
+  battles (`--necessity`, `--decisions`) measure, not decide, and stay.
+- The balance pass tunes `TUNING.expert` with the game's numbers: "carefully balanced" is its job.
 
 ## 3. What the player may rely on
 
@@ -466,9 +490,8 @@ check function, not balance; no tuning, no ladder loops, until the balance pass 
 - `press(battle)` → 0 to 1.
 - `options(battle, u)` → the unit's positions and acts; `score(battle, u, option, temper, press)`.
 - `foeTurn(battle)` → the orders, applied in road order, their events; deterministic.
-- `expertTurn(battle)` → your side's orders by the same enumerate-score-commit, scored for your side (dealt, kills,
-  danger to your pieces from a one-ply foe turn played ahead on the candidate board, the Monarch's exposure, wounds
-  that carry), pieces in the order most constrained first; `basicTurn(battle)` → `[{ type: 'end' }]`.
+- `expertTurn(battle)` → your side's orders by the expert's situation read, decision tree and weights (§2.17; it
+  plays no foe turn ahead); `basicTurn(battle)` → `[{ type: 'end' }]`.
 
 `src/sim/rules.js` (the battle agent): `RULES`, the registry of §2.13.4; `rulesOf(battle, side)` → the rules the
 side's synergies, relics and overrides bring, each hook called with the battle.
@@ -554,10 +577,9 @@ Step 4.
 
 ### Step 5. The autoplayer (one agent)
 
-`src/sim/autoplay.js`: `rehearse` fights with `playOut(battle, policy)` at the level's turn policy (`expertTurn`,
-`basicTurn`); the memo's digest takes the policy level; `plan`, `drafts`, `frontier` and the formation search stand;
-`threatOf`, `gateOf` and `roadsTo` read the danger map and a played-ahead foe turn instead of guessing a walker's
-halt; `FILLER` derived from the pool; `pickReap`/`weighOffers` become the Shop's buying (a relic's `comboWorth` per
+`src/sim/autoplay.js` (as built; §2.17 later replaced its rehearsals with the expert's scoring): `rehearse` fought
+with `playOut(battle, policy)` at the level's turn policy; `plan`, `drafts`, `frontier` and the formation search
+stood; `threatOf`, `gateOf` and `roadsTo` read the danger map instead of guessing a walker's halt; `FILLER` derived from the pool; `pickReap`/`weighOffers` become the Shop's buying (a relic's `comboWorth` per
 essence against the tiers it displaces, in `grow`); the combo book regenerated (`--combos`). Ablations: `orders`
 joins the core three (the expert ends every turn without an order: what in-battle play is worth, 25–50 points),
 `fusions` stays, `relics` is "buys no Common–Rare relic" and `legendaries` "buys no Legendary". `test/planning.test.js`,
@@ -623,7 +645,7 @@ model ("adding a new unit / relics / merges should be straightforward and modula
     checklist.
 
 Taken that night, after the slice (Step 3: "go"): **held relics** and **Arise a held skill** (§2.15); **no dice
-at all** (§2.16). After the bug hunts: **no clock** (§2.10), and **the expert plans ahead** (§2.17).
+at all** (§2.16). After the bug hunts: **no clock** (§2.10), and **the expert scores, never rehearses** (§2.17).
 
 Open, decided later:
 

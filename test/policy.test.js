@@ -1,11 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, legalOrders, order, fork, reach, addStatus } from '../src/sim/turns.js'
-import { danger, dangerAt, press, options, choose, foeTurn, expertTurn, greedyTurn, basicTurn, PLAN } from '../src/sim/policy.js'
+import {
+  danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures
+} from '../src/sim/policy.js'
+import { value, decide, TREES } from '../src/sim/expert.js'
 import { on, scene, slay } from './scene.js'
 import { TEMPERS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
-import { makeUnit, tileAt, footprint, slotAt, DEPTH, ROWS, CAMP_ROWS } from '../src/sim/unit.js'
+import { makeUnit, tileAt, tileX, tileY, footprint, slotAt, DEPTH, ROWS, CAMP_ROWS } from '../src/sim/unit.js'
+import { tuned } from './tuned.js'
 
 // A battle on turns of units set on tiles (as test/turns.test.js builds them): [{ id, uid, side, x, y, lvl? }].
 function field (units, opts = {}) {
@@ -136,6 +140,175 @@ test('a Hexed foe moves but does not act', () => {
   assert.ok(events.some((e) => e.type === 'hexed' && e.target === 9))
 })
 
+// ── the expert scores (redesign.md §2.17) ───────────────────────────────────────────────────────
+
+// A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp?, relics? }], `hp` the HP it stands at.
+const board = (units, opts = {}) => {
+  const b = scene(units.map((u) => on(u.id, u.uid, u.side, u.x, u.y, u.lvl ?? 3, [0, 0], u.relics ?? [])), opts)
+  for (const u of units) if (u.hp) b.byUid.get(u.uid).hp = u.hp
+  return b
+}
+const piece = (b, uid) => b.byUid.get(uid)
+// The decision piece `uid` makes on `b` as it stands (policy.js choice).
+const decided = (b, uid) => choice(b, piece(b, uid))
+const where = (t) => `(${tileX(t)},${tileY(t)})`
+
+test('every feature the expert reads has its weight, and an option\'s score is their weighted sum', () => {
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 }
+  ])
+  const W = TUNING.expert.battle
+  const sit = situation(b)
+  for (const o of expertOptions(b, piece(b, 1))) {
+    const v = features(b, piece(b, 1), o, sit)
+    for (const [k, x] of Object.entries(v)) assert.ok(k in W.option && Number.isFinite(x), k)
+    assert.equal(value(v, W.option), Object.keys(v).reduce((n, k) => n + W.option[k] * v[k], 0))
+  }
+  for (const k of Object.keys(boardFeatures(b))) assert.ok(k in W.board, k)
+  for (const mode of Object.values(W.modes)) for (const k of Object.keys(mode)) assert.ok(k in W.option, k)
+  // A decision's tree and its weights: `by` names the rule that forced or filtered it, or the weights.
+  const one = decide([], null, [{ v: { damage: 1 } }, { v: { damage: 3 } }], W.option)
+  assert.deepEqual([one.option.v.damage, one.by, one.rules], [3, 'weights', []])
+})
+
+test('the expert\'s piece takes a kill over a scratch', () => {
+  // A Frost Sprite with a foe it can fell and a whole Tomb Knight it can only scratch, both in its lance's reach.
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 3 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 2, y: 6, lvl: 9 },
+    { id: 'clockwork_page', uid: 10, side: 'foe', x: 4, y: 6, hp: 5 }
+  ])
+  const sprite = piece(b, 1)
+  assert.ok(expertOptions(b, sprite).some((o) => o.target?.uid === 9), 'it could strike the Knight')
+  const { option } = decided(b, 1)
+  assert.equal(option.target?.uid, 10)
+  assert.ok(option.v.kill > 0)
+})
+
+test('with nothing to fell, the expert\'s piece ends out of the danger map rather than in it', () => {
+  // A lone Frost Sprite before three strong Knights: from where its Move takes it it could scratch one, from inside what
+  // they could deal it next turn.
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 2 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 2, y: 7, lvl: 12 },
+    { id: 'tomb_knight', uid: 10, side: 'foe', x: 3, y: 7, lvl: 12 },
+    { id: 'tomb_knight', uid: 11, side: 'foe', x: 4, y: 7, lvl: 12 }
+  ])
+  const sprite = piece(b, 1)
+  const sit = situation(b)
+  const opts = expertOptions(b, sprite)
+  assert.ok(opts.some((o) => dangerAt(b, sprite, o.tile, sit.map) > 0), 'some of its tiles are in the danger map')
+  assert.ok(!sit.killable.length, 'and none of the foes can be felled')
+  const { option } = decided(b, 1)
+  assert.equal(dangerAt(b, sprite, option.tile, sit.map), 0, where(option.tile))
+})
+
+test('the expert\'s piece blocks the road into the Monarch when nothing is in reach', () => {
+  // A Tomb Knight of yours off to the side and one foe far up the middle: its road comes in beside the seat.
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 5, y: 2 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 9 }
+  ])
+  const sit = situation(b)
+  assert.equal(sit.roads.length, 1)
+  const entry = sit.roads[0].tile
+  const { option } = decided(b, 1)
+  assert.equal(option.tile, entry, `to ${where(entry)}, not ${where(option.tile)}`)
+  assert.ok(option.v.screen > 0)
+  // Played: its move is the turn's, and the road is held after it.
+  for (const o of expertTurn(b)) order(b, o)
+  assert.equal(situation(b).roads.find((r) => r.tile === entry)?.held ?? 1, 1)
+})
+
+// ── the tree's rules, one test each (expert.js TREES) ───────────────────────────────────────────
+
+test('rule no-waste: a ward on allies who all hold it at its full stacks (the Monarch too) is no option', () => {
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'bone_chanter', uid: 1, side: 'party', x: 3, y: 2 },
+    { id: 'tomb_knight', uid: 2, side: 'party', x: 4, y: 2 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 9 }
+  ])
+  for (const uid of [0, 1, 2]) addStatus(b, piece(b, uid), 'hasten', 3)
+  const opts = expertOptions(b, piece(b, 1))
+  assert.ok(opts.some((o) => o.ability?.id === 'dirge'), 'Dirge is offered')
+  const pick = choice(b, piece(b, 1), situation(b), opts)
+  assert.ok(pick.rules.includes('no-waste'), JSON.stringify(pick.rules))
+  assert.notEqual(pick.option.ability?.id, 'dirge')
+  assert.ok(opts.filter((o) => o.ability?.id === 'dirge').every((o) => o.v.waste === 1))
+})
+
+test('rule monarch-lethal: with the Monarch about to fall, only what keeps it standing is an option', () => {
+  // The Monarch at 5 HP, a Ghoul beside it; your Frost Sprite could fell the Ghoul, or strike the wounded Knight.
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0, hp: 5 },
+    { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 3 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 2, hp: 10 },
+    { id: 'tomb_knight', uid: 10, side: 'foe', x: 5, y: 5, hp: 20 }
+  ])
+  const sit = situation(b)
+  assert.ok(sit.monarch.lethal)
+  const pick = decided(b, 1)
+  assert.equal(pick.by, 'monarch-lethal')
+  assert.equal(pick.option.v.lethal, 0)
+  assert.equal(pick.option.target?.uid, 9)
+})
+
+test('rule kill-first: a foe that could strike the Monarch next turn, and can be felled, is felled first', () => {
+  // The Monarch whole; a wounded Ghoul two tiles from it, and a whole Knight your Sprite would deal more to.
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'frost_sprite', uid: 1, side: 'party', x: 1, y: 3 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 3, hp: 12 },
+    { id: 'tomb_knight', uid: 10, side: 'foe', x: 1, y: 6, lvl: 6 }
+  ])
+  const sit = situation(b)
+  assert.ok(!sit.monarch.lethal && sit.monarch.threats.some((x) => x.uid === 9), JSON.stringify(sit.monarch.threats))
+  const pick = decided(b, 1)
+  assert.equal(pick.by, 'kill-first')
+  assert.equal(pick.option.target?.uid, 9)
+  // And the Monarch within reach selects the guard's weights.
+  assert.ok(pick.rules.includes('guard'))
+})
+
+test('rule never-die: a piece does not end where the danger map says it falls, unless its act kills or shields the Monarch', () => {
+  // A Frost Sprite at 12 HP that could strike a whole Knight only from among three Knights that would fell it.
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 3, hp: 12 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 2, y: 7, lvl: 9 },
+    { id: 'tomb_knight', uid: 10, side: 'foe', x: 3, y: 7, lvl: 9 },
+    { id: 'tomb_knight', uid: 11, side: 'foe', x: 4, y: 7, lvl: 9 }
+  ])
+  const opts = expertOptions(b, piece(b, 1))
+  const pick = choice(b, piece(b, 1), situation(b), opts)
+  assert.ok(opts.some((o) => o.v.fall > 0 && !o.v.kill) && opts.some((o) => !o.v.fall), 'deadly tiles and safe ones')
+  assert.ok(pick.rules.includes('never-die'), JSON.stringify(pick.rules))
+  assert.equal(pick.option.v.fall, 0)
+})
+
+test('rule no-doom: of the boards a turn could leave, never one where the foes could fell the Monarch next turn', () => {
+  const doomed = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0, hp: 5 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 0, y: 2 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 1 }
+  ])
+  const safe = fork(doomed)
+  slay(safe, safe.byUid.get(9))
+  // Even with the doomed board's other numbers made to look better.
+  const boards = [{ name: 'doomed', v: { ...boardFeatures(doomed), hp: 1e4 } }, { name: 'safe', v: boardFeatures(safe) }]
+  assert.deepEqual([boards[0].v.doom, boards[1].v.doom], [1, 0])
+  const pick = decide(TREES.board, null, boards, TUNING.expert.battle.board)
+  assert.deepEqual([pick.option.name, pick.by], ['safe', 'no-doom'])
+})
+
+// ── the expert's turns ──────────────────────────────────────────────────────────────────────────
+
 test('the expert gives legal orders, the same for the same board, and ends its turn; the basic player only ends it', () => {
   const b = field([
     { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
@@ -158,89 +331,35 @@ test('the expert gives legal orders, the same for the same board, and ends its t
   assert.deepEqual(basicTurn(b), [{ type: 'end' }])
 })
 
-test('the expert weighs Fuse as an act: a recipe\'s parts standing together, wounded, and the price in the purse, it fuses; never with `fuse` false', () => {
-  const b = field([
+// Two Tomb Knights and a Bone Chanter standing together, the purse full: a fusion is an option of each (its worth, the
+// fused piece's HP over its parts', against its price: TUNING.expert.battle.option.essence an essence).
+const fusing = (price, hp = (u) => Math.ceil(u.maxHp / 4)) => {
+  const b = board([
     { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
     { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
     { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
     { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
     { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 },
     { id: 'pyre_hound', uid: 10, side: 'foe', x: 4, y: 8 }
-  ], { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 3, tracks: [0, 0] } } })
-  for (const uid of [1, 2, 3]) b.byUid.get(uid).hp = Math.ceil(b.byUid.get(uid).maxHp / 4)
+  ], { essence: 1e9, fuse: { bone_colossus: { price, lvl: 3, tracks: [0, 0] } } })
+  for (const uid of [1, 2, 3]) b.byUid.get(uid).hp = hp(b.byUid.get(uid))
+  return b
+}
+const fuses = (orders) => orders.some((o) => o.type === 'fuse')
+
+test('the expert weighs Fuse as an act: wounded parts and a cheap price, it fuses; at a price no board could repay it does not; never with `fuse` false', () => {
+  const b = fusing(30)
   const orders = expertTurn(b)
   const fused = orders.find((o) => o.type === 'fuse')
   assert.ok(fused && fused.id === 'bone_colossus', JSON.stringify(orders))
   assert.ok(legalOrders(b).some((l) => JSON.stringify(l) === JSON.stringify(fused)), 'a legal order')
   for (const o of orders) if (!b.over) order(b, o)
   assert.equal(b.fused.length, 1)
-  assert.ok(!expertTurn(field([
-    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
-    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
-    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
-    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 }
-  ], { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 3, tracks: [0, 0] } } }), { fuse: false }).some((o) => o.type === 'fuse'))
-})
-
-// ── the expert plans ahead (redesign.md §2.17) ──────────────────────────────────────────────────
-
-// A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp?, relics? }], `hp` the HP it stands at.
-const board = (units, opts = {}) => {
-  const b = scene(units.map((u) => on(u.id, u.uid, u.side, u.x, u.y, u.lvl ?? 3, [0, 0], u.relics ?? [])), opts)
-  for (const u of units) if (u.hp) b.byUid.get(u.uid).hp = u.hp
-  return b
-}
-// A turn by `policy`: its orders, End Turn among them.
-const play = (b, policy) => {
-  for (const o of policy(b)) if (!b.over) order(b, o)
-}
-const souls = (b) => b.units.filter((u) => u.side === 'party' && u !== b.monarch && !u.shadow && u.hp > 0).length
-
-// Boards found by a search over small ones, with the numbers as they stand (a balance pass that moves them may need
-// others found). Here the greedy turn's best one round ahead leaves a Frost Sprite where the foes' second turn fells
-// it, whatever its next turn does; the expert, seeing two rounds, keeps all three pieces.
-test('the expert sees two rounds ahead: where the one-round best loses a piece on the next turn, it loses none', () => {
-  const units = [
-    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
-    { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 4 },
-    { id: 'bone_chanter', uid: 2, side: 'party', x: 1, y: 2 },
-    { id: 'frost_sprite', uid: 3, side: 'party', x: 4, y: 3 },
-    { id: 'pyre_hound', uid: 9, side: 'foe', x: 6, y: 6 },
-    { id: 'frost_sprite', uid: 10, side: 'foe', x: 0, y: 4 },
-    { id: 'pyre_hound', uid: 11, side: 'foe', x: 4, y: 5 }
-  ]
-  const greedy = board(units)
-  play(greedy, greedyTurn)
-  assert.equal(souls(greedy), 3, 'the one-round best loses nothing in its round')
-  play(greedy, greedyTurn)
-  assert.equal(souls(greedy), 2, 'and a piece in the next')
-  const expert = board(units)
-  play(expert, expertTurn)
-  play(expert, expertTurn)
-  assert.equal(souls(expert), 3)
-  assert.ok(!expert.over || expert.winner === 'party')
-})
-
-test('focus fire: the expert fells a foe that the greedy pass only wounds', () => {
-  const units = [
-    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
-    { id: 'grave_ghoul', uid: 1, side: 'party', x: 6, y: 2 },
-    { id: 'frost_sprite', uid: 2, side: 'party', x: 3, y: 3 },
-    { id: 'frost_sprite', uid: 3, side: 'party', x: 1, y: 2 },
-    { id: 'tomb_knight', uid: 4, side: 'party', x: 4, y: 4 },
-    { id: 'bone_chanter', uid: 9, side: 'foe', x: 4, y: 5, lvl: 5, hp: 45 },
-    { id: 'tomb_knight', uid: 10, side: 'foe', x: 6, y: 3, lvl: 4, hp: 69 }
-  ]
-  // The chanter as the turn's orders leave it, before End Turn.
-  const after = (policy) => {
-    const b = board(units)
-    for (const o of policy(b)) if (o.type !== 'end') order(b, o)
-    return b.byUid.get(9)
-  }
-  const wounded = after(greedyTurn)
-  assert.ok(wounded.hp > 0 && wounded.hp < 45, `greedy: ${wounded.hp}`)
-  assert.ok(after(expertTurn).hp <= 0)
+  // Ten times every max HP on the board, in essence.
+  const dear = Math.ceil(10 * fusing(1).units.reduce((n, u) => n + u.maxHp, 0) / -TUNING.expert.battle.option.essence)
+  assert.ok(legalOrders(fusing(dear)).some((o) => o.type === 'fuse'), 'dear: a legal fusion')
+  assert.ok(!fuses(expertTurn(fusing(dear))), 'dear: not made')
+  assert.ok(!fuses(expertTurn(fusing(1), { fuse: false })), 'never under the ablation')
 })
 
 // Every order the expert gives over whole battles is one legalOrders lists as it is given, the same board giving the
@@ -257,18 +376,10 @@ test('the expert never gives an illegal order, and the same board gives the same
     { id: 'pyre_hound', uid: 11, side: 'foe', x: 4, y: 8 }
   ])
   slay(arise, arise.byUid.get(8))
-  const fusion = board([
-    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2, hp: 60 },
-    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2, hp: 60 },
-    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3, hp: 30 },
-    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 },
-    { id: 'pyre_hound', uid: 10, side: 'foe', x: 4, y: 8 }
-  ], { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 3, tracks: [0, 0] } } })
   const kinds = new Set()
-  for (const b of [arise, fusion]) {
+  for (const b of [arise, fusing(30, (u) => Math.ceil(u.maxHp / 3))]) {
     assert.deepEqual(expertTurn(fork(b)), expertTurn(b))
-    for (let turn = 0; turn < 8 && !b.over; turn++) {
+    for (let turn = 0; turn < 12 && !b.over; turn++) {
       const orders = expertTurn(b)
       assert.deepEqual(orders.at(-1), { type: 'end' })
       for (const o of orders) {
@@ -282,35 +393,65 @@ test('the expert never gives an illegal order, and the same board gives the same
   assert.ok(['move', 'fuse', 'arise'].every((k) => kinds.has(k)), [...kinds].join())
 })
 
-// The essence a fusion spends is weighed against what it leaves on the board (PLAN.essence an essence): at a price no
-// board could repay it is not made, though the greedy turn (which weighs HP alone) makes it; under the fusions ablation
-// (`fuse` false) none is made at any price.
-test('the expert weighs a fusion\'s price: made when cheap, not at a price no board could repay; never with `fuse` false', () => {
-  const fusing = (price) => {
-    const b = board([
-      { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
-      { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
-      { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
-      { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
-      { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 },
-      { id: 'pyre_hound', uid: 10, side: 'foe', x: 4, y: 8 }
-    ], { essence: 1e9, fuse: { bone_colossus: { price, lvl: 3, tracks: [0, 0] } } })
-    for (const uid of [1, 2, 3]) b.byUid.get(uid).hp = Math.ceil(b.byUid.get(uid).maxHp / 4)
-    return b
+// The camp's pressure is read by its policy alone (press: TUNING.policy.press); the expert reads the board, never the
+// camp's coming turn. Counted: every read of TUNING.policy.press (the camp's turn reads it, so does any turn of the
+// foes played ahead) while the expert decides; and its orders, with the camp's patience changed.
+test('the expert plays no turn of the foes and never reads the camp\'s pressure', () => {
+  const b = field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
+    { id: 'bone_chanter', uid: 2, side: 'party', x: 2, y: 2 },
+    { id: 'frost_sprite', uid: 3, side: 'party', x: 4, y: 2 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 },
+    { id: 'will_o_wisp', uid: 10, side: 'foe', x: 2, y: 8 },
+    { id: 'pyre_hound', uid: 11, side: 'foe', x: 4, y: 8 }
+  ])
+  const real = TUNING.policy.press
+  let reads = 0
+  Object.defineProperty(TUNING.policy, 'press', { get () { reads++; return real }, configurable: true })
+  try {
+    for (let turn = 0; turn < 6 && !b.over; turn++) {
+      const orders = expertTurn(b)
+      assert.equal(reads, 0, `turn ${b.turn}: the expert read the camp's pressure`)
+      for (const o of orders) if (!b.over) order(b, o)
+      reads = 0
+    }
+  } finally {
+    Object.defineProperty(TUNING.policy, 'press', { value: real, writable: true, configurable: true, enumerable: true })
   }
-  const fuses = (orders) => orders.some((o) => o.type === 'fuse')
-  // Ten times every max HP on the board, in essence.
-  const dear = Math.ceil(10 * fusing(1).units.reduce((n, u) => n + u.maxHp, 0) / PLAN.essence)
-  assert.ok(fuses(expertTurn(fusing(1))), 'cheap: fused')
-  assert.ok(legalOrders(fusing(dear)).some((o) => o.type === 'fuse') && fuses(greedyTurn(fusing(dear))), 'dear: a legal fusion, which HP alone would make')
-  assert.ok(!fuses(expertTurn(fusing(dear))), 'dear: not made')
-  assert.ok(!fuses(expertTurn(fusing(1), { fuse: false })), 'never under the ablation')
+  const c = field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 }
+  ])
+  const orders = expertTurn(c)
+  tuned({ policy: { press: { strength: 0.9, turns: 2 } } }, () => assert.deepEqual(expertTurn(c), orders))
 })
 
-// The search is bounded (PLAN.beam, PLAN.focus, PLAN.arise): a turn on a full board, ten pieces and the Monarch against
-// a dozen foes at the deep floors' levels, takes tens of milliseconds (20–50 ms); the bound is generous, for slow
-// machines.
-test('the expert\'s turn on a full board costs well under a second', () => {
+// The situation is read from the board: its fields hold what the board, the counter and the bestiary show.
+test('the situation: the roads into the Monarch, its danger and threats, the pieces\' danger, the killable, the waves to come', () => {
+  const later = [{ ...makeUnit('grave_ghoul', { uid: 50, lvl: 1 }), side: 'foe', wave: 1, lane: 2, slot: -1 }]
+  const b = field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 3 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 2, lvl: 1 },
+    { id: 'tomb_knight', uid: 10, side: 'foe', x: 0, y: 9 }
+  ], { reserve: later })
+  b.byUid.get(9).hp = 5
+  const sit = situation(b)
+  assert.ok(sit.roads.length >= 1 && sit.roads.every((r) => r.foes.every((f) => f.turns >= 0 && f.reach >= 1)))
+  assert.ok(sit.monarch.threats.some((x) => x.uid === 9) && sit.monarch.danger > 0)
+  assert.equal(sit.monarch.lethal, sit.monarch.danger >= sit.monarch.hp)
+  assert.deepEqual(sit.pieces.map((p) => p.uid), [1])
+  assert.ok(sit.killable.some((k) => k.uid === 9 && k.by.includes(1)), JSON.stringify(sit.killable))
+  assert.ok(sit.wave && sit.wave.lanes.includes(2) && sit.wave.turn === 1 + TUNING.spawn.waves.every)
+  assert.equal(sit.patience, b.turn - b.foeIn)
+  assert.deepEqual(sit.idle, [1])
+})
+
+// A turn on a full board, ten pieces and the Monarch against a dozen foes at the deep floors' levels, takes a few
+// milliseconds (it plays nothing ahead); the bound is generous, for slow machines.
+test('the expert\'s turn on a full board costs a few milliseconds', () => {
   const mine = ['tomb_knight', 'bone_chanter', 'frost_sprite', 'grave_ghoul', 'pyre_hound', 'mantis_reaper', 'marsh_hag', 'thorn_dryad', 'iron_golem', 'ember_drake']
   const theirs = ['tomb_knight', 'pyre_hound', 'frost_sprite', 'bone_chanter', 'grave_ghoul', 'will_o_wisp', 'rot_bloat', 'hive_warden', 'mantis_reaper', 'barrow_wight', 'ash_wyvern', 'iron_golem']
   const b = board([
@@ -326,5 +467,5 @@ test('the expert\'s turn on a full board costs well under a second', () => {
     ms = Math.min(ms, performance.now() - t0)
     assert.ok(orders.length > 1)
   }
-  assert.ok(ms < 1000, `${ms.toFixed(0)} ms`)
+  assert.ok(ms < 250, `${ms.toFixed(1)} ms`)
 })

@@ -7,8 +7,8 @@ import {
   levelOf, kindLevel, commandOf, monarchHp, ariseOf, frontier, tierCost, floorPrice, releaseRefund, relicPrice, canBuy, shopOffers,
   eliteBonus, relicTier, ariseHeld, unheld
 } from '../src/sim/run.js'
-import { createBattle, playOut, fork, legalOrders, stalled } from '../src/sim/turns.js'
-import { autoplay, policy, LEVELS, scoreOf, planFor } from '../src/sim/autoplay.js'
+import { fork, legalOrders, stalled } from '../src/sim/turns.js'
+import { autoplay, policy, LEVELS, planFor } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { generateFloor } from '../src/sim/map.js'
 import { TUNING } from '../src/tuning.js'
@@ -639,34 +639,7 @@ test('the expert in a Shop: buys a relic worth its price, gives a piece relic to
   assert.ok(souls(s.party).find((u) => u.uid === next.uid).hp > 0)
 })
 
-test('a rehearsal scores a fallen Monarch as a loss, whoever else stands, a win by what it keeps after the heal, and leaves shadows out', () => {
-  const on = (id, uid, side, slot, lvl = 3) => ({ ...makeUnit(id, { uid, lvl }), side, slot })
-  // The Monarch in front, its soul held at the back; a Wisp out-shoots it.
-  const lost = createBattle({ party: [on('monarch', 0, 'party', slotAt(0, 3)), on('tomb_knight', 1, 'party', slotAt(6, 0), 9)], foes: [on('will_o_wisp', 10, 'foe', slotAt(0, 3), 9)] })
-  playOut(lost)
-  assert.deepEqual([lost.winner, lost.reason], ['foe', 'monarch'])
-  assert.ok(lost.units.find((u) => u.uid === 1).hp > 0 && scoreOf(lost) <= -3 && scoreOf(lost) >= -4, 'a loss weighs more than any win')
-  // A Page that comes to the Knight to strike it, and is struck down.
-  const won = createBattle({ party: [on('monarch', 0, 'party', slotAt(3, 3)), on('tomb_knight', 1, 'party', slotAt(0, 3), 9)], foes: [on('clockwork_page', 10, 'foe', slotAt(0, 3), 1)] })
-  playOut(won, expertTurn)
-  assert.equal(won.winner, 'party')
-  // A win by what the run keeps after the battle's heal: the souls' share of their HP, twice the Monarch's.
-  const kept = won.units.find((u) => u.uid === 1)
-  const heal = TUNING.run.postBattleHeal
-  const after = (u) => Math.min(1, u.hp / u.maxHp + heal)
-  const expect = 1 + (2 * after(kept) + after(won.monarch)) / 3
-  won.units.push({ side: 'party', shadow: true, hp: 0, maxHp: 500 })
-  assert.ok(Math.abs(scoreOf(won) - expect) < 1e-9)
-  // A Monarch left at a quarter keeps the heal on top; under Court of Bone, where nothing heals it after the battle
-  // either, it keeps only the quarter.
-  won.monarch.hp = won.monarch.maxHp / 4
-  const healed = 1 + (2 * after(kept) + 0.25 + heal) / 3
-  assert.ok(Math.abs(scoreOf(won) - healed) < 1e-9)
-  won.unhealable = true
-  assert.ok(Math.abs(scoreOf(won) - (1 + (2 * after(kept) + 0.25) / 3)) < 1e-9)
-})
-
-test('the autoplayer rehearses and plays ahead without touching the run', () => {
+test('the autoplayer decides without touching the run', () => {
   for (const level of ['basic', 'expert']) {
     const seen = new Set()
     // Through the first rooms: a route choice, a prep and a reap at least (on another seed if a run is
