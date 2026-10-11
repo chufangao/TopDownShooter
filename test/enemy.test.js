@@ -2,28 +2,36 @@
 // sieges, the Sovereign's court and its Grave Tide, the depth threat.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, stepBattle, runBattle, escalation } from '../src/sim/battle.js'
+import { createBattle, order, playOut, perform, corpses, deadline, entryTurn, fork } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
-import { policy, LEVELS, rehearsalBudget } from '../src/sim/autoplay.js'
+import { policy, LEVELS } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
 import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT } from '../src/sim/unit.js'
 import { sturdy, grant } from './tuned.js'
-import { on, scene as sceneOf, slay, unit } from './scene.js'
+import { on, scene, slay, unit, turns } from './scene.js'
+import { fight } from './rooms.js'
 
 const sp = TUNING.spawn
 const W = sp.waves
 const at = (list, floor) => list[Math.min(floor, list.length) - 1]
 
 // A battle of units placed on tiles (scene.js scene).
-const scene = (units, opts) => sceneOf(units, { seed: 'enemy', ...opts })
-// A foe still to come: off the board, in its wave, entering in `lane` when `when` comes.
-const coming = (id, uid, wave, when, lane = 3, extra = {}) => ({ ...makeUnit(id, { uid, lvl: 1 }), side: 'foe', wave, lane, when: { ...when, wave }, ...extra })
+// A foe still to come: off the board, in its wave (entering at the end of its turn: turns.js entryTurn), in `lane`.
+const coming = (id, uid, wave, lane = 3, extra = {}) => ({ ...makeUnit(id, { uid, lvl: 1 }), side: 'foe', wave, lane, ...extra })
+// The battle a run's log rebuilds: its setup, and the orders given in it (every action logged after its `fight`).
+function rebuilt (run) {
+  const log = run.state.log
+  const from = log.findLastIndex((a) => a.type === 'fight')
+  const b = createBattle(structuredClone(run.setup))
+  for (const o of log.slice(from + 1)) if (!b.over) order(b, o)
+  return b
+}
 // A run's souls at level 10 and a Monarch that takes a while to fell (the HP `monarch` points once gave: tuned.js
 // sturdy), so a battle runs its course (the state edited outside the log: not a replay).
 function strong (run, monarch = 40) {
@@ -52,7 +60,8 @@ test('every foe kind comes by Walk or Fly, hinted only in its flavour; depth is 
     // Flavour hints; it never names the behaviour it hints at.
     assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|fl(y|ies|ying|ight)|stays?|hunts?|orders?)\b/i, u.id)
   }
-  // Every kind Walks but the flyers, first met on floors 2 and 3.
+  // Two ways: every kind Walks but the flyers, first met on floors 2 and 3.
+  assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'fly'])
   const flyers = Object.values(UNITS).filter((u) => u.behaviour === 'fly').map((u) => [u.id, u.spawn.minFloor]).sort()
   assert.deepEqual(flyers, [['ash_wyvern', 3], ['hive_drone', 2]])
   assert.ok(THREATS.depth.name && THREATS.depth.desc)
@@ -108,7 +117,7 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
           const w = `${where} wave ${k}`
           assert.equal(new Set(g.map((f) => f.slot)).size, g.length, `${w}: slots`)
           assert.ok(g.every((f) => Number.isInteger(f.slot) && f.slot >= 0 && f.slot < 21 && f.lvl === lvl), w)
-          if (k) assert.deepEqual(room.waves[k - 1].when, floor === 1 ? { at: 'time', t: sp.late.t } : { at: 'break', t: W.t }, w)
+          if (k) assert.deepEqual(Object.keys(room.waves[k - 1]), ['foes'], `${w}: a wave enters on its turn, and waits for nothing`)
           // One foe a piece: none carries a count, and none is marked as another's cohort.
           assert.ok(!g.some((f) => 'count' in f || 'cohortOf' in f), w)
           if (boss && k === waves - 1) {
@@ -167,18 +176,17 @@ test('a run\'s room becomes battle units: foes take the first uids, formation th
   const all = groups(node)
   const total = all.flat().length
   assert.deepEqual(setup.foes.map((f) => [f.uid, f.id, f.slot]), node.foes.map((f, i) => [first + i, f.id, f.slot]))
-  const foeBodies = setup.reserve
-  assert.ok(foeBodies.every((f) => f.side === 'foe'), 'the reserve is the foes still to come')
-  assert.deepEqual(foeBodies.map((f) => [f.uid, f.id, f.slot, f.wave, f.lane]), node.waves[0].foes.map((f, i) => [first + node.foes.length + i, f.id, -1, 1, colOf(f.slot)]))
-  assert.ok(foeBodies.every((f) => JSON.stringify(f.when) === JSON.stringify({ at: 'break', t: W.t, wave: 1 })))
+  const waiting = setup.reserve
+  assert.ok(waiting.every((f) => f.side === 'foe'), 'the reserve is the foes still to come')
+  assert.deepEqual(waiting.map((f) => [f.uid, f.id, f.slot, f.wave, f.lane]), node.waves[0].foes.map((f, i) => [first + node.foes.length + i, f.id, -1, 1, colOf(f.slot)]))
+  assert.ok(waiting.every((f) => !('when' in f)))
   assert.equal(setup.nextUid, first + total, 'shadows after every foe')
   // Cohorts, wave by wave: every foe one body of its kind at its level; no foe carries a count or a plan.
   for (const [k, g] of all.entries()) {
-    const units = k ? foeBodies : setup.foes
+    const units = k ? waiting : setup.foes
     for (const [i, f] of g.entries()) {
       const u = units[i]
       assert.deepEqual([u.count, u.maxHp], [undefined, baseStats(f.id, f.lvl).hp], `${k} ${f.id} ${f.slot}`)
-      assert.ok(!('plan' in u) && !('cohortOf' in u) && !('rank' in u), `${k} ${f.id} ${f.slot}`)
     }
   }
   // The elite's captains brought their cohorts as foes of their own.
@@ -189,65 +197,46 @@ test('a run\'s room becomes battle units: foes take the first uids, formation th
   strong(run, 400)
   apply(run, { type: 'fight' })
   const b = run.battle
+  while (s.phase === 'battle' && b.reserve.length) apply(run, { type: 'end' })
   assert.deepEqual(b.events.filter((e) => e.type === 'wave').map((e) => e.wave), [1])
   const foesIn = b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').map((e) => e.unit.uid)
-  assert.deepEqual(foesIn, foeBodies.map((f) => f.uid), 'the wave entered, in order')
+  assert.deepEqual(foesIn, waiting.map((f) => f.uid).slice(0, foesIn.length), 'the wave entered, in order')
+  while (s.phase === 'battle') apply(run, { type: 'end' })
   assert.ok(b.units.filter((u) => u.wave === 1).every((u) => u.side === 'foe'))
   const uids = b.units.map((u) => u.uid)
   assert.equal(new Set(uids).size, uids.length, 'every uid once')
   assert.ok(uids.every((uid) => uid < s.nextUid) && s.nextUid === b.nextUid)
 })
 
-test('a late pair enters at the top edge at 20 s, each in its lane, one a tick', () => {
-  const t = sp.late.t
+test('a later wave enters at the top edge at the end of its turn, each foe in its lane, the wave announced once', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 9), on('grave_ghoul', 10, 'foe', 3, 10, 1)], {
-    reserve: [coming('frost_sprite', 70, 1, { at: 'time', t }, 1), coming('will_o_wisp', 71, 1, { at: 'time', t }, 5)]
+    reserve: [coming('frost_sprite', 70, 1, 1), coming('will_o_wisp', 71, 1, 5)]
   })
   assert.deepEqual(b.events[0].reserve.map((r) => [r.uid, r.wave, r.side]), [[70, 1, 'foe'], [71, 1, 'foe']], 'announced as foes still to come, in their wave')
-  while (b.t < t) assert.ok(!stepBattle(b).some((e) => e.type === 'enter' || e.type === 'wave'), 'nothing before 20 s')
-  const at400 = stepBattle(b).filter((e) => ['wave', 'enter'].includes(e.type))
-  assert.deepEqual(at400.map((e) => [e.t, e.type, e.unit?.uid ?? e.wave]), [[t, 'wave', 1], [t, 'enter', 70]])
-  assert.equal(at400[1].unit.tile, tileAt(1, DEPTH - 1), 'at the top edge, in its lane')
-  assert.equal(at400[1].unit.wave, 1)
-  const at401 = stepBattle(b).filter((e) => ['wave', 'enter'].includes(e.type))
-  assert.deepEqual(at401.map((e) => [e.t, e.type, e.unit?.uid]), [[t + 1, 'enter', 71]], 'one a tick')
-  assert.equal(at401[0].unit.tile, tileAt(5, DEPTH - 1), 'in its own lane')
-  assert.deepEqual([at401[0].unit.count, at401[0].unit.maxHp], [undefined, unit(b, 71).maxHp], 'one body')
-  assert.equal(b.foeIn, t + 1)
+  const due = entryTurn({ wave: 1 })
+  assert.equal(due, 1 + W.every)
+  while (b.turn < due - 1) assert.ok(!turns(b).some((e) => e.type === 'enter' || e.type === 'wave'), 'nothing before its turn')
+  const came = turns(b).filter((e) => ['wave', 'enter'].includes(e.type))
+  assert.deepEqual(came.map((e) => [e.type, e.unit?.uid ?? e.wave]), [['wave', 1], ['enter', 70], ['enter', 71]])
+  assert.deepEqual(came.slice(1).map((e) => e.unit.tile), [tileAt(1, DEPTH - 1), tileAt(5, DEPTH - 1)], 'at the top edge, in its lane')
+  assert.deepEqual([came[1].unit.wave, came[1].unit.maxHp], [1, unit(b, 70).maxHp], 'one body')
+  assert.equal(b.foeIn, due)
 })
 
-test('a wave enters once the wave before is down to a third, or 30 s after it began to enter; a wave not yet begun has not broken', () => {
-  const brk = { at: 'break', t: W.t }
+test('waves come on fixed turns, whatever the field: wave k at turn 1 + k × every; and foes still to come keep a battle going', () => {
   const make = () => scene([on('monarch', 0, 'party', 3, 0, 100), on('grave_ghoul', 10, 'foe', 0, 10, 1), on('grave_ghoul', 11, 'foe', 3, 10, 1), on('grave_ghoul', 12, 'foe', 6, 10, 1)], {
-    reserve: [coming('tomb_knight', 20, 1, brk, 2), coming('tomb_knight', 21, 1, brk, 4), coming('iron_golem', 30, 2, brk, 3)]
+    reserve: [coming('tomb_knight', 20, 1, 2), coming('tomb_knight', 21, 1, 4), coming('iron_golem', 30, 2, 3)]
   })
   const b = make()
-  const enters = (ev) => ev.filter((e) => e.type === 'enter').map((e) => e.unit.uid)
-  for (let k = 0; k < 20; k++) assert.deepEqual(enters(stepBattle(b)), [])
-  slay(b, unit(b, 10))
-  for (let k = 0; k < 20; k++) assert.deepEqual(enters(stepBattle(b)), [], 'two of three stand: not broken')
-  slay(b, unit(b, 11))
-  const broke = stepBattle(b)
-  assert.deepEqual(broke.filter((e) => e.type === 'wave').map((e) => e.wave), [1])
-  assert.deepEqual(enters(broke), [20], 'one of three: the next wave comes')
-  assert.deepEqual(enters(stepBattle(b)), [21])
-  assert.equal(b.waveAt[1], b.t - 2)
-  // The third waits on the second: two of two stand.
-  for (let k = 0; k < 20; k++) assert.deepEqual(enters(stepBattle(b)), [])
-  slay(b, unit(b, 20))
-  for (let k = 0; k < 5; k++) assert.deepEqual(enters(stepBattle(b)), [], 'one of two: more than a third')
-  slay(b, unit(b, 21))
-  const third = stepBattle(b)
-  assert.deepEqual([third.filter((e) => e.type === 'wave').map((e) => e.wave), enters(third)], [[2], [30]])
-  // Untouched, a wave comes 30 s after the one before began: the second at 30 s, the third 30 s after it.
-  const slow = make()
+  assert.deepEqual(b.waves.map((w) => [w.wave, w.turn, w.foes]), [[1, 1 + W.every, 2], [2, 1 + 2 * W.every, 1]])
   const seen = []
-  while (slow.t < 2 * W.t + 5 && !slow.over) seen.push(...stepBattle(slow).filter((e) => e.type === 'enter').map((e) => [e.t, e.unit.uid]))
-  assert.deepEqual(seen.slice(0, 3), [[W.t, 20], [W.t + 1, 21], [2 * W.t, 30]])
-  // Foes still to come keep a battle going with every foe on the board slain.
+  while (!b.over && b.turn <= 1 + 2 * W.every) seen.push(...turns(b).filter((e) => e.type === 'enter').map((e) => [b.turn, e.unit.uid]))
+  assert.deepEqual(seen, [[1 + W.every, 20], [1 + W.every, 21], [1 + 2 * W.every, 30]])
+  // The clock's cap counts from the last wave's turn.
+  assert.equal(deadline(b), 1 + 2 * W.every + b.cap - 1)
   const empty = make()
   for (const uid of [10, 11, 12]) slay(empty, unit(empty, uid))
-  stepBattle(empty)
+  turns(empty)
   assert.ok(!empty.over)
 })
 
@@ -267,8 +256,15 @@ test('the Sovereign\'s Grave Tide raises two of the field\'s dead on its side: t
   b.at[g.tile] = g
   const sov = unit(b, 50)
   sov.hp = Math.floor(sov.maxHp / 2)
-  sov.gauge = sov.costliest
-  const ev = stepBattle(b)
+  const tide = sov.kit.find((a) => a.id === 'grave_tide')
+  const cast = () => {
+    const from = b.events.length
+    b.stage = 'foes'
+    sov.cooldowns = {}
+    perform(b, sov, tide, unit(b, 1))
+    return b.events.slice(from)
+  }
+  const ev = cast()
   assert.ok(ev.some((e) => e.type === 'action' && e.actor === 50 && e.ability === 'grave_tide'), 'it cast Grave Tide')
   const risen = ev.filter((e) => e.type === 'arise')
   assert.deepEqual(risen.map((e) => [e.actor, e.corpse, e.unit.uid, e.unit.side, e.unit.shadow, e.unit.tile]),
@@ -276,15 +272,14 @@ test('the Sovereign\'s Grave Tide raises two of the field\'s dead on its side: t
   for (const e of risen) {
     const u = unit(b, e.unit.uid)
     assert.ok(alive(u) && u.shadow && u.side === 'foe')
-    assert.equal(u.hp, Math.ceil(baseStats(u.id, u.lvl).hp * TUNING.arise.hp))
+    assert.deepEqual([u.hp, u.maxHp], [baseStats(u.id, u.lvl).hp, baseStats(u.id, u.lvl).hp], 'whole')
   }
-  assert.equal(b.raised, 0, 'Arise\'s count is the Monarch\'s alone')
+  assert.equal(b.raised, 0, 'Arise\'s count is its holders\' alone')
   assert.ok(unit(b, 2).raised && unit(b, 51).raised && !unit(b, 52).raised && !unit(b, 53).raised)
   assert.equal(b.nextUid, 202)
   // A second cast raises the one corpse left that may rise, the Page: never the raised again, the boss, the
   // shadow or the trodden Golem.
-  sov.gauge = sov.costliest
-  const again = stepBattle(b).filter((e) => e.type === 'arise')
+  const again = cast().filter((e) => e.type === 'arise')
   assert.deepEqual(again.map((e) => [e.actor, e.corpse, e.unit.uid, e.unit.tile]), [[50, 52, 202, tileAt(6, 10)]])
   assert.equal(b.nextUid, 203)
   assert.ok(!unit(b, 53).raised && !unit(b, 54).raised && !unit(b, 55).raised)
@@ -295,12 +290,11 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
     on('tomb_knight', 1, 'party', 3, 6, 9),
     { ...on('hollow_sovereign', 50, 'foe', 3, 7, 1), wave: 2 }, { ...on('grave_ghoul', 51, 'foe', 5, 9, 1), wave: 2 },
     { ...on('bone_chanter', 52, 'foe', 0, 10, 1), shadow: true }, on('will_o_wisp', 53, 'foe', 6, 10, 1)
-  ], { reserve: [coming('grave_ghoul', 60, 3, { at: 'time', t: 2000 })] })
-  b.waveAt[2] = 0
+  ], { reserve: [coming('grave_ghoul', 60, 3)] })
+  b.waveAt[2] = 1
   const sov = unit(b, 50)
   sov.hp = 1
-  unit(b, 1).gauge = unit(b, 1).costliest
-  while (!b.over && b.t < 400) stepBattle(b)
+  order(b, { type: 'act', uid: 1, ability: 'strike', target: 50 })
   assert.ok(!alive(sov))
   const fell = b.events.findIndex((e) => e.type === 'death' && e.target === 50)
   const after = b.events.slice(fell + 1).filter((e) => e.type === 'death')
@@ -308,7 +302,7 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
   assert.ok(b.units.filter((u) => u.side === 'foe').every((u) => u.hp === 0))
   assert.deepEqual(b.reserve, [], 'the foe still to come never enters')
   assert.deepEqual([b.over, b.winner, b.reason], [true, 'party', 'sovereign'])
-  assert.deepEqual(b.events.at(-1), { t: b.t - 1, type: 'battle:end', winner: 'party', reason: 'sovereign' })
+  assert.deepEqual(b.events.at(-1), { beat: b.beat, type: 'battle:end', winner: 'party', reason: 'sovereign' })
   // They pay as if slain (not the shadow): the court in the Sovereign's wave, the Wisp in the first.
   const pay = essenceByWave(b)
   assert.equal(pay[2], foeEssence(sov) + foeEssence(unit(b, 51)))
@@ -316,20 +310,17 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
   assert.equal(pay[1], 0)
 })
 
-test('the Sovereign\'s crumbled court never rises: not even to an Arise cast later in the tick it fell (no shadow for Hollow Court to reap)', () => {
-  // A Frost Sprite of yours fells the Sovereign at (3, 4) with its first shot; two Pages of its court stand beside it,
-  // well inside Arise's reach of the Monarch at (3, 0), whose gauge is full and who acts after the Sprite.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 1, 1, 20),
-    on('hollow_sovereign', 10, 'foe', 3, 4, 1), on('clockwork_page', 11, 'foe', 2, 4, 1), on('clockwork_page', 12, 'foe', 4, 4, 1)],
-  { relics: ['arise', 'hollow_court'], boss: true })
+test('the Sovereign\'s crumbled court never rises: the battle ends with its fall, and its dust is no corpse (no shadow for Hollow Court to reap)', () => {
+  // A Frost Sprite of yours fells the Sovereign at (3, 4) with one shot; two Pages of its court stand beside it, well
+  // inside the reach of a Knight of yours holding Hollow Court.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 1, 1, 20), on('tomb_knight', 2, 'party', 3, 2, 3, [0, 0], ['hollow_court']),
+    on('hollow_sovereign', 10, 'foe', 3, 4, 1), on('clockwork_page', 11, 'foe', 2, 4, 1), on('clockwork_page', 12, 'foe', 4, 4, 1)], { boss: true })
   unit(b, 10).hp = 1
-  unit(b, 1).gauge = unit(b, 1).costliest
-  b.monarch.gauge = b.monarch.costliest
-  assert.ok(unit(b, 1).ord < b.monarch.ord, 'the Monarch acts after the Sprite')
-  while (!b.over) stepBattle(b)
-  assert.deepEqual([b.winner, b.reason, b.t], ['party', 'sovereign', 1])
+  order(b, { type: 'act', uid: 1, ability: unit(b, 1).basic.id, target: 10 })
+  assert.deepEqual([b.winner, b.reason, b.turn], ['party', 'sovereign', 1])
   assert.deepEqual(b.events.filter((e) => e.type === 'death' && e.crumble).map((e) => e.target), [11, 12])
-  assert.deepEqual(b.events.filter((e) => e.type === 'arise' || (e.type === 'action' && e.actor === 0)), [], 'Arise never cast')
+  assert.deepEqual(corpses(b, unit(b, 2)), [], 'nothing for Arise')
+  assert.ok(!b.events.some((e) => e.type === 'arise'))
   assert.equal(b.units.filter((u) => u.shadow).length, 0)
 })
 
@@ -337,7 +328,7 @@ test('a Monarch felled by a foe of a later wave is recorded with that wave, unde
   const fell = (wave, id = 'mantis_reaper') => {
     const b = scene([on('monarch', 0, 'party', 3, 0), { ...on(id, 50, 'foe', 3, 1, 5), ...(wave && { wave }) }])
     b.monarch.hp = 1
-    while (!b.over) stepBattle(b)
+    playOut(b)
     return b.death
   }
   assert.deepEqual([fell(0).threat, fell(0).wave], [UNITS.mantis_reaper.threats[0], undefined])
@@ -374,7 +365,7 @@ test('a siege is one battle of three waves with no prep between them, paying ess
     assert.ok(legalActions(r).some((a) => a.type === 'node' && a.id === node.id))
     apply(r, { type: 'node', id: node.id })
     assert.equal(r.state.phase, 'prep', 'a siege opens prep like any battle')
-    apply(r, { type: 'fight' })
+    fight(r)
     if (r.state.phase === 'reap') run = r
   }
   assert.ok(run, 'no siege was won')
@@ -390,10 +381,8 @@ test('a siege is one battle of three waves with no prep between them, paying ess
   assert.equal(pay.length, 3)
   assert.ok(pay.every((v) => v > 0), JSON.stringify(pay))
   assert.equal(s.stats.essence, Math.round(pay.reduce((n, v) => n + v, 0)))
-  // The battle is a pure function of its setup: rebuilt from it, every wave plays out the same.
-  const again = createBattle(structuredClone(run.setup))
-  runBattle(again)
-  assert.deepEqual(again.events, b.events)
+  // The battle is a pure function of its setup and its orders: rebuilt from them, every wave plays out the same.
+  assert.deepEqual(rebuilt(run).events, b.events)
   // The reap offers a soul of every wave's kinds, one to recruit.
   const kinds = new Set(real.map((u) => u.id))
   assert.deepEqual(new Set(s.offers.filter((o) => o.type === 'soul').map((o) => o.id)), kinds)
@@ -401,9 +390,9 @@ test('a siege is one battle of three waves with no prep between them, paying ess
 })
 
 // A rich run (as run.test.js's strong run) through floors 3 and 4: on the way every legal action applies to a
-// copy of the state, the state keeps its uids and slots straight, and every deep battle rebuilt from its setup
-// plays out the same (the essence is edited outside the log, so the run itself cannot be replayed: the fuzz
-// test seldom gets this deep). The last room is the Sovereign's siege: its waves enter, the Sovereign with its
+// copy of the state, the state keeps its uids and slots straight, and every deep battle rebuilt from its setup and
+// its orders plays out the same (the essence is edited outside the log, so the run itself cannot be replayed: the
+// fuzz test seldom gets this deep). The last room is the Sovereign's siege: its waves enter, the Sovereign with its
 // court last, and its fall ends the battle.
 // Functionality, not balance: however far the run gets, every legal action applies, every deep fight rebuilds
 // from its setup, and uids and slots stay unique. (Whether it wins is the final balance pass's business.)
@@ -411,7 +400,7 @@ test('the deep floors play: every legal action applying on the way, every deep f
   const run = createRun({ seed: 'rich' })
   const s = run.state
   const rng = createRng(s.seed).stream('autoplay')
-  const STEADY = { ...LEVELS.basic, wounds: true }
+  const STEADY = { ...LEVELS.basic, wounds: true, turns: 'expert' }
   const fought = []
   // Each floor, the relics a rich run might have taken (outside the log, as the purse): HP and three Command.
   let granted = 0
@@ -423,17 +412,16 @@ test('the deep floors play: every legal action applying on the way, every deep f
     }
     if (s.floor >= W.floor && steps % 23 === 0) {
       for (const a of legalActions(run).filter((_, i, all) => i % Math.ceil(all.length / 8) === 0)) {
-        assert.doesNotThrow(() => apply({ ...run, state: structuredClone(s) }, a), JSON.stringify(a))
+        assert.doesNotThrow(() => apply({ ...run, state: structuredClone(s), battle: run.battle && fork(run.battle, { quiet: false }) }, a), JSON.stringify(a))
       }
     }
     const action = policy(run, rng, STEADY)
     const floor = s.floor
+    const was = s.phase
     apply(run, action)
     if (action.type === 'fight') fought.push({ floor, type: currentNode(run).type, b: run.battle })
-    if (action.type === 'fight' && floor >= W.floor) {
-      const again = createBattle(structuredClone(run.setup))
-      runBattle(again)
-      assert.deepEqual(again.events, run.battle.events, `floor ${floor} ${currentNode(run).id}: rebuilt from its setup`)
+    if (was === 'battle' && s.phase !== 'battle' && run.battle.floor >= W.floor) {
+      assert.deepEqual(rebuilt(run).events, run.battle.events, `floor ${run.battle.floor}: rebuilt from its setup and its orders`)
     }
     assert.equal(new Set(s.party.map((u) => u.uid)).size, s.party.length, 'unique uids')
     assert.ok(s.party.every((u) => u.uid < s.nextUid || u.uid === MONARCH_UID), 'uids below nextUid')
@@ -441,45 +429,5 @@ test('the deep floors play: every legal action applying on the way, every deep f
     assert.equal(new Set(field.map((u) => u.slot)).size, field.length, 'unique slots')
   }
   assert.ok(fought.length > 0, 'it fought')
-})
-
-// ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
-
-test('the autoplayer rehearses a room with waves long enough to meet them: its budget counts from the last foe in, as the ceiling does', () => {
-  const { rehearsalCeiling } = TUNING.autoplay
-  const party = [{}, {}]
-  const foes = [{}, {}]
-  const body = (wave) => ({ side: 'foe', wave })
-  for (const reserve of [[{}, {}], [body(1), body(1)], [body(1), body(2), body(2)]]) {
-    assert.equal(rehearsalBudget({ party, foes, reserve }, 4).ceiling, rehearsalCeiling)
-  }
-  // Each wave comes at most W.t after the one before began, so a budget longer than that meets every one.
-  assert.ok(W.t < rehearsalCeiling && sp.late.t < rehearsalCeiling)
-})
-
-// ── the clock ────────────────────────────────────────────────────────────────────────────────────
-
-test('the ceiling and the ramp count from the last foe to enter: a late wave in the boss room still meets the ramp before the ceiling', () => {
-  // A stalemate: the Monarch in its camp, a Golem at the far edge, another (frozen where it enters) in the last
-  // wave at the latest it can come (30 s after a wave that came at 30 s).
-  const late = 2 * W.t
-  const X = TUNING.escalation
-  for (const boss of [true, false]) {
-    const b = scene([on('monarch', 0, 'party', 3, 0, 20), on('iron_golem', 10, 'foe', 3, 10, 1)], {
-      boss, reserve: [coming('iron_golem', 20, 2, { at: 'time', t: late }, 0)]
-    })
-    let ramped = 0
-    while (!b.over) {
-      stepBattle(b)
-      if (b.byUid.get(20)) b.byUid.get(20).nextStep = Infinity
-      if (b.t > late && escalation(b) > 1) ramped++
-    }
-    assert.equal(b.foeIn, late)
-    assert.deepEqual([b.winner, b.reason, b.t], [null, 'tick-ceiling', late + TUNING.tick.ceiling])
-    assert.equal(ramped, b.t - (b.foeIn + X.startTick * (boss ? X.bossMult : 1)), `ramped ${ramped} ticks after the last entry`)
-  }
-  // Before any foe enters, the ramp counts from the start.
-  const early = scene([on('monarch', 0, 'party', 3, 0, 20), on('iron_golem', 10, 'foe', 3, 10, 1)])
-  for (let t = 0; t <= X.startTick; t++) stepBattle(early)
-  assert.equal(escalation(early), 1 + X.perTick)
+  assert.ok(fought.some((f) => f.floor >= W.floor), `it fought on floor ${W.floor}: ${fought.map((f) => f.floor)}`)
 })

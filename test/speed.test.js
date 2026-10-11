@@ -1,11 +1,10 @@
-// The measuring speed-ups (necessity report, Speed 2): the progress score a run is read by, a rehearsal that ends
-// once its result is settled, and the formation search's pruning of rolls that cannot change its choice.
+// The measuring speed-ups (necessity report, Speed 2): the progress score a run is read by, and the rehearsal memo (a
+// rehearsal is one battle, played to its end: redesign.md §2.16).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes, battleSetup, monarchOf } from '../src/sim/run.js'
-import { createBattle, playOut } from '../src/sim/battle.js'
-import { createRng } from '../src/sim/rng.js'
-import { progressOf, foeShare, routeRooms, ROOMS_PER_FLOOR, record, policy, planFor, LEVELS, memoStats, scoreOf, BEST, autoplay } from '../src/sim/autoplay.js'
+import { createRun, apply, availableNodes, battleSetup } from '../src/sim/run.js'
+import { createBattle, playOut } from '../src/sim/turns.js'
+import { progressOf, foeShare, routeRooms, ROOMS_PER_FLOOR, record, planFor, LEVELS, memoStats } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
 
 // A run standing in its first fight's prep (rank 1 is all fights).
@@ -53,56 +52,15 @@ test('progress in a record: where the run fell and the share of that battle\'s f
   assert.ok(foeShare(b) >= 0 && foeShare(b) <= 1)
 })
 
-test('settle: a rehearsal may end once its result is settled, never a battle without it, and with the same verdict here', () => {
-  const S = TUNING.autoplay.settle
-  assert.ok(S && S.k >= 1)
-  let settledWins = 0
-  for (const seed of ['settle-0', 'settle-1', 'settle-2', 'settle-3', 'settle-4', 'settle-5', 'settle-6', 'settle-7', 'settle-8']) {
-    const run = inFight(seed)
-    for (let a; (a = policy(run, createRng(seed).stream('autoplay'), 'basic')).type !== 'fight';) apply(run, a)
-    // Foes of four times their HP and two fifths of their ATK: a fight long enough for a won verdict to hold its window
-    // (half their ATK until the floor-1 kinds' drains went with the gauge, 2026-10-10: redesign.md §2.7).
-    const setup = { ...battleSetup(run), foeMods: [...battleSetup(run).foeMods, { path: 'hp', op: 'mul', v: 4 }, { path: 'atk', op: 'mul', v: 0.4 }] }
-    const full = playOut(createBattle({ ...setup, quiet: true }))
-    const quick = playOut(createBattle({ ...setup, quiet: true, settle: S }))
-    assert.notEqual(full.reason, 'settled')
-    assert.ok(quick.t <= full.t)
-    assert.equal(quick.winner, full.winner, seed)
-    assert.ok(scoreOf(quick) <= BEST)
-    if (quick.reason === 'settled' && quick.winner === 'party') {
-      settledWins++
-      // A won verdict ends a rehearsal only once it has held, unbroken, for the look back's window.
-      assert.ok(quick.won !== null && quick.t - quick.won >= S.window, `${seed}: won from ${quick.won}, settled at ${quick.t}`)
-    }
-  }
-  assert.ok(settledWins > 0, 'some won rehearsal ends before its last foe falls')
-  // The Monarch alone, Arise taken away and no one to come: a loss, settled once the look back is full.
-  const run = inFight('alone')
-  const setup = { ...battleSetup(run), party: [monarchOf(run.state)], reserve: [], ablate: ['arise'] }
-  const alone = playOut(createBattle({ ...setup, quiet: true, settle: S }))
-  assert.deepEqual([alone.winner, alone.reason], ['foe', 'settled'])
-  assert.ok(alone.t <= S.window + S.every)
-  // A real fight never settles.
-  const real = autoplay(createRun({ seed: 'settle-real' }), { level: 'basic' })
-  assert.ok(real.state.phase === 'over' && real.battle.reason !== 'settled')
-})
-
-test('pruning: "finalists" is exact (the plan with every roll fought); "best" fights fewer rehearsals still', () => {
-  const was = TUNING.autoplay.prune
-  const plans = {}
-  const fought = {}
-  try {
-    for (const mode of [null, 'finalists', 'best']) {
-      TUNING.autoplay.prune = mode
-      const before = memoStats.misses
-      // The memo keys on TUNING, so each mode fights its rehearsals afresh.
-      plans[mode] = ['prune-0', 'prune-1'].map((seed) => planFor(inFight(seed), LEVELS.expert))
-      fought[mode] = memoStats.misses - before
-    }
-  } finally {
-    TUNING.autoplay.prune = was
-  }
-  assert.deepEqual(plans.finalists, plans.null)
-  assert.ok(fought.finalists <= fought.null && fought.best <= fought.finalists, JSON.stringify(fought))
-  assert.ok(fought.best < fought.null)
+// A battle reads no random number (redesign.md §2.16), so a formation is rehearsed once, and the same setup is never
+// fought again: the plan made again from a fresh run fights nothing.
+test('the rehearsal memo: a plan made again from the same room fights no rehearsal again', () => {
+  const before = memoStats.misses
+  const first = planFor(inFight('memo-0'), LEVELS.expert)
+  const fought = memoStats.misses - before
+  assert.ok(fought > 0)
+  const hits = memoStats.hits
+  assert.deepEqual(planFor(inFight('memo-0'), LEVELS.expert), first)
+  assert.equal(memoStats.misses - before, fought)
+  assert.ok(memoStats.hits - hits >= fought)
 })

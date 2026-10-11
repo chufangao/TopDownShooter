@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 
-// No 'rite' (it merged into the reliquary, 2026-10-09) and no reliquary: the Shop replaced it (redesign.md §2.11).
+// The room types (redesign.md §2.11: relics come from the Shop alone).
 const TYPES = ['fight', 'elite', 'shop', 'altar', 'boss', 'siege']
 
 function reach (map, from, edges) {
@@ -17,7 +17,7 @@ test('the same seed gives the same floor', () => {
   assert.notDeepEqual(generateFloor({ seed: 'm', floor: 2 }), generateFloor({ seed: 'm', floor: 3 }))
 })
 
-test('500 seeded floors keep the rank, link and type rules: one to four Shops in the middle, no reliquary, no rite', () => {
+test('500 seeded floors keep the rank, link and type rules: one to four Shops in the middle', () => {
   let lateShops = 0
   for (let i = 0; i < 500; i++) {
     const floor = 1 + (i % 4)

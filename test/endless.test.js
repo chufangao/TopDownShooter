@@ -1,11 +1,12 @@
-// Slice 8: synergy steps at 2/4/6/8 with a rule at the top, and the endless floors past the Sovereign.
+// The synergies' rules at 4 (redesign.md §2.12: one rule a kin and a role), for either side, and
+// the endless floors past the Sovereign.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stepBattle, runBattle, enterBattle, rulesOf } from '../src/sim/battle.js'
-import { makeUnit, tileAt, tileX, tileY, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
-import { SYNERGIES, KIN, ROLES, UNITS, CAMP_LIST, abilityDef } from '../src/content.js'
+import { enterBattle, rulesOf, perform, order, preview, orderable, fork } from '../src/sim/turns.js'
+import { makeUnit, tileAt, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
+import { UNITS, CAMP_LIST } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
-import { tuned, FIRST_ARISE, BOARD_14, grant } from './tuned.js'
+import { tuned, BOARD_14, grant } from './tuned.js'
 import {
   createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend,
   MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join
@@ -13,151 +14,105 @@ import {
 import { autoplay, policy, LEVELS } from '../src/sim/autoplay.js'
 import { generateFloor, RANKS } from '../src/sim/map.js'
 import { createRng } from '../src/sim/rng.js'
-import { on, scene as sceneOf, unit } from './scene.js'
+import { on, scene, unit, turns } from './scene.js'
+import { fight } from './rooms.js'
 
 const E = TUNING.spawn.endless
 const F = TUNING.run.floors
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
-// A battle of units placed on tiles (scene.js scene). The run holds Arise (a Legendary relic: without it the Monarch
-// raises no one) unless the scene names its own `relics`.
-const scene = (units, opts) => sceneOf(units, { relics: ['arise'], ...opts })
-
-// `n` party units of `ids` (cycled) on the tiles of `tiles` (cycled from the first), uids from `uid`.
+// Party units of `ids` (cycled) on `tiles`, uids from `uid`; the foes' the same (uids from 101).
 const squad = (ids, tiles, uid = 1) => tiles.map(([x, y], i) => on(ids[i % ids.length], uid + i, 'party', x, y))
-// Eight tiles: the front row of the camp's back half and one more behind its middle, or any row `y`.
-const eight = (y) => [...Array(7).keys()].map((x) => [x, y]).concat([[3, y - 1]])
-const seven = (y) => eight(y).slice(0, 7)
+const foeSquad = (ids, tiles, uid = 101) => tiles.map(([x, y], i) => on(ids[i % ids.length], uid + i, 'foe', x, y))
+// Four tiles of a row `y` (lanes 1–4), or three.
+const four = (y) => [1, 2, 3, 4].map((x) => [x, y])
+const three = (y) => four(y).slice(0, 3)
 const set = (b, uid, hp) => { unit(b, uid).hp = hp }
-// Steps until `done(b)` or the battle ends (or `max` ticks).
-function until (b, done, max = 3000) {
-  for (let k = 0; k < max && !b.over && !done(b); k++) stepBattle(b)
-  return b
-}
 const rules = (b, rule) => b.events.filter((e) => e.type === 'rule' && e.rule === rule)
-
-// What each action led to: [{ action, outcomes: the miss and damage events its actor caused until the next action }].
-function outcomes (events) {
-  const out = []
-  for (const e of events) {
-    if (e.type === 'action') out.push({ action: e, outcomes: [] })
-    else if ((e.type === 'miss' || e.type === 'damage') && out.length && e.actor === out.at(-1).action.actor) out.at(-1).outcomes.push(e)
-  }
-  return out
+const holding = (b, side) => rulesOf(b, side).map((r) => r.id)
+// A foe's act on the board as it stands (a foe's turn, as policy.js foeTurn would give it). → its events.
+function strike (b, uid, target, ability = null) {
+  const u = unit(b, uid)
+  const from = b.events.length
+  b.stage = u.side === 'foe' ? 'foes' : 'party'
+  u.acted = false
+  perform(b, u, ability ? u.kit.find((a) => a.id === ability) : u.basic, unit(b, target))
+  b.stage = 'party'
+  return b.events.slice(from)
 }
 
-// ── synergy steps ────────────────────────────────────────────────────────────────────────────────
+// ── synergies ────────────────────────────────────────────────────────────────────────────────────
 
-test('every kin and role has its steps up to 8: the steps below are numbers, the 8 is a rule', () => {
-  const steps = (axis, id) => SYNERGIES.filter((s) => Object.keys(s.needs).length === 1 && Object.keys(s.needs[axis] ?? {}).join() === id)
-  const rulesSeen = new Set()
-  const check = (axis, id, want) => {
-    const list = steps(axis, id)
-    assert.deepEqual(list.map((s) => s.needs[axis][id]).sort((a, b) => a - b), want, `${axis} ${id}`)
-    for (const s of list) {
-      const n = s.needs[axis][id]
-      assert.equal(s.id, `${id}_${n}`)
-      assert.ok(s.name && s.desc, s.id)
-      if (n === 8) {
-        assert.ok(typeof s.rule === 'string' && !rulesSeen.has(s.rule), `${s.id} has a rule of its own`)
-        assert.deepEqual(s.mods, [], `${s.id} is a rule, not a number`)
-        rulesSeen.add(s.rule)
-      } else {
-        assert.ok(!s.rule && s.mods.length > 0, `${s.id} is a number`)
-      }
-    }
-  }
-  for (const id of Object.keys(KIN)) check('kin', id, [2, 4, 6, 8])
-  for (const id of Object.keys(ROLES).filter((r) => !ROLES[r].hidden)) check('role', id, id === 'ranger' ? [3, 6, 8] : [2, 4, 6, 8])
-  assert.deepEqual([...rulesSeen].sort(), ['ambush', 'bodyguard', 'deadeye', 'deathblow', 'dragonfire', 'echo', 'frenzy', 'last_stand', 'legion', 'mirage', 'sanctuary'])
-  // The old steps keep their ids.
-  for (const id of ['undead_2', 'undead_4', 'drake_2', 'fae_2', 'insect_2', 'construct_2', 'vanguard_2', 'ranger_3', 'skirmisher_2', 'channeler_2', 'warden_2', 'trickster_2']) {
-    assert.ok(SYNERGIES.some((s) => s.id === id), id)
-  }
+// (Each kin's and role's one synergy at 4 is content.test.js's.)
+test('synergies: shadows count, the Monarch never; a battle announces its rules and holds them', () => {
+  const ghouls = [1, 2, 3].map((uid) => makeUnit('grave_ghoul', { uid }))
+  const undead = (units) => activeSynergies(units).some((s) => s.id === 'undead_4')
+  assert.ok(!undead([...ghouls, makeUnit('monarch', { uid: 0, lvl: 0 })]), 'the Monarch counts toward none')
+  assert.ok(undead([...ghouls, { ...makeUnit('bone_chanter', { uid: 9 }), shadow: true }]), 'a shadow counts')
+  const b = scene([...squad(['grave_ghoul', 'bone_chanter'], four(2)), on('clockwork_page', 100, 'foe', 3, 9)])
+  assert.ok(b.events[0].synergies.some((s) => s.side === 'party' && s.id === 'undead_4'))
+  assert.deepEqual([holding(b, 'party'), holding(b, 'foe')], [['legion'], []])
+  const t = scene([...squad(['grave_ghoul'], three(2)), on('clockwork_page', 100, 'foe', 3, 9)])
+  assert.ok(!holding(t, 'party').includes('legion'))
+  enterBattle(t, { ...makeUnit('tomb_knight', { uid: 50, lvl: 3 }), side: 'party', shadow: true, tile: tileAt(3, 4) })
+  assert.ok(holding(t, 'party').includes('legion'), 'three and a shadow')
 })
 
-test('shadows count toward the steps, the Monarch never; the steps stack; a battle announces its rules', () => {
-  const captain = makeUnit('grave_ghoul', { uid: 1, slot: 0 })
-  const members = Array.from({ length: 7 }, (_, k) => makeUnit(k % 2 ? 'bone_chanter' : 'grave_ghoul', { uid: 10 + k, slot: 1 + k }))
-  const ids = (units) => activeSynergies(units).map((s) => s.id).filter((id) => id.startsWith('undead'))
-  assert.deepEqual(ids([captain, ...members]), ['undead_2', 'undead_4', 'undead_6', 'undead_8'])
-  assert.deepEqual(ids([captain, ...members.slice(1), makeUnit('monarch', { uid: 0, lvl: 0 })]), ['undead_2', 'undead_4', 'undead_6'])
-  const b = scene([...squad(['grave_ghoul', 'bone_chanter'], eight(2)), on('clockwork_page', 100, 'foe', 3, 9)])
-  assert.ok(b.events[0].synergies.some((s) => s.side === 'party' && s.id === 'undead_8'))
-  assert.deepEqual([...rulesOf(b, 'party')], ['legion'])
-  assert.deepEqual([...rulesOf(b, 'foe')], [])
-  // A shadow is a unit like any other: seven undead and a risen one are Undead 8.
-  const seven7 = scene([...squad(['grave_ghoul'], seven(2)), on('clockwork_page', 100, 'foe', 3, 9)])
-  assert.ok(!rulesOf(seven7, 'party').has('legion'))
-  enterBattle(seven7, { ...makeUnit('tomb_knight', { uid: 50, lvl: 3 }), side: 'party', shadow: true, tile: tileAt(3, 4) })
-  assert.ok(rulesOf(seven7, 'party').has('legion'))
-})
-
-// The Legion (Undead 8): every foe slain rises on your side, past Arise's limit and tier.
-test('Undead 8: every foe slain rises at once as a shadow of yours, past Arise\'s limit and tier; never a boss or a shadow', () => tuned({ ...BOARD_14, ...FIRST_ARISE }, () => {
+// The Legion (Undead 4): every foe slain rises on the side holding it, past Arise's reach and tier.
+test('Legion: every foe slain rises at once as a shadow of yours beside the Monarch; never a boss or a shadow', () => tuned(BOARD_14, () => {
   const foes = () => [on('clockwork_page', 101, 'foe', 1, 6), on('iron_golem', 102, 'foe', 3, 6), on('frost_sprite', 103, 'foe', 5, 6)]
-  const fight = (party) => {
+  const play = (party) => {
     const b = scene([...party, on('monarch', MONARCH_UID, 'party', 3, 1), ...foes()])
     for (const uid of [101, 102, 103]) set(b, uid, 1)
-    return runBattle(b) && b
+    turns(b)
+    return b
   }
-  const b = fight(squad(['grave_ghoul'], eight(5)))
-  assert.equal(b.winner, 'party')
+  const b = play(squad(['grave_ghoul'], [[1, 5], [3, 5], [5, 5], [0, 4]]))
   const risen = b.events.filter((e) => e.type === 'arise')
   assert.deepEqual(risen.map((e) => [e.corpse, e.unit.id, e.unit.side, e.unit.shadow, e.rule]).sort(),
     [[101, 'clockwork_page', 'party', true, 'legion'], [102, 'iron_golem', 'party', true, 'legion'], [103, 'frost_sprite', 'party', true, 'legion']])
   for (const e of risen) {
     const corpse = unit(b, e.corpse)
-    // Risen on your side, it stands beside the Monarch, not where it fell.
     assert.equal(e.from, corpse.tile)
     assert.ok(distance(e.unit.tile, b.monarch.tile) < distance(corpse.tile, b.monarch.tile), `${e.unit.tile} from ${corpse.tile}`)
-    assert.ok(corpse.raised)
-    assert.ok(unit(b, e.unit.uid).shadow && unit(b, e.unit.uid).nextStep === Infinity, 'a shadow: it holds')
+    assert.ok(corpse.raised && !orderable(b, unit(b, e.unit.uid)), 'a shadow: it takes no orders')
     // The rule is announced right before the shadow rises, by its raiser.
     const i = b.events.indexOf(e)
     assert.deepEqual([b.events[i - 1].type, b.events[i - 1].rule, b.events[i - 1].target, b.events[i - 1].actor], ['rule', 'legion', e.corpse, e.actor])
     assert.equal(unit(b, e.actor).side, 'party')
   }
-  assert.equal(b.raised, 0, 'Arise\'s count is untouched (a tier-3 golem rose with one copy)')
-  // Seven undead: no Legion; only Arise raises, once.
-  const c = fight(squad(['grave_ghoul'], seven(5)))
-  assert.equal(rules(c, 'legion').length, 0)
-  assert.ok(c.events.filter((e) => e.type === 'arise').every((e) => !e.rule && e.actor === MONARCH_UID))
-  assert.ok(c.raised <= 1)
+  assert.equal(b.raised, 0, 'it is no Arise')
+  // Three undead: no Legion.
+  assert.equal(rules(play(squad(['grave_ghoul'], [[1, 5], [3, 5], [5, 5]])), 'legion').length, 0)
   // A boss and a shadow never rise.
-  const d = scene([...squad(['grave_ghoul'], eight(5)), { ...on('frost_sprite', 101, 'foe', 1, 6), shadow: true }, on('hollow_sovereign', 102, 'foe', 3, 6)])
+  const d = scene([...squad(['grave_ghoul'], [[1, 5], [3, 5], [5, 5], [0, 4]]), { ...on('frost_sprite', 101, 'foe', 1, 6), shadow: true }, on('hollow_sovereign', 102, 'foe', 3, 6),
+    on('iron_golem', 103, 'foe', 6, 10)])
   set(d, 101, 1)
   set(d, 102, 1)
-  until(d, () => unit(d, 101).hp <= 0 && unit(d, 102).hp <= 0)
+  turns(d)
   assert.ok(unit(d, 101).hp <= 0 && unit(d, 102).hp <= 0)
   assert.deepEqual([rules(d, 'legion').length, d.events.filter((e) => e.type === 'arise').length], [0, 0])
 }))
 
-test('Undead 8 works for the foes too: one of yours slain rises on their side', () => {
-  const b = scene([
-    on('mantis_reaper', 1, 'party', 3, 5), on('monarch', MONARCH_UID, 'party', 3, 0),
-    ...[[2, 6], [3, 6], [4, 6], [2, 7], [3, 7], [4, 7], [1, 7], [5, 7]].map(([x, y], i) => on('grave_ghoul', 101 + i, 'foe', x, y))
-  ])
+test('Legion works for the foes too: one of yours slain rises on their side, where it fell', () => {
+  const b = scene([on('mantis_reaper', 1, 'party', 3, 5), on('monarch', MONARCH_UID, 'party', 3, 0), ...foeSquad(['grave_ghoul'], [[2, 6], [3, 6], [4, 6], [3, 7]])])
   set(b, 1, 1)
-  until(b, () => unit(b, 1).hp <= 0)
+  strike(b, 102, 1)
   const risen = b.events.find((e) => e.type === 'arise')
-  assert.deepEqual([risen.corpse, risen.unit.id, risen.unit.side, risen.rule], [1, 'mantis_reaper', 'foe', 'legion'])
-  // A foe's shadow is a foe like any other: it walks the roads, on a foe's step clock.
-  const shade = unit(b, risen.unit.uid)
-  assert.ok(shade.shadow && shade.side === 'foe' && shade.every < Infinity)
+  assert.deepEqual([risen.corpse, risen.unit.id, risen.unit.side, risen.rule, risen.unit.tile], [1, 'mantis_reaper', 'foe', 'legion', tileAt(3, 5)])
+  assert.ok(unit(b, risen.unit.uid).shadow)
 })
 
 // A run's reap after the foes' Legion: a soul of yours that rose against you is no foe's soul. It is not for
-// sale and pays no essence (iron golem: a kind none of the eight ghouls is).
-test('Undead 8 on the foes\' side: your fallen risen against you are not sold back or paid for', () => {
+// sale and pays no essence (iron golem: a kind none of the four ghouls is).
+test('Legion on the foes\' side: your fallen risen against you are not sold back or paid for', () => {
   // The foes hold their rules only in the deep (TUNING.spawn.endless.rules): here, on floor 1, from the start.
   const was = TUNING.spawn.endless.rules
   TUNING.spawn.endless.rules = 0
   try { legionReap() } finally { TUNING.spawn.endless.rules = was }
 })
 function legionReap () {
-  // Souls of level 20, so that some seed wins (the reap needs a won battle).
   let won = null
   for (let i = 0; i < 20 && !won; i++) {
     const run = createRun({ seed: `legion-reap${i}` })
@@ -168,14 +123,14 @@ function legionReap () {
     Object.assign(golem, { slot: -1, hp: 1 })
     const node = availableNodes(run)[0]
     node.type = 'fight'
-    node.foes = [...Array(8).keys()].map((slot) => ({ id: 'grave_ghoul', lvl: 1, slot }))
+    node.foes = [...Array(4).keys()].map((slot) => ({ id: 'grave_ghoul', lvl: 1, slot }))
     apply(run, { type: 'node', id: node.id })
     apply(run, legalActions(run).find((a) => a.type === 'place' && a.uid === golem.uid && a.slot >= 0))
     const before = s.essence
-    apply(run, { type: 'fight' })
-    if (s.phase === 'reap') won = { run, earned: s.essence - before }
+    fight(run)
+    if (s.phase === 'reap' && run.battle.units.some((u) => u.side === 'foe' && u.shadow)) won = { run, earned: s.essence - before }
   }
-  assert.ok(won, 'some seed won')
+  assert.ok(won, 'some seed won, the golem risen against it')
   const { run, earned } = won
   const b = run.battle
   assert.ok(b.units.some((u) => u.side === 'foe' && u.shadow && u.id === 'iron_golem' && u.hp <= 0), 'the golem rose against you, and fell')
@@ -185,396 +140,201 @@ function legionReap () {
   assert.equal(earned, Math.round(paid))
 }
 
-// Mirage (Fae 8): each foe's first blow that would land misses.
-test('Fae 8: the first blow each foe would land in a battle misses, and only the first', () => {
-  const play = (tiles) => {
-    // No Frost Sprite among them: since the synergy steps doubled (the fourth balance pass), the sprites' Frost Lance,
-    // quickened by Fae 6, drained the middle knight's gauge until it fell without a blow.
-    const b = scene([...squad(['will_o_wisp', 'thorn_dryad'], tiles(5)), ...[1, 3, 5].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
-    return until(b, () => false, 400)
+test('Mirage: the first blow each foe would land on the side holding it misses, and only the first; either side', () => {
+  const b = scene([...squad(['will_o_wisp', 'thorn_dryad'], four(5)), ...[1, 3].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
+  for (const uid of [101, 102]) {
+    const first = strike(b, uid, uid === 101 ? 1 : 3)
+    assert.deepEqual(first.filter((e) => ['rule', 'miss', 'damage'].includes(e.type)).map((e) => [e.type, e.actor]).slice(0, 2), [['rule', uid], ['miss', uid]])
+    assert.ok(!first.some((e) => e.type === 'damage' && e.actor === uid), 'no harm done')
+    assert.ok(strike(b, uid, uid === 101 ? 1 : 3).some((e) => e.type === 'damage' && e.actor === uid), 'the next lands')
   }
-  const b = play(eight)
-  const struck = new Set()
-  let landed = 0
-  for (const e of b.events) {
-    if (e.type === 'rule' && e.rule === 'mirage') {
-      assert.ok(!struck.has(e.actor), 'one Mirage a foe')
-      struck.add(e.actor)
-      assert.equal(unit(b, e.target).side, 'party')
-      const next = b.events[b.events.indexOf(e) + 1]
-      assert.deepEqual([next.type, next.actor, next.target], ['miss', e.actor, e.target])
-    }
-    if (e.type === 'damage' && e.actor > 100 && unit(b, e.target).side === 'party') {
-      assert.ok(struck.has(e.actor), 'no blow lands before the Mirage')
-      landed++
-    }
-  }
-  assert.deepEqual([...struck].sort(), [101, 102, 103])
-  assert.ok(landed > 0, 'later blows land')
-  assert.equal(rules(play(seven), 'mirage').length, 0)
+  assert.equal(rules(b, 'mirage').length, 2)
+  const few = scene([...squad(['will_o_wisp', 'thorn_dryad'], three(5)), on('tomb_knight', 101, 'foe', 1, 6, 10)])
+  assert.ok(strike(few, 101, 1).some((e) => e.type === 'damage'))
+  // Theirs: your first blow at one of their four fae misses.
+  const theirs = scene([on('tomb_knight', 1, 'party', 3, 5, 10), ...foeSquad(['will_o_wisp', 'thorn_dryad'], four(6))])
+  const mine = order(theirs, { type: 'act', uid: 1, ability: 'strike', target: 103 })
+  assert.deepEqual(mine.filter((e) => e.type === 'rule').map((e) => [e.rule, e.side]), [['mirage', 'foe']])
 })
 
-// Last Stand (Construct 8): the first blow that would fell each of yours leaves it at 1 HP; never the Monarch.
-test('Construct 8: the first killing blow leaves a unit standing at 1 HP, once; never the Monarch', () => {
-  const party = (tiles) => squad(['clockwork_page', 'clockwork_page', 'iron_golem'], tiles(5))
-  // The wight at level 6: at 3, since the synergy steps doubled (the fourth balance pass), the eight constructs' DEF and
-  // the pages' Purge outlast its blows and nothing ever fells the page.
-  const b = scene([...party(eight), on('barrow_wight', 101, 'foe', 2, 6, 6), on('grave_ghoul', 102, 'foe', 4, 6)])
-  const page = b.units.find((u) => u.side === 'party' && tileX(u.tile) === 3 && tileY(u.tile) === 5)
+test('Last Stand: the first blow that would fell each of the side\'s leaves it at 1 HP, once; never the Monarch; either side', () => {
+  const b = scene([...squad(['clockwork_page', 'clockwork_page', 'iron_golem'], four(5)), on('monarch', MONARCH_UID, 'party', 0, 0), on('barrow_wight', 101, 'foe', 2, 6, 6)])
+  const page = unit(b, 2)
   page.hp = 5
-  until(b, () => page.hp <= 0)
-  const stood = rules(b, 'last_stand')
-  assert.ok(stood.length >= 1)
-  const mine = stood.filter((e) => e.target === page.uid)
-  assert.equal(mine.length, 1, 'once a battle')
-  const i = b.events.indexOf(mine[0])
-  assert.deepEqual([b.events[i - 1].type, b.events[i - 1].target, b.events[i - 1].hp], ['damage', page.uid, 1])
+  const first = strike(b, 101, 2)
+  assert.deepEqual([page.hp, rules(b, 'last_stand').map((e) => e.target)], [1, [2]])
+  const i = first.findIndex((e) => e.type === 'rule' && e.rule === 'last_stand')
+  assert.deepEqual([first[i + 1].type, first[i + 1].target, first[i + 1].hp], ['damage', 2, 1])
+  strike(b, 101, 2)
   assert.ok(page.stood && page.hp <= 0, 'the next killing blow fells it')
-  // Seven constructs: no Last Stand.
-  const c = scene([...party(seven), on('barrow_wight', 101, 'foe', 2, 6, 6), on('grave_ghoul', 102, 'foe', 4, 6)])
-  until(c, () => false, 300)
-  assert.equal(rules(c, 'last_stand').length, 0)
-  // The Monarch has no last stand: it falls, and the battle is lost.
-  const m = scene([...squad(['clockwork_page', 'iron_golem'], eight(1)), on('monarch', MONARCH_UID, 'party', 3, 6), on('grave_ghoul', 101, 'foe', 3, 7)])
-  set(m, MONARCH_UID, 1)
-  runBattle(m)
-  assert.deepEqual([m.winner, m.reason, rules(m, 'last_stand').length], ['foe', 'monarch', 0])
+  b.monarch.hp = 1
+  strike(b, 101, MONARCH_UID)
+  assert.deepEqual([b.winner, b.reason, rules(b, 'last_stand').length], ['foe', 'monarch', 1], 'the Monarch has no stand')
+  const few = scene([...squad(['clockwork_page'], three(5)), on('barrow_wight', 101, 'foe', 2, 6, 6)])
+  set(few, 2, 5)
+  strike(few, 101, 2)
+  assert.equal(unit(few, 2).hp, 0)
+  const theirs = scene([on('tomb_knight', 1, 'party', 2, 5, 10), ...foeSquad(['clockwork_page', 'iron_golem'], four(6))])
+  set(theirs, 102, 1)
+  order(theirs, { type: 'act', uid: 1, ability: 'strike', target: 102 })
+  assert.deepEqual([unit(theirs, 102).hp, rules(theirs, 'last_stand')[0].side], [1, 'foe'])
 })
 
-// Frenzy (Insect 8): a slayer's gauge fills at once.
-test('Insect 8: one of yours that slays a foe has its gauge filled, and strikes again next', () => {
+test('Frenzy: one of the side\'s that slays a foe has every skill ready again; either side', () => {
   const play = (tiles) => {
-    const b = scene([...squad(['mantis_reaper', 'hive_warden'], tiles(5)), ...[0, 2, 4, 6].map((x, i) => on('clockwork_page', 101 + i, 'foe', x, 6))])
-    for (let uid = 101; uid <= 104; uid++) set(b, uid, 1)
-    return b
+    const b = scene([...squad(['mantis_reaper', 'hive_warden'], tiles), on('clockwork_page', 101, 'foe', 1, 6), on('iron_golem', 102, 'foe', 6, 10)])
+    set(b, 101, 1)
+    const events = order(b, { type: 'act', uid: 1, ability: 'reap', target: 101 })
+    return { b, events }
   }
-  const b = play(eight)
-  let frenzies = 0
-  while (!b.over) {
-    const ev = stepBattle(b)
-    for (const e of ev.filter((x) => x.type === 'rule' && x.rule === 'frenzy')) {
-      const slayer = unit(b, e.actor)
-      assert.equal(slayer.gauge, slayer.costliest, 'its gauge is full')
-      const i = ev.indexOf(e)
-      assert.deepEqual([ev[i - 1].type, ev[i - 1].target], ['death', e.target])
-      frenzies++
-    }
-  }
-  assert.equal(frenzies, 4)
-  const c = play(seven)
-  runBattle(c)
-  assert.equal(rules(c, 'frenzy').length, 0)
+  const { b, events } = play(four(5))
+  const i = events.findIndex((e) => e.type === 'rule' && e.rule === 'frenzy')
+  assert.deepEqual([events[i - 1].type, events[i - 1].target, events[i].actor], ['death', 101, 1])
+  assert.equal(unit(b, 1).cooldowns.reap, 0, 'Reap is ready again')
+  assert.equal(play(three(5)).b.byUid.get(1).cooldowns.reap, 2)
+  const theirs = scene([on('clockwork_page', 1, 'party', 1, 5), ...foeSquad(['mantis_reaper', 'hive_warden'], four(6))])
+  set(theirs, 1, 1)
+  strike(theirs, 101, 1, 'reap')
+  assert.deepEqual([unit(theirs, 101).cooldowns.reap, rules(theirs, 'frenzy')[0].side], [0, 'foe'])
 })
 
-// Dragonfire (Drake 8): a single-target attack bursts on everyone next to its target.
-test('Drake 8: every single-target attack of yours strikes its target and every foe next to it', () => {
+test('Dragonfire: a single-target blow of the side\'s strikes its target and every one of its side next to it; either side', () => {
   const play = (tiles) => {
-    const b = scene([...squad(['ember_drake', 'frost_wyrm'], tiles(1)), on('frost_sprite', 20, 'party', 3, 6), ...[2, 3, 4].map((x, i) => on('clockwork_page', 101 + i, 'foe', x, 8))])
-    until(b, () => b.events.some((e) => e.type === 'action' && e.actor === 20))
-    return b.events.find((e) => e.type === 'action' && e.actor === 20)
+    const b = scene([...squad(['ember_drake', 'frost_wyrm'], tiles), on('frost_sprite', 20, 'party', 3, 6), ...[2, 3, 4].map((x, i) => on('clockwork_page', 101 + i, 'foe', x, 8))])
+    return order(b, { type: 'act', uid: 20, ability: 'frost_lance', target: 102 }).find((e) => e.type === 'action' && e.actor === 20)
   }
-  const burst = play(eight)
-  assert.equal(burst.ability, 'frost_lance')
-  assert.ok(burst.targets.length >= 2, `${burst.targets}`)
-  assert.equal(play(seven).targets.length, 1)
+  assert.deepEqual(play(four(1)).targets, [101, 102, 103])
+  assert.deepEqual(play(three(1)).targets, [102])
+  const theirs = scene([...foeSquad(['ember_drake', 'frost_wyrm'], four(9)), on('frost_sprite', 120, 'foe', 3, 6), ...[2, 3, 4].map((x, i) => on('clockwork_page', 1 + i, 'party', x, 5))])
+  const burst = strike(theirs, 120, 2).find((e) => e.type === 'action')
+  assert.deepEqual(burst.targets, [1, 2, 3])
 })
 
-// Bodyguard (Vanguard 8): a single-target blow at one of yours lands on a Vanguard next to it.
-test('Vanguard 8: a single-target blow at a non-Vanguard of yours falls on a Vanguard beside it: the Monarch is guarded', () => {
+test('Bodyguard: a single-target blow at one of the side\'s not a Vanguard falls on a Vanguard beside it: the Monarch is guarded; either side', () => {
   const play = (n) => {
-    const line = squad(['tomb_knight', 'grave_ghoul', 'iron_golem'], eight(1).slice(0, n - 1))
-    // A Wisp halts beside the Monarch, the piece in its way, and shoots it.
-    const b = scene([...line, on('tomb_knight', 8, 'party', 2, 5), on('monarch', MONARCH_UID, 'party', 3, 6), on('will_o_wisp', 101, 'foe', 3, 7)])
-    until(b, () => b.events.some((e) => e.type === 'action' && e.actor === 101))
-    return b
+    const b = scene([...squad(['tomb_knight', 'grave_ghoul'], four(1).slice(0, n - 1)), on('tomb_knight', 8, 'party', 2, 5), on('monarch', MONARCH_UID, 'party', 3, 6), on('will_o_wisp', 101, 'foe', 3, 8)])
+    return strike(b, 101, MONARCH_UID)
   }
-  const b = play(8)
-  const i = b.events.findIndex((e) => e.type === 'action' && e.actor === 101)
-  assert.deepEqual([b.events[i - 1].type, b.events[i - 1].rule, b.events[i - 1].actor, b.events[i - 1].target], ['rule', 'bodyguard', 8, MONARCH_UID])
-  assert.deepEqual(b.events[i].targets, [8])
-  assert.ok(!b.events.some((e) => e.type === 'damage' && e.target === MONARCH_UID))
-  const c = play(7)
-  assert.deepEqual(c.events.find((e) => e.type === 'action' && e.actor === 101).targets, [MONARCH_UID])
-  assert.equal(rules(c, 'bodyguard').length, 0)
+  const ev = play(4)
+  const i = ev.findIndex((e) => e.type === 'action' && e.actor === 101)
+  assert.deepEqual([ev[i - 1].type, ev[i - 1].rule, ev[i - 1].actor, ev[i - 1].target], ['rule', 'bodyguard', 8, MONARCH_UID])
+  assert.deepEqual(ev[i].targets, [8])
+  assert.ok(!ev.some((e) => e.type === 'damage' && e.target === MONARCH_UID))
+  assert.deepEqual(play(3).find((e) => e.type === 'action').targets, [MONARCH_UID])
+  const theirs = scene([...foeSquad(['tomb_knight', 'grave_ghoul'], [[0, 10], [1, 10], [2, 10]]), on('tomb_knight', 108, 'foe', 2, 9), on('frost_sprite', 120, 'foe', 3, 8), on('will_o_wisp', 1, 'party', 3, 4)])
+  const shot = order(theirs, { type: 'act', uid: 1, ability: 'witchfire', target: 120 })
+  assert.deepEqual(shot.find((e) => e.type === 'rule').side, 'foe')
+  assert.deepEqual(shot.find((e) => e.type === 'action').targets, [108])
 })
 
-// Deadeye (Ranger 8): ranged blows never miss and always crit.
-test('Ranger 8: ranged blows of yours never miss and every one is a critical hit', () => {
-  const play = (tiles) => {
-    const b = scene([...squad(['ember_drake', 'frost_wyrm'], tiles(6)), ...[[1, 9], [3, 9], [5, 9], [2, 10], [4, 10]].map(([x, y], i) => on(i < 3 ? 'clockwork_page' : 'tomb_knight', 101 + i, 'foe', x, y))])
-    runBattle(b)
-    return outcomes(b.events).filter((o) => o.action.actor < 100 && !abilityDef(o.action.ability).melee).flatMap((o) => o.outcomes)
+test('Deadeye: the side\'s ranged blows deal half again; its melee as it was; either side', () => {
+  const dealt = (tiles, ability) => {
+    const b = scene([...squad(['ember_drake', 'frost_wyrm'], tiles), on('tomb_knight', 101, 'foe', 1, 2, 20), on('iron_golem', 102, 'foe', 6, 10)])
+    return preview(b, 1, ability, 101).damage
   }
-  const sure = play(eight)
-  assert.ok(sure.length > 5)
-  assert.ok(sure.every((e) => e.type === 'damage' && e.isCrit), JSON.stringify(sure.find((e) => !(e.type === 'damage' && e.isCrit))))
-  const unsure = play(seven)
-  assert.ok(unsure.some((e) => e.type === 'miss' || !e.isCrit))
-  // Melee blows are left to the roll: ghouls at the nimble sprites' throats (out of the rangers' reach) still
-  // miss, or land without a crit, while the rangers' blows at a knight in reach all crit.
-  const b = scene([...squad(['ember_drake', 'frost_wyrm'], eight(2)), ...[1, 3, 5].map((x, i) => on('grave_ghoul', 11 + i, 'party', x, 6)),
-    ...[1, 3, 5].map((x, i) => on('frost_sprite', 101 + i, 'foe', x, 7, 10)), on('tomb_knight', 104, 'foe', 3, 4, 20)])
-  runBattle(b)
-  const mine = outcomes(b.events).filter((o) => o.action.actor < 100)
-  const melee = mine.filter((o) => abilityDef(o.action.ability).melee).flatMap((o) => o.outcomes)
-  const ranged = mine.filter((o) => !abilityDef(o.action.ability).melee).flatMap((o) => o.outcomes)
-  assert.ok(melee.length > 3 && ranged.length > 3, `${melee.length} melee, ${ranged.length} ranged`)
-  assert.ok(melee.some((e) => e.type === 'miss' || !e.isCrit))
-  assert.ok(ranged.every((e) => e.type === 'damage' && e.isCrit))
+  const [sure, plain] = [dealt(four(1), 'ember_burst'), dealt(three(1), 'ember_burst')]
+  assert.equal(sure, Math.round(plain * 1.5))
+  assert.equal(dealt(four(1), 'strike'), dealt(three(1), 'strike'), 'a melee blow is no ranged one')
+  const theirs = scene([...foeSquad(['ember_drake', 'frost_wyrm'], four(9)), on('tomb_knight', 1, 'party', 1, 7, 20)])
+  const fewer = scene([...foeSquad(['ember_drake', 'frost_wyrm'], three(9)), on('tomb_knight', 1, 'party', 1, 7, 20)])
+  const hurt = (b) => strike(b, 101, 1, 'ember_burst').find((e) => e.type === 'damage' && e.target === 1).damage
+  assert.equal(hurt(theirs), Math.round(hurt(fewer) * 1.5))
 })
 
-// Ambush (Skirmisher 8): full gauges at the start and on entry.
-test('Skirmisher 8: yours start the battle, and enter it, with a full gauge', () => {
-  const play = (tiles) => scene([...squad(['frost_sprite', 'barrow_wight'], tiles(5)), on('monarch', MONARCH_UID, 'party', 3, 0), on('tomb_knight', 101, 'foe', 3, 10)])
-  const b = play(eight)
-  assert.ok(b.units.filter((u) => u.side === 'party').every((u) => u.gauge === u.costliest))
-  assert.equal(unit(b, 101).gauge, 0)
+test('Ambush: the side\'s pieces start the battle Hastened, and those that enter later at their side\'s next turn; either side', () => {
+  const play = (tiles) => scene([...squad(['frost_sprite', 'barrow_wight'], tiles), on('monarch', MONARCH_UID, 'party', 3, 0), on('tomb_knight', 101, 'foe', 3, 10)])
+  const hasted = (u) => u.statuses.some((s) => s.id === 'hasten')
+  const b = play(four(5))
+  assert.ok(b.units.filter((u) => u.side === 'party' && u !== b.monarch).every(hasted))
+  assert.ok(!hasted(b.monarch) && !hasted(unit(b, 101)))
   assert.deepEqual(rules(b, 'ambush').map((e) => e.side), ['party'])
   const late = enterBattle(b, { ...makeUnit('grave_ghoul', { uid: 50, lvl: 3 }), side: 'party', tile: tileAt(3, 2) })
-  assert.equal(late.gauge, late.costliest)
-  const c = play(seven)
-  assert.ok(c.units.every((u) => u.gauge === 0))
-  assert.equal(rules(c, 'ambush').length, 0)
+  assert.ok(!hasted(late))
+  turns(b)
+  assert.ok(hasted(late), 'the turn after it entered')
+  assert.ok(!play(three(5)).units.some(hasted))
+  const theirs = scene([...foeSquad(['frost_sprite', 'barrow_wight'], four(9)), on('monarch', MONARCH_UID, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 4)])
+  assert.ok(!theirs.units.some(hasted), 'theirs come at their own turn')
+  order(theirs, { type: 'end' })
+  assert.deepEqual(rules(theirs, 'ambush').map((e) => e.side), ['foe'])
 })
 
-// Echo (Channeler 8): every ability rings out twice; Arise never.
-test('Channeler 8: every ability of yours rings out twice, on the same targets; Arise never echoes', () => {
+test('Echo: every ability of the side\'s rings out once more on the same targets; an Arise never echoes; either side', () => {
   const play = (tiles) => {
-    const b = scene([...squad(['will_o_wisp', 'bone_chanter'], tiles(5)), on('monarch', MONARCH_UID, 'party', 3, 0),
-      on('tomb_knight', 101, 'foe', 3, 9, 20), on('frost_sprite', 102, 'foe', 3, 3)])
-    set(b, 102, 1)
-    return until(b, () => false, 500)
+    const b = scene([...squad(['will_o_wisp', 'bone_chanter'], tiles), on('tomb_knight', 9, 'party', 0, 0, 3, [0, 0], ['arise']), on('monarch', MONARCH_UID, 'party', 3, 0),
+      on('tomb_knight', 101, 'foe', 3, 6, 20), on('frost_sprite', 102, 'foe', 1, 2), on('iron_golem', 103, 'foe', 6, 10)])
+    const fire = order(b, { type: 'act', uid: 1, ability: 'witchfire', target: 101 })
+    return { b, fire }
   }
-  const b = play(eight)
-  const echoes = rules(b, 'echo')
-  assert.ok(echoes.length >= 3)
-  assert.ok(!echoes.some((e) => e.ability === 'arise'))
-  assert.ok(b.events.some((e) => e.type === 'arise' && e.actor === MONARCH_UID), 'the Monarch raised the sprite')
-  for (const e of echoes) {
-    const i = b.events.indexOf(e)
-    const act = b.events.slice(0, i).findLast((x) => x.type === 'action')
-    assert.deepEqual([act.actor, act.ability], [e.actor, e.ability])
-  }
-  // A Witchfire on the knight, which stands through both: two blows, one each pass.
-  const fire = outcomes(b.events).find((o) => o.action.ability === 'witchfire' && o.action.targets[0] === 101)
-  assert.equal(fire.outcomes.filter((x) => x.target === 101).length, 2)
-  assert.equal(rules(play(seven), 'echo').length, 0)
+  const { b, fire } = play(four(4))
+  assert.equal(fire.filter((e) => e.type === 'damage' && e.target === 101).length, 2, 'two blows')
+  assert.deepEqual(rules(b, 'echo').map((e) => [e.actor, e.ability]), [[1, 'witchfire']])
+  set(b, 102, 0)
+  b.roster++
+  for (const t of [unit(b, 102).tile]) b.at[t] = null
+  const rose = order(b, { type: 'act', uid: 9, ability: 'arise', target: 102 })
+  assert.ok(rose.some((e) => e.type === 'arise') && !rose.some((e) => e.type === 'rule' && e.rule === 'echo'), 'Arise never echoes')
+  assert.equal(play(three(4)).fire.filter((e) => e.type === 'damage' && e.target === 101).length, 1)
+  const theirs = scene([...foeSquad(['will_o_wisp', 'bone_chanter'], four(7)), on('tomb_knight', 1, 'party', 1, 5, 20)])
+  const twice = strike(theirs, 101, 1).filter((e) => e.type === 'damage' && e.target === 1)
+  assert.deepEqual([twice.length, rules(theirs, 'echo')[0].side], [2, 'foe'])
 })
 
-// Sanctuary (Warden 8): an ally ability touches every ally.
-test('Warden 8: an ability aimed at an ally touches every one of yours on the board', () => {
+test('Sanctuary: an ability of the side\'s aimed at an ally reaches anyone, and touches every one of its side on the board; either side', () => {
   const play = (tiles) => {
-    const b = scene([...squad(['hive_warden', 'thorn_dryad'], tiles(1)), on('clockwork_page', 20, 'party', 3, 5), on('clockwork_page', 101, 'foe', 3, 10)])
+    const b = scene([...squad(['hive_warden', 'thorn_dryad'], tiles), on('clockwork_page', 20, 'party', 6, 6), on('clockwork_page', 101, 'foe', 3, 10)])
     set(b, 20, 10)
-    until(b, () => b.events.some((e) => e.type === 'action' && e.ability === 'mend'))
-    return [b, b.events.find((e) => e.type === 'action' && e.ability === 'mend')]
+    return [b, order(b, { type: 'act', uid: 1, ability: 'mend', target: 20 }).find((e) => e.type === 'action')]
   }
-  const [b, mend] = play(eight)
+  const [b, mend] = play(four(0))
   assert.deepEqual(mend.targets.slice().sort((x, y) => x - y), b.units.filter((u) => u.side === 'party' && alive(u)).map((u) => u.uid).sort((x, y) => x - y))
-  assert.deepEqual(play(seven)[1].targets, [20])
+  assert.deepEqual(play(three(0))[1].targets, [20])
+  const theirs = scene([...foeSquad(['hive_warden', 'thorn_dryad'], four(10)), on('clockwork_page', 120, 'foe', 0, 8), on('clockwork_page', 1, 'party', 3, 4)])
+  set(theirs, 120, 10)
+  const healed = strike(theirs, 101, 120, 'mend').find((e) => e.type === 'action')
+  assert.deepEqual(healed.targets.slice().sort((x, y) => x - y), theirs.units.filter((u) => u.side === 'foe' && alive(u)).map((u) => u.uid).sort((x, y) => x - y))
 })
 
-// Deathblow (Trickster 8): a crit slays outright, a boss excepted.
-test('Trickster 8: a critical hit of yours slays any foe outright, but not a boss', () => {
-  const ring = [[2, 3], [3, 3], [4, 3], [2, 5], [3, 5], [4, 5], [2, 4], [4, 4]]
-  const play = (foe, n) => scene([...squad(['clockwork_page', 'mantis_reaper'], ring.slice(0, n)), on('monarch', MONARCH_UID, 'party', 3, 0), on(foe, 101, 'foe', 3, 4)])
-  const b = play('iron_golem', 8)
-  const golem = unit(b, 101)
-  until(b, () => golem.hp <= 0)
-  const blow = rules(b, 'deathblow')
-  assert.equal(blow.length, 1)
-  const i = b.events.indexOf(blow[0])
-  assert.deepEqual([b.events[i + 1].type, b.events[i + 1].isCrit, b.events[i + 1].hp, b.events[i + 2].type], ['damage', true, 0, 'death'])
-  // The first crit on it was the Deathblow.
-  assert.equal(b.events.slice(0, i).filter((e) => e.type === 'damage' && e.target === 101 && e.isCrit).length, 0)
-  // The Sovereign takes its crits and stands.
-  const s = play('hollow_sovereign', 8)
-  let crits = 0
-  for (let k = 0; k < 400 && !s.over && rulesOf(s, 'party').has('deathblow'); k++) {
-    for (const e of stepBattle(s)) if (e.type === 'damage' && e.target === 101 && e.isCrit) crits++
+test('Deathblow works for the foes too: their blow on one of yours below a quarter of its HP deals double', () => {
+  const play = (tiles) => {
+    const b = scene([...foeSquad(['clockwork_page', 'mantis_reaper'], tiles), on('tomb_knight', 1, 'party', 1, 5, 20)])
+    set(b, 1, Math.floor(unit(b, 1).maxHp * 0.2))
+    return strike(b, 101, 1).find((e) => e.type === 'damage' && e.target === 1).damage
   }
-  assert.ok(crits > 0 && unit(s, 101).hp > 0)
-  assert.equal(rules(s, 'deathblow').length, 0)
-  const c = play('iron_golem', 7)
-  until(c, () => unit(c, 101).hp <= 0)
-  assert.equal(rules(c, 'deathblow').length, 0)
-  // Last Stand outranks Deathblow: against foes at Construct 8, the first crit is turned at 1 HP and no
-  // Deathblow is announced; once the stand is spent it falls as any foe does. Every Deathblow announced slays.
-  // (The other seven constructs stand out of everyone's reach and shallower than the golem, so it stays the one your
-  // pieces strike.)
-  const d = scene([...squad(['clockwork_page', 'mantis_reaper'], ring), on('monarch', MONARCH_UID, 'party', 3, 0), on('iron_golem', 101, 'foe', 3, 4),
-    ...[[0, 0], [0, 1], [0, 2], [6, 0], [6, 1], [6, 2], [1, 0]].map(([x, y], i) => on(i % 2 ? 'iron_golem' : 'clockwork_page', 102 + i, 'foe', x, y))])
-  const g = unit(d, 101)
-  until(d, () => g.hp <= 0)
-  const stand = rules(d, 'last_stand').find((e) => e.target === 101)
-  const j = d.events.indexOf(stand)
-  assert.deepEqual([d.events[j - 1].type, d.events[j - 1].isCrit, d.events[j - 1].hp], ['damage', true, 1])
-  assert.ok(!d.events.slice(0, j).some((e) => e.type === 'rule' && e.rule === 'deathblow' && e.target === 101))
-  assert.ok(g.hp <= 0)
-  const slays = (x) => rules(x, 'deathblow').every((e) => x.events[x.events.indexOf(e) + 1].hp === 0)
-  assert.ok(slays(b) && slays(d), 'a Deathblow announced slays')
-})
-
-// ── the rules on the foes' side ─────────────────────────────────────────────────────────────────
-
-// Every rule holds for whichever side reaches it: the foes of the deep hold them against you. Each scene below
-// mirrors one of the party's: eight foes of a kin or role, and a few of yours to meet them; every rule event
-// is the foes', and does to you what it does for you.
-const foeSquad = (ids, tiles, uid = 101) => tiles.map(([x, y], i) => on(ids[i % ids.length], uid + i, 'foe', x, y))
-// Eight tiles of their side: a row `y` and one more behind its middle (behind is further up for them).
-const theirEight = (y) => [...Array(7).keys()].map((x) => [x, y]).concat([[3, y + 1]])
-const foeRules = (b, rule) => rules(b, rule).filter((e) => e.side === 'foe')
-
-test('the rules work for the foes too: Mirage, Last Stand, Frenzy, Dragonfire, Bodyguard, Deadeye, Ambush, Echo, Sanctuary', () => {
-  // Mirage (their Fae 8): the first blow each of yours would land on them misses.
-  {
-    const knight = (x, i) => on('tomb_knight', 1 + i, 'party', x, 6, 10)
-    const b = scene([...foeSquad(['frost_sprite', 'will_o_wisp', 'thorn_dryad'], theirEight(7)), ...[1, 3, 5].map(knight)])
-    until(b, () => false, 400)
-    const m = foeRules(b, 'mirage')
-    assert.ok(m.length >= 1 && m.length === rules(b, 'mirage').length)
-    assert.equal(new Set(m.map((e) => e.actor)).size, m.length, 'one Mirage for each of yours')
-    for (const e of m) {
-      assert.ok(e.actor <= 3 && unit(b, e.target).side === 'foe')
-      const next = b.events[b.events.indexOf(e) + 1]
-      assert.deepEqual([next.type, next.actor, next.target], ['miss', e.actor, e.target])
-    }
-  }
-  // Last Stand (their Construct 8): their first killing blow leaves the foe at 1 HP.
-  {
-    const b = scene([...foeSquad(['clockwork_page', 'clockwork_page', 'iron_golem'], theirEight(7)), on('barrow_wight', 1, 'party', 2, 5), on('grave_ghoul', 2, 'party', 4, 6)])
-    const page = unit(b, 104)
-    page.hp = 5
-    until(b, () => page.hp <= 0)
-    const mine = foeRules(b, 'last_stand').filter((e) => e.target === 104)
-    assert.equal(mine.length, 1)
-    const i = b.events.indexOf(mine[0])
-    assert.deepEqual([b.events[i - 1].type, b.events[i - 1].target, b.events[i - 1].hp], ['damage', 104, 1])
-  }
-  // Frenzy (their Insect 8): a foe that slays one of yours has its gauge filled: once for each page slain while they
-  // hold it (at 1 HP, a blow slays it; a page that fells one of their insects breaks the rule).
-  {
-    const b = scene([...foeSquad(['mantis_reaper', 'hive_warden'], theirEight(7)), ...[0, 2, 4, 6].map((x, i) => on('clockwork_page', 1 + i, 'party', x, 6))])
-    for (let uid = 1; uid <= 4; uid++) set(b, uid, 1)
-    let frenzies = 0
-    let slain = 0
-    while (!b.over && rulesOf(b, 'foe').has('frenzy')) {
-      for (const e of stepBattle(b)) {
-        if (e.type === 'death' && unit(b, e.target).side === 'party') slain++
-        if (e.type !== 'rule' || e.rule !== 'frenzy') continue
-        assert.equal(e.side, 'foe')
-        const slayer = unit(b, e.actor)
-        assert.ok(slayer.side === 'foe' && slayer.gauge === slayer.costliest)
-        assert.equal(unit(b, e.target).side, 'party')
-        frenzies++
-      }
-    }
-    assert.ok(frenzies > 0)
-    assert.equal(frenzies, slain)
-  }
-  // Dragonfire (their Drake 8): a foe's single-target attack bursts on yours next to its target (the Sprite halted in
-  // the pages' rings).
-  {
-    const b = scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(9)), on('frost_sprite', 120, 'foe', 3, 6), ...[2, 3, 4].map((x, i) => on('clockwork_page', 1 + i, 'party', x, 5))])
-    until(b, () => b.events.some((e) => e.type === 'action' && e.actor === 120))
-    const burst = b.events.find((e) => e.type === 'action' && e.actor === 120)
-    assert.equal(burst.ability, 'frost_lance')
-    assert.ok(burst.targets.length >= 2 && burst.targets.every((uid) => unit(b, uid).side === 'party'), `${burst.targets}`)
-  }
-  // Bodyguard (their Vanguard 8): your single-target blow at a foe that is no Vanguard falls on a Vanguard
-  // beside it.
-  {
-    const b = scene([...foeSquad(['tomb_knight', 'grave_ghoul', 'iron_golem'], [...Array(7).keys()].map((x) => [x, 10])), on('tomb_knight', 108, 'foe', 2, 9),
-      on('frost_sprite', 120, 'foe', 3, 8), on('will_o_wisp', 1, 'party', 3, 4)])
-    until(b, () => b.events.some((e) => e.type === 'action' && e.actor === 1))
-    const i = b.events.findIndex((e) => e.type === 'action' && e.actor === 1)
-    assert.deepEqual([b.events[i - 1].type, b.events[i - 1].rule, b.events[i - 1].side, b.events[i - 1].actor, b.events[i - 1].target], ['rule', 'bodyguard', 'foe', 108, 120])
-    assert.deepEqual(b.events[i].targets, [108])
-  }
-  // Deadeye (their Ranger 8): their ranged blows never miss and always crit (the foes halted in the rings of yours, or
-  // behind a comrade).
-  {
-    const b = scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(7)), ...[[1, 6], [3, 6], [5, 6], [2, 5], [4, 5]].map(([x, y], i) => on(i < 3 ? 'clockwork_page' : 'tomb_knight', 1 + i, 'party', x, y))])
-    until(b, () => false, 600)
-    const sure = outcomes(b.events).filter((o) => o.action.actor > 100 && !abilityDef(o.action.ability).melee).flatMap((o) => o.outcomes)
-    assert.ok(sure.length > 3, `${sure.length} ranged outcomes`)
-    assert.ok(sure.every((e) => e.type === 'damage' && e.isCrit))
-  }
-  // Ambush (their Skirmisher 8): they start with full gauges, and say so; yours start empty.
-  {
-    const b = scene([...foeSquad(['frost_sprite', 'barrow_wight'], theirEight(8)), on('monarch', MONARCH_UID, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 4)])
-    assert.ok(b.units.filter((u) => u.side === 'foe').every((u) => u.gauge === u.costliest))
-    assert.ok(b.units.filter((u) => u.side === 'party').every((u) => u.gauge === 0))
-    assert.deepEqual(rules(b, 'ambush').map((e) => e.side), ['foe'])
-    const late = enterBattle(b, { ...makeUnit('grave_ghoul', { uid: 150, lvl: 3 }), side: 'foe', tile: tileAt(3, 7) })
-    assert.equal(late.gauge, late.costliest)
-  }
-  // Echo (their Channeler 8): their abilities ring out twice (the Chanters and the Wisp beside the knight halted in its
-  // ring, the Wisp behind that one queued behind it, shooting over it).
-  {
-    const b = scene([...foeSquad(['bone_chanter', 'will_o_wisp'], theirEight(7)), on('tomb_knight', 1, 'party', 3, 6, 20)])
-    until(b, () => false, 500)
-    const echoes = rules(b, 'echo')
-    assert.ok(echoes.length >= 3 && echoes.every((e) => e.side === 'foe' && unit(b, e.actor).side === 'foe'))
-    const fire = outcomes(b.events).find((o) => o.action.ability === 'witchfire' && o.action.targets[0] === 1)
-    assert.equal(fire.outcomes.filter((x) => x.target === 1).length, 2)
-  }
-  // Sanctuary (their Warden 8): a foe's ally ability touches every foe on the board (cast by those halted in a page's
-  // ring).
-  {
-    const b = scene([...foeSquad(['hive_warden', 'thorn_dryad'], theirEight(7)), on('clockwork_page', 120, 'foe', 0, 9), on('clockwork_page', 1, 'party', 3, 6)])
-    set(b, 120, 10)
-    until(b, () => b.events.some((e) => e.type === 'action' && e.ability === 'mend'))
-    const mend = b.events.find((e) => e.type === 'action' && e.ability === 'mend')
-    assert.deepEqual(mend.targets.slice().sort((x, y) => x - y), b.units.filter((u) => u.side === 'foe' && alive(u)).map((u) => u.uid).sort((x, y) => x - y))
-  }
-})
-
-// Deathblow (their Trickster 8): a foe's crit slays one of yours outright; never the Monarch, whose fall would
-// end the run on one roll.
-test('their Deathblow slays one of yours outright on a crit, but never the Monarch', () => {
-  const ring = [[2, 3], [3, 3], [4, 3], [2, 5], [3, 5], [4, 5], [2, 4], [4, 4]]
-  const b = scene([...foeSquad(['clockwork_page', 'mantis_reaper'], ring), on('iron_golem', 1, 'party', 3, 4)])
-  const golem = unit(b, 1)
-  until(b, () => golem.hp <= 0)
-  const blow = foeRules(b, 'deathblow')
-  assert.equal(blow.length, 1)
-  const i = b.events.indexOf(blow[0])
-  assert.deepEqual([b.events[i + 1].type, b.events[i + 1].isCrit, b.events[i + 1].hp, b.events[i + 2].type], ['damage', true, 0, 'death'])
-  // The Monarch, ringed by the same tricksters, takes their crits as blows.
-  const m = scene([...foeSquad(['clockwork_page', 'mantis_reaper'], ring), on('monarch', MONARCH_UID, 'party', 3, 4, 40)])
-  let crits = 0
-  for (let k = 0; k < 600 && !m.over; k++) {
-    for (const e of stepBattle(m)) if (e.type === 'damage' && e.target === MONARCH_UID && e.isCrit && e.hp > 0) crits++
-  }
-  assert.ok(crits > 0, 'it took crits and stood')
-  assert.equal(rules(m, 'deathblow').length, 0)
+  assert.equal(play(four(6)), Math.round(play(three(6)) * TUNING.deathblow.mult))
 })
 
 // Last Stand meets Undying: the stand comes first, and the rise after the next killing blow.
-test('Last Stand under Undying comes before the rise', () => {
-  const constructs = [[0, 1], [1, 1], [2, 1], [4, 1], [5, 1]].map(([x, y], i) => on('clockwork_page', 20 + i, 'party', x, y))
-  const u = scene([on('iron_golem', 1, 'party', 3, 4), ...constructs, on('clockwork_page', 26, 'party', 6, 1), on('clockwork_page', 27, 'party', 6, 0),
-    on('frost_sprite', 101, 'foe', 3, 5, 20)], { relics: ['arise', 'undying'] })
-  assert.ok(rulesOf(u, 'party').has('last_stand'))
+test('Last Stand under Undying comes before the rise; Undying lifts only its holder, once a battle', () => {
+  const u = scene([on('iron_golem', 1, 'party', 3, 4, 3, [0, 0], ['undying']), ...squad(['clockwork_page'], [[0, 1], [1, 1], [2, 1]], 20),
+    on('clockwork_page', 30, 'party', 6, 0), on('frost_sprite', 101, 'foe', 3, 5, 20), on('iron_golem', 102, 'foe', 6, 10)])
+  assert.ok(holding(u, 'party').includes('last_stand') && holding(u, 'party').includes('undying'))
   const golem = unit(u, 1)
   golem.hp = 1
-  until(u, () => u.events.some((e) => e.type === 'rise'))
+  strike(u, 101, 1)
+  strike(u, 101, 1)
   const order = u.events.filter((e) => e.target === 1 && ['rule', 'death', 'rise'].includes(e.type)).map((e) => e.rule ?? e.type)
-  assert.deepEqual(order.slice(0, 3), ['last_stand', 'death', 'rise'])
+  assert.deepEqual(order, ['last_stand', 'death', 'rise'])
+  assert.equal(golem.hp, Math.max(1, Math.round(golem.maxHp * 0.6)), 'at its relic\'s share')
+  while (alive(golem)) strike(u, 101, 1)
+  assert.equal(u.events.filter((e) => e.type === 'rise').length, 1, 'once a battle')
+  // A page beside it holding nothing falls, and stays down.
+  const page = unit(u, 30)
+  page.stood = true
+  page.hp = 1
+  strike(u, 101, 30)
+  assert.ok(!alive(page) && !u.events.some((e) => e.type === 'rise' && e.target === 30))
 })
 
-// The foes hold their rules only in the deep: above it their ladders stop at the stat steps
-// (TUNING.spawn.endless.rules).
-test('the foes hold their 8-step rules only in the deep; their stat steps hold everywhere', () => {
-  const drakes = (opts) => scene([...foeSquad(['ember_drake', 'frost_wyrm'], theirEight(8)), on('tomb_knight', 1, 'party', 3, 4)], opts)
+// The foes hold their rules only in the deep (TUNING.spawn.endless.rules).
+test('the foes hold their synergies\' rules only in the deep', () => {
+  const drakes = (opts) => scene([...foeSquad(['ember_drake', 'frost_wyrm'], four(9)), on('tomb_knight', 1, 'party', 3, 4)], opts)
   const shallow = drakes({ foeRules: false })
-  assert.deepEqual([...rulesOf(shallow, 'foe')], [])
-  const named = shallow.events[0].synergies.filter((x) => x.side === 'foe').map((x) => x.id)
-  assert.ok(named.includes('drake_6') && !named.includes('drake_8'), `${named}`)
+  assert.deepEqual(holding(shallow, 'foe'), [])
+  assert.ok(!shallow.events[0].synergies.some((x) => x.side === 'foe'))
   const deep = drakes({})
-  assert.deepEqual([...rulesOf(deep, 'foe')].sort(), ['deadeye', 'dragonfire'])
-  assert.ok(deep.events[0].synergies.some((x) => x.side === 'foe' && x.id === 'drake_8'))
+  assert.deepEqual(holding(deep, 'foe').sort(), ['deadeye', 'dragonfire'])
+  assert.ok(deep.events[0].synergies.some((x) => x.side === 'foe' && x.id === 'drake_4'))
   // The run decides it by the floor: shallow floors none, the deep from E.rules floors down.
   const run = createRun({ seed: 'foe-rules' })
   apply(run, { type: 'node', id: availableNodes(run).find((n) => n.foes).id })
@@ -656,7 +416,7 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
 // the way (whether a run gets there is the final balance pass's business).
 function clear (seed) {
   const sp = TUNING.spawn
-  const empty = { fight: sp.fight.map(() => 0), elite: sp.elite.map(() => 0), court: 0, bossHp: 0.02, late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
+  const empty = { fight: sp.fight.map(() => 0), elite: sp.elite.map(() => 0), court: 0, bossHp: 0.02, bossAtk: 0.02, late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
   return tuned({ spawn: empty }, () => {
     const run = createRun({ seed })
     const s = run.state
@@ -672,7 +432,7 @@ function clear (seed) {
     return run
   })
 }
-const STEADY = { ...LEVELS.basic, wounds: true }
+const STEADY = { ...LEVELS.basic, wounds: true, turns: 'expert' }
 // The 'deep' clear is played once and shared: each test takes its own copy of the state.
 let cleared = null
 const clearDeep = () => {
@@ -685,7 +445,7 @@ const clearDeep = () => {
 // the floors cleared count every floor left behind.
 function checkDeep (run) {
   const s = run.state
-  assert.ok(['map', 'prep', 'reap', 'shop', 'over'].includes(s.phase), s.phase)
+  assert.ok(['map', 'prep', 'battle', 'reap', 'shop', 'over'].includes(s.phase), s.phase)
   assert.ok(Number.isInteger(s.essence) && s.essence >= 0)
   assert.equal(new Set(s.party.map((u) => u.uid)).size, s.party.length)
   const m = monarchOf(s)
@@ -754,7 +514,7 @@ function deepWalk () {
     checkDeep(run)
     if (steps % 61 === 0) {
       for (const a of legalActions(run).filter((_, i) => i % 7 === 0)) {
-        assert.doesNotThrow(() => apply({ ...run, state: structuredClone(s) }, a), JSON.stringify(a))
+        assert.doesNotThrow(() => apply({ ...run, state: structuredClone(s), battle: run.battle && fork(run.battle, { quiet: false }) }, a), JSON.stringify(a))
       }
     }
   }
@@ -776,6 +536,7 @@ function deepWalk () {
     apply(fall, { type: 'node', id: node.id })
     for (const u of fielded(souls(fall.state.party))) apply(fall, { type: 'place', uid: u.uid, slot: -1 })
     apply(fall, { type: 'fight' })
+    while (fall.state.phase === 'battle') apply(fall, { type: 'end' })
     assert.deepEqual([fall.state.phase, fall.state.result, fall.state.death?.reason], ['over', 'victory', 'monarch'])
     assert.deepEqual(legalActions(fall), [])
     assert.throws(() => apply(fall, { type: 'descend' }), /slew the Sovereign/)

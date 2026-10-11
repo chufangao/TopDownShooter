@@ -44,35 +44,37 @@ const page = {
 }
 for (const [k, value] of Object.entries(page)) Object.defineProperty(globalThis, k, { value, configurable: true, writable: true })
 
-const { ringRule, ringText, bestiary, codexView, recruitWorth } = await import('../src/codex.js')
+const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf } = await import('../src/codex.js')
 const { KEYWORDS } = await import('../src/keywords.js')
-const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, abilityDef } = await import('../src/content.js')
-const { abilitiesOf, isBlow, makeUnit, behaviourOf } = await import('../src/sim/unit.js')
-const { createRun, souls, rosterCap } = await import('../src/sim/run.js')
+const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, temperLine } = await import('../src/content.js')
+const { makeUnit } = await import('../src/sim/unit.js')
+const { createRun, souls, rosterCap, apply } = await import('../src/sim/run.js')
+const { temperOf } = await import('../src/sim/turns.js')
 
 const FOES = UNIT_LIST.filter((u) => u.spawn || u.boss)
 bestiary.record(FOES.map((u) => u.id))
-const hasMelee = (id) => abilitiesOf(makeUnit(id, { uid: 1 })).map(abilityDef).some((a) => isBlow(a) && a.melee)
 
-test('a met foe\'s card tells its way, and what its melee strikes only for a kind with a melee blow', () => {
-  assert.ok(FOES.some((u) => !hasMelee(u.id)), 'a shooter with no melee blow to read')
+test('a met foe\'s card tells its reach, its Move, its way and its way line; no word is Flank, ring or gauge', () => {
   for (const u of FOES) {
-    const way = BEHAVIOURS[behaviourOf(u)]
-    const text = ringRule({ id: u.id, lvl: 1 }, true)
-    assert.ok(text.includes(way.desc), `${u.id}: its way`)
-    if (hasMelee(u.id)) assert.ok(text.endsWith(way.melee), `${u.id}: ${text}`)
-    else assert.ok(!text.includes(way.melee) && !/Its (melee|blows are melee)/.test(text), `${u.id} has no melee blow: ${text}`)
-    assert.ok(!/flank/i.test(text + ringText({ id: u.id, lvl: 1 }, true)), `${u.id}: Flank is gone`)
+    const text = reachRule({ id: u.id, lvl: 1 }, true)
+    assert.ok(text.includes(BEHAVIOURS[u.behaviour ?? 'walk'].desc), `${u.id}: its way`)
+    if (u.temper) assert.ok(text.includes(temperLine(temperOf(u.id)).toLowerCase()), `${u.id}: ${text}`)
+    assert.match(reachText({ id: u.id, lvl: 1 }, true), /^Reach \d+ · (melee|ranged) · Move \d+/)
+    assert.ok(!/flank|\bring|gauge|halts?\b/i.test(text + reachText({ id: u.id, lvl: 1 }, true)), `${u.id}: ${text}`)
   }
+  assert.ok(FOES.filter((u) => u.temper).length >= 8, 'the floor-1 kinds carry a temperament')
+  const met = localStorage.getItem('retinue:met')
+  localStorage.setItem('retinue:met', '')
+  assert.match(reachRule({ id: FOES[0].id, lvl: 1 }, true), /^Not met yet/)
+  localStorage.setItem('retinue:met', met)
 })
 
-test('the glossary tells each way, then what a foe\'s melee strikes on it; no word is Flank', () => {
-  for (const [id, b] of Object.entries(BEHAVIOURS)) {
-    assert.ok(!/melee reaches/.test(b.desc), `${id}: the way alone in its desc`)
-    assert.equal(KEYWORDS[id].line, `${b.desc} ${b.melee}`)
-  }
-  assert.ok(!('flank' in KEYWORDS))
-  for (const k of Object.values(KEYWORDS)) assert.ok(!/flank/i.test(k.line), k.name)
+test('the glossary\'s words are the seventeen; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
+  const names = Object.values(KEYWORDS).filter((k) => k.group === 'Words').map((k) => k.name)
+  assert.deepEqual(names.slice().sort(), ['Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
+    'Summon', 'Synergy', 'Tier', 'Turn', 'Wave'])
+  for (const [id, b] of Object.entries(BEHAVIOURS)) assert.equal(KEYWORDS[id].line, b.desc)
+  for (const k of Object.values(KEYWORDS)) assert.ok(!/\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit|flank|chance/i.test(k.line), `${k.name}: ${k.line}`)
 })
 
 test('How to play counts your souls as the cap does: one soul, one piece', () => {
@@ -80,7 +82,6 @@ test('How to play counts your souls as the cap does: one soul, one piece', () =>
   run.state.party.push({ ...makeUnit('tomb_knight', { uid: 50 }), slot: -1 })
   const text = codexView(run).textContent
   assert.ok(text.includes(`Souls ${souls(run.state.party).length}/${rosterCap(run)} `), text.match(/Souls [^·]*/)?.[0])
-  assert.ok(!/flank/i.test(text))
 })
 
 test('no word and no line of How to play speaks of stacked pieces or their bodies (a status\'s stacks are its own)', () => {
@@ -105,46 +106,51 @@ test('a recruit of a kind held says what one more is worth: how many you hold, a
   assert.equal(recruitWorth(run, stranger.id), null)
 })
 
-// On turns (redesign.md §4, the slice behind TUNING.turns): the words are built under the flag as the page loads
-// (flag.js), so the glossary is read from a copy of keywords.js loaded under it; the cards and How to play read the
-// flag as they are drawn.
-const { TUNING } = await import('../src/tuning.js')
-const { temperLine } = await import('../src/content.js')
-const { temperOf } = await import('../src/sim/turns.js')
-async function onTurns (fn) {
-  const was = TUNING.turns
-  TUNING.turns = true
-  try { return await fn() } finally { TUNING.turns = was }
-}
-
-test('on turns the glossary\'s words are the seventeen: Ring and the gauge gone, Turn, Move, Skill, Cooldown, Counter, Shop come', async () => {
-  const words = await onTurns(async () => (await import('../src/keywords.js?turns')).KEYWORDS)
-  const names = Object.values(words).filter((k) => k.group === 'Words').map((k) => k.name)
-  assert.deepEqual(names.slice().sort(), ['Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
-    'Summon', 'Synergy', 'Tier', 'Turn', 'Wave'])
-  for (const k of Object.values(words)) assert.ok(!/\bring|gauge/i.test(k.line), `${k.name}: ${k.line}`)
-})
-
-test('on turns a met foe\'s card gives its way line, generated from its temperament; one not met tells nothing', async () => {
-  await onTurns(() => {
-    const tempered = FOES.filter((u) => u.temper)
-    assert.ok(tempered.length >= 8, 'the floor-1 kinds carry a temperament')
-    for (const u of tempered) {
-      const text = ringRule({ id: u.id, lvl: 1 }, true)
-      assert.ok(text.includes(temperLine(temperOf(u.id)).toLowerCase()), `${u.id}: ${text}`)
-      assert.ok(!/\bring|gauge|halts?\b/i.test(text + ringText({ id: u.id, lvl: 1 }, true)), `${u.id}: ${text}`)
-      assert.match(ringText({ id: u.id, lvl: 1 }, true), /^Reach \d+ · (melee|ranged) · Move \d+/)
-    }
-  })
-  const met = localStorage.getItem('retinue:met')
-  localStorage.setItem('retinue:met', '')
-  await onTurns(() => assert.match(ringRule({ id: FOES[0].id, lvl: 1 }, true), /^Not met yet/))
-  localStorage.setItem('retinue:met', met)
-})
-
-test('on turns How to play is the turn\'s: a turn is yours, the untouched strike with their basics, no dice', async () => {
-  const text = await onTurns(() => codexView(createRun({ seed: 'codex' })).textContent)
+test('How to play is the turn\'s: a turn is yours, the untouched strike with their basics, no dice, held relics; nothing of rings or the gauge', () => {
+  const text = codexView(createRun({ seed: 'codex' })).textContent
   assert.ok(text.includes('A turn is yours'), text.slice(0, 200))
   assert.ok(text.includes('never a skill') && text.includes('No dice'))
-  assert.ok(!/never moves'?\.|stop line|rings cover/.test(text), text.match(/.{0,40}(never moves|stop line|rings cover).{0,40}/)?.[0])
+  assert.ok(/piece relic works through the soul you give it to/.test(text) && /Arise is one/.test(text), 'held relics (redesign.md §2.15)')
+  assert.ok(!/never moves'?\.|stop line|rings? cover|\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit/i.test(text), text.match(/.{0,40}(never moves|stop line|rings? cover|\bring\b|gauge|ACC|EVA|CRT|crit).{0,40}/i)?.[0])
+})
+
+test('a relic card says Run or Held; a soul\'s card shows its relic slot, the Monarch\'s none, and no stat but HP, ATK, DEF and Move', () => {
+  for (const r of RELIC_LIST) {
+    assert.equal(relicKind(r.id), r.run ? 'Run' : 'Held', r.id)
+    assert.ok(relicTip(r.id).textContent.includes(r.run ? 'Run' : 'Held'), r.id)
+  }
+  const run = createRun({ seed: 'codex' })
+  const soul = souls(run.state.party)[0]
+  const piece = RELIC_LIST.find((r) => !r.run && !r.rule)
+  assert.match(unitCard(soul, { run }).textContent, /no relic/)
+  run.state.relics.push(piece.id)
+  apply(run, { type: 'hold', relic: piece.id, uid: soul.uid })
+  const card = unitCard(soul, { run }).textContent
+  assert.ok(card.includes(piece.name) && !/no relic/.test(card), card)
+  assert.ok(relicTip(piece.id, run).textContent.includes('held by'), 'its tip says who holds it')
+  const monarch = run.state.party.find((u) => u.id === 'monarch')
+  assert.ok(!/relic/.test(unitCard(monarch, { run }).textContent))
+  for (const u of [soul, monarch]) assert.ok(!/\b(ACC|EVA|CRT|SPD)\b/.test(unitCard(u, { run, open: true }).textContent))
+})
+
+test('Arise is its holder\'s skill on its card, with its reach and tier; a soul holding none has no Arise', () => {
+  const run = createRun({ seed: 'codex' })
+  const [holder, other] = souls(run.state.party)
+  run.state.relics.push('arise')
+  apply(run, { type: 'hold', relic: 'arise', uid: holder.uid })
+  const a = ariseFor(run.state, holder)
+  assert.ok(a && a.domain > 0 && a.tier > 0)
+  assert.equal(ariseFor(run.state, other), null)
+  const card = (u) => unitCard(u, { run, realm: realmOf(run), open: true }).textContent
+  assert.ok(card(holder).includes('Arise') && card(holder).includes(`${a.domain} tiles`), card(holder))
+  assert.ok(!card(other).includes('Arise'))
+})
+
+test('a battle\'s synergy labels name the rule each brings at 4', () => {
+  const labels = synergyLabels(SYNERGIES)
+  assert.equal(labels.length, SYNERGIES.length)
+  for (const x of labels) {
+    const syn = SYNERGIES.find((s) => s.id === x.id)
+    assert.ok(syn.name.endsWith(' 4') && syn.desc.startsWith(`${x.rule}: `) && x.text.length > 0, x.id)
+  }
 })

@@ -1,137 +1,89 @@
 // Every balance constant in one place.
 
 export const TUNING = {
-  // Turns (redesign.md §2.3–2.10). `turns` is the slice's switch: false plays today's battle (battle.js), true the
-  // turn-based one (turns.js); it goes, with battle.js, when the full conversion lands. `turn.cap`: the clock, in
-  // turns from the last wave's entry; a battle undecided at the cap is lost. `dice` false: every blow hits, none
-  // crits, no variance (the dice path is kept behind it). `move`: a kind's Move from its old stride until its def
-  // carries `move` (flyers `fly`, the Monarch 0). `policy.press`: the camp's pressure, 0 at turn 1 rising to 1 at
-  // the cap, nudged ± `strength` by the trade it could make. Placeholders until the balance pass.
-  turns: false,
+  // Turns (redesign.md §2.3–2.10). `turn.cap`: the clock, in turns from the last wave's entry; a battle undecided at
+  // the cap is lost. `policy.press`: the camp's pressure, 0 at turn 1 rising to 1 at the cap, nudged ± `strength` by the
+  // trade it could make. A kind's Move is its def's (content.js `move`). No dice (§2.16): every blow hits, none crits,
+  // a blow deals computeDamage's mean, and nothing in a battle reads a random number. Placeholders until the balance
+  // pass.
   turn: { cap: 20 },
-  dice: false,
-  move: { 0.5: 1, 0.75: 2, 1: 2, 1.5: 3, fly: 3 },
   policy: { press: { strength: 0.25 } },
   // The Shop (redesign.md §2.11): `relics` stocked, one always a Command relic, and from floor 2 one a Legendary;
   // each priced price[tier] × the floor's price scale (run.js relicPrice, floorPrice), after the discount relics
   // (`price.relic`). Placeholders.
   shop: { relics: 4, price: { common: 36, uncommon: 60, rare: 96, legendary: 144 } },
-  // A battle still undecided at `ceiling` ticks ends with no winner (a defeat for the run). The ticks count
-  // from the last foe to enter, so a late wave (the Sovereign's) still meets the escalation ramp first.
-  tick: { ms: 50, ceiling: 2400 },
-  hit: { min: 0.1, max: 0.95 },
-  crit: { min: 0.01, max: 0.6, divisor: 100, mult: 1.75 },
   // raw = power × atk / atkDivisor, then × defConstant / (defConstant + def)
   damage: { atkDivisor: 40, defConstant: 100, min: 1 },
-  variance: [0.95, 1.05],
-  // gauge per tick = (base + spd / spdDivisor) × gauge.rate
-  gauge: { base: 1.6, spdDivisor: 25 },
+  // Deathblow (the Trickster's rule, rules.js): a blow of the side's on a foe below `below` of its max HP deals
+  // `mult` times its damage (redesign.md §2.16). Placeholders.
+  deathblow: { below: 0.25, mult: 2 },
   // The shared board: the foes' 3×7 formation at the top, your 7×7 camp at the bottom, `gap` empty rows between.
-  // Walking is off the gauge: a foe steps to a neighbouring tile once per `stepTicks` (0.8 s), ÷ its stride (your
-  // pieces never move).
-  board: { gap: 1, stepTicks: 16 },
-  // After startTick (×bossMult for bosses) all damage ramps by perTick, capped at max: no stalemates. The
-  // ticks count from the last foe to enter (a wave), so newcomers never meet ramped blows.
-  escalation: { startTick: 900, perTick: 0.005, max: 8, bossMult: 2 },
+  board: { gap: 1 },
   // field: the Monarch's base Command, the pieces that fight (one soul each); the field cap is field + fieldPerFloor
-  // × (floor − 1) + the Command relics add (run.js commandOf), never more than army.board. fieldPerFloor is 0 since
-  // the army became souls (it was 1 in necessity round 2): Command alone widens the field. roster: the souls a
-  // retinue holds, on the field and in the ossuary together. The Monarch counts toward neither.
+  // × (floor − 1) + the Command relics add (run.js commandOf), never more than army.board. fieldPerFloor 0: Command
+  // alone widens the field. roster: the souls a retinue holds, on the field and in the ossuary together. The Monarch
+  // counts toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
-  // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (content.js
-  // RELIC_LIST, mods on `run.monarchHp`), and nothing else touches it (no synergy, no other relic). No points are bought: its HP
-  // and its Command (party.field) grow only by relics (2026-10-09, late; the points were hp 220 + 14 a point, for
-  // 20 + 10 a point bought on all four). The fourth balance pass (2026-10-10): 250 (was 220), so one Pyre Hound's
-  // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1 (its deaths there 4% → 1%).
+  // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (mods on
+  // `run.monarchHp`), and nothing else touches it. 250 since the fourth balance pass (2026-10-10), so one Pyre Hound's
+  // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1.
   monarch: { hp: 250 },
-  // The summons a soul's tiers bring (unit.js summonsOf; 2026-10-10, when stacking left the game and the tiers that
-  // added bodies came to call summons instead): shadows of its kind that rise beside it as each battle begins, each
-  // at `hp` of a whole one's max HP (battle.js summon, fit), gone when it ends. A placeholder until the balance pass.
+  // The summons a soul's tiers bring (unit.js summonsOf): shadows of its kind that rise beside it as each battle
+  // begins, each at `hp` of a whole one's max HP (turns.js summon, fit), gone when it ends. A placeholder.
   summon: { hp: 0.4 },
-  // Arise, a Legendary relic (content.js RELIC_LIST), and its numbers are its own, a copy at a time (DESIGN §2.5):
-  // without it no foe rises. One copy: a foe of tier up to `tier` slain within `domain` tiles (Chebyshev) of the
-  // Monarch's tile rises as a shadow of yours, up to `raises` a battle, each at `hp` of the fallen one's HP (every
-  // shadow's but a summon's, the Legion's and Grave Tide's too: battle.js fit). Each copy past the
-  // first: `more.domain` tiles farther, `more.tier` tiers higher, `more.raises` more a battle, and the Monarch's gauge
-  // (Arise's casting) `more.haste` faster (×(1 + more.haste × the copies past the first)). Court of Bone's tiles and
-  // Blood Tithe's share come on top (run.js domainOf, battle.js ariseCap). Placeholders until the balance pass.
-  // Necessity round 2: 3 a battle (was 2: Arise was worth less than the points it took). The balance pass: domain 5 and
-  // tier 3 (were 3 and 2: few foes fell inside its reach, and Arise's ablation cost nothing). Late on 2026-10-09 the
-  // two points a copy past the first gave it (one a tile; the other a tier, 3 raises and 10% haste, on top of the 3
-  // raises every copy gave) became `more`, every number as it was: 3, 9, 15… a battle.
-  arise: { domain: 5, tier: 3, raises: 3, hp: 1, more: { domain: 1, tier: 1, raises: 6, haste: 0.1 } },
-  // The board (14 → 10 in necessity round 1): the field cap never passes `board` pieces, and the Legion's shadows
-  // rise only while fewer than `board` pieces of yours stand on it (Arise's are bounded by its own cap, `arise.raises`).
+  // Arise, a Legendary piece relic (content.js RELIC_LIST; redesign.md §2.15): its holder gains the skill Arise, one
+  // corpse within `domain` tiles of the holder (Chebyshev, from its footprint), of tier up to `tier`, rises as a shadow of
+  // yours at full HP, the player's choice; a skill, so a turn's rest. Hourglass and Bone Idol add to both, run-wide
+  // (`arise.domain`, `arise.tier`: run.js ariseOf), and an Arise variant's rule may reach farther (Court of Bone).
+  // Placeholders until the balance pass.
+  arise: { domain: 5, tier: 3 },
+  // The board: the field cap never passes `board` pieces, and the Legion's shadows rise only while fewer than `board`
+  // pieces of yours stand on it (Arise's rise past it: a skill is its own bound).
   army: { board: 10 },
   // A kind's level (every soul of it) is its tiers' (DESIGN §2.6): base + perTier × the tiers it holds on both tracks,
-  // rounded down (run.js levelOf), so two tiers make level 3, three level 4 and six (IV and II) level 6. No level is bought
-  // (2026-10-09, late; levels cost 8 × level^1.2 up to 10). A fused kind stands at least at the highest level of the
-  // kinds that went into it. Foes keep their floor's levels (spawn). The balance pass (DESIGN §5 Step 8) made it base
-  // 2, 0.5 a tier (was 1 and 1.5: six tiers made level 10, and the tracks carried the expert alone, an 88-point
-  // ablation); the second pass (2026-10-09, night) 0.34 a tier, a level less at the top, so the power the tracks give
-  // leans on their count tiers (six bodies, were three) and the bodies ablation reads apart from the tracks'. The
-  // economy pass (2026-10-10) 0.5 again: with essence scarce the expert holds about 60% of its kinds' tiers, not all,
-  // and at 0.34 a tier the tracks' ablation fell to 19 points (under its band) as fusions and recruits stood in. The
-  // fourth balance pass (2026-10-10) 0.67, taken with the cheaper tiers below (the tracks' ablation stood at 23–25
-  // points, on its band's floor; 27 after, on 128 seeds).
+  // rounded down (run.js levelOf), so two tiers make level 3 and six level 6. No level is bought. A fused kind stands
+  // at least at the highest level of the kinds that went into it. Foes keep their floor's levels (spawn). perTier 0.67
+  // since the fourth balance pass (2026-10-10), with the cheaper tiers below: it keeps the tracks' ablation in its band.
   level: { base: 2, perTier: 0.67 },
   // Essence (DESIGN §2.6): each foe slain pays perTier × its tier, whatever its level (run.js foeEssence); a run
   // starts with `start`. It buys tiers, recruits, fusions and relics (TUNING.shop), and every price is its base ×
   // the floor's price scale, 1 + perFloor × (floor − 1) (run.js floorPrice: ×1, ×2.1, ×3.2, ×4.3 on floors 1–4):
   // a kind's track tiers I–IV tier[] (either track); recruiting a soul recruit × tier × (1 + perLevel × (level − 1)),
   // at the level it joins at (its kind's); a fusion fuse × the fused kind's tier, on top of the souls it consumes.
-  // A won elite pays eliteBonus on top of its foes' pay, × the floor's price scale (a tier IV's price, a
-  // placeholder: run.js eliteBonus); it lays out no relic (redesign.md §2.11).
-  // The economy pass (2026-10-10; DESIGN §5 Step 8): "money should always matter". Before it a foe paid
-  // 2.5 × tier × (1 + 0.35 × (level − 1)) for each of its bodies and prices were flat, so a floor-4 battle paid
-  // twenty times a floor-1 battle and the expert ended a clear with ~4,000 essence unspent, every tier it wanted
-  // held from floor 3. Paying by the piece and by tier alone (perTier 3.5 keeps floor 1's pay) and prices that grow
-  // 1.1 a floor keep what a battle buys about level from floor to floor. The fourth balance pass (2026-10-10): tiers
-  // 16 / 36 / 60 / 96 (were 20 / 45 / 75 / 120), so the expert holds more of them (19.8 at a clear, was 15.4) and the
-  // tracks carry it; it still spends ~97% of what it earns and ends each floor with at most half a tier II's price.
-  // refund: a soul released pays back that share of what recruiting it would cost now (run.js releaseRefund; since
-  // 2026-10-10, when stacking left the game), rounded down.
+  // A won elite pays eliteBonus on top of its foes' pay, × the floor's price scale (run.js eliteBonus); it lays out no
+  // relic (redesign.md §2.11). refund: a soul released pays back that share of what recruiting it would cost now
+  // (run.js releaseRefund), rounded down. Money always matters (the economy pass, 2026-10-10): paying by the piece and
+  // by tier, and prices growing by the floor, keep what a battle buys about level from floor to floor; the tier prices
+  // are the fourth balance pass's (2026-10-10).
   essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
   // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
-  // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1
-  // (the final balance pass, measured floor 1 alone on 64 seeds a level): a rule-of-thumb run dies there in
-  // its ordinary fights as often as at elites, an expert almost only at elites it is forced into while its
-  // souls are still level 1–2. So floor 1's elite is 2 foes of the higher tier (and the late pair), and its
-  // foes ×0.8 (was ×0.75): 57 of 64 basic runs and 2 of 64 expert runs die on floor 1.
+  // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1's elite is 2
+  // foes of the higher tier (and the late pair), so a rule-of-thumb run dies on floor 1 and an expert rarely does.
   spawn: {
     levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 1, tierFalloff: 3,
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
-    // The balance pass: levelPerFloor 1 (was 2) with floors 2–4's foeHp/foeAtk ×1.15 (were 0.88/0.83, 0.76/0.76,
-    // 0.95/0.9), so a floor's foes grow less by level and the expert's margin is thin enough to show each mechanic.
-    // The second pass (2026-10-09, night; DESIGN §5 Step 8), after foes came to walk past your pieces doing nothing
-    // until they can hit back: floors 2–4 ×1.44, ×1.71, ×2.03 (were 1.01/0.95, 0.87/0.87, 1.09/1.04), steepest at
-    // the bottom, where the expert's army has grown most; floor 1 untouched (it is the basic player's wall already).
-    // The economy pass (2026-10-10): floors 2–4 ×0.75, ×0.75, ×0.68 of that (were 1.46/1.37, 1.49/1.49, 2.22/2.12),
-    // for an army that holds about 60% of its kinds' tiers at a clear where it held them all; floor 1 untouched.
+    // Steepest at the bottom, where the expert's army has grown most; floor 1 is the basic player's wall already.
     foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: 1, bossAtk: 1,
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses
     // one is drawn again wanting it, up to `routeTries` times a type in each of `routePasses` passes (run.js varyRoutes).
-    // routeTries 24 (was 6) since 2026-10-10: Bleed is the Mantis's alone, and 6 tries left 15 of 24 floor-2 maps
-    // with a walk that met none.
+    // routeTries 24 since 2026-10-10: Bleed is the Mantis's alone, and fewer tries left floor-2 walks that met none.
     variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 24, routePasses: 4 },
     // The enemy as an army. From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave,
     // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind: foes of their
-    // own, each on the free slot of the formation nearest the captain (run.js formation; a stack of 1 + cohort bodies
-    // on the captain's slot until 2026-10-10, when stacking left the game). A floor-1
-    // elite brings a late pair: `late.n` more foes of its pool, entering at the top edge at tick `late.t`. From
-    // floor `waves.floor` an elite, a fight from rank `waves.fightRank`, a siege and the last room come in
-    // waves (`waves.elite`, `.fight`, `.siege` in all, the first included): each next one enters at the top
-    // edge once the one before is down to `waves.share` of its foes, or `waves.t` ticks after it entered. The
-    // last room's last wave is the Hollow Sovereign leading a court of `court` undead (they and its waves take
-    // foeHp/foeAtk; only the boss takes bossHp/bossAtk). Floor 3 keeps floor 2's cohorts of 2: at 3, a floor-3
-    // elite's mantis brood (a captain and three more, going round your pieces together: the Mantis Flanked until
-    // 2026-10-10) felled the Monarch in 8 s and ended half the expert's runs (the final balance pass).
+    // own, each on the free slot of the formation nearest the captain (run.js formation). A floor-1 elite brings a
+    // late pair: `late.n` more foes of its pool, a wave of their own. From floor `waves.floor` an elite, a fight from
+    // rank `waves.fightRank`, a siege and the last room come in waves (`waves.elite`, `.fight`, `.siege` in all, the
+    // first included). Waves enter on fixed turns (redesign.md §2.10): the room's formation stands from turn 1, and
+    // wave k enters at the end of turn 1 + k × `waves.every` (turns.js entryTurn), shown on the wave counter; a siege
+    // is three waves with no prep between them. The last room's last wave is the Hollow Sovereign leading a court of
+    // `court` undead (they and its waves take foeHp/foeAtk; only the boss takes bossHp/bossAtk). Floor 3 keeps floor
+    // 2's cohorts of 2: at 3, a floor-3 elite's mantis brood ended half the expert's runs (the final balance pass).
     captains: { fight: 1, elite: 2 }, cohort: [0, 2, 2, 3],
-    late: { n: 2, t: 400 },
-    waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, share: 1 / 3, t: 600, every: 4 },
+    late: { n: 2 },
+    waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, every: 4 },
     court: 4,
     // Endless floors, past the Sovereign's (run.floors): each floor `deep` floors down reuses the last floor's
     // camps and spawn pool (foe and elite counts and HP/ATK multipliers at their last entries), and grows from
@@ -141,39 +93,25 @@ export const TUNING = {
     // foes, `final.level` levels higher. The enemy grows as an army too: floor(`waves` × deep) more waves to
     // every room (a single formation becomes a room of waves; never more than `maxWaves`, the first
     // included) and floor(`cohort` × deep) more foes in every captain's cohort. The foes hold their
-    // synergies' 8-step rules only from `rules` floors deep (above it their cohorts reach eight of a kind
-    // too easily: their ladders stop at the stat steps there). Tuned in the final balance pass on twelve expert
-    // clears played on down: at +3 levels, +12% HP, +8% ATK and a body more a cohort a floor, with rules from the
-    // first floor down and a final elite of +3 foes and +2 levels, seven of the twelve fell on the first deep
-    // floor (its final elite) and none got past a second; at these, ten clear one deep floor or more and the
-    // strongest three, each floor's broods (the Flank kinds' then, the Mantis's above all) and final elite the
-    // usual end.
+    // synergies' rules only from `rules` floors deep (above it their cohorts reach a synergy's count too easily).
     endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, rules: 2, final: { count: 2, level: 1 } }
   },
   // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). A won
   // battle heals each living soul postBattleHeal of its max HP; an altar heals each to altarHeal of it and raises a
-  // fallen one at altarRevive (run.js). Wounds carry (2026-10-10): a win mends a fifth
-  // (it was half), so HP, DEF, Undying and Heartwood count between rooms, and an altar is worth walking to.
+  // fallen one at altarRevive (run.js). Wounds carry (2026-10-10): a win mends a fifth, so HP, DEF, Undying and
+  // Heartwood count between rooms, and an altar is worth walking to.
   run: { floors: 4, postBattleHeal: 0.2, altarHeal: 1, altarRevive: 0.5 },
-  // The autoplayer's rehearsals: a battle budget of `rehearsalCeiling` ticks (one still going is scored
-  // as a loss), and a single rehearsal seed for a battle of more than `bigBattle` units. `settle`: a rehearsal
-  // ends once its result is settled (battle.js settled: margin k, looking back `window` ticks, every foe hit
-  // within `recent`, checked every `every` ticks; null: always played out). `prune`: what a formation must beat
-  // for its search to fight it on its remaining rolls (autoplay.js plan): 'best' the best so far, 'finalists'
-  // a place among the finalists (exact: the same plan as with every roll fought).
-  autoplay: { rehearsalCeiling: 1400, bigBattle: 24, settle: { k: 4, window: 100, recent: 50, every: 10 }, prune: 'best' },
   // Relics (content.js RELIC_LIST, RELIC_TIERS), bought in Shops and only there (TUNING.shop; redesign.md §2.11). A
   // Shop draws each relic's tier by `weights.shop`, the entry for the floor (index floor − 1; the last one for every
   // floor past them), then a relic of that tier, never the same one twice in one stock; one held may come again
   // (copies stack; no cap). From floor `legendary.fromFloor` one of its relics is a Legendary (the ones that need Arise
-  // only once it is held). The weights are placeholders until the balance pass. `offer` and `legendary.offer` are the
-  // reliquary's and the elites' offers, gone with them: kept only for codex.js's room text until the interface's
-  // Shop lands.
+  // only once an Arise relic is owned). `perPiece`: how many relics a soul may hold (redesign.md §2.15: a piece relic
+  // works only through its holder). The weights are placeholders until the balance pass.
   relic: {
-    offer: { reliquary: 3, elite: 2, tiers: 3 },
+    perPiece: 1,
     weights: {
       shop: [{ common: 6, uncommon: 3, rare: 1 }, { common: 4, uncommon: 4, rare: 2 }, { common: 3, uncommon: 4, rare: 3 }, { common: 2, uncommon: 4, rare: 4 }]
     },
-    legendary: { offer: 2, fromFloor: 2 }
+    legendary: { fromFloor: 2 }
   }
 }

@@ -1,31 +1,23 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { hitChance, critChance, computeDamage } from '../src/sim/battle.js'
+import { computeDamage } from '../src/sim/turns.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import {
-  autoPlace, reachable, expand, makeUnit, deployTile, slotAt, tileAt, distance, foesNextTo, DEPTH, CENTRE_OUT, CAMP_ROWS, campGrid, steps, wallTiles,
-  domainTiles, monarchSlot, isMonarchCell, fits, campOpen, rowOf, colOf, CAMP_SLOTS, ringOf, baseStats, summonsOf
+  autoPlace, expand, makeUnit, deployTile, slotAt, tileAt, distance, DEPTH, CENTRE_OUT, CAMP_ROWS, campGrid, steps, wallTiles,
+  monarchSlot, isMonarchCell, fits, campOpen, rowOf, colOf, CAMP_SLOTS, reachOf, baseStats, summonsOf
 } from '../src/sim/unit.js'
 import { campDef } from '../src/content.js'
+import { listFoesNextTo as foesNextTo } from './scene.js'
 
-test('hit and crit are clamped', () => {
-  assert.equal(hitChance(50, 50), 0.5)
-  assert.equal(hitChance(1000, 0), TUNING.hit.max)
-  assert.equal(hitChance(0, 1000), TUNING.hit.min)
-  assert.equal(hitChance(0, 0), 0.5)
-  assert.equal(critChance(0), TUNING.crit.min)
-  assert.equal(critChance(1000), TUNING.crit.max)
-})
-
-test('damage is an integer, at least the minimum, and scales the right way', () => {
+test('damage is an integer, at least the minimum, and scales the right way: the mean, with no roll', () => {
   const p = { power: 30, atk: TUNING.damage.atkDivisor, def: 0 }
   assert.equal(computeDamage(p), 30)
   assert.equal(computeDamage({ ...p, def: 100 }), 15)
-  assert.equal(computeDamage({ ...p, isCrit: true }), Math.round(30 * TUNING.crit.mult))
   assert.equal(computeDamage({ ...p, mul: 0.5 }), 15)
   assert.equal(computeDamage({ power: 0, atk: 1, def: 999 }), TUNING.damage.min)
-  assert.ok(Number.isInteger(computeDamage({ ...p, variance: 1.0371 })))
+  assert.ok(Number.isInteger(computeDamage({ ...p, mul: 1.0371 })))
+  assert.equal(computeDamage(p), computeDamage(p), 'the same blow, the same damage')
 })
 
 test('rng is seeded, string seeds work, and streams are independent', () => {
@@ -57,7 +49,7 @@ test('formation: a plain fill keeps legal slots and fills the rest from the fron
   assert.deepEqual(shuffled.map((u) => u.slot), [2, 0])
 })
 
-test('board: formations deploy facing each other, and reach is by distance', () => {
+test('board: formations deploy facing each other, and who stands next to whom is by distance', () => {
   // Fronts face each other across the gap; a lane is the same column on both sides.
   assert.equal(deployTile('party', slotAt(CAMP_ROWS - 1, 0)), tileAt(0, 0), 'the camp rear is the bottom edge')
   assert.equal(deployTile('party', slotAt(0, 3)), tileAt(3, CAMP_ROWS - 1))
@@ -69,21 +61,15 @@ test('board: formations deploy facing each other, and reach is by distance', () 
   const at = (uid, side, x, y) => ({ ...makeUnit('tomb_knight', { uid }), side, tile: tileAt(x, y) })
   const knight = at(1, 'party', 1, 3)
   const units = [knight, at(2, 'party', 1, 2), at(10, 'foe', 2, 4), at(11, 'foe', 1, 6), at(12, 'foe', 3, 6)]
-  const melee = { shape: 'single', melee: true }
-  assert.deepEqual(reachable(units, knight, melee).map((u) => u.uid), [10])
-  assert.deepEqual(reachable(units, knight, { shape: 'single', range: 3 }).map((u) => u.uid), [10, 11, 12])
-  assert.deepEqual(reachable(units, knight, { shape: 'all' }).map((u) => u.uid), [10, 11, 12])
-  assert.deepEqual(reachable(units, knight, { shape: 'ally' }).map((u) => u.uid), [1, 2])
   assert.deepEqual(foesNextTo(units, knight).map((u) => u.uid), [10])
   assert.deepEqual(foesNextTo(units, units[1]), [])
   assert.deepEqual(expand(units, knight, { shape: 'row' }, units[3]).map((u) => u.uid), [11, 12])
   assert.deepEqual(expand(units, knight, { shape: 'column' }, units[3]).map((u) => u.uid), [11])
   units[2].hp = 0
-  assert.deepEqual(reachable(units, knight, melee), [])
   assert.deepEqual(foesNextTo(units, knight), [], 'the dead stand next to no one')
 })
 
-test('board shapes: a blast hits its target and everyone next to it; ally abilities can have a range', () => {
+test('board shapes: a blast hits its target and everyone next to it; an all-allies ability can have a range', () => {
   const at = (uid, side, x, y) => ({ ...makeUnit('tomb_knight', { uid }), side, tile: tileAt(x, y) })
   const caster = at(1, 'party', 3, 0)
   const units = [caster, at(2, 'party', 3, 2), at(3, 'party', 3, 3), at(10, 'foe', 3, 5), at(11, 'foe', 4, 6), at(12, 'foe', 5, 5), at(13, 'foe', 6, 6)]
@@ -91,18 +77,14 @@ test('board shapes: a blast hits its target and everyone next to it; ally abilit
   assert.deepEqual(expand(units, caster, { shape: 'blast' }, units[6]).map((u) => u.uid), [12, 13])
   const dirge = { shape: 'all_allies', range: 2 }
   assert.deepEqual(expand(units, caster, dirge, caster).map((u) => u.uid), [1, 2])
-  assert.deepEqual(reachable(units, caster, { shape: 'ally', range: 2 }).map((u) => u.uid), [1, 2])
-  assert.deepEqual(reachable(units, caster, { shape: 'ally' }).map((u) => u.uid), [1, 2, 3])
 })
 
-test('rings and domain: a melee kind fights within 1, a ranged kind within its reach, the Monarch holds within 1 and strikes nothing; the domain is a square', () => {
-  assert.equal(ringOf({ id: 'tomb_knight' }), 1)
-  assert.equal(ringOf({ id: 'frost_sprite' }), 3)
-  assert.equal(ringOf({ id: 'bone_chanter' }), 4)
-  assert.equal(ringOf({ id: 'monarch' }), 1)
-  const square = domainTiles(tileAt(3, 1), 2)
-  assert.equal(square.length, 5 * 4, 'clipped by the board\'s bottom edge')
-  assert.ok(square.every((t) => distance(t, tileAt(3, 1)) <= 2) && square.includes(tileAt(5, 3)) && !square.includes(tileAt(6, 1)))
+test('reach: a melee kind reaches 1 (a long arm 2), a ranged kind its blows\' range, the Monarch nothing', () => {
+  assert.equal(reachOf({ id: 'tomb_knight' }), 1)
+  assert.equal(reachOf({ id: 'grave_ghoul' }), 2)
+  assert.equal(reachOf({ id: 'frost_sprite' }), 3)
+  assert.equal(reachOf({ id: 'bone_chanter' }), 4)
+  assert.equal(reachOf({ id: 'monarch' }), 0)
 })
 
 test('camp: placement skips walls; the Monarch\'s seat is the camp\'s \'M\' cell; steps never cut a wall corner', () => {

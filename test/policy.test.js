@@ -1,8 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, legalOrders, order, fork, deadline, reach } from '../src/sim/turns.js'
+import { createBattle, legalOrders, order, fork, deadline, reach, addStatus } from '../src/sim/turns.js'
 import { danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn } from '../src/sim/policy.js'
-import { addStatus } from '../src/sim/battle.js'
 import { TEMPERS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { makeUnit, tileAt, footprint, slotAt, DEPTH, ROWS, CAMP_ROWS } from '../src/sim/unit.js'
@@ -13,7 +12,7 @@ function field (units, opts = {}) {
   const slot = (u) => u.side === 'party' ? slotAt(CAMP_ROWS - 1 - u.y, u.x) : u.y >= DEPTH - ROWS ? slotAt(u.y - (DEPTH - ROWS), u.x) : spare.shift()
   const piece = (u) => ({ ...makeUnit(u.id, { uid: u.uid, lvl: u.lvl ?? 3 }), slot: slot(u) })
   const b = createBattle({
-    party: units.filter((u) => u.side === 'party').map(piece), foes: units.filter((u) => u.side === 'foe').map(piece), seed: 'policy', ...opts
+    party: units.filter((u) => u.side === 'party').map(piece), foes: units.filter((u) => u.side === 'foe').map(piece), ...opts
   })
   const placed = units.map((u) => [b.byUid.get(u.uid), tileAt(u.x, u.y)])
   for (const [u] of placed) for (const t of footprint(u.tile, u.size)) (u.flies ? b.sky : b.at)[t] = null

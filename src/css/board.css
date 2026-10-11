@@ -84,6 +84,22 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .bench .cell .portrait { width: 42px; height: 42px; }
 .bench .cell .hpbar { width: 48px; height: 5px; }
 .bench .cell.fallen::after { bottom: 10px; font-size: var(--fs-badge); letter-spacing: .04em; }
+/* A soul that may take the relic readied (the Relics strip): ringed in the relics' orange. */
+.bench .cell.offer { border-color: var(--c-relic); box-shadow: 0 0 0 2px #ff7f4566, 0 0 14px #ff7f4544; }
+
+/* The Relics strip beside the ossuary (redesign.md §2.15): the piece relics held by no soul, each a button that readies
+   it to give; a soul tapped then takes it. Hidden while none waits. */
+.relic-strip {
+  flex: none; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 8px; border-radius: var(--radius);
+  background: #120c0ae6; border: 1px solid #4a2c1c;
+}
+.relic-strip[hidden] { display: none; }
+.relic-strip .bench-label b { color: var(--c-relic); }
+.relics-unheld { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px; }
+.give-relic { flex: none; gap: 6px; padding: 0 10px; min-height: var(--tap); color: var(--rt, var(--c-relic)); border-color: color-mix(in srgb, var(--rt, var(--c-relic)) 45%, var(--line)); }
+.give-relic .gr-name { color: var(--text); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
+.give-relic.on { background: color-mix(in srgb, var(--rt, var(--c-relic)) 22%, #0c0a14); border-color: var(--rt, var(--c-relic)); box-shadow: 0 0 12px color-mix(in srgb, var(--rt, var(--c-relic)) 45%, transparent); }
+.give-relic.small { min-height: 36px; font-size: var(--fs-sm); }
 
 /* ── the slim panel: the room's head, the card, the ossuary ───────────────────────────────────── */
 
@@ -165,7 +181,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .bs-crown.low .bs-hpbar > span { background: #ff6a7a; }
 @media (prefers-reduced-motion: reduce) { .bs-hpbar > span, .bs-rule { transition: none; } }
 
-/* ── on turns (redesign.md §4): the clock by turns, the wave counter, the selected piece's orders, End Turn ──── */
+/* ── the turn (redesign.md §4): the clock by turns, the wave counter, the selected piece's orders, End Turn ──── */
 .turn-clock { color: var(--bright); font-weight: 600; }
 .turn-clock .esc-bar { width: 110px; }
 .turn-left { color: var(--dim); font-weight: 600; min-width: 6ch; }
@@ -203,14 +219,18 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .sel-line { font-size: var(--fs-sm); line-height: 1.3; min-height: 1.3em; }
 .sel-line .aim-line { color: var(--c-warn); }
 .battle-panel .end-turn { width: 100%; }
-.battle-screen.turns.busy .end-turn, .end-turn[aria-disabled="true"] { opacity: .55; }
-.battle-screen.turns .skip { flex: 1; min-height: var(--tap); font-size: var(--fs-md); }
+.battle-screen.busy .end-turn, .end-turn[aria-disabled="true"] { opacity: .55; }
+.battle-screen .skip { flex: 1; min-height: var(--tap); font-size: var(--fs-md); }
+/* Arise, a holder's skill (redesign.md §2.15): armed, in its domain's green. */
+.act-btn.arise .act-name { color: var(--c-domain); }
+.act-btn.arise.armed { border-color: var(--c-domain); background: linear-gradient(180deg, #1f3410, #15240c); box-shadow: 0 0 0 1px #84d21a55 inset; }
+.sel-relic { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); }
 @container frame (max-height: 640px) {
-  .battle-screen.turns .battle-panel { gap: 5px; padding: 8px 10px 10px; }
-  .battle-screen.turns .bs-crown { padding: 5px 8px 7px; }
-  .battle-screen.turns .bs-hpbar { margin-top: 4px; height: 8px; }
-  .battle-screen.turns .bs-controls { gap: 6px; padding-top: 4px; }
-  .battle-screen.turns .end-turn { min-height: var(--tap); }
+  .battle-screen .battle-panel { gap: 5px; padding: 8px 10px 10px; }
+  .battle-screen .bs-crown { padding: 5px 8px 7px; }
+  .battle-screen .bs-hpbar { margin-top: 4px; height: 8px; }
+  .battle-screen .bs-controls { gap: 6px; padding-top: 4px; }
+  .battle-screen .end-turn { min-height: var(--tap); }
   .bs-sel { padding: 6px 8px; gap: 6px; }
 }
 
@@ -234,4 +254,8 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   .bench .cell .hpbar { width: 40px; }
   /* "fallen" fits the slimmer cell in lower case, unspaced, never smaller than --fs-xs. */
   .bench .cell.fallen::after { letter-spacing: 0; text-transform: none; }
+  .relic-strip { flex-direction: row; align-items: center; gap: 6px; padding: 3px 6px; }
+  .relic-strip .bench-label { flex-direction: column; width: 74px; white-space: normal; font-size: var(--fs-xs); line-height: 1.25; }
+  .relic-strip .bench-label > span::before { content: none; }
+  .relics-unheld { flex: 1; min-width: 0; }
 }

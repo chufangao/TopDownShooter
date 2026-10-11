@@ -6,17 +6,20 @@ import {
   createRun, apply, legalActions, join, souls, monarchOf, tierCost, canAdvance, heldKinds, battleSetup, availableNodes,
   OSSUARY, fielded, levelOf, kindLevel, lowerTrack, floorPrice
 } from '../src/sim/run.js'
-import { createBattle, stepBattle } from '../src/sim/battle.js'
+import { createBattle } from '../src/sim/turns.js'
 import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, LEVEL_A_TIER } from './tuned.js'
-import { ABILITIES, TRACKS, FUSION_LIST, RELICS, unitDef } from '../src/content.js'
+import { fight } from './rooms.js'
+import { ABILITIES, FUSION_LIST, RELICS, UNIT_LIST, unitDef } from '../src/content.js'
 import {
-  makeUnit, abilitiesOf, auraOf, statsOf, tiersOf, canTrack, nextTracks, expand, slotAt, tileAt, baseStats, sizeOf, footprintSlots, campOpen,
+  makeUnit, abilitiesOf, auraOf, statsOf, tiersOf, canTrack, nextTracks, expand, tileAt, baseStats, sizeOf, footprintSlots, campOpen,
   isMonarchCell
 } from '../src/sim/unit.js'
 
+// Every kind's tracks, on its def, by its id.
+const TRACKS = Object.fromEntries(UNIT_LIST.filter((u) => u.tracks).map((u) => [u.id, u.tracks]))
 const soul = (run, id) => run.state.party.find((u) => u.id === id)
 const copyOf = (run) => ({ ...run, state: structuredClone(run.state) })
 
@@ -54,8 +57,8 @@ test('a kind\'s tiers: both tracks\' kits and mods together, one aura; IV is a r
   for (const [id, tracks] of Object.entries(TRACKS)) {
     for (const [k, t] of tracks.entries()) {
       const iv = t.tiers[3]
-      // A new or remade ability, an aura, a wider ring, or Colossus (DESIGN §2.6); Banner is gone.
-      assert.ok(iv.desc && !iv.mods && !iv.banner && (iv.ability || iv.aura || iv.ring || iv.size === 2), `${id} ${t.id} IV: a rule, no mods`)
+      // A new or remade ability, an aura, or Colossus (DESIGN §2.6).
+      assert.ok(iv.desc && !iv.mods && !iv.banner && (iv.ability || iv.aura || iv.size === 2), `${id} ${t.id} IV: a rule, no mods`)
       if (!iv.ability) continue
       const at = (n) => ({ ...makeUnit(id, { uid: 1 }), tracks: k ? [0, n] : [n, 0] })
       assert.ok(ABILITIES[iv.ability.id] && !abilitiesOf(at(3)).includes(iv.ability.id) && abilitiesOf(at(4)).includes(iv.ability.id), `${id} ${t.id} IV`)
@@ -95,6 +98,7 @@ test('a tier is the kind\'s, and so is the level it gives: every soul of it, fie
   assert.ok(lvl1 > first)
   apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 })
   assert.deepEqual([s.kinds.tomb_knight.lvl, a.lvl, b.lvl, s.essence], [lvl1, lvl1, lvl1, 1000 - TUNING.essence.tier[0]])
+  assert.ok(statsOf(a).def > statsOf({ ...a, lvl: first, tracks: [0, 0] }).def, 'Bulwark I (and the level) raise DEF')
   assert.deepEqual([a.maxHp, b.maxHp], [baseStats('tomb_knight', lvl1).hp, baseStats('tomb_knight', lvl1).hp])
   assert.deepEqual([a.hp, b.hp], [10 + a.maxHp - was, 0])
   assert.equal(soul(run, 'bone_chanter').lvl, first, 'another kind is untouched')
@@ -109,6 +113,7 @@ test('a tier is the kind\'s, and so is the level it gives: every soul of it, fie
   assert.deepEqual([s.kinds.tomb_knight.tracks, a.tracks, b.tracks], [[3, 1], [3, 1], [3, 1]])
   assert.deepEqual([s.kinds.tomb_knight.lvl, a.lvl, b.lvl], Array(3).fill(levelOf({ tracks: [3, 1] })))
   assert.equal(auraOf(b).range, 2, 'the soul in the ossuary holds Bulwark III too')
+  assert.equal(s.stats.spent, 1000 - s.essence, 'every price paid counts as spent')
   // Refused: the crosspath rule, a kind not held, a track that is not one, short of essence, the Monarch.
   apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 1 })
   assert.throws(() => apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 1 }), /cannot upgrade/, 'Reaver stops at II')
@@ -159,7 +164,7 @@ test('a recruit joins its kind at the kind\'s level and tiers (a kind new to the
       const node = availableNodes(r)[0]
       node.type = 'fight'
       apply(r, { type: 'node', id: node.id })
-      apply(r, { type: 'fight' })
+      fight(r)
       if (r.state.phase === 'reap' && r.state.offers.some((o) => o.type === 'soul' && !r.state.kinds[o.id])) return r
     }
     assert.fail('no won fight offered a kind new to the run')
@@ -212,8 +217,7 @@ test('legalActions lists exactly the tiers apply accepts, and no level', () => {
   }
 })
 
-// The reliquary's free tiers went with it (redesign.md §2.11): a Shop sells relics alone, and a kind's next tier is
-// bought on the field, at its price, as ever.
+// A Shop sells relics alone (redesign.md §2.11), and a kind's next tier is bought on the field, at its price.
 test('no room gives a tier: a Shop sells relics alone, and the Knight\'s Bulwark IV is bought on the field once out of it', () => {
   const run = createRun({ seed: 'rite-kinds' })
   const r = run.state
@@ -248,7 +252,6 @@ test('the battle fights with a kind\'s tiers: battleSetup carries them into the 
   const u = b.units.find((x) => x.uid === knight.uid)
   assert.deepEqual(u.kit.map((a) => a.id), ['reaving_cleave', 'rending_strike'])
   assert.deepEqual(u.tracks, [2, 4])
-  assert.ok(!('grade' in b.events[0].units.find((x) => x.uid === knight.uid)))
 })
 
 // ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
@@ -305,39 +308,6 @@ test('the expert rehearses a tier as the run would make it: the kind\'s every so
   assert.deepEqual(s.kinds.tomb_knight.tracks, [3, 0], 'the state as it was')
 }))
 
-// A tier IV whose condition reads the whole board would bank for a cast its area cannot use: each reads
-// only what it reaches, so the soul goes on attacking.
-test('a tier IV area ability waits for something in its area: the soul still attacks', () => {
-  // A Dirgemaster IV whose far allies lack Hasten: it still bolts (the golems halt as they enter its ring and the
-  // Ghoul's), and Hastens those near it.
-  const b = createBattle({
-    party: [{ ...makeUnit('monarch', { uid: 0, lvl: 3 }), slot: slotAt(6, 3) }, { ...makeUnit('bone_chanter', { uid: 1, lvl: 6 }), tracks: [4, 0], slot: slotAt(2, 3) },
-      ...[[0, 3], [0, 0], [0, 6]].map(([r, c], i) => ({ ...makeUnit(i ? 'tomb_knight' : 'grave_ghoul', { uid: 2 + i, lvl: 5 }), slot: slotAt(r, c) }))],
-    foes: [0, 2, 4, 6].map((c, i) => ({ ...makeUnit('iron_golem', { uid: 10 + i, lvl: 4 }), slot: slotAt(1, c) })), seed: 'tier4', domain: 9
-  })
-  const acts = {}
-  while (!b.over && b.t < 1500) for (const e of stepBattle(b)) if (e.type === 'action' && e.actor === 1) acts[e.ability] = (acts[e.ability] ?? 0) + 1
-  assert.ok(acts.marrow_bolt > 0 && acts.dirge_unending > 0, JSON.stringify(acts))
-  // Molt only when a debuff lies within its 2 tiles: each cast strips at least one.
-  const m = createBattle({
-    party: [{ ...makeUnit('monarch', { uid: 0, lvl: 3 }), slot: slotAt(6, 3) },
-      { ...makeUnit('hive_warden', { uid: 1, lvl: 5 }), tracks: [0, 4], slot: slotAt(5, 0) },
-      ...[[0, 3], [0, 6], [0, 5]].map(([r, c], i) => ({ ...makeUnit(i === 2 ? 'grave_ghoul' : 'tomb_knight', { uid: 2 + i, lvl: 5 }), slot: slotAt(r, c) }))],
-    foes: [2, 3, 4, 5].map((c, i) => ({ ...makeUnit('barrow_wight', { uid: 10 + i, lvl: 4 }), slot: slotAt(1, c) })), seed: 'molt', domain: 6
-  })
-  let molts = 0
-  let stripped = 0
-  let last = null
-  while (!m.over && m.t < 3000) {
-    for (const e of stepBattle(m)) {
-      if (e.type === 'action') last = e.actor === 1 ? e.ability : null
-      if (e.type === 'action' && last === 'molt') molts++
-      if (e.type === 'cleanse' && last === 'molt') stripped++
-    }
-  }
-  assert.ok(stripped >= molts, `${molts} Molts stripped ${stripped} debuffs`)
-})
-
 // ── fuzz: levels and tiers bought at random, then a fight ────────────────────────────────────────
 
 // The kinds whose tier IV is a Colossus tier (`size: 2`).
@@ -387,6 +357,7 @@ test('kinds fuzz: random tiers, places and fusions keep the crosspath rule and t
     apply(run, { type: 'fight' })
     const b = run.battle
     seen.summoned += b.units.filter((u) => u.summoned).length
+    while (s.phase === 'battle') apply(run, { type: 'end' })
     assert.deepEqual(s.party.map((u) => u.uid), before, 'the run keeps its pieces, and no summon joins them')
     assert.ok(!s.party.some((u) => u.shadow || u.summoned || 'count' in u))
   }

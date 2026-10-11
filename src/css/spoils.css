@@ -150,6 +150,11 @@ button.ret-toggle {
 .ret-pop .units { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 8px; }
 .ret-pop .unit { padding: 6px 10px; }
 .ret-pop .unit > button { flex: none; gap: 4px; padding: 0 12px; }
+/* The relics' list (ui.js relicsStrip): its toggle in the relics' orange, each soul's relic buttons at its row's end. */
+.ret-strip.relics button.ret-toggle { border-color: #6a3a24; background: #1a0f0aa8; color: var(--c-relic); }
+.ret-strip.relics .ret-toggle b { color: var(--c-relic); }
+.ret-strip.relics.open .ret-toggle { border-color: var(--c-relic); }
+.give-row { flex: none; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; max-width: 60%; }
 
 /* ── a soul's portrait framed in its rank's metal (ui.js unitRow): the lists ─────────────────────────── */
 .rank-port {

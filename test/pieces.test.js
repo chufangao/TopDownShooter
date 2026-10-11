@@ -1,22 +1,21 @@
-// One soul, one piece, one body (2026-10-10, when stacking left the game): the summons the tiers that once added
-// bodies call instead, the foes' cohorts as foes of their own, what a soul let go pays back, a piece moved onto the
+// One soul, one piece (2026-10-10): the summons a soul's tiers call, the foes' cohorts as foes of their own, what a soul let go pays back, a piece moved onto the
 // one piece its footprint covers (a 2×2 too) swapping with it, and a soul offer priced as the run stands when it is
-// read. (The reserve letting in the first due foe with room is in battle.test.js, the abilitiesOf guard in
+// read. (The reserve letting in the first due foe with room is in turns.test.js, the abilitiesOf guard in
 // content.test.js.) Functional only: what the rules do, never how a run fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { stepBattle, stats } from '../src/sim/battle.js'
+import { stats } from '../src/sim/turns.js'
 import {
   createRun, apply, legalActions, join, drawRoom, battleSetup, availableNodes, souls, fielded, monarchOf, canPlace, swapWith, releaseRefund,
   recruitCost, soulOffer, levelOf, kindLevel, OSSUARY
 } from '../src/sim/run.js'
 import {
-  makeUnit, tileAt, tileX, tileY, distanceBetween, summonsOf, footprintSlots, fits, monarchSlot, CAMP_ROWS, CAMP_SLOTS, COLS, LANES, SLOTS
+  makeUnit, tileAt, tileX, tileY, distanceBetween, summonsOf, footprintSlots, fits, monarchSlot, tracksOf, CAMP_ROWS, CAMP_SLOTS, COLS, LANES, SLOTS
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
-import { TRACKS, unitDef } from '../src/content.js'
+import { unitDef } from '../src/content.js'
 import { tuned } from './tuned.js'
-import { on, scene, unit, moves } from './scene.js'
+import { on, scene, unit, moves, turns } from './scene.js'
 
 const MARROW_II = [0, 2]
 const summonsIn = (b) => b.units.filter((u) => u.summoned)
@@ -28,7 +27,7 @@ test('a soul whose tiers bring summons calls them as the battle begins: shadows 
   const b = scene([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 3, 3, 4, MARROW_II), on('iron_golem', 50, 'foe', 3, 10)])
   const chanter = unit(b, 1)
   const called = summonsIn(b)
-  const n = TRACKS.bone_chanter[1].tiers[1].summon
+  const n = tracksOf('bone_chanter')[1].tiers[1].summon
   assert.equal(summonsOf(chanter), n)
   // As many as its tiers bring; none of them brings any (a summon holds its summoner's tiers, and calls none).
   assert.equal(called.length, n)
@@ -46,9 +45,9 @@ test('a soul whose tiers bring summons calls them as the battle begins: shadows 
   // Announced at the start with the rest, as shadows called by the Chanter.
   const start = b.events[0].units.filter((u) => u.summoned)
   assert.deepEqual(start.map((u) => [u.uid, u.id, u.shadow, u.summoner, u.tile]), called.map((s) => [s.uid, 'bone_chanter', true, 1, s.tile]))
-  // They hold where they rose, as every piece of yours does.
-  for (let k = 0; k < 200; k++) {
-    const events = stepBattle(b)
+  // They take no orders: they hold where they rose, and act as the untouched do.
+  for (let k = 0; k < 4 && !b.over; k++) {
+    const events = turns(b)
     for (const s of called) assert.deepEqual(moves(events, s.uid), [], 'it holds')
   }
 })
@@ -56,14 +55,14 @@ test('a soul whose tiers bring summons calls them as the battle begins: shadows 
 test('summons count toward synergies as shadows do; none with the summons switch, none for a fallen soul, none without the tier', () => {
   const party = (b) => b.events[0].synergies.filter((x) => x.side === 'party').map((x) => x.id)
   const chanter = (tracks, opts = {}, hp = undefined) => scene([on('monarch', 0, 'party', 3, 0), { ...on('bone_chanter', 1, 'party', 3, 3, 4, tracks), ...(hp !== undefined && { hp }) },
-    on('iron_golem', 50, 'foe', 3, 10)], opts)
-  // A lone Chanter is one undead; with its two summons, three: Undead 2.
-  assert.ok(party(chanter(MARROW_II)).includes('undead_2'))
-  assert.ok(!party(chanter([0, 1])).includes('undead_2'))
+    on('tomb_knight', 2, 'party', 0, 0), on('iron_golem', 50, 'foe', 3, 10)], opts)
+  // A Chanter and a Knight are two undead; with the Chanter's two summons, four: Undead 4.
+  assert.ok(party(chanter(MARROW_II)).includes('undead_4'))
+  assert.ok(!party(chanter([0, 1])).includes('undead_4'))
   assert.equal(summonsIn(chanter([0, 1])).length, 0, 'Marrowcaller I calls none')
   const off = chanter(MARROW_II, { ablate: ['summons'] })
   assert.equal(summonsIn(off).length, 0)
-  assert.ok(!party(off).includes('undead_2'))
+  assert.ok(!party(off).includes('undead_4'))
   // A fallen soul does not fight, and calls none.
   const fallen = chanter(MARROW_II, {}, 0)
   assert.deepEqual([unit(fallen, 1), summonsIn(fallen).length], [undefined, 0])
@@ -90,13 +89,14 @@ test('in a run, a soul\'s summons fight its battles and are gone after: nothing 
   apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 1 })
   apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 1 })
   const chanter = souls(s.party).find((u) => u.id === 'bone_chanter')
-  assert.ok(chanter.slot >= 0 && summonsOf(chanter) === TRACKS.bone_chanter[1].tiers[1].summon)
+  assert.ok(chanter.slot >= 0 && summonsOf(chanter) === tracksOf('bone_chanter')[1].tiers[1].summon)
   const node = availableNodes(run).find((n) => n.foes)
   apply(run, { type: 'node', id: node.id })
   const before = s.party.map((u) => u.uid)
   apply(run, { type: 'fight' })
   const called = summonsIn(run.battle)
   assert.equal(called.length, summonsOf(chanter))
+  while (s.phase === 'battle') apply(run, { type: 'end' })
   assert.deepEqual(s.party.map((u) => u.uid), before, 'no summon joins the retinue')
   assert.ok(called.every((u) => u.uid < s.nextUid), 'the run moves past their uids')
   assert.ok(s.party.every((u) => !('count' in u) && u.hp >= 0 && u.hp <= u.maxHp))

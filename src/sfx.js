@@ -1,6 +1,6 @@
 // Sound: short effects synthesised in the browser (Web Audio), no files to load. Call sfx.play(name)
 // anywhere; it never throws, and stays silent until the first user gesture (browsers require one) or
-// while muted. Names: click, select, place, buy, poor, card, begin, hit, crit, kill, arise, monarchHit,
+// while muted. Names: click, select, place, buy, poor, card, begin, hit, kill, arise, monarchHit,
 // essence, win, lose. Each name plays at most once every GAP ms, so a big battle stays a patter, not a
 // roar. sfx.muted persists (prefs); setting it marks <html data-muted> for the speaker buttons' icons.
 // sfx.count counts play() calls, muted or not: a click listener compares it before and after a press to
@@ -9,7 +9,7 @@ import { prefs } from './dom.js'
 
 const VOLUME = 0.22
 // Minimum ms between two plays of one name; the rest are dropped.
-const GAP = { hit: 55, crit: 90, kill: 70, essence: 45, arise: 160, monarchHit: 140, click: 35, select: 40, place: 50, card: 60 }
+const GAP = { hit: 55, kill: 70, essence: 45, arise: 160, monarchHit: 140, click: 35, select: 40, place: 50, card: 60 }
 const GAP_DEFAULT = 80
 
 let ctx = null
@@ -108,12 +108,6 @@ const SOUNDS = {
     for (const [i, f] of [220, 262, 330, 440].entries()) tone(f, 0.7 - i * 0.08, { type: 'triangle', gain: 0.1, at: 0.12 + i * 0.09, lp: 2400 })
   },
   hit: () => { noise(0.05, { f: jitter(1800, 0.2), q: 0.9, gain: 0.32 }); tone(jitter(220), 0.06, { to: 110, gain: 0.25 }) },
-  crit: () => {
-    noise(0.08, { type: 'highpass', f: 2200, gain: 0.35 })
-    tone(880, 0.09, { type: 'square', to: 330, gain: 0.14, lp: 2600 })
-    tone(1760, 0.22, { type: 'triangle', gain: 0.1, at: 0.02 })
-    tone(140, 0.12, { to: 60, gain: 0.4 })
-  },
   kill: () => { tone(jitter(320), 0.24, { to: 55, gain: 0.4 }); noise(0.18, { type: 'lowpass', f: 600, to: 200, gain: 0.3, at: 0.03 }) },
   arise: () => {
     tone(220, 0.55, { to: 660, gain: 0.16, attack: 0.12 })

@@ -1,12 +1,12 @@
-// A unit outside the battle loop: base stats and growth, stat modifiers, synergies, its ring, its summons and its
+// A unit outside the battle: base stats and growth, stat modifiers, synergies, its reach, its summons and its
 // footprint, where it deploys (the party's camp, the foes' formation) and the board it fights on.
 import { TUNING } from '../tuning.js'
-import { unitDef, campDef, abilityDef, SYNERGIES, ROLES, TRACKS } from '../content.js'
+import { unitDef, campDef, abilityDef, relicDef, SYNERGIES, ROLES } from '../content.js'
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 
 // The Monarch has no level: its base HP is TUNING.monarch.hp, whatever `lvl` says; the HP relics add to the run's
-// Monarch (run.js monarchHp), and the battle takes the run's (battle.js fit).
+// Monarch (run.js monarchHp), and the battle takes the run's (turns.js fit).
 export function baseStats (id, lvl = 1) {
   const def = unitDef(id)
   const out = {}
@@ -19,7 +19,8 @@ export function baseStats (id, lvl = 1) {
 // A piece (DESIGN §2.2) as the run keeps it between battles; createBattle adds the per-battle fields. One soul of
 // one kind on one tile, one body, its HP its own (`hp` of `maxHp`): it stands while it has HP left. slot −1 is the
 // ossuary: the piece is kept but does not fight. `lvl` and `tracks` (the tier held on each of its kind's two
-// tracks, 0–4) are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own.
+// tracks, 0–4) are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own. A soul may hold
+// relics (run.js hold: `relics`, ids, at most TUNING.relic.perPiece), which a piece made here holds none of.
 export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {}) {
   const hp = baseStats(id, lvl).hp
   return { uid, id, lvl, tracks: tracks.slice(), hp, maxHp: hp, slot }
@@ -27,8 +28,8 @@ export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {})
 
 // ── upgrade tracks ───────────────────────────────────────────────────────────────────────────────
 
-// A kind's two tracks (content.js TRACKS); none for the Monarch.
-export const tracksOf = (id) => TRACKS[id] ?? []
+// A kind's two tracks, on its def (redesign.md §2.13.1); none for the Monarch.
+export const tracksOf = (id) => unitDef(id).tracks ?? []
 // The tiers a unit holds: its first track's, then its second's.
 export const tiersOf = (u) => tracksOf(u.id).flatMap((t, i) => t.tiers.slice(0, u.tracks?.[i] ?? 0))
 const trackMods = (u) => tiersOf(u).flatMap((t) => t.mods ?? [])
@@ -58,51 +59,23 @@ export function abilitiesOf (u) {
 
 export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
 
-// Its ring (DESIGN §2.3): the radius in tiles it fights within (the Monarch's, which never strikes, is only how near
-// it holds a foe: holdOf), its kind's and the tiles its tiers add. A foe's stride: how many times faster than
-// TUNING.board.stepTicks it walks (1 by default, × its tiers'); your pieces never walk. How it goes for the Monarch
-// as a foe: 'walk' or 'fly' (BEHAVIOURS).
-export const ringOf = (u) => tiersOf(u).reduce((r, t) => r + (t.ring ?? 0), unitDef(u.id).ring)
-export const strideOf = (u) => tiersOf(u).reduce((x, t) => x * (t.stride ?? 1), unitDef(u.id).stride ?? 1)
-// Its kind's Move on turns (redesign.md §2.2), before mods: the def's `move`, else the placeholder its old stride gives
-// (TUNING.move; a flyer's `fly`), and the Monarch's 0. A stat path (statsOf `move`), so tiers, auras and statuses add to it.
-export function baseMove (id) {
-  const d = unitDef(id)
-  if (d.monarch) return 0
-  return d.move ?? d.base.move ?? (d.flies ? TUNING.move.fly : TUNING.move[d.stride ?? 1] ?? TUNING.move[1])
-}
+// Its kind's Move (redesign.md §2.2), before mods: the def's `move` (every kind carries one, the Monarch's 0:
+// content.test.js). A stat path (statsOf `move`), so tiers, auras and statuses add to it.
+export const baseMove = (id) => unitDef(id).move
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
-// Its arm (DESIGN §2.3): how far a melee blow of yours with no range of its own reaches, never past the ring: the
-// kind's `arm`, 1, or 2 for a long-armed kind (Grave Ghoul, Mantis Reaper). The kind's alone: a tier that widens the
-// ring lengthens no arm. A foe's melee has no reach at all, whatever its arm (battle.js closeIn).
+// Its arm (DESIGN §2.3): how far a melee blow with no range of its own reaches: the kind's `arm`, 1, or 2 for a
+// long-armed kind (Grave Ghoul, Mantis Reaper).
 export const armOf = (u) => unitDef(u.id).arm ?? 1
-
-// How far a piece of yours holds a walking foe, its sight (DESIGN §2.4): your rings are what the foes see you by, and
-// a foe may halt in the sight of one that can strike it (only once it can strike something of yours from there:
-// battle.js wayOf). A piece sees only as far as its blows that need no condition reach (a blow with a `when` may not
-// hold when the foe stands there: Killing Cold, Briar Lash, Miasma, Pyre Rain), so a shooter never halts where it
-// can strike a piece that cannot strike back; its ring, where it fights once a condition holds, stays its own. On the
-// ground the longest reach of those blows (a melee one its own range, else its kind's arm: armOf; a ranged one its
-// range), never past its ring; in the air only the ranged ones' (−1 with none, for no melee blow from the ground
-// touches a flyer), a flyer's every blow's (its melee meets a flyer in the air); −1
-// for both with no such blow at all. The Monarch never strikes, but holds whatever comes within its ring, on the
-// ground and in the air. Each measured from its footprint. → { ground, air }.
-export function holdOf (u) {
-  const ring = ringOf(u)
-  if (unitDef(u.id).monarch) return { ground: ring, air: ring }
-  const sure = abilitiesOf(u).map(abilityDef).filter((a) => isBlow(a) && !a.when)
-  const reach = (list) => Math.min(ring, Math.max(-1, ...list.map((a) => (a.melee ? a.range ?? armOf(u) : rangeOf(a)))))
-  return { ground: reach(sure), air: reach(unitDef(u.id).flies ? sure : sure.filter((a) => !a.melee)) }
-}
+// How far a blow of its reaches (redesign.md §2.6): a melee blow its own range, else its kind's arm; a
+// ranged blow its range (one with none, an `all` shape's, the whole board).
+export const blowReach = (u, a) => (a.melee ? a.range ?? armOf(u) : a.range ?? Infinity)
+// Its reach, the union of its blows' (blowReach), from its footprint: never past the board (DEPTH), 0 with no blow (the
+// Monarch).
+export const reachOf = (u) => Math.min(DEPTH, Math.max(0, ...abilitiesOf(u).map(abilityDef).filter(isBlow).map((a) => blowReach(u, a))))
 
 // The summons a piece's tiers bring to each battle (a tier's `summon`): shadows of its kind that rise beside it as
-// the battle begins and are gone when it ends (battle.js summon). A summon is a shadow, and brings none of its own.
+// the battle begins and are gone when it ends (turns.js summon). A summon is a shadow, and brings none of its own.
 export const summonsOf = (u) => tiersOf(u).reduce((n, t) => n + (t.summon ?? 0), 0)
-
-// The least and the most gauge any of its abilities costs: below the cheapest a unit can only bank (or
-// walk, which is off the gauge), and its gauge never banks past the costliest.
-export const cheapestOf = (u) => Math.min(...abilitiesOf(u).map((a) => abilityDef(a).castCost))
-export const costliestOf = (u) => Math.max(...abilitiesOf(u).map((a) => abilityDef(a).castCost))
 
 // A stat path's keys, split once.
 const pathKeys = new Map()
@@ -121,15 +94,15 @@ function setPath (o, path, value) {
 // Modifiers { path, op: add|mul|set, v, pos?, who? } apply add → mul → set; a `pos` mod ('engaged': a foe next
 // to it, or 'free') only applies to a battle unit in that position (unit.pos), never outside a battle, and a
 // `who` mod ({ role?, kin? }, one or a list; `boss`, true or false) only to units it matches. The unit's own track tiers count
-// too. Several sets on one path: the largest wins, so order never matters. `move` and `cooldown.rate` are the turns'
-// (turns.js): tiles a turn (baseMove), and how many turns its skills' cooldowns fall at each turn's end (1; Hasten's 2).
+// too. Several sets on one path: the largest wins, so order never matters. A unit's stats are HP, ATK, DEF and Move
+// (redesign.md §2.2), and the shares its blows and heals are bent by; `move` the tiles it may go in a turn (baseMove),
+// `cooldown.rate` how many turns its skills' cooldowns fall at each turn's end (1; Hasten's 2).
 export function statsOf (unit, mods = []) {
   const b = baseStats(unit.id, unit.lvl)
   const s = {
-    hp: b.hp, atk: b.atk, def: b.def, spd: b.spd, acc: b.acc, eva: b.eva, crt: b.crt,
+    hp: b.hp, atk: b.atk, def: b.def,
     move: baseMove(unit.id),
     cooldown: { rate: 1 },
-    gauge: { rate: 1 },
     damage: { dealt: 1, taken: 1 },
     heal: { given: 1 }
   }
@@ -151,25 +124,31 @@ export function statsOf (unit, mods = []) {
   return s
 }
 
+// The stat paths a relic's mods may name that are the run's, not a unit's (redesign.md §2.13.3; run.js runStat reads
+// them): Command, the Monarch's max HP, the retinue's room, the free tiers a new kind joins with, the shares the prices
+// are cut by (a tier, tiers I–II besides, a recruit, a relic), the share more battles pay, and Arise's reach and tier.
+// Every other path is a unit's.
+export const RUN_PATHS = ['run.command', 'run.monarchHp', 'run.roster', 'run.soulTiers', 'price.tier', 'price.lowTier', 'price.recruit', 'price.relic', 'essence.gain', 'arise.domain', 'arise.tier']
+export const isRunPath = (path) => RUN_PATHS.includes(path)
+// The mods the piece relics a soul holds (`relics`, ids) put on it (redesign.md §2.15): a unit's paths alone.
+export const heldMods = (u) => (u.relics ?? []).flatMap((id) => relicDef(id).mods ?? []).filter((m) => !isRunPath(m.path))
+
 // A unit of a hidden role (the Monarch) counts toward no synergy.
 const hidden = (u) => !!ROLES[unitDef(u.id).role].hidden
 
-// Synergies active for these units, from their counts per kin and role. `alias` ({ role: [role, …] }, the
-// Legendary relic Mimicry's, a role once a copy; a lone role for one) counts a unit of the first role as one of the
-// second too, once for each time it is named.
-export function activeSynergies (units, alias = null) {
+// Synergies active for these units, from their counts per kin and role. `also(u)`, where given, lists the roles a
+// unit counts as besides its own (a holder of Mimicry's, a Warden too: turns.js synergiesOf), a role not its own once
+// each.
+export function activeSynergies (units, also = null) {
   const c = { kin: {}, role: {} }
   for (const u of units) {
     if (hidden(u)) continue
     const d = unitDef(u.id)
     c.kin[d.kin] = (c.kin[d.kin] ?? 0) + 1
-    for (const role of rolesOf(d, alias)) c.role[role] = (c.role[role] ?? 0) + 1
+    for (const role of [d.role, ...(also?.(u) ?? []).filter((r) => r !== d.role)]) c.role[role] = (c.role[role] ?? 0) + 1
   }
   return SYNERGIES.filter((s) => synergyActive(s, c))
 }
-
-// The roles a unit of def `d` counts as: its own, and each one its alias adds (a role named twice counts twice).
-const rolesOf = (d, alias) => [d.role, ...[alias?.[d.role] ?? []].flat().filter((r) => r !== d.role)]
 
 export const synergyActive = (syn, counts) =>
   ['kin', 'role'].every((axis) => Object.entries(syn.needs[axis] ?? {}).every(([id, n]) => (counts[axis][id] ?? 0) >= n))
@@ -279,9 +258,6 @@ export const tileAt = (x, y) => y * LANES + x
 const onBoard = (x, y) => x >= 0 && x < LANES && y >= 0 && y < DEPTH
 export const distance = (a, b) => Math.max(Math.abs(tileX(a) - tileX(b)), Math.abs(tileY(a) - tileY(b)))
 
-// The domain (DESIGN §2.5): the tiles within `reach` of `centre` (the Monarch's tile), a square.
-export const domainTiles = (centre, reach) => [...Array(TILES).keys()].filter((t) => distance(t, centre) <= reach)
-
 export function deployTile (side, slot) {
   const y = side === 'party' ? CAMP_ROWS - 1 - rowOf(slot) : DEPTH - ROWS + rowOf(slot)
   return tileAt(colOf(slot), y)
@@ -313,9 +289,9 @@ export function steps (tile, walls) {
     (tileX(n) === x || tileY(n) === y || (!walls.has(tileAt(tileX(n), y)) && !walls.has(tileAt(x, tileY(n))))))
 }
 
-// An ability's own range, as the list helpers read it: melee the 8 tiles around; a ranged ability its `range`;
-// one without a range (an `all` shape) the whole board. In a battle a blow reaches no further than its ring, and a
-// melee one of yours with no range of its own its kind's arm (armOf; battle.js reachOf).
+// An ability's own range: its `range`, else melee the 8 tiles around and anything else (an ally ability, an `all`
+// shape) the whole board. An ally ability reaches by this; a blow by blowReach (a melee one with no range of its own
+// reaches its kind's arm).
 export const rangeOf = (ability) => ability.range ?? (ability.melee ? 1 : Infinity)
 
 // The open cells of `camp` (slots) that a unit standing for good on cell `slot` (the Monarch on its seat) cuts
@@ -363,6 +339,9 @@ export function footprintSlots (slot, size = 1) {
   return out
 }
 
+// The camp cells a run piece covers: its footprint from its anchor (footprintSlots); none in the ossuary (slot −1).
+export const cellsOf = (u) => (u.slot >= 0 ? footprintSlots(u.slot, sizeOf(u)) ?? [u.slot] : [])
+
 // The Monarch's seat: the camp's 'M' cell (DESIGN §2.1). It is pre-placed there and never moves.
 export function monarchSlot (camp) {
   const map = campDef(camp).map
@@ -395,27 +374,7 @@ export const unitDistance = (a, b) => distanceBetween(a.tile, a.size ?? sizeOf(a
 // a row).
 const overlap = (a, sa, b, sb) => a < b + sb && b < a + sa
 
-// These list-based helpers answer from a list of units what a battle answers from its tile index (battle.js), the
-// plain reckoning the tests hold the index to; a battle expands its Shapes with `expand`. Every distance is between
-// footprints (unitDistance).
-
-// The living allies whose aura reaches this unit.
-export const auraGivers = (units, u) => units.filter((a) => a !== u && a.side === u.side && alive(a) && auraOf(a) &&
-  unitDistance(a, u) <= auraOf(a).range)
-
-// The living foes next to a unit (on a tile beside it, or over or under it on its own: a flyer and a ground unit
-// share a tile).
-export const foesNextTo = (units, u) => units.filter((e) => e.side !== u.side && alive(e) && unitDistance(e, u) <= 1)
-
-// Candidate primary targets for an ability: units on the side it aims at within its range (an ally
-// ability without a range reaches every ally).
-export function reachable (units, actor, ability) {
-  if (ability.shape === 'self') return [actor]
-  const side = isAllyShape(ability.shape) ? actor.side : enemySide(actor.side)
-  const range = rangeOf(ability)
-  return livingOn(units, side).filter((u) => unitDistance(actor, u) <= range)
-}
-
+// Who a Shape touches, from a list of units (turns.js shape), every distance between footprints (unitDistance).
 // row: everyone on the primary's side across the board in its row (any row its footprint spans); column: everyone
 // in its lane (likewise); blast: the primary and everyone on its side next to it; all_allies: every ally within
 // range; all: everyone on the primary's side, within range of the actor if it has one. A unit counts once whatever

@@ -1,18 +1,19 @@
 // Phaser, used for battles only: the one Phaser Game, the scene that loads the unit and prop pictures and
 // makes the FX textures, the battle scene, and the timeline player that turns sim events into tweens and
-// FX. It never decides anything: on the old battle it steps a battle that takes no input and plays back what the sim
-// emitted; on turns (TUNING.turns) it takes the player's taps as orders (args.order: the run applies each) and plays
+// FX. It never decides anything: it takes the player's taps as orders (args.order: the run applies each) and plays
 // back the events each one made, the foes' turn among them.
 import Phaser from './vendor/phaser.js'
 import { TUNING } from './tuning.js'
 import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, FUSIONS } from './content.js'
-import { stepBattle, nextCost, rulesOf, escalation } from './sim/battle.js'
-import { reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, deadline, nextWave } from './sim/turns.js'
+import {
+  reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, deadline, nextWave, holds, synergiesOf, ariseOf
+} from './sim/turns.js'
 import { foeEssence } from './sim/run.js'
 import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, footprint, alive, isBlow } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy } from './dom.js'
 import { frame } from './frame.js'
+import { synergyLabels } from './codex.js'
 
 // ── engine and picture loading ───────────────────────────────────────────────────────────────────
 
@@ -31,12 +32,11 @@ export function createEngine (parent) {
     game,
     // Resolves once the pictures are loaded (the prep board, board.js, waits on it too).
     ready: loaded,
-    // data: { battle (fresh, from createBattle; on turns the run's own, run.battle), title, stage() (the viewport
-    // rect the board fits in), hud (the chrome's words: start, hp, announce), onChange(state), onHover(unit | null,
-    // rect, pin), onDone(), essence (what the purse multiplies a slain foe's essence by), seamless (the prep board
-    // fades into it: no fade in from black), death() (what felled the Monarch, codex.js deathText, for the end's
-    // replay beat, or null), and on turns: turns (true), order(o) (gives an order, returns its events; throws on an
-    // illegal one) }. Resolves with the scene once built.
+    // data: { battle (the run's own, run.battle), order(o) (gives an order, returns its events; throws on an illegal
+    // one), title, stage() (the viewport rect the board fits in), hud (the chrome's words: start, synergies, hp,
+    // announce), onChange(state), onHover(unit | null, rect, pin), onDone(), essence (what the purse multiplies a slain
+    // foe's essence by), seamless (the prep board fades into it: no fade in from black), death() (what felled the
+    // Monarch, codex.js deathText, for the end's replay beat, or null) }. Resolves with the scene once built.
     async battle (data) {
       await loaded
       return new Promise((resolve) => game.scene.start('Battle', { ...data, onReady: resolve }))
@@ -59,12 +59,13 @@ const hex = (c) => parseInt(c.slice(1), 16)
 const TOKENS = {
   essence: '#5ef0c0', soul2: '#8ff7d6', foe: '#e0566a', monarch: '#c08a00', plan: '#3697ff', relic: '#ff7f45',
   warn: '#ffdc4a', legendary: '#ab94fc', ossuary: '#b8ae9e', domain: '#84d21a', shadow: '#fb9ad5', path: '#3bd3ea',
-  path2: '#b3f3f9', synergy: '#3697ff', gauge: '#9a95b0'
+  path2: '#b3f3f9', synergy: '#3697ff', common: '#e0c2a8', uncommon: '#ff7f45', rare: '#ffb02e'
 }
 const C = { ...TOKENS }
 // The sides and the soulfire (essence, yours), the Monarch's gold (its frame: if its HP runs out, the run ends),
-// a domain's green, a shadow's pink (Arise), the rings' and coverage's blue, a kind's tiers.
-let PARTY, FOE, SOUL, GOLD, CROWN, DOMAIN, RISE, UNDYING, GAUGE, BOON, PLAN, PATH_PIP
+// a domain's green, a shadow's pink (Arise), the plan's blue (the danger map, a move's tiles), a kind's tiers, a
+// relic's tier.
+let PARTY, FOE, SOUL, GOLD, CROWN, DOMAIN, RISE, UNDYING, BOON, PLAN, PATH_PIP, RELIC, RELIC_TIER
 const NEUTRAL = 0x8a84a8 // the open ground between the two daises: no system's
 export function palette () {
   const css = typeof document === 'undefined' ? null : getComputedStyle(document.documentElement)
@@ -79,10 +80,11 @@ export function palette () {
   DOMAIN = hex(C.domain)
   RISE = hex(C.shadow)
   UNDYING = hex(C.legendary) // a piece rising again (Undying, a Legendary relic)
-  GAUGE = hex(C.gauge)
   BOON = hex(C.synergy)     // a buff, a cleanse, a rule of yours: the synergies' (the plan's) blue
-  PLAN = hex(C.plan)      // what you set: a ring, coverage
+  PLAN = hex(C.plan)      // what you set: the danger map, a move's tiles
   PATH_PIP = [hex(C.path), hex(C.path2)] // a kind's tiers, its first track's and its second's
+  RELIC = hex(C.relic)
+  RELIC_TIER = { common: hex(C.common), uncommon: hex(C.uncommon), rare: hex(C.rare), legendary: hex(C.legendary) }
 }
 palette()
 // Reduced motion (the page's prefers-reduced-motion, followed as it changes): no camera shake or flash, no
@@ -242,8 +244,8 @@ export function placeOutside (t, box, limit, blocked = []) {
 }
 
 // A soul's growth, the same on the prep board and in battle so the picture carries over: a diamond a tier under
-// its bars, --c-path its kind's first track and --c-path2 its second. → { parts, place(x, y) }, placed every frame
-// from the feet.
+// its bars, --c-path its kind's first track and --c-path2 its second; and the relic it holds (redesign.md §2.15) a
+// small gem in its tier's colour at its bar's right end. → { parts, place(x, y) }, placed every frame from the feet.
 export function growthMarks (scene, u) {
   // A diamond a tier, centred under the bars: the first track's, then a gap, then the second's. Kept inside the
   // unit's lane (PIP_SPAN wide): many tiers stand closer, overlapping like a chain.
@@ -260,9 +262,19 @@ export function growthMarks (scene, u) {
     g.lineStyle(1.75, 0x07060b, 0.95).strokePoints(d, true)
   })
   pips.add(g)
+  const gems = (u.relics ?? []).length ? scene.add.graphics() : null
+  ;(u.relics ?? []).forEach((id, i) => {
+    const x = BAR / 2 + 7 + i * 13
+    const gem = [{ x, y: -6 }, { x: x + 5.5, y: -2 }, { x: x + 3.5, y: 5 }, { x: x - 3.5, y: 5 }, { x: x - 5.5, y: -2 }]
+    gems.fillStyle(RELIC_TIER[relicDef(id).tier], 1).fillPoints(gem, true)
+    gems.lineStyle(1.75, 0x07060b, 0.95).strokePoints(gem, true)
+  })
   return {
-    parts: [pips],
-    place (x, y) { pips.setPosition(x, y + BAR_DROP + 17).setDepth(y + 0.8) }
+    parts: [pips, gems].filter(Boolean),
+    place (x, y) {
+      pips.setPosition(x, y + BAR_DROP + 17).setDepth(y + 0.8)
+      gems?.setPosition(x, y + BAR_DROP).setDepth(y + 0.8)
+    }
   }
 }
 
@@ -323,7 +335,7 @@ export function fitBox (rect, box, max = 1.35) {
   return { z, wx: (box.l + box.r) / 2, wy: (box.t + box.b) / 2, sx: rect.left + rect.width / 2, sy: rect.top + rect.height / 2 }
 }
 
-// The square a ring or a domain covers round a footprint of `size` anchored at `tile` (`r` tiles every way from it,
+// The square a reach or a domain covers round a footprint of `size` anchored at `tile` (`r` tiles every way from it,
 // clipped to the board), as a world box.
 export function ringBox (tile, r, pad = 0, size = 1) {
   const [x, y] = [tileX(tile), tileY(tile)]
@@ -361,11 +373,10 @@ export function drawGround (scene) {
 // battle on the same clock that plays the events back. Pause, speed and skip change only the playback; the
 // outcome was fixed when it began.
 
-const WALK_MS = 300
-const STEP_MS = 190     // on turns, a tile of a move's path
-// On turns, a skill's cooldown pip under a piece's bars: lit (the Monarch's gold) once ready, `rest` while it rests.
+const STEP_MS = 190     // a tile of a move's path
+// A skill's cooldown pip under a piece's bars: lit (the Monarch's gold) once ready, `rest` while it rests.
 const PIP = { w: 7, h: 4, step: 9, rest: 0x3a3258 }
-// On turns: a tap moves no more than this (CSS px) between press and release, and the ground's marks (plan).
+// A tap moves no more than this (CSS px) between press and release.
 const TAP_SLOP = 10
 const SCALE = 0.95      // world px per unit of a picture's viewBox
 const WALL_SCALE = 1
@@ -378,25 +389,13 @@ const ECHO_MS = 260     // Echo (Channeler 8): its second pass lands this long a
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif'
 
-// The rules, the 8 steps of the synergies (content.js): by rule, its step ("Undead 8") and its name ("The
-// Legion", the head of its desc), and on whom its name rises when it strikes: the unit it acts through.
-const RULES = Object.fromEntries(SYNERGIES.filter((syn) => syn.rule).map((syn) => [syn.rule, { step: syn.name, name: syn.desc.split(': ')[0] }]))
-const RULE_ON = { frenzy: 'actor', echo: 'actor', bodyguard: 'actor', sanctuary: 'actor', dragonfire: 'actor', deadeye: 'actor' }
+// The synergies' rules (content.js, one at 4 a kin or role): by rule, its step ("Undead 4") and its name ("Legion",
+// the head of its desc), and on whom its name rises when it strikes: the unit it acts through.
+const RULES = Object.fromEntries(SYNERGIES.map((syn) => [syn.rule, { step: syn.name, name: syn.desc.split(': ')[0] }]))
+const RULE_ON = { frenzy: 'actor', echo: 'actor', bodyguard: 'actor', sanctuary: 'actor', dragonfire: 'actor', deadeye: 'actor', deathblow: 'actor' }
 // Rules that strike on almost every cast: their name rises at most once a NOISY_MS per side.
 const NOISY = new Set(['sanctuary', 'echo', 'dragonfire', 'deadeye'])
 const NOISY_MS = 1000
-
-// A side's synergies for its label, short: of each kin's or role's steps only the top one reached, an 8 by
-// its rule ("★ Undead 8: The Legion"); the pacts as they are.
-const stepOf = (syn) => {
-  const needs = ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, n]) => ({ key: `${axis}:${id}`, n })))
-  return needs.length === 1 ? needs[0] : null
-}
-function topSteps (ids) {
-  const syns = ids.map((id) => SYNERGIES.find((syn) => syn.id === id)).filter(Boolean)
-  return syns.filter((syn) => !stepOf(syn) || !syns.some((o) => stepOf(o)?.key === stepOf(syn).key && stepOf(o).n > stepOf(syn).n))
-    .map((syn) => (syn.rule ? `★ ${syn.name}: ${RULES[syn.rule].name}` : syn.name))
-}
 
 class BattleScene extends Phaser.Scene {
   constructor () { super('Battle') }
@@ -404,17 +403,18 @@ class BattleScene extends Phaser.Scene {
   init (data) {
     this.args = data
     this.battle = data.battle
-    // On turns: no clock to step; the playback runs on its own time (TimelinePlayer, by beat), and between orders
-    // the board waits for the player. `sel`: the piece selected ({ uid, ability: the act armed, aim: the target
-    // previewed, reach: its Move range, targets }); `waiting`: an order's events still playing (input locked);
-    // `clock`: the turn, the last turn before the cap and the next wave, as the playback last announced them.
-    this.turns = !!data.turns
+    // No clock to step: the playback runs on its own time (TimelinePlayer, by beat), and between orders the board
+    // waits for the player. `sel`: the piece selected ({ uid, ability: the act armed, aim: the target previewed,
+    // reach: its Move range, targets }); `waiting`: an order's events still playing (input locked); `clock`: the turn,
+    // the last turn before the cap and the next wave, as the playback last announced them; `synKey`: the synergies the
+    // chrome last showed.
     this.speed = 1
     this.paused = false
-    this.playMs = this.turns ? 0 : this.battle.t * TUNING.tick.ms
+    this.playMs = 0
     this.sel = null
     this.waiting = false
-    this.clock = this.turns ? { turn: this.battle.turn, cap: deadline(this.battle), next: nextWave(this.battle) } : null
+    this.clock = { turn: this.battle.turn, cap: deadline(this.battle), next: nextWave(this.battle) }
+    this.synKey = null
     this.ending = false
     this.hover = null
     // The end's replay beat (finish), drawn each frame once the battle is lost (drawEnd).
@@ -436,9 +436,8 @@ class BattleScene extends Phaser.Scene {
     this.units = new Map(this.battle.units.map((u) => [u.uid, u]))
     this.emitters = new Map()
     const start = this.battle.events.find((e) => e.type === 'battle:start')
-    // The Monarch's uid (null in a battle without one) and Arise's reach about it (the domain).
+    // The Monarch's uid (null in a battle without one).
     this.monarch = start.monarch
-    this.domain = start.domain
     // The foes by wave (0: the formation on the board), for the banner as each arrives (how many foes, `size`) and
     // the essence each pays as its foes are slain (`left`: its foes still standing).
     const foes = [...start.units.filter((u) => u.side === 'foe'), ...(start.reserve ?? []).filter((r) => r.side === 'foe')]
@@ -474,11 +473,9 @@ class BattleScene extends Phaser.Scene {
     this.player = new TimelinePlayer(this, {
       template: (id) => animDef(id),
       actorOf: (uid) => this.actors.get(uid),
-      tickMs: TUNING.tick.ms,
-      beats: this.turns,
       onEvent: (ev, inAction, seq) => this.applyEvent(ev, inAction, seq)
     })
-    // On turns: what the selection lights (plan), under the units, and the preview's numbers over them.
+    // What the selection lights (plan), under the units, and the preview's numbers over them.
     this.planG = this.add.graphics().setDepth(-390)
     this.aimMarks = []
     // battle:start is already in battle.events; anything after it has not been played.
@@ -487,15 +484,10 @@ class BattleScene extends Phaser.Scene {
 
     this.fit()
     this.scale.on('resize', this.fit, this)
-    // By touch a unit's card comes by a long press on it, pinned (dom.js hold), never by a finger passing over; a
-    // mouse's click pins it too, so its details open by More ▾ and never need Shift.
-    // On turns a tap (a click, or a finger lifted where it went down) gives orders (tap); a long press still pins the
-    // card, and a mouse reads it on the hover.
+    // A tap (a click, or a finger lifted where it went down) gives orders (tap); by touch a unit's card comes by a
+    // long press on it, pinned (dom.js hold), never by a finger passing over, and a mouse reads it on the hover.
     const canvas = this.game.canvas
-    const press = (e) => {
-      if (this.turns) return this.down(e)
-      if (e.pointerType !== 'touch') { if (e.button === 0) this.pressAt(e.clientX, e.clientY, this.hover) } else if (e.isPrimary) hold(e, () => this.pressAt(e.clientX, e.clientY))
-    }
+    const press = (e) => this.down(e)
     canvas.addEventListener('pointerdown', press)
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.fit, this)
@@ -505,9 +497,8 @@ class BattleScene extends Phaser.Scene {
     })
     // From prep the board fades into it instead (board.js): the units already stand where they will start.
     if (!this.args.seamless) this.cameras.main.fadeIn(260, 6, 5, 10)
-    this.lastSecond = -1
-    // On turns the opening (the first turn's announcement) plays before the board takes orders.
-    this.waiting = this.turns
+    // The opening (the first turn's announcement) plays before the board takes orders.
+    this.waiting = true
     this.changed()
     this.args.onReady?.(this)
   }
@@ -524,7 +515,6 @@ class BattleScene extends Phaser.Scene {
     cam.setZoom(v.z)
     cam.centerOn(v.wx - (v.sx - c.left - cam.width / 2) / v.z, v.wy - (v.sy - c.top - cam.height / 2) / v.z)
     for (const t of this.small ?? []) legible(t, v.z)
-    this.placeDomain()
   }
 
   update (time, delta) {
@@ -535,12 +525,6 @@ class BattleScene extends Phaser.Scene {
     if (!this.paused && !held) {
       if (!this.begun) { this.begun = true; sfx.play('begin') }
       this.playMs += Math.min(delta, 250) * this.speed
-      if (!this.turns) {
-        const want = Math.floor(this.playMs / TUNING.tick.ms)
-        const events = []
-        while (!b.over && b.t < want) events.push(...stepBattle(b))
-        if (events.length) this.player.enqueue(events)
-      }
     }
     this.player.update(this.playMs)
     // An order's events played out: the board takes orders again.
@@ -582,29 +566,16 @@ class BattleScene extends Phaser.Scene {
       a.barBg.setPosition(x, y + 2).setScale(k, 1).setDepth(foot)
       a.trail.setPosition(x - BAR * k / 2, y).setScale(k, 1).setDepth(foot + 0.1)
       a.bar.setPosition(x - BAR * k / 2, y).setScale(k, 1).setDepth(foot + 0.2)
-      a.gaugeBar.setPosition(x - BAR * k / 2, y + 5).setScale(k, 1).setDepth(foot + 0.2)
       a.pips?.forEach((p, i) => p.setPosition(x - BAR * k / 2 + i * PIP.step * k, y + 7).setScale(k, 1).setDepth(foot + 0.2))
       a.growth?.place(x, a.sprite.y)
       a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : 1))
       const u = this.units.get(a.uid)
       this.wear(a, u)
-      // On turns a skill's cooldown pip: lit once it may be used again (sim, u.cooldowns), dark while it rests.
+      // A skill's cooldown pip: lit once it may be used again (sim, u.cooldowns), dark while it rests.
       if (a.pips && !a.gone) a.skills.forEach((id, i) => a.pips[i].setFillStyle(u.cooldowns?.[id] > 0 ? PIP.rest : GOLD, u.cooldowns?.[id] > 0 ? 0.9 : 1))
-      if (!this.turns && !a.gone && u.hp > 0) {
-        const cost = nextCost(b, u)
-        const fill = Math.min(1, u.gauge / cost)
-        a.gaugeBar.width = BAR * fill
-        a.gaugeBar.setFillStyle(fill >= 1 ? 0xffffff : GAUGE, fill >= 1 ? 1 : 0.85)
-      }
     }
 
     this.drawEnd(time)
-
-    const second = this.turns ? this.lastSecond : Math.floor(b.t * TUNING.tick.ms / 1000)
-    if (second !== this.lastSecond) {
-      this.lastSecond = second
-      this.changed()
-    }
   }
 
   // ── controls (called by the DOM playback bar) ────────────────────────────────────────────────
@@ -627,10 +598,10 @@ class BattleScene extends Phaser.Scene {
     this.setPaused(!this.paused)
   }
 
-  // Leave now; the run already knows how the battle ended. On turns the battle is the player's to play, so Skip only
-  // hurries the playback (flush) until the battle is over and its banner up.
+  // Leave now; the run already knows how the battle ended. The battle is the player's to play, so until it is over and
+  // its banner up, Skip only hurries the playback (flush).
   skip () {
-    if (this.turns && !this.ending) return this.flush()
+    if (!this.ending) return this.flush()
     const done = this.args.onDone
     if (!done) return
     this.args.onDone = null
@@ -638,40 +609,26 @@ class BattleScene extends Phaser.Scene {
     done()
   }
 
-  // What the playback bar shows: the clock, the purse, the wave under way of how many (`wave` of `waves`), and
-  // the escalation bar: `left`, the share of the window before the ceiling still to run (it counts from the
-  // last foe to enter, so a wave fills it again), `ramp`, the share at which every blow starts to climb, and
-  // `esc`, the multiplier now.
-  // On turns instead: the turn as the playback has reached it, the last turn before the cap, the next wave (turn
-  // events), the wave under way, whether input waits (busy), and the selected piece's panel (panel).
+  // What the chrome shows: the turn as the playback has reached it, the last turn before the cap, the next wave (turn
+  // events), the wave under way, the purse, whether input waits (busy), and the selected piece's panel (panel); and
+  // each side's synergies with their rules, live from the battle (a fuse, a fall, a rise or a wave may change them),
+  // sent only when they change. Nothing of the foes' coming turn.
   changed () {
     const b = this.battle
-    if (this.turns) {
-      const c = this.clock
-      return this.args.onChange?.({
-        turns: true, paused: this.paused, speed: this.speed, over: this.ending, essence: this.purse,
-        turn: c.turn, last: c.cap, cap: b.cap, next: c.next, wave: Math.max(1, b.waveAt.length), waves: Math.max(b.waveAt.length, this.waves.length),
-        busy: this.locked(), panel: this.panel()
-      })
-    }
-    const E = TUNING.escalation
-    const ceiling = b.ceiling ?? TUNING.tick.ceiling
+    const c = this.clock
+    const syn = (side) => synergyLabels(side === 'foe' && !b.foeRules ? [] : synergiesOf(b, side))
+    const now = { theirs: syn('foe'), mine: syn('party') }
+    const key = JSON.stringify(now)
+    if (key !== this.synKey) { this.synKey = key; this.args.hud?.synergies?.(now) }
     this.args.onChange?.({
-      paused: this.paused,
-      speed: this.speed,
-      seconds: b.t * TUNING.tick.ms / 1000,
-      over: this.ending,
-      essence: this.purse,
-      wave: b.waveAt.length,
-      waves: Math.max(b.waveAt.length, this.waves.length),
-      left: Math.max(0, Math.min(1, 1 - (b.t - b.foeIn) / ceiling)),
-      ramp: E.startTick * (b.boss ? E.bossMult : 1) / ceiling,
-      esc: escalation(b)
+      paused: this.paused, speed: this.speed, over: this.ending, essence: this.purse,
+      turn: c.turn, last: c.cap, cap: b.cap, next: c.next, wave: Math.max(1, b.waveAt.length), waves: Math.max(b.waveAt.length, this.waves.length),
+      busy: this.locked(), panel: this.panel()
     })
   }
 
-  // The camera's shudder and flash, kept for what matters (a crit, a heavy fall, the Monarch struck, a
-  // boss's turn): routine blows and falls never shake. None at all under reduced motion.
+  // The camera's shudder and flash, kept for what matters (a heavy fall, the Monarch struck, a boss's turn): routine
+  // blows and falls never shake. None at all under reduced motion.
   shake (ms, mag) {
     if (!calm) this.cameras.main.shake(ms, mag)
   }
@@ -686,7 +643,7 @@ class BattleScene extends Phaser.Scene {
     if (!calm) this.cameras.main.flash(ms, r, g, b)
   }
 
-  // A beat of stillness on a heavy blow (a crit, a heavy fall): the clock stops and the tweens
+  // A beat of stillness on a heavy blow (a heavy fall): the clock stops and the tweens
   // all but freeze for `ms`, shorter at 2×, none at 4×; at most one every 300 ms, so a melee never stutters.
   // None under reduced motion.
   hitStop (ms) {
@@ -730,12 +687,11 @@ class BattleScene extends Phaser.Scene {
     const width = BAR * u.hp / u.maxHp
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
     const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, side).setOrigin(0, 0.5)
-    const gaugeBar = this.add.rectangle(home.x - BAR / 2, home.y + 17, 0, 2, GOLD).setOrigin(0, 0.5)
-    // On turns a piece of yours carries a pip a skill under its bars (its cooldown: update); the Monarch, the shadows
-    // and the foes none (a foe's readiness would tell its coming turn).
-    const skills = this.turns && u.side === 'party' && !u.shadow && !crowned ? (whole.kit ?? []).filter((a) => isSkill(whole, a)).map((a) => a.id) : []
+    // A piece of yours carries a pip a skill under its bars (its cooldown: update), Arise's among them for a holder of
+    // its relic; the Monarch, the shadows and the foes none (a foe's readiness would tell its coming turn).
+    const skills = u.side === 'party' && !u.shadow && !crowned ? (whole.kit ?? []).filter((a) => isSkill(whole, a)).map((a) => a.id) : []
     const actor = {
-      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg, gaugeBar,
+      uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg,
       // fp: its footprint's side, big: its picture's scale for it; hover: how high it floats now (fly: when standing).
       fp, big, fly, hover: fly,
       // chest: how far above the feet blows land and bolts fly from. fade: 0 once a corpse has risen
@@ -746,7 +702,7 @@ class BattleScene extends Phaser.Scene {
       share: 0, vx: home.x, up: 0,
       skills, pips: skills.length ? skills.map(() => this.add.rectangle(home.x, home.y + 19, PIP.w, PIP.h, GOLD).setOrigin(0, 0.5)) : null
     }
-    // A soul's growth, worn as the prep board showed it (growthMarks): its tiers.
+    // A soul's growth, worn as the prep board showed it (growthMarks): its tiers, and the relic it holds.
     if (u.side === 'party' && !u.shadow && !crowned) actor.growth = growthMarks(this, whole)
     sprite.setInteractive(this.input.makePixelPerfect())
     sprite.on('pointerover', (p) => {
@@ -778,7 +734,7 @@ class BattleScene extends Phaser.Scene {
     if (best) this.args.onHover?.(this.units.get(best.uid), { left: x + 14, right: x + 14, top: y - 10, bottom: y + 10 }, true)
   }
 
-  // ── orders (on turns) ────────────────────────────────────────────────────────────────────────
+  // ── orders ───────────────────────────────────────────────────────────────────────────────────────
 
   // A press on the board: a tap once the pointer lifts where it went down (tap); by touch, held still, the card of
   // the unit under the finger instead, pinned (pressAt), and no tap.
@@ -886,7 +842,7 @@ class BattleScene extends Phaser.Scene {
   }
 
   // A piece's first act to arm: its basic blow if it has a target from here, else its basic heal, else any act
-  // with a target, else its basic (the Monarch's is Arise).
+  // with a target (Arise among them), else its basic.
   firstAct (u) {
     const b = this.battle
     const list = [u.basic, u.mend, ...u.kit.filter((a) => a !== u.basic && a !== u.mend)].filter(Boolean)
@@ -907,10 +863,11 @@ class BattleScene extends Phaser.Scene {
   // What the selection lights, from the sim (only while the board takes orders): a soft ring under every piece of
   // yours that may still act; for the selected piece its Move range (the tiles it may stand on), the tile Undo goes
   // back to, a ring under it, and under each target its armed act may take from where it stands (a foe red, an ally
-  // the synergies' blue, a corpse Arise's green), the aimed one brighter. Nothing of the foes' coming turn.
+  // the synergies' blue, a corpse Arise's green), the aimed one brighter; with Arise armed, its reach round the piece
+  // (turns.js ariseOf). Nothing of the foes' coming turn.
   plan () {
     const g = this.planG.clear()
-    if (!this.turns || this.locked()) return
+    if (this.locked()) return
     const b = this.battle
     const s = this.sel
     const u = s && b.byUid.get(s.uid)
@@ -921,11 +878,7 @@ class BattleScene extends Phaser.Scene {
       const k = (x.size ?? 1) > 1 ? BIG : 1
       g.lineStyle(line, colour, alpha).strokeEllipse(p.x, p.y + 4, (58 + grow) * k, (18 + grow / 3) * k)
     }
-    for (const x of b.units) {
-      if (x === u || !orderable(b, x) || !canAct(b, x)) continue
-      if (x === b.monarch && !x.kit.some((a) => a.shape === 'corpse' && targetsFrom(b, x, a).length)) continue
-      ring(x, PARTY, 0.5, 2)
-    }
+    for (const x of b.units) if (x !== u && orderable(b, x) && canAct(b, x)) ring(x, PARTY, 0.5, 2)
     if (!this.sel) return
     s.reach = u.acted ? new Map() : reach(b, u)
     const a = u.kit.find((x) => x.id === s.ability)
@@ -939,6 +892,12 @@ class BattleScene extends Phaser.Scene {
     for (const t of s.reach.keys()) for (const c of footprint(t, u.size ?? 1) ?? [t]) cells.add(c)
     for (const c of cells) cell(c, 0.16, 0.5, PLAN)
     if (this.undoable(u)) for (const c of footprint(u.from, u.size ?? 1)) cell(c, 0, 0.55, 0xffffff)
+    const arise = a?.shape === 'corpse' && ariseOf(b, u)
+    if (arise) {
+      const box = ringBox(u.tile, arise.domain, 4, u.size ?? 1)
+      g.fillStyle(DOMAIN, 0.05).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
+      g.lineStyle(1.5, DOMAIN, 0.55).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
+    }
     const p = foot(u)
     const k = (u.size ?? 1) > 1 ? BIG : 1
     g.fillStyle(0xffffff, 0.1).fillEllipse(p.x, p.y + 4, 70 * k, 22 * k)
@@ -1039,30 +998,31 @@ class BattleScene extends Phaser.Scene {
     this.changed()
   }
 
-  // Skip, on turns: every beat queued plays now.
+  // Skip: every beat queued plays now.
   flush () {
     if (!this.player.finished) this.playMs = Math.max(this.playMs, this.player.end)
   }
 
-  // The selected piece's panel for the chrome (ui.js battleChrome): its HP and Move, each act it has (a skill's rest,
-  // whether it may be used now and on how many), Undo, the fusions lit beside it, and on the Monarch whether Arise is
-  // held. Null with none selected.
+  // The selected piece's panel for the chrome (ui.js battleChrome): its HP and Move, the relics it holds, each act it
+  // has (a skill's rest, whether it may be used now and on how many; Arise's reach and tier for a holder of its relic:
+  // redesign.md §2.15), Undo, and the fusions lit beside it. Null with none selected (the Monarch never is: it takes
+  // no orders).
   panel () {
     const b = this.battle
     const s = this.sel
     const u = s && b.byUid.get(s.uid)
     if (!u || !alive(u)) return null
     const free = !this.locked()
-    const arise = u === b.monarch && b.relics.includes('arise')
-    // The Monarch's one act is Arise, and only while the relic is held; no other piece raises.
-    const mine = u === b.monarch ? (arise ? u.kit.filter((a) => a.shape === 'corpse') : []) : u.kit.filter((a) => a.shape !== 'corpse')
-    const acts = mine.map((a) => {
+    const acts = u.kit.map((a) => {
       const can = free && canAct(b, u) && usable(b, u, a)
-      return { id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, armed: a.id === s.ability, can, targets: can ? targetsFrom(b, u, a).length : 0 }
+      return {
+        id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, armed: a.id === s.ability, can,
+        targets: can ? targetsFrom(b, u, a).length : 0, arise: a.shape === 'corpse' ? ariseOf(b, u) : null
+      }
     })
     return {
-      uid: u.uid, id: u.id, monarch: u === b.monarch, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, acted: u.acted, hexed: hexed(u),
-      acts, aim: s.aim != null, undo: free && this.undoable(u), arise,
+      uid: u.uid, id: u.id, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, acted: u.acted, hexed: hexed(u), relics: u.relics ?? [],
+      acts, aim: s.aim != null, undo: free && this.undoable(u),
       fusions: free ? legalOrders(b).filter((o) => o.type === 'fuse' && o.uid === u.uid).map((o) => ({ order: o, name: FUSIONS[o.id].name, price: b.fuse?.[o.id]?.price ?? null })) : []
     }
   }
@@ -1119,8 +1079,8 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
-  // A step to the next tile, hopping; whatever tween was moving the sprite (an entrance, a step) gives way. On turns
-  // a move walks its whole path (ev.path), a hop a tile, STEP_MS each; an undo goes straight back.
+  // A move walks its whole path (ev.path), hopping, a tile STEP_MS; an undo goes straight back. Whatever tween was
+  // moving the sprite (an entrance, a glide) gives way.
   walk (ev) {
     const a = this.actors.get(ev.actor)
     if (!a || a.gone) return
@@ -1128,7 +1088,7 @@ class BattleScene extends Phaser.Scene {
     a.tile = ev.to
     a.home = posAt(ev.to, a.fp)
     this.halt(a)
-    const ms = this.turns ? STEP_MS : WALK_MS
+    const ms = STEP_MS
     const lean = Math.sign(a.home.x - a.sprite.x) || 1
     if (path.length === 1) this.tweens.add({ targets: a.sprite, x: a.home.x, y: a.home.y, duration: ms, ease: 'Sine.InOut' })
     else {
@@ -1173,7 +1133,6 @@ class BattleScene extends Phaser.Scene {
     this.tweens.killTweensOf(a.trail)
     this.tweens.add({ targets: a.trail, width: 0, duration: 300, ease: 'Quad.Out' })
     if (a.uid === this.monarch) this.crownHp(a)
-    a.gaugeBar.width = 0
     a.ring.setVisible(false)
     this.picture(a, 'alive')
     // A unit can die mid-step: it is sent the rest of the way to its tile now.
@@ -1197,7 +1156,7 @@ class BattleScene extends Phaser.Scene {
 
   // What stands beside a unit's picture: its bars, its pool of shadow, its growth.
   parts (a) {
-    return [a.bar, a.trail, a.barBg, a.gaugeBar, a.shadow, ...(a.pips ?? []), ...(a.growth?.parts ?? [])].filter(Boolean)
+    return [a.bar, a.trail, a.barBg, a.shadow, ...(a.pips ?? []), ...(a.growth?.parts ?? [])].filter(Boolean)
   }
 
   // The Sovereign has fallen, and every foe left crumbles to dust where it stands, out from it like a ripple,
@@ -1214,7 +1173,6 @@ class BattleScene extends Phaser.Scene {
     a.gone = true
     a.hp = 0
     this.drop(a)
-    a.gaugeBar.width = 0
     a.bar.width = 0
     a.ring.setVisible(false)
     a.walker?.stop()
@@ -1234,11 +1192,10 @@ class BattleScene extends Phaser.Scene {
 
   // Arise: the beam reaches the corpse, the corpse sinks away, and its shadow climbs out of the ground where it
   // lay in a ring of pale light, then glides, a wisp trailing it, to the tile it rises on (DESIGN §2.5: the free
-  // tile nearest the Monarch; `from` is the corpse's). It runs as the beam is cast, not at its impact, because the
-  // shadow may step or act within a few ticks: a step takes the glide over from wherever it has got to (walk). The
-  // Sovereign's Grave Tide raises the field's dead the same way on the foes' side, in a bruised-rose light, and so
-  // does a Legion there. The Legion (Undead 8, `ev.rule`) raises with no beam and no actor (ev.actor may be null),
-  // the moment its corpse falls: it waits for the fall to land.
+  // tile nearest the Monarch; `from` is the corpse's). It runs as the beam is cast, not at its impact, so the glide
+  // is under way as the beat ends. The Sovereign's Grave Tide raises the field's dead the same way on the foes' side,
+  // in a bruised-rose light, and so does a Legion there. The Legion (Undead 4, `ev.rule`) raises with no beam and no
+  // actor (ev.actor may be null), the moment its corpse falls: it waits for the fall to land.
   arise (ev) {
     const LAND = ev.rule === 'legion' ? 620 : 340
     const glow = ev.unit.side === 'foe' ? ROT : RISE
@@ -1257,7 +1214,7 @@ class BattleScene extends Phaser.Scene {
     a.pose = { ...REST, sx: -0.3, sy: -0.75 }
     for (const part of this.parts(a)) part.setAlpha(0)
     this.tweens.add({ targets: a.rise, v: 1, delay: LAND, duration: 520, ease: 'Sine.Out' })
-    this.tweens.add({ targets: [a.bar, a.trail, a.barBg, a.gaugeBar], alpha: 1, delay: LAND + 300, duration: 300 })
+    this.tweens.add({ targets: [a.bar, a.trail, a.barBg], alpha: 1, delay: LAND + 300, duration: 300 })
     this.tweens.add({ targets: a.shadow, alpha: 1, delay: LAND, duration: 400 })
     this.animate(a, [
       { to: { sx: -0.3, sy: -0.75 }, ms: LAND },
@@ -1287,8 +1244,8 @@ class BattleScene extends Phaser.Scene {
   }
 
   // A unit enters a battle under way: a foe of a later wave comes in over the far edge (see arrive); one of
-  // yours fades in out of the dark in a soft ring of soulfire. It plays at once, not at an action's impact: it
-  // may step or act within the same tick.
+  // yours (a fused piece) fades in out of the dark in a soft ring of soulfire. It plays at once, not at an action's
+  // impact.
   enter (ev) {
     this.units.set(ev.unit.uid, this.battle.byUid.get(ev.unit.uid) ?? this.battle.units.find((x) => x.uid === ev.unit.uid))
     this.addActor(ev.unit)
@@ -1347,7 +1304,7 @@ class BattleScene extends Phaser.Scene {
     this.shake(180, 0.003)
   }
 
-  // On turns: a turn of yours begins. Its counts go to the chrome, and its number shows a moment over the board.
+  // A turn of yours begins. Its counts go to the chrome, and its number shows a moment over the board.
   newTurn (ev) {
     this.clock = { turn: ev.turn, cap: ev.cap, next: ev.next }
     this.changed()
@@ -1366,8 +1323,8 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: this.flagged, alpha: 0, delay: 650, duration: 300, onComplete: () => { plate.destroy(); t.destroy() } })
   }
 
-  // On turns, a fusion in battle: its parts are drawn into the fuser's tile and go, and the fused piece rises there
-  // out of soulfire (enter).
+  // A fusion in battle: its parts are drawn into the fuser's tile and go, and the fused piece rises there out of
+  // soulfire (enter).
   fused (ev) {
     const at = posAt(ev.unit.tile, ev.unit.size ?? 1)
     for (const uid of ev.parts) {
@@ -1420,9 +1377,8 @@ class BattleScene extends Phaser.Scene {
   // ── the board, statuses, HP and essence ──────────────────────────────────────────────────────
 
   // Burning and Hexed, worn while held (DESIGN §4), read from the unit each frame: flames licking up a burning
-  // picture, quicker for each stack, and a violet pall over a hexed one; on turns every other status a fainter pall
-  // in its def's colour (palls). Gone with the status, or the unit. The flames keep the playback clock, so pause
-  // holds them.
+  // picture, quicker for each stack, and a violet pall over a hexed one; every other status a fainter pall in its
+  // def's colour (palls). Gone with the status, or the unit. The flames keep the playback clock, so pause holds them.
   wear (a, u) {
     const held = (id) => (!a.gone && u?.hp > 0 && u.statuses?.find((x) => x.id === id)) || null
     const burn = held('burning')
@@ -1432,7 +1388,7 @@ class BattleScene extends Phaser.Scene {
       const w = a.sprite.displayWidth * 0.26
       this.flames.explode(1, a.vx + (Math.random() * 2 - 1) * w, top + (a.chest - a.fly) * (0.1 + Math.random() * 0.7))
     }
-    if (this.turns) this.palls(a, u, top)
+    this.palls(a, u, top)
     const hexed = !!held('hexed')
     if (hexed && !a.pall) a.pall = this.add.image(0, 0, 'glow').setTint(HEX).setBlendMode(Phaser.BlendModes.ADD)
     if (!a.pall) return
@@ -1443,8 +1399,8 @@ class BattleScene extends Phaser.Scene {
       .setDepth(a.sprite.depth + 0.2).setAlpha(pulse * a.fade * a.rise.v)
   }
 
-  // On turns (redesign.md §2.8): each status held but the two drawn their own way, a pall in its colour, faint and
-  // layered a little lower and narrower each, made as it lands and gone with it.
+  // Each status held but the two drawn their own way (redesign.md §2.8), a pall in its colour, faint and layered a
+  // little lower and narrower each, made as it lands and gone with it.
   palls (a, u, top) {
     const want = !a.gone && u?.hp > 0 ? u.statuses.filter((x) => x.id !== 'hexed' && x.id !== 'burning' && statusDef(x.id).colour) : []
     if (!want.length && !a.palls?.size) return
@@ -1461,8 +1417,7 @@ class BattleScene extends Phaser.Scene {
 
   decorate (start) {
     drawGround(this)
-    // The camp's walls, and a rune under every other tile, in its side's colour; the tiles the battle starts on glow
-    // (not on turns, where the pieces move off them).
+    // The camp's walls, and a rune under every other tile, in its side's colour.
     const g = this.add.graphics().setDepth(-400)
     const zone = (y) => (y < CAMP_ROWS ? PARTY : y >= DEPTH - ROWS ? FOE : NEUTRAL)
     const walls = new Set(start.walls)
@@ -1472,52 +1427,15 @@ class BattleScene extends Phaser.Scene {
       this.add.image(p.x, p.y + 8, WALLS[(tile * 7 + (tile >> 3)) % WALLS.length]).setOrigin(0.5, WALL_FOOT)
         .setScale(WALL_SCALE / RES).setFlipX(tile % 2 === 1).setDepth(p.y)
     }
-    const occupied = new Set(this.turns ? [] : start.units.flatMap((u) => footprint(u.tile, u.size ?? 1) ?? [u.tile]))
     for (let tile = 0; tile < TILES; tile++) {
       if (walls.has(tile)) continue
       const p = posOf(tile)
-      const colour = zone(tileY(tile))
-      const on = occupied.has(tile)
-      g.lineStyle(1.2, colour, on ? 0.5 : 0.14).strokeEllipse(p.x, p.y + 6, 50, 15)
-      if (on) this.add.image(p.x, p.y + 6, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(70, 22).setAlpha(0.3).setDepth(-380)
+      g.lineStyle(1.2, zone(tileY(tile)), 0.14).strokeEllipse(p.x, p.y + 6, 50, 15)
     }
-    // The words (their title and synergies, yours, the Monarch's HP) stand in the page's chrome (args.hud).
-    const syn = (side) => topSteps(start.synergies.filter((s) => s.side === side).map((s) => s.id))
-    this.args.hud?.start({ title: this.args.title ?? `FLOOR ${this.battle.floor}`, theirs: syn('foe'), mine: syn('party'), monarch: start.monarch != null })
+    // The words (the title, the Monarch's HP; the synergies come live: changed) stand in the page's chrome (args.hud).
+    this.args.hud?.start({ title: this.args.title ?? `FLOOR ${this.battle.floor}`, monarch: start.monarch != null })
     const m = start.units.find((u) => u.uid === start.monarch)
-    if (!m) return
-    // The domain only while the run holds the Arise relic (battle.held.arise): without it the domain does nothing.
-    if (this.battle.held?.arise > 0) this.drawDomain(m.tile)
-    this.crownHp(m)
-  }
-
-  // Arise's reach (the domain): every tile within `this.domain` of `centre` (the Monarch's), clipped to the board.
-  drawDomain (centre) {
-    const box = ringBox(centre, this.domain, 4)
-    const d = this.add.graphics().setDepth(-395)
-    d.fillStyle(DOMAIN, 0.035).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
-    d.lineStyle(1.5, DOMAIN, 0.4).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
-    // Just outside the box, on a dark plate (as the prep board's: board.js drawDomain), over the units (no body
-    // cuts it), at whichever corner covers fewest of them (placeDomain).
-    const label = domainLabel(this, this.domain).setDepth(7000)
-    legible(label, this.cameras.main.zoom, 'word')
-    ;(this.small ??= []).push(label)
-    this.domLabel = { t: label, box }
-    this.placeDomain()
-  }
-
-  // The domain's caption, outside its box where it covers the fewest bodies and bars standing now, inside the
-  // room the camera keeps (fit: placed again when the zoom rescales it).
-  placeDomain () {
-    const d = this.domLabel
-    if (!d?.t.active) return
-    const blocked = []
-    for (const a of this.actors?.values() ?? []) {
-      if (a.gone) continue
-      const s = a.sprite.getBounds()
-      blocked.push({ l: s.x + s.width * 0.15, r: s.right - s.width * 0.15, t: s.y, b: a.sprite.y + BAR_DROP + 8 })
-    }
-    placeOutside(d.t, d.box, BOX, blocked)
+    if (m) this.crownHp(m)
   }
 
   // Undying: a piece that just fell is up again at once, on its own tile. Its fall is cut short: it slumps
@@ -1526,8 +1444,8 @@ class BattleScene extends Phaser.Scene {
     a.gone = false
     a.hp = ev.hp
     if (a.fly) this.tweens.add({ targets: a, hover: a.fly, duration: 300, ease: 'Sine.Out' })
-    this.tweens.killTweensOf([a.bar, a.trail, a.barBg, a.gaugeBar, a.shadow])
-    for (const part of [a.bar, a.trail, a.barBg, a.gaugeBar, a.shadow]) part.setAlpha(1)
+    this.tweens.killTweensOf([a.bar, a.trail, a.barBg, a.shadow])
+    for (const part of [a.bar, a.trail, a.barBg, a.shadow]) part.setAlpha(1)
     a.bar.width = a.trail.width = BAR * Math.max(0, a.hp / a.maxHp)
     a.sprite.clearTint().setTintMode(Phaser.TintModes.MULTIPLY)
     // Its growth, faded with its fall: back with it.
@@ -1672,13 +1590,14 @@ class BattleScene extends Phaser.Scene {
     if (ev.type === 'enter') return this.enter(ev)
     // The opening formation is wave 1 but stands there from the start: only a later wave is announced.
     if (ev.type === 'wave') { this.changed(); return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined }
-    // On turns: a turn of yours begins (its counts for the chrome), the foes' turn begins, a fusion in battle.
+    // A turn of yours begins (its counts for the chrome), the foes' turn begins, a fusion in battle.
     if (ev.type === 'turn') return this.newTurn(ev)
     if (ev.type === 'stage') return ev.stage === 'foes' ? this.flag('THE FOES\' TURN', '#ff8a9a', FOE) : undefined
     if (ev.type === 'fuse') return this.fused(ev)
     if (ev.type === 'action') {
       // A counter: the struck answers at once, and says so over itself.
       if (ev.counter) { const x = this.actors.get(ev.actor); if (x) this.floating(x, 'COUNTER', '#ffb27a', 11) }
+      this.deadeye(ev)
       return this.reshaped(ev, this.actors.get(ev.actor))
     }
     if (ev.type === 'rule') return this.rule(ev)
@@ -1707,19 +1626,18 @@ class BattleScene extends Phaser.Scene {
         this.tweens.killTweensOf(a.trail)
         if (ev.type === 'damage') {
           this.tweens.add({ targets: a.trail, width: w, delay: 260, duration: 380, ease: 'Quad.Out' })
-          if (ev.isCrit) this.deadeye(ev, a)
           if (ev.damage > 0) {
             // Knocked back from the attacker; a tick of poison or burn has no attacker to face, so it shudders.
             this.strike(a, 'hurt', inAction ? this.actors.get(ev.actor) : null)
             this.flash(a)
-            this.burst(a.sprite.x, a.sprite.y - a.chest, tint(ev.ability), ev.isCrit ? 22 : 9, { speed: ev.isCrit ? 220 : 140 })
-            // A crit shakes; so does the Monarch struck, at most once a second (a mob on it is not a quake).
-            if (ev.isCrit) { this.shake(140, 0.005); this.hitStop(55) } else if (a.uid === this.monarch && !(this.playMs - this.monarchShook < 1000)) {
+            this.burst(a.sprite.x, a.sprite.y - a.chest, tint(ev.ability), 9, { speed: 140 })
+            // The Monarch struck shakes, at most once a second (a mob on it is not a quake).
+            if (a.uid === this.monarch && !(this.playMs - this.monarchShook < 1000)) {
               this.monarchShook = this.playMs
               this.shake(120, 0.003)
             }
             // The Monarch struck has its own, heavier sound: if it falls, the run ends.
-            sfx.play(a.uid === this.monarch ? 'monarchHit' : ev.isCrit ? 'crit' : 'hit')
+            sfx.play(a.uid === this.monarch ? 'monarchHit' : 'hit')
           }
         } else {
           a.trail.width = w
@@ -1761,10 +1679,7 @@ class BattleScene extends Phaser.Scene {
       case 'cleanse':
         this.burst(a.sprite.x, a.sprite.y - a.chest, BOON, 6, { up: true, speed: 40 })
         break
-      case 'gauge':
-        this.burst(a.sprite.x, a.sprite.y - a.chest, GAUGE, 6, { speed: 60 })
-        break
-      // On turns: a Hexed unit's act is lost.
+      // A Hexed unit's act is lost.
       case 'hexed':
         this.floating(a, 'HEXED', '#c9a6ff', 12)
         this.burst(a.sprite.x, a.sprite.y - a.chest, HEX, 8, { up: true, speed: 50 })
@@ -1784,8 +1699,8 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
-  // A rule (an 8 step) at work: its name rises over the unit it acts through, the synergies' blue for yours,
-  // red for theirs, in a burst of its side's colour. Ambush has no one unit: every gauge on its side flares. Sanctuary, Echo,
+  // A synergy's rule at work: its name rises over the unit it acts through, the synergies' blue for yours, red for
+  // theirs, in a burst of its side's colour. Ambush has no one unit: every piece on its side flares. Sanctuary, Echo,
   // Dragonfire and Deadeye strike on nearly every cast, so theirs rises at most once a NOISY_MS per side. The first time a
   // side's rule strikes in a battle, its name is also announced over that side's labels (announce).
   rule (ev) {
@@ -1822,8 +1737,8 @@ class BattleScene extends Phaser.Scene {
     this.args.hud?.announce(`${r.step} · ${r.name}`, mine)
   }
 
-  // Rules with no event of their own, seen in the action: Dragonfire (Drake 8) bursts a single-target attack
-  // over the foes around its target, Sanctuary (Warden 8) carries an ally ability to every ally: a one-ally
+  // Rules with no event of their own, seen in the action: Dragonfire (Drake 4) bursts a single-target attack
+  // over the foes around its target, Sanctuary (Warden 4) carries an ally ability to every ally: a one-ally
   // one to several, an all-allies one (Dirge, Barkskin) to one beyond its range. Both are named on the actor:
   // the sim lists the targets in acting order, not the struck one first.
   reshaped (ev, a) {
@@ -1837,12 +1752,13 @@ class BattleScene extends Phaser.Scene {
     if (rule) this.rule({ type: 'rule', rule, side: a.side, actor: ev.actor })
   }
 
-  // Deadeye (Ranger 8) only fixes a ranged blow's roll (it never misses, and crits), so it has no event of its
-  // own: a ranged crit on a foe of a side holding it is named on the striker.
-  deadeye (ev, target) {
+  // Deadeye (Ranger 4) only sharpens a ranged blow, so it has no event of its own: a ranged blow at the other side,
+  // struck by a side holding it, is named on the striker.
+  deadeye (ev) {
     const by = this.battle.byUid.get(ev.actor)
-    if (!by || by.side === target.side || !ev.ability || abilityDef(ev.ability).melee) return
-    if (rulesOf(this.battle, by.side).has('deadeye')) this.rule({ type: 'rule', rule: 'deadeye', side: by.side, actor: ev.actor })
+    const at = this.battle.byUid.get(ev.targets?.[0])
+    if (!by || !at || by.side === at.side || !ev.ability || !isBlow(abilityDef(ev.ability)) || abilityDef(ev.ability).melee) return
+    if (holds(this.battle, by.side, 'deadeye')) this.rule({ type: 'rule', rule: 'deadeye', side: by.side, actor: ev.actor })
   }
 
   // Canvas text, drawn at 3× so it stays sharp when the camera zooms.
@@ -1909,11 +1825,9 @@ class BattleScene extends Phaser.Scene {
     // Any orb still in the air (or cut short) is counted before the screen fades.
     this.time.delayedCall(1400, () => { this.purse = this.owed; this.changed() })
     const colour = won ? SOUL : FOE
-    // The domain's caption (over the units) gives way to the banner.
-    if (this.domLabel?.t.active) this.tweens.add({ targets: this.domLabel.t, alpha: 0, duration: 200 })
     const reason = this.battle.reason
-    // The clock ran out: the old battle's ceiling, or on turns its cap.
-    const capped = reason === 'tick-ceiling' || reason === 'turn-cap'
+    // The clock ran out: its cap.
+    const capped = reason === 'turn-cap'
     const death = !won ? this.args.death?.() ?? null : null
     // A wave the Sovereign's fall cut short pays for the slain it had (a lost battle pays nothing).
     if (won && this.waves.length > 1) this.waves.forEach((_, k) => this.wavePaid(k))
@@ -1922,7 +1836,7 @@ class BattleScene extends Phaser.Scene {
     const [title, line] = won ? (this.battle.boss ? ['THE SOVEREIGN FALLS', `${reason === 'sovereign' ? 'Its court crumbled with it. ' : ''}The run is cleared.`] : ['VICTORY', 'The souls of the slain linger, waiting to be reaped.'])
       : death ? [capped ? 'THE DARK CLOSES IN' : 'THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
         : reason === 'monarch' ? ['THE MONARCH FALLS', `Its retinue crumbles with it. The run is over.${clear}`]
-          : capped ? ['THE DARK CLOSES IN', `Still undecided at the last ${this.turns ? 'turn' : 'moment'}: the run is lost.${clear}`]
+          : capped ? ['THE DARK CLOSES IN', `Still undecided at the last turn: the run is lost.${clear}`]
             : ['YOUR RETINUE FALLS', 'The dead return to the dark.']
     const killer = death && reason === 'monarch' && death.from != null && death.by !== this.monarch ? death.from : null
     const crown = this.actors.get(this.monarch)
@@ -1970,23 +1884,19 @@ class BattleScene extends Phaser.Scene {
 
 // ── timeline player ──────────────────────────────────────────────────────────────────────────────
 
-// Sim events → tweens, poses and FX. The player only reads events; it never computes a result.
-// Events are appended as the battle steps (always in tick order) and played when the playhead,
-// which the scene drives with the same clock as the sim, reaches their tick. On turns (`beats`) there is no clock:
-// events come an order at a time, stamped with a beat, and each beat plays once the one before has had its time
-// (spanOf: an action its animation, a move its path), never before now.
+// Sim events → tweens, poses and FX. The player only reads events; it never computes a result. Events come an order
+// at a time, stamped with a beat, and each beat plays once the one before has had its time (spanOf: an action its
+// animation, a move its path), never before now: the playhead is the scene's playback clock.
 
 const ESSENTIAL = new Set(['anim', 'popup', 'tween'])
 
 class TimelinePlayer {
-  constructor (scene, { template, actorOf, tickMs = 50, beats = false, onEvent = null }) {
+  constructor (scene, { template, actorOf, onEvent = null }) {
     this.scene = scene
     this.template = template
     this.actorOf = actorOf
-    this.tickMs = tickMs
-    this.beats = beats
     this.onEvent = onEvent
-    // On turns: when the last beat began (tail), how long it takes (span), and its index (last).
+    // When the last beat began (tail), how long it takes (span), and its index (last).
     this.tail = 0
     this.span = 0
     this.last = null
@@ -2000,19 +1910,17 @@ class TimelinePlayer {
     this.count = 0
   }
 
-  // An `action` owns the events that follow it in the same batch and tick (its damage, statuses…), or on turns the
-  // same beat. One stepBattle call is one tick, and one order's events end its beats, so a beat never spans two
-  // enqueue calls.
+  // An `action` owns the events that follow it in the same beat (its damage, statuses…). One order's events end its
+  // beats, so a beat never spans two enqueue calls.
   enqueue (events) {
     let beat = null
-    const key = (ev) => (this.beats ? ev.beat : ev.t)
     for (const ev of events) {
       this.seq.set(ev, this.count++)
-      const at = this.beats ? this.slot(ev) : ev.t * this.tickMs
+      const at = this.slot(ev)
       if (ev.type === 'action') {
         beat = { at, action: ev, results: [] }
         this.queue.push(beat)
-      } else if (beat && key(ev) === key(beat.action)) {
+      } else if (beat && ev.beat === beat.action.beat) {
         beat.results.push(ev)
       } else {
         this.queue.push({ at, action: null, results: [ev] })
@@ -2021,7 +1929,7 @@ class TimelinePlayer {
     }
   }
 
-  // On turns: when `ev` plays (its beat's start), each beat after the last has had its span, and none before now.
+  // When `ev` plays (its beat's start): each beat after the last has had its span, and none before now.
   slot (ev) {
     if (ev.beat !== this.last) {
       this.tail = Math.max(this.tail + this.span, this.playhead)
@@ -2032,7 +1940,7 @@ class TimelinePlayer {
     return this.tail
   }
 
-  // On turns, the playhead skips ahead to the last beat's end: every beat queued plays now (Skip).
+  // The last beat's end: the playhead skips ahead to it, and every beat queued plays now (Skip).
   get end () {
     return this.tail + this.span
   }
@@ -2042,9 +1950,9 @@ class TimelinePlayer {
     this.scene.tweens.timeScale = n
   }
 
-  // Every beat played (on turns, the last one's time run too).
+  // Every beat played, the last one's time run too.
   get finished () {
-    return this.cursor >= this.queue.length && this.scheduled.length === 0 && (!this.beats || this.playhead >= this.tail + this.span)
+    return this.cursor >= this.queue.length && this.scheduled.length === 0 && this.playhead >= this.tail + this.span
   }
 
   update (playhead) {
@@ -2067,8 +1975,8 @@ class TimelinePlayer {
     const impact = tpl?.steps.find((s) => s.op === 'popup')?.t ?? 0
     beat.results.forEach((ev, i) => {
       const run = () => this.onEvent?.(ev, !!beat.action, this.seq.get(ev))
-      // A move, a shadow rising (see arise) and a unit entering (see enter) play at once: the newcomer may
-      // act within a few ticks. An Echo's second pass lands a beat after the first (echoed).
+      // A move, a shadow rising (see arise) and a unit entering (see enter) play at once, as their beat begins. An
+      // Echo's second pass lands a moment after the first (echoed).
       const at = impact + echoed(beat, i)
       if (at && ev.type !== 'move' && ev.type !== 'arise' && ev.type !== 'enter') this.scheduled.push({ at: this.playhead + at, run })
       else run()
@@ -2121,7 +2029,7 @@ class TimelinePlayer {
   }
 }
 
-// On turns, how long a beat takes once begun, by its longest event (playhead ms, so a faster speed shortens it): an
+// How long a beat takes once begun, by its longest event (playhead ms, so a faster speed shortens it): an
 // action its animation's (content.js ANIMS dur), a move a tile of its path a STEP_MS, the rest what their pictures
 // need to read (a wave's banner, a shadow rising, the foes' turn's word).
 function spanOf (ev, template) {
@@ -2178,7 +2086,7 @@ const STEPS = {
     const { actor, primary } = refs
     if (!primary || primary === actor) return
     const angle = Math.atan2(primary.sprite.y - actor.sprite.y, primary.sprite.x - actor.sprite.x)
-    const flip = refs.beat.action.t % 2 ? 1 : -1
+    const flip = refs.beat.action.beat % 2 ? 1 : -1
     const arc = p.scene.add.image(primary.sprite.x, primary.sprite.y - primary.chest, 'slash')
       .setTint(tint(refs.beat.action.ability)).setBlendMode(Phaser.BlendModes.ADD).setDepth(9250)
       .setRotation(angle).setScale(0.35, 0.35 * flip).setAlpha(0)
@@ -2211,7 +2119,7 @@ const STEPS = {
   },
 
   // A template's shake is a routine blow's: calm by default, it shakes only when the template says `always`.
-  // The heavy blows (a crit, the Monarch struck) shake through their events instead (BattleScene.shake).
+  // The heavy blows (the Monarch struck, a heavy fall) shake through their events instead (BattleScene.shake).
   shake (p, step) {
     if (step.always) p.scene.shake(step.dur ?? 120, (step.mag ?? 4) / 900)
   },
@@ -2224,8 +2132,7 @@ const STEPS = {
       const value = ev.type === 'heal' ? ev.heal : ev.damage
       const target = p.actorOf(ev.target)
       if (!value || !target) return
-      const run = () => p.scene.floating(target, `${ev.type === 'heal' ? '+' : ''}${value}${ev.isCrit ? '!' : ''}`,
-        ev.type === 'heal' ? '#7be0a0' : ev.isCrit ? '#ffd28a' : '#f4ece0', ev.isCrit ? 18 : 13)
+      const run = () => p.scene.floating(target, `${ev.type === 'heal' ? '+' : ''}${value}`, ev.type === 'heal' ? '#7be0a0' : '#f4ece0', 13)
       const late = echoed(refs.beat, i)
       if (late) p.scheduled.push({ at: p.playhead + late, run })
       else run()
@@ -2234,4 +2141,4 @@ const STEPS = {
 }
 
 // The board's measures and colours, for the prep board (board.js), which draws the very board a battle plays on.
-export { RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, posAt, BIG, HOVER, BOB, tileUnder, cellsBox, facesLeft, WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, NEUTRAL, FONT, hex }
+export { RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, posAt, BIG, HOVER, BOB, tileUnder, cellsBox, facesLeft, WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, RELIC, NEUTRAL, FONT, hex }

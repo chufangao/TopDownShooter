@@ -272,11 +272,12 @@ const PATHS = {
   // Sound on (a speaker and its waves) and muted (the speaker crossed out).
   sound: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" fill-opacity=".25"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
   mute: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" fill-opacity=".25"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
-  // A unit card's stats: HP a heart, ATK a sword, DEF a shield, SPD a bolt.
+  // A unit card's stats: HP a heart, ATK a sword, DEF a shield (Move's footprints below).
   hp: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.3a4.2 4.2 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" fill="currentColor" fill-opacity=".25"/>',
   atk: '<path d="M19.5 4.5L10 14M19.5 4.5h-4M19.5 4.5v4M7 11.5l5.5 5.5M9.8 14.2l-4.6 4.6"/><circle cx="4.6" cy="19.4" r="1"/>',
   def: '<path d="M12 3l7 2.8v5.4c0 4.6-3 7.9-7 9.8-4-1.9-7-5.2-7-9.8V5.8z" fill="currentColor" fill-opacity=".2"/>',
-  spd: '<path d="M13.5 2.5L5.5 13.5h6l-1 8 8-11h-6z" fill="currentColor" fill-opacity=".2"/>',
+  // Move: a piece's steps, two footprints and the way ahead.
+  move: '<path d="M3 16.5h3M8.5 16.5h3" stroke-dasharray="0"/><path d="M14 16.5h6.5M17.5 13.5l3 3-3 3"/><ellipse cx="6" cy="8.5" rx="2" ry="3" fill="currentColor" fill-opacity=".25"/><ellipse cx="12" cy="6.5" rx="2" ry="3" fill="currentColor" fill-opacity=".25"/>',
   levelup: '<path d="M6 12.5l6-6 6 6M6 18.5l6-6 6 6"/>',
   // The Monarch's Command: a banner.
   command: '<path d="M6 21.5V2.5"/><path d="M6 4h12v8l-3-2.2L12 12H6z" fill="currentColor" fill-opacity=".25"/>',
@@ -284,16 +285,12 @@ const PATHS = {
   stairs: '<path d="M3.5 6.5h4.5V11h4.5v4.5H17v4.5h3.5"/><path d="M3.5 20.5h17" stroke-opacity=".4"/>',
   hood: '<path d="M12 3c-4 0-6.5 3.6-6.5 8.2v9.3h13v-9.3C18.5 6.6 16 3 12 3z"/><path d="M9 13c0-2.2 1.3-3.8 3-3.8s3 1.6 3 3.8v2.5H9z" fill="currentColor" fill-opacity=".35"/>',
   bone: '<path d="M9.6 14.4l4.8-4.8"/><circle cx="6.4" cy="15.6" r="2"/><circle cx="8.4" cy="17.6" r="2"/><circle cx="15.6" cy="6.4" r="2"/><circle cx="17.6" cy="8.4" r="2"/>',
-  // The rest of a card's stats: ACC a crosshair, EVA a dodge's swept lines, CRT a burst.
-  acc: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/>',
-  eva: '<path d="M4 7h9M2.5 12h8M4 17h9"/><path d="M14.5 5.5c3.5 1.5 5 4 5 6.5s-1.5 5-5 6.5" />',
-  crt: '<path d="M12 2.5l1.8 6 6-1.8-4.2 4.8 4.2 4.8-6-1.8-1.8 6-1.8-6-6 1.8 4.2-4.8L4.2 6.7l6 1.8z" fill="currentColor" fill-opacity=".2"/>',
   // The run's tabs: the Field a board of tiles, the Map a route of rooms, the Codex a book.
   field: '<rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M3.5 9.2h17M3.5 14.8h17M9.2 3.5v17M14.8 3.5v17"/><circle cx="12" cy="17.6" r="1.4" fill="currentColor"/>',
   map: '<circle cx="5" cy="17.5" r="2"/><circle cx="12" cy="7" r="2"/><circle cx="19" cy="15" r="2"/><path d="M6.4 16l4.2-7.4M13.6 8.3l4 5.2" stroke-dasharray="2 1.6"/>',
   codex: '<path d="M4 5.5c2.7-1.3 5.4-1.3 8 0v14c-2.6-1.3-5.3-1.3-8 0zM20 5.5c-2.7-1.3-5.4-1.3-8 0v14c2.6-1.3 5.3-1.3 8 0z" fill="currentColor" fill-opacity=".15"/>',
-  // A piece's ring: the tile it stands on in the square it fights within.
-  ring: '<rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="3.2 2.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/>',
+  // A piece's reach: the tile it stands on in the square its blows reach.
+  reach: '<rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="3.2 2.2"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/>',
   // A fusion: three souls drawn into one.
   fuse: '<circle cx="5.5" cy="6.5" r="2.2"/><circle cx="18.5" cy="6.5" r="2.2"/><circle cx="12" cy="3.8" r="1.8"/><path d="M7 8.5l3.2 4.2M17 8.5l-3.2 4.2M12 5.8v6"/><circle cx="12" cy="16.5" r="4.5" fill="currentColor" fill-opacity=".25"/>',
   search: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/>',

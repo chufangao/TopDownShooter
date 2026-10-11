@@ -84,11 +84,9 @@ action: `replay(seed, log)` plays the battle back exactly, order by order.
 - A move may be **undone** until the piece acts (nothing hidden is revealed by a move; the sim is deterministic).
 - **A blow shows its damage before you commit**: the exact number (§2.6) on the target, and the counter it would
   take (§2.6) on the attacker. Nothing of the foes' own turn is shown (§7).
-- **The Monarch's act is Arise**, once the relic is held: **once a turn, one corpse within its reach rises**, of a
-  tier the relic allows, chosen by the player among those that qualify. Each copy of the relic grows the reach by a
-  tile and the tier by one (`TUNING.arise = { domain, tier, more: { domain, tier } }`). No cap a battle, no cooldown,
-  no haste: the turn is the cap. Hollow Court, Blood Tithe and Court of Bone are rules on it as before (§2.13).
-  The Monarch never strikes.
+- **Arise is a skill of the piece that holds the relic** (§2.15; this replaced "the Monarch's act" the same
+  night): one corpse within its reach rises, of a tier the relic allows, chosen by the player. The Monarch holds no
+  relic, never strikes and never raises.
 - **Fuse in battle.** A piece with every part of one of its recipes standing within a tile of it (footprints
   counted) may fuse as its act: the run pays `fuseCost` from the purse as it stood when the battle began, the parts
   are consumed where they stand, and the result stands on the fuser's anchor at full HP with fresh cooldowns, its
@@ -119,9 +117,8 @@ basic, and dies on floor 1.
   answered at once by the target's basic melee blow, both sides alike. A ranged blow is never countered; a piece
   struck in melee counters only if its basic blow is melee (a Frost Sprite does not). One counter a blow; a Hexed
   piece (§2.8) does not counter; a counter never counters.
-- **Deterministic.** Every blow hits, none crits, damage is the mean of what `computeDamage` gives today: with
-  `TUNING.dice` false (the default) `hitChance`, `critChance` and `rollVariance` are not consulted. The dice path
-  stays behind the switch and is not deleted (the user's "leave open"). ACC, EVA and CRT leave the stat block and
+- **Deterministic** (§2.16: no dice at all, the path deleted). Every blow hits, none crits, damage is the mean of
+  what `computeDamage` gives today. ACC, EVA and CRT leave the stat block and
   the cards; the content pass converts their mods: an EVA mod → DEF of the same percent (Veiled +20 EVA → +20% DEF;
   the Will-o'-Wisp's 22 → DEF; Fae 2's step goes with the stat steps, §2.13), an ACC or CRT mod → ATK or damage
   dealt of the same percent, Deadeye (Ranger 8) → ranged blows of yours deal 50% more. Placeholders.
@@ -332,6 +329,46 @@ Vocabulary after it: Piece, Summon, Road, Wave, Shadow, Essence, Tier, Fusion, S
 Rare, Legendary), Command, **Turn, Move, Skill, Cooldown, Counter, Shop**. Seventeen, plus the ways (Walk, Fly), the
 statuses, and the bestiary's way line. Ring and Gauge leave.
 
+### 2.15 Held relics and Arise (2026-10-10, night)
+
+The user's word: "make arise a relic you can use to upgrade a unit (units can hold at most 1 relic (tunable))", and
+of the options, piece relics held, run relics not; Arise a skill that rests.
+
+- **A relic is a run relic or a piece relic.** A run relic touches the run or the whole side: `mods` on the run's
+  paths only (`run.command`, `run.monarchHp`, `run.roster`, `price.*`, `essence.gain`, `arise.domain`,
+  `arise.tier`), plus a side-wide cost where it has one (Legion's −15% HP). It works unheld, as relics did, and its
+  copies stack without cap. **Every other relic is a piece relic** and works only through the piece holding it: its
+  `mods` are the holder's, its `on` triggers fire on the holder's events (`kill` when the holder slays, `struck`
+  when it is struck, `fall` when it falls, `blow` when it strikes, `wave` on each wave while it stands), a
+  Legendary's `rule` is scoped to the holder. The content test holds the form: a run relic names only run paths, a
+  piece relic none.
+- **A piece holds at most `TUNING.relic.perPiece` relics (1).** Bought piece relics wait unheld (the Relics strip
+  beside the ossuary) until given. **Give, take back and swap freely out of battle** (prep, a Shop, the spoils),
+  never in battle: actions `{ type: 'hold', relic, uid }` and `{ type: 'unhold', uid }`. A held relic stays with
+  its soul in the ossuary and works only on the field. It comes back unheld when its holder is released or fused
+  away; a fallen holder keeps it. Copies of a piece relic stack only across holders, one each.
+- **Arise**, a Legendary piece relic: its holder gains the skill **Arise**: one corpse within `TUNING.arise.domain`
+  tiles of the holder, of tier ≤ `TUNING.arise.tier`, rises as a shadow of yours, the player's choice among those
+  that qualify; a skill, so a turn's rest. More copies are more raisers; `arise.more` goes. Hourglass and Bone Idol
+  are run relics on `arise.domain` and `arise.tier`, every raiser's. The other Arise Legendaries are **Arise
+  variants**, each a piece relic that grants Arise with its rule on top: Court of Bone (2 tiles farther; nothing
+  heals the Monarch), Hollow Court (the shadows its holder raised that stand at a win pay their essence again),
+  Blood Tithe (as its rule today, scoped to the holder). `needsArise` reads "once an Arise relic is owned".
+- The other Legendaries scope to the holder: Undying (the holder rises once a battle at 60% HP), Mimicry (the
+  holder counts as a Warden too, for synergies). One a piece: a Legendary's copies are more holders.
+- **Interface**: a relic slot on every piece's card and panel; tap an unheld relic, then a piece (or the slot) to
+  give it; the card's relic shows on the sprite as a small mark. A relic card says Held or Run.
+
+### 2.16 No dice (2026-10-10, night)
+
+The user's word: "remove dice rolls as much as possible". **The battle reads no random number.** Deleted:
+`TUNING.dice` and the dice path (`hitChance`, `critChance`, `rollVariance`, `TUNING.hit`, `crit`, `variance`, the
+battle's rng), ACC, EVA and CRT from every stat block, and **every status `chance`**: a status an effect lays always
+lands (the hidden cadence goes); where a chance kept a status rare, the balance pass lowers its turns or the blow's
+power. Deathblow (a sure crit) becomes an execute: a blow of yours on a foe below a quarter of its HP deals double
+(placeholder). The run's draws (the map, the rooms, the recruits, the Shop's stock) stay seeded: they are the run,
+not a roll. This reverses §2.6's "kept behind the switch" and closes §6's open question on dice.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -480,6 +517,10 @@ Step 4.
 
 ### Step 4. The full conversion (two agents)
 
+- Both agents: §2.15 (held relics, Arise a held skill) and §2.16 (no dice), split as the rest is: the records and
+  the content test to Content; `hold`/`unhold`, holder-scoped mods and triggers, Arise as a skill and the dice
+  deletion to Sim. The interface for §2.15 and the dice's last words (ACC/EVA/CRT on cards) follow in an interface
+  pass after the two, with the old battle's playback and `src/flag.js` removed there.
 - **Content**: every kind to §2.13's record (`tracks` folded in, `art` where it borrows), every ability by §2.7 (the
   gauge table, cooldown 2, the `when` cut), every status by §2.8, every relic to one of the three forms, every
   synergy to one rule at 4, the stat steps gone, ACC/EVA/CRT and their mods converted, `move` and `temper` on every
@@ -562,9 +603,11 @@ model ("adding a new unit / relics / merges should be straightforward and modula
     relic in one of three forms with no `rule` below Legendary, one registry of rules, the content test as the
     checklist.
 
+Taken that night, after the slice (Step 3: "go"): **held relics** and **Arise a held skill** (§2.15); **no dice
+at all** (§2.16).
+
 Open, decided later:
 
-- **Dice**: open by the user's word; revisit after the slice is played.
 - **A rule too strong at 4** may be split into a lesser form at 4 and the full at 8 by the balance pass; no other
   synergy step is to be added.
 - **The sidestep**, **two-part recipes**, **the camp spending**: later content (§5).

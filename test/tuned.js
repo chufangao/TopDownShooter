@@ -19,18 +19,15 @@ export function tuned (patch, fn) {
   }
 }
 
-// Arise as it was first built (one raise and tier 1, at half HP, domain 3), each copy past the first two raises more
-// (one a copy and one a point past the first, as they were counted then), a tier higher and the rest as TUNING.arise
-// has it.
-export const FIRST_ARISE = { arise: { raises: 1, tier: 1, hp: 0.5, domain: 3, more: { ...TUNING.arise.more, raises: 2 } } }
+// Arise as it was first built: a reach of 3 tiles, tier 1.
+export const FIRST_ARISE = { arise: { domain: 3, tier: 1 } }
 // The level scale the run's scenes were built on (before the balance pass, 2026-10-09): level 1 with no tiers and
 // 1.5 a tier, so a single tier gives a level (the pass made it 2 and 0.5: a level every two tiers).
 export const LEVEL_A_TIER = { level: { base: 1, perTier: 1.5 } }
 // The board of 14 the army was first built with.
 export const BOARD_14 = { army: { board: 14 } }
 // The balance the army and its expert were first tested on (before necessity round 1): Arise as first built, the
-// Monarch's base HP, the board of 14 and the first tier prices; and (round 2) no souls gained by floor. (The ranks and their
-// might, the cohorts, binds, muster and orders it also set are gone from the rules.)
+// Monarch's base HP, the board of 14 and the first tier prices; and (round 2) no souls gained by floor.
 export const FIRST_BALANCE = {
   arise: FIRST_ARISE.arise,
   monarch: { hp: 140 },
@@ -42,7 +39,7 @@ export const FIRST_BALANCE = {
 // A battle scene's Monarch as the scenes were built, before its HP points were cut (2026-10-09): `u.lvl` points of
 // HP, HP_PER_POINT each over TUNING.monarch.hp, so a scene's Monarch takes as long to fell as it did. The run's
 // Monarch has no level now (its HP is its base and its HP relics': run.js monarchHp); any other unit as it is.
-export const HP_PER_POINT = 14
+const HP_PER_POINT = 14
 export const sturdy = (u) => {
   if (u.id !== 'monarch') return u
   const hp = TUNING.monarch.hp + HP_PER_POINT * (u.lvl ?? 0)

@@ -4,19 +4,20 @@
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, monarchOf, levelOf } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf } from '../src/sim/run.js'
 import {
-  drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf,
-  roomsAhead, rehearseAhead
+  drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay
 } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
 import { createRng } from '../src/sim/rng.js'
-import { CAMP_LIST, FUSION_LIST, unitDef, fusionDef, relicDef, TRACKS } from '../src/content.js'
+import { CAMP_LIST, FUSION_LIST, unitDef, fusionDef, relicDef } from '../src/content.js'
 import {
-  slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot, makeUnit, campOpen, wallTiles, deployTile, tileAt, TILES, DEPTH, ROWS,
+  slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot, makeUnit, campOpen, wallTiles, deployTile, tileAt, tracksOf, TILES, DEPTH, ROWS,
   LANES
 } from '../src/sim/unit.js'
-import { field } from '../src/sim/battle.js'
+import { field } from '../src/sim/turns.js'
+import { fight } from './rooms.js'
+
 
 // A run standing in a fight's prep whose room has a second wave and a far-reaching foe on lane 6.
 function prep (seed) {
@@ -24,7 +25,7 @@ function prep (seed) {
   const node = availableNodes(run)[0]
   node.type = 'fight'
   node.foes = [{ id: 'grave_ghoul', lvl: 1, slot: slotAt(0, 3) }, { id: 'will_o_wisp', lvl: 1, slot: slotAt(1, 6) }]
-  node.waves = [{ foes: [{ id: 'grave_ghoul', lvl: 1, slot: slotAt(0, 2) }], when: { at: 'break', t: 600 } }]
+  node.waves = [{ foes: [{ id: 'grave_ghoul', lvl: 1, slot: slotAt(0, 2) }] }]
   apply(run, { type: 'node', id: node.id })
   return run
 }
@@ -71,7 +72,7 @@ test('the drafts, in every camp: the Monarch on its seat, every piece where its 
   }
 })
 
-// The Walk roads of `camp` (battle.js field: the arrows the board draws, round the walls to the seat), one from each
+// The Walk roads of `camp` (field.js field: the arrows the board draws, round the walls to the seat), one from each
 // tile of the foes' rows, where the opening stands and every later wave enters; each as the set of camp cells it
 // crosses, the seat aside. And each cell's road distance.
 function walkRoads (camp) {
@@ -167,40 +168,19 @@ test('fusions: the expert weighs every one it can make by rehearsal (as legalAct
   }
 })
 
-// The fights ahead are rehearsed in a row, the Monarch's HP carried from one into the next and mended only as the run
-// would mend it: under Court of Bone not at all, so a Monarch already low starts every rehearsal low, never whole;
-// without it, by a battle's heal. (Whatever the rehearsals' outcomes: a room none of whose rolls was won passes on the
-// HP it began with.)
-test('the expert rehearses the fights ahead in a row: the Monarch\'s HP carries from each into the next, mended only as the run would', () => {
-  const run = prep('carry')
-  const m = monarchOf(run.state)
-  const low = Math.round(m.maxHp * 0.3)
-  m.hp = low
-  const L = { seeds: 1, search: 0, wounds: true, rollouts: 0, reap: false, spend: false, fuse: false, more: true, drafts: 1 }
-  const rooms = roomsAhead(run)
-  assert.ok(rooms.length >= 2 && rooms[0].id === run.state.at, 'the room being prepared for first, then the rooms ahead')
-  const carried = (r) => (r.left >= 0 ? Math.max(1, Math.round(r.left)) : r.hp)
-  // Court of Bone held: each fight starts where the one before it left the Monarch, never mended.
-  run.state.relics = ['arise', 'court_of_bone']
-  const court = rehearseAhead(run, rooms, L)
-  assert.deepEqual(court.map((r) => r.node.id), rooms.map((n) => n.id))
-  assert.equal(court[0].hp, low)
-  for (let k = 1; k < court.length; k++) assert.equal(court[k].hp, carried(court[k - 1]), `room ${k}`)
-  assert.ok(court.every((r) => r.hp <= low && r.hp < m.maxHp), 'never whole again')
-  // The next fight is rehearsed at that HP: the same as rehearsing it alone from there.
-  const at = (hp) => ({ party: run.state.party.map((u) => (u === m ? { ...u, hp } : u)) })
-  assert.equal(rehearseAhead(run, [rooms[1]], L, at(court[1].hp))[0].score, court[1].score)
-  // Without it, a battle won mends the Monarch by the battle's heal on the way to the next (an altar the way cannot
-  // miss, to its altarHeal).
-  run.state.relics = ['arise']
-  const mended = rehearseAhead(run, rooms, L)
-  assert.equal(mended[0].hp, low)
-  const heal = Math.ceil(m.maxHp * TUNING.run.postBattleHeal)
-  for (let k = 1; k < mended.length; k++) {
-    const r = mended[k - 1]
-    assert.ok(mended[k].hp >= (r.left >= 0 ? Math.min(m.maxHp, carried(r) + heal) : r.hp) && mended[k].hp <= m.maxHp, `room ${k}`)
+// A whole run at each level, and under the orders ablation (the expert ending every turn without an order), plays to
+// its end without throwing (apply throws on any action it may not take); the same seed plays the same run (the whole of
+// basic's, the expert's first fights, to keep the suite quick). Functional only: never how far it gets.
+test('the autoplayer plays a run to its end at each level, the same seed the same run; under the orders ablation it gives no order but End Turn', () => {
+  for (const [name, level] of [['basic', 'basic'], ['expert', 'expert'], ['orders', { ...LEVELS.expert, ablate: 'orders' }]]) {
+    const s = autoplay(createRun({ seed: 'whole' }), { level }).state
+    assert.ok(s.phase === 'over' && ['victory', 'defeat'].includes(s.result) && s.log.some((a) => a.type === 'fight'), name)
+    if (name !== 'expert') assert.ok(!s.log.some((a) => ['move', 'undo', 'act'].includes(a.type)), `${name}: End Turn alone`)
+    const again = createRun({ seed: 'whole' })
+    const rng = createRng('whole').stream('autoplay')
+    while (again.state.phase !== 'over' && (name === 'basic' || again.state.stats.fights < 3)) apply(again, policy(again, rng, level))
+    assert.deepEqual(again.state.log, s.log.slice(0, again.state.log.length), `${name}: the same run again`)
   }
-  assert.equal(run.state.party.find((u) => u === m).hp, low, 'the run untouched')
 })
 
 test('the audit counts what a run considered and chose, and leaves the audit off after', () => {
@@ -221,6 +201,7 @@ test('idle essence: when its fielded kinds can buy nothing, the expert weighs ev
   for (const u of souls(s.party)) Object.assign(u, { lvl: 10, tracks: [4, 2] })
   assert.deepEqual(spendOptions(run, LEVELS.expert), [])
   s.relics.push('arise')
+  souls(s.party)[0].relics = ['arise']
   assert.deepEqual(spendOptions(run, LEVELS.expert), [])
   join(run, 'grave_ghoul')
   assert.deepEqual(spendOptions(run, LEVELS.expert), [0, 1].map((track) => ({ type: 'upgrade', kind: 'grave_ghoul', track })))
@@ -287,7 +268,7 @@ test('the expert lets a soul go only for a recruit it weighed worth it: the rele
     // A Tomb Knight slain: its soul, a second Knight, is on offer.
     node.foes = [{ id: 'tomb_knight', lvl: 1, slot: slotAt(0, 3) }]
     apply(run, { type: 'node', id: node.id })
-    apply(run, { type: 'fight' })
+    fight(run)
     if (run.state.phase !== 'reap') continue
     const s = run.state
     s.essence = 1000
@@ -313,7 +294,7 @@ test('the combo book: every combo, kind, track, recipe, synergy and relic in it 
   const floors = BOOK.combos[0].gain.length
   for (const c of BOOK.combos) {
     for (const id of [...Object.keys(c.needs), ...Object.keys(c.tracks)]) assert.ok(unitDef(id), `${c.id}: ${id}`)
-    for (const [id, t] of Object.entries(c.tracks)) assert.ok(TRACKS[id]?.[t], `${c.id}: ${id} track ${t}`)
+    for (const [id, t] of Object.entries(c.tracks)) assert.ok(tracksOf(id)[t], `${c.id}: ${id} track ${t}`)
     if (c.fuse) assert.equal(Object.keys(c.tracks)[0], fusionDef(c.fuse).result, c.id)
     for (const k of Object.keys(c.kin ?? {})) assert.ok(Object.keys(c.needs).some((id) => unitDef(id).kin === k), `${c.id}: kin ${k}`)
     for (const r of Object.keys(c.role ?? {})) assert.ok(Object.keys(c.needs).some((id) => unitDef(id).role === r), `${c.id}: role ${r}`)

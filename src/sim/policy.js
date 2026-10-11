@@ -4,12 +4,13 @@
 // Nothing reads a seed: the same board gives the same turn.
 import { TUNING } from '../tuning.js'
 import { STATUS_WORTH, statusDef } from '../content.js'
-import { stats, emit, LANE, roadOf, computeDamage } from './battle.js'
-import { alive, enemySide, isBlow, isAllyShape, footprint, distanceBetween, tileX, tileY, TILES, LANES, DEPTH } from './unit.js'
+import { alive, enemySide, isBlow, isAllyShape, footprint, tileX, tileY, blowReach, TILES, LANES, DEPTH } from './unit.js'
+import { LANE, roadOf } from './field.js'
 import {
-  fork, order, reach, roadAhead, targetsFrom, usable, canAct, hexed, perform, walk, reachOf, aloft, helped, shape, deadline, orderable,
-  isSkill
+  stats, emit, computeDamage, fork, order, reach, roadAhead, targetsFrom, usable, canAct, hexed, perform, walk, aloft, helped, shape, deadline,
+  orderable, isSkill, counterOf
 } from './turns.js'
+import { call } from './rules.js'
 
 // ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ export function danger (battle, side) {
     for (const b of blows) {
       const raw = rawOf(battle, u, b)
       if (!(raw > 0)) continue
-      const r = reachOf(u, b)
+      const r = blowReach(u, b)
       const ra = aloft(u, b, r)
       for (const t of spots) {
         dilate(g, t, u.size, r, raw)
@@ -138,7 +139,7 @@ export function options (battle, u, { moving = true } = {}) {
 
 // The one score (§2.9.3):
 //   dealt × (the target is its prey ? 1.5 : 1) − caution × (1 − press) × taken + aggression × (1 + press) × gained
-// dealt: damage (as far as each target's HP), HP mended, a status's worth (STATUS_WORTH, by its chance); taken: the
+// dealt: damage (as far as each target's HP), HP mended, a status's worth (STATUS_WORTH); taken: the
 // danger where it would stand (ctx.danger, for its side: danger) and the counter its blow would draw; gained: road
 // gained (a foe's) and each kill's worth (its max HP; the Monarch's, the battle). `ctx` may carry the danger map and
 // `prey` (a Set of units: preyOf).
@@ -155,18 +156,18 @@ const worth = (battle, x) => (x === battle.monarch ? MONARCH : x.maxHp)
 // Road gained: how much nearer the Monarch a foe would stand (none for yours).
 const gain = (battle, u, tile) => (u.side === 'foe' ? roadOf(battle, u).dist[u.tile] - roadOf(battle, u).dist[tile] : 0)
 
-// A blow of `power` from `a` (stats) on `x`: deterministic, as it lands with no dice (before the rules that bend it).
+// A blow of `power` from `a` (stats) on `x`, as it lands (before the rules that bend it).
 const hit = (battle, a, x, power) => {
   const d = stats(battle, x)
-  return computeDamage({ power, atk: a.atk, def: d.def, isCrit: false, variance: 1, mul: a.damage.dealt * d.damage.taken })
+  return computeDamage({ power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
 }
 
 const ZERO = { dealt: 0, kill: 0, counter: 0 }
-// A status laid on `x`: its worth by its chance, nothing where `x` holds it already at its full stacks (it would only
-// last longer).
+// A status laid on `x` (it always lands): its worth, nothing where `x` holds it already at its full stacks (it would
+// only last longer).
 const statusWorth = (e, x) => {
   const had = x.statuses.find((s) => s.id === e.status)
-  return had && had.stacks >= statusDef(e.status).stacks ? 0 : (STATUS_WORTH[e.status] ?? 0) * (e.chance ?? 1)
+  return had && had.stacks >= statusDef(e.status).stacks ? 0 : STATUS_WORTH[e.status] ?? 0
 }
 const debuff = (id) => statusDef(id).tags.includes('debuff')
 
@@ -191,7 +192,7 @@ function estimate (battle, u, o, prey) {
       if (d >= x.hp) kill += worth(battle, x)
       else for (const e of a.effects) if (e.op === 'apply_status' && debuff(e.status)) dealt += statusWorth(e, x)
     } else {
-      const missing = x === battle.monarch && battle.held.unhealable ? 0 : x.maxHp - x.hp
+      const missing = x === battle.monarch && battle.unhealable ? 0 : x.maxHp - x.hp
       for (const e of a.effects) {
         if (e.op === 'heal' && !e.self) dealt += Math.min(missing, e.pct ? x.maxHp * e.pct : e.power * s.atk / TUNING.damage.atkDivisor * s.heal.given)
         else if (e.op === 'cleanse') dealt += x.statuses.filter((st) => statusDef(st.id).tags.includes(e.tag)).slice(0, e.count).reduce((n, st) => n + (STATUS_WORTH[st.id] ?? 0), 0)
@@ -206,9 +207,8 @@ function estimate (battle, u, o, prey) {
 // The counter a melee blow from `o.tile` would draw from its target (turns.js counterOf, measured from there).
 function answer (battle, u, o) {
   const x = o.target
-  const b = x.basic
-  if (x === battle.monarch || hexed(x) || !b?.melee || (u.flies && !x.flies)) return 0
-  if (distanceBetween(o.tile, u.size, x.tile, x.size) > reachOf(x, b)) return 0
+  const b = counterOf(battle, x, u, o.tile)
+  if (!b) return 0
   const s = stats(battle, x)
   let d = 0
   for (const e of b.effects) if (e.op === 'damage') d += hit(battle, s, u, e.power)
@@ -236,7 +236,7 @@ export function preyOf (battle, u, opts, temper, p) {
     }
     return out
   }
-  const key = PREY[kind] ?? PREY.weakest
+  const key = PREY[kind]
   const low = Math.min(...list.map((x) => key(battle, x)))
   return new Set(list.filter((x) => key(battle, x) === low))
 }
@@ -275,8 +275,9 @@ export function choose (battle, u, temper, p, map, opts = options(battle, u)) {
 // ── the camp's turn (§2.9) ───────────────────────────────────────────────────────────────────────
 
 // The foes' turn: the pressure and the danger map read once, then each foe in road order (nearest the Monarch first,
-// ties by lane, then uid) commits its best option (choose) on the board as it stands after the ones before it: its move
-// along its road, then its act. Deterministic. → { orders, events } (orders as the player's are written).
+// ties by lane, then uid; a boss's override may reorder it: rules.js `queue`, the Sovereign's court first) commits
+// its best option (choose) on the board as it stands after the ones before it: its move along its road, then its act.
+// Deterministic. → { orders, events } (orders as the player's are written).
 export function foeTurn (battle) {
   const from = battle.events.length
   const out = []
@@ -285,6 +286,7 @@ export function foeTurn (battle) {
   const dist = (u) => roadOf(battle, u).dist[u.tile]
   const queue = battle.units.filter((u) => u.side === 'foe' && alive(u))
     .sort((a, b) => dist(a) - dist(b) || LANE[tileX(a.tile)] - LANE[tileX(b.tile)] || a.uid - b.uid)
+  call(battle, 'queue', 'foe', { queue })
   for (const u of queue) {
     if (battle.over) break
     if (!alive(u)) continue
@@ -307,7 +309,7 @@ export function foeTurn (battle) {
 
 // ── your side's turns ────────────────────────────────────────────────────────────────────────────
 
-// The basic player: End Turn, every turn (the old autobattle, without skills).
+// The basic player: End Turn, every turn (what it leaves alone strikes or mends with its basic: turns.js untouched).
 export const basicTurn = () => [{ type: 'end' }]
 
 // How the expert weighs: bold enough to trade, careful of what it would take, the most wounded foe first.

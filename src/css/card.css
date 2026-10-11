@@ -1,5 +1,5 @@
-/* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head and ring, its summons, its kind's
-   tracks, Fuse, its abilities), a foe's (foePanel), and with nothing selected the Monarch's (a gold card, its HP and
+/* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head and reach, its relic slot, its
+   summons, its kind's tracks, Fuse, its abilities), a foe's (foePanel), and with nothing selected the Monarch's (a gold card, its HP and
    Command) over your synergies and the board's key. Every purchase pops, every refusal shakes. Sizes are the shared
    scale (style.css :root): body text --fs-md, secondary --fs-sm, badge numbers --fs-xs; anything pressed --tap
    on its short side. */
@@ -38,7 +38,7 @@
 .uc-stat.s-hp .ico { color: #ff7a8a; }
 .uc-stat.s-atk .ico { color: #f3a06b; }
 .uc-stat.s-def .ico { color: #8fb8ff; }
-.uc-stat.s-spd .ico { color: #f0d060; }
+.uc-stat.s-move .ico { color: #f0d060; }
 .uc p { margin: 8px 0 0; }
 .uc .uc-note { font-size: var(--fs-sm); line-height: 1.3; }
 
@@ -50,10 +50,15 @@
 .uc-sec .dim, .uc-sec .kw { text-transform: none; letter-spacing: 0; }
 .uc-sec:first-child { margin-top: 0; }
 
-/* Its ring and gait, a line under its stats (the rule on hover). */
-.uc-ring { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--fs-sm); color: var(--text); cursor: help; }
-.uc-ring .ico { color: var(--c-plan); }
-.uc.foe .uc-ring .ico { color: var(--c-foe); }
+/* Its reach and Move, a line under its stats (the rule on hover). */
+.uc-reach { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--fs-sm); color: var(--text); cursor: help; }
+.uc-reach .ico { color: var(--c-plan); }
+.uc.foe .uc-reach .ico { color: var(--c-foe); }
+/* Its relic slot (redesign.md §2.15): the relic it holds and Take back, then the unheld ones it may take, each a
+   button. */
+.uc-relic { margin-top: 4px; }
+.rs-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.rs-give { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 /* Fuse (DESIGN §4): the recipes the kind is part of, one row each: the result's picture, its name and parts (each
    the souls of its kind held of those it needs), and its button, lit when every part is held and the essence suffices. */
 .uc-fuse { margin-top: 4px; }
@@ -156,7 +161,6 @@
 /* A road's chevron, as the board draws it (board.js drawRoads): the foes' red, faint, pointing on down the road. */
 .lg-road { width: 8px !important; height: 8px !important; border-top: 3px solid color-mix(in srgb, var(--c-foe) 70%, transparent); border-right: 3px solid color-mix(in srgb, var(--c-foe) 70%, transparent); border-radius: 0 !important; transform: rotate(45deg); margin: 0 12px 0 3px !important; vertical-align: 1px !important; }
 .lg-cover { background: color-mix(in srgb, var(--c-plan) 45%, transparent); border: 1px solid var(--c-plan); }
-.lg-stop { border-top: 3px solid var(--c-plan); border-radius: 0 !important; height: 0 !important; width: 12px !important; margin: 0 11px 0 3px !important; vertical-align: 3px !important; }
 .lg-seat { background: var(--c-monarch); border-radius: 50% !important; width: 12px !important; height: 12px !important; margin: 0 11px 0 3px !important; }
 .lg-dom { border: 1.5px solid var(--c-domain); }
 

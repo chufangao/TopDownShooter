@@ -6,17 +6,18 @@ import assert from 'node:assert/strict'
 import {
   createRun, apply, battleSetup, join, souls, fielded, replay, levelOf, monarchHp, monarchOf, commandOf
 } from '../src/sim/run.js'
-import { createBattle, runBattle, timelineHash } from '../src/sim/battle.js'
+import { createBattle, playOut, timelineHash, rulesOf } from '../src/sim/turns.js'
+import { expertTurn } from '../src/sim/policy.js'
 import { createRng } from '../src/sim/rng.js'
-import { monarchSlot } from '../src/sim/unit.js'
+import { monarchSlot, tracksOf } from '../src/sim/unit.js'
 import {
   autoplay, policy, LEVELS, ABLATIONS, RULE_SWITCHES, ablatedRun, planFor, stripped, refight, NECESSITY, CORE, EXTRA, BANDS,
   AUDIT, resetAudit
 } from '../src/sim/autoplay.js'
-import { unitDef, RELICS, TRACKS } from '../src/content.js'
+import { unitDef, RELICS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned } from './tuned.js'
-import { visit } from './rooms.js'
+import { visit, fight as fought } from './rooms.js'
 
 const without = (ablate) => ({ ...LEVELS.expert, ablate })
 
@@ -72,16 +73,15 @@ test('the un-ablated players: a level with no ablation plays exactly as the leve
 })
 
 test('ablation: the names, the rules switches carried by the run and its replay, and a policy that refuses a run without its switch', () => {
-  // No monarch-stats and no levels: the Monarch's points and the bought levels are gone (2026-10-09).
-  assert.deepEqual(ABLATIONS, ['fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation'])
+  // The orders given in battle are core (redesign.md §5 Step 5).
+  assert.deepEqual(ABLATIONS, ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation'])
   assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons'])
-  assert.deepEqual(CORE, ['tracks', 'formation', 'summons'])
+  assert.deepEqual(CORE, ['orders', 'tracks', 'formation', 'summons'])
   // Every ablation is targeted: a core one at 25–50 points, an extra one at 8–25.
   assert.deepEqual([...CORE, ...EXTRA].sort(), ABLATIONS.slice().sort())
   assert.ok(CORE.every((m) => BANDS[m].join() === '25,50') && EXTRA.every((m) => BANDS[m].join() === '8,25'))
-  assert.throws(() => policy(createRun({ seed: 'sw' }), createRng('sw').stream('autoplay'), without('monarch-stats')), /unknown ablation/)
   assert.deepEqual(ablatedRun('sw', 'summons').state.ablate, ['summons'])
-  assert.ok(!('ablate' in ablatedRun('sw', 'fusions').state))
+  assert.ok(!('ablate' in ablatedRun('sw', 'fusions').state) && !('ablate' in ablatedRun('sw', 'orders').state))
   const run = ablatedRun('sw', 'synergies')
   visit(run, 'fight')
   assert.deepEqual(battleSetup(run).ablate, ['synergies'])
@@ -95,30 +95,30 @@ test('ablation: the names, the rules switches carried by the run and its replay,
   assert.equal(timelineHash(again.battle.events), timelineHash(played.battle.events))
 })
 
-test('the arise switch: the party Monarch raises no one; the synergies switch: the party holds no synergy, the foes keep theirs', () => tuned({ arise: { domain: 11 } }, () => {
+test('the arise switch: no relic grants Arise; the synergies switch: the party holds no synergy, the foes keep theirs', () => tuned({ arise: { domain: 11, tier: 5 } }, () => {
   let raised = 0
   let held = 0
-  // Each refought holding Arise, with a domain over the whole camp, so that the corpses fall in its reach.
+  // Each refought under the expert's turns, a fielded soul holding Arise, its reach over the whole board, so that the
+  // corpses fall in it; and the undead fielded among them (Undead 4).
   for (const snap of [...snapshots('switch-a'), ...snapshots('switch-b')]) {
     const fight = (mechanic) => {
-      const b = createBattle(battleSetup(stripped({ ...snap, relics: [...snap.relics, 'arise'] }, mechanic)))
-      runBattle(b)
-      return b
+      const s = structuredClone({ ...snap, relics: [...snap.relics, 'arise'] })
+      s.party.find((u) => u.uid !== 0 && u.slot >= 0 && u.hp > 0).relics = ['arise']
+      return playOut(createBattle(battleSetup(stripped(s, mechanic))), expertTurn)
     }
     const full = fight(null)
-    raised += full.events.filter((e) => e.type === 'arise' && e.actor === 0).length
-    held += full.events[0].synergies.filter((x) => x.side === 'party').length
+    raised += full.raised
+    held += rulesOf(full, 'party').length
     const noArise = fight('arise')
-    assert.equal(noArise.events.filter((e) => e.type === 'arise' && e.actor === 0).length, 0)
+    assert.ok(!noArise.units.some((u) => u.kit.some((a) => a.id === 'arise')), 'no one learns it')
     assert.equal(noArise.raised, 0)
     const noSyn = fight('synergies')
     assert.deepEqual(noSyn.events[0].synergies.filter((x) => x.side === 'party'), [])
-    assert.deepEqual(noSyn.events[0].synergies.filter((x) => x.side === 'foe'), full.events[0].synergies.filter((x) => x.side === 'foe'))
     assert.equal(noSyn.syn.party.list.length, 0)
-    assert.equal(noSyn.syn.party.rules.size, 0)
+    assert.ok(!rulesOf(noSyn, 'party').some((r) => !r.holder), 'no synergy\'s rule')
   }
   assert.ok(raised > 0, 'the battles refought do raise shadows with Arise on')
-  assert.ok(held > 0, 'and do hold synergies with them on')
+  assert.ok(held > 0, 'and hold rules with them on')
 }))
 
 test('ablating summons: no tier calls a summon in battle, and such a tier is worth only its place on the track', () => {
@@ -132,7 +132,7 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
   const plain = createRun({ seed: 'ablate-sum' })
   visit(plain, 'fight')
   hold(plain, 'bone_chanter', [0, 2])
-  assert.equal(called(plain), TRACKS.bone_chanter[1].tiers[1].summon)
+  assert.equal(called(plain), tracksOf('bone_chanter')[1].tiers[1].summon)
   // Spending: with a rich purse, the full expert takes Marrowcaller II (its summons) for chanters at Marrowcaller I;
   // ablated, it never values the tier for its summons (it buys something else first, or the tier for the track's
   // sake only).
@@ -162,28 +162,61 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
   assert.ok(battles.length && battles.every((b) => b.ablate.has('summons')))
 })
 
-test('ablating relics: neither an HP nor a Command relic is taken, so the field stays at the base Command; the legendaries ablation passes Legion\'s Command over', () => {
-  const rng = createRng('wish').stream('autoplay')
-  const relic = (id) => ({ type: 'relic', id, tier: RELICS[id].tier, name: '', desc: '' })
-  const room = (ids) => {
-    const run = createRun({ seed: 'wish' })
-    visit(run, 'fight')
-    for (const id of ['grave_ghoul', 'tomb_knight']) join(run, id)
-    Object.assign(run.state, { phase: 'reap', offers: ids.map(relic) })
-    return run
+// A Shop stocked by hand, the purse full and every tier its kinds can take already held (so a relic's price displaces
+// none, and the expert's buyFor has every reason to buy).
+function shop (stock, floor = 1) {
+  const run = createRun({ seed: 'shopx' })
+  const s = run.state
+  s.floor = floor
+  visit(run, 'shop')
+  for (const kind of Object.keys(s.kinds)) hold(run, kind, [4, 2])
+  Object.assign(s, { shop: stock.slice(), essence: 1e4 })
+  return run
+}
+// What `L` buys in `run`'s Shop before it leaves (it may give what it buys to a soul on the way).
+function bought (run, L) {
+  const rng = createRng('buys').stream('autoplay')
+  const out = []
+  for (let a, k = 0; k < 20 && (a = policy(run, rng, L)).type !== 'leave'; k++) {
+    if (a.type === 'buy') out.push(run.state.shop[a.index])
+    apply(run, a)
   }
-  const both = room(['grave_banner', 'bone_mantle'])
-  assert.ok([0, 1].includes(policy(both, rng, 'expert').index))
-  assert.deepEqual(policy(both, rng, 'basic'), { type: 'reap', index: 0 })
-  for (const L of [without('relics'), { ...LEVELS.basic, ablate: 'relics' }]) assert.deepEqual(policy(room(['grave_banner', 'bone_mantle']), rng, L), { type: 'reap', index: null })
+  return out
+}
+
+test('ablating relics: no Common, Uncommon or Rare relic is bought, so the field stays at the base Command; ablating Legendaries: no Legendary', () => {
+  const legendary = (id) => RELICS[id].tier === 'legendary'
+  const COMMON = ['grave_banner', 'bone_mantle', 'whetstone']
+  // Both levels buy from a shelf of Common–Rare relics (basic its Command relic), and neither under the ablation.
+  for (const L of [LEVELS.basic, LEVELS.expert]) {
+    assert.ok(bought(shop(COMMON), L).length > 0)
+    assert.deepEqual(bought(shop(COMMON), { ...L, ablate: 'relics' }), [])
+  }
+  // The expert buys from a shelf of Legendaries on floor 2, and not under their ablation; nor a Common–Rare relic
+  // there under the relics ablation, nor a Legendary under theirs.
+  assert.ok(bought(shop(['legion', 'undying'], 2), LEVELS.expert).length > 0)
+  assert.deepEqual(bought(shop(['legion', 'undying'], 2), without('legendaries')), [])
+  assert.ok(bought(shop([...COMMON, 'legion'], 2), without('relics')).every(legendary))
+  assert.ok(bought(shop([...COMMON, 'legion'], 2), without('legendaries')).every((id) => !legendary(id)))
   // A whole run under it ends at the base Command and the Monarch's base HP (Legion aside).
   const run = createRun({ seed: 'no-relics' })
   playTo(run, { ...LEVELS.basic, ablate: 'relics' }, 6)
-  assert.ok(run.state.relics.every((id) => RELICS[id].tier === 'legendary'))
+  assert.ok(run.state.relics.every(legendary))
   if (!run.state.relics.includes('legion')) assert.deepEqual([commandOf(run.state), monarchOf(run.state).maxHp], [TUNING.party.field, TUNING.monarch.hp])
-  // Legion is a Legendary: the legendaries ablation's, not the relics'.
-  assert.deepEqual(policy(room(['legion']), rng, without('legendaries')), { type: 'reap', index: null })
-  assert.deepEqual(policy(room(['legion']), rng, { ...LEVELS.basic, ablate: 'relics' }), { type: 'reap', index: 0 })
+})
+
+// The expert's turns are policy.js expertTurn's; under the orders ablation it ends every turn without an order, and so
+// do the rehearsals it plans by.
+test('ablating orders: the expert gives no order in battle but End Turn, where the full expert moves and acts', () => {
+  const orders = (L) => {
+    const run = createRun({ seed: 'orders' })
+    playTo(run, L, 2)
+    return run.state.log.filter((a) => ['move', 'undo', 'act'].includes(a.type)).length
+  }
+  assert.ok(orders(LEVELS.expert) > 0)
+  assert.equal(orders(without('orders')), 0)
+  // Its battle setups are the full expert's: no rules switch.
+  assert.ok(!('ablate' in ablatedRun('orders', 'orders').state))
 })
 
 test('ablating fusions: never fuses, nor weighs one, where the full expert weighs every one it can make', () => {
@@ -216,7 +249,7 @@ test('ablating fusions: never fuses, nor weighs one, where the full expert weigh
   }
 })
 
-test('ablating tracks: never bought; in a Shop, the relics and Legendaries ablations leave what they ablate on the shelf', () => {
+test('ablating tracks: never bought', () => {
   const rng = createRng('spend').stream('autoplay')
   const rich = () => {
     const run = createRun({ seed: 'spend' })
@@ -232,19 +265,6 @@ test('ablating tracks: never bought; in a Shop, the relics and Legendaries ablat
   assert.ok(full.includes('upgrade') && !full.includes('level') && !full.includes('monarch'))
   assert.ok(!buys(rich(), without('tracks')).includes('upgrade'))
   assert.ok(!buys(rich(), { ...LEVELS.basic, ablate: 'tracks' }).includes('upgrade'))
-  // A Shop stocked by hand, the purse full: a Command relic is bought (autoplay.js pickShop), but not ablated.
-  const shop = (stock, floor = 1) => {
-    const run = createRun({ seed: 'shopx' })
-    run.state.floor = floor
-    visit(run, 'shop')
-    Object.assign(run.state, { shop: stock.slice(), essence: 5000 })
-    return run
-  }
-  for (const L of ['basic', 'expert']) assert.deepEqual(policy(shop(['whetstone', 'grave_banner']), rng, L), { type: 'buy', index: 1 }, L)
-  assert.deepEqual(policy(shop(['whetstone', 'grave_banner']), rng, without('relics')), { type: 'leave' })
-  assert.deepEqual(policy(shop(['legion'], 2), rng, 'expert'), { type: 'buy', index: 0 })
-  assert.deepEqual(policy(shop(['legion'], 2), rng, without('legendaries')), { type: 'leave' })
-  assert.deepEqual(policy(shop(['grave_banner'], 2), rng, without('legendaries')), { type: 'buy', index: 0 }, 'a Common–Rare relic is not a Legendary')
 })
 
 test('ablating formation: basic\'s first draft\'s cells, the Monarch on its seat; who fights still the expert\'s', () => {
@@ -257,7 +277,7 @@ test('ablating formation: basic\'s first draft\'s cells, the Monarch on its seat
     const s = run.state
     assert.equal(plan.find((p) => p.uid === 0).slot, monarchSlot(s.camp))
     // Basic's own first draft for the same souls, all at full health: the cells must match.
-    const basic = planFor({ ...run, state: structuredClone(s) }, { ...LEVELS.basic, seeds: 0 })
+    const basic = planFor({ ...run, state: structuredClone(s) }, { ...LEVELS.basic, rehearse: false })
     const cells = (p) => Object.fromEntries(p.filter((u) => u.slot >= 0).map((u) => [u.uid, u.slot]))
     assert.deepEqual(cells(plan), cells(basic))
   }
@@ -274,6 +294,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   visit(run, 'fight')
   s.relics = ['arise', 'arise', 'court_of_bone', 'bone_idol', 'grave_banner', 'bone_mantle']
   Object.assign(monarchOf(s), { hp: monarchHp(s), maxHp: monarchHp(s) })
+  souls(s.party).find((u) => u.id === 'tomb_knight').relics = ['arise']
   join(run, 'grave_ghoul')
   join(run, 'pale_court')
   const chanter = souls(s.party).find((u) => u.id === 'bone_chanter')
@@ -284,8 +305,8 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   assert.ok(fielded(souls(s.party)).includes(chanter), 'the chanter fights')
   assert.ok(fielded(souls(s.party)).some((u) => u.id === 'pale_court'), 'the fused piece fights')
   snaps.push({ snapshot: structuredClone({ ...s, log: [] }) })
-  apply(run, { type: 'fight' })
-  snaps[0].outcome = { hash: timelineHash(run.battle.events) }
+  fought(run)
+  snaps[0].outcome = { hash: timelineHash(run.battle.events), turns: 'expert' }
   const [r] = refight({ snaps })
   assert.equal(r.same, true, 'as it stood, the refight is the real battle')
   assert.deepEqual(Object.keys(r).filter((k) => k !== 'same'), ['full', ...NECESSITY])
@@ -294,8 +315,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   // The summons the tiers call as the battle begins.
   const raised = (x) => createBattle(x).units.filter((u) => u.summoned).length
   assert.ok(raised(full) > 0 && full.relics.filter((id) => id === 'arise').length === 2 && full.relics.length === 6)
-  const bone = RELICS.court_of_bone.mods.find((m) => m.path === 'arise.domain').v
-  assert.deepEqual([full.domain, full.party.find((u) => u.uid === 0).maxHp], [TUNING.arise.domain + TUNING.arise.more.domain + bone, monarchHp(s)])
+  assert.deepEqual([full.arise, full.party.find((u) => u.uid === 0).maxHp], [{ domain: TUNING.arise.domain, tier: TUNING.arise.tier + 1 }, monarchHp(s)])
   // Fusions: the Pale Court back in its three Wisps, three pieces, wounded as it was; no fused piece fights.
   const unfused = stripped(snaps[0].snapshot, 'fusions').state
   assert.ok(!souls(unfused.party).some((u) => unitDef(u.id).fused))
@@ -308,7 +328,8 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   assert.ok(setup('tracks').party.filter((u) => u.uid !== 0).every((u) => u.lvl === TUNING.level.base), 'and so no level past the first')
   const colossus = (x) => createBattle(x).units.some((u) => u.side === 'party' && u.id === 'tomb_knight' && u.size === 2)
   assert.ok(colossus(full) && !colossus(setup('tracks')), 'Barrow Wall makes the Knight 2×2; without tiers it is not')
-  assert.deepEqual([setup('legendaries').relics, setup('legendaries').domain], [['bone_idol', 'grave_banner', 'bone_mantle'], TUNING.arise.domain])
+  assert.deepEqual([setup('legendaries').relics, setup('legendaries').arise.tier], [['bone_idol', 'grave_banner', 'bone_mantle'], TUNING.arise.tier + 1])
+  assert.ok(setup('legendaries').party.every((u) => !u.relics?.length), 'no soul holds a relic stripped')
   // The relics stripped: the Monarch at its base HP (its wounds a share), the field at its base Command.
   const bare = setup('relics')
   assert.deepEqual([bare.relics, bare.partyMods, bare.party.find((u) => u.uid === 0).maxHp], [['arise', 'arise', 'court_of_bone'], [], TUNING.monarch.hp])

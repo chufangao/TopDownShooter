@@ -8,16 +8,16 @@
   /* One colour per system, the same on the board (engine.js palette() and board.js read these at scene
      creation), in tabs, cards and keywords (keywords.js `sys`). No two sit closer than 20 ΔE2000. Teal is
      essence and what is yours; nothing else wears it (essence2, its pale text tint, is the same system).
-       essence teal · foe red (also harm: a loss, low HP, too little essence) · plan blue (rings, coverage; synergies, bonds,
+       essence teal · foe red (also harm: a loss, low HP, too little essence) · plan blue (the danger map, a move's tiles; synergies,
        rules and buffs share it, worn as filled tints where the plan is outlines) · Monarch deep gold · relic
        orange, its four tiers (RELIC_TIERS) a ramp: common parchment, uncommon the relic orange, rare amber, legendary
        lilac · warn amber-yellow (warnings, the threat scale) · ossuary bone · domain green
        · shadow pink (Arise) · path cyan (a second path pale cyan, 12 apart)
-     Gauge is a neutral, no system's. Bronze (soldier) frames a soul's portrait in the lists; steel (knight)
+     Bronze (soldier) frames a soul's portrait in the lists; steel (knight)
      numbers a card's tiers. */
   --c-essence: #5ef0c0; --c-essence2: #8ff7d6; --c-monarch: #c08a00; --c-plan: #3697ff; --c-foe: #e0566a;
   --c-relic: #ff7f45; --c-warn: #ffdc4a; --c-ossuary: #b8ae9e; --c-domain: #84d21a;
-  --c-shadow: #fb9ad5; --c-path: #3bd3ea; --c-path2: #b3f3f9; --c-synergy: var(--c-plan); --c-gauge: #9a95b0;
+  --c-shadow: #fb9ad5; --c-path: #3bd3ea; --c-path2: #b3f3f9; --c-synergy: var(--c-plan);
   --c-soldier: #b07040; --c-knight: #b4bfd0;
   --c-common: #e0c2a8; --c-uncommon: #ff7f45; --c-rare: #ffb02e; --c-legendary: #ab94fc;
   /* Sizes, in the frame's logical px (H = 720 tall; frame.js). A phone in landscape shows the frame at about
@@ -376,8 +376,9 @@ b { font-weight: 600; color: var(--bright); }
 .death-threat b { color: #f08a98; }
 
 /* ── the battle's chrome (ui.js battleChrome) ─────────────────────────────────────────────────── */
-/* Prep's layout kept: the thin strip over the board (the room, the wave, the escalation bar, the purse, the
-   clock), the slim panel beside it (the Monarch's HP, the synergies, the rules, the controls at its foot), and
+/* Prep's layout kept: the thin strip over the board (the room, the turn and its clock bar, the wave, the purse), the
+   slim panel beside it (the Monarch's HP, the selected piece's orders, the synergies, the rules, the controls at its
+   foot), and
    between them the stage, which takes no presses: the board is the canvas behind the page. */
 .battle-screen { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 10px 8px; pointer-events: none; }
 .battle-top {
@@ -397,20 +398,13 @@ b { font-weight: 600; color: var(--bright); }
 .bs-row { display: flex; align-items: center; gap: 8px; }
 .bs-row .segs { flex: 1; }
 .bs-row .segs .seg { flex: 1; }
-/* The wave under way, of how many, and the escalation bar: it runs down from the last foe to enter, its mark
-   where every blow starts to climb; hot past the mark, red when nearly out. */
+/* The wave under way, of how many; the bar the turn clock runs down (board.css .turn-clock). */
 .wave-n { color: #f0a0ac; font-weight: 600; }
 .wave-n[hidden] { display: none !important; }
 .wave-n b { color: #ffd0d6; }
-.esc { gap: 8px; }
 .esc-bar { position: relative; display: block !important; width: 150px; height: 12px; border-radius: 6px; background: #07060b; box-shadow: inset 0 0 0 1px #3a3258; overflow: hidden; }
 .esc-fill { position: absolute; left: 0; top: 0; bottom: 0; display: block !important; background: linear-gradient(90deg, #6a5a9a, #9a8ad0); transition: width .4s linear; }
-.esc-ramp { position: absolute; top: -2px; bottom: -2px; width: 2px; display: block !important; background: var(--c-warn); box-shadow: 0 0 6px var(--c-warn); }
-.esc.hot .esc-fill { background: linear-gradient(90deg, #c0394c, #ff8a5a); }
-.esc.low .esc-bar { box-shadow: inset 0 0 0 1px var(--c-foe), 0 0 10px #e0566a88; }
-.esc-n { min-width: 3ch; color: #ff9a7a; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .esc-fill { transition: none; } }
-.clock { min-width: 3.5ch; text-align: right; color: var(--dim); font-weight: 600; font-size: var(--fs-md); }
 .segs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .segs .seg { border: none; border-radius: 0; border-right: 1px solid var(--line); }
 .segs .seg:last-child { border-right: none; }
@@ -485,6 +479,8 @@ b { font-weight: 600; color: var(--bright); }
 .o-legendary:hover:not([aria-disabled]) { box-shadow: 0 14px 30px #0008, 0 0 26px #b48cff44; }
 .tier-tag, .trig-tag { display: inline-block; align-self: flex-start; margin: 2px 0; font-size: var(--fs-sm); font-weight: 600; padding: 0 8px; border-radius: 5px; }
 .tier-tag { background: color-mix(in srgb, var(--rt, var(--c-relic)) 18%, #0c0a14); color: var(--rt, var(--c-relic)); }
+/* A relic's kind (redesign.md §2.15): Run (works unheld) or Held (a piece relic). */
+.kind-tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 5px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: #1a1630; border: 1px solid var(--line2); }
 .trig-tag { background: #2a170c; color: var(--c-relic); }
 
 /* ── the enemy army: siege rooms, waves still to come ───────────────────────────────────────────────── */

@@ -6,8 +6,7 @@ import { createRng } from './rng.js'
 export const RANKS = 16
 export const WIDTH = 4 // the most rooms in a rank
 
-// The Shop is where relics are bought, and the only place they come from (redesign.md §2.11): the reliquary it
-// replaced weighed 2 in the middle and 0.5 late, with 3 at most; a Shop is commoner, about 2.5 to a walk.
+// The Shop is where relics are bought, and the only place they come from (redesign.md §2.11): about 2.5 to a walk.
 const MID_TYPES = ['fight', 'elite', 'shop', 'altar']
 const MID_WEIGHTS = [5, 1.5, 3, 1]
 const LATE_TYPES = ['fight', 'elite', 'shop']

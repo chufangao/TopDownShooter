@@ -1,13 +1,10 @@
 // Composition root: the Phaser engine (battles only), the DOM screens, and the run that links them.
 // Every player input becomes one apply(run, action); the screens only read run.state.
 // The DOM screens are laid out at one logical size and scaled to the screen (frame.js); the canvas is not.
-// The battle on turns or the old one by the page's address (flag.js: ?turns=1 or 0), set before any module below.
-import './flag.js'
-import { TUNING } from './tuning.js'
 import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
-import { createRun, apply, currentNode, holds, depthOf, runStat } from './sim/run.js'
-import { createBattle, stats, ariseCap } from './sim/battle.js'
+import { createRun, apply, currentNode, unhealed, depthOf, runStat } from './sim/run.js'
+import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS } from './content.js'
 import { titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary } from './codex.js'
@@ -163,9 +160,9 @@ function start (seed) {
 }
 
 // A run state from before relics had tiers (one with `keystones`, its Arise free) carries on under the new rules:
-// its keystones join its relics (the same ids, now Legendaries), it holds Arise, and an id no longer known is
-// dropped, so an old state never breaks the page. One from before the Monarch lost its points drops them, and its
-// rites and reliquaries are shops.
+// its keystones join its relics (the same ids, now Legendaries, waiting unheld: redesign.md §2.15), and an id no
+// longer known is dropped, from the relics and from what a soul holds, so an old state never breaks the page. One
+// from before the Monarch lost its points drops them, and its rites and reliquaries are shops.
 function migrate (s) {
   if (!Array.isArray(s.relics)) s.relics = []
   if ('keystones' in s) {
@@ -174,6 +171,7 @@ function migrate (s) {
     delete s.keystones
   }
   s.relics = s.relics.filter((id) => RELICS[id])
+  for (const u of s.party) if (u.relics) u.relics = u.relics.filter((id) => RELICS[id])
   delete s.monarch
   for (const n of s.map?.nodes ?? []) if (n.type === 'rite' || n.type === 'reliquary') n.type = 'shop'
   s.shop ??= []
@@ -209,7 +207,7 @@ function onNode (id) {
   apply(run, { type: 'node', id })
   trail.ids.push(id)
   if (currentNode(run).type === 'altar') {
-    note = holds(run.state, 'unhealable')
+    note = unhealed(run.state)
       ? 'The altar burns: your souls are healed, and the fallen rise again in the ossuary, to be placed. Under Court of Bone the Monarch is not healed.'
       : 'The altar burns: everyone is healed, and the fallen rise again in the ossuary, to be placed.'
   }
@@ -236,27 +234,23 @@ function reap (index) {
   route()
 }
 
-// The old battle: the run settles it the moment it starts; the scene rebuilds the same battle from run.setup and
-// plays it out, then routes to wherever the run went (reap, or the end). On turns (TUNING.turns) the battle is the
-// run's own (run.battle, phase 'battle'): the scene gives the player's orders to the run (apply), which returns each
-// one's events to play, and once the battle is over the run has finished it itself (its phase moved on).
-// From prep, the board you arranged stays up while the battle is built under it, then fades into it with
-// everyone where they stood (board.leave); the battle skips its own fade in. A lost battle ends on a replay
-// beat of what felled the Monarch (engine.js finish), the facts the end screen keeps.
+// The battle is the run's own (run.battle, phase 'battle'): the scene gives the player's orders to the run (apply),
+// which returns each one's events to play, and once the battle is over the run has finished it itself (its phase
+// moved on). From prep, the board you arranged stays up while the battle is built under it, then fades into it with
+// everyone where they stood (board.leave); the battle skips its own fade in. A lost battle ends on a replay beat of
+// what felled the Monarch (engine.js finish), the facts the end screen keeps.
 async function fight () {
   const node = currentNode(run)
   const handoff = board.leave()
   apply(run, { type: 'fight' })
-  const turns = TUNING.turns
   // The battle's chrome keeps prep's layout (ui.js battleChrome): the board fits its stage, as prep's did.
-  const bar = battleChrome({ onHelp: toggleHelp, node, turns })
+  const bar = battleChrome({ onHelp: toggleHelp })
   show(bar)
-  const battle = turns ? run.battle : createBattle(run.setup)
+  const battle = run.battle
   const s = run.state
   const scene = await engine.battle({
     battle,
-    turns,
-    order: turns ? (o) => apply(run, o) : null,
+    order: (o) => apply(run, o),
     hud: bar.hud,
     stage: bar.stage,
     seamless: !!handoff,
@@ -264,39 +258,41 @@ async function fight () {
     onChange: (st) => bar.update(st),
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: runStat(s, 'essence.gain', 1),
-    // Read as the battle ends (on turns it is decided only then).
-    death: () => s.death && run.battle.winner !== 'party' ? { ...deathText(s, run.battle), from: s.death.from ?? null, by: s.death.uid ?? null } : null,
+    // Read as the battle ends (it is decided only then).
+    death: () => s.death && battle.winner !== 'party' ? { ...deathText(s, battle), from: s.death.from ?? null, by: s.death.uid ?? null } : null,
     // Live stats and statuses for the unit under the pointer. Only your own plans are told: a foe's never are.
     // `pin`: a long press (touch) or a click, the card stays until the next press, the pointer leaving it or not.
     onHover: (u, at, pin = false) => {
       if (!u) return tipPinned() || hideTip()
       const foe = u.side === 'foe'
-      // A shadow the Legion (Undead 8) raised is marked on its arise event; on the foes' side it is one of yours. A
+      // A shadow the Legion (Undead 4) raised is marked on its arise event; on the foes' side it is one of yours. A
       // summon (a kind's tier called it up as the battle began) holds beside the piece of its kind that called it.
       const legion = u.shadow && battle.events.some((e) => e.type === 'arise' && e.rule === 'legion' && e.unit.uid === u.uid)
       const me = u.uid === battle.monarch?.uid
+      const arise = !foe && u.hp > 0 && u.kit && ariseOf(battle, u)
       const live = [
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
-        me && `${!battle.held.arise ? '' : turns ? 'Arise: a corpse in its reach a turn · ' : `Arise ${battle.raised}/${ariseCap(battle.held)} · `}if it falls, the run ends`,
+        me && 'If it falls, the run ends',
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
           : u.summoned ? `Summoned by its ${unitDef(u.id).name}: gone after the battle`
-            : u.arisen && holds(s, 'reap') ? 'Shadow: Hollow Court reaps it if it stands' : turns ? 'Shadow: acts on its own each turn, gone after the battle' : 'Shadow: holds where it rose, gone after the battle'),
-        u.rose && (u.rose >= battle.held.rises ? 'Risen by Undying: its next fall is final' : `Risen by Undying: it may rise ${battle.held.rises - u.rose} more`),
+            : u.reap > 0 ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: acts on its own each turn, gone after the battle'),
+        u.rose && 'Risen by Undying: its next fall is final',
+        arise && `Arise: corpses within ${arise.domain} tiles, tier ≤ ${arise.tier}`,
         u.flies && 'Flying: only a ranged blow (or a flyer\'s melee) can strike it',
-        !foe && !me && (!turns ? 'It fights from its cell all battle' : u.acted ? 'It has acted this turn' : 'Yours to move and act this turn'),
+        !foe && (u.acted ? 'It has acted this turn' : 'Yours to move and act this turn'),
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
-      const realm = { domain: battle.domain, held: battle.held, reap: holds(s, 'reap') }
+      const realm = { arise: (x) => (x.kit ? ariseOf(battle, x) : null) }
       const tip = pin ? pinTip : showTip
-      tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, live }))
+      tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, run, live }))
     },
     onDone: () => {
       // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).
-      if (!scene?.ending) sfx.play(run.battle.winner === 'party' ? 'win' : 'lose')
+      if (!scene?.ending) sfx.play(battle.winner === 'party' ? 'win' : 'lose')
       // Every foe kind that took the field is met: its reach and its way are told from now on (the bestiary).
-      bestiary.record(run.battle.units.filter((u) => u.side === 'foe' && !u.shadow).map((u) => u.id))
+      bestiary.record(battle.units.filter((u) => u.side === 'foe' && !u.shadow).map((u) => u.id))
       // Shadows are not souls: they were never yours to keep. The fallen souls have left the field for the ossuary
       // (run.js finishBattle), their cells and Command free, and wait there for an altar. A part fused away is no fall.
-      const fallen = run.battle.units.filter((u) => u.side === 'party' && !u.shadow && !u.into && u.hp <= 0 && u.uid !== run.battle.monarch?.uid).map((u) => unitDef(u.id).name)
+      const fallen = battle.units.filter((u) => u.side === 'party' && !u.shadow && !u.into && u.hp <= 0 && u.uid !== battle.monarch?.uid).map((u) => unitDef(u.id).name)
       if (fallen.length && s.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. ${fallen.length > 1 ? 'They lie' : 'It lies'} in the ossuary, ${fallen.length > 1 ? 'their cells' : 'its cell'} and Command free, until an altar raises ${fallen.length > 1 ? 'them' : 'it'}.`
       route()
     }
