@@ -10,20 +10,22 @@
 //           policy.js situation in it: what a player is shown, and the book), the options listed, each read as a named
 //           vector of features, the tree of hard rules (expert.js TREES) forcing or filtering them, the weights
 //           (TUNING.expert) scoring the rest. The next room by its type and the army's state (roomFeatures); the
-//           formation drafted (zone drafts about the seat, its gate held, basic's three) and hill-climbed on a static
-//           score against the scouted room's roads (formationFeatures); every purchase, fusion, recruit, relic bought
-//           and relic given by one growth search on a sketch (the field's strength and the book's worth of the combo it
-//           plays toward: targetOf), a relic against the tiers its price displaces (buyFor); its target's kinds fielded
-//           first and never let go while another will do; in battle every turn policy.js expertTurn's (each piece's
-//           option scored on the board as it stands). It never plays a battle, a turn of the foes, or a route ahead to
-//           decide anything.
+//           formation drafted (the plan's target formation as the first turn would read it: plan.js deployment; zone
+//           drafts about the seat, its gate held, basic's three) and hill-climbed on a static score against the scouted
+//           room's roads (formationFeatures); every purchase, fusion, recruit, relic bought and relic given by one
+//           growth search on a sketch (the field's strength and the book's worth of the combo it plays toward:
+//           targetOf), a relic against the tiers its price displaces (buyFor); its target's kinds fielded first and
+//           never let go while another will do; in battle every turn policy.js expertTurn's (a battle plan kept across
+//           turns, its target formation, kill list and forecast: plan.js; then each piece's option scored on the board
+//           as it stands). It never plays a battle, a turn of the foes, or a route ahead to decide anything.
 // Essence buys tiers, recruits, fusions and relics (a Shop's): the Monarch's HP and Command come from run relics, a
 // kind's level from its tiers (run.js). The Monarch is the camp's (run.js: on its seat, monarchSlot); nothing moves it.
 // In a battle it gives the level's turn policy's orders, one at a time.
 // Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert]
 // for the gap between the levels:     … --ladder [--runs 8]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
-// or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above)
+// or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above; --ablate moves: its
+// pieces never move in battle)
 // for how much each mechanic carries the expert, full runs:  … --ablations [--runs 8] [--variants full,orders,fusions] [--out runs.json]
 // or as a fast battle-level proxy (its battles refought stripped): … --necessity [--runs 8] [--setups file]
 // or what the expert considers against what it chooses, and which rule decided (AUDIT):  … --audit [--runs 4] [--seed audit]
@@ -41,7 +43,8 @@ import {
 } from './unit.js'
 import { roadsTo } from './field.js'
 import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
-import { expertTurn, basicTurn, brief } from './policy.js'
+import { expertTurn, basicTurn, brief, situation } from './policy.js'
+import { deployment } from './plan.js'
 import { value, decide, standing as keysOf, outranks, TREES } from './expert.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
@@ -64,16 +67,19 @@ export const LEVELS = {
   expert: { search: 120, wounds: true, route: true, spend: true, fuse: true, more: true, book: true, turns: 'expert' }
 }
 // The turn policies by name (LEVELS `turns`; `unfused`, the expert's that never fuses in battle: the fusions
-// ablation's). Each takes the battle and options (expertTurn's `note`, the audit's).
+// ablation's; `still`, the expert's that never moves a piece: the moves ablation's). Each takes the battle and options
+// (expertTurn's `note`, the audit's).
 const TURNS = {
   basic: basicTurn,
   expert: (b, o) => expertTurn(b, o),
-  unfused: (b, o) => expertTurn(b, { ...o, fuse: false })
+  unfused: (b, o) => expertTurn(b, { ...o, fuse: false }),
+  still: (b, o) => expertTurn(b, { ...o, moving: false })
 }
 // The turn policy L fights by: its `turns`, with its ablation's mechanic taken from them (ablatedTurns).
 const turnsOf = (L) => ablatedTurns(L.turns ?? 'basic', L.ablate)
-// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, the expert's unfused without fusions.
-const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' && turns === 'expert' ? 'unfused' : turns)
+// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, the expert's unfused without
+// fusions, its still without moves.
+const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 'expert' ? turns : m === 'fusions' ? 'unfused' : m === 'moves' ? 'still' : turns)
 
 // ── ablation: the expert with one mechanic taken away ─────────────────────────────────────────────
 
@@ -92,12 +98,15 @@ const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' &
 //                  TUNING.party.field, Legion's aside)
 //   synergies      the party holds no synergy's rule in battle (a rules switch, as summons)
 //   formation      no formation search: its souls in basic's first draft's cells (who it fields still its own)
+//   moves          its pieces never move in battle: each acts from where it stands (policy.js expertTurn's `moving`:
+//                  TURNS still); prep unchanged: what moving the pieces is worth (redesign.md §2.18)
 // A run of an ablation that is a rules switch must be made with it (ablatedRun); policy refuses one that is not.
 // 'arise' is a rules switch too (no relic grants Arise: the necessity's and the tests'), not an ablation: Arise is
 // measured with the Legendaries (it is one), and fusions as an extra, both having substitutes the expert spends on
 // instead (the user's call after the balance pass, 2026-10-09). The formation is measured with no band (MEASURED; the
-// user's call after the turns pass, 2026-10-11): pieces move in battle, and the orders absorb where they start.
-export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation']
+// user's call after the turns pass, 2026-10-11): pieces move in battle, and the orders absorb where they start. So are
+// the moves (2026-10-11, with the plan: redesign.md §2.18).
+export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves']
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 export const ablatedRun = (seed, ablate = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null })
 // Whether L never buys relic `id`.
@@ -490,7 +499,8 @@ function sheltered (units, camp, taken) {
 // roads), how steeply the threat grows toward the seat].
 const ZONES = [[2, 1, 1], [Infinity, 0.5, 0.5], [1, 1, 2], [3, 0.5, 1]]
 
-// The formations L drafts for these units (`want`, in fielding order), each with the Monarch on its seat first.
+// The formations L drafts for these units (`want`, in fielding order), each with the Monarch on its seat first: the
+// expert's the plan's first (planDraft), then its zone drafts, its gate held, and basic's three.
 export function drafts (run, want, L) {
   const s = run.state
   const m = { ...monarchOf(s), slot: monarchSlot(s.camp) }
@@ -501,9 +511,33 @@ export function drafts (run, want, L) {
   if (!L.more) return basic
   const gate = gated(blank(), s.camp, threatOf(run))
   return [
+    [{ ...m }, ...planDraft(run, blank(), rows(lanes[0]))],
     ...ZONES.map(([radius, keep, steep]) => [{ ...m }, ...zone(blank(), s.camp, threatOf(run, steep), { radius, keep })]),
     ...(gate ? [[{ ...m }, ...gate]] : []), ...basic
   ]
+}
+
+// The plan's draft (redesign.md §2.18: where you deploy and where you move are one idea): the target formation the
+// first turn's plan would walk to (plan.js deployment), read on the board as the room would set it up from `start` (a
+// draft that fields these units: who stands is all it reads), no turn played and no summons called; each piece it
+// gives a slot on its tile where its footprint fits the camp (the seat aside), the rest as the threat map's zone draft
+// fills them. Mutates and returns units.
+function planDraft (run, units, start) {
+  const s = run.state
+  const setup = battleSetup(run, { party: start.filter((u) => u.slot >= 0) })
+  const b = createBattle({ ...setup, ablate: [...(setup.ablate ?? []), 'summons'], quiet: true })
+  const within = new Set(openCells(s.camp).filter((c) => c !== monarchSlot(s.camp)).map((c) => deployTile('party', c)))
+  const at = b.over ? new Map() : deployment(b, situation(b), within)
+  const taken = seated(s.camp)
+  for (const u of units) {
+    const t = at.get(u.uid)
+    if (t === undefined) continue
+    const slot = slotAt(CAMP_ROWS - 1 - tileY(t), tileX(t))
+    if (!fits(s.camp, slot, sizeOf(u), taken)) continue
+    u.slot = slot
+    cellsOf(u).forEach((c) => taken.add(c))
+  }
+  return zone(units, s.camp, threatOf(run), { taken })
 }
 
 // The scouted room's foes and their roads (made once a room; no battle is set up or played): each foe of the opening
@@ -2072,10 +2106,11 @@ async function decisions ({ runs, seed: seed0, level, tries = 8 }) {
 // is checked against its band (BANDS): a core mechanic should cost 25–50 points, an extra one 8–25. The core: the
 // orders given in battle, the tracks and the summons a piece's tiers bring. MEASURED: played and reported, against no
 // band: the formation, reclassified out of the core on 2026-10-11 (the user's call, after the balance pass measured it
-// at 2 points: pieces move in battle, so the orders absorb most of where a piece starts; redesign.md §6).
+// at 2 points: pieces move in battle, so the orders absorb most of where a piece starts; redesign.md §6); and the
+// moves (redesign.md §2.18: what the plan's walking is worth).
 export const CORE = ['orders', 'tracks', 'summons']
 export const EXTRA = ['fusions', 'legendaries', 'relics', 'synergies']
-export const MEASURED = ['formation']
+export const MEASURED = ['formation', 'moves']
 export const BANDS = { ...Object.fromEntries(CORE.map((m) => [m, [25, 50]])), ...Object.fromEntries(EXTRA.map((m) => [m, [8, 25]])) }
 async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null }) {
   variants = [null, ...variants]
@@ -2162,6 +2197,7 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null 
 //   relics         no Common, Uncommon or Rare relic (no such mods, no such triggers, the field and the Monarch's
 //                  max HP as without them, its wounds kept as a share)
 //   formation      the souls in basic's first draft's cells
+//   moves          as it stood: refight plays it with an expert that never moves a piece
 // A soul holds only the relics the run still owns.
 export const NECESSITY = ABLATIONS
 export function stripped (state, mechanic = null) {
@@ -2194,7 +2230,7 @@ export function stripped (state, mechanic = null) {
   } else if (mechanic === 'formation') {
     const at = new Map(basicCells(run, fielded(s.party), LEVELS.expert).map((u) => [u.uid, u.slot]))
     for (const u of s.party) if (at.has(u.uid)) u.slot = at.get(u.uid)
-  } else if (mechanic !== null && mechanic !== 'orders') {
+  } else if (mechanic !== null && mechanic !== 'orders' && mechanic !== 'moves') {
     throw new Error(`unknown mechanic "${mechanic}": ${NECESSITY.join(', ')}`)
   }
   // A soul holds only relics the run still owns (a relic stripped is no one's).
@@ -2245,7 +2281,8 @@ function unfused (s) {
 }
 
 // Refights each snapshot as it stood and once per mechanic stripped, under the turn policy it was played with, that
-// mechanic taken from it (ablatedTurns: End Turn alone with the orders stripped, no fusing with the fusions): →
+// mechanic taken from it (ablatedTurns: End Turn alone with the orders stripped, no fusing with the fusions, no move
+// with the moves): →
 // per snapshot, per variant { won, alive (the Monarch stands at the end), hp (the share of your side's HP kept, 0 for
 // a loss) }, and whether the as-it-stood refight played out exactly as the real battle did.
 export function refight ({ snaps, variants = [null, ...NECESSITY] }) {

@@ -50,7 +50,6 @@ export const TUNING = {
         guard: 0, // HP of what the foes could deal the Monarch next turn that it takes away (a kill, a Hex, a road held)
         lethal: -500, // the foes could still fell the Monarch next turn after it (the tree's monarch-lethal)
         cull: 34.6, // foes it fells that could strike the Monarch next turn (the tree's kill-first)
-        approach: 0.144, // tiles it ends nearer the nearest foe (with nothing to strike, it comes on)
         shadow: 0.876, // a corpse it raises (Arise): the shadow's max HP
         fuse: 1.15, // a fusion: the fused piece's HP, less what its parts stand at
         essence: -0.766, // essence it spends (a fusion's price)
@@ -61,18 +60,34 @@ export const TUNING = {
         hit: 0, // HP the foes would take from the Monarch next turn, as `loss` reads them
         engage: 0.00414, // what it could deal next turn from the tile it ends on (its Move and reach to a foe's road ahead)
         undone: 0, // its damage the foes' healers could mend back next turn (policy.js healingRead), kills aside
-        quell: 0.215 // each foe it wounds and leaves standing: the share of its HP taken × the hardest blow it deals (raw), as
+        quell: 0.215, // each foe it wounds and leaves standing: the share of its HP taken × the hardest blow it deals (raw), as
         //          `menace` counts a kill's
+        // The plan's (redesign.md §2.18; plan.js; 2026-10-11, placeholders for the weight search). `progress` replaced
+        // `approach` (0.144: tiles nearer the nearest foe), which a piece with no slot still does by it.
+        progress: 1, // steps it ends nearer the tile the target formation gives it
+        role: 2, // it ends on that tile: its role held
+        listed: 5, // its act is its strike on the kill list
+        forecast: -0.15 // HP the foes could deal it next turn where it ends, each from where the forecast has it stand
       },
       // The weight sets a mode node of the tree switches to, each over `option`: `guard` while the Monarch is within the
-      // foes' reach next turn; `press` long past the last wave (tree.stall; 2026-10-11, hand-set: come on and trade, so
-      // a battle the camp's healers and yours would hold forever ends). `boardModes`, the same over `board`.
-      modes: { guard: { guard: 0, harry: 0.243, screen: 0.887, hit: 0 }, press: { approach: 6, engage: 1, danger: -0.1, fall: -0.2, loss: -0.3, mend: 0.2, status: 0.2 } },
-      boardModes: { press: { loss: -0.3, shadowLoss: -0.1, foeHp: -2, foes: -1.5, closer: 10 } },
+      // foes' reach next turn; `protect` while the plan is to close about the Monarch, over the guard's, and `push` while it
+      // is to take the fight to foes that hold off (2026-10-11, the plan's, placeholders: protect's empty, for on 32
+      // seeds every pull toward the Monarch's attackers tried cost clears, `guard` 1 and `hit` −0.5 fifteen points, `guard`
+      // 0.3 seven, `role` 6 nineteen, as the searched guard mode's `guard` and `hit` of 0 say; push's: come to them through
+      // what they could deal); `press` long past the last wave (tree.stall;
+      // 2026-10-11, hand-set: come on and trade, so a battle the camp's healers and yours would hold forever ends).
+      // `boardModes`, the same over `board` (the push's: 2026-10-11, placeholders).
+      modes: {
+        guard: { guard: 0, harry: 0.243, screen: 0.887, hit: 0 },
+        protect: {},
+        push: { progress: 3, danger: -0.1, forecast: 0, loss: -0.1 },
+        press: { progress: 6, engage: 1, danger: -0.1, fall: -0.2, loss: -0.3, mend: 0.2, status: 0.2 }
+      },
+      boardModes: { push: { progress: 4, loss: -0.4 }, press: { loss: -0.3, shadowLoss: -0.1, foeHp: -2, foes: -1.5, closer: 10 } },
       // The stances (policy.js expertTurn's ORDERS): the pieces' choices made once more under each one's weights over
       // `option`, so the board decision has a careful turn and a bold one to weigh beside the plain ones. `ward` minds the
       // Monarch and the roads into it; `bold` comes on.
-      stances: { ward: { danger: -0.352, harry: 1.26, guard: 1.24, hit: -1.03, screen: 2.05, engage: 0.554 }, bold: { danger: -0.136, approach: 1.46, engage: 0.354 } },
+      stances: { ward: { danger: -0.352, harry: 1.26, guard: 1.24, hit: -1.03, screen: 2.05, engage: 0.554 }, bold: { danger: -0.136, progress: 1.46, engage: 0.354 } },
       board: {
         hp: 0.989, // your souls' HP (a soul's wounds leave the battle with it)
         shadows: 1.76, // your shadows' and summons' HP
@@ -93,7 +108,9 @@ export const TUNING = {
         mended: -6.24, // HP the foes' healers would mend next turn (each its most wounded in reach)
         foeTicks: 0.518, // HP the damage over time on the foes will take at the turn's end
         ticks: -0.781, // the same on your pieces
-        closer: 0 // tiles your pieces came nearer the nearest foe this turn (0: the press's alone; 2026-10-11)
+        closer: 0, // tiles your pieces came nearer the nearest foe this turn (0: the press's alone; 2026-10-11)
+        progress: 0.5 // steps your pieces came nearer the tiles the plan's target formation gives them (2026-10-11, a
+        //               placeholder: the plan's, redesign.md §2.18)
       },
       // How much dearer a soul's HP is the nearer its fall (policy.js standingAt): this share of its max HP × the square
       // of the share it has lost.
@@ -101,6 +118,44 @@ export const TUNING = {
       // How much dearer the Monarch's HP is the nearer its fall (policy.js guardAt): an HP of its weighs 1 + peril as it
       // is about to fall, 1 while it is whole.
       peril: 2.34
+    },
+    // The battle plan (redesign.md §2.18; plan.js): chosen once a turn by the tree (expert.js TREES.plan) and these
+    // weights, kept until a trigger; its target formation; its forecast of the foes. 2026-10-11, placeholders for the
+    // weight search, hand-set.
+    plan: {
+      // `line`: a hold's chokes no more than this many road steps from the Monarch's seat (protect's: 1); `reach`: the
+      // shooters' and strikers' tiles no farther than this from the tiles they cover; `shooters`, `strikers`: how many
+      // such tiles the formation offers (the strikers' in each of three rings about a target); `impatient`: the turns since the last wave
+      // past which the forecast has every foe come on (the expert's guess at the camp's patience: its own, never read);
+      // `far`: a focus fails when none of yours could come to strike its target within this many turns.
+      line: 3, reach: 4, shooters: 8, strikers: 4, impatient: 20, far: 2,
+      // Choosing the plan (plan.js planOptions): which plan (hold, focus, push, protect: a bias each), and what makes
+      // each worth it.
+      choose: {
+        hold: 1, focus: -0.5, push: -0.5, protect: -0.5,
+        bold: 1, // hold: the share of the foes' HP the forecast has coming on
+        waves: 0.5, // hold: a wave still to come
+        peril: 3, // protect: what the foes could deal the Monarch next turn, a share of its HP
+        mends: 1, // focus: its target mends
+        picks: 0.5, // focus: its target strikes from afar, and could strike one of yours next turn
+        menace: 0.5, // focus: its target's hardest blow, a share of the foes' hardest
+        fell: 1.5, // focus: the kill list fells its target (1), else the share of its HP yours could deal it this turn
+        threat: 1, // focus: its target could strike the Monarch next turn
+        cull: 2, // focus: and the kill list fells it
+        wary: 2, // push: the share of the foes' HP that holds off
+        edge: 0.5 // push: your side's strength over the foes', as a log
+      },
+      // A slot's worth by role, for each plan (plan.js formation), × a piece's aptness for it.
+      roles: {
+        hold: { block: 3, air: 3, heal: 1.5, shoot: 1.5, strike: 0 },
+        focus: { block: 1.5, air: 1.5, heal: 1, shoot: 1, strike: 3 },
+        push: { block: 0.5, air: 1, heal: 1, shoot: 1, strike: 3 },
+        protect: { block: 3, air: 3, heal: 2, shoot: 1.5, strike: 0 }
+      },
+      // A piece's fit beside its role's worth: `melee`, a blocker's aptness lost for a blow at range (it would rather
+      // shoot); `travel`, a turn of its walk to the slot; `exposed`, the share of its HP the forecast foes could deal it
+      // there; `keep`, the slot it held last turn; `raise`, an Arise holder within its reach of the kill zone.
+      fit: { melee: 0.5, travel: -0.4, exposed: -1, keep: 0.5, raise: 0.5 }
     },
     // Prep (autoplay.js formationFeatures): a formation read against the scouted room's roads, no battle played. A road
     // runs from where a scouted foe stands or enters to the Monarch's seat; a piece on it holds that foe there.

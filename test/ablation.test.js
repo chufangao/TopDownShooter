@@ -74,11 +74,12 @@ test('the un-ablated players: a level with no ablation plays exactly as the leve
 
 test('ablation: the names, the rules switches carried by the run and its replay, and a policy that refuses a run without its switch', () => {
   // The orders given in battle are core (redesign.md §5 Step 5).
-  assert.deepEqual(ABLATIONS, ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation'])
+  assert.deepEqual(ABLATIONS, ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves'])
   assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons'])
-  // The formation measured with no band since 2026-10-11 (pieces move in battle: the orders absorb it).
+  // The formation measured with no band since 2026-10-11 (pieces move in battle: the orders absorb it), and the moves
+  // (the plan's walking, redesign.md §2.18).
   assert.deepEqual(CORE, ['orders', 'tracks', 'summons'])
-  assert.deepEqual(MEASURED, ['formation'])
+  assert.deepEqual(MEASURED, ['formation', 'moves'])
   // Every ablation is played: a core one targeted at 25–50 points, an extra one at 8–25, a measured one at none.
   assert.deepEqual([...CORE, ...EXTRA, ...MEASURED].sort(), ABLATIONS.slice().sort())
   assert.ok(CORE.every((m) => BANDS[m].join() === '25,50') && EXTRA.every((m) => BANDS[m].join() === '8,25'))
@@ -219,6 +220,29 @@ test('ablating orders: the expert gives no order in battle but End Turn, where t
   assert.equal(orders(without('orders')), 0)
   // Its battle setups are the full expert's: no rules switch.
   assert.ok(!('ablate' in ablatedRun('orders', 'orders').state))
+})
+
+// Under the moves ablation its pieces act from where they stand (redesign.md §2.18: what the plan's walking is worth);
+// prep is the full expert's.
+test('ablating moves: the expert acts in battle but never moves a piece, where the full expert does', () => {
+  const given = (L) => {
+    const run = createRun({ seed: 'moves' })
+    playTo(run, L, 2)
+    return run.state.log.filter((a) => ['move', 'act'].includes(a.type)).reduce((n, a) => ({ ...n, [a.type]: (n[a.type] ?? 0) + 1 }), { move: 0, act: 0 })
+  }
+  const full = given(LEVELS.expert)
+  const still = given(without('moves'))
+  assert.ok(full.move > 0 && full.act > 0)
+  assert.deepEqual([still.move, still.act > 0], [0, true])
+  assert.ok(!('ablate' in ablatedRun('moves', 'moves').state))
+  // The first prep is the full expert's.
+  const one = createRun({ seed: 'moves' })
+  const two = createRun({ seed: 'moves' })
+  for (const [run, L] of [[one, LEVELS.expert], [two, without('moves')]]) {
+    const rng = createRng('moves').stream('autoplay')
+    for (let a; (a = policy(run, rng, L)).type !== 'fight';) apply(run, a)
+  }
+  assert.deepEqual(two.state.log, one.state.log)
 })
 
 test('ablating fusions: never fuses, nor weighs one, where the full expert weighs every one it can make', () => {

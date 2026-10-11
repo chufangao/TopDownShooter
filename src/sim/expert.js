@@ -10,6 +10,9 @@
 //   2. the weights (TUNING.expert): a weighted sum of the features (value) scores what the tree left, the best taken.
 // Every decision says which rule decided it (`by`: the rule that forced it, else the first that filtered, else
 // 'weights'), for the audit (autoplay.js --audit). `value` is the seam where a learned model may replace the sum.
+// In battle the decisions nest (redesign.md §2.18): the battle plan once a turn (TREES.plan; plan.js, which also reads
+// its target formation, the kill list and the foes' forecast, all off the board), then each piece's move and act with
+// the plan among its features (TREES.battle), then the board a turn's orders leave (TREES.board).
 import { TUNING } from '../tuning.js'
 
 // The weighted sum of a feature vector. Every feature has a weight in its table (a missing one is NaN, and the tests
@@ -68,6 +71,22 @@ const T = () => TUNING.expert.tree
 // The rooms that are battles (map.js types).
 const BATTLES = new Set(['fight', 'elite', 'siege', 'boss'])
 export const TREES = {
+  // The battle plan, once a turn (plan.js readPlan; features plan.js planOptions; `sit` its context: the `trigger` that
+  // fired since the last turn's plan, null for none, that plan `prev`, the camp's `patience`, the Monarch in the foes'
+  // `reach`, a `healer` of theirs the kill list fells, the foes `waiting`: each holds off out of your reach, and no wave
+  // is to come).
+  plan: [
+    // A plan stands until something changes it: no dithering, and a walk that spans turns.
+    { id: 'keep-plan', when: (sit) => sit.trigger === null, force: (plans, sit) => plans.find((o) => o.kind === sit.prev.kind && o.target === sit.prev.target) },
+    // The Monarch within the foes' reach next turn: close about it, or fell what reaches it where the kill list can.
+    { id: 'monarch-reach', when: (sit) => sit.reach, keep: (o) => o.v.protect > 0 || o.v.cull > 0 },
+    // A healer of theirs that can be felled this turn is: what the rest deal, it undoes.
+    { id: 'fell-healer', when: (sit) => sit.healer, keep: (o) => o.v.focus > 0 && o.v.mends > 0 && o.v.fell >= 1 },
+    // Long past the last wave (TUNING.expert.tree.stall turns): take the fight to them.
+    { id: 'no-stall', when: (sit) => sit.patience >= T().stall, keep: (o) => o.v.push > 0 || o.v.focus > 0 },
+    // Foes that hold off out of your reach, and no wave to come: a line they never walk into holds nothing; go to them.
+    { id: 'go-to-them', when: (sit) => sit.waiting, keep: (o) => o.v.hold === 0 && o.v.protect === 0 }
+  ],
   // One piece's move and act in battle (policy.js choice; features policy.js features).
   battle: [
     // An act that changes nothing (a heal on the whole, a ward or a debuff already at its full stacks) is no act.
@@ -83,15 +102,23 @@ export const TREES = {
     { id: 'never-die', when: () => true, keep: (o) => !o.v.fall || o.v.kill > 0 || o.v.guard > 0 || o.v.harry > 0 },
     // The Monarch within the foes' reach next turn: the guard's weights (TUNING.expert.battle.modes.guard).
     { id: 'guard', when: (sit) => sit.monarch?.danger > 0, mode: 'guard' },
+    // The plan is to close about the Monarch (plan.js): the protect's weights over the guard's
+    // (TUNING.expert.battle.modes.protect), what an option takes from the foes' reach of the Monarch counted.
+    { id: 'protect', when: (sit) => sit.plan?.kind === 'protect', mode: 'protect' },
+    // The plan is to take the fight to foes that hold off (plan.js): the push's weights (TUNING.expert.battle.modes.push),
+    // a piece walking into what they could deal to come to them.
+    { id: 'push', when: (sit) => sit.plan?.kind === 'push', mode: 'push' },
     // Never a battle held forever: long past the last wave (TUNING.expert.tree.stall turns of the camp's patience, as
     // the counts show it), the press's weights (TUNING.expert.battle.modes.press): come on and trade.
     { id: 'no-stall', when: (sit) => sit?.patience >= T().stall, mode: 'press' }
   ],
   // The boards a turn's orders leave, a few orders of the pieces apiece (policy.js expertTurn; features
-  // policy.js boardFeatures).
+  // policy.js boardFeatures; `sit` the camp's patience and the plan's kind).
   board: [
     // Never a board where the foes could fell the Monarch next turn, where another is not.
     { id: 'no-doom', when: () => true, keep: (o) => !o.v.doom },
+    // The plan is to take the fight to foes that hold off: the push's board weights (TUNING.expert.battle.boardModes.push).
+    { id: 'push', when: (sit) => sit?.plan === 'push', mode: 'push' },
     // And long past the last wave, the press's board weights (TUNING.expert.battle.boardModes.press), as the pieces'.
     { id: 'no-stall', when: (sit) => sit?.patience >= T().stall, mode: 'press' }
   ],

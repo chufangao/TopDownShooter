@@ -414,6 +414,37 @@ advanced neural network later). It shouldn't rehearse each fight", and "in-battl
   battles (`--necessity`, `--decisions`) measure, not decide, and stay.
 - The balance pass tunes `TUNING.expert` with the game's numbers: "carefully balanced" is its job.
 
+### 2.18 The expert's plan (2026-10-11)
+
+Asked whether the expert moved its pieces well, the answer was "piece by piece, not as a team": each piece chose its
+tile alone each turn, nothing held a road with two, nothing walked two turns to a place, and the Monarch was screened
+only once threatened. The user: "how do we make it move and plan correctly?", then "yes" to this. Still no
+simulation (§2.17): a plan is read and kept, never played out.
+
+- **A battle plan, chosen by the tree and kept across turns.** Once a turn the situation picks one of a few plans by
+  hard rules and weights: **hold** (a line on the roads into the Monarch at the edge of the foes' reach; let them
+  come into overlapping fire), **focus** (go and fell a key foe: a healer that would stall, a shooter that picks at
+  you), **push** (take the fight to wary foes that will not come), **protect** (close about the Monarch when it is
+  threatened). The plan stands until the situation changes it (a wave enters, a piece falls, the Monarch comes into
+  reach, its goal is met): no dithering, and movement that spans turns.
+- **A target formation for the plan.** Roles to tiles, read off the board: blockers on the roads' choke tiles (the
+  roads are drawn and fixed), shooters on the tiles behind them that cover the choke, healers beside the blockers, an
+  Arise holder by the kill zone, a piece that can strike a flyer where the air road comes in. Pieces to roles by an
+  assignment (pieces × roles, scored by fit). Each piece walks toward its tile over the turns it takes. Prep's
+  formation is the same function's first answer, so where you deploy and where you move are one idea.
+- **A kill list each turn, by arithmetic.** With no dice, your own blows' damage is exact: which foes your pieces can
+  fell this turn, together, and who strikes whom, in what order. Focus fire by design, not by accident.
+- **A forecast of where the foes will stand, by rule.** A foe's road and Move bound where it can be; its temperament
+  (public once the kind is met) says where it would rather be: the bold to the edge of your pieces, the wary outside
+  your reach. A cheap read; the camp's policy is never called.
+- **The piece scorer stays**, with features for the plan: progress to its assigned tile, its role held, its part in
+  the kill list. The tree's invariants stand above it (never die for nothing; never leave the Monarch to a lethal
+  turn).
+- **Correctness is tested, not assumed**: a suite of tactical puzzles with known right moves (hold the choke rather
+  than chase; the shooter behind the blocker; the healer first; two turns' walk to the choke; never into the danger
+  map for nothing; a road walled by two) and an ablation `moves` (the expert acts but never moves: what movement is
+  worth). Then the weights are searched again (§6) and measured against the old expert's bar.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -648,7 +679,8 @@ model ("adding a new unit / relics / merges should be straightforward and modula
     checklist.
 
 Taken that night, after the slice (Step 3: "go"): **held relics** and **Arise a held skill** (§2.15); **no dice
-at all** (§2.16). After the bug hunts: **no clock** (§2.10), and **the expert scores, never rehearses** (§2.17).
+at all** (§2.16). After the bug hunts: **no clock** (§2.10), and **the expert scores, never rehearses** (§2.17). On 2026-10-11: **the expert plans** (a kept battle
+plan, a target formation, a kill list, a foe forecast; §2.18).
 
 Open, decided later:
 

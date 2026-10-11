@@ -5,7 +5,7 @@
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf, battleSetup } from '../src/sim/run.js'
 import {
   drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay, formationFeatures,
   survey, pickRoute, roomFeatures, record
@@ -19,7 +19,9 @@ import {
   slotAt, CAMP_SLOTS, sizeOf, footprintSlots, fits, monarchSlot, makeUnit, campOpen, wallTiles, deployTile, tileAt, tracksOf, TILES, DEPTH, ROWS,
   LANES
 } from '../src/sim/unit.js'
-import { field } from '../src/sim/turns.js'
+import { field, createBattle } from '../src/sim/turns.js'
+import { situation } from '../src/sim/policy.js'
+import { readPlan } from '../src/sim/plan.js'
 import { fight } from './rooms.js'
 
 
@@ -51,12 +53,13 @@ test('the drafts, in every camp: the Monarch on its seat, every piece where its 
     const want = souls(s.party)
     for (const L of [LEVELS.basic, LEVELS.expert]) {
       const all = drafts(run, want, L)
-      // Basic's three; the expert's four zone drafts and basic's three, and one more, its gate held, where the camp
-      // has a gate (gateOf) its pieces can hold.
+      // Basic's three; the expert's plan's draft, four zone drafts and basic's three, and one more, its gate held, where
+      // the camp has a gate (gateOf) its pieces can hold.
       if (L === LEVELS.basic) assert.equal(all.length, 3, c.id)
-      else assert.ok(all.length === 7 || (all.length === 8 && gateOf(c.id).length > 0), `${c.id}: ${all.length}`)
-      // The gate's draft, after the four zone drafts: every gate cell under a piece's footprint, a 2×2 piece's too.
-      if (all.length === 8) for (const cell of gateOf(c.id)) assert.ok(covered(all[4]).has(cell), `${c.id}: gate cell ${cell} held`)
+      else assert.ok(all.length === 8 || (all.length === 9 && gateOf(c.id).length > 0), `${c.id}: ${all.length}`)
+      // The gate's draft, after the plan's and the four zone drafts: every gate cell under a piece's footprint, a 2×2
+      // piece's too.
+      if (all.length === 9) for (const cell of gateOf(c.id)) assert.ok(covered(all[5]).has(cell), `${c.id}: gate cell ${cell} held`)
       for (const [k, party] of all.entries()) {
         const at = `${c.id} draft ${k}`
         assert.equal(party[0].uid, MONARCH_UID, at)
@@ -92,6 +95,25 @@ function walkRoads (camp) {
   }
   return { roads, d: (c) => f.dist[deployTile('party', c)] }
 }
+
+// Prep's first draft is the plan's target formation (redesign.md §2.18: where you deploy and where you move are one
+// idea): set up from it, the first turn's plan finds each of its blockers already on the choke it gives it.
+test('the plan\'s draft, in every camp: the first turn\'s blockers already on their chokes, every road held', () => {
+  for (const c of CAMP_LIST) {
+    const run = prep('planned-' + c.id)
+    const s = run.state
+    s.camp = c.id
+    s.party.find((u) => u.uid === MONARCH_UID).slot = monarchSlot(c.id)
+    const want = souls(s.party).map((u) => ({ ...u, slot: -1 }))
+    const draft = drafts(run, want, LEVELS.expert)[0]
+    assert.equal(formationFeatures(run, draft).open, 0, c.id)
+    const b = createBattle({ ...battleSetup(run, { party: draft.filter((u) => u.slot >= 0) }), quiet: true })
+    const plan = readPlan(b, situation(b), { store: false })
+    const blocks = [...plan.goals].filter(([, g]) => g.role === 'block')
+    assert.ok(blocks.length > 0, `${c.id}: a blocker`)
+    for (const [uid, g] of blocks) assert.equal(b.byUid.get(uid).tile, g.tile, `${c.id}: ${b.byUid.get(uid).id} on its choke`)
+  }
+})
 
 test('basic\'s sheltered draft: a piece fighting in melee alone stands in front, a long arm\'s too; one whose tiers teach it a ranged blow stands back', () => {
   for (const c of CAMP_LIST) {
