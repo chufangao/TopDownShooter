@@ -75,3 +75,9 @@
   /* A keyword in running text: a line's height more to hold, none to the side (its neighbours touch it). */
   .kw::before { inset: -6px 0; }
 }
+
+/* A tier or a fusion read by a first tap (ui.js fieldEditor twice): its text pinned, a second tap makes it. */
+.tnode.chosen, .uc-fuse .buy.chosen {
+  border-color: var(--bright);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-essence) 55%, transparent), 0 0 16px color-mix(in srgb, var(--c-essence) 40%, transparent);
+}

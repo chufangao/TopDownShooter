@@ -22,6 +22,7 @@ class El {
 
   setAttribute () {}
   addEventListener () {}
+  remove () {}
   replaceChildren (...kids) { this.childNodes = kids }
   append (...kids) { this.childNodes.push(...kids) }
   getBoundingClientRect () { return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 } }
@@ -152,5 +153,68 @@ test('a battle\'s synergy labels name the rule each brings at 4', () => {
   for (const x of labels) {
     const syn = SYNERGIES.find((s) => s.id === x.id)
     assert.ok(syn.name.endsWith(' 4') && syn.desc.startsWith(`${x.rule}: `) && x.text.length > 0, x.id)
+  }
+})
+
+test('a fall to a status\'s tick is told as that status, from no tile and with no blow replayed; a blow\'s keeps its tile', async () => {
+  const { deathText } = await import('../src/codex.js')
+  const { deployTile } = await import('../src/sim/unit.js')
+  const run = createRun({ seed: 'codex' })
+  const s = run.state
+  const m = s.party.find((u) => u.id === 'monarch')
+  const from = deployTile('foe', 0)
+  s.death = { by: 'pyre_hound', uid: 900, ability: null, from, shape: null, threat: null, reason: 'monarch' }
+  const battle = (status) => ({ units: [], events: [{ type: 'damage', actor: 900, target: m.uid, damage: 9, hp: 0, ability: null, ...(status && { status }) }] })
+  const tick = deathText(s, battle('burning'))
+  assert.equal(tick.tick, 'burning')
+  assert.ok(tick.lines.some((l) => l.includes('Burning')) && !tick.lines.some((l) => /^From |a blow/.test(l)), tick.lines.join(' | '))
+  s.death = { ...s.death, ability: 'strike' }
+  const blow = deathText(s, battle(null))
+  assert.equal(blow.tick, null)
+  assert.ok(blow.lines.some((l) => l.startsWith('From ')), blow.lines.join(' | '))
+})
+
+test('the glossary never says most kinds have a basic heal: only menders do', async () => {
+  const { basicOf, mendOf } = await import('../src/sim/turns.js')
+  const { abilitiesOf } = await import('../src/sim/unit.js')
+  const { abilityDef } = await import('../src/content.js')
+  const kinds = UNIT_LIST.filter((d) => !d.monarch)
+  const menders = kinds.filter((d) => mendOf(abilitiesOf({ id: d.id, lvl: 1, tracks: [0, 0] }).map(abilityDef))).length
+  assert.ok(menders * 2 < kinds.length, 'menders are the few')
+  for (const d of kinds) assert.ok(basicOf(abilitiesOf({ id: d.id, lvl: 1, tracks: [0, 0] }).map(abilityDef)), `${d.id}: a basic blow`)
+  const text = codexView(createRun({ seed: 'codex' })).textContent + Object.values(KEYWORDS).map((k) => k.line).join(' ')
+  assert.ok(!/most a basic heal/.test(text))
+  assert.match(KEYWORDS.turn.line, /basic heal/)
+})
+
+test('a quick tap read late (the page busy past the long press) stays a tap; a press held, or a late timer with no lift, is a long press', async () => {
+  const { hold, HOLD } = await import('../src/dom.js')
+  const on = {}
+  const saved = { add: globalThis.addEventListener, remove: globalThis.removeEventListener, raf: globalThis.requestAnimationFrame }
+  globalThis.addEventListener = (type, f) => { (on[type] ??= new Set()).add(f) }
+  globalThis.removeEventListener = (type, f) => { on[type]?.delete(f) }
+  globalThis.requestAnimationFrame = (f) => setTimeout(f, 16)
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+  const lift = (id) => { for (const f of [...(on.pointerup ?? [])]) f({ pointerId: id }) }
+  try {
+    let fired = 0
+    // Pressed long before the timer could run: the page was busy, and the lift is read just after the timer.
+    hold({ pointerId: 1, clientX: 0, clientY: 0, timeStamp: performance.now() - HOLD - 300 }, () => fired++)
+    await wait(HOLD + 2)
+    lift(1)
+    await wait(60)
+    assert.equal(fired, 0, 'a quick tap read late is no long press')
+    // The same late timer with no lift: a long press after all.
+    hold({ pointerId: 2, clientX: 0, clientY: 0, timeStamp: performance.now() - HOLD - 300 }, () => fired++)
+    await wait(HOLD + 60)
+    assert.equal(fired, 1)
+    // A press held on an idle page fires on time.
+    hold({ pointerId: 3, clientX: 0, clientY: 0, timeStamp: performance.now() }, () => fired++)
+    await wait(HOLD + 20)
+    assert.equal(fired, 2)
+  } finally {
+    globalThis.addEventListener = saved.add
+    globalThis.removeEventListener = saved.remove
+    globalThis.requestAnimationFrame = saved.raf
   }
 })

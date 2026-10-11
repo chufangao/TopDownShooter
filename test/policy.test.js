@@ -140,3 +140,28 @@ test('the expert gives legal orders, the same for the same board, and ends its t
   assert.ok(b.over || b.turn === was + 1)
   assert.deepEqual(basicTurn(b), [{ type: 'end' }])
 })
+
+test('the expert weighs Fuse as an act: a recipe\'s parts standing together, wounded, and the price in the purse, it fuses; never with `fuse` false', () => {
+  const b = field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
+    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
+    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 },
+    { id: 'pyre_hound', uid: 10, side: 'foe', x: 4, y: 8 }
+  ], { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 3, tracks: [0, 0] } } })
+  for (const uid of [1, 2, 3]) b.byUid.get(uid).hp = Math.ceil(b.byUid.get(uid).maxHp / 4)
+  const orders = expertTurn(b)
+  const fused = orders.find((o) => o.type === 'fuse')
+  assert.ok(fused && fused.id === 'bone_colossus', JSON.stringify(orders))
+  assert.ok(legalOrders(b).some((l) => JSON.stringify(l) === JSON.stringify(fused)), 'a legal order')
+  for (const o of orders) if (!b.over) order(b, o)
+  assert.equal(b.fused.length, 1)
+  assert.ok(!expertTurn(field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
+    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
+    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 }
+  ], { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 3, tracks: [0, 0] } } }), { fuse: false }).some((o) => o.type === 'fuse'))
+})

@@ -431,6 +431,20 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
     sfx.play('poor')
     render()
   }
+  // By touch a purchase (a tier, a fusion) is read before it is made, as a Shop's card is (redesign.md §4: a second
+  // tap commits): the first tap pins its text with `label` under it, and a second tap on it, or that button, makes
+  // it. A click makes it at once: its hover read it. `ok()`: whether the button is offered (it can be paid for).
+  let reading = null
+  function twice (e, tip, label, ok, go) {
+    const el = e.currentTarget
+    if (!touchy() || reading === el) { reading = null; return go(e) }
+    reading = el
+    el.classList.add('chosen')
+    pinTip(el, () => [tip(), ok() && h('button', { class: 'primary small tip-act', onclick: () => { hideTip(); reading = null; go(e) } }, label)], {
+      keep: true,
+      onHide: () => { el.classList.remove('chosen'); if (reading === el) reading = null }
+    })
+  }
   function select (next) {
     sel = next
     error = ''
@@ -454,8 +468,9 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
   // ── the picture ──
 
   // The one overlay (redesign.md §4): the danger map, by tile what your side could deal next turn to a foe standing
-  // there (policy.js danger, before its DEF), read off the battle as it would begin against the room faced; built
-  // again only when the field or the relics change. None on the map (no room faced).
+  // there (policy.js danger, before its DEF: its ground layer, and its air layer for a flyer, which ground melee never
+  // reaches), read off the battle as it would begin against the room faced; built again only when the field or the
+  // relics change. None on the map (no room faced).
   let dangerKey = null
   let dangerMap = null
   function dangerNow () {
@@ -463,7 +478,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
     const key = JSON.stringify([s.relics, fielded(s.party).map((u) => [u.uid, u.id, u.slot, u.hp, u.lvl, u.tracks, u.relics])])
     if (key !== dangerKey) {
       dangerKey = key
-      dangerMap = danger(createBattle(battleSetup(run)), 'foe').ground
+      dangerMap = danger(createBattle(battleSetup(run)), 'foe')
     }
     return dangerMap
   }
@@ -518,7 +533,10 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
         h('div', null, h('b', null, wall ? 'Wall' : sentence(tileText(t))), dom && [' · ', distanceBetween(dom.centre, dom.size, t, 1) <= dom.r ? 'within Arise\'s reach' : h('span', { class: 'dim' }, 'beyond Arise\'s reach')]),
         h('div', { class: 'dim' }, wall ? 'It blocks walking, not shots: the roads bend round it.'
           : Number.isFinite(d) ? `Its road runs ${d} step${d === 1 ? '' : 's'} to the Monarch.` : 'No road runs from here.'),
-        !wall && dangers && h('div', { class: 'dim' }, dangers[t] > 0 ? `Your side could deal ${Math.round(dangers[t])} to a foe here next turn, before its DEF.` : 'Nothing of yours could reach a foe here next turn.')))
+        !wall && dangers && h('div', { class: 'dim' }, dangers.ground[t] > 0
+          ? [`Your side could deal ${Math.round(dangers.ground[t])} to a foe here next turn, before its DEF`,
+              dangers.air[t] < dangers.ground[t] ? `; ${dangers.air[t] > 0 ? Math.round(dangers.air[t]) : 'nothing'} to a flyer, which melee from the ground never reaches (the tile's upper part).` : '.']
+          : 'Nothing of yours could reach a foe here next turn.')))
     }
     const moving = drag ? soulOf(drag.uid) : null
     const picture = {
@@ -728,12 +746,14 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
       const node = (tier, i) => {
         const lock = i >= have && !canTrack(k.tracks.map((v, j) => (j === t ? i : v)), t)
         const state = i < have ? 'own' : i === have && can ? (s.essence < cost ? 'next poor' : 'next') : lock ? 'lock' : 'later'
+        const tip = () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${tr.name} ${ROMAN[i]}: `), tier.desc),
+          i < have ? null : lock ? h('p', { class: 'warn' }, lockText) : i > have ? h('p', { class: 'dim' }, `After ${ROMAN[i - 1]}.`)
+            : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}. ${rise}`) : h('p', { class: 'dim' }, `${cost} essence, for every ${name}. ${rise}`))
+        const press = (e) => { if (i === have && can) return buyTier(e, id, t, cost); if (i >= have) { sfx.play('poor'); shake(e) } }
         return h('button', {
           class: `tnode ${state}` + (tier.size === 2 ? ' colossus' : ''), 'aria-label': `${tr.name} ${ROMAN[i]}`, 'aria-disabled': i === have && can && s.essence >= cost ? null : 'true',
-          onclick: (e) => { if (i === have && can) return buyTier(e, id, t, cost); if (i >= have) { sfx.play('poor'); shake(e) } },
-          tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${tr.name} ${ROMAN[i]}: `), tier.desc),
-            i < have ? null : lock ? h('p', { class: 'warn' }, lockText) : i > have ? h('p', { class: 'dim' }, `After ${ROMAN[i - 1]}.`)
-              : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}. ${rise}`) : h('p', { class: 'dim' }, `${cost} essence, for every ${name}. ${rise}`))
+          onclick: (e) => (i < have ? null : twice(e, tip, `Buy ${ROMAN[i]} ▸`, () => i === have && can && s.essence >= cost, press)),
+          tip
         }, h('span', { class: 'tnum' }, ROMAN[i]), tier.size === 2 && h('span', { class: 'tbadge' }, '2×2'))
       }
       return h('div', { class: 'track' + (have ? ' held' : '') + (t ? ' second' : '') },
@@ -798,20 +818,22 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
       const p = soulOf(uid)
       return `the ${unitDef(p.id).name} ${onField(p) ? `on ${tileText(deployTile('party', p.slot)).replace(/^your camp, /, '')}` : 'in the ossuary'}`
     }).join(', ')
+    const tip = () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ' ', f.desc,
+      !parts ? h('p', { class: 'warn' }, 'Not every part is held yet.')
+        : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
+          : h('p', { class: 'dim' }, `It takes ${partsText(parts)}, for ${cost} essence; the ${unitDef(f.result).name} waits in the ossuary.`))
+    const press = (e) => {
+      if (!can) { sfx.play('poor'); return shake(e) }
+      if (!send({ type: 'fuse', id: f.id, parts: fuseParts(run, f.id) })) return
+      learnt('fuse')
+      sfx.play('buy')
+      sel = { uid: s.party.at(-1).uid }
+      render()
+    }
     return h('button', {
       class: 'buy' + (can ? '' : ' poor'), 'aria-disabled': can ? null : 'true', 'aria-label': `Fuse ${f.name}`,
-      onclick: (e) => {
-        if (!can) { sfx.play('poor'); return shake(e) }
-        if (!send({ type: 'fuse', id: f.id, parts: fuseParts(run, f.id) })) return
-        learnt('fuse')
-        sfx.play('buy')
-        sel = { uid: s.party.at(-1).uid }
-        render()
-      },
-      tip: () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ' ', f.desc,
-        !parts ? h('p', { class: 'warn' }, 'Not every part is held yet.')
-          : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
-            : h('p', { class: 'dim' }, `It takes ${partsText(parts)}, for ${cost} essence; the ${unitDef(f.result).name} waits in the ossuary.`))
+      onclick: (e) => twice(e, tip, `Fuse ${f.name} ▸`, () => can, press),
+      tip
     }, icon('fuse', 18), 'Fuse', h('span', { class: 'price' }, icon('soul', 16), cost))
   }
 
@@ -859,7 +881,7 @@ function fieldEditor ({ run, act, facing = null, onChange = null, head = null })
     h('div', { class: 'uc-sec' }, 'The board'),
     h('ul', { class: 'legend-list dim' },
       h('li', null, h('i', { class: 'lg-road' }), kw('road', 'Roads'), ': the arrows the foes walk to the Monarch.'),
-      facing && h('li', null, h('i', { class: 'lg-cover' }), 'Danger: each tile shaded by what your side could deal next ', kw('turn'), ' to a foe standing there, deeper for more. A foe weighs it before it comes in.'),
+      facing && h('li', null, h('i', { class: 'lg-cover' }), 'Danger: each tile shaded by what your side could deal next ', kw('turn'), ' to a foe standing there, deeper for more; where a tile\'s upper part is paler, a flyer there takes less (melee from the ground never reaches up). A foe weighs it before it comes in.'),
       h('li', null, h('i', { class: 'lg-seat' }), 'The crown: the Monarch\'s seat, the camp\'s own. It never moves.'),
       domainNow(null) && h('li', null, h('i', { class: 'lg-dom' }), 'Arise\'s reach, round the soul holding it as the battle begins: the corpses it may raise.'))]
   }
@@ -1632,7 +1654,7 @@ function deathPanel (s, battle) {
   const d = deathText(s, battle)
   const m = monarchOf(s)
   const mine = m.slot >= 0 ? deployTile('party', m.slot) : null
-  const from = s.death.reason === 'monarch' && s.death.uid !== m.uid ? s.death.from : null
+  const from = s.death.reason === 'monarch' && s.death.uid !== m.uid && !d.tick ? s.death.from : null
   const walls = new Set(wallTiles(s.camp))
   // On its side as the battle draws it: their side on the left, your camp on the right, the top lane at the top.
   const at = (t) => [DEPTH - 1 - tileY(t) + 0.5, LANES - 1 - tileX(t) + 0.5]
@@ -1764,14 +1786,15 @@ export function battleChrome ({ onHelp = null } = {}) {
     const p = st.panel
     if (!p) {
       fusing = null
-      return fill(selBox, h('p', { class: 'bs-hint dim' }, st.busy && !st.over ? 'The turn plays out…' : [say('Click', 'Tap'), ' a piece of yours to give it orders: those ringed in soulfire may still act. Then ', h('b', null, 'End Turn'), '.']))
+      return fill(selBox, h('p', { class: 'bs-hint dim' }, st.over ? 'The battle is over.' : st.busy ? 'The turn plays out…' : [say('Click', 'Tap'), ' a piece of yours to give it orders: those ringed in soulfire may still act. Then ', h('b', null, 'End Turn'), '.']))
     }
     const d = unitDef(p.id)
     const pip = (a) => a.skill && h('span', { class: 'cd-pip' + (a.rest > 0 ? ' rest' : ''), 'aria-label': a.rest > 0 ? 'resting' : 'ready' })
     const what = (a) => a.arise ? `One corpse within ${a.arise.domain} tiles of it, a foe of tier ${a.arise.tier} or lower, rises as your shadow, the corpse you choose. A `
       : a.skill ? 'A ' : a.heal ? 'Its basic heal: every turn.' : 'Its basic blow: every turn, and what it strikes with if left alone.'
     const actTip = (a) => () => h('div', { class: 'syn-tip' }, h('b', null, a.name), ' ', what(a),
-      a.skill && [kw('skill'), a.rest > 0 ? `: resting, ready in ${a.rest} turn${a.rest === 1 ? '' : 's'}.` : ': yours to use, then it rests a turn.'],
+      a.skill && [kw('skill'), a.rest > 0 ? `: resting, ready in ${a.rest} turn${a.rest === 1 ? '' : 's'}.`
+        : `: yours to use, then it rests ${a.rests > 0 ? `${a.rests === 1 ? 'a' : a.rests} turn${a.rests === 1 ? '' : 's'}` : 'no turn'}.`],
       !a.can ? h('p', { class: 'dim' }, p.acted ? 'It has acted this turn.' : p.hexed ? 'Hexed: it loses its act.' : 'Not now.')
         : !a.targets ? h('p', { class: 'dim' }, a.arise ? 'No corpse in its reach from here: move it first.' : 'Nothing in its reach from here: move it first.')
           : h('p', { class: 'dim' }, `${a.targets} in reach: ${say('click', 'tap')} one to see what it would do, again to do it.`))
@@ -1789,7 +1812,9 @@ export function battleChrome ({ onHelp = null } = {}) {
       : p.acted ? h('span', { class: 'dim' }, 'Acted this turn.')
         : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to raise it.', 'Tap it again to raise it.') : say('Click it again to strike.', 'Tap it again to strike.'))
           : armed?.arise ? h('span', { class: 'dim' }, [say('Click', 'Tap'), ' a corpse ringed in green, again to raise it.'])
-            : h('span', { class: 'dim' }, [say('Click', 'Tap'), ' a lit tile to move, a ringed target to aim.'])
+            : h('span', { class: 'dim' }, p.move > p.moved && armed?.targets ? [say('Click', 'Tap'), ' a lit tile to move, a ringed target to aim.']
+              : p.move > p.moved ? [say('Click', 'Tap'), ' a lit tile to move.']
+                : armed?.targets ? [say('Click', 'Tap'), ' a ringed target to aim.'] : 'Nothing in its reach from here.')
     fill(selBox,
       h('div', { class: 'sel-head' }, portrait(p.id, 38),
         h('div', { class: 'sel-id' },

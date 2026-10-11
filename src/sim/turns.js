@@ -75,8 +75,8 @@ export { rulesOf, holds } from './rules.js'
 // `relics`: the run's, every copy owned; `arise`: { domain, tier }, Arise's reach and tier for any holder (run.js
 // ariseOf; TUNING.arise by default); `foeRules`: whether the foes hold their synergies' rules (the deep's); `essence`,
 // the run's purse as the battle begins (what a fusion here may spend: default 0); `fuse`, per recipe id { price, lvl,
-// tracks }: what it costs here, and the level and tiers its fused kind stands at in the run (defaults: fuseCost's
-// formula with no discount, level 2, no tiers; the fused piece stands at least at its parts' highest level); `cap`,
+// tracks }: what it costs here (run.js fuseCost), and the level and tiers its fused kind stands at in the run (a recipe
+// with no price is not made here; no level, the parts' highest; no tiers, none); `cap`,
 // the clock's cap (TUNING.turn.cap); `nextUid`: where the uids of units made here start (by default past every uid
 // here, the reserve's included); battle.nextUid is the first still free when it ends.
 //
@@ -318,14 +318,14 @@ export function synergiesOf (battle, side) {
   return list
 }
 
-// What bends a unit's stats now: its statuses, its side's synergies, the auras it stands in, its side's mods, and the
-// piece relics it holds. The Monarch takes no synergy's or relic's mods: its stats are its own, its max HP the run's
-// (guarding it is a placement problem, never a stat purchase). What stands around it still counts (a status on it,
-// an aura it stands in).
-export function modsFor (battle, unit) {
+// What bends a unit's stats now: its statuses (or those given: rateOf's), its side's synergies, the auras it stands
+// in, its side's mods, and the piece relics it holds. The Monarch takes no synergy's or relic's mods: its stats are its
+// own, its max HP the run's (guarding it is a placement problem, never a stat purchase). What stands around it still
+// counts (a status on it, an aura it stands in).
+export function modsFor (battle, unit, statuses = unit.statuses) {
   const mods = []
   const own = unit !== battle.monarch
-  for (const s of unit.statuses) {
+  for (const s of statuses) {
     for (const m of statusDef(s.id).mods ?? []) for (let n = 0; n < s.stacks; n++) mods.push(m)
   }
   if (own) for (const syn of synergiesOf(battle, unit.side)) mods.push(...(syn.mods ?? []))
@@ -983,20 +983,22 @@ export function summon (battle, u) {
 
 // ── fusing in battle (redesign.md §2.4) ──────────────────────────────────────────────────────────
 
-// What fusion `id` costs here (setup.fuse, else run.js fuseCost's formula with no discount) and the level and tiers
-// its piece stands at.
+// What fusion `id` costs here and the level and tiers its piece stands at, as the setup gives them (the run's: run.js
+// battleSetup, its fuseCost; the battle keeps no price of its own), or null: a recipe the setup does not price is not
+// made here. The piece stands at least at its parts' highest level (fuse), its tiers none where none are given.
 function fusing (battle, id) {
-  const r = FUSIONS[id]
-  const given = battle.fuse?.[id] ?? {}
-  const price = given.price ?? Math.max(1, Math.round(TUNING.essence.fuse * unitDef(r.result).tier * (1 + TUNING.essence.perFloor * (battle.floor - 1))))
-  return { recipe: r, price, lvl: given.lvl ?? Math.floor(TUNING.level.base), tracks: (given.tracks ?? [0, 0]).slice() }
+  const given = Object.hasOwn(FUSIONS, id) ? battle.fuse?.[id] : null
+  if (!Number.isFinite(given?.price)) return null
+  return { recipe: FUSIONS[id], price: given.price, lvl: given.lvl ?? 1, tracks: (given.tracks ?? [0, 0]).slice() }
 }
 
 // Whether `parts` (units) are recipe `id`'s exactly, fused by `u` among them: souls, each within a tile of `u`, the
-// purse holding the price, and the fused piece's footprint free on `u`'s anchor once the parts' tiles count free.
+// recipe priced here (fusing) and the purse holding the price, and the fused piece's footprint free on `u`'s anchor once
+// the parts' tiles count free.
 function fusible (battle, u, id, parts) {
-  if (!Object.hasOwn(FUSIONS, id) || !parts.includes(u) || new Set(parts).size !== parts.length) return false
-  const { recipe, price, tracks } = fusing(battle, id)
+  const terms = fusing(battle, id)
+  if (!terms || !parts.includes(u) || new Set(parts).size !== parts.length) return false
+  const { recipe, price, tracks } = terms
   const got = {}
   for (const p of parts) {
     if (!orderable(battle, p) || unitDistance(p, u) > 1 || !Object.hasOwn(recipe.needs, p.id)) return false
@@ -1009,8 +1011,9 @@ function fusible (battle, u, id, parts) {
   return !!tiles && tiles.every((t) => (flies || !battle.walls.has(t)) && (layer[t] === null || parts.includes(layer[t])))
 }
 
-// The fusions `u` may make now: per recipe it is a part of, its nearest parts (then the lower uids).
-function fusionsOf (battle, u) {
+// The fusions `u` may make where it stands, as orders: per recipe it is a part of, its nearest parts (then the lower
+// uids). Whether it may act at all is the caller's (legalOrders, policy.js expertTurn: canAct).
+export function fusionsOf (battle, u) {
   const out = []
   if (!orderable(battle, u)) return out
   for (const r of FUSION_LIST) {
@@ -1156,27 +1159,35 @@ function endTurn (battle) {
 }
 
 // The turn's end: statuses tick and age, cooldowns fall, the clock advances, a wave whose turn has come enters, and
-// the battle is checked: lost once the clock has passed its cap.
+// the battle is checked: lost once the clock has passed its cap. Each one's cooldowns fall at the rate it played the
+// turn at, read before its statuses age (rateOf).
 function closeTurn (battle) {
   battle.stage = 'end'
   battle.beat++
   emit(battle, { type: 'stage', stage: 'end' })
+  const rates = new Map()
+  for (const u of battle.units) if (alive(u) && Object.values(u.cooldowns).some((n) => n > 0)) rates.set(u, rateOf(battle, u))
   age(battle)
   phases(battle)
   if (settle(battle)) return
-  for (const u of battle.units) {
+  for (const [u, rate] of rates) {
     if (!alive(u)) continue
-    let rate = 0
-    for (const id in u.cooldowns) {
-      if (!(u.cooldowns[id] > 0)) continue
-      rate ||= Math.max(1, Math.round(stats(battle, u).cooldown.rate))
-      cool(battle, u, id, Math.max(0, u.cooldowns[id] - rate))
-    }
+    for (const id in u.cooldowns) if (u.cooldowns[id] > 0) cool(battle, u, id, Math.max(0, u.cooldowns[id] - rate))
   }
   battle.turn++
   arrive(battle)
   if (settle(battle)) return
   if (battle.turn > deadline(battle)) finish(battle, null, 'turn-cap')
+}
+
+// How many turns `u`'s cooldowns fall at this turn's end (`cooldown.rate`: Hasten's 2): as the turn was played, with
+// every status that held through it, the one whose last turn it was too (so a Hasten of one turn, Ambush's, brings a
+// skill back sooner), but none laid since its holder's turn passed (`fresh`), which counts from its holder's next.
+export function rateOf (battle, u) {
+  const s = u.statuses.some((x) => x.fresh)
+    ? statsOf({ id: u.id, lvl: u.lvl, tracks: u.tracks, pos: pressed(battle, u) ? 'engaged' : 'free' }, modsFor(battle, u, u.statuses.filter((x) => !x.fresh)))
+    : stats(battle, u)
+  return Math.max(1, Math.round(s.cooldown.rate))
 }
 
 // Each status's tick runs once (a damage-over-time its power a stack, a turn's worth), then it ages a turn and may

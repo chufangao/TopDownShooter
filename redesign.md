@@ -163,7 +163,8 @@ so 80–100 → 2, 120–140 → 3, 160–180 → 4, 200 → 5, 620 and 760 and 
 ticks once a turn, at the turn's end, for twice its per-second power (a turn is two seconds): Burning 12 a stack,
 Bleeding 8, Regen 48. Stacks and cleansing as now. Brittle, Withered, Barkskin, Veiled (as DEF), Shield, Enraged,
 Desperate keep their mods; **Hexed** is "loses its next act and does not counter until then", a debuff Purge and
-Molt cleanse, the one disabling status in the game. A status laid on a piece's turn counts that turn as its first.
+Molt cleanse, the one disabling status in the game; it always costs an act, even laid by a counter on a foe that has
+already acted (it lasts until its next act is lost). A status laid on a piece's turn counts that turn as its first.
 Every status carries a `colour`; the engine draws a generic pall in it unless a bespoke effect exists (§2.13).
 
 ### 2.9 The enemy: one opponent
@@ -269,7 +270,8 @@ had to double to see at all). **Each kin and each role has one rule, at 4 pieces
 shadow and a summon as now): the rules that stood at 8 (Legion, Dragonfire, Deadeye, Echo, Sanctuary, Ambush,
 Bodyguard, Mirage, Last Stand, Frenzy, Deathblow and the others) move to 4. Where a rule proves too strong at 4 the
 balance pass may split it (a lesser form at 4, the full at 8); that is the only step. Synergy glow on the board as
-now. Foes' cohorts count too, as now.
+now. Foes' cohorts count too, **on every floor** (the user, 2026-10-10 night: the deep-floor gate went with the
+stat steps it guarded).
 
 ### 2.13 Content is data
 

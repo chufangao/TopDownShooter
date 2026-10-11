@@ -23,13 +23,14 @@
 //   roles     (battle, u, r) → the roles its holder counts as besides its own, for synergies (Mimicry)
 //   raisable  (battle, u, r) → whether its holder may raise now (Blood Tithe: not with the Monarch's HP at the tithe)
 // `params`: a rule's numbers, its defaults here, a relic's own `params` over them. A Legendary's rule is scoped to its
-// holder (§2.15): its hooks look at `r.holder`. A Legendary's cost that is not its holder's (Court of Bone's Monarch
-// that nothing heals) is a flag on its entry (`unhealable`), read for the run wherever it holds the relic (unhealable).
+// holder (§2.15): its hooks look at `r.holder`. A Legendary's cost that is not its holder's is a flag on its entry,
+// read for the run wherever it holds the relic: Court of Bone's Monarch that nothing heals (`unhealable`: unhealable),
+// Blood Tithe's raises paid in the Monarch's HP (`bleeds`: bleeds, the autoplayer's).
 import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef } from '../content.js'
 import { alive, livingOn } from './unit.js'
 import { around, riseTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, shape, targetsFrom } from './turns.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -181,6 +182,7 @@ export const RULES = {
   // Monarch `tithe` of its max HP; never its last (raisable).
   blood_tithe: {
     grants: 'arise',
+    bleeds: true,
     params: { tithe: 0.02, cooldown: 1 },
     raisable: (battle, u, r) => !battle.monarch || battle.monarch.hp > titheOf(battle, r),
     onRaise (battle, { actor }, r) {
@@ -199,7 +201,8 @@ export const RULES = {
 
   // The Hollow Sovereign: its court (the foes of its own wave) moves before every other foe, and it casts Grave Tide
   // as its act every `every` turns, at the start of the foes' turn, whatever the scoring would rather: where its
-  // shape covers the most of yours (then the lowest uid), while its own condition holds (content.js `when`).
+  // shape covers the most of yours (then the lowest uid), while its own condition holds (content.js `when`) and it may
+  // act at all (a Hexed Sovereign loses the act, as any foe does: turns.js canAct).
   sovereign: {
     params: { every: 3, ability: 'grave_tide' },
     queue (battle, ctx, r) {
@@ -208,7 +211,7 @@ export const RULES = {
     },
     onTurn (battle, { turn }, r) {
       const u = r.holder
-      if (!alive(u) || turn % r.params.every || u.acted) return
+      if (turn % r.params.every || !canAct(battle, u)) return
       const tide = u.kit.find((a) => a.id === r.params.ability)
       if (!tide || !usable(battle, u, tide)) return
       const covers = (x) => shape(battle, u, tide, x).filter((y) => y.side !== u.side).length
@@ -269,6 +272,9 @@ export const grantsOf = (battle, u) => (u.held ?? []).filter((r) => r.grants && 
 
 // Whether any of these relic ids (the run's) brings a rule that leaves the Monarch unhealable (Court of Bone).
 export const unhealable = (ids) => ids.some((id) => RULES[relicDef(id).rule]?.unhealable)
+
+// Whether relic `id` brings a rule its holder's raises pay for in the Monarch's HP (Blood Tithe).
+export const bleeds = (id) => !!RULES[relicDef(id).rule]?.bleeds
 
 // Whether relic `id` grants its holder Arise (an Arise relic: Arise and its variants; run.js needsArise).
 export const grantsArise = (id) => RULES[relicDef(id).rule]?.grants === 'arise'

@@ -571,6 +571,18 @@ test('the rules registry: every rule a synergy, a relic or a boss names is in it
   for (const id of Object.keys(RULES)) assert.ok(named.some((x) => x.rule === id), `${id}: named by nothing`)
 })
 
+// A rule's hooks and flags are its entry's (§2.13.4: a new rule is one entry in one file): no module of the sim but the
+// registry branches on a rule's name.
+test('nothing in the sim but the registry branches on a rule\'s name', () => {
+  const name = `'(${Object.keys(RULES).join('|')})'`
+  const branch = new RegExp(`(===|!==)\\s*${name}|${name}\\s*(===|!==)|has\\(${name}\\)`)
+  for (const file of ['turns.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'map.js', 'autoplay.js']) {
+    readFileSync(new URL(`../src/sim/${file}`, import.meta.url), 'utf8').split('\n').forEach((line, i) => {
+      if (!line.trim().startsWith('//')) assert.doesNotMatch(line, branch, `${file}:${i + 1}`)
+    })
+  }
+})
+
 // ── no dice, no gauge, and the cards (§2.14–2.16) ──────────────────────────────────────────────────
 
 test('no dice and no gauge anywhere: no chance, no ACC, EVA or CRT, no ring, stride, gauge price or tick span', () => {

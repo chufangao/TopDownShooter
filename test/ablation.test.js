@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createRun, apply, battleSetup, join, souls, fielded, replay, levelOf, monarchHp, monarchOf, commandOf
+  createRun, apply, battleSetup, join, souls, fielded, replay, levelOf, monarchHp, monarchOf, commandOf, canPlace
 } from '../src/sim/run.js'
 import { createBattle, playOut, timelineHash, rulesOf } from '../src/sim/turns.js'
 import { expertTurn } from '../src/sim/policy.js'
@@ -247,6 +247,29 @@ test('ablating fusions: never fuses, nor weighs one, where the full expert weigh
     const off = weighed(without('fusions'))
     assert.deepEqual([off.weighed, off.acts.includes('fuse')], [0, false])
   }
+  // In battle too (Fuse is an act, redesign.md §2.4): two Tomb Knights and a Bone Chanter fielded side by side, the
+  // purse full, the full expert's turns fuse them there; the ablated expert's never.
+  const fusedIn = (L) => {
+    const run = createRun({ seed: 'fus-battle' })
+    visit(run, 'fight')
+    run.state.essence = 1e4
+    join(run, 'tomb_knight')
+    const parts = souls(run.state.party).filter((u) => u.id === 'tomb_knight' || u.id === 'bone_chanter')
+    for (const u of fielded(souls(run.state.party))) apply(run, { type: 'place', uid: u.uid, slot: -1 })
+    const row = [0, 1, 2, 3, 4].map((c) => [0, 1, 2].map((k) => c + k)).find((cells) => parts.every((u, i) => canPlace(run, u, cells[i])))
+    parts.forEach((u, i) => apply(run, { type: 'place', uid: u.uid, slot: row[i] }))
+    apply(run, { type: 'fight' })
+    const rng = createRng('fus-battle').stream('autoplay')
+    let n = 0
+    while (run.state.phase === 'battle') {
+      const o = policy(run, rng, L)
+      n += o.type === 'fuse'
+      apply(run, o)
+    }
+    return n
+  }
+  assert.ok(fusedIn(LEVELS.expert) > 0, 'the full expert fuses in battle')
+  assert.equal(fusedIn(without('fusions')), 0, 'the ablated never')
 })
 
 test('ablating tracks: never bought', () => {

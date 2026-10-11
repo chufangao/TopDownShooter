@@ -24,6 +24,7 @@ const GROUND = 6                 // a tile's ground lies this far under its cent
 // (a phone's whole board), the camera eases in on the camp for the drag and back out after (dragView).
 const DRAG = { lift: 48, zoomUnder: 40, ms: 200, zoom: 1.8 }
 const TOUCH_SLOP = 8
+const AIR_CUT = 0.42             // the danger map's air layer: the upper share of a tile, where flyers hover (drawDanger)
 // The pointer of the last press (touch or not), read when a drag lifts.
 let pointerType = 'mouse'
 // Every tile becomes a point by the board's one transform (engine.js posOf: the board on its side); its ground lies
@@ -164,8 +165,8 @@ class PrepScene extends Phaser.Scene {
   // ── the picture ──────────────────────────────────────────────────────────────────────────────
 
   // p: { walls, units, domain: { centre, size, r } (Arise's reach round its holder's footprint, null with no holder
-  // fielded), roads (each tile's arrow, field().arrow), seat (the Monarch's tile), danger (by tile, the damage your side
-  // could deal there next turn: policy.js danger's ground; null on the map), drop (the anchors a drag may land on),
+  // fielded), roads (each tile's arrow, field().arrow), seat (the Monarch's tile), danger (policy.js danger: { ground,
+  // air }, by tile the damage your side could deal there next turn; null on the map), drop (the anchors a drag may land on),
   // dropSize (the dragged piece's size), selKey }. A unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp,
   // maxHp, lvl, tracks, relics, monarch, fallen, sel, glow (colours), lit, offer (it may take the relic readied), flies
   // (hovers) }.
@@ -255,15 +256,27 @@ class PrepScene extends Phaser.Scene {
 
   // The danger map (redesign.md §4): each tile shaded in the plan's blue by what your side could deal there next turn,
   // deeper with the damage (by its square, so a tile two pieces reach reads apart from one that one reaches), the most
-  // on the board the deepest (the tooltip says how much). Terrain-like, under the roads' arrows.
+  // on the board the deepest (the tooltip says how much). Where a flyer there would take less (ground melee never
+  // reaches up: the air layer), the tile's upper part, where flyers hover, is shaded by the air's alone. Terrain-like,
+  // under the roads' arrows: what your side reaches, never what the foes will do.
   drawDanger (danger) {
     const g = this.dangerG.clear()
-    const most = danger ? Math.max(...danger) : 0
+    const ground = danger?.ground
+    const air = danger?.air ?? ground
+    const most = ground ? Math.max(...ground) : 0
     if (!(most > 0)) return
+    const shade = (v) => 0.03 + 0.27 * (v / most) ** 2
     for (let t = 0; t < TILES; t++) {
-      if (!(danger[t] > 0)) continue
+      if (!(ground[t] > 0)) continue
       const b = cellsBox(tileX(t), tileX(t), tileY(t), tileY(t), 3)
-      g.fillStyle(PLAN, 0.03 + 0.27 * (danger[t] / most) ** 2).fillRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 7)
+      if (!(air[t] < ground[t])) {
+        g.fillStyle(PLAN, shade(ground[t])).fillRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 7)
+        continue
+      }
+      const cut = b.t + (b.b - b.t) * AIR_CUT
+      g.fillStyle(PLAN, shade(ground[t])).fillRoundedRect(b.l, cut, b.r - b.l, b.b - cut, { tl: 0, tr: 0, bl: 7, br: 7 })
+      if (air[t] > 0) g.fillStyle(PLAN, shade(air[t])).fillRoundedRect(b.l, b.t, b.r - b.l, cut - b.t, { tl: 7, tr: 7, bl: 0, br: 0 })
+      g.lineStyle(1, PLAN, 0.35).lineBetween(b.l + 4, cut, b.r - 4, cut)
     }
   }
 

@@ -259,7 +259,12 @@ async function fight () {
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: runStat(s, 'essence.gain', 1),
     // Read as the battle ends (it is decided only then).
-    death: () => s.death && battle.winner !== 'party' ? { ...deathText(s, battle), from: s.death.from ?? null, by: s.death.uid ?? null } : null,
+    // A status's tick struck from nowhere: no blow is replayed for it (codex.js deathText `tick`).
+    death: () => {
+      if (!s.death || battle.winner === 'party') return null
+      const d = deathText(s, battle)
+      return { ...d, from: d.tick ? null : s.death.from ?? null, by: s.death.uid ?? null }
+    },
     // Live stats and statuses for the unit under the pointer. Only your own plans are told: a foe's never are.
     // `pin`: a long press (touch) or a click, the card stays until the next press, the pointer leaving it or not.
     onHover: (u, at, pin = false) => {
@@ -283,7 +288,8 @@ async function fight () {
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
       const realm = { arise: (x) => (x.kit ? ariseOf(battle, x) : null) }
       const tip = pin ? pinTip : showTip
-      tip(at, () => unitCard(u, { stats: stats(battle, u), statuses: u.statuses, foe, realm, run, live }))
+      // `u` is the unit as the playback shows it (engine.js seen): its stats are read off the battle's own.
+      tip(at, () => unitCard(u, { stats: stats(battle, battle.byUid.get(u.uid) ?? u), statuses: u.statuses, foe, realm, run, live }))
     },
     onDone: () => {
       // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).

@@ -72,6 +72,12 @@ export const blowReach = (u, a) => (a.melee ? a.range ?? armOf(u) : a.range ?? I
 // Its reach, the union of its blows' (blowReach), from its footprint: never past the board (DEPTH), 0 with no blow (the
 // Monarch).
 export const reachOf = (u) => Math.min(DEPTH, Math.max(0, ...abilitiesOf(u).map(abilityDef).filter(isBlow).map((a) => blowReach(u, a))))
+// Whether it fights in melee alone: it has a blow, and every blow of its kit, its tiers' too, is melee (a long arm's
+// is: a Grave Ghoul's), so a formation puts it in front (run.js frontier, autoplay.js drafts).
+export const meleeOnly = (u) => {
+  const blows = abilitiesOf(u).map(abilityDef).filter(isBlow)
+  return blows.length > 0 && blows.every((a) => a.melee)
+}
 
 // The summons a piece's tiers bring to each battle (a tier's `summon`): shadows of its kind that rise beside it as
 // the battle begins and are gone when it ends (turns.js summon). A summon is a shadow, and brings none of its own.

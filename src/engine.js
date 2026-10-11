@@ -406,14 +406,14 @@ class BattleScene extends Phaser.Scene {
     // No clock to step: the playback runs on its own time (TimelinePlayer, by beat), and between orders the board
     // waits for the player. `sel`: the piece selected ({ uid, ability: the act armed, aim: the target previewed,
     // reach: its Move range, targets }); `waiting`: an order's events still playing (input locked); `clock`: the turn,
-    // the last turn before the cap and the next wave, as the playback last announced them; `synKey`: the synergies the
-    // chrome last showed.
+    // the last turn before the cap, the next wave and the wave under way, as the playback last announced them (the sim
+    // is a whole End Turn ahead of it); `synKey`: the synergies the chrome last showed.
     this.speed = 1
     this.paused = false
     this.playMs = 0
     this.sel = null
     this.waiting = false
-    this.clock = { turn: this.battle.turn, cap: deadline(this.battle), next: nextWave(this.battle) }
+    this.clock = { turn: this.battle.turn, cap: deadline(this.battle), next: nextWave(this.battle), wave: 1 }
     this.synKey = null
     this.ending = false
     this.hover = null
@@ -569,10 +569,10 @@ class BattleScene extends Phaser.Scene {
       a.pips?.forEach((p, i) => p.setPosition(x - BAR * k / 2 + i * PIP.step * k, y + 7).setScale(k, 1).setDepth(foot + 0.2))
       a.growth?.place(x, a.sprite.y)
       a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : 1))
-      const u = this.units.get(a.uid)
-      this.wear(a, u)
-      // A skill's cooldown pip: lit once it may be used again (sim, u.cooldowns), dark while it rests.
-      if (a.pips && !a.gone) a.skills.forEach((id, i) => a.pips[i].setFillStyle(u.cooldowns?.[id] > 0 ? PIP.rest : GOLD, u.cooldowns?.[id] > 0 ? 0.9 : 1))
+      this.wear(a)
+      // A skill's cooldown pip: lit once it may be used again, dark while it rests, as the playback has reached it
+      // (a.cd: the cooldown events played), so End Turn's ticking shows when it plays, not as it is pressed.
+      if (a.pips && !a.gone) a.skills.forEach((id, i) => a.pips[i].setFillStyle(a.cd[id] > 0 ? PIP.rest : GOLD, a.cd[id] > 0 ? 0.9 : 1))
     }
 
     this.drawEnd(time)
@@ -610,19 +610,23 @@ class BattleScene extends Phaser.Scene {
   }
 
   // What the chrome shows: the turn as the playback has reached it, the last turn before the cap, the next wave (turn
-  // events), the wave under way, the purse, whether input waits (busy), and the selected piece's panel (panel); and
-  // each side's synergies with their rules, live from the battle (a fuse, a fall, a rise or a wave may change them),
-  // sent only when they change. Nothing of the foes' coming turn.
+  // events), the wave under way (wave events), the purse, whether input waits (busy), and the selected piece's panel
+  // (panel); and each side's synergies with their rules, from the battle (a fuse, a fall, a rise or a wave may change
+  // them), sent only when they change. The sim is a whole order ahead of the playback, so they are read only once it
+  // has played out (or at the start and the end): a fall in the foes' turn never shows before it is seen. Nothing of
+  // the foes' coming turn.
   changed () {
     const b = this.battle
     const c = this.clock
-    const syn = (side) => synergyLabels(side === 'foe' && !b.foeRules ? [] : synergiesOf(b, side))
-    const now = { theirs: syn('foe'), mine: syn('party') }
-    const key = JSON.stringify(now)
-    if (key !== this.synKey) { this.synKey = key; this.args.hud?.synergies?.(now) }
+    if (this.synKey === null || !this.locked() || this.ending) {
+      const syn = (side) => synergyLabels(side === 'foe' && !b.foeRules ? [] : synergiesOf(b, side))
+      const now = { theirs: syn('foe'), mine: syn('party') }
+      const key = JSON.stringify(now)
+      if (key !== this.synKey) { this.synKey = key; this.args.hud?.synergies?.(now) }
+    }
     this.args.onChange?.({
       paused: this.paused, speed: this.speed, over: this.ending, essence: this.purse,
-      turn: c.turn, last: c.cap, cap: b.cap, next: c.next, wave: Math.max(1, b.waveAt.length), waves: Math.max(b.waveAt.length, this.waves.length),
+      turn: c.turn, last: c.cap, cap: b.cap, next: c.next, wave: c.wave, waves: Math.max(c.wave, this.waves.length),
       busy: this.locked(), panel: this.panel()
     })
   }
@@ -700,7 +704,10 @@ class BattleScene extends Phaser.Scene {
       chest: 30 * size + fly, pose: { ...REST }, hp: u.hp, maxHp: u.maxHp, gone: false, fade: 1, rise: { v: 1 },
       // share: how far it has eased aside for another on its tile (SHARE, 0 to 1); vx, up: where that puts it.
       share: 0, vx: home.x, up: 0,
-      skills, pips: skills.length ? skills.map(() => this.add.rectangle(home.x, home.y + 19, PIP.w, PIP.h, GOLD).setOrigin(0, 0.5)) : null
+      skills, pips: skills.length ? skills.map(() => this.add.rectangle(home.x, home.y + 19, PIP.w, PIP.h, GOLD).setOrigin(0, 0.5)) : null,
+      // The statuses it wears (id → stacks) and its skills' rests (ability id → turns), as the playback has reached
+      // them (applyEvent: status, expire, cleanse, death; cooldown, Frenzy), never the sim's state an order ahead.
+      st: new Map(), cd: {}
     }
     // A soul's growth, worn as the prep board showed it (growthMarks): its tiers, and the relic it holds.
     if (u.side === 'party' && !u.shadow && !crowned) actor.growth = growthMarks(this, whole)
@@ -709,7 +716,7 @@ class BattleScene extends Phaser.Scene {
       if (p.wasTouch || touchy()) return
       this.hover = u.uid
       ring.setVisible(!actor.gone)
-      this.args.onHover?.(this.units.get(u.uid), { left: p.x + 14, right: p.x + 14, top: p.y - 10, bottom: p.y + 10 })
+      this.args.onHover?.(this.seen(u.uid), { left: p.x + 14, right: p.x + 14, top: p.y - 10, bottom: p.y + 10 })
     })
     sprite.on('pointerout', () => {
       ring.setVisible(false)
@@ -731,7 +738,17 @@ class BattleScene extends Phaser.Scene {
       if (!a.sprite.visible || a.sprite.alpha <= 0.05 || !a.sprite.getBounds().contains(w.x, w.y)) continue
       if (!best || a.sprite.y > best.sprite.y + 0.5 || (a.sprite.y > best.sprite.y - 0.5 && off(a) < off(best))) best = a
     }
-    if (best) this.args.onHover?.(this.units.get(best.uid), { left: x + 14, right: x + 14, top: y - 10, bottom: y + 10 }, true)
+    if (best) this.args.onHover?.(this.seen(best.uid), { left: x + 14, right: x + 14, top: y - 10, bottom: y + 10 }, true)
+  }
+
+  // A unit as the playback has reached it, for its card: while an order plays back the sim is that order ahead (a fall,
+  // a wound, a status the foes' turn has yet to show), so its HP and statuses are the playback's; settled, both agree.
+  seen (uid) {
+    const u = this.units.get(uid)
+    const a = this.actors.get(uid)
+    if (!u || !a || !this.locked() || this.ending) return u
+    const statuses = [...a.st].map(([id, stacks]) => ({ ...(u.statuses.find((x) => x.id === id) ?? { id, dur: null }), stacks }))
+    return { ...u, hp: a.gone ? 0 : a.hp, statuses }
   }
 
   // ── orders ───────────────────────────────────────────────────────────────────────────────────────
@@ -798,9 +815,9 @@ class BattleScene extends Phaser.Scene {
   }
 
   // The units at a world point, as a tap reads it: whoever stands on the tile under it or whose picture covers it,
-  // the living first, then those whose picture is under the point, the nearest its middle first (two sharing a tile,
-  // a flyer over one on the ground, are told apart by which body is tapped), then those on the tile. The fused away
-  // and the risen are gone.
+  // the living first, then those whose picture is under the point, then the nearest its middle first (two sharing a
+  // tile, a flyer over one on the ground, are told apart by which body is tapped, or nearer the finger off both: never
+  // by the order they stand in the battle's list). The fused away and the risen are gone.
   unitsAt (w, tile) {
     const out = []
     for (const u of this.battle.units) {
@@ -812,7 +829,7 @@ class BattleScene extends Phaser.Scene {
       if (!on && !over) continue
       out.push({ u, on, over, d: Math.hypot(box.centerX - w.x, box.centerY - w.y) })
     }
-    return out.sort((p, q) => alive(q.u) - alive(p.u) || q.over - p.over || (p.over ? p.d - q.d : 0) || q.on - p.on).map((x) => x.u)
+    return out.sort((p, q) => alive(q.u) - alive(p.u) || q.over - p.over || p.d - q.d || q.on - p.on).map((x) => x.u)
   }
 
   // The anchor the selected piece would move to for a tap on `tile`: the tile, or for a 2×2 an anchor whose
@@ -953,8 +970,9 @@ class BattleScene extends Phaser.Scene {
     this.send({ type: 'act', uid: s.uid, ability: s.ability, target: s.aim })
   }
 
+  // Paused, the board takes no orders (as tap and End Turn): one given would wait unplayed behind the veil.
   undo () {
-    if (this.sel && !this.locked()) this.send({ type: 'undo', uid: this.sel.uid })
+    if (this.sel && !this.locked() && !this.paused) this.send({ type: 'undo', uid: this.sel.uid })
   }
 
   // End Turn (the panel's): the untouched act, the foes take their turn, and it all plays back.
@@ -965,7 +983,7 @@ class BattleScene extends Phaser.Scene {
   }
 
   fuse (o) {
-    if (!this.locked()) this.send(o)
+    if (!this.locked() && !this.paused) this.send(o)
   }
 
   // Gives an order (args.order: the run applies it) and plays back its events; the board waits until they have
@@ -1015,8 +1033,11 @@ class BattleScene extends Phaser.Scene {
     const free = !this.locked()
     const acts = u.kit.map((a) => {
       const can = free && canAct(b, u) && usable(b, u, a)
+      // How many turns it rests once used (turns.js restOf: its def's cooldown, 2 where absent, or a granting rule's:
+      // Blood Tithe's Arise none), less the turn it is used in.
+      const rests = isSkill(u, a) ? Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.grants === a.id && r.params.cooldown).map((r) => r.params.cooldown)) - 1 : 0
       return {
-        id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, armed: a.id === s.ability, can,
+        id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, rests, armed: a.id === s.ability, can,
         targets: can ? targetsFrom(b, u, a).length : 0, arise: a.shape === 'corpse' ? ariseOf(b, u) : null
       }
     })
@@ -1306,7 +1327,7 @@ class BattleScene extends Phaser.Scene {
 
   // A turn of yours begins. Its counts go to the chrome, and its number shows a moment over the board.
   newTurn (ev) {
-    this.clock = { turn: ev.turn, cap: ev.cap, next: ev.next }
+    this.clock = { ...this.clock, turn: ev.turn, cap: ev.cap, next: ev.next }
     this.changed()
     this.flag(`TURN ${ev.turn}`, C.soul2, SOUL)
   }
@@ -1376,11 +1397,12 @@ class BattleScene extends Phaser.Scene {
 
   // ── the board, statuses, HP and essence ──────────────────────────────────────────────────────
 
-  // Burning and Hexed, worn while held (DESIGN §4), read from the unit each frame: flames licking up a burning
+  // Burning and Hexed, worn while held (DESIGN §4), read each frame from what the playback has laid (a.st, not the sim,
+  // which is a whole End Turn ahead: a pall never shows before the blow that lays it): flames licking up a burning
   // picture, quicker for each stack, and a violet pall over a hexed one; every other status a fainter pall in its
   // def's colour (palls). Gone with the status, or the unit. The flames keep the playback clock, so pause holds them.
-  wear (a, u) {
-    const held = (id) => (!a.gone && u?.hp > 0 && u.statuses?.find((x) => x.id === id)) || null
+  wear (a) {
+    const held = (id) => (!a.gone && a.st.has(id) ? { stacks: a.st.get(id) } : null)
     const burn = held('burning')
     const top = a.sprite.y - a.hover - a.up - a.chest + a.fly
     if (burn && this.playMs >= (a.nextFlame ?? 0)) {
@@ -1388,7 +1410,7 @@ class BattleScene extends Phaser.Scene {
       const w = a.sprite.displayWidth * 0.26
       this.flames.explode(1, a.vx + (Math.random() * 2 - 1) * w, top + (a.chest - a.fly) * (0.1 + Math.random() * 0.7))
     }
-    this.palls(a, u, top)
+    this.palls(a, top)
     const hexed = !!held('hexed')
     if (hexed && !a.pall) a.pall = this.add.image(0, 0, 'glow').setTint(HEX).setBlendMode(Phaser.BlendModes.ADD)
     if (!a.pall) return
@@ -1401,8 +1423,8 @@ class BattleScene extends Phaser.Scene {
 
   // Each status held but the two drawn their own way (redesign.md §2.8), a pall in its colour, faint and layered a
   // little lower and narrower each, made as it lands and gone with it.
-  palls (a, u, top) {
-    const want = !a.gone && u?.hp > 0 ? u.statuses.filter((x) => x.id !== 'hexed' && x.id !== 'burning' && statusDef(x.id).colour) : []
+  palls (a, top) {
+    const want = a.gone ? [] : [...a.st.keys()].filter((id) => id !== 'hexed' && id !== 'burning' && statusDef(id).colour).map((id) => ({ id }))
     if (!want.length && !a.palls?.size) return
     a.palls ??= new Map()
     for (const [id, img] of a.palls) if (!want.some((x) => x.id === id)) { img.destroy(); a.palls.delete(id) }
@@ -1589,7 +1611,16 @@ class BattleScene extends Phaser.Scene {
     if (ev.type === 'arise') { sfx.play('arise'); return this.arise(ev) }
     if (ev.type === 'enter') return this.enter(ev)
     // The opening formation is wave 1 but stands there from the start: only a later wave is announced.
-    if (ev.type === 'wave') { this.changed(); return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined }
+    if (ev.type === 'wave') {
+      // The wave under way, and the one after it by the schedule until the next turn's event tells it (turns.js waves).
+      this.clock.wave = Math.max(this.clock.wave, ev.wave + 1)
+      if (this.clock.next && this.clock.next.wave <= ev.wave) {
+        const w = this.battle.waves.find((x) => x.wave > ev.wave)
+        this.clock.next = w ? { wave: w.wave, turn: w.turn } : null
+      }
+      this.changed()
+      return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined
+    }
     // A turn of yours begins (its counts for the chrome), the foes' turn begins, a fusion in battle.
     if (ev.type === 'turn') return this.newTurn(ev)
     if (ev.type === 'stage') return ev.stage === 'foes' ? this.flag('THE FOES\' TURN', '#ff8a9a', FOE) : undefined
@@ -1600,7 +1631,11 @@ class BattleScene extends Phaser.Scene {
       this.deadeye(ev)
       return this.reshaped(ev, this.actors.get(ev.actor))
     }
-    if (ev.type === 'rule') return this.rule(ev)
+    if (ev.type === 'rule') {
+      // Frenzy readies the slayer's every skill, with no cooldown event of its own.
+      if (ev.rule === 'frenzy') { const x = this.actors.get(ev.actor); if (x) x.cd = {} }
+      return this.rule(ev)
+    }
     // A trigger relic fired for this unit: its name flashes over it (its effects follow as their own events).
     if (ev.type === 'trigger') {
       const x = this.actors.get(ev.unit)
@@ -1609,6 +1644,13 @@ class BattleScene extends Phaser.Scene {
       this.burst(x.sprite.x, x.sprite.y - x.chest, hex(C.relic), 6, { up: true, speed: 50 })
       return
     }
+    // A death burst: the fallen bursts where it fell, over those around it (what it lays follows as their own events).
+    if (ev.type === 'burst') {
+      const x = this.actors.get(ev.actor)
+      if (x) this.burst(x.home.x, x.home.y - x.chest / 2, x.side === 'foe' ? FOE : SOUL, 16, { speed: 170 })
+      return
+    }
+    // battle:end needs nothing here: the battle is over (update ends it once the playback has caught up).
     const a = ev.target != null ? this.actors.get(ev.target) : null
     if (!a) return
     switch (ev.type) {
@@ -1647,6 +1689,7 @@ class BattleScene extends Phaser.Scene {
         break
       }
       case 'death': {
+        a.st.clear()
         this.pay(a)
         if (ev.crumble) this.crumble(a, this.actors.get(ev.actor))
         else this.fall(a, this.actors.get(ev.actor))
@@ -1674,10 +1717,19 @@ class BattleScene extends Phaser.Scene {
       // A status in its keyword's colour: a debuff the foes' red, a buff the synergies' blue; beside the unit,
       // apart from the numbers.
       case 'status':
+        a.st.set(ev.status, Math.min(statusDef(ev.status).stacks ?? 1, (a.st.get(ev.status) ?? 0) + 1))
         this.floating(a, statusDef(ev.status).name, statusDef(ev.status).tags.includes('debuff') ? C.foe : C.synergy, 11, 1, true)
         break
       case 'cleanse':
+        a.st.delete(ev.status)
         this.burst(a.sprite.x, a.sprite.y - a.chest, BOON, 6, { up: true, speed: 40 })
+        break
+      case 'expire':
+        a.st.delete(ev.status)
+        break
+      // A skill rests, or comes back sooner (the cooldown op), or the turn's end counts it down: its pip (update).
+      case 'cooldown':
+        a.cd[ev.ability] = ev.turns
         break
       // A Hexed unit's act is lost.
       case 'hexed':

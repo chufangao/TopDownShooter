@@ -89,6 +89,16 @@ function walkRoads (camp) {
   return { roads, d: (c) => f.dist[deployTile('party', c)] }
 }
 
+test('basic\'s sheltered draft: a piece fighting in melee alone stands in front, a long arm\'s too; one whose tiers teach it a ranged blow stands back', () => {
+  for (const c of CAMP_LIST) {
+    const run = prep('sheltered-' + c.id)
+    run.state.camp = c.id
+    const row = (id, tracks = [0, 0]) => Math.floor(drafts(run, [makeUnit(id, { uid: 50, lvl: 3, tracks })], LEVELS.basic)[2][1].slot / 7)
+    assert.deepEqual([row('pyre_hound'), row('grave_ghoul')], [0, 0], c.id)
+    assert.ok(row('pyre_hound', [2, 4]) > 0, `${c.id}: Pyre Hound with a ranged tier`)
+  }
+})
+
 test('the gate, in every camp: every Walk road from the foes\' rows crosses one of its cells, and it holds none no road crosses', () => {
   for (const c of CAMP_LIST) {
     const gate = gateOf(c.id)

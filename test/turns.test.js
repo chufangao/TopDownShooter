@@ -11,9 +11,9 @@ import {
   makeUnit, autoPlace, campGrid, wallTiles, monarchSlot, tileAt, tileY, distance, footprint, slotAt, alive, deployTile, steps, TILES, DEPTH,
   ROWS, CAMP_ROWS, NEIGHBOURS, baseStats
 } from '../src/sim/unit.js'
-import { CAMP_LIST, RELICS, UNIT_LIST, unitDef, statusDef } from '../src/content.js'
+import { CAMP_LIST, RELICS, UNIT_LIST, FUSION_LIST, unitDef, statusDef } from '../src/content.js'
 import { createRng } from '../src/sim/rng.js'
-import { foeLevel, START_PARTY } from '../src/sim/run.js'
+import { foeLevel, fuseCost, START_PARTY } from '../src/sim/run.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import { on, scene, slay, moves, turns, listFoesNextTo, listAuraGivers } from './scene.js'
 
@@ -152,6 +152,32 @@ test('a skill rests a turn and is back the turn after; a basic is always there',
   assert.ok(legalOrders(b).some((o) => o.uid === 1 && o.ability === 'cleave'))
 })
 
+test('Hasten speeds the cooldowns of every turn it holds for: one turn of it (Ambush\'s) brings a skill back the next; one laid after its holder\'s turn counts from its next', () => {
+  const scene = () => field([
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 5, lvl: 30 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 6, lvl: 30 },
+    { id: 'tomb_knight', uid: 10, side: 'foe', x: 2, y: 6, lvl: 30 }
+  ])
+  let b = scene()
+  const u = unit(b, 1)
+  addStatus(b, u, 'hasten', 1)
+  order(b, { type: 'act', uid: 1, ability: 'cleave', target: 9 })
+  end(b)
+  assert.ok(!u.statuses.some((s) => s.id === 'hasten'), 'a turn of it, gone')
+  assert.deepEqual(u.cooldowns, { cleave: 0 }, 'back a turn sooner')
+  // Laid in the foes' turn, after its holder's: that turn's end does not count it; its holder's next turn's does.
+  b = scene()
+  const v = unit(b, 1)
+  v.cooldowns.cleave = 4
+  b.stage = 'foes'
+  addStatus(b, v, 'hasten', 1)
+  b.stage = 'party'
+  end(b)
+  assert.equal(v.cooldowns.cleave, 3, 'its turn had passed')
+  end(b)
+  assert.deepEqual([v.cooldowns.cleave, v.statuses.some((s) => s.id === 'hasten')], [1, false], 'then a turn of it')
+})
+
 test('End Turn acts the untouched with their basics only: a blow at what they reach, else a heal', () => {
   const b = field([
     { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 5, lvl: 30 },
@@ -282,7 +308,8 @@ test('fuse in battle: the parts are consumed, the price paid, the piece placed o
     { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
     { id: 'iron_golem', uid: 9, side: 'foe', x: 6, y: 10, lvl: 20 }
   ]
-  const b = field(parts, { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 2, tracks: [0, 0] } } })
+  const priced = { bone_colossus: { price: 30, lvl: 2, tracks: [0, 0] } }
+  const b = field(parts, { essence: 100, fuse: priced })
   const lit = legalOrders(b).filter((o) => o.type === 'fuse')
   assert.ok(lit.some((o) => o.uid === 1 && o.id === 'bone_colossus'))
   const events = order(b, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] })
@@ -296,19 +323,25 @@ test('fuse in battle: the parts are consumed, the price paid, the piece placed o
   for (const t of footprint(at(2, 2), 2)) assert.equal(b.at[t], piece)
   assert.ok(piece.acted, 'the fuser\'s act')
   // Not where its footprint is held, and not past the purse.
-  const blocked = field([...parts, { id: 'grave_ghoul', uid: 4, side: 'party', x: 3, y: 3 }], { essence: 100 })
+  const blocked = field([...parts, { id: 'grave_ghoul', uid: 4, side: 'party', x: 3, y: 3 }], { essence: 100, fuse: priced })
   assert.ok(!legalOrders(blocked).some((o) => o.type === 'fuse' && o.uid === 1))
   assert.throws(() => order(blocked, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] }))
-  const walled = field(parts, { essence: 100, walls: [at(3, 3)] })
+  const walled = field(parts, { essence: 100, walls: [at(3, 3)], fuse: priced })
   assert.throws(() => order(walled, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] }))
-  const poor = field(parts, { essence: 5 })
+  const poor = field(parts, { essence: 29, fuse: priced })
   assert.ok(!legalOrders(poor).some((o) => o.type === 'fuse'))
+  // The price is the run's (run.js fuseCost, carried in the setup): a battle keeps none of its own.
+  const unpriced = field(parts, { essence: 1e4 })
+  assert.ok(!legalOrders(unpriced).some((o) => o.type === 'fuse'))
+  assert.throws(() => order(unpriced, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] }))
 })
 
 // A floor-1 battle: a camp of the floor's with its walls, the Monarch on its seat, a party of the floor's kinds at
 // random tiers, some holding a relic each, a formation of its foes, and sometimes a later wave.
 const FLOOR_1 = ['tomb_knight', 'bone_chanter', 'frost_sprite', 'hive_warden', 'clockwork_page', 'grave_ghoul', 'will_o_wisp', 'pyre_hound']
 const RELIC_POOL = ['arise', 'whetstone', 'heartwood', 'tower_shield', 'grave_bell', 'blood_chalice', 'balm', 'war_drum', 'hunters_mark', 'iron_oath']
+// Every recipe priced as a floor-1 run with no relics prices it (run.js fuseCost; battleSetup carries the table).
+const PRICED = Object.fromEntries(FUSION_LIST.map((r) => [r.id, { price: fuseCost({ state: { floor: 1, relics: [] } }, r.id), lvl: 2, tracks: [0, 0] }]))
 function floorOne (seed) {
   const rng = createRng(seed)
   const camp = rng.pick(CAMP_LIST.filter((c) => c.floor === 1)).id
@@ -322,7 +355,7 @@ function floorOne (seed) {
   party.push(makeUnit('monarch', { uid: 0, slot: seat }))
   const foes = autoPlace(Array.from({ length: 3 + rng.int(3) }, (_, i) => makeUnit(rng.pick(FLOOR_1), { uid: 100 + i, lvl: 1 + rng.int(3) })))
   const reserve = rng.chance(0.5) ? [0, 1].map((i) => ({ ...makeUnit(rng.pick(FLOOR_1), { uid: 200 + i, lvl: 2 }), side: 'foe', wave: 1, lane: rng.int(7), slot: -1 })) : []
-  return { party, foes, reserve, floor: 1, walls: wallTiles(camp), relics, essence: rng.int(80), nextUid: 300 }
+  return { party, foes, reserve, floor: 1, walls: wallTiles(camp), relics, essence: rng.int(80), fuse: PRICED, nextUid: 300 }
 }
 
 // What must hold of a battle at every step: each foe on its road, each tile held by at most one unit in each layer and

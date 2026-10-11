@@ -7,7 +7,7 @@ import {
 } from './content.js'
 import {
   statsOf, activeSynergies, COLS, ROWS, slotAt, rangeOf, isAllyShape, CAMP_ROWS, abilitiesOf, auraOf, tiersOf,
-  tileX, tileY, DEPTH, distance, deployTile, behaviourOf, summonsOf, sizeOf, tracksOf, blowReach, isBlow
+  tileX, tileY, DEPTH, distance, deployTile, behaviourOf, summonsOf, sizeOf, tracksOf, reachOf, meleeOnly
 } from './sim/unit.js'
 import {
   foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, unhealed, isMonarch, depthOf, rosterCap,
@@ -223,16 +223,8 @@ export const WOUNDS_TEXT = `a win heals each piece still standing ${pct(TUNING.r
 
 // ── reach and Move ───────────────────────────────────────────────────────────────────────────────
 
-// The blows a kind strikes: its abilities aimed at the other side (not an ally ability, nor Arise's raise).
-const blowsOf = (u) => abilitiesOf(u).map(abilityDef).filter((a) => isBlow(a) && a.shape !== 'corpse')
-// Whether every blow a kind strikes is a melee one (melee from the ground never touches a flyer).
-const meleeOnly = (u) => {
-  const blows = blowsOf(u)
-  return blows.length > 0 && blows.every((a) => a.melee)
-}
-// How far its blows reach (redesign.md §2.6: no ring): the farthest of its blows' (unit.js blowReach: a melee blow its
-// own range or its kind's arm, a ranged one its range), the board's depth for one that reaches anywhere.
-const reachOfKind = (u) => Math.min(DEPTH, Math.max(0, ...blowsOf(u).map((a) => blowReach(u, a))))
+// How far its blows reach and whether every one is melee (melee from the ground never touches a flyer) are the sim's
+// own (unit.js reachOf, meleeOnly: its tiers' blows counted), so a card never disagrees with the battle.
 const moveOf = (u) => Math.round(statsOf(u).move)
 // "Reach 4 · ranged · Move 2 · 2×2", a foe met's way too; a foe not met keeps it to itself (the bestiary).
 export function reachText (u, foe = false) {
@@ -240,7 +232,7 @@ export function reachText (u, foe = false) {
   if (d.monarch) return 'Never strikes · never moves'
   const big = sizeOf(u) > 1 && '2×2'
   if (foe && !bestiary.has(u.id)) return ['Reach ?', big, 'its ways unknown until met'].filter(Boolean).join(' · ')
-  return [`Reach ${reachOfKind(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Move ${moveOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
+  return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Move ${moveOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
 }
 // The same in a sentence: yours move, then strike what their blows reach; a foe met comes down its road as far as it
 // chooses and strikes what it reaches, and thinks as its way line says (temperLine, from its temperament).
@@ -248,7 +240,7 @@ export function reachRule (u, foe = false) {
   const d = unitDef(u.id)
   if (d.monarch) return 'It stands on its seat, never moves and never strikes; the roads run to it. If it falls, the run ends.'
   if (foe && !bestiary.has(u.id)) return 'Not met yet: how far it strikes, how far it comes and how it thinks, you learn by meeting it.'
-  const r = reachOfKind(u)
+  const r = reachOf(u)
   const tiles = `${r} tile${r === 1 ? '' : 's'}`
   const melee = meleeOnly(u) && !d.flies ? ' Its blows are melee: they never reach up to a flyer.' : ''
   if (!foe) return `On your turn it moves up to ${moveOf(u)} tiles, then acts: its blows reach ${tiles} from where it stands. Left alone, it strikes with its basic blow, or mends.${melee}`
@@ -297,7 +289,9 @@ export function tileText (tile) {
 
 // What felled the Monarch (run.state.death), in words: who, with what, from where, and the threat. `battle`
 // (run.battle, the last one) tells a shadow from the living: on their side, one of your own dead risen
-// against you (their Legion).
+// against you (their Legion); and a status's tick from a blow (`tick`: the status whose tick dealt the last of the
+// damage, read off the battle's events: its layer is the killer, but it struck from nowhere, so no tile is told and
+// no blow is replayed).
 export function deathText (s, battle = null) {
   const d = s.death
   if (!d) return null
@@ -307,15 +301,19 @@ export function deathText (s, battle = null) {
   }
   const m = monarchOf(s)
   const own = d.uid === m?.uid
+  const tick = battle?.events.findLast((e) => e.type === 'damage' && e.target === m?.uid && e.hp <= 0)?.status ?? null
   const away = m && m.slot >= 0 && d.from != null ? distance(d.from, deployTile('party', m.slot)) : null
   return {
     head: own ? 'The Monarch fell to a lingering wound'
       : battle?.units.find((u) => u.uid === d.uid)?.shadow ? `Slain by the shadow of your own ${unitDef(d.by).name}, risen against you` : `Slain by ${unitDef(d.by).name}`,
     lines: [
-      own ? 'A status ticking on it dealt the last of the damage.' : `With ${d.ability ? abilityDef(d.ability).name : 'a blow'}${d.ability && abilityDef(d.ability).shape !== 'single' && SHAPE[abilityDef(d.ability).shape] ? `, which hits ${SHAPE[abilityDef(d.ability).shape]}` : ''}.`,
-      !own && d.from != null && `From ${tileText(d.from)}${away != null ? `: ${away} tile${away === 1 ? '' : 's'} from the Monarch` : ''}.`,
+      own ? 'A status ticking on it dealt the last of the damage.'
+        : tick ? `With ${statusDef(tick).name}, which it laid on the Monarch: its tick dealt the last of the damage.`
+          : `With ${d.ability ? abilityDef(d.ability).name : 'a blow'}${d.ability && abilityDef(d.ability).shape !== 'single' && SHAPE[abilityDef(d.ability).shape] ? `, which hits ${SHAPE[abilityDef(d.ability).shape]}` : ''}.`,
+      !own && !tick && d.from != null && `From ${tileText(d.from)}${away != null ? `: ${away} tile${away === 1 ? '' : 's'} from the Monarch` : ''}.`,
       !own && d.wave && waveDeath(s, d.wave)].filter(Boolean),
-    threat
+    threat,
+    tick
   }
 }
 
@@ -744,7 +742,7 @@ const WORD_MORE = {
   shop: (run) => `Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows; nothing else is sold there, and a relic bought is a tier not bought. A soul may be released there for part of its price.`,
   turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, lost the instant the Monarch falls, and lost when still undecided ${TUNING.turn.cap} turns after the last wave entered.`,
   move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its Move whole again, until it acts. Some tiers and statuses add Move.',
-  skill: () => 'Every kind has a basic blow, usable every turn, and most a basic heal; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
+  skill: () => 'Every kind has a basic blow, usable every turn, and a mender a basic heal too; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
   cooldown: () => 'Every skill rests a turn once used: its pip under the piece\'s bars goes dark, and lights again as the turn after next begins. Some statuses and relics hurry it.',
   counter: () => 'A melee blow whose target survives, standing within its own basic blow\'s reach of the striker, is answered at once by that blow, if it is melee, on the striker alone. Ground melee never answers a flyer. One answer a blow; a counter is never answered; a Hexed piece and the Monarch never answer. A blow\'s preview shows the counter it would draw before you commit.'
 }

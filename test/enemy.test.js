@@ -2,7 +2,7 @@
 // sieges, the Sovereign's court and its Grave Tide, the depth threat.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, perform, corpses, deadline, entryTurn, fork } from '../src/sim/turns.js'
+import { createBattle, order, playOut, perform, corpses, deadline, entryTurn, fork, addStatus } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode
@@ -283,6 +283,20 @@ test('the Sovereign\'s Grave Tide raises two of the field\'s dead on its side: t
   assert.deepEqual(again.map((e) => [e.actor, e.corpse, e.unit.uid, e.unit.tile]), [[50, 52, 202, tileAt(6, 10)]])
   assert.equal(b.nextUid, 203)
   assert.ok(!unit(b, 53).raised && !unit(b, 54).raised && !unit(b, 55).raised)
+})
+
+test('the Sovereign\'s override casts Grave Tide as the foes\' turn begins, every third turn; a Hexed Sovereign loses that act as any foe does', () => {
+  const tideTurn = (hex) => {
+    const b = scene([on('tomb_knight', 1, 'party', 3, 6, 9), on('hollow_sovereign', 50, 'foe', 3, 7, 1)])
+    const sov = unit(b, 50)
+    sov.hp = Math.floor(sov.maxHp / 2)
+    b.turn = 3
+    if (hex) addStatus(b, sov, 'hexed', 1)
+    const ev = order(b, { type: 'end' })
+    return { cast: ev.some((e) => e.type === 'action' && e.actor === 50 && !e.counter), lost: ev.some((e) => e.type === 'hexed' && e.target === 50) }
+  }
+  assert.deepEqual(tideTurn(false), { cast: true, lost: false }, 'its Tide turn')
+  assert.deepEqual(tideTurn(true), { cast: false, lost: true }, 'Hexed: no Tide, no act')
 })
 
 test('killing the Sovereign ends the battle: its court and every foe still standing crumble and pay as if slain, and the foes still to come never enter', () => {

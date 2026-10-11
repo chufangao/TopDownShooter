@@ -110,18 +110,31 @@ function touchWords (el) {
 // Its release is then no tap: the click it would make is eaten (and a press that starts anew forgets that).
 export const HOLD = 400
 const SLOP = 8
+const LATE = 50 // ms past HOLD a timer may run before the page counts as having been busy (hold)
 export function hold (e, fire) {
   const { pointerId: id, clientX: x0, clientY: y0 } = e
-  const timer = setTimeout(() => {
+  let live = true
+  let waited = false
+  // Under load (End Turn's foe turn, a preview) the page can be busy past HOLD: the timer then comes due beside a
+  // lift already made but not yet dispatched, and may run first, turning a quick tap into a long press. A timer that
+  // runs late waits a frame and a task for that lift to be read first.
+  const check = () => {
+    if (!live) return
+    if (!waited && performance.now() - e.timeStamp > HOLD + LATE) {
+      waited = true
+      return requestAnimationFrame(() => setTimeout(check))
+    }
     stop()
     eat = true
     navigator.vibrate?.(10)
     ring(x0, y0)
     fire(e)
-  }, HOLD)
+  }
+  const timer = setTimeout(check, HOLD)
   const move = (m) => { if (m.pointerId === id && Math.hypot(m.clientX - x0, m.clientY - y0) > SLOP) cancel() }
   const up = (m) => { if (m.pointerId === id) cancel() }
   function stop () {
+    live = false
     window.removeEventListener('pointermove', move, true)
     window.removeEventListener('pointerup', up, true)
     window.removeEventListener('pointercancel', up, true)

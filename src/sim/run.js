@@ -111,12 +111,12 @@
 // elite; past it the floors simply go on. A fall in the deep ends the run as any defeat does (s.death says
 // what felled the Monarch) but leaves the clear standing: s.result stays 'victory'.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, relicDef, unitDef, abilityDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef } from '../content.js'
+import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef } from '../content.js'
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campOpen, wallTiles, tracksOf, canTrack, nextTracks,
   nearestOpen, colOf, FORMATION, SLOTS, sizeOf, footprintSlots, fits, monarchSlot, isMonarchCell, isRunPath, cellsOf,
-  abilitiesOf, isBlow, reachOf, deployTile, distance, distanceBetween, tileAt, tileX, TILES, DEPTH, ROWS
+  reachOf, meleeOnly, deployTile, distance, distanceBetween, tileAt, tileX, TILES, DEPTH, ROWS
 } from './unit.js'
 import { roadsTo } from './field.js'
 import { createBattle, order, legalOrders } from './turns.js'
@@ -359,13 +359,9 @@ export function frontier (camp, pieces) {
   const busy = (t) => [-traffic[t], -roads.dist[t], lane(tileX(t)), t]
   const choke = cells.map((slot) => deployTile('party', slot)).filter((t) => distance(t, root) > 1)
     .sort((a, b) => cmp(busy(a), busy(b)))[0] ?? root
-  // The front piece: the tankiest melee one (every blow in its kit melee, whatever their conditions), the living
-  // first; with no melee piece, the one of the shortest reach.
-  const melee = (u) => {
-    const blows = abilitiesOf(u).map(abilityDef).filter(isBlow)
-    return blows.length > 0 && blows.every((a) => a.melee)
-  }
-  const lead = (i) => [pieces[i].hp > 0 ? 0 : 1, melee(pieces[i]) ? 0 : 1, melee(pieces[i]) ? 0 : reachOf(pieces[i]), -pieces[i].maxHp, i]
+  // The front piece: the tankiest melee one (unit.js meleeOnly: every blow in its kit melee), the living first; with no
+  // melee piece, the one of the shortest reach.
+  const lead = (i) => [pieces[i].hp > 0 ? 0 : 1, meleeOnly(pieces[i]) ? 0 : 1, meleeOnly(pieces[i]) ? 0 : reachOf(pieces[i]), -pieces[i].maxHp, i]
   const front = pieces.map((_, i) => i).sort((a, b) => cmp(lead(a), lead(b)))[0]
   // Each piece in turn on the free cell its footprint fits that `rank`s first (lane order, then the lower cell, on a
   // tie).

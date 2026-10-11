@@ -34,13 +34,13 @@ import path from 'node:path'
 import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campOpen, wallTiles, steps, deployTile, tileAt, tileX, tileY, TILES,
-  LANES, rowOf, colOf, rangeOf, isAllyShape, distance, makeUnit, slotAt, baseStats, summonsOf, DEPTH, sizeOf, footprint, footprintSlots, fits,
-  monarchSlot, abilitiesOf, isBlow, blowReach, armOf, alive, heldMods, isRunPath, cellsOf, ROWS
+  LANES, rowOf, colOf, distance, makeUnit, slotAt, baseStats, summonsOf, DEPTH, sizeOf, footprint, footprintSlots, fits,
+  monarchSlot, abilitiesOf, isBlow, blowReach, armOf, alive, heldMods, isRunPath, cellsOf, meleeOnly, ROWS
 } from './unit.js'
 import { roadOf, roadsTo } from './field.js'
 import { createBattle, order, playOut, timelineHash, legalOrders } from './turns.js'
 import { expertTurn, basicTurn } from './policy.js'
-import { grantsArise } from './rules.js'
+import { grantsArise, bleeds } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, OSSUARY, START_PARTY,
@@ -65,10 +65,12 @@ export const LEVELS = {
     turns: 'expert'
   }
 }
-// The turn policies by name (LEVELS `turns`).
-const TURNS = { basic: basicTurn, expert: expertTurn }
-// The turn policy L plays by: its `turns`, but End Turn alone under the orders ablation.
-const turnsOf = (L) => (L.ablate === 'orders' ? 'basic' : L.turns ?? 'basic')
+// The turn policies by name (LEVELS `turns`; `unfused`, the expert's that never fuses in battle: the fusions ablation's).
+const TURNS = { basic: basicTurn, expert: expertTurn, unfused: (b) => expertTurn(b, { fuse: false }) }
+// The turn policy L plays by: its `turns`, with its ablation's mechanic taken from them (ablatedTurns).
+const turnsOf = (L) => ablatedTurns(L.turns ?? 'basic', L.ablate)
+// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, the expert's unfused without fusions.
+const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : m === 'fusions' && turns === 'expert' ? 'unfused' : turns)
 // How an expert imagines a route: quick formations and basic offers (its own turns and ablation: as).
 const ROLLOUT = { rehearse: false, search: 0, wounds: true, rollouts: 0, spend: false, fuse: false, more: true }
 // How it sizes up a room it could walk into next: every draft rehearsed (pickRoute).
@@ -81,7 +83,7 @@ const RISK = { ...ROLLOUT, rehearse: true }
 // spending logic already sends it. Everything it plays ahead with (rehearsals, rollouts) carries the same ablation:
 //   orders         ends every turn of every battle without an order (policy.js basicTurn: what is left alone strikes
 //                  or mends with its basic, and no skill is ever used): what in-battle play is worth
-//   fusions        never fuses (fusionOptions lists none; its turns give no fuse order in battle either: expertTurn)
+//   fusions        never fuses (fusionOptions lists none; its turns give no fuse order in battle either: TURNS unfused)
 //   summons        no tier brings a summon in battle (a rules switch: the run's `ablate`, carried in every battle's
 //                  setup, so a snapshot stripped of it, necessity, fights without it too), and such a tier is worth
 //                  only its place on the track (worth: its summons not counted), so the essence goes elsewhere
@@ -241,7 +243,6 @@ function strength (s, summons = true) {
 
 const SPREAD = [3, 1, 5, 2, 4, 0, 6]
 const blasts = (foes) => foes.some((f) => unitDef(f.id).abilities.some((id) => abilityDef(id).shape === 'blast'))
-const reachOf = (u) => Math.max(1, ...unitDef(u.id).abilities.map(abilityDef).filter((a) => !isAllyShape(a.shape)).map(rangeOf))
 // Each role's row in a drafted formation (0 the camp's front): the vanguard ahead, the ranged behind.
 const ROW = { vanguard: 0, skirmisher: 1, warden: 1, trickster: 1, ranger: 2, channeler: 2 }
 const rowFor = (u) => ROW[unitDef(u.id).role] ?? 1
@@ -314,11 +315,10 @@ function sheltered (units, camp, taken) {
   const walk = walkIn(camp)
   const open = openCells(camp)
   const lane = (slot) => CENTRE_OUT.indexOf(colOf(slot))
-  const melee = (u) => reachOf(u) === 1
-  const order = units.slice().sort((a, b) => melee(b) - melee(a) || rowFor(a) - rowFor(b))
+  const order = units.slice().sort((a, b) => meleeOnly(b) - meleeOnly(a) || rowFor(a) - rowFor(b))
   for (const u of order) {
     const off = (slot) => Math.abs(rowOf(slot) - rowFor(u))
-    const score = melee(u) ? (slot) => walk(slot) : (slot) => -(walk(slot) - rowOf(slot) - 1)
+    const score = meleeOnly(u) ? (slot) => walk(slot) : (slot) => -(walk(slot) - rowOf(slot) - 1)
     const free = open.filter((slot) => fits(camp, slot, sizeOf(u), taken))
     u.slot = free.sort((a, b) => score(a) - score(b) || off(a) - off(b) || lane(a) - lane(b))[0] ?? -1
     cellsOf(u).forEach((c) => taken.add(c))
@@ -640,7 +640,8 @@ export function scoreOf (b) {
   const heal = TUNING.run.postBattleHeal
   const mend = (u) => (u !== b.monarch || !b.unhealable ? heal : 0)
   const kept = (u) => (u.hp > 0 ? Math.min(1, u.hp / u.maxHp + mend(u)) : 0)
-  const souls = b.units.filter((u) => u.side === 'party' && !u.shadow && u !== b.monarch)
+  // (A soul fused away in the battle is in its fused piece, not fallen.)
+  const souls = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.into && u !== b.monarch)
   const army = souls.length ? souls.reduce((n, u) => n + kept(u), 0) / souls.length : 0
   if (!b.monarch) return 1 + army
   return 1 + (souls.length ? (2 * army + kept(b.monarch)) / 3 : kept(b.monarch))
@@ -1197,7 +1198,7 @@ function comboWorth (s, c, work = atWork(s)) {
   const pairs = c.relics ?? BOOK.plain ?? {}
   const bled = unhealed(s)
   let relics = 0
-  for (const id of work) relics += bled && relicDef(id).rule === 'blood_tithe' ? 0 : pairs[id] ?? 0
+  for (const id of work) relics += bled && bleeds(id) ? 0 : pairs[id] ?? 0
   return Math.max(0, g.length ? g.reduce((n, x) => n + x, 0) / g.length : 0) + relics
 }
 // The relics at work in a state, each once: the run relics owned, and the piece relics a standing soul holds (one
@@ -1424,7 +1425,8 @@ export function policy (run, rng, level = 'basic') {
 // time, End Turn last, as playOut would give them (so a rehearsal, or a refight, under the same policy plays the same
 // battle); planned again should the next no longer be legal (an order given meanwhile by someone else: a test's).
 const planned = new WeakMap()
-const same = (a, o) => a.type === o.type && a.uid === o.uid && a.tile === o.tile && a.ability === o.ability && a.target === o.target && a.id === o.id
+const same = (a, o) => a.type === o.type && a.uid === o.uid && a.tile === o.tile && a.ability === o.ability && a.target === o.target && a.id === o.id &&
+  String(a.parts) === String(o.parts)
 function battleOrder (run, L) {
   const b = run.battle
   let p = planned.get(b)
@@ -1876,7 +1878,7 @@ async function decisions ({ runs, seed: seed0, level, tries = 8 }) {
   for (const setup of setups) {
     const fight = (party) => {
       const b = playOut(createBattle({ ...setup, party, quiet: true }), TURNS[turnsOf(LEVELS[level])])
-      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow)
+      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.into)
       const hp = b.winner === 'party' ? mine.reduce((n, u) => n + u.hp, 0) / mine.reduce((n, u) => n + u.maxHp, 0) : 0
       return { won: b.winner === 'party', hp }
     }
@@ -2108,8 +2110,8 @@ function unfused (s) {
   }
 }
 
-// Refights each snapshot as it stood and once per mechanic stripped, under the turn policy it was played with (End Turn
-// alone with the orders stripped): →
+// Refights each snapshot as it stood and once per mechanic stripped, under the turn policy it was played with, that
+// mechanic taken from it (ablatedTurns: End Turn alone with the orders stripped, no fusing with the fusions): →
 // per snapshot, per variant { won, alive (the Monarch stands at the end), hp (the share of your side's HP kept, 0 for
 // a loss) }, and whether the as-it-stood refight played out exactly as the real battle did.
 export function refight ({ snaps, variants = [null, ...NECESSITY] }) {
@@ -2117,8 +2119,8 @@ export function refight ({ snaps, variants = [null, ...NECESSITY] }) {
     const out = {}
     for (const m of variants) {
       // Only the as-it-stood refight is compared event by event; the rest keep no events.
-      const b = playOut(createBattle({ ...battleSetup(stripped(snapshot, m)), quiet: m !== null }), TURNS[m === 'orders' ? 'basic' : outcome?.turns ?? 'basic'])
-      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow)
+      const b = playOut(createBattle({ ...battleSetup(stripped(snapshot, m)), quiet: m !== null }), TURNS[ablatedTurns(outcome?.turns ?? 'basic', m)])
+      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.into)
       const won = b.winner === 'party'
       out[m ?? 'full'] = { won, alive: !!b.monarch && b.monarch.hp > 0, hp: won ? mine.reduce((n, u) => n + u.hp, 0) / mine.reduce((n, u) => n + u.maxHp, 0) : 0 }
       if (m === null) out.same = !!outcome && timelineHash(b.events) === outcome.hash

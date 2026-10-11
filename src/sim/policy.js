@@ -8,7 +8,7 @@ import { alive, enemySide, isBlow, isAllyShape, footprint, tileX, tileY, blowRea
 import { LANE, roadOf } from './field.js'
 import {
   stats, emit, computeDamage, fork, order, reach, roadAhead, targetsFrom, usable, canAct, hexed, perform, walk, aloft, helped, shape, deadline,
-  orderable, isSkill, counterOf
+  orderable, isSkill, counterOf, fusionsOf, rateOf
 } from './turns.js'
 import { call } from './rules.js'
 
@@ -25,13 +25,13 @@ export function danger (battle, side) {
   const ground = new Array(TILES).fill(0)
   const air = new Array(TILES).fill(0)
   // Yours, read in the foes' turn or at its end, act next after a turn's end: a skill whose cooldown falls to 0 by
-  // then counts. The foes, read in your turn, act before it.
+  // then (at the rate turns.js rateOf gives it) counts. The foes, read in your turn, act before it.
   const later = dealer === 'party' && battle.stage !== 'party'
   const g = new Array(TILES)
   const a = new Array(TILES)
   for (const u of battle.units) {
     if (u.side !== dealer || !alive(u) || u === battle.monarch || stunned(u, later)) continue
-    const rate = later ? Math.max(1, Math.round(stats(battle, u).cooldown.rate)) : 0
+    const rate = later ? rateOf(battle, u) : 0
     const blows = u.kit.filter((x) => isBlow(x) && (!isSkill(u, x) || (u.cooldowns[x.id] ?? 0) <= rate))
     if (!blows.length) continue
     const spots = dealer === 'foe' ? roadAhead(battle, u, u.move).map((s) => s.tile)
@@ -318,15 +318,19 @@ const EXPERT = { aggression: 1, caution: 1, prey: 'wounded' }
 // The expert's turn (§5 shared contract): the one score for your side, greedy piece by piece, then the turn played
 // ahead. Two plans are made on copies of the battle, one moving as it likes and one striking from where each stands,
 // each piece in the order most constrained first (fewest options) committing its best option (choose, the danger map
-// from the foes' coming turn made again before each piece); the two and End Turn alone are each played through the
-// foes' turn on a copy (ahead), and the one that leaves the best trade is given. Its cost a turn: two greedy passes
-// (a danger map and every option of each piece scored, one by one) and three copies played through a foes' turn.
-export function expertTurn (battle) {
+// from the foes' coming turn made again before each piece); and Fuse being an act (§2.4), one more for each fusion a
+// piece may make where it stands, that fusion first, then the rest moving as they like (none with `fuse` false: the
+// fusions ablation's). Each, and End Turn alone, is played through the foes' turn on a copy (ahead), and the one that
+// leaves the best trade is given, the first on a tie. Its cost a turn: two greedy passes (a danger map and every option
+// of each piece scored, one by one) and three copies played through a foes' turn, and a pass and a copy a fusion.
+export function expertTurn (battle, { fuse = true } = {}) {
   if (battle.over) return []
   const p = press(battle)
+  const plans = [plan(battle, p, true), plan(battle, p, false), []]
+  if (fuse) for (const u of battle.units) if (canAct(battle, u)) for (const o of fusionsOf(battle, u)) plans.push(plan(battle, p, true, o))
   let best = null
   let value = -Infinity
-  for (const orders of [plan(battle, p, true), plan(battle, p, false), []]) {
+  for (const orders of plans) {
     const v = ahead(battle, orders)
     if (v > value) {
       best = orders
@@ -336,9 +340,10 @@ export function expertTurn (battle) {
   return [...best, { type: 'end' }]
 }
 
-function plan (battle, p, moving) {
+// A greedy plan on a copy, `first` (a fusion) given before it.
+function plan (battle, p, moving, first = null) {
   const f = fork(battle)
-  const out = []
+  const out = first ? [give(f, first)] : []
   const pieces = f.units.filter((u) => orderable(f, u) && !u.acted)
   const room = new Map(pieces.map((u) => [u, options(f, u, { moving }).length]))
   pieces.sort((a, b) => room.get(a) - room.get(b) || a.ord - b.ord)
@@ -359,18 +364,20 @@ const give = (f, o) => {
 
 // A turn's orders played on a copy through End Turn (the foes' turn among it): the HP the foes lost (a slain one its
 // whole max HP more) less the HP yours lost (a fallen one likewise; the Monarch's thrice), or the verdict if the battle
-// ends.
+// ends. A piece of yours made meanwhile (a shadow risen, a fused piece) counts as it stands, gained, and a piece fused
+// away as fallen: so a fusion is weighed by what it leaves on the board for what it took. A foe come in meanwhile (a
+// wave, a shadow of theirs) is not weighed, as before.
 function ahead (battle, orders) {
   const f = fork(battle)
   for (const o of orders) if (!f.over) order(f, o)
   if (!f.over) order(f, { type: 'end' })
   if (f.over) return f.winner === 'party' ? 1e12 : -1e12
   let v = 0
-  for (const u of battle.units) {
-    if (!alive(u)) continue
-    const c = f.byUid.get(u.uid)
-    const lost = u.hp - Math.max(0, c.hp) + (alive(c) ? 0 : u.maxHp)
-    v += u.side === 'foe' ? lost : -lost * (u === battle.monarch ? 3 : 1)
+  for (const c of f.units) {
+    const u = battle.byUid.get(c.uid)
+    if (u ? !alive(u) : c.side === 'foe') continue
+    const lost = (u ? u.hp + u.maxHp : 0) - (alive(c) ? c.hp + c.maxHp : 0)
+    v += c.side === 'foe' ? lost : -lost * (c === f.monarch ? 3 : 1)
   }
   return v
 }
