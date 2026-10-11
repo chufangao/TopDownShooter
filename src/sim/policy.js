@@ -141,7 +141,7 @@ function dilate (list, tile, size, r, raw) {
 }
 
 // A blow's damage before the target's DEF and damage taken: computeDamage's raw, with its dealer's damage dealt.
-function rawOf (battle, u, b) {
+export function rawOf (battle, u, b) {
   const s = stats(battle, u)
   let power = 0
   for (const e of b.effects) if (e.op === 'damage') power += e.power
@@ -450,7 +450,8 @@ export const basicTurn = () => [{ type: 'end' }]
 //   roads      each tile a foe's road comes into the Monarch by: { tile, held (the uid of yours on it, or null), foes:
 //              [{ uid, turns (to come beside the Monarch: its road ÷ its Move, rounded up), reach }] }
 //   holding    by the uid of a piece of yours, the foes whose road it holds within their Move (those it frees by leaving)
-//   monarch    { hp, danger (what the foes could deal it next turn: their `deals` summed), lethal (danger ≥ hp), threats
+//   monarch    { hp, share (of its max HP: its wounds are the run's, carried from battle to battle, redesign.md §2.18
+//              C), danger (what the foes could deal it next turn: their `deals` summed), lethal (danger ≥ hp), threats
 //              ([{ uid, deals }], the foes that could strike it), deals (Map: foe → what it could deal), marked (a Set of
 //              those foes), screened (the foes in reach of it whose every line to it one of yours stands in: §2.19) };
 //              null with none
@@ -512,7 +513,9 @@ export function situation (battle) {
     entries,
     roads: [...roads.values()].sort((a, b) => a.tile - b.tile),
     holding,
-    monarch: m && { hp: m.hp, danger: total, lethal: total >= m.hp, threats: [...deals].map(([x, d]) => ({ uid: x.uid, deals: d })), deals, marked: new Set(deals.keys()), screened },
+    monarch: m && {
+      hp: m.hp, share: m.hp / m.maxHp, danger: total, lethal: total >= m.hp, threats: [...deals].map(([x, d]) => ({ uid: x.uid, deals: d })), deals, marked: new Set(deals.keys()), screened
+    },
     pieces: mine.map((u) => {
       const d = dangerAt(battle, u, u.tile, map)
       return { uid: u.uid, danger: d, dies: d >= u.hp, acted: u.acted, ready: ready(u) }
@@ -852,14 +855,15 @@ function synergyRead (battle) {
 // and from the plan (sit.plan: plan.js readPlan, read once a turn; made here where a decision is read alone):
 //   progress steps it ends nearer the tile the target formation gives it (its path on its layer, footprints counted;
 //            a piece with no slot, the tile whence it would strike the nearest foe)
-//   role     1 where it ends on that tile: its role held
+//   role     1 where it ends on that tile: its role held; post: and that role a post (a road's block or air slot, a
+//            screen: the tree's hold-the-line)
 //   listed   1 where its act is its strike on the kill list (the same blow at the same foe)
 //   forecast HP the foes could deal it next turn where it ends, each from where the forecast has it stand (not every
 //            tile its road could take it to, as `danger` and `loss` read them)
 export function features (battle, u, o, sit = situation(battle)) {
   const v = {
     damage: 0, kill: 0, menace: 0, focus: 0, bane: 0, harry: 0, status: 0, mend: 0, rescue: 0, danger: 0, fall: 0, counter: 0, screen: 0, guard: 0, lethal: 0, cull: 0,
-    shadow: 0, fuse: 0, essence: 0, waste: 0, loss: 0, shadowLoss: 0, hit: 0, engage: 0, undone: 0, quell: 0, progress: 0, role: 0, listed: 0, forecast: 0
+    shadow: 0, fuse: 0, essence: 0, waste: 0, loss: 0, shadowLoss: 0, hit: 0, engage: 0, undone: 0, quell: 0, progress: 0, role: 0, post: 0, listed: 0, forecast: 0
   }
   const m = sit.monarch
   const P = sit.plan ??= readPlan(battle, sit, { store: false })
@@ -868,7 +872,10 @@ export function features (battle, u, o, sit = situation(battle)) {
     const before = goal.field[u.tile]
     const after = goal.field[o.tile]
     if (Number.isFinite(before) && Number.isFinite(after)) v.progress = before - after
-    if (after === 0) v.role = 1
+    if (after === 0) {
+      v.role = 1
+      if (POSTS.has(goal.role)) v.post = 1
+    }
   }
   if (o.fusion) {
     const t = sit.threat.base ??= threatWith(battle, sit, u, { tile: u.tile }, ZERO)
@@ -914,6 +921,9 @@ export function features (battle, u, o, sit = situation(battle)) {
   }
   return v
 }
+
+// The formation's roles that hold the Monarch's ground (plan.js formation): a road's block and air slots, a screen.
+const POSTS = new Set(['block', 'air', 'screen'])
 
 // The threat read (sit.threat) with piece `u` taking option `o` (its estimate `e`): the foes it fells or Hexes strike no
 // one; each foe whose road it holds or frees (its footprint where it stands or where it ends, on the road the foe would
@@ -1145,7 +1155,8 @@ export function expertTurn (battle, { fuse = true, note = null, moving = true } 
     orders.push(...untouchedOrders(f))
     boards.push({ orders, log: [], v: boardFeatures(f, battle) })
   }
-  const pick = decide(TREES.board, { patience: battle.turn - battle.foeIn, plan: plan.kind }, boards, TUNING.expert.battle.board, { modes: TUNING.expert.battle.boardModes })
+  const ctx = { patience: battle.turn - battle.foeIn, plan: plan.kind, shooters: plan.shooters.length }
+  const pick = decide(TREES.board, ctx, boards, TUNING.expert.battle.board, { modes: TUNING.expert.battle.boardModes })
   if (note) {
     note({ decision: 'plan', by: `${plan.kind} (${plan.trigger ?? 'kept'})`, rules: plan.rules, sit })
     note({ decision: 'board', by: pick.by, rules: pick.rules })
@@ -1258,15 +1269,20 @@ export const blowOn = (battle, u, a, x) => {
 // (`falls`); what they could deal the Monarch (`monarch`), `doom` 1 where that fells it, and the foes whose road into
 // it nothing of yours holds (`open`); the essence spent this turn (`spent`); the tiles your pieces came nearer the
 // nearest foe this turn (`closer`, walking: gap), and nearer the tiles the plan's target formation gives them
-// (`progress`: plan.js, from.plan); and the battle `won` or `lost`.
+// (`progress`: plan.js, from.plan); the Monarch's shooters the plan read (from.plan.shooters: plan.js shootersOf) still
+// standing (`shooters`); and the battle `won` or `lost`.
 export function boardFeatures (battle, from = battle) {
   const v = {
     hp: 0, shadows: 0, foeHp: 0, foes: 0, danger: 0, falls: 0, monarch: 0, doom: 0, open: 0, spent: battle.spent - from.spent, won: 0, lost: 0, loss: 0, shadowLoss: 0, hit: 0,
-    counters: 0, mended: 0, foeTicks: 0, ticks: 0, closer: 0, progress: 0
+    counters: 0, mended: 0, foeTicks: 0, ticks: 0, closer: 0, progress: 0, shooters: 0
   }
   if (battle.over) {
     v[battle.winner === 'party' ? 'won' : 'lost'] = 1
     return v
+  }
+  for (const uid of from.plan?.shooters ?? NONE) {
+    const x = battle.byUid.get(uid)
+    if (x && alive(x)) v.shooters++
   }
   const sit = situation(battle)
   for (const u of battle.units) {

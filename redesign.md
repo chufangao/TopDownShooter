@@ -816,11 +816,72 @@ foe your pieces can strike that turn: no rule found it wrong (a no-chase rule, f
 *Measured* (the expert as written): ladder, 256 seeds `sim`: the expert clears **33.6%** (the parent's 36.3%), dies on
 floor 1 in 25.0% of runs, floor 2 14.1%, floor 3 14.8%, floor 4 12.5%, wins 97.7% of its battles, 2 stalls; Arise raises
 0.36 a battle; basic clears 0% and dies on floor 1 in 99.6%. **The bar's 64 seeds: 35.9% (the old rehearsing expert
-47%)**, progress 66.7 (3b9ca75 35.9% / 64.1). ABLATIONS_HERE
+47%)**, progress 66.7 (3b9ca75 35.9% / 64.1). (Found on 2026-10-11, by the next agent: neither the searched weights
+nor hold-the-line reached the code; b83139f carries the plan's placeholders, `listed` 5, `forecast` −0.15, the hold's
+bias 1, and no such rule. Its ablations were not measured.)
 Open: the expert is 11 points under the bar and the plan layer has not moved it; the search's noise (± 3.5 progress
 paired on 128 seeds) is now the size of what a generation finds, so a further search wants more seeds or a cheaper
 run; and what still limits the expert is the turn, not the weights: each piece commits alone against the board, the
 kill list and the stances the only joint orders, and boards are compared by a static read with no turn of the foes.
+
+**Then (2026-10-11): lines of fire and the expert's A–C.** Lines of fire (§2.19) landed in b83139f; the expert's three
+changes (§2.18's last bullet) on it, by one agent, every number below on the seeds named and the same seeds before and
+after (paired by seed; ± one standard error of the paired difference in progress). *As built*: **A, the line out of
+range** (plan.js outOfRange, read by `chokes`): each road's chain of tiles where one piece holds every foe coming that
+way, from the tile beside the seat out, no farther than `plan.line` steps; its first tile where every scouted foe of
+that road (standing, or of a wave to come, every blow of its kind), held there, reaches the Monarch from no tile of its
+road short of the piece, a blow that keeps to a line not where the piece stands on it; where none is, the farthest of
+those its blows reach the Monarch least from. It replaces the choke at `line` 3 (protect's beside the seat) for every
+plan and the air road too; prep's draft (`deployment`) and the walk in battle both read it. A melee road is held beside
+the seat (the foe waits two off), a shooter's straight road too (the holder screens it), a blast of reach 4 four out.
+**B, the Monarch's shooters first**: the plan reads them (plan.js shootersOf: a foe whose blow from range, ready next
+turn, reaches the Monarch from where it stands or where the forecast has it, on a clear line as the board stands); they
+head the kill list; the plan tree's **monarch-shooter** (after keep-plan) keeps a focus on one the pieces could fell
+within `plan.horizon` 2 turns (canFell: each piece's hardest blow a turn from when its Move brings it in reach), else
+protect; a new trigger `shooter` re-reads a plan that is neither; the board tree's **shooters-first** (after no-doom)
+keeps the boards that leave the fewest standing; and the formation gives a **screen** slot on each lined shooter's line
+to the Monarch where no other slot stands on it (`roles.*.screen`, protect's held first). **C, the Monarch's HP is the
+run's**: the situation reads its share (`sit.monarch.share`; the survey's `monarch` already did); the route tree's
+**monarch-altar** (an altar where one is open and may heal it, below `tree.altar` 0.5) and **monarch-no-elite** (below
+`tree.elite` 0.7), and `route.monarchAhead` 1 (an altar on a route through the room by the Monarch's wounds); in battle
+the tree's **frail** node *adds* `modes.frail` (guard 1, hit −1, screen 1, harry 0.5) × the share it lacks while it is
+in reach or the plan protects (decide's new `add` node). And **hold-the-line** (battle tree, after protect): protecting, a
+piece given a post (a block, air or screen slot) ends on it where that takes something from the Monarch's danger
+(`guard` > 0). Every new number hand-set. *Puzzles*: the line out of range (a Drake held four out, a Chanter's road held
+beside the seat), the shooter felled before the healer, the shooter none can fell screened, a wounded Monarch's route
+(altar, Court of Bone, no elite); the `todo` (the Knight steps in front of the Monarch's attacker) passes, by
+hold-the-line; three puzzles' tiles moved with A (the hold beside the line, the walk, the air slot). 348 tests pass.
+*What each part did* (256 seeds `sim`, each taken out of the whole at `line` 5; its worth, clears it won and lost): A
++0.2 ± 2.2 progress (clears +30 −34: level); B +3.8 ± 1.4 (+13 −10: the one clear gain); C +1.1 ± 1.3 (+7 −8);
+hold-the-line as built +0.5 ± 1.3 (+8 −17), and over every post (no `guard` condition) −4.5 on 128 seeds, so
+narrowed. *Tries* (128 seeds against that whole, 28.9% / 60.7): `line` 3 33.6% / 63.6 (+2.9 ± 2.1), **4 35.2% / 63.4
+(+2.7 ± 1.9, the fewest deaths by reach), taken**; `modes.frail` ×3 with `tree.altar` 0.6 / `elite` 0.85 +0.1 ± 2.4;
+`horizon` 3 0.0 ± 1.5; the three with `line` 3, −4.5 ± 2.6 against `line` 3 alone. *Measured*, before (b83139f) →
+after:
+
+| | 3b9ca75 (no lines) | b83139f (lines of fire) | A–C |
+|---|---|---|---|
+| ladder, 256 `sim`: expert clear / progress | 36.3% / 63.9 | 33.2% / 65.2 | **37.9% / 67.5** |
+| died on floor 1 / 2 / 3 / 4 | 25.8 / 14.5 / 11.7 / 11.7% | 21.5 / 16.4 / 14.8 / 14.1% | 21.1 / 12.9 / 15.2 / 12.9% |
+| Monarch felled, of lost runs | 160 / 163 | 165 / 171 | 152 / 159 |
+| by threat | reach 55, shape 43, fly 20, drain 17, sustain 15 | reach 66, shape 37, fly 26, sustain 11, drain 10, bleed 10 | reach 53, shape 34, fly 24, sustain 17, drain 12, bleed 7 |
+| stalls (runs) / battles won | 3 / 97.8% | 6 / 97.7% | 7 / 97.9% |
+| basic: clear / died on floor 1 | | 0% / 99.6% | 0% / 99.6% |
+| **the bar's 64 seeds** (old rehearsing expert 47%) | 35.9% / 64.1 | 32.8% / 61.3 | **37.5% / 66.5** |
+
+Paired over the 256: lines of fire +1.3 ± 2.6 progress on 3b9ca75 (clears +34 −42); A–C +2.3 ± 2.2 on b83139f (+40
+−28); the two together +3.5 ± 2.6 (+43 −39). Ablations, 128 seeds, the drop in clear-rate points (in progress points),
+before → after (full 33.6% / 62.1 → 35.2% / 63.4): orders 34 (57.1) → 35 (58.3), tracks 34 (25.5) → 34 (26.5), summons
+14 (7.8) → 16 (8.4); fusions 33 (10.3) → 35 (10.5), synergies 14 (4.6) → 14 (5.5), relics 8 (−0.5) → 10 (1.3),
+legendaries 1 (0.0) → −2 (−1.1); formation −5 (−2.8) → 1 (1.8), moves 33 (56.4) → 35 (57.5). In band by clear rate:
+orders, tracks, relics, synergies; summons under the core band, fusions over the extras', legendaries nothing, as
+before. Open: the expert is ~10 points under the bar on its 64 seeds, and every part but B is inside the noise of 256
+seeds; what limits it now is less where it stands than which rooms it walks into and whether it wins there: of the lost
+runs in the first 41 seeds (both builds) about half fell in an elite, most on floors 1–2 (the route's `elite` weight is
+10), many with every piece still standing when the Monarch was first struck, and some only once the field was gone (the
+battle lost, not the Monarch left open); C's route rules seldom fire (none in an 8-run audit: the Monarch is rarely
+below 0.7 when it picks a room). The search's noise
+(±2.2 progress paired on 256) still hides any single weight's worth.
 
 ## 7. Standing rules
 

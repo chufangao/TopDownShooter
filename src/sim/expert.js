@@ -5,8 +5,9 @@
 // features (`v`). Then two layers:
 //   1. the tree (TREES): hard rules, invariants a good player never breaks, taken in order. A node whose `when` holds
 //      on the situation either forces an option (`force`: the decision ends there), keeps only the options it ranks
-//      highest (`keep`: a filter, where a boolean keeps those that pass, if any does), or switches the weights to a
-//      mode of theirs (`mode`). Thresholds in TUNING.expert.tree.
+//      highest (`keep`: a filter, where a boolean keeps those that pass, if any does), switches the weights to a mode
+//      of theirs (`mode`), or adds a mode's weights to them, each × what `scale` reads off the situation (`add`).
+//      Thresholds in TUNING.expert.tree.
 //   2. the weights (TUNING.expert): a weighted sum of the features (value) scores what the tree left, the best taken.
 // Every decision says which rule decided it (`by`: the rule that forced it, else the first that filtered, else
 // 'weights'), for the audit (autoplay.js --audit). `value` is the seam where a learned model may replace the sum.
@@ -45,6 +46,12 @@ export function decide (tree, sit, options, weights, { modes = {}, better = null
     } else if (node.mode) {
       w = { ...w, ...modes[node.mode] }
       rules.push(node.id)
+    } else if (node.add) {
+      const k = node.scale(sit)
+      if (!(k > 0)) continue
+      w = { ...w }
+      for (const key in modes[node.add]) w[key] += k * modes[node.add][key]
+      rules.push(node.id)
     }
   }
   let best = null
@@ -73,11 +80,15 @@ const BATTLES = new Set(['fight', 'elite', 'siege', 'boss'])
 export const TREES = {
   // The battle plan, once a turn (plan.js readPlan; features plan.js planOptions; `sit` its context: the `trigger` that
   // fired since the last turn's plan, null for none, that plan `prev`, the camp's `patience`, the Monarch in the foes'
-  // `reach`, a `healer` of theirs the kill list fells, the foes `waiting`: each holds off out of your reach, and no wave
-  // is to come).
+  // `reach`, its `shooters` (plan.js shootersOf) and those of them your pieces could fell (`fellable`), a `healer` of
+  // theirs the kill list fells, the foes `waiting`: each holds off out of your reach, and no wave is to come).
   plan: [
     // A plan stands until something changes it: no dithering, and a walk that spans turns.
     { id: 'keep-plan', when: (sit) => sit.trigger === null, force: (plans, sit) => plans.find((o) => o.kind === sit.prev.kind && o.target === sit.prev.target) },
+    // A foe whose blow from range reaches the Monarch, now or from where it will stand next turn, is the focus (redesign.md
+    // §2.18, B): go and fell it (the kill list has it first); where your pieces could fell none such, close about the
+    // Monarch and screen its line.
+    { id: 'monarch-shooter', when: (sit) => sit.shooters?.length > 0, keep: (o, sit) => (sit.fellable.length ? o.v.shooter > 0 : o.v.protect > 0) },
     // The Monarch within the foes' reach next turn: close about it, or fell what reaches it where the kill list can.
     { id: 'monarch-reach', when: (sit) => sit.reach, keep: (o) => o.v.protect > 0 || o.v.cull > 0 },
     // A healer of theirs that can be felled this turn is: what the rest deal, it undoes.
@@ -105,6 +116,13 @@ export const TREES = {
     // The plan is to close about the Monarch (plan.js): the protect's weights over the guard's
     // (TUNING.expert.battle.modes.protect), what an option takes from the foes' reach of the Monarch counted.
     { id: 'protect', when: (sit) => sit.plan?.kind === 'protect', mode: 'protect' },
+    // Protecting, a piece the formation gives a post (a road's block or air slot, a screen) ends on it where that spares
+    // the Monarch a blow, a road held or a line screened (redesign.md §2.18 B: the screen is the fallback, so it must be
+    // stood on, not merely wished for).
+    { id: 'hold-the-line', when: (sit) => sit.plan?.kind === 'protect', keep: (o) => o.v.post > 0 && o.v.guard > 0 },
+    // The Monarch wounded, its wounds the run's (redesign.md §2.18 C): while it is in the foes' reach or the plan is to
+    // close about it, the frail weights (TUNING.expert.battle.modes.frail) added, × the share of its max HP it lacks.
+    { id: 'frail', when: (sit) => !!sit.monarch && (sit.monarch.danger > 0 || sit.plan?.kind === 'protect'), add: 'frail', scale: (sit) => 1 - sit.monarch.share },
     // The plan is to take the fight to foes that hold off (plan.js): the push's weights (TUNING.expert.battle.modes.push),
     // a piece walking into what they could deal to come to them.
     { id: 'push', when: (sit) => sit.plan?.kind === 'push', mode: 'push' },
@@ -113,10 +131,12 @@ export const TREES = {
     { id: 'no-stall', when: (sit) => sit?.patience >= T().stall, mode: 'press' }
   ],
   // The boards a turn's orders leave, a few orders of the pieces apiece (policy.js expertTurn; features
-  // policy.js boardFeatures; `sit` the camp's patience and the plan's kind).
+  // policy.js boardFeatures; `sit` the camp's patience, the plan's kind and how many shooters of the Monarch's it read).
   board: [
     // Never a board where the foes could fell the Monarch next turn, where another is not.
     { id: 'no-doom', when: () => true, keep: (o) => !o.v.doom },
+    // The Monarch's shooters first (redesign.md §2.18, B): of the boards, those that leave the fewest of them standing.
+    { id: 'shooters-first', when: (sit) => sit?.shooters > 0, keep: (o) => -o.v.shooters },
     // The plan is to take the fight to foes that hold off: the push's board weights (TUNING.expert.battle.boardModes.push).
     { id: 'push', when: (sit) => sit?.plan === 'push', mode: 'push' },
     // And long past the last wave, the press's board weights (TUNING.expert.battle.boardModes.press), as the pieces'.
@@ -136,8 +156,13 @@ export const TREES = {
   route: [
     // A badly wounded army (TUNING.expert.tree.wounded) takes an altar where one is open,
     { id: 'wounded-altar', when: (sit) => sit.health < T().wounded, force: (rooms) => rooms.find((o) => o.node.type === 'altar') },
-    // and never walks into an elite where another room is open.
+    // and so does a wounded Monarch (its HP below TUNING.expert.tree.altar of its max), where an altar may heal it: its
+    // wounds are the run's, and its fall the run's end (redesign.md §2.18 C).
+    { id: 'monarch-altar', when: (sit) => !sit.unhealed && sit.monarch < T().altar, force: (rooms) => rooms.find((o) => o.node.type === 'altar') },
+    // A badly wounded army never walks into an elite where another room is open,
     { id: 'wounded-no-elite', when: (sit) => sit.health < T().wounded, keep: (o) => o.node.type !== 'elite' },
+    // nor does a Monarch below TUNING.expert.tree.elite of its HP.
+    { id: 'monarch-no-elite', when: (sit) => sit.monarch < T().elite, keep: (o) => o.node.type !== 'elite' },
     // Never a battle the army is the underdog in (its strength over the room's scouted threat, as a log, below
     // TUNING.expert.tree.odds) where another room is open, and of such battles the least long: a loss ends the run.
     { id: 'no-long-odds', when: () => true, keep: (o) => (BATTLES.has(o.node.type) ? Math.min(o.v.odds, T().odds) : T().odds) }

@@ -248,7 +248,8 @@ function shadowWorth (id, lvl) {
 //   purse, prices            its essence, and the cheapest next tier of a kind it holds (`tier`), recruit on offer
 //                            (`recruit`) and relic of the floor (`relic`): null where there is none
 //   health, fallen, monarch  its souls' HP over their max (the fallen's none), how many lie fallen, and the share of the
-//                            Monarch's HP it has; `unhealed`: nothing may heal the Monarch (Court of Bone)
+//                            Monarch's HP it has (its wounds carried from battle to battle: the route's tree reads it,
+//                            redesign.md §2.18 C); `unhealed`: nothing may heal the Monarch (Court of Bone)
 //   strength                 the field's (strength)
 //   command, fielded, waiting  the field cap, the standing souls fielded, and those waiting in the ossuary
 //   target                   the combo it plays toward ({ id, progress, missing: kinds still short }), null for none
@@ -367,7 +368,8 @@ export function pickRoute (run, sit = survey(run)) {
 // odds (the log of the army's strength over the room's scouted threat; `weak` where the room is the stronger), its foes
 // of the target's kinds (`want`) and its threat types the army has no answer to (`unanswered`); for an altar the souls'
 // wounds and the Monarch's (none while nothing may heal it); for a Shop the purse over the floor's cheapest relic, up
-// to 3; and an altar or a Shop on a route through it (`altarAhead`, `shopAhead`), the nearer the more.
+// to 3; and an altar or a Shop on a route through it (`altarAhead`, `shopAhead`), the nearer the more, an altar by the
+// souls' wounds and by the Monarch's (`monarchAhead`, none while nothing may heal it: redesign.md §2.18 C).
 export function roomFeatures (sit, room) {
   const fights = room.threat > 0 && room.type !== 'shop' && room.type !== 'altar'
   const odds = fights ? Math.log(sit.strength / room.threat) : 0
@@ -384,6 +386,7 @@ export function roomFeatures (sit, room) {
     want: room.want,
     unanswered: room.unanswered.length,
     altarAhead: room.ahead.altar === null ? 0 : (1 - sit.health) / (1 + room.ahead.altar),
+    monarchAhead: room.ahead.altar === null || sit.unhealed ? 0 : (1 - sit.monarch) / (1 + room.ahead.altar),
     shopAhead: room.ahead.shop === null ? 0 : purse / (1 + room.ahead.shop)
   }
 }

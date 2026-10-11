@@ -16,16 +16,20 @@
 //   the forecast   where each foe will likely stand next turn: its road and Move bound it, its temperament (the
 //                  bestiary's way line) says how far it comes (forecast).
 import { TUNING } from '../tuning.js'
-import { alive, isBlow, footprint, tileX, tileY, tileAt, distance, distanceBetween, blowReach, TILES, LANES, DEPTH, NEIGHBOURS } from './unit.js'
+import {
+  alive, isBlow, footprint, tileX, tileY, tileAt, distance, distanceBetween, blowReach, statsOf, abilitiesOf, lineEnds, between, LINE_AT, LINE_TILES, TILES, LANES,
+  DEPTH, NEIGHBOURS
+} from './unit.js'
 import { fieldOf, airOf, roadOf } from './field.js'
-import { stats, roadAhead, canAct, aloft, orderable, counterOf, ariseOf, isSkill } from './turns.js'
-import { danger, dangerAt, options, hardest, blowOn, struckOf } from './policy.js'
-import { unitDef } from '../content.js'
+import { stats, roadAhead, canAct, aloft, orderable, counterOf, ariseOf, isSkill, lined, lineBlocker, hexed } from './turns.js'
+import { danger, dangerAt, options, hardest, blowOn, struckOf, rawOf } from './policy.js'
+import { unitDef, abilityDef } from '../content.js'
 import { decide, TREES } from './expert.js'
 
 const T = () => TUNING.expert.plan
 const NEUTRAL = { aggression: 1, caution: 1, prey: 'weakest' }
 const NONE = Object.freeze([])
+const NOBODY = new Set()
 
 // ── the forecast ─────────────────────────────────────────────────────────────────────────────────
 
@@ -84,26 +88,36 @@ function wary (spots, hurt) {
 // ── the roads' chokes ────────────────────────────────────────────────────────────────────────────
 
 // The chokes of `road` (field.js field: the arrows make a tree into the Monarch's seat) for foes walking from `sources`
-// (tiles): for each road into the seat a source's walk takes (by the tile beside the seat it comes in by), the tile as
-// far out as one piece standing there holds every source that comes that way (where no road splits and none of those
-// foes stands), never more than `cap` steps from the seat. A piece on a road holds every foe whose walk crosses it (a
-// foe never passes through a piece, nor routes round one: turns.js roadAhead). → [{ tile, sources (how many it holds),
-// front (the tiles just before it, where the foes it holds would wait) }], by the tile it comes in by.
-export function chokes (road, sources, cap) {
+// (tiles): for each road into the seat a source's walk takes (by the tile beside the seat it comes in by, its entry),
+// the chain of tiles out from the entry where one piece standing holds every source that comes that way (where no road
+// splits and none of those foes stands), never more than `cap` steps from the seat, and of it the tile `hold` picks
+// (given the chain, from the entry out, and the indices of the sources that come in by it; → an index), else the
+// farthest. A piece on a road holds every foe whose walk crosses it (a foe never passes through a piece, nor routes
+// round one: turns.js roadAhead). → [{ tile, sources (how many it holds), front (the tiles just before it, where the
+// foes it holds would wait) }], by the tile it comes in by.
+export function chokes (road, sources, cap, hold = null) {
   const count = new Map()
-  for (const s of sources) {
-    for (let t = road.arrow[s], k = 0; t >= 0 && road.dist[t] > 0 && k < TILES; t = road.arrow[t], k++) count.set(t, (count.get(t) ?? 0) + 1)
-  }
+  const by = new Map()
+  sources.forEach((s, i) => {
+    let last = -1
+    for (let t = road.arrow[s], k = 0; t >= 0 && road.dist[t] > 0 && k < TILES; t = road.arrow[t], k++) {
+      count.set(t, (count.get(t) ?? 0) + 1)
+      last = t
+    }
+    if (last >= 0) by.set(last, [...(by.get(last) ?? NONE), i])
+  })
   const kids = new Map()
   for (const t of count.keys()) if (count.has(road.arrow[t])) kids.set(road.arrow[t], [...(kids.get(road.arrow[t]) ?? NONE), t])
   const out = []
   for (const e of [...count.keys()].filter((t) => road.dist[t] === 1).sort((a, b) => a - b)) {
-    let n = e
-    for (;;) {
+    const chain = [e]
+    for (let n = e; ;) {
       const k = kids.get(n) ?? NONE
       if (k.length !== 1 || count.get(k[0]) !== count.get(n) || road.dist[k[0]] > cap) break
       n = k[0]
+      chain.push(n)
     }
+    const n = chain[hold ? hold(chain, by.get(e) ?? NONE) : chain.length - 1]
     const front = new Set(kids.get(n) ?? NONE)
     for (const s of sources) if (road.arrow[s] === n) front.add(s)
     out.push({ tile: n, sources: count.get(n), front: [...front].sort((a, b) => a - b) })
@@ -111,22 +125,116 @@ export function chokes (road, sources, cap) {
   return out
 }
 
-// The tiles the foes still to come will walk from: each one's lane at the top edge (turns.js entryTile, as near as a
-// player can say), those that fly (`flies`) or those that walk.
-const entries = (battle, flies) => [...new Set(battle.reserve.filter((f) => !!unitDef(f.id).flies === flies).map((f) => tileAt(f.lane ?? 3, DEPTH - 1)))]
+// The line out of range (redesign.md §2.18, A): the `hold` chokes takes on a road. Of its chain, from the entry out,
+// the first tile (`ok` to stand on) where a piece standing keeps every foe that comes in by that road out of the
+// Monarch's reach (exposure 0: from no tile of its road short of the piece does a blow of its reach the Monarch, a
+// blow that keeps to a line not where the piece stands on that line, redesign.md §2.19); where none does, the
+// farthest of those the least of their blows reaches it from. `src` (roadSources): the sources' tiles and the foes on
+// each.
+function outOfRange (battle, road, src, ok) {
+  const m = battle.monarch
+  return (chain, from) => {
+    if (!m || !alive(m)) return chain.length - 1
+    let best = -1
+    let low = Infinity
+    for (let i = 0; i < chain.length; i++) {
+      if (!ok(chain[i])) continue
+      const e = exposure(battle, road, src, from, chain[i], m)
+      if (e === 0) return i
+      if (e <= low) {
+        low = e
+        best = i
+      }
+    }
+    return best >= 0 ? best : chain.length - 1
+  }
+}
+
+// The Monarch's exposure with a piece on road tile `b`: for each foe of sources `from` (indices into src), the hardest
+// blow (raw) that reaches the Monarch from a tile of its road short of b (where it stands or enters, on to b), a blow
+// that keeps to a line not where b stands on it; summed.
+function exposure (battle, road, src, from, b, m) {
+  let n = 0
+  for (const i of from) {
+    const pos = []
+    for (let t = src.tiles[i], k = 0; t >= 0 && t !== b && road.dist[t] > 0 && k < TILES; t = road.arrow[t], k++) pos.push(t)
+    for (const x of src.who[i]) n += reachesFrom(battle, x, pos, m, { screen: b })
+  }
+  return n
+}
+
+// Foe `x`'s hardest blow (raw) that reaches `m` (the Monarch) from one of tiles `pos`, a blow that keeps to a line
+// only where tile `screen` is not on it (−1 for none) and, `board` true, no piece of m's side stands on it as the
+// board stands; 0 for none. Every blow of its kind counts (a skill on cooldown will be ready again), unless `board`:
+// then only those it will have next turn, and none from a foe a Hex will cost its act. `ranged`: its blows from range
+// alone (no melee). A foe of the reserve (not on the board) reads its kind's kit at its level.
+function reachesFrom (battle, x, pos, m, { screen = -1, board = false, ranged = false } = {}) {
+  if (board && hexed(x)) return 0
+  let best = 0
+  for (const a of x.kit ?? abilitiesOf(x).map(abilityDef)) {
+    if (!isBlow(a) || (ranged && a.melee) || (board && isSkill(x, a) && (x.cooldowns[a.id] ?? 0) > 0)) continue
+    const raw = x.kit ? rawOf(battle, x, a) : a.effects.reduce((n, e) => n + (e.op === 'damage' ? e.power : 0), 0) * statsOf(x).atk / TUNING.damage.atkDivisor
+    if (!(raw > best)) continue
+    const r = blowReach(x, a)
+    const line = lined(a)
+    for (const t of pos) {
+      if (distanceBetween(t, 1, m.tile, m.size) > r) continue
+      if (line) {
+        const [p, q] = lineEnds(t, 1, m.tile, m.size)
+        if (onLine(p, q, screen) || (board && lineBlocker(battle, p, q, m.side, m))) continue
+      }
+      best = raw
+      break
+    }
+  }
+  return best
+}
+
+// Whether tile `t` lies strictly between tiles p and q (unit.js LINE_TILES).
+function onLine (p, q, t) {
+  if (t < 0) return false
+  const k = p * TILES + q
+  for (let i = LINE_AT[k]; i < LINE_AT[k + 1]; i++) if (LINE_TILES[i] === t) return true
+  return false
+}
+
+// The foes that walk a layer's road (`flies`), as chokes reads its sources: the tile each living one stands on, and
+// each tile the foes still to come will walk from (each one's lane at the top edge, turns.js entryTile, as near as a
+// player can say), with the foes there (`who`, by the same index). → { tiles, who }
+function roadSources (battle, foes, flies) {
+  const tiles = []
+  const who = []
+  for (const x of foes) {
+    if (!!x.flies !== flies) continue
+    tiles.push(x.tile)
+    who.push([x])
+  }
+  const at = new Map()
+  for (const f of battle.reserve) {
+    if (!!unitDef(f.id).flies !== flies) continue
+    const t = tileAt(f.lane ?? 3, DEPTH - 1)
+    at.set(t, [...(at.get(t) ?? NONE), f])
+  }
+  for (const [t, list] of [...at].sort((a, b) => a[0] - b[0])) {
+    tiles.push(t)
+    who.push(list)
+  }
+  return { tiles, who }
+}
 
 // ── the kill list ────────────────────────────────────────────────────────────────────────────────
 
 // Which foes your pieces can fell this turn together, by exact arithmetic on your own blows (no dice: computeDamage, as
-// policy.js blowOn reads a blow), and who strikes whom in what order. The foes in turn, the most pressing first (one that
-// could strike the Monarch next turn; then one that mends; then the hardest blow for its HP), each listed where the
+// policy.js blowOn reads a blow), and who strikes whom in what order. The foes in turn, the most pressing first (one of
+// `first`, the uids of the Monarch's shooters: readPlan's, redesign.md §2.18 B; then one that could strike the Monarch
+// next turn; then one that mends; then the hardest blow for its HP), each listed where the
 // pieces not yet listed can deal its HP between them: each piece's hardest blow at it, from a tile it may strike it from
 // (no foe in the line between: policy.js struckOf) that no listed piece takes (the least endangered by the danger map,
 // then the fewest steps); the fewest such pieces; the blows that draw no counter (ranged) first, so that the last, the
 // one that fells, may be melee (a counter answers only a blow its target survives). A melee blow before it draws one, and a kill whose counter would fell a piece is not
 // listed. `moving` false: each strikes from where it stands. → { list: [{ uid (the foe), strikes: [{ uid, ability,
 // target, tile, damage }] }], deal: Map foe uid → what your pieces could deal it this turn, each its hardest blow }
-export function killList (battle, sit, { moving = true } = {}) {
+export function killList (battle, sit, { moving = true, first = NOBODY } = {}) {
   const mine = battle.units.filter((u) => orderable(battle, u) && canAct(battle, u))
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
   const best = new Map()
@@ -150,8 +258,8 @@ export function killList (battle, sit, { moving = true } = {}) {
     best.set(u.uid, row)
   }
   const m = sit.monarch
-  const key = (x) => [m?.deals.has(x) ? 1 : 0, x.mend ? 1 : 0, hardest(battle, x) / Math.max(1, x.hp)]
-  const order = foes.map((x) => [x, key(x)]).sort(([a, p], [b, q]) => q[0] - p[0] || q[1] - p[1] || q[2] - p[2] || a.uid - b.uid).map(([x]) => x)
+  const key = (x) => [first.has(x.uid) ? 1 : 0, m?.deals.has(x) ? 1 : 0, x.mend ? 1 : 0, hardest(battle, x) / Math.max(1, x.hp)]
+  const order = foes.map((x) => [x, key(x)]).sort(([a, p], [b, q]) => q[0] - p[0] || q[1] - p[1] || q[2] - p[2] || q[3] - p[3] || a.uid - b.uid).map(([x]) => x)
   const used = new Set()
   const claimed = new Set()
   const cells = (u, t) => footprint(t, u.size).map((c) => (u.flies ? 'a' : 'g') + c)
@@ -215,23 +323,27 @@ export function readPlan (battle, sit, { moving = true, store = true } = {}) {
   const fc = forecast(battle, sit, reached)
   const fmap = danger(battle, 'party', fc.at)
   const open = danger(battle, 'party', fc.at, { lines: false })
-  const kills = killList(battle, sit, { moving })
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
-  const trigger = prev ? triggerOf(battle, sit, prev, fc, reached, foes) : 'start'
+  const shooters = shootersOf(battle, fc, foes)
+  const kills = killList(battle, sit, { moving, first: new Set(shooters) })
   const felled = new Set(kills.list.map((k) => k.uid))
+  const fellable = shooters.filter((uid) => felled.has(uid) || canFell(battle, battle.byUid.get(uid), fc))
+  const trigger = prev ? triggerOf(battle, sit, prev, fc, reached, foes, { shooters, fellable }) : 'start'
   const ctx = {
     trigger,
     prev,
     patience: sit.patience,
     reach: threatened(sit),
+    shooters,
+    fellable,
     healer: foes.some((x) => x.mend && felled.has(x.uid)),
     waiting: !sit.wave && foes.length > 0 && foes.every((x) => holdsOff(x, fc, reached))
   }
-  const pick = decide(TREES.plan, ctx, planOptions(battle, sit, kills, fc, foes, reached), T().choose)
+  const pick = decide(TREES.plan, ctx, planOptions(battle, sit, kills, fc, foes, reached, fellable), T().choose)
   const kind = pick.option.kind
   const plan = {
     turn: battle.turn, kind, target: pick.option.target, since: trigger === null ? prev.since : battle.turn, trigger, by: pick.by, rules: pick.rules,
-    moving, foeIn: battle.foeIn, fallen: fallenOf(battle), dist: distOf(battle, foes), fc, fmap, open, kills: kills.list,
+    moving, foeIn: battle.foeIn, fallen: fallenOf(battle), dist: distOf(battle, foes), fc, fmap, open, kills: kills.list, shooters,
     listed: new Map(kills.list.flatMap((k) => k.strikes.map((s) => [s.uid, s]))),
     // A push's quarry: the foes that held off as it began (kept while it stands, the fallen struck off).
     quarry: kind !== 'push' ? NONE : trigger === null && prev.kind === 'push' ? prev.quarry.filter((uid) => alive(battle.byUid.get(uid)))
@@ -242,14 +354,16 @@ export function readPlan (battle, sit, { moving = true, store = true } = {}) {
   return plan
 }
 
-// What changed since the plan was made, if anything (`prev`, last turn's): a wave entered, a piece of yours fell, the
-// Monarch came into the foes' reach, the camp's patience ran long, or the plan's goal is met or has failed (focus: its
-// target felled, or none of yours can come to strike it within TUNING.expert.plan.far turns; push: its quarry felled;
-// protect: the Monarch out of the foes' reach; hold: the foes came no nearer, none in your reach). → its name, or null
-// for none.
-function triggerOf (battle, sit, prev, fc, reached, foes) {
+// What changed since the plan was made, if anything (`prev`, last turn's): a wave entered, a piece of yours fell, a
+// shooter reaches the Monarch (`shooters`, shootersOf) and the plan is neither to fell one nor, none being `fellable`,
+// to close about the Monarch, the Monarch came into the foes' reach, the camp's patience ran long, or the plan's goal
+// is met or has failed (focus: its target felled, or none of yours can come to strike it within
+// TUNING.expert.plan.far turns; push: its quarry felled; protect: the Monarch out of the foes' reach; hold: the foes
+// came no nearer, none in your reach). → its name, or null for none.
+function triggerOf (battle, sit, prev, fc, reached, foes, { shooters, fellable }) {
   if (battle.foeIn !== prev.foeIn) return 'wave'
   if (fallenOf(battle) > prev.fallen) return 'fell'
+  if (shooters.length && !(prev.kind === 'focus' && shooters.includes(prev.target)) && !(prev.kind === 'protect' && !fellable.length)) return 'shooter'
   const m = sit.monarch
   // A screened Monarch is safe from that shooter (redesign.md §2.19): only a blow that would land is a trigger.
   const reach = !!m && m.danger > 0
@@ -267,6 +381,39 @@ function triggerOf (battle, sit, prev, fc, reached, foes) {
   if (prev.kind === 'protect') return threatened(sit) ? null : 'met'
   const inReach = foes.some((x) => (x.flies ? reached.air : reached.ground)[x.tile] > 0)
   return !inReach && distOf(battle, foes) >= prev.dist ? 'failed' : null
+}
+
+// The Monarch's shooters (redesign.md §2.18, B): the uids of the living foes a blow of whose from range (no melee: a
+// foe at the Monarch's side is met on its road) could reach the Monarch next turn from where it stands or from where
+// the forecast (`fc`) has it stand, on a clear line as the board stands (a screened Monarch is safe from it), a blow
+// it will have ready and a foe a Hex leaves its act.
+function shootersOf (battle, fc, foes) {
+  const m = battle.monarch
+  if (!m || !alive(m)) return NONE
+  const out = []
+  for (const x of foes) {
+    const at = fc.at.get(x.uid)
+    if (reachesFrom(battle, x, at === undefined || at === x.tile ? [x.tile] : [x.tile, at], m, { board: true, ranged: true }) > 0) out.push(x.uid)
+  }
+  return out
+}
+
+// Whether your pieces could fell foe `x` within TUNING.expert.plan.horizon turns, as a player reckons it: each piece
+// that can strike it at all (a flyer only by a blow that reaches one) strikes it with its hardest blow once a turn
+// from the turn its Move brings it within reach of where the forecast (`fc`) has x stand (as the crow flies); x's HP
+// against their sum (its healers aside).
+function canFell (battle, x, fc) {
+  const at = fc.at.get(x.uid) ?? x.tile
+  let dealt = 0
+  for (const u of battle.units) {
+    if (!orderable(battle, u)) continue
+    const r = reachOf(u, x.flies)
+    if (r < 0) continue
+    const gap = Math.max(0, distanceBetween(u.tile, u.size, at, x.size) - r)
+    const blows = T().horizon - Math.ceil(gap / Math.max(1, u.move))
+    if (blows > 0) dealt += blows * strikeOn(battle, u, x)
+  }
+  return dealt >= x.hp
 }
 
 // Whether the Monarch is in the foes' reach as the plan reads it: one could strike it next turn, or could but for a
@@ -296,16 +443,18 @@ const reachOf = (u, air) => u.kit.reduce((r, b) => (isBlow(b) ? Math.max(r, air 
 //             its hardest blow, a share of the hardest of the foes'
 //   fell      focus: 1 where the kill list fells the target, else the share of its HP your pieces could deal it this turn
 //   threat    focus: the target could strike the Monarch next turn; cull: and the kill list fells it
+//   shooter   focus: the target is one of the Monarch's shooters your pieces could fell (`fellable`: readPlan's; the
+//             tree's monarch-shooter)
 //   wary      push: the share of the foes' HP that holds off (wary, and out of your reach where the forecast has them)
 //   edge      push: your side's HP × hardest blows over the foes', as a log (−2 to 2)
 // A focus is offered on every living foe.
-function planOptions (battle, sit, kills, fc, foes, reached) {
+function planOptions (battle, sit, kills, fc, foes, reached, fellable = NONE) {
   const hp = foes.reduce((n, x) => n + x.hp, 0) || 1
   const share = (xs) => xs.reduce((n, x) => n + x.hp, 0) / hp
   const m = sit.monarch
   const felled = new Set(kills.list.map((k) => k.uid))
   const top = Math.max(1e-9, ...foes.map((x) => hardest(battle, x)))
-  const zero = { hold: 0, focus: 0, push: 0, protect: 0, bold: 0, waves: 0, peril: 0, mends: 0, picks: 0, menace: 0, fell: 0, threat: 0, cull: 0, wary: 0, edge: 0 }
+  const zero = { hold: 0, focus: 0, push: 0, protect: 0, bold: 0, waves: 0, peril: 0, mends: 0, picks: 0, menace: 0, fell: 0, threat: 0, cull: 0, shooter: 0, wary: 0, edge: 0 }
   const picks = (x) => {
     const f = sit.threat.foes.find((e) => e.x === x)
     return !!f && !f.melee && [...sit.threat.d.get(f).keys()].some((y) => y !== battle.monarch)
@@ -321,7 +470,10 @@ function planOptions (battle, sit, kills, fc, foes, reached) {
     out.push({
       kind: 'focus',
       target: x.uid,
-      v: { ...zero, focus: 1, mends: x.mend ? 1 : 0, picks: picks(x) ? 1 : 0, menace: hardest(battle, x) / top, fell, threat, cull: threat && felled.has(x.uid) ? 1 : 0 }
+      v: {
+        ...zero, focus: 1, mends: x.mend ? 1 : 0, picks: picks(x) ? 1 : 0, menace: hardest(battle, x) / top, fell, threat, cull: threat && felled.has(x.uid) ? 1 : 0,
+        shooter: fellable.includes(x.uid) ? 1 : 0
+      }
     })
   }
   return out
@@ -348,14 +500,20 @@ function edgeOf (battle) {
 
 // Roles to tiles for `plan` (readPlan's: its kind and target, its forecast), read off the board, then your pieces to
 // them. The slots:
-//   block   the ground roads' chokes (chokes: no farther than TUNING.expert.plan.line road steps from the seat; protect's
-//           beside the seat), the roads walked by the foes standing and the waves to come
-//   air     the air road's chokes where flyers walk it (a piece there holds a flyer, ground or not), where no block is;
-//           one with a wall between it and the seat, the tile inside the last wall its road crosses (but the seat)
+//   block   the ground roads' chokes, the roads walked by the foes standing and the waves to come, each at the line out
+//           of range (outOfRange: the first tile from the seat out where the piece keeps every foe of its road out of
+//           the Monarch's reach, a screen on a shooter's line counted, else the farthest that leaves it least exposed;
+//           no farther than TUNING.expert.plan.line road steps from the seat)
+//   air     the air road's chokes where flyers walk it (a piece there holds a flyer, ground or not), where no block is,
+//           at its line out of range as the ground's; one with a wall between it and the seat, the tile inside the
+//           last wall its road crosses (but the seat)
 //   shoot   the tiles behind the line (off the foes' roads up to it, and no more than a step farther from the seat by the
 //           ground road than its farthest choke) within TUNING.expert.plan.reach of the tiles before the chokes, where
 //           the held foes wait (the kill zone): the TUNING.expert.plan.shooters the forecast foes could deal least to
 //   heal    the tiles beside each block, behind it
+//   screen  the line of each foe whose blow that keeps to a line reaches the Monarch from where the forecast has it
+//           (redesign.md §2.18 B), where no other slot stands on that line: its tile nearest the Monarch, or the one a
+//           piece of yours stands on already
 //   strike  focus: about its target's forecast tile; push: about each of its quarry's. TUNING.expert.plan.strikers
 //           tiles beside it, as many 2 tiles off, and as many farther (to the reach), each the least endangered by the
 //           forecast
@@ -363,17 +521,17 @@ function edgeOf (battle) {
 // where your pieces stand now, and the formation decides where they will, so it reads none (else it chases its own
 // shadow from turn to turn). A slot one of your shadows or summons holds already is held. Each piece's fit for a slot
 // (TUNING.expert.plan): its role's worth for the plan (roles) × the piece's aptness for it (block: its toughness, a
-// share of your toughest, less fit.melee for one with a ranged blow; air: 1 if it can strike a flyer, else 0.2; shoot:
-// its hardest blow, a share of your hardest, where its ranged blow reaches the kill zone from there; heal: 1 for a
-// healer; strike: its hardest blow at the target, a share of the hardest of yours, where it reaches the target from
-// there), plus fit.travel a turn of
-// its walk there (its path on its layer, footprints counted, foes in the way), fit.exposed × the share of its HP the
-// forecast foes could deal it there, fit.keep where it held that slot last turn, fit.raise for an Arise holder within
-// its reach of the kill zone. The assignment (hungarian) takes the most fit in all, a hold's or a protect's every road
-// held first (the block and air slots, while a piece can take them); a piece that no slot fits better than none
-// skirmishes: it goes where its blow would reach the nearest foe. `travel` false (prep's): no walk counted; `within`: the
-// tiles a piece may stand on (prep's: the camp's). → Map piece uid → { role, slot (the tile), tile (its anchor there, −1
-// for none), target, field (steps to that anchor from each tile, on its layer: policy.js progress) }
+// share of your toughest, less fit.melee for one with a ranged blow; screen: its toughness, so; air: 1 if it can
+// strike a flyer, else 0.2; shoot: its hardest blow, a share of your hardest, where its ranged blow reaches the kill
+// zone from there; heal: 1 for a healer; strike: its hardest blow at the target, a share of the hardest of yours, where
+// it reaches the target from there), plus fit.travel a turn of its walk there (its path on its layer, footprints
+// counted, foes in the way), fit.exposed × the share of its HP the forecast foes could deal it there, fit.keep where it
+// held that slot last turn, fit.raise for an Arise holder within its reach of the kill zone. The assignment (hungarian)
+// takes the most fit in all, a hold's or a protect's every road held first (the block and air slots, and a protect's
+// screens, while a piece can take them); a piece that no slot fits better than none skirmishes: it goes where its blow
+// would reach the nearest foe. `travel` false (prep's): no walk counted; `within`: the tiles a piece may stand on
+// (prep's: the camp's). → Map piece uid → { role, slot (the tile), tile (its anchor there, −1 for none), target, field
+// (steps to that anchor from each tile, on its layer: policy.js progress) }
 export function formation (battle, plan, sit, { prev = null, travel = true, within = null } = {}) {
   const W = T()
   const worth = W.roles[plan.kind]
@@ -384,10 +542,6 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
   const ground = fieldOf(battle)
   const air = airOf(battle)
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
-  const cap = plan.kind === 'protect' ? 1 : W.line
-  const sources = [...foes.filter((x) => !x.flies).map((x) => x.tile), ...entries(battle, false)]
-  const line = chokes(ground, sources, cap)
-  const aline = chokes(air, [...foes.filter((x) => x.flies).map((x) => x.tile), ...entries(battle, true)], cap)
   const taken = new Set()
   const ok = (t) => !taken.has(t) && t !== battle.root && !battle.walls.has(t) && (within === null || within.has(t)) && (battle.at[t] === null || battle.at[t].side === 'party')
   const shadow = (u) => !!u && u.side === 'party' && u !== battle.monarch && !orderable(battle, u)
@@ -396,7 +550,13 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
     slots.push(s)
     taken.add(s.tile)
   }
+  // Each road held at the line out of range (outOfRange), the ground's, then the air's.
+  const gsrc = roadSources(battle, foes, false)
+  const sources = gsrc.tiles
+  const line = chokes(ground, sources, W.line, outOfRange(battle, ground, gsrc, ok))
   for (const c of line) if (ok(c.tile) && !shadow(battle.at[c.tile])) add({ role: 'block', tile: c.tile })
+  const asrc = roadSources(battle, foes, true)
+  const aline = chokes(air, asrc.tiles, W.line, outOfRange(battle, air, asrc, (t) => ok(t) || line.some((g) => g.tile === t && taken.has(t))))
   // Where the air road comes in: an air choke with a wall between it and the seat comes back to the tile inside the last
   // wall its road crosses (a flyer comes over the walls; your pieces on the ground meet it on your side of them), unless
   // that is the seat itself (the wall stands against it: the road is held beyond).
@@ -405,6 +565,21 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
     for (let n = c.tile; n >= 0 && air.dist[n] > 0; n = air.arrow[n]) if (battle.walls.has(n)) t = air.arrow[n]
     if (t === battle.root) t = c.tile
     if (!line.some((g) => g.tile === t) && ok(t) && !shadow(battle.at[t]) && !shadow(battle.sky[t])) add({ role: 'air', tile: t })
+  }
+  // A screen on the line of each foe whose blow that keeps to a line reaches the Monarch from where the forecast has it
+  // stand (redesign.md §2.18 B, §2.19; lines taken as clear, the screens being the formation's to place), where no slot
+  // stands on that line already: the tile of it nearest the Monarch, one of yours on it already kept there.
+  const m = battle.monarch
+  if (m && alive(m) && worth.screen > 0) {
+    for (const x of foes) {
+      const at = fc.at.get(x.uid) ?? x.tile
+      if (!x.kit.some((a) => isBlow(a) && lined(a) && rawOf(battle, x, a) > 0 && distanceBetween(at, x.size, m.tile, m.size) <= blowReach(x, a))) continue
+      const [p, q] = lineEnds(at, x.size, m.tile, m.size)
+      const on = between(p, q)
+      if (on.some((t) => taken.has(t))) continue
+      const t = on.find((c) => battle.at[c] !== null && orderable(battle, battle.at[c])) ?? on.findLast((c) => ok(c))
+      if (t !== undefined && ok(t)) add({ role: 'screen', tile: t, target: x.uid })
+    }
   }
   const zone = [...new Set([...line, ...aline].flatMap((c) => c.front))]
   if (zone.length) {
@@ -448,7 +623,7 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
   const top = Math.max(1e-9, ...pieces.map((u) => hardest(battle, u)))
   const BIG = 1e6
   // Holding or protecting, every road is held while a piece can hold it (as the formation tree's block-roads): the road
-  // slots are filled first, the weights choosing who.
+  // slots are filled first (protecting, the screens with them), the weights choosing who.
   const held = plan.kind === 'hold' || plan.kind === 'protect'
   const HELD = 1e3
   const hits = new Map()
@@ -464,6 +639,7 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
       if (a < 0) return -BIG
       let apt = 0
       if (s.role === 'block') apt = toughOf(u) / most * (melee ? 1 : 1 - W.fit.melee)
+      else if (s.role === 'screen') apt = toughOf(u) / most
       else if (s.role === 'air') apt = reachOf(u, true) >= 0 ? 1 : 0.2
       else if (s.role === 'shoot') apt = ranged >= 0 && zone.some((z) => distanceBetween(a, u.size, z, 1) <= ranged) ? hardest(battle, u) / top : 0
       else if (s.role === 'heal') apt = u.mend ? 1 : 0
@@ -475,7 +651,8 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
       if (!(apt > 0)) return -BIG
       const steps = from ? from[a] : 0
       if (!Number.isFinite(steps)) return -BIG
-      let fit = (held && (s.role === 'block' || s.role === 'air') ? HELD : 0) + worth[s.role] * apt + W.fit.travel * Math.ceil(steps / Math.max(1, u.move)) +
+      const first = held && (s.role === 'block' || s.role === 'air' || (s.role === 'screen' && plan.kind === 'protect'))
+      let fit = (first ? HELD : 0) + worth[s.role] * apt + W.fit.travel * Math.ceil(steps / Math.max(1, u.move)) +
         W.fit.exposed * dangerAt(battle, u, a, plan.open) / Math.max(1, u.hp)
       const was = prev?.get(u.uid)
       if (was && was.slot === s.tile && was.role === s.role) fit += W.fit.keep
