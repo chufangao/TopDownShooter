@@ -1167,3 +1167,116 @@ test('Deathblow, an execute: a blow of yours on a foe below a quarter of its HP 
   assert.equal(low.dealt, Math.round(plain.dealt * TUNING.deathblow.mult), 'double, below a quarter')
   assert.deepEqual(blow(0.5), { dealt: blow(0.5, tricksters.slice(0, 3)).dealt, rule: false }, 'nothing above it')
 })
+
+// ── the second bug hunt ──────────────────────────────────────────────────────────────────────────
+
+test('Hexed always costs the next act: laid by a counter on a foe that has acted, it holds until that foe\'s next act is lost', () => {
+  // A Clockwork Page with Spanner (a basic melee blow that Hexes) steps back; the Knight comes on and strikes it, and
+  // the Page's counter Hexes the Knight, whose act this turn is already spent.
+  const b = field([{ id: 'clockwork_page', uid: 1, side: 'party', x: 3, y: 5, lvl: 6, tracks: [3, 0] }, { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 6, lvl: 6 }])
+  assert.equal(unit(b, 1).basic.id, 'spanner')
+  order(b, { type: 'move', uid: 1, tile: at(3, 4) })
+  let ev = end(b)
+  assert.ok(ev.some((e) => e.type === 'action' && e.counter && e.actor === 1), 'the Page counters')
+  assert.ok(ev.some((e) => e.type === 'status' && e.target === 9 && e.status === 'hexed'), 'and Hexes the Knight')
+  assert.ok(!ev.some((e) => e.type === 'expire' && e.target === 9), 'which still holds it as the turn ends')
+  assert.ok(unit(b, 9).statuses.some((s) => s.id === 'hexed'))
+  // The Page draws back out of the Knight's reach, so nothing Hexes it again: the Knight loses its next act, and only
+  // then does the Hex run out.
+  order(b, { type: 'move', uid: 1, tile: at(3, 2) })
+  ev = end(b)
+  assert.ok(ev.some((e) => e.type === 'hexed' && e.target === 9), 'its act is lost')
+  assert.ok(!acts(ev).some((e) => e.actor === 9))
+  assert.ok(ev.some((e) => e.type === 'expire' && e.target === 9 && e.status === 'hexed'))
+})
+
+test('a status laid again lasts the longer, counting a turn the second does not age through', () => {
+  const b = field([{ id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 2 }, { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 9 }])
+  const u = unit(b, 1)
+  addStatus(b, u, 'withered', 1)
+  b.stage = 'foes'
+  // A Wither of a turn laid on one of yours in the foes' turn holds through your next: longer than the one it held.
+  addStatus(b, u, 'withered', 1)
+  b.stage = 'party'
+  assert.deepEqual(u.statuses.map((s) => [s.id, s.dur, s.fresh]), [['withered', 1, true]])
+})
+
+test('a part fused away gives its relics back: a Burning it laid that slays later fires none of them', () => {
+  const b = field([
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
+    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
+    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3, relics: ['hunters_mark'] },
+    { id: 'clockwork_page', uid: 9, side: 'foe', x: 4, y: 9 },
+    { id: 'clockwork_page', uid: 10, side: 'foe', x: 5, y: 9 }
+  ], { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 2, tracks: [0, 0] } } })
+  const foe = unit(b, 9)
+  addStatus(b, foe, 'burning', 3, unit(b, 3))
+  order(b, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] })
+  foe.hp = 1
+  const from = b.events.length
+  runEffect(b, { op: 'dot', power: 12 }, foe, [foe], null, foe.statuses[0])
+  const ev = b.events.slice(from)
+  assert.ok(ev.some((e) => e.type === 'death' && e.target === 9))
+  assert.ok(!ev.some((e) => e.type === 'trigger'), 'Hunter\'s Mark went back to the run with its holder')
+  assert.ok(!unit(b, 10).statuses.some((s) => s.id === 'brittle'))
+})
+
+test('the battle is lost the instant the Monarch falls: a blow that fells it draws no counter after', () => {
+  // A Knight's Cleave (a melee row) at a Knight of yours fells the Monarch beside it in the row; the Knight it struck
+  // still stands, within its arm, and would answer, but the battle is over.
+  const b = field([
+    { id: 'monarch', uid: 0, side: 'party', x: 4, y: 1 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 1, lvl: 10 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 2, lvl: 10 }
+  ])
+  b.monarch.hp = 1
+  b.stage = 'foes'
+  const from = b.events.length
+  const knight = unit(b, 9)
+  perform(b, knight, knight.kit.find((a) => a.id === 'cleave'), unit(b, 1))
+  const ev = b.events.slice(from)
+  const death = ev.findIndex((e) => e.type === 'death' && e.target === 0)
+  assert.ok(death >= 0 && alive(unit(b, 1)))
+  assert.ok(!ev.slice(death).some((e) => e.type === 'action'), 'no counter once the Monarch has fallen')
+  assert.deepEqual([b.over, b.winner, b.reason], [true, 'foe', 'monarch'])
+})
+
+// A battle as it stands, for comparing: every unit's place, HP, turn fields, statuses and cooldowns, the tile index, the
+// purse, the events and the counts.
+const snapshot = (b) => JSON.stringify({
+  units: b.units.map((u) => [u.uid, u.tile, u.hp, u.maxHp, u.acted, u.moved, u.from, u.statuses, u.cooldowns, u.relics]),
+  at: b.at.map((u) => u?.uid ?? null), sky: b.sky.map((u) => u?.uid ?? null),
+  purse: b.purse, spent: b.spent, events: b.events.length, beat: b.beat, turn: b.turn, uid: b.nextUid, over: b.over, fused: b.fused.length
+})
+
+test('fuzz: every legal order is taken, and every order refused changes nothing', () => {
+  for (let i = 0; i < 6; i++) {
+    const b = createBattle(floorOne(`refused${i}`))
+    const rng = createRng(`refused${i}`)
+    for (let step = 0; !b.over && step < 60; step++) {
+      if (step % 6 === 0) {
+        const legal = legalOrders(b)
+        const keys = new Set(legal.map((o) => JSON.stringify(o)))
+        const tries = [...legal]
+        for (const u of b.units) {
+          tries.push({ type: 'move', uid: u.uid, tile: rng.int(TILES) }, { type: 'undo', uid: u.uid })
+          for (const a of u.kit) tries.push({ type: 'act', uid: u.uid, ability: a.id, target: rng.pick(b.units).uid })
+          const r = rng.pick(FUSION_LIST)
+          tries.push({ type: 'fuse', id: r.id, uid: u.uid, parts: b.units.filter(() => rng.chance(0.3)).map((x) => x.uid) })
+        }
+        for (const o of tries) {
+          const f = fork(b, { quiet: false })
+          const before = snapshot(f)
+          let refused = null
+          try { order(f, o) } catch (e) { refused = e }
+          // (legalOrders lists one set of parts a recipe, and one target for a shape that touches all it reaches.)
+          const one = o.type === 'fuse' || (o.type === 'act' && unit(b, o.uid).kit.find((a) => a.id === o.ability)?.shape === 'all')
+          if (keys.has(JSON.stringify(o))) assert.equal(refused, null, `legal, refused: ${JSON.stringify(o)}`)
+          else if (!one) assert.ok(refused, `taken, not legal: ${JSON.stringify(o)}`)
+          if (refused) assert.equal(snapshot(f), before, `refused, but changed: ${JSON.stringify(o)}`)
+        }
+      }
+      order(b, rng.chance(0.2) ? { type: 'end' } : rng.pick(legalOrders(b)))
+    }
+  }
+})

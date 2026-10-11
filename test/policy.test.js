@@ -95,6 +95,22 @@ test('the same board gives the same foe turn', () => {
   assert.deepEqual(two, one)
 })
 
+// The camp reads the board and the clock, never what is still to come: two battles alike but for who waits in the
+// reserve (the same wave, on the same turn) play the same foe turn.
+test('the foes\' turn reads the board, never the reserve: another wave of the same turn gives the same turn', () => {
+  const later = (id) => [{ ...makeUnit(id, { uid: 50, lvl: 9 }), side: 'foe', wave: 1, lane: 3, slot: -1 }]
+  const board = (id) => field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 2 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 6 },
+    { id: 'pyre_hound', uid: 10, side: 'foe', x: 1, y: 7 }
+  ], { reserve: later(id) })
+  const one = board('grave_ghoul')
+  const two = board('frost_wyrm')
+  one.stage = two.stage = 'foes'
+  assert.deepEqual(foeTurn(two).orders, foeTurn(one).orders)
+})
+
 test('the foes move in road order, nearest the Monarch first, each on the board the ones before it left', () => {
   const b = field([
     { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },

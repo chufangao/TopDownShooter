@@ -181,7 +181,7 @@
 .glossary { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; align-items: start; }
 .gl-sec { border: 1px solid var(--line2); border-radius: 12px; background: #0f0c18aa; }
 .gl-sec[open] { grid-column: 1 / -1; }
-.gl-sec > summary { cursor: pointer; min-height: 52px; padding: 8px 16px; font: 600 var(--fs-lg) var(--serif); color: var(--bright); list-style: none; display: flex; align-items: center; gap: 10px; }
+.gl-sec > summary { cursor: pointer; min-height: max(52px, var(--tap)); padding: 8px 16px; font: 600 var(--fs-lg) var(--serif); color: var(--bright); list-style: none; display: flex; align-items: center; gap: 10px; }
 .gl-sec > summary::-webkit-details-marker { display: none; }
 .gl-sec > summary::before { content: '▸'; color: var(--dim); font-size: var(--fs-sm); transition: transform .15s; }
 .gl-sec[open] > summary::before { transform: rotate(90deg); }

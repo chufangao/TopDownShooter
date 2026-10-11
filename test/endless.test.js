@@ -2,9 +2,9 @@
 // the endless floors past the Sovereign.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { enterBattle, rulesOf, perform, order, preview, orderable, fork } from '../src/sim/turns.js'
+import { enterBattle, rulesOf, perform, order, preview, orderable, fork, addStatus, runEffect } from '../src/sim/turns.js'
 import { makeUnit, tileAt, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
-import { UNITS, CAMP_LIST } from '../src/content.js'
+import { UNITS, CAMP_LIST, SYNERGIES } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, BOARD_14, grant } from './tuned.js'
 import {
@@ -107,10 +107,8 @@ test('Legion works for the foes too: one of yours slain rises on their side, whe
 // A run's reap after the foes' Legion: a soul of yours that rose against you is no foe's soul. It is not for
 // sale and pays no essence (iron golem: a kind none of the four ghouls is).
 test('Legion on the foes\' side: your fallen risen against you are not sold back or paid for', () => {
-  // The foes hold their rules only in the deep (TUNING.spawn.endless.rules): here, on floor 1, from the start.
-  const was = TUNING.spawn.endless.rules
-  TUNING.spawn.endless.rules = 0
-  try { legionReap() } finally { TUNING.spawn.endless.rules = was }
+  // The foes hold their rules on every floor (redesign.md §2.12): here, on floor 1.
+  legionReap()
 })
 function legionReap () {
   let won = null
@@ -180,6 +178,35 @@ test('Last Stand: the first blow that would fell each of the side\'s leaves it a
   assert.deepEqual([unit(theirs, 102).hp, rules(theirs, 'last_stand')[0].side], [1, 'foe'])
 })
 
+// Last Stand bends any damage that would fell (land: a blow's or a status tick's), and its card says so.
+// The preview marks the fall on whoever takes the blow: a Bodyguard that steps in front of it and dies of it.
+test('a preview reports the fall of whoever would take the blow, a Bodyguard that takes it in the target\'s place included', () => {
+  const theirs = scene([...foeSquad(['tomb_knight', 'grave_ghoul'], [[0, 10], [1, 10], [2, 10]]), on('tomb_knight', 108, 'foe', 2, 9), on('frost_sprite', 120, 'foe', 3, 8), on('will_o_wisp', 1, 'party', 3, 4)])
+  set(theirs, 108, 1)
+  const before = theirs.events.length
+  const p = preview(theirs, 1, 'witchfire', 120)
+  assert.deepEqual([p.struck, p.kills, p.falls, p.damage], [108, true, [108], 0])
+  assert.ok(p.hits[108] > 0 && !(120 in p.hits))
+  // Unguarded, the target is struck and falls as before.
+  const plain = scene([on('frost_sprite', 120, 'foe', 3, 8), on('will_o_wisp', 1, 'party', 3, 4)])
+  set(plain, 120, 1)
+  const q = preview(plain, 1, 'witchfire', 120)
+  assert.deepEqual([q.struck, q.kills, q.falls], [120, true, [120]])
+  assert.deepEqual([theirs.events.length, alive(unit(theirs, 108))], [before, true], 'the battle itself is untouched')
+})
+
+test('Last Stand: a Burning tick that would fell one of the side\'s leaves it at 1 HP too, and the card says "would fall"', () => {
+  const b = scene([...squad(['clockwork_page', 'clockwork_page', 'iron_golem'], four(5)), on('barrow_wight', 101, 'foe', 2, 9, 6)])
+  const page = unit(b, 2)
+  page.hp = 5
+  addStatus(b, page, 'burning', 3, unit(b, 101))
+  runEffect(b, { op: 'dot', power: 12 }, page, [page], null, page.statuses[0])
+  assert.deepEqual([page.hp, page.stood, rules(b, 'last_stand').length], [1, true, 1])
+  const card = SYNERGIES.find((s) => s.rule === 'last_stand').desc
+  assert.match(card, /would fall/)
+  assert.doesNotMatch(card, /blow/)
+})
+
 test('Frenzy: one of the side\'s that slays a foe has every skill ready again; either side', () => {
   const play = (tiles) => {
     const b = scene([...squad(['mantis_reaper', 'hive_warden'], tiles), on('clockwork_page', 101, 'foe', 1, 6), on('iron_golem', 102, 'foe', 6, 10)])
@@ -191,6 +218,8 @@ test('Frenzy: one of the side\'s that slays a foe has every skill ready again; e
   const i = events.findIndex((e) => e.type === 'rule' && e.rule === 'frenzy')
   assert.deepEqual([events[i - 1].type, events[i - 1].target, events[i].actor], ['death', 101, 1])
   assert.equal(unit(b, 1).cooldowns.reap, 0, 'Reap is ready again')
+  // and says so, as every cooldown set or fallen is said (the sprite's pip reads it).
+  assert.deepEqual(events.slice(i + 1).filter((e) => e.type === 'cooldown').map((e) => [e.target, e.ability, e.turns]), [[1, 'reap', 0]])
   assert.equal(play(three(5)).b.byUid.get(1).cooldowns.reap, 2)
   const theirs = scene([on('clockwork_page', 1, 'party', 1, 5), ...foeSquad(['mantis_reaper', 'hive_warden'], four(6))])
   set(theirs, 1, 1)
@@ -326,21 +355,16 @@ test('Last Stand under Undying comes before the rise; Undying lifts only its hol
   assert.ok(!alive(page) && !u.events.some((e) => e.type === 'rise' && e.target === 30))
 })
 
-// The foes hold their rules only in the deep (TUNING.spawn.endless.rules).
-test('the foes hold their synergies\' rules only in the deep', () => {
-  const drakes = (opts) => scene([...foeSquad(['ember_drake', 'frost_wyrm'], four(9)), on('tomb_knight', 1, 'party', 3, 4)], opts)
-  const shallow = drakes({ foeRules: false })
-  assert.deepEqual(holding(shallow, 'foe'), [])
-  assert.ok(!shallow.events[0].synergies.some((x) => x.side === 'foe'))
-  const deep = drakes({})
-  assert.deepEqual(holding(deep, 'foe').sort(), ['deadeye', 'dragonfire'])
-  assert.ok(deep.events[0].synergies.some((x) => x.side === 'foe' && x.id === 'drake_4'))
-  // The run decides it by the floor: shallow floors none, the deep from E.rules floors down.
+// The foes hold their rules on every floor, as yours do (redesign.md §2.12: the deep-floor gate went with the stat steps).
+test('the foes hold their synergies\' rules on every floor, the first among them', () => {
+  const drakes = scene([...foeSquad(['ember_drake', 'frost_wyrm'], four(9)), on('tomb_knight', 1, 'party', 3, 4)], { floor: 1 })
+  assert.deepEqual(holding(drakes, 'foe').sort(), ['deadeye', 'dragonfire'])
+  assert.ok(drakes.events[0].synergies.some((x) => x.side === 'foe' && x.id === 'drake_4'))
+  // The run's setup carries no gate: a floor-1 battle of a cohort of four holds its rule.
   const run = createRun({ seed: 'foe-rules' })
   apply(run, { type: 'node', id: availableNodes(run).find((n) => n.foes).id })
-  assert.equal(battleSetup(run).foeRules, false)
-  run.state.floor = F + E.rules
-  assert.equal(battleSetup(run).foeRules, true)
+  assert.ok(!('foeRules' in battleSetup(run)))
+  assert.ok(!('rules' in TUNING.spawn.endless))
 })
 
 // ── endless floors ───────────────────────────────────────────────────────────────────────────────

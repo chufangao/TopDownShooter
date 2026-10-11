@@ -45,7 +45,7 @@ const page = {
 }
 for (const [k, value] of Object.entries(page)) Object.defineProperty(globalThis, k, { value, configurable: true, writable: true })
 
-const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf } = await import('../src/codex.js')
+const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf, roomSynergies, roomTip, DEEP_TEXT } = await import('../src/codex.js')
 const { KEYWORDS } = await import('../src/keywords.js')
 const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, temperLine } = await import('../src/content.js')
 const { makeUnit } = await import('../src/sim/unit.js')
@@ -217,4 +217,18 @@ test('a quick tap read late (the page busy past the long press) stays a tap; a p
     globalThis.removeEventListener = saved.remove
     globalThis.requestAnimationFrame = saved.raf
   }
+})
+
+test('the foes\' synergies are told on every floor, a later wave\'s too, as the battle holds them; no text reads NaN', () => {
+  const run = createRun({ seed: 'told' })
+  const four = (id) => [0, 1, 2, 3].map((slot) => ({ id, lvl: 1, slot }))
+  const node = { id: 'x', type: 'fight', rank: 1, next: [], foes: four('hive_drone'), waves: [{ foes: four('tomb_knight') }] }
+  assert.equal(run.state.floor, 1)
+  const told = ['Insect 4: Frenzy', 'Skirmisher 4: Ambush', 'Undead 4: Legion', 'Vanguard 4: Bodyguard']
+  assert.deepEqual(roomSynergies(node), told)
+  const tip = roomTip(run, node, { reachable: true }).textContent
+  for (const name of told) assert.ok(tip.includes(name), name)
+  assert.ok(tip.includes('Not counted: their Frenzy, Ambush, Legion, Bodyguard'), 'the threat names their rules')
+  assert.deepEqual(roomSynergies({ ...node, foes: four('hive_drone').slice(1), waves: [] }), [])
+  for (const text of [DEEP_TEXT.growth, DEEP_TEXT.now(7), tip]) assert.ok(!/NaN|undefined/.test(text), text)
 })

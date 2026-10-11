@@ -438,9 +438,9 @@ function threat (run, node) {
   const mods = roomFoeMods(run, node)
   const waves = forms.map((foes) => foes.reduce((m, f) => m + power(f, mods), 0))
   const theirs = Math.sqrt(waves.reduce((n, p) => n + p * p, 0))
-  // Their synergies' rules (in the deep: foeRulesOn), which no stat line shows: named, since the number cannot
-  // weigh them; yours are not weighed either.
-  const rules = foeRulesOn(run) ? [...new Set(forms.flatMap((foes) => activeSynergies(foes).filter((syn) => syn.rule).map(ruleName)))] : []
+  // Their synergies' rules (held on every floor, as yours are), which no stat line shows: named, since the number
+  // cannot weigh them; yours are not weighed either.
+  const rules = [...new Set(forms.flatMap((foes) => activeSynergies(foes).filter((syn) => syn.rule).map(ruleName)))]
   if (!(mine > 0)) return { mine: 0, theirs, ratio: Infinity, waves, rules, ...UNFIELDED }
   const ratio = theirs / mine
   return { mine, theirs, ratio, waves, rules, ...(THREAT.find((t) => ratio < t.below) ?? THREAT.at(-1)) }
@@ -456,7 +456,7 @@ export function threatMeter (run, node) {
     h('div', { class: 'threat-head' }, h('span', { class: 'dim' }, 'Threat '), h('b', null, t.label),
       h('span', { class: 'dim' }, ` · ${t.text}`)),
     h('div', { class: 'threat-bar' }, h('span', { class: 'theirs', style: `width:${share * 100}%` })),
-    t.rules.length > 0 && h('div', { class: 'warn small', tip: () => 'Their synergies\' rules hold in the deep. They bend the battle in ways no stat shows, so the meter does not weigh them: read it as the low end.' },
+    t.rules.length > 0 && h('div', { class: 'warn small', tip: () => 'Their synergies\' rules hold, as yours do. They bend the battle in ways no stat shows, so the meter does not weigh them: read it as the low end.' },
       `Not counted: their ${t.rules.join(', ')}.`))
 }
 
@@ -481,11 +481,12 @@ const DEEP = TUNING.spawn.endless
 const every = (k, what) => k >= 1 ? `${k} ${what} every floor deeper` : `one ${what} every ${+(1 / k).toFixed(1)} floors`
 const perDeepWaves = every(DEEP.waves, 'more wave to every room')
 const perDeepCohort = every(DEEP.cohort, 'more foe beside every captain')
+const UP = TUNING.spawn.levelPerFloor + DEEP.level
 const perDeep = DEEP.count >= 1 ? `${DEEP.count} more foe${DEEP.count === 1 ? '' : 's'} a wave` : `one more foe a wave every ${+(1 / DEEP.count).toFixed(1)} floors`
 export const DEEP_TEXT = {
   descend: 'Slaying the Sovereign clears the run for good; then you may descend into the deep, floor after floor, for as long as the Monarch lasts.',
-  growth: `Floor ${TUNING.run.floors}'s camps and foes; each floor deeper, +${TUNING.spawn.levelPerFloor + DEEP.level} levels, +${pct(DEEP.hp)} HP and +${pct(DEEP.atk)} ATK, with ${perDeep} (at most ${COLS * ROWS}), ${perDeepWaves} (up to ${DEEP.maxWaves}) and ${perDeepCohort}. ` +
-    `Their synergies' rules hold from floor ${TUNING.run.floors + DEEP.rules}. Each floor ends in a big elite: +${DEEP.final.count} foes, +${DEEP.final.level} level${DEEP.final.level === 1 ? '' : 's'}.`,
+  growth: `Floor ${TUNING.run.floors}'s camps and foes; each floor deeper, +${UP} level${UP === 1 ? '' : 's'}, +${pct(DEEP.hp)} HP and +${pct(DEEP.atk)} ATK, with ${perDeep} (at most ${COLS * ROWS}), ${perDeepWaves} (up to ${DEEP.maxWaves}) and ${perDeepCohort}. ` +
+    `Each floor ends in a big elite: +${DEEP.final.count} foes, +${DEEP.final.level} level${DEEP.final.level === 1 ? '' : 's'}.`,
   fall: 'A fall in the deep ends the run, but the clear stands.',
   now: (floor) => {
     const d = depthOf(floor)
@@ -519,7 +520,7 @@ function miniGrid (foes, { small = false } = {}) {
 export function roomTip (run, node, { reachable, enter = false, scout = false }) {
   const r = ROOM[node.type]
   const kinds = node.foes && [...new Set(roomFoes(node).map((f) => unitDef(f.id).name))]
-  const syns = node.foes && synergyNames(activeSynergies(node.foes).filter((syn) => !syn.rule || foeRulesOn(run)))
+  const syns = node.foes && roomSynergies(node)
   return h('div', { class: 'room-tip compact' },
     h('div', { class: `rt-head t-${node.type}` }, icon(node.type === 'boss' ? 'boss' : node.type, 20), h('b', null, r.name),
       node.foes && h('span', { class: 'rt-count' }, `${foeCountText(node)} · Lv ${node.foes[0].lvl}`)),
@@ -537,11 +538,11 @@ export function roomTip (run, node, { reachable, enter = false, scout = false })
       node.id === run.state.at ? 'You are here' : scout ? (reachable ? 'Next, after this battle' : 'Not reachable yet') : reachable ? say('Click to enter', 'Tap it again to enter') : 'Not reachable yet'))
 }
 
-// Their synergies, short; `run` given, only where the foes hold their rules (the deep: see
-// TUNING.spawn.endless.rules), as the battle does.
-export const foeRulesOn = (run) => depthOf(run.state.floor) >= TUNING.spawn.endless.rules
-export function foeSynergyLine (foes, run = null) {
-  const active = synergyNames(activeSynergies(foes).filter(() => !run || foeRulesOn(run)))
+// A room's synergies, short: those any of its formations (the first, each later wave) holds as it enters. The foes
+// hold their rules on every floor, as yours do (rules.js).
+export const roomSynergies = (node) => [...new Set([node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flatMap((foes) => synergyNames(activeSynergies(foes))))]
+export function foeSynergyLine (node) {
+  const active = roomSynergies(node)
   return h('div', { class: 'dim small' }, active.length ? ['Their synergies: ', active.map((n, i) => [i ? ' · ' : '', h('b', null, n)])] : 'No synergies.')
 }
 
@@ -604,6 +605,8 @@ export function synergyGroups (units, also = null) {
 }
 
 const COUNT_NOTE = 'Counts your pieces standing on the board (and shadows in battle), never the Monarch.'
+// The foes hold the same rules by the same count, on every floor (turns.js synergiesOf).
+const FOE_SYNERGIES = 'The foes hold them too, on every floor: four of theirs of a kin or a role standing, a captain\'s cohort one foe each, bring its rule to their side.'
 
 // The kins and roles you field as chips: lit (in the synergy's colour) once its rule is held, dim while it is a single
 // piece away; the rest fold into one "+N" chip. Each chip's tooltip holds its rule and who counts. `units`: your
@@ -736,7 +739,7 @@ const WORD_MORE = {
   tier: (run) => `Two tracks a kind, four tiers each (${TUNING.essence.tier.join(' / ')} essence on floor 1; ${priceScaleText(run)}). The first track you take may reach IV; the other then stops at II. A tier IV is a rule: a new ability, an aura, more reach, or Colossus, which grows every piece of the kind to 2×2 (one that no longer fits where it stands goes to the ossuary). A kind's level is its tiers': ${TUNING.level.base} + ${TUNING.level.perTier} × the tiers it holds on both tracks, rounded down; every soul of it rises with each tier, and a recruit joins at it.`,
   fusion: () => `Out of battle it takes exactly the souls the recipe names, each a whole piece, from the ossuary first, then the field, costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one piece of the fused kind in the ossuary, to be placed. In battle a piece may fuse with the parts standing beside it as its act, and the fused piece stands there. The result joins its kind with its tiers, at its level, never below the highest level of the kinds that went into it; a relic its parts held comes back unheld. Select a piece for the recipes its kind is part of; the Codex's Fusions lists them all.`,
   command: (run) => `${TUNING.party.field} to begin. Nothing is bought for the Monarch: only Command relics raise it, every copy in full (${giversOf('run.command').join(', ')}); the rarer, the cleaner. Every Shop stocks one. The field stops at ${TUNING.army.board} pieces however high it goes.` + (run ? ` Now: ${fieldRule(run)}.` : ''),
-  synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A fused piece counts once, with its own kin and role; a relic may make its holder count as another role too. ${COUNT_NOTE}`,
+  synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A fused piece counts once, with its own kin and role; a relic may make its holder count as another role too. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
   relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Only Shops sell them, for essence, deeper floors the rarer; every Shop stocks a Command relic, and from floor ${R.legendary.fromFloor} a Legendary, a rule that rewrites the game. A run relic (its card says Run) touches the run or the whole side and works unheld: Command, the Monarch's HP, prices, essence, Arise's reach; its copies add up with no cap. Every other is a piece relic (Held): it waits unheld until you give it to a soul (tap it in the Relics strip beside the ossuary, then the soul, or the slot in the soul's panel), and works only through its holder, its triggers on its holder's own moments. Give, take back and swap freely out of battle, never in one. A held relic stays with its soul in the ossuary, works only on the field, and comes back unheld when its holder is released or fused away; copies are more holders. Arise is one: its holder learns the skill Arise.` +
     (run && unheld(run.state).length ? ` Unheld now: ${tally(unheld(run.state).map((id) => relicDef(id).name))}.` : ''),
   shop: (run) => `Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows; nothing else is sold there, and a relic bought is a tier not bought. A soul may be released there for part of its price.`,
@@ -760,7 +763,7 @@ function glossary (run) {
 function synergiesView (run = null) {
   const c = run ? countsOf(souls(standing(run)), alsoOf) : null
   return h('div', { class: 'help-view synergies' },
-    h('p', { class: 'dim' }, `Each kin and each role has one rule, held while four of your pieces of it stand on the board, shadows and summons too, never the Monarch. Its pieces glow in its colour. ${COUNT_NOTE}`),
+    h('p', { class: 'dim' }, `Each kin and each role has one rule, held while four of your pieces of it stand on the board, shadows and summons too, never the Monarch. Its pieces glow in its colour. ${COUNT_NOTE} ${FOE_SYNERGIES}`),
     h('div', { class: 'codex-list' }, LADDERS.map((l) => {
       const have = c?.[l.axis][l.id] ?? null
       return h('div', { class: 'codex-row', style: `--g:${SYN_COLOUR[l.id]}` },

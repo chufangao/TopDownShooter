@@ -145,7 +145,7 @@
 /* ── your synergies, under the Monarch's card: a chip each, lit in its colour (the board's glow, --g); a
    lit one is a press that lights its pieces on the board ──────────────────────────────────────── */
 .tray .syns.chips { gap: 6px; }
-.tray .syn.chip { padding: 4px 10px; font-size: var(--fs-sm); gap: 6px; min-height: 36px; }
+.tray .syn.chip { justify-content: center; padding: 4px 10px; font-size: var(--fs-sm); gap: 6px; min-height: max(36px, var(--tap-px)); min-width: var(--tap-px); }
 .tray button.syn.chip { cursor: pointer; }
 .tray .syn.chip.on { border-color: color-mix(in srgb, var(--g, var(--c-synergy)) 70%, transparent); background: color-mix(in srgb, var(--g, var(--c-synergy)) 14%, #120f1e); }
 .tray .syn.chip.on > b { color: var(--g, var(--c-synergy)); }

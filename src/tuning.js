@@ -92,9 +92,9 @@ export const TUNING = {
     // `hp` and `atk` of the base per floor deep. The floor's last room is a big elite: `final.count` more
     // foes, `final.level` levels higher. The enemy grows as an army too: floor(`waves` × deep) more waves to
     // every room (a single formation becomes a room of waves; never more than `maxWaves`, the first
-    // included) and floor(`cohort` × deep) more foes in every captain's cohort. The foes hold their
-    // synergies' rules only from `rules` floors deep (above it their cohorts reach a synergy's count too easily).
-    endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, rules: 2, final: { count: 2, level: 1 } }
+    // included) and floor(`cohort` × deep) more foes in every captain's cohort. The foes hold their synergies'
+    // rules on every floor (redesign.md §2.12), as yours do.
+    endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, final: { count: 2, level: 1 } }
   },
   // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). A won
   // battle heals each living soul postBattleHeal of its max HP; an altar heals each to altarHeal of it and raises a

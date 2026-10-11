@@ -951,8 +951,6 @@ export function battleSetup (run, { party = fielded(run.state.party) } = {}) {
     reserve: foes.filter((f) => f.wave),
     foes: foes.filter((f) => !f.wave),
     floor: s.floor,
-    // The foes' synergy rules hold only in the deep (TUNING.spawn.endless.rules floors past the Sovereign's).
-    foeRules: depthOf(s.floor) >= TUNING.spawn.endless.rules,
     boss,
     camp: s.camp,
     walls: wallTiles(s.camp),

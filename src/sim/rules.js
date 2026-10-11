@@ -30,7 +30,7 @@ import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef } from '../content.js'
 import { alive, livingOn } from './unit.js'
 import { around, riseTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom } from './turns.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -72,11 +72,12 @@ export const RULES = {
   frenzy: {
     onKill (battle, { slain, by, side }) {
       if (!slew(by, side, slain) || !alive(by)) return
-      for (const id in by.cooldowns) by.cooldowns[id] = 0
       emit(battle, { type: 'rule', rule: 'frenzy', side, actor: by.uid, target: slain.uid })
+      for (const id in by.cooldowns) if (by.cooldowns[id] > 0) cool(battle, by, id, 0)
     }
   },
-  // Construct 4: the first blow that would fell each of the side's leaves it at 1 HP (never the Monarch).
+  // Construct 4: the first damage that would fell each of the side's (a blow's, a burst's or a status tick's: modify)
+  // leaves it at 1 HP (never the Monarch).
   last_stand: {
     modify (battle, ctx) {
       const { target } = ctx
@@ -243,15 +244,15 @@ export function heldRules (u) {
   return out
 }
 
-// The rules `side` holds now, in a fixed order: its synergies' (turns.js synergiesOf: the foes' only where `foeRules`
-// lets them, none with the `synergies` ablation), then each of its units' held rules (`u.held`, in acting order; a
-// fallen holder keeps its relic and its rule, one consumed by a fusion gave it back). Kept until the synergies or the
-// roster change.
+// The rules `side` holds now, in a fixed order: its synergies' (turns.js synergiesOf: the foes' on every floor, as
+// yours, redesign.md §2.12; none of yours with the `synergies` ablation), then each of its units' held rules (`u.held`,
+// in acting order; a fallen holder keeps its relic and its rule, one consumed by a fusion gave it back). Kept until the
+// synergies or the roster change.
 export function rulesOf (battle, side) {
   const syn = synergiesOf(battle, side)
   const kept = (battle.ruleList ??= {})[side]
   if (kept?.syn === syn && kept.roster === battle.roster) return kept.list
-  const list = side === 'foe' && !battle.foeRules ? [] : syn.filter((s) => s.rule).map((s) => entry(s.rule))
+  const list = syn.filter((s) => s.rule).map((s) => entry(s.rule))
   for (const u of battle.units) if (u.side === side && !u.into && u.held?.length) list.push(...u.held)
   battle.ruleList[side] = { syn, roster: battle.roster, list }
   return list

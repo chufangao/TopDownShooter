@@ -13,7 +13,7 @@ import { RANKS, WIDTH } from './sim/map.js'
 import { unitDef, relicDef, KIN, ROLES, FUSION_LIST, RELIC_TIERS } from './content.js'
 import {
   COLS, ROWS, CAMP_ROWS, slotAt, rowOf, isWall, LANES, DEPTH, tileAt, deployTile, wallTiles, onField, tileX, tileY,
-  statsOf, tracksOf, canTrack, activeSynergies, sizeOf, footprint, footprintSlots,
+  statsOf, tracksOf, canTrack, sizeOf, footprint, footprintSlots,
   campOpen, isMonarchCell, distanceBetween, summonsOf
 } from './sim/unit.js'
 import { field } from './sim/field.js'
@@ -30,7 +30,7 @@ import {
   unitCard, partyMods, roomFoeMods, roomTip, threatMeter, foeSynergyLine, synergyTracker, synergyGroups, relicTip, ROOM, campRowLabel, realmOf,
   MONARCH_TEXT, MONARCH_RULE, WOUNDS_TEXT, deathText, tileText, fieldRule, foeCountText, waveName, waveWhen,
   ENEMY_TEXT, DEEP_TEXT, ROMAN, relicsByTier, alsoOf, TRIGGER_TEXT, codexView, reachText, reachRule, bestiary, standing, abilityBlocks,
-  auraBlock, hpBar, hpAt, foeRulesOn, summonText, recruitWorth, relicIcon, relicKind, ariseFor, synergyLabels
+  auraBlock, hpBar, hpAt, roomSynergies, summonText, recruitWorth, relicIcon, relicKind, ariseFor
 } from './codex.js'
 
 // ── title ────────────────────────────────────────────────────────────────────────────────────────
@@ -114,7 +114,8 @@ function topbar (run, onHelp, tabs = null) {
     floorPips(s),
     h('div', { class: 'chips' }, chip, monarchChip(run), kept),
     tabs,
-    t > 0 && h('div', { class: 'trinkets' + (t > 6 ? ' crowded' : '') },
+    // A column a tile, all but the last free to narrow (feel.css .trinkets).
+    t > 0 && h('div', { class: 'trinkets', style: `grid-template-columns: ${t > 1 ? `repeat(${t - 1}, minmax(0, var(--tap))) ` : ''}var(--tap)` },
       Object.keys(counts).map(tile)),
     h('div', { class: 'top-btns' }, muteButton(), helpButton(onHelp)))
 }
@@ -246,7 +247,7 @@ export function runScreen ({ run, act, trail, note = '', onNode = null, onFight 
         }, icon('play', 22), ' Begin ', h('kbd', null, 'Enter'))),
       meter,
       node.waves?.length > 0 && waveChips(run, node),
-      activeFoeSynergies(node.foes, run) && foeSynergyLine(node.foes, run))
+      roomSynergies(node).length > 0 && foeSynergyLine(node))
   }
 
   const body = h('div', { class: 'run-body' })
@@ -291,8 +292,6 @@ export const NODE = Object.fromEntries(Object.entries(ROOM).map(([k, v]) => [k, 
 // The whole floor at once, left to right: its ranks across (the start on the left, the elite or the boss on the
 // right), its lanes down. Places are in % of the floor's box (style.css .dag), so the floor fits any frame.
 const pos = (n) => ({ x: n.rank / (RANKS - 1) * 100, y: n.lane / (WIDTH - 1) * 100 })
-// Whether a formation holds any synergy its foes can use here (codex.js foeSynergyLine says which).
-const activeFoeSynergies = (foes, run) => activeSynergies(foes).some((syn) => !syn.rule || foeRulesOn(run))
 
 // On the map (onNode) a mouse's click enters a glowing room. By touch a tap scouts, since entering is for good:
 // a glowing room's first tap chooses it, its tooltip pinned with Enter ▸, and a second tap on it (or Enter ▸)

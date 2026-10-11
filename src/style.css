@@ -21,14 +21,16 @@
   --c-soldier: #b07040; --c-knight: #b4bfd0;
   --c-common: #e0c2a8; --c-uncommon: #ff7f45; --c-rare: #ffb02e; --c-legendary: #ab94fc;
   /* Sizes, in the frame's logical px (H = 720 tall; frame.js). A phone in landscape shows the frame at about
-     0.55×, a 1440×900 desktop at 1.25×, so these are set for the phone: nothing smaller than --fs-xs, and that
-     only for a number in a badge. Body text is --fs-md. Anything pressed is at least --tap on its short side
-     (its hit area may be grown past what is drawn); a screen's main action is --tap-lg tall. */
+     0.73×, a 1440×900 desktop at 1.25×, so these are set for the phone: nothing smaller than --fs-xs, and that
+     only for a number in a badge. Body text is --fs-md. Anything pressed is at least --tap on its short side;
+     a screen's main action is --tap-lg tall. --tap-px is 44 px on screen (60 logical px at a phone's 0.73×), and
+     --tap never less than it nor 44 logical px: the same layout, its controls a finger's size however far the frame
+     is scaled down. A control kept slimmer on a large screen is max(its size, --tap-px). */
   --fs-xs: 14px; --fs-sm: 16px; --fs-md: 18px; --fs-lg: 22px; --fs-xl: 28px; --fs-2xl: 36px;
-  --tap: 44px; --tap-lg: 56px;
+  --tap-px: calc(44px / var(--frame-k, 1)); --tap: max(44px, var(--tap-px)); --tap-lg: max(56px, var(--tap));
   /* The run's chrome round the board (board.css), the battle's the same so the board never moves between them: a
      top bar --top-h tall, and one slim panel --side wide, the board taking the rest. */
-  --top-h: 52px; --side: clamp(330px, calc(var(--frame-w, 960px) * .3), 380px);
+  --top-h: max(52px, var(--tap)); --side: clamp(330px, calc(var(--frame-w, 960px) * .3), 380px);
   --serif: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
@@ -225,10 +227,10 @@ b { font-weight: 600; color: var(--bright); }
 .edge.open { stroke: var(--c-essence); stroke-dasharray: 5 5; animation: flow 1s linear infinite; opacity: .8; }
 .edge.walked { stroke: var(--dim); stroke-width: 3; }
 @keyframes flow { to { stroke-dashoffset: -10; } }
-/* A room: its medal (48), the whole a button 52 square centred on its place; its name under it (not part of
-   the press) for the rooms you can enter, and for every room where the floor is roomy. */
+/* A room: its medal (48), the whole a button 52 square (--tap on a phone) centred on its place; its name under it
+   (not part of the press) for the rooms you can enter, and for every room where the floor is roomy. */
 .node {
-  position: absolute; transform: translate(-50%, -50%); padding: 0; width: 52px; height: 52px; min-width: 0;
+  position: absolute; transform: translate(-50%, -50%); padding: 0; width: max(52px, var(--tap)); height: max(52px, var(--tap)); min-width: 0;
   background: none; border: none; border-radius: 50%;
 }
 .node .medal {
@@ -382,7 +384,7 @@ b { font-weight: 600; color: var(--bright); }
    between them the stage, which takes no presses: the board is the canvas behind the page. */
 .battle-screen { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0 10px 8px; pointer-events: none; }
 .battle-top {
-  pointer-events: auto; flex: none; display: flex; align-items: center; gap: 16px; min-height: var(--top-h); margin: 0 -10px; padding: 4px 14px;
+  pointer-events: auto; flex: none; display: flex; align-items: center; gap: 16px; min-height: var(--top-h); margin: 0 -10px; padding: 0 14px;
   background: #0b0a12e6; border-bottom: 1px solid var(--line2); backdrop-filter: blur(8px); font-size: var(--fs-sm); white-space: nowrap;
 }
 .battle-top > span:not(.grow) { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); cursor: help; }

@@ -619,7 +619,7 @@ class BattleScene extends Phaser.Scene {
     const b = this.battle
     const c = this.clock
     if (this.synKey === null || !this.locked() || this.ending) {
-      const syn = (side) => synergyLabels(side === 'foe' && !b.foeRules ? [] : synergiesOf(b, side))
+      const syn = (side) => synergyLabels(synergiesOf(b, side))
       const now = { theirs: syn('foe'), mine: syn('party') }
       const key = JSON.stringify(now)
       if (key !== this.synKey) { this.synKey = key; this.args.hud?.synergies?.(now) }
@@ -939,8 +939,12 @@ class BattleScene extends Phaser.Scene {
     const p = uid == null ? null : preview(this.battle, s.uid, s.ability, uid)
     if (p) {
       s.aim = uid
+      // FALLS over every one the act would fell (preview's `falls`): a Bodyguard that takes the blow, a Shape's every
+      // target, one a death burst fells with no number of its own.
       const hits = Object.entries(p.hits).filter(([, d]) => d > 0)
-      for (const [x, d] of hits) this.mark(+x, `−${d}${+x === uid && p.kills ? ' · FALLS' : ''}`, +x === uid && p.kills ? '#ff8a9a' : '#ffe6c8')
+      const falls = new Set(p.falls)
+      for (const [x, d] of hits) this.mark(+x, `−${d}${falls.has(+x) ? ' · FALLS' : ''}`, falls.has(+x) ? '#ff8a9a' : '#ffe6c8')
+      for (const x of falls) if (!(p.hits[x] > 0)) this.mark(x, 'FALLS', '#ff8a9a')
       if (p.heal > 0) this.mark(uid, `+${p.heal}`, '#7be0a0')
       if (!hits.length && !(p.heal > 0)) this.mark(uid, abilityDef(s.ability).name, '#d8d0ff', 12)
       if (p.counter > 0) this.mark(s.uid, `↩ −${p.counter}`, '#ffb27a')
@@ -1631,11 +1635,7 @@ class BattleScene extends Phaser.Scene {
       this.deadeye(ev)
       return this.reshaped(ev, this.actors.get(ev.actor))
     }
-    if (ev.type === 'rule') {
-      // Frenzy readies the slayer's every skill, with no cooldown event of its own.
-      if (ev.rule === 'frenzy') { const x = this.actors.get(ev.actor); if (x) x.cd = {} }
-      return this.rule(ev)
-    }
+    if (ev.type === 'rule') return this.rule(ev)
     // A trigger relic fired for this unit: its name flashes over it (its effects follow as their own events).
     if (ev.type === 'trigger') {
       const x = this.actors.get(ev.unit)
@@ -1869,6 +1869,13 @@ class BattleScene extends Phaser.Scene {
   // from where, in the banner, set over their half of the board so the camp stays in view. A battle that ran out
   // its clock says so.
   finish () {
+    const reason = this.battle.reason
+    // The clock ran out: its cap. The turn past it began (no turn event says so), and the bar reads 0 left.
+    const capped = reason === 'turn-cap'
+    if (capped) this.clock = { ...this.clock, turn: Math.max(this.clock.turn, this.battle.turn) }
+    // No piece takes orders now: the panel says the battle is over.
+    this.sel = null
+    this.dropMarks()
     this.setPaused(false)
     this.ending = true
     this.changed()
@@ -1877,9 +1884,6 @@ class BattleScene extends Phaser.Scene {
     // Any orb still in the air (or cut short) is counted before the screen fades.
     this.time.delayedCall(1400, () => { this.purse = this.owed; this.changed() })
     const colour = won ? SOUL : FOE
-    const reason = this.battle.reason
-    // The clock ran out: its cap.
-    const capped = reason === 'turn-cap'
     const death = !won ? this.args.death?.() ?? null : null
     // A wave the Sovereign's fall cut short pays for the slain it had (a lost battle pays nothing).
     if (won && this.waves.length > 1) this.waves.forEach((_, k) => this.wavePaid(k))

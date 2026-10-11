@@ -47,33 +47,12 @@
   input, textarea { -webkit-user-select: text; user-select: text; }
 }
 
-/* A finger is wider than the frame's --tap once a phone scales it down (a 44 px button is ~32 CSS px at 0.73×):
-   the small controls take presses from a little around them too, toward 56 px, by an invisible ::before past
-   their edges. Nothing moves. Each group grows only into the space around it, at most half the gap to the next
-   thing pressable, so no two grown areas meet: a row with no gaps (tabs, the speed buttons) grows only up and
-   down. (Measured: scratchpad u-hits.mjs.) */
+/* Every control is at least --tap, 44 px on screen however far the frame is scaled down (style.css :root), so none
+   needs its hit area grown past what is drawn. A keyword in running text is a line's height: it takes presses from a
+   little above and below too, by an invisible ::before, none to the side (its neighbours touch it). */
 @media (pointer: coarse) {
-  .topbar .icon-btn, .battle-screen .icon-btn, .battle-screen .seg, .tnode, .tip .tip-act, .tip .tip-more,
-  .ret-pop .danger, .kw, .help-tabs .tab { position: relative; }
-  /* (How to play's ✕ is placed absolutely already: it is its own hit area's frame.) */
-  .topbar .icon-btn::before, .battle-screen .icon-btn::before, .battle-screen .seg::before, .tnode::before, .tip .tip-act::before, .tip .tip-more::before,
-  .overlay .close::before, .ret-pop .danger::before, .kw::before,
-  .help-tabs .tab::before { content: ''; position: absolute; }
-  /* Rows edge to edge: up and down only. */
-  .topbar .icon-btn::before, .battle-screen .icon-btn::before, .battle-screen .seg::before, .tip .tip-act::before, .tip .tip-more::before,
-  .help-tabs .tab::before { inset: -6px 0; }
-  /* The speeds' strip clips its corners: they are rounded on the buttons instead, so their hit areas get out. */
-  .battle-screen .segs { overflow: visible; }
-  .battle-screen .segs .seg:first-child { border-radius: 7px 0 0 7px; }
-  .battle-screen .segs .seg:last-child { border-radius: 0 7px 7px 0; }
-  /* Alone in their space: all round. */
-  .tnode::before, .overlay .close::before { inset: -6px; }
-  .ret-pop .danger::before { inset: -6px -3px; }
-  /* Wide buttons a row to themselves: a little up and down. */
-  .tray .buy { position: relative; }
-  .tray .buy::before { content: ''; position: absolute; inset: -4px 0; }
-  /* A keyword in running text: a line's height more to hold, none to the side (its neighbours touch it). */
-  .kw::before { inset: -6px 0; }
+  .kw { position: relative; }
+  .kw::before { content: ''; position: absolute; inset: -6px 0; }
 }
 
 /* A tier or a fusion read by a first tap (ui.js fieldEditor twice): its text pinned, a second tap makes it. */

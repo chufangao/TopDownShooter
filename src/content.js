@@ -1943,7 +1943,7 @@ export const SYNERGIES = [
   { id: 'drake_4', name: 'Drake 4', desc: 'Dragonfire: every single-target blow of yours bursts, striking its target and every foe next to it.', needs: { kin: { drake: 4 } }, rule: 'dragonfire' },
   { id: 'fae_4', name: 'Fae 4', desc: 'Mirage: the first blow each foe would land on one of yours in a battle strikes only an illusion, and does no harm.', needs: { kin: { fae: 4 } }, rule: 'mirage' },
   { id: 'insect_4', name: 'Insect 4', desc: 'Frenzy: one of yours that slays a foe has every skill ready again at once.', needs: { kin: { insect: 4 } }, rule: 'frenzy' },
-  { id: 'construct_4', name: 'Construct 4', desc: 'Last Stand: the first blow that would fell each of yours in a battle leaves it standing at 1 HP (never the Monarch).', needs: { kin: { construct: 4 } }, rule: 'last_stand' },
+  { id: 'construct_4', name: 'Construct 4', desc: 'Last Stand: the first time each of yours would fall in a battle, to anything that harms it (a burn and a bleed too), it stands at 1 HP instead (never the Monarch).', needs: { kin: { construct: 4 } }, rule: 'last_stand' },
   { id: 'vanguard_4', name: 'Vanguard 4', desc: 'Bodyguard: a single-target blow at one of yours that is not a Vanguard lands instead on a Vanguard of yours standing next to it.', needs: { role: { vanguard: 4 } }, rule: 'bodyguard' },
   { id: 'ranger_4', name: 'Ranger 4', desc: 'Deadeye: ranged blows of yours deal 50% more damage.', needs: { role: { ranger: 4 } }, rule: 'deadeye' },
   { id: 'skirmisher_4', name: 'Skirmisher 4', desc: 'Ambush: yours start the battle, and enter it, Hastened for their first turn (+1 Move, and their skills come back sooner).', needs: { role: { skirmisher: 4 } }, rule: 'ambush' },
