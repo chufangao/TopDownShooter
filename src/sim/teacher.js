@@ -40,11 +40,19 @@
 // `battle` playouts on searches; one that fails waits `retry` turns before the next (its window would be the same
 // lines less one decision).
 //
+// Shaped losses (`shape`, 'flat' by default: every lost playout worth −lost alike, as teach.js values it): with 'foes', a
+// lost playout is worth −lost + the share of the battle's foe HP removed by its end (autoplay.js foeShare, the partial
+// credit progress gives a lost battle), never more than −lost + 1, below every won one. Why: in the fatal battles of the
+// teacher's lost runs every option of every decision lost alike from the battle's first decision on (§6), so the one
+// decision had nothing to go on and played the expert's own best by its score to the end; shaped, it plays the option
+// whose playout fell furthest into the foes, and the search, where no line wins, keeps its best line by that value
+// (its decisions followed, then the normal teacher again) where it is better than the one decision's own best.
+//
 // Deterministic: the same board gives the same orders, the search included.
 //
 //   npm run teacher -- [--runs 64] [--seed sim] [--from 0] [--workers 4] [--out dir] [--cap 16] [--turns 150]
 //                      [--width off|lost|danger] [--budget 2000] [--depth 1] [--deviations 3] [--battle 10000]
-//                      [--retry 1] [--inner short|all] [--expert file.json] [--forest file.json|none]
+//                      [--retry 1] [--inner short|all] [--shape flat|foes] [--expert file.json] [--forest file.json|none]
 //                      [--route learned|hand|file.json] [--report-only]
 // plays seeds `<seed>-<from>`…`<seed>-<from + runs − 1>` (sim-0…sim-63, the bar's seeds), each by this teacher and by
 // the expert in use (teach.js expertRun: autoplay.js record), paired (teach.js pairedReport), in worker threads of this
@@ -60,19 +68,21 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { apply } from './run.js'
 import { createRng, hashString } from './rng.js'
-import { policy, progressOf, ablatedRun, useRoute, routeModel, ROUTE_LEARNED } from './autoplay.js'
+import { policy, progressOf, ablatedRun, useRoute, routeModel, ROUTE_LEARNED, foeShare } from './autoplay.js'
 import * as P from './policy.js'
 import * as E from './expert.js'
 import { forestModel } from './forest.js'
 import { fork, order, stalled } from './turns.js'
-import { DEFAULTS, END_WEIGHTS, give, signature, playout, endTally, endValue, bestOf, labelled, readDecision, marked, nextPiece, install, closeOf, drawOf, expertRun, pairedReport, pairedLines } from './teach.js'
+import { DEFAULTS, END_WEIGHTS, give, signature, playout, endTally, endValue, bestOf, labelled, readDecision, marked, nextPiece, install, closeOf, fromSignature, drawOf, expertRun, pairedReport, pairedLines } from './teach.js'
 
 // The teacher's settings (see the head of this file): the labeller's `cap` and `turns`, the value's weights (teach.js
 // END_WEIGHTS: to the battle's end), `width`, the search's `budget` (playouts a search), `depth` (End Turns a line may
 // cross), `deviations` (at most, a line), `battle` (the search playouts a battle may spend), `retry` (turns a failed
-// search waits), `inner` (a spine's deviations: its shortlist, or all), `spine` (decisions a spine may hold at most).
-export const SETTINGS = Object.freeze({ cap: DEFAULTS.cap, turns: DEFAULTS.turns, weights: END_WEIGHTS, width: 'lost', budget: 2000, depth: 1, deviations: 3, battle: 10000, retry: 1, inner: 'short', spine: 24 })
+// search waits), `inner` (a spine's deviations: its shortlist, or all), `spine` (decisions a spine may hold at most),
+// `shape` (a lost playout's value: 'flat', or 'foes').
+export const SETTINGS = Object.freeze({ cap: DEFAULTS.cap, turns: DEFAULTS.turns, weights: END_WEIGHTS, width: 'lost', budget: 2000, depth: 1, deviations: 3, battle: 10000, retry: 1, inner: 'short', spine: 24, shape: 'flat' })
 export const WIDTHS = Object.freeze(['off', 'lost', 'danger'])
+export const SHAPES = Object.freeze(['flat', 'foes'])
 
 const NONE = Object.freeze([])
 const END = Object.freeze({ type: 'end' })
@@ -170,8 +180,9 @@ function deviationsAt (n, c) {
 
 // The rest of the battle from board `b` (a copy is played: `b` is never touched) by the expert in use, as a playout's
 // rest is played (teach.js playout: the rest of this turn, End Turn, then turn after turn, at most `c.turns` rounds),
-// measured from `before` (teach.js endTally). With `record`, each round's orders (`chunks`: { key (the board as the
-// round began, keyOf; `mid` for the first, a turn under way), orders }). → { value, parts, chunks }
+// measured from `before` (teach.js endTally), shaped as `play` shapes it. With `record`, each round's orders (`chunks`:
+// { key (the board as the round began, keyOf; `mid` for the first, a turn under way), orders }). → { value, parts,
+// chunks }
 function rollout (b, before, c, { record = false, mid = null, uid = null, o = null } = {}) {
   const g = fork(b)
   const chunks = []
@@ -190,7 +201,9 @@ function rollout (b, before, c, { record = false, mid = null, uid = null, o = nu
     if (chunk) chunks.push(chunk)
     if (!g.over) order(g, END)
   }
-  return { ...endValue(before, g, c.weights, !g.over), chunks }
+  const v = endValue(before, g, c.weights, !g.over)
+  if (c.shape === 'foes' && v.parts.lost) v.value += foeShare(g)
+  return { ...v, chunks }
 }
 
 // A found line's steps, for the teacher to follow: each decision of it ({ kind 'decide', key (keyOf the teacher's copy
@@ -198,7 +211,7 @@ function rollout (b, before, c, { record = false, mid = null, uid = null, o = nu
 // orders }: the rest of the turn under way; { kind 'turn', key, orders }: a turn from its start). `L` the line (its
 // `parent`, `via` the spine decisions before its own, `at` its own decision and `o` its option there, or `end`, the
 // spine's end, for a line measured there).
-function stepsOf (L, c) {
+function stepsOf (L, c, { tail: rest = true } = {}) {
   const decisions = []
   const walk = (x) => {
     if (x.parent) walk(x.parent)
@@ -207,6 +220,7 @@ function stepsOf (L, c) {
   }
   walk(L)
   const steps = decisions.map(({ n, orders }) => ({ kind: 'decide', key: keyOf(n.f, n.done), uid: n.next.uid, orders }))
+  if (!rest) return { steps }
   let tail
   if (L.at) {
     // The rest of the winning playout: from the board the deviation was given on, the deviation given as it played.
@@ -276,13 +290,21 @@ const RANK = 100
 
 // The search (see the head of this file) from root node `root` (the decision under way, every option of which lost):
 // `plays` its options played ({ o, orders }, the legal), `limit` the playouts it may spend. → { line (the steps to follow,
-// null where none won), playouts, spines, ms, found ({ dev, rank, at, kind }) }
+// null where none won), playouts, spines, ms, found ({ dev, rank, at, kind }), and shaped (`c.shape` 'foes') where none
+// won, `best`: the best line by its playout's value ({ value, line: its decisions' steps }) }
 export function search (root, plays, c, limit = c.budget) {
   const t0 = performance.now()
   const q = heap()
   let spent = 0
   let spines = 0
-  const result = (line, L = null, kind = null) => ({ line, playouts: spent, spines, ms: Math.round(performance.now() - t0), found: L && { dev: L.dev, rank: L.rank, at: L.index ?? null, kind } })
+  let best = null
+  const lost = (L, value) => {
+    if (c.shape === 'foes' && (!best || value > best.value + 1e-9)) best = { value, L }
+  }
+  const result = (line, L = null, kind = null) => ({
+    line, playouts: spent, spines, ms: Math.round(performance.now() - t0), found: L && { dev: L.dev, rank: L.rank, at: L.index ?? null, kind },
+    ...(!line && best && { best: { value: best.value, line: stepsOf(best.L, c, { tail: false }), dev: best.L.dev } })
+  })
   // The root's lines: each of its options, by today's score.
   plays.filter((p) => p.orders).sort((a, b) => b.o.prior - a.o.prior).forEach((p, r) => {
     const L = { parent: null, via: NONE, at: root, o: p.o, orders: p.orders, dev: 1, rank: r, cost: r * RANK }
@@ -305,7 +327,7 @@ export function search (root, plays, c, limit = c.budget) {
         if (p.parts.lost === 0) {
           const s = stepsOf(end, c)
           if (s.won) return result(s, end, 'spine')
-        }
+        } else lost(end, p.value)
       }
       if (L.dev >= c.deviations) continue
       sp.nodes.forEach((n, i) => {
@@ -318,14 +340,14 @@ export function search (root, plays, c, limit = c.budget) {
       const L = task.evaluate
       const n = L.at
       const b = boardOf(n)
-      const p = playout(b, n.next.uid, L.o, { rounds: 0, turns: c.turns, weights: c.weights, before: n.before, seen: n.seen })
+      const p = play(b, n.next.uid, L.o, c, n.before, n.seen)
       if (p === null || !p.legal) continue
       spent++
       L.orders = p.orders
       if (won(p)) {
         const s = stepsOf(L, c)
         if (s.won) return result(s, L, 'deviation')
-      }
+      } else lost(L, p.value)
       q.push(L.cost + DEV, { expand: L })
     }
   }
@@ -334,9 +356,26 @@ export function search (root, plays, c, limit = c.budget) {
 
 // ── the teacher ──────────────────────────────────────────────────────────────────────────────────
 
+// Option `o` of piece `uid` played out from `board` (teach.js playout, to the battle's end; `seen` the orders already
+// played, `before` the board's endTally), its value shaped by `c.shape` (see the head of this file: 'foes', a lost one
+// worth −lost + the share of the battle's foe HP removed by its end, autoplay.js foeShare, as progress reads it). → the
+// playout ({ legal, sig, orders, value, parts }) or null for orders already played
+function play (board, uid, o, c, before, seen) {
+  if (c.shape !== 'foes') return playout(board, uid, o, { rounds: 0, turns: c.turns, weights: c.weights, before, seen })
+  let last = null
+  const turn = (g) => {
+    last = g
+    return P.expertTurn(g)
+  }
+  const p = playout(board, uid, o, { rounds: 0, turns: c.turns, weights: c.weights, before, seen, turn })
+  return p?.legal && p.parts.lost ? { ...p, value: p.value + (last ? foeShare(last) : 0) } : p
+}
+
 // The one decision (teach.js teacherPick's, its rows kept): piece `uid` on `board` (the teacher's copy, the decided
-// pieces marked done), `chosen` the expert's own orders' signature. → { orders, value, playouts, single, plays (the legal
-// options played: { o, orders }), rows (their values), opts, read }
+// pieces marked done), `chosen` the expert's own orders' signature: its shortlist (teach.js optionsAt, the expert's own
+// choice added where it lacks it) played out, the best taken (teach.js bestOf). With `c.shape` 'flat' it is teach.js's
+// own (labelled); shaped, the same options played by `play`. → { orders, value, won (the best's playout won), playouts,
+// single, plays (the legal options played: { o, orders }), rows (their { legal, value, lost }), read }
 function decideOne (board, uid, chosen, c) {
   const read = readDecision(board, uid, c.cap)
   if (read.all.length === 1) {
@@ -344,23 +383,50 @@ function decideOne (board, uid, chosen, c) {
     try {
       orders = give(fork(board), uid, read.all[0])
     } catch {}
-    return { orders, value: null, playouts: 0, single: true, plays: NONE, read }
+    return { orders, value: null, won: false, playouts: 0, single: true, plays: NONE, rows: NONE, read }
   }
-  const L = labelled(board, uid, chosen, { ...DEFAULTS, cap: c.cap, turns: c.turns, weights: c.weights }, read)
   const plays = []
   const rows = []
-  L.plays.forEach((p, i) => {
-    if (!p.orders) return
-    plays.push({ o: p.o, orders: p.orders })
-    rows.push(L.rows[i])
-  })
-  if (L.best < 0) return { orders: NONE, value: null, playouts: L.rows.length, single: false, plays, rows, read }
-  return { orders: L.plays[L.best].orders, value: L.rows[L.best].value, o: L.plays[L.best].o, playouts: L.rows.length, single: false, plays, rows, read }
+  let n = 0
+  if (c.shape !== 'foes') {
+    const L = labelled(board, uid, chosen, { ...DEFAULTS, cap: c.cap, turns: c.turns, weights: c.weights }, read)
+    n = L.rows.length
+    L.plays.forEach((p, i) => {
+      if (!p.orders) return
+      plays.push({ o: p.o, orders: p.orders })
+      rows.push({ legal: 1, value: L.rows[i].value, lost: L.rows[i].parts.lost })
+    })
+  } else {
+    const before = endTally(board)
+    const seen = new Set()
+    let had = false
+    const one = (o) => {
+      const p = play(board, uid, o, c, before, seen)
+      if (p === null) return
+      n++
+      if (p.sig === chosen) had = true
+      if (!p.legal) return
+      plays.push({ o, orders: p.orders })
+      rows.push({ legal: 1, value: p.value, lost: p.parts.lost })
+    }
+    for (const o of read.short) one(o)
+    const own = !had && chosen ? fromSignature(read.all, chosen) : null
+    if (own) one(own)
+  }
+  return pickOf({ playouts: n, single: false, plays, rows, read })
+}
+
+// Decision `d` with its best taken: of its rows the best value (teach.js bestOf: ties to today's score). → `d` with
+// orders, value, won and o (none for no legal option)
+function pickOf (d) {
+  const i = bestOf(d.rows, d.plays.map((p) => p.o))
+  if (i < 0) return { ...d, orders: NONE, value: null, won: false, o: null }
+  return { ...d, orders: d.plays[i].orders, value: d.rows[i].value, won: !d.rows[i].lost, o: d.plays[i].o }
 }
 
 // Width (see the head of this file): every legal option of piece `uid` on `board` the one decision `d` did not play,
-// played out; the best of all of them taken where it is better (bestOf over all, ties to today's score). → `d` with
-// `plays` and `rows` grown, and the extra `playouts`.
+// played out; the best of all of them taken where it is better (bestOf over all, ties to today's score), else `d`'s own.
+// → `d` with `plays` and `rows` grown, and the extra `playouts`.
 function widen (board, uid, d, c) {
   const u = board.byUid.get(uid)
   const seen = new Set(d.plays.map((p) => signature(p.orders, u.tile)))
@@ -369,16 +435,16 @@ function widen (board, uid, d, c) {
   const plays = d.plays.slice()
   const rows = d.rows.slice()
   for (const o of d.read.all) {
-    const p = playout(board, uid, o, { rounds: 0, turns: c.turns, weights: c.weights, before, seen })
+    const p = play(board, uid, o, c, before, seen)
     if (p === null) continue
     extra++
     if (!p.legal) continue
     plays.push({ o, orders: p.orders })
-    rows.push({ legal: 1, value: p.value })
+    rows.push({ legal: 1, value: p.value, lost: p.parts.lost })
   }
-  const i = bestOf(rows, plays.map((p) => p.o))
-  const better = i >= 0 && (d.value === null || rows[i].value > d.value + 1e-9)
-  return { ...d, plays, rows, playouts: extra, ...(better && { orders: plays[i].orders, value: rows[i].value, o: plays[i].o }) }
+  const w = pickOf({ ...d, plays, rows })
+  const better = w.o && (d.value === null || w.value > d.value + 1e-9)
+  return { ...(better ? w : { ...d, plays, rows }), playouts: extra }
 }
 
 // Whether board `b` is in danger as the labeller's draw by the state reads it (teach.js drawOf): the Monarch in the foes'
@@ -395,7 +461,8 @@ const inDanger = (b) => drawOf(b, null, { draw: 'state' }).danger === 'reach'
 export function createTeacher (cfg = {}) {
   const c = { ...SETTINGS, ...cfg }
   if (!WIDTHS.includes(c.width)) throw new Error(`width "${c.width}": one of ${WIDTHS.join(', ')}`)
-  const stats = { decisions: 0, playouts: 0, single: 0, ms: 0, widened: 0, widePlayouts: 0, wideWins: 0, searched: 0, searchPlayouts: 0, searchMs: 0, found: 0, followed: 0, broken: 0, skipped: 0, searches: [] }
+  if (!SHAPES.includes(c.shape)) throw new Error(`shape "${c.shape}": one of ${SHAPES.join(', ')}`)
+  const stats = { decisions: 0, playouts: 0, single: 0, ms: 0, widened: 0, widePlayouts: 0, wideWins: 0, searched: 0, searchPlayouts: 0, searchMs: 0, found: 0, bettered: 0, followed: 0, broken: 0, skipped: 0, searches: [] }
   const state = { battle: null, no: -1, line: null, spent: 0, wait: -Infinity }
   // The line's next step where it is of `kind` and the board is the one it expected (`key`, and the piece `uid` for a
   // decision); else the line is left (a board not the one expected), and the normal teacher decides.
@@ -422,15 +489,15 @@ export function createTeacher (cfg = {}) {
       stats.single++
       return d.orders
     }
-    const lost = d.value === null || d.value <= -c.weights.lost + 1e-9
-    if (c.width !== 'off' && (lost || (c.width === 'danger' && inDanger(board)))) {
+    if (c.width !== 'off' && (!d.won || (c.width === 'danger' && inDanger(board)))) {
+      const lost = !d.won
       d = widen(board, u.uid, d, c)
       stats.widened++
       stats.widePlayouts += d.playouts
       stats.playouts += d.playouts
-      if (lost && d.value !== null && d.value > -c.weights.lost + 1e-9) stats.wideWins++
+      if (lost && d.won) stats.wideWins++
     }
-    if (d.value !== null && d.value > -c.weights.lost + 1e-9) return d.orders
+    if (d.won) return d.orders
     if (!(c.budget > 0) || !d.plays.length) return d.orders
     if (state.spent >= c.battle || turn < state.wait) {
       stats.skipped++
@@ -443,10 +510,15 @@ export function createTeacher (cfg = {}) {
     stats.searchPlayouts += s.playouts
     stats.playouts += s.playouts
     stats.searchMs += s.ms
-    if (stats.searches.length < 200) stats.searches.push({ battle: state.no, turn, uid: u.uid, playouts: s.playouts, spines: s.spines, ms: s.ms, found: s.found })
+    if (stats.searches.length < 200) stats.searches.push({ battle: state.no, turn, uid: u.uid, playouts: s.playouts, spines: s.spines, ms: s.ms, found: s.found, ...(s.best && { best: +s.best.value.toFixed(4), own: d.value }) })
     if (!s.line) {
       state.wait = turn + c.retry
-      return d.orders
+      // Shaped, the best line by value where it is better than the one decision's own best (its decisions followed,
+      // then the normal teacher again).
+      if (!s.best || !(s.best.value > d.value + 1e-9)) return d.orders
+      stats.bettered++
+      state.line = s.best.line.steps.length > 1 ? { steps: s.best.line.steps, at: 1 } : null
+      return s.best.line.steps[0].orders
     }
     stats.found++
     state.line = { steps: s.line.steps, at: 1 }
@@ -580,7 +652,7 @@ export function strongRun (seed, cfg = {}) {
     settings: settingsLine(c), base: baseOf(),
     esc: {
       widened: st.widened, widePlayouts: st.widePlayouts, wideWins: st.wideWins, searched: st.searched, searchPlayouts: st.searchPlayouts,
-      searchMs: Math.round(st.searchMs), found: st.found, followed: st.followed, broken: st.broken, skipped: st.skipped, searches: st.searches
+      searchMs: Math.round(st.searchMs), found: st.found, bettered: st.bettered, followed: st.followed, broken: st.broken, skipped: st.skipped, searches: st.searches
     },
     ...(c.log && { log: s.log })
   }
@@ -588,7 +660,7 @@ export function strongRun (seed, cfg = {}) {
 
 // The settings a run's line records (the teacher's, its route and its forest's file as named).
 const settingsLine = (c) => ({
-  cap: c.cap, turns: c.turns, width: c.width, budget: c.budget, depth: c.depth, deviations: c.deviations, battle: c.battle, retry: c.retry, inner: c.inner,
+  cap: c.cap, turns: c.turns, width: c.width, budget: c.budget, depth: c.depth, deviations: c.deviations, battle: c.battle, retry: c.retry, inner: c.inner, shape: c.shape ?? 'flat',
   ...(c.weights !== END_WEIGHTS && { weights: c.weights }), route: typeof c.route === 'object' && c.route ? c.route.name ?? 'given' : c.route ?? 'learned',
   ...(c.forestFile !== undefined && { forest: c.forestFile }), ...(c.expert && { expert: c.expert })
 })
@@ -601,7 +673,7 @@ export function escalations (lines) {
   const sum = (k) => T.reduce((t, r) => t + (r.esc[k] ?? 0), 0)
   const searched = sum('searched')
   return {
-    runs: T.length, widened: sum('widened'), wideWins: sum('wideWins'), widePlayouts: sum('widePlayouts'), searched, found: sum('found'),
+    runs: T.length, widened: sum('widened'), wideWins: sum('wideWins'), widePlayouts: sum('widePlayouts'), searched, found: sum('found'), bettered: sum('bettered'),
     playoutsPerSearch: searched ? +(sum('searchPlayouts') / searched).toFixed(1) : null, msPerSearch: searched ? Math.round(sum('searchMs') / searched) : null,
     followed: sum('followed'), broken: sum('broken'), skipped: sum('skipped')
   }
@@ -655,11 +727,12 @@ async function main (arg, workers) {
     weights: given ? { ...END_WEIGHTS, ...Object.fromEntries(given.split(',').map((kv) => kv.split('=')).map(([k, x]) => [k, Number(x)])) } : END_WEIGHTS,
     width: arg('width', SETTINGS.width), budget: Number(arg('budget', SETTINGS.budget)), depth: Number(arg('depth', SETTINGS.depth)),
     deviations: Number(arg('deviations', SETTINGS.deviations)), battle: Number(arg('battle', SETTINGS.battle)), retry: Number(arg('retry', SETTINGS.retry)),
-    inner: arg('inner', SETTINGS.inner), route: route === 'learned' || route === 'hand' ? route : path.resolve(route),
+    inner: arg('inner', SETTINGS.inner), ...(arg('shape', 'flat') !== 'flat' && { shape: arg('shape') }), route: route === 'learned' || route === 'hand' ? route : path.resolve(route),
     ...(forest !== null && { forestFile: forest === 'none' ? null : path.resolve(forest) }), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) })
   }
   if (!WIDTHS.includes(settings.width)) throw new Error(`--width ${settings.width}: one of ${WIDTHS.join(', ')}`)
   if (!['short', 'all'].includes(settings.inner)) throw new Error(`--inner ${settings.inner}: short or all`)
+  if (settings.shape && !SHAPES.includes(settings.shape)) throw new Error(`--shape ${settings.shape}: one of ${SHAPES.join(', ')}`)
   const cfg = { ...settings, ...(forest !== null && { forest: forest === 'none' ? null : JSON.parse(fs.readFileSync(settings.forestFile, 'utf8')) }) }
   installAll(cfg)
   fs.mkdirSync(dir, { recursive: true })
@@ -697,7 +770,7 @@ async function main (arg, workers) {
   }), null, 1) + '\n')
   const x = rep.escalations
   console.log([...pairedLines(rep),
-    `  escalations     widened ${x.widened} decisions (${x.wideWins} found a win), searched ${x.searched} (${x.found} found a line; ${x.playoutsPerSearch ?? '-'} playouts and ${x.msPerSearch ?? '-'} ms a search), followed ${x.followed}, broken ${x.broken}, skipped ${x.skipped} (${x.runs} runs)`
+    `  escalations     widened ${x.widened} decisions (${x.wideWins} found a win), searched ${x.searched} (${x.found} found a line, ${x.bettered} a better loss; ${x.playoutsPerSearch ?? '-'} playouts and ${x.msPerSearch ?? '-'} ms a search), followed ${x.followed}, broken ${x.broken}, skipped ${x.skipped} (${x.runs} runs)`
   ].join('\n'))
 }
 

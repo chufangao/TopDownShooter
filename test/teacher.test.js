@@ -112,6 +112,18 @@ test('the search: its root untouched, its line\'s first step one of the root\'s 
   assert.deepEqual(search(again.root, again.plays, { ...SETTINGS }, 400).line.steps, steps)
 }))
 
+test('shaped, a lost line is worth −lost and the share of the foes\' HP it removed: below any won one; the best of them kept where none won', () => today(() => {
+  const { root, plays } = rootOf(pinch())
+  // Too few playouts to find the winning line: the best lost one instead.
+  const s = search(root, plays, { ...SETTINGS, shape: 'foes' }, 3)
+  assert.equal(s.line, null)
+  assert.ok(s.best && s.best.value > -SETTINGS.weights.lost && s.best.value <= -SETTINGS.weights.lost + 1, JSON.stringify(s.best?.value))
+  assert.equal(s.best.line.steps[0].key, keyOf(root.f, new Set()))
+  assert.ok(s.best.line.steps.every((x) => x.kind === 'decide'))
+  // Flat, none.
+  assert.equal(search(root, plays, { ...SETTINGS }, 3).best, undefined)
+}))
+
 test('the same board gives the same orders; the board given is never touched', () => today(() => {
   const b = pinch()
   const k = keyOf(b)
