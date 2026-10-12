@@ -71,7 +71,12 @@ export const TUNING = {
         role: 2, // it ends on that tile: its role held
         post: 0, // and that role a post, a road's or a screen (the tree's hold-the-line)
         listed: 5, // its act is its strike on the kill list
-        forecast: -0.15 // HP the foes could deal it next turn where it ends, each from where the forecast has it stand
+        forecast: -0.15, // HP the foes could deal it next turn where it ends, each from where the forecast has it stand
+        // A hold's End-Turn act (its basic blow or heal from where it ends; 2026-10-11, for the learned tree: 0, today's
+        // scorer never read them).
+        basic: 0, // HP it deals or mends
+        basicKill: 0, // the max HP of a foe it fells
+        basicCounter: 0 // HP the counter it draws would take
       },
       // The weight sets a mode node of the tree switches to, each over `option`: `guard` while the Monarch is within the
       // foes' reach next turn; `protect` while the plan is to close about the Monarch, over the guard's, and `push` while it
@@ -137,7 +142,11 @@ export const TUNING = {
     // `learned`, overrides it). `hybrid`: where it does, 0 scores each board by V alone, above 0 by the static evaluation
     // plus `hybrid` × V (2026-10-11, step 8b, redesign.md §6: V alone 3.5% of runs cleared as 8a shipped it, ≤ 17% after,
     // against the static's 37.9%; the hybrid at 3 level with the static over 384 seeds, at ~40% more a turn: so false).
-    beam: { width: 4, pieces: 2, options: 12, shortlist: 16, static: { board: 1, prior: 1, final: 1 }, formation: 12, learned: false, hybrid: 3 },
+    // `on`: whether the expert's turn is the beam at all (2026-10-11, redesign.md §2.22: off, the fast turn, each piece
+    // deciding once by the model tree, expert.json; 2026-10-11, 256 seeds `sim` paired: the beam 37.9% / progress 67.1
+    // against the fast turn's 31.6% / 65.5, +1.6 ± 2.4 progress, clears +50 −34, at 8.5 s a run against 3.4: inside
+    // the noise, so off until a longer check, 768 seeds `sim-256…`, settles it).
+    beam: { on: false, width: 4, pieces: 2, options: 12, shortlist: 16, static: { board: 1, prior: 1, final: 1 }, formation: 12, learned: false, hybrid: 3 },
     // The battle plan (redesign.md §2.18; plan.js): chosen once a turn by the tree (expert.js TREES.plan) and these
     // weights, kept until a trigger; its target formation; its forecast of the foes. 2026-10-11, placeholders for the
     // weight search, hand-set.

@@ -9,7 +9,8 @@
 //           by a static formula: --combos). Every decision is one shape: the situation read once (survey out of battle,
 //           policy.js situation in it: what a player is shown, and the book), the options listed, each read as a named
 //           vector of features, the tree of hard rules (expert.js TREES) forcing or filtering them, the weights
-//           (TUNING.expert) scoring the rest. The next room by its type and the army's state (roomFeatures); the
+//           (TUNING.expert) scoring the rest. The next room by its type and the army's state (roomFeatures; or by
+//           the learned route's tree, src/sim/route.json, where ROUTE_LEARNED is on: learnedRoute); the
 //           formation drafted (the plan's target formation as the first turn would read it: plan.js deployment; zone
 //           drafts about the seat, its gate held, basic's three) and hill-climbed on a static score against the scouted
 //           room's roads (formationFeatures); every purchase, fusion, recruit, relic bought and relic given by one
@@ -51,12 +52,12 @@ import { createBattle, playOut, timelineHash, legalOrders, stalled } from './tur
 import { expertTurn, basicTurn, brief, situation, evaluate } from './policy.js'
 import { loaded } from './value.js'
 import { deployment } from './plan.js'
-import { value, decide, standing as keysOf, outranks, TREES } from './expert.js'
+import { value, decide, standing as keysOf, outranks, TREES, leafOf, checkModel, pathName } from './expert.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
-  relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold
+  relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat
 } from './run.js'
 import { nodeOf, RANKS } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -364,10 +365,138 @@ function pickNode (run, rng, L, sit) {
 // (TUNING.expert.route). No route is walked ahead and no room's battle played: a room is what scouting shows of it.
 // → the room's id.
 export function pickRoute (run, sit = survey(run)) {
+  const model = routeModel()
+  if (model) {
+    const pick = learnedRoute(model, run, sit)
+    noteRule(run, 'route', pick, surveyLine(sit))
+    return pick.option.node.id
+  }
   const rooms = sit.rooms.map((room) => ({ node: nodeOf(run.state.map, room.id), v: roomFeatures(sit, room) }))
   const pick = decide(TREES.route, sit, rooms, TUNING.expert.route)
   noteRule(run, 'route', pick, surveyLine(sit))
   return pick.option.node.id
+}
+
+// ── the learned route (redesign.md §2.22: the route by the same machinery) ──────────────────────
+
+// The route's model tree (src/sim/route.json, fitted offline from room choices played out: teach.js --route): its
+// splits on the run's situation (routeConditions), each leaf its weights over a room's features (routeFeatures), the
+// best-scoring room taken; no hard rule unless the model keeps TREES.route's (`hand`). Read where ROUTE_LEARNED is on and
+// the file is there (Node only), else the hand-built route above; useRoute installs another (a test's, a measurement's).
+// Off (2026-10-11, redesign.md §6 "The learned route"): route.json gained +5.4 ± 1.9 clears over 1024 paired seeds `sim`,
+// but turning it on wants the hand-built route's tests (planning.test.js, puzzles.test.js: its rules' audit names, a
+// Shop with a full purse, which the learned route passes by) to pin useRoute(false) first.
+export const ROUTE_LEARNED = false
+let ROUTE_MODEL
+const ROUTE_FILE = new URL('./route.json', import.meta.url)
+export function routeModel () {
+  if (ROUTE_MODEL !== undefined) return ROUTE_MODEL
+  ROUTE_MODEL = null
+  if (!ROUTE_LEARNED) return null
+  try {
+    const fsm = globalThis.process?.getBuiltinModule?.('node:fs')
+    if (fsm?.existsSync(ROUTE_FILE)) ROUTE_MODEL = checkModel(JSON.parse(fsm.readFileSync(ROUTE_FILE, 'utf8')))
+  } catch {
+    ROUTE_MODEL = null
+  }
+  return ROUTE_MODEL
+}
+// Installs route configuration `model` (false: the hand-built route; undefined: back to route.json). → the one in use.
+export function useRoute (model) {
+  ROUTE_MODEL = model === undefined ? undefined : model ? checkModel(model) : null
+  return routeModel()
+}
+
+// One room choice by route model `model`: its leaf by the run's situation, each room scored by the leaf's weights over
+// its features (a feature the leaf has no weight for counts 0), the first best taken; where the model keeps the hand-built
+// route's rules (`hand`), they first force or filter the rooms as TREES.route does (expert.js decide). → { option: { node,
+// v, score }, by (the rule that decided, else 'route <leaf>'), path }
+export function learnedRoute (model, run, sit = survey(run)) {
+  const r = leafOf(model, routeConditions(run, sit))
+  const w = Object.fromEntries(ROUTE_FEATURES.map((k) => [k, r.w[k] ?? 0]))
+  const rooms = sit.rooms.map((room) => ({ node: nodeOf(run.state.map, room.id), v: routeFeatures(run, sit, room) }))
+  const pick = decide(model.hand ? TREES.route : [], sit, rooms, w)
+  return { option: pick.option, by: pick.by === 'weights' ? `route ${r.leaf.leaf}` : pick.by, path: pathName(r) }
+}
+
+// The essence a tier costs on the run's floor, on the mean of the tiers' prices (TUNING.essence.tier × run.js
+// floorPrice): the unit the route reads a purse and a room's pay in.
+export const tierScale = (floor) => TUNING.essence.tier.reduce((n, x) => n + x, 0) / TUNING.essence.tier.length * floorPrice(floor)
+const THREAT_TYPES = ['reach', 'shape', 'drain', 'sustain', 'fly', 'burn', 'bleed', 'depth']
+
+// The run's situation a room choice is read in, as named numbers (the route tree's conditions; add, never rename):
+// where the run stands (floor, rank), the army (its strength as a log, the souls standing, fielded and waiting, the
+// fallen, the Command, the share of the souls' HP it has), the Monarch (the share of its HP it has and its HP, whether
+// anything may heal it), the purse (in tier prices and in the floor's cheapest relic's), the relics owned, the combo
+// it plays toward (how far along), and the rooms open (how many, whether an elite, an altar or a Shop is among them,
+// and the army's odds against the elite open, the worst and the best battle room open: autoplay.js roomFeatures' odds).
+export function routeConditions (run, sit = survey(run)) {
+  const s = run.state
+  const m = monarchOf(s)
+  const odds = sit.rooms.filter((r) => r.threat > 0 && r.type !== 'shop' && r.type !== 'altar').map((r) => ({ type: r.type, odds: Math.log(sit.strength / r.threat) }))
+  const elite = odds.find((x) => x.type === 'elite')
+  return {
+    floor: sit.floor,
+    rank: sit.rank,
+    strength: Math.log(sit.strength),
+    souls: sit.fielded + sit.waiting,
+    fielded: sit.fielded,
+    waiting: sit.waiting,
+    fallen: sit.fallen,
+    command: sit.command,
+    health: sit.health,
+    monarch: sit.monarch,
+    'monarch.hp': Math.max(0, m.hp),
+    unhealed: sit.unhealed ? 1 : 0,
+    purse: sit.purse / tierScale(sit.floor),
+    'purse.relic': sit.prices.relic ? sit.purse / sit.prices.relic : 0,
+    relics: s.relics.length,
+    progress: sit.target?.progress ?? 0,
+    rooms: sit.rooms.length,
+    'open.elite': sit.rooms.some((r) => r.type === 'elite') ? 1 : 0,
+    'open.altar': sit.rooms.some((r) => r.type === 'altar') ? 1 : 0,
+    'open.shop': sit.rooms.some((r) => r.type === 'shop') ? 1 : 0,
+    'odds.elite': elite ? elite.odds : 0,
+    'odds.min': odds.length ? Math.min(...odds.map((x) => x.odds)) : 0,
+    'odds.max': odds.length ? Math.max(...odds.map((x) => x.odds)) : 0
+  }
+}
+
+// A room read for the learned route: the hand-built route's features (roomFeatures), and for a battle room what
+// scouting shows of it besides: its foes (how many, the highest tier and the mean, the mean level), its waves after the
+// first (a floor-1 elite's late pair among them: `late`), each threat type it carries (`t.<type>`, content.js
+// THREATS), what it pays (its foes' essence and an elite's bonus, the relics' gain counted, in tier prices:
+// tierScale), whether it is a battle the hand-built route calls long odds (`long`: its odds below
+// TUNING.expert.tree.odds), and the army's wounds and the Monarch's against a battle (`hurt`: the share of the
+// Monarch's HP it lacks, `worn`: of the souls', each where the room is a battle, else 0).
+export const ROUTE_FEATURES = Object.freeze([
+  'fight', 'elite', 'shop', 'altar', 'boss', 'siege', 'odds', 'weak', 'wounds', 'monarch', 'purse', 'want', 'unanswered', 'altarAhead', 'monarchAhead',
+  'shopAhead', 'foes', 'tier', 'tierMean', 'lvl', 'waves', 'late', ...THREAT_TYPES.map((t) => `t.${t}`), 'pay', 'long', 'hurt', 'worn'
+])
+export function routeFeatures (run, sit, room) {
+  const s = run.state
+  const v = roomFeatures(sit, room)
+  const out = { ...v, foes: 0, tier: 0, tierMean: 0, lvl: 0, waves: 0, late: 0 }
+  for (const t of THREAT_TYPES) out[`t.${t}`] = 0
+  Object.assign(out, { pay: 0, long: 0, hurt: 0, worn: 0 })
+  const node = nodeOf(s.map, room.id)
+  if (!node?.foes) return out
+  const foes = [...node.foes, ...(node.waves ?? []).flatMap((w) => w.foes)]
+  const tiers = foes.map((f) => unitDef(f.id).tier)
+  out.foes = foes.length
+  out.tier = Math.max(0, ...tiers)
+  out.tierMean = tiers.length ? tiers.reduce((n, x) => n + x, 0) / tiers.length : 0
+  out.lvl = foes.length ? foes.reduce((n, f) => n + f.lvl, 0) / foes.length : 0
+  out.waves = node.waves?.length ?? 0
+  out.late = node.type === 'elite' && s.floor === 1 && out.waves > 0 ? 1 : 0
+  for (const t of room.threats) if (THREAT_TYPES.includes(t)) out[`t.${t}`] = 1
+  const pay = foes.reduce((n, f) => n + foeEssence(f), 0) + (node.type === 'elite' ? eliteBonus(s.floor) : 0)
+  out.pay = pay * runStat(s, 'essence.gain', 1) / tierScale(s.floor)
+  const battle = room.threat > 0 && room.type !== 'shop' && room.type !== 'altar'
+  out.long = battle && v.odds < TUNING.expert.tree.odds ? 1 : 0
+  out.hurt = battle ? 1 - sit.monarch : 0
+  out.worn = battle ? 1 - sit.health : 0
+  return out
 }
 
 // A room read as the features its decision weighs (TUNING.expert.route): its type, one of six; for a battle room the

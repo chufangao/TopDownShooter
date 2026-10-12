@@ -1,0 +1,178 @@
+{
+ "name": "route",
+ "about": "the route, learned 2026-10-12 on 10435 room choices: held out top-1 63.2%, regret 0.630 (the expert's choices 50.6%, 0.760; the hand weights alone 59.5%, 0.800); tau 10, lambda 0.3, depth ≤ 3",
+ "tree": {
+  "if": "odds.min",
+  "gt": 0.000043,
+  "then": {
+   "leaf": "L1",
+   "w": {
+    "fight": -0.0625239,
+    "elite": 12.3226,
+    "shop": -0.137591,
+    "altar": 0.00516397,
+    "boss": 1.12,
+    "siege": -5.4679,
+    "odds": 1.93052,
+    "weak": -44.2993,
+    "wounds": 8.56243,
+    "monarch": -0.282312,
+    "purse": -0.614096,
+    "want": -0.512643,
+    "unanswered": -0.259802,
+    "altarAhead": 1.00879,
+    "monarchAhead": 1.4653,
+    "shopAhead": -3.23139,
+    "foes": 0.0303674,
+    "tier": -0.41938,
+    "tierMean": -0.709487,
+    "lvl": 0.160153,
+    "waves": 0.41472,
+    "late": 1.04626,
+    "t.reach": 0.6983,
+    "t.shape": 0.55957,
+    "t.drain": 0.246613,
+    "t.sustain": 0.128124,
+    "t.fly": -0.283888,
+    "t.burn": 0.455135,
+    "t.bleed": 1.78446,
+    "t.depth": 0.858677,
+    "pay": 0.845215,
+    "long": -2.4855,
+    "hurt": -11.0369,
+    "worn": 6.84223
+   }
+  },
+  "else": {
+   "if": "health",
+   "gt": 0.999771,
+   "then": {
+    "leaf": "L2",
+    "w": {
+     "fight": 0.86177,
+     "elite": 10.5425,
+     "shop": 0.951922,
+     "altar": -2.35289,
+     "boss": 1.12,
+     "siege": 0.0777528,
+     "odds": 1.93242,
+     "weak": -52.6193,
+     "wounds": 27.413,
+     "monarch": 29.2218,
+     "purse": -0.990183,
+     "want": 1.63587,
+     "unanswered": 1.14997,
+     "altarAhead": -33.0645,
+     "monarchAhead": 25.2405,
+     "shopAhead": -7.31994,
+     "foes": -0.00902335,
+     "tier": 0.18513,
+     "tierMean": -0.543379,
+     "lvl": 0.528263,
+     "waves": -0.177006,
+     "late": 0.688794,
+     "t.reach": 3.0408,
+     "t.shape": 2.60704,
+     "t.drain": 1.41254,
+     "t.sustain": -1.4081,
+     "t.fly": -2.77206,
+     "t.burn": 2.67018,
+     "t.bleed": 5.07257,
+     "t.depth": -0.198845,
+     "pay": 0.170388,
+     "long": -0.42566,
+     "hurt": -5.0737,
+     "worn": -7.92572
+    }
+   },
+   "else": {
+    "leaf": "L3",
+    "w": {
+     "fight": 2.05468,
+     "elite": 7.74368,
+     "shop": 2.19527,
+     "altar": -4.13452,
+     "boss": 1.12,
+     "siege": 4.61012,
+     "odds": 3.6429,
+     "weak": -51.9158,
+     "wounds": 33.7836,
+     "monarch": 46.2724,
+     "purse": -1.30197,
+     "want": 3.12995,
+     "unanswered": 1.05012,
+     "altarAhead": -65.976,
+     "monarchAhead": 9.67358,
+     "shopAhead": -7.29477,
+     "foes": -0.309216,
+     "tier": -1.74006,
+     "tierMean": -2.53671,
+     "lvl": 0.621376,
+     "waves": -0.449588,
+     "late": 4.95489,
+     "t.reach": 5.33171,
+     "t.shape": 0.964069,
+     "t.drain": -0.441292,
+     "t.sustain": -1.80488,
+     "t.fly": -0.847328,
+     "t.burn": 6.50819,
+     "t.bleed": 4.44709,
+     "t.depth": -0.824504,
+     "pay": -1.49772,
+     "long": -1.41716,
+     "hurt": -8.01278,
+     "worn": -5.82896
+    }
+   }
+  }
+ },
+ "rules": [],
+ "fit": {
+  "tau": 10,
+  "T": 84.44225517373845,
+  "lambda": 0.3,
+  "depth": 3,
+  "maxLeaves": 8,
+  "minLeaf": 168,
+  "positions": {
+   "train": 8404,
+   "validation": 2148,
+   "test": 2031
+  },
+  "leaves": 3,
+  "train": {
+   "learned": {
+    "n": 8404,
+    "top1": 0.6380295097572585,
+    "regret": 0.535639300690148
+   },
+   "today": {
+    "n": 8404,
+    "top1": 0.6061399333650642,
+    "regret": 0.6970302968824365
+   },
+   "chosen": {
+    "n": 8404,
+    "top1": 0.5195145168967158,
+    "regret": 0.6336453204426471
+   }
+  },
+  "test": {
+   "learned": {
+    "n": 2031,
+    "top1": 0.6317085179714427,
+    "regret": 0.6301276184145741
+   },
+   "today": {
+    "n": 2031,
+    "top1": 0.5947808961102905,
+    "regret": 0.8004838389955682
+   },
+   "chosen": {
+    "n": 2031,
+    "top1": 0.5061546036435254,
+    "regret": 0.7596215243722299
+   }
+  }
+ }
+}

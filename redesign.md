@@ -1096,6 +1096,60 @@ offline search that plays the foes' turn, scoring each option of hard positions,
 explored decisions' paired outcomes; and V reading the plan's roles. Until then the expert stays ~10 points under the
 bar, and the limit is where it was: which rooms it walks into, and the few battles it loses.
 
+### The learned route (2026-10-11, §5 Step 9b, route)
+
+**The labels** (`npm run teach -- --route`, src/sim/teach.js): every room choice of 1000 expert runs (seeds
+`route-1…1000`; floors 1–2 with an elite open all kept, floors 1–2 else 0.6, later floors 0.6 with an elite and 0.25
+else), each open room played out by the expert from the choice (a copy of the run walks in; its prep, battle, reap,
+spending and its own next room, to two rooms done), valued −10·the run lost − 3·the Monarch's HP share lost − the souls'
+HP share lost + the essence earned in tier prices (the floor's mean tier price) + 1 a room done. 10,435 choices, 22,226
+rooms, 12 min on 5 workers; held out by seed (≡ 0 mod 5). **The expert against the playouts**: it takes the playout's
+best room 51.7% of the time, regret 0.658 (a random room 0.824); by floor 51 / 62 / 38 / 40%, regret 0.72 / 0.40 / 0.93
+/ 0.88. **Where an elite is open** 49.4%, regret 1.55 (none open: 52.4%, 0.39); a floor-1 elite choice 41.3%, regret
+1.83, though the hand weights alone agree 83.5%: the long-odds and wounded rules keep it from floor-1 elites the
+playouts say it survives (an elite walked into on floor 1 loses 15.7% of the time, and pays ~2.4 tier prices). Its
+chosen room lost the run in 2.7% of choices, 1.7% where another room did not.
+
+**The tree** (src/sim/route.json; fit.js fitExpert over autoplay.js routeConditions and routeFeatures: the hand route's
+features, the scouted foes, tiers, levels, waves, late pair, threat types, pay, long odds, wounds against a battle;
+tau 10 and lambda 0.3 chosen on the validation seeds, ≡ 1 mod 5): the weakest battle room open still the army's
+(`odds.min > 0`): underdog rooms far below (weak −44), elites above (+12), no battle for a hurt Monarch; else, souls
+whole or not (`health > 0.9998`), each leaf the underdog penalty (−52), altars by the Monarch's and the souls' wounds,
+elites +8 to +11. Held out: top-1 63.2%, regret 0.630 (the expert's 50.6%, 0.760). It takes more elites and fewer
+Shops: the window sees an elite's essence, never a relic's worth. A hybrid (the hand rules kept, `hand`) fitted on the
+rooms they leave gained little (+1.2 ± 3.5).
+
+**Paired** (the battle expert as of 22:25): 256 seeds `sim` +6.6 ± 3.8 clears (31.6 → 38.3%); 768 fresh seeds
+(`sim-257…1024`) +5.0 ± 2.2 (31.0 → 35.9%), progress +0.05 ± 0.06; together **+5.4 ± 1.9** (31.2 → 36.5%). Floor-1 deaths −4.2,
+floor 2 +4.4, floor 3 −3.5; elites won +0.9 a run, relics −0.3. **Kept, but off** (autoplay.js ROUTE_LEARNED false):
+the hand route's tests (planning.test.js, puzzles.test.js) read its rules' audit names and want a Shop with a full purse
+over a fight, which the learned route passes by; they should pin useRoute(false) before the switch goes on, or the
+route be folded into expert.json. *Regenerate*: `npm run teach -- --route --runs 1000 --seed route --workers 5 --out D`,
+then `npm run teach -- --route --fit --out D --tau 10 --lambda 0.3 --depth 3`. Open: a longer window (the floor's end)
+to see what a relic is worth, and labels from the expert with the learned route (a second round).
+**Round 2 (2026-10-12, stopped for the release)**: labels now play to the run's end (teach.js `--rooms` 0, the default: −10·(1 − progress) a loss, + rooms and floors cleared, the Monarch's and souls' HP at the end; round 1's tree plays the runs and playouts), 4,482 choices from 459 runs (~1.3 choices/s on 4 workers), nothing fitted or measured; route.json stays round 1's, ROUTE_LEARNED off.
+*Resume*: `npm run teach -- --route --runs 1150 --seed route2 --workers 4 --out <its dir> --policy src/sim/route.json --expert <the expert.json kept in it>`, then `--fit` as above (labels: the agent's scratchpad `route2/`, copy them before it is cleared).
+
+**Then (2026-10-11): labels to the battle's end** (§5 Step 9b, battle; stopped early for the review build). *Built*:
+teach.js labels to the battle's end by default (`rounds` 0): each option given, the turn completed and the battle played
+out by today's expert (≤ 150 rounds, else a stall, lost); value −10 lost, else −3·the Monarch's share lost as carried
+(the post-battle heal) − the souls' share lost as carried (a fallen soul all of its share) − 0.02 a round (`--weights
+monarch=…`, parts written; `--expert` labels with another configuration). fit.js: `--hard` (today's hard rules kept,
+the rest soft), `--relative` (λ ÷ T²), `--decisive`, `--unchosen`, `--prior`, named `--weights`. *Data*: 250 runs
+(`teach-1…250`), 20,954 positions, 22 min on 4 workers (230 ms a position). *Agreement*: the expert's choice is the
+playout-best 62.1%, regret 0.78 (a random option 0.62); lost battles 74.3%, regret 2.26; floors 1–4 63 / 62 / 58 / 62%,
+regret 0.53 / 0.52 / 1.13 / 1.59. Biased by the draw: in a lost battle its own option loses by construction (99.8%,
+the others 88.8%), in a near-lost one it wins (0.2% against 7.2%). *Fits, paired, 256 seeds `sim` against today's fast
+turn (31.6% / 65.5)*: today's rules hard with shooters-first soft, leaves held, −0.3 ± 1.1 (clears +19 −15); every rule
+learned soft −1.4 ± 2.2; leaves free (λ ÷ T²) −28.3 ± 2.7 (13.7%), and −2.1 ± 2.3 only once shrunk to today's (λ 10⁵).
+The free leaves learn what the expert does for them afterwards (`progress` 1 → −54: it walks to its post next turn
+anyway), so they never walk there. Nothing kept: expert.json stays today's. *The beam* (today's scorer): 37.9% / 67.1,
++1.6 ± 2.4 progress, clears +50 −34, 8.5 s a run against 3.4: within noise, so the fast turn stays the default; a
+768-seed check was stopped part way. No round 3. *Resume*: `npm run teach -- --runs 250 --seed teach --workers 4 --out D`;
+`npm run fit -- --data D --hard --structure prior --unchosen --decisive --relative --weighted --lambda 100000 --dry`;
+finish the beam on `sim-256…1023`. Open: labels whose continuation is the candidate itself, or small steps of policy
+iteration, before the weights can learn from them.
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):

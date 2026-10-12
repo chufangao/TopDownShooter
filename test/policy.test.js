@@ -5,7 +5,7 @@ import {
   danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, evaluate, judge
 } from '../src/sim/policy.js'
 import { createRng } from '../src/sim/rng.js'
-import { value, decide, TREES } from '../src/sim/expert.js'
+import { value, decide, TREES, defaultExpert } from '../src/sim/expert.js'
 import { on, scene, slay } from './scene.js'
 import { TEMPERS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
@@ -234,7 +234,10 @@ test('the expert\'s piece blocks the road into the Monarch when nothing is in re
   assert.ok(tileX(knight.tile) === 3 && tileY(knight.tile) >= tileY(entry) && tileY(knight.tile) < tileY(piece(b, 9).tile), where(knight.tile))
 })
 
-// ── the tree's rules, one test each (expert.js TREES) ───────────────────────────────────────────
+// ── the tree's rules, one test each (expert.js RULES, hard as today's: defaultExpert) ─────────────
+
+// The decision piece `uid` makes on `b` by today's scorer (expert.js defaultExpert: its rules hard, as TREES.battle's).
+const today = (b, uid, opts = expertOptions(b, piece(b, uid))) => choice(b, piece(b, uid), situation(b), opts, defaultExpert())
 
 test('rule no-waste: a ward on allies who all hold it at its full stacks (the Monarch too) is no option', () => {
   const b = board([
@@ -246,7 +249,7 @@ test('rule no-waste: a ward on allies who all hold it at its full stacks (the Mo
   for (const uid of [0, 1, 2]) addStatus(b, piece(b, uid), 'hasten', 3)
   const opts = expertOptions(b, piece(b, 1))
   assert.ok(opts.some((o) => o.ability?.id === 'dirge'), 'Dirge is offered')
-  const pick = choice(b, piece(b, 1), situation(b), opts)
+  const pick = today(b, 1, opts)
   assert.ok(pick.rules.includes('no-waste'), JSON.stringify(pick.rules))
   assert.notEqual(pick.option.ability?.id, 'dirge')
   assert.ok(opts.filter((o) => o.ability?.id === 'dirge').every((o) => o.v.waste === 1))
@@ -262,7 +265,7 @@ test('rule monarch-lethal: with the Monarch about to fall, only what keeps it st
   ])
   const sit = situation(b)
   assert.ok(sit.monarch.lethal)
-  const pick = decided(b, 1)
+  const pick = today(b, 1)
   assert.equal(pick.by, 'monarch-lethal')
   assert.equal(pick.option.v.lethal, 0)
   assert.equal(pick.option.target?.uid, 9)
@@ -278,7 +281,7 @@ test('rule kill-first: a foe that could strike the Monarch next turn, and can be
   ])
   const sit = situation(b)
   assert.ok(!sit.monarch.lethal && sit.monarch.threats.some((x) => x.uid === 9), JSON.stringify(sit.monarch.threats))
-  const pick = decided(b, 1)
+  const pick = today(b, 1)
   assert.equal(pick.by, 'kill-first')
   assert.equal(pick.option.target?.uid, 9)
   // And the Monarch within reach selects the guard's weights.
@@ -295,7 +298,7 @@ test('rule never-die: a piece does not end where the danger map says it falls, u
     { id: 'tomb_knight', uid: 11, side: 'foe', x: 4, y: 7, lvl: 9 }
   ])
   const opts = expertOptions(b, piece(b, 1))
-  const pick = choice(b, piece(b, 1), situation(b), opts)
+  const pick = today(b, 1, opts)
   assert.ok(opts.some((o) => o.v.fall > 0 && !o.v.kill) && opts.some((o) => !o.v.fall), 'deadly tiles and safe ones')
   assert.ok(pick.rules.includes('never-die'), JSON.stringify(pick.rules))
   assert.equal(pick.option.v.fall, 0)
@@ -402,7 +405,8 @@ test('the expert never gives an illegal order, and the same board gives the same
   assert.ok(['move', 'fuse', 'arise'].every((k) => kinds.has(k)), [...kinds].join())
 })
 
-// The turn's beam (redesign.md §2.21): its decisions, as the learner's hooks hear them. A board with a choice for each
+// The turn's beam (redesign.md §2.21; off by default since §2.22, asked for by `beam`): its decisions, as the learner's
+// hooks hear them. A board with a choice for each
 // of three pieces, and a corpse to raise.
 const beamBoard = () => {
   const b = field([
@@ -422,9 +426,9 @@ const beamBoard = () => {
 test('the beam: record hears each decision of the turn given, in order, its options scored by their boards and the one taken', () => {
   const b = beamBoard()
   const recs = []
-  const orders = expertTurn(fork(b), { record: (f, info) => recs.push({ f, ...info }) })
+  const orders = expertTurn(fork(b), { beam: true, record: (f, info) => recs.push({ f, ...info }) })
   // Hearing changes nothing.
-  assert.deepEqual(orders, expertTurn(fork(b)))
+  assert.deepEqual(orders, expertTurn(fork(b), { beam: true }))
   assert.ok(recs.length >= 1 && recs.length <= 3, `${recs.length} decisions`)
   assert.equal(new Set(recs.map((r) => r.uid)).size, recs.length)
   const f = fork(b)
@@ -450,7 +454,7 @@ test('the beam: explore takes, at each decision with chance epsilon, one of the 
   const turn = (seed) => {
     const recs = []
     const rng = createRng(seed).stream('explore')
-    const orders = expertTurn(fork(b), { record: (f, info) => recs.push(info), explore: { rng, epsilon: 1, top: 3 } })
+    const orders = expertTurn(fork(b), { beam: true, record: (f, info) => recs.push(info), explore: { rng, epsilon: 1, top: 3 } })
     return { orders, recs }
   }
   const one = turn('a')
@@ -462,7 +466,7 @@ test('the beam: explore takes, at each decision with chance epsilon, one of the 
     order(g, o)
   }
   // Epsilon 0: the beam's own turn.
-  assert.deepEqual(expertTurn(fork(b), { explore: { rng: createRng('b').stream('x'), epsilon: 0, top: 3 } }), expertTurn(fork(b)))
+  assert.deepEqual(expertTurn(fork(b), { beam: true, explore: { rng: createRng('b').stream('x'), epsilon: 0, top: 3 } }), expertTurn(fork(b), { beam: true }))
 })
 
 test('evaluate: V where value.js holds trained weights, else the static board evaluation, the board tree\'s rules above its weights', () => {
@@ -499,8 +503,8 @@ test('the beam with V: each option\'s board scored by V, the turn legal and the 
     assert.equal(evaluate(b, { learned: false }), judge(b).value)
     TUNING.expert.beam.hybrid = 0
     const recs = []
-    const orders = expertTurn(fork(b), { record: (f, info) => recs.push(info), learned: true })
-    assert.deepEqual(expertTurn(fork(b), { learned: true }), orders)
+    const orders = expertTurn(fork(b), { beam: true, record: (f, info) => recs.push(info), learned: true })
+    assert.deepEqual(expertTurn(fork(b), { beam: true, learned: true }), orders)
     assert.ok(recs.length && recs.every((r) => r.options.every((o) => o.value === V(o.board))))
     const g = fork(b)
     for (const o of orders) {
@@ -510,9 +514,9 @@ test('the beam with V: each option\'s board scored by V, the turn legal and the 
     // Hybrid: each option's board by the static evaluation and `hybrid` × V; unlearned (the default), V read nowhere.
     TUNING.expert.beam.hybrid = 2
     const mixed = []
-    expertTurn(fork(b), { record: (f, info) => mixed.push(info), learned: true })
+    expertTurn(fork(b), { beam: true, record: (f, info) => mixed.push(info), learned: true })
     const plain = []
-    expertTurn(fork(b), { record: (f, info) => plain.push(info), learned: false })
+    expertTurn(fork(b), { beam: true, record: (f, info) => plain.push(info), learned: false })
     // (The first decision is on the board as it stands, the same for both.)
     const same = (o, p) => p.tile === o.tile && p.ability === o.ability && p.target === o.target && p.fusion === o.fusion
     assert.ok(mixed[0].options.length > 1 && mixed[0].uid === plain[0].uid)
@@ -520,7 +524,7 @@ test('the beam with V: each option\'s board scored by V, the turn legal and the 
       const p = plain[0].options.find((x) => same(o, x))
       assert.ok(p && Math.abs(o.value - (p.value + 2 * V(o.board))) < 1e-6 * Math.max(1, Math.abs(o.value)))
     }
-    if (!TUNING.expert.beam.learned) assert.deepEqual(expertTurn(fork(b)), expertTurn(fork(b), { learned: false }))
+    if (!TUNING.expert.beam.learned) assert.deepEqual(expertTurn(fork(b), { beam: true }), expertTurn(fork(b), { beam: true, learned: false }))
   } finally {
     TUNING.expert.beam.hybrid = was
     load(had)
