@@ -578,7 +578,29 @@ tree".
   the current expert, refit, measure paired on 256 seeds, keep only gains; 2–3 rounds.
 - **Fast**: a turn is a few comparisons and a dot product per option; the beam (§2.21) is off by default (it gained
   nothing at 20× the cost); the turn back to about a second a run.
-- Battle decisions first; the formation and the route by the same machinery after.
+- **The inputs and the output.** For each piece's decision, in order: the **situation** (one vector a decision, ~50
+  numbers: the Monarch's HP, danger and lethal, lines of fire now and next turn, threats by road and turns to reach,
+  foes by threat type, the wave due, the turns since a wave, killable foes, your pieces' exposure, synergies, the
+  plan) picks the leaf; each **option's features** (~30 numbers: damage, kills and their worth, damage on the
+  Monarch's threats, danger where it ends, a fall, the counter drawn, a screen, the Monarch's danger removed,
+  progress to its role, its part in the kill list, mending, a status's worth, a fusion's worth against its price,
+  Arise's shadow) are scored by the leaf's weights and the soft rules; the **output** is one option (a tile, an act,
+  a target) and the audit's path and leaf.
+- **Coordination** (the user asked how; one piece at a time is fast but greedy), cheapest first, each learned from
+  the same playouts and kept only if it gains on paired seeds: (1) **features that credit helping**: the lines of
+  fire on a threat an option opens for the allies still to act, the strikes it frees (a screen or block that spares
+  an ally a counter or a blow), whether another piece would do the same job better, whether its target is an ally's
+  on the kill list; the labels already carry the teammates' follow-up (the turn is completed by the expert after each
+  option), so these let the tree see why; (2) **a team assignment each turn**: pieces to jobs (the kill list's targets
+  with the damage each needs, a kill shared by two; the screens on lines into the Monarch; the role tiles) by the
+  assignment the formation uses, a bonus for doing its job, the bonus learned (Civilization V's units-to-targets
+  step, its values learned); (3) **a learned piece order**: "which piece next" a decision of the tree's own (what a
+  piece's move would block or open for the rest), learned from playouts of orders; (4) **a small beam** (2–4 partial
+  turns scored by the leaves) only if it beats 1–3.
+- **The route by the same machinery**, with battle (half the lost runs end in an elite, mostly on floors 1–2): each
+  room choice's options played out offline (the room fought by the current expert, and the next), labelled by
+  survival, the Monarch's HP and yours, essence gained; the route's tree over the run's situation (the army against
+  the scouted threat, the Monarch's carried HP, the purse, the floor and rank). The formation after.
 
 ## 3. What the player may rely on
 
@@ -791,7 +813,10 @@ this file's §6 and `DESIGN.md`'s head brought up to date, and a push to master.
   weights, rule strengths) tested on synthetic data, the turn reading the tree, the fast turn restored as the default.
   Contract: the option features and condition values the labeller writes are the tree's own `optionFeatures` and
   `conditions` exports.
-- **9b, one agent**: fit on the labels, measure, label again with the fitted expert, refit; 2–3 rounds; §6 note.
+- **9b, two agents**: **battle** — fit on the labels, measure, label again with the fitted expert, refit, 2–3 rounds;
+  **route** — the room-choice labeller and the route's tree, fitted and measured the same way. Each kept only on a
+  paired gain; a §6 note.
+- **9c, one agent**: coordination, (1) to (4) in order, each measured paired and kept only on a gain.
 
 ### Later content, not in these steps
 
