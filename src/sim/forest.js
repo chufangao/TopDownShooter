@@ -60,6 +60,26 @@
 // size (each tree's nodes), feat (a node's input, an index into `inputs`; −1 a leaf), thr (an inner node's threshold: x ≤ thr
 // goes to the next node), right (an inner node's right child, nodes ahead), value (a leaf's) }, its nodes each tree's
 // in preorder, the trees one after another. Read Node-only like ranker.json (absent: today's expert).
+//
+// Round 1 (2026-10-12; labels R3: 500 runs `teachd-*` of today's expert, drawn by the board's state, half of the
+// decisions where the Monarch is in reach or on a foe's line and 5% of the calm, 48,889 positions, every option played
+// out to the battle's end by today's expert; R2 beside them, 52,077 positions of the ranker's round 1, at half weight,
+// its playouts' rest the ranker's).
+// Held out (seeds ≡ 0 mod 5) the label metrics are near their noise: of R3's held-out decisions the teacher gains 0.21
+// a decision; the forests below, deviating where they read more than delta, realise +0.000 to +0.009 (a decision's
+// standard error ~0.004), and their out-of-bag tables less. What they settled: the centred target (above), and that
+// more data and the afterstate help a little (held-out correlation of the predicted advantage with the realised: R3
+// 0.100, with aft 0.101, R3 and R2 0.107). Four variants (200 trees, depth ≤ 12, ≤ 512 leaves of ≥ 40 rows, mtry 1/3,
+// ≤ 64 bins), paired against today's expert on 256 seeds `sel3`:
+//   R3 and R2, round 1's inputs and the forest's, delta 0.05     +0.45 ± 1.90 progress  (clears +17 −31)
+//   R3 and R2, with the afterstate's, delta 0.05                 +2.68 ± 1.63           (clears +29 −27)
+//   R3 and R2, with the afterstate's, delta 0.02                 +0.88 ± 2.42           (clears +32 −41)
+//   R3 alone, with the afterstate's, delta 0.05                  +1.59 ± 1.99           (clears +29 −31)
+// The second, on 768 fresh seeds `chk3`: against today's expert, clears 35.4% against 30.7% (+89 −53), progress
+// +3.28 ± 0.98, at 4.3 s a run against 2.1; against the ranker's round 1 (ranker.json as it stood), clears 35.4% against
+// 36.7% (+119 −129), progress −0.64 ± 1.35, at 4.6 s against 2.8: within one standard error of it. Kept as forest.json
+// (200 trees, 184,726 nodes, 2.1 MB; it changes ~5% of the held-out decisions), ranker.json removed from src/sim: the
+// shipped expert is decisions only, no network.
 import { encode, meanOf, rowView, playView, rowAfter, afterNames, inputNames as rankerNames, INPUT_SETS as RANKER_SETS, splitOf, linesOf, labelsIn } from './ranker.js'
 import { mulberry } from './value.js'
 import { LANE } from './field.js'

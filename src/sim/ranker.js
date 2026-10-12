@@ -69,6 +69,9 @@
 // run against 2.6. Round 1 stays. (Round 1 against today's expert on chk2, read off those two runs: clears 30.1%
 // against 28.9%, progress 62.6 against 60.4.) The held-out regret did not foretell the play: round 1, which gains in
 // play, reads R2's playouts no better than today's score.
+// Superseded (2026-10-12) by the forest (forest.js: regression trees, no network), as good in play and kept as
+// forest.json; ranker.json is removed from src/sim (round 1's file in history), so none is in use by default. A forest
+// in use decides in place of any ranker.
 import { conditions } from './expert.js'
 import { OPTION_FEATURES } from './policy.js'
 import { forwardAll, gradsFor, adam, mulberry } from './value.js'
