@@ -1,20 +1,23 @@
 // The labeller (src/sim/teach.js, redesign.md §2.22, §5 Step 9a): options played out through the foes' real turn,
-// offline. Functional only: what a playout reads, that it is deterministic, and the rows' shape.
+// offline; and the teacher (§2.23, §5 Step 10a), the labeller as a player. Functional only: what a playout reads, that
+// it is deterministic, the rows' shape, and what the teacher takes.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { labelPosition, teachRun, valueOf, loadLabels, report, give, signature, WEIGHTS, DEFAULTS, labelChoice, ROUTE_WEIGHTS, END_WEIGHTS, endTally, endValue } from '../src/sim/teach.js'
-import { createRun } from '../src/sim/run.js'
+import { labelPosition, teachRun, valueOf, loadLabels, report, give, signature, WEIGHTS, DEFAULTS, labelChoice, ROUTE_WEIGHTS, END_WEIGHTS, endTally, endValue, bestOf, teacherPick, teacherTurn, teacherRun, pairedReport, pairedLines, drawOf, KEEP } from '../src/sim/teach.js'
+import { createRun, apply } from '../src/sim/run.js'
 import { nodeOf } from '../src/sim/map.js'
 import { survey, pickRoute, learnedRoute, useRoute, routeConditions, routeFeatures, ROUTE_FEATURES } from '../src/sim/autoplay.js'
 import { conditions, OPTION_FEATURES } from '../src/sim/policy.js'
-import { fork } from '../src/sim/turns.js'
+import { fork, order } from '../src/sim/turns.js'
 import { tileAt } from '../src/sim/unit.js'
 import { on, scene } from './scene.js'
 import { teachRoutes, routeEndOf, routePick, routeAgreement, ROUTE_END_WEIGHTS } from '../src/sim/teach.js'
-import { record, routeModel } from '../src/sim/autoplay.js'
+import { record, routeModel, policy } from '../src/sim/autoplay.js'
+import { useRanker, rankerModel } from '../src/sim/ranker.js'
+import { createRng } from '../src/sim/rng.js'
 
 // A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp? }], `hp` the HP it stands at.
 const board = (units) => {
@@ -321,4 +324,154 @@ test('routes read off a labelled choice: a tree\'s pick, the hand-built\'s, and 
   assert.deepEqual([ag.hand.top1, ag.hand.regret, ag.keen.top1, ag.keen.regret, ag.keen.vs], [0, 6, 1, 0, -6])
   assert.equal(ag.keen.elite, 1)
   assert.equal(ag.hand.shop, 1)
+})
+
+// ── the teacher (redesign.md §2.23: the labeller as a player) ────────────────────────────────────
+
+// A piece's options as the teacher weighs them: the prior, the steps, the tile and the target.
+const opt = (prior, { steps = 0, tile = 0, target = null } = {}) => ({ prior, path: Array(steps).fill(0), tile, target: target === null ? null : { uid: target } })
+const rowsOf = (values) => values.map((value, i) => ({ i, legal: value === null ? 0 : 1, value }))
+
+test('the teacher\'s best: the best value; a tie to the higher prior, then the fewer steps, the lower lane, the lower target', () => {
+  assert.equal(bestOf(rowsOf([-10, -10, -10]), [opt(1), opt(3), opt(2)]), 1)
+  assert.equal(bestOf(rowsOf([-10, -0.5, -10]), [opt(1), opt(0), opt(9)]), 1)
+  assert.equal(bestOf(rowsOf([-1, -1]), [opt(2, { steps: 3 }), opt(2, { steps: 1 })]), 1)
+  assert.equal(bestOf(rowsOf([-1, -1]), [opt(2, { tile: tileAt(6, 1) }), opt(2, { tile: tileAt(0, 1) })]), 1)
+  assert.equal(bestOf(rowsOf([-1, -1]), [opt(2, { target: 12 }), opt(2, { target: 7 })]), 1)
+  // Within 1e-9 a tie; one never legal never taken; none legal, none.
+  assert.equal(bestOf(rowsOf([-1, -1 + 1e-12]), [opt(5), opt(1)]), 0)
+  assert.equal(bestOf(rowsOf([null, -10]), [opt(9), opt(0)]), 1)
+  assert.equal(bestOf(rowsOf([null]), [opt(0)]), -1)
+})
+
+test('the teacher takes the labels\' best, a legal option; the same board gives the same orders, the board untouched', () => {
+  const L = labelPosition(peril(), 1, null)
+  const pick = teacherPick(peril(), 1, null)
+  const row = L.options[L.best]
+  assert.ok(pick.playouts > 1)
+  assert.equal(pick.value, row.value)
+  assert.deepEqual([pick.option.tile, pick.option.ability?.id ?? null, pick.option.target?.uid ?? null], [row.tile, row.ability, row.target])
+  // Every legal option played out; none better than the one taken.
+  for (const o of L.options) if (o.legal) assert.ok(o.value <= row.value)
+  // The turn: its orders, End Turn last, each legal on the board as the ones before it left it.
+  const b = peril()
+  const count = { decisions: 0, playouts: 0, single: 0, ms: 0 }
+  const orders = teacherTurn(b, {}, count)
+  assert.equal(count.decisions, 1)
+  assert.equal(count.playouts, pick.playouts)
+  assert.equal(orders.at(-1).type, 'end')
+  assert.equal(b.byUid.get(0).hp, 1)
+  assert.equal(b.byUid.get(9).hp, 1)
+  assert.equal(b.turn, 1)
+  assert.deepEqual(teacherTurn(b), orders)
+  assert.deepEqual(teacherTurn(peril()), orders)
+  for (const x of orders) {
+    if (b.over) break
+    order(b, x)
+  }
+})
+
+test('a piece with one option takes it with no playout', () => {
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 1, y: 1 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 6, y: 10 }
+  ])
+  // Its Move spent and no foe in its reach: it may only stand where it is.
+  const k = b.byUid.get(1)
+  k.moved = k.move
+  const pick = teacherPick(b, 1, null)
+  assert.equal(pick.playouts, 0)
+  assert.equal(pick.option.tile, k.tile)
+  const count = { decisions: 0, playouts: 0, single: 0, ms: 0 }
+  assert.deepEqual(teacherTurn(b, {}, count), [{ type: 'end' }])
+  assert.deepEqual([count.decisions, count.playouts, count.single], [1, 0, 1])
+})
+
+test('a hopeless board: every option lost alike, the teacher takes the expert\'s own best by its score', () => {
+  // The Monarch at 1 HP, three Ghouls about it; the Knight too far off to matter.
+  const b = board([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0, hp: 1 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 6, y: 6 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 2, y: 0 },
+    { id: 'grave_ghoul', uid: 10, side: 'foe', x: 4, y: 0 },
+    { id: 'grave_ghoul', uid: 11, side: 'foe', x: 3, y: 1 }
+  ])
+  const L = labelPosition(b, 1, null)
+  const legal = L.options.filter((o) => o.legal)
+  assert.ok(legal.length > 1 && legal.every((o) => o.value === legal[0].value), JSON.stringify(legal.map((o) => o.value)))
+  const pick = teacherPick(b, 1, null)
+  const top = Math.max(...legal.map((o) => o.prior))
+  assert.ok(Math.abs(pick.option.prior - top) < 1e-5, `${pick.option.prior} against ${top}`)
+  assert.equal(L.options[L.best].prior, legal.find((o) => o.prior === top).prior)
+})
+
+test('a teacher run plays out of battle as today\'s expert: the same actions up to its first battle', () => {
+  const t = teacherRun('teacher-test-1', { fights: 1, log: true })
+  const run = createRun({ seed: 'teacher-test-1' })
+  const rng = createRng(run.state.seed).stream('autoplay')
+  while (run.state.phase !== 'battle') apply(run, policy(run, rng, 'expert'))
+  assert.ok(t.log.some((a) => a.type === 'fight'))
+  assert.deepEqual(t.log, run.state.log)
+  assert.deepEqual([t.player, t.battles.fought, t.decisions], ['teacher', 0, 0])
+})
+
+test('--ranker, a configuration\'s `ranker`: installed for the runs and their playouts, from a file too', () => {
+  // A configuration ranker.js takes: the one it ships where there is one (it checks what it is given), else any named.
+  const cfg = rankerModel() ?? { name: 'teacher-test-ranker' }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-teacher-test-'))
+  try {
+    useRanker(null)
+    teacherRun('teacher-test-1', { fights: 1, ranker: cfg })
+    assert.deepEqual(rankerModel(), cfg)
+    useRanker(null)
+    const file = path.join(dir, 'ranker.json')
+    fs.writeFileSync(file, JSON.stringify(cfg))
+    teacherRun('teacher-test-1', { fights: 1, ranker: file })
+    assert.deepEqual(rankerModel(), cfg)
+    teacherRun('teacher-test-1', { fights: 1, ranker: null })
+    assert.equal(rankerModel(), null)
+  } finally {
+    // Back to the one ranker.js holds by default.
+    useRanker(undefined)
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('drawn by the state, a decision\'s class and chance read the board alone, never the battle\'s outcome', () => {
+  const b = peril()
+  const state = [0, 1, 2].map((group) => drawOf(b, group, { draw: 'state' }))
+  assert.ok(['reach', 'calm'].includes(state[0].danger))
+  for (const x of state) assert.deepEqual(x, state[0])
+  assert.equal(state[0].keep, KEEP[state[0].danger])
+  // By the outcome (the default), the battle's group first.
+  assert.deepEqual([2, 1, 0].map((group) => drawOf(b, group).danger), ['lost', 'near', state[0].danger])
+  assert.throws(() => drawOf(b, 0, { draw: 'luck' }))
+  // A run so drawn: every row of the board's class, weighed by its chance, its battle's group still written.
+  const keep = { lost: 0, near: 0, reach: 1, calm: 1 }
+  const r = teachRun('teach-test-1', { battles: 1, limit: 4, keep, draw: 'state' })
+  assert.ok(r.positions.length > 0)
+  for (const p of r.positions) {
+    assert.ok(['reach', 'calm'].includes(p.danger), p.danger)
+    assert.equal(p.wt, 1)
+    assert.ok([0, 1, 2].includes(p.group))
+  }
+})
+
+test('the paired report: clears each and against each other, the progress difference ± its standard error', () => {
+  const line = (seed, player, result, floor, progress, won, fought) => ({ seed, player, result, floor, progress, battles: { won, fought }, ms: 1000, decisions: 10, playouts: 50, single: 2, decisionMs: 500 })
+  const rep = pairedReport([
+    line('s-0', 'teacher', 'victory', 4, 1, 40, 40), line('s-0', 'expert', 'defeat', 2, 0.4, 15, 16),
+    line('s-1', 'teacher', 'defeat', 1, 0.1, 3, 4), line('s-1', 'expert', 'defeat', 1, 0.05, 2, 3),
+    line('s-2', 'teacher', 'defeat', 3, 0.6, 30, 31)
+  ])
+  assert.equal(rep.n, 2)
+  assert.deepEqual([rep.teacher.clears, rep.expert.clears, rep.clears.gained, rep.clears.lost], [1, 0, 1, 0])
+  assert.ok(Math.abs(rep.progress.diff - 0.325) < 1e-9)
+  assert.ok(Math.abs(rep.progress.se - 0.275) < 1e-9)
+  assert.deepEqual(rep.teacher.deaths, { 1: 1 })
+  assert.deepEqual(rep.expert.deaths, { 1: 1, 2: 1 })
+  assert.deepEqual(rep.teacher.battles, { won: 43, fought: 44, rate: 0.9773 })
+  assert.equal(rep.cost.playoutsPerDecision, 5)
+  assert.ok(pairedLines(rep).length > 3)
 })
