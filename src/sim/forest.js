@@ -1,8 +1,9 @@
 // The forest (redesign.md §2.23's learned correction, as the user asked for it on 2026-10-12: "no neural network", the
 // expert deciding by rules mined from the lookahead, "Think random forest"): a random forest of regression trees over
-// the situation, the option and the piece, fitted offline on teach.js's playouts and shipped as data in forest.json. No network: a decision is today's expert's, then a few hundred comparisons an option. This file is the
-// contract between the teacher (teach.js, which plays out under the forest in use) and the player (policy.js choice,
-// which consults the forest where one is in use):
+// the situation, the option and the piece, fitted offline on teach.js's playouts and shipped as data in forest.json. No
+// network: a decision is today's expert's, then a few thousand comparisons an option. This file is the contract between
+// the teacher (teach.js, which plays out under the forest in use) and the player (policy.js choice, which consults the
+// forest where one is in use):
 //
 //   useForest(config)   installs a forest configuration (forest.json's contents); null: none, today's expert;
 //                       undefined: back to forest.json beside this file, where there is one. → the one in use, or null
@@ -24,8 +25,8 @@
 // The inputs, x (inputNames), read alike from a label row and from the board in play (encodeAgainst; a test holds the
 // two equal):
 //   ranker.js encode's  sit.*, role.*, size, opt.*, rel.*, kind.*, steps, and aft.* where a configuration names them
-//                       (the board the option leaves, policy.js afterOf: ~1.5 s more a run; rows get them from teach.js
-//                       --augment's after.jsonl)
+//                       (the board the option leaves, policy.js afterOf: ~2.2 s more a run, 2026-10-12; rows get them
+//                       from teach.js --augment's after.jsonl)
 //   gap                 today's score of today's choice less the option's (≥ 0: today's choice is the best by it)
 //   vs.*                each option feature less today's choice's: the target is an advantage over that one option,
 //                       and these read it directly ("this option screens and today's does not")
@@ -53,13 +54,14 @@
 // default: the state draw's chance (teach.js `--draw state`) is a function of the board, so E[A | x] is the same under
 // any weighting by it, and the reach positions, drawn the more, get the finer leaves (`weighted`: by the draw's `wt`,
 // clipped, as the ranker's). Labels drawn by their battle's outcome (L2, L3) are biased (in a lost battle today's choice
-// loses by construction); their `wt` (1 / the draw's chance) undoes it in expectation, so they are read only weighted.
-// Seeds ≡ 0 mod 5 are held out (ranker.js splitOf), never fitted; the rest are fitted. Worker threads, typed arrays.
+// loses by construction); their `wt` (1 / the draw's chance) would undo it in expectation, read `weighted`, at a cost in
+// variance (a calm decision of a won battle weighs 33): no forest kept reads them. Seeds ≡ 0 mod 5 are held out
+// (ranker.js splitOf), never fitted; the rest are fitted. Worker threads, typed arrays.
 //
 // Shipped as forest.json: { kind: 'forest', name, about, made, data, inputs (the names its splits read), target, delta,
-// size (each tree's nodes), feat (a node's input, an index into `inputs`; −1 a leaf), thr (an inner node's threshold: x ≤ thr
-// goes to the next node), right (an inner node's right child, nodes ahead), value (a leaf's) }, its nodes each tree's
-// in preorder, the trees one after another. Read Node-only like ranker.json (absent: today's expert).
+// size (each tree's nodes), feat (a node's input, an index into `inputs`; −1 a leaf), thr (an inner node's threshold:
+// x ≤ thr goes to the next node), right (an inner node's right child, nodes ahead), value (a leaf's) }, its nodes each
+// tree's in preorder, the trees one after another. Read Node-only like ranker.json (absent: today's expert).
 //
 // Round 1 (2026-10-12; labels R3: 500 runs `teachd-*` of today's expert, drawn by the board's state, half of the
 // decisions where the Monarch is in reach or on a foe's line and 5% of the calm, 48,889 positions, every option played
@@ -80,6 +82,20 @@
 // 36.7% (+119 −129), progress −0.64 ± 1.35, at 4.6 s against 2.8: within one standard error of it. Kept as forest.json
 // (200 trees, 184,726 nodes, 2.1 MB; it changes ~5% of the held-out decisions), ranker.json removed from src/sim: the
 // shipped expert is decisions only, no network.
+// Round 2 (2026-10-12; labels R4: 500 runs `teachf-*` of round 1's forest, drawn by the state as R3's, 53,459
+// positions, every option played out to the battle's end by round 1's forest, so no label leans on today's expert to
+// do later what the option did not; its afterstate read in every playout's decision, 9 positions a second on seven
+// workers against R3's 38; augmented with the afterstates). Refitted as round 1, with the afterstate's inputs. On R4's
+// held-out decisions at delta 0.05, the gain realised: round 1 +0.008, R3 and R4 +0.008, R3, R4 and R2 +0.013. Paired
+// against round 1 on 256 seeds `sel4`:
+//   R3, R4 and R2 (at half weight), delta 0.05                    +1.65 ± 1.73 progress  (clears +23 −16)
+//   R3, R4 and R2, delta 0.035                                    +3.03 ± 1.72           (clears +28 −16)
+//   R3, R4 and R2, delta 0.02                                     +3.24 ± 1.69           (clears +29 −14)
+//   R3 and R4, delta 0.05                                         +3.38 ± 1.56           (clears +27 −17)
+// The last, on 768 fresh seeds `chk4`: against round 1, clears 33.1% against 34.1% (+78 −86), progress +1.78 ± 0.98, at
+// 5.0 s a run against 4.8 (the runs go further: deaths on floors 1 and 2 272 against 296, on 3 and 4 242 against 210);
+// against today's expert, clears 33.1% against 29.6% (+102 −75), progress +2.81 ± 1.03, at 5.1 s against 2.4. Kept as
+// forest.json (200 trees, 196,322 nodes, 2.3 MB), on the gain in progress.
 import { encode, meanOf, rowView, playView, rowAfter, afterNames, inputNames as rankerNames, INPUT_SETS as RANKER_SETS, splitOf, linesOf, labelsIn } from './ranker.js'
 import { mulberry } from './value.js'
 import { LANE } from './field.js'
@@ -853,8 +869,9 @@ export async function evalForests (dirs, configs, { log = null } = {}) {
 // ── the command ──────────────────────────────────────────────────────────────────────────────────
 
 // npm run forest -- --data <dir>[,<dir>…] --out <file> [--inputs base|aft] [--data-weight 1,0.5,…] [--use <dir>,…]
-//                   [--target mean|today] [--trees 200] [--depth 12] [--leaves 512] [--min-leaf 40] [--mtry 0.333] [--shrink 0] [--bins 64]
-//                   [--weighted] [--wclip 10] [--seed 1] [--delta 0.1] [--name forest] [--workers 8]
+//                   [--target mean|today] [--trees 200] [--depth 12] [--leaves 512] [--min-leaf 40] [--mtry 0.333]
+//                   [--shrink 0] [--bins 64] [--weighted] [--wclip 10] [--seed 1] [--delta 0.1] [--name forest]
+//                   [--workers 7]
 //   fits a forest and writes it (src/sim/forest.json is the one play reads: write it only for a forest kept on a paired
 //   gain), printing its out-of-bag and held-out margins tables (marginText). `--inputs aft`: with the afterstate's
 //   (each label set augmented: teach.js --augment); `--data-weight`: each label set's weight, in --data's order;
