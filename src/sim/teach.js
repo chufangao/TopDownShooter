@@ -434,7 +434,7 @@ const sparse = (v) => {
 
 // Piece `uid`'s decision on `board` (a copy taken as it decided; the plan on it as the turn's) read: its situation, its
 // conditions and its options (optionsAt, at most `cap` shortlisted). → { u, cond, short, all }
-function readDecision (board, uid, cap) {
+export function readDecision (board, uid, cap) {
   const u = board.byUid.get(uid)
   const sit = P.situation(board)
   // The turn's plan, as the expert's turn read it (one the board carries), else read now.
@@ -462,7 +462,7 @@ function averaged (ps) {
 // none), its option added where the shortlist lacks it; `c.smooth` > 1, each legal option `c.smooth` times, the first
 // exact, the rest perturbed by the rng of `c.key` (the position's id). → { rows (the labels' options), plays (each row's
 // option and its orders as given), at (the chosen's index), best (bestOf's) }
-function labelled (board, uid, chosen, c, read = readDecision(board, uid, c.cap)) {
+export function labelled (board, uid, chosen, c, read = readDecision(board, uid, c.cap)) {
   const { short, all } = read
   const before = c.rounds > 0 ? tally(board) : endTally(board)
   const seen = new Set()
@@ -524,7 +524,7 @@ export function bestOf (rows, opts) {
 }
 
 // Of options `opts`, the one a decision's signature (signature) names: its tile and act or fusion.
-function fromSignature (opts, sig) {
+export function fromSignature (opts, sig) {
   const [tile, act] = sig.split('|')
   const t = Number(tile)
   return opts.find((o) => o.tile === t && (o.fusion ? `f:${o.fusion.id}:${o.fusion.parts}` : o.ability ? `a:${o.ability.id}:${o.target.uid}` : '') === act) ??
@@ -538,7 +538,7 @@ function fromSignature (opts, sig) {
 // it again) where `c` names it: `expert` a configuration file (expert.js useExpert), else the one in use; `ranker` a
 // ranker configuration or its file (ranker.js useRanker; null for none, today's expert), else the one in use; `forest`
 // a forest configuration or its file (forest.js useForest; null for none), else the one in use.
-function install (c) {
+export function install (c) {
   if (c.expert) E.useExpert(JSON.parse(fs.readFileSync(c.expert, 'utf8')))
   if (c.ranker !== undefined) useRanker(rankerOf(c.ranker))
   if (c.forest !== undefined) useForest(rankerOf(c.forest))
@@ -895,7 +895,7 @@ export function report (positions, by = { byFloor: 'floor', byDanger: 'danger', 
 // printed.
 
 // A copy of board `b` with the pieces in `done` marked done (acted), as the labeller's playout marks the piece it gives.
-function marked (b, done) {
+export function marked (b, done) {
   const g = fork(b)
   for (const uid of done) {
     const x = g.byUid.get(uid)
@@ -907,7 +907,7 @@ function marked (b, done) {
 // The piece today's expert would order next on board `b` (policy.js expertTurn read on it: the first piece its turn
 // decides), and the orders its turn gives it there (the leading orders of the turn, that piece's). → { uid (null: none,
 // End Turn), orders }
-function nextPiece (b) {
+export function nextPiece (b) {
   let uid = null
   const turn = P.expertTurn(b, { note: (r) => { if (uid === null && r.decision === 'battle') uid = r.uid } })
   const orders = []
@@ -986,7 +986,7 @@ export function teacherTurn (battle, cfg = {}, count = null) {
 }
 
 // A battle's tally for a run's line: won, and where the run fell in it (progressOf's rank and share).
-function closeOf (run) {
+export function closeOf (run) {
   const b = run.battle
   return b.winner === 'party' ? { won: true, fell: null } : { won: false, fell: { rank: currentNode(run)?.rank ?? 1, share: foeShare(b) } }
 }
