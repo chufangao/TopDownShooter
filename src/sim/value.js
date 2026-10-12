@@ -149,7 +149,7 @@ function blocker (battle, t, size, m) {
   return null
 }
 
-// Whether a shape blow aimed at `p` (one of the Monarch's side) from `t` takes in the Monarch `m` too (risk.js sweeps).
+// Whether a shape blow aimed at `p` (one of the Monarch's side) from `t` takes in the Monarch `m` too.
 function sweeps (shape, range, t, size, p, m) {
   if (p === m) return false
   if (shape === 'blast') return unitDistance(p, m) <= 1

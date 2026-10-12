@@ -1,5 +1,5 @@
-// Training V, the learned expert's value of a board (redesign.md §2.21, §5 Step 8): offline, like the combo book and
-// risk.js. Three stages, each kept on disk in `--data` so a stage stopped part way goes on from where it was:
+// Training V, the learned expert's value of a board (redesign.md §2.21, §5 Step 8): offline, like the combo book.
+// Three stages, each kept on disk in `--data` so a stage stopped part way goes on from where it was:
 //
 //   play       expert runs (autoplay.js policy, the stream autoplay's; seeds `<seed>-1`…`<seed>-<runs>`) in worker
 //              threads; each run kept as its action log (run.js replay plays it back exactly): runs.bin
