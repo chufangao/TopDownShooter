@@ -1552,9 +1552,10 @@ export function expertTurn (battle, { fuse = true, note = null, moving = true, l
 // read once a piece and a dot product an option, and a second pass and two boards read where the Monarch's shooters
 // stand. `note` hears the plan, then each piece's decision of the turn given (`by`, its rules; 'kill-list' for a strike
 // as listed; 'net' where a ranker changed today's choice, with its `margin`: choice) and its path through the tree
-// (decision 'path', `by` the path in words: expert.js pathName); `record`
-// each decision (the board before it, read only; its options as scored, without their boards) and `explore` (with
-// chance epsilon, one of the `top` best at random) as the beam's, the greedy pass alone (no second turn is weighed).
+// (decision 'path', `by` the path in words: expert.js pathName); `record` each decision of the turn given (the board
+// before it, read only; its options as scored, without their boards: the pass that gives the orders played again with
+// it, the same orders, so that a run that records is the run that does not) and `explore` (with chance epsilon, one of
+// the `top` best at random) as the beam's, the greedy pass alone where epsilon is above 0 (no second turn is weighed).
 function fastTurn (battle, { fuse, note, moving, record, explore }) {
   const sit = situation(battle)
   const pieces = battle.units.filter((u) => orderable(battle, u) && !u.acted)
@@ -1563,11 +1564,14 @@ function fastTurn (battle, { fuse, note, moving, record, explore }) {
   const rank = (u) => (listed.includes(u.uid) ? listed.indexOf(u.uid) : Infinity)
   const turnOrder = pieces.slice().sort((a, b) => rank(a) - rank(b) || a.ord - b.ord).map((u) => u.uid)
   note?.({ decision: 'plan', by: `${plan.kind} (${plan.trigger ?? 'kept'})`, rules: plan.rules, sit })
-  const log = note ? [] : null
-  let pick = fastPass(battle, plan, turnOrder, { fuse, moving, record, explore, log })
-  if (plan.shooters.length && plan.kills.length && !record && !explore) {
-    const kills = fastPass(battle, plan, turnOrder, { fuse, moving, log: note ? [] : null, kills: true })
-    if (judge(kills.f, battle).value > judge(pick.f, battle).value) pick = kills
+  const log = () => (note ? [] : null)
+  const weigh = plan.shooters.length && plan.kills.length && !(explore?.epsilon > 0)
+  let pick = fastPass(battle, plan, turnOrder, weigh ? { fuse, moving, log: log() } : { fuse, moving, record, explore, log: log() })
+  if (weigh) {
+    const kills = fastPass(battle, plan, turnOrder, { fuse, moving, log: log(), kills: true })
+    const taken = judge(kills.f, battle).value > judge(pick.f, battle).value
+    if (taken) pick = kills
+    if (record || explore) pick = fastPass(battle, plan, turnOrder, { fuse, moving, record, explore, log: log(), kills: taken })
   }
   for (const r of pick.log ?? NONE) note(r)
   return [...pick.orders, { type: 'end' }]
