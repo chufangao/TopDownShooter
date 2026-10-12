@@ -645,6 +645,33 @@ battle). The user: "It should be a strong and fast model", and "go".
 
 **Targets.** Above the 47% bar on fresh seeds in round 1, 60%+ after the rounds; a run under 5 s.
 
+### 2.24 The forest: decisions only (2026-10-12)
+
+The ranker (§2.23) gained little in two rounds, and it barely learned the teacher's choice (held-out decisive
+agreement 45.4% → 46.2%); the teacher meanwhile cleared 75% of the bar's 64 seeds against today's 31% (§6). The user:
+"That means a neural network isn't completely right. Make the expert decisions only, with rules mined from the
+lookahead. Stay fast", then "it just needs to do better. Think random forest".
+
+- **The expert is today's tree and a random forest.** At each piece's decision the candidates are the ranker's (today's
+  shortlist and today's own choice, today's hard rules filtering); a forest of regression trees (200 trees, depth ≤ 12,
+  ≤ 512 leaves of ≥ 40 rows, a third of the inputs tried at a split, 64 quantile bins), bagged by whole runs and fitted
+  offline on the playouts to the battle's end, predicts each option's worth; the best candidate is taken only where
+  the forest puts it more than δ (0.05) above today's choice, else today's (it changes ~5% of decisions). No network
+  anywhere in play; ranker.json is gone from `src/sim`, `src/sim/forest.json` (2.3 MB, Node only) holds the forest.
+- **Inputs (252)**: the ranker's 149 (conditions, role and size, the option's features and the same less the mean of
+  its position's kept options, its kind), today's score's gap to today's choice, each feature less today's choice's,
+  and the 68 conditions of the board the option leaves (`aft.*`, read by replaying the labelled runs: `--augment`).
+- **Target**: an option's playout value less the mean of its position's options (not less today's choice's, whose own
+  lucky or unlucky playout would sit in every row of its position).
+- **Labels drawn by the board's state**, never by the battle's end (`--draw state`): R3 (500 runs of today's expert)
+  and R4 (500 runs of the round-1 forest, round 2).
+- **Measured and kept** (§6): +2.8 ± 1.0 progress and 33.1% clears against today's 29.6% on 768 fresh seeds, at ~5 s a
+  run (today's 2.4 s): level with the ranker, not near the teacher.
+- **Why not nearer**: the teacher's edge is foresight of exact consequences. Two options with identical features and
+  the same act, from different tiles, are worth the same in most positions (median difference 0), but where some
+  options lose the battle and others win, one such pair in five falls on opposite sides: what decides those battles is
+  not in what a fast reader of the board sees.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -871,7 +898,8 @@ this file's §6 and `DESIGN.md`'s head brought up to date, and a push to master.
   seeds (`--ranker`, `--paired`), tests (a gradient check, an untrained ranker plays today's expert exactly,
   determinism, save and load). Contract: `ranker.js` exports `useRanker(config | null)` and `rankerModel()`; the
   rows are teach.js's labels as they stand.
-- **10b**: round 1 fitted and measured; the gate; rounds 2–3, each kept only on a fresh-seed gain.
+- **10b**: round 1 fitted and measured; the gate; rounds 2–3, each kept only on a fresh-seed gain. (As built: the
+  ranker's round 1 kept, round 2 not; then, at the user's word, the forest in its place, §2.24, two rounds kept.)
 - **10c**: the route relabelled and switched on; the evolutionary search; the ladder, the bar, the ablations, the
   puzzles, the cost; this file's §6, the README, a push to master.
 
@@ -1206,6 +1234,30 @@ anyway), so they never walk there. Nothing kept: expert.json stays today's. *The
 `npm run fit -- --data D --hard --structure prior --unchosen --decisive --relative --weighted --lambda 100000 --dry`;
 finish the beam on `sim-256…1023`. Open: labels whose continuation is the candidate itself, or small steps of policy
 iteration, before the weights can learn from them.
+
+### The ranker and the forest (2026-10-12, §2.23–2.24, §5 Step 10)
+
+**The audit** (L2: 250 runs of today's expert, 20,954 positions, labels to the battle's end): 133 of the 183 lost
+battles held a shortlisted option whose playout won; today's score ranked it a median 6th. **The teacher's ceiling**
+(teach.js `--teacher`, every battle decision by playouts, prep, route and buys today's; 64 seeds `sim-0…63`, no ranker):
+**48/64 (75.0%) against today's 20/64 (31.3%)**, it cleared 29 today's lost and lost 1 today's cleared; progress +0.256
+± 0.041; battles won 99.4% against 97.6%; 195 s a run (838 decisions, 10.6 playouts and 228 ms a decision).
+**The ranker** (ranker.js, an MLP correction to today's score, labels L2 + L3 = 41,424 positions): round 1, the
+`weighted` variant, on 768 seeds `chk`: 34.1% / 64.2 against today's 29.7% / 62.0, +2.26 ± 1.40 progress (clears +133
+−99); on the 256 `sel` it was chosen on, −0.88 ± 2.16; `plain` −6.3 and `unchosen` −4.3 on `sel`, both misled by the
+draw by outcome (a drawn lost battle's own option loses by construction). Round 2 (R2: 500 runs of r1, the draw by
+state, 52,077 positions; afterstate inputs `aft.*`, 4.0 s a run): the best of four on 768 `chk2` −1.65 ± 1.27 against r1,
++0.48 ± 1.28 against today's: not kept. Held-out label metrics never predicted play.
+**The forest** (forest.js, §2.24): round 1 (R3 + R2 at half weight, `aft`, δ 0.05; chosen on `sel3` of four variants,
++2.68 ± 1.63 against today's): on 768 `chk3`, 35.4% / 65.1 against today's 30.7% / 61.8, +3.28 ± 0.98 (clears +89
+−53); against r1 −0.64 ± 1.35 (clears +119 −129), kept as level within a standard error. Round 2 (R3 + R4, R4 500 runs
+of the round-1 forest at 9 positions/s): on 768 `chk4`, against round 1 +1.78 ± 0.98 progress (clears 33.1% against
+34.1%, +78 −86: fewer deaths on floors 1–2, more on 3–4), against today's +2.81 ± 1.03 (33.1% against 29.6%, +102 −75);
+5.0 s a run against 2.4. Kept; ranker.json removed. The teacher gains 0.21 a decision on its labels, the forests
+realise +0.000 to +0.013 of it. *The chaos read* (R3, 48,010 positions): twins (identical features, act and target,
+another tile) differ by a median 0 and a p90 of 0.03; in the 2,112 positions where some options lose and some win,
+18.7% of twin pairs fall on opposite sides. Open: labels smoothed over small perturbations of the continuation (what
+an option is worth on average, not on the one exact line), the learned route under the forest, then the balance pass.
 
 ## 7. Standing rules
 
