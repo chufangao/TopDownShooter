@@ -2,7 +2,7 @@
 // read alike from a label row and in play, its loss and training, and the measurement's plumbing (autoplay.js
 // withRanker, record's `ranker`, pairedStats). Functional only: what a ranker decides and how it is read, never how
 // often it wins.
-import { test } from 'node:test'
+import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -20,6 +20,16 @@ import { createRng } from '../src/sim/rng.js'
 import { fork } from '../src/sim/turns.js'
 import { gradsFor, mulberry } from '../src/sim/value.js'
 import { on, scene } from './scene.js'
+import { useForest, forestModel } from '../src/sim/forest.js'
+
+// A ranker's tests are of the ranker alone: a forest in use (forest.json, where one ships) decides in place of any
+// ranker, so none is, in this file.
+let FOREST
+before(() => {
+  FOREST = forestModel()
+  useForest(null)
+})
+after(() => useForest(FOREST))
 
 // Round 1's inputs (no afterstate), and all of them.
 const BASE = INPUT_SETS.base()

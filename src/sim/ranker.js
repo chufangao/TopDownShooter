@@ -417,15 +417,15 @@ class Grow {
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
 
-// The lines of a label file, streamed (a labels.jsonl of 90 MB is read a line at a time).
-async function * linesOf (file) {
+// The lines of a label file, streamed (a labels.jsonl of 90 MB is read a line at a time; forest.js reads them so too).
+export async function * linesOf (file) {
   const fs = node('fs')
   const readline = node('readline')
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity })
   for await (const line of rl) if (line.trim()) yield line
 }
 // A label set's file: a directory's labels.jsonl, else the file named.
-const labelsIn = (where) => {
+export const labelsIn = (where) => {
   const fs = node('fs')
   return fs.statSync(where).isDirectory() ? `${where.replace(/\/$/, '')}/labels.jsonl` : where
 }

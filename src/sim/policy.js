@@ -4,9 +4,11 @@
 // option read as a vector of features and weighed by TUNING.expert (redesign.md §2.17), with no turn of the foes played
 // ahead. Above the pieces stands the expert's plan (redesign.md §2.18; plan.js): read once a turn and kept across turns,
 // its target formation (a tile for each piece), its kill list and its forecast of the foes are features of each piece's
-// options, and the kill list played is one of the boards a turn compares. Where a ranker is in use (ranker.js,
-// redesign.md §2.23: a learned correction trained offline on teach.js's playouts), it is added to each option's score
-// (choice). Nothing reads a seed: the same board gives the same turn.
+// options, and the kill list played is one of the boards a turn compares. Where a forest is in use (forest.js: regression
+// trees fitted offline on teach.js's playouts, the successor of redesign.md §2.23's ranker), it may overrule today's
+// choice of a piece where it reads another option the better by more than its margin; else, where a ranker is in use
+// (ranker.js, redesign.md §2.23: a learned correction trained offline on the same playouts), it is added to each
+// option's score (choice). Nothing reads a seed: the same board gives the same turn.
 import { TUNING } from '../tuning.js'
 import { STATUS_WORTH, statusDef, unitDef, FUSIONS, SYNERGIES } from '../content.js'
 import {
@@ -23,6 +25,7 @@ import { value as weighed, TREES, conditions, expertModel, decideTree, readTree,
 import { value as learnedValue } from './value.js'
 import { readPlan } from './plan.js'
 import { rankerModel, scorer, playView, meanOf, readsAfter } from './ranker.js'
+import { forestModel, predictor, playOf, readsAfter as forestReadsAfter } from './forest.js'
 
 // ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
 
@@ -1131,18 +1134,56 @@ export function expertOptions (battle, u, { moving = true, fuse = true } = {}) {
 // (features; the plan the situation carries, else the turn's as plan.js reads it), the situation's conditions (expert.js
 // conditions, the piece's own among them), then the model tree in use (`model`: expert.js expertModel, src/sim/expert.json
 // or today's): its hard rules, its leaf's weights and its soft rules; ties as `better` breaks them (the fewer steps, the
-// lower lane, the lower target uid). Where a ranker is in use (ranker.js rankerModel), its correction is added to that
-// score (ranked). The fast turn's decision, and the beam's prior (shortlist; the beam reads no ranker). → { option, by,
-// rules, leaf, path, left (the options weighed, each scored) }, and with a ranker `margin`.
+// lower lane, the lower target uid). Where a forest is in use (forest.js forestModel), it may overrule that choice
+// (forested); else where a ranker is in use (ranker.js rankerModel), its correction is added to that score (ranked). The
+// fast turn's decision, and the beam's prior (shortlist; the beam reads neither). → { option, by, rules, leaf, path, left
+// (the options weighed, each scored) }, and with a forest or a ranker `margin`.
 export function choice (battle, u, sit = situation(battle), opts = expertOptions(battle, u), model = expertModel()) {
   for (const o of opts) {
     o.v = features(battle, u, o, sit)
     o.road = -o.path.length
   }
   const c = conditions(sit, u)
+  const F = forestModel()
+  if (F) return forested(battle, u, sit, opts, c, model, F)
   const R = rankerModel()
   if (R) return ranked(battle, u, sit, opts, c, model, R)
   return decideTree(model, c, model.options === 'shortlist' ? shortlisted(battle, u, sit, opts, c) : opts, { better })
+}
+
+// One piece's decision with forest `F` (forest.js: redesign.md §2.23's correction as rules mined from the playouts):
+// today's decision first (rankerView: the model in use over all the piece's options, its hard rules and its choice),
+// then each of the candidates the ranker would weigh (today's shortlist that the hard rules keep: the options
+// teach.js's labels hold) other than today's choice read by the forest, its predicted advantage over today's choice
+// (`o.gain`: forest.js predictor). The best of them by it (ties as `better` breaks a tie of scores: the fewer steps,
+// the lower lane, the lower target uid) is taken where its advantage exceeds F's margin `delta`, else today's choice,
+// its decision as it stands: so a forest whose advantages never exceed its margin is today's expert, move for move.
+// `by`: the hard rule that filtered first, else 'forest' where the forest changed the choice (and `margin`, the
+// advantage it took the option by). A forest whose inputs read the board an option leaves (forest.js aft.*) has each
+// candidate's afterstate read too (afterOf: `o.after`; today's choice's as well for a forest of the centred target),
+// and only such a forest.
+function forested (battle, u, sit, opts, c, model, F) {
+  const { today, own, candidates, mean } = rankerView(battle, u, sit, opts, c, model)
+  if (!own || candidates.length < 2) return today
+  const after = forestReadsAfter(F)
+  if (after && F.target === 'mean') own.after = afterOf(battle, u, own, sit.plan)
+  const gain = predictor(F, c, u.id, mean, playOf(own))
+  let best = null
+  for (const o of candidates) {
+    if (o === own) continue
+    if (after) o.after = afterOf(battle, u, o, sit.plan)
+    o.gain = gain(playOf(o))
+    if (best === null || gains(o, best)) best = o
+  }
+  if (!(best.gain > F.delta)) return today
+  return { ...today, option: best, by: today.left === opts ? 'forest' : today.by, margin: best.gain }
+}
+// The better of two options by the forest's advantage (`gain`); ties as `better` breaks a tie of scores.
+const gains = (o, b) => {
+  if (Math.abs(o.gain - b.gain) > EPS) return o.gain > b.gain
+  if (o.road !== b.road) return o.road > b.road
+  if (lane(o) !== lane(b)) return lane(o) < lane(b)
+  return (o.target?.uid ?? -1) < (b.target?.uid ?? -1)
 }
 
 // One piece's decision with ranker `R` (redesign.md §2.23; ranker.js): today's decision first (the model in use over all
@@ -1578,11 +1619,12 @@ export function expertTurn (battle, { fuse = true, note = null, moving = true, l
 // TREES.board's rules, redesign.md §2.18 B) gives the orders. No turn of the foes is played: a turn is the situation
 // read once a piece and a dot product an option, and a second pass and two boards read where the Monarch's shooters
 // stand. `note` hears the plan, then each piece's decision of the turn given (`by`, its rules; 'kill-list' for a strike
-// as listed; 'net' where a ranker changed today's choice, with its `margin`: choice) and its path through the tree
-// (decision 'path', `by` the path in words: expert.js pathName); `record` each decision of the turn given (the board
-// before it, read only; its options as scored, without their boards: the pass that gives the orders played again with
-// it, the same orders, so that a run that records is the run that does not) and `explore` (with chance epsilon, one of
-// the `top` best at random) as the beam's, the greedy pass alone where epsilon is above 0 (no second turn is weighed).
+// as listed; 'forest' where a forest changed today's choice, 'net' where a ranker did, with its `margin`: choice) and
+// its path through the tree (decision 'path', `by` the path in words: expert.js pathName); `record` each decision of the
+// turn given (the board before it, read only; its options as scored, without their boards: the pass that gives the
+// orders played again with it, the same orders, so that a run that records is the run that does not) and `explore`
+// (with chance epsilon, one of the `top` best at random) as the beam's, the greedy pass alone where epsilon is above 0
+// (no second turn is weighed).
 function fastTurn (battle, { fuse, note, moving, record, explore }) {
   const sit = situation(battle)
   const pieces = battle.units.filter((u) => orderable(battle, u) && !u.acted)

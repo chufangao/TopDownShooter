@@ -18,7 +18,8 @@
     "train": "node src/sim/train.js",
     "teach": "node src/sim/teach.js",
     "fit": "node src/sim/fit.js",
-    "rank": "node src/sim/ranker.js"
+    "rank": "node src/sim/ranker.js",
+    "forest": "node src/sim/forest.js"
   },
   "engines": {
     "node": ">=22"
