@@ -232,16 +232,18 @@ function roadSources (battle, foes, flies) {
 // (no foe in the line between: policy.js struckOf) that no listed piece takes (the least endangered by the danger map,
 // then the fewest steps); the fewest such pieces; the blows that draw no counter (ranged) first, so that the last, the
 // one that fells, may be melee (a counter answers only a blow its target survives). A melee blow before it draws one, and a kill whose counter would fell a piece is not
-// listed. `moving` false: each strikes from where it stands. → { list: [{ uid (the foe), strikes: [{ uid, ability,
-// target, tile, damage }] }], deal: Map foe uid → what your pieces could deal it this turn, each its hardest blow }
-export function killList (battle, sit, { moving = true, first = NOBODY } = {}) {
+// listed. `moving` false: each strikes from where it stands. `opts` (Map piece uid → its options: policy.js
+// expertTurn's, read once a turn) may carry the options already listed. → { list: [{ uid (the foe), strikes: [{ uid,
+// ability, target, tile, damage }] }], deal: Map foe uid → what your pieces could deal it this turn, each its hardest
+// blow }
+export function killList (battle, sit, { moving = true, first = NOBODY, opts = null } = {}) {
   const mine = battle.units.filter((u) => orderable(battle, u) && canAct(battle, u))
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
   const best = new Map()
   const deal = new Map()
   for (const u of mine) {
     const row = new Map()
-    for (const o of options(battle, u, { moving })) {
+    for (const o of opts?.get(u.uid) ?? options(battle, u, { moving })) {
       const a = o.ability
       // A blow from a tile whence one of its side stands in its line strikes that one, not this foe (§2.19).
       if (!a || !isBlow(a) || o.target.side === u.side || struckOf(battle, u, o) !== o.target) continue
@@ -315,7 +317,8 @@ export function killList (battle, sit, { moving = true, first = NOBODY } = {}) {
 // 'failed'; null: kept), by, rules, goals (formation), kills, listed (Map piece uid → its strike), fc (forecast), fmap
 // (the danger map from where the forecast has the foes), open (the same with no line of fire stopped by a piece of
 // yours: the formation's, which decides where they will stand), quarry (a push's: the uids of the foes it goes for) }
-export function readPlan (battle, sit, { moving = true, store = true } = {}) {
+// `opts`: the pieces' options already listed (killList's).
+export function readPlan (battle, sit, { moving = true, store = true, opts = null } = {}) {
   const had = battle.plan
   if (had && had.turn === battle.turn && had.moving === moving) return had
   const prev = had && had.turn < battle.turn ? had : null
@@ -325,7 +328,7 @@ export function readPlan (battle, sit, { moving = true, store = true } = {}) {
   const open = danger(battle, 'party', fc.at, { lines: false })
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
   const shooters = shootersOf(battle, fc, foes)
-  const kills = killList(battle, sit, { moving, first: new Set(shooters) })
+  const kills = killList(battle, sit, { moving, first: new Set(shooters), opts })
   const felled = new Set(kills.list.map((k) => k.uid))
   const fellable = shooters.filter((uid) => felled.has(uid) || canFell(battle, battle.byUid.get(uid), fc))
   const trigger = prev ? triggerOf(battle, sit, prev, fc, reached, foes, { shooters, fellable }) : 'start'

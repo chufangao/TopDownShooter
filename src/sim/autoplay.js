@@ -16,12 +16,15 @@
 //           growth search on a sketch (the field's strength and the book's worth of the combo it plays toward:
 //           targetOf), a relic against the tiers its price displaces (buyFor); its target's kinds fielded first and
 //           never let go while another will do; in battle every turn policy.js expertTurn's (a battle plan kept across
-//           turns, its target formation, kill list and forecast: plan.js; then each piece's option scored on the board
-//           as it stands). It never plays a battle, a turn of the foes, or a route ahead to decide anything.
+//           turns, its target formation, kill list and forecast: plan.js; then the pieces one at a time with a beam of
+//           partial turns, each option's board scored by V where trained, else the static evaluation: redesign.md
+//           §2.21), and where V is trained, the formation by V of the battle's opening board among the best the
+//           hill-climb met. It never plays a battle, a turn of the foes, or a route ahead to decide anything.
 // Essence buys tiers, recruits, fusions and relics (a Shop's): the Monarch's HP and Command come from run relics, a
 // kind's level from its tiers (run.js). The Monarch is the camp's (run.js: on its seat, monarchSlot); nothing moves it.
 // In a battle it gives the level's turn policy's orders, one at a time.
-// Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert]
+// Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert] [--workers n]
+// [--static] (today's static evaluation in the expert's turns and formations, whatever V value.js holds)
 // for the gap between the levels:     … --ladder [--runs 8]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above; --ablate moves: its
@@ -43,7 +46,8 @@ import {
 } from './unit.js'
 import { roadsTo } from './field.js'
 import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
-import { expertTurn, basicTurn, brief, situation } from './policy.js'
+import { expertTurn, basicTurn, brief, situation, evaluate } from './policy.js'
+import { loaded } from './value.js'
 import { deployment } from './plan.js'
 import { value, decide, standing as keysOf, outranks, TREES } from './expert.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
@@ -902,7 +906,28 @@ function plan (run, L, { onCandidate = null } = {}) {
   const open = openCells(run.state.camp)
   for (let i = 0; i < L.search; i++) take(judge(allowed(run, mutate(best.party, standing(souls(run.state.party)), open, rng, run.state, L), L)))
   const rules = [...turned].sort((a, b) => a - b).map((k) => filters[k].id)
+  const learned = opening(run, L, [...met.values()], best)
+  if (learned) return { party: learned.party, by: learned === best ? rules[0] ?? 'weights' : 'value', rules }
   return { party: best.party, by: rules[0] ?? 'weights', rules }
+}
+
+// The formation by V of the battle's opening board (redesign.md §2.21), where V is trained (value.js loaded) and L
+// may use it: of the formations met (each { party, keys, score }: the tree's filters' standing and the static score),
+// the TUNING.expert.beam.formation best by the tree's filters and then the static score, each read again as the board
+// the room would open on (createBattle from the run's setup with that formation: a board computed, no turn played),
+// the tree's filters first, then V (policy.js evaluate). → the formation met it picks, or null where V is not used.
+function opening (run, L, met, best) {
+  const n = TUNING.expert.beam.formation
+  if (L.learned === false || !(n > 0) || !loaded()) return null
+  const top = met.slice().sort((a, b) => (outranks(a, b) >= 0 ? -1 : outranks(b, a) >= 0 ? 1 : 0)).slice(0, n)
+  if (!top.includes(best)) top.unshift(best)
+  let pick = null
+  for (const c of top) {
+    const b = createBattle({ ...battleSetup(run, { party: c.party.filter((u) => u.slot >= 0) }), quiet: true })
+    const x = { c, keys: c.keys, score: evaluate(b) }
+    if (pick === null || outranks(x, pick) >= 0) pick = x
+  }
+  return pick.c
 }
 
 // One change to a formation: trade a soul for one from the ossuary (it takes over the cell), swap two, or move
@@ -1578,14 +1603,14 @@ function pickHold (run, L, sit) {
   return grow(run, L, options, 'hold', sit)
 }
 
-export function policy (run, rng, level = 'basic') {
+export function policy (run, rng, level = 'basic', turnOptions = null) {
   const L = typeof level === 'string' ? LEVELS[level] : level
   const s = run.state
   if (L.ablate) {
     if (!ABLATIONS.includes(L.ablate)) throw new Error(`unknown ablation "${L.ablate}": ${ABLATIONS.join(', ')}`)
     if (RULE_SWITCHES.includes(L.ablate) && !s.ablate?.includes(L.ablate)) throw new Error(`ablating ${L.ablate} needs a run made with it (ablatedRun)`)
   }
-  if (s.phase === 'battle') return battleOrder(run, L)
+  if (s.phase === 'battle') return battleOrder(run, L, turnOptions)
   // The expert's survey of the run, read once for this decision (basic reads none).
   const sit = L.spend || L.route ? survey(run, L) : null
   if (s.phase === 'map') return pickNode(run, rng, L, sit)
@@ -1598,11 +1623,13 @@ export function policy (run, rng, level = 'basic') {
 // In a battle: the level's turn policy (turnsOf: LEVELS `turns`, End Turn alone under the orders ablation), planned
 // once at the turn's start and given an order at a time, End Turn last, as playOut would give them (so a refight under
 // the same policy plays the same battle); planned again should the next no longer be legal (an order given meanwhile by
-// someone else: a test's). Under the audit, each of its decisions is noted with its rule.
+// someone else: a test's). Under the audit, each of its decisions is noted with its rule. `turnOptions` go to the turn
+// policy as they are (policy.js expertTurn's: the learner's `record` and `explore`); L's `learned` false keeps it to
+// today's static evaluation.
 const planned = new WeakMap()
 const same = (a, o) => a.type === o.type && a.uid === o.uid && a.tile === o.tile && a.ability === o.ability && a.target === o.target && a.id === o.id &&
   String(a.parts) === String(o.parts)
-function battleOrder (run, L) {
+function battleOrder (run, L, turnOptions = null) {
   const b = run.battle
   // Past the sim's bound on turns, as playOut ends it: a stall (a passive side may hold a battle forever).
   if (stalled(b)) return { type: 'stall' }
@@ -1610,20 +1637,21 @@ function battleOrder (run, L) {
   const stale = !p || p.turn !== b.turn || !p.orders.length || (p.orders[0].type !== 'end' && !legalOrders(b).some((a) => same(a, p.orders[0])))
   if (stale) {
     const note = audited(run) ? (r) => noteRule(run, r.decision, r, r.sit ? brief(r.sit) : `turn ${b.turn}`) : null
-    planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b, { note }) }))
+    planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b, { ...turnOptions, note, ...(L.learned === false && { learned: false }) }) }))
   }
   return p.orders.shift()
 }
 
 // Plays the run to the end. onBattle(battle, run) fires after each battle, once the run has moved on, and
-// beforeFight(run) just before each fight is applied (the run as the battle will be set up from it). A
+// beforeFight(run) just before each fight is applied (the run as the battle will be set up from it); `turnOptions` go
+// to every turn of the expert's (policy.js expertTurn: the learner's `record` and `explore`). A
 // clear is the end too: neither level descends past the Sovereign (the policy has nothing for 'over'), so
 // the ladder's clears and floors keep their meaning; the endless floors are a player's (and a test's).
-export function autoplay (run, { rng = createRng(run.state.seed).stream('autoplay'), level = 'basic', onBattle = null, beforeFight = null } = {}) {
+export function autoplay (run, { rng = createRng(run.state.seed).stream('autoplay'), level = 'basic', onBattle = null, beforeFight = null, turnOptions = null } = {}) {
   for (let guard = 0; run.state.phase !== 'over'; guard++) {
     if (guard > 1e5) throw new Error('autoplay is stuck')
     const was = run.state.phase
-    const action = policy(run, rng, level)
+    const action = policy(run, rng, level, turnOptions)
     if (action.type === 'fight') beforeFight?.(run)
     apply(run, action)
     // On turns a battle ends with an order, not with the fight that opened it.
@@ -1669,11 +1697,11 @@ const buildOf = (s) => {
 // (for refighting with a mechanic stripped: necessity; its log left out); how the run ended, what felled the
 // Monarch, the army it ended with, its build (buildOf), and how many of each action it took (`acts`, by type;
 // `tiers`: track tiers its kinds hold at the end; `relics` held, every copy, and the `legendaries` among them).
-export function record ({ seed, level, ablate = null, setups = false, snapshots = false }) {
+export function record ({ seed, level, ablate = null, setups = false, snapshots = false, learned = true }) {
   const battles = []
   const t0 = Date.now()
   const run = ablatedRun(seed, ablate)
-  const L = ablate ? { ...LEVELS[level], ablate } : LEVELS[level]
+  const L = { ...LEVELS[level], ...(ablate && { ablate }), ...(!learned && { learned: false }) }
   let snap = null
   // The battle the run fell in: its room's rank and the share of its foes' HP removed (progressOf).
   let fell = null
@@ -1820,10 +1848,11 @@ export function foeShare (b) {
   return max ? 1 - hp / max : 0
 }
 
-// Plays every job in worker threads, one per core, and returns the results in the jobs' order. The workers live
-// for the whole call, each playing job after job, the longest first (jobTime: how long the job took the last time it
-// was played here, else a guess), so the pool ends on short jobs. Which job runs where and when changes no result: a
-// run is a pure function of its job.
+// Plays every job in worker threads, one per core (or WORKERS: --workers), and returns the results in the jobs' order.
+// The workers live for the whole call, each playing job after job, the longest first (jobTime: how long the job took
+// the last time it was played here, else a guess), so the pool ends on short jobs. Which job runs where and when
+// changes no result: a run is a pure function of its job.
+let WORKERS = null
 async function playAll (jobs) {
   const { Worker } = await import('node:worker_threads')
   const { availableParallelism } = await import('node:os')
@@ -1852,7 +1881,7 @@ async function playAll (jobs) {
       await w.terminate()
     }
   }
-  await Promise.all(Array.from({ length: Math.min(jobs.length, availableParallelism()) }, worker))
+  await Promise.all(Array.from({ length: Math.min(jobs.length, WORKERS ?? availableParallelism()) }, worker))
   saveTimes(times)
   return out
 }
@@ -1880,8 +1909,8 @@ const jobTime = (job, times) => times[timeKey(job)] ?? (job.refight || job.level
 // Autoplays `runs` seeded runs and prints clear rate, battle length, per-floor progression and how each
 // camp layout fares: a camp far off its floor's average is a balance outlier.
 // With `ablate`, the level with that mechanic taken away (ABLATIONS).
-async function report ({ runs, seed: seed0, level, ablate = null }) {
-  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate })))
+async function report ({ runs, seed: seed0, level, ablate = null, learned = true }) {
+  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(!learned && { learned }) })))
   const battles = played.flatMap((r) => r.battles)
   const turns = battles.map((b) => b.t).sort((a, b) => a - b)
   const deaths = {}
@@ -2366,6 +2395,10 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
       return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
     }
     const opts = { seed: arg('seed', 'sim'), level: arg('level', 'expert') }
+    // `--workers n`: the pool's size (one per core by default); `--static`: the expert's turns and formations by today's
+    // static evaluation, whatever value.js holds (a report's alone).
+    if (arg('workers', null) !== null) WORKERS = Math.max(1, Number(arg('workers', 1)))
+    const learned = !process.argv.includes('--static')
     if (!LEVELS[opts.level]) throw new Error(`unknown level "${opts.level}": ${Object.keys(LEVELS).join(', ')}`)
     const ablate = arg('ablate', null)
     if (ablate !== null && !ABLATIONS.includes(ablate)) throw new Error(`unknown ablation "${ablate}": ${ABLATIONS.join(', ')}`)
@@ -2378,6 +2411,6 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
     else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
     else if (process.argv.includes('--ladder')) await ladder({ ...opts, runs: Number(arg('runs', RUNS.ladder)) })
-    else await report({ ...opts, ablate, runs: Number(arg('runs', RUNS.sim)) })
+    else await report({ ...opts, ablate, learned, runs: Number(arg('runs', RUNS.sim)) })
   }
 }

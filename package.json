@@ -14,7 +14,8 @@
     "ablations": "node src/sim/autoplay.js --ablations",
     "necessity": "node src/sim/autoplay.js --necessity",
     "audit": "node src/sim/autoplay.js --audit",
-    "combos": "node src/sim/autoplay.js --combos"
+    "combos": "node src/sim/autoplay.js --combos",
+    "train": "node src/sim/train.js"
   },
   "engines": {
     "node": ">=22"

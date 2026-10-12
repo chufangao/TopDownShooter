@@ -11,9 +11,11 @@
 //   2. the weights (TUNING.expert): a weighted sum of the features (value) scores what the tree left, the best taken.
 // Every decision says which rule decided it (`by`: the rule that forced it, else the first that filtered, else
 // 'weights'), for the audit (autoplay.js --audit). `value` is the seam where a learned model may replace the sum.
-// In battle the decisions nest (redesign.md §2.18): the battle plan once a turn (TREES.plan; plan.js, which also reads
-// its target formation, the kill list and the foes' forecast, all off the board), then each piece's move and act with
-// the plan among its features (TREES.battle), then the board a turn's orders leave (TREES.board).
+// In battle the decisions nest (redesign.md §2.18, §2.21): the battle plan once a turn (TREES.plan; plan.js, which also
+// reads its target formation, the kill list and the foes' forecast, all off the board), then each piece's move and act
+// with the plan among its features (TREES.battle: its filters stand; its weights are the prior that shortlists the
+// options whose boards the turn's beam scores, by V where it is trained: policy.js expertTurn), then the boards a turn's
+// orders leave (TREES.board: today's static evaluation, policy.js judge).
 import { TUNING } from '../tuning.js'
 
 // The weighted sum of a feature vector. Every feature has a weight in its table (a missing one is NaN, and the tests
@@ -130,8 +132,9 @@ export const TREES = {
     // the counts show it), the press's weights (TUNING.expert.battle.modes.press): come on and trade.
     { id: 'no-stall', when: (sit) => sit?.patience >= T().stall, mode: 'press' }
   ],
-  // The boards a turn's orders leave, a few orders of the pieces apiece (policy.js expertTurn; features
-  // policy.js boardFeatures; `sit` the camp's patience, the plan's kind and how many shooters of the Monarch's it read).
+  // The boards a turn's orders leave, partial and complete (policy.js judge, the static evaluation of the turn's beam;
+  // features policy.js boardFeatures; `sit` the camp's patience, the plan's kind and how many shooters of the Monarch's
+  // it read, as the turn began): its filters are keys, each above all that follows it.
   board: [
     // Never a board where the foes could fell the Monarch next turn, where another is not.
     { id: 'no-doom', when: () => true, keep: (o) => !o.v.doom },

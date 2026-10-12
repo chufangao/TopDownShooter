@@ -31,8 +31,8 @@ export const TUNING = {
     // redesign.md §2.18 C).
     tree: { wounded: 0.653, odds: 0.158, stall: 30, altar: 0.5, elite: 0.7 },
     // In battle (policy.js expertTurn), in HP. `option`: one piece's move and act, read off the board as it stands
-    // (policy.js features); `board`: the board a turn's orders leave before End Turn, which a few orders of the pieces
-    // are compared by (policy.js boardFeatures).
+    // (policy.js features: the prior of the turn's beam); `board`: the board a turn's orders leave before End Turn, or
+    // part of them (policy.js boardFeatures, judge: the static evaluation, where V is not trained).
     battle: {
       option: {
         damage: 2.86, // HP its act deals the foes, each as far as its HP
@@ -91,10 +91,6 @@ export const TUNING = {
         frail: { guard: 1, hit: -1, screen: 1, harry: 0.5 }
       },
       boardModes: { push: { progress: 4, loss: -0.4 }, press: { loss: -0.3, shadowLoss: -0.1, foeHp: -2, foes: -1.5, closer: 10 } },
-      // The stances (policy.js expertTurn's ORDERS): the pieces' choices made once more under each one's weights over
-      // `option`, so the board decision has a careful turn and a bold one to weigh beside the plain ones. `ward` minds the
-      // Monarch and the roads into it; `bold` comes on.
-      stances: { ward: { danger: -0.352, harry: 1.26, guard: 1.24, hit: -1.03, screen: 2.05, engage: 0.554 }, bold: { danger: -0.136, progress: 1.46, engage: 0.354 } },
       board: {
         hp: 0.989, // your souls' HP (a soul's wounds leave the battle with it)
         shadows: 1.76, // your shadows' and summons' HP
@@ -127,6 +123,17 @@ export const TUNING = {
       // is about to fall, 1 while it is whole.
       peril: 2.34
     },
+    // The turn's beam (redesign.md §2.21; policy.js expertTurn): `width`, the partial turns kept as the pieces decide one
+    // at a time; `pieces`, how many of a partial turn's next pieces (by the turn's order) are tried, so the order is the
+    // beam's too; `options`, each piece's options applied and scored by their afterstates (the best by the prior, after
+    // the tree's filters); `shortlist`, the options each piece's shortlist keeps of all it has, read once a turn.
+    // `static`: with today's static evaluation (no V), a partial turn's score is `board` × its board's (policy.js judge)
+    // and `prior` × the priors its decisions had (the option weights': today's scorer), summed; a complete turn's, its
+    // board's and `final` × that sum (2026-10-11, of three tried on 64 seeds against the turn before the beam's 37.5%:
+    // the board alone 28.1%, the priors alone and the board for the complete turns ~20% (before the shortlist read every
+    // option), both 34.4%). `formation`: how many formations, the best by the formation's static score, are read again
+    // by V of the battle's opening board where V is trained (autoplay.js plan; 0: never).
+    beam: { width: 4, pieces: 2, options: 12, shortlist: 16, static: { board: 1, prior: 1, final: 1 }, formation: 12 },
     // The battle plan (redesign.md §2.18; plan.js): chosen once a turn by the tree (expert.js TREES.plan) and these
     // weights, kept until a trigger; its target formation; its forecast of the foes. 2026-10-11, placeholders for the
     // weight search, hand-set.

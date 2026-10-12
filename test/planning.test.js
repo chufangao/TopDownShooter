@@ -219,6 +219,24 @@ test('the autoplayer plays a run to its end at each level, the same seed the sam
   }
 })
 
+// The learner's hooks (redesign.md §5 Step 8) pass through the autoplayer to every turn of the expert's: `record` hears
+// each decision in battle, `explore` with epsilon 1 marks each one explored; with epsilon 0 the run is the run.
+test('the autoplayer hands the expert\'s turns the learner\'s hooks: record and explore', () => {
+  const play = (turnOptions) => {
+    const run = createRun({ seed: 'hooks' })
+    const rng = createRng('hooks').stream('autoplay')
+    while (run.state.phase !== 'over' && run.state.stats.fights < 2) apply(run, policy(run, rng, 'expert', turnOptions))
+    return run.state.log
+  }
+  const heard = []
+  const log = play({ record: (b, info) => heard.push([b.turn, info]), explore: { rng: createRng('x').stream('e'), epsilon: 0, top: 3 } })
+  assert.ok(heard.length > 0 && heard.every(([t, info]) => t >= 1 && info.options.length > 0 && info.chosen >= 0 && !info.explored))
+  assert.deepEqual(log, play(null), 'epsilon 0: the same run')
+  const wild = []
+  play({ record: (b, info) => wild.push(info), explore: { rng: createRng('y').stream('e'), epsilon: 1, top: 2 } })
+  assert.ok(wild.length > 0 && wild.every((info) => info.explored && info.chosen < 2))
+})
+
 test('the audit counts what a run considered and chose, and leaves the audit off after', () => {
   const r = auditRecord({ seed: 'audit-basic', level: 'basic' })
   assert.ok(r.battles.n > 0 && r.plans === r.battles.n, JSON.stringify([r.plans, r.battles.n]))
