@@ -79,6 +79,8 @@
 // manifest.json, and into its settings where it is not the default.)
 //
 // The teacher (below, `--teacher`): this labeller as a player, every battle decision of a run the playout-best.
+// The afterstates (below, `--augment <dir>`): a label set's runs replayed and each option's afterstate written beside its
+// labels (after.jsonl), for the ranker's "after the move" inputs (ranker.js aft.*).
 //
 // `--out` defaults to the OS's temp directory (retinue-teach-<seed>); a stage stopped part way goes on from where it
 // was (runs.jsonl names the runs done). Delete it (or take another --seed) once the game or the expert has changed.
@@ -92,7 +94,7 @@ import { createRng, hashString } from './rng.js'
 import { policy, survey, roomFeatures, routeConditions, routeFeatures, tierScale, ROUTE_FEATURES, progressOf, foeShare, routeRooms, useRoute, routeModel, record, ablatedRun } from './autoplay.js'
 import * as P from './policy.js'
 import * as E from './expert.js'
-import { useRanker, rankerModel } from './ranker.js'
+import { useRanker, rankerModel, afterDiff, afterNames } from './ranker.js'
 import { readPlan } from './plan.js'
 import { fork, order, canAct, allowed, targetsFrom, pick, helped, lined, stalled } from './turns.js'
 import { alive, footprint, isBlow, blowReach, distanceBetween, lineEnds, LINE_AT, LINE_TILES, TILES, tileX } from './unit.js'
@@ -587,6 +589,109 @@ export function teachRun (seed, cfg = {}) {
     }
   }
   return { seed, result: run.state.result ?? null, floor: run.state.floor, decisions, positions, ms: Math.round(performance.now() - t0), labelMs: Math.round(labelMs) }
+}
+
+// ── the afterstates (redesign.md §2.23: the ranker's "after the move") ────────────────────────────
+
+// The board each option of a labelled position leaves, read for the ranker (its aft.* inputs): `row` (a labels.jsonl
+// line) on `board` (a copy of the board it was labelled on: the run replayed to its decision, augmentRun). Each of the
+// row's options found among the piece's (policy.js expertOptions, by its tile, act, target and fusion) and given on a
+// copy as the playouts give it (policy.js afterOf, the very read play makes), its conditions written against the row's
+// own (ranker.js afterDiff: those that differ, rounded as the rows are); null where it is not found or may not be given.
+// `same`: whether the board's own conditions, read as the row's were, are the row's `sit` (the replay is the run). →
+// { same, a (one an option, in the row's order) }
+export function afterRow (board, row) {
+  const u = board.byUid.get(row.uid)
+  if (!u) return { same: false, a: row.options.map(() => null) }
+  const sit = P.situation(board)
+  sit.plan = readPlan(board, sit)
+  const same = JSON.stringify(sparse(P.conditions(sit, u))) === JSON.stringify(row.sit)
+  const key = (tile, ability, target, fusion) => `${tile}|${ability ?? ''}|${target ?? ''}|${fusion ?? ''}`
+  const live = new Map()
+  for (const o of P.expertOptions(board, u)) {
+    const k = key(o.tile, o.ability?.id, o.target?.uid, o.fusion?.id)
+    if (!live.has(k)) live.set(k, o)
+  }
+  const a = row.options.map((r) => {
+    const o = live.get(key(r.tile, r.ability, r.target, r.fusion))
+    const after = o ? P.afterOf(board, u, o, sit.plan) : null
+    return after ? afterDiff(after, row.sit) : null
+  })
+  return { same, a }
+}
+
+// One run's positions augmented (a worker's job: { seed, positions: [{ id, at, uid, sit, options }] }, labels.jsonl's
+// rows of that seed): the run replayed as teachRun plays it (the expert and ranker of `cfg` installed, the same stream,
+// each action asked of the policy before the board is copied), and at each position's decision (`at`, the run's log
+// index) its afterstates read on a copy of the board (afterRow). A position the replay never meets is `missed`. →
+// { seed, rows: [{ id, same, a } or { id, missed: true }] }
+export function augmentRun ({ seed, positions }, cfg = {}) {
+  install(cfg)
+  const run = createRun({ seed })
+  const rng = createRng(run.state.seed).stream('autoplay')
+  const todo = positions.slice().sort((x, y) => x.at - y.at)
+  const rows = []
+  let k = 0
+  for (let guard = 0; run.state.phase !== 'over' && k < todo.length; guard++) {
+    if (guard > 1e6) throw new Error(`${seed}: stuck`)
+    const action = policy(run, rng, 'expert')
+    while (k < todo.length && todo[k].at < run.state.log.length) rows.push({ id: todo[k++].id, missed: true })
+    while (k < todo.length && todo[k].at === run.state.log.length && run.state.phase === 'battle') rows.push({ id: todo[k].id, ...afterRow(fork(run.battle), todo[k++]) })
+    apply(run, action)
+  }
+  while (k < todo.length) rows.push({ id: todo[k++].id, missed: true })
+  return { seed, rows }
+}
+
+// `npm run teach -- --augment <dir> [--workers n] [--ranker file|none]`: a label set's afterstates (afterRow) written
+// beside it, after.jsonl (a line a position, labels.jsonl's order: { id, a }) and after.json (the conditions `a`'s
+// indices name, the expert and ranker the runs were replayed with, how many positions were replayed to the board they
+// were labelled on). The runs are replayed with the expert and ranker their manifest names (its settings' `expert` and
+// `ranker`; a label set made before rankers, or with none, none), or the `--ranker` given.
+async function augmentMain (dir, arg, workers) {
+  const t0 = performance.now()
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'))
+  const given = arg('ranker', null)
+  const named = manifest.settings?.ranker
+  const file = given !== null ? (given === 'none' ? null : path.resolve(given)) : named === undefined ? undefined : named?.file ?? null
+  if (file === undefined && manifest.ranker?.name) throw new Error(`${dir} was played with ranker ${manifest.ranker.name}, its file unnamed: give --ranker <file>`)
+  const ranker = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : null
+  const cfg = { ranker, ...(manifest.settings?.expert && { expert: manifest.settings.expert }) }
+  const labels = path.join(dir, 'labels.jsonl')
+  const bySeed = new Map()
+  const order = []
+  for (const line of fs.readFileSync(labels, 'utf8').split('\n')) {
+    if (!line) continue
+    const r = JSON.parse(line)
+    order.push(r.id)
+    if (!bySeed.has(r.seed)) bySeed.set(r.seed, [])
+    bySeed.get(r.seed).push({ id: r.id, at: r.at, uid: r.uid, sit: r.sit, options: r.options.map((o) => ({ i: o.i, tile: o.tile, ability: o.ability, target: o.target, fusion: o.fusion })) })
+  }
+  console.log(`augmenting ${order.length} positions of ${bySeed.size} runs in ${dir} on ${workers} workers (ranker ${ranker?.name ?? 'none'})`)
+  const got = new Map()
+  let n = 0
+  await pool([...bySeed].map(([seed, positions]) => ({ seed, positions })), workers, cfg, (r) => {
+    for (const x of r.rows) got.set(x.id, x)
+    if (++n % Math.max(1, Math.round(bySeed.size / 10)) === 0) console.log(`  ${n}/${bySeed.size} runs, ${((performance.now() - t0) / 1000).toFixed(0)} s`)
+  }, 'augment')
+  const out = fs.createWriteStream(path.join(dir, 'after.jsonl'))
+  let same = 0
+  let missed = 0
+  const differ = []
+  for (const id of order) {
+    const x = got.get(id) ?? { missed: true }
+    if (x.missed) missed++
+    else if (x.same) same++
+    else if (differ.length < 10) differ.push(id)
+    out.write(JSON.stringify({ id, a: x.missed ? null : x.a }) + '\n')
+  }
+  await new Promise((resolve) => out.end(resolve))
+  const info = {
+    made: new Date().toISOString(), conditions: afterNames(), ranker: ranker && { file, name: ranker.name ?? null }, expert: manifest.settings?.expert ?? null,
+    positions: order.length, same, missed, differ, seconds: +((performance.now() - t0) / 1000).toFixed(1)
+  }
+  fs.writeFileSync(path.join(dir, 'after.json'), JSON.stringify(info, null, 1) + '\n')
+  console.log(`wrote ${path.join(dir, 'after.jsonl')}: ${same} of ${order.length} positions replayed to the board they were labelled on, ${missed} missed (${info.seconds} s)`)
 }
 
 // ── reading the labels ───────────────────────────────────────────────────────────────────────────
@@ -1295,7 +1400,8 @@ export async function fitRoute (dir, { depth = 3, maxLeaves = 8, lambda = 3, tau
 const JOBS = {
   battle: (seed, cfg) => teachRun(seed, cfg),
   route: (seed, cfg) => teachRoutes(seed, cfg),
-  teacher: (job, cfg) => (job.player === 'teacher' ? teacherRun : expertRun)(job.seed, cfg)
+  teacher: (job, cfg) => (job.player === 'teacher' ? teacherRun : expertRun)(job.seed, cfg),
+  augment: (job, cfg) => augmentRun(job, cfg)
 }
 
 // Runs `jobs` (JOBS[mode]'s) in worker threads of this module, `workers` at a time, handing each result to `done` as it
@@ -1600,6 +1706,12 @@ if (!isMainThread && workerData?.teach) {
     return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
   }
   await routeMain(arg, Number(arg('workers', Math.max(1, Math.min(5, os.availableParallelism() - 3)))))
+} else if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url) && process.argv.includes('--augment')) {
+  const arg = (name, def) => {
+    const i = process.argv.indexOf('--' + name)
+    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
+  }
+  await augmentMain(path.resolve(arg('augment')), arg, Number(arg('workers', Math.max(1, Math.min(5, os.availableParallelism() - 3)))))
 } else if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url) && process.argv.includes('--teacher')) {
   const arg = (name, def) => {
     const i = process.argv.indexOf('--' + name)

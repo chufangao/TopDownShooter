@@ -22,7 +22,7 @@ import { call } from './rules.js'
 import { value as weighed, TREES, conditions, expertModel, decideTree, readTree, scoreOf, hardFilter, defaultExpert } from './expert.js'
 import { value as learnedValue } from './value.js'
 import { readPlan } from './plan.js'
-import { rankerModel, scorer, playView, meanOf } from './ranker.js'
+import { rankerModel, scorer, playView, meanOf, readsAfter } from './ranker.js'
 
 // ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
 
@@ -1151,12 +1151,16 @@ export function choice (battle, u, sit = situation(battle), opts = expertOptions
 // its net (`o.base`, `o.net`, and their total `o.score`); today's choice is taken unless one beats it on the total (ties
 // as `better`), so a net that reads 0 everywhere is today's expert, move for move. `by`: the hard rule that filtered
 // first, else 'net' where the net changed the choice (and `margin`, the total it beats today's choice by), else today's.
+// A ranker whose inputs read the board an option leaves (ranker.js `aft.*`) has each candidate's afterstate read too
+// (afterOf: `o.after`), and only such a ranker.
 function ranked (battle, u, sit, opts, c, model, R) {
   const view = rankerView(battle, u, sit, opts, c, model)
   const { today, own, candidates, mean } = view
   if (!own) return today
   const net = scorer(R, c, u.id)
+  const after = readsAfter(R)
   for (const o of candidates) {
+    if (after) o.after = afterOf(battle, u, o, sit.plan)
     o.base = o.score
     o.net = net(playView(o), mean)
     o.score = o.base + R.scale * o.net
@@ -1195,6 +1199,29 @@ export function rankerView (battle, u, sit, opts, c = conditions(sit, u), model 
   if (own && !candidates.includes(own)) candidates.push(own)
   return { today, own, short, label, kept, candidates, mean: meanOf(label.filter((o) => kept.has(o)).map(playView)) }
 }
+// The conditions (expert.js conditions) of the board option `o` of piece `u` leaves (redesign.md §2.23, the ranker's
+// "after the move"): the option given on a copy of `battle` as teach.js's playouts give it (its move, then its act or
+// fusion; a hold given what End Turn would have it do from there; the piece then done), read as the decision is (the
+// full situation, the turn's `plan` on it), the piece's own from its copy. No turn of the foes is played: the board is
+// your order's exact result. → the conditions, or null where an order of it may not be given.
+export function afterOf (battle, u, o, plan) {
+  const g = copy(battle)
+  const gu = g.byUid.get(u.uid)
+  try {
+    commit(g, gu, o)
+    if (!o.ability && !o.fusion && !g.over) {
+      const x = untouchedOrder(g, gu)
+      if (x) give(g, x)
+    }
+  } catch {
+    return null
+  }
+  if (alive(gu)) gu.acted = true
+  const sit = situation(g)
+  sit.plan = plan
+  return conditions(sit, gu)
+}
+
 // The orders an option gives, as one decision (teach.js signature): the tile it ends on, and its act, its fusion, or for
 // a hold what End Turn would have it do from there.
 function signatureOf (battle, u, o) {

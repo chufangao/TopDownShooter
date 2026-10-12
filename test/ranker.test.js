@@ -8,10 +8,11 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  useRanker, rankerModel, checkRanker, inputNames, encode, rowView, playView, meanOf, scorer, createNet, listLoss, readLabels, fitRanker, netOf
+  useRanker, rankerModel, checkRanker, inputNames, encode, rowView, playView, meanOf, scorer, createNet, listLoss, readLabels, fitRanker, netOf,
+  INPUT_SETS, rowAfter, afterNames, readsAfter
 } from '../src/sim/ranker.js'
-import { expertTurn, situation, expertOptions, features, conditions, rankerView, OPTION_FEATURES } from '../src/sim/policy.js'
-import { labelPosition, signature, optionsAt } from '../src/sim/teach.js'
+import { expertTurn, situation, expertOptions, features, conditions, rankerView, afterOf, OPTION_FEATURES } from '../src/sim/policy.js'
+import { labelPosition, signature, optionsAt, afterRow, augmentRun, teachRun } from '../src/sim/teach.js'
 import { readPlan } from '../src/sim/plan.js'
 import { createRun, apply } from '../src/sim/run.js'
 import { policy, record, withRanker, pairedStats } from '../src/sim/autoplay.js'
@@ -20,19 +21,23 @@ import { fork } from '../src/sim/turns.js'
 import { gradsFor, mulberry } from '../src/sim/value.js'
 import { on, scene } from './scene.js'
 
-const D = inputNames().length
+// Round 1's inputs (no afterstate), and all of them.
+const BASE = INPUT_SETS.base()
+const D = BASE.length
+const ALL = inputNames()
 
-// A ranker configuration from a net (ranker.json's shape): standardised as given, by default not at all.
-const configOf = (net, { name = 'test', scale = 50, mean = new Array(D).fill(0), sd = new Array(D).fill(1) } = {}) => ({
-  name, inputs: inputNames().slice(), mean, sd, clip: 10, scale, net: { sizes: net.sizes.slice(), W: net.W.map((w) => Array.from(w)), b: net.b.map((v) => Array.from(v)) }
+// A ranker configuration from a net (ranker.json's shape) over inputs `inputs` (round 1's by default): standardised as
+// given, by default not at all.
+const configOf = (net, { name = 'test', scale = 50, inputs = BASE, mean = new Array(inputs.length).fill(0), sd = new Array(inputs.length).fill(1) } = {}) => ({
+  name, inputs: inputs.slice(), mean, sd, clip: 10, scale, net: { sizes: net.sizes.slice(), W: net.W.map((w) => Array.from(w)), b: net.b.map((v) => Array.from(v)) }
 })
 // An untrained ranker (its last layer zero), and one whose last layer is drawn too (it decides otherwise than today).
-const untrained = () => configOf(createNet({ inputs: D, seed: 3 }))
-const drawn = (seed = 5, k = 2) => {
-  const net = createNet({ inputs: D, seed })
+const untrained = (inputs = BASE) => configOf(createNet({ inputs: inputs.length, seed: 3 }), { inputs })
+const drawn = (seed = 5, k = 2, inputs = BASE) => {
+  const net = createNet({ inputs: inputs.length, seed })
   const rand = mulberry(seed)
   net.W[2] = net.W[2].map(() => (rand() - 0.5) * k)
-  return configOf(net, { name: `drawn-${seed}` })
+  return configOf(net, { name: `drawn-${seed}`, inputs })
 }
 
 const board = (units) => {
@@ -49,7 +54,7 @@ const boards = () => [
 ]
 
 // A run's first `n` battles played by the expert (autoplay.js policy, as a run plays): → the run's log, and each piece
-// decision met on the way ({ board (a copy as it decided), uid, tile, orders }).
+// decision met on the way ({ board (a copy as it decided), uid, tile, orders, at (the run's log index) }).
 function battles (seed, n) {
   const run = createRun({ seed })
   const rng = createRng(run.state.seed).stream('autoplay')
@@ -70,7 +75,7 @@ function battles (seed, n) {
         if (open?.uid === a.uid) open.orders.push(a)
         else if (!decided.has(a.uid)) {
           decided.add(a.uid)
-          open = { board: fork(b), uid: a.uid, tile: b.byUid.get(a.uid).tile, orders: [a] }
+          open = { board: fork(b), uid: a.uid, tile: b.byUid.get(a.uid).tile, orders: [a], at: run.state.log.length }
           points.push(open)
         } else open = null
       } else open = null
@@ -97,7 +102,8 @@ test('the inputs: every condition, the role and size, every option feature and a
   const names = inputNames()
   assert.equal(new Set(names).size, names.length)
   const c = conditions({}, { uid: 1, hp: 1, maxHp: 1 })
-  for (const k in c) assert.ok(names.includes(`sit.${k}`), k)
+  for (const k in c) assert.ok(names.includes(`sit.${k}`) && names.includes(`aft.${k}`), k)
+  assert.ok(BASE.every((n) => names.includes(n) && !n.startsWith('aft.')))
   for (const k of OPTION_FEATURES) assert.ok(names.includes(`opt.${k}`) && names.includes(`rel.${k}`), k)
   // A move and act, its damage above its position's mean.
   const views = [{ f: { damage: 10 }, steps: 2, act: true, fusion: false }, { f: { damage: 4 }, steps: 0, act: false, fusion: false }]
@@ -110,6 +116,12 @@ test('the inputs: every condition, the role and size, every option feature and a
   assert.equal(x[names.indexOf('steps')], 2)
   assert.equal(x[names.indexOf('size')], 1)
   assert.equal(names.filter((n) => n.startsWith('role.') && x[names.indexOf(n)] === 1).length, 1)
+  // The afterstate less the decision; nothing where none was read.
+  assert.ok(names.filter((n) => n.startsWith('aft.')).every((n) => x[names.indexOf(n)] === 0))
+  const y = encode({ turn: 3, foes: 4 }, 'frost_sprite', { ...views[0], after: { turn: 3, foes: 2, killable: 1 } }, meanOf(views))
+  assert.equal(y[names.indexOf('aft.foes')], -2)
+  assert.equal(y[names.indexOf('aft.killable')], 1)
+  assert.equal(y[names.indexOf('aft.turn')], 0)
 })
 
 test('the inputs from a label row (teach.js) are the inputs in play, number for number, over the same options', () => {
@@ -261,7 +273,7 @@ test('the play\'s net is the training\'s, through ranker.json and back; a fit is
     assert.ok(a.net.W[2].some((w) => w !== 0), 'the last layer learned')
     // The play's scorer reads a row as the training did: the same net output, as far as ranker.json's rounding.
     const { net, S } = netOf(config)
-    assert.ok(net.W.length === 3 && S.mean.length === D)
+    assert.ok(net.W.length === 3 && S.mean.length === D && config.inputs.length === D)
     rows.slice(0, 10).forEach((row, p) => {
       const mean = meanOf(row.options.map(rowView))
       const score = scorer(config, row.sit, row.kind)
@@ -309,4 +321,85 @@ test('a job\'s ranker is installed for its run and the one before put back; pair
   assert.equal(S.b.battles, 3)
   assert.ok(Math.abs(S.diff - 100 * (-0.1 + 0.5 + 0.1) / 3) < 1e-9)
   assert.ok(S.se > 0)
+})
+
+// A run's first battle labelled (teach.js teachRun: every decision kept, its options played out a round), as rows.
+const labelled = (seed, limit = 5) => teachRun(seed, { battles: 1, limit, rounds: 1, keep: { lost: 1, near: 1, reach: 1, calm: 1 } }).positions
+
+test('the afterstates: the augmentation replays the run to each row\'s board, and its afterstates are play\'s, number for number', () => {
+  const before = rankerModel()
+  try {
+    useRanker(null)
+    const rows = labelled('rank-test-4')
+    assert.ok(rows.length >= 3)
+    const { rows: aug } = augmentRun({ seed: 'rank-test-4', positions: rows }, { ranker: null })
+    assert.equal(aug.length, rows.length)
+    assert.ok(aug.every((x) => x.same && !x.missed), 'every row\'s board met again')
+    const { points } = battles('rank-test-4', 1)
+    let compared = 0
+    for (const row of rows) {
+      const x = aug.find((r) => r.id === row.id)
+      // The same decision in play: the board as the piece decided, its options as the ranker reads them.
+      const p = points.find((q) => q.at === row.at && q.uid === row.uid)
+      if (!p) continue
+      const f = fork(p.board)
+      const u = f.byUid.get(row.uid)
+      const sit = situation(f)
+      sit.plan = readPlan(f, sit)
+      const opts = expertOptions(f, u)
+      for (const o of opts) {
+        o.v = features(f, u, o, sit)
+        o.road = -o.path.length
+      }
+      const c = conditions(sit, u)
+      const view = rankerView(f, u, sit, opts, c)
+      const mean = meanOf(row.options.filter((r) => r.kept).map((r) => rowView(r)))
+      row.options.forEach((r, i) => {
+        const o = view.label[i]
+        o.after = afterOf(f, u, o, sit.plan)
+        const live = encode(c, u.id, playView(o), view.mean)
+        const read = encode(row.sit, row.kind, rowView(r, rowAfter(row.sit, x.a[i], afterNames())), mean)
+        assert.deepEqual(Array.from(live), Array.from(read), `${row.id} option ${i}`)
+        compared++
+      })
+    }
+    assert.ok(compared > 10, `${compared} compared`)
+    // The board's own read: afterRow on the row's board again gives the same.
+    assert.deepEqual(augmentRun({ seed: 'rank-test-4', positions: rows }, { ranker: null }).rows, aug)
+  } finally {
+    useRanker(before)
+  }
+})
+
+test('a ranker that reads no afterstate never reads one; one whose afterstate weighs nothing plays as it; one that weighs it decides alike twice', () => {
+  const before = rankerModel()
+  try {
+    const plain = untrained()
+    assert.equal(readsAfter(plain), false)
+    // The same net over all the inputs, the afterstate's first-layer weights zero: the same decisions, read with it.
+    const base = drawn(9, 20)
+    const net = createNet({ inputs: ALL.length, seed: 3 })
+    const at = ALL.map((n) => BASE.indexOf(n))
+    const J = net.sizes[1]
+    net.W[0] = Float64Array.from({ length: ALL.length * J }, (_, k) => (at[Math.floor(k / J)] >= 0 ? base.net.W[0][at[Math.floor(k / J)] * J + (k % J)] : 0))
+    net.W[1] = Float64Array.from(base.net.W[1])
+    net.W[2] = Float64Array.from(base.net.W[2])
+    const wide = configOf(net, { name: 'wide', inputs: ALL })
+    assert.equal(readsAfter(wide), true)
+    for (const b of boards()) {
+      useRanker(base)
+      const orders = expertTurn(fork(b))
+      useRanker(wide)
+      assert.deepEqual(expertTurn(fork(b)), orders)
+    }
+    useRanker(null)
+    const today = battles('rank-test-2', 1).log
+    useRanker(untrained(ALL))
+    assert.deepEqual(battles('rank-test-2', 1).log, today, 'an untrained ranker with the afterstate is today\'s expert too')
+    useRanker(drawn(6, 20, ALL))
+    const a = battles('rank-test-2', 1).log
+    assert.deepEqual(battles('rank-test-2', 1).log, a)
+  } finally {
+    useRanker(before)
+  }
 })

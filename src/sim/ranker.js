@@ -27,7 +27,12 @@
 //           labels hold for that decision, each set of orders once: teach.js's rows), so "the least endangered of my
 //           options" is read whatever the board's level
 //   kind.*  stay, move (and no act), act (from where it stands), moveAct, fusion; and `steps`, the tiles it walks
-// each standardised by the training options' mean and sd and clipped to ±`clip` sd.
+//   aft.*   "after the move" (2026-10-12, round 2): the conditions of the board the option leaves (policy.js afterOf: the
+//           option given on a copy as teach.js's playouts give it, read as the decision is) less the decision's own,
+//           68 more; read only by a configuration whose inputs name them (round 1's do not), written beside a label set
+//           by `npm run teach -- --augment <dir>` (after.jsonl: the run replayed to each decision; teach.js augment)
+// each standardised by the training options' mean and sd and clipped to ±`clip` sd. A configuration names the inputs it
+// reads (`inputs`), any of these: a condition added later is read by none until a ranker is fitted with it.
 //
 // The net: hidden 64 then 32, ReLU, one output (value.js's forward pass and Adam; its own backward pass and loss here).
 // Trained (fitRanker; `npm run rank`) on teach.js's labels to the battle's end: for each position, its options that are
@@ -121,17 +126,46 @@ function layout () {
   const C = Object.keys(conditions({}, { uid: -1, hp: 1, maxHp: 1 }))
   const R = Object.keys(ROLES).filter((r) => r !== 'monarch')
   const F = [...OPTION_FEATURES]
-  const names = [...C.map((k) => `sit.${k}`), ...R.map((r) => `role.${r}`), 'size', ...F.map((k) => `opt.${k}`), ...F.map((k) => `rel.${k}`), ...KINDS.map((k) => `kind.${k}`), 'steps']
-  LAYOUT = { C, R, F, names, D: names.length, shared: C.length + R.length + 1 }
+  const base = [...C.map((k) => `sit.${k}`), ...R.map((r) => `role.${r}`), 'size', ...F.map((k) => `opt.${k}`), ...F.map((k) => `rel.${k}`), ...KINDS.map((k) => `kind.${k}`), 'steps']
+  const names = [...base, ...C.map((k) => `aft.${k}`)]
+  LAYOUT = { C, R, F, base, names, D: names.length, shared: C.length + R.length + 1 }
   return LAYOUT
 }
-// The inputs by name, in the order encode writes them.
+// The inputs by name, in the order encode writes them; and the sets a ranker is fitted on (INPUT_SETS): round 1's, and
+// those with the afterstate's.
 export const inputNames = () => layout().names
+export const INPUT_SETS = Object.freeze({ base: () => layout().base, aft: () => layout().names })
+// The conditions an afterstate is read as (aft.*'s, in order).
+export const afterNames = () => layout().C
 
-// An option as the ranker reads it ({ f: its features by name, steps, act, fusion }): from the play (an option of
-// policy.js expertOptions, its features read: `v`) and from a label row's option (teach.js: `f` with its zeros left out).
-export const playView = (o) => ({ f: o.v, steps: o.path.length, act: !!o.ability, fusion: !!o.fusion })
-export const rowView = (o) => ({ f: o.f, steps: o.steps, act: o.ability != null, fusion: o.fusion != null })
+// An option as the ranker reads it ({ f: its features by name, steps, act, fusion, after: the conditions of the board
+// it leaves, null where unread }): from the play (an option of policy.js expertOptions, its features read: `v`; its
+// afterstate `after`, policy.js afterOf, where the ranker reads it) and from a label row's option (teach.js: `f` with
+// its zeros left out; `after`, rowAfter's).
+export const playView = (o) => ({ f: o.v, steps: o.path.length, act: !!o.ability, fusion: !!o.fusion, after: o.after ?? null })
+export const rowView = (o, after = null) => ({ f: o.f, steps: o.steps, act: o.ability != null, fusion: o.fusion != null, after })
+
+// An afterstate's conditions (policy.js afterOf's) against a row's own (`sit`, its zeros left out), as after.jsonl
+// writes them: [k, v, …], each condition (afterNames' index k) whose value v, rounded as the rows are, differs. → the
+// list
+export function afterDiff (after, sit) {
+  const C = layout().C
+  const out = []
+  for (let k = 0; k < C.length; k++) {
+    const v = num(after[C[k]])
+    if (v !== num(sit[C[k]])) out.push(k, v)
+  }
+  return out
+}
+// The afterstate's conditions of a row's option back from after.jsonl's list (`diff`, against `names`: after.json's
+// conditions, the writer's afterNames; null where it was not read): the row's own with those it changes. → by name, or
+// null
+export function rowAfter (sit, diff, names = afterNames()) {
+  if (!diff) return null
+  const a = { ...sit }
+  for (let j = 0; j < diff.length; j += 2) a[names[diff[j]]] = diff[j + 1]
+  return a
+}
 
 // The reference of a position: each feature's mean over its options (views) that today's hard rules keep.
 export function meanOf (views) {
@@ -148,7 +182,7 @@ export function meanOf (views) {
 // layout: inputNames). → out
 export function encode (c, unit, view, mean, out = new Float64Array(layout().D)) {
   encodeDecision(c, unit, out)
-  encodeOption(view, mean, out)
+  encodeOption(view, mean, out, c)
   return out
 }
 function encodeDecision (c, unit, out) {
@@ -158,8 +192,8 @@ function encodeDecision (c, unit, out) {
   for (let j = 0; j < R.length; j++) out[C.length + j] = def.role === R[j] ? 1 : 0
   out[C.length + R.length] = def.size ?? 1
 }
-function encodeOption (view, mean, out) {
-  const { F, shared } = layout()
+function encodeOption (view, mean, out, c) {
+  const { C, F, shared } = layout()
   const n = F.length
   for (let k = 0; k < n; k++) {
     const x = num(view.f[F[k]])
@@ -169,6 +203,10 @@ function encodeOption (view, mean, out) {
   const kind = view.fusion ? 4 : view.act ? (view.steps > 0 ? 3 : 2) : view.steps > 0 ? 1 : 0
   for (let j = 0; j < KINDS.length; j++) out[shared + 2 * n + j] = j === kind ? 1 : 0
   out[shared + 2 * n + KINDS.length] = num(view.steps)
+  // The afterstate less the decision: 0 throughout where it was not read.
+  const at = shared + 2 * n + KINDS.length + 1
+  const a = view.after
+  for (let k = 0; k < C.length; k++) out[at + k] = a ? num(a[C[k]]) - num(c[C[k]]) : 0
 }
 
 // ── the net in play ──────────────────────────────────────────────────────────────────────────────
@@ -195,18 +233,22 @@ function runtimeOf (model) {
     sizes, WT, b: b.map((v) => Float64Array.from(v)), at: Int32Array.from(at),
     mean: Float64Array.from(model.mean), sd: Float64Array.from(model.sd, (s) => (s > 1e-9 ? s : 1)), clip: model.clip ?? 10,
     shared: idx((i) => i < L.shared), own: idx((i) => i >= L.shared),
-    raw: new Float64Array(L.D), x: new Float64Array(sizes[0]), h0: new Float64Array(sizes[1]), acts: sizes.map((n) => new Float64Array(n))
+    raw: new Float64Array(L.D), x: new Float64Array(sizes[0]), h0: new Float64Array(sizes[1]), acts: sizes.map((n) => new Float64Array(n)),
+    after: model.inputs.some((n) => n.startsWith('aft.'))
   }
   RUNTIMES.set(model, rt)
   return rt
 }
+// Whether ranker `model` reads the board an option leaves (aft.*): only then does play read it (policy.js afterOf).
+export const readsAfter = (model) => runtimeOf(model).after
 const standard = (rt, j) => {
   const z = (rt.raw[rt.at[j]] - rt.mean[j]) / rt.sd[j]
   return z > rt.clip ? rt.clip : z < -rt.clip ? -rt.clip : z
 }
 
 // The net of ranker `model` for one decision (conditions `c`, the piece's kind `unit`): → a function of an option's
-// view and its position's reference (meanOf) → the net's output for it. The decision's inputs read once.
+// view (its afterstate in it where the ranker reads one) and its position's reference (meanOf) → the net's output for
+// it. The decision's inputs read once.
 export function scorer (model, c, unit) {
   const rt = runtimeOf(model)
   const { sizes, WT, b, x, h0, acts, shared, own } = rt
@@ -221,7 +263,7 @@ export function scorer (model, c, unit) {
     h0[k] = s
   }
   return (view, mean) => {
-    encodeOption(view, mean, rt.raw)
+    encodeOption(view, mean, rt.raw, c)
     for (const j of own) x[j] = standard(rt, j)
     let A = acts[1]
     for (let k = 0; k < J; k++) {
@@ -382,17 +424,25 @@ const labelsIn = (where) => {
 export const splitOf = (run) => (run % 5 === 0 ? 'held' : run % 5 === 1 ? 'val' : 'train')
 
 // One label row (teach.js: a position and its options) read as the ranker's data: its options that today's hard rules
-// keep (the reference, meanOf) and of them those legal with a value (the decision's options), each encoded (raw). Rows
-// with fewer than two such options carry no decision: null. → { x (raw inputs, an option a row), prior, value, steps,
-// lane, target, chosen, n, meta }
-export function readPosition (row) {
+// keep (the reference, meanOf) and of them those legal with a value (the decision's options), each encoded (raw), of
+// code's inputs those `cols` names (their indices in inputNames). `after`: after.jsonl's line for the row (each option's
+// afterstate against the row's own, rowAfter; `names` its conditions), null where none was written. Rows with fewer
+// than two such options carry no decision: null. → { x (raw inputs, an option a row), prior, value, steps, lane,
+// target, chosen, n, meta }
+export function readPosition (row, cols = null, after = null, names = afterNames()) {
   const kept = row.options.filter((o) => o.kept)
   const opts = kept.filter((o) => o.legal && Number.isFinite(o.value))
   if (opts.length < 2) return null
-  const mean = meanOf(kept.map(rowView))
-  const D = layout().D
+  const mean = meanOf(kept.map((o) => rowView(o)))
+  const L = layout()
+  const D = cols ? cols.length : L.D
+  const full = new Float64Array(L.D)
   const x = new Float64Array(opts.length * D)
-  opts.forEach((o, i) => encode(row.sit, row.kind, rowView(o), mean, x.subarray(i * D, (i + 1) * D)))
+  opts.forEach((o, i) => {
+    encode(row.sit, row.kind, rowView(o, rowAfter(row.sit, after?.a?.[o.i] ?? null, names)), mean, full)
+    if (cols) for (let j = 0; j < D; j++) x[i * D + j] = full[cols[j]]
+    else x.set(full, i * D)
+  })
   const taken = row.options[row.chosen]
   return {
     x,
@@ -408,32 +458,56 @@ export function readPosition (row) {
 }
 
 // The positions of label sets `dirs` (each a directory of teach.js's labels, or a file), read into one table: raw
-// inputs X (Float32, m × D), per option its prior, value, tie keys (steps, lane, target) and whether the expert took it,
-// and per position its first option (start), split, group, floor, weight, the taken option's value, and whether its
-// options' values differ (decisive). → the table
-export async function readLabels (dirs, { log = null } = {}) {
-  const D = layout().D
+// inputs X (Float32, m × D: the inputs `inputs` names, INPUT_SETS' base by default; the afterstate's read from each
+// directory's after.jsonl, line for line with its labels: teach.js augment), per option its prior, value, tie keys
+// (steps, lane, target) and whether the expert took it, and per position its first option (start), split, group, floor,
+// weight (`wt`; `dw`, its label set's weight: `weights`, 1 each by default), the taken option's value, and whether its
+// options' values differ (decisive). With `all` false, the training and validation positions that are not decisive are
+// left out (they never enter the loss; the held-out ones are kept, for the tables). → the table
+export async function readLabels (dirs, { inputs = INPUT_SETS.base(), weights = null, all = true, log = null } = {}) {
+  const fs = node('fs')
+  const L = layout()
+  const cols = Int32Array.from(inputs.map((n) => {
+    const i = L.names.indexOf(n)
+    if (i < 0) throw new Error(`ranker: unknown input "${n}"`)
+    return i
+  }))
+  const after = inputs.some((n) => n.startsWith('aft.'))
+  const D = cols.length
   const X = new Grow(Float32Array, 1 << 22)
-  const cols = { prior: new Grow(Float64Array), value: new Grow(Float64Array), steps: new Grow(Int16Array), lane: new Grow(Int8Array), target: new Grow(Int32Array), chosen: new Grow(Uint8Array) }
+  const col = { prior: new Grow(Float64Array), value: new Grow(Float64Array), steps: new Grow(Int16Array), lane: new Grow(Int8Array), target: new Grow(Int32Array), chosen: new Grow(Uint8Array) }
   const start = [0]
   const meta = []
-  for (const dir of dirs) {
+  for (const [k, dir] of dirs.entries()) {
+    const file = labelsIn(dir)
+    const side = file.replace(/labels\.jsonl$/, 'after.jsonl')
+    const lines = after ? (fs.existsSync(side) ? linesOf(side)[Symbol.asyncIterator]() : null) : null
+    if (after && !lines) throw new Error(`ranker: ${dir} has no after.jsonl (npm run teach -- --augment ${dir})`)
+    const names = after ? JSON.parse(fs.readFileSync(side.replace(/after\.jsonl$/, 'after.json'), 'utf8')).conditions : null
     let n = 0
-    for await (const line of linesOf(labelsIn(dir))) {
-      const p = readPosition(JSON.parse(line))
+    for await (const line of linesOf(file)) {
+      const row = JSON.parse(line)
+      let a = null
+      if (lines) {
+        const next = await lines.next()
+        a = next.done ? null : JSON.parse(next.value)
+        if (a?.id !== row.id) throw new Error(`ranker: ${side} is not line for line with its labels (at ${row.id})`)
+      }
+      const p = readPosition(row, cols, a, names ?? undefined)
       if (!p) continue
+      const decisive = Math.max(...p.value) - Math.min(...p.value) > 1e-9
+      if (!all && !decisive && p.meta.split !== 'held') continue
       X.room(p.x.length)
       X.a.set(p.x, X.n)
       X.n += p.x.length
-      for (const k in cols) for (let i = 0; i < p.n; i++) cols[k].push(p[k][i])
+      for (const key in col) for (let i = 0; i < p.n; i++) col[key].push(p[key][i])
       start.push(start.at(-1) + p.n)
-      const v = p.value
-      meta.push({ ...p.meta, data: dir, decisive: Math.max(...v) - Math.min(...v) > 1e-9 })
+      meta.push({ ...p.meta, data: dir, dw: weights?.[k] ?? 1, decisive })
       n++
     }
-    log?.(`  ${dir}: ${n} positions`)
+    log?.(`  ${dir}: ${n} positions${after ? ', with their afterstates' : ''}`)
   }
-  return { D, X: X.view(), m: start.at(-1), start: Int32Array.from(start), meta, ...Object.fromEntries(Object.entries(cols).map(([k, g]) => [k, g.view()])) }
+  return { D, names: inputs.slice(), X: X.view(), m: start.at(-1), start: Int32Array.from(start), meta, ...Object.fromEntries(Object.entries(col).map(([key, g]) => [key, g.view()])) }
 }
 
 // ── fitting ──────────────────────────────────────────────────────────────────────────────────────
@@ -442,8 +516,8 @@ export const VARIANTS = Object.freeze(['plain', 'weighted', 'unchosen'])
 export const FIT = Object.freeze({ variant: 'plain', tau: 0.5, l2: 1e-3, lr: 1e-3, epochs: 60, patience: 6, batch: 32, hidden: [64, 32], seed: 1, clip: 10, wclip: 10 })
 
 // The positions a variant trains on (of `list`), each with its options in the loss: those whose values differ among the
-// options it keeps (with `unchosen`, the expert's own left out of the lost and near-lost battles), and its weight.
-// → [{ p, opts (indices into the table), w }]
+// options it keeps (with `unchosen`, the expert's own left out of the lost and near-lost battles), and its weight (its
+// draw's, clipped, with `weighted`; × its label set's, `dw`). → [{ p, opts (indices into the table), w }]
 function lossSet (d, list, cfg) {
   const out = []
   for (const p of list) {
@@ -454,7 +528,7 @@ function lossSet (d, list, cfg) {
     const v = opts.map((i) => d.value[i])
     if (!(Math.max(...v) - Math.min(...v) > 1e-9)) continue
     if (opts.length === d.start[p + 1] - d.start[p]) opts = null
-    out.push({ p, opts, w: cfg.variant === 'weighted' ? Math.min(M.wt, cfg.wclip) : 1 })
+    out.push({ p, opts, w: (cfg.variant === 'weighted' ? Math.min(M.wt, cfg.wclip) : 1) * (M.dw ?? 1) })
   }
   return out
 }
@@ -532,22 +606,40 @@ function standardise (src, at, S, clip, dst, to, D) {
   }
 }
 
-// The net's output for every option of positions `list` (the whole table's where null), by chunks. → Float64Array (m)
-function outputs (d, net, S, clip, list = null) {
-  const D = d.D
+// The net's output for every option of positions `list` (the whole table's where null), by chunks; `cols`, the table's
+// columns its inputs are (null: all, in order). → Float64Array (m)
+function outputs (d, net, S, clip, list = null, cols = null) {
+  const D = net.sizes[0]
   const out = new Float64Array(d.m)
   const ps = list ?? d.meta.map((_, p) => p)
   const acts = []
+  const row = new Float64Array(D)
   for (let c = 0; c < ps.length; c += 256) {
     const chunk = ps.slice(c, c + 256)
     const idx = chunk.flatMap((p) => Array.from({ length: d.start[p + 1] - d.start[p] }, (_, k) => d.start[p] + k))
     const X = new Float64Array(idx.length * D)
-    idx.forEach((i, r) => standardise(d.X, i * D, S, clip, X, r * D, D))
+    idx.forEach((i, r) => {
+      if (!cols) return standardise(d.X, i * d.D, S, clip, X, r * D, D)
+      for (let j = 0; j < D; j++) row[j] = d.X[i * d.D + cols[j]]
+      standardise(row, 0, S, clip, X, r * D, D)
+    })
     forwardAll(net, X, idx.length, acts)
     const O = acts[net.sizes.length - 1]
     idx.forEach((i, r) => { out[i] = O[r] })
   }
   return out
+}
+// A configuration's net over the table (its inputs among the table's: a round-1 ranker read on rows with the
+// afterstate's too). → { O (outputs'), scale }
+export function outputsOf (d, config) {
+  const { net, S } = netOf(config)
+  const cols = config.inputs.map((n) => {
+    const j = d.names.indexOf(n)
+    if (j < 0) throw new Error(`ranker: the table lacks input "${n}" of ${config.name}`)
+    return j
+  })
+  const same = cols.length === d.D && cols.every((j, i) => j === i)
+  return { O: outputs(d, net, S, config.clip ?? 10, null, same ? null : cols), scale: config.scale }
 }
 
 // The option a ranker takes in position p (net outputs `O`, null for none: today's alone): of its options, today's
@@ -570,12 +662,14 @@ function pickIn (d, p, O, scale) {
   return { pick, today }
 }
 
-// Agreement with the playout-best and regret (the best value less the chosen's), over positions `list`, for today's
-// expert (its score alone), the ranker (net outputs `O`), and the option the expert took in the data (`taken`: a
-// kill-list strike among them). → { n, today: { agree, regret }, ranker, taken, changed (the share the ranker changed) }
-export function agreement (d, list, O, scale) {
-  const acc = () => ({ agree: 0, regret: 0, n: 0 })
-  const r = { n: list.length, today: acc(), ranker: acc(), taken: acc(), changed: 0 }
+// Agreement with the playout-best and regret (the best value less the chosen's), over positions `list`, for the option
+// the expert took in the data (`taken`: a kill-list strike among them), today's expert (its score alone) and each of
+// `rankers` ({ name, O (its net outputs), scale }), and the share of decisions each changed from today's. → { n, taken:
+// { agree, regret }, today, [name]: { agree, regret, changed } }
+export function agreement (d, list, rankers) {
+  const acc = () => ({ agree: 0, regret: 0, n: 0, changed: 0 })
+  const r = { n: list.length, taken: acc(), today: acc() }
+  for (const k of rankers) r[k.name] = acc()
   const add = (a, best, v) => {
     if (v === null || v === undefined) return
     a.n++
@@ -585,43 +679,49 @@ export function agreement (d, list, O, scale) {
   for (const p of list) {
     let best = -Infinity
     for (let i = d.start[p]; i < d.start[p + 1]; i++) best = Math.max(best, d.value[i])
-    const { pick, today } = pickIn(d, p, O, scale)
+    const { today } = pickIn(d, p, null, 0)
     add(r.today, best, d.value[today])
-    add(r.ranker, best, d.value[pick])
     add(r.taken, best, d.meta[p].taken)
-    if (pick !== today) r.changed++
+    for (const k of rankers) {
+      const { pick } = pickIn(d, p, k.O, k.scale)
+      add(r[k.name], best, d.value[pick])
+      if (pick !== today) r[k.name].changed++
+    }
   }
-  for (const k of ['today', 'ranker', 'taken']) {
+  for (const k of ['taken', 'today', ...rankers.map((x) => x.name)]) {
     const a = r[k]
+    a.changed = list.length ? a.changed / list.length : 0
     a.agree = a.n ? a.agree / a.n : 0
     a.regret = a.n ? a.regret / a.n : 0
   }
-  r.changed = list.length ? r.changed / list.length : 0
   return r
 }
 
-// The validation table of positions `list`: all, decisive, decisive by the battle's end (won, near-lost, lost: in a lost
-// battle the option the expert took loses by how the positions were drawn, in a won one it wins), decisive by floor.
-// → rows
-export function validation (d, list, O, scale) {
+// The validation table of positions `list` (agreement's, for `rankers`): all, decisive, decisive by the battle's end
+// (won, near-lost, lost: drawn by the outcome, in a lost battle the option the expert took loses by construction, in a
+// won one it wins), decisive by floor. → rows
+export function validation (d, list, rankers) {
   const dec = list.filter((p) => d.meta[p].decisive)
   const rows = [['all', list], ['decisive', dec]]
   for (const [g, name] of [[0, 'won'], [1, 'near-lost'], [2, 'lost']]) rows.push([`decisive, ${name} battles`, dec.filter((p) => d.meta[p].group === g)])
   for (const f of [...new Set(list.map((p) => d.meta[p].floor))].sort((a, b) => a - b)) rows.push([`decisive, floor ${f}`, dec.filter((p) => d.meta[p].floor === f)])
-  return rows.map(([name, ps]) => ({ name, ...agreement(d, ps, O, scale) }))
+  return rows.map(([name, ps]) => ({ name, ...agreement(d, ps, rankers), names: rankers.map((k) => k.name) }))
 }
-// A validation table in words.
+// A validation table in words: each column's agreement and regret, a ranker's with the share it changed.
 export function tableText (rows) {
   const pct = (x) => `${(100 * x).toFixed(1)}%`.padStart(6)
-  const cell = (a) => `${pct(a.agree)} ${a.regret.toFixed(3).padStart(6)}`
-  const out = [`${''.padEnd(26)} ${'n'.padStart(6)}   taken agree/regret   today agree/regret   ranker agree/regret   changed`]
-  for (const r of rows) out.push(`${r.name.padEnd(26)} ${String(r.n).padStart(6)}   ${cell(r.taken).padStart(18)}   ${cell(r.today).padStart(18)}   ${cell(r.ranker).padStart(19)}   ${pct(r.changed)}`)
+  const names = rows[0]?.names ?? []
+  const cell = (a, ch) => `${pct(a.agree)} ${a.regret.toFixed(3).padStart(6)}${ch ? ` ${pct(a.changed)}` : ''}`
+  const head = ['taken agree/regret'.padStart(20), 'today agree/regret'.padStart(20), ...names.map((k) => `${k} agree/regret/changed`.padStart(28))]
+  const out = [`${''.padEnd(26)} ${'n'.padStart(6)} ${head.join(' ')}`]
+  for (const r of rows) out.push(`${r.name.padEnd(26)} ${String(r.n).padStart(6)} ${cell(r.taken).padStart(20)} ${cell(r.today).padStart(20)} ${names.map((k) => cell(r[k], true).padStart(28)).join(' ')}`)
   return out.join('\n')
 }
 
-// Fits a ranker on table `d` (readLabels'), by `cfg` (FIT's keys). → { config (ranker.json's shape), held, val (their
-// validation tables), log }
-export function fitRanker (d, cfg = {}, { log = () => {} } = {}) {
+// Fits a ranker on table `d` (readLabels'), by `cfg` (FIT's keys), on the table's inputs. → { config (ranker.json's
+// shape), net, O (its outputs over the table), held, val (their validation tables, beside `compare`'s: [{ name, O,
+// scale }], outputsOf's) }
+export function fitRanker (d, cfg = {}, { log = () => {}, compare = [] } = {}) {
   cfg = { ...FIT, ...cfg }
   if (!VARIANTS.includes(cfg.variant)) throw new Error(`ranker: unknown variant "${cfg.variant}": ${VARIANTS.join(', ')}`)
   const by = (s) => d.meta.map((_, p) => p).filter((p) => d.meta[p].split === s)
@@ -660,20 +760,21 @@ export function fitRanker (d, cfg = {}, { log = () => {} } = {}) {
   }
   net.W = best.W
   net.b = best.b
-  const config = toConfig(net, S, { T, scale, cfg, epoch: best.epoch, loss: best.loss, positions: { train: train.length, val: val.length } })
+  const config = toConfig(net, S, d.names, { T, scale, cfg, epoch: best.epoch, loss: best.loss, positions: { train: train.length, val: val.length } })
   const O = outputs(d, net, S, cfg.clip)
-  return { config, net, O, scale, val: validation(d, by('val'), O, scale), held: validation(d, by('held'), O, scale) }
+  const rankers = [...compare, { name: 'ranker', O, scale }]
+  return { config, net, O, scale, val: validation(d, by('val'), rankers), held: validation(d, by('held'), rankers) }
 }
 
 const round = (v) => +v.toPrecision(7)
 // A fitted net as ranker.json's configuration.
-function toConfig (net, S, { T, scale, cfg, epoch, loss, positions }) {
+function toConfig (net, S, inputs, { T, scale, cfg, epoch, loss, positions }) {
   return {
     name: `ranker-${cfg.variant}`,
     about: `today's score + scale·net (redesign.md §2.23), fitted on teach.js's labels to the battle's end, variant ${cfg.variant}`,
     made: { at: new Date().toISOString(), ...cfg, T: round(T), epoch, validation: round(loss), positions },
     data: cfg.data ?? null,
-    inputs: inputNames().slice(),
+    inputs: inputs.slice(),
     mean: Array.from(S.mean, round),
     sd: Array.from(S.sd, round),
     clip: cfg.clip,
@@ -692,35 +793,42 @@ export function netOf (config) {
 
 // ── the command ──────────────────────────────────────────────────────────────────────────────────
 
-// npm run rank -- --data <dir>[,<dir>…] --out <file> [--variant plain|weighted|unchosen] [--tau 0.5] [--l2 1e-4]
-//                 [--lr 1e-3] [--epochs 60] [--patience 6] [--batch 32] [--hidden 64,32] [--seed 1] [--clip 10]
-//                 [--wclip 10]
+// npm run rank -- --data <dir>[,<dir>…] --out <file> [--inputs base|aft] [--data-weight 1,0.5,…] [--compare <file>,…]
+//                 [--variant plain|weighted|unchosen] [--tau 0.5] [--l2 1e-3] [--lr 1e-3] [--epochs 60] [--patience 6]
+//                 [--batch 32] [--hidden 64,32] [--seed 1] [--clip 10] [--wclip 10]
 //   fits a ranker and writes it (src/sim/ranker.json is the one play reads: write it only for a ranker kept on a paired
-//   gain), printing the validation positions' (seeds ≡ 1 mod 5) and the held-out positions' (≡ 0) tables: today's
-//   expert's agreement with the playout-best and its regret, the ranker's, the option the expert took's.
-// npm run rank -- --data <dir>[,<dir>…] --eval <file>   the tables of a ranker fitted already.
+//   gain), printing the validation positions' (seeds ≡ 1 mod 5; their decisive ones) and the held-out positions' (≡ 0)
+//   tables: the option the expert took's agreement with the playout-best and its regret, today's expert's, each
+//   `--compare` ranker's (round 1's, say) and the ranker's. `--inputs aft`: with the afterstate's (each label set
+//   augmented: teach.js --augment); `--data-weight`: each label set's weight, in --data's order.
+// npm run rank -- --data <dir>[,<dir>…] --eval <file>[,<file>…] [--inputs base|aft]   the tables of rankers fitted already.
 async function main () {
   const argv = process.argv.slice(2)
   const arg = (name, def) => {
     const i = argv.indexOf('--' + name)
     return i >= 0 && argv[i + 1] !== undefined ? argv[i + 1] : def
   }
-  const dirs = (arg('data', '') || '').split(',').filter(Boolean)
+  const list = (k) => (arg(k, '') || '').split(',').filter(Boolean)
+  const dirs = list('data')
   if (!dirs.length) throw new Error('rank: --data <dir>[,<dir>…] of teach.js labels')
+  const set = arg('inputs', 'base')
+  if (!INPUT_SETS[set]) throw new Error(`rank: --inputs ${set}: one of ${Object.keys(INPUT_SETS).join(', ')}`)
+  const weights = list('data-weight').map(Number)
+  const fs = node('fs')
+  const read = (f) => checkRanker(JSON.parse(fs.readFileSync(f, 'utf8')))
   const t0 = Date.now()
-  console.log(`reading ${dirs.join(', ')}`)
-  const d = await readLabels(dirs, { log: console.log })
+  console.log(`reading ${dirs.join(', ')} (inputs ${set}${weights.length ? `, weights ${weights.join(', ')}` : ''})`)
+  const evals = list('eval')
+  const d = await readLabels(dirs, { inputs: INPUT_SETS[set](), weights: weights.length ? weights : null, all: evals.length > 0, log: console.log })
   const held = d.meta.map((_, p) => p).filter((p) => d.meta[p].split === 'held')
   const valid = d.meta.map((_, p) => p).filter((p) => d.meta[p].split === 'val')
   console.log(`${d.meta.length} positions, ${d.m} options, ${d.D} inputs (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
   const show = (name, rows) => console.log(`\n${name}\n${tableText(rows)}`)
-  const fs = node('fs')
-  if (arg('eval', null)) {
-    const config = checkRanker(JSON.parse(fs.readFileSync(arg('eval'), 'utf8')))
-    const { net, S } = netOf(config)
-    const O = outputs(d, net, S, config.clip ?? 10)
-    show('validation (seeds ≡ 1 mod 5)', validation(d, valid, O, config.scale))
-    show('held out (seeds ≡ 0 mod 5)', validation(d, held, O, config.scale))
+  const named = (f) => ({ name: read(f).name ?? f, ...outputsOf(d, read(f)) })
+  if (evals.length) {
+    const rankers = evals.map(named)
+    show('validation (seeds ≡ 1 mod 5)', validation(d, valid, rankers))
+    show('held out (seeds ≡ 0 mod 5)', validation(d, held, rankers))
     return
   }
   const num = (k) => (arg(k, null) === null ? undefined : Number(arg(k)))
@@ -729,11 +837,13 @@ async function main () {
     hidden: arg('hidden', null)?.split(',').map(Number), seed: num('seed'), clip: num('clip'), wclip: num('wclip')
   }).filter(([, v]) => v !== undefined))
   cfg.data = dirs
+  cfg.inputs = set
+  if (weights.length) cfg.weights = weights
   const out = arg('out', null)
-  const r = fitRanker(d, cfg, { log: console.log })
-  show('validation (seeds ≡ 1 mod 5)', r.val)
+  const r = fitRanker(d, cfg, { log: console.log, compare: list('compare').map(named) })
+  show('validation (seeds ≡ 1 mod 5; the decisive positions)', r.val)
   show('held out (seeds ≡ 0 mod 5)', r.held)
-  r.config.made.held = r.held.map((x) => ({ name: x.name, n: x.n, today: x.today, ranker: x.ranker, changed: x.changed }))
+  r.config.made.held = r.held.map((x) => ({ name: x.name, n: x.n, today: x.today, ranker: x.ranker }))
   if (out) {
     fs.writeFileSync(out, JSON.stringify(r.config) + '\n')
     console.log(`\nwrote ${out} (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
