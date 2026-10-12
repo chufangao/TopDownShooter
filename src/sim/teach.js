@@ -647,11 +647,15 @@ export function augmentRun ({ seed, positions }, cfg = {}) {
 // beside it, after.jsonl (a line a position, labels.jsonl's order: { id, a }) and after.json (the conditions `a`'s
 // indices name, the expert and ranker the runs were replayed with, how many positions were replayed to the board they
 // were labelled on). The runs are replayed with the expert and ranker their manifest names (its settings' `expert` and
-// `ranker`; a label set made before rankers, or with none, none), or the `--ranker` given.
+// `ranker`; a label set made before rankers, or with none, none), or the `--ranker` given (needed where there is no
+// manifest yet). Positions labelled after it was written have no line: augment again.
 async function augmentMain (dir, arg, workers) {
   const t0 = performance.now()
-  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'manifest.json'), 'utf8'))
   const given = arg('ranker', null)
+  // A label set still being made has no manifest yet: then its ranker given (and the expert in use).
+  const mf = path.join(dir, 'manifest.json')
+  if (!fs.existsSync(mf) && given === null) throw new Error(`${dir} has no manifest.json: give --ranker <file|none>`)
+  const manifest = fs.existsSync(mf) ? JSON.parse(fs.readFileSync(mf, 'utf8')) : {}
   const named = manifest.settings?.ranker
   const file = given !== null ? (given === 'none' ? null : path.resolve(given)) : named === undefined ? undefined : named?.file ?? null
   if (file === undefined && manifest.ranker?.name) throw new Error(`${dir} was played with ranker ${manifest.ranker.name}, its file unnamed: give --ranker <file>`)

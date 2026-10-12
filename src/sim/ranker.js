@@ -485,13 +485,19 @@ export async function readLabels (dirs, { inputs = INPUT_SETS.base(), weights = 
     if (after && !lines) throw new Error(`ranker: ${dir} has no after.jsonl (npm run teach -- --augment ${dir})`)
     const names = after ? JSON.parse(fs.readFileSync(side.replace(/after\.jsonl$/, 'after.json'), 'utf8')).conditions : null
     let n = 0
+    let unread = 0
     for await (const line of linesOf(file)) {
       const row = JSON.parse(line)
       let a = null
       if (lines) {
-        const next = await lines.next()
-        a = next.done ? null : JSON.parse(next.value)
-        if (a?.id !== row.id) throw new Error(`ranker: ${side} is not line for line with its labels (at ${row.id})`)
+        // Rows labelled after the augmentation have no line: left out (counted).
+        const next = unread ? { done: true } : await lines.next()
+        if (next.done) {
+          unread++
+          continue
+        }
+        a = JSON.parse(next.value)
+        if (a.id !== row.id) throw new Error(`ranker: ${side} is not line for line with its labels (at ${row.id})`)
       }
       const p = readPosition(row, cols, a, names ?? undefined)
       if (!p) continue
@@ -505,7 +511,7 @@ export async function readLabels (dirs, { inputs = INPUT_SETS.base(), weights = 
       meta.push({ ...p.meta, data: dir, dw: weights?.[k] ?? 1, decisive })
       n++
     }
-    log?.(`  ${dir}: ${n} positions${after ? ', with their afterstates' : ''}`)
+    log?.(`  ${dir}: ${n} positions${after ? `, with their afterstates${unread ? ` (${unread} rows past after.jsonl left out)` : ''}` : ''}`)
   }
   return { D, names: inputs.slice(), X: X.view(), m: start.at(-1), start: Int32Array.from(start), meta, ...Object.fromEntries(Object.entries(col).map(([key, g]) => [key, g.view()])) }
 }
