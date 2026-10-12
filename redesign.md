@@ -602,6 +602,49 @@ tree".
   survival, the Monarch's HP and yours, essence gained; the route's tree over the run's situation (the army against
   the scouted threat, the Monarch's carried HP, the purse, the floor and rank). The formation after.
 
+### 2.23 The ranker: a strong and fast expert (2026-10-12): plan
+
+**Why.** The audit of the labels to the battle's end (250 runs of today's expert, 20,954 positions, every option of a
+shortlist of ≤ 16 played out to the battle's end by today's expert): of the 183 battles the expert lost (each a run
+lost), **133 (73%) held a shortlisted option whose playout won**, on every floor (53 of 67 on floor 1) and in every
+room (75 of 100 elites); the saving option came a median 13 turns before the end. 89% of the saving options pass
+today's hard rules (they forbid every saving option in 6.5% of the positions). But today's own score ranks the best
+saving option **sixth** of ~11 (in its top 3 a quarter of the time), and against the option taken it deals less damage
+(−29 HP), kills and Hexes less, and ends in more danger: it is a move (a screen, a block, a walk) where the expert
+struck. So the runs are lost in the battle, by a damage-greedy turn, and no reweighing of today's linear score finds
+the save (two CMA-ES searches made those weights, scored by mean progress: fast average play, not the rare fatal
+battle). The user: "It should be a strong and fast model", and "go".
+
+- **The model.** Each option of a piece's decision: today's score (the model tree's leaf weights and soft rules, as
+  now) **plus a learned correction**, `net(situation ⊕ option ⊕ piece)`, a small network in plain JavaScript (~125
+  inputs: the 68 conditions standardised; the 34 option features standardised and again relative to the position's
+  other options, so "the least endangered of my options" is read; the option's kind, stay / move / act / move and act /
+  fusion; the piece's role and size. Hidden 64 and 32, ReLU; one output). Today's hard rules filter first, then the
+  best total is taken. The last layer starts at zero, so an untrained ranker plays today's expert move for move, and
+  L2 toward zero keeps it there wherever the data is thin. ~15 µs an option, ~1 s a run on today's ~3.4 s. Shipped
+  as weights (`src/sim/ranker.json`, read like `value.json`; absent, today's expert); the audit records the rule that
+  decided, else `net` and its margin over what today's score alone would take.
+- **Trained to copy a teacher, offline.** The teacher is today's labeller as a player: at each piece's decision every
+  option of the shortlist played out to the battle's end by the current expert, the best taken, ties by the expert's
+  own score (every losing option is worth −10 alike). It is never worse than the expert it plays out with (the
+  playouts are exact: no dice) and it is never shipped, like the combo book. Its labels train the ranker by a ranking
+  loss over each position's options (the decisive positions weigh more), Adam, early stopping on held-out seeds.
+- **Rounds.** Round 1 on the 20,954 positions and ~250 runs more, today's expert the continuation. Then each round
+  plays the ranker's own runs, labels with the ranker as the continuation (so no label leans on today's expert to do
+  later what the option did not: the learned tree's failure, §6), refits on all rounds, today's hard rules soft from
+  round 2. A round is kept only on a paired gain on fresh seeds (768–1,024), never on the seeds it was chosen on.
+- **A gate on the features.** After round 1, held-out agreement with the playout-best on the decisive positions of
+  lost battles (today's: 0.4%). Low, and the features lack what the save needs: "after the move" features (the
+  Monarch's danger once the foes answer, the roads and lines it closes for next turn) come before more rounds.
+- **The teacher's ceiling.** Whole runs with the teacher playing every battle decision (prep, route and buys today's
+  expert's): how far battle play alone can take the expert.
+- **Then** the learned route relabelled under the new battle player and switched on (its hand route's tests pinned to
+  `useRoute(false)`), and a small evolutionary search over ~10 top-level settings (the labels' weights, the
+  correction's L2, the rules' strengths, the route's thresholds), each candidate on 256+ paired seeds, the winner
+  confirmed on fresh ones. No game number moves; the balance pass comes after.
+
+**Targets.** Above the 47% bar on fresh seeds in round 1, 60%+ after the rounds; a run under 5 s.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -817,6 +860,20 @@ this file's §6 and `DESIGN.md`'s head brought up to date, and a push to master.
   **route** — the room-choice labeller and the route's tree, fitted and measured the same way. Each kept only on a
   paired gain; a §6 note.
 - **9c, one agent**: coordination, (1) to (4) in order, each measured paired and kept only on a gain.
+
+### Step 10. The ranker (§2.23)
+
+- **10a, two agents in parallel.** **The teacher** (`src/sim/teach.js`, `test/teach.test.js`): the tie-break by the
+  expert's score, labels and playouts under a given ranker (`--ranker file`), the teacher as a player for the ceiling
+  (`--teacher`), new labels of today's expert. **The ranker** (`src/sim/ranker.js`, `ranker.json`, `policy.js`,
+  `autoplay.js`, `test/ranker.test.js`): the encoding, the network and its training (reusing `value.js`'s layers and
+  Adam), the correction in `policy.js` choice, the audit's `net`, a paired comparison of two rankers on the same
+  seeds (`--ranker`, `--paired`), tests (a gradient check, an untrained ranker plays today's expert exactly,
+  determinism, save and load). Contract: `ranker.js` exports `useRanker(config | null)` and `rankerModel()`; the
+  rows are teach.js's labels as they stand.
+- **10b**: round 1 fitted and measured; the gate; rounds 2–3, each kept only on a fresh-seed gain.
+- **10c**: the route relabelled and switched on; the evolutionary search; the ladder, the bar, the ablations, the
+  puzzles, the cost; this file's §6, the README, a push to master.
 
 ### Later content, not in these steps
 
