@@ -6,9 +6,9 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   FEATURES, GLOBAL, FOE, PIECE, FOE_SLOTS, PIECE_SLOTS, encode, value, values, predict, loaded, load, weights, createNet, gradsFor,
-  batchLoss, forwardAll, adam, toJSON, fromJSON, forwardBatch, mulberry, VALUE, OUTPUTS
+  batchLoss, forwardAll, adam, toJSON, fromJSON, forwardBatch, mulberry, VALUE, OUTPUTS, mix
 } from '../src/sim/value.js'
-import { lambdaReturns, positionsOf, replayTo, weightedAuc, META } from '../src/sim/train.js'
+import { lambdaReturns, positionsOf, replayTo, replayPlan, weightedAuc, META } from '../src/sim/train.js'
 import { fork } from '../src/sim/turns.js'
 import { createRun, apply, availableNodes } from '../src/sim/run.js'
 import { TUNING } from '../src/tuning.js'
@@ -238,6 +238,28 @@ test('value.json: save and load round trip, the play forward (folded, sparse) is
   })
 })
 
+test('value.json\'s own combination and its inputs left out: `value` mixes the outputs, `drop` makes those inputs nothing', () => {
+  const json = { ...fullJson(), value: { won: 40, monarch: 2, own: 0.5 }, drop: ['idle', 'piece1.ready'] }
+  withWeights(json, () => {
+    assert.deepEqual({ ...mix() }, { won: 40, monarch: 2, own: 0.5 })
+    const b = board({ shooters: 2 })
+    const p = predict(b)
+    assert.ok(Math.abs(value(b) - (40 * p.won - 2 * p.monarch - 0.5 * p.own)) < 1e-5)
+    // An input left out changes nothing: the same board with it read otherwise gives the same outputs.
+    const x = encode(b)
+    const y = Float32Array.from(x)
+    y[at('idle')] += 0.7
+    y[at('piece1.ready')] += 1
+    const o = forwardBatch(x, 1)
+    const q = forwardBatch(y, 1)
+    for (let k = 0; k < OUTPUTS; k++) assert.ok(Math.abs(o[k] - q[k]) < 1e-9)
+    y[at('danger')] += 1
+    assert.notDeepEqual(Array.from(forwardBatch(y, 1)), Array.from(o), 'an input kept still counts')
+  })
+  // Without its own, the default.
+  withWeights(fullJson(), () => assert.equal(mix(), VALUE))
+})
+
 test('the forward\'s cost: a board\'s value within a generous bound', () => {
   withWeights(fullJson(), () => {
     const boards = [board({ shooters: 3 }), board({ share: 0.4, shooters: 2, screen: true })]
@@ -321,4 +343,23 @@ test('the trainer\'s positions: labels in range, weights, a lost battle a disast
     const again = await replayTo(rec, t.at)
     assert.deepEqual(encode(again.battle), encode(run.battle))
   }
+  // A replay (train.js replayRun's record: the run's log, read from a turn's start on) gives that battle's positions from
+  // there, split with the run it replays: here the run's own log, so the same rows as the run's own from that turn.
+  const at = lost.turns.at(-2).at
+  const r = await positionsOf({ seed: 'replay-1', base: rec.seed, from: at, log: rec.log })
+  assert.ok(r.n > 0 && r.n < p.n)
+  for (let i = 0; i < r.n; i++) assert.equal(r.meta[i * M], p.meta[0], 'the replay split with its run')
+  const tail = p.n - r.n
+  assert.deepEqual(Array.from(r.X), Array.from(p.X.subarray(tail * D)))
+  assert.deepEqual(Array.from(r.Y.subarray(r.n * 3 - 3)), Array.from(p.Y.subarray(p.n * 3 - 3)))
+  // The replays planned: each disaster of a training run (seed ≢ 0, 1 mod 5) at its last turns' starts, never a replay's.
+  const plan = replayPlan([
+    { seed: 'v-3', turns: [10, 20, 30, 40, 50, 60].map((a, i) => ({ turn: i + 1, at: a })) },
+    { seed: 'v-5', turns: [{ turn: 1, at: 7 }] },
+    { seed: 'r-8', base: 'v-8', turns: [{ turn: 1, at: 7 }] }
+  ], { prefix: 'p', last: 2, early: 1, times: 2 })
+  assert.equal(plan.length, 6)
+  assert.ok(plan.every((x) => x.base === 'v-3'))
+  assert.deepEqual(plan.slice(2).map((x) => x.at), [50, 50, 60, 60])
+  assert.deepEqual(plan.map((x) => x.seed), ['p-1', 'p-2', 'p-3', 'p-4', 'p-5', 'p-6'])
 })

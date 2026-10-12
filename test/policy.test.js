@@ -11,11 +11,11 @@ import { TEMPERS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { makeUnit, tileAt, tileX, tileY, footprint, slotAt, DEPTH, ROWS, CAMP_ROWS } from '../src/sim/unit.js'
 import { tuned } from './tuned.js'
-import { load, createNet, toJSON, FEATURES, value as V } from '../src/sim/value.js'
+import { load, createNet, toJSON, FEATURES, value as V, weights } from '../src/sim/value.js'
 
-// These read the plan, the tree and today's scorer, so the static evaluation: V's play (value.json, where trained) is
-// the ladder's to measure (redesign.md §5 Step 8b).
-load(null)
+// These read the plan, the tree and today's scorer, so the static evaluation; policy-learned.test.js runs them again
+// with the expert on V (TUNING.expert.beam.learned: the shipped value.json, its `hybrid`).
+if (!TUNING.expert.beam.learned) load(null)
 
 // A battle on turns of units set on tiles (as test/turns.test.js builds them): [{ id, uid, side, x, y, lvl? }].
 function field (units, opts = {}) {
@@ -485,25 +485,45 @@ test('evaluate: V where value.js holds trained weights, else the static board ev
   assert.ok(judge(safe).value > judge(doomed).value)
 })
 
-// With weights in value.js, the beam scores each option's board by V: a net of random weights here, for the plumbing.
+// With weights in value.js and the expert told to use them (TUNING.expert.beam.learned, or `learned`), the beam scores
+// each option's board by V (`hybrid` 0), or by the static evaluation and V (`hybrid` above 0): a net of random weights
+// here, for the plumbing.
 test('the beam with V: each option\'s board scored by V, the turn legal and the same for the same board', () => {
   const b = beamBoard()
   const n = FEATURES.length
+  const was = TUNING.expert.beam.hybrid
+  const had = weights()
   load(toJSON(createNet({ inputs: n, hidden: [8], seed: 7 }), { mean: new Float64Array(n), sd: new Float64Array(n).fill(1) }))
   try {
     assert.equal(evaluate(b), V(b))
     assert.equal(evaluate(b, { learned: false }), judge(b).value)
+    TUNING.expert.beam.hybrid = 0
     const recs = []
-    const orders = expertTurn(fork(b), { record: (f, info) => recs.push(info) })
-    assert.deepEqual(expertTurn(fork(b)), orders)
+    const orders = expertTurn(fork(b), { record: (f, info) => recs.push(info), learned: true })
+    assert.deepEqual(expertTurn(fork(b), { learned: true }), orders)
     assert.ok(recs.length && recs.every((r) => r.options.every((o) => o.value === V(o.board))))
     const g = fork(b)
     for (const o of orders) {
       if (o.type !== 'end') assert.ok(legalOrders(g).some((l) => JSON.stringify(l) === JSON.stringify(o)), JSON.stringify(o))
       order(g, o)
     }
+    // Hybrid: each option's board by the static evaluation and `hybrid` × V; unlearned (the default), V read nowhere.
+    TUNING.expert.beam.hybrid = 2
+    const mixed = []
+    expertTurn(fork(b), { record: (f, info) => mixed.push(info), learned: true })
+    const plain = []
+    expertTurn(fork(b), { record: (f, info) => plain.push(info), learned: false })
+    // (The first decision is on the board as it stands, the same for both.)
+    const same = (o, p) => p.tile === o.tile && p.ability === o.ability && p.target === o.target && p.fusion === o.fusion
+    assert.ok(mixed[0].options.length > 1 && mixed[0].uid === plain[0].uid)
+    for (const o of mixed[0].options) {
+      const p = plain[0].options.find((x) => same(o, x))
+      assert.ok(p && Math.abs(o.value - (p.value + 2 * V(o.board))) < 1e-6 * Math.max(1, Math.abs(o.value)))
+    }
+    if (!TUNING.expert.beam.learned) assert.deepEqual(expertTurn(fork(b)), expertTurn(fork(b), { learned: false }))
   } finally {
-    load(null)
+    TUNING.expert.beam.hybrid = was
+    load(had)
   }
 })
 

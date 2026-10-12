@@ -10,6 +10,8 @@
 //   value(battle)     → V for your side, a number (higher is better), or null while no weights are trained
 //   loaded()          → whether trained weights are in use
 //   predict(battle)   → V's three outputs { won, monarch, own } (null with no weights), values(battles) V of each
+//   mix()             → the combination of the outputs in use (value.json's `value`, else VALUE); value.json's `drop`
+//                       names inputs its weights were trained without (read, then given no weight)
 //
 // The player's recording hook, for the learner's data (policy.js expertTurn's options): `record(battle, info)` is
 // called at each piece's decision with the board before it decides (info: { uid, options, chosen }), and
@@ -19,10 +21,12 @@
 // sigmoid, fitted by log-loss); `monarch`, the share of the Monarch's max HP it loses over the next two turns (to the
 // start of the turn after next, or the battle's end; net of healing, so below 0 when it is mended); `own`, the same for
 // your pieces' HP (their HP summed, over their max summed as the board stands; a piece felled loses all it had).
-// `value` combines them by VALUE, fixed here (not TUNING's): V = won·P(won) − monarch·monarchLost − own·ownLost. The
+// `value` combines them by VALUE, fixed here (not TUNING's), or by value.json's own `value` where it has one (the
+// combination its weights were measured with: mix): V = won·P(won) − monarch·monarchLost − own·ownLost. The
 // Monarch's wounds weigh three times your pieces' because they are the run's (they carry from battle to battle, and a
 // fall ends the run), and the two-turn losses give the board's read its grain where P(won) sits near 1. A battle over
-// is worth VALUE.won when won and −VALUE.monarch when lost.
+// is worth `won` when won and −`monarch` when lost. (Measured on 2026-10-11, step 8b: VALUE's 1 for P(won) let the
+// pieces' two-turn losses rule every choice, and V's play hid from every blow; the shipped weights carry won 40.)
 //
 // Features (raw; `turns` for a foe: the turns until its farthest blow reaches the Monarch along its road walked with
 // no one in the way, 1 for the coming turn; "next turn" the foes' turn to come; "pieces" your units that take orders,
@@ -677,6 +681,8 @@ function fold (json) {
   if (!read) return null
   const { net, mean, sd } = read
   const { sizes } = net
+  // The inputs V was trained without (value.json's `drop`): their weights nothing.
+  const drop = new Set((json.drop ?? []).map((f) => FEATURES.indexOf(f)))
   const b = net.b.map((v) => Float64Array.from(v))
   const WT = net.W.map((w, l) => {
     const I = sizes[l]
@@ -684,8 +690,9 @@ function fold (json) {
     const t = new Float64Array(I * J)
     for (let i = 0; i < I; i++) {
       const s = l === 0 ? sd[i] || 1 : 1
+      const off = l === 0 && drop.has(i)
       for (let j = 0; j < J; j++) {
-        const v = w[i * J + j] / s
+        const v = off ? 0 : w[i * J + j] / s
         t[j * I + i] = v
         if (l === 0) b[0][j] -= v * mean[i]
       }
@@ -745,6 +752,7 @@ let JSON_IN_USE = RT ? SHIPPED : null
 export function load (json) {
   RT = json ? fold(json) : null
   JSON_IN_USE = RT ? json : null
+  MIX = mixOf(JSON_IN_USE)
   return loaded()
 }
 
@@ -752,13 +760,21 @@ export const loaded = () => RT !== null
 
 // ── V ────────────────────────────────────────────────────────────────────────────────────────────
 
-// V's combination of its three outputs (see the header): fixed here, not tuned.
+// V's combination of its three outputs (see the header), the default; value.json's `value` ({ won, monarch, own }), where
+// it has one, is the combination its weights were measured with and is used in its place (mix).
 export const VALUE = Object.freeze({ won: 1, monarch: 3, own: 1 })
+function mixOf (json) {
+  const m = json?.value
+  return m && ['won', 'monarch', 'own'].every((k) => Number.isFinite(m[k])) ? Object.freeze({ won: m.won, monarch: m.monarch, own: m.own }) : VALUE
+}
+let MIX = mixOf(JSON_IN_USE)
+// The combination in use.
+export const mix = () => MIX
 
 const X = new Float32Array(D)
 const O = new Float32Array(OUTPUTS)
-const combine = (o) => VALUE.won * sigmoid(o[0]) - VALUE.monarch * o[1] - VALUE.own * o[2]
-const terminal = (battle) => (battle.winner === 'party' ? VALUE.won : -VALUE.monarch)
+const combine = (o) => MIX.won * sigmoid(o[0]) - MIX.monarch * o[1] - MIX.own * o[2]
+const terminal = (battle) => (battle.winner === 'party' ? MIX.won : -MIX.monarch)
 
 // The raw outputs for raw encodings: `k` rows of `Xs` (k × FEATURES.length) into `out` (k × 3), with no weights null.
 export function forwardBatch (Xs, k, out = new Float32Array(k * OUTPUTS)) {

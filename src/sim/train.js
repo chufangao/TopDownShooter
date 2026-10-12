@@ -16,13 +16,24 @@
 //   npm run train -- [--runs 1000] [--seed value] [--workers 4] [--data dir] [--out src/sim/value.json]
 //                    [--play-only | --no-play | --no-fit] [--lambda 1] [--epochs 40] [--patience 6] [--hidden 64]
 //                    [--batch 256] [--lr 1e-3] [--l2 1e-5] [--disasters 0.33] [--net-seed 1]
+//                    [--player <value.json> | static] [--epsilon 0] [--top 3]          (who plays, how it explores)
+//                    [--replay n [--disasters-of dir] [--last 4] [--early 2] [--times 2]] (the disasters replayed)
+//                    [--all] [--with dir,…] [--value <value.json>] [--drop f,…] [--mix won,monarch,own] [--epoch-rows n]
 //
 // `--data` defaults to the OS's temp directory (retinue-value-<seed>); it holds runs.bin (the logs), positions.bin (the
 // encoded positions: made again when FEATURES, KEEP, NEAR or λ change) and disasters.json. `--no-play` fits on the
-// runs already played. `--lambda` below 1 takes TD(λ) targets for P(won) from the weights in use (value.json) across
-// each battle's turns (round 1 on: redesign.md §2.21 self-play), 1 the battle's result alone (round 0). Delete --data
-// (or take another --seed) once the game or the expert has changed. Disasters are replayed by replayTo (a run's log to a
-// turn's start) once the player's `explore` option can play them on with exploration.
+// runs already played. `--lambda` below 1 takes TD(λ) targets for P(won) from the weights in use (value.json, or
+// `--value`'s) across each battle's turns (round 1 on: redesign.md §2.21 self-play), 1 the battle's result alone (round
+// 0). Delete --data (or take another --seed) once the game or the expert has changed.
+// The rounds (redesign.md §2.21, §6 "the learned expert, step 8b"): `--player` the weights the runs are played with
+// (`static`: the expert's static evaluation), `--epsilon` its turns exploring (policy.js expertTurn's `explore`).
+// `--replay n`: n of the disasters' turn starts (disasters.json's, of the training runs) replayed (replayRun: the run's
+// log to that turn's start, the battle played on exploring, epsilon 0.2 unless given), appended to runs.bin as runs
+// `<seed>-k` and split with the run they replay. `--all` fits on every run in runs.bin (and in `--with`'s directories),
+// not only `<seed>-1…<runs>`. `--drop` leaves inputs out (value.json's `drop`: their weights nothing; `decisions`, the
+// turn's progress: DECISIONS), `--mix` writes
+// the combination of V's outputs it was measured with (value.json's `value`: value.js VALUE otherwise), `--epoch-rows`
+// caps the rows an epoch draws.
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -31,18 +42,47 @@ import zlib from 'node:zlib'
 
 // ── stage 1: play ────────────────────────────────────────────────────────────────────────────────
 
-// One expert run, kept as { seed, result, floor, log }. Dynamic imports: a worker's alone.
-async function playRun (seed) {
+// The expert's turns with exploration (policy.js expertTurn's `explore`): at each decision, with chance `epsilon`, one
+// of its `top` best options at random, the draws from a stream of `seed`'s; none with epsilon 0.
+async function exploring (seed, epsilon, top) {
+  if (!(epsilon > 0)) return null
+  const { createRng } = await import('./rng.js')
+  return { explore: { rng: createRng(String(seed)).stream('explore'), epsilon, top } }
+}
+
+// One expert run, kept as { seed, result, floor, log }; `epsilon` > 0, its turns exploring (the self-play rounds').
+// Dynamic imports: a worker's alone.
+async function playRun (seed, { epsilon = 0, top = 3 } = {}) {
   const { policy } = await import('./autoplay.js')
   const { createRun, apply } = await import('./run.js')
   const { createRng } = await import('./rng.js')
   const run = createRun({ seed })
   const rng = createRng(run.state.seed).stream('autoplay')
+  const turns = await exploring(seed, epsilon, top)
   for (let guard = 0; run.state.phase !== 'over'; guard++) {
     if (guard > 1e6) throw new Error(`${seed}: stuck`)
-    apply(run, policy(run, rng, 'expert'))
+    apply(run, policy(run, rng, 'expert', turns))
   }
   return { seed, result: run.state.result, floor: run.state.floor, log: run.state.log }
+}
+
+// A disaster replayed (redesign.md §2.21): run `base`'s log `log` (its first `at` actions: to a turn's start in a lost or
+// near-lost battle, disasters.json) played back, then that battle played on by the expert exploring (`epsilon`, `top`)
+// to its end. → { seed, base, from: at, log (the whole: the prefix and the battle's rest) }: positionsOf reads only
+// from `from` on, and splits it by `base`'s run.
+async function replayRun ({ seed, base, at, log }, { epsilon = 0.2, top = 3 } = {}) {
+  const { policy } = await import('./autoplay.js')
+  const { createRun, apply } = await import('./run.js')
+  const { createRng } = await import('./rng.js')
+  const run = createRun({ seed: base })
+  for (let i = 0; i < at; i++) apply(run, log[i])
+  const rng = createRng(String(seed)).stream('autoplay')
+  const turns = await exploring(seed, epsilon, top)
+  for (let guard = 0; run.state.phase === 'battle'; guard++) {
+    if (guard > 1e5) throw new Error(`${seed}: stuck`)
+    apply(run, policy(run, rng, 'expert', turns))
+  }
+  return { seed, base, from: at, result: run.state.result, floor: run.state.floor, log: run.state.log }
 }
 
 // A file of records, each a 4-byte length then a gzipped JSON value, appended one at a time (a stage stopped part way
@@ -145,8 +185,10 @@ export async function positionsOf (rec, { lambda = 1 } = {}) {
   mulberryOf ??= V.mulberry
   if (lambda < 1 && !V.loaded()) throw new Error('TD(λ) targets need trained weights in value.json')
   const D = V.FEATURES.length
-  const runNo = seedNo(rec.seed)
-  const run = createRun({ seed: rec.seed })
+  // A replay (replayRun's) is split with the run it replays, and read from where it took over.
+  const runNo = seedNo(rec.base ?? rec.seed)
+  const from = rec.from ?? 0
+  const run = createRun({ seed: rec.base ?? rec.seed })
   const rows = []
   const disasters = []
   let cur = null
@@ -177,16 +219,24 @@ export async function positionsOf (rec, { lambda = 1 } = {}) {
       rows.push({ x: p.x, y: [yOf.get(p.turn) ?? z, (p.m - then.m) / p.mMax, p.ownMax > 0 ? (p.own - then.own) / p.ownMax : 0], z, wt, meta: [runNo, cur.no, p.turn, p.kind, group, cur.floor] })
     })
     if (group > 0) {
-      disasters.push({ seed: rec.seed, battle: cur.no, floor: cur.floor, lost: !z, least: +least.toFixed(4), turns: turns.map((t) => ({ turn: t, at: cur.turns.get(t).at })) })
+      disasters.push({ seed: rec.seed, ...(rec.base && { base: rec.base }), battle: cur.no, floor: cur.floor, lost: !z, least: +least.toFixed(4), turns: turns.map((t) => ({ turn: t, at: cur.turns.get(t).at })) })
     }
     cur = null
   }
+  let seen = null
   for (let i = 0; i < rec.log.length; i++) {
     const a = rec.log[i]
     const inBattle = run.state.phase === 'battle'
     const b = run.battle
+    if (i < from) {
+      if (inBattle && b !== seen) battles++
+      seen = b
+      apply(run, a)
+      continue
+    }
     if (inBattle) {
-      if (!cur || cur.b !== b) cur = { b, no: ++battles, floor: run.state.floor, samples: [], turns: new Map(), last: -1 }
+      if (!cur || cur.b !== b) cur = { b, no: b === seen ? battles : ++battles, floor: run.state.floor, samples: [], turns: new Map(), last: -1 }
+      seen = b
       if (!b.over && b.stage === 'party' && b.turn !== cur.last) {
         cur.last = b.turn
         cur.turns.set(b.turn, { m: Math.max(0, b.monarch.hp), own: piecesHp(b).hp, at: i, v: lambda < 1 ? V.predict(b).won : null })
@@ -474,7 +524,9 @@ async function fit (data, opts) {
     for (let j = 0; j < D; j++) sd[j] += w * (data.X[r * D + j] - mean[j]) ** 2
   }
   for (let j = 0; j < D; j++) sd[j] = Math.sqrt(sd[j] / W) > 1e-6 ? Math.sqrt(sd[j] / W) : 1
-  const isd = sd.map((v) => 1 / v)
+  // The inputs left out (`--drop`): read as their mean, so they carry nothing (value.json's `drop`: value.js reads them so).
+  const drop = new Set(opts.drop.map((f) => V.FEATURES.indexOf(f)).filter((i) => i >= 0))
+  const isd = sd.map((v, j) => (drop.has(j) ? 0 : 1 / v))
   // The heads' base losses (the loss's units): P(won)'s at the base rate, the HP outputs' variances.
   const base = reading(data, train, new Float64Array(train.length * 3))
   const won = base.won
@@ -488,7 +540,8 @@ async function fit (data, opts) {
     all += q[i]
     if (data.meta[r * M + 4] > 0) dis += q[i]
   })
-  const scale = dis > 0 && dis / all < opts.disasters ? opts.disasters / (1 - opts.disasters) * (all - dis) / dis : 1
+  // (Scaled down as well as up: the disasters' replays may make them more than that.)
+  const scale = dis > 0 && dis < all ? opts.disasters / (1 - opts.disasters) * (all - dis) / dis : 1
   train.forEach((r, i) => { if (data.meta[r * M + 4] > 0) q[i] *= scale })
   const cum = new Float64Array(train.length)
   let acc = 0
@@ -522,7 +575,7 @@ async function fit (data, opts) {
   let lr = opts.lr
   let best = null
   let since = 0
-  const steps = Math.ceil(train.length / B)
+  const steps = Math.ceil(Math.min(train.length, opts.epochRows || Infinity) / B)
   const copy = (nt) => ({ sizes: nt.sizes, W: nt.W.map((w) => w.slice()), b: nt.b.map((v) => v.slice()) })
   for (let epoch = 1; epoch <= opts.epochs; epoch++) {
     const t0 = Date.now()
@@ -578,9 +631,12 @@ async function fit (data, opts) {
   return V.toJSON(out, {
     mean,
     sd,
+    ...(opts.drop.length && { drop: opts.drop }),
+    ...(opts.mix && { value: opts.mix }),
     made: {
       seed: opts.seed, runs: data.runs, positions: n, train: train.length, validation: val.length, test: test.length, lambda: opts.lambda,
-      keep: KEEP, near: NEAR, disasters: opts.disasters, hidden: opts.hidden, epochs: best.epoch, lr: opts.lr, l2: opts.l2, batch: B,
+      keep: KEEP, near: NEAR, disasters: opts.disasters, hidden: opts.hidden, epochs: best.epoch, lr: opts.lr, l2: opts.l2, batch: B, epochRows: opts.epochRows || null,
+      sets: opts.sets,
       held: 'runs whose seed number is ≡ 0 (mod 5); validation ≡ 1', recalibration: cal
     },
     held
@@ -589,9 +645,44 @@ async function fit (data, opts) {
 
 // ── run directly ─────────────────────────────────────────────────────────────────────────────────
 
-const JOBS = { play: playRun, positions: positionsOf }
+const JOBS = { play: playRun, positions: positionsOf, replay: replayRun }
+
+// The disasters' turn starts to replay (disasters.json, from `list`): of each lost or near-lost battle of a training run
+// (seed number ≢ 0, 1 mod 5: the validation and held-out runs stay as played), its last `last` turns' starts and `early`
+// of the turns before them drawn at random, each `times` times; → [{ seed (the replay's: `${prefix}-k`), base, at }].
+export function replayPlan (list, { prefix = 'replay', last = 4, early = 2, times = 2, seed = 1 } = {}) {
+  const rand = mulberryOf ? mulberryOf(seed) : Math.random
+  const out = []
+  for (const d of list) {
+    if (d.base || seedNo(d.seed) % 5 < 2) continue
+    const turns = d.turns.map((t) => t.at)
+    const late = turns.slice(-last)
+    const before = turns.slice(0, -last)
+    const pick = []
+    for (let k = 0; k < early && before.length; k++) pick.push(before.splice(Math.floor(rand() * before.length), 1)[0])
+    for (const at of [...pick, ...late]) for (let r = 0; r < times; r++) out.push({ base: d.seed, at })
+  }
+  return out.map((x, k) => ({ seed: `${prefix}-${k + 1}`, ...x }))
+}
+
+// The inputs that tell how far the turn has gone rather than how the battle stands (`--drop decisions`): the share of
+// pieces yet to act, its danger, the foes they could fell, and each piece slot's acted and ready. The expert acts and
+// spends its skills when pressed, so V trained with them reads a piece that acted or a skill spent as a battle going
+// badly, and holds back (redesign.md §6, step 8b).
+const DECISIONS = ['idle', 'dangerIdle', 'killable', ...Array.from({ length: 10 }, (_, i) => [`piece${i + 1}.acted`, `piece${i + 1}.ready`]).flat()]
+
+// The weights a worker uses, where not value.json's: `weights` a path to a value.json (the expert then plays by it:
+// TUNING.expert.beam.learned, its `hybrid` as set there), or 'static' for none (the expert's static evaluation).
+async function useWeights (weights) {
+  if (!weights) return
+  const V = await import('./value.js')
+  V.load(weights === 'static' ? null : JSON.parse(fs.readFileSync(weights, 'utf8')))
+  const { TUNING } = await import('../tuning.js')
+  TUNING.expert.beam.learned = weights !== 'static'
+}
 
 if (!isMainThread && workerData?.kind && JOBS[workerData.kind]) {
+  await useWeights(workerData.weights)
   parentPort.on('message', async (item) => parentPort.postMessage(await JOBS[workerData.kind](item, workerData)))
 } else if (isMainThread && process.argv[1] === decodeURIComponent(new URL(import.meta.url).pathname)) {
   const arg = (name, def) => {
@@ -606,11 +697,33 @@ if (!isMainThread && workerData?.kind && JOBS[workerData.kind]) {
   const t0 = Date.now()
   // Stage 1.
   const runsFile = path.join(dir, 'runs.bin')
+  // `--with dir,…`: other data directories' runs.bin read beside this one's (other rounds', played apart), their
+  // positions kept in this one's, their disasters replayed into this one's.
+  const every = () => [runsFile, ...arg('with', '').split(',').filter(Boolean).map((d) => path.join(d, 'runs.bin'))].flatMap(unpackAll)
   const had = new Set(unpackAll(runsFile).map((r) => r.seed))
+  // `--player <value.json | static>`: the weights the expert plays (and replays) with, else value.json's; `--value
+  // <value.json>`: the weights TD(λ)'s targets read, else value.json's.
+  const explore = { epsilon: Number(arg('epsilon', 0)), top: Number(arg('top', 3)), weights: arg('player', null) }
+  await useWeights(arg('value', null))
+  const replays = Number(arg('replay', 0))
+  if (replays > 0) {
+    // The disasters replayed with exploration (`--replay n`: at most n, from `--disasters-of dir`'s disasters.json, else
+    // this --data's), seeds `<seed>-k`, appended to runs.bin.
+    const list = JSON.parse(fs.readFileSync(path.join(arg('disasters-of', dir), 'disasters.json'), 'utf8'))
+    const V = await import('./value.js')
+    mulberryOf ??= V.mulberry
+    const plan = replayPlan(list, { prefix: seed, last: Number(arg('last', 4)), early: Number(arg('early', 2)), times: Number(arg('times', 2)) })
+    const recs = new Map(every().filter((r) => !r.base).map((r) => [r.seed, r]))
+    const items = plan.filter((x) => !had.has(x.seed) && recs.has(x.base)).slice(0, replays).map((x) => ({ ...x, log: recs.get(x.base).log.slice(0, x.at) }))
+    console.log(`replaying ${items.length} disaster turn starts (of ${plan.length} planned; epsilon ${explore.epsilon || 0.2}, top ${explore.top}) on ${workers} workers`)
+    await pool('replay', items, workers, (r) => fs.appendFileSync(runsFile, pack(r)), { ...explore, epsilon: explore.epsilon || 0.2 })
+    console.log(`replays done, ${((Date.now() - t0) / 1000).toFixed(0)} s`)
+    process.exit(0)
+  }
   const todo = Array.from({ length: runs }, (_, k) => `${seed}-${k + 1}`).filter((x) => !had.has(x))
   if (todo.length && !process.argv.includes('--no-play')) {
-    console.log(`playing ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${had.size} already in ${runsFile}) on ${workers} workers`)
-    await pool('play', todo, workers, (r) => fs.appendFileSync(runsFile, pack(r)))
+    console.log(`playing ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${had.size} already in ${runsFile}; epsilon ${explore.epsilon}) on ${workers} workers`)
+    await pool('play', todo, workers, (r) => fs.appendFileSync(runsFile, pack(r)), explore)
   }
   console.log(`play done, ${((Date.now() - t0) / 1000).toFixed(0)} s`)
   if (process.argv.includes('--play-only')) process.exit(0)
@@ -627,11 +740,12 @@ if (!isMainThread && workerData?.kind && JOBS[workerData.kind]) {
   }
   if (!have.length) fs.writeFileSync(posFile, header + '\n')
   const done = new Set(have.map((r) => r.seed))
-  const wanted = new Set(Array.from({ length: runs }, (_, k) => `${seed}-${k + 1}`))
-  const recs = unpackAll(runsFile).filter((r) => wanted.has(r.seed) && !done.has(r.seed))
+  // `--all`: every run in runs.bin (every round's, and the disasters' replays), else this seed's.
+  const wanted = process.argv.includes('--all') ? new Set(every().map((r) => r.seed)) : new Set(Array.from({ length: runs }, (_, k) => `${seed}-${k + 1}`))
+  const recs = every().filter((r) => wanted.has(r.seed) && !done.has(r.seed))
   if (recs.length) {
     console.log(`positions: replaying ${recs.length} runs on ${workers} workers`)
-    await pool('positions', recs, workers, (r) => fs.appendFileSync(posFile, packPositions(r)), { lambda })
+    await pool('positions', recs, workers, (r) => fs.appendFileSync(posFile, packPositions(r)), { lambda, weights: arg('value', null) })
   }
   const data = gather(readPositions(posFile, header, D).filter((r) => wanted.has(r.seed)), D)
   fs.writeFileSync(path.join(dir, 'disasters.json'), JSON.stringify(data.disasters))
@@ -640,7 +754,9 @@ if (!isMainThread && workerData?.kind && JOBS[workerData.kind]) {
   // Stage 3.
   const json = await fit(data, {
     seed, lambda, epochs: Number(arg('epochs', 40)), patience: Number(arg('patience', 6)), hidden: Number(arg('hidden', 64)), batch: Number(arg('batch', 256)),
-    lr: Number(arg('lr', 1e-3)), l2: Number(arg('l2', 1e-5)), disasters: Number(arg('disasters', 1 / 3)), netSeed: Number(arg('net-seed', 1))
+    lr: Number(arg('lr', 1e-3)), l2: Number(arg('l2', 1e-5)), disasters: Number(arg('disasters', 1 / 3)), netSeed: Number(arg('net-seed', 1)),
+    drop: arg('drop', '').split(',').filter(Boolean).flatMap((f) => (f === 'decisions' ? DECISIONS : [f])), mix: arg('mix', null) && Object.fromEntries(['won', 'monarch', 'own'].map((k, i) => [k, Number(arg('mix').split(',')[i])])),
+    epochRows: Number(arg('epoch-rows', 0)), sets: [...new Set([...wanted].map((x) => String(x).replace(/-\d+$/, '')))]
   })
   const out = arg('out', new URL('./value.json', import.meta.url).pathname)
   fs.writeFileSync(out, JSON.stringify(json) + '\n')

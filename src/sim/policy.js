@@ -1340,7 +1340,9 @@ function keyOf (f) {
 // complete one by its board's and its share of those priors. The same board gives the same orders (but under
 // `explore`).
 // Options: `fuse` false (the fusions ablation's): no fusion is weighed. `moving` false (the moves ablation's): every
-// piece acts from where it stands. `learned` false: today's static evaluation, whatever value.js holds. `note` (the
+// piece acts from where it stands. `learned` (TUNING.expert.beam.learned unless given): V where trained, each board by V
+// alone (`hybrid` 0) or by the static evaluation and `hybrid` × V; false, today's static evaluation, whatever value.js
+// holds. `note` (the
 // audit's) hears each decision of the turn given: { decision ('plan', 'board', or 'battle' a piece's), uid, by, rules,
 // sit }, `by` the rule of the tree that filtered the piece's options, else 'value'. For the learner (redesign.md §5 Step
 // 8): `record(battle, { uid, options, chosen, explored })` is called at each decision of the turn given, in order, with
@@ -1349,7 +1351,7 @@ function keyOf (f) {
 // `chosen` the index of the one taken; `explore: { rng (a function → [0, 1)), epsilon, top }`: at each decision, with
 // chance epsilon, the turn takes one of the `top` best options of the best partial turn's piece at random (the beam
 // goes on from it alone), `explored` true in its record.
-export function expertTurn (battle, { fuse = true, note = null, moving = true, learned = true, record = null, explore = null } = {}) {
+export function expertTurn (battle, { fuse = true, note = null, moving = true, learned = TUNING.expert.beam.learned, record = null, explore = null } = {}) {
   if (battle.over) return []
   const B = TUNING.expert.beam
   const sit = situation(battle)
@@ -1369,6 +1371,7 @@ export function expertTurn (battle, { fuse = true, note = null, moving = true, l
   const rank = new Map(pieces.map((u) => [u, listed.includes(u.uid) ? -1e9 + listed.indexOf(u.uid) : -spread(u)]))
   const turnOrder = pieces.slice().sort((a, b) => rank.get(a) - rank.get(b) || a.ord - b.ord).map((u) => u.uid)
   const ctx = { plan, moving, fuse, learned: learned && typeof learnedValue(battle) === 'number', short, from: battle, keep: !!record }
+  ctx.hybrid = ctx.learned ? B.hybrid ?? 0 : 0
   const root = { f: battle, sit, parent: null, group: null, orders: NONE, done: new Set(), value: 0, prior: 0 }
   // A partial turn's next pieces: the first of the turn's order it has yet to decide that may still move or act.
   const next = (S) => {
@@ -1420,10 +1423,11 @@ export function expertTurn (battle, { fuse = true, note = null, moving = true, l
     const g = copy(S.f)
     const extra = untouchedOrders(g)
     const n = ctx.learned ? learnedValue(g) : null
-    const j = typeof n === 'number' ? { keys: NONE, value: n } : judge(g, battle)
+    const alone = typeof n === 'number' && !ctx.hybrid
+    const j = alone ? { keys: NONE, value: n } : judge(g, battle)
     // End Turn alone: each piece's prior for holding where it stands.
     const prior = S !== root ? S.prior : pieces.reduce((k, u) => k + (short.get(u.uid).find((o) => o.tile === u.tile && !o.ability && !o.fusion)?.prior ?? 0), 0)
-    return { S, extra, value: j.value + (typeof n === 'number' ? 0 : B.static.final * prior), keys: j.keys, end: i === done.length }
+    return { S, extra, value: j.value + (alone ? 0 : B.static.final * prior + (ctx.hybrid ? ctx.hybrid * n : 0)), keys: j.keys, end: i === done.length }
   })
   let pick = finals[0]
   for (const x of finals) if (x.value > pick.value) pick = x
@@ -1519,13 +1523,14 @@ function expand (S, uid, ctx) {
     else {
       if (!afterstate(c)) continue
       const g = c.f
-      if (ctx.learned) c.value = learnedValue(g)
+      if (ctx.learned && !ctx.hybrid) c.value = learnedValue(g)
       else {
         c.value = K.prior * c.prior
         if (K.board) {
           if (!g.over) c.sit = leanSit(g, ctx.plan)
           c.value += K.board * judge(g, ctx.from, c.sit).value
         } else if (g.over) c.value += judge(g, ctx.from).value
+        if (ctx.hybrid) c.value += ctx.hybrid * learnedValue(g)
       }
     }
     group.children.push(c)

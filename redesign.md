@@ -965,6 +965,62 @@ battle lost, not the Monarch left open); C's route rules seldom fire (none in an
 below 0.7 when it picks a room). The search's noise
 (±2.2 progress paired on 256) still hides any single weight's worth.
 
+**Then (2026-10-11): the learned expert, step 8b.** One agent, 2.5 hours, 8 cores; every number on 256 seeds `sim` (the
+bar's 64 are its first), paired by seed against the beam with the static evaluation (787b044's code, V unloaded: **37.9%
+/ progress 67.1**; the bar's 64 **34.4% / 63.8**), ± one standard error of the paired difference in progress, clears won
+and lost. Measured first: **V round 0 as 8a shipped it (V alone, value.js loaded by default) cleared 3.5% / 18.8**
+(−48.3 ± 2.4, clears +6 −94; the bar's 64 3.1%), 219 of its 247 deaths on floor 1, 88.5% of battles won. Two causes,
+read off its choices: *the mix* (VALUE won 1, monarch 3, own 1): a Tomb Knight's cleave (P(won) .9977) lost to holding
+back (.9932) on 0.017 of the pieces' two-turn HP, so the pieces hid from every blow; and *confounded inputs*: the expert
+acts and spends skills when pressed, so V read a piece that had acted or a skill on cooldown as a battle going badly
+(the Chanter's Dirge −0.83 logit from `ready` and `acted` alone). Both fixed without changing what V reads: value.json
+now carries its own combination (`value`: won 40, monarch 3, own 1; value.js `mix`) and the inputs it was trained
+without (`drop`: idle, dangerIdle, killable, every piece slot's acted and ready, 23; their weights nothing). On round
+0's data (v1d) V alone then cleared 17.2% / 41.0 on the bar's 64 (−22.7 ± 4.6); its formations by V were not the cause
+(V0 with none: no better), and V re-ranking only the static beam's complete turns was as bad (−21.6 ± 5.4 on 36). **V
+alone never came near the static evaluation** in any round: a battle's outcome is too coarse a label for the small
+difference one option makes, and V (AUC ~0.97 between battles) cannot rank a turn's options; the exploring data helped
+it only slowly (on the bar's 64: vD 7.8% / 31.4, R1 10.9% / 35.5, R2 12.5% / 42.7). So V joins the static evaluation
+instead: **the hybrid**, each afterstate's static score plus `hybrid` 3 × V (TUNING.expert.beam; α 1, 3, 10 tried on 64
+with v1d: +1.8, +1.9, +1.1, each ± ~4.7), the formation still V's among the static's best 12. *Rounds* (`npm run train`,
+new options: `--player`, `--epsilon`, `--replay`, `--with`, `--all`, `--value`, `--drop`, `--mix`, `--epoch-rows`; each
+fit early-stopped on the runs ≡ 1 mod 5, read on those ≡ 0): **v1d** (round 0's 1,000 old-expert runs, 311k positions, λ
+1; held-out AUC 0.963): hybrid 36.7% / 68.4, +1.4 ± 2.1 (clears +35 −38): level. **D, the disasters** (+6,000 replays of
+round 0's lost and near-lost battles from their last four turn starts and two earlier, the static beam exploring ε 0.2
+over its top 3; 418k positions, 3,800 lost battles against 652; AUC 0.968, the disaster battles' 0.833): hybrid +2.1 ±
+4.9 on 64, level with v1d's (+0.2 ± 4.8): not kept. **R1** (+800 runs of the static beam ε 0.15, +400 of the hybrid on
+vD ε 0.1; TD(λ 0.8) from vD; 784k positions; AUC 0.976, disasters 0.868): **hybrid 39.1% / 72.1, +5.0 ± 2.2 (clears +45
+−42)**, +3.6 ± 2.3 on v1d's hybrid; the bar's 64 **48.4% / 76.0** (+12.2 ± 4.7): kept, the round to beat. **R2** (+3,000
+replays of R1's new disasters by the hybrid on vD, +300 hybrid runs ε 0.1; TD from R1; 926k positions, 6,284 lost
+battles; AUC 0.977, disasters 0.870): hybrid 39.1% / 68.5, +1.4 ± 2.0 (clears +34 −31), −3.6 ± 2.1 on R1: not kept. **R1
+checked on 128 fresh seeds `chk`**: 32.8% / 64.8 against the static's 36.7% / 64.9, −0.1 ± 3.6 (clears +19 −24): R1's
+gain on `sim` was the seeds' (the best of several read on the same 256), not V's. **R3** (+400 hybrid-R1 runs ε 0.1,
++2,000 replays of R2's disasters by the hybrid on R1; TD from R2; 13,900 runs, 1.08M positions, 7,545 lost battles; AUC
+0.976, disasters 0.868): hybrid 40.6% / 71.4, +4.4 ± 2.2 (clears +42 −35), −0.6 ± 2.1 on R1, the bar's 64 39.1% / 68.8;
+on `chk` 32.0% / 59.9, −5.0 ± 3.4 (clears +15 −21): not kept. Over the 384 seeds the hybrid's clears are the static's
+(R1 142, R3 145, static 144), its progress +1 to +3, inside the noise.
+**The default is the static evaluation: V never beat it.** TUNING.expert.beam `learned: false` (the hybrid is
+`--learned`, or `learned: true`, with `hybrid: 3`); src/sim/value.json is R1's (the best of the rounds over both seed
+sets), used only so. The default plays exactly the measured static beam (the same orders seed for seed); against HEAD
+(787b044, V round 0 alone by default) it is +48.3 ± 2.4 (clears +94 −6). *The final configuration*, 256 seeds `sim`:
+**37.9% / 67.1**, battles won 97.9%; died on floor 1 / 2 / 3 / 4 in 21.5 / 15.6 / 13.7 / 11.3% (55 / 40 / 35 / 29 runs);
+the Monarch felled in all 159 lost runs, by reach 60, shape 35, fly 24, sustain 15, drain 14, bleed 6, burn 5; **the
+bar's 64: 34.4% / 63.8** (the old rehearsing expert 47%; R1's hybrid 48.4% / 76.0 there, not robust). *Cost*: a
+mid-battle turn 5.1 ms (the hybrid 7.3, V alone 5.8), the full board 45 ms (64, 52); a run ~8 s. *Puzzles*: V alone
+fails six (the healer first, the kill list's focus and its range-first order, the walled road, protect's Knight, the
+Monarch's shooter first); the hybrid passes them all, so they are re-enabled with V: puzzles-learned.test.js and
+policy-learned.test.js run puzzles.test.js and policy.test.js again on the shipped value.json with `learned` (421 tests
+pass). *Regenerate* (on a frozen worktree; ~1 h on 8 cores): round 0 `npm run train -- --data D --runs 1000 --player
+static --play-only`; the disasters `npm run train -- --data D --seed rep1 --replay 6000 --player static`; a self-play
+round `npm run train -- --data R --seed sh1 --runs 400 --epsilon 0.1 --player src/sim/value.json --play-only`; the fit
+`npm run train -- --data D --with R,… --seed x --all --no-play --lambda 0.8 --value <the last V> --drop decisions --mix
+40,3,1 --patience 3 --epoch-rows 300000 --out src/sim/value.json` (round 0's fit: `--lambda 1`, no `--value`).
+Open: V ranks battles (AUC 0.976) but not a turn's options; a battle's outcome is too coarse a label for the one option,
+and ~14k runs of exploring play did not teach it. What would: labels on the options themselves (the teacher of §2.21: an
+offline search that plays the foes' turn, scoring each option of hard positions, V fitted to match), or a loss on the
+explored decisions' paired outcomes; and V reading the plan's roles. Until then the expert stays ~10 points under the
+bar, and the limit is where it was: which rooms it walks into, and the few battles it loses.
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):

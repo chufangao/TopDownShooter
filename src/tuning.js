@@ -132,8 +132,12 @@ export const TUNING = {
     // board's and `final` × that sum (2026-10-11, of three tried on 64 seeds against the turn before the beam's 37.5%:
     // the board alone 28.1%, the priors alone and the board for the complete turns ~20% (before the shortlist read every
     // option), both 34.4%). `formation`: how many formations, the best by the formation's static score, are read again
-    // by V of the battle's opening board where V is trained (autoplay.js plan; 0: never).
-    beam: { width: 4, pieces: 2, options: 12, shortlist: 16, static: { board: 1, prior: 1, final: 1 }, formation: 12 },
+    // by V of the battle's opening board where V is trained (autoplay.js plan; 0: never). `learned`: whether the expert
+    // uses V (value.js, where trained) at all; false, the static evaluation throughout (autoplay --learned, or a level's
+    // `learned`, overrides it). `hybrid`: where it does, 0 scores each board by V alone, above 0 by the static evaluation
+    // plus `hybrid` × V (2026-10-11, step 8b, redesign.md §6: V alone 3.5% of runs cleared as 8a shipped it, ≤ 17% after,
+    // against the static's 37.9%; the hybrid at 3 level with the static over 384 seeds, at ~40% more a turn: so false).
+    beam: { width: 4, pieces: 2, options: 12, shortlist: 16, static: { board: 1, prior: 1, final: 1 }, formation: 12, learned: false, hybrid: 3 },
     // The battle plan (redesign.md §2.18; plan.js): chosen once a turn by the tree (expert.js TREES.plan) and these
     // weights, kept until a trigger; its target formation; its forecast of the foes. 2026-10-11, placeholders for the
     // weight search, hand-set.

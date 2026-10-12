@@ -15,9 +15,10 @@ import { on, scene, slay } from './scene.js'
 import { tileAt, tileX, tileY, distance, isBlow, blowReach } from '../src/sim/unit.js'
 import { load } from '../src/sim/value.js'
 
-// These read the plan, the tree and today's scorer, so the static evaluation: V's play (value.json, where trained) is
-// the ladder's to measure (redesign.md §5 Step 8b).
-load(null)
+// These read the plan, the tree and today's scorer, so the static evaluation; puzzles-learned.test.js runs them again
+// with the expert on V (TUNING.expert.beam.learned: the shipped value.json, its `hybrid`), which must pass them too
+// (redesign.md §6, step 8b: V alone did not).
+if (!TUNING.expert.beam.learned) load(null)
 
 // A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp? }], `hp` the HP it stands at; `walls` as
 // [x, y] pairs.
