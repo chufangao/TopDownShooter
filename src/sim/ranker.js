@@ -59,6 +59,16 @@
 // (changing 34% of decisions), unchosen −4.3 ± 2.2 (29%), weighted −0.9 ± 2.2 (21%; clears +33 −29). Weighted,
 // confirmed on 768 fresh seeds `chk`: clears 34.1% against 29.7% (+133 −99), progress +2.3 ± 1.4, at 2.6 s a run
 // against 2.0; kept as ranker.json.
+// Round 2 (2026-10-12; labels R2: 500 runs of round 1's ranker, each playout's rest its too, drawn by the board's state,
+// 52,077 positions; L2 and L3 beside them at half weight; every set augmented with its afterstates, every position
+// replayed to the board it was labelled on): four fits, round 1's inputs or with aft.*, R2 alone or with L2 and L3, all
+// weighted as round 1. Held out on R2, decisive positions' regret: today 0.345, round 1 0.350, the four 0.332–0.340 (the
+// afterstate's the lower by 0.004–0.008). Paired against round 1 on 256 seeds `sel2`: R2 −2.7 ± 2.2 progress, R2 with
+// aft −2.0 ± 2.1, R2 and L −1.7 ± 2.4, R2 and L with aft +1.6 ± 2.2 (clears +35 −30); that one on 768 fresh seeds `chk2`:
+// −1.65 ± 1.27 against round 1 (clears 29.3% against 30.1%, +97 −103), +0.48 ± 1.28 against today's expert, at 4.0 s a
+// run against 2.6. Round 1 stays. (Round 1 against today's expert on chk2, read off those two runs: clears 30.1%
+// against 28.9%, progress 62.6 against 60.4.) The held-out regret did not foretell the play: round 1, which gains in
+// play, reads R2's playouts no better than today's score.
 import { conditions } from './expert.js'
 import { OPTION_FEATURES } from './policy.js'
 import { forwardAll, gradsFor, adam, mulberry } from './value.js'
@@ -830,7 +840,15 @@ async function main () {
   const valid = d.meta.map((_, p) => p).filter((p) => d.meta[p].split === 'val')
   console.log(`${d.meta.length} positions, ${d.m} options, ${d.D} inputs (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
   const show = (name, rows) => console.log(`\n${name}\n${tableText(rows)}`)
-  const named = (f) => ({ name: read(f).name ?? f, ...outputsOf(d, read(f)) })
+  // Each ranker's column by its name, or by its file's where another has the name already.
+  const taken = new Set(['taken', 'today', 'ranker'])
+  const named = (f) => {
+    const config = read(f)
+    let name = config.name ?? f
+    if (taken.has(name)) name = f.replace(/^.*\//, '').replace(/\.json$/, '')
+    taken.add(name)
+    return { name, ...outputsOf(d, config) }
+  }
   if (evals.length) {
     const rankers = evals.map(named)
     show('validation (seeds ≡ 1 mod 5)', validation(d, valid, rankers))
