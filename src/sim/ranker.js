@@ -46,6 +46,14 @@
 // 1e-3 and 1e-2 on labels L2 and L3 the best validation loss, the three within 0.1%), Adam, minibatches of positions,
 // early stopping on the validation positions' loss (seeds ≡ 1 mod 5); seeds ≡ 0 mod 5 held out (teach.js split), only
 // measured.
+// Round 1 (2026-10-12; labels of today's expert to the battle's end, L2 and L3: 500 runs, 41,424 positions, 14,632 of
+// them training and decisive): held out, every variant read the playouts better than today's score (decisive positions'
+// regret 0.89 → 0.79–0.82, the lost battles' agreement 0.2% → 10–14%), yet in won and near-lost battles, where the
+// option the expert took wins by how the positions were drawn, each read them worse (near-lost regret 0.41 → 0.56–0.63),
+// and they played as that bias says: paired against today's expert on 256 seeds `sel`, plain −6.3 ± 2.4 progress
+// (changing 34% of decisions), unchosen −4.3 ± 2.2 (29%), weighted −0.9 ± 2.2 (21%; clears +33 −29). Weighted,
+// confirmed on 768 fresh seeds `chk`: clears 34.1% against 29.7% (+133 −99), progress +2.3 ± 1.4, at 2.6 s a run
+// against 2.0; kept as ranker.json.
 import { conditions } from './expert.js'
 import { OPTION_FEATURES } from './policy.js'
 import { forwardAll, gradsFor, adam, mulberry } from './value.js'
