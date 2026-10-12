@@ -1495,9 +1495,9 @@ function keyOf (f) {
 // 8): `record(battle, { uid, options, chosen, explored })` is called at each decision of the turn given, in order, with
 // the board before the piece decides (read only: the live battle for the first), `options` the options its decision
 // scored ({ tile, ability, target, fusion (ids, null for none), prior, value, board (the afterstate, read only) }) and
-// `chosen` the index of the one taken; `explore: { rng (a function → [0, 1)), epsilon, top }`: at each decision, with
-// chance epsilon, the turn takes one of the `top` best options of the best partial turn's piece at random (the beam
-// goes on from it alone), `explored` true in its record.
+// `chosen` the index of the one taken; `explore: { rng (a function → [0, 1)), epsilon, top, weigh }`: at each decision,
+// with chance epsilon, the turn takes one of the `top` best options of the best partial turn's piece at random (the
+// beam goes on from it alone), `explored` true in its record (`weigh`: the fast turn's, below).
 export function expertTurn (battle, { fuse = true, note = null, moving = true, learned = TUNING.expert.beam.learned, record = null, explore = null, beam = TUNING.expert.beam.on } = {}) {
   if (battle.over) return []
   if (!beam) return fastTurn(battle, { fuse, note, moving, record, explore })
@@ -1623,8 +1623,10 @@ export function expertTurn (battle, { fuse = true, note = null, moving = true, l
 // its path through the tree (decision 'path', `by` the path in words: expert.js pathName); `record` each decision of the
 // turn given (the board before it, read only; its options as scored, without their boards: the pass that gives the
 // orders played again with it, the same orders, so that a run that records is the run that does not) and `explore`
-// (with chance epsilon, one of the `top` best at random) as the beam's, the greedy pass alone where epsilon is above 0
-// (no second turn is weighed).
+// (with chance epsilon, one of the `top` best by today's score at random, in place of the choice, the forest's where
+// one is in use) as the beam's, the greedy pass alone where epsilon is above 0 (no second turn is weighed) unless
+// `explore.weigh` (teach.js's smoothed playouts: the expert's own turn, the kill list's weighed as ever, then the pass
+// taken played again exploring).
 function fastTurn (battle, { fuse, note, moving, record, explore }) {
   const sit = situation(battle)
   const pieces = battle.units.filter((u) => orderable(battle, u) && !u.acted)
@@ -1634,7 +1636,7 @@ function fastTurn (battle, { fuse, note, moving, record, explore }) {
   const turnOrder = pieces.slice().sort((a, b) => rank(a) - rank(b) || a.ord - b.ord).map((u) => u.uid)
   note?.({ decision: 'plan', by: `${plan.kind} (${plan.trigger ?? 'kept'})`, rules: plan.rules, sit })
   const log = () => (note ? [] : null)
-  const weigh = plan.shooters.length && plan.kills.length && !(explore?.epsilon > 0)
+  const weigh = plan.shooters.length && plan.kills.length && (!(explore?.epsilon > 0) || !!explore.weigh)
   let pick = fastPass(battle, plan, turnOrder, weigh ? { fuse, moving, log: log() } : { fuse, moving, record, explore, log: log() })
   if (weigh) {
     const kills = fastPass(battle, plan, turnOrder, { fuse, moving, log: log(), kills: true })

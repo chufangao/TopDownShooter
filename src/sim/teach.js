@@ -52,15 +52,30 @@
 // Two options that leave the same orders (a stay whose End-Turn blow is another option's act) are one: the first kept.
 // Deterministic: the same seed gives the same positions and the same labels.
 //
+// Smoothed labels (`smooth` k > 1, `--smooth k`; `epsilon`, `--epsilon e`, 0.1 by default; `top`, `--top 3`): each
+// option played out k times, its label their mean. The first is the exact playout above; each of the other k − 1 has
+// its continuation (the rest of that turn and every later turn of the battle, by the expert in use) perturbed: at each
+// piece's decision, with chance epsilon, one of its `top` best options by today's score taken at random in place of the
+// expert's choice, the forest's where one is in use (policy.js expertTurn's `explore`, which acts on the decision once
+// choice has made it; the kill list's turn still weighed against the greedy one, `weigh`, so the rest is the expert's
+// own turn but for the draws), each such playout with its own rng (a hash of the position's id, which names the seed,
+// the option's index and the playout's number), so the labels stay deterministic. Why: one exact playout is one line of
+// a chaotic battle, and in R3's positions where some options lose and some win, one pair of twins in five (the same
+// features and act, another tile) fell on opposite sides of it (redesign.md §6); the mean over small perturbations is
+// what an option is worth on average, which a reader of the board can learn. The exact line is kept as the first, so
+// k = 1 is today's labels exactly and every smoothed row holds today's label too (`values[0]`).
+//
 // Rows, one JSON line a position (labels.jsonl, in `--out`): { id, seed, run (its number), split, floor, room, battle,
 // turn, uid, kind, at (the run's log index of the decision: the run replayed to it stands there), group (0 won, 1
 // near-lost, 2 lost), danger ('lost', 'near', 'reach', 'calm'), wt, sit (policy.js conditions: the tree's vocabulary,
 // the piece's own `self.*` among them), options: [{ i, tile, steps, ability, target, fusion, f (policy.js
 // optionFeatures, a named vector; zeros left out), prior, kept, legal (it could be given), chosen (the expert took it),
 // added (listed for being chosen), value, parts (to the battle's end: { lost, stall, monarch, own, fell (souls fallen),
-// turns }; else { monarch, own, foe, lost, won }) }], chosen (its index), best (the index of the option the teacher takes,
-// bestOf: the best value of the legal; ties, within 1e-9, to the expert's own score, the higher prior, then its own tie
-// order, the fewer steps, the lower lane, the lower target uid, as policy.js better) }. (Before 2026-10-12, L2's and L3's
+// turns }; else { monarch, own, foe, lost, won }); smoothed, `value` the mean of `values` (each playout's, k of them, the
+// exact first) and `parts` each part's mean (`lost` the share of the k lost); k = 1 writes no `values` }], chosen (its
+// index), best (the index of the option the teacher takes, bestOf: the best value of the legal; ties, within 1e-9, to
+// the expert's own score, the higher prior, then its own tie order, the fewer steps, the lower lane, the lower target
+// uid, as policy.js better) }. (Before 2026-10-12, L2's and L3's
 // labels, `best` was the first best value in the rows' order: the shortlist's, in the prior's order, the added option
 // last. The two differ only where an added option ties the best value with a higher prior.)
 // Beside it runs.jsonl (a line a run played: its result, decisions, positions kept, time), manifest.json (the names of
@@ -69,7 +84,8 @@
 //
 //   npm run teach -- [--runs 300] [--seed teach] [--workers 5] [--out dir] [--rounds 0] [--cap 16] [--turns 150]
 //                    [--weights monarch=3,own=1,…] [--keep lost,near,reach,calm] [--draw outcome|state]
-//                    [--expert file.json] [--ranker file.json|none] [--forest file.json|none] [--report-only]
+//                    [--expert file.json] [--ranker file.json|none] [--forest file.json|none] [--smooth 1]
+//                    [--epsilon 0.1] [--top 3] [--report-only]
 // (`--expert`: the expert configuration that plays and completes the turns, src/sim/expert.json by default. `--ranker`:
 // the ranker configuration it plays with (redesign.md §2.23; ranker.js useRanker), installed in this thread and in every
 // worker before a run is played, so the runs and every playout's rest are the expert's with that ranker; `none` for
@@ -78,7 +94,9 @@
 // useForest: §2.23's correction as regression trees), installed as the ranker is (a forest in use decides in place of a
 // ranker); `none` for none; without it, the one forest.js holds; its file and `name` go into manifest.json. `--draw`:
 // how a decision's chance to be labelled is read, see Positions above; `--keep`'s `lost` and `near` are unused under
-// `state`; the draw goes into manifest.json, and into its settings where it is not the default.)
+// `state`; the draw goes into manifest.json, and into its settings where it is not the default. `--smooth`, `--epsilon`,
+// `--top`: smoothed labels, see above; k, epsilon and top go into manifest.json's `smooth`, and into its settings where
+// k > 1.)
 //
 // The teacher (below, `--teacher`): this labeller as a player, every battle decision of a run the playout-best.
 // The afterstates (below, `--augment <dir>`): a label set's runs replayed and each option's afterstate written beside its
@@ -106,11 +124,12 @@ import { TUNING } from '../tuning.js'
 import { seedNo, NEAR } from './train.js'
 
 // The playout value's weights (see above: END_WEIGHTS to the battle's end, WEIGHTS for `rounds` > 0), the chance a
-// decision is kept by its danger, and the defaults (`turns`: the rounds a playout to the end may last).
+// decision is kept by its danger, and the defaults (`turns`: the rounds a playout to the end may last; `smooth`, the
+// playouts an option, `epsilon` and `top` their perturbation's: see Smoothed labels above).
 export const WEIGHTS = Object.freeze({ monarch: 3, own: 1, foe: 1, lost: 10, won: 1 })
 export const END_WEIGHTS = Object.freeze({ lost: 10, monarch: 3, own: 1, turn: 0.02 })
 export const KEEP = Object.freeze({ lost: 1, near: 0.5, reach: 0.25, calm: 0.03 })
-export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights: null, keep: KEEP, draw: 'outcome' })
+export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights: null, keep: KEEP, draw: 'outcome', smooth: 1, epsilon: 0.1, top: 3 })
 // How a decision's chance to be labelled is read (see above): by its battle's outcome, or by the board alone.
 export const DRAWS = Object.freeze(['outcome', 'state'])
 // The weights a configuration's labels are read by: its own, else its kind's.
@@ -424,22 +443,44 @@ function readDecision (board, uid, cap) {
   return { u, cond, ...optionsAt(board, u, sit, cap, cond) }
 }
 
+// The turn a smoothed playout's continuation is played by (see Smoothed labels above): the expert's, exploring with the
+// rng of position `key`, option `i` and playout `j`.
+function perturbed (c, key, i, j) {
+  const explore = { rng: createRng(`smooth|${key}|${i}|${j}`), epsilon: c.epsilon, top: c.top, weigh: true }
+  return (g) => P.expertTurn(g, { explore })
+}
+
+// Playouts `ps` of one option as one label: their mean value, each one's, and each part's mean.
+function averaged (ps) {
+  const parts = {}
+  for (const k in ps[0].parts) parts[k] = r6(ps.reduce((t, p) => t + p.parts[k], 0) / ps.length)
+  const values = ps.map((p) => p.value)
+  return { value: r6(values.reduce((t, v) => t + v, 0) / ps.length), values, parts }
+}
+
 // Each option of a decision read (readDecision) played out, `chosen` the signature of what the expert did (null for
-// none), its option added where the shortlist lacks it. → { rows (the labels' options), plays (each row's option and its
-// orders as given), at (the chosen's index), best (bestOf's) }
+// none), its option added where the shortlist lacks it; `c.smooth` > 1, each legal option `c.smooth` times, the first
+// exact, the rest perturbed by the rng of `c.key` (the position's id). → { rows (the labels' options), plays (each row's
+// option and its orders as given), at (the chosen's index), best (bestOf's) }
 function labelled (board, uid, chosen, c, read = readDecision(board, uid, c.cap)) {
   const { short, all } = read
   const before = c.rounds > 0 ? tally(board) : endTally(board)
   const seen = new Set()
   const rows = []
   const plays = []
+  const how = { rounds: c.rounds, turns: c.turns, weights: weightsOf(c), before }
   const label = (o, added) => {
-    const p = playout(board, uid, o, { rounds: c.rounds, turns: c.turns, weights: weightsOf(c), before, seen })
+    const p = playout(board, uid, o, { ...how, seen })
     if (p === null) return null
+    const i = rows.length
+    // Smoothed, a legal option's exact playout first, then k − 1 with its continuation perturbed (Smoothed labels, above).
+    const k = p.legal ? Math.max(1, Math.floor(c.smooth ?? 1)) : 1
+    const more = Array.from({ length: k - 1 }, (_, j) => playout(board, uid, o, { ...how, turn: perturbed(c, c.key ?? '', i, j + 1) }))
+    const m = more.length ? averaged([p, ...more]) : null
     const row = {
-      i: rows.length, tile: o.tile, steps: o.path.length, ability: o.ability?.id ?? null, target: o.target?.uid ?? null, fusion: o.fusion?.id ?? null,
+      i, tile: o.tile, steps: o.path.length, ability: o.ability?.id ?? null, target: o.target?.uid ?? null, fusion: o.fusion?.id ?? null,
       f: sparse(o.v), prior: r6(o.prior ?? 0), kept: o.kept === false ? 0 : 1, legal: p.legal ? 1 : 0, chosen: p.legal && p.sig === chosen ? 1 : 0, added: added ? 1 : 0,
-      value: p.legal ? p.value : null, parts: p.legal ? p.parts : null
+      value: p.legal ? (m ? m.value : p.value) : null, ...(m && { values: m.values }), parts: p.legal ? (m ? m.parts : p.parts) : null
     }
     rows.push(row)
     plays.push({ o, orders: p.legal ? p.orders : null })
@@ -459,7 +500,8 @@ function labelled (board, uid, chosen, c, read = readDecision(board, uid, c.cap)
 }
 
 // One position labelled: piece `uid` deciding on `board` (a copy taken as it decided; the plan on it as the turn's),
-// `chosen` the signature of what the expert did (null for none). → { uid, kind, sit, options, chosen, best }
+// `chosen` the signature of what the expert did (null for none); `cfg.key` the position's id, its smoothed playouts'
+// rng drawn from it (teachRun's). → { uid, kind, sit, options, chosen, best }
 export function labelPosition (board, uid, chosen = null, cfg = {}) {
   const c = { ...DEFAULTS, ...cfg }
   const read = readDecision(board, uid, c.cap)
@@ -554,10 +596,11 @@ export function teachRun (seed, cfg = {}) {
       const { danger, keep } = drawOf(p.board, group, c)
       if (!(draw(seed, cur.no, p.seq) < keep)) continue
       const t = performance.now()
-      const L = labelPosition(p.board, p.uid, signature(p.orders, p.tile), c)
+      const id = `${seed}:${cur.no}:${p.turn}:${p.uid}`
+      const L = labelPosition(p.board, p.uid, signature(p.orders, p.tile), c.smooth > 1 ? { ...c, key: id } : c)
       labelMs += performance.now() - t
       positions.push({
-        id: `${seed}:${cur.no}:${p.turn}:${p.uid}`, seed, run: seedNo(seed), split: seedNo(seed) % 5 === 0 ? 'held' : 'train', floor: cur.floor, room: cur.room,
+        id, seed, run: seedNo(seed), split: seedNo(seed) % 5 === 0 ? 'held' : 'train', floor: cur.floor, room: cur.room,
         battle: cur.no, turn: p.turn, at: p.at, group, danger, wt: r6(1 / keep), ...L
       })
     }
@@ -1760,13 +1803,17 @@ if (!isMainThread && workerData?.teach) {
   const fk = rankerArg(arg, 'forest')
   const how = arg('draw', DEFAULTS.draw)
   if (!DRAWS.includes(how)) throw new Error(`--draw ${how}: one of ${DRAWS.join(', ')}`)
-  // The settings the labels are made by (manifest.json's, a stage gone on with held to them; the default draw left out,
-  // as the labels before it were made), and what the workers get: the same with the ranker's and the forest's
-  // configurations in place of their files and names.
+  const smooth = { k: Number(arg('smooth', DEFAULTS.smooth)), epsilon: Number(arg('epsilon', DEFAULTS.epsilon)), top: Number(arg('top', DEFAULTS.top)) }
+  if (!(Number.isInteger(smooth.k) && smooth.k >= 1)) throw new Error(`--smooth ${smooth.k}: a whole number of playouts, 1 or more`)
+  if (!(smooth.epsilon >= 0 && smooth.epsilon <= 1) || !(Number.isInteger(smooth.top) && smooth.top >= 1)) throw new Error('--epsilon in [0, 1], --top a whole number, 1 or more')
+  // The settings the labels are made by (manifest.json's, a stage gone on with held to them; the default draw and one
+  // playout an option left out, as the labels before them were made), and what the workers get: the same with the
+  // ranker's and the forest's configurations in place of their files and names.
   const settings = {
     rounds, cap: Number(arg('cap', DEFAULTS.cap)), ...(!(rounds > 0) && { turns: Number(arg('turns', DEFAULTS.turns)) }),
     weights, keep: nums(arg('keep', null), ['lost', 'near', 'reach', 'calm'], KEEP), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }),
-    ...(rk.setting !== undefined && { ranker: rk.setting }), ...(fk.setting !== undefined && { forest: fk.setting }), ...(how !== DEFAULTS.draw && { draw: how })
+    ...(rk.setting !== undefined && { ranker: rk.setting }), ...(fk.setting !== undefined && { forest: fk.setting }), ...(how !== DEFAULTS.draw && { draw: how }),
+    ...(smooth.k > 1 && { smooth: smooth.k, epsilon: smooth.epsilon, top: smooth.top })
   }
   const cfg = { ...settings, ...(rk.config !== undefined && { ranker: rk.config }), ...(fk.config !== undefined && { forest: fk.config }) }
   install(cfg)
@@ -1782,7 +1829,8 @@ if (!isMainThread && workerData?.teach) {
   const t0 = performance.now()
   let made = 0
   if (todo.length && !process.argv.includes('--report-only')) {
-    console.log(`labelling ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${done.size} done in ${dir}) on ${workers} workers: rounds ${cfg.rounds}, cap ${cfg.cap}, drawn by the ${how}`)
+    console.log(`labelling ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${done.size} done in ${dir}) on ${workers} workers: rounds ${cfg.rounds}, cap ${cfg.cap}, drawn by the ${how}` +
+      (smooth.k > 1 ? `, ${smooth.k} playouts an option (epsilon ${smooth.epsilon}, top ${smooth.top})` : ''))
     let n = 0
     await pool(todo, workers, cfg, (r) => {
       fs.appendFileSync(labelsFile, r.positions.map((p) => JSON.stringify(p) + '\n').join(''))
@@ -1811,6 +1859,9 @@ if (!isMainThread && workerData?.teach) {
     forest: forestIn(fk),
     // How the decisions were drawn: by their battle's outcome, or by the board alone (see the head of this file).
     draw: how,
+    // The playouts an option (k: 1, the exact playout alone), and the perturbation of all but the first (see Smoothed
+    // labels at the head of this file).
+    smooth: { k: smooth.k, epsilon: smooth.k > 1 ? smooth.epsilon : 0, top: smooth.top, exact: 'the first of the k playouts, values[0]' },
     value: cfg.rounds > 0
       ? 'value = −monarch·(Monarch HP lost / its max) − own·(pieces\' HP lost / their max summed) + foe·(standing foes\' HP lost / their max summed) − lost·[lost] + won·[won], from the board the piece decided on to the board after `rounds` End Turns (src/sim/teach.js)'
       : 'value = −lost if the battle is lost (a stall past `turns` rounds among them), else −monarch·(the Monarch\'s share of its max HP lost, as the run carries it: the post-battle heal) − own·(the souls\' share of their max HP lost, as carried, a fallen soul all of its share) − turn·(the rounds the battle took after the decision), from the board the piece decided on to the battle\'s end (src/sim/teach.js)',

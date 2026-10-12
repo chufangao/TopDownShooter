@@ -289,10 +289,16 @@ export function readDecision (row, after = null, names = afterNames()) {
   return { today, mean, rows }
 }
 
+// The labels an option's value is read from (`label`): its `value` (a smoothed set's mean of its playouts, teach.js
+// `--smooth`), or a smoothed set's exact line alone (`values[0]`: the label one playout would have given; a set not
+// smoothed has only `value`, which is that).
+export const LABELS = Object.freeze(['mean', 'exact'])
+
 // The decisions of label sets `dirs`, streamed: each { row, d (readDecision's), k (its set's index) }, the afterstates
 // read from each set's after.jsonl (line for line with its labels: teach.js augment) where `after`; rows labelled after
-// the augmentation have none and are left out (counted in `skipped`).
-async function * decisionsOf (dirs, after, skipped = null) {
+// the augmentation have none and are left out (counted in `skipped`); each option's value by `label` (LABELS).
+async function * decisionsOf (dirs, after, skipped = null, label = 'mean') {
+  if (!LABELS.includes(label)) throw new Error(`forest: no label "${label}": ${LABELS.join(', ')}`)
   const fs = node('fs')
   for (const [k, dir] of dirs.entries()) {
     const file = labelsIn(dir)
@@ -303,6 +309,7 @@ async function * decisionsOf (dirs, after, skipped = null) {
     let past = false
     for await (const line of linesOf(file)) {
       const row = JSON.parse(line)
+      if (label === 'exact') for (const o of row.options) if (o.values) o.value = o.values[0]
       let a = null
       if (lines) {
         const next = past ? { done: true } : await lines.next()
@@ -362,8 +369,8 @@ const shared = (Type, n) => new Type(new SharedArrayBuffer(Math.max(1, n) * Type
 // by column, bin for bin (shared memory, for the workers); per row its playout value (v), its position and tie keys
 // (steps, lane, target); per position its first row (start: today's choice's), id, run, split, group, floor, danger,
 // draw weight (`wt`), its label set (`data`, `dw` its weight: `weights`, 1 each by default) and the key of its run
-// (`runKey`). → the table
-export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = null, bins = 64, sample = 100000, seed = 1, log = null } = {}) {
+// (`runKey`); each option's value by `label` (LABELS: a smoothed set's mean by default). → the table
+export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = null, bins = 64, sample = 100000, seed = 1, log = null, label = 'mean' } = {}) {
   const L = layout()
   const cols = Int32Array.from(inputs.map((n) => {
     const i = L.names.indexOf(n)
@@ -378,7 +385,7 @@ export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = n
   const rand = mulberry(seed)
   let N = 0
   let P = 0
-  for await (const { d } of decisionsOf(dirs, after)) {
+  for await (const { d } of decisionsOf(dirs, after, null, label)) {
     P++
     for (const r of d.rows) {
       const k = N < S ? N : Math.floor(rand() * (N + 1))
@@ -405,7 +412,7 @@ export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = n
   const skipped = {}
   let r = 0
   let p = 0
-  for await (const { row, d, k } of decisionsOf(dirs, after, skipped)) {
+  for await (const { row, d, k } of decisionsOf(dirs, after, skipped, label)) {
     start[p] = r
     for (const o of d.rows) {
       for (let j = 0; j < D; j++) B[j * N + r] = binOf(cuts[j], o.x[cols[j]])
@@ -422,7 +429,7 @@ export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = n
   start[p] = r
   if (r !== N || p !== P) throw new Error('forest: the labels changed between the passes')
   for (const [k, n] of Object.entries(skipped)) log?.(`  ${dirs[k]}: ${n} rows past its after.jsonl left out`)
-  return { names: inputs.slice(), D, N, P, cuts, nb: Uint8Array.from(cuts, (c) => c.length + 1), bins: B, v, pos, steps, lane, target, start, meta, dirs: dirs.slice() }
+  return { names: inputs.slice(), D, N, P, cuts, nb: Uint8Array.from(cuts, (c) => c.length + 1), bins: B, v, pos, steps, lane, target, start, meta, dirs: dirs.slice(), label }
 }
 
 // ── the trees ────────────────────────────────────────────────────────────────────────────────────
@@ -754,7 +761,7 @@ function toConfig (trees, t, cols, cfg, fit) {
     kind: 'forest',
     name: cfg.name ?? 'forest',
     about: `a random forest's advantage over today's choice (src/sim/forest.js), fitted on teach.js's labels to the battle's end (target ${target}); today's choice unless the best other candidate's exceeds delta`,
-    made: { at: new Date().toISOString(), trees: n, depth, leaves, minLeaf, mtry: +mtry.toFixed(4), shrink, weighted, wclip, clip, seed, bins: Math.max(...t.nb), ...fit, seconds: +fit.seconds.toFixed(1) },
+    made: { at: new Date().toISOString(), trees: n, depth, leaves, minLeaf, mtry: +mtry.toFixed(4), shrink, weighted, wclip, clip, seed, bins: Math.max(...t.nb), label: t.label ?? 'mean', ...fit, seconds: +fit.seconds.toFixed(1) },
     data: cfg.data ?? t.dirs,
     inputs: Array.from(cols, (j) => t.names[j]),
     target,
@@ -871,11 +878,12 @@ export async function evalForests (dirs, configs, { log = null } = {}) {
 // npm run forest -- --data <dir>[,<dir>…] --out <file> [--inputs base|aft] [--data-weight 1,0.5,…] [--use <dir>,…]
 //                   [--target mean|today] [--trees 200] [--depth 12] [--leaves 512] [--min-leaf 40] [--mtry 0.333]
 //                   [--shrink 0] [--bins 64] [--weighted] [--wclip 10] [--seed 1] [--delta 0.1] [--name forest]
-//                   [--workers 7]
+//                   [--label mean|exact] [--workers 7]
 //   fits a forest and writes it (src/sim/forest.json is the one play reads: write it only for a forest kept on a paired
 //   gain), printing its out-of-bag and held-out margins tables (marginText). `--inputs aft`: with the afterstate's
 //   (each label set augmented: teach.js --augment); `--data-weight`: each label set's weight, in --data's order;
-//   `--use`: the label sets fitted on (all by default; the rest only read for the bins).
+//   `--use`: the label sets fitted on (all by default; the rest only read for the bins); `--label exact`: a smoothed
+//   set's exact lines in place of its means (LABELS).
 // npm run forest -- --data <dir>[,<dir>…] --eval <file>[,<file>…]   the held-out tables of forests fitted already, read
 //   as play reads them.
 async function main () {
@@ -900,8 +908,9 @@ async function main () {
   const weights = list('data-weight').map(Number)
   const bins = Number(arg('bins', 64))
   if (!(bins >= 2 && bins <= 256)) throw new Error('forest: --bins between 2 and 256')
-  console.log(`reading ${dirs.join(', ')} (inputs ${set}${weights.length ? `, weights ${weights.join(', ')}` : ''}, ${bins} bins)`)
-  const t = await readTable(dirs, { inputs: INPUT_SETS[set](), weights: weights.length ? weights : null, bins, log: console.log })
+  const label = arg('label', 'mean')
+  console.log(`reading ${dirs.join(', ')} (inputs ${set}${weights.length ? `, weights ${weights.join(', ')}` : ''}, ${bins} bins${label !== 'mean' ? `, the ${label} labels` : ''})`)
+  const t = await readTable(dirs, { inputs: INPUT_SETS[set](), weights: weights.length ? weights : null, bins, log: console.log, label })
   console.log(`${t.P} positions, ${t.N} rows, ${t.D} inputs (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
   const num = (k) => (arg(k, null) === null ? undefined : Number(arg(k)))
   const cfg = Object.fromEntries(Object.entries({

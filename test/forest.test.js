@@ -370,6 +370,38 @@ test('fitting: deterministic for a seed, the same trees in worker threads, bagge
   }
 })
 
+test('a smoothed label set read by its means, or by its exact lines alone', async () => {
+  // teach.js --smooth's rows: `value` the mean of `values`, the exact playout first; a set not smoothed has `value` alone.
+  const rows = synthetic(5, 4)
+  rows.forEach((row, k) => {
+    if (k % 2) return
+    for (const o of row.options) {
+      o.values = [o.value - 0.3, o.value + 0.1, o.value + 0.2]
+      o.value = (o.values[0] + o.values[1] + o.values[2]) / 3
+    }
+  })
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-forest-label-'))
+  try {
+    fs.writeFileSync(path.join(dir, 'labels.jsonl'), rows.map((r) => JSON.stringify(r) + '\n').join(''))
+    const mean = await readTable([dir], { bins: 16 })
+    const exact = await readTable([dir], { bins: 16, label: 'exact' })
+    assert.equal(mean.label, 'mean')
+    assert.equal(exact.label, 'exact')
+    assert.equal(exact.N, mean.N)
+    // Today's choice first in each position, then the rest in the rows' order, as readDecision lists them.
+    const want = (pick) => rows.flatMap((row) => readDecision({ ...row, options: row.options.map((o) => ({ ...o, value: pick(o) })) }).rows.map((r) => r.value))
+    const close = (a, b) => a.length === b.length && a.every((x, i) => Math.abs(x - b[i]) < 1e-9)
+    assert.ok(close(Array.from(mean.v), want((o) => o.value)))
+    assert.ok(close(Array.from(exact.v), want((o) => o.values?.[0] ?? o.value)))
+    assert.ok(!close(Array.from(exact.v), Array.from(mean.v)))
+    const f = await fitForest(exact, { trees: 2, minLeaf: 5, leaves: 4, depth: 3 })
+    assert.equal(f.config.made.label, 'exact')
+    await assert.rejects(readTable([dir], { label: 'luck' }))
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('a job\'s forest is installed for its run and the one before put back; a paired player by its name or its file', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-forest-job-'))
   const before = forestModel()

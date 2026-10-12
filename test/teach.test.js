@@ -460,6 +460,38 @@ test('drawn by the state, a decision\'s class and chance read the board alone, n
   }
 })
 
+test('smoothed labels: one playout is today\'s label exactly; k are their mean, the exact line first, the same seed the same', () => {
+  // One playout an option, whatever epsilon: today's labels, row for row (no `values` written).
+  assert.deepEqual(labelPosition(peril(), 1, null, { smooth: 1, epsilon: 0.5, key: 'p' }), labelPosition(peril(), 1, null))
+  const keep = { lost: 1, near: 1, reach: 1, calm: 1 }
+  const exact = teachRun('teach-test-1', { battles: 1, limit: 3, keep }).positions
+  assert.deepEqual(teachRun('teach-test-1', { battles: 1, limit: 3, keep, smooth: 1, epsilon: 0.3 }).positions, exact)
+  // Three an option: the same seed the same labels; the run and its positions as ever (only the labels are smoothed),
+  // each legal option's first playout the exact one, its label their mean, its parts their means.
+  const cfg = { battles: 1, limit: 3, keep, smooth: 3, epsilon: 0.3 }
+  const a = teachRun('teach-test-1', cfg).positions
+  assert.deepEqual(teachRun('teach-test-1', cfg).positions, a)
+  assert.deepEqual(a.map((p) => p.id), exact.map((p) => p.id))
+  let lines = 0
+  a.forEach((p, n) => {
+    assert.equal(p.options.length, exact[n].options.length)
+    p.options.forEach((o, i) => {
+      const e = exact[n].options[i]
+      assert.deepEqual([o.tile, o.ability, o.target, o.legal, o.chosen], [e.tile, e.ability, e.target, e.legal, e.chosen])
+      if (!o.legal) return assert.ok(!('values' in o))
+      assert.equal(o.values.length, 3)
+      assert.equal(o.values[0], e.value)
+      assert.ok(Math.abs(o.value - o.values.reduce((t, v) => t + v, 0) / 3) < 1e-5)
+      assert.ok(Math.abs(o.parts.lost - o.values.filter((v) => v === -END_WEIGHTS.lost).length / 3) < 1e-5)
+      if (new Set(o.values).size > 1) lines++
+    })
+    assert.ok(p.options[p.best].legal)
+  })
+  // The perturbation reaches the continuation's turns (decided by the forest that ships, where one does): on a real
+  // battle's boards, not every option's three playouts are one line.
+  assert.ok(lines > 0, 'every option\'s playouts alike')
+})
+
 test('the paired report: clears each and against each other, the progress difference ± its standard error', () => {
   const line = (seed, player, result, floor, progress, won, fought) => ({ seed, player, result, floor, progress, battles: { won, fought }, ms: 1000, decisions: 10, playouts: 50, single: 2, decisionMs: 500 })
   const rep = pairedReport([
