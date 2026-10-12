@@ -541,6 +541,42 @@ efficiently when every piece may go to many tiles and the choices compound; this
 **Targets.** Clearly above the 47% bar on its seeds (aim ≥ 60%) at ≤ ~5 s a run; then the balance pass (§5 Step 7's
 targets) with this expert as the reference.
 
+### 2.22 The learned decision tree (2026-10-11): plan
+
+**Why.** The learned value (§2.21, step 8b) told won battles from lost ones (AUC 0.976) but could not rank a turn's
+options: a battle's outcome is too coarse a label for which of fifteen moves was right, and the weight searches
+before it learned from one number a run. And the expert's hard rules (§2.17) were written, not earned: "never die
+for nothing" is wrong exactly when a sacrifice saves the Monarch. The user: "what if the hard rules are wrong? Can't
+we design it such that experts can be a flexible set of rules + weights?", then "it should be a learned decision
+tree".
+
+- **The expert is a learned model tree.** A shallow decision tree (depth ≤ 4) over a **vocabulary of conditions**
+  (named predicates on the situation read, §2.17: "the Monarch's danger above x", "a shooter has a clear line on
+  it", "foes within two turns", "a wave due", and today's rules' conditions), its splits and thresholds learned;
+  **each leaf holds its own weights** over the option features, and the best-scoring option is taken. A decision
+  records its path (the conditions it passed) and leaf, so it reads as "the Monarch in danger and a shooter on a clear
+  line: the kill-the-shooter weights".
+- **Rules are soft and learned.** Each of today's hard rules (no-waste, monarch-lethal, kill-first, never-die,
+  hold-the-line…) becomes a candidate with a learned on/off, threshold and strength (a large strength is hard in
+  effect, a small one advice the weights may outvote). Only **legality** stays hard: what the game refuses is never
+  an option. A rule the evidence contradicts weakens or goes, and the audit shows it.
+- **An expert is a configuration, not code**: its tree, thresholds, rule strengths and leaf weights in one data file
+  (`src/sim/expert.json`) over a fixed vocabulary in code. Other experts (a cautious one, a weaker one for a
+  difficulty, the basic player) are other files. A new condition is one entry in the vocabulary; the learning
+  decides whether and where it helps.
+- **Labels by playing options out, offline.** Sampled positions from real runs (weighted to the dangerous: lost and
+  near-lost battles, a Monarch in reach): each of the expert's options applied, the foes' real turn played (the
+  camp's policy is deterministic), one or two turns more by the current expert; the option's playout value = the
+  Monarch's HP, yours, foes felled, a battle lost. Per option, not per run: millions of comparisons. The shipped
+  expert never plays the foes' turn; this is training, like the combo book.
+- **Fitting**: greedy splits chosen from the vocabulary by how much they improve a ranking loss (options ranked as
+  their playouts rank them), leaf weights by that ranking loss with L2, a minimum leaf size; rule strengths and
+  thresholds fitted the same way; positions no leaf fits well point to a missing condition to add. Rounds: label with
+  the current expert, refit, measure paired on 256 seeds, keep only gains; 2–3 rounds.
+- **Fast**: a turn is a few comparisons and a dot product per option; the beam (§2.21) is off by default (it gained
+  nothing at 20× the cost); the turn back to about a second a run.
+- Battle decisions first; the formation and the route by the same machinery after.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -742,6 +778,17 @@ this file's §6 and `DESIGN.md`'s head brought up to date, and a push to master.
 - **8b, one agent**: round 0's data, V trained and plugged in, the disaster replays, the self-play rounds, each round
   measured paired against the last and kept or dropped; a note in §6. ~2–3 hours, bound by data and training.
 - **8c**: the balance pass (Step 7's targets) with the learned expert as the reference.
+
+### Step 9. The learned decision tree (§2.22)
+
+- **9a, two agents in parallel.** **The labeller** (`src/sim/teach.js`, offline): the dangerous positions sampled, every
+  option played out through the foes' turn and a turn or two more, the labelled data written (position, option
+  features, condition values, playout value), with worker threads. **The tree** (`src/sim/expert.js`, `expert.json`,
+  `policy.js`): the vocabulary of conditions, the model tree and its soft rules as data, the fitter (splits, leaf
+  weights, rule strengths) tested on synthetic data, the turn reading the tree, the fast turn restored as the default.
+  Contract: the option features and condition values the labeller writes are the tree's own `optionFeatures` and
+  `conditions` exports.
+- **9b, one agent**: fit on the labels, measure, label again with the fitted expert, refit; 2–3 rounds; §6 note.
 
 ### Later content, not in these steps
 
