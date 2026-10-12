@@ -1256,8 +1256,11 @@ of the round-1 forest at 9 positions/s): on 768 `chk4`, against round 1 +1.78 ±
 5.0 s a run against 2.4. Kept; ranker.json removed. The teacher gains 0.21 a decision on its labels, the forests
 realise +0.000 to +0.013 of it. *The chaos read* (R3, 48,010 positions): twins (identical features, act and target,
 another tile) differ by a median 0 and a p90 of 0.03; in the 2,112 positions where some options lose and some win,
-18.7% of twin pairs fall on opposite sides. Open: labels smoothed over small perturbations of the continuation (what
-an option is worth on average, not on the one exact line), the learned route under the forest, then the balance pass.
+18.7% of twin pairs fall on opposite sides. **The learned route switched on** (autoplay.js ROUTE_LEARNED, route.json of 2026-10-11 unchanged): with the forest
+playing the battles, on 768 seeds `chk5`, 33.1% clears against the hand-built route's 29.0% (+146 −115), progress
++1.43 ± 1.56, 5.3 s a run against 4.1 (it fights more battles: 31.0 a run against 27.3). The hand route's tests walk it
+by `withRoute('hand')`. Open: labels smoothed over small perturbations of the continuation (what an option is worth on
+average, not on the one exact line), the route relabelled under the forest, then the balance pass.
 
 ## 7. Standing rules
 
