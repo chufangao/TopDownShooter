@@ -4,8 +4,9 @@
 // option read as a vector of features and weighed by TUNING.expert (redesign.md §2.17), with no turn of the foes played
 // ahead. Above the pieces stands the expert's plan (redesign.md §2.18; plan.js): read once a turn and kept across turns,
 // its target formation (a tile for each piece), its kill list and its forecast of the foes are features of each piece's
-// options, and the kill list played is one of the boards a turn compares. Nothing reads a seed: the same board gives the
-// same turn.
+// options, and the kill list played is one of the boards a turn compares. Where a ranker is in use (ranker.js,
+// redesign.md §2.23: a learned correction trained offline on teach.js's playouts), it is added to each option's score
+// (choice). Nothing reads a seed: the same board gives the same turn.
 import { TUNING } from '../tuning.js'
 import { STATUS_WORTH, statusDef, unitDef, FUSIONS, SYNERGIES } from '../content.js'
 import {
@@ -21,6 +22,7 @@ import { call } from './rules.js'
 import { value as weighed, TREES, conditions, expertModel, decideTree, readTree, scoreOf, hardFilter, defaultExpert } from './expert.js'
 import { value as learnedValue } from './value.js'
 import { readPlan } from './plan.js'
+import { rankerModel, scorer, playView, meanOf } from './ranker.js'
 
 // ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
 
@@ -1129,15 +1131,84 @@ export function expertOptions (battle, u, { moving = true, fuse = true } = {}) {
 // (features; the plan the situation carries, else the turn's as plan.js reads it), the situation's conditions (expert.js
 // conditions, the piece's own among them), then the model tree in use (`model`: expert.js expertModel, src/sim/expert.json
 // or today's): its hard rules, its leaf's weights and its soft rules; ties as `better` breaks them (the fewer steps, the
-// lower lane, the lower target uid). The fast turn's decision, and the beam's prior (shortlist). → { option, by, rules,
-// leaf, path }.
+// lower lane, the lower target uid). Where a ranker is in use (ranker.js rankerModel), its correction is added to that
+// score (ranked). The fast turn's decision, and the beam's prior (shortlist; the beam reads no ranker). → { option, by,
+// rules, leaf, path, left (the options weighed, each scored) }, and with a ranker `margin`.
 export function choice (battle, u, sit = situation(battle), opts = expertOptions(battle, u), model = expertModel()) {
   for (const o of opts) {
     o.v = features(battle, u, o, sit)
     o.road = -o.path.length
   }
   const c = conditions(sit, u)
+  const R = rankerModel()
+  if (R) return ranked(battle, u, sit, opts, c, model, R)
   return decideTree(model, c, model.options === 'shortlist' ? shortlisted(battle, u, sit, opts, c) : opts, { better })
+}
+
+// One piece's decision with ranker `R` (redesign.md §2.23; ranker.js): today's decision first (the model in use over all
+// the piece's options: its hard rules, its choice), then of today's shortlist and today's choice (rankerView: the
+// options teach.js's labels hold, the same set) those the hard rules keep, each scored by today's score plus R's scale ×
+// its net (`o.base`, `o.net`, and their total `o.score`); today's choice is taken unless one beats it on the total (ties
+// as `better`), so a net that reads 0 everywhere is today's expert, move for move. `by`: the hard rule that filtered
+// first, else 'net' where the net changed the choice (and `margin`, the total it beats today's choice by), else today's.
+function ranked (battle, u, sit, opts, c, model, R) {
+  const view = rankerView(battle, u, sit, opts, c, model)
+  const { today, own, candidates, mean } = view
+  if (!own) return today
+  const net = scorer(R, c, u.id)
+  for (const o of candidates) {
+    o.base = o.score
+    o.net = net(playView(o), mean)
+    o.score = o.base + R.scale * o.net
+  }
+  let best = own
+  for (const o of candidates) if (better(o, best)) best = o
+  const changed = best !== own
+  return { ...today, option: best, by: changed && today.left === opts ? 'net' : today.by, margin: changed ? best.score - own.score : 0, left: candidates }
+}
+
+// What the ranker reads of piece `u`'s decision (its options `opts`, each with its features `v`; `c` its conditions;
+// `model` the expert in use): `today`, today's decision over all of them (expert.js decideTree: `left` the options its
+// hard rules keep); `own`, today's choice; `short`, today's shortlist (shortlist, by the model in use's score, as
+// teach.js optionsAt draws the labels'); `label`, the options a label row of this decision holds: the shortlist, then
+// today's choice where its orders are not among them (as teach.js finds it among all: a move whose End-Turn blow is an
+// act at the same foe from the same tile, that act), each set of orders once, the first kept (a stay whose End-Turn
+// blow is another option's act is that option); `candidates`, the shortlist's options the hard rules keep and today's
+// choice; `mean`, the reference the inputs are read against (ranker.js meanOf: over the label's options the hard rules
+// keep). → { today, own, short, label, kept (a Set), candidates, mean }
+export function rankerView (battle, u, sit, opts, c = conditions(sit, u), model = expertModel()) {
+  const today = decideTree(model, c, opts, { better })
+  const own = today.option
+  const short = shortlist(battle, u, sit, opts, model, readTree(model, c))
+  const kept = new Set(today.left)
+  const seen = new Set()
+  const label = []
+  const add = (o) => {
+    const s = signatureOf(battle, u, o)
+    if (seen.has(s)) return
+    seen.add(s)
+    label.push(o)
+  }
+  for (const o of short) add(o)
+  if (own) add(twinOf(battle, u, own, opts))
+  const candidates = short.filter((o) => kept.has(o))
+  if (own && !candidates.includes(own)) candidates.push(own)
+  return { today, own, short, label, kept, candidates, mean: meanOf(label.filter((o) => kept.has(o)).map(playView)) }
+}
+// The orders an option gives, as one decision (teach.js signature): the tile it ends on, and its act, its fusion, or for
+// a hold what End Turn would have it do from there.
+function signatureOf (battle, u, o) {
+  if (o.fusion) return `${o.tile}|f:${o.fusion.id}:${o.fusion.parts}`
+  if (o.ability) return `${o.tile}|a:${o.ability.id}:${o.target.uid}`
+  const x = untouchedOrder(battle, u, o.tile)
+  return `${o.tile}|${x ? `a:${x.ability}:${x.target}` : ''}`
+}
+// The option of `opts` that gives the same orders as hold `o` with its End-Turn act made an act (teach.js fromSignature's
+// first find), else `o`.
+function twinOf (battle, u, o, opts) {
+  if (o.ability || o.fusion) return o
+  const x = untouchedOrder(battle, u, o.tile)
+  return (x && opts.find((y) => y.tile === o.tile && y.ability && !y.fusion && y.ability.id === x.ability && y.target.uid === x.target)) || o
 }
 
 // The options a model fitted on today's shortlists decides among (a configuration's `options: 'shortlist'`; fit.js, on
@@ -1480,7 +1551,8 @@ export function expertTurn (battle, { fuse = true, note = null, moving = true, l
 // TREES.board's rules, redesign.md §2.18 B) gives the orders. No turn of the foes is played: a turn is the situation
 // read once a piece and a dot product an option, and a second pass and two boards read where the Monarch's shooters
 // stand. `note` hears the plan, then each piece's decision of the turn given (`by`, its rules; 'kill-list' for a strike
-// as listed) and its path through the tree (decision 'path', `by` the path in words: expert.js pathName); `record`
+// as listed; 'net' where a ranker changed today's choice, with its `margin`: choice) and its path through the tree
+// (decision 'path', `by` the path in words: expert.js pathName); `record`
 // each decision (the board before it, read only; its options as scored, without their boards) and `explore` (with
 // chance epsilon, one of the `top` best at random) as the beam's, the greedy pass alone (no second turn is weighed).
 function fastTurn (battle, { fuse, note, moving, record, explore }) {
@@ -1546,7 +1618,7 @@ function fastPass (battle, plan, turnOrder, { fuse, moving, record = null, explo
       })
     }
     if (log) {
-      log.push({ decision: 'battle', uid, by: pick.by, rules: pick.rules, sit: s })
+      log.push({ decision: 'battle', uid, by: pick.by, rules: pick.rules, sit: s, ...(pick.margin !== undefined && { margin: pick.margin }) })
       log.push({ decision: 'path', uid, by: pick.path, rules: [] })
     }
     orders.push(...commit(f, u, o))

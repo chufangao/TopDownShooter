@@ -28,7 +28,9 @@
 // Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert] [--workers n]
 // [--static | --learned] (today's static evaluation in the expert's turns and formations, whatever V value.js holds; or
 // V where trained: TUNING.expert.beam.learned and `hybrid` say which by default)
-// for the gap between the levels:     … --ladder [--runs 8]
+// (`--ranker <file|none>`: the expert's learned correction, ranker.js, from that file or none; ranker.json by default)
+// for two rankers on the same seeds, paired:  … --paired <a|none>,<b|none> [--runs 256] [--seed sel] [--workers 4]
+// for the gap between the levels:     … --ladder [--runs 8] [--ranker file|none]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above; --ablate moves: its
 // pieces never move in battle)
@@ -51,6 +53,7 @@ import { roadsTo } from './field.js'
 import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
 import { expertTurn, basicTurn, brief, situation, evaluate } from './policy.js'
 import { loaded } from './value.js'
+import { rankerModel, useRanker } from './ranker.js'
 import { deployment } from './plan.js'
 import { value, decide, standing as keysOf, outranks, TREES, leafOf, checkModel, pathName } from './expert.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
@@ -1827,8 +1830,13 @@ const buildOf = (s) => {
 // `setups` what it was built from (for refighting) and with `snapshots` the run's state just before the fight
 // (for refighting with a mechanic stripped: necessity; its log left out); how the run ended, what felled the
 // Monarch, the army it ended with, its build (buildOf), and how many of each action it took (`acts`, by type;
-// `tiers`: track tiers its kinds hold at the end; `relics` held, every copy, and the `legendaries` among them).
-export function record ({ seed, level, ablate = null, setups = false, snapshots = false, learned }) {
+// `tiers`: track tiers its kinds hold at the end; `relics` held, every copy, and the `legendaries` among them). With
+// `ranker` (a ranker.json file's path, or 'none' for today's expert: withRanker), that ranker plays it, the one in use
+// before put back after; `ranker` in the result names the one that played (null for none).
+export function record ({ ranker, ...job }) {
+  return withRanker(ranker, () => recordRun(job))
+}
+function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, learned }) {
   const battles = []
   const t0 = Date.now()
   const run = ablatedRun(seed, ablate)
@@ -1878,7 +1886,30 @@ export function record ({ seed, level, ablate = null, setups = false, snapshots 
     progress: progressOf({ result: s.result, floor: s.floor, rank: fell?.rank ?? 1, share: fell?.share ?? 0 }),
     fell,
     // Wall time of the run, in seconds (the only field that is not a pure function of the job).
-    secs: (Date.now() - t0) / 1000
+    secs: (Date.now() - t0) / 1000,
+    ranker: rankerModel()?.name ?? null
+  }
+}
+
+// The ranker a job names (ranker.js; redesign.md §2.23): a configuration's file (read once a worker), 'none' (or null)
+// for none: today's expert, or a configuration itself.
+const RANKERS = new Map()
+export function rankerOf (spec) {
+  if (spec === 'none' || spec === null) return null
+  if (typeof spec === 'object') return spec
+  if (!RANKERS.has(spec)) RANKERS.set(spec, JSON.parse(fs.readFileSync(spec, 'utf8')))
+  return RANKERS.get(spec)
+}
+// `fn()` with the ranker `spec` names in use (rankerOf), the one in use before it put back after; `spec` undefined:
+// whatever is in use (ranker.json where there is one). → what fn returns
+export function withRanker (spec, fn) {
+  if (spec === undefined) return fn()
+  const before = rankerModel()
+  useRanker(rankerOf(spec))
+  try {
+    return fn()
+  } finally {
+    useRanker(before)
   }
 }
 
@@ -2021,7 +2052,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))
@@ -2039,9 +2070,9 @@ const jobTime = (job, times) => times[timeKey(job)] ?? (job.refight || job.level
 
 // Autoplays `runs` seeded runs and prints clear rate, battle length, per-floor progression and how each
 // camp layout fares: a camp far off its floor's average is a balance outlier.
-// With `ablate`, the level with that mechanic taken away (ABLATIONS).
-async function report ({ runs, seed: seed0, level, ablate = null, learned }) {
-  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(learned !== undefined && { learned }) })))
+// With `ablate`, the level with that mechanic taken away (ABLATIONS); with `ranker` (a file, or 'none'), that ranker's.
+async function report ({ runs, seed: seed0, level, ablate = null, learned, ranker }) {
+  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(learned !== undefined && { learned }), ...(ranker !== undefined && { ranker }) })))
   const battles = played.flatMap((r) => r.battles)
   const turns = battles.map((b) => b.t).sort((a, b) => a - b)
   const deaths = {}
@@ -2062,7 +2093,7 @@ async function report ({ runs, seed: seed0, level, ablate = null, learned }) {
   const sum = (key) => played.reduce((n, r) => n + r[key], 0)
   const q = (p) => turns[Math.min(turns.length - 1, Math.floor(p * turns.length))]
   const pct = (n) => `${(100 * n / runs).toFixed(1)}%`
-  console.log(`runs ${runs} (seed ${seed0}, ${level} player${ablate ? `, ${ablate} ablated` : ''})`)
+  console.log(`runs ${runs} (seed ${seed0}, ${level} player${ablate ? `, ${ablate} ablated` : ''}${ranker !== undefined ? `, ranker ${ranker}` : ''})`)
   console.log(`clear rate        ${pct(played.filter((r) => r.result === 'victory').length)}`)
   for (let f = 1; f <= TUNING.run.floors; f++) console.log(`deaths on floor ${f} ${pct(deaths[f] ?? 0)}`)
   console.log(`battles           ${turns.length}, ${(turns.length / runs).toFixed(1)} per run`)
@@ -2081,6 +2112,63 @@ async function report ({ runs, seed: seed0, level, ablate = null, learned }) {
   }
 }
 
+// ── two rankers on the same seeds ────────────────────────────────────────────────────────────────
+
+// Runs `A` and `B` (record's results, seed for seed) of two players compared: each one's clears, progress (the mean of
+// progressOf, in points), battles won and fought, runs ended by floor and seconds a run; and B against A, seed for
+// seed, the clears B won (A did not clear the seed, B did) and lost, and the progress difference (B − A) with one
+// standard error of the paired difference. → { runs, a, b, won, lost, diff, se }
+export function pairedStats (A, B) {
+  const side = (R) => {
+    const battles = R.flatMap((r) => r.battles)
+    const deaths = {}
+    for (const r of R) if (r.result !== 'victory') deaths[r.floor] = (deaths[r.floor] ?? 0) + 1
+    return {
+      clears: R.filter((r) => r.result === 'victory').length,
+      progress: 100 * R.reduce((n, r) => n + r.progress, 0) / Math.max(1, R.length),
+      battles: battles.length,
+      won: battles.filter((b) => b.won).length,
+      deaths,
+      secs: R.reduce((n, r) => n + r.secs, 0) / Math.max(1, R.length)
+    }
+  }
+  const n = Math.min(A.length, B.length)
+  const d = Array.from({ length: n }, (_, i) => 100 * (B[i].progress - A[i].progress))
+  const diff = d.reduce((x, y) => x + y, 0) / Math.max(1, n)
+  const se = n > 1 ? Math.sqrt(d.reduce((x, y) => x + (y - diff) ** 2, 0) / (n - 1) / n) : 0
+  const cleared = (r) => r.result === 'victory'
+  return {
+    runs: n,
+    a: side(A.slice(0, n)),
+    b: side(B.slice(0, n)),
+    won: A.slice(0, n).filter((r, i) => !cleared(r) && cleared(B[i])).length,
+    lost: A.slice(0, n).filter((r, i) => cleared(r) && !cleared(B[i])).length,
+    diff,
+    se
+  }
+}
+
+// The same `runs` seeds played by the expert under rankers `a` and `b` (each a ranker.json file, or 'none' for today's
+// expert: redesign.md §2.23), and their paired report (pairedStats). A run is a pure function of its seed and its
+// ranker: every difference is the rankers'.
+async function paired ({ runs, seed: seed0, level, rankers }) {
+  const [a, b] = rankers
+  const seeds = Array.from({ length: runs }, (_, i) => `${seed0}-${i}`)
+  const all = await playAll([a, b].flatMap((ranker) => seeds.map((seed) => ({ seed, level, ranker }))))
+  const S = pairedStats(all.slice(0, runs), all.slice(runs))
+  const pct = (k, of = runs) => `${(100 * k / Math.max(1, of)).toFixed(1)}%`
+  const floors = [...new Set([...Object.keys(S.a.deaths), ...Object.keys(S.b.deaths)])].sort()
+  console.log(`paired: ${runs} seeds ${seed0}-0…${seed0}-${runs - 1}, ${level} player; a = ${a}, b = ${b}`)
+  console.log('      clears   progress  battles won        ' + floors.map((f) => `died fl ${f}`.padStart(10)).join('') + '  s/run')
+  for (const [k, x] of [['a', S.a], ['b', S.b]]) {
+    console.log(`${k}     ${pct(x.clears).padStart(6)}  ${x.progress.toFixed(1).padStart(9)}  ${`${pct(x.won, x.battles)} (${x.won}/${x.battles})`.padStart(19)}` +
+      floors.map((f) => String(x.deaths[f] ?? 0).padStart(10)).join('') + `  ${x.secs.toFixed(2).padStart(5)}`)
+  }
+  console.log(`b against a: clears won ${S.won}, lost ${S.lost} (net ${S.won - S.lost >= 0 ? '+' : ''}${S.won - S.lost}); ` +
+    `progress ${S.diff >= 0 ? '+' : ''}${S.diff.toFixed(2)} ± ${S.se.toFixed(2)} points (one standard error of the paired difference)`)
+  return S
+}
+
 // ── skill ladder ─────────────────────────────────────────────────────────────────────────────────
 
 // What ended a run, one cause per defeat: the Monarch's killer's own first threat, or 'stall' for a battle played
@@ -2091,11 +2179,11 @@ export const causesOf = (death) => !death ? [] : [death.reason === 'stall' ? 'st
 
 // The same seeds at every level: how far planning lifts a run over rules of thumb. The gap between
 // basic and expert is the game's skill range; a gap near zero means the choices barely matter, and an
-// expert clear rate near 100% means a planner has solved it.
-async function ladder ({ runs, seed: seed0 }) {
+// expert clear rate near 100% means a planner has solved it. With `ranker` (a file, or 'none'), that ranker's.
+async function ladder ({ runs, seed: seed0, ranker }) {
   const levels = Object.keys(LEVELS)
-  const played = await playAll(levels.flatMap((level) => Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level }))))
-  console.log(`runs ${runs} per level (seed ${seed0}), the same seeds at each`)
+  const played = await playAll(levels.flatMap((level) => Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ...(ranker !== undefined && { ranker }) }))))
+  console.log(`runs ${runs} per level (seed ${seed0}${ranker !== undefined ? `, ranker ${ranker}` : ''}), the same seeds at each`)
   console.log('level    clear  died on floor 1      2      3      4  battles won  relics  reaped')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
@@ -2537,12 +2625,20 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     // `--variants full` (alone or with others): the full expert only, beside whatever ablations are named.
     const variants = arg('variants', null)?.split(',').filter((v) => v !== 'full') ?? ABLATIONS
     for (const v of variants) if (!ABLATIONS.includes(v)) throw new Error(`unknown ablation "${v}": ${ABLATIONS.join(', ')}`)
+    // `--ranker <file|none>`: the expert's ranker (ranker.js) for a report or the ladder, ranker.json where there is
+    // one by default; `--paired <a>,<b>`: the same seeds under rankers a and b (each a file, or none), compared.
+    const ranker = arg('ranker', undefined)
     if (process.argv.includes('--combos')) makeBook()
+    else if (arg('paired', null)) {
+      const rankers = arg('paired').split(',')
+      if (rankers.length !== 2) throw new Error('--paired <a>,<b>: two rankers (a file, or none), comma-separated')
+      await paired({ ...opts, rankers, runs: Number(arg('runs', 256)) })
+    }
     else if (process.argv.includes('--audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)) })
     else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
     else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
     else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
-    else if (process.argv.includes('--ladder')) await ladder({ ...opts, runs: Number(arg('runs', RUNS.ladder)) })
-    else await report({ ...opts, ablate, learned, runs: Number(arg('runs', RUNS.sim)) })
+    else if (process.argv.includes('--ladder')) await ladder({ ...opts, ranker, runs: Number(arg('runs', RUNS.ladder)) })
+    else await report({ ...opts, ablate, learned, ranker, runs: Number(arg('runs', RUNS.sim)) })
   }
 }

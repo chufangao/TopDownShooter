@@ -17,7 +17,8 @@
     "combos": "node src/sim/autoplay.js --combos",
     "train": "node src/sim/train.js",
     "teach": "node src/sim/teach.js",
-    "fit": "node src/sim/fit.js"
+    "fit": "node src/sim/fit.js",
+    "rank": "node src/sim/ranker.js"
   },
   "engines": {
     "node": ">=22"
