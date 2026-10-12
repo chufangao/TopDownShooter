@@ -9,7 +9,13 @@
 // one's (train.js NEAR: the Monarch at or under 35% of its max at a turn's start or the end, or 40% of it lost in the
 // battle), a quarter of those of a won battle where the Monarch is in the foes' reach or a foe has a clear line on it
 // (the plan's shooters), 3% of the rest; each kept one weighed 1 / its chance (`wt`), so the data can stand for every
-// decision. Held out by seed: a seed number ≡ 0 (mod 5) is `held`, the rest `train`.
+// decision. That is the draw by the outcome (`draw` 'outcome', the default; L2's and L3's labels). With `draw` 'state'
+// (`--draw state`) a decision's chance reads only the board as it stands when the piece decides, never how the battle
+// ended: a quarter where the Monarch is in the foes' reach or a foe has a clear line on it ('reach'), 3% else ('calm'),
+// KEEP's `lost` and `near` unused; the row's `group` is still the battle's, its `danger` the board's class. (Drawn by the
+// outcome, a lost battle's rows are biased: there the option the expert took loses by construction, in a near-lost one
+// it wins; the ranker's variants that trusted those rows played worse, 2026-10-12.) Held out by seed: a seed number ≡ 0
+// (mod 5) is `held`, the rest `train`.
 //
 // Options: the deciding piece's options as the expert lists them (policy.js expertOptions: each tile and act or
 // fusion), cut to a shortlist of at most `cap` (options: the one it has where it stands, for each act at each target
@@ -62,13 +68,15 @@
 // choice was the playout's best, and its regret, by floor and by danger: report). loadLabels reads it back.
 //
 //   npm run teach -- [--runs 300] [--seed teach] [--workers 5] [--out dir] [--rounds 0] [--cap 16] [--turns 150]
-//                    [--weights monarch=3,own=1,…] [--keep lost,near,reach,calm] [--expert file.json]
-//                    [--ranker file.json|none] [--report-only]
+//                    [--weights monarch=3,own=1,…] [--keep lost,near,reach,calm] [--draw outcome|state]
+//                    [--expert file.json] [--ranker file.json|none] [--report-only]
 // (`--expert`: the expert configuration that plays and completes the turns, src/sim/expert.json by default. `--ranker`:
 // the ranker configuration it plays with (redesign.md §2.23; ranker.js useRanker), installed in this thread and in every
 // worker before a run is played, so the runs and every playout's rest are the expert's with that ranker; `none` for
 // none, today's expert; without it, the one ranker.js holds. The labels' prior stays today's score, the ranker's
-// correction aside. The ranker's file and `name` go into manifest.json.)
+// correction aside. The ranker's file and `name` go into manifest.json. `--draw`: how a decision's chance to be
+// labelled is read, see Positions above; `--keep`'s `lost` and `near` are unused under `state`; the draw goes into
+// manifest.json, and into its settings where it is not the default.)
 //
 // The teacher (below, `--teacher`): this labeller as a player, every battle decision of a run the playout-best.
 //
@@ -97,7 +105,9 @@ import { seedNo, NEAR } from './train.js'
 export const WEIGHTS = Object.freeze({ monarch: 3, own: 1, foe: 1, lost: 10, won: 1 })
 export const END_WEIGHTS = Object.freeze({ lost: 10, monarch: 3, own: 1, turn: 0.02 })
 export const KEEP = Object.freeze({ lost: 1, near: 0.5, reach: 0.25, calm: 0.03 })
-export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights: null, keep: KEEP })
+export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights: null, keep: KEEP, draw: 'outcome' })
+// How a decision's chance to be labelled is read (see above): by its battle's outcome, or by the board alone.
+export const DRAWS = Object.freeze(['outcome', 'state'])
 // The weights a configuration's labels are read by: its own, else its kind's.
 const weightsOf = (c) => c.weights ?? (c.rounds > 0 ? WEIGHTS : END_WEIGHTS)
 
@@ -490,7 +500,7 @@ const rankerOf = (r) => (typeof r === 'string' ? JSON.parse(fs.readFileSync(r, '
 const draw = (seed, battle, seq) => parseInt(hashString(`teach|${seed}|${battle}|${seq}`).slice(0, 8), 16) / 2 ** 32
 
 // The danger of a decision: its battle's group (lost, near-lost), else the Monarch in the foes' reach or a foe with a
-// clear line on it (the plan's shooters), else calm. `b` the board, `group` its battle's.
+// clear line on it (the plan's shooters), else calm. `b` the board, `group` its battle's (null: the board alone).
 function dangerOf (b, group) {
   if (group === 2) return 'lost'
   if (group === 1) return 'near'
@@ -498,6 +508,15 @@ function dangerOf (b, group) {
   const reach = !!sit.monarch && sit.monarch.danger > 0
   const line = (b.plan?.turn === b.turn ? b.plan.shooters?.length : 0) > 0
   return reach || line ? 'reach' : 'calm'
+}
+
+// A decision's class and its chance to be labelled (KEEP's, or `cfg.keep`'s) by `cfg.draw`: by the outcome, its battle's
+// `group` first (dangerOf); by the state, the board `b` alone, whatever `group` is. → { danger, keep }
+export function drawOf (b, group, cfg = {}) {
+  const how = cfg.draw ?? DEFAULTS.draw
+  if (!DRAWS.includes(how)) throw new Error(`no draw "${how}": ${DRAWS.join(', ')}`)
+  const danger = dangerOf(b, how === 'state' ? null : group)
+  return { danger, keep: { ...KEEP, ...cfg.keep }[danger] }
 }
 
 // One expert run played live, its battles' decisions drawn and the kept ones labelled. `battles`: stop after that many
@@ -524,8 +543,7 @@ export function teachRun (seed, cfg = {}) {
     for (const p of cur.points) {
       decisions++
       if (c.limit && positions.length >= c.limit) break
-      const danger = dangerOf(p.board, group)
-      const keep = c.keep[danger]
+      const { danger, keep } = drawOf(p.board, group, c)
       if (!(draw(seed, cur.no, p.seq) < keep)) continue
       const t = performance.now()
       const L = labelPosition(p.board, p.uid, signature(p.orders, p.tile), c)
@@ -697,7 +715,8 @@ export function report (positions, by = { byFloor: 'floor', byDanger: 'danger', 
 // playout. Where the expert would order no piece, the turn ends as the expert ends it: what End Turn has the untouched
 // do (policy.js untouchedOrders), then End Turn. Nothing else changes: the same bound on a battle's rounds (a stall past
 // TUNING.turn.guard, as autoplay.js ends it), the same End Turn; a turn is one decision a piece more than the expert
-// reads, ~10–20 playouts each. Deterministic: the same board gives the same orders.
+// reads, about ten playouts each (9–12 on the bar's seeds, 2026-10-12: ~40 ms a decision on floor 1 and ~200 ms over a
+// run on four workers, a run of ~800 decisions 2–5 minutes). Deterministic: the same board gives the same orders.
 //
 //   npm run teach -- --teacher [--runs 64] [--seed sim] [--from 0] [--workers 4] [--out dir] [--cap 16] [--turns 150]
 //                    [--weights monarch=3,own=1,…] [--expert file.json] [--ranker file.json|none] [--report-only]
@@ -1604,12 +1623,15 @@ if (!isMainThread && workerData?.teach) {
   const weights = !given ? base : given.includes('=') ? { ...base, ...Object.fromEntries(given.split(',').map((kv) => kv.split('=')).map(([k, x]) => [k, Number(x)])) }
     : nums(given, ['monarch', 'own', 'foe', 'lost', 'won'], WEIGHTS)
   const rk = rankerArg(arg)
-  // The settings the labels are made by (manifest.json's, a stage gone on with held to them), and what the workers get:
-  // the same with the ranker's configuration in place of its file and name.
+  const how = arg('draw', DEFAULTS.draw)
+  if (!DRAWS.includes(how)) throw new Error(`--draw ${how}: one of ${DRAWS.join(', ')}`)
+  // The settings the labels are made by (manifest.json's, a stage gone on with held to them; the default draw left out,
+  // as the labels before it were made), and what the workers get: the same with the ranker's configuration in place of
+  // its file and name.
   const settings = {
     rounds, cap: Number(arg('cap', DEFAULTS.cap)), ...(!(rounds > 0) && { turns: Number(arg('turns', DEFAULTS.turns)) }),
     weights, keep: nums(arg('keep', null), ['lost', 'near', 'reach', 'calm'], KEEP), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }),
-    ...(rk.setting !== undefined && { ranker: rk.setting })
+    ...(rk.setting !== undefined && { ranker: rk.setting }), ...(how !== DEFAULTS.draw && { draw: how })
   }
   const cfg = { ...settings, ...(rk.config !== undefined && { ranker: rk.config }) }
   install(cfg)
@@ -1625,7 +1647,7 @@ if (!isMainThread && workerData?.teach) {
   const t0 = performance.now()
   let made = 0
   if (todo.length && !process.argv.includes('--report-only')) {
-    console.log(`labelling ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${done.size} done in ${dir}) on ${workers} workers: rounds ${cfg.rounds}, cap ${cfg.cap}`)
+    console.log(`labelling ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${done.size} done in ${dir}) on ${workers} workers: rounds ${cfg.rounds}, cap ${cfg.cap}, drawn by the ${how}`)
     let n = 0
     await pool(todo, workers, cfg, (r) => {
       fs.appendFileSync(labelsFile, r.positions.map((p) => JSON.stringify(p) + '\n').join(''))
@@ -1650,6 +1672,8 @@ if (!isMainThread && workerData?.teach) {
     // beam (TUNING.expert.beam.on), and the ranker it played with (its file, where named, and its name; null for none).
     expert: { model: typeof E.expertModel === 'function' ? E.expertModel().name ?? null : null, beam: !!TUNING.expert.beam?.on },
     ranker: rankerIn(rk),
+    // How the decisions were drawn: by their battle's outcome, or by the board alone (see the head of this file).
+    draw: how,
     value: cfg.rounds > 0
       ? 'value = −monarch·(Monarch HP lost / its max) − own·(pieces\' HP lost / their max summed) + foe·(standing foes\' HP lost / their max summed) − lost·[lost] + won·[won], from the board the piece decided on to the board after `rounds` End Turns (src/sim/teach.js)'
       : 'value = −lost if the battle is lost (a stall past `turns` rounds among them), else −monarch·(the Monarch\'s share of its max HP lost, as the run carries it: the post-battle heal) − own·(the souls\' share of their max HP lost, as carried, a fallen soul all of its share) − turn·(the rounds the battle took after the decision), from the board the piece decided on to the battle\'s end (src/sim/teach.js)',

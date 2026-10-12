@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { labelPosition, teachRun, valueOf, loadLabels, report, give, signature, WEIGHTS, DEFAULTS, labelChoice, ROUTE_WEIGHTS, END_WEIGHTS, endTally, endValue, bestOf, teacherPick, teacherTurn, teacherRun, pairedReport, pairedLines } from '../src/sim/teach.js'
+import { labelPosition, teachRun, valueOf, loadLabels, report, give, signature, WEIGHTS, DEFAULTS, labelChoice, ROUTE_WEIGHTS, END_WEIGHTS, endTally, endValue, bestOf, teacherPick, teacherTurn, teacherRun, pairedReport, pairedLines, drawOf, KEEP } from '../src/sim/teach.js'
 import { createRun, apply } from '../src/sim/run.js'
 import { nodeOf } from '../src/sim/map.js'
 import { survey, pickRoute, learnedRoute, useRoute, routeConditions, routeFeatures, ROUTE_FEATURES } from '../src/sim/autoplay.js'
@@ -417,9 +417,11 @@ test('a teacher run plays out of battle as today\'s expert: the same actions up 
 })
 
 test('--ranker, a configuration\'s `ranker`: installed for the runs and their playouts, from a file too', () => {
-  const cfg = { name: 'teacher-test-ranker' }
+  // A configuration ranker.js takes: the one it ships where there is one (it checks what it is given), else any named.
+  const cfg = rankerModel() ?? { name: 'teacher-test-ranker' }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-teacher-test-'))
   try {
+    useRanker(null)
     teacherRun('teacher-test-1', { fights: 1, ranker: cfg })
     assert.deepEqual(rankerModel(), cfg)
     useRanker(null)
@@ -430,8 +432,29 @@ test('--ranker, a configuration\'s `ranker`: installed for the runs and their pl
     teacherRun('teacher-test-1', { fights: 1, ranker: null })
     assert.equal(rankerModel(), null)
   } finally {
-    useRanker(null)
+    // Back to the one ranker.js holds by default.
+    useRanker(undefined)
     fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('drawn by the state, a decision\'s class and chance read the board alone, never the battle\'s outcome', () => {
+  const b = peril()
+  const state = [0, 1, 2].map((group) => drawOf(b, group, { draw: 'state' }))
+  assert.ok(['reach', 'calm'].includes(state[0].danger))
+  for (const x of state) assert.deepEqual(x, state[0])
+  assert.equal(state[0].keep, KEEP[state[0].danger])
+  // By the outcome (the default), the battle's group first.
+  assert.deepEqual([2, 1, 0].map((group) => drawOf(b, group).danger), ['lost', 'near', state[0].danger])
+  assert.throws(() => drawOf(b, 0, { draw: 'luck' }))
+  // A run so drawn: every row of the board's class, weighed by its chance, its battle's group still written.
+  const keep = { lost: 0, near: 0, reach: 1, calm: 1 }
+  const r = teachRun('teach-test-1', { battles: 1, limit: 4, keep, draw: 'state' })
+  assert.ok(r.positions.length > 0)
+  for (const p of r.positions) {
+    assert.ok(['reach', 'calm'].includes(p.danger), p.danger)
+    assert.equal(p.wt, 1)
+    assert.ok([0, 1, 2].includes(p.group))
   }
 })
 
