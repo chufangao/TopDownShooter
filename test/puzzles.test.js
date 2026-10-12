@@ -9,7 +9,7 @@ import { expertTurn, situation, options, expertOptions, features, blowOn, danger
 import { readPlan, killList, forecast, chokes, hungarian } from '../src/sim/plan.js'
 import { value, decide, TREES } from '../src/sim/expert.js'
 import { createRun, availableNodes, monarchOf } from '../src/sim/run.js'
-import { survey, pickRoute, roomFeatures, AUDIT, resetAudit } from '../src/sim/autoplay.js'
+import { survey, pickRoute, roomFeatures, AUDIT, resetAudit, withRoute } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
 import { on, scene, slay } from './scene.js'
 import { tileAt, tileX, tileY, distance, isBlow, blowReach } from '../src/sim/unit.js'
@@ -422,7 +422,7 @@ test('puzzle: a wounded Monarch takes the altar, and walks into no elite', () =>
   assert.ok(survey(run).health === 1 && survey(run).monarch < T.altar)
   resetAudit(true, run)
   try {
-    assert.equal(pickRoute(run), nodes[1].id)
+    assert.equal(withRoute('hand', () => pickRoute(run)), nodes[1].id)
     assert.equal(AUDIT.rules['route: monarch-altar'], 1)
   } finally {
     resetAudit(false)
@@ -432,7 +432,7 @@ test('puzzle: a wounded Monarch takes the altar, and walks into no elite', () =>
   assert.ok(survey(run).unhealed)
   resetAudit(true, run)
   try {
-    pickRoute(run)
+    withRoute('hand', () => pickRoute(run))
     assert.equal(AUDIT.rules['route: monarch-altar'], undefined)
   } finally {
     resetAudit(false)

@@ -286,8 +286,9 @@ test('a room choice played to the run\'s end: the deadly elite loses the run, th
 test('to the end, the chosen room\'s label is the run\'s own rest; the route installed is put back', () => {
   // A route tree that walks into fights; installed while the labeller plays, and taken out after.
   const model = { name: 'test', tree: { leaf: 'x', w: { fight: 1, weak: -1 } }, rules: [] }
+  const before = routeModel()
   const a = teachRoutes('route-test-2', { route: model, limit: 1 })
-  assert.equal(routeModel(), null)
+  assert.equal(routeModel(), before)
   const b = teachRoutes('route-test-2', { route: model, limit: 1, reuse: false })
   assert.equal(a.positions.length, 1)
   assert.deepEqual(a.positions, b.positions)

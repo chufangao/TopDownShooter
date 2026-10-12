@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf, battleSetup } from '../src/sim/run.js'
 import {
   drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay, formationFeatures,
-  survey, pickRoute, roomFeatures, record
+  survey, pickRoute, roomFeatures, record, withRoute
 } from '../src/sim/autoplay.js'
 import { value, decide, TREES } from '../src/sim/expert.js'
 import { tuned } from './tuned.js'
@@ -431,7 +431,7 @@ test('the route: a Shop with a full purse; the weights, no rule', () => {
   const { run, nodes } = crossroads(seedWith(2), ['fight', 'shop'])
   run.state.essence = 1e4
   const sit = survey(run)
-  assert.equal(pickRoute(run, sit), nodes[1].id)
+  assert.equal(withRoute('hand', () => pickRoute(run, sit)), nodes[1].id)
   const shop = sit.rooms.find((r) => r.id === nodes[1].id)
   assert.ok(roomFeatures(sit, shop).purse > 0)
   // An empty purse: the Shop's purse is nothing.
@@ -446,7 +446,7 @@ test('rule wounded-altar: a badly wounded army takes the altar; rule wounded-no-
   wound(altar.run, 0.1)
   resetAudit(true, altar.run)
   try {
-    assert.equal(pickRoute(altar.run), altar.nodes[1].id)
+    assert.equal(withRoute('hand', () => pickRoute(altar.run)), altar.nodes[1].id)
     assert.equal(AUDIT.rules['route: wounded-altar'], 1)
   } finally {
     resetAudit(false)

@@ -389,10 +389,12 @@ export function pickRoute (run, sit = survey(run)) {
 // splits on the run's situation (routeConditions), each leaf its weights over a room's features (routeFeatures), the
 // best-scoring room taken; no hard rule unless the model keeps TREES.route's (`hand`). Read where ROUTE_LEARNED is on and
 // the file is there (Node only), else the hand-built route above; useRoute installs another (a test's, a measurement's).
-// Off (2026-10-11, redesign.md §6 "The learned route"): route.json gained +5.4 ± 1.9 clears over 1024 paired seeds `sim`,
-// but turning it on wants the hand-built route's tests (planning.test.js, puzzles.test.js: its rules' audit names, a
-// Shop with a full purse, which the learned route passes by) to pin useRoute(false) first.
-export const ROUTE_LEARNED = false
+// On (2026-10-12): route.json gained +5.4 ± 1.9 clears over 1024 paired seeds `sim` under the scorer of 2026-10-11
+// (redesign.md §6 "The learned route"), and again with the forest playing the battles (§2.24): on 768 seeds `chk5`,
+// 33.1% clears against the hand-built route's 29.0% (+146 −115), progress +1.43 ± 1.56, 5.3 s a run against 4.1 (it
+// fights more battles). The hand-built route's tests (planning.test.js, puzzles.test.js: its rules' audit names, a Shop
+// with a full purse) walk it by withRoute('hand').
+export const ROUTE_LEARNED = true
 let ROUTE_MODEL
 const ROUTE_FILE = new URL('./route.json', import.meta.url)
 export function routeModel () {
@@ -1836,9 +1838,10 @@ const buildOf = (s) => {
 // `tiers`: track tiers its kinds hold at the end; `relics` held, every copy, and the `legendaries` among them). With
 // `ranker` (a ranker.json file's path, or 'none' for today's expert: withRanker), that ranker plays it, the one in use
 // before put back after; `ranker` in the result names the one that played (null for none); `forest` (a forest.json
-// file's path, or 'none': withForest) alike, `forest` in the result.
-export function record ({ ranker, forest, ...job }) {
-  return withForest(forest, () => withRanker(ranker, () => recordRun(job)))
+// file's path, or 'none': withForest) alike, `forest` in the result; and `route` ('hand', 'learned' for route.json, or a
+// route file's path: withRoute) the route it walks.
+export function record ({ ranker, forest, route, ...job }) {
+  return withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job))))
 }
 function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, learned }) {
   const battles = []
@@ -1930,11 +1933,33 @@ export function withForest (spec, fn) {
     useForest(before)
   }
 }
+// The same for the route (useRoute): `fn()` walking route `spec`, 'hand' the hand-built (TREES.route and its weights),
+// 'learned' route.json's tree, a file's path that file's (read once a worker), the route in use before put back after;
+// undefined: whatever is in use (ROUTE_LEARNED's). → what fn returns
+const routeFiles = new Map()
+export function withRoute (spec, fn) {
+  if (spec === undefined) return fn()
+  const before = routeModel()
+  if (spec === 'hand') useRoute(false)
+  else if (spec === 'learned') useRoute(JSON.parse(fs.readFileSync(ROUTE_FILE, 'utf8')))
+  else {
+    if (!routeFiles.has(spec)) routeFiles.set(spec, JSON.parse(fs.readFileSync(spec, 'utf8')))
+    useRoute(routeFiles.get(spec))
+  }
+  try {
+    return fn()
+  } finally {
+    useRoute(before ?? false)
+  }
+}
 // The player a paired comparison names (--paired's a or b): 'none', today's expert (no ranker and no forest, whatever
 // ships); `forest:<file>` a forest; `ranker:<file>` a ranker; a file by its content (a forest's `kind` is 'forest', else
-// a ranker). → the job's { ranker, forest }
+// a ranker); `route:<hand|learned|file>` the battle player in use (forest.json where it ships) walking that route.
+// → the job's { ranker, forest } or { route }
 export function playerOf (spec) {
   if (spec === 'none') return { ranker: 'none', forest: 'none' }
+  const route = String(spec).match(/^route:(.+)$/)
+  if (route) return { route: route[1] }
   const [, kind, file] = String(spec).match(/^(forest|ranker):(.+)$/) ?? [null, null, spec]
   const isForest = kind ? kind === 'forest' : rankerOf(file)?.kind === 'forest'
   return isForest ? { ranker: 'none', forest: file } : { ranker: file, forest: 'none' }
@@ -2079,7 +2104,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))
