@@ -149,7 +149,7 @@ const hpPct = (u) => u.hp / u.maxHp
 const partyHealth = (party) => party.reduce((n, u) => n + hpPct(u), 0) / party.length
 const byPower = (a, b) => worth(b) - worth(a) || a.uid - b.uid
 // An expert counts wounds: a soul at 10% HP is not worth fielding at full price.
-const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b.uid
+export const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b.uid
 
 // Rough fighting worth from its stats, track tiers and the relics it holds included (`mods`: a foe's, its floor's):
 // how long it lasts times how hard it hits (and how far it goes in a turn), square-rooted, and as much again for each
@@ -871,7 +871,7 @@ const toughness = (u) => {
 // What a formation is read against, made once a plan: the scouted foes (scout), the threat map (threatOf) and its
 // total, the seat's tile, the field's best (the fielded souls' worth L would want, wounds counted: wanted), and whether
 // your side holds synergies (not under their rules switch).
-function formationContext (run, L, want = wanted(run, L)) {
+export function formationContext (run, L, want = wanted(run, L)) {
   const s = run.state
   const threat = threatOf(run)
   return {
@@ -1010,7 +1010,7 @@ const wanted = (run, L) => {
 // TUNING.expert.formation, on formationFeatures) and hill-climbs from the best (mutate), `search` steps, a change kept
 // where it outranks the best (expert.js outranks: the tree's filters first, then the score). `by` and `rules` name the
 // rules that turned a comparison (else 'weights'); `onCandidate` hears each formation met, once.
-function plan (run, L, { onCandidate = null } = {}) {
+export function plan (run, L, { onCandidate = null } = {}) {
   const want = wanted(run, L)
   const options = drafts(run, want, L).map((party) => allowed(run, party, L))
   if (!L.search) {
@@ -1236,8 +1236,8 @@ function basicSpend (run, L) {
 // fields (strength, as a log: what a choice adds, as a share) and what the book says the combo it plays toward is worth
 // ahead (bookValue; none without the book). Under the summons ablation a tier's summons are not counted: they never
 // come. `sketch`: their weighted sum.
-const growthOf = (s, L) => ({ strength: Math.log(strength(s, L.ablate !== 'summons')), book: L.book ? bookValue(s) : 0 })
-const sketch = (s, L) => value(growthOf(s, L), TUNING.expert.growth)
+export const growthOf = (s, L) => ({ strength: Math.log(strength(s, L.ablate !== 'summons')), book: L.book ? bookValue(s) : 0 })
+export const sketch = (s, L) => value(growthOf(s, L), TUNING.expert.growth)
 // What a choice must beat: keeping what it has (TUNING.expert.growth.keep).
 const KEEP = () => TUNING.expert.growth.keep
 
@@ -1251,7 +1251,7 @@ const KEEP = () => TUNING.expert.growth.keep
 // give-relic). Weighed once for each run state and purpose (`why`). → the action, or null to keep.
 const growths = new WeakMap()
 const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : a.type)
-function grow (run, L, actions, why, sit = null) {
+export function grow (run, L, actions, why, sit = null) {
   if (!actions.length) return null
   const s = run.state
   const key = JSON.stringify([L.ablate, s.floor, s.at, s.phase, s.essence, s.kinds, s.relics, s.party.map((u) => [u.uid, u.hp, u.slot >= 0, u.relics])])
@@ -1283,7 +1283,7 @@ function grow (run, L, actions, why, sit = null) {
 
 // Whether, on `sim` with tier `a` (an upgrade) just bought, the tier after it on the same track may be bought too: the
 // crosspath rule allows it, and what is left of the purse pays its price (the two priced together, grow).
-const nextTier = (sim, a) => a.type === 'upgrade' && canAdvance(sim.state, a.kind, a.track) && sim.state.essence >= tierCost(sim, a.kind, a.track)
+export const nextTier = (sim, a) => a.type === 'upgrade' && canAdvance(sim.state, a.kind, a.track) && sim.state.essence >= tierCost(sim, a.kind, a.track)
 
 // A kind's state ({ lvl, tracks, least? }) with the next tier on `track` taken: its level with it (run.js levelOf).
 const afterTier = (k, track) => {
@@ -1527,7 +1527,7 @@ function bookValue (s) {
   for (const c of BOOK.combos) best = Math.max(best, comboWorth(s, c, work) * comboProgress(s, c))
   return best
 }
-function targetOf (s) {
+export function targetOf (s) {
   const work = atWork(s)
   let best = null
   let most = 0
@@ -1538,14 +1538,14 @@ function targetOf (s) {
   return best
 }
 // The kinds a target is built of (its parts, its tracks'), and whether a soul is one of them.
-const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Object.keys(c?.tracks ?? {})])
+export const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Object.keys(c?.tracks ?? {})])
 
 // ── reap ─────────────────────────────────────────────────────────────────────────────────────────
 
 // The one recruit a battle allows (a battle's spoils are its souls: relics are bought, redesign.md §2.11): basic buys
 // the highest tier it can afford while the field has room, an expert the soul that grows its sketch most
 // (weighRecruits). A full retinue lets its weakest soul in the ossuary go to make room.
-function pickReap (run, L, sit) {
+export function pickReap (run, L, sit) {
   const s = run.state
   if (L.spend) {
     const pick = weighRecruits(run, L, sit)
@@ -1569,7 +1569,7 @@ function pickReap (run, L, sit) {
 // Weighed once a room; a release it needs comes first, then the recruit it was for.
 // → { index, release? } or null
 const recruits = new WeakMap()
-function weighRecruits (run, L, sit = null) {
+export function weighRecruits (run, L, sit = null) {
   const s = run.state
   // Once a room, for the offers it has (a release leaves them as they were; a recruit takes the souls away).
   const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => o.id)])
@@ -1627,7 +1627,7 @@ function completes (sim, L, later = false) {
 
 // What saving for a fusion is worth (grow's `save`): the most the sketch would gain from a fusion whose parts the run
 // holds while the purse is short of its price (completes' `later`), 0 for none.
-function saving (run, L) {
+export function saving (run, L) {
   const base = sketch(run.state, L)
   return Math.max(0, ...completes(fork(run), L, true).filter((x) => x.later).map((x) => sketch(x.state, L) - base))
 }
@@ -1678,7 +1678,7 @@ function pickShop (run, L, sit) {
 // is worth most: held; the book's worth of the combo it plays toward counts it at work, comboWorth), if that beats the
 // tiers its price displaces, the best a tier of the retinue's kinds gives an essence (tierRate), and gains anything at
 // all. → a buy, or null.
-function buyFor (run, L, sit = null) {
+export function buyFor (run, L, sit = null) {
   const s = run.state
   const base = sketch(s, L)
   const bar = tierRate(run, L, base)
@@ -1696,7 +1696,7 @@ function buyFor (run, L, sit = null) {
 
 // The sketch of state `s`, owning relic `id`, with it held where it is worth most if it is a piece relic: given to the
 // standing soul whose sketch it raises most (one holding its fill gives back its first), else left unheld.
-function held (s, id, L) {
+export function held (s, id, L) {
   let best = sketch(s, L)
   if (isRunRelic(id)) return best
   for (const u of standing(souls(s.party))) {
@@ -1710,7 +1710,7 @@ function held (s, id, L) {
 // What an essence buys in tiers: the best sketch gain per essence among the next tiers of the kinds the retinue holds
 // (and each with the tier after it on its track, as one: grow), whatever the purse holds now, for essence kept waits
 // for them. 0 where no tier is left to buy, or none may be (the tracks ablation).
-function tierRate (run, L, base) {
+export function tierRate (run, L, base) {
   const s = run.state
   if (L.ablate === 'tracks') return 0
   let best = 0
@@ -1732,7 +1732,7 @@ function tierRate (run, L, base) {
 // back (it fights for no one until an altar), then each piece relic waiting goes to the standing soul where the sketch
 // says it is worth most (grow: one holding its fill gives back its first, which waits to be weighed again), if that
 // adds anything. → a hold or an unhold, or null.
-function pickHold (run, L, sit) {
+export function pickHold (run, L, sit) {
   const s = run.state
   const fallen = souls(s.party).find((u) => u.hp <= 0 && u.relics?.length)
   if (fallen) return { type: 'unhold', uid: fallen.uid }

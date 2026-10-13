@@ -18,6 +18,7 @@
     "train": "node src/sim/train.js",
     "teach": "node src/sim/teach.js",
     "teacher": "node src/sim/teacher.js",
+    "outside": "node src/sim/outside.js",
     "fit": "node src/sim/fit.js",
     "rank": "node src/sim/ranker.js",
     "forest": "node src/sim/forest.js"
