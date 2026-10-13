@@ -317,6 +317,7 @@ function choose (run, m, c, phase, cands, opts = {}) {
   for (const cand of cands) {
     const p = count(playout(run, cand, m, c, before, opts))
     cand.value = p.value
+    cand.won = !!p.won
     played++
     if (best === null || p.value > best.value + EPS) best = cand
     if (c.won && p.won) break
@@ -324,7 +325,10 @@ function choose (run, m, c, phase, cands, opts = {}) {
   if (played < cands.length) st.settled++
   st.decided++
   st.candidates += played
-  if (best !== cands[0]) st.overrides++
+  if (best !== cands[0]) {
+    st.overrides++
+    m.stats.picks.push({ phase, floor: run.state.floor, rank: currentNode(run)?.rank ?? 0, base: cands[0].label, pick: best.label, from: cands[0].value, to: best.value, cleared: !!best.won })
+  }
   if (Number.isFinite(best.value - cands[0].value)) st.gain += best.value - cands[0].value
   st.ms += performance.now() - t0
   m.last = { phase, cands: cands.slice(0, played).map((x) => ({ label: x.label, value: x.value })), pick: best.label }
@@ -516,7 +520,7 @@ function memoOf (run) {
   if (!memos.has(run)) {
     memos.set(run, {
       ends: new Map(), battles: new Map(), plans: new Map(), goal: null, recruit: null, last: null,
-      stats: { phases: Object.fromEntries(PHASES.map((p) => [p, emptyPhase()])), fights: 0, ms: 0 }
+      stats: { phases: Object.fromEntries(PHASES.map((p) => [p, emptyPhase()])), picks: [], fights: 0, ms: 0 }
     })
   }
   const m = memos.get(run)
@@ -527,8 +531,9 @@ function memoOf (run) {
 }
 // The teacher's counts for `run` (by phase: asked, decided (more than one candidate), overrides (another than the base's
 // pick), candidates, playouts, hits (playouts that ended at a fight already played), settled (with `won`: decided by a
-// cleared line before every candidate was played), ms, gain (the value over the base's pick, summed); fights its playouts
-// played; ms in all) and its last decision's candidates and values.
+// cleared line before every candidate was played), ms, gain (the value over the base's pick, summed); each override
+// (`picks`: its phase, floor and rank, the base's pick and the one taken, their values, and whether the one taken was
+// played out to a clear); fights its playouts played; ms in all) and its last decision's candidates and values.
 export function outsideStats (run) {
   const m = memoOf(run)
   return { ...m.stats, last: m.last }
@@ -597,7 +602,7 @@ export function outsideRun (seed, cfg = {}) {
     battles: { won, fought }, ms: Math.round(performance.now() - t0),
     decisions: sum('decided'), playouts: sum('playouts'), single: sum('asked') - sum('decided'), decisionMs: Math.round(st.ms),
     phases: Object.fromEntries(PHASES.map((p) => [p, { ...st.phases[p], ms: Math.round(st.phases[p].ms), gain: r6(st.phases[p].gain) }])),
-    fights: st.fights, settings: settingsOf(c), base: baseOf(),
+    fights: st.fights, picks: st.picks, settings: settingsOf(c), base: baseOf(),
     ...(c.log && { log: s.log })
   }
 }
@@ -608,8 +613,10 @@ const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap:
 // The outside teacher against the expert as it ships, paired by seed over runs.jsonl's lines (teach.js pairedReport: the
 // clears, the seeds won and lost against the base, the progress difference ± one standard error, the battles won, the
 // deaths by floor, the time a run), and by phase: the decisions it made a run, how often it took another than the base's
-// pick, the candidates and playouts a decision, the share of playouts that ended at a fight already played, the time a
-// decision, the value gained over the base's pick a decision. → { …pairedReport, phases }
+// pick, the candidates played a decision, the playouts and the share of them that ended at a fight already played, the
+// decisions settled by a clear and the overrides whose line cleared the run (`found`, where the lines record their
+// overrides), the time a decision, the value gained over the base's pick a decision. → { …pairedReport, phases,
+// fightsPerRun }
 export function outsideReport (lines) {
   const rep = pairedReport(lines.map((r) => (r.player === 'outside' ? { ...r, player: 'teacher' } : r)))
   const seeds = new Set(lines.filter((r) => r.player === 'expert').map((r) => r.seed))
@@ -621,7 +628,7 @@ export function outsideReport (lines) {
     phases[p] = {
       asked: sum('asked'), decided: d, perRun: +(d / Math.max(1, T.length)).toFixed(2), overrides: sum('overrides'), overrideRate: d ? +(sum('overrides') / d).toFixed(4) : null,
       candidates: d ? +(sum('candidates') / d).toFixed(2) : null, playouts: sum('playouts'), hitRate: sum('playouts') ? +(sum('hits') / sum('playouts')).toFixed(4) : null,
-      settled: sum('settled'), msPerDecision: d ? Math.round(sum('ms') / d) : null, gainPerDecision: d ? +(sum('gain') / d).toFixed(4) : null
+      settled: sum('settled'), found: T.some((r) => r.picks) ? T.reduce((n, r) => n + (r.picks ?? []).filter((x) => x.phase === p && x.cleared).length, 0) : null, msPerDecision: d ? Math.round(sum('ms') / d) : null, gainPerDecision: d ? +(sum('gain') / d).toFixed(4) : null
     }
   }
   return { ...rep, phases, fightsPerRun: Math.round(T.reduce((n, r) => n + (r.fights ?? 0), 0) / Math.max(1, T.length)) }
@@ -639,10 +646,10 @@ export function outsideLines (rep) {
     `  battles won     outside ${t.battles.won}/${t.battles.fought} (${pc(t.battles.rate)}), shipped ${e.battles.won}/${e.battles.fought} (${pc(e.battles.rate)})`,
     `  deaths by floor outside ${deaths(t.deaths)}; shipped ${deaths(e.deaths)}`,
     `  time a run      outside ${(t.msPerRun / 1000).toFixed(1)} s (${rep.cost.decisionsPerRun} decisions, ${rep.cost.playoutsPerDecision} playouts and ${rep.cost.msPerDecision} ms a decision; ${rep.fightsPerRun} fights played in playouts a run), shipped ${(e.msPerRun / 1000).toFixed(1)} s`,
-    '  by phase        decided a run  overrode         played a decision  playouts (ended at a fight played)  settled by a clear  ms a decision  value gained a decision',
+    '  by phase        decided a run  overrode         played a decision  playouts (ended at a fight played)  settled by a clear  found a clear  ms a decision  value gained a decision',
     ...PHASES.map((p) => {
       const x = rep.phases[p]
-      return `    ${p.padEnd(13)} ${String(x.perRun).padStart(8)}  ${String(x.overrides).padStart(5)}/${String(x.decided).padEnd(6)} (${pc(x.overrideRate)})  ${String(x.candidates ?? '-').padStart(8)}  ${String(x.playouts).padStart(14)} (${pc(x.hitRate)})  ${String(x.settled).padStart(12)}  ${String(x.msPerDecision ?? '-').padStart(14)}  ${x.gainPerDecision ?? '-'}`
+      return `    ${p.padEnd(13)} ${String(x.perRun).padStart(8)}  ${String(x.overrides).padStart(5)}/${String(x.decided).padEnd(6)} (${pc(x.overrideRate)})  ${String(x.candidates ?? '-').padStart(8)}  ${String(x.playouts).padStart(14)} (${pc(x.hitRate)})  ${String(x.settled).padStart(12)}  ${String(x.found ?? '-').padStart(13)}  ${String(x.msPerDecision ?? '-').padStart(14)}  ${x.gainPerDecision ?? '-'}`
     })
   ]
 }
