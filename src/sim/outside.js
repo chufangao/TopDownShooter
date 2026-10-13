@@ -201,6 +201,15 @@ const keyOf = (run) => {
   return hashString(JSON.stringify(rest))
 }
 
+// The base's plan for the prep `run` stands in (autoplay.js planFor), kept by its key (planKey) across the copies the
+// playouts make: planFor keeps it for a run object, and each copy is a run object of its own (a plan is a hill-climb, a
+// fifth of a playout's time while each copy made its own). planFor's key is all a plan depends on, so the plan kept is
+// the one the copy would make.
+function planOf (run, m, key = planKey(run)) {
+  if (!m.plans.has(key)) m.plans.set(key, planFor(run, L))
+  return m.plans.get(key)
+}
+
 // One candidate played out from `run` (never touched): a copy, the candidate's `actions` applied (an illegal one leaves
 // it out: −Infinity), then the base to the run's end (or `rooms` rooms), in the prep it stands in walking to the
 // candidate's formation (`goal`), else to the one the teacher chose for this prep (`m.goal`), else the base's plan. With
@@ -228,7 +237,11 @@ export function playout (run, cand, m, c, before, { battle = false } = {}) {
     if (guard > 1e6) throw new Error(`${r.state.seed}: an outside playout is stuck`)
     const s = r.state
     if (s.phase === 'over') break
-    const action = s.phase === 'prep' && goal && goal.key === planKey(r) ? baseStep(r, survey(r, L), { goal: goal.party }) : policy(r, rng, 'expert')
+    let action
+    if (s.phase === 'prep') {
+      const key = planKey(r)
+      action = baseStep(r, survey(r, L), { goal: goal && goal.key === key ? goal.party : planOf(r, m, key) })
+    } else action = policy(r, rng, 'expert')
     if (action.type === 'fight') {
       goal = null
       if (book) {
@@ -343,7 +356,9 @@ function growScore (run, a, why) {
 const goalOf = (run, m) => (m.goal && m.goal.key === planKey(run) ? m.goal.party : null)
 // Passing on a decision: the base's next decision's action taken now (baseStep with `skip`), the formation chosen for
 // the prep walked to.
-const passOn = (run, m, sit, skip) => ({ id: idOf(null), label: skip === 'hold' ? 'keep' : 'stop', take: null, actions: [baseStep(run, sit, { skip, goal: goalOf(run, m) })] })
+const passOn = (run, m, sit, skip) => ({
+  id: idOf(null), label: skip === 'hold' ? 'keep' : 'stop', take: null, actions: [baseStep(run, sit, { skip, goal: run.state.phase === 'prep' ? goalOf(run, m) ?? planOf(run, m) : null })]
+})
 
 // Each decision's list, read where the base would make it: → { act } where there is no decision (the base's action, a
 // step already decided, or null where the base passes on to its next decision), else { phase, cands (ranked: the
@@ -431,8 +446,7 @@ function recruitList (run, m, c, sit) {
 // The formations a prep may field: the base's own (planFor), then those its plan met (its drafts and its hill-climb:
 // autoplay.js plan's candidates), in the base's own order (the tree's filters, TREES.formation, then the static score:
 // expert.js outranks), the same formation once, at most `cap`. → [[{ uid, slot }]]
-export function formationGoals (run, cap) {
-  const own = planFor(run, L)
+export function formationGoals (run, cap, own = planFor(run, L)) {
   const met = []
   plan(run, L, { onCandidate: (party) => met.push(party) })
   const ctx = formationContext(run, L)
@@ -459,8 +473,8 @@ export function formationGoals (run, cap) {
 function formationList (run, m, c) {
   const key = planKey(run)
   if (m.goal?.key === key) return { act: prepStep(run, m.goal.party) }
-  if (!c.phases.has('prep')) return { act: prepStep(run, planFor(run, L)) }
-  const cands = formationGoals(run, c.cap).map((goal, i) => ({ id: String(i), label: i ? `formation ${i}` : 'formation', goal, actions: [] }))
+  if (!c.phases.has('prep')) return { act: prepStep(run, planOf(run, m, key)) }
+  const cands = formationGoals(run, c.cap, planOf(run, m, key)).map((goal, i) => ({ id: String(i), label: i ? `formation ${i}` : 'formation', goal, actions: [] }))
   const then = (x) => {
     m.goal = { key, party: x.goal }
     return prepStep(run, x.goal)
@@ -494,20 +508,21 @@ function decideAt (run, m, c, sit, play = true) {
 // ── the teacher ──────────────────────────────────────────────────────────────────────────────────
 
 // What the teacher keeps a run: the boards of the fights its playouts opened, each with where it led (to the run's
-// end, `ends`; to the battle's end, `battles`), the formation chosen for the prep it stands in, the recruit to make after
-// a release, and its counts.
+// end, `ends`; to the battle's end, `battles`), the base's plans by their key (`plans`: planOf), the formation chosen for
+// the prep it stands in, the recruit to make after a release, and its counts.
 const memos = new WeakMap()
 const emptyPhase = () => ({ asked: 0, decided: 0, overrides: 0, candidates: 0, playouts: 0, hits: 0, settled: 0, ms: 0, gain: 0 })
 function memoOf (run) {
   if (!memos.has(run)) {
     memos.set(run, {
-      ends: new Map(), battles: new Map(), goal: null, recruit: null, last: null,
+      ends: new Map(), battles: new Map(), plans: new Map(), goal: null, recruit: null, last: null,
       stats: { phases: Object.fromEntries(PHASES.map((p) => [p, emptyPhase()])), fights: 0, ms: 0 }
     })
   }
   const m = memos.get(run)
   if (m.ends.size > 200000) m.ends.clear()
   if (m.battles.size > 50000) m.battles.clear()
+  if (m.plans.size > 20000) m.plans.clear()
   return m
 }
 // The teacher's counts for `run` (by phase: asked, decided (more than one candidate), overrides (another than the base's

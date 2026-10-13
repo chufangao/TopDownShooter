@@ -89,7 +89,7 @@ test('a decision of one candidate spends no playout', () => {
 test('a fight already played gives what it gave: the base\'s line a step on ends where it did', () => {
   const { run } = walk(SEED, { until: (r) => r.state.phase === 'map' && r.state.log.length > 0 })
   const c = configOf({})
-  const memo = () => ({ ends: new Map(), battles: new Map(), goal: null, stats: { fights: 0 } })
+  const memo = () => ({ ends: new Map(), battles: new Map(), plans: new Map(), goal: null, stats: { fights: 0 } })
   const before = beforeOf(run)
   const own = { actions: [baseStep(run)] }
   const m = memo()
