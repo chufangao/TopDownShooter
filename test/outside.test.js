@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import {
   outsideTeacher, outsideStats, candidatesAt, baseStep, prepStep, playout, outsideRun, configOf, beforeOf, outsideReport, outsideLines, PHASES
 } from '../src/sim/outside.js'
-import { createRun, apply } from '../src/sim/run.js'
+import { createRun, apply, currentNode } from '../src/sim/run.js'
 import { policy, autoplay } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 
@@ -117,6 +117,19 @@ test('a formation is judged by its coming battle, the base\'s own first', () => 
   assert.equal(st.phases.prep.playouts, d.cands.length)
   assert.ok(st.last.cands.every((x) => Number.isFinite(x.value)))
   assert.ok(['place', 'fight'].includes(act.type))
+})
+
+test('with won, a decision whose base\'s line clears the run plays that line alone and keeps the base\'s pick', () => {
+  // sim-5's expert clears: late on floor 4 its own line clears from wherever it stands.
+  const { run, rng } = walk('sim-5', { until: (r) => r.state.floor === 4 && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2 })
+  const own = baseStep(run)
+  assert.deepEqual(outsideTeacher(run, rng, { won: true }), own)
+  const st = outsideStats(run)
+  const sum = (k) => PHASES.reduce((n, p) => n + st.phases[p][k], 0)
+  assert.ok(sum('settled') >= 1)
+  assert.equal(sum('overrides'), 0)
+  assert.equal(sum('playouts'), sum('settled'))
+  assert.equal(configOf({ won: true, rooms: 2 }).won, false)
 })
 
 test('a cap of 1 plays as the base, and a run\'s line reads as the report wants it', () => {

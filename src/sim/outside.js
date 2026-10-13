@@ -38,7 +38,12 @@
 // Each candidate list is the base's own pick first, then the rest in the base's own order (the growth search's score for
 // holds and tiers, the sketch's gain for recruits, the gain an essence for relics, the formation's standing), at most
 // `cap` (6) in all; a decision of one candidate spends no playout. The best value is taken, a tie to the base's pick
-// (within 1e-9). Passing on is a candidate like any other: valued as the base's next decision taken now and the base
+// (within 1e-9). With `won` (`--won`, to the end only): a cleared run is enough. The candidates are played in order and
+// the first whose playout clears the run is taken (the base's, where its own line clears), the rest not played; a
+// formation judged by its battle keeps the base's where the base's line from it clears the run (that line played to the
+// end first). Clears and progress lose nothing by it (a clear's value is above every loss's), only the Monarch's and the
+// souls' HP at the end of a clear, and once a line that clears is found the teacher walks it at the cost of a fight
+// looked up a decision. Passing on is a candidate like any other: valued as the base's next decision taken now and the base
 // after it, so the teacher at each decision plays the best of its candidates followed by the base: a rollout policy over
 // the base, never worse than the base by the value it compares (the base's pick is always played out), where every
 // decision is valued to the run's end (`prep` 'run'); a formation judged by its battle alone carries no such promise.
@@ -55,7 +60,7 @@
 // (policy with a decision passed, or a formation given) would let them go.
 //
 //   npm run outside -- [--runs 64] [--seed sim] [--from 0] [--workers 2] [--out dir] [--phases prep,spend,recruit,shop,hold]
-//                      [--cap 6] [--rooms 0] [--prep battle|run] [--report-only]
+//                      [--cap 6] [--rooms 0] [--prep battle|run] [--won] [--report-only]
 // plays seeds `<seed>-<from>`…`<seed>-<from + runs − 1>` (sim-0…sim-63 by default), each by the outside teacher (out of
 // battle; the base in battle) and by the expert as it ships (teach.js expertRun: autoplay.js record), paired (teach.js
 // pairedReport, and how often the teacher overrode the base, by phase). runs.jsonl in `--out` (the OS's temp directory,
@@ -90,10 +95,10 @@ import { TUNING } from '../tuning.js'
 
 // The decisions it may make (`phases`), and its defaults: `cap` candidates a decision at most, the base's pick among
 // them; `rooms` 0 to the run's end (else that many rooms on); `prep` 'battle' (a formation judged by its coming battle) or
-// 'run' (to the run's end, as the rest).
+// 'run' (to the run's end, as the rest); `won` false (true: a cleared run is enough, see the head of this file).
 export const PHASES = Object.freeze(['prep', 'spend', 'recruit', 'shop', 'hold'])
 export const PREPS = Object.freeze(['battle', 'run'])
-export const DEFAULTS = Object.freeze({ phases: PHASES, cap: 6, rooms: 0, prep: 'battle' })
+export const DEFAULTS = Object.freeze({ phases: PHASES, cap: 6, rooms: 0, prep: 'battle', won: false })
 const L = LEVELS.expert
 const EPS = 1e-9
 const r6 = (x) => Math.round(x * 1e6) / 1e6
@@ -106,7 +111,7 @@ export function configOf (cfg = {}) {
   if (!(Number.isInteger(c.cap) && c.cap >= 1)) throw new Error(`cap ${c.cap}: a whole number, 1 or more`)
   if (!(Number.isInteger(c.rooms) && c.rooms >= 0)) throw new Error(`rooms ${c.rooms}: a whole number, 0 for the run's end`)
   if (!PREPS.includes(c.prep)) throw new Error(`prep ${c.prep}: one of ${PREPS.join(', ')}`)
-  return { ...c, phases: new Set(phases) }
+  return { ...c, won: !!c.won && !(c.rooms > 0), phases: new Set(phases) }
 }
 
 // ── the base's dispatch out of battle (mirrors autoplay.js policy) ─────────────────────────────────
@@ -200,8 +205,8 @@ const keyOf = (run) => {
 // it out: −Infinity), then the base to the run's end (or `rooms` rooms), in the prep it stands in walking to the
 // candidate's formation (`goal`), else to the one the teacher chose for this prep (`m.goal`), else the base's plan. With
 // `battle`, to the coming battle's end only. To the end and to a battle's end, each fight it opens is looked up in the
-// teacher's memory (`m.ends`, `m.battles`) and kept there with where it led. → { value, hit (ended at a fight already
-// played), fights (fights it opened and played) }
+// teacher's memory (`m.ends`, `m.battles`) and kept there with where it led. → { value, won (to the end: the run
+// cleared), hit (ended at a fight already played), fights (fights it opened and played) }
 export function playout (run, cand, m, c, before, { battle = false } = {}) {
   const r = copyOf(run)
   try {
@@ -255,7 +260,7 @@ export function playout (run, cand, m, c, before, { battle = false } = {}) {
   if (c.rooms > 0) return { value: routeValue(before.window, r, done, w).value, hit, fights }
   end ??= routeEndValue(ZERO, r, w)
   for (const k of passed) book.set(k, end)
-  return { value: fromEnd(end, before, w), hit, fights }
+  return { value: fromEnd(end, before, w), won: end.parts.won === 1, hit, fights }
 }
 
 // ── the decisions ────────────────────────────────────────────────────────────────────────────────
@@ -271,27 +276,45 @@ function ranked (cands, own, cap) {
   return [base, ...rest].slice(0, cap)
 }
 // One decision: each candidate (the base's first) played out, the best value taken, a tie to the base's. A decision of
-// one candidate is the base's, no playout spent. Counted in the teacher's stats by phase. → the candidate chosen
+// one candidate is the base's, no playout spent. With `won`, the first candidate whose playout clears the run is taken
+// (the base's where its own does), the rest not played; and a formation judged by its battle keeps the base's where the
+// base's line from it clears the run (that line played to the end first, `settled`). Counted in the teacher's stats by
+// phase. → the candidate chosen
 function choose (run, m, c, phase, cands, opts = {}) {
   const st = m.stats.phases[phase]
   st.asked++
   if (cands.length < 2) return cands[0]
   const t0 = performance.now()
   const before = { ...beforeOf(run), ...(c.rooms > 0 && !opts.battle && { window: tallyOf(run) }) }
-  let best = null
-  for (const cand of cands) {
-    const p = playout(run, cand, m, c, before, opts)
-    cand.value = p.value
+  const count = (p) => {
     st.playouts++
     if (p.hit) st.hits++
-    if (best === null || p.value > best.value + EPS) best = cand
+    return p
   }
+  if (c.won && opts.battle && count(playout(run, cands[0], m, c, before)).won) {
+    st.settled++
+    st.decided++
+    st.candidates++
+    st.ms += performance.now() - t0
+    m.last = { phase, cands: [{ label: cands[0].label, value: null }], pick: cands[0].label, settled: true }
+    return cands[0]
+  }
+  let best = null
+  let played = 0
+  for (const cand of cands) {
+    const p = count(playout(run, cand, m, c, before, opts))
+    cand.value = p.value
+    played++
+    if (best === null || p.value > best.value + EPS) best = cand
+    if (c.won && p.won) break
+  }
+  if (played < cands.length) st.settled++
   st.decided++
-  st.candidates += cands.length
+  st.candidates += played
   if (best !== cands[0]) st.overrides++
   if (Number.isFinite(best.value - cands[0].value)) st.gain += best.value - cands[0].value
   st.ms += performance.now() - t0
-  m.last = { phase, cands: cands.map((x) => ({ label: x.label, value: x.value })), pick: best.label }
+  m.last = { phase, cands: cands.slice(0, played).map((x) => ({ label: x.label, value: x.value })), pick: best.label }
   return best
 }
 
@@ -474,7 +497,7 @@ function decideAt (run, m, c, sit, play = true) {
 // end, `ends`; to the battle's end, `battles`), the formation chosen for the prep it stands in, the recruit to make after
 // a release, and its counts.
 const memos = new WeakMap()
-const emptyPhase = () => ({ asked: 0, decided: 0, overrides: 0, candidates: 0, playouts: 0, hits: 0, ms: 0, gain: 0 })
+const emptyPhase = () => ({ asked: 0, decided: 0, overrides: 0, candidates: 0, playouts: 0, hits: 0, settled: 0, ms: 0, gain: 0 })
 function memoOf (run) {
   if (!memos.has(run)) {
     memos.set(run, {
@@ -488,8 +511,9 @@ function memoOf (run) {
   return m
 }
 // The teacher's counts for `run` (by phase: asked, decided (more than one candidate), overrides (another than the base's
-// pick), candidates, playouts, hits (playouts that ended at a fight already played), ms, gain (the value over the base's
-// pick, summed); fights its playouts played; ms in all) and its last decision's candidates and values.
+// pick), candidates, playouts, hits (playouts that ended at a fight already played), settled (with `won`: decided by a
+// cleared line before every candidate was played), ms, gain (the value over the base's pick, summed); fights its playouts
+// played; ms in all) and its last decision's candidates and values.
 export function outsideStats (run) {
   const m = memoOf(run)
   return { ...m.stats, last: m.last }
@@ -564,7 +588,7 @@ export function outsideRun (seed, cfg = {}) {
 }
 
 // The settings a run's line and the manifest record.
-const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap: c.cap, rooms: c.rooms, prep: c.prep })
+const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap: c.cap, rooms: c.rooms, prep: c.prep, ...(c.won && { won: true }) })
 
 // The outside teacher against the expert as it ships, paired by seed over runs.jsonl's lines (teach.js pairedReport: the
 // clears, the seeds won and lost against the base, the progress difference ± one standard error, the battles won, the
@@ -582,7 +606,7 @@ export function outsideReport (lines) {
     phases[p] = {
       asked: sum('asked'), decided: d, perRun: +(d / Math.max(1, T.length)).toFixed(2), overrides: sum('overrides'), overrideRate: d ? +(sum('overrides') / d).toFixed(4) : null,
       candidates: d ? +(sum('candidates') / d).toFixed(2) : null, playouts: sum('playouts'), hitRate: sum('playouts') ? +(sum('hits') / sum('playouts')).toFixed(4) : null,
-      msPerDecision: d ? Math.round(sum('ms') / d) : null, gainPerDecision: d ? +(sum('gain') / d).toFixed(4) : null
+      settled: sum('settled'), msPerDecision: d ? Math.round(sum('ms') / d) : null, gainPerDecision: d ? +(sum('gain') / d).toFixed(4) : null
     }
   }
   return { ...rep, phases, fightsPerRun: Math.round(T.reduce((n, r) => n + (r.fights ?? 0), 0) / Math.max(1, T.length)) }
@@ -600,10 +624,10 @@ export function outsideLines (rep) {
     `  battles won     outside ${t.battles.won}/${t.battles.fought} (${pc(t.battles.rate)}), shipped ${e.battles.won}/${e.battles.fought} (${pc(e.battles.rate)})`,
     `  deaths by floor outside ${deaths(t.deaths)}; shipped ${deaths(e.deaths)}`,
     `  time a run      outside ${(t.msPerRun / 1000).toFixed(1)} s (${rep.cost.decisionsPerRun} decisions, ${rep.cost.playoutsPerDecision} playouts and ${rep.cost.msPerDecision} ms a decision; ${rep.fightsPerRun} fights played in playouts a run), shipped ${(e.msPerRun / 1000).toFixed(1)} s`,
-    '  by phase        decided a run  overrode        candidates  playouts (ended at a fight played)  ms a decision  value gained a decision',
+    '  by phase        decided a run  overrode         played a decision  playouts (ended at a fight played)  settled by a clear  ms a decision  value gained a decision',
     ...PHASES.map((p) => {
       const x = rep.phases[p]
-      return `    ${p.padEnd(13)} ${String(x.perRun).padStart(8)}  ${String(x.overrides).padStart(5)}/${String(x.decided).padEnd(6)} (${pc(x.overrideRate)})  ${String(x.candidates ?? '-').padStart(6)}  ${String(x.playouts).padStart(8)} (${pc(x.hitRate)})  ${String(x.msPerDecision ?? '-').padStart(10)}  ${x.gainPerDecision ?? '-'}`
+      return `    ${p.padEnd(13)} ${String(x.perRun).padStart(8)}  ${String(x.overrides).padStart(5)}/${String(x.decided).padEnd(6)} (${pc(x.overrideRate)})  ${String(x.candidates ?? '-').padStart(8)}  ${String(x.playouts).padStart(14)} (${pc(x.hitRate)})  ${String(x.settled).padStart(12)}  ${String(x.msPerDecision ?? '-').padStart(14)}  ${x.gainPerDecision ?? '-'}`
     })
   ]
 }
@@ -658,7 +682,7 @@ async function main () {
   const from = Number(arg('from', 0))
   const workers = Number(arg('workers', 2))
   const dir = arg('out', path.join(os.tmpdir(), `retinue-outside-${seed}`))
-  const c = configOf({ phases: arg('phases', PHASES.join(',')), cap: Number(arg('cap', DEFAULTS.cap)), rooms: Number(arg('rooms', DEFAULTS.rooms)), prep: arg('prep', DEFAULTS.prep) })
+  const c = configOf({ phases: arg('phases', PHASES.join(',')), cap: Number(arg('cap', DEFAULTS.cap)), rooms: Number(arg('rooms', DEFAULTS.rooms)), prep: arg('prep', DEFAULTS.prep), won: process.argv.includes('--won') })
   const settings = settingsOf(c)
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
   fs.mkdirSync(dir, { recursive: true })
