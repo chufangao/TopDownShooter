@@ -66,8 +66,8 @@
 //
 //   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend,prep] [--delta 0.25] [--delta-recruit x]
 //                        [--delta-spend y] [--delta-prep z] [--target mean|today] [--trees 200] [--depth 6] [--leaves 64]
-//                        [--min-leaf 50] [--mtry 0.333] [--bins 64] [--weighted] [--seed 1] [--name outforest] [--workers 7]
-//                        [--with <file>]
+//                        [--min-leaf 50] [--mtry 0.333] [--bins 64] [--weighted] [--floor-weights 2,1,1,1] [--seed 1]
+//                        [--without s.o.,f.o.,vs.o.] [--name outforest] [--workers 7] [--with <file>]
 //   fits a forest a phase on outside.js --label's labels (labels.jsonl in each dir) and writes them as one configuration,
 //   printing each phase's out-of-bag and held-out tables (the decisions changed, the value realised, the teacher's); a
 //   phase with no labels gets no forest, and `--with` carries over the phases of that configuration not fitted (the kept
@@ -313,6 +313,15 @@ function runtimeOf (m, phase) {
 // Phase `phase`'s forest `m`'s mean leaf for inputs `x` (encodeOut's).
 export const predictOut = (m, x, phase = 'recruit') => treesMean(runtimeOf(m, phase), x)
 
+// Whether a prep's forest `m` reads the board a formation opens the battle on (an input o.*, its own, today's pick's or
+// the difference, split on by any of its trees): where it does not, play makes no opening board (autoplay.js prepRead's
+// `boards`), its reads 0 and never read.
+const OPENS = new WeakMap()
+export function opensBoard (m) {
+  if (!OPENS.has(m)) OPENS.set(m, m.feat.some((f) => f >= 0 && /^(s|f|vs)\.o\./.test(m.inputs[f])))
+  return OPENS.get(m)
+}
+
 // The candidate forest `model` takes at decision `read` of `phase` (outsideRead's or prepRead's: `f[0]` today's pick's):
 // each candidate's R (the trees' mean), its advantage over today's R less today's own (target 'mean') or R itself
 // (target 'today'); the best other by it, the earlier where equal, where it exceeds the phase's delta, else today's. →
@@ -425,7 +434,9 @@ export async function readOutTable (dirs, phase, { bins = 64, sample = 100000, s
 // ── the trees ────────────────────────────────────────────────────────────────────────────────────
 
 // The settings a forest is fitted by, unless given (the kept recruit's forest's: round 2's).
-export const OUT_FIT = Object.freeze({ target: 'mean', trees: 200, depth: 6, leaves: 64, minLeaf: 50, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 30, weighted: false, wclip: 10, seed: 1, delta: 0.25 })
+// `floors`: a decision's weight by its floor (floor 1's first, the last for every floor past them; null, alike);
+// `without`: the inputs never split on, by the start of their names (the forest's inputs are the rest).
+export const OUT_FIT = Object.freeze({ target: 'mean', trees: 200, depth: 6, leaves: 64, minLeaf: 50, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 30, weighted: false, wclip: 10, floors: null, without: null, seed: 1, delta: 0.25 })
 
 // Each row's target: its value less its decision's mean (`mean`) or less today's pick's (`today`).
 function targetsOf (t, target) {
@@ -445,14 +456,15 @@ function targetsOf (t, target) {
 }
 
 // Fits a phase's forest on table `t` (readOutTable's) by `cfg` (OUT_FIT's keys), on `workers` threads (forest.js
-// growTrees): the decisions not held out fitted, each row weighing alike (or by its draw's `wt` clipped, `weighted`),
+// growTrees): the decisions not held out fitted, each row weighing alike (or by its draw's `wt` clipped, `weighted`; and
+// by its floor's weight, `floors`),
 // bagged by run. → { config (a phase's forest), oob (each fitted row's prediction by the trees whose draw left its run
 // out), held (each held-out row's by them all), fitted, heldOut }
 export async function fitOutForest (t, cfg = {}, { log = () => {}, workers = 0 } = {}) {
   cfg = { ...OUT_FIT, ...cfg }
   if (!TARGETS.includes(cfg.target)) throw new Error(`outforest: no target "${cfg.target}": ${TARGETS.join(', ')}`)
   const yt = targetsOf(t, cfg.target)
-  const cols = Int32Array.from({ length: t.D }, (_, j) => j)
+  const cols = Int32Array.from(t.names.map((n, j) => (cfg.without?.some((pre) => n.startsWith(pre)) ? -1 : j)).filter((j) => j >= 0))
   const runs = new Map()
   const run = shared(Int32Array, t.N).fill(-1)
   const w = shared(Float64Array, t.N)
@@ -469,7 +481,7 @@ export async function fitOutForest (t, cfg = {}, { log = () => {}, workers = 0 }
     }
     fitted.push(p)
     if (!runs.has(M.runKey)) runs.set(M.runKey, runs.size)
-    const wp = cfg.weighted ? Math.min(M.wt, cfg.wclip) : 1
+    const wp = (cfg.weighted ? Math.min(M.wt, cfg.wclip) : 1) * (cfg.floors ? cfg.floors[Math.min(M.floor, cfg.floors.length) - 1] : 1)
     for (let r = t.start[p] + (cfg.target === 'today' ? 1 : 0); r < t.start[p + 1]; r++) {
       run[r] = runs.get(M.runKey)
       w[r] = wp
@@ -482,8 +494,8 @@ export async function fitOutForest (t, cfg = {}, { log = () => {}, workers = 0 }
     y[r] = Math.max(-cfg.clip, Math.min(cfg.clip, yt[r]))
   }
   const S = { bins: t.bins, N: t.N, cols, nb: t.nb, y, w, run, nRuns: runs.size }
-  log(`fitting ${cfg.trees} trees (${t.phase}) to the ${cfg.target === 'mean' ? 'centred value' : 'advantage over today\'s pick'} on ${fitted.length} decisions (${rows} rows, ${runs.size} runs), ${t.D} inputs: ` +
-    `depth ≤ ${cfg.depth}, leaves ≤ ${cfg.leaves}, min leaf ${cfg.minLeaf}, mtry ${+cfg.mtry.toFixed(3)}${cfg.weighted ? `, weighted (clip ${cfg.wclip})` : ''}`)
+  log(`fitting ${cfg.trees} trees (${t.phase}) to the ${cfg.target === 'mean' ? 'centred value' : 'advantage over today\'s pick'} on ${fitted.length} decisions (${rows} rows, ${runs.size} runs), ${cols.length} inputs: ` +
+    `depth ≤ ${cfg.depth}, leaves ≤ ${cfg.leaves}, min leaf ${cfg.minLeaf}, mtry ${+cfg.mtry.toFixed(3)}${cfg.weighted ? `, weighted (clip ${cfg.wclip})` : ''}${cfg.floors ? `, floors weighing ${cfg.floors.join(', ')}` : ''}`)
   const t0 = Date.now()
   const trees = new Array(cfg.trees)
   if (workers > 1) await growTrees(S, cfg, workers, (k, tree) => { trees[k] = tree })
@@ -509,13 +521,14 @@ export async function fitOutForest (t, cfg = {}, { log = () => {}, workers = 0 }
     if (runOf[r] >= 0) oob[r] = sum[r] / cnt[r]
     else held[r] = sum[r] / cnt[r]
   }
-  const config = toConfig(trees, t, cfg, { decisions: fitted.length, rows, runs: runs.size, seconds: +((Date.now() - t0) / 1000).toFixed(1) })
+  const config = toConfig(trees, t, cols, cfg, { decisions: fitted.length, rows, runs: runs.size, seconds: +((Date.now() - t0) / 1000).toFixed(1) })
   return { config, oob, held, fitted, heldOut }
 }
 
 const round = (v, p = 5) => +v.toPrecision(p)
-// Fitted trees as a phase's forest: every split's threshold its bin's cut, every right child as nodes ahead.
-function toConfig (trees, t, cfg, fit) {
+// Fitted trees as a phase's forest: its inputs the table's columns `cols` (a split's input its place among them), every
+// split's threshold its bin's cut, every right child as nodes ahead.
+function toConfig (trees, t, cols, cfg, fit) {
   const feat = []
   const thr = []
   const right = []
@@ -526,15 +539,15 @@ function toConfig (trees, t, cfg, fit) {
       feat.push(c)
       if (c < 0) value.push(round(tree.value[i]))
       else {
-        thr.push(t.cuts[c][tree.bin[i]])
+        thr.push(t.cuts[cols[c]][tree.bin[i]])
         right.push(tree.right[i] - i)
       }
     }
   }
-  const { target, trees: n, depth, leaves, minLeaf, mtry, shrink, weighted, wclip, clip, seed, delta } = cfg
+  const { target, trees: n, depth, leaves, minLeaf, mtry, shrink, weighted, wclip, floors, without, clip, seed, delta } = cfg
   return {
-    inputs: t.names.slice(), target, delta, size: trees.map((x) => x.feat.length), feat, thr, right, value,
-    made: { at: new Date().toISOString(), trees: n, depth, leaves, minLeaf, mtry: +mtry.toFixed(4), shrink, weighted, wclip, clip, seed, bins: Math.max(...t.nb), data: t.dirs, ...fit }
+    inputs: Array.from(cols, (j) => t.names[j]), target, delta, size: trees.map((x) => x.feat.length), feat, thr, right, value,
+    made: { at: new Date().toISOString(), trees: n, depth, leaves, minLeaf, mtry: +mtry.toFixed(4), shrink, weighted, wclip, ...(floors && { floors }), ...(without && { without }), clip, seed, bins: Math.max(...t.nb), data: t.dirs, ...fit }
   }
 }
 
@@ -677,6 +690,8 @@ async function main () {
     wclip: num('wclip'), seed: num('seed'), delta: num('delta')
   }).filter(([, v]) => v !== undefined))
   if (argv.includes('--weighted')) base.weighted = true
+  if (arg('floor-weights', null)) base.floors = arg('floor-weights').split(',').map(Number)
+  if (arg('without', null)) base.without = arg('without').split(',')
   const workers = Number(arg('workers', Math.max(1, os.availableParallelism() - 1)))
   const bins = Number(arg('bins', 64))
   // The phases of `--with`'s configuration not fitted here are carried over as they are (a phase's forest refitted

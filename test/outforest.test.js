@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D,
-  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf
+  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard
 } from '../src/sim/outforest.js'
 import { labelRun, rereadRun, baseStep, candidatesAt } from '../src/sim/outside.js'
 import { createRun, apply, availableNodes, souls, join } from '../src/sim/run.js'
@@ -63,12 +63,23 @@ const drafter = () => phaseOf([{ f: 'f.draft', t: 0.5, l: -1, r: 5 }], { phase: 
 // where today would.
 const passer = () => outOf({ recruit: phaseOf([{ f: 'f.none', t: 0.5, l: -1, r: 5 }]), spend: phaseOf([{ f: 'f.none', t: 0.5, l: -1, r: 5 }]) }, 'passer')
 
-// The labels of SEED (labelRun at a cap of CAP), made once; and of its formations (FORMATIONS a prep), made once.
+// The labels of SEED (labelRun at a cap of CAP), made once; and of its formations (FORMATIONS a prep), made once: each
+// by today's expert, no forest out of battle in use (whatever outforest.json ships), as the tests that walk it again read
+// it.
+const todays = (fn) => {
+  const before = outForestModel()
+  try {
+    useOutForest(null)
+    return fn()
+  } finally {
+    useOutForest(before)
+  }
+}
 let LABELS = null
-const labels = () => (LABELS ??= labelRun(SEED, { cap: CAP }))
+const labels = () => (LABELS ??= todays(() => labelRun(SEED, { cap: CAP })))
 const FORMATIONS = 4
 let PREPS = null
-const preps = () => (PREPS ??= labelRun(SEED, { phases: 'prep', formations: FORMATIONS }))
+const preps = () => (PREPS ??= todays(() => labelRun(SEED, { phases: 'prep', formations: FORMATIONS })))
 
 // The base's run on `seed`, each step out of battle handed to `visit(run, action)` before it is applied.
 function walk (seed, visit) {
@@ -181,15 +192,15 @@ test('with a forest out of battle in use, the outside teacher\'s base step is st
     assert.ok(n > 10)
     // A prep forest's formation is the base's: walked to step for step, and the teacher's first formation.
     useOutForest(outOf({ ...passer().phases, prep: drafter() }, 'passer-drafter'))
-    let preps = 0
+    let met = 0
     walk(SEED, (run, a) => {
       assert.deepEqual(baseStep(run), a, `${run.state.phase} step`)
       const d = candidatesAt(run, { phases: 'prep' })
       if (d.phase !== 'prep') return
       assert.equal(d.cands[0].id, formationName(planFor(run, L)))
-      preps++
+      met++
     })
-    assert.ok(preps > 0)
+    assert.ok(met > 0)
   } finally {
     useOutForest(before)
   }
@@ -220,10 +231,11 @@ test('a forest decides by the best other candidate\'s advantage over today\'s pi
 test('a forest is fitted on the labels, bagged by run, and reads in play as it was fitted', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-outforest-'))
   try {
-    // The labels of two seeds, one held out (sim-0) and one fitted (sim-1's first rows).
-    const rows = [...labels().rows, ...labels().rows.map((r) => ({ ...r, seed: 'sim-1', run: 1, split: 'val' }))]
+    // The labels of two seeds, one held out (sim-0) and one fitted (sim-1's first rows), its formations' among them.
+    const own = [...labels().rows, ...preps().rows]
+    const rows = [...own, ...own.map((r) => ({ ...r, seed: 'sim-1', run: 1, split: 'val' }))]
     fs.writeFileSync(path.join(dir, 'labels.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n')
-    for (const phase of ['recruit', 'spend']) {
+    for (const phase of ['recruit', 'spend', 'prep']) {
       const t = await readOutTable([dir], phase, { bins: 16 })
       assert.equal(t.P, rows.filter((r) => r.phase === phase).length)
       const r = await fitOutForest(t, { trees: 3, minLeaf: 1, depth: 3, delta: 0.2 })
@@ -236,10 +248,14 @@ test('a forest is fitted on the labels, bagged by run, and reads in play as it w
       const p = r.heldOut[0]
       const row = rows.filter((x) => x.phase === phase)[p]
       const d = readOutDecision(row)
-      d.rows.forEach((o, i) => assert.ok(Math.abs(predictOut(m, o.x) - r.held[t.start[p] + i]) < 1e-4 * (1 + Math.abs(r.held[t.start[p] + i]))))
+      d.rows.forEach((o, i) => assert.ok(Math.abs(predictOut(m, o.x, phase) - r.held[t.start[p] + i]) < 1e-4 * (1 + Math.abs(r.held[t.start[p] + i]))))
       const opts = row.options.filter((o) => Number.isFinite(o.value))
       const pick = chooseOut(outOf({ [phase]: m }), phase, { sit: row.sit, f: [opts.find((o) => o.today), ...opts.filter((o) => !o.today)].map((o) => o.f) })
       assert.ok(pick.index >= 0 && pick.index < d.rows.length)
+      // Weighed by floor, the same plumbing: the weights recorded with the forest.
+      const w = await fitOutForest(t, { trees: 2, minLeaf: 1, depth: 3, floors: [2, 1] })
+      assert.deepEqual(w.config.made.floors, [2, 1])
+      checkOutForest(outOf({ [phase]: w.config }))
     }
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
@@ -398,7 +414,7 @@ test('a prep forest decides the formation: one never past its margin plays today
     assert.deepEqual(autoplay(createRun({ seed: SEED }), { level: 'expert' }).state.log, today)
     assert.throws(() => checkOutForest(outOf({ prep: phaseOf([0]) })), /unknown input/)
     useOutForest(outOf({ prep: drafter() }, 'drafter'))
-    let preps = 0
+    let met = 0
     let drafted = 0
     walk(SEED, (run) => {
       if (run.state.phase !== 'prep') return
@@ -408,11 +424,43 @@ test('a prep forest decides the formation: one never past its margin plays today
       assert.ok(pick, 'the formation planned is one of the forest\'s')
       if (cands.some((c) => c.draft)) assert.ok(pick.draft)
       drafted += !cands[0].draft && pick.draft
-      preps++
+      met++
     })
-    assert.ok(preps > 0 && drafted > 0)
+    assert.ok(met > 0 && drafted > 0)
     assert.notDeepEqual(autoplay(createRun({ seed: SEED }), { level: 'expert' }).state.log, today)
   } finally {
     useOutForest(before)
+  }
+})
+
+test('a prep forest that never reads the opening boards decides alike without them, and one fitted without them reads none', async () => {
+  // Splits on the formation's static read and its shape alone, or on the board it opens on too.
+  const blind = phaseOf([{ f: 'f.v.cover', t: 30, l: -0.5, r: { f: 'vs.seat1', t: 0.5, l: 0.3, r: -0.2 } }, { f: 'f.draft', t: 0.5, l: 0, r: 0.4 }], { phase: 'prep', target: 'mean', delta: 0.05 })
+  const sighted = phaseOf([{ f: 'f.o.pieces.danger', t: 20, l: 0.5, r: -0.5 }], { phase: 'prep', target: 'mean', delta: 0.05 })
+  assert.equal(opensBoard(blind), false)
+  assert.equal(opensBoard(sighted), true)
+  const model = outOf({ prep: blind })
+  let met = 0
+  walk(SEED, (run) => {
+    if (run.state.phase !== 'prep') return
+    const { cands } = prepCandidates(run, L, plan(run, L))
+    const lean = prepRead(run, L, null, cands, { boards: false })
+    assert.ok(lean.f.every((f) => Object.keys(f).filter((k) => k.startsWith('o.')).every((k) => f[k] === 0)))
+    assert.deepEqual(chooseOut(model, 'prep', lean), chooseOut(model, 'prep', prepRead(run, L, null, cands)))
+    met++
+  })
+  assert.ok(met > 0)
+  // Fitted `without` the board's inputs, a forest names none of them.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-outforest-blind-'))
+  try {
+    const rows = preps().rows
+    fs.writeFileSync(path.join(dir, 'labels.jsonl'), [...rows, ...rows.map((r) => ({ ...r, seed: 'sim-1', run: 1, split: 'val' }))].map((r) => JSON.stringify(r)).join('\n') + '\n')
+    const t = await readOutTable([dir], 'prep', { bins: 16 })
+    const r = await fitOutForest(t, { trees: 3, minLeaf: 1, depth: 4, without: ['s.o.', 'f.o.', 'vs.o.'] })
+    assert.ok(r.config.inputs.length < t.D && !r.config.inputs.some((n) => /^(s|f|vs)\.o\./.test(n)))
+    checkOutForest(outOf({ prep: r.config }))
+    assert.equal(opensBoard(r.config), false)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
   }
 })

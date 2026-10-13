@@ -60,7 +60,7 @@ import { loaded } from './value.js'
 import { rankerModel, useRanker } from './ranker.js'
 import { forestModel, useForest } from './forest.js'
 import {
-  outForestModel, useOutForest, outDecides, chooseOut, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS, OUT_ROLES, OUT_ROOMS, PREP_SIT_KEYS,
+  outForestModel, useOutForest, outDecides, chooseOut, opensBoard, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS, OUT_ROLES, OUT_ROOMS, PREP_SIT_KEYS,
   PREP_CAND_KEYS, FORMATION_KEYS, OPENING_KEYS, OPENING_ROOM_KEYS
 } from './outforest.js'
 import { deployment } from './plan.js'
@@ -2138,7 +2138,8 @@ function candidateRead (run, L, cand, reads, was, scale) {
 function outChoice (run, L, sit, phase, cands) {
   const model = outForestModel()
   if (cands.length < 2 || !model?.phases?.[phase]) return cands[0]
-  const pick = chooseOut(model, phase, phase === 'prep' ? prepRead(run, L, sit, cands) : outsideRead(run, L, sit, phase, cands))
+  const read = phase === 'prep' ? prepRead(run, L, sit, cands, { boards: opensBoard(model.phases.prep) }) : outsideRead(run, L, sit, phase, cands)
+  const pick = chooseOut(model, phase, read)
   if (pick.index > 0) noteRule(run, phase, { by: 'outforest' }, sit && surveyLine(sit))
   return cands[pick.index]
 }
@@ -2215,8 +2216,10 @@ const openingOf = (run, party) => conditions(situation(createBattle({ ...battleS
 // pieces moved and the souls fielded in place of today's, those beside and near the seat, in the front row, the mean
 // row, the lanes held, the 2×2 fielded, the gate's cells held, its shooters, melee, flyers and menders, the wounded and
 // the HP share fielded), and the board it opens on (openingOf: OPENING_KEYS). Nothing read of where a soul stands now;
-// no battle played. Every number rounded (outforest.js put): a label row's reads are play's. → { sit, f: [per formation] }
-export function prepRead (run, L, sit, cands) {
+// no battle played. Every number rounded (outforest.js put): a label row's reads are play's. Without `boards` (for a
+// forest that never reads them: outforest.js opensBoard) no opening board is made, and its reads (o.*) stay 0. → { sit,
+// f: [per formation] }
+export function prepRead (run, L, sit, cands, { boards = true } = {}) {
   sit ??= survey(run, L)
   const s = run.state
   const node = currentNode(run)
@@ -2255,8 +2258,8 @@ export function prepRead (run, L, sit, cands) {
   put(x, 'camp.open', openCells(s.camp).length)
   const gate = gateOf(s.camp)
   put(x, 'camp.gate', gate.length)
-  const opened = cands.map((c) => openingOf(run, c.party))
-  for (const k of OPENING_ROOM_KEYS) put(x, `o.${k}`, opened[0][k])
+  const opened = cands.map((c) => (boards ? openingOf(run, c.party) : {}))
+  for (const k of OPENING_ROOM_KEYS) put(x, `o.${k}`, opened[0][k] ?? 0)
   const own = cands[0]
   const f = cands.map((c, i) => formationRead(run, c, own, ctx.seat, gate, opened[i]))
   return { sit: x, f }
@@ -2290,7 +2293,7 @@ function formationRead (run, c, own, seat, gate, opened) {
   put(out, 'menders', pieces.filter(tends).length)
   put(out, 'wounded', pieces.filter((u) => hpPct(u) < 0.5).length)
   put(out, 'hp', pieces.length ? pieces.reduce((n, u) => n + hpPct(u), 0) / pieces.length : 0)
-  for (const k of OPENING_KEYS) put(out, `o.${k}`, opened[k])
+  for (const k of OPENING_KEYS) put(out, `o.${k}`, opened[k] ?? 0)
   return out
 }
 
