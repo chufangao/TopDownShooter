@@ -107,7 +107,7 @@ import { createRng, hashString } from './rng.js'
 import {
   LEVELS, policy, survey, planFor, plan, formationContext, formationFeatures, pickRoute, pickHold, grow, spendOptions, fusionOptions,
   pickReap, weighRecruits, buyFor, growthOf, sketch, saving, nextTier, held, tierRate, offerState, targetOf, targetKinds, byFieldPower,
-  progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, spendPick, recruitPick, outsideRead
+  progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, outCandidates, spendPick, recruitPick, outsideRead
 } from './autoplay.js'
 import { outForestModel, outDecides } from './outforest.js'
 import { splitOf } from './ranker.js'
@@ -609,8 +609,8 @@ const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap:
 
 // `--label`: runs of the base (the expert as it ships, or in use), and at its recruits and purchases every candidate
 // played out on a copy of the run by the base to the run's end, valued as to the end (routeEndValue, from the
-// decision), its parts kept; the candidates the forest out of battle would read in play (autoplay.js recruitCandidates,
-// spendCandidates: today's pick first, then the rest by today's own score, at most `cap`), the base's own pick among
+// decision), its parts kept; the candidates the forest out of battle would read in play (autoplay.js outCandidates:
+// today's pick first, then the rest by today's own score, at most `cap`, and passing on), the base's own pick among
 // them, stopping played as passing on (the base's next decision taken now), each read as play reads it
 // (autoplay.js outsideRead). Every recruit is labelled; a purchase's decision met again in a prep unchanged but for its
 // placements (the same purse, kinds, relics and souls) only the first time, and a purchase drawn (a hash of the seed and
@@ -630,7 +630,7 @@ function labelAt (run, m, c, sit) {
   const d = decideAt(run, m, c, sit, false)
   if (!d.cands || d.cands.length < 2) return null
   const list = d.phase === 'recruit' ? recruitCandidates(run, L, sit) : spendCandidates(run, L, sit)
-  const cands = rankCandidates(list.cands, list.today, c.cap)
+  const cands = outCandidates(list, c.cap)
   const base = d.cands[0].id
   if (cands.length < 2 || !cands.some((x) => x.id === base)) return null
   const stop = d.phase === 'spend' ? passOn(run, m, sit, 'spend') : null

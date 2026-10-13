@@ -31,7 +31,7 @@
 // (`--ranker <file|none>`: the expert's learned correction, ranker.js, from that file or none; ranker.json by default;
 // `--forest <file|none>`: the expert's forest, forest.js, from that file or none; forest.json by default)
 // for two players on the same seeds, paired:  … --paired <a>,<b> [--runs 256] [--seed sel] [--workers 4]  (each a ranker
-// file, a forest file, `forest:<file>`, or none: today's expert, playerOf)
+// file, a forest file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, or none: today's expert, playerOf)
 // for the gap between the levels:     … --ladder [--runs 8] [--ranker file|none] [--forest file|none]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above; --ablate moves: its
@@ -1762,9 +1762,9 @@ export function pickHold (run, L, sit) {
 
 // The expert's recruit and purchases are today's (weighRecruits, grow) unless a forest out of battle is in use for the
 // decision (outforest.js outDecides: src/sim/outforest.json, Node only): then today's pick and the next best by today's
-// own score (recruitCandidates, spendCandidates, ranked: at most OUT_CAP) are read (outsideRead) and the forest's best
-// taken where it reads it more than its margin above today's (outforest.js chooseOut). outside.js's labels read the
-// same candidates by the same functions.
+// own score (recruitCandidates, spendCandidates: at most OUT_CAP, and passing on: outCandidates) are read (outsideRead),
+// and the forest's best taken where it reads it more than its margin above today's (outforest.js chooseOut).
+// outside.js's labels read the same candidates by the same functions.
 export const OUT_CAP = 6
 // What names a candidate: the action it takes (null: stopping), or for a recruit the actions it takes (outside.js's).
 const outId = (x) => JSON.stringify(x ?? null)
@@ -1776,6 +1776,15 @@ export function rankCandidates (cands, own, cap = OUT_CAP) {
   if (!base) throw new Error(`the pick ${own} is no candidate`)
   const rest = cands.filter((x) => x !== base).map((x, i) => ({ x, i })).sort((a, b) => b.x.score - a.x.score || a.i - b.i).map((e) => e.x)
   return [base, ...rest].slice(0, cap)
+}
+
+// The candidates the forest reads of decision `d` (spendCandidates', recruitCandidates'): today's pick first, then the
+// rest by today's score, at most `cap` (rankCandidates), and passing on (stopping, or no recruit: `d.cands[0]`) where
+// it is not among them.
+export function outCandidates (d, cap = OUT_CAP) {
+  const list = rankCandidates(d.cands, d.today, cap)
+  if (!list.includes(d.cands[0])) list.push(d.cands[0])
+  return list
 }
 
 // A purchase's candidates: stopping (`actions` none: the run walks on, or its prep goes on), and each tier the purse
@@ -2134,7 +2143,7 @@ export function recruitPick (run, L, sit = null) {
   const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => o.id)])
   if (outRecruits.get(run)?.key === key) return outRecruits.get(run).actions
   const d = recruitCandidates(run, L, sit)
-  const { actions } = outChoice(run, L, sit, 'recruit', rankCandidates(d.cands, d.today, OUT_CAP))
+  const { actions } = outChoice(run, L, sit, 'recruit', outCandidates(d))
   outRecruits.set(run, { key, actions })
   return actions
 }
@@ -2149,7 +2158,7 @@ export function spendPick (run, L, sit = null) {
   const key = growths.get(run).spend.key
   if (outSpends.get(run)?.key === key) return outSpends.get(run).pick
   const d = spendCandidates(run, L, sit)
-  const pick = outChoice(run, L, sit, 'spend', rankCandidates(d.cands, d.today, OUT_CAP))
+  const pick = outChoice(run, L, sit, 'spend', outCandidates(d))
   const out = pick.id === d.today ? today : pick.actions[0] ?? null
   outSpends.set(run, { key, pick: out })
   return out
@@ -2251,10 +2260,11 @@ const buildOf = (s) => {
 // `tiers`: track tiers its kinds hold at the end; `relics` held, every copy, and the `legendaries` among them). With
 // `ranker` (a ranker.json file's path, or 'none' for today's expert: withRanker), that ranker plays it, the one in use
 // before put back after; `ranker` in the result names the one that played (null for none); `forest` (a forest.json
-// file's path, or 'none': withForest) alike, `forest` in the result; and `route` ('hand', 'learned' for route.json, or a
-// route file's path: withRoute) the route it walks.
-export function record ({ ranker, forest, route, ...job }) {
-  return withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job))))
+// file's path, or 'none': withForest) alike, `forest` in the result; `route` ('hand', 'learned' for route.json, or a
+// route file's path: withRoute) the route it walks; and `outforest` (an outforest.json file's path, or 'none':
+// withOutForest) the forest out of battle that decides its recruits and purchases, `outforest` in the result.
+export function record ({ ranker, forest, route, outforest, ...job }) {
+  return withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job)))))
 }
 function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, learned }) {
   const battles = []
@@ -2308,7 +2318,8 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
     // Wall time of the run, in seconds (the only field that is not a pure function of the job).
     secs: (Date.now() - t0) / 1000,
     ranker: rankerModel()?.name ?? null,
-    forest: forestModel()?.name ?? null
+    forest: forestModel()?.name ?? null,
+    outforest: outForestModel()?.name ?? null
   }
 }
 
@@ -2346,6 +2357,20 @@ export function withForest (spec, fn) {
     useForest(before)
   }
 }
+// The same for the forest out of battle (outforest.js): `fn()` with the configuration `spec` names in use (an
+// outforest.json file's path, read once a worker; 'none' or null for none: today's recruits and purchases; a
+// configuration itself), the one in use before it put back after; undefined: whatever is in use (outforest.json where
+// there is one). → what fn returns
+export function withOutForest (spec, fn) {
+  if (spec === undefined) return fn()
+  const before = outForestModel()
+  useOutForest(rankerOf(spec))
+  try {
+    return fn()
+  } finally {
+    useOutForest(before)
+  }
+}
 // The same for the route (useRoute): `fn()` walking route `spec`, 'hand' the hand-built (TREES.route and its weights),
 // 'learned' route.json's tree, a file's path that file's (read once a worker), the route in use before put back after;
 // undefined: whatever is in use (ROUTE_LEARNED's). → what fn returns
@@ -2367,12 +2392,15 @@ export function withRoute (spec, fn) {
 }
 // The player a paired comparison names (--paired's a or b): 'none', today's expert (no ranker and no forest, whatever
 // ships); `forest:<file>` a forest; `ranker:<file>` a ranker; a file by its content (a forest's `kind` is 'forest', else
-// a ranker); `route:<hand|learned|file>` the battle player in use (forest.json where it ships) walking that route.
-// → the job's { ranker, forest } or { route }
+// a ranker); `route:<hand|learned|file>` the battle player in use (forest.json where it ships) walking that route;
+// `outforest:<file|none>` the expert in use (its battle forest and route as they ship) with that forest out of battle,
+// or none (today's recruits and purchases). → the job's { ranker, forest }, { route } or { outforest }
 export function playerOf (spec) {
   if (spec === 'none') return { ranker: 'none', forest: 'none' }
   const route = String(spec).match(/^route:(.+)$/)
   if (route) return { route: route[1] }
+  const out = String(spec).match(/^outforest:(.+)$/)
+  if (out) return { outforest: out[1] }
   const [, kind, file] = String(spec).match(/^(forest|ranker):(.+)$/) ?? [null, null, spec]
   const isForest = kind ? kind === 'forest' : rankerOf(file)?.kind === 'forest'
   return isForest ? { ranker: 'none', forest: file } : { ranker: file, forest: 'none' }
@@ -2517,7 +2545,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))
