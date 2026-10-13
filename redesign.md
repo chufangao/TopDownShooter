@@ -1400,6 +1400,29 @@ battles against 32,775) and the reads cost ~0.3 s (a margin never passed, every 
 seeds, the same moves; three quarters of a prep's 6 ms are the opening boards, turns.js createBattle and policy.js
 situation). Kept: outforest.json `round-2-prep-1`, the recruit's forest of round 2 and the formation's at δ 0.1 (1.18 MB).
 
+### The battle forest relabelled under the shipped expert (2026-10-13, round 4, not kept)
+
+**Why.** The battle forest's labels (R3–R5) came from experts that cleared 30–36% and seldom reached floor 4; the shipped
+expert (round 3, the learned route, the recruit's forest) clears ~74% and dies on floors 1 and 4. **Labels R6** (from a
+frozen worktree of the code it ships with): 272 runs `teachg-*` of the shipped expert, drawn by the state with the
+floors' factors (teach.js `--keep-floor`, new: the chance a floor's factor times the danger's, the floor being the run's
+state, `wt` 1 / it; `--keep 1,0.5,0.3,0.03 --keep-floor 1=2,3=2.5,4=3`: a decision in reach kept at 0.6 on floor 1, 0.3
+on 2, 0.75 on 3, 0.9 on 4, a calm one at a tenth of that), every option played out exactly to the battle's end by the
+shipped expert: **39,300 positions, by floor 18,345 / 1,372 / 4,335 / 15,248** (R3–R5 together held 18,730 on floor
+4), 3.6 a second on four workers beside the other agent's four (the run count, 340, chosen from an 8-run pilot at 6.4 a
+second; stopped at the 3 h budget with 272 done). The expert stands nearer the playouts' best than the older ones did
+(it takes the best 62% of the time against R5's 51%, regret 0.11 a decision against 0.22), and round 3's own changes,
+read on R6's held-out decisions, realise −0.010 a decision at its δ 0.02 (the refitted forests −0.001 to +0.000).
+**Refitted** as round 3 (200 trees, the afterstate's inputs, the centred target, bagged by run) and paired against the
+shipped round 3 on 256 seeds `sel10` (outforest.json round 2, the recruit's forest alone): R6 alone at δ 0.02 −0.53 ±
+1.81 progress (clears 70.3% against 73.0%, +34 −41); R6, R5, R3 and R4 alike at δ 0.02 **+1.54 ± 1.54** (76.2%, +30
+−22; deaths on floor 1 28 against 32, on 4 30 against 32); R6 and R5 at twice the weight with R3 and R4, δ 0.02 +1.18 ±
+1.62 (75.8%, +32 −25); R6, R5, R3 and R4 alike at δ 0.035 −1.29 ± 1.89 (74.6%, +34 −30). The second on 768 fresh seeds
+`chk10`, with the shipped outforest.json `round-2-prep-1` (the formation's forest in play, committed by then): **76.0%
+clears against 74.7% (+81 −71), progress +0.09 ± 0.92**, battles won 99.5% against 99.4%, deaths by floor 87 / 3 / 13 /
+81 against 83 / 6 / 12 / 93, 8.59 s a run against 8.66. Not kept (no gain in progress beyond a standard error): forest.json
+stays round 3. It trades floors (12 fewer deaths on floor 4, 4 more on floor 1), as round 2 did against round 1.
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):
