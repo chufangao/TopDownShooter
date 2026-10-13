@@ -564,8 +564,8 @@ export function candidatesAt (run, cfg = {}) {
 // ── runs ─────────────────────────────────────────────────────────────────────────────────────────
 
 // What played as the base: the expert's model, the forest in use (its name), the route (the learned tree's name, or
-// 'hand').
-const baseOf = () => ({ expert: expertModel()?.name ?? null, forest: forestModel()?.name ?? null, route: routeModel() ? routeModel().name ?? 'learned' : 'hand', learned: ROUTE_LEARNED })
+// 'hand'), the forest out of battle in use (its name).
+const baseOf = () => ({ expert: expertModel()?.name ?? null, forest: forestModel()?.name ?? null, route: routeModel() ? routeModel().name ?? 'learned' : 'hand', learned: ROUTE_LEARNED, outforest: outForestModel()?.name ?? null })
 
 // One run with the outside teacher out of battle and the base in battle. `battles`: stop once that many battles are over
 // (0: the whole run); `log`: the run's log in the result. → { seed, player 'outside', result, floor, progress,
