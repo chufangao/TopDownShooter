@@ -1,4 +1,4 @@
-// The stronger teacher (redesign.md §2.23, §6 "The teacher, stronger"): teach.js's teacher (the labeller as a player:
+// The stronger teacher (redesign.md §2.23, §6 "The ranker and the forest"): teach.js's teacher (the labeller as a player:
 // every battle decision the best of its options played out to the battle's end) given width where its shortlist sees
 // only losses, and a search over our next decisions jointly, across End Turn, where no option of the one decision wins.
 // Offline only, like teach.js and the combo book: never imported by the expert's play code (policy.js, autoplay.js's
@@ -43,7 +43,7 @@
 // Shaped losses (`shape`, 'flat' by default: every lost playout worth −lost alike, as teach.js values it): with 'foes', a
 // lost playout is worth −lost + the share of the battle's foe HP removed by its end (autoplay.js foeShare, the partial
 // credit progress gives a lost battle), never more than −lost + 1, below every won one. Why: in the fatal battles of the
-// teacher's lost runs every option of every decision lost alike from the battle's first decision on (§6), so the one
+// teacher's lost runs every option of every decision lost alike from the battle's first decision on (below, Measured), so the one
 // decision had nothing to go on and played the expert's own best by its score to the end; shaped, it plays the option
 // whose playout fell furthest into the foes, and the search, where no line wins, keeps its best line by that value
 // (its decisions followed, then the normal teacher again) where it is better than the one decision's own best.
@@ -59,8 +59,10 @@
 // module; runs.jsonl in `--out` (the OS's temp directory, retinue-teacher2-<seed>, by default) a line a run, each with
 // its settings, its base (the forest, route and expert that played), its time, its decisions, the playouts in all, and
 // its escalations (`esc`: decisions widened, searched, their playouts and time, lines found and followed); a stage stopped
-// part way goes on from where it was (the runs done skipped; other settings refused); report.json the paired report.
-// `--inner all`: a spine's deviations every legal option (width inside the search), not its shortlist.
+// part way goes on from where it was (the runs done skipped; other settings refused), and two invocations of one `--out`
+// and its settings may share the seeds out (`--from`, `--runs`); report.json the paired report (`--report-only`: from
+// the lines there alone). `--inner all`: a spine's deviations every legal option (width inside the search), not its
+// shortlist.
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -761,7 +763,10 @@ async function main (arg, workers) {
   }
   const wall = (performance.now() - t0) / 1000
   const want = new Set(seeds)
-  const lines = read(runsFile).filter((r) => want.has(r.seed))
+  // Each seed's line once a player (two invocations given overlapping seeds both play some: the runs are deterministic,
+  // the first kept).
+  const once = new Set()
+  const lines = read(runsFile).filter((r) => want.has(r.seed) && !once.has(key(r)) && once.add(key(r)))
   const rep = { seeds: `${seeds[0]}…${seeds.at(-1)}`, ...pairedReport(lines), escalations: escalations(lines) }
   fs.writeFileSync(path.join(dir, 'report.json'), JSON.stringify(rep, null, 1) + '\n')
   fs.writeFileSync(manifestFile, JSON.stringify(manifest({
