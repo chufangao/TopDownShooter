@@ -80,12 +80,16 @@
 // base clears: its run played once, then looked up; 76 s where it loses), 281 decisions a run, 1.06 playouts and 215 ms
 // a decision, 141 fights played in playouts a run. It overrode the base in 136 of 18,011 decisions (formations 56 of
 // 3,156, tiers and fusions 39 of 11,338, recruits 41 of 3,042, Shop relics 0 of 331, holds 0 of 144); of the 41 seeds
-// the base lost, 20 cleared on a single override. Why so much from so little: the game is exact and the runs are
-// chaotic, so another tier or recruit early on makes every later battle another battle, and with its consequences known
-// to the end one of a handful of such lines nearly always clears. What it shows is foresight of exact consequences, not
-// a rule a reader of the board could learn: the overrides are few, each one of the base's own next best by its score.
-// The best-by-value teacher (no `--won`) plays every candidate of every decision to the end, a clear's included: on the
-// pilot its sim-0 had run over 10 min when it was stopped (2.4 min with `--won`), so it was not measured on 64 seeds.
+// the base lost, 20 cleared on a single override. One phase at a time (the same seeds and settings, the rest the base's;
+// 10 to 31 min each): recruits 62/64 (+39 −0, progress +0.360 ± 0.044, 38 s a run), tiers and fusions 60/64 (+37 −0,
+// +0.343 ± 0.043, 52 s), formations by their battle 48/64 (+25 −0, +0.219 ± 0.041, 32 s; 308 overrides in 2,680), Shop
+// relics 30/64 (+7 −0, +0.042 ± 0.015, 12 s), holds 27/64 (+4 −0, +0.035 ± 0.015, 12 s). Why so much from so little:
+// the game is exact and the runs are chaotic, so another tier or recruit early on makes every later battle another
+// battle, and with its consequences known to the end one of a handful of such lines nearly always clears. What it shows
+// is foresight of exact consequences, not a rule a reader of the board could learn: the overrides are few, each one of
+// the base's own next best by its score. The best-by-value teacher (no `--won`) plays every candidate of every decision
+// to the end, a clear's included: on the pilot its sim-0 had run over 10 min when it was stopped (2.4 min with `--won`),
+// so it was not measured on 64 seeds.
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import fs from 'node:fs'
 import os from 'node:os'
