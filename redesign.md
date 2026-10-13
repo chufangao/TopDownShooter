@@ -1273,6 +1273,21 @@ one-step playouts see no win, offline: src/sim/teacher.js), labels with common r
 options, the route relabelled under the forest; then, the expert and the teacher as strong as they go, the balance
 pass.
 
+### Foresight, not skill: the teacher outside battle (2026-10-12)
+
+`src/sim/outside.js` (offline only): at each out-of-battle decision (prep's formation, spending, the recruit, the
+Shop, the relic holds) the base's own pick and its next five candidates, each played on a copy of the run by the
+shipped expert (the forest in battle, the learned route) to the run's end, valued as a room choice to the end
+(teach.js routeEndValue); a formation by the coming battle alone; `--won`: the first candidate whose playout clears the
+run is taken. Battles are the shipped expert's own. On 64 seeds `sim-0…63`: **63/64 clears against the shipped expert's
+23/64** (+40 −0), progress +0.377 ± 0.045, battles won 3155/3156, 67 s a run; 136 of 18,011 decisions overrode the
+base, every seed the base cleared played move for move as the base, 20 of the 41 it lost cleared after one override.
+One phase at a time: the recruit 62/64, spending 60/64, prep 48/64, the Shop 30/64, the holds 27/64. This is
+foresight, not a better rule: the run is exact and chaotic (one other recruit or tier early changes every later
+battle), so among six lines known to their end one nearly always clears. The battle teacher's 75% is partly the same
+(§6, the chaos read: where battles are decided a quarter of options flip between a loss and a win under small
+perturbations). A teacher that knows the one exact future is no measure of how hard the game is for a player.
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):
