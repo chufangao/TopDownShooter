@@ -1259,8 +1259,19 @@ another tile) differ by a median 0 and a p90 of 0.03; in the 2,112 positions whe
 18.7% of twin pairs fall on opposite sides. **The learned route switched on** (autoplay.js ROUTE_LEARNED, route.json of 2026-10-11 unchanged): with the forest
 playing the battles, on 768 seeds `chk5`, 33.1% clears against the hand-built route's 29.0% (+146 −115), progress
 +1.43 ± 1.56, 5.3 s a run against 4.1 (it fights more battles: 31.0 a run against 27.3). The hand route's tests walk it
-by `withRoute('hand')`. Open: labels smoothed over small perturbations of the continuation (what an option is worth on
-average, not on the one exact line), the route relabelled under the forest, then the balance pass.
+by `withRoute('hand')`.
+**The forest, round 3: smoothed labels** (teach.js `--smooth 3 --epsilon 0.1`: each option played out three times, the
+first the exact line, the other two with the continuation's decisions perturbed by `explore`, the label their mean;
+R5, 200 runs of the round-2 forest walking the learned route, 20,849 positions in ~2.5 h): 28% of options' three
+playouts differ; in the 4.3% of positions where the exact lines lose and win, 24.8% of options span a loss and a win
+under the perturbations. On 256 `sel6`, against the shipped round 2: R5 alone −1.80 ± 2.11, R5's exact lines alone
+(the control) −1.31 ± 2.22 (smoothing no different in play), R5 ×2 + R3 + R4 at δ 0.05 −2.43 ± 1.67, the same at **δ
+0.02** +0.49 ± 2.05 (clears +38 −32). On 768 `chk6`: against round 2 +1.94 ± 1.27 (clears 36.3% against 34.2%, +107
+−91), against today's +3.67 ± 1.22 (36.3% against 30.7%, +111 −68), 5.1 s a run. Kept (forest.json round 3); whether the
+gain is the labels' or the lower margin's is not separated. Open: the stronger teacher (a multi-turn search where
+one-step playouts see no win, offline: src/sim/teacher.js), labels with common random numbers across a position's
+options, the route relabelled under the forest; then, the expert and the teacher as strong as they go, the balance
+pass.
 
 ## 7. Standing rules
 
