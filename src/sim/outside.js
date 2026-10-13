@@ -59,8 +59,10 @@
 //
 // Its parts mirror the base's dispatch out of battle (autoplay.js policy, pickNode, pickPrep, pickShop: baseStep and
 // prepStep below), so it can pass on a decision and drive a formation; test/outside.test.js holds baseStep to policy step
-// for step. The scores that order the candidates mirror the growth search's (grow) and buyFor's. A hook in autoplay.js
-// (policy with a decision passed, or a formation given) would let them go.
+// for step. A purchase's candidates and the recruit's are autoplay.js's own (spendCandidates, recruitCandidates, ranked by
+// grow's scores and the sketch's gain: the forest out of battle reads the same), the base's pick the expert's in use
+// (spendPick, recruitPick); the holds' and the Shop's scores mirror grow's and buyFor's. A hook in autoplay.js (policy
+// with a decision passed, or a formation given) would let them go.
 //
 //   npm run outside -- [--runs 64] [--seed sim] [--from 0] [--workers 2] [--out dir] [--phases prep,spend,recruit,shop,hold]
 //                      [--cap 6] [--rooms 0] [--prep battle|run] [--won] [--report-only]
@@ -72,6 +74,8 @@
 // phase: asked, decided, overrides, candidates, playouts, hits, ms, gain), settings, base }; manifest.json its settings
 // (a stage gone on with must name the same), report.json the paired report. A stage stopped part way goes on from where it
 // was (the seeds done skipped).
+//   npm run outside -- --label [--runs 200] [--seed outl] [--from 0] [--workers 8] [--out dir] [--cap 6] [--spend 1] [--calm 0.25]
+// labels the base's recruits and purchases for the forest out of battle (outforest.js): see LABEL below.
 //
 // Measured (2026-10-12, the base the expert as it ships: forest round 3, the learned route; `--won`, every phase, cap 6,
 // to the end; seeds sim-0…63, 2 workers beside the battle teacher's 8, 39 min): 63/64 clears (98.4%) against the shipped
@@ -103,8 +107,10 @@ import { createRng, hashString } from './rng.js'
 import {
   LEVELS, policy, survey, planFor, plan, formationContext, formationFeatures, pickRoute, pickHold, grow, spendOptions, fusionOptions,
   pickReap, weighRecruits, buyFor, growthOf, sketch, saving, nextTier, held, tierRate, offerState, targetOf, targetKinds, byFieldPower,
-  progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED
+  progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, spendPick, recruitPick, outsideRead
 } from './autoplay.js'
+import { outForestModel, outDecides } from './outforest.js'
+import { splitOf } from './ranker.js'
 import { value, outranks, standing as keysOf, TREES, expertModel } from './expert.js'
 import { forestModel } from './forest.js'
 import {
@@ -172,7 +178,7 @@ export function baseStep (run, sit = survey(run, L), { skip = null, goal = null 
   if (hold) return hold
   if (s.phase === 'shop') return (skip === 'shop' ? null : buyFor(run, L, sit)) ?? { type: 'leave' }
   if (s.phase !== 'map' && s.phase !== 'prep') throw new Error(`no step out of battle for phase "${s.phase}"`)
-  const spend = skip === 'spend' ? null : grow(run, L, [...fusionOptions(run, L), ...spendOptions(run, L)], 'spend', sit)
+  const spend = skip === 'spend' ? null : spendPick(run, L, sit)
   if (spend) return spend
   if (s.phase === 'map') {
     const nodes = availableNodes(run)
@@ -191,8 +197,10 @@ export function beforeOf (run) {
   const rank = currentNode(run)?.rank ?? 0
   return { floor: s.floor, share: progressOf({ result: null, floor: s.floor, rank: s.phase === 'map' ? rank + 1 : rank }) }
 }
-// A playout's end (routeEndValue from nowhere: its parts as from floor 0 and no room done) valued from `before`.
-const fromEnd = (end, before, w) => r6(routeEndOf({ ...end.parts, rooms: end.parts.rooms - before.share * routeRooms(), floors: end.parts.floors - before.floor }, w))
+// A playout's end (routeEndValue from nowhere: its parts as from floor 0 and no room done) read from `before`: its parts
+// (the rooms and the floors cleared from there), and valued by them.
+const partsFrom = (end, before) => ({ ...end.parts, rooms: end.parts.rooms - before.share * routeRooms(), floors: end.parts.floors - before.floor })
+const fromEnd = (end, before, w) => r6(routeEndOf(partsFrom(end, before), w))
 
 // What a window's value reads of a run (teach.js runTally, mirrored: its floor, the Monarch's share of its max HP, the
 // souls' HP over their max, the essence earned so far, the purse, the army's strength as a log, the share done on the
@@ -292,21 +300,13 @@ export function playout (run, cand, m, c, before, { battle = false } = {}) {
   if (c.rooms > 0) return { value: routeValue(before.window, r, done, w).value, hit, fights }
   end ??= routeEndValue(ZERO, r, w)
   for (const k of passed) book.set(k, end)
-  return { value: fromEnd(end, before, w), won: end.parts.won === 1, hit, fights }
+  return { value: fromEnd(end, before, w), won: end.parts.won === 1, hit, fights, parts: Object.fromEntries(Object.entries(partsFrom(end, before)).map(([k, v]) => [k, r6(v)])) }
 }
 
 // ── the decisions ────────────────────────────────────────────────────────────────────────────────
 
 // What names a candidate: the action it takes now (null: passing on), or for a recruit the actions it takes.
 const idOf = (x) => JSON.stringify(x ?? null)
-// Of `cands` (each { id, label, actions, take, score }), the one the base picks (`own`, its id) first, then the rest by
-// their score, the higher first (their order where equal), at most `cap`.
-function ranked (cands, own, cap) {
-  const base = cands.find((x) => x.id === own)
-  if (!base) throw new Error(`the base's pick ${own} is no candidate`)
-  const rest = cands.filter((x) => x !== base).map((x, i) => ({ x, i })).sort((a, b) => b.x.score - a.x.score || a.i - b.i).map((e) => e.x)
-  return [base, ...rest].slice(0, cap)
-}
 // One decision: each candidate (the base's first) played out, the best value taken, a tie to the base's. A decision of
 // one candidate is the base's, no playout spent. With `won`, the first candidate whose playout clears the run is taken
 // (the base's where its own does), the rest not played; and a formation judged by its battle keeps the base's where the
@@ -354,25 +354,16 @@ function choose (run, m, c, phase, cands, opts = {}) {
   return best
 }
 
-// The growth search's score of an action, as grow weighs it (autoplay.js grow): what it adds to the field's strength and
-// the book's worth, a tier also with the tier after it on its track where the purse holds both (the better of the two);
-// null, keeping what it has (and for spending, what saving for a fusion is worth).
-function growScore (run, a, why) {
+// The growth search's score of a relic given, as grow weighs it (autoplay.js grow): what it adds to the field's
+// strength and the book's worth; null, keeping it where it is. (A purchase's are grow's own: spendCandidates.)
+function growScore (run, a) {
   const w = TUNING.expert.growth
-  if (!a) return value({ strength: 0, book: 0, keep: 1, save: why === 'spend' ? saving(run, L) : 0 }, w)
+  if (!a) return value({ strength: 0, book: 0, keep: 1, save: 0 }, w)
   const base = growthOf(run.state, L)
-  const gain = (st) => {
-    const v = growthOf(st, L)
-    return value({ strength: v.strength - base.strength, book: v.book - base.book, keep: 0, save: 0 }, w)
-  }
   const sim = copyOf(run)
   apply(sim, a)
-  let best = gain(sim.state)
-  if (nextTier(sim, a)) {
-    apply(sim, a)
-    best = Math.max(best, gain(sim.state))
-  }
-  return best
+  const v = growthOf(sim.state, L)
+  return value({ strength: v.strength - base.strength, book: v.book - base.book, keep: 0, save: 0 }, w)
 }
 
 // The formation chosen for this prep, while its key holds (else none: the base's plan).
@@ -397,21 +388,21 @@ function holdList (run, m, c, sit) {
   const up = souls(s.party).filter((u) => u.hp > 0)
   const options = ids.flatMap((relic) => up.filter((u) => canHold(s, relic, u)).map((u) => ({ type: 'hold', relic, uid: u.uid })))
   if (!options.length) return { act: base }
-  const keep = { ...passOn(run, m, sit, 'hold'), score: growScore(run, null, 'hold') }
-  const cands = [keep, ...options.map((a) => ({ id: idOf(a), label: `hold ${a.relic} ${a.uid}`, take: a, actions: [a], score: growScore(run, a, 'hold') }))]
-  return { phase: 'hold', cands: ranked(cands, idOf(base), c.cap), then: (x) => x.take }
+  const keep = { ...passOn(run, m, sit, 'hold'), score: growScore(run, null) }
+  const cands = [keep, ...options.map((a) => ({ id: idOf(a), label: `hold ${a.relic} ${a.uid}`, take: a, actions: [a], score: growScore(run, a) }))]
+  return { phase: 'hold', cands: rankCandidates(cands, idOf(base), c.cap), then: (x) => x.take }
 }
 
-// A purchase (each tier the purse affords, each fusion it can make), or stopping.
+// A purchase (each tier the purse affords, each fusion it can make: autoplay.js spendCandidates, grow's scores), or
+// stopping (passing on).
 function spendList (run, m, c, sit) {
-  const actions = [...fusionOptions(run, L), ...spendOptions(run, L)]
-  if (!actions.length) return { act: null }
-  const base = grow(run, L, actions, 'spend', sit)
+  const d = spendCandidates(run, L, sit)
+  if (!d) return { act: null }
+  const base = spendPick(run, L, sit)
   if (!c.phases.has('spend')) return { act: base }
-  const stop = { ...passOn(run, m, sit, 'spend'), score: growScore(run, null, 'spend') }
-  const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : `tier ${a.kind} ${a.track}`)
-  const cands = [stop, ...actions.map((a) => ({ id: idOf(a), label: label(a), take: a, actions: [a], score: growScore(run, a, 'spend') }))]
-  return { phase: 'spend', cands: ranked(cands, idOf(base), c.cap), then: (x) => x.take }
+  const stop = passOn(run, m, sit, 'spend')
+  const cands = d.cands.map((x) => (x.actions.length ? { ...x, take: x.actions[0] } : { ...x, ...stop }))
+  return { phase: 'spend', cands: rankCandidates(cands, idOf(base), c.cap), then: (x) => x.take }
 }
 
 // A relic off the Shop's shelf (each the purse affords), or leaving.
@@ -427,43 +418,28 @@ function shopList (run, m, c, sit) {
     const a = { type: 'buy', index }
     cands.push({ id: idOf(a), label: `buy ${id}`, take: a, actions: [a], score: (held({ ...s, ...offerState(s, { type: 'relic', id }) }, id, L) - sk) / relicPrice(run, id) })
   }
-  return { phase: 'shop', cands: ranked(cands, idOf(base), c.cap), then: (x) => x.take }
+  return { phase: 'shop', cands: rankCandidates(cands, idOf(base), c.cap), then: (x) => x.take }
 }
 
 // The one recruit a battle allows: each soul offered the purse affords (a full retinue letting go first the soul the
 // base's weighRecruits lets go: the weakest standing in the ossuary, never one its combo is built of while another will
-// do), or none. A recruit after a release is two actions: the release now, the recruit at the next call (`m.recruit`).
+// do), or none (autoplay.js recruitCandidates, the sketch's gain of each). A recruit after a release is two actions: the
+// release now, the recruit at the next call (`m.recruit`).
 function recruitList (run, m, c, sit) {
   const s = run.state
   const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => o.id)])
   if (m.recruit?.key === key && m.recruit.next.length) return { act: m.recruit.next.shift() }
   const base = pickReap(run, L, sit)
   if (!c.phases.has('recruit')) return { act: base }
-  const pick = weighRecruits(run, L, sit)
-  const full = soulCount(s.party) >= rosterCap(run)
-  const keeps = targetKinds(targetOf(s))
-  const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
-  const weakest = inOssuary(s.party).filter(spare).sort((a, b) => keeps.has(b.id) - keeps.has(a.id) || byFieldPower(a, b)).at(-1)
-  const none = { type: 'reap', index: null }
-  const sk = sketch(s, L)
-  const gain = (actions) => {
-    const sim = copyOf(run)
-    for (const a of actions) apply(sim, a)
-    return sketch(sim.state, L) - sk
-  }
-  const cands = [{ id: idOf([none]), label: 'none', take: none, actions: [none], score: TUNING.expert.growth.keep }]
-  for (const [index, o] of s.offers.entries()) {
-    if (o.cost > s.essence || (full && !weakest)) continue
-    const actions = [...(full ? [{ type: 'release', uid: weakest.uid }] : []), { type: 'reap', index }]
-    cands.push({ id: idOf(actions), label: `recruit ${o.id}`, take: actions[0], actions, score: gain(actions) })
-  }
-  // The base's: none, or its recruit (after the release it makes first, where the retinue is full).
-  const own = pick === null ? [none] : [...(base.type === 'release' ? [base] : []), { type: 'reap', index: pick.index }]
+  const d = recruitCandidates(run, L, sit)
+  // The base's: today's, or the forest's where one out of battle decides recruits.
+  const own = outDecides('recruit') ? idOf(recruitPick(run, L, sit)) : d.today
+  const cands = d.cands.map((x) => ({ ...x, take: x.actions[0] }))
   const then = (x) => {
     if (x.actions.length > 1) m.recruit = { key, next: x.actions.slice(1) }
     return x.actions[0]
   }
-  return { phase: 'recruit', cands: ranked(cands, idOf(own), c.cap), then }
+  return { phase: 'recruit', cands: rankCandidates(cands, own, c.cap), then }
 }
 
 // The formations a prep may field: the base's own (planFor), then those its plan met (its drafts and its hill-climb:
@@ -629,6 +605,172 @@ export function outsideRun (seed, cfg = {}) {
 // The settings a run's line and the manifest record.
 const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap: c.cap, rooms: c.rooms, prep: c.prep, ...(c.won && { won: true }) })
 
+// ── labels for the forest out of battle (outforest.js, redesign.md §2.25) ─────────────────────────
+
+// `--label`: runs of the base (the expert as it ships, or in use), and at its recruits and purchases every candidate
+// played out on a copy of the run by the base to the run's end, valued as to the end (routeEndValue, from the
+// decision), its parts kept; the candidates the forest out of battle would read in play (autoplay.js recruitCandidates,
+// spendCandidates: today's pick first, then the rest by today's own score, at most `cap`), the base's own pick among
+// them, stopping played as passing on (the base's next decision taken now), each read as play reads it
+// (autoplay.js outsideRead). Every recruit is labelled; a purchase's decision met again in a prep unchanged but for its
+// placements (the same purse, kinds, relics and souls) only the first time, and a purchase drawn (a hash of the seed and
+// the log index) with chance `spend` where two or more purchases of different kinds (a fusion one) are among its
+// candidates, else `calm`, its row weighed 1 / that chance (`wt`). A worker labels a whole run, so its fights' store
+// (playout's) serves every decision of the run: the base's own line is played once, each candidate's from where it
+// leaves it.
+export const LABEL = Object.freeze({ cap: 6, spend: 1, calm: 0.25 })
+const labelDraw = (seed, at) => parseInt(hashString(`outside-label|${seed}|${at}`).slice(0, 8), 16) / 2 ** 32
+
+// The decision the base meets first at `run`, as the labels read it: { phase, cands (today's first: outsideRead's),
+// plays (each candidate as a playout plays it), base (the base's pick's id) }, or null where the base meets none of two
+// candidates or more (or meets the recruit a release has made way for, decided with the release).
+function labelAt (run, m, c, sit) {
+  const s = run.state
+  if (s.phase === 'reap' && s.log.at(-1)?.type === 'release') return null
+  const d = decideAt(run, m, c, sit, false)
+  if (!d.cands || d.cands.length < 2) return null
+  const list = d.phase === 'recruit' ? recruitCandidates(run, L, sit) : spendCandidates(run, L, sit)
+  const cands = rankCandidates(list.cands, list.today, c.cap)
+  const base = d.cands[0].id
+  if (cands.length < 2 || !cands.some((x) => x.id === base)) return null
+  const stop = d.phase === 'spend' ? passOn(run, m, sit, 'spend') : null
+  return { phase: d.phase, cands, plays: cands.map((x) => ({ actions: d.phase === 'spend' && !x.actions.length ? stop.actions : x.actions })), base }
+}
+
+// A purchase decision's chance of a label (see LABEL): `spend` where two purchases of different kinds, or a fusion and
+// another, are among its candidates, else `calm`.
+function spendChance (cands, lc) {
+  const kinds = new Set(cands.flatMap((x) => x.actions.map((a) => (a.type === 'fuse' ? `fuse ${a.id}` : a.kind))))
+  return kinds.size >= 2 ? lc.spend : lc.calm
+}
+
+// One run of the base on `seed`, labelled (see LABEL; `cfg`: cap, spend, calm). → { line (the run's: seed, player
+// 'label', result, floor, progress, battles, ms, phases (by phase: met, drawn out, met again, labelled, candidates,
+// playouts, hits, ms, beaten: another candidate's playout the better than the base's), rows, fights, settings, base),
+// rows (labels.jsonl's: { seed, run, split, phase, floor, rank, at (the run's log index), wt, sit, options: [{ action, id,
+// today, base, f, value, parts, won }] }) }
+export function labelRun (seed, cfg = {}) {
+  const lc = { ...LABEL, ...cfg }
+  const c = configOf({ phases: 'recruit,spend', cap: lc.cap })
+  const t0 = performance.now()
+  const run = ablatedRun(seed)
+  const rng = createRng(run.state.seed).stream('autoplay')
+  const m = memoOf(run)
+  const num = Number(String(seed).split('-').at(-1))
+  const rows = []
+  const seen = new Set()
+  const counts = Object.fromEntries(['recruit', 'spend'].map((p) => [p, { met: 0, undrawn: 0, again: 0, labelled: 0, candidates: 0, playouts: 0, hits: 0, ms: 0, beaten: 0 }]))
+  let won = 0
+  let fought = 0
+  let fell = null
+  for (let guard = 0; run.state.phase !== 'over'; guard++) {
+    if (guard > 1e6) throw new Error(`${seed}: stuck`)
+    const s = run.state
+    const was = s.phase
+    if (was !== 'battle') {
+      const sit = survey(run, L)
+      const d = labelAt(run, m, c, sit)
+      if (d) {
+        const k = counts[d.phase]
+        k.met++
+        const key = d.phase === 'spend' ? JSON.stringify([s.floor, s.at, s.essence, s.kinds, s.relics, s.party.map((u) => [u.uid, u.hp, u.relics])]) : null
+        const chance = d.phase === 'spend' ? spendChance(d.cands, lc) : 1
+        if (key && seen.has(key)) k.again++
+        else if (labelDraw(seed, s.log.length) >= chance) k.undrawn++
+        else {
+          if (key) seen.add(key)
+          const t1 = performance.now()
+          const before = beforeOf(run)
+          const ends = d.plays.map((x) => playout(run, x, m, c, before))
+          const read = outsideRead(run, L, sit, d.phase, d.cands)
+          k.labelled++
+          k.candidates += d.cands.length
+          k.playouts += ends.length
+          k.hits += ends.filter((p) => p.hit).length
+          const b = d.cands.findIndex((x) => x.id === d.base)
+          if (ends.some((p, i) => i !== b && p.value > ends[b].value + EPS)) k.beaten++
+          k.ms += performance.now() - t1
+          rows.push({
+            seed, run: num, split: splitOf(num), phase: d.phase, floor: s.floor, rank: currentNode(run)?.rank ?? 0, at: s.log.length, wt: r6(1 / chance), sit: read.sit,
+            options: d.cands.map((x, i) => ({ action: x.label, id: x.id, today: i === 0, base: x.id === d.base, f: read.f[i], value: ends[i].value, parts: ends[i].parts, won: !!ends[i].won }))
+          })
+        }
+      }
+    }
+    const action = policy(run, rng, 'expert')
+    apply(run, action)
+    if (run.state.phase !== 'battle' && (action.type === 'fight' || was === 'battle')) {
+      const x = closeOf(run)
+      fought++
+      if (x.won) won++
+      else fell = x.fell
+    }
+  }
+  const s = run.state
+  for (const k of Object.values(counts)) k.ms = Math.round(k.ms)
+  return {
+    line: {
+      seed, player: 'label', result: s.result ?? null, floor: s.floor, progress: progressOf({ result: s.result, floor: s.floor, rank: fell?.rank ?? 1, share: fell?.share ?? 0 }),
+      battles: { won, fought }, ms: Math.round(performance.now() - t0), phases: counts, rows: rows.length, fights: m.stats.fights, settings: labelSettings(lc), base: baseOf()
+    },
+    rows
+  }
+}
+const labelSettings = (lc) => ({ label: true, cap: lc.cap, spend: lc.spend, calm: lc.calm })
+
+// `npm run outside -- --label [--runs 200] [--seed outl] [--from 0] [--workers 8] [--out dir] [--cap 6] [--spend 1]
+// [--calm 0.25]`: labels seeds `<seed>-<from>`… (labelRun), each a worker's whole run, into `--out` (the OS's temp
+// directory, retinue-outlabel-<seed>, by default): labels.jsonl (a row a decision), runs.jsonl (a line a run, written
+// after its rows), manifest.json (the settings, the base, the counts, the wall time and the throughput: decisions,
+// candidates and runs an hour). A stage stopped part way goes on from where it was: the rows of a run with no line are
+// dropped, the runs with one skipped. The settings must be the same.
+async function labelMain (arg) {
+  const seed = arg('seed', 'outl')
+  const runs = Number(arg('runs', 200))
+  const from = Number(arg('from', 0))
+  const workers = Number(arg('workers', 8))
+  const dir = arg('out', path.join(os.tmpdir(), `retinue-outlabel-${seed}`))
+  const lc = { cap: Number(arg('cap', LABEL.cap)), spend: Number(arg('spend', LABEL.spend)), calm: Number(arg('calm', LABEL.calm)) }
+  const settings = labelSettings(lc)
+  const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
+  fs.mkdirSync(dir, { recursive: true })
+  const runsFile = path.join(dir, 'runs.jsonl')
+  const labelsFile = path.join(dir, 'labels.jsonl')
+  const manifestFile = path.join(dir, 'manifest.json')
+  const had = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile, 'utf8')) : null
+  if (had && JSON.stringify(had.settings) !== JSON.stringify(settings)) throw new Error(`${dir} was labelled with other settings (${JSON.stringify(had.settings)}): take another --out`)
+  const done = new Set(read(runsFile).map((r) => r.seed))
+  // Rows of a run stopped before its line was written are dropped.
+  if (fs.existsSync(labelsFile)) {
+    const keep = fs.readFileSync(labelsFile, 'utf8').split('\n').filter((l) => l && done.has(JSON.parse(l).seed))
+    fs.writeFileSync(labelsFile, keep.length ? keep.join('\n') + '\n' : '')
+  }
+  const manifest = (extra = {}) => ({ made: new Date().toISOString(), settings, base: baseOf(), ...extra })
+  if (!had) fs.writeFileSync(manifestFile, JSON.stringify(manifest(), null, 1) + '\n')
+  const seeds = Array.from({ length: runs }, (_, k) => `${seed}-${from + k}`)
+  const jobs = seeds.filter((s) => !done.has(s)).map((s) => ({ seed: s, player: 'label' }))
+  const t0 = performance.now()
+  if (jobs.length) {
+    console.log(`labelling ${jobs.length} runs (seeds ${seeds[0]}…${seeds.at(-1)}; ${done.size} done in ${dir}) on ${workers} workers: ${JSON.stringify(settings)}`)
+    let n = 0
+    await pool(jobs, workers, lc, ({ line, rows }) => {
+      if (rows.length) fs.appendFileSync(labelsFile, rows.map((r) => JSON.stringify(r)).join('\n') + '\n')
+      fs.appendFileSync(runsFile, JSON.stringify(line) + '\n')
+      const p = line.phases
+      console.log(`  ${++n}/${jobs.length} ${line.seed}: ${line.result ?? 'lost'} on floor ${line.floor}, ${(line.ms / 1000).toFixed(0)} s; recruits ${p.recruit.labelled} (${p.recruit.candidates} candidates, ${p.recruit.beaten} beaten), ` +
+        `purchases ${p.spend.labelled} of ${p.spend.met} (${p.spend.candidates} candidates, ${p.spend.beaten} beaten); ${line.fights} fights played (${((performance.now() - t0) / 1000).toFixed(0)} s in)`)
+    })
+  }
+  const lines = read(runsFile).filter((r) => seeds.includes(r.seed))
+  const sum = (ph, k) => lines.reduce((n, r) => n + r.phases[ph][k], 0)
+  const wall = +((had?.wall ?? 0) + (jobs.length ? (performance.now() - t0) / 1000 : 0)).toFixed(1)
+  const phases = Object.fromEntries(['recruit', 'spend'].map((ph) => [ph, Object.fromEntries(['met', 'undrawn', 'again', 'labelled', 'candidates', 'playouts', 'hits', 'ms', 'beaten'].map((k) => [k, sum(ph, k)]))]))
+  const hours = wall / 3600 || 1
+  const throughput = { runsPerHour: +(lines.length / hours).toFixed(1), decisionsPerHour: Math.round((phases.recruit.labelled + phases.spend.labelled) / hours), candidatesPerHour: Math.round((phases.recruit.candidates + phases.spend.candidates) / hours), msPerRun: Math.round(lines.reduce((n, r) => n + r.ms, 0) / Math.max(1, lines.length)) }
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest({ runs: lines.length, clears: lines.filter((r) => r.result === 'victory').length, rows: lines.reduce((n, r) => n + r.rows, 0), phases, wall, workers, throughput }), null, 1) + '\n')
+  console.log(`${lines.length} runs labelled (${lines.filter((r) => r.result === 'victory').length} cleared), ${wall.toFixed(0)} s on ${workers} workers: ${JSON.stringify(phases)}; ${JSON.stringify(throughput)}`)
+}
+
 // The outside teacher against the expert as it ships, paired by seed over runs.jsonl's lines (teach.js pairedReport: the
 // clears, the seeds won and lost against the base, the progress difference ± one standard error, the battles won, the
 // deaths by floor, the time a run), and by phase: the decisions it made a run, how often it took another than the base's
@@ -675,8 +817,8 @@ export function outsideLines (rep) {
 
 // ── run directly ─────────────────────────────────────────────────────────────────────────────────
 
-// A worker's job: a run by the outside teacher or by the expert as it ships ({ seed, player }).
-const job = (j, cfg) => (j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed))
+// A worker's job: a run by the outside teacher, by the expert as it ships, or labelled ({ seed, player }).
+const job = (j, cfg) => (j.player === 'label' ? labelRun(j.seed, cfg) : j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed))
 
 // Runs `jobs` in worker threads of this module, `workers` at a time, handing each result to `done` as it ends.
 async function pool (jobs, workers, cfg, done) {
@@ -718,6 +860,7 @@ async function main () {
     const i = process.argv.indexOf('--' + name)
     return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
   }
+  if (process.argv.includes('--label')) return labelMain(arg)
   const seed = arg('seed', 'sim')
   const runs = Number(arg('runs', 64))
   const from = Number(arg('from', 0))

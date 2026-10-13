@@ -49,7 +49,7 @@ import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campOpen, wallTiles, steps, deployTile, tileAt, tileX, tileY, TILES,
   LANES, rowOf, colOf, distance, makeUnit, slotAt, baseStats, summonsOf, DEPTH, sizeOf, footprintSlots, fits,
-  monarchSlot, abilitiesOf, isBlow, isAllyShape, blowReach, armOf, heldMods, isRunPath, cellsOf, meleeOnly, auraOf, activeSynergies, rangeOf, ROWS
+  monarchSlot, abilitiesOf, isBlow, isAllyShape, blowReach, armOf, heldMods, isRunPath, cellsOf, meleeOnly, auraOf, activeSynergies, rangeOf, ROWS, reachOf
 } from './unit.js'
 import { roadsTo } from './field.js'
 import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
@@ -57,6 +57,9 @@ import { expertTurn, basicTurn, brief, situation, evaluate } from './policy.js'
 import { loaded } from './value.js'
 import { rankerModel, useRanker } from './ranker.js'
 import { forestModel, useForest } from './forest.js'
+import {
+  outForestModel, useOutForest, outDecides, chooseOut, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS, OUT_ROLES, OUT_ROOMS
+} from './outforest.js'
 import { deployment } from './plan.js'
 import { value, decide, standing as keysOf, outranks, TREES, leafOf, checkModel, pathName } from './expert.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
@@ -1198,7 +1201,7 @@ function chose (s, goal) {
 // Monarch: its HP and Command are run relics.
 function pickSpend (run, L, sit) {
   if (!L.spend) return basicSpend(run, L)
-  return pickHold(run, L, sit) ?? grow(run, L, [...fusionOptions(run, L), ...spendOptions(run, L)], 'spend', sit)
+  return pickHold(run, L, sit) ?? spendPick(run, L, sit)
 }
 
 // Every purchase the purse affords L: a tier of any kind held (but under the tracks ablation).
@@ -1275,7 +1278,13 @@ export function grow (run, L, actions, why, sit = null) {
   }
   const decided = decide(TREES[why] ?? [], sit, options, TUNING.expert.growth)
   const pick = decided.option.action
-  growths.set(run, { ...seen, [why]: { key, pick } })
+  // Each option's score by its action (a tier's the better of it alone and with the next: spendCandidates reads them).
+  const scores = new Map()
+  for (const o of options) {
+    const id = outId(o.action)
+    if (Number.isFinite(o.score) && !(scores.get(id) >= o.score)) scores.set(id, o.score)
+  }
+  growths.set(run, { ...seen, [why]: { key, pick, scores } })
   noteRule(run, why, decided, sit && surveyLine(sit))
   if (pick && audited(run)) note('done', label(pick))
   return pick
@@ -1544,9 +1553,16 @@ export const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Ob
 
 // The one recruit a battle allows (a battle's spoils are its souls: relics are bought, redesign.md §2.11): basic buys
 // the highest tier it can afford while the field has room, an expert the soul that grows its sketch most
-// (weighRecruits). A full retinue lets its weakest soul in the ossuary go to make room.
+// (weighRecruits), or the one the forest out of battle reads the better where one decides recruits (recruitPick). A
+// full retinue lets its weakest soul in the ossuary go to make room.
 export function pickReap (run, L, sit) {
   const s = run.state
+  if (L.spend && outDecides('recruit')) {
+    const actions = recruitPick(run, L, sit)
+    const release = actions.find((a) => a.type === 'release')
+    if (release && soulCount(s.party) >= rosterCap(run)) return release
+    return actions.find((a) => a.type === 'reap')
+  }
   if (L.spend) {
     const pick = weighRecruits(run, L, sit)
     if (!pick) return { type: 'reap', index: null }
@@ -1740,6 +1756,403 @@ export function pickHold (run, L, sit) {
   if (!ids.length) return null
   const options = ids.flatMap((relic) => standing(souls(s.party)).filter((u) => canHold(s, relic, u)).map((u) => ({ type: 'hold', relic, uid: u.uid })))
   return grow(run, L, options, 'hold', sit)
+}
+
+// ── the forest out of battle (outforest.js; redesign.md §2.25) ──────────────────────────────────
+
+// The expert's recruit and purchases are today's (weighRecruits, grow) unless a forest out of battle is in use for the
+// decision (outforest.js outDecides: src/sim/outforest.json, Node only): then today's pick and the next best by today's
+// own score (recruitCandidates, spendCandidates, ranked: at most OUT_CAP) are read (outsideRead) and the forest's best
+// taken where it reads it more than its margin above today's (outforest.js chooseOut). outside.js's labels read the
+// same candidates by the same functions.
+export const OUT_CAP = 6
+// What names a candidate: the action it takes (null: stopping), or for a recruit the actions it takes (outside.js's).
+const outId = (x) => JSON.stringify(x ?? null)
+
+// Of `cands` (each { id, score }), the one named `own` first, then the rest by their score, the higher first (their
+// order where equal), at most `cap`.
+export function rankCandidates (cands, own, cap = OUT_CAP) {
+  const base = cands.find((x) => x.id === own)
+  if (!base) throw new Error(`the pick ${own} is no candidate`)
+  const rest = cands.filter((x) => x !== base).map((x, i) => ({ x, i })).sort((a, b) => b.x.score - a.x.score || a.i - b.i).map((e) => e.x)
+  return [base, ...rest].slice(0, cap)
+}
+
+// A purchase's candidates: stopping (`actions` none: the run walks on, or its prep goes on), and each tier the purse
+// affords and fusion it can make (spendOptions, fusionOptions), each with grow's score of it (a tier the better of it
+// alone and with the next on its track), today's pick grow's. Null with nothing to buy. → { today (its id), cands:
+// [{ id, label, actions, score }] } in grow's order (stopping first)
+export function spendCandidates (run, L, sit = null) {
+  const actions = [...fusionOptions(run, L), ...spendOptions(run, L)]
+  if (!actions.length) return null
+  const today = grow(run, L, actions, 'spend', sit)
+  const { scores } = growths.get(run).spend
+  const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : `tier ${a.kind} ${a.track}`)
+  return {
+    today: outId(today),
+    cands: [{ id: outId(null), label: 'stop', actions: [], score: scores.get(outId(null)) }, ...actions.map((a) => ({ id: outId(a), label: label(a), actions: [a], score: scores.get(outId(a)) }))]
+  }
+}
+
+// The recruit's candidates: none, and each soul offered the purse affords (a full retinue letting go first the soul
+// weighRecruits lets go: the weakest standing in the ossuary, never one the combo target is built of while another will
+// do), each scored by what it adds to the sketch; today's pick weighRecruits'. → { today, cands } as spendCandidates'
+export function recruitCandidates (run, L, sit = null) {
+  const s = run.state
+  const pick = weighRecruits(run, L, sit)
+  const full = soulCount(s.party) >= rosterCap(run)
+  const keeps = targetKinds(targetOf(s))
+  const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
+  const weakest = inOssuary(s.party).filter(spare).sort((a, b) => keeps.has(b.id) - keeps.has(a.id) || byFieldPower(a, b)).at(-1)
+  const none = { type: 'reap', index: null }
+  const sk = sketch(s, L)
+  const cands = [{ id: outId([none]), label: 'none', actions: [none], score: KEEP() }]
+  for (const [index, o] of s.offers.entries()) {
+    if (o.cost > s.essence || (full && !weakest)) continue
+    const actions = [...(full ? [{ type: 'release', uid: weakest.uid }] : []), { type: 'reap', index }]
+    const sim = lightFork(run)
+    for (const a of actions) apply(sim, a)
+    cands.push({ id: outId(actions), label: `recruit ${o.id}`, actions, score: sketch(sim.state, L) - sk })
+  }
+  const own = pick === null ? [none] : [...(pick.release != null && full ? [{ type: 'release', uid: pick.release }] : []), { type: 'reap', index: pick.index }]
+  return { today: outId(own), cands }
+}
+
+// A copy of the run to read a candidate on: its state cloned but its log (apply only appends to it) and its floor's map
+// (a purchase, a recruit or a release never touches one; a floor entered makes a new one), shared. Never played on.
+function lightFork (run) {
+  const { log, map, ...rest } = run.state
+  return { state: { ...structuredClone(rest), map, log: [] }, battle: null, setup: null }
+}
+
+// The battle rooms the run walks into next, as scouting and the route tell (no battle played): the room in prep first,
+// then each room the route would walk (the learned route's tree, else the hand-built route, each choice read as if the
+// run stood there, the army as it is now: routeStep), at most `n` battle rooms; how many rooms on the first Shop and
+// the first altar on that walk lie (null for none); and the floor's battle rooms still ahead (rank past the run's, the
+// room in prep among them). → { next: [node], floor: [node], shop, altar }
+function roomsAhead (run, L, sit, n = 3) {
+  const s = run.state
+  const here = currentNode(run)
+  const next = s.phase === 'prep' && here?.foes ? [here] : []
+  let at = s.at
+  let shop = null
+  let altar = null
+  for (let step = 1; next.length < n && step <= RANKS; step++) {
+    const ids = nodeOf(s.map, at)?.next ?? []
+    if (!ids.length) break
+    const id = ids.length > 1 ? routeStep(run, L, sit, at) : ids[0]
+    const room = nodeOf(s.map, id)
+    if (room.foes) next.push(room)
+    if (room.type === 'shop') shop ??= step
+    if (room.type === 'altar') altar ??= step
+    at = id
+  }
+  const rank = here?.rank ?? 0
+  const floor = s.map.nodes.filter((x) => x.foes && (x.rank > rank || (s.phase === 'prep' && x === here)))
+  return { next, floor, shop, altar }
+}
+// The room the expert's route would walk into from room `at` of the floor, the army as it stands (pickRoute's choice,
+// read as if the run stood on `at`, nothing noted in the audit).
+function routeStep (run, L, sit, at) {
+  const s = run.state
+  const stood = { state: { ...s, at, phase: 'map' }, battle: null, setup: null }
+  const up = standing(souls(s.party))
+  const keeps = targetKinds(L.book ? targetOf(s) : null)
+  const rooms = nodeOf(s.map, at).next.map((id) => scoutRoom(stood, nodeOf(s.map, id), up, keeps))
+  const view = { ...sit, rank: nodeOf(s.map, at).rank, phase: 'map', rooms }
+  const model = routeModel()
+  if (model) return learnedRoute(model, stood, view).option.node.id
+  return decide(TREES.route, view, rooms.map((room) => ({ node: nodeOf(s.map, room.id), v: roomFeatures(view, room) })), TUNING.expert.route).option.node.id
+}
+
+// A battle room as scouting shows it, once a room: its foes' worth (scoutRoom's threat), how many, their mean HP, DEF
+// and hardest blow (their floor's mods counted), the share of them of each threat type (their kinds' own), its waves.
+const roomReads = new Map()
+function roomRead (s, room) {
+  const key = JSON.stringify([s.floor, room.id, room.type, room.foes, room.waves?.map((w) => w.foes)])
+  let r = roomReads.get(key)
+  if (r) return r
+  const foes = [...(room.foes ?? []), ...(room.waves ?? []).flatMap((w) => w.foes)]
+  const mods = foeMods(s.floor, room.type === 'boss')
+  const t = Object.fromEntries(OUT_THREATS.map((k) => [k, 0]))
+  let threat = 0
+  let hp = 0
+  let def = 0
+  let raw = 0
+  for (const f of foes) {
+    const u = makeUnit(f.id, { lvl: f.lvl })
+    const st = statsOf(u, mods)
+    threat += worth(u, false, mods)
+    hp += st.hp
+    def += st.def
+    raw += punch(u, mods)
+    for (const k of unitDef(f.id).threats ?? []) if (k in t) t[k]++
+  }
+  const n = Math.max(1, foes.length)
+  for (const k of OUT_THREATS) t[k] /= n
+  r = { threat, foes: foes.length, hp: hp / n, def: def / n, raw: raw / n, waves: room.waves?.length ?? 0, type: room.type, t }
+  if (roomReads.size > 5000) roomReads.clear()
+  roomReads.set(key, r)
+  return r
+}
+
+// The threats of rooms `reads` (roomRead's) the field `f` (fieldRead's) has no answer to: each room's share of foes that
+// fly where none of the field strikes a flyer, that shoot (Reach) where none of it shoots, that hex, burn or bleed where
+// none of it heals or cleanses; the mean over the rooms.
+const gapOf = (reads, f) => (reads.length ? reads.reduce((n, r) => n + r.t.fly * (f.fly === 0) + r.t.reach * (f.reach === 0) + (r.t.drain + r.t.burn + r.t.bleed) * (f.tend === 0), 0) / reads.length : 0)
+
+// The field a state would fight with, read (outforest.js FIELD_KEYS): its fieldable best (the strongest standing souls,
+// wounds counted, as strength counts them, at most the Command), the field's strength (strength, a log), the book's worth
+// of its target and how far along it is (bookValue, comboProgress), how many of the best answer flyers and shooters
+// (ANSWERS) and the hexes and wounds (a heal of others or a cleanse), its shooters, its melee, its flyers, its
+// menders, its blows' raw and its toughness (logs), its synergies (a summon counting as its kind, as the formation
+// counts them) and the nearest one not held (the share of its needs met), its summons, its mean level, the most of its
+// souls of one kin and of one role; and its target's id and the souls standing.
+function fieldRead (s, L) {
+  const up = standing(souls(s.party))
+  const best = up.map((u) => ({ u, p: worth(u, L.ablate !== 'summons') * Math.sqrt(hpPct(u)) })).sort((a, b) => b.p - a.p).slice(0, fieldCap({ state: s })).map((x) => x.u)
+  const target = L.book ? targetOf(s) : null
+  const f = zeros(FIELD_KEYS)
+  f.strength = Math.log(strength(s, L.ablate !== 'summons'))
+  f.book = target ? comboWorth(s, target) * comboProgress(s, target) : 0
+  f.progress = target ? comboProgress(s, target) : 0
+  const kins = {}
+  const roles = {}
+  let lvl = 0
+  for (const u of best) {
+    const d = unitDef(u.id)
+    const kit = kitOf(u)
+    if (ANSWERS.fly(u)) f.fly++
+    if (ANSWERS.reach(u)) f.reach++
+    if (tends(u)) {
+      f.tend++
+      f.healers++
+    }
+    if (kit.some((a) => isBlow(a) && !a.melee)) f.ranged++
+    if (meleeOnly(u)) f.melee++
+    if (d.flies) f.flyers++
+    f.dps += punch(u)
+    f.tough += tough(u)
+    f.summons += summonsOf(u)
+    lvl += u.lvl
+    kins[d.kin] = (kins[d.kin] ?? 0) + 1
+    roles[d.role] = (roles[d.role] ?? 0) + 1
+  }
+  f.dps = Math.log(1 + f.dps)
+  f.tough = Math.log(1 + f.tough)
+  f.lvl = best.length ? lvl / best.length : 0
+  f.kin = Math.max(0, ...Object.values(kins))
+  f.role = Math.max(0, ...Object.values(roles))
+  if (!s.ablate?.includes('synergies')) {
+    const pieces = best.flatMap((u) => Array(1 + summonsOf(u)).fill(u))
+    const held = activeSynergies(pieces)
+    f.syn = held.length
+    const c = { kin: {}, role: {} }
+    for (const u of pieces) {
+      const d = unitDef(u.id)
+      c.kin[d.kin] = (c.kin[d.kin] ?? 0) + 1
+      c.role[d.role] = (c.role[d.role] ?? 0) + 1
+    }
+    for (const syn of SYNERGIES) {
+      if (held.includes(syn)) continue
+      for (const axis of ['kin', 'role']) for (const [id, k] of Object.entries(syn.needs[axis] ?? {})) f.near = Math.max(f.near, Math.min(1, (c[axis][id] ?? 0) / k))
+    }
+  }
+  return { f, best, target: target?.id ?? null, up: up.length }
+}
+
+// A kind as a candidate touches it, read at its level and tiers in state `s` (a soul of it at full HP): its role, whether
+// it flies, shoots, fights in melee alone, heals or cleanses, gives an aura; its reach, tier, level, HP, ATK, DEF, Move,
+// worth (a log), its footprint.
+function kindRead (s, id, out) {
+  const k = s.kinds[id] ?? { lvl: TUNING.level.base, tracks: [0, 0] }
+  const u = makeUnit(id, { lvl: k.lvl, tracks: k.tracks })
+  const d = unitDef(id)
+  const st = statsOf(u)
+  if (OUT_ROLES.includes(d.role)) put(out, `k.${d.role}`, 1)
+  put(out, 'k.flies', !!d.flies)
+  put(out, 'k.ranged', kitOf(u).some((a) => isBlow(a) && !a.melee))
+  put(out, 'k.melee', meleeOnly(u))
+  put(out, 'k.tends', tends(u))
+  put(out, 'k.aura', !!auraOf(u))
+  put(out, 'k.reach', reachOf(u))
+  put(out, 'k.tier', d.tier)
+  put(out, 'k.lvl', k.lvl)
+  put(out, 'k.hp', st.hp)
+  put(out, 'k.atk', st.atk)
+  put(out, 'k.def', st.def)
+  put(out, 'k.move', st.move)
+  put(out, 'k.worth', Math.log(1 + worth(u)))
+  put(out, 'k.size', sizeOf(u))
+  return u
+}
+
+// How well a kind's soul `u` answers the threats of rooms `reads`: each room's share of flyers if it strikes one, of
+// shooters if it shoots, of hexes, burns and bleeds if it heals or cleanses; the mean over the rooms.
+const fitOf = (reads, u) => (reads.length ? reads.reduce((n, r) => n + r.t.fly * ANSWERS.fly(u) + r.t.reach * ANSWERS.reach(u) + (r.t.drain + r.t.burn + r.t.bleed) * tends(u), 0) / reads.length : 0)
+
+// The reads the forest out of battle decides by (outforest.js: SIT_KEYS, CAND_KEYS), of decision `phase` ('recruit' or
+// 'spend') at `run` (`sit` its survey) over candidates `cands` (recruitCandidates', spendCandidates': today's pick
+// first). The situation once: where the run stands, the purse in tier prices (and against the cheapest next tier and
+// recruit), the Monarch's and the souls' HP, the field's read (fieldRead), the rooms ahead (roomsAhead: the next battle
+// room, the next three, the floor's still ahead, each read as scouting shows them: roomRead; the army's odds against
+// them, the log of its strength over their threat, the least of the next three, the mean of the floor's; and the threats
+// it has no answer to: gapOf), the Shop and the altar ahead (1 / (1 + the rooms on)). Each candidate: its actions
+// applied to a copy (lightFork; a recruit of none and stopping change nothing), the kind it touches read (kindRead), what
+// it is and grants, and the field's read of the state it leaves less this one's (d.*). No battle played. Every number
+// rounded (outforest.js put): a label row's reads are play's. → { sit, f: [per candidate] }
+export function outsideRead (run, L, sit, phase, cands) {
+  sit ??= survey(run, L)
+  const s = run.state
+  const scale = tierScale(s.floor)
+  const ahead = roomsAhead(run, L, sit)
+  const reads = { n1: ahead.next.slice(0, 1).map((r) => roomRead(s, r)), n3: ahead.next.map((r) => roomRead(s, r)), fl: ahead.floor.map((r) => roomRead(s, r)) }
+  const was = fieldRead(s, L)
+  const x = zeros(SIT_KEYS)
+  put(x, `phase.${s.phase}`, 1)
+  put(x, 'floor', s.floor)
+  put(x, 'rank', sit.rank)
+  put(x, 'purse', s.essence / scale)
+  put(x, 'purse.tier', sit.prices.tier ? s.essence / sit.prices.tier : 0)
+  put(x, 'purse.recruit', sit.prices.recruit ? s.essence / sit.prices.recruit : 0)
+  put(x, 'monarch', sit.monarch)
+  put(x, 'monarch.hp', Math.max(0, monarchOf(s).hp))
+  put(x, 'health', sit.health)
+  put(x, 'fallen', sit.fallen)
+  put(x, 'souls', was.up)
+  put(x, 'room', rosterCap(run) - soulCount(s.party))
+  put(x, 'command', sit.command)
+  put(x, 'waiting', sit.waiting)
+  put(x, 'relics', s.relics.length)
+  put(x, 'unheld', sit.relics.unheld.length)
+  put(x, 'cands', cands.length)
+  put(x, 'shop', ahead.shop === null ? 0 : 1 / (1 + ahead.shop))
+  put(x, 'altar', ahead.altar === null ? 0 : 1 / (1 + ahead.altar))
+  for (const k of FIELD_KEYS) put(x, k, was.f[k])
+  const odds = (r) => was.f.strength - Math.log(Math.max(1e-9, r.threat))
+  for (const set of OUT_ROOMS) {
+    const R = reads[set]
+    if (!R.length) continue
+    const mean = (g) => R.reduce((n, r) => n + g(r), 0) / R.length
+    put(x, `${set}.rooms`, R.length)
+    put(x, `${set}.threat`, Math.log(Math.max(1e-9, mean((r) => r.threat))))
+    put(x, `${set}.odds`, set === 'fl' ? mean(odds) : Math.min(...R.map(odds)))
+    for (const k of ['foes', 'hp', 'def', 'raw', 'waves']) put(x, `${set}.${k}`, mean((r) => r[k]))
+    for (const t of OUT_THREATS) put(x, `${set}.t.${t}`, mean((r) => r.t[t]))
+    put(x, `${set}.gap`, gapOf(R, was.f))
+  }
+  if (reads.n1.length) for (const type of ['elite', 'boss', 'siege']) put(x, `n1.${type}`, reads.n1[0].type === type)
+  const f = cands.map((c) => candidateRead(run, L, c, reads, was, scale))
+  return { sit: x, f }
+}
+
+// One candidate's read (outsideRead's), against `was` (the decision's field read).
+function candidateRead (run, L, cand, reads, was, scale) {
+  const s = run.state
+  const out = zeros(CAND_KEYS)
+  const acts = cand.actions.filter((a) => !(a.type === 'reap' && a.index === null))
+  let st = s
+  let sim = null
+  if (acts.length) {
+    sim = lightFork(run)
+    for (const a of acts) apply(sim, a)
+    st = sim.state
+  }
+  put(out, 'score', cand.score)
+  put(out, 'cost', (s.essence - st.essence) / scale)
+  const main = acts.find((a) => a.type !== 'release')
+  let kind = null
+  if (!main) put(out, 'none', 1)
+  else if (main.type === 'upgrade') {
+    put(out, 'tier', 1)
+    kind = main.kind
+    const no = st.kinds[kind].tracks[main.track]
+    const tier = tracksOf(kind)[main.track].tiers[no - 1]
+    put(out, 't.track', main.track)
+    put(out, 't.no', no)
+    put(out, 't.mods', !!tier.mods?.length)
+    put(out, 't.ability', !!tier.ability)
+    put(out, 't.aura', !!tier.aura)
+    put(out, 't.summon', tier.summon ?? 0)
+    put(out, 't.size', !!tier.size)
+    put(out, 't.double', nextTier(sim, main))
+  } else if (main.type === 'fuse') {
+    put(out, 'fuse', 1)
+    kind = fusionDef(main.id).result
+    const parts = main.parts.map((uid) => s.party.find((u) => u.uid === uid))
+    const made = st.party.find((u) => u.id === kind && !s.party.some((x) => x.uid === u.uid))
+    const sum = parts.reduce((n, u) => n + worth(u), 0)
+    put(out, 'u.parts', parts.length)
+    put(out, 'u.worth', Math.log(1 + sum))
+    put(out, 'u.gain', Math.log(1 + (made ? worth(made) : 0)) - Math.log(1 + sum))
+    put(out, 'u.fielded', parts.filter((u) => was.best.includes(u)).length)
+  } else if (main.type === 'reap') {
+    put(out, 'recruit', 1)
+    kind = s.offers[main.index].id
+    put(out, 'r.new', !s.kinds[kind])
+    const release = acts.find((a) => a.type === 'release')
+    if (release) {
+      const u = s.party.find((x) => x.uid === release.uid)
+      const mean = was.best.reduce((n, x) => n + fieldPower(x), 0) / Math.max(1, was.best.length)
+      put(out, 'r.release', 1)
+      put(out, 'r.released', mean > 0 ? fieldPower(u) / mean : 0)
+      put(out, 'r.kept', targetKinds(L.book ? targetOf(s) : null).has(u.id))
+    }
+  }
+  if (kind) {
+    const u = kindRead(st, kind, out)
+    const target = L.book ? targetOf(s) : null
+    put(out, 'k.count', standing(souls(st.party)).filter((x) => x.id === kind).length)
+    put(out, 'k.fielded', was.best.filter((x) => x.id === kind).length)
+    put(out, 'k.target', targetKinds(target).has(kind))
+    for (const set of OUT_ROOMS) put(out, `fit.${set}`, fitOf(reads[set], u))
+  }
+  const now = sim ? fieldRead(st, L) : was
+  for (const k of ['strength', 'book', 'progress', 'fly', 'reach', 'tend', 'ranged', 'melee', 'flyers', 'healers', 'dps', 'tough', 'syn', 'near', 'summons', 'lvl']) put(out, `d.${k}`, now.f[k] - was.f[k])
+  put(out, 'd.target', now.target !== was.target)
+  put(out, 'd.souls', now.up - was.up)
+  put(out, 'd.purse', (st.essence - s.essence) / scale)
+  for (const set of OUT_ROOMS) put(out, `d.gap.${set}`, gapOf(reads[set], now.f) - gapOf(reads[set], was.f))
+  return out
+}
+
+// The candidate the expert takes at decision `phase` among `cands` (ranked: today's pick first): today's where the
+// forest out of battle in use decides no such decision or reads none more than its margin above it, else the forest's.
+function outChoice (run, L, sit, phase, cands) {
+  const model = outForestModel()
+  if (cands.length < 2 || !model?.phases?.[phase]) return cands[0]
+  const pick = chooseOut(model, phase, outsideRead(run, L, sit, phase, cands))
+  if (pick.index > 0) noteRule(run, phase, { by: 'outforest' }, sit && surveyLine(sit))
+  return cands[pick.index]
+}
+
+// The expert's recruit as a candidate's actions (recruitCandidates'): today's, or the forest's (outChoice). Decided
+// once a room, as weighRecruits decides (a release it needs leaves the offers as they were). → [action, …]
+const outRecruits = new WeakMap()
+export function recruitPick (run, L, sit = null) {
+  const s = run.state
+  const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => o.id)])
+  if (outRecruits.get(run)?.key === key) return outRecruits.get(run).actions
+  const d = recruitCandidates(run, L, sit)
+  const { actions } = outChoice(run, L, sit, 'recruit', rankCandidates(d.cands, d.today, OUT_CAP))
+  outRecruits.set(run, { key, actions })
+  return actions
+}
+
+// The expert's purchase: today's (grow's), or the forest's where one out of battle decides purchases (outChoice); null
+// to stop. Decided once for each of grow's keys.
+const outSpends = new WeakMap()
+export function spendPick (run, L, sit = null) {
+  const actions = [...fusionOptions(run, L), ...spendOptions(run, L)]
+  const today = grow(run, L, actions, 'spend', sit)
+  if (!actions.length || !outDecides('spend')) return today
+  const key = growths.get(run).spend.key
+  if (outSpends.get(run)?.key === key) return outSpends.get(run).pick
+  const d = spendCandidates(run, L, sit)
+  const pick = outChoice(run, L, sit, 'spend', rankCandidates(d.cands, d.today, OUT_CAP))
+  const out = pick.id === d.today ? today : pick.actions[0] ?? null
+  outSpends.set(run, { key, pick: out })
+  return out
 }
 
 export function policy (run, rng, level = 'basic', turnOptions = null) {

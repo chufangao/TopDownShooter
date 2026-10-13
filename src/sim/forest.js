@@ -214,7 +214,14 @@ function runtimeOf (model) {
   let rt = RUNTIMES.get(model)
   if (rt) return rt
   const L = layout()
-  const at = model.inputs.map((n) => L.names.indexOf(n))
+  rt = { ...compileTrees(model, model.inputs.map((n) => L.names.indexOf(n))), x: new Float64Array(L.D), after: model.inputs.some((m) => m.startsWith('aft.')) }
+  RUNTIMES.set(model, rt)
+  return rt
+}
+// The trees of a configuration (forest.json's shape: size, feat, thr, right, value) in typed arrays for play, each
+// split's input `at[feat]` (its place in the vector the trees will read) and each right child its index. Shared with
+// outforest.js, whose forests are of the same shape. → { feat, thr, right, val, roots }
+export function compileTrees (model, at) {
   const n = model.feat.length
   const feat = new Int32Array(n)
   const thr = new Float64Array(n)
@@ -240,12 +247,10 @@ function runtimeOf (model) {
       if (!(right[k] > k + 1 && right[k] < end)) throw new Error(`forest: tree ${t}'s node ${k - roots[t]} points outside it`)
     }
   }
-  rt = { feat, thr, right, val, roots, x: new Float64Array(L.D), after: model.inputs.some((m) => m.startsWith('aft.')) }
-  RUNTIMES.set(model, rt)
-  return rt
+  return { feat, thr, right, val, roots }
 }
-// The mean of the trees' leaves for raw inputs `x` (inputNames' layout).
-function sumOf (rt, x) {
+// The mean of the trees' leaves for raw inputs `x` (the layout the trees were compiled for: compileTrees).
+export function treesMean (rt, x) {
   const { feat, thr, right, val, roots } = rt
   let s = 0
   for (let t = 0; t < roots.length; t++) {
@@ -258,7 +263,7 @@ function sumOf (rt, x) {
 // Whether forest `model` reads the board an option leaves (aft.*): only then does play read it (policy.js afterOf).
 export const readsAfter = (model) => runtimeOf(model).after
 // Forest `model`'s prediction for raw inputs `x` (encodeAgainst's).
-export const predict = (model, x) => sumOf(runtimeOf(model), x)
+export const predict = (model, x) => treesMean(runtimeOf(model), x)
 
 // The forest of `model` for one decision (conditions `c`, the piece's kind `unit`, `mean` its position's reference:
 // meanOf, `own` today's choice's view: playOf): → a function of an option's view (playOf, its afterstate in it where the
@@ -266,8 +271,8 @@ export const predict = (model, x) => sumOf(runtimeOf(model), x)
 // today's choice: the trees' mean, less today's choice's own where the target is centred (`target` 'mean').
 export function predictor (model, c, unit, mean, own) {
   const rt = runtimeOf(model)
-  const base = model.target === 'mean' ? sumOf(rt, encodeAgainst(c, unit, own, mean, own, rt.x)) : 0
-  return (view) => sumOf(rt, encodeAgainst(c, unit, view, mean, own, rt.x)) - base
+  const base = model.target === 'mean' ? treesMean(rt, encodeAgainst(c, unit, own, mean, own, rt.x)) : 0
+  return (view) => treesMean(rt, encodeAgainst(c, unit, view, mean, own, rt.x)) - base
 }
 
 // ── the labels ───────────────────────────────────────────────────────────────────────────────────
@@ -344,7 +349,7 @@ async function * decisionsOf (dirs, after, skipped = null, label = 'mean') {
 
 // The cuts of one input from sample values `v`: at most `B` − 1, each where the sample's count passes the next of B
 // quantiles and two distinct values meet, at the shortest decimal between them (between). → Float64Array, ascending
-function cutsOf (v, B) {
+export function cutsOf (v, B) {
   const s = Float64Array.from(v).sort()
   const n = s.length
   const out = []
@@ -365,7 +370,7 @@ function between (a, b) {
   return a
 }
 // The bin of `x` among `cuts`: the first cut it is at most, else past the last.
-function binOf (cuts, x) {
+export function binOf (cuts, x) {
   let lo = 0
   let hi = cuts.length
   while (lo < hi) {
@@ -376,7 +381,7 @@ function binOf (cuts, x) {
   return lo
 }
 
-const shared = (Type, n) => new Type(new SharedArrayBuffer(Math.max(1, n) * Type.BYTES_PER_ELEMENT))
+export const shared = (Type, n) => new Type(new SharedArrayBuffer(Math.max(1, n) * Type.BYTES_PER_ELEMENT))
 
 // The decisions of label sets `dirs` (each a directory of teach.js's labels, or a file) read into one table for fitting:
 // a row an option of a position (readDecision's: today's choice first), its inputs `inputs` (INPUT_SETS' base by
@@ -604,16 +609,16 @@ export function growTree (S, cfg, t) {
 }
 
 // A tree's leaf value for table row `r`, read on its bins.
-function leafOn (S, tree, r) {
+export function leafOn (S, tree, r) {
   const { feat, bin, right, value } = tree
   let k = 0
   for (let f = feat[0]; f >= 0; f = feat[k]) k = S.bins[S.cols[f] * S.N + r] <= bin[k] ? k + 1 : right[k]
   return value[k]
 }
 
-// The trees `cfg.trees` of shared table `S`, in worker threads (`workers` at a time; in this thread for 0 or 1), each
-// handed to `done(t, tree)` in the order they end.
-async function grow (S, cfg, workers, done) {
+// The trees `cfg.trees` of shared table `S` (growTree's), in worker threads (`workers` at a time; in this thread for 0
+// or 1), each handed to `done(t, tree)` in the order they end. outforest.js grows its trees by it too.
+export async function growTrees (S, cfg, workers, done) {
   if (!(workers > 1)) {
     for (let t = 0; t < cfg.trees; t++) done(t, growTree(S, cfg, t))
     return
@@ -704,7 +709,7 @@ export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0 } = 
   const t0 = Date.now()
   const trees = new Array(cfg.trees)
   let made = 0
-  await grow(S, cfg, workers, (k, tree) => {
+  await growTrees(S, cfg, workers, (k, tree) => {
     trees[k] = tree
     if (++made % Math.max(1, Math.round(cfg.trees / 5)) === 0) log(`  ${made}/${cfg.trees} trees, ${((Date.now() - t0) / 1000).toFixed(0)} s`)
   })
