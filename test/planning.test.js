@@ -21,6 +21,7 @@ import {
 } from '../src/sim/unit.js'
 import { field, createBattle } from '../src/sim/turns.js'
 import { situation } from '../src/sim/policy.js'
+import { useOutForest, outForestModel } from '../src/sim/outforest.js'
 import { readPlan } from '../src/sim/plan.js'
 import { fight } from './rooms.js'
 
@@ -313,32 +314,39 @@ test('the expert weighs a track\'s next two tiers together: a tier whose level r
 })
 
 test('the expert lets a soul go only for a recruit it weighed worth it: the release, then that recruit', () => {
-  // A won fight with a full retinue: whatever the expert does, a release is followed by a recruit of a soul.
-  let released = 0
-  for (let i = 0; i < 12; i++) {
-    const run = createRun({ seed: 'letgo' + i })
-    const node = availableNodes(run)[0]
-    node.type = 'fight'
-    // A Tomb Knight slain: its soul, a second Knight, is on offer.
-    node.foes = [{ id: 'tomb_knight', lvl: 1, slot: slotAt(0, 3) }]
-    apply(run, { type: 'node', id: node.id })
-    fight(run)
-    if (run.state.phase !== 'reap') continue
-    const s = run.state
-    s.essence = 1000
-    while (souls(s.party).length < 12) join(run, 'clockwork_page')
-    const rng = createRng('letgo').stream('autoplay')
-    const a = policy(run, rng, 'expert')
-    if (a.type !== 'release') {
-      assert.ok(a.type === 'reap', JSON.stringify(a))
-      continue
+  // A won fight with a full retinue: whatever the expert does, a release is followed by a recruit of a soul. Today's
+  // weighing (weighRecruits; the forest out of battle's, outforest.test.js, follows the same sequence).
+  const before = outForestModel()
+  useOutForest(null)
+  try {
+    let released = 0
+    for (let i = 0; i < 12; i++) {
+      const run = createRun({ seed: 'letgo' + i })
+      const node = availableNodes(run)[0]
+      node.type = 'fight'
+      // A Tomb Knight slain: its soul, a second Knight, is on offer.
+      node.foes = [{ id: 'tomb_knight', lvl: 1, slot: slotAt(0, 3) }]
+      apply(run, { type: 'node', id: node.id })
+      fight(run)
+      if (run.state.phase !== 'reap') continue
+      const s = run.state
+      s.essence = 1000
+      while (souls(s.party).length < 12) join(run, 'clockwork_page')
+      const rng = createRng('letgo').stream('autoplay')
+      const a = policy(run, rng, 'expert')
+      if (a.type !== 'release') {
+        assert.ok(a.type === 'reap', JSON.stringify(a))
+        continue
+      }
+      apply(run, a)
+      const b = policy(run, rng, 'expert')
+      assert.ok(b.type === 'reap' && b.index !== null && s.offers[b.index].type === 'soul', JSON.stringify(b))
+      released++
     }
-    apply(run, a)
-    const b = policy(run, rng, 'expert')
-    assert.ok(b.type === 'reap' && b.index !== null && s.offers[b.index].type === 'soul', JSON.stringify(b))
-    released++
+    assert.ok(released > 0, 'some full retinue let a soul go for a recruit')
+  } finally {
+    useOutForest(before)
   }
-  assert.ok(released > 0, 'some full retinue let a soul go for a recruit')
 })
 
 // The combo book (src/sim/combos.json, made by --combos, a static formula): every id in it resolves against the

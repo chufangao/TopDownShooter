@@ -703,6 +703,10 @@ today's picks the recruit and the tiers by a fixed worth formula and the combo b
   store shared across the run's decisions.
 - **Fitting** as the battle forest (forest.js's trees, a sibling table): the target a candidate's value less its
   decision's mean, bagged by whole runs, out-of-bag estimates, seeds ≡ 0 mod 5 held out; δ chosen by paired play.
+- **Measured and kept** (§6): the recruit's forest alone at δ 0.5, on 768 fresh seeds, **69.1% clears against the shipped
+  expert's 40.8%**, +18.3 ± 1.5 progress; the purchases stay today's. What it learnt is mostly to recruit where today's
+  declines (today's sketch counts the field's best few souls, never the souls behind them, so it passes on three offers
+  in four).
 
 ## 3. What the player may rely on
 
@@ -1332,6 +1336,29 @@ the share of the foes' HP it removed. On 64 seeds `sim-0…63`, paired against t
 the first teacher, with today's expert finishing, 48/64), 18 min a run; (a)+(b)+(c) **50/62** when stopped (+30 −3), 22
 min a run; with shaped losses, on the seeds (a)–(c) lost, 1 of 6 rescued. Stopped at the user's word: "the ceiling is
 already 100%" (the teacher outside battle, above, 63/64 with the expert's own battles).
+
+### The forest out of battle (2026-10-13, §2.25)
+
+**Labels** (R1, `outside.js --label`, from a frozen worktree of the code it ships with): 120 runs `outl-0…119` of the
+shipped expert (the battle forest's round 3, the learned route), every recruit and the purchases drawn (each distinct one;
+all where two kinds compete, a quarter of the rest), every candidate (today's pick and its next five, and passing on)
+played out to the run's end by the expert, valued by routeEndValue: 3,887 recruits of 4.5 candidates and 6,217
+purchases of 5.3, in 3.2 h on eight workers (~33 runs, ~3,000 decisions, ~15,000 candidates an hour: a recruit 16 s, a
+purchase 5, most of its candidates meeting a fight already played). Another candidate's playout beat the base's at 52%
+of the recruits (by 10.5 where it did; at 18.8% one cleared where the base's line lost) and at 45% of the purchases (by
+6.8; 12.2%). **The forests** (a phase each, 200 trees): out of bag at δ 1 the recruit's changes 31% of the recruits for
++1.26 a decision (held out +1.04; the teacher's +5.5), most of them a recruit where today's takes none; the purchase's
+is level with today's (+0.16 at δ 0, −0.15 at δ 1). **Paired against the shipped expert** on 256 seeds `sel7`: the
+recruit's alone at δ 1 +18.21 ± 2.43 progress (clears 62.5% against 37.1%, +93 −28), at δ 2 +16.31 ± 2.19 (64.1%, +89
+−20), at δ 0.5 +19.56 ± 2.42 (68.8%, +103 −22); the recruit's at δ 1 with the purchase's at δ 0.5 +19.83 ± 2.48
+(66.8%, +101 −25). The recruit's at δ 0.5 on 768 fresh seeds `chk7`: **69.1% clears against 40.8% (+293 −75), progress
++18.33 ± 1.46**, battles won 99.3% against 98.2%, deaths on floors 2 and 3 14 against 220 (on floor 4 118 against 86:
+the runs reach it). 6.85 s a run against 4.69, for the runs go further (42.8 battles a run against 33.7, more of them on
+floor 4); the read and the trees cost nothing a timing sees (every read made, the margin never passed: 4.02 s against
+4.61 on 64 seeds, the same moves). Kept: `src/sim/outforest.json`, the recruit's forest (0.19 MB). Why so much from one
+decision: today's recruit weighs a soul by the sketch, the field's strength and the book, which a soul that does not
+make the field's best few changes not at all, so it declines three offers in four; the souls behind the field are what
+a run has when the field falls, and what its fusions and synergies are made of later.
 
 ## 7. Standing rules
 

@@ -56,7 +56,27 @@
 //   npm run outforest -- --data <dir>[,<dir>…] --stats          what the labels hold (decisions, candidates, how often
 //                                                                another than the base's pick played out the better).
 //
-// (No round measured yet: the round notes come here, with the paired runs, as forest.js has its own.)
+// Round 1 (2026-10-13; labels R1: 120 runs `outl-0…119` of the shipped expert, the battle forest's round 3 and the
+// learned route; 3,887 recruit decisions of 4.5 candidates and 6,217 purchases of 5.3, every candidate played out to the
+// run's end, in 3.2 h on eight workers (an M2's four performance and four efficiency cores: ~33 runs, ~3,000 decisions
+// and ~15,000 candidates an hour; a recruit 16 s, a purchase 5, most of a purchase's candidates meeting a fight already
+// played). Another candidate's playout beat the base's at 52% of the recruits (by 10.5 where it did; at 18.8% one cleared
+// where the base's line lost) and at 45% of the purchases (by 6.8; 12.2%). Fitted a phase apart, 200 trees each: the
+// recruit's depth ≤ 6, ≤ 64 leaves of ≥ 50 rows, mtry 1/3; the purchase's depth ≤ 8, ≤ 64 leaves of ≥ 100 rows, mtry
+// 1/2. Out of bag at delta 1 the recruit's forest changes 31% of the recruits for +1.26 a decision (held out 36%, +1.04;
+// the teacher's +5.5), most of them a recruit where today's takes none (today's declines three offers in four: its
+// sketch counts the field's best few, not the souls behind them); the purchase's +0.16 at delta 0, −0.07 at 0.5, −0.15
+// at 1 (held out +0.46, +0.24, +0.12). Paired against the shipped expert on 256 seeds `sel7`:
+//   the recruit's forest alone, delta 1                           +18.21 ± 2.43 progress  (clears 62.5% against 37.1%, +93 −28)
+//   the recruit's forest alone, delta 2                           +16.31 ± 2.19           (clears 64.1%, +89 −20)
+//   the recruit's forest alone, delta 0.5                         +19.56 ± 2.42           (clears 68.8%, +103 −22)
+//   the recruit's at delta 1 and the purchase's at delta 0.5      +19.83 ± 2.48           (clears 66.8%, +101 −25)
+// The third, on 768 fresh seeds `chk7`: clears 69.1% against the shipped expert's 40.8% (+293 −75), progress +18.33 ±
+// 1.46, battles won 99.3% against 98.2%, deaths on floors 2 and 3 14 against 220. 6.85 s a run against 4.69, for its
+// runs go further (42.8 battles a run against 33.7, more of them on floor 4: 0.160 s a battle against 0.139); the read
+// and the trees cost nothing a timing sees (a configuration whose margin is never passed, every read made, plays the
+// shipped expert's moves at 4.02 s a run against 4.61 on 64 seeds). Kept as outforest.json: the recruit's forest alone,
+// delta 0.5 (200 trees, 14,084 nodes, 0.19 MB); the purchases today's.
 import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS } from './forest.js'
 import { splitOf } from './ranker.js'
 import { mulberry } from './value.js'

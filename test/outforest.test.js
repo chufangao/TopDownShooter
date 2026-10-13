@@ -11,8 +11,10 @@ import path from 'node:path'
 import {
   useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D
 } from '../src/sim/outforest.js'
-import { labelRun, rereadRun, baseStep } from '../src/sim/outside.js'
-import { createRun, apply } from '../src/sim/run.js'
+import { labelRun, rereadRun, baseStep, candidatesAt } from '../src/sim/outside.js'
+import { createRun, apply, availableNodes, souls, join } from '../src/sim/run.js'
+import { slotAt } from '../src/sim/unit.js'
+import { fight } from './rooms.js'
 import {
   policy, autoplay, record, withOutForest, playerOf, survey, LEVELS, recruitCandidates, spendCandidates, outCandidates, outsideRead
 } from '../src/sim/autoplay.js'
@@ -258,6 +260,40 @@ test('a label set read again is the same rows where the read is the same', () =>
     const { rows } = labels()
     assert.deepEqual(rereadRun(SEED, rows, CAP), rows)
     assert.throws(() => rereadRun(SEED, rows.map((r) => ({ ...r, options: r.options.slice(1) })), CAP), /no longer the labels'/)
+  } finally {
+    useOutForest(before)
+  }
+})
+
+test('a forest that recruits with a full retinue lets the weakest go, then makes that recruit, and a decision reads the base\'s pick as it stands', () => {
+  const before = outForestModel()
+  try {
+    // A forest that reads every recruit far above passing on.
+    useOutForest(outOf({ recruit: phaseOf([{ f: 'f.recruit', t: 0.5, l: -1, r: 5 }]) }, 'recruiter'))
+    let released = 0
+    for (let i = 0; i < 6; i++) {
+      const run = createRun({ seed: 'letgo' + i })
+      const node = availableNodes(run)[0]
+      node.type = 'fight'
+      node.foes = [{ id: 'tomb_knight', lvl: 1, slot: slotAt(0, 3) }]
+      apply(run, { type: 'node', id: node.id })
+      fight(run)
+      if (run.state.phase !== 'reap') continue
+      const s = run.state
+      s.essence = 1000
+      while (souls(s.party).length < 12) join(run, 'clockwork_page')
+      const rng = createRng('letgo').stream('autoplay')
+      const a = policy(run, rng, 'expert')
+      assert.equal(a.type, 'release', JSON.stringify(a))
+      // The outside teacher's base pick, before the release and after it, is the forest's.
+      assert.equal(candidatesAt(run).cands[0].actions[0].type, 'release')
+      apply(run, a)
+      const b = policy(run, rng, 'expert')
+      assert.ok(b.type === 'reap' && b.index !== null, JSON.stringify(b))
+      assert.deepEqual(candidatesAt(run).cands[0].actions, [b])
+      released++
+    }
+    assert.ok(released > 0)
   } finally {
     useOutForest(before)
   }

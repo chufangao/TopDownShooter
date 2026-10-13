@@ -433,8 +433,10 @@ function recruitList (run, m, c, sit) {
   const base = pickReap(run, L, sit)
   if (!c.phases.has('recruit')) return { act: base }
   const d = recruitCandidates(run, L, sit)
-  // The base's: today's, or the forest's where one out of battle decides recruits.
-  const own = outDecides('recruit') ? idOf(recruitPick(run, L, sit)) : d.today
+  // The base's: today's, or the forest's where one out of battle decides recruits (as it stands: once its release is
+  // made, the recruit alone, as today's).
+  const full = soulCount(s.party) >= rosterCap(run)
+  const own = outDecides('recruit') ? idOf(recruitPick(run, L, sit).filter((a) => full || a.type !== 'release')) : d.today
   const cands = d.cands.map((x) => ({ ...x, take: x.actions[0] }))
   const then = (x) => {
     if (x.actions.length > 1) m.recruit = { key, next: x.actions.slice(1) }

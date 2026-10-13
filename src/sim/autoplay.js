@@ -15,13 +15,15 @@
 //           drafts about the seat, its gate held, basic's three) and hill-climbed on a static score against the scouted
 //           room's roads (formationFeatures); every purchase, fusion, recruit, relic bought and relic given by one
 //           growth search on a sketch (the field's strength and the book's worth of the combo it plays toward:
-//           targetOf), a relic against the tiers its price displaces (buyFor); its target's kinds fielded first and
-//           never let go while another will do; in battle every turn policy.js expertTurn's (a battle plan kept across
-//           turns, its target formation, kill list and forecast: plan.js; then the pieces one at a time with a beam of
-//           partial turns, each option's board scored by the static evaluation plus TUNING.expert.beam.hybrid × V where
-//           V is trained and TUNING.expert.beam.learned: redesign.md §2.21, §6 step 8b), and with V, the formation by V
-//           of the battle's opening board among the best the hill-climb met. It never plays a battle, a turn of the
-//           foes, or a route ahead to decide anything.
+//           targetOf), a relic against the tiers its price displaces (buyFor), the recruit and the purchases decided
+//           by the forest out of battle where one decides them and reads another candidate more than its margin above
+//           the growth search's (outforest.js, src/sim/outforest.json: the recruit's); its target's kinds fielded first
+//           and never let go while another will do; in battle every turn policy.js expertTurn's (a battle plan kept
+//           across turns, its target formation, kill list and forecast: plan.js; then the pieces one at a time with a
+//           beam of partial turns, each option's board scored by the static evaluation plus TUNING.expert.beam.hybrid
+//           × V where V is trained and TUNING.expert.beam.learned: redesign.md §2.21, §6 step 8b), and with V, the
+//           formation by V of the battle's opening board among the best the hill-climb met. It never plays a battle, a
+//           turn of the foes, or a route ahead to decide anything.
 // Essence buys tiers, recruits, fusions and relics (a Shop's): the Monarch's HP and Command come from run relics, a
 // kind's level from its tiers (run.js). The Monarch is the camp's (run.js: on its seat, monarchSlot); nothing moves it.
 // In a battle it gives the level's turn policy's orders, one at a time.
