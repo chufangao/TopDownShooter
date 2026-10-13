@@ -47,7 +47,7 @@
 // forest { inputs, target, delta, size, feat, thr, right, value, made } in forest.json's shape (forest.js compileTrees
 // reads both). Read Node-only, like forest.json.
 //
-//   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend] [--delta 0.1] [--delta-recruit x]
+//   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend] [--delta 1] [--delta-recruit x]
 //                        [--delta-spend y] [--target mean|today] [--trees 200] [--depth 10] [--leaves 256]
 //                        [--min-leaf 20] [--mtry 0.333] [--bins 64] [--weighted] [--seed 1] [--name outforest] [--workers 7]
 //   fits a forest a phase on outside.js --label's labels (labels.jsonl in each dir) and writes them as one configuration,
@@ -308,7 +308,7 @@ export async function readOutTable (dirs, phase, { bins = 64, sample = 100000, s
 
 // ── the trees ────────────────────────────────────────────────────────────────────────────────────
 
-export const OUT_FIT = Object.freeze({ target: 'mean', trees: 200, depth: 10, leaves: 256, minLeaf: 20, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 10, weighted: false, wclip: 10, seed: 1, delta: 0.1 })
+export const OUT_FIT = Object.freeze({ target: 'mean', trees: 200, depth: 10, leaves: 256, minLeaf: 20, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 30, weighted: false, wclip: 10, seed: 1, delta: 1 })
 
 // Each row's target: its value less its decision's mean (`mean`) or less today's pick's (`today`).
 function targetsOf (t, target) {
@@ -459,7 +459,7 @@ export function decidedOut (t, list, P, delta, target = 'mean') {
   return { n, changed: by(changed), gain: by(gain), up: by(up), down: by(down), oracle: by(oracle) }
 }
 
-export const OUT_DELTAS = Object.freeze([0, 0.05, 0.1, 0.2, 0.3, 0.5, 1, 2])
+export const OUT_DELTAS = Object.freeze([0, 0.25, 0.5, 1, 2, 3, 5, 10])
 // A margins table of predictions `P` over decisions `list`, a line a margin.
 export function outMarginText (t, list, P, deltas = OUT_DELTAS, target = 'mean') {
   const pct = (x) => `${(100 * x).toFixed(1)}%`.padStart(7)
