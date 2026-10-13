@@ -38,15 +38,18 @@
 // Each candidate list is the base's own pick first, then the rest in the base's own order (the growth search's score for
 // holds and tiers, the sketch's gain for recruits, the gain an essence for relics, the formation's standing), at most
 // `cap` (6) in all; a decision of one candidate spends no playout. The best value is taken, a tie to the base's pick
-// (within 1e-9). With `won` (`--won`, to the end only): a cleared run is enough. The candidates are played in order and
-// the first whose playout clears the run is taken (the base's, where its own line clears), the rest not played; a
-// formation judged by its battle keeps the base's where the base's line from it clears the run (that line played to the
-// end first). Clears and progress lose nothing by it (a clear's value is above every loss's), only the Monarch's and the
-// souls' HP at the end of a clear, and once a line that clears is found the teacher walks it at the cost of a fight
-// looked up a decision. Passing on is a candidate like any other: valued as the base's next decision taken now and the base
+// (within 1e-9). Passing on is a candidate like any other: valued as the base's next decision taken now and the base
 // after it, so the teacher at each decision plays the best of its candidates followed by the base: a rollout policy over
 // the base, never worse than the base by the value it compares (the base's pick is always played out), where every
 // decision is valued to the run's end (`prep` 'run'); a formation judged by its battle alone carries no such promise.
+//
+// With `won` (`--won`, to the end only): a cleared run is enough. The candidates are played in order and the first whose
+// playout clears the run is taken (the base's, where its own line clears), the rest not played; a formation judged by
+// its battle keeps the base's where the base's line from it clears the run (that line played to the end first). Clears
+// and progress lose nothing by it (a clear's value is above every loss's), only the Monarch's and the souls' HP at the
+// end of a clear; and once a line that clears is found the teacher walks it to the clear at the cost of a fight looked up
+// a decision, the formations' battles included: it clears every seed the base clears (playing the base's run move for
+// move), which the best-by-value teacher, its formations judged by their battles, does not promise.
 //
 // Cost: a playout to the end is the rest of a run (seconds), so the teacher keeps what it has played: each playout's
 // boards at each fight it opens (the run's state but its log, hashed) with where the run ended from there; a later
@@ -70,7 +73,19 @@
 // (a stage gone on with must name the same), report.json the paired report. A stage stopped part way goes on from where it
 // was (the seeds done skipped).
 //
-// Measured: not yet.
+// Measured (2026-10-12, the base the expert as it ships: forest round 3, the learned route; `--won`, every phase, cap 6,
+// to the end; seeds sim-0…63, 2 workers beside the battle teacher's 8, 39 min): 63/64 clears (98.4%) against the shipped
+// expert's 23/64 (35.9%), +40 −0; progress +0.377 ± 0.045 (0.992 against 0.616); battles won 3155/3156 against
+// 1933/1974; its one loss on floor 2 (sim-27, 0.490 against the base's 0.246). 67 s a run against 6.3 s (51 s where the
+// base clears: its run played once, then looked up; 76 s where it loses), 281 decisions a run, 1.06 playouts and 215 ms
+// a decision, 141 fights played in playouts a run. It overrode the base in 136 of 18,011 decisions (formations 56 of
+// 3,156, tiers and fusions 39 of 11,338, recruits 41 of 3,042, Shop relics 0 of 331, holds 0 of 144); of the 41 seeds
+// the base lost, 20 cleared on a single override. Why so much from so little: the game is exact and the runs are
+// chaotic, so another tier or recruit early on makes every later battle another battle, and with its consequences known
+// to the end one of a handful of such lines nearly always clears. What it shows is foresight of exact consequences, not
+// a rule a reader of the board could learn: the overrides are few, each one of the base's own next best by its score.
+// The best-by-value teacher (no `--won`) plays every candidate of every decision to the end, a clear's included: on the
+// pilot its sim-0 had run over 10 min when it was stopped (2.4 min with `--won`), so it was not measured on 64 seeds.
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import fs from 'node:fs'
 import os from 'node:os'
