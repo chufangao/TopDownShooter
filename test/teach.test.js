@@ -461,6 +461,31 @@ test('drawn by the state, a decision\'s class and chance read the board alone, n
   }
 })
 
+test('drawn by the floor, a decision\'s chance is its danger\'s times its floor\'s factor, at most 1, its wt 1 / that; no factor, the draw as before', () => {
+  const b = peril()
+  const base = drawOf(b, 0, { draw: 'state' })
+  // No factors, or none for its floor: the draw as before; a floor's factor scales its chance, at most 1; never the
+  // battle's outcome (the group) read.
+  assert.deepEqual(drawOf(b, 0, { draw: 'state' }, 3), base)
+  assert.deepEqual(drawOf(b, 0, { draw: 'state', keepFloor: { 4: 2 } }, 3), base)
+  const cfg = { draw: 'state', keepFloor: { 3: 2 } }
+  assert.deepEqual(drawOf(b, 0, cfg, 3), { danger: base.danger, keep: Math.min(1, 2 * base.keep) })
+  for (const group of [1, 2]) assert.deepEqual(drawOf(b, group, cfg, 3), drawOf(b, 0, cfg, 3))
+  assert.equal(drawOf(b, 0, { draw: 'state', keepFloor: { 3: 100 } }, 3).keep, 1)
+  // Runs so drawn (two rounds a playout, for speed: the draw does not read the label), the first battle on floor 1:
+  // a factor for another floor changes nothing; half the chance on floor 1 weighs each row 2; the same seed the same.
+  const keep = { lost: 0, near: 0, reach: 1, calm: 1 }
+  const run = (keepFloor) => teachRun('teach-test-1', { battles: 1, limit: 3, rounds: 2, keep, draw: 'state', ...(keepFloor && { keepFloor }) }).positions
+  const plain = run(null)
+  assert.ok(plain.length > 0)
+  for (const p of plain) assert.equal(p.floor, 1)
+  assert.deepEqual(run({ 2: 0.5, 4: 2 }), plain)
+  const half = run({ 1: 0.5 })
+  assert.ok(half.length > 0)
+  for (const p of half) assert.equal(p.wt, 2)
+  assert.deepEqual(run({ 1: 0.5 }), half)
+})
+
 test('smoothed labels: one playout is today\'s label exactly; k are their mean, the exact line first, the same seed the same', () => {
   // One playout an option, whatever epsilon: today's labels, row for row (no `values` written).
   assert.deepEqual(labelPosition(peril(), 1, null, { smooth: 1, epsilon: 0.5, key: 'p' }), labelPosition(peril(), 1, null))

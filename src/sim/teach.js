@@ -14,8 +14,13 @@
 // ended: a quarter where the Monarch is in the foes' reach or a foe has a clear line on it ('reach'), 3% else ('calm'),
 // KEEP's `lost` and `near` unused; the row's `group` is still the battle's, its `danger` the board's class. (Drawn by the
 // outcome, a lost battle's rows are biased: there the option the expert took loses by construction, in a near-lost one
-// it wins; the ranker's variants that trusted those rows played worse, 2026-10-12.) Held out by seed: a seed number ≡ 0
-// (mod 5) is `held`, the rest `train`.
+// it wins; the ranker's variants that trusted those rows played worse, 2026-10-12.) By the floor (`keepFloor`,
+// `--keep-floor 1=2,3=2,4=2`): a decision's chance by its danger times its floor's factor (1 for a floor not named),
+// at most 1; the floor the battle is fought on is the run's state as the piece decides, so a draw by the state and the
+// floor still reads nothing of how the battle ends, and the row's `wt` stays 1 / its chance. Why: the expert dies on
+// floors 1 and 4 (2026-10-13), and the floors it walks through would fill the labels; their factors raised, its
+// decisions where runs are lost are learnt from more positions (R6). Without it every floor is drawn alike, as before.
+// Held out by seed: a seed number ≡ 0 (mod 5) is `held`, the rest `train`.
 //
 // Options: the deciding piece's options as the expert lists them (policy.js expertOptions: each tile and act or
 // fusion), cut to a shortlist of at most `cap` (options: the one it has where it stands, for each act at each target
@@ -84,8 +89,8 @@
 //
 //   npm run teach -- [--runs 300] [--seed teach] [--workers 5] [--out dir] [--rounds 0] [--cap 16] [--turns 150]
 //                    [--weights monarch=3,own=1,…] [--keep lost,near,reach,calm] [--draw outcome|state]
-//                    [--expert file.json] [--ranker file.json|none] [--forest file.json|none] [--smooth 1]
-//                    [--epsilon 0.1] [--top 3] [--report-only]
+//                    [--keep-floor 1=2,3=2,…] [--expert file.json] [--ranker file.json|none]
+//                    [--forest file.json|none] [--smooth 1] [--epsilon 0.1] [--top 3] [--report-only]
 // (`--expert`: the expert configuration that plays and completes the turns, src/sim/expert.json by default. `--ranker`:
 // the ranker configuration it plays with (redesign.md §2.23; ranker.js useRanker), installed in this thread and in every
 // worker before a run is played, so the runs and every playout's rest are the expert's with that ranker; `none` for
@@ -94,9 +99,10 @@
 // useForest: §2.23's correction as regression trees), installed as the ranker is (a forest in use decides in place of a
 // ranker); `none` for none; without it, the one forest.js holds; its file and `name` go into manifest.json. `--draw`:
 // how a decision's chance to be labelled is read, see Positions above; `--keep`'s `lost` and `near` are unused under
-// `state`; the draw goes into manifest.json, and into its settings where it is not the default. `--smooth`, `--epsilon`,
-// `--top`: smoothed labels, see above; k, epsilon and top go into manifest.json's `smooth`, and into its settings where
-// k > 1.)
+// `state`; the draw goes into manifest.json, and into its settings where it is not the default. `--keep-floor`: each
+// named floor's factor on the chance (see Positions above), into the settings (`keepFloor`) where given. `--smooth`,
+// `--epsilon`, `--top`: smoothed labels, see above; k, epsilon and top go into manifest.json's `smooth`, and into its
+// settings where k > 1.)
 //
 // The teacher (below, `--teacher`): this labeller as a player, every battle decision of a run the playout-best.
 // The afterstates (below, `--augment <dir>`): a label set's runs replayed and each option's afterstate written beside its
@@ -124,12 +130,13 @@ import { TUNING } from '../tuning.js'
 import { seedNo, NEAR } from './train.js'
 
 // The playout value's weights (see above: END_WEIGHTS to the battle's end, WEIGHTS for `rounds` > 0), the chance a
-// decision is kept by its danger, and the defaults (`turns`: the rounds a playout to the end may last; `smooth`, the
-// playouts an option, `epsilon` and `top` their perturbation's: see Smoothed labels above).
+// decision is kept by its danger, and the defaults (`turns`: the rounds a playout to the end may last; `keepFloor`, the
+// floors' factors on that chance, none; `smooth`, the playouts an option, `epsilon` and `top` their perturbation's: see
+// Smoothed labels above).
 export const WEIGHTS = Object.freeze({ monarch: 3, own: 1, foe: 1, lost: 10, won: 1 })
 export const END_WEIGHTS = Object.freeze({ lost: 10, monarch: 3, own: 1, turn: 0.02 })
 export const KEEP = Object.freeze({ lost: 1, near: 0.5, reach: 0.25, calm: 0.03 })
-export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights: null, keep: KEEP, draw: 'outcome', smooth: 1, epsilon: 0.1, top: 3 })
+export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights: null, keep: KEEP, keepFloor: null, draw: 'outcome', smooth: 1, epsilon: 0.1, top: 3 })
 // How a decision's chance to be labelled is read (see above): by its battle's outcome, or by the board alone.
 export const DRAWS = Object.freeze(['outcome', 'state'])
 // The weights a configuration's labels are read by: its own, else its kind's.
@@ -561,12 +568,14 @@ function dangerOf (b, group) {
 }
 
 // A decision's class and its chance to be labelled (KEEP's, or `cfg.keep`'s) by `cfg.draw`: by the outcome, its battle's
-// `group` first (dangerOf); by the state, the board `b` alone, whatever `group` is. → { danger, keep }
-export function drawOf (b, group, cfg = {}) {
+// `group` first (dangerOf); by the state, the board `b` alone, whatever `group` is; times `floor`'s factor where
+// `cfg.keepFloor` names it (the floor the battle is fought on), at most 1. → { danger, keep }
+export function drawOf (b, group, cfg = {}, floor = null) {
   const how = cfg.draw ?? DEFAULTS.draw
   if (!DRAWS.includes(how)) throw new Error(`no draw "${how}": ${DRAWS.join(', ')}`)
   const danger = dangerOf(b, how === 'state' ? null : group)
-  return { danger, keep: { ...KEEP, ...cfg.keep }[danger] }
+  const keep = { ...KEEP, ...cfg.keep }[danger] * (cfg.keepFloor?.[floor] ?? 1)
+  return { danger, keep: Math.min(1, keep) }
 }
 
 // One expert run played live, its battles' decisions drawn and the kept ones labelled. `battles`: stop after that many
@@ -593,7 +602,7 @@ export function teachRun (seed, cfg = {}) {
     for (const p of cur.points) {
       decisions++
       if (c.limit && positions.length >= c.limit) break
-      const { danger, keep } = drawOf(p.board, group, c)
+      const { danger, keep } = drawOf(p.board, group, c, cur.floor)
       if (!(draw(seed, cur.no, p.seq) < keep)) continue
       const t = performance.now()
       const id = `${seed}:${cur.no}:${p.turn}:${p.uid}`
@@ -1803,6 +1812,10 @@ if (!isMainThread && workerData?.teach) {
   const fk = rankerArg(arg, 'forest')
   const how = arg('draw', DEFAULTS.draw)
   if (!DRAWS.includes(how)) throw new Error(`--draw ${how}: one of ${DRAWS.join(', ')}`)
+  // `--keep-floor 1=2,3=2,4=2`: each named floor's factor on a decision's chance (drawOf).
+  const byFloor = arg('keep-floor', null)
+  const keepFloor = byFloor ? Object.fromEntries(byFloor.split(',').map((kv) => kv.split('=')).map(([f, x]) => [Number(f), Number(x)])) : null
+  if (keepFloor && Object.entries(keepFloor).some(([f, x]) => !(Number.isInteger(Number(f)) && Number(f) >= 1) || !(x >= 0 && Number.isFinite(x)))) throw new Error(`--keep-floor ${byFloor}: floor=factor pairs, each floor a whole number from 1, each factor 0 or more`)
   const smooth = { k: Number(arg('smooth', DEFAULTS.smooth)), epsilon: Number(arg('epsilon', DEFAULTS.epsilon)), top: Number(arg('top', DEFAULTS.top)) }
   if (!(Number.isInteger(smooth.k) && smooth.k >= 1)) throw new Error(`--smooth ${smooth.k}: a whole number of playouts, 1 or more`)
   if (!(smooth.epsilon >= 0 && smooth.epsilon <= 1) || !(Number.isInteger(smooth.top) && smooth.top >= 1)) throw new Error('--epsilon in [0, 1], --top a whole number, 1 or more')
@@ -1811,7 +1824,7 @@ if (!isMainThread && workerData?.teach) {
   // ranker's and the forest's configurations in place of their files and names.
   const settings = {
     rounds, cap: Number(arg('cap', DEFAULTS.cap)), ...(!(rounds > 0) && { turns: Number(arg('turns', DEFAULTS.turns)) }),
-    weights, keep: nums(arg('keep', null), ['lost', 'near', 'reach', 'calm'], KEEP), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }),
+    weights, keep: nums(arg('keep', null), ['lost', 'near', 'reach', 'calm'], KEEP), ...(keepFloor && { keepFloor }), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }),
     ...(rk.setting !== undefined && { ranker: rk.setting }), ...(fk.setting !== undefined && { forest: fk.setting }), ...(how !== DEFAULTS.draw && { draw: how }),
     ...(smooth.k > 1 && { smooth: smooth.k, epsilon: smooth.epsilon, top: smooth.top })
   }
@@ -1830,6 +1843,7 @@ if (!isMainThread && workerData?.teach) {
   let made = 0
   if (todo.length && !process.argv.includes('--report-only')) {
     console.log(`labelling ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${done.size} done in ${dir}) on ${workers} workers: rounds ${cfg.rounds}, cap ${cfg.cap}, drawn by the ${how}` +
+      (keepFloor ? ` (by floor ${byFloor})` : '') +
       (smooth.k > 1 ? `, ${smooth.k} playouts an option (epsilon ${smooth.epsilon}, top ${smooth.top})` : ''))
     let n = 0
     await pool(todo, workers, cfg, (r) => {
