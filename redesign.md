@@ -703,10 +703,13 @@ today's picks the recruit and the tiers by a fixed worth formula and the combo b
   store shared across the run's decisions.
 - **Fitting** as the battle forest (forest.js's trees, a sibling table): the target a candidate's value less its
   decision's mean, bagged by whole runs, out-of-bag estimates, seeds ≡ 0 mod 5 held out; δ chosen by paired play.
-- **Measured and kept** (§6): the recruit's forest alone at δ 0.5, on 768 fresh seeds, **69.1% clears against the shipped
-  expert's 40.8%**, +18.3 ± 1.5 progress; the purchases stay today's. What it learnt is mostly to recruit where today's
-  declines (today's sketch counts the field's best few souls, never the souls behind them, so it passes on three offers
-  in four).
+- **Measured and kept** (§6): round 1, the recruit's forest alone at δ 0.5, on 768 fresh seeds **69.1% clears against
+  the expert's 40.8% without it**, +18.3 ± 1.5 progress; round 2 (relabelled under round 1, refitted, δ 0.25), against
+  round 1 on 768 fresh seeds 73.7% against 68.6%, +2.1 ± 0.8, and against the expert without it **73.7% against 35.2%,
+  +21.2 ± 1.3**. The purchases stay today's (their forest plays level with them). What it learnt is mostly to recruit
+  where today's declines (today's sketch counts the field's best few souls, never the souls behind them, so it passes
+  on three offers in four). A run takes ~7 s against ~4.5: it goes further (43 battles against 33); the forest's own
+  read and trees cost nothing a timing sees.
 
 ## 3. What the player may rely on
 
@@ -1359,6 +1362,17 @@ floor 4); the read and the trees cost nothing a timing sees (every read made, th
 decision: today's recruit weighs a soul by the sketch, the field's strength and the book, which a soul that does not
 make the field's best few changes not at all, so it declines three offers in four; the souls behind the field are what
 a run has when the field falls, and what its fusions and synergies are made of later.
+**Round 2** (R2: 92 runs `outm-0…91` of round 1, its recruits the forest's; 3,704 recruits and 5,503 purchases in 3.0 h;
+another candidate's playout beat the base's at 50% of the recruits, by 3.9 where it did against R1's 10.5, and at 36% of
+the purchases, by 2.9). Refitted on R1 and R2, each row against today's pick as play reads it; out of bag the recruit's
+forest +0.91 a decision at δ 0.5, +0.92 at 0.25, the purchase's +0.04. Paired against round 1 on 256 seeds `sel8`: the
+recruit's at δ 0.5 +1.37 ± 1.19 (clears 70.3% against 67.6%, +40 −33), at δ 0.25 +2.04 ± 1.17 (75.0%, +41 −22), at δ
+0.5 with the purchase's at 0.5 +2.66 ± 1.34 (69.5%, +38 −33), round 1's recruit's with the purchase's at 0.5 +0.59 ±
+1.02 (68.0%, +19 −18). The recruit's at δ 0.25 on 768 fresh seeds `chk8`: against round 1, **73.7% clears against 68.6%
+(+114 −75), progress +2.09 ± 0.77**, 6.92 s a run against 6.74; against the expert without a forest out of battle,
+**73.7% against 35.2% (+341 −45), +21.23 ± 1.33**, 7.00 s against 4.40. Kept (outforest.json round 2, 0.22 MB). Open:
+the purchases (a forest fitted twice, on 11,720 of them, plays level with today's), round 3 under round 2, and the formation and the Shop by the
+same machinery; then the balance pass, the expert near the teacher's ceiling being the measure it needs.
 
 ## 7. Standing rules
 

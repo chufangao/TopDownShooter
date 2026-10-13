@@ -77,6 +77,22 @@
 // and the trees cost nothing a timing sees (a configuration whose margin is never passed, every read made, plays the
 // shipped expert's moves at 4.02 s a run against 4.61 on 64 seeds). Kept as outforest.json: the recruit's forest alone,
 // delta 0.5 (200 trees, 14,084 nodes, 0.19 MB); the purchases today's.
+// Round 2 (2026-10-13; labels R2: 92 runs `outm-0…91` of round 1, its recruits the forest's; 3,704 recruits of 4.6
+// candidates and 5,503 purchases of 5.4, in 3.0 h on the same eight workers: ~31 runs, ~3,100 decisions and ~15,900
+// candidates an hour). Another candidate's playout beat the base's at 50% of the recruits, by 3.9 where it did (round
+// 1's labels: 10.5), at 9.0% one clearing where the base's line lost; at 36% of the purchases, by 2.9 (5.7%). Refitted
+// on R1 and R2 as round 1, each row against today's pick (weighRecruits', as play reads it): out of bag at delta 0.5 the
+// recruit's forest changes 28% of the recruits for +0.91 a decision (held out 29%, +0.73), at 0.25 38% for +0.92 (held
+// out +0.78); the purchase's +0.04 at 0.5 (held out +0.06). Paired against round 1 on 256 seeds `sel8`:
+//   the recruit's forest, delta 0.5                               +1.37 ± 1.19 progress  (clears 70.3% against 67.6%, +40 −33)
+//   the recruit's forest, delta 0.25                              +2.04 ± 1.17           (clears 75.0%, +41 −22)
+//   the recruit's at 0.5 and the purchase's at 0.5                +2.66 ± 1.34           (clears 69.5%, +38 −33)
+//   round 1's recruit's, and the purchase's at 0.5                +0.59 ± 1.02           (clears 68.0%, +19 −18)
+// The second, on 768 fresh seeds `chk8`: against round 1, clears 73.7% against 68.6% (+114 −75), progress +2.09 ± 0.77,
+// 6.92 s a run against 6.74; against the expert without a forest out of battle, clears 73.7% against 35.2% (+341 −45),
+// progress +21.23 ± 1.33, 7.00 s a run against 4.40 (43.4 battles a run against 32.9). Kept as outforest.json: the
+// recruit's forest alone, delta 0.25 (200 trees, 16,472 nodes, 0.22 MB); the purchases today's (their forest, fitted
+// twice, plays level with them).
 import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS } from './forest.js'
 import { splitOf } from './ranker.js'
 import { mulberry } from './value.js'
