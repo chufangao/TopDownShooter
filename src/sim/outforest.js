@@ -47,9 +47,9 @@
 // forest { inputs, target, delta, size, feat, thr, right, value, made } in forest.json's shape (forest.js compileTrees
 // reads both). Read Node-only, like forest.json.
 //
-//   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend] [--delta 1] [--delta-recruit x]
-//                        [--delta-spend y] [--target mean|today] [--trees 200] [--depth 10] [--leaves 256]
-//                        [--min-leaf 20] [--mtry 0.333] [--bins 64] [--weighted] [--seed 1] [--name outforest] [--workers 7]
+//   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend] [--delta 0.25] [--delta-recruit x]
+//                        [--delta-spend y] [--target mean|today] [--trees 200] [--depth 6] [--leaves 64]
+//                        [--min-leaf 50] [--mtry 0.333] [--bins 64] [--weighted] [--seed 1] [--name outforest] [--workers 7]
 //   fits a forest a phase on outside.js --label's labels (labels.jsonl in each dir) and writes them as one configuration,
 //   printing each phase's out-of-bag and held-out tables (the decisions changed, the value realised, the teacher's).
 //   npm run outforest -- --data <dir>[,<dir>…] --eval <file>   the held-out tables of a configuration fitted already.
@@ -344,7 +344,8 @@ export async function readOutTable (dirs, phase, { bins = 64, sample = 100000, s
 
 // ── the trees ────────────────────────────────────────────────────────────────────────────────────
 
-export const OUT_FIT = Object.freeze({ target: 'mean', trees: 200, depth: 10, leaves: 256, minLeaf: 20, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 30, weighted: false, wclip: 10, seed: 1, delta: 1 })
+// The settings a forest is fitted by, unless given (the kept recruit's forest's: round 2's).
+export const OUT_FIT = Object.freeze({ target: 'mean', trees: 200, depth: 6, leaves: 64, minLeaf: 50, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 30, weighted: false, wclip: 10, seed: 1, delta: 0.25 })
 
 // Each row's target: its value less its decision's mean (`mean`) or less today's pick's (`today`).
 function targetsOf (t, target) {
