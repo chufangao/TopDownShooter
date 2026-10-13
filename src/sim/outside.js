@@ -76,6 +76,7 @@
 // was (the seeds done skipped).
 //   npm run outside -- --label [--runs 200] [--seed outl] [--from 0] [--workers 8] [--out dir] [--cap 6] [--spend 1] [--calm 0.25]
 // labels the base's recruits and purchases for the forest out of battle (outforest.js): see LABEL below.
+//   npm run outside -- --reread <dir> --out <dir> [--workers 8]   a label set's reads made again (rereadRun).
 //
 // Measured (2026-10-12, the base the expert as it ships: forest round 3, the learned route; `--won`, every phase, cap 6,
 // to the end; seeds sim-0…63, 2 workers beside the battle teacher's 8, 39 min): 63/64 clears (98.4%) against the shipped
@@ -771,6 +772,62 @@ async function labelMain (arg) {
   console.log(`${lines.length} runs labelled (${lines.filter((r) => r.result === 'victory').length} cleared), ${wall.toFixed(0)} s on ${workers} workers: ${JSON.stringify(phases)}; ${JSON.stringify(throughput)}`)
 }
 
+// The rows of `seed` (labelRun's, labelled at a cap of `cap`) read again as autoplay.js outsideRead reads them now: the
+// base's run walked again (it is the labelled run, move for move), and at each row's decision (its log index) its
+// candidates listed again (the same, or it throws) and read; the values kept. Seconds a run, no playout. → rows
+export function rereadRun (seed, rows, cap = LABEL.cap) {
+  const run = ablatedRun(seed)
+  const rng = createRng(run.state.seed).stream('autoplay')
+  const at = new Map(rows.map((r) => [r.at, r]))
+  const out = []
+  for (let guard = 0; run.state.phase !== 'over' && out.length < rows.length; guard++) {
+    if (guard > 1e6) throw new Error(`${seed}: stuck`)
+    const row = run.state.phase !== 'battle' ? at.get(run.state.log.length) : null
+    if (row) {
+      const sit = survey(run, L)
+      const cands = outCandidates(row.phase === 'recruit' ? recruitCandidates(run, L, sit) : spendCandidates(run, L, sit), cap)
+      if (cands.map((x) => x.id).join() !== row.options.map((o) => o.id).join()) throw new Error(`${seed}: the candidates at ${row.at} are no longer the labels'`)
+      const read = outsideRead(run, L, sit, row.phase, cands)
+      out.push({ ...row, sit: read.sit, options: row.options.map((o, i) => ({ ...o, f: read.f[i] })) })
+    }
+    apply(run, policy(run, rng, 'expert'))
+  }
+  if (out.length !== rows.length) throw new Error(`${seed}: ${rows.length - out.length} rows not met again`)
+  return out
+}
+
+// `npm run outside -- --reread <dir> --out <dir> [--workers 8]`: a label set read again (rereadRun), its rows written to
+// `--out` with its runs' lines and its manifest (`reread` the time it was read again).
+async function rereadMain (arg) {
+  const from = arg('reread')
+  const dir = arg('out', null)
+  if (!dir || path.resolve(dir) === path.resolve(from)) throw new Error('--reread <dir> --out <another dir>')
+  const workers = Number(arg('workers', 8))
+  const manifest = JSON.parse(fs.readFileSync(path.join(from, 'manifest.json'), 'utf8'))
+  const lines = fs.readFileSync(path.join(from, 'runs.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
+  const done = new Set(lines.map((r) => r.seed))
+  const bySeed = new Map()
+  for (const l of fs.readFileSync(path.join(from, 'labels.jsonl'), 'utf8').split('\n')) {
+    if (!l) continue
+    const row = JSON.parse(l)
+    if (!done.has(row.seed)) continue
+    if (!bySeed.has(row.seed)) bySeed.set(row.seed, [])
+    bySeed.get(row.seed).push(row)
+  }
+  fs.mkdirSync(dir, { recursive: true })
+  const out = path.join(dir, 'labels.jsonl')
+  fs.writeFileSync(out, '')
+  const t0 = performance.now()
+  let n = 0
+  await pool([...bySeed.keys()].map((seed) => ({ seed, player: 'reread', rows: bySeed.get(seed) })), workers, { cap: manifest.settings.cap }, (rows) => {
+    fs.appendFileSync(out, rows.map((r) => JSON.stringify(r)).join('\n') + '\n')
+    n++
+  })
+  fs.writeFileSync(path.join(dir, 'runs.jsonl'), lines.map((r) => JSON.stringify(r)).join('\n') + '\n')
+  fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ ...manifest, reread: new Date().toISOString(), from }, null, 1) + '\n')
+  console.log(`${n} runs read again from ${from} into ${dir} (${((performance.now() - t0) / 1000).toFixed(0)} s)`)
+}
+
 // The outside teacher against the expert as it ships, paired by seed over runs.jsonl's lines (teach.js pairedReport: the
 // clears, the seeds won and lost against the base, the progress difference ± one standard error, the battles won, the
 // deaths by floor, the time a run), and by phase: the decisions it made a run, how often it took another than the base's
@@ -817,8 +874,9 @@ export function outsideLines (rep) {
 
 // ── run directly ─────────────────────────────────────────────────────────────────────────────────
 
-// A worker's job: a run by the outside teacher, by the expert as it ships, or labelled ({ seed, player }).
-const job = (j, cfg) => (j.player === 'label' ? labelRun(j.seed, cfg) : j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed))
+// A worker's job: a run by the outside teacher, by the expert as it ships, labelled, or a labelled run's rows read
+// again ({ seed, player, rows? }).
+const job = (j, cfg) => (j.player === 'label' ? labelRun(j.seed, cfg) : j.player === 'reread' ? rereadRun(j.seed, j.rows, cfg.cap) : j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed))
 
 // Runs `jobs` in worker threads of this module, `workers` at a time, handing each result to `done` as it ends.
 async function pool (jobs, workers, cfg, done) {
@@ -861,6 +919,7 @@ async function main () {
     return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
   }
   if (process.argv.includes('--label')) return labelMain(arg)
+  if (arg('reread', null)) return rereadMain(arg)
   const seed = arg('seed', 'sim')
   const runs = Number(arg('runs', 64))
   const from = Number(arg('from', 0))

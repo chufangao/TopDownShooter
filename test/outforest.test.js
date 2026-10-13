@@ -11,7 +11,7 @@ import path from 'node:path'
 import {
   useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D
 } from '../src/sim/outforest.js'
-import { labelRun, baseStep } from '../src/sim/outside.js'
+import { labelRun, rereadRun, baseStep } from '../src/sim/outside.js'
 import { createRun, apply } from '../src/sim/run.js'
 import {
   policy, autoplay, record, withOutForest, playerOf, survey, LEVELS, recruitCandidates, spendCandidates, outCandidates, outsideRead
@@ -248,5 +248,17 @@ test('a job\'s forest out of battle is installed for its run and the one before 
   } finally {
     useOutForest(before)
     fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a label set read again is the same rows where the read is the same', () => {
+  const before = outForestModel()
+  try {
+    useOutForest(null)
+    const { rows } = labels()
+    assert.deepEqual(rereadRun(SEED, rows, CAP), rows)
+    assert.throws(() => rereadRun(SEED, rows.map((r) => ({ ...r, options: r.options.slice(1) })), CAP), /no longer the labels'/)
+  } finally {
+    useOutForest(before)
   }
 })

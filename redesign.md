@@ -672,6 +672,38 @@ lookahead. Stay fast", then "it just needs to do better. Think random forest".
   options lose the battle and others win, one such pair in five falls on opposite sides: what decides those battles is
   not in what a fast reader of the board sees.
 
+### 2.25 The forest out of battle (2026-10-13)
+
+**Why.** The outside teacher (§6, "Perfect calculation") re-chose only the expert's out-of-battle decisions among its own
+top six by playing each to the run's end, with the expert's own battles, and cleared 63/64 of the bar's seeds against
+the shipped 23/64; the recruit alone 62/64, spending (tiers and fusions) alone 60/64. The player sees every battle room
+of the floor (scouting is honest, the teacher's foresight a player's), so a fast expert may read the coming battles;
+today's picks the recruit and the tiers by a fixed worth formula and the combo book, never against the rooms ahead.
+
+- **The expert is today's picks and a forest a decision** (`src/sim/outforest.js`, the contract; `autoplay.js`
+  `recruitPick`, `spendPick`): at the recruit and at each purchase, the candidates are today's pick and the next five by
+  today's own score (`recruitCandidates`: the sketch's gain of each soul offered, a full retinue letting its weakest go;
+  `spendCandidates`: grow's score of each tier and fusion), and passing on (no recruit, stopping) where it is not among
+  them; a random forest of regression trees a phase, fitted offline, predicts each one's centred value, and the best is
+  taken only where the forest puts it more than δ above today's pick, else today's. Shipped as data
+  (`src/sim/outforest.json`, Node only; absent, today's expert move for move), with the phases it decides.
+- **The read** (`autoplay.js outsideRead`, one function for the labels and play, a test holding them equal; ~1.5 ms a
+  decision): the run's situation (floor, rank, the purse in tier prices and against the next prices, the Monarch's and
+  the souls' HP, the field's strength, its answers to flyers, Reach and the hexes and wounds, its shooters, melee,
+  flyers and menders, synergies and the nearest, the combo target's progress), and the coming battles: the next battle
+  room on the route the expert would walk (the learned route's tree, each choice read as if the run stood there), the
+  next three, and the floor's still ahead, each as scouting shows it (the foes' worth and the army's odds, their HP, DEF
+  and blows, the share of each threat type, the waves, the threats the field cannot answer). Each candidate: what it is
+  (the kind's role, flying, ranged, reach, tier, level, stats and worth; a tier's track, number and what it grants, a
+  fusion's parts and gain, a recruit's newness and the soul it lets go, its kind's answers to the threats ahead), today's
+  score and its gap to today's pick, and what it changes in the field's read (the state it leaves, on a copy).
+- **Labels by playouts to the run's end, offline** (`outside.js --label`): runs of the shipped expert; at every recruit
+  and at the purchases (each distinct one, all where two kinds compete, a quarter of the rest), every candidate played
+  on a copy of the run by the expert to the run's end, valued by teach.js `routeEndValue` (its parts kept), the fights'
+  store shared across the run's decisions.
+- **Fitting** as the battle forest (forest.js's trees, a sibling table): the target a candidate's value less its
+  decision's mean, bagged by whole runs, out-of-bag estimates, seeds ≡ 0 mod 5 held out; δ chosen by paired play.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
