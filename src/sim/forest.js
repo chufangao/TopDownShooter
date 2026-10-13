@@ -96,6 +96,21 @@
 // 5.0 s a run against 4.8 (the runs go further: deaths on floors 1 and 2 272 against 296, on 3 and 4 242 against 210);
 // against today's expert, clears 33.1% against 29.6% (+102 −75), progress +2.81 ± 1.03, at 5.1 s against 2.4. Kept as
 // forest.json (200 trees, 196,322 nodes, 2.3 MB), on the gain in progress.
+// Round 3 (2026-10-12; labels R5: 200 runs `teache-*` of round 2's forest, the learned route on, drawn by the state as
+// R4's, 20,849 positions, each option played out three times to the battle's end, its label their mean: teach.js
+// `--smooth 3 --epsilon 0.1`, the exact line and two with the continuation perturbed, round 2's forest deciding it; 2.3
+// positions a second on eight workers; augmented). Of the options, 28% have three playouts not all alike, and where
+// the exact lines of a position lose and win, a quarter have three that span a loss and a win; the perturbed playouts
+// lose as often as the exact (9.4% against 9.3%). The means are the more learnable: on R5's held-out decisions at delta
+// 0.05, a forest fitted to R5's means realises +0.008 on the means and +0.009 on the exact lines, one fitted to R5's
+// exact lines alone (`--label exact`, the same positions) +0.001 and +0.000. Paired against round 2 on 256 seeds `sel6`:
+//   R5 alone (its means), delta 0.05                              −1.80 ± 2.11 progress  (clears +25 −43)
+//   R5's exact lines alone, delta 0.05                            −1.31 ± 2.22           (clears +26 −46)
+//   R5 at twice the weight, R3 and R4, delta 0.05                 −2.43 ± 1.67           (clears +26 −29)
+//   R5 at twice the weight, R3 and R4, delta 0.02                 +0.49 ± 2.05           (clears +38 −32)
+// The last, on 768 fresh seeds `chk6`: against round 2, clears 36.3% against 34.2% (+107 −91), progress +1.94 ± 1.27,
+// at 5.1 s a run against 4.9; against today's expert, clears 36.3% against 30.7% (+111 −68), progress +3.67 ± 1.22, at
+// 5.2 s against 2.5. Kept as forest.json (200 trees, 201,376 nodes, 2.3 MB), on the gain in progress.
 import { encode, meanOf, rowView, playView, rowAfter, afterNames, inputNames as rankerNames, INPUT_SETS as RANKER_SETS, splitOf, linesOf, labelsIn } from './ranker.js'
 import { mulberry } from './value.js'
 import { LANE } from './field.js'
