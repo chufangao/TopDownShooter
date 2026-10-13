@@ -1,28 +1,33 @@
-// The forest out of battle (redesign.md §2.25): the expert's recruit and its purchases (tiers and fusions) decided as
-// the battle forest decides a piece's move (forest.js, §2.24): today's pick (autoplay.js weighRecruits, grow) unless a
-// random forest of regression trees, fitted offline on outside.js's labels (each candidate of a decision played out on a
-// copy of the run by the expert to the run's end, valued by teach.js routeEndValue), reads another candidate more than
-// its margin above it. No network, and nothing played in play: a decision is a read of the run (autoplay.js outsideRead)
-// and a few thousand comparisons. This file is the contract between the labeller (outside.js --label, which writes the
-// reads beside the values) and the player (autoplay.js pickReap and pickSpend, which consult the forest in use):
+// The forest out of battle (redesign.md §2.25): the expert's recruit, its purchases (tiers and fusions) and its formation
+// decided as the battle forest decides a piece's move (forest.js, §2.24): today's pick (autoplay.js weighRecruits, grow,
+// plan) unless a random forest of regression trees, fitted offline on outside.js's labels (each candidate of a decision
+// played out on a copy of the run by the expert: a recruit and a purchase to the run's end, valued by teach.js
+// routeEndValue; a formation to the end of the battle it opens, valued by teach.js endValue), reads another candidate more
+// than its margin above it. No network, and nothing played in play: a decision is a read of the run (autoplay.js
+// outsideRead, prepRead) and a few thousand comparisons. This file is the contract between the labeller (outside.js
+// --label, which writes the reads beside the values) and the player (autoplay.js pickReap, pickSpend and planFor, which
+// consult the forest in use):
 //
 //   useOutForest(config)   installs a configuration (outforest.json's contents); null: none, today's expert;
 //                          undefined: back to outforest.json beside this file, where there is one. → the one in use
 //   outForestModel()       → the forest in use, or null for none
-//   outDecides(phase)      → whether the forest in use decides `phase` ('recruit' or 'spend')
+//   outDecides(phase)      → whether the forest in use decides `phase` ('recruit', 'spend' or 'prep')
 //
 // With none in use (no outforest.json, or useOutForest(null)), or for a phase the configuration has no forest of, the
 // expert is today's, move for move.
 //
 // In play: a decision's candidates (autoplay.js recruitCandidates, spendCandidates: today's pick first, then the rest by
-// today's own score of them, at most OUT_CAP: the labels' own) are read (outsideRead: the run's situation, and each
-// candidate's features from the run it would leave), and the phase's forest predicts each one's centred value R; the
-// best other candidate by R − R(today's) (ties to the earlier in the list) is taken where that exceeds the phase's margin
-// `delta`, else today's (chooseOut). A forest whose advantages never exceed delta (every tree a single leaf, or of target
-// 'today' every leaf at most delta) is today's expert, move for move.
+// today's own score of them, at most OUT_CAP; prepCandidates: today's formation first, then the plan's next best in
+// today's order and the best of its drafts, at most PREP_CAP; the labels' own) are read (outsideRead: the run's
+// situation, and each candidate's features from the run it would leave; prepRead: the run's situation and the coming
+// battle as scouted, and each formation's features, its shape against today's and the board it opens the battle on), and
+// the phase's forest predicts each one's centred value R; the best other candidate by R − R(today's) (ties to the earlier
+// in the list) is taken where that exceeds the phase's margin `delta`, else today's (chooseOut). A forest whose
+// advantages never exceed delta (every tree a single leaf, or of target 'today' every leaf at most delta) is today's
+// expert, move for move.
 //
-// The inputs, x (outInputNames), read alike from a label row and in play (encodeOut, from outsideRead's `sit` and `f`; a
-// test holds the reads equal):
+// The inputs, x (outInputNames: a phase's own, layoutOf), read alike from a label row and in play (encodeOut, from
+// outsideRead's or prepRead's `sit` and `f`; a test holds the reads equal). The recruit's and the purchases':
 //   s.*   the situation (SIT_KEYS): where the run stands, the purse in tier prices, the Monarch and the souls, the field's
 //         answers to the threats it may meet, and the coming battles: the next battle room on the route the expert would
 //         walk (n1), the next three (n3) and the floor's battle rooms still ahead (fl), each as scouting shows them (the
@@ -36,6 +41,18 @@
 //         threats ahead left unanswered)
 //   vs.*  each candidate feature less today's pick's: the target is an advantage over that one candidate
 //   gap   today's score of today's pick less the candidate's
+// The formation's (the prep's):
+//   s.*   the situation (PREP_SIT_KEYS): the floor, the room's rank and type, the Monarch's and the souls' HP, the
+//         field's read (field.*), the coming battle as scouting shows it (room.*: the foes' worth and the army's odds,
+//         their HP, DEF, blows and waves, the share of each threat type, those the field cannot answer; scout.*: its
+//         flyers, its shooters, the farthest reach, its blows' raw on the Monarch's HP, its boss, its roads), the camp's
+//         open cells and gate, and what the opening board shows whatever the formation (o.*: OPENING_ROOM_KEYS)
+//   f.*   the formation (PREP_CAND_KEYS): today's score of it and its place in the list, a draft or the climb's, its
+//         static read (v.*: formationFeatures, FORMATION_KEYS), its shape (the pieces moved and the souls swapped against
+//         today's pick, beside and near the seat, in the front row, the rows and lanes held, the 2×2, the gate's cells,
+//         its shooters, melee, flyers, menders, wounded and HP) and the board it opens the battle on (o.*: OPENING_KEYS,
+//         the battle's own read of it: the Monarch's danger, the roads open and held, the pieces in danger)
+//   vs.*, gap  as above
 // Each number rounded to 6 decimals in the read itself, so a row's inputs and play's are the same numbers.
 //
 // The target (a row a candidate of a decision): its playout's value less the mean of its decision's candidates'
@@ -43,15 +60,18 @@
 // Bagged by whole runs (a run's decisions are correlated, and their playouts chaotic), out-of-bag estimates; seeds ≡ 0
 // mod 5 held out, never fitted (ranker.js splitOf).
 //
-// Shipped as outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend? } }, each phase's
+// Shipped as outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend?, prep? } }, each phase's
 // forest { inputs, target, delta, size, feat, thr, right, value, made } in forest.json's shape (forest.js compileTrees
 // reads both). Read Node-only, like forest.json.
 //
-//   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend] [--delta 0.25] [--delta-recruit x]
-//                        [--delta-spend y] [--target mean|today] [--trees 200] [--depth 6] [--leaves 64]
+//   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend,prep] [--delta 0.25] [--delta-recruit x]
+//                        [--delta-spend y] [--delta-prep z] [--target mean|today] [--trees 200] [--depth 6] [--leaves 64]
 //                        [--min-leaf 50] [--mtry 0.333] [--bins 64] [--weighted] [--seed 1] [--name outforest] [--workers 7]
+//                        [--with <file>]
 //   fits a forest a phase on outside.js --label's labels (labels.jsonl in each dir) and writes them as one configuration,
-//   printing each phase's out-of-bag and held-out tables (the decisions changed, the value realised, the teacher's).
+//   printing each phase's out-of-bag and held-out tables (the decisions changed, the value realised, the teacher's); a
+//   phase with no labels gets no forest, and `--with` carries over the phases of that configuration not fitted (the kept
+//   recruit's forest beside a new formation's).
 //   npm run outforest -- --data <dir>[,<dir>…] --eval <file>   the held-out tables of a configuration fitted already.
 //   npm run outforest -- --data <dir>[,<dir>…] --stats          what the labels hold (decisions, candidates, how often
 //                                                                another than the base's pick played out the better).
@@ -104,7 +124,7 @@ const EPS = 1e-9
 // ── the vocabulary ───────────────────────────────────────────────────────────────────────────────
 
 // The decisions a forest out of battle may make.
-export const OUT_PHASES = Object.freeze(['recruit', 'spend'])
+export const OUT_PHASES = Object.freeze(['recruit', 'spend', 'prep'])
 // The threat types the coming rooms are read by (content.js THREATS, a foe kind's own: depth is a room's, read as its
 // waves).
 export const OUT_THREATS = Object.freeze(['reach', 'shape', 'drain', 'sustain', 'fly', 'burn', 'bleed'])
@@ -133,6 +153,36 @@ export const CAND_KEYS = Object.freeze([
   ...['strength', 'book', 'progress', 'target', 'fly', 'reach', 'tend', 'ranged', 'melee', 'flyers', 'healers', 'dps', 'tough', 'syn', 'near', 'summons', 'lvl', 'souls', 'purse'].map((k) => `d.${k}`),
   ...OUT_ROOMS.map((r) => `d.gap.${r}`)
 ])
+// The formation's vocabulary (the prep's: autoplay.js prepRead). What autoplay.js formationFeatures reads of a formation
+// against the scouted room (its static score's features, TUNING.expert.formation's keys).
+export const FORMATION_KEYS = Object.freeze(['fielded', 'air', 'power', 'cover', 'exposed', 'open', 'blockers', 'behind', 'mend', 'monarch', 'synergies', 'aura', 'arise', 'lasts', 'heals', 'answers', 'dps', 'focus', 'contact'])
+// Of the battle's own read of a board (expert.js conditions on policy.js situation), on the board a formation opens the
+// battle on (no turn played): what one formation changes from another (the Monarch's danger and the foes that reach it or
+// are screened from it, the roads left open and how soon a foe walks one in, the foes held and by how many, the pieces that
+// would fall and their danger, the foes killable, synergies held, gained and broken, shadows, the idle),
+export const OPENING_KEYS = Object.freeze([
+  'monarch.danger', 'monarch.peril', 'monarch.threats', 'monarch.screened', 'roads.open', 'roads.openFoes', 'roads.soonest', 'holding', 'holding.foes', 'pieces',
+  'pieces.dies', 'pieces.danger', 'pieces.ready', 'killable', 'synergies.party', 'synergies.gains', 'synergies.breaks', 'shadows', 'idle'
+])
+// and what is the room's whatever the formation (the roads and where foes enter them on the ground and in the air, the foes'
+// skills ready, their menders and their mending, their synergies, the next wave's turn and lanes), read on today's pick's.
+export const OPENING_ROOM_KEYS = Object.freeze(['roads', 'entries.ground', 'entries.air', 'foes.ready', 'foes.mends', 'healers.foe', 'healing', 'synergies.foe', 'wave.in', 'wave.lanes'])
+export const PREP_SIT_KEYS = Object.freeze([
+  'floor', 'rank', 'elite', 'boss', 'siege', 'monarch', 'monarch.hp', 'health', 'fallen', 'souls', 'command', 'cands', ...FIELD_KEYS.map((k) => `field.${k}`),
+  ...['threat', 'odds', 'foes', 'hp', 'def', 'raw', 'waves', 'gap', ...OUT_THREATS.map((t) => `t.${t}`)].map((k) => `room.${k}`),
+  'scout.flyers', 'scout.shooters', 'scout.reach', 'scout.raw', 'scout.far', 'scout.boss', 'scout.road', 'scout.mass', 'camp.open', 'camp.gate',
+  ...OPENING_ROOM_KEYS.map((k) => `o.${k}`)
+])
+export const PREP_CAND_KEYS = Object.freeze([
+  'score', 'rank', 'draft', ...FORMATION_KEYS.map((k) => `v.${k}`),
+  'moved', 'swapped', 'seat1', 'seat2', 'front', 'row', 'lanes', 'big', 'gate', 'shooters', 'melee', 'flyers', 'menders', 'wounded', 'hp',
+  ...OPENING_KEYS.map((k) => `o.${k}`)
+])
+
+// Each phase's reads: the situation's keys and a candidate's. The recruit and the purchases read alike (SIT_KEYS,
+// CAND_KEYS); the prep its own (PREP_SIT_KEYS, PREP_CAND_KEYS).
+const KEYS = Object.freeze({ recruit: [SIT_KEYS, CAND_KEYS], spend: [SIT_KEYS, CAND_KEYS], prep: [PREP_SIT_KEYS, PREP_CAND_KEYS] })
+
 // An object of `keys`, each 0: the read fills it (put).
 export const zeros = (keys) => Object.fromEntries(keys.map((k) => [k, 0]))
 // Sets read `o`'s `key` (one it was made with: zeros) to `v`, rounded as the rows write it (a flag 0 or 1, anything not
@@ -142,21 +192,29 @@ export function put (o, key, v) {
   o[key] = typeof v === 'boolean' ? +v : Number.isFinite(v) ? r6(v) : 0
 }
 
-// The inputs by name, in encodeOut's layout.
-let NAMES = null
-export const outInputNames = () => (NAMES ??= Object.freeze([...SIT_KEYS.map((k) => `s.${k}`), ...CAND_KEYS.map((k) => `f.${k}`), ...CAND_KEYS.map((k) => `vs.${k}`), 'gap']))
-const S0 = 0
-const F0 = SIT_KEYS.length
-const V0 = F0 + CAND_KEYS.length
-const G0 = V0 + CAND_KEYS.length
-export const OUT_D = G0 + 1
+// A phase's inputs in encodeOut's layout: the situation's (s.*), the candidate's (f.*), the same less today's pick's
+// (vs.*), and the gap; their names, and where each block starts. Made once a phase. → { sit, cand, names, F0, V0, G0, D }
+const LAYOUTS = new Map()
+export function layoutOf (phase = 'recruit') {
+  if (!KEYS[phase]) throw new Error(`outforest: no phase "${phase}": ${OUT_PHASES.join(', ')}`)
+  if (!LAYOUTS.has(phase)) {
+    const [sit, cand] = KEYS[phase]
+    const names = Object.freeze([...sit.map((k) => `s.${k}`), ...cand.map((k) => `f.${k}`), ...cand.map((k) => `vs.${k}`), 'gap'])
+    LAYOUTS.set(phase, { sit, cand, names, F0: sit.length, V0: sit.length + cand.length, G0: sit.length + 2 * cand.length, D: names.length })
+  }
+  return LAYOUTS.get(phase)
+}
+// The inputs of a phase by name, in encodeOut's layout (the recruit's and the purchases' alike).
+export const outInputNames = (phase = 'recruit') => layoutOf(phase).names
+export const OUT_D = layoutOf('recruit').D
 
-// The inputs of candidate `f` (its read: outsideRead's `f[i]`) of a decision read as `sit`, against today's pick
-// `today` (its read), in outInputNames' layout. → out
-export function encodeOut (sit, f, today, out = new Float64Array(OUT_D)) {
-  for (let j = 0; j < SIT_KEYS.length; j++) out[S0 + j] = sit[SIT_KEYS[j]] ?? 0
-  for (let j = 0; j < CAND_KEYS.length; j++) {
-    const k = CAND_KEYS[j]
+// The inputs of candidate `f` (its read: outsideRead's or prepRead's `f[i]`) of a decision of `phase` read as `sit`,
+// against today's pick `today` (its read), in the phase's layout (layoutOf). → out
+export function encodeOut (sit, f, today, phase = 'recruit', out = new Float64Array(layoutOf(phase).D)) {
+  const { sit: S, cand: C, F0, V0, G0 } = layoutOf(phase)
+  for (let j = 0; j < S.length; j++) out[j] = sit[S[j]] ?? 0
+  for (let j = 0; j < C.length; j++) {
+    const k = C[j]
     const v = f[k] ?? 0
     out[F0 + j] = v
     out[V0 + j] = r6(v - (today[k] ?? 0))
@@ -201,9 +259,9 @@ export const outDecides = (phase) => !!outForestModel()?.phases?.[phase]
 // agreeing, its margin finite. → the configuration
 export function checkOutForest (config) {
   if (config?.kind !== 'outforest' || typeof config.phases !== 'object' || config.phases === null) throw new Error('outforest: no phases')
-  const known = new Set(outInputNames())
   for (const [phase, m] of Object.entries(config.phases)) {
     if (!OUT_PHASES.includes(phase)) throw new Error(`outforest: no phase "${phase}": ${OUT_PHASES.join(', ')}`)
+    const known = new Set(outInputNames(phase))
     const { inputs, size, feat, thr, right, value } = m ?? {}
     if (!Array.isArray(inputs) || !Array.isArray(size) || !Array.isArray(feat)) throw new Error(`outforest: ${phase} has no inputs or no trees`)
     for (const n of inputs) if (!known.has(n)) throw new Error(`outforest: unknown input "${n}"`)
@@ -219,34 +277,34 @@ export function checkOutForest (config) {
   return config
 }
 
-// A phase's forest made ready for play, once: its trees compiled to encodeOut's layout.
+// Phase `phase`'s forest `m` made ready for play, once: its trees compiled to the phase's layout (encodeOut's).
 const RUNTIMES = new WeakMap()
-function runtimeOf (m) {
+function runtimeOf (m, phase) {
   let rt = RUNTIMES.get(m)
   if (!rt) {
-    const names = outInputNames()
-    rt = { ...compileTrees(m, m.inputs.map((n) => names.indexOf(n))), x: new Float64Array(OUT_D) }
+    const { names, D } = layoutOf(phase)
+    rt = { ...compileTrees(m, m.inputs.map((n) => names.indexOf(n))), x: new Float64Array(D) }
     RUNTIMES.set(m, rt)
   }
   return rt
 }
-// A phase's forest `m`'s mean leaf for inputs `x` (encodeOut's).
-export const predictOut = (m, x) => treesMean(runtimeOf(m), x)
+// Phase `phase`'s forest `m`'s mean leaf for inputs `x` (encodeOut's).
+export const predictOut = (m, x, phase = 'recruit') => treesMean(runtimeOf(m, phase), x)
 
-// The candidate forest `model` takes at decision `read` of `phase` (outsideRead's: `f[0]` today's pick's): each
-// candidate's R (the trees' mean), its advantage over today's R less today's own (target 'mean') or R itself (target
-// 'today'); the best other by it, the earlier where equal, where it exceeds the phase's delta, else today's. →
+// The candidate forest `model` takes at decision `read` of `phase` (outsideRead's or prepRead's: `f[0]` today's pick's):
+// each candidate's R (the trees' mean), its advantage over today's R less today's own (target 'mean') or R itself
+// (target 'today'); the best other by it, the earlier where equal, where it exceeds the phase's delta, else today's. →
 // { index (into read.f, 0 today's), margin (the advantage it was taken by; 0 for today's) }
 export function chooseOut (model, phase, read) {
   const m = model?.phases?.[phase]
   if (!m || read.f.length < 2) return { index: 0, margin: 0 }
-  const rt = runtimeOf(m)
+  const rt = runtimeOf(m, phase)
   const today = read.f[0]
-  const base = m.target === 'mean' ? treesMean(rt, encodeOut(read.sit, today, today, rt.x)) : 0
+  const base = m.target === 'mean' ? treesMean(rt, encodeOut(read.sit, today, today, phase, rt.x)) : 0
   let best = 0
   let top = -Infinity
   for (let i = 1; i < read.f.length; i++) {
-    const a = treesMean(rt, encodeOut(read.sit, read.f[i], today, rt.x)) - base
+    const a = treesMean(rt, encodeOut(read.sit, read.f[i], today, phase, rt.x)) - base
     if (a > top + EPS) {
       top = a
       best = i
@@ -278,7 +336,7 @@ export function readOutDecision (row) {
   const today = opts.find((o) => o.today)
   if (opts.length < 2 || !today) return null
   const order = [today, ...opts.filter((o) => o !== today)]
-  return { rows: order.map((o) => ({ x: encodeOut(row.sit, o.f, today.f), value: o.value, base: !!o.base })) }
+  return { rows: order.map((o) => ({ x: encodeOut(row.sit, o.f, today.f, row.phase), value: o.value, base: !!o.base })) }
 }
 
 // The decisions of `phase` in label sets `dirs`, streamed: each { row, d (readOutDecision's), k (its set's index) }.
@@ -298,7 +356,7 @@ async function * decisionsOf (dirs, phase) {
 // stored by column (shared memory, for the workers); per row its value; per decision its first row, run, split, draw
 // weight, and the key of its run. → the table
 export async function readOutTable (dirs, phase, { bins = 64, sample = 100000, seed = 1 } = {}) {
-  const D = OUT_D
+  const D = layoutOf(phase).D
   const S = Math.max(1, sample)
   const res = new Float64Array(S * D)
   const rand = mulberry(seed)
@@ -339,7 +397,7 @@ export async function readOutTable (dirs, phase, { bins = 64, sample = 100000, s
   }
   start[p] = r
   if (r !== N || p !== P) throw new Error('outforest: the labels changed between the passes')
-  return { phase, names: outInputNames().slice(), D, N, P, cuts, nb: Uint8Array.from(cuts, (c) => c.length + 1), bins: B, v, base, start, meta, dirs: dirs.slice() }
+  return { phase, names: outInputNames(phase).slice(), D, N, P, cuts, nb: Uint8Array.from(cuts, (c) => c.length + 1), bins: B, v, base, start, meta, dirs: dirs.slice() }
 }
 
 // ── the trees ────────────────────────────────────────────────────────────────────────────────────
@@ -553,7 +611,7 @@ export async function evalOutForest (dirs, config, { log = null } = {}) {
     for await (const { row, d } of decisionsOf(dirs, phase)) {
       if (splitOf(row.run) !== 'held') continue
       for (const o of d.rows) {
-        P.push(predictOut(m, o.x))
+        P.push(predictOut(m, o.x, phase))
         t.v.push(o.value)
       }
       t.start.push(t.v.length)
@@ -598,10 +656,20 @@ async function main () {
   if (argv.includes('--weighted')) base.weighted = true
   const workers = Number(arg('workers', Math.max(1, os.availableParallelism() - 1)))
   const bins = Number(arg('bins', 64))
-  const config = { kind: 'outforest', name: arg('name', 'outforest'), about: 'random forests over the expert\'s recruit and purchases (src/sim/outforest.js), fitted on outside.js --label\'s playouts to the run\'s end; today\'s pick unless another\'s predicted advantage exceeds delta', made: new Date().toISOString(), data: dirs, phases: {} }
+  // The phases of `--with`'s configuration not fitted here are carried over as they are (a phase's forest refitted
+  // beside a kept one's).
+  const kept = arg('with', null) ? checkOutForest(JSON.parse(fs.readFileSync(arg('with'), 'utf8'))) : null
+  const config = {
+    kind: 'outforest', name: arg('name', 'outforest'), about: 'random forests over the expert\'s recruit, purchases and formation (src/sim/outforest.js), fitted on outside.js --label\'s playouts (to the run\'s end; a formation\'s to its battle\'s end); today\'s pick unless another\'s predicted advantage exceeds delta',
+    made: new Date().toISOString(), data: [...new Set([...(kept?.data ?? []), ...dirs])], phases: Object.fromEntries(Object.entries(kept?.phases ?? {}).filter(([p]) => !phases.includes(p)))
+  }
   for (const phase of phases) {
     const t = await readOutTable(dirs, phase, { bins })
     console.log(`\n${phase}: ${t.P} decisions, ${t.N} rows, ${t.D} inputs (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
+    if (t.P < 2) {
+      console.log('  too few decisions to fit: none for this phase')
+      continue
+    }
     const cfg = { ...base, ...(num(`delta-${phase}`) !== undefined && { delta: num(`delta-${phase}`) }) }
     const r = await fitOutForest(t, cfg, { log: console.log, workers })
     console.log(`out of bag (the decisions fitted, each by the trees whose draw left its run out):\n${outMarginText(t, r.fitted, r.oob, OUT_DELTAS, r.config.target)}`)
