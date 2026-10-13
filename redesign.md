@@ -1290,6 +1290,17 @@ perturbations). And it is fair (the user: "The teacher is already honest. The us
 every battle of the run is on the screen and combat is deterministic, so the teacher computes only what a player could;
 its strength is perfect calculation, and its clear rate is the ceiling of play.
 
+### The battle teacher, stronger (2026-10-12, stopped)
+
+`src/sim/teacher.js` (offline only): teach.js's teacher with (a) the shipped expert finishing every playout (the forest,
+the learned route), (b) every legal option where the shortlist's best playout loses, (c) where no option of the one
+decision wins, a search over our next decisions jointly across End Turn (the foes' turns played exactly), each line
+finished by a playout, the first winning line taken and followed, ≤ 2,000 playouts; `--shape foes`, a lost line worth
+the share of the foes' HP it removed. On 64 seeds `sim-0…63`, paired against the shipped expert: (a) **46/64** (+28 −6;
+the first teacher, with today's expert finishing, 48/64), 18 min a run; (a)+(b)+(c) **50/62** when stopped (+30 −3), 22
+min a run; with shaped losses, on the seeds (a)–(c) lost, 1 of 6 rescued. Stopped at the user's word: "the ceiling is
+already 100%" (the teacher outside battle, above, 63/64 with the expert's own battles).
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):
