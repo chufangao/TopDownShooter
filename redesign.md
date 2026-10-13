@@ -710,6 +710,15 @@ today's picks the recruit and the tiers by a fixed worth formula and the combo b
   where today's declines (today's sketch counts the field's best few souls, never the souls behind them, so it passes
   on three offers in four). A run takes ~7 s against ~4.5: it goes further (43 battles against 33); the forest's own
   read and trees cost nothing a timing sees.
+- **The formation by the same machinery** (the prep, `autoplay.js planFor`): the candidates are today's formation (the
+  plan's), its next five in today's order (the tree's filters, then the static score) and the best three of the plan's
+  drafts not among them (`prepCandidates`: today's next best are mostly today's with a piece or two moved, the drafts
+  are other shapes), nine in all; each read (`prepRead`, ~6 ms a prep: the situation, the coming battle as scouted, the
+  formation's static read, its shape against today's pick, and the battle's own read of the board it opens on, no turn
+  played) and the forest's best taken where it reads it more than δ above today's. Labelled by playing each formation's
+  coming battle out by the expert (`outside.js --label --phases prep`: teach.js endValue, −10 lost, else the HP carried
+  and the rounds), every prep of the run. **Measured and kept** (§6): round 1 at δ 0.1, on 768 fresh seeds `chk9`,
+  **78.6% clears against the shipped 71.7% (+104 −51), progress +4.58 ± 1.02**, deaths on floor 1 66 against 109.
 
 ## 3. What the player may rely on
 
@@ -1373,6 +1382,23 @@ recruit's at δ 0.5 +1.37 ± 1.19 (clears 70.3% against 67.6%, +40 −33), at δ
 **73.7% against 35.2% (+341 −45), +21.23 ± 1.33**, 7.00 s against 4.40. Kept (outforest.json round 2, 0.22 MB). Open:
 the purchases (a forest fitted twice, on 11,720 of them, plays level with today's), round 3 under round 2, and the formation and the Shop by the
 same machinery; then the balance pass, the expert near the teacher's ceiling being the measure it needs.
+**The formation** (the prep by the same machinery, §2.25; from a frozen worktree of the code it ships with, the battle
+forest's round 3 playing): labels P1, 480 runs `prepl-0…479` of the shipped expert (338 cleared), every prep labelled,
+20,114 decisions of 9 formations each (today's pick, its next five by today's order, the best three of the plan's
+drafts), each formation fielded and its battle played out by the expert, valued by endValue: 1.85 h on four workers
+(~260 runs, ~10,900 decisions, ~98,000 formations an hour). Another formation's battle beat the base's at 62% of the
+decisions (by 0.18 where it did: floor 1 66%, 2 53%, 3 67%, 4 64%); the base's battle was lost at 142 (73 on floor 1,
+5, 9, 55 on floor 4), another formation won it at 102 (50, 4, 7, 41). Twins (today's with two like pieces swapped, every
+feature alike) win and lose apart, as in the battle (the chaos read). The forest (200 trees, depth ≤ 12, ≤ 512 leaves of
+≥ 40 rows, the centred target): out of bag at δ 0.1 it changes 5% of the formations for +0.021 a decision (the teacher's
++0.11), winning 42 of the 110 battles today's lost and losing 13 today's won; held out +0.019, 10 won and 2 lost of 32.
+Paired against the shipped expert on 256 seeds `sel9`: δ 0.02 +2.74 ± 1.97 (clears 79.7% against 75.8%, +37 −27), δ 0
++2.49 ± 2.15 (77.0%, +38 −35), δ 0.05 +3.19 ± 1.97 (81.6%, +38 −23), δ 0.1 +3.76 ± 1.90 (82.8%, +34 −16). δ 0.1 on 768
+fresh seeds `chk9`: **78.6% clears against 71.7% (+104 −51), progress +4.58 ± 1.02**, battles won 99.5% against 99.3%,
+deaths by floor 66 / 9 / 13 / 76 against 109 / 5 / 10 / 93; 8.59 s a run against 7.74, for the runs go further (34,471
+battles against 32,775) and the reads cost ~0.3 s (a margin never passed, every read made: 8.49 s against 8.18 on 64
+seeds, the same moves; three quarters of a prep's 6 ms are the opening boards, turns.js createBattle and policy.js
+situation). Kept: outforest.json `round-2-prep-1`, the recruit's forest of round 2 and the formation's at δ 0.1 (1.18 MB).
 
 ## 7. Standing rules
 

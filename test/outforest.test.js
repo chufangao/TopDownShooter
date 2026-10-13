@@ -1,22 +1,24 @@
-// The forest out of battle (src/sim/outforest.js, redesign.md §2.25): forests that may overrule today's recruit and
-// purchases where they read another candidate the better by more than their margin; the reads they decide by, alike in a
-// label row (outside.js --label) and in play (autoplay.js outsideRead), the labeller, the fitting's plumbing and the
-// measurement's (autoplay.js withOutForest, record's `outforest`, playerOf). Functional only: what a forest decides and
-// how it is read, never how often it wins.
+// The forest out of battle (src/sim/outforest.js, redesign.md §2.25): forests that may overrule today's recruit,
+// purchases and formation where they read another candidate the better by more than their margin; the reads they decide
+// by, alike in a label row (outside.js --label) and in play (autoplay.js outsideRead, prepRead), the labeller, the
+// fitting's plumbing and the measurement's (autoplay.js withOutForest, record's `outforest`, playerOf). Functional only:
+// what a forest decides and how it is read, never how often it wins.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D
+  useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D,
+  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf
 } from '../src/sim/outforest.js'
 import { labelRun, rereadRun, baseStep, candidatesAt } from '../src/sim/outside.js'
 import { createRun, apply, availableNodes, souls, join } from '../src/sim/run.js'
 import { slotAt } from '../src/sim/unit.js'
 import { fight } from './rooms.js'
 import {
-  policy, autoplay, record, withOutForest, playerOf, survey, LEVELS, recruitCandidates, spendCandidates, outCandidates, outsideRead
+  policy, autoplay, record, withOutForest, playerOf, survey, LEVELS, recruitCandidates, spendCandidates, outCandidates, outsideRead, plan, planFor, prepCandidates,
+  prepRead, formationName, PREP_CAP
 } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 
@@ -26,9 +28,10 @@ const SEED = 'sim-0'
 const CAP = 3
 
 // A phase's forest (outforest.json's shape) from trees given as nested nodes ({ f: an input's name, t: its threshold, l,
-// r } or a leaf's number), its margin `delta` and target.
-function phaseOf (trees, { delta = 0.1, target = 'today' } = {}) {
-  const m = { inputs: outInputNames().slice(), target, delta, size: [], feat: [], thr: [], right: [], value: [] }
+// r } or a leaf's number), its margin `delta` and target, over the inputs of `phase` (the recruit's and the purchases'
+// alike).
+function phaseOf (trees, { delta = 0.1, target = 'today', phase = 'recruit' } = {}) {
+  const m = { inputs: outInputNames(phase).slice(), target, delta, size: [], feat: [], thr: [], right: [], value: [] }
   const emit = (n) => {
     const at = m.feat.length
     if (typeof n === 'number') {
@@ -54,13 +57,18 @@ function phaseOf (trees, { delta = 0.1, target = 'today' } = {}) {
   return m
 }
 const outOf = (phases, name = 'test-outforest') => ({ kind: 'outforest', name, phases })
+// A prep's forest that reads every draft far above the hill-climb's formations: it fields a draft wherever one is read.
+const drafter = () => phaseOf([{ f: 'f.draft', t: 0.5, l: -1, r: 5 }], { phase: 'prep' })
 // A forest that reads passing on (no recruit, no purchase) far above every other candidate: it never recruits or buys
 // where today would.
 const passer = () => outOf({ recruit: phaseOf([{ f: 'f.none', t: 0.5, l: -1, r: 5 }]), spend: phaseOf([{ f: 'f.none', t: 0.5, l: -1, r: 5 }]) }, 'passer')
 
-// The labels of SEED (labelRun at a cap of CAP), made once.
+// The labels of SEED (labelRun at a cap of CAP), made once; and of its formations (FORMATIONS a prep), made once.
 let LABELS = null
 const labels = () => (LABELS ??= labelRun(SEED, { cap: CAP }))
+const FORMATIONS = 4
+let PREPS = null
+const preps = () => (PREPS ??= labelRun(SEED, { phases: 'prep', formations: FORMATIONS }))
 
 // The base's run on `seed`, each step out of battle handed to `visit(run, action)` before it is applied.
 function walk (seed, visit) {
@@ -171,6 +179,17 @@ test('with a forest out of battle in use, the outside teacher\'s base step is st
       assert.deepEqual(baseStep(run), a, `${run.state.phase} step ${n}`)
     })
     assert.ok(n > 10)
+    // A prep forest's formation is the base's: walked to step for step, and the teacher's first formation.
+    useOutForest(outOf({ ...passer().phases, prep: drafter() }, 'passer-drafter'))
+    let preps = 0
+    walk(SEED, (run, a) => {
+      assert.deepEqual(baseStep(run), a, `${run.state.phase} step`)
+      const d = candidatesAt(run, { phases: 'prep' })
+      if (d.phase !== 'prep') return
+      assert.equal(d.cands[0].id, formationName(planFor(run, L)))
+      preps++
+    })
+    assert.ok(preps > 0)
   } finally {
     useOutForest(before)
   }
@@ -260,6 +279,8 @@ test('a label set read again is the same rows where the read is the same', () =>
     const { rows } = labels()
     assert.deepEqual(rereadRun(SEED, rows, CAP), rows)
     assert.throws(() => rereadRun(SEED, rows.map((r) => ({ ...r, options: r.options.slice(1) })), CAP), /no longer the labels'/)
+    const formations = preps().rows
+    assert.deepEqual(rereadRun(SEED, formations, CAP, FORMATIONS), formations)
   } finally {
     useOutForest(before)
   }
@@ -294,6 +315,103 @@ test('a forest that recruits with a full retinue lets the weakest go, then makes
       released++
     }
     assert.ok(released > 0)
+  } finally {
+    useOutForest(before)
+  }
+})
+
+test('a prep label row\'s formations and reads are play\'s for the same decision, its base the formation play fields', () => {
+  const before = outForestModel()
+  try {
+    useOutForest(null)
+    const { rows } = preps()
+    assert.ok(rows.length > 0 && rows.every((r) => r.phase === 'prep'))
+    const at = new Map(rows.map((r) => [r.at, r]))
+    let met = 0
+    walk(SEED, (run) => {
+      const row = run.state.phase === 'prep' ? at.get(run.state.log.length) : null
+      if (!row) return
+      const sit = survey(run, L)
+      const { cands } = prepCandidates(run, L, plan(run, L), { cap: FORMATIONS })
+      assert.deepEqual(cands.map((c) => c.id), row.options.map((o) => o.id))
+      const read = prepRead(run, L, sit, cands)
+      assert.deepEqual(read.sit, row.sit)
+      assert.deepEqual(read.f, row.options.map((o) => o.f))
+      assert.deepEqual(Object.keys(read.sit), PREP_SIT_KEYS)
+      for (const f of read.f) assert.deepEqual(Object.keys(f), PREP_CAND_KEYS)
+      // Its reads in play are the same with the survey read there, as planFor reads them.
+      assert.deepEqual(prepRead(run, L, null, cands), read)
+      assert.equal(formationName(planFor(run, L)), row.options.find((o) => o.base).id)
+      met++
+    })
+    assert.equal(met, rows.length)
+  } finally {
+    useOutForest(before)
+  }
+})
+
+test('the prep labeller is deterministic, its run the base\'s untouched, each formation\'s battle played out once a plan', () => {
+  const before = outForestModel()
+  try {
+    useOutForest(null)
+    const a = preps()
+    const b = labelRun(SEED, { phases: 'prep', formations: FORMATIONS })
+    assert.deepEqual(b.rows, a.rows)
+    const base = record({ seed: SEED, level: 'expert' })
+    assert.equal(a.line.result, base.result)
+    assert.equal(a.line.progress, base.progress)
+    assert.equal(a.line.battles.fought, base.battles.length)
+    // One prep decision a battle at most (sim-0's every battle is a prep's), labelled with every formation.
+    assert.ok(a.rows.length >= 1 && a.rows.length <= base.battles.length)
+    assert.equal(a.line.phases.prep.labelled, a.rows.length)
+    assert.equal(new Set(a.rows.map((r) => r.at)).size, a.rows.length)
+    const { V0, D } = layoutOf('prep')
+    for (const row of a.rows) {
+      assert.ok(row.options.length >= 2 && row.options.length <= FORMATIONS)
+      assert.ok(row.options[0].today && row.options.filter((o) => o.today).length === 1)
+      assert.equal(row.options.filter((o) => o.base).length, 1)
+      assert.equal(new Set(row.options.map((o) => o.id)).size, row.options.length)
+      for (const o of row.options) {
+        assert.ok(Number.isFinite(o.value) && Number.isFinite(o.parts.turns))
+        assert.equal(o.won, o.parts.lost === 0)
+        assert.equal(o.won, o.value > -10)
+      }
+      const d = readOutDecision(row)
+      assert.equal(d.rows[0].x.length, D)
+      assert.ok(d.rows[0].x.subarray(V0).every((x) => x === 0))
+    }
+  } finally {
+    useOutForest(before)
+  }
+})
+
+test('a prep forest decides the formation: one never past its margin plays today\'s move for move, one that reads the drafts far above fields one', () => {
+  const before = outForestModel()
+  try {
+    useOutForest(null)
+    const today = autoplay(createRun({ seed: SEED }), { level: 'expert' }).state.log
+    // Of target 'today', every leaf at most delta; of the centred target, every tree a single leaf.
+    useOutForest(outOf({ prep: phaseOf([0.1, { f: 'f.v.open', t: 0.5, l: -3, r: 0.1 }], { phase: 'prep' }) }))
+    assert.ok(outDecides('prep') && !outDecides('recruit'))
+    assert.deepEqual(autoplay(createRun({ seed: SEED }), { level: 'expert' }).state.log, today)
+    useOutForest(outOf({ prep: phaseOf([3, -1], { phase: 'prep', target: 'mean' }) }))
+    assert.deepEqual(autoplay(createRun({ seed: SEED }), { level: 'expert' }).state.log, today)
+    assert.throws(() => checkOutForest(outOf({ prep: phaseOf([0]) })), /unknown input/)
+    useOutForest(outOf({ prep: drafter() }, 'drafter'))
+    let preps = 0
+    let drafted = 0
+    walk(SEED, (run) => {
+      if (run.state.phase !== 'prep') return
+      const { cands } = prepCandidates(run, L, plan(run, L))
+      assert.ok(cands.length <= PREP_CAP)
+      const pick = cands.find((c) => c.id === formationName(planFor(run, L)))
+      assert.ok(pick, 'the formation planned is one of the forest\'s')
+      if (cands.some((c) => c.draft)) assert.ok(pick.draft)
+      drafted += !cands[0].draft && pick.draft
+      preps++
+    })
+    assert.ok(preps > 0 && drafted > 0)
+    assert.notDeepEqual(autoplay(createRun({ seed: SEED }), { level: 'expert' }).state.log, today)
   } finally {
     useOutForest(before)
   }

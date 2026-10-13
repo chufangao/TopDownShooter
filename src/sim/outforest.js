@@ -113,6 +113,28 @@
 // progress +21.23 ± 1.33, 7.00 s a run against 4.40 (43.4 battles a run against 32.9). Kept as outforest.json: the
 // recruit's forest alone, delta 0.25 (200 trees, 16,472 nodes, 0.22 MB); the purchases today's (their forest, fitted
 // twice, plays level with them).
+// The formation, round 1 (2026-10-13; labels P1: 480 runs `prepl-0…479` of the shipped expert, the battle forest's
+// round 3, the learned route and the recruit's forest of round 2; every prep decision, 20,114 of them, each of its 9
+// formations (today's pick, its next five by today's order, the best three of the plan's drafts: 181,026 in all) fielded
+// and its battle played out by the expert, valued by teach.js endValue; in 1.85 h on four workers, ~260 runs, ~10,900
+// decisions and ~98,000 formations an hour, 55 s a run). Another formation's battle beat the base's at 62% of the
+// decisions (by 0.18 where it did); the base's battle was lost at 142 (each a run's end: 73 on floor 1, 5 on floor 2, 9 on
+// floor 3, 55 on floor 4), and another formation won it at 102 of them (50, 4, 7, 41). Today's next best are mostly
+// today's with a piece or two moved, often read alike by every feature, and such twins win and lose apart: the battle is
+// exact and chaotic. Fitted as the battle forest (200 trees, depth ≤ 12, ≤ 512 leaves of ≥ 40 rows, mtry 1/3, the centred
+// target): out of bag at delta 0.1 it changes 5.0% of the formations for +0.021 a decision (the teacher's +0.11), and of
+// the 110 battles today's lost it wins 42, of those today's won it loses 13; held out 4.5%, +0.019, 10 won and 2 lost of
+// 32. Paired against the shipped expert on 256 seeds `sel9`:
+//   the formation's forest, delta 0.02                            +2.74 ± 1.97 progress  (clears 79.7% against 75.8%, +37 −27)
+//   the formation's forest, delta 0                               +2.49 ± 2.15           (clears 77.0%, +38 −35)
+//   the formation's forest, delta 0.05                            +3.19 ± 1.97           (clears 81.6%, +38 −23)
+//   the formation's forest, delta 0.1                             +3.76 ± 1.90           (clears 82.8%, +34 −16)
+// The last, on 768 fresh seeds `chk9`: clears 78.6% against 71.7% (+104 −51), progress +4.58 ± 1.02, battles won 99.5%
+// against 99.3%, deaths on floor 1 66 against 109 (floor 4 76 against 93); 8.59 s a run against 7.74, the runs going
+// further (34,471 battles against 32,775) and the forest's own reads ~0.3 s of it (a configuration whose margin is never
+// passed, every read made, plays the shipped moves at 8.49 s a run against 8.18 on 64 seeds: a prep's read 6 ms, three
+// quarters of it the opening boards). Kept as outforest.json: the recruit's forest of round 2 and the formation's at
+// delta 0.1 (200 trees, 86,470 nodes; 1.18 MB in all).
 import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS } from './forest.js'
 import { splitOf } from './ranker.js'
 import { mulberry } from './value.js'
@@ -554,7 +576,7 @@ export function decidedOut (t, list, P, delta, target = 'mean') {
   return { n, changed: by(changed), gain: by(gain), up: by(up), down: by(down), oracle: by(oracle) }
 }
 
-export const OUT_DELTAS = Object.freeze([0, 0.25, 0.5, 1, 2, 3, 5, 10])
+export const OUT_DELTAS = Object.freeze([0, 0.02, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 10])
 // A margins table of predictions `P` over decisions `list`, a line a margin.
 export function outMarginText (t, list, P, deltas = OUT_DELTAS, target = 'mean') {
   const pct = (x) => `${(100 * x).toFixed(1)}%`.padStart(7)
@@ -571,7 +593,8 @@ export function outMarginText (t, list, P, deltas = OUT_DELTAS, target = 'mean')
 
 // What label sets `dirs` hold, by phase: decisions, candidates a decision, the share where another candidate than the
 // base's pick played out the better (by more than 1e-9) and by how much on the mean, the share where some candidate
-// cleared and the base's did not, and the decisions by floor. → { [phase]: { … } }
+// cleared and the base's did not (a formation's: won its battle where the base's lost it), and the decisions by floor.
+// → { [phase]: { … } }
 export async function outLabelStats (dirs) {
   const out = {}
   for (const phase of OUT_PHASES) {
