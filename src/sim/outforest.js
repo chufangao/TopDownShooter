@@ -134,7 +134,20 @@
 // further (34,471 battles against 32,775) and the forest's own reads ~0.3 s of it (a configuration whose margin is never
 // passed, every read made, plays the shipped moves at 8.49 s a run against 8.18 on 64 seeds: a prep's read 6 ms, three
 // quarters of it the opening boards). Kept as outforest.json: the recruit's forest of round 2 and the formation's at
-// delta 0.1 (200 trees, 86,470 nodes; 1.18 MB in all).
+// delta 0.1 (200 trees, 86,470 nodes; 1.18 MB in all). On 768 seeds more, `chk10p`: clears 75.0% against the expert
+// without it (the recruit's forest alone) 70.8% (+78 −46), progress +1.56 ± 0.91.
+// The formation, round 2 (2026-10-13; labels P2: 480 runs `prepm-0…479` of round 1, 21,532 decisions in 1.8 h on the
+// same four workers; where round 1's forest took another than today's formation, 4.2% of them, its battle won 42 that
+// today's lost and lost 13 that today's won). Refitted on P1 and P2 as round 1; paired against round 1 on 256 seeds
+// `sel10p`:
+//   P1 and P2, delta 0.1                                          +0.78 ± 0.97 progress  (clears 80.1% against 77.3%, +18 −11)
+//   P1 and P2, delta 0.25                                         −0.81 ± 0.95           (clears 75.4%, +11 −16)
+//   P1 and P2, floor 1's decisions at twice the weight, delta 0.1 +1.62 ± 0.91           (clears 80.5%, +17 −9)
+//   round 1's, delta 0.25                                         −0.62 ± 0.66           (clears 75.8%, +9 −13)
+// The third on 768 fresh seeds `chk10p`: against round 1, clears 76.3% against 75.0% (+47 −37), progress −0.13 ± 0.68:
+// not kept. Nor a forest fitted on P1 and P2 without the opening boards' inputs (`--without s.o.,f.o.,vs.o.`: it makes
+// no board in play, opensBoard, a prep's read 0.8 ms against 3.2): against round 1 on 768 fresh seeds `chk11p`, clears
+// 78.0% against 79.6% (+30 −42), progress −1.39 ± 0.62, at 4.59 s a run against 4.84.
 import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS } from './forest.js'
 import { splitOf } from './ranker.js'
 import { mulberry } from './value.js'
