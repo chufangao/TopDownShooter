@@ -703,7 +703,10 @@ function takeRelic (s, id) {
 
 // What relic `id` costs: TUNING.shop.price for its tier × the floor's price scale (floorPrice), after the relics that
 // cut it (`price.relic`), never below 1.
-export const relicPrice = (run, id) => price(run, TUNING.shop.price[relicTier(id)], 'price.relic')
+export const relicPrice = (run, id) => relicTierPrice(run, relicTier(id))
+// What a relic of tier `tier` (RELIC_TIERS id) costs here: relicPrice's, by tier (the Shop's prices, as a room's tip
+// lists them before it is entered).
+export const relicTierPrice = (run, tier) => price(run, TUNING.shop.price[tier], 'price.relic')
 // Whether stock slot `index` can be bought now: a relic still on the shelf, and the purse holds its price.
 export const canBuy = (run, index) => {
   const id = run.state.shop[index]

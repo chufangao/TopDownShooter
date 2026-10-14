@@ -4,12 +4,12 @@
 // back the events each one made, the foes' turn among them.
 import Phaser from './vendor/phaser.js'
 import { TUNING } from './tuning.js'
-import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, FUSIONS } from './content.js'
+import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, FUSIONS, ROLES } from './content.js'
 import {
   reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
-  lined, lineOf, lineStruck
+  lined, lineOf, lineStruck, stats, untouchedPreview
 } from './sim/turns.js'
-import { foeEssence } from './sim/run.js'
+import { foeEssence, eliteBonus } from './sim/run.js'
 import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, blowReach, footprint, alive, isBlow } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy } from './dom.js'
@@ -39,7 +39,9 @@ export function createEngine (parent, { gate = null } = {}) {
     // one), title, stage() (the viewport rect the board fits in), hud (the chrome's words: start, synergies, hp,
     // announce), onChange(state), onHover(unit | null, rect, pin), onDone(), essence (what the purse multiplies a slain
     // foe's essence by), seamless (the Field board fades into it: no fade in from black), death() (what felled the
-    // Monarch, codex.js deathText, for the end's replay beat, or null) }. Resolves with the scene once built.
+    // Monarch, codex.js deathText, for the end's replay beat, or null), elite (an elite's room: the purse's card tells
+    // its bounty), earned() (the essence the run took for the battle, for the VICTORY banner) }. Resolves with the scene
+    // once built.
     async battle (data) {
       await loaded
       return new Promise((resolve) => game.scene.start('Battle', { ...data, onReady: resolve }))
@@ -746,21 +748,122 @@ class BattleScene extends Phaser.Scene {
   // synergies with their rules, from the battle (a fuse, a fall, a rise or a wave may change them), sent only when they
   // change. The sim is a whole order ahead of the playback, so they are read only once it
   // has played out (or at the start and the end): a fall in the foes' turn never shows before it is seen. Nothing of
-  // the foes' coming turn.
+  // the foes' coming turn. The next wave carries its size (`size`: scouted, as the room's card told it); each synergy
+  // the pieces it counts (`members`); `roster` your pieces that take orders and those still to act (null while the
+  // board waits on the playback).
   changed () {
     const b = this.battle
     const c = this.counts
-    if (this.synKey === null || !this.locked() || this.ending) {
-      const syn = (side) => synergyLabels(synergiesOf(b, side))
+    const free = !this.locked() && !this.ending
+    if (this.synKey === null || free || this.ending) {
+      const syn = (side) => synergyLabels(synergiesOf(b, side)).map((x) => ({ ...x, members: this.members(side, x.id) }))
       const now = { theirs: syn('foe'), mine: syn('party') }
       const key = JSON.stringify(now)
       if (key !== this.synKey) { this.synKey = key; this.args.hud?.synergies?.(now) }
     }
     this.args.onChange?.({
       paused: this.paused, over: this.ending, essence: this.purse,
-      turn: c.turn, next: c.next, wave: c.wave, waves: Math.max(c.wave, this.waves.length),
-      busy: this.locked(), panel: this.panel()
+      turn: c.turn, next: c.next && { ...c.next, size: this.waves[c.next.wave]?.size ?? null }, wave: c.wave, waves: Math.max(c.wave, this.waves.length),
+      busy: this.locked(), panel: this.panel(), roster: free ? this.roster() : null
     })
+  }
+
+  // Your pieces that take orders (the Monarch and the shadows never do), and the names of those that may still act,
+  // in acting order. Read only while the board takes orders.
+  roster () {
+    const b = this.battle
+    const mine = b.units.filter((u) => orderable(b, u))
+    return { total: mine.length, ready: mine.filter((u) => canAct(b, u)).map((u) => unitDef(u.id).name) }
+  }
+
+  // The living of `side` that synergy `id` counts (its kin's or its role's, a Mimicry holder's borrowed role too), as
+  // the chip's card names them: each kind once, ×n for more, then the shadows (a summon is one) as a count. '' for none.
+  members (side, id) {
+    const b = this.battle
+    const syn = SYNERGIES.find((s) => s.id === id)
+    if (!syn) return ''
+    const needs = Object.entries(syn.needs).flatMap(([axis, m]) => Object.keys(m).map((k) => [axis, k]))
+    const counted = (u) => {
+      const d = unitDef(u.id)
+      if (ROLES[d.role]?.hidden) return false
+      const roles = [d.role, ...(u.held ?? []).flatMap((r) => r.roles?.(b, u, r) ?? [])]
+      return needs.some(([axis, k]) => (axis === 'kin' ? d.kin === k : roles.includes(k)))
+    }
+    const kinds = new Map()
+    let shadows = 0
+    for (const u of b.units) {
+      if (u.side !== side || !alive(u) || !counted(u)) continue
+      if (u.shadow) shadows++
+      else kinds.set(unitDef(u.id).name, (kinds.get(unitDef(u.id).name) ?? 0) + 1)
+    }
+    return [...[...kinds].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name)), shadows > 0 && `${shadows} shadow${shadows === 1 ? '' : 's'}`]
+      .filter(Boolean).join(', ')
+  }
+
+  // End Turn's own part as it would play now (turns.js untouchedPreview), named for the button's card: each piece of
+  // yours left untouched, in acting order, what it would do and to whom (the foes it would strike, `hits`, with what it
+  // lays on each; the allies it would mend, `heals`), the counter it would draw, whether it falls to it; and whether the
+  // last foe would fall in it (`won`). Never the foes' turn. Null while the board takes no orders: the sim is ahead.
+  endInfo () {
+    if (this.locked() || this.ending) return null
+    const b = this.battle
+    const p = untouchedPreview(b)
+    if (!p) return null
+    return {
+      won: p.over && p.winner === 'party',
+      acts: p.acts.map((x) => {
+        const name = (uid) => (uid === x.uid ? 'itself' : unitDef(b.byUid.get(uid)?.id ?? x.id).name)
+        const laid = (uid) => (x.statuses[uid] ?? []).map((s) => statusDef(s.id).name)
+        const hit = Object.entries(x.hits).map(([uid, n]) => [+uid, n]).filter(([uid, n]) => n > 0 && b.byUid.get(uid)?.side === 'foe')
+        for (const uid of x.falls) if (!hit.some(([y]) => y === uid)) hit.push([uid, 0])
+        return {
+          name: unitDef(x.id).name, shadow: x.shadow, hexed: x.hexed, act: x.ability ? abilityDef(x.ability).name : null,
+          target: x.target != null ? name(x.target) : null, missed: x.missed.length > 0,
+          hits: hit.map(([uid, n]) => ({ name: name(uid), n, falls: x.falls.includes(uid), laid: laid(uid) })),
+          heals: Object.entries(x.heals).filter(([, n]) => n > 0).map(([uid, n]) => ({ name: name(+uid), n, laid: laid(+uid) })),
+          counter: x.counter, fell: x.lost.includes(x.uid), lost: x.lost.filter((uid) => uid !== x.uid).map(name)
+        }
+      })
+    }
+  }
+
+  // The lead line of the card of a piece of yours (main.js onHover): a shadow's way (the basic it uses each turn, and
+  // what Hollow Court would pay for it standing at the win); a piece's turn as it stands while the board takes orders:
+  // its Move left (or that it has acted, or is Hexed), each skill ready or resting, and how many foes its basic blow
+  // reaches from here. Null for anyone else, and for a piece while the playback runs (the sim is ahead of it).
+  pieceLine (uid) {
+    const b = this.battle
+    const u = b.byUid.get(uid)
+    if (!u || u.side !== 'party' || u === b.monarch) return null
+    if (u.shadow) {
+      const a = u.basic ?? u.mend
+      const does = a ? `${a === u.basic ? 'strikes with' : 'mends with'} ${a.name} each turn` : 'acts on its own each turn'
+      const reap = u.reap > 0 ? Math.round(foeEssence(u) * u.reap * this.essence) : 0
+      return `${u.summoned ? `Summoned by its ${unitDef(u.id).name}` : 'Shadow'}: ${does} · ${reap > 0 ? `+${reap} essence more if it stands at the win` : 'gone after the battle'}`
+    }
+    if (this.locked() || this.ending || !alive(u)) return null
+    const skills = u.kit.filter((a) => isSkill(u, a)).map((a) => (u.cooldowns[a.id] > 0 ? `${a.name} ready in ${u.cooldowns[a.id]}` : `${a.name} ready`))
+    if (u.acted) return ['Acted', ...skills].join(' · ')
+    const n = u.basic && !hexed(u) ? targetsFrom(b, u, u.basic).length : 0
+    return [hexed(u) && 'Hexed: no act this turn', `Move ${Math.max(0, u.move - u.moved)}/${u.move}`, ...skills,
+      u.basic && !hexed(u) && (n ? `${n} in reach of ${u.basic.name}` : `no foe in reach of ${u.basic.name}`)].filter(Boolean).join(' · ')
+  }
+
+  // The counters' cards (ui.js battleChrome), as the playback has shown the battle: the foes standing on the board, the
+  // foes slain and the essence they carry (`owed`: pay, the relics' share in), the purse a win pays it into (the run's,
+  // less what fusions here spent), essence gain, an elite's bounty (with gain), and, while the board takes orders, what
+  // Hollow Court's standing shadows would add at a win (`court`, with gain; null for none).
+  tally () {
+    const b = this.battle
+    let foes = 0
+    let slain = 0
+    for (const a of this.actors.values()) if (a.side === 'foe') { if (!a.gone) foes++; else if (a.paid) slain++ }
+    const court = this.locked() ? [] : b.units.filter((u) => u.side === 'party' && u.reap > 0 && alive(u))
+    return {
+      foes, slain, owed: Math.round(this.owed), bank: b.purse, gain: this.essence,
+      bonus: this.args.elite ? Math.round(eliteBonus(b.floor) * this.essence) : 0,
+      court: court.length ? { n: court.length, essence: Math.round(court.reduce((n, u) => n + foeEssence(u) * u.reap, 0) * this.essence) } : null
+    }
   }
 
   // The camera's shudder and flash, kept for what matters (a heavy fall, the Monarch struck, a boss's turn): routine
@@ -1193,10 +1296,24 @@ class BattleScene extends Phaser.Scene {
       // target, one a death burst fells with no number of its own.
       const hits = Object.entries(p.hits).filter(([, d]) => d > 0)
       const falls = new Set(p.falls)
+      const shown = this.aimMarks.length
       for (const [x, d] of hits) this.mark(+x, `−${d}${falls.has(+x) ? ' · FALLS' : ''}`, falls.has(+x) ? '#ff8a9a' : '#ffe6c8')
       for (const x of falls) if (!(p.hits[x] > 0)) this.mark(x, 'FALLS', '#ff8a9a')
-      if (p.heal > 0) this.mark(uid, `+${p.heal}`, '#7be0a0')
-      if (!hits.length && !(p.heal > 0)) this.mark(uid, abilityDef(s.ability).name, '#d8d0ff', 12)
+      // Every one it would mend (a group heal's each ally), and over each, the statuses it would wear for it (WITHERED
+      // 3T: its stacks past one, its turns; a debuff the foes' red, a buff the synergies' blue, as they float when laid),
+      // what it would strip (CLEANSED), and a corpse that would rise as yours (RISES), stacked over its numbers.
+      for (const [x, n] of Object.entries(p.heals ?? {})) if (n > 0) this.mark(+x, `+${n}`, '#7be0a0')
+      for (const [x, list] of Object.entries(p.statuses ?? {})) {
+        for (const st of list) {
+          const d = statusDef(st.id)
+          this.mark(+x, `${d.name.toUpperCase()}${st.stacks > 1 ? ` ×${st.stacks}` : ''}${st.dur === 'battle' ? '' : ` ${st.dur}T`}`,
+            d.tags.includes('debuff') ? C.foe : C.synergy, 12)
+        }
+      }
+      for (const [x, list] of Object.entries(p.cleansed ?? {})) this.mark(+x, list.length > 1 ? `CLEANSED ×${list.length}` : 'CLEANSED', C.synergy, 12)
+      for (const x of p.rises ?? []) this.mark(x, 'RISES', C.shadow, 12)
+      // An act with nothing to show (a cooldown's): its name over the target.
+      if (this.aimMarks.length === shown) this.mark(uid, abilityDef(s.ability).name, '#d8d0ff', 12)
       if (p.counter > 0) this.mark(s.uid, `↩ −${p.counter}`, '#ffb27a')
       this.lockOn(uid)
       sfx.play('click')
@@ -1220,12 +1337,14 @@ class BattleScene extends Phaser.Scene {
     return { line, hit: lineStruck(b, u, a, target).uid, aim: uid }
   }
 
-  // A preview's number over a unit, held until the aim changes.
+  // A preview's number over a unit, held until the aim changes; a second over the same unit stands over the first.
   mark (uid, text, colour, size = 15) {
     const a = this.actors.get(uid)
     if (!a) return
     const z = this.cameras.main.zoom
-    const t = this.text(a.vx ?? a.sprite.x, a.sprite.y - a.chest - a.hover - 24, text, labelSize(size, z, 'num'), colour, 4).setOrigin(0.5, 1).setDepth(9700)
+    const under = this.aimMarks.filter((m) => m.getData('uid') === uid).reduce((y, m) => Math.min(y, m.y - m.displayHeight + 2), Infinity)
+    const y = Math.min(a.sprite.y - a.chest - a.hover - 24, under)
+    const t = this.text(a.vx ?? a.sprite.x, y, text, labelSize(size, z, 'num'), colour, 4).setOrigin(0.5, 1).setDepth(9700)
     this.aimMarks.push(t.setData('uid', uid))
   }
 
@@ -1349,10 +1468,36 @@ class BattleScene extends Phaser.Scene {
     if (!this.player.finished) this.playMs = Math.max(this.playMs, this.player.end)
   }
 
+  // What act `id` of the selected piece does, for its button's card (ui.js battleChrome, codex.js actText): the act,
+  // the piece's stats now, its reach in tiles (Infinity: anywhere; Sanctuary's for an ally act), Arise's reach and tier;
+  // and while it may act, what it would do to each it can take from where it stands (preview: the sim's own numbers,
+  // `by` the piece on the line that would take it instead) and who only a move brings in reach. Null with none selected.
+  actInfo (id) {
+    const b = this.battle
+    const u = this.sel && b.byUid.get(this.sel.uid)
+    const a = u?.kit.find((x) => x.id === id)
+    if (!a || !alive(u)) return null
+    const range = isBlow(a) ? blowReach(u, a) : holds(b, u.side, 'sanctuary') ? Infinity : rangeOf(a)
+    const free = !this.locked() && canAct(b, u) && usable(b, u, a)
+    const now = free ? targetsFrom(b, u, a) : []
+    const later = new Map()
+    if (free) for (const t of reach(b, u).keys()) for (const x of targetsFrom(b, u, a, t)) if (!now.includes(x)) later.set(x.uid, x)
+    const name = (x) => unitDef(x.id).name
+    return {
+      a, st: stats(b, u), range, flies: !!u.flies, arise: a.shape === 'corpse' ? ariseOf(b, u) : null,
+      now: now.map((x) => {
+        const p = preview(b, u.uid, a.id, x.uid)
+        const by = p && p.struck !== x.uid ? b.byUid.get(p.struck) : null
+        return { name: name(x), self: x === u, damage: p?.damage ?? 0, heal: p?.heal ?? 0, counter: p?.counter ?? 0, falls: !!p?.kills, by: by && name(by) }
+      }),
+      later: [...later.values()].map(name)
+    }
+  }
+
   // The selected piece's panel for the chrome (ui.js battleChrome): its HP and Move, the relics it holds, each act it
   // has (a skill's rest, whether it may be used now and on how many; Arise's reach and tier for a holder of its relic:
-  // redesign.md §2.15), Undo, and the fusions lit beside it. Null with none selected (the Monarch never is: it takes
-  // no orders).
+  // redesign.md §2.15), Undo and the tile it goes back to (`from`), the purse a fusion pays from, and the fusions lit
+  // beside it. Null with none selected (the Monarch never is: it takes no orders).
   panel () {
     const b = this.battle
     const s = this.sel
@@ -1371,10 +1516,14 @@ class BattleScene extends Phaser.Scene {
     })
     return {
       uid: u.uid, id: u.id, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, acted: u.acted, hexed: hexed(u), relics: u.relics ?? [],
-      acts, aim: s.aim != null, undo: free && this.undoable(u),
+      acts, aim: s.aim != null, undo: free && this.undoable(u), from: u.from, purse: b.purse,
       // Aimed through a screen: the kind of the piece on the line that takes the blow (redesign.md §2.19).
       screen: s.aim != null && s.shot && s.shot.hit !== s.aim ? unitDef(b.byUid.get(s.shot.hit)?.id ?? b.byUid.get(s.aim).id).name : null,
-      fusions: free ? legalOrders(b).filter((o) => o.type === 'fuse' && o.uid === u.uid).map((o) => ({ order: o, name: FUSIONS[o.id].name, price: b.fuse?.[o.id]?.price ?? null })) : []
+      // Each fusion with the kinds of the other parts it takes, those beside it.
+      fusions: free ? legalOrders(b).filter((o) => o.type === 'fuse' && o.uid === u.uid).map((o) => ({
+        order: o, name: FUSIONS[o.id].name, price: b.fuse?.[o.id]?.price ?? null,
+        parts: o.parts.filter((x) => x !== u.uid).map((x) => unitDef(b.byUid.get(x).id).name)
+      })) : []
     }
   }
 
@@ -2253,8 +2402,13 @@ class BattleScene extends Phaser.Scene {
     // A wave the Sovereign's fall cut short pays for the slain it had (a lost battle pays nothing).
     if (won && this.waves.length > 1) this.waves.forEach((_, k) => this.wavePaid(k))
     const clear = this.battle.floor > TUNING.run.floors ? ' The clear stands.' : ''
+    // A won battle's tally: the foes slain (a shadow is none) and what the run took for them (args.earned: run.js
+    // finishBattle's, relics, an elite's bounty and Hollow Court in; else what the slain carried).
+    const slain = this.battle.units.filter((u) => u.side === 'foe' && !u.shadow && !alive(u)).length
+    const earned = Math.round(this.args.earned?.() ?? this.owed)
+    const tally = `${slain} ${slain === 1 ? 'foe' : 'foes'} slain · +${earned} essence`
     // A boss room (battle.boss, as finishBattle reads it) has no reap: the Sovereign's fall clears the run.
-    const [title, line] = won ? (this.battle.boss ? ['THE SOVEREIGN FALLS', `${reason === 'sovereign' ? 'Its court crumbled with it. ' : ''}The run is cleared.`] : ['VICTORY', 'The souls of the slain linger, waiting to be reaped.'])
+    const [title, line] = won ? (this.battle.boss ? ['THE SOVEREIGN FALLS', `${reason === 'sovereign' ? 'Its court crumbled with it. ' : ''}The run is cleared.`] : ['VICTORY', tally])
       : death ? ['THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
         : reason === 'monarch' ? ['THE MONARCH FALLS', `Its retinue crumbles with it. The run is over.${clear}`]
           : ['YOUR RETINUE FALLS', 'The dead return to the dark.']

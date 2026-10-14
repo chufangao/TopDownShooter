@@ -490,10 +490,20 @@ b { font-weight: 600; color: var(--bright); }
 .ct-foot { margin-top: 10px; padding-top: 8px; border-top: 2px dashed var(--line2); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: 3px; }
 .note-line { color: var(--c-essence2); }
 .syn-tip { max-width: 400px; }
+/* An act's card (ui.js battleChrome): what it does, then each it can take from here, its numbers as aiming shows them. */
+.act-tip p { margin: 6px 0 0; }
+.act-tip .act-k { font: 600 var(--fs-sm) var(--display); color: var(--dim); }
+.act-targets { margin: 2px 0 0; padding-left: 18px; display: grid; gap: 1px; font-variant-numeric: tabular-nums; }
+.act-targets .n-dmg { color: #ffe6c8; }
+.act-targets .n-falls { color: var(--c-foe2); }
+.act-targets .n-heal { color: #7be0a0; }
+.act-targets .n-counter { color: #ffb27a; }
 .room-tip { width: 400px; }
 .rt-head { display: flex; gap: 10px; align-items: center; font: 600 var(--fs-lg) var(--display); }
 .rt-foot { margin-top: 8px; font: 600 var(--fs-sm) var(--display); }
 .rt-foot.go { color: var(--c-essence); }
+/* What a room holds for you now, in numbers (codex.js roomGain): a battle's pay and recruits, an altar's mending, a Shop's prices. */
+.rt-gain { margin: 4px 0 0; font-variant-numeric: tabular-nums; }
 .mini-grid { display: inline-flex; flex-direction: column; gap: 3px; margin: 8px 0 4px; }
 .mini-row { display: flex; gap: 3px; }
 .mini-cell { width: 34px; height: 34px; border-radius: 7px 5px 8px 6px; background: var(--sunk); border: 1.5px solid var(--ink); display: grid; place-items: center; }

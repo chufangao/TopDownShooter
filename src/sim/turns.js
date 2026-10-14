@@ -1222,11 +1222,7 @@ function endTurn (battle) {
   battle.phase = 'resolving'
   battle.beat++
   emit(battle, { type: 'stage', stage: 'untouched' })
-  // In acting order, and anyone who rises meanwhile (a Legion's shadow) too.
-  for (let i = 0; i < battle.units.length && !battle.over; i++) {
-    const u = battle.units[i]
-    if (u.side === 'party' && alive(u) && !u.acted && u !== battle.monarch) untouched(battle, u)
-  }
+  untouchedAll(battle)
   if (!battle.over) {
     battle.stage = 'foes'
     for (const u of battle.units) if (u.side === 'foe') ready(u)
@@ -1239,6 +1235,78 @@ function endTurn (battle) {
   if (!battle.over) closeTurn(battle)
   if (!battle.over) startTurn(battle)
   battle.phase = 'orders'
+}
+
+// End Turn's first part: every piece of yours given no act acts as the untouched do (untouched), in acting order, and
+// anyone who rises meanwhile (a Legion's shadow) too; `each(u, from)` hears of each after it acts, `from` the index of
+// its first event.
+function untouchedAll (battle, each = null) {
+  for (let i = 0; i < battle.units.length && !battle.over; i++) {
+    const u = battle.units[i]
+    if (u.side !== 'party' || !alive(u) || u.acted || u === battle.monarch) continue
+    const from = battle.events.length
+    untouched(battle, u)
+    each?.(u, from)
+  }
+}
+
+// What End Turn's first part would do now (untouchedAll), played on a copy (fork) and read back from its events, for
+// the End Turn button's card: one entry per piece of yours that would act in it (shadows too, and one that rises
+// meanwhile), in acting order → { acts: [{ uid, id, shadow, hexed (its act lost), ability (the act's id; null: nothing
+// to do), target (the uid aimed at), struck (who took it: a piece on the line, a Bodyguard), hits ({ uid: damage }),
+// missed (uids), heals ({ uid: HP mended }), statuses ({ uid: [{ id, dur, stacks }] }: what it lays, as it stands once
+// the part is over), falls (the foes it fells), counter (the damage the answer deals it), lost (yours that fall in its
+// act: itself to a counter, an ally to a burst) }], over, winner }. It never plays the foes' turn: nothing of it is
+// read. Null while no orders are taken (the battle over, or inside End Turn).
+export function untouchedPreview (battle) {
+  if (battle.over || battle.phase !== 'orders') return null
+  const f = fork(battle, { quiet: false })
+  f.phase = 'resolving'
+  f.beat++
+  const acts = []
+  untouchedAll(f, (u, from) => {
+    const out = { uid: u.uid, id: u.id, shadow: !!u.shadow, hexed: false, ability: null, target: null, struck: null, hits: {}, missed: [], heals: {}, statuses: {}, falls: [], counter: 0, lost: [] }
+    const events = f.events.slice(from)
+    let answered = false
+    for (const e of events) {
+      if (e.type === 'hexed' && e.target === u.uid) out.hexed = true
+      else if (e.type === 'action' && e.counter) answered = true
+      else if (e.type === 'action' && e.actor === u.uid && out.ability === null) {
+        out.ability = e.ability
+        out.target = e.primary ?? null
+        out.struck = e.struck ?? e.primary ?? null
+      } else if (e.type === 'damage' && !e.status) {
+        if (!answered) out.hits[e.target] = (out.hits[e.target] ?? 0) + e.damage
+        else if (e.target === u.uid) out.counter += e.damage
+      } else if (e.type === 'miss' && !answered) out.missed.push(e.target)
+      else if (e.type === 'heal' && !answered) out.heals[e.target] = (out.heals[e.target] ?? 0) + e.heal
+      else if (e.type === 'death') (f.byUid.get(e.target)?.side === u.side ? out.lost : out.falls).push(e.target)
+    }
+    out.statuses = laid(f, events)
+    acts.push(out)
+  })
+  // One lifted again where it fell (Undying) has not fallen.
+  for (const x of acts) {
+    x.falls = [...new Set(x.falls)].filter((uid) => !alive(f.byUid.get(uid)))
+    x.lost = [...new Set(x.lost)].filter((uid) => !alive(f.byUid.get(uid)))
+  }
+  return { acts, over: f.over, winner: f.winner }
+}
+
+// The statuses `events` lay (status events; none a boss's phase grants: that is the boss's to show), each as its
+// holder wears it in battle `f` now ({ id, dur, stacks }), by holder uid; none on one that has fallen since, or lost
+// it again.
+function laid (f, events) {
+  const out = {}
+  const phase = new Set(events.filter((e) => e.type === 'phase').map((e) => `${e.target}|${e.status}`))
+  for (const e of events) {
+    if (e.type !== 'status' || phase.has(`${e.target}|${e.status}`)) continue
+    const x = f.byUid.get(e.target)
+    const s = x && alive(x) && x.statuses.find((y) => y.id === e.status)
+    if (!s || out[e.target]?.some((y) => y.id === s.id)) continue
+    ;(out[e.target] ??= []).push({ id: s.id, dur: s.dur, stacks: s.stacks })
+  }
+  return out
 }
 
 // The turn's end: statuses tick and age, cooldowns fall, the turn count advances, a wave whose turn has come enters,
@@ -1353,7 +1421,10 @@ export function playOut (battle, policy = basicTurn) {
 // `target` (lineOf: none for a blow that keeps to no line; the interface draws it to `struck`), `damage` dealt to the
 // struck, `counter` the damage its answer would deal the actor, `heal` mended on `target`, `hits` damage by uid (a
 // Shape's every target, a Bodyguard's), `kills` whether the struck would fall, and `falls` every one of the other side
-// the act would fell (uids: the interface marks FALLS on each). Null for an act that may not be given.
+// the act would fell (uids: the interface marks FALLS on each); and for the aim's marks, `heals` HP mended by uid (a
+// group heal's every ally, a blow's self heal), `statuses` what it lays by uid ([{ id, dur, stacks }] as each would
+// wear it after; laid, the counter's too), `cleansed` the statuses it strips by uid, and `rises` the corpses that rise
+// on the actor's side (Arise's, a Legion's). Null for an act that may not be given.
 export function preview (battle, uid, ability, target) {
   const f = fork(battle, { quiet: false })
   try {
@@ -1362,7 +1433,10 @@ export function preview (battle, uid, ability, target) {
     return null
   }
   const u = battle.byUid.get(uid)
-  const out = { damage: 0, counter: 0, heal: 0, hits: {}, struck: target, line: lineOf(battle, u, battle.byUid.get(target), ability), kills: false, falls: [] }
+  const out = {
+    damage: 0, counter: 0, heal: 0, hits: {}, struck: target, line: lineOf(battle, u, battle.byUid.get(target), ability), kills: false, falls: [],
+    heals: {}, statuses: laid(f, f.events), cleansed: {}, rises: []
+  }
   let answered = false
   for (const e of f.events) {
     if (e.type === 'action' && e.counter) answered = true
@@ -1375,7 +1449,12 @@ export function preview (battle, uid, ability, target) {
         out.hits[e.target] = (out.hits[e.target] ?? 0) + e.damage
         if (e.target === out.struck) out.damage += e.damage
       }
-    } else if (e.type === 'heal' && e.target === target && !answered) out.heal += e.heal
+    } else if (e.type === 'heal' && !answered) {
+      out.heals[e.target] = (out.heals[e.target] ?? 0) + e.heal
+      if (e.target === target) out.heal += e.heal
+    } else if (e.type === 'cleanse' && !answered) (out.cleansed[e.target] ??= []).push(e.status)
+    // A corpse risen on the actor's side (the one event that names a corpse: by its shape, as no rule is branched on here).
+    else if (e.corpse != null && e.unit?.side === u.side) out.rises.push(e.corpse)
   }
   // One lifted again where it fell (Undying) has not fallen.
   out.falls = out.falls.filter((x) => !alive(f.byUid.get(x)))

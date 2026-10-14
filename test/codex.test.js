@@ -263,3 +263,31 @@ test('a kind with a blow that keeps to its line says so; a lobbed blow says it i
   const text = codexView(createRun({ seed: 'codex' })).textContent
   assert.ok(/line of fire/.test(text) && /SCREENED/.test(text), 'the primer and the battle gestures tell it')
 })
+
+// The tooltips out of battle tell the run's own numbers, not the design: what a room pays or mends now, what one more
+// copy of a run relic makes of the run, what a soul does when left alone.
+test('a room\'s tip tells its pay and recruit prices, an altar what it would mend now; a run relic one more copy; a soul its basic left alone', async () => {
+  const { roomGain } = await import('../src/codex.js')
+  const { foeEssence, commandOf, monarchOf, soulOffer } = await import('../src/sim/run.js')
+  const { abilitiesOf } = await import('../src/sim/unit.js')
+  const { abilityDef } = await import('../src/content.js')
+  const { basicOf } = await import('../src/sim/turns.js')
+  const run = createRun({ seed: 'told' })
+  const s = run.state
+  const node = s.map.nodes.find((n) => n.type === 'fight')
+  const pay = [node.foes, ...(node.waves ?? []).map((w) => w.foes)].flat().reduce((n, f) => n + foeEssence(f), 0)
+  const said = roomTip(run, node, { reachable: true }).textContent
+  assert.ok(said.includes(`Win: +${Math.round(pay)} essence and a recruit: `), said)
+  // Each kind on offer by name with its price: "A for 11, B for 22", or "A or B for 11 essence each".
+  const offers = [...new Set(node.foes.map((f) => f.id))].map((id) => ({ name: UNIT_LIST.find((u) => u.id === id).name, cost: soulOffer(run, { id }).cost }))
+  const same = offers.every((o) => o.cost === offers[0].cost)
+  for (const o of offers) assert.ok(said.includes(same ? o.name : `${o.name} for ${o.cost}`), o.name)
+  if (same) assert.ok(said.includes(`for ${offers[0].cost} essence`), said)
+  const altar = { id: 'a', type: 'altar', next: [] }
+  const text = (x) => [x].flat(Infinity).filter((c) => c != null && c !== false).map((c) => (typeof c === 'object' ? c.textContent : String(c))).join('')
+  assert.equal(text(roomGain(run, altar)), 'Nothing to heal now.')
+  monarchOf(s).hp -= 30
+  assert.match(text(roomGain(run, altar)), /^Heals the Monarch \+30\b/)
+  assert.ok(relicTip('grave_banner', run).textContent.includes(`One more: Command ${commandOf(s)} → ${commandOf(s) + 1}`))
+  for (const u of souls(s.party)) assert.ok(reachRule(u).includes(`it uses ${basicOf(abilitiesOf(u).map(abilityDef)).name}`), reachRule(u))
+})

@@ -3,11 +3,11 @@
 // The DOM screens are laid out at one logical size and scaled to the screen (frame.js); the canvas is not.
 import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
-import { createRun, apply, currentNode, unhealed, depthOf, runStat } from './sim/run.js'
+import { createRun, apply, currentNode, depthOf, runStat } from './sim/run.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS } from './content.js'
 import { titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome } from './ui.js'
-import { helpOverlay, unitCard, tipDetail, deathText, bestiary } from './codex.js'
+import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, altarNote, recruitNote } from './codex.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from './dom.js'
 import { sfx } from './sfx.js'
 import { board } from './board.js'
@@ -189,12 +189,8 @@ function route () {
   const s = run.state
   migrate(s)
   if (!trail || trail.floor !== s.floor) {
-    if (trail && s.phase === 'map') {
-      const deep = depthOf(s.floor)
-      note = !deep ? `Floor ${s.floor}. The air grows colder.`
-        : deep === 1 ? `Floor ${s.floor}, the first of the deep. The clear is yours; below the Sovereign's floor, the dead grow thicker and stronger with every floor.`
-          : `Floor ${s.floor}, ${deep} floors below the Sovereign's. The dark presses closer.`
-    }
+    // A new floor: its number and its prices (codex.js floorNote); in the deep, how the foes have grown.
+    if (trail && s.phase === 'map') note = floorNote(s)
     trail = { floor: s.floor, ids: [s.map.start] }
   }
   if (s.phase === 'map') {
@@ -212,14 +208,12 @@ function route () {
   }
 }
 
+// An altar's note says what it did: each piece's HP is kept before the room is entered, to be read against after.
 function onNode (id) {
+  const before = new Map(run.state.party.map((u) => [u.uid, u.hp]))
   apply(run, { type: 'node', id })
   trail.ids.push(id)
-  if (currentNode(run).type === 'altar') {
-    note = unhealed(run.state)
-      ? 'The altar burns: your souls are healed, and the fallen rise again in the ossuary, to be placed. Under Court of Bone the Monarch is not healed.'
-      : 'The altar burns: everyone is healed, and the fallen rise again in the ossuary, to be placed.'
-  }
+  if (currentNode(run).type === 'altar') note = altarNote(run.state, before)
   route()
 }
 
@@ -235,11 +229,15 @@ function descend () {
   route()
 }
 
-// The spoils are one recruit at most (relics are the Shop's): a recruit rises a piece of its own.
+// The spoils are one recruit at most (relics are the Shop's): a recruit rises a piece of its own, and its note says
+// where it went (run.js join pushes it last into the party).
 function reap (index) {
   const o = index === null ? null : run.state.offers[index]
   apply(run, { type: 'reap', index })
-  if (o) note = note ? `${note} ${o.name} rises to serve you.` : `${o.name} rises to serve you.`
+  if (o) {
+    const said = recruitNote(run, run.state.party.at(-1))
+    note = note ? `${note} ${said}` : said
+  }
   route()
 }
 
@@ -259,6 +257,8 @@ async function fight () {
   show(bar)
   const battle = run.battle
   const s = run.state
+  // What the run has paid out so far: what it holds more once the battle is won is the battle's pay (the banner's).
+  const paid = s.stats?.essence ?? 0
   const scene = await engine.battle({
     battle,
     order: (o) => apply(run, o),
@@ -269,6 +269,9 @@ async function fight () {
     onChange: (st) => bar.update(st),
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: runStat(s, 'essence.gain', 1),
+    // An elite pays its bounty on a win (the purse's card); what the run took for the battle, read as it ends.
+    elite: node.type === 'elite',
+    earned: () => (s.stats?.essence ?? 0) - paid,
     // Read as the battle ends (it is decided only then).
     // A status's tick struck from nowhere: no blow is replayed for it (codex.js deathText `tick`).
     death: () => {
@@ -286,16 +289,19 @@ async function fight () {
       const legion = u.shadow && battle.events.some((e) => e.type === 'arise' && e.rule === 'legion' && e.unit.uid === u.uid)
       const me = u.uid === battle.monarch?.uid
       const arise = !foe && u.hp > 0 && u.kit && ariseOf(battle, u)
+      // One of yours leads with its turn as it stands (engine.js pieceLine: its Move left, each skill ready or resting,
+      // how many foes its basic reaches), or for a shadow the basic it uses each turn and what Hollow Court pays for it.
+      const turn = !foe && u.hp > 0 ? battleScene()?.pieceLine(u.uid) ?? null : null
       const live = [
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
         me && 'If it falls, the run ends',
+        turn,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
           : u.summoned ? `Summoned by its ${unitDef(u.id).name}: gone after the battle`
             : u.reap > 0 ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: acts on its own each turn, gone after the battle'),
         u.rose && 'Risen by Undying: its next fall is final',
         arise && `Arise: corpses within ${arise.domain} tiles, tier ≤ ${arise.tier}`,
         u.flies && 'Flying: only a ranged blow (or a flyer\'s melee) can strike it',
-        !foe && (u.acted ? 'It has acted this turn' : 'Yours to move and act this turn'),
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
       const realm = { arise: (x) => (x.kit ? ariseOf(battle, x) : null) }
       const tip = pin ? pinTip : showTip

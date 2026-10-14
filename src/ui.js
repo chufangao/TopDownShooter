@@ -4,17 +4,17 @@
 // control has a tooltip saying exactly what it does (rules text lives in codex.js).
 import { TUNING } from './tuning.js'
 import {
-  availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, souls, isMonarch, monarchOf, unhealed,
+  availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, souls, isMonarch, monarchOf,
   reapedShadows, essenceByWave, canDescend, depthOf, OSSUARY, canAdvance, tierCost, canPlace, canFuse,
   fuseCost, fuseParts, relicCount, levelOf, kindLevel, floorPrice, swapWith, releaseRefund,
-  soulOffer, shopOffers, canBuy, eliteBonus, runStat, unheld, canHold, isRunRelic
+  soulOffer, shopOffers, canBuy, eliteBonus, runStat, unheld, canHold, isRunRelic, heldKinds, foeEssence
 } from './sim/run.js'
 import { RANKS, WIDTH } from './sim/map.js'
 import { unitDef, relicDef, KIN, ROLES, FUSION_LIST, RELIC_TIERS } from './content.js'
 import {
   COLS, ROWS, CAMP_ROWS, slotAt, rowOf, isWall, LANES, DEPTH, tileAt, deployTile, wallTiles, onField, tileX, tileY,
   statsOf, tracksOf, canTrack, sizeOf, footprint, footprintSlots,
-  campOpen, isMonarchCell, distanceBetween, summonsOf, reachOf
+  campOpen, isMonarchCell, distanceBetween, summonsOf, reachOf, baseStats
 } from './sim/unit.js'
 import { field } from './sim/field.js'
 import { h, fill, icon, portrait, prefs, showTip, hideTip, pinTip, hold, HOLD, touchy, say } from './dom.js'
@@ -26,9 +26,10 @@ import { board } from './board.js'
 import { frame, toLocal } from './frame.js'
 import {
   unitCard, partyMods, roomTip, synergyTracker, synergyGroups, relicTip, ROOM, campRowLabel, realmOf,
-  MONARCH_TEXT, MONARCH_RULE, WOUNDS_TEXT, deathText, tileText, fieldRule,
+  MONARCH_TEXT, MONARCH_RULE, deathText, tileText, fieldRule,
   DEEP_TEXT, ROMAN, relicsByTier, alsoOf, TRIGGER_TEXT, codexView, reachText, reachRule, standing, abilityBlocks,
-  auraBlock, hpBar, hpAt, summonText, recruitWorth, relicIcon, relicKind, ariseFor
+  auraBlock, hpBar, hpAt, summonText, recruitWorth, relicIcon, relicKind, ariseFor, actText, theirText,
+  monarchHpText, statTip, recruitSteps, tally, bestiaryCount
 } from './codex.js'
 
 // ── title ────────────────────────────────────────────────────────────────────────────────────────
@@ -80,8 +81,7 @@ function topbar (run, onHelp, tabs = null) {
   const n = souls(s.party).length
   if (fresh) Object.assign(drawn, { run, essence: s.essence, hp: monarchOf(s).hp, souls: n, held: heldCounts(s) })
   const purse = h('b', null, Math.round(drawn.essence))
-  const chip = h('span', { class: 'chip-stat essence', tip: () => `Essence: every foe slain pays it, by its tier. Spend it on your kinds' tiers, on fusions and on recruits; every price grows each floor down (here ×${+floorPrice(s.floor).toFixed(2)} its floor-1 price). ${s.stats.essence} earned, ${s.stats.spent} spent this run.` },
-    icon('soul', 20), purse)
+  const chip = h('span', { class: 'chip-stat essence', tip: () => essenceTip(run) }, icon('soul', 20), purse)
   if (drawn.purse) cancelAnimationFrame(drawn.purse.rolling)
   drawn.purse = purse
   roll(purse, drawn.essence, s.essence, chip, (v) => { drawn.essence = v })
@@ -90,7 +90,7 @@ function topbar (run, onHelp, tabs = null) {
   const kept = h('span', {
     class: 'chip-stat souls',
     tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Souls ${n}/${rosterCap(run)}`),
-      h('p', null, `${fielded(souls(s.party)).length} on the field, ${inOssuary(souls(s.party)).length} in the ossuary: one soul, one piece. Recruit one of the slain after a win.`))
+      h('p', null, ossuaryCount(run)))
   }, icon('hood', 20), count, h('span', { class: 'of' }, `/${rosterCap(run)}`))
   if (drawn.count) cancelAnimationFrame(drawn.count.rolling)
   drawn.count = count
@@ -116,6 +116,27 @@ function topbar (run, onHelp, tabs = null) {
     t > 0 && h('div', { class: 'trinkets', style: `grid-template-columns: ${t > 1 ? `repeat(${t - 1}, minmax(0, var(--tap))) ` : ''}var(--tap)` },
       Object.keys(counts).map(tile)),
     h('div', { class: 'top-btns' }, muteButton(), helpButton(onHelp)))
+}
+
+// Your souls by where they are: "4/5 on the field, 2 in the ossuary (1 fallen)".
+function ossuaryCount (run) {
+  const all = souls(run.state.party)
+  const kept = inOssuary(all)
+  const fallen = kept.filter((u) => u.hp <= 0).length
+  return `${fielded(all).length}/${fieldCap(run)} on the field, ${kept.length} in the ossuary${fallen ? ` (${fallen} fallen)` : ''}.`
+}
+
+// The purse's tooltip: the essence held, earned and spent this run, the floor's prices against floor 1's (run.js
+// floorPrice), the cheapest tier a kind you hold may take now, and what a slain foe pays.
+function essenceTip (run) {
+  const s = run.state
+  const scale = floorPrice(s.floor)
+  const next = heldKinds(s).flatMap((id) => [0, 1].filter((t) => canAdvance(s, id, t)).map((t) => ({ id, t, cost: tierCost(run, id, t) })))
+    .sort((a, b) => a.cost - b.cost)[0]
+  return h('div', { class: 'syn-tip' }, h('b', null, `${s.essence} essence`),
+    h('p', null, `${s.stats.essence} earned, ${s.stats.spent} spent this run · ${scale === 1 ? 'floor 1 prices' : `prices ×${+scale.toFixed(2)} floor 1's`}.`),
+    next && h('p', null, `Cheapest tier now: ${unitDef(next.id).name}, ${tracksOf(next.id)[next.t].name} ${ROMAN[s.kinds[next.id].tracks[next.t]]}, for ${next.cost}${next.cost > s.essence ? ` (${next.cost - s.essence} short)` : ''}.`),
+    h('p', { class: 'dim' }, `A slain foe pays ${TUNING.essence.perTier} × its tier.`))
 }
 
 // A Legendary's tag, its words' initials ("Court of Bone" CB), small words skipped.
@@ -199,9 +220,8 @@ function monarchChip (run) {
     tip: () => unitCard(m, {
       mods: partyMods(run, m),
       realm: realmOf(run),
-      notes: [unhealed(run.state)
-        ? 'The Monarch is you. Its wounds carry from battle to battle, and under Court of Bone nothing heals them: not a win, not an altar.'
-        : `The Monarch is you. Its wounds carry from battle to battle, as a soul's do: ${WOUNDS_TEXT}.`]
+      live: monarchHpText(run),
+      notes: [MONARCH_TEXT.hp.rule(run)[0]]
     })
   }, icon('crown', 20), h('b', null, `${m.hp}/${m.maxHp}`))
 }
@@ -217,10 +237,13 @@ const learnt = (k) => { if (!done(k)) prefs.set('did:' + k, '1') }
 // the Field (the board, as large as the screen holds, and one slim panel beside it: the selected piece's card, the
 // ossuary at its foot like a Bloons TD shop), the Map (the floor's rooms: scout them, and walk to the next; a battle
 // room's battle starts as it is entered) and the Codex (the rules, the words, the foes met). The Map opens first.
+// Each tab's tooltip leads with its counts (`now`).
 const TABS = [
-  { id: 'field', name: 'Field', ico: 'field', key: 'F', desc: 'The board: place your souls and read the roads.' },
-  { id: 'map', name: 'Map', ico: 'map', key: 'R', desc: 'The floor: scout its rooms.' },
-  { id: 'codex', name: 'Codex', ico: 'codex', key: 'C', desc: 'The rules, the words and the foes you have met.' }]
+  { id: 'field', name: 'Field', ico: 'field', key: 'F', desc: 'The board: place your souls and read the roads.', now: ossuaryCount },
+  { id: 'map', name: 'Map', ico: 'map', key: 'R', desc: 'The floor: scout its rooms.',
+    now: (run) => { const n = availableNodes(run).length; return `Floor ${run.state.floor}: ${n} room${n === 1 ? '' : 's'} open to you next.` } },
+  { id: 'codex', name: 'Codex', ico: 'codex', key: 'C', desc: 'The rules, the words and the foes you have met.',
+    now: () => { const b = bestiaryCount(); return `${b.met} of ${b.of} foe kinds met.` } }]
 
 // trail: node ids visited on this floor, in order (starts with the start node). onNode: walk to a room.
 export function runScreen ({ run, act, trail, note = '', onNode, onHelp }) {
@@ -243,7 +266,7 @@ export function runScreen ({ run, act, trail, note = '', onNode, onHelp }) {
     editor.release()
     fill(tabsEl, TABS.map((t) => h('button', {
       class: 'top-tab' + (t.id === tab ? ' on' : ''), role: 'tab', 'aria-selected': t.id === tab ? 'true' : 'false', 'data-tab': t.id,
-      onclick: () => show(t.id), tip: () => h('div', { class: 'syn-tip' }, h('b', null, t.name), say(` (${t.key})`, ''), h('p', null, t.desc))
+      onclick: () => show(t.id), tip: () => h('div', { class: 'syn-tip' }, h('b', null, t.name), say(` (${t.key})`, ''), h('p', null, t.now(run)), h('p', { class: 'dim' }, t.desc))
     }, icon(t.ico, 22), h('span', { class: 'top-tab-name' }, t.name))))
     fill(body, id === 'field' ? editor.el
       : id === 'map' ? mapView({ run, trail, onNode })
@@ -529,9 +552,14 @@ function fieldEditor ({ run, act, onChange = null }) {
     return [
       h('div', {
         class: 'bench-label',
-        tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Ossuary · souls ${souls(s.party).length}/${rosterCap(run)}`),
-          h('p', null, `Your souls not on the field: kept, never fighting. The field takes ${fieldCap(run)} (${fieldRule(run)}). A piece that falls in battle comes here, freeing its cell, and lies fallen until an altar raises it.`),
-          h('p', { class: 'dim' }, 'Drag a soul from here onto the camp, or a piece from the camp onto here. The Monarch never comes here.'))
+        tip: () => {
+          const kept = inOssuary(souls(s.party))
+          const fallen = kept.filter((u) => u.hp <= 0).map((u) => unitDef(u.id).name)
+          return h('div', { class: 'syn-tip' },
+            h('b', null, `Ossuary · ${kept.length ? `${kept.length} kept: ${kept.length - fallen.length} ready${fallen.length ? `, ${fallen.length} fallen (${tally(fallen)})` : ''}` : 'empty'}`),
+            h('p', null, `Field ${fielded(souls(s.party)).length}/${fieldCap(run)}, ${fieldRule(run)} · souls ${souls(s.party).length}/${rosterCap(run)}.`),
+            h('p', { class: 'dim' }, 'Drag a soul from here onto the camp, or a piece from the camp onto here.'))
+        }
       }, h('b', null, 'Ossuary'), h('span', { class: 'dim' }, `${bench.length ? `${bench.length} kept` : 'empty'} · field ${fielded(souls(s.party)).length}/${fieldCap(run)}`)),
       (bench.length || target) && h('div', { class: 'bench' + (target ? ' target' : '') + (drag?.target?.bench && drag.target.ok ? ' over' : '') },
         bench.length
@@ -540,9 +568,16 @@ function fieldEditor ({ run, act, onChange = null }) {
             'data-uid': u.uid,
             onpointerdown: (e) => pressBench(e, u),
             onclick: () => { if (swallow) { swallow = false; return } if (giving) return give(u); select(sel?.uid === u.uid ? null : { uid: u.uid }) },
-            tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run), run, live: u.hp > 0 ? 'In the ossuary: it does not fight' : 'Fallen: an altar raises it', notes: [u.hp > 0 ? 'Drag it onto an open tile of the camp to field it.' : 'It fell in battle and lies in the ossuary: it cannot be fielded until an altar raises it.'] })
+            tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run), run, live: benchLead(u), notes: [u.hp > 0 && !full() && 'Drag it onto an open tile of the camp to field it.'] })
           }, portrait(u.id, 46, u.hp <= 0), u.maxHp && u.hp > 0 && hpBar(u.hp, u.maxHp), relicMark(u)))
           : h('span', { class: 'dim empty-bench' }, 'Drop it here to keep it in the ossuary.'))]
+  }
+
+  // A soul in the ossuary, its card's lead: whether the field has room for it, or that it lies fallen.
+  function benchLead (u) {
+    const f = `${fielded(souls(s.party)).length}/${fieldCap(run)}`
+    return u.hp <= 0 ? `Fallen: an altar raises it at ${Math.round(TUNING.run.altarRevive * 100)}% HP`
+      : full() ? `In the ossuary · field ${f}, full: drop it on a piece to swap` : `In the ossuary · field ${f}: room for it`
   }
 
   // ── relics ──
@@ -599,16 +634,16 @@ function fieldEditor ({ run, act, onChange = null }) {
     const d = unitDef(u.id)
     const st = statsOf(u, mods)
     const [hp, maxHp] = hpAt(u, st)
-    const stat = (ico, name, v) => h('span', { class: 'uc-stat s-' + ico, tip: () => name }, icon(ico, 18), h('b', null, v))
+    // Each stat's hover breaks it down (codex.js statTip): its kind's at its level, each tier and relic, what it means.
+    const stat = (ico, v) => h('span', { class: 'uc-stat s-' + ico, tip: () => statTip(run, u, ico) }, icon(ico, 18), h('b', null, v))
     return [h('div', { class: 'uc-head' },
       h('div', { class: 'uc-art', tip: () => unitCard(u, { mods, realm: realmOf(run), run }) }, portrait(u.id, 56, u.hp <= 0), relicMark(u)),
       h('div', { class: 'uc-id' },
         h('div', { class: 'uc-name' }, d.name),
         h('div', { class: 'uc-sub dim' }, `Lv ${u.lvl} · ${d.kin ? `${KIN[d.kin].name} ` : ''}${ROLES[d.role].name}`))),
     h('div', { class: 'uc-stats' },
-      stat('hp', u.hp > 0 || u.hp == null ? 'HP' : 'Fallen: an altar raises it.', hp < maxHp ? `${hp}/${maxHp}` : maxHp),
-      stat('atk', 'Attack', Math.round(st.atk)), stat('def', 'Defence', Math.round(st.def)),
-      stat('move', 'Move: how many tiles it may go a turn', Math.round(st.move))),
+      stat('hp', hp < maxHp ? `${hp}/${maxHp}` : maxHp),
+      stat('atk', Math.round(st.atk)), stat('def', Math.round(st.def)), stat('move', Math.round(st.move))),
     h('div', { class: 'uc-reach', tip: () => reachRule(u) }, icon('reach', 18), h('span', null, reachText(u)))]
   }
 
@@ -624,7 +659,7 @@ function fieldEditor ({ run, act, onChange = null }) {
     return h('div', { class: 'uc' },
       pieceHead(u, mods),
       relicSection(u),
-      summonsOf(u) > 0 && h('p', { class: 'uc-note uc-summons' }, summonText(u)),
+      summonsOf(u) > 0 && h('p', { class: 'uc-note uc-summons' }, summonText(u, statsOf(u, mods))),
       !on && h('p', { class: 'dim uc-note' }, u.hp <= 0 ? 'Fallen, in the ossuary: it cannot be fielded until an altar raises it.'
         : full() ? fullText(u) : say('In the ossuary. Drag it onto an open tile of the camp, or click one.', 'In the ossuary. Drag it onto an open tile of the camp, or tap one.')),
       kindPanel(u.id),
@@ -667,7 +702,6 @@ function fieldEditor ({ run, act, onChange = null }) {
     const held = s.party.filter((x) => x.id === id)
     const tracks = tracksOf(id)
     const lvl = kindLevel(s, id)
-    const tiers = k.tracks[0] + k.tracks[1]
     const raw = levelOf({ tracks: k.tracks })
     // The level one tier more gives (either track's: a tier is a tier), and the words for it.
     const up = levelOf({ ...k, tracks: [k.tracks[0] + 1, k.tracks[1]] })
@@ -694,7 +728,12 @@ function fieldEditor ({ run, act, onChange = null }) {
         }, h('span', { class: 'tnum' }, ROMAN[i]), tier.size === 2 && h('span', { class: 'tbadge', 'aria-label': '2×2' }, icon('big', 14)))
       }
       return h('div', { class: 'track' + (have ? ' held' : '') + (t ? ' second' : '') },
-        h('div', { class: 'track-head', tip: () => tr.desc }, h('b', null, tr.name), h('span', { class: 'track-desc dim' }, tr.desc)),
+        h('div', {
+          class: 'track-head',
+          tip: () => h('div', { class: 'syn-tip' }, h('b', null, `${tr.name} ${have}/${tr.tiers.length}`), ' ', tr.desc,
+            h('p', { class: blocked ? 'warn' : 'dim' }, have >= tr.tiers.length ? 'Complete.' : blocked ? lockText
+              : `Next: ${ROMAN[have]} for ${cost}${s.essence < cost ? `; you have ${s.essence}` : ''}. ${rise}`))
+        }, h('b', null, tr.name), h('span', { class: 'track-desc dim' }, tr.desc)),
         h('div', { class: 'nodes' }, tr.tiers.map((tier, i) => [i > 0 && h('span', { class: 'tlink' + (i < have ? ' on' : '') }), node(tier, i)]),
           can && h('span', { class: 'tprice' + (s.essence < cost ? ' poor' : '') }, icon('soul', 16), cost)),
         h('div', { class: 'track-next' + (blocked ? ' warn' : '') }, have >= 4 ? 'Complete.' : blocked ? lockText : [h('b', null, `${ROMAN[have]} `), next.desc]))
@@ -703,10 +742,22 @@ function fieldEditor ({ run, act, onChange = null }) {
       h('div', { class: 'uc-sec' }, `Every ${name}`, h('span', { class: 'dim' }, ` · ${held.length} held`)),
       h('div', {
         class: 'uc-level',
-        tip: () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `Level ${lvl}: `), `its tiers', never bought. ${TUNING.level.base} + ${TUNING.level.perTier} × the ${tiers} tier${tiers === 1 ? '' : 's'} it holds, rounded down${raw < lvl ? `, raised to ${lvl} by the kinds fused into it` : ''}.`),
-          h('p', { class: 'dim' }, `Every ${name} stands at it, and a recruit joins at it. The next tier: ${rise.toLowerCase()}`))
+        tip: () => levelTip(id, lvl, up, raw < lvl)
       }, icon('levelup', 20), h('b', null, 'Level ', h('span', { class: 'num' }, lvl)), h('span', { class: 'dim' }, ' · rises with its tiers')),
       tracks.length === 2 && h('div', { class: 'tracks' }, tracks.map(row)))
+  }
+  // A kind's level, in its stats (unit.js baseStats): what it gives every soul of the kind now (`lvl`), and what the
+  // next tier's level (`up`) adds to each; `fused`: the level is the kinds' fused into it, above its tiers'.
+  function levelTip (id, lvl, up, fused) {
+    const name = unitDef(id).name
+    const [now, next] = [baseStats(id, lvl), baseStats(id, up)]
+    const r = (st) => ({ hp: Math.round(st.hp), atk: Math.round(st.atk), def: Math.round(st.def) })
+    const [a, b] = [r(now), r(next)]
+    const gain = [['HP', 'hp'], ['ATK', 'atk'], ['DEF', 'def']].filter(([, k]) => b[k] !== a[k]).map(([w, k]) => `+${b[k] - a[k]} ${w}`).join(', ')
+    const more = canAdvance(s, id, 0) || canAdvance(s, id, 1)
+    return h('div', { class: 'syn-tip' },
+      h('p', null, h('b', null, `Level ${lvl}: `), `HP ${a.hp}, ATK ${a.atk}, DEF ${a.def} for every ${name}, a recruit too${fused ? `; raised to ${lvl} by the kinds fused into it` : ''}.`),
+      h('p', { class: 'dim' }, !more ? 'No tier left to buy.' : up > lvl ? `Next tier: Level ${up}${gain ? `, ${gain} each` : ''}.` : `Next tier: level stays ${lvl}.`))
   }
   // A Colossus tier sends each piece of the kind that no longer fits 2×2 where it stood to the ossuary: said.
   function buyTier (e, kind, track, cost) {
@@ -810,11 +861,17 @@ function fieldEditor ({ run, act, onChange = null }) {
 
   // ── tooltips ──
 
-  const pieceTip = (u) => unitCard(u, {
-    mods: partyMods(run, u), realm: realmOf(run), run,
-    live: isMonarch(u) ? 'If it falls, the run ends' : ariseFor(s, u) ? `Holds Arise: corpses within ${ariseFor(s, u).domain} tiles` : 'Where it starts the battle: it moves and acts on your turn',
-    notes: [isMonarch(u) ? 'Its seat is the camp\'s, marked by the crown: it never moves.' : say('Drag it to move it; click it to select it.', 'Drag it to move it; tap it to select it.')]
-  })
+  // A fielded soul's card leads with where it starts the battle, its reach and Move, and the synergies it counts toward
+  // ("Front row, lane 3 · Reach 2 · melee · Move 3 · Undead 4: Legion"), unless it holds Arise, whose reach leads.
+  const pieceTip = (u) => {
+    const at = !isMonarch(u) && [sentence(tileText(deployTile('party', u.slot)).replace(/^your camp, /, '')), reachText(u),
+      ...synergyGroups(souls(standing(run)), alsoOf).filter((g) => g.uids.has(u.uid)).map((g) => g.name)].join(' · ')
+    return unitCard(u, {
+      mods: partyMods(run, u), realm: realmOf(run), run,
+      live: isMonarch(u) ? 'If it falls, the run ends' : ariseFor(s, u) ? `Holds Arise: corpses within ${ariseFor(s, u).domain} tiles` : at,
+      notes: [isMonarch(u) ? 'Its seat is the camp\'s, marked by the crown: it never moves.' : ariseFor(s, u) && at]
+    })
+  }
   function tileTip (t) {
     const r = t != null && tips.has(t) && board.rectOf(t)
     if (r) showTip(r, tips.get(t))
@@ -1257,7 +1314,7 @@ function soulsStrip ({ run, act, busy, again, why }) {
     const n = souls(s.party).length
     const cap = rosterCap(run)
     if (!open) {
-      return h('div', { class: 'ret-line', tip: () => `Your souls: ${n} of ${cap}, on the field and in the ossuary.` },
+      return h('div', { class: 'ret-line', tip: () => `Souls ${n}/${cap}: ${ossuaryCount(run)}` },
         icon('hood', 20), h('b', null, 'Souls'), ` ${n}/${cap}`)
     }
     return h('div', { class: 'ret-strip' + (n >= cap ? ' full' : '') + (roster ? ' open' : '') },
@@ -1283,9 +1340,12 @@ function relicChips (run, giving, pick) {
   return [
     h('div', {
       class: 'bench-label',
-      tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Relics to give'),
-        h('p', null, `Piece relics work only through the soul holding them, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul. ${say('Click', 'Tap')} one, then the soul to give it to; a soul holding one swaps. Its slot takes it back.`),
-        h('p', { class: 'dim' }, 'Give and take back freely out of battle, never in one.'))
+      tip: () => {
+        const free = souls(run.state.party).filter((u) => (u.relics?.length ?? 0) < TUNING.relic.perPiece).length
+        return h('div', { class: 'syn-tip' }, h('b', null, `Relics to give · ${ids.length} unheld`),
+          ids.length > 0 && h('p', null, `${tally(ids.map((id) => relicDef(id).name))} · ${free} soul${free === 1 ? ' has' : 's have'} a free slot.`),
+          h('p', { class: 'dim' }, `${say('Click', 'Tap')} one, then a soul; a soul holding one swaps. Out of battle only.`))
+      }
     }, h('b', null, 'Relics'), h('span', { class: 'dim' }, ` ${ids.length} unheld`)),
     h('div', { class: 'relics-unheld' }, kinds.map((id) => {
       const r = relicDef(id)
@@ -1388,12 +1448,26 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
   // A battle of waves paid each wave as it fell: what each paid, relics included (essence gain).
   const boost = runStat(s, 'essence.gain', 1)
   const paid = node.waves?.length && run.battle ? essenceByWave(run.battle) : null
-  const wavePay = paid && h('p', { class: 'wave-pay', tip: () => 'Every foe slain paid essence into one purse; this is what each wave paid of it, relics included.' },
-    icon('soul', 18), ' Paid wave by wave: ', paid.map((v, k) => [k ? ' · ' : '', `Wave ${k + 1}`, ' ', h('b', null, Math.round(v * boost))]))
+  const times = (v) => `×${+v.toFixed(2)}`
+  const wavePay = paid && h('p', {
+    class: 'wave-pay',
+    tip: () => `${paid.map((v, k) => `Wave ${k + 1} ${Math.round(v * boost)}`).join(' + ')} = ${Math.round(paid.reduce((a, b) => a + b, 0) * boost)} essence${boost !== 1 ? `, relics' ${times(boost)} in` : ''}.`
+  }, icon('soul', 18), ' Paid wave by wave: ', paid.map((v, k) => [k ? ' · ' : '', `Wave ${k + 1}`, ' ', h('b', null, Math.round(v * boost))]))
   // A won elite's panel: its essence on top of its foes' (run.js eliteBonus, relics included), and its recruit.
-  const elitePay = node.type === 'elite' && h('p', { class: 'wave-pay elite-pay', tip: () => 'A won elite pays this on top of what its foes paid, and offers its recruit like any fight. It lays out no relic: the Shops sell those.' },
-    icon('soul', 18), ' The elite\'s bounty: ', h('b', null, `+${Math.round(eliteBonus(s.floor) * boost)}`), ' essence, on top of its foes\'.')
-  const ledeTip = () => h('div', { class: 'syn-tip' }, h('p', null, 'A recruit rises whole, a piece of its own at its kind\'s level and with its kind\'s tiers: the field takes it if there is room, else the ossuary. One a battle.'))
+  const elitePay = node.type === 'elite' && h('p', {
+    class: 'wave-pay elite-pay',
+    tip: () => `${TUNING.essence.eliteBonus} at floor-1 prices, ${times(floorPrice(s.floor))} here${boost !== 1 ? `, ${times(boost)} by relics` : ''}: +${Math.round(eliteBonus(s.floor) * boost)}, on top of its foes'. An elite lays out no relic: the Shops sell those.`
+  }, icon('soul', 18), ' The elite\'s bounty: ', h('b', null, `+${Math.round(eliteBonus(s.floor) * boost)}`), ' essence, on top of its foes\'.')
+  // What the battle just won paid in all (run.js finishBattle: its slain, Hollow Court's shadows, an elite's bounty, ×
+  // the relics' gain), and where a recruit would go.
+  const won = run.battle && Math.round((essenceByWave(run.battle).reduce((a, b) => a + b, 0) + shades.reduce((n, u) => n + foeEssence(u) * u.reap, 0) +
+    (node.type === 'elite' ? eliteBonus(s.floor) : 0)) * boost)
+  const ledeTip = () => {
+    const f = fielded(souls(s.party)).length
+    return h('div', { class: 'syn-tip' },
+      won != null && h('p', null, `This battle paid +${won} essence; you have ${s.essence}.`),
+      h('p', null, `One recruit a battle. Field ${f}/${fieldCap(run)}: ${f < fieldCap(run) ? 'a recruit joins it' : 'a recruit waits in the ossuary'} · souls ${souls(s.party).length}/${rosterCap(run)}.`))
+  }
   const strip = soulsStrip({ run, act, busy: () => busy, again: () => render(), why: 'Your souls are at their most: open the list to release one, and make room for a recruit.' })
   const relics = relicsStrip({ run, act, busy: () => busy, again: () => render() })
 
@@ -1403,12 +1477,24 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
   function card (o, i) {
     const why = blocked(o)
     const worth = recruitWorth(run, o.id)
+    // Its lead: its price, the level it joins at and where it would go (run.js join: the field while it has room).
+    const lead = () => {
+      const f = fielded(souls(s.party)).length
+      return why === 'full' ? `Souls ${souls(s.party).length}/${rosterCap(run)}: release one to recruit`
+        : `Recruit for ${o.cost}: joins at Lv ${o.lvl}, ${f < fieldCap(run) ? `on the field (${f + 1}/${fieldCap(run)})` : `in the ossuary (field ${f}/${fieldCap(run)})`}`
+    }
+    // A kind new to your souls: the synergy steps it would bring, fielded (codex.js recruitSteps).
+    const fresh = () => {
+      const steps = recruitSteps(run, o.id)
+      return `New to your souls. Fielded, it brings ${steps.length ? steps.join(', ') : 'no new synergy'}.`
+    }
     const tip = () => unitCard({ id: o.id, lvl: o.lvl, slot: -1 }, {
       // A click takes the card: a mouse reads its details on the hover itself, never under Shift.
       open: !touchy(),
       mods: partyMods(run),
-      notes: [why === 'full' ? 'Your souls are at their most: release one first.' : why === 'poor' ? `You need ${o.cost} essence; you have ${s.essence}.` : `${say('Click', 'Tap it again (or Recruit ▸)')} to recruit it for ${o.cost} essence: a piece of its own, on the field if there is room, else in the ossuary.`,
-        ...(worth?.lines ?? [])]
+      live: lead(),
+      notes: [why === 'poor' ? `You need ${o.cost} essence; you have ${s.essence}.` : !why && `${say('Click', 'Tap it again (or Recruit ▸)')} to recruit it.`,
+        ...(worth?.lines ?? [fresh()])]
     })
     const d = unitDef(o.id)
     return deck.cards[i] = h('button', { class: 'offer o-soul' + (why ? ' locked' : ''), style: `--i:${i}`, onclick: (e) => deck.press(e, i, tip, 'Recruit ▸', () => !blocked(o), take), 'aria-disabled': why ? 'true' : null, tip },
@@ -1503,6 +1589,14 @@ export function shopScreen ({ run, act, onLeave, onHelp }) {
       h('div', { class: 'offer-price' + (why ? ' poor' : '') }, icon('soul', 18), o.cost))
   }
 
+  // The purse against the shelf: "You have 120: 2 of these 4 are within reach."
+  function shelfLine () {
+    const left = shopOffers(run).filter(Boolean)
+    const k = left.filter((o) => o.cost <= s.essence).length
+    return !left.length ? `You have ${s.essence}; the shelves are bare.`
+      : `You have ${s.essence}: ${k === left.length ? (k === 1 ? 'the last one is' : `all ${k} are`) : `${k} of these ${left.length} ${k === 1 ? 'is' : 'are'}`} within reach.`
+  }
+
   function render () {
     deck.cards.length = 0
     const stock = shopOffers(run).map(card)
@@ -1512,7 +1606,7 @@ export function shopScreen ({ run, act, onLeave, onHelp }) {
       h('div', { class: 'reap-main' },
         h('div', { class: 'reap-head' },
           h('div', { class: 'reap-title' }, icon('shop', 34), h('h1', null, 'Shop')),
-          h('p', { class: 'reap-lede' }, [kw('relic', 'Relics'), ' for ', kw('essence'), ': buy as many as you can pay for. Every relic bought is a tier not bought. A Held relic waits until you give it to a soul (Relics, below, or on the Field). Leaving is free.'])),
+          h('p', { class: 'reap-lede' }, [kw('relic', 'Relics'), ' for ', kw('essence'), `. ${shelfLine()} Leaving is free.`])),
         h('div', { class: 'reap-body' },
           h('div', { class: 'reap-picks' },
             h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (stock.length > cols ? ' rows' : ''), style: `--cols:${cols}` }, stock))),
@@ -1579,11 +1673,11 @@ export function endScreen ({ run, onNew, onDescend, onHelp }) {
         h('p', { class: 'tagline' }, tagline),
         h('div', { class: 'end-stats' },
           stat('stairs', 'monarch', deeper > 0 ? `${cleared}/${n} + ${deeper}` : `${cleared}/${n}`, 'floors', deeper > 0 ? `Floors cleared: ${cleared} of ${n}, and ${deeper} of the deep.` : `Floors cleared: ${cleared} of ${n}.`),
-          stat('fight', 'foe', `${s.stats.wins}/${s.stats.fights}`, 'won', 'Battles won, of those fought.'),
-          stat('hood', 'essence', s.stats.reaped, 'recruited', 'Souls recruited.'),
-          stat('bone', 'ossuary', souls(s.party).length, 'souls', 'Souls held at the end, on the field and in the ossuary.'),
-          stat('soul', 'essence', s.stats.essence, 'essence', 'Essence earned.'),
-          stat('reliquary', 'relic', s.relics.length, 'relics', 'Relics claimed.')),
+          stat('fight', 'foe', `${s.stats.wins}/${s.stats.fights}`, 'won', `Won ${s.stats.wins} of ${s.stats.fights} battle${s.stats.fights === 1 ? '' : 's'}.`),
+          stat('hood', 'essence', s.stats.reaped, 'recruited', `Recruited ${s.stats.reaped} soul${s.stats.reaped === 1 ? '' : 's'}.`),
+          stat('bone', 'ossuary', souls(s.party).length, 'souls', `${souls(s.party).length} souls at the end: ${ossuaryCount(run)}`),
+          stat('soul', 'essence', s.stats.essence, 'essence', `Essence: ${s.stats.essence} earned, ${s.stats.spent} spent.`),
+          stat('reliquary', 'relic', s.relics.length, 'relics', `Relics: ${s.relics.length} (${s.relics.filter(isRunRelic).length} run, ${s.relics.filter((id) => !isRunRelic(id)).length} held).`)),
         h('div', { class: 'title-actions end-actions' },
           descend && h('button', {
             class: 'primary big', onclick: onDescend,
@@ -1670,11 +1764,27 @@ export function battleChrome ({ onHelp = null } = {}) {
     class: 'skip', 'data-sfx': 'none', onclick: () => scene?.skip(),
     tip: () => st.over ? 'On to what comes next. (S)' : 'Hurry the playback: what is playing shows at once. (S)'
   })
+  // Names in a line, each kind once, ×n for more: "Grave Ghoul ×2, Bone Chanter"; and each its own: "the Tomb Knight and
+  // the Bone Chanter".
+  const group = (names) => {
+    const m = new Map()
+    for (const n of names) m.set(n, (m.get(n) ?? 0) + 1)
+    return [...m].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(', ')
+  }
+  const the = (names) => names.map((n) => `the ${n}`).join(', ').replace(/, (?=[^,]*$)/, ' and ')
   const count = h('b', null, '0')
-  const purse = h('span', {
-    class: 'purse',
-    tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Essence'), h('p', null, 'Carried by the foes slain so far, relics included. A won battle pays it into your purse.'))
-  }, icon('soul', 20), h('span', { class: 'purse-plus' }, '+'), count)
+  // The purse's card (engine.js tally, as the playback has shown the battle): what the foes slain so far carry, the
+  // relics' share in, and the purse a win pays it into; what a win adds besides (an elite's bounty, Hollow Court's
+  // shadows standing).
+  const purseTip = () => {
+    const t = scene?.tally()
+    return h('div', { class: 'syn-tip' }, h('b', null, 'Essence'), t && [
+      h('p', null, h('b', null, `+${t.owed}`), ` from ${t.slain} ${t.slain === 1 ? 'foe' : 'foes'} slain. A win adds it to your `, h('b', null, `${t.bank}`), '.'),
+      t.bonus > 0 && h('p', null, `The elite pays +${t.bonus} more on a win.`),
+      t.court && h('p', null, `Hollow Court: +${t.court.essence} more if ${t.court.n === 1 ? 'its shadow stands' : `its ${t.court.n} shadows stand`} at the win.`),
+      t.gain !== 1 && h('p', { class: 'dim' }, `Your relics make each foe pay ×${+t.gain.toFixed(2)}, counted in.`)])
+  }
+  const purse = h('span', { class: 'purse', tip: purseTip }, icon('soul', 20), h('span', { class: 'purse-plus' }, '+'), count)
   const title = h('b', { class: 'bt-title' })
   // The panel's words: the Monarch's HP, their synergies and yours, a rule's name a moment as it strikes.
   const hpText = h('b', { class: 'bs-hp-n' })
@@ -1686,30 +1796,62 @@ export function battleChrome ({ onHelp = null } = {}) {
   const mine = h('div', { class: 'bs-syns' })
   const theirRules = h('div', { class: 'bs-rules foe' })
   const myRules = h('div', { class: 'bs-rules' })
-  // A side's synergies (codex.js synergyLabels): each its name and the rule it brings, the rule's text on hover.
-  const list = (box, syns) => fill(box, syns.length
-    ? syns.map((x) => h('span', { class: 'bs-syn rule', tip: () => h('div', { class: 'syn-tip' }, h('b', null, `${x.name}: ${x.rule}`), ' ', x.text) }, `${x.name} · `, h('b', null, x.rule)))
+  // A side's synergies (codex.js synergyLabels): each its name and the rule it brings, the rule's text and the pieces it
+  // counts (engine.js members) on hover.
+  const list = (box, syns, foe = false) => fill(box, syns.length
+    ? syns.map((x) => h('span', {
+      class: 'bs-syn rule',
+      tip: () => h('div', { class: 'syn-tip' }, h('b', null, `${x.name}: ${x.rule}`), ' ', foe ? theirText(x.text) : x.text, x.members && h('p', { class: 'dim' }, `Counted: ${x.members}.`))
+    }, `${x.name} · `, h('b', null, x.rule)))
     : h('span', { class: 'dim' }, 'none'))
   const stage = h('div', { class: 'battle-stage' }, h('div', { class: 'pause-veil', 'aria-hidden': 'true' }, h('span', null, icon('pause', 26), 'Paused')))
-  // The turn and the wave counter: counts, never a clock.
+  // The turn and the wave counter: counts, never a clock. On hover, as the playback has shown the battle: yours still to
+  // act (while the board takes orders), the foes standing, and the next wave's size and turn (scouted).
   const turnN = h('b')
+  const coming = () => (st.next ? `${st.next.size ? `${st.next.size} more` : 'more'} on turn ${st.next.turn}` : 'no more to come')
   const turnEl = h('span', {
     class: 'turn-n',
-    tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Turn ${st.turn}`), ' ',
-      'Yours, then the foes\'. The battle lasts until no foe is left, or the Monarch falls.')
+    tip: () => {
+      const t = scene?.tally()
+      const r = st.roster
+      return h('div', { class: 'syn-tip' }, h('b', null, `Turn ${st.turn}`),
+        st.over ? ' · the battle is over' : [r && ` · ${r.ready.length} of ${r.total} of yours still to act`, t && ` · ${t.foes} ${t.foes === 1 ? 'foe' : 'foes'} standing, ${coming()}`])
+    }
   }, icon('turn', 18), turnN)
   const waveT = h('b')
   const waveNext = h('span', { class: 'dim' })
   const waveTurn = h('span', {
     class: 'wave-n',
     tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Wave ${st.wave} of ${st.waves}`), ' ',
-      st.next ? ['The next ', kw('wave'), ` enters over the far edge as turn ${st.next.turn} begins.`] : 'No more come.')
+      !st.next ? 'No more come.'
+        : st.next.size ? ['The next ', kw('wave'), `: ${st.next.size} ${st.next.size === 1 ? 'foe enters' : 'foes enter'} over the far edge as turn ${st.next.turn} begins.`]
+          : ['The next ', kw('wave'), ` enters over the far edge as turn ${st.next.turn} begins.`])
   }, icon('wave', 18), waveT, waveNext)
   const selBox = h('div', { class: 'bs-sel' })
-  const endBtn = btn({
-    class: 'primary big end-turn', onclick: () => scene?.endTurn(),
-    tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'End Turn'), say(' (E)', ''), h('p', null, 'Every piece of yours given no act strikes or mends with its basic alone (never a skill), then the foes take their turn.'))
-  }, icon('play', 20), ' End Turn')
+  // End Turn's card: what your side does as it is pressed (engine.js endInfo: the sim's own reckoning, on a copy), each
+  // piece of yours still to act and what its basic does, in order; then the foes' turn, never what they will do.
+  const laid = (list) => list.length > 0 && h('span', { class: 'dim' }, `, ${list.join(', ')}`)
+  const endLine = (x) => h('li', null, x.name, x.shadow && h('span', { class: 'dim' }, ' (shadow)'),
+    x.hexed ? h('span', { class: 'warn' }, ': Hexed, its act is lost')
+      : [' → ', x.hits.length ? x.hits.map((t, i) => [i > 0 && '; ', t.name, t.n > 0 && h('b', { class: 'n-dmg' }, ` −${t.n}`), t.falls && h('b', { class: 'n-falls' }, ', falls'), laid(t.laid)])
+        : x.heals.length ? x.heals.map((t, i) => [i > 0 && '; ', t.name, h('b', { class: 'n-heal' }, ` +${t.n}`), laid(t.laid)])
+          : [x.target ?? x.act, x.missed && h('span', { class: 'dim' }, ': misses')]],
+    x.counter > 0 && h('span', { class: 'n-counter' }, ` · takes −${x.counter} back${x.fell ? ', falls' : ''}`),
+    x.lost.length > 0 && h('span', { class: 'n-falls' }, ` · ${x.lost.join(', ')} ${x.lost.length === 1 ? 'falls' : 'fall'}`))
+  const endTip = () => {
+    const info = scene?.endInfo()
+    const head = [h('b', null, 'End Turn'), say(' (E)', '')]
+    if (st.over || !info) return h('div', { class: 'syn-tip' }, head, h('p', { class: 'dim' }, st.over ? 'The battle is over.' : 'The turn plays out…'))
+    // Those with nothing to do are one line, after the rest, in order.
+    const n = info.acts.length
+    const idle = info.acts.filter((x) => !x.hexed && !x.act).map((x) => (x.shadow ? `${x.name} (shadow)` : x.name))
+    return h('div', { class: 'syn-tip act-tip' }, head,
+      n ? [h('p', null, `${n} still to act ${n === 1 ? 'uses its' : 'use their'} basic:`),
+        h('ul', { class: 'act-targets' }, info.acts.filter((x) => x.hexed || x.act).map(endLine), idle.length > 0 && h('li', { class: 'dim' }, `Nothing in reach: ${group(idle)}`)),
+        h('p', { class: 'dim' }, info.won ? 'The last foe falls: the battle is won.' : 'Then the foes\' turn.')]
+        : h('p', null, 'All yours have acted. The foes\' turn next.'))
+  }
+  const endBtn = btn({ class: 'primary big end-turn', onclick: () => scene?.endTurn(), tip: endTip }, icon('play', 20), ' End Turn')
   const el = h('div', { class: 'battle-screen' },
     h('header', { class: 'battle-top' }, title, turnEl, waveTurn, h('span', { class: 'grow' }), purse,
       h('div', { class: 'top-btns' }, muteButton(),
@@ -1731,20 +1873,36 @@ export function battleChrome ({ onHelp = null } = {}) {
   let fusing = null
   function selection () {
     const p = st.panel
+    // With none selected: how many of yours may still act, and which (engine.js roster, read while the board takes orders).
     if (!p) {
       fusing = null
-      return fill(selBox, h('p', { class: 'bs-hint dim' }, st.over ? 'The battle is over.' : st.busy ? 'The turn plays out…' : [say('Click', 'Tap'), ' a piece of yours to give it orders: those ringed in soulfire may still act. Then ', h('b', null, 'End Turn'), '.']))
+      const r = st.roster
+      return fill(selBox, h('p', { class: 'bs-hint dim' }, st.over ? 'The battle is over.' : st.busy || !r ? 'The turn plays out…'
+        : r.ready.length ? [`${r.ready.length} of ${r.total} still to act: ${group(r.ready)}. `, say('Click', 'Tap'), ' one, or ', h('b', null, 'End Turn'), '.']
+          : [!r.total ? 'None of yours takes orders: ' : r.total === 1 ? 'Yours has acted: ' : `All ${r.total} have acted: `, h('b', null, 'End Turn'), '.']))
     }
     const d = unitDef(p.id)
     const pip = (a) => a.skill && h('span', { class: 'cd-pip' + (a.rest > 0 ? ' rest' : ''), 'aria-label': a.rest > 0 ? 'resting' : 'ready' })
-    const what = (a) => a.arise ? `One corpse within ${a.arise.domain} tiles of it, a foe of tier ${a.arise.tier} or lower, rises as your shadow, the corpse you choose. A `
-      : a.skill ? 'A ' : a.heal ? 'Its basic heal: every turn.' : 'Its basic blow: every turn, and what it strikes with if left alone.'
-    const actTip = (a) => () => h('div', { class: 'syn-tip' }, h('b', null, a.name), ' ', what(a),
-      a.skill && [kw('skill'), a.rest > 0 ? `: resting, ready in ${a.rest} turn${a.rest === 1 ? '' : 's'}.`
-        : `: yours to use, then it rests ${a.rests > 0 ? `${a.rests === 1 ? 'a' : a.rests} turn${a.rests === 1 ? '' : 's'}` : 'no turn'}.`],
-      !a.can ? h('p', { class: 'dim' }, p.acted ? 'It has acted this turn.' : p.hexed ? 'Hexed: it loses its act.' : 'Not now.')
-        : !a.targets ? h('p', { class: 'dim' }, a.arise ? 'No corpse in its reach from here: move it first.' : 'Nothing in its reach from here: move it first.')
-          : h('p', { class: 'dim' }, `${a.targets} in reach: ${say('click', 'tap')} one to see what it would do, again to do it.`))
+    // An act's card: what it does, with this piece's numbers (codex.js actText); how long it rests, as a skill; and what
+    // it would do now to each it can take from here (the sim's preview, the same numbers aiming shows), or who only a
+    // move first brings in reach.
+    const turns = (n) => `${n} turn${n === 1 ? '' : 's'}`
+    const target = (x) => h('li', null, x.self ? 'Itself' : x.name,
+      x.by && h('span', { class: 'dim' }, `: the ${x.by} in the way takes it`),
+      x.damage > 0 && h('b', { class: 'n-dmg' }, ` −${x.damage}`), x.falls && h('b', { class: 'n-falls' }, ' falls'),
+      x.heal > 0 && h('b', { class: 'n-heal' }, ` +${x.heal}`), x.counter > 0 && h('span', { class: 'n-counter' }, ` · takes −${x.counter} back`))
+    const actTip = (a) => () => {
+      const info = scene?.actInfo(a.id)
+      return h('div', { class: 'syn-tip act-tip' },
+        h('b', null, a.name),
+        a.skill && h('span', { class: 'dim' }, a.rest > 0 ? ` · ready in ${turns(a.rest)}` : a.rests > 0 ? ` · rests ${turns(a.rests)} after use` : ' · ready again next turn'),
+        info && actText(info.a, info.st, info),
+        !a.can ? (p.acted ? h('p', { class: 'warn' }, 'Already acted this turn.') : p.hexed ? h('p', { class: 'warn' }, 'Hexed: it cannot act this turn.')
+          : a.rest > 0 ? null : h('p', { class: 'dim' }, a.heal ? 'No ally in reach needs it.' : 'Not usable now.'))
+          : info?.now.length ? [h('p', { class: 'act-k' }, a.arise ? 'Corpses in reach:' : 'In reach now:'), h('ul', { class: 'act-targets' }, info.now.map(target))]
+            : info?.later.length ? h('p', null, `Nothing in reach from here. Moving first brings in: ${group(info.later)}.`)
+              : h('p', { class: 'dim' }, 'Nothing it can reach this turn.'))
+    }
     const acts = p.acts.map((a) => btn({
       class: 'act-btn' + (a.armed ? ' armed' : '') + (a.skill ? ' skill' : '') + (a.arise ? ' arise' : ''), 'aria-pressed': a.armed ? 'true' : 'false',
       'aria-disabled': a.can ? null : 'true', onclick: () => a.can && scene?.arm(a.id), tip: actTip(a)
@@ -1752,17 +1910,28 @@ export function battleChrome ({ onHelp = null } = {}) {
     const fuses = p.fusions.map((f) => btn({
       class: 'fuse-btn' + (fusing === f.order.id ? ' confirm' : ''), 'data-sfx': 'none',
       onclick: () => { if (fusing === f.order.id) { fusing = null; scene?.fuse(f.order) } else { fusing = f.order.id; sfx.play('select'); selection() } },
-      tip: () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ` from the parts beside it, for ${f.price ?? '?'} essence: its act this turn. The fused piece stands here at full HP.`, h('p', { class: 'dim' }, 'Press again to fuse.'))
+      tip: () => h('div', { class: 'syn-tip' }, h('b', null, f.name),
+        `: takes this ${d.name}${f.parts.length ? `, ${the(f.parts)} beside it` : ''}, ${f.price ?? '?'} essence (you have ${p.purse}). Stands here at full HP as its act.`,
+        h('p', { class: 'dim' }, 'Press again to fuse.'))
     }, icon('fuse', 18), fusing === f.order.id ? `Fuse: ${f.name}?` : `Fuse ${f.name}`, f.price != null && h('span', { class: 'price' }, icon('soul', 14), f.price)))
     const armed = p.acts.find((a) => a.armed)
+    // The armed act with nothing to take from here: why (it rests, no ally needs it), and who a move brings in reach
+    // (engine.js actInfo `later`), or that none would, or that it has no Move left.
+    const moves = p.move > p.moved
+    const later = !st.busy && armed?.can && !armed.targets ? scene?.actInfo(armed.id)?.later ?? [] : []
+    const none = armed?.arise ? 'No corpse' : 'Nothing'
+    const stuck = !armed || st.busy || armed.targets ? null
+      : !armed.can ? (armed.rest > 0 ? `${armed.name} rests ${turns(armed.rest)} more.` : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
+        : later.length ? `${none} in reach of ${armed.name} from here: moving brings in ${group(later)}.`
+          : moves ? `${none} in reach of ${armed.name} this turn, even after a move.` : `${none} in reach of ${armed.name} from here, and no Move left.`
     const line = p.hexed && !p.acted ? h('span', { class: 'warn' }, 'Hexed: it loses its act.')
       : p.acted ? h('span', { class: 'dim' }, 'Acted this turn.')
         : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to raise it.', 'Tap it again to raise it.') : say('Click it again to strike.', 'Tap it again to strike.'),
           p.screen && [' ', h('span', { class: 'screened' }, 'Screened'), `: the ${p.screen} on its `, kw('line', 'line of fire'), ' takes it.'])
-          : armed?.arise ? h('span', { class: 'dim' }, [say('Click', 'Tap'), ' a corpse ringed in green, again to raise it.'])
-            : h('span', { class: 'dim' }, p.move > p.moved && armed?.targets ? [say('Click', 'Tap'), ' a lit tile to move, a ringed target to aim.']
-              : p.move > p.moved ? [say('Click', 'Tap'), ' a lit tile to move.']
-                : armed?.targets ? [say('Click', 'Tap'), ' a ringed target to aim.'] : 'Nothing in its reach from here.')
+          : armed?.arise && armed.targets ? h('span', { class: 'dim' }, [say('Click', 'Tap'), ' a corpse ringed in green, again to raise it.'])
+            : h('span', { class: 'dim' }, moves && armed?.targets ? [say('Click', 'Tap'), ' a lit tile to move, a ringed target to aim.']
+              : armed?.targets ? [say('Click', 'Tap'), ' a ringed target to aim.']
+                : [stuck, stuck && moves && ' ', moves && [say('Click', 'Tap'), ' a lit tile to move.']])
     fill(selBox,
       h('div', { class: 'sel-head' }, portrait(p.id, 38),
         h('div', { class: 'sel-id' },
@@ -1773,7 +1942,7 @@ export function battleChrome ({ onHelp = null } = {}) {
           p.relics.length > 0 && h('div', { class: 'sel-relic' }, p.relics.map((id) => h('span', { class: `rs-relic rt-${relicDef(id).tier}`, tip: () => relicTip(id) }, icon(relicIcon(id), 14), relicDef(id).name))))),
       acts.length > 0 && h('div', { class: 'sel-acts' }, acts),
       (p.undo || fuses.length > 0) && h('div', { class: 'sel-acts' },
-        p.undo && btn({ class: 'undo-btn', onclick: () => scene?.undo(), tip: () => 'Back to where it stood, its Move whole again. (U)' }, icon('undo', 18), 'Undo move'),
+        p.undo && btn({ class: 'undo-btn', onclick: () => scene?.undo(), tip: () => `Back to ${tileText(p.from)}, Move ${p.move}/${p.move} again. (U)` }, icon('undo', 18), 'Undo move'),
         fuses),
       h('div', { class: 'sel-line' }, line))
   }
@@ -1808,7 +1977,7 @@ export function battleChrome ({ onHelp = null } = {}) {
       // Each side's synergies as the battle holds them now (engine.js changed: a fuse, a fall or a rise may change
       // them mid-battle).
       synergies ({ theirs: th, mine: m }) {
-        list(theirs, th)
+        list(theirs, th, true)
         list(mine, m)
       },
       hp (hp, max) {
