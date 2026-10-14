@@ -1,19 +1,19 @@
 // The prep board: the battle's own board, drawn in Phaser under the Field tab (ui.js fieldEditor), so the army
 // is arranged on the very picture the battle plays on. It draws a picture of plain data that the editor builds
-// on every render (ui.js: the picture), with the plan laid over it (redesign.md §4): the roads as arrows, the danger
-// map (what your side could deal next turn to a foe on each tile), Arise's reach round the soul holding it, the crown
-// on the Monarch's seat, each synergy's glow, the relic each soul holds (engine.js growthMarks), and while a relic
-// waits to be given the souls that may take it; a 2×2 piece drawn large over its four tiles, a flyer hovering over its
-// shadow. It tells the editor which tile lies under the pointer, lifts a piece while it is dragged (a 2×2's four
-// cells lit under it, red where they do not fit), and at Begin fades into the battle with everyone where they stood.
-// It decides nothing: every rule, every tooltip and every action stays in ui.js.
+// on every render (ui.js: the picture), with the plan laid over it (redesign.md §4): the roads as arrows, the selected
+// soul's reach (in the battle's look: engine.js paintReach), Arise's reach round the soul holding it, the crown on the Monarch's seat, each
+// synergy's glow, the relic each soul holds (engine.js growthMarks), and while a relic waits to be given the souls that
+// may take it; a 2×2 piece drawn large over its four tiles, a flyer hovering over its shadow. It tells the editor which
+// tile lies under the pointer, lifts a piece while it is dragged (a 2×2's four cells lit under it, red where they do
+// not fit), and when a battle starts with it on screen (a room entered by its key from the Field) fades into the battle
+// with everyone where they stood. It decides nothing: every rule, every tooltip and every action stays in ui.js.
 import Phaser from './vendor/phaser.js'
 import { unitDef } from './content.js'
 import { LANES, DEPTH, TILES, ROWS, CAMP_ROWS, tileX, tileY, footprint } from './sim/unit.js'
 import {
   RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, posAt, BIG, HOVER, BOB, tileUnder, cellsBox, ringBox, fitBox, facesLeft, drawGround,
-  WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, RELIC, NEUTRAL, hex, growthMarks, palette, reducedMotion,
-  legible, domainLabel, placeOutside, overlap
+  WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, RELIC, NEUTRAL, INK, hex, growthMarks, palette, reducedMotion,
+  legible, domainLabel, placeOutside, overlap, paintReach, inked
 } from './engine.js'
 import { sfx } from './sfx.js'
 
@@ -24,7 +24,7 @@ const GROUND = 6                 // a tile's ground lies this far under its cent
 // (a phone's whole board), the camera eases in on the camp for the drag and back out after (dragView).
 const DRAG = { lift: 48, zoomUnder: 40, ms: 200, zoom: 1.8 }
 const TOUCH_SLOP = 8
-const AIR_CUT = 0.42             // the danger map's air layer: the upper share of a tile, where flyers hover (drawDanger)
+const REACH_FADE = 160           // ms the selected soul's reach fades in and out over (drawReach)
 // The pointer of the last press (touch or not), read when a drag lifts.
 let pointerType = 'mouse'
 // Every tile becomes a point by the board's one transform (engine.js posOf: the board on its side); its ground lies
@@ -99,8 +99,9 @@ export const board = {
   // The keyboard's tile (a frame of its own while the board has focus), or null.
   focus (tile) { if (scene) scene.focused = tile },
 
-  // Begin: the prep picture stays up until the battle's is built under it, then glides to the battle's view and
-  // fades into it, so nobody seems to move. → a function to call with the battle scene, or null (no board).
+  // A battle starts: the prep picture stays up until the battle's is built under it, then glides to the battle's view
+  // and fades into it, so nobody seems to move. → a function to call with the battle scene, or null (no board on
+  // screen: the battle fades in on its own).
   leave () {
     const sc = scene
     if (!sc || sc.leaving || !want?.stage.isConnected || sc.sys.isSleeping()) return null
@@ -139,8 +140,9 @@ class PrepScene extends Phaser.Scene {
     drawGround(this)
     this.wallArt = { key: null, art: [] }
     this.tileG = this.add.graphics().setDepth(-400)
-    this.dangerG = this.add.graphics().setDepth(-399)
     this.roadG = this.add.graphics().setDepth(-398)
+    this.reachG = this.add.graphics().setDepth(-396)
+    this.reachKey = ''
     this.domG = this.add.graphics().setDepth(-395)
     // While a piece is dragged: the domain lit (pulsing, see update) and the ground outside it dimmed.
     this.glowG = this.add.graphics().setDepth(-394)
@@ -157,26 +159,25 @@ class PrepScene extends Phaser.Scene {
       if (scene === this) scene = null
       setTimeout(boot)
     })
-    // Opaque, so the battle being built under it at Begin never shows through.
-    this.cameras.main.setBackgroundColor('#08070d').fadeIn(220, 6, 5, 10)
+    // Opaque, so the battle being built under it as one starts never shows through.
+    this.cameras.main.setBackgroundColor('#0f0b17').fadeIn(220, 6, 5, 10)
     if (want) this.draw(want.picture)
   }
 
   // ── the picture ──────────────────────────────────────────────────────────────────────────────
 
   // p: { walls, units, domain: { centre, size, r } (Arise's reach round its holder's footprint, null with no holder
-  // fielded), roads (each tile's arrow, field().arrow), seat (the Monarch's tile), danger (policy.js danger: { ground,
-  // air }, by tile the damage your side could deal there next turn; null on the map), drop (the anchors a drag may land on),
-  // dropSize (the dragged piece's size), selKey }. A unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp,
-  // maxHp, lvl, tracks, relics, monarch, fallen, sel, glow (colours), lit, offer (it may take the relic readied), flies
-  // (hovers) }.
+  // fielded), reach: { centre, size, r } (the selected soul's reach round its footprint, null with none), roads (each
+  // tile's arrow, field().arrow), seat (the Monarch's tile), drop (the anchors a drag may land on), dropSize (the dragged
+  // piece's size), selKey }. A unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp, maxHp, lvl, tracks,
+  // relics, monarch, fallen, sel, glow (colours), lit, offer (it may take the relic readied), flies (hovers) }.
   draw (p) {
     const old = this.picture
     this.picture = p
     this.drawWalls(p.walls)
     this.drawTiles(p)
-    this.drawDanger(p.danger)
     this.drawRoads(p.roads)
+    this.drawReach(p.reach)
     this.drawDomain()
     this.drawSeat(p.seat)
     // The units, kept by key: one that changed tile walks there (a place), one that grew pops.
@@ -238,7 +239,7 @@ class PrepScene extends Phaser.Scene {
       for (const t of p.drop ?? []) {
         const { x, y } = posAt(t, p.dropSize)
         g.fillStyle(SOUL, 0.08).fillEllipse(x, y + GROUND, 64, 22)
-        g.lineStyle(1.5, SOUL, 0.55).strokeEllipse(x, y + GROUND, 64, 22)
+        inked(g, 1.5, SOUL, 0.55, (g) => g.strokeEllipse(x, y + GROUND, 64, 22))
       }
     }
     for (let tile = 0; tile < TILES; tile++) {
@@ -249,34 +250,8 @@ class PrepScene extends Phaser.Scene {
       g.lineStyle(1.2, colour, taken.has(tile) ? 0.45 : 0.14).strokeEllipse(x, y + GROUND, 50, 15)
       if (drop.has(tile)) {
         g.fillStyle(SOUL, 0.08).fillEllipse(x, y + GROUND, 56, 18)
-        g.lineStyle(1.5, SOUL, 0.55).strokeEllipse(x, y + GROUND, 56, 18)
+        inked(g, 1.5, SOUL, 0.55, (g) => g.strokeEllipse(x, y + GROUND, 56, 18))
       }
-    }
-  }
-
-  // The danger map (redesign.md §4): each tile shaded in the plan's blue by what your side could deal there next turn,
-  // deeper with the damage (by its square, so a tile two pieces reach reads apart from one that one reaches), the most
-  // on the board the deepest (the tooltip says how much). Where a flyer there would take less (ground melee never
-  // reaches up: the air layer), the tile's upper part, where flyers hover, is shaded by the air's alone. Terrain-like,
-  // under the roads' arrows: what your side reaches, never what the foes will do.
-  drawDanger (danger) {
-    const g = this.dangerG.clear()
-    const ground = danger?.ground
-    const air = danger?.air ?? ground
-    const most = ground ? Math.max(...ground) : 0
-    if (!(most > 0)) return
-    const shade = (v) => 0.03 + 0.27 * (v / most) ** 2
-    for (let t = 0; t < TILES; t++) {
-      if (!(ground[t] > 0)) continue
-      const b = cellsBox(tileX(t), tileX(t), tileY(t), tileY(t), 3)
-      if (!(air[t] < ground[t])) {
-        g.fillStyle(PLAN, shade(ground[t])).fillRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 7)
-        continue
-      }
-      const cut = b.t + (b.b - b.t) * AIR_CUT
-      g.fillStyle(PLAN, shade(ground[t])).fillRoundedRect(b.l, cut, b.r - b.l, b.b - cut, { tl: 0, tr: 0, bl: 7, br: 7 })
-      if (air[t] > 0) g.fillStyle(PLAN, shade(air[t])).fillRoundedRect(b.l, b.t, b.r - b.l, cut - b.t, { tl: 7, tr: 7, bl: 0, br: 0 })
-      g.lineStyle(1, PLAN, 0.35).lineBetween(b.l + 4, cut, b.r - 4, cut)
     }
   }
 
@@ -295,6 +270,24 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
+  // The selected soul's reach round its footprint, in the foes' red, the box the battle draws round a selected piece:
+  // it fades in as a soul is selected, and out as it is let go of (at once under reduced motion).
+  drawReach (reach) {
+    const key = reach ? `${reach.centre}:${reach.size}:${reach.r}` : ''
+    if (key === this.reachKey) return
+    this.reachKey = key
+    const g = this.reachG
+    this.tweens.killTweensOf(g)
+    const ms = reducedMotion() ? 0 : REACH_FADE
+    if (!reach) {
+      if (!ms) return g.clear()
+      return this.tweens.add({ targets: g, alpha: 0, duration: ms, onComplete: () => g.clear() })
+    }
+    g.clear().setAlpha(ms ? 0 : 1)
+    paintReach(g, ringBox(reach.centre, reach.r, 4, reach.size), FOE)
+    if (ms) this.tweens.add({ targets: g, alpha: 1, duration: ms })
+  }
+
   // Arise's reach (the domain) round the footprint of the soul holding it, where it starts the battle (redesign.md
   // §2.15). While a piece is dragged it lights up and the ground outside it dims.
   drawDomain () {
@@ -308,10 +301,10 @@ class PrepScene extends Phaser.Scene {
     const box = ringBox(d.centre, d.r, 4, d.size)
     const [w, h] = [box.r - box.l, box.b - box.t]
     g.fillStyle(DOMAIN, 0.045).fillRoundedRect(box.l, box.t, w, h, 12)
-    g.lineStyle(1.5, DOMAIN, 0.45).strokeRoundedRect(box.l, box.t, w, h, 12)
+    inked(g, 1.5, DOMAIN, 0.45, (g) => g.strokeRoundedRect(box.l, box.t, w, h, 12))
     if (this.drag?.piece) {
       glow.fillStyle(DOMAIN, 0.17).fillRoundedRect(box.l, box.t, w, h, 12)
-      glow.lineStyle(3, DOMAIN, 0.95).strokeRoundedRect(box.l, box.t, w, h, 12)
+      inked(glow, 3, DOMAIN, 0.95, (g) => g.strokeRoundedRect(box.l, box.t, w, h, 12))
       const far = 5000
       dim.fillStyle(0x05040a, 0.45)
         .fillRect(-far, -far, 2 * far, box.t + far).fillRect(-far, box.b, 2 * far, far)
@@ -332,14 +325,14 @@ class PrepScene extends Phaser.Scene {
     const c = this.crownG.clear()
     if (tile == null) return
     const { x, y } = posOf(tile)
-    g.lineStyle(2, CROWN, 0.85).strokeEllipse(x, y + GROUND, 62, 20)
+    inked(g, 2, CROWN, 0.85, (g) => g.strokeEllipse(x, y + GROUND, 62, 20))
     g.lineStyle(1.2, CROWN, 0.5).strokeEllipse(x, y + GROUND, 72, 24)
     // Just in front of the Monarch's picture (its depth is its feet's y), behind anyone standing lower.
     const [cx, cy, k] = [x - TILE_W / 2 + 14, y + GROUND - 6, 1.4]
     const crown = [[-9, 5], [-9, -5], [-4.5, 0], [0, -8], [4.5, 0], [9, -5], [9, 5]].map(([dx, dy]) => ({ x: cx + dx * k, y: cy + dy * k }))
     c.setDepth(y + 0.6)
     c.fillStyle(CROWN, 1).fillPoints(crown, true)
-    c.lineStyle(1.5, 0x07060b, 0.95).strokePoints(crown, true)
+    c.lineStyle(1.75, INK, 0.95).strokePoints(crown, true)
   }
 
   // ── units ────────────────────────────────────────────────────────────────────────────────────
@@ -381,7 +374,6 @@ class PrepScene extends Phaser.Scene {
     a.growth = null
     const u = a.u
     const part = (o, dx, dy, layer, extra = {}) => { a.parts.push({ o, dx, dy, layer, ...extra }); return o }
-    const foe = u.side === 'foe'
     a.sprite.setTexture(`unit:${unitDef(u.id).art}:${u.fallen ? 'dead' : 'alive'}`)
     if (u.fallen) a.sprite.setTint(0xc4bfd0)
     else a.sprite.clearTint()
@@ -400,24 +392,22 @@ class PrepScene extends Phaser.Scene {
     // The selected piece, found at a glance while its panel is open: a bright pulsing ring in a pool of light, a
     // ripple spreading from it (update), and a bobbing chevron over its head (placed first: layoutMarks).
     if (u.sel) {
-      const c = foe ? FOE : SOUL
-      glow(124, c, 0.6).setData('pulse', true)
-      ring(76, c, 1, 4).setData('pulse', true)
-      ring(76, c, 0.9, 2.5).setData('ripple', true)
+      glow(124, SOUL, 0.6).setData('pulse', true)
+      ring(76, SOUL, 1, 4).setData('pulse', true)
+      ring(76, SOUL, 0.9, 2.5).setData('ripple', true)
       const chev = this.add.graphics()
-      chev.fillStyle(c, 0.35).fillCircle(0, -6, 11)
-      chev.fillStyle(c, 1).fillTriangle(-9, -11, 9, -11, 0, 0)
-      chev.lineStyle(2, 0x07060b, 0.95).strokeTriangle(-9, -11, 9, -11, 0, 0)
+      chev.fillStyle(SOUL, 0.35).fillCircle(0, -6, 11)
+      chev.fillStyle(SOUL, 1).fillTriangle(-9, -11, 9, -11, 0, 0)
+      chev.lineStyle(2, INK, 0.95).strokeTriangle(-9, -11, 9, -11, 0, 0)
       part(legible(chev.setData('size', 6), this.labelZ, 'num'), 0, -a.chest * 2.95 - 4 - a.hover, 'top', { move: 0, bob: true, box: [-11, -17, 11, 5] })
     }
     // The bars: the Monarch's thicker, in its gold frame.
     const crowned = !!u.monarch
-    const colour = foe ? FOE : PARTY
-    part(this.add.rectangle(0, 0, BAR + 2, crowned ? 12 : 10, 0x07060b, 0.92).setStrokeStyle(1, crowned ? CROWN : 0x2c2740), 0, BAR_DROP + 2, 'ground', { keep: true })
+    part(this.add.rectangle(0, 0, BAR + 2, crowned ? 12 : 10, INK, 0.92).setStrokeStyle(1, crowned ? CROWN : INK), 0, BAR_DROP + 2, 'ground', { keep: true })
     const f = u.maxHp ? Math.max(0, u.hp / u.maxHp) : 1
-    if (f > 0) part(this.add.rectangle(0, 0, BAR * f, crowned ? 6 : 4, colour).setOrigin(0, 0.5), -BAR / 2, BAR_DROP, 'ground', { z: 0.2, keep: true })
-    // Yours wear their growth as in battle: their tiers.
-    if (!foe && !u.monarch) a.growth = growthMarks(this, u)
+    if (f > 0) part(this.add.rectangle(0, 0, BAR * f, crowned ? 6 : 4, PARTY).setOrigin(0, 0.5), -BAR / 2, BAR_DROP, 'ground', { z: 0.2, keep: true })
+    // Souls wear their growth as in battle: their tiers.
+    if (!u.monarch) a.growth = growthMarks(this, u)
   }
 
   // A unit's body as drawn at its tile (its picture's middle, from its head down to its bars; a flyer's head
@@ -548,14 +538,14 @@ class PrepScene extends Phaser.Scene {
     if (!p || this.leaving) return
     if (this.focused != null && !this.drag) {
       const b = ringBox(this.focused, 0, 5)
-      g.lineStyle(2, 0xffffff, 0.6 + 0.35 * v).strokeRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 8)
+      inked(g, 2, 0xffffff, 0.6 + 0.35 * v, (g) => g.strokeRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 8))
     }
     const d = this.drag?.piece ? this.drag : null
     const at = d ? d.preview?.tile : !this.drag && typeof this.hovered === 'number' ? this.hovered : null
     if (at == null) return
     if (!d) {
       const { x, y } = posOf(at)
-      return g.lineStyle(1.5, 0xffffff, 0.55).strokeEllipse(x, y + GROUND, 58, 18)
+      return inked(g, 1.5, 0xffffff, 0.55, (g) => g.strokeEllipse(x, y + GROUND, 58, 18))
     }
     const pv = d.preview
     const cells = pv.cells ?? [at]
@@ -567,10 +557,10 @@ class PrepScene extends Phaser.Scene {
       if (cells.length > 1) {
         const b = cellsBox(tileX(c), tileX(c), tileY(c), tileY(c), 4)
         g.fillStyle(red ? FOE : SOUL, red && bright ? 0.24 : 0.12).fillRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 8)
-        g.lineStyle(2.5, red ? FOE : SOUL, bright ? 0.95 : 0.45).strokeRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 8)
+        inked(g, 2.5, red ? FOE : SOUL, bright ? 0.95 : 0.45, (g) => g.strokeRoundedRect(b.l, b.t, b.r - b.l, b.b - b.t, 8))
       } else {
         g.fillStyle(red ? FOE : SOUL, 0.12).fillEllipse(x, y + GROUND, 66, 21)
-        g.lineStyle(2.5, red ? FOE : SOUL, 0.95).strokeEllipse(x, y + GROUND, 66, 21)
+        inked(g, 2.5, red ? FOE : SOUL, 0.95, (g) => g.strokeEllipse(x, y + GROUND, 66, 21))
       }
     }
   }
@@ -832,7 +822,7 @@ class PrepScene extends Phaser.Scene {
     this.focused = null
     this.scene.bringToTop()
     // What the battle draws too (the bars, the growth) stays; the rest fades.
-    const marks = [this.roadG, this.dangerG, this.seatG, this.crownG, this.domG, this.liveG, this.domLabel,
+    const marks = [this.roadG, this.reachG, this.seatG, this.crownG, this.domG, this.liveG, this.domLabel,
       ...[...this.actors.values()].flatMap((a) => a.parts.filter((x) => !x.keep).map((x) => x.o))].filter(Boolean)
     for (const a of this.actors.values()) a.parts = a.parts.filter((x) => x.keep)
     this.tweens.add({ targets: marks, alpha: 0, duration: 260 })

@@ -7,7 +7,7 @@
 .kw-tip b { margin-right: 2px; }
 
 /* ── tooltip panel: opaque, so nothing behind it shows through ────────────────────────────────── */
-.tip { background-color: #120f1e; }
+.tip { background-color: #33284e; }
 
 /* ── unit card: three lines (name, stats, one live fact); Shift or More opens the rest ─────────── */
 /* Its name --fs-lg, its live line --fs-md, the rest --fs-sm. Open or not, as wide: inside the tooltip's 440. */
@@ -16,7 +16,7 @@
 .card-tip.compact .ct-nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-tip.compact .ct-lv { flex: none; font: 500 var(--fs-sm) var(--sans); }
 .ct-kind { font-size: var(--fs-sm); margin-top: 6px; }
-.card-tip.compact .ct-hp { display: inline-flex; flex: none; align-items: center; gap: 6px; margin: 0 0 0 auto; font: 600 var(--fs-sm) var(--sans); color: var(--text); }
+.card-tip.compact .ct-hp { display: inline-flex; flex: none; align-items: center; gap: 6px; margin: 0 0 0 auto; font: 600 var(--fs-sm) var(--display); color: var(--text); }
 .card-tip.compact .ct-hp .hpbar { width: 48px; }
 .ct-live { display: flex; align-items: baseline; gap: 10px; min-width: 0; font-size: var(--fs-md); color: var(--text); }
 /* A board tile's tooltip: a few short lines. */
@@ -26,12 +26,12 @@
 .ct-lead { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .ct-more { flex: none; font-size: var(--fs-sm); color: var(--dim); white-space: nowrap; }
 .ct-mults { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
-.ct-stats { display: flex; flex-wrap: wrap; gap: 3px 10px; margin: 6px 0; padding: 5px 9px; border-radius: 8px; background: #0f0c18; }
+.ct-stats { display: flex; flex-wrap: wrap; gap: 3px 10px; margin: 6px 0; padding: 3.5px 7.5px; border-radius: var(--radius); background: var(--sunk); border: 1.5px solid var(--ink); }
 .sx { display: inline-flex; align-items: center; gap: 4px; color: var(--dim); }
-.sx b { color: var(--bright); font-size: var(--fs-md); }
-.sx.mult { font-size: var(--fs-sm); padding: 0 6px; border-radius: 5px; background: #1a1630; }
+.sx b { color: var(--bright); font: 700 var(--fs-md) var(--display); }
+.sx.mult { font-size: var(--fs-sm); padding: 0 6px; border-radius: 6px 4px 6px 5px; background: var(--raise); }
 .sx.mult.up { color: var(--c-essence); }
-.sx.mult.down { color: var(--c-foe); }
+.sx.mult.down { color: var(--c-foe2); }
 /* A soul's relic slot (codex.js relicSlot), on its card and its panels: the relic in its tier's colour, or an empty
    slot. A relic mark: the small gem a holder's portrait wears (the board draws one on its sprite). */
 .relic-slot { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -39,14 +39,14 @@
 .rs-empty { font-size: var(--fs-sm); }
 .relic-mark {
   position: absolute; right: 2px; top: 2px; width: 10px; height: 10px; background: var(--rt, var(--c-relic));
-  clip-path: polygon(50% 0, 100% 35%, 80% 100%, 20% 100%, 0 35%); filter: drop-shadow(0 0 2px #000);
+  clip-path: polygon(50% 0, 100% 35%, 80% 100%, 20% 100%, 0 35%); filter: drop-shadow(1px 1px 0 var(--ink));
 }
 .ct-abs { display: flex; flex-direction: column; gap: 3px; }
-.card-tip.compact .ability { display: block; padding: 5px 9px; margin: 0; border-radius: 7px; font-size: var(--fs-sm); line-height: 1.35; }
+.card-tip.compact .ability { display: block; padding: 3.5px 7.5px; margin: 0; border-radius: var(--radius); font-size: var(--fs-sm); line-height: 1.35; }
 .card-tip.compact .ability > b:first-child { color: var(--bright); }
 .ability .ab-cost { float: right; margin-left: 8px; font-size: var(--fs-sm); }
-.tag-shape { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; margin-left: 4px; border-radius: 5px; background: #241d36; color: #c9bce8; }
-.ability.arise { border-left: 2px solid var(--c-shadow); }
+.tag-shape { font-size: var(--fs-sm); font-weight: 600; padding: 0 7px; margin-left: 4px; border-radius: 6px 4px 7px 5px; background: #3a2f57; color: #d6caf2; }
+.ability.arise { border-left: 4px solid var(--c-shadow); }
 
 .ct-tiers { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); color: var(--text); }
 .ct-tier b { color: var(--c-knight); font-weight: 600; }
@@ -62,34 +62,34 @@
 .room-tip.compact { width: 400px; font-size: var(--fs-sm); }
 .room-tip.compact .rt-head { font-size: var(--fs-lg); }
 .room-tip.compact .rt-text { font-size: var(--fs-md); }
-.rt-count { margin-left: auto; font: 600 var(--fs-sm) var(--sans); color: var(--dim); white-space: nowrap; }
-.rt-text { margin: 3px 0 0 !important; color: #c5bdd6; }
+.rt-count { margin-left: auto; font: 600 var(--fs-sm) var(--display); color: var(--dim); white-space: nowrap; }
+.rt-text { margin: 3px 0 0 !important; color: #cbc3db; }
 .room-tip.compact .mini-grid { margin: 6px 0 2px; }
 /* The formation's picture (cells 28) with who stands in it beside it, not under it: a shorter card. */
 .rt-body { display: flex; gap: 12px; align-items: flex-start; }
 .rt-body .mini-grid { flex: none; }
-.rt-body .mini-cell { width: 28px; height: 28px; border-radius: 5px; }
+.rt-body .mini-cell { width: 28px; height: 28px; border-radius: 6px 4px 6px 5px; }
 .rt-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 6px; line-height: 1.35; }
 .room-tip.compact .threat { margin-top: 6px; }
 .room-tip.compact .rt-foot { margin-top: 6px; }
 .num { font-weight: 700; color: var(--c-essence); }
-.num.foe { color: var(--c-foe); }
+.num.foe { color: var(--c-foe2); }
 
 /* ── synergy and pact chips ───────────────────────────────────────────────────────────────────── */
 .syns.chips { flex-direction: row; flex-wrap: wrap; gap: 5px; }
 .syn.chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 99px; font-size: var(--fs-sm); cursor: help;
-  color: var(--dim); background: #120f1e; border: 1px dashed var(--line);
+  display: inline-flex; align-items: center; gap: 6px; padding: 0 8.5px; border-radius: var(--r-pill); font-size: var(--fs-sm); cursor: help;
+  color: var(--dim); background: var(--sunk); border: 2.5px dashed var(--line);
 }
-.syn.chip > b { color: inherit; }
-.syn.chip.near { color: #b9b2c9; border-color: #3d3560; }
-.syn.chip.on { color: var(--bright); border: 1px solid color-mix(in srgb, var(--c-synergy) 55%, transparent); background: color-mix(in srgb, var(--c-synergy) 12%, #120f1e); }
-.syn.chip.on > b { color: var(--c-synergy); }
-.syn.chip.top { border-color: var(--c-synergy); background: color-mix(in srgb, var(--c-synergy) 22%, #120f1e); }
+.syn.chip > b { color: inherit; font-family: var(--display); }
+.syn.chip.near { color: #c3bcd3; border-color: var(--line); }
+.syn.chip.on { color: var(--bright); border: 2.5px solid var(--ink); background: color-mix(in srgb, var(--c-synergy) 16%, var(--raise)); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-synergy) 55%, transparent), var(--drop-sm); }
+.syn.chip.on > b { color: #6cb4ff; }
+.syn.chip.top { background: color-mix(in srgb, var(--c-synergy) 26%, var(--raise)); box-shadow: inset 0 0 0 2px var(--c-synergy), var(--drop-sm); }
 .syn.chip.top > b { color: #f6c6fa; }
 .syn.chip.far { font-weight: 600; }
 .syn.chip .syn-steps { gap: 2px; }
-.syn.chip .syn-steps i { width: 22px; height: 22px; font-size: var(--fs-sm); line-height: 20px; }
+.syn.chip .syn-steps i { width: 22px; height: 22px; font-size: var(--fs-sm); line-height: 18px; }
 .syn.chip .syn-steps i.next { border-style: dashed; border-color: var(--dim); color: var(--text); }
 
 /* ── relics and their tiers ─────────────────────────────────────────────────────────────────────── */
@@ -102,18 +102,18 @@
 .rt-uncommon { --rt: var(--c-uncommon); }
 .rt-rare { --rt: var(--c-rare); }
 .rt-legendary { --rt: var(--c-legendary); }
-.relic[class*="rt-"] { background: color-mix(in srgb, var(--rt) 13%, #0c0a14); border-color: color-mix(in srgb, var(--rt) 45%, transparent); color: color-mix(in srgb, var(--rt) 72%, #fff); }
+.relic[class*="rt-"] { background: color-mix(in srgb, var(--rt) 18%, var(--sunk)); border-color: var(--ink); color: color-mix(in srgb, var(--rt) 72%, #fff); }
 /* Copies of one relic: one chip, ×N on it. */
 .relic-n { font-weight: 700; color: var(--rt, var(--c-relic)); }
 /* The relics held, grouped by tier (codex.js relicsByTier): a row each, its tag first. */
 .relics.by-tier { flex-direction: column; align-items: flex-start; }
 .relic-tier { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .gl-relics { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.gl-relics .relic-tier .relic { min-height: 0; padding: 2px 10px; font-size: var(--fs-sm); cursor: help; }
+.gl-relics .relic-tier .relic { min-height: 0; padding: 0 8.5px; font-size: var(--fs-sm); cursor: help; }
 .relic-tip .trig-tag, .relic-tip .tier-tag { margin: 0 2px 0 0; }
 .relic-tip > .dim { margin-top: 4px; }
 .relic.trig { position: relative; }
-.relic.trig::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--c-relic); box-shadow: 0 0 6px var(--c-relic); margin-left: 2px; }
+.relic.trig::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c-relic); box-shadow: 0 0 0 1.5px var(--ink); margin-left: 2px; }
 
 /* ── how to play: the primer and the glossary ─────────────────────────────────────────────────── */
 /* Most of the frame, full height whatever the search leaves showing (so it never re-centres as you type): a
@@ -127,36 +127,36 @@
 .codex .gestures { margin: 0 0 16px; font-size: var(--fs-md); line-height: 1.5; color: var(--text); }
 /* The bestiary: a card a kind, the ones not met a shade. */
 .beasts { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-top: 12px; }
-.beast { display: flex; gap: 12px; align-items: flex-start; padding: 8px 12px 10px 8px; border-radius: 10px; border: 1px solid #3d2330; background: #140b10cc; }
-.beast-port { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 10px; background: radial-gradient(circle, #3a1a26, #160b10); }
+.beast { display: flex; gap: 12px; align-items: flex-start; padding: 6.5px 10.5px 8.5px 6.5px; border-radius: var(--r-panel); border: 2.5px solid var(--ink); background: #2e1824; box-shadow: var(--drop-sm); }
+.beast-port { flex: none; width: 56px; height: 56px; display: grid; place-items: center; border-radius: 12px 9px 13px 10px; background: #4a2232; border: 2px solid var(--ink); box-shadow: inset -3px -4px 0 #3a1826; }
 .beast-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-md); }
-.beast-text .flavour { font-style: italic; color: #b9a8c8; }
-.beast.unknown { border-style: dashed; border-color: var(--line2); background: #0c0a12cc; }
+.beast-text .flavour { font-style: italic; color: #c9b2bd; }
+.beast.unknown { border-style: dashed; border-color: var(--line); background: var(--sunk); box-shadow: none; }
 .beast.unknown .portrait { filter: brightness(0) opacity(.45); }
 /* The fusions: a recipe a row, its result's portrait, name, parts and price, its card beside (under, when narrow). */
 /* The Codex's Synergies and Relics (codex.js synergiesView, relicsView): a row each, in its colour. A status's (and a
    synergy's) swatch: its colour on the board. */
-.st-dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: 1px; box-shadow: 0 0 0 1px #0008; }
+.st-dot { display: inline-block; width: 11px; height: 11px; margin-right: 6px; border-radius: 4px 2px 4px 3px; vertical-align: 1px; box-shadow: 0 0 0 1.5px var(--ink); }
 .codex-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; margin-top: 8px; }
-.codex-row { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line2); background: #100e1acc; }
-.codex-row.owned { border-color: color-mix(in srgb, var(--rt, var(--c-relic)) 60%, var(--line2)); }
+.codex-row { display: flex; flex-direction: column; gap: 4px; padding: 6.5px 10.5px; border-radius: var(--r-panel); border: 2.5px solid var(--ink); background: var(--raise); box-shadow: var(--drop-sm); }
+.codex-row.owned { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--rt, var(--c-relic)) 65%, transparent), var(--drop-sm); }
 .codex-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
-.codex-have { margin-left: auto; font-size: var(--fs-xs); color: var(--dim); font-weight: 600; }
+.codex-have { margin-left: auto; font: 600 var(--fs-xs) var(--display); color: var(--dim); }
 .codex-have.on { color: var(--c-essence); }
 .codex-tier { margin-top: 14px; }
 .fusion-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .fusion {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 10px 16px; align-items: start;
-  padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--c-path) 35%, var(--line)); background: #0b1418cc;
+  padding: 8.5px 10.5px; border-radius: var(--r-panel); border: 2.5px solid var(--ink); background: #1b2c38; box-shadow: var(--drop-sm);
 }
-.fusion.ready { border-color: var(--c-path); box-shadow: 0 0 12px color-mix(in srgb, var(--c-path) 25%, transparent); }
+.fusion.ready { box-shadow: inset 0 0 0 2.5px var(--c-path), var(--drop-sm); }
 .fusion-head { display: flex; gap: 12px; align-items: flex-start; min-width: 0; }
-.fusion .beast-port { background: radial-gradient(circle, #123038, #0a1418); }
+.fusion .beast-port { background: #1d4450; box-shadow: inset -3px -4px 0 #153641; }
 .fusion-parts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 .fusion-part { display: inline-flex; align-items: center; gap: 4px; }
 .fusion-part.met { color: var(--c-path2); }
 .fusion-part.short { color: var(--dim); }
-.fusion-ready { color: var(--c-path); font-weight: 600; }
+.fusion-ready { color: var(--c-path); font: 600 var(--fs-md) var(--display); }
 .fusion .card-tip, .fusion .card-tip.compact { margin: 0; width: auto; max-width: none; box-sizing: border-box; }
 .help-head { flex: none; display: flex; align-items: center; gap: 22px; }
 .help-head .modal-title { flex: none; margin: 0; }
@@ -166,27 +166,28 @@
 .help-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 10px 24px 0; }
 .modal.help .lede { margin-bottom: 14px; }
 .primer {
-  margin: 0 0 16px; padding: 14px 20px 14px 44px; border-radius: 12px; background: #0f0c18aa; border: 1px solid var(--line2);
+  margin: 0 0 16px; padding: 12px 18px 12px 42px; border-radius: var(--r-panel); background: var(--sunk); border: 2px solid var(--ink);
   font-size: var(--fs-md); line-height: 1.6; display: flex; flex-direction: column; gap: 4px;
 }
-.primer li::marker { color: var(--c-monarch); font-weight: 700; }
-.gl-run { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0 0 16px; padding: 10px 16px; border-radius: 10px; font-size: var(--fs-sm); color: var(--dim); border: 1px dashed var(--line); }
+.primer li::marker { color: #e8b830; font-family: var(--display); font-weight: 700; }
+.gl-run { display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0 0 16px; padding: 9px 15px; border-radius: var(--r-panel); font-size: var(--fs-sm); color: var(--dim); border: 2px dashed var(--line); }
 .gl-run .warn { color: var(--c-warn); }
 .help-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; font-size: var(--fs-sm); }
 .help-foot p { margin: 0; }
-.gl-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px; background: #0b0914; color: var(--dim); cursor: text; }
-.gl-bar:focus-within { border-color: var(--c-essence); color: var(--c-essence2); }
+.gl-bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 12.5px; border: 2.5px solid var(--ink); border-radius: var(--r-pill); background: var(--sunk); color: var(--dim); cursor: text; box-shadow: inset 2px 3px 0 rgb(0 0 0 / .25); }
+.gl-bar:focus-within { color: var(--c-essence2); box-shadow: inset 2px 3px 0 rgb(0 0 0 / .25), 0 0 0 3px var(--c-essence); }
 .gl-search { flex: 1; min-width: 0; min-height: var(--tap); border: none; background: transparent; outline: none; padding: 0; font-size: var(--fs-md); color: var(--bright); }
 /* The glossary: its sections folded to a grid of headings; one opened spans the width, its entries in columns. */
 .glossary { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; align-items: start; }
-.gl-sec { border: 1px solid var(--line2); border-radius: 12px; background: #0f0c18aa; }
+.gl-sec { border: 2.5px solid var(--ink); border-radius: var(--r-panel); background: var(--raise); box-shadow: var(--drop-sm); }
+.gl-sec[open] { background: var(--sunk); }
 .gl-sec[open] { grid-column: 1 / -1; }
-.gl-sec > summary { cursor: pointer; min-height: max(52px, var(--tap)); padding: 8px 16px; font: 600 var(--fs-lg) var(--serif); color: var(--bright); list-style: none; display: flex; align-items: center; gap: 10px; }
+.gl-sec > summary { cursor: pointer; min-height: max(52px, var(--tap)); padding: 6.5px 14.5px; font: 600 var(--fs-lg) var(--display); color: var(--bright); list-style: none; display: flex; align-items: center; gap: 10px; }
 .gl-sec > summary::-webkit-details-marker { display: none; }
 .gl-sec > summary::before { content: '▸'; color: var(--dim); font-size: var(--fs-sm); transition: transform .15s; }
 .gl-sec[open] > summary::before { transform: rotate(90deg); }
-.gl-n { margin-left: auto; font: 600 var(--fs-sm) var(--sans); color: var(--dim); }
-.gl-items { columns: 360px; column-gap: 32px; padding: 0 18px 14px; }
+.gl-n { margin-left: auto; font: 600 var(--fs-sm) var(--display); color: var(--dim); }
+.gl-items { columns: 360px; column-gap: 32px; padding: 0 16.5px 12.5px; }
 .gl-entry { break-inside: avoid; padding: 6px 0; font-size: var(--fs-md); line-height: 1.45; }
 .gl-row { display: block; }
 .gl-term { color: var(--k, var(--bright)); }

@@ -10,7 +10,7 @@ import {
   lined, lineOf, lineStruck
 } from './sim/turns.js'
 import { foeEssence } from './sim/run.js'
-import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, footprint, alive, isBlow } from './sim/unit.js'
+import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, blowReach, footprint, alive, isBlow } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy } from './dom.js'
 import { frame } from './frame.js'
@@ -18,25 +18,27 @@ import { synergyLabels } from './codex.js'
 
 // ── engine and picture loading ───────────────────────────────────────────────────────────────────
 
-export function createEngine (parent) {
+// `gate`: what else the board waits on before it draws (main.js: the display face, so no canvas text is set in another).
+export function createEngine (parent, { gate = null } = {}) {
   let ready
-  const loaded = new Promise((resolve) => { ready = resolve })
+  const pictures = new Promise((resolve) => { ready = resolve })
+  const loaded = gate ? Promise.all([pictures, gate]) : pictures
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    backgroundColor: '#08070d',
+    backgroundColor: '#0f0b17',
     scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
     callbacks: { preBoot: (g) => g.registry.set('ready', ready) },
     scene: [BootScene, BattleScene]
   })
   return {
     game,
-    // Resolves once the pictures are loaded (the prep board, board.js, waits on it too).
+    // Resolves once the pictures are loaded and the gate is through (the Field board, board.js, waits on it too).
     ready: loaded,
     // data: { battle (the run's own, run.battle), order(o) (gives an order, returns its events; throws on an illegal
     // one), title, stage() (the viewport rect the board fits in), hud (the chrome's words: start, synergies, hp,
     // announce), onChange(state), onHover(unit | null, rect, pin), onDone(), essence (what the purse multiplies a slain
-    // foe's essence by), seamless (the prep board fades into it: no fade in from black), death() (what felled the
+    // foe's essence by), seamless (the Field board fades into it: no fade in from black), death() (what felled the
     // Monarch, codex.js deathText, for the end's replay beat, or null) }. Resolves with the scene once built.
     async battle (data) {
       await loaded
@@ -55,25 +57,29 @@ const WALL_FOOT = 80 / 96 // a wall picture's ground line
 
 // One colour per system (style.css :root, --c-*), read from the page whenever a scene is made (palette), so the
 // board and the DOM never drift apart; these fallbacks are the same values. C holds them as '#rrggbb' for text.
-// C.soul2 is --c-essence2, essence's pale text tint; synergy is the plan's blue (style.css aliases it).
+// C.soul2 is --c-essence2, essence's pale text tint; synergy is the plan's blue (style.css aliases it). Two are no
+// system's: the ink (--ink, the art's) every label is edged in and every mark laid over the board stands on, and the
+// panel's violet (--panel) the board's banners are plated in, as the page's panels are.
 const hex = (c) => parseInt(c.slice(1), 16)
 const TOKENS = {
   essence: '#5ef0c0', soul2: '#8ff7d6', foe: '#e0566a', monarch: '#c08a00', plan: '#3697ff', relic: '#ff7f45',
   warn: '#ffdc4a', legendary: '#ab94fc', ossuary: '#b8ae9e', domain: '#84d21a', shadow: '#fb9ad5', path: '#3bd3ea',
-  path2: '#b3f3f9', synergy: '#3697ff', common: '#e0c2a8', uncommon: '#ff7f45', rare: '#ffb02e'
+  path2: '#b3f3f9', synergy: '#3697ff', common: '#e0c2a8', uncommon: '#ff7f45', rare: '#ffb02e', ink: '#0c0713', panel: '#2d2346'
 }
+const VAR = { soul2: '--c-essence2', ink: '--ink', panel: '--panel' }
 const C = { ...TOKENS }
 // The sides and the soulfire (essence, yours), the Monarch's gold (its frame: if its HP runs out, the run ends),
-// a domain's green, a shadow's pink (Arise), the plan's blue (the danger map, a move's tiles), a kind's tiers, a
-// relic's tier.
-let PARTY, FOE, SOUL, GOLD, CROWN, DOMAIN, RISE, UNDYING, BOON, PLAN, PATH_PIP, RELIC, RELIC_TIER
+// a domain's green, a shadow's pink (Arise), the plan's blue (a move's tiles), a kind's tiers, a relic's tier.
+let PARTY, FOE, SOUL, GOLD, CROWN, DOMAIN, RISE, UNDYING, BOON, PLAN, PATH_PIP, RELIC, RELIC_TIER, INK, PANEL
 const NEUTRAL = 0x8a84a8 // the open ground between the two daises: no system's
 export function palette () {
   const css = typeof document === 'undefined' ? null : getComputedStyle(document.documentElement)
   for (const k in TOKENS) {
-    const v = css?.getPropertyValue(k === 'soul2' ? '--c-essence2' : `--c-${k}`).trim()
+    const v = css?.getPropertyValue(VAR[k] ?? `--c-${k}`).trim()
     C[k] = /^#[0-9a-f]{6}$/i.test(v ?? '') ? v : TOKENS[k]
   }
+  INK = hex(C.ink)
+  PANEL = hex(C.panel)
   PARTY = hex(C.essence)
   FOE = hex(C.foe)
   SOUL = hex(C.soul2)
@@ -82,7 +88,7 @@ export function palette () {
   RISE = hex(C.shadow)
   UNDYING = hex(C.legendary) // a piece rising again (Undying, a Legendary relic)
   BOON = hex(C.synergy)     // a buff, a cleanse, a rule of yours: the synergies' (the plan's) blue
-  PLAN = hex(C.plan)      // what you set: the danger map, a move's tiles
+  PLAN = hex(C.plan)      // what you set: a move's tiles
   PATH_PIP = [hex(C.path), hex(C.path2)] // a kind's tiers, its first track's and its second's
   RELIC = hex(C.relic)
   RELIC_TIER = { common: hex(C.common), uncommon: hex(C.uncommon), rare: hex(C.rare), legendary: hex(C.legendary) }
@@ -104,10 +110,6 @@ const labelPx = (kind = 'word') => Math.max(LABEL.floor, LABEL[kind] * frame.k)
 // labelSize, the world size to draw it at instead (for a label laid out by its size: the battle's HUD).
 const labelScale = (size, zoom, kind = 'word') => (zoom > 0 && size > 0 ? Math.max(1, labelPx(kind) / (size * zoom)) : 1)
 const labelSize = (size, zoom, kind = 'word') => Math.ceil(size * labelScale(size, zoom, kind) * 2) / 2
-// Under SERIF_MIN CSS px the serif's thin strokes break up ("THF MONARCH"): a label that would stand smaller is
-// set in the sans. faceFor: the face for a label drawn `size` world px tall, kept legible, at `zoom`.
-const SERIF_MIN = 14
-const faceFor = (size, zoom, kind = 'word') => (size * labelScale(size, zoom, kind) * (zoom || 1) >= SERIF_MIN ? SERIF : FONT)
 // A label (a text, or anything with its size given as data 'size': a pill, a flag) kept at labelPx however far
 // the camera zooms out; `kind` 'num' or 'word', kept for the next call (the board rescales these as its
 // camera zooms: board.js fit; the battle's are in `small`: BattleScene.fit).
@@ -212,14 +214,14 @@ function shadeTextures (scene, art, skin = 'shade') {
   }
 }
 
-// ── a soul's marks, shared with the prep board (board.js) ─────────────────────────────────────────
+// ── a soul's marks, shared with the Field board (board.js) ───────────────────────────────────────
 
 // The domain's caption, "ARISE · 5" (Arise's reach, in tiles: the player's word for it is the relic's), a legend on
 // a dark plate, standing just outside the box (placeOutside), over the units: never inside it, where the marks of
 // whoever stands in its edge row are.
 export function domainLabel (scene, r) {
   return scene.add.text(0, 0, `ARISE · ${r}`,
-    { fontFamily: FONT, fontSize: '11px', fontStyle: 'bold', color: C.domain, backgroundColor: '#07060bd9', padding: { x: 5, y: 2 } })
+    { fontFamily: DISPLAY, fontSize: '11px', fontStyle: 'bold', color: C.domain, backgroundColor: `${C.ink}e6`, padding: { x: 5, y: 2 } })
     .setResolution(3).setOrigin(0, 0)
 }
 
@@ -244,7 +246,7 @@ export function placeOutside (t, box, limit, blocked = []) {
   return best.r
 }
 
-// A soul's growth, the same on the prep board and in battle so the picture carries over: a diamond a tier under
+// A soul's growth, the same on the Field board and in battle so the picture carries over: a diamond a tier under
 // its bars, --c-path its kind's first track and --c-path2 its second; and the relic it holds (redesign.md §2.15) a
 // small gem in its tier's colour at its bar's right end. → { parts, place(x, y) }, placed every frame from the feet.
 export function growthMarks (scene, u) {
@@ -260,7 +262,7 @@ export function growthMarks (scene, u) {
     const x = (i - (tiers.length - 1) / 2) * step + (p ? 1 : -1) * gap / 2
     const d = [{ x, y: -7.5 }, { x: x + 7, y: 0 }, { x, y: 7.5 }, { x: x - 7, y: 0 }]
     g.fillStyle(PATH_PIP[p], 1).fillPoints(d, true)
-    g.lineStyle(1.75, 0x07060b, 0.95).strokePoints(d, true)
+    g.lineStyle(1.75, INK, 0.95).strokePoints(d, true)
   })
   pips.add(g)
   const gems = (u.relics ?? []).length ? scene.add.graphics() : null
@@ -268,7 +270,7 @@ export function growthMarks (scene, u) {
     const x = BAR / 2 + 7 + i * 13
     const gem = [{ x, y: -6 }, { x: x + 5.5, y: -2 }, { x: x + 3.5, y: 5 }, { x: x - 3.5, y: 5 }, { x: x - 5.5, y: -2 }]
     gems.fillStyle(RELIC_TIER[relicDef(id).tier], 1).fillPoints(gem, true)
-    gems.lineStyle(1.75, 0x07060b, 0.95).strokePoints(gem, true)
+    gems.lineStyle(1.75, INK, 0.95).strokePoints(gem, true)
   })
   return {
     parts: [pips, gems].filter(Boolean),
@@ -287,7 +289,7 @@ export function growthMarks (scene, u) {
 // lanes run down it, lane 1 at the bottom (the board turned a quarter, never mirrored). A tile is TILE_W wide and
 // TILE_H tall, a unit's feet FOOT below its centre (it stands in its cell, its head only a little over the one
 // above). The sim's tiles are untouched: here, and only here, a tile becomes a point (posOf: where a unit's feet
-// stand) and a point a tile (tileUnder); the prep board (board.js) uses the same.
+// stand) and a point a tile (tileUnder); the Field board (board.js) uses the same.
 const TILE_W = 76
 const TILE_H = 68
 const FOOT = 12
@@ -314,6 +316,8 @@ function tileUnder (x, y) {
   const clamp = (v, n) => Math.max(0, Math.min(n - 1, v))
   return tileAt(clamp(Math.round((LANES - 1) / 2 - y / TILE_H), LANES), clamp(Math.round((DEPTH - 1) / 2 - x / TILE_W), DEPTH))
 }
+// Whether world point w lies past the board's cells (where tileUnder snaps to the nearest).
+const offBoard = (w) => Math.abs(w.x) > HALF_W || Math.abs(w.y) > HALF_H
 // The world box of the cells of lanes x0 to x1 and rows y0 to y1 (inclusive, either order), inset by `pad`.
 function cellsBox (x0, x1, y0, y1, pad = 0) {
   return {
@@ -349,25 +353,117 @@ export function ringBox (tile, r, pad = 0, size = 1) {
 function lineOfFire (g, from, to, past, colour, zoom, alpha = 1) {
   if (!from || !to) return
   const k = 1 / Math.max(0.35, Math.min(1, zoom || 1))
-  g.lineStyle(7 * k, 0x07060b, 0.55 * alpha).lineBetween(from.x, from.y, to.x, to.y)
+  g.lineStyle(7 * k, INK, 0.7 * alpha).lineBetween(from.x, from.y, to.x, to.y)
   g.lineStyle(3 * k, colour, 0.95 * alpha).lineBetween(from.x, from.y, to.x, to.y)
   g.fillStyle(colour, 0.95 * alpha).fillCircle(from.x, from.y, 3.5 * k)
-  g.lineStyle(5.5 * k, 0x07060b, 0.5 * alpha).strokeCircle(to.x, to.y, 10 * k)
+  g.lineStyle(5.5 * k, INK, 0.7 * alpha).strokeCircle(to.x, to.y, 10 * k)
   g.lineStyle(2.5 * k, colour, alpha).strokeCircle(to.x, to.y, 10 * k)
   if (!past) return
   const len = Math.hypot(past.x - to.x, past.y - to.y)
   if (len < 1) return
   const [ux, uy] = [(past.x - to.x) / len, (past.y - to.y) / len]
-  g.lineStyle(2 * k, colour, 0.5 * alpha)
-  for (let d = 14 * k; d < len - 8 * k; d += 14 * k) {
-    const e = Math.min(len - 8 * k, d + 7 * k)
-    g.lineBetween(to.x + ux * d, to.y + uy * d, to.x + ux * e, to.y + uy * e)
-  }
   const c = 6 * k
-  g.lineStyle(2.5 * k, colour, 0.7 * alpha).lineBetween(past.x - c, past.y - c, past.x + c, past.y + c).lineBetween(past.x - c, past.y + c, past.x + c, past.y - c)
+  for (const [w, col, a] of [[4.5 * k, INK, 0.5], [2 * k, colour, 0.5]]) {
+    g.lineStyle(w, col, a * alpha)
+    for (let d = 14 * k; d < len - 8 * k; d += 14 * k) {
+      const e = Math.min(len - 8 * k, d + 7 * k)
+      g.lineBetween(to.x + ux * d, to.y + uy * d, to.x + ux * e, to.y + uy * e)
+    }
+  }
+  for (const [w, col, a] of [[5 * k, INK, 0.6], [2.5 * k, colour, 0.7]]) {
+    g.lineStyle(w, col, a * alpha).lineBetween(past.x - c, past.y - c, past.x + c, past.y + c).lineBetween(past.x - c, past.y + c, past.x + c, past.y - c)
+  }
 }
 
-// The ground both boards stand on (the prep board's and the battle's, so one fades into the other): the crypt
+// A reach's look, the battle's and the Field board's alike (board.js): a box round the piece (ringBox, inset `pad`),
+// rounded, faintly filled and crisply edged, in its act's colour. What a move first adds is a dashed line round the
+// cells past it, each dash DASH.on world px of every DASH.period, laid on a grid fixed to the board so a line cut
+// cell by cell still reads as one. Every line laid over the board stands on the art's ink: a wider stroke of it
+// (INKED.extra world px wider, at INKED.alpha of the line's own), so it reads over any floor or body, as the art's
+// outlines do.
+const REACH = { pad: 4, round: 12, fill: 0.06, line: 2, alpha: 0.85 }
+const DASH = { on: 8, period: 14 }
+const INKED = { extra: 2.5, alpha: 0.7 }
+
+// Strokes on `g` twice, the ink under the colour: draw(g) strokes the shape with the line style set.
+export function inked (g, width, colour, alpha, draw) {
+  g.lineStyle(width + INKED.extra, INK, alpha * INKED.alpha)
+  draw(g)
+  g.lineStyle(width, colour, alpha)
+  draw(g)
+  return g
+}
+
+// A reach's box `box` (world) on `g`, in `colour`.
+export function paintReach (g, box, colour) {
+  g.fillStyle(colour, REACH.fill).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round)
+  inked(g, REACH.line, colour, REACH.alpha, (g) => g.strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round))
+}
+
+// An upright or level dash run on `g` (its line style set) from world point p to q, on the board's dash grid.
+function dashes (g, p, q) {
+  const flat = p.y === q.y
+  const [a, b] = flat ? [Math.min(p.x, q.x), Math.max(p.x, q.x)] : [Math.min(p.y, q.y), Math.max(p.y, q.y)]
+  for (let s = Math.floor(a / DASH.period) * DASH.period; s < b; s += DASH.period) {
+    const [lo, hi] = [Math.max(a, s), Math.min(b, s + DASH.on)]
+    if (hi > lo) flat ? g.lineBetween(lo, p.y, hi, p.y) : g.lineBetween(p.x, lo, p.x, hi)
+  }
+}
+
+// The cells an act of reach `r` takes in from a piece of `size` standing on any of `anchors` (its tile and its Move's),
+// with a dashed line round them on `g` (its line style set), inset as a reach's box is; where they lie inside `inner`
+// (a world box: the reach from where the plan stands, drawn solid), its line stands instead. On the screen's grid:
+// column i from the left (row DEPTH − 1 − i), row j from the top (lane LANES − 1 − j); each edge of a cell with open
+// ground past it, ending short of an outer corner, running on past an inner one, straight on into the next cell's.
+function envelope (g, anchors, r, size, inner) {
+  const on = new Uint8Array(TILES)
+  for (const t of anchors) {
+    const [x, y] = [tileX(t), tileY(t)]
+    for (let xx = Math.max(0, x - r); xx <= Math.min(LANES - 1, x + size - 1 + r); xx++) {
+      for (let yy = Math.max(0, y - r); yy <= Math.min(DEPTH - 1, y + size - 1 + r); yy++) on[tileAt(xx, yy)] = 1
+    }
+  }
+  const has = (i, j) => i >= 0 && i < DEPTH && j >= 0 && j < LANES && on[tileAt(LANES - 1 - j, DEPTH - 1 - i)] === 1
+  const p = REACH.pad
+  for (let i = 0; i < DEPTH; i++) {
+    for (let j = 0; j < LANES; j++) {
+      const [cx, cy] = [(i - (DEPTH - 1) / 2) * TILE_W, (j - (LANES - 1) / 2) * TILE_H]
+      if (!has(i, j) || (cx > inner.l && cx < inner.r && cy > inner.t && cy < inner.b)) continue
+      for (const [nx, ny] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+        if (has(i + nx, j + ny)) continue
+        const [tx, ty] = [ny ? 1 : 0, nx ? 1 : 0]
+        const end = (s) => {
+          const k = !has(i + s * tx, j + s * ty) ? -p : has(i + s * tx + nx, j + s * ty + ny) ? p : 0
+          return { x: cx + nx * (TILE_W / 2 - p) + s * tx * (TILE_W / 2 + k), y: cy + ny * (TILE_H / 2 - p) + s * ty * (TILE_H / 2 + k) }
+        }
+        dashes(g, end(-1), end(1))
+      }
+    }
+  }
+}
+
+// A dashed ellipse on `g` (its line style set), centred at (x, y), `w` by `h`: `n` dashes, each half its share.
+function dashedEllipse (g, x, y, w, h, n = 14) {
+  for (let i = 0; i < n; i++) {
+    const pts = []
+    for (let j = 0; j <= 4; j++) {
+      const t = (i + j / 8) / n * 2 * Math.PI
+      pts.push({ x: x + Math.cos(t) * w / 2, y: y + Math.sin(t) * h / 2 })
+    }
+    g.strokePoints(pts)
+  }
+}
+
+// How far act `a` of `u`'s reaches round its footprint, in tiles, for its box (the sim's own reach, turns.js rangeFor,
+// decides who may be struck: its targets): a blow its reach, an ally act its range or Sanctuary's anywhere, Arise its
+// domain. Null for an act on itself or all its side, and for one that takes the whole board (its rings say so).
+function actReach (b, u, a) {
+  if (a.shape === 'self' || a.shape === 'all_allies') return null
+  const r = a.shape === 'corpse' ? ariseOf(b, u)?.domain : isBlow(a) ? blowReach(u, a) : holds(b, u.side, 'sanctuary') ? Infinity : rangeOf(a)
+  return r < DEPTH ? r : null
+}
+
+// The ground both boards stand on (the Field's and the battle's, so one fades into the other): the crypt
 // floor, a vignette and the dark past it, a dais under your camp and one under their formation, a seam of
 // soulfire down the open ground between, and drifting motes.
 export function drawGround (scene) {
@@ -395,8 +491,8 @@ export function drawGround (scene) {
 // ── battle scene ─────────────────────────────────────────────────────────────────────────────────
 
 // The battle screen: the shared board, your walled camp on the right and the foes on the left. It steps the
-// battle on the same clock that plays the events back. Pause, speed and skip change only the playback; the
-// outcome was fixed when it began.
+// battle on the same clock that plays the events back. Pause and skip change only the playback; the outcome
+// was fixed when it began.
 
 const STEP_MS = 190     // a tile of a move's path
 // A skill's cooldown pip under a piece's bars: lit (the Monarch's gold) once ready, `rest` while it rests.
@@ -411,8 +507,11 @@ const BAR = 46
 const BAR_DROP = 14     // from the feet down to the HP bar, clear of the pictures' ground details
 const PIP_SPAN = 78     // a soul's tiers stand within this width under its bars, inside its lane
 const ECHO_MS = 260     // Echo (Channeler 8): its second pass lands this long after the first
+// The page's two faces (style.css --sans, --display): the system's sans for a sentence under a banner, the display face
+// (Fredoka, chunky and round as the art is) for every number, name and banner. main.js has it loaded before the board
+// draws a word.
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
-const SERIF = '"Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif'
+const DISPLAY = '"Fredoka", ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
 // The synergies' rules (content.js, one at 4 a kin or role): by rule, its step ("Undead 4") and its name ("Legion",
 // the head of its desc), and on whom its name rises when it strikes: the unit it acts through.
@@ -433,7 +532,6 @@ class BattleScene extends Phaser.Scene {
     // reach: its Move range, targets }); `waiting`: an order's events still playing (input locked); `counts`: the turn,
     // the next wave and the wave under way, as the playback last announced them (the sim is a whole End Turn ahead of
     // it); `synKey`: the synergies the chrome last showed.
-    this.speed = 1
     this.paused = false
     this.playMs = 0
     this.sel = null
@@ -505,9 +603,13 @@ class BattleScene extends Phaser.Scene {
     this.planG = this.add.graphics().setDepth(-390)
     this.shotG = this.add.graphics().setDepth(9600)
     this.aimMarks = []
+    // The aimed target's lock-on (lockOn); the mouse over the board (viewport point, null off it or by touch) and the
+    // selected piece's ghost on the Move tile under it (plan: `tile` its anchor, `img` its picture).
+    this.lock = []
+    this.pointer = null
+    this.ghost = { tile: null, img: null }
     // battle:start is already in battle.events; anything after it has not been played.
     this.player.enqueue(this.battle.events.slice(this.battle.events.indexOf(start) + 1))
-    this.player.setSpeed(this.speed)
 
     this.fit()
     this.scale.on('resize', this.fit, this)
@@ -515,10 +617,17 @@ class BattleScene extends Phaser.Scene {
     // long press on it, pinned (dom.js hold), never by a finger passing over, and a mouse reads it on the hover.
     const canvas = this.game.canvas
     const press = (e) => this.down(e)
+    const point = (e) => this.point(e)
     canvas.addEventListener('pointerdown', press)
+    canvas.addEventListener('pointermove', point)
+    canvas.addEventListener('pointerleave', point)
     this.events.once('shutdown', () => {
       this.scale.off('resize', this.fit, this)
       canvas.removeEventListener('pointerdown', press)
+      canvas.removeEventListener('pointermove', point)
+      canvas.removeEventListener('pointerleave', point)
+      this.dropMarks()
+      this.dropGhost()
       this.tweens.timeScale = 1
       this.args.onHover?.(null)
     })
@@ -531,7 +640,7 @@ class BattleScene extends Phaser.Scene {
   }
 
   // The camera onto the board inside the page's stage for it (args.stage(): a viewport rect, the room the
-  // battle's chrome leaves; the whole canvas without one), as large as it fits: the prep board's own view.
+  // battle's chrome leaves; the whole canvas without one), as large as it fits: the Field board's own view.
   fit () {
     const cam = this.cameras.main
     const c = this.game.canvas.getBoundingClientRect()
@@ -546,12 +655,12 @@ class BattleScene extends Phaser.Scene {
 
   update (time, delta) {
     const b = this.battle
-    // A hit-stop holds the clock (see hitStop); once it is over the tweens run at the speed again.
+    // A hit-stop holds the clock (see hitStop); once it is over the tweens run on again.
     const held = this.stopUntil > time
-    if (this.stopUntil && !held) { this.stopUntil = 0; this.tweens.timeScale = this.speed }
+    if (this.stopUntil && !held) { this.stopUntil = 0; this.tweens.timeScale = 1 }
     if (!this.paused && !held) {
       if (!this.begun) { this.begun = true; sfx.play('begin') }
-      this.playMs += Math.min(delta, 250) * this.speed
+      this.playMs += Math.min(delta, 250)
     }
     this.player.update(this.playMs)
     // An order's events played out: the board takes orders again.
@@ -607,17 +716,13 @@ class BattleScene extends Phaser.Scene {
 
   // ── controls (called by the DOM playback bar) ────────────────────────────────────────────────
 
-  setSpeed (n) {
-    this.speed = n
-    this.player.setSpeed(n)
-    this.changed()
-  }
-
   setPaused (on) {
     if (this.ending) return
     this.paused = on
     if (on) this.tweens.pauseAll()
     else this.tweens.resumeAll()
+    // The hover preview waits out a pause (pointedAt): gone with it, back after.
+    if (!this.locked()) this.plan()
     this.changed()
   }
 
@@ -652,7 +757,7 @@ class BattleScene extends Phaser.Scene {
       if (key !== this.synKey) { this.synKey = key; this.args.hud?.synergies?.(now) }
     }
     this.args.onChange?.({
-      paused: this.paused, speed: this.speed, over: this.ending, essence: this.purse,
+      paused: this.paused, over: this.ending, essence: this.purse,
       turn: c.turn, next: c.next, wave: c.wave, waves: Math.max(c.wave, this.waves.length),
       busy: this.locked(), panel: this.panel()
     })
@@ -674,16 +779,15 @@ class BattleScene extends Phaser.Scene {
     if (!calm) this.cameras.main.flash(ms, r, g, b)
   }
 
-  // A beat of stillness on a heavy blow (a heavy fall): the clock stops and the tweens
-  // all but freeze for `ms`, shorter at 2×, none at 4×; at most one every 300 ms, so a melee never stutters.
-  // None under reduced motion.
+  // A beat of stillness on a heavy blow (a heavy fall): the clock stops and the tweens all but freeze for `ms`; at
+  // most one every 300 ms, so a melee never stutters. None under reduced motion.
   hitStop (ms) {
-    if (calm || this.speed >= 4 || this.paused || this.ending) return
+    if (calm || this.paused || this.ending) return
     const now = this.game.loop.time
     if (now - (this.lastStop ?? -1e9) < 300) return
     this.lastStop = now
-    this.stopUntil = now + ms / this.speed
-    this.tweens.timeScale = 0.04 * this.speed
+    this.stopUntil = now + ms
+    this.tweens.timeScale = 0.04
   }
 
   // ── stage ────────────────────────────────────────────────────────────────────────────────────
@@ -714,7 +818,7 @@ class BattleScene extends Phaser.Scene {
       (u.shadow ? 0.4 : 0.5) * (fly ? 0.65 : 1)).setDepth(home.y - 2)
     if (u.shadow) shadow.setBlendMode(Phaser.BlendModes.ADD)
     const ring = this.add.ellipse(home.x, home.y + 4, 56 * size, 17 * size).setStrokeStyle(1.5, 0xffffff, 0.8).setDepth(home.y - 1).setVisible(false)
-    const barBg = this.add.rectangle(home.x, home.y + 14, BAR + 2, crowned ? 12 : 10, 0x07060b, 0.92).setStrokeStyle(1, crowned ? CROWN : 0x2c2740)
+    const barBg = this.add.rectangle(home.x, home.y + 14, BAR + 2, crowned ? 12 : 10, INK, 0.92).setStrokeStyle(1, crowned ? CROWN : INK)
     const width = BAR * u.hp / u.maxHp
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
     const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, side).setOrigin(0, 0.5)
@@ -736,7 +840,7 @@ class BattleScene extends Phaser.Scene {
       // them (applyEvent: status, expire, cleanse, death; cooldown, Frenzy), never the sim's state an order ahead.
       st: new Map(), cd: {}
     }
-    // A soul's growth, worn as the prep board showed it (growthMarks): its tiers, and the relic it holds.
+    // A soul's growth, worn as the Field board showed it (growthMarks): its tiers, and the relic it holds.
     if (u.side === 'party' && !u.shadow && !crowned) actor.growth = growthMarks(this, whole)
     sprite.setInteractive(this.input.makePixelPerfect())
     sprite.on('pointerover', (p) => {
@@ -783,6 +887,8 @@ class BattleScene extends Phaser.Scene {
   // A press on the board: a tap once the pointer lifts where it went down (tap); by touch, held still, the card of
   // the unit under the finger instead, pinned (pressAt), and no tap.
   down (e) {
+    // A press by touch or pen: where the mouse last rested no longer stands for a hover (pointedAt).
+    if (e.pointerType !== 'mouse') this.pointer = null
     if (e.pointerType === 'touch' ? !e.isPrimary : e.button !== 0) return
     const at = { id: e.pointerId, x: e.clientX, y: e.clientY, held: false }
     const press = e.pointerType === 'touch' ? hold(e, () => { at.held = true; this.pressAt(e.clientX, e.clientY) }) : null
@@ -827,8 +933,10 @@ class BattleScene extends Phaser.Scene {
     if (u) {
       const t = hits.find((x) => s.targets.has(x.uid))
       if (t) return t.uid === s.aim ? this.commit() : this.aim(t.uid)
-      if (this.undoable(u) && footprint(u.from, u.size ?? 1).includes(tile) && !hits.some((x) => x !== u && alive(x))) return this.undo()
-      const to = this.anchorFor(u, tile)
+      // Off the board (tileUnder snaps to the nearest tile on it) nothing moves.
+      const on = !offBoard(w)
+      if (on && this.undoable(u) && footprint(u.from, u.size ?? 1).includes(tile) && !hits.some((x) => x !== u && alive(x))) return this.undo()
+      const to = on ? this.anchorFor(u, tile) : null
       if (to != null) return this.send({ type: 'move', uid: u.uid, tile: to })
     }
     const mine = hits.find((x) => alive(x) && orderable(b, x))
@@ -906,60 +1014,137 @@ class BattleScene extends Phaser.Scene {
 
   // What the selection lights, from the sim (only while the board takes orders): a soft ring under every piece of
   // yours that may still act; for the selected piece its Move range (the tiles it may stand on), the tile Undo goes
-  // back to, a ring under it, and under each target its armed act may take from where it stands (a foe red, an ally
-  // the synergies' blue, a corpse Arise's green), the aimed one brighter; with Arise armed, its reach round the piece
-  // (turns.js ariseOf). Nothing of the foes' coming turn.
+  // back to, a ring under it, its armed act's reach round it (actReach; a blow's red, an ally act's the synergies'
+  // blue, Arise's domain green) and a ring under each target it may take from there, the aimed one brighter, the rest
+  // dimmed once one is aimed. A move first reaches further: a dashed line round all its act could reach from its Move's
+  // tiles, and a dashed ring, unfilled, under each target only a move brings in reach. With the mouse on a Move tile
+  // (pointedAt) the piece's ghost stands there, a dotted path to it, and the box and the solid rings are drawn from
+  // there. Nothing of the foes' coming turn.
   plan () {
     const g = this.planG.clear()
     this.shotG.clear()
-    if (this.locked()) return
+    this.dropGhost()
+    if (this.locked()) return this.dropMarks()
     const b = this.battle
     const s = this.sel
     const u = s && b.byUid.get(s.uid)
     if (s && (!u || !alive(u) || !orderable(b, u))) this.sel = null
     const foot = (x) => posAt(x.tile, x.size ?? 1)
-    const ring = (x, colour, alpha, line, grow = 0) => {
-      const p = foot(x)
+    const ring = (x, colour, alpha, line, grow = 0, p = foot(x)) => {
       const k = (x.size ?? 1) > 1 ? BIG : 1
-      g.lineStyle(line, colour, alpha).strokeEllipse(p.x, p.y + 4, (58 + grow) * k, (18 + grow / 3) * k)
+      inked(g, line, colour, alpha, (g) => g.strokeEllipse(p.x, p.y + 4, (58 + grow) * k, (18 + grow / 3) * k))
     }
     for (const x of b.units) if (x !== u && orderable(b, x) && canAct(b, x)) ring(x, PARTY, 0.5, 2)
     if (!this.sel) return
+    const size = u.size ?? 1
     s.reach = u.acted ? new Map() : reach(b, u)
     const a = u.kit.find((x) => x.id === s.ability)
-    s.targets = new Set(a && canAct(b, u) && usable(b, u, a) ? targetsFrom(b, u, a).map((x) => x.uid) : [])
+    const can = !!a && canAct(b, u) && usable(b, u, a)
+    // Whom the act may take with the piece standing on `t` (turns.js targetsFrom).
+    const from = (t) => (can ? targetsFrom(b, u, a, t).map((x) => x.uid) : [])
+    s.targets = new Set(from(u.tile))
     const cell = (c, fill, line, colour) => {
       const box = cellsBox(tileX(c), tileX(c), tileY(c), tileY(c), 4)
       if (fill) g.fillStyle(colour, fill).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
-      g.lineStyle(1.5, colour, line).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
+      inked(g, 1.5, colour, line, (g) => g.strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8))
     }
     const cells = new Set()
-    for (const t of s.reach.keys()) for (const c of footprint(t, u.size ?? 1) ?? [t]) cells.add(c)
+    for (const t of s.reach.keys()) for (const c of footprint(t, size) ?? [t]) cells.add(c)
     for (const c of cells) cell(c, 0.16, 0.5, PLAN)
-    if (this.undoable(u)) for (const c of footprint(u.from, u.size ?? 1)) cell(c, 0, 0.55, 0xffffff)
-    const arise = a?.shape === 'corpse' && ariseOf(b, u)
-    if (arise) {
-      const box = ringBox(u.tile, arise.domain, 4, u.size ?? 1)
-      g.fillStyle(DOMAIN, 0.05).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
-      g.lineStyle(1.5, DOMAIN, 0.55).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 12)
+    if (this.undoable(u)) for (const c of footprint(u.from, size)) cell(c, 0, 0.55, 0xffffff)
+    const at = this.pointedAt(u)
+    const here = at ?? u.tile
+    const spot = (x) => (x === u && at != null ? posAt(at, size) : foot(x))
+    const colour = a?.shape === 'corpse' ? DOMAIN : a && !isBlow(a) ? BOON : FOE
+    // Once a target is aimed, what a move would bring stands back.
+    const fade = s.aim != null ? 0.5 : 1
+    const r = can ? actReach(b, u, a) : null
+    if (r != null) {
+      const box = ringBox(here, r, REACH.pad, size)
+      if (a.shape !== 'corpse') paintReach(g, box, colour)
+      else {
+        g.fillStyle(DOMAIN, 0.05).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round)
+        inked(g, 1.5, DOMAIN, 0.55, (g) => g.strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round))
+      }
+      inked(g, REACH.line, colour, 0.5 * fade, (g) => envelope(g, [u.tile, ...s.reach.keys()], r, size, box))
+    }
+    if (at != null) {
+      const path = [foot(u), ...s.reach.get(at).map((t) => posAt(t, size))]
+      for (let i = 1, d = 12; i < path.length; i++) {
+        const [v, w] = [path[i - 1], path[i]]
+        const len = Math.hypot(w.x - v.x, w.y - v.y)
+        for (; d < len; d += 12) {
+          const [x, y] = [v.x + (w.x - v.x) * d / len, v.y + 4 + (w.y - v.y) * d / len]
+          g.fillStyle(INK, 0.4).fillCircle(x, y, 3.8).fillStyle(0xffffff, 0.55).fillCircle(x, y, 2.5)
+        }
+        d -= len
+      }
+      ring(u, 0xffffff, 0.45, 2, 0, spot(u))
+      this.ghost = { tile: at, img: this.ghostOf(u, at) }
     }
     const p = foot(u)
-    const k = (u.size ?? 1) > 1 ? BIG : 1
+    const k = size > 1 ? BIG : 1
     g.fillStyle(0xffffff, 0.1).fillEllipse(p.x, p.y + 4, 70 * k, 22 * k)
     ring(u, 0xffffff, 0.95, 3, 6)
-    const colour = a?.shape === 'corpse' ? DOMAIN : a && !isBlow(a) ? BOON : FOE
     // Aimed through a screen, the piece that takes the blow is lit as the aimed one is (the second tap is still on the
     // aimed one).
     const shot = s.aim != null ? s.shot : null
-    for (const uid of s.targets) {
+    const solid = at != null ? new Set(from(at)) : s.targets
+    const later = new Set([...s.targets, ...[...s.reach.keys()].flatMap(from)].filter((x) => !solid.has(x)))
+    for (const uid of solid) {
+      const x = b.byUid.get(uid)
+      const q = spot(x)
+      const kx = (x.size ?? 1) > 1 ? BIG : 1
+      const on = uid === s.aim || uid === shot?.hit
+      const dim = s.aim != null && !on
+      g.fillStyle(colour, on ? 0.3 : dim ? 0.06 : 0.14).fillEllipse(q.x, q.y + 4, 58 * kx, 18 * kx)
+      ring(x, colour, on ? 1 : dim ? 0.35 : 0.85, on ? 4 : 2.5, on ? 8 : 0, q)
+    }
+    // Faintly filled too, so they still read where the body of the foe in front stands over the dashes.
+    for (const uid of later) {
       const x = b.byUid.get(uid)
       const q = foot(x)
       const kx = (x.size ?? 1) > 1 ? BIG : 1
-      const on = uid === s.aim || uid === shot?.hit
-      g.fillStyle(colour, on ? 0.3 : 0.14).fillEllipse(q.x, q.y + 4, 58 * kx, 18 * kx)
-      ring(x, colour, on ? 1 : 0.85, on ? 4 : 2.5, on ? 8 : 0)
+      g.fillStyle(colour, 0.08 * fade).fillEllipse(q.x, q.y + 4, 58 * kx, 18 * kx)
+      inked(g, 3, colour, 0.85 * fade, (g) => dashedEllipse(g, q.x, q.y + 4, 58 * kx, 18 * kx))
     }
     if (shot) this.drawShot(g, u, shot)
+  }
+
+  // The anchor the selected piece `u` would move to for a click where the mouse is (anchorFor), while the board takes
+  // orders and nothing is aimed; null off its Move tiles, off the board, over a target (a click there aims it), on the
+  // tile Undo goes back to (a click there undoes), and always by touch (a tap moves at once, and Undo takes it back).
+  pointedAt (u) {
+    const s = this.sel
+    if (!this.pointer || !s || s.aim != null || this.paused || this.locked() || !s.reach.size) return null
+    const w = this.worldAt(this.pointer.x, this.pointer.y)
+    if (offBoard(w)) return null
+    const tile = tileUnder(w.x, w.y)
+    if (this.undoable(u) && footprint(u.from, u.size ?? 1).includes(tile)) return null
+    return this.unitsAt(w, tile).some((x) => s.targets.has(x.uid)) ? null : this.anchorFor(u, tile)
+  }
+
+  // The mouse moving over the board, or leaving it (never a finger): the plan follows it onto a Move tile and off
+  // again (pointedAt), drawn again only when the tile under it changes.
+  point (e) {
+    if (e.pointerType !== 'mouse' || !this.sys.isActive()) return
+    this.pointer = e.type === 'pointerleave' ? null : { x: e.clientX, y: e.clientY }
+    const u = this.sel && this.battle.byUid.get(this.sel.uid)
+    if ((u ? this.pointedAt(u) : null) !== this.ghost.tile) this.plan()
+  }
+
+  // The selected piece's ghost standing on anchor `at` (plan): its picture, faint, with no bars.
+  ghostOf (u, at) {
+    const a = this.actors.get(u.uid)
+    if (!a) return null
+    const p = posAt(at, a.fp)
+    const img = this.add.image(p.x, p.y, `${a.skin}:${a.art}:alive`).setFlipX(a.sprite.flipX).setScale(a.scale).setAlpha(0.4).setDepth(p.y - 0.5)
+    return img.setOrigin(0.5, FEET + a.fly / img.displayHeight)
+  }
+
+  dropGhost () {
+    this.ghost.img?.destroy()
+    this.ghost = { tile: null, img: null }
   }
 
   // An aimed blow's line of fire (redesign.md §2.19, preview's `line`): on the ground, the tiles it crosses up to the
@@ -977,7 +1162,7 @@ class BattleScene extends Phaser.Scene {
       if (covers.has(t)) break
       const box = cellsBox(tileX(t), tileX(t), tileY(t), tileY(t), 10)
       g.fillStyle(colour, 0.08).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
-      g.lineStyle(1.5, colour, 0.4).strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8)
+      inked(g, 1.5, colour, 0.4, (g) => g.strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, 8))
     }
     lineOfFire(this.shotG, this.chestOf(u.uid), this.chestOf(hit.uid), shot.aim !== shot.hit ? this.chestOf(aimed.uid) : null, colour, this.cameras.main.zoom)
   }
@@ -1013,6 +1198,7 @@ class BattleScene extends Phaser.Scene {
       if (p.heal > 0) this.mark(uid, `+${p.heal}`, '#7be0a0')
       if (!hits.length && !(p.heal > 0)) this.mark(uid, abilityDef(s.ability).name, '#d8d0ff', 12)
       if (p.counter > 0) this.mark(s.uid, `↩ −${p.counter}`, '#ffb27a')
+      this.lockOn(uid)
       sfx.play('click')
     }
     this.plan()
@@ -1040,12 +1226,68 @@ class BattleScene extends Phaser.Scene {
     if (!a) return
     const z = this.cameras.main.zoom
     const t = this.text(a.vx ?? a.sprite.x, a.sprite.y - a.chest - a.hover - 24, text, labelSize(size, z, 'num'), colour, 4).setOrigin(0.5, 1).setDepth(9700)
-    this.aimMarks.push(t)
+    this.aimMarks.push(t.setData('uid', uid))
   }
 
+  // The aimed target's lock-on (aim), so the second tap reads as the strike: four brackets closing in on the corners of
+  // its own tile (its four, a 2×2's), then breathing, kept to that tile so a tight column of foes never crowds under it;
+  // a ring rippling out from under its feet every second; and a check on a round badge beside its numbers. In the aim's
+  // colour (--c-warn, its line of fire's), over the units, legible at any zoom; still under reduced motion, and no
+  // ripple. Gone with the aim (dropMarks).
+  lockOn (uid) {
+    const a = this.actors.get(uid)
+    if (!a) return
+    const colour = hex(C.warn)
+    const z = this.cameras.main.zoom
+    const k = 1 / Math.max(0.35, Math.min(1, z || 1))
+    const big = a.fp > 1 ? BIG : 1
+    const cell = cellsBox(tileX(a.tile), tileX(a.tile) + a.fp - 1, tileY(a.tile), tileY(a.tile) + a.fp - 1, REACH.pad)
+    const [hw, hh] = [(cell.r - cell.l) / 2, (cell.b - cell.t) / 2]
+    const arm = Math.min(hw, hh) * 0.42
+    // Each bracket a level bar and an upright one meeting square at its corner, over a dark edge, drawn about the
+    // middle so they close in on it.
+    const g = this.add.graphics().setPosition((cell.l + cell.r) / 2, (cell.t + cell.b) / 2).setDepth(9650)
+    for (const [w, c, alpha] of [[6 * k, INK, 0.75], [3 * k, colour, 1]]) {
+      const l = arm + (w - 3 * k) / 2
+      g.fillStyle(c, alpha)
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const [cx, cy] = [sx * hw, sy * hh]
+        g.fillRect(Math.min(cx + sx * w / 2, cx - sx * l), cy - w / 2, l + w / 2, w)
+        g.fillRect(cx - w / 2, Math.min(cy - sy * w / 2, cy - sy * l), w, l - w / 2)
+      }
+    }
+    // The badge just right of the widest of its numbers (over its head without one): the strike they would deal, ticked.
+    const R = labelSize(15, z, 'num') * 0.55
+    const t = this.aimMarks.filter((m) => m.getData('uid') === uid).sort((m, n) => n.displayWidth - m.displayWidth)[0]
+    const x = a.vx ?? a.sprite.x
+    const [bx, by] = t ? [t.x + t.displayWidth / 2 + R + 3 * k, t.y - t.displayHeight / 2] : [x, a.sprite.y - a.chest - a.hover - 24 - R]
+    const badge = this.add.graphics().setPosition(bx, by).setDepth(9710)
+    const check = [{ x: -0.45 * R, y: 0 }, { x: -0.12 * R, y: 0.34 * R }, { x: 0.46 * R, y: -0.34 * R }]
+    badge.fillStyle(INK, 0.9).fillCircle(1.5 * k, 2 * k, R + 2 * k).fillCircle(0, 0, R + 2 * k).fillStyle(colour, 1).fillCircle(0, 0, R)
+    badge.lineStyle(0.3 * R, INK, 1).strokePoints(check).fillStyle(INK, 1).fillCircle(check[1].x, check[1].y, 0.15 * R)
+    this.lock = [g, badge]
+    if (calm) return
+    const ripple = this.add.graphics().setPosition(x, a.sprite.y + 4).setDepth(-380)
+    inked(ripple, 2.5 * k, colour, 1, (g) => g.strokeEllipse(0, 0, 58 * big, 18 * big))
+    this.lock.push(ripple)
+    g.setScale(1.4).setAlpha(0)
+    this.tweens.add({
+      targets: g, scale: 1, alpha: 1, duration: 200, ease: 'Cubic.Out',
+      onComplete: () => { if (g.scene) this.tweens.add({ targets: g, scale: 1.07, duration: 520, ease: 'Sine.InOut', yoyo: true, repeat: -1 }) }
+    })
+    badge.setScale(0)
+    this.tweens.add({ targets: badge, scale: 1, delay: 120, duration: 200, ease: 'Back.Out' })
+    this.tweens.add({ targets: ripple, scale: { from: 0.6, to: 1.7 }, alpha: { from: 0.9, to: 0 }, duration: 900, repeatDelay: 200, repeat: -1, ease: 'Cubic.Out' })
+  }
+
+  // The aim's marks: its numbers and its lock-on.
   dropMarks () {
-    for (const t of this.aimMarks) t.destroy()
+    for (const t of [...this.aimMarks, ...this.lock]) {
+      this.tweens.killTweensOf(t)
+      t.destroy()
+    }
     this.aimMarks = []
+    this.lock = []
   }
 
   // The second tap on the aimed target: the act is given.
@@ -1082,6 +1324,7 @@ class BattleScene extends Phaser.Scene {
       return this.plan()
     }
     this.dropMarks()
+    this.dropGhost()
     if (this.sel) { this.sel.aim = null; this.sel.shot = null }
     this.planG.clear()
     this.shotG.clear()
@@ -1401,12 +1644,12 @@ class BattleScene extends Phaser.Scene {
     const y = -HALF_H + TILE_H * 0.9
     // Its two lines legible at the zoom (labelSize), the plate round them.
     const z = this.cameras.main.zoom
-    const head = this.text(0, 0, title, labelSize(17, z), '#ff8a9a', 4, faceFor(17, z)).setOrigin(0.5, 0).setDepth(9600).setAlpha(0)
-    const line = this.text(0, 0, sub, labelSize(10, z), '#c09aa4', 0).setOrigin(0.5, 0).setDepth(9600).setAlpha(0)
+    const head = this.text(0, 0, title, labelSize(17, z), '#ff8a9a', 4).setOrigin(0.5, 0).setDepth(9600).setAlpha(0)
+    const line = this.text(0, 0, sub, labelSize(10, z), '#d4b4bd', 0, FONT).setOrigin(0.5, 0).setDepth(9600).setAlpha(0)
     const ph = head.height + line.height + 12
     head.setY(y - ph / 2 + 5)
     line.setY(head.y + head.height + 1)
-    const plate = this.add.rectangle(0, y, Math.max(HALF_W, head.width + 40, line.width + 40), ph, 0x07060b, 0.84).setStrokeStyle(1, FOE, 0.45).setDepth(9590).setAlpha(0)
+    const plate = this.plate(0, y, Math.max(HALF_W, head.width + 40, line.width + 40), ph, FOE).setDepth(9590).setAlpha(0)
     this.tweens.add({ targets: [plate, head, line], alpha: 1, duration: 200 })
     this.tweens.add({ targets: [plate, head, line], alpha: 0, delay: 1700, duration: 500, onComplete: () => { plate.destroy(); head.destroy(); line.destroy() } })
     this.shake(180, 0.003)
@@ -1424,8 +1667,8 @@ class BattleScene extends Phaser.Scene {
   flag (word, colour, edge) {
     this.flagged?.forEach((o) => o.destroy())
     const z = this.cameras.main.zoom
-    const t = this.text(0, 0, word, labelSize(16, z), colour, 4, faceFor(16, z)).setOrigin(0.5).setDepth(9600).setAlpha(0)
-    const plate = this.add.rectangle(0, 0, t.width + 48, t.height + 14, 0x07060b, 0.8).setStrokeStyle(1, edge, 0.5).setDepth(9590).setAlpha(0)
+    const t = this.text(0, 0, word, labelSize(16, z), colour, 4).setOrigin(0.5).setDepth(9600).setAlpha(0)
+    const plate = this.plate(0, 0, t.width + 48, t.height + 14, edge).setDepth(9590).setAlpha(0)
     this.flagged = [plate, t]
     this.tweens.add({ targets: this.flagged, alpha: 1, duration: 140 })
     this.tweens.add({ targets: this.flagged, alpha: 0, delay: 650, duration: 300, onComplete: () => { plate.destroy(); t.destroy() } })
@@ -1921,10 +2164,28 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: g, alpha: 0, delay: 520, duration: 380, onComplete: () => g.destroy() })
   }
 
-  // Canvas text, drawn at 3× so it stays sharp when the camera zooms.
-  text (x, y, str, size, colour, stroke = 0, font = FONT) {
-    return this.add.text(x, y, str, { fontFamily: font, fontSize: `${size}px`, fontStyle: 'bold', color: colour, stroke: '#07060b', strokeThickness: stroke })
-      .setResolution(3)
+  // Canvas text, drawn at 3× so it stays sharp when the camera zooms, in the display face unless told otherwise. One
+  // edged (`stroke`) is inked as the art is: the ink round it, and the ink again a little down and right of it (its
+  // shadow, unblurred; a canvas shadow ignores the 3× scale, hence the RES-fold offset, and the padding keeps it in).
+  text (x, y, str, size, colour, stroke = 0, font = DISPLAY) {
+    const off = stroke ? Math.max(1, size * 0.07) : 0
+    const t = this.add.text(x, y, str, {
+      fontFamily: font, fontSize: `${size}px`, fontStyle: 'bold', color: colour, stroke: C.ink, strokeThickness: stroke,
+      padding: off ? { left: 1, top: 1, right: Math.ceil(off) + 1, bottom: Math.ceil(off * 1.3) + 1 } : undefined
+    }).setResolution(RES)
+    if (off) t.setShadow(off * RES, off * 1.3 * RES, C.ink, 0, true, true)
+    return t
+  }
+
+  // A banner's plate, w by h round (x, y), as the page's panels are: the panel's violet, inked, the ink's offset under
+  // it, and a rim of its side's colour (`edge`) just inside the ink.
+  plate (x, y, w, h, edge) {
+    const [l, t] = [-w / 2, -h / 2]
+    return this.add.graphics().setPosition(x, y)
+      .fillStyle(INK, 0.9).fillRoundedRect(l + 4, t + 5, w, h, 12)
+      .fillStyle(PANEL, 0.95).fillRoundedRect(l, t, w, h, 12)
+      .lineStyle(2, edge, 0.75).strokeRoundedRect(l + 3.5, t + 3.5, w - 7, h - 7, 9)
+      .lineStyle(3, INK, 1).strokeRoundedRect(l, t, w, h, 12)
   }
 
   // A blow's flash on the struck: a brief pale wash screened over it (HIT_WASH), so its picture still reads,
@@ -1932,7 +2193,7 @@ class BattleScene extends Phaser.Scene {
   flash (a) {
     if (a.gone || calm) return
     a.sprite.setTint(HIT_WASH).setTintMode(Phaser.TintModes.SCREEN)
-    this.time.delayedCall(60 / this.speed, () => a.sprite.clearTint().setTintMode(Phaser.TintModes.MULTIPLY))
+    this.time.delayedCall(60, () => a.sprite.clearTint().setTintMode(Phaser.TintModes.MULTIPLY))
   }
 
   // Floating text over a unit; several at once on one unit (a relic, its status, a blow) stack upward, up to
@@ -2006,14 +2267,13 @@ class BattleScene extends Phaser.Scene {
     const width = killer != null ? HALF_W : 2 * HALF_W - 80
     const glow = this.add.image(x, y, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(620, 120).setAlpha(0).setDepth(9989)
     // Its line legible at the zoom (labelSize; the title is large already), wrapped to the board, the plate round both.
-    const banner = this.text(0, 0, title, labelSize(28, z), won ? C.soul2 : '#ff6a7a', 4, faceFor(28, z)).setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
-    const sub = this.text(0, 0, line, labelSize(11, z), '#c8c0d8', 0).setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
+    const banner = this.text(0, 0, title, labelSize(28, z), won ? C.soul2 : '#ff6a7a', 5).setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
+    const sub = this.text(0, 0, line, labelSize(11, z), '#d8d0e6', 0, FONT).setOrigin(0.5, 0).setDepth(10000).setAlpha(0)
       .setWordWrapWidth(width - 40).setAlign('center')
     const ph = banner.height + sub.height + 18
     banner.setPosition(x, y - ph / 2 + 6)
     sub.setPosition(x, banner.y + banner.height + 2)
-    const plate = this.add.rectangle(x, y, Math.max(width, banner.width + 60), Math.max(70, ph), 0x07060b, 0.84)
-      .setStrokeStyle(1, colour, 0.5).setDepth(9990).setAlpha(0)
+    const plate = this.plate(x, y, Math.max(width, banner.width + 60), Math.max(70, ph), colour).setDepth(9990).setAlpha(0)
     this.tweens.add({ targets: [plate, banner, sub], alpha: 1, duration: 260 })
     this.tweens.add({ targets: glow, alpha: 0.5, duration: 400 })
     this.time.delayedCall(death ? 3600 : 1600, () => {
@@ -2035,9 +2295,9 @@ class BattleScene extends Phaser.Scene {
     const [a, b] = [at(e.from), at(e.to)]
     const tip = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
     g.lineStyle(9, FOE, 0.25).lineBetween(a.x, a.y, tip.x, tip.y)
-    g.lineStyle(3, 0xffc0c8, 0.95).lineBetween(a.x, a.y, tip.x, tip.y)
-    g.lineStyle(3, FOE, v).strokeEllipse(e.from.x, e.from.y + 4, 70, 22)
-    g.lineStyle(3, GOLD, v).strokeEllipse(e.to.x, e.to.y + 4, 74, 24)
+    inked(g, 3, 0xffc0c8, 0.95, (g) => g.lineBetween(a.x, a.y, tip.x, tip.y))
+    inked(g, 3, FOE, v, (g) => g.strokeEllipse(e.from.x, e.from.y + 4, 70, 22))
+    inked(g, 3, GOLD, v, (g) => g.strokeEllipse(e.to.x, e.to.y + 4, 74, 24))
   }
 }
 
@@ -2046,8 +2306,6 @@ class BattleScene extends Phaser.Scene {
 // Sim events → tweens, poses and FX. The player only reads events; it never computes a result. Events come an order
 // at a time, stamped with a beat, and each beat plays once the one before has had its time (spanOf: an action its
 // animation, a move its path), never before now: the playhead is the scene's playback clock.
-
-const ESSENTIAL = new Set(['anim', 'popup', 'tween'])
 
 class TimelinePlayer {
   constructor (scene, { template, actorOf, onEvent = null }) {
@@ -2060,7 +2318,6 @@ class TimelinePlayer {
     this.span = 0
     this.last = null
     this.playhead = 0
-    this.speed = 1
     this.queue = []       // beats: { at, action, results }
     this.cursor = 0
     this.scheduled = []   // { at, run }
@@ -2104,11 +2361,6 @@ class TimelinePlayer {
     return this.tail + this.span
   }
 
-  setSpeed (n) {
-    this.speed = n
-    this.scene.tweens.timeScale = n
-  }
-
   // Every beat played, the last one's time run too.
   get finished () {
     return this.cursor >= this.queue.length && this.scheduled.length === 0 && this.playhead >= this.tail + this.span
@@ -2147,7 +2399,6 @@ class TimelinePlayer {
     const primary = this.actorOf(hit?.target ?? beat.action.targets?.[0])
     const refs = { actor, primary, beat }
     for (const step of tpl.steps) {
-      if (this.speed >= 4 && !ESSENTIAL.has(step.op)) continue
       const run = () => this.runStep(step, refs)
       if (step.t === 0) run()
       else this.scheduled.push({ at: this.playhead + step.t, run })
@@ -2188,9 +2439,9 @@ class TimelinePlayer {
   }
 }
 
-// How long a beat takes once begun, by its longest event (playhead ms, so a faster speed shortens it): an
-// action its animation's (content.js ANIMS dur), a move a tile of its path a STEP_MS, the rest what their pictures
-// need to read (a wave's banner, a shadow rising, the foes' turn's word).
+// How long a beat takes once begun, by its longest event (playhead ms): an action its animation's (content.js
+// ANIMS dur), a move a tile of its path a STEP_MS, the rest what their pictures need to read (a wave's banner, a
+// shadow rising, the foes' turn's word).
 function spanOf (ev, template) {
   switch (ev.type) {
     case 'action': return ev.anim ? template(ev.anim).dur ?? 600 : 300
@@ -2299,5 +2550,5 @@ const STEPS = {
   }
 }
 
-// The board's measures and colours, for the prep board (board.js), which draws the very board a battle plays on.
-export { RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, posAt, BIG, HOVER, BOB, tileUnder, cellsBox, facesLeft, WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, RELIC, NEUTRAL, FONT, hex }
+// The board's measures and colours, for the Field board (board.js), which draws the very board a battle plays on.
+export { RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, posAt, BIG, HOVER, BOB, tileUnder, cellsBox, facesLeft, WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, PLAN, RELIC, NEUTRAL, INK, FONT, DISPLAY, hex }

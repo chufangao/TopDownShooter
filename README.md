@@ -12,9 +12,10 @@ then descend into the endless deep for as long as you last.
 
 ## Playing
 
-- **Prep.** Drag a soul onto a tile to place it, swap by footprint, open a kind's panel to buy tiers, tap Fuse
-  when a recipe's parts are in the ossuary. Tap a relic in the relic strip, then a soul, to give it (a soul
-  holds one piece relic). Run relics (Command, the Monarch's HP, prices) work unheld.
+- **The Field.** Arrange your souls on the Field tab before you enter a battle room: entering one starts its fight.
+  Drag a soul onto a tile to place it, swap by footprint, open a kind's panel to buy tiers, tap Fuse when a recipe's
+  parts are in the ossuary; a soul selected on the board shows its reach. Tap a relic in the relic strip, then a soul,
+  to give it (a soul holds one piece relic). Run relics (Command, the Monarch's HP, prices) work unheld.
 - **A battle.** Tap a piece to light its Move and its targets. Tap a tile to move (Undo, or tap the old tile,
   until it acts). Tap a target to see the blow and the counter it draws; tap it again to strike. A skill is a
   button, then a target; it rests a few turns. **End Turn** hands the field over: pieces you gave no act strike
@@ -72,7 +73,7 @@ Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a b
   learners, off (no `ranker.json`; V unused by default).
 - `src/content.js` is all content as records, one per unit, ability and relic; `src/tuning.js` every balance
   number (`TUNING`, the expert's table included).
-- The interface: `src/main.js` (composition), `ui.js` (screens), `board.js` (the prep board), `engine.js`
+- The interface: `src/main.js` (composition), `ui.js` (screens), `board.js` (the Field's board), `engine.js`
   (Phaser, battles only), `codex.js` and `keywords.js` (rules text generated from content), `frame.js` (one
   scaled landscape layout), `dom.js`, `sfx.js`, `css/`.
 - `test/` holds the functional tests. `redesign.md` is the current spec; `DESIGN.md` still holds the board,

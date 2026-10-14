@@ -55,5 +55,7 @@ for (const [id, st] of Object.entries(STATUSES)) {
 export function kw (id, text = null) {
   const k = KEYWORDS[id]
   if (!k) return text ?? id
-  return h('span', { class: 'kw', style: `--k:var(--c-${k.sys})`, tip: () => h('div', { class: 'syn-tip kw-tip' }, h('b', { style: `color:var(--c-${k.sys})` }, k.name), ' ', h('span', null, k.line)) }, text ?? k.name)
+  // Foe red as words is its pale text tint (style.css --c-foe2): the red itself reads too dark on the panels.
+  const c = `var(--c-${k.sys === 'foe' ? 'foe2' : k.sys})`
+  return h('span', { class: 'kw', style: `--k:${c}`, tip: () => h('div', { class: 'syn-tip kw-tip' }, h('b', { style: `color:${c}` }, k.name), ' ', h('span', null, k.line)) }, text ?? k.name)
 }

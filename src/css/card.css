@@ -1,40 +1,40 @@
 /* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head and reach, its relic slot, its
-   summons, its kind's tracks, Fuse, its abilities), a foe's (foePanel), and with nothing selected the Monarch's (a gold card, its HP and
+   summons, its kind's tracks, Fuse, its abilities), and with nothing selected the Monarch's (a gold card, its HP and
    Command) over your synergies and the board's key. Every purchase pops, every refusal shakes. Sizes are the shared
    scale (style.css :root): body text --fs-md, secondary --fs-sm, badge numbers --fs-xs; anything pressed --tap
    on its short side. */
-.tray .price { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--c-essence); font-weight: 700; }
+.tray .price { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; color: var(--c-essence); font: 700 var(--fs-md) var(--display); }
 .tray button { min-height: var(--tap); }
-.tray .buy { margin: 0; padding: 8px 14px; font-size: var(--fs-md); }
+.tray .buy { margin: 0; padding: 5.5px 12.5px 7.5px; font-size: var(--fs-md); }
 
 /* ── the soul's card ─────────────────────────────────────────────────────────────────────────── */
+/* A sticker: inked, its rank's colour a rim just inside the ink, the ink's offset under it. */
 .uc {
   --rank: var(--c-essence);
-  border: 2px solid var(--rank); border-radius: 12px; padding: 10px 12px 12px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--rank) 10%, #12101d), #0e0c17 120px);
-  box-shadow: 0 0 0 1px #00000088, 0 0 18px color-mix(in srgb, var(--rank) 14%, transparent), inset 0 1px 0 #ffffff0d;
+  border: 2.5px solid var(--ink); border-radius: var(--r-panel); padding: 9.5px 11.5px 11.5px;
+  background: color-mix(in srgb, var(--rank) 7%, var(--sunk));
+  box-shadow: inset 0 0 0 2.5px var(--rank), var(--drop);
 }
-.uc.foe { --rank: var(--c-foe); }
 .uc-head { display: flex; gap: 12px; align-items: center; }
 .uc-art {
-  position: relative; flex: none; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 10px;
-  border: 2px solid var(--rank, var(--c-monarch)); background: radial-gradient(circle at 50% 40%, #2a2442, #0c0a14 75%);
+  position: relative; flex: none; width: 64px; height: 64px; display: grid; place-items: center; border-radius: 12px 9px 13px 10px;
+  border: 2.5px solid var(--ink); background: #3a2f57; box-shadow: inset 0 0 0 2px var(--rank, var(--c-monarch)), inset -4px -6px 0 #2b2244;
   cursor: help;
 }
 .uc-ins {
   position: absolute; right: -9px; bottom: -9px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%;
-  color: var(--rank, var(--c-monarch)); background: #0f0d18; border: 2px solid var(--rank, var(--c-monarch));
+  color: var(--rank, var(--c-monarch)); background: var(--sunk); border: 2.5px solid var(--ink); box-shadow: inset 0 0 0 2px var(--rank, var(--c-monarch)), var(--drop-sm); rotate: -8deg;
 }
 .uc-ins.crown { color: var(--c-monarch); border-color: var(--c-monarch); }
 .uc-id { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
-.uc-name { font: 600 var(--fs-lg)/1.15 var(--serif); color: var(--bright); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uc-name { font: 600 var(--fs-lg)/1.15 var(--display); color: var(--bright); letter-spacing: .01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uc-sub { font-size: var(--fs-sm); line-height: 1.3; }
 .uc-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .uc-stat {
-  display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px 2px 6px; border-radius: 999px;
-  background: #0b0a12; border: 1px solid var(--line2); font-size: var(--fs-sm); cursor: help;
+  display: inline-flex; align-items: center; gap: 4px; padding: 0.5px 7.5px 0.5px 4.5px; border-radius: var(--r-pill);
+  background: var(--raise); border: 2.5px solid var(--ink); font-size: var(--fs-sm); cursor: help;
 }
-.uc-stat b { font-weight: 700; }
+.uc-stat b { font: 700 var(--fs-sm) var(--display); }
 .uc-stat.s-hp .ico { color: #ff7a8a; }
 .uc-stat.s-atk .ico { color: #f3a06b; }
 .uc-stat.s-def .ico { color: #8fb8ff; }
@@ -45,7 +45,7 @@
 
 /* Section labels inside a card. */
 .uc-sec {
-  margin: 14px 0 6px; font: 600 var(--fs-sm)/1.3 var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--text);
+  margin: 14px 0 6px; font: 600 var(--fs-sm)/1.3 var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--text);
 }
 .uc-sec .dim, .uc-sec .kw { text-transform: none; letter-spacing: 0; }
 .uc-sec:first-child { margin-top: 0; }
@@ -53,7 +53,6 @@
 /* Its reach and Move, a line under its stats (the rule on hover). */
 .uc-reach { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--fs-sm); color: var(--text); cursor: help; }
 .uc-reach .ico { color: var(--c-plan); }
-.uc.foe .uc-reach .ico { color: var(--c-foe); }
 /* Its relic slot (redesign.md §2.15): the relic it holds and Take back, then the unheld ones it may take, each a
    button. */
 .uc-relic { margin-top: 4px; }
@@ -64,27 +63,27 @@
 .uc-fuse { margin-top: 4px; }
 .fuse-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .fuse-row {
-  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: 8px 10px; border-radius: 10px;
-  background: #0f0d18; border: 1px solid var(--line2);
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: 7px 9px; border-radius: var(--radius);
+  background: var(--raise); border: 2px solid var(--ink);
 }
-.fuse-row.ready { border-color: color-mix(in srgb, var(--c-path) 60%, var(--line)); background: color-mix(in srgb, var(--c-path) 10%, #0f0d18); }
+.fuse-row.ready { background: color-mix(in srgb, var(--c-path) 14%, var(--raise)); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-path) 60%, transparent); }
 .fuse-row .portrait { flex: none; }
 .fuse-text { flex: 1; min-width: 0; font-size: var(--fs-sm); line-height: 1.3; }
 .fuse-text b { color: var(--bright); }
 .fuse-parts { display: flex; flex-wrap: wrap; gap: 2px 8px; }
-.fuse-parts .short { color: var(--c-foe); }
+.fuse-parts .short { color: var(--c-foe2); }
 .fuse-parts .met { color: var(--c-path2); }
-.tray .fuse-row .buy { grid-column: 1 / -1; justify-self: end; padding: 6px 14px; }
+.tray .fuse-row .buy { grid-column: 1 / -1; justify-self: end; padding: 3.5px 12.5px 5.5px; }
 .uc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; }
 .tray .uc-acts button { gap: 6px; }
 .uc-abs .ability { font-size: var(--fs-sm); }
-.uc .flavour { font-style: italic; color: #b9a8c8; }
+.uc .flavour { font-style: italic; color: #c2b2d0; }
 
 /* ── tracks: the kind's two, each a row of tiers I–IV ──────────────────────────────────────────── */
 .tracks { display: grid; gap: 8px; }
-.track { padding: 6px 10px 8px; border: 1px solid var(--line2); border-radius: 10px; background: #0c0a15; min-width: 0; }
+.track { padding: 5px 9px 7px; border: 2px solid var(--ink); border-radius: var(--radius); background: var(--raise); min-width: 0; }
 .track { --p: var(--c-path); }
-.track.held { border-color: color-mix(in srgb, var(--p) 35%, var(--line2)); background: color-mix(in srgb, var(--p) 5%, #0c0a15); }
+.track.held { background: color-mix(in srgb, var(--p) 9%, var(--raise)); }
 /* Its name and line (wrapping: never cut), its next tier's effect likewise. */
 .track-head { font-size: var(--fs-md); line-height: 1.3; cursor: help; }
 .track-desc { font-size: var(--fs-sm); }
@@ -92,30 +91,31 @@
 .track-next { font-size: var(--fs-sm); line-height: 1.3; color: var(--dim); cursor: help; }
 .track-next b { color: var(--c-essence); }
 .nodes { display: flex; align-items: center; padding: 6px 0; }
-.tlink { flex: 1 1 4px; min-width: 4px; max-width: 26px; height: 3px; background: var(--line); border-radius: 2px; }
-.tlink.on { background: var(--p, var(--c-path)); box-shadow: 0 0 6px color-mix(in srgb, var(--p, var(--c-path)) 35%, transparent); }
+.tlink { flex: 1 1 4px; min-width: 4px; max-width: 26px; height: 6px; background: var(--sunk); border-block: 1.5px solid var(--ink); }
+.tlink.on { background: var(--p, var(--c-path)); }
 .tnode {
-  position: relative; flex: none; width: var(--tap); height: var(--tap); padding: 0; border-radius: 50%;
-  border: 2px solid var(--line); background: #141122; color: var(--dim); font: 700 var(--fs-sm)/1 var(--serif);
+  position: relative; flex: none; width: var(--tap); height: var(--tap); padding: 0; border-radius: 52% 47% 50% 46% / 47% 52% 46% 51%;
+  border: 2.5px solid var(--ink); background: var(--sunk); color: var(--dim); font: 600 var(--fs-sm)/1 var(--display); letter-spacing: .1em; box-shadow: var(--drop-sm);
 }
-.tnode.own { border-color: var(--p, var(--c-path)); background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--p, var(--c-path)) 55%, #fff), var(--p, var(--c-path))); color: #06120e; box-shadow: 0 0 10px color-mix(in srgb, var(--p, var(--c-path)) 30%, transparent); }
-.tnode.next { border-color: var(--p, var(--c-path)); background: color-mix(in srgb, var(--p, var(--c-path)) 16%, #100e1c); color: var(--bright); animation: uc-pulse 1.8s ease-in-out infinite; }
-.tnode.next.poor { border-color: #6a3a48; background: #1a1420; color: var(--dim); animation: none; }
+.tnode.own { background: var(--p, var(--c-path)); color: var(--ink); box-shadow: inset -2px -4px 0 color-mix(in srgb, var(--p, var(--c-path)) 62%, var(--ink)), var(--drop-sm); }
+.tnode.next { background: color-mix(in srgb, var(--p, var(--c-path)) 22%, var(--raise)); color: var(--bright); box-shadow: inset 0 0 0 2.5px var(--p, var(--c-path)), var(--drop-sm); animation: uc-pulse 1.8s ease-in-out infinite; }
+.tnode.next.poor { background: #2e1c2a; color: var(--dim); box-shadow: inset 0 0 0 2px #8a4458, var(--drop-sm); animation: none; }
 .tnode.lock { border-style: dashed; opacity: .55; }
-.tnode.later { border-color: #3a3356; }
-.tnode:hover:not([aria-disabled]) { border-color: var(--c-essence2); color: var(--bright); }
+.tnode.later { background: var(--sunk); }
+.tnode:hover:not([aria-disabled]) { color: var(--bright); background-color: var(--raise-hi); }
+.tnode.own:hover:not([aria-disabled]) { color: var(--ink); background-color: var(--p, var(--c-path)); }
 /* The next tier's price, at the end of the track's nodes. */
-.tprice { margin-left: auto; padding-left: 10px; display: inline-flex; align-items: center; gap: 3px; font: 700 var(--fs-md)/1 var(--sans); color: var(--c-essence); white-space: nowrap; }
-.tprice.poor { color: var(--c-foe); }
+.tprice { margin-left: auto; padding-left: 10px; display: inline-flex; align-items: center; gap: 3px; font: 700 var(--fs-md)/1 var(--display); color: var(--c-essence); white-space: nowrap; }
+.tprice.poor { color: var(--c-foe2); }
 
 /* ── the Monarch's card ──────────────────────────────────────────────────────────────────────── */
 .mc {
   --rank: var(--c-monarch);
-  border: 2px solid var(--c-monarch); border-radius: 12px; padding: 10px 12px 12px;
-  background: linear-gradient(180deg, #2a2110, #120f09 130px);
-  box-shadow: 0 0 0 1px #00000088, 0 0 18px color-mix(in srgb, var(--c-monarch) 13%, transparent), inset 0 1px 0 #ffffff10;
+  border: 2.5px solid var(--ink); border-radius: var(--r-panel); padding: 9.5px 11.5px 11.5px;
+  background: #2a2010;
+  box-shadow: inset 0 0 0 2.5px var(--c-monarch), var(--drop);
 }
-.mc .uc-art { background: radial-gradient(circle at 50% 40%, #4a3a18, #120f09 75%); }
+.mc .uc-art { background: #4a3a18; box-shadow: inset 0 0 0 2px var(--c-monarch), inset -4px -6px 0 #3a2c10; }
 .mc .uc-name { color: #f6e2b0; }
 .mc-hp { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: var(--fs-sm); }
 .mc-hp .hpbar { flex: 1; width: auto; height: 10px; }
@@ -124,49 +124,49 @@
 .mc-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .mc-col {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "ico name val" "now now now";
-  align-items: center; gap: 2px 4px; padding: 6px; text-align: left; min-width: 0;
-  border: 1px solid #4a3a18; border-radius: 10px; background: #15110a; cursor: help;
+  align-items: center; gap: 2px 4px; padding: 5px; text-align: left; min-width: 0;
+  border: 2px solid var(--ink); border-radius: var(--radius); background: #3a2d12; cursor: help;
 }
 .mc-ico { grid-area: ico; display: flex; color: var(--c-monarch); }
-.mc-name { grid-area: name; font: 600 var(--fs-sm)/1.3 var(--sans); color: #f3d9a0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mc-val { grid-area: val; font: 600 var(--fs-lg)/1.05 var(--serif); color: var(--c-monarch); }
+.mc-name { grid-area: name; font: 600 var(--fs-sm)/1.3 var(--display); color: #f3d9a0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-val { grid-area: val; font: 700 var(--fs-lg)/1.05 var(--display); color: #e8b830; }
 .mc-now { grid-area: now; font-size: var(--fs-sm); line-height: 1.25; color: var(--dim); }
 .mc .uc-art { width: 52px; height: 52px; }
 /* On a short frame (a phone's) tighter still, what a stat gives now waiting on its hover. */
 @container frame (max-height: 640px) {
-  .mc { padding: 5px 8px 6px; }
+  .mc { padding: 4.5px 7.5px 5.5px; }
   .mc .uc-art { width: 40px; height: 40px; }
   .mc .uc-art .portrait { width: 34px; height: 34px; }
   .mc-cols { gap: 4px; margin-top: 5px; }
-  .mc-col { grid-template-areas: "ico name val"; padding: 3px 6px; }
+  .mc-col { grid-template-areas: "ico name val"; padding: 2px 5px; }
   .mc-now { display: none; }
 }
 
 /* ── your synergies, under the Monarch's card: a chip each, lit in its colour (the board's glow, --g); a
    lit one is a press that lights its pieces on the board ──────────────────────────────────────── */
 .tray .syns.chips { gap: 6px; }
-.tray .syn.chip { justify-content: center; padding: 4px 10px; font-size: var(--fs-sm); gap: 6px; min-height: max(36px, var(--tap-px)); min-width: var(--tap-px); }
+.tray .syn.chip { justify-content: center; padding: 2.5px 8.5px; font-size: var(--fs-sm); gap: 6px; min-height: max(36px, var(--tap-px)); min-width: var(--tap-px); }
 .tray button.syn.chip { cursor: pointer; }
-.tray .syn.chip.on { border-color: color-mix(in srgb, var(--g, var(--c-synergy)) 70%, transparent); background: color-mix(in srgb, var(--g, var(--c-synergy)) 14%, #120f1e); }
+.tray .syn.chip.on { background: color-mix(in srgb, var(--g, var(--c-synergy)) 18%, var(--raise)); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--g, var(--c-synergy)) 70%, transparent), var(--drop-sm); }
 .tray .syn.chip.on > b { color: var(--g, var(--c-synergy)); }
-.tray .syn.chip.on .syn-steps i.held { border-color: color-mix(in srgb, var(--g, var(--c-synergy)) 70%, #0c0a14); background: color-mix(in srgb, var(--g, var(--c-synergy)) 30%, #0c0a14); color: #fff; }
-.tray .syn.chip.focus { box-shadow: 0 0 0 2px var(--g, var(--c-synergy)), 0 0 14px color-mix(in srgb, var(--g, var(--c-synergy)) 50%, transparent); }
-.tray .syn.chip .syn-steps i { width: 22px; height: 22px; font-size: var(--fs-sm); line-height: 21px; }
+.tray .syn.chip.on .syn-steps i.held { background: color-mix(in srgb, var(--g, var(--c-synergy)) 55%, var(--sunk)); color: #fff; }
+.tray .syn.chip.focus { box-shadow: 0 0 0 3px var(--g, var(--c-synergy)), 2px 3px 0 3px var(--ink); }
+.tray .syn.chip .syn-steps i { width: 22px; height: 22px; font-size: var(--fs-sm); line-height: 18px; }
 .tray .relics { gap: 6px; }
-.tray .relic { padding: 5px 12px; font-size: var(--fs-sm); gap: 6px; cursor: help; }
+.tray .relic { padding: 3.5px 10.5px; font-size: var(--fs-sm); gap: 6px; cursor: help; }
 .tray .relic .ico svg { width: 18px; height: 18px; }
 /* The board's key, short. */
 .legend-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); line-height: 1.35; }
-.legend-list i { display: inline-block; width: 18px; height: 10px; margin-right: 8px; vertical-align: 1px; border-radius: 2px; }
+.legend-list i { display: inline-block; width: 18px; height: 10px; margin-right: 8px; vertical-align: 1px; border-radius: 3px 2px 3px 2px; }
 /* A road's chevron, as the board draws it (board.js drawRoads): the foes' red, faint, pointing on down the road. */
 .lg-road { width: 8px !important; height: 8px !important; border-top: 3px solid color-mix(in srgb, var(--c-foe) 70%, transparent); border-right: 3px solid color-mix(in srgb, var(--c-foe) 70%, transparent); border-radius: 0 !important; transform: rotate(45deg); margin: 0 12px 0 3px !important; vertical-align: 1px !important; }
-.lg-cover { background: color-mix(in srgb, var(--c-plan) 45%, transparent); border: 1px solid var(--c-plan); }
-.lg-seat { background: var(--c-monarch); border-radius: 50% !important; width: 12px !important; height: 12px !important; margin: 0 11px 0 3px !important; }
-.lg-dom { border: 1.5px solid var(--c-domain); }
+.lg-seat { background: var(--c-monarch); box-shadow: 0 0 0 1.5px var(--ink); border-radius: 50% !important; width: 12px !important; height: 12px !important; margin: 0 11px 0 3px !important; }
+.lg-dom { border: 2px solid var(--c-domain); box-shadow: 0 0 0 1.5px var(--ink); }
 
 /* ── feedback ────────────────────────────────────────────────────────────────────────────────── */
 
-@keyframes uc-pulse { 50% { box-shadow: 0 0 0 3px #5ef0c022, 0 0 12px #5ef0c066; } }
+/* The next tier to buy bobs, as if it wanted picking. */
+@keyframes uc-pulse { 50% { transform: translateY(-3px) rotate(-4deg); } }
 @keyframes uc-shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
 .shake { animation: uc-shake .32s ease-in-out; }
 @media (prefers-reduced-motion: reduce) {
@@ -189,7 +189,7 @@
 .track-next.warn { color: var(--c-warn); }
 .tbadge {
   position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; display: grid; place-items: center;
-  border-radius: 50%; background: #0f0d18; border: 1px solid var(--c-plan); color: var(--c-plan);
-  font: 700 9px/1 var(--sans); letter-spacing: -.02em;
+  border-radius: 50%; background: var(--sunk); border: 2px solid var(--ink); color: var(--c-plan); box-shadow: inset 0 0 0 1.5px var(--c-plan);
+  rotate: 10deg;
 }
-.tnode.colossus { border-color: color-mix(in srgb, var(--c-plan) 60%, var(--line)); }
+.tnode.colossus { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-plan) 60%, transparent), var(--drop-sm); }

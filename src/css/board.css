@@ -3,8 +3,8 @@
    the page (#game), on its side so it takes the screen's width; .board-stage is a clear window onto it that takes
    the pointer. One layout for every screen, at the frame's logical size (frame.js: 540 to 720 tall, 960 to ~1560
    wide): a thin top bar (--top-h: the floor, the purse, the Monarch's HP, the tabs), then the board, and beside
-   it one slim panel (--side: the room and Begin, the selected piece's card, the ossuary at its foot like a tower
-   shop). Nothing scrolls but the panel's card and a long ossuary, inside themselves. */
+   it one slim panel (--side: the selected piece's card, the ossuary at its foot like a tower shop). Nothing
+   scrolls but the panel's card and a long ossuary, inside themselves. */
 
 .screen:has(.board-stage) { background: transparent; }
 /* A badge's number: --fs-xs, and never under 10 CSS px on screen however far the frame is scaled down. */
@@ -13,13 +13,13 @@
 /* What drags with the pointer (the board, a soul on the bench) keeps a touch to itself: the browser neither
    scrolls nor zooms under it, so a drag is never cut off by a pointercancel. */
 .board-stage, .bench .cell { touch-action: none; }
-.board-stage.kb:focus-visible { box-shadow: 0 0 0 2px var(--c-essence) inset; border-radius: var(--radius); }
+.board-stage.kb:focus-visible { box-shadow: 0 0 0 3px var(--c-essence) inset; border-radius: var(--radius); }
 .board-stage.dragging, body.dragging, body.dragging * { cursor: grabbing !important; }
 body.dragging { -webkit-user-select: none; user-select: none; }
 /* The dragged piece off the board, over the bench and the panel (the canvas lies under the page). */
 .drag-ghost {
   position: fixed; left: 0; top: 0; z-index: 95; pointer-events: none; opacity: .92;
-  margin: calc(var(--s) * -0.62) 0 0 calc(var(--s) * -0.5); filter: drop-shadow(0 6px 10px #000c);
+  margin: calc(var(--s) * -0.62) 0 0 calc(var(--s) * -0.5); filter: drop-shadow(4px 8px 0 rgb(8 4 14 / .55));
 }
 .drag-ghost .portrait { width: var(--s); height: var(--s); }
 
@@ -28,16 +28,18 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .screen.run-screen { padding: 0 10px 8px; }
 .run-screen .topbar { min-height: var(--top-h); margin: 0 -10px; padding: 0 10px 0 14px; gap: 10px; }
 .run-screen .topbar .chip-stat { min-height: max(40px, var(--tap-px)); }
-/* The tabs, folded into the bar: an icon and a short name each, the open one lit in essence's teal. */
-.top-tabs { flex: none; display: flex; gap: 4px; padding: 0 4px; border-left: 1px solid var(--line2); border-right: 1px solid var(--line2); }
+/* The tabs, folded into the bar: an icon and a short name each, the open one a teal slab with a fat teal foot. */
+.top-tabs { flex: none; display: flex; gap: 4px; padding: 0 4px; border-left: 3px solid var(--ink); border-right: 3px solid var(--ink); }
 .top-tab {
-  gap: 6px; min-height: var(--tap); padding: 0 12px; border-radius: 10px; border-color: transparent; background: transparent;
-  color: var(--dim); font-size: var(--fs-sm); font-weight: 600;
+  gap: 6px; min-height: var(--tap); padding: 0 9.5px; border-color: transparent; background: transparent; box-shadow: none;
+  color: var(--dim); font: 600 var(--fs-sm) var(--display);
 }
-.top-tab.on { color: var(--bright); background: #16302ae6; border-color: #2d5248; box-shadow: inset 0 -3px 0 var(--c-essence); }
+.top-tab:hover:not(.on):not([aria-disabled]) { background-color: #ffffff0d; }
+.top-tab.on { color: var(--bright); background: #1d4a3d; border-color: var(--ink); box-shadow: inset 0 -5px 0 var(--c-essence), var(--drop-sm); }
+.top-tab.on:hover { background-color: #23594a; }
 .top-tab.on .ico { color: var(--c-essence); }
 /* Where the bar is short of room, the tabs keep their icons only (each named on hover). */
-@container frame (max-width: 1080px) { .top-tab .top-tab-name { display: none; } .top-tab { padding: 0 10px; } }
+@container frame (max-width: 1080px) { .top-tab .top-tab-name { display: none; } .top-tab { padding: 0 7.5px; } }
 .run-body { flex: 1; min-height: 0; display: flex; margin-top: 8px; }
 .run-body > * { flex: 1; min-width: 0; min-height: 0; }
 /* What just happened, over the foot of the board: a tap dismisses it. Centred by `translate`, which the toast's
@@ -59,8 +61,8 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .retinue > .stage-wrap { position: relative; min-width: 0; min-height: 0; }
 /* The gesture to learn next (ui.js hint), a slim pill atop the panel, beside the board, never over it. */
 .board-hint {
-  flex: none; padding: 5px 12px; border-radius: 12px; background: #0c1626f0; border: 1px solid #3a6aa8; color: #d6e8ff;
-  font-size: var(--fs-sm); line-height: 1.3; box-shadow: 0 0 14px #3697ff33;
+  flex: none; padding: 3.5px 10.5px; border-radius: var(--r-btn); background: #1b2d52; border: 2.5px solid var(--ink); color: #d6e8ff;
+  font-size: var(--fs-sm); line-height: 1.3; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-plan) 60%, transparent), var(--drop-sm);
 }
 .board-hint b { color: #ffffff; }
 .board-hint[hidden] { display: none; }
@@ -68,102 +70,61 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 /* The ossuary, the panel's foot: your souls not on the field in a row (it scrolls sideways past what fits), each
    dragged onto the board as a tower from a shop; a piece dropped on it goes back in. */
 .bench-strip {
-  flex: none; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 8px; border-radius: var(--radius);
-  background: #0c0a14e6; border: 1px solid var(--line2);
+  flex: none; display: flex; flex-direction: column; gap: 4px; padding: 4.5px 6.5px 6.5px; border-radius: var(--r-panel);
+  background: var(--panel); border: 2.5px solid var(--ink); box-shadow: var(--drop);
 }
 .bench-label { flex: none; display: flex; align-items: baseline; font-size: var(--fs-sm); line-height: 1.3; cursor: help; white-space: nowrap; overflow: hidden; }
-.bench-label b { color: var(--c-ossuary); font-weight: 600; letter-spacing: .04em; }
+.bench-label b { color: var(--c-ossuary); font: 600 var(--fs-sm) var(--display); letter-spacing: .03em; }
 .bench-label > span::before { content: " · "; white-space: pre; }
 .bench-strip .bench {
   display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-height: 64px; padding: 2px; border-radius: 8px;
   overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; scrollbar-width: thin;
 }
-.bench.target { box-shadow: inset 0 0 0 1px #5ef0c044; background: #5ef0c00a; }
-.bench.over { box-shadow: inset 0 0 0 2px #5ef0c0aa, 0 0 18px #5ef0c033; background: #5ef0c014; }
+.bench.target { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-essence) 40%, transparent); background: color-mix(in srgb, var(--c-essence) 6%, transparent); }
+.bench.over { box-shadow: inset 0 0 0 3px var(--c-essence); background: color-mix(in srgb, var(--c-essence) 14%, transparent); }
 .bench .empty-bench { padding: 0 6px; font-size: var(--fs-sm); white-space: normal; }
 .bench .cell { flex: none; width: 60px; height: 60px; padding: 2px; gap: 2px; cursor: grab; }
 .bench .cell .portrait { width: 42px; height: 42px; }
 .bench .cell .hpbar { width: 48px; height: 5px; }
 .bench .cell.fallen::after { bottom: 10px; font-size: var(--fs-badge); letter-spacing: .04em; }
 /* A soul that may take the relic readied (the Relics strip): ringed in the relics' orange. */
-.bench .cell.offer { border-color: var(--c-relic); box-shadow: 0 0 0 2px #ff7f4566, 0 0 14px #ff7f4544; }
+.bench .cell.offer { box-shadow: 0 0 0 3px var(--c-relic), 2px 3px 0 3px var(--ink); }
 
 /* The Relics strip beside the ossuary (redesign.md §2.15): the piece relics held by no soul, each a button that readies
    it to give; a soul tapped then takes it. Hidden while none waits. */
 .relic-strip {
-  flex: none; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px 8px; border-radius: var(--radius);
-  background: #120c0ae6; border: 1px solid #4a2c1c;
+  flex: none; display: flex; flex-direction: column; gap: 4px; padding: 4.5px 6.5px 6.5px; border-radius: var(--r-panel);
+  background: #2e1d18; border: 2.5px solid var(--ink); box-shadow: var(--drop);
 }
 .relic-strip[hidden] { display: none; }
 .relic-strip .bench-label b { color: var(--c-relic); }
 .relics-unheld { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 2px; }
-.give-relic { flex: none; gap: 6px; padding: 0 10px; min-height: var(--tap); color: var(--rt, var(--c-relic)); border-color: color-mix(in srgb, var(--rt, var(--c-relic)) 45%, var(--line)); }
+.give-relic { flex: none; gap: 6px; padding: 0 8.5px; min-height: var(--tap); color: var(--rt, var(--c-relic)); background: color-mix(in srgb, var(--rt, var(--c-relic)) 12%, var(--raise)); }
 .give-relic .gr-name { color: var(--text); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; }
-.give-relic.on { background: color-mix(in srgb, var(--rt, var(--c-relic)) 22%, #0c0a14); border-color: var(--rt, var(--c-relic)); box-shadow: 0 0 12px color-mix(in srgb, var(--rt, var(--c-relic)) 45%, transparent); }
+.give-relic.on { background: color-mix(in srgb, var(--rt, var(--c-relic)) 32%, var(--raise)); box-shadow: 0 0 0 3px var(--rt, var(--c-relic)), var(--drop-sm); }
+.give-relic:hover:not([aria-disabled]) { background-color: color-mix(in srgb, var(--rt, var(--c-relic)) 24%, var(--raise-hi)); }
 .give-relic.small { min-height: max(36px, var(--tap-px)); font-size: var(--fs-sm); }
 
-/* ── the slim panel: the room's head, the card, the ossuary ───────────────────────────────────── */
+/* ── the slim panel: the card, the ossuary ────────────────────────────────────────────────────── */
 
 .side-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
-.side-col > .prep-head:empty { display: none; }
 
 .retinue .tray {
   position: static; flex: 1; min-height: min(170px, 40%); max-height: none; align-self: stretch; display: flex; flex-direction: column; overflow: hidden;
-  background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius); padding: 8px 10px 10px;
-  box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(6px);
+  background: var(--panel); border: 2.5px solid var(--ink); border-radius: var(--r-panel); padding: 6.5px 8.5px 8.5px;
+  box-shadow: var(--drop);
   font-size: var(--fs-md); line-height: 1.35;
 }
-/* Only the card scrolls, inside the panel, which keeps room for some of it however much stands round it (a room's
-   long head gives way first: below). */
+/* Only the card scrolls, inside the panel, which keeps room for some of it however much stands round it. */
 .retinue .tray > .tab-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-right: -6px; padding-right: 6px; }
 .retinue .tray > .panel-err { flex: none; margin: 0 0 8px; font-size: var(--fs-sm); }
 .retinue .tray > .panel-err[hidden] { display: none; }
 .tray .small { font-size: var(--fs-sm); }
 .tray .ico svg { flex: none; }
 
-/* The room's head (prep), compact: the room and Begin in one row, then the threat, the waves, their synergies. Short of
-   room (a phone's, a siege's waves, a full ossuary, relics to give) it scrolls inside itself under its first row, which
-   stays, Begin in it. */
-.side-col > .prep-head {
-  flex: 0 1 auto; min-height: calc(var(--tap-lg) + 18px); overflow: hidden auto; overscroll-behavior: contain;
-  display: flex; flex-direction: column; align-items: stretch; gap: 4px; margin: 0; padding: 8px 10px; text-align: left;
-  background: var(--panel); border: 1px solid var(--line2); border-radius: var(--radius);
-  box-shadow: 0 10px 30px #00000055, 0 1px 0 #ffffff08 inset; backdrop-filter: blur(6px);
-}
-.prep-head .ph-top { flex: none; position: sticky; top: -8px; z-index: 1; margin: -8px 0 0; padding-top: 8px; background: #141120; display: flex; align-items: center; gap: 8px; }
-.prep-head > * { flex: none; }
-.prep-head .ph-title { flex: 1; display: flex; gap: 8px; align-items: center; min-width: 0; cursor: help; }
-.prep-head .room-ico { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #1a1628; border: 1px solid var(--line); }
-.prep-head .ph-id { min-width: 0; }
-/* The room's name wraps to a second line rather than losing its end to an ellipsis. */
-.prep-head .ph-id h2 { margin: 0; font: 600 var(--fs-lg)/1.1 var(--serif); letter-spacing: .03em; text-transform: none; color: var(--bright); white-space: normal; overflow-wrap: break-word; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-/* The count under the room's name wraps rather than run under Begin ("4 foes in 2 waves · Lv 2" beside the Enter key). */
-.prep-head .ph-id .dim { font-size: var(--fs-sm); line-height: 1.25; text-wrap: balance; }
-.prep-head .begin-btn { flex: none; justify-self: auto; min-height: var(--tap-lg); padding: 0 12px; font-size: var(--fs-lg); gap: 6px; }
-.prep-head .begin-btn kbd { display: none; font-size: var(--fs-xs); }
-@container frame (min-width: 1100px) { .prep-head .begin-btn kbd { display: inline-block; } }
-.prep-head > .dim.small { font-size: var(--fs-sm); line-height: 1.3; }
-.prep-head .threat { display: grid; grid-template-columns: auto minmax(60px, 1fr); align-items: center; gap: 2px 10px; font-size: var(--fs-sm); line-height: 1.3; }
-.prep-head .threat-head { white-space: nowrap; }
-.prep-head .threat-head > span:last-child { display: none; }
-.prep-head .threat-bar { height: 10px; margin: 0; border-radius: 5px; }
-.prep-head .threat > .warn { grid-column: 1 / -1; font-size: var(--fs-sm); }
-
-/* The waves still to come, a row in the room's head: each a chip of its name (when it comes on hover), its
-   named foes' faces (each one's card on hover) and how many come. */
-.wave-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: var(--fs-sm); }
-.wave-chips .wc-label { color: #f08a98; font-weight: 600; cursor: help; }
-.wave-chip {
-  display: inline-flex; align-items: center; gap: 4px; padding: 0 8px 0 10px; border-radius: 999px;
-  border: 1px dashed #4a2432; background: #120a10cc;
-}
-.wave-chip > b { color: #f0a0ac; cursor: help; margin-right: 2px; }
-.wave-chip .wc-face { display: inline-grid; place-items: center; width: 28px; height: 28px; cursor: help; }
-.wave-chip .wc-face .portrait { width: 26px; height: 26px; }
-
 /* ── the battle's panel (ui.js battleChrome; its frame in style.css) ──────────────────────────── */
-.bs-k { font: 600 var(--fs-sm)/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; color: var(--c-essence2); }
-.bs-k.foe { color: #b0808e; }
+.bs-k { font: 600 var(--fs-sm)/1.2 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--c-essence2); }
+.bs-k.foe { color: #c79aa6; }
 .bs-syns { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-sm); line-height: 1.25; color: var(--c-synergy); }
 .bs-syns.foe { color: #e08a96; }
 .bs-syn.rule { font-weight: 600; }
@@ -171,20 +132,20 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .bs-rules { display: flex; flex-direction: column; gap: 4px; }
 .bs-rules:empty { display: none; }
 .bs-rule {
-  padding: 4px 10px; border-radius: 8px; border: 1px solid var(--c-synergy); background: #07060bd9; color: #cfe3ff;
-  font: 600 var(--fs-sm)/1.25 var(--sans); letter-spacing: .04em; text-transform: uppercase; transition: opacity .45s;
+  padding: 2.5px 8.5px; border-radius: var(--r-btn); border: 2.5px solid var(--ink); background: color-mix(in srgb, var(--c-synergy) 30%, var(--sunk)); color: #d8e8ff;
+  font: 600 var(--fs-sm)/1.25 var(--display); letter-spacing: .04em; text-transform: uppercase; transition: opacity .45s; box-shadow: var(--drop-sm);
 }
-.bs-rules.foe .bs-rule { border-color: var(--c-foe); color: #ffa0ae; }
+.bs-rules.foe .bs-rule { background: color-mix(in srgb, var(--c-foe) 30%, var(--sunk)); color: #ffb4c0; }
 .bs-rule.out { opacity: 0; }
-.bs-crown { padding: 8px 10px 10px; border: 1px solid #5a4520; border-radius: 10px; background: #0b0a12cc; }
+.bs-crown { padding: 6.5px 8.5px 8.5px; border: 2.5px solid var(--ink); border-radius: var(--radius); background: #2e2410; box-shadow: var(--drop-sm); }
 .bs-crown[hidden] { display: none; }
 .bs-crown-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 10px; color: var(--c-monarch); }
-.bs-name { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--fs-md)/1.3 var(--serif); letter-spacing: .03em; }
-.bs-hp-n { font: 700 var(--fs-md)/1.3 var(--sans); }
+.bs-name { display: inline-flex; align-items: center; gap: 6px; font: 600 var(--fs-md)/1.3 var(--display); letter-spacing: .02em; }
+.bs-hp-n { font: 700 var(--fs-md)/1.3 var(--display); }
 .bs-crown.low .bs-hp-n { color: #ff8a9a; }
-.bs-hpbar { height: 10px; margin-top: 6px; border-radius: 5px; background: #07060b; box-shadow: inset 0 0 0 1px #5a4520; overflow: hidden; }
-.bs-hpbar > span { display: block; height: 100%; width: 100%; background: var(--c-essence); transition: width .38s ease-out .26s; }
-.bs-crown.low .bs-hpbar > span { background: #ff6a7a; }
+.bs-hpbar { height: 10px; margin-top: 6px; border-radius: 5px 4px 6px 4px; background: var(--sunk); border: 1.5px solid var(--ink); overflow: hidden; }
+.bs-hpbar > span { display: block; height: 100%; width: 100%; background: var(--c-essence); box-shadow: inset 0 -2.5px 0 #2a9878; transition: width .38s ease-out .26s; }
+.bs-crown.low .bs-hpbar > span { background: #ff6a7a; box-shadow: inset 0 -2.5px 0 #b03a4c; }
 @media (prefers-reduced-motion: reduce) { .bs-hpbar > span, .bs-rule { transition: none; } }
 
 /* ── the turn (redesign.md §4): the turn's count, the wave counter, the selected piece's orders, End Turn ──────── */
@@ -192,49 +153,51 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .turn-n { color: var(--bright); font-weight: 600; }
 .turn-n b { min-width: 7ch; font-variant-numeric: tabular-nums; }
 /* When the panel runs short the synergies give way first, then the selected piece's orders (each scrolling inside
-   itself): the Monarch's HP and the controls (End Turn, the speeds, Skip) always show whole. */
+   itself): the Monarch's HP and the controls (End Turn, Pause, Skip) always show whole. */
 .bs-syn-box { flex: 0 1000 auto; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
 .bs-sel {
   flex: 0 1 auto; min-height: 0; overflow: hidden auto; overscroll-behavior: contain;
-  --pad: 8px; display: flex; flex-direction: column; gap: 8px; padding: var(--pad) 10px; border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--c-plan) 40%, var(--line)); background: #0b0a12cc;
+  --pad: 8px; display: flex; flex-direction: column; gap: 8px; padding: var(--pad) 9px; border-radius: var(--radius);
+  border: 2px solid var(--ink); background: var(--sunk); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-plan) 45%, transparent);
 }
 .bs-hint { margin: 0; font-size: var(--fs-sm); line-height: 1.35; }
 .sel-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .sel-head .portrait { flex: none; }
 .sel-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.sel-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 var(--fs-md)/1.2 var(--serif); color: var(--bright); }
+.sel-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 var(--fs-md)/1.2 var(--display); color: var(--bright); }
 .sel-nums { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .sel-hp { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
 .sel-hp .hpbar { width: 44px; }
 .sel-move { font-size: var(--fs-sm); color: var(--c-plan); font-weight: 600; white-space: nowrap; cursor: help; }
 .sel-acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.sel-acts > button { flex: 1 1 auto; min-width: 0; justify-content: flex-start; gap: 6px; padding: 0 10px; font-size: var(--fs-sm); }
-.act-btn .act-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.sel-acts > button { flex: 1 1 auto; min-width: 0; justify-content: flex-start; gap: 6px; padding: 0 8.5px; font-size: var(--fs-sm); }
+.act-btn .act-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 var(--fs-sm) var(--display); }
 .act-btn .act-kind { margin-left: auto; color: var(--dim); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; }
-.act-btn.armed { border-color: var(--c-plan); background: linear-gradient(180deg, #1d3354, #142338); color: var(--bright); box-shadow: 0 0 0 1px #3697ff55 inset; }
+.act-btn.armed { background: #23406e; color: var(--bright); box-shadow: inset 0 0 0 2px var(--c-plan), inset 0 -4px 0 #152a4c, var(--drop-sm); }
+.act-btn.armed:hover:not([aria-disabled]) { background-color: #2a4b80; }
 .act-btn[aria-disabled="true"] { opacity: .5; }
 /* A skill's cooldown pip: lit (the Monarch's gold) when ready, dark while it rests (engine.js draws the same under
    the piece's bars). */
-.cd-pip { flex: none; width: 9px; height: 9px; border-radius: 2px; background: var(--c-monarch); box-shadow: 0 0 6px #c08a0088; }
-.cd-pip.rest { background: #3a3258; box-shadow: none; }
+.cd-pip { flex: none; width: 10px; height: 10px; border-radius: 3px 2px 3px 2px; background: var(--c-monarch); box-shadow: 0 0 0 1.5px var(--ink); rotate: 8deg; }
+.cd-pip.rest { background: #3a3258; }
 .fuse-btn { color: var(--c-path); }
-.fuse-btn.confirm { border-color: var(--c-path); background: #0f2a30; color: var(--bright); }
+.fuse-btn.confirm { background: #164852; color: var(--bright); box-shadow: inset 0 0 0 2px var(--c-path), inset 0 -4px 0 #0d2d34, var(--drop-sm); }
+.fuse-btn.confirm:hover:not([aria-disabled]) { background-color: #1b5662; color: var(--bright); }
 .fuse-btn .price, .sel-acts .price { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: var(--c-essence2); }
 /* What a tap does next stays in view at the box's foot while the orders above it scroll. */
-.sel-line { position: sticky; bottom: calc(-1 * var(--pad)); margin-bottom: calc(-1 * var(--pad)); padding-bottom: var(--pad); background: #0b0a12; font-size: var(--fs-sm); line-height: 1.3; min-height: 1.3em; }
+.sel-line { position: sticky; bottom: calc(-1 * var(--pad)); margin-bottom: calc(-1 * var(--pad)); padding-bottom: var(--pad); background: var(--sunk); font-size: var(--fs-sm); line-height: 1.3; min-height: 1.3em; }
 .sel-line .aim-line { color: var(--c-warn); }
 .sel-line .aim-line .screened { color: #d8d0ff; }
 .battle-panel .end-turn { width: 100%; }
 .battle-screen.busy .end-turn, .end-turn[aria-disabled="true"] { opacity: .55; }
-.battle-screen .skip { flex: 1; min-height: var(--tap); font-size: var(--fs-md); }
 /* Arise, a holder's skill (redesign.md §2.15): armed, in its domain's green. */
 .act-btn.arise .act-name { color: var(--c-domain); }
-.act-btn.arise.armed { border-color: var(--c-domain); background: linear-gradient(180deg, #1f3410, #15240c); box-shadow: 0 0 0 1px #84d21a55 inset; }
+.act-btn.arise.armed { background: #2c4a12; box-shadow: inset 0 0 0 2px var(--c-domain), inset 0 -4px 0 #1a2e0a, var(--drop-sm); }
+.act-btn.arise.armed:hover:not([aria-disabled]) { background-color: #355916; }
 .sel-relic { display: flex; flex-wrap: wrap; gap: 6px; font-size: var(--fs-xs); }
 @container frame (max-height: 640px) {
-  .battle-screen .battle-panel { gap: 5px; padding: 8px 10px 10px; }
-  .battle-screen .bs-crown { padding: 5px 8px 7px; }
+  .battle-screen .battle-panel { gap: 5px; padding: 6.5px 8.5px 8.5px; }
+  .battle-screen .bs-crown { padding: 3.5px 6.5px 5.5px; }
   .battle-screen .bs-hpbar { margin-top: 4px; height: 8px; }
   .battle-screen .bs-controls { gap: 6px; padding-top: 4px; }
   .battle-screen .end-turn { min-height: var(--tap); }
@@ -251,9 +214,9 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   .side-col { gap: 6px; }
   .bench-strip .bench { min-height: calc(max(50px, var(--tap)) + 8px); }
   .bench-strip .bench:has(.empty-bench) { min-height: 0; }
-  .bench-strip { padding: 4px 8px 6px; }
+  .bench-strip { padding: 2.5px 6.5px 4.5px; }
   /* Holding souls, the ossuary is one row, its counts beside them, so the Monarch's card shows whole. */
-  .bench-strip:has(.cell) { flex-direction: row; align-items: center; gap: 6px; padding: 3px 6px; }
+  .bench-strip:has(.cell) { flex-direction: row; align-items: center; gap: 6px; padding: 1.5px 4.5px; }
   .bench-strip:has(.cell) .bench-label { flex-direction: column; width: 74px; white-space: normal; font-size: var(--fs-xs); line-height: 1.25; }
   .bench-strip:has(.cell) .bench-label > span::before { content: none; }
   .bench-strip:has(.cell) .bench { flex: 1; min-width: 0; min-height: 0; }
@@ -262,7 +225,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   .bench .cell .hpbar { width: 40px; }
   /* "fallen" fits the slimmer cell in lower case, unspaced, never smaller than --fs-xs. */
   .bench .cell.fallen::after { letter-spacing: 0; text-transform: none; }
-  .relic-strip { flex-direction: row; align-items: center; gap: 6px; padding: 3px 6px; }
+  .relic-strip { flex-direction: row; align-items: center; gap: 6px; padding: 1.5px 4.5px; }
   .relic-strip .bench-label { flex-direction: column; width: 74px; white-space: normal; font-size: var(--fs-xs); line-height: 1.25; }
   .relic-strip .bench-label > span::before { content: none; }
   .relics-unheld { flex: 1; min-width: 0; }

@@ -11,13 +11,13 @@
 
 /* ── top bar ──────────────────────────────────────────────────────────────────────────────────── */
 .topbar .chips { flex: none; flex-wrap: nowrap; }
-.topbar .top-btns { flex: none; display: flex; align-items: center; gap: 0; margin-left: auto; }
+.topbar .top-btns, .battle-top .top-btns { flex: none; display: flex; align-items: center; gap: 0; margin-left: auto; }
 .topbar .top-btns .icon-btn { margin-left: 0; }
 /* Both speaker icons are drawn; sfx sets <html data-muted> and one shows. */
 .mute-btn .ico + .ico { display: none; }
 html[data-muted="1"] .mute-btn .ico:first-child { display: none; }
 html[data-muted="1"] .mute-btn .ico + .ico { display: inline-flex; }
-html[data-muted="1"] .mute-btn { color: #5a5470; }
+html[data-muted="1"] .mute-btn { color: #6a6284; }
 
 /* A tile per relic held, in its tier's colour (--rt): its glyph, a Legendary's letter pair in the corner, and ×N
    at the top for copies. Each a --tap box edge to edge (no gaps); the tile drawn 3 px inside it (a transparent
@@ -27,27 +27,28 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 .trinkets { display: grid; grid-auto-flow: column; align-items: center; justify-items: start; min-width: 0; }
 .trinket {
   --tc: var(--rt, var(--c-relic));
-  position: relative; flex: none; display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); border-radius: 11px; cursor: help;
-  color: var(--tc); border: 3px solid transparent; background: color-mix(in srgb, var(--tc) 12%, #0c0a14) padding-box;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tc) 45%, transparent);
-  transition: transform .12s, box-shadow .12s;
+  position: relative; flex: none; display: inline-grid; place-items: center; width: var(--tap); height: var(--tap); border-radius: 12px 9px 13px 10px; cursor: help;
+  color: var(--tc); border: 3px solid transparent; background: color-mix(in srgb, var(--tc) 16%, var(--sunk)) padding-box;
+  box-shadow: inset 0 0 0 2.5px var(--ink), inset -3px -4px 0 color-mix(in srgb, var(--tc) 8%, var(--sunk));
+  transition: transform .2s cubic-bezier(.3, 1.8, .5, 1), box-shadow .12s;
 }
+.trinket > .ico { filter: drop-shadow(1px 1.5px 0 var(--ink)); }
 .trinket i.badge {
-  position: absolute; right: -4px; bottom: -4px; min-width: 20px; padding: 0 3px; border-radius: 5px;
-  font: 700 var(--fs-sm)/18px var(--sans); font-style: normal; text-align: center; color: #0c0a14; background: var(--tc);
+  position: absolute; right: -4px; bottom: -4px; min-width: 20px; padding: 0 3px; border-radius: 6px 4px 6px 5px;
+  font: 700 var(--fs-sm)/18px var(--display); font-style: normal; text-align: center; color: var(--ink); background: var(--tc); box-shadow: 0 0 0 2px var(--ink); rotate: -6deg;
 }
 .trinket i.count {
-  position: absolute; right: -4px; top: -6px; padding: 0 3px; border-radius: 5px; z-index: 1;
-  font: 700 var(--fs-xs)/16px var(--sans); font-style: normal; color: var(--tc); background: #0c0a14; box-shadow: 0 0 0 1px var(--tc);
+  position: absolute; right: -4px; top: -6px; padding: 0 3px; border-radius: 5px 4px 6px 4px; z-index: 1;
+  font: 700 var(--fs-xs)/16px var(--display); font-style: normal; color: var(--tc); background: var(--sunk); box-shadow: 0 0 0 2px var(--ink); rotate: 5deg;
 }
 .trinket.rt-legendary { border-radius: 6px 6px 13px 13px; }
 /* A Legendary's glyph sits up and left, clear of its initials in the corner. */
 .trinket.rt-legendary > .ico { transform: translate(-4px, -4px) scale(.85); }
 /* A trigger relic (it fires in battle) wears a small spark at its top left. */
-.trinket.trig::before { content: ""; position: absolute; top: 3px; left: 3px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 5px currentColor; }
-.trinket:hover, .trinket:focus-visible { z-index: 2; transform: translateY(-1px); box-shadow: inset 0 0 0 1px currentColor, 0 0 10px color-mix(in srgb, currentColor 45%, transparent); outline: none; }
+.trinket.trig::before { content: ""; position: absolute; top: 4px; left: 4px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 1.5px var(--ink); }
+.trinket:hover, .trinket:focus-visible { z-index: 2; transform: translateY(-2px) rotate(-4deg); box-shadow: inset 0 0 0 2.5px var(--ink), inset 0 0 0 4.5px currentColor; outline: none; }
 .trinket.new { animation: trinket-in .5s cubic-bezier(.2, 1.6, .4, 1); }
-@keyframes trinket-in { from { transform: scale(.2) rotate(-20deg); opacity: 0; } 60% { box-shadow: 0 0 16px currentColor; } }
+@keyframes trinket-in { from { transform: scale(.2) rotate(-20deg); opacity: 0; } 60% { transform: scale(1.15) rotate(6deg); } }
 /* A tile whose relic is still flying to it waits unseen (ui.js flyTrinket). */
 .trinket.arriving { visibility: hidden; }
 .floors .fl-deep { margin-left: 0; }
@@ -55,61 +56,61 @@ html[data-muted="1"] .mute-btn { color: #5a5470; }
 /* ── arrivals: what is taken flies to where it now lives (ui.js flyOne) ─────────────────────────── */
 .fly-layer { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
 .flyer { position: absolute; left: 0; top: 0; display: inline-grid; place-items: center; will-change: transform, opacity; }
-.soul-flyer .portrait { width: 64px; height: 64px; border-radius: 50%; background: #1d1930; box-shadow: 0 0 14px color-mix(in srgb, var(--c-essence) 50%, transparent); }
-.trinket-flyer { color: var(--rt, var(--c-relic)); filter: drop-shadow(0 0 10px currentColor); }
+.soul-flyer .portrait { width: 64px; height: 64px; border-radius: 50%; background: var(--raise); box-shadow: 0 0 0 3px var(--c-essence), 3px 4px 0 3px var(--ink); }
+.trinket-flyer { color: var(--rt, var(--c-relic)); filter: drop-shadow(2px 3px 0 var(--ink)); }
 
 /* Your souls in the top bar, of the most you may hold: a recruit's face flies to it (ui.js flyTrinket). */
-.chip-stat.souls { align-items: center; color: var(--c-ossuary); border-color: color-mix(in srgb, var(--c-ossuary) 30%, var(--line2)); cursor: help; }
+.chip-stat.souls { align-items: center; color: var(--c-ossuary); background: #2a2530; cursor: help; }
 .chip-stat.souls b { color: var(--bright); }
 .chip-stat.souls .of { color: var(--dim); }
 .chip-stat.souls.gain { animation: bones-gain .6s ease-out; }
-@keyframes bones-gain { 0% { transform: scale(1.16); border-color: var(--c-ossuary); box-shadow: 0 0 16px color-mix(in srgb, var(--c-ossuary) 60%, transparent); } }
+@keyframes bones-gain { 0% { transform: scale(1.16) rotate(-3deg); box-shadow: 0 0 0 3px var(--c-ossuary), var(--drop-sm); } }
 
 /* The purse and the Monarch's HP flash when they change: green up, red down (the number rolls meanwhile). */
-.chip-stat { transition: border-color .2s; }
+.chip-stat { transition: box-shadow .2s; }
 .chip-stat.gain { animation: gain .6s ease-out; }
 .chip-stat.spend { animation: spend .6s ease-out; }
-@keyframes gain { 0% { transform: scale(1.12); box-shadow: 0 0 14px #5ef0c0aa; border-color: var(--c-essence); background: #17302a; } }
-@keyframes spend { 0% { transform: scale(.94); box-shadow: 0 0 12px #e0566a88; border-color: var(--c-foe); background: #2a141a; } }
+@keyframes gain { 0% { transform: scale(1.14) rotate(-3deg); box-shadow: 0 0 0 3px var(--c-essence), var(--drop-sm); background: #1f4a3d; } }
+@keyframes spend { 0% { transform: scale(.92) rotate(2deg); box-shadow: 0 0 0 3px var(--c-foe), var(--drop-sm); background: #4a1a28; } }
 
 /* ── the battle's chrome ───────────────────────────────────────────────────────────────────────── */
 .battle-panel { transition: border-color .2s, box-shadow .2s; }
 .purse {
-  display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 16px 0 12px; border-radius: 99px; font-size: var(--fs-md);
-  color: var(--c-essence); background: #121c1a; border: 1px solid #2d5248; cursor: help;
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 14.5px 0 10.5px; border-radius: var(--r-pill); font-size: var(--fs-md);
+  color: var(--c-essence); background: #183029; border: 2.5px solid var(--ink); box-shadow: var(--drop-sm); cursor: help;
 }
-.purse b { color: var(--c-essence2); min-width: 2ch; font-size: var(--fs-lg); }
+.purse b { color: var(--c-essence2); min-width: 2ch; font: 700 var(--fs-lg) var(--display); }
 .purse-plus { color: var(--dim); margin-right: -2px; }
 .purse.gain { animation: purse-gain .45s ease-out; }
 .purse.spend { animation: none; }
-@keyframes purse-gain { 0% { transform: scale(1.14); box-shadow: 0 0 18px #5ef0c0cc; background: #1c3a32; border-color: var(--c-essence); } }
-.battle-panel .seg { gap: 8px; min-height: var(--tap); padding: 0 12px; }
-.battle-panel .segs .seg { min-width: 0; }
+@keyframes purse-gain { 0% { transform: scale(1.16) rotate(-3deg); box-shadow: 0 0 0 3px var(--c-essence), var(--drop-sm); background: #1f4a3d; } }
+/* Pause and Skip share the row under End Turn, half each. */
+.battle-panel .pause-btn, .battle-panel .skip { flex: 1; min-width: 0; gap: 8px; min-height: var(--tap); padding: 0 10.5px; }
 .battle-panel kbd { min-width: 0; padding: 0 5px; opacity: .75; }
-.battle-panel .segs .seg.active { background: linear-gradient(180deg, #24493f, #17302a); color: var(--bright); box-shadow: 0 0 0 1px #5ef0c066 inset; }
-/* Skip, then Continue: the battle's one main action. */
-.battle-panel .skip { flex: 1; gap: 8px; min-height: var(--tap-lg); padding: 0 16px; font-size: var(--fs-lg); font-weight: 600; }
+.battle-panel .skip { font: 600 var(--fs-md) var(--display); }
+.battle-panel .pause-btn { font-family: var(--display); font-weight: 600; }
 /* Paused: the panel edged in plain light (no system's colour), the Resume button breathing. */
-.battle-screen.paused .battle-panel { border-color: var(--text); box-shadow: 0 0 14px #ddd6e822; }
-.seg.pause { border: 1px solid var(--line); }
-.battle-screen.paused .seg.pause { background: #2a2638; border-color: var(--text); color: var(--bright); animation: paused 1.4s ease-in-out infinite; }
-@keyframes paused { 50% { box-shadow: 0 0 0 1px #ddd6e866 inset, 0 0 12px #ddd6e844; } }
+.battle-screen.paused .battle-panel { box-shadow: inset 0 0 0 2.5px var(--text), var(--drop); }
+.battle-screen.paused .pause-btn { background: #3e3654; color: var(--bright); box-shadow: inset 0 0 0 2.5px var(--text), var(--drop-sm); animation: paused 1.4s ease-in-out infinite; }
+@keyframes paused { 50% { transform: rotate(-2deg) scale(1.03); } }
 /* …and the board dims under a quiet "Paused", taking no presses (a unit still shows its card on hover). */
 .pause-veil {
   position: absolute; inset: 0; border-radius: var(--radius); pointer-events: none;
   display: none; place-items: center; background: #06050acc; background: color-mix(in srgb, var(--bg) 45%, transparent);
 }
 .pause-veil > span {
-  display: inline-flex; align-items: center; gap: 12px; padding: 10px 26px; border-radius: 99px;
-  font: 600 var(--fs-xl) var(--serif); letter-spacing: .3em; text-transform: uppercase; color: var(--bright);
-  background: #0b0a12b0; border: 1px solid #ddd6e844; text-shadow: 0 2px 8px #000;
+  display: inline-flex; align-items: center; gap: 12px; padding: 8px 24px; border-radius: var(--r-pill);
+  font: 700 var(--fs-xl) var(--display); letter-spacing: .2em; text-transform: uppercase; color: var(--bright);
+  background: var(--panel); border: 3px solid var(--ink); box-shadow: 4px 5px 0 var(--ink); rotate: -2deg;
 }
 .battle-screen.paused .pause-veil { display: grid; animation: veil-in .25s ease-out; }
 @keyframes veil-in { from { opacity: 0; } }
-/* Over: the speeds and pause no longer matter; Continue is the one thing to press. */
-.battle-screen.over .seg.pause, .battle-screen.over .segs { opacity: .4; pointer-events: none; }
-.battle-screen.over .skip { box-shadow: 0 0 16px #5ef0c044; }
+/* Over: pause no longer matters; Continue is the one thing to press. */
+.battle-screen.over .pause-btn { opacity: .4; pointer-events: none; }
+.battle-screen.over .skip { box-shadow: inset 0 0 0 2.5px var(--c-essence), inset 0 -4px 0 var(--lip), var(--drop-sm); }
 
 @media (prefers-reduced-motion: reduce) {
-  .screen-in > *, .trinket.new, .chip-stat.gain, .chip-stat.spend, .chip-stat.souls.gain, .purse.gain, .battle-screen.paused .seg.pause, .battle-screen.paused .pause-veil { animation: none; }
+  .screen-in > *, .trinket.new, .chip-stat.gain, .chip-stat.spend, .chip-stat.souls.gain, .purse.gain, .battle-screen.paused .pause-btn, .battle-screen.paused .pause-veil { animation: none; }
+  .trinket { transition: box-shadow .12s; }
+  .trinket:hover, .trinket:focus-visible { transform: none; }
 }

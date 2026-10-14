@@ -6,19 +6,19 @@
 .tip.pinned { pointer-events: auto; }
 .tip.pinned .ct-more { display: none; }
 .tip .tip-more, .tip .tip-act { display: flex; width: 100%; min-height: var(--tap); margin-top: 10px; }
-.tip .tip-more { background: #ffffff0a; border-color: var(--line2, var(--line)); color: var(--text); }
+.tip .tip-more { background: var(--raise); color: var(--text); }
 
 /* A long press answered: the element swells a moment (by `scale`, which keeps any transform that places it),
    and a ring spreads from under the finger. */
 .held { animation: held .32s ease-out; }
 @keyframes held {
   0% { scale: 1; filter: none; }
-  40% { scale: 1.06; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--c-essence) 60%, transparent)); }
+  40% { scale: 1.06; filter: brightness(1.2); }
   100% { scale: 1; filter: none; }
 }
 .hold-ring {
   position: absolute; z-index: 99; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
-  border: 2px solid var(--c-essence); pointer-events: none; animation: hold-ring .5s ease-out forwards;
+  border: 3px solid var(--c-essence); box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--ink); pointer-events: none; animation: hold-ring .5s ease-out forwards;
 }
 @keyframes hold-ring { from { transform: scale(.4); opacity: .9; } to { transform: scale(1.5); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
@@ -28,8 +28,8 @@
 
 /* A room chosen by a first tap (ui.js mapView): a second tap, or Enter ▸, goes in. */
 .node.chosen .medal {
-  transform: scale(1.12); border-color: var(--bright); animation: none;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-essence) 55%, transparent), 0 0 26px color-mix(in srgb, var(--c-essence) 50%, transparent);
+  transform: scale(1.12) rotate(-5deg); animation: none; background: #23594a;
+  box-shadow: 0 0 0 3px var(--bright), 0 0 0 6px var(--c-essence), 4px 5px 0 6px var(--ink);
 }
 .node.chosen .node-name { color: var(--c-essence2); }
 
@@ -57,6 +57,5 @@
 
 /* A tier or a fusion read by a first tap (ui.js fieldEditor twice): its text pinned, a second tap makes it. */
 .tnode.chosen, .uc-fuse .buy.chosen {
-  border-color: var(--bright);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-essence) 55%, transparent), 0 0 16px color-mix(in srgb, var(--c-essence) 40%, transparent);
+  box-shadow: 0 0 0 3px var(--bright), 0 0 0 5px var(--c-essence), 2px 3px 0 5px var(--ink);
 }

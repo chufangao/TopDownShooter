@@ -12,9 +12,17 @@ import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from
 import { sfx } from './sfx.js'
 import { board } from './board.js'
 
+// The display face (style.css @font-face) is in before the board draws a word in it: a canvas draws its text once, in
+// whatever face is ready then. Only the board waits (the engine's gate), a moment at most: blocked or slow, it takes
+// the system's instead. The screens never wait: CSS swaps the face in when it lands.
+const face = Promise.race([
+  document.fonts?.load('700 16px Fredoka').catch(() => {}),
+  new Promise((resolve) => setTimeout(resolve, 1500))
+])
+
 const ui = document.getElementById('ui')
-const engine = createEngine('game')
-// The Field's board (prep's, and the map's Field tab) is the battle's own, drawn by the same Phaser game.
+const engine = createEngine('game', { gate: face })
+// The Field's board (the map's Field tab) is the battle's own, drawn by the same Phaser game.
 board.attach(engine)
 let screen = null
 let run = null
@@ -111,7 +119,7 @@ Object.assign(tipMore, { get: () => tipDetail.on, set: detail })
 
 // A control the keyboard focused (a button, a tab, a fold of the rules) presses itself on Enter or Space: its
 // own press wins over the screen's keys. One a click just focused holds nothing: the key lets go of it and
-// goes to the screen (Enter begins, Space pauses), so a click never turns the next Enter into a second click.
+// goes to the screen (Enter starts a run, Space pauses), so a click never turns the next Enter into a second click.
 const CONTROL = 'button, [role="button"], [role="tab"], a[href], summary, select, textarea'
 let pressing = false
 let clicked = null
@@ -193,7 +201,8 @@ function route () {
     show(runScreen({ run, trail: trail.ids, note, onNode, act, onHelp: toggleHelp }))
     note = ''
   } else if (s.phase === 'prep') {
-    show(runScreen({ run, trail: trail.ids, act, onFight: fight, onHelp: toggleHelp }))
+    // A battle room entered: its battle starts at once, with the souls where the Field left them.
+    fight()
   } else if (s.phase === 'reap') {
     show(reapScreen({ run, title: currentNode(run).type === 'elite' ? 'The elite falls' : 'Spoils', act, onDone: reap, onHelp: toggleHelp }))
   } else if (s.phase === 'shop') {
@@ -236,14 +245,16 @@ function reap (index) {
 
 // The battle is the run's own (run.battle, phase 'battle'): the scene gives the player's orders to the run (apply),
 // which returns each one's events to play, and once the battle is over the run has finished it itself (its phase
-// moved on). From prep, the board you arranged stays up while the battle is built under it, then fades into it with
-// everyone where they stood (board.leave); the battle skips its own fade in. A lost battle ends on a replay beat of
-// what felled the Monarch (engine.js finish), the facts the end screen keeps.
+// moved on). Entered from the Field (a room's key), the board you arranged stays up while the battle is built under
+// it, then fades into it with everyone where they stood (board.leave), and the battle skips its own fade in; entered
+// from the Map, the battle fades in on its own. A lost battle ends on a replay beat of what felled the Monarch
+// (engine.js finish), the facts the end screen keeps.
 async function fight () {
   const node = currentNode(run)
-  const handoff = board.leave()
+  // The fight first: refused, the Field's board is never left glided half out.
   apply(run, { type: 'fight' })
-  // The battle's chrome keeps prep's layout (ui.js battleChrome): the board fits its stage, as prep's did.
+  const handoff = board.leave()
+  // The battle's chrome keeps the Field's layout (ui.js battleChrome): the board fits its stage, as the Field's did.
   const bar = battleChrome({ onHelp: toggleHelp })
   show(bar)
   const battle = run.battle
@@ -309,7 +320,7 @@ async function fight () {
 }
 
 // The frame rescaled (a resize, a rotation, the iOS toolbar): a battle playing fits itself under its bar again.
-// The prep board needs nothing: board.js checks the stage's rect every frame.
+// The Field's board needs nothing: board.js checks the stage's rect every frame.
 onFrame(() => {
   const battle = engine.game.scene.getScene('Battle')
   if (battle?.sys.isActive()) battle.fit()
