@@ -1443,6 +1443,17 @@ clears against 74.7% (+81 −71), progress +0.09 ± 0.92**, battles won 99.5% ag
 81 against 83 / 6 / 12 / 93, 8.59 s a run against 8.66. Not kept (no gain in progress beyond a standard error): forest.json
 stays round 3. It trades floors (12 fewer deaths on floor 4, 4 more on floor 1), as round 2 did against round 1.
 
+### The expert at the end of 2026-10-12/13
+
+The shipped expert (41555c7): today's tree and weights (expert.json), the battle forest (forest.json round 3), the
+learned route (route.json), the recruit's forest and the formation's (outforest.json round-2-prep-1). Against the
+expert as the day began (78d63b6: today's tree and weights alone, the hand route), each played from a frozen copy of
+its commit on the same seeds: **768 seeds `fin`: 77.7% clears against 30.6%**, deaths on floors 1–4 8.3 / 0.8 / 1.4 /
+11.7% against 26.8 / 14.6 / 14.8 / 13.2%, 45.1 battles a run against 27.8, about one battle lost in 200 against one
+in 40; **256 seeds `sim`: 77.0% against 31.6%**. The old rehearsing expert's bar (47% on `sim-0…63`) is passed; the
+teacher's ceiling is ~100% (63/64 out of battle alone). What is left: floor 4 (11.7% of runs end there) and floor 1
+(8.3%); purchases (two forests played level with today's) and Shop relics by the same method; then the balance pass.
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):

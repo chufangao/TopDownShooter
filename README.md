@@ -30,9 +30,16 @@ npm test          # the functional tests (node --test)
 
 ## The autoplayer
 
-`src/sim/autoplay.js` plays whole runs at two levels, `basic` (rules of thumb) and `expert` (reads the
-situation, runs it through a decision tree of hard invariant rules, then weights tuned by search; it never
-simulates a battle to decide anything).
+`src/sim/autoplay.js` plays whole runs at two levels, `basic` (rules of thumb) and `expert`. The expert never
+simulates anything to decide: it reads the situation, runs it through a decision tree of hard rules and weights, and
+then random forests mined offline from playouts correct its choices where they are confident: each piece's move and
+act in battle (`forest.json`), the recruit and the formation (`outforest.json`), and the route (`route.json`).
+
+The forests are fitted on labels made by playing each candidate out, offline: every option of a piece's decision to
+the battle's end, every recruit to the run's end, every formation through the battle it opens. The same playouts make
+the **teacher**, a slow player that takes the best of them (`teach.js --teacher`, deeper in `teacher.js`; out of
+battle `outside.js`): it is never shipped, and its clear rate is the ceiling of play (every battle is on the screen and
+combat is deterministic, so it calculates only what a player could).
 
 ```
 npm run sim -- [--runs 8] [--seed sim] [--level expert] [--ablate orders]   # a balance report
@@ -42,6 +49,10 @@ npm run necessity     # the same as a fast battle-level proxy
 npm run decisions     # how much the player's choices decide battles
 npm run audit         # what the expert considered, and which rule decided
 npm run combos        # rank the combo book into src/sim/combos.json
+npm run sim -- --paired a,b --runs 768 --seed chk   # two experts on the same seeds (forest:<f>, outforest:<f>, route:<hand|learned|f>, none)
+npm run teach         # labels: a piece's options played out (--draw state, --augment, --teacher for the teacher's ceiling)
+npm run outside       # the teacher out of battle, and its labels (--label --phases recruit,spend,prep)
+npm run forest        # fit the battle forest; npm run outforest: the recruit's and the formation's
 ```
 
 Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a band); extras `fusions`,
@@ -52,7 +63,10 @@ Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a b
 - `src/sim/` is pure, seeded and DOM-free. `turns.js` the battle; `policy.js` the one policy (the camp's turn,
   the expert's); `rules.js` the rules registry (synergies, Legendary relics, boss overrides); `field.js` the
   roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`);
-  `map.js` the floors; `expert.js` the decision tree and weights; `autoplay.js` the players and CLI; `rng.js`.
+  `map.js` the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
+  their fitting); `autoplay.js` the players and CLI; `rng.js`. Offline only, never imported by play: `teach.js`,
+  `teacher.js`, `outside.js` (labels and the teacher), `fit.js`, `train.js`. `ranker.js` and `value.js` are earlier
+  learners, off (no `ranker.json`; V unused by default).
 - `src/content.js` is all content as records, one per unit, ability and relic; `src/tuning.js` every balance
   number (`TUNING`, the expert's table included).
 - The interface: `src/main.js` (composition), `ui.js` (screens), `board.js` (the prep board), `engine.js`
