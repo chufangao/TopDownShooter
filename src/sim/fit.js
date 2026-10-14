@@ -869,8 +869,15 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
   }
   const out = arg('out', new URL('./expert.json', import.meta.url).pathname)
+  // The shipped expert file holds the expert's other parts beside its model tree (bundle.js): written there, the tree
+  // replaces only the tree; any other file is the tree alone.
+  const writeTree = async (file, model) => {
+    const { writePart, SHIPPED } = await import('./bundle.js')
+    if (path.resolve(file) === SHIPPED) writePart('tree', model)
+    else fs.writeFileSync(file, JSON.stringify(model, null, 1) + '\n')
+  }
   if (process.argv.includes('--default')) {
-    fs.writeFileSync(out, JSON.stringify(defaultExpert(), null, 1) + '\n')
+    await writeTree(out, defaultExpert())
     console.log(`today's scorer written to ${out}`)
   } else {
     const { OPTION_FEATURES } = await import('./policy.js')
@@ -894,7 +901,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
       console.log(`${name}: learned top-1 ${pct(r.learned.top1)} regret ${num(r.learned.regret)}; today's ${pct(r.today.top1)} ${num(r.today.regret)}; the data's chooser ${pct(r.chosen.top1)} ${num(r.chosen.regret)} (${r.learned.n} positions)`)
     }
     if (!process.argv.includes('--dry')) {
-      fs.writeFileSync(out, JSON.stringify(model, null, 1) + '\n')
+      await writeTree(out, model)
       console.log(`written to ${out} (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
     }
   }

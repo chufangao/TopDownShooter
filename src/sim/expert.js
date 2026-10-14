@@ -323,22 +323,35 @@ export function defaultExpert () {
   }
 }
 
-// The configuration in use: src/sim/expert.json beside this file, read once (Node only), else today's (defaultExpert);
-// or what useExpert installed.
-function readJSON () {
+// The expert as it ships is one file, src/sim/expert.json beside this file (2026-10-13; the user: "combine"), read once
+// (Node only: in a browser there is none, and the expert is today's scorer): at its top the model tree this module
+// reads (name, about, tree, rules), and beside it the expert's other parts, each read by its own module from here:
+//   forest      the battle forest (forest.js forestModel: each piece's move and act corrected)
+//   outforest   the forests out of battle (outforest.js outForestModel: the recruit, the formation)
+//   route       the learned route (autoplay.js routeModel, where ROUTE_LEARNED is on)
+// A part the file lacks is none (today's for that decision). bundle.js writes the file from its parts.
+let FILE
+export function shippedFile () {
+  if (FILE !== undefined) return FILE
+  FILE = null
   try {
     const fs = globalThis.process?.getBuiltinModule?.('node:fs')
-    return fs ? JSON.parse(fs.readFileSync(new URL('./expert.json', import.meta.url), 'utf8')) : null
+    const url = new URL('./expert.json', import.meta.url)
+    if (fs?.existsSync(url)) FILE = JSON.parse(fs.readFileSync(url, 'utf8'))
   } catch {
-    return null
+    FILE = null
   }
+  return FILE
 }
+// A part of the shipped expert (`forest`, `outforest`, `route`), or null where it ships none.
+export const shippedPart = (name) => shippedFile()?.[name] ?? null
+
+// The configuration in use: the shipped expert's model tree, else today's (defaultExpert); or what useExpert installed.
 let MODEL = null
-let SHIPPED
 export function expertModel () {
   if (MODEL) return MODEL
-  SHIPPED ??= readJSON()
-  return SHIPPED ? (MODEL = checkModel(SHIPPED)) : defaultExpert()
+  const shipped = shippedFile()
+  return shipped ? (MODEL = checkModel(shipped)) : defaultExpert()
 }
 // Installs configuration `config` as the expert in use (null: back to expert.json, else today's). → the one in use.
 export function useExpert (config) {

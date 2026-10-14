@@ -22,7 +22,8 @@
     "fit": "node src/sim/fit.js",
     "rank": "node src/sim/ranker.js",
     "forest": "node src/sim/forest.js",
-    "outforest": "node src/sim/outforest.js"
+    "outforest": "node src/sim/outforest.js",
+    "bundle": "node src/sim/bundle.js"
   },
   "engines": {
     "node": ">=22"

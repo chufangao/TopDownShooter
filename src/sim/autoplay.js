@@ -10,14 +10,14 @@
 //           policy.js situation in it: what a player is shown, and the book), the options listed, each read as a named
 //           vector of features, the tree of hard rules (expert.js TREES) forcing or filtering them, the weights
 //           (TUNING.expert) scoring the rest. The next room by its type and the army's state (roomFeatures; or by
-//           the learned route's tree, src/sim/route.json, where ROUTE_LEARNED is on: learnedRoute); the
+//           the learned route's tree, src/sim/expert.json's `route`, where ROUTE_LEARNED is on: learnedRoute); the
 //           formation drafted (the plan's target formation as the first turn would read it: plan.js deployment; zone
 //           drafts about the seat, its gate held, basic's three) and hill-climbed on a static score against the scouted
 //           room's roads (formationFeatures); every purchase, fusion, recruit, relic bought and relic given by one
 //           growth search on a sketch (the field's strength and the book's worth of the combo it plays toward:
 //           targetOf), a relic against the tiers its price displaces (buyFor), the recruit, the purchases and the
 //           formation decided by the forest out of battle where one decides them and reads another candidate more than
-//           its margin above the growth search's or the plan's (outforest.js, src/sim/outforest.json); its target's
+//           its margin above the growth search's or the plan's (outforest.js, src/sim/expert.json's `outforest`); its target's
 //           kinds fielded first and never let go while another will do; in battle every turn policy.js expertTurn's (a
 //           battle plan kept across turns, its target formation, kill list and forecast: plan.js; then the pieces one at
 //           a time with a beam of partial turns, each option's board scored by the static evaluation plus
@@ -31,9 +31,10 @@
 // [--static | --learned] (today's static evaluation in the expert's turns and formations, whatever V value.js holds; or
 // V where trained: TUNING.expert.beam.learned and `hybrid` say which by default)
 // (`--ranker <file|none>`: the expert's learned correction, ranker.js, from that file or none; ranker.json by default;
-// `--forest <file|none>`: the expert's forest, forest.js, from that file or none; forest.json by default)
+// `--forest <file|none>`: the expert's forest, forest.js, from that file or none; the shipped expert's by default)
 // for two players on the same seeds, paired:  … --paired <a>,<b> [--runs 256] [--seed sel] [--workers 4]  (each a ranker
-// file, a forest file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, or none: today's expert, playerOf)
+// file, a forest file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, `expert:<file>` a whole expert, or
+// none: today's expert, playerOf)
 // for the gap between the levels:     … --ladder [--runs 8] [--ranker file|none] [--forest file|none]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above; --ablate moves: its
@@ -64,7 +65,7 @@ import {
   PREP_CAND_KEYS, FORMATION_KEYS, OPENING_KEYS, OPENING_ROOM_KEYS
 } from './outforest.js'
 import { deployment } from './plan.js'
-import { value, decide, standing as keysOf, outranks, TREES, leafOf, checkModel, pathName, conditions } from './expert.js'
+import { value, decide, standing as keysOf, outranks, TREES, leafOf, checkModel, pathName, conditions, shippedPart, expertModel, useExpert } from './expert.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
@@ -391,10 +392,10 @@ export function pickRoute (run, sit = survey(run)) {
 
 // ── the learned route (redesign.md §2.22: the route by the same machinery) ──────────────────────
 
-// The route's model tree (src/sim/route.json, fitted offline from room choices played out: teach.js --route): its
+// The route's model tree (src/sim/expert.json's `route`, fitted offline from room choices played out: teach.js --route): its
 // splits on the run's situation (routeConditions), each leaf its weights over a room's features (routeFeatures), the
 // best-scoring room taken; no hard rule unless the model keeps TREES.route's (`hand`). Read where ROUTE_LEARNED is on and
-// the file is there (Node only), else the hand-built route above; useRoute installs another (a test's, a measurement's).
+// the shipped expert has a route (Node only), else the hand-built route above; useRoute installs another (a test's, a measurement's).
 // On (2026-10-12): route.json gained +5.4 ± 1.9 clears over 1024 paired seeds `sim` under the scorer of 2026-10-11
 // (redesign.md §6 "The learned route"), and again with the forest playing the battles (§2.24): on 768 seeds `chk5`,
 // 33.1% clears against the hand-built route's 29.0% (+146 −115), progress +1.43 ± 1.56, 5.3 s a run against 4.1 (it
@@ -402,20 +403,18 @@ export function pickRoute (run, sit = survey(run)) {
 // with a full purse) walk it by withRoute('hand').
 export const ROUTE_LEARNED = true
 let ROUTE_MODEL
-const ROUTE_FILE = new URL('./route.json', import.meta.url)
+// The shipped expert's route (expert.js shippedPart: src/sim/expert.json's `route`), null where it ships none.
+const shippedRoute = () => shippedPart('route')
 export function routeModel () {
   if (ROUTE_MODEL !== undefined) return ROUTE_MODEL
   ROUTE_MODEL = null
   if (!ROUTE_LEARNED) return null
-  try {
-    const fsm = globalThis.process?.getBuiltinModule?.('node:fs')
-    if (fsm?.existsSync(ROUTE_FILE)) ROUTE_MODEL = checkModel(JSON.parse(fsm.readFileSync(ROUTE_FILE, 'utf8')))
-  } catch {
-    ROUTE_MODEL = null
-  }
+  const json = shippedRoute()
+  ROUTE_MODEL = json ? checkModel(json) : null
   return ROUTE_MODEL
 }
-// Installs route configuration `model` (false: the hand-built route; undefined: back to route.json). → the one in use.
+// Installs route configuration `model` (false: the hand-built route; undefined: back to the shipped expert's). → the one
+// in use.
 export function useRoute (model) {
   ROUTE_MODEL = model === undefined ? undefined : model ? checkModel(model) : null
   return routeModel()
@@ -2424,9 +2423,11 @@ const buildOf = (s) => {
 // before put back after; `ranker` in the result names the one that played (null for none); `forest` (a forest.json
 // file's path, or 'none': withForest) alike, `forest` in the result; `route` ('hand', 'learned' for route.json, or a
 // route file's path: withRoute) the route it walks; and `outforest` (an outforest.json file's path, or 'none':
-// withOutForest) the forest out of battle that decides its recruits and purchases, `outforest` in the result.
-export function record ({ ranker, forest, route, outforest, ...job }) {
-  return withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job)))))
+// withOutForest) the forest out of battle that decides its recruits and purchases, `outforest` in the result; and
+// `expert` (an expert file's path, expert.json's shape: withExpert) a whole expert, every part of it at once, the parts
+// named beside it then set over it.
+export function record ({ expert, ranker, forest, route, outforest, ...job }) {
+  return withExpert(expert, () => withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job))))))
 }
 function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, learned }) {
   const battles = []
@@ -2534,14 +2535,14 @@ export function withOutForest (spec, fn) {
   }
 }
 // The same for the route (useRoute): `fn()` walking route `spec`, 'hand' the hand-built (TREES.route and its weights),
-// 'learned' route.json's tree, a file's path that file's (read once a worker), the route in use before put back after;
+// 'learned' the shipped expert's tree, a file's path that file's (read once a worker), the route in use before put back after;
 // undefined: whatever is in use (ROUTE_LEARNED's). → what fn returns
 const routeFiles = new Map()
 export function withRoute (spec, fn) {
   if (spec === undefined) return fn()
   const before = routeModel()
   if (spec === 'hand') useRoute(false)
-  else if (spec === 'learned') useRoute(JSON.parse(fs.readFileSync(ROUTE_FILE, 'utf8')))
+  else if (spec === 'learned') useRoute(shippedRoute())
   else {
     if (!routeFiles.has(spec)) routeFiles.set(spec, JSON.parse(fs.readFileSync(spec, 'utf8')))
     useRoute(routeFiles.get(spec))
@@ -2552,13 +2553,38 @@ export function withRoute (spec, fn) {
     useRoute(before ?? false)
   }
 }
+// The same for a whole expert (an expert file: expert.json's shape, its model tree at its top and its parts beside it,
+// expert.js shippedFile): `fn()` with every part of it in use at once (the tree, the battle forest, the forests out of
+// battle, the route: a part it lacks is none, today's for that decision), every part in use before put back after;
+// `spec` an expert file's path (read once a worker) or a configuration itself; undefined: whatever is in use.
+// → what fn returns
+export function withExpert (spec, fn) {
+  if (spec === undefined) return fn()
+  const x = rankerOf(spec)
+  const before = { tree: expertModel(), forest: forestModel(), outforest: outForestModel(), route: routeModel() }
+  useExpert(x)
+  useForest(x?.forest ?? null)
+  useOutForest(x?.outforest ?? null)
+  useRoute(x?.route ?? false)
+  try {
+    return fn()
+  } finally {
+    useExpert(before.tree)
+    useForest(before.forest)
+    useOutForest(before.outforest)
+    useRoute(before.route ?? false)
+  }
+}
 // The player a paired comparison names (--paired's a or b): 'none', today's expert (no ranker and no forest, whatever
 // ships); `forest:<file>` a forest; `ranker:<file>` a ranker; a file by its content (a forest's `kind` is 'forest', else
 // a ranker); `route:<hand|learned|file>` the battle player in use (forest.json where it ships) walking that route;
 // `outforest:<file|none>` the expert in use (its battle forest and route as they ship) with that forest out of battle,
-// or none (today's recruits and purchases). → the job's { ranker, forest }, { route } or { outforest }
+// or none (today's recruits and purchases); `expert:<file>` a whole expert (withExpert). → the job's { ranker, forest },
+// { route }, { outforest } or { expert }
 export function playerOf (spec) {
   if (spec === 'none') return { ranker: 'none', forest: 'none' }
+  const whole = String(spec).match(/^expert:(.+)$/)
+  if (whole) return { expert: whole[1] }
   const route = String(spec).match(/^route:(.+)$/)
   if (route) return { route: route[1] }
   const out = String(spec).match(/^outforest:(.+)$/)
@@ -2707,7 +2733,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}${job.expert ? `|expert:${job.expert}` : ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))

@@ -1,15 +1,17 @@
 // The forest (redesign.md §2.23's learned correction, as the user asked for it on 2026-10-12: "no neural network", the
 // expert deciding by rules mined from the lookahead, "Think random forest"): a random forest of regression trees over
-// the situation, the option and the piece, fitted offline on teach.js's playouts and shipped as data in forest.json. No
+// the situation, the option and the piece, fitted offline on teach.js's playouts and shipped as data in the expert's
+// one file (src/sim/expert.json's `forest`; bundle.js writes it from a forest's own file). No
 // network: a decision is today's expert's, then a few thousand comparisons an option. This file is the contract between
 // the teacher (teach.js, which plays out under the forest in use) and the player (policy.js choice, which consults the
 // forest where one is in use):
 //
-//   useForest(config)   installs a forest configuration (forest.json's contents); null: none, today's expert;
-//                       undefined: back to forest.json beside this file, where there is one. → the one in use, or null
+//   useForest(config)   installs a forest configuration (a forest's file, forest.json's shape below); null: none,
+//                       today's expert; undefined: back to the shipped expert's (expert.json's `forest`, where it has
+//                       one). → the one in use, or null
 //   forestModel()       → the forest in use, or null for none
 //
-// With none in use (no forest.json, or useForest(null)), the expert is today's (or today's with the ranker in use,
+// With none in use (the shipped expert has no `forest`, or useForest(null)), the expert is today's (or today's with the ranker in use,
 // ranker.js), move for move. A forest in use decides in place of any ranker.
 //
 // In play (policy.js choice, forested): a piece's candidates are the ranker's (policy.js rankerView: today's shortlist,
@@ -61,7 +63,8 @@
 // Shipped as forest.json: { kind: 'forest', name, about, made, data, inputs (the names its splits read), target, delta,
 // size (each tree's nodes), feat (a node's input, an index into `inputs`; −1 a leaf), thr (an inner node's threshold:
 // x ≤ thr goes to the next node), right (an inner node's right child, nodes ahead), value (a leaf's) }, its nodes each
-// tree's in preorder, the trees one after another. Read Node-only like ranker.json (absent: today's expert).
+// tree's in preorder, the trees one after another; inside the expert's one file as its `forest`. Read Node-only (absent:
+// today's expert).
 //
 // Round 1 (2026-10-12; labels R3: 500 runs `teachd-*` of today's expert, drawn by the board's state, half of the
 // decisions where the Monarch is in reach or on a foe's line and 5% of the calm, 48,889 positions, every option played
@@ -113,6 +116,7 @@
 // 5.2 s against 2.5. Kept as forest.json (200 trees, 201,376 nodes, 2.3 MB), on the gain in progress.
 import { encode, meanOf, rowView, playView, rowAfter, afterNames, inputNames as rankerNames, INPUT_SETS as RANKER_SETS, splitOf, linesOf, labelsIn } from './ranker.js'
 import { mulberry } from './value.js'
+import { shippedPart } from './expert.js'
 import { LANE } from './field.js'
 import { tileX } from './unit.js'
 
@@ -120,16 +124,9 @@ const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
 
 // ── the forest in use ────────────────────────────────────────────────────────────────────────────
 
-// forest.json beside this file, read once (Node only: in a browser there is none, and the expert is today's).
-function readJSON () {
-  try {
-    const fs = node('fs')
-    const url = new URL('./forest.json', import.meta.url)
-    return fs && fs.existsSync(url) ? JSON.parse(fs.readFileSync(url, 'utf8')) : null
-  } catch {
-    return null
-  }
-}
+// The shipped expert's battle forest (expert.js shippedPart: src/sim/expert.json's `forest`; Node only: in a browser
+// there is none, and the expert is today's).
+const readJSON = () => shippedPart('forest')
 let SHIPPED
 let INSTALLED = false
 let MODEL = null

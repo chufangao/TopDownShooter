@@ -1454,6 +1454,18 @@ in 40; **256 seeds `sim`: 77.0% against 31.6%**. The old rehearsing expert's bar
 teacher's ceiling is ~100% (63/64 out of battle alone). What is left: floor 4 (11.7% of runs end there) and floor 1
 (8.3%); purchases (two forests played level with today's) and Shop relics by the same method; then the balance pass.
 
+### The expert as one file (2026-10-13)
+
+At the user's word ("combine"), the expert ships as one file, `src/sim/expert.json`: its model tree and rules at the top
+(as expert.js always read it), and beside them its parts, `forest` (the battle forest), `outforest` (the recruit's and
+the formation's forests), `route` (the learned route); `forest.json`, `outforest.json` and `route.json` are gone from
+`src/sim`. One reader (expert.js shippedFile, shippedPart), each module reading its own part; `bundle.js` (`npm run
+bundle`) sets a part from a fitted file, drops one, or splits the file into its parts; the fitters that wrote into
+`src/sim` (fit.js's tree, teach.js's route) now replace their part only; `--paired expert:<file>` (autoplay.js
+withExpert) installs a whole expert at once. One model across every decision was not made: the decisions share no
+inputs and their values no scale, so the parts stay separate inside the one file. Checked: 12 whole runs of the
+expert before and after, every log byte for byte the same; 493 tests.
+
 ## 7. Standing rules
 
 Decided before this document and still in force (the project memory has the reasons):

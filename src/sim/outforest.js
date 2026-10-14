@@ -8,12 +8,12 @@
 // --label, which writes the reads beside the values) and the player (autoplay.js pickReap, pickSpend and planFor, which
 // consult the forest in use):
 //
-//   useOutForest(config)   installs a configuration (outforest.json's contents); null: none, today's expert;
-//                          undefined: back to outforest.json beside this file, where there is one. → the one in use
+//   useOutForest(config)   installs a configuration (outforest.json's shape below); null: none, today's expert;
+//                          undefined: back to the shipped expert's (expert.json's `outforest`). → the one in use
 //   outForestModel()       → the forest in use, or null for none
 //   outDecides(phase)      → whether the forest in use decides `phase` ('recruit', 'spend' or 'prep')
 //
-// With none in use (no outforest.json, or useOutForest(null)), or for a phase the configuration has no forest of, the
+// With none in use (the shipped expert has no `outforest`, or useOutForest(null)), or for a phase the configuration has no forest of, the
 // expert is today's, move for move.
 //
 // In play: a decision's candidates (autoplay.js recruitCandidates, spendCandidates: today's pick first, then the rest by
@@ -62,7 +62,7 @@
 //
 // Shipped as outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend?, prep? } }, each phase's
 // forest { inputs, target, delta, size, feat, thr, right, value, made } in forest.json's shape (forest.js compileTrees
-// reads both). Read Node-only, like forest.json.
+// reads both); inside the expert's one file (src/sim/expert.json) as its `outforest`. Read Node-only.
 //
 //   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend,prep] [--delta 0.25] [--delta-recruit x]
 //                        [--delta-spend y] [--delta-prep z] [--target mean|today] [--trees 200] [--depth 6] [--leaves 64]
@@ -151,6 +151,7 @@
 import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS } from './forest.js'
 import { splitOf } from './ranker.js'
 import { mulberry } from './value.js'
+import { shippedPart } from './expert.js'
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
 const r6 = (x) => Math.round(x * 1e6) / 1e6
@@ -260,15 +261,8 @@ export function encodeOut (sit, f, today, phase = 'recruit', out = new Float64Ar
 
 // ── the forest in use ────────────────────────────────────────────────────────────────────────────
 
-function readJSON () {
-  try {
-    const fs = node('fs')
-    const url = new URL('./outforest.json', import.meta.url)
-    return fs && fs.existsSync(url) ? JSON.parse(fs.readFileSync(url, 'utf8')) : null
-  } catch {
-    return null
-  }
-}
+// The shipped expert's forests out of battle (expert.js shippedPart: src/sim/expert.json's `outforest`; Node only).
+const readJSON = () => shippedPart('outforest')
 let SHIPPED
 let INSTALLED = false
 let MODEL = null

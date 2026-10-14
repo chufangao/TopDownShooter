@@ -1166,9 +1166,9 @@ export function pairedLines (rep) {
 //
 //   npm run teach -- --route [--runs 300] [--seed route] [--workers 5] [--out dir] [--rooms 0] [--report-only]
 //                    [--policy learned|hand|file.json] [--expert file.json] [--ranker file.json|none] [--compare file.json]
-//   npm run teach -- --route --fit [--out dir] [--model src/sim/route.json] [--depth 3] [--lambda 3] [--tau 0] [--hand]
+//   npm run teach -- --route --fit [--out dir] [--model file] [--depth 3] [--lambda 3] [--tau 0] [--hand]
 //                    [--weights lost,rooms,floors,monarch,own,souls,won] [--prior file.json] [--structure prior] [--dry]
-// (`--policy`: the route that plays the runs and their playouts, round 1's learned tree src/sim/route.json by default;
+// (`--policy`: the route that plays the runs and their playouts, the shipped expert's learned route by default;
 // `--expert`: the battle expert, src/sim/expert.json; both kept in `--out` as they were, route-policy.json and
 // expert.json, so a stage gone on with plays the same; `--ranker`: the ranker the battles are played with, as the
 // battle labeller's, its file and name in the settings (a stage gone on with names it again); `--compare`: another
@@ -1631,10 +1631,13 @@ async function routeMain (arg, workers) {
     console.log('held out, against the labels:')
     console.log(agreeLines(routeAgreement(held, { ...picks(), fitted: (p) => routePick(model, p) })).join('\n'))
     console.log(treeWords(model.tree).join('\n'))
-    const out = arg('model', fileURLToPath(new URL('./route.json', import.meta.url)))
+    // By default the shipped expert's route (src/sim/expert.json's `route`, bundle.js writePart); `--model` a file of
+    // the route alone.
+    const out = arg('model', null)
     if (!process.argv.includes('--dry')) {
-      fs.writeFileSync(out, JSON.stringify(model, null, 1) + '\n')
-      console.log(`written to ${out}`)
+      if (out) fs.writeFileSync(out, JSON.stringify(model, null, 1) + '\n')
+      else (await import('./bundle.js')).writePart('route', model)
+      console.log(`written to ${out ?? 'src/sim/expert.json (its route)'}`)
     }
     return
   }
@@ -1644,7 +1647,7 @@ async function routeMain (arg, workers) {
   const settings = { rooms, weights: routeWeightsOf({ rooms, weights: w }), keep: ROUTE_KEEP, reuse: ROUTE_DEFAULTS.reuse, policy: route, ...(rk.setting !== undefined && { ranker: rk.setting }) }
   if (had && JSON.stringify(had.settings) !== JSON.stringify(settings)) throw new Error(`${dir} was labelled with other settings (${JSON.stringify(had.settings)}): take another --out`)
   fs.mkdirSync(dir, { recursive: true })
-  if (!fs.existsSync(policyFile)) fs.writeFileSync(policyFile, JSON.stringify(route === 'hand' ? false : json(route === 'learned' ? fileURLToPath(new URL('./route.json', import.meta.url)) : route), null, 1) + '\n')
+  if (!fs.existsSync(policyFile)) fs.writeFileSync(policyFile, JSON.stringify(route === 'hand' ? false : (route === 'learned' ? E.shippedPart('route') : json(route)), null, 1) + '\n')
   if (!fs.existsSync(expertFile)) fs.writeFileSync(expertFile, JSON.stringify(arg('expert', null) ? json(arg('expert')) : E.expertModel(), null, 1) + '\n')
   if (rk.config !== undefined) useRanker(rk.config)
   const cfg = { ...settings, route: json(policyFile), expert: json(expertFile), ...(rk.config !== undefined && { ranker: rk.config }) }

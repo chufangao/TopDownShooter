@@ -33,7 +33,9 @@ npm test          # the functional tests (node --test)
 `src/sim/autoplay.js` plays whole runs at two levels, `basic` (rules of thumb) and `expert`. The expert never
 simulates anything to decide: it reads the situation, runs it through a decision tree of hard rules and weights, and
 then random forests mined offline from playouts correct its choices where they are confident: each piece's move and
-act in battle (`forest.json`), the recruit and the formation (`outforest.json`), and the route (`route.json`).
+act in battle, the recruit and the formation, and the route. The whole expert is one file, `src/sim/expert.json`: its
+tree and weights at the top, its parts (`forest`, `outforest`, `route`) beside them (`npm run bundle` sets or splits
+them; `--paired expert:a.json,expert:b.json` compares two experts on the same seeds).
 
 The forests are fitted on labels made by playing each candidate out, offline: every option of a piece's decision to
 the battle's end, every recruit to the run's end, every formation through the battle it opens. The same playouts make
@@ -53,6 +55,7 @@ npm run sim -- --paired a,b --runs 768 --seed chk   # two experts on the same se
 npm run teach         # labels: a piece's options played out (--draw state, --augment, --teacher for the teacher's ceiling)
 npm run outside       # the teacher out of battle, and its labels (--label --phases recruit,spend,prep)
 npm run forest        # fit the battle forest; npm run outforest: the recruit's and the formation's
+npm run bundle -- --forest f.json   # ship a fitted part into src/sim/expert.json (--split dir: each part as its own file)
 ```
 
 Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a band); extras `fusions`,
