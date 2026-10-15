@@ -15,8 +15,6 @@
     "necessity": "node src/sim/autoplay.js --necessity",
     "audit": "node src/sim/autoplay.js --audit",
     "combos": "node src/sim/autoplay.js --combos",
-    "builds": "node src/sim/autoplay.js --builds",
-    "pool": "node src/sim/autoplay.js --pool",
     "train": "node src/sim/train.js",
     "teach": "node src/sim/teach.js",
     "teacher": "node src/sim/teacher.js",
