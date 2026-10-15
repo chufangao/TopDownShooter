@@ -1418,6 +1418,101 @@ boss and multipliers, the deep's multipliers from the lists' last entries, a rou
 outside teacher's clearing line late on the last floor is sim-1's (sim-0 falls on floor 3). 481 on Step 7's merge →
 487, all passing (`--test-concurrency=2`, 212 s).
 
+### The second bug hunt (Step 6, 2026-10-15)
+
+**Looked at** (on 65e5503, Steps 0–5 and 7 merged with the first hunt; Step 8 merged into it at 710a50a and its code
+looked at too): what the first hunt left, read against the rules' own words, each item held by a test, the fuzz or a
+sweep below. Relics (Step 4): the five banners' `who` (stacking; a transmuted or fused soul's new kin; your shadows and
+summons of the kin; never a foe, a foe's shadow of a kind of it, or the Monarch), the seven's moments (kill, blow,
+struck, wave), the Spade's tiered `raise` against Legion and Arise on one corpse, `to: 'other'` as the slain, Briar
+Mail's flat true damage (no loop: no foe holds a relic; once on a counter), Echo and the triggers (its second landing is
+a second 'struck', never a second 'blow'), Quicksilver at 0, Rowan Charm alone, `hold`/`unhold`, a holder transmuted
+(its relic kept, §4.5) or fused away (back unheld), the Shop's tiers and prices, the expert's readers (`relicReads`,
+`triggerShare`, `MOMENTS`, `AROUND`, `raiseHp`) and `untouchedOrders`' Hexed fix. The ascension (Step 7): every foe at
+its level (the boss, its court, the waves, the foes' shadows; foes have no summons), counts and spacing (never 0), the
+Monarch's HP in the run and in battle with its relics on top, every price (a consecration is free; a release pays back a
+share of the level's recruit price; an elite's bounty is pay), replay and `--scale` on a level, the unlock rule (a
+corrupted pref reads as none: main.js's parse; `openTo` itself is never handed one), the URL before prefs, records. The
+first hunt's "seen and left". Step 8: the save (`saveOf`, `restore`, Continue), `threatOf`/`spotsOf`, the tutorial, three
+floors (every per-floor list read through `at`'s clamp, the deep from their fourth entries, floor 3's camps and pool).
+
+**Found and fixed** (each with a test that failed before it):
+
+- **A fusion made in battle went to the ossuary for a cell a fallen piece held** (`run.js fuseIn`, the first hunt's
+  "seen and left"): closeBattle placed the fused piece on its fuser's cell before finishBattle sent the battle's fallen
+  to the ossuary, so a footprint meeting one of their cells failed to fit, against DESIGN §2.2 (a fallen piece leaves
+  the field as the battle ends, its cell free) and fuseIn's own rule. It counts the cells of the souls standing as the
+  battle ended now. The expert's play: unchanged, its free play on `div-0…63` at 65e5503 and with the fix every run's
+  whole log the same (sha256; 44 clears, 32 fusions in battle), and again on Step 8's three floors, 710a50a against
+  this hunt's merge with it (50 clears, 24 fusions in battle).
+- **Every report but three dropped `--ascension`** (autoplay.js's CLI): the report, `--builds` and `--ladder` played at
+  the level, `--paired`, `--ablations`, `--decisions`, `--necessity` and `--audit` at 0 under a header that named none
+  (`--ablations --ascension 5` measured the base game). Each carries the level into its jobs and names it now.
+- **The reports' deaths by floor kept four floors after Step 8's three**: the ladder's and `--builds`' headers read
+  "died fl 1/2/3/4" over three columns; the ladder's one-level table and `--ablations` printed a fourth, always 0; the
+  title's level line told a level's fights and elites "on floors 1–4", the fourth the deep's (`codex.js ascensionText`).
+  Each reads `TUNING.run.floors`.
+- **The capstones' rules had no flare** (an interface gap, the first hunt's "seen and left"): rules.js emits a 'rule'
+  event for the Charnel Cathedral's rise, the Cinder Wyrm's spreading fire, the Hive Mind's hatching and the Engine of
+  Ages' stand, and the battle scene flared the synergies' alone. `codex.js ruleFlares` names every rule at work, a
+  capstone's by its kind ("Capstone · Hive Mind", rising over the piece); seen in Chromium, a Hive Mind's drones hatching
+  as its battle opens.
+- **How to play's Wave told the base game's spacing at a level** (`codex.js` WORD_MORE, Step 7's): "4 turns after the
+  one before" where the level brings them every 3, the one place left reading `TUNING.spawn.waves.every` alone; at a
+  level that moves it, it adds "At ascension 10 they come 3 turns apart."
+- **Clean**: worth's flat relic share said a trigger's worth no static read can tell (relicReads reads it since Step
+  4); drawRoom's waves came at `TUNING.spawn.waves.every`, battleSetup's and createBattle's side mods were "side-wide
+  costs" and "the floor's growth" alone, codex.js partyMods the same: each says the level's spacing, a kin banner's mods
+  and the level's now. Nothing else found dead or lying in what Steps 4, 7 and 8 added.
+
+**Seen and left** (no rule broken, or not this hunt's to move):
+
+- **Echo's halved status turns.** The rule's text: every ability "echoes, landing on its targets once more at half its
+  effect (half its damage and healing, a status for half its turns)". The code lays the echoed status for half its turns
+  (rules.js `scaled`, rounded up), as the text says; but the second landing meets the status the first laid, and a status
+  laid again keeps the longer turns and gains a stack (`addStatus`), so the half never shows: at half or whole an echoed
+  status adds a stack (Burning, Brittle, Bleeding) lasting the first's turns, and nothing to a status of one stack. Text
+  and code agree on the landing; what the half is worth is the balance pass's (Echo's halves are among its numbers, §6).
+- **The untouched on the copy** (`policy.js untouchedOrders`): the copy a turn is read on has the shadows and summons act
+  in acting order between the pieces' orders, where the battle has the orders given first and the shadows act at End
+  Turn. Read for every way an order could then be refused (a target a shadow's act made, a heal's condition): none with
+  the content as it is (a death burst lays Withered, never damage; an ally ability takes any ally in range, and no kind's
+basic blow or heal at any tiers has a `when`), so
+  the Hexed fix of Step 4 is the one that was needed.
+- **The book's floors** (`autoplay.js BOOK_FLOORS`): four armies, its combos' gains read over four floors, the fourth now
+  the deep's first; the book is the frozen expert's formula, remade, not reshaped, until the refit.
+- **A save from Step 8's build before the fuseIn fix** whose log placed a piece fused in battle back on its fuser's cell
+  replays to a refused 'place' and is set aside, as save.js means an older game's save to be; no build was shipped.
+
+**The fuzz** (a script outside the repo, the first hunt's extended): 3,000 runs, 1.03 million actions of which 0.81
+million battle orders, 20,279 fights, every run at an ascension level 0–10 drawn by its seed (250 to 310 runs a level), from
+the draft at scales 1, 0.6, 1.5 and 2 and from set-ups outside the log as the first hunt's, and one more: relics owned and
+held at random, the twelve among them, banners stacked (a third of the runs); the steady hand buys in Shops (each of the
+twelve bought 13 to 78 times a batch) and gives relics. The relics fired: Briar Mail 17,039 times, Quicksilver 17,130,
+Leech Fang 16,904, Firebrand 13,524, Rowan Charm 6,464, Gravedigger's Spade 4,978 (1,798 raises), Raider's Spur 1,932;
+1,125 to 1,521 fusions out of battle a batch and 164 in it. After every action the first hunt's invariants and, new:
+each event's holder one of yours holding the relic it fired, no foe holding one, a relic's raise a slain foe of its tier
+at most, no corpse risen twice, every cooldown, damage and heal whole and never below 0, no foe's or Monarch's mods
+holding a banner, the Monarch's max HP its level's in the run and in battle, the battle's wave spacing the run's, every
+price whole and above 0; each run replayed at its level, or rebuilt. The last 900 on Step 8's merge with 1,710 save round
+trips (the save made and restored at the first of each phase and at random: 309 in the draft, 305 on the map, 306 in
+prep, 583 mid-battle, 124 on the spoils, 55 at a Shop, 28 at an altar), the state and the battle the same each time.
+
+**The sweeps**: the ladder at levels 0, 3, 7 and 10 on `h2l-0…39` (480 runs of basic, the calculator and the expert, 13
+min on two workers, before Step 8's merge): no throw, the order kept at every level (the expert 70%, 43%, 15% and 3%; the
+calculator never a clear); the expert's relic readers on 1,500 random retinues (any floor and level, every relic owned
+and held at random, the fallen and the wounded among them): every read finite, no throw, the out-of-battle picks made;
+36 expert runs played to their clear and on into the deep (`h2d-0…23` at level 0, `h2e-0…11` at 2, after the merge), 18
+cleared and went on, 11 through three deep floors and 7 falling in them: every floor's camp its own list's (the deep's
+floor 3's), its rooms' foes on their slots at their levels, the save restored as it stood at every new floor (142), every
+run replayed the same; the tutorial won by basic and by the expert, its log replayed the same; and in Chromium (1440×900), a
+run Continued from a save mid-battle in turn 2 at ascension 2, at an altar, at a Shop at 1, mid-draft, on the spoils at
+3 and on the map: the state and the place the same, the screen its own, no console error.
+
+**Tests**: 487 on Step 8 → 491 (the fused piece on its fuser's cell past a fallen one; a report at a level, --paired's
+runs and an audit's; the flares of every rule at work; the twelve at their edges; and in the tests that were, How to
+play's Wave at a level and the reports' and the level line's floors), all passing (`--test-concurrency=2`, 272 s).
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
