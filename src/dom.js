@@ -416,8 +416,10 @@ export function portrait (id, size = 32, dead = false) {
   })))
 }
 
-// Per-viewer UI preferences (dismissed guides). Storage can be missing or blocked; then nothing sticks.
+// Per-viewer UI preferences (dismissed guides, the foes met, the run saved). Storage can be missing, blocked or full;
+// then nothing sticks.
 export const prefs = {
   get (key) { try { return localStorage.getItem('retinue:' + key) } catch { return null } },
-  set (key, v) { try { localStorage.setItem('retinue:' + key, v) } catch {} }
+  set (key, v) { try { localStorage.setItem('retinue:' + key, v) } catch {} },
+  drop (key) { try { localStorage.removeItem('retinue:' + key) } catch {} }
 }

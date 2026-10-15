@@ -193,6 +193,22 @@ button.ret-toggle:hover:not([aria-disabled]) { background-color: #463614; color:
   .title-box .steps.brief { grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 30px; }
   .steps.brief .step { flex-direction: column; align-items: flex-start; padding: 15.5px 15.5px 17.5px; }
 }
+/* The run saved and the tutorial (ui.js resumeActions): Continue names where the run stands on a line under its word;
+   the actions' row may run wider than the steps, so a phone's frame keeps it one row. A note (a save set aside, the
+   tutorial done) stands over the foot of the screen as the run's toasts do. */
+.title-box:has(.steps.brief) .title-actions { margin-inline: calc(min(0px, (100% - min(1120px, var(--frame-w) - 64px)) / 2)); }
+button.continue { flex-direction: column; gap: 0; padding-block: 4.5px 6.5px; }
+button.continue .cont-at { font: 500 var(--fs-sm)/1.25 var(--sans); letter-spacing: 0; opacity: .85; }
+.title-screen { position: relative; }
+.title-screen > .title-note { position: absolute; z-index: 6; left: 50%; bottom: 14px; translate: -50% 0; width: max-content; max-width: min(720px, calc(100% - 40px)); }
+/* The tutorial's screens and a question: a narrow dialog, its button centred under its lines. */
+.modal.tut-card, .modal.ask { width: min(640px, 100%); padding: 22px 28px 24px; }
+.tut-card p { margin: 0 0 10px; font-size: var(--fs-md); line-height: 1.45; color: var(--text); }
+.tut-card .title-actions, .ask .title-actions { margin-top: 16px; }
+.tut-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.tut-step { font-size: var(--fs-sm); white-space: nowrap; }
+.overlay.tut { background: rgb(10 6 16 / .55); }
+
 /* A short frame (a phone, 540 tall): the sigil, the name and the gaps shrink so it all stands in one view. */
 @container frame (max-height: 640px) {
   .title-screen .sigil { width: 64px; height: 64px; margin-bottom: 6px; }
