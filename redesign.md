@@ -1889,6 +1889,98 @@ rests"), the Court's row 22 → 20 and free play 18 → 17, for the Chanters' Di
 every turn. So criterion 2 waits on the bosses as much as on the trines, and free play's diversity on what the refit
 learns once the Court no longer wins the last floor alone.
 
+### The balance pass, part 2: the loop, a draft (Step 6, 2026-10-16)
+
+**Paused, on this side branch** (`bal-phase2-draft`): the user's word of 2026-10-16, the expert refitted on the content as
+it stands before any content moves. What follows was chosen and confirmed on the stale expert, to be measured again after
+the refit before any of it is kept.
+
+**The loop** (§6, Step 6; §9's rules: chosen on `bal-*`, confirmed on fresh `chk-*` paired, the book remade after every
+content change). Each candidate was played in a copy of the tree with the change, the book remade there, free play on
+`bal-0…63` or `…127` paired seed for seed against part 1's, and where criterion 2 was its point the strict rows of the
+Pale Court and five trines on `bal-0…31`; the kept ones together on `chk-0…255` against the base on the same seeds.
+
+**Made on this branch** (each with its book remade; tests where a number they pinned moved; part 1 says why the bosses):
+
+- **A boss is never Hexed two turns running** (`turns.js addStatus`: a boss that lost its last act to a Hex, `hexLost`,
+  set where a foe's act is lost in `policy.js foeTurn`, shrugs off the next until it has acted again; the Hexed card and
+  the README say so). And the bosses it held, lighter: the floor-2 boss's HP 3.2 → 2.4 and ATK 2 → 1.6 of its own
+  (`TUNING.spawn.bossHp`, `bossAtk`), the Sovereign's 1 → 0.45 and 0.6, its court 4 → 2 (`spawn.court`). Chosen in two
+  rounds. On `bal-0…31` strict, the rule with the Sovereign at 0.75 / 0.8: free play 13, the Court 9, the Chanter's trine
+  7; at 0.6 / 0.7: 12, 11, 7; at 0.6 / 0.7 with its court of 2: 15, 12, 9 (a gentler rule, a boss acting a turn in three,
+  at 0.6 / 0.7: 13, 17, 7, the lock kept). That last, confirmed on `chk-0…255` with the rest of the kept set: **176 → 145
+  clears (−12.1 ± 4.4)**, the deaths in the Sovereign's room 22 → 52 of ~197 that met it, at the floor-2 Mire Mother 1 →
+  13 (she had been held too): rejected. Then both bosses lighter, chosen on `bal-0…127`: 86 → 87 clears (+0.8 ± 5.5;
+  progress +5.3 ± 4.0; the gentler rule with the first numbers 84, −1.6 ± 5.5); **confirmed on `chk-0…255`: 176 → 168
+  (−3.1 ± 4.4; progress +0.9 ± 2.8)**, dead on floor 1 / 2 / 3 47 / 4 / 29 → 42 / 12 / 34 (the Sovereign's room 22 → 33
+  of ~200, the Mire Mother 1 → 10 of 196).
+- **The Ember Drake met from floor 1** (its spawn 8 at floor 2 → 16 at floor 1): the Rime Drake's keystone where its
+  Sprites are; criterion 1 22 → 27 of 44 (the Rime Drake 0.9 → 3.2, the Cinder Wyrm and Aurora on it, the Ember Drake's
+  trine). The Golem and the Mantis from floor 1 as well (36 of 44 at weights 16) break DESIGN §2.4's floor 1 (no Hex,
+  no Bleed: `content.test.js`'s foes by floor) and are left to the user; on `bal-0…63` with them, free play −4.7 ± 9.3,
+  the Rime Drake made in 36% of runs (2%).
+- **The Marsh Hag a Trickster** (was a Channeler): the Mire Mother's court, a hexer's, no longer feeds Echo; `bal-0…63`
+  −3.1 ± 5.0 points, Echo held in 36% → 29% of battles.
+- **Echo's lesser form lays a status only where its target holds none** (`rules.js echo`): the half turns showed nowhere
+  else (§8's hunts); measured within the kept set.
+- **Mirage's card** says what the rule does (a blow's first landing, the rest of a blast and an echo landing); no rule
+  moved (below).
+- `TUNING.spawn.variety.routePasses` 4 → 8: with the Ember Drake on floor 1 a floor-1 walk (`route14`, the variety test)
+  met no Shape after four passes.
+
+**Rejected** (`bal-0…63` free play, paired, unless said):
+
+- The nine synergies but Echo and Legion at 3: four synergies at 5% of battles or more (Mirage 49%, Ambush 7%), but 42 →
+  32 clears (−15.6 ± 8.1), floor-3 deaths 5 → 14: the foes' cohorts hold them as easily as the player.
+- Mirage foiling a foe's whole blow (every target of a blast, its echo): 42 → 2 clears (−62.5 ± 6.1), 40 deaths on floor
+  2: the Mire Mother and her four Hags, five Fae, hold Mirage, and each of your pieces strikes once a turn.
+- The Pale Court's Hex on a rest: above. The Will-o'-Wisp drawn less (11 → 7): the Court still made in 77% of runs (the
+  draft and the recruit forest bring the Wisps), −4.7 ± 8.5.
+- Relics a third cheaper: −4.7 ± 5.2, 2.0 → 2.8 bought a run, and the relics ablation on it −3 (relics worth nothing).
+  Command lighter (the Bone Horn's HP cost 10% → 5%, the Muster Roll's none): the same runs but one (+1.6 ± 1.6).
+- The trine table's ATK a quarter up: not measured to an end (the container restarted under it).
+
+**The kept set on fresh seeds** (`chk-0…255`, free play, the base against the balance pass's content seed for seed; the
+variety's eight passes aside, which moves a floor only where four were short):
+
+| | Base (part 1's content) | The balance pass |
+|---|---|---|
+| clears | 176 (69%) | 168 (66%): +58 −66, −3.1 ± 4.4 points |
+| progress | 83.6 | 84.5 (+0.9 ± 2.8) |
+| died on floor 1 / 2 / 3 | 47 / 4 / 29 | 42 / 12 / 34 |
+| bosses met (lost) | floor 2's Mire Mother 196 (1); the Sovereign 196 (22) | 196 (10); 201 (33) |
+| battles a run; lost; fusions a run | 31.4; 80; 3.6 | 31.9; 88; 4.0 |
+| fused kinds in the final armies | the Court 76%, the Chanter's trine 61%, the Winter Court 25%, the Sprite's trine 22%, the Rime Drake 2% | the Court 79%, the Chanter's trine 62%, the Ember Drake's trine 18%, the Rime Drake 17%, the Sprite's trine 17%, the Winter Court 16%, Aurora 11% |
+| recipes made (runs) | the Court 81%, the Chanter's trine 62%, the Sprite's trine 45%, the Winter Court 25%, the Rime Drake 4% | the Court 81%, the Chanter's trine 63%, the Sprite's trine 33%, the Rime Drake 28%, the Ember Drake's trine 18%, the Winter Court 16%, Aurora 11% |
+| synergies held (battles) | Echo 45%, Legion 23%, Mirage 3% | Echo 38%, Legion 19%, Mirage 2% |
+| kinds in a tenth of final armies; the last battles' pieces | 10 of 62; Channelers 83%, Rangers 1%; Drakes 3% | 14 of 62; Channelers 72%, Rangers 15%; Drakes 14% |
+| relics bought (Command) | 2.2 (35%) | 2.0 (38%) |
+
+Criterion 2 on fresh seeds, the expert strictly committed, `chk-0…63` (the base's rows of part 1 → this branch's;
+free play 48 → 48):
+
+| Archetype | Base | This branch |
+|---|---|---|
+| Rime Drake | 10 | **40** |
+| Pale Court | **39** | 33 |
+| Bone Chanter's trine | 3 | 18 |
+| Fae 4 | 25 | 16 |
+| Ember Drake's trine | 0 | 16 |
+| Frost Sprite's trine | 2 | 14 |
+| Undead 4 | 1 | 10 |
+| Drake 4 | 2 | 9 |
+| Construct 4 | 2 | 5 |
+| Insect 4 | 0 | 3 |
+| Grave Ghoul's trine | 0 | 1 |
+
+**What it says, so far.** Criterion 1: 22 → 27 of 44. Criterion 2: the gap narrows (the best 39 → 40 of 64, the next ones
+3–25 → 14–33) and holds no kin within 15 points of the best: the floor-1 kins without a ranged kind of their own still die
+on floor 1 when held to them (Construct 4 33 of 59 falls there), and the Ghoul's trine on floors 2–3. Criterion 3: not
+met; the Court in 79% of final armies, now beside the Rime Drake, the Ember Drake's trine and Aurora; the draft's ranged
+rule and the recruit forest (part 1: it takes a Wisp at 50 of 90 offers where the sketch would at 15) bring the Wisps,
+so free play's fused shares are the refit's to read. The relic line and the synergy line unmoved. The teacher's strict
+rows on this branch not run.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
