@@ -6,7 +6,7 @@ import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, depthOf, runStat } from './sim/run.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS } from './content.js'
-import { titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome } from './ui.js'
+import { titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, altarNote, recruitNote } from './codex.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from './dom.js'
 import { sfx } from './sfx.js'
@@ -193,7 +193,9 @@ function route () {
     if (trail && s.phase === 'map') note = floorNote(s)
     trail = { floor: s.floor, ids: [s.map.start] }
   }
-  if (s.phase === 'map') {
+  if (s.phase === 'draft') {
+    show(draftScreen({ run, onPick: pick, onHelp: toggleHelp }))
+  } else if (s.phase === 'map') {
     show(runScreen({ run, trail: trail.ids, note, onNode, act, onHelp: toggleHelp }))
     note = ''
   } else if (s.phase === 'prep') {
@@ -214,6 +216,12 @@ function onNode (id) {
   apply(run, { type: 'node', id })
   trail.ids.push(id)
   if (currentNode(run).type === 'altar') note = altarNote(run.state, before)
+  route()
+}
+
+// A pick of the draft: its soul joins; the last opens the floor's map.
+function pick (index) {
+  apply(run, { type: 'pick', index })
   route()
 }
 

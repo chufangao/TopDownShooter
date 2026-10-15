@@ -13,7 +13,7 @@ import {
   PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard
 } from '../src/sim/outforest.js'
 import { labelRun, rereadRun, baseStep, candidatesAt } from '../src/sim/outside.js'
-import { createRun, apply, availableNodes, souls, join } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, souls, join, START_PARTY } from '../src/sim/run.js'
 import { slotAt } from '../src/sim/unit.js'
 import { fight } from './rooms.js'
 import {
@@ -23,8 +23,10 @@ import {
 import { createRng } from '../src/sim/rng.js'
 
 const L = LEVELS.expert
-// sim-0's expert falls on floor 1 after five battles: four recruits and a purchase, a whole run in about a second.
-const SEED = 'sim-0'
+// sim-395's expert drafts, then falls on floor 1 after five battles: four recruits and a purchase, a whole run in about
+// a second; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run clears,
+// and labelling it to the end takes minutes.)
+const SEED = 'sim-395'
 const CAP = 3
 
 // A phase's forest (outforest.json's shape) from trees given as nested nodes ({ f: an input's name, t: its threshold, l,
@@ -135,7 +137,7 @@ test('the labeller is deterministic, its run the base\'s untouched by its playou
     assert.equal(a.line.battles.fought, base.battles.length)
     for (const row of a.rows) {
       assert.equal(row.seed, SEED)
-      assert.equal(row.run, 0)
+      assert.equal(row.run, 395)
       assert.equal(row.split, 'held')
       assert.ok(row.options.length >= 2 && row.options.length <= CAP + 1)
       assert.ok(row.options.some((o) => o.f.none === 1))
@@ -231,7 +233,7 @@ test('a forest decides by the best other candidate\'s advantage over today\'s pi
 test('a forest is fitted on the labels, bagged by run, and reads in play as it was fitted', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-outforest-'))
   try {
-    // The labels of two seeds, one held out (sim-0) and one fitted (sim-1's first rows), its formations' among them.
+    // The labels of two seeds, one held out (SEED) and one fitted (sim-1's first rows), its formations' among them.
     const own = [...labels().rows, ...preps().rows]
     const rows = [...own, ...own.map((r) => ({ ...r, seed: 'sim-1', run: 1, split: 'val' }))]
     fs.writeFileSync(path.join(dir, 'labels.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n')
@@ -309,7 +311,7 @@ test('a forest that recruits with a full retinue lets the weakest go, then makes
     useOutForest(outOf({ recruit: phaseOf([{ f: 'f.recruit', t: 0.5, l: -1, r: 5 }]) }, 'recruiter'))
     let released = 0
     for (let i = 0; i < 6; i++) {
-      const run = createRun({ seed: 'letgo' + i })
+      const run = createRun({ start: START_PARTY, seed: 'letgo' + i })
       const node = availableNodes(run)[0]
       node.type = 'fight'
       node.foes = [{ id: 'tomb_knight', lvl: 1, slot: slotAt(0, 3) }]
@@ -377,7 +379,7 @@ test('the prep labeller is deterministic, its run the base\'s untouched, each fo
     assert.equal(a.line.result, base.result)
     assert.equal(a.line.progress, base.progress)
     assert.equal(a.line.battles.fought, base.battles.length)
-    // One prep decision a battle at most (sim-0's every battle is a prep's), labelled with every formation.
+    // One prep decision a battle at most (SEED's every battle is a prep's), labelled with every formation.
     assert.ok(a.rows.length >= 1 && a.rows.length <= base.battles.length)
     assert.equal(a.line.phases.prep.labelled, a.rows.length)
     assert.equal(new Set(a.rows.map((r) => r.at)).size, a.rows.length)

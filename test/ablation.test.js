@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createRun, apply, battleSetup, join, souls, fielded, replay, levelOf, monarchHp, monarchOf, commandOf, canPlace
+  createRun, apply, battleSetup, join, souls, fielded, replay, levelOf, monarchHp, monarchOf, commandOf, canPlace, START_PARTY
 } from '../src/sim/run.js'
 import { createBattle, playOut, timelineHash, rulesOf } from '../src/sim/turns.js'
 import { expertTurn } from '../src/sim/policy.js'
@@ -44,7 +44,7 @@ function playTo (run, level, fights) {
 // The runs a basic player fights, each as the run stood just before the fight (to refight with a rule off).
 function snapshots (seed, fights = 6) {
   const snaps = []
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   autoplay(run, {
     level: 'basic',
     beforeFight: (r) => { if (snaps.length < fights) snaps.push(structuredClone({ ...r.state, log: [] })) }
@@ -54,19 +54,19 @@ function snapshots (seed, fights = 6) {
 
 test('the un-ablated players: a level with no ablation plays exactly as the level itself, seed for seed', () => {
   for (const seed of ['ablate-b4', 'ablate-b3']) {
-    const plain = createRun({ seed })
+    const plain = createRun({ start: START_PARTY, seed })
     playTo(plain, 'expert', 3)
-    const none = createRun({ seed })
+    const none = createRun({ start: START_PARTY, seed })
     playTo(none, { ...LEVELS.expert, ablate: null }, 3)
     assert.deepEqual(none.state.log, plain.state.log, `expert ${seed}`)
   }
   for (const seed of ['ablate-basic', 'ablate-basic2']) {
-    const log = autoplay(createRun({ seed }), { level: 'basic' }).state.log
-    assert.deepEqual(autoplay(createRun({ seed }), { level: { ...LEVELS.basic, ablate: null } }).state.log, log, `basic ${seed}`)
-    assert.deepEqual(autoplay(createRun({ seed }), { level: 'basic' }).state.log, log, `basic ${seed}, again`)
+    const log = autoplay(createRun({ start: START_PARTY, seed }), { level: 'basic' }).state.log
+    assert.deepEqual(autoplay(createRun({ start: START_PARTY, seed }), { level: { ...LEVELS.basic, ablate: null } }).state.log, log, `basic ${seed}`)
+    assert.deepEqual(autoplay(createRun({ start: START_PARTY, seed }), { level: 'basic' }).state.log, log, `basic ${seed}, again`)
   }
   // A run made with no ablation has no `ablate`, and its battles none in their setups.
-  const run = createRun({ seed: 'plain' })
+  const run = createRun({ start: START_PARTY, seed: 'plain' })
   assert.ok(!('ablate' in run.state))
   visit(run, 'fight')
   assert.ok(!('ablate' in battleSetup(run)))
@@ -84,16 +84,16 @@ test('ablation: the names, the rules switches carried by the run and its replay,
   assert.deepEqual([...CORE, ...EXTRA, ...MEASURED].sort(), ABLATIONS.slice().sort())
   assert.ok(CORE.every((m) => BANDS[m].join() === '25,50') && EXTRA.every((m) => BANDS[m].join() === '8,25'))
   assert.ok(MEASURED.every((m) => !(m in BANDS)))
-  assert.deepEqual(ablatedRun('sw', 'summons').state.ablate, ['summons'])
-  assert.ok(!('ablate' in ablatedRun('sw', 'fusions').state) && !('ablate' in ablatedRun('sw', 'orders').state))
-  const run = ablatedRun('sw', 'synergies')
+  assert.deepEqual(ablatedRun('sw', 'summons', START_PARTY).state.ablate, ['summons'])
+  assert.ok(!('ablate' in ablatedRun('sw', 'fusions', START_PARTY).state) && !('ablate' in ablatedRun('sw', 'orders', START_PARTY).state))
+  const run = ablatedRun('sw', 'synergies', START_PARTY)
   visit(run, 'fight')
   assert.deepEqual(battleSetup(run).ablate, ['synergies'])
   const rng = createRng('sw').stream('autoplay')
-  assert.throws(() => policy(createRun({ seed: 'sw' }), rng, without('summons')), /needs a run made with it/)
-  assert.throws(() => policy(createRun({ seed: 'sw' }), rng, without('nothing')), /unknown ablation/)
+  assert.throws(() => policy(createRun({ start: START_PARTY, seed: 'sw' }), rng, without('summons')), /needs a run made with it/)
+  assert.throws(() => policy(createRun({ start: START_PARTY, seed: 'sw' }), rng, without('nothing')), /unknown ablation/)
   // replay carries the switch: the same run, battle for battle.
-  const played = ablatedRun('swr', 'synergies')
+  const played = ablatedRun('swr', 'synergies', START_PARTY)
   playTo(played, 'basic', 3)
   const again = replay('swr', played.state.log, { ablate: ['synergies'] })
   assert.equal(timelineHash(again.battle.events), timelineHash(played.battle.events))
@@ -127,13 +127,13 @@ test('the arise switch: no relic grants Arise; the synergies switch: the party h
 
 test('ablating summons: no tier calls a summon in battle, and such a tier is worth only its place on the track', () => {
   // The switch: the same setup fights the chanter with Marrowcaller II's summons without it, none with it.
-  const run = ablatedRun('ablate-sum', 'summons')
+  const run = ablatedRun('ablate-sum', 'summons', START_PARTY)
   assert.deepEqual(run.state.ablate, ['summons'])
   visit(run, 'fight')
   const chanter = hold(run, 'bone_chanter', [0, 2])
   const called = (r) => createBattle(battleSetup(r)).units.filter((u) => u.summoned && u.summoner === chanter.uid).length
   assert.equal(called(run), 0)
-  const plain = createRun({ seed: 'ablate-sum' })
+  const plain = createRun({ start: START_PARTY, seed: 'ablate-sum' })
   visit(plain, 'fight')
   hold(plain, 'bone_chanter', [0, 2])
   assert.equal(called(plain), tracksOf('bone_chanter')[1].tiers[1].summon)
@@ -141,7 +141,7 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
   // ablated, it never values the tier for its summons (it buys something else first, or the tier for the track's
   // sake only).
   const rich = (seed, ablate) => {
-    const r = ablatedRun(seed, ablate)
+    const r = ablatedRun(seed, ablate, START_PARTY)
     hold(r, 'bone_chanter', [0, 1])
     r.state.essence = 2000
     return r
@@ -161,7 +161,7 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
   // (The combo book still values the track itself: so no earlier, never sooner for its summons.)
   assert.ok(at(order) === -1 || at(order) >= at(full.filter((a) => a.type === 'upgrade')), 'ablated, the tier comes no earlier, or never')
   // A run under the ablation fights every battle with the switch.
-  const short = ablatedRun('ablate-b3', 'summons')
+  const short = ablatedRun('ablate-b3', 'summons', START_PARTY)
   const battles = playTo(short, without('summons'), 4)
   assert.ok(battles.length && battles.every((b) => b.ablate.has('summons')))
 })
@@ -169,7 +169,7 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
 // A Shop stocked by hand, the purse full and every tier its kinds can take already held (so a relic's price displaces
 // none, and the expert's buyFor has every reason to buy).
 function shop (stock, floor = 1) {
-  const run = createRun({ seed: 'shopx' })
+  const run = createRun({ start: START_PARTY, seed: 'shopx' })
   const s = run.state
   s.floor = floor
   visit(run, 'shop')
@@ -203,7 +203,7 @@ test('ablating relics: no Common, Uncommon or Rare relic is bought, so the field
   assert.ok(bought(shop([...COMMON, 'legion'], 2), without('relics')).every(legendary))
   assert.ok(bought(shop([...COMMON, 'legion'], 2), without('legendaries')).every((id) => !legendary(id)))
   // A whole run under it ends at the base Command and the Monarch's base HP (Legion aside).
-  const run = createRun({ seed: 'no-relics' })
+  const run = createRun({ start: START_PARTY, seed: 'no-relics' })
   playTo(run, { ...LEVELS.basic, ablate: 'relics' }, 6)
   assert.ok(run.state.relics.every(legendary))
   if (!run.state.relics.includes('legion')) assert.deepEqual([commandOf(run.state), monarchOf(run.state).maxHp], [TUNING.party.field, TUNING.monarch.hp])
@@ -212,21 +212,21 @@ test('ablating relics: no Common, Uncommon or Rare relic is bought, so the field
 // The expert's turns are policy.js expertTurn's; under the orders ablation it ends every turn without an order.
 test('ablating orders: the expert gives no order in battle but End Turn, where the full expert moves and acts', () => {
   const orders = (L) => {
-    const run = createRun({ seed: 'orders' })
+    const run = createRun({ start: START_PARTY, seed: 'orders' })
     playTo(run, L, 2)
     return run.state.log.filter((a) => ['move', 'undo', 'act'].includes(a.type)).length
   }
   assert.ok(orders(LEVELS.expert) > 0)
   assert.equal(orders(without('orders')), 0)
   // Its battle setups are the full expert's: no rules switch.
-  assert.ok(!('ablate' in ablatedRun('orders', 'orders').state))
+  assert.ok(!('ablate' in ablatedRun('orders', 'orders', START_PARTY).state))
 })
 
 // Under the moves ablation its pieces act from where they stand (redesign.md §2.18: what the plan's walking is worth);
 // prep is the full expert's.
 test('ablating moves: the expert acts in battle but never moves a piece, where the full expert does', () => {
   const given = (L) => {
-    const run = createRun({ seed: 'moves' })
+    const run = createRun({ start: START_PARTY, seed: 'moves' })
     playTo(run, L, 2)
     return run.state.log.filter((a) => ['move', 'act'].includes(a.type)).reduce((n, a) => ({ ...n, [a.type]: (n[a.type] ?? 0) + 1 }), { move: 0, act: 0 })
   }
@@ -234,10 +234,10 @@ test('ablating moves: the expert acts in battle but never moves a piece, where t
   const still = given(without('moves'))
   assert.ok(full.move > 0 && full.act > 0)
   assert.deepEqual([still.move, still.act > 0], [0, true])
-  assert.ok(!('ablate' in ablatedRun('moves', 'moves').state))
+  assert.ok(!('ablate' in ablatedRun('moves', 'moves', START_PARTY).state))
   // The first prep is the full expert's.
-  const one = createRun({ seed: 'moves' })
-  const two = createRun({ seed: 'moves' })
+  const one = createRun({ start: START_PARTY, seed: 'moves' })
+  const two = createRun({ start: START_PARTY, seed: 'moves' })
   for (const [run, L] of [[one, LEVELS.expert], [two, without('moves')]]) {
     const rng = createRng('moves').stream('autoplay')
     for (let a; (a = policy(run, rng, L)).type !== 'fight';) apply(run, a)
@@ -247,7 +247,7 @@ test('ablating moves: the expert acts in battle but never moves a piece, where t
 
 test('ablating fusions: never fuses, nor weighs one, where the full expert weighs every one it can make', () => {
   const fusable = (seed) => {
-    const run = createRun({ seed })
+    const run = createRun({ start: START_PARTY, seed })
     visit(run, 'fight')
     run.state.essence = 2000
     // Bone Colossus and Rime Drake made.
@@ -276,7 +276,7 @@ test('ablating fusions: never fuses, nor weighs one, where the full expert weigh
   // In battle too (Fuse is an act, redesign.md §2.4): two Tomb Knights and a Bone Chanter fielded side by side, the
   // purse full, the full expert's turns fuse them there; the ablated expert's never.
   const fusedIn = (L) => {
-    const run = createRun({ seed: 'fus-battle' })
+    const run = createRun({ start: START_PARTY, seed: 'fus-battle' })
     visit(run, 'fight')
     run.state.essence = 1e4
     join(run, 'tomb_knight')
@@ -301,7 +301,7 @@ test('ablating fusions: never fuses, nor weighs one, where the full expert weigh
 test('ablating tracks: never bought', () => {
   const rng = createRng('spend').stream('autoplay')
   const rich = () => {
-    const run = createRun({ seed: 'spend' })
+    const run = createRun({ start: START_PARTY, seed: 'spend' })
     run.state.essence = 2000
     return run
   }
@@ -318,7 +318,7 @@ test('ablating tracks: never bought', () => {
 
 test('ablating formation: basic\'s first draft\'s cells, the Monarch on its seat; who fights still the expert\'s', () => {
   for (const seed of ['form-0', 'form-1']) {
-    const run = createRun({ seed })
+    const run = createRun({ start: START_PARTY, seed })
     join(run, 'grave_ghoul')
     run.state.relics.push('grave_banner')
     visit(run, 'fight')
@@ -334,7 +334,7 @@ test('ablating formation: basic\'s first draft\'s cells, the Monarch on its seat
 
 test('necessity: the snapshots refight exactly as recorded, and each mechanic is stripped from the setup', () => {
   const snaps = []
-  const run = createRun({ seed: 'nec-0' })
+  const run = createRun({ start: START_PARTY, seed: 'nec-0' })
   // A retinue with everything to strip: a tier that calls summons, tiers (a Colossus among them), a fused piece, two
   // copies of Arise and another Legendary, relics (the Monarch's HP and Command among them).
   const s = run.state

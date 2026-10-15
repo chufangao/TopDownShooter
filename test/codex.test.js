@@ -49,7 +49,7 @@ const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relic
 const { KEYWORDS } = await import('../src/keywords.js')
 const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, temperLine } = await import('../src/content.js')
 const { makeUnit } = await import('../src/sim/unit.js')
-const { createRun, souls, rosterCap, apply } = await import('../src/sim/run.js')
+const { createRun, souls, rosterCap, apply, START_PARTY } = await import('../src/sim/run.js')
 const { temperOf } = await import('../src/sim/turns.js')
 
 const FOES = UNIT_LIST.filter((u) => u.spawn || u.boss)
@@ -81,7 +81,7 @@ test('the glossary\'s words are the seventeen and Line of fire; each way is its 
 })
 
 test('How to play counts your souls as the cap does: one soul, one piece', () => {
-  const run = createRun({ seed: 'codex' })
+  const run = createRun({ start: START_PARTY, seed: 'codex' })
   run.state.party.push({ ...makeUnit('tomb_knight', { uid: 50 }), slot: -1 })
   const text = codexView(run).textContent
   assert.ok(text.includes(`Souls ${souls(run.state.party).length}/${rosterCap(run)} `), text.match(/Souls [^·]*/)?.[0])
@@ -92,12 +92,12 @@ test('no word and no line of How to play speaks of stacked pieces or their bodie
     if (k.group === 'Words') assert.ok(!/stack|\bbod(y|ies)\b|\bpool\b/i.test(k.line), `${id}: ${k.line}`)
   }
   assert.ok(!('stack' in KEYWORDS))
-  const text = codexView(createRun({ seed: 'codex' })).textContent
+  const text = codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent
   assert.ok(!/stack|\bbod(y|ies)\b/i.test(text), text.match(/.{0,40}(stack|bod(y|ies)).{0,40}/i)?.[0])
 })
 
 test('a recruit of a kind held says what one more is worth: how many you hold, and each fusion its kind is part of', () => {
-  const run = createRun({ seed: 'codex' })
+  const run = createRun({ start: START_PARTY, seed: 'codex' })
   const held = new Set(souls(run.state.party).map((u) => u.id))
   for (const id of held) {
     const w = recruitWorth(run, id)
@@ -110,7 +110,7 @@ test('a recruit of a kind held says what one more is worth: how many you hold, a
 })
 
 test('How to play is the turn\'s: a turn is yours, the untouched strike with their basics, no dice, held relics; nothing of rings or the gauge', () => {
-  const text = codexView(createRun({ seed: 'codex' })).textContent
+  const text = codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent
   assert.ok(text.includes('A turn is yours'), text.slice(0, 200))
   assert.ok(text.includes('never a skill') && text.includes('No dice'))
   assert.ok(/piece relic works through the soul you give it to/.test(text) && /Arise is one/.test(text), 'held relics (redesign.md §2.15)')
@@ -119,7 +119,7 @@ test('How to play is the turn\'s: a turn is yours, the untouched strike with the
 
 // No clock (redesign.md §2.10): nothing the player reads speaks of one, of turns left, or of a battle lost by time.
 test('no word, no line of How to play and no wave tip speaks of a clock, a cap on turns or a battle lost undecided', () => {
-  const text = [codexView(createRun({ seed: 'codex' })).textContent, ...Object.values(KEYWORDS).map((k) => k.line), ...Object.values(ENEMY_TEXT)].join(' ')
+  const text = [codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent, ...Object.values(KEYWORDS).map((k) => k.line), ...Object.values(ENEMY_TEXT)].join(' ')
   const gone = /\bclock\b|undecided|turns? left|last turn|\bthe cap\b|dragged on/i
   assert.ok(!gone.test(text), text.match(new RegExp(`.{0,40}(${gone.source}).{0,40}`, 'i'))?.[0])
   assert.ok(/lost only the instant the Monarch falls|lasts until no foe is left, or the Monarch falls/.test(text), 'what ends a battle')
@@ -130,7 +130,7 @@ test('a relic card says Run or Held; a soul\'s card shows its relic slot, the Mo
     assert.equal(relicKind(r.id), r.run ? 'Run' : 'Held', r.id)
     assert.ok(relicTip(r.id).textContent.includes(r.run ? 'Run' : 'Held'), r.id)
   }
-  const run = createRun({ seed: 'codex' })
+  const run = createRun({ start: START_PARTY, seed: 'codex' })
   const soul = souls(run.state.party)[0]
   const piece = RELIC_LIST.find((r) => !r.run && !r.rule)
   assert.match(unitCard(soul, { run }).textContent, /no relic/)
@@ -145,7 +145,7 @@ test('a relic card says Run or Held; a soul\'s card shows its relic slot, the Mo
 })
 
 test('Arise is its holder\'s skill on its card, with its reach and tier; a soul holding none has no Arise', () => {
-  const run = createRun({ seed: 'codex' })
+  const run = createRun({ start: START_PARTY, seed: 'codex' })
   const [holder, other] = souls(run.state.party)
   run.state.relics.push('arise')
   apply(run, { type: 'hold', relic: 'arise', uid: holder.uid })
@@ -169,7 +169,7 @@ test('a battle\'s synergy labels name the rule each brings at 4', () => {
 test('a fall to a status\'s tick is told as that status, from no tile and with no blow replayed; a blow\'s keeps its tile', async () => {
   const { deathText } = await import('../src/codex.js')
   const { deployTile } = await import('../src/sim/unit.js')
-  const run = createRun({ seed: 'codex' })
+  const run = createRun({ start: START_PARTY, seed: 'codex' })
   const s = run.state
   const m = s.party.find((u) => u.id === 'monarch')
   const from = deployTile('foe', 0)
@@ -192,7 +192,7 @@ test('the glossary never says most kinds have a basic heal: only menders do', as
   const menders = kinds.filter((d) => mendOf(abilitiesOf({ id: d.id, lvl: 1, tracks: [0, 0] }).map(abilityDef))).length
   assert.ok(menders * 2 < kinds.length, 'menders are the few')
   for (const d of kinds) assert.ok(basicOf(abilitiesOf({ id: d.id, lvl: 1, tracks: [0, 0] }).map(abilityDef)), `${d.id}: a basic blow`)
-  const text = codexView(createRun({ seed: 'codex' })).textContent + Object.values(KEYWORDS).map((k) => k.line).join(' ')
+  const text = codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent + Object.values(KEYWORDS).map((k) => k.line).join(' ')
   assert.ok(!/most a basic heal/.test(text))
   assert.match(KEYWORDS.turn.line, /basic heal/)
 })
@@ -230,7 +230,7 @@ test('a quick tap read late (the page busy past the long press) stays a tap; a p
 })
 
 test('the foes\' synergies are told on every floor, a later wave\'s too, as the battle holds them; no text reads NaN', () => {
-  const run = createRun({ seed: 'told' })
+  const run = createRun({ start: START_PARTY, seed: 'told' })
   const four = (id) => [0, 1, 2, 3].map((slot) => ({ id, lvl: 1, slot }))
   const node = { id: 'x', type: 'fight', rank: 1, next: [], foes: four('hive_drone'), waves: [{ foes: four('tomb_knight') }] }
   assert.equal(run.state.floor, 1)
@@ -260,7 +260,7 @@ test('a kind with a blow that keeps to its line says so; a lobbed blow says it i
     assert.ok(!lined(a), a.id)
     assert.match(abilityBlock(a.id, st).textContent, /ignores lines/, a.id)
   }
-  const text = codexView(createRun({ seed: 'codex' })).textContent
+  const text = codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent
   assert.ok(/line of fire/.test(text) && /SCREENED/.test(text), 'the primer and the battle gestures tell it')
 })
 
@@ -272,7 +272,7 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   const { abilitiesOf } = await import('../src/sim/unit.js')
   const { abilityDef } = await import('../src/content.js')
   const { basicOf } = await import('../src/sim/turns.js')
-  const run = createRun({ seed: 'told' })
+  const run = createRun({ start: START_PARTY, seed: 'told' })
   const s = run.state
   const node = s.map.nodes.find((n) => n.type === 'fight')
   const pay = [node.foes, ...(node.waves ?? []).map((w) => w.foes)].flat().reduce((n, f) => n + foeEssence(f), 0)

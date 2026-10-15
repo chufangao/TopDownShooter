@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
-  essenceByWave, MONARCH_UID, currentNode
+  essenceByWave, MONARCH_UID, currentNode, START_PARTY
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
@@ -163,7 +163,7 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
 // ── the battle: foes as an army ──────────────────────────────────────────────────────────────────
 
 test('a run\'s room becomes battle units: foes take the first uids, formation then waves; a captain\'s cohort are foes of their own; waves wait in the reserve', () => {
-  const run = createRun({ seed: 'army5' })
+  const run = createRun({ start: START_PARTY, seed: 'army5' })
   const s = run.state
   const node = availableNodes(run)[0]
   // A floor-3 elite here: captains, cohorts, a second wave.
@@ -369,7 +369,7 @@ test('in the last room only the Sovereign takes the boss\'s multipliers; its wav
 test('a siege is one battle of three waves with no prep between them, paying essence wave by wave', () => {
   let run = null
   for (let i = 0; i < 20 && !run; i++) {
-    const r = createRun({ seed: 'siege' + i })
+    const r = createRun({ start: START_PARTY, seed: 'siege' + i })
     const node = availableNodes(r)[0]
     // A floor-3 siege, cut to two foes a wave at level 1, against souls at level 10.
     const room = drawRoom(r.state.seed, 3, { ...node, type: 'siege', rank: SIEGE_RANK })
@@ -411,7 +411,7 @@ test('a siege is one battle of three waves with no prep between them, paying ess
 // Functionality, not balance: however far the run gets, every legal action applies, every deep fight rebuilds
 // from its setup, and uids and slots stay unique. (Whether it wins is the final balance pass's business.)
 test('the deep floors play: every legal action applying on the way, every deep fight rebuilt from its setup', () => {
-  const run = createRun({ seed: 'rich' })
+  const run = createRun({ start: START_PARTY, seed: 'rich' })
   const s = run.state
   const rng = createRng(s.seed).stream('autoplay')
   const STEADY = { ...LEVELS.basic, wounds: true, turns: 'expert' }

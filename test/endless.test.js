@@ -9,7 +9,7 @@ import { TUNING } from '../src/tuning.js'
 import { tuned, BOARD_14, grant } from './tuned.js'
 import {
   createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend,
-  MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join
+  MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join, START_PARTY
 } from '../src/sim/run.js'
 import { autoplay, policy, LEVELS } from '../src/sim/autoplay.js'
 import { generateFloor, RANKS } from '../src/sim/map.js'
@@ -113,7 +113,7 @@ test('Legion on the foes\' side: your fallen risen against you are not sold back
 function legionReap () {
   let won = null
   for (let i = 0; i < 20 && !won; i++) {
-    const run = createRun({ seed: `legion-reap${i}` })
+    const run = createRun({ start: START_PARTY, seed: `legion-reap${i}` })
     const s = run.state
     s.party = s.party.map((u) => u.uid === MONARCH_UID ? u : { ...makeUnit(u.id, { uid: u.uid, lvl: 20 }), slot: u.slot })
     for (const k of Object.values(s.kinds)) k.lvl = 20
@@ -362,7 +362,7 @@ test('the foes hold their synergies\' rules on every floor, the first among them
   assert.deepEqual(holding(drakes, 'foe').sort(), ['deadeye', 'dragonfire'])
   assert.ok(drakes.events[0].synergies.some((x) => x.side === 'foe' && x.id === 'drake_4'))
   // The run's setup carries no gate: a floor-1 battle of a cohort of four holds its rule.
-  const run = createRun({ seed: 'foe-rules' })
+  const run = createRun({ start: START_PARTY, seed: 'foe-rules' })
   apply(run, { type: 'node', id: availableNodes(run).find((n) => n.foes).id })
   assert.ok(!('foeRules' in battleSetup(run)))
   assert.ok(!('rules' in TUNING.spawn.endless))
@@ -443,7 +443,7 @@ function clear (seed) {
   const sp = TUNING.spawn
   const empty = { fight: sp.fight.map(() => 0), elite: sp.elite.map(() => 0), court: 0, bossHp: 0.02, bossAtk: 0.02, late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
   return tuned({ spawn: empty }, () => {
-    const run = createRun({ seed })
+    const run = createRun({ start: START_PARTY, seed })
     const s = run.state
     const rng = createRng(seed).stream('autoplay')
     for (let granted = 0; s.phase !== 'over';) {
@@ -509,7 +509,7 @@ test('the Sovereign slain is a clear, and the run stops there unless the player 
   for (const n of s.map.nodes.filter((x) => x.foes)) assert.equal(n.foes[0].lvl >= foeLevel(F + 1, n.rank) + E.level, true)
   checkDeep(run)
   // A defeat before any clear cannot descend.
-  const lost = createRun({ seed: 'deep-lost' })
+  const lost = createRun({ start: START_PARTY, seed: 'deep-lost' })
   assert.throws(() => apply(lost, { type: 'descend' }), /needs phase over/)
 })
 
@@ -587,7 +587,7 @@ test('fuzz with the Sovereign on floor 1: runs descend, play two floors deep, ke
     for (let i = 0; i < 80 && descended < 2; i++) {
       const seed = 'shallow' + i
       const rng = createRng(seed).stream('fuzz')
-      const run = createRun({ seed })
+      const run = createRun({ start: START_PARTY, seed })
       const s = run.state
       for (let steps = 0; steps < 6000 && s.floor <= 3; steps++) {
         const legal = legalActions(run)

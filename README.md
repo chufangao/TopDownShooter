@@ -1,7 +1,8 @@
 # RETINUE
 
 A small turn-based necromancer game in the browser. You are the **Monarch**, a necromancer who stands in its
-own camp, never strikes, and leads an army of the dead down four floors, choosing the route room by room.
+own camp, never strikes, and leads an army of the dead down four floors, choosing the route room by room. A run
+begins with a draft: three picks, each of one soul from three kinds offered.
 Between battles you buy tiers for your kinds with essence, fuse souls into colossi, recruit one slain foe a
 battle into the ossuary, buy relics in Shops, give each relic to a soul, and place your pieces around the
 Monarch's seat. A battle is played in turns on that same board: each of your pieces moves, then acts, and the
@@ -12,6 +13,8 @@ then descend into the endless deep for as long as you last.
 
 ## Playing
 
+- **The draft.** A run opens with the Monarch alone. Pick three souls, each from three kinds drawn from floor 1's
+  foes by the run's seed; a kind can come up again, so two of a kind (half a fusion) is a choice from the start.
 - **The Field.** Arrange your souls on the Field tab before you enter a battle room: entering one starts its fight.
   Drag a soul onto a tile to place it, swap by footprint, open a kind's panel to buy tiers, tap Fuse when a recipe's
   parts are in the ossuary; a soul selected on the board shows its reach. Tap a relic in the relic strip, then a soul,

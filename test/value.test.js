@@ -10,7 +10,7 @@ import {
 } from '../src/sim/value.js'
 import { lambdaReturns, positionsOf, replayTo, replayPlan, weightedAuc, META } from '../src/sim/train.js'
 import { fork } from '../src/sim/turns.js'
-import { createRun, apply, availableNodes } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, START_PARTY } from '../src/sim/run.js'
 import { TUNING } from '../src/tuning.js'
 import { on, scene } from './scene.js'
 
@@ -292,7 +292,7 @@ test('TD(λ) returns: λ 1 the result throughout, λ 0 the next turn\'s V, the l
 // A run that ends its turns at once in every battle (End Turn alone: the untouched strike), as a record of its log:
 // its first battle and on, until it is lost or `battles` are fought.
 function endingRun (seed, battles = 2) {
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   let fought = 0
   for (let guard = 0; guard < 5000 && run.state.phase !== 'over'; guard++) {
     const s = run.state

@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   createRun, apply, legalActions, join, souls, monarchOf, tierCost, canAdvance, heldKinds, battleSetup, availableNodes,
-  OSSUARY, fielded, levelOf, kindLevel, lowerTrack, floorPrice
+  OSSUARY, fielded, levelOf, kindLevel, lowerTrack, floorPrice, START_PARTY
 } from '../src/sim/run.js'
 import { createBattle } from '../src/sim/turns.js'
 import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
@@ -77,7 +77,7 @@ test('an `all` ability with a range reaches every foe within it of the caster, a
 // ── upgrades belong to the kind ──────────────────────────────────────────────────────────────────
 
 test('a tier is the kind\'s, and so is the level it gives: every soul of it, fielded or in the ossuary, holds them, for the tier\'s price; no level is bought', () => tuned(LEVEL_A_TIER, () => {
-  const run = createRun({ seed: 'kinds' })
+  const run = createRun({ start: START_PARTY, seed: 'kinds' })
   const s = run.state
   const first = levelOf({ tracks: [0, 0] })
   assert.equal(first, TUNING.level.base)
@@ -134,14 +134,14 @@ test('the level a kind\'s tiers give: TUNING.level.base and perTier a tier on ei
   assert.equal(levelOf({ tracks: [4, 2] }), 10)
   for (let t = 0; t < 4; t++) assert.ok(levelOf({ tracks: [t, 0] }) <= levelOf({ tracks: [t + 1, 0] }), 'never falls with a tier')
   assert.deepEqual([levelOf({ tracks: [0, 0], least: 6 }), levelOf({ tracks: [4, 2], least: 6 })], [6, 10])
-  const s = createRun({ seed: 'levels' }).state
+  const s = createRun({ start: START_PARTY, seed: 'levels' }).state
   assert.deepEqual([kindLevel(s, 'tomb_knight'), kindLevel(s, 'iron_golem')], [base, base], 'a kind new to the run at its first')
   // The track a free tier goes on (Soul Lantern): the lower, the first on a tie, the other where the lower may not.
   assert.deepEqual([[0, 0], [1, 0], [1, 2], [3, 2], [4, 2], [2, 4]].map(lowerTrack), [0, 1, 0, 0, null, null])
 }))
 
 test('a recruit joins its kind at the kind\'s level and tiers (a kind new to the run at its first, with Soul Lantern\'s free tiers); the offer says that level and is priced by it; a kind\'s state outlives its souls', () => {
-  const run = createRun({ seed: 'recruits' })
+  const run = createRun({ start: START_PARTY, seed: 'recruits' })
   const s = run.state
   s.essence = 1000
   apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 0 })
@@ -157,7 +157,7 @@ test('a recruit joins its kind at the kind\'s level and tiers (a kind new to the
   // The spoils: whatever level the slain fought at, each soul is offered at its kind's level, at that level's price.
   const fought = (relics) => {
     for (let i = 0; i < 100; i++) {
-      const r = createRun({ seed: 'recruit-spoils' + i })
+      const r = createRun({ start: START_PARTY, seed: 'recruit-spoils' + i })
       r.state.relics = relics
       r.state.essence = 1000
       apply(r, { type: 'upgrade', kind: 'tomb_knight', track: 1 })
@@ -194,7 +194,7 @@ test('a recruit joins its kind at the kind\'s level and tiers (a kind new to the
 })
 
 test('legalActions lists exactly the tiers apply accepts, and no level', () => {
-  const run = createRun({ seed: 'kinds-legal' })
+  const run = createRun({ start: START_PARTY, seed: 'kinds-legal' })
   const s = run.state
   join(run, 'grave_ghoul')
   for (const [tracks, essence] of [[[0, 0], 0], [[0, 0], 15], [[2, 2], 100], [[3, 2], 2000], [[4, 2], 2000], [[2, 4], 30]]) {
@@ -219,7 +219,7 @@ test('legalActions lists exactly the tiers apply accepts, and no level', () => {
 
 // A Shop sells relics alone (redesign.md §2.11), and a kind's next tier is bought on the field, at its price.
 test('no room gives a tier: a Shop sells relics alone, and the Knight\'s Bulwark IV is bought on the field once out of it', () => {
-  const run = createRun({ seed: 'rite-kinds' })
+  const run = createRun({ start: START_PARTY, seed: 'rite-kinds' })
   const r = run.state
   // Every kind past II on track 0 but the Knight, which stands at III with Reaver at II: Bulwark IV is its only tier.
   for (const k of Object.keys(r.kinds)) r.kinds[k].tracks = [4, 2]
@@ -240,7 +240,7 @@ test('no room gives a tier: a Shop sells relics alone, and the Knight\'s Bulwark
 })
 
 test('the battle fights with a kind\'s tiers: battleSetup carries them into the kit', () => {
-  const run = createRun({ seed: 'kit' })
+  const run = createRun({ start: START_PARTY, seed: 'kit' })
   const knight = soul(run, 'tomb_knight')
   run.state.kinds.tomb_knight.tracks = [2, 4]
   knight.tracks = [2, 4]
@@ -257,7 +257,7 @@ test('the battle fights with a kind\'s tiers: battleSetup carries them into the 
 // ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
 
 test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, on the track it is on; the expert by worth; neither buys a level', () => {
-  const run = createRun({ seed: 'spender' })
+  const run = createRun({ start: START_PARTY, seed: 'spender' })
   const s = run.state
   s.essence = TUNING.essence.tier[0]
   const rng = createRng('spender').stream('autoplay')
@@ -286,7 +286,7 @@ test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, o
   assert.ok(['upgrade', 'fuse'].includes(e.type), JSON.stringify(e))
   // Whole runs buy only what the run takes.
   for (const level of ['basic']) {
-    const r = autoplay(createRun({ seed: 'spender-run' }), { level })
+    const r = autoplay(createRun({ start: START_PARTY, seed: 'spender-run' }), { level })
     assert.ok(!r.state.log.some((x) => ['promote', 'level', 'monarch'].includes(x.type)))
     assert.ok(r.state.log.filter((x) => x.type === 'upgrade').every((x) => typeof x.kind === 'string'))
   }
@@ -319,7 +319,7 @@ const COLOSSI = Object.keys(TRACKS).filter((id) => TRACKS[id].some((t) => t.tier
 test('kinds fuzz: random tiers, places and fusions keep the crosspath rule and the footprints, every piece of a kind holds its kind\'s, and the battle fights them with their summons', () => tuned({}, () => {
   const seen = { iv: 0, colossus: 0, summoned: 0, fused: 0 }
   for (let i = 0; i < 24; i++) {
-    const run = createRun({ seed: 'kindfuzz' + i })
+    const run = createRun({ start: START_PARTY, seed: 'kindfuzz' + i })
     const s = run.state
     const rng = createRng('kindfuzz' + i).stream('fuzz')
     s.essence = 6000

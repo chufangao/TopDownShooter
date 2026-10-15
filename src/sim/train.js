@@ -72,9 +72,9 @@ async function playRun (seed, { epsilon = 0, top = 3 } = {}) {
 // from `from` on, and splits it by `base`'s run.
 async function replayRun ({ seed, base, at, log }, { epsilon = 0.2, top = 3 } = {}) {
   const { policy } = await import('./autoplay.js')
-  const { createRun, apply } = await import('./run.js')
+  const { createRun, apply, startFor } = await import('./run.js')
   const { createRng } = await import('./rng.js')
-  const run = createRun({ seed: base })
+  const run = createRun({ seed: base, start: startFor(log) })
   for (let i = 0; i < at; i++) apply(run, log[i])
   const rng = createRng(String(seed)).stream('autoplay')
   const turns = await exploring(seed, epsilon, top)
@@ -180,7 +180,7 @@ export function lambdaReturns (v, z, lambda) {
 // P(won)'s target, the Monarch's and your pieces' HP shares lost over the next two turns), Z (the battle won, 0/1),
 // meta (n × META), wt (n), disasters }. `lambda` < 1: P(won)'s target the λ-return from V's weights in use.
 export async function positionsOf (rec, { lambda = 1 } = {}) {
-  const { createRun, apply } = await import('./run.js')
+  const { createRun, apply, startFor } = await import('./run.js')
   const V = await import('./value.js')
   mulberryOf ??= V.mulberry
   if (lambda < 1 && !V.loaded()) throw new Error('TD(λ) targets need trained weights in value.json')
@@ -188,7 +188,7 @@ export async function positionsOf (rec, { lambda = 1 } = {}) {
   // A replay (replayRun's) is split with the run it replays, and read from where it took over.
   const runNo = seedNo(rec.base ?? rec.seed)
   const from = rec.from ?? 0
-  const run = createRun({ seed: rec.base ?? rec.seed })
+  const run = createRun({ seed: rec.base ?? rec.seed, start: startFor(rec.log) })
   const rows = []
   const disasters = []
   let cur = null
@@ -313,8 +313,8 @@ function gather (list, D) {
 // A disaster's board again: run `rec` (a runs.bin record) replayed to log index `at` (a turn's start: disasters.json),
 // its battle (run.battle) standing at that turn as the expert met it. For the replays with exploration (§2.21).
 export async function replayTo (rec, at) {
-  const { createRun, apply } = await import('./run.js')
-  const run = createRun({ seed: rec.seed })
+  const { createRun, apply, startFor } = await import('./run.js')
+  const run = createRun({ seed: rec.seed, start: startFor(rec.log) })
   for (let i = 0; i < at; i++) apply(run, rec.log[i])
   return run
 }

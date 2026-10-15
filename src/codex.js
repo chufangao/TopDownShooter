@@ -1134,7 +1134,7 @@ export function codexView (run = null, { onClose = null } = {}) {
     class: 'small ghost', onclick: () => { for (const k of ['select', 'place', 'fuse']) prefs.set('did:' + k, '0'); tipsBack.textContent = 'The tips are back on the Field' }
   }, 'Show the tips again')
   const basics = h('div', { class: 'help-view basics' },
-    h('p', { class: 'lede' }, `Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),
+    h('p', { class: 'lede' }, `Pick your first ${TUNING.draft.picks} souls, each from ${TUNING.draft.offer} kinds offered. Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades, Fuse and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),

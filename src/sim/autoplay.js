@@ -128,7 +128,9 @@ const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 'expert
 // the moves (2026-10-11, with the plan: redesign.md §2.18).
 export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves']
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
-export const ablatedRun = (seed, ablate = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null })
+// A run for a level under `ablate`: with its rules switch where it is one, and from `start` (createRun's fixed start: the
+// tests') where given, else from the draft.
+export const ablatedRun = (seed, ablate = null, start = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null, start })
 // Whether L never buys relic `id`.
 const legendary = (id) => relicTier(id) === 'legendary'
 const BANNED = {
@@ -1377,7 +1379,7 @@ export function combosOf (cores = null) {
 // their first), the rest of the floor's Command filled with the plain army's, `relics` owned (and held), and the
 // Monarch the floor's. Null where its pieces outnumber the Command.
 let bookBase = null
-const bookRun = () => (bookBase ??= createRun({ seed: 'book' }))
+const bookRun = () => (bookBase ??= createRun({ seed: 'book', start: START_PARTY }))
 function bookArmy (combo, floor, relics = []) {
   const F = BOOK_FLOORS[Math.min(floor, BOOK_FLOORS.length) - 1]
   const tracks = { ...(combo?.tracks ?? {}) }
@@ -1653,6 +1655,32 @@ function completes (sim, L, later = false) {
 export function saving (run, L) {
   const base = sketch(run.state, L)
   return Math.max(0, ...completes(fork(run), L, true).filter((x) => x.later).map((x) => sketch(x.state, L) - base))
+}
+
+// A pick of the draft (run.js draftOffer). The expert takes the offer whose soul the growth search's sketch values most
+// with the retinue as the pick leaves it (its field's strength and, with the book, the combo it plays toward: as a
+// recruit is weighed, weighRecruits), the first offered among equals; but while its souls hold fewer than
+// TUNING.expert.draft.ranged ranged pieces, only among the ranged kinds offered, where there are any. Basic takes the
+// first offered of a kind it does not hold yet, else the first. No forest decides it: they were fitted on runs that
+// started with START_PARTY.
+export function pickDraft (run, L) {
+  const s = run.state
+  const offer = s.draft.offer
+  if (!L.spend) {
+    const fresh = offer.findIndex((id) => !s.kinds[id])
+    return { type: 'pick', index: Math.max(0, fresh) }
+  }
+  const ranged = (id) => !meleeOnly(makeUnit(id, { lvl: 1 }))
+  const short = souls(s.party).filter((u) => !meleeOnly(u)).length < TUNING.expert.draft.ranged && offer.some(ranged)
+  let best = { index: 0, worth: -Infinity }
+  for (const index of offer.keys()) {
+    if (short && !ranged(offer[index])) continue
+    const sim = fork(run)
+    apply(sim, { type: 'pick', index })
+    const worth = sketch(sim.state, L)
+    if (worth > best.worth) best = { index, worth }
+  }
+  return { type: 'pick', index: best.index }
 }
 
 // Basic's recruit (the expert's is weighRecruits'): while the field has room for another standing soul, the soul of
@@ -2333,6 +2361,7 @@ export function policy (run, rng, level = 'basic', turnOptions = null) {
     if (RULE_SWITCHES.includes(L.ablate) && !s.ablate?.includes(L.ablate)) throw new Error(`ablating ${L.ablate} needs a run made with it (ablatedRun)`)
   }
   if (s.phase === 'battle') return battleOrder(run, L, turnOptions)
+  if (s.phase === 'draft') return pickDraft(run, L)
   // The expert's survey of the run, read once for this decision (basic reads none).
   const sit = L.spend || L.route ? survey(run, L) : null
   if (s.phase === 'map') return pickNode(run, rng, L, sit)

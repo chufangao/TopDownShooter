@@ -1,14 +1,14 @@
 // The measuring speed-ups (necessity report, Speed 2): the progress score a run is read by.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes, battleSetup } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, battleSetup, START_PARTY } from '../src/sim/run.js'
 import { createBattle, playOut } from '../src/sim/turns.js'
 import { progressOf, foeShare, routeRooms, ROOMS_PER_FLOOR, record } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
 
 // A run standing in its first fight's prep (rank 1 is all fights).
 function inFight (seed) {
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   apply(run, { type: 'node', id: availableNodes(run)[0].id })
   assert.equal(run.state.phase, 'prep')
   return run

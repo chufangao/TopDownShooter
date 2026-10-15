@@ -723,6 +723,34 @@ today's picks the recruit and the tiers by a fixed worth formula and the combo b
   that never reads the opening boards (a fifth of the read's cost) played level and worse: not kept. Its reads cost ~0.3
   s a run (~4%), three quarters of it the opening boards.
 
+### 2.26 The draft (2026-10-14)
+
+The user's word: "start with 0 units and let the monarch pick from 3 starter units", and of the options, three picks of
+one of three, drawn from the floor-1 pool. The fixed trio (Tomb Knight, Bone Chanter, Frost Sprite) was every run's
+start, and its Bone Chanter half of the way to the Channeler build the audit found every strong run ending in.
+
+- **A run opens on the draft** (phase `'draft'`, `s.draft = { pick, offer }`), the Monarch alone on its seat and the
+  floor's map drawn but closed. **`TUNING.draft.picks` (3) picks, each of one soul from `TUNING.draft.offer` (3)
+  different kinds** drawn evenly from the floor-1 pool (`draftPool`: the kinds floor 1's rooms can bring) by the run's
+  seed, a stream a pick (`draftOffer`). A kind may come again in a later pick, so two of a kind, half a fusion, is a
+  choice from the start. A pick is free, its soul joins at its kind's first level with no tiers (`join`); the last
+  stands them on the camp's default frontier (`frontier`) and opens the map. Action `{ type: 'pick', index }`.
+- **The fixed start stays as an option of `createRun`** (`start`: kind ids): the tests' plain team, and the start of a
+  log from before the draft, which `replay` recognises (`startFor`: a log that does not open with a pick).
+- **The autoplayer drafts.** Basic takes the first kind offered it does not hold. The expert takes the offer the
+  growth sketch values most, but only among the ranged kinds while its souls hold fewer than
+  `TUNING.expert.draft.ranged` (2) ranged pieces (hand-set: the sketch's worth reads no reach, and drafted by it alone
+  the expert fielded three melee pieces that floor-1 shooters outrange). No forest decides it; they were fitted on
+  trio starts. The outside teacher passes the draft to the base (`baseStep`, `ORDER.draft`).
+- **The screen**: "Raise your retinue", the offer as the spoils' cards, free, and a seat a pick along the foot that the
+  taken soul's face flies down into.
+- **Measured**, 24 seeds `aud`, the shipped expert (paired with its runs from the trio): **16 clears against 18**,
+  deaths on floors 1–4 3 / 1 / 1 / 3 against 2 / 1 / 1 / 2, 17 different starts in 24. With the sketch alone the
+  expert drafted melee and cleared 12, 8 of its runs ending on floor 1. Basic (200 seeds `audit`) clears none as before
+  and now dies after 2.1 battles (2.9 from the trio). **The armies still converge**: 18 of 24 end with Pale Courts and
+  91% of their final souls are Channelers (89% from the trio); the draft varies how runs begin, not how they end.
+  Echo (Channeler 4) is the lever for that, not the start.
+
 ## 3. What the player may rely on
 
 1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
@@ -739,6 +767,8 @@ today's picks the recruit and the tiers by a fixed worth formula and the combo b
    waiting.
 7. **Shops sell relics**, as many as you can pay for, and nothing else sells them. The fallen leave the field, wounds
    carry, essence binds, as `DESIGN.md` §3 has them.
+8. **A run begins with a draft** of three souls, each from three kinds offered; the kinds come from the foes floor 1
+   can bring, and one may come again.
 
 ## 4. Interface
 
@@ -1003,6 +1033,9 @@ Taken that night, after the slice (Step 3: "go"): **held relics** and **Arise a 
 at all** (§2.16). After the bug hunts: **no clock** (§2.10), and **the expert scores, never rehearses** (§2.17). On 2026-10-11: **the expert plans** (a kept battle
 plan, a target formation, a kill list, a foe forecast; §2.18); later that day, after it plateaued near 38%, **the
 learned expert** was planned (§2.21, §5 Step 8).
+
+On 2026-10-14, after the gameplay audit: **the draft** (§2.26), three picks of one of three from the floor-1 pool, in place of
+the fixed trio.
 
 Open, decided later:
 

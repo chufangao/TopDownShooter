@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { labelPosition, teachRun, valueOf, loadLabels, report, give, signature, WEIGHTS, DEFAULTS, labelChoice, ROUTE_WEIGHTS, END_WEIGHTS, endTally, endValue, bestOf, teacherPick, teacherTurn, teacherRun, pairedReport, pairedLines, drawOf, KEEP } from '../src/sim/teach.js'
-import { createRun, apply } from '../src/sim/run.js'
+import { createRun, apply, START_PARTY } from '../src/sim/run.js'
 import { nodeOf } from '../src/sim/map.js'
 import { survey, pickRoute, learnedRoute, useRoute, routeConditions, routeFeatures, ROUTE_FEATURES } from '../src/sim/autoplay.js'
 import { conditions, OPTION_FEATURES } from '../src/sim/policy.js'
@@ -169,7 +169,7 @@ test('labels are deterministic, and every row has its shape', () => {
 
 // A run at its first choice, its first two rooms made a deadly elite (the rank's foes at level 40) and an altar.
 const deadlyChoice = () => {
-  const run = createRun({ seed: 'route-test' })
+  const run = createRun({ start: START_PARTY, seed: 'route-test' })
   const s = run.state
   const start = nodeOf(s.map, s.at)
   const [a, b] = start.next.map((id) => nodeOf(s.map, id))

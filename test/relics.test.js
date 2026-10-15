@@ -9,7 +9,7 @@ import { expertTurn, basicTurn } from '../src/sim/policy.js'
 import {
   createRun, apply, battleSetup, fieldCap, rosterCap, souls, monarchOf, fielded, legalActions, join, reapedShadows, encounter,
   relicCount, ariseHeld, relicWeights, replay, tierCost, ariseOf, monarchHp, commandOf, isRunPath, floorPrice, shopOffers, relicTier,
-  unheld, canHold, isRunRelic, fuseParts, OSSUARY
+  unheld, canHold, isRunRelic, fuseParts, OSSUARY, START_PARTY
 } from '../src/sim/run.js'
 import { policy, planFor, LEVELS, autoplay, offerState } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
@@ -46,7 +46,7 @@ const after = (events, first) => {
 }
 // A run on its first room of `type`, a soul of each start kind fielded.
 const runIn = (seed, type = 'fight') => {
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   visit(run, type)
   return run
 }
@@ -322,7 +322,7 @@ test('Court of Bone: its holder\'s Arise reaches 2 farther; and while the run ho
   assert.ok(!legalOrders(mend).some((o) => o.ability === 'mend' && o.target === 0) || !preview(mend, 1, 'mend', 0)?.heal, 'no heal lands on it')
   assert.ok(!turns(mend).some((e) => e.type === 'heal' && e.target === 0))
   // Out of battle: not an altar (a win's mending and an HP relic bought: run.test.js, offerState above).
-  const run = createRun({ seed: 'cob-out' })
+  const run = createRun({ start: START_PARTY, seed: 'cob-out' })
   const s = run.state
   s.relics = ['court_of_bone']
   monarchOf(s).hp = 40
@@ -349,7 +349,7 @@ test('every Legendary, held alone, together and twice over, plays deterministica
   const combos = [...pieceLegends.map((id) => [id]), pieceLegends, ['undying', 'undying'], ['court_of_bone', 'blood_tithe', 'arise']]
   const counts = {}
   for (let i = 0; i < 4; i++) {
-    const run = createRun({ seed: 'soak' + i })
+    const run = createRun({ start: START_PARTY, seed: 'soak' + i })
     const s = run.state
     s.floor = 2
     const node = visit(run, 'elite')
@@ -392,12 +392,12 @@ test('every Legendary, held alone, together and twice over, plays deterministica
 test('Legendaries are sold in Shops from floor 2, one a Shop, one owned too, with no cap; never on floor 1, and no elite lays one out', () => {
   const legendary = (id) => id && relicTier(id) === 'legendary'
   for (let i = 0; i < 10; i++) {
-    const one = createRun({ seed: 'ks' + i })
+    const one = createRun({ start: START_PARTY, seed: 'ks' + i })
     visit(one, 'shop')
     assert.ok(!one.state.shop.some(legendary), JSON.stringify(one.state.shop))
   }
   for (let i = 0; i < 30; i++) {
-    const run = createRun({ seed: 'ks' + i })
+    const run = createRun({ start: START_PARTY, seed: 'ks' + i })
     const s = run.state
     s.floor = 2
     s.relics = i % 2 ? ['legion', 'undying', 'arise'] : []
@@ -409,7 +409,7 @@ test('Legendaries are sold in Shops from floor 2, one a Shop, one owned too, wit
       assert.equal(o.cost, Math.round(TUNING.shop.price.legendary * floorPrice(2)))
     }
   }
-  const run = createRun({ seed: 'ks0' })
+  const run = createRun({ start: START_PARTY, seed: 'ks0' })
   const s = run.state
   s.floor = 2
   visit(run, 'shop')
@@ -434,7 +434,7 @@ test('Legendaries are sold in Shops from floor 2, one a Shop, one owned too, wit
 test('basic in a Shop: it buys Legion for its Command, gives a piece relic waiting to a fielded soul, and fields the souls waiting; offerState sees an HP relic\'s Monarch', () => tuned({ party: { fieldPerFloor: 0 } }, () => {
   const rng = createRng('ksauto').stream('autoplay')
   for (const level of ['basic']) {
-    const run = createRun({ seed: 'ksauto' })
+    const run = createRun({ start: START_PARTY, seed: 'ksauto' })
     run.state.floor = 2
     visit(run, 'shop')
     Object.assign(run.state, { shop: ['hollow_court', 'legion'], essence: 1e4 })
@@ -448,7 +448,7 @@ test('basic in a Shop: it buys Legion for its Command, gives a piece relic waiti
     apply(run, give)
     assert.deepEqual(policy(run, rng, level), { type: 'leave' }, level)
   }
-  const bench = createRun({ seed: 'ksbench' })
+  const bench = createRun({ start: START_PARTY, seed: 'ksbench' })
   bench.state.floor = 2
   visit(bench, 'fight')
   for (const id of ['tomb_knight', 'grave_ghoul']) {
@@ -460,7 +460,7 @@ test('basic in a Shop: it buys Legion for its Command, gives a piece relic waiti
   bench.state.relics.push('legion')
   assert.equal(placed(bench), fieldCap(bench))
   assert.equal(fieldCap(bench), 5)
-  const s = createRun({ seed: 'kspoint' }).state
+  const s = createRun({ start: START_PARTY, seed: 'kspoint' }).state
   monarchOf(s).hp = 40
   const hpRelic = { type: 'relic', id: 'bone_mantle' }
   const gain = relicMod('bone_mantle', 'run.monarchHp')
@@ -474,7 +474,7 @@ test('basic in a Shop: it buys Legion for its Command, gives a piece relic waiti
 // ── the Monarch's HP and Command ─────────────────────────────────────────────────────────────────
 
 test('Legion\'s souls stop at the board: Command itself has no cap; the field has', () => {
-  const run = createRun({ seed: 'm7' })
+  const run = createRun({ start: START_PARTY, seed: 'm7' })
   const s = run.state
   s.relics = ['legion']
   assert.equal(fieldCap(run), TUNING.party.field + 2)
@@ -484,7 +484,7 @@ test('Legion\'s souls stop at the board: Command itself has no cap; the field ha
 })
 
 test('the Monarch\'s HP and Command are run relics: a family of each, every copy adding in full (HP healed by its gain), Command widening the field up to the board', () => {
-  const run = createRun({ seed: 'hp-command' })
+  const run = createRun({ start: START_PARTY, seed: 'hp-command' })
   const s = run.state
   const m = monarchOf(s)
   assert.deepEqual([m.maxHp, monarchHp(s), commandOf(s), fieldCap(run)], [TUNING.monarch.hp, TUNING.monarch.hp, TUNING.party.field, TUNING.party.field])
@@ -518,7 +518,7 @@ test('every Shop stocks a Command relic, on every floor and whatever the tier we
   const command = (id) => relicMod(id, 'run.command') > 0 && relicTier(id) !== 'legendary'
   const shops = (prefix, n, tier = null) => {
     for (let i = 0; i < n; i++) {
-      const run = createRun({ seed: `${prefix}${i}` })
+      const run = createRun({ start: START_PARTY, seed: `${prefix}${i}` })
       run.state.floor = 1 + (i % 4)
       visit(run, 'shop')
       const ids = run.state.shop.filter(command)
@@ -567,7 +567,7 @@ test('copies: a run relic\'s stack, a piece relic\'s are more holders; numbers a
 test('no cap: a relic owned is stocked again and bought again, however many the run owns', () => {
   const others = RELIC_LIST.filter((r) => r.tier !== 'legendary' && !r.needsArise).map((r) => r.id)
   for (let i = 0; i < 10; i++) {
-    const run = createRun({ seed: 'nocap' + i })
+    const run = createRun({ start: START_PARTY, seed: 'nocap' + i })
     const s = run.state
     s.relics = [...others, ...others, ...others]
     visit(run, 'shop')
@@ -588,7 +588,7 @@ test('the tiers a Shop draws: by TUNING.relic.weights for its floor, the last en
   for (const tier of ['common', 'uncommon', 'rare']) {
     tuned(only(tier), () => {
       for (let i = 0; i < 8; i++) {
-        const run = createRun({ seed: `tier-${tier}-${i}` })
+        const run = createRun({ start: START_PARTY, seed: `tier-${tier}-${i}` })
         visit(run, 'shop')
         assert.ok(run.state.shop.length && run.state.shop.every((id) => RELICS[id].tier === tier), JSON.stringify(run.state.shop))
       }
@@ -596,7 +596,7 @@ test('the tiers a Shop draws: by TUNING.relic.weights for its floor, the last en
   }
   const rares = RELIC_LIST.filter((r) => r.tier === 'rare').length
   tuned({ shop: { relics: rares + 2 }, relic: { ...TUNING.relic, weights: { shop: [{ common: 0, uncommon: 0, rare: 1 }] } } }, () => {
-    const run = createRun({ seed: 'tier-few' })
+    const run = createRun({ start: START_PARTY, seed: 'tier-few' })
     visit(run, 'shop')
     assert.equal(run.state.shop.length, rares)
   })
@@ -605,7 +605,7 @@ test('the tiers a Shop draws: by TUNING.relic.weights for its floor, the last en
 // ── Arise ────────────────────────────────────────────────────────────────────────────────────────
 
 test('Arise\'s reach and tier are the run\'s, a run relic at a time (Hourglass, Bone Idol), a variant\'s on top in battle; the battle takes them from the run', () => {
-  const run = createRun({ seed: 'gate' })
+  const run = createRun({ start: START_PARTY, seed: 'gate' })
   const s = run.state
   const A = TUNING.arise
   assert.equal(ariseHeld(s), false)
@@ -631,7 +631,7 @@ test('what needs an Arise relic is stocked only once one is owned: Hourglass, Bo
   const stocked = (relics) => {
     const seen = new Set()
     for (let i = 0; i < 120; i++) {
-      const run = createRun({ seed: `needs-shop-${i}` })
+      const run = createRun({ start: START_PARTY, seed: `needs-shop-${i}` })
       run.state.floor = 2 + (i % 3)
       run.state.relics = relics.slice()
       visit(run, 'shop')
@@ -650,7 +650,7 @@ test('a run owning copies saves and replays exactly: the log rebuilds its relics
   const rare = { shop: [{ common: 0, uncommon: 0, rare: 1 }] }
   tuned({ relic: { ...TUNING.relic, weights: rare }, shop: { price: { common: 1, uncommon: 1, rare: 1, legendary: 1 } } }, () => {
     for (let i = 0; i < 60; i++) {
-      const run = autoplay(createRun({ seed: 'copysave' + i }))
+      const run = autoplay(createRun({ start: START_PARTY, seed: 'copysave' + i }))
       const s = run.state
       if (!s.relics.some((id) => relicCount(s, id) > 1)) continue
       assert.deepEqual(replay(s.seed, s.log).state, s)

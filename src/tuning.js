@@ -30,6 +30,10 @@ export const TUNING = {
     // is open and may heal it, and below which it walks into no elite where another room is open (2026-10-11, hand-set:
     // redesign.md §2.18 C).
     tree: { wounded: 0.653, odds: 0.158, stall: 30, altar: 0.5, elite: 0.7 },
+    // The draft (autoplay.js pickDraft): while the souls drafted hold fewer than `ranged` pieces whose blows reach past
+    // melee, a ranged kind offered is taken over any melee one (the growth sketch's worth reads no reach, and drafted
+    // alone it fields three melee pieces that a floor-1 shooter outranges: 2026-10-14, hand-set, the trio's shape).
+    draft: { ranged: 2 },
     // In battle (policy.js expertTurn), in HP. `option`: one piece's move and act, read off the board as it stands
     // (policy.js features: the prior of the turn's beam); `board`: the board a turn's orders leave before End Turn, or
     // part of them (policy.js boardFeatures, judge: the static evaluation, where V is not trained).
@@ -297,6 +301,10 @@ export const TUNING = {
   // alone widens the field. roster: the souls a retinue holds, on the field and in the ossuary together. The Monarch
   // counts toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
+  // The draft (run.js draftOffer): a run starts with the Monarch alone and takes `picks` souls before the first map,
+  // each the player's choice of `offer` different kinds drawn evenly from the floor-1 pool by the run's seed. The same
+  // kind may come again in a later pick. The user's call (2026-10-14): three picks of one of three.
+  draft: { picks: 3, offer: 3 },
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (mods on
   // `run.monarchHp`), and nothing else touches it. 250 since the fourth balance pass (2026-10-10), so one Pyre Hound's
   // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1.

@@ -5,7 +5,7 @@
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf, battleSetup } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf, battleSetup, START_PARTY } from '../src/sim/run.js'
 import {
   drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay, formationFeatures,
   survey, pickRoute, roomFeatures, record, withRoute
@@ -28,7 +28,7 @@ import { fight } from './rooms.js'
 
 // A run standing in a fight's prep whose room has a second wave and a far-reaching foe on lane 6.
 function prep (seed) {
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   const node = availableNodes(run)[0]
   node.type = 'fight'
   node.foes = [{ id: 'grave_ghoul', lvl: 1, slot: slotAt(0, 3) }, { id: 'will_o_wisp', lvl: 1, slot: slotAt(1, 6) }]
@@ -210,10 +210,10 @@ test('fusions: the expert weighs every one it can make by the growth search (as 
 // basic's, the expert's first fights, to keep the suite quick). Functional only: never how far it gets.
 test('the autoplayer plays a run to its end at each level, the same seed the same run; under the orders ablation it gives no order but End Turn', () => {
   for (const [name, level] of [['basic', 'basic'], ['expert', 'expert'], ['orders', { ...LEVELS.expert, ablate: 'orders' }]]) {
-    const s = autoplay(createRun({ seed: 'whole' }), { level }).state
+    const s = autoplay(createRun({ start: START_PARTY, seed: 'whole' }), { level }).state
     assert.ok(s.phase === 'over' && ['victory', 'defeat'].includes(s.result) && s.log.some((a) => a.type === 'fight'), name)
     if (name !== 'expert') assert.ok(!s.log.some((a) => ['move', 'undo', 'act'].includes(a.type)), `${name}: End Turn alone`)
-    const again = createRun({ seed: 'whole' })
+    const again = createRun({ start: START_PARTY, seed: 'whole' })
     const rng = createRng('whole').stream('autoplay')
     while (again.state.phase !== 'over' && (name === 'basic' || again.state.stats.fights < 3)) apply(again, policy(again, rng, level))
     assert.deepEqual(again.state.log, s.log.slice(0, again.state.log.length), `${name}: the same run again`)
@@ -224,7 +224,7 @@ test('the autoplayer plays a run to its end at each level, the same seed the sam
 // each decision in battle, `explore` with epsilon 1 marks each one explored; with epsilon 0 the run is the run.
 test('the autoplayer hands the expert\'s turns the learner\'s hooks: record and explore', () => {
   const play = (turnOptions) => {
-    const run = createRun({ seed: 'hooks' })
+    const run = createRun({ start: START_PARTY, seed: 'hooks' })
     const rng = createRng('hooks').stream('autoplay')
     while (run.state.phase !== 'over' && run.state.stats.fights < 2) apply(run, policy(run, rng, 'expert', turnOptions))
     return run.state.log
@@ -247,7 +247,7 @@ test('the audit counts what a run considered and chose, and leaves the audit off
 })
 
 test('idle essence: when its fielded kinds can buy nothing, the expert weighs every tier it can afford, and nothing else', () => {
-  const run = createRun({ seed: 'idle' })
+  const run = createRun({ start: START_PARTY, seed: 'idle' })
   const s = run.state
   s.essence = 5000
   // Every held kind's tracks full: nothing remains to buy (no level, nothing for the Monarch, Arise or not); then a
@@ -277,7 +277,7 @@ test('the expert weighs a track\'s next two tiers together: a tier whose level r
     levelOf({ tracks: up(tracks, track, 1) }) === levelOf({ tracks }) && levelOf({ tracks: up(tracks, track, 2) }) === levelOf({ tracks }) + 1))
   assert.ok(start, 'a Sprite whose next tier rounds away on both tracks')
   const build = () => {
-    const run = createRun({ seed: 'pair' })
+    const run = createRun({ start: START_PARTY, seed: 'pair' })
     const s = run.state
     const [knight, chanter, sprite] = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((id) => souls(s.party).find((u) => u.id === id))
     const tier = (u, tracks) => {
@@ -321,7 +321,7 @@ test('the expert lets a soul go only for a recruit it weighed worth it: the rele
   try {
     let released = 0
     for (let i = 0; i < 12; i++) {
-      const run = createRun({ seed: 'letgo' + i })
+      const run = createRun({ start: START_PARTY, seed: 'letgo' + i })
       const node = availableNodes(run)[0]
       node.type = 'fight'
       // A Tomb Knight slain: its soul, a second Knight, is on offer.
@@ -375,7 +375,7 @@ test('the combo book: every combo, kind, track, recipe, synergy and relic in it 
 // A run standing in a fight's prep in camp `camp`, its three start souls fielded on `cells` (the Knight's, the
 // Chanter's, the Sprite's), against two ground foes up the middle.
 function formation (camp, cells) {
-  const run = createRun({ seed: 'form' })
+  const run = createRun({ start: START_PARTY, seed: 'form' })
   const node = availableNodes(run)[0]
   node.type = 'fight'
   node.foes = [{ id: 'grave_ghoul', lvl: 1, slot: slotAt(0, 3) }, { id: 'tomb_knight', lvl: 1, slot: slotAt(1, 2) }]
@@ -423,7 +423,7 @@ test('rule block-roads: as few roads into the Monarch open as the pieces allow, 
 
 // A run on the map with its next rooms made `types` (the first ones; a battle room keeps the floor's foes).
 function crossroads (seed, types) {
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   const nodes = availableNodes(run)
   assert.ok(nodes.length >= types.length, `${seed}: ${nodes.length} rooms`)
   const foes = run.state.map.nodes.find((n) => n.foes).foes
@@ -433,7 +433,7 @@ function crossroads (seed, types) {
   })
   return { run, nodes }
 }
-const seedWith = (n) => [...Array(40).keys()].map((k) => `route-${k}`).find((seed) => availableNodes(createRun({ seed })).length >= n)
+const seedWith = (n) => [...Array(40).keys()].map((k) => `route-${k}`).find((seed) => availableNodes(createRun({ start: START_PARTY, seed })).length >= n)
 
 test('the route: a Shop with a full purse; the weights, no rule', () => {
   const { run, nodes } = crossroads(seedWith(2), ['fight', 'shop'])
@@ -470,7 +470,7 @@ test('rule wounded-altar: a badly wounded army takes the altar; rule wounded-no-
 })
 
 test('rule give-relic: a piece relic waiting is given to a standing soul with room for it, though the weights would keep it', () => tuned({ expert: { ...TUNING.expert, growth: { ...TUNING.expert.growth, keep: 1e9 } } }, () => {
-  const run = createRun({ seed: 'give' })
+  const run = createRun({ start: START_PARTY, seed: 'give' })
   run.state.relics.push('whetstone')
   assert.deepEqual(survey(run).relics.unheld, ['whetstone'])
   resetAudit(true, run)
@@ -485,7 +485,7 @@ test('rule give-relic: a piece relic waiting is given to a standing soul with ro
 }))
 
 test('the survey: where the run stands, its purse and prices, wounds, the target, the relics waiting, and the rooms ahead with their threats', () => {
-  const run = createRun({ seed: 'survey' })
+  const run = createRun({ start: START_PARTY, seed: 'survey' })
   const sit = survey(run)
   assert.deepEqual([sit.floor, sit.phase, sit.purse, sit.fallen], [1, 'map', run.state.essence, 0])
   assert.ok(sit.health === 1 && sit.monarch === 1 && sit.strength > 0)
@@ -512,7 +512,7 @@ test('no decision of the expert plays a battle or a turn of the foes, over whole
   const undo = [spy(TUNING.policy, 'press', 'press'), spy(TUNING.turn, 'guard', 'guard')]
   try {
     for (const seed of ['norehearse-0', 'norehearse-1']) {
-      const run = createRun({ seed })
+      const run = createRun({ start: START_PARTY, seed })
       const rng = createRng(seed).stream('autoplay')
       while (run.state.phase !== 'over') {
         const phase = run.state.phase
@@ -534,6 +534,6 @@ test('a full expert run finishes on a few seeds, the same seed the same run', ()
     const r = record({ seed, level: 'expert' })
     assert.ok(['victory', 'defeat'].includes(r.result) && r.battles.length > 0, seed)
   }
-  const log = autoplay(createRun({ seed: 'full-0' }), { level: 'expert' }).state.log
-  assert.deepEqual(autoplay(createRun({ seed: 'full-0' }), { level: 'expert' }).state.log, log)
+  const log = autoplay(createRun({ start: START_PARTY, seed: 'full-0' }), { level: 'expert' }).state.log
+  assert.deepEqual(autoplay(createRun({ start: START_PARTY, seed: 'full-0' }), { level: 'expert' }).state.log, log)
 })

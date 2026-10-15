@@ -1,4 +1,4 @@
-// The run: a state machine over map → prep → reap → map, floor by floor.
+// The run: a state machine over draft → map → prep → reap → map, floor by floor.
 // apply(run, action) is the only way to change it, legalActions(run) lists what apply accepts now,
 // and the log of applied actions replays the run exactly: replay(seed, log).
 //
@@ -76,6 +76,8 @@
 // order's events, and once the battle is over the run moves on by itself (closeBattle).
 //
 //   phase            action
+//   draft            { type: 'pick', index }        take the draft's offer `index` (s.draft.offer: kind ids), free; the
+//                                                   last pick opens the first map (draftOffer, TUNING.draft)
 //   map              { type: 'node', id }           walk to a connected room (a battle room, a siege too, opens prep)
 //   map, prep        { type: 'place', uid, slot }   move a soul (never the Monarch) to the camp cell `slot` (0–48),
 //                                                   its anchor, where its footprint fits (canPlace), or to the
@@ -123,6 +125,9 @@ import { createBattle, order, legalOrders } from './turns.js'
 import { grantsArise, unhealable } from './rules.js'
 import { generateFloor, nodeOf, RANKS } from './map.js'
 
+// The trio every run started with before the draft (2026-10-14): now only a fixed start a caller may ask for
+// (createRun's `start`: the tests' plain team, a run saved before the draft, replayed), and the autoplayer's plain
+// army's first souls. A run drafts its own (draftOffer).
 export const START_PARTY = ['tomb_knight', 'bone_chanter', 'frost_sprite']
 export const MONARCH_UID = 0
 // The slot of a soul in the ossuary: kept, not fighting.
@@ -130,33 +135,52 @@ export const OSSUARY = -1
 const BATTLE_NODES = ['fight', 'elite', 'boss', 'siege']
 const BOSS = UNIT_LIST.find((u) => u.boss).id
 
-// The Monarch takes the camp's seat, and the start souls take the camp's default frontier (frontier).
-// `death` is what felled the Monarch, once something has. The ossuary starts empty: every start soul is fielded, its
-// kind with no tiers, at its first level. No relics (ids, in the order bought, a copy each); `shop`, the stock of the
-// Shop the run stands in (stockShop), empty elsewhere.
+// The Monarch takes the camp's seat, alone: the run opens on the draft (phase 'draft', s.draft: the pick it is on and
+// the kinds offered), and the floor's map waits until the last pick. Each pick is a soul joined free (join), its kind
+// with no tiers, at its first level; once all are taken they stand on the camp's default frontier (frontier) and the
+// map opens. With `start` (kind ids) there is no draft: those souls stand on the frontier at once and the run opens on
+// the map, as every run did before the draft (the tests' fixed team; a saved run from then, replayed: replay).
+// `death` is what felled the Monarch, once something has. The ossuary starts empty. No relics (ids, in the order
+// bought, a copy each); `shop`, the stock of the Shop the run stands in (stockShop), empty elsewhere.
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
 // every battle of the run, carried in each battle's setup (turns.js createBattle: 'arise', 'synergies', 'summons').
 // A run made without it has no such field.
-export function createRun ({ seed, ablate = null }) {
+export function createRun ({ seed, ablate = null, start = null }) {
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [], shop: [],
-    essence: TUNING.essence.start, result: null, death: null,
-    kinds: Object.fromEntries(START_PARTY.map((id) => [id, newKind()])),
+    essence: TUNING.essence.start, result: null, death: null, draft: null, kinds: {},
     stats: { fights: 0, wins: 0, reaped: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
   }
-  state.party = [
-    makeUnit('monarch', { uid: MONARCH_UID, lvl: 0 }),
-    ...START_PARTY.map((id) => makeUnit(id, { uid: state.nextUid++, lvl: state.kinds[id].lvl }))
-  ]
+  state.party = [makeUnit('monarch', { uid: MONARCH_UID, lvl: 0 })]
   if (ablate?.length) state.ablate = ablate.slice()
   const run = { state, battle: null, setup: null }
   enterFloor(run)
-  setFrontier(state, souls(state.party))
+  if (start) {
+    for (const id of start) join(run, id)
+    setFrontier(state, souls(state.party))
+  } else {
+    state.draft = { pick: 0, offer: draftOffer(seed, 0) }
+    state.phase = 'draft'
+  }
   return run
 }
 
+// The kinds the draft draws from: the floor-1 pool, the kinds floor 1's rooms can bring (spawnPool), in content order.
+export const draftPool = () => spawnPool(1).units.map((u) => u.id)
+
+// The kinds the draft's pick `pick` (0-based) offers: TUNING.draft.offer different kinds of the pool (draftPool), drawn
+// evenly by the run's seed, a stream a pick, in the order drawn. A kind taken before may be offered again.
+export function draftOffer (seed, pick) {
+  return createRng(seed).stream(`draft|${pick}`).shuffle(draftPool()).slice(0, TUNING.draft.offer)
+}
+
+// The fixed start a log was played from: a log from before the draft (one that does not open with a pick) was played
+// from the trio every run then started with (START_PARTY); any other, from the draft (null).
+export const startFor = (log) => (log?.length && log[0].type !== 'pick' ? START_PARTY : null)
+
+// A run's log replays it from its seed (and the start it was played from: startFor).
 export function replay (seed, log, { ablate = null } = {}) {
-  const run = createRun({ seed, ablate })
+  const run = createRun({ seed, ablate, start: startFor(log) })
   for (const action of log) apply(run, action)
   return run
 }
@@ -176,6 +200,7 @@ export function apply (run, action) {
 export function legalActions (run) {
   const s = run.state
   if (s.phase === 'battle') return legalOrders(run.battle)
+  if (s.phase === 'draft') return s.draft.offer.map((id, index) => ({ type: 'pick', index }))
   if (s.phase === 'map') return [...availableNodes(run).map((n) => ({ type: 'node', id: n.id })), ...rosterActions(run)]
   if (s.phase === 'prep') return [...(canFight(s) ? [{ type: 'fight' }] : []), ...rosterActions(run)]
   if (s.phase === 'reap') {
@@ -499,6 +524,7 @@ function partsOf (s, recipe, parts) {
 // ── action handlers ──────────────────────────────────────────────────────────────────────────────
 
 const HANDLERS = {
+  pick: { phases: ['draft'], run: pick },
   node: { phases: ['map'], run: walk },
   place: { phases: ['map', 'prep'], run: place },
   upgrade: { phases: ['map', 'prep'], run: upgrade },
@@ -511,6 +537,23 @@ const HANDLERS = {
   buy: { phases: ['shop'], run: buy },
   leave: { phases: ['shop'], run: leave },
   descend: { phases: ['over'], run: descend }
+}
+
+// A pick of the draft: the offered kind joins, free (join); the next pick's offer is drawn, or, the last taken, the
+// souls take the camp's default frontier and the map opens.
+function pick (run, { index }) {
+  const s = run.state
+  const id = Number.isInteger(index) ? s.draft.offer[index] : undefined
+  if (!id) throw new Error(`no draft offer ${index}`)
+  join(run, id)
+  s.draft.pick++
+  if (s.draft.pick < TUNING.draft.picks) {
+    s.draft.offer = draftOffer(s.seed, s.draft.pick)
+    return
+  }
+  s.draft = null
+  setFrontier(s, souls(s.party))
+  s.phase = 'map'
 }
 
 function walk (run, { id }) {

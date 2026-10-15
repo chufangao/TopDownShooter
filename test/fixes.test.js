@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, playTurns, stats } from '../src/sim/turns.js'
 import {
-  createRun, apply, battleSetup, monarchOf, drawRoom, varyRoutes, walkWithout, routeThreats, roomThreats, fielded, availableNodes, isRunPath
+  createRun, apply, battleSetup, monarchOf, drawRoom, varyRoutes, walkWithout, routeThreats, roomThreats, fielded, availableNodes, isRunPath, START_PARTY
 } from '../src/sim/run.js'
 import { policy, causesOf, armyMeasures } from '../src/sim/autoplay.js'
 import { generateFloor } from '../src/sim/map.js'
@@ -126,7 +126,7 @@ test('the Monarch takes no synergy\'s or relic\'s stats (a Legendary\'s neither)
   // Its souls take them all: the +15%, and Legion's ×0.85.
   assert.equal(unit(b, 1).maxHp, Math.round(baseStats('tomb_knight', 3).hp * 1.15 * 0.85))
   // In the run: with Heartwood held by a soul, the battle's Monarch is the camp's.
-  const run = createRun({ seed: 'no-might' })
+  const run = createRun({ start: START_PARTY, seed: 'no-might' })
   const s = run.state
   s.relics = ['heartwood']
   fielded(s.party).find((u) => u.id !== 'monarch').relics = ['heartwood']
@@ -142,7 +142,7 @@ test('a new floor seats the Monarch on its new camp\'s seat, and a soul standing
   // A run whose third floor is the Crossroads, a soul standing on the cell that is the Crossroads' seat: the
   // Monarch takes its seat there, and the soul moves off it.
   const seed = [...Array(200).keys()].map((i) => `seat${i}`).find((x) => createRng(x).stream('camp|3').pick(CAMP_LIST.filter((c) => c.floor === 3)).id === 'crossroads')
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   const s = run.state
   const m = monarchOf(s)
   const seat = monarchSlot('crossroads')
@@ -184,7 +184,7 @@ test('every walk through a floor meets every threat type its foes can bring', ()
   }
   assert.ok(redrawn > 0, 'some walk needed a room drawn again')
   // A run's floor holds to it as made.
-  const run = createRun({ seed: 'route-run' })
+  const run = createRun({ start: START_PARTY, seed: 'route-run' })
   for (const type of routeThreats(1)) assert.equal(walkWithout(run.state.map, type), null)
 })
 
@@ -195,7 +195,7 @@ test('basic\'s weighted draws cover every room type: a Shop is a choice like any
   assert.throws(() => createRng('w').weighted(['a', 'b'], [1, NaN]), /finite/)
   const picks = new Set()
   for (let k = 0; k < 40; k++) {
-    const run = createRun({ seed: 'rites' })
+    const run = createRun({ start: START_PARTY, seed: 'rites' })
     const [shop, ...rest] = availableNodes(run)
     shop.type = 'shop'
     for (const n of rest) n.type = 'fight'

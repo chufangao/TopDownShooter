@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { stats } from '../src/sim/turns.js'
 import {
   createRun, apply, legalActions, join, drawRoom, battleSetup, availableNodes, souls, fielded, monarchOf, canPlace, swapWith, releaseRefund,
-  recruitCost, soulOffer, levelOf, kindLevel, OSSUARY
+  recruitCost, soulOffer, levelOf, kindLevel, OSSUARY, START_PARTY
 } from '../src/sim/run.js'
 import {
   makeUnit, tileAt, tileX, tileY, distanceBetween, summonsOf, footprintSlots, fits, monarchSlot, tracksOf, CAMP_ROWS, CAMP_SLOTS, COLS, LANES, SLOTS
@@ -83,7 +83,7 @@ test('with no free tile beside it, fewer summons rise: never on a wall, the seat
 })
 
 test('in a run, a soul\'s summons fight its battles and are gone after: nothing of them comes back, and the run moves past their uids', () => {
-  const run = createRun({ seed: 'summons' })
+  const run = createRun({ start: START_PARTY, seed: 'summons' })
   const s = run.state
   s.essence = 1000
   apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 1 })
@@ -121,7 +121,7 @@ test('a captain\'s cohort are foes of their own: of its kind, on the free slots 
     const near = (a, b) => Math.abs(Math.floor(a / COLS) - Math.floor(b / COLS)) + Math.abs((a % COLS) - (b % COLS))
     assert.ok(band.every((f) => captains.some((c) => near(c.slot, f.slot) <= 2)), JSON.stringify(g))
     // In a battle each is a foe unit of its own, with its own uid and a body's HP.
-    const run = createRun({ seed: `cohort${i}` })
+    const run = createRun({ start: START_PARTY, seed: `cohort${i}` })
     const node = availableNodes(run)[0]
     Object.assign(node, { type: 'fight' }, room)
     apply(run, { type: 'node', id: node.id })
@@ -141,7 +141,7 @@ test('a captain\'s cohort are foes of their own: of its kind, on the free slots 
 // ── release ──────────────────────────────────────────────────────────────────────────────────────
 
 test('a soul let go pays back half of what recruiting it would cost now, rounded down; a fallen one too; never the Monarch', () => {
-  const run = createRun({ seed: 'refund' })
+  const run = createRun({ start: START_PARTY, seed: 'refund' })
   const s = run.state
   s.essence = 0
   const [knight, chanter, sprite] = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((id) => souls(s.party).find((u) => u.id === id))
@@ -173,7 +173,7 @@ test('a soul let go pays back half of what recruiting it would cost now, rounded
 // A run in its first map with a Bone Colossus (2×2) besides its start souls, every soul in the ossuary; and two anchors
 // where a 2×2 fits, their footprints apart (`a`, `b`).
 function camp () {
-  const run = createRun({ seed: 'swap' })
+  const run = createRun({ start: START_PARTY, seed: 'swap' })
   const s = run.state
   const colossus = join(run, 'bone_colossus')
   for (const u of souls(s.party)) u.slot = OSSUARY
@@ -251,7 +251,7 @@ test('a 1×1 moved onto any cell of a 2×2 swaps with it (the 2×2 to the mover\
 
 // A run on the spoils of a fight, its offers `offers` (souls: relics are bought in Shops, never laid out here).
 function spoils (seed, offers, relics = []) {
-  const run = createRun({ seed })
+  const run = createRun({ start: START_PARTY, seed })
   const s = run.state
   s.at = s.map.nodes.find((n) => n.type === 'fight').id
   s.phase = 'reap'

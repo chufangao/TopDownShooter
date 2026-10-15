@@ -110,7 +110,7 @@ import {
   LEVELS, policy, survey, planFor, plan, pickRoute, pickHold, grow, spendOptions, fusionOptions,
   pickReap, weighRecruits, buyFor, growthOf, sketch, saving, nextTier, held, tierRate, offerState, targetOf, targetKinds, byFieldPower,
   progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, outCandidates, spendPick, recruitPick, outsideRead,
-  prepCandidates, prepRead, formationName, PREP_CAP
+  prepCandidates, prepRead, formationName, PREP_CAP, pickDraft
 } from './autoplay.js'
 import { outForestModel, outDecides } from './outforest.js'
 import { splitOf } from './ranker.js'
@@ -176,6 +176,7 @@ export function prepStep (run, goal) {
 // neither, the base's own action (the tests hold it to policy's).
 export function baseStep (run, sit = survey(run, L), { skip = null, goal = null } = {}) {
   const s = run.state
+  if (s.phase === 'draft') return pickDraft(run, L)
   if (s.phase === 'reap') return pickReap(run, L, sit)
   const hold = skip ? null : pickHold(run, L, sit)
   if (hold) return hold
@@ -475,8 +476,12 @@ function formationList (run, m, c) {
 // On the map, once the relics and the purse are seen to: the base's room.
 const roomList = (run, m, c, sit) => ({ act: baseStep(run, sit, { skip: 'spend' }) })
 
-// The decisions each phase meets, in the order the base meets them (autoplay.js pickNode, pickPrep, pickReap, pickShop).
-const ORDER = { map: [holdList, spendList, roomList], prep: [holdList, spendList, formationList], reap: [recruitList], shop: [holdList, shopList] }
+// The draft's picks are the base's (autoplay.js pickDraft): no decision the teacher plays out.
+const draftList = (run) => ({ act: pickDraft(run, L) })
+
+// The decisions each phase meets, in the order the base meets them (autoplay.js pickDraft, pickNode, pickPrep, pickReap,
+// pickShop).
+const ORDER = { draft: [draftList], map: [holdList, spendList, roomList], prep: [holdList, spendList, formationList], reap: [recruitList], shop: [holdList, shopList] }
 
 // The decisions at `run` in order, each made (`play`: its candidates played out, the best taken) or passed on, until
 // one gives an action. Without `play`, the first decision met unmade: { phase, cands }, or { act } where none is met

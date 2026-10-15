@@ -1,6 +1,6 @@
 // Rooms walked into by hand, and their battles fought, for the tests.
 import assert from 'node:assert/strict'
-import { createRun, apply, availableNodes } from '../src/sim/run.js'
+import { createRun, apply, availableNodes, START_PARTY } from '../src/sim/run.js'
 import { expertTurn } from '../src/sim/policy.js'
 import { createBattle, order, stalled } from '../src/sim/turns.js'
 
@@ -33,7 +33,7 @@ export function fight (run, policy = expertTurn) {
 // the expert's), on its spoils.
 export function win (prefix, ready = () => {}, type = 'fight') {
   for (let i = 0; i < 200; i++) {
-    const run = createRun({ seed: prefix + i })
+    const run = createRun({ start: START_PARTY, seed: prefix + i })
     ready(run)
     visit(run, type)
     fight(run)

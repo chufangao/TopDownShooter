@@ -1544,6 +1544,109 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
   }
 }
 
+// ── the draft ────────────────────────────────────────────────────────────────────────────────────
+
+// The run's first souls (run.js draftOffer, TUNING.draft): each pick deals the kinds offered as cards, free, and the
+// one taken flies down into its seat along the foot, where the seats still empty wait. onPick(index) takes offer
+// `index`; the last pick opens the map. A kind offered again can be taken again: a second soul of a kind says what it
+// is worth (codex.js recruitWorth), a first the fusions its kind goes into.
+let draftDealt = null
+export function draftScreen ({ run, onPick, onHelp }) {
+  const s = run.state
+  const el = h('div', { class: 'screen fit reap-screen draft-screen' })
+  const n = TUNING.draft.picks
+  const k = s.draft.pick
+  const offer = s.draft.offer
+  const deal = !(draftDealt?.run === run && draftDealt.pick === k)
+  draftDealt = { run, pick: k }
+  const deck = cardDeck()
+  const keys = offerKeys(offer)
+  let busy = false
+  const take = (i) => {
+    if (busy) return
+    busy = true
+    const rect = deck.artRect(i)
+    hideTip()
+    sfx.play('card')
+    el.classList.add('picking')
+    deck.cards[i]?.classList.add('taking')
+    const go = () => {
+      onPick(i)
+      seatSoul(offer[i], rect, k)
+    }
+    still() ? go() : setTimeout(go, 300)
+  }
+  const lvlOf = (id) => s.kinds[id]?.lvl ?? levelOf({ tracks: [0, 0] })
+  // A kind new to the run: the fusions it goes into, from the recipes (content.js FUSION_LIST).
+  const recipesOf = (id) => FUSION_LIST.filter((f) => Object.hasOwn(f.needs, id))
+  function card (id, i) {
+    const d = unitDef(id)
+    const worth = recruitWorth(run, id)
+    const recipes = recipesOf(id)
+    const notes = worth?.lines ?? (recipes.length ? recipes.map((f) => `Fusion: ${f.desc}`) : ['It goes into no fusion.'])
+    const tip = () => unitCard({ id, lvl: lvlOf(id), slot: -1 }, {
+      open: !touchy(),
+      live: `Joins free at Lv ${lvlOf(id)}, on the field`,
+      notes: [`${say('Click', 'Tap it again (or Raise ▸)')} to raise it.`, ...notes]
+    })
+    const chips = worth?.chips ?? recipes.map((f) => ({ text: `Fuses into ${f.name}` }))
+    return deck.cards[i] = h('button', { class: 'offer o-soul', style: `--i:${i}`, onclick: (e) => deck.press(e, i, tip, 'Raise ▸', () => true, take), tip },
+      h('div', { class: 'offer-tag' }, keys.has(i) && h('kbd', null, keys.get(i)), h('span', { class: 'tag-word' }, ' Raise')),
+      h('div', { class: 'offer-art' }, portrait(id, 104)),
+      h('div', { class: 'offer-name' }, d.name),
+      chips.length > 0 && h('div', { class: 'offer-worth' }, chips.map((c) => h('span', { class: 'ow-chip' + (c.up ? ' up' : '') }, c.text))),
+      h('div', { class: 'offer-line' }, `${KIN[d.kin].name} ${ROLES[d.role].name}`),
+      h('div', { class: 'offer-line draft-reach' }, reachText({ id, lvl: lvlOf(id), tracks: s.kinds[id]?.tracks ?? [0, 0] })))
+  }
+  // The seats: one a pick, a soul's face in each taken, the next marked.
+  const picked = souls(s.party)
+  const seat = (j) => {
+    const u = picked[j]
+    return h('div', {
+      class: 'draft-seat' + (u ? ' taken' : j === k ? ' next' : ''), 'data-n': j,
+      tip: u ? () => unitCard(u, { notes: ['Taken.'] }) : () => (j === k ? 'This pick.' : `Pick ${j + 1}.`)
+    }, u ? portrait(u.id, 54) : h('span', { class: 'seat-n' }, j + 1))
+  }
+  const cards = offer.map(card)
+  fill(el,
+    topbar(run, onHelp),
+    h('div', { class: 'reap-main' },
+      h('div', { class: 'reap-head' },
+        h('div', { class: 'reap-title' }, icon('soul', 34), h('h1', null, 'Raise your retinue')),
+        h('p', { class: 'reap-lede' }, `Pick ${k + 1} of ${n}: choose a soul to walk with you. A kind can be offered again.`)),
+      h('div', { class: 'reap-body' },
+        h('div', { class: 'reap-picks' },
+          h('div', { class: 'offers picks' + (deal ? ' deal' : ''), style: `--cols:${cards.length}` }, cards))),
+      h('div', { class: 'reap-foot draft-foot' },
+        h('span', { class: 'draft-label' }, 'Your souls'),
+        h('div', { class: 'draft-seats' }, Array.from({ length: n }, (_, j) => seat(j))),
+        h('p', { class: 'draft-after' }, 'After these, every soul is recruited from the slain.'))))
+  return {
+    el,
+    key (e) {
+      if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
+      const hit = [...keys].find(([, key]) => e.key.toUpperCase() === key)
+      if (hit) take(hit[0])
+    }
+  }
+}
+
+// A soul just drafted flies from its card into its seat on the screen shown next (draftScreen), or, after the last
+// pick, to the souls' count in the map's top bar; the place it lands pops.
+function seatSoul (id, rect, k) {
+  const find = () => document.querySelector(`.draft-seat[data-n="${k}"]`) ?? document.querySelector('.topbar .chip-stat.souls')
+  const to = find()
+  if (!to || !rect || still()) return
+  to.classList.add('arriving')
+  flyOne(h('span', { class: 'soul-flyer' }, portrait(id, 64)), centre(rect), centre(to.getBoundingClientRect()), { ms: 620, scale: 0.7, lift: 70 }).then(() => {
+    const now = find()
+    if (!now) return
+    now.classList.remove('arriving', 'gain')
+    void now.offsetWidth
+    now.classList.add('gain')
+  })
+}
+
 // ── the Shop ─────────────────────────────────────────────────────────────────────────────────────
 
 // A Shop (redesign.md §2.11): its stock of relics (run.js shopOffers: a slot null once bought), each card with its

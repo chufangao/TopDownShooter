@@ -8,7 +8,7 @@ import { order, fork, airOf, fieldOf, addStatus, roadAhead, lineStruck } from '.
 import { expertTurn, situation, options, expertOptions, features, blowOn, danger } from '../src/sim/policy.js'
 import { readPlan, killList, forecast, chokes, hungarian } from '../src/sim/plan.js'
 import { value, decide, TREES } from '../src/sim/expert.js'
-import { createRun, availableNodes, monarchOf } from '../src/sim/run.js'
+import { createRun, availableNodes, monarchOf, START_PARTY } from '../src/sim/run.js'
 import { survey, pickRoute, roomFeatures, AUDIT, resetAudit, withRoute } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
 import { on, scene, slay } from './scene.js'
@@ -402,8 +402,8 @@ test('puzzle: a shooter none of yours can fell is screened', () => {
 
 // A run on the map with its next rooms made `types` (the first ones; a battle room keeps the floor's foes).
 function crossroads (types) {
-  const seed = [...Array(40).keys()].map((k) => `route-${k}`).find((x) => availableNodes(createRun({ seed: x })).length >= types.length)
-  const run = createRun({ seed })
+  const seed = [...Array(40).keys()].map((k) => `route-${k}`).find((x) => availableNodes(createRun({ start: START_PARTY, seed: x })).length >= types.length)
+  const run = createRun({ start: START_PARTY, seed })
   const nodes = availableNodes(run)
   const foes = run.state.map.nodes.find((n) => n.foes).foes
   types.forEach((type, i) => {
