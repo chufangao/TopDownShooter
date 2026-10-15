@@ -23,10 +23,11 @@ import { fileURLToPath } from 'node:url'
 const here = dirname(fileURLToPath(import.meta.url))
 
 // What never ships: the offline tools (src/sim's labellers, teachers, fitters, the calculator and the autoplayer's
-// CLI), the expert's file and the book they read.
+// CLI), the expert's file and the book they read. The battle forest ships as play reads it (forest.js), its fitting
+// (forestfit.js) never.
 export const OFFLINE = [
-  'src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/outforest.js', 'src/sim/calc.js', 'src/sim/bundle.js',
-  'src/sim/autoplay.js', 'src/sim/expert.json', 'src/sim/combos.json'
+  'src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/calc.js',
+  'src/sim/bundle.js', 'src/sim/autoplay.js', 'src/sim/expert.json', 'src/sim/combos.json'
 ]
 
 // A module's relative static imports and re-exports ('./x.js', '../y.js'), as written.

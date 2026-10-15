@@ -156,10 +156,11 @@ by the end of floor 2 (criterion 1).
   roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`; the
   tutorial's run, `tutorialRun`); `save.js` a run saved (its createRun options and its log) and played back; `history.js`
   the runs kept (a run's line, the book of them, read as far as it holds) and the daily's seed; `map.js`
-  the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
-  their fitting; `forest.js` holds the label rows' encoding the forests read); `autoplay.js` the players and CLI;
-  `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers), `fit.js` (the
-  learned route's fit), `calc.js` (the calculator, a weight-free player and the novice rung, and a rollout teacher
+  the floors; `expert.js` the decision tree and weights; `forest.js` the battle forest as play reads it (the label
+  rows' encoding and the trees' evaluation, which `outforest.js`'s forests out of battle share); `autoplay.js` the
+  players and CLI; `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers),
+  `forestfit.js` (the battle forest's fitting), `outforest.js` (the forests out of battle and their fitting), `fit.js`
+  (the learned route's fit), `calc.js` (the calculator, a weight-free player and the novice rung, and a rollout teacher
   over it: redesign.md §3, §8). The earlier learners (V, the ranker), the stronger battle teacher and the turn's beam
   were removed on 2026-10-15 (redesign.md §8).
 - `src/content.js` is all content as records, one per unit, ability and relic, and the one rule that makes the trines

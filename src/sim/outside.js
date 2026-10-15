@@ -115,7 +115,8 @@ import {
 } from './autoplay.js'
 import { outForestModel, outDecides } from './outforest.js'
 import { value, expertModel } from './expert.js'
-import { forestModel, splitOf } from './forest.js'
+import { forestModel } from './forest.js'
+import { splitOf } from './forestfit.js'
 import {
   routeEndValue, routeEndOf, routeValue, ROUTE_END_WEIGHTS, ROUTE_WEIGHTS, endTally, endValue, END_WEIGHTS, expertRun, pairedReport, closeOf
 } from './teach.js'
