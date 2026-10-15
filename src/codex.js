@@ -351,7 +351,7 @@ export const monarchHpText = (run) => `${monarchOf(run.state).hp}/${monarchOf(ru
 // Nothing is bought for the Monarch, in a line.
 export const MONARCH_RULE = 'Nothing is bought for the Monarch: its HP and Command grow only by relics.'
 // What mends between battles (TUNING.run: postBattleHeal, altarHeal), in words: wounds carry from room to room.
-export const WOUNDS_TEXT = `a win heals each piece still standing ${pct(TUNING.run.postBattleHeal)} of its HP; an altar heals ${TUNING.run.altarHeal >= 1 ? 'every piece to full' : `each to ${pct(TUNING.run.altarHeal)} of its HP`}`
+export const WOUNDS_TEXT = `a win heals each piece still standing ${pct(TUNING.run.postBattleHeal)} of its HP; an altar's heal, one rite of its three, heals ${TUNING.run.altarHeal >= 1 ? 'every piece to full' : `each to ${pct(TUNING.run.altarHeal)} of its HP`}`
 
 // ── reach and Move ───────────────────────────────────────────────────────────────────────────────
 

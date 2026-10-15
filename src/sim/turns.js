@@ -1365,8 +1365,8 @@ function closeTurn (battle) {
 export const stalled = (battle) => !battle.over && battle.turn > TUNING.turn.guard
 
 // How many turns `u`'s cooldowns fall at this turn's end (`cooldown.rate`: Hasten's 2): as the turn was played, with
-// every status that held through it, the one whose last turn it was too (so a Hasten of one turn, Ambush's, brings a
-// skill back sooner), but none laid since its holder's turn passed (`fresh`), which counts from its holder's next.
+// every status that held through it, the one whose last turn it was too (so a Hasten in its last turn, Ambush's second,
+// brings a skill back sooner), but none laid since its holder's turn passed (`fresh`), which counts from its holder's next.
 export function rateOf (battle, u) {
   const s = u.statuses.some((x) => x.fresh)
     ? statsOf({ id: u.id, lvl: u.lvl, tracks: u.tracks, pos: pressed(battle, u) ? 'engaged' : 'free' }, modsFor(battle, u, u.statuses.filter((x) => !x.fresh)))
