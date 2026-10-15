@@ -686,13 +686,15 @@ function fused (s, kind, took, uid) {
 
 // A fusion made in a battle (turns.js `fused`: its price already paid, closeBattle): its parts leave the party (their
 // relics come back unheld) and its piece joins it with the uid it fought under, on the fuser's cell where its footprint
-// fits there, else in the ossuary (its HP the battle's, as any piece's: finishBattle).
+// fits there as the battle ends, the souls that fell in it gone from the field (finishBattle: their cells free), else in
+// the ossuary (its HP the battle's, as any piece's: finishBattle).
 function fuseIn (run, f) {
   const s = run.state
   const took = s.party.filter((u) => f.parts.includes(u.uid))
   const fuser = took.find((u) => u.uid === f.by)
   const u = fused(s, f.id, took, f.uid)
-  if (fuser?.slot >= 0 && fits(s.camp, fuser.slot, sizeOf(u), takenBy(s))) u.slot = fuser.slot
+  const fell = souls(s.party).filter((x) => !(run.battle.byUid.get(x.uid)?.hp > 0))
+  if (fuser?.slot >= 0 && fits(s.camp, fuser.slot, sizeOf(u), takenBy(s, fell))) u.slot = fuser.slot
   s.party.push(u)
 }
 
