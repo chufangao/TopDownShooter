@@ -266,9 +266,19 @@ function title (seed, said = '') {
   const at = saved()
   show(titleScreen({
     seed, level: ascension, open: openTo(cleared()), onLevel: choose, onStart: start, onHelp: toggleHelp,
-    saved: at, first: !at && prefs.get('did:tutorial') !== '1', note: said || aside, onContinue: resume, onTutorial: tutorial
+    saved: at, note: said || aside, onContinue: resume, onTutorial: tutorial
   }))
   aside = ''
+  // A first visit (no run saved, the tutorial never played) is offered the tutorial, once.
+  if (!at && prefs.get('did:tutorial') !== '1' && prefs.get('did:offer') !== '1') {
+    prefs.set('did:offer', '1')
+    overlay(askOverlay({
+      title: 'New here?',
+      text: 'The tutorial is one battle before floor 1, with three souls given you and three short screens of text: a few minutes, never saved. The title offers it again whenever you like.',
+      yes: 'Play the tutorial', no: 'Not now', lead: 'yes',
+      onYes: tutorial, onNo: () => overlay(null)
+    }))
+  }
 }
 
 // A new run. Over a saved one, it asks first: the saved run ends for good.

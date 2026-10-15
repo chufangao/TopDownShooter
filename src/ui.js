@@ -36,31 +36,30 @@ import {
 // ── title ────────────────────────────────────────────────────────────────────────────────────────
 
 // `level`: the ascension the run will be played at, `open` the highest the player may choose (run.js openTo), and
-// `onLevel(level)` hears each step of the chooser (ascensionChooser). `saved`, `first`, `note`, `onContinue`,
-// `onTutorial`: what resumeActions offers beside a new run.
-export function titleScreen ({ seed, level = 0, open = 0, onLevel = () => {}, onStart, onHelp, saved = null, first = false, note = '', onContinue = null, onTutorial = null }) {
+// `onLevel(level)` hears each step of the chooser (ascensionChooser). `saved`, `note`, `onContinue`, `onTutorial`:
+// the run saved and the tutorial (resumeActions), and a note over the foot (a save set aside, the tutorial done).
+export function titleScreen ({ seed, level = 0, open = 0, onLevel = () => {}, onStart, onHelp, saved = null, note = '', onContinue = null, onTutorial = null }) {
   const input = h('input', { value: seed, spellcheck: 'false', 'aria-label': 'seed' })
   const start = () => onStart(input.value.trim() || seed)
   const ascension = ascensionChooser({ level, open, onLevel })
-  const resume = resumeActions({ saved, first, onContinue, onTutorial })
+  const resume = resumeActions({ saved, onContinue, onTutorial })
   // The four steps of a run, one line each in its system's colour; the terms explain themselves on hover.
   const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 26)), h('div', null, h('b', null, title), h('p', null, text)))
   const el = h('div', { class: 'screen title-screen' },
     h('div', { class: 'title-box' },
       h('div', { class: 'sigil' }, icon('soul', 50)),
       h('h1', { class: 'logo' }, 'RETINUE'),
-      h('p', { class: 'tagline' }, 'You are the Monarch, a necromancer, and the dead fight for you.', h('br'), 'Descend four floors, unmake the Hollow Sovereign, then go on into the deep.'),
+      resume.banner ?? h('p', { class: 'tagline' }, 'You are the Monarch, a necromancer, and the dead fight for you.', h('br'),
+        `Descend ${FLOORS_WORD[TUNING.run.floors] ?? TUNING.run.floors} floors, unmake the Hollow Sovereign, then go on into the deep.`),
       h('div', { class: 'steps brief' },
         step('crown', 'monarch', 'Stand', 'You never strike. The foes come down the ', kw('road', 'roads'), ' to you, and choose when to come in.'),
         step('fight', 'foe', 'Scout', say('Hover', 'Tap'), ' a room to see its foes. What they do, you learn by fighting.'),
         step('start', 'plan', 'Command', 'Place your souls, then fight turn by turn: each piece moves, then strikes. What you leave alone strikes anyway.'),
         step('soul', 'essence', 'Reap', 'The slain pay ', kw('essence'), ', and one of them joins you.')),
       h('div', { class: 'title-actions' },
-        resume.lead,
-        h('button', { class: `${resume.lead ? 'ghost' : 'primary'} big`, onclick: start, tip: () => saved ? 'Start a new run with this seed: your saved run ends. (asks first)' : 'Start a new run with this seed. (Enter)' },
-          saved ? 'New run' : 'Begin the descent ', !resume.lead && h('kbd', null, 'Enter')),
-        resume.tail,
-        h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, fusions and the foes met. (H)' }, icon('help', 22), ' How to play'),
+        h('button', { class: `${saved ? 'ghost' : 'primary'} big`, onclick: start, tip: () => saved ? 'Start a new run with this seed: your saved run ends. (asks first)' : 'Start a new run with this seed. (Enter)' },
+          saved ? 'New run' : 'Begin the descent ', !saved && h('kbd', null, 'Enter')),
+        resume.tutorial,
         ascension.chooser,
         h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles. Share one to play the same run.' }, 'seed', input)),
       ascension.line),
@@ -68,23 +67,24 @@ export function titleScreen ({ seed, level = 0, open = 0, onLevel = () => {}, on
     cornerButtons(onHelp))
   return { el, key: (e) => { if (e.key === 'Enter') (resume.enter ?? start)() } }
 }
+const FLOORS_WORD = ['', 'one', 'two', 'three', 'four', 'five', 'six']
 
 // What the title offers beside a new run (redesign.md §4.8): the run saved, to Continue where it stands (save.js `at`:
-// placeText), and the tutorial. Continue leads (the primary button, Enter) while there is a save; on a first visit with
-// none, the tutorial does. → { lead, tail, enter }: the buttons before and after the new run's, and Enter's press.
-function resumeActions ({ saved, first, onContinue, onTutorial }) {
-  const cont = saved && onContinue && h('button', {
-    class: 'primary big continue', onclick: onContinue,
-    tip: () => `Go on with your saved run where you left it: ${placeText(saved)}. A run is saved after every move you make. (Enter)`
-  }, h('span', null, 'Continue ', h('kbd', null, 'Enter')), h('span', { class: 'cont-at' }, placeText(saved)))
-  const lead = first && !saved
-  const tut = onTutorial && h('button', {
-    class: lead ? 'primary big' : 'ghost', onclick: onTutorial,
-    tip: () => `One battle before floor 1, with three souls given you and three short screens of text: the camp, the battle, the spoils. Never saved.${lead ? ' (Enter)' : ''}`
-  }, lead ? ['Play the tutorial ', h('kbd', null, 'Enter')] : [icon('codex', 22), ' Tutorial'])
-  if (cont) return { lead: cont, tail: tut, enter: onContinue }
-  if (lead && tut) return { lead: tut, tail: null, enter: onTutorial }
-  return { lead: null, tail: tut, enter: null }
+// placeText), in the tagline's place under the name, the primary button (Enter) while there is a save; and the
+// tutorial, in the actions' row where How to play stood (the corner's ? and H open it still). → { banner, tutorial,
+// enter }: the saved run's banner (null for none), the tutorial's button, and Enter's press (null: a new run).
+function resumeActions ({ saved, onContinue, onTutorial }) {
+  const banner = saved && onContinue && h('div', { class: 'saved-run' },
+    h('button', {
+      class: 'primary big continue', onclick: onContinue,
+      tip: () => `Go on with your saved run where you left it: ${placeText(saved)}. A run is saved after every move you make. (Enter)`
+    }, 'Continue ', h('kbd', null, 'Enter')),
+    h('span', { class: 'cont-at' }, h('b', null, 'Your run waits'), ` · ${placeText(saved)}`))
+  const tutorial = onTutorial && h('button', {
+    class: 'ghost', onclick: onTutorial,
+    tip: () => 'One battle before floor 1, with three souls given you and three short screens of text: the camp, the battle, the spoils. Never saved.'
+  }, icon('codex', 22), ' Tutorial')
+  return { banner: banner || null, tutorial, enter: banner ? onContinue : null }
 }
 
 // Where a saved run stands (save.js placeOf), in a line: "Floor 2, room 6 of 15 · in battle, turn 3".
@@ -97,17 +97,19 @@ export function placeText (at) {
   return `${floor}${room}${what ? ` · ${what}` : ''}`
 }
 
-// A question over the screen with two answers (a new run over a saved one): `yes` does it, `no` (and a tap outside, or
-// Escape) leaves things as they were. → the overlay, for main.js to put up and take down.
-export function askOverlay ({ title, text, yes, no, onYes, onNo }) {
+// A question over the screen with two answers (a new run over a saved one, the tutorial offered on a first visit): `yes`
+// does it, `no` (and a tap outside, or Escape) leaves things as they were; `lead`, the answer the primary button and
+// Enter give. → the overlay, for main.js to put up and take down.
+export function askOverlay ({ title, text, yes, no, onYes, onNo, lead = 'no' }) {
   const el = h('div', { class: 'overlay', onclick: (e) => { if (e.target === el) onNo() } },
     h('div', { class: 'modal ask', role: 'alertdialog', 'aria-label': title },
       h('h2', { class: 'modal-title' }, title),
       h('p', { class: 'lede' }, text),
       h('div', { class: 'title-actions' },
-        h('button', { class: 'primary big', onclick: onNo }, no),
-        h('button', { class: 'ghost big warn-btn', onclick: onYes }, yes))))
-  el.key = (e) => { if (e.key === 'Escape') onNo() }
+        h('button', { class: `${lead === 'yes' ? 'primary' : 'ghost'} big`, onclick: onYes }, yes, lead === 'yes' && h('kbd', null, 'Enter')),
+        h('button', { class: `${lead === 'no' ? 'primary' : 'ghost'} big`, onclick: onNo }, no, lead === 'no' && h('kbd', null, 'Enter')))))
+  // Enter gives the leading answer; Escape, as a tap outside, the other's way: things as they were.
+  el.key = (e) => { if (e.key === 'Escape') onNo(); else if (e.key === 'Enter') (lead === 'yes' ? onYes : onNo)() }
   return el
 }
 
