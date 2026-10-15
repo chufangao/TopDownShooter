@@ -84,8 +84,9 @@ its draft, recruits, purchases and route follow it, and so do the outside teache
 `--builds` prints a row an archetype: clears, progress against free play seed for seed, deaths by floor, the margin
 (the Monarch's and its pieces' HP as the last battle ended, essence left, battles lost, turns a battle), and how many
 runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the
-final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3. `--scale`
-multiplies every foe's HP and ATK. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
+final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3, and the altars'
+rites taken and the runs whose leading kin or fused kind turned after floor 1. `--scale` multiplies every foe's HP and
+ATK. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
 and an elite's draws by kind, the battles on a walk offering each kind and the draft's picks, and each recipe's reach
 by the end of floor 2 (criterion 1).
 
