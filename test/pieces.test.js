@@ -104,7 +104,7 @@ test('in a run, a soul\'s summons fight its battles and are gone after: nothing 
 
 // ── the foes' cohorts ────────────────────────────────────────────────────────────────────────────
 
-test('a captain\'s cohort are foes of their own: of its kind, on the free slots nearest it, one body each; dropped when the formation is full', () => {
+test('a captain\'s cohort are foes of their own: a fight\'s of its wave\'s other kinds, an elite\'s of its kind, on the free slots nearest it, one body each; dropped when the formation is full', () => {
   const sp = TUNING.spawn
   for (let i = 0; i < 12; i++) {
     const room = drawRoom(`cohort${i}`, 2, { id: 'n', type: 'fight', rank: 2 })
@@ -114,12 +114,13 @@ test('a captain\'s cohort are foes of their own: of its kind, on the free slots 
     assert.equal(g.length, drawn + sp.captains.fight * cohort, `cohort${i}`)
     assert.equal(new Set(g.map((f) => f.slot)).size, g.length, 'a slot each')
     assert.ok(g.every((f) => !('count' in f)))
-    // The cohort comes after the foes drawn, every one of the kind of a foe drawn (its captain), beside it.
+    // The cohort comes after the foes drawn, beside its captain, the first drawn (a tier up since the user's rule of
+    // 2026-10-16: run.js captainPool), every one of the kind of another foe drawn.
     const band = g.slice(drawn)
-    const captains = g.slice(0, drawn).filter((f) => f.id === band[0].id)
-    assert.ok(band.every((f) => f.id === band[0].id) && captains.length > 0)
+    const captain = g[0]
+    assert.ok(band.every((f) => g.slice(1, drawn).some((x) => x.id === f.id)), JSON.stringify(g))
     const near = (a, b) => Math.abs(Math.floor(a / COLS) - Math.floor(b / COLS)) + Math.abs((a % COLS) - (b % COLS))
-    assert.ok(band.every((f) => captains.some((c) => near(c.slot, f.slot) <= 2)), JSON.stringify(g))
+    assert.ok(band.every((f) => near(captain.slot, f.slot) <= 2), JSON.stringify(g))
     // In a battle each is a foe unit of its own, with its own uid and a body's HP.
     const run = createRun({ start: START_PARTY, seed: `cohort${i}` })
     const node = availableNodes(run)[0]
@@ -129,6 +130,15 @@ test('a captain\'s cohort are foes of their own: of its kind, on the free slots 
     assert.equal(setup.foes.length, g.length)
     assert.equal(new Set(setup.foes.map((u) => u.uid)).size, g.length)
     assert.ok(setup.foes.every((u, k) => u.maxHp === makeUnit(g[k].id, { lvl: g[k].lvl }).maxHp && !('count' in u)))
+  }
+  // An elite's: every one of its captain's kind, a foe drawn, beside it.
+  for (let i = 0; i < 12; i++) {
+    const g = drawRoom(`cohort${i}`, 2, { id: 'n', type: 'elite', rank: 2 }).foes
+    const drawn = sp.elite[1]
+    for (let c = 0; c < sp.captains.elite; c++) {
+      const band = g.slice(drawn + c * sp.cohort[1], drawn + (c + 1) * sp.cohort[1])
+      assert.ok(band.every((f) => f.id === band[0].id) && g.slice(0, drawn).some((f) => f.id === band[0].id), `cohort${i} elite`)
+    }
   }
   // Cohorts too big for the formation: it fills, and the rest are dropped.
   tuned({ spawn: { cohort: [0, 40, 40, 40] } }, () => {

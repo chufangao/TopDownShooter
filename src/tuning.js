@@ -387,11 +387,16 @@ export const TUNING = {
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses
     // one is drawn again wanting it, up to `routeTries` times a type in each of `routePasses` passes (run.js varyRoutes).
-    // routeTries 24 since 2026-10-10: Bleed is the Mantis's alone, and fewer tries left floor-2 walks that met none.
-    variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 24, routePasses: 4 },
+    // routeTries 24 since 2026-10-10: Bleed is the Mantis's alone, and fewer tries left floor-2 walks that met none;
+    // routePasses 4 → 8 since 2026-10-16, a fight's captain a tier up (a floor-2 walk on route10 met no Shape after 4;
+    // a bound, not a number to balance: a pass past the fourth acts only where a walk still misses a type).
+    variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 24, routePasses: 8 },
     // The enemy as an army. From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave,
-    // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more of its own kind: foes of their
-    // own, each on the free slot of the formation nearest the captain (run.js formation). A floor-1 elite brings a
+    // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more: foes of their own, each on the
+    // free slot of the formation nearest the captain (run.js formation). An elite's captains are of its foes, their
+    // cohorts of their own kind; since 2026-10-16 (the user's rule, redesign.md §4.2's alternative) a fight's are drawn
+    // from the pool `captains.above` tiers over the room's target, as an elite's foes are (spawnPool), so every fight
+    // from floor 2 carries a notable recruit, and lead cohorts of the wave's own kinds. A floor-1 elite brings a
     // late pair: `late.n` more foes of its pool, a wave of their own. From floor `waves.floor` an elite, a fight from
     // rank `waves.fightRank`, a siege and the last room come in waves (`waves.elite`, `.fight`, `.siege` in all, the
     // first included). Waves enter on fixed turns (redesign.md §2.10): the room's formation stands from turn 1, and
@@ -403,7 +408,7 @@ export const TUNING = {
     // placeholders: redesign.md §4.7). They and its waves take foeHp/foeAtk; only the boss takes bossHp/bossAtk. Floor 3
     // keeps floor 2's cohorts of 2: at 3, a floor-3 elite's mantis brood ended half the expert's runs (the final balance
     // pass).
-    captains: { fight: 1, elite: 2 }, cohort: [0, 2, 2, 3],
+    captains: { fight: 1, elite: 2, above: 1 }, cohort: [0, 2, 2, 3],
     late: { n: 2 },
     waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, every: 4 },
     court: [2, 4, 2],

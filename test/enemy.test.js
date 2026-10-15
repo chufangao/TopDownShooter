@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
-  essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool
+  essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
@@ -98,6 +98,7 @@ const groups = (room) => [room.foes, ...(room.waves ?? []).map((w) => w.foes)]
 test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 2, each of the cohort a foe of its own; waves from floor 3; a floor\'s boss with its court, the last room ends in the Sovereign\'s', () => {
   const count = {}
   const pairTiers = []
+  const captainTiers = []
   for (let i = 0; i < 30; i++) {
     for (let floor = 1; floor <= TUNING.run.floors; floor++) {
       const seed = 'room' + i
@@ -146,15 +147,23 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
             }
             continue
           }
-          // The foes drawn, then each captain's cohort after them, foes of the captain's kind (the formation has room
-          // for every one of them here: none is dropped).
+          // The foes drawn, then each captain's cohort after them (the formation has room for every one of them here:
+          // none is dropped): an elite's (and the waves before a boss's) of the captain's kind; a fight's, since the
+          // user's rule of 2026-10-16, of the wave's other kinds, its captain drawn first, a tier or more over the
+          // floor's target (captainPool).
           const cohort = at(sp.cohort, floor)
           const captains = elite ? sp.captains.elite : sp.captains.fight
           const drawn = at(elite ? sp.elite : sp.fight, floor)
           assert.equal(g.length, drawn + captains * cohort, w)
+          const led = !elite && !boss
+          if (led) {
+            assert.ok(g.slice(0, captains).every((f) => captainPool(floor).units.some((u) => u.id === f.id) && UNITS[f.id].tier >= targetTier(floor) + sp.captains.above), `${w}: its captain a tier up`)
+            captainTiers.push(...g.slice(0, captains).map((f) => UNITS[f.id].tier))
+          }
           for (let c = 0; c < captains; c++) {
             const band = g.slice(drawn + c * cohort, drawn + (c + 1) * cohort)
-            assert.ok(band.every((f) => f.id === band[0].id) && g.slice(0, drawn).some((f) => f.id === band[0].id), `${w}: cohort ${c} of a captain's kind`)
+            if (led) assert.ok(band.every((f) => g.slice(captains, drawn).some((x) => x.id === f.id)), `${w}: cohort ${c} of the wave's own kinds`)
+            else assert.ok(band.every((f) => f.id === band[0].id) && g.slice(0, drawn).some((f) => f.id === band[0].id), `${w}: cohort ${c} of a captain's kind`)
           }
           assert.ok(!g.some((f) => 'order' in f || 'square' in f), `${w}: no foe carries orders`)
         }
@@ -166,6 +175,8 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
   for (const key of ['1fight1', '1elite2', '1boss1', '2fight1', '2elite1', '2boss1', '3fight1', '3fight2', '3elite2', '3siege3', `${F}siege3`, `${F}boss3`]) assert.ok(count[key] > 0, `${key}: ${JSON.stringify(count)}`)
   // The floor's pool, not the elite's: floor 1's weights favour tier 1 (the elite pool's, tier 2).
   assert.ok(pairTiers.filter((t) => t === 1).length > 0.7 * pairTiers.length, `late pair tiers: ${pairTiers}`)
+  // A fight's captains: tier 2 and 3 on floor 2, tier 3 and 4 on floor 3, so some of each.
+  assert.ok([2, 3, 4].every((t) => captainTiers.includes(t)), `captain tiers: ${captainTiers}`)
 })
 
 // ── the battle: foes as an army ──────────────────────────────────────────────────────────────────

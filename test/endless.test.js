@@ -8,7 +8,7 @@ import { UNITS, CAMP_LIST, SYNERGIES, STATUSES } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, BOARD_14, grant } from './tuned.js'
 import {
-  createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend,
+  createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend, captainPool,
   MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join, START_PARTY
 } from '../src/sim/run.js'
 import { autoplay, policy, LEVELS } from '../src/sim/autoplay.js'
@@ -533,16 +533,20 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
         const tier = Math.min(sp.tierMax, 1 + Math.floor((F - 1) * sp.tierPerFloor)) + (elite ? sp.eliteTier : 0) + sp.tierOverCap
         for (const foes of forms) {
           rooms++
-          // The foes drawn, then every captain's cohort, the deep's bigger one, foes of their own of its kind.
+          // The foes drawn, then every captain's cohort, the deep's bigger one, foes of their own: an elite's of its
+          // captain's kind, a fight's of the wave's other kinds, its captain drawn first a tier up (captainPool).
           const captains = elite ? sp.captains.elite : sp.captains.fight
           assert.equal(foes.length, Math.min(SLOTS, n + captains * cohort), `${floor} ${node.id}: foes a wave`)
           assert.ok(foes.length <= SLOTS && new Set(foes.map((f) => f.slot)).size === foes.length)
           assert.ok(!foes.some((f) => 'count' in f), `${floor} ${node.id}: no counts`)
           for (let c = 0; c < captains && n + (c + 1) * cohort <= SLOTS; c++) {
             const band = foes.slice(n + c * cohort, n + (c + 1) * cohort)
-            assert.ok(band.every((f) => f.id === band[0].id) && foes.slice(0, n).some((f) => f.id === band[0].id), `${floor} ${node.id}: cohort ${c}`)
+            if (elite) assert.ok(band.every((f) => f.id === band[0].id) && foes.slice(0, n).some((f) => f.id === band[0].id), `${floor} ${node.id}: cohort ${c}`)
+            else assert.ok(band.every((f) => foes.slice(captains, n).some((x) => x.id === f.id)), `${floor} ${node.id}: cohort ${c}`)
           }
-          assert.ok(foes.every((f) => UNITS[f.id].spawn.minFloor <= F && UNITS[f.id].tier <= tier), `${floor} ${node.id} ${foes.map((f) => f.id)}`)
+          const led = elite ? 0 : captains
+          assert.ok(foes.slice(0, led).every((f) => captainPool(F).units.some((u) => u.id === f.id)), `${floor} ${node.id}: its captain`)
+          assert.ok(foes.slice(led).every((f) => UNITS[f.id].spawn.minFloor <= F && UNITS[f.id].tier <= tier), `${floor} ${node.id} ${foes.map((f) => f.id)}`)
           assert.ok(foes.every((f) => f.lvl === lvl), `${floor} ${node.id} ${foes.map((f) => f.lvl)} ${lvl}`)
         }
         if (node.id === map.end) assert.ok(n > (elite ? sp.elite : sp.fight).at(-1) + Math.floor((floor - F) * E.count))

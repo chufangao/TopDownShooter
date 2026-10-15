@@ -403,8 +403,9 @@ function aloneText (u) {
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
 
-// The enemy as an army: captains with their cohorts (each one more foe of the captain's kind beside it), waves,
-// a boss's court. Who comes and where they stand, never what they mean to do.
+// The enemy as an army: captains with their cohorts (each one more foe beside it: an elite's of the captain's kind, a
+// fight's of the room's own kinds behind a captain a tier up), waves, a boss's court. Who comes and where they stand,
+// never what they mean to do.
 const SP = TUNING.spawn
 const W = SP.waves
 // A wave enters as a set turn begins (redesign.md §2.10), W.every turns after the one before (the first wave, the

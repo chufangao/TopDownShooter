@@ -70,7 +70,7 @@ import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
   relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat,
-  spawnPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer, foeScale, ascensionTop, bossPool, bossIn, ANSWERS, tends,
+  spawnPool, captainPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer, foeScale, ascensionTop, bossPool, bossIn, ANSWERS, tends,
   BASE_MONARCH
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
@@ -4106,13 +4106,13 @@ const offered = (n) => new Set([...(n.foes ?? []), ...(n.waves ?? []).flatMap((w
 // Whether kind `id` counts toward synergy `syn` (a kin or role its rule needs).
 const countsFor = (syn, id) => Object.entries(syn.needs).some(([axis, need]) => need[unitDef(id)[axis]] !== undefined)
 
-// The availability table: `draws`, each floor's share of a fight's and an elite's draws by kind (spawnPool's weights,
-// each pool summing to one); `battles`, by floor, the expected battles on a walk and by kind the expected battles on it
-// offering that kind, over the floors of seeds `<seed>-0`… (`runs` of them; a walk takes each fork evenly: visits);
-// `draft`, the expected picks of the draft offering each kind on the same seeds, each pick taken evenly (draftOffer: a
-// pick's offer reads the souls taken); `recipes`, each recipe's parts with their expected battles by floor and by the
-// end of floor 2, and its `reach`: the least of its parts' by the end of floor 2, a fused part's its own recipe's
-// (criterion 1 asks 3 or more of its first fusion); `synergies`, each synergy's expected battles by the end of floor 2
+// The availability table: `draws`, each floor's share of a fight's, an elite's and a fight's captain's draws by kind
+// (spawnPool's and captainPool's weights, each pool summing to one); `battles`, by floor, the expected battles on a walk
+// and by kind the expected battles on it offering that kind, over the floors of seeds `<seed>-0`… (`runs` of them; a
+// walk takes each fork evenly: visits); `draft`, the expected picks of the draft offering each kind on the same seeds,
+// each pick taken evenly (draftOffer: a pick's offer reads the souls taken); `recipes`, each recipe's parts with their
+// expected battles by floor and by the end of floor 2, and its `reach`: the least of its parts' by the end of floor 2,
+// a fused part's its own recipe's (criterion 1 asks 3 or more of its first fusion); `synergies`, each synergy's expected battles by the end of floor 2
 // offering a kind of its kin or role (a battle once).
 export function poolTable ({ runs = 256, seed = 'div' } = {}) {
   const floors = Array.from({ length: TUNING.run.floors }, (_, i) => i + 1)
@@ -4120,7 +4120,7 @@ export function poolTable ({ runs = 256, seed = 'div' } = {}) {
     const sum = p.weights.reduce((a, b) => a + b, 0)
     return Object.fromEntries(p.units.map((u, i) => [u.id, p.weights[i] / sum]))
   }
-  const draws = floors.map((floor) => ({ floor, fight: norm(spawnPool(floor)), elite: norm(spawnPool(floor, TUNING.spawn.eliteTier)) }))
+  const draws = floors.map((floor) => ({ floor, fight: norm(spawnPool(floor)), elite: norm(spawnPool(floor, TUNING.spawn.eliteTier)), captain: TUNING.spawn.cohort[floor - 1] > 0 ? norm(captainPool(floor)) : {} }))
   const battles = floors.map((floor) => ({ floor, battles: 0, kinds: {} }))
   const synergies = Object.fromEntries(SYNERGIES.map((x) => [x.id, 0]))
   for (let k = 0; k < runs; k++) {
@@ -4163,9 +4163,9 @@ export function poolTable ({ runs = 256, seed = 'div' } = {}) {
 export function poolLines (t) {
   const kinds = UNIT_LIST.filter((u) => u.spawn && !u.boss).sort((a, b) => a.tier - b.tier || (a.id < b.id ? -1 : 1))
   const cell = (x) => (x ? pct(x, x < 0.1 ? 1 : 0) : '-').padStart(6)
-  const out = [`the pool (spawnPool, tierFalloff ${TUNING.spawn.tierFalloff}, tierOverCap ${TUNING.spawn.tierOverCap}): each floor's share of a fight's (f) and an elite's (e) draws, by kind`]
-  out.push(`${'kind'.padEnd(16)}tier ${t.draws.map((d) => `${`f${d.floor}`.padStart(6)}${`e${d.floor}`.padStart(6)}`).join(' ')}`)
-  for (const u of kinds) out.push(`${u.id.padEnd(16)}${String(u.tier).padStart(4)} ${t.draws.map((d) => `${cell(d.fight[u.id])}${cell(d.elite[u.id])}`).join(' ')}`)
+  const out = [`the pool (spawnPool, tierFalloff ${TUNING.spawn.tierFalloff}, tierOverCap ${TUNING.spawn.tierOverCap}): each floor's share of a fight's (f), an elite's (e) and a fight's captain's (c, captainPool: from floor 2) draws, by kind`]
+  out.push(`${'kind'.padEnd(16)}tier ${t.draws.map((d) => `${`f${d.floor}`.padStart(6)}${`e${d.floor}`.padStart(6)}${`c${d.floor}`.padStart(6)}`).join(' ')}`)
+  for (const u of kinds) out.push(`${u.id.padEnd(16)}${String(u.tier).padStart(4)} ${t.draws.map((d) => `${cell(d.fight[u.id])}${cell(d.elite[u.id])}${cell(d.captain?.[u.id])}`).join(' ')}`)
   out.push('')
   out.push(`expected battles on a walk offering each kind (its foes among the slain), by floor (${t.runs} seeds ${t.seed}-0…, each fork`)
   out.push('taken evenly); and the draft\'s picks offering it')

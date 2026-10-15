@@ -1107,7 +1107,10 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 //           court[floor − 1] (its kinds: courtPool); from floor waves.floor (the Hollow Sovereign's) the last of
 //           waves.siege waves
 // From floor 2 each wave (but a boss's) has captains: captains.fight (captains.elite in an elite) of
-// its foes, each leading cohort[floor − 1] more foes of its own kind (formation).
+// its foes, each leading cohort[floor − 1] more foes (formation). An elite's captains are of its foes, their cohorts of
+// their own kind; a fight's (a siege's waves too: fight-sized) are drawn apart, a tier or more over the room's target
+// (captainPool: the pool `captains.above` tiers up, as an elite's foes are drawn), and lead cohorts of the wave's own
+// kinds (the user's rule of 2026-10-16, redesign.md §4.2's alternative: every fight carries a notable recruit).
 // Each wave's foes stand from its front row back, filling the middle lanes first, each band of lanes (centre
 // three, then the next pair out…) in shuffled order.
 // From rank `variety.from` on, a room must carry enough distinct threats that one answer never covers it
@@ -1128,6 +1131,10 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   else boss = null
   const pool = spawnPool(poolFloor(floor), elite ? sp.eliteTier : 0)
   const n = Math.min(SLOTS, roomSize(floor, elite, ascension) + grow.count)
+  const cohort = at(sp.cohort, floor) + grow.cohort
+  // A fight's captains, from floor 2 (where cohorts come): the first of each wave's draws, from the pool a tier up.
+  const lead = !elite && !boss && cohort > 0 ? Math.min(n, sp.captains.fight) : 0
+  const heads = lead ? captainPool(poolFloor(floor)) : null
   const waved = floor >= W.floor
   const base = node.type === 'siege' || (boss && waved) ? W.siege : !waved || boss ? 1 : elite ? W.elite : node.rank >= W.fightRank ? W.fight : 1
   // The deep's extra waves come to every room (a single formation becomes a room of waves), up to the cap.
@@ -1139,7 +1146,7 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   const draw = () => [
     ...Array.from({ length: waves }, (_, k) => boss && k === waves - 1
       ? Array.from({ length: at(sp.court, floor) }, () => rng.weighted(court.units, court.weights).id)
-      : Array.from({ length: n }, () => rng.weighted(pool.units, pool.weights).id)),
+      : Array.from({ length: n }, (_, i) => (i < lead ? rng.weighted(heads.units, heads.weights) : rng.weighted(pool.units, pool.weights)).id)),
     ...(pair ? [Array.from({ length: sp.late.n }, () => rng.weighted(floorPool.units, floorPool.weights).id)] : [])
   ]
   const v = sp.variety
@@ -1163,7 +1170,7 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   const level = lvl + (elite ? sp.eliteLevel : 0)
   const forms = ids.map((list, k) => boss && k === waves - 1
     ? courtOf(list, level)
-    : formation(rng, list, level, pair && k === waves ? 0 : elite ? sp.captains.elite : sp.captains.fight, at(sp.cohort, floor) + grow.cohort))
+    : formation(rng, list, level, pair && k === waves ? 0 : elite ? sp.captains.elite : sp.captains.fight, cohort, lead))
   const room = { foes: forms[0] }
   if (forms.length > 1) room.waves = forms.slice(1).map((foes) => ({ foes }))
   return room
@@ -1283,21 +1290,24 @@ export function answerArmy (s, army) {
 }
 
 // A wave's formation: `ids` placed from the front row, then `captains` of them (if they lead anyone: `cohort` > 0)
-// each with `cohort` more foes of its kind, each on the free slot nearest the captain (unit.js nearestOpen: the
-// fewest rows and lanes apart, then the fewest rows, then the lower slot, so the front rows first), and dropped when
-// the formation has no free slot left. Each is an ordinary foe: it pays essence, and may be recruited.
-function formation (rng, ids, lvl, captains, cohort) {
+// each with `cohort` more foes, each on the free slot nearest the captain (unit.js nearestOpen: the fewest rows and
+// lanes apart, then the fewest rows, then the lower slot, so the front rows first), and dropped when the formation has
+// no free slot left. Captains drawn by the shuffle, each leading foes of its own kind; or, `led` (a fight's: drawRoom),
+// the first `led` of `ids`, placed among the rest as a shuffle falls, each leading foes of the wave's other kinds, each
+// drawn among its other foes. Each is an ordinary foe: it pays essence, and may be recruited.
+function formation (rng, ids, lvl, captains, cohort, led = 0) {
   const foes = ids.map((id) => ({ id, lvl, slot: -1 }))
   const cols = [CENTRE_OUT.slice(0, 3), ...[3, 5].map((i) => CENTRE_OUT.slice(i, i + 2))].flatMap((band) => rng.shuffle(band))
-  autoPlace(foes, { cols })
+  autoPlace(led ? rng.shuffle(foes) : foes, { cols })
   if (!cohort || !captains) return foes
   const taken = new Set(foes.map((f) => f.slot))
-  for (const c of rng.shuffle(foes.slice()).slice(0, captains)) {
+  const rest = foes.slice(led)
+  for (const c of led ? foes.slice(0, led) : rng.shuffle(foes.slice()).slice(0, captains)) {
     for (let k = 0; k < cohort; k++) {
       const slot = nearestOpen(FORMATION, c.slot, taken)
       if (slot < 0) break
       taken.add(slot)
-      foes.push({ id: c.id, lvl, slot })
+      foes.push({ id: led && rest.length ? rng.pick(rest).id : c.id, lvl, slot })
     }
   }
   return foes
@@ -1542,9 +1552,22 @@ export function deepGrowth (floor, node) {
 // autoplay.js --pool reads it). → { units, weights }
 export function spawnPool (floor, tierBias = 0) {
   const sp = TUNING.spawn
-  const target = Math.min(sp.tierMax, 1 + Math.floor((floor - 1) * sp.tierPerFloor)) + tierBias
+  const target = targetTier(floor) + tierBias
   const units = UNIT_LIST.filter((u) => u.spawn && u.spawn.minFloor <= floor && u.tier <= target + sp.tierOverCap)
   return { units, weights: units.map((u) => u.spawn.weight / Math.pow(1 + Math.abs(u.tier - target), sp.tierFalloff)) }
+}
+// A floor's target tier, a fight's (spawnPool).
+export const targetTier = (floor) => Math.min(TUNING.spawn.tierMax, 1 + Math.floor((floor - 1) * TUNING.spawn.tierPerFloor))
+// What a fight's captain is drawn from on a floor (drawRoom, from floor 2): the pool `captains.above` tiers up
+// (spawnPool's, as an elite's foes are drawn), those of its kinds that stand that far over the floor's target (the rest
+// would be no notable recruit), each by its weight there; where it holds none, the pool's highest tier. → { units, weights }
+export function captainPool (floor) {
+  const above = TUNING.spawn.captains.above
+  const p = spawnPool(floor, above)
+  const keep = (u) => u.tier >= targetTier(floor) + above
+  const top = p.units.some(keep) ? null : Math.max(...p.units.map((u) => u.tier))
+  const ok = (u) => (top === null ? keep(u) : u.tier === top)
+  return { units: p.units.filter(ok), weights: p.weights.filter((_, i) => ok(p.units[i])) }
 }
 
 // In a boss's room only the boss takes the boss's multipliers, the floor's (TUNING.spawn.bossHp and bossAtk: a floor's
