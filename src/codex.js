@@ -13,7 +13,7 @@ import {
 import {
   foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, unhealed, isMonarch, depthOf, rosterCap,
   inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice, isRunPath, isRunRelic, unheld,
-  runStat, foeEssence, eliteBonus, soulOffer, relicWeights, relicTierPrice
+  runStat, foeEssence, eliteBonus, soulOffer, relicWeights, relicTierPrice, kindLevel
 } from './sim/run.js'
 import { heldRules } from './sim/rules.js'
 import { basicOf, mendOf, temperOf, lined } from './sim/turns.js'
@@ -615,15 +615,15 @@ export const ROOM = {
   fight: { name: 'Fight', text: 'A battle.' },
   elite: { name: 'Elite', text: 'A battle a tier stronger, with a bounty.' },
   shop: { name: 'Shop', text: 'No battle: relics for essence. Leaving is free.' },
-  altar: { name: 'Altar', text: 'No battle: it heals, and raises the fallen.' },
+  altar: { name: 'Altar', text: 'No battle: one rite of three. Heal every soul and raise the fallen, transmute a soul into another kind of its tier, or consecrate a kind: a tier free.' },
   boss: { name: 'The Hollow Sovereign', text: `${W.siege} waves, the last the Sovereign and its court. Kill it to clear the run.` },
   siege: { name: 'Siege', text: 'Wave after wave, no prep between.' }
 }
 
 // What a room holds for you as the run stands now, in numbers (null for none: the start, the boss): a battle's pay for
 // the win, every foe's (run.js foeEssence) × the relics' `essence.gain`, an elite's bounty on top (eliteBonus), and the
-// recruit's price for each kind of its foes (soulOffer); what an altar would heal and raise now (run.js walk); a Shop's
-// stock and its prices here (relicTierPrice, the tiers its shelves draw on this floor: relicWeights).
+// recruit's price for each kind of its foes (soulOffer); what an altar's heal would mend and raise now (run.js heal); a
+// Shop's stock and its prices here (relicTierPrice, the tiers its shelves draw on this floor: relicWeights).
 // The kinds a room's win offers, with their prices: "A, B or C for 11 each", or each its own ("A for 11 or B for 14").
 function recruitList (run, kinds) {
   const offers = kinds.map((id) => ({ name: unitDef(id).name, cost: soulOffer(run, { id }).cost }))
@@ -756,6 +756,22 @@ export function altarNote (s, before) {
     raised.length > 0 && `${tally(raised)} rise${raised.length === 1 ? 's' : ''} in the ossuary at ${pct(TUNING.run.altarRevive)} HP`].filter(Boolean)
   const court = unhealed(s) && m.hp < m.maxHp ? ' Court of Bone: not the Monarch.' : ''
   return parts.length ? `The altar burns: ${parts.join('; ')}.${court}` : `The altar burns, but nothing was wounded.${court}`
+}
+// An altar's rite just taken (`a`: run.js heal, transmute, consecrate): what it did, read off each piece as it stood
+// before it (`before`: the party, copied).
+export function riteNote (s, a, before) {
+  if (a.type === 'heal') return altarNote(s, new Map(before.map((u) => [u.uid, u.hp])))
+  if (a.type === 'consecrate') {
+    const tr = tracksOf(a.kind)[a.track]
+    const was = before.find((u) => u.id === a.kind)?.lvl
+    const lvl = kindLevel(s, a.kind)
+    return `The altar burns: every ${unitDef(a.kind).name} takes ${tr.name} ${ROMAN[s.kinds[a.kind].tracks[a.track] - 1]}, free${was != null && lvl > was ? `, and rises to Lv ${lvl}` : ''}.`
+  }
+  const was = before.find((u) => u.uid === a.uid)
+  const u = s.party.find((x) => x.uid === a.uid)
+  const kept = u.relics?.length ? `, still holding ${u.relics.map((id) => relicDef(id).name).join(', ')}` : ''
+  const moved = was.slot >= 0 && !onField(u) ? ' Its new body no longer fits where it stood: it waits in the ossuary.' : ''
+  return `The altar burns: your ${unitDef(was.id).name} rises a ${unitDef(u.id).name}, at Lv ${u.lvl}${kept}.${moved}`
 }
 // A recruit just taken (`u`, the soul it became): its level, where it went, and the field's count.
 export function recruitNote (run, u) {
@@ -895,6 +911,37 @@ export function recruitWorth (run, id) {
   }
 }
 
+// What soul `u` would be as kind `id` (an altar's transmutation, run.js transmute): the level it would stand at (its own,
+// or its new kind's where that is higher), the tiers it would hold (its new kind's), the synergy steps its field would
+// gain and lose with it so (fielded beside your standing pieces), and how far it takes each recipe its new kind is part
+// of. → { lvl, lines, chips } as recruitWorth's
+export function transmuteWorth (run, u, id) {
+  const s = run.state
+  const lvl = Math.max(u.lvl, s.kinds[id] ? kindLevel(s, id) : 0)
+  const field = souls(standing(run)).filter((x) => x.uid !== u.uid)
+  const before = activeSynergies([...field, u], alsoOf)
+  const after = activeSynergies([...field, { ...u, id }], alsoOf)
+  const gained = after.filter((syn) => !before.includes(syn)).map((syn) => `${syn.name}: ${ruleName(syn)}`)
+  const lost = before.filter((syn) => !after.includes(syn)).map((syn) => `${syn.name}: ${ruleName(syn)}`)
+  const held = souls(s.party).filter((x) => x.id === id).length
+  const k = s.kinds[id]
+  const tiers = tracksOf(id).flatMap((tr, t) => (k?.tracks[t] > 0 ? [`${tr.name} ${ROMAN[k.tracks[t] - 1]}`] : []))
+  const recipes = FUSION_LIST.filter((f) => Object.hasOwn(f.needs, id)).map((f) => ({ name: f.name, have: held + 1, n: f.needs[id] }))
+  const part = (r) => `${Math.min(r.have, r.n)}/${r.n} for ${r.name}`
+  return {
+    lvl,
+    lines: [`It rises a ${unitDef(id).name} at Lv ${lvl}${lvl > u.lvl ? ` (its new kind's, above its own ${u.lvl})` : ', its own level'}, with its relic and its wounds; the tiers bought for the ${unitDef(u.id).name} stay with that kind.`,
+      held ? `You hold ${held} of its kind; with it, ${held + 1}.` : 'New to your souls.',
+      tiers.length ? `It takes its new kind's tiers: ${tiers.join(', ')}.` : 'Its new kind holds no tiers yet.',
+      gained.length > 0 && `Fielded, it brings ${gained.join(', ')}.`,
+      lost.length > 0 && `Fielded, it ends ${lost.join(', ')}.`,
+      recipes.length > 0 && `Fusion, with it: ${recipes.map(part).join(', ')}.`].filter(Boolean),
+    chips: [{ text: held ? `Held ${held}` : 'New' }, ...gained.map((n) => ({ text: `→ ${n}`, up: true })), ...lost.map((n) => ({ text: `✕ ${n}` })),
+      tiers.length > 0 && { text: `Tiers ${tiers.join(', ')}` },
+      ...recipes.map((r) => ({ text: `${Math.min(r.have, r.n)}/${r.n} ${r.name}`, up: r.have >= r.n }))].filter(Boolean)
+  }
+}
+
 // The synergy steps one more soul of kind `id`, fielded beside your standing pieces, would bring that they lack now
 // ("Undead 4: Legion"), a kind held or new.
 export function recruitSteps (run, id) {
@@ -1024,6 +1071,7 @@ const WORD_MORE = {
   synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A fused piece counts once, with its own kin and role; a relic may make its holder count as another role too. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
   relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Only Shops sell them, for essence, deeper floors the rarer; every Shop stocks a Command relic, and from floor ${R.legendary.fromFloor} a Legendary, a rule that rewrites the game. A run relic (its card says Run) touches the run or the whole side and works unheld: Command, the Monarch's HP, prices, essence, Arise's reach; its copies add up with no cap. Every other is a piece relic (Held): it waits unheld until you give it to a soul (tap it in the Relics strip beside the ossuary, then the soul, or the slot in the soul's panel), and works only through its holder, its triggers on its holder's own moments. Give, take back and swap freely out of battle, never in one. A held relic stays with its soul in the ossuary, works only on the field, and comes back unheld when its holder is released or fused away; copies are more holders. Arise is one: its holder learns the skill Arise.` +
     (run && unheld(run.state).length ? ` Unheld now: ${tally(unheld(run.state).map((id) => relicDef(id).name))}.` : ''),
+  altar: () => `One rite, then the room is done. Heal: every soul to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)}, in the ossuary too, and the fallen raised there at ${pct(TUNING.run.altarRevive)} HP; the Monarch too, unless Court of Bone holds. Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic, its wounds and its level: its new kind rises to that level if it stood lower, every soul of it with it. Tiers are a kind's, not a soul's: those bought for its old kind stay there, and it holds its new kind's, none if the kind is new to you. Consecrate: one kind's next tier on the track you choose, free, as buying it would give it.`,
   shop: (run) => `Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows; nothing else is sold there, and a relic bought is a tier not bought. A soul may be released there for part of its price.`,
   turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, and lost only the instant the Monarch falls, however long it lasts.`,
   move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its Move whole again, until it acts. Some tiers and statuses add Move.',

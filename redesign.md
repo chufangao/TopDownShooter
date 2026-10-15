@@ -946,6 +946,105 @@ Mirage 20 → 20 clears, Last Stand 16 → 12, Bodyguard 18 → 14, Ambush 20 �
 → 5, and none of Last Stand, Bodyguard, Ambush or Deathblow held in any run; Echo's forms on `div-0…15` 142 battles at
 half, 105 whole, 31 both.
 
+### The altar's choice (Step 5, 2026-10-15)
+
+**Built** (§4.5, §7 decision 2 taken as recommended; on 7b853ed beside Step 3, merged after it): walking into an altar
+asks its rite, and the rite ends the room (`run.js`: phase `altar`, `altarActions`): `{ type: 'heal' }`, as every altar
+gave; `{ type: 'transmute', uid, index }`, a standing soul of a kind the foes bring made one of `TUNING.run.altarOffer`
+(3, a new number; none moved) kinds of the floor's pool (`spawnPool`) at its tier, never its own, drawn evenly on a
+stream of the altar's and the kind's (`transmuteOffer`); `{ type: 'consecrate', kind, track }`, the kind's next tier,
+free, as `advance` gives a bought one. Nothing else is done at an altar; the log holds the rite and `replay` plays it.
+The tier rule, the least surprising: tiers are a kind's, not a soul's (DESIGN §2.6), so none moves. The old kind keeps
+those bought for it, the soul holds its new kind's (none for a kind new to the run; Soul Lantern lights recruits
+alone), and its level is kept by its new kind's `least`, a fused kind's rule, so it and every soul of its new kind
+stand at the higher of the two; its uid, relics, share of HP and cell (where its new footprint fits) kept. A fused
+soul has no offer (made, not met); a fallen one is the heal's. **The expert's part**: `autoplay.js pickAltar`, every
+rite weighed by the growth search as a purchase is (`grow`: each on a copy, its sketch's gain), the heal where nothing
+beats keeping; basic heals. Where this differs from §6's letter: the sketch reads the souls' wounds but never the
+Monarch's, so the new decision has a tree of its own, `expert.js TREES.altar`, holding the route's two reasons for
+walking to an altar (`wounded-altar`, `monarch-altar`, at their thresholds in `TUNING.expert.tree`) as reasons to heal
+there; no weight or rule of the expert's moved. `outside.js` mirrors it (`baseStep`, `ORDER`, `PHASES` gaining
+`altar`: the rites by the sketch's gain, the expert's pick first, no passing on), and `calc.js` (the heal first while
+the Monarch is below half or a soul fallen, else the free tiers in its purchases' order; the transmutations last). The
+harness reads each battle's lead (the kin and the fused kind most of its pieces are) and prints the altars' rites and
+the runs whose lead turned after floor 1 (`altarRites`, `pivots`). The screen: the rites as tabs; a transmutation's
+three kinds as the draft's cards beside a chooser of its souls, a consecration's two tracks beside its kinds; the heal
+as before; each rite's note on the map (Chromium at 1440×900, 1024×768 and 852×393, every rite taken, no console
+error). The tests: 441 → 452 (`altar.test.js` 8, and one each in `outside`, `builds` and `codex`), 458 on the merge
+with Step 3, all passing (`--test-concurrency=1`, 548 s; the speed test passes alone, under load it ran past its
+milliseconds).
+
+**Measured** (the expert as Step 0 has it, its forests stale; seeds `div-*`; two or three workers): free play, `--commit
+none --runs 64`, on the merge and on its base e6266bb (Step 3), and before the merge on this step and 7b853ed; three
+kins the floor feeds least committed, `--commit drake_4,construct_4,insect_4 --runs 32`, on the merge (against Step 3's
+own `--commit synergies` run at e6266bb) and before it (against 7b853ed); the rites the expert took, by a script outside
+the repo, on `div-0…31` free and `div-0…15` committed. Each base was played again with the harness's lead read and
+nothing else: 7b853ed's runs are Step 1's first 64 and e6266bb's Step 3's, result, floor, progress and battles, seed for
+seed.
+
+Free play on the merge, `div-0…63`, seed for seed:
+
+| | Step 3 (e6266bb) | The altar's choice |
+|---|---|---|
+| clears | 39 (61%) | 39 (61%): +5 −5, 0.0 ± 5.0 points |
+| progress | 84.6 | 86.3 (+1.7 ± 1.2) |
+| died on floor 1 / 2 / 3 / 4 | 9 / 1 / 3 / 12 | 9 / 0 / 1 / 15 |
+| battles a run; battles lost | 42.0; 25 | 42.9; 25 |
+| altars' rites | every one a heal | 3.3 a run: consecrate 51%, heal 46%, transmute 3% |
+| fused kinds in the final armies | Chanter's trine 80%, Court 78%, Winter Court 36%, Sprite's trine 16% | Chanter's trine 84%, Court 77%, Winter Court 33%, Sprite's trine 23% |
+| synergies held (battles) | Echo 57%, Legion 36%, Mirage 3.9%; none 42% | Echo 60%, Legion 37%, Mirage 7.4%; none 38% |
+| the lead turned after floor 1: kin (of the runs past it) | 30 of 55 (19 cleared) | 30 of 55 (17 cleared) |
+| fused kind (of the runs fielding one on both) | 24 of 46 (13 cleared) | 29 of 49 (16 cleared) |
+
+The rites, `div-0…31` (before the merge; 110 in 32 runs): on floors 1 and 2 the free tier, 48 of 60 (the heal 10, a
+transmutation 2), on floors 3 and 4 the heal, 38 of 50; the tiers to the Chanter's trine 19, the Sprite's trine 12, the
+Wisp 8, the Court 7, the Sprite 6; the three transmutations Sprite → Wisp and Hound → Chanter twice; 3 of the 48 heals
+with the Monarch below half.
+
+Committed on the merge, `div-0…31` (Step 3 → the altar's choice; "reached": runs that held the synergy):
+
+| Archetype | Clears | Progress (paired) | Died on floor 1 / 2 / 3 / 4 | Reached | Rites: heal / transmute / free tier |
+|---|---|---|---|---|---|
+| free play | 20 → 20 (+3 −3) | 86.0 → 89.8 (+3.8 ± 2.2) | 3 / 1 / 3 / 5 → 3 / 0 / 1 / 8 | | 40 / 3 / 57% |
+| Drake 4 | 14 → 19 (+7 −2) | 74.7 → 77.4 (+2.7 ± 4.2) | 8 / 0 / 1 / 9 → 8 / 0 / 0 / 5 | 0 → 1 | 24 / 20 / 57% |
+| Construct 4 | 13 → 20 (+9 −2) | 81.0 → 86.9 (+5.8 ± 4.3) | 6 / 0 / 1 / 12 → 4 / 0 / 1 / 7 | 0 → 0 | 29 / 7 / 64% |
+| Insect 4 | 13 → 15 (+7 −5) | 80.1 → 85.6 (+5.5 ± 4.5) | 6 / 0 / 2 / 11 → 4 / 1 / 0 / 12 | 3 → 7 (held 1% → 4% of battles) | 17 / 27 / 56% |
+
+What the committed runs transmute (`div-0…15`, on the merge): Drake 4 Chanters into Pyre Hounds 7 times and Knights 3;
+Insect 4 Chanters into Hive Wardens 7 and Sprites into Hive Drones 4, a Wisp into a Drone, a Chanter into a Knight;
+Construct 4 three times (a Chanter into a Knight, a Sprite into a Wisp, an Ember Drake into an Iron Golem). Before the
+merge (7b853ed, the same seeds), the lead's kin turned after floor 1 in Drake 4's runs 4 → 8 of 24 (3 → 7 of them
+cleared), Construct 4's 11 of 26 → 15 of 28 (4 → 10), Insect 4's 13 of 26 → 14 of 28 (5 → 8), free play's 16 of 29 →
+16 of 29 (11 → 11).
+
+Before the merge, against 7b853ed: free play on `div-0…63` 41 → 43 clears (+5 −3, +3.1 ± 4.4 points), progress +0.7 ±
+0.6, deaths 9 / 0 / 2 / 12 → 9 / 0 / 0 / 12, the rites 3.3 a run (heal 48%, the free tier 50%, a transmutation 3%),
+Mirage 4.4% → 7.0% of battles, the lead's kin turned in 30 → 31 of 55 runs (20 → 20 cleared), its fused kind in 25 of
+45 → 30 of 48 (15 → 20); committed on `div-0…31`, Drake 4 20 → 20 clears (−0.1 ± 4.1), Construct 4 13 → 18 (+6.0 ±
+3.9), Insect 4 16 → 19 (+5.6 ± 3.8, reached 3 → 8), free play 21 → 23 (+1.0 ± 0.9).
+
+**What it says.** In free play the expert spends its altars as a planner of one build would: the free tier while its
+army is whole (floors 1 and 2, the tiers to the Channelers' trines and parts), the heal once the floors wound it, a
+transmutation hardly ever, and then toward the Court and the Chanters. Free play neither gains nor loses clears (39 →
+39 on the merge, 41 → 43 before it, both within the noise; progress +1.7 ± 1.2 and +0.7 ± 0.6), and its deaths move
+from floor 3 to floor 4. Criterion 3: the fused kinds as before (the Chanter's trine in 84% of final armies); Mirage
+past 5% of battles on both pairings (3.9% → 7.4%, 4.4% → 7.0%), so three of the eleven synergies at 5% on 64 seeds, two
+before: 256 would say whether it holds.
+
+§4.5's measure, as specified, reads little in free play: the leading kin changes after floor 1 in more than half the
+runs on both sides alike, the Court's Fae on floor 1 giving way to the Chanters' Undead (21 and 22 runs of 55 turn Fae →
+Undead): a succession within one build, not a turn. Where a run is held to a kin the floor does not feed, the
+transmutation is what it is for: a fifth to a quarter of Drake 4's and Insect 4's rites, all but one of them toward the
+kin (the Chanters and Knights into Pyre Hounds, the Chanters into Hive Wardens and the Sprites into Drones); the kin
+leading their armies turns after floor 1 in more of their runs, and more of those clear (before the merge, of them
+cleared: Drake 4 3 → 7, Construct 4 4 → 10, Insect 4 5 → 8); Insect 4 is held in 7 runs of 32 against 3; and on the
+merge the committed runs gain as much as free play or more, 2.7 to 5.8 points of progress against its 3.8, and 2 to 7
+clears of 32 against none. What stays short is reach: Drake 4 is held in 1 run of 32 and Construct 4 in none (a
+transmutation keeps the tier, and the floors' Constructs are the tier-1 Clockwork Page and from floor 2 the tier-3 Iron
+Golem: no tier-2 soul can become one), and a soul a rite, about three rites a run, cannot gather four of a kin by
+themselves; the recruits and the book's weight on these kins (Step 0: Construct, Vanguard and Warden combos valued at
+nothing) are still what decide it.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:

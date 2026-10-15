@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import {
   ARCHETYPES, archetypeCombos, recipesOf, synergyOf, useCommit, withCommit, commitOf, targetOf, survey, BOOK, policy, autoplay, record,
   buildRecord, buildJobs, commitsOf, buildRow, buildLines, diversity, diversityChecks, diversityLines, reachedAt, poolTable, poolLines,
-  floorOf, visits, LEVELS
+  floorOf, visits, LEVELS, altarRites, pivots
 } from '../src/sim/autoplay.js'
 import { createRun, apply, battleSetup, foeMods, draftPool } from '../src/sim/run.js'
 import { FUSION_LIST, SYNERGIES, UNIT_LIST, fusionDef } from '../src/content.js'
@@ -159,11 +159,27 @@ test('the report\'s shape: a row an archetype with its margin, and the diversity
   assert.equal(row.reached, R.filter((r) => reachedAt(r, 'channeler_4') !== null).length / R.length)
   const d = diversity(R)
   assert.equal(d.runs, 2)
-  for (const k of ['archetypes', 'kinds', 'roles', 'kins', 'made', 'fusions', 'synergies', 'none', 'relics', 'perRun', 'command']) assert.ok(k in d, k)
+  for (const k of ['archetypes', 'kinds', 'roles', 'kins', 'made', 'fusions', 'synergies', 'none', 'relics', 'perRun', 'command', 'altar', 'pivot']) assert.ok(k in d, k)
+  assert.ok(R.every((r) => r.battles.every((b) => b.lead && 'kin' in b.lead && 'fused' in b.lead)))
   assert.ok(Object.values(d.kinds).every((v) => v > 0 && v <= 1))
   const checks = diversityChecks(d)
   assert.equal(checks.kinds.of, UNIT_LIST.filter((u) => (u.spawn || u.fused) && !u.boss).length)
   const lines = buildLines([free, row], { runs: 2, seed: 'rep' })
   assert.equal(lines.filter((l) => l.startsWith('free play') || l.startsWith('channeler_4')).length, 2)
   assert.ok(diversityLines(d).length >= 7)
+})
+
+test('the altars\' rites and the turns after floor 1, read off the records', () => {
+  const lead = (kin, fused = null) => ({ kin, fused })
+  const run = (result, battles, acts = {}) => ({ result, acts, battles: battles.map(([floor, l]) => ({ floor, lead: l })) })
+  const R = [
+    run('victory', [['1', lead('undead', 'trine:bone_chanter')], ['2', lead('fae', 'pale_court')], ['4B', lead('fae', 'pale_court')]], { heal: 1, transmute: 1 }),
+    run('defeat', [['1', lead('fae', 'pale_court')], ['3', lead('fae', 'pale_court')]], { consecrate: 2 }),
+    run('defeat', [['1', lead('drake')], ['2', lead('undead', 'trine:grave_ghoul')]]),
+    // Fell on floor 1, or a record of before the lead: not counted.
+    run('defeat', [['1', lead('fae')]]),
+    { result: 'defeat', acts: {}, battles: [{ floor: '1' }, { floor: '2' }] }
+  ]
+  assert.deepEqual(pivots(R), { of: 3, kin: 2, kinCleared: 1, fusedOf: 2, fused: 1, fusedCleared: 1 })
+  assert.deepEqual(altarRites(R), { perRun: 4 / 5, heal: 0.25, transmute: 0.25, consecrate: 0.5 })
 })

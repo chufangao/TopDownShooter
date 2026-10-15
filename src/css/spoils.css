@@ -1,6 +1,7 @@
-/* spoils: the reap screen's and the Shop's cards (picked the Slay the Spire way), the title's four steps and the end
-   screen's sting. Owned by titleScreen, reapScreen, shopScreen, endScreen and deathPanel in ui.js. Each card wears its
-   system's colour as --f: a recruit essence, a relic its tier's (--rt: common to legendary), a tier the tracks' cyan. */
+/* spoils: the reap screen's, the Shop's and the altar's cards (picked the Slay the Spire way), the title's four steps
+   and the end screen's sting. Owned by titleScreen, reapScreen, shopScreen, altarScreen, endScreen and deathPanel in
+   ui.js. Each card wears its system's colour as --f: a recruit essence, a relic its tier's (--rt: common to legendary),
+   a tier the tracks' cyan, a transmutation the shadows' pink. */
 
 /* ── reap: the frame ──────────────────────────────────────────────────────────────────────────── */
 /* Fitted to the frame (.screen.fit): the head, the cards in the middle (the one part that may scroll, rows of
@@ -348,3 +349,54 @@ button.ret-toggle:hover:not([aria-disabled]) { background-color: #463614; color:
 .draft-after { margin: 0; color: var(--dim); font-size: var(--fs-sm); }
 .draft-screen .draft-reach { color: var(--dim); font-size: var(--fs-sm); }
 @media (prefers-reduced-motion: reduce) { .draft-seat.gain { animation: none; } }
+
+/* ── the altar: one rite of three (ui.js altarScreen) ─────────────────────────────────────────── */
+/* The rites as tabs under the head, each in its system's colour: the heal essence's teal, a transmutation the shadows'
+   pink (a soul remade), a consecration the tracks' cyan (a tier). Under them the rite's panel: the heal's line and its
+   mended souls, a row each, its button at the foot; a transmutation's or a consecration's chooser (a soul or a kind, a
+   button each down the left, the chosen ringed, scrolling in itself) beside its line and its cards (the spoils' compact
+   rows), so the cards keep the height. */
+.altar-screen .r-heal { --f: var(--c-essence); }
+.altar-screen .r-transmute, .altar-screen .o-turn { --f: var(--c-shadow); }
+.altar-screen .r-consecrate, .altar-screen .o-tier { --f: var(--c-path); }
+.altar-screen .rite-tabs { flex: none; flex-wrap: nowrap; justify-content: center; gap: 6px; margin: 12px auto 0; }
+.altar-screen .rite-tab { font-size: var(--fs-lg); padding: 6px 16px; }
+.altar-screen .rite-tab .ico { color: var(--f); }
+.altar-screen .rite-tab.on { border-bottom-color: var(--f); }
+.rite-tab .rite-n { font: 400 var(--fs-sm) var(--sans); }
+.rite-panel { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.rite-say { margin: 0; max-width: 860px; font-size: var(--fs-md); color: var(--text); }
+.altar-screen .rite-body:has(> .split) { overflow: hidden; }
+.altar-screen .reap-body > .rite-panel.split { flex: 1; min-height: 0; margin: 0; }
+.rite-panel.split { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); align-items: stretch; gap: 20px; width: 100%; }
+.rite-side { min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 8px 6px 2px; text-align: left; }
+.rite-label { font-size: var(--fs-sm); }
+.rite-choose { display: flex; flex-direction: column; gap: 8px; }
+button.rite-opt { justify-content: flex-start; gap: 8px; padding: 3px 12px 3px 4px; text-align: left; background: var(--sunk); }
+button.rite-opt.on { background: color-mix(in srgb, var(--f) 16%, var(--raise)); box-shadow: inset 0 0 0 3px var(--f), var(--drop-sm); }
+.rite-opt .rank-port .portrait { width: 36px; height: 36px; }
+.rite-opt-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.15; white-space: nowrap; }
+.rite-opt-text b { overflow: hidden; text-overflow: ellipsis; color: var(--bright); font-size: var(--fs-sm); }
+.rite-opt-text .dim { font-size: var(--fs-xs); }
+.rite-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 4px 8px; }
+.rite-main > .offers { margin-top: auto; margin-bottom: auto; }
+.rite-main .rite-say { font-size: var(--fs-sm); }
+.altar-screen .offer-art .tier-badge {
+  position: absolute; right: 8px; bottom: 6px; min-width: 34px; padding: 0 8px; border-radius: var(--r-pill);
+  font: 700 var(--fs-md)/1.5 var(--display); color: var(--ink); background: var(--f); border: 2.5px solid var(--ink); box-shadow: var(--drop-sm);
+}
+.rite-mends { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 12px; max-width: 1100px; }
+.rite-mend { display: flex; align-items: center; gap: 8px; padding: 3px 12px 3px 4px; border-radius: var(--r-pill); border: 2.5px solid var(--ink); background: var(--sunk); white-space: nowrap; }
+.rite-mend .rank-port .portrait { width: 36px; height: 36px; }
+.rite-foot { justify-content: space-between; }
+.rite-hint { margin: 0; font-size: var(--fs-sm); text-align: left; }
+/* A short frame (a phone, 540 tall): the tabs and the chooser closer. */
+@container frame (max-height: 640px) {
+  .altar-screen .rite-tabs { margin-top: 4px; }
+  .altar-screen .rite-tab { font-size: var(--fs-md); padding: 2px 12px; }
+  .rite-panel { gap: 8px; }
+  .rite-main { gap: 8px; }
+  .rite-choose { gap: 6px; }
+  .rite-opt .rank-port .portrait, .rite-mend .rank-port .portrait { width: 30px; height: 30px; }
+  .altar-screen .reap-foot { padding-top: 6px; }
+}

@@ -221,9 +221,9 @@ relic: one slain foe a battle, as a full soul into the ossuary.
   fusion 8 × the result's tier. What a battle buys stays about level from floor to floor, and a floor's pay carried
   down buys less there.
 - **Wounds carry.** A won battle heals each living body `TUNING.run.postBattleHeal` of its HP (20% since 2026-10-10,
-  §6; it was half), the Monarch too unless Court of Bone holds; an altar heals every body to full and raises the
-  fallen (`altarHeal`, `altarRevive`), and nothing else raises them (§2.2). So HP, DEF, Undying and Heartwood count
-  between rooms.
+  §6; it was half), the Monarch too unless Court of Bone holds; an altar's heal, one of its three rites
+  (redesign.md §4.5), heals every body to full and raises the fallen (`altarHeal`, `altarRevive`), and nothing else
+  raises them (§2.2). So HP, DEF, Undying and Heartwood count between rooms.
 - **Upgrades belong to the kind.** A kind's panel: **two tracks** of tiers I–IV with the crosspath rule (the first
   track past II may reach IV; the other stops at II). Tier IV is a rule, never a percentage: a new or remade ability,
   an aura, +ring, or **Colossus** (`size: 2`). Banner is gone.

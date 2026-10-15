@@ -35,8 +35,9 @@
 //   recruit  (reap) each soul offered that the purse affords (a full retinue letting its weakest go first, as the base's
 //            weighRecruits chooses that soul), and none.
 //   shop     (Shop) each relic on the shelf the purse affords, and buying nothing (leaving).
+//   altar    (altar) its rites (autoplay.js altarCandidates: the heal, each transmutation, each free tier), one taken.
 // Each candidate list is the base's own pick first, then the rest in the base's own order (the growth search's score for
-// holds and tiers, the sketch's gain for recruits, the gain an essence for relics, the formation's standing), at most
+// holds and tiers, the sketch's gain for recruits and rites, the gain an essence for relics, the formation's standing), at most
 // `cap` (6) in all; a decision of one candidate spends no playout. The best value is taken, a tie to the base's pick
 // (within 1e-9). Passing on is a candidate like any other: valued as the base's next decision taken now and the base
 // after it, so the teacher at each decision plays the best of its candidates followed by the base: a rollout policy over
@@ -57,14 +58,14 @@
 // decision's choice was played out on, and the candidates of a decision taken a step earlier or later in one prep meet
 // again at its fight, so most of a decision's playouts end at their first fight. Windows (`rooms` > 0) keep nothing.
 //
-// Its parts mirror the base's dispatch out of battle (autoplay.js policy, pickNode, pickPrep, pickShop: baseStep and
+// Its parts mirror the base's dispatch out of battle (autoplay.js policy, pickNode, pickPrep, pickShop, pickAltar: baseStep and
 // prepStep below), so it can pass on a decision and drive a formation; test/outside.test.js holds baseStep to policy step
 // for step. A purchase's candidates and the recruit's are autoplay.js's own (spendCandidates, recruitCandidates, ranked by
 // grow's scores and the sketch's gain: the forest out of battle reads the same), the base's pick the expert's in use
 // (spendPick, recruitPick); the holds' and the Shop's scores mirror grow's and buyFor's. A hook in autoplay.js (policy
 // with a decision passed, or a formation given) would let them go.
 //
-//   npm run outside -- [--runs 64] [--seed sim] [--from 0] [--workers 2] [--out dir] [--phases prep,spend,recruit,shop,hold]
+//   npm run outside -- [--runs 64] [--seed sim] [--from 0] [--workers 2] [--out dir] [--phases prep,spend,recruit,shop,hold,altar]
 //                      [--cap 6] [--rooms 0] [--prep battle|run] [--won] [--report-only]
 // plays seeds `<seed>-<from>`…`<seed>-<from + runs − 1>` (sim-0…sim-63 by default), each by the outside teacher (out of
 // battle; the base in battle) and by the expert as it ships (teach.js expertRun: autoplay.js record), paired (teach.js
@@ -110,7 +111,7 @@ import {
   LEVELS, policy, survey, planFor, plan, pickRoute, pickHold, grow, spendOptions, fusionOptions,
   pickReap, weighRecruits, buyFor, growthOf, sketch, saving, nextTier, held, tierRate, offerState, targetOf, targetKinds, byFieldPower,
   progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, outCandidates, spendPick, recruitPick, outsideRead,
-  prepCandidates, prepRead, formationName, PREP_CAP, pickDraft
+  prepCandidates, prepRead, formationName, PREP_CAP, pickDraft, pickAltar, altarCandidates
 } from './autoplay.js'
 import { outForestModel, outDecides } from './outforest.js'
 import { value, expertModel } from './expert.js'
@@ -123,7 +124,7 @@ import { TUNING } from '../tuning.js'
 // The decisions it may make (`phases`), and its defaults: `cap` candidates a decision at most, the base's pick among
 // them; `rooms` 0 to the run's end (else that many rooms on); `prep` 'battle' (a formation judged by its coming battle) or
 // 'run' (to the run's end, as the rest); `won` false (true: a cleared run is enough, see the head of this file).
-export const PHASES = Object.freeze(['prep', 'spend', 'recruit', 'shop', 'hold'])
+export const PHASES = Object.freeze(['prep', 'spend', 'recruit', 'shop', 'hold', 'altar'])
 export const PREPS = Object.freeze(['battle', 'run'])
 export const DEFAULTS = Object.freeze({ phases: PHASES, cap: 6, rooms: 0, prep: 'battle', won: false })
 const L = LEVELS.expert
@@ -169,7 +170,7 @@ export function prepStep (run, goal) {
   return { type: 'fight' }
 }
 
-// The base's action out of battle (autoplay.js policy: pickNode, pickPrep, pickReap, pickShop), with a decision passed
+// The base's action out of battle (autoplay.js policy: pickNode, pickPrep, pickReap, pickShop, pickAltar), with a decision passed
 // on (`skip`: 'hold' the relics given; 'spend' the relics and the purchases, as passing on spending follows the relics;
 // 'shop' the relics and the Shop's buys) and in prep the formation `goal` walked to in place of the base's plan. With
 // neither, the base's own action (the tests hold it to policy's).
@@ -177,6 +178,7 @@ export function baseStep (run, sit = survey(run, L), { skip = null, goal = null 
   const s = run.state
   if (s.phase === 'draft') return pickDraft(run, L)
   if (s.phase === 'reap') return pickReap(run, L, sit)
+  if (s.phase === 'altar') return pickAltar(run, L, sit)
   const hold = skip ? null : pickHold(run, L, sit)
   if (hold) return hold
   if (s.phase === 'shop') return (skip === 'shop' ? null : buyFor(run, L, sit)) ?? { type: 'leave' }
@@ -472,6 +474,16 @@ function formationList (run, m, c) {
   return { phase: 'prep', cands, opts: { battle: c.prep !== 'run' }, then }
 }
 
+// An altar's rite (autoplay.js altarCandidates: the heal, each transmutation, each free tier, by the sketch's gain), one
+// taken: there is no passing on.
+function altarList (run, m, c, sit) {
+  const base = pickAltar(run, L, sit)
+  if (!c.phases.has('altar')) return { act: base }
+  const d = altarCandidates(run, L, sit)
+  const cands = d.cands.map((x) => ({ ...x, take: x.actions[0] }))
+  return { phase: 'altar', cands: rankCandidates(cands, idOf(base), c.cap), then: (x) => x.take }
+}
+
 // On the map, once the relics and the purse are seen to: the base's room.
 const roomList = (run, m, c, sit) => ({ act: baseStep(run, sit, { skip: 'spend' }) })
 
@@ -479,8 +491,8 @@ const roomList = (run, m, c, sit) => ({ act: baseStep(run, sit, { skip: 'spend' 
 const draftList = (run) => ({ act: pickDraft(run, L) })
 
 // The decisions each phase meets, in the order the base meets them (autoplay.js pickDraft, pickNode, pickPrep, pickReap,
-// pickShop).
-const ORDER = { draft: [draftList], map: [holdList, spendList, roomList], prep: [holdList, spendList, formationList], reap: [recruitList], shop: [holdList, shopList] }
+// pickShop, pickAltar).
+const ORDER = { draft: [draftList], map: [holdList, spendList, roomList], prep: [holdList, spendList, formationList], reap: [recruitList], shop: [holdList, shopList], altar: [altarList] }
 
 // The decisions at `run` in order, each made (`play`: its candidates played out, the best taken) or passed on, until
 // one gives an action. Without `play`, the first decision met unmade: { phase, cands }, or { act } where none is met
@@ -532,7 +544,7 @@ export function outsideStats (run) {
 // The outside teacher's action for `run` out of battle (in battle, or over, the base's: policy), `cfg` its
 // configuration (configOf: `phases`, `cap`, `rooms`, `prep`). The decisions in the order the base meets them: a relic
 // given, a purchase, then on the map the base's room, in prep the formation's step; in the reap the recruit; in a Shop a
-// relic given, then a relic bought or leaving. Use it in place of autoplay.js policy out of battle; what it keeps for the
+// relic given, then a relic bought or leaving; at an altar its rite. Use it in place of autoplay.js policy out of battle; what it keeps for the
 // run (outsideStats) lives as long as the run object does.
 export function outsideTeacher (run, rng, cfg = {}) {
   const s = run.state

@@ -244,6 +244,13 @@ export const TREES = {
   hold: [
     // A piece relic waiting works for no one: given, where a standing soul has a free slot.
     { id: 'give-relic', when: (sit) => sit.relics.unheld.length > 0 && sit.relics.free > 0, keep: (o) => !!o.free }
+  ],
+  // An altar's rite (autoplay.js pickAltar: `o.action` the heal, a transmutation or a free tier; redesign.md §4.5). The
+  // route's two reasons for walking to an altar (route's wounded-altar and monarch-altar, at their thresholds) are
+  // reasons to heal at it: the sketch reads the souls' wounds, never the Monarch's.
+  altar: [
+    { id: 'wounded-heal', when: (sit) => sit.health < T().wounded, force: (opts) => opts.find((o) => o.action?.type === 'heal') },
+    { id: 'monarch-heal', when: (sit) => !sit.unhealed && sit.monarch < T().altar, force: (opts) => opts.find((o) => o.action?.type === 'heal') }
   ]
 }
 
