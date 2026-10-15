@@ -21,6 +21,7 @@ import { field } from './sim/field.js'
 import { h, fill, icon, portrait, prefs, showTip, hideTip, pinTip, hold, HOLD, touchy, say } from './dom.js'
 import { kw } from './keywords.js'
 import { sfx } from './sfx.js'
+import { music } from './music.js'
 // The Field's board: the battle's own, drawn in Phaser (board.js), under a layer that takes the pointer.
 import { board } from './board.js'
 // The page is scaled whole (frame.js): what is placed over it by a viewport point goes into the frame's px.
@@ -191,7 +192,7 @@ function ascensionChooser ({ level, open, onLevel }) {
 // Sound and How to play in the top corner of a screen with no top bar (the title, the end): a finger has no M
 // or H key.
 function cornerButtons (onHelp) {
-  return h('div', { class: 'corner-btns' }, muteButton(), helpButton(onHelp))
+  return h('div', { class: 'corner-btns' }, musicButton(), muteButton(), helpButton(onHelp))
 }
 const helpButton = (onHelp) => h('button', { class: 'icon-btn', 'aria-label': 'How to play', onclick: onHelp, tip: () => 'How to play (H)' }, icon('help', 22))
 
@@ -246,7 +247,7 @@ function topbar (run, onHelp, tabs = null) {
     // A column a tile, all but the last free to narrow (feel.css .trinkets).
     t > 0 && h('div', { class: 'trinkets', style: `grid-template-columns: ${t > 1 ? `repeat(${t - 1}, minmax(0, var(--tap))) ` : ''}var(--tap)` },
       Object.keys(counts).map(tile)),
-    h('div', { class: 'top-btns' }, muteButton(), helpButton(onHelp)))
+    h('div', { class: 'top-btns' }, musicButton(), muteButton(), helpButton(onHelp)))
 }
 
 // Your souls by where they are: "4/5 on the field, 2 in the ossuary (1 fallen)".
@@ -322,6 +323,37 @@ function muteButton () {
     onclick: () => { if (!sfx.toggle()) sfx.play('click') },
     tip: () => 'Sound on or off. (M)'
   }, icon('sound', 22), icon('mute', 22))
+}
+
+// The note: music on or off (music.js), remembered between visits, heard only while sound is on. Both icons drawn;
+// <html data-music> shows the one that holds. Its volume is How to play's (soundControls).
+function musicButton () {
+  return h('button', {
+    class: 'icon-btn music-btn',
+    'data-sfx': 'none',
+    'aria-label': 'Music on or off',
+    onclick: () => { music.toggle(); sfx.play('click') },
+    tip: () => music.on ? (sfx.muted ? 'Music on, but sound is off: the speaker brings both back.' : 'Music on or off. Its volume is in How to play.') : 'Music off: turn it on.'
+  }, icon('music', 22), icon('nomusic', 22))
+}
+
+// The sound's settings, for How to play's foot: the effects and the music, each on or off, and the music's volume.
+export function soundControls () {
+  const toggle = (label, get, flip) => {
+    const b = h('button', { class: 'small ghost snd-toggle', 'data-sfx': 'none', role: 'switch' })
+    const shown = () => { b.setAttribute('aria-checked', get() ? 'true' : 'false'); b.textContent = `${label}: ${get() ? 'on' : 'off'}` }
+    b.addEventListener('click', () => { flip(); shown(); sfx.play('click') })
+    shown()
+    return b
+  }
+  const vol = h('input', {
+    type: 'range', min: '0', max: '100', step: '5', value: String(Math.round(music.volume * 100)), 'aria-label': 'Music volume',
+    oninput: (e) => { music.volume = Number(e.target.value) / 100 }
+  })
+  return h('div', { class: 'snd-ctl' },
+    toggle('Sound', () => !sfx.muted, () => sfx.toggle()),
+    toggle('Music', () => music.on, () => music.toggle()),
+    h('label', { class: 'snd-vol' }, 'Music volume', vol))
 }
 
 // The floors: a pip each down to the Sovereign's, lit as they are cleared; past it, in the deep, a deep pip
@@ -2357,7 +2389,7 @@ export function battleChrome ({ onHelp = null } = {}) {
   const endBtn = btn({ class: 'primary big end-turn', onclick: () => scene?.endTurn(), tip: endTip }, icon('play', 20), ' End Turn')
   const el = h('div', { class: 'battle-screen' },
     h('header', { class: 'battle-top' }, title, turnEl, waveTurn, h('span', { class: 'grow' }), purse,
-      h('div', { class: 'top-btns' }, muteButton(),
+      h('div', { class: 'top-btns' }, musicButton(), muteButton(),
         onHelp && btn({ class: 'icon-btn', 'aria-label': 'How to play', onclick: onHelp, tip: () => 'How to play: the battle waits while it is open. (H)' }, icon('help', 22)))),
     h('div', { class: 'battle-main' },
       stage,

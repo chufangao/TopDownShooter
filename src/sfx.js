@@ -26,6 +26,8 @@ const LEVEL = {
 
 let ctx = null
 let out = null
+// The limiter every sound goes through, the music too (music.js: sfx.audio).
+let comp = null
 let bus = null
 let noiseBuf = null
 const last = new Map()
@@ -33,6 +35,9 @@ let muted = prefs.get('muted') === '1'
 
 const mark = () => { if (typeof document !== 'undefined') document.documentElement.dataset.muted = muted ? '1' : '0' }
 mark()
+// Who hears that the context was made or woke, or that sound was muted or not (sfx.listen: the music).
+const heard = new Set()
+const tell = () => { for (const fn of heard) { try { fn() } catch {} } }
 
 // The first gesture makes (or wakes) the context; until then play() is a no-op.
 function unlock () {
@@ -42,7 +47,7 @@ function unlock () {
       if (!AC) return
       ctx = new AC()
       // A gentle limiter after the master gain, so stacked hits never clip.
-      const comp = ctx.createDynamicsCompressor()
+      comp = ctx.createDynamicsCompressor()
       comp.threshold.value = -14
       comp.ratio.value = 6
       out = ctx.createGain()
@@ -51,8 +56,10 @@ function unlock () {
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate)
       const d = noiseBuf.getChannelData(0)
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+      ctx.addEventListener?.('statechange', tell)
     }
-    if (ctx.state === 'suspended') ctx.resume()
+    if (ctx.state === 'suspended') ctx.resume()?.then?.(tell, () => {})
+    tell()
   } catch {}
 }
 if (typeof window !== 'undefined') {
@@ -245,7 +252,12 @@ export const sfx = {
     muted = !!on
     prefs.set('muted', muted ? '1' : '0')
     mark()
+    tell()
   },
+  // The context and the limiter's input, for the music to play through (null before the first gesture made them); and
+  // listen(fn), fn() heard each time either changes (made, woken, or sound muted or not).
+  get audio () { return ctx ? { ctx, out: comp } : null },
+  listen (fn) { heard.add(fn) },
   toggle () { this.muted = !muted; return muted },
   play (name) {
     sfx.count++

@@ -32,6 +32,19 @@
   .title-box .steps.brief { margin-bottom: 18px; }
 }
 
+/* ── music ──────────────────────────────────────────────────────────────────────────────────────── */
+/* The note beside the speaker (ui.js musicButton): both icons drawn, <html data-music> shows the one that holds; dimmed
+   off, or while the speaker is (no music without sound). */
+.music-btn .ico + .ico { display: none; }
+html[data-music="0"] .music-btn .ico:first-child { display: none; }
+html[data-music="0"] .music-btn .ico + .ico { display: inline-flex; }
+html[data-music="0"] .music-btn, html[data-muted="1"] .music-btn { color: #6a6284; }
+/* How to play's sound settings (ui.js soundControls), under its foot. */
+.snd-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 14px; font-size: var(--fs-sm); color: var(--dim); }
+.snd-toggle[aria-checked="false"] { color: var(--dim); }
+.snd-vol { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap); }
+.snd-vol input { width: 180px; min-height: var(--tap); accent-color: var(--c-essence); }
+
 /* ── history ──────────────────────────────────────────────────────────────────────────────────── */
 /* As the end screen is laid out (its column of totals and Back, its tabbed panel), without its verdict's sting. */
 .history-screen .sigil, .history-screen .logo { animation: rise .6s ease-out; }

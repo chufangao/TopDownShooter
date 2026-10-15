@@ -1227,7 +1227,7 @@ export function fusionsView (run = null) {
 // its word and one line; one with more to its rule is a fold. The search box takes the keys: Esc closes, and H
 // or ? close while it is empty (`onClose`: the dialog's; none inside the Codex tab). `run`: the run in play, if
 // any.
-export function codexView (run = null, { onClose = null } = {}) {
+export function codexView (run = null, { onClose = null, sound = null } = {}) {
   const s = run?.state
   const none = h('p', { class: 'dim gl-none', hidden: true }, 'Nothing matches.')
   const sections = glossary(run).map((g) => {
@@ -1289,7 +1289,9 @@ export function codexView (run = null, { onClose = null } = {}) {
     h('div', { class: 'help-foot' },
       h('p', { class: 'dim' }, say([h('kbd', null, 'H'), ' or ', h('kbd', null, '?'), ' opens How to play anywhere; ', h('kbd', null, 'Esc'), ' closes it.'],
         'The ? button opens How to play from any screen.')),
-      tipsBack))
+      tipsBack),
+    // The sound's settings (ui.js soundControls), where How to play is opened over a screen.
+    sound)
   const gloss = h('div', { class: 'help-view glossary' }, sections.map((x) => x.el), none)
   const tabs = h('div', { class: 'tabs help-tabs', role: 'tablist' })
   const body = h('div', { class: 'help-body' })
@@ -1345,8 +1347,8 @@ function bestiaryView () {
 }
 
 // How to play as a dialog over any screen (H, ?, the help buttons).
-export function helpOverlay (onClose, run = null) {
+export function helpOverlay (onClose, run = null, { sound = null } = {}) {
   const el = h('div', { class: 'overlay', onclick: (e) => { if (e.target === el) onClose() } },
-    h('div', { class: 'modal help', role: 'dialog', 'aria-label': 'How to play' }, codexView(run, { onClose })))
+    h('div', { class: 'modal help', role: 'dialog', 'aria-label': 'How to play' }, codexView(run, { onClose, sound })))
   return el
 }

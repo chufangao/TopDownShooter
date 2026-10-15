@@ -10,11 +10,12 @@ import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS, TUTORIAL } from './content.js'
 import {
   titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText,
-  historyScreen
+  historyScreen, soundControls
 } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, riteNote, recruitNote, summonedBy } from './codex.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy, prefs } from './dom.js'
 import { sfx } from './sfx.js'
+import { music, trackOf } from './music.js'
 import { board } from './board.js'
 
 // The display face (style.css @font-face) is in before the board draws a word in it: a canvas draws its text once, in
@@ -116,7 +117,7 @@ function toggleHelp () {
     help = null
     return cover('help', false)
   }
-  help = helpOverlay(toggleHelp, run)
+  help = helpOverlay(toggleHelp, run, { sound: soundControls() })
   frame.el.append(help)
   cover('help', true)
   if (!touchy()) help.querySelector('.gl-search')?.focus({ preventScroll: true })
@@ -315,6 +316,7 @@ function title (seed, said = '') {
   const at = saved()
   const day = dayOf()
   const ran = book().runs.find((e) => e.daily === day && !e.practice) ?? null
+  music.set('title')
   show(titleScreen({
     seed, level: ascension, open: openTo(cleared()), onLevel: choose, onStart: start, onHelp: toggleHelp,
     saved: at, note: said || aside, onContinue: resume, onTutorial: tutorial,
@@ -337,6 +339,7 @@ function title (seed, said = '') {
 // The History (ui.js historyScreen): the runs kept, newest first, and their totals; back to the title with its seed.
 function chronicles (seed) {
   overlay(null)
+  music.set('title')
   show(historyScreen({ book: book(), day: dayOf(), onBack: () => title(seed), onHelp: toggleHelp }))
 }
 
@@ -426,6 +429,9 @@ function route () {
   const s = run.state
   if (s.tutorial && s.phase === 'over') return graduate()
   migrate(s)
+  // The floor's loop (the deep's below the Sovereign's floor), its battle layer while a battle is entered or under way;
+  // the title's once the run is over.
+  music.set(s.phase === 'over' ? 'title' : trackOf(s.floor, depthOf(s.floor) > 0), s.phase === 'battle' || s.phase === 'prep')
   if (!trail || trail.floor !== s.floor) {
     // A new floor: its number and its prices (codex.js floorNote); in the deep, how the foes have grown.
     if (trail && s.phase === 'map') note = floorNote(s)
@@ -605,4 +611,4 @@ title(seed)
 
 // Console access for debugging: retinue.run.state, retinue.run.state.log, retinue.route() (redraw the screen after
 // applying actions by hand), …
-window.retinue = { engine, route, get run () { return run } }
+window.retinue = { engine, route, music, get run () { return run } }
