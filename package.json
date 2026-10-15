@@ -11,6 +11,8 @@
     "sim": "node src/sim/autoplay.js",
     "decisions": "node src/sim/autoplay.js --decisions",
     "ladder": "node src/sim/autoplay.js --ladder",
+    "builds": "node src/sim/autoplay.js --builds",
+    "pool": "node src/sim/autoplay.js --pool",
     "ablations": "node src/sim/autoplay.js --ablations",
     "necessity": "node src/sim/autoplay.js --necessity",
     "audit": "node src/sim/autoplay.js --audit",
