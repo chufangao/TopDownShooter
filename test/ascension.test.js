@@ -116,14 +116,17 @@ test('a level\'s counts and waves: a fight\'s and an elite\'s foes × its row, i
     }
   }
   assert.ok(roomSize(4, false, TOP) > roomSize(4, false) && roomSize(4, true, TOP) > roomSize(4, true))
-  // Floor 1's rooms have no cohorts: a fight's formation is its count, an elite's too, its late pair a wave of its own.
-  const run = createRun({ seed: 'counts', ascension: TOP })
-  const rooms = run.state.map.nodes.filter((n) => n.foes)
+  // Floor 1's rooms have no cohorts: a fight's formation is its count, an elite's too, its late pair a wave of its own;
+  // its boss's court, as the Sovereign's, is the floor's at every level (redesign.md §4.7). The rooms are drawn as the
+  // floor opens: a run from the fixed start here, not the draft.
+  const run = createRun({ seed: 'counts', ascension: TOP, start: START_PARTY })
+  const rooms = run.state.map.nodes.filter((n) => n.foes && n.type !== 'boss')
   assert.ok(rooms.some((n) => n.type === 'fight') && rooms.some((n) => n.type === 'elite'))
   for (const n of rooms) {
     assert.equal(n.foes.length, roomSize(1, n.type === 'elite', TOP), `${n.id} ${n.type}`)
     if (n.type === 'elite') assert.deepEqual(n.waves.map((w) => w.foes.length), [sp.late.n])
   }
+  assert.equal(run.state.map.nodes.find((n) => n.type === 'boss').foes.length, 1 + sp.court[0])
   // The same draw, its count aside: a level's room is drawn on the room's own stream.
   const node = { id: 'x', type: 'fight', rank: 2 }
   assert.deepEqual(drawRoom('counts', 1, node, { ascension: 0 }), drawRoom('counts', 1, node))

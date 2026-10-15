@@ -59,7 +59,11 @@ const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
 // kind it was made of). `rule`: a boss's override or a capstone's rule (rules.js), scoped to the piece. `flavour`: a
 // line of lore that hints at it, never naming it. Its pictures are `assets/units/<id>.alive|attack|dead.svg` (artUrl),
 // animated in code; `art: '<id>'` borrows another kind's until its own are drawn. Each kind does one legible thing
-// on the board.
+// on the board. A boss (`boss`: never spawned, never held, no tracks; its fall crumbles its side) carries `phases` (HP
+// shares that grant a status), `court` (the kinds about it: `kin` or `role` of the floor's elite pool, or `kinds`
+// named; `front`, they stand ahead of it on the front row), and where it meets you: `last` (the run's last floor) or
+// `floors` (the floors it may end), with `answers` (what an army leans on that it is there for: run.js LEANINGS,
+// bossFor).
 
 export const UNIT_LIST = [
   {
@@ -987,15 +991,16 @@ export const UNIT_LIST = [
     flavour: 'A barrow of bone with an engine for a heart: it moves a tile a turn, and nothing it stands before moves at all.'
   },
   {
-    // Bosses never spawn from the pool and leave no soul. Its phases (HP shares that grant a status) and its
-    // override (§2.9.6: `rule`, rules.js `sovereign`), a script on top of its temperament: its court moves before
-    // every other foe, and once its tide has come it calls Grave Tide on a fixed cadence of turns.
+    // Bosses never spawn from the pool and leave no soul. The last floor's: its phases and its override (§2.9.6:
+    // `rule`, rules.js `sovereign`), a script on top of its temperament: its court (undead of the floor's elite pool)
+    // moves before every other foe, and once its tide has come it calls Grave Tide on a fixed cadence of turns.
     id: 'hollow_sovereign',
     name: 'The Hollow Sovereign',
     kin: 'undead',
     role: 'vanguard',
     tier: 5,
     boss: true,
+    last: true,
     base: { hp: 2800, atk: 65, def: 30 },
     growth: { hp: 280, atk: 6.5, def: 2 },
     abilities: ['grave_tide', 'sovereign_sweep', 'strike'],
@@ -1003,9 +1008,116 @@ export const UNIT_LIST = [
     temper: TEMPERS.court,
     phases: [{ at: 0.6, grant: 'enraged' }, { at: 0.25, grant: 'desperate' }],
     rule: 'sovereign',
+    court: { kin: 'undead' },
     threats: ['shape', 'sustain'],
     behaviour: 'walk',
     flavour: 'It does not fight alone: its court walks with it, and the dead of the field rise at its tide. Without it, they are dust.'
+  },
+  // ── the floor bosses (redesign.md §4.7) ──
+  // A boss ends each floor but the last: of those tagged with the floor (`floors`), the one that answers what the army
+  // leans on most as the floor opens (run.js bossFor, by `answers`), a tie drawn by the run's seed; on the map from then,
+  // as every room's foes are. Each carries its counter in its kit: its abilities, its temper and its court say it, and a
+  // rule scoped to it (rules.js) where they cannot. Its HP and ATK on a floor its own × TUNING.spawn.bossHp and bossAtk
+  // for the floor; its court TUNING.spawn.court for the floor. Pictures borrowed (`art`), drawn washed (dom.js figures).
+  // Placeholders until the balance pass.
+  {
+    // Against casters: a Hex-spamming court. Mire Hexes every foe within 3 and Hex one from 3, a turn in two each; its
+    // court of hags Hexes as it does; it hunts the one with the most left to give; at half HP, Enraged: every turn.
+    id: 'mire_mother',
+    name: 'The Mire Mother',
+    kin: 'fae',
+    role: 'channeler',
+    tier: 4,
+    boss: true,
+    floors: [1, 2],
+    answers: 'casters',
+    base: { hp: 300, atk: 22, def: 8 },
+    growth: { hp: 30, atk: 2.6, def: 0.7 },
+    abilities: ['mire', 'hex', 'witchfire'],
+    move: 2,
+    temper: TEMPERS.hexer,
+    phases: [{ at: 0.5, grant: 'enraged' }],
+    court: { kinds: ['marsh_hag'] },
+    threats: ['reach', 'drain'],
+    behaviour: 'walk',
+    art: 'marsh_hag',
+    flavour: 'The hags call her mother, and the bog minds her before it minds them: whatever has the most to give near her is the first to find its feet held.'
+  },
+  {
+    // Against statuses: Purge and Molt. It sheds every debuff on itself as the foes' turn begins (rules.js
+    // molting_abbess), Molts its court within 2, Purges one of them as its basic, and its court of wardens and pages
+    // purges as it fights; at half HP, Regen.
+    id: 'molting_abbess',
+    name: 'The Molting Abbess',
+    kin: 'insect',
+    role: 'warden',
+    tier: 4,
+    boss: true,
+    floors: [1, 2],
+    answers: 'statuses',
+    base: { hp: 420, atk: 18, def: 18 },
+    growth: { hp: 42, atk: 2.1, def: 1.5 },
+    abilities: ['molt', 'purge', 'royal_scythe'],
+    move: 2,
+    temper: TEMPERS.court,
+    phases: [{ at: 0.5, grant: 'regen' }],
+    rule: 'molting_abbess',
+    court: { kinds: ['hive_warden', 'clockwork_page'] },
+    threats: ['sustain', 'drain'],
+    behaviour: 'walk',
+    art: 'hive_warden',
+    flavour: 'Every curse laid on the abbess is a skin she has already outgrown, and her sisters pick clean whatever she sheds.'
+  },
+  {
+    // Against shooters: screens on every line. Its court of vanguards stands ahead of it across the front row, and while
+    // it stands a shot at one of its side but a Vanguard lands on a Vanguard beside it (rules.js barrow_marshal); it
+    // shoots from 5, its spear down a whole lane; at 40% HP, Desperate.
+    id: 'barrow_marshal',
+    name: 'The Barrow Marshal',
+    kin: 'undead',
+    role: 'ranger',
+    tier: 4,
+    boss: true,
+    floors: [1, 2],
+    answers: 'shooters',
+    base: { hp: 380, atk: 24, def: 14 },
+    growth: { hp: 38, atk: 2.8, def: 1.2 },
+    abilities: ['marrow_spear', 'searing_bolt'],
+    move: 2,
+    temper: TEMPERS.shooter,
+    phases: [{ at: 0.4, grant: 'desperate' }],
+    rule: 'barrow_marshal',
+    court: { role: 'vanguard', front: true },
+    threats: ['reach', 'shape'],
+    behaviour: 'walk',
+    art: 'barrow_wight',
+    flavour: 'The marshal never stood in a line it could stand behind: its dead close ranks about it, and every arrow meets a shield first.'
+  },
+  {
+    // Against walls: flyers. It flies the air road over the walls at the Monarch with a court of drones, and every
+    // second turn while it stands more hatch beside it (rules.js swarm_queen); its sting Withers, its cloud stings a
+    // crowd; at half HP, Enraged.
+    id: 'swarm_queen',
+    name: 'The Swarm Queen',
+    kin: 'insect',
+    role: 'skirmisher',
+    tier: 4,
+    boss: true,
+    floors: [1, 2],
+    answers: 'walls',
+    flies: true,
+    base: { hp: 280, atk: 22, def: 6 },
+    growth: { hp: 28, atk: 2.6, def: 0.5 },
+    abilities: ['swarm_cloud', 'venom_sting'],
+    move: 3,
+    temper: TEMPERS.seeker,
+    phases: [{ at: 0.5, grant: 'enraged' }],
+    rule: 'swarm_queen',
+    court: { kinds: ['hive_drone'] },
+    threats: ['fly', 'drain'],
+    behaviour: 'fly',
+    art: 'hive_drone',
+    flavour: 'Walls are built against what walks. Her brood never learnt to: it comes over them, and while she lives it keeps hatching.'
   }
 ]
 

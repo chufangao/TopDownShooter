@@ -95,10 +95,11 @@ test('a new run opens on the draft: the Monarch alone, the map drawn but closed,
   assert.throws(() => apply(createRun({ start: START_PARTY, seed: 'draft' }), { type: 'pick', index: 0 }), /needs phase draft/)
 })
 
-// The kinds floor 1's rooms bring, over the first `n` seeds' maps: id → id.
+// The kinds floor 1's rooms bring, over the first `n` seeds' maps, but its boss's (a boss and its court: their own
+// kinds, run.js courtPool): id → id.
 function drawFloorKinds (n) {
   const out = {}
-  for (let i = 0; i < n; i++) for (const node of createRun({ start: START_PARTY, seed: `pool-${i}` }).state.map.nodes) for (const f of node.foes ?? []) out[f.id] = f.id
+  for (let i = 0; i < n; i++) for (const node of createRun({ start: START_PARTY, seed: `pool-${i}` }).state.map.nodes) if (node.type !== 'boss') for (const f of node.foes ?? []) out[f.id] = f.id
   return out
 }
 
@@ -1025,7 +1026,7 @@ test('from rank 3 on, every fight carries two threat types and every elite three
   for (let i = 0; i < 60; i++) {
     for (let floor = 1; floor <= TUNING.run.floors; floor++) {
       const seed = 'threat' + i
-      const map = generateFloor({ seed, floor, last: floor === TUNING.run.floors })
+      const map = generateFloor({ seed, floor, boss: floor <= TUNING.run.floors })
       for (const node of map.nodes) {
         if (!['fight', 'elite', 'siege', 'boss'].includes(node.type)) continue
         const room = drawRoom(seed, floor, node)

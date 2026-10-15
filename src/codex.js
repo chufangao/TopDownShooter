@@ -13,8 +13,8 @@ import {
 import {
   foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, unhealed, isMonarch, depthOf, rosterCap,
   inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice, isRunPath, isRunRelic, unheld,
-  runStat, foeEssence, eliteBonus, soulOffer, relicWeights, relicTierPrice, kindLevel, foeScale, waveEvery, monarchBase, ascensionOf,
-  ascensionTop, roomSize
+  runStat, foeEssence, soulOffer, relicWeights, relicTierPrice, kindLevel, foeScale, waveEvery, monarchBase, ascensionOf,
+  ascensionTop, roomSize, bossIn, clearsRun, bountyOf
 } from './sim/run.js'
 import { RANKS } from './sim/map.js'
 import { heldRules } from './sim/rules.js'
@@ -239,10 +239,12 @@ export function summonText (u, st = statsOf(u), mods = []) {
 }
 
 // Who called summon `u` up (turns.js summon: its `summoner`), for its card's live line: "Summoned by your Bone Chanter
-// Trine". A trine's summons are the kind it was made of, so their own kind would misname it.
+// Trine". A trine's summons are the kind it was made of, so their own kind would misname it. A foe's: "Summoned by the
+// Swarm Queen" (rules.js swarm_queen: its brood).
 export function summonedBy (battle, u) {
   const by = battle.byUid.get(u.summoner)
-  return by ? `Summoned by your ${unitDef(by.id).name}` : 'Summoned'
+  if (!by) return 'Summoned'
+  return by.side === 'foe' ? `Summoned by ${unitDef(by.id).boss ? bossName(by.id) : `their ${unitDef(by.id).name}`}` : `Summoned by your ${unitDef(by.id).name}`
 }
 
 // An HP bar, red under 35%, marked dead when empty (a card's, a panel's, a list's).
@@ -402,7 +404,7 @@ function aloneText (u) {
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
 
 // The enemy as an army: captains with their cohorts (each one more foe of the captain's kind beside it), waves,
-// the Sovereign's court. Who comes and where they stand, never what they mean to do.
+// a boss's court. Who comes and where they stand, never what they mean to do.
 const SP = TUNING.spawn
 const W = SP.waves
 // A wave enters as a set turn begins (redesign.md §2.10), W.every turns after the one before (the first wave, the
@@ -419,7 +421,12 @@ export const waveTurn = (w, k, every = W.every) => w.when?.turn ?? 1 + (k + 1) *
 // A room's foes, every wave's: the formation that stands from the start, then each later wave's.
 const roomFoes = (node) => [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flat()
 // A later wave (node.waves[k]) by name, and when it comes, as the scouts can tell it.
-export const waveName = (node, k) => node.waves[k].foes.some((f) => unitDef(f.id).boss) ? `Wave ${k + 2}: the Sovereign` : `Wave ${k + 2}`
+export const waveName = (node, k) => {
+  const boss = node.waves[k].foes.find((f) => unitDef(f.id).boss)
+  return boss ? `Wave ${k + 2}: ${bossName(boss.id)}` : `Wave ${k + 2}`
+}
+// A boss by its name in a sentence: "the Sovereign", "the Mire Mother".
+export const bossName = (id) => (id === 'hollow_sovereign' ? 'the Sovereign' : unitDef(id).name.replace(/^The /, 'the '))
 export const waveWhen = (w, k = 0, every = W.every) => `${w.foes.length} more as turn ${waveTurn(w, k, every)} begins.`
 // "5 foes", "15 foes in 3 waves".
 export function foeCountText (node) {
@@ -486,7 +493,7 @@ export const bestiary = {
     if (met.size !== before) prefs.set('met', [...met].join(','))
   }
 }
-// The kinds a bestiary lists: every one that can come at you, the Sovereign last.
+// The kinds a bestiary lists: every one that can come at you, the bosses last (the floors' first, the Sovereign after).
 const FOE_KINDS = UNIT_LIST.filter((u) => u.spawn || u.boss).sort((a, b) => !!a.boss - !!b.boss || a.tier - b.tier || a.name.localeCompare(b.name))
 // How many of them have been met, of how many: { met, of }.
 export const bestiaryCount = () => ({ met: FOE_KINDS.filter((d) => bestiary.has(d.id)).length, of: FOE_KINDS.length })
@@ -636,13 +643,14 @@ export const ROOM = {
   elite: { name: 'Elite', text: 'A battle a tier stronger, with a bounty.' },
   shop: { name: 'Shop', text: 'No battle: relics for essence. Leaving is free.' },
   altar: { name: 'Altar', text: 'No battle: one rite of three. Heal every soul and raise the fallen, transmute a soul into another kind of its tier, or consecrate a kind: a tier free.' },
-  boss: { name: 'The Hollow Sovereign', text: `${W.siege} waves, the last the Sovereign and its court. Kill it to clear the run.` },
+  boss: { name: 'Boss', text: 'A boss and its court: its fall crumbles them.' },
   siege: { name: 'Siege', text: 'Wave after wave, no prep between.' }
 }
 
-// What a room holds for you as the run stands now, in numbers (null for none: the start, the boss): a battle's pay for
-// the win, every foe's (run.js foeEssence) × the relics' `essence.gain`, an elite's bounty on top (eliteBonus), and the
-// recruit's price for each kind of its foes (soulOffer); what an altar's heal would mend and raise now (run.js heal); a
+// What a room holds for you as the run stands now, in numbers (null for none: the start, the last floor's boss): a
+// battle's pay for the win, every foe's (run.js foeEssence) × the relics' `essence.gain`, an elite's or a floor's boss's
+// bounty on top (bountyOf), and the recruit's price for each kind of its foes but a boss (soulOffer); what an altar's
+// heal would mend and raise now (run.js heal); a
 // Shop's stock and its prices here (relicTierPrice, the tiers its shelves draw on this floor: relicWeights).
 // The kinds a room's win offers, with their prices: "A, B or C for 11 each", or each its own ("A for 11 or B for 14").
 function recruitList (run, kinds) {
@@ -656,10 +664,10 @@ function recruitList (run, kinds) {
 export function roomGain (run, node) {
   const s = run.state
   const num = (v) => h('b', { class: 'num' }, v)
-  if (node.foes && node.type !== 'boss') {
+  if (node.foes && !clearsRun(s, node)) {
     const gain = runStat(s, 'essence.gain', 1)
     const pay = Math.round(roomFoes(node).reduce((n, f) => n + foeEssence(f), 0) * gain)
-    const bounty = node.type === 'elite' ? Math.round(eliteBonus(s.floor) * gain) : 0
+    const bounty = Math.round(bountyOf(s, node) * gain)
     const kinds = [...new Set(roomFoes(node).map((f) => f.id))].filter((id) => !unitDef(id).boss)
     return ['Win: ', num(`+${pay}`), ' essence', bounty > 0 && [', ', num(`+${bounty}`), ' bounty'],
       kinds.length > 0 && [' and a recruit: ', recruitList(run, kinds)], '.']
@@ -728,9 +736,21 @@ function miniGrid (foes, { small = false } = {}) {
   return h('div', { class: 'mini-grid' + (small ? ' small' : '') }, rows, !small && h('div', { class: 'mini-label dim' }, 'front row ↓'))
 }
 
+// A room's name and its line: a boss's room its boss's name (redesign.md §4.7), the last floor's that slaying it clears
+// the run, a floor's what it answered of the army as the floor opened (run.js bossFor: `lean`); every other room its
+// kind's (ROOM).
+const LEAN_WORDS = { casters: 'casters, your Channelers', shooters: 'shooters, the souls that strike from afar down a line', statuses: 'statuses, the souls whose blows lay them', walls: 'walls, the souls that fight in melee alone' }
+export function roomWords (run, node) {
+  const id = node.type === 'boss' && bossIn(node)
+  if (!id) return ROOM[node.type]
+  if (clearsRun(run.state, node)) return { name: unitDef(id).name, text: `${W.siege} waves, the last ${bossName(id)} and its court. Kill it to clear the run.` }
+  const why = node.lean ? ` It came for ${LEAN_WORDS[node.lean]}: what your army leaned on most as the floor opened.` : ' The floor drew it: your army leaned on nothing a boss here answers.'
+  return { name: unitDef(id).name, text: `The floor's boss and its court. Its fall crumbles them; then a bounty and a recruit, and the next floor.${why}` }
+}
+
 // `enter`: an Enter ▸ button stands under it (a room chosen by touch), so its foot says nothing more.
 export function roomTip (run, node, { reachable, enter = false }) {
-  const r = ROOM[node.type]
+  const r = roomWords(run, node)
   const kinds = node.foes && [...new Set(roomFoes(node).map((f) => unitDef(f.id).name))]
   const syns = node.foes && roomSynergies(node)
   const gain = roomGain(run, node)
@@ -772,7 +792,7 @@ export function ascensionText (level) {
   const every = waveEvery(s)
   const hp = monarchBase(s)
   const parts = [
-    [`foes ${up(r.foeHp)} HP, ${up(r.foeAtk)} ATK`, `Every foe ${times(r.foeHp)} HP and ${times(r.foeAtk)} ATK, the Sovereign and their shadows too.`],
+    [`foes ${up(r.foeHp)} HP, ${up(r.foeAtk)} ATK`, `Every foe ${times(r.foeHp)} HP and ${times(r.foeAtk)} ATK, the bosses and their shadows too.`],
     more && ['more foes', `Fights of ${sizes(false, level)} foes on floors 1–${TUNING.run.floors} (${sizes(false, 0)}), elites of ${sizes(true, level)} (${sizes(true, 0)}).`],
     every !== sp.waves.every && [`waves every ${every} turns`, `Waves ${every} turns apart (${sp.waves.every}).`],
     hp !== TUNING.monarch.hp && [`the Monarch ${hp} HP`, `The Monarch ${hp} HP before its relics (${TUNING.monarch.hp}).`],
@@ -870,10 +890,11 @@ const synergyNames = (active) => active.filter((syn) => ladderOf(syn).steps.filt
 export const synergyLabels = (active) => active.filter((syn) => ladderOf(syn).steps.filter((st) => active.includes(st.syn)).at(-1).syn === syn)
   .map((syn) => ({ id: syn.id, name: syn.name, rule: ruleName(syn), text: ruleText(syn) }))
 // The rules at work the battle scene flares (engine.js rule), by rule: { step, name }. A synergy's its step and its rule's
-// name ("Undead 4", "Legion"); a capstone's (rules.js, scoped to the piece: redesign.md §4.1) its kind's name.
+// name ("Undead 4", "Legion"); a capstone's (rules.js, scoped to the piece: redesign.md §4.1) its kind's name, and a
+// boss's (redesign.md §4.7) too.
 export const ruleFlares = () => ({
   ...Object.fromEntries(SYNERGIES.filter((syn) => syn.rule).map((syn) => [syn.rule, { step: syn.name, name: ruleName(syn) }])),
-  ...Object.fromEntries(UNIT_LIST.filter((d) => d.rule && !d.boss).map((d) => [d.rule, { step: 'Capstone', name: d.name }]))
+  ...Object.fromEntries(UNIT_LIST.filter((d) => d.rule).map((d) => [d.rule, { step: d.boss ? 'Boss' : 'Capstone', name: d.name }]))
 })
 
 const countsOf = (units, also = null) => {
@@ -1282,7 +1303,7 @@ export function codexView (run = null, { onClose = null } = {}) {
     class: 'small ghost', onclick: () => { for (const k of ['select', 'place', 'fuse']) prefs.set('did:' + k, '0'); tipsBack.textContent = 'The tips are back on the Field' }
   }, 'Show the tips again')
   const basics = h('div', { class: 'help-view basics' },
-    h('p', { class: 'lede' }, `Pick your first ${TUNING.draft.picks} souls, each from ${TUNING.draft.offer} kinds offered. ${TUNING.run.floors} floors, a walk through each ${RANKS - 1} rooms long and ending in an elite, the last floor's in the Hollow Sovereign: slay it to clear the run, then descend as deep as you dare. The run is saved after every move you make: leave when you like, and Continue from the title, where the tutorial waits too.`),
+    h('p', { class: 'lede' }, `Pick your first ${TUNING.draft.picks} souls, each from ${TUNING.draft.offer} kinds offered. ${TUNING.run.floors} floors, a walk through each ${RANKS - 1} rooms long and ending in a boss and its court, the last floor's the Hollow Sovereign: slay it to clear the run, then descend as deep as you dare. Each other floor's boss is the one that answers what your army leans on most as the floor opens (casters, shooters, statuses or walls), shown on the map from then. The run is saved after every move you make: leave when you like, and Continue from the title, where the tutorial waits too.`),
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades, Fuse and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),
@@ -1348,9 +1369,16 @@ function bestiaryView () {
           h('div', { class: 'dim small' }, known ? `${KIN[d.kin]?.name ?? ''} ${ROLES[d.role].name} · tier ${d.tier}` : 'Not met yet'),
           known && h('div', { class: 'small' }, reachText(u, true)),
           known && d.temper && h('div', { class: 'small beast-way' }, h('b', null, 'Its way: '), temperLine(temperOf(d.id))),
+          known && d.boss && h('div', { class: 'small' }, h('b', null, 'Boss: '), bossLine(d)),
           known && d.flavour && h('div', { class: 'flavour small' }, d.flavour)))
     })))
 }
+
+// Where a boss meets you (redesign.md §4.7), once met: the last floor's, or the floors' it may end and what of an army it
+// comes for (content.js `answers`).
+const floorList = (fs) => (fs.length > 1 ? `floors ${fs.slice(0, -1).join(', ')} and ${fs.at(-1)}` : `floor ${fs[0]}`)
+export const bossLine = (d) => (d.last ? `the last floor's; its fall clears the run.`
+  : `it may end ${floorList(d.floors)}, and comes for an army that leans on ${LEAN_WORDS[d.answers]}.`)
 
 // How to play as a dialog over any screen (H, ?, the help buttons).
 export function helpOverlay (onClose, run = null) {

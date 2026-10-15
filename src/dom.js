@@ -350,13 +350,16 @@ export const FEET = 11 / 12
 // (redesign.md §4.1), never as the kind it borrows from. A trine is drawn as the three it was made of (`trineOf`):
 // the front one whole, two behind it a step up and to either side (BACK), smaller and darker, each drawn as it is
 // itself (a trine of a trine: three trines, seven figures, the two that would stand on one another drawn once). A
-// fused kind that is no trine (a capstone) is its lender washed in WASH's pale ice. A kind with pictures of its own (the
+// fused kind that is no trine (a capstone), or a boss (a floor's: redesign.md §4.7), is its lender washed in WASH's
+// pale ice, a boss as big as the Sovereign's own are drawn (BOSS_SIZE). A kind with pictures of its own (the
 // Pale Court, the Wisp's written trine) is drawn by them. The board and the battle draw a kind's figures as one picture
 // (engine.js artOf), the screens as one portrait (portrait).
 // → [{ art, x, y, k, dim, wash }], back to front: `art` a picture's kind, `x`, `y` where its feet stand from the
 // front one's (in heights of a picture), `k` its scale, `dim` the share of its light it keeps, `wash` whether WASH
 // takes it.
 const BACK = { x: 0.24, y: -0.1, k: 0.78, dim: 0.7 }
+// A boss's pictures to a kind's: the Sovereign's 144 box to every other's 96.
+const BOSS_SIZE = 1.5
 const FIGURES = new Map()
 export function figures (id) {
   if (FIGURES.has(id)) return FIGURES.get(id)
@@ -370,7 +373,10 @@ export function figures (id) {
       all.set([f.x, f.y, f.k].map((v) => v.toFixed(3)).join(), f)
     }
     figs = [...all.values()].sort((a, b) => a.k - b.k || a.y - b.y)
-  } else if (d.art !== d.id && d.fused) figs = figures(d.art).map((f) => ({ ...f, wash: true }))
+  } else if (d.art !== d.id && (d.fused || d.boss)) {
+    const k = d.boss ? BOSS_SIZE : 1
+    figs = figures(d.art).map((f) => ({ ...f, x: f.x * k, y: f.y * k, k: f.k * k, wash: true }))
+  }
   FIGURES.set(id, figs)
   return figs
 }

@@ -106,29 +106,30 @@ function checkEffect (e, where, relic = false) {
 // ── units ─────────────────────────────────────────────────────────────────────────────────────────
 
 // The Move placeholders (redesign.md §2.2): 1 for the slowest, 3 for the quickest and the flyers, the fused and the
-// boss 2, the Monarch 0.
+// bosses 2 (the Swarm Queen, a flyer, 3), the Monarch 0.
 const MOVE = {
   monarch: 0, bone_chanter: 2, tomb_knight: 2, ember_drake: 2, frost_sprite: 3, hive_warden: 2, clockwork_page: 2, grave_ghoul: 2, will_o_wisp: 2,
   thorn_dryad: 1, mantis_reaper: 3, iron_golem: 1, barrow_wight: 2, frost_wyrm: 2, pyre_hound: 3, hive_drone: 3, rot_bloat: 2, marsh_hag: 2,
   ash_wyvern: 3, bone_colossus: 2, rime_drake: 2, hive_queen: 2, clockwork_titan: 2, pale_court: 2, hollow_sovereign: 2,
-  charnel_cathedral: 2, winter_court: 2, cinder_wyrm: 3, hive_mind: 2, engine_of_ages: 2, aurora: 2, iron_barrow: 1
+  charnel_cathedral: 2, winter_court: 2, cinder_wyrm: 3, hive_mind: 2, engine_of_ages: 2, aurora: 2, iron_barrow: 1,
+  mire_mother: 2, molting_abbess: 2, barrow_marshal: 2, swarm_queen: 3
 }
 // The temperaments (§2.9.4): each kind on its preset; the fused on the preset their parts would have.
 const TEMPER = {
   charger: ['tomb_knight', 'pyre_hound', 'rot_bloat', 'bone_colossus', 'charnel_cathedral', 'iron_barrow'],
-  shooter: ['frost_sprite', 'bone_chanter', 'barrow_wight'],
-  seeker: ['will_o_wisp', 'hive_drone', 'ash_wyvern', 'pale_court', 'winter_court'],
+  shooter: ['frost_sprite', 'bone_chanter', 'barrow_wight', 'barrow_marshal'],
+  seeker: ['will_o_wisp', 'hive_drone', 'ash_wyvern', 'pale_court', 'winter_court', 'swarm_queen'],
   keeper: ['hive_warden', 'clockwork_page', 'thorn_dryad', 'hive_queen', 'hive_mind'],
   sieger: ['iron_golem', 'clockwork_titan', 'engine_of_ages'],
   stalker: ['mantis_reaper'],
-  hexer: ['marsh_hag'],
+  hexer: ['marsh_hag', 'mire_mother'],
   crowd: ['ember_drake', 'rime_drake', 'cinder_wyrm', 'aurora'],
-  court: ['hollow_sovereign']
+  court: ['hollow_sovereign', 'molting_abbess']
 }
 
 // Every kind, written or made (the trines content makes: content.js trineOf), is held to the one checklist.
 test('every kind is one record: base, Move, temper, threats, two tracks of four on its def, pictures, every ability in the vocabulary', () => {
-  assert.equal(WRITTEN.length, 32)
+  assert.equal(WRITTEN.length, 36)
   assert.deepEqual(Object.keys(MOVE).sort(), WRITTEN.map((u) => u.id).sort())
   for (const u of UNIT_LIST) {
     const where = u.id
@@ -202,7 +203,7 @@ test('every kind is one record: base, Move, temper, threats, two tracks of four 
   assert.deepEqual(of((u) => u.arm === 2), ['grave_ghoul', 'mantis_reaper'])
   assert.deepEqual(of((u) => u.move === 1), ['iron_barrow', 'iron_golem', 'thorn_dryad'])
   assert.deepEqual(of((u) => u.move === 3 && !u.flies), ['frost_sprite', 'mantis_reaper', 'pyre_hound'])
-  assert.deepEqual(of((u) => u.flies), ['ash_wyvern', 'cinder_wyrm', 'hive_drone'])
+  assert.deepEqual(of((u) => u.flies), ['ash_wyvern', 'cinder_wyrm', 'hive_drone', 'swarm_queen'])
   assert.ok(of((u) => u.flies).every((id) => UNITS[id].move === 3), 'flyers 3')
   assert.deepEqual(of((u) => u.onFall), ['rot_bloat'])
   assert.deepEqual(of((u) => u.size === 2), ['bone_colossus', 'charnel_cathedral', 'clockwork_titan', 'engine_of_ages', 'hive_mind', 'hive_queen', 'iron_barrow'])
@@ -246,8 +247,9 @@ test('the Monarch: one of a kind, never spawned, never moving, never striking, n
   assert.deepEqual(activeSynergies([...party, at('rot_bloat', 4, 1, 4)]).map((s) => s.id), ['undead_4'])
 })
 
-// The Sovereign carries its override as a rule (§2.9.6), on top of its temperament; a capstone carries as a rule what
-// its abilities cannot say (redesign.md §4.1), scoped to its piece as the Sovereign's is: a rise on a kill, a fire that
+// The Sovereign carries its override as a rule (§2.9.6), on top of its temperament, and a floor's boss what its kit
+// cannot say of its counter (redesign.md §4.7: a shell shed, screens, a brood); a capstone carries as a rule what its
+// abilities cannot say (redesign.md §4.1), scoped to its piece as the Sovereign's is: a rise on a kill, a fire that
 // spreads, drones at every wave and skills ready on a kill, a stand once a battle. No other kind carries one.
 const CAPSTONES = ['charnel_cathedral', 'winter_court', 'cinder_wyrm', 'hive_mind', 'engine_of_ages', 'aurora', 'iron_barrow']
 const CAPSTONE_RULES = { charnel_cathedral: 'charnel_cathedral', cinder_wyrm: 'cinder_wyrm', hive_mind: 'hive_mind', engine_of_ages: 'engine_of_ages' }
@@ -255,7 +257,7 @@ const CAPSTONE_RULES = { charnel_cathedral: 'charnel_cathedral', cinder_wyrm: 'c
 test('the boss: phases, an override named as a rule, no tracks, never offered; a capstone\'s rule where its abilities cannot say it', () => {
   const b = UNITS.hollow_sovereign
   assert.equal(b.rule, 'sovereign')
-  assert.deepEqual(UNIT_LIST.filter((u) => u.rule && u.boss).map((u) => u.id), ['hollow_sovereign'])
+  assert.deepEqual(UNIT_LIST.filter((u) => u.rule && u.boss).map((u) => [u.id, u.rule]), [['hollow_sovereign', 'sovereign'], ['molting_abbess', 'molting_abbess'], ['barrow_marshal', 'barrow_marshal'], ['swarm_queen', 'swarm_queen']])
   assert.ok(b.boss && !b.spawn && !b.tracks && b.phases.length === 2)
   assert.ok(b.abilities.includes('grave_tide') && ABILITIES.grave_tide.effects.some((e) => e.op === 'raise'))
   assert.deepEqual(Object.fromEntries(UNIT_LIST.filter((u) => u.rule && !u.boss).map((u) => [u.id, u.rule])), CAPSTONE_RULES)

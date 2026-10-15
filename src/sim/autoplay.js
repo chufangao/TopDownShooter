@@ -69,7 +69,7 @@ import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
   relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat,
-  spawnPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer, foeScale, ascensionTop
+  spawnPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer, foeScale, ascensionTop, bossPool, bossIn, ANSWERS, tends
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -400,18 +400,9 @@ function scoutRoom (run, n, up, keeps) {
   }
 }
 
-// The army's answers to a room's threat types (content.js THREATS), by what a standing soul can do: Fly by a blow that
-// reaches a flyer (a ranged one, or a flyer's own), Reach by a ranged blow, Drain, Burn and Bleed by a heal of others or
-// a cleanse. Shape, Sustain and Depth are met by numbers alone, so the survey counts no answer short for them.
+// The army's answers to a room's threat types, by what a standing soul can do (run.js ANSWERS, which an elite drawn for
+// the army reads too): Shape, Sustain and Depth are met by numbers alone, so the survey counts no answer short for them.
 const kitOf = (u) => abilitiesOf(u).map(abilityDef)
-const tends = (u) => kitOf(u).some((a) => isAllyShape(a.shape) && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse'))
-const ANSWERS = {
-  fly: (u) => kitOf(u).some((a) => isBlow(a) && (!a.melee || !!unitDef(u.id).flies)),
-  reach: (u) => kitOf(u).some((a) => isBlow(a) && !a.melee),
-  drain: tends,
-  burn: tends,
-  bleed: tends
-}
 
 // How many rooms on from room `from` the nearest room of `type` lies on a route through it (1: the next), null for
 // none on the floor.
@@ -2670,6 +2661,7 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
       const party = b.units.filter((u) => u.side === 'party' && !u.shadow && u !== b.monarch)
       battles.push({
         floor: b.floor + (b.boss ? 'B' : ''),
+        ...(b.boss && { boss: bossIn(currentNode(r)) }),
         t: b.turn,
         stall: b.reason === 'stall',
         won: b.winner === 'party',
@@ -3930,9 +3922,10 @@ export async function builds ({ player = 'expert', commits = ARCHETYPES(), scale
 // ── the pool: what a run can gather (redesign.md §1, §4.2; criterion 1) ──────────────────────────
 
 const BATTLE_ROOMS = ['fight', 'elite', 'siege', 'boss']
-// A floor of seed `seed` as a run meets it (run.js enterFloor): its map, every battle room's foes drawn, the routes varied.
+// A floor of seed `seed` as a run meets it (run.js enterFloor, openFloor): its map, every battle room's foes drawn (a
+// floor's boss by the seed alone: no army read), the routes varied.
 export function floorOf (seed, floor) {
-  const s = { seed, floor, map: generateFloor({ seed, floor, last: floor === TUNING.run.floors }) }
+  const s = { seed, floor, map: generateFloor({ seed, floor, boss: bossPool(floor).length > 0 }) }
   for (const n of s.map.nodes) if (BATTLE_ROOMS.includes(n.type)) Object.assign(n, drawRoom(seed, floor, n))
   varyRoutes(s)
   return s.map
@@ -3946,8 +3939,9 @@ export function visits (map) {
   }
   return p
 }
-// The kinds a battle room offers: every foe of every wave (all are slain when it is won, a soul offered a kind slain).
-const offered = (n) => new Set([...(n.foes ?? []), ...(n.waves ?? []).flatMap((w) => w.foes)].map((f) => f.id))
+// The kinds a battle room offers: every foe of every wave (all are slain when it is won, a soul offered a kind slain),
+// but a boss, which leaves no soul.
+const offered = (n) => new Set([...(n.foes ?? []), ...(n.waves ?? []).flatMap((w) => w.foes)].map((f) => f.id).filter((id) => !unitDef(id).boss))
 // Whether kind `id` counts toward synergy `syn` (a kin or role its rule needs).
 const countsFor = (syn, id) => Object.entries(syn.needs).some(([axis, need]) => need[unitDef(id)[axis]] !== undefined)
 

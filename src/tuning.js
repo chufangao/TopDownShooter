@@ -366,13 +366,15 @@ export const TUNING = {
   // placeholders): the tier-3 kinds together ~5% of a floor-2 fight's draws (were absent) and ~13% of a floor-3
   // fight's (were 6%), the tier-1 kinds ~20% of floor 3's (were 10%), so a recipe's tier-3 keystone may come on a floor
   // its tier-1 partners still do. fight/elite: foes per encounter on floors 1–4. foeHp/foeAtk multiply ordinary foes per
-  // floor; bossHp/bossAtk multiply the boss. Floor 1's elite is 2 foes of the higher tier (and the late pair), so a
-  // rule-of-thumb run dies on floor 1 and an expert rarely does.
+  // floor; bossHp/bossAtk multiply the boss, per floor: a floor's boss on floors 1 and 2 (redesign.md §4.7, since
+  // 2026-10-15: placeholders; by the codex's power, √(HP × ATK), a floor's boss room ~1.6× its floor-1 last elite's and
+  // ~1× its floor-2 one's), the Hollow Sovereign at 1 on the last. Floor 1's elite is 2 foes of the higher tier (and the late pair), so a rule-of-thumb run dies on floor
+  // 1 and an expert rarely does.
   spawn: {
     levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
     // Steepest at the bottom, where the expert's army has grown most; floor 1 is the basic player's wall already.
-    foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: 1, bossAtk: 1,
+    foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 3.2, 1], bossAtk: [1, 2, 1],
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses
@@ -386,13 +388,16 @@ export const TUNING = {
     // rank `waves.fightRank`, a siege and the last room come in waves (`waves.elite`, `.fight`, `.siege` in all, the
     // first included). Waves enter on fixed turns (redesign.md §2.10): the room's formation stands from turn 1, and
     // wave k enters at the end of turn 1 + k × `waves.every` (turns.js entryTurn), shown on the wave counter; a siege
-    // is three waves with no prep between them. The last room's last wave is the Hollow Sovereign leading a court of
-    // `court` undead (they and its waves take foeHp/foeAtk; only the boss takes bossHp/bossAtk). Floor 3 keeps floor
-    // 2's cohorts of 2: at 3, a floor-3 elite's mantis brood ended half the expert's runs (the final balance pass).
+    // is three waves with no prep between them. A boss leads a court of `court` foes for the floor (the boss's own
+    // kinds: content.js `court`): the last room's last wave is the Hollow Sovereign leading a court of 4 undead; a
+    // floor's boss on floors 1 and 2 stands with its court of 2 and 4 alone, the floor's last room (2026-10-15,
+    // placeholders: redesign.md §4.7). They and its waves take foeHp/foeAtk; only the boss takes bossHp/bossAtk. Floor 3
+    // keeps floor 2's cohorts of 2: at 3, a floor-3 elite's mantis brood ended half the expert's runs (the final balance
+    // pass).
     captains: { fight: 1, elite: 2 }, cohort: [0, 2, 2, 3],
     late: { n: 2 },
     waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, every: 4 },
-    court: 4,
+    court: [2, 4, 4],
     // Endless floors, past the Sovereign's (run.floors): each floor `deep` floors down reuses the last floor's
     // camps and spawn pool (foe and elite counts and HP/ATK multipliers at their last entries), and grows from
     // there: foes rise `level` levels more per floor deep (on top of levelPerFloor), a room holds

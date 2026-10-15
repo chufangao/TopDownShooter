@@ -40,7 +40,7 @@
 //
 // Events, each stamped with its `beat` (events of one beat play together):
 //   battle:start, enter, wave, action, damage, miss, heal, status (`dur` in turns), expire, cleanse, death, burst, arise,
-//   tithe, rise, rule, trigger, phase, battle:end (reason 'monarch', 'wipe', 'sovereign', or 'stall': no winner)
+//   tithe, rise, rule, trigger, phase, battle:end (reason 'monarch', 'wipe', 'crumble': a boss's fall, or 'stall': no winner)
 //   { type: 'turn', turn, next }               a turn begins: `next` the next wave ({ wave, turn }) or null
 //   { type: 'stage', stage }                   'untouched', 'foes' or 'end': a part of the round begins
 //   { type: 'move', actor, from, to, path }    a move (`path`: each tile stepped onto, `to` the last)
@@ -264,7 +264,7 @@ function refresh (battle) {
   for (const u of battle.units) if (alive(u)) u.move = u === battle.monarch ? 0 : Math.max(0, Math.floor(stats(battle, u).move))
 }
 
-// Won when no foe stands and none is to come (the Sovereign's fall crumbles its side: 'sovereign'); lost the instant
+// Won when no foe stands and none is to come (a boss's fall crumbles its side: 'crumble'); lost the instant
 // the Monarch falls, or, with none, when the party is wiped. Whether the battle is over.
 export function settle (battle) {
   if (battle.over) return true
@@ -274,7 +274,7 @@ export function settle (battle) {
   for (const u of battle.units) if (u.hp > 0) u.side === 'party' ? party++ : foe++
   const lost = m ? !alive(m) : !party
   if (!lost && foe) return false
-  finish(battle, lost ? 'foe' : 'party', lost ? (m ? 'monarch' : 'wipe') : battle.crumbled ? 'sovereign' : 'wipe')
+  finish(battle, lost ? 'foe' : 'party', lost ? (m ? 'monarch' : 'wipe') : battle.crumbled ? 'crumble' : 'wipe')
   return true
 }
 
