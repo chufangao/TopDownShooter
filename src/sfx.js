@@ -236,6 +236,8 @@ const SOUNDS = {
 
 export const sfx = {
   count: 0,
+  // Held quiet a while (a battle resumed replays its orders unheard: engine.js); counted all the same.
+  quiet: false,
   // The AudioContext's state ('running' once a gesture unlocked it), or 'locked' before any: for debugging.
   get state () { return ctx?.state ?? 'locked' },
   get muted () { return muted },
@@ -248,7 +250,7 @@ export const sfx = {
   play (name) {
     sfx.count++
     try {
-      if (muted || !ctx || ctx.state !== 'running' || !SOUNDS[name]) return
+      if (muted || sfx.quiet || !ctx || ctx.state !== 'running' || !SOUNDS[name]) return
       const now = performance.now()
       if (now - (last.get(name) ?? -1e9) < (GAP[name] ?? GAP_DEFAULT)) return
       last.set(name, now)

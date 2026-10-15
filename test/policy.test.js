@@ -1,14 +1,14 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, legalOrders, order, fork, reach, addStatus } from '../src/sim/turns.js'
+import { createBattle, legalOrders, order, fork, reach, addStatus, roadAhead } from '../src/sim/turns.js'
 import {
-  danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, judge, untouchedOrders
+  danger, dangerAt, threatOf, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, judge, untouchedOrders
 } from '../src/sim/policy.js'
 import { value, decide, TREES, defaultExpert } from '../src/sim/expert.js'
 import { on, scene, slay } from './scene.js'
 import { TEMPERS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
-import { makeUnit, tileAt, tileX, tileY, footprint, slotAt, DEPTH, ROWS, CAMP_ROWS } from '../src/sim/unit.js'
+import { makeUnit, tileAt, tileX, tileY, footprint, slotAt, DEPTH, ROWS, CAMP_ROWS, isBlow, blowReach } from '../src/sim/unit.js'
 import { tuned } from './tuned.js'
 
 // A battle on turns of units set on tiles (as test/turns.test.js builds them): [{ id, uid, side, x, y, lvl? }].
@@ -59,6 +59,38 @@ test('the danger map: what your side could deal next turn, by tile, from everywh
   // What a foe would take there: by its DEF, never past its HP.
   const foe = b.byUid.get(9)
   assert.ok(dangerAt(b, foe, at(3, far), map) > 0 && dangerAt(b, foe, at(3, far), map) <= foe.hp)
+})
+
+test('a foe\'s reach, for the board to light when its kind is met (redesign.md §4.8): its road ahead within its Move, and every tile a blow could strike from there, as the danger map reads them', () => {
+  // A Tomb Knight of the camp down the middle lane: melee, so nothing in the air; its road's tiles, its own first.
+  const b = approach()
+  const knight = b.byUid.get(9)
+  const t = threatOf(b, knight)
+  assert.deepEqual(t.move, roadAhead(b, knight, knight.move).map((s) => s.tile))
+  assert.equal(t.move[0], knight.tile)
+  assert.ok(t.move.length > 1, 'it could come on')
+  const square = (c, r) => [...Array(DEPTH * 7).keys()].filter((x) => Math.abs(tileX(x) - tileX(c)) <= r && Math.abs(tileY(x) - tileY(c)) <= r)
+  const r = Math.max(...knight.kit.filter(isBlow).map((a) => blowReach(knight, a)))
+  assert.deepEqual(t.ground, [...new Set(t.move.flatMap((c) => square(c, r)))].sort((p, q) => p - q))
+  assert.deepEqual(t.air, [])
+  // The danger map, its lines aside, is struck on exactly those tiles by that foe alone, on the ground and in the air.
+  for (const [id, side] of [['tomb_knight', 'foe'], ['will_o_wisp', 'foe'], ['bone_chanter', 'foe']]) {
+    const one = field([{ id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 }, { id, uid: 9, side, x: 2, y: 10 }])
+    const u = one.byUid.get(9)
+    const map = danger(one, 'party', null, { lines: false })
+    const th = threatOf(one, u)
+    assert.deepEqual(th.ground, map.ground.flatMap((v, x) => (v > 0 ? [x] : [])), `${id}: the ground`)
+    assert.deepEqual(th.air, map.air.flatMap((v, x) => (v > 0 ? [x] : [])), `${id}: the air`)
+    assert.ok(th.air.length > 0 === (id !== 'tomb_knight'), `${id}: a ranged blow reaches a flyer`)
+  }
+  // What it could strike, not what it will: a skill resting counts as one ready.
+  for (const a of knight.kit) knight.cooldowns[a.id] = 3
+  assert.deepEqual(threatOf(b, knight), t)
+  // A Hexed foe loses its next act: it could come on, and strike nothing. The fallen, nothing at all.
+  addStatus(b, knight, 'hexed', 1)
+  assert.deepEqual(threatOf(b, knight), { move: t.move, ground: [], air: [] })
+  knight.hp = 0
+  assert.deepEqual(threatOf(b, knight), { move: [], ground: [], air: [] })
 })
 
 // At the first turn the camp's impatience gives nothing; the trade may nudge it up by its strength.

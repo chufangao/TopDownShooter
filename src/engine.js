@@ -10,6 +10,7 @@ import {
   lined, lineOf, lineStruck, stats, untouchedPreview
 } from './sim/turns.js'
 import { foeEssence, eliteBonus } from './sim/run.js'
+import { threatOf } from './sim/policy.js'
 import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, blowReach, footprint, alive, isBlow } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy, FEET, figures, plainFigure, WASH } from './dom.js'
@@ -40,8 +41,9 @@ export function createEngine (parent, { gate = null } = {}) {
     // announce), onChange(state), onHover(unit | null, rect, pin), onDone(), essence (what the purse multiplies a slain
     // foe's essence by), seamless (the Field board fades into it: no fade in from black), death() (what felled the
     // Monarch, codex.js deathText, for the end's replay beat, or null), elite (an elite's room: the purse's card tells
-    // its bounty), earned() (the essence the run took for the battle, for the VICTORY banner) }. Resolves with the scene
-    // once built.
+    // its bounty), earned() (the essence the run took for the battle, for the VICTORY banner), met(id) (whether a foe
+    // kind has been met: tapped, its reach is drawn), resume (a battle under way, its orders played again out of sight:
+    // a saved run resumed) }. Resolves with the scene once built.
     async battle (data) {
       await loaded
       return new Promise((resolve) => game.scene.start('Battle', { ...data, onReady: resolve }))
@@ -432,6 +434,9 @@ function lineOfFire (g, from, to, past, colour, zoom, alpha = 1) {
 // (INKED.extra world px wider, at INKED.alpha of the line's own), so it reads over any floor or body, as the art's
 // outlines do.
 const REACH = { pad: 4, round: 12, fill: 0.06, line: 2, alpha: 0.85 }
+// A studied foe's reach (BattleScene.drawStudy): its cells' fill and hatch (alpha, width, world px between lines) and
+// its edge's width.
+const STUDY = { fill: 0.1, hatch: 0.3, hatchW: 1.5, step: 14, edge: 2 }
 const DASH = { on: 8, period: 14 }
 const INKED = { extra: 2.5, alpha: 0.7 }
 
@@ -589,6 +594,8 @@ class BattleScene extends Phaser.Scene {
     this.paused = false
     this.playMs = 0
     this.sel = null
+    // A foe of a kind met, tapped: its reach is drawn (plan) until the next tap elsewhere (study).
+    this.studied = null
     this.waiting = false
     this.counts = { turn: this.battle.turn, next: nextWave(this.battle), wave: 1 }
     this.synKey = null
@@ -664,6 +671,16 @@ class BattleScene extends Phaser.Scene {
     this.ghost = { tile: null, img: null }
     // battle:start is already in battle.events; anything after it has not been played.
     this.player.enqueue(this.battle.events.slice(this.battle.events.indexOf(start) + 1))
+    // A battle resumed (main.js: a saved run played back mid-battle): the orders given before the page closed play
+    // again at once (flush), unheard and as reduced motion plays them, out of sight; the board fades in as it stood
+    // once they have (update).
+    this.resuming = !!this.args.resume
+    if (this.resuming) {
+      calm = true
+      sfx.quiet = true
+      this.cameras.main.setAlpha(0)
+      this.flush()
+    }
 
     this.fit()
     this.scale.on('resize', this.fit, this)
@@ -682,11 +699,12 @@ class BattleScene extends Phaser.Scene {
       canvas.removeEventListener('pointerleave', point)
       this.dropMarks()
       this.dropGhost()
+      if (this.resuming) { calm = !!motion?.matches; sfx.quiet = false }
       this.tweens.timeScale = 1
       this.args.onHover?.(null)
     })
     // From prep the board fades into it instead (board.js): the units already stand where they will start.
-    if (!this.args.seamless) this.cameras.main.fadeIn(260, 6, 5, 10)
+    if (!this.args.seamless && !this.resuming) this.cameras.main.fadeIn(260, 6, 5, 10)
     // The opening (the first turn's announcement) plays before the board takes orders.
     this.waiting = true
     this.changed()
@@ -717,6 +735,13 @@ class BattleScene extends Phaser.Scene {
       this.playMs += Math.min(delta, 250)
     }
     this.player.update(this.playMs)
+    // A resumed battle caught up: sound and motion as they were, and the board fades in.
+    if (this.resuming && this.player.finished) {
+      this.resuming = false
+      calm = !!motion?.matches
+      sfx.quiet = false
+      this.tweens.add({ targets: this.cameras.main, alpha: 1, duration: 320, ease: 'Sine.Out' })
+    }
     // An order's events played out: the board takes orders again.
     if (this.waiting && this.player.finished && !b.over) {
       this.waiting = false
@@ -1088,6 +1113,9 @@ class BattleScene extends Phaser.Scene {
     const hits = this.unitsAt(w, tile)
     const s = this.sel
     const u = s && b.byUid.get(s.uid)
+    // A studied foe's reach goes with any tap; one on a foe of a kind met draws its own (study).
+    const studied = this.studied
+    this.studied = null
     if (u) {
       const t = hits.find((x) => s.targets.has(x.uid))
       if (t) return t.uid === s.aim ? this.commit() : this.aim(t.uid)
@@ -1101,10 +1129,20 @@ class BattleScene extends Phaser.Scene {
     if (mine) return this.select(mine.uid === s?.uid ? null : mine.uid)
     const other = hits.find(alive)
     if (other) {
+      this.study(other, studied)
       if (s) this.aim(null)
+      else this.plan()
       return this.pressAt(x, y, other.uid)
     }
     this.select(null)
+  }
+
+  // A foe tapped (redesign.md §4.8, §9): one of a kind met has its reach drawn (plan: drawStudy), until the next tap
+  // elsewhere or on it again (`was`: the one studied before the tap); any other (yours that takes no orders, a kind not
+  // met) shows its card alone, as before.
+  study (u, was = null) {
+    const met = u?.side === 'foe' && (this.args.met?.(u.id) ?? false)
+    this.studied = met && was !== u.uid ? u.uid : null
   }
 
   // The units at a world point, as a tap reads it: whoever stands on the tile under it or whose picture covers it,
@@ -1193,6 +1231,7 @@ class BattleScene extends Phaser.Scene {
       inked(g, line, colour, alpha, (g) => g.strokeEllipse(p.x, p.y + 4, (58 + grow) * k, (18 + grow / 3) * k))
     }
     for (const x of b.units) if (x !== u && orderable(b, x) && canAct(b, x)) ring(x, PARTY, 0.5, 2)
+    this.drawStudy(g)
     if (!this.sel) return
     const size = u.size ?? 1
     s.reach = u.acted ? new Map() : reach(b, u)
@@ -1267,6 +1306,58 @@ class BattleScene extends Phaser.Scene {
       inked(g, 3, colour, 0.85 * fade, (g) => dashedEllipse(g, q.x, q.y + 4, 58 * kx, 18 * kx))
     }
     if (shot) this.drawShot(g, u, shot)
+  }
+
+  // The studied foe's reach (study; policy.js threatOf, the sim's own, read off the board as it stands): every tile it
+  // could strike next turn, faintly filled and hatched in the foes' red and edged where the region ends (a look of its
+  // own, apart from a selected piece's box and its dashes), and the road it could take within its Move, dotted from it
+  // to a ring on the farthest tile. What it could do, never what it will: nothing of the foes' coming turn.
+  drawStudy (g) {
+    const u = this.studied != null ? this.battle.byUid.get(this.studied) : null
+    if (!u || !alive(u)) { this.studied = null; return }
+    const { move, ground } = threatOf(this.battle, u)
+    const on = new Set(ground)
+    const box = (c) => cellsBox(tileX(c), tileX(c), tileY(c), tileY(c), 0)
+    for (const c of on) {
+      const b = box(c)
+      g.fillStyle(FOE, STUDY.fill).fillRect(b.l, b.t, b.r - b.l, b.b - b.t)
+    }
+    // The hatch: lines x + y = k on one grid over the whole board, so they run on from cell to cell.
+    g.lineStyle(STUDY.hatchW, FOE, STUDY.hatch)
+    for (const c of on) {
+      const b = box(c)
+      for (let k = Math.ceil((b.l + b.t) / STUDY.step) * STUDY.step; k < b.r + b.b; k += STUDY.step) {
+        const [x0, x1] = [Math.max(b.l, k - b.b), Math.min(b.r, k - b.t)]
+        if (x1 > x0) g.lineBetween(x0, k - x0, x1, k - x1)
+      }
+    }
+    // Its edge: each side of a cell with no struck cell past it (on screen: a row further from your camp to the left,
+    // a lane higher above).
+    const has = (x, y) => x >= 0 && x < LANES && y >= 0 && y < DEPTH && on.has(tileAt(x, y))
+    inked(g, STUDY.edge, FOE, 0.9, (g) => {
+      for (const c of on) {
+        const [x, y] = [tileX(c), tileY(c)]
+        const b = box(c)
+        if (!has(x, y + 1)) g.lineBetween(b.l, b.t, b.l, b.b)
+        if (!has(x, y - 1)) g.lineBetween(b.r, b.t, b.r, b.b)
+        if (!has(x + 1, y)) g.lineBetween(b.l, b.t, b.r, b.t)
+        if (!has(x - 1, y)) g.lineBetween(b.l, b.b, b.r, b.b)
+      }
+    })
+    // Its road within its Move: dots from its feet, a dashed ring on the farthest it could come.
+    const pts = move.map((t) => posAt(t, u.size ?? 1))
+    for (let i = 1, d = 12; i < pts.length; i++) {
+      const [v, w] = [pts[i - 1], pts[i]]
+      const len = Math.hypot(w.x - v.x, w.y - v.y)
+      for (; d < len; d += 12) {
+        const [x, y] = [v.x + (w.x - v.x) * d / len, v.y + 4 + (w.y - v.y) * d / len]
+        g.fillStyle(INK, 0.45).fillCircle(x, y, 3.8).fillStyle(FOE, 0.95).fillCircle(x, y, 2.5)
+      }
+      d -= len
+    }
+    const p = pts[0]
+    inked(g, 3, FOE, 0.95, (g) => g.strokeEllipse(p.x, p.y + 4, 62, 20))
+    if (pts.length > 1) inked(g, 2.5, FOE, 0.85, (g) => dashedEllipse(g, pts.at(-1).x, pts.at(-1).y + 4, 58, 18))
   }
 
   // The anchor the selected piece `u` would move to for a click where the mouse is (anchorFor), while the board takes
@@ -1478,6 +1569,7 @@ class BattleScene extends Phaser.Scene {
   // End Turn (the panel's): the untouched act, the foes take their turn, and it all plays back.
   endTurn () {
     if (this.locked() || this.paused) return
+    this.studied = null
     this.select(null)
     this.send({ type: 'end' })
   }

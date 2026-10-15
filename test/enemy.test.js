@@ -155,7 +155,8 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
     }
   }
   // Every kind of room was drawn.
-  for (const key of ['1fight1', '1elite2', '2fight1', '2elite1', '3fight1', '3fight2', '3elite2', '3siege3', '4siege3', '4boss3']) assert.ok(count[key] > 0, `${key}: ${JSON.stringify(count)}`)
+  const F = TUNING.run.floors
+  for (const key of ['1fight1', '1elite2', '2fight1', '2elite1', '3fight1', '3fight2', '3elite2', '3siege3', `${F}siege3`, `${F}boss3`]) assert.ok(count[key] > 0, `${key}: ${JSON.stringify(count)}`)
   // The floor's pool, not the elite's: floor 1's weights favour tier 1 (the elite pool's, tier 2).
   assert.ok(pairTiers.filter((t) => t === 1).length > 0.7 * pairTiers.length, `late pair tiers: ${pairTiers}`)
 })
@@ -354,14 +355,15 @@ test('a Monarch felled by a foe of a later wave is recorded with that wave, unde
 })
 
 test('in the last room only the Sovereign takes the boss\'s multipliers; its waves and court take the floor\'s', () => {
-  const mods = foeMods(4, true)
+  const last = TUNING.run.floors
+  const mods = foeMods(last, true)
   const sov = makeUnit('hollow_sovereign', { uid: 1, lvl: 7 })
   const ghoul = makeUnit('grave_ghoul', { uid: 2, lvl: 7 })
   assert.equal(statsOf(sov, mods).hp, statsOf(sov).hp * sp.bossHp)
   assert.equal(statsOf(sov, mods).atk, statsOf(sov).atk * sp.bossAtk)
-  assert.equal(statsOf(ghoul, mods).hp, statsOf(ghoul).hp * at(sp.foeHp, 4))
-  assert.equal(statsOf(ghoul, mods).atk, statsOf(ghoul).atk * at(sp.foeAtk, 4))
-  assert.deepEqual(foeMods(4, false).map((m) => m.v), [at(sp.foeHp, 4), at(sp.foeAtk, 4)])
+  assert.equal(statsOf(ghoul, mods).hp, statsOf(ghoul).hp * at(sp.foeHp, last))
+  assert.equal(statsOf(ghoul, mods).atk, statsOf(ghoul).atk * at(sp.foeAtk, last))
+  assert.deepEqual(foeMods(last, false).map((m) => m.v), [at(sp.foeHp, last), at(sp.foeAtk, last)])
 })
 
 // ── the run ──────────────────────────────────────────────────────────────────────────────────────

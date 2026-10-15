@@ -510,7 +510,8 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
   const sp = TUNING.spawn
   const W = sp.waves
   assert.deepEqual(foeMods(F, false).map((m) => m.v), [sp.foeHp[F - 1], sp.foeAtk[F - 1]])
-  assert.deepEqual(foeMods(F + 3, false).map((m) => m.v), [sp.foeHp[F - 1] * (1 + 3 * E.hp), sp.foeAtk[F - 1] * (1 + 3 * E.atk)])
+  // The deep's from the lists' last entries, as its counts and cohorts are (below): floor 4's, past three floors.
+  assert.deepEqual(foeMods(F + 3, false).map((m) => m.v), [sp.foeHp.at(-1) * (1 + 3 * E.hp), sp.foeAtk.at(-1) * (1 + 3 * E.atk)])
   // Rooms on endless floors: the last floor's pool, its counts grown, levels raised, more waves to every room
   // and a bigger cohort behind every captain; the end a big elite.
   let rooms = 0

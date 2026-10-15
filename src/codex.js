@@ -16,6 +16,7 @@ import {
   runStat, foeEssence, eliteBonus, soulOffer, relicWeights, relicTierPrice, kindLevel, foeScale, waveEvery, monarchBase, ascensionOf,
   ascensionTop, roomSize
 } from './sim/run.js'
+import { RANKS } from './sim/map.js'
 import { heldRules } from './sim/rules.js'
 import { basicOf, mendOf, temperOf, lined } from './sim/turns.js'
 import { h, fill, icon, portrait, prefs, say } from './dom.js'
@@ -1103,7 +1104,7 @@ export const relicsByTier = (ids, chip) => RELIC_TIERS.slice().reverse().map((t)
 
 // The floor's price scale (run.js floorPrice) as the help tells it: every price, floor by floor, and the one now.
 const times = (x) => `×${+x.toFixed(2)}`
-export const priceScaleText = (run) => `every price is its floor-1 price ${[1, 2, 3, 4].map((f) => times(floorPrice(f))).join(', ')} on floors 1–4, and +${TUNING.essence.perFloor} a floor deeper` +
+export const priceScaleText = (run) => `every price is its floor-1 price ${Array.from({ length: TUNING.run.floors }, (_, i) => times(floorPrice(i + 1))).join(', ')} on floors 1–${TUNING.run.floors}, and +${TUNING.essence.perFloor} a floor deeper` +
   (run ? ` (here, ${times(floorPrice(run.state.floor))}${ascensionOf(run.state).price !== 1 ? `, and ${times(ascensionOf(run.state).price)} by the ascension` : ''})` : '')
 
 // What each word's rule says beyond its one line, for the glossary's "more"; `run`, when one is in play, adds
@@ -1281,11 +1282,11 @@ export function codexView (run = null, { onClose = null } = {}) {
     class: 'small ghost', onclick: () => { for (const k of ['select', 'place', 'fuse']) prefs.set('did:' + k, '0'); tipsBack.textContent = 'The tips are back on the Field' }
   }, 'Show the tips again')
   const basics = h('div', { class: 'help-view basics' },
-    h('p', { class: 'lede' }, `Pick your first ${TUNING.draft.picks} souls, each from ${TUNING.draft.offer} kinds offered. Slay the Hollow Sovereign at the bottom of floor ${TUNING.run.floors} to clear the run, then descend as deep as you dare.`),
+    h('p', { class: 'lede' }, `Pick your first ${TUNING.draft.picks} souls, each from ${TUNING.draft.offer} kinds offered. ${TUNING.run.floors} floors, a walk through each ${RANKS - 1} rooms long and ending in an elite, the last floor's in the Hollow Sovereign: slay it to clear the run, then descend as deep as you dare. The run is saved after every move you make: leave when you like, and Continue from the title, where the tutorial waits too.`),
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades, Fuse and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),
-    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ',
+    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ', say('Click', 'Tap'), ' a foe of a kind you have met to light its reach in red: the road it could take within its Move, dotted, and every tile it could strike from there next turn (what it could do, never what it will); ', say('click', 'tap'), ' elsewhere and it goes. ',
       h('b', null, 'End Turn'), ' when you are done.'),
     s && h('div', { class: 'gl-run' },
       h('span', null, `The Monarch ${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · Command ${commandOf(s)}${ariseHeld(s) ? ` · Arise: tier ≤ ${ariseOf(s).tier} within ${ariseOf(s).domain} tiles of its holder` : ''}`),
@@ -1325,7 +1326,7 @@ const primer = () => h('ol', { class: 'primer' },
   h('li', null, 'You are the Monarch. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
   h('li', null, 'Place your souls in the camp, then fight ', kw('turn'), ' by turn. ', h('b', null, 'A turn is yours'), ': each ', kw('piece'), ' may ', kw('move'), ', then act once: its basic blow, a ', kw('skill'), ', a heal, or Fuse. A blow shows its damage and the ', kw('counter'), ' it would draw before you commit; a move can be undone until the piece acts.'),
   h('li', null, 'What you leave alone strikes anyway at ', h('b', null, 'End Turn'), ', with its basic blow or heal, never a skill. Every skill rests a turn once used.'),
-  h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. How far each comes is its own judgement: you learn each kind by meeting it. Nothing of their coming turn is shown.'),
+  h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. How far each comes is its own judgement: you learn each kind by meeting it, and a kind met shows its reach when tapped. Nothing of what they will do is shown.'),
   h('li', null, 'A ranged blow at one target strikes the first piece of the target\'s side on its ', kw('line', 'line of fire'), ', both sides alike; a side never blocks its own shots. Stand a piece between their shooters and the Monarch, and mind who stands in front of the foe you aim at. Melee, blows that strike an area and lobbed blows ignore lines.'),
   h('li', null, `No dice: every blow lands and deals what its preview says; the same board and the same orders give the same battle. A battle is lost only when you fall, however long it lasts, and a horde that waits at the edge of your reach comes in time. Wounds carry: ${WOUNDS_TEXT}.`),
   h('li', null, 'Spend ', kw('essence'), ' on your kinds\' ', kw('tier', 'tiers'), ' and ', kw('fusion', 'fusions'), ' (three of a kind make its ', kw('trine'), '), on a recruit after a win, and in a ', kw('shop'), ' on ', kw('relic', 'relics'), '. A run relic works for the whole run: the Monarch grows only by them, its HP and its ', kw('command'), '. A piece relic works through the soul you give it to, one a soul, out of battle; Arise is one, and its holder raises the slain.'))

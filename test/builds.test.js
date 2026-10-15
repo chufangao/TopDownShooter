@@ -152,7 +152,7 @@ test('the report\'s shape: a row an archetype with its margin, and the diversity
   const row = buildRow(R, 'channeler_4', R)
   for (const x of [free, row]) {
     for (const k of ['runs', 'clears', 'progress', 'deaths', 'monarch', 'souls', 'lost', 'essence', 'turns', 'reached', 'first']) assert.ok(k in x, k)
-    assert.equal(x.deaths.length, 4)
+    assert.equal(x.deaths.length, TUNING.run.floors)
   }
   assert.equal(free.reached, null)
   assert.equal(row.diff, 0)

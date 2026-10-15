@@ -20,6 +20,7 @@ import { TUNING } from '../src/tuning.js'
 import { on, scene, turns } from './scene.js'
 
 const TOP = ascensionTop()
+const F = TUNING.run.floors
 const KEYS = ['foeHp', 'foeAtk', 'fight', 'elite', 'every', 'monarchHp', 'price']
 const near = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a} against ${b}`)
 
@@ -215,7 +216,7 @@ test('the ladder report\'s shape: the levels a --ascension names, a job a rung a
   const records = [
     rec('basic', 0, 0, 'defeat', 1, 0.05, 2), rec('basic', 0, 1, 'defeat', 1, 0.04, 2),
     rec('calc', 0, 0, 'defeat', 2, 0.3, 12), rec('calc', 0, 1, 'defeat', 1, 0.1, 6),
-    rec('expert', 0, 0, 'victory', 4, 1, 50), rec('expert', 0, 1, 'defeat', 4, 0.8, 40),
+    rec('expert', 0, 0, 'victory', F, 1, 50), rec('expert', 0, 1, 'defeat', F, 0.8, 40),
     rec('basic', 5, 0, 'defeat', 1, 0.02, 1), rec('basic', 5, 1, 'defeat', 1, 0.02, 1),
     rec('calc', 5, 0, 'defeat', 1, 0.2, 4), rec('calc', 5, 1, 'defeat', 1, 0.1, 3),
     rec('expert', 5, 0, 'defeat', 1, 0.1, 3), rec('expert', 5, 1, 'defeat', 1, 0.15, 4)
@@ -223,7 +224,7 @@ test('the ladder report\'s shape: the levels a --ascension names, a job a rung a
   const t = ladderTable(records.slice().reverse(), { ascensions: [0, 5], rungs: ['basic', 'calc', 'expert'], runs: 2, seed: 'l' })
   assert.deepEqual(t.rows.map((r) => [r.ascension, r.rung, r.below]), [[0, 'basic', null], [0, 'calc', 'basic'], [0, 'expert', 'calc'], [5, 'basic', null], [5, 'calc', 'basic'], [5, 'expert', 'calc']])
   const ex = t.rows[2]
-  assert.deepEqual([ex.runs, ex.clears, ex.deaths, ex.battles, ex.won, ex.lost], [2, 1, [0, 0, 0, 1], 45, 1, 0])
+  assert.deepEqual([ex.runs, ex.clears, ex.deaths, ex.battles, ex.won, ex.lost], [2, 1, Array.from({ length: F }, (_, f) => (f === F - 1 ? 1 : 0)), 45, 1, 0])
   near(ex.progress, 90, 'progress in points')
   near(ex.diff, 70, 'the gap to the calculator')
   assert.ok(t.rows[0].diff === null && t.rows[0].won === null)

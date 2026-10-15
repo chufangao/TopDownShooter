@@ -206,12 +206,29 @@ button.ret-toggle:hover:not([aria-disabled]) { background-color: #463614; color:
 .asc-line .ico, .end-screen .unlock .ico { vertical-align: -4px; margin-right: 6px; color: var(--c-warn); }
 .floors .fl-asc { color: var(--c-warn); }
 .end-screen .unlock { margin: 0 0 14px; font-size: var(--fs-md); }
+/* The run saved (ui.js resumeActions): Continue and where the run stands, in the tagline's place under the name. A note
+   (a save set aside, the tutorial done) stands over the foot of the screen as the run's toasts do. */
+.saved-run { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin: 12px 0 22px; }
+.saved-run .cont-at { font: 500 var(--fs-md)/1.35 var(--display); color: #cbc3db; text-align: left; }
+.saved-run .cont-at b { color: var(--c-essence2); font-weight: 600; }
+.title-screen { position: relative; }
+.title-screen > .title-note { position: absolute; z-index: 6; left: 50%; bottom: 14px; translate: -50% 0; width: max-content; max-width: min(720px, calc(100% - 40px)); }
+/* The tutorial's screens and a question: a narrow dialog, its button centred under its lines. */
+.modal.tut-card, .modal.ask { width: min(640px, 100%); padding: 22px 28px 24px; }
+.tut-card p { margin: 0 0 10px; font-size: var(--fs-md); line-height: 1.45; color: var(--text); }
+.tut-card .title-actions, .ask .title-actions { margin-top: 16px; }
+.tut-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.tut-step { font-size: var(--fs-sm); white-space: nowrap; }
+.overlay.tut { background: rgb(10 6 16 / .55); }
+
 /* A short frame (a phone, 540 tall): the sigil, the name and the gaps shrink so it all stands in one view. */
 @container frame (max-height: 640px) {
   .title-screen .sigil { width: 64px; height: 64px; margin-bottom: 6px; }
   .title-screen .sigil svg { width: 36px; height: 36px; }
   .title-screen .logo { font-size: calc(var(--fs-2xl) * 1.35); }
   .title-screen .tagline { font-size: var(--fs-md); margin: 6px 0 14px; }
+  .title-screen .saved-run { margin: 4px 0 12px; }
+  .title-screen .saved-run button.big { min-height: var(--tap); padding-block: 4.5px 6.5px; }
   .title-box .steps.brief { gap: 10px; margin-bottom: 16px; }
   .steps.brief .step { padding: 7.5px 11.5px; }
   .steps.brief .step-ico { width: 40px; height: 40px; }

@@ -10,6 +10,7 @@ import {
 import { createRun, apply, currentNode, availableNodes, legalActions } from '../src/sim/run.js'
 import { policy, autoplay } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
+import { TUNING } from '../src/tuning.js'
 
 // sim-10's expert falls on floor 1 after five battles: a whole run in about a second, so a playout to its end is cheap.
 // (sim-0 until the pool was flattened, 2026-10-15: its run clears now.)
@@ -148,9 +149,9 @@ test('a formation is judged by its coming battle, the base\'s own first', () => 
 })
 
 test('with won, a decision whose base\'s line clears the run plays that line alone and keeps the base\'s pick', () => {
-  // sim-0's expert clears: late on floor 4 its own line clears from wherever it stands (sim-2 falls on floor 4 with the
-  // twelve relics in the Shops, sim-1 with Echo at half).
-  const { run, rng } = walk('sim-0', { until: (r) => r.state.floor === 4 && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2 })
+  // sim-1's expert clears: late on the last floor its own line clears from wherever it stands (sim-2 fell on floor 4
+  // with the twelve relics in the Shops, sim-1 with Echo at half; on three floors sim-0 falls on floor 3).
+  const { run, rng } = walk('sim-1', { until: (r) => r.state.floor === TUNING.run.floors && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2 })
   const own = baseStep(run)
   assert.deepEqual(outsideTeacher(run, rng, { won: true }), own)
   const st = outsideStats(run)
