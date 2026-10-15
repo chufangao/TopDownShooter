@@ -318,6 +318,11 @@ export const TUNING = {
   // (redesign.md §4.2). The same kind may come again in a later pick. The user's call (2026-10-14): three picks of one
   // of three.
   draft: { picks: 3, offer: 3 },
+  // The Monarchs (content.js MONARCH_LIST; redesign.md §4.8): a Monarch's kin is drawn `bias` times as often as any
+  // other kind in its draft's offers (run.js draftOffer). Three, not two: each favours a kin with one kind in the
+  // floor-1 pool, offered in 71% of a pick's offers at 3 (58% at 2, 38% evenly). A new number (Step 9); the base Monarch
+  // has no bias, and its draws are the even ones as before.
+  monarchs: { bias: 3 },
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (mods on
   // `run.monarchHp`), and nothing else touches it. 250 since the fourth balance pass (2026-10-10), so one Pyre Hound's
   // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1.

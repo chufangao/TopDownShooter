@@ -14,7 +14,7 @@
 //     at         when it ended, in ms since the epoch
 //     daily      the UTC day of the daily it was ('2026-10-15'), and `practice` where it was not that day's first
 //                attempt (main.js); none for a run of any other seed
-//     monarch    the Monarch it was played with, where not the base one
+//     monarch    the Monarch it was played as (content.js MONARCHS), where not the base one
 //     end        'cleared' (the Sovereign slain, the run stopped there), 'fell' (the Monarch fell: after a clear, in
 //                the deep) or 'left' (ended for a new run while under way)
 //     cleared    whether the Sovereign fell to it (s.result 'victory')
@@ -41,8 +41,8 @@ export const dailySeed = (date = new Date()) => `daily-${dayOf(date)}`
 // ── a run's line ─────────────────────────────────────────────────────────────────────────────────
 
 // The line a run ends with: over (cleared, or fallen), or under way and left for a new one. `id`, `at` (now, by
-// default), `time` (its play time), `daily`, `practice`, `monarch`: what main.js knows of it and the run does not.
-export function recordOf (run, { id, at = Date.now(), time = 0, daily = null, practice = false, monarch = null } = {}) {
+// default), `time` (its play time), `daily`, `practice`: what main.js knows of it and the run does not.
+export function recordOf (run, { id, at = Date.now(), time = 0, daily = null, practice = false } = {}) {
   const s = run.state
   const cleared = s.result === 'victory'
   const end = s.phase !== 'over' ? 'left' : s.death ? 'fell' : 'cleared'
@@ -62,7 +62,7 @@ export function recordOf (run, { id, at = Date.now(), time = 0, daily = null, pr
   }
   if (daily) entry.daily = daily
   if (daily && practice) entry.practice = true
-  if (monarch) entry.monarch = monarch
+  if (s.monarch) entry.monarch = s.monarch
   if (end === 'fell') entry.fell = { by: s.death.by ?? null, threat: s.death.threat ?? null }
   return entry
 }

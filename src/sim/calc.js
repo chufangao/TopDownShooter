@@ -276,10 +276,11 @@ export const PHASES = Object.freeze(['draft', 'spend', 'route', 'recruit', 'shop
 
 // One run: the calculator (`teacher` false), or the teacher over it: at each decision of `phases` with two candidates or
 // more, at most `cap` of them (the calculator's first) played out to the end, the first that clears taken, else the best.
-// At level `ascension` of the ladder (run.js createRun's; its playouts' copies keep it), named in the result where not 0.
-export function calcRun (seed, { teacher = false, phases = PHASES, cap = 6, onBattle = null, ascension = 0 } = {}) {
+// At level `ascension` of the ladder and as `monarch` (run.js createRun's; its playouts' copies keep them), the level
+// named in the result where not 0.
+export function calcRun (seed, { teacher = false, phases = PHASES, cap = 6, onBattle = null, ascension = 0, monarch = undefined } = {}) {
   const t0 = Date.now()
-  const run = createRun({ seed, ascension })
+  const run = createRun({ seed, ascension, ...(monarch && { monarch }) })
   const memo = new Map()
   const on = new Set(phases)
   const stats = { decisions: 0, decided: 0, overrides: 0, playouts: 0 }
