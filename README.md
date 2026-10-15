@@ -81,6 +81,9 @@ then descend into the endless deep for as long as you last.
   it; its pictures are a foe's, washed pale and drawn as big as the Sovereign's. A boss is never Hexed twice in a row:
   once a Hex has cost it an act, it shrugs off every Hex until it has acted again, so no boss, the Sovereign among them,
   is held by Hexes turn after turn.
+- **Fights** from floor 2 each bring a captain, one foe of tier 3 or a tier above the floor's foes, whichever is
+  higher, with a cohort of the room's own kinds about it: floor 2's are the Ember Drake, the Mantis Reaper and the Iron
+  Golem, the mixed recipes' keystones, each a recruit on offer when the fight is won.
 - **Shops** sell relics, the only place they come from. Elites pay essence and offer their recruit.
 - **Altars** grant one rite of three: **heal** every soul and raise the fallen; **transmute** a standing soul into one
   of three kinds of the floor's foes at its tier, drawn by the seed, keeping its relic, its wounds and its level (tiers
@@ -157,8 +160,8 @@ rites taken and the runs whose leading kin or fused kind turned after floor 1. `
 the ladder (any report takes it: `npm run sim -- --ascension 5`, and the teachers, `npm run teach` and `npm run
 outside`, but the latter's labels), `--monarch <id>` as a Monarch (content.js `MONARCHS`; the base one by default;
 the same); `--scale` multiplies every foe's HP and ATK on top of it, an override for probing. `--pool` reads
-`spawnPool` and the floors as drawn: each floor's share of a fight's and an elite's draws by kind, the battles on a
-walk offering each kind and the draft's picks, and each recipe's reach by the end of floor 2 (criterion 1).
+`spawnPool` and the floors as drawn: each floor's share of a fight's, an elite's and a fight's captain's draws by kind
+(`captainPool`), the battles on a walk offering each kind and the draft's picks, and each recipe's reach by the end of floor 2 (criterion 1).
 
 ## Code map
 

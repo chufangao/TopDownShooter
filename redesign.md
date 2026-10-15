@@ -449,8 +449,9 @@ Taken on 2026-10-16, the user's word, before the expert's refit labels anything 
 **a boss is never Hexed twice in a row** (one whose act a Hex took shrugs off every Hex until it has acted again), and
 the bosses a Hex every turn had held lighter to answer it (the balance pass's draft numbers: floor 2's boss 2.4 HP and
 1.6 ATK of its own, the Sovereign 0.45 and 0.6, its court of 2); **a captain a tier above from floor 2** (§4.2's
-alternative: a fight's captain drawn a tier or more over the room's target, its cohort of the room's own kinds), the
-pool kept as §8's "The user's rules" says (decision 1); **a trine counts as three toward synergies** (decision 7's
+alternative: a fight's captain drawn a tier or more over the room's target and of tier 3 at least, so a keystone of
+the mixed recipes is on offer in every floor-2 fight, its cohort of the room's own kinds), the pool kept as §8's "The
+user's rules" says (decision 1); **a trine counts as three toward synergies** (decision 7's
 alternative: a trine as the three it was made of, a trine of a trine as three; mixed recipes and capstones once; both
 sides alike); **the expert retrained before the content is balanced again**; and **criterion 2 judged by the strict
 commitment** (`--builds --strict`, §8's balance pass, part 1), the soft commitment staying the harness's default.
@@ -460,9 +461,11 @@ Recommended here, open until the user rules:
 1. **`tierFalloff` moves before the balance pass** (§4.2). "No tuning while building" stands; this is called
    structural, since without it there is nothing for a balance pass to balance between. The captain-a-tier-above
    alternative keeps the number. **2026-10-16: the captain taken beside the flattened pool, not instead of it** (§8,
-   "The user's rules"): with the pool restored (3, 1) the captain brings the three mixed recipes' keystones by the end
-   of floor 2 in 0.2–1.8 battles, with it flattened in 0.8–2.0, criterion 1 met by neither (22 of 44 both); free play
-   between the two within noise. `tierFalloff` 1.5 and `tierOverCap` 2 stay.
+   "The user's rules"): with the pool restored (3, 1) a captain a tier over the target brings the three mixed recipes'
+   keystones by the end of floor 2 in 0.2–1.8 battles, with it flattened in 0.8–2.0, criterion 1 met by neither (22 of
+   44 both); free play between the two within noise. `tierFalloff` 1.5 and `tierOverCap` 2 stay. Then the captain of
+   tier 3 at least (`captains.minTier`, the user's intent): the keystones in 2.9–4.1 battles, 31 of 44 reachable, the
+   Rime Drake and the Hive Queen among them, the Clockwork Titan 0.1 short.
 2. **Transmute at altars** (§4.5) bends "recruit only: one slain foe a battle": it reshapes a soul, adds none.
 3. **Rules below Legendary** stay forbidden; §4.4 uses the forms allowed. If the relics ablation does not reach 10
    points, Rare relics may carry a `rule`.
@@ -2035,6 +2038,38 @@ Undead 4 (1 → 10) and the Chanter's trine (5 → 11) rise, the first two by th
 floor 3 rather than floor 2, and dies on floor 1 as before (18 of its 21 falls). The three rules were not measured apart.
 Not measured: the outside teacher (criterion 2's own instrument) and the ladder. The expert is stale against all three
 rules by design; its refit, next, learns them.
+
+**The captain's tier, the user's intent** (a follow-up the same day). The user chose the captain on "from floor 2 each
+fight carries one foe a tier above the room's, so a keystone recruit is on offer in most floor-2 fights": the Ember
+Drake, the Mantis Reaper and the Iron Golem, tier 3, reachable by the end of floor 2. As built above, floor 2's captain
+was tier 2 (its target tier 1, one above), a keystone in 11% of fights. Now a fight's captain is drawn at the floor's
+`captains.minTier` (`[0, 3, 3]`: the keystones' tier from floor 2) or a tier over the target, whichever is higher
+(`captainPool`): floor 2's captain is a keystone in every fight (the Ember Drake 38%, the Mantis Reaper 33%, the Iron
+Golem 29% by their weights), floor 3's as it was (tier 3 in 89%, tier 4 in 11%). Arm A's pool kept. Every walk still
+meets every threat type (`route0…23` floors 1–5, `rul-0…255` floors 1–3, eight passes).
+
+| | A (captain a tier over the target) | K (and of tier 3 at least) |
+|---|---|---|
+| criterion 1: recipes reachable (`rul`, 256 seeds) | 22 of 44 | **31 of 44** |
+| by the end of floor 2: the Ember Drake, the Mantis Reaper, the Iron Golem | 1.1, 2.0, 0.8 | 4.1, 3.6, 2.9 |
+| the Rime Drake, the Hive Queen, the Clockwork Titan | 1.1, 2.0, 0.8: none met | 4.1, 3.5, 2.9: the Rime Drake and the Hive Queen met, the Titan 0.1 short |
+| the Hive Warden, the Tomb Knight, the Thorn Dryad, the Rot Bloat (no longer floor 2's captains) | 4.3, 5.6, 2.3, 2.2 | 3.5, 4.4, 1.4, 1.4 |
+| free play, `rul-0…127`: clears | 95 | 96 (+0.8 ± 2.4 against A; +12.5 ± 3.8 against the base) |
+| died on floor 1 / 2 / 3 | 26 / 1 / 6 | 26 / 0 / 6 |
+| floor 2's Mire Mother (lost; turns) | 99 (1; 5.6) | 99 (0; 5.1) |
+| the Rime Drake made (runs); in final armies | 3%; 3% | 9%; 8% |
+| the Court in final armies; synergies | 79%; Echo 73%, Mirage 66% | 77%; Echo 72%, Mirage 69% |
+
+The recipes newly reachable: the Rime Drake and the Hive Queen, their capstones on them (the Cinder Wyrm, Aurora, the Hive
+Mind), the Ember Drake's and the Mantis Reaper's trines; the Titan, the Engine of Ages, the Iron Barrow and the Golem's
+trine 0.1 short (the Golem 2.9 battles); the Dryad's and the Bloat's trines, never met, further off than before (1.4).
+Floor 2 is not harder for the expert: no death there in 128 runs (1 with A), the expert's floor-2 armies holding a tier-3
+foe a fight.
+
+Strictly committed, `rul-0…31` (base → A → K; free play 19 → 25 → 26 of 32): the Rime Drake 12 → 11 → 9 (made in 38%,
+41%, 38%; dead on floor 1 in 18 of its falls each time), the Hive Queen 0 → 1 → 1 (made 38%, 44%, 41%; dead on floors 1
+and 2), the Clockwork Titan 0 → 0 → 0 (dead on floor 1 in 28 of 32, made in one run). Held to these three, the expert
+seldom lives to floor 2's captains: their rows wait on floor 1, which the captain does not touch, and on the refit.
 
 ## 9. Standing rules
 

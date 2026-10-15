@@ -1109,8 +1109,8 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 // From floor 2 each wave (but a boss's) has captains: captains.fight (captains.elite in an elite) of
 // its foes, each leading cohort[floor − 1] more foes (formation). An elite's captains are of its foes, their cohorts of
 // their own kind; a fight's (a siege's waves too: fight-sized) are drawn apart, a tier or more over the room's target
-// (captainPool: the pool `captains.above` tiers up, as an elite's foes are drawn), and lead cohorts of the wave's own
-// kinds (the user's rule of 2026-10-16, redesign.md §4.2's alternative: every fight carries a notable recruit).
+// and of the floor's `captains.minTier` at least (captainPool: the pool `captains.above` tiers up, as an elite's foes
+// are drawn; floor 2's a keystone of tier 3), and lead cohorts of the wave's own kinds (the user's rule of 2026-10-16, redesign.md §4.2's alternative: every fight carries a notable recruit).
 // Each wave's foes stand from its front row back, filling the middle lanes first, each band of lanes (centre
 // three, then the next pair out…) in shuffled order.
 // From rank `variety.from` on, a room must carry enough distinct threats that one answer never covers it
@@ -1559,12 +1559,15 @@ export function spawnPool (floor, tierBias = 0) {
 // A floor's target tier, a fight's (spawnPool).
 export const targetTier = (floor) => Math.min(TUNING.spawn.tierMax, 1 + Math.floor((floor - 1) * TUNING.spawn.tierPerFloor))
 // What a fight's captain is drawn from on a floor (drawRoom, from floor 2): the pool `captains.above` tiers up
-// (spawnPool's, as an elite's foes are drawn), those of its kinds that stand that far over the floor's target (the rest
-// would be no notable recruit), each by its weight there; where it holds none, the pool's highest tier. → { units, weights }
+// (spawnPool's, as an elite's foes are drawn), those of its kinds that stand that far over the floor's target or at the
+// floor's `captains.minTier`, whichever is higher (the rest would be no notable recruit: floor 2's target is tier 1, its
+// minimum the keystones' tier 3), each by its weight there; where it holds none, the pool's highest tier.
+// → { units, weights }
 export function captainPool (floor) {
-  const above = TUNING.spawn.captains.above
+  const { above, minTier } = TUNING.spawn.captains
   const p = spawnPool(floor, above)
-  const keep = (u) => u.tier >= targetTier(floor) + above
+  const least = Math.max(targetTier(floor) + above, at(minTier, floor))
+  const keep = (u) => u.tier >= least
   const top = p.units.some(keep) ? null : Math.max(...p.units.map((u) => u.tier))
   const ok = (u) => (top === null ? keep(u) : u.tier === top)
   return { units: p.units.filter(ok), weights: p.weights.filter((_, i) => ok(p.units[i])) }

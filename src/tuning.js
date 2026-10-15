@@ -395,8 +395,11 @@ export const TUNING = {
     // `captains.elite` in an elite), each leading a cohort of cohort[floor − 1] more: foes of their own, each on the
     // free slot of the formation nearest the captain (run.js formation). An elite's captains are of its foes, their
     // cohorts of their own kind; since 2026-10-16 (the user's rule, redesign.md §4.2's alternative) a fight's are drawn
-    // from the pool `captains.above` tiers over the room's target, as an elite's foes are (spawnPool), so every fight
-    // from floor 2 carries a notable recruit, and lead cohorts of the wave's own kinds. A floor-1 elite brings a
+    // from the pool `captains.above` tiers over the room's target, as an elite's foes are (spawnPool), and of tier
+    // `captains.minTier` at least, by floor: the keystones' tier, 3, from floor 2 (its target is tier 1, and a captain
+    // one above it, tier 2, brought the Ember Drake, the Mantis Reaper and the Iron Golem, the mixed recipes' keystones,
+    // to 11% of floor-2 fights; the user's intent is one on offer in most), so every fight from floor 2 carries a
+    // notable recruit, and lead cohorts of the wave's own kinds. A floor-1 elite brings a
     // late pair: `late.n` more foes of its pool, a wave of their own. From floor `waves.floor` an elite, a fight from
     // rank `waves.fightRank`, a siege and the last room come in waves (`waves.elite`, `.fight`, `.siege` in all, the
     // first included). Waves enter on fixed turns (redesign.md §2.10): the room's formation stands from turn 1, and
@@ -408,7 +411,7 @@ export const TUNING = {
     // placeholders: redesign.md §4.7). They and its waves take foeHp/foeAtk; only the boss takes bossHp/bossAtk. Floor 3
     // keeps floor 2's cohorts of 2: at 3, a floor-3 elite's mantis brood ended half the expert's runs (the final balance
     // pass).
-    captains: { fight: 1, elite: 2, above: 1 }, cohort: [0, 2, 2, 3],
+    captains: { fight: 1, elite: 2, above: 1, minTier: [0, 3, 3] }, cohort: [0, 2, 2, 3],
     late: { n: 2 },
     waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, every: 4 },
     court: [2, 4, 2],

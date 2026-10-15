@@ -150,15 +150,16 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
           // The foes drawn, then each captain's cohort after them (the formation has room for every one of them here:
           // none is dropped): an elite's (and the waves before a boss's) of the captain's kind; a fight's, since the
           // user's rule of 2026-10-16, of the wave's other kinds, its captain drawn first, a tier or more over the
-          // floor's target (captainPool).
+          // floor's target and of its minimum at least (captainPool: floor 2's a keystone of tier 3).
           const cohort = at(sp.cohort, floor)
           const captains = elite ? sp.captains.elite : sp.captains.fight
           const drawn = at(elite ? sp.elite : sp.fight, floor)
           assert.equal(g.length, drawn + captains * cohort, w)
           const led = !elite && !boss
           if (led) {
-            assert.ok(g.slice(0, captains).every((f) => captainPool(floor).units.some((u) => u.id === f.id) && UNITS[f.id].tier >= targetTier(floor) + sp.captains.above), `${w}: its captain a tier up`)
-            captainTiers.push(...g.slice(0, captains).map((f) => UNITS[f.id].tier))
+            const least = Math.max(targetTier(floor) + sp.captains.above, at(sp.captains.minTier, floor))
+            assert.ok(g.slice(0, captains).every((f) => captainPool(floor).units.some((u) => u.id === f.id) && UNITS[f.id].tier >= least), `${w}: its captain a tier up`)
+            captainTiers.push(...g.slice(0, captains).map((f) => `${floor}:${UNITS[f.id].tier}`))
           }
           for (let c = 0; c < captains; c++) {
             const band = g.slice(drawn + c * cohort, drawn + (c + 1) * cohort)
@@ -175,8 +176,9 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
   for (const key of ['1fight1', '1elite2', '1boss1', '2fight1', '2elite1', '2boss1', '3fight1', '3fight2', '3elite2', '3siege3', `${F}siege3`, `${F}boss3`]) assert.ok(count[key] > 0, `${key}: ${JSON.stringify(count)}`)
   // The floor's pool, not the elite's: floor 1's weights favour tier 1 (the elite pool's, tier 2).
   assert.ok(pairTiers.filter((t) => t === 1).length > 0.7 * pairTiers.length, `late pair tiers: ${pairTiers}`)
-  // A fight's captains: tier 2 and 3 on floor 2, tier 3 and 4 on floor 3, so some of each.
-  assert.ok([2, 3, 4].every((t) => captainTiers.includes(t)), `captain tiers: ${captainTiers}`)
+  // A fight's captains: a keystone of tier 3 on floor 2 (never a tier 2, one above its target), tier 3 and 4 on floor 3.
+  assert.deepEqual([...new Set(captainTiers)].sort(), ['2:3', '3:3', '3:4'], `captain tiers: ${captainTiers}`)
+  assert.deepEqual(captainPool(2).units.map((u) => u.id).sort(), ['ember_drake', 'iron_golem', 'mantis_reaper'])
 })
 
 // ── the battle: foes as an army ──────────────────────────────────────────────────────────────────
