@@ -143,11 +143,11 @@ its draft, recruits, purchases and route follow it, and so do the outside teache
 runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the
 final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3, and the altars'
 rites taken and the runs whose leading kin or fused kind turned after floor 1. `--ascension` plays them at a level of
-the ladder (any report takes it: `npm run sim -- --ascension 5`), `--monarch <id>` as a Monarch (content.js
-`MONARCHS`; the base one by default); `--scale` multiplies every foe's HP and ATK on top of
-it, an override for probing. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
-and an elite's draws by kind, the battles on a walk offering each kind and the draft's picks, and each recipe's reach
-by the end of floor 2 (criterion 1).
+the ladder (any report takes it: `npm run sim -- --ascension 5`, and the teachers, `npm run teach` and `npm run
+outside`, but the latter's labels), `--monarch <id>` as a Monarch (content.js `MONARCHS`; the base one by default;
+the same); `--scale` multiplies every foe's HP and ATK on top of it, an override for probing. `--pool` reads
+`spawnPool` and the floors as drawn: each floor's share of a fight's and an elite's draws by kind, the battles on a
+walk offering each kind and the draft's picks, and each recipe's reach by the end of floor 2 (criterion 1).
 
 ## Code map
 
