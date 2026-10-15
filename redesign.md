@@ -531,6 +531,127 @@ second passes of `policy` (26) and `puzzles` (22) with V on; the beam's three in
 (teach.js's shortlist option for option policy.js's), the afterstates of `--augment` against play's, and `pairedStats`
 (three tests, and the last into the job test); `evaluate`'s test is `judge`'s.
 
+### The harness and the baseline (Step 0, 2026-10-15)
+
+**Built** (`src/sim/autoplay.js`, a section of its own; `npm run builds`, `npm run pool`): the harness of §3. An
+archetype is a fused kind (a result in `FUSION_LIST`, with the recipe graph under it: `recipesOf`) or a synergy, as
+content makes them: sixteen today. A committed run reads the book's combos for its archetype alone (`useCommit`,
+`withCommit`, set a job at a time as the forests are; `bookValue`, `targetOf`), so its draft, recruits, purchases and
+route read it, and so do the outside teacher's candidates and playouts. `--builds [--player expert|teacher] [--commit
+<archetype>|all|fused|synergies] [--scale 1] [--runs 256] [--seed div] [--out f]` plays free play and each archetype on
+the same seeds and prints a row an archetype: clears; progress and its paired difference from free play, ± one standard
+error; deaths by floor; the margin, over the clears (the Monarch's and its pieces' share of their HP as the last battle
+ended, before the heal a win gives, and the essence left); battles lost; turns a battle; the runs that made its fusion
+or held its synergy, and the median battle it came on. Then free play's diversity block against criterion 3, which
+`--ladder` now prints a level at a time. `--player teacher` is the outside teacher (`TEACHER`: every phase, six
+candidates, the first line that clears) through `autoplay`'s new `act`. `--scale` multiplies every foe's HP and ATK
+(`createRun`'s `scale`, the boss's too; no field at 1). `--pool` reads `spawnPool` and the floors as a run draws them
+(`floorOf`), a walk taking each fork evenly. `test/builds.test.js`, 2 s. §5's scripts are folded in but `variant.mjs`:
+a content variant played in process is no part of §3's harness.
+
+**The check**: uncommitted and unscaled, the runs are the ones they were. Six runs' logs (`div-0…2` and `aud-3` by the
+expert, `div-0…1` by basic), `div-3`'s recorded battles and the outside teacher's run of `sim-0`, byte for byte the same
+before (a0cc19e), after, and after the merge with Step 0b; the teacher through `act` plays `outsideRun`'s log of
+`sim-0`.
+
+**Measured** (the content and the expert of f8c536f, the draft on, seeds `div-*`, two workers beside another session):
+`npm run builds -- --runs 64 --workers 2` (the expert, free play and all sixteen: 1,088 runs, 76 min);
+`npm run builds -- --player teacher --runs 8 --workers 2` with `--commit fused` and with `--commit
+undead_4,drake_4,fae_4,insect_4,construct_4` (the teacher, the five fused kinds and the five kins: 48 runs each, 15 and
+20 min, beside the expert's); `npm run pool` (256 seeds, a second).
+
+Criterion 1, the pool (a walk meets 11.4 battles on floor 1 and 11.3 on floor 2; the draft offers each floor-1 kind in
+1.1 of its 3 picks):
+
+| Fused kind | Its parts' expected battles by the end of floor 2 (floor 1 + floor 2) | Reach | 3 or more |
+|---|---|---|---|
+| Pale Court | 3 Will-o'-Wisps 9.6 (5.4 + 4.3) | 9.6 | met |
+| Bone Colossus | 2 Tomb Knights 4.6 (2.1 + 2.5), a Bone Chanter 4.9 (2.1 + 2.9) | 4.6 | met |
+| Hive Queen | 2 Hive Wardens 2.7 (1.3 + 1.4), a Mantis Reaper 1.3 (0 + 1.3) | 1.3 | no |
+| Rime Drake | an Ember Drake 0.2 (0 + 0.2), 2 Frost Sprites 11.6 (6.0 + 5.6) | 0.2 | no |
+| Clockwork Titan | 2 Clockwork Pages 11.3 (5.8 + 5.5), an Iron Golem 0.1 (0 + 0.1) | 0.1 | no |
+
+The synergies, battles by the end of floor 2 offering a kind of the kin or role: Fae 18.0, Undead 16.6, Construct
+11.3, Insect 8.6, Drake 5.0; Skirmisher 16.6, Vanguard 14.8, Channeler 13.4, Trickster 12.5, Warden 4.0, Ranger 0.2.
+
+The expert, `div-0…63` (progress in points, against free play seed for seed ± one standard error; the margin over the
+clears; "reached": runs that made its fusion or held its synergy, the median battle it came on; "Court": runs that made
+a Pale Court):
+
+| Archetype | Clears | Progress (vs free play) | Died on floor 1 / 2 / 3 / 4 | Monarch / pieces (%) | Essence left | Turns a battle | Reached (battle) | Court |
+|---|---|---|---|---|---|---|---|---|
+| free play | 49 (77%) | 84.4 | 10 / 1 / 1 / 3 | 96 / 94 | 1,474 | 5.9 | | 83% |
+| Bone Colossus | 47 (73%) | 80.7 (−3.7 ± 5.4) | 11 / 3 / 1 / 2 | 95 / 90 | 721 | 6.4 | 3% (7) | 78% |
+| Rime Drake | 36 (56%) | 70.3 (−14.0 ± 4.7) | 19 / 3 / 0 / 6 | 93 / 96 | 1,457 | 6.4 | 66% (31) | 67% |
+| Hive Queen | 41 (64%) | 80.8 (−3.6 ± 4.7) | 9 / 4 / 2 / 8 | 96 / 97 | 828 | 6.6 | 25% (44) | 78% |
+| Clockwork Titan | 40 (63%) | 78.9 (−5.5 ± 4.9) | 10 / 5 / 2 / 7 | 96 / 91 | 946 | 6.6 | 0% | 75% |
+| Pale Court | 47 (73%) | 81.9 (−2.5 ± 4.4) | 11 / 2 / 0 / 4 | 95 / 94 | 1,311 | 6.0 | 83% (7) | 83% |
+| Undead 4 (Legion) | 41 (64%) | 79.1 (−5.3 ± 5.0) | 10 / 5 / 2 / 6 | 98 / 90 | 835 | 6.2 | 67% (10) | 73% |
+| Drake 4 (Dragonfire) | 39 (61%) | 75.3 (−9.0 ± 5.4) | 15 / 2 / 2 / 6 | 95 / 89 | 799 | 7.0 | 3% (50) | 73% |
+| Fae 4 (Mirage) | 43 (67%) | 77.5 (−6.9 ± 4.9) | 12 / 5 / 1 / 3 | 96 / 93 | 760 | 6.8 | 36% (31) | 72% |
+| Insect 4 (Frenzy) | 36 (56%) | 78.5 (−5.9 ± 4.7) | 9 / 5 / 3 / 11 | 97 / 94 | 825 | 6.4 | 16% (43) | 80% |
+| Construct 4 (Last Stand) | 42 (66%) | 79.7 (−4.7 ± 4.8) | 9 / 5 / 3 / 5 | 97 / 94 | 824 | 6.7 | 0% | 77% |
+| Vanguard 4 (Bodyguard) | 43 (67%) | 79.7 (−4.6 ± 4.8) | 9 / 5 / 3 / 4 | 96 / 93 | 928 | 6.6 | 0% | 77% |
+| Ranger 4 (Deadeye) | 34 (53%) | 78.6 (−5.8 ± 4.6) | 9 / 5 / 3 / 13 | 96 / 92 | 675 | 6.8 | 5% (48) | 77% |
+| Skirmisher 4 (Ambush) | 38 (59%) | 74.6 (−9.8 ± 4.9) | 12 / 6 / 4 / 4 | 93 / 93 | 609 | 7.0 | 2% (9) | 73% |
+| Channeler 4 (Echo) | 46 (72%) | 84.0 (−0.4 ± 4.6) | 10 / 0 / 2 / 6 | 98 / 90 | 970 | 6.1 | 83% (10) | 84% |
+| Warden 4 (Sanctuary) | 42 (66%) | 79.5 (−4.8 ± 4.8) | 9 / 5 / 3 / 5 | 97 / 94 | 831 | 6.7 | 9% (48) | 77% |
+| Trickster 4 (Deathblow) | 40 (63%) | 79.0 (−5.4 ± 4.5) | 10 / 5 / 2 / 7 | 93 / 91 | 569 | 6.9 | 2% (45) | 78% |
+
+The teacher, `div-0…7` (0.9 and 1.3 overrides of the expert's pick a run, ~250 decisions played out; 26–74 s a run):
+
+| Archetype | Clears | Progress (vs free play) | Died on floor 1 / 2 / 3 / 4 | Monarch / pieces (%) | Essence left | Turns a battle | Reached (battle) | Court |
+|---|---|---|---|---|---|---|---|---|
+| free play | 8/8 | 100 | – | 99 / 98 | 1,287 | 5.8 | | 8/8 |
+| Bone Colossus | 8/8 | 100 | – | 95 / 87 | 535 | 6.4 | 0/8 | 8/8 |
+| Rime Drake | 8/8 | 100 | – | 94 / 94 | 876 | 7.1 | 8/8 (35) | 8/8 |
+| Hive Queen | 7/8 | 91.0 (−9.0 ± 9.0) | 0 / 1 / 0 / 0 | 100 / 90 | 575 | 7.2 | 2/8 (46) | 7/8 |
+| Clockwork Titan | 8/8 | 100 | – | 100 / 81 | 642 | 7.3 | 0/8 | 8/8 |
+| Pale Court | 8/8 | 100 | – | 99 / 95 | 1,288 | 5.6 | 8/8 (9) | 8/8 |
+| Undead 4 | 7/8 | 89.5 (−10.5 ± 10.5) | 1 / 0 / 0 / 0 | 99 / 88 | 581 | 6.6 | 6/8 (13) | 7/8 |
+| Drake 4 | 8/8 | 100 | – | 97 / 88 | 458 | 7.4 | 0/8 | 8/8 |
+| Fae 4 | 8/8 | 100 | – | 96 / 94 | 687 | 7.1 | 4/8 (26) | 8/8 |
+| Insect 4 | 7/8 | 90.8 (−9.2 ± 9.2) | 0 / 1 / 0 / 0 | 100 / 95 | 746 | 6.6 | 0/8 | 7/8 |
+| Construct 4 | 7/8 | 90.7 (−9.3 ± 9.3) | 0 / 1 / 0 / 0 | 94 / 92 | 563 | 7.3 | 1/8 (11) | 7/8 |
+
+Free play's diversity block (the expert, `div-0…63`; criterion 3):
+
+| | Free play | Criterion 3 |
+|---|---|---|
+| fused kinds in the final armies | Pale Court 83%, Rime Drake 34%, Bone Colossus 5% | none above 30%: not met |
+| recipes made (runs; fusions) | Pale Court 83% (125), Rime Drake 34% (29), Bone Colossus 5% (3), Hive Queen and Titan 0 | each 8%+: not met, three short |
+| synergies held (battles) | Echo 62%, Legion 37%, Mirage 4.8%, none 38% | six at 5%+: 2, not met |
+| kinds held at the end | Chanter 88%, Court 83%, Wisp 61%, Sprite 48%, Hound 42%, Rime Drake 34%, Ghoul 9%, Knight 8%: 6 of 23 in a tenth or more | |
+| pieces of the last battles | Channelers 86%, Rangers 9%, Skirmishers 4%, Vanguards 1%; Undead 46%, Fae 45%, Drakes 9% | |
+| relics bought | 5.6 a run, 39% of them Command (Bone Horn 16%, Muster Roll 13%, Grave Banner 6%) | the ablation: `--ablations`' |
+
+**What it says.** Criterion 1: two of the five fused kinds are reachable, the two whose parts are floor-1 kinds (the
+Court in 9.6 battles by the end of floor 2, the Colossus in 4.6, its Knights mostly from the floor-1 elite); the other
+three wait on a tier-3 keystone that 0.1 to 1.3 battles offer by then, as §1 read it, now a number Step 1 moves. Ranger
+4 has no kind before floor 3 but the rare Ember Drake (0.2).
+
+**A commitment by the book alone is a nudge, not a build.** Every committed row made a Pale Court in 67–84% of its runs
+(free play 83%), and the teacher's in 7 or 8 of 8: the sketch's strength buys the Court wherever the Wisps come,
+whatever the book points at. What the book moves is the keystone: the Rime Drake made in 66% of its runs (free play
+34%), the Hive Queen in 25% (0); the Colossus in 3% (5%), the Titan in none. Of the synergies only Echo (83%) and Legion
+(67%) are held in most of their runs, Mirage in 36%, the rest in 16% or fewer, Last Stand and Bodyguard never. Construct
+4, Vanguard 4 and Warden 4, whose combos the book values at nothing (gains of 0.06 or less a floor), play as one: the
+same run on 34 to 46 of the 64 seeds, the expert all but without its book. So the rows measure the expert's free play
+bent a little toward each archetype, as §3 specified it; a firmer commitment (fusions, recruits or the draft held to the
+archetype's recipes, kin or role) would be a harness rule over a frozen expert, and is for the user to decide before
+criterion 2 is read off these rows.
+
+Criterion 2, as far as they read it: no archetype the expert plays toward is far below free play. Committed, it clears
+53% (Ranger 4) to 73% (the Court, the Colossus) against free play's 77%; progress −0.4 (Echo) to −14.0 points (the Rime
+Drake, the one more than three standard errors off: 19 deaths on floor 1 against free play's 10, its keystone never
+offered there). The teacher saturates at the base difficulty as §3 said it would, 7 or 8 of 8 for every
+archetype; its margins part a little (its pieces kept 81% (Titan) to 95%, essence left 458 (Drake 4) to 1,288 (the
+Court)). Criterion 2 needs the top difficulty: `--scale` for now, Step 7's ladder after.
+
+Criterion 3: not met on any line. The Court is in 83% of free play's final armies, three recipes are made in under 8%
+of runs, two synergies are held in 5% of battles or more (Mirage just under), and 86% of the pieces in the last battles
+are Channelers: §5's audit on fresh seeds (77% clears here against 65% on `aud-*`, deaths 10 / 1 / 1 / 3).
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
