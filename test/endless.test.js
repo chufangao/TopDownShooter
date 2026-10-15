@@ -384,7 +384,8 @@ test('Echo: every ability of the side\'s rings out once more on the same targets
 })
 
 // Echo is split (the improvement plan's §4.3): from 4 Channelers its second landing is at TUNING.echo.half of the effect
-// (the damage, the healing, a status's turns, rounded up), from the synergy's `full` (8) whole.
+// (the damage, the healing, a status's turns, rounded up, and since the balance pass of 2026-10-16 a status only on one
+// that holds none of it: laid again it would keep the longer turns and gain a stack), from the synergy's `full` (8) whole.
 test('Echo at half from 4 Channelers, whole from 8: the second landing\'s damage, healing and a status\'s turns', () => {
   const full = SYNERGIES.find((s) => s.rule === 'echo').full
   const k = TUNING.echo.half
@@ -415,7 +416,7 @@ test('Echo at half from 4 Channelers, whole from 8: the second landing\'s damage
   assert.deepEqual(four.fire, [four.blow(30), four.blow(30 * k)])
   assert.ok(four.fire[1] < four.fire[0])
   assert.deepEqual(four.heals, [four.mend(28), four.mend(28 * k)])
-  assert.deepEqual(four.regen, [STATUSES.regen.turns, Math.ceil(STATUSES.regen.turns * k)])
+  assert.deepEqual(four.regen, [STATUSES.regen.turns], 'the lesser echo lays no Regen on one that holds it')
   assert.deepEqual(four.half, [true, true], 'and says so')
   assert.deepEqual(play(7).echoes.map((r) => r.params.full), [false], 'seven: still the lesser')
   const eight = play(8)

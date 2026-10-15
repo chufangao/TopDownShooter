@@ -76,7 +76,8 @@ then descend into the endless deep for as long as you last.
   the map from then, as every room's foes are, its tip saying what it came for; its fall crumbles its court, and it pays
   an elite's bounty and offers a recruit of its court (never itself). Elsewhere, where none of a floor's elites brings a
   threat your army has no answer to, one is drawn again to bring one. Each boss has a phase, flared as its HP crosses
-  it; its pictures are a foe's, washed pale and drawn as big as the Sovereign's.
+  it; its pictures are a foe's, washed pale and drawn as big as the Sovereign's. A boss that lost its act to a Hex
+  shrugs off the next until it has acted again: no boss, the Sovereign among them, is held by Hexes every turn.
 - **Shops** sell relics, the only place they come from. Elites pay essence and offer their recruit.
 - **Altars** grant one rite of three: **heal** every soul and raise the fallen; **transmute** a standing soul into one
   of three kinds of the floor's foes at its tier, drawn by the seed, keeping its relic, its wounds and its level (tiers

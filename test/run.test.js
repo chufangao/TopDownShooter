@@ -217,7 +217,8 @@ test('the pool by floor: tier 1 the bulk of floor 1 and still a fifth of floor 3
     }
   }
   const [f1, f2, f3] = [1, 2, 3].map((floor) => shares(floor))
-  assert.ok(f1[1] > 0.65 && f1[1] < 0.9 && !f1[3], JSON.stringify(f1))
+  // Floor 1's tier 3 is the Ember Drake alone (the balance pass, 2026-10-16: the Rime Drake's keystone), a few per cent.
+  assert.ok(f1[1] > 0.65 && f1[1] < 0.9 && f1[3] < 0.06, JSON.stringify(f1))
   assert.ok(f2[3] > 0.02 && f2[3] < 0.1, JSON.stringify(f2))
   assert.ok(f3[3] > 0.07 && f3[3] < 0.2 && f3[1] > 0.15 && f3[1] < 0.3, JSON.stringify(f3))
   // An elite still leans a tier up: floor 1's to tier 2, floor 3's to tier 3.

@@ -306,6 +306,25 @@ test('the Sovereign\'s override casts Grave Tide as the foes\' turn begins, ever
   assert.deepEqual(tideTurn(true), { cast: false, lost: true }, 'Hexed: no Tide, no act')
 })
 
+// The balance pass (redesign.md §8, 2026-10-16): a Hex every turn from the Pale Court held the Sovereign to 0–1 acts a
+// battle. A boss that lost its last act to a Hex shrugs off the next until it has acted again; any other foe does not.
+test('a boss is never Hexed two turns running: one that lost its act to a Hex shrugs off the next, and takes the one after', () => {
+  for (const id of ['hollow_sovereign', 'mire_mother']) {
+    const b = scene([on('tomb_knight', 1, 'party', 3, 6, 9), on(id, 50, 'foe', 3, 7, 1), on('grave_ghoul', 51, 'foe', 1, 7, 1)])
+    const boss = unit(b, 50)
+    const ghoul = unit(b, 51)
+    const hexed = (u) => u.statuses.some((s) => s.id === 'hexed')
+    const lost = []
+    for (let turn = 0; turn < 3; turn++) {
+      addStatus(b, boss, 'hexed', 1)
+      addStatus(b, ghoul, 'hexed', 1)
+      lost.push([hexed(boss), hexed(ghoul)])
+      order(b, { type: 'end' })
+    }
+    assert.deepEqual(lost, [[true, true], [false, true], [true, true]], id)
+  }
+})
+
 test('killing the Sovereign ends the battle: its court and every foe still standing crumble and pay as if slain, and the foes still to come never enter', () => {
   const b = scene([
     on('tomb_knight', 1, 'party', 3, 6, 9),

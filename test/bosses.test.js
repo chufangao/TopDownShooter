@@ -333,7 +333,8 @@ test('the ascension scales every boss, the floor\'s boss multipliers under its r
     }
   }
   assert.ok(at(TUNING.spawn.bossHp, 2) > at(TUNING.spawn.bossHp, 1) && at(TUNING.spawn.court, 2) > at(TUNING.spawn.court, 1))
-  assert.equal(at(TUNING.spawn.bossHp, F), 1, 'the Sovereign as it was')
+  // The Sovereign lighter since the balance pass (2026-10-16), once no Hex held it every turn.
+  assert.ok(at(TUNING.spawn.bossHp, F) < 1 && at(TUNING.spawn.bossAtk, F) < 1, 'the Sovereign lighter')
 })
 
 // ── the elites that answer the army ──────────────────────────────────────────────────────────────

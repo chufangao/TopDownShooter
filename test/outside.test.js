@@ -149,9 +149,10 @@ test('a formation is judged by its coming battle, the base\'s own first', () => 
 })
 
 test('with won, a decision whose base\'s line clears the run plays that line alone and keeps the base\'s pick', () => {
-  // sim-1's expert clears: late on the last floor its own line clears from wherever it stands (sim-2 fell on floor 4
-  // with the twelve relics in the Shops, sim-1 with Echo at half; on three floors sim-0 falls on floor 3).
-  const { run, rng } = walk('sim-1', { until: (r) => r.state.floor === TUNING.run.floors && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2 })
+  // sim-0's expert clears: late on the last floor its own line clears from wherever it stands (sim-2 fell on floor 4
+  // with the twelve relics in the Shops, sim-1 with Echo at half; on three floors sim-0 fell on floor 3 and sim-1 cleared,
+  // until the balance pass of 2026-10-16, a boss Hexed no two turns running, felled sim-1 at the Sovereign).
+  const { run, rng } = walk('sim-0', { until: (r) => r.state.floor === TUNING.run.floors && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2 })
   const own = baseStep(run)
   assert.deepEqual(outsideTeacher(run, rng, { won: true }), own)
   const st = outsideStats(run)

@@ -461,6 +461,7 @@ export function foeTurn (battle) {
     } else if (hexed(u) && !u.acted) {
       battle.beat++
       emit(battle, { type: 'hexed', target: u.uid })
+      u.hexLost = battle.turn
     }
     u.acted = true
   }

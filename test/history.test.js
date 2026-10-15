@@ -40,7 +40,8 @@ test('a run\'s line: how it ended and where, its battles, its army and its kille
   assert.ok(e.room >= 1)
   assert.equal(e.monarch, undefined)
   // Under way, it is a run left; cleared, a clear; fallen after a clear (in the deep), both.
-  const going = played({ seed: 'hist-going' }, (r) => r.state.phase === 'reap')
+  // (hist-going's basic fell before its first spoils once the Ember Drake came to floor 1: the balance pass, 2026-10-16)
+  const going = played({ seed: 'hist-left' }, (r) => r.state.phase === 'reap')
   assert.equal(recordOf(going).end, 'left')
   assert.equal(recordOf(going).fell, undefined)
   const won = structuredClone(fell)

@@ -138,7 +138,14 @@ export const RULES = {
     onBlow (battle, { actor, ability, targets }, r) {
       if (!alive(actor) || ability.effects.some((e) => e.op === 'raise')) return
       emit(battle, { type: 'rule', rule: 'echo', side: actor.side, actor: actor.uid, ability: ability.id, ...(!r.params.full && { half: true }) })
-      for (const effect of ability.effects) runEffect(battle, r.params.full ? effect : scaled(effect, TUNING.echo.half), actor, targets, ability)
+      for (const effect of ability.effects) {
+        if (r.params.full) { runEffect(battle, effect, actor, targets, ability); continue }
+        // The lesser form's status lands for half its turns, and only where its target holds none of it: laid again
+        // a status keeps the longer turns and gains a stack (turns.js addStatus), so on one that holds it the half would
+        // be a whole stack.
+        const e = scaled(effect, TUNING.echo.half)
+        runEffect(battle, e, actor, e.op === 'apply_status' ? targets.filter((x) => !x.statuses.some((st) => st.id === e.status)) : targets, ability)
+      }
     }
   },
   // Warden 4: an ability of the side's aimed at an ally reaches anyone of its side, and touches every one of its side

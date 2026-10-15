@@ -921,6 +921,7 @@ test('a fusion is never weaker than what went into it: its HP at least its parts
 // The floor-1 slice's kinds (§5 Step 2) are still the floor-1 pool, and the start souls among them.
 test('the floor-1 pool and the start souls', () => {
   const pool = UNIT_LIST.filter((u) => u.spawn?.minFloor === 1).map((u) => u.id).sort()
-  assert.deepEqual(pool, ['bone_chanter', 'clockwork_page', 'frost_sprite', 'grave_ghoul', 'hive_warden', 'pyre_hound', 'tomb_knight', 'will_o_wisp'])
+  // The Ember Drake since the balance pass (redesign.md §8, 2026-10-16): the Rime Drake's keystone met where its Sprites are.
+  assert.deepEqual(pool, ['bone_chanter', 'clockwork_page', 'ember_drake', 'frost_sprite', 'grave_ghoul', 'hive_warden', 'pyre_hound', 'tomb_knight', 'will_o_wisp'])
   assert.ok(START_PARTY.every((id) => pool.includes(id)))
 })

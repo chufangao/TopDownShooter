@@ -661,6 +661,8 @@ function raiseDead (battle, actor, count) {
 // count against it (redesign.md §2.8). Hexed always costs an act: laid on one that has already acted this round (a
 // counter's on its attacker), it is fresh too, and holds until its next act is lost.
 export function addStatus (battle, target, id, turns, by = null) {
+  // A boss that lost its last act to a Hex (`hexLost`, its turn) is not Hexed again before it has acted once more.
+  if (id === 'hexed' && target.hexLost === battle.turn - 1 && unitDef(target.id).boss) return
   const def = statusDef(id)
   const dur = turns || def.turns
   const own = battle.stage === (target.side === 'party' ? 'party' : 'foes')
