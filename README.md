@@ -13,8 +13,8 @@ then descend into the endless deep for as long as you last.
 
 ## Playing
 
-- **The run.** Three floors, each a map of ranks: a walk through one is fifteen rooms, the last an elite (on floor 3,
-  the Sovereign's siege). A clear is some 35–40 battles; the expert gives about 950 orders in one. The run is saved in
+- **The run.** Three floors, each a map of ranks: a walk through one is fifteen rooms, the last a boss and its court
+  (on floor 3, the Sovereign's siege). A clear is some 35–40 battles; the expert gives about 950 orders in one. The run is saved in
   this browser after every move you make, a battle's orders among them: close the page when you like, and the title's
   **Continue** (where the run stands written beside it) puts it back as it was, mid-battle too. A run cleared or lost
   leaves no save, and a new run over a saved one asks first. A save from an older version of the game that no longer
@@ -48,6 +48,17 @@ then descend into the endless deep for as long as you last.
   foe of a kind you have met (fought in a battle before) also lights its reach in red: the road it could take within
   its Move, and every tile it could strike from there next turn. What it could do, never what it will: nothing of the
   foes' coming turn is drawn, and a kind not met shows nothing more than its card.
+- **The bosses.** Floors 1 and 2 each end in a floor's boss, one of four, chosen as the floor opens (on floor 1 once
+  the draft is done) to answer what your army leans on most: casters (Channelers) meet the Mire Mother and her court of
+  hexing hags; souls whose blows lay statuses, the Molting Abbess, who sheds every curse on her as her turn begins, Molts
+  and Purges, among wardens and pages who purge; shooters (Rangers, and souls whose basic blow is a shot down a line),
+  the Barrow Marshal behind a front row of Vanguards, every shot at its side but a Vanguard landing on a Vanguard beside
+  it while it stands; walls (souls that fight in melee alone), the Swarm Queen, who flies over them with a court of
+  drones and hatches more. A tie, or an army leaning on none, is drawn by the run's seed. The boss and its court are on
+  the map from then, as every room's foes are, its tip saying what it came for; its fall crumbles its court, and it pays
+  an elite's bounty and offers a recruit of its court (never itself). Elsewhere, where none of a floor's elites brings a
+  threat your army has no answer to, one is drawn again to bring one. Each boss has a phase, flared as its HP crosses
+  it; its pictures are a foe's, washed pale and drawn as big as the Sovereign's.
 - **Shops** sell relics, the only place they come from. Elites pay essence and offer their recruit.
 - **Altars** grant one rite of three: **heal** every soul and raise the fallen; **transmute** a standing soul into one
   of three kinds of the floor's foes at its tier, drawn by the seed, keeping its relic, its wounds and its level (tiers

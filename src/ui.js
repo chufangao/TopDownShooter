@@ -308,7 +308,7 @@ function floorPips (s) {
     tip: () => deep
       ? h('div', { class: 'syn-tip' }, h('b', null, `Floor ${s.floor} · the deep, ${deep} floor${deep === 1 ? '' : 's'} below the Sovereign's`), h('p', null, 'The run is cleared: the Hollow Sovereign fell to you, and that stands.'),
         h('p', null, DEEP_TEXT.now(s.floor)), h('p', { class: 'dim' }, DEEP_TEXT.growth), h('p', { class: 'warn' }, DEEP_TEXT.fall), ascTip)
-      : h('div', { class: 'syn-tip' }, h('p', null, `Floor ${s.floor} of ${n}. Each floor ends in an elite; floor ${n} ends with the Hollow Sovereign, and slaying it clears the run. Past it, you may descend into the deep.`), ascTip)
+      : h('div', { class: 'syn-tip' }, h('p', null, `Floor ${s.floor} of ${n}. Each floor ends in a boss, the one that answers what your army leans on most as the floor opens; floor ${n} ends with the Hollow Sovereign, and slaying it clears the run. Past it, you may descend into the deep.`), ascTip)
   },
   Array.from({ length: n }, (_, i) => h('span', { class: 'pip' + (i + 1 < s.floor ? ' done' : i + 1 === s.floor ? ' now' : '') })),
   deep > 0 && h('span', { class: 'pip deep now' }),
@@ -1550,7 +1550,7 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
   }
   const node = currentNode(run)
   // Hollow Court: the shadows that stood at the end of the battle just won paid their essence again.
-  const shades = ['fight', 'elite', 'siege'].includes(node.type) ? reapedShadows(run) : []
+  const shades = ['fight', 'elite', 'siege', 'boss'].includes(node.type) ? reapedShadows(run) : []
   const reaped = shades.length > 0 && `Hollow Court: ${shades.length} shadow${shades.length === 1 ? '' : 's'} still stood, and paid ${shades.length === 1 ? 'its' : 'their'} essence again.`
   // A battle of waves paid each wave as it fell: what each paid, relics included (essence gain).
   const boost = runStat(s, 'essence.gain', 1)
@@ -1560,15 +1560,17 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
     class: 'wave-pay',
     tip: () => `${paid.map((v, k) => `Wave ${k + 1} ${Math.round(v * boost)}`).join(' + ')} = ${Math.round(paid.reduce((a, b) => a + b, 0) * boost)} essence${boost !== 1 ? `, relics' ${times(boost)} in` : ''}.`
   }, icon('soul', 18), ' Paid wave by wave: ', paid.map((v, k) => [k ? ' · ' : '', `Wave ${k + 1}`, ' ', h('b', null, Math.round(v * boost))]))
-  // A won elite's panel: its essence on top of its foes' (run.js eliteBonus, relics included), and its recruit.
-  const elitePay = node.type === 'elite' && h('p', {
+  // A won elite's panel, or a floor's boss's (no other boss room has spoils: the Sovereign's clears the run): its essence
+  // on top of its foes' (run.js eliteBonus, relics included), and its recruit.
+  const bounty = node.type === 'elite' || node.type === 'boss'
+  const elitePay = bounty && h('p', {
     class: 'wave-pay elite-pay',
-    tip: () => `${TUNING.essence.eliteBonus} at floor-1 prices, ${times(floorPrice(s.floor))} here${boost !== 1 ? `, ${times(boost)} by relics` : ''}: +${Math.round(eliteBonus(s.floor) * boost)}, on top of its foes'. An elite lays out no relic: the Shops sell those.`
-  }, icon('soul', 18), ' The elite\'s bounty: ', h('b', null, `+${Math.round(eliteBonus(s.floor) * boost)}`), ' essence, on top of its foes\'.')
+    tip: () => `${TUNING.essence.eliteBonus} at floor-1 prices, ${times(floorPrice(s.floor))} here${boost !== 1 ? `, ${times(boost)} by relics` : ''}: +${Math.round(eliteBonus(s.floor) * boost)}, on top of its foes'. ${node.type === 'boss' ? 'A boss' : 'An elite'} lays out no relic: the Shops sell those.`
+  }, icon('soul', 18), ` The ${node.type === 'boss' ? 'boss' : 'elite'}'s bounty: `, h('b', null, `+${Math.round(eliteBonus(s.floor) * boost)}`), ' essence, on top of its foes\'.')
   // What the battle just won paid in all (run.js finishBattle: its slain, Hollow Court's shadows, an elite's bounty, ×
   // the relics' gain), and where a recruit would go.
   const won = run.battle && Math.round((essenceByWave(run.battle).reduce((a, b) => a + b, 0) + shades.reduce((n, u) => n + foeEssence(u) * u.reap, 0) +
-    (node.type === 'elite' ? eliteBonus(s.floor) : 0)) * boost)
+    (bounty ? eliteBonus(s.floor) : 0)) * boost)
   const ledeTip = () => {
     const f = fielded(souls(s.party)).length
     return h('div', { class: 'syn-tip' },
