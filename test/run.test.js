@@ -868,7 +868,7 @@ test('the autoplayer decides without touching the run', () => {
         apply(run, action)
       }
     }
-    assert.ok(['map', 'prep', 'battle', 'reap'].every((p) => seen.has(p)) && [...seen].every((p) => ['map', 'prep', 'battle', 'reap', 'shop'].includes(p)), `${level}: ${[...seen]}`)
+    assert.ok(['map', 'prep', 'battle', 'reap'].every((p) => seen.has(p)) && [...seen].every((p) => ['map', 'prep', 'battle', 'reap', 'shop', 'altar'].includes(p)), `${level}: ${[...seen]}`)
   }
 })
 
