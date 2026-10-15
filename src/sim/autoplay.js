@@ -2891,6 +2891,8 @@ async function audit ({ runs, seed: seed0, ascension = 0 }) {
 // completed); `share` in [0, 1]. Continuous where the clear rate is all or nothing, so far less noisy run for run.
 export const ROOMS_PER_FLOOR = RANKS - 1
 export const routeRooms = () => ROOMS_PER_FLOOR * TUNING.run.floors
+// The run's floors, 1 to TUNING.run.floors: the reports' columns of deaths by floor.
+const FLOORS = () => Array.from({ length: TUNING.run.floors }, (_, f) => f + 1)
 export function progressOf ({ result, floor, rank = 1, share = 0 }) {
   if (result === 'victory') return 1
   const done = (floor - 1) * ROOMS_PER_FLOOR + (rank - 1) + Math.min(1, Math.max(0, share))
@@ -3169,7 +3171,7 @@ export function ladderTable (records, { ascensions, rungs, runs, seed }) {
 // The ladder's table as lines: a row a level and rung, the gap to the rung below beside it; then each level's order.
 export function ladderLines (t) {
   const out = [`the ladder: ${t.runs} seeds ${t.seed}-0…${t.runs - 1}, every rung on the same seeds at ascension ${t.ascensions.join(', ')} (redesign.md §3, §4.6)`]
-  out.push(`${'asc'.padStart(3)}  ${'rung'.padEnd(8)}${'clears'.padStart(7)}${'died fl 1/2/3/4'.padStart(17)}${'progress'.padStart(10)}${'battles'.padStart(9)}  against the rung below: clears won −lost, progress`)
+  out.push(`${'asc'.padStart(3)}  ${'rung'.padEnd(8)}${'clears'.padStart(7)}${`died fl ${FLOORS().join('/')}`.padStart(17)}${'progress'.padStart(10)}${'battles'.padStart(9)}  against the rung below: clears won −lost, progress`)
   for (const r of t.rows) {
     out.push([
       String(r.ascension).padStart(3),
@@ -3205,14 +3207,14 @@ async function ladder ({ runs, seed: seed0, forest, ascensions = [0], teacher = 
   const levels = rungs.filter((r) => r !== 'calc')
   const played = levels.flatMap((level) => all.filter((r) => r.player === level))
   console.log(`\nruns ${runs} per level (seed ${seed0}${forest !== undefined ? `, forest ${forest}` : ''}${ascensions[0] ? `, ascension ${ascensions[0]}` : ''}), the same seeds at each`)
-  console.log('level    clear  died on floor 1      2      3      4  battles won  relics  reaped')
+  console.log(`level    clear  died on floor ${FLOORS().map((f, i) => (i ? String(f).padStart(7) : f)).join('')}  battles won  relics  reaped`)
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
     const pct = (n, d = runs) => `${(100 * n / d).toFixed(1)}%`
     const died = (f) => pct(mine.filter((r) => r.result !== 'victory' && r.floor === f).length).padStart(7)
     const battles = mine.flatMap((r) => r.battles)
     const avg = (key) => (mine.reduce((n, r) => n + r[key], 0) / runs).toFixed(1)
-    console.log(`${level.padEnd(6)}  ${pct(mine.filter((r) => r.result === 'victory').length).padStart(6)}  ${' '.repeat(8)}${[1, 2, 3, 4].map(died).join('')}  ${pct(battles.filter((b) => b.won).length, battles.length).padStart(11)}  ${avg('relics').padStart(6)}  ${avg('reaped').padStart(6)}`)
+    console.log(`${level.padEnd(6)}  ${pct(mine.filter((r) => r.result === 'victory').length).padStart(6)}  ${' '.repeat(8)}${FLOORS().map(died).join('')}  ${pct(battles.filter((b) => b.won).length, battles.length).padStart(11)}  ${avg('relics').padStart(6)}  ${avg('reaped').padStart(6)}`)
   })
   // The Monarch at the run's end (its max HP, its Command, Arise's copies: all relics'), shadows raised per battle,
   // and what ended the run, by the killer's first threat or a stall (causesOf).
@@ -3403,7 +3405,7 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null,
   }
   console.log(`runs ${runs} per variant (seed ${seed0}${ascension ? `, ascension ${ascension}` : ''}), the expert with one mechanic taken away, the same seeds each; ${((Date.now() - t0) / 60000).toFixed(1)} min` +
     ` (${(played.reduce((n, r) => n + r.secs, 0) / played.length).toFixed(1)} s a run)`)
-  console.log('variant        clear  died on floor 1    2    3    4   drop  Monarch deaths by threat')
+  console.log(`variant        clear  died on floor ${FLOORS().map((f, i) => (i ? String(f).padStart(5) : f)).join('')}   drop  Monarch deaths by threat`)
   const clear = (mine) => mine.filter((r) => r.result === 'victory').length / runs
   const full = clear(played.slice(0, runs))
   const rows = variants.map((ablate, i) => ({ ablate, mine: played.slice(i * runs, (i + 1) * runs) }))
@@ -3413,7 +3415,7 @@ async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null,
     for (const r of mine) for (const k of causesOf(r.death)) causes[k] = (causes[k] ?? 0) + 1
     const tally = Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(', ') || '-'
     const drop = ablate ? (100 * (full - clear(mine))).toFixed(0) : '-'
-    console.log(`${(ablate ?? 'full').padEnd(13)}  ${(100 * clear(mine)).toFixed(0).padStart(4)}%  ${' '.repeat(13)}${[1, 2, 3, 4].map(died).join('')}  ${drop.padStart(5)}  ${tally}`)
+    console.log(`${(ablate ?? 'full').padEnd(13)}  ${(100 * clear(mine)).toFixed(0).padStart(4)}%  ${' '.repeat(13)}${FLOORS().map(died).join('')}  ${drop.padStart(5)}  ${tally}`)
   }
   console.log('\nuses over the runs: orders given in battle (moves and acts), recruits made, fusions made, track tiers held, relics')
   console.log('held when they ended (Legendaries, the rest), and relics given to a soul')
@@ -3861,7 +3863,7 @@ const met = (ok) => (ok ? 'met' : 'NOT MET')
 // The rows of --builds as lines: free play's, then each archetype's.
 export function buildLines (rows, { player = 'expert', scale = 1, ascension = 0, runs, seed } = {}) {
   const out = [`builds: the ${player}, ${runs} seeds ${seed}-0…${runs - 1}${ascension ? `, ascension ${ascension}` : ''}${scale !== 1 ? `, every foe's HP and ATK ×${scale}` : ''}; each archetype committed (its combos of the book alone) on free play's seeds`]
-  out.push(`${'archetype'.padEnd(16)}${'clears'.padStart(7)}${'progress'.padStart(9)}${'vs free'.padStart(15)}  ${'died fl 1/2/3/4'.padStart(15)}  ${'mon'.padStart(4)}${'souls'.padStart(6)}${'ess'.padStart(6)}${'lost'.padStart(5)}${'t/b'.padStart(6)}  ${'made'.padStart(5)}${'at'.padStart(4)}${'s/run'.padStart(7)}`)
+  out.push(`${'archetype'.padEnd(16)}${'clears'.padStart(7)}${'progress'.padStart(9)}${'vs free'.padStart(15)}  ${`died fl ${FLOORS().join('/')}`.padStart(15)}  ${'mon'.padStart(4)}${'souls'.padStart(6)}${'ess'.padStart(6)}${'lost'.padStart(5)}${'t/b'.padStart(6)}  ${'made'.padStart(5)}${'at'.padStart(4)}${'s/run'.padStart(7)}`)
   const num = (x, d = 0) => (x === null ? '-' : x.toFixed(d))
   for (const r of rows) {
     out.push([

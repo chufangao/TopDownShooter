@@ -166,6 +166,9 @@ test('the report\'s shape: a row an archetype with its margin, and the diversity
   assert.equal(checks.kinds.of, UNIT_LIST.filter((u) => (u.spawn || u.fused) && !u.boss).length)
   const lines = buildLines([free, row], { runs: 2, seed: 'rep' })
   assert.equal(lines.filter((l) => l.startsWith('free play') || l.startsWith('channeler_4')).length, 2)
+  // The deaths' column names the run's floors, as many as it has (the second bug hunt: it said 1/2/3/4 over three).
+  const floors = Array.from({ length: TUNING.run.floors }, (_, f) => f + 1).join('/')
+  assert.ok(lines[1].includes(`died fl ${floors} `), lines[1])
   assert.ok(diversityLines(d).length >= 7)
 })
 

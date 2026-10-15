@@ -231,6 +231,7 @@ test('the ladder report\'s shape: the levels a --ascension names, a job a rung a
   assert.deepEqual(t.ordered, { 0: true, 5: false })
   const lines = ladderLines(t)
   assert.equal(lines.length, 2 + t.rows.length + 1)
+  assert.ok(lines[1].includes(`died fl ${Array.from({ length: F }, (_, f) => f + 1).join('/')} `), `the run's floors: ${lines[1]}`)
   assert.ok(lines[0].includes('ascension 0, 5'))
   assert.ok(lines.some((l) => l.includes('calc → expert: +1 −0, +70.0')))
   assert.ok(lines.at(-1).includes('0 yes') && lines.at(-1).includes('5 NO'))

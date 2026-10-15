@@ -438,7 +438,11 @@ test('an ascension is told as it plays: level 0 the base game, a level each numb
     assert.ok(lines[0].startsWith('Every foe ×'), `${a}`)
     assert.equal(lines.some((l) => l.includes(`Waves ${waveEvery(s)} turns apart`)), waveEvery(s) !== TUNING.spawn.waves.every, `${a}: the waves`)
     assert.equal(lines.some((l) => l.includes(`The Monarch ${monarchBase(s)} HP`)), monarchBase(s) !== TUNING.monarch.hp, `${a}: the Monarch`)
-    assert.equal(short.includes('more foes'), [1, 2, 3, 4].some((f) => roomSize(f, false, a) !== roomSize(f, false) || roomSize(f, true, a) !== roomSize(f, true)), `${a}: the counts`)
+    // The counts on the run's floors (the second bug hunt: on floors 1–4, the fourth the deep's since there are three).
+    const floors = Array.from({ length: TUNING.run.floors }, (_, f) => f + 1)
+    assert.equal(short.includes('more foes'), floors.some((f) => roomSize(f, false, a) !== roomSize(f, false) || roomSize(f, true, a) !== roomSize(f, true)), `${a}: the counts`)
+    const counts = lines.find((l) => l.startsWith('Fights of'))
+    if (counts) assert.ok(counts.startsWith(`Fights of ${floors.map((f) => roomSize(f, false, a)).join('/')} foes on floors 1–${TUNING.run.floors} (`), counts)
   }
   // A room at the top: its foes' mods the level's, and its later wave's turn on the level's spacing.
   const run = createRun({ start: START_PARTY, seed: 'told-asc', ascension: top })

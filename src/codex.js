@@ -767,13 +767,13 @@ export function ascensionText (level) {
   const r = ascensionOf(s)
   const sp = TUNING.spawn
   const up = (x) => `${x < 1 ? '−' : '+'}${Math.round(Math.abs(x - 1) * 100)}%`
-  const sizes = (elite, a) => [1, 2, 3, 4].map((f) => roomSize(f, elite, a)).join('/')
+  const sizes = (elite, a) => Array.from({ length: TUNING.run.floors }, (_, f) => roomSize(f + 1, elite, a)).join('/')
   const more = sizes(false, level) !== sizes(false, 0) || sizes(true, level) !== sizes(true, 0)
   const every = waveEvery(s)
   const hp = monarchBase(s)
   const parts = [
     [`foes ${up(r.foeHp)} HP, ${up(r.foeAtk)} ATK`, `Every foe ${times(r.foeHp)} HP and ${times(r.foeAtk)} ATK, the Sovereign and their shadows too.`],
-    more && ['more foes', `Fights of ${sizes(false, level)} foes on floors 1–4 (${sizes(false, 0)}), elites of ${sizes(true, level)} (${sizes(true, 0)}).`],
+    more && ['more foes', `Fights of ${sizes(false, level)} foes on floors 1–${TUNING.run.floors} (${sizes(false, 0)}), elites of ${sizes(true, level)} (${sizes(true, 0)}).`],
     every !== sp.waves.every && [`waves every ${every} turns`, `Waves ${every} turns apart (${sp.waves.every}).`],
     hp !== TUNING.monarch.hp && [`the Monarch ${hp} HP`, `The Monarch ${hp} HP before its relics (${TUNING.monarch.hp}).`],
     r.price !== 1 && [`prices ${up(r.price)}`, `Every price ${times(r.price)}: a tier, a recruit, a fusion, a relic.`]
