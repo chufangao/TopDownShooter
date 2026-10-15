@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, legalOrders, order, fork, reach, addStatus } from '../src/sim/turns.js'
 import {
-  danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, judge
+  danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, judge, untouchedOrders
 } from '../src/sim/policy.js'
 import { value, decide, TREES, defaultExpert } from '../src/sim/expert.js'
 import { on, scene, slay } from './scene.js'
@@ -491,4 +491,20 @@ test('the expert\'s turn on a full board costs a few milliseconds', () => {
     assert.ok(orders.length > 1)
   }
   assert.ok(ms < 250, `${ms.toFixed(1)} ms`)
+})
+
+// What End Turn has the untouched do, as the expert gives it (untouchedOrders): a shadow acts before a Hexed piece of
+// yours and cleanses it; the piece then acts in End Turn's untouched stage, and takes no order (one given now, the Hex
+// still on it, would be refused: div-25 committed to Fae 4, 2026-10-15).
+test('untouchedOrders: a Hexed piece a shadow cleanses on the way takes no order, and strikes at End Turn', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), { ...on('clockwork_page', 1, 'party', 1, 6), shadow: true }, on('tomb_knight', 2, 'party', 3, 5, 9),
+    on('iron_golem', 10, 'foe', 3, 6, 9), on('iron_golem', 11, 'foe', 6, 10)])
+  b.byUid.get(2).statuses.push({ id: 'hexed', dur: 1, stacks: 1, by: 10, fresh: false })
+  assert.ok(b.units.indexOf(b.byUid.get(1)) < b.units.indexOf(b.byUid.get(2)), 'the shadow acts first')
+  const f = fork(b)
+  assert.deepEqual(untouchedOrders(f), [])
+  assert.ok(f.byUid.get(2).acted, 'on the copy it was cleansed, and struck')
+  const ev = order(b, { type: 'end' })
+  const cleansed = ev.findIndex((e) => e.type === 'cleanse' && e.target === 2 && e.status === 'hexed')
+  assert.ok(cleansed >= 0 && ev.findIndex((e, i) => i > cleansed && e.type === 'action' && e.actor === 2) > cleansed)
 })

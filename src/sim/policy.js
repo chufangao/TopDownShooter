@@ -1543,15 +1543,18 @@ function untouchedOrder (f, u, tile = u.tile) {
 // with it done: each unit of yours yet to act, in acting order, strikes with its basic blow from where it stands at the
 // foe furthest along its road (turns.js pick), else mends with its basic heal the most wounded it can do something for;
 // a Hexed one loses its act. Your pieces' acts are given as orders (the same acts End Turn would make); your shadows'
-// and summons', which take no orders, are made as End Turn makes them. → the orders.
+// and summons', which take no orders, are made as End Turn makes them, and so is the act of a piece of yours that could
+// not act as they began: one a shadow's cleanse frees of its Hex on the way acts in End Turn's untouched stage, after
+// that shadow, and an order for it now would be refused (seen on div-25 committed to Fae 4, 2026-10-15). → the orders.
 export function untouchedOrders (f) {
   const out = []
+  const ordered = new Set(f.units.filter((u) => orderable(f, u) && canAct(f, u)))
   for (const u of f.units.slice()) {
     if (f.over) break
     if (u.side !== 'party' || u === f.monarch || !canAct(f, u)) continue
     const o = untouchedOrder(f, u)
     if (!o) continue
-    if (orderable(f, u)) out.push(give(f, o))
+    if (ordered.has(u)) out.push(give(f, o))
     else {
       perform(f, u, u.kit.find((a) => a.id === o.ability), f.byUid.get(o.target))
       u.acted = true
