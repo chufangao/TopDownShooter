@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import {
   outsideTeacher, outsideStats, candidatesAt, baseStep, prepStep, playout, outsideRun, configOf, beforeOf, outsideReport, outsideLines, PHASES
 } from '../src/sim/outside.js'
-import { createRun, apply, currentNode } from '../src/sim/run.js'
+import { createRun, apply, currentNode, availableNodes, legalActions } from '../src/sim/run.js'
 import { policy, autoplay } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 
@@ -38,6 +38,32 @@ test('baseStep is the base\'s step out of battle, step for step', () => {
   let n = 0
   walk(SEED, { visit: (run, a) => { n++; assert.deepEqual(baseStep(run), a, `${run.state.phase} step ${n}`) } })
   assert.ok(n > 10)
+})
+
+// sim-10's expert meets no altar before it falls: its first map step after a battle, every room open made an altar.
+test('at an altar baseStep is the base\'s rite, its pick the first candidate, and the teacher plays the rites out', () => {
+  const { run, rng } = walk(SEED, { until: (r) => r.state.phase === 'map' && r.state.log.some((a) => a.type === 'reap') })
+  for (const n of availableNodes(run)) n.type = 'altar'
+  while (run.state.phase === 'map') apply(run, policy(run, rng, 'expert'))
+  assert.equal(run.state.phase, 'altar')
+  const a = policy(run, rng, 'expert')
+  assert.deepEqual(baseStep(run), a)
+  const d = candidatesAt(run, { cap: 4 })
+  assert.equal(d.phase, 'altar')
+  assert.ok(d.cands.length >= 2 && d.cands.length <= 4)
+  assert.deepEqual(firstOf(run, d.cands[0]), a)
+  assert.equal(new Set(d.cands.map((x) => x.id)).size, d.cands.length)
+  assert.ok(d.cands.every((x) => x.actions.length === 1 && ['heal', 'transmute', 'consecrate'].includes(x.actions[0].type)))
+  // Played out a room on: each candidate once, the pick a rite the run takes; with the phase off, the base's.
+  const r = copyOf(run)
+  const pick = outsideTeacher(r, rng, { cap: 4, rooms: 1 })
+  const st = outsideStats(r)
+  assert.deepEqual([st.phases.altar.asked, st.phases.altar.decided, st.phases.altar.playouts], [1, 1, d.cands.length])
+  assert.ok(legalActions(run).some((x) => JSON.stringify(x) === JSON.stringify(pick)))
+  assert.deepEqual(outsideTeacher(copyOf(run), rng, { phases: 'prep,spend,recruit,shop,hold' }), a)
+  // The same step the base's run takes: the rite applied, the room is done and the map stands.
+  apply(run, a)
+  assert.equal(run.state.phase, 'map')
 })
 
 test('the base\'s own pick is always the first candidate, and the cap holds', () => {

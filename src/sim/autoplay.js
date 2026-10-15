@@ -2,9 +2,9 @@
 // levels (LEVELS), on the same choices and the same scouting a player has:
 //   basic   rules of thumb: rooms by weighted draws, the strongest souls fielded in its first draft (each role's row,
 //           packed from the middle lane, every other lane against blasts), in a Shop a Command relic it can pay for
-//           (pickShop), recruits only to fill the field, essence on the lowest kind's next tier (on the track it is on);
-//           it never fuses, and in battle it ends every turn without an order (policy.js basicTurn: what it leaves alone
-//           strikes with its basic blow)
+//           (pickShop), recruits only to fill the field, essence on the lowest kind's next tier (on the track it is on),
+//           an altar's heal; it never fuses, and in battle it ends every turn without an order (policy.js basicTurn: what
+//           it leaves alone strikes with its basic blow)
 //   expert  judges (redesign.md §2.17; expert.js), and has studied the combo book (BOOK, src/sim/combos.json, ranked
 //           by a static formula: --combos). Every decision is one shape: the situation read once (survey out of battle,
 //           policy.js situation in it: what a player is shown, and the book), the options listed, each read as a named
@@ -13,8 +13,8 @@
 //           the learned route's tree, src/sim/expert.json's `route`, where ROUTE_LEARNED is on: learnedRoute); the
 //           formation drafted (the plan's target formation as the first turn would read it: plan.js deployment; zone
 //           drafts about the seat, its gate held, basic's three) and hill-climbed on a static score against the scouted
-//           room's roads (formationFeatures); every purchase, fusion, recruit, relic bought and relic given by one
-//           growth search on a sketch (the field's strength and the book's worth of the combo it plays toward:
+//           room's roads (formationFeatures); every purchase, fusion, recruit, relic bought or given and altar's rite
+//           by one growth search on a sketch (the field's strength and the book's worth of the combo it plays toward:
 //           targetOf), a relic against the tiers its price displaces (buyFor), the recruit, the purchases and the
 //           formation decided by the forest out of battle where one decides them and reads another candidate more than
 //           its margin above the growth search's or the plan's (outforest.js, src/sim/expert.json's `outforest`); its target's
@@ -67,7 +67,7 @@ import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
   relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat,
-  spawnPool, draftOffer, drawRoom, varyRoutes
+  spawnPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -1873,6 +1873,29 @@ export function pickHold (run, L, sit) {
   return grow(run, L, options, 'hold', sit)
 }
 
+// ── the altar (redesign.md §4.5) ─────────────────────────────────────────────────────────────────
+
+// An altar's one rite (run.js altarActions). Basic heals, as every altar did before it offered more. The expert weighs
+// the heal, each transmutation and each free tier as a purchase is weighed (grow: each applied to a copy, read as what
+// it adds to the sketch, the tree's rules first: TREES.altar, the route's reasons for walking to an altar its reasons to
+// heal there), and heals where none beats keeping what it has. No free tier under the tracks ablation (it never takes
+// one). → the rite
+export function altarOptions (run, L) {
+  return altarActions(run).filter((a) => a.type !== 'consecrate' || L.ablate !== 'tracks')
+}
+const HEAL = Object.freeze({ type: 'heal' })
+export function pickAltar (run, L, sit = null) {
+  if (!L.spend) return { ...HEAL }
+  return grow(run, L, altarOptions(run, L), 'altar', sit ?? survey(run, L)) ?? { ...HEAL }
+}
+// A rite in words, for the candidates' labels: "heal", "transmute 7 frost_sprite into will_o_wisp", "consecrate
+// frost_sprite 1".
+export function riteLabel (run, a) {
+  if (a.type !== 'transmute') return a.type === 'consecrate' ? `consecrate ${a.kind} ${a.track}` : a.type
+  const u = run.state.party.find((x) => x.uid === a.uid)
+  return `transmute ${a.uid} ${u.id} into ${transmuteOffer(run.state, u.id)[a.index]}`
+}
+
 // ── the forest out of battle (outforest.js; redesign.md §2.25) ──────────────────────────────────
 
 // The expert's recruit and purchases are today's (weighRecruits, grow) unless a forest out of battle is in use for the
@@ -1940,6 +1963,19 @@ export function recruitCandidates (run, L, sit = null) {
   }
   const own = pick === null ? [none] : [...(pick.release != null && full ? [{ type: 'release', uid: pick.release }] : []), { type: 'reap', index: pick.index }]
   return { today: outId(own), cands }
+}
+
+// An altar's candidates (outside.js's): each rite the expert may take (altarOptions), scored by what it adds to the
+// sketch (grow's score of it, the tree's rules aside); today's pick pickAltar's. → { today, cands } as spendCandidates'
+export function altarCandidates (run, L, sit = null) {
+  const today = pickAltar(run, L, sit)
+  const sk = sketch(run.state, L)
+  const cands = altarOptions(run, L).map((a) => {
+    const sim = lightFork(run)
+    apply(sim, a)
+    return { id: outId(a), label: riteLabel(run, a), actions: [a], score: sketch(sim.state, L) - sk }
+  })
+  return { today: outId(today), cands }
 }
 
 // A copy of the run to read a candidate on: its state cloned but its log (apply only appends to it) and its floor's map
@@ -2448,6 +2484,7 @@ export function policy (run, rng, level = 'basic', turnOptions = null) {
   if (s.phase === 'prep') return pickPrep(run, L, sit)
   if (s.phase === 'reap') return pickReap(run, L, sit)
   if (s.phase === 'shop') return pickShop(run, L, sit)
+  if (s.phase === 'altar') return pickAltar(run, L, sit)
   throw new Error(`no policy for phase "${s.phase}"`)
 }
 
@@ -2573,6 +2610,7 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
         foesIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').length,
         colossi: r.setup.party.filter((u) => u.uid !== 0 && sizeOf(u) === 2).length,
         syn: synergiesAt(b),
+        lead: leadOf(r.setup.party.filter((u) => u.uid !== 0)),
         ...armyMeasures(b),
         camp: r.state.camp,
         setup: setups ? r.setup : undefined,
@@ -3436,8 +3474,19 @@ export function commitsOf (spec = 'all') {
   return list
 }
 
-// What a run record keeps for the harness (record's `syn`, `built`, `end`). Your side's synergies as battle `b` began.
+// What a run record keeps for the harness (record's `syn`, `lead`, `built`, `end`). Your side's synergies as battle `b`
+// began.
 const synergiesAt = (b) => (b.events.find((e) => e.type === 'battle:start')?.synergies ?? []).filter((x) => x.side === 'party').map((x) => x.id)
+// What leads the pieces a battle fielded (`pieces`, the Monarch aside), as a pivot is read (pivots): the kin most of them
+// share and the fused kind most of them are (ties to the first by name; null for none).
+function leadOf (pieces) {
+  const most = (ids) => {
+    const n = {}
+    for (const id of ids) n[id] = (n[id] ?? 0) + 1
+    return Object.entries(n).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]?.[0] ?? null
+  }
+  return { kin: most(pieces.map((u) => unitDef(u.id).kin).filter(Boolean)), fused: most(pieces.filter((u) => unitDef(u.id).fused).map((u) => u.id)) }
+}
 // A run's build at its end: the kinds of the souls it holds (`army`, the fallen too) and of the pieces it fielded in its
 // last battle (`field`); each recipe it made, with the battles its fused pieces first stood in (`made`: { recipe:
 // [battle, …] }, 1-based: one made in a battle, that battle; out of one, the next); the relics it bought (`bought`, every
@@ -3524,7 +3573,7 @@ export function buildRow (R, arch = null, F = null) {
 // holds at the end (`kinds`), each recipe made (`made`, and how many were made in all: `fusions`); of the pieces fielded
 // in the runs' last battles, each role and kin (`roles`, `kins`); of the battles, each synergy your side held as it
 // began (`synergies`) and none (`none`); of the relics bought, each relic (`relics`), with relics a run (`perRun`) and
-// the Command relics' share (`command`).
+// the Command relics' share (`command`); the altars' rites (altarRites) and the pivots after floor 1 (pivots).
 export function diversity (R) {
   const n = R.length
   const battles = R.flatMap((r) => r.battles)
@@ -3551,8 +3600,35 @@ export function diversity (R) {
     none: share(battles.filter((b) => !b.syn.length).length, battles.length),
     relics: ranked(tally(bought), bought.length),
     perRun: share(bought.length, n),
-    command: share(bought.filter((id) => gives(relicDef(id), 'run.command')).length, bought.length)
+    command: share(bought.filter((id) => gives(relicDef(id), 'run.command')).length, bought.length),
+    altar: altarRites(R),
+    pivot: pivots(R)
   }
+}
+
+// The rites taken at the altars (redesign.md §4.5; a record's `acts`): altars a run, and each rite's share of them.
+export function altarRites (R) {
+  const n = { heal: 0, transmute: 0, consecrate: 0 }
+  for (const r of R) for (const k in n) n[k] += r.acts?.[k] ?? 0
+  const all = n.heal + n.transmute + n.consecrate
+  return { perRun: R.length ? all / R.length : 0, ...Object.fromEntries(Object.entries(n).map(([k, v]) => [k, all ? v / all : 0])) }
+}
+// The runs that turned after floor 1 (redesign.md §4.5's measure): of the runs that fought past it (`of`), those whose
+// last battle's lead (leadOf) is not floor 1's last battle's: by kin (`kin`), and by fused kind where both fielded one
+// (`fused`, of `fusedOf`); each with how many of them cleared. Records without a battle's lead read none.
+export function pivots (R) {
+  const out = { of: 0, kin: 0, kinCleared: 0, fusedOf: 0, fused: 0, fusedCleared: 0 }
+  for (const r of R) {
+    const one = r.battles.filter((b) => parseInt(b.floor) === 1).at(-1)?.lead
+    const last = r.battles.at(-1)
+    if (!one || !last?.lead || parseInt(last.floor) === 1) continue
+    out.of++
+    if (one.kin !== last.lead.kin) { out.kin++; out.kinCleared += cleared(r) }
+    if (!one.fused || !last.lead.fused) continue
+    out.fusedOf++
+    if (one.fused !== last.lead.fused) { out.fused++; out.fusedCleared += cleared(r) }
+  }
+  return out
 }
 
 // Criterion 3 read off a diversity block: no fused kind in more than 30% of final armies; every base recipe (one of
@@ -3616,7 +3692,9 @@ export function diversityLines (d, label = 'free play') {
     `  fielded in the last battle roles: ${listOf(d.roles)}; kins: ${listOf(d.kins)}`,
     `  fusions made (runs, made)  ${fusions}   [every base recipe in 8%+: ${met(c.recipes.ok)}${c.recipes.ok ? '' : `, ${c.recipes.rare.join(', ')} short`}]`,
     `  synergies (battles)        ${listOf(d.synergies)}, none ${pct(d.none)}   [six or more at 5%+: ${c.synergies.ids.length}, ${met(c.synergies.ok)}]`,
-    `  relics bought              ${d.perRun.toFixed(1)} a run, Command ${pct(d.command)}: ${listOf(d.relics, 8)}`
+    `  relics bought              ${d.perRun.toFixed(1)} a run, Command ${pct(d.command)}: ${listOf(d.relics, 8)}`,
+    `  altars' rites              ${d.altar.perRun.toFixed(1)} a run: heal ${pct(d.altar.heal)}, transmute ${pct(d.altar.transmute)}, consecrate ${pct(d.altar.consecrate)}`,
+    `  turned after floor 1       of ${d.pivot.of} runs past it, the kin leading ${d.pivot.kin} (${d.pivot.kinCleared} cleared); of ${d.pivot.fusedOf} fielding a fused kind on both, the fused kind ${d.pivot.fused} (${d.pivot.fusedCleared} cleared)`
   ]
 }
 

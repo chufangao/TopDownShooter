@@ -75,10 +75,14 @@
 // are actions of the run like any other, logged, so replay plays the battle back order by order: apply returns each
 // order's events, and once the battle is over the run moves on by itself (closeBattle).
 //
+// An altar asks one rite of three (redesign.md §4.5), and the room ends with it: heal (every soul, and the fallen
+// raised), transmute (a soul made another kind of the floor's), or consecrate (a kind's next tier, free).
+//
 //   phase            action
 //   draft            { type: 'pick', index }        take the draft's offer `index` (s.draft.offer: kind ids), free; the
 //                                                   last pick opens the first map (draftOffer, TUNING.draft)
-//   map              { type: 'node', id }           walk to a connected room (a battle room, a siege too, opens prep)
+//   map              { type: 'node', id }           walk to a connected room (a battle room, a siege too, opens prep; an
+//                                                   altar asks its rite)
 //   map, prep        { type: 'place', uid, slot }   move a soul (never the Monarch) to the camp cell `slot` (0–48),
 //                                                   its anchor, where its footprint fits (canPlace), or to the
 //                                                   ossuary (OSSUARY, −1); the one piece its footprint there
@@ -104,6 +108,12 @@
 //   shop             { type: 'buy', index }         buy stock slot `index` (s.shop: a relic id, null once bought)
 //                                                   for its price (relicPrice), any number while the purse allows
 //   shop             { type: 'leave' }              walk on, free
+//   altar            { type: 'heal' }               every soul heals, the fallen rise (heal); the room ends
+//   altar            { type: 'transmute', uid, index }  soul `uid` becomes the kind its offer `index` names
+//                                                   (transmuteOffer), keeping its level and relics (transmute); the
+//                                                   room ends
+//   altar            { type: 'consecrate', kind, track }  kind `kind` takes its next tier on `track` free, as an
+//                                                   upgrade would for its price; the room ends
 //   over             { type: 'descend' }            the Sovereign slain (result 'victory'): on to the endless
 //                                                   floors, each deeper than the last; nothing after a fall
 //
@@ -231,6 +241,7 @@ export function legalActions (run) {
     const buys = s.shop.flatMap((id, index) => (canBuy(run, index) ? [{ type: 'buy', index }] : []))
     return [...buys, { type: 'leave' }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid })), ...holdActions(s)]
   }
+  if (s.phase === 'altar') return altarActions(run)
   if (s.phase === 'over') return canDescend(s) ? [{ type: 'descend' }] : []
   return []
 }
@@ -556,6 +567,9 @@ const HANDLERS = {
   reap: { phases: ['reap'], run: reap },
   buy: { phases: ['shop'], run: buy },
   leave: { phases: ['shop'], run: leave },
+  heal: { phases: ['altar'], run: heal },
+  transmute: { phases: ['altar'], run: transmute },
+  consecrate: { phases: ['altar'], run: consecrate },
   descend: { phases: ['over'], run: descend }
 }
 
@@ -587,13 +601,8 @@ function walk (run, { id }) {
     s.shop = stockShop(s)
     s.phase = 'shop'
   } else if (node.type === 'altar') {
-    // Every soul heals, in the ossuary too, and a fallen one stands again, where it lies, in the ossuary, to be placed.
-    const t = TUNING.run
-    for (const u of s.party) {
-      if (isMonarch(u) && unhealed(s)) continue
-      u.hp = u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive)
-    }
-    nextRoom(run)
+    // The altar asks its rite (heal, transmute, consecrate); the room ends with it.
+    s.phase = 'altar'
   } else {
     throw new Error(`unknown node type "${node.type}"`)
   }
@@ -792,6 +801,78 @@ function buy (run, { index }) {
 // Out of the Shop, free; what is left on its shelves is left behind with the room.
 function leave (run) {
   run.state.shop = []
+  nextRoom(run)
+}
+
+// ── the altar (redesign.md §4.5) ─────────────────────────────────────────────────────────────────
+
+// An altar asks one rite of three, and the room ends with it (nextRoom): it bends "recruit only" without adding a soul,
+// so a run that drafted into a kin the floor does not feed can turn. Nothing else is done there.
+
+// The kinds an altar offers to make a soul of kind `kind`: TUNING.run.altarOffer kinds of the floor's pool (spawnPool:
+// the kinds its foes bring) of the same tier, never its own, drawn evenly on a stream of the altar's and the kind's own
+// (two souls of a kind are offered the same), in the order drawn; fewer where the pool holds fewer. None for a kind no
+// foe brings: a fused kind is made, not met.
+export function transmuteOffer (s, kind) {
+  const d = unitDef(kind)
+  if (!d.spawn) return []
+  const pool = spawnPool(poolFloor(s.floor)).units.filter((u) => u.tier === d.tier && u.id !== kind).map((u) => u.id)
+  return createRng(s.seed).stream(`altar|${s.floor}|${s.at}|${kind}`).shuffle(pool).slice(0, TUNING.run.altarOffer)
+}
+// Whether soul `u` may be transmuted now: a standing soul of the run (never the Monarch; a fallen one is the heal's to
+// raise) of a kind the altar offers others for (transmuteOffer).
+export const canTransmute = (s, u) => !!u && !isMonarch(u) && s.party.includes(u) && u.hp > 0 && transmuteOffer(s, u.id).length > 0
+
+// Every rite the altar takes now: the heal; each soul's transmutation into each kind offered it (canTransmute); each
+// held kind's next tier on each track that may take one (canAdvance), free.
+export function altarActions (run) {
+  const s = run.state
+  const out = [{ type: 'heal' }]
+  for (const u of souls(s.party)) if (canTransmute(s, u)) out.push(...transmuteOffer(s, u.id).map((_, index) => ({ type: 'transmute', uid: u.uid, index })))
+  for (const kind of heldKinds(s)) for (const track of [0, 1]) if (canAdvance(s, kind, track)) out.push({ type: 'consecrate', kind, track })
+  return out
+}
+
+// The heal, as every altar gave before it offered more: each soul heals to TUNING.run.altarHeal of its max HP, in the
+// ossuary too, and a fallen one stands again at altarRevive, where it lies, in the ossuary, to be placed; the Monarch
+// too, unless nothing may heal it (Court of Bone).
+function heal (run) {
+  const s = run.state
+  const t = TUNING.run
+  for (const u of s.party) {
+    if (isMonarch(u) && unhealed(s)) continue
+    u.hp = u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive)
+  }
+  nextRoom(run)
+}
+
+// A transmutation (canTransmute): soul `uid` becomes the kind its offer `index` names, the same soul, its uid, its relics
+// and its share of its HP kept, on its cell where its new footprint fits there, else in the ossuary. Tiers are a kind's,
+// not a soul's (DESIGN §2.6), so none moves: the old kind keeps those bought for it, for any soul of it left or recruited
+// later, and the soul holds its new kind's (none for a kind new to the run; Soul Lantern lights recruits alone). Its
+// level it keeps: its new kind's `least` rises to it, as a fused kind's rises to its parts' (levelOf), so it, and every
+// soul of its new kind, stands at the higher of the two.
+function transmute (run, { uid, index }) {
+  const s = run.state
+  const u = s.party.find((x) => x.uid === uid)
+  const into = canTransmute(s, u) && Number.isInteger(index) ? transmuteOffer(s, u.id)[index] : undefined
+  if (!into) throw new Error(`cannot transmute ${uid} into offer ${index}`)
+  s.kinds[into] ??= newKind()
+  s.kinds[into].least = Math.max(s.kinds[into].least ?? 0, u.lvl)
+  syncKind(s, into)
+  const k = s.kinds[into]
+  const v = makeUnit(into, { uid: u.uid, lvl: k.lvl, tracks: k.tracks, slot: u.slot })
+  v.hp = Math.max(1, Math.round(v.maxHp * u.hp / u.maxHp))
+  if (u.relics) v.relics = u.relics.slice()
+  s.party[s.party.indexOf(u)] = v
+  if (onField(v) && !fits(s.camp, v.slot, sizeOf(v), takenBy(s, [v]))) v.slot = OSSUARY
+  nextRoom(run)
+}
+
+// A consecration: kind `kind` takes its next tier on `track` (canAdvance), as buying it would (advance), at no cost.
+function consecrate (run, { kind, track }) {
+  if (!canAdvance(run.state, kind, track)) throw new Error(`cannot consecrate ${kind} on track ${track}`)
+  advance(run.state, kind, track)
   nextRoom(run)
 }
 

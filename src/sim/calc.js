@@ -28,8 +28,11 @@
 //            weakest soul go first
 //   shop     each relic the purse affords, the rarest first, and leaving; a piece relic then given
 //   hold     an unheld piece relic to each fielded soul that may take it, the strongest first
+//   altar    its rites (run.js altarActions): the heal first while the Monarch stands below half or a soul is fallen,
+//            else each free tier first (in the purchases' order, as if the purse paid) and then the heal; the
+//            transmutations last
 import { createRun, apply, availableNodes, currentNode, souls, fielded, fieldCap, canFuse, fuseParts, tierCost, heldKinds, canAdvance,
-  canTake, canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, OSSUARY } from './run.js'
+  canTake, canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, altarActions, OSSUARY } from './run.js'
 import { fork, orderable, stalled, order } from './turns.js'
 import { situation, features, options, untouchedOrders } from './policy.js'
 import { prepStep } from './outside.js'
@@ -108,33 +111,41 @@ const strongest = (a, b) => cmp(strength(b), strength(a))
 const RARITY = { legendary: 3, rare: 2, uncommon: 1, common: 0 }
 const standing = (s) => souls(s.party).filter((u) => u.hp > 0)
 
-// What the purse buys now: each fusion (the highest tier first), then each tier of a kind held (the most souls of the
-// kind standing an essence first).
+// What the purse buys now: each fusion (the highest tier first), then each tier of a kind held (tiers).
 export function purchases (run) {
-  const s = run.state
   const fuses = FUSION_LIST.filter((r) => canFuse(run, r.id))
     .sort((a, b) => tierOf(b.result) - tierOf(a.result) || (a.id < b.id ? -1 : 1))
     .map((r) => ({ type: 'fuse', id: r.id, parts: fuseParts(run, r.id) }))
-  const tiers = []
+  return [...fuses, ...tiers(run)]
+}
+// Each next tier of a kind held with a soul standing, the most souls of the kind standing an essence first, as `type`
+// actions: those the purse affords (upgrades), or with `free` every one as if it paid (an altar's consecrations).
+function tiers (run, { type = 'upgrade', free = false } = {}) {
+  const s = run.state
+  const out = []
   for (const kind of heldKinds(s)) {
     const n = standing(s).filter((u) => u.id === kind).length
     if (!n) continue
     for (const track of [0, 1]) {
       if (!canAdvance(s, kind, track)) continue
       const cost = tierCost(run, kind, track)
-      if (s.essence >= cost) tiers.push({ a: { type: 'upgrade', kind, track }, rate: n / cost })
+      if (free || s.essence >= cost) out.push({ a: { type, kind, track }, rate: n / cost })
     }
   }
-  tiers.sort((a, b) => b.rate - a.rate || (a.a.kind < b.a.kind ? -1 : a.a.kind > b.a.kind ? 1 : a.a.track - b.a.track))
-  return [...fuses, ...tiers.map((t) => t.a)]
+  out.sort((a, b) => b.rate - a.rate || (a.a.kind < b.a.kind ? -1 : a.a.kind > b.a.kind ? 1 : a.a.track - b.a.track))
+  return out.map((t) => t.a)
+}
+// Whether the calculator would heal: the Monarch below half its HP, or a soul fallen.
+function hurt (s) {
+  const m = monarchOf(s)
+  return m.hp < m.maxHp / 2 || souls(s.party).some((u) => u.hp <= 0)
 }
 // The rooms open, in the calculator's order.
 export function rooms (run) {
   const s = run.state
-  const m = monarchOf(s)
-  const hurt = m.hp < m.maxHp / 2 || souls(s.party).some((u) => u.hp <= 0)
+  const sore = hurt(s)
   const rich = s.essence >= relicPrice(run, 'whetstone')
-  const rank = (n) => n.type === 'altar' ? (hurt ? 0 : 6) : n.type === 'shop' ? (rich ? 1 : 5) : { fight: 2, boss: 2, siege: 3, elite: 4 }[n.type] ?? 7
+  const rank = (n) => n.type === 'altar' ? (sore ? 0 : 6) : n.type === 'shop' ? (rich ? 1 : 5) : { fight: 2, boss: 2, siege: 3, elite: 4 }[n.type] ?? 7
   return availableNodes(run).slice().sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : 1)).map((n) => ({ type: 'node', id: n.id }))
 }
 // A relic waiting: the strongest fielded soul that may take it, each a candidate.
@@ -144,6 +155,13 @@ function holds (run) {
   if (!relic) return []
   return fielded(souls(s.party)).filter((u) => u.hp > 0 && !u.relics?.length && canHold(s, relic, u)).sort(strongest)
     .map((u) => ({ type: 'hold', relic, uid: u.uid }))
+}
+// An altar's rites in the calculator's order (see the head): the transmutations, a soul for another kind of its tier,
+// are a strategy's, not a sum's, so last, in the run's order.
+function rites (run) {
+  const heal = { type: 'heal' }
+  const free = tiers(run, { type: 'consecrate', free: true })
+  return [...(hurt(run.state) ? [heal, ...free] : [...free, heal]), ...altarActions(run).filter((a) => a.type === 'transmute')]
 }
 // The formation: the strongest standing up to Command, on the camp's default frontier.
 function goalOf (run) {
@@ -184,6 +202,7 @@ export function calcDecision (run) {
     return { kind: 'draft', cands: ix.map((x) => [{ type: 'pick', index: x.index }]) }
   }
   if (s.phase === 'reap') return { kind: 'recruit', cands: recruits(run) }
+  if (s.phase === 'altar') return { kind: 'altar', cands: rites(run).map((a) => [a]) }
   const h = holds(run)
   if (h.length) return { kind: 'hold', cands: h.map((a) => [a]) }
   if (s.phase === 'shop') return { kind: 'shop', cands: relics(run) }
@@ -253,7 +272,7 @@ export function playout (run, acts, memo) {
   return end
 }
 
-export const PHASES = Object.freeze(['draft', 'spend', 'route', 'recruit', 'shop', 'hold'])
+export const PHASES = Object.freeze(['draft', 'spend', 'route', 'recruit', 'shop', 'hold', 'altar'])
 
 // One run: the calculator (`teacher` false), or the teacher over it: at each decision of `phases` with two candidates or
 // more, at most `cap` of them (the calculator's first) played out to the end, the first that clears taken, else the best.

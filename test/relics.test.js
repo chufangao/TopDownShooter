@@ -327,6 +327,7 @@ test('Court of Bone: its holder\'s Arise reaches 2 farther; and while the run ho
   s.relics = ['court_of_bone']
   monarchOf(s).hp = 40
   visit(run, 'altar')
+  apply(run, { type: 'heal' })
   assert.equal(monarchOf(s).hp, 40)
 })
 

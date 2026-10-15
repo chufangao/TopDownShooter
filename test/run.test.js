@@ -451,12 +451,15 @@ test('prep: the Monarch alone may fight; a fight with no one standing may not', 
   assert.throws(() => apply(run, { type: 'fight' }), /nobody standing/)
 })
 
-test('altar heals everyone and raises the fallen', () => {
+test('altar\'s heal heals everyone and raises the fallen', () => {
   const run = createRun({ start: START_PARTY, seed: 'altar' })
   const [a, b] = run.state.party
   a.hp = 1
   b.hp = 0
   visit(run, 'altar')
+  assert.equal(run.state.phase, 'altar')
+  assert.equal(a.hp, 1)
+  apply(run, { type: 'heal' })
   assert.equal(run.state.phase, 'map')
   assert.equal(a.hp, a.maxHp)
   assert.equal(b.hp, Math.ceil(b.maxHp * TUNING.run.altarRevive))
@@ -490,8 +493,9 @@ test('a piece that falls in a won battle goes to the ossuary: its cell and Comma
   // The run replays to the same retinue: the fall is the battle's, and the battle is the log's.
   apply(won, { type: 'reap', index: null })
   assert.deepEqual(replay(s.seed, s.log).state.party, s.party)
-  // An altar raises it where it lies, in the ossuary; then it may be placed.
+  // An altar's heal raises it where it lies, in the ossuary; then it may be placed.
   visit(won, 'altar')
+  apply(won, { type: 'heal' })
   assert.deepEqual([u.hp, u.slot], [Math.ceil(u.maxHp * TUNING.run.altarRevive), OSSUARY])
   assert.ok([...Array(CAMP_SLOTS).keys()].some((slot) => canPlace(won, u, slot)))
 })
@@ -993,10 +997,11 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
   visit(slow, 'fight')
   fight(slow, basicTurn)
   assert.ok(slow.battle.winner === 'party' || slow.state.death?.reason === 'monarch', JSON.stringify(slow.state.death))
-  // An altar heals it like a soul.
+  // An altar's heal heals it like a soul.
   const rest = createRun({ start: START_PARTY, seed: 'rest' })
   monarchOf(rest.state).hp = 1
   visit(rest, 'altar')
+  apply(rest, { type: 'heal' })
   assert.equal(monarchOf(rest.state).hp, monarchOf(rest.state).maxHp)
 }))
 
@@ -1169,6 +1174,7 @@ test('a tier\'s level heals a living soul by its gain and leaves a fallen one do
   knight.hp = 10
   const node = visit(run, 'altar')
   assert.equal(node.type, 'altar')
+  apply(run, { type: 'heal' })
   assert.deepEqual([knight.hp, fallen.hp], [Math.max(10, Math.round(b2 * T.altarHeal)), Math.ceil(b2 * T.altarRevive)])
 }))
 
@@ -1431,7 +1437,7 @@ test('legalActions lists one fuse a recipe that can be made, of its canonical pa
 // ── fuzz: random legal actions, invariants after every one, replay at the end ──────────────────
 
 function checkState (s) {
-  assert.ok(['map', 'prep', 'battle', 'reap', 'shop', 'over'].includes(s.phase), s.phase)
+  assert.ok(['map', 'prep', 'battle', 'reap', 'shop', 'altar', 'over'].includes(s.phase), s.phase)
   const all = souls(s.party)
   assert.ok(all.length >= 1 && soulCount(s.party) <= TUNING.party.roster + 3 * s.relics.filter((r) => r === 'ossuary_key').length)
   assert.ok(Number.isInteger(s.essence) && s.essence >= 0, `essence ${s.essence}`)
@@ -1486,13 +1492,14 @@ function checkState (s) {
 
 // A steady hand, standing in for a player (the autoplayer is tested on its own): it makes any fusion it can, walks
 // to a random room, fields a piece from the ossuary, gives a relic waiting to a soul, or buys a tier now and then before
-// it fights; in battle strikes now and then and ends its turns; recruits the first soul it can afford, and in a Shop
-// buys the first relic it can pay for until it can pay for none, then leaves.
+// it fights; in battle strikes now and then and ends its turns; recruits the first soul it can afford, in a Shop buys
+// the first relic it can pay for until it can pay for none, then leaves; at an altar takes a rite of the three at random.
 function steady (run, rng) {
   const s = run.state
   const legal = legalActions(run)
   const of = (type) => legal.filter((a) => a.type === type)
   if (s.phase === 'battle') return of('act').length && rng.chance(0.5) ? rng.pick(of('act')) : { type: 'end' }
+  if (s.phase === 'altar') return rng.pick(of(rng.pick([...new Set(legal.map((a) => a.type))])))
   if (of('fuse').length) return rng.pick(of('fuse'))
   if (of('hold').length && rng.chance(0.3)) return rng.pick(of('hold'))
   if (s.phase === 'map') return rng.pick(of('node'))
@@ -1601,7 +1608,7 @@ test('fuzz: 120 runs of random legal actions keep every invariant, cover every a
   // Legendaries come from Shops from floor 2: those the purse could pay for are bought.
   assert.ok(!offered.legendaries || legendaries > 0, `Legendaries offered ${offered.legendaries} times, taken ${legendaries}: ${JSON.stringify(results)}`)
   // Every action the run has, its battles' orders among them (tracks.test.js fuzzes the levels and tiers harder).
-  for (const type of ['act', 'buy', 'end', 'fight', 'fuse', 'hold', 'leave', 'move', 'node', 'place', 'reap', 'release', 'unhold', 'upgrade']) assert.ok(seen.has(type), `${type}: ${[...seen]}`)
+  for (const type of ['act', 'buy', 'end', 'fight', 'fuse', 'hold', 'leave', 'move', 'node', 'place', 'reap', 'release', 'unhold', 'upgrade', 'heal', 'transmute', 'consecrate']) assert.ok(seen.has(type), `${type}: ${[...seen]}`)
   assert.ok(big > 0, 'a 2×2 piece fought')
 })
 
