@@ -786,12 +786,13 @@ const rolesOf = (u, also) => [unitDef(u.id).role, ...(also?.(u) ?? []).filter((r
 // Each synergy's need: { axis, id, n } (one kin or one role, redesign.md §2.12).
 const needOf = (syn) => ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, n]) => ({ axis, id, n })))[0]
 
-// The synergies by kin and role: each its steps (one rule at 4; should the balance pass split one, a lesser form at 4
-// and the full at 8), lowest first.
+// The synergies by kin and role: each its steps (one rule at 4; one split, Echo's, its lesser form at 4 and the full
+// at its `full`: a step of its own, `full` true), lowest first.
 const LADDERS = Object.values(Object.groupBy(SYNERGIES, (syn) => `${needOf(syn).axis}:${needOf(syn).id}`))
   .map((steps) => {
     const { axis, id } = needOf(steps[0])
-    return { axis, id, name: (axis === 'kin' ? KIN : ROLES)[id].name, steps: steps.map((syn) => ({ n: needOf(syn).n, syn })).sort((a, b) => a.n - b.n) }
+    const all = steps.flatMap((syn) => [{ n: needOf(syn).n, syn, full: false }, ...(syn.full ? [{ n: syn.full, syn, full: true }] : [])])
+    return { axis, id, name: (axis === 'kin' ? KIN : ROLES)[id].name, steps: all.sort((a, b) => a.n - b.n) }
   })
 const ladderOf = (syn) => LADDERS.find((l) => l.steps.some((st) => st.syn === syn))
 
@@ -805,6 +806,9 @@ const SYN_COLOUR = {
 // A synergy's rule by name and what it does: "Legion", "every foe slain rises…" (its desc reads "Name: text").
 export const ruleName = (syn) => syn.desc.split(': ')[0]
 export const ruleText = (syn) => syn.desc.slice(syn.desc.indexOf(': ') + 2)
+// A ladder's step by name, a split rule's whole form "Echo in full"; and its text (the whole form's told by its lesser's).
+const stepName = (st) => (st.full ? `${ruleName(st.syn)} in full` : ruleName(st.syn))
+const stepText = (st) => (st.full ? `as at ${needOf(st.syn).n}, at its full effect.` : ruleText(st.syn))
 // A synergy's rule as the foes hold it: its text is written from your side, so yours and theirs trade places.
 export const theirText = (text) => text
   .replace(/\bfoes\b/g, '\u0001').replace(/\bfoe\b/g, '\u0002')
@@ -863,10 +867,10 @@ export function synergyTracker (units, also = null, { focus = null, onFocus = nu
   const press = (x) => x.on && onFocus ? () => onFocus(x.key) : null
   const ladderTip = ({ l, have, next }) => h('div', { class: 'syn-tip' },
     h('b', null, `${l.name} ${have}`), h('span', { class: 'dim' }, ` · ${who(l.axis, l.id)}`),
-    h('ol', { class: 'steps-list' }, l.steps.map(({ n, syn }) => h('li', { class: have >= n ? 'held' : '' },
-      h('b', null, n), ' ', h('span', { class: 'tag-rule' }, 'Rule'), ' ', h('b', null, ruleName(syn)), ': ', ruleText(syn)))),
+    h('ol', { class: 'steps-list' }, l.steps.map((st) => h('li', { class: have >= st.n ? 'held' : '' },
+      h('b', null, st.n), ' ', h('span', { class: 'tag-rule' }, 'Rule'), ' ', h('b', null, stepName(st)), ': ', stepText(st)))),
     mimicry(l.axis, l.id),
-    h('p', { class: 'dim' }, next ? `${next.n - have} more for ${ruleName(next.syn)}. ` : 'Its rule is held. ', COUNT_NOTE))
+    h('p', { class: 'dim' }, next ? `${next.n - have} more for ${stepName(next)}. ` : 'Its rule is held. ', COUNT_NOTE))
   const ladderChip = (x) => h(x.on && onFocus ? 'button' : 'span', {
     class: 'syn chip' + (x.on ? ' on' : '') + (x.near ? ' near' : '') + (!x.next ? ' top' : '') + (focus === x.key ? ' focus' : ''),
     style: x.on ? `--g:${SYN_COLOUR[x.l.id]}` : null, onclick: press(x), tip: () => ladderTip(x)
@@ -878,7 +882,7 @@ export function synergyTracker (units, also = null, { focus = null, onFocus = nu
     far.length > 0 && h('span', {
       class: 'syn chip far',
       tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'Further off'), far.map((x) =>
-        h('div', { class: 'small' }, `${x.l.name} ${x.have}/${x.next.n}`, h('span', { class: 'dim' }, ` · ${ruleName(x.next.syn)}: ${ruleText(x.next.syn)}`))))
+        h('div', { class: 'small' }, `${x.l.name} ${x.have}/${x.next.n}`, h('span', { class: 'dim' }, ` · ${stepName(x.next)}: ${stepText(x.next)}`))))
     }, `+${far.length}`))
 }
 
@@ -1077,9 +1081,9 @@ function glossary (run) {
   return ['Words', 'Behaviours', 'Statuses'].map((name) => ({ name, entries: group(name) }))
 }
 
-// The synergies (redesign.md §2.12): every kin and role, each its rule at 4 in its board colour; with a run in play,
-// how many of it you field now.
-function synergiesView (run = null) {
+// The synergies (redesign.md §2.12): every kin and role, each its rule at 4 in its board colour (Echo's whole form at 8
+// too); with a run in play, how many of it you field now. Exported for its test.
+export function synergiesView (run = null) {
   const c = run ? countsOf(souls(standing(run)), alsoOf) : null
   return h('div', { class: 'help-view synergies' },
     h('p', { class: 'dim' }, `Each kin and each role has one rule, held while four of your pieces of it stand on the board, shadows and summons too, never the Monarch. Its pieces glow in its colour. ${COUNT_NOTE} ${FOE_SYNERGIES}`),
@@ -1088,7 +1092,7 @@ function synergiesView (run = null) {
       return h('div', { class: 'codex-row', style: `--g:${SYN_COLOUR[l.id]}` },
         h('div', { class: 'codex-row-head' }, h('i', { class: 'st-dot', style: `background:${SYN_COLOUR[l.id]}` }), h('b', null, l.name),
           h('span', { class: 'dim small' }, ` · ${l.axis === 'kin' ? 'kin' : 'role'}`), have !== null && h('span', { class: 'codex-have' + (have >= l.steps[0].n ? ' on' : '') }, `${have}/${l.steps[0].n} fielded`)),
-        l.steps.map(({ n, syn }) => h('div', { class: 'small' }, h('b', null, `${n}: `), h('span', { class: 'tag-rule' }, ruleName(syn)), ' ', ruleText(syn))))
+        l.steps.map((st) => h('div', { class: 'small' }, h('b', null, `${st.n}: `), h('span', { class: 'tag-rule' }, stepName(st)), ' ', stepText(st))))
     })))
 }
 

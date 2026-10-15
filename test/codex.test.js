@@ -167,6 +167,22 @@ test('a battle\'s synergy labels name the rule each brings at 4', () => {
   }
 })
 
+// Echo split (the improvement plan's §4.3): its ladder a step at 4 and one at its `full`, 8, the codex's Synergies and
+// the tracker's chip telling both; every rule's card from content.
+test('the codex\'s Synergies and the tracker tell Echo\'s two steps: its lesser form at 4, in full at 8', async () => {
+  const { synergiesView, synergyTracker } = await import('../src/codex.js')
+  const text = synergiesView().textContent
+  for (const syn of SYNERGIES) assert.ok(text.includes(`4: ${syn.desc.split(': ')[0]} ${syn.desc.slice(syn.desc.indexOf(': ') + 2)}`), syn.id)
+  assert.ok(text.includes('8: Echo in full as at 4, at its full effect.'), text)
+  const channelers = (n) => Array.from({ length: n }, (_, i) => ({ id: i % 2 ? 'will_o_wisp' : 'bone_chanter', uid: i + 1, hp: 1 }))
+  const chip = (n) => synergyTracker(channelers(n)).childNodes.find((c) => c.textContent.startsWith('Channeler'))
+  for (const [n, top] of [[4, false], [7, false], [8, true]]) {
+    const c = chip(n)
+    assert.equal(c.textContent, `Channeler ${n}48`, 'its count, then its steps')
+    assert.deepEqual([c.classList.contains('on'), c.classList.contains('top')], [true, top], `${n}`)
+  }
+})
+
 test('a fall to a status\'s tick is told as that status, from no tile and with no blow replayed; a blow\'s keeps its tile', async () => {
   const { deathText } = await import('../src/codex.js')
   const { deployTile } = await import('../src/sim/unit.js')

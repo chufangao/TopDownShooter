@@ -7,7 +7,7 @@ import {
 } from '../src/content.js'
 import { isRunPath, START_PARTY } from '../src/sim/run.js'
 import {
-  statsOf, abilitiesOf, auraOf, makeUnit, baseStats, activeSynergies, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile,
+  statsOf, abilitiesOf, auraOf, makeUnit, baseStats, activeSynergies, synergyCounts, synergyFull, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile,
   wallTiles, steps, summonsOf, summonedOf, canTrack, nextTracks, isAllyShape, isBlow, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH,
   ROWS, TILES, armOf
 } from '../src/sim/unit.js'
@@ -505,9 +505,31 @@ test('every kin and every role has one synergy, a rule at 4 pieces, and no stat 
     assert.ok(!('mods' in syn), `${syn.id}: no stat step`)
     assert.ok(syn.name && syn.desc.includes(': '), `${syn.id}: its text says what the rule does`)
   }
-  // Deadeye's card says its number; Deathblow's its execute (§2.16).
-  assert.ok(SYNERGIES.find((s) => s.rule === 'deadeye').desc.includes(`${Math.round((RULES.deadeye.params.mul - 1) * 100)}% more`))
-  assert.match(SYNERGIES.find((s) => s.rule === 'deathblow').desc, /below a quarter of its HP deals double/)
+  // Deadeye's card says its number; Deathblow's its execute (§2.16); the rules raised to Echo's class theirs, and Echo
+  // its split (the improvement plan's §4.3), each from TUNING.
+  const card = (rule) => SYNERGIES.find((s) => s.rule === rule).desc
+  const pct = (x) => `${Math.round(x * 100)}%`
+  assert.ok(card('deadeye').includes(`${Math.round((RULES.deadeye.params.mul - 1) * 100)}% more`))
+  assert.ok(card('deathblow').includes(`below ${pct(TUNING.deathblow.below)} of its HP deals double`))
+  assert.ok(card('last_stand').includes(`stands at 1 HP instead and heals ${pct(TUNING.lastStand.heal)} of its max HP`))
+  assert.ok(card('bodyguard').includes(`your Vanguards take ${pct(1 - TUNING.bodyguard.taken)} less damage`))
+  assert.ok(card('ambush').includes(`Hastened for their first ${['', 'turn', 'two turns'][TUNING.ambush.turns]}`))
+  assert.match(card('mirage'), /each turn/)
+  assert.ok(card('echo').includes('at half its effect') && TUNING.echo.half === 0.5)
+  assert.ok(card('echo').includes(`with ${SYNERGIES.find((s) => s.rule === 'echo').full} Channelers, in full`))
+})
+
+// The one split (§2.12: a lesser form at 4, the full at 8) is Echo's: `full` twice its count, on its own kin or role.
+test('a synergy split holds whole at its `full`: Echo\'s alone, at 8 Channelers', () => {
+  const split = SYNERGIES.filter((s) => 'full' in s)
+  assert.deepEqual(split.map((s) => [s.id, s.full]), [['channeler_4', 8]])
+  const n = (k) => Array.from({ length: k }, (_, i) => ({ id: i % 2 ? 'will_o_wisp' : 'bone_chanter', uid: i + 1, hp: 1 }))
+  for (const [k, whole] of [[4, false], [7, false], [8, true], [9, true]]) {
+    const counts = synergyCounts(n(k))
+    assert.ok(activeSynergies(n(k)).includes(split[0]), `${k}: held`)
+    assert.equal(synergyFull(split[0], counts), whole, `${k}`)
+  }
+  assert.ok(SYNERGIES.filter((s) => !('full' in s)).every((s) => synergyFull(s, synergyCounts([]))), 'an unsplit rule is whole wherever it holds')
 })
 
 // ── relics ────────────────────────────────────────────────────────────────────────────────────────

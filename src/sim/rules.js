@@ -17,6 +17,10 @@
 //   modify    damage about to land, a blow's or a status tick's: { actor, target, ability, status, damage, miss, as },
 //             called with `as` 'actor' on the actor's side, then 'target' on the target's (it may change `damage`
 //             or set `miss`)
+//   stand     the same damage once every modify has bent it and it has not missed, whole, on the target's side alone:
+//             { actor, target, ability, status, damage, mend } (it may lower `damage`, and set `mend`, a share of the
+//             target's max HP it heals once the damage has landed): a stand against a fall comes after what lessens a
+//             blow, so it is spent only on one that would still fell
 //   queue     the foes' turn's order: { queue } (it may reorder it)
 // and three that are not moments:
 //   grants    an ability id its holder gains (Arise's: redesign.md §2.15)
@@ -27,10 +31,10 @@
 // read for the run wherever it holds the relic: Court of Bone's Monarch that nothing heals (`unhealable`: unhealable),
 // Blood Tithe's raises paid in the Monarch's HP (`bleeds`: bleeds, the autoplayer's).
 import { TUNING } from '../tuning.js'
-import { unitDef, relicDef, abilityDef } from '../content.js'
-import { alive, livingOn, unitDistance, makeUnit } from './unit.js'
+import { unitDef, relicDef, abilityDef, statusDef } from '../content.js'
+import { alive, livingOn, unitDistance, makeUnit, synergyFull } from './unit.js'
 import { around, riseTile, summonTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle } from './turns.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -58,12 +62,12 @@ export const RULES = {
       ctx.targets = ability.melee && !actor.flies ? out.filter((x) => !x.flies) : out
     }
   },
-  // Fae 4: the first blow each foe would land on the side misses.
+  // Fae 4: the first blow each foe would land on the side each turn (the battle's: yours and theirs) misses.
   mirage: {
     modify (battle, ctx) {
       const { actor, target } = ctx
-      if (ctx.as !== 'target' || ctx.status || ctx.miss || !actor || actor.side === target.side || actor.foiled) return
-      actor.foiled = true
+      if (ctx.as !== 'target' || ctx.status || ctx.miss || !actor || actor.side === target.side || actor.foiled === battle.turn) return
+      actor.foiled = battle.turn
       emit(battle, { type: 'rule', rule: 'mirage', side: target.side, actor: actor.uid, target: target.uid })
       ctx.miss = true
     }
@@ -76,20 +80,25 @@ export const RULES = {
       for (const id in by.cooldowns) if (by.cooldowns[id] > 0) cool(battle, by, id, 0)
     }
   },
-  // Construct 4: the first damage that would fell each of the side's (a blow's, a burst's or a status tick's: modify)
-  // leaves it at 1 HP (never the Monarch).
+  // Construct 4: the first damage that would fell each of the side's (a blow's, a burst's or a status tick's, as every
+  // rule has bent it: stand) leaves it at 1 HP, and it heals TUNING.lastStand.heal of its max HP (never the Monarch).
   last_stand: {
-    modify (battle, ctx) {
+    stand (battle, ctx) {
       const { target } = ctx
-      if (ctx.as !== 'target' || ctx.miss || target.stood || target === battle.monarch || ctx.damage < target.hp) return
+      if (target.stood || target === battle.monarch || ctx.damage < target.hp) return
       target.stood = true
       ctx.damage = target.hp - 1
+      ctx.mend = TUNING.lastStand.heal
       emit(battle, { type: 'rule', rule: 'last_stand', side: target.side, target: target.uid })
     }
   },
   // Vanguard 4: a single-target blow at one of the side's not itself a Vanguard falls on a Vanguard beside it (the one
-  // with the most HP, then the first to act).
+  // with the most HP, then the first to act); and the side's Vanguards take TUNING.bodyguard.taken of the damage that
+  // lands on them (a blow's, a burst's or a status tick's).
   bodyguard: {
+    modify (battle, ctx) {
+      if (ctx.as === 'target' && !ctx.miss && vanguard(ctx.target)) ctx.damage *= TUNING.bodyguard.taken
+    },
     targets (battle, ctx) {
       const { actor, ability, primary } = ctx
       if (ctx.as !== 'target' || ability.shape !== 'single' || primary.side === actor.side || vanguard(primary)) return
@@ -109,7 +118,7 @@ export const RULES = {
     }
   },
   // Skirmisher 4: the side's pieces start the battle, and enter it, Hastened (+1 Move, cooldowns falling faster) for
-  // their first turn: each the first time its side's turn begins with it on the board.
+  // their first TUNING.ambush.turns turns: each from the first time its side's turn begins with it on the board.
   ambush: {
     onTurn (battle, { side }) {
       const fresh = battle.units.filter((u) => u.side === side && alive(u) && !u.ambushed && u !== battle.monarch)
@@ -117,16 +126,19 @@ export const RULES = {
       emit(battle, { type: 'rule', rule: 'ambush', side })
       for (const u of fresh) {
         u.ambushed = true
-        addStatus(battle, u, 'hasten', 1, u)
+        addStatus(battle, u, 'hasten', TUNING.ambush.turns, u)
       }
     }
   },
-  // Channeler 4: every ability of the side's rings out once more, free, on the same targets (an Arise never echoes).
+  // Channeler 4: every ability of the side's rings out once more, free, on the same targets (an Arise never echoes):
+  // split (the improvement plan's §4.3), at TUNING.echo.half of its effect while the side counts fewer Channelers than
+  // its synergy's `full` (`r.params.full` false: rulesOf), whole from there.
   echo: {
-    onBlow (battle, { actor, ability, targets }) {
+    params: { full: true },
+    onBlow (battle, { actor, ability, targets }, r) {
       if (!alive(actor) || ability.effects.some((e) => e.op === 'raise')) return
-      emit(battle, { type: 'rule', rule: 'echo', side: actor.side, actor: actor.uid, ability: ability.id })
-      for (const effect of ability.effects) runEffect(battle, effect, actor, targets, ability)
+      emit(battle, { type: 'rule', rule: 'echo', side: actor.side, actor: actor.uid, ability: ability.id, ...(!r.params.full && { half: true }) })
+      for (const effect of ability.effects) runEffect(battle, r.params.full ? effect : scaled(effect, TUNING.echo.half), actor, targets, ability)
     }
   },
   // Warden 4: an ability of the side's aimed at an ally reaches anyone of its side, and touches every one of its side
@@ -253,12 +265,12 @@ export const RULES = {
       for (const id in by.cooldowns) if (by.cooldowns[id] > 0) cool(battle, by, id, 0)
     }
   },
-  // The Engine of Ages: the first damage each battle that would fell it (a blow's, a burst's or a status tick's) leaves
-  // it at 1 HP instead, as Last Stand does its side's, and apart from it.
+  // The Engine of Ages: the first damage each battle that would fell it (a blow's, a burst's or a status tick's, as
+  // every rule has bent it: stand) leaves it at 1 HP instead, as Last Stand does its side's, and apart from it.
   engine_of_ages: {
-    modify (battle, ctx, r) {
+    stand (battle, ctx, r) {
       const { target } = ctx
-      if (ctx.as !== 'target' || ctx.miss || target !== r.holder || target.endured || ctx.damage < target.hp) return
+      if (target !== r.holder || target.endured || ctx.damage < target.hp) return
       target.endured = true
       ctx.damage = target.hp - 1
       emit(battle, { type: 'rule', rule: 'engine_of_ages', side: target.side, target: target.uid })
@@ -287,6 +299,16 @@ export const RULES = {
       if (at) perform(battle, u, tide, at)
     }
   }
+}
+
+// An effect at `k` of its strength (Echo's lesser form): its damage's and its healing's power (a heal's share of max HP
+// too) × k, and a status laid for k of its turns, rounded up (one of a battle's as it was); a cleanse or a cooldown
+// as it is.
+function scaled (e, k) {
+  if (e.op === 'damage' || e.op === 'heal') return { ...e, ...(e.power != null && { power: e.power * k }), ...(e.pct && { pct: e.pct * k }) }
+  if (e.op !== 'apply_status') return e
+  const turns = e.turns ?? statusDef(e.status).turns
+  return turns === 'battle' ? e : { ...e, turns: Math.ceil(turns * k) }
 }
 
 // What a shadow of a Blood Tithe holder's costs the Monarch.
@@ -328,14 +350,16 @@ export function heldRules (u) {
 }
 
 // The rules `side` holds now, in a fixed order: its synergies' (turns.js synergiesOf: the foes' on every floor, as
-// yours, redesign.md §2.12; none of yours with the `synergies` ablation), then each of its units' held rules (`u.held`,
-// in acting order; a fallen holder keeps its relic and its rule, one consumed by a fusion gave it back). Kept until the
+// yours, redesign.md §2.12; none of yours with the `synergies` ablation), a split one's told whether it holds whole
+// (`params.full`: unit.js synergyFull, by the side's counts), then each of its units' held rules (`u.held`, in acting
+// order; a fallen holder keeps its relic and its rule, one consumed by a fusion gave it back). Kept until the
 // synergies or the roster change.
 export function rulesOf (battle, side) {
   const syn = synergiesOf(battle, side)
   const kept = (battle.ruleList ??= {})[side]
   if (kept?.syn === syn && kept.roster === battle.roster) return kept.list
-  const list = syn.filter((s) => s.rule).map((s) => entry(s.rule))
+  const counts = synergyCountsOf(battle, side)
+  const list = syn.filter((s) => s.rule).map((s) => entry(s.rule, null, s.full ? { full: synergyFull(s, counts) } : null))
   for (const u of battle.units) if (u.side === side && !u.into && u.held?.length) list.push(...u.held)
   battle.ruleList[side] = { syn, roster: battle.roster, list }
   return list

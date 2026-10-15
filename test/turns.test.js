@@ -1247,7 +1247,7 @@ test('a death burst: a Rot Bloat falling Withers the other side\'s living within
 
 // ── the synergies' rules (rules.js) ──────────────────────────────────────────────────────────────
 
-test('Deathblow, an execute: a blow of yours on a foe below a quarter of its HP deals double; none above it, none on yours', () => {
+test('Deathblow, an execute: a blow of yours on a foe below 35% of its HP deals double; none above it, none on yours', () => {
   const tricksters = [0, 1, 2, 3].map((x) => on('clockwork_page', 1 + x, 'party', x, 1, 9))
   const blow = (hp, holders = tricksters) => {
     const b = scene([...holders, on('tomb_knight', 9, 'party', 5, 4, 9), on('iron_golem', 10, 'foe', 5, 5, 20), on('iron_golem', 11, 'foe', 6, 10, 1)])
@@ -1256,11 +1256,14 @@ test('Deathblow, an execute: a blow of yours on a foe below a quarter of its HP 
     const events = order(b, { type: 'act', uid: 9, ability: 'strike', target: 10 })
     return { dealt: events.find((e) => e.type === 'damage' && e.target === 10).damage, rule: events.some((e) => e.type === 'rule' && e.rule === 'deathblow') }
   }
-  const low = blow(0.2)
-  const plain = blow(0.2, tricksters.slice(0, 3))
-  assert.deepEqual([low.rule, plain.rule], [true, false])
-  assert.equal(low.dealt, Math.round(plain.dealt * TUNING.deathblow.mult), 'double, below a quarter')
-  assert.deepEqual(blow(0.5), { dealt: blow(0.5, tricksters.slice(0, 3)).dealt, rule: false }, 'nothing above it')
+  assert.equal(TUNING.deathblow.below, 0.35)
+  for (const hp of [0.2, 0.3]) {
+    const low = blow(hp)
+    const plain = blow(hp, tricksters.slice(0, 3))
+    assert.deepEqual([low.rule, plain.rule], [true, false])
+    assert.equal(low.dealt, Math.round(plain.dealt * TUNING.deathblow.mult), `double, at ${hp} of its HP`)
+  }
+  for (const hp of [0.36, 0.5]) assert.deepEqual(blow(hp), { dealt: blow(hp, tricksters.slice(0, 3)).dealt, rule: false }, `nothing at ${hp}`)
 })
 
 // ── the second bug hunt ──────────────────────────────────────────────────────────────────────────

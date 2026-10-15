@@ -144,10 +144,10 @@ export const heldMods = (u) => (u.relics ?? []).flatMap((id) => relicDef(id).mod
 // A unit of a hidden role (the Monarch) counts toward no synergy.
 const hidden = (u) => !!ROLES[unitDef(u.id).role].hidden
 
-// Synergies active for these units, from their counts per kin and role. `also(u)`, where given, lists the roles a
-// unit counts as besides its own (a holder of Mimicry's, a Warden too: turns.js synergiesOf), a role not its own once
-// each.
-export function activeSynergies (units, also = null) {
+// These units' counts toward synergies, per kin and role: { kin: { id: n }, role: { id: n } }. `also(u)`, where given,
+// lists the roles a unit counts as besides its own (a holder of Mimicry's, a Warden too: turns.js synergiesOf), a role
+// not its own once each.
+export function synergyCounts (units, also = null) {
   const c = { kin: {}, role: {} }
   for (const u of units) {
     if (hidden(u)) continue
@@ -155,11 +155,21 @@ export function activeSynergies (units, also = null) {
     c.kin[d.kin] = (c.kin[d.kin] ?? 0) + 1
     for (const role of [d.role, ...(also?.(u) ?? []).filter((r) => r !== d.role)]) c.role[role] = (c.role[role] ?? 0) + 1
   }
+  return c
+}
+
+// Synergies active for these units, from their counts per kin and role (synergyCounts).
+export function activeSynergies (units, also = null) {
+  const c = synergyCounts(units, also)
   return SYNERGIES.filter((s) => synergyActive(s, c))
 }
 
 export const synergyActive = (syn, counts) =>
   ['kin', 'role'].every((axis) => Object.entries(syn.needs[axis] ?? {}).every(([id, n]) => (counts[axis][id] ?? 0) >= n))
+// Whether a synergy held holds its rule whole: one split (content.js `full`: Echo's) once its kin or role counts `full`,
+// below it its lesser form; any other wherever it holds.
+export const synergyFull = (syn, counts) =>
+  !syn.full || ['kin', 'role'].every((axis) => Object.keys(syn.needs[axis] ?? {}).every((id) => (counts[axis][id] ?? 0) >= syn.full))
 
 // ── formation and camp ───────────────────────────────────────────────────────────────────────────
 
