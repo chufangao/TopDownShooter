@@ -27,8 +27,14 @@ then descend into the endless deep for as long as you last.
   less HP and every price is dearer (the line under the chooser says what moved). Clearing a level opens the one above
   it; level 0 is always open. The level is kept in the URL (`?ascension=`) and in this browser, and shown beside the
   floor in the top bar.
+- **The Monarchs.** Who you are: the title's crowned button, beside the ascension, opens the four. The Monarch is
+  every run's to begin with, and changes nothing. The Brass, the Ember and the Hive Monarchs each start holding their
+  kin's banner (the Brass Standard, the Wyrm Standard, the Hive Standard) and are offered their kin's kinds three times as
+  often in the draft (Constructs, Drakes, Insects): your first clear opens the Brass Monarch, a clear at ascension 2 the
+  Ember, at 4 the Hive. The choice is kept in the URL (`?monarch=`) and in this browser, and every run's History line
+  names the Monarch it was played as.
 - **The daily.** The title's **Daily** is the day's run, the same for everyone: the seed `daily-YYYY-MM-DD` of the
-  UTC day, always at ascension 0 whatever level is chosen. The first you begin each day is your daily; any after it the
+  UTC day, always at ascension 0 as the Monarch, whatever is chosen. The first you begin each day is your daily; any after it the
   same day is practice, and the History marks it so. A new one comes at midnight UTC.
 - **The History.** Every run you end in this browser is kept, cleared, fallen or left for a new one (not the
   tutorial): when, its seed or its daily, its level, how far it went, the battles won, how long you played it, the
@@ -111,7 +117,7 @@ npm run sim -- [--runs 8] [--seed sim] [--level expert] [--ablate orders]   # a 
 npm run ladder -- [--ascension 0|<a,b,…>|all] [--teacher] [--runs 8]
                       # the rungs (basic, the calculator, the expert; the outside teacher by --teacher) on the same
                       # seeds at each level of the ascension ladder, and the gaps between them
-npm run builds -- [--player expert|teacher] [--commit <archetype>|all|fused|synergies] [--ascension 0] [--scale 1] [--runs 256] [--seed div]
+npm run builds -- [--player expert|teacher] [--commit <archetype>|all|fused|synergies] [--ascension 0] [--monarch brass] [--scale 1] [--runs 256] [--seed div]
                       # the harness: free play and each build committed, on the same seeds
 npm run pool          # what a run can gather: each floor's draws, the battles offering each kind, each recipe's reach
 npm run ablations     # how much each mechanic carries the expert (--variants a,b to choose)
@@ -137,7 +143,8 @@ its draft, recruits, purchases and route follow it, and so do the outside teache
 runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the
 final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3, and the altars'
 rites taken and the runs whose leading kin or fused kind turned after floor 1. `--ascension` plays them at a level of
-the ladder (any report takes it: `npm run sim -- --ascension 5`); `--scale` multiplies every foe's HP and ATK on top of
+the ladder (any report takes it: `npm run sim -- --ascension 5`), `--monarch <id>` as a Monarch (content.js
+`MONARCHS`; the base one by default); `--scale` multiplies every foe's HP and ATK on top of
 it, an override for probing. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
 and an elite's draws by kind, the battles on a walk offering each kind and the draft's picks, and each recipe's reach
 by the end of floor 2 (criterion 1).
