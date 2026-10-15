@@ -609,6 +609,19 @@ const seed = new URLSearchParams(location.search).get('seed') ?? newSeed()
 choose(ascension)
 title(seed)
 
+// The store build (build.js) marks its page with its hash and ships a service worker beside it, registered here once the
+// page has loaded, so the installed app plays offline. The source tree (npm start) has no mark: it registers none, and
+// lets go of any a build served on the same origin left behind.
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  const built = !!document.querySelector('meta[name="retinue-build"]')
+  const go = () => {
+    if (built) navigator.serviceWorker.register('sw.js').catch((e) => console.warn(`service worker not registered: ${e.message}`))
+    else navigator.serviceWorker.getRegistrations().then((rs) => { for (const r of rs) r.unregister() }).catch(() => {})
+  }
+  if (document.readyState === 'complete') go()
+  else addEventListener('load', go)
+}
+
 // Console access for debugging: retinue.run.state, retinue.run.state.log, retinue.route() (redraw the screen after
 // applying actions by hand), …
 window.retinue = { engine, route, music, get run () { return run } }

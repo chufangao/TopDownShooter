@@ -1,11 +1,12 @@
-// Serves the game for the browser, offline and with no build step:  node serve.js [port]
-// It listens on every interface, so a phone or tablet on the same Wi-Fi can open one of the LAN URLs it prints.
+// Serves the game for the browser, offline and with no build step:  node serve.js [port] [dir]
+// It listens on every interface, so a phone or tablet on the same Wi-Fi can open one of the LAN URLs it prints. `dir`:
+// another tree to serve than this one, the store build's (npm run build; node serve.js 5174 dist).
 import { createServer } from 'node:http'
 import { networkInterfaces } from 'node:os'
 import { readFile } from 'node:fs/promises'
-import { extname, join, normalize } from 'node:path'
+import { extname, join, normalize, resolve } from 'node:path'
 
-const root = new URL('.', import.meta.url).pathname
+const root = process.argv[3] ? resolve(process.argv[3]) : new URL('.', import.meta.url).pathname
 const port = Number(process.argv[2] ?? 5173)
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.woff2': 'font/woff2', '.txt': 'text/plain' }
 
