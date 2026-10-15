@@ -72,7 +72,8 @@ Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a b
   roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`);
   `map.js` the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
   their fitting); `autoplay.js` the players and CLI; `rng.js`. Offline only, never imported by play: `teach.js`,
-  `teacher.js`, `outside.js` (labels and the teacher), `fit.js`, `train.js`. `ranker.js` and `value.js` are earlier
+  `teacher.js`, `outside.js` (labels and the teacher), `fit.js`, `train.js`, `calc.js` (the calculator, a weight-free
+  player and the novice rung, and a rollout teacher over it: redesign.md §3, §8). `ranker.js` and `value.js` are earlier
   learners, off (no `ranker.json`; V unused by default).
 - `src/content.js` is all content as records, one per unit, ability and relic; `src/tuning.js` every balance
   number (`TUNING`, the expert's table included).

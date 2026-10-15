@@ -72,9 +72,9 @@ against (§3 says with which instrument):
 3. **Diverse in free play.** No fused kind in more than 30% of the forest expert's final armies; every base recipe
    made in 8% or more of runs; six or more of the eleven synergies each active in 5% or more of battles; the relics
    ablation worth 10 points or more.
-4. **Still a game.** At the base difficulty the forest expert (§4.0, refitted on the content) clears ~90% and basic
-   reaches floor 2 about half the time; at the top difficulty the teacher clears ~60%, and the ladder keeps its order
-   at every level.
+4. **Still a game.** At the base difficulty the forest expert (§4.0, refitted on the content) clears ~90% and the
+   calculator (§3: sound turns, no strategy, the novice's model) reaches floor 2 about half the time; at the top
+   difficulty the teacher clears ~60%, and the ladder keeps its order at every level.
 5. **A product.** A run saved and resumed; a clear in 75–90 minutes; a tutorial; the first unlocks; music.
 
 ## 3. The instruments
@@ -87,12 +87,13 @@ worth, the formation's static score and hill-climb, the draft's ranged rule, the
 combo book (`combos.json`, `--combos`: a hand prior for build targets) and the forests' δ margins over the hand
 choice. What stays is the **vocabulary**: the situation read, the option features, the conditions, the afterstate read,
 the out-of-battle reads (`outsideRead`, `prepRead`), the legal options and the candidate enumerators: a feature is a
-reading of the board, not a judgement. Two players remain above basic, and both are made from the content by one loop,
-so nothing judged by hand on old content survives a content change:
+reading of the board, not a judgement. Above the two weight-free players, two remain, both made from the content by one
+loop, so nothing judged by hand on old content survives a content change:
 
 | Player | What | s/run | Use |
 |---|---|---|---|
 | basic (`LEVELS.basic`) | End Turn with basics; the first offer; the default frontier | ~1 | the ladder's floor; content-agnostic |
+| **the calculator** (`calc.js`) | no weight: each piece's legal options read by `features` with `brink` and `peril` at 0, taken by [Monarch safe, material in HP at unit weight]; out of battle a fixed order (the highest tier, the most souls an essence, the rarest relic, the default frontier) | ~3 | the novice's model: sound turns, no strategy (§8: dead on floor 1 in 22 of 32 runs, 9.5 battles a run, against basic's 2.3) |
 | **the forest expert** (§4.0) | a random forest a decision, over every legal option, fitted on the teacher's playouts of the current content | ~5–10 | the fast loop; the balance pass's player; the ladder's middle |
 | **the teacher** | the forest's top candidates each played out exactly to the end (`teach.js --teacher` in battle, `outside.js` out of it), the best taken; never shipped | ~70 (out of battle) to ~200 (battle) | the ceiling; the forest's labels; the yardstick for viability |
 
@@ -112,6 +113,12 @@ so nothing judged by hand on old content survives a content change:
 - **Dropped:** forest rounds for their own sake (the old spec spent days on them for a few points as corrections; a
   round now is kept only where the ladder's rung moves on fresh seeds), and the 768-seed paired search over hand
   weights (there are none).
+- **Measured and rejected: search alone** (§8, the spike of 2026-10-15). The teacher over the calculator, with no
+  learnt player at all, cleared 0 of 12 seeds (mean progress 0.76 against the calculator's 0.20 on the same seeds;
+  136 s a run), where the outside teacher over the shipped expert cleared 63 of 64. Search amplifies a competent base;
+  it does not supply one. Its playouts continue with the base, so a line that needs the base to follow through (save
+  for a Shop, field a sixth piece, keep a recipe's parts) is never seen to pay. A learnt player is needed, and it must
+  be learnt from a teacher whose base already wins (§4.0's round 0).
 
 **The harness** (`autoplay.js`, Step 1): `--builds [--player forest|teacher] [--commit <archetype>|all] [--scale
 <difficulty>] [--runs n] [--seed s]`: an archetype is a node of the recipe graph (a fused kind) or a synergy, read
@@ -152,10 +159,10 @@ Now the forest **is** the choice, at every decision, and the teacher is its only
   decision played out to the battle's end; `outside.js --label` out of battle: every candidate to the run's end;
   `--draw state`, the floors' factors), the **continuation the forest expert itself**, so no label leans on a hand
   player. The target an option's value less its decision's mean; bagging by run; seeds ≡ 0 mod 5 held out.
-- **Rounds, by expert iteration.** Round 0 needs a continuation before any forest exists (§7.8): the recommended seed
-  is the shipped expert of f8c536f run once on the new content, deleted with its weights when round 1 beats it on
-  fresh seeds; the alternative is basic, content-agnostic but a weak continuation whose floor-1 playouts mostly lose,
-  so a round or two more. Round k: 300–500 runs of forest k (ε 0.1 over its top three), labelled with forest k as the
+- **Rounds, by expert iteration.** Round 0 needs a continuation before any forest exists (§7.8): the shipped expert
+  of f8c536f, run once on the content as it stands, deleted with its weights when round 1 beats it on fresh seeds.
+  Measured, not assumed (§8): a weight-free base makes a teacher that clears nothing, so its labels say only which line
+  loses later; the shipped expert's teacher clears nearly every seed, so its labels separate a clear from a loss. Round k: 300–500 runs of forest k (ε 0.1 over its top three), labelled with forest k as the
   continuation, forest k+1 fitted on every round's labels (the last two at full weight, older halved), kept only on a
   paired gain on 768 fresh seeds; the battle forest and the out-of-battle forests alternate rounds, as the old spec's
   did; 3–5 rounds, each about a night on four cores. The bar to pass before any content work is measured: the ladder's
@@ -169,8 +176,10 @@ Now the forest **is** the choice, at every decision, and the teacher is its only
 - **Risk, stated plainly**: a forest was never the whole player here. As corrections the forests realised a hundredth
   of the teacher's gain a decision, and a tree given free leaves lost 28 points. Expert iteration from a strong seed
   is the answer to that (the labels' continuation improves with the forest), and the bar above is the test; if three
-  rounds do not pass it, the fallback is the forest over a wider shortlist with the hard legality rules only, and
-  §7.8 is reopened.
+  rounds do not pass it, the fallback is the forest over the shipped expert's shortlist (its candidates kept, its
+  choice not), and the hand expert's deletion waits until a round passes.
+- **The calculator** (`calc.js`) is kept beside it, not as a seed but as the ladder's novice rung (§3) and as the
+  check that the game asks for strategy: if the calculator ever clears the base difficulty, the run needs no plan.
 
 ### 4.1 Fusions: a triple for every kind, and fusions of fusions
 
@@ -433,8 +442,9 @@ Recommended here, open until the user rules:
 7. **A trine counts once toward synergies**, as every piece does; the alternative counts it as its parts did (three),
    which makes the synergy at 4 a trine and a soul.
 8. **Round 0's continuation** (§4.0): the shipped expert of f8c536f, run once on the new content as scaffolding and
-   deleted when round 1 beats it (recommended: strong labels from the first night), or basic (nothing of the old
-   expert touches the labels, at the price of a round or two more and a weaker first teacher).
+   deleted when round 1 beats it. Measured on 2026-10-15 (§8): the weight-free alternatives make a teacher that
+   clears nothing (the calculator's, 0 of 12), so the old expert is the only seed whose labels tell a clear from a
+   loss. Recommended; the user to confirm, since it keeps the old expert alive until round 1.
 9. **The combo book goes with the hand expert**; archetypes and the forests' build reads come from the recipe graph
    and the synergies (§3, §4.0). The alternative keeps the book as a read-only prior feature; recommended against,
    since its weights were chosen by hand on the old content.
@@ -444,6 +454,43 @@ Recommended here, open until the user rules:
 ## 8. Record
 
 Each step appends here: the date, the seeds, the paired numbers, what was kept. The baseline is §5.
+
+### The spike: search alone (2026-10-15)
+
+**The question**: whether the autoplayer could be search alone (a weight-free player, and the teacher's playouts over
+it) with no learnt player, so that nothing need be fitted or refitted when content moves.
+
+**Built** (`src/sim/calc.js`; `node src/sim/calc.js [--teacher] --seed aud --from 0 --runs n`): the calculator (§3),
+and a rollout teacher over it in `calcRun`, the outside teacher's method (outside.js) without its ties to the hand
+expert: at each decision out of battle with two candidates or more (the draft; a map step's purchases and rooms
+together, so "stop spending" is a room; the recruit; the Shop; the holds), at most six of the calculator's candidates,
+its own first, each played on a copy to the run's end by the calculator, the first that clears taken, else the
+furthest; each fight a playout opens kept by the board's hash with where it led. Battles are the calculator's. No
+fusion in battle; prep the calculator's (the strongest standing up to Command on `frontier`).
+
+**Measured** (the content of f8c536f, the draft on, seeds `aud-*`, four cores):
+
+| | Seeds | Clears | Died on floor 1 / 2 / 3 / 4 | Mean progress | Battles a run | s/run |
+|---|---|---|---|---|---|---|
+| basic (§5) | aud-0…39 | 0 | 40 / – / – / – | | 2.3 | ~1 |
+| **the calculator** | aud-0…31 | **0** | 22 / 9 / 1 / 0 | 0.17 | 9.5 | 2.8 |
+| **the teacher over it** | aud-0…11 | **0** | 0 / 2 / 4 / 6 | **0.76** (paired: the calculator 0.20) | 37 | 136 |
+| the shipped expert (§5) | aud-0…59 | 39 / 60 | 12 / 1 / 1 / 7 | | 39.9 | 9.3 |
+| the outside teacher over the shipped expert (old spec, 2026-10-12) | sim-0…63 | 63 / 64 | | 0.99 | | 67 |
+
+The teacher overrode the calculator in ~8 of ~90 decisions a run, 300–460 playouts, and every one of its 12 runs
+lost, six of them on floor 4 (two at 0.95 and 0.98, in sight of the Sovereign). The 64 seeds planned were cut at 12
+once every seed had lost and the gap to the bar (65%) was plain.
+
+**Why**: the calculator's field never grows past three. It spends each essence on tiers as soon as it may, never
+saves for a Shop's Command relics (the expert fields six to eight), and the teacher cannot find that line, because
+every playout from a "walk to the Shop" goes on with the same spender. Its battles run 42 turns on average (the
+expert's 6): it never walks into reach, so the camp waits out its patience; a Hive Drone against three melee pieces
+stalled one battle to the guard. What a playout continues with decides what search can see.
+
+**Kept**: `calc.js` as the novice rung of the ladder (§3; criterion 4) and as the check that the run asks for
+strategy. **Decided by it**: search alone rejected (§3); round 0 seeded by the shipped expert (§4.0, §7.8). Not built:
+a calculator good enough to seed (saving, Command, a formation) would be hand rules of what to do, which §9 forbids.
 
 ## 9. Standing rules
 
