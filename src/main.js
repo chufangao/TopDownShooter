@@ -533,9 +533,12 @@ function reap (index) {
 // it, then fades into it with everyone where they stood (board.leave), and the battle skips its own fade in; entered
 // from the Map, the battle fades in on its own. A lost battle ends on a replay beat of what felled the Monarch
 // (engine.js finish), the facts the end screen keeps. `resume`: a saved run's battle under way (resume), its scene
-// built from the battle's start with every order since played again at once, out of sight (engine.js `resume`).
+// built from the battle's start with every order since played again at once, out of sight (engine.js `resume`). A
+// scene that outlives its run (the run ended behind it, then a New run or the title) speaks to none: an order it gives
+// is refused, and its end, a late skip, leaves the screen to the run in play.
 async function fight ({ resume = false } = {}) {
   const node = currentNode(run)
+  const ours = run
   // The fight first: refused, the Field's board is never left glided half out.
   if (!resume) play({ type: 'fight' })
   const handoff = resume ? null : board.leave()
@@ -550,7 +553,10 @@ async function fight ({ resume = false } = {}) {
   if (s.tutorial) bestiary.record(battle.units.filter((u) => u.side === 'foe').map((u) => u.id))
   const scene = await engine.battle({
     battle,
-    order: (o) => play(o),
+    order: (o) => {
+      if (run !== ours) throw new Error('its run is over')
+      return play(o)
+    },
     hud: bar.hud,
     stage: bar.stage,
     seamless: !!handoff,
@@ -601,6 +607,7 @@ async function fight ({ resume = false } = {}) {
       tip(at, () => unitCard(u, { stats: stats(battle, battle.byUid.get(u.uid) ?? u), statuses: u.statuses, foe, realm, run, live }))
     },
     onDone: () => {
+      if (run !== ours) return
       // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).
       if (!scene?.ending) sfx.play(battle.winner === 'party' ? 'win' : 'lose')
       // Every foe kind that took the field is met: its reach and its way are told from now on (the bestiary).

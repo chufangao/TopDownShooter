@@ -58,7 +58,7 @@
 // The target (a row a candidate of a decision): its playout's value less the mean of its decision's candidates'
 // (`target` 'mean', the centred value R, as the battle forest's) or less today's pick's (`target` 'today'), clipped.
 // Bagged by whole runs (a run's decisions are correlated, and their playouts chaotic), out-of-bag estimates; seeds ≡ 0
-// mod 5 held out, never fitted (forest.js splitOf).
+// mod 5 held out, never fitted (forestfit.js splitOf).
 //
 // Shipped as outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend?, prep? } }, each phase's
 // forest { inputs, target, delta, size, feat, thr, right, value, made } in forest.json's shape (forest.js compileTrees
@@ -148,7 +148,8 @@
 // not kept. Nor a forest fitted on P1 and P2 without the opening boards' inputs (`--without s.o.,f.o.,vs.o.`: it makes
 // no board in play, opensBoard, a prep's read 0.8 ms against 3.2): against round 1 on 768 fresh seeds `chk11p`, clears
 // 78.0% against 79.6% (+30 −42), progress −1.39 ± 0.62, at 4.59 s a run against 4.84.
-import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS, splitOf, mulberry } from './forest.js'
+import { compileTrees, treesMean, TARGETS } from './forest.js'
+import { cutsOf, binOf, growTree, growTrees, leafOn, shared, splitOf, mulberry } from './forestfit.js'
 import { shippedPart } from './expert.js'
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
@@ -387,7 +388,7 @@ async function * decisionsOf (dirs, phase) {
   }
 }
 
-// The decisions of `phase` of label sets `dirs` read into one table for fitting (forest.js readTable's shape): a row a
+// The decisions of `phase` of label sets `dirs` read into one table for fitting (forestfit.js readTable's shape): a row a
 // candidate (today's pick first), its inputs cut into at most `bins` bins (cutsOf, on a reservoir of `sample` rows) and
 // stored by column (shared memory, for the workers); per row its value; per decision its first row, run, split, draw
 // weight, and the key of its run. → the table

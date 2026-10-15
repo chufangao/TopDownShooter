@@ -150,11 +150,11 @@ route, prep, battle, and the recruit where none of its kinds is offered stay the
 runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the
 final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3, and the altars'
 rites taken and the runs whose leading kin or fused kind turned after floor 1. `--ascension` plays them at a level of
-the ladder (any report takes it: `npm run sim -- --ascension 5`), `--monarch <id>` as a Monarch (content.js
-`MONARCHS`; the base one by default); `--scale` multiplies every foe's HP and ATK on top of
-it, an override for probing. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
-and an elite's draws by kind, the battles on a walk offering each kind and the draft's picks, and each recipe's reach
-by the end of floor 2 (criterion 1).
+the ladder (any report takes it: `npm run sim -- --ascension 5`, and the teachers, `npm run teach` and `npm run
+outside`, but the latter's labels), `--monarch <id>` as a Monarch (content.js `MONARCHS`; the base one by default;
+the same); `--scale` multiplies every foe's HP and ATK on top of it, an override for probing. `--pool` reads
+`spawnPool` and the floors as drawn: each floor's share of a fight's and an elite's draws by kind, the battles on a
+walk offering each kind and the draft's picks, and each recipe's reach by the end of floor 2 (criterion 1).
 
 ## Code map
 
@@ -163,10 +163,11 @@ by the end of floor 2 (criterion 1).
   roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`; the
   tutorial's run, `tutorialRun`); `save.js` a run saved (its createRun options and its log) and played back; `history.js`
   the runs kept (a run's line, the book of them, read as far as it holds) and the daily's seed; `map.js`
-  the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
-  their fitting; `forest.js` holds the label rows' encoding the forests read); `autoplay.js` the players and CLI;
-  `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers), `fit.js` (the
-  learned route's fit), `calc.js` (the calculator, a weight-free player and the novice rung, and a rollout teacher
+  the floors; `expert.js` the decision tree and weights; `forest.js` the battle forest as play reads it (the label
+  rows' encoding and the trees' evaluation, which `outforest.js`'s forests out of battle share); `autoplay.js` the
+  players and CLI; `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers),
+  `forestfit.js` (the battle forest's fitting), `outforest.js` (the forests out of battle and their fitting), `fit.js`
+  (the learned route's fit), `calc.js` (the calculator, a weight-free player and the novice rung, and a rollout teacher
   over it: redesign.md §3, §8). The earlier learners (V, the ranker), the stronger battle teacher and the turn's beam
   were removed on 2026-10-15 (redesign.md §8).
 - `src/content.js` is all content as records, one per unit, ability and relic, and the one rule that makes the trines

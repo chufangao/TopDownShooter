@@ -21,7 +21,7 @@
     "teach": "node src/sim/teach.js",
     "outside": "node src/sim/outside.js",
     "fit": "node src/sim/fit.js",
-    "forest": "node src/sim/forest.js",
+    "forest": "node src/sim/forestfit.js",
     "outforest": "node src/sim/outforest.js",
     "bundle": "node src/sim/bundle.js"
   },

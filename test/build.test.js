@@ -44,9 +44,14 @@ test('the build ships what the page loads: its stylesheets and what they name, t
   assert.ok(has.has('src/assets/fonts/OFL.txt'), 'the font\'s licence with it')
 })
 
-test('the build never ships the offline tools, the expert\'s file, the tests, press/ or the docs', () => {
-  for (const f of ['src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/outforest.js', 'src/sim/expert.json', 'src/sim/autoplay.js', 'src/sim/calc.js']) {
+test('the build never ships the offline tools (the forest\'s fitting among them), the expert\'s file, the tests, press/ or the docs', () => {
+  for (const f of ['src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/expert.json', 'src/sim/autoplay.js', 'src/sim/calc.js']) {
     assert.ok(OFFLINE.includes(f) && !has.has(f), f)
+  }
+  // The battle forest as play reads it, never its fitting: no module shipped grows a tree, bins a column or reads a label.
+  assert.ok(has.has('src/sim/forest.js'))
+  for (const f of files.filter((f) => f.endsWith('.js') && !f.includes('vendor/'))) {
+    assert.ok(!/\bfunction\s*\*?\s*(growTrees?|fitForest|readTable|cutsOf|linesOf|decisionsOf)\b/.test(readFileSync(join(root, f), 'utf8')), f)
   }
   assert.ok(!files.some((f) => /^(test|press|dist)\/|\.md$|^(package\.json|serve\.js|build\.js)$/.test(f)), files.filter((f) => /^(test|press)\//.test(f)).join())
   // A game module that reached an offline tool would fail the build.

@@ -66,7 +66,7 @@
 // with a decision passed, or a formation given) would let them go.
 //
 //   npm run outside -- [--runs 64] [--seed sim] [--from 0] [--workers 2] [--out dir] [--phases prep,spend,recruit,shop,hold,altar]
-//                      [--cap 6] [--rooms 0] [--prep battle|run] [--won] [--ascension 0] [--report-only]
+//                      [--cap 6] [--rooms 0] [--prep battle|run] [--won] [--ascension 0] [--monarch <id>] [--report-only]
 // plays seeds `<seed>-<from>`…`<seed>-<from + runs − 1>` (sim-0…sim-63 by default), each by the outside teacher (out of
 // battle; the base in battle) and by the expert as it ships (teach.js expertRun: autoplay.js record), paired (teach.js
 // pairedReport, and how often the teacher overrode the base, by phase). runs.jsonl in `--out` (the OS's temp directory,
@@ -103,19 +103,19 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  apply, availableNodes, currentNode, canPlace, canHold, canBuy, relicPrice, unheld, souls, fielded, inOssuary, isMonarch, soulCount,
-  rosterCap, OSSUARY, ascensionTop
+  apply, availableNodes, currentNode, canPlace, canHold, canBuy, relicPrice, unheld, souls, fielded, isMonarch, soulCount, rosterCap, OSSUARY,
+  ascensionTop, BASE_MONARCH
 } from './run.js'
 import { createRng, hashString } from './rng.js'
 import {
-  LEVELS, policy, survey, planFor, plan, pickRoute, pickHold, grow, spendOptions, fusionOptions,
-  pickReap, weighRecruits, buyFor, growthOf, sketch, saving, nextTier, held, tierRate, offerState, targetOf, targetKinds, byFieldPower,
+  LEVELS, policy, survey, planFor, plan, pickRoute, pickHold, pickReap, buyFor, growthOf, sketch, held, tierRate, offerState,
   progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, outCandidates, spendPick, recruitPick, outsideRead,
-  prepCandidates, prepRead, formationName, PREP_CAP, pickDraft, pickAltar, altarCandidates
+  prepCandidates, prepRead, formationName, PREP_CAP, pickDraft, pickAltar, altarCandidates, asMonarch, monarchArg
 } from './autoplay.js'
 import { outForestModel, outDecides } from './outforest.js'
 import { value, expertModel } from './expert.js'
-import { forestModel, splitOf } from './forest.js'
+import { forestModel } from './forest.js'
+import { splitOf } from './forestfit.js'
 import {
   routeEndValue, routeEndOf, routeValue, ROUTE_END_WEIGHTS, ROUTE_WEIGHTS, endTally, endValue, END_WEIGHTS, expertRun, pairedReport, closeOf
 } from './teach.js'
@@ -124,11 +124,11 @@ import { TUNING } from '../tuning.js'
 // The decisions it may make (`phases`), and its defaults: `cap` candidates a decision at most, the base's pick among
 // them; `rooms` 0 to the run's end (else that many rooms on); `prep` 'battle' (a formation judged by its coming battle) or
 // 'run' (to the run's end, as the rest); `won` false (true: a cleared run is enough, see the head of this file);
-// `ascension` 0, the level of the ascension ladder its runs are played at (run.js createRun's; the labels below are the
-// refit's, at the base game).
+// `ascension` 0, the level of the ascension ladder its runs are played at, and `monarch` the base one, who plays them
+// (run.js createRun's; the labels below are the refit's, at the base game as the base Monarch).
 export const PHASES = Object.freeze(['prep', 'spend', 'recruit', 'shop', 'hold', 'altar'])
 export const PREPS = Object.freeze(['battle', 'run'])
-export const DEFAULTS = Object.freeze({ phases: PHASES, cap: 6, rooms: 0, prep: 'battle', won: false, ascension: 0 })
+export const DEFAULTS = Object.freeze({ phases: PHASES, cap: 6, rooms: 0, prep: 'battle', won: false, ascension: 0, monarch: BASE_MONARCH })
 const L = LEVELS.expert
 const EPS = 1e-9
 const r6 = (x) => Math.round(x * 1e6) / 1e6
@@ -142,7 +142,7 @@ export function configOf (cfg = {}) {
   if (!(Number.isInteger(c.rooms) && c.rooms >= 0)) throw new Error(`rooms ${c.rooms}: a whole number, 0 for the run's end`)
   if (!PREPS.includes(c.prep)) throw new Error(`prep ${c.prep}: one of ${PREPS.join(', ')}`)
   if (!(Number.isInteger(c.ascension) && c.ascension >= 0 && c.ascension <= ascensionTop())) throw new Error(`ascension ${c.ascension}: a level from 0 to ${ascensionTop()}`)
-  return { ...c, won: !!c.won && !(c.rooms > 0), phases: new Set(phases) }
+  return { ...c, won: !!c.won && !(c.rooms > 0), phases: new Set(phases), monarch: monarchArg(c.monarch) }
 }
 
 // ── the base's dispatch out of battle (mirrors autoplay.js policy) ─────────────────────────────────
@@ -580,7 +580,7 @@ const baseOf = () => ({ expert: expertModel()?.name ?? null, forest: forestModel
 export function outsideRun (seed, cfg = {}) {
   const c = configOf(cfg)
   const t0 = performance.now()
-  const run = ablatedRun(seed, null, null, { ascension: c.ascension })
+  const run = ablatedRun(seed, null, null, { ascension: c.ascension, monarch: c.monarch })
   const rng = createRng(run.state.seed).stream('autoplay')
   let won = 0
   let fought = 0
@@ -613,7 +613,9 @@ export function outsideRun (seed, cfg = {}) {
 }
 
 // The settings a run's line and the manifest record.
-const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap: c.cap, rooms: c.rooms, prep: c.prep, ...(c.won && { won: true }), ...(c.ascension && { ascension: c.ascension }) })
+const settingsOf = (c) => ({
+  phases: PHASES.filter((p) => c.phases.has(p)), cap: c.cap, rooms: c.rooms, prep: c.prep, ...(c.won && { won: true }), ...(c.ascension && { ascension: c.ascension }), ...asMonarch(c.monarch)
+})
 
 // ── labels for the forest out of battle (outforest.js, redesign.md §2.25) ─────────────────────────
 
@@ -933,7 +935,7 @@ export function outsideLines (rep) {
 
 // A worker's job: a run by the outside teacher, by the expert as it ships, labelled, or a labelled run's rows read
 // again ({ seed, player, rows? }).
-const job = (j, cfg) => (j.player === 'label' ? labelRun(j.seed, cfg) : j.player === 'reread' ? rereadRun(j.seed, j.rows, cfg.cap, cfg.formations) : j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed, { ascension: cfg.ascension ?? 0 }))
+const job = (j, cfg) => (j.player === 'label' ? labelRun(j.seed, cfg) : j.player === 'reread' ? rereadRun(j.seed, j.rows, cfg.cap, cfg.formations) : j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed, { ascension: cfg.ascension ?? 0, ...asMonarch(cfg.monarch) }))
 
 // Runs `jobs` in worker threads of this module, `workers` at a time, handing each result to `done` as it ends.
 async function pool (jobs, workers, cfg, done) {
@@ -975,6 +977,9 @@ async function main () {
     const i = process.argv.indexOf('--' + name)
     return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
   }
+  // The labels and their reads again are the refit's, at the base game as the base Monarch: neither takes another.
+  const labels = process.argv.includes('--label') || arg('reread', null)
+  if (labels && (Number(arg('ascension', 0)) !== 0 || arg('monarch', BASE_MONARCH) !== BASE_MONARCH)) throw new Error('--label and --reread: the base game as the base Monarch, no --ascension or --monarch')
   if (process.argv.includes('--label')) return labelMain(arg)
   if (arg('reread', null)) return rereadMain(arg)
   const seed = arg('seed', 'sim')
@@ -982,7 +987,7 @@ async function main () {
   const from = Number(arg('from', 0))
   const workers = Number(arg('workers', 2))
   const dir = arg('out', path.join(os.tmpdir(), `retinue-outside-${seed}`))
-  const c = configOf({ phases: arg('phases', PHASES.join(',')), cap: Number(arg('cap', DEFAULTS.cap)), rooms: Number(arg('rooms', DEFAULTS.rooms)), prep: arg('prep', DEFAULTS.prep), won: process.argv.includes('--won'), ascension: Number(arg('ascension', 0)) })
+  const c = configOf({ phases: arg('phases', PHASES.join(',')), cap: Number(arg('cap', DEFAULTS.cap)), rooms: Number(arg('rooms', DEFAULTS.rooms)), prep: arg('prep', DEFAULTS.prep), won: process.argv.includes('--won'), ascension: Number(arg('ascension', 0)), monarch: arg('monarch', BASE_MONARCH) })
   const settings = settingsOf(c)
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
   fs.mkdirSync(dir, { recursive: true })

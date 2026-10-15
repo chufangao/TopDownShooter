@@ -32,7 +32,7 @@
 //            else each free tier first (in the purchases' order, as if the purse paid) and then the heal; the
 //            transmutations last
 import { createRun, apply, availableNodes, currentNode, souls, fielded, fieldCap, canFuse, fuseParts, tierCost, heldKinds, canAdvance,
-  canTake, canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, altarActions, OSSUARY } from './run.js'
+  canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, altarActions } from './run.js'
 import { fork, orderable, stalled, order } from './turns.js'
 import { situation, features, options, untouchedOrders } from './policy.js'
 import { prepStep } from './outside.js'

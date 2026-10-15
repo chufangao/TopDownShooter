@@ -18,7 +18,7 @@ import { tuned, relicMod } from './tuned.js'
 import { RELIC_LIST, RELICS } from '../src/content.js'
 import { makeUnit, alive, baseStats, footprint } from '../src/sim/unit.js'
 import { on, scene as sceneOf, slay, unit, turns } from './scene.js'
-import { visit, win, fight } from './rooms.js'
+import { visit, win } from './rooms.js'
 
 // Legion's mods on your souls (its Command is the run's: run.js RUN_PATHS).
 const LEGION = RELICS.legion.mods.filter((m) => !isRunPath(m.path))

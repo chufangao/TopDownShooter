@@ -1,17 +1,19 @@
 // The forest (src/sim/forest.js; redesign.md §2.23's correction as regression trees): trees that may overrule today's
 // choice of a piece where they read another option the better by more than their margin; their inputs read alike from a
-// label row and in play (the rows' encoding, as §2.23's ranker read them, and teach.js's afterstates), their fitting,
-// forest.json's shape, and the measurement's plumbing (autoplay.js withForest, record's `forest`, playerOf,
-// pairedStats; teach.js's install). Functional only: what a forest decides and how it is read, never how often it wins.
+// label row and in play (the rows' encoding, as §2.23's ranker read them, and teach.js's afterstates), their fitting
+// (src/sim/forestfit.js), forest.json's shape, and the measurement's plumbing (autoplay.js withForest, record's
+// `forest`, playerOf, pairedStats; teach.js's install). Functional only: what a forest decides and how it is read, never
+// how often it wins.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
-  useForest, forestModel, checkForest, inputNames, INPUT_SETS, encodeAgainst, playOf, rowOf, predict, predictor, readDecision, readTable, fitForest,
-  growTree, readsAfter, FIT, meanOf, rowView, playView, encode, rowAfter, afterNames, mulberry
+  useForest, forestModel, checkForest, inputNames, INPUT_SETS, encodeAgainst, playOf, rowOf, predict, predictor, readsAfter, meanOf, rowView, playView,
+  encode, rowAfter, afterNames
 } from '../src/sim/forest.js'
+import { readDecision, readTable, fitForest, growTree, FIT, mulberry } from '../src/sim/forestfit.js'
 import { expertTurn, situation, expertOptions, features, conditions, rankerView, afterOf, OPTION_FEATURES } from '../src/sim/policy.js'
 import { teachRun, teacherRun, labelPosition, signature, optionsAt, augmentRun } from '../src/sim/teach.js'
 import { readPlan } from '../src/sim/plan.js'
