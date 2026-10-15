@@ -111,8 +111,8 @@ npm run sim -- [--runs 8] [--seed sim] [--level expert] [--ablate orders]   # a 
 npm run ladder -- [--ascension 0|<a,b,…>|all] [--teacher] [--runs 8]
                       # the rungs (basic, the calculator, the expert; the outside teacher by --teacher) on the same
                       # seeds at each level of the ascension ladder, and the gaps between them
-npm run builds -- [--player expert|teacher] [--commit <archetype>|all|fused|synergies] [--ascension 0] [--scale 1] [--runs 256] [--seed div]
-                      # the harness: free play and each build committed, on the same seeds
+npm run builds -- [--player expert|teacher] [--commit <archetype>|all|fused|synergies] [--strict] [--ascension 0] [--scale 1] [--runs 256] [--seed div]
+                      # the harness: free play and each build committed, on the same seeds (--strict: held to it)
 npm run pool          # what a run can gather: each floor's draws, the battles offering each kind, each recipe's reach
 npm run ablations     # how much each mechanic carries the expert (--variants a,b to choose)
 npm run necessity     # the same as a fast battle-level proxy
@@ -132,6 +132,13 @@ Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a b
 The harness (redesign.md §3) measures the builds. An archetype is a fused kind or a synergy, as content makes them; a
 run committed to one reads the book's combos for it alone (those that fuse it, or reach its kin's or role's count), so
 its draft, recruits, purchases and route follow it, and so do the outside teacher's candidates (`--player teacher`).
+That is a nudge: the expert still buys what its sketch rates strongest. `--strict` holds a committed run to its
+archetype as an ablation holds a run from a mechanic, a harness rule over the frozen expert and never the default: its
+kinds (a fused kind's recipe graph, or every kind of a synergy's kin or role) are drafted and recruited where offered
+(a recruit taken whatever keeping would while the archetype is short of that kind), a soul let go is never of them
+while another will do, no fusion is made outside its recipes (a synergy's: those whose result is of its kin or role),
+in battle or out, and no transmutation turns one of its souls into another kind; the Shop, the altar's other rites, the
+route, prep, battle, and the recruit where none of its kinds is offered stay the expert's (or the teacher's).
 `--builds` prints a row an archetype: clears, progress against free play seed for seed, deaths by floor, the margin
 (the Monarch's and its pieces' HP as the last battle ended, essence left, battles lost, turns a battle), and how many
 runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the

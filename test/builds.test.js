@@ -4,13 +4,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  ARCHETYPES, archetypeCombos, recipesOf, synergyOf, useCommit, withCommit, commitOf, targetOf, survey, BOOK, policy, autoplay, record,
-  buildRecord, buildJobs, commitsOf, buildRow, buildLines, diversity, diversityChecks, diversityLines, reachedAt, poolTable, poolLines,
-  floorOf, visits, LEVELS, altarRites, pivots
+  ARCHETYPES, archetypeCombos, recipesOf, synergyOf, useCommit, withCommit, commitOf, isStrict, strictOf, targetOf, survey, BOOK, policy, autoplay,
+  record, buildRecord, buildJobs, commitsOf, buildRow, buildLines, diversity, diversityChecks, diversityLines, reachedAt, poolTable, poolLines,
+  floorOf, visits, LEVELS, altarRites, pivots, fusionOptions, altarOptions
 } from '../src/sim/autoplay.js'
-import { createRun, apply, battleSetup, foeMods, draftPool } from '../src/sim/run.js'
-import { FUSION_LIST, SYNERGIES, UNIT_LIST, fusionDef } from '../src/content.js'
+import { createRun, apply, battleSetup, foeMods, draftPool, join, souls, transmuteOffer } from '../src/sim/run.js'
+import { expertOptions } from '../src/sim/policy.js'
+import { FUSION_LIST, SYNERGIES, UNIT_LIST, fusionDef, unitDef } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
+import { on, scene, unit } from './scene.js'
 
 test('the archetypes come from content: every fused kind and every synergy, each with its combos in the book', () => {
   const all = ARCHETYPES()
@@ -74,6 +76,55 @@ test('a committed run plays toward its archetype alone: every target it reads is
   const other = ARCHETYPES().find((a) => !archetypeCombos(a).includes(free))
   const t = withCommit(other, () => targetOf(run.state))
   assert.ok(t === null || (t !== free && archetypeCombos(other).includes(t)))
+})
+
+test('the strict commitment: its kinds drafted and recruited where offered, its recipes alone fused, none transmuted away', () => {
+  // Its kinds and recipes: a fused kind's graph; a synergy's kin or role.
+  const court = strictOf('winter_court')
+  assert.deepEqual([...court.kinds].sort(), ['frost_sprite', 'pale_court', 'trine:frost_sprite', 'will_o_wisp', 'winter_court'])
+  assert.deepEqual([...court.recipes].sort(), ['pale_court', 'trine:frost_sprite', 'winter_court'])
+  const constructs = strictOf('construct_4')
+  assert.ok([...constructs.kinds].every((id) => unitDef(id).kin === 'construct') && constructs.kinds.has('clockwork_page') && constructs.kinds.has('trine:clockwork_page'))
+  assert.ok([...constructs.recipes].every((id) => unitDef(fusionDef(id).result).kin === 'construct') && constructs.recipes.has('clockwork_titan'))
+  assert.equal(constructs.need, 4)
+  // Out of battle: a fusion of another recipe is not offered; in battle, the expert's fuse passes its recipes alone.
+  const run = createRun({ seed: 'strict', start: ['will_o_wisp', 'will_o_wisp', 'will_o_wisp', 'frost_sprite', 'frost_sprite', 'frost_sprite'] })
+  run.state.essence = 1e4
+  const free = fusionOptions(run, LEVELS.expert).map((a) => a.id).sort()
+  assert.deepEqual(free, ['pale_court', 'trine:frost_sprite', 'trine:will_o_wisp'].filter((id) => FUSION_LIST.some((r) => r.id === id)))
+  assert.deepEqual(withCommit('pale_court', () => fusionOptions(run, LEVELS.expert).map((a) => a.id), true), ['pale_court'])
+  assert.deepEqual(withCommit('pale_court', () => fusionOptions(run, LEVELS.expert).map((a) => a.id).sort()), free, 'the soft commitment fuses as free play')
+  const sprites = [1, 2, 3].map((uid, i) => on('frost_sprite', uid, 'party', 2 + i, 3))
+  const b = scene([...sprites, on('iron_golem', 9, 'foe', 6, 10, 20)], { essence: 100, fuse: { 'trine:frost_sprite': { price: 20, lvl: 2, tracks: [0, 0] } } })
+  assert.ok(expertOptions(b, unit(b, 2)).some((o) => o.fusion?.id === 'trine:frost_sprite'))
+  assert.ok(!expertOptions(b, unit(b, 2), { fuse: (id) => strictOf('pale_court').recipes.has(id) }).some((o) => o.fusion))
+  // A whole run held to each: every pick and recruit of its kinds where one is offered, every fusion and transmutation
+  // within them; its commitment put back after.
+  for (const arch of ['pale_court', 'undead_4']) {
+    const st = strictOf(arch)
+    let held = 0
+    withCommit(arch, () => {
+      assert.ok(isStrict())
+      const r = createRun({ seed: 'sim-10' })
+      autoplay(r, {
+        act: (x, rng) => {
+          const s = x.state
+          const a = policy(x, rng, 'expert')
+          if (s.phase === 'draft' && s.draft.offer.some((id) => st.kinds.has(id))) { assert.ok(st.kinds.has(s.draft.offer[a.index]), `${arch}: drafted ${s.draft.offer[a.index]}`); held++ }
+          if (s.phase === 'reap' && a.type === 'reap' && a.index !== null && s.offers.some((o) => o.cost <= s.essence && st.kinds.has(o.id))) { assert.ok(st.kinds.has(s.offers[a.index].id), `${arch}: recruited ${s.offers[a.index].id}`); held++ }
+          if (a.type === 'release') assert.ok(!st.kinds.has(s.party.find((u) => u.uid === a.uid).id) || souls(s.party).every((u) => st.kinds.has(u.id) || u.slot >= 0))
+          if (a.type === 'fuse') assert.ok(st.recipes.has(a.id), `${arch}: fused ${a.id}`)
+          if (s.phase === 'altar') for (const o of altarOptions(x, LEVELS.expert)) if (o.type === 'transmute') assert.ok(!st.kinds.has(s.party.find((u) => u.uid === o.uid).id) || st.kinds.has(transmuteOffer(s, s.party.find((u) => u.uid === o.uid).id)[o.index]))
+          return a
+        }
+      })
+    }, true)
+    assert.ok(held > 0, `${arch}: never offered`)
+    assert.ok(!isStrict() && commitOf() === null)
+  }
+  // The harness's jobs: the committed ones strict, free play not; a record says it.
+  const jobs = buildJobs({ commits: ['pale_court'], strict: true, runs: 2, seed: 'j' })
+  assert.deepEqual(jobs.map((j) => !!j.strict), [false, false, true, true])
 })
 
 test('a run at a scale: its foes\' HP and ATK × it in every battle, and no field at 1', () => {

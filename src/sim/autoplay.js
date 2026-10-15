@@ -42,7 +42,7 @@
 // or the expert's combo book, ranked by its static formula and written to src/sim/combos.json (rerun when content or
 // numbers change):  … --combos  (npm run combos)
 // or the harness, each archetype committed against free play on the same seeds, and free play's diversity (redesign.md
-// §3):  … --builds [--player expert|teacher] [--commit <archetype>|all] [--ascension 0] [--scale 1] [--runs 256] [--seed div]; or what a
+// §3):  … --builds [--player expert|teacher] [--commit <archetype>|all] [--strict] [--ascension 0] [--scale 1] [--runs 256] [--seed div]; or what a
 // run can gather, floor by floor:  … --pool  (npm run builds, npm run pool; the harness's section says more)
 // (--decisions and --necessity refight recorded battles to measure them: they decide nothing.)
 import fs from 'node:fs'
@@ -90,7 +90,8 @@ export const LEVELS = {
 // (expertTurn's `note`, the audit's).
 const TURNS = {
   basic: basicTurn,
-  expert: (b, o) => expertTurn(b, o),
+  // (under the harness's strict commitment, its recipes alone fused: battleFuse)
+  expert: (b, o) => expertTurn(b, battleFuse() === true ? o : { ...o, fuse: battleFuse() }),
   unfused: (b, o) => expertTurn(b, { ...o, fuse: false }),
   still: (b, o) => expertTurn(b, { ...o, moving: false })
 }
@@ -1264,7 +1265,7 @@ export function spendOptions (run, L) {
 // level that never fuses (basic) or under the fusions ablation.
 export function fusionOptions (run, L) {
   if (!L.fuse || L.ablate === 'fusions') return []
-  return FUSION_LIST.filter((r) => canFuse(run, r.id)).map((r) => ({ type: 'fuse', id: r.id, parts: fuseParts(run, r.id) }))
+  return FUSION_LIST.filter((r) => canFuse(run, r.id) && mayFuse(r.id)).map((r) => ({ type: 'fuse', id: r.id, parts: fuseParts(run, r.id) }))
 }
 
 // Basic's essence goes to the kinds that will fight (those of the strongest standing souls): the lowest of them (by
@@ -1575,23 +1576,120 @@ export function archetypeCombos (arch, combos = BOOK.combos) {
 // alone (bookValue, targetOf), so its draft, recruits, purchases and route, and the outside teacher's candidates
 // (spendCandidates, recruitCandidates: the same sketch), all follow it. Set for the job a worker plays, as the forests are.
 let COMMIT = null
-export function useCommit (arch) {
+export function useCommit (arch, { strict = false } = {}) {
   const combos = arch ? archetypeCombos(arch) : null
   if (arch && !combos.length) throw new Error(`archetype "${arch}" has no combo in the book (npm run combos)`)
-  COMMIT = arch ? { arch, combos } : null
+  COMMIT = arch ? { arch, combos, ...(strict && { strict: strictOf(arch) }) } : null
 }
 export const commitOf = () => COMMIT?.arch ?? null
-// `fn()` committed to `arch` (null: free play), the commitment before it put back after; undefined: as it is. → what
-// fn returns
-export function withCommit (arch, fn) {
+// Whether the commitment in use is the strict one (useCommit's `strict`).
+export const isStrict = () => !!COMMIT?.strict
+// `fn()` committed to `arch` (null: free play), strictly with `strict`, the commitment before it put back after;
+// undefined: as it is. → what fn returns
+export function withCommit (arch, fn, strict = false) {
   if (arch === undefined) return fn()
-  const before = commitOf()
-  useCommit(arch)
+  const before = COMMIT
+  useCommit(arch, { strict })
   try {
     return fn()
   } finally {
-    useCommit(before)
+    COMMIT = before
   }
+}
+
+// The strict commitment (--builds --strict; redesign.md §8, the balance pass): a committed run held to its archetype
+// as an ablation holds a run from a mechanic, a rule of the harness over the frozen expert, beside the plan's own soft
+// commitment (the book alone, above), which it keeps. Its kinds (`kinds`): a fused kind's, every kind of its recipe
+// graph (recipesOf: the parts and the fused kinds between); a synergy's, every kind a run can hold of its kin or role.
+// Its recipes (`recipes`): a fused kind's, its graph's; a synergy's, those whose result is of its kin or role. Then:
+// the draft takes one of its kinds where a pick offers one (pickDraft: the expert's pick among them); a recruit is one
+// of its kinds where the spoils offer one the purse affords, taken while the archetype is short of it (strictRecruit:
+// the most the sketch gains of them, whatever keeping would), else the expert's choice among them or none; a soul let
+// go to make room is never of its kinds while another will do; no fusion is made out of its recipes (fusionOptions,
+// completes, and in battle expertTurn's `fuse`); no transmutation turns a soul of its kinds into another kind
+// (altarOptions). Everything else is the expert's: the Shop, the altar's other rites, the route, prep and battle; and
+// where no kind of it is offered, the recruit.
+export function strictOf (arch) {
+  const syn = synergyOf(arch)
+  const ofAxis = (u) => Object.entries(syn.needs).every(([axis, need]) => need[u[axis]] !== undefined)
+  const kinds = syn
+    ? new Set(UNIT_LIST.filter((u) => (u.spawn || u.fused) && !u.boss && ofAxis(u)).map((u) => u.id))
+    : new Set(recipesOf(arch).flatMap((r) => [r.result, ...Object.keys(r.needs)]))
+  const recipes = new Set((syn ? FUSION_LIST.filter((r) => kinds.has(r.result)) : recipesOf(arch)).map((r) => r.id))
+  const need = syn ? Math.max(...Object.values(syn.needs).flatMap((x) => Object.values(x))) : 0
+  return { arch, syn: !!syn, kinds, recipes, need }
+}
+// Whether recipe `id` may be made: any, but under the strict commitment one of its recipes.
+const mayFuse = (id) => !COMMIT?.strict || COMMIT.strict.recipes.has(id)
+// In battle, the expert's `fuse` (policy.js expertOptions): true, or under the strict commitment its recipes alone.
+const battleFuse = () => (COMMIT?.strict ? mayFuse : true)
+// Whether the strict archetype is short of a soul of kind `id` in run `run` (every soul held counted, the fallen too,
+// and a fused kind of it held as the parts it was made of): a fused kind's, while its recipe graph wants more of that
+// kind than the run holds, from the archetype down (comboProgress's walk); a synergy's, while fewer souls of its kin
+// or role are held than its count or the field's cap, the greater.
+function strictShort (run, id) {
+  const st = COMMIT.strict
+  if (!st.kinds.has(id)) return false
+  const s = run.state
+  const counts = new Map()
+  for (const u of souls(s.party)) counts.set(u.id, (counts.get(u.id) ?? 0) + 1)
+  if (st.syn) {
+    let n = 0
+    for (const [k, m] of counts) if (st.kinds.has(k)) n += m
+    return n < Math.max(st.need, fieldCap(run))
+  }
+  let short = false
+  const want = (kind, k) => {
+    const have = Math.min(counts.get(kind) ?? 0, k)
+    counts.set(kind, (counts.get(kind) ?? 0) - have)
+    if (have >= k) return
+    const r = recipeOf(kind)
+    if (!r) { if (kind === id) short = true; return }
+    for (const [part, m] of Object.entries(r.needs)) want(part, (k - have) * m)
+  }
+  want(st.arch, 1)
+  return short
+}
+// The strict commitment's recruit (redesign.md §8, the balance pass): where the spoils offer a soul of its kinds the
+// purse affords, one of those or none: the one the sketch gains most by, taken whatever keeping would where the
+// archetype is short of its kind (`forced`: strictShort, those alone its options), else only where it beats keeping; a
+// full retinue lets go the weakest standing soul in the ossuary not of its kinds (none such: no recruit). Undefined
+// where none is offered, or no strict commitment is in use: the expert's own choice. Weighed once a room (a release
+// leaves the offers as they were), as weighRecruits is. → { pick: { index, release? } | null, forced, options: [{ index,
+// kind, actions, gain }] }, or undefined
+const stricts = new WeakMap()
+function strictRecruit (run, L) {
+  const st = COMMIT?.strict
+  if (!st) return undefined
+  const s = run.state
+  const key = JSON.stringify([st.arch, s.floor, s.at, s.offers.map((o) => o.id)])
+  if (stricts.get(run)?.key === key) return stricts.get(run).out
+  const offers = [...s.offers.entries()].filter(([, o]) => o.cost <= s.essence && st.kinds.has(o.id))
+  let out
+  if (offers.length) {
+    const full = soulCount(s.party) >= rosterCap(run)
+    const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
+    const weakest = inOssuary(s.party).filter((u) => spare(u) && !st.kinds.has(u.id)).sort(byFieldPower).at(-1)
+    const room = !full || !!weakest
+    const short = room ? offers.filter(([, o]) => strictShort(run, o.id)) : []
+    const forced = short.length > 0
+    const base = sketch(s, L)
+    const options = []
+    if (room) {
+      for (const [index] of forced ? short : offers) {
+        const actions = [...(full ? [{ type: 'release', uid: weakest.uid }] : []), { type: 'reap', index }]
+        const sim = fork(run)
+        for (const a of actions) apply(sim, a)
+        options.push({ index, kind: s.offers[index].id, actions, gain: sketch(sim.state, L) - base })
+      }
+    }
+    let pick = null
+    let best = forced ? -Infinity : KEEP()
+    for (const o of options) if (o.gain > best) { best = o.gain; pick = o }
+    out = { pick: pick && { index: pick.index, ...(full && { release: weakest.uid }) }, forced, options }
+  }
+  stricts.set(run, { key, out })
+  return out
 }
 // The combos the expert plays toward: the committed archetype's, else the whole book.
 const bookCombos = () => COMMIT?.combos ?? BOOK.combos
@@ -1703,6 +1801,13 @@ export function targetOf (s) {
 }
 // The kinds a target is built of (its parts, its tracks'), and whether a soul is one of them.
 export const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Object.keys(c?.tracks ?? {})])
+// The kinds a soul let go to make room is never of while another will do: its target's (with the book), and under the
+// harness's strict commitment its archetype's.
+export function keptKinds (s, L) {
+  const keeps = L.book ? targetKinds(targetOf(s)) : new Set()
+  if (COMMIT?.strict) for (const id of COMMIT.strict.kinds) keeps.add(id)
+  return keeps
+}
 
 // ── reap ─────────────────────────────────────────────────────────────────────────────────────────
 
@@ -1712,6 +1817,13 @@ export const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Ob
 // full retinue lets its weakest soul in the ossuary go to make room.
 export function pickReap (run, L, sit) {
   const s = run.state
+  // The harness's strict commitment first, where the spoils offer a kind of its archetype (strictRecruit).
+  const strict = L.spend ? strictRecruit(run, L)?.pick : undefined
+  if (strict !== undefined) {
+    if (!strict) return { type: 'reap', index: null }
+    if (strict.release != null && soulCount(s.party) >= rosterCap(run)) return { type: 'release', uid: strict.release }
+    return { type: 'reap', index: strict.index }
+  }
   if (L.spend && outDecides('recruit')) {
     const actions = recruitPick(run, L, sit)
     const release = actions.find((a) => a.type === 'release')
@@ -1746,8 +1858,9 @@ export function weighRecruits (run, L, sit = null) {
   const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => o.id)])
   if (recruits.get(run)?.key === key) return recruits.get(run).pick
   const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
-  // The soul it lets go: the weakest standing in the ossuary, never one its target is built of while another will do.
-  const keeps = L.book ? targetKinds(targetOf(s)) : new Set()
+  // The soul it lets go: the weakest standing in the ossuary, never one its target is built of while another will do
+  // (nor, under the strict commitment, one of its archetype's kinds).
+  const keeps = keptKinds(s, L)
   const weakest = inOssuary(s.party).filter(spare).sort((a, b) => keeps.has(b.id) - keeps.has(a.id) || byFieldPower(a, b)).at(-1)
   const base = sketch(s, L)
   let pick = null
@@ -1786,7 +1899,7 @@ function completes (sim, L, later = false) {
   })
   if (!later || !L.fuse || L.ablate === 'fusions') return out
   for (const r of FUSION_LIST) {
-    if (canFuse(map, r.id) || fuseParts(map, r.id) === null) continue
+    if (!mayFuse(r.id) || canFuse(map, r.id) || fuseParts(map, r.id) === null) continue
     const next = fork(map)
     next.state.essence = fuseCost(map, r.id)
     apply(next, { type: 'fuse', id: r.id, parts: fuseParts(map, r.id) })
@@ -1817,9 +1930,13 @@ export function pickDraft (run, L) {
     return { type: 'pick', index: Math.max(0, fresh) }
   }
   const ranged = (id) => !meleeOnly(makeUnit(id, { lvl: 1 }))
-  const short = souls(s.party).filter((u) => !meleeOnly(u)).length < TUNING.expert.draft.ranged && offer.some(ranged)
+  // Under the harness's strict commitment, its archetype's kinds alone where the pick offers one.
+  const st = COMMIT?.strict
+  const allowed = st && offer.some((id) => st.kinds.has(id)) ? (id) => st.kinds.has(id) : () => true
+  const short = souls(s.party).filter((u) => !meleeOnly(u)).length < TUNING.expert.draft.ranged && offer.some((id) => allowed(id) && ranged(id))
   let best = { index: 0, worth: -Infinity }
   for (const index of offer.keys()) {
+    if (!allowed(offer[index])) continue
     if (short && !ranged(offer[index])) continue
     const sim = fork(run)
     apply(sim, { type: 'pick', index })
@@ -1947,7 +2064,15 @@ export function pickHold (run, L, sit) {
 // heal there), and heals where none beats keeping what it has. No free tier under the tracks ablation (it never takes
 // one). → the rite
 export function altarOptions (run, L) {
-  return altarActions(run).filter((a) => a.type !== 'consecrate' || L.ablate !== 'tracks')
+  return altarActions(run).filter((a) => (a.type !== 'consecrate' || L.ablate !== 'tracks') && !strictBars(run, a))
+}
+// Whether the harness's strict commitment bars rite `a`: a transmutation of a soul of its archetype's kinds into a kind
+// not of them.
+function strictBars (run, a) {
+  const st = COMMIT?.strict
+  if (!st || a.type !== 'transmute') return false
+  const u = run.state.party.find((x) => x.uid === a.uid)
+  return st.kinds.has(u.id) && !st.kinds.has(transmuteOffer(run.state, u.id)[a.index])
 }
 const HEAL = Object.freeze({ type: 'heal' })
 export function pickAltar (run, L, sit = null) {
@@ -2012,9 +2137,11 @@ export function spendCandidates (run, L, sit = null) {
 // do), each scored by what it adds to the sketch; today's pick weighRecruits'. → { today, cands } as spendCandidates'
 export function recruitCandidates (run, L, sit = null) {
   const s = run.state
+  const strict = L.spend ? strictRecruit(run, L) : undefined
+  if (strict !== undefined) return strictCandidates(strict)
   const pick = weighRecruits(run, L, sit)
   const full = soulCount(s.party) >= rosterCap(run)
-  const keeps = targetKinds(targetOf(s))
+  const keeps = keptKinds(s, LEVELS.expert)
   const spare = (u) => souls(s.party).some((x) => x !== u && x.hp > 0)
   const weakest = inOssuary(s.party).filter(spare).sort((a, b) => keeps.has(b.id) - keeps.has(a.id) || byFieldPower(a, b)).at(-1)
   const none = { type: 'reap', index: null }
@@ -2028,6 +2155,16 @@ export function recruitCandidates (run, L, sit = null) {
     cands.push({ id: outId(actions), label: `recruit ${o.id}`, actions, score: sketch(sim.state, L) - sk })
   }
   const own = pick === null ? [none] : [...(pick.release != null && full ? [{ type: 'release', uid: pick.release }] : []), { type: 'reap', index: pick.index }]
+  return { today: outId(own), cands }
+}
+
+// The strict commitment's recruit as candidates (strictRecruit's options, and none unless it is forced or none is
+// left), today's pick its. → { today, cands } as spendCandidates'
+function strictCandidates ({ pick, forced, options }) {
+  const none = { type: 'reap', index: null }
+  const cands = options.map((o) => ({ id: outId(o.actions), label: `recruit ${o.kind}`, actions: o.actions, score: o.gain }))
+  if (!forced || !cands.length) cands.unshift({ id: outId([none]), label: 'none', actions: [none], score: KEEP() })
+  const own = pick ? options.find((o) => o.index === pick.index).actions : [none]
   return { today: outId(own), cands }
 }
 
@@ -2513,6 +2650,14 @@ export function recruitPick (run, L, sit = null) {
   const s = run.state
   const key = JSON.stringify([s.floor, s.at, s.offers.map((o) => o.id)])
   if (outRecruits.get(run)?.key === key) return outRecruits.get(run).actions
+  // Under the harness's strict commitment, where it decides, its pick (no forest).
+  const strict = L.spend ? strictRecruit(run, L) : undefined
+  if (strict !== undefined) {
+    const d = strictCandidates(strict)
+    const actions = JSON.parse(d.today)
+    outRecruits.set(run, { key, actions })
+    return actions
+  }
   const d = recruitCandidates(run, L, sit)
   const { actions } = outChoice(run, L, sit, 'recruit', outCandidates(d))
   outRecruits.set(run, { key, actions })
@@ -3621,10 +3766,11 @@ async function necessity ({ runs, seed: seed0, setups: file = null, ascension = 
 
 // ── the harness: builds committed, the diversity block, the pool (redesign.md §3, §6 Step 0) ───────────
 
-// --builds [--player expert|teacher] [--commit <archetype>[,…]|all|fused|synergies|none] [--ascension 0] [--scale 1] [--runs 256]
-// [--seed div] [--workers n] [--out file.json]  (npm run builds): seeds `<seed>-0`… played in free play (the player as it
-// ships) and, on the same seeds, committed to each archetype named (ARCHETYPES, withCommit; all by default; `fused` the
-// fused kinds, `synergies` the synergies, `none` free play alone); a row an archetype (buildRow) and free play's
+// --builds [--player expert|teacher] [--commit <archetype>[,…]|all|fused|synergies|none] [--strict] [--ascension 0] [--scale 1]
+// [--runs 256] [--seed div] [--workers n] [--out file.json]  (npm run builds): seeds `<seed>-0`… played in free play (the
+// player as it ships) and, on the same seeds, committed to each archetype named (ARCHETYPES, withCommit; all by default;
+// `fused` the fused kinds, `synergies` the synergies, `none` free play alone), with `--strict` held to it (strictOf: its
+// kinds drafted and recruited where offered, its recipes alone fused); a row an archetype (buildRow) and free play's
 // diversity block (diversity). The player: `expert` (LEVELS.expert, the fast loop's, ~8 s a run) or `teacher`, the
 // outside teacher (outside.js outsideTeacher: each choice out of battle among the expert's top six played out to the
 // run's end by the expert, the first that clears taken; the expert in battle; ~67 s a run), committed through the same
@@ -3642,26 +3788,27 @@ export const TEACHER = Object.freeze({ won: true })
 // play), at level `ascension` with `scale` on its foes. The expert's is record's; the teacher's the same record with the outside teacher's
 // action at every step (autoplay's `act`; outside.js, loaded here, as it imports this module), and its counts (`teacher`:
 // decisions played out, playouts, overrides of the expert's pick). → a promise of record's result, with `player`
-export async function buildRecord ({ seed, player = 'expert', commit = null, scale = 1, ascension = 0 }) {
+export async function buildRecord ({ seed, player = 'expert', commit = null, strict = false, scale = 1, ascension = 0 }) {
   if (!PLAYERS.includes(player)) throw new Error(`unknown player "${player}": ${PLAYERS.join(', ')}`)
-  if (player === 'expert') return { ...withCommit(commit, () => record({ seed, level: 'expert', scale, ascension })), player }
+  const held = strict && commit ? { strict: true } : {}
+  if (player === 'expert') return { ...withCommit(commit, () => record({ seed, level: 'expert', scale, ascension }), strict), ...held, player }
   const { outsideTeacher, outsideStats } = await import('./outside.js')
   let run = null
   const act = (r, rng) => outsideTeacher((run = r), rng, TEACHER)
-  const out = withCommit(commit, () => record({ seed, level: 'expert', scale, ascension, act }))
+  const out = withCommit(commit, () => record({ seed, level: 'expert', scale, ascension, act }), strict)
   const phases = Object.values(outsideStats(run).phases)
   const sum = (k) => phases.reduce((n, p) => n + p[k], 0)
-  return { ...out, player, teacher: { decisions: sum('decided'), playouts: sum('playouts'), overrides: sum('overrides') } }
+  return { ...out, ...held, player, teacher: { decisions: sum('decided'), playouts: sum('playouts'), overrides: sum('overrides') } }
 }
 // A job's key for its time (playAll's order): a harness's by its player, commitment, scale and level too; the ladder's
 // by its rung and level.
-const jobKey = (job) => (job.builds ? `${job.seed}|builds|${job.player}|${job.commit ?? 'free'}|${job.scale}${job.ascension ? `|a${job.ascension}` : ''}`
+const jobKey = (job) => (job.builds ? `${job.seed}|builds|${job.player}|${job.commit ?? 'free'}${job.strict && job.commit ? '|strict' : ''}|${job.scale}${job.ascension ? `|a${job.ascension}` : ''}`
   : job.ladder ? `${job.seed}|ladder|${job.player}|a${job.ascension}` : timeKey(job))
 
-// The jobs of --builds: free play, then each archetype of `commits` committed, on the same seeds.
-export function buildJobs ({ player = 'expert', commits = ARCHETYPES(), scale = 1, ascension = 0, runs = 256, seed = 'div' } = {}) {
+// The jobs of --builds: free play, then each archetype of `commits` committed (`strict`: strictly), on the same seeds.
+export function buildJobs ({ player = 'expert', commits = ARCHETYPES(), strict = false, scale = 1, ascension = 0, runs = 256, seed = 'div' } = {}) {
   const seeds = Array.from({ length: runs }, (_, i) => `${seed}-${i}`)
-  return [null, ...commits].flatMap((commit) => seeds.map((s) => ({ builds: true, seed: s, player, commit, scale, ascension })))
+  return [null, ...commits].flatMap((commit) => seeds.map((s) => ({ builds: true, seed: s, player, commit, ...(strict && commit && { strict: true }), scale, ascension })))
 }
 // The archetypes a --commit names: `all`, `fused` (the fused kinds), `synergies`, `none` (free play alone), or a
 // comma-separated list, each checked.
@@ -3853,8 +4000,9 @@ const listOf = (o, top = Infinity) => Object.entries(o).slice(0, top).map(([k, v
 const met = (ok) => (ok ? 'met' : 'NOT MET')
 
 // The rows of --builds as lines: free play's, then each archetype's.
-export function buildLines (rows, { player = 'expert', scale = 1, ascension = 0, runs, seed } = {}) {
-  const out = [`builds: the ${player}, ${runs} seeds ${seed}-0…${runs - 1}${ascension ? `, ascension ${ascension}` : ''}${scale !== 1 ? `, every foe's HP and ATK ×${scale}` : ''}; each archetype committed (its combos of the book alone) on free play's seeds`]
+export function buildLines (rows, { player = 'expert', strict = false, scale = 1, ascension = 0, runs, seed } = {}) {
+  const how = strict ? 'strictly (its combos of the book, its kinds drafted and recruited where offered, its recipes alone fused)' : '(its combos of the book alone)'
+  const out = [`builds: the ${player}, ${runs} seeds ${seed}-0…${runs - 1}${ascension ? `, ascension ${ascension}` : ''}${scale !== 1 ? `, every foe's HP and ATK ×${scale}` : ''}; each archetype committed ${how} on free play's seeds`]
   out.push(`${'archetype'.padEnd(16)}${'clears'.padStart(7)}${'progress'.padStart(9)}${'vs free'.padStart(15)}  ${`died fl ${FLOORS().join('/')}`.padStart(15)}  ${'mon'.padStart(4)}${'souls'.padStart(6)}${'ess'.padStart(6)}${'lost'.padStart(5)}${'t/b'.padStart(6)}  ${'made'.padStart(5)}${'at'.padStart(4)}${'s/run'.padStart(7)}`)
   const num = (x, d = 0) => (x === null ? '-' : x.toFixed(d))
   for (const r of rows) {
@@ -3900,22 +4048,22 @@ export function diversityLines (d, label = 'free play') {
 
 // --builds: plays the jobs (playAll), prints the rows and free play's diversity block (the teacher's counts too); with
 // `out`, all of it and every record as JSON. → { rows, diversity, records }
-export async function builds ({ player = 'expert', commits = ARCHETYPES(), scale = 1, ascension = 0, runs = 256, seed = 'div', out = null, log = console.log } = {}) {
+export async function builds ({ player = 'expert', commits = ARCHETYPES(), strict = false, scale = 1, ascension = 0, runs = 256, seed = 'div', out = null, log = console.log } = {}) {
   if (!PLAYERS.includes(player)) throw new Error(`unknown player "${player}": ${PLAYERS.join(', ')}`)
   if (!(scale > 0)) throw new Error(`scale ${scale}: a multiplier above 0`)
   ascensionsOf(String(ascension))
   const t0 = Date.now()
-  const played = await playAll(buildJobs({ player, commits, scale, ascension, runs, seed }))
+  const played = await playAll(buildJobs({ player, commits, strict, scale, ascension, runs, seed }))
   const free = played.slice(0, runs)
   const rows = [buildRow(free), ...commits.map((arch, k) => buildRow(played.slice((k + 1) * runs, (k + 2) * runs), arch, free))]
   const d = diversity(free)
-  for (const line of [...buildLines(rows, { player, scale, ascension, runs, seed }), '', ...diversityLines(d)]) log(line)
+  for (const line of [...buildLines(rows, { player, strict, scale, ascension, runs, seed }), '', ...diversityLines(d)]) log(line)
   if (player === 'teacher') {
     const per = (k) => (played.reduce((n, r) => n + r.teacher[k], 0) / played.length).toFixed(1)
     log(`the teacher a run: ${per('decisions')} decisions played out, ${per('playouts')} playouts, ${per('overrides')} overrides of the expert's pick`)
   }
   log(`(${played.length} runs in ${((Date.now() - t0) / 60000).toFixed(1)} min)`)
-  if (out) fs.writeFileSync(out, JSON.stringify({ player, scale, ascension, seed, runs, commits, rows, diversity: d, records: played }) + '\n')
+  if (out) fs.writeFileSync(out, JSON.stringify({ player, ...(strict && { strict }), scale, ascension, seed, runs, commits, rows, diversity: d, records: played }) + '\n')
   return { rows, diversity: d, records: played }
 }
 
@@ -4070,7 +4218,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     else if (process.argv.includes('--pool')) pool({ runs: Number(arg('runs', 256)), seed: arg('seed', 'div') })
     else if (process.argv.includes('--builds')) {
       await builds({
-        player: arg('player', 'expert'), commits: commitsOf(arg('commit', 'all')), scale: Number(arg('scale', 1)), ascension: ascensions[0],
+        player: arg('player', 'expert'), commits: commitsOf(arg('commit', 'all')), strict: process.argv.includes('--strict'), scale: Number(arg('scale', 1)), ascension: ascensions[0],
         runs: Number(arg('runs', 256)), seed: arg('seed', 'div'), out: arg('out', null)
       })
     }

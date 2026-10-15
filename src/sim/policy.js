@@ -1153,10 +1153,11 @@ function monarchAfter (battle, sit, u, o, e) {
 // ── the expert's turn (redesign.md §2.17, §2.21) ─────────────────────────────────────────────────
 
 // Piece `u`'s options for the expert: options' (each tile it may end on, and from there holding or each act at each
-// target), and with `fuse` each fusion it may make where it stands.
+// target), and with `fuse` each fusion it may make where it stands (`fuse` a function: those of the recipes it passes,
+// by id; the harness's strict commitment).
 export function expertOptions (battle, u, { moving = true, fuse = true } = {}) {
   const opts = options(battle, u, { moving })
-  if (fuse && canAct(battle, u)) for (const o of fusionsOf(battle, u)) opts.push({ tile: u.tile, path: [], ability: null, target: null, fusion: o })
+  if (fuse && canAct(battle, u)) for (const o of fusionsOf(battle, u)) if (fuse === true || fuse(o.id)) opts.push({ tile: u.tile, path: [], ability: null, target: null, fusion: o })
   return opts
 }
 
