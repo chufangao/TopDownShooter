@@ -11,7 +11,7 @@ import {
 } from './sim/turns.js'
 import { foeEssence, eliteBonus } from './sim/run.js'
 import { threatOf } from './sim/policy.js'
-import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, blowReach, footprint, alive, isBlow } from './sim/unit.js'
+import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, blowReach, footprint, alive, isBlow, synergyWeight } from './sim/unit.js'
 import { sfx } from './sfx.js'
 import { hold, touchy, FEET, figures, plainFigure, WASH } from './dom.js'
 import { frame } from './frame.js'
@@ -855,7 +855,8 @@ class BattleScene extends Phaser.Scene {
   }
 
   // The living of `side` that synergy `id` counts (its kin's or its role's, a Mimicry holder's borrowed role too), as
-  // the chip's card names them: each kind once, ×n for more, then the shadows (a summon is one) as a count. '' for none.
+  // the chip's card names them: each kind once, ×n for more, a trine said to count as three, then the shadows (a summon
+  // is one) as a count. '' for none.
   members (side, id) {
     const b = this.battle
     const syn = SYNERGIES.find((s) => s.id === id)
@@ -872,10 +873,14 @@ class BattleScene extends Phaser.Scene {
     for (const u of b.units) {
       if (u.side !== side || !alive(u) || !counted(u)) continue
       if (u.shadow) shadows++
-      else kinds.set(unitDef(u.id).name, (kinds.get(unitDef(u.id).name) ?? 0) + 1)
+      else kinds.set(u.id, (kinds.get(u.id) ?? 0) + 1)
     }
-    return [...[...kinds].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name)), shadows > 0 && `${shadows} shadow${shadows === 1 ? '' : 's'}`]
-      .filter(Boolean).join(', ')
+    const named = ([kind, n]) => {
+      // As three where it counts by its own kin or role (a role a relic lends it counts once).
+      const w = needs.some(([axis, k]) => unitDef(kind)[axis] === k) ? synergyWeight({ id: kind }) : 1
+      return `${unitDef(kind).name}${n > 1 ? ` ×${n}` : ''}${w > 1 ? ` (as ${w}${n > 1 ? ' each' : ''})` : ''}`
+    }
+    return [...[...kinds].map(named), shadows > 0 && `${shadows} shadow${shadows === 1 ? '' : 's'}`].filter(Boolean).join(', ')
   }
 
   // End Turn's own part as it would play now (turns.js untouchedPreview), named for the button's card: each piece of

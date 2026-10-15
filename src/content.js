@@ -2766,7 +2766,8 @@ export const FUSION_LIST = [
 //   ops, shapes and anims); its tracks the kind's two, each tier's ability its trine form, a summon tier calling up the
 //   kind it was made of (`summons`), and a Colossus tier on a trine already 2×2 its aura a tile wider instead.
 // Made in order, so a made trine of tier 4 or less has its own in turn: trines of trines, up to tier 6 (redesign.md
-// §7.6). A trine is one piece, and counts once toward a synergy (§7.7).
+// §7.6). A trine is one piece, and counts as three toward its kin's and its role's synergies (§7.7, the user's rule of
+// 2026-10-16: unit.js synergyWeight).
 export const TOP_TIER = 6
 export const TRINE_RISE = 2
 // Whether a run can hold a kind: one that spawns (a recruit's) or a fused one (a fusion's).

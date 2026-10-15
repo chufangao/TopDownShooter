@@ -7,7 +7,7 @@ import {
   trineOf, isTriple, TOP_TIER, TRINE_RISE
 } from './content.js'
 import {
-  statsOf, activeSynergies, COLS, ROWS, slotAt, rangeOf, isAllyShape, CAMP_ROWS, abilitiesOf, auraOf, tiersOf,
+  statsOf, activeSynergies, synergyCounts, synergyWeight, COLS, ROWS, slotAt, rangeOf, isAllyShape, CAMP_ROWS, abilitiesOf, auraOf, tiersOf,
   tileX, tileY, DEPTH, distance, deployTile, behaviourOf, summonsOf, summonedOf, sizeOf, tracksOf, reachOf, meleeOnly, isBlow, onField
 } from './sim/unit.js'
 import {
@@ -898,16 +898,8 @@ export const ruleFlares = () => ({
   ...Object.fromEntries(UNIT_LIST.filter((d) => d.rule).map((d) => [d.rule, { step: d.boss ? 'Boss' : 'Capstone', name: d.name }]))
 })
 
-const countsOf = (units, also = null) => {
-  const c = { kin: {}, role: {} }
-  for (const u of units) {
-    const d = unitDef(u.id)
-    if (ROLES[d.role].hidden) continue
-    c.kin[d.kin] = (c.kin[d.kin] ?? 0) + 1
-    for (const role of rolesOf(u, also)) c.role[role] = (c.role[role] ?? 0) + 1
-  }
-  return c
-}
+// Your pieces' counts by kin and role, as the battle counts them (unit.js synergyCounts: a trine as three).
+const countsOf = (units, also = null) => synergyCounts(units, also)
 const counts = (u, axis, id, also) => !ROLES[unitDef(u.id).role].hidden && (axis === 'role' ? rolesOf(u, also).includes(id) : unitDef(u.id)[axis] === id)
 
 // The synergies in effect among `units` (your pieces), as the board glows them: each kin or role whose rule is held,
@@ -921,7 +913,7 @@ export function synergyGroups (units, also = null) {
   }))
 }
 
-const COUNT_NOTE = 'Counts your pieces standing on the board (and shadows in battle), never the Monarch.'
+const COUNT_NOTE = 'Counts your pieces standing on the board (and shadows in battle), a trine as the three it was made of, never the Monarch.'
 // The foes hold the same rules by the same count, on every floor (turns.js synergiesOf).
 const FOE_SYNERGIES = 'The foes hold them too, on every floor: four of theirs of a kin or a role standing, a captain\'s cohort one foe each, bring its rule to their side.'
 
@@ -932,7 +924,8 @@ const FOE_SYNERGIES = 'The foes hold them too, on every floor: four of theirs of
 export function synergyTracker (units, also = null, { focus = null, onFocus = null } = {}) {
   const living = units.filter((u) => u.hp > 0)
   const c = countsOf(living, also)
-  const who = (axis, id) => tally(living.filter((u) => counts(u, axis, id, also)).map((u) => unitDef(u.id).name)) || 'none fielded'
+  // A trine named as what it counts: "Pale Court (as 3)".
+  const who = (axis, id) => tally(living.filter((u) => counts(u, axis, id, also)).map((u) => `${unitDef(u.id).name}${synergyWeight(u) > 1 && (axis === 'kin' || unitDef(u.id).role === id) ? ` (as ${synergyWeight(u)})` : ''}`)) || 'none fielded'
   const mimics = (axis, id) => axis === 'role' && living.filter((u) => (also?.(u) ?? []).includes(id) && unitDef(u.id).role !== id)
   const mimicry = (axis, id) => mimics(axis, id)?.length > 0 && h('p', { class: 'dim' }, `Counting as ${ROLES[id].name}s too, by a relic: ${tally(mimics(axis, id).map((u) => unitDef(u.id).name))}.`)
   const ladders = LADDERS.map((l) => ({ l, have: c[l.axis][l.id] ?? 0 })).filter((x) => x.have > 0)
@@ -1141,9 +1134,9 @@ const WORD_MORE = {
   essence: (run) => `Each foe slain pays ${TUNING.essence.perTier} × its tier, whatever its level, into one purse. It buys tiers, fusions (${TUNING.essence.fuse} × the result's tier), one recruit after a win (${TUNING.essence.recruit} × its tier, more for a higher level) and relics in a Shop, and ${priceScaleText(run)}: what a floor pays is worth less on the next. Nothing is bought for the Monarch, and no level is bought: a kind's level is its tiers'.`,
   tier: (run) => `Two tracks a kind, four tiers each (${TUNING.essence.tier.join(' / ')} essence on floor 1; ${priceScaleText(run)}). The first track you take may reach IV; the other then stops at II. A tier IV is a rule: a new ability, an aura, more reach, or Colossus, which grows every piece of the kind to 2×2 (one that no longer fits where it stands goes to the ossuary). A kind's level is its tiers': ${TUNING.level.base} + ${TUNING.level.perTier} × the tiers it holds on both tracks, rounded down; every soul of it rises with each tier, and a recruit joins at it.`,
   fusion: () => `Out of battle it takes exactly the souls the recipe names, each a whole piece, from the ossuary first, then the field, costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one piece of the fused kind in the ossuary, to be placed. In battle a piece may fuse with the parts standing beside it as its act, and the fused piece stands there. The result joins its kind with its tiers, at its level, never below the highest level of the kinds that went into it, and is never weaker than what went into it; a relic its parts held comes back unheld. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has a triple, three of it into its trine; the mixed recipes join kinds, and the capstones join fused kinds into a piece of tier 5 or 6. Select a piece for the recipes its kind is part of; the Codex's Fusions lists the mixed recipes and the capstones, and a kind's card its triple.`,
-  trine: () => `Three souls of one kind, fused out of battle or beside one another in it, become its trine: a fused kind ${TRINE_RISE} tiers higher (tier ${TOP_TIER} at most), 2×2 from tier 4, with the kind's kin, role, Move and tracks, its HP and ATK several times one soul's, and its kit with every blow at one foe a blast (its target and everyone next to it) and every shot a tile longer. A trine of tier ${TOP_TIER - TRINE_RISE} or less has a trine of its own. ${writtenTrines()} A trine is one piece, and counts once toward a synergy.`,
+  trine: () => `Three souls of one kind, fused out of battle or beside one another in it, become its trine: a fused kind ${TRINE_RISE} tiers higher (tier ${TOP_TIER} at most), 2×2 from tier 4, with the kind's kin, role, Move and tracks, its HP and ATK several times one soul's, and its kit with every blow at one foe a blast (its target and everyone next to it) and every shot a tile longer. A trine of tier ${TOP_TIER - TRINE_RISE} or less has a trine of its own. ${writtenTrines()} A trine is one piece, and counts as the three it was made of toward its kin's and its role's synergies; a trine of a trine as three too.`,
   command: (run) => `${TUNING.party.field} to begin. Nothing is bought for the Monarch: only Command relics raise it, every copy in full (${giversOf('run.command').join(', ')}); the rarer, the cleaner. Every Shop stocks one. The field stops at ${TUNING.army.board} pieces however high it goes.` + (run ? ` Now: ${fieldRule(run)}.` : ''),
-  synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A fused piece counts once, with its own kin and role; a relic may make its holder count as another role too. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
+  synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A trine counts as the three of a kind it was made of (a trine of a trine as three too), so a trine and one more piece hold a rule at 4; every other fused piece counts once, with its own kin and role; a relic may make its holder count as another role too, once. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
   relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Only Shops sell them, for essence, deeper floors the rarer; every Shop stocks a Command relic, and from floor ${R.legendary.fromFloor} a Legendary, a rule that rewrites the game. A run relic (its card says Run) touches the run or the whole side and works unheld: Command, the Monarch's HP, prices, essence, Arise's reach; its copies add up with no cap. Every other is a piece relic (Held): it waits unheld until you give it to a soul (tap it in the Relics strip beside the ossuary, then the soul, or the slot in the soul's panel), and works only through its holder, its triggers on its holder's own moments. Give, take back and swap freely out of battle, never in one. A held relic stays with its soul in the ossuary, works only on the field, and comes back unheld when its holder is released or fused away; copies are more holders. Arise is one: its holder learns the skill Arise.` +
     (run && unheld(run.state).length ? ` Unheld now: ${tally(unheld(run.state).map((id) => relicDef(id).name))}.` : ''),
   altar: () => `One rite, then the room is done. Heal: every soul to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)}, in the ossuary too, and the fallen raised there at ${pct(TUNING.run.altarRevive)} HP; the Monarch too, unless Court of Bone holds. Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic, its wounds and its level: its new kind rises to that level if it stood lower, every soul of it with it. Tiers are a kind's, not a soul's: those bought for its old kind stay there, and it holds its new kind's, none if the kind is new to you. Consecrate: one kind's next tier on the track you choose, free, as buying it would give it.`,
@@ -1170,7 +1163,7 @@ export function glossary (run) {
 export function synergiesView (run = null) {
   const c = run ? countsOf(souls(standing(run)), alsoOf) : null
   return h('div', { class: 'help-view synergies' },
-    h('p', { class: 'dim' }, `Each kin and each role has one rule, held while four of your pieces of it stand on the board, shadows and summons too, never the Monarch. Its pieces glow in its colour. ${COUNT_NOTE} ${FOE_SYNERGIES}`),
+    h('p', { class: 'dim' }, `Each kin and each role has one rule, held while four of your pieces of it stand on the board, shadows and summons too, never the Monarch; a trine counts as the three it was made of, any other fused piece once. Its pieces glow in its colour. ${COUNT_NOTE} ${FOE_SYNERGIES}`),
     h('div', { class: 'codex-list' }, LADDERS.map((l) => {
       const have = c?.[l.axis][l.id] ?? null
       return h('div', { class: 'codex-row', style: `--g:${SYN_COLOUR[l.id]}` },

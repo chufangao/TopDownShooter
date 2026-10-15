@@ -144,16 +144,29 @@ export const heldMods = (u) => (u.relics ?? []).flatMap((id) => relicDef(id).mod
 // A unit of a hidden role (the Monarch) counts toward no synergy.
 const hidden = (u) => !!ROLES[unitDef(u.id).role].hidden
 
-// These units' counts toward synergies, per kin and role: { kin: { id: n }, role: { id: n } }. `also(u)`, where given,
-// lists the roles a unit counts as besides its own (a holder of Mimicry's, a Warden too: turns.js synergiesOf), a role
-// not its own once each.
+// What a piece counts toward its kin's and its role's synergies (the user's rule of 2026-10-16, redesign.md §7.7): a
+// trine (three of one kind fused, written or made: content.js `trineOf`, the Pale Court among them) as the three it was
+// made of, a trine of a trine as three too (its parts' own fusions are not unfolded further); every other piece once, a
+// mixed recipe's and a capstone's too. Either side's alike.
+export const TRINE_COUNT = 3
+export const synergyWeight = (u) => (unitDef(u.id).trineOf ? TRINE_COUNT : 1)
+// A piece and the summons its tiers bring (summonsOf), each summon as the kind it calls up (summonedOf: a trine's, the
+// kind it was made of), as the board will count them: for the readers that weigh a field before its battle.
+export const withSummons = (u) => [u, ...Array(summonsOf(u)).fill({ id: summonedOf(u) })]
+
+// These units' counts toward synergies, per kin and role: { kin: { id: n }, role: { id: n } }, each unit by its weight
+// (synergyWeight: a trine three). `also(u)`, where given, lists the roles a unit counts as besides its own (a holder
+// of Mimicry's, a Warden too: turns.js synergiesOf), a role not its own once each, a trine's too (the relic's, not its
+// parts').
 export function synergyCounts (units, also = null) {
   const c = { kin: {}, role: {} }
   for (const u of units) {
     if (hidden(u)) continue
     const d = unitDef(u.id)
-    c.kin[d.kin] = (c.kin[d.kin] ?? 0) + 1
-    for (const role of [d.role, ...(also?.(u) ?? []).filter((r) => r !== d.role)]) c.role[role] = (c.role[role] ?? 0) + 1
+    const n = synergyWeight(u)
+    c.kin[d.kin] = (c.kin[d.kin] ?? 0) + n
+    c.role[d.role] = (c.role[d.role] ?? 0) + n
+    for (const role of (also?.(u) ?? []).filter((r) => r !== d.role)) c.role[role] = (c.role[role] ?? 0) + 1
   }
   return c
 }

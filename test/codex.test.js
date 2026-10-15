@@ -183,6 +183,20 @@ test('the codex\'s Synergies and the tracker tell Echo\'s two steps: its lesser 
   }
 })
 
+// A trine counts as the three it was made of (the user's rule of 2026-10-16, redesign.md §7.7): the tracker counts it
+// so, the Synergies page and the glossary's Trine and Synergy say so.
+test('the tracker counts a trine as three, and the codex says so', async () => {
+  const { synergiesView, synergyTracker, glossary } = await import('../src/codex.js')
+  const chip = synergyTracker([{ id: 'pale_court', uid: 1, hp: 1 }, { id: 'bone_chanter', uid: 2, hp: 1 }]).childNodes.find((c) => c.textContent.startsWith('Channeler'))
+  assert.equal(chip.textContent, 'Channeler 448')
+  assert.ok(chip.classList.contains('on'))
+  const words = glossary(null).flatMap((g) => g.entries)
+  assert.match(words.find((e) => e.name === 'Trine').more, /counts as the three it was made of/)
+  assert.match(words.find((e) => e.name === 'Trine').line, /counts as three/)
+  assert.match(words.find((e) => e.name === 'Synergy').more, /A trine counts as the three of a kind it was made of/)
+  assert.match(synergiesView().textContent, /a trine counts as the three it was made of/)
+})
+
 test('a fall to a status\'s tick is told as that status, from no tile and with no blow replayed; a blow\'s keeps its tile', async () => {
   const { deathText } = await import('../src/codex.js')
   const { deployTile } = await import('../src/sim/unit.js')

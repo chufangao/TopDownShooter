@@ -7,7 +7,7 @@ import {
 } from '../src/content.js'
 import { isRunPath, START_PARTY } from '../src/sim/run.js'
 import {
-  statsOf, abilitiesOf, auraOf, makeUnit, baseStats, activeSynergies, synergyCounts, synergyFull, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile,
+  statsOf, abilitiesOf, auraOf, makeUnit, baseStats, activeSynergies, synergyCounts, synergyFull, synergyWeight, withSummons, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile,
   wallTiles, steps, summonsOf, summonedOf, canTrack, nextTracks, isAllyShape, isBlow, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH,
   ROWS, TILES, armOf
 } from '../src/sim/unit.js'
@@ -893,11 +893,35 @@ test('the triple rule: one triple a kind of tier 4 or less, into its trine two t
       }
     }
   }
-  // One piece, counted once toward a synergy (redesign.md §7.7): three Undead and a trine of a Tomb Knight are four.
+  // One piece, counted as the three it was made of toward its kin's and its role's synergies (the user's rule of
+  // 2026-10-16, redesign.md §7.7): a trine and one more Undead are four.
   const at = (id, uid) => makeUnit(id, { uid, slot: uid })
-  const three = [at('bone_chanter', 1), at('grave_ghoul', 2), at('rot_bloat', 3)]
-  assert.deepEqual(activeSynergies(three).map((x) => x.id), [])
-  assert.deepEqual(activeSynergies([...three, at('trine:tomb_knight', 4)]).map((x) => x.id), ['undead_4'])
+  const ids = (units) => activeSynergies(units).map((x) => x.id)
+  assert.deepEqual(ids([at('trine:tomb_knight', 1)]), [])
+  assert.deepEqual(ids([at('trine:tomb_knight', 1), at('grave_ghoul', 2)]), ['undead_4', 'vanguard_4'])
+  assert.deepEqual(synergyCounts([at('trine:tomb_knight', 1), at('grave_ghoul', 2)]), { kin: { undead: 4 }, role: { vanguard: 4 } })
+  // Every trine, made or written (the Pale Court), three toward its kin and its role; a trine of a trine three too (its
+  // parts' own fusions not unfolded); a mixed recipe's piece and a capstone once.
+  for (const t of UNIT_LIST.filter((u) => u.trineOf)) {
+    assert.equal(synergyWeight(at(t.id, 1)), 3, t.id)
+    assert.deepEqual(synergyCounts([at(t.id, 1)]), { kin: { [t.kin]: 3 }, role: { [t.role]: 3 } }, t.id)
+  }
+  for (const id of ['bone_colossus', 'rime_drake', 'winter_court', 'aurora', 'iron_barrow']) assert.equal(synergyWeight(at(id, 1)), 1, id)
+  assert.deepEqual(synergyCounts([at('trine:pale_court', 1)]), { kin: { fae: 3 }, role: { channeler: 3 } })
+  // Two Pale Courts and two Bone Chanters are eight Channelers: Echo whole.
+  const echo = SYNERGIES.find((x) => x.rule === 'echo')
+  const eight = [at('pale_court', 1), at('pale_court', 2), at('bone_chanter', 3), at('bone_chanter', 4)]
+  assert.ok(ids(eight).includes(echo.id) && synergyFull(echo, synergyCounts(eight)))
+  assert.ok(!synergyFull(echo, synergyCounts(eight.slice(0, 3))), 'seven: the lesser')
+  // A role a relic lends (Mimicry's Warden) counts once, a trine's too: the relic's, not its parts'.
+  const lent = synergyCounts([at('pale_court', 1)], () => ['warden'])
+  assert.deepEqual(lent.role, { channeler: 3, warden: 1 })
+  // The readers that weigh a field before its battle count its summons as the board will: each the kind it calls up,
+  // once (a Bone Chanter Trine's, Bone Chanters).
+  const caller = { ...at('trine:bone_chanter', 1), tracks: [0, 2] }
+  assert.equal(summonsOf(caller), 2)
+  assert.deepEqual(withSummons(caller).map((u) => u.id), ['trine:bone_chanter', 'bone_chanter', 'bone_chanter'])
+  assert.deepEqual(synergyCounts(withSummons(caller)), { kin: { undead: 5 }, role: { channeler: 5 } })
 })
 
 // A fusion is never weaker than what went into it (§9): at every level a kind reaches (6 at most: TUNING.level), its HP

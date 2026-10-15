@@ -53,7 +53,7 @@ import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campOpen, wallTiles, steps, deployTile, tileAt, tileX, tileY, TILES,
   LANES, rowOf, colOf, distance, makeUnit, slotAt, baseStats, summonsOf, summonedOf, DEPTH, sizeOf, footprintSlots, fits,
-  monarchSlot, abilitiesOf, isBlow, isAllyShape, blowReach, armOf, heldMods, isRunPath, cellsOf, meleeOnly, auraOf, activeSynergies, rangeOf, ROWS, reachOf
+  monarchSlot, abilitiesOf, isBlow, isAllyShape, blowReach, armOf, heldMods, isRunPath, cellsOf, meleeOnly, auraOf, activeSynergies, rangeOf, ROWS, reachOf, withSummons, synergyCounts, synergyWeight
 } from './unit.js'
 import { roadsTo } from './field.js'
 import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
@@ -1046,7 +1046,7 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
   }
   const m = monarchOf(s)
   v.monarch = Math.min(2, onSeat * mitigation(m) / Math.max(1, m.hp))
-  if (ctx.synergies) v.synergies = activeSynergies(pieces.flatMap((u) => Array(1 + summonsOf(u)).fill(u))).length
+  if (ctx.synergies) v.synergies = activeSynergies(pieces.flatMap(withSummons)).length
   for (const t of ctx.threats) if (ANSWERS[t]) v.answers += pieces.some(ANSWERS[t]) ? 1 : -1
   return v
 }
@@ -1486,7 +1486,7 @@ function bookPower (run) {
     const held = (u.relics ?? []).reduce((n, id) => n + (relicDef(id).on ? b.trigger : 0) + (relicDef(id).rule ? b.rule : 0), 0)
     power += read(u, (mods) => worth(u, true, mods, b.hits, b.worth)) * (1 + (unitDef(u.id).fused ? b.fused : 0) + held)
   }
-  const rules = activeSynergies(pieces.flatMap((u) => Array(1 + summonsOf(u)).fill(u))).length
+  const rules = activeSynergies(pieces.flatMap(withSummons)).length
   const arise = pieces.some((u) => u.relics?.some(grantsArise)) ? s.relics.filter((id) => isRunRelic(id) && (relicDef(id).mods ?? []).some((m) => m.path.startsWith('arise.'))).length : 0
   return power * (1 + b.synergy * rules + b.arise * arise)
 }
@@ -1635,8 +1635,9 @@ const mayFuse = (id) => !COMMIT?.strict || COMMIT.strict.recipes.has(id)
 const battleFuse = () => (COMMIT?.strict ? mayFuse : true)
 // Whether the strict archetype is short of a soul of kind `id` in run `run` (every soul held counted, the fallen too,
 // and a fused kind of it held as the parts it was made of): a fused kind's, while its recipe graph wants more of that
-// kind than the run holds, from the archetype down (comboProgress's walk); a synergy's, while fewer souls of its kin
-// or role are held than its count or the field's cap, the greater.
+// kind than the run holds, from the archetype down (comboProgress's walk); a synergy's, while its kin or role counts
+// fewer than its count (a trine as three, as the synergy counts it: synergyWeight) or fewer souls of it are held than
+// the field's cap.
 function strictShort (run, id) {
   const st = COMMIT.strict
   if (!st.kinds.has(id)) return false
@@ -1645,8 +1646,9 @@ function strictShort (run, id) {
   for (const u of souls(s.party)) counts.set(u.id, (counts.get(u.id) ?? 0) + 1)
   if (st.syn) {
     let n = 0
-    for (const [k, m] of counts) if (st.kinds.has(k)) n += m
-    return n < Math.max(st.need, fieldCap(run))
+    let w = 0
+    for (const [k, m] of counts) if (st.kinds.has(k)) { n += m; w += m * synergyWeight({ id: k }) }
+    return w < st.need || n < fieldCap(run)
   }
   let short = false
   const want = (kind, k) => {
@@ -1707,7 +1709,8 @@ const bookCombos = () => COMMIT?.combos ?? BOOK.combos
 // What the expert makes of the book. How far a run is along a combo, from 0 to 1, the mean of its parts: the pieces
 // it is built from, standing (a kin's, a role's or a pact's: the pieces of that kin or role, any kind; a fused part not
 // yet made counted by how far along its own recipe the run is, its share split among that recipe's pieces, each piece
-// held counted once); a fusion's made (its parts then all counted); and the tiers on its tracks of the kinds it holds,
+// held counted once; a kin's or a role's a trine as three, as its synergy counts it: synergyWeight); a fusion's made (its
+// parts then all counted); and the tiers on its tracks of the kinds it holds,
 // of the four. `counts`: the standing souls of each kind (standingCounts), read once for every combo of a state.
 function comboProgress (s, c, counts = standingCounts(s)) {
   const pieces = (id) => counts.get(id) ?? 0
@@ -1739,7 +1742,7 @@ function comboProgress (s, c, counts = standingCounts(s)) {
   }
   const of = (axis, value) => {
     let n = 0
-    for (const [id, m] of counts) if (unitDef(id)[axis] === value) n += m
+    for (const [id, m] of counts) if (unitDef(id)[axis] === value) n += m * synergyWeight({ id })
     return n
   }
   const parts = []
@@ -2317,15 +2320,10 @@ function fieldRead (s, L) {
   f.kin = Math.max(0, ...Object.values(kins))
   f.role = Math.max(0, ...Object.values(roles))
   if (!s.ablate?.includes('synergies')) {
-    const pieces = best.flatMap((u) => Array(1 + summonsOf(u)).fill(u))
+    const pieces = best.flatMap(withSummons)
     const held = activeSynergies(pieces)
     f.syn = held.length
-    const c = { kin: {}, role: {} }
-    for (const u of pieces) {
-      const d = unitDef(u.id)
-      c.kin[d.kin] = (c.kin[d.kin] ?? 0) + 1
-      c.role[d.role] = (c.role[d.role] ?? 0) + 1
-    }
+    const c = synergyCounts(pieces)
     for (const syn of SYNERGIES) {
       if (held.includes(syn)) continue
       for (const axis of ['kin', 'role']) for (const [id, k] of Object.entries(syn.needs[axis] ?? {})) f.near = Math.max(f.near, Math.min(1, (c[axis][id] ?? 0) / k))

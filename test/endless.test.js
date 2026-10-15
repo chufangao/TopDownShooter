@@ -59,6 +59,20 @@ test('synergies: shadows count, the Monarch never; a battle announces its rules 
   assert.ok(holding(t, 'party').includes('legion'), 'three and a shadow')
 })
 
+// A trine counts as the three it was made of (the user's rule of 2026-10-16, redesign.md §7.7), on either side; with a
+// shadow beside it as with a soul.
+test('synergies: a trine counts as three, on either side, a shadow beside it as a soul', () => {
+  const b = scene([
+    on('trine:grave_ghoul', 1, 'party', 2, 2), on('bone_chanter', 2, 'party', 4, 2),
+    on('trine:grave_ghoul', 101, 'foe', 2, 9), on('bone_chanter', 102, 'foe', 4, 9)
+  ])
+  assert.deepEqual([holding(b, 'party'), holding(b, 'foe')], [['legion'], ['legion']])
+  const t = scene([on('trine:grave_ghoul', 1, 'party', 2, 2), on('clockwork_page', 100, 'foe', 3, 9)])
+  assert.ok(!holding(t, 'party').includes('legion'), 'three alone')
+  enterBattle(t, { ...makeUnit('bone_chanter', { uid: 50, lvl: 3 }), side: 'party', shadow: true, tile: tileAt(3, 4) })
+  assert.ok(holding(t, 'party').includes('legion'), 'a trine and a shadow')
+})
+
 // The Legion (Undead 4): every foe slain rises on the side holding it, past Arise's reach and tier.
 test('Legion: every foe slain rises at once as a shadow of yours beside the Monarch; never a boss or a shadow', () => tuned(BOARD_14, () => {
   const foes = () => [on('clockwork_page', 101, 'foe', 1, 6), on('iron_golem', 102, 'foe', 3, 6), on('frost_sprite', 103, 'foe', 5, 6)]

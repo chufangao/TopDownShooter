@@ -12,7 +12,7 @@ import { TUNING } from '../tuning.js'
 import { STATUS_WORTH, statusDef, unitDef, FUSIONS, SYNERGIES } from '../content.js'
 import {
   alive, enemySide, isBlow, isAllyShape, footprint, tileX, tileY, distanceBetween, statsOf, blowReach, rangeOf, steps, lineEnds, LINE_AT, LINE_TILES,
-  TILES, LANES, DEPTH
+  TILES, LANES, DEPTH, synergyCounts
 } from './unit.js'
 import { LANE, roadOf } from './field.js'
 import {
@@ -869,16 +869,8 @@ function fells (battle, u, x) {
 // The synergies on each side (synergiesOf), and how near each side is to losing or gaining one: `breaks` the foes'
 // rules that one fewer of a kin or role they count would end, `gains` the rules of yours one more piece would bring.
 function synergyRead (battle) {
-  const counts = (side) => {
-    const c = { kin: {}, role: {} }
-    for (const u of battle.units) {
-      if (u.side !== side || !alive(u) || u === battle.monarch) continue
-      const d = unitDef(u.id)
-      c.kin[d.kin] = (c.kin[d.kin] ?? 0) + 1
-      c.role[d.role] = (c.role[d.role] ?? 0) + 1
-    }
-    return c
-  }
+  // Each side's living by kin and role, a trine as three (unit.js synergyCounts), the Monarch none.
+  const counts = (side) => synergyCounts(battle.units.filter((u) => u.side === side && alive(u) && u !== battle.monarch))
   const short = (syn, c) => ['kin', 'role'].reduce((n, axis) => n + Object.entries(syn.needs[axis] ?? {}).reduce((k, [id, need]) => k + Math.max(0, need - (c[axis][id] ?? 0)), 0), 0)
   const theirs = counts('foe')
   const ours = counts('party')
