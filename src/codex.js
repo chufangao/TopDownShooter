@@ -867,6 +867,12 @@ const synergyNames = (active) => active.filter((syn) => ladderOf(syn).steps.filt
 // its name, its rule, and the rule's text on hover. → [{ id, name, rule, text }]
 export const synergyLabels = (active) => active.filter((syn) => ladderOf(syn).steps.filter((st) => active.includes(st.syn)).at(-1).syn === syn)
   .map((syn) => ({ id: syn.id, name: syn.name, rule: ruleName(syn), text: ruleText(syn) }))
+// The rules at work the battle scene flares (engine.js rule), by rule: { step, name }. A synergy's its step and its rule's
+// name ("Undead 4", "Legion"); a capstone's (rules.js, scoped to the piece: redesign.md §4.1) its kind's name.
+export const ruleFlares = () => ({
+  ...Object.fromEntries(SYNERGIES.filter((syn) => syn.rule).map((syn) => [syn.rule, { step: syn.name, name: ruleName(syn) }])),
+  ...Object.fromEntries(UNIT_LIST.filter((d) => d.rule && !d.boss).map((d) => [d.rule, { step: 'Capstone', name: d.name }]))
+})
 
 const countsOf = (units, also = null) => {
   const c = { kin: {}, role: {} }

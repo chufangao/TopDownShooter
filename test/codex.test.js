@@ -449,3 +449,17 @@ test('an ascension is told as it plays: level 0 the base game, a level each numb
   const tip = roomTip(run, node, { reachable: true }).textContent
   assert.ok(tip.includes(`2 more as turn ${1 + waveEvery(run.state)} begins.`), tip)
 })
+
+// Every rule that says it is at work (a 'rule' event: rules.js) flares in battle (engine.js rule, by ruleFlares): a
+// synergy's as its step and name ("Undead 4 · Legion"), a capstone's as its kind's name, over the piece (the second bug
+// hunt: the capstones' rules emitted their events and the scene flared the synergies' alone).
+test('every rule at work flares in battle: the synergies\' by step and name, a capstone\'s by its kind\'s name', async () => {
+  const { ruleFlares } = await import('../src/codex.js')
+  const { readFileSync } = await import('node:fs')
+  const flares = ruleFlares()
+  const said = [...readFileSync(new URL('../src/sim/rules.js', import.meta.url), 'utf8').matchAll(/type: 'rule', rule: '([a-z_]+)'/g)].map((m) => m[1])
+  assert.ok(said.length >= 12, said.join())
+  for (const rule of new Set(said)) assert.ok(flares[rule]?.name && flares[rule].step, `${rule} flares`)
+  for (const syn of SYNERGIES.filter((x) => x.rule)) assert.deepEqual(flares[syn.rule], { step: syn.name, name: syn.desc.split(': ')[0] })
+  for (const d of UNIT_LIST.filter((x) => x.rule && !x.boss)) assert.equal(flares[d.rule].name, d.name, d.id)
+})
