@@ -123,7 +123,7 @@
 // elite; past it the floors simply go on. A fall in the deep ends the run as any defeat does (s.death says
 // what felled the Monarch) but leaves the clear standing: s.result stays 'victory'.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef } from '../content.js'
+import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef, TUTORIAL } from '../content.js'
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campOpen, wallTiles, tracksOf, canTrack, nextTracks,
@@ -133,7 +133,7 @@ import {
 import { roadsTo } from './field.js'
 import { createBattle, order, legalOrders } from './turns.js'
 import { grantsArise, unhealable } from './rules.js'
-import { generateFloor, nodeOf, RANKS } from './map.js'
+import { generateFloor, nodeOf, RANKS, WIDTH } from './map.js'
 
 // The trio every run started with before the draft (2026-10-14): now only a fixed start a caller may ask for
 // (createRun's `start`: the tests' plain team, a run saved before the draft, replayed), and the autoplayer's plain
@@ -178,6 +178,27 @@ export function createRun ({ seed, ablate = null, start = null, scale = 1 }) {
   return run
 }
 
+// The tutorial (redesign.md §4.8; content.js TUTORIAL): one room before floor 1, the threshold, in a real run state
+// under the game's rules, never saved (save.js keeps no run marked `tutorial`). Its draft is fixed (`start`: the souls on
+// the camp's frontier, the map open), its seed's floor-1 camp stands, and its map is the threshold and one fight of the
+// tutorial's foes at floor 1's first level, the room drawn at the floor's end; won, its spoils end it (nextRoom: phase
+// 'over', no result), lost, it ends as any run.
+export function tutorialRun () {
+  const run = createRun({ seed: TUTORIAL.seed, start: TUTORIAL.party })
+  const s = run.state
+  s.tutorial = true
+  const lane = (WIDTH - 1) / 2
+  const foes = TUTORIAL.foes.map((f) => ({ id: f.id, lvl: foeLevel(1), slot: slotAt(f.row, f.lane) }))
+  s.map = {
+    floor: 1,
+    nodes: [{ id: '0.0', rank: 0, lane, type: 'start', next: ['1.0'] }, { id: '1.0', rank: RANKS - 1, lane, type: 'fight', next: [], foes }],
+    start: '0.0',
+    end: '1.0'
+  }
+  s.at = s.map.start
+  return run
+}
+
 // The kinds the draft draws from: the floor-1 pool, the kinds floor 1's rooms can bring (spawnPool), in content order.
 export const draftPool = () => spawnPool(1).units.map((u) => u.id)
 
@@ -208,9 +229,10 @@ export function partners (a, b) {
 // from the trio every run then started with (START_PARTY); any other, from the draft (null).
 export const startFor = (log) => (log?.length && log[0].type !== 'pick' ? START_PARTY : null)
 
-// A run's log replays it from its seed (and the start it was played from: startFor).
-export function replay (seed, log, { ablate = null, scale = 1 } = {}) {
-  const run = createRun({ seed, ablate, scale, start: startFor(log) })
+// A run's log replays it from its seed (and the start it was played from: startFor), made with the options it was made
+// with, whatever createRun takes (`ablate`, `scale`; a save's: save.js).
+export function replay (seed, log, opts = {}) {
+  const run = createRun({ start: startFor(log), ...opts, seed })
   for (const action of log) apply(run, action)
   return run
 }
@@ -900,6 +922,8 @@ function nextRoom (run) {
   const s = run.state
   s.phase = 'map'
   if (s.at !== s.map.end) return
+  // The tutorial's one room is all of it.
+  if (s.tutorial) { s.phase = 'over'; return }
   s.stats.floorsCleared++
   s.floor++
   enterFloor(run)

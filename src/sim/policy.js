@@ -52,8 +52,7 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
     const rate = later ? rateOf(battle, u) : 0
     const blows = u.kit.filter((x) => isBlow(x) && (!isSkill(u, x) || (u.cooldowns[x.id] ?? 0) <= rate))
     if (!blows.length) continue
-    const spots = dealer === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadAhead(battle, u, u.move).map((s) => s.tile))
-      : orderable(battle, u) ? [u.tile, ...reach(battle, u, u.move).keys()] : [u.tile]
+    const spots = spotsOf(battle, u, at)
     g.fill(0)
     a.fill(0)
     const alone = new Map()
@@ -93,6 +92,39 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
 
 // Whether a Hexed `u` will lose its next act (`later`: it acts after a turn's end, where a Hexed of a turn runs out).
 const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id === 'hexed' && (s.fresh || s.dur === 'battle' || s.dur > 1)))
+
+// The tiles `u` could stand on to strike from on its side's next turn, as the danger map reads them: a foe its road's
+// tiles from where it stands, as far as its Move takes it and the board lets it (roadAhead), or the one tile `at`
+// (Map uid → tile) names; a piece of yours anywhere its Move reaches; a summon or a shadow where it stands.
+const spotsOf = (battle, u, at = null) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadAhead(battle, u, u.move).map((s) => s.tile))
+  : orderable(battle, u) ? [u.tile, ...reach(battle, u, u.move).keys()] : [u.tile]
+
+// What a unit could do on its side's next turn, for the board to light when a foe of a kind met is tapped (redesign.md
+// §4.8, §9): `move`, the tiles it could stand on (spotsOf: a foe's road ahead within its Move, its own tile first), and
+// `ground`, every tile a blow of its kit could strike from any of them (the danger map's spots, reach and dilation:
+// blowReach round its footprint), with `air` those where it could strike a flyer (aloft: a melee blow from the ground
+// never could). What it could strike, never what it will: every blow counts whether it rests or not (a foe's rests are
+// not shown), no line of fire is drawn (the pieces in the way may move first), and nothing says where it goes, whom it
+// takes, or whether it comes at all. One whose next act a Hex takes strikes nothing (its Hex is on its card). → tile
+// lists, ascending (`move` in road order).
+export function threatOf (battle, u) {
+  const move = alive(u) ? spotsOf(battle, u) : []
+  const ground = new Array(TILES).fill(0)
+  const air = new Array(TILES).fill(0)
+  if (move.length && !stunned(u, false)) {
+    for (const b of u.kit) {
+      if (!isBlow(b)) continue
+      const r = blowReach(u, b)
+      const ra = aloft(u, b, r)
+      for (const t of move) {
+        dilate(ground, t, u.size ?? 1, r, 1)
+        if (ra >= 0) dilate(air, t, u.size ?? 1, ra, 1)
+      }
+    }
+  }
+  const tiles = (list) => list.flatMap((v, t) => (v ? [t] : []))
+  return { move, ground: tiles(ground), air: tiles(air) }
+}
 
 // A blow that keeps to a line, of `raw`, from a footprint at `tile` (of `size`) within `r`: every tile it reaches with
 // no one of `side` strictly between (turns.js lineBlocker, as the board stands) holds at least `raw` in `g` and `a`

@@ -2545,6 +2545,48 @@ export const CAMP_LIST = [
   { id: 'spiral', name: 'Spiral', floor: 4, map: ['.......', '.......', '######.', '.....#.', '.#M..#.', '.#####.', '.......'] }
 ]
 
+// ── the tutorial ─────────────────────────────────────────────────────────────────────────────
+
+// One room before floor 1, the threshold (redesign.md §4.8; run.js tutorialRun): a real run under the game's rules,
+// played on its seed's floor-1 camp, its draft fixed (`party`, the trio every run began with before the draft) and its
+// fight's foes set where they stand (`foes`: a row of their formation, 0 the front, and a lane), at floor 1's level.
+// Its three screens of text come each once, at its moment (main.js): `field` as it opens, `battle` as the fight
+// begins, `spoils` once it is won; recruiting or passing on ends it, and a fall ends it as any run.
+export const TUTORIAL = {
+  seed: 'threshold',
+  party: ['tomb_knight', 'bone_chanter', 'frost_sprite'],
+  foes: [{ id: 'clockwork_page', row: 0, lane: 2 }, { id: 'clockwork_page', row: 0, lane: 4 }, { id: 'will_o_wisp', row: 1, lane: 3 }],
+  screens: {
+    field: {
+      title: 'The threshold',
+      lines: [
+        'You are the Monarch. You stand on your seat in the camp, never move and never strike; the foes come down the roads to you, and if you fall, the run is over.',
+        'Three souls are yours: a Tomb Knight to hold the road, a Bone Chanter and a Frost Sprite to strike from afar. On the Field, drag one to move it.',
+        'Then, on the Map, enter the room: its battle begins at once.'
+      ],
+      go: 'To the camp'
+    },
+    battle: {
+      title: 'Command',
+      lines: [
+        'Tap a piece: its Move lights blue, its blow\'s reach red. Tap a lit tile to move it there, a foe in reach to see the blow, and the foe again to strike.',
+        'End Turn when you are done: what you left alone strikes with its basic blow, then the foes take their turn.',
+        'Tap a foe to read it. A kind you have met also lights every tile it could reach and strike next turn: these three you meet now.'
+      ],
+      go: 'Fight'
+    },
+    spoils: {
+      title: 'Reap',
+      lines: [
+        'The slain pay essence, and one of them may join you for its price: recruit one, or move on.',
+        `Between rooms, essence buys a kind its tiers, and three of a kind fuse into one far stronger. At the bottom of floor ${TUNING.run.floors}, the Hollow Sovereign waits.`,
+        'A run is saved as you play: leave when you like, and Continue from the title.'
+      ],
+      go: 'Reap'
+    }
+  }
+}
+
 // ── fusions ──────────────────────────────────────────────────────────────────────────────────
 
 // A recipe (DESIGN §2.6): `needs` counts pieces (souls) per kind, consumed whole from your pieces, fielded or in the
