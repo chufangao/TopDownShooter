@@ -49,7 +49,10 @@ combat is deterministic, so it calculates only what a player could).
 
 ```
 npm run sim -- [--runs 8] [--seed sim] [--level expert] [--ablate orders]   # a balance report
-npm run ladder        # the gap between the levels
+npm run ladder        # the gap between the levels (and each level's diversity block)
+npm run builds -- [--player expert|teacher] [--commit <archetype>|all|fused|synergies] [--scale 1] [--runs 256] [--seed div]
+                      # the harness: free play and each build committed, on the same seeds
+npm run pool          # what a run can gather: each floor's draws, the battles offering each kind, each recipe's reach
 npm run ablations     # how much each mechanic carries the expert (--variants a,b to choose)
 npm run necessity     # the same as a fast battle-level proxy
 npm run decisions     # how much the player's choices decide battles
@@ -64,6 +67,17 @@ npm run bundle -- --forest f.json   # ship a fitted part into src/sim/expert.jso
 
 Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a band); extras `fusions`,
 `legendaries`, `relics`, `synergies`.
+
+The harness (redesign.md §3) measures the builds. An archetype is a fused kind or a synergy, as content makes them; a
+run committed to one reads the book's combos for it alone (those that fuse it, or reach its kin's or role's count), so
+its draft, recruits, purchases and route follow it, and so do the outside teacher's candidates (`--player teacher`).
+`--builds` prints a row an archetype: clears, progress against free play seed for seed, deaths by floor, the margin
+(the Monarch's and its pieces' HP as the last battle ended, essence left, battles lost, turns a battle), and how many
+runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the
+final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3. `--scale`
+multiplies every foe's HP and ATK. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
+and an elite's draws by kind, the battles on a walk offering each kind, and each recipe's reach by the end of floor 2
+(criterion 1).
 
 ## Code map
 
