@@ -9,7 +9,7 @@ import path from 'node:path'
 import { labelPosition, teachRun, valueOf, loadLabels, report, give, signature, WEIGHTS, DEFAULTS, labelChoice, ROUTE_WEIGHTS, END_WEIGHTS, endTally, endValue, bestOf, teacherPick, teacherTurn, teacherRun, pairedReport, pairedLines, drawOf, KEEP } from '../src/sim/teach.js'
 import { createRun, apply, START_PARTY } from '../src/sim/run.js'
 import { nodeOf } from '../src/sim/map.js'
-import { survey, pickRoute, learnedRoute, useRoute, routeConditions, routeFeatures, ROUTE_FEATURES } from '../src/sim/autoplay.js'
+import { survey, pickRoute, learnedRoute, useRoute, routeConditions, routeFeatures, ROUTE_FEATURES, routeRooms } from '../src/sim/autoplay.js'
 import { conditions, OPTION_FEATURES } from '../src/sim/policy.js'
 import { fork, order } from '../src/sim/turns.js'
 import { tileAt } from '../src/sim/unit.js'
@@ -277,7 +277,7 @@ test('a room choice played to the run\'s end: the deadly elite loses the run, th
   assert.equal(L.hand, a.i)
   for (const o of L.options) {
     assert.ok(Math.abs(routeEndOf(o.parts, ROUTE_END_WEIGHTS) - o.value) < 1e-5)
-    assert.ok(Math.abs(o.parts.rooms - (o.share - 0) * 60) < 1e-4, 'rooms from the choice, the run at its start')
+    assert.ok(Math.abs(o.parts.rooms - (o.share - 0) * routeRooms()) < 1e-4, 'rooms from the choice, the run at its start')
   }
   assert.deepEqual(labelChoice(deadlyFloor().run, altar), L)
 })

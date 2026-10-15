@@ -404,12 +404,15 @@ export const TUNING = {
     // rules on every floor (redesign.md §2.12), as yours do.
     endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, final: { count: 2, level: 1 } }
   },
-  // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). A won
+  // floors: the Sovereign's floor; beating it is a clear, and the run may descend past it (spawn.endless). 3 since
+  // 2026-10-15 (was 4; redesign.md §4.8, §8 Step 8): the run's length by the orders a clear, the expert's 1,274 → 949
+  // on div-0…63 (RANKS 12 alone 1,084; the target ~600). The per-floor lists keep their floor-by-floor meaning, their
+  // fourth entries the deep's first floor's now; floor 4's three camps no floor draws (the deep reuses floor 3's). A won
   // battle heals each living soul postBattleHeal of its max HP; an altar's heal heals each to altarHeal of it and raises
   // a fallen one at altarRevive (run.js). Wounds carry (2026-10-10): a win mends a fifth, so HP, DEF, Undying and
   // Heartwood count between rooms, and an altar is worth walking to. An altar's transmutation offers a soul altarOffer
   // kinds of the floor's pool at its tier (run.js transmuteOffer; redesign.md §4.5).
-  run: { floors: 4, postBattleHeal: 0.2, altarHeal: 1, altarRevive: 0.5, altarOffer: 3 },
+  run: { floors: 3, postBattleHeal: 0.2, altarHeal: 1, altarRevive: 0.5, altarOffer: 3 },
   // Relics (content.js RELIC_LIST, RELIC_TIERS), bought in Shops and only there (TUNING.shop; redesign.md §2.11). A
   // Shop draws each relic's tier by `weights.shop`, the entry for the floor (index floor − 1; the last one for every
   // floor past them), then a relic of that tier, never the same one twice in one stock; one held may come again
