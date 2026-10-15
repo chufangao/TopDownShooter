@@ -1245,6 +1245,96 @@ and log, to the same state. The harness: basic on 300 seeds,
 the expert committed to every archetype on 3 (168 runs, `--builds --commit all`), 28 expert runs replayed at scales
 0.7 and 1.3, the calculator on 16, the outside teacher on 2: no throw, every replay the same.
 
+### The ascension ladder (Step 7, 2026-10-15)
+
+**Built** (§4.6, the sim and the interface; on 5c23270, merged with the first bug hunt at cddeab4): `TUNING.ascension`,
+a row a level, 0 to 10, each the multipliers of its level over the base game: `foeHp` and `foeAtk` (every foe's, the
+boss's, its court's and the foes' shadows' with them: `foeMods` by `run.js foeScale`), `fight` and `elite` (a
+formation's count, rounded: `roomSize`; a siege's and the Sovereign's waves are fight-sized, the cohorts and the late
+pair as they were), `every` (the turns between waves, rounded, at least 1: `waveEvery`, carried in a battle's setup
+where it moves, read by `turns.js entryTurn` and the schedule), `monarchHp` (its base, rounded, its HP relics on top:
+`monarchBase`), `price` (a tier, a recruit, a fusion, a relic; an elite's bounty is pay and stays). Level 0 every one 1;
+the top row foe HP ×1.4, ATK ×1.2, fights and elites ×1.2 (fights of 3 / 4 / 5 / 5 foes on floors 1–4 → 4 / 5 / 6 / 6,
+elites of 2 / 5 / 6 / 6 → 2 / 6 / 7 / 7), waves ×0.75 (every 4 turns → 3), the Monarch ×0.85 (250 → 213 HP), prices
+×1.2; the rows between on the straight line to it (`tuning.js ladder`: 1 + (top − 1) × k / 10). **Every row is a
+placeholder until the balance pass** (§9): level 0 to be tuned on the expert at ~90%, the top on the teacher at ~60%. No
+number of the base game moved.
+
+A run's level is its own from its first floor: `createRun({ ascension })`, `replay(seed, log, { ascension })`, a field
+on the state above 0 (none at 0); a run is its seed, its level and its log, and a record of one names its level where it
+is not 0 (autoplay.js `record`, calc.js `calcRun`, the outside teacher's settings). Step 0's `scale` stays, the
+harness's override on top of the level (`foeScale` multiplies both; `--scale` as before). Every reader that makes or
+replays a run passes it: autoplay.js (`ablatedRun`, `record`, `--builds --ascension`, any report's `--ascension
+<level>`), outside.js (`--ascension`, the paired expert's run too), teach.js (every mode's `--ascension`, into its
+settings where not 0), calc.js (`calcRun`, `--ascension`); the forests' label sets stay the base game's, as the refit
+is. The expert reads the level's foes in its scouting (`scoutRoom`, `scoutAt`, `roomRead`) as it read `scale`, and the
+level's waves in battle through the battle's own schedule; its route still reads a purse in the base's tier prices
+(`tierScale`), frozen as it is. The unlock rule (`openTo`, `clearAt`): a level opens with a clear of the one below it,
+level 0 always open, never past the top.
+
+**The ladder report** (`npm run ladder -- [--ascension 0|a,b,…|all] [--teacher] [--runs 8]`): the rungs basic, the
+calculator (a worker's job, `ladderRecord`: `calcRun` with its plain readers set for its run and put back), the expert
+and with `--teacher` the outside teacher, on the same seeds at each level: clears, deaths by floor, progress, battles a
+run, and against the rung below seed for seed the clears won and lost and the progress's difference ± one standard
+error; then whether each level keeps the order (each rung's progress above the one below's). At one level the old detail
+tables follow, the record players'.
+
+**The interface**: on the title screen, − the level + in the actions' row (`ui.js ascensionChooser`, a function of its
+own), never above the highest open, and a line under it naming what the level moves ("foes +40% HP, +20% ATK · more foes
+· waves every 3 turns · the Monarch 213 HP · prices +20%" at 10) and, at the highest open, that its clear opens the
+next; each number in full in its tip. Kept in the URL (`?ascension=`, written back as it steps; a link asking past this
+browser's unlocks is held to them) and in prefs (`ascension`, the chosen; `ascended`, the highest cleared). The top bar:
+"Floor 1 · A3" above 0, the level's line in the floor's tip. The end screen of a clear: "Ascension N is open. Choose it
+on the title screen." (once a run), and the level beside the seed. Played in Chromium at 1440×900, 1024×768 and 852×393
+(a link asking 7 with 2 cleared, the steps either way and past the open, a run begun at its level, the top bar and its
+tip, a clear's end screen and the title after it, the level opened then chosen): no console error. At 852×393 the
+actions keep one line (a short frame's title box a little wider, its sigil smaller).
+
+**The check**: level 0 is the base game byte for byte. The expert's runs of `asc0-0…2` and `div-3`, basic's of
+`asc0-0…1` (each log, end state and record, each log replayed to the same state), the outside teacher's run of `sim-10`
+and the calculator's of `asc0-0…1`: 15 files, the same sha256 before and after, on 5c23270 and again on the merge
+against cddeab4 (where the bug hunt's reader had changed four of them). **Tests**: `test/ascension.test.js`, 11 (the
+rows; level 0 the base game; a level reaching the formation, the boss, a wave come in and a foe's shadow; the counts and
+the waves' turns; the Monarch in the run and in battle; the prices at three levels; replay at a level; the unlock rule;
+the ladder's levels, jobs, table and lines; a calculator's run at a level, its readers put back), and one in
+`codex.test.js` (every level's words, a room's at the top): 469 → 481 on the merge, all passing (`--test-concurrency=2`,
+293 s).
+
+**Measured** (the expert as Step 0 has it with the bug hunt's reader, its forests stale; seeds `asc-*`, the draft on;
+two workers beside two other sessions): `npm run ladder -- --ascension 0,1,2,3,5,10 --runs 32 --workers 2` on the merge
+(576 runs, 12 min), and the teacher at the top, `--ascension 10 --teacher --runs 16` (64 runs, 1 min). Clears; deaths on
+floor 1 / 2 / 3 / 4; progress in points; the gap to the rung below in points of progress, seed for seed, ± one standard
+error:
+
+| Level | basic | the calculator | the expert | basic → calculator | calculator → expert |
+|---|---|---|---|---|---|
+| 0 | 0; 32 / 0 / 0 / 0; 2.1 | 0; 28 / 2 / 2 / 0; 14.3 | **21 (66%)**; 4 / 0 / 0 / 7; 88.5 | +12.2 ± 2.9 | +74.2 ± 5.7 (+21 −0) |
+| 1 | 0; 32 / 0 / 0 / 0; 1.9 | 0; 28 / 3 / 0 / 1; 15.3 | 19 (59%); 7 / 0 / 0 / 6; 79.4 | +13.4 ± 3.1 | +64.0 ± 6.7 (+19 −0) |
+| 2 | 0; 32 / 0 / 0 / 0; 1.8 | 0; 29 / 2 / 1 / 0; 12.1 | 14 (44%); 11 / 0 / 1 / 6; 67.1 | +10.3 ± 2.1 | +55.0 ± 7.2 (+14 −0) |
+| 3 | 0; 32 / 0 / 0 / 0; 1.8 | 0; 28 / 3 / 1 / 0; 11.8 | 12 (38%); 13 / 0 / 1 / 6; 61.2 | +9.9 ± 2.3 | +49.4 ± 7.7 (+12 −0) |
+| 5 | 0; 32 / 0 / 0 / 0; 1.6 | 0; 29 / 2 / 1 / 0; 12.4 | 5 (16%); 23 / 0 / 2 / 2; 32.0 | +10.8 ± 2.6 | +19.6 ± 7.4 (+5 −0) |
+| 10 | 0; 32 / 0 / 0 / 0; 0.6 | 0; 32 / 0 / 0 / 0; 3.9 | 0; 32 / 0 / 0 / 0; 2.1 | +3.3 ± 0.6 | −1.8 ± 0.7 |
+
+The top, `asc-0…15`: basic 0.6, the calculator 3.2, the expert 2.1, the outside teacher 3.0 (+0.8 ± 0.3 over the
+expert), every run of every rung dead on floor 1, in its first or second battle; the Monarch's killers by threat, the
+expert's and the teacher's, Reach 6 and 6, Drain 5 and 3, Burn 3 and 4. Before the merge (5c23270, the reader misreading
+trines' summons), the same seeds: the expert 63%, 41%, 38%, 34%, 13% and 0% at 0, 1, 2, 3, 5 and 10, the order kept but
+at 10, and the teacher 1 of 8 at the top.
+
+**What it says.** The placeholders do what a ladder's rows must, and too steeply at the top. Each level is harder for
+the expert than the one below (66% → 59% → 44% → 38% → 16% → 0%; progress 88.5 → 2.1), its deaths moving to floor 1 (4
+at 0, 13 at 3, 23 at 5, all 32 at 10): "floor 1 is hard at the top of the ladder" (§9) holds, at 10 harder than anyone
+survives. Basic dies on floor 1 at every level, as at the base, and the calculator reaches floor 2 in 3 or 4 runs of 32
+at 0 to 5 and in none at 10 (criterion 4 and §4.6 would have the novice reach it about half the time at 0: unmet, and
+further off up the ladder). The ladder keeps its order and its gaps at 0 to 5, the expert's above the calculator's
+narrowing from 74 points to 20 as its clears fall; at 10 it breaks: every rung dies in its first battles, and there the
+calculator's battles, which never walk into reach, last a turn or two longer than the expert's and read as more progress
+(3.9 against 2.1), and the teacher, whose battles are the expert's, gains nothing (0 of 16). So the top row as placed is
+past what any rung can play; the balance pass pulls it in. Where the teacher's ~60% (criterion 4) falls is unmeasured
+below the top (it was played at 10 alone); the expert's own clears fall from 66% to 16% by level 5, and at level 0 the
+expert's 66% on these seeds is short of its ~90%. Those are the balance pass's numbers (§6, Step 6), with the refit
+first: these rows are placeholders, as every number here.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:

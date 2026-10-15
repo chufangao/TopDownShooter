@@ -13,6 +13,11 @@ then descend into the endless deep for as long as you last.
 
 ## Playing
 
+- **The ascension.** The title screen's − and + choose the level a run is played at, from 0, the base game, up to
+  10: each level's foes have more HP and ATK, its fights and elites more foes, its waves come sooner, the Monarch has
+  less HP and every price is dearer (the line under the chooser says what moved). Clearing a level opens the one above
+  it; level 0 is always open. The level is kept in the URL (`?ascension=`) and in this browser, and shown beside the
+  floor in the top bar.
 - **The draft.** A run opens with the Monarch alone. Pick three souls, each from three kinds drawn from floor 1's
   foes by the run's seed. The second and third picks each offer at least one kind that goes with a soul you hold, of
   its kin or the other part of a recipe, so two of a kind (two thirds of its trine) or a recipe begun is a choice from
@@ -61,8 +66,10 @@ so it calculates only what a player could).
 
 ```
 npm run sim -- [--runs 8] [--seed sim] [--level expert] [--ablate orders]   # a balance report
-npm run ladder        # the gap between the levels (and each level's diversity block)
-npm run builds -- [--player expert|teacher] [--commit <archetype>|all|fused|synergies] [--scale 1] [--runs 256] [--seed div]
+npm run ladder -- [--ascension 0|<a,b,…>|all] [--teacher] [--runs 8]
+                      # the rungs (basic, the calculator, the expert; the outside teacher by --teacher) on the same
+                      # seeds at each level of the ascension ladder, and the gaps between them
+npm run builds -- [--player expert|teacher] [--commit <archetype>|all|fused|synergies] [--ascension 0] [--scale 1] [--runs 256] [--seed div]
                       # the harness: free play and each build committed, on the same seeds
 npm run pool          # what a run can gather: each floor's draws, the battles offering each kind, each recipe's reach
 npm run ablations     # how much each mechanic carries the expert (--variants a,b to choose)
@@ -87,8 +94,9 @@ its draft, recruits, purchases and route follow it, and so do the outside teache
 (the Monarch's and its pieces' HP as the last battle ended, essence left, battles lost, turns a battle), and how many
 runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the
 final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3, and the altars'
-rites taken and the runs whose leading kin or fused kind turned after floor 1. `--scale` multiplies every foe's HP and
-ATK. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
+rites taken and the runs whose leading kin or fused kind turned after floor 1. `--ascension` plays them at a level of
+the ladder (any report takes it: `npm run sim -- --ascension 5`); `--scale` multiplies every foe's HP and ATK on top of
+it, an override for probing. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
 and an elite's draws by kind, the battles on a walk offering each kind and the draft's picks, and each recipe's reach
 by the end of floor 2 (criterion 1).
 
@@ -104,8 +112,8 @@ by the end of floor 2 (criterion 1).
   over it: redesign.md §3, §8). The earlier learners (V, the ranker), the stronger battle teacher and the turn's beam
   were removed on 2026-10-15 (redesign.md §8).
 - `src/content.js` is all content as records, one per unit, ability and relic, and the one rule that makes the trines
-  a kind has no record for (`trineOf`, redesign.md §4.1); `src/tuning.js` every balance number (`TUNING`, the trines'
-  and the expert's tables included).
+  a kind has no record for (`trineOf`, redesign.md §4.1); `src/tuning.js` every balance number (`TUNING`, the trines',
+  the expert's and the ascension's tables included).
 - The interface: `src/main.js` (composition), `ui.js` (screens), `board.js` (the Field's board), `engine.js`
   (Phaser, battles only), `codex.js` and `keywords.js` (rules text generated from content), `frame.js` (one
   scaled landscape layout), `dom.js`, `sfx.js`, `css/`.
