@@ -409,11 +409,13 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
     }
     return
   }
-  // Raising works on the dead: an Arise's corpse (its shadow `arisen`, its raiser's: the rules hear of it, onRaise), or
+  // Raising works on the dead: an Arise's corpse (its shadow `arisen`, its raiser's: the rules hear of it, onRaise), a
+  // relic's slain with `tier` (Gravedigger's Spade: one of that tier or lower, as Legion would raise it: risable), or
   // with `count` the field's dead (Grave Tide: raiseDead).
   if (effect.op === 'raise') {
     if (effect.count) return raiseDead(battle, actor, effect.count)
     for (const corpse of targets) {
+      if (effect.tier !== undefined && !(unitDef(corpse.id).tier <= effect.tier && risable(battle, corpse, actor.side))) continue
       const shadow = raise(battle, actor, corpse)
       if (!shadow) continue
       battle.raised++
@@ -426,9 +428,14 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
   for (const target of targets) {
     if (!alive(target)) continue
     if (effect.op === 'damage') {
-      const a = stats(battle, actor)
-      const d = stats(battle, target)
-      const damage = computeDamage({ power: effect.power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
+      // `power` by the actor's ATK against the target's DEF; a flat `amount` (a relic's: Briar Mail's) as it is, true
+      // damage as a tick's: no ATK, DEF or mod, only the rules bending it as it lands.
+      let damage = effect.amount
+      if (damage === undefined) {
+        const a = stats(battle, actor)
+        const d = stats(battle, target)
+        damage = computeDamage({ power: effect.power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
+      }
       applyDamage(battle, target, damage, { actor, ability: ability?.id ?? null })
     } else if (effect.op === 'heal') {
       heal(battle, actor, target, effect.power, effect.pct)
@@ -624,6 +631,11 @@ export function raise (battle, actor, corpse, { side = actor.side, rule = null }
   return shadow
 }
 
+// Whether `corpse` may rise on `side` as Legion raises (rules.js legion): fallen, never risen, never a shadow, a boss, a
+// Monarch or one consumed by a fusion, while the side has room for it (roomFor; raise finds its tile or none).
+export const risable = (battle, corpse, side) => !alive(corpse) && !corpse.raised && !corpse.shadow && !corpse.into &&
+  !unitDef(corpse.id).boss && !unitDef(corpse.id).monarch && roomFor(battle, side)
+
 // The Sovereign's Grave Tide: up to `count` of the field's dead rise on the actor's side as shadows, where they fell
 // (raise): the fallen of either side, never a shadow, a boss, the Monarch, one consumed by a fusion or one risen
 // already, lying where no one living stands; the strongest first, then the nearest, then the first to have stood.
@@ -697,8 +709,8 @@ export function trigger (battle, on, subject, place, other = null) {
 function triggered (battle, effect, subject, place, other) {
   switch (effect.to) {
     case 'self': return alive(subject) ? [subject] : []
-    // The one on the other end, never the subject itself.
-    case 'other': return other && other !== subject && alive(other) ? [other] : []
+    // The one on the other end, never the subject itself: standing, or for a raise lying dead (the slain).
+    case 'other': return other && other !== subject && alive(other) !== (effect.op === 'raise') ? [other] : []
     case 'monarch': return battle.monarch && alive(battle.monarch) ? [battle.monarch] : []
     case 'allies': return around(battle, place.tile, effect.range, subject.side, place.size)
     case 'foes': return around(battle, place.tile, effect.range, enemySide(subject.side), place.size)

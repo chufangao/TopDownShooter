@@ -251,6 +251,148 @@ test('Tower Shield: as the battle begins and as each later wave enters, while it
   assert.deepEqual(ev.filter((e) => e.type === 'status' && e.status === 'hasten').map((e) => e.target).sort(), [1, 2])
 })
 
+// ── the twelve that define a build (redesign.md §4.4) ───────────────────────────────────────────
+
+// A kin banner works unheld on every soul of its kin (unit.js statsOf reads its `who`), never on another's, the
+// Monarch's or a foe's; its copies stack. A scene's pieces each a kin, the run's partyMods given them.
+test('the kin banners: run relics on their kin alone, unheld, copies stacking: a Drake gains, a non-Drake and a foe Drake do not', () => {
+  const run = runIn('banners')
+  const s = run.state
+  s.relics = ['wyrm_standard', 'wyrm_standard', 'barrow_standard', 'brass_standard', 'gossamer_standard', 'hive_standard']
+  assert.deepEqual(unheld(s), [], 'nothing to hold')
+  const setup = battleSetup(run)
+  assert.deepEqual(setup.partyMods, s.relics.flatMap((id) => RELICS[id].mods))
+  // Hound (Drake), Knight (Undead), Page (Construct), Hag (Fae), Drone (Insect); a foe Hound and a Golem far off.
+  const kinds = { 1: 'pyre_hound', 2: 'tomb_knight', 3: 'clockwork_page', 4: 'marsh_hag', 5: 'hive_drone' }
+  const units = [on('monarch', 0, 'party', 3, 0), ...Object.entries(kinds).map(([uid, id]) => on(id, Number(uid), 'party', Number(uid), 2)),
+    on('pyre_hound', 10, 'foe', 1, 10), on('iron_golem', 11, 'foe', 6, 10)]
+  const bare = scene(units)
+  const b = scene(units, { partyMods: setup.partyMods })
+  const st = (x, uid) => stats(x, unit(x, uid))
+  // What each banner moves, on its kin and on no one else.
+  const moved = (uid) => ['atk', 'hp', 'move', 'damage.taken', 'cooldown.rate'].filter((k) => k === 'hp'
+    ? unit(b, uid).maxHp !== unit(bare, uid).maxHp
+    : k.includes('.') ? st(b, uid)[k.split('.')[0]][k.split('.')[1]] !== st(bare, uid)[k.split('.')[0]][k.split('.')[1]] : st(b, uid)[k] !== st(bare, uid)[k])
+  assert.deepEqual([1, 2, 3, 4, 5, 0, 10, 11].map(moved), [['atk'], ['hp'], ['damage.taken'], ['cooldown.rate'], ['move'], [], [], []])
+  assert.ok(Math.abs(st(b, 1).atk - st(bare, 1).atk * 1.25 * 1.25) < 1e-6, 'two Wyrm Standards: +25% ATK twice over')
+  assert.equal(unit(b, 2).maxHp, Math.round(unit(bare, 2).maxHp * 1.2))
+  assert.deepEqual([+(st(b, 3).damage.taken / st(bare, 3).damage.taken).toFixed(6), st(b, 4).cooldown.rate, st(b, 5).move - st(bare, 5).move], [0.9, 2, 1])
+  // In play: a blow on the Construct lands 10% lighter; the Fae's skill rests no turn.
+  const blow = (mods) => {
+    const x = scene([on('clockwork_page', 1, 'party', 3, 6, 3), on('frost_wyrm', 10, 'foe', 3, 8, 24)], { partyMods: mods })
+    return strike(x, 10, 1).find((e) => e.type === 'damage' && e.target === 1).damage
+  }
+  assert.ok(Math.abs(blow(RELICS.brass_standard.mods) - blow([]) * 0.9) <= 1, `${blow(RELICS.brass_standard.mods)} vs ${blow([])}`)
+  const rested = (mods) => {
+    const x = scene([on('marsh_hag', 1, 'party', 3, 5, 5), on('iron_golem', 10, 'foe', 3, 8, 9), on('iron_golem', 11, 'foe', 6, 10)], { partyMods: mods })
+    order(x, { type: 'act', uid: 1, ability: 'hex', target: 10 })
+    order(x, { type: 'end' })
+    return unit(x, 1).cooldowns.hex
+  }
+  assert.deepEqual([rested([]), rested(RELICS.gossamer_standard.mods)], [1, 0], 'Hex rests a turn, but not under the Gossamer Standard')
+})
+
+// The 'blow' moment: a lvl-9 knight of yours (1, holding `relics`, wounded) strikes a Golem (10) beside it that stands;
+// its own skill (Cleave) or its basic.
+function blowing (relics, ability = 'strike') {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 6, 9, [0, 0], relics), on('iron_golem', 10, 'foe', 3, 7, 9),
+    on('iron_golem', 11, 'foe', 6, 10)])
+  unit(b, 1).hp = 50
+  return { b, events: order(b, { type: 'act', uid: 1, ability, target: 10 }) }
+}
+
+test('Firebrand, Leech Fang and Quicksilver: when its holder strikes, its target is set Burning, it heals 10% of its max HP, or its skills come back a turn sooner', () => {
+  const fire = blowing(['firebrand']).events
+  assert.deepEqual(after(fire, (e) => e.type === 'trigger' && e.relic === 'firebrand').filter((e) => e.type === 'status').map((e) => [e.target, e.status]), [[10, 'burning']])
+  assert.ok(!killing(['firebrand']).next.some((e) => e.type === 'status'), 'a blow that fells its target sets no one alight')
+  const { b, events } = blowing(['leech_fang'])
+  const heal = after(events, (e) => e.type === 'trigger' && e.relic === 'leech_fang')[0]
+  assert.deepEqual([heal.type, heal.target, heal.heal], ['heal', 1, Math.round(unit(b, 1).maxHp * RELICS.leech_fang.effects[0].pct)])
+  // Cleave rests a turn (2), the trigger brings it a turn sooner (1): ready again after the turn's end, where it rests one more.
+  const rest = (relics) => {
+    const x = blowing(relics, 'cleave')
+    const turns = x.events.filter((e) => e.type === 'cooldown' && e.target === 1).map((e) => e.turns)
+    order(x.b, { type: 'end' })
+    return [turns, unit(x.b, 1).cooldowns.cleave]
+  }
+  assert.deepEqual(rest(['quicksilver']), [[2, 1], 0])
+  assert.deepEqual(rest([]), [[2], 1])
+})
+
+test('Briar Mail: when its holder is struck, its attacker takes 12 true damage, its DEF and ATK nothing to it; a fatal blow is no strike back', () => {
+  const { next } = striking(['briar_mail'])
+  assert.deepEqual(next.slice(0, 2).map(({ beat, hp, ...e }) => e), [
+    { type: 'trigger', relic: 'briar_mail', on: 'struck', unit: 1 },
+    { type: 'damage', actor: 1, target: 10, damage: RELICS.briar_mail.effects[0].amount, ability: null }
+  ])
+  // A Golem (DEF 30, at level 9) takes as much as the Wisp did; the knight's counter follows.
+  const b = scene([on('tomb_knight', 1, 'party', 3, 5, 9, [0, 0], ['briar_mail']), on('iron_golem', 10, 'foe', 3, 6, 9), on('iron_golem', 11, 'foe', 6, 10)])
+  const ev = after(strike(b, 10, 1), (e) => e.type === 'trigger' && e.relic === 'briar_mail')
+  assert.deepEqual([ev[0].type, ev[0].target, ev[0].damage], ['damage', 10, 12])
+  const dead = scene([on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['briar_mail']), on('will_o_wisp', 10, 'foe', 3, 4, 9), on('iron_golem', 11, 'foe', 6, 10)])
+  unit(dead, 1).hp = 1
+  assert.ok(!strike(dead, 10, 1).some((e) => e.type === 'trigger'))
+})
+
+test("Raider's Spur and Rowan Charm: its holder gains Hasten when it slays a foe; your side within 2 tiles of it gains Barkskin as each wave comes", () => {
+  const spur = killing(['raiders_spur']).next
+  assert.deepEqual(spur.slice(0, 2).map((e) => [e.type, e.relic ?? e.status, e.target ?? e.unit]), [['trigger', 'raiders_spur', 1], ['status', 'hasten', 1]])
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['rowan_charm']), on('frost_sprite', 2, 'party', 3, 3), on('frost_sprite', 3, 'party', 6, 6),
+    on('iron_golem', 10, 'foe', 6, 10)], { reserve: [{ ...makeUnit('grave_ghoul', { uid: 20, lvl: 1 }), side: 'foe', wave: 1, lane: 0 }] })
+  const bark = (events) => events.filter((e) => e.type === 'status' && e.status === 'barkskin').map((e) => e.target).sort()
+  assert.deepEqual(bark(b.events), [0, 1, 2], 'at the start: within 2 of its holder')
+  const later = []
+  while (!b.over && !later.some((e) => e.type === 'wave')) later.push(...turns(b))
+  assert.ok(later.some((e) => e.type === 'trigger' && e.relic === 'rowan_charm'), 'and as the wave enters')
+})
+
+// The raise op with a `tier` (Gravedigger's Spade): the slain of that tier or lower rises as yours, as Legion would raise
+// it (turns.js risable), and Legion finds it risen.
+test("Gravedigger's Spade: when its holder slays a foe of tier 1, the slain rises at once as your shadow; a tier 2 stays down; Legion raises it no second time", () => {
+  const { b, next } = killing(['gravediggers_spade'])
+  assert.equal(next[0].relic, 'gravediggers_spade')
+  const rise = next.find((e) => e.type === 'arise')
+  assert.deepEqual([rise.actor, rise.corpse, rise.unit.side, rise.unit.id], [1, 10, 'party', 'grave_ghoul'])
+  assert.ok(unit(b, rise.unit.uid).shadow && alive(unit(b, rise.unit.uid)) && unit(b, 10).raised)
+  assert.ok(!killing([]).next.some((e) => e.type === 'arise'), 'held by no one, no one rises')
+  // A Pyre Hound (tier 2) slain stays down.
+  const hound = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 6, 9, [0, 0], ['gravediggers_spade']), on('pyre_hound', 10, 'foe', 3, 7, 1),
+    on('iron_golem', 11, 'foe', 6, 10)])
+  unit(hound, 10).hp = 1
+  const ev = order(hound, { type: 'act', uid: 1, ability: 'strike', target: 10 })
+  assert.ok(ev.some((e) => e.type === 'trigger' && e.relic === 'gravediggers_spade') && !ev.some((e) => e.type === 'arise'))
+  // Under Legion (four Undead of yours), the Spade's holder raises the slain first, and Legion leaves it be.
+  const legion = (relics) => {
+    const x = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 6, 9, [0, 0], relics), ...[0, 1, 2].map((k) => on('grave_ghoul', 2 + k, 'party', k, 1)),
+      on('grave_ghoul', 10, 'foe', 3, 7, 1), on('iron_golem', 11, 'foe', 6, 10)])
+    unit(x, 10).hp = 1
+    return order(x, { type: 'act', uid: 1, ability: 'strike', target: 10 }).filter((e) => e.type === 'arise').map((e) => [e.corpse, e.rule ?? null])
+  }
+  assert.deepEqual(legion(['gravediggers_spade']), [[10, null]])
+  assert.deepEqual(legion([]), [[10, 'legion']])
+})
+
+// A Shop stocks the twelve as it stocks every relic: by its tier's weights, at its tier's price.
+test('the Shop stocks the twelve by their tiers, each at its tier\'s price', () => {
+  const twelve = ['wyrm_standard', 'brass_standard', 'barrow_standard', 'gossamer_standard', 'hive_standard', 'gravediggers_spade', 'firebrand', 'briar_mail',
+    'leech_fang', 'quicksilver', 'rowan_charm', 'raiders_spur']
+  for (const tier of ['common', 'uncommon', 'rare']) {
+    tuned({ relic: { ...TUNING.relic, weights: { shop: [{ common: 0, uncommon: 0, rare: 0, [tier]: 1 }] } } }, () => {
+      const seen = new Set()
+      for (let i = 0; i < 60; i++) {
+        const run = createRun({ start: START_PARTY, seed: `twelve-${tier}-${i}` })
+        visit(run, 'shop')
+        for (const o of shopOffers(run)) {
+          assert.equal(o.tier, tier, o.id)
+          assert.equal(o.cost, Math.round(TUNING.shop.price[tier] * floorPrice(1)), o.id)
+          seen.add(o.id)
+        }
+      }
+      assert.deepEqual(twelve.filter((id) => RELICS[id].tier === tier && !seen.has(id)), [], `${tier}: every one stocked`)
+    })
+  }
+})
+
 // ── the Legendaries, scoped to their holders ─────────────────────────────────────────────────────
 
 test('Undying: its holder rises where it fell at its share of HP, once a battle; one beside it holding none stays down; a soul that bursts and rises still counts', () => {

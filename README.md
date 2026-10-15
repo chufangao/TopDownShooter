@@ -20,7 +20,8 @@ then descend into the endless deep for as long as you last.
 - **The Field.** Arrange your souls on the Field tab before you enter a battle room: entering one starts its fight.
   Drag a soul onto a tile to place it, swap by footprint, open a kind's panel to buy tiers, tap Fuse when a recipe's
   parts are in the ossuary; a soul selected on the board shows its reach. Tap a relic in the relic strip, then a soul,
-  to give it (a soul holds one piece relic). Run relics (Command, the Monarch's HP, prices) work unheld.
+  to give it (a soul holds one piece relic). Run relics (Command, the Monarch's HP, prices, a kin's banner) work
+  unheld.
 - **Fusions.** Three of any kind of tier 4 or less fuse into its **trine**, two tiers higher, its blows at one foe
   now blasts and its shots a tile longer (a trine of tier 4 or less has its own; the Will-o'-Wisp's is the Pale
   Court); mixed recipes join kinds, and seven capstones join fused kinds into pieces of tier 5 and 6. The Codex's

@@ -90,12 +90,17 @@ function checkAbility (id, where) {
   for (const e of a.effects) checkEffect(e, `${where} ${id}`)
 }
 
-function checkEffect (e, where) {
+// A relic's effects may carry what an ability's never do (redesign.md §4.4): damage of a flat `amount`, a raise's
+// `tier` (the slain of that tier or lower); an ability's damage is its power at its caster's ATK, and its Arise reads
+// the run's tier.
+function checkEffect (e, where, relic = false) {
   assert.ok(OPS.includes(e.op), `${where}: op ${e.op}`)
   if (e.op === 'apply_status') assert.ok(STATUSES[e.status] && turnsOk(e.turns), `${where}: ${e.status} for ${e.turns}`)
   else assert.ok(!e.status && e.turns === undefined, `${where}: a status only with apply_status`)
   if (e.op === 'cooldown') assert.ok(Number.isInteger(e.amount) && e.amount !== 0, `${where}: cooldown ${e.amount}`)
-  if (e.op === 'damage' || e.op === 'heal') assert.ok(e.power > 0 || e.pct > 0, `${where}: ${e.op} power`)
+  if (e.op === 'damage') assert.ok(e.power > 0 !== (relic && Number.isInteger(e.amount) && e.amount > 0), `${where}: damage of a power, or a relic's flat amount`)
+  if (e.op === 'heal') assert.ok(e.power > 0 || e.pct > 0, `${where}: ${e.op} power`)
+  if (e.op === 'raise' && e.tier !== undefined) assert.ok(relic && Number.isInteger(e.tier) && e.tier >= 1 && !e.count, `${where}: a relic's raise, to a tier`)
 }
 
 // ── units ─────────────────────────────────────────────────────────────────────────────────────────
@@ -538,7 +543,10 @@ test('a synergy split holds whole at its `full`: Echo\'s alone, at 8 Channelers'
 // and its params. The sixteen bespoke keys of before are none of them.
 const RELIC_KEYS = ['id', 'tier', 'name', 'desc', 'run', 'mods', 'on', 'effects', 'rule', 'params', 'needsArise']
 // A run relic's side-wide cost (§2.15): a loss on a unit's path for every soul (Legion's −15% HP).
-const isCost = (x) => x.path === 'hp' && x.op === 'mul' && x.v < 1
+const isCost = (x) => x.path === 'hp' && x.op === 'mul' && x.v < 1 && !x.who
+// A kin banner's mod (redesign.md §4.4): a unit's, scoped to the souls of one kin or one role (`who`, unit.js statsOf).
+const isBanner = (x) => !isRunPath(x.path) && !!x.who && Object.keys(x.who).length === 1 &&
+  (!!KIN[x.who.kin] || (!!ROLES[x.who.role] && !ROLES[x.who.role].hidden))
 const ARISE_RELICS = ['arise', 'hollow_court', 'blood_tithe', 'court_of_bone']
 
 test('every relic is a run relic or a piece relic, in one of the three forms, its tier and form matching: no rule below Legendary', () => {
@@ -553,17 +561,18 @@ test('every relic is a run relic or a piece relic, in one of the three forms, it
     assert.ok(!r.params || r.rule, `${r.id}: params are a rule's`)
     for (const x of r.mods ?? []) assert.ok(['add', 'mul', 'set'].includes(x.op) && typeof x.v === 'number', `${r.id}: ${JSON.stringify(x)}`)
     if (r.run) {
-      // A run relic names only the run's paths, and a side-wide cost where it has one; it works unheld.
+      // A run relic names only the run's paths, a side-wide cost where it has one, or a kin's or a role's mods (a
+      // banner's); never a unit's path unscoped but that cost, nor a run path scoped. It works unheld.
       assert.equal(r.run, true, r.id)
       assert.ok(r.mods?.length && !r.on && !r.rule, `${r.id}: a run relic is mods`)
-      assert.ok(r.mods.some((x) => isRunPath(x.path)), `${r.id}: on the run`)
-      for (const x of r.mods) assert.ok(isRunPath(x.path) || isCost(x), `${r.id}: ${x.path} is the run's or a cost`)
-      for (const x of r.mods.filter(isCost)) statsOf(unit, [x])
+      assert.ok(r.mods.some((x) => isRunPath(x.path) || isBanner(x)), `${r.id}: on the run, or a kin's or a role's`)
+      for (const x of r.mods) assert.ok((isRunPath(x.path) && !x.who) || isCost(x) || isBanner(x), `${r.id}: ${x.path} is the run's, a cost, or scoped`)
+      for (const x of r.mods.filter((y) => isCost(y) || isBanner(y))) statsOf(unit, [x])
       assert.doesNotMatch(r.desc, /\bits holder\b/i, `${r.id}: no holder`)
     } else {
       // A piece relic works through its holder alone, and says so; no run path.
       for (const x of r.mods ?? []) {
-        assert.ok(!isRunPath(x.path), `${r.id}: a piece relic on ${x.path}`)
+        assert.ok(!isRunPath(x.path) && !x.who, `${r.id}: a piece relic on ${x.path}, its holder's alone`)
         statsOf(unit, [x])
       }
       assert.match(r.desc, /\b[Ii]ts holder\b/, `${r.id}: its text speaks of its holder`)
@@ -572,7 +581,7 @@ test('every relic is a run relic or a piece relic, in one of the three forms, it
     if (r.on) {
       assert.ok(TRIGGERS.includes(r.on), `${r.id} on ${r.on}`)
       for (const e of r.effects) {
-        checkEffect(e, r.id)
+        checkEffect(e, r.id, true)
         assert.ok(['self', 'other', 'allies', 'foes'].includes(e.to), `${r.id}: to ${e.to}`)
         assert.ok(!['allies', 'foes'].includes(e.to) || Number.isInteger(e.range), `${r.id}: range`)
       }
@@ -593,6 +602,34 @@ test('every relic is a run relic or a piece relic, in one of the three forms, it
   assert.deepEqual(RELICS.arcane_focus.effects, [{ op: 'cooldown', amount: -1, to: 'self' }])
   assert.deepEqual([RELICS.hourglass.mods, RELICS.bone_idol.mods].map((x) => x.map((y) => y.path)), [['arise.domain'], ['arise.tier']])
   assert.ok(RELICS.hourglass.run && RELICS.bone_idol.run)
+})
+
+// The twelve of redesign.md §4.4, in the forms allowed and on the numbers it names: five kin banners, Uncommon run
+// relics a kin's mod each, the card naming its kin; seven piece relics on a moment of the holder's.
+test('the twelve relics that define a build: a kin banner for every kin, and seven piece relics on a moment', () => {
+  const banners = {
+    wyrm_standard: ['drake', 'atk', 'mul', 1.25], brass_standard: ['construct', 'damage.taken', 'mul', 0.9], barrow_standard: ['undead', 'hp', 'mul', 1.2],
+    gossamer_standard: ['fae', 'cooldown.rate', 'add', 1], hive_standard: ['insect', 'move', 'add', 1]
+  }
+  for (const [id, [kin, path, op, v]] of Object.entries(banners)) {
+    const r = RELICS[id]
+    assert.ok(r.run && r.tier === 'uncommon' && !r.needsArise, id)
+    assert.deepEqual(r.mods, [{ path, op, v, who: { kin } }], id)
+    assert.match(r.desc, new RegExp(`\\bevery ${KIN[kin].name} of yours\\b`, 'i'), id)
+  }
+  assert.deepEqual(Object.values(banners).map((b) => b[0]).sort(), Object.keys(KIN).sort(), 'a banner a kin')
+  const pieces = {
+    gravediggers_spade: ['rare', 'kill', [{ op: 'raise', tier: 1, to: 'other' }]],
+    firebrand: ['uncommon', 'blow', [{ op: 'apply_status', status: 'burning', to: 'other' }]],
+    briar_mail: ['uncommon', 'struck', [{ op: 'damage', amount: 12, to: 'other' }]],
+    leech_fang: ['uncommon', 'blow', [{ op: 'heal', pct: 0.1, to: 'self' }]],
+    quicksilver: ['rare', 'blow', [{ op: 'cooldown', amount: -1, to: 'self' }]],
+    rowan_charm: ['common', 'wave', [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }]],
+    raiders_spur: ['uncommon', 'kill', [{ op: 'apply_status', status: 'hasten', to: 'self' }]]
+  }
+  for (const [id, [tier, on, effects]] of Object.entries(pieces)) assert.deepEqual([RELICS[id].tier, !!RELICS[id].run, RELICS[id].on, RELICS[id].effects], [tier, false, on, effects], id)
+  assert.ok(RELICS.briar_mail.desc.includes('12 true damage') && RELICS.leech_fang.desc.includes('10% of its max HP'))
+  assert.ok(RELICS.gravediggers_spade.desc.includes('tier 1') && RELICS.firebrand.desc.includes(`${STATUSES.burning.tick[0].power} true damage`))
 })
 
 test('the Legendaries: a rule scoped to the holder, Arise a skill it teaches, and the Arise variants', () => {

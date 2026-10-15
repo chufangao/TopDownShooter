@@ -305,6 +305,11 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   monarchOf(s).hp -= 30
   assert.match(text(roomGain(run, altar)), /^Heals the Monarch \+30\b/)
   assert.ok(relicTip('grave_banner', run).textContent.includes(`One more: Command ${commandOf(s)} → ${commandOf(s) + 1}`))
+  // A kin banner's tip tells its kin's stat, its own copies apart from every soul's cost (redesign.md §4.4).
+  s.relics.push('bone_horn', 'wyrm_standard')
+  assert.ok(relicTip('wyrm_standard', run).textContent.includes('×1 owned: every Drake\'s ATK ×1 → ×1.25 · one more: every Drake\'s ATK ×1.25 → ×1.56'), relicTip('wyrm_standard', run).textContent)
+  assert.ok(relicTip('bone_horn', run).textContent.includes('every soul\'s HP ×1 → ×0.9'), relicTip('bone_horn', run).textContent)
+  assert.ok(relicTip('hive_standard', run).textContent.includes('One more: every Insect\'s Move +0 → +1'), relicTip('hive_standard', run).textContent)
   for (const u of souls(s.party)) assert.ok(reachRule(u).includes(`it uses ${basicOf(abilitiesOf(u).map(abilityDef)).name}`), reachRule(u))
 })
 

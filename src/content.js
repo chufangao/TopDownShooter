@@ -2742,7 +2742,9 @@ export const RELIC_TIERS = [
 // (`run.soulTiers`), the share a price is cut by (`price.tier`, `price.lowTier` for tiers I and II, `price.recruit`,
 // `price.relic`; never below 1 essence), the share more battles pay (`essence.gain`), and every Arise's reach and tier
 // (`arise.domain`, `arise.tier`); and, where it has one, a side-wide cost, a loss on a unit's path for every soul
-// (Legion's −15% HP). A Shop always stocks a Command relic.
+// (Legion's −15% HP). A kin banner (redesign.md §4.4) is a run relic whose mods are a unit's, each scoped by `who` to
+// the souls of one kin ({ kin }; or one role, { role }: unit.js statsOf, as the foes' boss mods are): on every soul of
+// yours it names, shadows and summons too, never the Monarch. A Shop always stocks a Command relic.
 //
 // Every other relic is a piece relic: it works only through the piece that holds it (TUNING.relic.perPiece a piece,
 // given and taken back out of battle), and its copies are more holders. `mods`: the holder's, on a unit's stat path.
@@ -2750,13 +2752,16 @@ export const RELIC_TIERS = [
 // slays a foe: where the slain fell, the slain), 'struck' (a blow lands on it and it stands: where it stands, its
 // attacker), 'fall' (it falls: where it fell, its killer), 'blow' (it strikes: where it stands, its target) and 'wave'
 // (the battle begins, and each later wave begins to enter, while it stands: where it stands, no one). `effects` run
-// then as an ability's do (a heal with `pct` mends that share of the target's max HP); an effect's `to` picks its
-// targets: 'self' (the holder) or 'other', if it stands, or 'allies' / 'foes' (yours / theirs standing within `range`
-// tiles of the place). A Legendary may instead hold a `rule` (rules.js RULES), scoped to its holder, its numbers in
-// `params` (over the rule's own). A rule may teach its holder a skill (its `grants`): Arise, and the Arise variants,
-// each Arise with its own rule on top (Hollow Court, Blood Tithe, Court of Bone), whose Arise is the relic Arise's
-// (TUNING.arise) but where its params say. `needsArise`: stocked only once an Arise relic is held (one on Arise's
-// numbers does nothing without one). Nothing ever revives the Monarch.
+// then as an ability's do (a heal with `pct` mends that share of the target's max HP; damage with a flat `amount`
+// deals that much true damage; a raise with a `tier` lifts the slain as yours where its tier is no higher); an
+// effect's `to` picks its targets: 'self' (the holder) or 'other', if it stands (for a raise, if it lies dead), or
+// 'allies' / 'foes' (yours / theirs standing within `range` tiles of the place). A Legendary may instead hold a `rule`
+// (rules.js RULES), scoped to its holder, its numbers in `params` (over the rule's own). A rule may teach its holder a
+// skill (its `grants`): Arise, and the Arise variants, each Arise with its own rule on top (Hollow Court, Blood Tithe,
+// Court of Bone), whose Arise is the relic Arise's (TUNING.arise) but where its params say. `needsArise`: stocked only
+// once an Arise relic is held (one on Arise's numbers does nothing without one). Nothing ever revives the Monarch.
+// A kin banner's mod: a unit's, on the souls of `kin` alone.
+const banner = (kin, path, op, v) => ({ ...m(path, op, v), who: { kin } })
 export const RELIC_LIST = [
   { id: 'whetstone', tier: 'common', name: 'Whetstone', desc: 'Its holder has +18% ATK.', mods: [m('atk', 'mul', 1.18)] },
   { id: 'heartwood', tier: 'common', name: 'Heartwood', desc: 'Its holder has +22% max HP.', mods: [m('hp', 'mul', 1.22)] },
@@ -2768,6 +2773,7 @@ export const RELIC_LIST = [
   { id: 'bone_horn', tier: 'common', name: 'Bone Horn', run: true, desc: '+1 Command (a piece more on the field), but every soul has 10% less HP.', mods: [m('run.command', 'add', 1), m('hp', 'mul', 0.9)] },
   { id: 'iron_oath', tier: 'common', name: 'Iron Oath', desc: 'When its holder is struck, your side within 2 tiles of it gains Barkskin (+25% DEF).', on: 'struck', effects: [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }] },
   { id: 'grave_bell', tier: 'common', name: 'Grave Bell', desc: 'When its holder is struck, its attacker is Withered (−20% ATK).', on: 'struck', effects: [{ op: 'apply_status', status: 'withered', to: 'other' }] },
+  { id: 'rowan_charm', tier: 'common', name: 'Rowan Charm', desc: 'As the battle begins, and as each later wave begins to enter, while its holder stands: your side within 2 tiles of it gains Barkskin (+25% DEF).', on: 'wave', effects: [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }] },
   { id: 'war_drum', tier: 'uncommon', name: 'War Drum', desc: 'When its holder falls, your side within 2 tiles of it gains Hasten.', on: 'fall', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
   { id: 'rally_horn', tier: 'uncommon', name: 'Rally Horn', desc: 'When its holder strikes, your side within 2 tiles of it gains Hasten.', on: 'blow', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
   { id: 'soul_lantern', tier: 'uncommon', name: 'Soul Lantern', run: true, desc: 'A kind new to the run that you recruit joins with a free tier, on its lower track. Each copy: a tier more.', mods: [m('run.soulTiers', 'add', 1)] },
@@ -2778,12 +2784,24 @@ export const RELIC_LIST = [
   { id: 'hunters_mark', tier: 'uncommon', name: "Hunter's Mark", desc: 'When its holder slays a foe, the foes next to the slain turn Brittle.', on: 'kill', effects: [{ op: 'apply_status', status: 'brittle', to: 'foes', range: 1 }] },
   { id: 'hourglass', tier: 'uncommon', name: 'Hourglass', run: true, desc: 'Every Arise of yours reaches a tile farther.', mods: [m('arise.domain', 'add', 1)], needsArise: true },
   { id: 'bone_idol', tier: 'uncommon', name: 'Bone Idol', run: true, desc: 'Every Arise of yours raises a foe of a tier higher.', mods: [m('arise.tier', 'add', 1)], needsArise: true },
+  { id: 'firebrand', tier: 'uncommon', name: 'Firebrand', desc: 'When its holder strikes, its target is set Burning (12 true damage each turn, up to 3 stacks).', on: 'blow', effects: [{ op: 'apply_status', status: 'burning', to: 'other' }] },
+  { id: 'briar_mail', tier: 'uncommon', name: 'Briar Mail', desc: 'When its holder is struck, its attacker takes 12 true damage.', on: 'struck', effects: [{ op: 'damage', amount: 12, to: 'other' }] },
+  { id: 'leech_fang', tier: 'uncommon', name: 'Leech Fang', desc: 'When its holder strikes, it heals 10% of its max HP.', on: 'blow', effects: [{ op: 'heal', pct: 0.1, to: 'self' }] },
+  { id: 'raiders_spur', tier: 'uncommon', name: "Raider's Spur", desc: 'When its holder slays a foe, it gains Hasten (+1 Move, and its skills come back a turn sooner).', on: 'kill', effects: [{ op: 'apply_status', status: 'hasten', to: 'self' }] },
+  // The kin banners (redesign.md §4.4): a build the player can buy, each on the souls of its kin alone.
+  { id: 'wyrm_standard', tier: 'uncommon', name: 'Wyrm Standard', run: true, desc: 'Every Drake of yours has +25% ATK.', mods: [banner('drake', 'atk', 'mul', 1.25)] },
+  { id: 'brass_standard', tier: 'uncommon', name: 'Brass Standard', run: true, desc: 'Every Construct of yours takes 10% less damage.', mods: [banner('construct', 'damage.taken', 'mul', 0.9)] },
+  { id: 'barrow_standard', tier: 'uncommon', name: 'Barrow Standard', run: true, desc: 'Every Undead of yours has +20% max HP.', mods: [banner('undead', 'hp', 'mul', 1.2)] },
+  { id: 'gossamer_standard', tier: 'uncommon', name: 'Gossamer Standard', run: true, desc: 'The skills of every Fae of yours come back a turn sooner.', mods: [banner('fae', 'cooldown.rate', 'add', 1)] },
+  { id: 'hive_standard', tier: 'uncommon', name: 'Hive Standard', run: true, desc: 'Every Insect of yours has +1 Move.', mods: [banner('insect', 'move', 'add', 1)] },
   { id: 'grave_banner', tier: 'rare', name: 'Grave Banner', run: true, desc: '+1 Command (a piece more on the field).', mods: [m('run.command', 'add', 1)] },
   { id: 'phylactery', tier: 'rare', name: 'Phylactery', run: true, desc: 'The Monarch has 110 more max HP.', mods: [m('run.monarchHp', 'add', 110)] },
   { id: 'tithe_bowl', tier: 'rare', name: 'Tithe Bowl', run: true, desc: 'Battles pay 35% more essence.', mods: [m('essence.gain', 'add', 0.35)] },
   { id: 'rite_candle', tier: 'rare', name: 'Rite Candle', run: true, desc: 'Track tiers cost 25% less essence.', mods: [m('price.tier', 'add', -0.25)] },
   { id: 'arcane_focus', tier: 'rare', name: 'Arcane Focus', desc: 'When its holder slays a foe, its skills come back a turn sooner.', on: 'kill', effects: [{ op: 'cooldown', amount: -1, to: 'self' }] },
   { id: 'glass_crown', tier: 'rare', name: 'Glass Crown', desc: 'Its holder deals 32% more damage, but takes 15% more.', mods: [m('damage.dealt', 'mul', 1.32), m('damage.taken', 'mul', 1.15)] },
+  { id: 'gravediggers_spade', tier: 'rare', name: "Gravedigger's Spade", desc: 'When its holder slays a foe of tier 1 (not a shadow), the slain rises at once as a shadow on your side, while your side has room on the board for it.', on: 'kill', effects: [{ op: 'raise', tier: 1, to: 'other' }] },
+  { id: 'quicksilver', tier: 'rare', name: 'Quicksilver', desc: 'When its holder strikes, its skills come back a turn sooner.', on: 'blow', effects: [{ op: 'cooldown', amount: -1, to: 'self' }] },
   { id: 'arise', tier: 'legendary', name: 'Arise', desc: 'Its holder learns Arise, a skill usable every turn: a foe of tier 4 or lower that fell within 7 tiles of it rises as your shadow, the corpse of your choosing.', rule: 'arise' },
   { id: 'legion', tier: 'legendary', name: 'Legion', run: true, desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', mods: [m('run.command', 'add', 2), m('hp', 'mul', 0.85)] },
   { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'When its holder falls, it rises at once at 60% HP, once a battle.', rule: 'undying', params: { hp: 0.6 } },

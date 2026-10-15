@@ -930,8 +930,10 @@ const whereHeld = (run, id) => {
 }
 
 // What a run relic's copies do to the run, a path of its mods at a time (run.js runStat), as the run stands: its name,
-// and its value with no copy of the relic, now, and with one more. A side-wide cost on a unit's path (Bone Horn's HP) is
-// the product of the run relics' shares there. `x`: a share, told as ×. → [{ name, x, none, now, next }]
+// and its value with no copy of the relic, now, and with one more. A mod on a unit's path is the run relics' there with
+// the same scope (unitWide): a side-wide cost (Bone Horn's HP, every soul's) or a kin banner's (`who`: every Drake's
+// ATK), the product of their shares, or the sum of their steps (every Insect's Move). `x`: a share, told as ×; `step`:
+// told with its sign. → [{ name, x, step, none, now, next }]
 const RUN_VALUE = {
   'run.command': ['Command', (s) => commandOf(s)],
   'run.monarchHp': ['the Monarch\'s max HP', (s) => monarchHp(s)],
@@ -945,17 +947,23 @@ const RUN_VALUE = {
   'arise.domain': ['Arise\'s reach', (s) => ariseOf(s).domain],
   'arise.tier': ['Arise\'s tier', (s) => ariseOf(s).tier]
 }
-const sideWide = (path) => [`every soul's ${path === 'hp' ? 'HP' : path}`,
-  (s) => s.relics.filter(isRunRelic).flatMap((x) => relicDef(x).mods ?? []).filter((m) => m.path === path && m.op === 'mul').reduce((v, m) => v * m.v, 1), true]
+const STAT_NAME = { hp: 'HP', atk: 'ATK', def: 'DEF', move: 'Move', 'damage.taken': 'damage taken', 'damage.dealt': 'damage dealt', 'cooldown.rate': 'skill recovery' }
+// Whom a mod's `who` names ({ kin } or { role }, one or a list), in a word: "Drake", "Drake or Fae"; null for every soul.
+const whoName = (who) => who && [who.kin, who.role].filter(Boolean).flat().map((x) => (KIN[x] ?? ROLES[x]).name).join(' or ')
+const sameWho = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+const unitWide = (path, who, op) => [`every ${whoName(who) ?? 'soul'}'s ${STAT_NAME[path] ?? path}`,
+  (s) => s.relics.filter(isRunRelic).flatMap((x) => relicDef(x).mods ?? []).filter((m) => m.path === path && m.op === op && sameWho(m.who, who))
+    .reduce((v, m) => (op === 'mul' ? v * m.v : v + m.v), op === 'mul' ? 1 : 0), op === 'mul', op !== 'mul']
 export function relicGains (run, id) {
   const s = run.state
   const at = (relics) => ({ ...s, relics })
-  return [...new Set((relicDef(id).mods ?? []).map((m) => m.path))].map((path) => {
-    const [name, of, x = false] = RUN_VALUE[path] ?? sideWide(path)
-    return { name, x, none: of(at(s.relics.filter((r) => r !== id))), now: of(s), next: of(at([...s.relics, id])) }
+  const mods = (relicDef(id).mods ?? []).filter((m, i, all) => all.findIndex((y) => y.path === m.path && sameWho(y.who, m.who)) === i)
+  return mods.map((m) => {
+    const [name, of, x = false, step = false] = RUN_VALUE[m.path] ?? unitWide(m.path, m.who, m.op)
+    return { name, x, step, none: of(at(s.relics.filter((r) => r !== id))), now: of(s), next: of(at([...s.relics, id])) }
   })
 }
-const told = (g, v) => (g.x ? `×${+v.toFixed(2)}` : `${Math.round(v)}`)
+const told = (g, v) => (g.x ? `×${+v.toFixed(2)}` : g.step ? `${v < 0 ? '−' : '+'}${Math.abs(+v.toFixed(2))}` : `${Math.round(v)}`)
 // One more copy of run relic `id`, path by path: "Command 4 → 5". Empty for a relic with no mods.
 export const relicOneMore = (run, id) => relicGains(run, id).map((g) => `${g.name} ${told(g, g.now)} → ${told(g, g.next)}`).join(', ')
 // A relic as the run holds it: a run relic's copies owned and what they add, and what one more would make of it; a
