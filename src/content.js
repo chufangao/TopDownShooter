@@ -2511,9 +2511,10 @@ const STATUS_LIST = [
   },
   {
     // The one disabling status (redesign.md §2.8): no act and no counter while it holds, so its `turns` are the acts it
-    // costs, one (two where a blow says so: Wrench the Works, Gear Lock).
+    // costs, one (two where a blow says so: Wrench the Works, Gear Lock). A boss is never Hexed twice running (turns.js
+    // addStatus; the user's rule of 2026-10-16).
     id: 'hexed',
-    desc: 'Loses its next act, and does not counter until then.',
+    desc: 'Loses its next act, and does not counter until then. A boss is never Hexed twice in a row: once a Hex has cost it an act, it shrugs off every Hex until it has acted again.',
     name: 'Hexed',
     tags: ['debuff'],
     colour: '#9b5cff',
@@ -2601,7 +2602,7 @@ const ECHO_FULL = 8
 export const SYNERGIES = [
   { id: 'undead_4', name: 'Undead 4', desc: 'Legion: every foe slain rises at once as a shadow on your side, past Arise\'s reach and tier (never a boss, a shadow or a Monarch), while your side has room on the board for it.', needs: { kin: { undead: 4 } }, rule: 'legion' },
   { id: 'drake_4', name: 'Drake 4', desc: 'Dragonfire: every single-target blow of yours bursts, striking its target and every foe next to it.', needs: { kin: { drake: 4 } }, rule: 'dragonfire' },
-  { id: 'fae_4', name: 'Fae 4', desc: 'Mirage: the first blow each foe would land on one of yours each turn strikes only an illusion, and does no harm.', needs: { kin: { fae: 4 } }, rule: 'mirage' },
+  { id: 'fae_4', name: 'Fae 4', desc: 'Mirage: each turn, the first blow each foe would land on one of yours strikes only an illusion and does no harm there (the rest of a blast, and an echo, land).', needs: { kin: { fae: 4 } }, rule: 'mirage' },
   { id: 'insect_4', name: 'Insect 4', desc: 'Frenzy: one of yours that slays a foe has every skill ready again at once.', needs: { kin: { insect: 4 } }, rule: 'frenzy' },
   { id: 'construct_4', name: 'Construct 4', desc: `Last Stand: the first time each of yours would fall in a battle, to anything that harms it (a burn and a bleed too), it stands at 1 HP instead and heals ${pctOf(TUNING.lastStand.heal)} of its max HP (never the Monarch).`, needs: { kin: { construct: 4 } }, rule: 'last_stand' },
   { id: 'vanguard_4', name: 'Vanguard 4', desc: `Bodyguard: a single-target blow at one of yours that is not a Vanguard lands instead on a Vanguard of yours standing next to it, and your Vanguards take ${pctOf(1 - TUNING.bodyguard.taken)} less damage.`, needs: { role: { vanguard: 4 } }, rule: 'bodyguard' },

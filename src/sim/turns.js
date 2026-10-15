@@ -48,6 +48,7 @@
 //   { type: 'action', …, tile, counter? }      `tile`: where it acts from; `counter`: a counter, the target's answer
 //   { type: 'cooldown', target, ability, turns }  a skill's cooldown set or fallen (0: ready)
 //   { type: 'hexed', target }                  a Hexed unit's act lost
+//   { type: 'shrug', target, status }          a boss shrugs off a Hex (addStatus): its last act was lost to one
 //   { type: 'fuse', actor, recipe, parts, price, unit }  a fusion in battle: `unit` the fused piece, as `enter`'s
 //
 // `ablate` (a measuring switch, never a player's: autoplay.js ABLATIONS) lists rules taken from your side: 'arise' (no
@@ -659,8 +660,15 @@ function raiseDead (battle, actor, count) {
 // more); `by` is who laid it last, the one its damage ticks are dealt by. A status laid after its holder's turn of the
 // round has passed (on one of yours in the foes' turn, on anyone at the turn's end) is `fresh`: the round's end does not
 // count against it (redesign.md §2.8). Hexed always costs an act: laid on one that has already acted this round (a
-// counter's on its attacker), it is fresh too, and holds until its next act is lost.
+// counter's on its attacker), it is fresh too, and holds until its next act is lost. A boss that lost its act to a Hex
+// shrugs off every Hex laid on it until its act is its own again (`shrugs`, policy.js foeTurn: set as the act is lost,
+// cleared as its next turn comes unHexed), whoever lays it and whenever: no boss loses two acts running to Hexes
+// (the user's rule, 2026-10-16). One Hex of 2 turns is one Hex: it still costs two.
 export function addStatus (battle, target, id, turns, by = null) {
+  if (id === 'hexed' && target.shrugs) {
+    emit(battle, { type: 'shrug', target: target.uid, status: id })
+    return
+  }
   const def = statusDef(id)
   const dur = turns || def.turns
   const own = battle.stage === (target.side === 'party' ? 'party' : 'foes')

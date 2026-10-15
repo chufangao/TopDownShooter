@@ -373,13 +373,16 @@ export const TUNING = {
   // its tier-1 partners still do. fight/elite: foes per encounter on floors 1–4. foeHp/foeAtk multiply ordinary foes per
   // floor; bossHp/bossAtk multiply the boss, per floor: a floor's boss on floors 1 and 2 (redesign.md §4.7, since
   // 2026-10-15: placeholders; by the codex's power, √(HP × ATK), a floor's boss room ~1.6× its floor-1 last elite's and
-  // ~1× its floor-2 one's), the Hollow Sovereign at 1 on the last. Floor 1's elite is 2 foes of the higher tier (and the late pair), so a rule-of-thumb run dies on floor
-  // 1 and an expert rarely does.
+  // ~1× its floor-2 one's), the Hollow Sovereign at 1 on the last. Since 2026-10-16 (the user's rule) a boss shrugs off
+  // a Hex until it has acted again (turns.js addStatus), and the bosses a Hex every turn had held (the Sovereign to 0–1
+  // acts a battle, the floor-2 Mire Mother alike: redesign.md §8) are lighter, the balance pass's numbers: floor 2's
+  // boss 3.2 → 2.4 HP and 2 → 1.6 ATK, the Sovereign 1 → 0.45 and 0.6, its court 4 → 2 (`court`). Floor 1's elite is 2
+  // foes of the higher tier (and the late pair), so a rule-of-thumb run dies on floor 1 and an expert rarely does.
   spawn: {
     levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
     // Steepest at the bottom, where the expert's army has grown most; floor 1 is the basic player's wall already.
-    foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 3.2, 1], bossAtk: [1, 2, 1],
+    foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 2.4, 0.45], bossAtk: [1, 1.6, 0.6],
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses
@@ -394,7 +397,8 @@ export const TUNING = {
     // first included). Waves enter on fixed turns (redesign.md §2.10): the room's formation stands from turn 1, and
     // wave k enters at the end of turn 1 + k × `waves.every` (turns.js entryTurn), shown on the wave counter; a siege
     // is three waves with no prep between them. A boss leads a court of `court` foes for the floor (the boss's own
-    // kinds: content.js `court`): the last room's last wave is the Hollow Sovereign leading a court of 4 undead; a
+    // kinds: content.js `court`): the last room's last wave is the Hollow Sovereign leading a court of 2 undead (4 until
+    // 2026-10-16, with its numbers above); a
     // floor's boss on floors 1 and 2 stands with its court of 2 and 4 alone, the floor's last room (2026-10-15,
     // placeholders: redesign.md §4.7). They and its waves take foeHp/foeAtk; only the boss takes bossHp/bossAtk. Floor 3
     // keeps floor 2's cohorts of 2: at 3, a floor-3 elite's mantis brood ended half the expert's runs (the final balance
@@ -402,7 +406,7 @@ export const TUNING = {
     captains: { fight: 1, elite: 2 }, cohort: [0, 2, 2, 3],
     late: { n: 2 },
     waves: { floor: 3, fightRank: 8, elite: 2, fight: 2, siege: 3, every: 4 },
-    court: [2, 4, 4],
+    court: [2, 4, 2],
     // Endless floors, past the Sovereign's (run.floors): each floor `deep` floors down reuses the last floor's
     // camps and spawn pool (foe and elite counts and HP/ATK multipliers at their last entries), and grows from
     // there: foes rise `level` levels more per floor deep (on top of levelPerFloor), a room holds

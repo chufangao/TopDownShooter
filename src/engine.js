@@ -2364,6 +2364,10 @@ class BattleScene extends Phaser.Scene {
         this.floating(a, 'HEXED', '#c9a6ff', 12)
         this.burst(a.sprite.x, a.sprite.y - a.chest, HEX, 8, { up: true, speed: 50 })
         break
+      // A boss shrugs off a Hex: its last act was lost to one (turns.js addStatus).
+      case 'shrug':
+        this.floating(a, 'SHRUGS OFF HEX', '#c9a6ff', 11)
+        break
       case 'miss': {
         // A sidestep out of the blow's way.
         const side = (a.uid % 2 ? 1 : -1)

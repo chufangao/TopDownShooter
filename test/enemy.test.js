@@ -9,6 +9,7 @@ import {
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
+import { foeTurn } from '../src/sim/policy.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
@@ -304,6 +305,61 @@ test('the Sovereign\'s override casts Grave Tide as the foes\' turn begins, ever
   }
   assert.deepEqual(tideTurn(false), { cast: true, lost: false }, 'its Tide turn')
   assert.deepEqual(tideTurn(true), { cast: false, lost: true }, 'Hexed: no Tide, no act')
+})
+
+// The user's rule of 2026-10-16 (redesign.md §7): the Pale Court's Hex every turn held the Sovereign to 0–1 acts a
+// battle (§8). A boss whose act a Hex took shrugs off every Hex until its turn comes unHexed; any other foe does not.
+test('a boss is never Hexed twice in a row: one that lost its act to a Hex shrugs off every Hex until it has acted again', () => {
+  const hexed = (u) => u.statuses.find((s) => s.id === 'hexed')
+  for (const id of ['hollow_sovereign', 'mire_mother']) {
+    const b = scene([on('tomb_knight', 1, 'party', 3, 6, 9), on(id, 50, 'foe', 3, 7, 1), on('grave_ghoul', 51, 'foe', 1, 7, 1)])
+    const boss = unit(b, 50)
+    const ghoul = unit(b, 51)
+    const rows = []
+    for (let turn = 0; turn < 3; turn++) {
+      const from = b.events.length
+      addStatus(b, boss, 'hexed', 1, unit(b, 1))
+      addStatus(b, ghoul, 'hexed', 1, unit(b, 1))
+      const shrugged = b.events.slice(from).some((e) => e.type === 'shrug' && e.target === 50)
+      const held = !!hexed(boss)
+      const ev = order(b, { type: 'end' })
+      rows.push([held, shrugged, ev.some((e) => e.type === 'hexed' && e.target === 50), ev.some((e) => e.type === 'hexed' && e.target === 51)])
+    }
+    // [held, shrugged, its act lost, the ghoul's act lost]
+    assert.deepEqual(rows, [[true, false, true, true], [false, true, false, true], [true, false, true, true]], id)
+  }
+  // Whenever it is laid and by whom: after the act it lost, later in the foes' turn and at the turn's end, by your side or
+  // its own, none takes hold (nor renews the one it holds); once its turn has come unHexed, the next lands, one laid in
+  // that turn after it acts (a counter's) fresh, costing the act after.
+  const b = scene([on('tomb_knight', 1, 'party', 3, 6, 9), on('mire_mother', 50, 'foe', 3, 7, 1), on('grave_ghoul', 51, 'foe', 1, 7, 1)])
+  const boss = unit(b, 50)
+  addStatus(b, boss, 'hexed', 1)
+  b.stage = 'foes'
+  foeTurn(b)
+  assert.ok(boss.shrugs && hexed(boss) && !hexed(boss).fresh, 'its act lost')
+  for (const [stage, by] of [['foes', 1], ['foes', 51], ['end', 1]]) {
+    b.stage = stage
+    const from = b.events.length
+    addStatus(b, boss, 'hexed', 1, unit(b, by))
+    assert.equal(hexed(boss).fresh, false, `${stage}, by ${by}: the Hex it holds not renewed`)
+    assert.deepEqual(b.events.slice(from).map((e) => e.type), ['shrug'])
+  }
+  boss.statuses = []
+  b.stage = 'foes'
+  boss.acted = false
+  foeTurn(b)
+  assert.ok(!boss.shrugs, 'its turn came unHexed')
+  addStatus(b, boss, 'hexed', 1, unit(b, 1))
+  assert.ok(hexed(boss)?.fresh, 'a Hex laid after it acted lands, for its next act')
+  // A Hex of 2 turns is one Hex: it costs two acts, and the boss shrugs off the next until it acts again.
+  const c = scene([on('tomb_knight', 1, 'party', 3, 6, 9), on('mire_mother', 50, 'foe', 3, 7, 1)])
+  addStatus(c, unit(c, 50), 'hexed', 2)
+  const lost = []
+  for (let turn = 0; turn < 4; turn++) {
+    addStatus(c, unit(c, 50), 'hexed', 1)
+    lost.push(order(c, { type: 'end' }).some((e) => e.type === 'hexed' && e.target === 50))
+  }
+  assert.deepEqual(lost, [true, true, false, true])
 })
 
 test('killing the Sovereign ends the battle: its court and every foe still standing crumble and pay as if slain, and the foes still to come never enter', () => {

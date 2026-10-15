@@ -450,6 +450,10 @@ export function foeTurn (battle) {
   for (const u of queue) {
     if (battle.over) break
     if (!alive(u)) continue
+    // A boss whose act a Hex took shrugs off Hexes until its act is its own again (turns.js addStatus): now, as its
+    // turn comes unHexed (it acts, it has acted already, the Sovereign's Tide, or it has nothing to do but walk).
+    const lost = hexed(u) && !u.acted
+    if (u.shrugs && !lost) u.shrugs = false
     const best = p >= 1 ? choose(battle, u, hasty(u.temper), p, maps.foe, fighting(battle, u)) : choose(battle, u, u.temper, p, maps.foe)
     if (best.tile !== u.tile) {
       out.push({ type: 'move', uid: u.uid, tile: best.tile })
@@ -458,9 +462,10 @@ export function foeTurn (battle) {
     if (best.ability) {
       out.push({ type: 'act', uid: u.uid, ability: best.ability.id, target: best.target.uid })
       perform(battle, u, best.ability, best.target)
-    } else if (hexed(u) && !u.acted) {
+    } else if (lost) {
       battle.beat++
       emit(battle, { type: 'hexed', target: u.uid })
+      if (unitDef(u.id).boss) u.shrugs = true
     }
     u.acted = true
   }
