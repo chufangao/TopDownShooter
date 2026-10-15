@@ -24,6 +24,1650 @@
  },
  "combos": [
   {
+   "id": "fusion:trine:trine:bone_chanter:1",
+   "needs": {
+    "trine:bone_chanter": 3
+   },
+   "fuse": "trine:trine:bone_chanter",
+   "tracks": {
+    "trine:trine:bone_chanter": 1
+   },
+   "from": 1,
+   "gain": [
+    1.4676,
+    1.2738,
+    1.1194,
+    0.9565
+   ],
+   "relics": {
+    "glass_crown": 0.328,
+    "whetstone": 0.2022,
+    "arise": 0.1186,
+    "undying": 0.1186,
+    "mimicry": 0.1186,
+    "hollow_court": 0.1186,
+    "blood_tithe": 0.1186,
+    "court_of_bone": 0.1186,
+    "blood_chalice": 0.0873,
+    "balm": 0.0873,
+    "iron_oath": 0.0873,
+    "grave_bell": 0.0873,
+    "war_drum": 0.0873,
+    "rally_horn": 0.0873,
+    "tower_shield": 0.0873,
+    "hunters_mark": 0.0873,
+    "arcane_focus": 0.0873,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0264
+   }
+  },
+  {
+   "id": "fusion:trine:trine:frost_sprite:0",
+   "needs": {
+    "trine:frost_sprite": 3
+   },
+   "fuse": "trine:trine:frost_sprite",
+   "tracks": {
+    "trine:trine:frost_sprite": 0
+   },
+   "from": 1,
+   "gain": [
+    1.8539,
+    1.1465,
+    0.9523,
+    0.6762
+   ],
+   "relics": {
+    "glass_crown": 0.2981,
+    "whetstone": 0.1829,
+    "arise": 0.1069,
+    "undying": 0.1069,
+    "mimicry": 0.1069,
+    "hollow_court": 0.1069,
+    "blood_tithe": 0.1069,
+    "court_of_bone": 0.1069,
+    "blood_chalice": 0.0786,
+    "balm": 0.0786,
+    "iron_oath": 0.0786,
+    "grave_bell": 0.0786,
+    "war_drum": 0.0786,
+    "rally_horn": 0.0786,
+    "tower_shield": 0.0786,
+    "hunters_mark": 0.0786,
+    "arcane_focus": 0.0786,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0237
+   }
+  },
+  {
+   "id": "fusion:trine:trine:frost_sprite:1",
+   "needs": {
+    "trine:frost_sprite": 3
+   },
+   "fuse": "trine:trine:frost_sprite",
+   "tracks": {
+    "trine:trine:frost_sprite": 1
+   },
+   "from": 1,
+   "gain": [
+    1.8539,
+    1.1095,
+    0.8749,
+    0.6762
+   ],
+   "relics": {
+    "glass_crown": 0.2962,
+    "whetstone": 0.1816,
+    "arise": 0.1061,
+    "undying": 0.1061,
+    "mimicry": 0.1061,
+    "hollow_court": 0.1061,
+    "blood_tithe": 0.1061,
+    "court_of_bone": 0.1061,
+    "blood_chalice": 0.078,
+    "balm": 0.078,
+    "iron_oath": 0.078,
+    "grave_bell": 0.078,
+    "war_drum": 0.078,
+    "rally_horn": 0.078,
+    "tower_shield": 0.078,
+    "hunters_mark": 0.078,
+    "arcane_focus": 0.078,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0235
+   }
+  },
+  {
+   "id": "fusion:trine:trine:pyre_hound:1",
+   "needs": {
+    "trine:pyre_hound": 3
+   },
+   "fuse": "trine:trine:pyre_hound",
+   "tracks": {
+    "trine:trine:pyre_hound": 1
+   },
+   "from": 1,
+   "gain": [
+    1.7627,
+    1.0277,
+    0.8027,
+    0.6193
+   ],
+   "relics": {
+    "glass_crown": 0.2857,
+    "whetstone": 0.1749,
+    "arise": 0.102,
+    "undying": 0.102,
+    "mimicry": 0.102,
+    "hollow_court": 0.102,
+    "blood_tithe": 0.102,
+    "court_of_bone": 0.102,
+    "blood_chalice": 0.0749,
+    "balm": 0.0749,
+    "iron_oath": 0.0749,
+    "grave_bell": 0.0749,
+    "war_drum": 0.0749,
+    "rally_horn": 0.0749,
+    "tower_shield": 0.0749,
+    "hunters_mark": 0.0749,
+    "arcane_focus": 0.0749,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0226
+   }
+  },
+  {
+   "id": "fusion:trine:trine:pyre_hound:0",
+   "needs": {
+    "trine:pyre_hound": 3
+   },
+   "fuse": "trine:trine:pyre_hound",
+   "tracks": {
+    "trine:trine:pyre_hound": 0
+   },
+   "from": 1,
+   "gain": [
+    1.7627,
+    1.0823,
+    0.7298,
+    0.6193
+   ],
+   "relics": {
+    "glass_crown": 0.2888,
+    "whetstone": 0.1769,
+    "arise": 0.1033,
+    "undying": 0.1033,
+    "mimicry": 0.1033,
+    "hollow_court": 0.1033,
+    "blood_tithe": 0.1033,
+    "court_of_bone": 0.1033,
+    "blood_chalice": 0.0759,
+    "balm": 0.0759,
+    "iron_oath": 0.0759,
+    "grave_bell": 0.0759,
+    "war_drum": 0.0759,
+    "rally_horn": 0.0759,
+    "tower_shield": 0.0759,
+    "hunters_mark": 0.0759,
+    "arcane_focus": 0.0759,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0229
+   }
+  },
+  {
+   "id": "fusion:trine:trine:bone_chanter:0",
+   "needs": {
+    "trine:bone_chanter": 3
+   },
+   "fuse": "trine:trine:bone_chanter",
+   "tracks": {
+    "trine:trine:bone_chanter": 0
+   },
+   "from": 1,
+   "gain": [
+    1.4676,
+    0.9521,
+    0.7211,
+    0.9565
+   ],
+   "relics": {
+    "glass_crown": 0.3104,
+    "whetstone": 0.1907,
+    "arise": 0.1115,
+    "undying": 0.1115,
+    "mimicry": 0.1115,
+    "hollow_court": 0.1115,
+    "blood_tithe": 0.1115,
+    "court_of_bone": 0.1115,
+    "blood_chalice": 0.082,
+    "balm": 0.082,
+    "iron_oath": 0.082,
+    "grave_bell": 0.082,
+    "war_drum": 0.082,
+    "rally_horn": 0.082,
+    "tower_shield": 0.082,
+    "hunters_mark": 0.082,
+    "arcane_focus": 0.082,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0248
+   }
+  },
+  {
+   "id": "fusion:trine:trine:clockwork_page:1",
+   "needs": {
+    "trine:clockwork_page": 3
+   },
+   "fuse": "trine:trine:clockwork_page",
+   "tracks": {
+    "trine:trine:clockwork_page": 1
+   },
+   "from": 1,
+   "gain": [
+    1.2496,
+    1.068,
+    0.8409,
+    0.6526
+   ],
+   "relics": {
+    "glass_crown": 0.2915,
+    "whetstone": 0.1786,
+    "arise": 0.1043,
+    "undying": 0.1043,
+    "mimicry": 0.1043,
+    "hollow_court": 0.1043,
+    "blood_tithe": 0.1043,
+    "court_of_bone": 0.1043,
+    "blood_chalice": 0.0766,
+    "balm": 0.0766,
+    "iron_oath": 0.0766,
+    "grave_bell": 0.0766,
+    "war_drum": 0.0766,
+    "rally_horn": 0.0766,
+    "tower_shield": 0.0766,
+    "hunters_mark": 0.0766,
+    "arcane_focus": 0.0766,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0231
+   }
+  },
+  {
+   "id": "fusion:trine:pale_court:0",
+   "needs": {
+    "pale_court": 3
+   },
+   "fuse": "trine:pale_court",
+   "tracks": {
+    "trine:pale_court": 0
+   },
+   "from": 1,
+   "gain": [
+    1.5891,
+    0.9998,
+    0.6771,
+    0.4542
+   ],
+   "relics": {
+    "glass_crown": 0.2646,
+    "whetstone": 0.1615,
+    "arise": 0.094,
+    "undying": 0.094,
+    "mimicry": 0.094,
+    "hollow_court": 0.094,
+    "blood_tithe": 0.094,
+    "court_of_bone": 0.094,
+    "blood_chalice": 0.0691,
+    "balm": 0.0691,
+    "iron_oath": 0.0691,
+    "grave_bell": 0.0691,
+    "war_drum": 0.0691,
+    "rally_horn": 0.0691,
+    "tower_shield": 0.0691,
+    "hunters_mark": 0.0691,
+    "arcane_focus": 0.0691,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0208
+   }
+  },
+  {
+   "id": "fusion:trine:pale_court:1",
+   "needs": {
+    "pale_court": 3
+   },
+   "fuse": "trine:pale_court",
+   "tracks": {
+    "trine:pale_court": 1
+   },
+   "from": 1,
+   "gain": [
+    1.5891,
+    0.7574,
+    0.564,
+    0.4542
+   ],
+   "relics": {
+    "glass_crown": 0.2474,
+    "whetstone": 0.1504,
+    "arise": 0.0873,
+    "undying": 0.0873,
+    "mimicry": 0.0873,
+    "hollow_court": 0.0873,
+    "blood_tithe": 0.0873,
+    "court_of_bone": 0.0873,
+    "blood_chalice": 0.064,
+    "balm": 0.064,
+    "iron_oath": 0.064,
+    "grave_bell": 0.064,
+    "war_drum": 0.064,
+    "rally_horn": 0.064,
+    "tower_shield": 0.064,
+    "hunters_mark": 0.064,
+    "arcane_focus": 0.064,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0192
+   }
+  },
+  {
+   "id": "fusion:winter_court:0",
+   "needs": {
+    "pale_court": 1,
+    "trine:frost_sprite": 1
+   },
+   "fuse": "winter_court",
+   "tracks": {
+    "winter_court": 0
+   },
+   "from": 1,
+   "gain": [
+    1.3869,
+    0.8328,
+    0.5391,
+    0.3565
+   ],
+   "relics": {
+    "glass_crown": 0.2398,
+    "whetstone": 0.1457,
+    "arise": 0.0846,
+    "undying": 0.0846,
+    "mimicry": 0.0846,
+    "hollow_court": 0.0846,
+    "blood_tithe": 0.0846,
+    "court_of_bone": 0.0846,
+    "blood_chalice": 0.062,
+    "balm": 0.062,
+    "iron_oath": 0.062,
+    "grave_bell": 0.062,
+    "war_drum": 0.062,
+    "rally_horn": 0.062,
+    "tower_shield": 0.062,
+    "hunters_mark": 0.062,
+    "arcane_focus": 0.062,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0186
+   }
+  },
+  {
+   "id": "fusion:trine:trine:clockwork_page:0",
+   "needs": {
+    "trine:clockwork_page": 3
+   },
+   "fuse": "trine:trine:clockwork_page",
+   "tracks": {
+    "trine:trine:clockwork_page": 0
+   },
+   "from": 1,
+   "gain": [
+    1.2496,
+    0.74,
+    0.4487,
+    0.6526
+   ],
+   "relics": {
+    "glass_crown": 0.2689,
+    "whetstone": 0.1639,
+    "arise": 0.0953,
+    "undying": 0.0953,
+    "mimicry": 0.0953,
+    "hollow_court": 0.0953,
+    "blood_tithe": 0.0953,
+    "court_of_bone": 0.0953,
+    "blood_chalice": 0.07,
+    "balm": 0.07,
+    "iron_oath": 0.07,
+    "grave_bell": 0.07,
+    "war_drum": 0.07,
+    "rally_horn": 0.07,
+    "tower_shield": 0.07,
+    "hunters_mark": 0.07,
+    "arcane_focus": 0.07,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0211
+   }
+  },
+  {
+   "id": "fusion:trine:trine:hive_warden:0",
+   "needs": {
+    "trine:hive_warden": 3
+   },
+   "fuse": "trine:trine:hive_warden",
+   "tracks": {
+    "trine:trine:hive_warden": 0
+   },
+   "from": 1,
+   "gain": [
+    0.9739,
+    1.0046,
+    0.6679,
+    0.4444
+   ],
+   "relics": {
+    "glass_crown": 0.2636,
+    "whetstone": 0.1609,
+    "arise": 0.0937,
+    "undying": 0.0937,
+    "mimicry": 0.0937,
+    "hollow_court": 0.0937,
+    "blood_tithe": 0.0937,
+    "court_of_bone": 0.0937,
+    "blood_chalice": 0.0688,
+    "balm": 0.0688,
+    "iron_oath": 0.0688,
+    "grave_bell": 0.0688,
+    "war_drum": 0.0688,
+    "rally_horn": 0.0688,
+    "tower_shield": 0.0688,
+    "hunters_mark": 0.0688,
+    "arcane_focus": 0.0688,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0207
+   }
+  },
+  {
+   "id": "fusion:cinder_wyrm:0",
+   "needs": {
+    "rime_drake": 1,
+    "trine:pyre_hound": 1
+   },
+   "fuse": "cinder_wyrm",
+   "tracks": {
+    "cinder_wyrm": 0
+   },
+   "from": 2,
+   "gain": [
+    1.3554,
+    1.0152,
+    0.6861,
+    0.5792
+   ],
+   "relics": {
+    "glass_crown": 0.2806,
+    "whetstone": 0.1716,
+    "arise": 0.1001,
+    "undying": 0.1001,
+    "mimicry": 0.1001,
+    "hollow_court": 0.1001,
+    "blood_tithe": 0.1001,
+    "court_of_bone": 0.1001,
+    "blood_chalice": 0.0735,
+    "balm": 0.0735,
+    "iron_oath": 0.0735,
+    "grave_bell": 0.0735,
+    "war_drum": 0.0735,
+    "rally_horn": 0.0735,
+    "tower_shield": 0.0735,
+    "hunters_mark": 0.0735,
+    "arcane_focus": 0.0735,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0222
+   }
+  },
+  {
+   "id": "fusion:trine:mantis_reaper:1",
+   "needs": {
+    "mantis_reaper": 3
+   },
+   "fuse": "trine:mantis_reaper",
+   "tracks": {
+    "trine:mantis_reaper": 1
+   },
+   "from": 2,
+   "gain": [
+    0.7284,
+    0.9294,
+    0.7309,
+    0.5693
+   ],
+   "relics": {
+    "glass_crown": 0.274,
+    "whetstone": 0.1673,
+    "arise": 0.0975,
+    "undying": 0.0975,
+    "mimicry": 0.0975,
+    "hollow_court": 0.0975,
+    "blood_tithe": 0.0975,
+    "court_of_bone": 0.0975,
+    "blood_chalice": 0.0716,
+    "balm": 0.0716,
+    "iron_oath": 0.0716,
+    "grave_bell": 0.0716,
+    "war_drum": 0.0716,
+    "rally_horn": 0.0716,
+    "tower_shield": 0.0716,
+    "hunters_mark": 0.0716,
+    "arcane_focus": 0.0716,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0216
+   }
+  },
+  {
+   "id": "fusion:cinder_wyrm:1",
+   "needs": {
+    "rime_drake": 1,
+    "trine:pyre_hound": 1
+   },
+   "fuse": "cinder_wyrm",
+   "tracks": {
+    "cinder_wyrm": 1
+   },
+   "from": 2,
+   "gain": [
+    1.3554,
+    0.9797,
+    0.6997,
+    0.5378
+   ],
+   "relics": {
+    "glass_crown": 0.2737,
+    "whetstone": 0.1672,
+    "arise": 0.0974,
+    "undying": 0.0974,
+    "mimicry": 0.0974,
+    "hollow_court": 0.0974,
+    "blood_tithe": 0.0974,
+    "court_of_bone": 0.0974,
+    "blood_chalice": 0.0715,
+    "balm": 0.0715,
+    "iron_oath": 0.0715,
+    "grave_bell": 0.0715,
+    "war_drum": 0.0715,
+    "rally_horn": 0.0715,
+    "tower_shield": 0.0715,
+    "hunters_mark": 0.0715,
+    "arcane_focus": 0.0715,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0215
+   }
+  },
+  {
+   "id": "fusion:trine:rime_drake:0",
+   "needs": {
+    "rime_drake": 3
+   },
+   "fuse": "trine:rime_drake",
+   "tracks": {
+    "trine:rime_drake": 0
+   },
+   "from": 2,
+   "gain": [
+    1.6261,
+    0.9817,
+    0.6391,
+    0.5672
+   ],
+   "relics": {
+    "glass_crown": 0.2772,
+    "whetstone": 0.1694,
+    "arise": 0.0987,
+    "undying": 0.0987,
+    "mimicry": 0.0987,
+    "hollow_court": 0.0987,
+    "blood_tithe": 0.0987,
+    "court_of_bone": 0.0987,
+    "blood_chalice": 0.0725,
+    "balm": 0.0725,
+    "iron_oath": 0.0725,
+    "grave_bell": 0.0725,
+    "war_drum": 0.0725,
+    "rally_horn": 0.0725,
+    "tower_shield": 0.0725,
+    "hunters_mark": 0.0725,
+    "arcane_focus": 0.0725,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0219
+   }
+  },
+  {
+   "id": "fusion:trine:rime_drake:1",
+   "needs": {
+    "rime_drake": 3
+   },
+   "fuse": "trine:rime_drake",
+   "tracks": {
+    "trine:rime_drake": 1
+   },
+   "from": 2,
+   "gain": [
+    1.6261,
+    0.9618,
+    0.6847,
+    0.5264
+   ],
+   "relics": {
+    "glass_crown": 0.2712,
+    "whetstone": 0.1656,
+    "arise": 0.0964,
+    "undying": 0.0964,
+    "mimicry": 0.0964,
+    "hollow_court": 0.0964,
+    "blood_tithe": 0.0964,
+    "court_of_bone": 0.0964,
+    "blood_chalice": 0.0708,
+    "balm": 0.0708,
+    "iron_oath": 0.0708,
+    "grave_bell": 0.0708,
+    "war_drum": 0.0708,
+    "rally_horn": 0.0708,
+    "tower_shield": 0.0708,
+    "hunters_mark": 0.0708,
+    "arcane_focus": 0.0708,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0213
+   }
+  },
+  {
+   "id": "fusion:trine:trine:hive_drone:0",
+   "needs": {
+    "trine:hive_drone": 3
+   },
+   "fuse": "trine:trine:hive_drone",
+   "tracks": {
+    "trine:trine:hive_drone": 0
+   },
+   "from": 2,
+   "gain": [
+    1.6391,
+    0.9954,
+    0.6751,
+    0.4583
+   ],
+   "relics": {
+    "glass_crown": 0.2649,
+    "whetstone": 0.1617,
+    "arise": 0.0941,
+    "undying": 0.0941,
+    "mimicry": 0.0941,
+    "hollow_court": 0.0941,
+    "blood_tithe": 0.0941,
+    "court_of_bone": 0.0941,
+    "blood_chalice": 0.0691,
+    "balm": 0.0691,
+    "iron_oath": 0.0691,
+    "grave_bell": 0.0691,
+    "war_drum": 0.0691,
+    "rally_horn": 0.0691,
+    "tower_shield": 0.0691,
+    "hunters_mark": 0.0691,
+    "arcane_focus": 0.0691,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0208
+   }
+  },
+  {
+   "id": "fusion:trine:mantis_reaper:0",
+   "needs": {
+    "mantis_reaper": 3
+   },
+   "fuse": "trine:mantis_reaper",
+   "tracks": {
+    "trine:mantis_reaper": 0
+   },
+   "from": 2,
+   "gain": [
+    0.7284,
+    0.9576,
+    0.6353,
+    0.5337
+   ],
+   "relics": {
+    "glass_crown": 0.2718,
+    "whetstone": 0.166,
+    "arise": 0.0967,
+    "undying": 0.0967,
+    "mimicry": 0.0967,
+    "hollow_court": 0.0967,
+    "blood_tithe": 0.0967,
+    "court_of_bone": 0.0967,
+    "blood_chalice": 0.071,
+    "balm": 0.071,
+    "iron_oath": 0.071,
+    "grave_bell": 0.071,
+    "war_drum": 0.071,
+    "rally_horn": 0.071,
+    "tower_shield": 0.071,
+    "hunters_mark": 0.071,
+    "arcane_focus": 0.071,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0214
+   }
+  },
+  {
+   "id": "fusion:trine:frost_wyrm:0",
+   "needs": {
+    "frost_wyrm": 3
+   },
+   "fuse": "trine:frost_wyrm",
+   "tracks": {
+    "trine:frost_wyrm": 0
+   },
+   "from": 3,
+   "gain": [
+    0.2795,
+    0.9809,
+    0.7516,
+    0.6549
+   ],
+   "relics": {
+    "glass_crown": 0.2865,
+    "whetstone": 0.1753,
+    "arise": 0.1023,
+    "undying": 0.1023,
+    "mimicry": 0.1023,
+    "hollow_court": 0.1023,
+    "blood_tithe": 0.1023,
+    "court_of_bone": 0.1023,
+    "blood_chalice": 0.0751,
+    "balm": 0.0751,
+    "iron_oath": 0.0751,
+    "grave_bell": 0.0751,
+    "war_drum": 0.0751,
+    "rally_horn": 0.0751,
+    "tower_shield": 0.0751,
+    "hunters_mark": 0.0751,
+    "arcane_focus": 0.0751,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0227
+   }
+  },
+  {
+   "id": "fusion:winter_court:1",
+   "needs": {
+    "pale_court": 1,
+    "trine:frost_sprite": 1
+   },
+   "fuse": "winter_court",
+   "tracks": {
+    "winter_court": 1
+   },
+   "from": 1,
+   "gain": [
+    1.3869,
+    0.6122,
+    0.4389,
+    0.3565
+   ],
+   "relics": {
+    "glass_crown": 0.2211,
+    "whetstone": 0.1337,
+    "arise": 0.0773,
+    "undying": 0.0773,
+    "mimicry": 0.0773,
+    "hollow_court": 0.0773,
+    "blood_tithe": 0.0773,
+    "court_of_bone": 0.0773,
+    "blood_chalice": 0.0567,
+    "balm": 0.0567,
+    "iron_oath": 0.0567,
+    "grave_bell": 0.0567,
+    "war_drum": 0.0567,
+    "rally_horn": 0.0567,
+    "tower_shield": 0.0567,
+    "hunters_mark": 0.0567,
+    "arcane_focus": 0.0567,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.017
+   }
+  },
+  {
+   "id": "fusion:trine:frost_wyrm:1",
+   "needs": {
+    "frost_wyrm": 3
+   },
+   "fuse": "trine:frost_wyrm",
+   "tracks": {
+    "trine:frost_wyrm": 1
+   },
+   "from": 3,
+   "gain": [
+    0.2795,
+    0.7705,
+    0.585,
+    0.7915
+   ],
+   "relics": {
+    "glass_crown": 0.2844,
+    "whetstone": 0.1738,
+    "arise": 0.1013,
+    "undying": 0.1013,
+    "mimicry": 0.1013,
+    "hollow_court": 0.1013,
+    "blood_tithe": 0.1013,
+    "court_of_bone": 0.1013,
+    "blood_chalice": 0.0744,
+    "balm": 0.0744,
+    "iron_oath": 0.0744,
+    "grave_bell": 0.0744,
+    "war_drum": 0.0744,
+    "rally_horn": 0.0744,
+    "tower_shield": 0.0744,
+    "hunters_mark": 0.0744,
+    "arcane_focus": 0.0744,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0224
+   }
+  },
+  {
+   "id": "fusion:trine:trine:tomb_knight:1",
+   "needs": {
+    "trine:tomb_knight": 3
+   },
+   "fuse": "trine:trine:tomb_knight",
+   "tracks": {
+    "trine:trine:tomb_knight": 1
+   },
+   "from": 1,
+   "gain": [
+    1.1653,
+    0.7307,
+    0.4531,
+    0.2983
+   ],
+   "relics": {
+    "glass_crown": 0.2228,
+    "whetstone": 0.135,
+    "arise": 0.0782,
+    "undying": 0.0782,
+    "mimicry": 0.0782,
+    "hollow_court": 0.0782,
+    "blood_tithe": 0.0782,
+    "court_of_bone": 0.0782,
+    "blood_chalice": 0.0573,
+    "balm": 0.0573,
+    "iron_oath": 0.0573,
+    "grave_bell": 0.0573,
+    "war_drum": 0.0573,
+    "rally_horn": 0.0573,
+    "tower_shield": 0.0573,
+    "hunters_mark": 0.0573,
+    "arcane_focus": 0.0573,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0172
+   }
+  },
+  {
+   "id": "fusion:trine:ember_drake:1",
+   "needs": {
+    "ember_drake": 3
+   },
+   "fuse": "trine:ember_drake",
+   "tracks": {
+    "trine:ember_drake": 1
+   },
+   "from": 2,
+   "gain": [
+    0.4201,
+    0.8381,
+    0.6323,
+    0.4821
+   ],
+   "relics": {
+    "glass_crown": 0.2573,
+    "whetstone": 0.1566,
+    "arise": 0.0911,
+    "undying": 0.0911,
+    "mimicry": 0.0911,
+    "hollow_court": 0.0911,
+    "blood_tithe": 0.0911,
+    "court_of_bone": 0.0911,
+    "blood_chalice": 0.0668,
+    "balm": 0.0668,
+    "iron_oath": 0.0668,
+    "grave_bell": 0.0668,
+    "war_drum": 0.0668,
+    "rally_horn": 0.0668,
+    "tower_shield": 0.0668,
+    "hunters_mark": 0.0668,
+    "arcane_focus": 0.0668,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0201
+   }
+  },
+  {
+   "id": "fusion:trine:trine:grave_ghoul:0",
+   "needs": {
+    "trine:grave_ghoul": 3
+   },
+   "fuse": "trine:trine:grave_ghoul",
+   "tracks": {
+    "trine:trine:grave_ghoul": 0
+   },
+   "from": 1,
+   "gain": [
+    1.0832,
+    0.7461,
+    0.4514,
+    0.3013
+   ],
+   "relics": {
+    "glass_crown": 0.2246,
+    "whetstone": 0.1361,
+    "arise": 0.0789,
+    "undying": 0.0789,
+    "mimicry": 0.0789,
+    "hollow_court": 0.0789,
+    "blood_tithe": 0.0789,
+    "court_of_bone": 0.0789,
+    "blood_chalice": 0.0578,
+    "balm": 0.0578,
+    "iron_oath": 0.0578,
+    "grave_bell": 0.0578,
+    "war_drum": 0.0578,
+    "rally_horn": 0.0578,
+    "tower_shield": 0.0578,
+    "hunters_mark": 0.0578,
+    "arcane_focus": 0.0578,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0174
+   }
+  },
+  {
+   "id": "fusion:trine:ember_drake:0",
+   "needs": {
+    "ember_drake": 3
+   },
+   "fuse": "trine:ember_drake",
+   "tracks": {
+    "trine:ember_drake": 0
+   },
+   "from": 2,
+   "gain": [
+    0.4201,
+    0.7492,
+    0.6979,
+    0.4821
+   ],
+   "relics": {
+    "glass_crown": 0.2503,
+    "whetstone": 0.1522,
+    "arise": 0.0884,
+    "undying": 0.0884,
+    "mimicry": 0.0884,
+    "hollow_court": 0.0884,
+    "blood_tithe": 0.0884,
+    "court_of_bone": 0.0884,
+    "blood_chalice": 0.0648,
+    "balm": 0.0648,
+    "iron_oath": 0.0648,
+    "grave_bell": 0.0648,
+    "war_drum": 0.0648,
+    "rally_horn": 0.0648,
+    "tower_shield": 0.0648,
+    "hunters_mark": 0.0648,
+    "arcane_focus": 0.0648,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0195
+   }
+  },
+  {
+   "id": "fusion:trine:bone_colossus:1",
+   "needs": {
+    "bone_colossus": 3
+   },
+   "fuse": "trine:bone_colossus",
+   "tracks": {
+    "trine:bone_colossus": 1
+   },
+   "from": 1,
+   "gain": [
+    1.072,
+    0.7296,
+    0.4467,
+    0.2879
+   ],
+   "relics": {
+    "glass_crown": 0.2211,
+    "whetstone": 0.1339,
+    "arise": 0.0776,
+    "undying": 0.0776,
+    "mimicry": 0.0776,
+    "hollow_court": 0.0776,
+    "blood_tithe": 0.0776,
+    "court_of_bone": 0.0776,
+    "blood_chalice": 0.0569,
+    "balm": 0.0569,
+    "iron_oath": 0.0569,
+    "grave_bell": 0.0569,
+    "war_drum": 0.0569,
+    "rally_horn": 0.0569,
+    "tower_shield": 0.0569,
+    "hunters_mark": 0.0569,
+    "arcane_focus": 0.0569,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0171
+   }
+  },
+  {
+   "id": "fusion:trine:trine:tomb_knight:0",
+   "needs": {
+    "trine:tomb_knight": 3
+   },
+   "fuse": "trine:trine:tomb_knight",
+   "tracks": {
+    "trine:trine:tomb_knight": 0
+   },
+   "from": 1,
+   "gain": [
+    1.1653,
+    0.6073,
+    0.436,
+    0.2983
+   ],
+   "relics": {
+    "glass_crown": 0.2117,
+    "whetstone": 0.1279,
+    "arise": 0.0739,
+    "undying": 0.0739,
+    "mimicry": 0.0739,
+    "hollow_court": 0.0739,
+    "blood_tithe": 0.0739,
+    "court_of_bone": 0.0739,
+    "blood_chalice": 0.0541,
+    "balm": 0.0541,
+    "iron_oath": 0.0541,
+    "grave_bell": 0.0541,
+    "war_drum": 0.0541,
+    "rally_horn": 0.0541,
+    "tower_shield": 0.0541,
+    "hunters_mark": 0.0541,
+    "arcane_focus": 0.0541,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0162
+   }
+  },
+  {
+   "id": "fusion:trine:trine:hive_drone:1",
+   "needs": {
+    "trine:hive_drone": 3
+   },
+   "fuse": "trine:trine:hive_drone",
+   "tracks": {
+    "trine:trine:hive_drone": 1
+   },
+   "from": 2,
+   "gain": [
+    1.6391,
+    0.7914,
+    0.5954,
+    0.4583
+   ],
+   "relics": {
+    "glass_crown": 0.2507,
+    "whetstone": 0.1524,
+    "arise": 0.0885,
+    "undying": 0.0885,
+    "mimicry": 0.0885,
+    "hollow_court": 0.0885,
+    "blood_tithe": 0.0885,
+    "court_of_bone": 0.0885,
+    "blood_chalice": 0.0649,
+    "balm": 0.0649,
+    "iron_oath": 0.0649,
+    "grave_bell": 0.0649,
+    "war_drum": 0.0649,
+    "rally_horn": 0.0649,
+    "tower_shield": 0.0649,
+    "hunters_mark": 0.0649,
+    "arcane_focus": 0.0649,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0195
+   }
+  },
+  {
+   "id": "fusion:trine:bone_chanter:1",
+   "needs": {
+    "bone_chanter": 3
+   },
+   "fuse": "trine:bone_chanter",
+   "tracks": {
+    "trine:bone_chanter": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.0382,
+    0.9301,
+    0.7948,
+    0.6738
+   ],
+   "relics": {
+    "glass_crown": 0.2851,
+    "whetstone": 0.1744,
+    "arise": 0.1017,
+    "undying": 0.1017,
+    "mimicry": 0.1017,
+    "hollow_court": 0.1017,
+    "blood_tithe": 0.1017,
+    "court_of_bone": 0.1017,
+    "blood_chalice": 0.0747,
+    "balm": 0.0747,
+    "iron_oath": 0.0747,
+    "grave_bell": 0.0747,
+    "war_drum": 0.0747,
+    "rally_horn": 0.0747,
+    "tower_shield": 0.0747,
+    "hunters_mark": 0.0747,
+    "arcane_focus": 0.0747,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0225
+   }
+  },
+  {
+   "id": "fusion:aurora:0",
+   "needs": {
+    "pale_court": 1,
+    "rime_drake": 1
+   },
+   "fuse": "aurora",
+   "tracks": {
+    "aurora": 0
+   },
+   "from": 2,
+   "gain": [
+    1.2722,
+    0.8513,
+    0.5507,
+    0.3611
+   ],
+   "relics": {
+    "glass_crown": 0.2418,
+    "whetstone": 0.147,
+    "arise": 0.0854,
+    "undying": 0.0854,
+    "mimicry": 0.0854,
+    "hollow_court": 0.0854,
+    "blood_tithe": 0.0854,
+    "court_of_bone": 0.0854,
+    "blood_chalice": 0.0626,
+    "balm": 0.0626,
+    "iron_oath": 0.0626,
+    "grave_bell": 0.0626,
+    "war_drum": 0.0626,
+    "rally_horn": 0.0626,
+    "tower_shield": 0.0626,
+    "hunters_mark": 0.0626,
+    "arcane_focus": 0.0626,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0188
+   }
+  },
+  {
+   "id": "fusion:trine:trine:grave_ghoul:1",
+   "needs": {
+    "trine:grave_ghoul": 3
+   },
+   "fuse": "trine:trine:grave_ghoul",
+   "tracks": {
+    "trine:trine:grave_ghoul": 1
+   },
+   "from": 1,
+   "gain": [
+    1.0832,
+    0.5572,
+    0.3185,
+    0.3013
+   ],
+   "relics": {
+    "glass_crown": 0.2072,
+    "whetstone": 0.125,
+    "arise": 0.0722,
+    "undying": 0.0722,
+    "mimicry": 0.0722,
+    "hollow_court": 0.0722,
+    "blood_tithe": 0.0722,
+    "court_of_bone": 0.0722,
+    "blood_chalice": 0.0529,
+    "balm": 0.0529,
+    "iron_oath": 0.0529,
+    "grave_bell": 0.0529,
+    "war_drum": 0.0529,
+    "rally_horn": 0.0529,
+    "tower_shield": 0.0529,
+    "hunters_mark": 0.0529,
+    "arcane_focus": 0.0529,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0158
+   }
+  },
+  {
+   "id": "fusion:trine:bone_colossus:0",
+   "needs": {
+    "bone_colossus": 3
+   },
+   "fuse": "trine:bone_colossus",
+   "tracks": {
+    "trine:bone_colossus": 0
+   },
+   "from": 1,
+   "gain": [
+    1.072,
+    0.5465,
+    0.33,
+    0.2553
+   ],
+   "relics": {
+    "glass_crown": 0.1986,
+    "whetstone": 0.1197,
+    "arise": 0.0691,
+    "undying": 0.0691,
+    "mimicry": 0.0691,
+    "hollow_court": 0.0691,
+    "blood_tithe": 0.0691,
+    "court_of_bone": 0.0691,
+    "blood_chalice": 0.0506,
+    "balm": 0.0506,
+    "iron_oath": 0.0506,
+    "grave_bell": 0.0506,
+    "war_drum": 0.0506,
+    "rally_horn": 0.0506,
+    "tower_shield": 0.0506,
+    "hunters_mark": 0.0506,
+    "arcane_focus": 0.0506,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0151
+   }
+  },
+  {
+   "id": "fusion:trine:trine:hive_warden:1",
+   "needs": {
+    "trine:hive_warden": 3
+   },
+   "fuse": "trine:trine:hive_warden",
+   "tracks": {
+    "trine:trine:hive_warden": 1
+   },
+   "from": 1,
+   "gain": [
+    0.9739,
+    0.5,
+    0.2728,
+    0.4444
+   ],
+   "relics": {
+    "glass_crown": 0.2218,
+    "whetstone": 0.134,
+    "arise": 0.0774,
+    "undying": 0.0774,
+    "mimicry": 0.0774,
+    "hollow_court": 0.0774,
+    "blood_tithe": 0.0774,
+    "court_of_bone": 0.0774,
+    "blood_chalice": 0.0567,
+    "balm": 0.0567,
+    "iron_oath": 0.0567,
+    "grave_bell": 0.0567,
+    "war_drum": 0.0567,
+    "rally_horn": 0.0567,
+    "tower_shield": 0.0567,
+    "hunters_mark": 0.0567,
+    "arcane_focus": 0.0567,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.017
+   }
+  },
+  {
+   "id": "fusion:trine:frost_sprite:0",
+   "needs": {
+    "frost_sprite": 3
+   },
+   "fuse": "trine:frost_sprite",
+   "tracks": {
+    "trine:frost_sprite": 0
+   },
+   "from": 1,
+   "gain": [
+    0.2735,
+    0.8154,
+    0.6496,
+    0.447
+   ],
+   "relics": {
+    "glass_crown": 0.251,
+    "whetstone": 0.1527,
+    "arise": 0.0887,
+    "undying": 0.0887,
+    "mimicry": 0.0887,
+    "hollow_court": 0.0887,
+    "blood_tithe": 0.0887,
+    "court_of_bone": 0.0887,
+    "blood_chalice": 0.0651,
+    "balm": 0.0651,
+    "iron_oath": 0.0651,
+    "grave_bell": 0.0651,
+    "war_drum": 0.0651,
+    "rally_horn": 0.0651,
+    "tower_shield": 0.0651,
+    "hunters_mark": 0.0651,
+    "arcane_focus": 0.0651,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0196
+   }
+  },
+  {
+   "id": "fusion:trine:ash_wyvern:0",
+   "needs": {
+    "ash_wyvern": 3
+   },
+   "fuse": "trine:ash_wyvern",
+   "tracks": {
+    "trine:ash_wyvern": 0
+   },
+   "from": 3,
+   "gain": [
+    0.603,
+    0.8695,
+    0.5674,
+    0.4831
+   ],
+   "relics": {
+    "glass_crown": 0.2597,
+    "whetstone": 0.1582,
+    "arise": 0.092,
+    "undying": 0.092,
+    "mimicry": 0.092,
+    "hollow_court": 0.092,
+    "blood_tithe": 0.092,
+    "court_of_bone": 0.092,
+    "blood_chalice": 0.0675,
+    "balm": 0.0675,
+    "iron_oath": 0.0675,
+    "grave_bell": 0.0675,
+    "war_drum": 0.0675,
+    "rally_horn": 0.0675,
+    "tower_shield": 0.0675,
+    "hunters_mark": 0.0675,
+    "arcane_focus": 0.0675,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0203
+   }
+  },
+  {
+   "id": "fusion:trine:frost_sprite:1",
+   "needs": {
+    "frost_sprite": 3
+   },
+   "fuse": "trine:frost_sprite",
+   "tracks": {
+    "trine:frost_sprite": 1
+   },
+   "from": 1,
+   "gain": [
+    0.2735,
+    0.784,
+    0.5856,
+    0.447
+   ],
+   "relics": {
+    "glass_crown": 0.2486,
+    "whetstone": 0.1512,
+    "arise": 0.0878,
+    "undying": 0.0878,
+    "mimicry": 0.0878,
+    "hollow_court": 0.0878,
+    "blood_tithe": 0.0878,
+    "court_of_bone": 0.0878,
+    "blood_chalice": 0.0644,
+    "balm": 0.0644,
+    "iron_oath": 0.0644,
+    "grave_bell": 0.0644,
+    "war_drum": 0.0644,
+    "rally_horn": 0.0644,
+    "tower_shield": 0.0644,
+    "hunters_mark": 0.0644,
+    "arcane_focus": 0.0644,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0193
+   }
+  },
+  {
+   "id": "fusion:trine:hive_queen:1",
+   "needs": {
+    "hive_queen": 3
+   },
+   "fuse": "trine:hive_queen",
+   "tracks": {
+    "trine:hive_queen": 1
+   },
+   "from": 2,
+   "gain": [
+    1.129,
+    0.7619,
+    0.4787,
+    0.3106
+   ],
+   "relics": {
+    "glass_crown": 0.2273,
+    "whetstone": 0.1379,
+    "arise": 0.0799,
+    "undying": 0.0799,
+    "mimicry": 0.0799,
+    "hollow_court": 0.0799,
+    "blood_tithe": 0.0799,
+    "court_of_bone": 0.0799,
+    "blood_chalice": 0.0586,
+    "balm": 0.0586,
+    "iron_oath": 0.0586,
+    "grave_bell": 0.0586,
+    "war_drum": 0.0586,
+    "rally_horn": 0.0586,
+    "tower_shield": 0.0586,
+    "hunters_mark": 0.0586,
+    "arcane_focus": 0.0586,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0176
+   }
+  },
+  {
+   "id": "fusion:trine:ash_wyvern:1",
+   "needs": {
+    "ash_wyvern": 3
+   },
+   "fuse": "trine:ash_wyvern",
+   "tracks": {
+    "trine:ash_wyvern": 1
+   },
+   "from": 3,
+   "gain": [
+    0.603,
+    0.8365,
+    0.5798,
+    0.4462
+   ],
+   "relics": {
+    "glass_crown": 0.2525,
+    "whetstone": 0.1537,
+    "arise": 0.0893,
+    "undying": 0.0893,
+    "mimicry": 0.0893,
+    "hollow_court": 0.0893,
+    "blood_tithe": 0.0893,
+    "court_of_bone": 0.0893,
+    "blood_chalice": 0.0655,
+    "balm": 0.0655,
+    "iron_oath": 0.0655,
+    "grave_bell": 0.0655,
+    "war_drum": 0.0655,
+    "rally_horn": 0.0655,
+    "tower_shield": 0.0655,
+    "hunters_mark": 0.0655,
+    "arcane_focus": 0.0655,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0197
+   }
+  },
+  {
+   "id": "fusion:trine:trine:thorn_dryad:0",
+   "needs": {
+    "trine:thorn_dryad": 3
+   },
+   "fuse": "trine:trine:thorn_dryad",
+   "tracks": {
+    "trine:trine:thorn_dryad": 0
+   },
+   "from": 2,
+   "gain": [
+    0.5181,
+    0.719,
+    0.4429,
+    0.345
+   ],
+   "relics": {
+    "glass_crown": 0.229,
+    "whetstone": 0.1388,
+    "arise": 0.0805,
+    "undying": 0.0805,
+    "mimicry": 0.0805,
+    "hollow_court": 0.0805,
+    "blood_tithe": 0.0805,
+    "court_of_bone": 0.0805,
+    "blood_chalice": 0.059,
+    "balm": 0.059,
+    "iron_oath": 0.059,
+    "grave_bell": 0.059,
+    "war_drum": 0.059,
+    "rally_horn": 0.059,
+    "tower_shield": 0.059,
+    "hunters_mark": 0.059,
+    "arcane_focus": 0.059,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0177
+   }
+  },
+  {
+   "id": "fusion:charnel_cathedral:1",
+   "needs": {
+    "bone_colossus": 1,
+    "trine:grave_ghoul": 1
+   },
+   "fuse": "charnel_cathedral",
+   "tracks": {
+    "charnel_cathedral": 1
+   },
+   "from": 1,
+   "gain": [
+    0.7882,
+    0.6184,
+    0.3604,
+    0.2313
+   ],
+   "relics": {
+    "glass_crown": 0.2017,
+    "whetstone": 0.1217,
+    "arise": 0.0704,
+    "undying": 0.0704,
+    "mimicry": 0.0704,
+    "hollow_court": 0.0704,
+    "blood_tithe": 0.0704,
+    "court_of_bone": 0.0704,
+    "blood_chalice": 0.0515,
+    "balm": 0.0515,
+    "iron_oath": 0.0515,
+    "grave_bell": 0.0515,
+    "war_drum": 0.0515,
+    "rally_horn": 0.0515,
+    "tower_shield": 0.0515,
+    "hunters_mark": 0.0515,
+    "arcane_focus": 0.0515,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0154
+   }
+  },
+  {
+   "id": "fusion:trine:clockwork_titan:1",
+   "needs": {
+    "clockwork_titan": 3
+   },
+   "fuse": "trine:clockwork_titan",
+   "tracks": {
+    "trine:clockwork_titan": 1
+   },
+   "from": 2,
+   "gain": [
+    0.8935,
+    0.7267,
+    0.4417,
+    0.2821
+   ],
+   "relics": {
+    "glass_crown": 0.2199,
+    "whetstone": 0.1332,
+    "arise": 0.0772,
+    "undying": 0.0772,
+    "mimicry": 0.0772,
+    "hollow_court": 0.0772,
+    "blood_tithe": 0.0772,
+    "court_of_bone": 0.0772,
+    "blood_chalice": 0.0565,
+    "balm": 0.0565,
+    "iron_oath": 0.0565,
+    "grave_bell": 0.0565,
+    "war_drum": 0.0565,
+    "rally_horn": 0.0565,
+    "tower_shield": 0.0565,
+    "hunters_mark": 0.0565,
+    "arcane_focus": 0.0565,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.017
+   }
+  },
+  {
    "id": "fusion:rime_drake:0",
    "needs": {
     "ember_drake": 1,
@@ -64,6 +1708,45 @@
    }
   },
   {
+   "id": "fusion:trine:pyre_hound:1",
+   "needs": {
+    "pyre_hound": 3
+   },
+   "fuse": "trine:pyre_hound",
+   "tracks": {
+    "trine:pyre_hound": 1
+   },
+   "from": 1,
+   "gain": [
+    0.2594,
+    0.715,
+    0.527,
+    0.4037
+   ],
+   "relics": {
+    "glass_crown": 0.2371,
+    "whetstone": 0.1439,
+    "arise": 0.0834,
+    "undying": 0.0834,
+    "mimicry": 0.0834,
+    "hollow_court": 0.0834,
+    "blood_tithe": 0.0834,
+    "court_of_bone": 0.0834,
+    "blood_chalice": 0.0611,
+    "balm": 0.0611,
+    "iron_oath": 0.0611,
+    "grave_bell": 0.0611,
+    "war_drum": 0.0611,
+    "rally_horn": 0.0611,
+    "tower_shield": 0.0611,
+    "hunters_mark": 0.0611,
+    "arcane_focus": 0.0611,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0184
+   }
+  },
+  {
    "id": "fusion:rime_drake:1",
    "needs": {
     "ember_drake": 1,
@@ -101,6 +1784,85 @@
     "hourglass": 0.0488,
     "bone_idol": 0.0488,
     "heartwood": 0.0171
+   }
+  },
+  {
+   "id": "fusion:trine:pyre_hound:0",
+   "needs": {
+    "pyre_hound": 3
+   },
+   "fuse": "trine:pyre_hound",
+   "tracks": {
+    "trine:pyre_hound": 0
+   },
+   "from": 1,
+   "gain": [
+    0.2594,
+    0.7611,
+    0.4682,
+    0.4037
+   ],
+   "relics": {
+    "glass_crown": 0.241,
+    "whetstone": 0.1463,
+    "arise": 0.0849,
+    "undying": 0.0849,
+    "mimicry": 0.0849,
+    "hollow_court": 0.0849,
+    "blood_tithe": 0.0849,
+    "court_of_bone": 0.0849,
+    "blood_chalice": 0.0623,
+    "balm": 0.0623,
+    "iron_oath": 0.0623,
+    "grave_bell": 0.0623,
+    "war_drum": 0.0623,
+    "rally_horn": 0.0623,
+    "tower_shield": 0.0623,
+    "hunters_mark": 0.0623,
+    "arcane_focus": 0.0623,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0187
+   }
+  },
+  {
+   "id": "fusion:aurora:1",
+   "needs": {
+    "pale_court": 1,
+    "rime_drake": 1
+   },
+   "fuse": "aurora",
+   "tracks": {
+    "aurora": 1
+   },
+   "from": 2,
+   "gain": [
+    1.2722,
+    0.6575,
+    0.4298,
+    0.3305
+   ],
+   "relics": {
+    "glass_crown": 0.2214,
+    "whetstone": 0.134,
+    "arise": 0.0776,
+    "undying": 0.0776,
+    "mimicry": 0.0776,
+    "hollow_court": 0.0776,
+    "blood_tithe": 0.0776,
+    "court_of_bone": 0.0776,
+    "blood_chalice": 0.0568,
+    "balm": 0.0568,
+    "iron_oath": 0.0568,
+    "grave_bell": 0.0568,
+    "war_drum": 0.0568,
+    "rally_horn": 0.0568,
+    "tower_shield": 0.0568,
+    "hunters_mark": 0.0568,
+    "arcane_focus": 0.0568,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.017
    }
   },
   {
@@ -146,6 +1908,282 @@
     "hunters_mark": 0.0218,
     "arcane_focus": 0.0218,
     "heartwood": 0.0062
+   }
+  },
+  {
+   "id": "fusion:trine:hive_drone:0",
+   "needs": {
+    "hive_drone": 3
+   },
+   "fuse": "trine:hive_drone",
+   "tracks": {
+    "trine:hive_drone": 0
+   },
+   "from": 2,
+   "gain": [
+    0.0489,
+    0.6899,
+    0.4259,
+    0.283
+   ],
+   "relics": {
+    "glass_crown": 0.2169,
+    "whetstone": 0.1313,
+    "arise": 0.076,
+    "undying": 0.076,
+    "mimicry": 0.076,
+    "hollow_court": 0.076,
+    "blood_tithe": 0.076,
+    "court_of_bone": 0.076,
+    "blood_chalice": 0.0557,
+    "balm": 0.0557,
+    "iron_oath": 0.0557,
+    "grave_bell": 0.0557,
+    "war_drum": 0.0557,
+    "rally_horn": 0.0557,
+    "tower_shield": 0.0557,
+    "hunters_mark": 0.0557,
+    "arcane_focus": 0.0557,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0167
+   }
+  },
+  {
+   "id": "fusion:hive_mind:1",
+   "needs": {
+    "hive_queen": 1,
+    "trine:hive_drone": 1
+   },
+   "fuse": "hive_mind",
+   "tracks": {
+    "hive_mind": 1
+   },
+   "from": 2,
+   "gain": [
+    1.0948,
+    0.674,
+    0.4088,
+    0.2637
+   ],
+   "relics": {
+    "glass_crown": 0.2123,
+    "whetstone": 0.1284,
+    "arise": 0.0743,
+    "undying": 0.0743,
+    "mimicry": 0.0743,
+    "hollow_court": 0.0743,
+    "blood_tithe": 0.0743,
+    "court_of_bone": 0.0743,
+    "blood_chalice": 0.0544,
+    "balm": 0.0544,
+    "iron_oath": 0.0544,
+    "grave_bell": 0.0544,
+    "war_drum": 0.0544,
+    "rally_horn": 0.0544,
+    "tower_shield": 0.0544,
+    "hunters_mark": 0.0544,
+    "arcane_focus": 0.0544,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0163
+   }
+  },
+  {
+   "id": "fusion:trine:trine:rot_bloat:1",
+   "needs": {
+    "trine:rot_bloat": 3
+   },
+   "fuse": "trine:trine:rot_bloat",
+   "tracks": {
+    "trine:trine:rot_bloat": 1
+   },
+   "from": 2,
+   "gain": [
+    0.7977,
+    0.6765,
+    0.3967,
+    0.2662
+   ],
+   "relics": {
+    "glass_crown": 0.213,
+    "whetstone": 0.1288,
+    "arise": 0.0745,
+    "undying": 0.0745,
+    "mimicry": 0.0745,
+    "hollow_court": 0.0745,
+    "blood_tithe": 0.0745,
+    "court_of_bone": 0.0745,
+    "blood_chalice": 0.0546,
+    "balm": 0.0546,
+    "iron_oath": 0.0546,
+    "grave_bell": 0.0546,
+    "war_drum": 0.0546,
+    "rally_horn": 0.0546,
+    "tower_shield": 0.0546,
+    "hunters_mark": 0.0546,
+    "arcane_focus": 0.0546,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0164
+   }
+  },
+  {
+   "id": "fusion:trine:bone_chanter:0",
+   "needs": {
+    "bone_chanter": 3
+   },
+   "fuse": "trine:bone_chanter",
+   "tracks": {
+    "trine:bone_chanter": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.0382,
+    0.655,
+    0.4638,
+    0.6738
+   ],
+   "relics": {
+    "glass_crown": 0.2636,
+    "whetstone": 0.1605,
+    "arise": 0.0933,
+    "undying": 0.0933,
+    "mimicry": 0.0933,
+    "hollow_court": 0.0933,
+    "blood_tithe": 0.0933,
+    "court_of_bone": 0.0933,
+    "blood_chalice": 0.0684,
+    "balm": 0.0684,
+    "iron_oath": 0.0684,
+    "grave_bell": 0.0684,
+    "war_drum": 0.0684,
+    "rally_horn": 0.0684,
+    "tower_shield": 0.0684,
+    "hunters_mark": 0.0684,
+    "arcane_focus": 0.0684,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0206
+   }
+  },
+  {
+   "id": "fusion:trine:hive_queen:0",
+   "needs": {
+    "hive_queen": 3
+   },
+   "fuse": "trine:hive_queen",
+   "tracks": {
+    "trine:hive_queen": 0
+   },
+   "from": 2,
+   "gain": [
+    1.129,
+    0.5804,
+    0.4082,
+    0.3106
+   ],
+   "relics": {
+    "glass_crown": 0.211,
+    "whetstone": 0.1274,
+    "arise": 0.0736,
+    "undying": 0.0736,
+    "mimicry": 0.0736,
+    "hollow_court": 0.0736,
+    "blood_tithe": 0.0736,
+    "court_of_bone": 0.0736,
+    "blood_chalice": 0.0539,
+    "balm": 0.0539,
+    "iron_oath": 0.0539,
+    "grave_bell": 0.0539,
+    "war_drum": 0.0539,
+    "rally_horn": 0.0539,
+    "tower_shield": 0.0539,
+    "hunters_mark": 0.0539,
+    "arcane_focus": 0.0539,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0161
+   }
+  },
+  {
+   "id": "fusion:engine_of_ages:1",
+   "needs": {
+    "clockwork_titan": 1,
+    "trine:clockwork_page": 1
+   },
+   "fuse": "engine_of_ages",
+   "tracks": {
+    "engine_of_ages": 1
+   },
+   "from": 2,
+   "gain": [
+    0.7968,
+    0.6503,
+    0.388,
+    0.2524
+   ],
+   "relics": {
+    "glass_crown": 0.2083,
+    "whetstone": 0.1259,
+    "arise": 0.0728,
+    "undying": 0.0728,
+    "mimicry": 0.0728,
+    "hollow_court": 0.0728,
+    "blood_tithe": 0.0728,
+    "court_of_bone": 0.0728,
+    "blood_chalice": 0.0533,
+    "balm": 0.0533,
+    "iron_oath": 0.0533,
+    "grave_bell": 0.0533,
+    "war_drum": 0.0533,
+    "rally_horn": 0.0533,
+    "tower_shield": 0.0533,
+    "hunters_mark": 0.0533,
+    "arcane_focus": 0.0533,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.016
+   }
+  },
+  {
+   "id": "fusion:charnel_cathedral:0",
+   "needs": {
+    "bone_colossus": 1,
+    "trine:grave_ghoul": 1
+   },
+   "fuse": "charnel_cathedral",
+   "tracks": {
+    "charnel_cathedral": 0
+   },
+   "from": 1,
+   "gain": [
+    0.7882,
+    0.4516,
+    0.2562,
+    0.2029
+   ],
+   "relics": {
+    "glass_crown": 0.179,
+    "whetstone": 0.1075,
+    "arise": 0.0619,
+    "undying": 0.0619,
+    "mimicry": 0.0619,
+    "hollow_court": 0.0619,
+    "blood_tithe": 0.0619,
+    "court_of_bone": 0.0619,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0452,
+    "balm": 0.0452,
+    "iron_oath": 0.0452,
+    "grave_bell": 0.0452,
+    "war_drum": 0.0452,
+    "rally_horn": 0.0452,
+    "tower_shield": 0.0452,
+    "hunters_mark": 0.0452,
+    "arcane_focus": 0.0452,
+    "heartwood": 0.0135
    }
   },
   {
@@ -234,6 +2272,45 @@
    }
   },
   {
+   "id": "fusion:trine:hive_drone:1",
+   "needs": {
+    "hive_drone": 3
+   },
+   "fuse": "trine:hive_drone",
+   "tracks": {
+    "trine:hive_drone": 1
+   },
+   "from": 2,
+   "gain": [
+    0.0489,
+    0.5216,
+    0.3631,
+    0.283
+   ],
+   "relics": {
+    "glass_crown": 0.2005,
+    "whetstone": 0.1208,
+    "arise": 0.0697,
+    "undying": 0.0697,
+    "mimicry": 0.0697,
+    "hollow_court": 0.0697,
+    "blood_tithe": 0.0697,
+    "court_of_bone": 0.0697,
+    "blood_chalice": 0.051,
+    "balm": 0.051,
+    "iron_oath": 0.051,
+    "grave_bell": 0.051,
+    "war_drum": 0.051,
+    "rally_horn": 0.051,
+    "tower_shield": 0.051,
+    "hunters_mark": 0.051,
+    "arcane_focus": 0.051,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0153
+   }
+  },
+  {
    "id": "role:trickster:4",
    "needs": {
     "clockwork_page": 2,
@@ -312,6 +2389,85 @@
     "hunters_mark": 0.0348,
     "arcane_focus": 0.0348,
     "heartwood": 0.01
+   }
+  },
+  {
+   "id": "fusion:hive_mind:0",
+   "needs": {
+    "hive_queen": 1,
+    "trine:hive_drone": 1
+   },
+   "fuse": "hive_mind",
+   "tracks": {
+    "hive_mind": 0
+   },
+   "from": 2,
+   "gain": [
+    1.0948,
+    0.5042,
+    0.3439,
+    0.2637
+   ],
+   "relics": {
+    "glass_crown": 0.1955,
+    "whetstone": 0.1177,
+    "arise": 0.0679,
+    "undying": 0.0679,
+    "mimicry": 0.0679,
+    "hollow_court": 0.0679,
+    "blood_tithe": 0.0679,
+    "court_of_bone": 0.0679,
+    "blood_chalice": 0.0497,
+    "balm": 0.0497,
+    "iron_oath": 0.0497,
+    "grave_bell": 0.0497,
+    "war_drum": 0.0497,
+    "rally_horn": 0.0497,
+    "tower_shield": 0.0497,
+    "hunters_mark": 0.0497,
+    "arcane_focus": 0.0497,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0148
+   }
+  },
+  {
+   "id": "fusion:trine:clockwork_page:1",
+   "needs": {
+    "clockwork_page": 3
+   },
+   "fuse": "trine:clockwork_page",
+   "tracks": {
+    "trine:clockwork_page": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.3298,
+    0.7543,
+    0.5624,
+    0.4319
+   ],
+   "relics": {
+    "glass_crown": 0.2443,
+    "whetstone": 0.1484,
+    "arise": 0.0861,
+    "undying": 0.0861,
+    "mimicry": 0.0861,
+    "hollow_court": 0.0861,
+    "blood_tithe": 0.0861,
+    "court_of_bone": 0.0861,
+    "blood_chalice": 0.0631,
+    "balm": 0.0631,
+    "iron_oath": 0.0631,
+    "grave_bell": 0.0631,
+    "war_drum": 0.0631,
+    "rally_horn": 0.0631,
+    "tower_shield": 0.0631,
+    "hunters_mark": 0.0631,
+    "arcane_focus": 0.0631,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.019
    }
   },
   {
@@ -437,6 +2593,123 @@
    }
   },
   {
+   "id": "fusion:trine:marsh_hag:0",
+   "needs": {
+    "marsh_hag": 3
+   },
+   "fuse": "trine:marsh_hag",
+   "tracks": {
+    "trine:marsh_hag": 0
+   },
+   "from": 3,
+   "gain": [
+    0.2247,
+    0.6695,
+    0.3955,
+    0.2679
+   ],
+   "relics": {
+    "glass_crown": 0.2126,
+    "whetstone": 0.1286,
+    "arise": 0.0744,
+    "undying": 0.0744,
+    "mimicry": 0.0744,
+    "hollow_court": 0.0744,
+    "blood_tithe": 0.0744,
+    "court_of_bone": 0.0744,
+    "blood_chalice": 0.0545,
+    "balm": 0.0545,
+    "iron_oath": 0.0545,
+    "grave_bell": 0.0545,
+    "war_drum": 0.0545,
+    "rally_horn": 0.0545,
+    "tower_shield": 0.0545,
+    "hunters_mark": 0.0545,
+    "arcane_focus": 0.0545,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0163
+   }
+  },
+  {
+   "id": "fusion:trine:barrow_wight:0",
+   "needs": {
+    "barrow_wight": 3
+   },
+   "fuse": "trine:barrow_wight",
+   "tracks": {
+    "trine:barrow_wight": 0
+   },
+   "from": 3,
+   "gain": [
+    0.4913,
+    0.6731,
+    0.3954,
+    0.2644
+   ],
+   "relics": {
+    "glass_crown": 0.2123,
+    "whetstone": 0.1284,
+    "arise": 0.0743,
+    "undying": 0.0743,
+    "mimicry": 0.0743,
+    "hollow_court": 0.0743,
+    "blood_tithe": 0.0743,
+    "court_of_bone": 0.0743,
+    "blood_chalice": 0.0544,
+    "balm": 0.0544,
+    "iron_oath": 0.0544,
+    "grave_bell": 0.0544,
+    "war_drum": 0.0544,
+    "rally_horn": 0.0544,
+    "tower_shield": 0.0544,
+    "hunters_mark": 0.0544,
+    "arcane_focus": 0.0544,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0163
+   }
+  },
+  {
+   "id": "fusion:trine:clockwork_titan:0",
+   "needs": {
+    "clockwork_titan": 3
+   },
+   "fuse": "trine:clockwork_titan",
+   "tracks": {
+    "trine:clockwork_titan": 0
+   },
+   "from": 2,
+   "gain": [
+    0.8935,
+    0.4577,
+    0.2591,
+    0.2499
+   ],
+   "relics": {
+    "glass_crown": 0.1879,
+    "whetstone": 0.1129,
+    "arise": 0.0651,
+    "undying": 0.0651,
+    "mimicry": 0.0651,
+    "hollow_court": 0.0651,
+    "blood_tithe": 0.0651,
+    "court_of_bone": 0.0651,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0476,
+    "balm": 0.0476,
+    "iron_oath": 0.0476,
+    "grave_bell": 0.0476,
+    "war_drum": 0.0476,
+    "rally_horn": 0.0476,
+    "tower_shield": 0.0476,
+    "hunters_mark": 0.0476,
+    "arcane_focus": 0.0476,
+    "heartwood": 0.0142
+   }
+  },
+  {
    "id": "fusion:hive_queen:1",
    "needs": {
     "hive_warden": 2,
@@ -462,6 +2735,45 @@
     "hollow_court": 0.0623,
     "blood_tithe": 0.0623,
     "court_of_bone": 0.0623,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0456,
+    "balm": 0.0456,
+    "iron_oath": 0.0456,
+    "grave_bell": 0.0456,
+    "war_drum": 0.0456,
+    "rally_horn": 0.0456,
+    "tower_shield": 0.0456,
+    "hunters_mark": 0.0456,
+    "arcane_focus": 0.0456,
+    "heartwood": 0.0136
+   }
+  },
+  {
+   "id": "fusion:trine:thorn_dryad:0",
+   "needs": {
+    "thorn_dryad": 3
+   },
+   "fuse": "trine:thorn_dryad",
+   "tracks": {
+    "trine:thorn_dryad": 0
+   },
+   "from": 2,
+   "gain": [
+    -0.9816,
+    0.465,
+    0.2479,
+    0.2021
+   ],
+   "relics": {
+    "glass_crown": 0.1804,
+    "whetstone": 0.1084,
+    "arise": 0.0624,
+    "undying": 0.0624,
+    "mimicry": 0.0624,
+    "hollow_court": 0.0624,
+    "blood_tithe": 0.0624,
+    "court_of_bone": 0.0624,
     "hourglass": 0.0488,
     "bone_idol": 0.0488,
     "blood_chalice": 0.0456,
@@ -515,6 +2827,162 @@
    }
   },
   {
+   "id": "fusion:trine:barrow_wight:1",
+   "needs": {
+    "barrow_wight": 3
+   },
+   "fuse": "trine:barrow_wight",
+   "tracks": {
+    "trine:barrow_wight": 1
+   },
+   "from": 3,
+   "gain": [
+    0.4913,
+    0.5061,
+    0.3452,
+    0.2644
+   ],
+   "relics": {
+    "glass_crown": 0.1958,
+    "whetstone": 0.1179,
+    "arise": 0.068,
+    "undying": 0.068,
+    "mimicry": 0.068,
+    "hollow_court": 0.068,
+    "blood_tithe": 0.068,
+    "court_of_bone": 0.068,
+    "blood_chalice": 0.0497,
+    "balm": 0.0497,
+    "iron_oath": 0.0497,
+    "grave_bell": 0.0497,
+    "war_drum": 0.0497,
+    "rally_horn": 0.0497,
+    "tower_shield": 0.0497,
+    "hunters_mark": 0.0497,
+    "arcane_focus": 0.0497,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0149
+   }
+  },
+  {
+   "id": "fusion:trine:trine:rot_bloat:0",
+   "needs": {
+    "trine:rot_bloat": 3
+   },
+   "fuse": "trine:trine:rot_bloat",
+   "tracks": {
+    "trine:trine:rot_bloat": 0
+   },
+   "from": 2,
+   "gain": [
+    0.7977,
+    0.4349,
+    0.2345,
+    0.2352
+   ],
+   "relics": {
+    "glass_crown": 0.1827,
+    "whetstone": 0.1097,
+    "arise": 0.0632,
+    "undying": 0.0632,
+    "mimicry": 0.0632,
+    "hollow_court": 0.0632,
+    "blood_tithe": 0.0632,
+    "court_of_bone": 0.0632,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0462,
+    "balm": 0.0462,
+    "iron_oath": 0.0462,
+    "grave_bell": 0.0462,
+    "war_drum": 0.0462,
+    "rally_horn": 0.0462,
+    "tower_shield": 0.0462,
+    "hunters_mark": 0.0462,
+    "arcane_focus": 0.0462,
+    "heartwood": 0.0138
+   }
+  },
+  {
+   "id": "fusion:trine:trine:thorn_dryad:1",
+   "needs": {
+    "trine:thorn_dryad": 3
+   },
+   "fuse": "trine:trine:thorn_dryad",
+   "tracks": {
+    "trine:trine:thorn_dryad": 1
+   },
+   "from": 2,
+   "gain": [
+    0.5181,
+    0.3708,
+    0.1801,
+    0.345
+   ],
+   "relics": {
+    "glass_crown": 0.1924,
+    "whetstone": 0.1156,
+    "arise": 0.0665,
+    "undying": 0.0665,
+    "mimicry": 0.0665,
+    "hollow_court": 0.0665,
+    "blood_tithe": 0.0665,
+    "court_of_bone": 0.0665,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0487,
+    "balm": 0.0487,
+    "iron_oath": 0.0487,
+    "grave_bell": 0.0487,
+    "war_drum": 0.0487,
+    "rally_horn": 0.0487,
+    "tower_shield": 0.0487,
+    "hunters_mark": 0.0487,
+    "arcane_focus": 0.0487,
+    "heartwood": 0.0145
+   }
+  },
+  {
+   "id": "fusion:trine:marsh_hag:1",
+   "needs": {
+    "marsh_hag": 3
+   },
+   "fuse": "trine:marsh_hag",
+   "tracks": {
+    "trine:marsh_hag": 1
+   },
+   "from": 3,
+   "gain": [
+    0.2247,
+    0.4775,
+    0.324,
+    0.2679
+   ],
+   "relics": {
+    "glass_crown": 0.1932,
+    "whetstone": 0.1162,
+    "arise": 0.067,
+    "undying": 0.067,
+    "mimicry": 0.067,
+    "hollow_court": 0.067,
+    "blood_tithe": 0.067,
+    "court_of_bone": 0.067,
+    "blood_chalice": 0.049,
+    "balm": 0.049,
+    "iron_oath": 0.049,
+    "grave_bell": 0.049,
+    "war_drum": 0.049,
+    "rally_horn": 0.049,
+    "tower_shield": 0.049,
+    "hunters_mark": 0.049,
+    "arcane_focus": 0.049,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0146
+   }
+  },
+  {
    "id": "fusion:clockwork_titan:1",
    "needs": {
     "clockwork_page": 2,
@@ -555,6 +3023,46 @@
    }
   },
   {
+   "id": "fusion:engine_of_ages:0",
+   "needs": {
+    "clockwork_titan": 1,
+    "trine:clockwork_page": 1
+   },
+   "fuse": "engine_of_ages",
+   "tracks": {
+    "engine_of_ages": 0
+   },
+   "from": 2,
+   "gain": [
+    0.7968,
+    0.3981,
+    0.2179,
+    0.2224
+   ],
+   "relics": {
+    "glass_crown": 0.176,
+    "whetstone": 0.1055,
+    "arise": 0.0607,
+    "undying": 0.0607,
+    "mimicry": 0.0607,
+    "hollow_court": 0.0607,
+    "blood_tithe": 0.0607,
+    "court_of_bone": 0.0607,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0444,
+    "balm": 0.0444,
+    "iron_oath": 0.0444,
+    "grave_bell": 0.0444,
+    "war_drum": 0.0444,
+    "rally_horn": 0.0444,
+    "tower_shield": 0.0444,
+    "hunters_mark": 0.0444,
+    "arcane_focus": 0.0444,
+    "heartwood": 0.0132
+   }
+  },
+  {
    "id": "fusion:pale_court:1",
    "needs": {
     "will_o_wisp": 3
@@ -591,6 +3099,45 @@
     "hourglass": 0.0488,
     "bone_idol": 0.0488,
     "heartwood": 0.0149
+   }
+  },
+  {
+   "id": "fusion:trine:rot_bloat:1",
+   "needs": {
+    "rot_bloat": 3
+   },
+   "fuse": "trine:rot_bloat",
+   "tracks": {
+    "trine:rot_bloat": 1
+   },
+   "from": 2,
+   "gain": [
+    -0.7036,
+    0.4305,
+    0.2125,
+    0.1461
+   ],
+   "relics": {
+    "glass_crown": 0.1658,
+    "whetstone": 0.0994,
+    "arise": 0.0572,
+    "undying": 0.0572,
+    "mimicry": 0.0572,
+    "hollow_court": 0.0572,
+    "blood_tithe": 0.0572,
+    "court_of_bone": 0.0572,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0418,
+    "balm": 0.0418,
+    "iron_oath": 0.0418,
+    "grave_bell": 0.0418,
+    "war_drum": 0.0418,
+    "rally_horn": 0.0418,
+    "tower_shield": 0.0418,
+    "hunters_mark": 0.0418,
+    "arcane_focus": 0.0418,
+    "heartwood": 0.0125
    }
   },
   {
@@ -710,6 +3257,124 @@
    }
   },
   {
+   "id": "fusion:iron_barrow:1",
+   "needs": {
+    "bone_colossus": 1,
+    "clockwork_titan": 1
+   },
+   "fuse": "iron_barrow",
+   "tracks": {
+    "iron_barrow": 1
+   },
+   "from": 2,
+   "gain": [
+    0.7077,
+    0.3891,
+    0.1881,
+    0.1229
+   ],
+   "relics": {
+    "glass_crown": 0.1562,
+    "whetstone": 0.0935,
+    "arise": 0.0537,
+    "undying": 0.0537,
+    "mimicry": 0.0537,
+    "hollow_court": 0.0537,
+    "blood_tithe": 0.0537,
+    "court_of_bone": 0.0537,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0392,
+    "balm": 0.0392,
+    "iron_oath": 0.0392,
+    "grave_bell": 0.0392,
+    "war_drum": 0.0392,
+    "rally_horn": 0.0392,
+    "tower_shield": 0.0392,
+    "hunters_mark": 0.0392,
+    "arcane_focus": 0.0392,
+    "heartwood": 0.0117
+   }
+  },
+  {
+   "id": "fusion:trine:iron_golem:1",
+   "needs": {
+    "iron_golem": 3
+   },
+   "fuse": "trine:iron_golem",
+   "tracks": {
+    "trine:iron_golem": 1
+   },
+   "from": 2,
+   "gain": [
+    -0.7828,
+    0.3702,
+    0.1678,
+    0.1153
+   ],
+   "relics": {
+    "glass_crown": 0.1522,
+    "whetstone": 0.091,
+    "arise": 0.0523,
+    "undying": 0.0523,
+    "mimicry": 0.0523,
+    "hollow_court": 0.0523,
+    "blood_tithe": 0.0523,
+    "court_of_bone": 0.0523,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0382,
+    "balm": 0.0382,
+    "iron_oath": 0.0382,
+    "grave_bell": 0.0382,
+    "war_drum": 0.0382,
+    "rally_horn": 0.0382,
+    "tower_shield": 0.0382,
+    "hunters_mark": 0.0382,
+    "arcane_focus": 0.0382,
+    "heartwood": 0.0114
+   }
+  },
+  {
+   "id": "fusion:trine:hive_warden:0",
+   "needs": {
+    "hive_warden": 3
+   },
+   "fuse": "trine:hive_warden",
+   "tracks": {
+    "trine:hive_warden": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.5318,
+    0.7004,
+    0.4231,
+    0.275
+   ],
+   "relics": {
+    "glass_crown": 0.2165,
+    "whetstone": 0.1311,
+    "arise": 0.0759,
+    "undying": 0.0759,
+    "mimicry": 0.0759,
+    "hollow_court": 0.0759,
+    "blood_tithe": 0.0759,
+    "court_of_bone": 0.0759,
+    "blood_chalice": 0.0556,
+    "balm": 0.0556,
+    "iron_oath": 0.0556,
+    "grave_bell": 0.0556,
+    "war_drum": 0.0556,
+    "rally_horn": 0.0556,
+    "tower_shield": 0.0556,
+    "hunters_mark": 0.0556,
+    "arcane_focus": 0.0556,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0167
+   }
+  },
+  {
    "id": "kin:insect:4",
    "needs": {
     "hive_warden": 2,
@@ -752,6 +3417,45 @@
     "hunters_mark": 0.0183,
     "arcane_focus": 0.0183,
     "heartwood": 0.0052
+   }
+  },
+  {
+   "id": "fusion:trine:clockwork_page:0",
+   "needs": {
+    "clockwork_page": 3
+   },
+   "fuse": "trine:clockwork_page",
+   "tracks": {
+    "trine:clockwork_page": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.3298,
+    0.4827,
+    0.2525,
+    0.4319
+   ],
+   "relics": {
+    "glass_crown": 0.2182,
+    "whetstone": 0.1317,
+    "arise": 0.0761,
+    "undying": 0.0761,
+    "mimicry": 0.0761,
+    "hollow_court": 0.0761,
+    "blood_tithe": 0.0761,
+    "court_of_bone": 0.0761,
+    "blood_chalice": 0.0557,
+    "balm": 0.0557,
+    "iron_oath": 0.0557,
+    "grave_bell": 0.0557,
+    "war_drum": 0.0557,
+    "rally_horn": 0.0557,
+    "tower_shield": 0.0557,
+    "hunters_mark": 0.0557,
+    "arcane_focus": 0.0557,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0167
    }
   },
   {
@@ -949,6 +3653,124 @@
    }
   },
   {
+   "id": "fusion:iron_barrow:0",
+   "needs": {
+    "bone_colossus": 1,
+    "clockwork_titan": 1
+   },
+   "fuse": "iron_barrow",
+   "tracks": {
+    "iron_barrow": 0
+   },
+   "from": 2,
+   "gain": [
+    0.7077,
+    0.2594,
+    0.1118,
+    0.1033
+   ],
+   "relics": {
+    "glass_crown": 0.1343,
+    "whetstone": 0.0799,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "arise": 0.0458,
+    "undying": 0.0458,
+    "mimicry": 0.0458,
+    "hollow_court": 0.0458,
+    "blood_tithe": 0.0458,
+    "court_of_bone": 0.0458,
+    "blood_chalice": 0.0334,
+    "balm": 0.0334,
+    "iron_oath": 0.0334,
+    "grave_bell": 0.0334,
+    "war_drum": 0.0334,
+    "rally_horn": 0.0334,
+    "tower_shield": 0.0334,
+    "hunters_mark": 0.0334,
+    "arcane_focus": 0.0334,
+    "heartwood": 0.0099
+   }
+  },
+  {
+   "id": "fusion:trine:rot_bloat:0",
+   "needs": {
+    "rot_bloat": 3
+   },
+   "fuse": "trine:rot_bloat",
+   "tracks": {
+    "trine:rot_bloat": 0
+   },
+   "from": 2,
+   "gain": [
+    -0.7036,
+    0.2443,
+    0.0944,
+    0.1245
+   ],
+   "relics": {
+    "glass_crown": 0.1364,
+    "whetstone": 0.0811,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "arise": 0.0464,
+    "undying": 0.0464,
+    "mimicry": 0.0464,
+    "hollow_court": 0.0464,
+    "blood_tithe": 0.0464,
+    "court_of_bone": 0.0464,
+    "blood_chalice": 0.0339,
+    "balm": 0.0339,
+    "iron_oath": 0.0339,
+    "grave_bell": 0.0339,
+    "war_drum": 0.0339,
+    "rally_horn": 0.0339,
+    "tower_shield": 0.0339,
+    "hunters_mark": 0.0339,
+    "arcane_focus": 0.0339,
+    "heartwood": 0.0101
+   }
+  },
+  {
+   "id": "fusion:trine:thorn_dryad:1",
+   "needs": {
+    "thorn_dryad": 3
+   },
+   "fuse": "trine:thorn_dryad",
+   "tracks": {
+    "trine:thorn_dryad": 1
+   },
+   "from": 2,
+   "gain": [
+    -0.9816,
+    0.197,
+    0.0562,
+    0.2021
+   ],
+   "relics": {
+    "glass_crown": 0.1438,
+    "whetstone": 0.0855,
+    "arise": 0.0489,
+    "undying": 0.0489,
+    "mimicry": 0.0489,
+    "hollow_court": 0.0489,
+    "blood_tithe": 0.0489,
+    "court_of_bone": 0.0489,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0357,
+    "balm": 0.0357,
+    "iron_oath": 0.0357,
+    "grave_bell": 0.0357,
+    "war_drum": 0.0357,
+    "rally_horn": 0.0357,
+    "tower_shield": 0.0357,
+    "hunters_mark": 0.0357,
+    "arcane_focus": 0.0357,
+    "heartwood": 0.0106
+   }
+  },
+  {
    "id": "role:skirmisher:4",
    "needs": {
     "frost_sprite": 1,
@@ -993,6 +3815,45 @@
     "hunters_mark": 0.0228,
     "arcane_focus": 0.0228,
     "heartwood": 0.0065
+   }
+  },
+  {
+   "id": "fusion:trine:tomb_knight:1",
+   "needs": {
+    "tomb_knight": 3
+   },
+   "fuse": "trine:tomb_knight",
+   "tracks": {
+    "trine:tomb_knight": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.3245,
+    0.4746,
+    0.2565,
+    0.1699
+   ],
+   "relics": {
+    "glass_crown": 0.1756,
+    "whetstone": 0.1054,
+    "arise": 0.0607,
+    "undying": 0.0607,
+    "mimicry": 0.0607,
+    "hollow_court": 0.0607,
+    "blood_tithe": 0.0607,
+    "court_of_bone": 0.0607,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0444,
+    "balm": 0.0444,
+    "iron_oath": 0.0444,
+    "grave_bell": 0.0444,
+    "war_drum": 0.0444,
+    "rally_horn": 0.0444,
+    "tower_shield": 0.0444,
+    "hunters_mark": 0.0444,
+    "arcane_focus": 0.0444,
+    "heartwood": 0.0133
    }
   },
   {
@@ -1072,6 +3933,84 @@
    }
   },
   {
+   "id": "fusion:trine:tomb_knight:0",
+   "needs": {
+    "tomb_knight": 3
+   },
+   "fuse": "trine:tomb_knight",
+   "tracks": {
+    "trine:tomb_knight": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.3245,
+    0.3775,
+    0.2435,
+    0.1699
+   ],
+   "relics": {
+    "glass_crown": 0.1638,
+    "whetstone": 0.0981,
+    "arise": 0.0563,
+    "undying": 0.0563,
+    "mimicry": 0.0563,
+    "hollow_court": 0.0563,
+    "blood_tithe": 0.0563,
+    "court_of_bone": 0.0563,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0412,
+    "balm": 0.0412,
+    "iron_oath": 0.0412,
+    "grave_bell": 0.0412,
+    "war_drum": 0.0412,
+    "rally_horn": 0.0412,
+    "tower_shield": 0.0412,
+    "hunters_mark": 0.0412,
+    "arcane_focus": 0.0412,
+    "heartwood": 0.0123
+   }
+  },
+  {
+   "id": "fusion:trine:iron_golem:0",
+   "needs": {
+    "iron_golem": 3
+   },
+   "fuse": "trine:iron_golem",
+   "tracks": {
+    "trine:iron_golem": 0
+   },
+   "from": 2,
+   "gain": [
+    -0.7828,
+    0.1597,
+    0.0649,
+    0.1153
+   ],
+   "relics": {
+    "glass_crown": 0.121,
+    "whetstone": 0.0717,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "arise": 0.0409,
+    "undying": 0.0409,
+    "mimicry": 0.0409,
+    "hollow_court": 0.0409,
+    "blood_tithe": 0.0409,
+    "court_of_bone": 0.0409,
+    "blood_chalice": 0.0298,
+    "balm": 0.0298,
+    "iron_oath": 0.0298,
+    "grave_bell": 0.0298,
+    "war_drum": 0.0298,
+    "rally_horn": 0.0298,
+    "tower_shield": 0.0298,
+    "hunters_mark": 0.0298,
+    "arcane_focus": 0.0298,
+    "heartwood": 0.0088
+   }
+  },
+  {
    "id": "core:pyre_hound:0",
    "needs": {
     "pyre_hound": 2
@@ -1107,6 +4046,45 @@
     "hunters_mark": 0.0232,
     "arcane_focus": 0.0232,
     "heartwood": 0.0066
+   }
+  },
+  {
+   "id": "fusion:trine:grave_ghoul:0",
+   "needs": {
+    "grave_ghoul": 3
+   },
+   "fuse": "trine:grave_ghoul",
+   "tracks": {
+    "trine:grave_ghoul": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.4785,
+    0.4848,
+    0.2528,
+    0.1703
+   ],
+   "relics": {
+    "glass_crown": 0.1768,
+    "whetstone": 0.1062,
+    "arise": 0.0612,
+    "undying": 0.0612,
+    "mimicry": 0.0612,
+    "hollow_court": 0.0612,
+    "blood_tithe": 0.0612,
+    "court_of_bone": 0.0612,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0448,
+    "balm": 0.0448,
+    "iron_oath": 0.0448,
+    "grave_bell": 0.0448,
+    "war_drum": 0.0448,
+    "rally_horn": 0.0448,
+    "tower_shield": 0.0448,
+    "hunters_mark": 0.0448,
+    "arcane_focus": 0.0448,
+    "heartwood": 0.0134
    }
   },
   {
@@ -1393,6 +4371,84 @@
     "hunters_mark": 0.0259,
     "arcane_focus": 0.0259,
     "heartwood": 0.0074
+   }
+  },
+  {
+   "id": "fusion:trine:grave_ghoul:1",
+   "needs": {
+    "grave_ghoul": 3
+   },
+   "fuse": "trine:grave_ghoul",
+   "tracks": {
+    "trine:grave_ghoul": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.4785,
+    0.3357,
+    0.1542,
+    0.1703
+   ],
+   "relics": {
+    "glass_crown": 0.1584,
+    "whetstone": 0.0947,
+    "arise": 0.0543,
+    "undying": 0.0543,
+    "mimicry": 0.0543,
+    "hollow_court": 0.0543,
+    "blood_tithe": 0.0543,
+    "court_of_bone": 0.0543,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0397,
+    "balm": 0.0397,
+    "iron_oath": 0.0397,
+    "grave_bell": 0.0397,
+    "war_drum": 0.0397,
+    "rally_horn": 0.0397,
+    "tower_shield": 0.0397,
+    "hunters_mark": 0.0397,
+    "arcane_focus": 0.0397,
+    "heartwood": 0.0118
+   }
+  },
+  {
+   "id": "fusion:trine:hive_warden:1",
+   "needs": {
+    "hive_warden": 3
+   },
+   "fuse": "trine:hive_warden",
+   "tracks": {
+    "trine:hive_warden": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.5318,
+    0.2948,
+    0.1228,
+    0.275
+   ],
+   "relics": {
+    "glass_crown": 0.1712,
+    "whetstone": 0.1024,
+    "arise": 0.0588,
+    "undying": 0.0588,
+    "mimicry": 0.0588,
+    "hollow_court": 0.0588,
+    "blood_tithe": 0.0588,
+    "court_of_bone": 0.0588,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "blood_chalice": 0.0429,
+    "balm": 0.0429,
+    "iron_oath": 0.0429,
+    "grave_bell": 0.0429,
+    "war_drum": 0.0429,
+    "rally_horn": 0.0429,
+    "tower_shield": 0.0429,
+    "hunters_mark": 0.0429,
+    "arcane_focus": 0.0429,
+    "heartwood": 0.0128
    }
   },
   {

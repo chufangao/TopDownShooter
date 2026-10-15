@@ -1,5 +1,7 @@
 // All game content: units, abilities, upgrade tracks, statuses, kin and roles, behaviours, synergies, camps,
-// fusions, relics and attack animations, plus id lookups. Data only; balance numbers live in tuning.js.
+// fusions and the trines made from the kinds, relics and attack animations, plus id lookups. Data, and the one rule
+// that makes the trines; balance numbers live in tuning.js.
+import { TUNING } from './tuning.js'
 
 // ── units ────────────────────────────────────────────────────────────────────────────────────
 
@@ -51,8 +53,11 @@ const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
 // Monarch (THREATS), for the encounter draw's variety rule; never shown as intent. `behaviour`: how it comes down the
 // roads as a foe (BEHAVIOURS): every ground kind walks the one drawn road, the flyers, which carry the `fly` threat,
 // the air road. `onFall`: a death burst, its effects run from where it fell on the other side's living within
-// `range`. `fused`: a fusion's result (FUSION_LIST), never spawned nor recruited, so no behaviour. `flavour`: a line
-// of lore that hints at it, never naming it. Its pictures are `assets/units/<id>.alive|attack|dead.svg` (artUrl),
+// `range`. `fused`: a fusion's result (FUSION_LIST), never spawned nor recruited, so no behaviour. `trineOf: '<id>'`:
+// a fused kind written as that kind's trine (below, the triple rule: the Pale Court is the Wisp's); `trine`: the name
+// the kind's made trine takes; `summons`: the kind its summon tiers call up, its own where absent (a made trine's, the
+// kind it was made of). `rule`: a boss's override or a capstone's rule (rules.js), scoped to the piece. `flavour`: a
+// line of lore that hints at it, never naming it. Its pictures are `assets/units/<id>.alive|attack|dead.svg` (artUrl),
 // animated in code; `art: '<id>'` borrows another kind's until its own are drawn. Each kind does one legible thing
 // on the board.
 
@@ -724,14 +729,15 @@ export const UNIT_LIST = [
     flavour: 'Two pages wound the golem tighter than its makers dared, and climbed inside to keep it wound.'
   },
   {
-    // A fused kind: Will-o'-Wisp ×3. Three witchfires crowned as one: a flame on a crowd, and pale fire that Hexes,
-    // from four tiles off.
+    // A fused kind: Will-o'-Wisp ×3, the Wisp's trine written (`trineOf`: the triple rule's, redesign.md §4.1). Three
+    // witchfires crowned as one: a flame on a crowd, and pale fire that Hexes, from four tiles off.
     id: 'pale_court',
     name: 'Pale Court',
     kin: 'fae',
     role: 'channeler',
     tier: 3,
     fused: true,
+    trineOf: 'will_o_wisp',
     base: { hp: 350, atk: 72, def: 6 },
     growth: { hp: 40, atk: 10, def: 0.5 },
     abilities: ['triune_flame', 'pale_fire'],
@@ -751,6 +757,234 @@ export const UNIT_LIST = [
     ],
     threats: ['reach', 'shape', 'drain'],
     flavour: 'Three wisps that led the lost into the same bog, and found one another there: now they hold court.'
+  },
+  // ── the capstones: fusions of fusions (redesign.md §4.1) ──
+  // Seven written kinds of tier 5–6, each the result of one recipe of two fused kinds (FUSION_LIST), one a kin's and
+  // two across kins (a kin from its first part, a role from its second). What their abilities and `aura` cannot say is
+  // a rule in the registry scoped to the piece of the kind (rules.js, as the Sovereign's override: `rule`): a rise on a
+  // kill, a fire that spreads, drones at every wave, a stand once a battle. Their pictures are borrowed (`art`) until
+  // drawn. Numbers: HP and its growth 1.1× the parts' sum, ATK 1.4× and DEF 1.1× the best part's (the heaviest 1.25×),
+  // by the trine table's spirit (TUNING.trine); placeholders until the balance pass.
+  {
+    // Bone Colossus + the Grave Ghoul's trine. The wall that feeds: its blows heal it, and a foe it slays beside it
+    // rises as yours (rules.js charnel_cathedral).
+    id: 'charnel_cathedral',
+    name: 'Charnel Cathedral',
+    kin: 'undead',
+    role: 'vanguard',
+    tier: 5,
+    fused: true,
+    size: 2,
+    base: { hp: 1900, atk: 95, def: 31 },
+    growth: { hp: 196, atk: 12, def: 2.6 },
+    abilities: ['charnel_sweep', 'feeding_strike'],
+    move: 2,
+    temper: TEMPERS.charger,
+    aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] },
+    rule: 'charnel_cathedral',
+    tracks: [
+      { id: 'nave', name: 'Nave', desc: 'A thicker wall, a wider fold.', tiers: [
+        { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+        { desc: 'Its aura reaches allies within 3 tiles.', aura: { range: 3, desc: 'Allies within 3 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } }] },
+      { id: 'reliquary', name: 'Reliquary', desc: 'It feeds deeper.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Charnel Sweep becomes Bone Feast: every foe within 2 tiles, and it heals itself more.', ability: { id: 'bone_feast', replace: 'charnel_sweep' } },
+        { desc: 'Feeding Strike becomes Marrow Feast: it bites a foe and every foe next to it, and heals itself once.', ability: { id: 'marrow_feast', replace: 'feeding_strike' } }] }
+    ],
+    threats: ['shape', 'sustain'],
+    art: 'bone_colossus',
+    flavour: 'A colossus that took in the ghouls that gnawed at it: now it eats as it fights, and what falls at its feet gets up again.'
+  },
+  {
+    // The Pale Court + the Frost Sprite's trine. A caster's caster: Hex and Brittle on every foe within 4 tiles, and the
+    // skills of those about it back a turn sooner.
+    id: 'winter_court',
+    name: 'Winter Court',
+    kin: 'fae',
+    role: 'channeler',
+    tier: 5,
+    fused: true,
+    base: { hp: 800, atk: 101, def: 9 },
+    growth: { hp: 90, atk: 14, def: 0.7 },
+    abilities: ['long_winter', 'court_of_frost', 'winter_fire'],
+    move: 2,
+    temper: TEMPERS.seeker,
+    tracks: [
+      { id: 'snow_queen', name: 'Snow Queen', desc: 'A longer winter.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: 'Long Winter becomes Endless Winter: every foe within 5 tiles.', ability: { id: 'endless_winter', replace: 'long_winter' } },
+        { desc: 'Winter Fire becomes Crown of Rime: it strikes a foe and everyone next to it, and leaves them Brittle.', ability: { id: 'crown_of_rime', replace: 'winter_fire' } }] },
+      { id: 'ice_court', name: 'Court of Ice', desc: 'Its court keeps faster time.', tiers: [
+        { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Gains an aura: allies within 2 tiles get +8% DEF.', aura: { range: 2, desc: 'Allies within 2 tiles get +8% DEF.', mods: [m('def', 'mul', 1.08)] } },
+        { desc: 'Court of Frost becomes Court Eternal: every ally within 4 tiles has its skills a turn sooner, and is Veiled.', ability: { id: 'court_eternal', replace: 'court_of_frost' } }] }
+    ],
+    threats: ['reach', 'drain', 'shape'],
+    art: 'pale_court',
+    flavour: 'When the court took in the sprites it learnt to keep winter: everything near it slows, and everything of its own quickens.'
+  },
+  {
+    // The Rime Drake + the Pyre Hound's trine. A flying burner: Burning on a crowd from 5 tiles, and a foe it slays sets
+    // those beside it alight (rules.js cinder_wyrm).
+    id: 'cinder_wyrm',
+    name: 'Cinder Wyrm',
+    kin: 'drake',
+    role: 'ranger',
+    tier: 5,
+    fused: true,
+    flies: true,
+    base: { hp: 1280, atk: 115, def: 14 },
+    growth: { hp: 135, atk: 15, def: 1.3 },
+    abilities: ['cinder_storm', 'wyrm_fire'],
+    move: 3,
+    temper: TEMPERS.crowd,
+    rule: 'cinder_wyrm',
+    tracks: [
+      { id: 'firestorm', name: 'Firestorm', desc: 'Longer fires.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Cinder Storm becomes Firestorm: its Burning lasts 4 turns.', ability: { id: 'firestorm', replace: 'cinder_storm' } },
+        { desc: 'Learns Ember Rain: Burning for 4 turns on every foe within 4 tiles.', ability: { id: 'ember_rain' } }] },
+      { id: 'skyborne', name: 'Skyborne', desc: 'Burns from higher.', tiers: [
+        { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
+        { desc: '+1 Move.', mods: [m('move', 'add', 1)] },
+        { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
+        { desc: 'Learns Sky Pyre: 36 power and Burning, on a foe anywhere on the board.', ability: { id: 'sky_pyre', at: 1 } }] }
+    ],
+    threats: ['fly', 'burn', 'shape'],
+    art: 'ash_wyvern',
+    flavour: 'The drake took the hounds into its belly and never cooled: it flies over the walls, and where its dead fall the ground catches.'
+  },
+  {
+    // The Hive Queen + the Hive Drone's trine. It mends every ally on the board, drones hatch beside it as each wave
+    // begins, and one it slays has every skill of it ready again (rules.js hive_mind).
+    id: 'hive_mind',
+    name: 'Hive Mind',
+    kin: 'insect',
+    role: 'warden',
+    tier: 5,
+    fused: true,
+    size: 2,
+    base: { hp: 1425, atk: 97, def: 22 },
+    growth: { hp: 146, atk: 12.3, def: 2 },
+    abilities: ['hive_chorus', 'hive_scythe', 'strike'],
+    move: 2,
+    temper: TEMPERS.keeper,
+    rule: 'hive_mind',
+    tracks: [
+      { id: 'overmind', name: 'Overmind', desc: 'The whole hive is one body.', tiers: [
+        { desc: '+25% healing given.', mods: [m('heal.given', 'mul', 1.25)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Gains an aura: allies within 2 tiles take 10% less damage.', aura: { range: 2, desc: 'Allies within 2 tiles take 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] } },
+        { desc: 'Hive Chorus becomes Hive Song: it heals every ally and strips a debuff from each.', ability: { id: 'hive_song', replace: 'hive_chorus' } }] },
+      { id: 'swarm_crown', name: 'Swarm Crown', desc: 'The harvest goes wider.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Hive Scythe becomes Swarm Reap: it reaches 2 tiles.', ability: { id: 'swarm_reap', replace: 'hive_scythe' } },
+        { desc: 'Learns Sting Storm: Withers every foe within 3 tiles.', ability: { id: 'sting_storm' } }] }
+    ],
+    threats: ['sustain', 'shape'],
+    art: 'hive_queen',
+    flavour: 'The queen stopped laying and started thinking: every drone is a thought of hers, and every wound of yours is hers to close.'
+  },
+  {
+    // The Clockwork Titan + the Clockwork Page's trine. It Hexes all it touches, and stands at 1 HP the first time each
+    // battle a blow would fell it (rules.js engine_of_ages).
+    id: 'engine_of_ages',
+    name: 'Engine of Ages',
+    kin: 'construct',
+    role: 'vanguard',
+    tier: 5,
+    fused: true,
+    size: 2,
+    base: { hp: 1760, atk: 84, def: 35 },
+    growth: { hp: 174, atk: 11.5, def: 2.9 },
+    abilities: ['time_lock', 'gear_strike'],
+    move: 2,
+    temper: TEMPERS.sieger,
+    aura: { range: 1, desc: 'Allies next to it get +1 Move.', mods: [m('move', 'add', 1)] },
+    rule: 'engine_of_ages',
+    tracks: [
+      { id: 'mainspring', name: 'Mainspring', desc: 'Wound to outlast anything.', tiers: [
+        { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+        { desc: 'Learns Still Hour: it Hexes every foe within 2 tiles.', ability: { id: 'still_hour' } }] },
+      { id: 'escapement', name: 'Escapement', desc: 'Its time, and its allies\', run faster.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+1 Move.', mods: [m('move', 'add', 1)] },
+        { desc: 'Time Lock becomes Time Stop: every foe within 2 tiles.', ability: { id: 'time_stop', replace: 'time_lock' } },
+        { desc: 'Its aura reaches allies within 2 tiles.', aura: { range: 2, desc: 'Allies within 2 tiles get +1 Move.', mods: [m('move', 'add', 1)] } }] }
+    ],
+    threats: ['shape', 'drain'],
+    art: 'clockwork_titan',
+    flavour: 'Three pages climbed into the titan to keep it wound, and wound it until the hours themselves stuck in its gears.'
+  },
+  {
+    // The Pale Court + the Rime Drake, Fae and Drake. Fire and frost: a blast that burns and Hexes from four tiles off.
+    id: 'aurora',
+    name: 'Aurora',
+    kin: 'fae',
+    role: 'ranger',
+    tier: 5,
+    fused: true,
+    base: { hp: 1020, atk: 115, def: 14 },
+    growth: { hp: 110, atk: 15, def: 1.3 },
+    abilities: ['aurora_blast', 'frostfire_lance'],
+    move: 2,
+    temper: TEMPERS.crowd,
+    tracks: [
+      { id: 'borealis', name: 'Borealis', desc: 'A wider sky.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Aurora Blast becomes Corona: it reaches 5 tiles.', ability: { id: 'corona', replace: 'aurora_blast' } },
+        { desc: 'Corona becomes Solar Wind: Burning and Hexed on every foe within 5 tiles.', ability: { id: 'solar_wind', replace: 'corona' } }] },
+      { id: 'polar_night', name: 'Polar Night', desc: 'A colder, surer lance.', tiers: [
+        { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: '+20% damage dealt with no foe next to it.', mods: [m('damage.dealt', 'mul', 1.2, 'free')] },
+        { desc: 'Frostfire Lance becomes Polar Lance: 40 power, and leaves it Hexed and Burning.', ability: { id: 'polar_lance', replace: 'frostfire_lance' } }] }
+    ],
+    threats: ['reach', 'burn', 'drain', 'shape'],
+    art: 'rime_drake',
+    flavour: 'The court rode the drake into the high cold, and came down as the lights that hang over the ice.'
+  },
+  {
+    // The Bone Colossus + the Clockwork Titan, Undead and Construct. The heaviest piece in the game: tier 6, a tile a
+    // turn, and a wall that shelters all about it.
+    id: 'iron_barrow',
+    name: 'Iron Barrow',
+    kin: 'undead',
+    role: 'vanguard',
+    tier: 6,
+    fused: true,
+    size: 2,
+    base: { hp: 2720, atk: 95, def: 40 },
+    growth: { hp: 262, atk: 11.9, def: 3.2 },
+    abilities: ['barrow_quake', 'strike'],
+    move: 1,
+    temper: TEMPERS.charger,
+    aura: { range: 2, desc: 'Allies within 2 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] },
+    tracks: [
+      { id: 'mausoleum', name: 'Mausoleum', desc: 'Heavier still.', tiers: [
+        { desc: '+20% DEF.', mods: [m('def', 'mul', 1.2)] },
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: 'Takes 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] },
+        { desc: 'Its aura reaches allies within 3 tiles.', aura: { range: 3, desc: 'Allies within 3 tiles take 15% less damage.', mods: [m('damage.taken', 'mul', 0.85)] } }] },
+      { id: 'iron_tomb', name: 'Iron Tomb', desc: 'It falls on what it fights.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Barrow Quake becomes Iron Quake: it leaves them Hexed too.', ability: { id: 'iron_quake', replace: 'barrow_quake' } },
+        { desc: 'Learns Tomb Fall: every foe within 2 tiles, left Brittle.', ability: { id: 'tomb_fall' } }] }
+    ],
+    threats: ['shape', 'sustain'],
+    art: 'iron_golem',
+    flavour: 'A barrow of bone with an engine for a heart: it moves a tile a turn, and nothing it stands before moves at all.'
   },
   {
     // Bosses never spawn from the pool and leave no soul. Its phases (HP shares that grant a status) and its
@@ -1725,6 +1959,307 @@ const ABILITY_LIST = [
     tint: '#cfe3ff',
     anim: 'cast_beam',
     effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'hexed' }]
+  },
+  // ── the capstones', and their tracks' ──
+  {
+    // Every foe within 1 of its footprint, and it heals itself once: the Charnel Cathedral's blows feed it.
+    id: 'charnel_sweep',
+    name: 'Charnel Sweep',
+    shape: 'all',
+    range: 1,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 28 }, { op: 'heal', power: 18, self: true }]
+  },
+  {
+    id: 'feeding_strike',
+    name: 'Feeding Strike',
+    shape: 'single',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 34 }, { op: 'heal', power: 14, self: true }]
+  },
+  {
+    id: 'bone_feast',
+    name: 'Bone Feast',
+    shape: 'all',
+    range: 2,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 28 }, { op: 'heal', power: 24, self: true }]
+  },
+  {
+    id: 'marrow_feast',
+    name: 'Marrow Feast',
+    shape: 'blast',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 32 }, { op: 'heal', power: 20, self: true }]
+  },
+  {
+    id: 'long_winter',
+    name: 'Long Winter',
+    shape: 'all',
+    range: 4,
+    tint: '#9ad8ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 14 }, { op: 'apply_status', status: 'hexed' }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    // A caster's caster: every ally within 3 has its skills back a turn sooner.
+    id: 'court_of_frost',
+    name: 'Court of Frost',
+    shape: 'all_allies',
+    range: 3,
+    tint: '#cfe3ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'cooldown', amount: -1 }]
+  },
+  {
+    id: 'winter_fire',
+    name: 'Winter Fire',
+    shape: 'single',
+    range: 4,
+    tint: '#cfe3ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    id: 'endless_winter',
+    name: 'Endless Winter',
+    shape: 'all',
+    range: 5,
+    tint: '#9ad8ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 14 }, { op: 'apply_status', status: 'hexed' }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    id: 'crown_of_rime',
+    name: 'Crown of Rime',
+    shape: 'blast',
+    range: 4,
+    tint: '#cfe3ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    id: 'court_eternal',
+    name: 'Court Eternal',
+    shape: 'all_allies',
+    range: 4,
+    tint: '#cfe3ff',
+    anim: 'cast_beam',
+    effects: [{ op: 'cooldown', amount: -1 }, { op: 'apply_status', status: 'veiled' }]
+  },
+  {
+    id: 'cinder_storm',
+    name: 'Cinder Storm',
+    shape: 'blast',
+    range: 5,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 28 }, { op: 'apply_status', status: 'burning' }]
+  },
+  {
+    id: 'wyrm_fire',
+    name: 'Wyrm Fire',
+    shape: 'single',
+    range: 4,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'burning' }]
+  },
+  {
+    id: 'firestorm',
+    name: 'Firestorm',
+    shape: 'blast',
+    range: 5,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'burning', turns: 4 }]
+  },
+  {
+    id: 'ember_rain',
+    name: 'Ember Rain',
+    shape: 'all',
+    range: 4,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'burning', turns: 4 }]
+  },
+  {
+    // No range: it reaches the whole board, falling from above (`arc`).
+    id: 'sky_pyre',
+    name: 'Sky Pyre',
+    shape: 'single',
+    arc: true,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 36 }, { op: 'apply_status', status: 'burning' }]
+  },
+  {
+    // No range: every ally of the Hive Mind's on the board.
+    id: 'hive_chorus',
+    name: 'Hive Chorus',
+    shape: 'all_allies',
+    tint: '#ffe9a8',
+    anim: 'cast_beam',
+    effects: [{ op: 'heal', power: 16 }, { op: 'apply_status', status: 'regen' }]
+  },
+  {
+    id: 'hive_scythe',
+    name: 'Hive Scythe',
+    shape: 'blast',
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 36 }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    id: 'hive_song',
+    name: 'Hive Song',
+    shape: 'all_allies',
+    tint: '#ffe9a8',
+    anim: 'cast_beam',
+    effects: [{ op: 'heal', power: 16 }, { op: 'cleanse', tag: 'debuff', count: 1 }]
+  },
+  {
+    // A long arm of its own, as Reaping Swarm's: 2 tiles from its footprint, and still no flyer.
+    id: 'swarm_reap',
+    name: 'Swarm Reap',
+    shape: 'blast',
+    range: 2,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 36 }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    id: 'sting_storm',
+    name: 'Sting Storm',
+    shape: 'all',
+    range: 3,
+    tint: '#9bc25a',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'withered' }]
+  },
+  {
+    // Hexed for two turns, as Gear Lock.
+    id: 'time_lock',
+    name: 'Time Lock',
+    shape: 'all',
+    range: 1,
+    melee: true,
+    tint: '#b57bff',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'hexed', turns: 2 }]
+  },
+  {
+    id: 'gear_strike',
+    name: 'Gear Strike',
+    shape: 'single',
+    melee: true,
+    tint: '#b57bff',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'hexed' }]
+  },
+  {
+    id: 'still_hour',
+    name: 'Still Hour',
+    shape: 'all',
+    range: 2,
+    tint: '#b57bff',
+    anim: 'cast_beam',
+    effects: [{ op: 'damage', power: 10 }, { op: 'apply_status', status: 'hexed' }]
+  },
+  {
+    id: 'time_stop',
+    name: 'Time Stop',
+    shape: 'all',
+    range: 2,
+    melee: true,
+    tint: '#b57bff',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'hexed', turns: 2 }]
+  },
+  {
+    id: 'aurora_blast',
+    name: 'Aurora Blast',
+    shape: 'blast',
+    range: 4,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 26 }, { op: 'apply_status', status: 'burning' }, { op: 'apply_status', status: 'hexed' }]
+  },
+  {
+    id: 'frostfire_lance',
+    name: 'Frostfire Lance',
+    shape: 'single',
+    range: 4,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    id: 'corona',
+    name: 'Corona',
+    shape: 'blast',
+    range: 5,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 28 }, { op: 'apply_status', status: 'burning' }, { op: 'apply_status', status: 'hexed' }]
+  },
+  {
+    id: 'solar_wind',
+    name: 'Solar Wind',
+    shape: 'all',
+    range: 5,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'burning' }, { op: 'apply_status', status: 'hexed' }]
+  },
+  {
+    id: 'polar_lance',
+    name: 'Polar Lance',
+    shape: 'single',
+    range: 4,
+    tint: '#9ad8ff',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 40 }, { op: 'apply_status', status: 'hexed' }, { op: 'apply_status', status: 'burning' }]
+  },
+  {
+    id: 'barrow_quake',
+    name: 'Barrow Quake',
+    shape: 'all',
+    range: 1,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle' }]
+  },
+  {
+    id: 'iron_quake',
+    name: 'Iron Quake',
+    shape: 'all',
+    range: 1,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle' }, { op: 'apply_status', status: 'hexed' }]
+  },
+  {
+    id: 'tomb_fall',
+    name: 'Tomb Fall',
+    shape: 'all',
+    range: 2,
+    melee: true,
+    tint: '#d8d4cc',
+    anim: 'melee_lunge',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'brittle' }]
   }
 ]
 
@@ -1740,8 +2275,8 @@ const ABILITY_LIST = [
 // every piece of the kind grows to 2×2, and one that no longer fits where it stands goes to the ossuary; unit.js
 // sizeOf). Tier IV is a rule, never a percentage: a new or remade ability, an aura, or Colossus. No tier I–II of one
 // track remakes an ability or grants an aura, so the other track's tiers III–IV never undo it.
-// TRACKS: every kind's tracks by its id, read off the defs (unit.js tracksOf); the Monarch and the boss have none.
-export const TRACKS = Object.fromEntries(UNIT_LIST.filter((u) => u.tracks).map((u) => [u.id, u.tracks]))
+// TRACKS (with the lookups, below): every kind's tracks by its id, read off the defs, the trines' made with them (unit.js
+// tracksOf); the Monarch and the boss have none.
 
 // ── statuses ─────────────────────────────────────────────────────────────────────────────────
 
@@ -2008,15 +2543,174 @@ export const CAMP_LIST = [
 
 // A recipe (DESIGN §2.6): `needs` counts pieces (souls) per kind, consumed whole from your pieces, fielded or in the
 // ossuary; `result` is the fused kind (a unit def with `fused: true`, never spawned, never recruited) that rises as
-// one piece, full HP, in the ossuary. It costs TUNING.essence.fuse × the result's tier, × the floor's price scale (run.js floorPrice). Recipes are public: the Codex lists every one from the
-// start.
+// one piece, full HP, in the ossuary. It costs TUNING.essence.fuse × the result's tier, × the floor's price scale
+// (run.js floorPrice). A recipe's id is its result's. Recipes are public: the Codex lists every one from the start.
+// The graph (redesign.md §4.1): every kind of tier 4 or less has its triple (three of itself into its trine, below:
+// the lines the content makes, or a written one), and the mixed recipes and the capstones are written here, their
+// parts named by id (a trine by its own, `trine:<kind>`). test/content.test.js holds the graph to its rules.
 export const FUSION_LIST = [
   { id: 'bone_colossus', name: 'Bone Colossus', result: 'bone_colossus', needs: { tomb_knight: 2, bone_chanter: 1 }, desc: 'Two Tomb Knights and a Bone Chanter become a 2×2 wall whose sweep strikes every foe around it.' },
   { id: 'rime_drake', name: 'Rime Drake', result: 'rime_drake', needs: { ember_drake: 1, frost_sprite: 2 }, desc: 'An Ember Drake and two Frost Sprites become a drake whose fire freezes: a blast that burns a crowd from four tiles off.' },
   { id: 'hive_queen', name: 'Hive Queen', result: 'hive_queen', needs: { hive_warden: 2, mantis_reaper: 1 }, desc: 'Two Hive Wardens and a Mantis Reaper become a 2×2 queen who mends every ally about her and reaps whatever comes near.' },
   { id: 'clockwork_titan', name: 'Clockwork Titan', result: 'clockwork_titan', needs: { clockwork_page: 2, iron_golem: 1 }, desc: 'Two Clockwork Pages and an Iron Golem become a 2×2 titan whose slam Hexes a crowd, and whose works speed those beside it.' },
-  { id: 'pale_court', name: 'Pale Court', result: 'pale_court', needs: { will_o_wisp: 3 }, desc: "Three Will-o'-Wisps become one crowned flame: fire on a crowd, and pale fire that Hexes from four tiles off." }
+  // The Wisp's triple, written: its trine is the Pale Court (`trineOf`).
+  { id: 'pale_court', name: 'Pale Court', result: 'pale_court', needs: { will_o_wisp: 3 }, desc: "Three Will-o'-Wisps become one crowned flame: fire on a crowd, and pale fire that Hexes from four tiles off." },
+  // The capstones: fusions of fusions.
+  { id: 'charnel_cathedral', name: 'Charnel Cathedral', result: 'charnel_cathedral', needs: { bone_colossus: 1, 'trine:grave_ghoul': 1 }, desc: 'A Bone Colossus and a Grave Ghoul Trine become a 2×2 wall that feeds: its blows heal it, and a foe it slays beside it rises as yours.' },
+  { id: 'winter_court', name: 'Winter Court', result: 'winter_court', needs: { pale_court: 1, 'trine:frost_sprite': 1 }, desc: 'A Pale Court and a Frost Sprite Trine become a caster\'s caster: Hex and Brittle on every foe within 4 tiles, and the skills of those about it back a turn sooner.' },
+  { id: 'cinder_wyrm', name: 'Cinder Wyrm', result: 'cinder_wyrm', needs: { rime_drake: 1, 'trine:pyre_hound': 1 }, desc: 'A Rime Drake and a Pyre Hound Trine become a flying burner: Burning on a crowd from 5 tiles, and a foe it slays sets those beside it alight.' },
+  { id: 'hive_mind', name: 'Hive Mind', result: 'hive_mind', needs: { hive_queen: 1, 'trine:hive_drone': 1 }, desc: 'A Hive Queen and a Hive Drone Trine become a 2×2 mind that mends every ally, hatches drones at every wave, and has its skills ready again when it slays.' },
+  { id: 'engine_of_ages', name: 'Engine of Ages', result: 'engine_of_ages', needs: { clockwork_titan: 1, 'trine:clockwork_page': 1 }, desc: 'A Clockwork Titan and a Clockwork Page Trine become a 2×2 engine that Hexes all it touches, and stands at 1 HP once a battle.' },
+  { id: 'aurora', name: 'Aurora', result: 'aurora', needs: { pale_court: 1, rime_drake: 1 }, desc: 'A Pale Court and a Rime Drake become fire and frost: a blast that burns and Hexes a crowd from four tiles off.' },
+  { id: 'iron_barrow', name: 'Iron Barrow', result: 'iron_barrow', needs: { bone_colossus: 1, clockwork_titan: 1 }, desc: 'A Bone Colossus and a Clockwork Titan become the heaviest piece there is: a 2×2 wall of tier 6 that shelters all about it.' }
 ]
+
+// ── trines (redesign.md §4.1) ────────────────────────────────────────────────────────────────
+
+// The triple rule: every kind of tier 4 or less that a run can hold (a kind that spawns, and so may be recruited, and
+// every fused kind; never the Monarch, the boss or a kind no run holds) fuses three of itself into its trine, a fused
+// kind TRINE_RISE tiers above it (tier 6, TOP_TIER, is the top: a kind of tier 5 or 6 has none). A record written with
+// `trineOf: <kind>` is that kind's trine (the Pale Court is the Wisp's), its recipe a written line or the triple made
+// here; where none is written the content makes one at load (makeTrine), one rule for every kind:
+//   id `trine:<kind>`; its name the kind's `trine` or "<Name> Trine" (its own trine's, "Great <its name>"); its tier
+//   two above the kind's, at most 6, and 2×2 from tier 4 up; its HP, ATK and DEF, base and growth, the kind's ×
+//   TUNING.trine (by the kind's tier, or `fused` for a fused kind); its kin, role, Move, flight, arm, aura, temper,
+//   threats and pictures the kind's; its abilities the kind's own, each blow at one foe a blast (three strike at once)
+//   and each ranged blow a tile longer (trineAbility: a record made with a derived id, `trine:<ability>`, of the same
+//   ops, shapes and anims); its tracks the kind's two, each tier's ability its trine form, a summon tier calling up the
+//   kind it was made of (`summons`), and a Colossus tier on a trine already 2×2 its aura a tile wider instead.
+// Made in order, so a made trine of tier 4 or less has its own in turn: trines of trines, up to tier 6 (redesign.md
+// §7.6). A trine is one piece, and counts once toward a synergy (§7.7).
+export const TOP_TIER = 6
+export const TRINE_RISE = 2
+// Whether a run can hold a kind: one that spawns (a recruit's) or a fused one (a fusion's).
+export const holdable = (d) => !d.monarch && !d.boss && !!(d.spawn || d.fused)
+// "Will-o'-Wisps", "Bone Colossi".
+const plural = (name) => (name.endsWith('us') ? `${name.slice(0, -2)}i` : `${name}s`)
+const tenths = (x) => Math.round(x * 10) / 10
+const isAlly = (a) => ['ally', 'all_allies', 'self', 'corpse'].includes(a.shape)
+const abilityById = new Map(ABILITY_LIST.map((a) => [a.id, a]))
+
+// The trine form of ability `id`: for a blow at one foe a blast, for a ranged blow with a range one a tile longer, a
+// record made once (its id `trine:<id>`, `trineOf` the ability it was made from); every other ability is its own.
+function trineAbility (id) {
+  const a = abilityById.get(id)
+  const blast = a.shape === 'single' && !isAlly(a)
+  const longer = !a.melee && !isAlly(a) && Number.isInteger(a.range)
+  if (!blast && !longer) return id
+  const made = `trine:${id}`
+  if (!abilityById.has(made)) {
+    const b = { ...a, id: made, trineOf: id, ...(blast && { shape: 'blast' }), ...(longer && { range: a.range + 1 }) }
+    abilityById.set(made, b)
+    ABILITY_LIST.push(b)
+  }
+  return made
+}
+
+// A made blow in words, for the tier that grants it (its source's text told the source's numbers): its power, whom it
+// takes and how far, what it leaves and what it mends.
+function blowText (a) {
+  const power = a.effects.find((e) => e.op === 'damage')?.power
+  const at = a.range ? `, at range ${a.range}` : ''
+  const whom = {
+    single: `a foe${a.range || a.melee ? '' : ' anywhere on the board'}`,
+    blast: `a foe${a.range || a.melee ? '' : ' anywhere on the board'} and everyone next to it${at}`,
+    row: `a foe and everyone level with it${at}`,
+    column: `a foe and everyone in its lane${at}`,
+    all: a.range ? `every foe within ${a.range} tiles` : 'every foe'
+  }[a.shape]
+  const statusName = (e) => `${STATUS_LIST.find((s) => s.id === e.status).name}${e.turns ? ` for ${e.turns === 'battle' ? 'the battle' : `${e.turns} turns`}` : ''}`
+  const lays = a.effects.filter((e) => e.op === 'apply_status').map(statusName)
+  return [`${power ?? 0} power to ${whom}`, lays.length && `leaving them ${lays.join(' and ')}`,
+    a.effects.some((e) => e.op === 'heal' && e.self) && 'and it heals itself', a.cond].filter(Boolean).join(', ')
+}
+
+// The trine's tier made from tier `x` of the kind `d`'s track `track` (its `i`th), for a trine of `size`.
+function trineTier (d, track, x, i, size) {
+  if (x.ability) {
+    const id = trineAbility(x.ability.id)
+    const ability = { ...x.ability, id, ...(x.ability.replace && { replace: trineAbility(x.ability.replace) }) }
+    if (id === x.ability.id) return { ...x, ability }
+    const name = abilityById.get(id).name
+    const lead = x.ability.replace ? `${abilityById.get(x.ability.replace).name} becomes ${name}` : `Learns ${name}`
+    return { ...x, desc: `${lead}: ${blowText(abilityById.get(id))}.`, ability }
+  }
+  if (x.summon) {
+    // The kind's card says "2 of its kind", or a trine's "2 Bone Chanters": its own are the kind's.
+    const was = d.summons ? plural(UNIT_LIST.find((u) => u.id === d.summons).name) : 'of its kind'
+    return { ...x, desc: x.desc.replace(`${x.summon} ${was}`, `${x.summon} ${plural(d.name)}`) }
+  }
+  if (x.size !== 2 || size !== 2) return x
+  // A Colossus on a trine already 2×2: the aura this tier would follow (the latest of its track's before it, else the
+  // kind's own) a tile wider, or with none, a wall's.
+  const was = track.tiers.slice(0, i).reverse().find((t) => t.aura)?.aura ?? d.aura
+  if (!was) {
+    const aura = { range: 1, desc: 'Allies next to it take 10% less damage.', mods: [m('damage.taken', 'mul', 0.9)] }
+    return { desc: 'Gains an aura: allies next to it take 10% less damage.', aura }
+  }
+  const range = was.range + 1
+  return { desc: `Its aura reaches allies within ${range} tiles.`, aura: { ...was, range, desc: was.desc.replace(/^Allies (next to it|within \d+ tiles)/, `Allies within ${range} tiles`) } }
+}
+
+// The triple of kind `d` into trine `t`, a recipe line; a made trine's says what the rule made of it.
+const tripleOf = (d, t) => ({
+  id: t.id,
+  name: t.name,
+  result: t.id,
+  needs: { [d.id]: 3 },
+  desc: t.id === `trine:${d.id}`
+    ? `Three ${plural(d.name)} become one${t.size ? ' 2×2' : ''} piece of tier ${t.tier}: their kit as one, each blow at one foe a blast and each shot a tile longer.`
+    : `Three ${plural(d.name)} become one ${t.name}.`
+})
+
+// The trine content makes for kind `d` (makeTrine's rule, above).
+function makeTrine (d) {
+  const tier = Math.min(TOP_TIER, d.tier + TRINE_RISE)
+  const size = tier >= 4 ? 2 : 1
+  const k = d.fused ? TUNING.trine.fused : TUNING.trine.parts[d.tier - 1]
+  const name = d.trine ?? `${d.name} Trine`
+  const stats = (s, round) => Object.fromEntries(Object.entries(s).map(([key, v]) => [key, round(key, v * k[key])]))
+  const summons = d.tracks.some((t) => t.tiers.some((x) => x.summon))
+  return {
+    id: `trine:${d.id}`,
+    name,
+    trine: `Great ${name}`,
+    trineOf: d.id,
+    kin: d.kin,
+    role: d.role,
+    tier,
+    fused: true,
+    ...(size > 1 && { size }),
+    base: stats(d.base, (key, v) => Math.round(v)),
+    growth: stats(d.growth, (key, v) => (key === 'hp' ? Math.round(v) : tenths(v))),
+    abilities: d.abilities.map(trineAbility),
+    move: d.move,
+    ...(d.flies && { flies: true }),
+    ...(d.arm && { arm: d.arm }),
+    ...(d.aura && { aura: d.aura }),
+    temper: d.temper,
+    tracks: d.tracks.map((t) => ({ ...t, tiers: t.tiers.map((x, i) => trineTier(d, t, x, i, size)) })),
+    ...(summons && { summons: d.id }),
+    threats: d.threats,
+    art: d.art ?? d.id,
+    flavour: 'Three of one kind bound into one body: what each of them did to a foe, it does to a crowd.'
+  }
+}
+
+// Every kind's trine, by the kind's id: the written ones, then the made ones (each joining UNIT_LIST, so the walk
+// reaches it in turn), and each one's triple, its written line or one made here.
+const TRINES = {}
+for (const u of UNIT_LIST) if (u.trineOf) TRINES[u.trineOf] = u
+for (let i = 0; i < UNIT_LIST.length; i++) {
+  const d = UNIT_LIST[i]
+  if (!holdable(d) || d.tier > TOP_TIER - TRINE_RISE) continue
+  if (!TRINES[d.id]) UNIT_LIST.push((TRINES[d.id] = makeTrine(d)))
+  if (!FUSION_LIST.some((r) => r.result === TRINES[d.id].id)) FUSION_LIST.push(tripleOf(d, TRINES[d.id]))
+}
+// Kind `id`'s trine (written or made), or null for a kind with none (tier 5 or 6, or no run's).
+export const trineOf = (id) => TRINES[id] ?? null
+// Whether recipe `r` is a triple: three of one kind.
+export const isTriple = (r) => Object.keys(r.needs).length === 1 && Object.values(r.needs)[0] === 3
 
 // ── relics ───────────────────────────────────────────────────────────────────────────────────
 
@@ -2142,6 +2836,7 @@ const ANIM_LIST = [
 const byId = (list) => Object.fromEntries(list.map((d) => [d.id, d]))
 
 export const UNITS = byId(UNIT_LIST)
+export const TRACKS = Object.fromEntries(UNIT_LIST.filter((u) => u.tracks).map((u) => [u.id, u.tracks]))
 // A kind's pictures are its own id's unless it borrows another's (`art`): filled in here, so the board and the
 // codex read `art` alone.
 for (const u of UNIT_LIST) u.art ??= u.id

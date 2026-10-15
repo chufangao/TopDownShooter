@@ -3,13 +3,13 @@ import assert from 'node:assert/strict'
 import { readFileSync, existsSync } from 'node:fs'
 import {
   UNITS, UNIT_LIST, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, RELICS, RELIC_TIERS, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, TRACKS,
-  THREATS, TRIGGERS, FUSION_LIST, FUSIONS, fusionDef, TEMPERS, temperLine, STATUS_WORTH
+  THREATS, TRIGGERS, FUSION_LIST, FUSIONS, fusionDef, TEMPERS, temperLine, STATUS_WORTH, trineOf, isTriple, holdable, TOP_TIER
 } from '../src/content.js'
 import { isRunPath, START_PARTY } from '../src/sim/run.js'
 import {
   statsOf, abilitiesOf, auraOf, makeUnit, baseStats, activeSynergies, COLS, CAMP_ROWS, CAMP_SLOTS, campOpen, slotAt, rowOf, colOf, deployTile,
-  wallTiles, steps, summonsOf, canTrack, nextTracks, isAllyShape, isBlow, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH, ROWS,
-  TILES, armOf
+  wallTiles, steps, summonsOf, summonedOf, canTrack, nextTracks, isAllyShape, isBlow, sizeOf, monarchSlot, isMonarchCell, sealedBy, fits, tileAt, DEPTH,
+  ROWS, TILES, armOf
 } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
 import { RULES } from '../src/sim/rules.js'
@@ -32,6 +32,12 @@ const GONE_WORDS = /\bgauge\b|\brings?\b|\bACC\b|\bEVA\b|\bCRT\b|\bSPD\b|\bchanc
 // The conditions that are the rule itself, the only `when`s left (§2.7): Killing Cold's execute and Grave Tide's tide.
 const RULE_CONDITIONS = ['killing_cold', 'grave_tide']
 const turnsOk = (t) => t === undefined || t === 'battle' || (Number.isInteger(t) && t >= 1)
+// A trine the content made (content.js trineOf), not a record written; the kinds written; and a made trine's ability
+// followed back to the record it was made from.
+const made = (u) => !!u.trineOf && u.id === `trine:${u.trineOf}`
+const WRITTEN = UNIT_LIST.filter((u) => !made(u))
+const rootOf = (id) => (ABILITIES[id].trineOf ? rootOf(ABILITIES[id].trineOf) : id)
+const sum = (xs) => xs.reduce((n, x) => n + x, 0)
 
 // A kind's basic blow and basic heal: the last of each in its kit (turns.js basicOf; a kit lists its basics last).
 const lastOf = (kit, f) => kit.map((a) => ABILITIES[a]).filter(f).at(-1)
@@ -78,7 +84,7 @@ function checkAbility (id, where) {
   assert.match(a.tint, /^#[0-9a-f]{6}$/, `${id} tint`)
   assert.ok(a.cooldown === undefined || (Number.isInteger(a.cooldown) && a.cooldown >= 1 && a.cooldown !== 2), `${where} ${id}: cooldown ${a.cooldown}`)
   assert.ok(a.range === undefined || (Number.isInteger(a.range) && a.range >= 1), `${where} ${id}: range`)
-  assert.equal(!!a.when, RULE_CONDITIONS.includes(id), `${where} ${id}: a condition only where it is the rule`)
+  assert.equal(!!a.when, RULE_CONDITIONS.includes(rootOf(id)), `${where} ${id}: a condition only where it is the rule`)
   assert.equal(!!a.when, !!a.cond, `${id}: a condition says itself in words`)
   assert.ok(a.effects.length, `${id}: effects`)
   for (const e of a.effects) checkEffect(e, `${where} ${id}`)
@@ -99,30 +105,32 @@ function checkEffect (e, where) {
 const MOVE = {
   monarch: 0, bone_chanter: 2, tomb_knight: 2, ember_drake: 2, frost_sprite: 3, hive_warden: 2, clockwork_page: 2, grave_ghoul: 2, will_o_wisp: 2,
   thorn_dryad: 1, mantis_reaper: 3, iron_golem: 1, barrow_wight: 2, frost_wyrm: 2, pyre_hound: 3, hive_drone: 3, rot_bloat: 2, marsh_hag: 2,
-  ash_wyvern: 3, bone_colossus: 2, rime_drake: 2, hive_queen: 2, clockwork_titan: 2, pale_court: 2, hollow_sovereign: 2
+  ash_wyvern: 3, bone_colossus: 2, rime_drake: 2, hive_queen: 2, clockwork_titan: 2, pale_court: 2, hollow_sovereign: 2,
+  charnel_cathedral: 2, winter_court: 2, cinder_wyrm: 3, hive_mind: 2, engine_of_ages: 2, aurora: 2, iron_barrow: 1
 }
 // The temperaments (§2.9.4): each kind on its preset; the fused on the preset their parts would have.
 const TEMPER = {
-  charger: ['tomb_knight', 'pyre_hound', 'rot_bloat', 'bone_colossus'],
+  charger: ['tomb_knight', 'pyre_hound', 'rot_bloat', 'bone_colossus', 'charnel_cathedral', 'iron_barrow'],
   shooter: ['frost_sprite', 'bone_chanter', 'barrow_wight'],
-  seeker: ['will_o_wisp', 'hive_drone', 'ash_wyvern', 'pale_court'],
-  keeper: ['hive_warden', 'clockwork_page', 'thorn_dryad', 'hive_queen'],
-  sieger: ['iron_golem', 'clockwork_titan'],
+  seeker: ['will_o_wisp', 'hive_drone', 'ash_wyvern', 'pale_court', 'winter_court'],
+  keeper: ['hive_warden', 'clockwork_page', 'thorn_dryad', 'hive_queen', 'hive_mind'],
+  sieger: ['iron_golem', 'clockwork_titan', 'engine_of_ages'],
   stalker: ['mantis_reaper'],
   hexer: ['marsh_hag'],
-  crowd: ['ember_drake', 'rime_drake'],
+  crowd: ['ember_drake', 'rime_drake', 'cinder_wyrm', 'aurora'],
   court: ['hollow_sovereign']
 }
 
+// Every kind, written or made (the trines content makes: content.js trineOf), is held to the one checklist.
 test('every kind is one record: base, Move, temper, threats, two tracks of four on its def, pictures, every ability in the vocabulary', () => {
-  assert.equal(Object.keys(UNITS).length, 25)
-  assert.deepEqual(Object.keys(MOVE).sort(), Object.keys(UNITS).sort())
+  assert.equal(WRITTEN.length, 32)
+  assert.deepEqual(Object.keys(MOVE).sort(), WRITTEN.map((u) => u.id).sort())
   for (const u of UNIT_LIST) {
     const where = u.id
     assert.ok(u.name && Number.isInteger(u.tier) && u.tier >= 0, `${where}: name and tier`)
     assert.deepEqual(Object.keys(u.base), STATS, `${where}: base HP, ATK, DEF`)
     assert.ok(Object.keys(u.growth).every((k) => STATS.includes(k)), `${where}: growth`)
-    assert.equal(u.move, MOVE[u.id], `${where}: Move`)
+    assert.equal(u.move, made(u) ? UNITS[u.trineOf].move : MOVE[u.id], `${where}: Move`)
     for (const k of GONE_KEYS) assert.ok(!(k in u), `${where}: no ${k}`)
     for (const k of ['line', 'leg', 'home', 'leader', 'offset', 'lunges', 'banner', 'summon', 'foeOrders']) assert.ok(!(k in u), `${where}: no ${k}`)
     assert.ok(u.arm === undefined || u.arm === 2, `${where}: arm`)
@@ -155,9 +163,11 @@ test('every kind is one record: base, Move, temper, threats, two tracks of four 
       assert.ok(Number.isInteger(u.onFall.range) && u.onFall.range >= 1 && u.onFall.effects.length, `${where} onFall`)
       for (const e of u.onFall.effects) checkEffect(e, `${where} onFall`)
     }
-    // A fused kind is made, never met: no spawn, no behaviour, never a boss, nothing that flies or bursts.
+    // A fused kind is made, never met: no spawn, no behaviour, never a boss, nothing that bursts; it flies only as a
+    // flyer's trine does, or as its record says (the Cinder Wyrm).
     if (u.fused) {
-      assert.ok(!u.spawn && !u.boss && !u.behaviour && !u.flies && !u.onFall, `${where}: fused`)
+      assert.ok(!u.spawn && !u.boss && !u.behaviour && !u.onFall, `${where}: fused`)
+      if (made(u)) assert.equal(!!u.flies, !!UNITS[u.trineOf].flies, `${where} flies as its kind`)
       continue
     }
     // A flyer flies, carries the fly threat and keeps the air road; no other kind does.
@@ -178,16 +188,19 @@ test('every kind is one record: base, Move, temper, threats, two tracks of four 
   }
   assert.deepEqual(UNITS.grave_ghoul.temper, { ...TEMPERS.charger, prey: 'unarmoured' })
   assert.deepEqual(UNITS.frost_wyrm.temper, { ...TEMPERS.shooter, aggression: 0, caution: 2.5 })
-  assert.deepEqual(UNIT_LIST.filter((u) => !u.monarch).map((u) => u.id).sort(), [...Object.values(TEMPER).flat(), 'grave_ghoul', 'frost_wyrm'].sort())
-  // Identity on the board: two long arms, the slow and the quick, two flyers, one death burst, three 2×2s.
-  const of = (f) => UNIT_LIST.filter(f).map((u) => u.id).sort()
+  assert.deepEqual(WRITTEN.filter((u) => !u.monarch).map((u) => u.id).sort(), [...Object.values(TEMPER).flat(), 'grave_ghoul', 'frost_wyrm'].sort())
+  // A made trine thinks as its kind does.
+  for (const u of UNIT_LIST.filter(made)) assert.equal(u.temper, UNITS[u.trineOf].temper, u.id)
+  // Identity on the board, of the kinds written: two long arms, the slow and the quick, three flyers, one death burst,
+  // seven 2×2s.
+  const of = (f) => WRITTEN.filter(f).map((u) => u.id).sort()
   assert.deepEqual(of((u) => u.arm === 2), ['grave_ghoul', 'mantis_reaper'])
-  assert.deepEqual(of((u) => u.move === 1), ['iron_golem', 'thorn_dryad'])
+  assert.deepEqual(of((u) => u.move === 1), ['iron_barrow', 'iron_golem', 'thorn_dryad'])
   assert.deepEqual(of((u) => u.move === 3 && !u.flies), ['frost_sprite', 'mantis_reaper', 'pyre_hound'])
-  assert.deepEqual(of((u) => u.flies), ['ash_wyvern', 'hive_drone'])
+  assert.deepEqual(of((u) => u.flies), ['ash_wyvern', 'cinder_wyrm', 'hive_drone'])
   assert.ok(of((u) => u.flies).every((id) => UNITS[id].move === 3), 'flyers 3')
   assert.deepEqual(of((u) => u.onFall), ['rot_bloat'])
-  assert.deepEqual(of((u) => u.size === 2), ['bone_colossus', 'clockwork_titan', 'hive_queen'])
+  assert.deepEqual(of((u) => u.size === 2), ['bone_colossus', 'charnel_cathedral', 'clockwork_titan', 'engine_of_ages', 'hive_mind', 'hive_queen', 'iron_barrow'])
 })
 
 test('the foes by floor: each pool brings its threats and its statuses', () => {
@@ -228,13 +241,26 @@ test('the Monarch: one of a kind, never spawned, never moving, never striking, n
   assert.deepEqual(activeSynergies([...party, at('rot_bloat', 4, 1, 4)]).map((s) => s.id), ['undead_4'])
 })
 
-// The Sovereign carries its override as a rule (§2.9.6), on top of its temperament: only a boss may.
-test('the boss: phases, an override named as a rule, no tracks, never offered', () => {
+// The Sovereign carries its override as a rule (§2.9.6), on top of its temperament; a capstone carries as a rule what
+// its abilities cannot say (redesign.md §4.1), scoped to its piece as the Sovereign's is: a rise on a kill, a fire that
+// spreads, drones at every wave and skills ready on a kill, a stand once a battle. No other kind carries one.
+const CAPSTONES = ['charnel_cathedral', 'winter_court', 'cinder_wyrm', 'hive_mind', 'engine_of_ages', 'aurora', 'iron_barrow']
+const CAPSTONE_RULES = { charnel_cathedral: 'charnel_cathedral', cinder_wyrm: 'cinder_wyrm', hive_mind: 'hive_mind', engine_of_ages: 'engine_of_ages' }
+
+test('the boss: phases, an override named as a rule, no tracks, never offered; a capstone\'s rule where its abilities cannot say it', () => {
   const b = UNITS.hollow_sovereign
   assert.equal(b.rule, 'sovereign')
-  assert.deepEqual(UNIT_LIST.filter((u) => u.rule).map((u) => u.id), ['hollow_sovereign'])
+  assert.deepEqual(UNIT_LIST.filter((u) => u.rule && u.boss).map((u) => u.id), ['hollow_sovereign'])
   assert.ok(b.boss && !b.spawn && !b.tracks && b.phases.length === 2)
   assert.ok(b.abilities.includes('grave_tide') && ABILITIES.grave_tide.effects.some((e) => e.op === 'raise'))
+  assert.deepEqual(Object.fromEntries(UNIT_LIST.filter((u) => u.rule && !u.boss).map((u) => [u.id, u.rule])), CAPSTONE_RULES)
+  for (const id of CAPSTONES) {
+    const d = UNITS[id]
+    assert.ok(d.fused && !d.trineOf && d.tier >= 5 && d.tier <= TOP_TIER, `${id}: a capstone, tier 5–6`)
+    // Its pictures borrowed until its own are drawn.
+    assert.ok(d.art !== id && UNITS[d.art].art === d.art, `${id}: art`)
+    if (CAPSTONE_RULES[id]) assert.ok(RULES[d.rule], `${id}: its rule in the registry`)
+  }
 })
 
 // ── tracks ────────────────────────────────────────────────────────────────────────────────────────
@@ -256,17 +282,19 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
       assert.ok(p.tiers.slice(0, 3).every((t) => !('size' in t)), `${id} ${p.id}: Colossus at IV only`)
       if (iv.size) {
         assert.ok(iv.size === 2 && !UNITS[id].size, `${id} ${p.id}: Colossus grows a kind of size 1 to 2`)
-        colossi.push(`${id}:${k}`)
+        colossi.push([id, k])
       }
       for (const [i, t] of p.tiers.entries()) {
         const where = `${id} ${p.id} ${i + 1}`
         assert.ok(t.desc && (t.mods || t.ability || t.aura || t.summon || t.size), where)
         for (const gone of ['count', 'banner', 'stride', 'ring']) assert.ok(!(gone in t), `${where}: no ${gone}`)
-        // A tier with a summon calls that many shadows of its kind each battle, from that tier on, and its card says
-        // how many.
+        // A tier with a summon calls that many shadows of its kind each battle (a trine's, of the kind it was made
+        // of: `summons`), from that tier on, and its card says how many, and of what.
         if (t.summon) {
+          const called = UNITS[id].summons
           assert.ok(Number.isInteger(t.summon) && t.summon >= 1 && summonsOf(at(i + 1)) === summonsOf(at(i)) + t.summon, `${where}: summon`)
-          assert.ok(t.desc.includes(`${t.summon} of its kind`), `${where}: the card names its ${t.summon}`)
+          assert.equal(summonedOf(soul), called ?? id, `${where}: summons its kind`)
+          assert.ok(t.desc.includes(called ? `${t.summon} ${UNITS[called].name}` : `${t.summon} of its kind`), `${where}: the card names its ${t.summon}`)
         }
         const before = abilitiesOf(at(i))
         if (t.ability) {
@@ -282,8 +310,9 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
     }
   }
   // Colossus where Banner was, on the front-line kinds' first track (Tomb Knight's Barrow Wall the first), and the Rot
-  // Bloat's.
-  assert.deepEqual(colossi, ['tomb_knight:0', 'grave_ghoul:0', 'iron_golem:0', 'rot_bloat:0'])
+  // Bloat's; a trine keeps its kind's only while it stands 1×1 (the Grave Ghoul's), a 2×2 one's aura a tile wider.
+  assert.deepEqual(colossi.filter(([id]) => !made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['tomb_knight:0', 'grave_ghoul:0', 'iron_golem:0', 'rot_bloat:0'])
+  assert.deepEqual(colossi.filter(([id]) => made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['trine:grave_ghoul:0'])
   // Your kinds can learn to inflict Burning and Hexed too (DESIGN §2.4): a tier of a kind met on floors 1–2 grants a
   // blow that does each.
   const early = Object.keys(TRACKS).filter((id) => UNITS[id].spawn?.minFloor <= 2)
@@ -363,15 +392,20 @@ test('abilitiesOf: every legal holding of every kind\'s tiers makes a whole kit,
   assert.deepEqual(abilitiesOf({ id: 'bone_chanter', tracks: [1, 0] }), abilitiesOf({ id: 'bone_chanter', tracks: [0, 0] }))
 })
 
-// Summon tiers (DESIGN §2.6): one per kin, at tier II, two summons each.
+// Summon tiers (DESIGN §2.6): one per kin, at tier II, two summons each, of the kinds written; a trine keeps its kind's.
 test('summon tiers: one kin each, at tier II, two summons each battle', () => {
-  const tiers = Object.entries(TRACKS).flatMap(([id, tracks]) => tracks.flatMap((p) => p.tiers.flatMap((t, i) => (t.summon ? [{ id, track: p.id, i, summon: t.summon }] : []))))
+  const tiers = Object.entries(TRACKS).filter(([id]) => !made(UNITS[id])).flatMap(([id, tracks]) => tracks.flatMap((p) => p.tiers.flatMap((t, i) => (t.summon ? [{ id, track: p.id, i, summon: t.summon }] : []))))
   assert.deepEqual(tiers.map((t) => [t.id, t.track, t.summon]), [
     ['bone_chanter', 'marrowcaller', 2], ['hive_warden', 'brood_mother', 2], ['clockwork_page', 'gearwright', 2],
     ['thorn_dryad', 'heartwood', 2], ['frost_wyrm', 'ancient', 2]
   ])
   assert.ok(tiers.every((t) => t.i === 1), 'tier II')
   assert.equal(new Set(tiers.map((t) => UNITS[t.id].kin)).size, 5, 'every kin has one')
+  for (const u of UNIT_LIST.filter(made)) {
+    const own = u.tracks.flatMap((p) => p.tiers.map((t) => t.summon ?? 0))
+    assert.deepEqual(own, UNITS[u.trineOf].tracks.flatMap((p) => p.tiers.map((t) => t.summon ?? 0)), u.id)
+    assert.equal(u.summons, own.some(Boolean) ? u.trineOf : undefined, `${u.id}: summons the kind it was made of`)
+  }
 })
 
 // ── abilities and statuses ────────────────────────────────────────────────────────────────────────
@@ -682,33 +716,145 @@ test('camps: twelve, every floor some; each 7×7 with one seat, a road from ever
   }
 })
 
-// Fusions (DESIGN §2.6): five recipes to start, public, each of real parts into a fused kind (§2.13: a recipe fails if
-// its result is not one).
-test('fusions: every recipe\'s parts and result resolve, the result is fused, and every fused kind is one recipe\'s', () => {
-  assert.deepEqual(FUSION_LIST.map((r) => [r.id, r.result, r.needs]), [
-    ['bone_colossus', 'bone_colossus', { tomb_knight: 2, bone_chanter: 1 }],
-    ['rime_drake', 'rime_drake', { ember_drake: 1, frost_sprite: 2 }],
-    ['hive_queen', 'hive_queen', { hive_warden: 2, mantis_reaper: 1 }],
-    ['clockwork_titan', 'clockwork_titan', { clockwork_page: 2, iron_golem: 1 }],
-    ['pale_court', 'pale_court', { will_o_wisp: 3 }]
+// The recipe graph (DESIGN §2.6; redesign.md §4.1): the mixed recipes and the capstones written, a triple for every
+// kind of tier 4 or less, public, each of parts a run can hold into a fused kind (§2.13: a recipe fails if its result
+// is not one), held to the graph's rules.
+test('the recipe graph: one recipe a fused kind, parts a run can hold, tiers by the line, a fusion of fusions of two fused pieces, nothing past tier 6, no cycle, every recipe in the book', () => {
+  assert.deepEqual(FUSION_LIST.filter((r) => !isTriple(r)).map((r) => [r.id, r.needs]), [
+    ['bone_colossus', { tomb_knight: 2, bone_chanter: 1 }],
+    ['rime_drake', { ember_drake: 1, frost_sprite: 2 }],
+    ['hive_queen', { hive_warden: 2, mantis_reaper: 1 }],
+    ['clockwork_titan', { clockwork_page: 2, iron_golem: 1 }],
+    ['charnel_cathedral', { bone_colossus: 1, 'trine:grave_ghoul': 1 }],
+    ['winter_court', { pale_court: 1, 'trine:frost_sprite': 1 }],
+    ['cinder_wyrm', { rime_drake: 1, 'trine:pyre_hound': 1 }],
+    ['hive_mind', { hive_queen: 1, 'trine:hive_drone': 1 }],
+    ['engine_of_ages', { clockwork_titan: 1, 'trine:clockwork_page': 1 }],
+    ['aurora', { pale_court: 1, rime_drake: 1 }],
+    ['iron_barrow', { bone_colossus: 1, clockwork_titan: 1 }]
   ])
   assert.equal(new Set(FUSION_LIST.map((r) => r.id)).size, FUSION_LIST.length)
   for (const r of FUSION_LIST) {
     assert.ok(r.name && r.desc, r.id)
+    assert.equal(r.id, r.result, `${r.id}: a recipe's id is its result's`)
     assert.equal(FUSIONS[r.id], r)
     assert.equal(fusionDef(r.id), r)
     const result = UNITS[r.result]
     assert.ok(result?.fused && TRACKS[r.result]?.length === 2, `${r.id}: the result is a fused kind with two tracks`)
     const parts = Object.entries(r.needs)
     assert.ok(parts.reduce((n, [, k]) => n + k, 0) >= 2, `${r.id}: more than one piece`)
-    for (const [kind, n] of parts) {
-      const def = UNITS[kind]
-      assert.ok(def && def.spawn && !def.fused && !def.boss && !def.monarch && Number.isInteger(n) && n >= 1, `${r.id}: part ${kind}`)
-    }
+    for (const [kind, n] of parts) assert.ok(UNITS[kind] && holdable(UNITS[kind]) && Number.isInteger(n) && n >= 1, `${r.id}: part ${kind}`)
+    // A triple's result two tiers up (at most 6); a mixed recipe's or a capstone's within two of its parts' tiers' sum
+    // less their count.
+    const tiers = parts.flatMap(([kind, n]) => Array(n).fill(UNITS[kind].tier))
+    if (isTriple(r)) assert.equal(result.tier, Math.min(TOP_TIER, tiers[0] + 2), `${r.id}: a trine two tiers up`)
+    else assert.ok(Math.abs(result.tier - (sum(tiers) - tiers.length)) <= 2, `${r.id}: tier ${result.tier} against ${sum(tiers) - tiers.length}`)
+    // A fusion of fusions names two fused pieces or more (a capstone's two; a fused kind's triple, three of it).
+    const fused = parts.reduce((n, [kind, k]) => n + (UNITS[kind].fused ? k : 0), 0)
+    assert.ok(fused === 0 || fused >= 2, `${r.id}: ${fused} fused piece`)
   }
   assert.throws(() => fusionDef('nothing'))
+  assert.equal(TOP_TIER, 6)
+  for (const u of UNIT_LIST) assert.ok(u.tier <= TOP_TIER, `${u.id}: tier ${u.tier}`)
   const fused = UNIT_LIST.filter((u) => u.fused).map((u) => u.id).sort()
   assert.deepEqual(FUSION_LIST.map((r) => r.result).sort(), fused, 'every fused kind, once')
+  // No cycle: what a kind is made of, at any depth, is never the kind itself.
+  const below = (id, seen = new Set()) => {
+    for (const k of Object.keys(FUSIONS[id]?.needs ?? {})) {
+      if (seen.has(k)) continue
+      seen.add(k)
+      below(k, seen)
+    }
+    return seen
+  }
+  for (const r of FUSION_LIST) assert.ok(!below(r.result).has(r.result), `${r.id}: a cycle`)
+  // The book holds every recipe, generated or written (src/sim/combos.json, made by --combos from the content).
+  const book = JSON.parse(readFileSync(new URL('../src/sim/combos.json', import.meta.url), 'utf8'))
+  const booked = new Set(book.combos.map((c) => c.fuse).filter(Boolean))
+  for (const r of FUSION_LIST) assert.ok(booked.has(r.id), `${r.id} is not in the book: node src/sim/autoplay.js --combos`)
+})
+
+// The triple rule (redesign.md §4.1): every kind of tier 4 or less a run can hold fuses three of itself into its trine,
+// two tiers up; one written (`trineOf`: the Pale Court, the Wisp's) stands for the one content would make, and every
+// other is made by one rule: its kind three times over, a blow at one foe a blast, a shot a tile longer.
+test('the triple rule: one triple a kind of tier 4 or less, into its trine two tiers up; the Pale Court written; a made trine its kind three times over', () => {
+  const triples = FUSION_LIST.filter(isTriple)
+  for (const d of UNIT_LIST) {
+    const own = triples.filter((r) => Object.hasOwn(r.needs, d.id))
+    if (!holdable(d) || d.tier > TOP_TIER - 2) {
+      assert.ok(!own.length && trineOf(d.id) === null, `${d.id}: no triple`)
+      continue
+    }
+    assert.equal(own.length, 1, `${d.id}: one triple`)
+    const t = trineOf(d.id)
+    assert.ok(t && t.fused && t.trineOf === d.id && own[0].result === t.id, `${d.id}: its trine ${t?.id}`)
+    assert.equal(t.tier, Math.min(TOP_TIER, d.tier + 2), `${t.id}: tier`)
+  }
+  assert.deepEqual(UNIT_LIST.filter((u) => u.trineOf && !made(u)).map((u) => [u.trineOf, u.id]), [['will_o_wisp', 'pale_court']])
+  assert.deepEqual(FUSIONS.pale_court.needs, { will_o_wisp: 3 })
+  // 17 trines of the kinds met (the Wisp's written), 4 of the mixed fused kinds, 11 of trines (5 of tier 3, 6 of tier 4).
+  assert.equal(UNIT_LIST.filter(made).length, 32)
+  assert.equal(triples.length, 33)
+  for (const t of UNIT_LIST.filter(made)) {
+    const d = UNITS[t.trineOf]
+    const k = d.fused ? TUNING.trine.fused : TUNING.trine.parts[d.tier - 1]
+    for (const stat of STATS) {
+      assert.equal(t.base[stat], Math.round(d.base[stat] * k[stat]), `${t.id}: base ${stat}`)
+      assert.ok(Math.abs(t.growth[stat] - d.growth[stat] * k[stat]) <= 0.5, `${t.id}: growth ${stat}`)
+    }
+    assert.equal(t.name, d.trine ?? `${d.name} Trine`)
+    assert.equal(t.size ?? 1, t.tier >= 4 ? 2 : 1, `${t.id}: 2×2 from tier 4`)
+    for (const key of ['kin', 'role', 'move', 'arm', 'aura', 'temper', 'threats', 'art']) assert.equal(t[key], d[key], `${t.id}: ${key}`)
+    // Its abilities the kind's, each in its trine form; its tracks the kind's, tier for tier.
+    const form = (a, b) => {
+      const blast = a.shape === 'single' && isBlow(a)
+      const longer = isBlow(a) && !a.melee && Number.isInteger(a.range)
+      assert.equal(b.id, blast || longer ? `trine:${a.id}` : a.id, `${t.id}: ${a.id}`)
+      const rest = ({ id, trineOf, shape, range, ...x }) => x
+      assert.deepEqual(rest(b), rest(a), `${t.id}: ${b.id} is ${a.id}`)
+      assert.equal(b.shape, blast ? 'blast' : a.shape, `${b.id}: shape`)
+      assert.equal(b.range, longer ? a.range + 1 : a.range, `${b.id}: range`)
+    }
+    t.abilities.forEach((id, i) => form(ABILITIES[d.abilities[i]], ABILITIES[id]))
+    for (const [j, p] of t.tracks.entries()) {
+      const q = d.tracks[j]
+      assert.ok(p.id === q.id && p.name === q.name, `${t.id}: track ${q.id}`)
+      for (const [i, x] of p.tiers.entries()) {
+        const y = q.tiers[i]
+        assert.equal(x.mods, y.mods, `${t.id} ${p.id} ${i + 1}: mods`)
+        assert.equal(x.summon, y.summon, `${t.id} ${p.id} ${i + 1}: summon`)
+        if (y.ability) {
+          form(ABILITIES[y.ability.id], ABILITIES[x.ability.id])
+          if (y.ability.replace) form(ABILITIES[y.ability.replace], ABILITIES[x.ability.replace])
+        }
+        if (y.size && t.size === 2) assert.ok(x.aura && !x.size, `${t.id} ${p.id} IV: a Colossus on a 2×2 trine is a wider aura`)
+        else if (!y.ability) assert.equal(x.aura, y.aura, `${t.id} ${p.id} ${i + 1}: aura`)
+      }
+    }
+  }
+  // One piece, counted once toward a synergy (redesign.md §7.7): three Undead and a trine of a Tomb Knight are four.
+  const at = (id, uid) => makeUnit(id, { uid, slot: uid })
+  const three = [at('bone_chanter', 1), at('grave_ghoul', 2), at('rot_bloat', 3)]
+  assert.deepEqual(activeSynergies(three).map((x) => x.id), [])
+  assert.deepEqual(activeSynergies([...three, at('trine:tomb_knight', 4)]).map((x) => x.id), ['undead_4'])
+})
+
+// A fusion is never weaker than what went into it (§9): at every level a kind reaches (6 at most: TUNING.level), its HP
+// at least the sum of its parts' at that level, and its best blow (its power × ATK) at least each part's.
+test('a fusion is never weaker than what went into it: its HP at least its parts\' sum, its best blow at least the best of theirs', () => {
+  const best = (id, lvl) => {
+    const atk = baseStats(id, lvl).atk
+    return Math.max(...abilitiesOf({ id, tracks: [0, 0] }).map((x) => ABILITIES[x]).filter(isBlow).map((a) => sum(a.effects.filter((e) => e.op === 'damage').map((e) => e.power)) * atk))
+  }
+  const top = Math.floor(TUNING.level.base + TUNING.level.perTier * 6)
+  for (const r of FUSION_LIST) {
+    for (let lvl = 1; lvl <= top; lvl++) {
+      const parts = Object.entries(r.needs)
+      const hp = sum(parts.map(([k, n]) => n * baseStats(k, lvl).hp))
+      assert.ok(baseStats(r.result, lvl).hp >= hp, `${r.id} at level ${lvl}: HP ${baseStats(r.result, lvl).hp} against its parts' ${hp}`)
+      for (const [k] of parts) assert.ok(best(r.result, lvl) >= best(k, lvl), `${r.id} at level ${lvl}: its best blow against ${k}'s`)
+    }
+  }
 })
 
 // The floor-1 slice's kinds (§5 Step 2) are still the floor-1 pool, and the start souls among them.

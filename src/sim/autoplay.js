@@ -1316,10 +1316,17 @@ const FILLER = [...START_PARTY, ...RECRUITED().filter((u) => !START_PARTY.includ
   .sort((a, b) => a.spawn.minFloor - b.spawn.minFloor || b.spawn.weight - a.spawn.weight || (a.id < b.id ? -1 : 1)).map((u) => u.id)]
   .slice(0, Math.max(...BOOK_FLOORS.map((F) => F.command)))
 
+// The recipe whose result is fused kind `id` (every fused kind has one: content.test.js), or undefined.
+const RECIPES = new Map(FUSION_LIST.map((r) => [r.result, r]))
+const recipeOf = (id) => RECIPES.get(id)
+// The first floor a kind is met on: its spawn's, a fused kind's the latest of its recipe's parts' (a capstone's, its
+// parts' parts', down to the kinds met).
+const firstFloor = (id) => unitDef(id).spawn?.minFloor ?? Math.max(1, ...Object.keys(recipeOf(id)?.needs ?? {}).map(firstFloor))
+
 // The book's combos, as content makes them; `cores` (id → mean gain), once ranked, picks each kin's and role's kinds.
 export function combosOf (cores = null) {
   const kinds = RECRUITED()
-  const first = (id) => unitDef(id).spawn?.minFloor ?? 1
+  const first = firstFloor
   const out = []
   for (const r of FUSION_LIST) {
     for (const track of [0, 1]) {
@@ -1468,26 +1475,60 @@ export const BOOK = (() => {
 })()
 
 // What the expert makes of the book. How far a run is along a combo, from 0 to 1, the mean of its parts: the pieces
-// it is built from, standing (a kin's, a role's or a pact's: the pieces of that kin or role, any kind); a fusion's made
-// (its parts then all counted); and the tiers on its tracks of the kinds it holds, of the four.
-function comboProgress (s, c) {
-  const up = souls(s.party).filter((u) => u.hp > 0)
-  const pieces = (id) => up.reduce((n, u) => n + (u.id === id), 0)
+// it is built from, standing (a kin's, a role's or a pact's: the pieces of that kin or role, any kind; a fused part not
+// yet made counted by how far along its own recipe the run is, its share split among that recipe's pieces, each piece
+// held counted once); a fusion's made (its parts then all counted); and the tiers on its tracks of the kinds it holds,
+// of the four. `counts`: the standing souls of each kind (standingCounts), read once for every combo of a state.
+function comboProgress (s, c, counts = standingCounts(s)) {
+  const pieces = (id) => counts.get(id) ?? 0
   const share = (needs) => {
-    const all = Object.values(needs).reduce((n, k) => n + k, 0)
-    return Object.entries(needs).reduce((n, [id, k]) => n + Math.min(pieces(id), k), 0) / all
+    let got = 0
+    let all = 0
+    let deep = false
+    for (const id in needs) {
+      const have = Math.min(pieces(id), needs[id])
+      got += have
+      all += needs[id]
+      if (have < needs[id] && RECIPES.has(id)) deep = true
+    }
+    if (!deep) return got / all
+    // A fused part short: each of its pieces counted once, down its recipe.
+    const left = new Map()
+    got = 0
+    const count = (id, k, w) => {
+      const have = Math.min(left.get(id) ?? pieces(id), k)
+      left.set(id, (left.get(id) ?? pieces(id)) - have)
+      got += have * w
+      const r = have < k && recipeOf(id)
+      if (!r) return
+      const n = Object.values(r.needs).reduce((x, m) => x + m, 0)
+      for (const [part, m] of Object.entries(r.needs)) count(part, (k - have) * m, w / n)
+    }
+    for (const [id, k] of Object.entries(needs)) count(id, k, 1)
+    return got / all
+  }
+  const of = (axis, value) => {
+    let n = 0
+    for (const [id, m] of counts) if (unitDef(id)[axis] === value) n += m
+    return n
   }
   const parts = []
   if (c.fuse) {
     const made = pieces(fusionDef(c.fuse).result) > 0
     parts.push(made ? 1 : share(c.needs), made ? 1 : 0)
   } else if (c.kin || c.role) {
-    for (const [k, n] of Object.entries(c.kin ?? {})) parts.push(Math.min(1, up.filter((u) => unitDef(u.id).kin === k).length / n))
-    for (const [r, n] of Object.entries(c.role ?? {})) parts.push(Math.min(1, up.filter((u) => unitDef(u.id).role === r).length / n))
+    for (const [k, n] of Object.entries(c.kin ?? {})) parts.push(Math.min(1, of('kin', k) / n))
+    for (const [r, n] of Object.entries(c.role ?? {})) parts.push(Math.min(1, of('role', r) / n))
   } else parts.push(share(c.needs))
   const held = Object.entries(c.tracks).filter(([id]) => pieces(id) > 0)
   parts.push(held.length ? held.reduce((n, [id, t]) => n + (s.kinds[id]?.tracks[t] ?? 0) / 4, 0) / Object.keys(c.tracks).length : 0)
   return parts.reduce((n, x) => n + x, 0) / parts.length
+}
+// The standing souls of each kind in state `s`.
+function standingCounts (s) {
+  const counts = new Map()
+  for (const u of souls(s.party)) if (u.hp > 0) counts.set(u.id, (counts.get(u.id) ?? 0) + 1)
+  return counts
 }
 
 // A combo's worth from here: its gain over the plain army on the floors left (the last floor's past them, none
@@ -1495,15 +1536,23 @@ function comboProgress (s, c) {
 // that costs the Monarch HP (Blood Tithe's tithe) pays for it only while the Monarch mends between fights: while
 // nothing may heal it (Court of Bone) the book counts none of its points.
 const BOOK_CAP = BOOK_FLOORS.length
-function comboWorth (s, c, work = atWork(s)) {
-  const from = Math.min(s.floor, BOOK_CAP)
-  const g = c.gain.filter((x, f) => x !== null && f + 1 >= from)
+function comboWorth (s, c, work = atWork(s), bled = unhealed(s)) {
   const pairs = c.relics ?? BOOK.plain ?? {}
-  const bled = unhealed(s)
   let relics = 0
   for (const id of work) relics += bled && bleeds(id) ? 0 : pairs[id] ?? 0
   // A combo whose kinds are not met before a later floor (`from`) is worth TUNING.expert.book.ahead of it until then.
-  return (Math.max(0, g.length ? g.reduce((n, x) => n + x, 0) / g.length : 0) + relics) * (c.from > s.floor ? TUNING.expert.book.ahead : 1)
+  return (gainFrom(c, Math.min(s.floor, BOOK_CAP)) + relics) * (c.from > s.floor ? TUNING.expert.book.ahead : 1)
+}
+// A combo's mean gain on the floors from `from` on (none below 0), made once a combo and floor.
+const gains = new WeakMap()
+function gainFrom (c, from) {
+  let kept = gains.get(c)
+  if (!kept) gains.set(c, (kept = []))
+  if (kept[from] === undefined) {
+    const g = c.gain.filter((x, f) => x !== null && f + 1 >= from)
+    kept[from] = Math.max(0, g.length ? g.reduce((n, x) => n + x, 0) / g.length : 0)
+  }
+  return kept[from]
 }
 // The relics at work in a state, each once: the run relics owned, and the piece relics a standing soul holds (one
 // unheld works for no one: redesign.md §2.15).
@@ -1512,16 +1561,20 @@ const atWork = (s) => new Set([...s.relics.filter(isRunRelic), ...standing(souls
 // The book's value of a state: the best of its combos, by worth times progress. The target (targetOf) is that combo.
 function bookValue (s) {
   const work = atWork(s)
+  const bled = unhealed(s)
+  const counts = standingCounts(s)
   let best = 0
-  for (const c of BOOK.combos) best = Math.max(best, comboWorth(s, c, work) * comboProgress(s, c))
+  for (const c of BOOK.combos) best = Math.max(best, comboWorth(s, c, work, bled) * comboProgress(s, c, counts))
   return best
 }
 export function targetOf (s) {
   const work = atWork(s)
+  const bled = unhealed(s)
+  const counts = standingCounts(s)
   let best = null
   let most = 0
   for (const c of BOOK.combos) {
-    const v = comboWorth(s, c, work) * comboProgress(s, c)
+    const v = comboWorth(s, c, work, bled) * comboProgress(s, c, counts)
     if (v > most) { most = v; best = c }
   }
   return best

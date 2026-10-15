@@ -297,6 +297,14 @@ export const TUNING = {
   // The summons a soul's tiers bring (unit.js summonsOf): shadows of its kind that rise beside it as each battle
   // begins, each at `hp` of a whole one's max HP (turns.js summon, fit), gone when it ends. A placeholder.
   summon: { hp: 0.4 },
+  // A trine's stats where no record is written for it (redesign.md §4.1; content.js trineOf): its kind's HP, ATK and DEF,
+  // base and growth alike, each × its factor here, by the parts' tier (`parts`, tier 1 first) or, for a fused kind's
+  // trine, `fused`. Each keeps "a fusion is never weaker than what went into it": HP at least the three parts', ATK at
+  // least a part's. The Pale Court set the first row (three Wisps: 7×, 4.8×, 2×). Placeholders until the balance pass.
+  trine: {
+    parts: [{ hp: 7, atk: 4.8, def: 2 }, { hp: 7, atk: 4.5, def: 1.5 }, { hp: 6, atk: 3.8, def: 1.5 }, { hp: 5.5, atk: 3.2, def: 1.5 }],
+    fused: { hp: 3, atk: 1.8, def: 1.2 }
+  },
   // Arise, a Legendary piece relic (content.js RELIC_LIST; redesign.md §2.15): its holder gains the skill Arise, one
   // corpse within `domain` tiles of the holder (Chebyshev, from its footprint), of tier up to `tier`, rises as a shadow of
   // yours at full HP, the player's choice; a skill with no rest (content.js: usable every turn). Hourglass and Bone Idol

@@ -82,6 +82,8 @@ export const meleeOnly = (u) => {
 // The summons a piece's tiers bring to each battle (a tier's `summon`): shadows of its kind that rise beside it as
 // the battle begins and are gone when it ends (turns.js summon). A summon is a shadow, and brings none of its own.
 export const summonsOf = (u) => tiersOf(u).reduce((n, t) => n + (t.summon ?? 0), 0)
+// The kind its summons are: its own, or for a trine the kind it was made of (its def's `summons`: content.js trineOf).
+export const summonedOf = (u) => unitDef(u.id).summons ?? u.id
 
 // A stat path's keys, split once.
 const pathKeys = new Map()
