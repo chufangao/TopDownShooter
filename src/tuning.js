@@ -35,8 +35,8 @@ export const TUNING = {
     // alone it fields three melee pieces that a floor-1 shooter outranges: 2026-10-14, hand-set, the trio's shape).
     draft: { ranged: 2 },
     // In battle (policy.js expertTurn), in HP. `option`: one piece's move and act, read off the board as it stands
-    // (policy.js features: the prior of the turn's beam); `board`: the board a turn's orders leave before End Turn, or
-    // part of them (policy.js boardFeatures, judge: the static evaluation, where V is not trained).
+    // (policy.js features: today's score, the prior); `board`: the board a turn's orders leave before End Turn
+    // (policy.js boardFeatures, judge: the static evaluation the fast turn's two boards are compared by).
     battle: {
       option: {
         damage: 2.86, // HP its act deals the foes, each as far as its HP
@@ -132,25 +132,10 @@ export const TUNING = {
       // is about to fall, 1 while it is whole.
       peril: 2.34
     },
-    // The turn's beam (redesign.md §2.21; policy.js expertTurn): `width`, the partial turns kept as the pieces decide one
-    // at a time; `pieces`, how many of a partial turn's next pieces (by the turn's order) are tried, so the order is the
-    // beam's too; `options`, each piece's options applied and scored by their afterstates (the best by the prior, after
-    // the tree's filters); `shortlist`, the options each piece's shortlist keeps of all it has, read once a turn.
-    // `static`: with today's static evaluation (no V), a partial turn's score is `board` × its board's (policy.js judge)
-    // and `prior` × the priors its decisions had (the option weights': today's scorer), summed; a complete turn's, its
-    // board's and `final` × that sum (2026-10-11, of three tried on 64 seeds against the turn before the beam's 37.5%:
-    // the board alone 28.1%, the priors alone and the board for the complete turns ~20% (before the shortlist read every
-    // option), both 34.4%). `formation`: how many formations, the best by the formation's static score, are read again
-    // by V of the battle's opening board where V is trained (autoplay.js plan; 0: never). `learned`: whether the expert
-    // uses V (value.js, where trained) at all; false, the static evaluation throughout (autoplay --learned, or a level's
-    // `learned`, overrides it). `hybrid`: where it does, 0 scores each board by V alone, above 0 by the static evaluation
-    // plus `hybrid` × V (2026-10-11, step 8b, redesign.md §6: V alone 3.5% of runs cleared as 8a shipped it, ≤ 17% after,
-    // against the static's 37.9%; the hybrid at 3 level with the static over 384 seeds, at ~40% more a turn: so false).
-    // `on`: whether the expert's turn is the beam at all (2026-10-11, redesign.md §2.22: off, the fast turn, each piece
-    // deciding once by the model tree, expert.json; 2026-10-11, 256 seeds `sim` paired: the beam 37.9% / progress 67.1
-    // against the fast turn's 31.6% / 65.5, +1.6 ± 2.4 progress, clears +50 −34, at 8.5 s a run against 3.4: inside
-    // the noise, so off until a longer check, 768 seeds `sim-256…`, settles it).
-    beam: { on: false, width: 4, pieces: 2, options: 12, shortlist: 16, static: { board: 1, prior: 1, final: 1 }, formation: 12, learned: false, hybrid: 3 },
+    // The options a piece's shortlist keeps of all it has (policy.js shortlist: the battle forest's candidates; teach.js
+    // labels as many). What is left of the turn's beam (redesign.md §2.21), off since 2026-10-11 (§2.22: the fast turn,
+    // each piece deciding once by the model tree) and removed with V on 2026-10-15 (Step 0b of the improvement plan).
+    shortlist: 16,
     // The battle plan (redesign.md §2.18; plan.js): chosen once a turn by the tree (expert.js TREES.plan) and these
     // weights, kept until a trigger; its target formation; its forecast of the foes. 2026-10-11, placeholders for the
     // weight search, hand-set.

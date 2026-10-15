@@ -15,8 +15,8 @@
 // also reads its target formation, the kill list and the foes' forecast, all off the board), then each piece's move and
 // act with the plan among its features, by the learned decision tree (below: a model tree over the conditions, its
 // leaves' weights and its soft rules, held as data in expert.json; today's TREES.battle and weights are its default
-// configuration, defaultExpert), once a piece in the fast turn (policy.js expertTurn); with the beam on, the boards a
-// turn's orders leave too (TREES.board: today's static evaluation, policy.js judge).
+// configuration, defaultExpert), once a piece in the fast turn (policy.js expertTurn); where the plan reads the
+// Monarch's shooters, the two boards the turn weighs too (TREES.board: today's static evaluation, policy.js judge).
 import { TUNING } from '../tuning.js'
 
 // The weighted sum of a feature vector. Every feature has a weight in its table (a missing one is NaN, and the tests
@@ -202,7 +202,7 @@ export const TREES = {
     // Foes that hold off out of your reach, and no wave to come: a line they never walk into holds nothing; go to them.
     { id: 'go-to-them', when: (sit) => sit.waiting, keep: (o) => o.v.hold === 0 && o.v.protect === 0 }
   ],
-  // The boards a turn's orders leave, partial and complete (policy.js judge, the static evaluation of the turn's beam;
+  // The boards a turn's orders leave (policy.js judge, the static evaluation the fast turn's two boards are compared by;
   // features policy.js boardFeatures; `sit` the camp's patience, the plan's kind and how many shooters of the Monarch's
   // it read, as the turn began): its filters are keys, each above all that follows it.
   board: [

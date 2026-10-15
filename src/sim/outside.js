@@ -1,7 +1,7 @@
 // The outside teacher (redesign.md §2.23, §6 "The ranker and the forest"): the teacher out of battle. Each choice the
 // expert makes between battles (its formation, its tiers and fusions, its recruit, a Shop's relics, who holds a relic)
-// is made by playing its candidates out, offline, the best taken. Offline only, like teach.js, teacher.js and the combo
-// book: never imported by the expert's play code (policy.js, autoplay.js's play, the game); it measures how much the
+// is made by playing its candidates out, offline, the best taken. Offline only, like teach.js and the combo book:
+// never imported by the expert's play code (policy.js, autoplay.js's play, the game); it measures how much the
 // choices out of battle carry, and it is the teacher an out-of-battle expert would learn from.
 //
 // The base: the expert in use (autoplay.js policy at the 'expert' level: on master the forest of forest.js deciding in

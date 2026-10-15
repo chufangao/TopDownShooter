@@ -1,8 +1,8 @@
 // The forest (src/sim/forest.js; redesign.md §2.23's correction as regression trees): trees that may overrule today's
 // choice of a piece where they read another option the better by more than their margin; their inputs read alike from a
-// label row and in play, their fitting, forest.json's shape, and the measurement's plumbing (autoplay.js withForest,
-// record's `forest`, playerOf; teach.js's install). Functional only: what a forest decides and how it is read, never
-// how often it wins.
+// label row and in play (the rows' encoding, as §2.23's ranker read them, and teach.js's afterstates), their fitting,
+// forest.json's shape, and the measurement's plumbing (autoplay.js withForest, record's `forest`, playerOf,
+// pairedStats; teach.js's install). Functional only: what a forest decides and how it is read, never how often it wins.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -10,14 +10,13 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   useForest, forestModel, checkForest, inputNames, INPUT_SETS, encodeAgainst, playOf, rowOf, predict, predictor, readDecision, readTable, fitForest,
-  growTree, readsAfter, FIT, meanOf, rowView, mulberry
+  growTree, readsAfter, FIT, meanOf, rowView, playView, encode, rowAfter, afterNames, mulberry
 } from '../src/sim/forest.js'
-import { useRanker, rankerModel, createNet, INPUT_SETS as RANKER_SETS } from '../src/sim/ranker.js'
-import { expertTurn, situation, expertOptions, features, conditions, rankerView, afterOf } from '../src/sim/policy.js'
-import { teachRun, teacherRun } from '../src/sim/teach.js'
+import { expertTurn, situation, expertOptions, features, conditions, rankerView, afterOf, OPTION_FEATURES } from '../src/sim/policy.js'
+import { teachRun, teacherRun, labelPosition, signature, optionsAt, augmentRun } from '../src/sim/teach.js'
 import { readPlan } from '../src/sim/plan.js'
 import { createRun, apply } from '../src/sim/run.js'
-import { policy, record, withForest, playerOf } from '../src/sim/autoplay.js'
+import { policy, record, withForest, playerOf, pairedStats } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { fork } from '../src/sim/turns.js'
 import { on, scene } from './scene.js'
@@ -77,7 +76,7 @@ const boards = () => [
 ]
 
 // A run's first `n` battles played by the expert (as a run plays): → the run's log, and each piece decision met on the
-// way ({ board (a copy as it decided), uid, at (the run's log index) }).
+// way ({ board (a copy as it decided), uid, tile, orders, at (the run's log index) }).
 function battles (seed, n) {
   const run = createRun({ seed })
   const rng = createRng(run.state.seed).stream('autoplay')
@@ -96,11 +95,12 @@ function battles (seed, n) {
       }
       if (a.type === 'move' || a.type === 'act' || a.type === 'fuse') {
         // A piece's orders together are one decision; one it gives again later in the turn is not another.
-        if (open?.uid !== a.uid) {
+        if (open?.uid === a.uid) open.orders.push(a)
+        else {
           open = null
           if (!decided.has(a.uid)) {
             decided.add(a.uid)
-            open = { board: fork(b), uid: a.uid, at: run.state.log.length }
+            open = { board: fork(b), uid: a.uid, tile: b.byUid.get(a.uid).tile, orders: [a], at: run.state.log.length }
             points.push(open)
           }
         }
@@ -112,16 +112,14 @@ function battles (seed, n) {
   return { log: run.state.log, points }
 }
 
-// `fn()` with the forest and the ranker given in use, both put back after.
-function playing ({ forest = null, ranker = null }, fn) {
-  const had = { forest: forestModel(), ranker: rankerModel() }
+// `fn()` with the forest given in use (none by default: today's expert), the one before put back after.
+function playing ({ forest = null }, fn) {
+  const had = forestModel()
   try {
     useForest(forest)
-    useRanker(ranker)
     return fn()
   } finally {
-    useForest(had.forest)
-    useRanker(had.ranker)
+    useForest(had)
   }
 }
 
@@ -142,7 +140,70 @@ test('the forest in use: forest.json\'s by default (none without one), a configu
   assert.throws(() => checkForest({ ...f, feat: f.feat.map((x) => (x >= 0 ? f.inputs.length : x)) }), /does not name/)
 })
 
-test('the inputs: the ranker\'s, then the gap of today\'s score and each feature against today\'s choice', () => {
+test('the rows\' inputs: every condition, the role and size, every option feature and against its position, the kind and steps', () => {
+  const c = conditions({}, { uid: 1, hp: 1, maxHp: 1 })
+  for (const k in c) assert.ok(NAMES.includes(`sit.${k}`) && NAMES.includes(`aft.${k}`), k)
+  for (const k of OPTION_FEATURES) assert.ok(NAMES.includes(`opt.${k}`) && NAMES.includes(`rel.${k}`), k)
+  // A move and act, its damage above its position's mean.
+  const views = [{ f: { damage: 10 }, steps: 2, act: true, fusion: false }, { f: { damage: 4 }, steps: 0, act: false, fusion: false }]
+  const x = encode({ turn: 3 }, 'frost_sprite', views[0], meanOf(views))
+  assert.equal(x[NAMES.indexOf('sit.turn')], 3)
+  assert.equal(x[NAMES.indexOf('opt.damage')], 10)
+  assert.equal(x[NAMES.indexOf('rel.damage')], 3)
+  assert.equal(x[NAMES.indexOf('kind.moveAct')], 1)
+  assert.equal(x[NAMES.indexOf('kind.stay')], 0)
+  assert.equal(x[NAMES.indexOf('steps')], 2)
+  assert.equal(x[NAMES.indexOf('size')], 1)
+  assert.equal(NAMES.filter((n) => n.startsWith('role.') && x[NAMES.indexOf(n)] === 1).length, 1)
+  // The afterstate less the decision; nothing where none was read.
+  assert.ok(NAMES.filter((n) => n.startsWith('aft.')).every((n) => x[NAMES.indexOf(n)] === 0))
+  const y = encode({ turn: 3, foes: 4 }, 'frost_sprite', { ...views[0], after: { turn: 3, foes: 2, killable: 1 } }, meanOf(views))
+  assert.equal(y[NAMES.indexOf('aft.foes')], -2)
+  assert.equal(y[NAMES.indexOf('aft.killable')], 1)
+  assert.equal(y[NAMES.indexOf('aft.turn')], 0)
+})
+
+test('the rows\' inputs from a label row (teach.js) are the inputs in play, number for number, over the same options', () => {
+  const { points } = playing({}, () => battles('rank-test-1', 1))
+  assert.ok(points.length >= 4)
+  let compared = 0
+  for (const p of points.slice(0, 6)) {
+    const row = playing({}, () => labelPosition(fork(p.board), p.uid, signature(p.orders, p.tile), { rounds: 1 }))
+    const f = fork(p.board)
+    const u = f.byUid.get(p.uid)
+    const sit = situation(f)
+    sit.plan = readPlan(f, sit)
+    const opts = expertOptions(f, u)
+    for (const o of opts) {
+      o.v = features(f, u, o, sit)
+      o.road = -o.path.length
+    }
+    const c = conditions(sit, u)
+    const view = rankerView(f, u, sit, opts, c)
+    // teach.js's shortlist is policy.js's, option for option; the label's options are the row's, in its order, the same
+    // kept.
+    const key = (o) => `${o.tile}|${o.ability?.id ?? ''}|${o.target?.uid ?? ''}|${o.fusion?.id ?? ''}`
+    const g = fork(p.board)
+    const gs = situation(g)
+    gs.plan = readPlan(g, gs)
+    assert.deepEqual(optionsAt(g, g.byUid.get(p.uid), gs).short.map(key), view.short.map(key))
+    const same = (o, r) => o.tile === r.tile && (o.ability?.id ?? null) === r.ability && (o.target?.uid ?? null) === r.target && (o.fusion?.id ?? null) === r.fusion
+    assert.equal(view.label.length, row.options.length)
+    view.label.forEach((o, i) => {
+      assert.ok(same(o, row.options[i]), `option ${i}`)
+      assert.equal(view.kept.has(o), !!row.options[i].kept)
+    })
+    const mean = meanOf(row.options.filter((r) => r.kept).map(rowView))
+    assert.deepEqual(Array.from(view.mean), Array.from(mean))
+    row.options.forEach((r, i) => {
+      assert.deepEqual(Array.from(encode(c, u.id, playView(view.label[i]), view.mean)), Array.from(encode(row.sit, row.kind, rowView(r), mean)))
+      compared++
+    })
+  }
+  assert.ok(compared > 20)
+})
+
+test('the inputs: the rows\', then the gap of today\'s score and each feature against today\'s choice', () => {
   assert.equal(new Set(NAMES).size, NAMES.length)
   assert.ok(BASE.every((n) => NAMES.includes(n) && !n.startsWith('aft.')))
   assert.ok(NAMES.includes('gap') && NAMES.includes('vs.damage') && NAMES.includes('aft.foes'))
@@ -168,7 +229,7 @@ test('the inputs: the ranker\'s, then the gap of today\'s score and each feature
 })
 
 // A run's first battle labelled (teach.js teachRun: every decision kept, its options played out a round), as rows.
-const labelled = (seed, limit = 6) => teachRun(seed, { battles: 1, limit, rounds: 1, ranker: null, forest: null, keep: { lost: 1, near: 1, reach: 1, calm: 1 } }).positions
+const labelled = (seed, limit = 6) => teachRun(seed, { battles: 1, limit, rounds: 1, forest: null, keep: { lost: 1, near: 1, reach: 1, calm: 1 } }).positions
 
 test('a forest\'s inputs and prediction in play are its inputs and prediction on the label row, number for number', async () => {
   const rows = playing({}, () => labelled('forest-test-1'))
@@ -236,7 +297,7 @@ test('a forest\'s inputs and prediction in play are its inputs and prediction on
   assert.ok(compared > 10, `${compared} compared`)
 })
 
-test('with no forest and no ranker the expert is today\'s; a forest whose advantages never exceed its margin plays it move for move', () => {
+test('with no forest the expert is today\'s; a forest whose advantages never exceed its margin plays it move for move', () => {
   const today = playing({}, () => battles('forest-test-2', 2).log)
   // Of the advantage's target, every leaf at most the margin; of the centred, every tree one leaf.
   const flat = forestOf([{ f: 'vs.damage', t: 0, l: 0.1, r: { f: 'gap', t: 3, l: -2, r: 0.1 } }, 0.1, -5], { delta: 0.1 })
@@ -250,12 +311,6 @@ test('with no forest and no ranker the expert is today\'s; a forest whose advant
   }
   assert.ok(notes.some((r) => r.decision === 'battle'))
   assert.ok(notes.every((r) => r.by !== 'forest' && !r.margin))
-  // A forest decides in place of a ranker: the flat forest with a ranker in use is still today's.
-  const net = createNet({ inputs: 149, seed: 2 })
-  const rand = mulberry(4)
-  net.W[2] = net.W[2].map(() => (rand() - 0.5) * 40)
-  const ranker = { name: 'loud', inputs: RANKER_SETS.base(), mean: new Array(149).fill(0), sd: new Array(149).fill(1), clip: 10, scale: 50, net: { sizes: net.sizes, W: net.W.map((w) => Array.from(w)), b: net.b.map((v) => Array.from(v)) } }
-  playing({ forest: flat, ranker }, () => assert.deepEqual(battles('forest-test-2', 1).log, playing({}, () => battles('forest-test-2', 1).log)))
 })
 
 test('a forest decides deterministically, legal orders; where it changes today\'s choice, the audit says forest and a margin above its own', () => {
@@ -401,14 +456,12 @@ test('a smoothed label set read by its means, or by its exact lines alone', asyn
   }
 })
 
-test('a job\'s forest is installed for its run and the one before put back; a paired player by its name or its file', () => {
+test('a job\'s forest is installed for its run and the one before put back; a paired player by its name or its file; pairedStats compares seed for seed', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-forest-job-'))
   const before = forestModel()
   try {
     const file = path.join(dir, 'f.json')
     fs.writeFileSync(file, JSON.stringify(drawn(4)))
-    const rfile = path.join(dir, 'r.json')
-    fs.writeFileSync(rfile, JSON.stringify({ name: 'r' }))
     const mine = drawn(9)
     useForest(mine)
     assert.equal(withForest('none', () => forestModel()), null)
@@ -417,16 +470,14 @@ test('a job\'s forest is installed for its run and the one before put back; a pa
     assert.equal(withForest(undefined, () => forestModel()), mine)
     assert.throws(() => withForest(file, () => { throw new Error('inside') }), /inside/)
     assert.equal(forestModel(), mine)
-    const r = record({ seed: 'forest-test-9', level: 'expert', forest: file, ranker: 'none' })
+    const r = record({ seed: 'forest-test-9', level: 'expert', forest: file })
     assert.equal(r.forest, 'drawn-4')
-    assert.equal(r.ranker, null)
     assert.equal(forestModel(), mine)
-    assert.equal(record({ seed: 'forest-test-9', level: 'expert', forest: 'none', ranker: 'none' }).forest, null)
+    assert.equal(record({ seed: 'forest-test-9', level: 'expert', forest: 'none' }).forest, null)
     assert.equal(forestModel(), mine)
-    assert.deepEqual(playerOf('none'), { ranker: 'none', forest: 'none' })
-    assert.deepEqual(playerOf(file), { ranker: 'none', forest: file })
-    assert.deepEqual(playerOf(`forest:${file}`), { ranker: 'none', forest: file })
-    assert.deepEqual(playerOf(rfile), { ranker: rfile, forest: 'none' })
+    assert.deepEqual(playerOf('none'), { forest: 'none' })
+    assert.deepEqual(playerOf(file), { forest: file })
+    assert.deepEqual(playerOf(`forest:${file}`), { forest: file })
     // teach.js installs a run's forest for the run and its playouts, from a file too.
     useForest(null)
     teacherRun('forest-test-1', { fights: 1, forest: file })
@@ -437,10 +488,64 @@ test('a job\'s forest is installed for its run and the one before put back; a pa
     useForest(before)
     fs.rmSync(dir, { recursive: true, force: true })
   }
+  const run = (result, progress, won = [true]) => ({ result, progress, floor: 2, secs: 1, battles: won.map((w) => ({ won: w })) })
+  const S = pairedStats([run('victory', 1), run('defeat', 0.5), run('defeat', 0.2, [true, false])], [run('defeat', 0.9, [false]), run('victory', 1), run('defeat', 0.3)])
+  assert.equal(S.runs, 3)
+  assert.equal(S.won, 1)
+  assert.equal(S.lost, 1)
+  assert.equal(S.a.clears, 1)
+  assert.equal(S.b.battles, 3)
+  assert.ok(Math.abs(S.diff - 100 * (-0.1 + 0.5 + 0.1) / 3) < 1e-9)
+  assert.ok(S.se > 0)
 })
 
-test('the afterstate a forest reads in play is the board the option leaves, read as the ranker reads it', () => {
-  // (The rows' afterstates are teach.js --augment's, which ranker.test.js holds equal to play's: here only that play
+test('the afterstates: the augmentation replays the run to each row\'s board, and its afterstates are play\'s, number for number', () => {
+  const before = forestModel()
+  try {
+    useForest(null)
+    const rows = labelled('rank-test-4', 5)
+    assert.ok(rows.length >= 3)
+    const { rows: aug } = augmentRun({ seed: 'rank-test-4', positions: rows }, { forest: null })
+    assert.equal(aug.length, rows.length)
+    assert.ok(aug.every((x) => x.same && !x.missed), 'every row\'s board met again')
+    const { points } = battles('rank-test-4', 1)
+    let compared = 0
+    for (const row of rows) {
+      const x = aug.find((r) => r.id === row.id)
+      // The same decision in play: the board as the piece decided, its options as the forest reads them.
+      const p = points.find((q) => q.at === row.at && q.uid === row.uid)
+      if (!p) continue
+      const f = fork(p.board)
+      const u = f.byUid.get(row.uid)
+      const sit = situation(f)
+      sit.plan = readPlan(f, sit)
+      const opts = expertOptions(f, u)
+      for (const o of opts) {
+        o.v = features(f, u, o, sit)
+        o.road = -o.path.length
+      }
+      const c = conditions(sit, u)
+      const view = rankerView(f, u, sit, opts, c)
+      const mean = meanOf(row.options.filter((r) => r.kept).map((r) => rowView(r)))
+      row.options.forEach((r, i) => {
+        const o = view.label[i]
+        o.after = afterOf(f, u, o, sit.plan)
+        const live = encode(c, u.id, playView(o), view.mean)
+        const read = encode(row.sit, row.kind, rowView(r, rowAfter(row.sit, x.a[i], afterNames())), mean)
+        assert.deepEqual(Array.from(live), Array.from(read), `${row.id} option ${i}`)
+        compared++
+      })
+    }
+    assert.ok(compared > 10, `${compared} compared`)
+    // The board's own read: afterRow on the row's board again gives the same.
+    assert.deepEqual(augmentRun({ seed: 'rank-test-4', positions: rows }, { forest: null }).rows, aug)
+  } finally {
+    useForest(before)
+  }
+})
+
+test('the afterstate a forest reads in play is the board the option leaves, read as the rows read it', () => {
+  // (The rows' afterstates are teach.js --augment's, which the test above holds equal to play's: here only that play
   // hands a forest that reads them each candidate's.)
   const deep = forestOf([{ f: 'aft.foes', t: -0.5, l: 1, r: -1 }], { inputs: NAMES, target: 'mean' })
   const b = boards()[0]

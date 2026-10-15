@@ -24,8 +24,8 @@
 // first, else 'forest' (and its `margin`, the A it took the option by) where the forest changed the choice, else today's.
 //
 // The inputs, x (inputNames), read alike from a label row and from the board in play (encodeAgainst; a test holds the
-// two equal), every number rounded to 6 decimals as the rows are written. The rows' (encode: the ranker's of §2.23,
-// whose net is gone, its encoding the forests'):
+// two equal), every number rounded to 6 decimals as the rows are written. First the rows' (encode, as §2.23's ranker
+// read them):
 //   sit.*   the 68 conditions (expert.js conditions: the situation and the piece's own `self.*`)
 //   role.*  the piece's kind's role (content.js ROLES, one of six), and `size` its kind's (a Colossus track's 2×2 is not
 //           in the rows: the kind's own size)

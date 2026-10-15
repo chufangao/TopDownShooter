@@ -2,20 +2,14 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, legalOrders, order, fork, reach, addStatus } from '../src/sim/turns.js'
 import {
-  danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, evaluate, judge
+  danger, dangerAt, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, judge
 } from '../src/sim/policy.js'
-import { createRng } from '../src/sim/rng.js'
 import { value, decide, TREES, defaultExpert } from '../src/sim/expert.js'
 import { on, scene, slay } from './scene.js'
 import { TEMPERS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { makeUnit, tileAt, tileX, tileY, footprint, slotAt, DEPTH, ROWS, CAMP_ROWS } from '../src/sim/unit.js'
 import { tuned } from './tuned.js'
-import { load, createNet, toJSON, FEATURES, value as V, weights } from '../src/sim/value.js'
-
-// These read the plan, the tree and today's scorer, so the static evaluation; policy-learned.test.js runs them again
-// with the expert on V (TUNING.expert.beam.learned: the shipped value.json, its `hybrid`).
-if (!TUNING.expert.beam.learned) load(null)
 
 // A battle on turns of units set on tiles (as test/turns.test.js builds them): [{ id, uid, side, x, y, lvl? }].
 function field (units, opts = {}) {
@@ -405,74 +399,7 @@ test('the expert never gives an illegal order, and the same board gives the same
   assert.ok(['move', 'fuse', 'arise'].every((k) => kinds.has(k)), [...kinds].join())
 })
 
-// The turn's beam (redesign.md §2.21; off by default since §2.22, asked for by `beam`): its decisions, as the learner's
-// hooks hear them. A board with a choice for each
-// of three pieces, and a corpse to raise.
-const beamBoard = () => {
-  const b = field([
-    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
-    { id: 'bone_chanter', uid: 2, side: 'party', x: 2, y: 2 },
-    { id: 'frost_sprite', uid: 3, side: 'party', x: 4, y: 2 },
-    { id: 'grave_ghoul', uid: 8, side: 'foe', x: 2, y: 4 },
-    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 },
-    { id: 'will_o_wisp', uid: 10, side: 'foe', x: 2, y: 8 },
-    { id: 'pyre_hound', uid: 11, side: 'foe', x: 4, y: 8 }
-  ])
-  b.byUid.get(9).hp = 6
-  return b
-}
-
-test('the beam: record hears each decision of the turn given, in order, its options scored by their boards and the one taken', () => {
-  const b = beamBoard()
-  const recs = []
-  const orders = expertTurn(fork(b), { beam: true, record: (f, info) => recs.push({ f, ...info }) })
-  // Hearing changes nothing.
-  assert.deepEqual(orders, expertTurn(fork(b), { beam: true }))
-  assert.ok(recs.length >= 1 && recs.length <= 3, `${recs.length} decisions`)
-  assert.equal(new Set(recs.map((r) => r.uid)).size, recs.length)
-  const f = fork(b)
-  for (const r of recs) {
-    assert.ok(r.options.length >= 1 && r.chosen >= 0 && r.chosen < r.options.length && r.explored === false)
-    for (const o of r.options) {
-      assert.ok(Number.isFinite(o.value) && Number.isFinite(o.prior) && o.board?.units, JSON.stringify({ ...o, board: !!o.board }))
-      assert.ok(['tile', 'ability', 'target', 'fusion'].every((k) => k in o))
-    }
-    // Ranked by their boards' value, and each board the piece's option applied: the piece on its tile.
-    assert.ok(r.options.every((o, i) => i === 0 || o.value <= r.options[i - 1].value))
-    assert.ok(r.options.every((o) => o.board.byUid.get(r.uid).tile === o.tile || o.fusion))
-    // The board each decision is heard on is the one the decisions before it left.
-    assert.deepEqual(r.f.units.map((u) => [u.uid, u.tile, u.hp]), f.units.map((u) => [u.uid, u.tile, u.hp]))
-    const c = r.options[r.chosen]
-    for (const o of orders.filter((x) => x.uid === r.uid)) order(f, o)
-    assert.equal(f.byUid.get(r.uid).tile, c.tile)
-  }
-})
-
-test('the beam: explore takes, at each decision with chance epsilon, one of the best few at random; the same draws, the same turn', () => {
-  const b = beamBoard()
-  const turn = (seed) => {
-    const recs = []
-    const rng = createRng(seed).stream('explore')
-    const orders = expertTurn(fork(b), { beam: true, record: (f, info) => recs.push(info), explore: { rng, epsilon: 1, top: 3 } })
-    return { orders, recs }
-  }
-  const one = turn('a')
-  assert.deepEqual(turn('a').orders, one.orders)
-  assert.ok(one.recs.length >= 1 && one.recs.every((r) => r.explored && r.chosen < 3), JSON.stringify(one.recs.map((r) => [r.chosen, r.explored])))
-  const g = fork(b)
-  for (const o of one.orders) {
-    if (o.type !== 'end') assert.ok(legalOrders(g).some((l) => JSON.stringify(l) === JSON.stringify(o)), JSON.stringify(o))
-    order(g, o)
-  }
-  // Epsilon 0: the beam's own turn.
-  assert.deepEqual(expertTurn(fork(b), { beam: true, explore: { rng: createRng('b').stream('x'), epsilon: 0, top: 3 } }), expertTurn(fork(b), { beam: true }))
-})
-
-test('evaluate: V where value.js holds trained weights, else the static board evaluation, the board tree\'s rules above its weights', () => {
-  const b = beamBoard()
-  assert.equal(evaluate(b, { learned: false }), judge(b).value)
-  assert.ok(Number.isFinite(evaluate(b)))
+test('judge: the static board evaluation, the board tree\'s rules above its weights', () => {
   // A board where the foes could fell the Monarch next turn is worse than any where they could not, whatever else.
   const doomed = board([
     { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0, hp: 5 },
@@ -487,48 +414,6 @@ test('evaluate: V where value.js holds trained weights, else the static board ev
   assert.deepEqual([d.v.doom, judge(safe).v.doom], [1, 0])
   doomed.byUid.get(10).hp = 1
   assert.ok(judge(safe).value > judge(doomed).value)
-})
-
-// With weights in value.js and the expert told to use them (TUNING.expert.beam.learned, or `learned`), the beam scores
-// each option's board by V (`hybrid` 0), or by the static evaluation and V (`hybrid` above 0): a net of random weights
-// here, for the plumbing.
-test('the beam with V: each option\'s board scored by V, the turn legal and the same for the same board', () => {
-  const b = beamBoard()
-  const n = FEATURES.length
-  const was = TUNING.expert.beam.hybrid
-  const had = weights()
-  load(toJSON(createNet({ inputs: n, hidden: [8], seed: 7 }), { mean: new Float64Array(n), sd: new Float64Array(n).fill(1) }))
-  try {
-    assert.equal(evaluate(b), V(b))
-    assert.equal(evaluate(b, { learned: false }), judge(b).value)
-    TUNING.expert.beam.hybrid = 0
-    const recs = []
-    const orders = expertTurn(fork(b), { beam: true, record: (f, info) => recs.push(info), learned: true })
-    assert.deepEqual(expertTurn(fork(b), { beam: true, learned: true }), orders)
-    assert.ok(recs.length && recs.every((r) => r.options.every((o) => o.value === V(o.board))))
-    const g = fork(b)
-    for (const o of orders) {
-      if (o.type !== 'end') assert.ok(legalOrders(g).some((l) => JSON.stringify(l) === JSON.stringify(o)), JSON.stringify(o))
-      order(g, o)
-    }
-    // Hybrid: each option's board by the static evaluation and `hybrid` × V; unlearned (the default), V read nowhere.
-    TUNING.expert.beam.hybrid = 2
-    const mixed = []
-    expertTurn(fork(b), { beam: true, record: (f, info) => mixed.push(info), learned: true })
-    const plain = []
-    expertTurn(fork(b), { beam: true, record: (f, info) => plain.push(info), learned: false })
-    // (The first decision is on the board as it stands, the same for both.)
-    const same = (o, p) => p.tile === o.tile && p.ability === o.ability && p.target === o.target && p.fusion === o.fusion
-    assert.ok(mixed[0].options.length > 1 && mixed[0].uid === plain[0].uid)
-    for (const o of mixed[0].options) {
-      const p = plain[0].options.find((x) => same(o, x))
-      assert.ok(p && Math.abs(o.value - (p.value + 2 * V(o.board))) < 1e-6 * Math.max(1, Math.abs(o.value)))
-    }
-    if (!TUNING.expert.beam.learned) assert.deepEqual(expertTurn(fork(b), { beam: true }), expertTurn(fork(b), { beam: true, learned: false }))
-  } finally {
-    TUNING.expert.beam.hybrid = was
-    load(had)
-  }
 })
 
 // The camp's pressure is read by its policy alone (press: TUNING.policy.press); the expert reads the board, never the

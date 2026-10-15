@@ -1,12 +1,12 @@
 // The labeller (redesign.md §2.22, §5 Step 9a): labels for the learned decision tree, made by playing a piece's options
-// out, offline. Never imported by the expert's play code: like the combo book and train.js, it is training, and it is
-// the one place the foes' real turn is played ahead of a decision of yours.
+// out, offline. Never imported by the expert's play code: like the combo book and the fitters, it is training, and it
+// is the one place the foes' real turn is played ahead of a decision of yours.
 //
 // Positions: expert runs (autoplay.js policy, the default expert, the stream autoplay's; seeds `<seed>-1`…`<seed>-<runs>`)
 // played live; each piece decision of each battle turn (the board as the expert's orders before it in that turn left it,
 // the piece whose orders come next) a candidate, kept by a deterministic draw (a hash of the seed, the battle and the
 // decision's place) with a chance by its danger (KEEP): every decision of a battle the expert lost, half of a near-lost
-// one's (train.js NEAR: the Monarch at or under 35% of its max at a turn's start or the end, or 40% of it lost in the
+// one's (NEAR: the Monarch at or under 35% of its max at a turn's start or the end, or 40% of it lost in the
 // battle), a quarter of those of a won battle where the Monarch is in the foes' reach or a foe has a clear line on it
 // (the plan's shooters), 3% of the rest; each kept one weighed 1 / its chance (`wt`), so the data can stand for every
 // decision. That is the draw by the outcome (`draw` 'outcome', the default; L2's and L3's labels). With `draw` 'state'
@@ -89,20 +89,17 @@
 //
 //   npm run teach -- [--runs 300] [--seed teach] [--workers 5] [--out dir] [--rounds 0] [--cap 16] [--turns 150]
 //                    [--weights monarch=3,own=1,…] [--keep lost,near,reach,calm] [--draw outcome|state]
-//                    [--keep-floor 1=2,3=2,…] [--expert file.json] [--ranker file.json|none]
-//                    [--forest file.json|none] [--smooth 1] [--epsilon 0.1] [--top 3] [--report-only]
-// (`--expert`: the expert configuration that plays and completes the turns, src/sim/expert.json by default. `--ranker`:
-// the ranker configuration it plays with (redesign.md §2.23; ranker.js useRanker), installed in this thread and in every
-// worker before a run is played, so the runs and every playout's rest are the expert's with that ranker; `none` for
-// none, today's expert; without it, the one ranker.js holds. The labels' prior stays today's score, the ranker's
-// correction aside. The ranker's file and `name` go into manifest.json. `--forest`: the forest it plays with (forest.js
-// useForest: §2.23's correction as regression trees), installed as the ranker is (a forest in use decides in place of a
-// ranker); `none` for none; without it, the one forest.js holds; its file and `name` go into manifest.json. `--draw`:
-// how a decision's chance to be labelled is read, see Positions above; `--keep`'s `lost` and `near` are unused under
-// `state`; the draw goes into manifest.json, and into its settings where it is not the default. `--keep-floor`: each
-// named floor's factor on the chance (see Positions above), into the settings (`keepFloor`) where given. `--smooth`,
-// `--epsilon`, `--top`: smoothed labels, see above; k, epsilon and top go into manifest.json's `smooth`, and into its
-// settings where k > 1.)
+//                    [--keep-floor 1=2,3=2,…] [--expert file.json] [--forest file.json|none] [--smooth 1]
+//                    [--epsilon 0.1] [--top 3] [--report-only]
+// (`--expert`: the expert configuration that plays and completes the turns, src/sim/expert.json by default. `--forest`:
+// the forest it plays with (forest.js useForest: §2.23's correction as regression trees), installed in this thread and
+// in every worker before a run is played, so the runs and every playout's rest are the expert's with that forest;
+// `none` for none, today's expert; without it, the one forest.js holds. The labels' prior stays today's score, the
+// forest's correction aside. Its file and `name` go into manifest.json. `--draw`: how a decision's chance to be
+// labelled is read, see Positions above; `--keep`'s `lost` and `near` are unused under `state`; the draw goes into
+// manifest.json, and into its settings where it is not the default. `--keep-floor`: each named floor's factor on the
+// chance (see Positions above), into the settings (`keepFloor`) where given. `--smooth`, `--epsilon`, `--top`: smoothed
+// labels, see above; k, epsilon and top go into manifest.json's `smooth`, and into its settings where k > 1.)
 //
 // The teacher (below, `--teacher`): this labeller as a player, every battle decision of a run the playout-best.
 // The afterstates (below, `--augment <dir>`): a label set's runs replayed and each option's afterstate written beside its
@@ -120,14 +117,12 @@ import { createRng, hashString } from './rng.js'
 import { policy, survey, roomFeatures, routeConditions, routeFeatures, tierScale, ROUTE_FEATURES, progressOf, foeShare, routeRooms, useRoute, routeModel, record, ablatedRun } from './autoplay.js'
 import * as P from './policy.js'
 import * as E from './expert.js'
-import { useRanker, rankerModel } from './ranker.js'
 import { useForest, forestModel, afterDiff, afterNames } from './forest.js'
 import { readPlan } from './plan.js'
 import { fork, order, canAct, allowed, targetsFrom, pick, helped, lined, stalled } from './turns.js'
 import { alive, footprint, isBlow, blowReach, distanceBetween, lineEnds, LINE_AT, LINE_TILES, TILES, tileX } from './unit.js'
 import { LANE } from './field.js'
 import { TUNING } from '../tuning.js'
-import { seedNo, NEAR } from './train.js'
 
 // The playout value's weights (see above: END_WEIGHTS to the battle's end, WEIGHTS for `rounds` > 0), the chance a
 // decision is kept by its danger, and the defaults (`turns`: the rounds a playout to the end may last; `keepFloor`, the
@@ -141,6 +136,12 @@ export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights:
 export const DRAWS = Object.freeze(['outcome', 'state'])
 // The weights a configuration's labels are read by: its own, else its kind's.
 const weightsOf = (c) => c.weights ?? (c.rounds > 0 ? WEIGHTS : END_WEIGHTS)
+
+// What makes a won battle near-lost (KEEP's `near`): the Monarch at or under `share` of its max at a turn's start or the
+// end, or `drop` of its max lost in the battle (V's trainer's, train.js, before it went).
+const NEAR = Object.freeze({ share: 0.35, drop: 0.4 })
+// A seed's number (`teach-17` → 17): what the split by run reads.
+const seedNo = (seed) => Number(String(seed).match(/(\d+)$/)?.[1] ?? 0)
 
 const NONE = Object.freeze([])
 const EPS = 1e-9
@@ -196,7 +197,7 @@ const readOf = (c) => (typeof E.readTree === 'function' && typeof E.expertModel 
 
 // Piece `u`'s options to label on `battle` (`sit` its situation, the plan on it; `c` its conditions): every option the
 // expert lists, each read as its features (`v`), its prior and whether the model's hard rules keep it (`kept`), and the
-// shortlist of at most `cap` kept as the expert's beam keeps one (policy.js shortlist's rules). → the shortlist, the
+// shortlist of at most `cap` kept as the expert's shortlist keeps one (policy.js shortlist's rules). → the shortlist, the
 // best by the prior first, and `all` its options as read.
 export function optionsAt (battle, u, sit, cap = DEFAULTS.cap, c = P.conditions(sit, u)) {
   const all = P.expertOptions(battle, u)
@@ -542,16 +543,14 @@ export function fromSignature (opts, sig) {
 // ── positions from runs ──────────────────────────────────────────────────────────────────────────
 
 // The expert a run plays by and completes its playouts with, installed for the thread (a worker's: each run installs
-// it again) where `c` names it: `expert` a configuration file (expert.js useExpert), else the one in use; `ranker` a
-// ranker configuration or its file (ranker.js useRanker; null for none, today's expert), else the one in use; `forest`
-// a forest configuration or its file (forest.js useForest; null for none), else the one in use.
+// it again) where `c` names it: `expert` a configuration file (expert.js useExpert), else the one in use; `forest` a
+// forest configuration or its file (forest.js useForest; null for none, today's expert), else the one in use.
 export function install (c) {
   if (c.expert) E.useExpert(JSON.parse(fs.readFileSync(c.expert, 'utf8')))
-  if (c.ranker !== undefined) useRanker(rankerOf(c.ranker))
-  if (c.forest !== undefined) useForest(rankerOf(c.forest))
+  if (c.forest !== undefined) useForest(modelOf(c.forest))
 }
-// A configuration or its file (a ranker's or a forest's), null for none.
-const rankerOf = (r) => (typeof r === 'string' ? JSON.parse(fs.readFileSync(r, 'utf8')) : r ?? null)
+// A configuration or its file (a forest's), null for none.
+const modelOf = (r) => (typeof r === 'string' ? JSON.parse(fs.readFileSync(r, 'utf8')) : r ?? null)
 
 // A decision's draw in [0, 1): a hash of the seed, the battle and its place.
 const draw = (seed, battle, seq) => parseInt(hashString(`teach|${seed}|${battle}|${seq}`).slice(0, 8), 16) / 2 ** 32
@@ -651,7 +650,7 @@ export function teachRun (seed, cfg = {}) {
 
 // ── the afterstates (redesign.md §2.23: the ranker's "after the move") ────────────────────────────
 
-// The board each option of a labelled position leaves, read for the ranker (its aft.* inputs): `row` (a labels.jsonl
+// The board each option of a labelled position leaves, read for the forest (its aft.* inputs): `row` (a labels.jsonl
 // line) on `board` (a copy of the board it was labelled on: the run replayed to its decision, augmentRun). Each of the
 // row's options found among the piece's (policy.js expertOptions, by its tile, act, target and fusion) and given on a
 // copy as the playouts give it (policy.js afterOf, the very read play makes), its conditions written against the row's
@@ -679,7 +678,7 @@ export function afterRow (board, row) {
 }
 
 // One run's positions augmented (a worker's job: { seed, positions: [{ id, at, uid, sit, options }] }, labels.jsonl's
-// rows of that seed): the run replayed as teachRun plays it (the expert and ranker of `cfg` installed, the same stream,
+// rows of that seed): the run replayed as teachRun plays it (the expert and forest of `cfg` installed, the same stream,
 // each action asked of the policy before the board is copied), and at each position's decision (`at`, the run's log
 // index) its afterstates read on a copy of the board (afterRow). A position the replay never meets is `missed`. →
 // { seed, rows: [{ id, same, a } or { id, missed: true }] }
@@ -701,31 +700,27 @@ export function augmentRun ({ seed, positions }, cfg = {}) {
   return { seed, rows }
 }
 
-// `npm run teach -- --augment <dir> [--workers n] [--ranker file|none] [--forest file|none]`: a label set's afterstates
-// (afterRow) written beside it, after.jsonl (a line a position, labels.jsonl's order: { id, a }) and after.json (the
-// conditions `a`'s indices name, the expert, ranker and forest the runs were replayed with, how many positions were
-// replayed to the board they were labelled on). The runs are replayed with the expert, ranker and forest their manifest
-// names (its settings' `expert`, `ranker` and `forest`; a label set made before rankers or forests, or with none, none),
-// or the `--ranker` and `--forest` given (needed where there is no manifest yet). Positions labelled after it was
-// written have no line: augment again.
+// `npm run teach -- --augment <dir> [--workers n] [--forest file|none]`: a label set's afterstates (afterRow) written
+// beside it, after.jsonl (a line a position, labels.jsonl's order: { id, a }) and after.json (the conditions `a`'s
+// indices name, the expert and forest the runs were replayed with, how many positions were replayed to the board they
+// were labelled on). The runs are replayed with the expert and forest their manifest names (its settings' `expert` and
+// `forest`; a label set made before forests, or with none, none), or the `--forest` given (needed where there is no
+// manifest yet). A label set played with §2.23's ranker (R2) can be replayed no more: its manifest names it, and it is
+// refused. Positions labelled after it was written have no line: augment again.
 async function augmentMain (dir, arg, workers) {
   const t0 = performance.now()
-  const given = arg('ranker', null)
-  // A label set still being made has no manifest yet: then its ranker given (and the expert in use).
+  // A label set still being made has no manifest yet: then its forest given (and the expert in use).
   const mf = path.join(dir, 'manifest.json')
-  if (!fs.existsSync(mf) && given === null) throw new Error(`${dir} has no manifest.json: give --ranker <file|none>`)
+  if (!fs.existsSync(mf) && arg('forest', null) === null) throw new Error(`${dir} has no manifest.json: give --forest <file|none>`)
   const manifest = fs.existsSync(mf) ? JSON.parse(fs.readFileSync(mf, 'utf8')) : {}
-  const named = manifest.settings?.ranker
-  const file = given !== null ? (given === 'none' ? null : path.resolve(given)) : named === undefined ? undefined : named?.file ?? null
-  if (file === undefined && manifest.ranker?.name) throw new Error(`${dir} was played with ranker ${manifest.ranker.name}, its file unnamed: give --ranker <file>`)
-  const ranker = file ? JSON.parse(fs.readFileSync(file, 'utf8')) : null
-  // The forest likewise (none where the manifest names none, as every label set before forests).
+  if (manifest.ranker?.name) throw new Error(`${dir} was played with ranker ${manifest.ranker.name}, which is gone (redesign.md §6 Step 0b)`)
+  // The forest (none where the manifest names none, as every label set before forests).
   const givenForest = arg('forest', null)
-  const named2 = manifest.settings?.forest
-  const forestFile = givenForest !== null ? (givenForest === 'none' ? null : path.resolve(givenForest)) : named2?.file ?? null
-  if (givenForest === null && named2 && !named2.file && manifest.forest?.name) throw new Error(`${dir} was played with forest ${manifest.forest.name}, its file unnamed: give --forest <file>`)
+  const named = manifest.settings?.forest
+  const forestFile = givenForest !== null ? (givenForest === 'none' ? null : path.resolve(givenForest)) : named?.file ?? null
+  if (givenForest === null && named && !named.file && manifest.forest?.name) throw new Error(`${dir} was played with forest ${manifest.forest.name}, its file unnamed: give --forest <file>`)
   const forest = forestFile ? JSON.parse(fs.readFileSync(forestFile, 'utf8')) : null
-  const cfg = { ranker, forest, ...(manifest.settings?.expert && { expert: manifest.settings.expert }) }
+  const cfg = { forest, ...(manifest.settings?.expert && { expert: manifest.settings.expert }) }
   const labels = path.join(dir, 'labels.jsonl')
   const bySeed = new Map()
   const order = []
@@ -736,7 +731,7 @@ async function augmentMain (dir, arg, workers) {
     if (!bySeed.has(r.seed)) bySeed.set(r.seed, [])
     bySeed.get(r.seed).push({ id: r.id, at: r.at, uid: r.uid, sit: r.sit, options: r.options.map((o) => ({ i: o.i, tile: o.tile, ability: o.ability, target: o.target, fusion: o.fusion })) })
   }
-  console.log(`augmenting ${order.length} positions of ${bySeed.size} runs in ${dir} on ${workers} workers (ranker ${ranker?.name ?? 'none'}, forest ${forest?.name ?? 'none'})`)
+  console.log(`augmenting ${order.length} positions of ${bySeed.size} runs in ${dir} on ${workers} workers (forest ${forest?.name ?? 'none'})`)
   const got = new Map()
   let n = 0
   await pool([...bySeed].map(([seed, positions]) => ({ seed, positions })), workers, cfg, (r) => {
@@ -756,7 +751,7 @@ async function augmentMain (dir, arg, workers) {
   }
   await new Promise((resolve) => out.end(resolve))
   const info = {
-    made: new Date().toISOString(), conditions: afterNames(), ranker: ranker && { file, name: ranker.name ?? null }, forest: forest && { file: forestFile, name: forest.name ?? null }, expert: manifest.settings?.expert ?? null,
+    made: new Date().toISOString(), conditions: afterNames(), forest: forest && { file: forestFile, name: forest.name ?? null }, expert: manifest.settings?.expert ?? null,
     positions: order.length, same, missed, differ, seconds: +((performance.now() - t0) / 1000).toFixed(1)
   }
   fs.writeFileSync(path.join(dir, 'after.json'), JSON.stringify(info, null, 1) + '\n')
@@ -872,7 +867,7 @@ export function report (positions, by = { byFloor: 'floor', byDanger: 'danger', 
 
 // ── the teacher (redesign.md §2.23, §5 Step 10a) ─────────────────────────────────────────────────
 
-// The labeller as a player: whole runs with every battle decision the playout-best, for the ranker's targets and for
+// The labeller as a player: whole runs with every battle decision the playout-best, for a learner's targets and for
 // the ceiling (how far battle play alone can take the expert). Never shipped, like the combo book.
 //
 // Out of battle today's expert decides (autoplay.js policy, the default expert, on the 'autoplay' stream, as
@@ -883,7 +878,7 @@ export function report (positions, by = { byFloor: 'floor', byDanger: 'danger', 
 // keeps it, then on a copy with the pieces the teacher has decided marked done: the first piece it decides); its options
 // the labeller's (optionsAt: at most `cap`), the expert's own choice added where the shortlist lacks it (so the teacher
 // does no worse than the expert by its own playouts); each played out to the battle's end by the current expert
-// (playout: the expert of the thread, the ranker in use with it), and the best taken (bestOf: the best value, ties to the
+// (playout: the expert of the thread, the forest in use with it), and the best taken (bestOf: the best value, ties to the
 // expert's own score and its tie order); given as orders (its move, then its act or fusion; a move alone or a stay given
 // what End Turn would have it do from there, as the labeller gives it). A piece with one option takes it with no
 // playout. Where the expert would order no piece, the turn ends as the expert ends it: what End Turn has the untouched
@@ -893,7 +888,7 @@ export function report (positions, by = { byFloor: 'floor', byDanger: 'danger', 
 // run on four workers, a run of ~800 decisions 2–5 minutes). Deterministic: the same board gives the same orders.
 //
 //   npm run teach -- --teacher [--runs 64] [--seed sim] [--from 0] [--workers 4] [--out dir] [--cap 16] [--turns 150]
-//                    [--weights monarch=3,own=1,…] [--expert file.json] [--ranker file.json|none] [--forest file.json|none]
+//                    [--weights monarch=3,own=1,…] [--expert file.json] [--forest file.json|none]
 //                    [--report-only]
 // plays seeds `<seed>-<from>`…`<seed>-<from + runs − 1>` (autoplay.js's naming: sim-0…sim-63, the bar's seeds), each by
 // the teacher and by today's expert (record), in worker threads; runs.jsonl in `--out` (the OS's temp directory,
@@ -1000,7 +995,7 @@ export function closeOf (run) {
   return b.winner === 'party' ? { won: true, fell: null } : { won: false, fell: { rank: currentNode(run)?.rank ?? 1, share: foeShare(b) } }
 }
 
-// One run played by the teacher (see the head of this section), `expert` and `ranker` installed as teachRun installs
+// One run played by the teacher (see the head of this section), `expert` and `forest` installed as teachRun installs
 // them. `battles`: stop once that many battles are over (0: the whole run); `fights`: stop as that many fights open,
 // before the last's first order; `log`: the run's log in the result. → { seed, player, result, floor, progress,
 // battles: { won, fought }, ms, decisions, playouts, single, decisionMs }
@@ -1050,7 +1045,7 @@ export function teacherRun (seed, cfg = {}) {
   }
 }
 
-// One run of today's expert (autoplay.js record, `expert` and `ranker` installed as teachRun installs them), in the
+// One run of today's expert (autoplay.js record, `expert` and `forest` installed as teachRun installs them), in the
 // teacher's lines. → { seed, player, result, floor, progress, battles: { won, fought }, ms }
 export function expertRun (seed, cfg = {}) {
   install(cfg)
@@ -1165,14 +1160,13 @@ export function pairedLines (rep) {
 // TUNING.expert.route's weights) }.
 //
 //   npm run teach -- --route [--runs 300] [--seed route] [--workers 5] [--out dir] [--rooms 0] [--report-only]
-//                    [--policy learned|hand|file.json] [--expert file.json] [--ranker file.json|none] [--compare file.json]
+//                    [--policy learned|hand|file.json] [--expert file.json] [--compare file.json]
 //   npm run teach -- --route --fit [--out dir] [--model file] [--depth 3] [--lambda 3] [--tau 0] [--hand]
 //                    [--weights lost,rooms,floors,monarch,own,souls,won] [--prior file.json] [--structure prior] [--dry]
 // (`--policy`: the route that plays the runs and their playouts, the shipped expert's learned route by default;
 // `--expert`: the battle expert, src/sim/expert.json; both kept in `--out` as they were, route-policy.json and
-// expert.json, so a stage gone on with plays the same; `--ranker`: the ranker the battles are played with, as the
-// battle labeller's, its file and name in the settings (a stage gone on with names it again); `--compare`: another
-// route tree to measure against the labels; `--weights`: a window's are lost,monarch,own,essence,cleared,power,purse.)
+// expert.json, so a stage gone on with plays the same; `--compare`: another route tree to measure against the labels;
+// `--weights`: a window's are lost,monarch,own,essence,cleared,power,purse.)
 export const ROUTE_WEIGHTS = Object.freeze({ lost: 10, monarch: 3, own: 1, essence: 1, cleared: 1, power: 0, purse: 0 })
 export const ROUTE_END_WEIGHTS = Object.freeze({ lost: 10, rooms: 1, floors: 1, monarch: 1, own: 1, souls: 0, won: 0 })
 export const ROUTE_KEEP = Object.freeze({ early: 1, earlyCalm: 0.6, late: 0.6, lateCalm: 0.25 })
@@ -1302,19 +1296,16 @@ const routeDraw = (seed, floor, rank) => parseInt(hashString(`route|${seed}|${fl
 const routeKeep = (keep, floor, elite) => (floor <= 2 ? (elite ? keep.early : keep.earlyCalm) : elite ? keep.late : keep.lateCalm)
 
 // One expert run played live, its room choices drawn and the kept ones labelled, with `route` (a route tree, false for
-// the hand-built), `expert` (a battle configuration) and `ranker` (a ranker configuration or its file, null for none)
-// installed while it plays, where given. To the end, the kept choices are labelled once the run is over: the chosen
-// room's value its own rest (unless `reuse` is off). → { seed, result, floor, progress (progressOf, as autoplay.js
-// record reads it), choices, positions, ms, labelMs }
+// the hand-built) and `expert` (a battle configuration) installed while it plays, where given. To the end, the kept
+// choices are labelled once the run is over: the chosen room's value its own rest (unless `reuse` is off). → { seed,
+// result, floor, progress (progressOf, as autoplay.js record reads it), choices, positions, ms, labelMs }
 export function teachRoutes (seed, cfg = {}) {
   const c = { ...ROUTE_DEFAULTS, ...cfg, keep: { ...ROUTE_KEEP, ...cfg.keep } }
   const w = routeWeightsOf(c)
   const hadRoute = c.route !== undefined ? routeModel() : null
   const hadExpert = c.expert ? E.expertModel() : null
-  const hadRanker = rankerModel()
   if (c.route !== undefined) useRoute(c.route || false)
   if (c.expert) E.useExpert(c.expert)
-  if (c.ranker !== undefined) useRanker(rankerOf(c.ranker))
   try {
     const t0 = performance.now()
     let labelMs = 0
@@ -1357,7 +1348,6 @@ export function teachRoutes (seed, cfg = {}) {
   } finally {
     if (c.route !== undefined) useRoute(hadRoute ?? false)
     if (c.expert) E.useExpert(hadExpert)
-    if (c.ranker !== undefined) useRanker(hadRanker)
   }
 }
 
@@ -1509,20 +1499,18 @@ async function pool (jobs, workers, cfg, done, mode = 'battle') {
   await Promise.all(Array.from({ length: Math.min(workers, jobs.length) }, worker))
 }
 
-// `--ranker file.json|none` read (`arg` the command line's; `--forest` alike, `key` 'forest'): the configuration to
-// install (undefined where none is named: the one ranker.js, or forest.js, holds; null for none, today's expert) and
-// what the settings record of it ({ file, name }; null for none; undefined where none is named).
-function rankerArg (arg, key = 'ranker') {
-  const f = arg(key, null)
+// `--forest file.json|none` read (`arg` the command line's): the configuration to install (undefined where none is
+// named: the one forest.js holds; null for none, today's expert) and what the settings record of it ({ file, name };
+// null for none; undefined where none is named).
+function forestArg (arg) {
+  const f = arg('forest', null)
   if (f === null) return { config: undefined, setting: undefined }
   if (f === 'none') return { config: null, setting: null }
   const file = path.resolve(f)
   const config = JSON.parse(fs.readFileSync(file, 'utf8'))
   return { config, setting: { file, name: config?.name ?? null } }
 }
-// The ranker a manifest names: its file (null where none was named) and the `name` of the one in use (null for none);
-// the forest's alike.
-const rankerIn = (rk) => ({ file: rk.setting?.file ?? null, name: rankerModel()?.name ?? null })
+// The forest a manifest names: its file (null where none was named) and the `name` of the one in use (null for none).
 const forestIn = (fk) => ({ file: fk.setting?.file ?? null, name: forestModel()?.name ?? null })
 
 const table = (rep) => {
@@ -1643,14 +1631,12 @@ async function routeMain (arg, workers) {
   }
   // The route and the battle expert that play, kept in `--out` as they were when its labelling began.
   const route = arg('policy', had?.settings?.policy ?? 'learned')
-  const rk = rankerArg(arg)
-  const settings = { rooms, weights: routeWeightsOf({ rooms, weights: w }), keep: ROUTE_KEEP, reuse: ROUTE_DEFAULTS.reuse, policy: route, ...(rk.setting !== undefined && { ranker: rk.setting }) }
+  const settings = { rooms, weights: routeWeightsOf({ rooms, weights: w }), keep: ROUTE_KEEP, reuse: ROUTE_DEFAULTS.reuse, policy: route }
   if (had && JSON.stringify(had.settings) !== JSON.stringify(settings)) throw new Error(`${dir} was labelled with other settings (${JSON.stringify(had.settings)}): take another --out`)
   fs.mkdirSync(dir, { recursive: true })
   if (!fs.existsSync(policyFile)) fs.writeFileSync(policyFile, JSON.stringify(route === 'hand' ? false : (route === 'learned' ? E.shippedPart('route') : json(route)), null, 1) + '\n')
   if (!fs.existsSync(expertFile)) fs.writeFileSync(expertFile, JSON.stringify(arg('expert', null) ? json(arg('expert')) : E.expertModel(), null, 1) + '\n')
-  if (rk.config !== undefined) useRanker(rk.config)
-  const cfg = { ...settings, route: json(policyFile), expert: json(expertFile), ...(rk.config !== undefined && { ranker: rk.config }) }
+  const cfg = { ...settings, route: json(policyFile), expert: json(expertFile) }
   const labelsFile = path.join(dir, 'labels.jsonl')
   const runsFile = path.join(dir, 'runs.jsonl')
   const done = new Set(read(runsFile).map((r) => r.seed))
@@ -1680,9 +1666,8 @@ async function routeMain (arg, workers) {
   const manifest = {
     made: new Date().toISOString(),
     settings,
-    expert: { model: cfg.expert?.name ?? null, about: cfg.expert?.about ?? null, beam: !!TUNING.expert.beam?.on },
+    expert: { model: cfg.expert?.name ?? null, about: cfg.expert?.about ?? null },
     route: cfg.route ? { about: cfg.route.about ?? null } : 'hand',
-    ranker: rankerIn(rk),
     value: rooms
       ? 'value = −lost·[the run lost in the window] − monarch·(the share of its max HP the Monarch lost) − own·(the share of the souls\' max HP lost) + essence·(essence earned / autoplay.js tierScale) + cleared·(rooms done), over the room and the rooms after it to `rooms` (src/sim/teach.js, the route)'
       : 'value = −lost·(1 − the progress share at the end, a run lost) + rooms·(rooms cleared from the choice to the end) + floors·(floors cleared) + monarch·(the Monarch\'s HP share at the end) + own·(the souls\' HP share at the end) + souls·(souls standing at the end) + won·[cleared], the run played to its end by the expert (src/sim/teach.js, the route)',
@@ -1726,17 +1711,15 @@ async function teacherMain (arg, workers) {
   const dir = arg('out', path.join(os.tmpdir(), `retinue-teacher-${seed}`))
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
   const given = arg('weights', null)
-  const rk = rankerArg(arg)
-  const fk = rankerArg(arg, 'forest')
+  const fk = forestArg(arg)
   // The settings it plays by (manifest.json's, a stage gone on with held to them), and what the workers get: the same
-  // with the ranker's and the forest's configurations in place of their files and names. Its playouts go to the
-  // battle's end.
+  // with the forest's configuration in place of its file and name. Its playouts go to the battle's end.
   const settings = {
     cap: Number(arg('cap', DEFAULTS.cap)), turns: Number(arg('turns', DEFAULTS.turns)),
     weights: given ? { ...END_WEIGHTS, ...Object.fromEntries(given.split(',').map((kv) => kv.split('=')).map(([k, x]) => [k, Number(x)])) } : END_WEIGHTS,
-    ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }), ...(rk.setting !== undefined && { ranker: rk.setting }), ...(fk.setting !== undefined && { forest: fk.setting })
+    ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }), ...(fk.setting !== undefined && { forest: fk.setting })
   }
-  const cfg = { ...settings, ...(rk.config !== undefined && { ranker: rk.config }), ...(fk.config !== undefined && { forest: fk.config }) }
+  const cfg = { ...settings, ...(fk.config !== undefined && { forest: fk.config }) }
   install(cfg)
   fs.mkdirSync(dir, { recursive: true })
   const runsFile = path.join(dir, 'runs.jsonl')
@@ -1744,7 +1727,7 @@ async function teacherMain (arg, workers) {
   const had = fs.existsSync(manifestFile) ? JSON.parse(fs.readFileSync(manifestFile, 'utf8')) : null
   if (had && JSON.stringify(had.settings) !== JSON.stringify(settings)) throw new Error(`${dir} was played with other settings (${JSON.stringify(had.settings)}): take another --out`)
   const manifest = (extra = {}) => ({
-    made: new Date().toISOString(), settings, expert: { model: E.expertModel().name ?? null, beam: !!TUNING.expert.beam?.on }, ranker: rankerIn(rk), forest: forestIn(fk), ...extra
+    made: new Date().toISOString(), settings, expert: { model: E.expertModel().name ?? null }, forest: forestIn(fk), ...extra
   })
   if (!had) fs.writeFileSync(manifestFile, JSON.stringify(manifest(), null, 1) + '\n')
   const seeds = Array.from({ length: runs }, (_, k) => `${seed}-${from + k}`)
@@ -1811,8 +1794,7 @@ if (!isMainThread && workerData?.teach) {
   const base = rounds > 0 ? WEIGHTS : END_WEIGHTS
   const weights = !given ? base : given.includes('=') ? { ...base, ...Object.fromEntries(given.split(',').map((kv) => kv.split('=')).map(([k, x]) => [k, Number(x)])) }
     : nums(given, ['monarch', 'own', 'foe', 'lost', 'won'], WEIGHTS)
-  const rk = rankerArg(arg)
-  const fk = rankerArg(arg, 'forest')
+  const fk = forestArg(arg)
   const how = arg('draw', DEFAULTS.draw)
   if (!DRAWS.includes(how)) throw new Error(`--draw ${how}: one of ${DRAWS.join(', ')}`)
   // `--keep-floor 1=2,3=2,4=2`: each named floor's factor on a decision's chance (drawOf).
@@ -1824,14 +1806,14 @@ if (!isMainThread && workerData?.teach) {
   if (!(smooth.epsilon >= 0 && smooth.epsilon <= 1) || !(Number.isInteger(smooth.top) && smooth.top >= 1)) throw new Error('--epsilon in [0, 1], --top a whole number, 1 or more')
   // The settings the labels are made by (manifest.json's, a stage gone on with held to them; the default draw and one
   // playout an option left out, as the labels before them were made), and what the workers get: the same with the
-  // ranker's and the forest's configurations in place of their files and names.
+  // forest's configuration in place of its file and name.
   const settings = {
     rounds, cap: Number(arg('cap', DEFAULTS.cap)), ...(!(rounds > 0) && { turns: Number(arg('turns', DEFAULTS.turns)) }),
     weights, keep: nums(arg('keep', null), ['lost', 'near', 'reach', 'calm'], KEEP), ...(keepFloor && { keepFloor }), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }),
-    ...(rk.setting !== undefined && { ranker: rk.setting }), ...(fk.setting !== undefined && { forest: fk.setting }), ...(how !== DEFAULTS.draw && { draw: how }),
+    ...(fk.setting !== undefined && { forest: fk.setting }), ...(how !== DEFAULTS.draw && { draw: how }),
     ...(smooth.k > 1 && { smooth: smooth.k, epsilon: smooth.epsilon, top: smooth.top })
   }
-  const cfg = { ...settings, ...(rk.config !== undefined && { ranker: rk.config }), ...(fk.config !== undefined && { forest: fk.config }) }
+  const cfg = { ...settings, ...(fk.config !== undefined && { forest: fk.config }) }
   install(cfg)
   fs.mkdirSync(dir, { recursive: true })
   const labelsFile = path.join(dir, 'labels.jsonl')
@@ -1868,11 +1850,9 @@ if (!isMainThread && workerData?.teach) {
   const manifest = {
     made: new Date().toISOString(),
     settings,
-    // The expert that played and completed the turns: its model tree (expert.js expertModel), whether its turn was the
-    // beam (TUNING.expert.beam.on), and the ranker and the forest it played with (each one's file, where named, and its
-    // name; null for none).
-    expert: { model: typeof E.expertModel === 'function' ? E.expertModel().name ?? null : null, beam: !!TUNING.expert.beam?.on },
-    ranker: rankerIn(rk),
+    // The expert that played and completed the turns: its model tree (expert.js expertModel), and the forest it played
+    // with (its file, where named, and its name; null for none).
+    expert: { model: typeof E.expertModel === 'function' ? E.expertModel().name ?? null : null },
     forest: forestIn(fk),
     // How the decisions were drawn: by their battle's outcome, or by the board alone (see the head of this file).
     draw: how,
