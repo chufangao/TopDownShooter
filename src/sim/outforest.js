@@ -58,7 +58,7 @@
 // The target (a row a candidate of a decision): its playout's value less the mean of its decision's candidates'
 // (`target` 'mean', the centred value R, as the battle forest's) or less today's pick's (`target` 'today'), clipped.
 // Bagged by whole runs (a run's decisions are correlated, and their playouts chaotic), out-of-bag estimates; seeds ≡ 0
-// mod 5 held out, never fitted (ranker.js splitOf).
+// mod 5 held out, never fitted (forest.js splitOf).
 //
 // Shipped as outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend?, prep? } }, each phase's
 // forest { inputs, target, delta, size, feat, thr, right, value, made } in forest.json's shape (forest.js compileTrees
@@ -148,9 +148,7 @@
 // not kept. Nor a forest fitted on P1 and P2 without the opening boards' inputs (`--without s.o.,f.o.,vs.o.`: it makes
 // no board in play, opensBoard, a prep's read 0.8 ms against 3.2): against round 1 on 768 fresh seeds `chk11p`, clears
 // 78.0% against 79.6% (+30 −42), progress −1.39 ± 0.62, at 4.59 s a run against 4.84.
-import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS } from './forest.js'
-import { splitOf } from './ranker.js'
-import { mulberry } from './value.js'
+import { compileTrees, treesMean, cutsOf, binOf, growTree, growTrees, leafOn, shared, TARGETS, splitOf, mulberry } from './forest.js'
 import { shippedPart } from './expert.js'
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)

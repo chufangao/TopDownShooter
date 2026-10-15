@@ -90,7 +90,7 @@ it (the foes are `foeTurn`, the untouched the basic rule): it exists to measure,
 | the calculator (`calc.js`) | no weight: each piece's legal options read by `features` with `brink` and `peril` at 0, taken by [Monarch safe, material in HP at unit weight]; out of battle a fixed order | ~3 | 0% (dead on floor 1 in 22 of 32) | the novice's model: sound turns, no strategy |
 | **the expert** (`LEVELS.expert`, §4.0) | the shipped expert of f8c536f: a situation read, a plan, a model tree with searched weights, three forests, the learned route, the combo book | ~7–9 | 65% on `aud-0…59` with the draft; 77.7% on 768 seeds from the trio | the fast loop; the balance pass's player; the ladder's middle |
 | **the outside teacher** (`outside.js`) | each out-of-battle choice among the expert's top six played out to the run's end by the expert, the first that clears taken | ~67 | 63/64 | the ceiling; viability |
-| the battle teacher (`teach.js --teacher`; `teacher.js`) | each battle option played out to the battle's end by the expert | ~200 (1,100+) | 75% (78%) on 64 | the battle forest's labels at a refit; never in the loop |
+| the battle teacher (`teach.js --teacher`) | each battle option played out to the battle's end by the expert | ~200 | 75% on 64 | the battle forest's labels at a refit; never in the loop |
 
 - **The fast loop: the expert as it stands**, free and committed (the harness, Step 0), 256 paired seeds (`div-*`),
   ~30 min on four cores, after every content change, **`npm run combos` first**: the book is made from the content
@@ -132,7 +132,7 @@ The autoplayer of f8c536f, kept whole. One file holds what it learnt, `src/sim/e
 situation once, list the options, read each as named features, let a tree force or filter, weigh the rest, and where
 a forest is confident, take its word.
 
-- **In battle** (`policy.js expertTurn`, the fast turn; the beam `TUNING.expert.beam.on` is off): the **situation**
+- **In battle** (`policy.js expertTurn`, the fast turn: each piece once, no beam): the **situation**
   read once a decision (`situation`, ~68 named conditions in `expert.js conditions`: the Monarch's danger and whether
   it can be felled, lines of fire on it, threats by road and turns to reach, foes by threat type, the wave due, the
   camp's patience, killable foes, each piece's exposure, synergies); a **plan** chosen by a tree once a turn and kept
@@ -184,14 +184,18 @@ a forest is confident, take its word.
   the expert, `--draw state`, ~3 h) and `npm run forest`, out-of-battle labels `npm run outside -- --label --phases
   recruit,prep` (~3 h) and `npm run outforest`, the route `npm run teach -- --route` then `--fit`; each part set by
   `npm run bundle`, and kept only on a paired gain on 768 fresh seeds (`--paired expert:a.json,expert:b.json`).
-- **What is kept and what goes** (Step 0b). Kept, as it plays: everything above. Removed, as nothing plays by it: the
-  earlier learners (`value.js` and `value.json`, V; `ranker.js`, the MLP correction; `train.js`, V's trainer;
-  `teacher.js`, the stronger battle teacher; ~3,300 lines and 240 KB) with their tests (`value`, `ranker`, `teacher`,
-  `policy-learned`, `puzzles-learned`; ~1,000 lines), and the beam in `policy.js` (`expertTurn`'s beam branch,
-  `expand`, `afterstate`, the hybrid: off by `TUNING.expert.beam.on`, ~300 lines). `ranker.js` lends the forests
-  their row encoding (`encode`, `splitOf`, `playView`, `rowAfter`…: forest.js, outforest.js, outside.js, teach.js
-  import it), so that part moves into `forest.js` before the file goes. The expert plays move for move as before:
-  checked as the one-file change was, 12 whole runs' logs byte for byte the same.
+- **What was kept and what went** (Step 0b, done 2026-10-15: §8). Kept, as it plays: everything above. Removed, as
+  nothing played by it: the earlier learners (`value.js` and `value.json`, V; `ranker.js`, the MLP correction;
+  `train.js`, V's trainer; `teacher.js`, the stronger battle teacher; 3,260 lines and 405 KB, `value.json` 240 KB of
+  it) with their tests (`value`, `ranker`, `teacher`, `policy-learned`, `puzzles-learned`; 981 lines), every import,
+  option and CLI line that named them (`autoplay.js`'s `--learned`, `--static`, `--ranker`, a level's `learned`;
+  `teach.js`'s `--ranker`; the scripts `train`, `teacher`, `rank`), and the beam in `policy.js` (`expertTurn`'s beam
+  branch, `expand`, `afterstate`, the hybrid, `evaluate`, and the formation by V, `autoplay.js opening`). Of
+  `TUNING.expert.beam` only the shortlist's size is left, as `TUNING.expert.shortlist` (the forest's candidates read
+  it; `teach.js` labels as many). The row encoding `ranker.js` lent the forests (`encode`, `meanOf`, `playView`,
+  `rowView`, `afterDiff`, `rowAfter`, `splitOf`, the label files' readers, and V's `mulberry` the fitters draw by)
+  lives in `forest.js`, and the tests of it `ranker.test.js` held in `test/forest.test.js`. The expert plays move for
+  move as before: 12 whole runs' logs and the outside teacher's of two, byte for byte the same.
 
 ### 4.1 Fusions: a triple for every kind, and fusions of fusions
 
@@ -499,6 +503,33 @@ stalled one battle to the guard. What a playout continues with decides what sear
 strategy. **Decided by it**: search alone rejected, and with it the forest rebuild it was to seed; the user's word
 after it, "just use the old ai to tune" (§3, §4.0, §7). Not built:
 a calculator good enough to seed (saving, Command, a formation) would be hand rules of what to do, which §9 forbids.
+
+### The expert's cleaning (Step 0b, 2026-10-15)
+
+**Done** as §4.0's last bullet says, in its order, in two commits: the row encoding moved into `forest.js` (its 252
+inputs by the same names in the same order, the same numbers), then the learners, their tests and the beam removed.
+Nothing was retuned; the expert, its one file and the book are as they were.
+
+**Removed**: 4,531 lines net from `src/`, `test/` and `package.json` (5,058 out, 527 in, most of those the encoding
+moved and the tests of it kept) and 472 KB: the five files (3,260 lines and 405 KB, `value.json` 240 KB of it), their
+five test files (981 lines), the beam, `evaluate` and V's reads in `policy.js` (280 lines net), the formation by V and
+the options and flags that named the learners in `autoplay.js` and `teach.js`, three npm scripts, and
+`TUNING.expert.beam` but its `shortlist` (now `TUNING.expert.shortlist`). `NEAR` and the seed's number, which
+`teach.js` read from `train.js`, are `teach.js`'s own. A label set played with the ranker (R2) can no longer be
+augmented (`--augment` refuses it).
+
+**The check**, by a script outside the repo, before (a0cc19e) and after: the 12 whole runs `--runs 12 --seed clean`
+plays (seeds `clean-0…11`, `LEVELS.expert`, the draft on: 7 clears, 3 deaths on floor 1, one on 2, one on 4), each
+run's full log as `replay(seed, log)` takes it (each replayed to the same state), and the outside teacher's runs of
+`clean-1` and `clean-3` (`--won`, every phase: both cleared, 247 and 317 playouts, one override each; its log, its
+decisions, playouts and overrides with their values), written as JSON, a file a run: all 14 files byte for byte the
+same (sha256).
+
+**Tests**: 502 → 422, all passing. Gone with their files: V's 12, the ranker's 10, the stronger teacher's 9, and the
+second passes of `policy` (26) and `puzzles` (22) with V on; the beam's three in `policy.test.js` and `teach.test.js`'s
+`--ranker`. Moved to `test/forest.test.js`, being of what stays: the rows' inputs, a label row read as play reads it
+(teach.js's shortlist option for option policy.js's), the afterstates of `--augment` against play's, and `pairedStats`
+(three tests, and the last into the job test); `evaluate`'s test is `judge`'s.
 
 ## 9. Standing rules
 

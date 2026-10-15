@@ -6,9 +6,8 @@
 // its target formation (a tile for each piece), its kill list and its forecast of the foes are features of each piece's
 // options, and the kill list played is one of the boards a turn compares. Where a forest is in use (forest.js: regression
 // trees fitted offline on teach.js's playouts, the successor of redesign.md §2.23's ranker), it may overrule today's
-// choice of a piece where it reads another option the better by more than its margin; else, where a ranker is in use
-// (ranker.js, redesign.md §2.23: a learned correction trained offline on the same playouts), it is added to each
-// option's score (choice). Nothing reads a seed: the same board gives the same turn.
+// choice of a piece where it reads another option the better by more than its margin (choice). Nothing reads a seed:
+// the same board gives the same turn.
 import { TUNING } from '../tuning.js'
 import { STATUS_WORTH, statusDef, unitDef, FUSIONS, SYNERGIES } from '../content.js'
 import {
@@ -21,11 +20,9 @@ import {
   orderable, isSkill, counterOf, fusionsOf, rateOf, synergiesOf, corpses, nextWave, allowed, pick, lined, struckBy
 } from './turns.js'
 import { call } from './rules.js'
-import { value as weighed, TREES, conditions, expertModel, decideTree, readTree, scoreOf, hardFilter, defaultExpert } from './expert.js'
-import { value as learnedValue } from './value.js'
+import { value as weighed, TREES, conditions, expertModel, decideTree, readTree, scoreOf, defaultExpert } from './expert.js'
 import { readPlan } from './plan.js'
-import { rankerModel, scorer, playView, meanOf, readsAfter } from './ranker.js'
-import { forestModel, predictor, playOf, readsAfter as forestReadsAfter } from './forest.js'
+import { forestModel, predictor, playOf, playView, meanOf, readsAfter as forestReadsAfter } from './forest.js'
 
 // ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
 
@@ -478,8 +475,9 @@ export const basicTurn = () => [{ type: 'end' }]
 //   healing    what the foes' healers could mend each foe next turn (healingRead: Map foe → HP)
 //   threat     the foes' coming blows, each foe's once (threatRead: `foes`, in road order; `ours`, the units of yours they
 //              may strike; `d`, what each could deal each; `spots`, the tiles each living foe's road could take it to)
-// `lean` (the beam's afterstates, expertTurn): only what a piece's features, the tree's rules and the board's features
-// read (turn, map, healing, threat, entries, roads, holding, monarch, patience, plan); the rest left out.
+// `lean` (a board read only to be judged, boardFeatures, or for its danger, teach.js dangerOf): only what a piece's
+// features, the tree's rules and the board's features read (turn, map, healing, threat, entries, roads, holding,
+// monarch, patience, plan); the rest left out.
 export function situation (battle, { lean = false } = {}) {
   // Read when first asked for (a lean read's board may never be).
   let dmap = null
@@ -1135,9 +1133,8 @@ export function expertOptions (battle, u, { moving = true, fuse = true } = {}) {
 // conditions, the piece's own among them), then the model tree in use (`model`: expert.js expertModel, src/sim/expert.json
 // or today's): its hard rules, its leaf's weights and its soft rules; ties as `better` breaks them (the fewer steps, the
 // lower lane, the lower target uid). Where a forest is in use (forest.js forestModel), it may overrule that choice
-// (forested); else where a ranker is in use (ranker.js rankerModel), its correction is added to that score (ranked). The
-// fast turn's decision, and the beam's prior (shortlist; the beam reads neither). → { option, by, rules, leaf, path, left
-// (the options weighed, each scored) }, and with a forest or a ranker `margin`.
+// (forested). The fast turn's decision. → { option, by, rules, leaf, path, left (the options weighed, each scored) },
+// and with a forest `margin`.
 export function choice (battle, u, sit = situation(battle), opts = expertOptions(battle, u), model = expertModel()) {
   for (const o of opts) {
     o.v = features(battle, u, o, sit)
@@ -1146,14 +1143,12 @@ export function choice (battle, u, sit = situation(battle), opts = expertOptions
   const c = conditions(sit, u)
   const F = forestModel()
   if (F) return forested(battle, u, sit, opts, c, model, F)
-  const R = rankerModel()
-  if (R) return ranked(battle, u, sit, opts, c, model, R)
   return decideTree(model, c, model.options === 'shortlist' ? shortlisted(battle, u, sit, opts, c) : opts, { better })
 }
 
 // One piece's decision with forest `F` (forest.js: redesign.md §2.23's correction as rules mined from the playouts):
 // today's decision first (rankerView: the model in use over all the piece's options, its hard rules and its choice),
-// then each of the candidates the ranker would weigh (today's shortlist that the hard rules keep: the options
+// then each of the candidates §2.23's ranker weighed (today's shortlist that the hard rules keep: the options
 // teach.js's labels hold) other than today's choice read by the forest, its predicted advantage over today's choice
 // (`o.gain`: forest.js predictor). The best of them by it (ties as `better` breaks a tie of scores: the fewer steps,
 // the lower lane, the lower target uid) is taken where its advantage exceeds F's margin `delta`, else today's choice,
@@ -1186,41 +1181,15 @@ const gains = (o, b) => {
   return (o.target?.uid ?? -1) < (b.target?.uid ?? -1)
 }
 
-// One piece's decision with ranker `R` (redesign.md §2.23; ranker.js): today's decision first (the model in use over all
-// the piece's options: its hard rules, its choice), then of today's shortlist and today's choice (rankerView: the
-// options teach.js's labels hold, the same set) those the hard rules keep, each scored by today's score plus R's scale ×
-// its net (`o.base`, `o.net`, and their total `o.score`); today's choice is taken unless one beats it on the total (ties
-// as `better`), so a net that reads 0 everywhere is today's expert, move for move. `by`: the hard rule that filtered
-// first, else 'net' where the net changed the choice (and `margin`, the total it beats today's choice by), else today's.
-// A ranker whose inputs read the board an option leaves (ranker.js `aft.*`) has each candidate's afterstate read too
-// (afterOf: `o.after`), and only such a ranker.
-function ranked (battle, u, sit, opts, c, model, R) {
-  const view = rankerView(battle, u, sit, opts, c, model)
-  const { today, own, candidates, mean } = view
-  if (!own) return today
-  const net = scorer(R, c, u.id)
-  const after = readsAfter(R)
-  for (const o of candidates) {
-    if (after) o.after = afterOf(battle, u, o, sit.plan)
-    o.base = o.score
-    o.net = net(playView(o), mean)
-    o.score = o.base + R.scale * o.net
-  }
-  let best = own
-  for (const o of candidates) if (better(o, best)) best = o
-  const changed = best !== own
-  return { ...today, option: best, by: changed && today.left === opts ? 'net' : today.by, margin: changed ? best.score - own.score : 0, left: candidates }
-}
-
-// What the ranker reads of piece `u`'s decision (its options `opts`, each with its features `v`; `c` its conditions;
-// `model` the expert in use): `today`, today's decision over all of them (expert.js decideTree: `left` the options its
-// hard rules keep); `own`, today's choice; `short`, today's shortlist (shortlist, by the model in use's score, as
-// teach.js optionsAt draws the labels'); `label`, the options a label row of this decision holds: the shortlist, then
-// today's choice where its orders are not among them (as teach.js finds it among all: a move whose End-Turn blow is an
-// act at the same foe from the same tile, that act), each set of orders once, the first kept (a stay whose End-Turn
-// blow is another option's act is that option); `candidates`, the shortlist's options the hard rules keep and today's
-// choice; `mean`, the reference the inputs are read against (ranker.js meanOf: over the label's options the hard rules
-// keep). → { today, own, short, label, kept (a Set), candidates, mean }
+// What the forest reads of piece `u`'s decision, as §2.23's ranker read it (its options `opts`, each with its features
+// `v`; `c` its conditions; `model` the expert in use): `today`, today's decision over all of them (expert.js
+// decideTree: `left` the options its hard rules keep); `own`, today's choice; `short`, today's shortlist (shortlist, by
+// the model in use's score, as teach.js optionsAt draws the labels'); `label`, the options a label row of this decision
+// holds: the shortlist, then today's choice where its orders are not among them (as teach.js finds it among all: a move
+// whose End-Turn blow is an act at the same foe from the same tile, that act), each set of orders once, the first kept
+// (a stay whose End-Turn blow is another option's act is that option); `candidates`, the shortlist's options the hard
+// rules keep and today's choice; `mean`, the reference the inputs are read against (forest.js meanOf: over the label's
+// options the hard rules keep). → { today, own, short, label, kept (a Set), candidates, mean }
 export function rankerView (battle, u, sit, opts, c = conditions(sit, u), model = expertModel()) {
   const today = decideTree(model, c, opts, { better })
   const own = today.option
@@ -1297,17 +1266,6 @@ const todayModel = () => {
   return TODAY.model
 }
 
-// The board's value for your side (redesign.md §2.21): V(board) (value.js value) where trained weights are in use and
-// `learned` is not false, else today's static board evaluation (judge: `from`, the board the turn began on; `sit`, the
-// board's situation where it is read already). → a number, the higher the better.
-export function evaluate (battle, { from = battle, learned = true, sit = null } = {}) {
-  if (learned) {
-    const n = learnedValue(battle)
-    if (typeof n === 'number') return n
-  }
-  return judge(battle, from, sit).value
-}
-
 // Today's static board evaluation (redesign.md §2.17–2.19): the features a board leaves (boardFeatures, against `from`,
 // the board the turn began on), read by the board's tree (TREES.board: its filters as keys, the first the most binding,
 // each above everything after it; its modes switching the weights, TUNING.expert.battle.boardModes) and weighed by
@@ -1340,15 +1298,16 @@ const FOLD = [1e14, 1e10, 1e7]
 // The better of two options by the prior (o.score), ties as `better`, for a sort.
 const byPrior = (a, b) => (better(a, b) ? -1 : better(b, a) ? 1 : 0)
 
-// The options of piece `u` its turn weighs (redesign.md §2.21: a dozen or so of the hundred-odd tiles × acts options
-// lists), read on the board the turn begins on. Every option read by today's scorer (features, weighed by the tree's
-// modes' weights: the prior), and of them kept, the best of each kind first, then the best by the prior, to
-// TUNING.expert.beam.shortlist: holding where it stands; for each ability and target, the best option to use it from
-// and the least endangered (the danger map); of the tiles it may only move to, the nearest the tile the plan's
-// formation gives it (its role), the least endangered, the one that holds the most roads into the Monarch (a block),
-// and the least endangered on a line of fire into the Monarch (a screen); each fusion. → options, each with its
-// features `v` and its `prior` (and `score`), the best first. `all`: its options (expertOptions); `model` the prior's
-// (the model in use), `read` (expert.js readTree) where its options are read already (each with its `v`).
+// The options of piece `u` worth a second read (redesign.md §2.21's shortlist: a dozen or so of the hundred-odd tiles ×
+// acts options lists; the forest's candidates, rankerView, and a shortlist model's, shortlisted; teach.js optionsAt
+// draws a label row's alike), read on the board it decides on. Every option read by today's scorer (features, weighed
+// by the tree's modes' weights: the prior), and of them kept, the best of each kind first, then the best by the prior,
+// to TUNING.expert.shortlist: holding where it stands; for each ability and target, the best option to use it from and
+// the least endangered (the danger map); of the tiles it may only move to, the nearest the tile the plan's formation
+// gives it (its role), the least endangered, the one that holds the most roads into the Monarch (a block), and the
+// least endangered on a line of fire into the Monarch (a screen); each fusion. → options, each with its features `v`
+// and its `prior` (and `score`), the best first. `all`: its options (expertOptions); `model` the prior's (the model in
+// use), `read` (expert.js readTree) where its options are read already (each with its `v`).
 function shortlist (battle, u, sit, all, model = expertModel(), read = null) {
   if (!read) {
     read = readTree(model, conditions(sit, u))
@@ -1359,7 +1318,7 @@ function shortlist (battle, u, sit, all, model = expertModel(), read = null) {
   }
   for (const o of all) o.score = o.prior = scoreOf(read, o.v)
   const list = all.slice().sort(byPrior)
-  const cap = TUNING.expert.beam.shortlist
+  const cap = TUNING.expert.shortlist
   if (list.length <= cap) return list
   const field = sit.plan.goals.get(u.uid)?.field
   const steps = (t) => (field && Number.isFinite(field[t]) ? field[t] : TILES)
@@ -1453,180 +1412,40 @@ function copy (battle) {
   return f
 }
 
-// What the expert's turn reads of an afterstate's board (situation, lean), the plan with it.
-const leanSit = (f, plan) => {
-  const sit = situation(f, { lean: true })
-  sit.plan = plan
-  return sit
-}
-
-// A board in a key: who stands where, at what HP, acted or not, under how many statuses, and the essence spent (two
-// orders of the same acts that leave the same board are one partial turn).
-function keyOf (f) {
-  let k = `${f.spent}|`
-  for (const u of f.units) k += `${u.uid}:${u.tile}:${u.hp}:${u.acted ? 1 : 0}:${u.statuses.length};`
-  return k
-}
-
-// The expert's turn (redesign.md §2.17, §2.18, §2.21, §2.22). By default (TUNING.expert.beam.on false, or `beam` false)
-// the fast turn (fastTurn: each piece once by the model tree in use). With the beam:
-// factored, with a beam; pure scoring, no turn of the foes played.
-// First the plan (plan.js readPlan: kept from the last turn unless a trigger changed it, its target formation, the kill
-// list, the foes' forecast), read once on the board as it stands, and each piece's shortlist of options (shortlist:
-// today's scorer the prior). Then the pieces decide one at a time, each on the board as the ones before it left it (so a
-// kill, focus fire and a blow's exact damage are known: the battle has no dice), keeping the best
-// TUNING.expert.beam.width partial turns. A partial turn goes on with the next of its pieces by the turn's order (the kill
-// list's strikers first, in its order, then those whose options the prior spreads widest), each of the first
-// TUNING.expert.beam.pieces tried, so the order the pieces go in is part of the beam. A piece's options, read on the
-// board it decides on (features), pass the tree's hard rules (TREES.battle's filters); the best
-// TUNING.expert.beam.options of what is left by the prior are each applied, exactly, on a copy of that board (a hold,
-// with what End Turn would have it do: its basic blow or heal, given now), and the board each leaves is scored by
-// `evaluate` (V where trained). Each complete turn is closed with what End Turn has the untouched do (untouchedOrders),
-// and the best by `evaluate`, End Turn alone among them, gives its orders. Without V, today's static evaluation: a
-// partial turn scored by TUNING.expert.beam.static's mix of its board's (judge) and the priors its decisions had, a
-// complete one by its board's and its share of those priors. The same board gives the same orders (but under
-// `explore`).
-// Options: `fuse` false (the fusions ablation's): no fusion is weighed. `moving` false (the moves ablation's): every
-// piece acts from where it stands. `learned` (TUNING.expert.beam.learned unless given): V where trained, each board by V
-// alone (`hybrid` 0) or by the static evaluation and `hybrid` × V; false, today's static evaluation, whatever value.js
-// holds. `note` (the
-// audit's) hears each decision of the turn given: { decision ('plan', 'board', or 'battle' a piece's), uid, by, rules,
-// sit }, `by` the rule of the tree that filtered the piece's options, else 'value'. For the learner (redesign.md §5 Step
-// 8): `record(battle, { uid, options, chosen, explored })` is called at each decision of the turn given, in order, with
-// the board before the piece decides (read only: the live battle for the first), `options` the options its decision
-// scored ({ tile, ability, target, fusion (ids, null for none), prior, value, board (the afterstate, read only) }) and
-// `chosen` the index of the one taken; `explore: { rng (a function → [0, 1)), epsilon, top, weigh }`: at each decision,
-// with chance epsilon, the turn takes one of the `top` best options of the best partial turn's piece at random (the
-// beam goes on from it alone), `explored` true in its record (`weigh`: the fast turn's, below).
-export function expertTurn (battle, { fuse = true, note = null, moving = true, learned = TUNING.expert.beam.learned, record = null, explore = null, beam = TUNING.expert.beam.on } = {}) {
+// The expert's turn (redesign.md §2.17, §2.18, §2.22): the fast turn (fastTurn: each piece once by the model tree in
+// use; the beam of partial turns §2.21 weighed, off since §2.22, was removed on 2026-10-15). Options: `fuse` false (the
+// fusions ablation's): no fusion is weighed. `moving` false (the moves ablation's): every piece acts from where it
+// stands. `note` (the audit's) hears each decision of the turn given: { decision ('plan', 'battle' a piece's, 'path'
+// its path through the tree), uid, by, rules, sit }. For a learner (V's trainer was one; the tests hold it):
+// `record(battle, { uid, options, chosen, explored })` is called at each decision of the turn given, in order, with the
+// board before the piece decides (read only), `options` the options its decision scored ({ tile, ability, target,
+// fusion (ids, null for none), prior, value }) and `chosen` the index of the one taken. For the labeller (teach.js's
+// smoothed playouts): `explore: { rng (a function → [0, 1)), epsilon, top, weigh }`, at each decision, with chance
+// epsilon, one of the `top` best options at random in place of the choice, `explored` true in its record (fastTurn
+// says how). The same board gives the same orders (but under `explore`).
+export function expertTurn (battle, { fuse = true, note = null, moving = true, record = null, explore = null } = {}) {
   if (battle.over) return []
-  if (!beam) return fastTurn(battle, { fuse, note, moving, record, explore })
-  const B = TUNING.expert.beam
-  const sit = situation(battle)
-  const pieces = battle.units.filter((u) => orderable(battle, u) && !u.acted)
-  const all = new Map(pieces.map((u) => [u.uid, expertOptions(battle, u, { moving, fuse })]))
-  const plan = readPlan(battle, sit, { moving, opts: all })
-  sit.plan = plan
-  const short = new Map(pieces.map((u) => [u.uid, shortlist(battle, u, sit, all.get(u.uid))]))
-  // The turn's order: the kill list's strikers in its order, then the widest spread of the prior (its best option over
-  // holding where it stands), then the acting order.
-  const listed = plan.kills.flatMap((k) => k.strikes.map((s) => s.uid))
-  const spread = (u) => {
-    const list = short.get(u.uid)
-    const stay = list.find((o) => o.tile === u.tile && !o.ability && !o.fusion)
-    return list.length ? list[0].prior - (stay?.prior ?? list.at(-1).prior) : 0
-  }
-  const rank = new Map(pieces.map((u) => [u, listed.includes(u.uid) ? -1e9 + listed.indexOf(u.uid) : -spread(u)]))
-  const turnOrder = pieces.slice().sort((a, b) => rank.get(a) - rank.get(b) || a.ord - b.ord).map((u) => u.uid)
-  const ctx = { plan, moving, fuse, learned: learned && typeof learnedValue(battle) === 'number', short, from: battle, keep: !!record }
-  ctx.hybrid = ctx.learned ? B.hybrid ?? 0 : 0
-  const root = { f: battle, sit, parent: null, group: null, orders: NONE, done: new Set(), value: 0, prior: 0 }
-  // A partial turn's next pieces: the first of the turn's order it has yet to decide that may still move or act.
-  const next = (S) => {
-    if (S.f.over) return NONE
-    const out = []
-    for (const uid of turnOrder) {
-      if (out.length >= B.pieces) break
-      if (S.done.has(uid)) continue
-      const u = S.f.byUid.get(uid)
-      if (u && orderable(S.f, u) && !u.acted) out.push(uid)
-    }
-    return out
-  }
-  let states = [root]
-  const done = []
-  while (states.length) {
-    const kids = []
-    for (const S of states) {
-      const uids = next(S)
-      if (!uids.length) done.push(S)
-      for (const uid of uids) kids.push(...expand(S, uid, ctx))
-    }
-    if (!kids.length) break
-    kids.sort((a, b) => b.value - a.value)
-    states = []
-    if (explore && explore.rng() < explore.epsilon) {
-      const top = kids[0].group.children.slice(0, Math.max(1, explore.top ?? 3))
-      const c = top[Math.floor(explore.rng() * top.length)]
-      if (afterstate(c)) {
-        c.explored = true
-        states = [c]
-      }
-    }
-    // Else the best B partial turns, two that leave the same board one.
-    if (!states.length) {
-      const seen = new Set()
-      for (const c of kids) {
-        if (states.length >= B.width) break
-        if (!afterstate(c) || seen.has(c.key)) continue
-        seen.add(c.key)
-        states.push(c)
-      }
-    }
-    // The boards the beam let go are let go (a record keeps every option's).
-    if (!ctx.keep) for (const c of kids) if (!states.includes(c)) c.f = c.sit = null
-  }
-  // Each complete turn closed as End Turn would close it, and End Turn alone beside them.
-  const finals = [...done, root].map((S, i) => {
-    const g = copy(S.f)
-    const extra = untouchedOrders(g)
-    const n = ctx.learned ? learnedValue(g) : null
-    const alone = typeof n === 'number' && !ctx.hybrid
-    const j = alone ? { keys: NONE, value: n } : judge(g, battle)
-    // End Turn alone: each piece's prior for holding where it stands.
-    const prior = S !== root ? S.prior : pieces.reduce((k, u) => k + (short.get(u.uid).find((o) => o.tile === u.tile && !o.ability && !o.fusion)?.prior ?? 0), 0)
-    return { S, extra, value: j.value + (alone ? 0 : B.static.final * prior + (ctx.hybrid ? ctx.hybrid * n : 0)), keys: j.keys, end: i === done.length }
-  })
-  let pick = finals[0]
-  for (const x of finals) if (x.value > pick.value) pick = x
-  const path = []
-  for (let S = pick.S; S.parent; S = S.parent) path.unshift(S)
-  const orders = [...path.flatMap((S) => S.orders), ...pick.extra, { type: 'end' }]
-  if (note) {
-    note({ decision: 'plan', by: `${plan.kind} (${plan.trigger ?? 'kept'})`, rules: plan.rules, sit })
-    const k = pick.keys.findIndex((key, i) => finals.some((x) => x.keys[i] !== key))
-    const rules = TREES.board.filter((n) => n.keep && n.when(boardContext(battle))).map((n) => n.id)
-    note({ decision: 'board', by: pick.end ? 'end' : k >= 0 ? rules[k] : 'value', rules: k >= 0 ? [rules[k]] : [] })
-    for (const S of path) {
-      const g = S.group
-      note({ decision: 'battle', uid: g.uid, by: g.rules[0] ?? 'value', rules: g.rules, sit: g.parent === root ? sit : situation(g.parent.f) })
-    }
-  }
-  if (record) {
-    for (const S of path) {
-      const g = S.group
-      record(g.parent.f, {
-        uid: g.uid,
-        options: g.children.map((c) => ({
-          tile: c.o.tile, ability: c.o.ability?.id ?? null, target: c.o.target?.uid ?? null, fusion: c.o.fusion?.id ?? null, prior: c.o.prior, value: c.value, board: c.f
-        })),
-        chosen: g.children.indexOf(S),
-        explored: !!S.explored
-      })
-    }
-  }
-  return orders
+  return fastTurn(battle, { fuse, note, moving, record, explore })
 }
 
-// The fast turn (redesign.md §2.22; the default, TUNING.expert.beam.on false): the plan read once on the board as it
-// stands (plan.js readPlan), then each piece decides once, on the board as the ones before it left it (a copy of it:
-// so a kill, focus fire and a blow's exact damage are known), by the model tree in use (choice: its rules, its leaf's
-// weights); the kill list's strikers first, in its order, then the acting order (fastPass). A hold is given what End
-// Turn would have it do from its tile, now (its basic blow or heal), as the beam gives it. Where the plan reads shooters
-// of the Monarch's (plan.js shootersOf) and the kill list strikes, the kill list played as listed is a second turn
-// (fastPass's `kills`), and of the two the better board by today's static evaluation (judge: never a board where the
-// foes could fell the Monarch where the other is not, then the fewer of its shooters left standing, then the weights;
-// TREES.board's rules, redesign.md §2.18 B) gives the orders. No turn of the foes is played: a turn is the situation
-// read once a piece and a dot product an option, and a second pass and two boards read where the Monarch's shooters
-// stand. `note` hears the plan, then each piece's decision of the turn given (`by`, its rules; 'kill-list' for a strike
-// as listed; 'forest' where a forest changed today's choice, 'net' where a ranker did, with its `margin`: choice) and
-// its path through the tree (decision 'path', `by` the path in words: expert.js pathName); `record` each decision of the
-// turn given (the board before it, read only; its options as scored, without their boards: the pass that gives the
-// orders played again with it, the same orders, so that a run that records is the run that does not) and `explore`
-// (with chance epsilon, one of the `top` best by today's score at random, in place of the choice, the forest's where
-// one is in use) as the beam's, the greedy pass alone where epsilon is above 0 (no second turn is weighed) unless
-// `explore.weigh` (teach.js's smoothed playouts: the expert's own turn, the kill list's weighed as ever, then the pass
-// taken played again exploring).
+// The fast turn (redesign.md §2.22; the expert's turn since): the plan read once on the board as it stands (plan.js
+// readPlan), then each piece decides once, on the board as the ones before it left it (a copy of it: so a kill, focus
+// fire and a blow's exact damage are known), by the model tree in use (choice: its rules, its leaf's weights); the kill
+// list's strikers first, in its order, then the acting order (fastPass). A hold is given what End Turn would have it do
+// from its tile, now (its basic blow or heal). Where the plan reads shooters of the Monarch's (plan.js shootersOf) and
+// the kill list strikes, the kill list played as listed is a second turn (fastPass's `kills`), and of the two the
+// better board by today's static evaluation (judge: never a board where the foes could fell the Monarch where the other
+// is not, then the fewer of its shooters left standing, then the weights; TREES.board's rules, redesign.md §2.18 B)
+// gives the orders. No turn of the foes is played: a turn is the situation read once a piece and a dot product an
+// option, and a second pass and two boards read where the Monarch's shooters stand. `note` hears the plan, then each
+// piece's decision of the turn given (`by`, its rules; 'kill-list' for a strike as listed; 'forest' where a forest
+// changed today's choice, with its `margin`: choice) and its path through the tree (decision 'path', `by` the path in
+// words: expert.js pathName); `record` each decision of the turn given (the board before it, read only; its options as
+// scored, without their boards: the pass that gives the orders played again with it, the same orders, so that a run
+// that records is the run that does not) and `explore` (with chance epsilon, one of the `top` best by today's score at
+// random, in place of the choice, the forest's where one is in use; expertTurn's), the greedy pass alone where epsilon
+// is above 0 (no second turn is weighed) unless `explore.weigh` (teach.js's smoothed playouts: the expert's own turn,
+// the kill list's weighed as ever, then the pass taken played again exploring).
 function fastTurn (battle, { fuse, note, moving, record, explore }) {
   const sit = situation(battle)
   const pieces = battle.units.filter((u) => orderable(battle, u) && !u.acted)
@@ -1704,105 +1523,6 @@ function fastPass (battle, plan, turnOrder, { fuse, moving, record = null, explo
   }
   if (!f.over) orders.push(...untouchedOrders(f))
   return { f, orders, log }
-}
-
-// Piece `uid`'s decision on partial turn `S` (expertTurn): its shortlist's options read on S's board (still legal: the
-// tile in its reach, the target standing and within the act's reach from there), their features against S's situation,
-// the tree's filters (TREES.battle), the best TUNING.expert.beam.options of what is left by the prior, each applied on a
-// copy of the board and that afterstate scored (evaluate). → the partial turns it makes, each { f, parent, group,
-// orders, done, value, key, o }.
-function expand (S, uid, ctx) {
-  const f = S.f
-  const u = f.byUid.get(uid)
-  const sit = (S.sit ??= leanSit(f, ctx.plan))
-  let opts
-  if (S.parent === null) opts = ctx.short.get(uid)
-  else {
-    opts = []
-    const paths = ctx.moving ? reach(f, u) : null
-    const acts = canAct(f, u)
-    const fusions = ctx.fuse && acts ? fusionsOf(f, u) : NONE
-    for (const c of ctx.short.get(uid)) {
-      const o = { tile: c.tile, path: NONE, ability: c.ability, target: null, fusion: null }
-      if (c.tile !== u.tile) {
-        const p = paths?.get(c.tile)
-        if (!p) continue
-        o.path = p
-      }
-      if (c.fusion) {
-        o.fusion = fusions.find((x) => x.id === c.fusion.id && String(x.parts) === String(c.fusion.parts))
-        if (!o.fusion || c.tile !== u.tile) continue
-      } else if (c.ability) {
-        // (Arise's target is a corpse.)
-        const x = f.byUid.get(c.target.uid)
-        if (!acts || !x || (c.ability.shape !== 'corpse' && !alive(x)) || !usable(f, u, c.ability)) continue
-        const a = c.ability
-        const list = isAllyShape(a.shape) && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse') ? helped(f, u, a, o.tile) : targetsFrom(f, u, a, o.tile)
-        if (!list.includes(x)) continue
-        o.target = x
-      }
-      o.v = features(f, u, o, sit)
-      o.road = -o.path.length
-      opts.push(o)
-    }
-  }
-  const read = readTree(expertModel(), conditions(sit, u))
-  const { left, rules } = hardFilter(read, opts)
-  for (const o of left) o.score = o.prior = scoreOf(read, o.v)
-  left.sort(byPrior)
-  // A hold is given what End Turn would have it do from its tile: one whose act is an option's already is that option.
-  const acts = new Set(left.filter((o) => o.ability).map((o) => `${o.tile}:${o.ability.id}:${o.target.uid}`))
-  const kept = left.filter((o) => {
-    if (o.ability || o.fusion) return true
-    const a = untouchedOrder(f, u, o.tile)
-    return !a || !acts.has(`${o.tile}:${a.ability}:${a.target}`)
-  })
-  const group = { parent: S, uid, rules, children: [] }
-  const K = TUNING.expert.beam.static
-  // Scored by the priors alone (the static evaluation with no board's share), a partial turn's board is made only once
-  // the beam takes it (afterstate), and a record's every one.
-  const lazy = !ctx.learned && !K.board && !ctx.keep
-  for (const o of spread(kept, TUNING.expert.beam.options)) {
-    const c = { f: null, parent: S, group, uid, orders: null, done: new Set([...S.done, uid]), o, key: null, value: 0, sit: null, prior: S.prior + o.prior }
-    if (lazy) c.value = K.prior * c.prior
-    else {
-      if (!afterstate(c)) continue
-      const g = c.f
-      if (ctx.learned && !ctx.hybrid) c.value = learnedValue(g)
-      else {
-        c.value = K.prior * c.prior
-        if (K.board) {
-          if (!g.over) c.sit = leanSit(g, ctx.plan)
-          c.value += K.board * judge(g, ctx.from, c.sit).value
-        } else if (g.over) c.value += judge(g, ctx.from).value
-        if (ctx.hybrid) c.value += ctx.hybrid * learnedValue(g)
-      }
-    }
-    group.children.push(c)
-  }
-  // A decision's options ranked by their scores: the record's order (the beam takes them from all decisions alike).
-  group.children.sort((a, b) => b.value - a.value)
-  return group.children
-}
-
-// Partial turn `c`'s board (expand's): its parent's with its piece's option given on a copy (a hold, with what End Turn
-// would have it do, given now). → false where an order of it may not be given (the option is no longer legal).
-function afterstate (c) {
-  if (c.f) return true
-  const g = copy(c.parent.f)
-  const gu = g.byUid.get(c.uid)
-  try {
-    c.orders = commit(g, gu, c.o)
-    if (!c.o.ability && !c.o.fusion && !g.over) {
-      const x = untouchedOrder(g, gu)
-      if (x) c.orders.push(give(g, x))
-    }
-  } catch {
-    return false
-  }
-  c.f = g
-  c.key = keyOf(g)
-  return true
 }
 
 // What End Turn has one of yours yet to act do (turns.js untouched; redesign.md §2.5), as an order: its basic blow from

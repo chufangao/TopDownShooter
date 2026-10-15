@@ -19,23 +19,18 @@
 //           formation decided by the forest out of battle where one decides them and reads another candidate more than
 //           its margin above the growth search's or the plan's (outforest.js, src/sim/expert.json's `outforest`); its target's
 //           kinds fielded first and never let go while another will do; in battle every turn policy.js expertTurn's (a
-//           battle plan kept across turns, its target formation, kill list and forecast: plan.js; then the pieces one at
-//           a time with a beam of partial turns, each option's board scored by the static evaluation plus
-//           TUNING.expert.beam.hybrid × V where V is trained and TUNING.expert.beam.learned: redesign.md §2.21, §6 step
-//           8b), and with V, the formation by V of the battle's opening board among the best the hill-climb met. It never
-//           plays a battle, a turn of the foes, or a route ahead to decide anything.
+//           battle plan kept across turns, its target formation, kill list and forecast: plan.js; then each piece once,
+//           on the board as the ones before it left it, by the model tree, the battle forest overruling it where it is
+//           confident: forest.js). It never plays a battle, a turn of the foes, or a route ahead to decide anything.
 // Essence buys tiers, recruits, fusions and relics (a Shop's): the Monarch's HP and Command come from run relics, a
 // kind's level from its tiers (run.js). The Monarch is the camp's (run.js: on its seat, monarchSlot); nothing moves it.
 // In a battle it gives the level's turn policy's orders, one at a time.
 // Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert] [--workers n]
-// [--static | --learned] (today's static evaluation in the expert's turns and formations, whatever V value.js holds; or
-// V where trained: TUNING.expert.beam.learned and `hybrid` say which by default)
-// (`--ranker <file|none>`: the expert's learned correction, ranker.js, from that file or none; ranker.json by default;
-// `--forest <file|none>`: the expert's forest, forest.js, from that file or none; the shipped expert's by default)
-// for two players on the same seeds, paired:  … --paired <a>,<b> [--runs 256] [--seed sel] [--workers 4]  (each a ranker
-// file, a forest file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, `expert:<file>` a whole expert, or
-// none: today's expert, playerOf)
-// for the gap between the levels:     … --ladder [--runs 8] [--ranker file|none] [--forest file|none]
+// (`--forest <file|none>`: the expert's forest, forest.js, from that file or none; the shipped expert's by default)
+// for two players on the same seeds, paired:  … --paired <a>,<b> [--runs 256] [--seed sel] [--workers 4]  (each a forest
+// file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, `expert:<file>` a whole expert, or none: today's
+// expert, playerOf)
+// for the gap between the levels:     … --ladder [--runs 8] [--forest file|none]
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above; --ablate moves: its
 // pieces never move in battle)
@@ -59,9 +54,7 @@ import {
 } from './unit.js'
 import { roadsTo } from './field.js'
 import { createBattle, playOut, timelineHash, legalOrders, stalled } from './turns.js'
-import { expertTurn, basicTurn, brief, situation, evaluate } from './policy.js'
-import { loaded } from './value.js'
-import { rankerModel, useRanker } from './ranker.js'
+import { expertTurn, basicTurn, brief, situation } from './policy.js'
 import { forestModel, useForest } from './forest.js'
 import {
   outForestModel, useOutForest, outDecides, chooseOut, opensBoard, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS, OUT_ROLES, OUT_ROOMS, PREP_SIT_KEYS,
@@ -1058,29 +1051,7 @@ export function plan (run, L, { onCandidate = null } = {}) {
   const open = openCells(run.state.camp)
   for (let i = 0; i < L.search; i++) take(judge(allowed(run, mutate(best.party, standing(souls(run.state.party)), open, rng, run.state, L), L)))
   const rules = [...turned].sort((a, b) => a - b).map((k) => filters[k].id)
-  const all = [...met.values()]
-  const learned = opening(run, L, all, best)
-  if (learned) return { party: learned.party, by: learned === best ? rules[0] ?? 'weights' : 'value', rules, met: all }
-  return { party: best.party, by: rules[0] ?? 'weights', rules, met: all }
-}
-
-// The formation by V of the battle's opening board (redesign.md §2.21), where V is trained (value.js loaded) and L
-// may use it: of the formations met (each { party, keys, score }: the tree's filters' standing and the static score),
-// the TUNING.expert.beam.formation best by the tree's filters and then the static score, each read again as the board
-// the room would open on (createBattle from the run's setup with that formation: a board computed, no turn played),
-// the tree's filters first, then V (policy.js evaluate). → the formation met it picks, or null where V is not used.
-function opening (run, L, met, best) {
-  const n = TUNING.expert.beam.formation
-  if (!(L.learned ?? TUNING.expert.beam.learned) || !(n > 0) || !loaded()) return null
-  const top = met.slice().sort((a, b) => (outranks(a, b) >= 0 ? -1 : outranks(b, a) >= 0 ? 1 : 0)).slice(0, n)
-  if (!top.includes(best)) top.unshift(best)
-  let pick = null
-  for (const c of top) {
-    const b = createBattle({ ...battleSetup(run, { party: c.party.filter((u) => u.slot >= 0) }), quiet: true })
-    const x = { c, keys: c.keys, score: evaluate(b) }
-    if (pick === null || outranks(x, pick) >= 0) pick = x
-  }
-  return pick.c
+  return { party: best.party, by: rules[0] ?? 'weights', rules, met: [...met.values()] }
 }
 
 // One change to a formation: trade a soul for one from the ossuary (it takes over the cell), swap two, or move
@@ -2431,8 +2402,7 @@ export function policy (run, rng, level = 'basic', turnOptions = null) {
 // once at the turn's start and given an order at a time, End Turn last, as playOut would give them (so a refight under
 // the same policy plays the same battle); planned again should the next no longer be legal (an order given meanwhile by
 // someone else: a test's). Under the audit, each of its decisions is noted with its rule. `turnOptions` go to the turn
-// policy as they are (policy.js expertTurn's: the learner's `record` and `explore`); L's `learned`, where set, overrides
-// TUNING.expert.beam.learned (false: today's static evaluation; true: V where trained).
+// policy as they are (policy.js expertTurn's `record` and `explore`).
 const planned = new WeakMap()
 const same = (a, o) => a.type === o.type && a.uid === o.uid && a.tile === o.tile && a.ability === o.ability && a.target === o.target && a.id === o.id &&
   String(a.parts) === String(o.parts)
@@ -2444,7 +2414,7 @@ function battleOrder (run, L, turnOptions = null) {
   const stale = !p || p.turn !== b.turn || !p.orders.length || (p.orders[0].type !== 'end' && !legalOrders(b).some((a) => same(a, p.orders[0])))
   if (stale) {
     const note = audited(run) ? (r) => noteRule(run, r.decision, r, r.sit ? brief(r.sit) : `turn ${b.turn}`) : null
-    planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b, { ...turnOptions, note, ...(L.learned !== undefined && { learned: L.learned }) }) }))
+    planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b, { ...turnOptions, note }) }))
   }
   return p.orders.shift()
 }
@@ -2505,24 +2475,23 @@ const buildOf = (s) => {
 // (for refighting with a mechanic stripped: necessity; its log left out); how the run ended, what felled the
 // Monarch, the army it ended with, its build (buildOf), and how many of each action it took (`acts`, by type;
 // `tiers`: track tiers its kinds hold at the end; `relics` held, every copy, and the `legendaries` among them). With
-// `ranker` (a ranker.json file's path, or 'none' for today's expert: withRanker), that ranker plays it, the one in use
-// before put back after; `ranker` in the result names the one that played (null for none); `forest` (a forest.json
-// file's path, or 'none': withForest) alike, `forest` in the result; `route` ('hand', 'learned' for route.json, or a
-// route file's path: withRoute) the route it walks; and `outforest` (an outforest.json file's path, or 'none':
-// withOutForest) the forest out of battle that decides its recruits and purchases, `outforest` in the result; and
-// `expert` (an expert file's path, expert.json's shape: withExpert) a whole expert, every part of it at once, the parts
-// named beside it then set over it.
-export function record ({ expert, ranker, forest, route, outforest, ...job }) {
-  return withExpert(expert, () => withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job))))))
+// `forest` (a forest.json file's path, or 'none' for today's expert: withForest), that forest plays it, the one in use
+// before put back after; `forest` in the result names the one that played (null for none); `route` ('hand', 'learned'
+// for route.json, or a route file's path: withRoute) the route it walks; and `outforest` (an outforest.json file's
+// path, or 'none': withOutForest) the forest out of battle that decides its recruits and purchases, `outforest` in the
+// result; and `expert` (an expert file's path, expert.json's shape: withExpert) a whole expert, every part of it at
+// once, the parts named beside it then set over it.
+export function record ({ expert, forest, route, outforest, ...job }) {
+  return withExpert(expert, () => withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => recordRun(job)))))
 }
 // The harness's (redesign.md §3): `scale` the run's difficulty (createRun's), `act` its player in place of the level's
 // policy (autoplay's: the outside teacher), and in the result the archetype it was committed to (commitOf: the caller's,
 // withCommit), each battle's synergies your side held as it began (`syn`), its build (builtOf) and its margin (endOf).
-function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, learned, scale = 1, act = null }) {
+function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, scale = 1, act = null }) {
   const battles = []
   const t0 = Date.now()
   const run = ablatedRun(seed, ablate, null, scale)
-  const L = { ...LEVELS[level], ...(ablate && { ablate }), ...(learned !== undefined && { learned }) }
+  const L = { ...LEVELS[level], ...(ablate && { ablate }) }
   let snap = null
   // The battle the run fell in: its room's rank and the share of its foes' HP removed (progressOf).
   let fell = null
@@ -2575,40 +2544,27 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
     end: endOf(run, battles),
     // Wall time of the run, in seconds (the only field that is not a pure function of the job).
     secs: (Date.now() - t0) / 1000,
-    ranker: rankerModel()?.name ?? null,
     forest: forestModel()?.name ?? null,
     outforest: outForestModel()?.name ?? null
   }
 }
 
-// The ranker a job names (ranker.js; redesign.md §2.23): a configuration's file (read once a worker), 'none' (or null)
-// for none: today's expert, or a configuration itself.
-const RANKERS = new Map()
-export function rankerOf (spec) {
+// The model a job names (a forest, a forest out of battle, a whole expert: its configuration): its file (read once a
+// worker), 'none' (or null) for none, or a configuration itself.
+const MODELS = new Map()
+export function modelOf (spec) {
   if (spec === 'none' || spec === null) return null
   if (typeof spec === 'object') return spec
-  if (!RANKERS.has(spec)) RANKERS.set(spec, JSON.parse(fs.readFileSync(spec, 'utf8')))
-  return RANKERS.get(spec)
+  if (!MODELS.has(spec)) MODELS.set(spec, JSON.parse(fs.readFileSync(spec, 'utf8')))
+  return MODELS.get(spec)
 }
-// `fn()` with the ranker `spec` names in use (rankerOf), the one in use before it put back after; `spec` undefined:
-// whatever is in use (ranker.json where there is one). → what fn returns
-export function withRanker (spec, fn) {
-  if (spec === undefined) return fn()
-  const before = rankerModel()
-  useRanker(rankerOf(spec))
-  try {
-    return fn()
-  } finally {
-    useRanker(before)
-  }
-}
-// The same for a forest (forest.js; the successor of redesign.md §2.23's ranker): `fn()` with the forest `spec` names in
-// use (a forest.json file's path, read once a worker; 'none' or null for none; a configuration itself), the one in use
-// before it put back after; `spec` undefined: whatever is in use (forest.json where there is one). → what fn returns
+// `fn()` with the forest `spec` names in use (forest.js, the successor of redesign.md §2.23's ranker: a forest.json
+// file's path, read once a worker; 'none' or null for none; a configuration itself: modelOf), the one in use before
+// it put back after; `spec` undefined: whatever is in use (the shipped expert's). → what fn returns
 export function withForest (spec, fn) {
   if (spec === undefined) return fn()
   const before = forestModel()
-  useForest(rankerOf(spec))
+  useForest(modelOf(spec))
   try {
     return fn()
   } finally {
@@ -2622,7 +2578,7 @@ export function withForest (spec, fn) {
 export function withOutForest (spec, fn) {
   if (spec === undefined) return fn()
   const before = outForestModel()
-  useOutForest(rankerOf(spec))
+  useOutForest(modelOf(spec))
   try {
     return fn()
   } finally {
@@ -2655,7 +2611,7 @@ export function withRoute (spec, fn) {
 // → what fn returns
 export function withExpert (spec, fn) {
   if (spec === undefined) return fn()
-  const x = rankerOf(spec)
+  const x = modelOf(spec)
   const before = { tree: expertModel(), forest: forestModel(), outforest: outForestModel(), route: routeModel() }
   useExpert(x)
   useForest(x?.forest ?? null)
@@ -2670,23 +2626,20 @@ export function withExpert (spec, fn) {
     useRoute(before.route ?? false)
   }
 }
-// The player a paired comparison names (--paired's a or b): 'none', today's expert (no ranker and no forest, whatever
-// ships); `forest:<file>` a forest; `ranker:<file>` a ranker; a file by its content (a forest's `kind` is 'forest', else
-// a ranker); `route:<hand|learned|file>` the battle player in use (forest.json where it ships) walking that route;
-// `outforest:<file|none>` the expert in use (its battle forest and route as they ship) with that forest out of battle,
-// or none (today's recruits and purchases); `expert:<file>` a whole expert (withExpert). → the job's { ranker, forest },
-// { route }, { outforest } or { expert }
+// The player a paired comparison names (--paired's a or b): 'none', today's expert (no forest, whatever ships);
+// `forest:<file>`, or a file, a forest; `route:<hand|learned|file>` the battle player in use (forest.json where it
+// ships) walking that route; `outforest:<file|none>` the expert in use (its battle forest and route as they ship) with
+// that forest out of battle, or none (today's recruits and purchases); `expert:<file>` a whole expert (withExpert). →
+// the job's { forest }, { route }, { outforest } or { expert }
 export function playerOf (spec) {
-  if (spec === 'none') return { ranker: 'none', forest: 'none' }
+  if (spec === 'none') return { forest: 'none' }
   const whole = String(spec).match(/^expert:(.+)$/)
   if (whole) return { expert: whole[1] }
   const route = String(spec).match(/^route:(.+)$/)
   if (route) return { route: route[1] }
   const out = String(spec).match(/^outforest:(.+)$/)
   if (out) return { outforest: out[1] }
-  const [, kind, file] = String(spec).match(/^(forest|ranker):(.+)$/) ?? [null, null, spec]
-  const isForest = kind ? kind === 'forest' : rankerOf(file)?.kind === 'forest'
-  return isForest ? { ranker: 'none', forest: file } : { ranker: file, forest: 'none' }
+  return { forest: String(spec).match(/^forest:(.+)$/)?.[1] ?? spec }
 }
 
 // One seeded run at `level` with the audit on (AUDIT): what its plans considered and what it fought with, the
@@ -2828,7 +2781,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}${job.expert ? `|expert:${job.expert}` : ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}${job.expert ? `|expert:${job.expert}` : ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))
@@ -2846,10 +2799,9 @@ const jobTime = (job, times) => times[jobKey(job)] ?? (job.refight || job.level 
 
 // Autoplays `runs` seeded runs and prints clear rate, battle length, per-floor progression and how each
 // camp layout fares: a camp far off its floor's average is a balance outlier.
-// With `ablate`, the level with that mechanic taken away (ABLATIONS); with `ranker` (a file, or 'none'), that ranker's;
-// with `forest` (a file, or 'none'), that forest's.
-async function report ({ runs, seed: seed0, level, ablate = null, learned, ranker, forest }) {
-  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(learned !== undefined && { learned }), ...(ranker !== undefined && { ranker }), ...(forest !== undefined && { forest }) })))
+// With `ablate`, the level with that mechanic taken away (ABLATIONS); with `forest` (a file, or 'none'), that forest's.
+async function report ({ runs, seed: seed0, level, ablate = null, forest }) {
+  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(forest !== undefined && { forest }) })))
   const battles = played.flatMap((r) => r.battles)
   const turns = battles.map((b) => b.t).sort((a, b) => a - b)
   const deaths = {}
@@ -2870,7 +2822,7 @@ async function report ({ runs, seed: seed0, level, ablate = null, learned, ranke
   const sum = (key) => played.reduce((n, r) => n + r[key], 0)
   const q = (p) => turns[Math.min(turns.length - 1, Math.floor(p * turns.length))]
   const pct = (n) => `${(100 * n / runs).toFixed(1)}%`
-  console.log(`runs ${runs} (seed ${seed0}, ${level} player${ablate ? `, ${ablate} ablated` : ''}${ranker !== undefined ? `, ranker ${ranker}` : ''}${forest !== undefined ? `, forest ${forest}` : ''})`)
+  console.log(`runs ${runs} (seed ${seed0}, ${level} player${ablate ? `, ${ablate} ablated` : ''}${forest !== undefined ? `, forest ${forest}` : ''})`)
   console.log(`clear rate        ${pct(played.filter((r) => r.result === 'victory').length)}`)
   for (let f = 1; f <= TUNING.run.floors; f++) console.log(`deaths on floor ${f} ${pct(deaths[f] ?? 0)}`)
   console.log(`battles           ${turns.length}, ${(turns.length / runs).toFixed(1)} per run`)
@@ -2925,11 +2877,11 @@ export function pairedStats (A, B) {
   }
 }
 
-// The same `runs` seeds played by the expert as players `a` and `b` (each a ranker file, a forest file, or 'none' for
-// today's expert: playerOf; redesign.md §2.23), and their paired report (pairedStats). A run is a pure function
-// of its seed and its player: every difference is the players'.
-async function paired ({ runs, seed: seed0, level, rankers }) {
-  const [a, b] = rankers
+// The same `runs` seeds played by the expert as players `a` and `b` (each a forest file, a part or a whole expert, or
+// 'none' for today's expert: playerOf; redesign.md §2.23), and their paired report (pairedStats). A run is a pure
+// function of its seed and its player: every difference is the players'.
+async function paired ({ runs, seed: seed0, level, players }) {
+  const [a, b] = players
   const seeds = Array.from({ length: runs }, (_, i) => `${seed0}-${i}`)
   const all = await playAll([a, b].flatMap((spec) => seeds.map((seed) => ({ seed, level, ...playerOf(spec) }))))
   const S = pairedStats(all.slice(0, runs), all.slice(runs))
@@ -2956,12 +2908,11 @@ export const causesOf = (death) => !death ? [] : [death.reason === 'stall' ? 'st
 
 // The same seeds at every level: how far planning lifts a run over rules of thumb. The gap between
 // basic and expert is the game's skill range; a gap near zero means the choices barely matter, and an
-// expert clear rate near 100% means a planner has solved it. With `ranker` (a file, or 'none'), that ranker's; with
-// `forest` (a file, or 'none'), that forest's.
-async function ladder ({ runs, seed: seed0, ranker, forest }) {
+// expert clear rate near 100% means a planner has solved it. With `forest` (a file, or 'none'), that forest's.
+async function ladder ({ runs, seed: seed0, forest }) {
   const levels = Object.keys(LEVELS)
-  const played = await playAll(levels.flatMap((level) => Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ...(ranker !== undefined && { ranker }), ...(forest !== undefined && { forest }) }))))
-  console.log(`runs ${runs} per level (seed ${seed0}${ranker !== undefined ? `, ranker ${ranker}` : ''}${forest !== undefined ? `, forest ${forest}` : ''}), the same seeds at each`)
+  const played = await playAll(levels.flatMap((level) => Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ...(forest !== undefined && { forest }) }))))
+  console.log(`runs ${runs} per level (seed ${seed0}${forest !== undefined ? `, forest ${forest}` : ''}), the same seeds at each`)
   console.log('level    clear  died on floor 1      2      3      4  battles won  relics  reaped')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
@@ -3754,21 +3705,17 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
       return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
     }
     const opts = { seed: arg('seed', 'sim'), level: arg('level', 'expert') }
-    // `--workers n`: the pool's size (one per core by default); `--static`: the expert's turns and formations by today's
-    // static evaluation, whatever value.js holds, `--learned` by V where trained (a report's alone; else
-    // TUNING.expert.beam.learned).
+    // `--workers n`: the pool's size (one per core by default).
     if (arg('workers', null) !== null) WORKERS = Math.max(1, Number(arg('workers', 1)))
-    const learned = process.argv.includes('--static') ? false : process.argv.includes('--learned') ? true : undefined
     if (!LEVELS[opts.level]) throw new Error(`unknown level "${opts.level}": ${Object.keys(LEVELS).join(', ')}`)
     const ablate = arg('ablate', null)
     if (ablate !== null && !ABLATIONS.includes(ablate)) throw new Error(`unknown ablation "${ablate}": ${ABLATIONS.join(', ')}`)
     // `--variants full` (alone or with others): the full expert only, beside whatever ablations are named.
     const variants = arg('variants', null)?.split(',').filter((v) => v !== 'full') ?? ABLATIONS
     for (const v of variants) if (!ABLATIONS.includes(v)) throw new Error(`unknown ablation "${v}": ${ABLATIONS.join(', ')}`)
-    // `--ranker <file|none>`: the expert's ranker (ranker.js) for a report or the ladder, ranker.json where there is
-    // one by default; `--forest <file|none>` its forest (forest.js), forest.json where there is one; `--paired <a>,<b>`:
-    // the same seeds played by a and b (each a ranker or a forest file, or none: playerOf), compared.
-    const ranker = arg('ranker', undefined)
+    // `--forest <file|none>`: the expert's forest (forest.js) for a report or the ladder, the shipped expert's by
+    // default; `--paired <a>,<b>`: the same seeds played by a and b (each a forest file, a part or a whole expert, or
+    // none: playerOf), compared.
     const forest = arg('forest', undefined)
     if (process.argv.includes('--combos')) makeBook()
     // The harness (redesign.md §3): --builds, free play and each archetype committed on the same seeds; --pool, what a run
@@ -3781,15 +3728,15 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
       })
     }
     else if (arg('paired', null)) {
-      const rankers = arg('paired').split(',')
-      if (rankers.length !== 2) throw new Error('--paired <a>,<b>: two players (a ranker or a forest file, or none), comma-separated')
-      await paired({ ...opts, rankers, runs: Number(arg('runs', 256)) })
+      const players = arg('paired').split(',')
+      if (players.length !== 2) throw new Error('--paired <a>,<b>: two players (a forest file, a part or a whole expert, or none), comma-separated')
+      await paired({ ...opts, players, runs: Number(arg('runs', 256)) })
     }
     else if (process.argv.includes('--audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)) })
     else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
     else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
     else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
-    else if (process.argv.includes('--ladder')) await ladder({ ...opts, ranker, forest, runs: Number(arg('runs', RUNS.ladder)) })
-    else await report({ ...opts, ablate, learned, ranker, forest, runs: Number(arg('runs', RUNS.sim)) })
+    else if (process.argv.includes('--ladder')) await ladder({ ...opts, forest, runs: Number(arg('runs', RUNS.ladder)) })
+    else await report({ ...opts, ablate, forest, runs: Number(arg('runs', RUNS.sim)) })
   }
 }

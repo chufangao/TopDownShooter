@@ -43,9 +43,9 @@ them; `--paired expert:a.json,expert:b.json` compares two experts on the same se
 
 The forests are fitted on labels made by playing each candidate out, offline: every option of a piece's decision to
 the battle's end, every recruit to the run's end, every formation through the battle it opens. The same playouts make
-the **teacher**, a slow player that takes the best of them (`teach.js --teacher`, deeper in `teacher.js`; out of
-battle `outside.js`): it is never shipped, and its clear rate is the ceiling of play (every battle is on the screen and
-combat is deterministic, so it calculates only what a player could).
+the **teacher**, a slow player that takes the best of them (`teach.js --teacher`; out of battle `outside.js`): it is
+never shipped, and its clear rate is the ceiling of play (every battle is on the screen and combat is deterministic,
+so it calculates only what a player could).
 
 ```
 npm run sim -- [--runs 8] [--seed sim] [--level expert] [--ablate orders]   # a balance report
@@ -85,10 +85,11 @@ and an elite's draws by kind, the battles on a walk offering each kind, and each
   the expert's); `rules.js` the rules registry (synergies, Legendary relics, boss overrides); `field.js` the
   roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`);
   `map.js` the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
-  their fitting); `autoplay.js` the players and CLI; `rng.js`. Offline only, never imported by play: `teach.js`,
-  `teacher.js`, `outside.js` (labels and the teacher), `fit.js`, `train.js`, `calc.js` (the calculator, a weight-free
-  player and the novice rung, and a rollout teacher over it: redesign.md §3, §8). `ranker.js` and `value.js` are earlier
-  learners, off (no `ranker.json`; V unused by default).
+  their fitting; `forest.js` holds the label rows' encoding the forests read); `autoplay.js` the players and CLI;
+  `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers), `fit.js` (the
+  learned route's fit), `calc.js` (the calculator, a weight-free player and the novice rung, and a rollout teacher
+  over it: redesign.md §3, §8). The earlier learners (V, the ranker), the stronger battle teacher and the turn's beam
+  were removed on 2026-10-15 (redesign.md §8).
 - `src/content.js` is all content as records, one per unit, ability and relic; `src/tuning.js` every balance
   number (`TUNING`, the expert's table included).
 - The interface: `src/main.js` (composition), `ui.js` (screens), `board.js` (the Field's board), `engine.js`

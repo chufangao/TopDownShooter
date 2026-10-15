@@ -16,7 +16,6 @@ import { tileAt } from '../src/sim/unit.js'
 import { on, scene } from './scene.js'
 import { teachRoutes, routeEndOf, routePick, routeAgreement, ROUTE_END_WEIGHTS } from '../src/sim/teach.js'
 import { record, routeModel, policy } from '../src/sim/autoplay.js'
-import { useRanker, rankerModel, createNet, INPUT_SETS as RANKER_SETS } from '../src/sim/ranker.js'
 import { createRng } from '../src/sim/rng.js'
 
 // A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp? }], `hp` the HP it stands at.
@@ -415,30 +414,6 @@ test('a teacher run plays out of battle as today\'s expert: the same actions up 
   assert.ok(t.log.some((a) => a.type === 'fight'))
   assert.deepEqual(t.log, run.state.log)
   assert.deepEqual([t.player, t.battles.fought, t.decisions], ['teacher', 0, 0])
-})
-
-test('--ranker, a configuration\'s `ranker`: installed for the runs and their playouts, from a file too', () => {
-  // A configuration ranker.js takes (it checks what it is given): an untrained one, whether or not one ships.
-  const base = RANKER_SETS.base()
-  const net = createNet({ inputs: base.length, seed: 3 })
-  const cfg = { name: 'teacher-test-ranker', inputs: base, mean: base.map(() => 0), sd: base.map(() => 1), clip: 10, scale: 1, net: { sizes: net.sizes, W: net.W.map((w) => Array.from(w)), b: net.b.map((v) => Array.from(v)) } }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-teacher-test-'))
-  try {
-    useRanker(null)
-    teacherRun('teacher-test-1', { fights: 1, ranker: cfg })
-    assert.deepEqual(rankerModel(), cfg)
-    useRanker(null)
-    const file = path.join(dir, 'ranker.json')
-    fs.writeFileSync(file, JSON.stringify(cfg))
-    teacherRun('teacher-test-1', { fights: 1, ranker: file })
-    assert.deepEqual(rankerModel(), cfg)
-    teacherRun('teacher-test-1', { fights: 1, ranker: null })
-    assert.equal(rankerModel(), null)
-  } finally {
-    // Back to the one ranker.js holds by default.
-    useRanker(undefined)
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
 })
 
 test('drawn by the state, a decision\'s class and chance read the board alone, never the battle\'s outcome', () => {

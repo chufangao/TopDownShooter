@@ -11,28 +11,37 @@
 //                       one). → the one in use, or null
 //   forestModel()       → the forest in use, or null for none
 //
-// With none in use (the shipped expert has no `forest`, or useForest(null)), the expert is today's (or today's with the ranker in use,
-// ranker.js), move for move. A forest in use decides in place of any ranker.
+// With none in use (the shipped expert has no `forest`, or useForest(null)), the expert is today's, move for move.
 //
-// In play (policy.js choice, forested): a piece's candidates are the ranker's (policy.js rankerView: today's shortlist,
-// at most 16, the labels' own, that today's hard rules keep, and today's own choice), today's choice the default. For
-// each other candidate o the forest predicts A(o), its advantage over today's choice (predictor): the mean of its trees'
-// leaves R(o) less today's choice's own R (the centred target, `target` 'mean'), or that mean alone (`target` 'today').
-// The best of them by A (ties as policy.js `better`: the fewer steps, the lower lane, the lower target uid) is taken
-// where its A exceeds the configuration's margin `delta`, else today's choice: the forest deviates only where it is
-// confident, so a forest whose advantages never exceed delta (every tree a single leaf, or of target 'today' every leaf
-// at most delta) is today's expert, move for move. The audit's `by`: the hard rule that filtered first, else 'forest'
-// (and its `margin`, the A it took the option by) where the forest changed the choice, else today's.
+// In play (policy.js choice, forested): a piece's candidates are those §2.23's ranker weighed (policy.js rankerView:
+// today's shortlist, at most 16, the labels' own, that today's hard rules keep, and today's own choice), today's choice
+// the default. For each other candidate o the forest predicts A(o), its advantage over today's choice (predictor): the
+// mean of its trees' leaves R(o) less today's choice's own R (the centred target, `target` 'mean'), or that mean alone
+// (`target` 'today'). The best of them by A (ties as policy.js `better`: the fewer steps, the lower lane, the lower
+// target uid) is taken where its A exceeds the configuration's margin `delta`, else today's choice: the forest deviates
+// only where it is confident, so a forest whose advantages never exceed delta (every tree a single leaf, or of target
+// 'today' every leaf at most delta) is today's expert, move for move. The audit's `by`: the hard rule that filtered
+// first, else 'forest' (and its `margin`, the A it took the option by) where the forest changed the choice, else today's.
 //
 // The inputs, x (inputNames), read alike from a label row and from the board in play (encodeAgainst; a test holds the
-// two equal):
-//   ranker.js encode's  sit.*, role.*, size, opt.*, rel.*, kind.*, steps, and aft.* where a configuration names them
-//                       (the board the option leaves, policy.js afterOf: ~2.2 s more a run, 2026-10-12; rows get them
-//                       from teach.js --augment's after.jsonl)
-//   gap                 today's score of today's choice less the option's (≥ 0: today's choice is the best by it)
-//   vs.*                each option feature less today's choice's: the target is an advantage over that one option,
-//                       and these read it directly ("this option screens and today's does not")
-// Trees need no standardisation: the raw numbers, each rounded to 6 decimals as the rows are written.
+// two equal), every number rounded to 6 decimals as the rows are written. First the rows' (encode, as §2.23's ranker
+// read them):
+//   sit.*   the 68 conditions (expert.js conditions: the situation and the piece's own `self.*`)
+//   role.*  the piece's kind's role (content.js ROLES, one of six), and `size` its kind's (a Colossus track's 2×2 is not
+//           in the rows: the kind's own size)
+//   opt.*   the option's 34 features (policy.js OPTION_FEATURES)
+//   rel.*   each feature less its mean over the position's options that today's hard rules keep (the options the
+//           labels hold for that decision, each set of orders once: teach.js's rows), so "the least endangered of my
+//           options" is read whatever the board's level
+//   kind.*  stay, move (and no act), act (from where it stands), moveAct, fusion; and `steps`, the tiles it walks
+//   aft.*   "after the move", where a configuration names them: the conditions of the board the option leaves (policy.js
+//           afterOf: the option given on a copy as teach.js's playouts give it, read as the decision is) less the
+//           decision's own, 68 more (~2.2 s more a run, 2026-10-12; rows get them from teach.js --augment's after.jsonl)
+// then the forest's own:
+//   gap     today's score of today's choice less the option's (≥ 0: today's choice is the best by it)
+//   vs.*    each option feature less today's choice's: the target is an advantage over that one option, and these read
+//           it directly ("this option screens and today's does not")
+// Trees need no standardisation: the raw numbers.
 //
 // The target (targetsOf), a row an option of a position: its playout value (teach.js, to the battle's end: −10 a battle
 // lost, else the HP shares carried and the rounds) less the mean of its position's options' (`target` 'mean', the
@@ -58,7 +67,7 @@
 // clipped, as the ranker's). Labels drawn by their battle's outcome (L2, L3) are biased (in a lost battle today's choice
 // loses by construction); their `wt` (1 / the draw's chance) would undo it in expectation, read `weighted`, at a cost in
 // variance (a calm decision of a won battle weighs 33): no forest kept reads them. Seeds ≡ 0 mod 5 are held out
-// (ranker.js splitOf), never fitted; the rest are fitted. Worker threads, typed arrays.
+// (splitOf), never fitted; the rest are fitted. Worker threads, typed arrays.
 //
 // Shipped as forest.json: { kind: 'forest', name, about, made, data, inputs (the names its splits read), target, delta,
 // size (each tree's nodes), feat (a node's input, an index into `inputs`; −1 a leaf), thr (an inner node's threshold:
@@ -114,13 +123,25 @@
 // The last, on 768 fresh seeds `chk6`: against round 2, clears 36.3% against 34.2% (+107 −91), progress +1.94 ± 1.27,
 // at 5.1 s a run against 4.9; against today's expert, clears 36.3% against 30.7% (+111 −68), progress +3.67 ± 1.22, at
 // 5.2 s against 2.5. Kept as forest.json (200 trees, 201,376 nodes, 2.3 MB), on the gain in progress.
-import { encode, meanOf, rowView, playView, rowAfter, afterNames, inputNames as rankerNames, INPUT_SETS as RANKER_SETS, splitOf, linesOf, labelsIn } from './ranker.js'
-import { mulberry } from './value.js'
-import { shippedPart } from './expert.js'
+import { shippedPart, conditions } from './expert.js'
+import { OPTION_FEATURES } from './policy.js'
+import { ROLES, unitDef } from '../content.js'
 import { LANE } from './field.js'
 import { tileX } from './unit.js'
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
+
+// A small seeded generator (mulberry32): [0, 1).
+export function mulberry (seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
 
 // ── the forest in use ────────────────────────────────────────────────────────────────────────────
 
@@ -166,34 +187,124 @@ export function checkForest (config) {
 
 // ── the inputs ───────────────────────────────────────────────────────────────────────────────────
 
+// The option's kinds, in order (encode's kind.*).
+const KINDS = Object.freeze(['stay', 'move', 'act', 'moveAct', 'fusion'])
 const r6 = (x) => Math.round(x * 1e6) / 1e6
-// A number as the rows write it (ranker.js's): rounded to 6 decimals, a flag 0 or 1, anything else 0.
+// A number as the rows write it: rounded to 6 decimals, a flag 0 or 1, anything else 0.
 const num = (x) => (typeof x === 'number' ? (Number.isFinite(x) ? r6(x) : 0) : typeof x === 'boolean' ? +x : 0)
 
-// The inputs' layout (made at first use, as ranker.js's): ranker.js's inputs, then `gap` and vs.*; F the option
-// features (opt.*'s), `opt` where opt.* starts.
+// The rows' layout in code (made at first use: policy.js and this file import each other): the conditions (C), the
+// roles (R), the option features (F), and every row input's name in order (`names`; `base`, those but the afterstate's);
+// the first `shared` are the decision's, alike for all its options.
+let ROWS = null
+function rowLayout () {
+  if (ROWS) return ROWS
+  const C = Object.keys(conditions({}, { uid: -1, hp: 1, maxHp: 1 }))
+  const R = Object.keys(ROLES).filter((r) => r !== 'monarch')
+  const F = [...OPTION_FEATURES]
+  const base = [...C.map((k) => `sit.${k}`), ...R.map((r) => `role.${r}`), 'size', ...F.map((k) => `opt.${k}`), ...F.map((k) => `rel.${k}`), ...KINDS.map((k) => `kind.${k}`), 'steps']
+  const names = [...base, ...C.map((k) => `aft.${k}`)]
+  ROWS = { C, R, F, base, names, D: names.length, shared: C.length + R.length + 1 }
+  return ROWS
+}
+// The conditions an afterstate is read as (aft.*'s, in order).
+export const afterNames = () => rowLayout().C
+
+// An option as the rows read it ({ f: its features by name, steps, act, fusion, after: the conditions of the board it
+// leaves, null where unread }): from the play (an option of policy.js expertOptions, its features read: `v`; its
+// afterstate `after`, policy.js afterOf, where the forest reads it) and from a label row's option (teach.js: `f` with
+// its zeros left out; `after`, rowAfter's).
+export const playView = (o) => ({ f: o.v, steps: o.path.length, act: !!o.ability, fusion: !!o.fusion, after: o.after ?? null })
+export const rowView = (o, after = null) => ({ f: o.f, steps: o.steps, act: o.ability != null, fusion: o.fusion != null, after })
+
+// An afterstate's conditions (policy.js afterOf's) against a row's own (`sit`, its zeros left out), as after.jsonl
+// writes them: [k, v, …], each condition (afterNames' index k) whose value v, rounded as the rows are, differs. → the
+// list
+export function afterDiff (after, sit) {
+  const C = rowLayout().C
+  const out = []
+  for (let k = 0; k < C.length; k++) {
+    const v = num(after[C[k]])
+    if (v !== num(sit[C[k]])) out.push(k, v)
+  }
+  return out
+}
+// The afterstate's conditions of a row's option back from after.jsonl's list (`diff`, against `names`: after.json's
+// conditions, the writer's afterNames; null where it was not read): the row's own with those it changes. → by name, or
+// null
+export function rowAfter (sit, diff, names = afterNames()) {
+  if (!diff) return null
+  const a = { ...sit }
+  for (let j = 0; j < diff.length; j += 2) a[names[diff[j]]] = diff[j + 1]
+  return a
+}
+
+// The reference of a position: each feature's mean over its options (views) that today's hard rules keep.
+export function meanOf (views) {
+  const { F } = rowLayout()
+  const m = new Float64Array(F.length)
+  if (!views.length) return m
+  for (const w of views) for (let k = 0; k < F.length; k++) m[k] += num(w.f[F[k]])
+  for (let k = 0; k < F.length; k++) m[k] /= views.length
+  return m
+}
+
+// The rows' inputs of an option `view` of a decision: its conditions `c` (by name), the deciding piece's kind `unit` (a
+// unit id), and `mean` (meanOf: its position's reference). Written into `out` (in the rows' layout, the first of
+// inputNames'). → out
+export function encode (c, unit, view, mean, out = new Float64Array(rowLayout().D)) {
+  encodeDecision(c, unit, out)
+  encodeOption(view, mean, out, c)
+  return out
+}
+function encodeDecision (c, unit, out) {
+  const { C, R } = rowLayout()
+  for (let i = 0; i < C.length; i++) out[i] = num(c[C[i]])
+  const def = unitDef(unit)
+  for (let j = 0; j < R.length; j++) out[C.length + j] = def.role === R[j] ? 1 : 0
+  out[C.length + R.length] = def.size ?? 1
+}
+function encodeOption (view, mean, out, c) {
+  const { C, F, shared } = rowLayout()
+  const n = F.length
+  for (let k = 0; k < n; k++) {
+    const x = num(view.f[F[k]])
+    out[shared + k] = x
+    out[shared + n + k] = x - mean[k]
+  }
+  const kind = view.fusion ? 4 : view.act ? (view.steps > 0 ? 3 : 2) : view.steps > 0 ? 1 : 0
+  for (let j = 0; j < KINDS.length; j++) out[shared + 2 * n + j] = j === kind ? 1 : 0
+  out[shared + 2 * n + KINDS.length] = num(view.steps)
+  // The afterstate less the decision: 0 throughout where it was not read.
+  const at = shared + 2 * n + KINDS.length + 1
+  const a = view.after
+  for (let k = 0; k < C.length; k++) out[at + k] = a ? num(a[C[k]]) - num(c[C[k]]) : 0
+}
+
+// The inputs' layout: the rows' (rowLayout), then `gap` and vs.*; F the option features (opt.*'s), `opt` where opt.*
+// starts.
 let LAYOUT = null
 function layout () {
   if (LAYOUT) return LAYOUT
-  const R = rankerNames()
+  const R = rowLayout().names
   const F = R.filter((n) => n.startsWith('opt.')).map((n) => n.slice(4))
   const extra = ['gap', ...F.map((k) => `vs.${k}`)]
   LAYOUT = { F, extra, names: [...R, ...extra], D: R.length + extra.length, opt: R.indexOf(`opt.${F[0]}`), gap: R.length, vs: R.length + 1 }
   return LAYOUT
 }
 // The inputs by name, in the order encodeAgainst writes them; and the sets a forest is fitted on (INPUT_SETS): the
-// ranker's round-1 inputs with the forest's own, and with the afterstate's too.
+// rows' but the afterstate's (the ranker's round-1 inputs) with the forest's own, and with the afterstate's too.
 export const inputNames = () => layout().names
-export const INPUT_SETS = Object.freeze({ base: () => [...RANKER_SETS.base(), ...layout().extra], aft: () => layout().names })
+export const INPUT_SETS = Object.freeze({ base: () => [...rowLayout().base, ...layout().extra], aft: () => layout().names })
 
-// An option as the forest reads it: the ranker's view (ranker.js playView in play, rowView of a label row's option)
-// with its `prior`, today's score of it (in play `o.score`, expert.js decideTree's; a row's `prior`, the same score).
+// An option as the forest reads it: its view (playView in play, rowView of a label row's option) with its `prior`,
+// today's score of it (in play `o.score`, expert.js decideTree's; a row's `prior`, the same score).
 export const playOf = (o) => ({ ...playView(o), prior: o.score })
 export const rowOf = (o, after = null) => ({ ...rowView(o, after), prior: o.prior })
 
 // The raw inputs of option `view` of a decision (conditions `c`, the piece's kind `unit`, `mean` its position's
-// reference: ranker.js meanOf) against today's choice `own` (its view, the same way): ranker.js encode's, then the gap of
-// today's score and each feature less today's choice's. Written into `out` (inputNames' layout). → out
+// reference: meanOf) against today's choice `own` (its view, the same way): encode's, then the gap of today's score and
+// each feature less today's choice's. Written into `out` (inputNames' layout). → out
 export function encodeAgainst (c, unit, view, mean, own, out = new Float64Array(layout().D)) {
   const L = layout()
   encode(c, unit, view, mean, out)
@@ -273,6 +384,22 @@ export function predictor (model, c, unit, mean, own) {
 }
 
 // ── the labels ───────────────────────────────────────────────────────────────────────────────────
+
+// The lines of a label file, streamed (a labels.jsonl of 90 MB is read a line at a time).
+export async function * linesOf (file) {
+  const fs = node('fs')
+  const readline = node('readline')
+  const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity })
+  for await (const line of rl) if (line.trim()) yield line
+}
+// A label set's file: a directory's labels.jsonl, else the file named.
+export const labelsIn = (where) => {
+  const fs = node('fs')
+  return fs.statSync(where).isDirectory() ? `${where.replace(/\/$/, '')}/labels.jsonl` : where
+}
+
+// The split of a position by its seed's number (teach.js `run`): ≡ 0 mod 5 held out, ≡ 1 validation, the rest training.
+export const splitOf = (run) => (run % 5 === 0 ? 'held' : run % 5 === 1 ? 'val' : 'train')
 
 const EPS = 1e-9
 // The better of two label options by today's score (ties as policy.js better: the fewer steps, the lower lane, the
