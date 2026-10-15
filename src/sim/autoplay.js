@@ -67,7 +67,7 @@ import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
   relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat,
-  spawnPool, draftPool, drawRoom, varyRoutes
+  spawnPool, draftOffer, drawRoom, varyRoutes
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -3614,10 +3614,11 @@ const countsFor = (syn, id) => Object.entries(syn.needs).some(([axis, need]) => 
 // The availability table: `draws`, each floor's share of a fight's and an elite's draws by kind (spawnPool's weights,
 // each pool summing to one); `battles`, by floor, the expected battles on a walk and by kind the expected battles on it
 // offering that kind, over the floors of seeds `<seed>-0`… (`runs` of them; a walk takes each fork evenly: visits);
-// `draft`, the expected picks of the draft offering each kind; `recipes`, each recipe's parts with their expected
-// battles by floor and by the end of floor 2, and its `reach`: the least of its parts' by the end of floor 2, a fused
-// part's its own recipe's (criterion 1 asks 3 or more of its first fusion); `synergies`, each synergy's expected battles
-// by the end of floor 2 offering a kind of its kin or role (a battle once).
+// `draft`, the expected picks of the draft offering each kind on the same seeds, each pick taken evenly (draftOffer: a
+// pick's offer reads the souls taken); `recipes`, each recipe's parts with their expected battles by floor and by the
+// end of floor 2, and its `reach`: the least of its parts' by the end of floor 2, a fused part's its own recipe's
+// (criterion 1 asks 3 or more of its first fusion); `synergies`, each synergy's expected battles by the end of floor 2
+// offering a kind of its kin or role (a battle once).
 export function poolTable ({ runs = 256, seed = 'div' } = {}) {
   const floors = Array.from({ length: TUNING.run.floors }, (_, i) => i + 1)
   const norm = (p) => {
@@ -3641,8 +3642,16 @@ export function poolTable ({ runs = 256, seed = 'div' } = {}) {
       }
     }
   }
-  const pool = draftPool()
-  const draft = Object.fromEntries(pool.map((id) => [id, TUNING.draft.picks * Math.min(1, TUNING.draft.offer / pool.length)]))
+  const draft = {}
+  const deal = (seed, held, p) => {
+    if (held.length >= TUNING.draft.picks) return
+    const offer = draftOffer(seed, held.length, held)
+    for (const id of offer) {
+      draft[id] = (draft[id] ?? 0) + p / runs
+      deal(seed, [...held, id], p / offer.length)
+    }
+  }
+  for (let k = 0; k < runs; k++) deal(`${seed}-${k}`, [], 1)
   const by = (id, floor) => battles[floor - 1].kinds[id] ?? 0
   const byTwo = (id) => by(id, 1) + by(id, 2)
   const reachOf = (r) => Math.min(...Object.keys(r.needs).map((id) => (unitDef(id).fused ? Math.min(...FUSION_LIST.filter((x) => x.result === id).map(reachOf)) : byTwo(id))))

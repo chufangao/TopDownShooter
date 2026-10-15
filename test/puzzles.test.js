@@ -433,6 +433,8 @@ test('puzzle: a wounded Monarch takes the altar, and walks into no elite', () =>
   }
   // Less wounded, but below the elite's threshold: an elite beside a fight is refused, the elite weighed far above.
   const elite = crossroads(['elite', 'fight'])
+  // The same foes in both, so the odds choose neither.
+  elite.nodes[1].foes = elite.nodes[0].foes
   const e = monarchOf(elite.run.state)
   e.hp = Math.floor(e.maxHp * (T.altar + T.elite) / 2)
   const sit = survey(elite.run)

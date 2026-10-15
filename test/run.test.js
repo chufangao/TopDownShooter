@@ -5,7 +5,7 @@ import {
   MONARCH_UID, monarchOf, souls, battleSetup, encounter, drawRoom, roomThreats,
   foeEssence, baseField, inOssuary, OSSUARY, soulCount, canPlace, canFuse, fuseCost, fuseParts,
   levelOf, kindLevel, commandOf, monarchHp, ariseOf, frontier, tierCost, floorPrice, releaseRefund, relicPrice, canBuy, shopOffers,
-  eliteBonus, relicTier, ariseHeld, unheld, START_PARTY, draftOffer, draftPool, startFor
+  eliteBonus, relicTier, ariseHeld, unheld, START_PARTY, draftOffer, draftPool, partners, startFor, spawnPool
 } from '../src/sim/run.js'
 import { fork, legalOrders, stalled } from '../src/sim/turns.js'
 import { autoplay, policy, LEVELS, planFor } from '../src/sim/autoplay.js'
@@ -109,7 +109,7 @@ test('the draft: each pick joins its soul free and deals the next offer; the las
   for (let k = 0; k < TUNING.draft.picks; k++) {
     assert.equal(s.phase, 'draft')
     assert.equal(s.draft.pick, k)
-    assert.deepEqual(s.draft.offer, draftOffer('picks', k))
+    assert.deepEqual(s.draft.offer, draftOffer('picks', k, taken))
     const index = k % s.draft.offer.length
     taken.push(s.draft.offer[index])
     apply(run, { type: 'pick', index })
@@ -132,7 +132,7 @@ test('the draft: each pick joins its soul free and deals the next offer; the las
 test('the draft: a kind may be taken twice, each a soul of its own; offers are the seed\'s, and every floor-1 kind comes up', () => {
   // A seed whose later pick offers a kind taken at the first.
   let seed = null
-  for (let i = 0; i < 200 && !seed; i++) if (draftOffer(`twice-${i}`, 1).includes(draftOffer(`twice-${i}`, 0)[0])) seed = `twice-${i}`
+  for (let i = 0; i < 200 && !seed; i++) if (draftOffer(`twice-${i}`, 1, draftOffer(`twice-${i}`, 0).slice(0, 1)).includes(draftOffer(`twice-${i}`, 0)[0])) seed = `twice-${i}`
   assert.ok(seed)
   const run = createRun({ seed })
   const kind = run.state.draft.offer[0]
@@ -144,8 +144,83 @@ test('the draft: a kind may be taken twice, each a soul of its own; offers are t
   // The same seed, the same offers; another seed, its own.
   assert.deepEqual(createRun({ seed: 'same' }).state.draft.offer, createRun({ seed: 'same' }).state.draft.offer)
   const seen = new Set()
-  for (let i = 0; i < 60; i++) for (let k = 0; k < TUNING.draft.picks; k++) for (const id of draftOffer(`seen-${i}`, k)) seen.add(id)
+  for (let i = 0; i < 60; i++) {
+    const held = []
+    for (let k = 0; k < TUNING.draft.picks; k++) {
+      const offer = draftOffer(`seen-${i}`, k, held)
+      for (const id of offer) seen.add(id)
+      held.push(offer[i % offer.length])
+    }
+  }
   assert.deepEqual([...seen].sort(), draftPool().slice().sort())
+})
+
+// redesign.md §4.2: from the second pick, the offer holds a plan.
+test('the draft guarantees a plan: every pick after the first offers a kin-mate or a recipe partner of a soul held', () => {
+  // The relation, read from the kins and the recipes: a kin (a kind its own), a recipe across kins, nothing else.
+  assert.ok(partners('grave_ghoul', 'tomb_knight') && partners('grave_ghoul', 'grave_ghoul') && partners('will_o_wisp', 'frost_sprite'))
+  assert.ok(partners('frost_sprite', 'ember_drake') && partners('ember_drake', 'frost_sprite'), 'the Rime Drake\'s parts, a Fae and a Drake')
+  assert.ok(!partners('pyre_hound', 'frost_sprite') && !partners('clockwork_page', 'hive_warden') && !partners('grave_ghoul', 'will_o_wisp'))
+  for (const r of FUSION_LIST) for (const a of Object.keys(r.needs)) for (const b of Object.keys(r.needs)) assert.ok(partners(a, b), `${r.id}: ${a}, ${b}`)
+  // Every pick of every path through the draft, on many seeds: the offer as many different floor-1 kinds as TUNING says,
+  // the seed's (the same twice), and from the second pick one at least goes with a soul held. The first pick's is the
+  // draw as it was, and a later one differs from the plain draw only where that draw had no partner, in one place.
+  const plain = (seed, pick) => createRng(seed).stream(`draft|${pick}`).shuffle(draftPool()).slice(0, TUNING.draft.offer)
+  let offers = 0
+  let dealt = 0
+  const walk = (seed, held) => {
+    if (held.length >= TUNING.draft.picks) return
+    const offer = draftOffer(seed, held.length, held)
+    const where = `${seed} ${held.join(',')}: ${offer.join(',')}`
+    assert.equal(offer.length, TUNING.draft.offer, where)
+    assert.equal(new Set(offer).size, offer.length, where)
+    assert.ok(offer.every((id) => draftPool().includes(id)), where)
+    assert.deepEqual(draftOffer(seed, held.length, held.slice()), offer, where)
+    const was = plain(seed, held.length)
+    const mate = (o) => o.some((id) => held.some((h) => partners(h, id)))
+    if (!held.length || mate(was)) assert.deepEqual(offer, was, where)
+    else {
+      assert.ok(mate(offer), where)
+      assert.equal(offer.filter((id, i) => id !== was[i]).length, 1, where)
+      dealt++
+    }
+    offers++
+    for (const id of offer) walk(seed, [...held, id])
+  }
+  for (let i = 0; i < 100; i++) walk(`plan-${i}`, [])
+  assert.equal(offers, 100 * (1 + TUNING.draft.offer + TUNING.draft.offer ** 2))
+  assert.ok(dealt > 0, 'some draws had no partner')
+  // The run deals it: each later offer in a run is draftOffer's for the souls the picks took.
+  const run = createRun({ seed: 'plan-run' })
+  for (let k = 0; k < TUNING.draft.picks; k++) {
+    assert.deepEqual(run.state.draft.offer, draftOffer('plan-run', k, souls(run.state.party).map((u) => u.id)))
+    if (k) assert.ok(run.state.draft.offer.some((id) => souls(run.state.party).some((u) => partners(u.id, id))))
+    apply(run, { type: 'pick', index: 2 })
+  }
+})
+
+// TUNING.spawn's tierFalloff and tierOverCap (redesign.md §4.2): a room's draws by tier, each pool summing to one.
+test('the pool by floor: tier 1 the bulk of floor 1 and still a fifth of floor 3; tier 3 a few per cent of floor 2, a tenth of floor 3', () => {
+  const shares = (floor, bias = 0) => {
+    const p = spawnPool(floor, bias)
+    const sum = p.weights.reduce((a, b) => a + b, 0)
+    const out = {}
+    p.units.forEach((u, i) => { out[u.tier] = (out[u.tier] ?? 0) + p.weights[i] / sum })
+    return out
+  }
+  for (let floor = 1; floor <= TUNING.run.floors; floor++) {
+    for (const bias of [0, TUNING.spawn.eliteTier]) {
+      const t = shares(floor, bias)
+      assert.ok(Math.abs(Object.values(t).reduce((a, b) => a + b, 0) - 1) < 1e-9, `floor ${floor} +${bias}`)
+      assert.ok(spawnPool(floor, bias).units.every((u) => u.spawn.minFloor <= floor && !u.boss), `floor ${floor} +${bias}`)
+    }
+  }
+  const [f1, f2, f3] = [1, 2, 3].map((floor) => shares(floor))
+  assert.ok(f1[1] > 0.65 && f1[1] < 0.9 && !f1[3], JSON.stringify(f1))
+  assert.ok(f2[3] > 0.02 && f2[3] < 0.1, JSON.stringify(f2))
+  assert.ok(f3[3] > 0.07 && f3[3] < 0.2 && f3[1] > 0.15 && f3[1] < 0.3, JSON.stringify(f3))
+  // An elite still leans a tier up: floor 1's to tier 2, floor 3's to tier 3.
+  assert.ok(shares(1, TUNING.spawn.eliteTier)[2] > 0.5 && shares(3, TUNING.spawn.eliteTier)[3] > 0.35)
 })
 
 test('replay: a drafted run replays from its picks; a log from before the draft replays from the old trio', () => {

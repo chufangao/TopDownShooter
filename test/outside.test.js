@@ -11,8 +11,9 @@ import { createRun, apply, currentNode } from '../src/sim/run.js'
 import { policy, autoplay } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 
-// sim-0's expert falls on floor 1 after five battles: a whole run in about a second, so a playout to its end is cheap.
-const SEED = 'sim-0'
+// sim-10's expert falls on floor 1 after five battles: a whole run in about a second, so a playout to its end is cheap.
+// (sim-0 until the pool was flattened, 2026-10-15: its run clears now.)
+const SEED = 'sim-10'
 const copyOf = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
 
 // The base's run on `seed`, each step out of battle handed to `visit(run, action)` before it is applied; `until(run)`
@@ -121,8 +122,8 @@ test('a formation is judged by its coming battle, the base\'s own first', () => 
 })
 
 test('with won, a decision whose base\'s line clears the run plays that line alone and keeps the base\'s pick', () => {
-  // sim-5's expert clears: late on floor 4 its own line clears from wherever it stands.
-  const { run, rng } = walk('sim-5', { until: (r) => r.state.floor === 4 && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2 })
+  // sim-3's expert clears: late on floor 4 its own line clears from wherever it stands.
+  const { run, rng } = walk('sim-3', { until: (r) => r.state.floor === 4 && (currentNode(r)?.rank ?? 0) >= 11 && candidatesAt(r).cands?.length >= 2 })
   const own = baseStep(run)
   assert.deepEqual(outsideTeacher(run, rng, { won: true }), own)
   const st = outsideStats(run)
