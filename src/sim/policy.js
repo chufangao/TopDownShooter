@@ -24,8 +24,8 @@ import { call } from './rules.js'
 import { value as weighed, TREES, conditions, expertModel, decideTree, readTree, scoreOf, hardFilter, defaultExpert } from './expert.js'
 import { value as learnedValue } from './value.js'
 import { readPlan } from './plan.js'
-import { rankerModel, scorer, playView, meanOf, readsAfter } from './ranker.js'
-import { forestModel, predictor, playOf, readsAfter as forestReadsAfter } from './forest.js'
+import { rankerModel, scorer, readsAfter } from './ranker.js'
+import { forestModel, predictor, playOf, playView, meanOf, readsAfter as forestReadsAfter } from './forest.js'
 
 // ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
 
@@ -1219,7 +1219,7 @@ function ranked (battle, u, sit, opts, c, model, R) {
 // today's choice where its orders are not among them (as teach.js finds it among all: a move whose End-Turn blow is an
 // act at the same foe from the same tile, that act), each set of orders once, the first kept (a stay whose End-Turn
 // blow is another option's act is that option); `candidates`, the shortlist's options the hard rules keep and today's
-// choice; `mean`, the reference the inputs are read against (ranker.js meanOf: over the label's options the hard rules
+// choice; `mean`, the reference the inputs are read against (forest.js meanOf: over the label's options the hard rules
 // keep). → { today, own, short, label, kept (a Set), candidates, mean }
 export function rankerView (battle, u, sit, opts, c = conditions(sit, u), model = expertModel()) {
   const today = decideTree(model, c, opts, { better })

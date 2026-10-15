@@ -106,7 +106,7 @@
 //
 // The teacher (below, `--teacher`): this labeller as a player, every battle decision of a run the playout-best.
 // The afterstates (below, `--augment <dir>`): a label set's runs replayed and each option's afterstate written beside its
-// labels (after.jsonl), for the ranker's "after the move" inputs (ranker.js aft.*).
+// labels (after.jsonl), for the forest's "after the move" inputs (forest.js aft.*).
 //
 // `--out` defaults to the OS's temp directory (retinue-teach-<seed>); a stage stopped part way goes on from where it
 // was (runs.jsonl names the runs done). Delete it (or take another --seed) once the game or the expert has changed.
@@ -120,8 +120,8 @@ import { createRng, hashString } from './rng.js'
 import { policy, survey, roomFeatures, routeConditions, routeFeatures, tierScale, ROUTE_FEATURES, progressOf, foeShare, routeRooms, useRoute, routeModel, record, ablatedRun } from './autoplay.js'
 import * as P from './policy.js'
 import * as E from './expert.js'
-import { useRanker, rankerModel, afterDiff, afterNames } from './ranker.js'
-import { useForest, forestModel } from './forest.js'
+import { useRanker, rankerModel } from './ranker.js'
+import { useForest, forestModel, afterDiff, afterNames } from './forest.js'
 import { readPlan } from './plan.js'
 import { fork, order, canAct, allowed, targetsFrom, pick, helped, lined, stalled } from './turns.js'
 import { alive, footprint, isBlow, blowReach, distanceBetween, lineEnds, LINE_AT, LINE_TILES, TILES, tileX } from './unit.js'
@@ -655,7 +655,7 @@ export function teachRun (seed, cfg = {}) {
 // line) on `board` (a copy of the board it was labelled on: the run replayed to its decision, augmentRun). Each of the
 // row's options found among the piece's (policy.js expertOptions, by its tile, act, target and fusion) and given on a
 // copy as the playouts give it (policy.js afterOf, the very read play makes), its conditions written against the row's
-// own (ranker.js afterDiff: those that differ, rounded as the rows are); null where it is not found or may not be given.
+// own (forest.js afterDiff: those that differ, rounded as the rows are); null where it is not found or may not be given.
 // `same`: whether the board's own conditions, read as the row's were, are the row's `sit` (the replay is the run). →
 // { same, a (one an option, in the row's order) }
 export function afterRow (board, row) {

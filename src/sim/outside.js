@@ -113,9 +113,8 @@ import {
   prepCandidates, prepRead, formationName, PREP_CAP, pickDraft
 } from './autoplay.js'
 import { outForestModel, outDecides } from './outforest.js'
-import { splitOf } from './ranker.js'
 import { value, expertModel } from './expert.js'
-import { forestModel } from './forest.js'
+import { forestModel, splitOf } from './forest.js'
 import {
   routeEndValue, routeEndOf, routeValue, ROUTE_END_WEIGHTS, ROUTE_WEIGHTS, endTally, endValue, END_WEIGHTS, expertRun, pairedReport, closeOf
 } from './teach.js'

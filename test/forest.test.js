@@ -10,9 +10,9 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   useForest, forestModel, checkForest, inputNames, INPUT_SETS, encodeAgainst, playOf, rowOf, predict, predictor, readDecision, readTable, fitForest,
-  growTree, readsAfter, FIT
+  growTree, readsAfter, FIT, meanOf, rowView, mulberry
 } from '../src/sim/forest.js'
-import { useRanker, rankerModel, meanOf, rowView, createNet, INPUT_SETS as RANKER_SETS } from '../src/sim/ranker.js'
+import { useRanker, rankerModel, createNet, INPUT_SETS as RANKER_SETS } from '../src/sim/ranker.js'
 import { expertTurn, situation, expertOptions, features, conditions, rankerView, afterOf } from '../src/sim/policy.js'
 import { teachRun, teacherRun } from '../src/sim/teach.js'
 import { readPlan } from '../src/sim/plan.js'
@@ -20,7 +20,6 @@ import { createRun, apply } from '../src/sim/run.js'
 import { policy, record, withForest, playerOf } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { fork } from '../src/sim/turns.js'
-import { mulberry } from '../src/sim/value.js'
 import { on, scene } from './scene.js'
 
 const NAMES = inputNames()
