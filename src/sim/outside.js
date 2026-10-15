@@ -103,13 +103,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  apply, availableNodes, currentNode, canPlace, canHold, canBuy, relicPrice, unheld, souls, fielded, inOssuary, isMonarch, soulCount,
-  rosterCap, OSSUARY, ascensionTop, BASE_MONARCH
+  apply, availableNodes, currentNode, canPlace, canHold, canBuy, relicPrice, unheld, souls, fielded, isMonarch, soulCount, rosterCap, OSSUARY,
+  ascensionTop, BASE_MONARCH
 } from './run.js'
 import { createRng, hashString } from './rng.js'
 import {
-  LEVELS, policy, survey, planFor, plan, pickRoute, pickHold, grow, spendOptions, fusionOptions,
-  pickReap, weighRecruits, buyFor, growthOf, sketch, saving, nextTier, held, tierRate, offerState, targetOf, targetKinds, byFieldPower,
+  LEVELS, policy, survey, planFor, plan, pickRoute, pickHold, pickReap, buyFor, growthOf, sketch, held, tierRate, offerState,
   progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, outCandidates, spendPick, recruitPick, outsideRead,
   prepCandidates, prepRead, formationName, PREP_CAP, pickDraft, pickAltar, altarCandidates, asMonarch, monarchArg
 } from './autoplay.js'

@@ -1513,6 +1513,9 @@ run Continued from a save mid-battle in turn 2 at ascension 2, at an altar, at a
 runs and an audit's; the flares of every rule at work; the twelve at their edges; and in the tests that were, How to
 play's Wave at a level and the reports' and the level line's floors), all passing (`--test-concurrency=2`, 272 s).
 
+**A cleanup after Step 9**: two timing tests in CPU time and on a clock of their own; the forest's fitting out of the build
+(`forestfit.js`, 3505 → 3466 KB); a scene outliving its run ignored; the teachers' `--monarch`. The expert's logs the same.
+
 ### The product (Step 9, 2026-10-15)
 
 **Built** (§4.8's meta but the Monarch variants, which wait on `src/content.js`; and a store build; on 710a50a, merged

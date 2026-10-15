@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { order, corpses, risable, addStatus, applyDamage, settle } from '../src/sim/turns.js'
 import {
-  createRun, apply, replay, legalActions, bossPool, bossFor, bossIn, leaningOf, leanings, LEANINGS, courtPool, drawRoom, foeMods, foeScale,
+  createRun, apply, replay, legalActions, bossPool, bossFor, bossIn, leaningOf, leanings, LEANINGS, courtPool, foeMods, foeScale,
   roomThreats, unanswered, answerArmy, ANSWERS, routeThreats, ascensionTop, ascensionOf, souls, START_PARTY, currentNode, eliteBonus, foeEssence
 } from '../src/sim/run.js'
 import { RULES } from '../src/sim/rules.js'
