@@ -2,9 +2,9 @@
 // the endless floors past the Sovereign.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { enterBattle, rulesOf, perform, order, preview, orderable, fork, addStatus, runEffect } from '../src/sim/turns.js'
+import { enterBattle, rulesOf, perform, order, preview, orderable, fork, addStatus, runEffect, stats, computeDamage } from '../src/sim/turns.js'
 import { makeUnit, tileAt, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
-import { UNITS, CAMP_LIST, SYNERGIES } from '../src/content.js'
+import { UNITS, CAMP_LIST, SYNERGIES, STATUSES } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, BOARD_14, grant } from './tuned.js'
 import {
@@ -138,15 +138,20 @@ function legionReap () {
   assert.equal(earned, Math.round(paid))
 }
 
-test('Mirage: the first blow each foe would land on the side holding it misses, and only the first; either side', () => {
+test('Mirage: the first blow each foe would land on the side holding it each turn misses, and only the first; either side', () => {
   const b = scene([...squad(['will_o_wisp', 'thorn_dryad'], four(5)), ...[1, 3].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
-  for (const uid of [101, 102]) {
+  const foiled = (uid) => {
     const first = strike(b, uid, uid === 101 ? 1 : 3)
     assert.deepEqual(first.filter((e) => ['rule', 'miss', 'damage'].includes(e.type)).map((e) => [e.type, e.actor]).slice(0, 2), [['rule', uid], ['miss', uid]])
     assert.ok(!first.some((e) => e.type === 'damage' && e.actor === uid), 'no harm done')
     assert.ok(strike(b, uid, uid === 101 ? 1 : 3).some((e) => e.type === 'damage' && e.actor === uid), 'the next lands')
   }
+  for (const uid of [101, 102]) foiled(uid)
   assert.equal(rules(b, 'mirage').length, 2)
+  // Once a foe a turn, not once a battle: the next turn its first blow misses again.
+  b.turn++
+  for (const uid of [101, 102]) foiled(uid)
+  assert.equal(rules(b, 'mirage').length, 4)
   const few = scene([...squad(['will_o_wisp', 'thorn_dryad'], three(5)), on('tomb_knight', 101, 'foe', 1, 6, 10)])
   assert.ok(strike(few, 101, 1).some((e) => e.type === 'damage'))
   // Theirs: your first blow at one of their four fae misses.
@@ -155,14 +160,19 @@ test('Mirage: the first blow each foe would land on the side holding it misses, 
   assert.deepEqual(mine.filter((e) => e.type === 'rule').map((e) => [e.rule, e.side]), [['mirage', 'foe']])
 })
 
-test('Last Stand: the first blow that would fell each of the side\'s leaves it at 1 HP, once; never the Monarch; either side', () => {
+// The stand heals: it leaves the piece at 1 HP, then mends TUNING.lastStand.heal of its max HP.
+const stood = (u) => 1 + Math.max(1, Math.round(u.maxHp * TUNING.lastStand.heal))
+
+test('Last Stand: the first blow that would fell each of the side\'s leaves it at 1 HP and heals it, once; never the Monarch; either side', () => {
   const b = scene([...squad(['clockwork_page', 'clockwork_page', 'iron_golem'], four(5)), on('monarch', MONARCH_UID, 'party', 0, 0), on('barrow_wight', 101, 'foe', 2, 6, 6)])
   const page = unit(b, 2)
   page.hp = 5
   const first = strike(b, 101, 2)
-  assert.deepEqual([page.hp, rules(b, 'last_stand').map((e) => e.target)], [1, [2]])
+  assert.deepEqual([page.hp, rules(b, 'last_stand').map((e) => e.target)], [stood(page), [2]])
   const i = first.findIndex((e) => e.type === 'rule' && e.rule === 'last_stand')
   assert.deepEqual([first[i + 1].type, first[i + 1].target, first[i + 1].hp], ['damage', 2, 1])
+  assert.deepEqual([first[i + 2].type, first[i + 2].target, first[i + 2].heal, first[i + 2].hp], ['heal', 2, stood(page) - 1, stood(page)], 'then it mends')
+  page.hp = 5
   strike(b, 101, 2)
   assert.ok(page.stood && page.hp <= 0, 'the next killing blow fells it')
   b.monarch.hp = 1
@@ -175,7 +185,25 @@ test('Last Stand: the first blow that would fell each of the side\'s leaves it a
   const theirs = scene([on('tomb_knight', 1, 'party', 2, 5, 10), ...foeSquad(['clockwork_page', 'iron_golem'], four(6))])
   set(theirs, 102, 1)
   order(theirs, { type: 'act', uid: 1, ability: 'strike', target: 102 })
-  assert.deepEqual([unit(theirs, 102).hp, rules(theirs, 'last_stand')[0].side], [1, 'foe'])
+  assert.deepEqual([unit(theirs, 102).hp, rules(theirs, 'last_stand')[0].side], [stood(unit(theirs, 102)), 'foe'])
+})
+
+// A stand is spent only on damage that would still fell once every rule has bent it: Bodyguard's lessening comes first.
+test('Last Stand comes after what lessens a blow: under Bodyguard a Construct Vanguard stands only on what would still fell it', () => {
+  const play = (hp) => {
+    const b = scene([...squad(['iron_golem', 'clockwork_page'], four(5)), ...squad(['tomb_knight'], [[5, 5], [6, 5]], 10), on('barrow_wight', 101, 'foe', 1, 6, 6)])
+    assert.ok(['last_stand', 'bodyguard'].every((r) => holding(b, 'party').includes(r)))
+    const golem = unit(b, 1)
+    if (hp) golem.hp = hp
+    const dealt = strike(b, 101, 1).find((e) => e.type === 'damage' && e.target === 1).damage
+    return { golem, dealt, stands: rules(b, 'last_stand').length }
+  }
+  const { dealt } = play(null)
+  assert.ok(Math.round(dealt / TUNING.bodyguard.taken) > dealt + 1, 'unlessened, the blow would fell at one HP more than it deals')
+  const near = play(dealt + 1)
+  assert.deepEqual([near.golem.hp, !!near.golem.stood, near.stands], [1, false, 0], 'lessened, it fells nothing: no stand spent')
+  const at = play(dealt)
+  assert.deepEqual([at.golem.hp, at.stands], [stood(at.golem), 1])
 })
 
 // Last Stand bends any damage that would fell (land: a blow's or a status tick's), and its card says so.
@@ -202,7 +230,7 @@ test('Last Stand: a Burning tick that would fell one of the side\'s leaves it at
   page.hp = 5
   addStatus(b, page, 'burning', 3, unit(b, 101))
   runEffect(b, { op: 'dot', power: 12 }, page, [page], null, page.statuses[0])
-  assert.deepEqual([page.hp, page.stood, rules(b, 'last_stand').length], [1, true, 1])
+  assert.deepEqual([page.hp, page.stood, rules(b, 'last_stand').length], [stood(page), true, 1])
   const card = SYNERGIES.find((s) => s.rule === 'last_stand').desc
   assert.match(card, /would fall/)
   assert.doesNotMatch(card, /blow/)
@@ -257,6 +285,31 @@ test('Bodyguard: a single-target blow at one of the side\'s not a Vanguard falls
   assert.deepEqual(shot.find((e) => e.type === 'action').targets, [108])
 })
 
+test('Bodyguard: the side\'s Vanguards take TUNING.bodyguard.taken of the damage, a blow\'s and a tick\'s; no one else does; either side', () => {
+  // Four Vanguards (or three) and a Wisp, a foe Wisp's shot at Vanguard 8 and at the Wisp, and a Burning tick on 8.
+  const play = (n) => {
+    const b = scene([...squad(['tomb_knight', 'grave_ghoul'], four(1).slice(0, n - 1)), on('tomb_knight', 8, 'party', 2, 5, 20), on('will_o_wisp', 9, 'party', 5, 5, 20),
+      on('will_o_wisp', 101, 'foe', 3, 8), on('iron_golem', 102, 'foe', 6, 10)])
+    const shot = (target) => strike(b, 101, target).find((e) => e.type === 'damage' && e.target === target).damage
+    const guard = unit(b, 8)
+    addStatus(b, guard, 'burning', 3, unit(b, 101))
+    const from = b.events.length
+    runEffect(b, { op: 'dot', power: 12 }, guard, [guard], null, guard.statuses[0])
+    return { vanguard: shot(8), wisp: shot(9), tick: b.events.slice(from).find((e) => e.type === 'damage').damage }
+  }
+  const [held, plain] = [play(4), play(3)]
+  assert.equal(held.vanguard, Math.round(plain.vanguard * TUNING.bodyguard.taken))
+  assert.equal(held.tick, Math.round(plain.tick * TUNING.bodyguard.taken))
+  assert.ok(held.vanguard < plain.vanguard && held.tick < plain.tick)
+  assert.equal(held.wisp, plain.wisp, 'a piece no Vanguard takes it full')
+  // Theirs: your blow on one of their four Vanguards.
+  const theirs = (n) => {
+    const b = scene([...foeSquad(['tomb_knight'], [[1, 10], [2, 10], [3, 10], [4, 10]].slice(0, n)), on('frost_sprite', 1, 'party', 1, 7, 20)])
+    return order(b, { type: 'act', uid: 1, ability: 'frost_lance', target: 101 }).find((e) => e.type === 'damage' && e.target === 101).damage
+  }
+  assert.equal(theirs(4), Math.round(theirs(3) * TUNING.bodyguard.taken))
+})
+
 test('Deadeye: the side\'s ranged blows deal half again; its melee as it was; either side', () => {
   const dealt = (tiles, ability) => {
     const b = scene([...squad(['ember_drake', 'frost_wyrm'], tiles), on('tomb_knight', 101, 'foe', 1, 2, 20), on('iron_golem', 102, 'foe', 6, 10)])
@@ -278,6 +331,7 @@ test('Ambush: the side\'s pieces start the battle Hastened, and those that enter
   assert.ok(b.units.filter((u) => u.side === 'party' && u !== b.monarch).every(hasted))
   assert.ok(!hasted(b.monarch) && !hasted(unit(b, 101)))
   assert.deepEqual(rules(b, 'ambush').map((e) => e.side), ['party'])
+  assert.deepEqual(b.events.filter((e) => e.type === 'status' && e.status === 'hasten').map((e) => e.dur), [2, 2, 2, 2], 'for their first two turns')
   const late = enterBattle(b, { ...makeUnit('grave_ghoul', { uid: 50, lvl: 3 }), side: 'party', tile: tileAt(3, 2) })
   assert.ok(!hasted(late))
   turns(b)
@@ -287,6 +341,25 @@ test('Ambush: the side\'s pieces start the battle Hastened, and those that enter
   assert.ok(!theirs.units.some(hasted), 'theirs come at their own turn')
   order(theirs, { type: 'end' })
   assert.deepEqual(rules(theirs, 'ambush').map((e) => e.side), ['foe'])
+})
+
+// Hastened for TUNING.ambush.turns of a piece's own turns: still on its second, gone by its third.
+test('Ambush lasts its pieces\' first two turns', () => {
+  assert.equal(TUNING.ambush.turns, 2)
+  const b = scene([...squad(['frost_sprite', 'barrow_wight'], [[0, 1], [1, 1], [5, 1], [6, 1]]), on('monarch', MONARCH_UID, 'party', 3, 0), on('iron_golem', 101, 'foe', 3, 10, 20)])
+  const mine = () => b.units.filter((u) => u.side === 'party' && u !== b.monarch)
+  const hasted = (u) => u.statuses.some((s) => s.id === 'hasten')
+  const moves = () => mine().map((u) => u.move)
+  const first = moves()
+  assert.ok(mine().every(hasted) && b.turn === 1)
+  turns(b)
+  assert.ok(b.turn === 2 && !b.over)
+  assert.ok(mine().every(hasted), 'the second turn too')
+  assert.deepEqual(moves(), first, 'its Move still one more')
+  turns(b)
+  assert.ok(b.turn === 3 && !b.over)
+  assert.ok(!mine().some(hasted), 'gone by the third')
+  assert.deepEqual(moves(), first.map((m) => m - 1))
 })
 
 test('Echo: every ability of the side\'s rings out once more on the same targets; an Arise never echoes; either side', () => {
@@ -310,6 +383,50 @@ test('Echo: every ability of the side\'s rings out once more on the same targets
   assert.deepEqual([twice.length, rules(theirs, 'echo')[0].side], [2, 'foe'])
 })
 
+// Echo is split (the improvement plan's §4.3): from 4 Channelers its second landing is at TUNING.echo.half of the effect
+// (the damage, the healing, a status's turns, rounded up), from the synergy's `full` (8) whole.
+test('Echo at half from 4 Channelers, whole from 8: the second landing\'s damage, healing and a status\'s turns', () => {
+  const full = SYNERGIES.find((s) => s.rule === 'echo').full
+  const k = TUNING.echo.half
+  assert.deepEqual([full, k], [8, 0.5])
+  const tiles = [[1, 3], [2, 3], [3, 3], [4, 3], [1, 2], [2, 2], [3, 2], [4, 2]]
+  const play = (n) => {
+    const b = scene([...squad(['will_o_wisp', 'bone_chanter'], tiles.slice(0, n)), on('hive_warden', 20, 'party', 5, 3), on('tomb_knight', 21, 'party', 6, 3, 9),
+      on('tomb_knight', 101, 'foe', 3, 7, 20), on('iron_golem', 102, 'foe', 6, 10)])
+    const echoes = rulesOf(b, 'party').filter((r) => r.id === 'echo')
+    // Witchfire's 30 on the Knight, as the Wisp's stats and the Knight's make it: whole, and at k.
+    const [a, d] = [stats(b, unit(b, 1)), stats(b, unit(b, 101))]
+    const blow = (p) => computeDamage({ power: p, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
+    const fire = order(b, { type: 'act', uid: 1, ability: 'witchfire', target: 101 }).filter((e) => e.type === 'damage' && e.target === 101).map((e) => e.damage)
+    // Mend's 28 on the Knight of ours at 1 HP, and its Regen.
+    unit(b, 21).hp = 1
+    const w = stats(b, unit(b, 20))
+    const mend = (p) => Math.max(1, Math.round(p * w.atk / TUNING.damage.atkDivisor * w.heal.given))
+    const ev = order(b, { type: 'act', uid: 20, ability: 'mend', target: 21 })
+    return {
+      echoes, blow, mend, fire,
+      heals: ev.filter((e) => e.type === 'heal' && e.target === 21).map((e) => e.heal),
+      regen: ev.filter((e) => e.type === 'status' && e.status === 'regen' && e.target === 21).map((e) => e.dur),
+      half: rules(b, 'echo').map((e) => !!e.half)
+    }
+  }
+  const four = play(4)
+  assert.deepEqual(four.echoes.map((r) => r.params.full), [false], 'one Echo, its lesser form')
+  assert.deepEqual(four.fire, [four.blow(30), four.blow(30 * k)])
+  assert.ok(four.fire[1] < four.fire[0])
+  assert.deepEqual(four.heals, [four.mend(28), four.mend(28 * k)])
+  assert.deepEqual(four.regen, [STATUSES.regen.turns, Math.ceil(STATUSES.regen.turns * k)])
+  assert.deepEqual(four.half, [true, true], 'and says so')
+  assert.deepEqual(play(7).echoes.map((r) => r.params.full), [false], 'seven: still the lesser')
+  const eight = play(8)
+  assert.deepEqual(eight.echoes.map((r) => r.params.full), [true], 'one Echo, whole')
+  assert.deepEqual(eight.fire, [eight.blow(30), eight.blow(30)])
+  assert.deepEqual(eight.heals, [eight.mend(28), eight.mend(28)])
+  assert.deepEqual(eight.regen, [STATUSES.regen.turns, STATUSES.regen.turns])
+  assert.deepEqual(eight.half, [false, false])
+  assert.equal(play(3).echoes.length, 0)
+})
+
 test('Sanctuary: an ability of the side\'s aimed at an ally reaches anyone, and touches every one of its side on the board; either side', () => {
   const play = (tiles) => {
     const b = scene([...squad(['hive_warden', 'thorn_dryad'], tiles), on('clockwork_page', 20, 'party', 6, 6), on('clockwork_page', 101, 'foe', 3, 10)])
@@ -325,10 +442,10 @@ test('Sanctuary: an ability of the side\'s aimed at an ally reaches anyone, and 
   assert.deepEqual(healed.targets.slice().sort((x, y) => x - y), theirs.units.filter((u) => u.side === 'foe' && alive(u)).map((u) => u.uid).sort((x, y) => x - y))
 })
 
-test('Deathblow works for the foes too: their blow on one of yours below a quarter of its HP deals double', () => {
+test('Deathblow works for the foes too: their blow on one of yours below 35% of its HP deals double', () => {
   const play = (tiles) => {
     const b = scene([...foeSquad(['clockwork_page', 'mantis_reaper'], tiles), on('tomb_knight', 1, 'party', 1, 5, 20)])
-    set(b, 1, Math.floor(unit(b, 1).maxHp * 0.2))
+    set(b, 1, Math.floor(unit(b, 1).maxHp * 0.3))
     return strike(b, 101, 1).find((e) => e.type === 'damage' && e.target === 1).damage
   }
   assert.equal(play(four(6)), Math.round(play(three(6)) * TUNING.deathblow.mult))
@@ -342,6 +459,8 @@ test('Last Stand under Undying comes before the rise; Undying lifts only its hol
   const golem = unit(u, 1)
   golem.hp = 1
   strike(u, 101, 1)
+  assert.equal(golem.hp, stood(golem))
+  golem.hp = 1
   strike(u, 101, 1)
   const order = u.events.filter((e) => e.target === 1 && ['rule', 'death', 'rise'].includes(e.type)).map((e) => e.rule ?? e.type)
   assert.deepEqual(order, ['last_stand', 'death', 'rise'])

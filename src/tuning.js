@@ -277,8 +277,18 @@ export const TUNING = {
   // raw = power × atk / atkDivisor, then × defConstant / (defConstant + def)
   damage: { atkDivisor: 40, defConstant: 100, min: 1 },
   // Deathblow (the Trickster's rule, rules.js): a blow of the side's on a foe below `below` of its max HP deals
-  // `mult` times its damage (redesign.md §2.16). Placeholders.
-  deathblow: { below: 0.25, mult: 2 },
+  // `mult` times its damage (redesign.md §2.16). Placeholders; `below` 0.35 since 2026-10-15 (was a quarter: the
+  // improvement plan's §4.3, the weak raised to Echo's class).
+  deathblow: { below: 0.35, mult: 2 },
+  // The rest of the synergies' numbers (rules.js; the improvement plan's §4.3, 2026-10-15), placeholders until the
+  // balance pass. Echo (the Channeler's): below its synergy's `full` count (content.js SYNERGIES) every ability echoes at
+  // `half` of its effect, from there whole. Ambush (the Skirmisher's): Hastened for the first `turns` turns. Bodyguard
+  // (the Vanguard's): the side's Vanguards take `taken` of the damage that lands on them. Last Stand (the Construct's):
+  // one that stands heals `heal` of its max HP.
+  echo: { half: 0.5 },
+  ambush: { turns: 2 },
+  bodyguard: { taken: 0.8 },
+  lastStand: { heal: 0.3 },
   // The shared board: the foes' 3×7 formation at the top, your 7×7 camp at the bottom, `gap` empty rows between.
   board: { gap: 1 },
   // field: the Monarch's base Command, the pieces that fight (one soul each); the field cap is field + fieldPerFloor

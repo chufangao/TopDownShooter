@@ -2479,19 +2479,25 @@ export const THREATS = {
 // in `needs` ({ kin: {…} } or { role: {…} }), a piece counting once, a shadow and a summon as anyone, the Monarch never
 // (its role is hidden). `rule` names its entry in the rules registry (rules.js RULES), which does what `desc` says;
 // it holds for whichever side has it, the foes' cohorts too. A synergy carries no stat step: the balance pass may only
-// split a rule too strong at 4 into a lesser form at 4 and the full at 8.
+// split a rule too strong at 4 into a lesser form at 4 and the full at 8, and Echo is split (the improvement plan's
+// §4.3): `full`, the count of the same kin or role at which its rule holds whole, its lesser form below it (rules.js
+// rulesOf tells the rule which). The numbers a `desc` says are TUNING's, written in from it.
+const pctOf = (x) => `${Math.round(x * 100)}%`
+const partOf = (x, what) => (x === 0.5 ? `half ${what}` : `${pctOf(x)} of ${what}`)
+const firstTurns = (n) => (n === 1 ? 'first turn' : `first ${['two', 'three', 'four'][n - 2] ?? n} turns`)
+const ECHO_FULL = 8
 export const SYNERGIES = [
   { id: 'undead_4', name: 'Undead 4', desc: 'Legion: every foe slain rises at once as a shadow on your side, past Arise\'s reach and tier (never a boss, a shadow or a Monarch), while your side has room on the board for it.', needs: { kin: { undead: 4 } }, rule: 'legion' },
   { id: 'drake_4', name: 'Drake 4', desc: 'Dragonfire: every single-target blow of yours bursts, striking its target and every foe next to it.', needs: { kin: { drake: 4 } }, rule: 'dragonfire' },
-  { id: 'fae_4', name: 'Fae 4', desc: 'Mirage: the first blow each foe would land on one of yours in a battle strikes only an illusion, and does no harm.', needs: { kin: { fae: 4 } }, rule: 'mirage' },
+  { id: 'fae_4', name: 'Fae 4', desc: 'Mirage: the first blow each foe would land on one of yours each turn strikes only an illusion, and does no harm.', needs: { kin: { fae: 4 } }, rule: 'mirage' },
   { id: 'insect_4', name: 'Insect 4', desc: 'Frenzy: one of yours that slays a foe has every skill ready again at once.', needs: { kin: { insect: 4 } }, rule: 'frenzy' },
-  { id: 'construct_4', name: 'Construct 4', desc: 'Last Stand: the first time each of yours would fall in a battle, to anything that harms it (a burn and a bleed too), it stands at 1 HP instead (never the Monarch).', needs: { kin: { construct: 4 } }, rule: 'last_stand' },
-  { id: 'vanguard_4', name: 'Vanguard 4', desc: 'Bodyguard: a single-target blow at one of yours that is not a Vanguard lands instead on a Vanguard of yours standing next to it.', needs: { role: { vanguard: 4 } }, rule: 'bodyguard' },
+  { id: 'construct_4', name: 'Construct 4', desc: `Last Stand: the first time each of yours would fall in a battle, to anything that harms it (a burn and a bleed too), it stands at 1 HP instead and heals ${pctOf(TUNING.lastStand.heal)} of its max HP (never the Monarch).`, needs: { kin: { construct: 4 } }, rule: 'last_stand' },
+  { id: 'vanguard_4', name: 'Vanguard 4', desc: `Bodyguard: a single-target blow at one of yours that is not a Vanguard lands instead on a Vanguard of yours standing next to it, and your Vanguards take ${pctOf(1 - TUNING.bodyguard.taken)} less damage.`, needs: { role: { vanguard: 4 } }, rule: 'bodyguard' },
   { id: 'ranger_4', name: 'Ranger 4', desc: 'Deadeye: ranged blows of yours deal 50% more damage.', needs: { role: { ranger: 4 } }, rule: 'deadeye' },
-  { id: 'skirmisher_4', name: 'Skirmisher 4', desc: 'Ambush: yours start the battle, and enter it, Hastened for their first turn (+1 Move, and their skills come back sooner).', needs: { role: { skirmisher: 4 } }, rule: 'ambush' },
-  { id: 'channeler_4', name: 'Channeler 4', desc: 'Echo: every ability yours use echoes, its effects landing on its targets once more (Arise never echoes).', needs: { role: { channeler: 4 } }, rule: 'echo' },
+  { id: 'skirmisher_4', name: 'Skirmisher 4', desc: `Ambush: yours start the battle, and enter it, Hastened for their ${firstTurns(TUNING.ambush.turns)} (+1 Move, and their skills come back sooner).`, needs: { role: { skirmisher: 4 } }, rule: 'ambush' },
+  { id: 'channeler_4', name: 'Channeler 4', desc: `Echo: every ability yours use echoes, landing on its targets once more at ${partOf(TUNING.echo.half, 'its effect')} (${partOf(TUNING.echo.half, 'its damage')} and healing, a status for ${partOf(TUNING.echo.half, 'its turns')}); with ${ECHO_FULL} Channelers, in full. Arise never echoes.`, needs: { role: { channeler: 4 } }, full: ECHO_FULL, rule: 'echo' },
   { id: 'warden_4', name: 'Warden 4', desc: 'Sanctuary: every ability yours aim at an ally (a heal, a ward, a cleanse) touches every one of yours on the board.', needs: { role: { warden: 4 } }, rule: 'sanctuary' },
-  { id: 'trickster_4', name: 'Trickster 4', desc: 'Deathblow: a blow of yours on a foe below a quarter of its HP deals double damage.', needs: { role: { trickster: 4 } }, rule: 'deathblow' }
+  { id: 'trickster_4', name: 'Trickster 4', desc: `Deathblow: a blow of yours on a foe below ${pctOf(TUNING.deathblow.below)} of its HP deals ${TUNING.deathblow.mult === 2 ? 'double' : `${TUNING.deathblow.mult}×`} damage.`, needs: { role: { trickster: 4 } }, rule: 'deathblow' }
 ]
 
 // ── camps ────────────────────────────────────────────────────────────────────────────────────

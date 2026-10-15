@@ -54,11 +54,11 @@
 // relic grants Arise), 'synergies' (your side holds no synergy) and 'summons' (no tier brings a summon). `quiet` (a
 // rehearsal's): the battle keeps no events; it plays out exactly as it would otherwise.
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, statusDef, relicDef, FUSION_LIST, FUSIONS } from '../content.js'
+import { unitDef, abilityDef, statusDef, relicDef, FUSION_LIST, FUSIONS, SYNERGIES } from '../content.js'
 import { hashString } from './rng.js'
 import {
   alive, livingOn, enemySide, isAllyShape, isBlow, footprint, distanceBetween, unitDistance, rangeOf, expand, makeUnit, sizeOf, tileX, tileY,
-  tileAt, NEIGHBOURS, deployTile, statsOf, activeSynergies, abilitiesOf, auraOf, armOf, blowReach, summonsOf, summonedOf, heldMods, CENTRE_OUT, TILES,
+  tileAt, NEIGHBOURS, deployTile, statsOf, synergyCounts, synergyActive, abilitiesOf, auraOf, armOf, blowReach, summonsOf, summonedOf, heldMods, CENTRE_OUT, TILES,
   LINE_AT, LINE_TILES, lineEnds, between
 } from './unit.js'
 import {
@@ -318,9 +318,16 @@ export function synergiesOf (battle, side) {
   const c = battle.syn[side]
   if (c?.v === battle.roster) return c.list
   const also = (u) => u.held.flatMap((r) => r.roles?.(battle, u, r) ?? [])
-  const list = side === 'party' && battle.ablate.has('synergies') ? [] : activeSynergies(livingOn(battle.units, side), also)
-  battle.syn[side] = { v: battle.roster, list }
+  const counts = synergyCounts(livingOn(battle.units, side), also)
+  const list = side === 'party' && battle.ablate.has('synergies') ? [] : SYNERGIES.filter((s) => synergyActive(s, counts))
+  battle.syn[side] = { v: battle.roster, list, counts }
   return list
+}
+// The counts `side` holds its synergies by (unit.js synergyCounts), kept with them: a split rule reads how far it holds
+// (rules.js rulesOf).
+export const synergyCountsOf = (battle, side) => {
+  synergiesOf(battle, side)
+  return battle.syn[side].counts
 }
 
 // What bends a unit's stats now: its statuses (or those given: rateOf's), its side's synergies, the auras it stands
@@ -476,7 +483,10 @@ export function heal (battle, actor, target, power, pct = 0) {
   emit(battle, { type: 'heal', actor: actor.uid, target: target.uid, heal: target.hp - before, hp: target.hp })
 }
 
-// The rules that bend damage as it lands (rules.js modify: the actor's side's, then the target's); null: it missed.
+// The rules that bend damage as it lands (rules.js modify: the actor's side's, then the target's), then, on what is
+// left of it, whole, those of the target's side that stand against a fall (stand: Last Stand's, a capstone's), which
+// may leave a share of its max HP for it to mend once the damage has landed (`mend`). → { damage, mend }, or null: it
+// missed.
 function land (battle, target, amount, { actor, ability, status }) {
   const ctx = { actor, target, ability: ability ? abilityDef(ability) : null, status, damage: amount, miss: false, as: 'actor' }
   if (actor) call(battle, 'modify', actor.side, ctx)
@@ -486,19 +496,26 @@ function land (battle, target, amount, { actor, ability, status }) {
     emit(battle, { type: 'miss', actor: actor.uid, target: target.uid })
     return null
   }
-  return Math.max(0, Math.round(ctx.damage))
+  ctx.damage = Math.max(0, Math.round(ctx.damage))
+  ctx.mend = 0
+  call(battle, 'stand', target.side, ctx)
+  return ctx
 }
 
 // Damage lands: a blow's, or a status's tick (`status`, its id: Burning's), which is no blow. The rules bend it
-// first (land: Last Stand leaves the first damage that would fell at 1 HP, Mirage turns the first blow a foe would
-// land). A blow that lands on one that stands is the 'struck' moment of the relics it holds.
+// first (land: Mirage turns the first blow a foe would land a turn, Bodyguard lessens a Vanguard's, Last Stand leaves
+// the first damage that would fell at 1 HP and mends it). A blow that lands on one that stands is the 'struck' moment
+// of the relics it holds.
 export function applyDamage (battle, target, amount, { actor, ability = null, status = null }) {
-  amount = land(battle, target, amount, { actor, ability, status })
-  if (amount === null) return
-  target.hp = Math.max(0, target.hp - amount)
-  emit(battle, { type: 'damage', actor: actor.uid, target: target.uid, damage: amount, ability, hp: target.hp, ...(status && { status }) })
+  const landed = land(battle, target, amount, { actor, ability, status })
+  if (!landed) return
+  target.hp = Math.max(0, target.hp - landed.damage)
+  emit(battle, { type: 'damage', actor: actor.uid, target: target.uid, damage: landed.damage, ability, hp: target.hp, ...(status && { status }) })
   if (!alive(target)) fall(battle, target, actor, ability)
-  else if (!status) trigger(battle, 'struck', target, target, actor)
+  else {
+    if (landed.mend) heal(battle, target, target, 0, landed.mend)
+    if (!status) trigger(battle, 'struck', target, target, actor)
+  }
 }
 
 // A unit falls to `actor`'s blow (or a status `actor` laid). A kind that bursts on death bursts (burst). The rules of

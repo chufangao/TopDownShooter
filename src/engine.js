@@ -508,7 +508,7 @@ const REST = { lean: 0, sx: 0, sy: 0, dx: 0, dy: 0 } // a unit's pose at rest: s
 const BAR = 46
 const BAR_DROP = 14     // from the feet down to the HP bar, clear of the pictures' ground details
 const PIP_SPAN = 78     // a soul's tiers stand within this width under its bars, inside its lane
-const ECHO_MS = 260     // Echo (Channeler 8): its second pass lands this long after the first
+const ECHO_MS = 260     // Echo (Channeler 4): its second pass lands this long after the first
 // The page's two faces (style.css --sans, --display): the system's sans for a sentence under a banner, the display face
 // (Fredoka, chunky and round as the art is) for every number, name and banner. main.js has it loaded before the board
 // draws a word.
