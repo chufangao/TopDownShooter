@@ -1,6 +1,22 @@
 // Every balance constant in one place.
 
+// The ascension ladder's rows (TUNING.ascension): `levels` + 1 of them, level 0 the base game (every multiplier 1) and
+// level `levels` the `top` row, each between on the straight line from one to the other: a multiplier at level k is
+// 1 + (top's − 1) × k / levels.
+const ladder = (levels, top) => Array.from({ length: levels + 1 }, (_, k) => Object.fromEntries(Object.entries(top).map(([key, v]) => [key, 1 + (v - 1) * k / levels])))
+
 export const TUNING = {
+  // The ascension ladder (redesign.md §4.6): a run's level (run.js createRun's `ascension`), chosen on the title screen,
+  // a level opened by each clear of the one below (run.js openTo). A row a level, each multiplier × the base's number it
+  // names: `foeHp`, `foeAtk` every foe's HP and ATK, the boss's and the foes' shadows' too (run.js foeMods, foeScale);
+  // `fight`, `elite` the foes of a fight's and an elite's formation and waves (spawn.fight, spawn.elite, rounded: a
+  // siege's and the Sovereign's waves are fight-sized); `every` the turns between waves (spawn.waves.every, rounded, at
+  // least 1: below 1 they come sooner); `monarchHp` the Monarch's base HP (monarch.hp, rounded; its HP relics add to it
+  // as before); `price` every price, a tier, a recruit, a fusion and a relic (run.js floorPrice's; an elite's bounty is
+  // pay, not a price). Level 0 is the base game exactly. Ten levels on `ladder`'s straight line to the top row, whose
+  // numbers are placeholders, as every row's are, until the balance pass (§9): level 0 tuned on the expert (~90% clears,
+  // basic reaching floor 2 about half the time), the top on the outside teacher (~60%).
+  ascension: ladder(10, { foeHp: 1.4, foeAtk: 1.2, fight: 1.2, elite: 1.2, every: 0.75, monarchHp: 0.85, price: 1.2 }),
   // Turns (redesign.md §2.3–2.10). No clock (§2.10): a battle ends only when a side does. `turn.guard`: the sim's bound
   // on turns, for the autoplayer and the tests alone (turns.js playOut, stalled): a battle still going past it ends as
   // a stall, no one's win (a passive side that mends the Monarch as fast as the foes in reach hurt it holds a battle

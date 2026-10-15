@@ -47,14 +47,21 @@ test('a run saved mid-battle plays back as it stood: the state, the battle board
   assert.deepEqual(back.run.state, run.state)
 })
 
-test('a save keeps the run\'s createRun options whatever they are, and plays it back with them', () => {
-  const made = { seed: 'save-scale', scale: 1.3 }
-  const run = played(made, (r) => r.state.phase === 'map' && r.state.stats.fights >= 1)
-  const back = restore(saveOf(run, made))
-  assert.ok(back.run, back.why)
-  assert.equal(back.run.state.scale, 1.3)
-  assert.deepEqual(back.made, made)
-  assert.deepEqual(back.run.state, run.state)
+test('a save keeps the run\'s createRun options whatever they are (its ascension, a scale), and plays it back with them', () => {
+  for (const made of [{ seed: 'save-asc', ascension: 2 }, { seed: 'save-scale', scale: 1.3 }]) {
+    const run = played(made, (r) => r.state.phase === 'map' && r.state.stats.fights >= 1)
+    const text = saveOf(run, made)
+    assert.deepEqual(JSON.parse(text).run, made)
+    const back = restore(text)
+    assert.ok(back.run, back.why)
+    assert.deepEqual(back.made, made)
+    assert.deepEqual(back.run.state, run.state)
+    assert.equal(back.run.state.ascension, made.ascension)
+    assert.equal(back.run.state.scale, made.scale)
+    // Played back without them, it is another run, or none: set aside.
+    const { ascension, scale, ...bare } = made
+    assert.equal(restore(JSON.stringify({ ...JSON.parse(text), run: bare })).error, 'outdated')
+  }
   // A saved run from the draft, before a single pick.
   const fresh = createRun({ seed: 'save-draft' })
   assert.deepEqual(restore(saveOf(fresh, { seed: 'save-draft' })).run.state, fresh.state)

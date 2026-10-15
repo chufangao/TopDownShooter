@@ -3,7 +3,7 @@
 // The DOM screens are laid out at one logical size and scaled to the screen (frame.js); the canvas is not.
 import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
-import { createRun, apply, currentNode, depthOf, runStat, tutorialRun } from './sim/run.js'
+import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun } from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS, TUTORIAL } from './content.js'
@@ -162,6 +162,33 @@ function play (action) {
   return out
 }
 
+// The ascension ladder (redesign.md §4.6): the highest level cleared in this browser (prefs 'ascended'; −1 for none)
+// opens the one above it (run.js openTo); the level chosen is kept in the URL (?ascension=) and in prefs ('ascension'),
+// the URL's first, and never above the highest open.
+const level = (v) => (v !== null && /^\d+$/.test(v) ? Math.min(Number(v), ascensionTop()) : null)
+const cleared = () => level(prefs.get('ascended')) ?? -1
+let ascension = Math.min(openTo(cleared()), level(new URLSearchParams(location.search).get('ascension')) ?? level(prefs.get('ascension')) ?? 0)
+function choose (a) {
+  ascension = a
+  prefs.set('ascension', String(a))
+  const url = new URL(location.href)
+  if (a) url.searchParams.set('ascension', a)
+  else url.searchParams.delete('ascension')
+  history.replaceState(null, '', url)
+}
+// A clear opens the level above it, once a run (run.js clearAt): what it opened is its end screen's to say.
+let opened = null
+function ascend () {
+  const s = run.state
+  if (s.result !== 'victory') return null
+  if (opened?.run !== run) {
+    const c = clearAt(cleared(), s.ascension ?? 0)
+    prefs.set('ascended', String(c.cleared))
+    opened = { run, level: c.opened }
+  }
+  return opened.level
+}
+
 // For the retinue editor: an illegal action comes back as a message instead of a throw.
 function act (action) {
   try {
@@ -235,10 +262,11 @@ function title (seed, said = '') {
   run = null
   made = null
   overlay(null)
+  ascension = Math.min(ascension, openTo(cleared()))
   const at = saved()
   show(titleScreen({
-    seed, onStart: start, onHelp: toggleHelp, saved: at, first: !at && prefs.get('did:tutorial') !== '1',
-    note: said || aside, onContinue: resume, onTutorial: tutorial
+    seed, level: ascension, open: openTo(cleared()), onLevel: choose, onStart: start, onHelp: toggleHelp,
+    saved: at, first: !at && prefs.get('did:tutorial') !== '1', note: said || aside, onContinue: resume, onTutorial: tutorial
   }))
   aside = ''
 }
@@ -255,7 +283,7 @@ function start (seed) {
       onNo: () => overlay(null)
     }))
   }
-  made = { seed }
+  made = ascension ? { seed, ascension } : { seed }
   run = createRun(made)
   note = ''
   keep()
@@ -339,7 +367,7 @@ function route () {
   } else if (s.phase === 'altar') {
     show(altarScreen({ run, onRite: rite, onHelp: toggleHelp }))
   } else {
-    show(endScreen({ run, onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
+    show(endScreen({ run, opened: ascend(), onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
   }
 }
 
@@ -486,6 +514,7 @@ onFrame(() => {
 })
 
 const seed = new URLSearchParams(location.search).get('seed') ?? newSeed()
+choose(ascension)
 title(seed)
 
 // Console access for debugging: retinue.run.state, retinue.run.state.log, retinue.route() (redraw the screen after

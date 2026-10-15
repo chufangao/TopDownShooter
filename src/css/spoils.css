@@ -193,6 +193,19 @@ button.ret-toggle:hover:not([aria-disabled]) { background-color: #463614; color:
   .title-box .steps.brief { grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 30px; }
   .steps.brief .step { flex-direction: column; align-items: flex-start; padding: 15.5px 15.5px 17.5px; }
 }
+/* The ascension chooser (ui.js titleScreen): − the level + in the actions' row, a quiet group as the seed is; what the
+   level changes in a line under the row; the same level beside the floor in the top bar, and a clear's unlock on the
+   end screen, in the warning's yellow. */
+.ascension { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font-size: var(--fs-sm); }
+.ascension .asc-lbl { margin-right: 2px; }
+.ascension .asc-step { padding: 0; font: 700 var(--fs-lg)/1 var(--display); }
+.ascension .asc-step[aria-disabled] { opacity: .4; cursor: default; }
+.ascension .asc-num { min-width: 2ch; text-align: center; font: 700 var(--fs-xl)/1 var(--display); color: var(--c-warn); }
+.title-box .asc-line { margin: 14px 0 0; font-size: var(--fs-sm); color: var(--dim); }
+.asc-line b, .end-screen .unlock b { color: var(--c-warn); font-weight: 600; }
+.asc-line .ico, .end-screen .unlock .ico { vertical-align: -4px; margin-right: 6px; color: var(--c-warn); }
+.floors .fl-asc { color: var(--c-warn); }
+.end-screen .unlock { margin: 0 0 14px; font-size: var(--fs-md); }
 /* The run saved and the tutorial (ui.js resumeActions): Continue names where the run stands on a line under its word;
    the actions' row may run wider than the steps, so a phone's frame keeps it one row. A note (a save set aside, the
    tutorial done) stands over the foot of the screen as the run's toasts do. */
@@ -225,6 +238,14 @@ button.continue .cont-at { font: 500 var(--fs-sm)/1.25 var(--sans); letter-spaci
   .end-screen .tagline { margin: 4px 0 10px; line-height: 1.35; }
   .end-screen .end-stats { margin-bottom: 10px; }
   .end-screen .end-stat { padding: 6px; }
+  .title-box .asc-line { margin-top: 6px; }
+  .end-screen .unlock { margin-bottom: 8px; }
+  /* The actions' row in one line however wide the controls of a finger's size make it, and room for the ascension's. */
+  .title-box:has(.steps.brief) { max-width: min(1120px, calc(var(--frame-w, 960px) - 64px)); }
+  .title-screen .sigil { width: 52px; height: 52px; margin-bottom: 4px; }
+  .title-screen .sigil svg { width: 30px; height: 30px; }
+  .title-screen .tagline { margin: 4px 0 10px; }
+  .title-box .steps.brief { margin-bottom: 12px; }
 }
 
 /* ── end: the verdict beside the tabs ─────────────────────────────────────────────────────────── */

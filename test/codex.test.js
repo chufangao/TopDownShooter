@@ -421,3 +421,31 @@ test('an altar\'s rites are told as they are: the room names the three, a transm
   }
   assert.deepEqual(Object.keys(said).sort(), ['consecrate', 'heal', 'transmute'])
 })
+
+// The ascension ladder (the improvement plan's §4.6) told true: a level's words each number that moved, as run.js reads
+// it; a room at a level scouted with its foes' mods and its waves' turns.
+test('an ascension is told as it plays: level 0 the base game, a level each number that moved, its rooms on its numbers', async () => {
+  const { ascensionText, ASCENSION_RULE, roomFoeMods } = await import('../src/codex.js')
+  const { ascensionTop, waveEvery, monarchBase, foeScale, foeMods, roomSize, encounter } = await import('../src/sim/run.js')
+  const { TUNING } = await import('../src/tuning.js')
+  assert.equal(ascensionText(0).short, 'the base game')
+  const top = ascensionTop()
+  assert.ok(ASCENSION_RULE.includes(`up to ${top}`))
+  for (let a = 1; a <= top; a++) {
+    const s = { ascension: a, floor: 1 }
+    const { short, lines } = ascensionText(a)
+    assert.ok(short && lines.every((l) => !/NaN|undefined/.test(l)), `${a}: ${lines}`)
+    assert.ok(lines[0].startsWith('Every foe ×'), `${a}`)
+    assert.equal(lines.some((l) => l.includes(`Waves ${waveEvery(s)} turns apart`)), waveEvery(s) !== TUNING.spawn.waves.every, `${a}: the waves`)
+    assert.equal(lines.some((l) => l.includes(`The Monarch ${monarchBase(s)} HP`)), monarchBase(s) !== TUNING.monarch.hp, `${a}: the Monarch`)
+    assert.equal(short.includes('more foes'), [1, 2, 3, 4].some((f) => roomSize(f, false, a) !== roomSize(f, false) || roomSize(f, true, a) !== roomSize(f, true)), `${a}: the counts`)
+  }
+  // A room at the top: its foes' mods the level's, and its later wave's turn on the level's spacing.
+  const run = createRun({ start: START_PARTY, seed: 'told-asc', ascension: top })
+  const node = availableNodes(run)[0]
+  assert.deepEqual(roomFoeMods(run, node), foeMods(1, false, foeScale(run.state)))
+  node.type = 'elite'
+  Object.assign(node, { foes: encounter('told-asc', 1, node), waves: [{ foes: encounter('told-asc', 1, { ...node, id: 'w' }).slice(0, 2) }] })
+  const tip = roomTip(run, node, { reachable: true }).textContent
+  assert.ok(tip.includes(`2 more as turn ${1 + waveEvery(run.state)} begins.`), tip)
+})

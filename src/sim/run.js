@@ -154,10 +154,13 @@ const BOSS = UNIT_LIST.find((u) => u.boss).id
 // bought, a copy each); `shop`, the stock of the Shop the run stands in (stockShop), empty elsewhere.
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
 // every battle of the run, carried in each battle's setup (turns.js createBattle: 'arise', 'synergies', 'summons').
-// A run made without it has no such field. `scale` (the harness's difficulty, autoplay.js --builds --scale, until the
-// ascension ladder: redesign.md §3, §4.6): every foe's HP and ATK × it, in every battle (foeMods); a run at 1 has no
-// such field.
-export function createRun ({ seed, ablate = null, start = null, scale = 1 }) {
+// A run made without it has no such field. `ascension`, the run's level of the ladder (redesign.md §4.6; TUNING.ascension's
+// row: ascensionOf), 0 the base game to ascensionTop(): its foes, their counts and their waves, the Monarch's HP and the
+// prices, from the first floor drawn on; a run at 0 has no such field. `scale` (the harness's override, autoplay.js
+// --builds --scale: redesign.md §3): every foe's HP and ATK × it on top of the level's (foeScale); a run at 1 has no such
+// field.
+export function createRun ({ seed, ablate = null, start = null, scale = 1, ascension = 0 }) {
+  if (!(Number.isInteger(ascension) && ascension >= 0 && ascension <= ascensionTop())) throw new Error(`ascension ${ascension}: a level from 0 to ${ascensionTop()}`)
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [], shop: [],
     essence: TUNING.essence.start, result: null, death: null, draft: null, kinds: {},
@@ -166,6 +169,10 @@ export function createRun ({ seed, ablate = null, start = null, scale = 1 }) {
   state.party = [makeUnit('monarch', { uid: MONARCH_UID, lvl: 0 })]
   if (ablate?.length) state.ablate = ablate.slice()
   if (scale !== 1) state.scale = scale
+  if (ascension) {
+    state.ascension = ascension
+    Object.assign(monarchOf(state), { hp: monarchHp(state), maxHp: monarchHp(state) })
+  }
   const run = { state, battle: null, setup: null }
   enterFloor(run)
   if (start) {
@@ -229,12 +236,44 @@ export function partners (a, b) {
 // from the trio every run then started with (START_PARTY); any other, from the draft (null).
 export const startFor = (log) => (log?.length && log[0].type !== 'pick' ? START_PARTY : null)
 
-// A run's log replays it from its seed (and the start it was played from: startFor), made with the options it was made
-// with, whatever createRun takes (`ablate`, `scale`; a save's: save.js).
+// A run's log replays it from its seed (and the start it was played from: startFor) at its level: a run is its seed,
+// its level and its log (a record of one carries `ascension` where it is not 0). Any other option createRun takes is
+// passed as it is given (`ablate`, `scale`; a save's: save.js).
 export function replay (seed, log, opts = {}) {
   const run = createRun({ start: startFor(log), ...opts, seed })
   for (const action of log) apply(run, action)
   return run
+}
+
+// ── the ascension ladder (redesign.md §4.6) ──────────────────────────────────────────────────────
+
+// The highest level: TUNING.ascension's last row (level 0 the base game).
+export const ascensionTop = () => TUNING.ascension.length - 1
+// The run's row of multipliers (TUNING.ascension): its level's, level 0's (every one 1) for a run made without one.
+export const ascensionOf = (s) => TUNING.ascension[s.ascension ?? 0]
+// What every foe's HP and ATK are multiplied by in the run's battles (foeMods): its level's, × the harness's `scale`.
+export const foeScale = (s) => ({ hp: ascensionOf(s).foeHp * (s.scale ?? 1), atk: ascensionOf(s).foeAtk * (s.scale ?? 1) })
+// A formation's foes on `floor` (each wave's, the late pair and the cohorts aside: drawRoom), an elite's or a fight's, at
+// level `ascension`: TUNING.spawn's count × the level's, rounded.
+export const roomSize = (floor, elite, ascension = 0) => {
+  const row = TUNING.ascension[ascension]
+  return Math.round(at(elite ? TUNING.spawn.elite : TUNING.spawn.fight, floor) * (elite ? row.elite : row.fight))
+}
+// The turns between waves in the run's battles: TUNING.spawn.waves.every × the level's, rounded, at least 1 (turns.js
+// entryTurn; battleSetup carries it where it is not the base's).
+export const waveEvery = (s) => Math.max(1, Math.round(TUNING.spawn.waves.every * ascensionOf(s).every))
+// The Monarch's base max HP in the run: TUNING.monarch.hp × the level's, rounded (its HP relics add to it: monarchHp).
+export const monarchBase = (s) => Math.round(TUNING.monarch.hp * ascensionOf(s).monarchHp)
+// Every price's scale here, against floor 1's at level 0: the floor's (floorPrice) × the level's.
+export const priceScale = (s) => floorPrice(s.floor) * ascensionOf(s).price
+// The unlock rule: a player whose highest level cleared is `cleared` (−1 for none) may choose any level up to the one
+// above it (level 0 always), never past the top.
+export const openTo = (cleared) => Math.min(ascensionTop(), Math.max(0, cleared + 1))
+// A clear at `level` by a player whose highest cleared was `cleared`: the highest now, and the level it opened (null for
+// none: a level below the highest cleared, or the top again).
+export function clearAt (cleared, level) {
+  const now = Math.max(cleared, level)
+  return { cleared: now, opened: openTo(now) > openTo(cleared) ? openTo(now) : null }
 }
 
 // Applies one action, or throws if it is not legal now. In a battle on turns the action is an order (ORDERS), and
@@ -384,8 +423,9 @@ export const souls = (party) => party.filter((u) => !isMonarch(u))
 
 // ── the Monarch ──────────────────────────────────────────────────────────────────────────────────
 
-// Its max HP: TUNING.monarch.hp and what its HP relics add, a copy each. Nothing else raises it.
-export const monarchHp = (s) => runStat(s, 'run.monarchHp', TUNING.monarch.hp)
+// Its max HP: its base (TUNING.monarch.hp, × the level's: monarchBase) and what its HP relics add, a copy each. Nothing
+// else raises it.
+export const monarchHp = (s) => runStat(s, 'run.monarchHp', monarchBase(s))
 
 // ── the camp: footprints ─────────────────────────────────────────────────────────────────────────
 
@@ -912,7 +952,7 @@ function enterFloor (run) {
   s.camp = createRng(s.seed).stream(`camp|${s.floor}`).pick(CAMP_LIST.filter((c) => c.floor === poolFloor(s.floor))).id
   monarchOf(s).slot = monarchSlot(s.camp)
   if (s.camp !== was) setFrontier(s, fielded(souls(s.party)))
-  for (const n of s.map.nodes) if (BATTLE_NODES.includes(n.type)) Object.assign(n, drawRoom(s.seed, s.floor, n))
+  for (const n of s.map.nodes) if (BATTLE_NODES.includes(n.type)) Object.assign(n, drawRoom(s.seed, s.floor, n, { ascension: s.ascension }))
   varyRoutes(s)
   s.at = s.map.start
   s.phase = 'map'
@@ -945,7 +985,7 @@ export function varyRoutes (s) {
         if (!rooms?.length) break
         const node = rooms[(pass + k) % rooms.length]
         const keep = [...roomThreats(node)].filter((t) => t !== 'depth' && t !== type)
-        Object.assign(node, drawRoom(s.seed, s.floor, node, { want: [type, ...keep], redraw: `${pass}|${k}` }))
+        Object.assign(node, drawRoom(s.seed, s.floor, node, { want: [type, ...keep], redraw: `${pass}|${k}`, ascension: s.ascension }))
       }
     }
   }
@@ -1011,8 +1051,9 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 // is redrawn on the same stream, keeping the most varied.
 // On an endless floor (past the Sovereign's) the foes come from the last floor's pool, and the enemy keeps
 // growing as an army (deepGrowth): higher levels, more foes a wave, more waves to a room, bigger cohorts;
-// the floor's last room is a big elite.
-export function drawRoom (seed, floor, node, { want = [], redraw = null } = {}) {
+// the floor's last room is a big elite. At a level of the ascension ladder (`ascension`, the run's) a fight's and an
+// elite's count are its (roomSize), before the deep's growth.
+export function drawRoom (seed, floor, node, { want = [], redraw = null, ascension = 0 } = {}) {
   const sp = TUNING.spawn
   const W = sp.waves
   const grow = deepGrowth(floor, node)
@@ -1021,7 +1062,7 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null } = {}) 
   const elite = node.type === 'elite'
   const boss = node.type === 'boss'
   const pool = spawnPool(poolFloor(floor), elite ? sp.eliteTier : 0)
-  const n = Math.min(SLOTS, at(elite ? sp.elite : sp.fight, floor) + grow.count)
+  const n = Math.min(SLOTS, roomSize(floor, elite, ascension) + grow.count)
   const waved = floor >= W.floor
   const base = boss || node.type === 'siege' ? W.siege : !waved ? 1 : elite ? W.elite : node.rank >= W.fightRank ? W.fight : 1
   // The deep's extra waves come to every room (a single formation becomes a room of waves), up to the cap.
@@ -1111,12 +1152,14 @@ function formation (rng, ids, lvl, captains, cohort) {
 // take uids after the foes' (the battle makes them: turns.js raise).
 // The foes (foeUnits): the room's formation stands from the start, and its later waves wait in the reserve, each
 // foe with `side: 'foe'`, its `wave` and its slot's `lane`; the foes take the first uids, the formation's then each
-// wave's in order.
+// wave's in order. The run's level (ascensionOf) is in the foes' mods (foeScale) and, where its waves come sooner or
+// later than the base's, in `every` (waveEvery).
 export function battleSetup (run, { party = fielded(run.state.party) } = {}) {
   const s = run.state
   const node = currentNode(run)
   const boss = node.type === 'boss'
   const foes = foeUnits(node, s.nextUid)
+  const every = waveEvery(s)
   return {
     party: party.map((u) => ({ ...u, ...(u.relics && { relics: u.relics.slice() }) })),
     reserve: foes.filter((f) => f.wave),
@@ -1126,7 +1169,8 @@ export function battleSetup (run, { party = fielded(run.state.party) } = {}) {
     camp: s.camp,
     walls: wallTiles(s.camp),
     partyMods: s.relics.filter(isRunRelic).flatMap((id) => (relicDef(id).mods ?? []).filter((m) => !isRunPath(m.path))),
-    foeMods: foeMods(s.floor, boss, s.scale),
+    foeMods: foeMods(s.floor, boss, foeScale(s)),
+    ...(every !== TUNING.spawn.waves.every && { every }),
     arise: ariseOf(s),
     nextUid: s.nextUid + foes.length,
     relics: s.relics.slice(),
@@ -1218,10 +1262,11 @@ export function essenceByWave (battle) {
 
 // Prices: every price (a tier, a recruit, a fusion, a relic) is its base × the floor's price scale (floorPrice: 1 on
 // floor 1, rising by TUNING.essence.perFloor a floor), × what the relics' `price.…` mods leave of it (runStat, the
-// paths read as one: their cuts add up): a kind's next tier on `track` (`price.tier`, and `price.lowTier` too for
-// tiers I and II), a recruit (`price.recruit`), a relic (`price.relic`: relicPrice).
+// paths read as one: their cuts add up), × the run's level's (ascensionOf: `price`): a kind's next tier on `track`
+// (`price.tier`, and `price.lowTier` too for tiers I and II), a recruit (`price.recruit`), a relic (`price.relic`:
+// relicPrice).
 export const floorPrice = (floor) => 1 + TUNING.essence.perFloor * (floor - 1)
-const price = (run, base, ...paths) => Math.max(1, Math.round(base * floorPrice(run.state.floor) * runStat(run.state, paths, 1)))
+const price = (run, base, ...paths) => Math.max(1, Math.round(base * floorPrice(run.state.floor) * runStat(run.state, paths, 1) * ascensionOf(run.state).price))
 export const tierCost = (run, kind, track) => {
   const next = run.state.kinds[kind].tracks[track]
   return price(run, TUNING.essence.tier[next], 'price.tier', ...(next < 2 ? ['price.lowTier'] : []))
@@ -1336,10 +1381,12 @@ export function spawnPool (floor, tierBias = 0) {
 
 // In the boss's room only the boss takes the boss's multipliers; its waves and court take the floor's. Past
 // the Sovereign's floor every floor deeper adds TUNING.spawn.endless's hp and atk shares to them all. `scale`, the
-// run's difficulty (createRun's), multiplies every foe's, the boss's too.
+// run's (foeScale: its level's and the harness's), multiplies every foe's, the boss's too: { hp, atk }, or one number
+// for both.
 export function foeMods (floor, boss, scale = 1) {
   const sp = TUNING.spawn
-  const grow = (key) => (1 + sp.endless[key] * depthOf(floor)) * scale
+  const by = typeof scale === 'number' ? { hp: scale, atk: scale } : scale
+  const grow = (key) => (1 + sp.endless[key] * depthOf(floor)) * by[key]
   const mods = [{ path: 'hp', op: 'mul', v: at(sp.foeHp, floor) * grow('hp') }, { path: 'atk', op: 'mul', v: at(sp.foeAtk, floor) * grow('atk') }]
   if (!boss) return mods
   return [
