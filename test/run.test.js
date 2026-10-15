@@ -16,7 +16,7 @@ import { tuned, FIRST_BALANCE, LEVEL_A_TIER, relicMod } from './tuned.js'
 import { RELICS, UNITS, UNIT_LIST, FUSION_LIST, CAMP_LIST } from '../src/content.js'
 import {
   CAMP_SLOTS, COLS, campOpen, isWall, slotAt, rowOf, colOf, baseStats, makeUnit,
-  sizeOf, footprintSlots, fits, monarchSlot, isMonarchCell, meleeOnly
+  sizeOf, footprint, footprintSlots, fits, monarchSlot, isMonarchCell, meleeOnly
 } from '../src/sim/unit.js'
 import { visit, win, fight, rebuilt as rebuiltBattle } from './rooms.js'
 import { basicTurn, expertTurn } from '../src/sim/policy.js'
@@ -1436,6 +1436,22 @@ test('legalActions lists one fuse a recipe that can be made, of its canonical pa
 
 // ── fuzz: random legal actions, invariants after every one, replay at the end ──────────────────
 
+// The board in battle: each layer's index holds the living alone, each on every tile of its footprint, in its own layer,
+// and nothing else there (no two pieces on a tile), a ground piece on no wall, a fusion's parts off it.
+function checkBoard (b) {
+  for (const [layer, flies] of [[b.at, false], [b.sky, true]]) {
+    for (let t = 0; t < layer.length; t++) {
+      const u = layer[t]
+      if (u) assert.ok(u.hp > 0 && !!u.flies === flies && !u.into && footprint(u.tile, u.size)?.includes(t), `${u.id} ${u.uid} on tile ${t}`)
+    }
+  }
+  for (const u of b.units) {
+    if (u.hp <= 0) continue
+    const tiles = footprint(u.tile, u.size)
+    assert.ok(tiles?.every((t) => (u.flies ? b.sky : b.at)[t] === u && (u.flies || !b.walls.has(t))), `${u.id} ${u.uid} at ${u.tile}, size ${u.size}`)
+  }
+}
+
 function checkState (s) {
   assert.ok(['map', 'prep', 'battle', 'reap', 'shop', 'altar', 'over'].includes(s.phase), s.phase)
   const all = souls(s.party)
@@ -1575,6 +1591,7 @@ function fuzz (seed, k, seen, fought = () => {}, offered = { legendaries: 0 }) {
     apply(run, action)
     if (action.type === 'fight') fought(run)
     checkState(run.state)
+    if (run.state.phase === 'battle') checkBoard(run.battle)
     for (const a of run.state.log.slice(again.state.log.length)) apply(again, a)
     if (steps % 17 === 0) everyLegalActionApplies(run, again)
   }
