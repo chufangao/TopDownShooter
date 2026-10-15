@@ -8,7 +8,7 @@ import {
   reapedShadows, essenceByWave, canDescend, depthOf, OSSUARY, canAdvance, tierCost, canPlace, canFuse,
   fuseCost, fuseParts, relicCount, levelOf, kindLevel, floorPrice, swapWith, releaseRefund,
   soulOffer, shopOffers, canBuy, eliteBonus, runStat, unheld, canHold, isRunRelic, heldKinds, foeEssence, unhealed,
-  transmuteOffer, canTransmute
+  transmuteOffer, canTransmute, ascensionOf, ascensionTop, priceScale
 } from './sim/run.js'
 import { RANKS, WIDTH } from './sim/map.js'
 import { unitDef, relicDef, KIN, ROLES, FUSION_LIST, RELIC_TIERS } from './content.js'
@@ -30,14 +30,43 @@ import {
   MONARCH_TEXT, MONARCH_RULE, deathText, tileText, fieldRule,
   DEEP_TEXT, ROMAN, relicsByTier, alsoOf, TRIGGER_TEXT, codexView, reachText, reachRule, standing, abilityBlocks,
   auraBlock, hpBar, hpAt, summonText, recruitWorth, relicIcon, relicKind, ariseFor, actText, theirText,
-  monarchHpText, statTip, recruitSteps, tally, bestiaryCount, roomGain, transmuteWorth
+  monarchHpText, statTip, recruitSteps, tally, bestiaryCount, roomGain, transmuteWorth, ascensionText, ASCENSION_RULE
 } from './codex.js'
 
 // ── title ────────────────────────────────────────────────────────────────────────────────────────
 
-export function titleScreen ({ seed, onStart, onHelp }) {
+// `level`: the ascension the run will be played at, `open` the highest the player may choose (run.js openTo), and
+// `onLevel(level)` hears each step of the chooser.
+export function titleScreen ({ seed, level = 0, open = 0, onLevel = () => {}, onStart, onHelp }) {
   const input = h('input', { value: seed, spellcheck: 'false', 'aria-label': 'seed' })
   const start = () => onStart(input.value.trim() || seed)
+  // The ascension ladder (redesign.md §4.6): − and + step the level from 0 to the highest open, a clear opening the one
+  // above it; what the level changes in a line under the actions, each number in full in the chooser's tip.
+  let asc = Math.min(level, open)
+  const num = h('b', { class: 'asc-num' })
+  const down = h('button', { class: 'asc-step', 'aria-label': 'Ascension down', onclick: () => shift(-1) }, '−')
+  const up = h('button', { class: 'asc-step', 'aria-label': 'Ascension up', onclick: () => shift(1) }, '+')
+  const line = h('p', { class: 'asc-line' })
+  const locked = () => asc >= open && open < ascensionTop()
+  const shift = (d) => {
+    if (asc + d < 0 || asc + d > open) return sfx.play('poor')
+    asc += d
+    onLevel(asc)
+    shown()
+  }
+  const shown = () => {
+    num.textContent = asc
+    for (const [b, off] of [[down, asc <= 0], [up, asc >= open]]) off ? b.setAttribute('aria-disabled', 'true') : b.removeAttribute('aria-disabled')
+    fill(line, icon('levelup', 18), h('b', null, `Ascension ${asc}`), `: ${ascensionText(asc).short}.`,
+      locked() && h('span', { class: 'dim' }, ` Clear it to open ${asc + 1}.`))
+  }
+  const chooser = h('div', {
+    class: 'ascension', role: 'group', 'aria-label': 'Ascension',
+    tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Ascension ${asc}${asc === ascensionTop() ? ', the top' : ''}`),
+      ascensionText(asc).lines.map((l) => h('p', null, l)),
+      h('p', { class: 'dim' }, ASCENSION_RULE, ` Open here: 0 to ${open}.`))
+  }, h('span', { class: 'asc-lbl' }, 'ascension'), down, num, up)
+  shown()
   // The four steps of a run, one line each in its system's colour; the terms explain themselves on hover.
   const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 26)), h('div', null, h('b', null, title), h('p', null, text)))
   const el = h('div', { class: 'screen title-screen' },
@@ -53,7 +82,9 @@ export function titleScreen ({ seed, onStart, onHelp }) {
       h('div', { class: 'title-actions' },
         h('button', { class: 'primary big', onclick: start, tip: () => 'Start a new run with this seed. (Enter)' }, 'Begin the descent ', h('kbd', null, 'Enter')),
         h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, fusions and the foes met. (H)' }, icon('help', 22), ' How to play'),
-        h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles. Share one to play the same run.' }, 'seed', input))),
+        chooser,
+        h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles at an ascension. Share one to play the same run.' }, 'seed', input)),
+      line),
     cornerButtons(onHelp))
   return { el, key: (e) => { if (e.key === 'Enter') start() } }
 }
@@ -128,14 +159,16 @@ function ossuaryCount (run) {
 }
 
 // The purse's tooltip: the essence held, earned and spent this run, the floor's prices against floor 1's (run.js
-// floorPrice), the cheapest tier a kind you hold may take now, and what a slain foe pays.
+// priceScale: the floor's, and the ascension's), the cheapest tier a kind you hold may take now, and what a slain foe
+// pays.
 function essenceTip (run) {
   const s = run.state
-  const scale = floorPrice(s.floor)
+  const scale = priceScale(s)
   const next = heldKinds(s).flatMap((id) => [0, 1].filter((t) => canAdvance(s, id, t)).map((t) => ({ id, t, cost: tierCost(run, id, t) })))
     .sort((a, b) => a.cost - b.cost)[0]
   return h('div', { class: 'syn-tip' }, h('b', null, `${s.essence} essence`),
-    h('p', null, `${s.stats.essence} earned, ${s.stats.spent} spent this run · ${scale === 1 ? 'floor 1 prices' : `prices ×${+scale.toFixed(2)} floor 1's`}.`),
+    h('p', null, `${s.stats.essence} earned, ${s.stats.spent} spent this run · ${scale === 1 ? 'floor 1 prices' : `prices ×${+scale.toFixed(2)} floor 1's`}` +
+      `${ascensionOf(s).price !== 1 ? `, ascension ${s.ascension}'s ×${+ascensionOf(s).price.toFixed(2)} among them` : ''}.`),
     next && h('p', null, `Cheapest tier now: ${unitDef(next.id).name}, ${tracksOf(next.id)[next.t].name} ${ROMAN[s.kinds[next.id].tracks[next.t]]}, for ${next.cost}${next.cost > s.essence ? ` (${next.cost - s.essence} short)` : ''}.`),
     h('p', { class: 'dim' }, `A slain foe pays ${TUNING.essence.perTier} × its tier.`))
 }
@@ -197,16 +230,19 @@ function muteButton () {
 function floorPips (s) {
   const n = TUNING.run.floors
   const deep = depthOf(s.floor)
+  // The run's ascension (redesign.md §4.6), beside the floor where it is above 0, and in the tip.
+  const asc = s.ascension ?? 0
+  const ascTip = asc > 0 && h('p', null, h('b', null, `Ascension ${asc}`), `: ${ascensionText(asc).short}.`)
   return h('div', {
     class: 'floors' + (deep ? ' deep' : ''),
     tip: () => deep
       ? h('div', { class: 'syn-tip' }, h('b', null, `Floor ${s.floor} · the deep, ${deep} floor${deep === 1 ? '' : 's'} below the Sovereign's`), h('p', null, 'The run is cleared: the Hollow Sovereign fell to you, and that stands.'),
-        h('p', null, DEEP_TEXT.now(s.floor)), h('p', { class: 'dim' }, DEEP_TEXT.growth), h('p', { class: 'warn' }, DEEP_TEXT.fall))
-      : `Floor ${s.floor} of ${n}. Each floor ends in an elite; floor ${n} ends with the Hollow Sovereign, and slaying it clears the run. Past it, you may descend into the deep.`
+        h('p', null, DEEP_TEXT.now(s.floor)), h('p', { class: 'dim' }, DEEP_TEXT.growth), h('p', { class: 'warn' }, DEEP_TEXT.fall), ascTip)
+      : h('div', { class: 'syn-tip' }, h('p', null, `Floor ${s.floor} of ${n}. Each floor ends in an elite; floor ${n} ends with the Hollow Sovereign, and slaying it clears the run. Past it, you may descend into the deep.`), ascTip)
   },
   Array.from({ length: n }, (_, i) => h('span', { class: 'pip' + (i + 1 < s.floor ? ' done' : i + 1 === s.floor ? ' now' : '') })),
   deep > 0 && h('span', { class: 'pip deep now' }),
-  h('span', null, `Floor ${s.floor}`, deep > 0 && h('span', { class: 'fl-deep' }, ` · deep ${deep}`)))
+  h('span', null, `Floor ${s.floor}`, deep > 0 && h('span', { class: 'fl-deep' }, ` · deep ${deep}`), asc > 0 && h('span', { class: 'fl-asc' }, ` · A${asc}`)))
 }
 
 // The Monarch's HP, always in view: if it falls, the run ends. A wound or a heal since the bar was last drawn
@@ -1899,8 +1935,10 @@ export function altarScreen ({ run, onRite, onHelp }) {
 // Three ends. The Sovereign slain (over, 'victory', no death): the run is cleared, and the deep lies below
 // (Descend, or stop here with a new run). A fall in the deep after that clear ('victory' with a death): the
 // clear stands. A defeat on the way down: as it was.
-export function endScreen ({ run, onNew, onDescend, onHelp }) {
+// `opened`: the ascension this run's clear opened (main.js, run.js clearAt), or null.
+export function endScreen ({ run, opened = null, onNew, onDescend, onHelp }) {
   const s = run.state
+  const asc = s.ascension ?? 0
   const won = s.result === 'victory'
   const lost = s.death
   const descend = canDescend(s)
@@ -1935,6 +1973,9 @@ export function endScreen ({ run, onNew, onDescend, onHelp }) {
         h('div', { class: 'sigil ' + (won ? 'win' : 'lose') }, icon(won ? 'boss' : 'elite', 46)),
         h('h1', { class: 'logo ' + (won ? 'win' : 'lose') }, descend ? 'VICTORY' : won ? 'CLEARED' : 'DEFEAT'),
         h('p', { class: 'tagline' }, tagline),
+        // What the clear opened (main.js, run.js clearAt), the level's changes in its tip.
+        opened !== null && h('p', { class: 'unlock', tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Ascension ${opened}`), ascensionText(opened).lines.map((l) => h('p', null, l)), h('p', { class: 'dim' }, ASCENSION_RULE)) },
+          icon('levelup', 20), h('b', null, `Ascension ${opened} is open`), '. Choose it on the title screen.'),
         h('div', { class: 'end-stats' },
           stat('stairs', 'monarch', deeper > 0 ? `${cleared}/${n} + ${deeper}` : `${cleared}/${n}`, 'floors', deeper > 0 ? `Floors cleared: ${cleared} of ${n}, and ${deeper} of the deep.` : `Floors cleared: ${cleared} of ${n}.`),
           stat('fight', 'foe', `${s.stats.wins}/${s.stats.fights}`, 'won', `Won ${s.stats.wins} of ${s.stats.fights} battle${s.stats.fights === 1 ? '' : 's'}.`),
@@ -1948,7 +1989,7 @@ export function endScreen ({ run, onNew, onDescend, onHelp }) {
             tip: () => `Go on to floor ${s.floor + 1}, the first of the deep, with your retinue, relics, essence and wounds as they are. The clear is already yours. (Enter)`
           }, 'Descend ', h('kbd', null, 'Enter')),
           newRun),
-        h('p', { class: 'dim end-seed' }, `seed ${s.seed}`)),
+        h('p', { class: 'dim end-seed' }, `seed ${s.seed}`, asc > 0 && h('span', { tip: () => `Played at ascension ${asc}: ${ascensionText(asc).short}.` }, ` · ascension ${asc}`))),
       h('div', { class: 'end-detail' }, tabs, panel)),
     cornerButtons(onHelp))
   return {

@@ -13,7 +13,8 @@ import {
 import {
   foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, unhealed, isMonarch, depthOf, rosterCap,
   inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice, isRunPath, isRunRelic, unheld,
-  runStat, foeEssence, eliteBonus, soulOffer, relicWeights, relicTierPrice, kindLevel
+  runStat, foeEssence, eliteBonus, soulOffer, relicWeights, relicTierPrice, kindLevel, foeScale, waveEvery, monarchBase, ascensionOf,
+  ascensionTop, roomSize
 } from './sim/run.js'
 import { heldRules } from './sim/rules.js'
 import { basicOf, mendOf, temperOf, lined } from './sim/turns.js'
@@ -40,8 +41,9 @@ export const partyMods = (run, u = null) => u && isMonarch(u) ? [] : [
   ...run.state.relics.filter(isRunRelic).flatMap((id) => (relicDef(id).mods ?? []).filter((m) => !isRunPath(m.path))),
   ...(u?.relics ?? []).flatMap((id) => relicDef(id).mods ?? [])]
 
-// Foes of a room on the current floor start with the floor's multipliers (their synergies bring rules, no mods).
-export const roomFoeMods = (run, node) => foeMods(run.state.floor, node.type === 'boss')
+// Foes of a room on the current floor start with the floor's multipliers and the run's level's (their synergies bring
+// rules, no mods).
+export const roomFoeMods = (run, node) => foeMods(run.state.floor, node.type === 'boss', foeScale(run.state))
 
 // ── abilities and statuses ───────────────────────────────────────────────────────────────────────
 
@@ -324,8 +326,8 @@ const heldGivers = (run, path) => {
 export const MONARCH_TEXT = {
   // The hover leads with the numbers: its max and where it comes from, its HP now and what would mend it.
   hp: {
-    name: 'HP', icon: 'hp', value: (run) => monarchHp(run.state), now: (run) => monarchHp(run.state) > TUNING.monarch.hp ? `${TUNING.monarch.hp} + ${monarchHp(run.state) - TUNING.monarch.hp} relics` : 'max, no HP relics yet',
-    rule: (run) => [`${monarchHp(run.state)} max (${TUNING.monarch.hp} base, ${heldGivers(run, 'run.monarchHp') ?? 'no HP relics'}) · now ${monarchOf(run.state).hp} · ${monarchMends(run)}.`,
+    name: 'HP', icon: 'hp', value: (run) => monarchHp(run.state), now: (run) => monarchHp(run.state) > monarchBase(run.state) ? `${monarchBase(run.state)} + ${monarchHp(run.state) - monarchBase(run.state)} relics` : 'max, no HP relics yet',
+    rule: (run) => [`${monarchHp(run.state)} max (${monarchBase(run.state)} base${run.state.ascension ? `, ascension ${run.state.ascension}` : ''}, ${heldGivers(run, 'run.monarchHp') ?? 'no HP relics'}) · now ${monarchOf(run.state).hp} · ${monarchMends(run)}.`,
       `Raised only by relics, healing it by as much: ${giversOf('run.monarchHp').join(', ')}.`,
       'If it falls, the run ends.']
   },
@@ -408,14 +410,15 @@ export const ENEMY_TEXT = {
   late: `A floor-1 elite: ${SP.late.n} more foes come over the far edge as turn ${1 + W.every} begins.`,
   entry: 'A horde that waits at the edge of your reach comes in time: the camp grows impatient. It never hits harder; it only stops waiting.'
 }
-// The turn wave `k` of a room's later waves (node.waves[k]: the second wave is k 0) enters on (turns.js entryTurn).
-export const waveTurn = (w, k) => w.when?.turn ?? 1 + (k + 1) * W.every
+// The turn wave `k` of a room's later waves (node.waves[k]: the second wave is k 0) enters on (turns.js entryTurn),
+// `every` turns apart: the base's, or the run's level's (run.js waveEvery).
+export const waveTurn = (w, k, every = W.every) => w.when?.turn ?? 1 + (k + 1) * every
 
 // A room's foes, every wave's: the formation that stands from the start, then each later wave's.
 const roomFoes = (node) => [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flat()
 // A later wave (node.waves[k]) by name, and when it comes, as the scouts can tell it.
 export const waveName = (node, k) => node.waves[k].foes.some((f) => unitDef(f.id).boss) ? `Wave ${k + 2}: the Sovereign` : `Wave ${k + 2}`
-export const waveWhen = (w, k = 0) => `${w.foes.length} more as turn ${waveTurn(w, k)} begins.`
+export const waveWhen = (w, k = 0, every = W.every) => `${w.foes.length} more as turn ${waveTurn(w, k, every)} begins.`
 // "5 foes", "15 foes in 3 waves".
 export function foeCountText (node) {
   const n = node.foes.length
@@ -464,7 +467,7 @@ export function deathText (s, battle = null) {
 // The killer came in a later wave (d.wave: 1 is the first after the formation): which, from the room's scouting.
 function waveDeath (s, k) {
   const w = s.map?.nodes.find((n) => n.id === s.at)?.waves?.[k - 1]
-  return w ? `It came with wave ${k + 1}, over the far edge as turn ${waveTurn(w, k - 1)} began.` : `It came with wave ${k + 1}, over the far edge.`
+  return w ? `It came with wave ${k + 1}, over the far edge as turn ${waveTurn(w, k - 1, waveEvery(s))} began.` : `It came with wave ${k + 1}, over the far edge.`
 }
 
 // ── the bestiary ─────────────────────────────────────────────────────────────────────────────────
@@ -737,7 +740,7 @@ export function roomTip (run, node, { reachable, enter = false }) {
         h('div', { class: 'dim small' }, kinds.join(', ')),
         syns.length > 0 && h('div', { class: 'dim small' }, kw('synergy', 'Synergies'), ': ', syns.map((n, i) => [i ? ' · ' : '', h('b', null, n)])))),
       node.waves && h('div', { class: 'rt-waves' }, node.waves.map((w, k) => h('div', { class: 'rt-wave' },
-        h('b', null, waveName(node, k)), miniGrid(w.foes, { small: true }), h('div', { class: 'dim small' }, waveWhen(w, k))))),
+        h('b', null, waveName(node, k)), miniGrid(w.foes, { small: true }), h('div', { class: 'dim small' }, waveWhen(w, k, waveEvery(run.state)))))),
       threatMeter(run, node)],
     !(reachable && enter) && h('div', { class: 'rt-foot ' + (reachable ? 'go' : 'dim') },
       node.id === run.state.at ? 'You are here' : reachable ? say('Click to enter', 'Tap it again to enter') : 'Not reachable yet'))
@@ -747,12 +750,39 @@ export function roomTip (run, node, { reachable, enter = false }) {
 // hold their rules on every floor, as yours do (rules.js).
 export const roomSynergies = (node) => [...new Set([node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flatMap((foes) => synergyNames(activeSynergies(foes))))]
 
+// ── the ascension ladder (redesign.md §4.6) ──────────────────────────────────────────────────────
+
+// What level `level` of the ascension ladder changes (TUNING.ascension's row, as run.js reads it), against the base
+// game: `short`, a few words a number that moved (the title screen's chooser, the top bar); `lines`, each in full, the
+// base's in brackets (their tips). Level 0 changes nothing.
+export function ascensionText (level) {
+  if (!level) return { short: 'the base game', lines: ['The base game: the foes, their waves, the Monarch and the prices as the rules tell them.'] }
+  const s = { ascension: level, floor: 1 }
+  const r = ascensionOf(s)
+  const sp = TUNING.spawn
+  const up = (x) => `${x < 1 ? '−' : '+'}${Math.round(Math.abs(x - 1) * 100)}%`
+  const sizes = (elite, a) => [1, 2, 3, 4].map((f) => roomSize(f, elite, a)).join('/')
+  const more = sizes(false, level) !== sizes(false, 0) || sizes(true, level) !== sizes(true, 0)
+  const every = waveEvery(s)
+  const hp = monarchBase(s)
+  const parts = [
+    [`foes ${up(r.foeHp)} HP, ${up(r.foeAtk)} ATK`, `Every foe ${times(r.foeHp)} HP and ${times(r.foeAtk)} ATK, the Sovereign and their shadows too.`],
+    more && ['more foes', `Fights of ${sizes(false, level)} foes on floors 1–4 (${sizes(false, 0)}), elites of ${sizes(true, level)} (${sizes(true, 0)}).`],
+    every !== sp.waves.every && [`waves every ${every} turns`, `Waves ${every} turns apart (${sp.waves.every}).`],
+    hp !== TUNING.monarch.hp && [`the Monarch ${hp} HP`, `The Monarch ${hp} HP before its relics (${TUNING.monarch.hp}).`],
+    r.price !== 1 && [`prices ${up(r.price)}`, `Every price ${times(r.price)}: a tier, a recruit, a fusion, a relic.`]
+  ].filter(Boolean)
+  return { short: parts.map((p) => p[0]).join(' · '), lines: parts.map((p) => p[1]) }
+}
+// How a level is opened, in a line: each clear opens the level above it, up to the top.
+export const ASCENSION_RULE = `Each clear opens the next ascension, up to ${ascensionTop()}: the foes harder, more and sooner, the Monarch frailer, the prices dearer.`
+
 // ── notes: what just happened, for the run screen's toast (main.js) ──────────────────────────────
 
 // A new floor: its number, how far down, and its prices; in the deep, how the foes have grown (DEEP_TEXT.now).
 export function floorNote (s) {
   const deep = depthOf(s.floor)
-  const prices = `prices ×${+floorPrice(s.floor).toFixed(2)} floor 1's`
+  const prices = `prices ×${+floorPrice(s.floor).toFixed(2)} floor 1's${ascensionOf(s).price !== 1 ? `, ×${+ascensionOf(s).price.toFixed(3)} by the ascension` : ''}`
   return !deep ? `Floor ${s.floor} of ${TUNING.run.floors}: ${prices}. The air grows colder.`
     : `Floor ${s.floor}, ${deep === 1 ? 'the first of the deep' : `${deep} floors below the Sovereign's`}: ${prices}. ${DEEP_TEXT.now(s.floor)}`
 }
@@ -1063,7 +1093,7 @@ export const relicsByTier = (ids, chip) => RELIC_TIERS.slice().reverse().map((t)
 // The floor's price scale (run.js floorPrice) as the help tells it: every price, floor by floor, and the one now.
 const times = (x) => `×${+x.toFixed(2)}`
 export const priceScaleText = (run) => `every price is its floor-1 price ${[1, 2, 3, 4].map((f) => times(floorPrice(f))).join(', ')} on floors 1–4, and +${TUNING.essence.perFloor} a floor deeper` +
-  (run ? ` (here, ${times(floorPrice(run.state.floor))})` : '')
+  (run ? ` (here, ${times(floorPrice(run.state.floor))}${ascensionOf(run.state).price !== 1 ? `, and ${times(ascensionOf(run.state).price)} by the ascension` : ''})` : '')
 
 // What each word's rule says beyond its one line, for the glossary's "more"; `run`, when one is in play, adds
 // where it stands now.
