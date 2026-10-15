@@ -448,6 +448,13 @@ test('an ascension is told as it plays: level 0 the base game, a level each numb
   Object.assign(node, { foes: encounter('told-asc', 1, node), waves: [{ foes: encounter('told-asc', 1, { ...node, id: 'w' }).slice(0, 2) }] })
   const tip = roomTip(run, node, { reachable: true }).textContent
   assert.ok(tip.includes(`2 more as turn ${1 + waveEvery(run.state)} begins.`), tip)
+  // How to play's Wave, in a run at a level whose waves come sooner, says when they come in it (the second bug hunt: it
+  // told the base game's spacing alone).
+  const { glossary } = await import('../src/codex.js')
+  const wave = (r) => glossary(r).flatMap((g) => g.entries).find((e) => e.name === 'Wave').more
+  assert.notEqual(waveEvery(run.state), TUNING.spawn.waves.every)
+  assert.ok(wave(run).includes(`At ascension ${top} they come ${waveEvery(run.state)} turns apart.`), wave(run))
+  assert.ok(!wave(createRun({ start: START_PARTY, seed: 'told-asc' })).includes('At ascension') && !wave(null).includes('At ascension'))
 })
 
 // Every rule that says it is at work (a 'rule' event: rules.js) flares in battle (engine.js rule, by ruleFlares): a
