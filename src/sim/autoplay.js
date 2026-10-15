@@ -30,7 +30,9 @@
 // for two players on the same seeds, paired:  … --paired <a>,<b> [--runs 256] [--seed sel] [--workers 4]  (each a forest
 // file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, `expert:<file>` a whole expert, or none: today's
 // expert, playerOf)
-// for the gap between the levels:     … --ladder [--runs 8] [--forest file|none]
+// for the gap between the levels:     … --ladder [--runs 8] [--ascension 0|<a,b,…>|all] [--teacher] [--forest file|none]
+// (the rungs basic, the calculator, the expert and with --teacher the outside teacher, at each level of the ascension
+// ladder; `--ascension <level>` plays any report at that level)
 // or for a report on how much the player's choices decide battles:  … --decisions [--runs 8]
 // or the expert with one mechanic taken away (ABLATIONS):  … --ablate orders  (a report as above; --ablate moves: its
 // pieces never move in battle)
@@ -40,7 +42,7 @@
 // or the expert's combo book, ranked by its static formula and written to src/sim/combos.json (rerun when content or
 // numbers change):  … --combos  (npm run combos)
 // or the harness, each archetype committed against free play on the same seeds, and free play's diversity (redesign.md
-// §3):  … --builds [--player expert|teacher] [--commit <archetype>|all] [--scale 1] [--runs 256] [--seed div]; or what a
+// §3):  … --builds [--player expert|teacher] [--commit <archetype>|all] [--ascension 0] [--scale 1] [--runs 256] [--seed div]; or what a
 // run can gather, floor by floor:  … --pool  (npm run builds, npm run pool; the harness's section says more)
 // (--decisions and --necessity refight recorded battles to measure them: they decide nothing.)
 import fs from 'node:fs'
@@ -67,7 +69,7 @@ import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost, foeMods, roomThreats,
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
   relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat,
-  spawnPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer
+  spawnPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer, foeScale, ascensionTop
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -126,8 +128,9 @@ const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 'expert
 export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves']
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 // A run for a level under `ablate`: with its rules switch where it is one, and from `start` (createRun's fixed start: the
-// tests') where given, else from the draft; at difficulty `scale` (createRun's: the harness's).
-export const ablatedRun = (seed, ablate = null, start = null, scale = 1) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null, start, scale })
+// tests') where given, else from the draft; at level `ascension` of the ladder and with the harness's `scale` on the foes
+// (createRun's).
+export const ablatedRun = (seed, ablate = null, start = null, { scale = 1, ascension = 0 } = {}) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null, start, scale, ascension })
 // Whether L never buys relic `id`.
 const legendary = (id) => relicTier(id) === 'legendary'
 const BANNED = {
@@ -379,7 +382,7 @@ export function survey (run, L = LEVELS.expert) {
 function scoutRoom (run, n, up, keeps) {
   const s = run.state
   const foes = [...(n.foes ?? []), ...(n.waves ?? []).flatMap((w) => w.foes)]
-  const mods = foeMods(s.floor, n.type === 'boss', s.scale)
+  const mods = foeMods(s.floor, n.type === 'boss', foeScale(s))
   const threats = n.foes ? [...roomThreats(n)] : []
   return {
     id: n.id,
@@ -765,10 +768,10 @@ const scouts = new Map()
 const scout = (run) => scoutAt(run.state, currentNode(run))
 // The same for any battle room `node` of the run's floor (ariseWorth's). Each foe carries its kind, level and tier too.
 function scoutAt (s, node) {
-  const key = JSON.stringify([s.camp, s.floor, node.id, node.type, node.foes, node.waves?.map((w) => w.foes), s.scale])
+  const key = JSON.stringify([s.camp, s.floor, node.id, node.type, node.foes, node.waves?.map((w) => w.foes), s.scale, s.ascension])
   if (scouts.has(key)) return scouts.get(key)
   const roads = roadsTo(s.camp)
-  const mods = foeMods(s.floor, node.type === 'boss', s.scale)
+  const mods = foeMods(s.floor, node.type === 'boss', foeScale(s))
   const out = []
   for (const [k, foes] of [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].entries()) {
     for (const f of foes) {
@@ -2096,11 +2099,11 @@ function routeStep (run, L, sit, at) {
 // and hardest blow (their floor's mods counted), the share of them of each threat type (their kinds' own), its waves.
 const roomReads = new Map()
 function roomRead (s, room) {
-  const key = JSON.stringify([s.floor, room.id, room.type, room.foes, room.waves?.map((w) => w.foes), s.scale])
+  const key = JSON.stringify([s.floor, room.id, room.type, room.foes, room.waves?.map((w) => w.foes), s.scale, s.ascension])
   let r = roomReads.get(key)
   if (r) return r
   const foes = [...(room.foes ?? []), ...(room.waves ?? []).flatMap((w) => w.foes)]
-  const mods = foeMods(s.floor, room.type === 'boss', s.scale)
+  const mods = foeMods(s.floor, room.type === 'boss', foeScale(s))
   const t = Object.fromEntries(OUT_THREATS.map((k) => [k, 0]))
   let threat = 0
   let hp = 0
@@ -2641,13 +2644,14 @@ const buildOf = (s) => {
 export function record ({ expert, forest, route, outforest, ...job }) {
   return withExpert(expert, () => withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => recordRun(job)))))
 }
-// The harness's (redesign.md §3): `scale` the run's difficulty (createRun's), `act` its player in place of the level's
-// policy (autoplay's: the outside teacher), and in the result the archetype it was committed to (commitOf: the caller's,
-// withCommit), each battle's synergies your side held as it began (`syn`), its build (builtOf) and its margin (endOf).
-function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, scale = 1, act = null }) {
+// The harness's (redesign.md §3): `ascension` the run's level of the ladder and `scale` the harness's override on its
+// foes (createRun's), `act` its player in place of the level's policy (autoplay's: the outside teacher), and in the
+// result the archetype it was committed to (commitOf: the caller's, withCommit), each battle's synergies your side held
+// as it began (`syn`), its build (builtOf) and its margin (endOf); its level where it is not 0.
+function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, scale = 1, ascension = 0, act = null }) {
   const battles = []
   const t0 = Date.now()
-  const run = ablatedRun(seed, ablate, null, scale)
+  const run = ablatedRun(seed, ablate, null, { scale, ascension })
   const L = { ...LEVELS[level], ...(ablate && { ablate }) }
   let snap = null
   // The battle the run fell in: its room's rank and the share of its foes' HP removed (progressOf).
@@ -2698,6 +2702,7 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
     fell,
     commit: commitOf(),
     ...(scale !== 1 && { scale }),
+    ...(ascension && { ascension }),
     built: builtOf(run),
     end: endOf(run, battles),
     // Wall time of the run, in seconds (the only field that is not a pure function of the job).
@@ -2939,7 +2944,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}${job.expert ? `|expert:${job.expert}` : ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}${job.expert ? `|expert:${job.expert}` : ''}${job.ascension ? `|a${job.ascension}` : ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))
@@ -2950,16 +2955,18 @@ function saveTimes (times) {
   try { fs.writeFileSync(path.join(os.tmpdir(), TIMES), JSON.stringify(times)) } catch {}
 }
 // A job's expected length: its last time if known, else a guess (an expert run far longer than a basic one, the
-// full expert longest of all: it lives longest; a chunk of refights all alike; the outside teacher's far longer).
-const jobTime = (job, times) => times[jobKey(job)] ?? (job.refight || job.level === 'basic' ? 1 : job.player === 'teacher' ? 67 : job.ablate ? 4 : 5)
+// full expert longest of all: it lives longest; a chunk of refights all alike; the calculator's between; the outside
+// teacher's far longer).
+const jobTime = (job, times) => times[jobKey(job)] ?? (job.refight || job.level === 'basic' || job.player === 'basic' ? 1 : job.player === 'calc' ? 3 : job.player === 'teacher' ? 67 : job.ablate ? 4 : 5)
 
 // ── balance report ─────────────────────────────────────────────────────────────────────────────
 
 // Autoplays `runs` seeded runs and prints clear rate, battle length, per-floor progression and how each
 // camp layout fares: a camp far off its floor's average is a balance outlier.
-// With `ablate`, the level with that mechanic taken away (ABLATIONS); with `forest` (a file, or 'none'), that forest's.
-async function report ({ runs, seed: seed0, level, ablate = null, forest }) {
-  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(forest !== undefined && { forest }) })))
+// With `ablate`, the level with that mechanic taken away (ABLATIONS); with `forest` (a file, or 'none'), that forest's;
+// at `ascension`, that level of the ladder.
+async function report ({ runs, seed: seed0, level, ablate = null, forest, ascension = 0 }) {
+  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(forest !== undefined && { forest }), ...(ascension && { ascension }) })))
   const battles = played.flatMap((r) => r.battles)
   const turns = battles.map((b) => b.t).sort((a, b) => a - b)
   const deaths = {}
@@ -2980,7 +2987,7 @@ async function report ({ runs, seed: seed0, level, ablate = null, forest }) {
   const sum = (key) => played.reduce((n, r) => n + r[key], 0)
   const q = (p) => turns[Math.min(turns.length - 1, Math.floor(p * turns.length))]
   const pct = (n) => `${(100 * n / runs).toFixed(1)}%`
-  console.log(`runs ${runs} (seed ${seed0}, ${level} player${ablate ? `, ${ablate} ablated` : ''}${forest !== undefined ? `, forest ${forest}` : ''})`)
+  console.log(`runs ${runs} (seed ${seed0}, ${level} player${ablate ? `, ${ablate} ablated` : ''}${forest !== undefined ? `, forest ${forest}` : ''}${ascension ? `, ascension ${ascension}` : ''})`)
   console.log(`clear rate        ${pct(played.filter((r) => r.result === 'victory').length)}`)
   for (let f = 1; f <= TUNING.run.floors; f++) console.log(`deaths on floor ${f} ${pct(deaths[f] ?? 0)}`)
   console.log(`battles           ${turns.length}, ${(turns.length / runs).toFixed(1)} per run`)
@@ -3064,13 +3071,133 @@ async function paired ({ runs, seed: seed0, level, players }) {
 // the defeats.
 export const causesOf = (death) => !death ? [] : [death.reason === 'stall' ? 'stall' : death.threat ?? 'none']
 
-// The same seeds at every level: how far planning lifts a run over rules of thumb. The gap between
-// basic and expert is the game's skill range; a gap near zero means the choices barely matter, and an
-// expert clear rate near 100% means a planner has solved it. With `forest` (a file, or 'none'), that forest's.
-async function ladder ({ runs, seed: seed0, forest }) {
-  const levels = Object.keys(LEVELS)
-  const played = await playAll(levels.flatMap((level) => Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ...(forest !== undefined && { forest }) }))))
-  console.log(`runs ${runs} per level (seed ${seed0}${forest !== undefined ? `, forest ${forest}` : ''}), the same seeds at each`)
+// The ladder's rungs (redesign.md §3), the weakest first: basic (LEVELS.basic, rules of thumb), the calculator (calc.js:
+// sound turns, no strategy, the novice's model), the expert (LEVELS.expert) and the outside teacher (outside.js, the
+// harness's TEACHER: ~67 s a run, so played by --teacher alone). "The ladder at every difficulty is the skill-
+// differentiation measure": its rungs keep their order and their gaps at every level of the ascension ladder.
+export const RUNGS = Object.freeze(['basic', 'calc', 'expert', 'teacher'])
+
+// The levels of the ascension ladder a --ascension names (run.js createRun's): `all` (0 to the top), a comma-separated
+// list, or one; each checked.
+export function ascensionsOf (spec = '0') {
+  if (spec === 'all') return Array.from({ length: ascensionTop() + 1 }, (_, k) => k)
+  const out = String(spec).split(',').filter((x) => x !== '').map(Number)
+  for (const a of out) if (!(Number.isInteger(a) && a >= 0 && a <= ascensionTop())) throw new Error(`ascension "${a}": a level from 0 to ${ascensionTop()}, a list of them, or all`)
+  if (!out.length) throw new Error('--ascension: a level, a list of them, or all')
+  return out
+}
+
+// One run of the ladder (a worker's job): seed `seed` played by rung `player` at level `ascension`. Basic's and the
+// expert's are record's (`forest` the expert's, as the report's), the teacher's the harness's (buildRecord); the
+// calculator's is calc.js calcRun (loaded here, as it imports this module), its readers' two searched numbers at 0 for
+// the run and put back after (a worker plays other rungs' jobs too), read into the fields the ladder reads: the result,
+// the floor and the progress (progressOf, as record reads it), what felled it, its battles (each its floor, turns and
+// whether it was won) and its seconds. → a promise of the record, with `player` and `ascension`
+export async function ladderRecord ({ seed, player, ascension = 0, forest }) {
+  if (!RUNGS.includes(player)) throw new Error(`unknown rung "${player}": ${RUNGS.join(', ')}`)
+  if (player === 'teacher') return { ...(await buildRecord({ seed, player, ascension })), ascension }
+  if (player !== 'calc') return { ...record({ seed, level: player, ascension, ...(forest !== undefined && { forest }) }), player, ascension }
+  const { calcRun, plainReaders } = await import('./calc.js')
+  const B = TUNING.expert.battle
+  const was = { brink: B.brink, peril: B.peril }
+  const battles = []
+  let fell = null
+  plainReaders()
+  try {
+    const r = calcRun(seed, {
+      ascension,
+      onBattle: (b, run) => {
+        battles.push({ floor: b.floor + (b.boss ? 'B' : ''), t: b.turn, won: b.winner === 'party' })
+        if (b.winner !== 'party') fell = { rank: currentNode(run).rank, share: foeShare(b) }
+      }
+    })
+    const progress = progressOf({ result: r.result, floor: r.floor, rank: fell?.rank ?? 1, share: fell?.share ?? 0 })
+    return { seed, player, ascension, result: r.result, floor: r.floor, progress, death: r.death, battles, secs: r.secs }
+  } finally {
+    Object.assign(B, was)
+  }
+}
+
+// The jobs of --ladder: every rung of `rungs` on the same seeds at every level of `ascensions`.
+export function ladderJobs ({ ascensions = [0], rungs = RUNGS.slice(0, 3), runs = 8, seed = 'sim', forest } = {}) {
+  return ascensions.flatMap((ascension) => rungs.flatMap((player) => Array.from({ length: runs }, (_, i) => ({
+    ladder: true, seed: `${seed}-${i}`, player, ascension, ...(forest !== undefined && { forest })
+  }))))
+}
+
+// The ladder over the levels, from its records (ladderRecord's, any order): for each level of `ascensions` and each rung
+// of `rungs`, on the same seeds, the runs, its clears, its deaths by floor (1 to TUNING.run.floors), its mean progress in
+// points (progressOf) and battles a run, and against the rung below it seed for seed (pairedStats) the clears it won and
+// lost and its progress's difference ± one standard error; and for each level whether the rungs keep their order (each
+// one's progress above the one below's). → { runs, seed, ascensions, rungs, rows, ordered: { level: bool } }
+export function ladderTable (records, { ascensions, rungs, runs, seed }) {
+  const of = (a, rung) => records.filter((r) => (r.ascension ?? 0) === a && r.player === rung)
+  const rows = []
+  const ordered = {}
+  for (const a of ascensions) {
+    rungs.forEach((rung, j) => {
+      const R = of(a, rung)
+      const p = j ? pairedStats(of(a, rungs[j - 1]), R) : null
+      rows.push({
+        ascension: a,
+        rung,
+        runs: R.length,
+        clears: R.filter(cleared).length,
+        deaths: Array.from({ length: TUNING.run.floors }, (_, f) => R.filter((r) => !cleared(r) && r.floor === f + 1).length),
+        progress: 100 * (meanOf(R.map((r) => r.progress)) ?? 0),
+        battles: meanOf(R.map((r) => r.battles.length)) ?? 0,
+        below: j ? rungs[j - 1] : null,
+        won: p?.won ?? null,
+        lost: p?.lost ?? null,
+        diff: p?.diff ?? null,
+        se: p?.se ?? null
+      })
+    })
+    const mine = rows.filter((r) => r.ascension === a)
+    ordered[a] = mine.every((r, j) => !j || r.progress > mine[j - 1].progress)
+  }
+  return { runs, seed, ascensions, rungs, rows, ordered }
+}
+
+// The ladder's table as lines: a row a level and rung, the gap to the rung below beside it; then each level's order.
+export function ladderLines (t) {
+  const out = [`the ladder: ${t.runs} seeds ${t.seed}-0…${t.runs - 1}, every rung on the same seeds at ascension ${t.ascensions.join(', ')} (redesign.md §3, §4.6)`]
+  out.push(`${'asc'.padStart(3)}  ${'rung'.padEnd(8)}${'clears'.padStart(7)}${'died fl 1/2/3/4'.padStart(17)}${'progress'.padStart(10)}${'battles'.padStart(9)}  against the rung below: clears won −lost, progress`)
+  for (const r of t.rows) {
+    out.push([
+      String(r.ascension).padStart(3),
+      '  ' + r.rung.padEnd(8),
+      pct(r.clears / Math.max(1, r.runs)).padStart(7),
+      r.deaths.join('/').padStart(17),
+      r.progress.toFixed(1).padStart(10),
+      r.battles.toFixed(1).padStart(9),
+      r.below ? `  ${r.below} → ${r.rung}: +${r.won} −${r.lost}, ${r.diff >= 0 ? '+' : ''}${r.diff.toFixed(1)} ± ${r.se.toFixed(1)}` : ''
+    ].join(''))
+  }
+  out.push(`the order kept (each rung's progress above the one below's): ${t.ascensions.map((a) => `${a} ${t.ordered[a] ? 'yes' : 'NO'}`).join(', ')}`)
+  return out
+}
+
+// The same seeds on every rung (RUNGS: basic, the calculator, the expert and with `teacher` the outside teacher) at every
+// level of `ascensions` (the ascension ladder's, 0 by default): how far planning lifts a run over rules of thumb, level by
+// level (ladderTable, ladderLines). The gap between basic and the expert is the game's skill range; a gap near zero
+// means the choices barely matter, and an expert clear rate near 100% means a planner has solved it. At one level the
+// report goes on with the record players' detail (the calculator's records carry none of it), as it did before the
+// ascension ladder. With `forest` (a file, or 'none'), that forest's. → the table
+async function ladder ({ runs, seed: seed0, forest, ascensions = [0], teacher = false }) {
+  const rungs = RUNGS.filter((r) => teacher || r !== 'teacher')
+  const t0 = Date.now()
+  const all = await playAll(ladderJobs({ ascensions, rungs, runs, seed: seed0, forest }))
+  const t = ladderTable(all, { ascensions, rungs, runs, seed: seed0 })
+  for (const line of ladderLines(t)) console.log(line)
+  console.log(`(${all.length} runs in ${((Date.now() - t0) / 60000).toFixed(1)} min${forest !== undefined ? `, forest ${forest}` : ''})`)
+  if (ascensions.length > 1) {
+    console.log('\n(the detail below is a level\'s: --ascension <level> for one)')
+    return t
+  }
+  const levels = rungs.filter((r) => r !== 'calc')
+  const played = levels.flatMap((level) => all.filter((r) => r.player === level))
+  console.log(`\nruns ${runs} per level (seed ${seed0}${forest !== undefined ? `, forest ${forest}` : ''}${ascensions[0] ? `, ascension ${ascensions[0]}` : ''}), the same seeds at each`)
   console.log('level    clear  died on floor 1      2      3      4  battles won  relics  reaped')
   levels.forEach((level, i) => {
     const mine = played.slice(i * runs, (i + 1) * runs)
@@ -3169,6 +3296,7 @@ async function ladder ({ runs, seed: seed0, forest }) {
     console.log('')
     for (const line of diversityLines(diversity(played.slice(i * runs, (i + 1) * runs)), level)) console.log(line)
   })
+  return t
 }
 
 // ── decisions report ─────────────────────────────────────────────────────────────────────────────
@@ -3492,14 +3620,16 @@ async function necessity ({ runs, seed: seed0, setups: file = null }) {
 
 // ── the harness: builds committed, the diversity block, the pool (redesign.md §3, §6 Step 0) ───────────
 
-// --builds [--player expert|teacher] [--commit <archetype>[,…]|all|fused|synergies|none] [--scale 1] [--runs 256]
+// --builds [--player expert|teacher] [--commit <archetype>[,…]|all|fused|synergies|none] [--ascension 0] [--scale 1] [--runs 256]
 // [--seed div] [--workers n] [--out file.json]  (npm run builds): seeds `<seed>-0`… played in free play (the player as it
 // ships) and, on the same seeds, committed to each archetype named (ARCHETYPES, withCommit; all by default; `fused` the
 // fused kinds, `synergies` the synergies, `none` free play alone); a row an archetype (buildRow) and free play's
 // diversity block (diversity). The player: `expert` (LEVELS.expert, the fast loop's, ~8 s a run) or `teacher`, the
 // outside teacher (outside.js outsideTeacher: each choice out of battle among the expert's top six played out to the
 // run's end by the expert, the first that clears taken; the expert in battle; ~67 s a run), committed through the same
-// book. `--scale`: every foe's HP and ATK × it (createRun's). `--out`: the rows, the block and every run's record, as JSON.
+// book. `--ascension`: the level of the ladder its runs are played at (createRun's; 0 by default). `--scale`: every
+// foe's HP and ATK × it on top of the level's (createRun's: an override for probing). `--out`: the rows, the block and
+// every run's record, as JSON.
 // Noise as the old spec reported it: ± one standard error of the paired difference; 64 seeds resolve ~6 points of
 // clear rate, 256 ~3.
 // --pool [--runs 256] [--seed div]  (npm run pool): what a run can gather (poolTable).
@@ -3508,27 +3638,29 @@ export const PLAYERS = Object.freeze(['expert', 'teacher'])
 export const TEACHER = Object.freeze({ won: true })
 
 // One run of the harness (a worker's job: playAll): seed `seed` played by `player`, committed to `commit` (null: free
-// play), at difficulty `scale`. The expert's is record's; the teacher's the same record with the outside teacher's
+// play), at level `ascension` with `scale` on its foes. The expert's is record's; the teacher's the same record with the outside teacher's
 // action at every step (autoplay's `act`; outside.js, loaded here, as it imports this module), and its counts (`teacher`:
 // decisions played out, playouts, overrides of the expert's pick). → a promise of record's result, with `player`
-export async function buildRecord ({ seed, player = 'expert', commit = null, scale = 1 }) {
+export async function buildRecord ({ seed, player = 'expert', commit = null, scale = 1, ascension = 0 }) {
   if (!PLAYERS.includes(player)) throw new Error(`unknown player "${player}": ${PLAYERS.join(', ')}`)
-  if (player === 'expert') return { ...withCommit(commit, () => record({ seed, level: 'expert', scale })), player }
+  if (player === 'expert') return { ...withCommit(commit, () => record({ seed, level: 'expert', scale, ascension })), player }
   const { outsideTeacher, outsideStats } = await import('./outside.js')
   let run = null
   const act = (r, rng) => outsideTeacher((run = r), rng, TEACHER)
-  const out = withCommit(commit, () => record({ seed, level: 'expert', scale, act }))
+  const out = withCommit(commit, () => record({ seed, level: 'expert', scale, ascension, act }))
   const phases = Object.values(outsideStats(run).phases)
   const sum = (k) => phases.reduce((n, p) => n + p[k], 0)
   return { ...out, player, teacher: { decisions: sum('decided'), playouts: sum('playouts'), overrides: sum('overrides') } }
 }
-// A job's key for its time (playAll's order): a harness's by its player, commitment and scale too.
-const jobKey = (job) => (job.builds ? `${job.seed}|builds|${job.player}|${job.commit ?? 'free'}|${job.scale}` : timeKey(job))
+// A job's key for its time (playAll's order): a harness's by its player, commitment, scale and level too; the ladder's
+// by its rung and level.
+const jobKey = (job) => (job.builds ? `${job.seed}|builds|${job.player}|${job.commit ?? 'free'}|${job.scale}${job.ascension ? `|a${job.ascension}` : ''}`
+  : job.ladder ? `${job.seed}|ladder|${job.player}|a${job.ascension}` : timeKey(job))
 
 // The jobs of --builds: free play, then each archetype of `commits` committed, on the same seeds.
-export function buildJobs ({ player = 'expert', commits = ARCHETYPES(), scale = 1, runs = 256, seed = 'div' } = {}) {
+export function buildJobs ({ player = 'expert', commits = ARCHETYPES(), scale = 1, ascension = 0, runs = 256, seed = 'div' } = {}) {
   const seeds = Array.from({ length: runs }, (_, i) => `${seed}-${i}`)
-  return [null, ...commits].flatMap((commit) => seeds.map((s) => ({ builds: true, seed: s, player, commit, scale })))
+  return [null, ...commits].flatMap((commit) => seeds.map((s) => ({ builds: true, seed: s, player, commit, scale, ascension })))
 }
 // The archetypes a --commit names: `all`, `fused` (the fused kinds), `synergies`, `none` (free play alone), or a
 // comma-separated list, each checked.
@@ -3720,8 +3852,8 @@ const listOf = (o, top = Infinity) => Object.entries(o).slice(0, top).map(([k, v
 const met = (ok) => (ok ? 'met' : 'NOT MET')
 
 // The rows of --builds as lines: free play's, then each archetype's.
-export function buildLines (rows, { player = 'expert', scale = 1, runs, seed } = {}) {
-  const out = [`builds: the ${player}, ${runs} seeds ${seed}-0…${runs - 1}${scale !== 1 ? `, every foe's HP and ATK ×${scale}` : ''}; each archetype committed (its combos of the book alone) on free play's seeds`]
+export function buildLines (rows, { player = 'expert', scale = 1, ascension = 0, runs, seed } = {}) {
+  const out = [`builds: the ${player}, ${runs} seeds ${seed}-0…${runs - 1}${ascension ? `, ascension ${ascension}` : ''}${scale !== 1 ? `, every foe's HP and ATK ×${scale}` : ''}; each archetype committed (its combos of the book alone) on free play's seeds`]
   out.push(`${'archetype'.padEnd(16)}${'clears'.padStart(7)}${'progress'.padStart(9)}${'vs free'.padStart(15)}  ${'died fl 1/2/3/4'.padStart(15)}  ${'mon'.padStart(4)}${'souls'.padStart(6)}${'ess'.padStart(6)}${'lost'.padStart(5)}${'t/b'.padStart(6)}  ${'made'.padStart(5)}${'at'.padStart(4)}${'s/run'.padStart(7)}`)
   const num = (x, d = 0) => (x === null ? '-' : x.toFixed(d))
   for (const r of rows) {
@@ -3767,21 +3899,22 @@ export function diversityLines (d, label = 'free play') {
 
 // --builds: plays the jobs (playAll), prints the rows and free play's diversity block (the teacher's counts too); with
 // `out`, all of it and every record as JSON. → { rows, diversity, records }
-export async function builds ({ player = 'expert', commits = ARCHETYPES(), scale = 1, runs = 256, seed = 'div', out = null, log = console.log } = {}) {
+export async function builds ({ player = 'expert', commits = ARCHETYPES(), scale = 1, ascension = 0, runs = 256, seed = 'div', out = null, log = console.log } = {}) {
   if (!PLAYERS.includes(player)) throw new Error(`unknown player "${player}": ${PLAYERS.join(', ')}`)
   if (!(scale > 0)) throw new Error(`scale ${scale}: a multiplier above 0`)
+  ascensionsOf(String(ascension))
   const t0 = Date.now()
-  const played = await playAll(buildJobs({ player, commits, scale, runs, seed }))
+  const played = await playAll(buildJobs({ player, commits, scale, ascension, runs, seed }))
   const free = played.slice(0, runs)
   const rows = [buildRow(free), ...commits.map((arch, k) => buildRow(played.slice((k + 1) * runs, (k + 2) * runs), arch, free))]
   const d = diversity(free)
-  for (const line of [...buildLines(rows, { player, scale, runs, seed }), '', ...diversityLines(d)]) log(line)
+  for (const line of [...buildLines(rows, { player, scale, ascension, runs, seed }), '', ...diversityLines(d)]) log(line)
   if (player === 'teacher') {
     const per = (k) => (played.reduce((n, r) => n + r.teacher[k], 0) / played.length).toFixed(1)
     log(`the teacher a run: ${per('decisions')} decisions played out, ${per('playouts')} playouts, ${per('overrides')} overrides of the expert's pick`)
   }
   log(`(${played.length} runs in ${((Date.now() - t0) / 60000).toFixed(1)} min)`)
-  if (out) fs.writeFileSync(out, JSON.stringify({ player, scale, seed, runs, commits, rows, diversity: d, records: played }) + '\n')
+  if (out) fs.writeFileSync(out, JSON.stringify({ player, scale, ascension, seed, runs, commits, rows, diversity: d, records: played }) + '\n')
   return { rows, diversity: d, records: played }
 }
 
@@ -3903,7 +4036,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
   const { isMainThread, parentPort, workerData } = await import('node:worker_threads')
   if (!isMainThread) {
     // A pool's worker (playAll): job after job, until it is let go (a harness's job, --builds, is buildRecord's).
-    const play = (job) => (job.audit ? auditRecord(job) : job.refight ? refight(job) : job.builds ? buildRecord(job) : record(job))
+    const play = (job) => (job.audit ? auditRecord(job) : job.refight ? refight(job) : job.builds ? buildRecord(job) : job.ladder ? ladderRecord(job) : record(job))
     if (workerData?.pool) parentPort.on('message', async (job) => parentPort.postMessage(await play(job)))
     else parentPort.postMessage(play(workerData))
   } else {
@@ -3912,6 +4045,10 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
       return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
     }
     const opts = { seed: arg('seed', 'sim'), level: arg('level', 'expert') }
+    // `--ascension <level|list|all>`: the level of the ascension ladder the runs are played at (0, the base game, by
+    // default; a list or all for the ladder alone).
+    const ascensions = ascensionsOf(arg('ascension', '0'))
+    if (ascensions.length > 1 && !process.argv.includes('--ladder')) throw new Error('--ascension: one level, but for the ladder')
     // `--workers n`: the pool's size (one per core by default).
     if (arg('workers', null) !== null) WORKERS = Math.max(1, Number(arg('workers', 1)))
     if (!LEVELS[opts.level]) throw new Error(`unknown level "${opts.level}": ${Object.keys(LEVELS).join(', ')}`)
@@ -3930,7 +4067,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     else if (process.argv.includes('--pool')) pool({ runs: Number(arg('runs', 256)), seed: arg('seed', 'div') })
     else if (process.argv.includes('--builds')) {
       await builds({
-        player: arg('player', 'expert'), commits: commitsOf(arg('commit', 'all')), scale: Number(arg('scale', 1)),
+        player: arg('player', 'expert'), commits: commitsOf(arg('commit', 'all')), scale: Number(arg('scale', 1)), ascension: ascensions[0],
         runs: Number(arg('runs', 256)), seed: arg('seed', 'div'), out: arg('out', null)
       })
     }
@@ -3943,7 +4080,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
     else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
     else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
-    else if (process.argv.includes('--ladder')) await ladder({ ...opts, forest, runs: Number(arg('runs', RUNS.ladder)) })
-    else await report({ ...opts, ablate, forest, runs: Number(arg('runs', RUNS.sim)) })
+    else if (process.argv.includes('--ladder')) await ladder({ ...opts, forest, ascensions, teacher: process.argv.includes('--teacher'), runs: Number(arg('runs', RUNS.ladder)) })
+    else await report({ ...opts, ablate, forest, ascension: ascensions[0], runs: Number(arg('runs', RUNS.sim)) })
   }
 }

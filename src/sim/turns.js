@@ -76,7 +76,8 @@ export { rulesOf, holds } from './rules.js'
 // `setup` (run.js battleSetup): `party` and `foes` are run pieces { uid, id, lvl, tracks, hp, maxHp, slot, relics? };
 // the battle works on copies, and only pieces on the field (slot ≥ 0) with HP left take part, each on its slot's board
 // tile (the party's in its camp, past `walls`, a list of board tiles). `reserve`: the foes still to come, each with
-// its `wave` (1, 2…: wave k enters at turn 1 + k × TUNING.spawn.waves.every) and its slot's `lane`. `partyMods` and
+// its `wave` (1, 2…: wave k enters at turn 1 + k × `every`, TUNING.spawn.waves.every unless the run's level says
+// otherwise: run.js waveEvery) and its slot's `lane`. `partyMods` and
 // `foeMods`: mods on every unit of the side but the Monarch (the run relics' side-wide costs; the floor's growth);
 // `relics`: the run's, every copy owned; `arise`: { domain, tier }, Arise's reach and tier for any holder (run.js
 // ariseOf; TUNING.arise by default); `essence`, the run's purse as the battle begins (what a fusion here may spend:
@@ -91,7 +92,7 @@ export { rulesOf, holds } from './rules.js'
 // rear middle tile, and ends on a wipe.
 export function createBattle ({
   party, foes, floor = 1, boss = false, partyMods = [], foeMods = [], walls = [], arise = TUNING.arise, nextUid = null,
-  reserve = [], relics = [], ablate = [], quiet = false, essence = 0, fuse = {}
+  reserve = [], relics = [], ablate = [], quiet = false, essence = 0, fuse = {}, every = null
 }) {
   const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot) })
   const units = [...party.map((u) => stamp(u, 'party')), ...foes.map((u) => stamp(u, 'foe'))]
@@ -109,13 +110,13 @@ export function createBattle ({
     at: new Array(TILES).fill(null), sky: new Array(TILES).fill(null), roster: 0, auraReach: 0, auras: [], phased: [],
     syn: {}, cache: new Map(), ruleList: {},
     turn: 1, phase: 'orders', stage: 'party', beat: 0, foeIn: 1,
-    purse: essence, spent: 0, fused: [], fuse
+    purse: essence, spent: 0, fused: [], fuse, ...(every && { every })
   }
   for (const u of units) occupy(battle, u)
   for (const u of units) fit(battle, u)
   // Each soul of yours whose tiers bring summons calls them now, in acting order (none with the `summons` switch).
   if (!battle.ablate.has('summons')) for (const u of units) if (u.side === 'party' && u !== monarch) summon(battle, u)
-  battle.waves = schedule(battle.reserve)
+  battle.waves = schedule(battle.reserve, battle.every)
   emit(battle, {
     type: 'battle:start',
     walls: [...battle.walls],
@@ -213,17 +214,18 @@ export function enterBattle (battle, u) {
 // Whether the Monarch has fallen (never, in a battle with none).
 export const fallen = (battle) => battle.monarch !== null && !alive(battle.monarch)
 
-// The turn a foe of the reserve's wave comes on (redesign.md §2.10: "wave 2 on turn 5"), TUNING.spawn.waves.every turns
-// apart from the first (turn 1): it enters as the turn before ends (arrive), and stands on the board for that turn.
-export const entryTurn = (foe) => 1 + (foe.wave || 1) * TUNING.spawn.waves.every
+// The turn a foe of the reserve's wave comes on (redesign.md §2.10: "wave 2 on turn 5"), `every` turns apart from the
+// first (turn 1), the battle's (TUNING.spawn.waves.every unless its setup says otherwise): it enters as the turn before
+// ends (arrive), and stands on the board for that turn.
+export const entryTurn = (foe, every = TUNING.spawn.waves.every) => 1 + (foe.wave || 1) * every
 
-function schedule (reserve) {
+function schedule (reserve, every) {
   const out = []
   for (const foe of reserve) {
     const wave = foe.wave || 1
     const w = out.find((x) => x.wave === wave)
     if (w) w.foes++
-    else out.push({ wave, turn: entryTurn(foe), foes: 1, entered: false })
+    else out.push({ wave, turn: entryTurn(foe, every), foes: 1, entered: false })
   }
   return out.sort((a, b) => a.turn - b.turn || a.wave - b.wave)
 }
@@ -1403,7 +1405,7 @@ function age (battle) {
 function arrive (battle) {
   const begun = []
   for (const foe of battle.reserve.slice()) {
-    if (entryTurn(foe) > battle.turn) continue
+    if (entryTurn(foe, battle.every) > battle.turn) continue
     const tile = entryTile(battle, foe.lane, !!unitDef(foe.id).flies)
     if (tile < 0) continue
     const wave = (foe.wave ||= 1)

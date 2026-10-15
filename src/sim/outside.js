@@ -66,7 +66,7 @@
 // with a decision passed, or a formation given) would let them go.
 //
 //   npm run outside -- [--runs 64] [--seed sim] [--from 0] [--workers 2] [--out dir] [--phases prep,spend,recruit,shop,hold,altar]
-//                      [--cap 6] [--rooms 0] [--prep battle|run] [--won] [--report-only]
+//                      [--cap 6] [--rooms 0] [--prep battle|run] [--won] [--ascension 0] [--report-only]
 // plays seeds `<seed>-<from>`…`<seed>-<from + runs − 1>` (sim-0…sim-63 by default), each by the outside teacher (out of
 // battle; the base in battle) and by the expert as it ships (teach.js expertRun: autoplay.js record), paired (teach.js
 // pairedReport, and how often the teacher overrode the base, by phase). runs.jsonl in `--out` (the OS's temp directory,
@@ -104,7 +104,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   apply, availableNodes, currentNode, canPlace, canHold, canBuy, relicPrice, unheld, souls, fielded, inOssuary, isMonarch, soulCount,
-  rosterCap, OSSUARY
+  rosterCap, OSSUARY, ascensionTop
 } from './run.js'
 import { createRng, hashString } from './rng.js'
 import {
@@ -123,10 +123,12 @@ import { TUNING } from '../tuning.js'
 
 // The decisions it may make (`phases`), and its defaults: `cap` candidates a decision at most, the base's pick among
 // them; `rooms` 0 to the run's end (else that many rooms on); `prep` 'battle' (a formation judged by its coming battle) or
-// 'run' (to the run's end, as the rest); `won` false (true: a cleared run is enough, see the head of this file).
+// 'run' (to the run's end, as the rest); `won` false (true: a cleared run is enough, see the head of this file);
+// `ascension` 0, the level of the ascension ladder its runs are played at (run.js createRun's; the labels below are the
+// refit's, at the base game).
 export const PHASES = Object.freeze(['prep', 'spend', 'recruit', 'shop', 'hold', 'altar'])
 export const PREPS = Object.freeze(['battle', 'run'])
-export const DEFAULTS = Object.freeze({ phases: PHASES, cap: 6, rooms: 0, prep: 'battle', won: false })
+export const DEFAULTS = Object.freeze({ phases: PHASES, cap: 6, rooms: 0, prep: 'battle', won: false, ascension: 0 })
 const L = LEVELS.expert
 const EPS = 1e-9
 const r6 = (x) => Math.round(x * 1e6) / 1e6
@@ -139,6 +141,7 @@ export function configOf (cfg = {}) {
   if (!(Number.isInteger(c.cap) && c.cap >= 1)) throw new Error(`cap ${c.cap}: a whole number, 1 or more`)
   if (!(Number.isInteger(c.rooms) && c.rooms >= 0)) throw new Error(`rooms ${c.rooms}: a whole number, 0 for the run's end`)
   if (!PREPS.includes(c.prep)) throw new Error(`prep ${c.prep}: one of ${PREPS.join(', ')}`)
+  if (!(Number.isInteger(c.ascension) && c.ascension >= 0 && c.ascension <= ascensionTop())) throw new Error(`ascension ${c.ascension}: a level from 0 to ${ascensionTop()}`)
   return { ...c, won: !!c.won && !(c.rooms > 0), phases: new Set(phases) }
 }
 
@@ -577,7 +580,7 @@ const baseOf = () => ({ expert: expertModel()?.name ?? null, forest: forestModel
 export function outsideRun (seed, cfg = {}) {
   const c = configOf(cfg)
   const t0 = performance.now()
-  const run = ablatedRun(seed)
+  const run = ablatedRun(seed, null, null, { ascension: c.ascension })
   const rng = createRng(run.state.seed).stream('autoplay')
   let won = 0
   let fought = 0
@@ -610,7 +613,7 @@ export function outsideRun (seed, cfg = {}) {
 }
 
 // The settings a run's line and the manifest record.
-const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap: c.cap, rooms: c.rooms, prep: c.prep, ...(c.won && { won: true }) })
+const settingsOf = (c) => ({ phases: PHASES.filter((p) => c.phases.has(p)), cap: c.cap, rooms: c.rooms, prep: c.prep, ...(c.won && { won: true }), ...(c.ascension && { ascension: c.ascension }) })
 
 // ── labels for the forest out of battle (outforest.js, redesign.md §2.25) ─────────────────────────
 
@@ -930,7 +933,7 @@ export function outsideLines (rep) {
 
 // A worker's job: a run by the outside teacher, by the expert as it ships, labelled, or a labelled run's rows read
 // again ({ seed, player, rows? }).
-const job = (j, cfg) => (j.player === 'label' ? labelRun(j.seed, cfg) : j.player === 'reread' ? rereadRun(j.seed, j.rows, cfg.cap, cfg.formations) : j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed))
+const job = (j, cfg) => (j.player === 'label' ? labelRun(j.seed, cfg) : j.player === 'reread' ? rereadRun(j.seed, j.rows, cfg.cap, cfg.formations) : j.player === 'outside' ? outsideRun(j.seed, cfg) : expertRun(j.seed, { ascension: cfg.ascension ?? 0 }))
 
 // Runs `jobs` in worker threads of this module, `workers` at a time, handing each result to `done` as it ends.
 async function pool (jobs, workers, cfg, done) {
@@ -979,7 +982,7 @@ async function main () {
   const from = Number(arg('from', 0))
   const workers = Number(arg('workers', 2))
   const dir = arg('out', path.join(os.tmpdir(), `retinue-outside-${seed}`))
-  const c = configOf({ phases: arg('phases', PHASES.join(',')), cap: Number(arg('cap', DEFAULTS.cap)), rooms: Number(arg('rooms', DEFAULTS.rooms)), prep: arg('prep', DEFAULTS.prep), won: process.argv.includes('--won') })
+  const c = configOf({ phases: arg('phases', PHASES.join(',')), cap: Number(arg('cap', DEFAULTS.cap)), rooms: Number(arg('rooms', DEFAULTS.rooms)), prep: arg('prep', DEFAULTS.prep), won: process.argv.includes('--won'), ascension: Number(arg('ascension', 0)) })
   const settings = settingsOf(c)
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
   fs.mkdirSync(dir, { recursive: true })

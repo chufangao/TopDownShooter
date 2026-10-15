@@ -107,12 +107,14 @@
 //
 // `--out` defaults to the OS's temp directory (retinue-teach-<seed>); a stage stopped part way goes on from where it
 // was (runs.jsonl names the runs done). Delete it (or take another --seed) once the game or the expert has changed.
+// Every mode takes `--ascension <level>`: its runs played at that level of the ascension ladder (run.js createRun's;
+// 0, the base game, by default), into its settings where it is not 0.
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createRun, apply, currentNode, availableNodes, monarchOf, souls } from './run.js'
+import { createRun, apply, currentNode, availableNodes, monarchOf, souls, ascensionTop } from './run.js'
 import { createRng, hashString } from './rng.js'
 import { policy, survey, roomFeatures, routeConditions, routeFeatures, tierScale, ROUTE_FEATURES, progressOf, foeShare, routeRooms, useRoute, routeModel, record, ablatedRun } from './autoplay.js'
 import * as P from './policy.js'
@@ -585,7 +587,7 @@ export function teachRun (seed, cfg = {}) {
   install(c)
   const t0 = performance.now()
   let labelMs = 0
-  const run = createRun({ seed })
+  const run = createRun({ seed, ascension: c.ascension ?? 0 })
   const rng = createRng(run.state.seed).stream('autoplay')
   const positions = []
   let decisions = 0
@@ -684,7 +686,7 @@ export function afterRow (board, row) {
 // { seed, rows: [{ id, same, a } or { id, missed: true }] }
 export function augmentRun ({ seed, positions }, cfg = {}) {
   install(cfg)
-  const run = createRun({ seed })
+  const run = createRun({ seed, ascension: cfg.ascension ?? 0 })
   const rng = createRng(run.state.seed).stream('autoplay')
   const todo = positions.slice().sort((x, y) => x.at - y.at)
   const rows = []
@@ -720,7 +722,7 @@ async function augmentMain (dir, arg, workers) {
   const forestFile = givenForest !== null ? (givenForest === 'none' ? null : path.resolve(givenForest)) : named?.file ?? null
   if (givenForest === null && named && !named.file && manifest.forest?.name) throw new Error(`${dir} was played with forest ${manifest.forest.name}, its file unnamed: give --forest <file>`)
   const forest = forestFile ? JSON.parse(fs.readFileSync(forestFile, 'utf8')) : null
-  const cfg = { forest, ...(manifest.settings?.expert && { expert: manifest.settings.expert }) }
+  const cfg = { forest, ...(manifest.settings?.expert && { expert: manifest.settings.expert }), ...(manifest.settings?.ascension && { ascension: manifest.settings.ascension }) }
   const labels = path.join(dir, 'labels.jsonl')
   const bySeed = new Map()
   const order = []
@@ -1003,7 +1005,7 @@ export function teacherRun (seed, cfg = {}) {
   const c = { ...DEFAULTS, ...cfg }
   install(c)
   const t0 = performance.now()
-  const run = ablatedRun(seed)
+  const run = ablatedRun(seed, null, null, { ascension: c.ascension ?? 0 })
   const rng = createRng(run.state.seed).stream('autoplay')
   const count = { decisions: 0, playouts: 0, single: 0, ms: 0 }
   let won = 0
@@ -1050,7 +1052,7 @@ export function teacherRun (seed, cfg = {}) {
 export function expertRun (seed, cfg = {}) {
   install(cfg)
   const t0 = performance.now()
-  const r = record({ seed, level: 'expert' })
+  const r = record({ seed, level: 'expert', ascension: cfg.ascension ?? 0 })
   return {
     seed, player: 'expert', result: r.result ?? null, floor: r.floor, progress: r.progress,
     battles: { won: r.battles.filter((b) => b.won).length, fought: r.battles.length }, ms: Math.round(performance.now() - t0)
@@ -1309,7 +1311,7 @@ export function teachRoutes (seed, cfg = {}) {
   try {
     const t0 = performance.now()
     let labelMs = 0
-    const run = createRun({ seed })
+    const run = createRun({ seed, ascension: c.ascension ?? 0 })
     const rng = createRng(run.state.seed).stream('autoplay')
     const positions = []
     const later = []
@@ -1343,7 +1345,7 @@ export function teachRoutes (seed, cfg = {}) {
       positions.push({ ...k.at, ...labelChoice(k.run, k.chosen, { ...c, known: { [k.chosen]: own } }) })
       labelMs += performance.now() - t
     }
-    const end = routeEndValue(runTally(createRun({ seed })), run, w)
+    const end = routeEndValue(runTally(createRun({ seed, ascension: c.ascension ?? 0 })), run, w)
     return { seed, result: run.state.result ?? null, floor: run.state.floor, progress: end.share, choices, positions, ms: Math.round(performance.now() - t0), labelMs: Math.round(labelMs) }
   } finally {
     if (c.route !== undefined) useRoute(hadRoute ?? false)
@@ -1570,6 +1572,13 @@ export function treeWords (node, depth = 0) {
   return [`${pad}${node.if} > ${node.gt}:`, ...treeWords(node.then, depth + 1), `${pad}${node.if} ≤ ${node.gt}:`, ...treeWords(node.else, depth + 1)]
 }
 
+// `--ascension <level>` (every mode's): the settings' level where it is not 0, checked.
+function ascensionArg (arg) {
+  const a = Number(arg('ascension', 0))
+  if (!(Number.isInteger(a) && a >= 0 && a <= ascensionTop())) throw new Error(`--ascension ${a}: a level from 0 to ${ascensionTop()}`)
+  return a ? { ascension: a } : {}
+}
+
 // `npm run teach -- --route …` (see the route's head above): label room choices, or with --fit fit the route's tree.
 async function routeMain (arg, workers) {
   const seed = arg('seed', 'route')
@@ -1631,7 +1640,7 @@ async function routeMain (arg, workers) {
   }
   // The route and the battle expert that play, kept in `--out` as they were when its labelling began.
   const route = arg('policy', had?.settings?.policy ?? 'learned')
-  const settings = { rooms, weights: routeWeightsOf({ rooms, weights: w }), keep: ROUTE_KEEP, reuse: ROUTE_DEFAULTS.reuse, policy: route }
+  const settings = { rooms, weights: routeWeightsOf({ rooms, weights: w }), keep: ROUTE_KEEP, reuse: ROUTE_DEFAULTS.reuse, policy: route, ...ascensionArg(arg) }
   if (had && JSON.stringify(had.settings) !== JSON.stringify(settings)) throw new Error(`${dir} was labelled with other settings (${JSON.stringify(had.settings)}): take another --out`)
   fs.mkdirSync(dir, { recursive: true })
   if (!fs.existsSync(policyFile)) fs.writeFileSync(policyFile, JSON.stringify(route === 'hand' ? false : (route === 'learned' ? E.shippedPart('route') : json(route)), null, 1) + '\n')
@@ -1717,7 +1726,7 @@ async function teacherMain (arg, workers) {
   const settings = {
     cap: Number(arg('cap', DEFAULTS.cap)), turns: Number(arg('turns', DEFAULTS.turns)),
     weights: given ? { ...END_WEIGHTS, ...Object.fromEntries(given.split(',').map((kv) => kv.split('=')).map(([k, x]) => [k, Number(x)])) } : END_WEIGHTS,
-    ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }), ...(fk.setting !== undefined && { forest: fk.setting })
+    ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }), ...(fk.setting !== undefined && { forest: fk.setting }), ...ascensionArg(arg)
   }
   const cfg = { ...settings, ...(fk.config !== undefined && { forest: fk.config }) }
   install(cfg)
@@ -1811,7 +1820,7 @@ if (!isMainThread && workerData?.teach) {
     rounds, cap: Number(arg('cap', DEFAULTS.cap)), ...(!(rounds > 0) && { turns: Number(arg('turns', DEFAULTS.turns)) }),
     weights, keep: nums(arg('keep', null), ['lost', 'near', 'reach', 'calm'], KEEP), ...(keepFloor && { keepFloor }), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }),
     ...(fk.setting !== undefined && { forest: fk.setting }), ...(how !== DEFAULTS.draw && { draw: how }),
-    ...(smooth.k > 1 && { smooth: smooth.k, epsilon: smooth.epsilon, top: smooth.top })
+    ...(smooth.k > 1 && { smooth: smooth.k, epsilon: smooth.epsilon, top: smooth.top }), ...ascensionArg(arg)
   }
   const cfg = { ...settings, ...(fk.config !== undefined && { forest: fk.config }) }
   install(cfg)

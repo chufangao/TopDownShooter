@@ -276,9 +276,10 @@ export const PHASES = Object.freeze(['draft', 'spend', 'route', 'recruit', 'shop
 
 // One run: the calculator (`teacher` false), or the teacher over it: at each decision of `phases` with two candidates or
 // more, at most `cap` of them (the calculator's first) played out to the end, the first that clears taken, else the best.
-export function calcRun (seed, { teacher = false, phases = PHASES, cap = 6, onBattle = null } = {}) {
+// At level `ascension` of the ladder (run.js createRun's; its playouts' copies keep it), named in the result where not 0.
+export function calcRun (seed, { teacher = false, phases = PHASES, cap = 6, onBattle = null, ascension = 0 } = {}) {
   const t0 = Date.now()
-  const run = createRun({ seed })
+  const run = createRun({ seed, ascension })
   const memo = new Map()
   const on = new Set(phases)
   const stats = { decisions: 0, decided: 0, overrides: 0, playouts: 0 }
@@ -317,7 +318,7 @@ export function calcRun (seed, { teacher = false, phases = PHASES, cap = 6, onBa
   }
   const s = run.state
   return {
-    seed, player: teacher ? 'teacher' : 'calc', result: s.result, floor: s.floor, death: s.death ? { threat: s.death.threat ?? null, reason: s.death.reason ?? null } : null,
+    seed, player: teacher ? 'teacher' : 'calc', ...(ascension && { ascension }), result: s.result, floor: s.floor, death: s.death ? { threat: s.death.threat ?? null, reason: s.death.reason ?? null } : null,
     end: endOf(run).value, stats, secs: (Date.now() - t0) / 1000
   }
 }
@@ -331,8 +332,9 @@ function capMap (cands, cap) {
 
 // ── the command line ──────────────────────────────────────────────────────────────────────────────
 
-// node src/sim/calc.js [--teacher] [--seed aud] [--from 0] [--runs 8]: a line a run (calcRun's, with its battles fought
-// and won and their turns); run several at once on disjoint `--from` ranges for cores.
+// node src/sim/calc.js [--teacher] [--seed aud] [--from 0] [--runs 8] [--ascension 0]: a line a run (calcRun's, with its
+// battles fought and won and their turns); run several at once on disjoint `--from` ranges for cores. (The ladder plays
+// the calculator as a rung: autoplay.js --ladder.)
 if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new URL(import.meta.url).pathname)) {
   const arg = (name, def) => {
     const i = process.argv.indexOf('--' + name)
@@ -344,7 +346,7 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     let battles = 0
     let won = 0
     let turns = 0
-    const r = calcRun(`${arg('seed', 'aud')}-${i}`, { teacher: process.argv.includes('--teacher'), onBattle: (b) => { battles++; won += b.winner === 'party'; turns += b.turn } })
+    const r = calcRun(`${arg('seed', 'aud')}-${i}`, { teacher: process.argv.includes('--teacher'), ascension: Number(arg('ascension', 0)), onBattle: (b) => { battles++; won += b.winner === 'party'; turns += b.turn } })
     console.log(JSON.stringify({ ...r, battles, won, turns }))
   }
 }
