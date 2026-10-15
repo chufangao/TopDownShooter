@@ -158,6 +158,16 @@
 .fusion-part.short { color: var(--dim); }
 .fusion-ready { color: var(--c-path); font: 600 var(--fs-md) var(--display); }
 .fusion .card-tip, .fusion .card-tip.compact { margin: 0; width: auto; max-width: none; box-sizing: border-box; }
+/* The trines (codex.js fusionsView): a tile a triple, the trine drawn as its three over its kind ×3; the one tapped
+   lit, its card beside them, held in view while the tiles scroll by. */
+.trines { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 10px 16px; align-items: start; margin-top: 10px; }
+.trine-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 8px; }
+.trine-tile { justify-content: flex-start; gap: 8px; padding: 3.5px 10.5px 5.5px 4.5px; text-align: left; background: #1b2c38; }
+.trine-tile.on { background: #1d4450; box-shadow: inset 0 0 0 2.5px var(--c-path), var(--drop-sm); }
+.trine-name { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; font-size: var(--fs-sm); }
+.trine-name .small { font-size: var(--fs-xs); }
+.trines > .fusion-list { position: sticky; top: 0; margin-top: 0; }
+.trines .fusion { grid-template-columns: minmax(0, 1fr); }
 .help-head { flex: none; display: flex; align-items: center; gap: 22px; }
 .help-head .modal-title { flex: none; margin: 0; }
 .help-head .close { position: static; flex: none; }

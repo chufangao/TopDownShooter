@@ -8,7 +8,7 @@ import {
 } from './content.js'
 import {
   statsOf, activeSynergies, COLS, ROWS, slotAt, rangeOf, isAllyShape, CAMP_ROWS, abilitiesOf, auraOf, tiersOf,
-  tileX, tileY, DEPTH, distance, deployTile, behaviourOf, summonsOf, sizeOf, tracksOf, reachOf, meleeOnly, isBlow, onField
+  tileX, tileY, DEPTH, distance, deployTile, behaviourOf, summonsOf, summonedOf, sizeOf, tracksOf, reachOf, meleeOnly, isBlow, onField
 } from './sim/unit.js'
 import {
   foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, unhealed, isMonarch, depthOf, rosterCap,
@@ -221,13 +221,24 @@ export function statTip (run, u, key) {
 }
 
 // The summons a soul's kind's tiers bring it each battle (unit.js summonsOf), in a sentence for its panel, with the HP
-// each rises at from `st`, the stats it fights with (hpAt's share); a summon brings none. "Brings 2 summons each
-// battle: …".
-export function summonText (u, st = statsOf(u)) {
+// each rises at from `st`, the stats it fights with (hpAt's share); a summon brings none. A trine's are the kind it
+// was made of (unit.js summonedOf), at that kind's HP at its level and tiers (under `mods`, the soul's). "Brings 2
+// summons each battle: …".
+export function summonText (u, st = statsOf(u), mods = []) {
   const n = summonsOf(u)
-  const hp = Math.max(1, Math.round(st.hp * TUNING.summon.hp))
+  const kind = summonedOf(u)
+  const own = kind === u.id
+  const of = own ? st : statsOf({ id: kind, lvl: u.lvl, tracks: u.tracks }, mods)
+  const hp = Math.max(1, Math.round(of.hp * TUNING.summon.hp))
   return [h('b', null, `Brings ${n} `), kw('summon', `summon${n === 1 ? '' : 's'}`), h('b', null, ' each battle'),
-    `: ${n === 1 ? 'a shadow' : `${n} shadows`} of it at ${hp} HP${n === 1 ? '' : ' each'} (${pct(TUNING.summon.hp)} of its ${Math.round(st.hp)}), on the free tiles nearest it; they use its basics and are gone after the battle.`]
+    `: ${n === 1 ? 'a shadow' : `${n} shadows`} ${own ? 'of it' : `of the ${unitDef(kind).name} it was made of,`} at ${hp} HP${n === 1 ? '' : ' each'} (${pct(TUNING.summon.hp)} of ${own ? 'its' : 'a whole one\'s'} ${Math.round(of.hp)}), on the free tiles nearest it; they use ${own ? 'its' : 'their'} basics and are gone after the battle.`]
+}
+
+// Who called summon `u` up (turns.js summon: its `summoner`), for its card's live line: "Summoned by your Bone Chanter
+// Trine". A trine's summons are the kind it was made of, so their own kind would misname it.
+export function summonedBy (battle, u) {
+  const by = battle.byUid.get(u.summoner)
+  return by ? `Summoned by your ${unitDef(by.id).name}` : 'Summoned'
 }
 
 // An HP bar, red under 35%, marked dead when empty (a card's, a panel's, a list's).
@@ -1121,17 +1132,33 @@ const writtenTrines = () => {
 const capstone = (f) => !isTriple(f) && Object.keys(f.needs).some((k) => unitDef(k).fused)
 
 // The fusions (DESIGN §2.6; redesign.md §4.1): every recipe is public from the start. The triples in one line (a kind's
-// card names its own), then the mixed recipes and the capstones, each with its result's card, its parts and its price;
-// with a run in play, how many souls of each part's kind you hold, and whether it can be made now.
+// card names its own) and a tile each, the trine drawn as the three it is (dom.js figures) over its kind ×3, the one
+// tapped showing its card beside them; then the mixed recipes and the capstones, each with its result's card, its parts
+// and its price; with a run in play, how many souls of each part's kind you hold, and whether it can be made now.
 export function fusionsView (run = null) {
   const held = (kind) => run ? souls(run.state.party).filter((u) => u.id === kind).length : null
-  const group = (name, list) => h('div', { class: 'codex-tier' }, h('b', null, name), h('div', { class: 'fusion-list' }, list.map(card)))
+  const group = (name, list) => h('div', { class: 'codex-tier' }, h('b', null, name), h('div', { class: 'fusion-list' }, list.map((f) => card(f))))
+  // The trine shown first: one you can make now, else the one whose kind you hold most of, else the first.
+  const triples = FUSION_LIST.filter(isTriple)
+  const partOf = (f) => Object.keys(f.needs)[0]
+  const first = (run && (triples.find((f) => canFuse(run, f.id)) ?? triples.filter((f) => held(partOf(f)) > 0).sort((a, b) => held(partOf(b)) - held(partOf(a)))[0])) ?? triples[0]
+  const shown = h('div', { class: 'fusion-list' })
+  const tiles = triples.map((f) => h('button', { class: 'trine-tile', onclick: () => choose(f) },
+    portrait(f.result, 50),
+    h('span', { class: 'trine-name' }, h('b', null, f.name), h('span', { class: 'dim small' }, `${unitDef(partOf(f)).name} ×3 · tier ${unitDef(f.result).tier}`))))
+  function choose (f) {
+    triples.forEach((x, i) => { tiles[i].classList.toggle('on', x === f); tiles[i].setAttribute('aria-pressed', String(x === f)) })
+    fill(shown, card(f, false))
+  }
+  choose(first)
   return h('div', { class: 'help-view fusions' },
     h('p', { class: 'dim' }, 'Every recipe, from the start: they are the plan. Select a piece on the Field for the ones its kind is part of, and fuse there.'),
     h('p', { class: 'small' }, kw('trine', 'Trines'), `: every kind of tier ${TOP_TIER - TRINE_RISE} or less fuses three of itself into its trine, ${TRINE_RISE} tiers higher, its blows at one foe now blasts and its shots a tile longer; a trine of tier ${TOP_TIER - TRINE_RISE} or less has its own. ${writtenTrines()} A kind's card names its trine.`),
+    h('div', { class: 'codex-tier' }, h('b', null, `Trines: ${triples.length}, one a kind`), h('div', { class: 'trines' }, h('div', { class: 'trine-tiles' }, tiles), shown)),
     group('Mixed recipes', FUSION_LIST.filter((f) => !isTriple(f) && !capstone(f))),
     group('Capstones: fusions of fusions', FUSION_LIST.filter(capstone)))
-  function card (f) {
+  // A recipe's card; a triple's without its line, which the rule above says for them all.
+  function card (f, line = true) {
     const d = unitDef(f.result)
     const kind = run?.state.kinds[f.result]
     const ready = !!run && canFuse(run, f.id)
@@ -1141,7 +1168,7 @@ export function fusionsView (run = null) {
         h('div', { class: 'beast-text' },
           h('b', null, f.name),
           h('div', { class: 'dim small' }, `${KIN[d.kin]?.name ?? ''} ${ROLES[d.role].name} · tier ${d.tier}${(d.size ?? 1) > 1 ? ' · 2×2' : ''} · ${run ? fuseCost(run, f.id) : TUNING.essence.fuse * d.tier} essence`),
-          h('div', { class: 'small' }, f.desc),
+          line && h('div', { class: 'small' }, f.desc),
           h('div', { class: 'fusion-parts small' }, Object.entries(f.needs).map(([k, n]) => {
             const have = held(k)
             return h('span', { class: 'fusion-part' + (have === null ? '' : have >= n ? ' met' : ' short') }, portrait(k, 26), `${unitDef(k).name} ×${n}`, have !== null && h('span', { class: 'dim' }, ` (${have} held)`))
