@@ -15,7 +15,8 @@ then descend into the endless deep for as long as you last.
 
 - **The draft.** A run opens with the Monarch alone. Pick three souls, each from three kinds drawn from floor 1's
   foes by the run's seed. The second and third picks each offer at least one kind that goes with a soul you hold, of
-  its kin or the other part of a recipe, so two of a kind (half a fusion) or a recipe begun is a choice from the start.
+  its kin or the other part of a recipe, so two of a kind (two thirds of its trine) or a recipe begun is a choice from
+  the start.
 - **The Field.** Arrange your souls on the Field tab before you enter a battle room: entering one starts its fight.
   Drag a soul onto a tile to place it, swap by footprint, open a kind's panel to buy tiers, tap Fuse when a recipe's
   parts are in the ossuary; a soul selected on the board shows its reach. Tap a relic in the relic strip, then a soul,

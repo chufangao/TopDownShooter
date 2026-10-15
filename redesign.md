@@ -738,6 +738,116 @@ Page's 0%); a capstone's parts must both be made first, and the Cathedral's Colo
 deaths 10 → 7 and floor 4 3 → 8, so the base difficulty is a little easier early, harder late; the forests are stale
 (§3), and the balance pass reads it after the refit.
 
+### Availability (Step 1, 2026-10-15)
+
+**Built** (`src/sim/run.js`, `src/tuning.js`; beside Step 2, merged after it): §4.2 as planned. `draftOffer(seed, pick,
+held)` reads the kinds the picks took: the first offer is the draw as before; a later one is drawn as before and, where
+it holds no kind that goes with a soul held (`partners`: a kin shared, a kind its own; or a recipe of `FUSION_LIST`
+needing both, a kind with itself where it needs two or more), one of its places, drawn on the pick's own stream, goes to
+one of the floor-1 pool's partners, drawn evenly. The kinds distinct, the floor-1 pool's, the seed's.
+`TUNING.spawn.tierFalloff` 3 → 1.5 and `tierOverCap` 1 → 2 (§7 decision 1, taken as recommended); no other number moved.
+`--pool`'s draft column plays `draftOffer` on the pool's seeds, each pick taken evenly (it was the even draw's formula).
+A log's picks index into the offers, so an old log's later pick may now name another kind; no log is kept anywhere yet
+(the save is Step 8), and every test that replays plays its log on the same code.
+
+The guarantee (`div-0…255`, every path of picks taken evenly): the plain draw already held a partner in 61% of second
+offers and 79% of third; the rest changed in one place. The three floor-1 kinds with no kin-mate in the floor-1 pool
+(Pyre Hound, Clockwork Page, Hive Warden) are offered again at the second pick every time (were 36–39%), the Fae and the
+Undead in 43–54% (35–42%). Step 2's triples make every kind its own recipe partner, which its kin already made it: the
+offers are the same with the graph and without (the same numbers on both trees).
+
+**Tests**: the guarantee over 100 seeds and every path of picks (1,300 offers: the first the plain draw; a later one the
+plain draw unless that held no partner, then changed in one place; every one from the second holding a partner), the
+relation (every recipe's parts partners, a kin, a recipe across kins, and none), a run dealing it; the pool by tier
+(each pool summing to one; tier 1 65–90% of a floor-1 fight's draws and 15–30% of floor 3's; tier 3 2–10% of floor 2's
+and 7–20% of floor 3's; an elite a tier up); the pool table's draft column. Fixed, their intent kept: the cheap floor-1
+run of `outside`, `outforest` and `builds` is sim-10 (five battles, three recruits, a purchase; sim-0 clears now,
+sim-395 ends after two battles, Step 2's sim-540 clears); `outside`'s clearing run is sim-1 (sim-5 falls on floor 1,
+sim-3 with the graph on floor 4); the route puzzle's two rooms have the same foes, so the Monarch's rule is read and not
+the odds, which now refused its elite. 430 before the merge, 441 after (`--test-concurrency=1`, 443 s), all passing.
+
+**Measured** (the expert of f8c536f, its forests and route unrefitted; the draft on; seeds `div-*`; two workers beside
+another session): `npm run pool` at 09052bf (Step 2) and on the merge; the expert's free play, `npm run builds --
+--commit none --runs 256 --workers 2`, at 09052bf (24 min; its first 64 runs are Step 2's free play, the same runs) and
+on the merge (21 min), and a third arm, the merge with the old `tierFalloff` and `tierOverCap` in a copy (the draft's
+guarantee alone); the same pair on the content before Step 2 (c0a2aff, and this step's first commit a2aa214); basic and
+the calculator (`calc.js`) on `div-0…63`.
+
+The pool (Step 2 adds no spawnable kind: the same on both trees), each tier's share of a fight's draws (an elite's in
+brackets), before → after:
+
+| Tier | Floor 1 | Floor 2 | Floors 3–4 |
+|---|---|---|---|
+| 1 | 90 → 76% (12 → 28%) | 89 → 70% (10 → 23%) | 10 → 22% (5 → 16%) |
+| 2 | 10 → 24% (88 → 72%) | 12 → 26% (86 → 68%) | 84 → 63% (16 → 30%) |
+| 3 | – | 0 → 5% (4 → 8%) | 6 → 13% (76 → 49%) |
+| 4 | – | – | 0 → 2% (3 → 6%) |
+
+Criterion 1 (256 seeds): **22 of the 44 recipes** have their parts offered in 3 or more battles by the end of floor 2
+(20 at Step 2): the Hive Warden's trine (2.7 → 4.2) and its trine join. The kinds first met on floor 2 come nearer and
+stay short: the Thorn Dryad's trine 1.6 → 2.2, the Rot Bloat's 1.4 → 2.0, the Mantis Reaper's 1.3 → 1.9, the Ember
+Drake's 0.2 → 1.1, the Iron Golem's 0.1 → 0.7; the floor-3 and floor-4 kinds' none. The floor-1 kinds' trines give a
+little (the Sprite's 11.6 → 10.2, the Page's 11.3 → 9.7, the Ghoul's 10.9 → 10.1, the Court 9.6 → 8.9, the Drone's 5.5 →
+4.1), the tier-2 kinds' gain (the Chanter's 4.9 → 6.6, the Hound's 4.9 → 5.7, the Knight's 4.6 → 5.2). The mixed
+recipes:
+
+| Fused kind | Its parts, by the end of floor 2 (floor 1 + floor 2) | Reach | 3 or more |
+|---|---|---|---|
+| Bone Colossus | 2 Tomb Knights 4.6 → 5.2, a Bone Chanter 4.9 → 6.6 | 4.6 → 5.2 | met |
+| Hive Queen | 2 Hive Wardens 2.7 → 4.2, a Mantis Reaper 1.3 → 1.9 (0 + 1.9) | 1.3 → 1.9 | no |
+| Rime Drake | an Ember Drake 0.2 → 1.1 (0 + 1.1), 2 Frost Sprites 11.6 → 10.2 | 0.2 → 1.1 | no |
+| Clockwork Titan | 2 Clockwork Pages 11.3 → 9.7, an Iron Golem 0.1 → 0.7 (0 + 0.7) | 0.1 → 0.7 | no |
+
+On floor 3 the keystones' partners stay: Frost Sprites in 1.6 → 3.4 battles, Clockwork Pages 1.5 → 3.4; the keystones
+2.5–2.8 → 2.8–3.5. The synergies, battles by the end of floor 2: Drake 5.0 → 6.5, Warden 4.0 → 6.0, Ranger 0.2 → 1.1,
+Fae 18.0 → 16.9, Construct 11.3 → 10.1, the rest within a battle. No falloff alone meets criterion 1 for the three
+keystone recipes (the pool table with `TUNING.spawn` patched in process, 64 seeds): at 1, 0.5 and 0 (every kind by its
+weight alone) their keystones reach 1.0–2.1, 1.4–2.4 and 1.8–2.7, while floor 1's fights fall to 53% tier 1 at 0. A
+keystone is a floor-2 kind (`minFloor` 2), one of fourteen in floor 2's eleven battles.
+
+The expert, free play, `div-0…255`, seed for seed (± one standard error of the paired difference), on the merge:
+
+| | Step 2 (09052bf) | The draft's guarantee alone | Step 1 (the merge) |
+|---|---|---|---|
+| clears | 189 (74%) | 183 (71%): −2.3 ± 2.1 points | 162 (63%): −10.5 ± 3.8 points (35 seeds won, 62 lost) |
+| progress | 89.7 | 88.5 (−1.2 ± 1.5) | 84.6 (−5.1 ± 2.7) |
+| died on floor 1 / 2 / 3 / 4 (of them, in the Sovereign's room) | 29 / 0 / 1 / 37 (33) | 32 / 0 / 1 / 40 (34) | 42 / 1 / 2 / 49 (45) |
+| battles a run; battles lost; fusions a run | 45.2; 67; 5.4 | 44.7; 73; 5.5 | 42.4; 94; 5.0 |
+| fused kinds in the final armies | Chanter's trine 81%, Court 80%, Winter Court 27%, Sprite's trine 19%, Chanter's trine's trine 9%, Court's trine 6%, Colossus 2%, Rime Drake 1% | Court 80%, Chanter's trine 79%, Winter Court 31%, Sprite's trine 19%, Chanter's trine's trine 10%, Court's trine 5%, Colossus and Rime Drake 2% | Chanter's trine 78%, Court 74%, Winter Court 25%, Sprite's trine 21%, Chanter's trine's trine 7%, Court's trine 5%, Rime Drake 4%, Colossus 3% |
+| recipes made in a run or more | 10 of 44 | 11 | 10 |
+| synergies held (battles) | Echo 58%, Legion 37%, Mirage 6.2%; none 39% | Echo 56%, Legion 36%, Mirage 6.9%; none 41% | Echo 60%, Legion 39%, Mirage 4.8%; none 38% |
+| kinds held at the end in a tenth of runs or more | 10 of 62 | 11 | 8 |
+| pieces of the last battles | Channelers 88%, Skirmishers 9% | Channelers 87%, Skirmishers 11% | Channelers 85%, Skirmishers 12% |
+
+On Step 2's 64 seeds alone the merge reads 49 → 41 clears (−12.5 ± 7.2 points; progress −3.7 ± 5.4; deaths 7 / 0 / 0 / 8
+→ 9 / 0 / 2 / 12). On the content before Step 2 the same change read the other way, `div-0…255`: clears 187 (73%) → 199
+(78%), +4.7 ± 3.6 points, progress −0.5 ± 2.6, deaths 38 / 5 / 3 / 23 → 42 / 2 / 5 / 8 (to floor 4's rooms 20 → 7; the
+Sovereign 3 → 1), the Rime Drake made in 28% → 38% of runs, the Court 84% → 83%, the Colossus 5% → 2%, Mirage 6.3% →
+4.3%; there its first 64 seeds read −4.7 ± 6.5, the noise 256 resolve.
+
+Basic, `div-0…63`: all 64 dead on floor 1 at Step 2 and on the merge, 2.2 → 2.1 battles a run. The calculator,
+`div-0…63`: no clear either side, dead on floor 1 / 2 / 3 / 4 47 / 9 / 7 / 1 → 47 / 10 / 6 / 1 (floor 2 reached in 17
+runs both), 11.4 → 10.2 battles a run.
+
+**What it says.** Criterion 1: 20 → 22 of 44 recipes, the Insect kin's second archetype and the Warden role's first (the
+Hive Warden's trine), so every role but Ranger now has a reachable one. The flattening moves what §1 said it would, not
+far enough: by the end of floor 2 the Ember Drake and the Iron Golem are offered six and eight times as often, the
+Mantis Reaper half as often again, and on floor 3 the keystones' partners twice as often; but no recipe with a floor-2
+keystone reaches 3, and no falloff alone would (at 0, 2.7 at best). What is left is §4.2's alternative (a captain a tier
+up), or a keystone allowed on floor 1. The draft's guarantee changes 39% of second offers and 21% of third, so a second
+of a kind or a kin-mate is always on the table, at a cost within the noise (−2.3 ± 2.1 points). Criterion 3: unmoved
+(the Chanter's trine and the Court in 78% and 74% of final armies, ten recipes made, two synergies in 5% of battles or
+more, Mirage falling under it); the expert's forests, route and book were fitted on the old pool and play the Channelers
+wherever their parts come, so the new reach is the committed runs' and the refit's to read. Criterion 4: on what ships
+the pool costs the expert **8.2 ± 3.9 points of clears** (the merge against the draft alone), at both ends. Floor 1's
+fights carry 24% tier-2 foes (were 10%): its deaths 32 → 42. The Sovereign's room draws its two first waves from floor
+4's fight pool, now 13% tier 3 and 2% tier 4 (were 6% and none): the deaths in it 34 → 45, on a content where it was
+already the expert's wall (Step 2: 3 → 8 deaths on floor 4; 33 of 256 to the Sovereign here). On the old content the
+same pool made floor 4's rooms easier (20 → 7 deaths) and the Sovereign no harder. Basic and the calculator do not move:
+the ladder keeps its order, its foot still too hard (§1). Kept as §7 decision 1 took it; the balance pass may want the
+Sovereign's waves drawn from the old falloff, or floor 1's fights capped at their own tier, before the refit reads the
+difficulty.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
