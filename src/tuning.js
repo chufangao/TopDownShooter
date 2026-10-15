@@ -287,8 +287,10 @@ export const TUNING = {
   // counts toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
   // The draft (run.js draftOffer): a run starts with the Monarch alone and takes `picks` souls before the first map,
-  // each the player's choice of `offer` different kinds drawn evenly from the floor-1 pool by the run's seed. The same
-  // kind may come again in a later pick. The user's call (2026-10-14): three picks of one of three.
+  // each the player's choice of `offer` different kinds drawn evenly from the floor-1 pool by the run's seed; after the
+  // first, an offer with no partner of a soul held (run.js partners: a kin-mate or a recipe's) gives one place to one
+  // (redesign.md §4.2). The same kind may come again in a later pick. The user's call (2026-10-14): three picks of one
+  // of three.
   draft: { picks: 3, offer: 3 },
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (mods on
   // `run.monarchHp`), and nothing else touches it. 250 since the fourth balance pass (2026-10-10), so one Pyre Hound's
