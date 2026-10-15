@@ -1,5 +1,5 @@
-// A floor is a DAG of ranks: start → 14 ranks of 2–4 rooms → elite (or the boss on the last floor), so
-// a walk through it is 15 rooms long. From floor SIEGE_FLOOR one or two of the late ranks' fights are
+// A floor is a DAG of ranks: start → 14 ranks of 2–4 rooms → a boss's room (a floor with a boss: every floor of the
+// run, redesign.md §4.7) or an elite (the deep's), so a walk through it is 15 rooms long. From floor SIEGE_FLOOR one or two of the late ranks' fights are
 // sieges: one battle of three waves, with no prep between them.
 import { createRng } from './rng.js'
 
@@ -50,7 +50,7 @@ function link (rng, a, b) {
 // Rank 1 is all fights; the middle ranks mix rooms, with no elite before ELITE_FROM, at most one elite a
 // rank, one to seven Shops (RARE), and no rank all of one kind but fights; the rank before the last always holds
 // exactly one altar.
-function assignTypes (rng, ranks, last) {
+function assignTypes (rng, ranks, boss) {
   const pick = (types, weights) => rng.weighted(types, weights)
   const late = RANKS - 2
   for (const n of ranks[1]) n.type = 'fight'
@@ -82,7 +82,7 @@ function assignTypes (rng, ranks, last) {
     if (n.type === 'elite' && elite) n.type = 'fight'
     if (n.type === 'elite') elite = true
   })
-  ranks[RANKS - 1][0].type = last ? 'boss' : 'elite'
+  ranks[RANKS - 1][0].type = boss ? 'boss' : 'elite'
   ranks[0][0].type = 'start'
 }
 
@@ -94,7 +94,8 @@ function assignSieges (rng, ranks, floor) {
   for (const fights of rng.shuffle(options).slice(0, 1 + rng.int(2))) rng.pick(fights).type = 'siege'
 }
 
-export function generateFloor ({ seed, floor = 1, last = false }) {
+// `boss`: whether the floor ends in a boss's room (run.js bossPool), else in an elite.
+export function generateFloor ({ seed, floor = 1, boss = false }) {
   const rng = createRng(seed).stream('map' + floor)
   const ranks = []
   for (let r = 0; r < RANKS; r++) {
@@ -109,7 +110,7 @@ export function generateFloor ({ seed, floor = 1, last = false }) {
     }
   }
   for (const rank of ranks) for (const n of rank) n.next.sort()
-  assignTypes(rng, ranks, last)
+  assignTypes(rng, ranks, boss)
   assignSieges(rng, ranks, floor)
   return { floor, nodes: ranks.flat(), start: ranks[0][0].id, end: ranks[RANKS - 1][0].id }
 }

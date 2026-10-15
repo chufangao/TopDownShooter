@@ -34,7 +34,7 @@ import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef, statusDef } from '../content.js'
 import { alive, livingOn, unitDistance, makeUnit, synergyFull } from './unit.js'
 import { around, riseTile, summonTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle } from './turns.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle, lined } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -298,6 +298,45 @@ export const RULES = {
       const at = targetsFrom(battle, u, tide).sort((a, b) => covers(b) - covers(a) || a.uid - b.uid)[0]
       if (at) perform(battle, u, tide, at)
     }
+  },
+  // The floors' bosses (redesign.md §4.7), each what its kit cannot say of its counter:
+  // The Molting Abbess (against statuses): as the foes' turn begins it sheds every debuff on itself, while it stands (a
+  // Hex laid in your turn is gone before it acts; a burn never ticks on it).
+  molting_abbess: {
+    onTurn (battle, ctx, r) {
+      const u = r.holder
+      if (!alive(u)) return
+      const off = u.statuses.filter((x) => statusDef(x.id).tags.includes('debuff'))
+      if (!off.length) return
+      emit(battle, { type: 'rule', rule: 'molting_abbess', side: u.side, target: u.uid })
+      for (const x of off) {
+        u.statuses.splice(u.statuses.indexOf(x), 1)
+        emit(battle, { type: 'cleanse', target: u.uid, status: x.id })
+      }
+    }
+  },
+  // The Barrow Marshal (against shooters): while it stands, a shot (a blow at one foe from range that keeps to a line:
+  // turns.js lined) at one of its side not itself a Vanguard lands on a Vanguard of its side beside its target (the one
+  // with the most HP, then the first to act), as Bodyguard takes a blow, but shots alone and with no count to reach.
+  barrow_marshal: {
+    targets (battle, ctx, r) {
+      const { actor, ability, primary } = ctx
+      if (ctx.as !== 'target' || !alive(r.holder) || primary.side !== r.holder.side || actor.side === primary.side || !lined(ability) || vanguard(primary)) return
+      const guard = around(battle, primary.tile, 1, primary.side, primary.size).filter(vanguard).sort((a, b) => b.hp - a.hp || a.ord - b.ord)[0]
+      if (!guard) return
+      emit(battle, { type: 'rule', rule: 'barrow_marshal', side: guard.side, actor: guard.uid, target: primary.uid })
+      ctx.primary = guard
+    }
+  },
+  // The Swarm Queen (against walls): every `every` turns as the foes' turn begins, while it stands, `drones` of `kind`
+  // hatch beside it as its summons (hatch), while fewer than `most` of them stand.
+  swarm_queen: {
+    params: { every: 2, drones: 2, most: 4, kind: 'hive_drone' },
+    onTurn (battle, { turn }, r) {
+      if (turn % r.params.every) return
+      const standing = battle.units.filter((x) => x.summoner === r.holder.uid && alive(x)).length
+      hatch(battle, r, Math.min(r.params.drones, r.params.most - standing))
+    }
   }
 }
 
@@ -314,17 +353,17 @@ function scaled (e, k) {
 // What a shadow of a Blood Tithe holder's costs the Monarch.
 export const titheOf = (battle, r) => Math.ceil(battle.monarch.maxHp * r.params.tithe)
 
-// A Hive Mind's drones hatch (hive_mind): each a summon of its holder's on the free tile of its camp nearest it
-// (field.js summonTile), announced as it enters, while the holder stands and its side has room; with no tile free,
-// fewer hatch.
-function hatch (battle, r) {
+// A Hive Mind's drones hatch (hive_mind), or a Swarm Queen's (swarm_queen): `n` of them (its `drones` by default), each
+// a summon of its holder's on the free tile nearest it (field.js summonTile: of your camp, for yours), announced as it
+// enters, while the holder stands and its side has room; with no tile free, fewer hatch.
+function hatch (battle, r, n = r.params.drones) {
   const u = r.holder
   if (!alive(u)) return
   const flies = !!unitDef(r.params.kind).flies
-  for (let k = 0; k < r.params.drones && roomFor(battle, u.side); k++) {
+  for (let k = 0; k < n && roomFor(battle, u.side); k++) {
     const tile = summonTile(battle, u, 1, flies)
     if (tile < 0) return
-    if (!k) emit(battle, { type: 'rule', rule: 'hive_mind', side: u.side, actor: u.uid })
+    if (!k) emit(battle, { type: 'rule', rule: r.id, side: u.side, actor: u.uid })
     const drone = enterBattle(battle, { ...makeUnit(r.params.kind, { uid: battle.nextUid++, lvl: u.lvl }), side: u.side, shadow: true, summoned: true, summoner: u.uid, tile })
     emit(battle, { type: 'enter', unit: { uid: drone.uid, id: drone.id, side: drone.side, tile: drone.tile, lvl: drone.lvl, hp: drone.hp, maxHp: drone.maxHp, shadow: true, summoned: true, summoner: u.uid } })
   }

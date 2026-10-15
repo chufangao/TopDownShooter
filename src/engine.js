@@ -219,9 +219,10 @@ function shadeTextures (scene, art, skin = 'shade') {
 }
 
 // The art kind `id`'s textures go by: its picture's (its own, or the kind's it borrows plainly), or for a kind drawn as
-// more than its picture (dom.js figures: a trine's three, a capstone's wash) its own id, its pictures made on first use
-// from its figures' as one: as tall as one, as wide as the group, the front one's feet at FEET, so it stands, poses,
-// falls, fades and takes a tint as any picture does. Shared with the Field board (board.js).
+// more than its picture (dom.js figures: a trine's three, a capstone's wash, a boss's, bigger) its own id, its pictures
+// made on first use from its figures' as one: as tall as the tallest (one, or a boss's bigger), as wide as the group,
+// the front one's feet at FEET, so it stands, poses, falls, fades and takes a tint as any picture does. Shared with the
+// Field board (board.js).
 export function artOf (scene, id) {
   if (plainFigure(id)) return figures(id)[0].art
   if (!scene.textures.exists(`unit:${id}:alive`)) for (const pose of ART_POSES) drawFigures(scene, `unit:${id}:${pose}`, figures(id), pose)
@@ -230,7 +231,7 @@ export function artOf (scene, id) {
 
 function drawFigures (scene, key, figs, pose) {
   const src = (f) => scene.textures.get(`unit:${f.art}:${pose}`).getSourceImage()
-  const H = src(figs.at(-1)).height
+  const H = Math.max(...figs.map((f) => src(f).height * Math.max(1, f.k)))
   const half = Math.max(...figs.map((f) => Math.abs(f.x) * H + f.k * src(f).width / 2))
   const t = scene.textures.createCanvas(key, Math.ceil(2 * half), H)
   const ctx = t.getContext()
@@ -574,7 +575,7 @@ const DISPLAY = '"Fredoka", ui-rounded, system-ui, -apple-system, "Segoe UI", Ro
 const RULES = ruleFlares()
 const RULE_ON = {
   frenzy: 'actor', echo: 'actor', bodyguard: 'actor', sanctuary: 'actor', dragonfire: 'actor', deadeye: 'actor', deathblow: 'actor',
-  charnel_cathedral: 'actor', cinder_wyrm: 'actor', hive_mind: 'actor'
+  charnel_cathedral: 'actor', cinder_wyrm: 'actor', hive_mind: 'actor', barrow_marshal: 'actor', swarm_queen: 'actor'
 }
 // Rules that strike on almost every cast: their name rises at most once a NOISY_MS per side.
 const NOISY = new Set(['sanctuary', 'echo', 'dragonfire', 'deadeye'])
@@ -627,10 +628,10 @@ class BattleScene extends Phaser.Scene {
     const foes = [...start.units.filter((u) => u.side === 'foe'), ...(start.reserve ?? []).filter((r) => r.side === 'foe')]
     this.waves = []
     for (const f of foes) {
-      const w = (this.waves[f.wave ?? 0] ??= { size: 0, left: 0, paid: 0, shown: false, when: f.when ?? null, boss: false })
+      const w = (this.waves[f.wave ?? 0] ??= { size: 0, left: 0, paid: 0, shown: false, when: f.when ?? null, boss: null })
       w.size++
       w.left++
-      w.boss ||= !!unitDef(f.id).boss
+      if (unitDef(f.id).boss) w.boss = f.id
     }
     this.essence = this.args.essence ?? 1
     // Essence carried so far, counted as each slain foe's orb reaches the bar (see pay); the hit-stop holding
@@ -1929,10 +1930,10 @@ class BattleScene extends Phaser.Scene {
   }
 
   // A foe wave arrives (sim event `wave`, just before its first foe enters): its name over the top of the board,
-  // and a red glow down the far (left) edge. A later wave, or the Sovereign and its court.
+  // and a red glow down the far (left) edge. A later wave, or a boss and its court (the Sovereign's).
   waveBanner (k) {
     const w = this.waves[k]
-    const title = w?.boss ? 'THE HOLLOW SOVEREIGN COMES' : `THE ${ORDINAL[k] ?? `${k + 1}TH`} WAVE`
+    const title = w?.boss ? `${unitDef(w.boss).name.toUpperCase()} COMES` : `THE ${ORDINAL[k] ?? `${k + 1}TH`} WAVE`
     const sub = w ? `${w.size} ${w.size === 1 ? 'foe enters' : 'foes enter'} from the far edge${w.boss ? ', its court about it' : ''}` : 'More foes enter from the far edge'
     const edge = this.add.image(-HALF_W - TILE_W / 2, 0, 'glow').setTint(FOE).setBlendMode(Phaser.BlendModes.ADD)
       .setDisplaySize(46, 2 * HALF_H + 160).setAlpha(0).setDepth(-350)
@@ -2546,7 +2547,7 @@ class BattleScene extends Phaser.Scene {
     this.time.delayedCall(1400, () => { this.purse = this.owed; this.changed() })
     const colour = won ? SOUL : FOE
     const death = !won ? this.args.death?.() ?? null : null
-    // A wave the Sovereign's fall cut short pays for the slain it had (a lost battle pays nothing).
+    // A wave a boss's fall cut short pays for the slain it had (a lost battle pays nothing).
     if (won && this.waves.length > 1) this.waves.forEach((_, k) => this.wavePaid(k))
     const clear = this.battle.floor > TUNING.run.floors ? ' The clear stands.' : ''
     // A won battle's tally: the foes slain (a shadow is none) and what the run took for them (args.earned: run.js
@@ -2554,8 +2555,13 @@ class BattleScene extends Phaser.Scene {
     const slain = this.battle.units.filter((u) => u.side === 'foe' && !u.shadow && !alive(u)).length
     const earned = Math.round(this.args.earned?.() ?? this.owed)
     const tally = `${slain} ${slain === 1 ? 'foe' : 'foes'} slain · +${earned} essence`
-    // A boss room (battle.boss, as finishBattle reads it) has no reap: the Sovereign's fall clears the run.
-    const [title, line] = won ? (this.battle.boss ? ['THE SOVEREIGN FALLS', `${reason === 'sovereign' ? 'Its court crumbled with it. ' : ''}The run is cleared.`] : ['VICTORY', tally])
+    // A boss's fall crumbles its court ('crumble'). The last floor's (run.js clearsRun) has no reap: the Sovereign's
+    // fall clears the run; a floor's boss's room is won as an elite is, its tally told.
+    const boss = this.battle.boss && this.battle.units.find((u) => u.side === 'foe' && unitDef(u.id).boss)
+    const crumbled = reason === 'crumble' ? 'Its court crumbled with it. ' : ''
+    const [title, line] = won ? (!boss ? ['VICTORY', tally]
+      : this.battle.floor === TUNING.run.floors ? ['THE SOVEREIGN FALLS', `${crumbled}The run is cleared.`]
+        : [`${unitDef(boss.id).name.toUpperCase()} FALLS`, `${crumbled}${tally}`])
       : death ? ['THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
         : reason === 'monarch' ? ['THE MONARCH FALLS', `Its retinue crumbles with it. The run is over.${clear}`]
           : ['YOUR RETINUE FALLS', 'The dead return to the dark.']

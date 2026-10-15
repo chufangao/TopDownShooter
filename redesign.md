@@ -1584,6 +1584,150 @@ second hunt → 501, all passing (`--test-concurrency=2`, 254 s).
 unlocks (the ascension's, Step 7) hold; the Monarch variants unlocked by clears are this step's remaining part, then §4.7's
 bosses and the outside players.
 
+### Bosses a floor (Step 9, 2026-10-15)
+
+**Built** (§4.7, on 4c3e86e beside Step 9's product agent; the content, the sim, the codex and the interface): floors 1
+and 2 end in a floor's boss and its court, where the last elite stood; floor 3 keeps the Hollow Sovereign's siege, its
+phases, its Grave Tide and its crumbling, its room and every floor-3 room drawn byte for byte as before. Four bosses,
+each one record (`boss`, `floors: [1, 2]`, `answers`, `court`, `phases`, a `temper`, `threats`, flavour; no tracks),
+each one counter of §4.7's in its kit, a rule in `rules.js` scoped to it only where the kit cannot say it:
+
+| Boss | Answers | Kit | Court | Rule | Phase | Art |
+|---|---|---|---|---|---|---|
+| The Mire Mother (Fae Channeler) | casters | Mire (Hex every foe within 3), Hex (one from 3), Witchfire; hexer temper (hunts the one with the most skills ready) | Marsh Hags (each Hexes) | none | Enraged at 50%: Mire and Hex every turn | Marsh Hag |
+| The Molting Abbess (Insect Warden) | statuses | Molt, Purge as its basic heal, Royal Scythe | Hive Wardens and Clockwork Pages (each Purges) | `molting_abbess`: as the foes' turn begins it sheds every debuff on itself | Regen at 50% | Hive Warden |
+| The Barrow Marshal (Undead Ranger) | shooters | Marrow Spear down a lane, Searing Bolt from 5; shooter temper | the floor's elite Vanguards, across the front row, it behind | `barrow_marshal`: while it stands, a shot at one of its side but a Vanguard lands on a Vanguard beside it | Desperate at 40% | Barrow Wight |
+| The Swarm Queen (Insect Skirmisher, flies) | walls | Swarm Cloud, Venom Sting (Withers); seeker temper | Hive Drones | `swarm_queen`: every second turn two drones hatch beside it, four standing at most | Enraged at 50% | Hive Drone |
+
+A boss is tier 4, HP and ATK its own × `TUNING.spawn.bossHp` [1, 3.2, 1] and `bossAtk` [1, 2, 1] by floor, its court
+`TUNING.spawn.court` [2, 4, 4] (new placeholders, set by the codex's power, √(HP × ATK) summed a wave and the waves
+as the root of their squares: a floor's boss room 201 on floor 1 against its last elite's 127, 494 on floor 2 against
+483, on 64 seeds; the Sovereign's 1, 1 and 4 as they were). Its pictures are its lender's, washed as a
+capstone's and drawn as big as the Sovereign's (`dom.js figures`: 1.5×, the Sovereign's 144 box to a kind's 96).
+
+**Which boss**: the army read as the floor opens (§4.7's intent, kept fair and visible). Each living soul leans on one
+thing, the first that holds (`run.js leaningOf`): a Channeler casts; a Ranger shoots; a blow of its kit laying a debuff
+is statuses; a basic blow that is a shot down a line shoots; fighting in melee alone on the ground is a wall. The floor's
+boss (`bossFor`) is the pool's (`bossPool`: those tagged with the floor; the last floor's the Sovereign, `last`) that
+answers what the most souls lean on; a tie, or an army leaning on nothing a boss answers, drawn by the seed among the
+tied. A floor opens (`openFloor`) as it is entered and the first once the draft is done: the boss chosen, every battle
+room drawn (floor 1's now after the draft, on the same streams), the routes varied (`varyRoutes`, which never redraws a
+boss room and reads its threats as it read the elite's), the elites answered. The boss and its court are on the map from
+then like every room's foes, its tip naming it and what it came for ("It came for casters, your Channelers: what your army
+leaned on most as the floor opened"); a run cleared or saved replays to the same boss (its log, its army). A floor's
+boss room is one formation, won as an elite is (its bounty, `bountyOf`; its spoils, its court's souls, never the boss's:
+`soulOffers`); the last floor's alone is a clear (`clearsRun`).
+
+**Elites that answer the army** (`answerArmy`): as the floor opens, the threat types its foes can bring (`routeThreats`)
+that no living soul answers (`ANSWERS`, moved from `autoplay.js` to `run.js` unchanged: Fly by a blow that reaches a flyer,
+Reach by a ranged blow, Drain, Burn and Bleed by a heal of others or a cleanse); where no elite of the floor carries one,
+one elite is drawn again wanting one and keeping every type it had (`drawRoom`'s `want`, on a stream of its own), the
+elites in an order the seed draws, the types in order; with no such draw, the elites stay. Deterministic per seed and
+army; replay-equal. With the expert's armies it seldom fires: on `div-0…63`, an army of Wisp, Chanter and Sprite (floor
+1), of the Court, two Chanters, a Sprite and a Wisp (floor 2), and of the Court and the Chanter's and Sprite's trines
+and a Hag (floor 3) leave Drain, Burn and Bleed unanswered, and an elite already brings one on 64, 61 and 64 of the 64
+floors (the three left hold no elite); its test holds it on an army of walls and shots.
+
+**Generalised from one boss**: `BOSS` gone (`bossIn`, `bossPool`, the court by `courtPool`: a boss's `kinds`, or the
+floor's elite pool of its `kin` or `role`, the Sovereign's undead, drawn as before); `foeMods`'s boss multipliers by floor;
+a boss's fall ends a battle as `'crumble'` (was `'sovereign'`), any boss's; `map.js generateFloor` takes `boss` (a floor
+with a pool ends in one, the deep in its big elite). Arise, Legion, the Tide, the ascension and crumble already read any
+boss. The expert reads nothing new: its readers are generic (a room by its type, a foe's `boss`, `foeMods`), the book
+reads no boss (`npm run combos`: the same), the harness records each boss room's boss and `--pool` offers none. The codex:
+a boss room's name and line, a boss's wave by its name ("Wave 3: the Sovereign"), its bestiary line once met ("it may end
+floors 1 and 2, and comes for an army that leans on walls…"), a boss's rule flared as "Boss · its name", a foe's summons
+on its card, How to play's lede, the floors' tip. The battle: a boss's wave banner, "THE MIRE MOTHER FALLS" with its court
+crumbled and its tally, the spoils "The boss falls" with its bounty.
+
+**Tests**: `test/bosses.test.js` (12: the records and their counters; what a soul leans on; the choice, its ties and an
+army leaning on nothing, the last floor the Sovereign whatever the army; a boss a floor on the maps, its court, the
+Marshal's front row; the draft opening floor 1, the same on replay; a run through the three, a floor's boss's bounty and
+spoils, never its own soul, the Sovereign's fall the clear; the Abbess's shell, the Marshal's screen against a shot and
+not a melee blow or a blast, the Queen's brood, each with the boss fallen; for every boss its first phase, its fall's
+crumble, no Arise or Legion; the ascension on every boss; the elites that answer the army) and one in `codex.test.js`
+(the room's name and line, the Sovereign's, a boss's wave, the bestiary line, How to play); the tests that read one
+boss, four floors' `last`, scalar boss numbers or the `'sovereign'` reason brought to the rule. 491 → 504, all passing
+(`--test-concurrency=2`, 264 s; under the measuring's load the turn's milliseconds test once ran past its 250 ms, alone
+it passes).
+
+**The browser** (Chromium at 1440×900 and 852×393, `npm start`, by a script outside the repo): a run begun on the title,
+its draft taken and a Pale Court given, its floor-1 boss room set to each boss in turn by the run's own `drawRoom`; the
+map's tip on the boss room (its name, why it came, the bounty and the recruit, its court in the mini grid, the threat);
+a battle against each, played to its end by the expert's orders given through the scene (`send`, as taps give them;
+the Mire Mother's by End Turn alone), the boss drawn washed and as big as the Sovereign, its phase played as its HP
+crossed it (Enraged, Regen, Desperate, Enraged; for the three the expert played, its HP set a little above it as the
+battle opened, outside the log), the Abbess's shell and the Queen's brood flared over them and announced once, the
+Marshal's screen in its aim preview (the expert's shots went elsewhere; its rule is the tests'); the end banner ("THE
+MIRE MOTHER FALLS · Its court crumbled with it. 3 foes slain · +131 essence") and the spoils ("The boss falls", the
+bounty, a Marsh Hag to recruit); the bestiary with every boss met, each its line. No console error. Screenshots
+`boss-*.png` in the session's scratchpad. Seen there: the Abbess and her wardens, keepers all, wait at the edge for an
+army that does not come to them, as the camp's patience allows (§2.10 of the old spec): with that run's weak draft and a
+Pale Court left behind the battle took 35 turns, the Monarch at 21 HP at its end (the expert's runs below: 2 to 7.5 turns on
+average).
+
+**Measured** (the expert as Step 0 has it, its forests and route stale by design; the draft on; seeds `div-*`; two
+workers beside the product agent): free play, `--commit none --runs 64`, on 4c3e86e and here, seed for seed, and a third
+arm here with the elites' rule switched off (a copy); `--commit channeler_4,fae_4,undead_4,bone_colossus,trine:pyre_hound
+--runs 32` on both (the Channelers, the Fae and the Undead, and two that lean otherwise: the Colossus's Knights, walls; the
+Hound's trine, Burning). The bosses met and the rooms the runs fell in are read off the records (each boss room's battle
+names its boss: `boss`; the room a run fell in, `fell.rank`).
+
+Free play, `div-0…63`:
+
+| | 4c3e86e | Bosses a floor |
+|---|---|---|
+| clears | 50 (78%) | 41 (64%): +5 −14, −14.1 ± 6.6 points |
+| progress | 87.0 | 79.1 (−7.9 ± 3.5) |
+| died on floor 1 / 2 / 3 | 9 / 0 / 5 | 15 / 1 / 7 |
+| of them in the floor's last room | the Sovereign's 4 (the old elites' none) | the Barrow Marshal's 2 (floor 1), the Sovereign's 5 |
+| battles a run; turns of floor 1's and 2's last battle | 32.3; 8.1 and 4.1 (elites) | 29.4; 4.4 and 7.4 (bosses) |
+| fused kinds in the final armies (of the clears) | Court 80% (92%), Chanter's trine 64% (74%), Winter Court 33% (40%), Sprite's trine 28% (30%) | Court 73% (95%), Chanter's trine 59% (83%), Sprite's trine 30% (37%), Winter Court 17% (22%) |
+| Marsh Hags held at the end (of the clears) | 8% (10%) | 36% (51%) |
+| pieces of the last battles | Channelers 83%, Skirmishers 16% | Channelers 74%, Skirmishers 25% |
+| synergies held (battles) | Echo 38%, Legion 20%, Mirage 4% | Echo 38%, Legion 21%, Mirage 4% |
+
+The bosses met: on floor 1 (51 runs) the Barrow Marshal 26 times (2 runs fell there; 5.4 turns a battle), the Mire Mother
+22 (none; 4.2), the Molting Abbess 2 (3.0) and the Swarm Queen once (2.0); on floor 2 (48 runs) the Mire Mother 46 (none;
+7.5 turns) and the Marshal 2 (6.0). The arm without the elites' rule plays all 64 runs battle for battle as the change
+does: with the expert's armies an elite always brings a threat they cannot answer already (above). Where the runs lost were
+lost (of the 14 seeds that went from a clear to a fall): 6 on floor 1, one in the Marshal's room, five in earlier rooms;
+1 on floor 2; 7 on floor 3, five in the Sovereign's room. The rooms before a floor's last are drawn otherwise on 21 of 64
+floor 1s (61 of 1,975 rooms) and 40 floor 2s (138 of 1,973), varyRoutes reading the boss room's threats where it read
+the elite's; floor 3's not at all, its every room and the Sovereign's byte for byte as at 4c3e86e.
+
+Committed, `div-0…31`, each against itself at 4c3e86e seed for seed:
+
+| Archetype | Clears | Progress (paired) | Died on floor 1 / 2 / 3 | Floor 1's boss met (fell there) | Floor 2's |
+|---|---|---|---|---|---|
+| free play | 26 → 21 (+3 −8) | 90.5 → 84.7 (−5.9 ± 3.7) | 3 / 0 / 3 → 5 / 1 / 5 | Marshal 13 (1), Mire Mother 14, Queen 1 | Mire Mother 25, Marshal 1 |
+| Channeler 4 (Echo) | 24 → 22 (+2 −4) | 88.6 → 86.9 (−1.7 ± 2.9) | 4 / 0 / 4 → 4 / 2 / 4 | Mire Mother 22 (1), Marshal 5, Abbess 1, Queen 1 | Mire Mother 28 (2) |
+| Fae 4 (Mirage) | 22 → 23 (+4 −3) | 83.9 → 85.6 (+1.7 ± 4.5) | 6 / 0 / 4 → 5 / 1 / 3 | Marshal 15 (1), Mire Mother 9, Abbess 2, Queen 2 | Mire Mother 26 (1), Marshal 1 |
+| Undead 4 (Legion) | 16 → 16 (+8 −8) | 84.3 → 82.4 (−1.9 ± 4.7) | 5 / 1 / 10 → 6 / 2 / 8 | Marshal 12, Mire Mother 9 (1), Queen 4, Abbess 2 | Mire Mother 25 (2), Queen 1 |
+| Bone Colossus | 19 → 19 (+6 −6) | 86.1 → 83.9 (−2.2 ± 5.1) | 4 / 1 / 8 → 6 / 1 / 6 | Marshal 12 (1), Mire Mother 10, Queen 4, Abbess 2 (1) | Mire Mother 26 (1) |
+| Pyre Hound's trine | 17 → 16 (+6 −7) | 83.5 → 77.6 (−6.0 ± 4.0) | 5 / 0 / 10 → 8 / 1 / 7 | Marshal 13 (1), Mire Mother 10 (1), Queen 2, Abbess 1 | Mire Mother 24 (1) |
+
+**What it says.** The bosses meet the builds §4.7 means them for, as far as the expert builds them. Floor 1's is read off
+the draft: the Mire Mother takes Channeler 4's drafts 22 times in 29 (free play's 14 in 28), the Marshal the drafts of
+Sprites and Hounds; the Abbess and the Queen come for the few drafts of Ghouls and Hounds or of Knights, Pages and Wardens
+(1–4 a row). By floor 2 every army the expert builds leans on casters whatever its book commits it to (the Court, the
+Chanters, the Hags), and meets the Mire Mother in 24 to 28 of each row's runs: the floor's counter lands on the
+monoculture, and on the committed runs as much as on free play, because the committed expert is free play bent a little
+(Step 0). Floor 1 is not unwinnable: its bosses fall in 2 to 6 turns on average, the Marshal the hardest (2 runs of 26 fell to it),
+and none was softened. The floors' bosses cost the expert little in their own rooms (2 runs of 64 fell in them, 97 of 99
+battles won) and floor 2's last battle runs longer (4.1 → 7.4 turns); what the change costs free play, −14.1 ± 6.6 points of
+clears (−7.9 ± 3.5 of progress), is mostly elsewhere: the Sovereign's room (5 new falls, 3 new clears) and the earlier rooms
+of floor 1, on maps a few rooms of which are drawn otherwise and on runs that grow otherwise. One way they grow otherwise
+is the bosses' own courts: the Mire Mother's spoils offer a Marsh Hag, a tier-3 Channeler on floor 1 or 2, and the expert
+takes it (Hags in 36% of final armies, 8% before), and the Winter Court falls beside them (33% → 17%).
+So the Channelers do not lose share among the clears (the Court 92% → 95%, the Chanter's trine 74% → 83%): the counter
+feeds its target its own kind. Committed, every row's paired difference is within two standard errors: the Hound's trine
+(−6.0 ± 4.0) and free play (−5.9 ± 3.7) lose most, the Channeler, Fae, Undead and Colossus rows move −2.2 to +1.7 points
+of progress, their clears within 2 of 32 of what they were. What the teacher's margins would say of which boss leans on which build is unmeasured (the teacher was not run; §3's
+instrument for it, overnight). For the balance pass: a boss's court as its spoils (the Abbess's pages and wardens, the
+Marshal's Vanguards, the Hags) pulls a run toward the kinds the boss answers or away from them, a lever beside the bosses'
+numbers; and the elite drawn for the army never fired in the expert's 64 runs (Drain, which few armies answer, is on most
+elites from floor 1), so it acts only where a floor's elites all lack every type an army cannot answer.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:

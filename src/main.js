@@ -3,7 +3,7 @@
 // The DOM screens are laid out at one logical size and scaled to the screen (frame.js); the canvas is not.
 import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
-import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun } from './sim/run.js'
+import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun, bountyOf } from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
 import { recordOf, readBook, withRun, dailySeed, dayOf } from './sim/history.js'
 import { stats, ariseOf } from './sim/turns.js'
@@ -450,7 +450,7 @@ function route () {
     // A battle room entered: its battle starts at once, with the souls where the Field left them.
     fight()
   } else if (s.phase === 'reap') {
-    show(reapScreen({ run, title: currentNode(run).type === 'elite' ? 'The elite falls' : 'Spoils', act, onDone: reap, onHelp: toggleHelp }))
+    show(reapScreen({ run, title: { elite: 'The elite falls', boss: 'The boss falls' }[currentNode(run).type] ?? 'Spoils', act, onDone: reap, onHelp: toggleHelp }))
     lesson('spoils')
   } else if (s.phase === 'shop') {
     show(shopScreen({ run, act, onLeave: leave, onHelp: toggleHelp }))
@@ -541,8 +541,8 @@ async function fight ({ resume = false } = {}) {
     onChange: (st) => bar.update(st),
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: runStat(s, 'essence.gain', 1),
-    // An elite pays its bounty on a win (the purse's card); what the run took for the battle, read as it ends.
-    elite: node.type === 'elite',
+    // An elite or a floor's boss pays its bounty on a win (the purse's card); what the run took for the battle, read as it ends.
+    elite: bountyOf(s, node) > 0,
     earned: () => (s.stats?.essence ?? 0) - paid,
     // Read as the battle ends (it is decided only then).
     // A status's tick struck from nowhere: no blow is replayed for it (codex.js deathText `tick`).
@@ -568,7 +568,7 @@ async function fight ({ resume = false } = {}) {
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
         me && 'If it falls, the run ends',
         turn,
-        u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
+        u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : u.summoned ? `${summonedBy(battle, u)}: falls with it` : 'Grave Tide shadow: falls with the Sovereign')
           : u.summoned ? `${summonedBy(battle, u)}: gone after the battle`
             : u.reap > 0 ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: acts on its own each turn, gone after the battle'),
         u.rose && 'Risen by Undying: its next fall is final',

@@ -165,18 +165,19 @@ export function riseTile (battle, from, size = 1, flies = false) {
 }
 
 // Where a summon of `u` (of `size`, a flyer's when `flies`) rises: anchored where its whole footprint lies on the camp
-// (its rows, y below CAMP_ROWS), on no wall and not on the Monarch's seat, free in its layer (free: open ground, or
-// the air for a flyer's), nearest the summoner's footprint (Chebyshev); ties as riseTile's: nearest the Monarch (with
-// none, the tile the roads run to), then lane order (CENTRE_OUT), then the lower tile. −1 when no such footprint is
-// free.
+// (its rows, y below CAMP_ROWS; a foe's summoner's, anywhere on the board: the Swarm Queen's brood), on no wall and not
+// on the Monarch's seat, free in its layer (free: open ground, or the air for a flyer's), nearest the summoner's
+// footprint (Chebyshev); ties as riseTile's: nearest the Monarch (with none, the tile the roads run to), then lane order
+// (CENTRE_OUT), then the lower tile. −1 when no such footprint is free.
 export function summonTile (battle, u, size, flies) {
   const to = battle.monarch?.tile ?? battle.root
   const seat = battle.monarch?.tile ?? -1
+  const rows = u.side === 'foe' ? DEPTH : CAMP_ROWS
   let best = -1
   let bestK = null
   for (let t = 0; t < TILES; t++) {
     const tiles = footprint(t, size)
-    if (!tiles || tiles.some((x) => tileY(x) >= CAMP_ROWS || x === seat || battle.walls.has(x)) || !free(battle, t, size, flies)) continue
+    if (!tiles || tiles.some((x) => tileY(x) >= rows || x === seat || battle.walls.has(x)) || !free(battle, t, size, flies)) continue
     const k = [distanceBetween(t, size, u.tile, u.size), distanceBetween(t, size, to, 1), LANE[tileX(t)]]
     if (bestK === null || (k[0] - bestK[0] || k[1] - bestK[1] || k[2] - bestK[2]) < 0) {
       best = t

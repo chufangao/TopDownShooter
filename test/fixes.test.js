@@ -163,7 +163,7 @@ test('every walk through a floor meets every threat type its foes can bring', ()
   for (let i = 0; i < 24; i++) {
     for (let floor = 1; floor <= TUNING.run.floors + 2; floor++) {
       const seed = `route${i}`
-      const map = generateFloor({ seed, floor, last: floor === TUNING.run.floors })
+      const map = generateFloor({ seed, floor, boss: floor <= TUNING.run.floors })
       for (const n of map.nodes) if (['fight', 'elite', 'boss', 'siege'].includes(n.type)) Object.assign(n, drawRoom(seed, floor, n))
       const before = structuredClone(map)
       varyRoutes({ seed, floor, map })
@@ -176,7 +176,7 @@ test('every walk through a floor meets every threat type its foes can bring', ()
         assert.ok(roomThreats(n).size >= (n.type === 'elite' ? v.elite : v.fight), `${seed} floor ${floor} ${n.id}`)
       })
       // The same seed draws the same floor.
-      const again = generateFloor({ seed, floor, last: floor === TUNING.run.floors })
+      const again = generateFloor({ seed, floor, boss: floor <= TUNING.run.floors })
       for (const n of again.nodes) if (['fight', 'elite', 'boss', 'siege'].includes(n.type)) Object.assign(n, drawRoom(seed, floor, n))
       varyRoutes({ seed, floor, map: again })
       assert.deepEqual(again, map)

@@ -21,8 +21,8 @@ test('500 seeded floors keep the rank, link and type rules: one to seven Shops i
   let lateShops = 0
   for (let i = 0; i < 500; i++) {
     const floor = 1 + (i % 4)
-    const last = floor === 4
-    const map = generateFloor({ seed: 'map' + i, floor, last })
+    const boss = floor <= 3
+    const map = generateFloor({ seed: 'map' + i, floor, boss })
     const where = `seed ${i}`
     const ranks = Array.from({ length: RANKS }, (_, r) => map.nodes.filter((n) => n.rank === r))
     assert.equal(map.floor, floor)
@@ -31,7 +31,7 @@ test('500 seeded floors keep the rank, link and type rules: one to seven Shops i
     assert.equal(ranks[0][0].type, 'start')
     assert.equal(ranks[RANKS - 1].length, 1)
     assert.equal(ranks[RANKS - 1][0].id, map.end)
-    assert.equal(nodeOf(map, map.end).type, last ? 'boss' : 'elite', where)
+    assert.equal(nodeOf(map, map.end).type, boss ? 'boss' : 'elite', where)
     assert.equal(nodeOf(map, map.end).next.length, 0)
 
     for (let r = 1; r < RANKS - 1; r++) {

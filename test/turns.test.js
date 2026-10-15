@@ -708,7 +708,7 @@ test('120 seeded battles across floors under either policy end, won or the Monar
     if (b.monarch) playOut(b, i % 5 ? basicTurn : expertTurn)
     else playTurns(b, 100, i % 5 ? basicTurn : expertTurn)
     assert.ok(b.over || !b.monarch, `seed ${i}`)
-    if (b.over) assert.ok(['monarch', 'wipe', 'sovereign'].includes(b.reason) && ['party', 'foe'].includes(b.winner), `seed ${i}: ${b.reason}`)
+    if (b.over) assert.ok(['monarch', 'wipe', 'crumble'].includes(b.reason) && ['party', 'foe'].includes(b.winner), `seed ${i}: ${b.reason}`)
     for (const u of b.units) assert.ok(Number.isInteger(u.hp) && u.hp >= 0 && u.hp <= u.maxHp, `seed ${i}: ${u.id} hp ${u.hp}`)
     for (const e of b.events) if (e.type === 'damage') assert.ok(Number.isInteger(e.damage) && e.damage >= 0)
   }

@@ -68,8 +68,10 @@
 //
 // The enemy is an army too (drawRoom): from floor 2 its rooms have captains, each with a cohort of foes of its kind
 // around it, each a foe of its own; a floor-1 elite brings a late pair; from floor 3 rooms come in waves, and a siege
-// room is one battle of three. The last room is a siege whose last wave is the Hollow Sovereign and its court; its fall ends the
-// battle.
+// room is one battle of three. Each floor ends in a boss and its court, its fall the battle's end (redesign.md §4.7):
+// on floors 1 and 2 a floor's boss, the one that answers what the army leans on most as the floor opens (bossFor), won
+// as an elite is; on the last a siege whose last wave is the Hollow Sovereign's, and its fall clears the run. As a floor
+// opens, an elite is drawn again where none brings a threat the army has no answer to (answerArmy).
 //
 // `fight` opens the battle (run.battle, phase 'battle'; run.setup is what it was built from), and the player's orders
 // are actions of the run like any other, logged, so replay plays the battle back order by order: apply returns each
@@ -123,15 +125,15 @@
 // elite; past it the floors simply go on. A fall in the deep ends the run as any defeat does (s.death says
 // what felled the Monarch) but leaves the clear standing: s.result stays 'victory'.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, relicDef, unitDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef, TUTORIAL } from '../content.js'
+import { UNIT_LIST, relicDef, unitDef, abilityDef, statusDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef, TUTORIAL } from '../content.js'
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campOpen, wallTiles, tracksOf, canTrack, nextTracks,
   nearestOpen, colOf, FORMATION, SLOTS, sizeOf, footprintSlots, fits, monarchSlot, isMonarchCell, isRunPath, cellsOf,
-  reachOf, meleeOnly, deployTile, distance, distanceBetween, tileAt, tileX, TILES, DEPTH, ROWS
+  reachOf, meleeOnly, deployTile, distance, distanceBetween, tileAt, tileX, TILES, DEPTH, ROWS, abilitiesOf, isBlow, isAllyShape
 } from './unit.js'
 import { roadsTo } from './field.js'
-import { createBattle, order, legalOrders } from './turns.js'
+import { createBattle, order, legalOrders, lined, basicOf } from './turns.js'
 import { grantsArise, unhealable } from './rules.js'
 import { generateFloor, nodeOf, RANKS, WIDTH } from './map.js'
 
@@ -143,13 +145,13 @@ export const MONARCH_UID = 0
 // The slot of a soul in the ossuary: kept, not fighting.
 export const OSSUARY = -1
 const BATTLE_NODES = ['fight', 'elite', 'boss', 'siege']
-const BOSS = UNIT_LIST.find((u) => u.boss).id
 
 // The Monarch takes the camp's seat, alone: the run opens on the draft (phase 'draft', s.draft: the pick it is on and
 // the kinds offered), and the floor's map waits until the last pick. Each pick is a soul joined free (join), its kind
 // with no tiers, at its first level; once all are taken they stand on the camp's default frontier (frontier) and the
-// map opens. With `start` (kind ids) there is no draft: those souls stand on the frontier at once and the run opens on
-// the map, as every run did before the draft (the tests' fixed team; a saved run from then, replayed: replay).
+// map opens, its rooms drawn then on the souls drafted (openFloor: the boss that answers them). With `start` (kind ids)
+// there is no draft: those souls stand on the frontier at once and the run opens on the map, as every run did before
+// the draft (the tests' fixed team; a saved run from then, replayed: replay).
 // `death` is what felled the Monarch, once something has. The ossuary starts empty. No relics (ids, in the order
 // bought, a copy each); `shop`, the stock of the Shop the run stands in (stockShop), empty elsewhere.
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
@@ -178,6 +180,7 @@ export function createRun ({ seed, ablate = null, start = null, scale = 1, ascen
   if (start) {
     for (const id of start) join(run, id)
     setFrontier(state, souls(state.party))
+    openFloor(run)
   } else {
     state.draft = { pick: 0, offer: draftOffer(seed, 0) }
     state.phase = 'draft'
@@ -650,6 +653,7 @@ function pick (run, { index }) {
   s.draft = null
   setFrontier(s, souls(s.party))
   s.phase = 'map'
+  openFloor(run)
 }
 
 function walk (run, { id }) {
@@ -796,6 +800,7 @@ function descend (run) {
   if (!canDescend(s)) throw new Error('only a run that slew the Sovereign may descend')
   s.floor++
   enterFloor(run)
+  openFloor(run)
 }
 
 // The spoils' one recruit (a battle's only offers are its souls): offer `index` for its price, or null to take none;
@@ -942,22 +947,38 @@ function consecrate (run, { kind, track }) {
 
 // ── internals ────────────────────────────────────────────────────────────────────────────────────
 
-// Every battle room's foes are fixed when the floor is made, so the map can show them: `foes`, and `waves`
-// for a room with more to come (see drawRoom). The floor's camp is drawn from its list: the Monarch takes its
-// seat (monarchSlot), and the fielded pieces take the new camp's default frontier (setFrontier), any it leaves no room
-// for going to the ossuary. A camp drawn again on the next floor (the deep reuses the last floor's few) is no camp
-// new to them: they keep the cells the player gave them there.
+// A floor entered: its map (ending in a boss room where the floor has a boss: bossPool) and its camp, drawn from the
+// floor's list: the Monarch takes its seat (monarchSlot), and the fielded pieces take the new camp's default frontier
+// (setFrontier), any it leaves no room for going to the ossuary. A camp drawn again on the next floor (the deep reuses
+// the last floor's few) is no camp new to them: they keep the cells the player gave them there. Its rooms wait for the
+// floor to open (openFloor).
 function enterFloor (run) {
   const s = run.state
   const was = s.camp
-  s.map = generateFloor({ seed: s.seed, floor: s.floor, last: s.floor === TUNING.run.floors })
+  s.map = generateFloor({ seed: s.seed, floor: s.floor, boss: bossPool(s.floor).length > 0 })
   s.camp = createRng(s.seed).stream(`camp|${s.floor}`).pick(CAMP_LIST.filter((c) => c.floor === poolFloor(s.floor))).id
   monarchOf(s).slot = monarchSlot(s.camp)
   if (s.camp !== was) setFrontier(s, fielded(souls(s.party)))
-  for (const n of s.map.nodes) if (BATTLE_NODES.includes(n.type)) Object.assign(n, drawRoom(s.seed, s.floor, n, { ascension: s.ascension }))
-  varyRoutes(s)
   s.at = s.map.start
   s.phase = 'map'
+}
+
+// A floor opens on the army as it stands (redesign.md §4.7): as it is entered, the first once the draft is done. Its
+// boss is chosen (bossFor: the one that answers what the living souls lean on most), and every battle room's foes are
+// fixed now, so the map can show them: `foes`, and `waves` for a room with more to come (drawRoom); a boss room says what
+// its boss answered (`lean`, null for one drawn by the seed alone). Then the routes are varied (varyRoutes), and an elite
+// drawn again where none answers the army (answerArmy).
+function openFloor (run) {
+  const s = run.state
+  const army = souls(s.party).filter((u) => u.hp > 0)
+  const boss = bossFor(s.seed, s.floor, army)
+  for (const n of s.map.nodes) {
+    if (!BATTLE_NODES.includes(n.type)) continue
+    Object.assign(n, drawRoom(s.seed, s.floor, n, { ascension: s.ascension, boss: boss?.id }))
+    if (n.type === 'boss') n.lean = boss.lean
+  }
+  varyRoutes(s)
+  answerArmy(s, army)
 }
 
 function nextRoom (run) {
@@ -969,6 +990,7 @@ function nextRoom (run) {
   s.stats.floorsCleared++
   s.floor++
   enterFloor(run)
+  openFloor(run)
 }
 
 // Across a floor's ranks every threat type appears on every route, so a walk that skirts one answer still meets
@@ -1044,8 +1066,10 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 //   elite   `elite` foes of a higher tier; floor 1: and a late pair of the floor's own pool, a wave of its own;
 //           floor 3+: waves.elite waves
 //   siege   waves.siege fight-sized waves, from floor 3
-//   boss    waves.siege waves, the last the Hollow Sovereign at the centre of its court of `court` undead
-// From floor 2 each wave (but the Sovereign's) has captains: captains.fight (captains.elite in an elite) of
+//   boss    its boss (`boss`, the floor's: bossFor, by the seed alone where not given) at the centre of its court of
+//           court[floor − 1] (its kinds: courtPool); from floor waves.floor (the Hollow Sovereign's) the last of
+//           waves.siege waves
+// From floor 2 each wave (but a boss's) has captains: captains.fight (captains.elite in an elite) of
 // its foes, each leading cohort[floor − 1] more foes of its own kind (formation).
 // Each wave's foes stand from its front row back, filling the middle lanes first, each band of lanes (centre
 // three, then the next pair out…) in shuffled order.
@@ -1056,31 +1080,28 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 // growing as an army (deepGrowth): higher levels, more foes a wave, more waves to a room, bigger cohorts;
 // the floor's last room is a big elite. At a level of the ascension ladder (`ascension`, the run's) a fight's and an
 // elite's count are its (roomSize), before the deep's growth.
-export function drawRoom (seed, floor, node, { want = [], redraw = null, ascension = 0 } = {}) {
+export function drawRoom (seed, floor, node, { want = [], redraw = null, ascension = 0, boss = null } = {}) {
   const sp = TUNING.spawn
   const W = sp.waves
   const grow = deepGrowth(floor, node)
   const lvl = foeLevel(floor, node.rank) + grow.level
   const rng = createRng(seed).stream(`foes|${floor}|${node.id}${redraw === null ? '' : `|route|${redraw}`}`)
   const elite = node.type === 'elite'
-  const boss = node.type === 'boss'
+  if (node.type === 'boss') boss ??= bossFor(seed, floor)?.id
+  else boss = null
   const pool = spawnPool(poolFloor(floor), elite ? sp.eliteTier : 0)
   const n = Math.min(SLOTS, roomSize(floor, elite, ascension) + grow.count)
   const waved = floor >= W.floor
-  const base = boss || node.type === 'siege' ? W.siege : !waved ? 1 : elite ? W.elite : node.rank >= W.fightRank ? W.fight : 1
+  const base = node.type === 'siege' || (boss && waved) ? W.siege : !waved || boss ? 1 : elite ? W.elite : node.rank >= W.fightRank ? W.fight : 1
   // The deep's extra waves come to every room (a single formation becomes a room of waves), up to the cap.
   const waves = grow.waves ? Math.max(base, Math.min(TUNING.spawn.endless.maxWaves, base + grow.waves)) : base
-  // Each wave's kinds as drawn (the Sovereign's: its court), then the late pair.
+  // Each wave's kinds as drawn (a boss's: its court), then the late pair.
   const floorPool = spawnPool(poolFloor(floor))
-  const elitePool = boss ? spawnPool(poolFloor(floor), sp.eliteTier) : null
-  const undead = elitePool && {
-    units: elitePool.units.filter((u) => u.kin === 'undead'),
-    weights: elitePool.weights.filter((_, i) => elitePool.units[i].kin === 'undead')
-  }
+  const court = boss && courtPool(floor, unitDef(boss).court)
   const pair = elite && floor === 1
   const draw = () => [
     ...Array.from({ length: waves }, (_, k) => boss && k === waves - 1
-      ? Array.from({ length: sp.court }, () => rng.weighted(undead.units, undead.weights).id)
+      ? Array.from({ length: at(sp.court, floor) }, () => rng.weighted(court.units, court.weights).id)
       : Array.from({ length: n }, () => rng.weighted(pool.units, pool.weights).id)),
     ...(pair ? [Array.from({ length: sp.late.n }, () => rng.weighted(floorPool.units, floorPool.weights).id)] : [])
   ]
@@ -1090,7 +1111,7 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   // How varied a draw is: its distinct threats, and for a route's redraw (see varyRoutes) far before that, the
   // type it wants (want[0]), then each type it keeps (the rest): a draw that has them all and `need` types
   // scores `goal`.
-  const threats = (ids) => roomThreats({ foes: asFoes([...ids[0], ...(boss ? [BOSS] : [])]), waves: ids.slice(1).map((list) => ({ foes: asFoes(list) })) })
+  const threats = (ids) => roomThreats({ foes: asFoes([...ids[0], ...(boss ? [boss] : [])]), waves: ids.slice(1).map((list) => ({ foes: asFoes(list) })) })
   const kinds = (ids) => {
     const t = threats(ids)
     return t.size + (want.length && t.has(want[0]) ? 1000 : 0) + 10 * want.slice(1).filter((x) => t.has(x)).length
@@ -1110,17 +1131,117 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   if (forms.length > 1) room.waves = forms.slice(1).map((foes) => ({ foes }))
   return room
 
-  // The Sovereign at the centre of its first row, its court on the slots nearest it.
+  // The boss at the centre of its first row, its court on the slots nearest it; a court that stands ahead of it
+  // (`front`: the Barrow Marshal's) across the front row from the middle lanes out, the boss behind its middle.
   function courtOf (list, level) {
-    const foes = [{ id: BOSS, lvl: level, slot: slotAt(0, CENTRE_OUT[0]) }]
+    const front = !!unitDef(boss).court.front
+    const foes = [{ id: boss, lvl: level, slot: slotAt(front ? 1 : 0, CENTRE_OUT[0]) }]
     const taken = new Set([foes[0].slot])
     for (const id of list) {
-      const slot = nearestOpen(FORMATION, foes[0].slot, taken)
+      const slot = (front ? CENTRE_OUT.map((c) => slotAt(0, c)).find((x) => !taken.has(x)) : null) ?? nearestOpen(FORMATION, foes[0].slot, taken)
       if (slot < 0) break
       taken.add(slot)
       foes.push({ id, lvl: level, slot })
     }
     return foes
+  }
+}
+
+// The kinds a boss's court (content.js `court`) is drawn from, with their weights: its `kinds`, each by its spawn
+// weight, whatever the floor; else the floor's elite pool (spawnPool) of its `kin` or `role`. → { units, weights }
+export function courtPool (floor, court) {
+  if (court.kinds) {
+    const units = court.kinds.map(unitDef)
+    return { units, weights: units.map((u) => u.spawn.weight) }
+  }
+  const p = spawnPool(poolFloor(floor), TUNING.spawn.eliteTier)
+  const keep = (u) => (!court.kin || u.kin === court.kin) && (!court.role || u.role === court.role)
+  return { units: p.units.filter(keep), weights: p.weights.filter((_, i) => keep(p.units[i])) }
+}
+
+// ── the bosses and the army (redesign.md §4.7) ───────────────────────────────────────────────────
+
+// The bosses floor `floor` may end in: on the run's last (TUNING.run.floors) those marked `last` (the Hollow
+// Sovereign), on one before it those tagged with it (content.js `floors`); none past it (the deep's floors end in a
+// big elite).
+export const bossPool = (floor) => UNIT_LIST.filter((u) => u.boss && (floor === TUNING.run.floors ? !!u.last : floor < TUNING.run.floors && !!u.floors?.includes(floor)))
+
+// What a soul leans on, as a boss reads an army (content.js `answers`), the first of these that holds: casters (a
+// Channeler), shooters (a Ranger), statuses (a blow of its kit lays a debuff), shooters (its basic blow a shot: a blow
+// at one foe from range that keeps to a line, turns.js lined), walls (it fights in melee alone, on the ground); null for
+// none. One word a soul.
+export const LEANINGS = ['casters', 'shooters', 'statuses', 'walls']
+export function leaningOf (u) {
+  const d = unitDef(u.id)
+  if (d.role === 'channeler') return 'casters'
+  if (d.role === 'ranger') return 'shooters'
+  const kit = abilitiesOf(u).map(abilityDef)
+  if (kit.some((a) => isBlow(a) && a.effects.some((e) => e.op === 'apply_status' && statusDef(e.status).tags.includes('debuff')))) return 'statuses'
+  const basic = basicOf(kit)
+  if (basic && lined(basic)) return 'shooters'
+  if (!d.flies && meleeOnly(u)) return 'walls'
+  return null
+}
+// How many of `army`'s souls lean on each (leaningOf): { casters, shooters, statuses, walls }.
+export function leanings (army) {
+  const out = Object.fromEntries(LEANINGS.map((w) => [w, 0]))
+  for (const u of army) {
+    const w = leaningOf(u)
+    if (w) out[w]++
+  }
+  return out
+}
+
+// The boss floor `floor` ends in, `army` the living souls held as it opens: of the floor's pool (bossPool), the one
+// that answers (`answers`) what the most of them lean on (leanings); a tie among the pool, or an army leaning on nothing
+// a boss of the pool answers, drawn by the run's seed (a stream of the floor's) among the tied (the whole pool). One
+// alone, it. → { id, lean: the leaning it answered, null for one drawn by the seed alone }, or null for a floor with no
+// boss.
+export function bossFor (seed, floor, army = []) {
+  const pool = bossPool(floor)
+  if (pool.length < 2) return pool.length ? { id: pool[0].id, lean: null } : null
+  const n = leanings(army)
+  const most = Math.max(0, ...pool.map((d) => n[d.answers] ?? 0))
+  const top = most > 0 ? pool.filter((d) => (n[d.answers] ?? 0) === most) : pool
+  const d = top.length === 1 ? top[0] : createRng(seed).stream(`boss|${floor}`).pick(top)
+  return { id: d.id, lean: most > 0 ? d.answers : null }
+}
+
+// The boss a room holds, its id, in whichever wave it comes (null for none).
+export const bossIn = (node) => [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flat().find((f) => unitDef(f.id).boss)?.id ?? null
+
+// The army's answers to a room's threat types (content.js THREATS), by what a soul can do: Fly by a blow that reaches a
+// flyer (a ranged one, or a flyer's own), Reach by a ranged blow, Drain, Burn and Bleed by a heal of others or a cleanse
+// (tends). Shape, Sustain and Depth are met by numbers alone: no soul answers them, and none is short of an answer for
+// them. Read by the elites that answer the army (answerArmy) and by the expert (autoplay.js survey).
+export const tends = (u) => abilitiesOf(u).map(abilityDef).some((a) => isAllyShape(a.shape) && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse'))
+export const ANSWERS = {
+  fly: (u) => abilitiesOf(u).map(abilityDef).some((a) => isBlow(a) && (!a.melee || !!unitDef(u.id).flies)),
+  reach: (u) => abilitiesOf(u).map(abilityDef).some((a) => isBlow(a) && !a.melee),
+  drain: tends,
+  burn: tends,
+  bleed: tends
+}
+// The threat types floor `floor`'s foes can bring (routeThreats) that none of `army` answers (ANSWERS), in THREATS'
+// order.
+export const unanswered = (floor, army) => routeThreats(floor).filter((t) => ANSWERS[t] && !army.some(ANSWERS[t]))
+
+// Elites that answer the army (redesign.md §4.7), as the floor opens, `army` its living souls: where no elite of the
+// floor carries a threat type the army has no answer to (unanswered) and some type lacks one, an elite is drawn again
+// wanting one, keeping the types it had (drawRoom's `want`, on a stream of its own), the elites in an order the run's
+// seed draws and the types in turn: the first draw that has the type and every type kept is the elite's; with none,
+// the elites stay as drawn. Every type the routes met before (varyRoutes) they still meet.
+export function answerArmy (s, army) {
+  const lack = unanswered(s.floor, army)
+  const elites = s.map.nodes.filter((n) => n.type === 'elite')
+  if (!lack.length || !elites.length || elites.some((n) => lack.some((t) => roomThreats(n).has(t)))) return
+  for (const node of createRng(s.seed).stream(`answer|${s.floor}`).shuffle(elites)) {
+    const keep = [...roomThreats(node)].filter((t) => t !== 'depth')
+    for (const type of lack) {
+      const room = drawRoom(s.seed, s.floor, node, { want: [type, ...keep], redraw: `army|${type}`, ascension: s.ascension })
+      const got = roomThreats(room)
+      if (got.has(type) && keep.every((t) => got.has(t))) return Object.assign(node, room)
+    }
   }
 }
 
@@ -1226,11 +1347,11 @@ function finishBattle (run) {
   }
   s.stats.wins++
   // Hollow Court: the shadows its holder raised that still stand pay their essence again, a time each it reaps them. A
-  // won elite pays its bonus on top (eliteBonus), and what relics add to a battle's pay (`essence.gain`) counts it too.
+  // won elite or floor's boss pays its bounty on top (bountyOf), and what relics add to a battle's pay (`essence.gain`)
+  // counts it too.
   const node = currentNode(run)
   const court = reapedShadows(run).reduce((n, u) => n + foeEssence(u) * u.reap, 0)
-  const bonus = node.type === 'elite' ? eliteBonus(s.floor) : 0
-  const earned = Math.round((battleEssence(b) + court + bonus) * runStat(s, 'essence.gain', 1))
+  const earned = Math.round((battleEssence(b) + court + bountyOf(s, node)) * runStat(s, 'essence.gain', 1))
   s.essence += earned
   s.stats.essence += earned
   // Each living soul heals; the fallen stay down.
@@ -1238,7 +1359,7 @@ function finishBattle (run) {
     if (isMonarch(u) && unhealed(s)) continue
     if (u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + Math.ceil(u.maxHp * TUNING.run.postBattleHeal))
   }
-  if (node.type === 'boss') {
+  if (clearsRun(s, node)) {
     s.stats.floorsCleared++
     s.phase = 'over'
     s.result = 'victory'
@@ -1247,6 +1368,12 @@ function finishBattle (run) {
   s.offers = soulOffers(run, b)
   s.phase = 'reap'
 }
+
+// Whether winning room `node` on the run's floor clears the run: the last floor's boss room, the Hollow Sovereign's. A
+// floor's boss before it is won as an elite is: its bounty, then the spoils.
+export const clearsRun = (s, node) => node.type === 'boss' && s.floor === TUNING.run.floors
+// What a won room pays on top of its foes: an elite's bounty, and a floor's boss's (eliteBonus); none elsewhere.
+export const bountyOf = (s, node) => (node.type === 'elite' || (node.type === 'boss' && !clearsRun(s, node)) ? eliteBonus(s.floor) : 0)
 
 // ── progression: the retinue ─────────────────────────────────────────────────────────────────────
 
@@ -1383,10 +1510,10 @@ export function spawnPool (floor, tierBias = 0) {
   return { units, weights: units.map((u) => u.spawn.weight / Math.pow(1 + Math.abs(u.tier - target), sp.tierFalloff)) }
 }
 
-// In the boss's room only the boss takes the boss's multipliers; its waves and court take the floor's. Past
-// the Sovereign's floor every floor deeper adds TUNING.spawn.endless's hp and atk shares to them all. `scale`, the
-// run's (foeScale: its level's and the harness's), multiplies every foe's, the boss's too: { hp, atk }, or one number
-// for both.
+// In a boss's room only the boss takes the boss's multipliers, the floor's (TUNING.spawn.bossHp and bossAtk: a floor's
+// boss's on floors 1 and 2, the Sovereign's on the last); its waves and court take the floor's. Past the Sovereign's
+// floor every floor deeper adds TUNING.spawn.endless's hp and atk shares to them all. `scale`, the run's (foeScale: its
+// level's and the harness's), multiplies every foe's, the boss's too: { hp, atk }, or one number for both.
 export function foeMods (floor, boss, scale = 1) {
   const sp = TUNING.spawn
   const by = typeof scale === 'number' ? { hp: scale, atk: scale } : scale
@@ -1394,8 +1521,8 @@ export function foeMods (floor, boss, scale = 1) {
   const mods = [{ path: 'hp', op: 'mul', v: at(sp.foeHp, floor) * grow('hp') }, { path: 'atk', op: 'mul', v: at(sp.foeAtk, floor) * grow('atk') }]
   if (!boss) return mods
   return [
-    { path: 'hp', op: 'mul', v: sp.bossHp * grow('hp'), who: { boss: true } },
-    { path: 'atk', op: 'mul', v: sp.bossAtk * grow('atk'), who: { boss: true } },
+    { path: 'hp', op: 'mul', v: at(sp.bossHp, floor) * grow('hp'), who: { boss: true } },
+    { path: 'atk', op: 'mul', v: at(sp.bossAtk, floor) * grow('atk'), who: { boss: true } },
     ...mods.map((m) => ({ ...m, who: { boss: false } }))
   ]
 }
@@ -1404,9 +1531,10 @@ export function foeMods (floor, boss, scale = 1) {
 
 // One soul for sale per kind of foe slain: a full soul that joins its kind at the kind's level, with its kind's tiers
 // (a kind new to the run at its first, with Soul Lantern's tiers: lanternSteps), priced by that level; one of them a
-// battle (reap). A foe shadow is no foe's soul (it rose from one of yours: the Legion, Undead 8, on the foes' side).
+// battle (reap). A foe shadow is no foe's soul (it rose from one of yours: the Legion, Undead 8, on the foes' side),
+// and a boss leaves none (its crumbled court do: each slain as it fell).
 function soulOffers (run, battle) {
-  const slain = battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0)
+  const slain = battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0 && !unitDef(u.id).boss)
   return [...new Set(slain.map((u) => u.id))].map((id) => soulOffer(run, { type: 'soul', id, name: unitDef(id).name }))
 }
 

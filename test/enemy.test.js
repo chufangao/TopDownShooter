@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
-  essenceByWave, MONARCH_UID, currentNode, START_PARTY
+  essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
@@ -60,10 +60,12 @@ test('every foe kind comes by Walk or Fly, hinted only in its flavour; depth is 
     // Flavour hints; it never names the behaviour it hints at.
     assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|fl(y|ies|ying|ight)|stays?|hunts?|orders?)\b/i, u.id)
   }
-  // Two ways: every kind Walks but the flyers, first met on floors 2 and 3.
+  // Two ways: every kind Walks but the flyers, first met on floors 2 and 3, and a floor's boss (redesign.md §4.7) and its
+  // brood.
   assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'fly'])
-  const flyers = Object.values(UNITS).filter((u) => u.behaviour === 'fly').map((u) => [u.id, u.spawn.minFloor]).sort()
+  const flyers = Object.values(UNITS).filter((u) => u.behaviour === 'fly' && u.spawn).map((u) => [u.id, u.spawn.minFloor]).sort()
   assert.deepEqual(flyers, [['ash_wyvern', 3], ['hive_drone', 2]])
+  assert.deepEqual(Object.values(UNITS).filter((u) => u.behaviour === 'fly' && !u.spawn).map((u) => [u.id, u.boss]), [['swarm_queen', true]])
   assert.ok(THREATS.depth.name && THREATS.depth.desc)
   assert.deepEqual(ABILITIES.grave_tide.effects.at(-1), { op: 'raise', count: 2 })
 })
@@ -74,7 +76,7 @@ test('sieges: from floor 3, one or two of the late ranks\' fights, never two in 
   let seen = 0
   for (let i = 0; i < 400; i++) {
     const floor = 1 + (i % 4)
-    const map = generateFloor({ seed: 'siege' + i, floor, last: floor === TUNING.run.floors })
+    const map = generateFloor({ seed: 'siege' + i, floor, boss: floor <= TUNING.run.floors })
     const sieges = map.nodes.filter((n) => n.type === 'siege')
     if (floor < W.floor) {
       assert.equal(sieges.length, 0, `seed ${i} floor ${floor}`)
@@ -92,13 +94,13 @@ test('sieges: from floor 3, one or two of the late ranks\' fights, never two in 
 
 const groups = (room) => [room.foes, ...(room.waves ?? []).map((w) => w.foes)]
 
-test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 2, each of the cohort a foe of its own; waves from floor 3; the last room ends in the Sovereign\'s court', () => {
+test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 2, each of the cohort a foe of its own; waves from floor 3; a floor\'s boss with its court, the last room ends in the Sovereign\'s', () => {
   const count = {}
   const pairTiers = []
   for (let i = 0; i < 30; i++) {
     for (let floor = 1; floor <= TUNING.run.floors; floor++) {
       const seed = 'room' + i
-      const map = generateFloor({ seed, floor, last: floor === TUNING.run.floors })
+      const map = generateFloor({ seed, floor, boss: true })
       for (const node of map.nodes.filter((n) => ['fight', 'elite', 'siege', 'boss'].includes(n.type))) {
         const where = `${seed} floor ${floor} ${node.id} ${node.type}`
         const room = drawRoom(seed, floor, node)
@@ -106,7 +108,7 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
         const elite = node.type === 'elite'
         const boss = node.type === 'boss'
         const lvl = foeLevel(floor, node.rank) + (elite ? sp.eliteLevel : 0)
-        const waves = boss || node.type === 'siege' ? W.siege
+        const waves = node.type === 'siege' || (boss && floor >= W.floor) ? W.siege : boss ? 1
           : floor === 1 ? (elite ? 2 : 1)
           : floor < W.floor ? 1 : elite ? W.elite : node.rank >= W.fightRank ? W.fight : 1
         assert.equal(groups(room).length, waves, where)
@@ -121,10 +123,14 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
           // One foe a piece: none carries a count, and none is marked as another's cohort.
           assert.ok(!g.some((f) => 'count' in f || 'cohortOf' in f), w)
           if (boss && k === waves - 1) {
-            // The Sovereign at the centre of the front row, its court of undead about it.
-            assert.deepEqual(g[0], { id: 'hollow_sovereign', lvl, slot: slotAt(0, CENTRE_OUT[0]) }, w)
-            assert.equal(g.length, 1 + sp.court, w)
-            assert.ok(g.slice(1).every((m) => unitDef(m.id).kin === 'undead' && !unitDef(m.id).boss && m.count === undefined), w)
+            // Its boss (the seed's, with no army: run.js bossFor) at the centre of the front row, or behind it with its
+            // court before it; its court about it, of its kinds (the Sovereign's undead).
+            const id = bossFor(seed, floor).id
+            assert.deepEqual(g[0], { id, lvl, slot: slotAt(unitDef(id).court.front ? 1 : 0, CENTRE_OUT[0]) }, w)
+            assert.equal(g.length, 1 + at(sp.court, floor), w)
+            assert.equal(id === 'hollow_sovereign', floor === TUNING.run.floors, w)
+            assert.ok(g.slice(1).every((m) => courtPool(floor, unitDef(id).court).units.some((u) => u.id === m.id) && !unitDef(m.id).boss && m.count === undefined), w)
+            if (id === 'hollow_sovereign') assert.ok(g.slice(1).every((m) => unitDef(m.id).kin === 'undead'), w)
             continue
           }
           assert.ok(!g.some((f) => unitDef(f.id).boss), w)
@@ -156,7 +162,7 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
   }
   // Every kind of room was drawn.
   const F = TUNING.run.floors
-  for (const key of ['1fight1', '1elite2', '2fight1', '2elite1', '3fight1', '3fight2', '3elite2', '3siege3', `${F}siege3`, `${F}boss3`]) assert.ok(count[key] > 0, `${key}: ${JSON.stringify(count)}`)
+  for (const key of ['1fight1', '1elite2', '1boss1', '2fight1', '2elite1', '2boss1', '3fight1', '3fight2', '3elite2', '3siege3', `${F}siege3`, `${F}boss3`]) assert.ok(count[key] > 0, `${key}: ${JSON.stringify(count)}`)
   // The floor's pool, not the elite's: floor 1's weights favour tier 1 (the elite pool's, tier 2).
   assert.ok(pairTiers.filter((t) => t === 1).length > 0.7 * pairTiers.length, `late pair tiers: ${pairTiers}`)
 })
@@ -316,8 +322,8 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
   assert.deepEqual(after.map((e) => [e.target, e.actor, e.crumble]), [[51, 50, true], [52, 50, true], [53, 50, true]])
   assert.ok(b.units.filter((u) => u.side === 'foe').every((u) => u.hp === 0))
   assert.deepEqual(b.reserve, [], 'the foe still to come never enters')
-  assert.deepEqual([b.over, b.winner, b.reason], [true, 'party', 'sovereign'])
-  assert.deepEqual(b.events.at(-1), { beat: b.beat, type: 'battle:end', winner: 'party', reason: 'sovereign' })
+  assert.deepEqual([b.over, b.winner, b.reason], [true, 'party', 'crumble'])
+  assert.deepEqual(b.events.at(-1), { beat: b.beat, type: 'battle:end', winner: 'party', reason: 'crumble' })
   // They pay as if slain (not the shadow): the court in the Sovereign's wave, the Wisp in the first.
   const pay = essenceByWave(b)
   assert.equal(pay[2], foeEssence(sov) + foeEssence(unit(b, 51)))
@@ -332,7 +338,7 @@ test('the Sovereign\'s crumbled court never rises: the battle ends with its fall
     on('hollow_sovereign', 10, 'foe', 3, 4, 1), on('clockwork_page', 11, 'foe', 2, 4, 1), on('clockwork_page', 12, 'foe', 4, 4, 1)], { boss: true })
   unit(b, 10).hp = 1
   order(b, { type: 'act', uid: 1, ability: unit(b, 1).basic.id, target: 10 })
-  assert.deepEqual([b.winner, b.reason, b.turn], ['party', 'sovereign', 1])
+  assert.deepEqual([b.winner, b.reason, b.turn], ['party', 'crumble', 1])
   assert.deepEqual(b.events.filter((e) => e.type === 'death' && e.crumble).map((e) => e.target), [11, 12])
   assert.deepEqual(corpses(b, unit(b, 2)), [], 'nothing for Arise')
   assert.ok(!b.events.some((e) => e.type === 'arise'))
@@ -359,8 +365,8 @@ test('in the last room only the Sovereign takes the boss\'s multipliers; its wav
   const mods = foeMods(last, true)
   const sov = makeUnit('hollow_sovereign', { uid: 1, lvl: 7 })
   const ghoul = makeUnit('grave_ghoul', { uid: 2, lvl: 7 })
-  assert.equal(statsOf(sov, mods).hp, statsOf(sov).hp * sp.bossHp)
-  assert.equal(statsOf(sov, mods).atk, statsOf(sov).atk * sp.bossAtk)
+  assert.equal(statsOf(sov, mods).hp, statsOf(sov).hp * at(sp.bossHp, last))
+  assert.equal(statsOf(sov, mods).atk, statsOf(sov).atk * at(sp.bossAtk, last))
   assert.equal(statsOf(ghoul, mods).hp, statsOf(ghoul).hp * at(sp.foeHp, last))
   assert.equal(statsOf(ghoul, mods).atk, statsOf(ghoul).atk * at(sp.foeAtk, last))
   assert.deepEqual(foeMods(last, false).map((m) => m.v), [at(sp.foeHp, last), at(sp.foeAtk, last)])

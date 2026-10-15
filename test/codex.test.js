@@ -367,13 +367,19 @@ test('the codex\'s Fusions lists the mixed recipes and the capstones, the triple
 
 // A kind that borrows its pictures is drawn as what it is (dom.js figures; redesign.md §4.1): a trine as three of the
 // kind it was made of, the front one whole and two behind it smaller and darker (a trine of a trine, three trines:
-// seven figures); a capstone as its lender washed; a kind with pictures of its own (the Pale Court) by them.
-test('a trine is drawn as three of its kind, a trine of a trine as seven, a capstone washed; a kind with pictures of its own by them', async () => {
+// seven figures); a capstone as its lender washed, a floor's boss (redesign.md §4.7) too and as big as the Sovereign's
+// pictures are drawn (144 to 96); a kind with pictures of its own (the Pale Court) by them.
+test('a trine is drawn as three of its kind, a trine of a trine as seven, a capstone washed, a floor\'s boss washed and bigger; a kind with pictures of its own by them', async () => {
   const { figures, plainFigure, portrait } = await import('../src/dom.js')
   for (const d of UNIT_LIST) {
     const f = figures(d.id)
-    if (d.art === d.id || !d.fused) {
+    if (d.art === d.id || !(d.fused || d.boss)) {
       assert.ok(plainFigure(d.id) && f[0].art === d.art, d.id)
+      continue
+    }
+    if (d.boss) {
+      assert.deepEqual(f, [{ art: d.art, x: 0, y: 0, k: 1.5, dim: 1, wash: true }], d.id)
+      assert.equal(portrait(d.id, 40).childNodes.length, 1)
       continue
     }
     if (d.trineOf) {
@@ -473,4 +479,37 @@ test('every rule at work flares in battle: the synergies\' by step and name, a c
   for (const rule of new Set(said)) assert.ok(flares[rule]?.name && flares[rule].step, `${rule} flares`)
   for (const syn of SYNERGIES.filter((x) => x.rule)) assert.deepEqual(flares[syn.rule], { step: syn.name, name: syn.desc.split(': ')[0] })
   for (const d of UNIT_LIST.filter((x) => x.rule && !x.boss)) assert.equal(flares[d.rule].name, d.name, d.id)
+  // A boss's (redesign.md §4.7) as "Boss · its name".
+  for (const d of UNIT_LIST.filter((x) => x.rule && x.boss)) assert.deepEqual(flares[d.rule], { step: 'Boss', name: d.name }, d.id)
+})
+
+// A boss a floor (redesign.md §4.7), told: the map's boss room names its boss, and a floor's what it came for of the
+// army; the last floor's that its fall clears the run; a wave its boss comes in by its name; the bestiary, once met,
+// where a boss meets you and what it comes for; How to play's lede.
+test('a floor\'s boss is told: its room by its name and what it came for, the Sovereign\'s that it clears the run, its wave, its bestiary line', async () => {
+  const { roomWords, waveName, bossLine } = await import('../src/codex.js')
+  const { floorOf } = await import('../src/sim/autoplay.js')
+  const { TUNING } = await import('../src/tuning.js')
+  const run = createRun({ start: ['will_o_wisp', 'bone_chanter', 'frost_sprite'], seed: 'told-boss' })
+  const end = run.state.map.nodes.find((n) => n.id === run.state.map.end)
+  const w = roomWords(run, end)
+  assert.equal(w.name, 'The Mire Mother')
+  assert.match(w.text, /The floor's boss and its court\. Its fall crumbles them; then a bounty and a recruit, and the next floor\. It came for casters, your Channelers: what your army leaned on most as the floor opened\./)
+  assert.match(roomTip(run, end, { reachable: false }).textContent, /The Mire Mother.*It came for casters/)
+  // Drawn by the seed alone: said so.
+  end.lean = null
+  assert.match(roomWords(run, end).text, /The floor drew it/)
+  // The last floor's: the Sovereign's siege, its last wave by its name.
+  const F = TUNING.run.floors
+  const last = floorOf('told-boss', F)
+  const sov = last.nodes.find((n) => n.id === last.end)
+  const there = { ...run, state: { ...run.state, floor: F } }
+  assert.deepEqual(roomWords(there, sov), { name: 'The Hollow Sovereign', text: `${TUNING.spawn.waves.siege} waves, the last the Sovereign and its court. Kill it to clear the run.` })
+  assert.equal(waveName(sov, sov.waves.length - 1), `Wave ${sov.waves.length + 1}: the Sovereign`)
+  // The bestiary, once met.
+  const d = UNIT_LIST.find((x) => x.id === 'swarm_queen')
+  assert.equal(bossLine(d), 'it may end floors 1 and 2, and comes for an army that leans on walls, the souls that fight in melee alone.')
+  assert.match(bossLine(UNIT_LIST.find((x) => x.id === 'hollow_sovereign')), /last floor's; its fall clears the run/)
+  const text = codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent
+  assert.match(text, /ending in a boss and its court, the last floor's the Hollow Sovereign/)
 })

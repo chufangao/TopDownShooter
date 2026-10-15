@@ -517,7 +517,7 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
   let rooms = 0
   for (const floor of [F + 1, F + 2, F + 4]) {
     for (const seed of ['deep0', 'deep1']) {
-      const map = generateFloor({ seed, floor, last: floor === F })
+      const map = generateFloor({ seed, floor, boss: floor <= F })
       assert.equal(map.nodes.find((n) => n.id === map.end).type, 'elite')
       for (const node of map.nodes.filter((n) => ['fight', 'elite', 'siege'].includes(n.type))) {
         const room = drawRoom(seed, floor, node)
@@ -557,11 +557,11 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
 })
 
 // A rich run (purse topped up, and each floor an HP relic and three Command relics given, outside the log) to the Sovereign, through rooms
-// emptied of foes and to a frail Sovereign alone in its room: the descent is under test here, not the fights on
-// the way (whether a run gets there is the final balance pass's business).
+// emptied of foes and to a frail boss alone in each floor's last room, the Sovereign on the last: the descent is under
+// test here, not the fights on the way (whether a run gets there is the final balance pass's business).
 function clear (seed) {
   const sp = TUNING.spawn
-  const empty = { fight: sp.fight.map(() => 0), elite: sp.elite.map(() => 0), court: 0, bossHp: 0.02, bossAtk: 0.02, late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
+  const empty = { fight: sp.fight.map(() => 0), elite: sp.elite.map(() => 0), court: sp.court.map(() => 0), bossHp: sp.bossHp.map(() => 0.02), bossAtk: sp.bossAtk.map(() => 0.02), late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
   return tuned({ spawn: empty }, () => {
     const run = createRun({ start: START_PARTY, seed })
     const s = run.state
@@ -698,7 +698,7 @@ test('fuzz with the Sovereign on floor 1: runs descend, play two floors deep, ke
   const was = [TUNING.run.floors, TUNING.spawn.bossHp, TUNING.spawn.bossAtk, TUNING.spawn.court, TUNING.spawn.waves.siege, TUNING.spawn.foeHp, TUNING.spawn.foeAtk]
   Object.assign(TUNING.run, { floors: 1 })
   // The Sovereign's room is a siege of floor 1's foes ending in the Sovereign alone (no court, no other waves).
-  Object.assign(TUNING.spawn, { bossHp: 0.02, bossAtk: 0.2, court: 0, foeHp: was[5].map((v) => v * 0.6), foeAtk: was[6].map((v) => v * 0.6) })
+  Object.assign(TUNING.spawn, { bossHp: was[1].map(() => 0.02), bossAtk: was[2].map(() => 0.2), court: was[3].map(() => 0), foeHp: was[5].map((v) => v * 0.6), foeAtk: was[6].map((v) => v * 0.6) })
   TUNING.spawn.waves.siege = 1
   try {
     const seen = new Set()
