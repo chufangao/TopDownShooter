@@ -1062,6 +1062,118 @@ Golem: no tier-2 soul can become one), and a soul a rite, about three rites a ru
 themselves; the recruits and the book's weight on these kins (Step 0: Construct, Vanguard and Warden combos valued at
 nothing) are still what decide it.
 
+### Relics (Step 4, 2026-10-15)
+
+**Built** (§4.4, in the forms allowed, §7 decision 3 kept: no rule below Legendary; on e6266bb beside Step 5, merged
+after it and after Step 2's interface): **five kin banners**, Uncommon run relics, each one mod scoped by `who` to its
+kin (`unit.js statsOf` matches it in battle, as the foes' boss mods): the Wyrm Standard every Drake +25% ATK, the Brass
+Standard every Construct 10% less damage taken, the Barrow Standard every Undead +20% max HP, the Gossamer Standard
+every Fae's skills a turn sooner (`cooldown.rate` +1, the path Hasten's "a turn sooner" is on: every skill rests 2 but
+Arise, so a rate of 2 brings each back a turn sooner; no path new), the Hive Standard every Insect +1 Move; unheld,
+copies stacking, never the Monarch's or a foe's. **Seven piece relics**: Gravedigger's Spade (Rare, on a kill the slain
+of tier 1 rises as yours), Firebrand (Uncommon, on a blow its target Burning), Briar Mail (Uncommon, when struck its
+attacker takes 12), Leech Fang (Uncommon, on a blow it heals 10%), Quicksilver (Rare, on a blow its skills a turn
+sooner), Rowan Charm (Common, on a wave Barkskin within 2), Raider's Spur (Uncommon, on a kill Hasten). The vocabulary
+grew by two parameters, a relic's alone: `raise` with a `tier` lifts the slain where its tier is no higher, as Legion
+would raise it (`turns.js risable`: never risen, a shadow, a boss, a Monarch or a fusion's part, while the side has
+room; so Legion finds it risen), a trigger's `other` for a raise being the slain lying dead; `damage` with a flat
+`amount` deals it true (no ATK, DEF or mod; the rules bend it as they bend a burst). Where this differs from §4.4's
+letter: Briar Mail's 12 is true damage. The content test: a run relic names the run's paths, a side-wide cost, or a
+kin's or a role's mods, never a unit's path unscoped but the cost; a piece relic's mods are its holder's, unscoped; the
+twelve on §4.4's numbers. The codex: a run relic's tip reads a scoped mod as its kin's ("every Drake's ATK ×1.25 →
+×1.56"), a cost apart; the relics page lists them by tier as every relic, with the reliquary's glyph. **The expert's
+part** (`autoplay.js relicReads`, read by the sketch's `strength` and the book's `bookPower` alike): the run relics'
+`who`-scoped mods go on the souls they name through `worth`; a `cooldown.rate` past 1, which `worth` does not read, as
+a cooldown a turn sooner each blow; and each trigger a soul holds a share more (`triggerShare`): each effect's worth
+where it lands, priced as the battle's own weights pay for it against an HP of damage (`TUNING.expert.battle.option`: a
+status its `STATUS_WORTH`, an HP mended, a shadow's max HP; a raise the floor's draws of its tier at the holder's
+level, `raiseHp`), on as many as it touches, as often as its moment comes in a battle, over the holder's max HP. The
+moments and the touched are measured, not searched (`MOMENTS`, `AROUND`: the expert at e6266bb, seeds `mom-0…5`, 170
+battles, 574 fielded pieces: a piece strikes 3.2 times a battle, slays 2.4, is struck and stands 0.8, falls 0.01,
+stands through 1.4 waves; with Rally Horn and Hunter's Mark given every fielded soul, 3.4 of yours within 2 of a holder
+as it strikes, the Monarch and itself among them, and 1.7 foes within 1 of a slain one). The flat shares stay (worth's
+`relic`, the book's `trigger`) but for a banner, read on its kin alone (below: on that share the first measure bought
+17 of its 21 banners for armies another kin led). No weight or tree rule moved. The book: the same 135 combos and
+gains; the Wyrm Standard pairs first with Drake 4, the Hive Standard with Insect 4, the Gossamer Standard third with
+Fae 4, the Barrow and Brass Standards with nothing (the book's `hits` of 1.2 counts toughness against a soul), and the
+triggers by their ops (Rally Horn first for Undead, Fae and Construct 4). **A fix**, found by the committed runs:
+`policy.js untouchedOrders` gave an order to a Hexed piece a shadow's Purge freed on the copy a turn is read on, and
+the battle refused it, the Hex still on it there (`div-25` committed to Fae 4 throws at c403ff1 too: "winter_court 297
+cannot use winter_fire on 284"); such a piece's act is now made on the copy as End Turn makes it, after the shadow's,
+and takes no order; every other order as before. The tests: 458 → 466 (the twelve's forms; each in battle, the banners'
+scoping, the Shop stocking them by tier at its price; the untouched fix), 467 on the interface's merge, all passing
+(`--test-concurrency=2`, 251 s; under six workers the turn's milliseconds test ran past its 250 ms, alone it passes);
+`outside.test.js`'s clearing run moved to sim-0 (sim-2 falls on floor 4 with the twelve in the Shops).
+
+**Measured** (the expert as Step 0 has it, its forests stale; seeds `div-*`; two to six workers): free play `--commit
+none --runs 64` and `--ablations --variants relics,legendaries --runs 64`, on the merge (d02aaed; the untouched fix
+after it changes only a turn that would throw, and the interface merge no sim) and on its base c403ff1 (Step 5's merge,
+played again: its record's 39 clears and 86.3, seed for seed); the five kins committed, `--commit
+undead_4,drake_4,fae_4,insect_4,construct_4 --runs 32`, on 8222da0 and on the base with the untouched fix alone, so as
+not to throw; and two arms in free play: the first reading, a banner taking the flat run relic's share (90b2d29), and
+the twelve with the readers as they were (`relicReads` reading held mods alone, the flat share for every run relic, the
+book remade so).
+
+Free play, `div-0…63`, seed for seed:
+
+| | Step 5 (c403ff1) | Relics |
+|---|---|---|
+| clears | 39 (61%) | 35 (55%): +2 −6, −6.3 ± 4.4 points |
+| progress | 86.3 | 86.0 (−0.4 ± 0.2) |
+| died on floor 1 / 2 / 3 / 4 | 9 / 0 / 1 / 15 | 9 / 0 / 1 / 19 |
+| relics bought a run; given a soul | 5.2; 2.7 | 5.3; 2.9 |
+| of them Command; the banners; the seven | 33%; –; – | 31%; 1.2% (the Gossamer Standard, 4 in 4 runs); 8.6% (29 in 25 runs: Raider's Spur and Firebrand 6, Rowan Charm, Quicksilver and Leech Fang 4, Gravedigger's Spade 3, Briar Mail 2) |
+| fused kinds in the final armies | Chanter's trine 84%, Court 77%, Winter Court 33%, Sprite's trine 23% | Chanter's trine 81%, Court 75%, Winter Court 33%, Sprite's trine 20% |
+| synergies held (battles) | Echo 60%, Legion 37%, Mirage 7%; none 38% | Echo 60%, Legion 37%, Mirage 6%; none 39% |
+| kinds in a tenth of final armies; pieces of the last battles | 8 of 62; Channelers 86% | 8 of 62; Channelers 87% |
+
+The arms, against the same base: the first reading 38 clears (+4 −5, −1.6 ± 4.7; progress −0.4 ± 0.2), its banners 6.0%
+of relics (21 in 19 runs, 17 for armies another kin led, five Brass Standards with no Construct held), and against it
+the final reading lost three runs in their last room (+0 −3, progress the same); the twelve with the old readers 38 (+2
+−3, −1.6 ± 3.5; progress −0.2 ± 0.2), the banners 4.7% and the seven 8.0% of relics, and against it the readers 38 → 35
+(+2 −5, −4.7 ± 4.1; progress −0.2 ± 0.1).
+
+The ablations, `div-0…63` (clears; the drop against the full expert, seed for seed, in points ± one standard error):
+
+| | Step 5 (c403ff1) | Relics |
+|---|---|---|
+| the full expert | 39 | 35 |
+| no Common, Uncommon or Rare relic | 22: 26.6 ± 6.0 (progress 1.5 ± 0.5); died on floor 4 15 → 32 | 22: 20.3 ± 6.0 (progress 1.1 ± 0.4); 19 → 32 |
+| no Legendary | 40: −1.6 ± 5.2 | 39: −6.3 ± 4.9 |
+
+Without its relics the expert plays the same runs on both sides, seed for seed (it buys none of the twelve, and the
+readers read none).
+
+Committed, `div-0…31` (Step 5 → Relics, seed for seed; "reached": runs that held the synergy):
+
+| Archetype | Clears | Progress (paired) | Died on floor 1 / 2 / 3 / 4 | Reached | Relics a run | Its banner; the seven bought |
+|---|---|---|---|---|---|---|
+| free play | 20 → 18 (+1 −3) | 89.8 → 89.7 (−0.1 ± 0.1) | 3 / 0 / 1 / 8 → 3 / 0 / 1 / 10 | | 5.3 → 5.7 | –; 17 |
+| Undead 4 | 12 → 9 (+1 −4) | 80.4 → 81.0 (+0.6 ± 0.7) | 5 / 1 / 2 / 12 → 5 / 1 / 2 / 15 | 72% → 72% | 2.7 → 2.7 | none; 10 |
+| Drake 4 | 19 → 18 (+1 −2) | 77.4 → 76.9 (−0.5 ± 0.4) | 8 / 0 / 0 / 5 → 8 / 0 / 0 / 6 | 3% → 3% | 1.6 → 1.8 | none; 7 |
+| Fae 4 | 20 → 18 (+2 −4) | 82.5 → 82.6 (+0.1 ± 0.3) | 6 / 0 / 0 / 6 → 6 / 0 / 0 / 8 | 44% → 47% | 4.0 → 4.0 | none; 14 |
+| Insect 4 | 15 → 14 (+3 −4) | 85.6 → 85.9 (+0.3 ± 0.4) | 4 / 1 / 0 / 12 → 4 / 1 / 0 / 13 | 22% → 19% | 2.4 → 2.4 | 2 in 2 runs; 5 |
+| Construct 4 | 20 → 18 (+0 −2) | 86.9 → 86.2 (−0.6 ± 1.5) | 4 / 0 / 1 / 7 → 4 / 0 / 2 / 8 | 0 → 0 | 3.1 → 3.0 | none; 8 |
+
+**What it says.** Criterion 3's relic line is met, and was before the twelve: the relics ablation is worth 26.6 ± 6.0
+points at c403ff1 and 20.3 ± 6.0 after (the audit's 3 at f8c536f, §1). What carries it is the Command relics: without
+them the field stays at its base and floor 4, the wall since Step 1's pool and Step 3's raised synergies, takes 32 runs
+of 64 against 15. The twelve, as the expert reads them, do not add to it: it buys the seven in two runs of five (8.6%
+of its relics, the Command share 33% → 31%) and a banner almost never, and loses 4 clears of 64 (−6.3 ± 4.4 points;
+progress −0.4 ± 0.2), all on floor 4, within the noise but the same way in every committed row (1 to 3 clears of 32
+each). Of that the readers are −4.7 ± 4.1 against the same content read the old way, the content alone −1.6 ± 3.5:
+neither past its noise, both the same way; the readers move few purchases (the seven 8.0% → 8.6% of relics, the banners
+4.7% → 1.2%). The banners are a commitment the expert cannot make: committed to a kin it buys its banner in 2 runs of
+160, since the sketch reads a banner on the souls of its kin it holds, and Step 3's finding stands (four of a kin
+outside the Channelers almost never gathered: Drake 4 held in 1 run of 32, Construct 4 in none); the book pairs three
+banners with their kins' combos, by how far along them the run is, and the Barrow and Brass Standards with nothing (its
+formula counts toughness against a soul). So §4.4's measure reads the instrument as much as the relics: a player
+holding a kin is what a banner is for, and the free and committed expert seldom is one. What would show it: a harness
+rule holding a committed run to its kin's recruits (Step 0's open question), or the committed teacher at the top
+difficulty (criterion 2's instrument). Criterion 3's other lines unmoved (the Chanter's trine in 81% of final armies,
+three synergies at 5%). §4.4's next lever (`rule` on a Rare relic, §7 decision 3) is not needed for the ablation's 10
+points; whether the twelve should be retuned is the balance pass's.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
