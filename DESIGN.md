@@ -243,6 +243,11 @@ relic: one slain foe a battle, as a full soul into the ossuary.
 - The first fusions (content decides the final numbers): **Bone Colossus** (2×2; Tomb Knight ×2 + Bone
   Chanter), **Rime Drake** (Ember Drake + Frost Sprite ×2), **Hive Queen** (2×2; Hive Warden ×2 + Mantis
   Reaper), **Clockwork Titan** (2×2; Clockwork Page ×2 + Iron Golem), **Pale Court** (Will-o'-Wisp ×3).
+- The fusion graph (redesign.md §4.1, 2026-10-15): every kind of tier 4 or less a run can hold fuses three of itself
+  into its **trine**, two tiers up (at most 6), made from the kind by one rule where no record is written for it
+  (`content.js trineOf`; the Pale Court is the Wisp's, written); the four mixed recipes above stand beside the
+  triples; and seven **capstones** of tier 5–6 fuse two fused kinds (Charnel Cathedral, Winter Court, Cinder Wyrm,
+  Hive Mind, Engine of Ages, Aurora, Iron Barrow), their rule-like effects registry rules scoped to the piece.
 - The first Colossus tiers: Tomb Knight's Bulwark IV (Barrow Wall), and the tier IVs that were Banners.
 - **The Monarch has no points.** Nothing is bought for it. It has a base HP (`TUNING.monarch.hp`) and a base
   Command (`TUNING.party.field`: the pieces it fields), and both grow only by relics, every copy adding in full
