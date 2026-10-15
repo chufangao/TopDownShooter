@@ -7,8 +7,9 @@ import { UNITS, FUSION_LIST, trineOf, isTriple } from '../src/content.js'
 import { order, legalOrders, perform, applyDamage } from '../src/sim/turns.js'
 import { call } from '../src/sim/rules.js'
 import { createRun, apply, join, souls, canFuse, fuseParts, fuseCost, kindLevel, legalActions, START_PARTY } from '../src/sim/run.js'
-import { combosOf } from '../src/sim/autoplay.js'
-import { alive, tileAt, footprint } from '../src/sim/unit.js'
+import { combosOf, growthOf, LEVELS } from '../src/sim/autoplay.js'
+import { alive, tileAt, footprint, summonsOf } from '../src/sim/unit.js'
+import { TUNING } from '../src/tuning.js'
 import { on, scene, unit } from './scene.js'
 
 const at = (x, y) => tileAt(x, y)
@@ -60,6 +61,31 @@ test('a trine\'s summon tier calls up the kind it was made of, at its level and 
   const b = scene([on('monarch', 0, 'party', 0, 0), on('trine:bone_chanter', 1, 'party', 3, 3, 4, [0, 2]), on('iron_golem', 9, 'foe', 6, 10)])
   const called = b.units.filter((u) => u.summoner === 1)
   assert.deepEqual(called.map((u) => [u.id, u.lvl, u.summoned, u.tracks.join()]), [['bone_chanter', 4, true, '0,2'], ['bone_chanter', 4, true, '0,2']])
+})
+
+// The expert's sketch (autoplay.js strength, worth) reads a summon as a whole one of the kind it is, at the root of a
+// summon's share of HP: a kind's own as the soul itself, a trine's as the kind it was made of (the first bug hunt,
+// 2026-10-15: it read a trine's as trines, a Bone Chanter Trine's two Chanters at 4.75 times their worth).
+test('the sketch reads a trine\'s summons as the kind they are, at its level and tiers; a kind\'s own as itself', () => {
+  const k = Math.sqrt(TUNING.summon.hp)
+  // One soul alone, whole, its kind two tiers up Marrowcaller (two summons), and the field's strength with them and,
+  // under the summons ablation, without.
+  const alone = (id) => {
+    const run = createRun({ seed: 'summoned', start: [id] })
+    run.state.essence = 1e4
+    for (let i = 0; i < 2; i++) apply(run, { type: 'upgrade', kind: id, track: 1 })
+    return run.state
+  }
+  const strength = (s, summons = true) => Math.exp(growthOf(s, summons ? LEVELS.expert : { ...LEVELS.expert, ablate: 'summons' }).strength)
+  const chanter = alone('bone_chanter')
+  const trine = alone('trine:bone_chanter')
+  for (const s of [chanter, trine]) assert.deepEqual([summonsOf(souls(s.party)[0]), s.kinds[souls(s.party)[0].id].tracks], [2, [0, 2]])
+  assert.equal(souls(chanter.party)[0].lvl, souls(trine.party)[0].lvl)
+  // A Bone Chanter's two are Bone Chanters: as much again each, at the root of a summon's share.
+  assert.ok(Math.abs(strength(chanter) / strength(chanter, false) - (1 + 2 * k)) < 1e-9)
+  // The trine's two are Bone Chanters too, at its level and tiers: the Chanter's own worth each, not the trine's.
+  const want = strength(trine, false) + 2 * k * strength(chanter, false)
+  assert.ok(Math.abs(strength(trine) - want) < 1e-9 * want, `${strength(trine)} against ${want}`)
 })
 
 test('the Charnel Cathedral: a foe it slays beside it rises as yours; one slain by another, or not beside it, does not', () => {

@@ -34,55 +34,6 @@
  },
  "combos": [
   {
-   "id": "fusion:trine:trine:bone_chanter:1",
-   "needs": {
-    "trine:bone_chanter": 3
-   },
-   "fuse": "trine:trine:bone_chanter",
-   "tracks": {
-    "trine:trine:bone_chanter": 1
-   },
-   "from": 1,
-   "gain": [
-    1.4676,
-    1.2738,
-    1.1194,
-    0.9565
-   ],
-   "relics": {
-    "glass_crown": 0.328,
-    "blood_chalice": 0.2278,
-    "leech_fang": 0.2131,
-    "whetstone": 0.2022,
-    "arise": 0.1186,
-    "undying": 0.1186,
-    "mimicry": 0.1186,
-    "hollow_court": 0.1186,
-    "blood_tithe": 0.1186,
-    "court_of_bone": 0.1186,
-    "rally_horn": 0.1059,
-    "tower_shield": 0.0995,
-    "rowan_charm": 0.0975,
-    "gravediggers_spade": 0.0971,
-    "hunters_mark": 0.0943,
-    "firebrand": 0.0939,
-    "iron_oath": 0.0931,
-    "quicksilver": 0.0928,
-    "raiders_spur": 0.0914,
-    "arcane_focus": 0.0914,
-    "briar_mail": 0.0904,
-    "balm": 0.0898,
-    "grave_bell": 0.0887,
-    "war_drum": 0.0873,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "heartwood": 0.0264,
-    "gossamer_standard": 0.0184,
-    "wyrm_standard": 0.0076,
-    "hive_standard": 0.0058
-   }
-  },
-  {
    "id": "fusion:trine:trine:frost_sprite:0",
    "needs": {
     "trine:frost_sprite": 3
@@ -178,6 +129,55 @@
     "heartwood": 0.0235,
     "wyrm_standard": 0.01,
     "hive_standard": 0.0076
+   }
+  },
+  {
+   "id": "fusion:trine:trine:bone_chanter:1",
+   "needs": {
+    "trine:bone_chanter": 3
+   },
+   "fuse": "trine:trine:bone_chanter",
+   "tracks": {
+    "trine:trine:bone_chanter": 1
+   },
+   "from": 1,
+   "gain": [
+    1.4676,
+    1.0965,
+    0.9513,
+    0.8085
+   ],
+   "relics": {
+    "glass_crown": 0.3076,
+    "blood_chalice": 0.213,
+    "leech_fang": 0.1992,
+    "whetstone": 0.1889,
+    "arise": 0.1105,
+    "undying": 0.1105,
+    "mimicry": 0.1105,
+    "hollow_court": 0.1105,
+    "blood_tithe": 0.1105,
+    "court_of_bone": 0.1105,
+    "rally_horn": 0.0986,
+    "tower_shield": 0.0927,
+    "rowan_charm": 0.0908,
+    "gravediggers_spade": 0.0905,
+    "hunters_mark": 0.0878,
+    "firebrand": 0.0874,
+    "iron_oath": 0.0867,
+    "quicksilver": 0.0864,
+    "raiders_spur": 0.0851,
+    "arcane_focus": 0.0851,
+    "briar_mail": 0.0842,
+    "balm": 0.0836,
+    "grave_bell": 0.0825,
+    "war_drum": 0.0813,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "heartwood": 0.0245,
+    "gossamer_standard": 0.0216,
+    "wyrm_standard": 0.0088,
+    "hive_standard": 0.0067
    }
   },
   {
@@ -292,88 +292,39 @@
     1.4676,
     0.9521,
     0.7211,
-    0.9565
+    0.8085
    ],
    "relics": {
-    "glass_crown": 0.3104,
-    "blood_chalice": 0.215,
-    "leech_fang": 0.201,
-    "whetstone": 0.1907,
-    "arise": 0.1115,
-    "undying": 0.1115,
-    "mimicry": 0.1115,
-    "hollow_court": 0.1115,
-    "blood_tithe": 0.1115,
-    "court_of_bone": 0.1115,
-    "rally_horn": 0.0994,
-    "tower_shield": 0.0935,
-    "rowan_charm": 0.0916,
-    "gravediggers_spade": 0.091,
-    "hunters_mark": 0.0886,
-    "firebrand": 0.0882,
-    "iron_oath": 0.0875,
-    "quicksilver": 0.0872,
-    "raiders_spur": 0.0859,
-    "arcane_focus": 0.0859,
-    "briar_mail": 0.0849,
-    "balm": 0.0844,
-    "grave_bell": 0.0833,
-    "war_drum": 0.0821,
+    "glass_crown": 0.2989,
+    "blood_chalice": 0.2067,
+    "leech_fang": 0.1932,
+    "whetstone": 0.1833,
+    "arise": 0.107,
+    "undying": 0.107,
+    "mimicry": 0.107,
+    "hollow_court": 0.107,
+    "blood_tithe": 0.107,
+    "court_of_bone": 0.107,
+    "rally_horn": 0.0955,
+    "tower_shield": 0.0897,
+    "rowan_charm": 0.0879,
+    "gravediggers_spade": 0.0875,
+    "hunters_mark": 0.085,
+    "firebrand": 0.0846,
+    "iron_oath": 0.084,
+    "quicksilver": 0.0836,
+    "raiders_spur": 0.0824,
+    "arcane_focus": 0.0824,
+    "briar_mail": 0.0815,
+    "balm": 0.081,
+    "grave_bell": 0.0799,
+    "war_drum": 0.0787,
     "hourglass": 0.0488,
     "bone_idol": 0.0488,
-    "heartwood": 0.0248,
-    "gossamer_standard": 0.0222,
-    "wyrm_standard": 0.0076,
-    "hive_standard": 0.0058
-   }
-  },
-  {
-   "id": "fusion:trine:trine:clockwork_page:1",
-   "needs": {
-    "trine:clockwork_page": 3
-   },
-   "fuse": "trine:trine:clockwork_page",
-   "tracks": {
-    "trine:trine:clockwork_page": 1
-   },
-   "from": 1,
-   "gain": [
-    1.2496,
-    1.068,
-    0.8409,
-    0.6526
-   ],
-   "relics": {
-    "glass_crown": 0.2915,
-    "blood_chalice": 0.2014,
-    "leech_fang": 0.1883,
-    "whetstone": 0.1786,
-    "arise": 0.1043,
-    "undying": 0.1043,
-    "mimicry": 0.1043,
-    "hollow_court": 0.1043,
-    "blood_tithe": 0.1043,
-    "court_of_bone": 0.1043,
-    "rally_horn": 0.0929,
-    "tower_shield": 0.0873,
-    "rowan_charm": 0.0855,
-    "gravediggers_spade": 0.0854,
-    "hunters_mark": 0.0828,
-    "firebrand": 0.0824,
-    "iron_oath": 0.0817,
-    "quicksilver": 0.0814,
-    "raiders_spur": 0.0802,
-    "arcane_focus": 0.0802,
-    "briar_mail": 0.0794,
-    "balm": 0.0789,
-    "grave_bell": 0.0778,
-    "war_drum": 0.0767,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
+    "heartwood": 0.0237,
     "gossamer_standard": 0.0235,
-    "heartwood": 0.0231,
-    "wyrm_standard": 0.0103,
-    "hive_standard": 0.0078
+    "wyrm_standard": 0.0088,
+    "hive_standard": 0.0067
    }
   },
   {
@@ -423,6 +374,55 @@
     "heartwood": 0.0208,
     "wyrm_standard": 0.0125,
     "hive_standard": 0.0095
+   }
+  },
+  {
+   "id": "fusion:trine:trine:clockwork_page:1",
+   "needs": {
+    "trine:clockwork_page": 3
+   },
+   "fuse": "trine:trine:clockwork_page",
+   "tracks": {
+    "trine:trine:clockwork_page": 1
+   },
+   "from": 1,
+   "gain": [
+    1.2496,
+    0.9051,
+    0.695,
+    0.5354
+   ],
+   "relics": {
+    "glass_crown": 0.2685,
+    "blood_chalice": 0.1849,
+    "leech_fang": 0.1728,
+    "whetstone": 0.1638,
+    "arise": 0.0954,
+    "undying": 0.0954,
+    "mimicry": 0.0954,
+    "hollow_court": 0.0954,
+    "blood_tithe": 0.0954,
+    "court_of_bone": 0.0954,
+    "rally_horn": 0.0849,
+    "tower_shield": 0.0798,
+    "rowan_charm": 0.0782,
+    "gravediggers_spade": 0.0781,
+    "hunters_mark": 0.0756,
+    "firebrand": 0.0753,
+    "iron_oath": 0.0747,
+    "quicksilver": 0.0744,
+    "raiders_spur": 0.0733,
+    "arcane_focus": 0.0733,
+    "briar_mail": 0.0725,
+    "balm": 0.0721,
+    "grave_bell": 0.0711,
+    "war_drum": 0.07,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "gossamer_standard": 0.027,
+    "heartwood": 0.0211,
+    "wyrm_standard": 0.0115,
+    "hive_standard": 0.0087
    }
   },
   {
@@ -525,104 +525,6 @@
    }
   },
   {
-   "id": "fusion:trine:trine:clockwork_page:0",
-   "needs": {
-    "trine:clockwork_page": 3
-   },
-   "fuse": "trine:trine:clockwork_page",
-   "tracks": {
-    "trine:trine:clockwork_page": 0
-   },
-   "from": 1,
-   "gain": [
-    1.2496,
-    0.74,
-    0.4487,
-    0.6526
-   ],
-   "relics": {
-    "glass_crown": 0.2689,
-    "blood_chalice": 0.1851,
-    "leech_fang": 0.1729,
-    "whetstone": 0.1639,
-    "arise": 0.0953,
-    "undying": 0.0953,
-    "mimicry": 0.0953,
-    "hollow_court": 0.0953,
-    "blood_tithe": 0.0953,
-    "court_of_bone": 0.0953,
-    "rally_horn": 0.0865,
-    "tower_shield": 0.0808,
-    "rowan_charm": 0.079,
-    "gravediggers_spade": 0.0789,
-    "hunters_mark": 0.0762,
-    "firebrand": 0.0758,
-    "iron_oath": 0.0752,
-    "quicksilver": 0.0749,
-    "raiders_spur": 0.0736,
-    "arcane_focus": 0.0736,
-    "briar_mail": 0.0727,
-    "balm": 0.072,
-    "grave_bell": 0.0712,
-    "war_drum": 0.07,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0284,
-    "heartwood": 0.0211,
-    "wyrm_standard": 0.0103,
-    "hive_standard": 0.0078
-   }
-  },
-  {
-   "id": "fusion:trine:trine:hive_warden:0",
-   "needs": {
-    "trine:hive_warden": 3
-   },
-   "fuse": "trine:trine:hive_warden",
-   "tracks": {
-    "trine:trine:hive_warden": 0
-   },
-   "from": 1,
-   "gain": [
-    0.9739,
-    1.0046,
-    0.6679,
-    0.4444
-   ],
-   "relics": {
-    "glass_crown": 0.2636,
-    "blood_chalice": 0.1816,
-    "hive_standard": 0.1778,
-    "leech_fang": 0.1697,
-    "whetstone": 0.1609,
-    "arise": 0.0937,
-    "undying": 0.0937,
-    "mimicry": 0.0937,
-    "hollow_court": 0.0937,
-    "blood_tithe": 0.0937,
-    "court_of_bone": 0.0937,
-    "rally_horn": 0.0794,
-    "tower_shield": 0.0758,
-    "gravediggers_spade": 0.0748,
-    "rowan_charm": 0.0746,
-    "hunters_mark": 0.0728,
-    "firebrand": 0.0726,
-    "iron_oath": 0.0721,
-    "quicksilver": 0.0719,
-    "raiders_spur": 0.0711,
-    "arcane_focus": 0.0711,
-    "balm": 0.0708,
-    "briar_mail": 0.0706,
-    "grave_bell": 0.0696,
-    "war_drum": 0.0688,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0268,
-    "heartwood": 0.0207,
-    "wyrm_standard": 0.0126
-   }
-  },
-  {
    "id": "fusion:cinder_wyrm:0",
    "needs": {
     "rime_drake": 1,
@@ -670,6 +572,55 @@
     "gossamer_standard": 0.025,
     "heartwood": 0.0222,
     "hive_standard": 0.0084
+   }
+  },
+  {
+   "id": "fusion:trine:trine:clockwork_page:0",
+   "needs": {
+    "trine:clockwork_page": 3
+   },
+   "fuse": "trine:trine:clockwork_page",
+   "tracks": {
+    "trine:trine:clockwork_page": 0
+   },
+   "from": 1,
+   "gain": [
+    1.2496,
+    0.74,
+    0.4487,
+    0.5354
+   ],
+   "relics": {
+    "glass_crown": 0.2561,
+    "blood_chalice": 0.1759,
+    "leech_fang": 0.1644,
+    "whetstone": 0.1558,
+    "arise": 0.0905,
+    "undying": 0.0905,
+    "mimicry": 0.0905,
+    "hollow_court": 0.0905,
+    "blood_tithe": 0.0905,
+    "court_of_bone": 0.0905,
+    "rally_horn": 0.0822,
+    "tower_shield": 0.0768,
+    "gravediggers_spade": 0.0752,
+    "rowan_charm": 0.0751,
+    "hunters_mark": 0.0723,
+    "firebrand": 0.072,
+    "iron_oath": 0.0714,
+    "quicksilver": 0.0711,
+    "raiders_spur": 0.0699,
+    "arcane_focus": 0.0699,
+    "briar_mail": 0.069,
+    "balm": 0.0683,
+    "grave_bell": 0.0675,
+    "war_drum": 0.0664,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "gossamer_standard": 0.0297,
+    "heartwood": 0.0199,
+    "wyrm_standard": 0.0115,
+    "hive_standard": 0.0087
    }
   },
   {
@@ -968,55 +919,6 @@
    }
   },
   {
-   "id": "fusion:trine:frost_wyrm:0",
-   "needs": {
-    "frost_wyrm": 3
-   },
-   "fuse": "trine:frost_wyrm",
-   "tracks": {
-    "trine:frost_wyrm": 0
-   },
-   "from": 3,
-   "gain": [
-    0.2795,
-    0.9809,
-    0.7516,
-    0.6549
-   ],
-   "relics": {
-    "glass_crown": 0.2865,
-    "blood_chalice": 0.1978,
-    "leech_fang": 0.1849,
-    "wyrm_standard": 0.179,
-    "whetstone": 0.1753,
-    "arise": 0.1023,
-    "undying": 0.1023,
-    "mimicry": 0.1023,
-    "hollow_court": 0.1023,
-    "blood_tithe": 0.1023,
-    "court_of_bone": 0.1023,
-    "rally_horn": 0.0967,
-    "tower_shield": 0.0894,
-    "rowan_charm": 0.087,
-    "gravediggers_spade": 0.0868,
-    "hunters_mark": 0.0833,
-    "firebrand": 0.0828,
-    "iron_oath": 0.0819,
-    "quicksilver": 0.0815,
-    "raiders_spur": 0.0799,
-    "arcane_focus": 0.0799,
-    "briar_mail": 0.0788,
-    "balm": 0.0774,
-    "grave_bell": 0.0767,
-    "war_drum": 0.0752,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0246,
-    "heartwood": 0.0227,
-    "hive_standard": 0.0078
-   }
-  },
-  {
    "id": "fusion:winter_court:1",
    "needs": {
     "pale_court": 1,
@@ -1067,52 +969,52 @@
    }
   },
   {
-   "id": "fusion:trine:frost_wyrm:1",
+   "id": "fusion:trine:trine:hive_warden:0",
    "needs": {
-    "frost_wyrm": 3
+    "trine:hive_warden": 3
    },
-   "fuse": "trine:frost_wyrm",
+   "fuse": "trine:trine:hive_warden",
    "tracks": {
-    "trine:frost_wyrm": 1
+    "trine:trine:hive_warden": 0
    },
-   "from": 3,
+   "from": 1,
    "gain": [
-    0.2795,
-    0.7705,
-    0.585,
-    0.7915
+    0.9739,
+    0.8462,
+    0.5386,
+    0.3533
    ],
    "relics": {
-    "glass_crown": 0.2844,
-    "blood_chalice": 0.1962,
-    "leech_fang": 0.1833,
-    "wyrm_standard": 0.1763,
-    "whetstone": 0.1738,
-    "arise": 0.1013,
-    "undying": 0.1013,
-    "mimicry": 0.1013,
-    "hollow_court": 0.1013,
-    "blood_tithe": 0.1013,
-    "court_of_bone": 0.1013,
-    "rally_horn": 0.0979,
-    "tower_shield": 0.0899,
-    "rowan_charm": 0.0873,
-    "gravediggers_spade": 0.087,
-    "hunters_mark": 0.0833,
-    "firebrand": 0.0828,
-    "iron_oath": 0.0818,
-    "quicksilver": 0.0814,
-    "raiders_spur": 0.0797,
-    "arcane_focus": 0.0797,
-    "briar_mail": 0.0784,
-    "balm": 0.0766,
-    "grave_bell": 0.0762,
-    "war_drum": 0.0745,
+    "glass_crown": 0.2403,
+    "blood_chalice": 0.165,
+    "hive_standard": 0.1632,
+    "leech_fang": 0.1541,
+    "whetstone": 0.1461,
+    "arise": 0.0848,
+    "undying": 0.0848,
+    "mimicry": 0.0848,
+    "hollow_court": 0.0848,
+    "blood_tithe": 0.0848,
+    "court_of_bone": 0.0848,
+    "rally_horn": 0.0719,
+    "tower_shield": 0.0686,
+    "gravediggers_spade": 0.0677,
+    "rowan_charm": 0.0675,
+    "hunters_mark": 0.0659,
+    "firebrand": 0.0656,
+    "iron_oath": 0.0653,
+    "quicksilver": 0.0651,
+    "raiders_spur": 0.0644,
+    "arcane_focus": 0.0644,
+    "balm": 0.0641,
+    "briar_mail": 0.0638,
+    "grave_bell": 0.0629,
+    "war_drum": 0.0622,
     "hourglass": 0.0488,
     "bone_idol": 0.0488,
-    "gossamer_standard": 0.0265,
-    "heartwood": 0.0224,
-    "hive_standard": 0.0068
+    "gossamer_standard": 0.0303,
+    "heartwood": 0.0187,
+    "wyrm_standard": 0.0138
    }
   },
   {
@@ -1459,55 +1361,6 @@
    }
   },
   {
-   "id": "fusion:trine:bone_chanter:1",
-   "needs": {
-    "bone_chanter": 3
-   },
-   "fuse": "trine:bone_chanter",
-   "tracks": {
-    "trine:bone_chanter": 1
-   },
-   "from": 1,
-   "gain": [
-    -0.0382,
-    0.9301,
-    0.7948,
-    0.6738
-   ],
-   "relics": {
-    "glass_crown": 0.2851,
-    "blood_chalice": 0.1968,
-    "leech_fang": 0.1839,
-    "whetstone": 0.1744,
-    "rally_horn": 0.1221,
-    "tower_shield": 0.1061,
-    "arise": 0.1017,
-    "undying": 0.1017,
-    "mimicry": 0.1017,
-    "hollow_court": 0.1017,
-    "blood_tithe": 0.1017,
-    "court_of_bone": 0.1017,
-    "rowan_charm": 0.1009,
-    "gravediggers_spade": 0.1002,
-    "hunters_mark": 0.0928,
-    "firebrand": 0.0917,
-    "iron_oath": 0.0898,
-    "quicksilver": 0.0889,
-    "raiders_spur": 0.0854,
-    "arcane_focus": 0.0854,
-    "briar_mail": 0.0828,
-    "grave_bell": 0.0783,
-    "balm": 0.0769,
-    "war_drum": 0.0749,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0251,
-    "heartwood": 0.0225,
-    "wyrm_standard": 0.01,
-    "hive_standard": 0.0076
-   }
-  },
-  {
    "id": "fusion:aurora:0",
    "needs": {
     "pale_court": 1,
@@ -1555,6 +1408,55 @@
     "heartwood": 0.0188,
     "wyrm_standard": 0.0137,
     "hive_standard": 0.0104
+   }
+  },
+  {
+   "id": "fusion:trine:frost_wyrm:1",
+   "needs": {
+    "frost_wyrm": 3
+   },
+   "fuse": "trine:frost_wyrm",
+   "tracks": {
+    "trine:frost_wyrm": 1
+   },
+   "from": 3,
+   "gain": [
+    0.2795,
+    0.7705,
+    0.585,
+    0.5544
+   ],
+   "relics": {
+    "glass_crown": 0.2607,
+    "blood_chalice": 0.1793,
+    "leech_fang": 0.1675,
+    "wyrm_standard": 0.1639,
+    "whetstone": 0.1588,
+    "arise": 0.0923,
+    "undying": 0.0923,
+    "mimicry": 0.0923,
+    "hollow_court": 0.0923,
+    "blood_tithe": 0.0923,
+    "court_of_bone": 0.0923,
+    "rally_horn": 0.0896,
+    "tower_shield": 0.0821,
+    "gravediggers_spade": 0.0799,
+    "rowan_charm": 0.0797,
+    "hunters_mark": 0.076,
+    "firebrand": 0.0755,
+    "iron_oath": 0.0746,
+    "quicksilver": 0.0742,
+    "raiders_spur": 0.0726,
+    "arcane_focus": 0.0726,
+    "briar_mail": 0.0714,
+    "balm": 0.0697,
+    "grave_bell": 0.0693,
+    "war_drum": 0.0678,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "gossamer_standard": 0.0289,
+    "heartwood": 0.0204,
+    "hive_standard": 0.0086
    }
   },
   {
@@ -1656,55 +1558,6 @@
    }
   },
   {
-   "id": "fusion:trine:trine:hive_warden:1",
-   "needs": {
-    "trine:hive_warden": 3
-   },
-   "fuse": "trine:trine:hive_warden",
-   "tracks": {
-    "trine:trine:hive_warden": 1
-   },
-   "from": 1,
-   "gain": [
-    0.9739,
-    0.5,
-    0.2728,
-    0.4444
-   ],
-   "relics": {
-    "glass_crown": 0.2218,
-    "blood_chalice": 0.1515,
-    "hive_standard": 0.1496,
-    "leech_fang": 0.1414,
-    "whetstone": 0.134,
-    "arise": 0.0774,
-    "undying": 0.0774,
-    "mimicry": 0.0774,
-    "hollow_court": 0.0774,
-    "blood_tithe": 0.0774,
-    "court_of_bone": 0.0774,
-    "rally_horn": 0.0654,
-    "tower_shield": 0.0624,
-    "rowan_charm": 0.0615,
-    "gravediggers_spade": 0.0613,
-    "hunters_mark": 0.06,
-    "firebrand": 0.0598,
-    "iron_oath": 0.0594,
-    "quicksilver": 0.0593,
-    "raiders_spur": 0.0586,
-    "arcane_focus": 0.0586,
-    "balm": 0.0584,
-    "briar_mail": 0.0582,
-    "grave_bell": 0.0573,
-    "war_drum": 0.0567,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0355,
-    "heartwood": 0.017,
-    "wyrm_standard": 0.0126
-   }
-  },
-  {
    "id": "fusion:trine:frost_sprite:0",
    "needs": {
     "frost_sprite": 3
@@ -1800,6 +1653,55 @@
     "gossamer_standard": 0.0282,
     "heartwood": 0.0203,
     "hive_standard": 0.0092
+   }
+  },
+  {
+   "id": "fusion:trine:trine:hive_warden:1",
+   "needs": {
+    "trine:hive_warden": 3
+   },
+   "fuse": "trine:trine:hive_warden",
+   "tracks": {
+    "trine:trine:hive_warden": 1
+   },
+   "from": 1,
+   "gain": [
+    0.9739,
+    0.5,
+    0.2728,
+    0.3533
+   ],
+   "relics": {
+    "glass_crown": 0.2091,
+    "blood_chalice": 0.1426,
+    "hive_standard": 0.1422,
+    "leech_fang": 0.1331,
+    "whetstone": 0.1261,
+    "arise": 0.0728,
+    "undying": 0.0728,
+    "mimicry": 0.0728,
+    "hollow_court": 0.0728,
+    "blood_tithe": 0.0728,
+    "court_of_bone": 0.0728,
+    "rally_horn": 0.0615,
+    "tower_shield": 0.0587,
+    "rowan_charm": 0.0578,
+    "gravediggers_spade": 0.0577,
+    "hunters_mark": 0.0564,
+    "firebrand": 0.0562,
+    "iron_oath": 0.0558,
+    "quicksilver": 0.0557,
+    "raiders_spur": 0.0551,
+    "arcane_focus": 0.0551,
+    "balm": 0.0549,
+    "briar_mail": 0.0546,
+    "grave_bell": 0.0539,
+    "war_drum": 0.0533,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "gossamer_standard": 0.0367,
+    "heartwood": 0.0159,
+    "wyrm_standard": 0.0138
    }
   },
   {
@@ -1947,55 +1849,6 @@
     "gossamer_standard": 0.0292,
     "heartwood": 0.0197,
     "hive_standard": 0.0095
-   }
-  },
-  {
-   "id": "fusion:trine:trine:thorn_dryad:0",
-   "needs": {
-    "trine:thorn_dryad": 3
-   },
-   "fuse": "trine:trine:thorn_dryad",
-   "tracks": {
-    "trine:trine:thorn_dryad": 0
-   },
-   "from": 2,
-   "gain": [
-    0.5181,
-    0.719,
-    0.4429,
-    0.345
-   ],
-   "relics": {
-    "glass_crown": 0.229,
-    "blood_chalice": 0.1569,
-    "leech_fang": 0.1465,
-    "whetstone": 0.1388,
-    "arise": 0.0805,
-    "undying": 0.0805,
-    "mimicry": 0.0805,
-    "hollow_court": 0.0805,
-    "blood_tithe": 0.0805,
-    "court_of_bone": 0.0805,
-    "rally_horn": 0.0687,
-    "tower_shield": 0.0654,
-    "gravediggers_spade": 0.0645,
-    "rowan_charm": 0.0643,
-    "hunters_mark": 0.0626,
-    "firebrand": 0.0624,
-    "iron_oath": 0.062,
-    "quicksilver": 0.0618,
-    "raiders_spur": 0.0611,
-    "arcane_focus": 0.0611,
-    "balm": 0.0607,
-    "briar_mail": 0.0606,
-    "grave_bell": 0.0597,
-    "war_drum": 0.059,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0352,
-    "heartwood": 0.0177,
-    "wyrm_standard": 0.0139,
-    "hive_standard": 0.0105
    }
   },
   {
@@ -2244,6 +2097,55 @@
     "gossamer_standard": 0.0338,
     "heartwood": 0.0171,
     "hive_standard": 0.0107
+   }
+  },
+  {
+   "id": "fusion:trine:frost_wyrm:0",
+   "needs": {
+    "frost_wyrm": 3
+   },
+   "fuse": "trine:frost_wyrm",
+   "tracks": {
+    "trine:frost_wyrm": 0
+   },
+   "from": 3,
+   "gain": [
+    0.2795,
+    0.6962,
+    0.5031,
+    0.4452
+   ],
+   "relics": {
+    "glass_crown": 0.2411,
+    "blood_chalice": 0.1654,
+    "leech_fang": 0.1544,
+    "wyrm_standard": 0.1531,
+    "whetstone": 0.1463,
+    "arise": 0.0849,
+    "undying": 0.0849,
+    "mimicry": 0.0849,
+    "hollow_court": 0.0849,
+    "blood_tithe": 0.0849,
+    "court_of_bone": 0.0849,
+    "rally_horn": 0.0803,
+    "tower_shield": 0.0741,
+    "rowan_charm": 0.0721,
+    "gravediggers_spade": 0.0721,
+    "hunters_mark": 0.069,
+    "firebrand": 0.0686,
+    "iron_oath": 0.0679,
+    "quicksilver": 0.0676,
+    "raiders_spur": 0.0662,
+    "arcane_focus": 0.0662,
+    "briar_mail": 0.0652,
+    "balm": 0.0641,
+    "grave_bell": 0.0635,
+    "war_drum": 0.0623,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "gossamer_standard": 0.0316,
+    "heartwood": 0.0187,
+    "hive_standard": 0.0096
    }
   },
   {
@@ -2548,55 +2450,6 @@
    }
   },
   {
-   "id": "fusion:trine:bone_chanter:0",
-   "needs": {
-    "bone_chanter": 3
-   },
-   "fuse": "trine:bone_chanter",
-   "tracks": {
-    "trine:bone_chanter": 0
-   },
-   "from": 1,
-   "gain": [
-    -0.0382,
-    0.655,
-    0.4638,
-    0.6738
-   ],
-   "relics": {
-    "glass_crown": 0.2636,
-    "blood_chalice": 0.1813,
-    "leech_fang": 0.1693,
-    "whetstone": 0.1605,
-    "rally_horn": 0.1118,
-    "tower_shield": 0.0971,
-    "arise": 0.0933,
-    "undying": 0.0933,
-    "mimicry": 0.0933,
-    "hollow_court": 0.0933,
-    "blood_tithe": 0.0933,
-    "court_of_bone": 0.0933,
-    "rowan_charm": 0.0924,
-    "gravediggers_spade": 0.091,
-    "hunters_mark": 0.0849,
-    "firebrand": 0.0839,
-    "iron_oath": 0.0822,
-    "quicksilver": 0.0814,
-    "raiders_spur": 0.0782,
-    "arcane_focus": 0.0782,
-    "briar_mail": 0.0758,
-    "grave_bell": 0.0717,
-    "balm": 0.0705,
-    "war_drum": 0.0686,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0297,
-    "heartwood": 0.0206,
-    "wyrm_standard": 0.01,
-    "hive_standard": 0.0076
-   }
-  },
-  {
    "id": "fusion:trine:hive_queen:0",
    "needs": {
     "hive_queen": 3
@@ -2849,6 +2702,55 @@
    }
   },
   {
+   "id": "fusion:trine:trine:thorn_dryad:0",
+   "needs": {
+    "trine:thorn_dryad": 3
+   },
+   "fuse": "trine:trine:thorn_dryad",
+   "tracks": {
+    "trine:trine:thorn_dryad": 0
+   },
+   "from": 2,
+   "gain": [
+    0.5181,
+    0.5852,
+    0.3387,
+    0.2677
+   ],
+   "relics": {
+    "glass_crown": 0.2046,
+    "blood_chalice": 0.1397,
+    "leech_fang": 0.1304,
+    "whetstone": 0.1235,
+    "arise": 0.0713,
+    "undying": 0.0713,
+    "mimicry": 0.0713,
+    "hollow_court": 0.0713,
+    "blood_tithe": 0.0713,
+    "court_of_bone": 0.0713,
+    "rally_horn": 0.0609,
+    "tower_shield": 0.0579,
+    "gravediggers_spade": 0.0572,
+    "rowan_charm": 0.057,
+    "hunters_mark": 0.0555,
+    "firebrand": 0.0553,
+    "iron_oath": 0.0549,
+    "quicksilver": 0.0548,
+    "raiders_spur": 0.0541,
+    "arcane_focus": 0.0541,
+    "balm": 0.0538,
+    "briar_mail": 0.0537,
+    "grave_bell": 0.0529,
+    "war_drum": 0.0522,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "gossamer_standard": 0.0385,
+    "heartwood": 0.0156,
+    "wyrm_standard": 0.015,
+    "hive_standard": 0.0114
+   }
+  },
+  {
    "id": "fusion:trine:hive_drone:1",
    "needs": {
     "hive_drone": 3
@@ -2997,6 +2899,55 @@
    }
   },
   {
+   "id": "fusion:trine:bone_chanter:0",
+   "needs": {
+    "bone_chanter": 3
+   },
+   "fuse": "trine:bone_chanter",
+   "tracks": {
+    "trine:bone_chanter": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.0382,
+    0.655,
+    0.4638,
+    0.4188
+   ],
+   "relics": {
+    "glass_crown": 0.2339,
+    "blood_chalice": 0.1602,
+    "leech_fang": 0.1496,
+    "whetstone": 0.1418,
+    "rally_horn": 0.0991,
+    "tower_shield": 0.0859,
+    "arise": 0.0821,
+    "undying": 0.0821,
+    "mimicry": 0.0821,
+    "hollow_court": 0.0821,
+    "blood_tithe": 0.0821,
+    "court_of_bone": 0.0821,
+    "rowan_charm": 0.0817,
+    "gravediggers_spade": 0.0815,
+    "hunters_mark": 0.075,
+    "firebrand": 0.0741,
+    "iron_oath": 0.0725,
+    "quicksilver": 0.0718,
+    "raiders_spur": 0.0689,
+    "arcane_focus": 0.0689,
+    "briar_mail": 0.0668,
+    "grave_bell": 0.0631,
+    "balm": 0.062,
+    "war_drum": 0.0603,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "gossamer_standard": 0.0327,
+    "heartwood": 0.0181,
+    "wyrm_standard": 0.0129,
+    "hive_standard": 0.0098
+   }
+  },
+  {
    "id": "fusion:hive_mind:0",
    "needs": {
     "hive_queen": 1,
@@ -3047,52 +2998,52 @@
    }
   },
   {
-   "id": "fusion:trine:clockwork_page:1",
+   "id": "fusion:trine:bone_chanter:1",
    "needs": {
-    "clockwork_page": 3
+    "bone_chanter": 3
    },
-   "fuse": "trine:clockwork_page",
+   "fuse": "trine:bone_chanter",
    "tracks": {
-    "trine:clockwork_page": 1
+    "trine:bone_chanter": 1
    },
    "from": 1,
    "gain": [
-    -0.3298,
-    0.7543,
-    0.5624,
-    0.4319
+    -0.0382,
+    0.5981,
+    0.4881,
+    0.4188
    ],
    "relics": {
-    "glass_crown": 0.2443,
-    "blood_chalice": 0.1676,
-    "leech_fang": 0.1566,
-    "whetstone": 0.1484,
-    "rally_horn": 0.1032,
-    "tower_shield": 0.0897,
-    "arise": 0.0861,
-    "undying": 0.0861,
-    "mimicry": 0.0861,
-    "hollow_court": 0.0861,
-    "blood_tithe": 0.0861,
-    "court_of_bone": 0.0861,
-    "rowan_charm": 0.0853,
-    "gravediggers_spade": 0.0853,
-    "hunters_mark": 0.0784,
-    "firebrand": 0.0775,
-    "iron_oath": 0.0759,
-    "quicksilver": 0.0751,
-    "raiders_spur": 0.0721,
-    "arcane_focus": 0.0721,
-    "briar_mail": 0.0699,
-    "grave_bell": 0.0661,
-    "balm": 0.065,
-    "war_drum": 0.0633,
+    "glass_crown": 0.2285,
+    "blood_chalice": 0.1564,
+    "leech_fang": 0.146,
+    "whetstone": 0.1383,
+    "rally_horn": 0.0965,
+    "tower_shield": 0.0837,
+    "arise": 0.0801,
+    "undying": 0.0801,
+    "mimicry": 0.0801,
+    "hollow_court": 0.0801,
+    "blood_tithe": 0.0801,
+    "court_of_bone": 0.0801,
+    "rowan_charm": 0.0796,
+    "gravediggers_spade": 0.0793,
+    "hunters_mark": 0.073,
+    "firebrand": 0.0722,
+    "iron_oath": 0.0706,
+    "quicksilver": 0.0699,
+    "raiders_spur": 0.0671,
+    "arcane_focus": 0.0671,
+    "briar_mail": 0.0651,
+    "grave_bell": 0.0615,
+    "balm": 0.0604,
+    "war_drum": 0.0588,
     "hourglass": 0.0488,
     "bone_idol": 0.0488,
-    "gossamer_standard": 0.0307,
-    "heartwood": 0.019,
-    "wyrm_standard": 0.0128,
-    "hive_standard": 0.0097
+    "gossamer_standard": 0.0338,
+    "heartwood": 0.0176,
+    "wyrm_standard": 0.0129,
+    "hive_standard": 0.0098
    }
   },
   {
@@ -3443,55 +3394,6 @@
    }
   },
   {
-   "id": "fusion:trine:thorn_dryad:0",
-   "needs": {
-    "thorn_dryad": 3
-   },
-   "fuse": "trine:thorn_dryad",
-   "tracks": {
-    "trine:thorn_dryad": 0
-   },
-   "from": 2,
-   "gain": [
-    -0.9816,
-    0.465,
-    0.2479,
-    0.2021
-   ],
-   "relics": {
-    "glass_crown": 0.1804,
-    "blood_chalice": 0.1227,
-    "leech_fang": 0.1145,
-    "whetstone": 0.1084,
-    "rally_horn": 0.0684,
-    "arise": 0.0624,
-    "undying": 0.0624,
-    "mimicry": 0.0624,
-    "hollow_court": 0.0624,
-    "blood_tithe": 0.0624,
-    "court_of_bone": 0.0624,
-    "tower_shield": 0.0607,
-    "gravediggers_spade": 0.0587,
-    "rowan_charm": 0.0582,
-    "hunters_mark": 0.0543,
-    "firebrand": 0.0537,
-    "iron_oath": 0.0528,
-    "quicksilver": 0.0524,
-    "raiders_spur": 0.0507,
-    "arcane_focus": 0.0507,
-    "briar_mail": 0.0495,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "grave_bell": 0.0473,
-    "balm": 0.047,
-    "gossamer_standard": 0.0459,
-    "war_drum": 0.0457,
-    "wyrm_standard": 0.016,
-    "heartwood": 0.0136,
-    "hive_standard": 0.0121
-   }
-  },
-  {
    "id": "core:mantis_reaper:0",
    "needs": {
     "mantis_reaper": 2
@@ -3635,55 +3537,6 @@
     "wyrm_standard": 0.0155,
     "heartwood": 0.0138,
     "hive_standard": 0.0118
-   }
-  },
-  {
-   "id": "fusion:trine:trine:thorn_dryad:1",
-   "needs": {
-    "trine:thorn_dryad": 3
-   },
-   "fuse": "trine:trine:thorn_dryad",
-   "tracks": {
-    "trine:trine:thorn_dryad": 1
-   },
-   "from": 2,
-   "gain": [
-    0.5181,
-    0.3708,
-    0.1801,
-    0.345
-   ],
-   "relics": {
-    "glass_crown": 0.1924,
-    "blood_chalice": 0.1309,
-    "leech_fang": 0.1221,
-    "whetstone": 0.1156,
-    "arise": 0.0665,
-    "undying": 0.0665,
-    "mimicry": 0.0665,
-    "hollow_court": 0.0665,
-    "blood_tithe": 0.0665,
-    "court_of_bone": 0.0665,
-    "rally_horn": 0.0566,
-    "tower_shield": 0.0539,
-    "rowan_charm": 0.053,
-    "gravediggers_spade": 0.0529,
-    "hunters_mark": 0.0516,
-    "firebrand": 0.0515,
-    "iron_oath": 0.0511,
-    "quicksilver": 0.051,
-    "raiders_spur": 0.0504,
-    "arcane_focus": 0.0504,
-    "balm": 0.0501,
-    "briar_mail": 0.05,
-    "grave_bell": 0.0492,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "war_drum": 0.0487,
-    "gossamer_standard": 0.0419,
-    "heartwood": 0.0145,
-    "wyrm_standard": 0.0139,
-    "hive_standard": 0.0105
    }
   },
   {
@@ -3882,6 +3735,55 @@
     "heartwood": 0.0149,
     "wyrm_standard": 0.0148,
     "hive_standard": 0.0113
+   }
+  },
+  {
+   "id": "fusion:trine:trine:thorn_dryad:1",
+   "needs": {
+    "trine:thorn_dryad": 3
+   },
+   "fuse": "trine:trine:thorn_dryad",
+   "tracks": {
+    "trine:trine:thorn_dryad": 1
+   },
+   "from": 2,
+   "gain": [
+    0.5181,
+    0.3708,
+    0.1801,
+    0.2677
+   ],
+   "relics": {
+    "glass_crown": 0.1803,
+    "blood_chalice": 0.1224,
+    "leech_fang": 0.1142,
+    "whetstone": 0.1081,
+    "arise": 0.0622,
+    "undying": 0.0622,
+    "mimicry": 0.0622,
+    "hollow_court": 0.0622,
+    "blood_tithe": 0.0622,
+    "court_of_bone": 0.0622,
+    "rally_horn": 0.0529,
+    "tower_shield": 0.0504,
+    "rowan_charm": 0.0495,
+    "gravediggers_spade": 0.0495,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "hunters_mark": 0.0483,
+    "firebrand": 0.0481,
+    "iron_oath": 0.0478,
+    "quicksilver": 0.0476,
+    "raiders_spur": 0.0471,
+    "arcane_focus": 0.0471,
+    "balm": 0.0468,
+    "briar_mail": 0.0467,
+    "grave_bell": 0.046,
+    "war_drum": 0.0454,
+    "gossamer_standard": 0.043,
+    "wyrm_standard": 0.015,
+    "heartwood": 0.0136,
+    "hive_standard": 0.0114
    }
   },
   {
@@ -4177,55 +4079,6 @@
    }
   },
   {
-   "id": "fusion:trine:hive_warden:0",
-   "needs": {
-    "hive_warden": 3
-   },
-   "fuse": "trine:hive_warden",
-   "tracks": {
-    "trine:hive_warden": 0
-   },
-   "from": 1,
-   "gain": [
-    -0.5318,
-    0.7004,
-    0.4231,
-    0.275
-   ],
-   "relics": {
-    "glass_crown": 0.2165,
-    "hive_standard": 0.1483,
-    "blood_chalice": 0.1482,
-    "leech_fang": 0.1383,
-    "whetstone": 0.1311,
-    "rally_horn": 0.0815,
-    "arise": 0.0759,
-    "undying": 0.0759,
-    "mimicry": 0.0759,
-    "hollow_court": 0.0759,
-    "blood_tithe": 0.0759,
-    "court_of_bone": 0.0759,
-    "tower_shield": 0.0727,
-    "gravediggers_spade": 0.0705,
-    "rowan_charm": 0.0699,
-    "hunters_mark": 0.0654,
-    "firebrand": 0.0648,
-    "iron_oath": 0.0638,
-    "quicksilver": 0.0633,
-    "raiders_spur": 0.0614,
-    "arcane_focus": 0.0614,
-    "briar_mail": 0.06,
-    "grave_bell": 0.0575,
-    "balm": 0.0572,
-    "war_drum": 0.0557,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.0339,
-    "heartwood": 0.0167,
-    "wyrm_standard": 0.0149
-   }
-  },
-  {
    "id": "kin:insect:4",
    "needs": {
     "hive_warden": 2,
@@ -4277,55 +4130,6 @@
     "war_drum": 0.0184,
     "gossamer_standard": 0.0121,
     "heartwood": 0.0052
-   }
-  },
-  {
-   "id": "fusion:trine:clockwork_page:0",
-   "needs": {
-    "clockwork_page": 3
-   },
-   "fuse": "trine:clockwork_page",
-   "tracks": {
-    "trine:clockwork_page": 0
-   },
-   "from": 1,
-   "gain": [
-    -0.3298,
-    0.4827,
-    0.2525,
-    0.4319
-   ],
-   "relics": {
-    "glass_crown": 0.2182,
-    "blood_chalice": 0.149,
-    "leech_fang": 0.1391,
-    "whetstone": 0.1317,
-    "rally_horn": 0.0951,
-    "tower_shield": 0.0817,
-    "rowan_charm": 0.0774,
-    "gravediggers_spade": 0.0773,
-    "arise": 0.0761,
-    "undying": 0.0761,
-    "mimicry": 0.0761,
-    "hollow_court": 0.0761,
-    "blood_tithe": 0.0761,
-    "court_of_bone": 0.0761,
-    "hunters_mark": 0.0707,
-    "firebrand": 0.0698,
-    "iron_oath": 0.0682,
-    "quicksilver": 0.0675,
-    "raiders_spur": 0.0645,
-    "arcane_focus": 0.0645,
-    "briar_mail": 0.0624,
-    "grave_bell": 0.0587,
-    "balm": 0.0574,
-    "war_drum": 0.0558,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "gossamer_standard": 0.036,
-    "heartwood": 0.0167,
-    "wyrm_standard": 0.0128,
-    "hive_standard": 0.0097
    }
   },
   {
@@ -4523,6 +4327,55 @@
    }
   },
   {
+   "id": "fusion:trine:clockwork_page:1",
+   "needs": {
+    "clockwork_page": 3
+   },
+   "fuse": "trine:clockwork_page",
+   "tracks": {
+    "trine:clockwork_page": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.3298,
+    0.4513,
+    0.304,
+    0.2398
+   ],
+   "relics": {
+    "glass_crown": 0.1855,
+    "blood_chalice": 0.1262,
+    "leech_fang": 0.1177,
+    "whetstone": 0.1114,
+    "rally_horn": 0.0773,
+    "tower_shield": 0.067,
+    "arise": 0.0642,
+    "undying": 0.0642,
+    "mimicry": 0.0642,
+    "hollow_court": 0.0642,
+    "blood_tithe": 0.0642,
+    "court_of_bone": 0.0642,
+    "gravediggers_spade": 0.064,
+    "rowan_charm": 0.0637,
+    "hunters_mark": 0.0584,
+    "firebrand": 0.0578,
+    "iron_oath": 0.0565,
+    "quicksilver": 0.056,
+    "raiders_spur": 0.0537,
+    "arcane_focus": 0.0537,
+    "briar_mail": 0.0521,
+    "grave_bell": 0.0492,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "balm": 0.0483,
+    "war_drum": 0.047,
+    "gossamer_standard": 0.0395,
+    "wyrm_standard": 0.0154,
+    "heartwood": 0.014,
+    "hive_standard": 0.0117
+   }
+  },
+  {
    "id": "core:ash_wyvern:1",
    "needs": {
     "ash_wyvern": 2
@@ -4567,6 +4420,55 @@
     "balm": 0.0281,
     "war_drum": 0.0276,
     "heartwood": 0.0078
+   }
+  },
+  {
+   "id": "fusion:trine:clockwork_page:0",
+   "needs": {
+    "clockwork_page": 3
+   },
+   "fuse": "trine:clockwork_page",
+   "tracks": {
+    "trine:clockwork_page": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.3298,
+    0.4827,
+    0.2525,
+    0.2398
+   ],
+   "relics": {
+    "glass_crown": 0.1891,
+    "blood_chalice": 0.1287,
+    "leech_fang": 0.1201,
+    "whetstone": 0.1137,
+    "rally_horn": 0.083,
+    "tower_shield": 0.0711,
+    "gravediggers_spade": 0.0683,
+    "rowan_charm": 0.0673,
+    "arise": 0.0655,
+    "undying": 0.0655,
+    "mimicry": 0.0655,
+    "hollow_court": 0.0655,
+    "blood_tithe": 0.0655,
+    "court_of_bone": 0.0655,
+    "hunters_mark": 0.0613,
+    "firebrand": 0.0605,
+    "iron_oath": 0.0591,
+    "quicksilver": 0.0584,
+    "raiders_spur": 0.0558,
+    "arcane_focus": 0.0558,
+    "briar_mail": 0.0539,
+    "grave_bell": 0.0506,
+    "balm": 0.0494,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "war_drum": 0.048,
+    "gossamer_standard": 0.0388,
+    "wyrm_standard": 0.0154,
+    "heartwood": 0.0143,
+    "hive_standard": 0.0117
    }
   },
   {
@@ -4666,55 +4568,6 @@
     "wyrm_standard": 0.0173,
     "hive_standard": 0.0131,
     "heartwood": 0.0101
-   }
-  },
-  {
-   "id": "fusion:trine:thorn_dryad:1",
-   "needs": {
-    "thorn_dryad": 3
-   },
-   "fuse": "trine:thorn_dryad",
-   "tracks": {
-    "trine:thorn_dryad": 1
-   },
-   "from": 2,
-   "gain": [
-    -0.9816,
-    0.197,
-    0.0562,
-    0.2021
-   ],
-   "relics": {
-    "glass_crown": 0.1438,
-    "blood_chalice": 0.097,
-    "leech_fang": 0.0904,
-    "whetstone": 0.0855,
-    "rally_horn": 0.0533,
-    "gossamer_standard": 0.0513,
-    "arise": 0.0489,
-    "undying": 0.0489,
-    "mimicry": 0.0489,
-    "hollow_court": 0.0489,
-    "blood_tithe": 0.0489,
-    "court_of_bone": 0.0489,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "tower_shield": 0.0473,
-    "rowan_charm": 0.0454,
-    "gravediggers_spade": 0.0451,
-    "hunters_mark": 0.0423,
-    "firebrand": 0.0419,
-    "iron_oath": 0.0412,
-    "quicksilver": 0.0409,
-    "raiders_spur": 0.0396,
-    "arcane_focus": 0.0396,
-    "briar_mail": 0.0386,
-    "grave_bell": 0.037,
-    "balm": 0.0368,
-    "war_drum": 0.0357,
-    "wyrm_standard": 0.016,
-    "hive_standard": 0.0121,
-    "heartwood": 0.0106
    }
   },
   {
@@ -4821,6 +4674,55 @@
     "wyrm_standard": 0.0165,
     "heartwood": 0.0133,
     "hive_standard": 0.0125
+   }
+  },
+  {
+   "id": "fusion:trine:thorn_dryad:0",
+   "needs": {
+    "thorn_dryad": 3
+   },
+   "fuse": "trine:thorn_dryad",
+   "tracks": {
+    "trine:thorn_dryad": 0
+   },
+   "from": 2,
+   "gain": [
+    -0.9816,
+    0.2427,
+    0.087,
+    0.0902
+   ],
+   "relics": {
+    "glass_crown": 0.1291,
+    "blood_chalice": 0.0871,
+    "leech_fang": 0.0811,
+    "whetstone": 0.0767,
+    "gossamer_standard": 0.0516,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "rally_horn": 0.0483,
+    "arise": 0.0439,
+    "undying": 0.0439,
+    "mimicry": 0.0439,
+    "hollow_court": 0.0439,
+    "blood_tithe": 0.0439,
+    "court_of_bone": 0.0439,
+    "tower_shield": 0.0427,
+    "gravediggers_spade": 0.0415,
+    "rowan_charm": 0.041,
+    "hunters_mark": 0.0382,
+    "firebrand": 0.0378,
+    "iron_oath": 0.0371,
+    "quicksilver": 0.0368,
+    "raiders_spur": 0.0356,
+    "arcane_focus": 0.0356,
+    "briar_mail": 0.0348,
+    "grave_bell": 0.0332,
+    "balm": 0.033,
+    "war_drum": 0.0321,
+    "wyrm_standard": 0.0179,
+    "hive_standard": 0.0136,
+    "heartwood": 0.0095
    }
   },
   {
@@ -4964,6 +4866,55 @@
     "wyrm_standard": 0.0165,
     "hive_standard": 0.0125,
     "heartwood": 0.0123
+   }
+  },
+  {
+   "id": "fusion:trine:thorn_dryad:1",
+   "needs": {
+    "thorn_dryad": 3
+   },
+   "fuse": "trine:thorn_dryad",
+   "tracks": {
+    "trine:thorn_dryad": 1
+   },
+   "from": 2,
+   "gain": [
+    -0.9816,
+    0.197,
+    0.0562,
+    0.0902
+   ],
+   "relics": {
+    "glass_crown": 0.1219,
+    "blood_chalice": 0.0821,
+    "leech_fang": 0.0765,
+    "whetstone": 0.0723,
+    "gossamer_standard": 0.0526,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "rally_horn": 0.0454,
+    "arise": 0.0413,
+    "undying": 0.0413,
+    "mimicry": 0.0413,
+    "hollow_court": 0.0413,
+    "blood_tithe": 0.0413,
+    "court_of_bone": 0.0413,
+    "tower_shield": 0.0402,
+    "gravediggers_spade": 0.0389,
+    "rowan_charm": 0.0385,
+    "hunters_mark": 0.0359,
+    "firebrand": 0.0355,
+    "iron_oath": 0.0349,
+    "quicksilver": 0.0346,
+    "raiders_spur": 0.0335,
+    "arcane_focus": 0.0335,
+    "briar_mail": 0.0327,
+    "grave_bell": 0.0312,
+    "balm": 0.031,
+    "war_drum": 0.0302,
+    "wyrm_standard": 0.0179,
+    "hive_standard": 0.0136,
+    "heartwood": 0.0089
    }
   },
   {
@@ -5460,6 +5411,55 @@
    }
   },
   {
+   "id": "fusion:trine:hive_warden:0",
+   "needs": {
+    "hive_warden": 3
+   },
+   "fuse": "trine:hive_warden",
+   "tracks": {
+    "trine:hive_warden": 0
+   },
+   "from": 1,
+   "gain": [
+    -0.5318,
+    0.4177,
+    0.2092,
+    0.1379
+   ],
+   "relics": {
+    "glass_crown": 0.1627,
+    "hive_standard": 0.1149,
+    "blood_chalice": 0.1105,
+    "leech_fang": 0.103,
+    "whetstone": 0.0975,
+    "rally_horn": 0.0604,
+    "arise": 0.0561,
+    "undying": 0.0561,
+    "mimicry": 0.0561,
+    "hollow_court": 0.0561,
+    "blood_tithe": 0.0561,
+    "court_of_bone": 0.0561,
+    "tower_shield": 0.0538,
+    "gravediggers_spade": 0.0524,
+    "rowan_charm": 0.0517,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "hunters_mark": 0.0483,
+    "firebrand": 0.0479,
+    "iron_oath": 0.0471,
+    "quicksilver": 0.0467,
+    "raiders_spur": 0.0453,
+    "arcane_focus": 0.0453,
+    "briar_mail": 0.0442,
+    "grave_bell": 0.0424,
+    "balm": 0.0422,
+    "gossamer_standard": 0.042,
+    "war_drum": 0.041,
+    "wyrm_standard": 0.017,
+    "heartwood": 0.0122
+   }
+  },
+  {
    "id": "fusion:trine:grave_ghoul:1",
    "needs": {
     "grave_ghoul": 3
@@ -5506,55 +5506,6 @@
     "wyrm_standard": 0.0165,
     "hive_standard": 0.0125,
     "heartwood": 0.0118
-   }
-  },
-  {
-   "id": "fusion:trine:hive_warden:1",
-   "needs": {
-    "hive_warden": 3
-   },
-   "fuse": "trine:hive_warden",
-   "tracks": {
-    "trine:hive_warden": 1
-   },
-   "from": 1,
-   "gain": [
-    -0.5318,
-    0.2948,
-    0.1228,
-    0.275
-   ],
-   "relics": {
-    "glass_crown": 0.1712,
-    "hive_standard": 0.1182,
-    "blood_chalice": 0.116,
-    "leech_fang": 0.1082,
-    "whetstone": 0.1024,
-    "rally_horn": 0.0627,
-    "arise": 0.0588,
-    "undying": 0.0588,
-    "mimicry": 0.0588,
-    "hollow_court": 0.0588,
-    "blood_tithe": 0.0588,
-    "court_of_bone": 0.0588,
-    "tower_shield": 0.056,
-    "rowan_charm": 0.0538,
-    "gravediggers_spade": 0.0535,
-    "hunters_mark": 0.0504,
-    "firebrand": 0.05,
-    "iron_oath": 0.0492,
-    "hourglass": 0.0488,
-    "bone_idol": 0.0488,
-    "quicksilver": 0.0488,
-    "raiders_spur": 0.0473,
-    "arcane_focus": 0.0473,
-    "briar_mail": 0.0463,
-    "grave_bell": 0.0444,
-    "balm": 0.0442,
-    "war_drum": 0.043,
-    "gossamer_standard": 0.0428,
-    "wyrm_standard": 0.0149,
-    "heartwood": 0.0128
    }
   },
   {
@@ -5701,6 +5652,55 @@
     "war_drum": 0.0267,
     "gossamer_standard": 0.0135,
     "heartwood": 0.0075
+   }
+  },
+  {
+   "id": "fusion:trine:hive_warden:1",
+   "needs": {
+    "hive_warden": 3
+   },
+   "fuse": "trine:hive_warden",
+   "tracks": {
+    "trine:hive_warden": 1
+   },
+   "from": 1,
+   "gain": [
+    -0.5318,
+    0.2948,
+    0.1228,
+    0.1379
+   ],
+   "relics": {
+    "glass_crown": 0.1465,
+    "hive_standard": 0.1043,
+    "blood_chalice": 0.0991,
+    "leech_fang": 0.0923,
+    "whetstone": 0.0874,
+    "rally_horn": 0.0538,
+    "arise": 0.0501,
+    "undying": 0.0501,
+    "mimicry": 0.0501,
+    "hollow_court": 0.0501,
+    "blood_tithe": 0.0501,
+    "court_of_bone": 0.0501,
+    "hourglass": 0.0488,
+    "bone_idol": 0.0488,
+    "tower_shield": 0.0479,
+    "gravediggers_spade": 0.0464,
+    "rowan_charm": 0.046,
+    "gossamer_standard": 0.0451,
+    "hunters_mark": 0.0431,
+    "firebrand": 0.0427,
+    "iron_oath": 0.042,
+    "quicksilver": 0.0417,
+    "raiders_spur": 0.0404,
+    "arcane_focus": 0.0404,
+    "briar_mail": 0.0394,
+    "grave_bell": 0.0378,
+    "balm": 0.0376,
+    "war_drum": 0.0366,
+    "wyrm_standard": 0.017,
+    "heartwood": 0.0109
    }
   },
   {

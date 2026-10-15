@@ -1174,6 +1174,77 @@ difficulty (criterion 2's instrument). Criterion 3's other lines unmoved (the Ch
 three synergies at 5%). §4.4's next lever (`rule` on a Rare relic, §7 decision 3) is not needed for the ablation's 10
 points; whether the twelve should be retuned is the balance pass's.
 
+### The first bug hunt (Step 6, 2026-10-15)
+
+**Looked at** (on 5c23270, Steps 0–5 merged): what Steps 0–3 and 5 built, read against their own rules, the relics
+left to the second hunt. The plan's list, each held by a test or the fuzz below: a trine fused onto a held tile or off
+the board, in battle (`turns.js fusible`: the fused footprint free on the fuser's anchor, parts aside, a flyer's in the
+air) and in the run (`run.js fuseIn`: on the fuser's camp cell where it fits, else the ossuary); a capstone's part
+consumed twice (`partsOf`, `fusible`: each part once, the recipe's counts exactly; a fusion of a piece fused earlier
+in the same battle takes it in order); a transmutation's offer (its tier, never its own kind, never a fused one, the
+floor's pool, the same on replay) and what it keeps (its uid, relics, level, share of HP, cell where it fits, its old
+kind's tiers); every generated kit at every pair of tiers the crosspath allows, against its kind's (the same abilities
+in trine form, the same basic blow and heal, summons, tracks of four, HP at least three parts' and ATK at least one's);
+no recipe cycle, no result made twice; an in-battle fuse's price (`fuseCost` through the setup) and its parts off the
+board; Echo's halves, Mirage once a foe a turn, Last Stand and the Engine of Ages once a unit, Bodyguard's guard a
+Vanguard of the target's side; consecrate within the tracks; an altar's rite once, nothing else at it; the draft's
+guarantee at every pick; `--scale` on every foe, the boss and the waves; replay with the scale. And a reader at a time
+for what Step 2's `summons` changed (a trine calls up the kind it was made of): that is where the bugs were.
+
+**Found and fixed** (each with a test that failed before it):
+
+- **The expert read a trine's summons as trines** (`autoplay.js worth`: the sketch's `strength`, the book's
+  `bookPower`, the formation's and the recruits' order). It valued each summon as much again as the soul itself, at
+  the root of a summon's share of HP, true while a kind's summons were its own and not since Step 2: a Bone Chanter
+  Trine's two Chanters on Marrowcaller II read at 4.75 times their worth, the soul 1.79 times; the Page's, Warden's and
+  Dryad's trines alike, a trine of a trine's 1.9 times, the Frost Wyrm's 3.4. Now each summon is a whole one of the kind
+  it calls up (`summonedOf`) at the soul's level and tiers; a kind's own as before, number for number. The book remade:
+  the same 135 combos, 18 gains lower (the Chanter's trine on Marrowcaller 29th → 60th; the Chanter's trine's trine
+  first → third). No weight or rule moved. Free play, `div-0…63`, seed for seed against 5c23270 (its §8 numbers
+  played again, the same runs):
+
+  | | Relics (5c23270) | The reader fixed |
+  |---|---|---|
+  | clears | 35 (55%) | 44 (69%): +11 −2, +14.1 ± 5.4 points |
+  | progress | 86.0 | 85.9 (−0.0 ± 0.3) |
+  | died on floor 1 / 2 / 3 / 4 | 9 / 0 / 1 / 19 | 9 / 0 / 1 / 10 |
+  | battles lost; relics bought a run | 29; 5.3 | 20; 4.0 |
+  | fused kinds in the final armies | Chanter's trine 81%, Court 75%, Winter Court 33%, Sprite's trine 20%, Chanter's trine's trine 2% | Court 84%, Chanter's trine 72%, Winter Court 42%, Sprite's trine 25%, Chanter's trine's trine 11% |
+  | synergies held (battles) | Echo 60%, Legion 37%, Mirage 6%; none 39% | Echo 49%, Legion 31%, Mirage 8%; none 49% |
+
+  The expert ends 48 runs holding a Chanter's trine or its trine against 53, and its floor-4 deaths halve; 11 runs of
+  the 64 are the same (the book moves the rest). Criterion 3 as it was (the Court 84%). Every number of §8 from Step 2
+  on was measured with the misreading; the loop of Step 6 starts from this one.
+- **The threat meter read them so too** (`codex.js power`, the interface's): a Bone Chanter Trine alone on
+  Marrowcaller II counted 563 where it is 304, its rooms read easier than they are. Fixed alike.
+- **Clean**: How to play's wounds line now says an altar's heal is one rite of three; `turns.js rateOf`'s example of a
+  Hasten in its last turn is Ambush's second (its Hasten is two turns since Step 3). Nothing else found dead, doubled
+  or lying in what these steps added.
+
+**Seen and left** (no rule broken; the balance pass's or the interface's): Echo's halved status turns never show: the
+second landing meets the status the first laid, and a status laid again lasts the longer (`addStatus`), so at half or
+whole an echo adds a stack (Burning, Brittle, Bleeding) and nothing to a status of one stack; only the damage and the
+healing are halved. Mirage foils a landing, as it did a battle at a time: a blast's first, and an Echo's second landing
+lands. `fuseIn` places a fused piece before the battle's fallen leave the field, so a cell of one fallen in that battle
+sends it to the ossuary (the player places it). The capstones' rules emit their events, but the battle scene flares
+the synergies' alone.
+
+**The fuzz** (a script outside the repo; the run's own fuzz in `run.test.js` now checks the board after every order
+too): 2,227 runs, 1.1 million actions of which 0.91 million battle orders, 23,771 fights; from the draft (the guarantee
+checked at every pick) at scales 1, 0.6, 1.5 and 2, and from set-ups outside the log (each recipe's parts and two more
+of its first, with the Command and the essence to make them; four to eight of each synergy's kin or role, Legendaries
+among their relics; the kinds bought five tiers up); a fifth of the actions a random legal one, the rest a steady hand
+that brings a recipe's parts beside one another in battle and fuses: 4,784 fusions out of battle and 278 in it (163 of
+a 2×2 piece), 820 transmutations, 823 consecrations, and in the last 722 runs 80,355 blows Mirage foiled and 1,175 Last
+Stands. After every action the run's invariants (no two pieces on a cell, each on open ground, HP within bounds, the
+roster and the field within their caps, relics at most `perPiece` a soul and no more than owned, every soul at its
+kind's level and tiers, no fused kind offered or met as a foe, an altar's offers as above) and in battle the board's
+(each layer's index the living alone, each on its whole footprint, no wall under a ground piece, a fusion's parts off
+it; a stand once a unit, a foil once a foe a turn, a guard a Vanguard); each run replayed, or rebuilt from its set-up
+and log, to the same state. The harness: basic on 300 seeds,
+the expert committed to every archetype on 3 (168 runs, `--builds --commit all`), 28 expert runs replayed at scales
+0.7 and 1.3, the calculator on 16, the outside teacher on 2: no throw, every replay the same.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:

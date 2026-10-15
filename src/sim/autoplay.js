@@ -51,7 +51,7 @@ import path from 'node:path'
 import { createRng } from './rng.js'
 import {
   statsOf, tracksOf, tiersOf, nextTracks, CENTRE_OUT, CAMP_SLOTS, CAMP_ROWS, campOpen, wallTiles, steps, deployTile, tileAt, tileX, tileY, TILES,
-  LANES, rowOf, colOf, distance, makeUnit, slotAt, baseStats, summonsOf, DEPTH, sizeOf, footprintSlots, fits,
+  LANES, rowOf, colOf, distance, makeUnit, slotAt, baseStats, summonsOf, summonedOf, DEPTH, sizeOf, footprintSlots, fits,
   monarchSlot, abilitiesOf, isBlow, isAllyShape, blowReach, armOf, heldMods, isRunPath, cellsOf, meleeOnly, auraOf, activeSynergies, rangeOf, ROWS, reachOf
 } from './unit.js'
 import { roadsTo } from './field.js'
@@ -161,19 +161,23 @@ const byPower = (a, b) => worth(b) - worth(a) || a.uid - b.uid
 export const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b.uid
 
 // Rough fighting worth from its stats, track tiers and the relics it holds included (`mods`: a foe's, its floor's):
-// how long it lasts times how hard it hits (and how far it goes in a turn), square-rooted, and as much again for each
-// summon its tiers bring, at the root of the share of HP a summon rises with (unless `summons` is false: the summons
-// ablation's). A tier that grants an ability, an aura or a Colossus's footprint counts a share more, and each relic it
-// holds a share more besides its mods (what its triggers and rules are worth no static read can tell):
-// TUNING.expert.growth.worth. 0 for the fallen, and for the Monarch, which never strikes.
+// how long it lasts times how hard it hits (and how far it goes in a turn), square-rooted, and for each summon its
+// tiers bring (unless `summons` is false: the summons ablation's) a whole one of the kind it calls up, at the root of
+// the share of HP a summon rises with: as much again for a kind's own, a trine's the kind it was made of at its level
+// and tiers (unit.js summonedOf, turns.js summon). A tier that grants an ability, an aura or a Colossus's footprint
+// counts a share more, and each relic it holds a share more besides its mods (what its triggers and rules are worth no
+// static read can tell): TUNING.expert.growth.worth. 0 for the fallen, and for the Monarch, which never strikes.
 function worth (u, summons = true, mods = heldMods(u), h = TUNING.expert.growth.worth.hits, w = TUNING.expert.growth.worth) {
   if (u.hp <= 0 || isMonarch(u)) return 0
   const s = statsOf(u, mods)
   const lasts = s.hp * (1 + s.def / 100) / s.damage.taken
   const hits = s.atk * s.damage.dealt * (1 + w.move * s.move) + w.mend * mendOut(u, s)
   const signature = tiersOf(u).filter((t) => t.ability || t.aura || t.size).length
-  return lasts ** (1 - h) * hits ** h * (1 + w.signature * signature) * (1 + w.relic * (u.relics?.length ?? 0)) *
-    (1 + (summons ? summonsOf(u) * Math.sqrt(TUNING.summon.hp) : 0))
+  const own = lasts ** (1 - h) * hits ** h * (1 + w.signature * signature) * (1 + w.relic * (u.relics?.length ?? 0))
+  const n = summons ? summonsOf(u) : 0
+  const kind = summonedOf(u)
+  if (!n || kind === u.id) return own * (1 + n * Math.sqrt(TUNING.summon.hp))
+  return own + n * Math.sqrt(TUNING.summon.hp) * worth({ ...u, id: kind }, false, mods, h, w)
 }
 const fieldPower = (u) => worth(u) * Math.sqrt(hpPct(u))
 // What a soul mends a turn (worth's `mend`): its best heal of others, each heal effect's HP and each ward it lays (its
