@@ -217,32 +217,58 @@ test('the glossary never says most kinds have a basic heal: only menders do', as
 test('a quick tap read late (the page busy past the long press) stays a tap; a press held, or a late timer with no lift, is a long press', async () => {
   const { hold, HOLD } = await import('../src/dom.js')
   const on = {}
-  const saved = { add: globalThis.addEventListener, remove: globalThis.removeEventListener, raf: globalThis.requestAnimationFrame }
+  const saved = {
+    add: globalThis.addEventListener, remove: globalThis.removeEventListener, raf: globalThis.requestAnimationFrame,
+    set: globalThis.setTimeout, clear: globalThis.clearTimeout
+  }
   globalThis.addEventListener = (type, f) => { (on[type] ??= new Set()).add(f) }
   globalThis.removeEventListener = (type, f) => { on[type]?.delete(f) }
   globalThis.requestAnimationFrame = (f) => setTimeout(f, 16)
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+  // The page's clock is the test's own, so a loaded machine cannot make a timer late: it moves only by wait(ms), which
+  // runs each timer come due at its own time and in order, the ones they set included.
+  let now = 0
+  const timers = new Set()
+  globalThis.setTimeout = (f, ms = 0) => { const t = { f, at: now + ms }; timers.add(t); return t }
+  globalThis.clearTimeout = (t) => timers.delete(t)
+  performance.now = () => now
+  const next = (end) => [...timers].filter((t) => t.at <= end).sort((a, b) => a.at - b.at)[0]
+  const wait = (ms) => {
+    const end = now + ms
+    for (let t = next(end); t; t = next(end)) {
+      timers.delete(t)
+      now = t.at
+      t.f()
+    }
+    now = end
+  }
   const lift = (id) => { for (const f of [...(on.pointerup ?? [])]) f({ pointerId: id }) }
   try {
     let fired = 0
     // Pressed long before the timer could run: the page was busy, and the lift is read just after the timer.
-    hold({ pointerId: 1, clientX: 0, clientY: 0, timeStamp: performance.now() - HOLD - 300 }, () => fired++)
-    await wait(HOLD + 2)
+    hold({ pointerId: 1, clientX: 0, clientY: 0, timeStamp: now - HOLD - 300 }, () => fired++)
+    wait(HOLD + 2)
     lift(1)
-    await wait(60)
+    wait(60)
     assert.equal(fired, 0, 'a quick tap read late is no long press')
-    // The same late timer with no lift: a long press after all.
-    hold({ pointerId: 2, clientX: 0, clientY: 0, timeStamp: performance.now() - HOLD - 300 }, () => fired++)
-    await wait(HOLD + 60)
+    // The same late timer with no lift: a long press after all, a frame and a task late.
+    hold({ pointerId: 2, clientX: 0, clientY: 0, timeStamp: now - HOLD - 300 }, () => fired++)
+    wait(HOLD + 2)
+    assert.equal(fired, 0)
+    wait(60)
     assert.equal(fired, 1)
     // A press held on an idle page fires on time.
-    hold({ pointerId: 3, clientX: 0, clientY: 0, timeStamp: performance.now() }, () => fired++)
-    await wait(HOLD + 20)
+    hold({ pointerId: 3, clientX: 0, clientY: 0, timeStamp: now }, () => fired++)
+    wait(HOLD - 1)
+    assert.equal(fired, 1)
+    wait(1)
     assert.equal(fired, 2)
   } finally {
     globalThis.addEventListener = saved.add
     globalThis.removeEventListener = saved.remove
     globalThis.requestAnimationFrame = saved.raf
+    globalThis.setTimeout = saved.set
+    globalThis.clearTimeout = saved.clear
+    delete performance.now
   }
 })
 

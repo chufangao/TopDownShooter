@@ -504,9 +504,10 @@ test('the situation: the roads into the Monarch, its danger and threats, the pie
   assert.deepEqual(sit.idle, [1])
 })
 
-// A turn on a full board, ten pieces and the Monarch against a dozen foes at the deep floors' levels, takes a few
-// milliseconds (it plays nothing ahead); the bound is generous, for slow machines.
-test('the expert\'s turn on a full board costs a few milliseconds', () => {
+// A turn on a full board, ten pieces and the Monarch against a dozen foes at the deep floors' levels, costs tens of
+// milliseconds (it plays nothing ahead); the bound is generous, for slow machines. Timed in this thread's CPU time, so
+// a loaded machine (a test run's other files, other work) slows the clock and not the count.
+test('the expert\'s turn on a full board costs tens of milliseconds', () => {
   const mine = ['tomb_knight', 'bone_chanter', 'frost_sprite', 'grave_ghoul', 'pyre_hound', 'mantis_reaper', 'marsh_hag', 'thorn_dryad', 'iron_golem', 'ember_drake']
   const theirs = ['tomb_knight', 'pyre_hound', 'frost_sprite', 'bone_chanter', 'grave_ghoul', 'will_o_wisp', 'rot_bloat', 'hive_warden', 'mantis_reaper', 'barrow_wight', 'ash_wyvern', 'iron_golem']
   const b = board([
@@ -514,15 +515,17 @@ test('the expert\'s turn on a full board costs a few milliseconds', () => {
     ...mine.map((id, i) => ({ id, uid: 1 + i, side: 'party', x: 1 + (i % 5), y: 1 + 2 * Math.floor(i / 5), lvl: 8 })),
     ...theirs.map((id, i) => ({ id, uid: 20 + i, side: 'foe', x: i % 7, y: 6 + 2 * Math.floor(i / 7) + (i % 2), lvl: 9 }))
   ])
-  // The best of three, past a pause of the machine's (a test run is busy).
+  // The best of three, the first paying for the compiling. A Node 22 without threadCpuUsage counts the process's.
+  const cpu = (from) => (process.threadCpuUsage ?? process.cpuUsage).call(process, from)
   let ms = Infinity
   for (let k = 0; k < 3; k++) {
-    const t0 = performance.now()
+    const t0 = cpu()
     const orders = expertTurn(fork(b))
-    ms = Math.min(ms, performance.now() - t0)
+    const { user, system } = cpu(t0)
+    ms = Math.min(ms, (user + system) / 1000)
     assert.ok(orders.length > 1)
   }
-  assert.ok(ms < 250, `${ms.toFixed(1)} ms`)
+  assert.ok(ms < 250, `${ms.toFixed(1)} ms of CPU`)
 })
 
 // What End Turn has the untouched do, as the expert gives it (untouchedOrders): a shadow acts before a Hexed piece of
