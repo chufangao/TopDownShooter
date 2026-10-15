@@ -3,6 +3,8 @@
 // prices), level 0 the base game, replay at a level, the unlock rule, and the ladder report's shape.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import {
   createRun, replay, battleSetup, foeMods, foeScale, waveEvery, monarchBase, monarchHp, monarchOf, priceScale, roomSize, ascensionOf,
   ascensionTop, openTo, clearAt, drawRoom, tierCost, recruitCost, fuseCost, relicPrice, floorPrice, START_PARTY
@@ -10,7 +12,7 @@ import {
 import { createBattle, enterBattle, stats, entryTurn } from '../src/sim/turns.js'
 import { makeUnit, tileAt, DEPTH } from '../src/sim/unit.js'
 import {
-  autoplay, record, RUNGS, ascensionsOf, ladderJobs, ladderTable, ladderLines, ladderRecord, buildJobs
+  autoplay, record, RUNGS, ascensionsOf, ladderJobs, ladderTable, ladderLines, ladderRecord, buildJobs, auditRecord
 } from '../src/sim/autoplay.js'
 import { configOf } from '../src/sim/outside.js'
 import { FUSION_LIST, UNITS } from '../src/content.js'
@@ -229,6 +231,7 @@ test('the ladder report\'s shape: the levels a --ascension names, a job a rung a
   assert.deepEqual(t.ordered, { 0: true, 5: false })
   const lines = ladderLines(t)
   assert.equal(lines.length, 2 + t.rows.length + 1)
+  assert.ok(lines[1].includes(`died fl ${Array.from({ length: F }, (_, f) => f + 1).join('/')} `), `the run's floors: ${lines[1]}`)
   assert.ok(lines[0].includes('ascension 0, 5'))
   assert.ok(lines.some((l) => l.includes('calc → expert: +1 −0, +70.0')))
   assert.ok(lines.at(-1).includes('0 yes') && lines.at(-1).includes('5 NO'))
@@ -246,4 +249,23 @@ test('a ladder run at a level: basic\'s a record\'s, the calculator\'s its own, 
   assert.deepEqual([basic.player, basic.ascension], ['basic', TOP])
   assert.ok(Array.isArray(basic.battles) && 'progress' in basic && 'result' in basic)
   await assert.rejects(ladderRecord({ seed: 'lad-0', player: 'nobody' }), /unknown rung/)
+})
+
+// `--ascension <level>` plays any report at that level (autoplay.js's CLI): a paired report's runs and an audit's are
+// the level's, as the ladder's and --builds' are (the second bug hunt: --paired, --ablations, --decisions, --necessity
+// and --audit played the base game, the level read and dropped).
+test('a report at a level plays its runs there: --paired and --audit as --builds and --ladder', () => {
+  const runs = 2
+  const at = (a) => Array.from({ length: runs }, (_, i) => record({ seed: `h2p-${i}`, level: 'basic', ascension: a }))
+  const mean = (rs) => (100 * rs.reduce((n, r) => n + r.progress, 0) / runs).toFixed(1)
+  const [base, top] = [at(0), at(TOP)]
+  assert.notEqual(mean(top), mean(base), 'the seeds read the level')
+  const out = execFileSync(process.execPath, ['src/sim/autoplay.js', '--paired', 'none,none', '--level', 'basic', '--runs', String(runs), '--seed', 'h2p', '--ascension', String(TOP), '--workers', '1'],
+    { cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8' })
+  assert.ok(out.includes(`ascension ${TOP}`), out)
+  const row = out.split('\n').find((l) => l.startsWith('a '))
+  assert.equal(row.trim().split(/\s+/)[2], mean(top), out)
+  const audit = auditRecord({ seed: 'h2p-0', level: 'basic', ascension: TOP })
+  assert.equal(audit.ascension, TOP)
+  assert.equal(audit.floor, top[0].floor)
 })

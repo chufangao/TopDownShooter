@@ -4,7 +4,7 @@
 // Command are run relics alone.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, playTurns, preview, perform, stats, corpses, ariseOf as ariseIn, synergiesOf, timelineHash, legalOrders } from '../src/sim/turns.js'
+import { createBattle, enterBattle, order, playOut, playTurns, preview, perform, stats, corpses, ariseOf as ariseIn, synergiesOf, timelineHash, legalOrders } from '../src/sim/turns.js'
 import { expertTurn, basicTurn } from '../src/sim/policy.js'
 import {
   createRun, apply, battleSetup, fieldCap, rosterCap, souls, monarchOf, fielded, legalActions, join, reapedShadows, encounter,
@@ -370,6 +370,35 @@ test("Gravedigger's Spade: when its holder slays a foe of tier 1, the slain rise
   }
   assert.deepEqual(legion(['gravediggers_spade']), [[10, null]])
   assert.deepEqual(legion([]), [[10, 'legion']])
+})
+
+// The twelve at their edges (the second bug hunt, each as the rules say): a banner on your shadows and summons of its kin
+// and never on a foe's shadow of a kind of it; Briar Mail answering a counter, once (no foe holds a relic, so nothing
+// answers it back); Quicksilver bringing no skill below ready; Rowan Charm with no one about its holder, on itself.
+test('the twelve at their edges: a banner on your shadows and summons of its kin, never a foe\'s; Briar Mail answers a counter once; Quicksilver stops at ready; Rowan Charm alone', () => {
+  const units = [on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 1, 2), on('iron_golem', 11, 'foe', 6, 10)]
+  const [bare, b] = [scene(units), scene(units, { partyMods: RELICS.wyrm_standard.mods })]
+  for (const x of [bare, b]) {
+    enterBattle(x, { ...makeUnit('pyre_hound', { uid: 40, lvl: 3 }), side: 'party', shadow: true, tile: unit(x, 1).tile + 1 })
+    enterBattle(x, { ...makeUnit('pyre_hound', { uid: 41, lvl: 3 }), side: 'party', shadow: true, summoned: true, summoner: 1, tile: unit(x, 1).tile + 3 })
+    enterBattle(x, { ...makeUnit('pyre_hound', { uid: 42, lvl: 3 }), side: 'foe', shadow: true, tile: unit(x, 11).tile - 2 })
+  }
+  const atk = (uid) => stats(b, unit(b, uid)).atk / stats(bare, unit(bare, uid)).atk
+  assert.deepEqual([40, 41, 42, 1].map((uid) => +atk(uid).toFixed(6)), [1.25, 1.25, 1, 1], 'your Drake shadow and summon, not theirs nor a Knight')
+  // The knight strikes a Golem beside it in melee, the Golem answers, and Briar Mail answers the answer.
+  const { events } = blowing(['briar_mail'])
+  const answer = events.findIndex((e) => e.type === 'action' && e.counter)
+  assert.ok(answer > 0, 'the Golem answers')
+  const then = events.slice(answer)
+  assert.deepEqual(then.filter((e) => e.type === 'trigger').map((e) => e.relic), ['briar_mail'])
+  assert.deepEqual(then.filter((e) => e.type === 'damage' && e.actor === 1).map((e) => [e.target, e.damage]), [[10, RELICS.briar_mail.effects[0].amount]])
+  // Quicksilver on a holder whose skills are ready: nothing to bring sooner, none below 0.
+  const quick = blowing(['quicksilver'])
+  assert.ok(quick.events.some((e) => e.type === 'trigger' && e.relic === 'quicksilver'))
+  assert.ok(!quick.events.some((e) => e.type === 'cooldown') && Object.values(unit(quick.b, 1).cooldowns).every((n) => n === 0))
+  // Rowan Charm with no one within 2: its holder alone takes Barkskin.
+  const alone = scene([on('monarch', 0, 'party', 0, 0), on('tomb_knight', 1, 'party', 6, 5, 3, [0, 0], ['rowan_charm']), on('iron_golem', 10, 'foe', 0, 10)])
+  assert.deepEqual(alone.events.filter((e) => e.type === 'status' && e.status === 'barkskin').map((e) => e.target), [1])
 })
 
 // A Shop stocks the twelve as it stocks every relic: by its tier's weights, at its tier's price.

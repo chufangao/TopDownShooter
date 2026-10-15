@@ -15,7 +15,7 @@ import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, r
 import { sfx } from './sfx.js'
 import { hold, touchy, FEET, figures, plainFigure, WASH } from './dom.js'
 import { frame } from './frame.js'
-import { synergyLabels, summonedBy } from './codex.js'
+import { synergyLabels, summonedBy, ruleFlares } from './codex.js'
 
 // ── engine and picture loading ───────────────────────────────────────────────────────────────────
 
@@ -568,10 +568,14 @@ const ECHO_MS = 260     // Echo (Channeler 4): its second pass lands this long a
 const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 const DISPLAY = '"Fredoka", ui-rounded, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'
 
-// The synergies' rules (content.js, one at 4 a kin or role): by rule, its step ("Undead 4") and its name ("Legion",
-// the head of its desc), and on whom its name rises when it strikes: the unit it acts through.
-const RULES = Object.fromEntries(SYNERGIES.map((syn) => [syn.rule, { step: syn.name, name: syn.desc.split(': ')[0] }]))
-const RULE_ON = { frenzy: 'actor', echo: 'actor', bodyguard: 'actor', sanctuary: 'actor', dragonfire: 'actor', deadeye: 'actor', deathblow: 'actor' }
+// The rules at work that flare (codex.js ruleFlares): the synergies' (content.js, one at 4 a kin or role), by rule, its
+// step ("Undead 4") and its name ("Legion", the head of its desc), and a capstone's, its kind's name; and on whom its name
+// rises when it strikes: the unit it acts through (a capstone's piece, but the Engine of Ages', which stands: its target).
+const RULES = ruleFlares()
+const RULE_ON = {
+  frenzy: 'actor', echo: 'actor', bodyguard: 'actor', sanctuary: 'actor', dragonfire: 'actor', deadeye: 'actor', deathblow: 'actor',
+  charnel_cathedral: 'actor', cinder_wyrm: 'actor', hive_mind: 'actor'
+}
 // Rules that strike on almost every cast: their name rises at most once a NOISY_MS per side.
 const NOISY = new Set(['sanctuary', 'echo', 'dragonfire', 'deadeye'])
 const NOISY_MS = 1000
@@ -2374,8 +2378,8 @@ class BattleScene extends Phaser.Scene {
     }
   }
 
-  // A synergy's rule at work: its name rises over the unit it acts through, the synergies' blue for yours, red for
-  // theirs, in a burst of its side's colour. Ambush has no one unit: every piece on its side flares. Sanctuary, Echo,
+  // A rule at work, a synergy's or a capstone's: its name rises over the unit it acts through, the synergies' blue for
+  // yours, red for theirs, in a burst of its side's colour. Ambush has no one unit: every piece on its side flares. Sanctuary, Echo,
   // Dragonfire and Deadeye strike on nearly every cast, so theirs rises at most once a NOISY_MS per side. The first time a
   // side's rule strikes in a battle, its name is also announced over that side's labels (announce).
   rule (ev) {

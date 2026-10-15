@@ -438,7 +438,11 @@ test('an ascension is told as it plays: level 0 the base game, a level each numb
     assert.ok(lines[0].startsWith('Every foe ×'), `${a}`)
     assert.equal(lines.some((l) => l.includes(`Waves ${waveEvery(s)} turns apart`)), waveEvery(s) !== TUNING.spawn.waves.every, `${a}: the waves`)
     assert.equal(lines.some((l) => l.includes(`The Monarch ${monarchBase(s)} HP`)), monarchBase(s) !== TUNING.monarch.hp, `${a}: the Monarch`)
-    assert.equal(short.includes('more foes'), [1, 2, 3, 4].some((f) => roomSize(f, false, a) !== roomSize(f, false) || roomSize(f, true, a) !== roomSize(f, true)), `${a}: the counts`)
+    // The counts on the run's floors (the second bug hunt: on floors 1–4, the fourth the deep's since there are three).
+    const floors = Array.from({ length: TUNING.run.floors }, (_, f) => f + 1)
+    assert.equal(short.includes('more foes'), floors.some((f) => roomSize(f, false, a) !== roomSize(f, false) || roomSize(f, true, a) !== roomSize(f, true)), `${a}: the counts`)
+    const counts = lines.find((l) => l.startsWith('Fights of'))
+    if (counts) assert.ok(counts.startsWith(`Fights of ${floors.map((f) => roomSize(f, false, a)).join('/')} foes on floors 1–${TUNING.run.floors} (`), counts)
   }
   // A room at the top: its foes' mods the level's, and its later wave's turn on the level's spacing.
   const run = createRun({ start: START_PARTY, seed: 'told-asc', ascension: top })
@@ -448,4 +452,25 @@ test('an ascension is told as it plays: level 0 the base game, a level each numb
   Object.assign(node, { foes: encounter('told-asc', 1, node), waves: [{ foes: encounter('told-asc', 1, { ...node, id: 'w' }).slice(0, 2) }] })
   const tip = roomTip(run, node, { reachable: true }).textContent
   assert.ok(tip.includes(`2 more as turn ${1 + waveEvery(run.state)} begins.`), tip)
+  // How to play's Wave, in a run at a level whose waves come sooner, says when they come in it (the second bug hunt: it
+  // told the base game's spacing alone).
+  const { glossary } = await import('../src/codex.js')
+  const wave = (r) => glossary(r).flatMap((g) => g.entries).find((e) => e.name === 'Wave').more
+  assert.notEqual(waveEvery(run.state), TUNING.spawn.waves.every)
+  assert.ok(wave(run).includes(`At ascension ${top} they come ${waveEvery(run.state)} turns apart.`), wave(run))
+  assert.ok(!wave(createRun({ start: START_PARTY, seed: 'told-asc' })).includes('At ascension') && !wave(null).includes('At ascension'))
+})
+
+// Every rule that says it is at work (a 'rule' event: rules.js) flares in battle (engine.js rule, by ruleFlares): a
+// synergy's as its step and name ("Undead 4 · Legion"), a capstone's as its kind's name, over the piece (the second bug
+// hunt: the capstones' rules emitted their events and the scene flared the synergies' alone).
+test('every rule at work flares in battle: the synergies\' by step and name, a capstone\'s by its kind\'s name', async () => {
+  const { ruleFlares } = await import('../src/codex.js')
+  const { readFileSync } = await import('node:fs')
+  const flares = ruleFlares()
+  const said = [...readFileSync(new URL('../src/sim/rules.js', import.meta.url), 'utf8').matchAll(/type: 'rule', rule: '([a-z_]+)'/g)].map((m) => m[1])
+  assert.ok(said.length >= 12, said.join())
+  for (const rule of new Set(said)) assert.ok(flares[rule]?.name && flares[rule].step, `${rule} flares`)
+  for (const syn of SYNERGIES.filter((x) => x.rule)) assert.deepEqual(flares[syn.rule], { step: syn.name, name: syn.desc.split(': ')[0] })
+  for (const d of UNIT_LIST.filter((x) => x.rule && !x.boss)) assert.equal(flares[d.rule].name, d.name, d.id)
 })
