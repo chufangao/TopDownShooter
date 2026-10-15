@@ -184,6 +184,14 @@ a forest is confident, take its word.
   the expert, `--draw state`, ~3 h) and `npm run forest`, out-of-battle labels `npm run outside -- --label --phases
   recruit,prep` (~3 h) and `npm run outforest`, the route `npm run teach -- --route` then `--fit`; each part set by
   `npm run bundle`, and kept only on a paired gain on 768 fresh seeds (`--paired expert:a.json,expert:b.json`).
+- **What is kept and what goes** (Step 0b). Kept, as it plays: everything above. Removed, as nothing plays by it: the
+  earlier learners (`value.js` and `value.json`, V; `ranker.js`, the MLP correction; `train.js`, V's trainer;
+  `teacher.js`, the stronger battle teacher; ~3,300 lines and 240 KB) with their tests (`value`, `ranker`, `teacher`,
+  `policy-learned`, `puzzles-learned`; ~1,000 lines), and the beam in `policy.js` (`expertTurn`'s beam branch,
+  `expand`, `afterstate`, the hybrid: off by `TUNING.expert.beam.on`, ~300 lines). `ranker.js` lends the forests
+  their row encoding (`encode`, `splitOf`, `playView`, `rowAfter`…: forest.js, outforest.js, outside.js, teach.js
+  import it), so that part moves into `forest.js` before the file goes. The expert plays move for move as before:
+  checked as the one-file change was, 12 whole runs' logs byte for byte the same.
 
 ### 4.1 Fusions: a triple for every kind, and fusions of fusions
 
@@ -354,6 +362,17 @@ and the README's autoplayer section kept true.
 `--commit`; `test/builds.test.js` (a committed run's targets are its archetype's; the pool table sums to one; the
 report's shape). Baseline rows for every archetype that exists today, expert and teacher, into §8.
 
+### Step 0b. The expert's cleaning (sim, ~3 h)
+
+§4.0's last bullet, in this order: the row encoding `ranker.js` lends the forests moved into `forest.js`; then
+`value.js`, `value.json`, `ranker.js`, `train.js`, `teacher.js` and their five test files deleted, with every import
+and CLI line that named them (`autoplay.js`'s `--learned`, `--static`, `--ranker`; `LEVELS.expert.learned`; the
+`learnedValue` and hybrid reads in `policy.js`); then the beam (`expertTurn`'s beam branch, `expand`, `afterstate`,
+`TUNING.expert.beam` but `shortlist`, which the forest's candidates read); `fit.js` kept while `teach.js --route --fit`
+reads it. No behaviour changes: before and after, 12 whole runs of the expert (`--runs 12 --seed clean`) and the
+teacher's playouts of one, every log byte for byte the same; `npm test` green; the README's code map and this file's
+§4.0 brought to match. Done before Step 2, so the content steps touch a smaller expert.
+
 ### Step 1. Availability (sim, ~2 h)
 
 §4.2: the draft's guarantee (`draftOffer`), `tierFalloff` and `tierOverCap`; tests: a second pick always offers a
@@ -365,8 +384,12 @@ the ladder for the difficulty it moves.
 §4.1: `trineOf`, `TUNING.trine`, the Pale Court as a written trine, the seven capstones (art borrowed until drawn),
 the content test's graph rules, `--combos`, the codex's Fusions page and the kind cards, the glossary's Trine. The
 interface: a trine drawn as its kind, bigger (2×2 as now) or thrice overlapped (a `trine` flag the engine reads; the
-interface agent's call); the Field's Fuse button and the in-battle fuse unchanged. Measured: every archetype's
-reachability (criterion 1) and the committed expert on 256 seeds; the teacher's committed margins overnight.
+interface agent's call); the Field's Fuse button and the in-battle fuse unchanged. **The expert's part**: `--combos`
+remade and the content test holding that every recipe, generated or written, is in the book; `combosOf`'s floor gains
+read a generated trine's stats as any kind's (`strength`, `sketch`); `fusionOptions` and the in-battle fuse read the
+new recipes through `FUSION_LIST` and need nothing; `outsideRead` and `prepRead` read a fused part's recipe progress
+as they do today's. The forests go stale here by design (§3). Measured: every archetype's reachability (criterion 1)
+and the committed expert on 256 seeds; the teacher's committed margins overnight.
 
 ### Step 3. Synergies (sim + content, ~2 h)
 
@@ -375,13 +398,18 @@ role and kin.
 
 ### Step 4. Relics (content, ~2 h)
 
-§4.4's twelve records; the content test holds their forms; `--combos` (the book pairs relics with combos). Measured
-by the relics ablation and the committed runs' relic shares.
+§4.4's twelve records; the content test holds their forms. **The expert's part**: the book's relic pairing (`pairs`
+in `--combos`) and the sketch's `strength` read a `who`-scoped mod as the kin or role it names (unit.js `matches`
+already applies it in battle), and an `on`-trigger relic by its op's worth (`STATUS_WORTH`, a raise as a shadow's HP);
+`--combos` remade. Measured by the relics ablation and the committed runs' relic shares.
 
 ### Step 5. The altar's choice (sim ~2 h, interface ~1.5 h)
 
-§4.5: the altar's phase with three offers, `transmute` and `consecrate` as actions in the log and `replay`; the
-expert's altar choice by the growth sketch; the altar screen. Measured by archetype changes after floor 1.
+§4.5: the altar's phase with three offers, `transmute` and `consecrate` as actions in the log and `replay`; the altar
+screen. **The expert's part**: a `pickAltar` in `autoplay.js policy` (each offer by the sketch's gain, as a purchase is
+weighed; basic heals), mirrored in `outside.js baseStep` and its candidate list (so the teacher plays the altar out)
+and in `calc.js`; `test/outside.test.js` holding baseStep to policy at an altar. Measured by archetype changes after
+floor 1.
 
 ### Step 6. Measure, iterate, refit, balance
 
@@ -411,7 +439,7 @@ says they should.
 Taken on 2026-10-15, the user's word: a triple for every kind; fusions of fusions; the teacher as the yardstick for
 content; this file the plan, the old spec to history; and, after the spike of §8, **the old expert kept as the
 instrument** ("just use the old ai to tune"): no rewrite, no retuning, its forests refitted at a milestone only (§3,
-§4.0). Set aside the same day: the autoplayer rewritten as forests fitted by expert iteration, and search alone.
+§4.0), its dead half removed with the logs held byte for byte (Step 0b). Set aside the same day: the autoplayer rewritten as forests fitted by expert iteration, and search alone.
 
 Recommended here, open until the user rules:
 
