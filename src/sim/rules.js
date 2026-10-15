@@ -1,5 +1,5 @@
-// The rules registry (redesign.md §2.13.4): each rule a synergy, a Legendary relic or a boss's override brings to a
-// battle, its hooks in one place. A new rule is one entry here. turns.js calls the hooks at fixed points, each with
+// The rules registry (redesign.md §2.13.4): each rule a synergy, a Legendary relic, a capstone (redesign.md §4.1) or a
+// boss's override brings to a battle, its hooks in one place. A new rule is one entry here. turns.js calls the hooks at fixed points, each with
 // the battle, a context it may change, and the rule as the side holds it (`r`: its entry, with `holder`, the unit
 // whose relic or def brings it, or null for a synergy's, which is the whole side's; and `params`, its numbers):
 //   onBlow    an act has resolved (never a counter): { actor, ability, primary, targets }
@@ -28,9 +28,9 @@
 // Blood Tithe's raises paid in the Monarch's HP (`bleeds`: bleeds, the autoplayer's).
 import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef } from '../content.js'
-import { alive, livingOn, unitDistance } from './unit.js'
-import { around, riseTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses } from './turns.js'
+import { alive, livingOn, unitDistance, makeUnit } from './unit.js'
+import { around, riseTile, summonTile } from './field.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -209,6 +209,62 @@ export const RULES = {
   // nothing heals the Monarch, in battle or out (unhealable).
   court_of_bone: { grants: 'arise', params: { domain: 2 }, unhealable: true },
 
+  // ── a capstone's rule, scoped to the piece of its kind (redesign.md §4.1): what its abilities cannot say ──
+
+  // The Charnel Cathedral: a foe it slays beside it (its blow or a status it laid, the slain within a tile of its
+  // footprint) rises at once as a shadow of its side, as Legion raises (never a boss, a shadow or a Monarch, while the
+  // side has room), unless something rose from it first.
+  charnel_cathedral: {
+    onKill (battle, { slain, by, side }, r) {
+      const u = r.holder
+      if (by !== u || !alive(u) || alive(slain) || slain.raised || slain.shadow || slain.into || unitDef(slain.id).boss || !roomFor(battle, side)) return
+      if (unitDistance(u, slain) > 1) return
+      if (side === 'party' && riseTile(battle, slain.tile, shadowSize(slain, side), slain.flies) < 0) return
+      emit(battle, { type: 'rule', rule: 'charnel_cathedral', side, actor: u.uid, target: slain.uid })
+      raise(battle, u, slain, { side, rule: 'charnel_cathedral' })
+    }
+  },
+  // The Cinder Wyrm: a foe it slays (its blow, or a Burning it laid) sets every foe next to it Burning, laid by it: the
+  // fire spreads, and a burn it laid that slays spreads again.
+  cinder_wyrm: {
+    onKill (battle, { slain, by }, r) {
+      if (by !== r.holder) return
+      const near = around(battle, slain.tile, 1, slain.side, slain.size)
+      if (!near.length) return
+      emit(battle, { type: 'rule', rule: 'cinder_wyrm', side: by.side, actor: by.uid, target: slain.uid })
+      for (const x of near) addStatus(battle, x, 'burning', null, by)
+    }
+  },
+  // The Hive Mind: as the battle begins (its side's first turn) and as each later wave enters, while it stands,
+  // `drones` of `kind` hatch beside it as its summons (shadows at TUNING.summon.hp of a whole one's HP, at its level, with
+  // no tiers, while its side has room on the board: hatch); and one it slays has its every skill ready again, as Frenzy
+  // has it for a side.
+  hive_mind: {
+    params: { drones: 2, kind: 'hive_drone' },
+    onTurn (battle, { side, turn }, r) {
+      if (turn === 1 && side === r.holder.side) hatch(battle, r)
+    },
+    onWave (battle, ctx, r) {
+      hatch(battle, r)
+    },
+    onKill (battle, { slain, by, side }, r) {
+      if (by !== r.holder || !alive(by) || !slew(by, side, slain)) return
+      emit(battle, { type: 'rule', rule: 'hive_mind', side, actor: by.uid, target: slain.uid })
+      for (const id in by.cooldowns) if (by.cooldowns[id] > 0) cool(battle, by, id, 0)
+    }
+  },
+  // The Engine of Ages: the first damage each battle that would fell it (a blow's, a burst's or a status tick's) leaves
+  // it at 1 HP instead, as Last Stand does its side's, and apart from it.
+  engine_of_ages: {
+    modify (battle, ctx, r) {
+      const { target } = ctx
+      if (ctx.as !== 'target' || ctx.miss || target !== r.holder || target.endured || ctx.damage < target.hp) return
+      target.endured = true
+      ctx.damage = target.hp - 1
+      emit(battle, { type: 'rule', rule: 'engine_of_ages', side: target.side, target: target.uid })
+    }
+  },
+
   // ── a boss's override, on top of its temperament (§2.9.6) ──
 
   // The Hollow Sovereign: its court (the foes of its own wave) moves before every other foe, and it casts Grave Tide
@@ -236,6 +292,22 @@ export const RULES = {
 // What a shadow of a Blood Tithe holder's costs the Monarch.
 export const titheOf = (battle, r) => Math.ceil(battle.monarch.maxHp * r.params.tithe)
 
+// A Hive Mind's drones hatch (hive_mind): each a summon of its holder's on the free tile of its camp nearest it
+// (field.js summonTile), announced as it enters, while the holder stands and its side has room; with no tile free,
+// fewer hatch.
+function hatch (battle, r) {
+  const u = r.holder
+  if (!alive(u)) return
+  const flies = !!unitDef(r.params.kind).flies
+  for (let k = 0; k < r.params.drones && roomFor(battle, u.side); k++) {
+    const tile = summonTile(battle, u, 1, flies)
+    if (tile < 0) return
+    if (!k) emit(battle, { type: 'rule', rule: 'hive_mind', side: u.side, actor: u.uid })
+    const drone = enterBattle(battle, { ...makeUnit(r.params.kind, { uid: battle.nextUid++, lvl: u.lvl }), side: u.side, shadow: true, summoned: true, summoner: u.uid, tile })
+    emit(battle, { type: 'enter', unit: { uid: drone.uid, id: drone.id, side: drone.side, tile: drone.tile, lvl: drone.lvl, hp: drone.hp, maxHp: drone.maxHp, shadow: true, summoned: true, summoner: u.uid } })
+  }
+}
+
 // A rule as a side holds it: its entry, its holder (null for a synergy's) and its numbers.
 const entry = (id, holder = null, params = null) => {
   if (!Object.hasOwn(RULES, id)) throw new Error(`no rule "${id}" in the registry`)
@@ -243,7 +315,7 @@ const entry = (id, holder = null, params = null) => {
 }
 
 // The rules a unit's relics bring it (a piece relic's `rule`, scoped to it; turns.js reads them as it takes its place:
-// held), and its kind's override (a def's `rule`, a boss's). → entries.
+// held), and its kind's (a def's `rule`: a boss's override, a capstone's), scoped to it too. → entries.
 export function heldRules (u) {
   const out = []
   for (const id of u.relics ?? []) {

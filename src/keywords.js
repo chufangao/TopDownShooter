@@ -1,10 +1,10 @@
-// Keywords: the game's words (the seventeen of redesign.md §2.14, and Line of fire, §2.19), the foes' two ways and the statuses, each a bold
-// word in its system's colour with a one-line hover (the Slay the Spire style). Write kw('road') in any text instead
-// of explaining the rule again; the full rules live in the codex's glossary. `sys` picks the colour token (--c-<sys>
-// in style.css); `group` files the term under a heading of the glossary. Every number comes from TUNING, so a line
-// never drifts.
+// Keywords: the game's words (the seventeen of redesign.md §2.14, Line of fire, §2.19, and Trine, the improvement
+// plan's §4.1), the foes' two ways and the statuses, each a bold word in its system's colour with a one-line hover (the
+// Slay the Spire style). Write kw('road') in any text instead of explaining the rule again; the full rules live in the
+// codex's glossary. `sys` picks the colour token (--c-<sys> in style.css); `group` files the term under a heading of the
+// glossary. Every number comes from TUNING, so a line never drifts.
 import { TUNING } from './tuning.js'
-import { STATUSES, BEHAVIOURS } from './content.js'
+import { STATUSES, BEHAVIOURS, TOP_TIER, TRINE_RISE } from './content.js'
 import { h } from './dom.js'
 
 // "3 turns", "all battle".
@@ -16,10 +16,11 @@ export const KEYWORDS = {
   road: { name: 'Road', sys: 'foe', line: 'The arrows the foes walk to the Monarch. A foe keeps to its road: how far it comes each turn is its choice, where it goes is the road\'s. Your pieces block it; the dead never do.' },
   wave: { name: 'Wave', sys: 'foe', line: 'More foes over the far edge as a set turn begins: the wave counter says which.' },
   shadow: { name: 'Shadow', sys: 'shadow', line: 'A slain foe risen to fight for you, on the free tile nearest the Monarch. It acts on its own each turn, and is gone when the battle ends.' },
-  summon: { name: 'Summon', sys: 'shadow', line: `A shadow of its own kind that a tier calls up beside a piece of yours as each battle begins, at ${Math.round(TUNING.summon.hp * 100)}% of its HP. It acts on its own each turn, and is gone when the battle ends.` },
+  summon: { name: 'Summon', sys: 'shadow', line: `A shadow of its own kind (a trine's: of the kind it was made of) that a tier calls up beside a piece of yours as each battle begins, at ${Math.round(TUNING.summon.hp * 100)}% of its HP. It acts on its own each turn, and is gone when the battle ends.` },
   essence: { name: 'Essence', sys: 'essence', line: 'Paid by every foe slain, by its tier; buys tiers, fusions, recruits and relics, every price dearer each floor down.' },
   tier: { name: 'Tier', sys: 'path', line: 'A step, I–IV, on one of a kind\'s two tracks: it upgrades every soul of that kind and raises the kind\'s level.' },
   fusion: { name: 'Fusion', sys: 'path', line: 'A recipe: souls of set kinds become one much stronger piece, most of them 2×2. The Codex lists every one.' },
+  trine: { name: 'Trine', sys: 'path', line: `Three of a kind fused: one piece ${TRINE_RISE} tiers higher, its blows at one foe now strike a crowd and its shots reach a tile farther. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has one.` },
   synergy: { name: 'Synergy', sys: 'synergy', line: 'Four pieces of one kin or role on the board bring its rule, which changes what happens. Its pieces glow in its colour.' },
   relic: { name: 'Relic', sys: 'relic', line: `Bought in a Shop: Common, Uncommon, Rare or Legendary. A run relic works for the whole run; a piece relic works only through the soul holding it, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul, given and taken back out of battle.` },
   command: { name: 'Command', sys: 'monarch', line: `How many pieces the Monarch fields: ${TUNING.party.field} to begin, more with each Command relic, at most ${TUNING.army.board}.` },

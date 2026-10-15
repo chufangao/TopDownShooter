@@ -70,12 +70,12 @@ test('a met foe\'s card tells its reach, its Move, its way and its way line; no 
   localStorage.setItem('retinue:met', met)
 })
 
-// The seventeen of redesign.md §2.14, and Line of fire (§2.19, 2026-10-11): a rule the player must read to screen the
-// Monarch, so it is a word of its own.
-test('the glossary\'s words are the seventeen and Line of fire; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
+// The seventeen of redesign.md §2.14, Line of fire (§2.19, 2026-10-11): a rule the player must read to screen the
+// Monarch, so it is a word of its own; and Trine (the improvement plan's §4.1, 2026-10-15): three of a kind fused.
+test('the glossary\'s words are the seventeen, Line of fire and Trine; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
   const names = Object.values(KEYWORDS).filter((k) => k.group === 'Words').map((k) => k.name)
   assert.deepEqual(names.slice().sort(), ['Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Line of fire', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
-    'Summon', 'Synergy', 'Tier', 'Turn', 'Wave'])
+    'Summon', 'Synergy', 'Tier', 'Trine', 'Turn', 'Wave'])
   for (const [id, b] of Object.entries(BEHAVIOURS)) assert.equal(KEYWORDS[id].line, b.desc)
   for (const k of Object.values(KEYWORDS)) assert.ok(!/\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit|flank|chance/i.test(k.line), `${k.name}: ${k.line}`)
 })
@@ -290,4 +290,23 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   assert.match(text(roomGain(run, altar)), /^Heals the Monarch \+30\b/)
   assert.ok(relicTip('grave_banner', run).textContent.includes(`One more: Command ${commandOf(s)} → ${commandOf(s) + 1}`))
   for (const u of souls(s.party)) assert.ok(reachRule(u).includes(`it uses ${basicOf(abilitiesOf(u).map(abilityDef)).name}`), reachRule(u))
+})
+
+// The fusion graph told (redesign.md §4.1): the Fusions page lists the mixed recipes and the capstones and tells the
+// triple rule in one line; every kind's card, a made trine's 2×2 one with borrowed pictures too, names its own trine.
+test('the codex\'s Fusions lists the mixed recipes and the capstones, the triples in one line; a kind\'s card names its own trine', async () => {
+  const { fusionsView } = await import('../src/codex.js')
+  const { isTriple, trineOf } = await import('../src/content.js')
+  const text = fusionsView().textContent
+  for (const f of FUSION_LIST) assert.equal(text.includes(f.desc), !isTriple(f), f.id)
+  assert.ok(/Trines: every kind of tier 4 or less fuses three of itself/.test(text) && /the Will-o'-Wisp's is the Pale Court/i.test(text), text.slice(0, 400))
+  for (const d of UNIT_LIST.filter((x) => !x.monarch)) {
+    for (const tracks of [[0, 0], [4, 2], [2, 4]]) {
+      const card = unitCard({ id: d.id, lvl: 3, tracks }, { open: true }).textContent
+      const t = trineOf(d.id)
+      assert.equal(card.includes('three fuse into the'), !!t, d.id)
+      if (t) assert.ok(card.includes(`three fuse into the ${t.name}, tier ${t.tier}`), `${d.id}: ${card}`)
+      assert.ok(!/NaN|undefined/.test(card), `${d.id}: ${card}`)
+    }
+  }
 })

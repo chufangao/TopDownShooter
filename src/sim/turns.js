@@ -58,7 +58,7 @@ import { unitDef, abilityDef, statusDef, relicDef, FUSION_LIST, FUSIONS } from '
 import { hashString } from './rng.js'
 import {
   alive, livingOn, enemySide, isAllyShape, isBlow, footprint, distanceBetween, unitDistance, rangeOf, expand, makeUnit, sizeOf, tileX, tileY,
-  tileAt, NEIGHBOURS, deployTile, statsOf, activeSynergies, abilitiesOf, auraOf, armOf, blowReach, summonsOf, heldMods, CENTRE_OUT, TILES,
+  tileAt, NEIGHBOURS, deployTile, statsOf, activeSynergies, abilitiesOf, auraOf, armOf, blowReach, summonsOf, summonedOf, heldMods, CENTRE_OUT, TILES,
   LINE_AT, LINE_TILES, lineEnds, between
 } from './unit.js'
 import {
@@ -1041,17 +1041,19 @@ function relocate (battle, u, to) {
 // ── summons ──────────────────────────────────────────────────────────────────────────────────────
 
 // A soul's summons (unit.js summonsOf: its tiers' `summon`), called as the battle begins: each a shadow of its kind on
-// your side (`shadow`, `summoned`, and `summoner`: the soul's uid), at its level and with its tiers, at
-// TUNING.summon.hp of a whole one's HP (see fit), on the free tile nearest it (field.js summonTile); with no free tile
-// left, fewer rise. A summon is a shadow in every other way: it takes no orders, counts toward synergies, holds no
-// relic, pays nothing, and is gone when the battle ends. It brings no summons of its own.
+// your side (a trine's, of the kind it was made of: summonedOf; `shadow`, `summoned`, and `summoner`: the soul's uid),
+// at its level and with its tiers, at TUNING.summon.hp of a whole one's HP (see fit), on the free tile nearest it where
+// its footprint fits (field.js summonTile); with no free tile left, fewer rise. A summon is a shadow in every other way:
+// it takes no orders, counts toward synergies, holds no relic, pays nothing, and is gone when the battle ends. It
+// brings no summons of its own.
 export function summon (battle, u) {
-  const size = sizeOf(u)
-  const flies = !!unitDef(u.id).flies
+  const kind = summonedOf(u)
+  const size = sizeOf({ id: kind, tracks: u.tracks })
+  const flies = !!unitDef(kind).flies
   for (let k = summonsOf(u); k > 0; k--) {
     const tile = summonTile(battle, u, size, flies)
     if (tile < 0) return
-    const piece = makeUnit(u.id, { uid: battle.nextUid++, lvl: u.lvl, tracks: u.tracks })
+    const piece = makeUnit(kind, { uid: battle.nextUid++, lvl: u.lvl, tracks: u.tracks })
     enterBattle(battle, { ...piece, side: 'party', shadow: true, summoned: true, summoner: u.uid, tile })
   }
 }

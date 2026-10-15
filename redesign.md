@@ -652,6 +652,92 @@ Criterion 3: not met on any line. The Court is in 83% of free play's final armie
 of runs, two synergies are held in 5% of battles or more (Mirage just under), and 86% of the pieces in the last battles
 are Channelers: §5's audit on fresh seeds (77% clears here against 65% on `aud-*`, deaths 10 / 1 / 1 / 3).
 
+### The fusion graph (Step 2, 2026-10-15)
+
+**Built** (§4.1, the content step and the expert's part; the interface's drawing of a trine is left to its agent):
+`content.js trineOf` makes every trine no record is written for, at load, by one rule: **32 made** (17 of the kinds met,
+4 of the mixed fused kinds, 11 of trines: the Pale Court's and ten made ones', up to tier 6), **1 written** (the Pale
+Court, `trineOf: 'will_o_wisp'`, its stats and line kept), 69 abilities made (`trine:<ability>`: a blow at one foe a
+blast, a ranged blow a tile longer); **7 capstones** (§4.1's table), four of them with a rule in `rules.js` scoped to the
+piece (Charnel Cathedral's rise beside it, Cinder Wyrm's spreading fire, Hive Mind's drones at every wave and skills
+ready on a kill, Engine of Ages' stand), three by abilities and auras alone; **44 recipes** (33 triples, 4 mixed, 7
+capstones), 64 kinds. `TUNING.trine` is §4.1's table. Where this differs from §4.1's letter: a made trine's growth is
+scaled as its base (with the kind's growth unscaled a trine of a fused kind fell below its parts' sum past level 1), and
+it keeps its kind's aura; a trine of a trine summons the trine it was made of; the line "within two of the parts' tiers'
+sum less their count" holds the mixed recipes and the capstones, the triples keep their own (+2: a tier-1 triple, 0
+by the line, is tier 3, as the Pale Court was). The book: 135 combos (57 before); a fused part counts as far along its
+own recipe as the run is (`comboProgress`), and is met on its parts' floor (`firstFloor`). The tests: 439 (Step 0's
+428 and this step's 11), all passing (`node --test --test-concurrency=1`, 641 s); `outforest.test.js` moved from `sim-395`, whose lines
+the graph makes run to floor 4, to `sim-540`.
+
+**Run time**: the larger book made the sketch 202 → 332 µs on a mid-run retinue; read once a state (`standingCounts`,
+`gainFrom`), 171 µs, and on the old content three whole runs' logs byte for byte the same. Eight runs `--seed t2`, each
+alone and base and graph in turn: 0.41 s a battle before, 0.38 after (365 and 407 battles); `--runs 8 --seed t2
+--workers 2`, 113 s of CPU before and 115 after.
+
+**Measured** (the expert of f8c536f as Step 0 has it, its forests stale by design; seeds `div-*`, two workers beside two
+other sessions): `npm run pool` (256 seeds); `npm run builds -- --commit none --runs 64 --workers 2` (free play, 10 min),
+paired seed for seed against Step 0's free play; `npm run builds -- --commit
+bone_colossus,rime_drake,hive_queen,clockwork_titan,pale_court,trine:grave_ghoul,trine:pyre_hound,trine:clockwork_page,charnel_cathedral,winter_court
+--runs 32 --workers 2` (352 runs, 29 min). `--commit all` (~60 archetypes) was not run.
+
+Criterion 1, the pool: **20 of the 44 recipes** have their parts offered in 3 or more battles by the end of floor 2.
+Every floor-1 kind's trine is reachable but the Hive Warden's (2.7): the Frost Sprite's 11.6, the Clockwork Page's 11.3,
+the Grave Ghoul's 10.9, the Court 9.6, the Bone Chanter's and the Pyre Hound's 4.9, the Tomb Knight's 4.6, and the
+floor-2 Hive Drone's 5.5; the trines of these trines, the Colossus's and the Court's with them; the Charnel Cathedral
+(4.6) and the Winter Court (9.6). Not reachable: the kinds first met on floor 2 or deeper but the Drone (Dryad 1.6,
+Bloat 1.4, Mantis 1.3, Ember Drake 0.2, Golem 0.1, the floor-3 and floor-4 kinds 0), the three mixed recipes with a
+tier-3 keystone, and the five capstones built on them. So every kin now has a reachable fused archetype (Undead: the
+Ghoul's, Knight's and Chanter's trines, the Colossus, the Cathedral; Fae: the Court, the Sprite's trine, the Winter
+Court; Construct: the Page's trine; Drake: the Hound's; Insect: the Drone's), and of the roles all but Warden and
+Ranger. Step 1's flatter pool is what moves the rest.
+
+Free play, the expert on `div-0…63` against Step 0's:
+
+| | Step 0 | The graph |
+|---|---|---|
+| clears | 49 (77%) | 49 (77%): +8 −8 |
+| progress | 84.4 | 90.0 (+5.7 ± 4.2) |
+| died on floor 1 / 2 / 3 / 4 | 10 / 1 / 1 / 3 | 7 / 0 / 0 / 8 |
+| battles a run; fusions a run | 42.3; 2.5 | 44.9; 5.5 |
+| fused kinds in the final armies | Court 83%, Rime Drake 34%, Colossus 5% | Chanter's trine 84%, Court 81%, Sprite's trine 30%, Winter Court 23%, Court's trine 8%, Chanter's trine's trine 5%, the rest 2% or none |
+| recipes made (runs) | 3 of 5 | 9 of 44: Court 88%, Chanter's trine 86%, Sprite's trine 52%, Winter Court 23%, Court's trine 8%, Great Chanter Trine 5%, Colossus, Rime Drake, Hound's trine 2% |
+| synergies held (battles) | Echo 62%, Legion 37%, Mirage 5% | Echo 52%, Legion 33%, Mirage 7%; none 44% |
+| kinds in a tenth of final armies | 6 of 23 | 11 of 62 |
+| pieces of the last battles | Channelers 86% | Channelers 87%, Skirmishers 11% |
+
+Committed, `div-0…31` (progress against free play's on the same seeds, 88.6, 23 clears; "made": runs that made its
+fusion, the median battle):
+
+| Archetype | Clears | Progress (vs free play) | Died on floor 1 / 2 / 3 / 4 | Made (battle) | Court |
+|---|---|---|---|---|---|
+| Bone Colossus | 15 | 83.1 (−5.5 ± 8.2) | 6 / 0 / 0 / 11 | 6% (48) | 26 |
+| Rime Drake | 21 | 83.4 (−5.2 ± 6.6) | 6 / 0 / 0 / 5 | 81% (30) | 26 |
+| Hive Queen | 18 | 85.6 (−3.0 ± 4.9) | 5 / 0 / 0 / 9 | 19% (42) | 27 |
+| Clockwork Titan | 15 | 83.8 (−4.8 ± 5.4) | 6 / 0 / 0 / 11 | 0% | 26 |
+| Pale Court | 17 | 84.1 (−4.5 ± 6.6) | 5 / 0 / 1 / 9 | 84% (9) | 27 |
+| Grave Ghoul Trine | 18 | 86.1 (−2.5 ± 4.9) | 5 / 0 / 0 / 9 | 78% (22) | 26 |
+| Pyre Hound Trine | 17 | 75.4 (−13.2 ± 6.8) | 8 / 1 / 0 / 6 | 63% (33) | 23 |
+| Clockwork Page Trine | 14 | 83.8 (−4.8 ± 5.4) | 6 / 0 / 0 / 12 | 0% | 26 |
+| Charnel Cathedral | 14 | 84.7 (−3.9 ± 7.6) | 5 / 0 / 1 / 12 | 0% (its Ghoul trine 15 runs, its Colossus none) | 27 |
+| Winter Court | 20 | 86.7 (−2.0 ± 5.9) | 5 / 0 / 0 / 7 | 53% (34) | 27 |
+
+Against Step 0's own committed rows on the same 32 seeds: the Rime Drake made in 26 runs (19), its progress +17.9 ±
+6.0; the Hive Queen +8.3 ± 4.3, the Titan +9.5 ± 4.4, the Colossus +5.1 ± 3.6, the Court +1.3 ± 2.1; clears fewer for
+the Colossus (24 → 15), the Titan (19 → 15) and the Court (23 → 17), more runs dying on floor 4 instead of earlier.
+
+**What it says.** Criterion 1 moved from 2 of 5 recipes to 20 of 44, and from two kins to all five: the triple rule is
+what reaches a floor-1 kind. Criterion 3 is not met, and the monoculture has moved rather than broken: the Bone Chanter's
+trine joins the Court (84% and 81% of final armies), both Channelers, so Echo still leads and 87% of the last battles'
+pieces are Channelers; the expert's strength term buys whatever triple the Wisps and Chanters it is offered complete,
+and its book now rates the deep trines highest (a trine of trines' floor-1 army, its parts as three trines, tops the
+book). What did spread: the Sprite's trine (52% of runs) and the first capstone made in free play (the Winter Court,
+23%), Mirage past 5%, eleven kinds in a tenth of final armies. A committed run makes its trine where the floor offers
+its kind (the Ghoul's 78%, the Hound's 63%) and none where the sketch values it below the Court and the Chanters (the
+Page's 0%); a capstone's parts must both be made first, and the Cathedral's Colossus never was. Difficulty: floor-1
+deaths 10 → 7 and floor 4 3 → 8, so the base difficulty is a little easier early, harder late; the forests are stale
+(§3), and the balance pass reads it after the refit.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:

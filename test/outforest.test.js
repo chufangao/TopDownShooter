@@ -25,7 +25,8 @@ import { createRng } from '../src/sim/rng.js'
 const L = LEVELS.expert
 // sim-10's expert drafts, then falls on floor 1 after five battles: three recruits and a purchase, a whole run in about
 // a second; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run clears,
-// and labelling it to the end takes minutes; sim-395 until the pool was flattened, 2026-10-15: its run ends after two.)
+// and labelling it to the end takes minutes; sim-395 until the fusion graph, whose lines run longer; sim-540 until the
+// pool was flattened, 2026-10-15: its run clears.)
 const SEED = 'sim-10'
 const CAP = 3
 

@@ -109,9 +109,12 @@ test('the pool\'s table: each floor\'s draws sum to one, a walk\'s chances to it
     for (const [kind, n] of Object.entries(b.kinds)) assert.ok(n > 0 && n <= b.battles + 1e-9, kind)
   }
   assert.deepEqual(t.recipes.map((r) => r.id), FUSION_LIST.map((r) => r.id))
+  // A recipe's reach its parts' least by the end of floor 2, a fused part's its own recipe's (a capstone's, a trine of
+  // a fused kind's: redesign.md §4.1).
+  const reach = (id) => t.recipes.find((x) => x.result === id).reach
   for (const r of t.recipes) {
     assert.equal(r.parts.length, Object.keys(fusionDef(r.id).needs).length)
-    assert.equal(r.reach, Math.min(...r.parts.map((x) => x.byTwo)))
+    assert.equal(r.reach, Math.min(...r.parts.map((x) => (x.fused ? reach(x.id) : x.byTwo))))
   }
   assert.deepEqual(Object.keys(t.synergies), SYNERGIES.map((x) => x.id))
   // The draft's offers, each pick taken evenly: every pick offers TUNING.draft.offer floor-1 kinds.
