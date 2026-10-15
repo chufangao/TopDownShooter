@@ -14,7 +14,9 @@ then descend into the endless deep for as long as you last.
 ## Playing
 
 - **The draft.** A run opens with the Monarch alone. Pick three souls, each from three kinds drawn from floor 1's
-  foes by the run's seed; a kind can come up again, so two of a kind (half a fusion) is a choice from the start.
+  foes by the run's seed. The second and third picks each offer at least one kind that goes with a soul you hold, of
+  its kin or the other part of a recipe, so two of a kind (two thirds of its trine) or a recipe begun is a choice from
+  the start.
 - **The Field.** Arrange your souls on the Field tab before you enter a battle room: entering one starts its fight.
   Drag a soul onto a tile to place it, swap by footprint, open a kind's panel to buy tiers, tap Fuse when a recipe's
   parts are in the ossuary; a soul selected on the board shows its reach. Tap a relic in the relic strip, then a soul,
@@ -80,8 +82,8 @@ its draft, recruits, purchases and route follow it, and so do the outside teache
 runs made its fusion or held its synergy, and on which battle; then free play's diversity block (the archetypes of the
 final armies, kinds held, fusions made, synergies held, relics bought), checked against criterion 3. `--scale`
 multiplies every foe's HP and ATK. `--pool` reads `spawnPool` and the floors as drawn: each floor's share of a fight's
-and an elite's draws by kind, the battles on a walk offering each kind, and each recipe's reach by the end of floor 2
-(criterion 1).
+and an elite's draws by kind, the battles on a walk offering each kind and the draft's picks, and each recipe's reach
+by the end of floor 2 (criterion 1).
 
 ## Code map
 

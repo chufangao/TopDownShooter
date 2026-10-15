@@ -8,8 +8,9 @@ import {
   buildRecord, buildJobs, commitsOf, buildRow, buildLines, diversity, diversityChecks, diversityLines, reachedAt, poolTable, poolLines,
   floorOf, visits, LEVELS
 } from '../src/sim/autoplay.js'
-import { createRun, apply, battleSetup, foeMods } from '../src/sim/run.js'
+import { createRun, apply, battleSetup, foeMods, draftPool } from '../src/sim/run.js'
 import { FUSION_LIST, SYNERGIES, UNIT_LIST, fusionDef } from '../src/content.js'
+import { TUNING } from '../src/tuning.js'
 
 test('the archetypes come from content: every fused kind and every synergy, each with its combos in the book', () => {
   const all = ARCHETYPES()
@@ -40,13 +41,13 @@ test('the archetypes come from content: every fused kind and every synergy, each
 })
 
 test('a committed run plays toward its archetype alone: every target it reads is one of its combos; free play reads the book', () => {
-  // sim-0's expert falls on floor 1: a whole committed run in about a second.
+  // sim-10's expert falls on floor 1: a whole committed run in about a second.
   for (const arch of ['pale_court', 'channeler_4']) {
     const ids = new Set(archetypeCombos(arch).map((c) => c.id))
     let targets = 0
     withCommit(arch, () => {
       assert.equal(commitOf(), arch)
-      const run = createRun({ seed: 'sim-0' })
+      const run = createRun({ seed: 'sim-10' })
       autoplay(run, {
         act: (r, rng) => {
           if (r.state.phase !== 'battle') {
@@ -66,7 +67,7 @@ test('a committed run plays toward its archetype alone: every target it reads is
   }
   // Free play's target, once the draft is taken, is the whole book's best; committed elsewhere, the run reads another.
   useCommit(null)
-  const run = createRun({ seed: 'sim-0' })
+  const run = createRun({ seed: 'sim-10' })
   while (run.state.phase === 'draft') apply(run, policy(run, null, 'expert'))
   const free = targetOf(run.state)
   assert.ok(free && BOOK.combos.includes(free))
@@ -116,6 +117,10 @@ test('the pool\'s table: each floor\'s draws sum to one, a walk\'s chances to it
     assert.equal(r.reach, Math.min(...r.parts.map((x) => (x.fused ? reach(x.id) : x.byTwo))))
   }
   assert.deepEqual(Object.keys(t.synergies), SYNERGIES.map((x) => x.id))
+  // The draft's offers, each pick taken evenly: every pick offers TUNING.draft.offer floor-1 kinds.
+  const offered = Object.values(t.draft).reduce((a, b) => a + b, 0)
+  assert.ok(Math.abs(offered - TUNING.draft.picks * TUNING.draft.offer) < 1e-9, `draft: ${offered}`)
+  assert.ok(Object.keys(t.draft).every((id) => draftPool().includes(id)))
   const lines = poolLines(t)
   assert.ok(FUSION_LIST.every((r) => lines.some((l) => l.includes(`${r.result} `) && l.includes('reach'))))
 })
@@ -139,7 +144,7 @@ test('the report\'s shape: a row an archetype with its margin, and the diversity
     assert.equal(r.commit, null)
   }
   // The harness's own job: committed, its commitment put back after.
-  const c = await buildRecord({ seed: 'sim-0', commit: 'pale_court' })
+  const c = await buildRecord({ seed: 'sim-10', commit: 'pale_court' })
   assert.equal(c.commit, 'pale_court')
   assert.equal(c.player, 'expert')
   assert.equal(commitOf(), null)

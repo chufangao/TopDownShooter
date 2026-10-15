@@ -297,8 +297,10 @@ export const TUNING = {
   // counts toward neither.
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
   // The draft (run.js draftOffer): a run starts with the Monarch alone and takes `picks` souls before the first map,
-  // each the player's choice of `offer` different kinds drawn evenly from the floor-1 pool by the run's seed. The same
-  // kind may come again in a later pick. The user's call (2026-10-14): three picks of one of three.
+  // each the player's choice of `offer` different kinds drawn evenly from the floor-1 pool by the run's seed; after the
+  // first, an offer with no partner of a soul held (run.js partners: a kin-mate or a recipe's) gives one place to one
+  // (redesign.md §4.2). The same kind may come again in a later pick. The user's call (2026-10-14): three picks of one
+  // of three.
   draft: { picks: 3, offer: 3 },
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (mods on
   // `run.monarchHp`), and nothing else touches it. 250 since the fourth balance pass (2026-10-10), so one Pyre Hound's
@@ -341,12 +343,17 @@ export const TUNING = {
   // by tier, and prices growing by the floor, keep what a battle buys about level from floor to floor; the tier prices
   // are the fourth balance pass's (2026-10-10).
   essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
-  // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks;
-  // weights fall off with distance from the floor's target tier. fight/elite: foes per encounter on
-  // floors 1–4. foeHp/foeAtk multiply ordinary foes per floor; bossHp/bossAtk multiply the boss. Floor 1's elite is 2
-  // foes of the higher tier (and the late pair), so a rule-of-thumb run dies on floor 1 and an expert rarely does.
+  // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks. A room draws its
+  // kinds (run.js spawnPool) from those of tier at most tierOverCap above the floor's target tier (1 + (floor − 1) ×
+  // tierPerFloor, rounded down, at most tierMax; an elite's eliteTier more), each by its spawn weight / (1 + its tiers
+  // from the target)^tierFalloff. tierFalloff 1.5 and tierOverCap 2 since 2026-10-15 (were 3 and 1; redesign.md §4.2,
+  // placeholders): the tier-3 kinds together ~5% of a floor-2 fight's draws (were absent) and ~13% of a floor-3
+  // fight's (were 6%), the tier-1 kinds ~20% of floor 3's (were 10%), so a recipe's tier-3 keystone may come on a floor
+  // its tier-1 partners still do. fight/elite: foes per encounter on floors 1–4. foeHp/foeAtk multiply ordinary foes per
+  // floor; bossHp/bossAtk multiply the boss. Floor 1's elite is 2 foes of the higher tier (and the late pair), so a
+  // rule-of-thumb run dies on floor 1 and an expert rarely does.
   spawn: {
-    levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 1, tierFalloff: 3,
+    levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
     // Steepest at the bottom, where the expert's army has grown most; floor 1 is the basic player's wall already.
     foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: 1, bossAtk: 1,

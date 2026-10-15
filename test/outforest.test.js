@@ -23,10 +23,11 @@ import {
 import { createRng } from '../src/sim/rng.js'
 
 const L = LEVELS.expert
-// sim-540's expert drafts, then falls on floor 1 after three battles: two recruits and a purchase, a whole run in about
+// sim-10's expert drafts, then falls on floor 1 after five battles: three recruits and a purchase, a whole run in about
 // a second; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run clears,
-// and labelling it to the end takes minutes; sim-395 until the fusion graph, whose lines run longer.)
-const SEED = 'sim-540'
+// and labelling it to the end takes minutes; sim-395 until the fusion graph, whose lines run longer; sim-540 until the
+// pool was flattened, 2026-10-15: its run clears.)
+const SEED = 'sim-10'
 const CAP = 3
 
 // A phase's forest (outforest.json's shape) from trees given as nested nodes ({ f: an input's name, t: its threshold, l,
@@ -137,7 +138,7 @@ test('the labeller is deterministic, its run the base\'s untouched by its playou
     assert.equal(a.line.battles.fought, base.battles.length)
     for (const row of a.rows) {
       assert.equal(row.seed, SEED)
-      assert.equal(row.run, 540)
+      assert.equal(row.run, 10)
       assert.equal(row.split, 'held')
       assert.ok(row.options.length >= 2 && row.options.length <= CAP + 1)
       assert.ok(row.options.some((o) => o.f.none === 1))

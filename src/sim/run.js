@@ -171,10 +171,27 @@ export function createRun ({ seed, ablate = null, start = null, scale = 1 }) {
 // The kinds the draft draws from: the floor-1 pool, the kinds floor 1's rooms can bring (spawnPool), in content order.
 export const draftPool = () => spawnPool(1).units.map((u) => u.id)
 
-// The kinds the draft's pick `pick` (0-based) offers: TUNING.draft.offer different kinds of the pool (draftPool), drawn
-// evenly by the run's seed, a stream a pick, in the order drawn. A kind taken before may be offered again.
-export function draftOffer (seed, pick) {
-  return createRng(seed).stream(`draft|${pick}`).shuffle(draftPool()).slice(0, TUNING.draft.offer)
+// The kinds the draft's pick `pick` (0-based) offers, `held` the kinds of the souls taken before it: TUNING.draft.offer
+// different kinds of the pool (draftPool), drawn evenly by the run's seed, a stream a pick, in the order drawn. A kind
+// taken before may be offered again. From the second pick the offer holds a plan (redesign.md §4.2): at least one kind
+// that goes with a soul held (partners); a draw with none gives one of its places, drawn on the same stream, to one of
+// the pool's partners, drawn evenly. A draw that has one is the offer as drawn.
+export function draftOffer (seed, pick, held = []) {
+  const rng = createRng(seed).stream(`draft|${pick}`)
+  const pool = draftPool()
+  const offer = rng.shuffle(pool).slice(0, TUNING.draft.offer)
+  const mates = pool.filter((id) => held.some((h) => partners(h, id)))
+  if (!mates.length || offer.some((id) => mates.includes(id))) return offer
+  offer[rng.int(offer.length)] = rng.pick(mates)
+  return offer
+}
+
+// Whether kinds `a` and `b` make a plan together: they share a kin (a kind its own, so two of a kind is one), or a
+// recipe needs both (content.js FUSION_LIST; a kind with itself where it needs two or more of it).
+export function partners (a, b) {
+  const kin = unitDef(a).kin
+  if (kin && kin === unitDef(b).kin) return true
+  return FUSION_LIST.some((r) => (a === b ? (r.needs[a] ?? 0) >= 2 : r.needs[a] && r.needs[b]))
 }
 
 // The fixed start a log was played from: a log from before the draft (one that does not open with a pick) was played
@@ -542,8 +559,8 @@ const HANDLERS = {
   descend: { phases: ['over'], run: descend }
 }
 
-// A pick of the draft: the offered kind joins, free (join); the next pick's offer is drawn, or, the last taken, the
-// souls take the camp's default frontier and the map opens.
+// A pick of the draft: the offered kind joins, free (join); the next pick's offer is drawn for the souls now held, or,
+// the last taken, the souls take the camp's default frontier and the map opens.
 function pick (run, { index }) {
   const s = run.state
   const id = Number.isInteger(index) ? s.draft.offer[index] : undefined
@@ -551,7 +568,7 @@ function pick (run, { index }) {
   join(run, id)
   s.draft.pick++
   if (s.draft.pick < TUNING.draft.picks) {
-    s.draft.offer = draftOffer(s.seed, s.draft.pick)
+    s.draft.offer = draftOffer(s.seed, s.draft.pick, souls(s.party).map((u) => u.id))
     return
   }
   s.draft = null
