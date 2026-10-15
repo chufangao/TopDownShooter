@@ -1,1519 +1,387 @@
-# RETINUE: the dead take their turn
-
-The combat, enemy and content redesign decided on 2026-10-10, and the plan for building it. For Chufan and for any
-Claude Code session working in this repo: read this before touching `src/`. It supersedes the parts of `DESIGN.md`
-that say your pieces never move (§1, §3.1), the foe rules of §2.3–2.4 (halting, sight, retaliation, no foe reach),
-the rings, the gauge, the synergies' stat steps (§2.7), the Reliquary and the elites' relic offers (§2.6). Everything
-else in `DESIGN.md` stands: the board, footprints, roads, essence and prices, tracks and tiers, fusions, relics and
-their tiers and stacking, Arise's place, summons, the fallen, the default frontier, the interface frame. Section 5
-says what to build, who owns which files, and in what order.
-
-## 1. Why
-
-Played through, the game had one battle action: **Fight**. The sim ran to its end and the board played it back.
-Prep was two decisions, how to upgrade and where to place, and the default frontier made the second one for the
-player (`frontier` in `src/sim/run.js` stands the Knight on 18 to 21 of the 21 entry roads in every camp). The
-only decision left was what to recruit. The fusions ablation read 1 ± 2 points; relics were a stat nudge a run
-rarely noticed; nothing in a battle was the player's.
-
-Three balance passes found the same thing from the other side: foes walked past your pieces doing nothing, the
-army lost 6% of its HP a battle, defence never registered, and a run ended at the Monarch or not at all. One rule
-for every kind (walk the arrows, halt where you can hit back, strike what blocks you) is a rule a player solves once.
-
-So, reversed here, from `DESIGN.md`:
-
-- **"Your pieces never move."** They move now. Combat is turn-based on the same board: each piece moves, then
-  acts, and the player gives those orders. The old objection to orders was to lines drawn in prep and then
-  predicted; an order given on the turn resolves in front of the player, and there is nothing to predict.
-- **"Foes walk until they can hit back."** The enemy is one opponent now, not a crowd of walkers: every foe is
-  scored by one judgement with one shared picture of the board, and the kinds differ by temperament, not by code.
-  Into the Breach is the bar for the board (small, every number visible, the Monarch to protect); Civilization and
-  Wesnoth are the bar for the opponent (one pressure for the side, a danger map, one scoring function, per-kind
-  weights).
-- **"A reliquary is one free pick."** Relics are bought, and bought only. The Shop is the room, essence is the
-  price, and relics compete with tiers for the same scarce purse.
-
-And the redesign cuts as it goes: what the turn makes redundant (rings, the gauge, the dice and the three stats
-that fed them, the escalation ramp, the stat steps of the synergies) goes with it, and what remains is data a
-single record at a time (§2.13), so that adding a unit, a relic or a merge is one record and a test that says what
-it lacks.
-
-What stays true: foes walk the one drawn road and flyers the air road, blocked by your pieces, never through them;
-the dead never block; enemy behaviour is discovered, never previewed; defeat is absolute; floor 1 is hard, and the
-gap opens in the player's decisions. With dice gone, it opens nowhere else.
-
-## 2. Rules
-
-### 2.1 Board
-
-Unchanged (`DESIGN.md` §2.1): tiles, 8-neighbour, Chebyshev distance, `COLS` 7 by `DEPTH` 11, walls from the camp
-map, the Monarch pre-placed on `'M'`. Roads: the Walk field flooded from the Monarch's tile (`field`, to move from
-`src/sim/battle.js` to `src/sim/turns.js`), the air road over everything (`airOf`). Drawn in prep.
-
-### 2.2 Pieces and Move
-
-- A piece is one soul, one body, size 1 or 2, as `DESIGN.md` §2.2 has it. Summons and the fallen as there.
-- **A piece's stats are HP, ATK, DEF and Move**, and its blows' ranges. ACC, EVA and CRT are gone with the dice
-  (§2.6); their mods convert (§2.7).
-- Every kind has a **Move**: how many tiles it may go in a turn. `move` on the unit def replaces `stride` on both
-  sides. Placeholders until the balance pass, from today's gait (a step every 16 ticks, a turn 40): stride 0.5 → 1
-  (Iron Golem, Thorn Dryad), 0.75 → 2 (Tomb Knight, Frost Wyrm, Rot Bloat, Bone Colossus), 1 → 2, 1.5 → 3 (Frost
-  Sprite, Mantis Reaper, Pyre Hound); flyers 3; the Monarch 0. A 2×2 piece moves as one. `move` is a stat path, so
-  tiers, auras and statuses may add to it.
-- **Your pieces move freely** over open ground: walls block, a step never squeezes diagonally past a wall's corner
-  (`steps` in `src/sim/unit.js`), through your own pieces but never through a foe, never ending on a held tile.
-  A flyer of yours goes over walls and over anyone, and shares a tile with a ground unit as today (`battle.sky`).
-- **Foes move along their road only** (§2.9): a ground foe the arrows, a flyer the air road. Their choice is how far,
-  from nothing to their Move, never where. The board's arrows are the truth of where a foe can be.
-
-### 2.3 A round
-
-1. **Your turn.** Give orders in any order you like (§2.4), then **End Turn**.
-2. **The untouched act** (§2.5): every piece of yours that was given no act this turn strikes or mends by the old AI.
-3. **The foes' turn** (§2.9): the camp reads its pressure and its danger map, and each foe moves and acts.
-4. **The turn ends**: statuses tick (§2.8), cooldowns fall by one, a wave enters if its turn has come (§2.10), the
-   turn count advances, the battle is checked for its end.
-
-The run's `fight` action opens the battle (`phase: 'battle'`), and the orders go into the run's log like any
-action: `replay(seed, log)` plays the battle back exactly, order by order.
-
-### 2.4 Your turn
-
-- Each piece may **move**, up to its Move, then **act** once: its basic blow, a skill off cooldown, a heal, or Fuse.
-  **Move then act, never act then move**: where a piece strikes from is where it stands for the foes' turn.
-- A move may be **undone** until the piece acts (nothing hidden is revealed by a move; the sim is deterministic).
-- **A blow shows its damage before you commit**: the exact number (§2.6) on the target, and the counter it would
-  take (§2.6) on the attacker. Nothing of the foes' own turn is shown (§7).
-- **Arise is a skill of the piece that holds the relic** (§2.15; this replaced "the Monarch's act" the same
-  night): one corpse within its reach rises, of a tier the relic allows, chosen by the player. The Monarch holds no
-  relic, never strikes and never raises.
-- **Fuse in battle.** A piece with every part of one of its recipes standing within a tile of it (footprints
-  counted) may fuse as its act: the run pays `fuseCost` from the purse as it stood when the battle began, the parts
-  are consumed where they stand, and the result stands on the fuser's anchor at full HP with fresh cooldowns, its
-  kind's tiers and level as `DESIGN.md` §2.6 gives them. A 2×2 result needs its footprint free once the parts' tiles
-  are counted free; a recipe that would not fit is not lit. Synergies are read again as it rises. The out-of-battle
-  fuse is unchanged.
-- **Summons and shadows take no orders**: they act as the untouched do, every turn.
-
-### 2.5 End Turn: the untouched
-
-A piece of yours given no act this turn runs the old `chooseAction` with its **basic blow or its basic heal
-only**, from where it stands: a strikable foe in reach → the basic blow at the old target rule (the foe furthest
-along its road, ties by lane); else an ally it can mend → the heal (`helps`); else nothing. **Skills are the player's
-alone.** A player who ends every turn without an order gets the old autobattle, with no skills: that player is
-basic, and dies on floor 1.
-
-### 2.6 Blows, reach, counters, and no dice
-
-- **Reach is a blow's range, and nothing else.** The ring is gone: a piece's reach is the union of its blows'
-  ranges, a ranged blow its `range`, a melee blow its own `range` where it has one, else the kind's arm (1, or 2 for
-  Grave Ghoul and Mantis Reaper). The tiers that grew a ring grow a range. Melee from the ground never strikes a
-  flyer; a flyer's melee strikes a flyer.
-- **Reach is symmetric.** A piece, yours or a foe, strikes anything in its reach from where it stands after its
-  move. `DESIGN.md` §2.3's "a foe has no melee reach" and the retaliation rule are gone; so are `holdOf`,
-  `sighted`, `armed`, `closeIn`'s foe half, `wayOf`, the `walking` flag, `ringOf` and the stop line, which existed
-  to decide when a walker halts. The danger map (§2.9) decides that now.
-- **Counters.** A melee blow whose target survives, and stands within the target's own arm of the attacker, is
-  answered at once by the target's basic melee blow, both sides alike. A ranged blow is never countered; a piece
-  struck in melee counters only if its basic blow is melee (a Frost Sprite does not). One counter a blow; a Hexed
-  piece (§2.8) does not counter; a counter never counters.
-- **Deterministic** (§2.16: no dice at all, the path deleted). Every blow hits, none crits, damage is the mean of
-  what `computeDamage` gives today. ACC, EVA and CRT leave the stat block and
-  the cards; the content pass converts their mods: an EVA mod → DEF of the same percent (Veiled +20 EVA → +20% DEF;
-  the Will-o'-Wisp's 22 → DEF; Fae 2's step goes with the stat steps, §2.13), an ACC or CRT mod → ATK or damage
-  dealt of the same percent, Deadeye (Ranger 8) → ranged blows of yours deal 50% more. Placeholders.
-- Target rules for the untouched read the road: a foe's progress is its road distance to the Monarch (a flyer's on
-  the air road), as today.
-
-### 2.7 Skills and cooldowns
-
-The gauge is gone (`TUNING.gauge`, `castCost`, `spd` as a tempo, `cheapest`, `costliest`, banking).
-
-- **Every kind has a basic blow** (its cheapest blow today) and, most kinds, a basic heal; both usable every turn. A
-  tier that replaces a basic (Shatter Lance for Frost Lance, Spanner for Strike) replaces a basic with a basic.
-- **Every other ability is a skill, and every skill rests a turn: cooldown 2.** Used, it waits the next turn. No
-  number on any card: "a skill, then a turn's rest". The balance pass may grant an exception (`cooldown` on the
-  ability def, 2 where absent; Grave Tide may read 3), and the text says it only then.
-- **Conditions on skills go** where they only gated the old AI (`when` and `cond` on Mend, Purge, Barkskin, Dirge,
-  Deep Winter, Gear Lock and the like): your skills are yours to time, and a foe's are scored (§2.9). A condition
-  that *is* the rule stays (Killing Cold's "once a foe is below half HP" is an execute).
-- **Gauge in the content converts by this table** (21 draining blows, 11 "+gauge rate" tiers, 12 auras, three
-  relics, four statuses, Insect 2):
-
-| Today | Now |
-|---|---|
-| A blow drains 20–25 gauge (Frost Lance, Shatter Lance, Glacial Breath, Blizzard, Glacier Lance, Rimefire, Rimestorm) | The drain goes; the blow keeps its damage. |
-| A blow drains 30–40 (Quake, Hoarfrost, Spanner, Earthshatter, Deep Winter, Worldbreaker, Ice Age, Piston Slam, Bone Quake, Equinox, Kindled Lance, Steam Hammer) | Leaves it **Hexed** (§2.8). |
-| "Empties the gauge" (Wrench the Works, Gear Lock) | Hexed for 2 turns. |
-| +10–15% gauge rate (11 tiers, Dirgemaster I among them), an aura of it (12 auras), Insect 2's +6% | **+1 Move** (self; an aura's, the allies in it). |
-| Hasten, Enraged's and Desperate's gauge share | +1 Move, and cooldowns fall by 2 a turn. |
-| Hexed (−30% gauge rate) | The one status of its kind: loses its next act, does not counter. |
-| Hourglass (Arise gains gauge when the Monarch is struck) | Arise's reach +1. |
-| Bone Idol (Arise gains gauge when one of yours falls) | Arise's tier +1. |
-| Arcane Focus (the killer gains 40 gauge) | The killer's cooldowns fall by 1. |
-
-The effect op `cooldown` (an amount, to self or the target) replaces `gauge`; a drain that Hexes is
-`apply_status: hexed`. A `move` stat path takes the Move mods. The gauge bar on a sprite becomes a cooldown pip on
-its skill.
-
-### 2.8 Statuses in turns
-
-A status lasts **turns**, not ticks (`turns` on the status def replaces `dur`): today's `dur` ÷ 40, half down,
-so 80–100 → 2, 120–140 → 3, 160–180 → 4, 200 → 5, 620 and 760 and `'battle'` → the battle. A damage-over-time
-ticks once a turn, at the turn's end, for twice its per-second power (a turn is two seconds): Burning 12 a stack,
-Bleeding 8, Regen 48. Stacks and cleansing as now. Brittle, Withered, Barkskin, Veiled (as DEF), Shield, Enraged,
-Desperate keep their mods; **Hexed** is "loses its next act and does not counter until then", a debuff Purge and
-Molt cleanse, the one disabling status in the game; it always costs an act, even laid by a counter on a foe that has
-already acted (it lasts until its next act is lost). A status laid on a piece's turn counts that turn as its first.
-Every status carries a `colour`; the engine draws a generic pall in it unless a bespoke effect exists (§2.13).
-
-### 2.9 The enemy: one opponent
-
-The camp plays its side as one player would. Every foe turn:
-
-**1. Pressure (the side).** One number, `press`, from 0 to 1: it rises with the turns since the last wave entered
-(0 then, 1 after `TUNING.policy.press.turns`; never shown, §2.10) and is nudged by strength (up when the camp's foes could deal more to your pieces in reach than yours
-to them, down when less; `TUNING.policy.press`, placeholders). Low, the camp holds at the edge of your reach and
-shoots what it can; high, it comes in and trades; at 1 the Monarch is every foe's prey. The opponent gets impatient,
-not stronger. The player sees the horde stop at their rings and wait, then come. `press` in `src/sim/policy.js`.
-
-**2. Danger map (the side).** For every tile, how much damage your side could deal to a foe standing there on your
-next turn: each of your pieces, from every tile its Move reaches, its best blow against that foe (DEF counted), summed
-over your pieces (`danger` in `policy.js`; computed once a foe turn, 77 tiles by at most a dozen pieces). Drawn in
-prep as the one coverage overlay (§4): "it will not walk into my reach unless it can win the trade" is read off the
-board. The expert reads the same map the other way.
-
-**3. Scoring (the unit).** In road order (nearest the Monarch first, ties by lane then uid), each foe enumerates its
-options: a position (its road tile 0 to Move steps ahead, stopping at the first held tile: a comrade that stopped
-ahead of it blocks it, as walkers queue today), then from there an act (its basic blow at each piece in reach, each
-skill off cooldown at each target it may take, a heal or cleanse at each ally `helps` allows, or hold). One function
-scores every option:
-
-```
-score = dealt × (the target is its prey ? 1.5 : 1)
-      − caution × (1 − press) × taken          taken: danger[position] + the counter the act draws
-      + aggression × (1 + press) × gained      gained: road distance gained + the kill's worth, if the blow kills
-```
-
-`dealt` counts HP mended as dealt for a heal; a kill's worth is the piece's max HP, the Monarch's the battle; a Shape
-blow's `dealt` is the sum over what its shape covers. The best option is committed and the next foe scores against the
-board as it now stands. Ties: more road gained, the lower lane, the lower uid. No seed is read: the same board gives
-the same turn, every time, so the expert can play the foe turn ahead of its own, and a player who has learnt a kind
-can too. Focus fire, kill-finishing, kiting, screening and the queue all emerge from the scoring; none is a rule.
-
-**4. Temperament (the kind).** Three values on the unit def, `temper: { aggression, caution, prey }`; `prey` one of
-`weakest` (lowest HP), `wounded` (lowest share of HP), `unarmoured` (lowest DEF), `monarch`, `crowd` (where its shape
-covers the most), `rested` (the most skills off cooldown). The presets, and the kinds that start on them:
-
-| Preset | aggression | caution | prey | Kinds |
-|---|---|---|---|---|
-| Charger | 1.5 | 0.3 | weakest | Tomb Knight, Pyre Hound, Rot Bloat; Grave Ghoul `unarmoured` ("where the armour is thinnest") |
-| Shooter | 0.5 | 1.5 | weakest | Frost Sprite, Bone Chanter, Barrow Wight; Frost Wyrm at aggression 0, caution 2.5 ("makes the field come to it") |
-| Seeker | 1 | 0.8 | monarch | Will-o'-Wisp, Hive Drone, Ash Wyvern |
-| Keeper | 0 | 1.5 | weakest | Hive Warden, Clockwork Page, Thorn Dryad (they mend first, by `dealt`; caution keeps them behind) |
-| Sieger | 1.5 | 0 | monarch | Iron Golem |
-| Stalker | 1.5 | 0.8 | wounded | Mantis Reaper |
-| Hexer | 0.5 | 1.5 | rested | Marsh Hag |
-| Crowd | 1 | 1 | crowd | Ember Drake |
-| Court | 1 | 0.5 | weakest | Hollow Sovereign; phases by HP as now, a scripted override on top (§2.9.6) |
-
-A new kind is a row, not code. **The bestiary's way line is generated from the three values** (`temperLine`: "bold,
-heedless; hunts the weakest" / "wary, keeps its distance; hunts the one that cannot answer"), so it can never say
-what the kind does not do; the flavour text keeps hinting, and the line appears once the kind is met, as the ways
-do today (§7).
-
-**5. Entry.** Waves enter as they do today, on the lanes the room draws. (Reactive entry was proposed and cut: a
-rule the board could not show.)
-
-**6. Bosses.** The Sovereign keeps its phases and crumbling; a boss may carry a scripted override on top of its
-temperament (a fixed cadence for Grave Tide, the court moving first), as a rule in the registry (§2.13). Not in the
-slice.
-
-Walk and Fly stay as **how a kind moves** (the road, the air road); the way line says **how it thinks**.
-
-### 2.10 Waves, and no clock
-
-- **Waves enter on fixed turns**, shown on the wave counter ("wave 2 on turn 5"): `TUNING.spawn.waves.every`
-  turns apart (placeholder 4), the first at turn 1. The `share` and `t` triggers go. Sieges are three waves with no
-  prep between them. A wave's turn is time, not behaviour, so showing it breaks no rule (§7).
-- **There is no clock** (the user, 2026-10-10 night: "Remove clock from game"; it was a cap of 20 turns, a battle
-  undecided there lost, and a clock bar). No turn cap, no clock bar, no loss by time, no damage ramp. What ends a
-  battle is the camp's impatience: the pressure (§2.9.1) rises with the turns since the last wave, and **at full
-  pressure every foe advances along its road as far as its Move and the board allow** (its aggression is at least 1
-  there and the Monarch is its prey) **and tends no one** (no heal, cleanse or ward on its own side), so the horde
-  always comes and a battle always ends once you engage. Patience counts from each wave's first entry (a straggler
-  does not reset it). Only a passive side can still hold a battle forever (it heals the Monarch as fast as the foes
-  in reach hurt it); the autoplayer and the tests end such a battle at `TUNING.turn.guard` turns as a **stall**, a
-  loss with no killer, counted apart. Turn-by-turn play has no bound. The `clock` threat became `sustain`.
-- Won when no foe stands and no wave is left; lost when the Monarch falls. A boss's fall
-  crumbles its side. Defeat ends the run.
-
-### 2.11 Growth: the Shop
-
-- **Relics come from Shops, and only from Shops.** The Reliquary becomes the Shop (`shop` node; `reliquary` goes
-  from `src/sim/map.js`, `walk` in `src/sim/run.js`, the interface, the codex, the tests), and a won elite lays out
-  no relic: it pays essence (`TUNING.essence.eliteBonus` on top of its foes' pay: placeholder, a tier IV's price at
-  the floor's scale) and offers its recruit, as any fight does. `relicOffers`, `legendaryOffers`, `offerGroup` and
-  the elite's one-of-each go.
-- **A Shop stocks `TUNING.shop.relics` (4) relics**, drawn by tier as the reliquary's were (`relic.weights.shop`),
-  **one of them always a Command relic** (what the elites' guarantee was, so army size is never luck), and from
-  floor 2 one a Legendary (`relic.legendary`, the `needsArise` rule as now). **Every relic has a price** and you
-  buy any number: `TUNING.shop.price[tier]` (Common 36, Uncommon 60, Rare 96, Legendary 144: a tier II, III, IV and
-  one and a half; placeholders) × the floor's price scale (`floorPrice`), after the discount relics. Copies stack,
-  no cap, as now; a bought relic may be stocked again later. Nothing else is sold: tiers are bought on the field at
-  any time. Leaving is free.
-- **Shops are common**: `MID_WEIGHTS` reliquary 2 → shop 3, `RARE` 3 → 4, `LATE_WEIGHTS` 0.5 → 1, so an average
-  walk meets about 2.5 shops a floor (it met 1.1 reliquaries and 2.3 relic-paying elites).
-- Essence buys tiers, recruits, fusions and relics. Prices stay floor-scaled and money keeps mattering: a relic
-  taken is a tier not taken.
-- Recruits, tiers, fusions, levels, Command and the relics' own rules: `DESIGN.md` §2.5–2.6, unchanged but as
-  §2.13 restates their form. Two-part recipes and new fused kinds are a later content step (§5).
-
-### 2.12 Synergies: rules only
-
-The stat steps go (`DESIGN.md` §2.7's 2/4/6/8 with +DEF, +ATK, +EVA and the rest: the ladder the balance passes
-had to double to see at all). **Each kin and each role has one rule, at 4 pieces** (a piece counting once, a
-shadow and a summon as now): the rules that stood at 8 (Legion, Dragonfire, Deadeye, Echo, Sanctuary, Ambush,
-Bodyguard, Mirage, Last Stand, Frenzy, Deathblow and the others) move to 4. Where a rule proves too strong at 4 the
-balance pass may split it (a lesser form at 4, the full at 8); that is the only step. Synergy glow on the board as
-now. Foes' cohorts count too, **on every floor** (the user, 2026-10-10 night: the deep-floor gate went with the
-stat steps it guarded).
-
-### 2.13 Content is data
-
-The rule for every piece of content, enforced by `test/content.test.js`: **content is records composed from a small
-vocabulary, and code grows only when the vocabulary grows.** Three forms and one registry:
-
-1. **A unit is one record**: its def with `base` (HP, ATK, DEF, Move), `kin`, `role`, `size`, `flies`, `arm`,
-   `abilities`, `tracks` (folded into the def from `TRACKS`), `temper`, `threat`, `flavour`, `spawn`, `onFall`,
-   `fused`; its three pictures by the convention `src/assets/units/<id>.alive|attack|dead.svg`, or `art: '<id>'`
-   naming another kind's pictures to borrow until its own are drawn (a fused kind plays before it is painted). The
-   only kind the code names is `monarch`; `START_PARTY` in `src/sim/run.js` names the three start souls, and the
-   autoplayer's `FILLER` is derived from the floor-1 pool, not written.
-2. **An ability is ops, a shape, an anim**: `effects` from the op vocabulary (`damage`, `heal`, `cleanse`,
-   `apply_status`, `raise`, `cooldown`), a `shape` (single, blast, column, row, all, corpse), `range` or `melee`,
-   `anim` (cast_beam, melee_lunge, ranged_bolt) and `tint`, `cooldown` only where not 2. The policy scores it
-   generically (damage, HP mended, a status's worth from `STATUS_WORTH`); the engine draws it by its anim. A new op
-   is a sim change with its own test; a new anim an engine change; nothing else is code.
-3. **A relic is `mods`, or `on` + `effects`, or `rule`.** The sixteen bespoke keys today (`command`, `monarchHp`,
-   `roster`, `recruitDiscount`, `tierDiscount`, `lowTierDiscount`, `soulTiers`, `essence`, `arise`, `raises`,
-   `domain`, `tithe`, `rise`, `alias`, `reap`, `unhealable`) collapse: Command, the Monarch's HP, the roster, the
-   discounts and essence gain become `mods` on run-level stat paths (`run.command`, `run.monarchHp`, `run.roster`,
-   `price.tier`, `price.lowTier`, `price.recruit`, `essence.gain`), read by the same `modsFor` that reads a unit's;
-   Arise and its growth, Undying, Mimicry, Hollow Court, Blood Tithe, Court of Bone, Soul Lantern become `rule`
-   entries with `params`. **A Common, Uncommon or Rare relic never has a `rule`**; only a Legendary may.
-4. **One registry for rules**, `src/sim/rules.js`: `RULES = { legion: { onFall }, dragonfire: { onBlow },
-   sanctuary: { targets }, arise: { onTurn, params }, … }`, each rule its hooks in one place, used by synergies,
-   Legendaries and boss overrides alike. The thirteen `has('…')` branches scattered through `src/sim/battle.js`
-   become hook calls at fixed points in `turns.js` (`onBlow`, `onStruck`, `onFall`, `onKill`, `onTurn`, `onWave`,
-   `targets`, `modify`). A new rule is one entry in one file.
-
-The test is the checklist. A kind fails until it has two tracks of four, a Move, a temper, a threat, pictures or an
-`art`, and every ability resolves; an ability fails if its op, shape or anim is not in the vocabulary; a relic fails
-if its tier and form do not match, or names a rule the registry lacks; the registry fails if a rule is used by
-nothing; a recipe fails if its result is not a fused kind. "Add a unit" means "make the test pass":
-
-| Add | Touches |
-|---|---|
-| a unit | one record, 3 SVGs (or `art`), `--combos` |
-| an ability | one record, if it composes existing ops, shapes and anims |
-| a relic (Common–Rare) | one record |
-| a Legendary with a new rule | one record + one registry entry |
-| a merge | one recipe line + one unit record |
-| a temperament | three values on the unit |
-
-### 2.14 Cut
-
-The gauge and everything that read it; `stride` on both sides; `tick`, `stepTicks`, the tick ceiling and the whole
-of `escalation`; the ring, `ringOf`, the ring tiers (now range), the coverage and ring overlays and the stop line;
-`holdOf`, `sighted`, `armed`, `wayOf`, the `walking` flag, QUEUE/STUCK/HALT; the foe melee reach rule and
-retaliation; `settled` (a rehearsal ends at the cap); hit, crit and variance from the default path (kept behind
-`TUNING.dice`) and ACC, EVA, CRT as stats; the synergies' stat steps; the AI-gating `when` conditions; the
-Reliquary; the elites' relic offers; Arise's raise cap, cooldown and haste; the waves' `share` and `t`; the sixteen
-relic keys and `TRACKS` as a table apart from the units. Never born: Slow, Stagger, Nimble, the three postures,
-reactive entry, the Shop's tiers.
-
-Vocabulary after it: Piece, Summon, Road, Wave, Shadow, Essence, Tier, Fusion, Synergy, Relic (Common, Uncommon,
-Rare, Legendary), Command, **Turn, Move, Skill, Cooldown, Counter, Shop**. Seventeen, plus the ways (Walk, Fly), the
-statuses, and the bestiary's way line. Ring and Gauge leave.
-
-### 2.15 Held relics and Arise (2026-10-10, night)
-
-The user's word: "make arise a relic you can use to upgrade a unit (units can hold at most 1 relic (tunable))", and
-of the options, piece relics held, run relics not; Arise a skill that rests.
-
-- **A relic is a run relic or a piece relic.** A run relic touches the run or the whole side: `mods` on the run's
-  paths only (`run.command`, `run.monarchHp`, `run.roster`, `price.*`, `essence.gain`, `arise.domain`,
-  `arise.tier`), plus a side-wide cost where it has one (Legion's −15% HP). It works unheld, as relics did, and its
-  copies stack without cap. **Every other relic is a piece relic** and works only through the piece holding it: its
-  `mods` are the holder's, its `on` triggers fire on the holder's events (`kill` when the holder slays, `struck`
-  when it is struck, `fall` when it falls, `blow` when it strikes, `wave` on each wave while it stands), a
-  Legendary's `rule` is scoped to the holder. The content test holds the form: a run relic names only run paths, a
-  piece relic none.
-- **A piece holds at most `TUNING.relic.perPiece` relics (1).** Bought piece relics wait unheld (the Relics strip
-  beside the ossuary) until given. **Give, take back and swap freely out of battle** (prep, a Shop, the spoils),
-  never in battle: actions `{ type: 'hold', relic, uid }` and `{ type: 'unhold', uid }`. A held relic stays with
-  its soul in the ossuary and works only on the field. It comes back unheld when its holder is released or fused
-  away; a fallen holder keeps it. Copies of a piece relic stack only across holders, one each.
-- **Arise**, a Legendary piece relic: its holder gains the skill **Arise**: one corpse within `TUNING.arise.domain`
-  tiles of the holder, of tier ≤ `TUNING.arise.tier`, rises as a shadow of yours, the player's choice among those
-  that qualify. **No turn's rest** (2026-10-11, after the balance pass found the expert never bought or used it:
-  "content change"): Arise is a skill usable every turn, its reach 7 and tier 4 (placeholders, were 5 and 3). More
-  copies are more raisers; `arise.more` goes. Hourglass and Bone Idol
-  are run relics on `arise.domain` and `arise.tier`, every raiser's. The other Arise Legendaries are **Arise
-  variants**, each a piece relic that grants Arise with its rule on top: Court of Bone (2 tiles farther; nothing
-  heals the Monarch), Hollow Court (the shadows its holder raised that stand at a win pay their essence again),
-  Blood Tithe (its holder's Arise raises two corpses a turn, each shadow costing the Monarch 2% of its max HP; it was
-  "no turn's rest" until Arise itself lost the rest). `needsArise` reads "once an Arise relic is owned".
-- The other Legendaries scope to the holder: Undying (the holder rises once a battle at 60% HP), Mimicry (the
-  holder counts as a Warden too, for synergies). One a piece: a Legendary's copies are more holders.
-- **Interface**: a relic slot on every piece's card and panel; tap an unheld relic, then a piece (or the slot) to
-  give it; the card's relic shows on the sprite as a small mark. A relic card says Held or Run.
-
-### 2.16 No dice (2026-10-10, night)
-
-The user's word: "remove dice rolls as much as possible". **The battle reads no random number.** Deleted:
-`TUNING.dice` and the dice path (`hitChance`, `critChance`, `rollVariance`, `TUNING.hit`, `crit`, `variance`, the
-battle's rng), ACC, EVA and CRT from every stat block, and **every status `chance`**: a status an effect lays always
-lands (the hidden cadence goes); where a chance kept a status rare, the balance pass lowers its turns or the blow's
-power. Deathblow (a sure crit) becomes an execute: a blow of yours on a foe below a quarter of its HP deals double
-(placeholder). The run's draws (the map, the rooms, the recruits, the Shop's stock) stay seeded: they are the run,
-not a roll. This reverses §2.6's "kept behind the switch" and closes §6's open question on dice.
-
-### 2.17 The expert scores; it never rehearses (2026-10-10, night)
-
-The user's word, after the first try at a planner that played the foes' turn ahead and a run that cost 15–20 s:
-"the expert should be a very carefully balanced decision tree / score based with rules and whatnot (maybe a more
-advanced neural network later). It shouldn't rehearse each fight", and "in-battle turn be pure scoring too".
-
-- **Every decision the expert makes is one shape**: read the **situation** (one read a decision: threats to the
-  Monarch by road and turns-to-reach, each piece's danger, killable foes, cooldowns and Hexes on both sides, synergies
-  gained or about to break, waves due and where, the camp's patience as the public counts show it; out of battle the
-  purse against prices, wounds, the combo's progress, the scouted rooms ahead), then a **decision tree of hard
-  invariant rules** (the user: "a decision tree + weights for hard invariant rules", "and good situational
-  awareness"): named nodes in order that force an option, filter out the ones that break an invariant, or pick a
-  mode (never leave the Monarch to a lethal turn when an option prevents it; never end a move where the piece dies
-  for nothing; an unheld relic is always given; the field always filled), then **weights** score what the tree leaves.
-  The tree's thresholds and the weights live in one table, `TUNING.expert`, the seam where a learned model may later
-  replace them. Every decision records the node that decided it.
-  **Nothing is decided by simulating a battle or a turn of the foes**: no rehearsals, no route rollouts, no room
-  vetoes by rehearsal, no lookahead. The foes' policy is not called by the expert.
-- **In battle**: pieces commit one at a time against the board as it stands (so a kill, focus fire and a blow's
-  exact damage are known, the battle having no dice), each option scored by features: damage dealt, kills and their
-  worth, the danger map at the tile it ends on (what the foes could deal there next turn, a static read), the counter
-  drawn, the Monarch's exposure (open roads into it, foes within their Move and reach of it), screening, healing the
-  most threatened, a fusion's worth against its essence price, Arise's shadow. A few piece orders may be tried and the
-  resulting boards compared by a static evaluation; no foe turn is played.
-- **Out of battle**: the formation hill-climbed on a static score (the danger map your pieces project on the road
-  tiles the scouted foes will use, the foes' threat to each of your tiles, blockers on the roads into the Monarch,
-  shooters behind blockers, healers beside the most threatened, the Monarch's exposure, synergies, an Arise holder
-  near where foes will fall); the route by each room's type and the army's state (strength against the room's scouted
-  threat by a formula, wounds to an altar, the purse to a Shop, the combo target's wanted kinds); spending and holding
-  as the growth search already scores them; the combo book ranked by a static formula in seconds.
-- Basic keeps its rules of thumb and loses its rehearsal (its first draft). The analysis tools that refight saved
-  battles (`--necessity`, `--decisions`) measure, not decide, and stay.
-- The balance pass tunes `TUNING.expert` with the game's numbers: "carefully balanced" is its job.
-
-### 2.18 The expert's plan (2026-10-11)
-
-Asked whether the expert moved its pieces well, the answer was "piece by piece, not as a team": each piece chose its
-tile alone each turn, nothing held a road with two, nothing walked two turns to a place, and the Monarch was screened
-only once threatened. The user: "how do we make it move and plan correctly?", then "yes" to this. Still no
-simulation (§2.17): a plan is read and kept, never played out.
-
-- **A battle plan, chosen by the tree and kept across turns.** Once a turn the situation picks one of a few plans by
-  hard rules and weights: **hold** (a line on the roads into the Monarch at the edge of the foes' reach; let them
-  come into overlapping fire), **focus** (go and fell a key foe: a healer that would stall, a shooter that picks at
-  you), **push** (take the fight to wary foes that will not come), **protect** (close about the Monarch when it is
-  threatened). The plan stands until the situation changes it (a wave enters, a piece falls, the Monarch comes into
-  reach, its goal is met): no dithering, and movement that spans turns.
-- **A target formation for the plan.** Roles to tiles, read off the board: blockers on the roads' choke tiles (the
-  roads are drawn and fixed), shooters on the tiles behind them that cover the choke, healers beside the blockers, an
-  Arise holder by the kill zone, a piece that can strike a flyer where the air road comes in. Pieces to roles by an
-  assignment (pieces × roles, scored by fit). Each piece walks toward its tile over the turns it takes. Prep's
-  formation is the same function's first answer, so where you deploy and where you move are one idea.
-- **A kill list each turn, by arithmetic.** With no dice, your own blows' damage is exact: which foes your pieces can
-  fell this turn, together, and who strikes whom, in what order. Focus fire by design, not by accident.
-- **A forecast of where the foes will stand, by rule.** A foe's road and Move bound where it can be; its temperament
-  (public once the kind is met) says where it would rather be: the bold to the edge of your pieces, the wary outside
-  your reach. A cheap read; the camp's policy is never called.
-- **The piece scorer stays**, with features for the plan: progress to its assigned tile, its role held, its part in
-  the kill list. The tree's invariants stand above it (never die for nothing; never leave the Monarch to a lethal
-  turn).
-- **Correctness is tested, not assumed**: a suite of tactical puzzles with known right moves (hold the choke rather
-  than chase; the shooter behind the blocker; the healer first; two turns' walk to the choke; never into the danger
-  map for nothing; a road walled by two) and an ablation `moves` (the expert acts but never moves: what movement is
-  worth). Then the weights are searched again (§6) and measured against the old expert's bar.
-
-- **Then (2026-10-11), after a search found no gain** (the expert at ~34–36%, its Monarch felled in 168 of 170 lost
-  runs, mostly by reach): the user took three expert changes and one rule (§2.19). **A, the line out of range**: the
-  target formation holds each road at the first tile where every scouted foe on it is out of reach of the Monarch
-  (not merely at the choke); **B, the Monarch's shooters first**: a hard rule: a foe whose reach covers the Monarch,
-  now or by the forecast next turn, is the focus, the kill list's first, and the plan turns to focus or push to reach
-  it; **C, the Monarch's HP is the run's**: its wounds carry between battles (it heals a fifth after a win, nothing
-  under Court of Bone), so the situation reads its carried HP: the route rules take an altar sooner and refuse an
-  elite when it is low, and in battle the protection weighs more as it falls.
-
-### 2.19 Lines of fire (2026-10-11)
-
-The user's choice, to make screening the Monarch a real skill and placement matter again (formation ablated to ~1
-point once pieces moved).
-
-- **A ranged blow strikes the first piece of the target's side on its line.** The line runs from the attacker's tile
-  to the target's (a 2×2 piece's nearest footprint tile), over the tiles it crosses (a supercover line: a tile the
-  line touches counts, so no blow slips between two diagonal blockers); a piece of the target's side on a tile
-  strictly between takes the blow instead, the first such piece from the attacker. The shooter's own side never
-  blocks it: a shooter fires over its friends. Both sides alike.
-- **What it applies to**: a single-target blow from range (`range` above 1). Melee (a reach-2 arm too), shapes
-  (blast, column, row, all) and a blow that `arc`s (a lobbed or a cast blow, marked on the ability: Skyfall, Killing
-  Cold, Grave Tide and the like, whose text says "anywhere") ignore lines. A flyer on the air layer blocks and is
-  blocked like any piece (the line is the board's, not a layer's).
-- **Shown before you commit**: the preview names the piece the blow will strike (`preview().struck`), the line is
-  drawn from the shooter, and the damage number stands on the piece that takes it. Your danger map and the foes'
-  scoring count lines; a foe's choice of target is unchanged in kind (it scores the piece it would actually strike).
-- Counters, Hexed, Bodyguard and the rest as before; a Bodyguard redirect comes after the line (the line picks who is
-  struck; Bodyguard may then take it from that piece).
-
-### 2.20 The expert learns from its losses (2026-10-11)
-
-After A–C the expert cleared ~38% on 256 seeds against the old rehearsing expert's 47%: it wins ~97.7% of its battles,
-and over ~40 battles that compounds to ~39%; 90% needs ~99.7%. The losses are rare and decisive (the Monarch felled in
-168 of 170 lost runs; about half the lost runs end in an elite, mostly on floors 1–2). The user took both remedies:
-
-- **The losses studied**: the fatal battles of many lost runs read and grouped by pattern (the room, the threats, the
-  turn the Monarch fell, what the expert chose), and a feature or a tree rule written for each common pattern, each
-  measured. No simulation in play.
-- **Learned risk, offline**: two small models fitted on thousands of cheap runs and shipped as coefficients
-  (`src/sim/risk.js`, its data `src/sim/risk.json`), in the spirit of the combo book: a **position risk** (from a
-  battle's situation features, the chance the Monarch falls within a few turns) read by the expert's board evaluation
-  and tree, and a **room risk** (from the army and the scouted room, the chance it loses the room) read by the route.
-  Logistic models first (a neural network may replace them later behind the same interface); validated on held-out
-  runs; regenerated by a script when the game's numbers change. At play time they are a weighted sum like any
-  feature: still pure scoring.
-- **Removed (2026-10-11, night)**, at the user's word ("revert the old logistic regression code"): the two
-  logistic risk models (`risk.js`, `risk.json`) were never read by the expert, and the learned tree (§2.22) learns
-  from per-option playouts instead.
-
-### 2.21 The learned expert (2026-10-11): plan
-
-**Why.** The scoring expert (§2.17–2.20) plateaued: about 38% clears on 256 seeds against the old rehearsing expert's
-47% on the bar seeds, and every change since (two weight searches, the plan layer, A–C, defending by killing) moved
-it within ±3 points. It wins ~97.7% of its battles; a run is ~40 battles, so it needs ~99.7% to clear 90%. Hand-written
-features summed by weights cannot express the interactions that lose those rare battles ("this screen matters only if
-that shooter lives"; "these two kills together free the Monarch"). Civilization's and Polytopia's AIs are built the
-same way (an analysis map, zone postures, a prioritised list of moves; difficulty from economic bonuses) and are weak
-players by design; ours must be a strong one, because it measures the game. The user asked how to train an AI
-efficiently when every piece may go to many tiles and the choices compound; this is the answer, to be built.
-
-**At play time (fast; the foes' turn is never played).**
-- **The turn factored.** Pieces decide one at a time, each on the board as the ones before left it (10 decisions of
-  ~15 options, not 15¹⁰ joint turns), with a small beam of partial turns (B = 4) so order-dependent combinations
-  survive (soften with the shooter, finish with the melee). The order pieces go in is part of the beam.
-- **Afterstates.** Your own orders are exact (no dice; the foes act only after End Turn), so each option's resulting
-  board is computed, not guessed, and scored by one learned function **V(board)**: how good this board is for you.
-  Thousands of options that leave like boards share one value, as in TD-Gammon.
-- **Options pruned to the meaningful.** Per piece, ≤ 12–15: a tile to strike each target from, a tile on a line of
-  fire into the Monarch (a screen), its role tile from the plan (§2.18), the best tile out of danger, stay. Today's
-  scorer picks them (it becomes the prior, not the judge).
-- **V**: a small network in plain JavaScript (no dependencies): ~150 inputs (the situation read, §2.17, and slots for
-  the nearest 12 foes and your 10 pieces: HP share, Move, reach, road distance to the Monarch, a line of fire to it,
-  cooldowns, statuses, role), two hidden layers of 64, outputs P(battle won), the Monarch's HP lost and yours (the
-  next two turns and to the battle's end) combined into one value by fixed weights. ~20 µs a board; a turn ≈ 10
-  pieces × 15 afterstates × B → ~3–12 ms; a run ≤ ~5 s. It reads only what a player sees: never the camp's pressure,
-  never its coming turn.
-- **The tree stays above it**: the hard invariants (§2.17) filter options before V scores them; the audit records
-  the rule that decided, or `value`.
-- **Out of battle**: a formation chosen by V of the battle's opening board over the drafts and a hill-climb (no
-  rehearsal); the route by the learned room risk (§2.20) and the expected gain; spending as now.
-
-**Training (offline, like the combo book; `npm run train`, the weights in `src/sim/value.json`).**
-- **Every decision a sample, not every run.** A weight search gets one number a run; V learns from every board of
-  every battle (thousands a run; 1,000 runs ≈ millions, ~7 min on 8 cores).
-- **Dense targets.** TD(λ) across turns plus the battle's end, and the next two turns' Monarch HP lost, your HP lost
-  and foes felled; the position-risk model (§2.20) as a ready dense signal.
-- **The disasters replayed.** The sim is deterministic: snapshots of lost and near-lost battles replayed hundreds of
-  times with exploration over the top options, oversampled to about a third of the data, so V learns the rare
-  positions that end runs.
-- **Self-play rounds.** Round 0 from today's expert; train V; play with V (a little exploration); retrain on all
-  rounds; 3–5 rounds, a round kept only if the paired ladder gains.
-- **A teacher, optional and offline only.** For hard positions a slow search that does play the foes' turn labels the
-  better option, and the fast V learns to match it (expert iteration). Never shipped. Off until the rounds plateau.
-- Adam, minibatches, L2, early stopping on held-out runs (seeds ≡ 0 mod 5); validated by held-out loss and
-  calibration, the paired ladder, the bar seeds, the puzzles and the cost a turn.
-
-**Targets.** Clearly above the 47% bar on its seeds (aim ≥ 60%) at ≤ ~5 s a run; then the balance pass (§5 Step 7's
-targets) with this expert as the reference.
-
-### 2.22 The learned decision tree (2026-10-11): plan
-
-**Why.** The learned value (§2.21, step 8b) told won battles from lost ones (AUC 0.976) but could not rank a turn's
-options: a battle's outcome is too coarse a label for which of fifteen moves was right, and the weight searches
-before it learned from one number a run. And the expert's hard rules (§2.17) were written, not earned: "never die
-for nothing" is wrong exactly when a sacrifice saves the Monarch. The user: "what if the hard rules are wrong? Can't
-we design it such that experts can be a flexible set of rules + weights?", then "it should be a learned decision
-tree".
-
-- **The expert is a learned model tree.** A shallow decision tree (depth ≤ 4) over a **vocabulary of conditions**
-  (named predicates on the situation read, §2.17: "the Monarch's danger above x", "a shooter has a clear line on
-  it", "foes within two turns", "a wave due", and today's rules' conditions), its splits and thresholds learned;
-  **each leaf holds its own weights** over the option features, and the best-scoring option is taken. A decision
-  records its path (the conditions it passed) and leaf, so it reads as "the Monarch in danger and a shooter on a clear
-  line: the kill-the-shooter weights".
-- **Rules are soft and learned.** Each of today's hard rules (no-waste, monarch-lethal, kill-first, never-die,
-  hold-the-line…) becomes a candidate with a learned on/off, threshold and strength (a large strength is hard in
-  effect, a small one advice the weights may outvote). Only **legality** stays hard: what the game refuses is never
-  an option. A rule the evidence contradicts weakens or goes, and the audit shows it.
-- **An expert is a configuration, not code**: its tree, thresholds, rule strengths and leaf weights in one data file
-  (`src/sim/expert.json`) over a fixed vocabulary in code. Other experts (a cautious one, a weaker one for a
-  difficulty, the basic player) are other files. A new condition is one entry in the vocabulary; the learning
-  decides whether and where it helps.
-- **Labels by playing options out, offline.** Sampled positions from real runs (weighted to the dangerous: lost and
-  near-lost battles, a Monarch in reach): each of the expert's options applied, the foes' real turn played (the
-  camp's policy is deterministic), one or two turns more by the current expert; the option's playout value = the
-  Monarch's HP, yours, foes felled, a battle lost. Per option, not per run: millions of comparisons. The shipped
-  expert never plays the foes' turn; this is training, like the combo book.
-- **Fitting**: greedy splits chosen from the vocabulary by how much they improve a ranking loss (options ranked as
-  their playouts rank them), leaf weights by that ranking loss with L2, a minimum leaf size; rule strengths and
-  thresholds fitted the same way; positions no leaf fits well point to a missing condition to add. Rounds: label with
-  the current expert, refit, measure paired on 256 seeds, keep only gains; 2–3 rounds.
-- **Fast**: a turn is a few comparisons and a dot product per option; the beam (§2.21) is off by default (it gained
-  nothing at 20× the cost); the turn back to about a second a run.
-- **The inputs and the output.** For each piece's decision, in order: the **situation** (one vector a decision, ~50
-  numbers: the Monarch's HP, danger and lethal, lines of fire now and next turn, threats by road and turns to reach,
-  foes by threat type, the wave due, the turns since a wave, killable foes, your pieces' exposure, synergies, the
-  plan) picks the leaf; each **option's features** (~30 numbers: damage, kills and their worth, damage on the
-  Monarch's threats, danger where it ends, a fall, the counter drawn, a screen, the Monarch's danger removed,
-  progress to its role, its part in the kill list, mending, a status's worth, a fusion's worth against its price,
-  Arise's shadow) are scored by the leaf's weights and the soft rules; the **output** is one option (a tile, an act,
-  a target) and the audit's path and leaf.
-- **Coordination** (the user asked how; one piece at a time is fast but greedy), cheapest first, each learned from
-  the same playouts and kept only if it gains on paired seeds: (1) **features that credit helping**: the lines of
-  fire on a threat an option opens for the allies still to act, the strikes it frees (a screen or block that spares
-  an ally a counter or a blow), whether another piece would do the same job better, whether its target is an ally's
-  on the kill list; the labels already carry the teammates' follow-up (the turn is completed by the expert after each
-  option), so these let the tree see why; (2) **a team assignment each turn**: pieces to jobs (the kill list's targets
-  with the damage each needs, a kill shared by two; the screens on lines into the Monarch; the role tiles) by the
-  assignment the formation uses, a bonus for doing its job, the bonus learned (Civilization V's units-to-targets
-  step, its values learned); (3) **a learned piece order**: "which piece next" a decision of the tree's own (what a
-  piece's move would block or open for the rest), learned from playouts of orders; (4) **a small beam** (2–4 partial
-  turns scored by the leaves) only if it beats 1–3.
-- **The route by the same machinery**, with battle (half the lost runs end in an elite, mostly on floors 1–2): each
-  room choice's options played out offline (the room fought by the current expert, and the next), labelled by
-  survival, the Monarch's HP and yours, essence gained; the route's tree over the run's situation (the army against
-  the scouted threat, the Monarch's carried HP, the purse, the floor and rank). The formation after.
-
-### 2.23 The ranker: a strong and fast expert (2026-10-12): plan
-
-**Why.** The audit of the labels to the battle's end (250 runs of today's expert, 20,954 positions, every option of a
-shortlist of ≤ 16 played out to the battle's end by today's expert): of the 183 battles the expert lost (each a run
-lost), **133 (73%) held a shortlisted option whose playout won**, on every floor (53 of 67 on floor 1) and in every
-room (75 of 100 elites); the saving option came a median 13 turns before the end. 89% of the saving options pass
-today's hard rules (they forbid every saving option in 6.5% of the positions). But today's own score ranks the best
-saving option **sixth** of ~11 (in its top 3 a quarter of the time), and against the option taken it deals less damage
-(−29 HP), kills and Hexes less, and ends in more danger: it is a move (a screen, a block, a walk) where the expert
-struck. So the runs are lost in the battle, by a damage-greedy turn, and no reweighing of today's linear score finds
-the save (two CMA-ES searches made those weights, scored by mean progress: fast average play, not the rare fatal
-battle). The user: "It should be a strong and fast model", and "go".
-
-- **The model.** Each option of a piece's decision: today's score (the model tree's leaf weights and soft rules, as
-  now) **plus a learned correction**, `net(situation ⊕ option ⊕ piece)`, a small network in plain JavaScript (~125
-  inputs: the 68 conditions standardised; the 34 option features standardised and again relative to the position's
-  other options, so "the least endangered of my options" is read; the option's kind, stay / move / act / move and act /
-  fusion; the piece's role and size. Hidden 64 and 32, ReLU; one output). Today's hard rules filter first, then the
-  best total is taken. The last layer starts at zero, so an untrained ranker plays today's expert move for move, and
-  L2 toward zero keeps it there wherever the data is thin. ~15 µs an option, ~1 s a run on today's ~3.4 s. Shipped
-  as weights (`src/sim/ranker.json`, read like `value.json`; absent, today's expert); the audit records the rule that
-  decided, else `net` and its margin over what today's score alone would take.
-- **Trained to copy a teacher, offline.** The teacher is today's labeller as a player: at each piece's decision every
-  option of the shortlist played out to the battle's end by the current expert, the best taken, ties by the expert's
-  own score (every losing option is worth −10 alike). It is never worse than the expert it plays out with (the
-  playouts are exact: no dice) and it is never shipped, like the combo book. Its labels train the ranker by a ranking
-  loss over each position's options (the decisive positions weigh more), Adam, early stopping on held-out seeds.
-- **Rounds.** Round 1 on the 20,954 positions and ~250 runs more, today's expert the continuation. Then each round
-  plays the ranker's own runs, labels with the ranker as the continuation (so no label leans on today's expert to do
-  later what the option did not: the learned tree's failure, §6), refits on all rounds, today's hard rules soft from
-  round 2. A round is kept only on a paired gain on fresh seeds (768–1,024), never on the seeds it was chosen on.
-- **A gate on the features.** After round 1, held-out agreement with the playout-best on the decisive positions of
-  lost battles (today's: 0.4%). Low, and the features lack what the save needs: "after the move" features (the
-  Monarch's danger once the foes answer, the roads and lines it closes for next turn) come before more rounds.
-- **The teacher's ceiling.** Whole runs with the teacher playing every battle decision (prep, route and buys today's
-  expert's): how far battle play alone can take the expert.
-- **Then** the learned route relabelled under the new battle player and switched on (its hand route's tests pinned to
-  `useRoute(false)`), and a small evolutionary search over ~10 top-level settings (the labels' weights, the
-  correction's L2, the rules' strengths, the route's thresholds), each candidate on 256+ paired seeds, the winner
-  confirmed on fresh ones. No game number moves; the balance pass comes after.
-
-**Targets.** Above the 47% bar on fresh seeds in round 1, 60%+ after the rounds; a run under 5 s.
-
-### 2.24 The forest: decisions only (2026-10-12)
-
-The ranker (§2.23) gained little in two rounds, and it barely learned the teacher's choice (held-out decisive
-agreement 45.4% → 46.2%); the teacher meanwhile cleared 75% of the bar's 64 seeds against today's 31% (§6). The user:
-"That means a neural network isn't completely right. Make the expert decisions only, with rules mined from the
-lookahead. Stay fast", then "it just needs to do better. Think random forest".
-
-- **The expert is today's tree and a random forest.** At each piece's decision the candidates are the ranker's (today's
-  shortlist and today's own choice, today's hard rules filtering); a forest of regression trees (200 trees, depth ≤ 12,
-  ≤ 512 leaves of ≥ 40 rows, a third of the inputs tried at a split, 64 quantile bins), bagged by whole runs and fitted
-  offline on the playouts to the battle's end, predicts each option's worth; the best candidate is taken only where
-  the forest puts it more than δ (0.05) above today's choice, else today's (it changes ~5% of decisions). No network
-  anywhere in play; ranker.json is gone from `src/sim`, `src/sim/forest.json` (2.3 MB, Node only) holds the forest.
-- **Inputs (252)**: the ranker's 149 (conditions, role and size, the option's features and the same less the mean of
-  its position's kept options, its kind), today's score's gap to today's choice, each feature less today's choice's,
-  and the 68 conditions of the board the option leaves (`aft.*`, read by replaying the labelled runs: `--augment`).
-- **Target**: an option's playout value less the mean of its position's options (not less today's choice's, whose own
-  lucky or unlucky playout would sit in every row of its position).
-- **Labels drawn by the board's state**, never by the battle's end (`--draw state`): R3 (500 runs of today's expert)
-  and R4 (500 runs of the round-1 forest, round 2).
-- **Measured and kept** (§6): +2.8 ± 1.0 progress and 33.1% clears against today's 29.6% on 768 fresh seeds, at ~5 s a
-  run (today's 2.4 s): level with the ranker, not near the teacher.
-- **Why not nearer**: the teacher's edge is foresight of exact consequences. Two options with identical features and
-  the same act, from different tiles, are worth the same in most positions (median difference 0), but where some
-  options lose the battle and others win, one such pair in five falls on opposite sides: what decides those battles is
-  not in what a fast reader of the board sees.
-
-### 2.25 The forest out of battle (2026-10-13)
-
-**Why.** The outside teacher (§6, "Perfect calculation") re-chose only the expert's out-of-battle decisions among its own
-top six by playing each to the run's end, with the expert's own battles, and cleared 63/64 of the bar's seeds against
-the shipped 23/64; the recruit alone 62/64, spending (tiers and fusions) alone 60/64. The player sees every battle room
-of the floor (scouting is honest, the teacher's foresight a player's), so a fast expert may read the coming battles;
-today's picks the recruit and the tiers by a fixed worth formula and the combo book, never against the rooms ahead.
-
-- **The expert is today's picks and a forest a decision** (`src/sim/outforest.js`, the contract; `autoplay.js`
-  `recruitPick`, `spendPick`): at the recruit and at each purchase, the candidates are today's pick and the next five by
-  today's own score (`recruitCandidates`: the sketch's gain of each soul offered, a full retinue letting its weakest go;
-  `spendCandidates`: grow's score of each tier and fusion), and passing on (no recruit, stopping) where it is not among
-  them; a random forest of regression trees a phase, fitted offline, predicts each one's centred value, and the best is
-  taken only where the forest puts it more than δ above today's pick, else today's. Shipped as data
-  (`src/sim/outforest.json`, Node only; absent, today's expert move for move), with the phases it decides.
-- **The read** (`autoplay.js outsideRead`, one function for the labels and play, a test holding them equal; ~1.5 ms a
-  decision): the run's situation (floor, rank, the purse in tier prices and against the next prices, the Monarch's and
-  the souls' HP, the field's strength, its answers to flyers, Reach and the hexes and wounds, its shooters, melee,
-  flyers and menders, synergies and the nearest, the combo target's progress), and the coming battles: the next battle
-  room on the route the expert would walk (the learned route's tree, each choice read as if the run stood there), the
-  next three, and the floor's still ahead, each as scouting shows it (the foes' worth and the army's odds, their HP, DEF
-  and blows, the share of each threat type, the waves, the threats the field cannot answer). Each candidate: what it is
-  (the kind's role, flying, ranged, reach, tier, level, stats and worth; a tier's track, number and what it grants, a
-  fusion's parts and gain, a recruit's newness and the soul it lets go, its kind's answers to the threats ahead), today's
-  score and its gap to today's pick, and what it changes in the field's read (the state it leaves, on a copy).
-- **Labels by playouts to the run's end, offline** (`outside.js --label`): runs of the shipped expert; at every recruit
-  and at the purchases (each distinct one, all where two kinds compete, a quarter of the rest), every candidate played
-  on a copy of the run by the expert to the run's end, valued by teach.js `routeEndValue` (its parts kept), the fights'
-  store shared across the run's decisions.
-- **Fitting** as the battle forest (forest.js's trees, a sibling table): the target a candidate's value less its
-  decision's mean, bagged by whole runs, out-of-bag estimates, seeds ≡ 0 mod 5 held out; δ chosen by paired play.
-- **Measured and kept** (§6): round 1, the recruit's forest alone at δ 0.5, on 768 fresh seeds **69.1% clears against
-  the expert's 40.8% without it**, +18.3 ± 1.5 progress; round 2 (relabelled under round 1, refitted, δ 0.25), against
-  round 1 on 768 fresh seeds 73.7% against 68.6%, +2.1 ± 0.8, and against the expert without it **73.7% against 35.2%,
-  +21.2 ± 1.3**. The purchases stay today's (their forest plays level with them). What it learnt is mostly to recruit
-  where today's declines (today's sketch counts the field's best few souls, never the souls behind them, so it passes
-  on three offers in four). A run takes ~7 s against ~4.5: it goes further (43 battles against 33); the forest's own
-  read and trees cost nothing a timing sees.
-- **The formation by the same machinery** (the prep, `autoplay.js planFor`): the candidates are today's formation (the
-  plan's), its next five in today's order (the tree's filters, then the static score) and the best three of the plan's
-  drafts not among them (`prepCandidates`: today's next best are mostly today's with a piece or two moved, the drafts
-  are other shapes), nine in all; each read (`prepRead`, ~6 ms a prep: the situation, the coming battle as scouted, the
-  formation's static read, its shape against today's pick, and the battle's own read of the board it opens on, no turn
-  played) and the forest's best taken where it reads it more than δ above today's. Labelled by playing each formation's
-  coming battle out by the expert (`outside.js --label --phases prep`: teach.js endValue, −10 lost, else the HP carried
-  and the rounds), every prep of the run. **Measured and kept** (§6): round 1 at δ 0.1, on 768 fresh seeds `chk9`,
-  **78.6% clears against the shipped 71.7% (+104 −51), progress +4.58 ± 1.02**, deaths on floor 1 66 against 109, and
-  on 768 more `chk10p` 75.0% against 70.8% (+78 −46), +1.56 ± 0.91. Round 2 (relabelled under round 1) and a forest
-  that never reads the opening boards (a fifth of the read's cost) played level and worse: not kept. Its reads cost ~0.3
-  s a run (~4%), three quarters of it the opening boards.
-
-### 2.26 The draft (2026-10-14)
-
-The user's word: "start with 0 units and let the monarch pick from 3 starter units", and of the options, three picks of
-one of three, drawn from the floor-1 pool. The fixed trio (Tomb Knight, Bone Chanter, Frost Sprite) was every run's
-start, and its Bone Chanter half of the way to the Channeler build the audit found every strong run ending in.
-
-- **A run opens on the draft** (phase `'draft'`, `s.draft = { pick, offer }`), the Monarch alone on its seat and the
-  floor's map drawn but closed. **`TUNING.draft.picks` (3) picks, each of one soul from `TUNING.draft.offer` (3)
-  different kinds** drawn evenly from the floor-1 pool (`draftPool`: the kinds floor 1's rooms can bring) by the run's
-  seed, a stream a pick (`draftOffer`). A kind may come again in a later pick, so two of a kind, half a fusion, is a
-  choice from the start. A pick is free, its soul joins at its kind's first level with no tiers (`join`); the last
-  stands them on the camp's default frontier (`frontier`) and opens the map. Action `{ type: 'pick', index }`.
-- **The fixed start stays as an option of `createRun`** (`start`: kind ids): the tests' plain team, and the start of a
-  log from before the draft, which `replay` recognises (`startFor`: a log that does not open with a pick).
-- **The autoplayer drafts.** Basic takes the first kind offered it does not hold. The expert takes the offer the
-  growth sketch values most, but only among the ranged kinds while its souls hold fewer than
-  `TUNING.expert.draft.ranged` (2) ranged pieces (hand-set: the sketch's worth reads no reach, and drafted by it alone
-  the expert fielded three melee pieces that floor-1 shooters outrange). No forest decides it; they were fitted on
-  trio starts. The outside teacher passes the draft to the base (`baseStep`, `ORDER.draft`).
-- **The screen**: "Raise your retinue", the offer as the spoils' cards, free, and a seat a pick along the foot that the
-  taken soul's face flies down into.
-- **Measured**, 24 seeds `aud`, the shipped expert (paired with its runs from the trio): **16 clears against 18**,
-  deaths on floors 1–4 3 / 1 / 1 / 3 against 2 / 1 / 1 / 2, 17 different starts in 24. With the sketch alone the
-  expert drafted melee and cleared 12, 8 of its runs ending on floor 1. Basic (200 seeds `audit`) clears none as before
-  and now dies after 2.1 battles (2.9 from the trio). **The armies still converge**: 18 of 24 end with Pale Courts and
-  91% of their final souls are Channelers (89% from the trio); the draft varies how runs begin, not how they end.
-  Echo (Channeler 4) is the lever for that, not the start.
-
-## 3. What the player may rely on
-
-1. **A turn is yours.** Every piece may move its Move and act once, move first. A blow's damage, and the counter it
-   would draw, are shown before you commit. A move can be undone until the piece acts.
-2. **What you leave alone fights anyway**, with its basic blow or heal, never a skill. **Every skill rests a turn.**
-3. **Foes keep to the roads.** A ground foe is always on the arrows, a flyer on the air road; how far it comes each
-   turn is its choice, where it goes is the board's. Your pieces block either; the dead never do.
-4. **A foe strikes what it can reach, as you do**, and counters as you do. Which piece it chooses, and whether it
-   comes into your reach at all, is the camp's judgement: it is learnt by meeting the kinds, and the bestiary keeps
-   a line on each once met. Nothing of the foes' coming turn is drawn.
-5. **No dice.** The same board, the same orders, the same battle.
-6. **No clock.** A battle is lost only when the Monarch falls. The waves' turns are on the counter, and a horde
-   that waits at the edge of your reach comes in time: the camp grows impatient. It never hits harder; it only stops
-   waiting.
-7. **Shops sell relics**, as many as you can pay for, and nothing else sells them. The fallen leave the field, wounds
-   carry, essence binds, as `DESIGN.md` §3 has them.
-8. **A run begins with a draft** of three souls, each from three kinds offered; the kinds come from the foes floor 1
-   can bring, and one may come again.
-
-## 4. Interface
-
-The standing rules hold: one scaled landscape layout, one view at a time behind tabs, nothing that needs hover,
-Shift or a key; the board on its side, BTD-sized, a tile never under 44 CSS px on a phone.
-
-- **Prep** is unchanged in its gestures: drag to place, swap by footprint, the kind's panel, Fuse. **One overlay
-  replaces three**: the danger map (§2.9.2), the damage your side could deal on each road tile, shaded; the rings,
-  coverage and stop-line overlays go. The roads, Arise's reach and synergy glow stay.
-- **Battle, your turn.** Tap a piece: its Move range lights (reachable tiles), its targets in reach glow, its panel
-  shows its basic blow and its skills with a cooldown pip. Tap a tile to move (the sprite walks; the move is undoable:
-  an Undo button and tapping the piece's old tile). Tap a target: the damage number and the counter number appear
-  on the two sprites; tap again to commit (a second tap is the commit everywhere, so a phone never strikes by
-  accident). A skill button then a target, the same. Fuse lights on a piece when a recipe's parts stand beside it.
-  The Monarch's panel is Arise's, when held: tap a corpse in reach, once a turn. **End Turn** sits in the side panel,
-  always. Input is locked while an order's events play back.
-- **Battle, the foes' turn.** The camp's turn plays back as the old battle did: the `TimelinePlayer` in
-  `src/engine.js` keeps its queue, hit-stop, speed and skip; events carry a beat index rather than a tick. At
-  speed 4 only `ESSENTIAL` ops play, as now. The pressure is never shown; the player reads it from where the horde
-  stops.
-- **Counts on the board**: the turn, the wave counter with the next wave's turn; Hexed as the
-  violet pall it is today; every other status a pall in its `colour`; a cooldown pip on a sprite's skill icon.
-- **The Shop**: the offer panel with a price on each relic and the purse in the bar; buy lights what can be paid for;
-  a Leave button. A won elite's panel: its essence and its recruit.
-- **Codex**: the glossary's words (seventeen, and Line of fire since §2.19); the bestiary's way line per kind once met, generated; the help page
-  rewritten for turns; Gauge and Ring gone from every tooltip; the Fusions page as now.
-- **End**: the death panel's facts as a replay beat, as now.
-- **Tabs**: Field · Map · Codex, as now.
-
-## 5. Implementation
-
-One working tree, no branches: the slice lives behind `TUNING.turns` (false: today's battle; true: turns), so
-`npm test` stays green throughout and the two can be played side by side in the browser. The flag and
-`src/sim/battle.js` go when the full conversion lands. Each area is owned by one agent, at most two at once; tests
-check function, not balance; no tuning, no ladder loops, until the balance pass at the end.
-
-### Shared contract
-
-`src/sim/turns.js` (the battle agent):
-
-- `createBattle(setup)` → the battle, shaped as `battle.js`'s is (`units`, `at`, `sky`, `events`, `relics`,
-  `domain`, `waves`, `winner`, `over`), plus `turn` (1-based), `phase` (`'orders'` | `'resolving'`), and on each
-  unit `move`, `moved` (tiles spent this turn), `acted`, `cooldowns` (ability id → turns), `temper`.
-- `legalOrders(battle)` → every order the player may give now: `{ type: 'move', uid, tile }`, `{ type: 'act', uid,
-  ability, target }` (`target`: a unit uid, a tile for a shaped blow, a corpse for Arise), `{ type: 'fuse', id,
-  parts }`, `{ type: 'undo', uid }`, `{ type: 'end' }`.
-- `order(battle, o)` applies one and returns its events; `end` runs §2.3's steps 2–4 and returns theirs. Throws on
-  an illegal order.
-- `preview(battle, uid, ability, target)` → `{ damage, counter }` for the interface, from the same code that deals it.
-- `playOut(battle, policy)` → the battle played to its end with `policy(battle)` giving each of your turns' orders
-  (the autoplayer's rehearsals).
-- Kept from `battle.js`, moved or re-exported: the effect system (`runEffect`, `applyDamage`, `heal`, `fall`,
-  `burst`, `crumble`, `raise`, `summon`, `addStatus`), `stats`/`modsFor`, `synergiesOf`, `trigger`, `field`/`airOf`,
-  `enter`/`entryTile`/`reinforce`, `phases`, `helps`/`pickTarget` for the untouched, footprint occupancy.
-  `computeDamage` with `TUNING.dice` honoured. The rule hooks (`onBlow`, `onStruck`, `onFall`, `onKill`, `onTurn`,
-  `onWave`, `targets`, `modify`) called at their fixed points.
-
-`src/sim/policy.js` (the battle agent): the one policy, both sides.
-
-- `danger(battle, side)` → damage by tile the other side could deal next turn.
-- `press(battle)` → 0 to 1.
-- `options(battle, u)` → the unit's positions and acts; `score(battle, u, option, temper, press)`.
-- `foeTurn(battle)` → the orders, applied in road order, their events; deterministic.
-- `expertTurn(battle)` → your side's orders by the expert's situation read, decision tree and weights (§2.17; it
-  plays no foe turn ahead); `basicTurn(battle)` → `[{ type: 'end' }]`.
-
-`src/sim/rules.js` (the battle agent): `RULES`, the registry of §2.13.4; `rulesOf(battle, side)` → the rules the
-side's synergies, relics and overrides bring, each hook called with the battle.
-
-`src/content.js` (the content agent): §2.13's forms. On unit defs `move`, `temper`, `tracks`, `art`; abilities
-without `castCost` and `when` (but the rule conditions), `cooldown` only where not 2; the effect op `cooldown`;
-statuses with `turns` and `colour`; relics in the three forms; synergies as one rule each at 4; `TEMPERS` the presets
-by name, `temperLine(temper)` the generated way line, `STATUS_WORTH`; `BEHAVIOURS` keeps walk and fly; `TRACKS`
-gone as a table (a `tracksOf(id)` reads the def).
-
-`src/tuning.js`: `turns` (the slice flag), `turn: { cap }`, `dice: false`, `move` (the placeholder table),
-`policy: { press }`, `shop`, `arise: { domain, tier, more }`, `spawn.waves.every`, `essence.eliteBonus`;
-`gauge`, `tick`, `escalation`, `board.stepTicks`, `arise.raises/hp/haste`, `relic.offer`, `relic.weights.elite`
-go with the conversion.
-
-`src/sim/run.js` (the run agent, which is the battle agent in the slice): `fight` sets `phase: 'battle'` and
-`run.battle`; `apply` routes `move`, `act`, `fuse`, `undo`, `end` to `order`; `legalActions` in the battle phase is
-`legalOrders`; `finishBattle` when `battle.over`; the `shop` node and its `buy` action (`{ type: 'buy', index }`,
-`{ type: 'leave' }`); the elite's essence; `fuseCost` in battle; run-level mods (`commandOf`, `monarchHp`,
-`rosterCap`, the prices and essence gain through `modsFor`); `frontier` unchanged.
-
-`src/sim/map.js`: `shop` for `reliquary`, the weights of §2.11.
-
-### Step 1. This document
-
-Done when `redesign.md` is written. `DESIGN.md` carries a note at its head pointing here; its §6 history stands.
-
-### Step 2. The slice: floor 1 on turns (two agents)
-
-Behind `TUNING.turns`. Floor 1 only: the three start kinds (Tomb Knight, Bone Chanter, Frost Sprite) and the
-floor-1 pool (Hive Warden, Clockwork Page, Grave Ghoul, Will-o'-Wisp, Pyre Hound with those three) converted by
-§2.7–2.8, their temperaments by §2.9, the floor-1 elite's late pair with them. Everything of floors 2–4 keeps its
-old numbers and is not played on turns. The content model (§2.13) is applied to these eight kinds and to the relics
-the slice can meet; the rest waits for Step 4.
-
-- **Agent A, the sim** (`src/sim/turns.js`, `src/sim/policy.js`, `src/sim/rules.js`, `src/sim/run.js`,
-  `src/sim/map.js`, `src/content.js`'s floor-1 kinds and the Shop's relics, `src/tuning.js`; `test/turns.test.js`,
-  `test/policy.test.js`, `test/run.test.js`, `test/map.test.js`, `test/content.test.js`): the round, orders, undo,
-  counters, cooldown 2, Hexed's rule, statuses in turns, the untouched, Arise's act, Fuse in battle, the danger map,
-  the pressure, scoring, temperaments, waves on turns, the clock in turns; the run's battle phase and log; the Shop
-  and the elite's essence; the rules registry with the rules the slice meets; `basicTurn`; the content test's new
-  checks. Tests: a move refused through a foe, a wall and a corner, and allowed through an ally; undo restores;
-  move-then-act only; a counter both ways, none on ranged, none from a Hexed piece; a skill rests a turn and is back;
-  End Turn acts the untouched with basics only; the same board gives the same foe turn; a foe at low pressure stops
-  outside the danger map and at high pressure enters it; the pressure reaches 1 at the cap; a wave enters on its
-  turn and the counter says so; Arise raises one a turn, the player's choice; Fuse in battle consumes, pays, places,
-  refuses where a 2×2 cannot fit; the Shop prices scale, always stocks a Command relic, refuses an empty purse; an
-  elite pays and lays out no relic; `replay` equality over a logged battle; the fuzz over orders; `TUNING.dice` true
-  still runs; the content test holds the eight kinds to §2.13.
-- **Agent B, the interface** (`src/engine.js`, `src/ui.js`, `src/board.js`, `src/codex.js`, `src/keywords.js`,
-  `src/main.js`, `src/css/*`, `src/style.css`): §4 for the slice: the order input mode, Move range, targets, the
-  two-tap commit with damage and counter numbers, Undo, End Turn, skill buttons with a pip, the foes' turn played
-  back with speed and skip, the turn, the clock bar and the wave counter, the danger-map overlay in prep, the Shop
-  panel, the elite's panel, the generated way line in the bestiary, the generic status pall, the help for turns.
-  Done when `node --check` passes on every module and floor 1 plays in Chrome at 1440×900, 1024×768 and 852×393
-  with no console error, on both flag settings.
-
-The two share nothing but the contract above. A is told the interface's needs (`preview`, `legalOrders`) and B is
-told the sim's shapes; neither edits the other's files.
-
-### Step 3. Play, then decide
-
-Chufan plays floor 1 on turns. Go or no-go. On no-go the flag is set false and the slice stays as a record; on go,
-Step 4.
-
-### Step 4. The full conversion (two agents)
-
-- Both agents: §2.15 (held relics, Arise a held skill) and §2.16 (no dice), split as the rest is: the records and
-  the content test to Content; `hold`/`unhold`, holder-scoped mods and triggers, Arise as a skill and the dice
-  deletion to Sim. The interface for §2.15 and the dice's last words (ACC/EVA/CRT on cards) follow in an interface
-  pass after the two, with the old battle's playback and `src/flag.js` removed there.
-- **Content**: every kind to §2.13's record (`tracks` folded in, `art` where it borrows), every ability by §2.7 (the
-  gauge table, cooldown 2, the `when` cut), every status by §2.8, every relic to one of the three forms, every
-  synergy to one rule at 4, the stat steps gone, ACC/EVA/CRT and their mods converted, `move` and `temper` on every
-  kind, the fused kinds included; the Sovereign's override; waves on turns for every floor; the glossary; every
-  card's text. `test/content.test.js` holds all of it.
-- **Sim**: `src/sim/battle.js` and `TUNING.turns` deleted, `turns.js` the battle; the rules registry complete and
-  the thirteen `has('…')` branches gone; the run-level mods; floors 2–4's rooms, sieges, boss phases, crumbling and
-  the Legendaries on turns; the ~150 test call sites that step or run a battle (`test/battle.test.js` 63,
-  `test/enemy.test.js` 22, `test/relics.test.js` 12, `test/endless.test.js` 11, `test/fixes.test.js` 9,
-  `test/speed.test.js`, `test/tracks.test.js`, `test/movement.test.js`) re-harnessed as "play N turns under basic"
-  with their assertions kept; `test/battle.test.js` becomes `test/turns.test.js`.
-
-### Step 5. The autoplayer (one agent)
-
-`src/sim/autoplay.js` (as built; §2.17 later replaced its rehearsals with the expert's scoring): `rehearse` fought
-with `playOut(battle, policy)` at the level's turn policy; `plan`, `drafts`, `frontier` and the formation search
-stood; `threatOf`, `gateOf` and `roadsTo` read the danger map instead of guessing a walker's halt; `FILLER` derived from the pool; `pickReap`/`weighOffers` become the Shop's buying (a relic's `comboWorth` per
-essence against the tiers it displaces, in `grow`); the combo book regenerated (`--combos`). Ablations: `orders`
-joins the core three (the expert ends every turn without an order: what in-battle play is worth, 25–50 points),
-`fusions` stays, `relics` is "buys no Common–Rare relic" and `legendaries` "buys no Legendary". `test/planning.test.js`,
-`test/ablation.test.js`, the autoplayer tests of `test/run.test.js`.
-
-### Step 6. Clean, then two bug hunts
-
-The code-cleaning pass; then a bug hunt (places the code breaks its own rules: counters that counter, a Hexed
-piece acting, a foe off its road, a 2×2 fused onto a held tile, undo after an act, a Shop price unscaled, a skill
-back a turn early, a relic with a key the registry does not know); then a second. No number moves.
-
-### Step 7. Balance
-
-The single pass, as `DESIGN.md` §5 Step 8 ran them, with the policy among its subjects: the expert ~90%, basic dead
-on floor 1 three runs in four, money binding on every floor, every ablation in its band (`orders` now core), the
-Shop's prices and frequency, the elite's essence, Move, the pressure's curve, the temperaments, the synergy rules
-at 4, any cooldown exception. About 30 placeholders, where the first draft of this plan had 60. Then the README,
-this file's §6 and `DESIGN.md`'s head brought up to date, and a push to master.
-
-### Step 8. The learned expert (§2.21)
-
-- **8a, two agents in parallel**, meeting at one contract: `encode(battle)` → a Float32Array of V's inputs,
-  `evaluate(battle)` → a number (until V lands: today's static board evaluation), positions recorded as
-  `{ snapshot, features, battle, turn }`. **The learner** owns `src/sim/value.js` (the encoding, the network's forward
-  and backward passes, Adam, save and load of `value.json`), the data scripts (worker threads), training and
-  validation, and its tests (a gradient check, determinism, shapes). **The player** owns `src/sim/policy.js`,
-  `plan.js` and `autoplay.js`: the factored turn with its beam, the pruned options, the afterstates scored by
-  `evaluate`, the tree's filters kept, the formation by `evaluate`, the recording hooks, the cost budget, the puzzles
-  still passing. ~1.5 hours.
-- **8b, one agent**: round 0's data, V trained and plugged in, the disaster replays, the self-play rounds, each round
-  measured paired against the last and kept or dropped; a note in §6. ~2–3 hours, bound by data and training.
-- **8c**: the balance pass (Step 7's targets) with the learned expert as the reference.
-
-### Step 9. The learned decision tree (§2.22)
-
-- **9a, two agents in parallel.** **The labeller** (`src/sim/teach.js`, offline): the dangerous positions sampled, every
-  option played out through the foes' turn and a turn or two more, the labelled data written (position, option
-  features, condition values, playout value), with worker threads. **The tree** (`src/sim/expert.js`, `expert.json`,
-  `policy.js`): the vocabulary of conditions, the model tree and its soft rules as data, the fitter (splits, leaf
-  weights, rule strengths) tested on synthetic data, the turn reading the tree, the fast turn restored as the default.
-  Contract: the option features and condition values the labeller writes are the tree's own `optionFeatures` and
-  `conditions` exports.
-- **9b, two agents**: **battle** — fit on the labels, measure, label again with the fitted expert, refit, 2–3 rounds;
-  **route** — the room-choice labeller and the route's tree, fitted and measured the same way. Each kept only on a
-  paired gain; a §6 note.
-- **9c, one agent**: coordination, (1) to (4) in order, each measured paired and kept only on a gain.
-
-### Step 10. The ranker (§2.23)
-
-- **10a, two agents in parallel.** **The teacher** (`src/sim/teach.js`, `test/teach.test.js`): the tie-break by the
-  expert's score, labels and playouts under a given ranker (`--ranker file`), the teacher as a player for the ceiling
-  (`--teacher`), new labels of today's expert. **The ranker** (`src/sim/ranker.js`, `ranker.json`, `policy.js`,
-  `autoplay.js`, `test/ranker.test.js`): the encoding, the network and its training (reusing `value.js`'s layers and
-  Adam), the correction in `policy.js` choice, the audit's `net`, a paired comparison of two rankers on the same
-  seeds (`--ranker`, `--paired`), tests (a gradient check, an untrained ranker plays today's expert exactly,
-  determinism, save and load). Contract: `ranker.js` exports `useRanker(config | null)` and `rankerModel()`; the
-  rows are teach.js's labels as they stand.
-- **10b**: round 1 fitted and measured; the gate; rounds 2–3, each kept only on a fresh-seed gain. (As built: the
-  ranker's round 1 kept, round 2 not; then, at the user's word, the forest in its place, §2.24, two rounds kept.)
-- **10c**: the route relabelled and switched on; the evolutionary search; the ladder, the bar, the ablations, the
-  puzzles, the cost; this file's §6, the README, a push to master.
-
-### Later content, not in these steps
-
-Two-part recipes and a recipe for every kind (five new fused kinds, three SVGs each or `art` until drawn, two
-tracks each); a one-tile sidestep off the road ("may stand beside its road", drawn); the camp spending (an elite
-that holds relics).
-
-## 6. Decisions taken, and open
-
-Taken on 2026-10-10, after the audit:
-
-- **Turn-based combat, reversing "your pieces never move" and the no-orders rule.** The user's word: "yes reverse".
-  Into the Breach's shape on the existing board, not Polytopia's (no cities, no tech: the run map, essence and
-  tracks do those jobs).
-- **Deterministic blows**, "but leave open": `TUNING.dice` false by default; the dice path kept, never deleted
-  without asking.
-- **Shops for relics, more common** than the reliquaries were. The Reliquary becomes the Shop.
-- **In-battle fusing allowed.**
-- **The enemy as one opponent**: pressure, danger map, one scoring function, temperaments as data, the way line
-  generated from the values. Chosen over a role per kind (eight scripts, no coordination, a second AI beside the
-  expert's) after the question "how does Civ do it". The policy and the expert's turn are one module.
-- Defaults the user did not overrule: move-then-act only; the untouched act with basics only; counters on both
-  sides; the slice behind a flag in one working tree; bonus-goal relics dropped for the Shop.
-
-Taken later the same day: **all the simplifications**, the user's word ("all simplifications"), and the content
-model ("adding a new unit / relics / merges should be straightforward and modular"):
-
-1. Pressure as one number, not three postures.
-2. Temperament as three values (aggression, caution, prey), not five weights.
-3. One disabling status, Hexed; Slow and Nimble never born; the small drains become damage.
-4. Every skill cooldown 2; exceptions only by the balance pass.
-5. Reactive wave entry cut.
-6. Waves on fixed turns, shown.
-7. No escalation damage ramp; the cap and the pressure do its work.
-8. The Shop sells relics only.
-9. Rings cut; reach is a blow's range.
-10. One prep overlay, the danger map.
-11. ACC, EVA and CRT cut as stats.
-12. Arise once a turn, two numbers a copy; no raise cap, cooldown or haste.
-13. The AI-gating `when` conditions cut; rule conditions kept.
-14. Synergies as one rule each at 4; the stat steps cut.
-15. Relics from Shops only; elites pay essence and a recruit; a Command relic in every Shop's stock.
-16. Content is data: one record a unit (tracks folded in, `art` to borrow), an ability from the op vocabulary, a
-    relic in one of three forms with no `rule` below Legendary, one registry of rules, the content test as the
-    checklist.
-
-Taken that night, after the slice (Step 3: "go"): **held relics** and **Arise a held skill** (§2.15); **no dice
-at all** (§2.16). After the bug hunts: **no clock** (§2.10), and **the expert scores, never rehearses** (§2.17). On 2026-10-11: **the expert plans** (a kept battle
-plan, a target formation, a kill list, a foe forecast; §2.18); later that day, after it plateaued near 38%, **the
-learned expert** was planned (§2.21, §5 Step 8).
-
-On 2026-10-14, after the gameplay audit: **the draft** (§2.26), three picks of one of three from the floor-1 pool, in place of
-the fixed trio.
-
-Open, decided later:
-
-- **A rule too strong at 4** may be split into a lesser form at 4 and the full at 8 by the balance pass; no other
-  synergy step is to be added.
-- **The sidestep**, **two-part recipes**, **the camp spending**: later content (§5).
-
-### Balance, the turns pass (2026-10-11)
-
-Step 7's pass, by one agent after another was stopped. **The bar**: the old rehearsing expert (89ec1ff) cleared 47% on
-64 seeds `sim`. The scoring expert as inherited (the previous agent's threat read, its hand weights and a remade combo
-book) cleared 10.2%, progress 35.2 (128 seeds `sim`); with HEAD's own weights and book, 0%.
-
-**Phase A, the expert, game numbers frozen (2 h).** A black-box search, sep-CMA-ES (diagonal covariance, mirrored
-samples) over 103 numbers of `TUNING.expert` (log-scale with the sign kept where a weight was set, linear and held to
-its default's sign where it was 0, thresholds linear), each candidate scored by mean progress (clear % the tiebreak)
-on the same 128 seeds `opt`, on 8 cores: two runs (λ 10, then 8 from the first's best; 8 generations, ~70
-candidates), checked on the 128 seeds `sim` it never saw. The combo book proved the largest single lever: its offline
-weights were chosen by what the books they made won (synergy 0, hits 1.2, Move 0.6), and the book now has its own worth
-(`book.worth`), so `npm run combos` makes the same book whatever the search does to `growth.worth`. On `sim`: inherited
-35.2 / 10.2% → first run 46.5 / 18.0% → with the new book 52.7 / 21.1% → second run 59.3 / 36.7%. The weights that moved
-most: a piece's damage ×2.9, the foes' healing on the board ×6 (−6.2: kill or outpace the menders), counters ×2.9, the
-Monarch's danger on the board 0 → −1, the danger map at a piece's tile a third of what it was, the formation's synergies
-×2.2 and shooters behind blockers ×2, the growth search's field strength a third. Tried and reverted: a caution-aware
-threat read (a wary foe holding off at low patience): 15% less read error, but 30.5 progress against 35.2.
-
-The tree as it ended (`expert.js` TREES; the audit over 8 runs counts the decisions each decided): battle — no-waste
-(515), monarch-lethal, kill-first (126), never-die (92; it now also admits a blow on a foe that could strike the
-Monarch), guard (764, a mode), **no-stall** (new: past `tree.stall` 30 turns of the camp's patience, the `press` mode:
-come on, mend less); the weights decided 2754. Board — no-doom, **no-stall** (`boardModes.press`, with the new `closer`,
-the tiles the pieces came nearer a foe); weights 1533. Formation — fill-field, **answer-air** (new: a scouted flyer is
-met by a field that can strike one, where any formation fields such a piece), block-roads (192); weights 24. Route —
-wounded-altar (1), wounded-no-elite (2), no-long-odds (42; after the wounded rules now, reading the room's type);
-weights 110. Hold — give-relic (8). And a reading fixed: a ground piece's distance to the nearest foe is counted in
-steps round the walls (it was as the crow flies, so a piece behind a wall read itself beside a foe it never reached).
-
-**Phase B, the game's numbers (below the bar: foe HP/ATK and floor counts left alone).** Shops more common: the map's
-Shop weight 3 → 5 and a floor's middle up to 7 Shops (were 4): a room is a Shop one time in six, not ten, and the
-expert's walks meet 2.6 / 2.2 / 3.0 / 3.1 a floor. Common relics 36 → 24, Uncommon 60 → 48: the expert left 150–300
-essence on floors 3–4 and now buys ~2 relics a floor there. A Legendary at 72 was tried (bought four times as often, its
-ablation still 0) and reverted. Stalls fell from 6 to 3 in 256 runs by the expert's judgement (no-stall, answer-air,
-the walking distance). The elite's essence, temperaments, synergy rules, cooldowns, Arise and the healers were not
-changed.
-
-**Final (Phase C).** Ladder, 256 seeds `sim`: the expert clears **35.9%** (11 points under the bar), dies on floor 1 in
-22.7% of runs, floor 2 15.6%, floor 3 10.5%, floor 4 15.2%, wins 97.8% of its battles, 3 stalls in 256 runs; basic
-clears 0% and dies on floor 1 in **99.6%** (target ~75%: harder than wanted, left so while the expert is under the bar).
-Ablations, 128 seeds, the drop in clear-rate points (in progress points of the full's 62.9, and as a share of it):
-orders 34 (57.1, 91%), tracks 33 (28.5, 45%), summons 16 (11.0, 17%), formation 2 (4.0, 6%); fusions 34 (11.1, 18%),
-synergies 16 (6.6, 10%), relics 9 (1.7, 3%), legendaries −1 (0, 0%). In band by clear rate: orders, tracks, relics,
-synergies; summons and formation under the core band; fusions over the extras'; legendaries nothing (Arise raised 0.00
-a battle: the expert neither buys nor uses it). Essence per floor (256 runs): earned 301 / 754 / 1297 / 1253, spent
-234 / 599 / 1093 / 1438, left at the floor's last fight 14 / 56 / 135 / 314 (each under the next tier's price there);
-relics bought 0.1 / 1.0 / 1.9 / 2.3 a floor (none on floor 1: affordable, but the expert takes tiers first).
-
-Numbers that moved: every weight of `TUNING.expert` (tuning.js; `modes.guard.hit` held at 0, the search having given
-it the wrong sign), the book's offline weights, `shop.price` Common and Uncommon, `map.js` MID_WEIGHTS and RARE; the map
-test's Shop cap. Open: the bar (11 points); basic's floor 1; formation and summons under their band; the Legendaries
-and Arise unused by the expert (a judgement or a content question); fusions carrying the expert (0% without them).
-
-**Then (2026-10-11): Arise without rest; formation reclassified.** The user's calls: a content change for Arise, and
-the formation out of the core band. Arise (§2.15) is usable every turn (its ability's `cooldown` 1), reach 7 and tier 4
-(placeholders, were 5 and 3); Blood Tithe's Arise raises two corpses a turn (the one chosen, then the highest tier in
-reach), each shadow 2% of the Monarch's max HP. The expert now sees Arise's worth: the growth search's strength counts
-the shadows its holders would raise a battle, read from the floor's rooms and roads and never played (each foe of a tier
-Arise allows, by the share of its road within the holder's reach; at most `growth.raise.turns` 3 raises a holder a
-battle, each at `growth.raise.share` 0.5 of its worth: autoplay.js ariseWorth, hand-set); the formation's `arise` reads
-the holder's own reach. Held from floor 1 on 16 seeds, Arise raised 1.71 shadows a battle and the expert cleared 9.
-But the expert carries a median 91 / 162 essence into a floor-3 / floor-4 Shop, and no floor-2 Shop reaches a
-Legendary: at 144 it bought 12 Legendaries in 128 runs and their ablation was 0, so the Legendary's price went once to
-72 (230 / 310 there, affordable at 21–24% of those Shops; still dearer than an Uncommon). Nothing else was retuned.
-CORE is now orders, tracks and summons; the formation ablation is still played and reported, with no band (`MEASURED`).
-Ladder, 256 seeds `sim`: the expert clears **36.3%**, dies on floor 1 in 22.7% of runs, floor 2 15.6%, floor 3 9.4%,
-floor 4 16.0%, wins 97.9% of its battles, 3 stalls; Arise raises **0.33** a battle (was 0.00), a Legendary stands in
-51% of its wins; basic clears 0% and dies on floor 1 in 99.6%. Ablations, 128 seeds, the drop in clear-rate points (in
-progress points of the full's 63.1, and as a share of it): orders 33 (57.3, 91%), tracks 30 (28.4, 45%), summons 15
-(10.5, 17%); fusions 33 (10.7, 17%), synergies 15 (6.7, 11%), relics 6 (2.0, 3%), legendaries −2 (0.2, 0%); formation,
-no band, 1 (4.2, 7%). Legendaries bought: 51 in 128 runs. In band by clear rate: orders, tracks, synergies; summons
-under the core band, fusions over the extras', relics under. Open: the Legendaries still carry nothing, since they come
-late (floors 3–4, in about four runs in ten) and without them the essence buys tiers: a question of when a Legendary can
-be had (a floor-2 price, the expert saving toward a Shop, Arise from elsewhere), not of Arise's numbers. Bone Idol now
-does nothing: tier 4 already reaches every foe but the Sovereign (tier 5, a boss, never raised).
-
-**Then (2026-10-11): the plan layer and a second search.** The plan layer (§2.18) came with hand-set placeholders and
-played level with 3b9ca75's parent (36% / progress 64.1 against 38% / 64.7 on 64 seeds). One agent, two hours. *The
-search*: sep-CMA-ES as before over 178 numbers of `TUNING.expert` (the 103, the plan's choose / roles / fit and its
-thresholds, the option's progress / role / listed / forecast, the protect mode set from the option's and the guard's own,
-the push's, `tree.stall`; logs with the sign kept, a 0 linear and held to its feature's sign; the hold's and protect's
-`strike` held at 0), λ 8 mirrored, σ 0.6, each candidate on 128 seeds `opt` by mean progress; **the puzzles a
-constraint**: a sample that failed one the start passed was drawn again (at σ 1, five of eight failed one). Runs had
-grown slow (18–24 min a generation: some candidates' battles ran long), so two generations: best 67.2 / 31% and 65.6 /
-36% on `opt` against the start's 59.0 / 32%. Checked on 128 seeds `sim` (progress / clear): 3b9ca75 61.4 / 35.9%; the
-start 57.5 / 29.7%; the first generation's best 59.1 / 35.2%; **their mean 61.6 / 31.3%, taken** (level with 3b9ca75 on
-progress, +0.2 ± 3.5; clears +16 −22). Moved most: the kill list's `listed` 5 → 8.2, `forecast` −0.15 → −0.23, the
-hold's `air` slot 3 → 4.8, the fit's `exposed` −1 → −1.7, focus's `cull` 2 → 1.05; the plan's biases barely (hold 0.74,
-focus −0.42). *Judgement*: **hold-the-line** (expert.js TREES.battle, after never-die): protecting, a piece the
-formation gives a choke ends on it where it can; holding, one standing on its choke keeps it. With 3b9ca75's weights it
-was level on `opt` (−0.2 ± 2.6, clears +12 −8) and cost on `sim` (−4.5 ± 2.9, clears +10 −18); the rule for every
-piece given a choke cost 3.5 more, holding alone the same. Kept, with the weights searched under it: it makes the
-`todo` puzzle pass (the Knight steps in front of the Monarch's attacker) and a new one (the line holds as the foes come),
-and no protect mode's pull ever had. *Focus at the start* (205 of 367 first plans in an audit of 16 runs) is chosen on a
-foe your pieces can strike that turn: no rule found it wrong (a no-chase rule, focus only on a foe within reach in
-`plan.far` turns or this one, never bound in 128 runs, and was dropped); the search left the biases where they were.
-*Measured* (the expert as written): ladder, 256 seeds `sim`: the expert clears **33.6%** (the parent's 36.3%), dies on
-floor 1 in 25.0% of runs, floor 2 14.1%, floor 3 14.8%, floor 4 12.5%, wins 97.7% of its battles, 2 stalls; Arise raises
-0.36 a battle; basic clears 0% and dies on floor 1 in 99.6%. **The bar's 64 seeds: 35.9% (the old rehearsing expert
-47%)**, progress 66.7 (3b9ca75 35.9% / 64.1). (Found on 2026-10-11, by the next agent: neither the searched weights
-nor hold-the-line reached the code; b83139f carries the plan's placeholders, `listed` 5, `forecast` −0.15, the hold's
-bias 1, and no such rule. Its ablations were not measured.)
-Open: the expert is 11 points under the bar and the plan layer has not moved it; the search's noise (± 3.5 progress
-paired on 128 seeds) is now the size of what a generation finds, so a further search wants more seeds or a cheaper
-run; and what still limits the expert is the turn, not the weights: each piece commits alone against the board, the
-kill list and the stances the only joint orders, and boards are compared by a static read with no turn of the foes.
-
-**Then (2026-10-11): lines of fire and the expert's A–C.** Lines of fire (§2.19) landed in b83139f; the expert's three
-changes (§2.18's last bullet) on it, by one agent, every number below on the seeds named and the same seeds before and
-after (paired by seed; ± one standard error of the paired difference in progress). *As built*: **A, the line out of
-range** (plan.js outOfRange, read by `chokes`): each road's chain of tiles where one piece holds every foe coming that
-way, from the tile beside the seat out, no farther than `plan.line` steps; its first tile where every scouted foe of
-that road (standing, or of a wave to come, every blow of its kind), held there, reaches the Monarch from no tile of its
-road short of the piece, a blow that keeps to a line not where the piece stands on it; where none is, the farthest of
-those its blows reach the Monarch least from. It replaces the choke at `line` 3 (protect's beside the seat) for every
-plan and the air road too; prep's draft (`deployment`) and the walk in battle both read it. A melee road is held beside
-the seat (the foe waits two off), a shooter's straight road too (the holder screens it), a blast of reach 4 four out.
-**B, the Monarch's shooters first**: the plan reads them (plan.js shootersOf: a foe whose blow from range, ready next
-turn, reaches the Monarch from where it stands or where the forecast has it, on a clear line as the board stands); they
-head the kill list; the plan tree's **monarch-shooter** (after keep-plan) keeps a focus on one the pieces could fell
-within `plan.horizon` 2 turns (canFell: each piece's hardest blow a turn from when its Move brings it in reach), else
-protect; a new trigger `shooter` re-reads a plan that is neither; the board tree's **shooters-first** (after no-doom)
-keeps the boards that leave the fewest standing; and the formation gives a **screen** slot on each lined shooter's line
-to the Monarch where no other slot stands on it (`roles.*.screen`, protect's held first). **C, the Monarch's HP is the
-run's**: the situation reads its share (`sit.monarch.share`; the survey's `monarch` already did); the route tree's
-**monarch-altar** (an altar where one is open and may heal it, below `tree.altar` 0.5) and **monarch-no-elite** (below
-`tree.elite` 0.7), and `route.monarchAhead` 1 (an altar on a route through the room by the Monarch's wounds); in battle
-the tree's **frail** node *adds* `modes.frail` (guard 1, hit −1, screen 1, harry 0.5) × the share it lacks while it is
-in reach or the plan protects (decide's new `add` node). And **hold-the-line** (battle tree, after protect): protecting, a
-piece given a post (a block, air or screen slot) ends on it where that takes something from the Monarch's danger
-(`guard` > 0). Every new number hand-set. *Puzzles*: the line out of range (a Drake held four out, a Chanter's road held
-beside the seat), the shooter felled before the healer, the shooter none can fell screened, a wounded Monarch's route
-(altar, Court of Bone, no elite); the `todo` (the Knight steps in front of the Monarch's attacker) passes, by
-hold-the-line; three puzzles' tiles moved with A (the hold beside the line, the walk, the air slot). 348 tests pass.
-*What each part did* (256 seeds `sim`, each taken out of the whole at `line` 5; its worth, clears it won and lost): A
-+0.2 ± 2.2 progress (clears +30 −34: level); B +3.8 ± 1.4 (+13 −10: the one clear gain); C +1.1 ± 1.3 (+7 −8);
-hold-the-line as built +0.5 ± 1.3 (+8 −17), and over every post (no `guard` condition) −4.5 on 128 seeds, so
-narrowed. *Tries* (128 seeds against that whole, 28.9% / 60.7): `line` 3 33.6% / 63.6 (+2.9 ± 2.1), **4 35.2% / 63.4
-(+2.7 ± 1.9, the fewest deaths by reach), taken**; `modes.frail` ×3 with `tree.altar` 0.6 / `elite` 0.85 +0.1 ± 2.4;
-`horizon` 3 0.0 ± 1.5; the three with `line` 3, −4.5 ± 2.6 against `line` 3 alone. *Measured*, before (b83139f) →
-after:
-
-| | 3b9ca75 (no lines) | b83139f (lines of fire) | A–C |
+# RETINUE: the improvement plan
+
+The plan decided on 2026-10-15, after the gameplay audit of that day, for taking the game from a working prototype
+with one build to a finished product with many. For Chufan and for any Claude Code session working in this repo:
+read this before touching `src/`. It replaces the combat redesign spec that stood here from 2026-10-10 to
+2026-10-14; that spec is history now, kept at `git show f8c536f:redesign.md`, and what it decided is in force as the
+code and its comments state it (`src/content.js`, `src/tuning.js`, `src/sim/*.js` carry the rules; the README the
+play; `DESIGN.md` the board, footprints, roads, essence, tracks, fusions, summons and the frame). Section 6 says what
+to build, in what order, and what each step must measure before the next begins.
+
+The user's words that shape it: "Audit game for gameplay diversity and player skill differentiation. Inspiration:
+slay the spire level player customization + power. How do I get to a finished product?"; on the instruments, "use
+the more costly tree search rather than the expert random forest from now on for tuning"; on the content, "include
+more fusions. Including fusions of fusions. Fusions of 3 of the same unit should always exist."
+
+## 1. Why: what the audit found
+
+Measured on 2026-10-15 (60 expert runs and 40 basic runs on seeds `aud-*`, the draft on, the shipped expert of
+f8c536f; two content variants on the same seeds; the scripts in §5.4):
+
+**One build.** 77% of expert runs end holding a Pale Court; those clear 83%, every other run 7%. A Pale Court fielded
+on floor 1 clears 35 of 41 runs; without one, 4 of 19. 87% of the souls fielded at a run's end are Channelers; Insects
+are 1%, Constructs 0%. Seven of the 23 kinds appear in a tenth of final armies or more; ten never appear, Hive Queen,
+Clockwork Titan, Iron Golem and Mantis Reaper among them. Three of the eleven synergies are ever active (Echo in 61%
+of battles, Legion 37%, Mirage 4%). Two relics in five bought are Command relics; the relics ablation is worth 3
+points, the Legendaries 0. The draft (§2.26 of the old spec) varies how runs begin, not how they end.
+
+**Why it is one build: availability, not power.** Per essence the Pale Court is the weakest of the five fusions
+(hp × atk per essence: Court 525, Rime Drake 655, Hive Queen 764, Bone Colossus 893, Titan 938). Its edge is that
+its parts are the only ones a run can gather where it stands. Recruits come from the slain alone, and `spawnPool`
+(run.js) weights a kind by `weight / (1 + |tier − target|)^tierFalloff` with `tierFalloff` 3, so a room's draws are:
+
+| Share of a fight's draws | Floor 1 | Floor 2 | Floors 3–4 |
 |---|---|---|---|
-| ladder, 256 `sim`: expert clear / progress | 36.3% / 63.9 | 33.2% / 65.2 | **37.9% / 67.5** |
-| died on floor 1 / 2 / 3 / 4 | 25.8 / 14.5 / 11.7 / 11.7% | 21.5 / 16.4 / 14.8 / 14.1% | 21.1 / 12.9 / 15.2 / 12.9% |
-| Monarch felled, of lost runs | 160 / 163 | 165 / 171 | 152 / 159 |
-| by threat | reach 55, shape 43, fly 20, drain 17, sustain 15 | reach 66, shape 37, fly 26, sustain 11, drain 10, bleed 10 | reach 53, shape 34, fly 24, sustain 17, drain 12, bleed 7 |
-| stalls (runs) / battles won | 3 / 97.8% | 6 / 97.7% | 7 / 97.9% |
-| basic: clear / died on floor 1 | | 0% / 99.6% | 0% / 99.6% |
-| **the bar's 64 seeds** (old rehearsing expert 47%) | 35.9% / 64.1 | 32.8% / 61.3 | **37.5% / 66.5** |
+| Tier 1: Frost Sprite, Clockwork Page, Grave Ghoul, Will-o'-Wisp | ~22% each (≈90% together) | ~18% each | 2% each |
+| Tier 2: Bone Chanter, Tomb Knight, Hive Warden, Pyre Hound (Thorn Dryad, Rot Bloat from floor 2) | 2–3% each; elites 18–29% | 2–3% | 11–20% each |
+| Tier 3: Ember Drake, Mantis Reaper, Iron Golem, Marsh Hag, Ash Wyvern | absent | absent from fights, 1% of elites' | 1% of fights', 13–17% of elites' |
 
-Paired over the 256: lines of fire +1.3 ± 2.6 progress on 3b9ca75 (clears +34 −42); A–C +2.3 ± 2.2 on b83139f (+40
-−28); the two together +3.5 ± 2.6 (+43 −39). Ablations, 128 seeds, the drop in clear-rate points (in progress points),
-before → after (full 33.6% / 62.1 → 35.2% / 63.4): orders 34 (57.1) → 35 (58.3), tracks 34 (25.5) → 34 (26.5), summons
-14 (7.8) → 16 (8.4); fusions 33 (10.3) → 35 (10.5), synergies 14 (4.6) → 14 (5.5), relics 8 (−0.5) → 10 (1.3),
-legendaries 1 (0.0) → −2 (−1.1); formation −5 (−2.8) → 1 (1.8), moves 33 (56.4) → 35 (57.5). In band by clear rate:
-orders, tracks, relics, synergies; summons under the core band, fusions over the extras', legendaries nothing, as
-before. Open: the expert is ~10 points under the bar on its 64 seeds, and every part but B is inside the noise of 256
-seeds; what limits it now is less where it stands than which rooms it walks into and whether it wins there: of the lost
-runs in the first 41 seeds (both builds) about half fell in an elite, most on floors 1–2 (the route's `elite` weight is
-10), many with every piece still standing when the Monarch was first struck, and some only once the field was gone (the
-battle lost, not the Monarch left open); C's route rules seldom fire (none in an 8-run audit: the Monarch is rarely
-below 0.7 when it picks a room). The search's noise
-(±2.2 progress paired on 256) still hides any single weight's worth.
+So three Wisps are offered in about five of floor 1's ten battles, and the Wisp triple is the only recipe whose parts
+are floor-1 fight draws. Rime Drake, Hive Queen and Titan each need a tier-3 keystone that is 1% of any fight's draws
+and ~15% of a floor-3 elite's, by which floor their tier-1 partners (Sprite, Page) have fallen to 2%: cross-floor
+plans the expert never completes (Queen and Titan, 0 of 60 runs). Bone Colossus needs two Knights, which on floor 1
+come from the elite and the draft alone. Sprite, Page, Ghoul, Warden and Hound belong to no recipe they can complete
+on the floor they are offered. The monoculture is the recipe graph times the pool's weighting; Echo (every ability
+twice, reached with two souls once the Chanter's summons count) and the Court's size-1 ranged blast are second to it.
 
-**Then (2026-10-11): the learned expert, step 8b.** One agent, 2.5 hours, 8 cores; every number on 256 seeds `sim` (the
-bar's 64 are its first), paired by seed against the beam with the static evaluation (787b044's code, V unloaded: **37.9%
-/ progress 67.1**; the bar's 64 **34.4% / 63.8**), ± one standard error of the paired difference in progress, clears won
-and lost. Measured first: **V round 0 as 8a shipped it (V alone, value.js loaded by default) cleared 3.5% / 18.8**
-(−48.3 ± 2.4, clears +6 −94; the bar's 64 3.1%), 219 of its 247 deaths on floor 1, 88.5% of battles won. Two causes,
-read off its choices: *the mix* (VALUE won 1, monarch 3, own 1): a Tomb Knight's cleave (P(won) .9977) lost to holding
-back (.9932) on 0.017 of the pieces' two-turn HP, so the pieces hid from every blow; and *confounded inputs*: the expert
-acts and spends skills when pressed, so V read a piece that had acted or a skill on cooldown as a battle going badly
-(the Chanter's Dirge −0.83 logit from `ready` and `acted` alone). Both fixed without changing what V reads: value.json
-now carries its own combination (`value`: won 40, monarch 3, own 1; value.js `mix`) and the inputs it was trained
-without (`drop`: idle, dangerIdle, killable, every piece slot's acted and ready, 23; their weights nothing). On round
-0's data (v1d) V alone then cleared 17.2% / 41.0 on the bar's 64 (−22.7 ± 4.6); its formations by V were not the cause
-(V0 with none: no better), and V re-ranking only the static beam's complete turns was as bad (−21.6 ± 5.4 on 36). **V
-alone never came near the static evaluation** in any round: a battle's outcome is too coarse a label for the small
-difference one option makes, and V (AUC ~0.97 between battles) cannot rank a turn's options; the exploring data helped
-it only slowly (on the bar's 64: vD 7.8% / 31.4, R1 10.9% / 35.5, R2 12.5% / 42.7). So V joins the static evaluation
-instead: **the hybrid**, each afterstate's static score plus `hybrid` 3 × V (TUNING.expert.beam; α 1, 3, 10 tried on 64
-with v1d: +1.8, +1.9, +1.1, each ± ~4.7), the formation still V's among the static's best 12. *Rounds* (`npm run train`,
-new options: `--player`, `--epsilon`, `--replay`, `--with`, `--all`, `--value`, `--drop`, `--mix`, `--epoch-rows`; each
-fit early-stopped on the runs ≡ 1 mod 5, read on those ≡ 0): **v1d** (round 0's 1,000 old-expert runs, 311k positions, λ
-1; held-out AUC 0.963): hybrid 36.7% / 68.4, +1.4 ± 2.1 (clears +35 −38): level. **D, the disasters** (+6,000 replays of
-round 0's lost and near-lost battles from their last four turn starts and two earlier, the static beam exploring ε 0.2
-over its top 3; 418k positions, 3,800 lost battles against 652; AUC 0.968, the disaster battles' 0.833): hybrid +2.1 ±
-4.9 on 64, level with v1d's (+0.2 ± 4.8): not kept. **R1** (+800 runs of the static beam ε 0.15, +400 of the hybrid on
-vD ε 0.1; TD(λ 0.8) from vD; 784k positions; AUC 0.976, disasters 0.868): **hybrid 39.1% / 72.1, +5.0 ± 2.2 (clears +45
-−42)**, +3.6 ± 2.3 on v1d's hybrid; the bar's 64 **48.4% / 76.0** (+12.2 ± 4.7): kept, the round to beat. **R2** (+3,000
-replays of R1's new disasters by the hybrid on vD, +300 hybrid runs ε 0.1; TD from R1; 926k positions, 6,284 lost
-battles; AUC 0.977, disasters 0.870): hybrid 39.1% / 68.5, +1.4 ± 2.0 (clears +34 −31), −3.6 ± 2.1 on R1: not kept. **R1
-checked on 128 fresh seeds `chk`**: 32.8% / 64.8 against the static's 36.7% / 64.9, −0.1 ± 3.6 (clears +19 −24): R1's
-gain on `sim` was the seeds' (the best of several read on the same 256), not V's. **R3** (+400 hybrid-R1 runs ε 0.1,
-+2,000 replays of R2's disasters by the hybrid on R1; TD from R2; 13,900 runs, 1.08M positions, 7,545 lost battles; AUC
-0.976, disasters 0.868): hybrid 40.6% / 71.4, +4.4 ± 2.2 (clears +42 −35), −0.6 ± 2.1 on R1, the bar's 64 39.1% / 68.8;
-on `chk` 32.0% / 59.9, −5.0 ± 3.4 (clears +15 −21): not kept. Over the 384 seeds the hybrid's clears are the static's
-(R1 142, R3 145, static 144), its progress +1 to +3, inside the noise.
-**The default is the static evaluation: V never beat it.** TUNING.expert.beam `learned: false` (the hybrid is
-`--learned`, or `learned: true`, with `hybrid: 3`); src/sim/value.json is R1's (the best of the rounds over both seed
-sets), used only so. The default plays exactly the measured static beam (the same orders seed for seed); against HEAD
-(787b044, V round 0 alone by default) it is +48.3 ± 2.4 (clears +94 −6). *The final configuration*, 256 seeds `sim`:
-**37.9% / 67.1**, battles won 97.9%; died on floor 1 / 2 / 3 / 4 in 21.5 / 15.6 / 13.7 / 11.3% (55 / 40 / 35 / 29 runs);
-the Monarch felled in all 159 lost runs, by reach 60, shape 35, fly 24, sustain 15, drain 14, bleed 6, burn 5; **the
-bar's 64: 34.4% / 63.8** (the old rehearsing expert 47%; R1's hybrid 48.4% / 76.0 there, not robust). *Cost*: a
-mid-battle turn 5.1 ms (the hybrid 7.3, V alone 5.8), the full board 45 ms (64, 52); a run ~8 s. *Puzzles*: V alone
-fails six (the healer first, the kill list's focus and its range-first order, the walled road, protect's Knight, the
-Monarch's shooter first); the hybrid passes them all, so they are re-enabled with V: puzzles-learned.test.js and
-policy-learned.test.js run puzzles.test.js and policy.test.js again on the shipped value.json with `learned` (421 tests
-pass). *Regenerate* (on a frozen worktree; ~1 h on 8 cores): round 0 `npm run train -- --data D --runs 1000 --player
-static --play-only`; the disasters `npm run train -- --data D --seed rep1 --replay 6000 --player static`; a self-play
-round `npm run train -- --data R --seed sh1 --runs 400 --epsilon 0.1 --player src/sim/value.json --play-only`; the fit
-`npm run train -- --data D --with R,… --seed x --all --no-play --lambda 0.8 --value <the last V> --drop decisions --mix
-40,3,1 --patience 3 --epoch-rows 300000 --out src/sim/value.json` (round 0's fit: `--lambda 1`, no `--value`).
-Open: V ranks battles (AUC 0.976) but not a turn's options; a battle's outcome is too coarse a label for the one option,
-and ~14k runs of exploring play did not teach it. What would: labels on the options themselves (the teacher of §2.21: an
-offline search that plays the foes' turn, scoring each option of hard positions, V fitted to match), or a loss on the
-explored decisions' paired outcomes; and V reading the plan's roles. Until then the expert stays ~10 points under the
-bar, and the limit is where it was: which rooms it walks into, and the few battles it loses.
+**The variants** (same 40 seeds, baseline 24 clears): with Echo removed, 19 clears and the Court still in 75% of runs;
+with the Pale Court recipe removed, **0 clears**, no fusion made in any run, and the expert dead on floors 3–4 (an
+expert fitted to the Court; a lower bound). The difficulty is fitted to one build.
 
-### The learned route (2026-10-11, §5 Step 9b, route)
+**Skill differentiation.** Orders carry 91% of the expert's progress; the ladder reads basic 0% (all 40 runs dead on
+floor 1 after 2.3 battles; the design target was three in four), hand expert ~31%, shipped expert 65–78%, the
+outside teacher 63/64. A real gradient on a fair board, with a floor too hard, a middle too easy (floor-2 battles a
+median 2 turns; deaths by floor 20 / 2 / 2 / 12%), one difficulty and no ceiling past the solved strategy, and a
+battle whose foes' reach the expert reads off a danger map the player never sees in battle.
 
-**The labels** (`npm run teach -- --route`, src/sim/teach.js): every room choice of 1000 expert runs (seeds
-`route-1…1000`; floors 1–2 with an elite open all kept, floors 1–2 else 0.6, later floors 0.6 with an elite and 0.25
-else), each open room played out by the expert from the choice (a copy of the run walks in; its prep, battle, reap,
-spending and its own next room, to two rooms done), valued −10·the run lost − 3·the Monarch's HP share lost − the souls'
-HP share lost + the essence earned in tier prices (the floor's mean tier price) + 1 a room done. 10,435 choices, 22,226
-rooms, 12 min on 5 workers; held out by seed (≡ 0 mod 5). **The expert against the playouts**: it takes the playout's
-best room 51.7% of the time, regret 0.658 (a random room 0.824); by floor 51 / 62 / 38 / 40%, regret 0.72 / 0.40 / 0.93
-/ 0.88. **Where an elite is open** 49.4%, regret 1.55 (none open: 52.4%, 0.39); a floor-1 elite choice 41.3%, regret
-1.83, though the hand weights alone agree 83.5%: the long-odds and wounded rules keep it from floor-1 elites the
-playouts say it survives (an elite walked into on floor 1 loses 15.7% of the time, and pays ~2.4 tier prices). Its
-chosen room lost the run in 2.7% of choices, 1.7% where another room did not.
+**The product.** A clear is ~50 battles and ~1,190 orders (three hours at five seconds an order); no save; no unlocks,
+history or daily seed; one Monarch, one boss, no events, no music.
 
-**The tree** (src/sim/route.json; fit.js fitExpert over autoplay.js routeConditions and routeFeatures: the hand route's
-features, the scouted foes, tiers, levels, waves, late pair, threat types, pay, long odds, wounds against a battle;
-tau 10 and lambda 0.3 chosen on the validation seeds, ≡ 1 mod 5): the weakest battle room open still the army's
-(`odds.min > 0`): underdog rooms far below (weak −44), elites above (+12), no battle for a hurt Monarch; else, souls
-whole or not (`health > 0.9998`), each leaf the underdog penalty (−52), altars by the Monarch's and the souls' wounds,
-elites +8 to +11. Held out: top-1 63.2%, regret 0.630 (the expert's 50.6%, 0.760). It takes more elites and fewer
-Shops: the window sees an elite's essence, never a relic's worth. A hybrid (the hand rules kept, `hand`) fitted on the
-rooms they leave gained little (+1.2 ± 3.5).
+## 2. Goal
 
-**Paired** (the battle expert as of 22:25): 256 seeds `sim` +6.6 ± 3.8 clears (31.6 → 38.3%); 768 fresh seeds
-(`sim-257…1024`) +5.0 ± 2.2 (31.0 → 35.9%), progress +0.05 ± 0.06; together **+5.4 ± 1.9** (31.2 → 36.5%). Floor-1 deaths −4.2,
-floor 2 +4.4, floor 3 −3.5; elites won +0.9 a run, relics −0.3. **Kept, but off** (autoplay.js ROUTE_LEARNED false):
-the hand route's tests (planning.test.js, puzzles.test.js) read its rules' audit names and want a Shop with a full purse
-over a fight, which the learned route passes by; they should pin useRoute(false) before the switch goes on, or the
-route be folded into expert.json. *Regenerate*: `npm run teach -- --route --runs 1000 --seed route --workers 5 --out D`,
-then `npm run teach -- --route --fit --out D --tau 10 --lambda 0.3 --depth 3`. Open: a longer window (the floor's end)
-to see what a relic is worth, and labels from the expert with the learned route (a second round).
-**Round 2 (2026-10-12, stopped for the release)**: labels now play to the run's end (teach.js `--rooms` 0, the default: −10·(1 − progress) a loss, + rooms and floors cleared, the Monarch's and souls' HP at the end; round 1's tree plays the runs and playouts), 4,482 choices from 459 runs (~1.3 choices/s on 4 workers), nothing fitted or measured; route.json stays round 1's, ROUTE_LEARNED off.
-*Resume*: `npm run teach -- --route --runs 1150 --seed route2 --workers 4 --out <its dir> --policy src/sim/route.json --expert <the expert.json kept in it>`, then `--fit` as above (labels: the agent's scratchpad `route2/`, copy them before it is cleared).
+Slay the Spire's shape on this board: a run whose build is chosen by the player from among several that can each
+win, where the choice is made again every floor, where power comes from combinations the player assembles, and where
+a stronger player wins more at every level of a difficulty ladder. Concretely, the criteria every step is measured
+against (§3 says with which instrument):
 
-**Then (2026-10-11): labels to the battle's end** (§5 Step 9b, battle; stopped early for the review build). *Built*:
-teach.js labels to the battle's end by default (`rounds` 0): each option given, the turn completed and the battle played
-out by today's expert (≤ 150 rounds, else a stall, lost); value −10 lost, else −3·the Monarch's share lost as carried
-(the post-battle heal) − the souls' share lost as carried (a fallen soul all of its share) − 0.02 a round (`--weights
-monarch=…`, parts written; `--expert` labels with another configuration). fit.js: `--hard` (today's hard rules kept,
-the rest soft), `--relative` (λ ÷ T²), `--decisive`, `--unchosen`, `--prior`, named `--weights`. *Data*: 250 runs
-(`teach-1…250`), 20,954 positions, 22 min on 4 workers (230 ms a position). *Agreement*: the expert's choice is the
-playout-best 62.1%, regret 0.78 (a random option 0.62); lost battles 74.3%, regret 2.26; floors 1–4 63 / 62 / 58 / 62%,
-regret 0.53 / 0.52 / 1.13 / 1.59. Biased by the draw: in a lost battle its own option loses by construction (99.8%,
-the others 88.8%), in a near-lost one it wins (0.2% against 7.2%). *Fits, paired, 256 seeds `sim` against today's fast
-turn (31.6% / 65.5)*: today's rules hard with shooters-first soft, leaves held, −0.3 ± 1.1 (clears +19 −15); every rule
-learned soft −1.4 ± 2.2; leaves free (λ ÷ T²) −28.3 ± 2.7 (13.7%), and −2.1 ± 2.3 only once shrunk to today's (λ 10⁵).
-The free leaves learn what the expert does for them afterwards (`progress` 1 → −54: it walks to its post next turn
-anyway), so they never walk there. Nothing kept: expert.json stays today's. *The beam* (today's scorer): 37.9% / 67.1,
-+1.6 ± 2.4 progress, clears +50 −34, 8.5 s a run against 3.4: within noise, so the fast turn stays the default; a
-768-seed check was stopped part way. No round 3. *Resume*: `npm run teach -- --runs 250 --seed teach --workers 4 --out D`;
-`npm run fit -- --data D --hard --structure prior --unchosen --decisive --relative --weighted --lambda 100000 --dry`;
-finish the beam on `sim-256…1023`. Open: labels whose continuation is the candidate itself, or small steps of policy
-iteration, before the weights can learn from them.
+1. **Reachable.** For every archetype (§4.1), the parts of its first fusion are offered, in expectation, in three
+   or more battles by the end of floor 2 (`--pool`).
+2. **Viable.** The committed teacher's margin (§3) with every kin's archetype is within a band of the best
+   archetype's, and its clears at the top difficulty within 15 points of the best's.
+3. **Diverse in free play.** No fused kind in more than 30% of the shipped expert's final armies; every base recipe
+   made in 8% or more of runs; six or more of the eleven synergies each active in 5% or more of battles; the relics
+   ablation worth 10 points or more.
+4. **Still a game.** At the base difficulty the shipped expert (its forests refitted on the content) clears ~90% and
+   basic reaches floor 2 about half the time; at the top difficulty the teacher clears ~60%, and the ladder keeps its
+   order at every level.
+5. **A product.** A run saved and resumed; a clear in 75–90 minutes; a tutorial; the first unlocks; music.
 
-### The ranker and the forest (2026-10-12, §2.23–2.24, §5 Step 10)
+## 3. The instruments
 
-**The audit** (L2: 250 runs of today's expert, 20,954 positions, labels to the battle's end): 133 of the 183 lost
-battles held a shortlisted option whose playout won; today's score ranked it a median 6th. **The teacher's ceiling**
-(teach.js `--teacher`, every battle decision by playouts, prep, route and buys today's; 64 seeds `sim-0…63`, no ranker):
-**48/64 (75.0%) against today's 20/64 (31.3%)**, it cleared 29 today's lost and lost 1 today's cleared; progress +0.256
-± 0.041; battles won 99.4% against 97.6%; 195 s a run (838 decisions, 10.6 playouts and 228 ms a decision).
-**The ranker** (ranker.js, an MLP correction to today's score, labels L2 + L3 = 41,424 positions): round 1, the
-`weighted` variant, on 768 seeds `chk`: 34.1% / 64.2 against today's 29.7% / 62.0, +2.26 ± 1.40 progress (clears +133
-−99); on the 256 `sel` it was chosen on, −0.88 ± 2.16; `plain` −6.3 and `unchosen` −4.3 on `sel`, both misled by the
-draw by outcome (a drawn lost battle's own option loses by construction). Round 2 (R2: 500 runs of r1, the draw by
-state, 52,077 positions; afterstate inputs `aft.*`, 4.0 s a run): the best of four on 768 `chk2` −1.65 ± 1.27 against r1,
-+0.48 ± 1.28 against today's: not kept. Held-out label metrics never predicted play.
-**The forest** (forest.js, §2.24): round 1 (R3 + R2 at half weight, `aft`, δ 0.05; chosen on `sel3` of four variants,
-+2.68 ± 1.63 against today's): on 768 `chk3`, 35.4% / 65.1 against today's 30.7% / 61.8, +3.28 ± 0.98 (clears +89
-−53); against r1 −0.64 ± 1.35 (clears +119 −129), kept as level within a standard error. Round 2 (R3 + R4, R4 500 runs
-of the round-1 forest at 9 positions/s): on 768 `chk4`, against round 1 +1.78 ± 0.98 progress (clears 33.1% against
-34.1%, +78 −86: fewer deaths on floors 1–2, more on 3–4), against today's +2.81 ± 1.03 (33.1% against 29.6%, +102 −75);
-5.0 s a run against 2.4. Kept; ranker.json removed. The teacher gains 0.21 a decision on its labels, the forests
-realise +0.000 to +0.013 of it. *The chaos read* (R3, 48,010 positions): twins (identical features, act and target,
-another tile) differ by a median 0 and a p90 of 0.03; in the 2,112 positions where some options lose and some win,
-18.7% of twin pairs fall on opposite sides. **The learned route switched on** (autoplay.js ROUTE_LEARNED, route.json of 2026-10-11 unchanged): with the forest
-playing the battles, on 768 seeds `chk5`, 33.1% clears against the hand-built route's 29.0% (+146 −115), progress
-+1.43 ± 1.56, 5.3 s a run against 4.1 (it fights more battles: 31.0 a run against 27.3). The hand route's tests walk it
-by `withRoute('hand')`.
-**The forest, round 3: smoothed labels** (teach.js `--smooth 3 --epsilon 0.1`: each option played out three times, the
-first the exact line, the other two with the continuation's decisions perturbed by `explore`, the label their mean;
-R5, 200 runs of the round-2 forest walking the learned route, 20,849 positions in ~2.5 h): 28% of options' three
-playouts differ; in the 4.3% of positions where the exact lines lose and win, 24.8% of options span a loss and a win
-under the perturbations. On 256 `sel6`, against the shipped round 2: R5 alone −1.80 ± 2.11, R5's exact lines alone
-(the control) −1.31 ± 2.22 (smoothing no different in play), R5 ×2 + R3 + R4 at δ 0.05 −2.43 ± 1.67, the same at **δ
-0.02** +0.49 ± 2.05 (clears +38 −32). On 768 `chk6`: against round 2 +1.94 ± 1.27 (clears 36.3% against 34.2%, +107
-−91), against today's +3.67 ± 1.22 (36.3% against 30.7%, +111 −68), 5.1 s a run. Kept (forest.json round 3); whether the
-gain is the labels' or the lower margin's is not separated. Open: the stronger teacher (a multi-turn search where
-one-step playouts see no win, offline: src/sim/teacher.js), labels with common random numbers across a position's
-options, the route relabelled under the forest; then, the expert and the teacher as strong as they go, the balance
-pass.
+Nothing in the game runs the expert (the foes are `foeTurn`, the untouched the basic rule): the whole autoplayer
+stack exists to measure, and the forests' one advantage over calculation is speed. From this plan on:
 
-### Perfect calculation: the teacher outside battle (2026-10-12)
+| Player | s/run | Clears today | Depends on | Stale after a content change |
+|---|---|---|---|---|
+| basic (`LEVELS.basic`) | ~1 | 0% | rules of thumb | no |
+| **hand expert** (expert.json's tree and weights; forests off, the learned route) | ~2.5 | ~31% | feature weights, searched on old content | mildly |
+| **shipped expert** (the three forests) | ~7 | 65–78% | forests fitted on Court-era playouts | yes: ~8 h of labels to refit |
+| **outside teacher** (`outside.js`: each out-of-battle choice among the base's top six played to the run's end) | ~67 | 63/64 | calculation; the base plays the battles | barely: it judges by outcome |
+| battle teacher (`teacher.js`) | 1,100+ | 46–50/64 | calculation | no, and far too slow |
 
-`src/sim/outside.js` (offline only): at each out-of-battle decision (prep's formation, spending, the recruit, the
-Shop, the relic holds) the base's own pick and its next five candidates, each played on a copy of the run by the
-shipped expert (the forest in battle, the learned route) to the run's end, valued as a room choice to the end
-(teach.js routeEndValue); a formation by the coming battle alone; `--won`: the first candidate whose playout clears the
-run is taken. Battles are the shipped expert's own. On 64 seeds `sim-0…63`: **63/64 clears against the shipped expert's
-23/64** (+40 −0), progress +0.377 ± 0.045, battles won 3155/3156, 67 s a run; 136 of 18,011 decisions overrode the
-base, every seed the base cleared played move for move as the base, 20 of the 41 it lost cleared after one override.
-One phase at a time: the recruit 62/64, spending 60/64, prep 48/64, the Shop 30/64, the holds 27/64. It is
-calculation, not a better rule: the run is exact and chaotic (one other recruit or tier early changes every later
-battle), so among six lines known to their end one nearly always clears. The battle teacher's 75% is partly the same
-(§6, the chaos read: where battles are decided a quarter of options flip between a loss and a win under small
-perturbations). And it is fair (the user: "The teacher is already honest. The user can see all future battles"):
-every battle of the run is on the screen and combat is deterministic, so the teacher computes only what a player could;
-its strength is perfect calculation, and its clear rate is the ceiling of play.
+- **The fast loop: the hand expert**, forests off, free and committed, 256 paired seeds (`div-*`), ~15 min on four
+  cores. Run after every content change, `npm run combos` first (the book is the expert's build targets; seconds).
+  Catches reachability and gross imbalance; its absolute level does not matter, paired differences do.
+- **Viability and the ceiling: the outside teacher**, forests off (with them on, a stale recruit forest shapes the
+  six candidates it chooses among), committed to each archetype, 64 seeds each, at the top difficulty (§4.6), ~3 h for
+  ten archetypes on four cores. It saturates at the base difficulty (63/64: nothing to rank), so it reports clears
+  **and a margin**: the Monarch's HP share and the souls' at the end, battles lost, essence left, turns. It needs no
+  refitting when content moves, which is why it is the yardstick for new content.
+- **The balance pass's numbers: the shipped expert**, its forests refitted on the content once per milestone (never
+  per change), 768 seeds, because "the expert ~90%" is defined on it and it stands for a good player who has learnt
+  the game. The ladder (basic → hand → shipped → teacher) at every difficulty is the skill-differentiation measure: its
+  rungs must keep their order and their gaps.
+- **Dropped:** the battle teacher as a tuning instrument, and further forest rounds for their own sake (§6 of the old
+  spec spent days on them for a few points). If the outside teacher's 67 s bites, the cheap win is a floor-horizon
+  playout in place of the run's end (the route labels once used two rooms), several times cheaper.
 
-### The battle teacher, stronger (2026-10-12, stopped)
+**The harness** (`autoplay.js`, Step 0): `--builds [--player hand|shipped|teacher] [--commit <archetype>|all]
+[--scale <difficulty>] [--runs n] [--seed s]`: a committed run reads a book filtered to the archetype's combos
+(`BOOK.combos` by `fuse`, `kin` or `role`; `targetOf`, `comboWorth`, so the draft, the recruits and the spending
+follow it; the teacher's candidates come from the same `recruitCandidates`/`spendCandidates` and so follow it too);
+a row an archetype: clears, progress, the margin columns, the share of runs that made its fusion or reached its
+synergy and the median battle it came on; a last block for free play: the archetype shares, kinds held, fusions made,
+synergies active, relics bought (the diversity block, also in the ladder report). `--pool`: the availability table
+above from `spawnPool`, and for each recipe the expected battles offering each part by floor. Noise as the old spec
+reported it: ± one standard error of the paired difference; 64 seeds resolve ~6 points of clear rate, 256 ~3.
 
-`src/sim/teacher.js` (offline only): teach.js's teacher with (a) the shipped expert finishing every playout (the forest,
-the learned route), (b) every legal option where the shortlist's best playout loses, (c) where no option of the one
-decision wins, a search over our next decisions jointly across End Turn (the foes' turns played exactly), each line
-finished by a playout, the first winning line taken and followed, ≤ 2,000 playouts; `--shape foes`, a lost line worth
-the share of the foes' HP it removed. On 64 seeds `sim-0…63`, paired against the shipped expert: (a) **46/64** (+28 −6;
-the first teacher, with today's expert finishing, 48/64), 18 min a run; (a)+(b)+(c) **50/62** when stopped (+30 −3), 22
-min a run; with shaped losses, on the seeds (a)–(c) lost, 1 of 6 rescued. Stopped at the user's word: "the ceiling is
-already 100%" (the teacher outside battle, above, 63/64 with the expert's own battles).
+## 4. The design
 
-### The forest out of battle (2026-10-13, §2.25)
+### 4.1 Fusions: a triple for every kind, and fusions of fusions
 
-**Labels** (R1, `outside.js --label`, from a frozen worktree of the code it ships with): 120 runs `outl-0…119` of the
-shipped expert (the battle forest's round 3, the learned route), every recruit and the purchases drawn (each distinct one;
-all where two kinds compete, a quarter of the rest), every candidate (today's pick and its next five, and passing on)
-played out to the run's end by the expert, valued by routeEndValue: 3,887 recruits of 4.5 candidates and 6,217
-purchases of 5.3, in 3.2 h on eight workers (~33 runs, ~3,000 decisions, ~15,000 candidates an hour: a recruit 16 s, a
-purchase 5, most of its candidates meeting a fight already played). Another candidate's playout beat the base's at 52%
-of the recruits (by 10.5 where it did; at 18.8% one cleared where the base's line lost) and at 45% of the purchases (by
-6.8; 12.2%). **The forests** (a phase each, 200 trees): out of bag at δ 1 the recruit's changes 31% of the recruits for
-+1.26 a decision (held out +1.04; the teacher's +5.5), most of them a recruit where today's takes none; the purchase's
-is level with today's (+0.16 at δ 0, −0.15 at δ 1). **Paired against the shipped expert** on 256 seeds `sel7`: the
-recruit's alone at δ 1 +18.21 ± 2.43 progress (clears 62.5% against 37.1%, +93 −28), at δ 2 +16.31 ± 2.19 (64.1%, +89
-−20), at δ 0.5 +19.56 ± 2.42 (68.8%, +103 −22); the recruit's at δ 1 with the purchase's at δ 0.5 +19.83 ± 2.48
-(66.8%, +101 −25). The recruit's at δ 0.5 on 768 fresh seeds `chk7`: **69.1% clears against 40.8% (+293 −75), progress
-+18.33 ± 1.46**, battles won 99.3% against 98.2%, deaths on floors 2 and 3 14 against 220 (on floor 4 118 against 86:
-the runs reach it). 6.85 s a run against 4.69, for the runs go further (42.8 battles a run against 33.7, more of them on
-floor 4); the read and the trees cost nothing a timing sees (every read made, the margin never passed: 4.02 s against
-4.61 on 64 seeds, the same moves). Kept: `src/sim/outforest.json`, the recruit's forest (0.19 MB). Why so much from one
-decision: today's recruit weighs a soul by the sketch, the field's strength and the book, which a soul that does not
-make the field's best few changes not at all, so it declines three offers in four; the souls behind the field are what
-a run has when the field falls, and what its fusions and synergies are made of later.
-**Round 2** (R2: 92 runs `outm-0…91` of round 1, its recruits the forest's; 3,704 recruits and 5,503 purchases in 3.0 h;
-another candidate's playout beat the base's at 50% of the recruits, by 3.9 where it did against R1's 10.5, and at 36% of
-the purchases, by 2.9). Refitted on R1 and R2, each row against today's pick as play reads it; out of bag the recruit's
-forest +0.91 a decision at δ 0.5, +0.92 at 0.25, the purchase's +0.04. Paired against round 1 on 256 seeds `sel8`: the
-recruit's at δ 0.5 +1.37 ± 1.19 (clears 70.3% against 67.6%, +40 −33), at δ 0.25 +2.04 ± 1.17 (75.0%, +41 −22), at δ
-0.5 with the purchase's at 0.5 +2.66 ± 1.34 (69.5%, +38 −33), round 1's recruit's with the purchase's at 0.5 +0.59 ±
-1.02 (68.0%, +19 −18). The recruit's at δ 0.25 on 768 fresh seeds `chk8`: against round 1, **73.7% clears against 68.6%
-(+114 −75), progress +2.09 ± 0.77**, 6.92 s a run against 6.74; against the expert without a forest out of battle,
-**73.7% against 35.2% (+341 −45), +21.23 ± 1.33**, 7.00 s against 4.40. Kept (outforest.json round 2, 0.22 MB). Open:
-the purchases (a forest fitted twice, on 11,720 of them, plays level with today's), round 3 under round 2, and the Shop by the same
-machinery (the formation's: below); then the balance pass, the expert near the teacher's ceiling being the measure it needs.
-**The formation** (the prep by the same machinery, §2.25; from a frozen worktree of the code it ships with, the battle
-forest's round 3 playing): labels P1, 480 runs `prepl-0…479` of the shipped expert (338 cleared), every prep labelled,
-20,114 decisions of 9 formations each (today's pick, its next five by today's order, the best three of the plan's
-drafts), each formation fielded and its battle played out by the expert, valued by endValue: 1.85 h on four workers
-(~260 runs, ~10,900 decisions, ~98,000 formations an hour). Another formation's battle beat the base's at 62% of the
-decisions (by 0.18 where it did: floor 1 66%, 2 53%, 3 67%, 4 64%); the base's battle was lost at 142 (73 on floor 1,
-5, 9, 55 on floor 4), another formation won it at 102 (50, 4, 7, 41). Twins (today's with two like pieces swapped, every
-feature alike) win and lose apart, as in the battle (the chaos read). The forest (200 trees, depth ≤ 12, ≤ 512 leaves of
-≥ 40 rows, the centred target): out of bag at δ 0.1 it changes 5% of the formations for +0.021 a decision (the teacher's
-+0.11), winning 42 of the 110 battles today's lost and losing 13 today's won; held out +0.019, 10 won and 2 lost of 32.
-Paired against the shipped expert on 256 seeds `sel9`: δ 0.02 +2.74 ± 1.97 (clears 79.7% against 75.8%, +37 −27), δ 0
-+2.49 ± 2.15 (77.0%, +38 −35), δ 0.05 +3.19 ± 1.97 (81.6%, +38 −23), δ 0.1 +3.76 ± 1.90 (82.8%, +34 −16). δ 0.1 on 768
-fresh seeds `chk9`: **78.6% clears against 71.7% (+104 −51), progress +4.58 ± 1.02**, battles won 99.5% against 99.3%,
-deaths by floor 66 / 9 / 13 / 76 against 109 / 5 / 10 / 93; 8.59 s a run against 7.74, for the runs go further (34,471
-battles against 32,775) and the reads cost ~0.3 s (a margin never passed, every read made: 8.49 s against 8.18 on 64
-seeds, the same moves; three quarters of a prep's 6 ms are the opening boards, turns.js createBattle and policy.js
-situation). Kept: outforest.json `round-2-prep-1`, the recruit's forest of round 2 and the formation's at δ 0.1 (1.18 MB).
-*Round 2* (P2: 480 runs `prepm-0…479` of round 1, 368 cleared; 21,532 decisions in 1.8 h on four workers). Where round
-1's forest took another formation than today's (901 decisions, 4.2%), its formation won 42 battles today's lost and lost
-13 today's won. Another formation's battle beat the base's at 62% (by 0.15); the base's lost 112 (48, 0, 5, 59 by
-floor), another won 80 of them. Refitted on P1 and P2 (out of bag at δ 0.1 +0.021 a decision, held out +0.021); against
-round 1 on 256 seeds `sel10p`: δ 0.1 +0.78 ± 0.97 (clears 80.1% against 77.3%, +18 −11), δ 0.25 −0.81 ± 0.95 (75.4%,
-+11 −16), floor 1's decisions at twice the weight (`--floor-weights 2,1,1,1`) at δ 0.1 +1.62 ± 0.91 (80.5%, +17 −9),
-round 1's own at δ 0.25 −0.62 ± 0.66 (75.8%, +9 −13). The third on 768 fresh seeds `chk10p`: against round 1 76.3% against
-75.0% (+47 −37), **progress −0.13 ± 0.68: not kept**. On the same seeds round 1 against the expert without a formation
-forest (the recruit's alone): **75.0% against 70.8% (+78 −46), +1.56 ± 0.91**, deaths 89 / 7 / 6 / 90 against 103 / 3 / 10
-/ 108, 4.78 s a run against 4.49 (chk9's +4.58 the larger draw; over the 1,536 fresh seeds of the two, +182 −97).
-*Without the boards*: a forest fitted on P1 and P2 `--without s.o.,f.o.,vs.o.` reads no opening board (outforest.js
-opensBoard: play makes none, 0.8 ms a prep against 3.2) and does about as well on the labels (held out at δ 0.1 +0.017
-against +0.021); against round 1 on 768 fresh seeds `chk11p`, 78.0% against 79.6% (+30 −42), **−1.39 ± 0.62**, 4.59 s a
-run against 4.84: the battle's own read of the board each formation opens on is worth more than it costs. Not kept. Open:
-the formation's labels are one battle deep and the battle chaotic (twins win and lose apart); a formation judged by the
-run's end (`prep` 'run', the outside teacher's ceiling 48/64 from it alone) would label what a formation costs later,
-at the cost of a run a formation.
+The user's word: "Fusions of 3 of the same unit should always exist", "fusions of fusions". Today five hand-written
+recipes; after this, a graph.
 
-### The battle forest relabelled under the shipped expert (2026-10-13, round 4, not kept)
+- **The triple rule.** Every kind of tier 4 or less that a run can hold (every spawnable kind, every fused kind, never
+  the boss) fuses three of itself into its **trine**: a kind two tiers above its parts (tier 1 → 3, 2 → 4, 3 → 5,
+  4 → 6; tier 6 is the top, so a tier-5 or tier-6 kind has no triple). The Pale Court is the first trine (three Wisps,
+  tier 3) and sets the line: its HP is 7× a Wisp's, its ATK 4.8×, its DEF 2×.
+- **Generated, overridable.** A trine is a record like any kind, but where no record is written for it the content
+  makes one from its base kind at load (`content.js trineOf(kind)`: id `trine:<kind>`, the name `trine` on the def
+  or "<Name> Trine", `base` from `TUNING.trine` by the parts' tier, `growth` the kind's, `kin`, `role`, `move`,
+  `flies`, `arm`, `temper`, `threats` the kind's, `size` 2 from tier 4 up, `art` the kind's, `fused: true`, its
+  abilities the kind's own with every single-target blow a blast (three of them strike at once) and ranged blows one
+  tile farther, `tracks` the kind's two, its summon tiers bringing the base kind). A written record with `trineOf:
+  <kind>` replaces the generated one (the Pale Court's `trineOf: 'will_o_wisp'`), so a bespoke trine is one record,
+  and the other four recipes of today stay as **mixed recipes** beside the triples. The content test holds every trine,
+  generated or written, to the kind checklist. The vocabulary grows by one word, Trine ("three of a kind fused"), and
+  the codex's Fusions page lists the mixed recipes and the capstones, with one line for the rule; a kind's card shows
+  its own triple.
+- **The stat line**, `TUNING.trine` by the parts' tier, placeholders until the balance pass, with the invariant "a
+  fusion is never weaker than what went into it" (HP at least the parts' sum; a blow at least the parts' best):
 
-**Why.** The battle forest's labels (R3–R5) came from experts that cleared 30–36% and seldom reached floor 4; the shipped
-expert (round 3, the learned route, the recruit's forest) clears ~74% and dies on floors 1 and 4. **Labels R6** (from a
-frozen worktree of the code it ships with): 272 runs `teachg-*` of the shipped expert, drawn by the state with the
-floors' factors (teach.js `--keep-floor`, new: the chance a floor's factor times the danger's, the floor being the run's
-state, `wt` 1 / it; `--keep 1,0.5,0.3,0.03 --keep-floor 1=2,3=2.5,4=3`: a decision in reach kept at 0.6 on floor 1, 0.3
-on 2, 0.75 on 3, 0.9 on 4, a calm one at a tenth of that), every option played out exactly to the battle's end by the
-shipped expert: **39,300 positions, by floor 18,345 / 1,372 / 4,335 / 15,248** (R3–R5 together held 18,730 on floor
-4), 3.6 a second on four workers beside the other agent's four (the run count, 340, chosen from an 8-run pilot at 6.4 a
-second; stopped at the 3 h budget with 272 done). The expert stands nearer the playouts' best than the older ones did
-(it takes the best 62% of the time against R5's 51%, regret 0.11 a decision against 0.22), and round 3's own changes,
-read on R6's held-out decisions, realise −0.010 a decision at its δ 0.02 (the refitted forests −0.001 to +0.000).
-**Refitted** as round 3 (200 trees, the afterstate's inputs, the centred target, bagged by run) and paired against the
-shipped round 3 on 256 seeds `sel10` (outforest.json round 2, the recruit's forest alone): R6 alone at δ 0.02 −0.53 ±
-1.81 progress (clears 70.3% against 73.0%, +34 −41); R6, R5, R3 and R4 alike at δ 0.02 **+1.54 ± 1.54** (76.2%, +30
-−22; deaths on floor 1 28 against 32, on 4 30 against 32); R6 and R5 at twice the weight with R3 and R4, δ 0.02 +1.18 ±
-1.62 (75.8%, +32 −25); R6, R5, R3 and R4 alike at δ 0.035 −1.29 ± 1.89 (74.6%, +34 −30). The second on 768 fresh seeds
-`chk10`, with the shipped outforest.json `round-2-prep-1` (the formation's forest in play, committed by then): **76.0%
-clears against 74.7% (+81 −71), progress +0.09 ± 0.92**, battles won 99.5% against 99.4%, deaths by floor 87 / 3 / 13 /
-81 against 83 / 6 / 12 / 93, 8.59 s a run against 8.66. Not kept (no gain in progress beyond a standard error): forest.json
-stays round 3. It trades floors (12 fewer deaths on floor 4, 4 more on floor 1), as round 2 did against round 1.
+  | Parts' tier | Result | HP × base | ATK × base | DEF × base | Size |
+  |---|---|---|---|---|---|
+  | 1 | 3 | 7 | 4.8 | 2 | 1 |
+  | 2 | 4 | 7 | 4.5 | 1.5 | 2 |
+  | 3 | 5 | 6 | 3.8 | 1.5 | 2 |
+  | 4 | 6 | 5.5 | 3.2 | 1.5 | 2 |
+  | a fused kind (3–4) | +2, at most 6 | 3 | 1.8 | 1.2 | 2 |
 
-### The expert at the end of 2026-10-12/13
+  Read against today's: a Tomb Knight trine 994 / 72 / 33 beside the Bone Colossus's 1050 / 68 / 28; a Frost Sprite
+  trine 378 / 72 / 8 beside the Court's 350 / 72 / 6; a Pale Court trine 1050 / 130 / 7 at tier 5. The fuse price is
+  `essence.fuse` × the result's tier × the floor's scale as now: a trine of trines is a floor-3 or floor-4 purchase.
+- **Fusions of fusions, bespoke: the capstones.** Seven hand-written kinds of tier 5–6, each one record, 3 SVGs or
+  `art`, two tracks, listed in the codex from the start; one a kin, two across kins:
 
-The shipped expert (41555c7): today's tree and weights (expert.json), the battle forest (forest.json round 3), the
-learned route (route.json), the recruit's forest and the formation's (outforest.json round-2-prep-1). Against the
-expert as the day began (78d63b6: today's tree and weights alone, the hand route), each played from a frozen copy of
-its commit on the same seeds: **768 seeds `fin`: 77.7% clears against 30.6%**, deaths on floors 1–4 8.3 / 0.8 / 1.4 /
-11.7% against 26.8 / 14.6 / 14.8 / 13.2%, 45.1 battles a run against 27.8, about one battle lost in 200 against one
-in 40; **256 seeds `sim`: 77.0% against 31.6%**. The old rehearsing expert's bar (47% on `sim-0…63`) is passed; the
-teacher's ceiling is ~100% (63/64 out of battle alone). What is left: floor 4 (11.7% of runs end there) and floor 1
-(8.3%); purchases (two forests played level with today's) and Shop relics by the same method; then the balance pass.
+  | Capstone | Parts | Tier, size | Idea |
+  |---|---|---|---|
+  | Charnel Cathedral (Undead) | Bone Colossus + Grave Ghoul trine | 5, 2×2 | the wall that feeds: its blows heal it, and what it slays beside it rises |
+  | Winter Court (Fae) | Pale Court + Frost Sprite trine | 5, 1 | Hex and Brittle on everything within 4 tiles; a caster's caster |
+  | Cinder Wyrm (Drake) | Rime Drake + Pyre Hound trine | 5, 1, flies | a flying burner: Burning on a crowd from 5 tiles, fire that spreads |
+  | Hive Mind (Insect) | Hive Queen + Hive Drone trine | 5, 2×2 | mends everything, drones hatch at every wave, skills reset on a kill |
+  | Engine of Ages (Construct) | Clockwork Titan + Clockwork Page trine | 5, 2×2 | Hexes all it touches; stands at 1 HP once a battle |
+  | Aurora (Fae + Drake) | Pale Court + Rime Drake | 5, 1 | fire and frost: a blast that burns and Hexes |
+  | Iron Barrow (Undead + Construct) | Bone Colossus + Clockwork Titan | 6, 2×2 | the heaviest piece in the game |
 
-### The expert as one file (2026-10-13)
+  A capstone's rule-like effects (a rise on a kill, a once-a-battle stand) are abilities and `onFall`/`on` records
+  where the vocabulary allows and registry rules scoped to the kind where it does not (the Sovereign's override is
+  the precedent); the content test says which.
+- **The recipe graph's rules**, in `test/content.test.js`: every kind of tier ≤ 4 has exactly one triple; every
+  fused kind is the result of exactly one recipe; a recipe's result tier is within two of its parts' tiers' sum minus
+  the parts' count (the line today's five keep); a fusion of fusions names two or more fused kinds among its parts;
+  no kind above tier 6; no cycle. Adding a kind adds its triple for free; a new mixed recipe or capstone is one
+  recipe line and one unit record, as before.
+- **What it means for the rest.** `canFuse`, `fuseParts`, `fuseIn` and the in-battle fuse read `FUSION_LIST`
+  generically and need nothing; `combosOf` (`--combos`) enumerates every recipe into the book; `abilitiesOf` reads a
+  generated kit as any. A trine counts once toward synergies, as every piece does: fusing trades count for a body,
+  everywhere now, so a synergy at 4 should be reachable by a field of trines too (the counts are the balance pass's;
+  §7). The roster (12) and Command (3–6) bound how far the graph is climbed in one run, which is the point: a run
+  chooses where on it to stand.
 
-At the user's word ("combine"), the expert ships as one file, `src/sim/expert.json`: its model tree and rules at the top
-(as expert.js always read it), and beside them its parts, `forest` (the battle forest), `outforest` (the recruit's and
-the formation's forests), `route` (the learned route); `forest.json`, `outforest.json` and `route.json` are gone from
-`src/sim`. One reader (expert.js shippedFile, shippedPart), each module reading its own part; `bundle.js` (`npm run
-bundle`) sets a part from a fitted file, drops one, or splits the file into its parts; the fitters that wrote into
-`src/sim` (fit.js's tree, teach.js's route) now replace their part only; `--paired expert:<file>` (autoplay.js
-withExpert) installs a whole expert at once. One model across every decision was not made: the decisions share no
-inputs and their values no scale, so the parts stay separate inside the one file. Checked: 12 whole runs of the
-expert before and after, every log byte for byte the same; 493 tests.
+### 4.2 Availability: what a run can gather
 
-## 7. Standing rules
+- **The draft guarantees a plan.** Pick 1 is free, as now; picks 2 and 3 each offer at least one kind that shares a
+  recipe or a kin with a soul already held (`draftOffer`, reading `FUSION_LIST` and `kin`), so two of a kind, or a
+  mixed recipe's parts, is on the table from the start for any kin the first pick chose.
+- **Flatten the pool.** `spawn.tierFalloff` 3 → 1.5 and `tierOverCap` 1 → 2 (placeholders): a tier-3 kind becomes a
+  few per cent of floor-2 fights and ~10% of floor-3 fights' draws; tier-1 kinds stay a fifth of floor-3's. Measured
+  by `--pool` against criterion 1 and by the ladder for what it does to difficulty. The alternative that keeps the
+  number: from floor 2 a fight's captain (`formation`'s `captains`) drawn one tier above the room's target, its cohort
+  of the room's own, so every fight carries one notable recruit; harder on floor 2, and a bigger change to `formation`.
+- The recruit stays one slain foe a battle (a standing rule); §4.5 is the pivot.
 
-Decided before this document and still in force (the project memory has the reasons):
+### 4.3 Synergies: eleven rules of one class
 
-- Enemy behaviour is discovered, never previewed: roads are terrain and are shown; the waves' turns
-  are time and are shown; a kind's reach, Move and way line are learnt by meeting it, then recorded; nothing of the
-  foes' coming turn is drawn.
+- **Echo split** by the one step the old spec allowed: at 4 Channelers, every ability echoes at half effect (damage,
+  healing and a status's turns halved on the second landing); at 8, in full. `rules.js echo` reads the count.
+- **The weak raised to Echo's class**: Ambush, Hastened for the first two turns (was one); Bodyguard, and Vanguards
+  take 20% less; Mirage, the first blow each foe lands *each turn* (was each battle); Last Stand, and it heals 30%
+  when it holds; Deathblow's threshold a quarter → 35% (`TUNING.deathblow.below`). Legion, Dragonfire, Deadeye,
+  Frenzy, Sanctuary stand. Summons keep counting (it is what makes the summon tiers a build).
+- Measured by criterion 3's synergy line, each rule committed through its role's or kin's archetype.
+
+### 4.4 Relics that define a build
+
+Twelve records in the forms already allowed (no rule below Legendary, for now: §7):
+
+- **Five kin banners**, Uncommon run relics with `who`-scoped mods: "every Drake of yours has +25% ATK", "every
+  Construct takes 10% less damage", "every Undead has +20% HP", "every Fae's skills come back a turn sooner", "every
+  Insect has +1 Move". Commitment the player can buy.
+- **Seven piece relics on `on` + `effects`**: on kill, the slain rises as your shadow if its tier is 1 or less (Rare:
+  a small Legion for one holder; the `raise` op); on blow, Burning on the target (Uncommon); on struck, 12 damage to
+  the attacker (Uncommon; `damage` to `other`); on blow, the holder heals 10% of its max HP (Uncommon); on blow, its
+  skills come back a turn sooner (Rare: `cooldown` −1); on wave, Barkskin to allies within 2 (Common); on kill, Hasten
+  to self (Uncommon).
+- Measured by the relics ablation (criterion 3) and by the committed runs' relic shares. If twelve do not reach 10
+  points, the next lever is `rule` on Rare relics (§7, a decision).
+
+### 4.5 The pivot: the altar's choice
+
+An altar offers one of three, not a heal alone: **heal** all and raise the fallen (as now); **transmute** one soul
+into one of three kinds of the floor's pool at the same tier, keeping its level and relic (`{ type: 'transmute', uid,
+index }`, the offer drawn by the run's seed); **consecrate**, a free tier on one kind. It bends "recruit only" without
+adding a soul (§7, a decision): a run that drafted into a kin the floor does not feed can turn. Measured by the share
+of committed runs that change archetype after floor 1 and still clear.
+
+### 4.6 Difficulty as a ladder
+
+`TUNING.ascension`, a table of rows, each the multipliers of one level over the base (foe HP and ATK, a fight's and an
+elite's counts, the waves' spacing, the Monarch's HP, prices), chosen on the title screen, kept in the URL and prefs,
+unlocked a level a clear. Level 0 is tuned on the shipped expert (~90%) with basic reaching floor 2 about half the
+time; the top level on the teacher (~60%); the levels between interpolate. "Floor 1 is hard" moves up the ladder: the
+first run is winnable, the twentieth is not. The ladder report runs every level.
+
+### 4.7 Foes that answer an archetype
+
+Later, after §4.1–4.6 measure: a boss a floor, each with a counter in its kit (a Hex-spamming court against casters;
+Purge and Molt against status builds; screens on every line against rangers; flyers against walls), and elites drawn
+with a threat the scouted army lacks an answer to (`varyRoutes` already draws rooms for threat variety; this reads the
+army). The teacher's committed margins say which archetype each boss should lean on.
+
+### 4.8 Skill and product
+
+- **A run saved**: `replay(seed, log)` makes a save the run's seed and log; written to prefs on every action, resumed
+  from the title screen. (Step 8; small.)
+- **Foe reach on tap**: in battle, tapping a met foe lights the tiles its Move and reach cover next turn (what it
+  *could* strike, as the codex already tells once met: §7's "learnt by meeting it" holds; nothing of what it *will*
+  do is drawn). Turns calculation into reading.
+- **A tutorial**: a floor-0 room with a fixed draft and a scripted first battle, three screens of text at most.
+- **Run length**: `RANKS` 16 → 12 (ten rooms a floor) or three floors, chosen by the measured orders a clear
+  (target ~600, 75–90 minutes).
+- **Meta**: a run history, a daily seed, Monarch variants (a starting run relic and a draft bias each) unlocked by
+  clears; music (one loop a floor, synthesised like the effects, or files).
+
+## 5. Baseline
+
+The audit's numbers (f8c536f, 2026-10-15), the figures every step is paired against. Seeds `aud-0…59` (expert),
+`aud-0…39` (basic and the variants).
+
+| | Expert | Basic |
+|---|---|---|
+| clears | 39/60 (65%) | 0/40 |
+| died on floor 1 / 2 / 3 / 4 | 12 / 1 / 1 / 7 | 40 / – / – / – |
+| battles a run | 39.9 (a clear 50.5) | 2.3 |
+| orders a run | 958 (a clear 1,188) | |
+| turns a battle, floors 1–4 (median) | 6 / 2 / 6 / 5; the boss 17 | |
+| final armies holding a Pale Court | 77% (their clears 83%; others 7%) | |
+| fusions made (runs making one) | Pale Court 121 (78%), Rime Drake 18 (22%), Bone Colossus 6 (10%), the rest 0 | |
+| synergies active (share of battles) | Echo 61%, Legion 37%, Mirage 4%, none 39% | |
+| relics a run; recruits a run | 5.2; 11.6 | |
+
+Variants on `aud-0…39` (baseline 24 clears): no Echo 19; no Pale Court recipe 0. The scripts: `measure.mjs` (a run's
+draft, armies, fusions, synergies, battles), `analyse.mjs` (the tables), `variant.mjs` (a content variant in process),
+`reach.mjs` (the pool table), to be folded into `--builds` and `--pool` in Step 0 (they lived in a session's
+scratchpad; Step 0 rewrites them in `autoplay.js`).
+
+## 6. Implementation
+
+One working tree; content is data; at most two agents at once, never two on `src/content.js`; tests check function;
+no number moves but the ones a step names, until the balance pass. Each step ends with its numbers appended to §8
+and the README's autoplayer section kept true.
+
+### Step 0. The harness (sim, ~3 h)
+
+`--builds`, `--pool`, the diversity block in the ladder report (§3), the margin columns, `--scale`, `--player`,
+`--commit`; `test/builds.test.js` (a committed run's targets are its archetype's; the pool table sums to one; the
+report's shape). Baseline rows for every archetype that exists today, hand expert and teacher, into §8. Done when the
+baseline is recorded.
+
+### Step 1. Availability (sim, ~2 h)
+
+§4.2: the draft's guarantee (`draftOffer`), `tierFalloff` and `tierOverCap`; tests: a second pick always offers a
+recipe partner or a kin-mate of the first; the pool's shares by floor. Measured by `--pool` against criterion 1 and by
+the hand ladder for the difficulty it moves.
+
+### Step 2. The fusion graph (content, ~6 h; then the interface, ~2 h)
+
+§4.1: `trineOf`, `TUNING.trine`, the Pale Court as a written trine, the seven capstones (art borrowed until drawn),
+the content test's graph rules, `--combos`, the codex's Fusions page and the kind cards, the glossary's Trine. The
+interface: a trine drawn as its kind, bigger (2×2 as now) or thrice overlapped (a `trine` flag the engine reads; the
+interface agent's call); the Field's Fuse button and the in-battle fuse unchanged. Measured: every archetype's
+reachability (criterion 1) and the committed hand expert on 256 seeds; the teacher's committed margins overnight.
+
+### Step 3. Synergies (sim + content, ~2 h)
+
+§4.3 in `rules.js` and the synergy records' text; tests for each changed rule. Measured by the committed runs per
+role and kin.
+
+### Step 4. Relics (content, ~2 h)
+
+§4.4's twelve records; the content test holds their forms; `--combos` (the book pairs relics with combos). Measured
+by the relics ablation and the committed runs' relic shares.
+
+### Step 5. The altar's choice (sim ~2 h, interface ~1.5 h)
+
+§4.5: the altar's phase with three offers, `transmute` and `consecrate` as actions in the log and `replay`; the
+expert's altar choice by the growth sketch; the altar screen. Measured by archetype changes after floor 1.
+
+### Step 6. Measure, iterate, refit, balance
+
+Two bug hunts (a trine fused onto a held tile, a capstone's part consumed twice, a transmute keeping the wrong relic,
+a generated kit missing a basic, a recipe cycle). Then the loop: the hand expert on 256 seeds and the teacher
+committed on 64, criteria 1–3, content moved until they hold (the balance pass's domain: the trine table, the
+capstones' numbers, Echo's halves, the pool's falloff). Then the forests refitted on the content (`teach.js`,
+`outside.js --label`, `forest.js`, `outforest.js`, `bundle.js`: overnight), the shipped expert's ladder on 768 seeds,
+criterion 4 at level 0. Then the README, §8, a push to master.
+
+### Step 7. The ascension ladder (sim ~2 h, interface ~1 h)
+
+§4.6; the top level tuned on the teacher; the ladder report every level; the title screen's choice.
+
+### Step 8. The skill curve (interface ~4 h, sim ~1 h)
+
+§4.8's save and resume, foe reach on tap, the tutorial room, `RANKS` by the measured orders a clear.
+
+### Step 9. The product
+
+§4.7's bosses; §4.8's history, daily seed, Monarch variants, music; a store build; five to ten outside players through
+a run with the time and the deaths recorded. Done when criterion 5 holds and the players' runs end where the ladder
+says they should.
+
+## 7. Decisions
+
+Taken on 2026-10-15, the user's word: a triple for every kind; fusions of fusions; the teacher as the yardstick for
+content, the forests refitted at milestones only; this file the plan, the old spec to history.
+
+Recommended here, open until the user rules:
+
+1. **`tierFalloff` moves before the balance pass** (§4.2). "No tuning while building" stands; this is called
+   structural, since without it there is nothing for a balance pass to balance between. The captain-a-tier-above
+   alternative keeps the number.
+2. **Transmute at altars** (§4.5) bends "recruit only: one slain foe a battle": it reshapes a soul, adds none.
+3. **Rules below Legendary** stay forbidden; §4.4 uses the forms allowed. If the relics ablation does not reach 10
+   points, Rare relics may carry a `rule`.
+4. **The Pale Court's identity**: Fae's floor-1 trine, evened by the committed measure (its size, its tier or its
+   blows' rests), not the odd one out.
+5. **Generated trines** (§4.1) are generative content, which the project has avoided; the alternative is ~17
+   hand-written kinds now and one more for every kind added later. Generation with written overrides is recommended.
+6. **Trines of trines** reach tier 6 (a trine of a Pale Court trine); the alternative caps the triple rule at
+   tier-3 parts (results ≤ 5) and leaves tier 6 to Iron Barrow.
+7. **A trine counts once toward synergies**, as every piece does; the alternative counts it as its parts did (three),
+   which makes the synergy at 4 a trine and a soul.
+
+## 8. Record
+
+Each step appends here: the date, the seeds, the paired numbers, what was kept. The baseline is §5.
+
+## 9. Standing rules
+
+In force before this plan and still, with the amendments it makes:
+
+- Enemy behaviour is discovered, never previewed: roads and the waves' turns are shown; a kind's reach, Move and way
+  line are learnt by meeting it and then recorded, **and a met kind's reach is drawn on the board when tapped**
+  (§4.8); nothing of the foes' coming turn is drawn.
 - Defeat is absolute. No lives, no retreat.
-- Floor 1 is hard, and the skill gap opens in the player's decisions: in prep and now in the turn. Never in dice.
+- The skill gap opens in the player's decisions, in prep and in the turn, never in dice. **Floor 1 is hard at the top
+  of the ladder** (§4.6), winnable at its foot.
 - The dead never block the roads. Foes keep to the one drawn road; flyers the air road, blocked by your pieces.
-- One soul is one piece is one body; no stacks.
-- A fusion is never weaker than what went into it.
+- One soul is one piece is one body; no stacks. A piece counts once toward synergies (§7.7 may amend).
+- A fusion is never weaker than what went into it. **Every kind of tier 4 or less has a triple** (§4.1).
 - Money always matters: essence is scarce on every floor, and a relic bought is a tier not bought.
-- Balance comes once, at the end. No tuning while building. Tests are functional only until then.
-- Plan first; at most two agents at once; implement → verify → clean → bug hunt → bug hunt → balance.
+- Balance comes once, at the end. No tuning while building, but the numbers a step names (§6).
+- Plan first; at most two agents at once; implement → verify → clean → bug hunt → bug hunt → balance. **Measure with
+  the instrument §3 names for the question**, pair by seed, and never keep a change on the seeds it was chosen on.
 - One universal landscape interface, modular tabs, nothing that needs hover or a key.
-- Recruit only: one slain foe a battle, as a full soul into the ossuary.
-- Content is data; code grows only when the vocabulary grows.
+- Recruit only: one slain foe a battle, as a full soul into the ossuary (§7.2 may amend).
+- Content is data; code grows only when the vocabulary grows. A generated trine is content made by one rule (§4.1).

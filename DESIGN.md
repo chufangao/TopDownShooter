@@ -4,7 +4,9 @@
 > enemy (one opponent, not halting and sight rules), relics (sold in Shops only; piece relics held one a soul, Arise a
 > held relic's skill), the dice (none), the clock (none) and the expert (a situation read, a decision tree and
 > weights; it never rehearses). The rest of this file stands: the board, footprints, roads, essence, tracks, fusions,
-> summons and the frame. Its old balance tables are history. Read `redesign.md` first.
+> summons and the frame. Its old balance tables are history. **2026-10-15:** that spec is history too
+> (`git show f8c536f:redesign.md`); the rules it decided live in the code's comments, and `redesign.md` is now the
+> improvement plan. Read `redesign.md` first.
 
 The rules redesign decided on 2026-10-09 (evening), and the plan for building it. For Chufan and for any Claude
 Code session working in this repo: read this before touching `src/`. It replaces "the dead keep the plan"

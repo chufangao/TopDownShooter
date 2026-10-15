@@ -79,5 +79,6 @@ Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a b
 - The interface: `src/main.js` (composition), `ui.js` (screens), `board.js` (the Field's board), `engine.js`
   (Phaser, battles only), `codex.js` and `keywords.js` (rules text generated from content), `frame.js` (one
   scaled landscape layout), `dom.js`, `sfx.js`, `css/`.
-- `test/` holds the functional tests. `redesign.md` is the current spec; `DESIGN.md` still holds the board,
+- `test/` holds the functional tests. `redesign.md` is the improvement plan (and says where the rules live: the
+  code's comments, and the superseded spec at `git show f8c536f:redesign.md`); `DESIGN.md` still holds the board,
   roads, essence, tracks, fusions, summons and the frame.
