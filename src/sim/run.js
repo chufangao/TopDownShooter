@@ -144,8 +144,10 @@ const BOSS = UNIT_LIST.find((u) => u.boss).id
 // bought, a copy each); `shop`, the stock of the Shop the run stands in (stockShop), empty elsewhere.
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
 // every battle of the run, carried in each battle's setup (turns.js createBattle: 'arise', 'synergies', 'summons').
-// A run made without it has no such field.
-export function createRun ({ seed, ablate = null, start = null }) {
+// A run made without it has no such field. `scale` (the harness's difficulty, autoplay.js --builds --scale; redesign.md
+// §3, until the ascension ladder of §4.6): every foe's HP and ATK × it, in every battle (foeMods); a run at 1 has no such
+// field.
+export function createRun ({ seed, ablate = null, start = null, scale = 1 }) {
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [], shop: [],
     essence: TUNING.essence.start, result: null, death: null, draft: null, kinds: {},
@@ -153,6 +155,7 @@ export function createRun ({ seed, ablate = null, start = null }) {
   }
   state.party = [makeUnit('monarch', { uid: MONARCH_UID, lvl: 0 })]
   if (ablate?.length) state.ablate = ablate.slice()
+  if (scale !== 1) state.scale = scale
   const run = { state, battle: null, setup: null }
   enterFloor(run)
   if (start) {
@@ -179,8 +182,8 @@ export function draftOffer (seed, pick) {
 export const startFor = (log) => (log?.length && log[0].type !== 'pick' ? START_PARTY : null)
 
 // A run's log replays it from its seed (and the start it was played from: startFor).
-export function replay (seed, log, { ablate = null } = {}) {
-  const run = createRun({ seed, ablate, start: startFor(log) })
+export function replay (seed, log, { ablate = null, scale = 1 } = {}) {
+  const run = createRun({ seed, ablate, scale, start: startFor(log) })
   for (const action of log) apply(run, action)
   return run
 }
@@ -1001,7 +1004,7 @@ export function battleSetup (run, { party = fielded(run.state.party) } = {}) {
     camp: s.camp,
     walls: wallTiles(s.camp),
     partyMods: s.relics.filter(isRunRelic).flatMap((id) => (relicDef(id).mods ?? []).filter((m) => !isRunPath(m.path))),
-    foeMods: foeMods(s.floor, boss),
+    foeMods: foeMods(s.floor, boss, s.scale),
     arise: ariseOf(s),
     nextUid: s.nextUid + foes.length,
     relics: s.relics.slice(),
@@ -1200,8 +1203,8 @@ export function deepGrowth (floor, node) {
   }
 }
 
-// Spawnable units for a floor, weighted toward the floor's target tier.
-function spawnPool (floor, tierBias = 0) {
+// Spawnable units for a floor, weighted toward the floor's target tier (`tierBias` 1: an elite's). → { units, weights }
+export function spawnPool (floor, tierBias = 0) {
   const sp = TUNING.spawn
   const target = Math.min(sp.tierMax, 1 + Math.floor((floor - 1) * sp.tierPerFloor)) + tierBias
   const units = UNIT_LIST.filter((u) => u.spawn && u.spawn.minFloor <= floor && u.tier <= target + sp.tierOverCap)
@@ -1209,10 +1212,11 @@ function spawnPool (floor, tierBias = 0) {
 }
 
 // In the boss's room only the boss takes the boss's multipliers; its waves and court take the floor's. Past
-// the Sovereign's floor every floor deeper adds TUNING.spawn.endless's hp and atk shares to them all.
-export function foeMods (floor, boss) {
+// the Sovereign's floor every floor deeper adds TUNING.spawn.endless's hp and atk shares to them all. `scale`: the run's
+// difficulty (createRun), on every foe's HP and ATK, the boss's too.
+export function foeMods (floor, boss, scale = 1) {
   const sp = TUNING.spawn
-  const grow = (key) => 1 + sp.endless[key] * depthOf(floor)
+  const grow = (key) => (1 + sp.endless[key] * depthOf(floor)) * (scale ?? 1)
   const mods = [{ path: 'hp', op: 'mul', v: at(sp.foeHp, floor) * grow('hp') }, { path: 'atk', op: 'mul', v: at(sp.foeAtk, floor) * grow('atk') }]
   if (!boss) return mods
   return [

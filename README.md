@@ -55,6 +55,9 @@ npm run necessity     # the same as a fast battle-level proxy
 npm run decisions     # how much the player's choices decide battles
 npm run audit         # what the expert considered, and which rule decided
 npm run combos        # rank the combo book into src/sim/combos.json
+npm run builds -- [--player expert|teacher] [--commit <archetype>|all|none] [--scale 1] [--runs 256] [--seed div]
+                      # the harness: free play and each build committed, on the same seeds (redesign.md §3)
+npm run pool          # what a run can gather: the foes' draws by floor, the battles offering each kind, each recipe's reach
 npm run sim -- --paired a,b --runs 768 --seed chk   # two experts on the same seeds (forest:<f>, outforest:<f>, route:<hand|learned|f>, none)
 npm run teach         # labels: a piece's options played out (--draw state, --augment, --teacher for the teacher's ceiling)
 npm run outside       # the teacher out of battle, and its labels (--label --phases recruit,spend,prep)
@@ -65,6 +68,14 @@ npm run bundle -- --forest f.json   # ship a fitted part into src/sim/expert.jso
 Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a band); extras `fusions`,
 `legendaries`, `relics`, `synergies`.
 
+The harness (`src/sim/builds.js`) measures the builds. An archetype is a fused kind or a synergy; a run committed to one
+plays toward that archetype's combos of the book alone, so its draft, recruits and purchases (and the outside teacher's
+candidates) follow it. `--builds` prints a row an archetype (clears, progress against free play seed for seed, deaths by
+floor, the margin: the Monarch's and the souls' HP at the end, battles lost, essence left, turns a battle; how many runs
+reached the archetype and on which battle) and free play's diversity block (archetypes reached, fused kinds at the end,
+recipes made, synergies held, kinds held, roles and kins fielded, relics bought), which the ladder report prints too.
+`--scale` multiplies every foe's HP and ATK.
+
 ## Code map
 
 - `src/sim/` is pure, seeded and DOM-free. `turns.js` the battle; `policy.js` the one policy (the camp's turn,
@@ -73,7 +84,8 @@ Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a b
   `map.js` the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
   their fitting); `autoplay.js` the players and CLI; `rng.js`. Offline only, never imported by play: `teach.js`,
   `teacher.js`, `outside.js` (labels and the teacher), `fit.js`, `train.js`, `calc.js` (the calculator, a weight-free
-  player and the novice rung, and a rollout teacher over it: redesign.md §3, §8). `ranker.js` and `value.js` are earlier
+  player and the novice rung, and a rollout teacher over it: redesign.md §3, §8), `builds.js` (the harness: committed
+  runs, the diversity block, the pool's table). `ranker.js` and `value.js` are earlier
   learners, off (no `ranker.json`; V unused by default).
 - `src/content.js` is all content as records, one per unit, ability and relic; `src/tuning.js` every balance
   number (`TUNING`, the expert's table included).

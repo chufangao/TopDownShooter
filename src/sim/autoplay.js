@@ -130,7 +130,7 @@ export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries
 export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
 // A run for a level under `ablate`: with its rules switch where it is one, and from `start` (createRun's fixed start: the
 // tests') where given, else from the draft.
-export const ablatedRun = (seed, ablate = null, start = null) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null, start })
+export const ablatedRun = (seed, ablate = null, start = null, scale = 1) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null, start, scale })
 // Whether L never buys relic `id`.
 const legendary = (id) => relicTier(id) === 'legendary'
 const BANNED = {
@@ -317,7 +317,7 @@ export function survey (run, L = LEVELS.expert) {
 function scoutRoom (run, n, up, keeps) {
   const s = run.state
   const foes = [...(n.foes ?? []), ...(n.waves ?? []).flatMap((w) => w.foes)]
-  const mods = foeMods(s.floor, n.type === 'boss')
+  const mods = foeMods(s.floor, n.type === 'boss', s.scale)
   const threats = n.foes ? [...roomThreats(n)] : []
   return {
     id: n.id,
@@ -703,10 +703,10 @@ const scouts = new Map()
 const scout = (run) => scoutAt(run.state, currentNode(run))
 // The same for any battle room `node` of the run's floor (ariseWorth's). Each foe carries its kind, level and tier too.
 function scoutAt (s, node) {
-  const key = JSON.stringify([s.camp, s.floor, node.id, node.type, node.foes, node.waves?.map((w) => w.foes)])
+  const key = JSON.stringify([s.camp, s.floor, node.id, node.type, node.foes, node.waves?.map((w) => w.foes), s.scale])
   if (scouts.has(key)) return scouts.get(key)
   const roads = roadsTo(s.camp)
-  const mods = foeMods(s.floor, node.type === 'boss')
+  const mods = foeMods(s.floor, node.type === 'boss', s.scale)
   const out = []
   for (const [k, foes] of [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].entries()) {
     for (const f of foes) {
@@ -1496,6 +1496,49 @@ export const BOOK = (() => {
   }
 })()
 
+// ── archetypes: a run committed to one build (redesign.md §3, the harness) ──────────────────────
+
+// The builds a run may commit to: every fused kind (a node of the recipe graph, the result of a recipe) and every
+// synergy (SYNERGIES' ids), by id.
+export const ARCHETYPES = () => [...new Set(FUSION_LIST.map((r) => r.result)), ...SYNERGIES.map((x) => x.id)]
+// The synergy `arch` names, or null for a fused kind's.
+export const synergyOf = (arch) => SYNERGIES.find((x) => x.id === arch) ?? null
+// An archetype's combos of the book: a fused kind's, the combos that fuse it (`fuse`, a recipe whose result it is); a
+// synergy's, the kin's or role's combos that reach its count (`kin`, `role`). Throws for an archetype unknown.
+export function archetypeCombos (arch, combos = BOOK.combos) {
+  const syn = synergyOf(arch)
+  if (syn) {
+    const axes = Object.entries(syn.needs)
+    return combos.filter((c) => axes.every(([axis, need]) => Object.entries(need).every(([k, n]) => (c[axis]?.[k] ?? 0) >= n)))
+  }
+  if (!FUSION_LIST.some((r) => r.result === arch)) throw new Error(`unknown archetype "${arch}": ${ARCHETYPES().join(', ')}`)
+  return combos.filter((c) => c.fuse && fusionDef(c.fuse).result === arch)
+}
+// The archetype a committed run plays toward (useCommit), null for free play: the book the expert reads is then that
+// archetype's combos alone (bookValue, targetOf), so its draft, its recruits, its purchases and the outside teacher's
+// candidates (spendCandidates, recruitCandidates: the same sketch) all follow it. Set a worker at a time for the job it
+// plays (the harness's), as the forests are.
+let COMMIT = null
+export function useCommit (arch) {
+  if (arch && !archetypeCombos(arch).length) throw new Error(`archetype "${arch}" has no combo in the book (npm run combos)`)
+  COMMIT = arch ? { arch, combos: archetypeCombos(arch) } : null
+}
+export const commitOf = () => COMMIT?.arch ?? null
+// `fn()` committed to `arch` (null: free play), the commitment before put back after; undefined: as it is. → what fn
+// returns
+export function withCommit (arch, fn) {
+  if (arch === undefined) return fn()
+  const before = commitOf()
+  useCommit(arch)
+  try {
+    return fn()
+  } finally {
+    useCommit(before)
+  }
+}
+// The combos the expert plays toward: the committed archetype's, else the whole book.
+const bookCombos = () => COMMIT?.combos ?? BOOK.combos
+
 // What the expert makes of the book. How far a run is along a combo, from 0 to 1, the mean of its parts: the pieces
 // it is built from, standing (a kin's, a role's or a pact's: the pieces of that kin or role, any kind); a fusion's made
 // (its parts then all counted); and the tiers on its tracks of the kinds it holds, of the four.
@@ -1542,14 +1585,14 @@ const atWork = (s) => new Set([...s.relics.filter(isRunRelic), ...standing(souls
 function bookValue (s) {
   const work = atWork(s)
   let best = 0
-  for (const c of BOOK.combos) best = Math.max(best, comboWorth(s, c, work) * comboProgress(s, c))
+  for (const c of bookCombos()) best = Math.max(best, comboWorth(s, c, work) * comboProgress(s, c))
   return best
 }
 export function targetOf (s) {
   const work = atWork(s)
   let best = null
   let most = 0
-  for (const c of BOOK.combos) {
+  for (const c of bookCombos()) {
     const v = comboWorth(s, c, work) * comboProgress(s, c)
     if (v > most) { most = v; best = c }
   }
@@ -1913,11 +1956,11 @@ function routeStep (run, L, sit, at) {
 // and hardest blow (their floor's mods counted), the share of them of each threat type (their kinds' own), its waves.
 const roomReads = new Map()
 function roomRead (s, room) {
-  const key = JSON.stringify([s.floor, room.id, room.type, room.foes, room.waves?.map((w) => w.foes)])
+  const key = JSON.stringify([s.floor, room.id, room.type, room.foes, room.waves?.map((w) => w.foes), s.scale])
   let r = roomReads.get(key)
   if (r) return r
   const foes = [...(room.foes ?? []), ...(room.waves ?? []).flatMap((w) => w.foes)]
-  const mods = foeMods(s.floor, room.type === 'boss')
+  const mods = foeMods(s.floor, room.type === 'boss', s.scale)
   const t = Object.fromEntries(OUT_THREATS.map((k) => [k, 0]))
   let threat = 0
   let hp = 0
@@ -2395,14 +2438,15 @@ function battleOrder (run, L, turnOptions = null) {
 
 // Plays the run to the end. onBattle(battle, run) fires after each battle, once the run has moved on, and
 // beforeFight(run) just before each fight is applied (the run as the battle will be set up from it); `turnOptions` go
-// to every turn of the expert's (policy.js expertTurn: the learner's `record` and `explore`). A
-// clear is the end too: neither level descends past the Sovereign (the policy has nothing for 'over'), so
-// the ladder's clears and floors keep their meaning; the endless floors are a player's (and a test's).
-export function autoplay (run, { rng = createRng(run.state.seed).stream('autoplay'), level = 'basic', onBattle = null, beforeFight = null, turnOptions = null } = {}) {
+// to every turn of the expert's (policy.js expertTurn: the learner's `record` and `explore`); `act(run, rng)`, where
+// given, chooses every action in place of the level's policy (the harness's outside teacher: outside.js
+// outsideTeacher). A clear is the end too: neither level descends past the Sovereign (the policy has nothing for
+// 'over'), so the ladder's clears and floors keep their meaning; the endless floors are a player's (and a test's).
+export function autoplay (run, { rng = createRng(run.state.seed).stream('autoplay'), level = 'basic', onBattle = null, beforeFight = null, turnOptions = null, act = null } = {}) {
   for (let guard = 0; run.state.phase !== 'over'; guard++) {
     if (guard > 1e5) throw new Error('autoplay is stuck')
     const was = run.state.phase
-    const action = policy(run, rng, level, turnOptions)
+    const action = act ? act(run, rng) : policy(run, rng, level, turnOptions)
     if (action.type === 'fight') beforeFight?.(run)
     apply(run, action)
     // On turns a battle ends with an order, not with the fight that opened it.
@@ -2455,19 +2499,25 @@ const buildOf = (s) => {
 // withOutForest) the forest out of battle that decides its recruits and purchases, `outforest` in the result; and
 // `expert` (an expert file's path, expert.json's shape: withExpert) a whole expert, every part of it at once, the parts
 // named beside it then set over it.
-export function record ({ expert, ranker, forest, route, outforest, ...job }) {
-  return withExpert(expert, () => withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job))))))
+// With `commit` (an archetype: ARCHETYPES, withCommit) the run is committed to that build; `scale` its difficulty
+// (createRun's); `act` its player in place of the level's (autoplay's, the harness's teacher: a function, so never from
+// a job's message). Each battle's and the run's build as the harness reads it: per battle the synergies your side held
+// as it began (`syn`) and the fused kinds of yours that stood in it (`fused`, one made in it too); at the end the
+// archetypes reached (builtOf) and the margin (endOf).
+export function record ({ expert, ranker, forest, route, outforest, commit, ...job }) {
+  return withCommit(commit, () => withExpert(expert, () => withOutForest(outforest, () => withRoute(route, () => withForest(forest, () => withRanker(ranker, () => recordRun(job)))))))
 }
-function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, learned }) {
+function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, learned, scale = 1, act = null }) {
   const battles = []
   const t0 = Date.now()
-  const run = ablatedRun(seed, ablate)
+  const run = ablatedRun(seed, ablate, null, scale)
   const L = { ...LEVELS[level], ...(ablate && { ablate }), ...(learned !== undefined && { learned }) }
   let snap = null
   // The battle the run fell in: its room's rank and the share of its foes' HP removed (progressOf).
   let fell = null
   autoplay(run, {
     level: L,
+    act,
     beforeFight: snapshots ? (r) => { snap = structuredClone({ ...r.state, log: [] }) } : null,
     onBattle: (b, r) => {
       if (b.winner !== 'party') fell = { rank: currentNode(r).rank, share: foeShare(b) }
@@ -2490,6 +2540,8 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
         foesIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').length,
         colossi: r.setup.party.filter((u) => u.uid !== 0 && sizeOf(u) === 2).length,
         ...armyMeasures(b),
+        syn: (b.events[0]?.synergies ?? []).filter((x) => x.side === 'party').map((x) => x.id),
+        fused: [...new Set(party.filter((u) => unitDef(u.id).fused).map((u) => u.id))],
         camp: r.state.camp,
         setup: setups ? r.setup : undefined,
         snapshot: snapshots ? snap : undefined,
@@ -2511,7 +2563,54 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
     secs: (Date.now() - t0) / 1000,
     ranker: rankerModel()?.name ?? null,
     forest: forestModel()?.name ?? null,
-    outforest: outForestModel()?.name ?? null
+    outforest: outForestModel()?.name ?? null,
+    commit: commitOf(),
+    ...(scale !== 1 && { scale }),
+    built: builtOf(s, battles),
+    end: endOf(s, battles)
+  }
+}
+
+// A run's build at its end, as the harness's diversity block reads it (redesign.md §2's criterion 3): the souls it holds
+// (`army`: each soul's kind, fielded or not, the fallen too), the fusions it made (`made`: by recipe, out of battle and in
+// it), the relics it bought (`bought`, every copy, in order), and for every archetype it reached (`reached`: a fused
+// kind standing in a battle of yours, or a synergy your side held as one began) the battle it was first reached in
+// (1-based) and in how many battles.
+export function builtOf (s, battles) {
+  const reached = {}
+  battles.forEach((b, i) => {
+    for (const id of [...(b.fused ?? []), ...(b.syn ?? [])]) {
+      const r = (reached[id] ??= { first: i + 1, battles: 0 })
+      r.battles++
+    }
+  })
+  const made = {}
+  for (const a of s.log) if (a.type === 'fuse') made[a.id] = (made[a.id] ?? 0) + 1
+  return {
+    army: souls(s.party).map((u) => [u.id, u.slot >= 0 ? 1 : 0]),
+    made,
+    bought: s.relics.slice(),
+    reached
+  }
+}
+
+// A run's margin at its end (redesign.md §3: what the outside teacher reports beside its clears, where it saturates): the
+// Monarch's share of its max HP, the souls' HP over their max (the fallen at 0), the battles lost, the essence left
+// and the turns its battles took.
+export function endOf (s, battles) {
+  const m = monarchOf(s)
+  let hp = 0
+  let max = 0
+  for (const u of souls(s.party)) {
+    hp += Math.max(0, u.hp)
+    max += u.maxHp
+  }
+  return {
+    monarch: +(Math.max(0, m.hp) / m.maxHp).toFixed(4),
+    souls: max ? +(hp / max).toFixed(4) : 0,
+    lost: battles.filter((b) => !b.won).length,
+    essence: s.essence,
+    turns: battles.reduce((n, b) => n + b.t, 0)
   }
 }
 
@@ -2762,7 +2861,7 @@ async function playAll (jobs) {
 // small file in the OS's temp directory; read only to order the next pool's jobs, and never needed: without
 // it the guess orders them).
 const TIMES = 'retinue-job-times.json'
-const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level}|${job.ablate ?? ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}${job.expert ? `|expert:${job.expert}` : ''}`
+const timeKey = (job) => job.refight ? null : `${job.seed}|${job.level ?? job.player}|${job.ablate ?? ''}${job.commit ? `|commit:${job.commit}` : ''}${job.scale && job.scale !== 1 ? `|scale:${job.scale}` : ''}${job.ranker && job.ranker !== 'none' ? `|${job.ranker}` : ''}${job.forest && job.forest !== 'none' ? `|forest:${job.forest}` : ''}${job.route ? `|route:${job.route}` : ''}${job.outforest ? `|outforest:${job.outforest}` : ''}${job.expert ? `|expert:${job.expert}` : ''}`
 function loadTimes () {
   try {
     return JSON.parse(fs.readFileSync(path.join(os.tmpdir(), TIMES), 'utf8'))
@@ -2774,7 +2873,7 @@ function saveTimes (times) {
 }
 // A job's expected length: its last time if known, else a guess (an expert run far longer than a basic one, the
 // full expert longest of all: it lives longest; a chunk of refights all alike).
-const jobTime = (job, times) => times[timeKey(job)] ?? (job.refight || job.level === 'basic' ? 1 : job.ablate ? 4 : 5)
+const jobTime = (job, times) => times[timeKey(job)] ?? (job.refight || job.level === 'basic' ? 1 : job.player === 'teacher' ? 67 : job.ablate ? 4 : 5)
 
 // ── balance report ─────────────────────────────────────────────────────────────────────────────
 
@@ -2988,6 +3087,12 @@ async function ladder ({ runs, seed: seed0, ranker, forest }) {
       return `${k} ${wins.length ? (100 * c / wins.length).toFixed(0) : 0}%`
     }
     console.log(`${level.padEnd(6)}  ${String(wins.length).padStart(4)}  ${[(b) => b.legendaries, (b) => b.kin, (b) => b.tracks, (b) => `${b.legendaries}|${b.kin}`].map(commonest).join('; ')}`)
+  })
+  // The diversity block (builds.js, redesign.md §2's criterion 3), a level at a time.
+  const B = await import('./builds.js')
+  levels.forEach((level, i) => {
+    console.log('')
+    for (const line of B.diversityLines(B.diversity(played.slice(i * runs, (i + 1) * runs)), level)) console.log(line)
   })
 }
 
@@ -3315,44 +3420,59 @@ async function necessity ({ runs, seed: seed0, setups: file = null }) {
 const RUNS = { sim: 8, decisions: 8, ladder: 8, ablations: 8, necessity: 8 }
 if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new URL(import.meta.url).pathname)) {
   const { isMainThread, parentPort, workerData } = await import('node:worker_threads')
+  // What runs here is not awaited by the module: the harness (builds.js) imports this module, and a dynamic import of it
+  // while this module's evaluation waits on the import would wait on itself.
   if (!isMainThread) {
-    // A pool's worker (playAll): job after job, until it is let go.
-    const play = (job) => (job.audit ? auditRecord(job) : job.refight ? refight(job) : record(job))
-    if (workerData?.pool) parentPort.on('message', (job) => parentPort.postMessage(play(job)))
-    else parentPort.postMessage(play(workerData))
+    // A pool's worker (playAll): job after job, until it is let go. A harness's job (--builds) is builds.js's.
+    const play = async (job) => (job.audit ? auditRecord(job) : job.refight ? refight(job) : job.builds ? (await import('./builds.js')).buildRecord(job) : record(job))
+    if (workerData?.pool) parentPort.on('message', async (job) => parentPort.postMessage(await play(job)))
+    else play(workerData).then((r) => parentPort.postMessage(r))
   } else {
-    const arg = (name, def) => {
-      const i = process.argv.indexOf('--' + name)
-      return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
-    }
-    const opts = { seed: arg('seed', 'sim'), level: arg('level', 'expert') }
-    // `--workers n`: the pool's size (one per core by default); `--static`: the expert's turns and formations by today's
-    // static evaluation, whatever value.js holds, `--learned` by V where trained (a report's alone; else
-    // TUNING.expert.beam.learned).
-    if (arg('workers', null) !== null) WORKERS = Math.max(1, Number(arg('workers', 1)))
-    const learned = process.argv.includes('--static') ? false : process.argv.includes('--learned') ? true : undefined
-    if (!LEVELS[opts.level]) throw new Error(`unknown level "${opts.level}": ${Object.keys(LEVELS).join(', ')}`)
-    const ablate = arg('ablate', null)
-    if (ablate !== null && !ABLATIONS.includes(ablate)) throw new Error(`unknown ablation "${ablate}": ${ABLATIONS.join(', ')}`)
-    // `--variants full` (alone or with others): the full expert only, beside whatever ablations are named.
-    const variants = arg('variants', null)?.split(',').filter((v) => v !== 'full') ?? ABLATIONS
-    for (const v of variants) if (!ABLATIONS.includes(v)) throw new Error(`unknown ablation "${v}": ${ABLATIONS.join(', ')}`)
-    // `--ranker <file|none>`: the expert's ranker (ranker.js) for a report or the ladder, ranker.json where there is
-    // one by default; `--forest <file|none>` its forest (forest.js), forest.json where there is one; `--paired <a>,<b>`:
-    // the same seeds played by a and b (each a ranker or a forest file, or none: playerOf), compared.
-    const ranker = arg('ranker', undefined)
-    const forest = arg('forest', undefined)
-    if (process.argv.includes('--combos')) makeBook()
-    else if (arg('paired', null)) {
-      const rankers = arg('paired').split(',')
-      if (rankers.length !== 2) throw new Error('--paired <a>,<b>: two players (a ranker or a forest file, or none), comma-separated')
-      await paired({ ...opts, rankers, runs: Number(arg('runs', 256)) })
-    }
-    else if (process.argv.includes('--audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)) })
-    else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
-    else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
-    else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
-    else if (process.argv.includes('--ladder')) await ladder({ ...opts, ranker, forest, runs: Number(arg('runs', RUNS.ladder)) })
-    else await report({ ...opts, ablate, learned, ranker, forest, runs: Number(arg('runs', RUNS.sim)) })
+    cli().catch((err) => {
+      console.error(err)
+      process.exitCode = 1
+    })
   }
+}
+async function cli () {
+  const arg = (name, def) => {
+    const i = process.argv.indexOf('--' + name)
+    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
+  }
+  const opts = { seed: arg('seed', 'sim'), level: arg('level', 'expert') }
+  // `--workers n`: the pool's size (one per core by default); `--static`: the expert's turns and formations by today's
+  // static evaluation, whatever value.js holds, `--learned` by V where trained (a report's alone; else
+  // TUNING.expert.beam.learned).
+  if (arg('workers', null) !== null) WORKERS = Math.max(1, Number(arg('workers', 1)))
+  const learned = process.argv.includes('--static') ? false : process.argv.includes('--learned') ? true : undefined
+  if (!LEVELS[opts.level]) throw new Error(`unknown level "${opts.level}": ${Object.keys(LEVELS).join(', ')}`)
+  const ablate = arg('ablate', null)
+  if (ablate !== null && !ABLATIONS.includes(ablate)) throw new Error(`unknown ablation "${ablate}": ${ABLATIONS.join(', ')}`)
+  // `--variants full` (alone or with others): the full expert only, beside whatever ablations are named.
+  const variants = arg('variants', null)?.split(',').filter((v) => v !== 'full') ?? ABLATIONS
+  for (const v of variants) if (!ABLATIONS.includes(v)) throw new Error(`unknown ablation "${v}": ${ABLATIONS.join(', ')}`)
+  // `--ranker <file|none>`: the expert's ranker (ranker.js) for a report or the ladder, ranker.json where there is
+  // one by default; `--forest <file|none>` its forest (forest.js), forest.json where there is one; `--paired <a>,<b>`:
+  // the same seeds played by a and b (each a ranker or a forest file, or none: playerOf), compared.
+  const ranker = arg('ranker', undefined)
+  const forest = arg('forest', undefined)
+  if (process.argv.includes('--combos')) makeBook()
+  else if (process.argv.includes('--pool')) (await import('./builds.js')).pool({ maps: Number(arg('maps', 64)), seed: arg('seed', 'pool') })
+  else if (process.argv.includes('--builds')) {
+    // The harness (builds.js): free play and each archetype committed, on the same seeds.
+    const B = await import('./builds.js')
+    await B.builds({
+      playAll, player: arg('player', 'expert'), commits: B.commitsOf(arg('commit', 'all')), scale: Number(arg('scale', 1)),
+      runs: Number(arg('runs', 256)), seed: arg('seed', 'div'), from: Number(arg('from', 0)), out: arg('out', null)
+    })
+  } else if (arg('paired', null)) {
+    const rankers = arg('paired').split(',')
+    if (rankers.length !== 2) throw new Error('--paired <a>,<b>: two players (a ranker or a forest file, or none), comma-separated')
+    await paired({ ...opts, rankers, runs: Number(arg('runs', 256)) })
+  } else if (process.argv.includes('--audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)) })
+  else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
+  else if (process.argv.includes('--necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
+  else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
+  else if (process.argv.includes('--ladder')) await ladder({ ...opts, ranker, forest, runs: Number(arg('runs', RUNS.ladder)) })
+  else await report({ ...opts, ablate, learned, ranker, forest, runs: Number(arg('runs', RUNS.sim)) })
 }
