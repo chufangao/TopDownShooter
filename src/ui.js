@@ -11,7 +11,7 @@ import {
   transmuteOffer, canTransmute, ascensionOf, ascensionTop, priceScale
 } from './sim/run.js'
 import { RANKS, WIDTH } from './sim/map.js'
-import { unitDef, relicDef, KIN, ROLES, FUSION_LIST, RELIC_TIERS, THREATS } from './content.js'
+import { unitDef, relicDef, KIN, ROLES, FUSION_LIST, RELIC_TIERS, THREATS, MONARCHS, MONARCH_LIST } from './content.js'
 import {
   COLS, ROWS, CAMP_ROWS, slotAt, rowOf, isWall, LANES, DEPTH, tileAt, deployTile, wallTiles, onField, tileX, tileY,
   statsOf, tracksOf, canTrack, nextTracks, sizeOf, footprint, footprintSlots,
@@ -39,12 +39,13 @@ import {
 // `level`: the ascension the run will be played at, `open` the highest the player may choose (run.js openTo), and
 // `onLevel(level)` hears each step of the chooser (ascensionChooser). `saved`, `note`, `onContinue`, `onTutorial`:
 // the run saved and the tutorial (resumeActions), and a note over the foot (a save set aside, the tutorial done).
-// `daily`, `onDaily`, `onHistory(seed)`: the day's daily and the History (metaActions). The actions in one row (a run,
-// the daily, the tutorial, the History), what the run is played with in a quieter row under it (the ascension, the
-// seed), and the level's line under that.
+// `daily`, `onDaily`, `onHistory(seed)`: the day's daily and the History (metaActions). `monarch`, `monarchs`,
+// `onMonarch`, `overlay`: the Monarch the run will be played as, those open, each choice heard, and how the picker is put
+// up (monarchChooser). The actions in one row (a run, the daily, the tutorial, the History), what the run is played with
+// in a quieter row under it (the Monarch, the ascension, the seed), and the level's line under that.
 export function titleScreen ({
   seed, level = 0, open = 0, onLevel = () => {}, onStart, onHelp, saved = null, note = '', onContinue = null, onTutorial = null,
-  daily = null, onDaily = null, onHistory = null
+  daily = null, onDaily = null, onHistory = null, monarch = MONARCH_LIST[0].id, monarchs = [MONARCH_LIST[0].id], onMonarch = () => {}, overlay = null
 }) {
   const input = h('input', { value: seed, spellcheck: 'false', 'aria-label': 'seed' })
   const seedNow = () => input.value.trim() || seed
@@ -52,6 +53,7 @@ export function titleScreen ({
   const ascension = ascensionChooser({ level, open, onLevel })
   const resume = resumeActions({ saved, onContinue, onTutorial })
   const meta = metaActions({ daily, saved, onDaily, onHistory: onHistory && (() => onHistory(seedNow())) })
+  const crown = overlay && monarchChooser({ monarch, open: monarchs, onMonarch, overlay })
   // The four steps of a run, one line each in its system's colour; the terms explain themselves on hover.
   const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 26)), h('div', null, h('b', null, title), h('p', null, text)))
   const el = h('div', { class: 'screen title-screen' },
@@ -72,6 +74,7 @@ export function titleScreen ({
         resume.tutorial,
         meta.history),
       h('div', { class: 'title-actions title-settings' },
+        crown?.chooser,
         ascension.chooser,
         h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles. Share one to play the same run.' }, 'seed', input)),
       ascension.line),
@@ -107,7 +110,7 @@ function metaActions ({ daily, saved, onDaily, onHistory }) {
   const dailyBtn = daily && onDaily && h('button', {
     class: 'ghost daily-btn', onclick: onDaily,
     tip: () => h('div', { class: 'syn-tip' }, h('b', null, `The daily · ${dayText(daily.day)}`),
-      h('p', null, `Today's run, the same for everyone: seed ${daily.seed}, at ascension 0, whatever level is chosen here. A new one comes at midnight UTC.`),
+      h('p', null, `Today's run, the same for everyone: seed ${daily.seed}, at ascension 0 as the Monarch, whatever is chosen here. A new one comes at midnight UTC.`),
       practice ? h('p', null, daily.ran ? `Your daily today: ${endText(daily.ran)}.` : 'Your daily today is begun.', ' Play it again as practice: kept in your History, marked so.')
         : h('p', null, 'Your first run of it today counts as the daily; any after it is practice.'),
       saved && h('p', { class: 'dim' }, 'Your saved run ends if you begin it. (asks first)'))
@@ -187,6 +190,63 @@ function ascensionChooser ({ level, open, onLevel }) {
   }, h('span', { class: 'asc-lbl' }, 'ascension'), down, num, up)
   shown()
   return { chooser, line }
+}
+
+// The Monarch's chooser (redesign.md §4.8; content.js MONARCH_LIST), the title's, beside the ascension's: a button naming
+// the Monarch the run will be played as, which puts up the Monarchs (monarchPicker) to choose among those `open` (run.js
+// monarchsOpen), the rest shown with the clear that opens them; each choice heard by `onMonarch`. `overlay(el)`: puts the
+// picker up over the page, null takes it down (main.js). → { chooser }
+function monarchChooser ({ monarch, open, onMonarch, overlay }) {
+  let mine = open.includes(monarch) ? monarch : MONARCH_LIST[0].id
+  const name = h('span', { class: 'mon-name' })
+  const pick = (id) => {
+    mine = id
+    onMonarch(id)
+    fill(name, MONARCHS[id].name)
+    overlay(null)
+  }
+  const chooser = h('button', {
+    class: 'ghost mon-btn', 'aria-label': 'Monarch', onclick: () => overlay(monarchPicker({ chosen: mine, open, onPick: pick, onClose: () => overlay(null) })),
+    tip: () => h('div', { class: 'syn-tip' }, h('b', null, MONARCHS[mine].name), h('p', null, MONARCHS[mine].line), monarchRules(MONARCHS[mine]),
+      h('p', { class: 'dim' }, `Who you are this run. ${open.length} of ${MONARCH_LIST.length} open: a clear opens more.`))
+  }, icon('crown', 20), name)
+  fill(name, MONARCHS[mine].name)
+  return { chooser }
+}
+
+// What a Monarch brings (content.js MONARCH_LIST): its relic and its draft's bias, a line each; the base one's none.
+function monarchRules (m) {
+  const r = m.relic && relicDef(m.relic)
+  const times = { 2: 'twice', 3: 'three times', 4: 'four times' }[TUNING.monarchs.bias] ?? `${TUNING.monarchs.bias} times`
+  return [
+    r && h('p', { class: 'mc-rule' }, h('b', null, 'Starts with '), `the ${r.name}: ${r.desc.charAt(0).toLowerCase()}${r.desc.slice(1)}`),
+    m.bias && h('p', { class: 'mc-rule' }, h('b', null, 'Drafts '), `${KIN[m.bias].name} kinds ${times} as often as any other.`),
+    !r && !m.bias && h('p', { class: 'mc-rule dim' }, 'No relic, and no kin favoured in the draft.')]
+}
+
+// The Monarchs to choose from, over the title (monarchChooser): a card each, its name, its line and what it brings; the
+// one `chosen` marked, those not `open` greyed with the clear that opens them. A tap on an open one chooses it
+// (`onPick`); Escape, Enter, the close button or a tap outside leave the choice as it was (`onClose`). → the overlay
+export function monarchPicker ({ chosen, open, onPick, onClose }) {
+  const card = (m) => {
+    const ok = open.includes(m.id)
+    return h('button', {
+      class: 'monarch-card' + (m.id === chosen ? ' on' : '') + (ok ? '' : ' locked'), role: 'radio', 'data-id': m.id,
+      'aria-checked': m.id === chosen ? 'true' : 'false', 'aria-disabled': ok ? null : 'true',
+      onclick: () => (ok ? onPick(m.id) : sfx.play('poor'))
+    },
+    h('span', { class: 'mc-head' }, icon('crown', 24), h('b', null, m.name)),
+    h('p', { class: 'mc-line' }, m.line),
+    monarchRules(m),
+    !ok && h('p', { class: 'mc-lock' }, m.unlock ? `Opens with a clear at ascension ${m.unlock} or above.` : 'Opens with your first clear.'))
+  }
+  const el = h('div', { class: 'overlay', onclick: (e) => { if (e.target === el) onClose() } },
+    h('div', { class: 'modal monarchs', role: 'dialog', 'aria-label': 'Choose your Monarch' },
+      h('div', { class: 'tut-head' }, h('h2', { class: 'modal-title' }, 'Who rules'),
+        h('button', { class: 'icon-btn', 'aria-label': 'Close', onclick: onClose, tip: () => 'Keep your choice. (Esc)' }, icon('close', 22))),
+      h('div', { class: 'monarch-cards', role: 'radiogroup' }, MONARCH_LIST.map(card))))
+  el.key = (e) => { if (e.key === 'Escape' || e.key === 'Enter') onClose() }
+  return el
 }
 
 // Sound and How to play in the top corner of a screen with no top bar (the title, the end): a finger has no M
@@ -391,7 +451,7 @@ function monarchChip (run) {
       mods: partyMods(run, m),
       realm: realmOf(run),
       live: monarchHpText(run),
-      notes: [MONARCH_TEXT.hp.rule(run)[0]]
+      notes: [MONARCH_TEXT.hp.rule(run)[0], run.state.monarch && `${MONARCHS[run.state.monarch].name}: ${MONARCHS[run.state.monarch].line}`]
     })
   }, icon('crown', 20), h('b', null, `${m.hp}/${m.maxHp}`))
 }
@@ -2070,8 +2130,9 @@ export function altarScreen ({ run, onRite, onHelp }) {
 // Three ends. The Sovereign slain (over, 'victory', no death): the run is cleared, and the deep lies below
 // (Descend, or stop here with a new run). A fall in the deep after that clear ('victory' with a death): the
 // clear stands. A defeat on the way down: as it was.
-// `opened`: the ascension this run's clear opened (main.js, run.js clearAt), or null.
-export function endScreen ({ run, opened = null, onNew, onDescend, onHelp }) {
+// `opened`: the ascension this run's clear opened (main.js, run.js clearAt), or null; `crowned`, the Monarchs it opened
+// (run.js monarchsAt).
+export function endScreen ({ run, opened = null, crowned = [], onNew, onDescend, onHelp }) {
   const s = run.state
   const asc = s.ascension ?? 0
   const won = s.result === 'victory'
@@ -2108,9 +2169,9 @@ export function endScreen ({ run, opened = null, onNew, onDescend, onHelp }) {
         h('div', { class: 'sigil ' + (won ? 'win' : 'lose') }, icon(won ? 'boss' : 'elite', 46)),
         h('h1', { class: 'logo ' + (won ? 'win' : 'lose') }, descend ? 'VICTORY' : won ? 'CLEARED' : 'DEFEAT'),
         h('p', { class: 'tagline' }, tagline),
-        // What the clear opened (main.js, run.js clearAt), the level's changes in its tip.
-        opened !== null && h('p', { class: 'unlock', tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Ascension ${opened}`), ascensionText(opened).lines.map((l) => h('p', null, l)), h('p', { class: 'dim' }, ASCENSION_RULE)) },
-          icon('levelup', 20), h('b', null, `Ascension ${opened} is open`), '. Choose it on the title screen.'),
+        // What the clear opened (main.js, run.js clearAt, monarchsAt), in one line: the level, its changes in its tip; a
+        // Monarch, what it brings in its.
+        unlocks(opened, crowned),
         h('div', { class: 'end-stats' },
           stat('stairs', 'monarch', deeper > 0 ? `${cleared}/${n} + ${deeper}` : `${cleared}/${n}`, 'floors', deeper > 0 ? `Floors cleared: ${cleared} of ${n}, and ${deeper} of the deep.` : `Floors cleared: ${cleared} of ${n}.`),
           stat('fight', 'foe', `${s.stats.wins}/${s.stats.fights}`, 'won', `Won ${s.stats.wins} of ${s.stats.fights} battle${s.stats.fights === 1 ? '' : 's'}.`),
@@ -2124,7 +2185,8 @@ export function endScreen ({ run, opened = null, onNew, onDescend, onHelp }) {
             tip: () => `Go on to floor ${s.floor + 1}, the first of the deep, with your retinue, relics, essence and wounds as they are. The clear is already yours. (Enter)`
           }, 'Descend ', h('kbd', null, 'Enter')),
           newRun),
-        h('p', { class: 'dim end-seed' }, `seed ${s.seed}`, asc > 0 && h('span', { tip: () => `Played at ascension ${asc}: ${ascensionText(asc).short}.` }, ` · ascension ${asc}`))),
+        h('p', { class: 'dim end-seed' }, `seed ${s.seed}`, asc > 0 && h('span', { tip: () => `Played at ascension ${asc}: ${ascensionText(asc).short}.` }, ` · ascension ${asc}`),
+          s.monarch && h('span', { tip: () => MONARCHS[s.monarch].line }, ` · ${MONARCHS[s.monarch].name}`))),
       h('div', { class: 'end-detail' }, tabs, panel)),
     cornerButtons(onHelp))
   return {
@@ -2134,6 +2196,20 @@ export function endScreen ({ run, opened = null, onNew, onDescend, onHelp }) {
       else if (e.key === 'n' || e.key === 'N' || (!descend && e.key === 'Enter')) onNew()
     }
   }
+}
+
+// What a clear opened, for its end screen: the ascension above it (`opened`, or null) and the Monarchs (`crowned`), each
+// named with its tip, in one line ("Ascension 1 is open, and the Brass Monarch is yours. Choose them on the title
+// screen."); null for nothing.
+function unlocks (opened, crowned) {
+  const news = [
+    opened !== null && h('span', { tip: () => h('div', { class: 'syn-tip' }, h('b', null, `Ascension ${opened}`), ascensionText(opened).lines.map((l) => h('p', null, l)), h('p', { class: 'dim' }, ASCENSION_RULE)) },
+      icon('levelup', 20), h('b', null, `Ascension ${opened} is open`)),
+    ...crowned.map((id, n) => h('span', { tip: () => h('div', { class: 'syn-tip' }, h('b', null, MONARCHS[id].name), h('p', null, MONARCHS[id].line), monarchRules(MONARCHS[id])) },
+      icon('crown', 20), h('b', null, `${MONARCHS[id].name.replace(/^The /, n === 0 && opened === null ? 'The ' : 'the ')} is yours`)))].filter(Boolean)
+  if (!news.length) return null
+  return h('p', { class: 'unlock' }, news.flatMap((x, i) => [i > 0 && (i === news.length - 1 ? ', and ' : ', '), x]),
+    `. Choose ${news.length > 1 ? 'them' : 'it'} on the title screen.`)
 }
 
 // What felled the Monarch: who, with what, from where (a small board with both marked), and its threat. The
@@ -2247,7 +2323,8 @@ function runLine (e, day) {
   return h('div', { class: `hist-run ${e.end}${e.cleared ? ' won' : ''}` },
     h('span', { class: 'hist-mark', 'aria-hidden': 'true' }, icon(e.cleared ? 'boss' : e.end === 'left' ? 'release' : 'elite', 22)),
     h('div', { class: 'hist-main' },
-      h('p', { class: 'hist-head' }, h('b', null, endText(e)), e.ascension > 0 && h('span', { class: 'hist-asc', tip: () => `Played at ascension ${e.ascension}: ${ascensionText(e.ascension).short}.` }, `A${e.ascension}`), daily),
+      h('p', { class: 'hist-head' }, h('b', null, endText(e)), e.ascension > 0 && h('span', { class: 'hist-asc', tip: () => `Played at ascension ${e.ascension}: ${ascensionText(e.ascension).short}.` }, `A${e.ascension}`),
+        MONARCHS[e.monarch] && h('span', { class: 'hist-mon', tip: () => `Played as ${MONARCHS[e.monarch].name}: ${MONARCHS[e.monarch].line}` }, icon('crown', 16), MONARCHS[e.monarch].name), daily),
       h('p', { class: 'hist-sub' }, [when, !e.daily && `seed ${e.seed}`, `${e.wins}/${e.fights} battle${e.fights === 1 ? '' : 's'} won`, timeText(e.time)].filter(Boolean).join(' · '))),
     army.length > 0 && h('div', {
       class: 'hist-army',

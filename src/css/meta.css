@@ -32,6 +32,33 @@
   .title-box .steps.brief { margin-bottom: 18px; }
 }
 
+/* ── the Monarchs ──────────────────────────────────────────────────────────────────────────────── */
+/* The title's chooser (ui.js monarchChooser): a quiet button naming who the run is played as, the crown in the
+   Monarch's gold. Its picker: a card a Monarch, four in a row where the frame is wide, two by two on a 4:3 one; the
+   chosen ringed in essence, the locked greyed with what opens them. */
+.mon-btn > .ico, .monarch-card .mc-head .ico, .hist-mon .ico { color: var(--c-monarch); }
+.mon-btn .mon-name { font-size: var(--fs-md); }
+.modal.monarchs { width: min(1180px, 100%); padding: 18px 24px 22px; }
+.monarch-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 10px; }
+@container frame (max-width: 1100px) { .monarch-cards { grid-template-columns: repeat(2, 1fr); } }
+.monarch-card {
+  flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 6px; min-height: 0; padding: 12.5px 14.5px 14.5px; text-align: left;
+  background: var(--panel); border-radius: var(--r-panel); font: inherit;
+}
+.monarch-card.on { background: color-mix(in srgb, var(--c-essence) 10%, var(--panel)); box-shadow: inset 0 0 0 2.5px var(--c-essence), var(--drop-sm); }
+.monarch-card.locked { opacity: .62; cursor: default; }
+.monarch-card .mc-head { display: flex; align-items: center; gap: 8px; font: 600 var(--fs-lg)/1.2 var(--display); }
+.monarch-card p { margin: 0; font-size: var(--fs-sm); line-height: 1.35; }
+.monarch-card .mc-line { color: var(--text); font-style: italic; }
+.monarch-card .mc-rule { color: var(--dim); }
+.monarch-card .mc-rule b { color: var(--c-warn); font-weight: 600; }
+.monarch-card .mc-lock { color: var(--c-warn); }
+.hist-mon { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-sm); color: #ffd46a; }
+@container frame (max-height: 640px) {
+  .modal.monarchs { padding: 12px 18px 16px; }
+  .monarch-card { padding: 9.5px 12.5px 11.5px; gap: 4px; }
+}
+
 /* ── music ──────────────────────────────────────────────────────────────────────────────────────── */
 /* The note beside the speaker (ui.js musicButton): both icons drawn, <html data-music> shows the one that holds; dimmed
    off, or while the speaker is (no music without sound). */

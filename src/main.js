@@ -3,7 +3,7 @@
 // The DOM screens are laid out at one logical size and scaled to the screen (frame.js); the canvas is not.
 import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
-import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun, bountyOf } from './sim/run.js'
+import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun, bountyOf, BASE_MONARCH, monarchsOpen, monarchsAt } from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
 import { recordOf, readBook, withRun, dailySeed, dayOf } from './sim/history.js'
 import { stats, ariseOf } from './sim/turns.js'
@@ -183,17 +183,33 @@ function choose (a) {
   else url.searchParams.delete('ascension')
   history.replaceState(null, '', url)
 }
-// A clear opens the level above it, once a run (run.js clearAt): what it opened is its end screen's to say.
+// The Monarch (redesign.md §4.8; content.js MONARCH_LIST): who the next run is played as, held to the Monarchs the
+// clears in this browser have opened (run.js monarchsOpen, by the highest level cleared); kept in the URL (?monarch=, the
+// base one's never) and in prefs ('monarch'), the URL's first.
+const opens = (id) => (id && monarchsOpen(cleared()).includes(id) ? id : null)
+let monarch = opens(new URLSearchParams(location.search).get('monarch')) ?? opens(prefs.get('monarch')) ?? BASE_MONARCH
+function crown (id) {
+  monarch = id
+  prefs.set('monarch', id)
+  const url = new URL(location.href)
+  if (id !== BASE_MONARCH) url.searchParams.set('monarch', id)
+  else url.searchParams.delete('monarch')
+  history.replaceState(null, '', url)
+}
+
+// A clear opens the level above it, and any Monarch its level reaches, once a run (run.js clearAt, monarchsAt): what it
+// opened is its end screen's to say. → { level, monarchs } (null for a run not cleared)
 let opened = null
 function ascend () {
   const s = run.state
   if (s.result !== 'victory') return null
   if (opened?.run !== run) {
-    const c = clearAt(cleared(), s.ascension ?? 0)
+    const before = cleared()
+    const c = clearAt(before, s.ascension ?? 0)
     prefs.set('ascended', String(c.cleared))
-    opened = { run, level: c.opened }
+    opened = { run, level: c.opened, monarchs: monarchsAt(before, s.ascension ?? 0) }
   }
-  return opened.level
+  return opened
 }
 
 // For the retinue editor: an illegal action comes back as a message instead of a throw.
@@ -243,8 +259,8 @@ function chronicle (r = run, m = meta) {
   }))))
 }
 
-// The daily (dayOf, dailySeed): today's seed, the same for everyone, at ascension 0. The first begun each UTC day is the
-// day's daily (prefs 'daily': the last day begun); any after it the same day is practice, kept as such.
+// The daily (dayOf, dailySeed): today's seed, the same for everyone, at ascension 0 as the base Monarch. The first begun
+// each UTC day is the day's daily (prefs 'daily': the last day begun); any after it the same day is practice, kept as such.
 function daily () {
   const day = dayOf()
   start(dailySeed(), { daily: day, practice: prefs.get('daily') === day })
@@ -313,12 +329,14 @@ function title (seed, said = '') {
   meta = null
   overlay(null)
   ascension = Math.min(ascension, openTo(cleared()))
+  if (!opens(monarch)) crown(BASE_MONARCH)
   const at = saved()
   const day = dayOf()
   const ran = book().runs.find((e) => e.daily === day && !e.practice) ?? null
   music.set('title')
   show(titleScreen({
     seed, level: ascension, open: openTo(cleared()), onLevel: choose, onStart: start, onHelp: toggleHelp,
+    monarch, monarchs: monarchsOpen(cleared()), onMonarch: crown, overlay,
     saved: at, note: said || aside, onContinue: resume, onTutorial: tutorial,
     daily: { day, seed: dailySeed(), begun: prefs.get('daily') === day, ran }, onDaily: daily,
     onHistory: (now) => chronicles(now)
@@ -343,8 +361,8 @@ function chronicles (seed) {
   show(historyScreen({ book: book(), day: dayOf(), onBack: () => title(seed), onHelp: toggleHelp }))
 }
 
-// A new run: at the level chosen, or `daily`, the day's daily (daily()) at ascension 0. Over a saved one, it asks
-// first: the saved run ends for good, and the history keeps it as left.
+// A new run: at the level chosen, as the Monarch chosen, or `daily`, the day's daily (daily()) at ascension 0 as the base
+// Monarch. Over a saved one, it asks first: the saved run ends for good, and the history keeps it as left.
 function start (seed, { daily = null, practice = false } = {}) {
   const at = saved()
   if (at) {
@@ -356,7 +374,7 @@ function start (seed, { daily = null, practice = false } = {}) {
       onNo: () => overlay(null)
     }))
   }
-  made = ascension && !daily ? { seed, ascension } : { seed }
+  made = daily ? { seed } : { seed, ...(ascension && { ascension }), ...(monarch !== BASE_MONARCH && { monarch }) }
   run = createRun(made)
   meta = { begun: Date.now(), time: 0, ...(daily && { daily }), ...(daily && practice && { practice: true }) }
   ticked = null
@@ -410,7 +428,8 @@ function graduate () {
 // A run state from before relics had tiers (one with `keystones`, its Arise free) carries on under the new rules:
 // its keystones join its relics (the same ids, now Legendaries, waiting unheld: redesign.md §2.15), and an id no
 // longer known is dropped, from the relics and from what a soul holds, so an old state never breaks the page. One
-// from before the Monarch lost its points drops them, and its rites and reliquaries are shops.
+// from before the Monarch lost its points drops them (a Monarch's id, the run's own since Step 9, is no points), and its
+// rites and reliquaries are shops.
 function migrate (s) {
   if (!Array.isArray(s.relics)) s.relics = []
   if ('keystones' in s) {
@@ -420,7 +439,7 @@ function migrate (s) {
   }
   s.relics = s.relics.filter((id) => RELICS[id])
   for (const u of s.party) if (u.relics) u.relics = u.relics.filter((id) => RELICS[id])
-  delete s.monarch
+  if (typeof s.monarch !== 'string') delete s.monarch
   for (const n of s.map?.nodes ?? []) if (n.type === 'rite' || n.type === 'reliquary') n.type = 'shop'
   s.shop ??= []
 }
@@ -459,7 +478,8 @@ function route () {
   } else {
     // The run over, cleared or fallen: kept in the history (again, as one line, for a clear gone on into the deep).
     chronicle()
-    show(endScreen({ run, opened: ascend(), onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
+    const o = ascend()
+    show(endScreen({ run, opened: o?.level ?? null, crowned: o?.monarchs ?? [], onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
   }
 }
 
@@ -607,6 +627,7 @@ onFrame(() => {
 
 const seed = new URLSearchParams(location.search).get('seed') ?? newSeed()
 choose(ascension)
+crown(monarch)
 title(seed)
 
 // The store build (build.js) marks its page with its hash and ships a service worker beside it, registered here once the
