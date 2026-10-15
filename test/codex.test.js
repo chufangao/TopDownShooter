@@ -45,11 +45,11 @@ const page = {
 }
 for (const [k, value] of Object.entries(page)) Object.defineProperty(globalThis, k, { value, configurable: true, writable: true })
 
-const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf, roomSynergies, roomTip, DEEP_TEXT, ENEMY_TEXT } = await import('../src/codex.js')
+const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf, roomSynergies, roomTip, DEEP_TEXT, ENEMY_TEXT, riteNote, transmuteWorth, ROOM } = await import('../src/codex.js')
 const { KEYWORDS } = await import('../src/keywords.js')
 const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, temperLine } = await import('../src/content.js')
 const { makeUnit } = await import('../src/sim/unit.js')
-const { createRun, souls, rosterCap, apply, START_PARTY } = await import('../src/sim/run.js')
+const { createRun, souls, rosterCap, apply, START_PARTY, availableNodes, transmuteOffer, legalActions } = await import('../src/sim/run.js')
 const { temperOf } = await import('../src/sim/turns.js')
 
 const FOES = UNIT_LIST.filter((u) => u.spawn || u.boss)
@@ -71,10 +71,11 @@ test('a met foe\'s card tells its reach, its Move, its way and its way line; no 
 })
 
 // The seventeen of redesign.md §2.14, Line of fire (§2.19, 2026-10-11): a rule the player must read to screen the
-// Monarch, so it is a word of its own; and Trine (the improvement plan's §4.1, 2026-10-15): three of a kind fused.
-test('the glossary\'s words are the seventeen, Line of fire and Trine; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
+// Monarch, so it is a word of its own; Trine (the improvement plan's §4.1, 2026-10-15): three of a kind fused; and Altar
+// (its §4.5): one rite of three.
+test('the glossary\'s words are the seventeen, Line of fire, Trine and Altar; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
   const names = Object.values(KEYWORDS).filter((k) => k.group === 'Words').map((k) => k.name)
-  assert.deepEqual(names.slice().sort(), ['Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Line of fire', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
+  assert.deepEqual(names.slice().sort(), ['Altar', 'Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Line of fire', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
     'Summon', 'Synergy', 'Tier', 'Trine', 'Turn', 'Wave'])
   for (const [id, b] of Object.entries(BEHAVIOURS)) assert.equal(KEYWORDS[id].line, b.desc)
   for (const k of Object.values(KEYWORDS)) assert.ok(!/\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit|flank|chance/i.test(k.line), `${k.name}: ${k.line}`)
@@ -309,4 +310,35 @@ test('the codex\'s Fusions lists the mixed recipes and the capstones, the triple
       assert.ok(!/NaN|undefined/.test(card), `${d.id}: ${card}`)
     }
   }
+})
+
+// The altar's choice (the improvement plan's §4.5) told true: the room's line names the three rites; a transmutation's
+// worth the level the soul will stand at and its new kind's tiers; each rite's note what it did.
+test('an altar\'s rites are told as they are: the room names the three, a transmutation\'s card its level, each note what the rite did', () => {
+  assert.match(ROOM.altar.text, /one rite of three.*[Hh]eal.*transmute.*consecrate/)
+  assert.match(KEYWORDS.altar.line, /heal.*transmute.*consecrate/)
+  const at = createRun({ start: START_PARTY, seed: 'told-altar' })
+  const node = availableNodes(at)[0]
+  delete node.foes
+  node.type = 'altar'
+  apply(at, { type: 'node', id: node.id })
+  const copy = () => ({ state: structuredClone(at.state), battle: null, setup: null })
+  const said = {}
+  for (const a of legalActions(at)) {
+    const run = copy()
+    const before = structuredClone(run.state.party)
+    const worth = a.type === 'transmute' ? transmuteWorth(run, run.state.party.find((u) => u.uid === a.uid), transmuteOffer(run.state, run.state.party.find((u) => u.uid === a.uid).id)[a.index]) : null
+    apply(run, a)
+    const note = riteNote(run.state, a, before)
+    assert.ok(/^The altar burns/.test(note) && !/NaN|undefined/.test(note), note)
+    if (worth) {
+      const u = run.state.party.find((x) => x.uid === a.uid)
+      assert.equal(worth.lvl, u.lvl)
+      assert.ok(note.includes(UNIT_LIST.find((d) => d.id === u.id).name) && note.includes(`Lv ${u.lvl}`), note)
+      assert.ok(worth.lines.every((l) => !/NaN|undefined/.test(l)) && worth.chips.length > 0)
+    }
+    if (a.type === 'consecrate') assert.ok(note.includes('free'), note)
+    said[a.type] = note
+  }
+  assert.deepEqual(Object.keys(said).sort(), ['consecrate', 'heal', 'transmute'])
 })

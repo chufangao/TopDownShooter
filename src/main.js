@@ -6,8 +6,8 @@ import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, depthOf, runStat } from './sim/run.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS } from './content.js'
-import { titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen } from './ui.js'
-import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, altarNote, recruitNote } from './codex.js'
+import { titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen, altarScreen } from './ui.js'
+import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, riteNote, recruitNote } from './codex.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from './dom.js'
 import { sfx } from './sfx.js'
 import { board } from './board.js'
@@ -205,17 +205,24 @@ function route () {
     show(reapScreen({ run, title: currentNode(run).type === 'elite' ? 'The elite falls' : 'Spoils', act, onDone: reap, onHelp: toggleHelp }))
   } else if (s.phase === 'shop') {
     show(shopScreen({ run, act, onLeave: leave, onHelp: toggleHelp }))
+  } else if (s.phase === 'altar') {
+    show(altarScreen({ run, onRite: rite, onHelp: toggleHelp }))
   } else {
     show(endScreen({ run, onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
   }
 }
 
-// An altar's note says what it did: each piece's HP is kept before the room is entered, to be read against after.
 function onNode (id) {
-  const before = new Map(run.state.party.map((u) => [u.uid, u.hp]))
   apply(run, { type: 'node', id })
   trail.ids.push(id)
-  if (currentNode(run).type === 'altar') note = altarNote(run.state, before)
+  route()
+}
+
+// An altar's rite (redesign.md §4.5): its note on the map says what it did, read against each piece as it stood before.
+function rite (action) {
+  const before = structuredClone(run.state.party)
+  apply(run, action)
+  note = riteNote(run.state, action, before)
   route()
 }
 

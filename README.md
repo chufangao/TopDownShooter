@@ -30,6 +30,10 @@ then descend into the endless deep for as long as you last.
   button, then a target; it rests a few turns. **End Turn** hands the field over: pieces you gave no act strike
   with their basic blow, then the foes move. Play on end-turn alone and you die on floor 1.
 - **Shops** sell relics, the only place they come from. Elites pay essence and offer their recruit.
+- **Altars** grant one rite of three: **heal** every soul and raise the fallen; **transmute** a standing soul into one
+  of three kinds of the floor's foes at its tier, drawn by the seed, keeping its relic, its wounds and its level (tiers
+  stay with their kind: the old keeps those bought for it, the soul takes its new kind's); or **consecrate** a kind, its
+  next tier on a track you choose, free. A fused soul cannot be transmuted: it is made, not met.
 
 ## Running it
 
