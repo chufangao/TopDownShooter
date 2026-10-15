@@ -865,80 +865,86 @@ a new hook, `stand`, after every `modify` and on the rounded damage, where Last 
 so a Construct Vanguard under Bodyguard is never stood up from a blow the 20% leaves it alive from. **The expert's
 part**: nothing to change. No reader estimates a rule's strength: the sketch's `strength`, the book's `bookPower` and
 the situation count the synergies held, a split one once, and nothing reads Echo's second landing, a stand or
-Deathblow's threshold; the book remade, byte for byte the same. The tests: 445 (439 and six), all passing (`node --test
---test-concurrency=1`, 613 s).
+Deathblow's threshold; the book remade, byte for byte the same (before the merge with Step 1 and after). The tests: 445
+before the merge (439 and six), 447 after, all passing (`--test-concurrency=1`, 330 s); `outside.test.js`'s clearing run
+moved to sim-2, sim-1's expert now falling on floor 4.
 
-**Measured** (the expert as Step 2 has it; seeds `div-*`, two workers beside another session): free play `--commit none
---runs 64` (6 min), paired seed for seed against the base (09052bf, played again the same way: Step 2's numbers
-exactly); `--commit synergies --runs 32` (32 min), and on the base the six archetypes whose rules changed and Legion's
-(16 and 4.5 min); Echo's two forms counted in process on `div-0…15` (the rule's hook wrapped by a script outside the
-repo, in the battles played, not the expert's rehearsals); the foes' synergies read off the rooms of `div-0…63` as drawn
-(a walk taking each fork evenly, a room's formations each counted as it enters).
+**Measured** on the merge with Step 1 (7b853ed and this step; the expert as Step 0 has it, its forests stale; seeds
+`div-*`; workers beside other sessions): free play `--commit none --runs 256 --workers 3` (14 min), paired seed for seed
+against Step 1's own free play at 7b853ed (its §8 numbers, the same runs); `--commit synergies --runs 32` (36 min), and
+at 7b853ed the six archetypes whose rules changed and Legion's (27 min); Echo's two forms counted in process on
+`div-0…15` (the rule's hook wrapped by a script outside the repo, in the battles played, not the expert's rehearsals);
+the foes' synergies read off the rooms of `div-0…255` as drawn (a walk taking each fork evenly, a room's formations each
+counted as it enters). Before the merge the same measure against Step 2 (09052bf), on 64 and 32 seeds, is the last
+paragraph's.
 
-Free play, `div-0…63`:
+Free play, `div-0…255`:
 
-| | Base | Synergies |
+| | Step 1 (7b853ed) | Synergies |
 |---|---|---|
-| clears | 49 (77%) | 44 (69%): +1 −6 |
-| progress | 90.0 | 88.5 (−1.5 ± 0.9) |
-| died on floor 1 / 2 / 3 / 4 | 7 / 0 / 0 / 8 | 7 / 1 / 1 / 11 |
-| battles a run; fusions a run; turns a battle | 44.9; 5.5; 6.2 | 44.0; 5.3; 6.3 |
-| synergies held (battles) | Echo 52%, Legion 33%, Mirage 7%; none 44% | Echo 51%, Legion 32%, Mirage 7%; none 44% |
-| six or more of eleven at 5%+ | 3: not met | 3: not met |
-| fused kinds in the final armies | Chanter's trine 84%, Court 81%, Sprite's trine 30%, Winter Court 23% | Court 80%, Chanter's trine 77%, Sprite's trine 30%, Winter Court 27%, Great Chanter Trine 9% |
-| pieces of the last battles | Channelers 87%, Skirmishers 11% | Channelers 86%, Skirmishers 13% |
-| kinds in a tenth of final armies | 11 of 62 | 9 of 62 |
+| clears | 162 (63%) | 152 (59%): +13 −23, −3.9 ± 2.3 points |
+| progress | 84.6 | 83.8 (−0.8 ± 0.4) |
+| died on floor 1 / 2 / 3 / 4 | 42 / 1 / 2 / 49 | 42 / 2 / 4 / 56 |
+| battles a run; fusions a run; turns a battle | 42.4; 5.0; 5.9 | 42.0; 4.9; 6.1 |
+| synergies held (battles) | Echo 60%, Legion 39%, Mirage 4.8%; none 38% | Echo 60%, Legion 38%, Mirage 4.9%; none 39% |
+| six or more of eleven at 5%+ | 2: not met | 2: not met |
+| fused kinds in the final armies | Chanter's trine 78%, Court 74%, Winter Court 25%, Sprite's trine 21% | Chanter's trine 77%, Court 74%, Winter Court 25%, Sprite's trine 20% |
+| pieces of the last battles | Channelers 85%, Skirmishers 12% | Channelers 84%, Skirmishers 12% |
+| kinds in a tenth of final armies | 8 of 62 | 9 of 62 |
 
-Echo's two forms, `div-0…15`: of the 278 battles your Echo rang in, 142 at half throughout, 105 whole throughout and 31
-both (the count crossing 8 mid-battle); 2,310 echoes at half, 2,977 whole. No run's last battle fields 8 Channeler
-pieces (3.8 on average, summons aside): the whole Echo is the Bone Chanters' summons'.
+Echo's two forms, `div-0…15`: of the 307 battles your Echo rang in, 146 at half throughout, 102 whole throughout and 59
+both (the count crossing 8 mid-battle); 2,715 echoes at half, 3,634 whole. The last battles field 3.9 Channeler pieces
+on average and 8 in three runs of 256 (summons aside): the whole Echo is the Bone Chanters' summons'.
 
-Committed, `div-0…31` (base and Synergies seed for seed; "reached": runs that held the synergy, the median battle it
+Committed, `div-0…31` (Step 1 and Synergies seed for seed; "reached": runs that held the synergy, the median battle it
 came on; "held": the battles that began with it):
 
 | Archetype | Clears | Progress (paired) | Died on floor 1 / 2 / 3 / 4 | Reached (battle) | Held |
 |---|---|---|---|---|---|
-| free play | 23 → 21 (+0 −2) | 88.6 → 85.6 (−3.0 ± 1.8) | 4 / 0 / 0 / 5 → 4 / 1 / 1 / 5 | | |
-| Fae 4 (Mirage) | 20 → 20 (+2 −2) | 90.1 → 89.5 (−0.6 ± 0.6) | 3 / 0 / 1 / 8 → the same | 13 → 14 (44%, 31) | 10% → 13% |
-| Construct 4 (Last Stand) | 16 → 12 (+2 −6) | 86.2 → 83.0 (−3.2 ± 1.5) | 5 / 0 / 0 / 11 → 5 / 0 / 3 / 12 | 0 → 0 | 0 |
-| Vanguard 4 (Bodyguard) | 18 → 14 (+2 −6) | 86.2 → 83.8 (−2.4 ± 1.3) | 5 / 0 / 0 / 9 → 5 / 0 / 2 / 11 | 0 → 0 | 0 |
-| Skirmisher 4 (Ambush) | 20 → 15 (+1 −6) | 85.0 → 83.9 (−1.1 ± 1.9) | 5 / 0 / 1 / 6 → 5 / 0 / 2 / 10 | 0 → 0 | 0 |
-| Channeler 4 (Echo) | 18 → 11 (+1 −8) | 87.7 → 82.0 (−5.7 ± 2.8) | 4 / 0 / 0 / 10 → 4 / 1 / 3 / 13 | 27 → 27 (84%, 10) | 59% → 57% |
-| Trickster 4 (Deathblow) | 15 → 17 (+3 −1) | 86.0 → 87.6 (+1.7 ± 1.9) | 4 / 1 / 1 / 11 → 4 / 0 / 1 / 10 | 0 → 0 | 0 |
-| Undead 4 (Legion, unchanged) | 11 → 5 (+1 −7) | 83.4 → 79.4 (−3.9 ± 2.5) | 6 / 0 / 0 / 15 → 6 / 1 / 2 / 18 | 26 → 23 (72%, 13) | 39% → 39% |
+| free play | 21 → 20 (+2 −3) | 90.1 → 86.0 (−4.1 ± 2.4) | 3 / 0 / 1 / 7 → 3 / 1 / 3 / 5 | | |
+| Fae 4 (Mirage) | 20 → 19 (+3 −4) | 82.8 → 82.0 (−0.9 ± 0.9) | 6 / 0 / 0 / 6 → 6 / 0 / 1 / 6 | 12 → 12 (38%, 33) | 9% → 10% |
+| Construct 4 (Last Stand) | 13 → 13 (+1 −1) | 81.9 → 81.0 (−0.9 ± 1.4) | 6 / 0 / 0 / 13 → 6 / 0 / 1 / 12 | 0 → 0 | 0 |
+| Vanguard 4 (Bodyguard) | 14 → 14 (+1 −1) | 81.9 → 81.1 (−0.8 ± 1.4) | 6 / 0 / 0 / 12 → 6 / 0 / 1 / 11 | 0 → 0 | 0 |
+| Skirmisher 4 (Ambush) | 15 → 12 (+1 −4) | 80.3 → 79.1 (−1.2 ± 0.7) | 7 / 0 / 0 / 10 → 7 / 0 / 0 / 13 | 0 → 0 | 0 |
+| Channeler 4 (Echo) | 16 → 15 (+1 −2) | 89.4 → 88.0 (−1.4 ± 1.0) | 3 / 0 / 1 / 12 → 3 / 0 / 2 / 12 | 28 → 27 (84%, 9) | 61% → 61% |
+| Trickster 4 (Deathblow) | 13 → 11 (+1 −3) | 76.4 → 74.5 (−1.9 ± 1.3) | 8 / 0 / 0 / 11 → 8 / 0 / 1 / 12 | 0 → 0 | 0 |
+| Undead 4 (Legion, unchanged) | 11 → 11 (+5 −5) | 81.1 → 79.4 (−1.7 ± 1.1) | 6 / 1 / 0 / 14 → 6 / 1 / 1 / 13 | 23 → 22 (69%, 10) | 41% → 40% |
 
-The rules that stand, committed on the Synergies' seeds alone (against its free play, 21 clears): Drake 4 14 clears
-(−14.4 ± 7.2), reached in none; Insect 4 15 (−3.9 ± 5.3), 13% (46); Ranger 4 16 (−2.4 ± 5.4), none; Warden 4 14 (−1.8 ±
-5.4), 3% (50).
+The rules that stand, committed on the Synergies' side alone (against its free play, 20 clears): Drake 4 14 clears
+(−11.3 ± 7.7), reached in none; Insect 4 13 (−5.9 ± 7.0), 9% (47); Ranger 4 11 (−5.8 ± 6.9), 6% (48); Warden 4 12 (−5.0
+± 6.6), 9% (48).
 
-The foes hold them too (§2.12 of the old spec), and on the deep floors often: a formation holds Bodyguard in 14%, 33%
-and 47% of the battle rooms of floors 2, 3 and 4, Ambush in 29%, 12% and 27%, Mirage in 21%, 22% and 27%, Deathblow in
-7%, 7% and 12%, Last Stand in 6%, 5% and 9%, Echo in 9%, 25% and 33% (none on floor 1: no formation there is four
+The foes hold them too (§2.12 of the old spec), and on the deep floors often: a formation holds Bodyguard in 16%, 29%
+and 42% of the battle rooms of floors 2, 3 and 4, Ambush in 21%, 19% and 31%, Mirage in 19%, 23% and 33%, Deathblow in
+7%, 7% and 15%, Last Stand in 5%, 5% and 13%, Echo in 11%, 22% and 33% (none on floor 1: no formation there is four
 strong).
 
-**What it says.** Criterion 3's synergy line has not moved: three of the eleven at 5% of battles or more, Echo, Legion
-and Mirage, as before, and four of the five rules raised to Echo's class (Ambush, Bodyguard, Last Stand, Deathblow) were
-never held by the expert, free or committed. Two things keep them out of play, neither of them their strength. The
-expert does not read a rule's strength: its sketch and its book count the synergies a field holds, each one alike, so
-raising Ambush or Last Stand changes no choice it makes. And the expert cannot gather them: committed to Construct 4,
-Vanguard 4, Skirmisher 4, Trickster 4, Ranger 4 or Drake 4 it holds the synergy in none of 32 runs, as Step 0 found on
-the old content (Last Stand and Bodyguard in none of 64): what a run is offered and what the sketch buys first are the
-Court's parts and the Chanters (Step 0: Vanguard and Skirmisher kinds are offered in 15 and 17 battles by the end of
-floor 2, but the book values the Construct's, the Vanguard's and the Warden's combos at nothing, and the committed runs
-make the Court all the same). Whether the raised rules are of Echo's class is unmeasured until a player holds them: Step
-1's pool and Step 4's kin banners are what bring them within reach, and a committed teacher the measure.
+**What it says.** Criterion 3's synergy line has not moved: two of the eleven at 5% of battles or more (Echo 60%, Legion
+38%; Mirage 4.9%, just under, as at Step 1), and of the five rules raised Bodyguard, Last Stand and Deathblow were never
+held by the expert in free play and Ambush in one battle of 10,748; committed to Construct 4, Vanguard 4, Skirmisher 4
+or Trickster 4 it holds the synergy in none of 32 runs, as Step 0 found on the old content and as before the merge. Two
+things keep them out of play, neither of them their strength. The expert does not read a rule's strength: its sketch and
+its book count the synergies a field holds, each one alike, so raising Ambush or Last Stand changes no choice it makes.
+And it does not gather them: what the sketch buys first are the Court's parts and the Chanters, and the book values the
+Construct's, the Vanguard's and the Warden's combos at nothing (Step 0); Step 1's flatter pool brought Ranger 4 and
+Warden 4 within a few runs (6% and 9%), Construct, Vanguard, Skirmisher, Trickster and Drake 4 within none. Whether the
+raised rules are of Echo's class is unmeasured until a player holds them: Step 4's kin banners, the committed teacher,
+or a harness rule holding a committed run to its kin or role (Step 0's question for the user) are what would show it.
 
-What did move is the cost, from two sources this record does not part: the expert's Echo halved, and the foes' raised
-rules. Free play lost 1.5 ± 0.9 points, six clears on floors 3–4 for one gained (the Court and the Chanters' trines echo
-at half in about half the battles Echo rings in, until the summons make eight); committed to Echo, −5.7 ± 2.8 and seven
-clears. And every archetype that never reaches its own rule lost clears too (Last Stand, Bodyguard and Ambush four or
-five each, −1.1 to −3.2 points; Legion, unchanged and held as before, six, on top of the floor-4 deaths it had on the
-graph's content already): runs whose side gains nothing from the raise and keeps its Echo at half, and whose foes gain:
-the deep floors' formations hold Bodyguard in a third to a half of their rooms, Ambush, Mirage and Echo in about a
-quarter (their Echo halved too). Deathblow's committed row, two clears up (+1.7 ± 1.9), is within its noise. Mirage a
-turn: committed to Fae 4 the expert holds it in a few more battles (13 runs → 14, 10% of battles → 13%) at the same
-clears. The difficulty reads harder on floors 3–4 (free play's floor-4 deaths 8 → 11); the balance pass reads it with
-the rest (§6, Step 6: Echo's halves among its numbers).
+What did move is the cost, from two sources this record does not part: the expert's Echo halved (in about half the
+battles it rings in, until the Chanters' summons make eight), and the foes' raised rules (the deep floors' formations
+hold Bodyguard in 29–42% of their rooms, Ambush, Mirage and Echo in a fifth to a third, their Echo halved too). Free
+play lost 0.8 ± 0.4 points of progress and 3.9 ± 2.3 of clears (13 seeds won, 23 lost), its deaths on floors 3–4 51 →
+60; committed, every changed archetype lost 0.8 to 1.9 points (Ambush three clears, Deathblow two, Echo and Mirage one,
+Last Stand and Bodyguard none), runs whose own side gains nothing from the raise. The end of a run reads harder, on top
+of Step 1's (above: the Sovereign's room); the balance pass reads it with the rest (§6, Step 6: Echo's halves among its
+numbers).
+
+Before the merge, against Step 2 (09052bf): free play on `div-0…63` 49 → 44 clears (+1 −6), progress −1.5 ± 0.9, floor-4
+deaths 8 → 11, the synergies held as before (Echo 52% → 51%, Legion 33% → 32%, Mirage 7% → 7%); committed on `div-0…31`,
+Mirage 20 → 20 clears, Last Stand 16 → 12, Bodyguard 18 → 14, Ambush 20 → 15, Echo 18 → 11, Deathblow 15 → 17, Legion 11
+→ 5, and none of Last Stand, Bodyguard, Ambush or Deathblow held in any run; Echo's forms on `div-0…15` 142 battles at
+half, 105 whole, 31 both.
 
 ## 9. Standing rules
 
