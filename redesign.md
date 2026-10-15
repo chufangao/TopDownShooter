@@ -1757,6 +1757,138 @@ Marshal's Vanguards, the Hags) pulls a run toward the kinds the boss answers or 
 numbers; and the elite drawn for the army never fired in the expert's 64 runs (Drain, which few armies answer, is on most
 elites from floor 1), so it acts only where a floor's elites all lack every type an army cannot answer.
 
+### The balance pass, part 1 (Step 6, 2026-10-16)
+
+**Built: a strict commitment, an instrument beside the plan's soft one** (`autoplay.js`, the archetypes' section:
+`--builds --strict`; `strictOf`, `strictRecruit`, `mayFuse`, `strictBars`; README). Step 0 found a commitment by the book
+alone a nudge (§8, Step 0: every committed row made a Pale Court in 67–84% of its runs) and left a firmer one to the user
+as a harness rule over the frozen expert; it is that, as a measuring tool only, the soft commitment staying the plan's
+default and the rows of §3. A strictly committed run holds to its archetype as an ablation holds a run from a mechanic.
+Its kinds: a fused kind's, every kind of its recipe graph (`recipesOf`: the parts and the fused kinds between); a
+synergy's, every kind a run can hold of its kin or role. Its recipes: a fused kind's graph; a synergy's, those whose
+result is of its kin or role. Then the draft takes one of its kinds where a pick offers one (the expert's pick among
+them, its ranged rule within them); a recruit is one of its kinds where the spoils offer one the purse affords, taken
+whatever keeping would while the archetype is short of that kind (`strictShort`: a fused kind's graph wants more of it
+than the run holds, every soul counted and a fused one as its parts; a synergy's kin or role held by fewer souls than its
+count or the field's cap), else the expert's choice among them or none; a soul let go is never of its kinds while another
+will do; no fusion is made outside its recipes, out of battle (`fusionOptions`, `completes`) or in it (`expertTurn`'s
+`fuse`, which now takes a recipe filter, `policy.js expertOptions`); no transmutation turns one of its souls into another
+kind (`altarOptions`). The Shop, the altar's other rites, the route, prep and battle, and the recruit where none of its
+kinds is offered, stay the expert's, and the outside teacher's candidates and playouts read the same restrictions (its
+draft and recruits through `pickDraft` and `recruitCandidates`, its purchases through `fusionOptions`, its rites through
+`altarOptions`). Free play and the soft commitment play byte for byte as before (whole logs of `same-0…4` free and
+committed to Fae 4, sha256, before and after). `test/builds.test.js` (one test: the kinds and recipes of a fused and a
+synergy archetype; fusions offered out of battle and in it; whole runs held to the Pale Court and Undead 4, every pick,
+recruit, release, fusion and transmutation checked; the jobs). Merged with the Monarchs (961bb56) and the cleanup
+(47439ac): 521 tests, all passing (`--test-concurrency=2`, 219 s).
+
+**Measured** (the expert as Step 0 has it, its forests and route stale; the draft on; seeds `bal-*`, fresh `chk-*` for
+the checks, two workers beside two other sessions; the content of 094e111 and the base Monarch: the Monarchs and the
+cleanup change no base run):
+`npm run builds -- --commit none --runs 256 --seed bal` (free play, 11 min); `npm run pool -- --seed bal`; `npm run ladder --
+--ascension 0 --runs 64 --seed bal`; `npm run ablations -- --variants relics --runs 64 --seed bal`; the strict commitment,
+`--builds --strict --runs 64 --seed bal` for the five kins, the five fused kinds of §1 and six trines of floor-1 kinds
+(1,088 runs, 56 min), beside the soft one for the five kins; and the outside teacher's free play up the ladder
+(`--player teacher --ascension a --runs 16`).
+
+Free play, `bal-0…255` (criteria 3 and 4):
+
+| | Free play |
+|---|---|
+| clears | 168 (66%); progress 80.4 |
+| died on floor 1 / 2 / 3 | 56 / 5 / 27: floor 1's rooms 3–10 most (45), its boss 3 (the Barrow Marshal); the Mire Mother on floor 2, 4; the Sovereign 27 of the 195 that met it |
+| battles a run (a clear); battles lost; orders a clear | 30.0 (37.1); 88; 938 |
+| fused kinds in the final armies | Pale Court 72%, Chanter's trine 58%, Winter Court 27%, Sprite's trine 20%, Rime Drake 2%, the Court's trine 2% |
+| recipes made (runs) | 11 of 44 in a run or more: the Court 77%, the Chanter's trine 59%, the Sprite's trine 42%, the Winter Court 27%, the rest 2% or less |
+| synergies held (battles) | Echo 46%, Legion 25%, Mirage 3%; none 52% |
+| kinds in a tenth of final armies; pieces of the last battles | 9 of 62; Channelers 82%, Skirmishers 16% (Fae 65%, Undead 33%) |
+| relics bought a run (Command); altars' rites | 2.0 (36%); 2.3 a run: the free tier 65%, the heal 31%, a transmutation 3% |
+| the floors' bosses met (lost) | floor 1: the Mire Mother 107, the Marshal 80 (3), the Abbess 13, the Queen 3; floor 2: the Mire Mother 195 (4), the Abbess 3, the Marshal 1 |
+
+On fresh seeds, `chk-0…255` (the base for the loop's confirmations): 176 clears (69%), progress 83.6, dead on floor 1 / 2 /
+3 47 / 4 / 29 (the Sovereign 22 of 196); the Court in 76% of final armies, the Chanter's trine 61%, the Winter Court 25%,
+the Sprite's trine 22%; Echo 45%, Legion 23%, Mirage 3% of battles; 10 kinds in a tenth of final armies.
+
+Criterion 1, the pool (256 seeds `bal`): **22 of 44** recipes reachable, as Step 1 left them. Short: the three mixed
+recipes' keystones by the end of floor 2 (the Ember Drake 0.9 battles, the Mantis Reaper 2.0, the Iron Golem 0.7; their
+partners 9.4, 3.5 and 9.3), so the Rime Drake, the Hive Queen and the Clockwork Titan and the five capstones on them;
+the trines of the kinds first met on floor 2 but the Drone (the Thorn Dryad's 1.7, the Rot Bloat's 1.7, the Mantis's 2.0,
+the Golem's 0.7, the Ember Drake's 0.9); the Marsh Hag's 0.5 (its floor-1 and floor-2 offers are the Mire Mother's court);
+and the floor-3 kinds' trines, none.
+
+Criterion 4, the ladder at level 0 (`bal-0…63`): basic 0 clears, all 64 dead on floor 1 (2.0 battles, progress 3.8); the
+calculator 0 clears, dead on floor 1 / 2 / 3 56 / 6 / 2, **floor 2 reached in 8 runs of 64** (12.5%; ~half wanted),
+progress 19.8 (+16.0 ± 2.3 over basic); the expert **42 (66%)** (~90% wanted), dead 15 / 2 / 5, progress 78.8 (+59.0 ± 5.0
+over the calculator, +42 −0 in clears). The order kept. The outside teacher up the ladder (`bal-0…15`, its free play):
+94% at 3, 88% at 5, 81% at 6, **75% at 7**, 56% at 8, every run lost on floor 1, none in the Sovereign's room; level 7 is
+where it does not saturate, criterion 2's level below.
+
+Criterion 3's relic line, `--ablations --variants relics` (`bal-0…63`): the full expert 42 clears, without Common,
+Uncommon and Rare relics 40: **a drop of 3 points** (progress 0.2 ± 0.2; clear-equivalent 3.1 ± 3.1), under its band of
+8–25 and **no longer met** (Step 4: 20.3 ± 6.0 at four floors). At three floors the expert buys 1.9 relics a run (5.3 at
+four), a third of them Command, and ends a clear with a median 426 essence unspent; floor 4's wall, which Command was
+for, is gone.
+
+Criterion 2, **the expert strictly committed**, `bal-0…63` (progress against free play's on the same seeds, 78.8, 42
+clears; "reached": runs that made its fusion or held its synergy; "its kinds": the share of the final army, and of the
+last battle's field, of the archetype's kinds; the rest are the recruits taken where none of its kinds was offered):
+
+| Archetype | Clears | Progress (vs free) | Died on floor 1 / 2 / 3 | Monarch / pieces (%) | Reached | Its kinds |
+|---|---|---|---|---|---|---|
+| **Pale Court** | **49** | 80.9 (+2.1 ± 6.0) | 14 / 0 / 1 | 96 / 84 | 50 | 23% / 29% |
+| Fae 4 (Mirage) | 28 | 84.1 (+5.3 ± 5.7) | 8 / 8 / 20 | 99 / 91 | 18 | 58% / 56% |
+| Rime Drake | 12 | 47.3 (−31.5 ± 6.0) | 34 / 17 / 1 | 100 / 95 | 13 | 38% / 42% |
+| Bone Chanter's trine | 7 | 70.4 (−8.4 ± 5.7) | 20 / 8 / 29 | 90 / 93 | 40 | 26% / 58% |
+| Frost Sprite's trine | 3 | 70.8 (−8.0 ± 6.0) | 17 / 11 / 33 | 41 / 80 | 47 | 24% / 39% |
+| Undead 4 (Legion) | 2 | 62.2 (−16.6 ± 5.4) | 20 / 17 / 25 | 100 / 96 | 42 | 57% / 84% |
+| Insect 4 (Frenzy) | 1 | 47.8 (−31.0 ± 5.0) | 26 / 29 / 8 | 100 / 100 | 37 | 26% / 43% |
+| Grave Ghoul's trine | 0 | 57.0 (−21.8 ± 5.3) | 18 / 23 / 23 | | 47 | 21% / 32% |
+| Bone Colossus | 0 | 55.4 (−23.5 ± 5.4) | 26 / 15 / 23 | | 42 | 37% / 71% |
+| Hive Warden's trine | 0 | 50.7 (−28.1 ± 5.3) | 26 / 24 / 14 | | 29 | 12% / 24% |
+| Hive Queen | 0 | 43.7 (−35.1 ± 4.7) | 32 / 26 / 6 | | 15 | 18% / 34% |
+| Pyre Hound's trine | 0 | 37.0 (−41.8 ± 5.2) | 41 / 11 / 12 | | 18 | 31% / 42% |
+| Clockwork Page's trine | 0 | 31.3 (−47.5 ± 5.6) | 43 / 13 / 8 | | 24 | 41% / 54% |
+| Drake 4 (Dragonfire) | 0 | 30.9 (−47.9 ± 4.8) | 46 / 15 / 3 | | 1 | 36% / 45% |
+| Construct 4 (Last Stand) | 0 | 30.1 (−48.8 ± 5.6) | 45 / 13 / 6 | | 24 | 48% / 67% |
+| Clockwork Titan | 0 | 20.1 (−58.7 ± 5.0) | 56 / 7 / 1 | | 3 | 49% / 62% |
+
+On fresh seeds, `chk-0…63` (free play 48 of 64), the same picture: the Pale Court 39, Fae 4 25, the Rime Drake 10 (each of
+the 10 runs that made one), the Chanter's trine 3, the Sprite's 2, Drake 4, Construct 4 and Undead 4 2 or 1, the
+Ghoul's trine, the Ember Drake's and Insect 4 none.
+
+The soft commitment, `bal-0…63`, the five kins: Undead 4 33 clears (+2.5 ± 4.4), Drake 4 37 (−6.1 ± 5.1), Fae 4 36
+(−4.4 ± 5.5), Insect 4 29 (−3.1 ± 3.3), Construct 4 32 (+0.1 ± 3.3); each made a Pale Court in 39–49 of its 64 runs, and
+held its synergy in 70%, 2%, 17%, 5% and none of them.
+
+The outside teacher strictly committed to each kin at ascension 7 (`--player teacher --strict`, criterion 2's own
+instrument): **not done.** Its run on `bal-0…15` was cut twice, by the container's restart and then after 77 minutes at
+under a sixth of its free play's pace: where no line clears, the teacher plays every one of its six candidates out at
+every decision, and a strict run at 7 meets that at nearly every decision (its free play at 7, 30 s a run; strictly,
+past three minutes). It wants four workers and a few hours, or fewer seeds; the expert's strict rows above stand for it
+until then.
+
+**What it says.** Criterion 1: 22 of 44, as Step 1 left it. Criterion 2: **not met, and far off.** Held to its archetype,
+the expert wins with one: the Pale Court (49 of 64, more than free play's 42, though its kinds are a quarter of its final
+armies and the Chanters the rest), and Fae 4 through it (28); the Rime Drake where its keystone comes (12 of the 13 runs
+that made one cleared); every other archetype 0 to 7 clears of 64, the floor-1 kins that start without a ranged kind
+(Drake 4, Construct 4, the Hound's and the Page's trines) dead on floor 1 in two runs of three, the rest mostly on
+floors 2 and 3. The soft commitment cannot show it: each kin's soft row made a Pale Court in 39–49 of its 64 runs and
+cleared 29–37 (free play 42), its synergy held in 0–70% of runs: Step 0's "nudge", on today's content. Criterion 3: not met
+on any line, and its relic line, met at Step 4, no longer is (3 points). Criterion 4: the calculator reaches floor 2 in
+an eighth of its runs, the expert clears two in three; the ladder keeps its order.
+
+**Why the Court wins: it holds the bosses.** Its basic, Pale Fire, lays a Hex every turn from four tiles, and a Hexed foe
+loses its next act. In the expert's free play on `bal-1…3` the Hollow Sovereign was Hexed 15–16 times in battles of 18–27
+turns and acted 0–1 times; the floor-2 Mire Mother alike (7 Hexes in a battle of 7 turns). No other build holds a boss,
+and every other trine's strict row dies where the Sovereign stands (the Sprite's trine 33 of its 61 falls on floor 3, the
+Chanter's 29, the Ghoul's 23): the last floor is tuned to a fight only the Court has. Two variants played in copies of the
+tree say so (nothing kept; `bal-0…31`, the strict rows of the Court and five trines): with a boss never Hexed two turns
+running, free play falls 18 → 7 clears and the Court's strict row 22 → 4, the losses moving to the Sovereign's room (11 of
+the 18 that met it); with the Court's Hex on a rest instead (Pale Fire a skill, Triune Flame its basic: §7.4's "its blows'
+rests"), the Court's row 22 → 20 and free play 18 → 17, for the Chanters' Dirge Hastens it and a Hastened skill is ready
+every turn. So criterion 2 waits on the bosses as much as on the trines, and free play's diversity on what the refit
+learns once the Court no longer wins the last floor alone.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
