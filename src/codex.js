@@ -34,8 +34,9 @@ export const alsoOf = (u) => heldRules(u).flatMap((r) => r.roles?.(null, u, r) ?
 
 // The pieces of yours standing as the battle begins: the living on the field, the Monarch too.
 export const standing = (run) => fielded(run.state.party).filter((u) => u.hp > 0)
-// The mods a soul starts a battle with (run.js battleSetup, turns.js modsFor): the run relics' side-wide costs (Legion's
-// HP), and the piece relics it holds (redesign.md §2.15). The Monarch takes none: its stats are its own, its HP the
+// The mods a soul starts a battle with (run.js battleSetup, turns.js modsFor): the run relics' on a unit's stats (a
+// side-wide cost, Legion's HP; a kin banner's, on its kin: statsOf matches it), and the piece relics it holds (redesign.md
+// §2.15). The Monarch takes none: its stats are its own, its HP the
 // run's. Synergies bring rules, never mods.
 export const partyMods = (run, u = null) => u && isMonarch(u) ? [] : [
   ...run.state.relics.filter(isRunRelic).flatMap((id) => (relicDef(id).mods ?? []).filter((m) => !isRunPath(m.path))),

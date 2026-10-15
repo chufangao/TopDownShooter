@@ -78,7 +78,8 @@ export { rulesOf, holds } from './rules.js'
 // tile (the party's in its camp, past `walls`, a list of board tiles). `reserve`: the foes still to come, each with
 // its `wave` (1, 2…: wave k enters at turn 1 + k × `every`, TUNING.spawn.waves.every unless the run's level says
 // otherwise: run.js waveEvery) and its slot's `lane`. `partyMods` and
-// `foeMods`: mods on every unit of the side but the Monarch (the run relics' side-wide costs; the floor's growth);
+// `foeMods`: mods on every unit of the side but the Monarch, a mod with `who` on those it names (the run relics': a
+// side-wide cost, a kin banner's; the floor's growth and the run's level, the boss's apart);
 // `relics`: the run's, every copy owned; `arise`: { domain, tier }, Arise's reach and tier for any holder (run.js
 // ariseOf; TUNING.arise by default); `essence`, the run's purse as the battle begins (what a fusion here may spend:
 // default 0); `fuse`, per recipe id { price, lvl, tracks }: what it costs here (run.js fuseCost), and the level and

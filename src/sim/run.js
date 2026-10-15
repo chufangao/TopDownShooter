@@ -1010,8 +1010,9 @@ export const encounter = (seed, floor, node) => drawRoom(seed, floor, node).foes
 
 // A battle room: `foes`, the formation on the board from the start, and for a room with more to come
 // `waves`: [{ foes }], each a formation of its own that enters at the top edge, each foe in its slot's lane, wave k
-// at the end of turn 1 + k × TUNING.spawn.waves.every (turns.js entryTurn). A foe is a piece { id, lvl, slot }, in a
-// formation of its own (a wave's slots are its own); a captain's cohort are foes of their own beside it.
+// at the end of turn 1 + k × the run's spacing (waveEvery: TUNING.spawn.waves.every at level 0; turns.js entryTurn). A
+// foe is a piece { id, lvl, slot }, in a formation of its own (a wave's slots are its own); a captain's cohort are foes
+// of their own beside it.
 // What comes, by room (TUNING.spawn):
 //   fight   a formation of `fight` foes, floor 3+ from rank waves.fightRank: waves.fight such waves
 //   elite   `elite` foes of a higher tier; floor 1: and a late pair of the floor's own pool, a wave of its own;
@@ -1122,7 +1123,8 @@ function formation (rng, ids, lvl, captains, cohort) {
 // holds) so the UI can rebuild the same battle. Leaves the run untouched: the foes take the next free uids, and the
 // battle's end claims them. `party` overrides the fielded souls, for a rehearsal. Each
 // piece stands where its slot puts it as the battle begins (the battle reads its footprint: unit.js sizeOf). The run
-// relics' side-wide costs on a unit's stats go as `partyMods` (a piece relic's mods go with its holder); Arise's reach
+// relics' mods on a unit's stats (a side-wide cost, a kin banner's on its kin) go as `partyMods` (a piece relic's mods
+// go with its holder); Arise's reach
 // and tier for any holder as `arise` (ariseOf); every relic owned as `relics` (Court of Bone's Monarch that nothing
 // heals); the purse a fusion in battle pays from, and each recipe's price and its fused kind's level and tiers. Shadows
 // take uids after the foes' (the battle makes them: turns.js raise).

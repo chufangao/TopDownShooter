@@ -165,8 +165,9 @@ export const byFieldPower = (a, b) => fieldPower(b) - fieldPower(a) || a.uid - b
 // tiers bring (unless `summons` is false: the summons ablation's) a whole one of the kind it calls up, at the root of
 // the share of HP a summon rises with: as much again for a kind's own, a trine's the kind it was made of at its level
 // and tiers (unit.js summonedOf, turns.js summon). A tier that grants an ability, an aura or a Colossus's footprint
-// counts a share more, and each relic it holds a share more besides its mods (what its triggers and rules are worth no
-// static read can tell): TUNING.expert.growth.worth. 0 for the fallen, and for the Monarch, which never strikes.
+// counts a share more, and each relic it holds a share more besides its mods (what its rules are worth no static read
+// can tell; its triggers are read on top: relicReads): TUNING.expert.growth.worth. 0 for the fallen, and for the
+// Monarch, which never strikes.
 function worth (u, summons = true, mods = heldMods(u), h = TUNING.expert.growth.worth.hits, w = TUNING.expert.growth.worth) {
   if (u.hp <= 0 || isMonarch(u)) return 0
   const s = statsOf(u, mods)
