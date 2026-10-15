@@ -6,8 +6,8 @@
 //
 //   { v, run, log, at, meta? }
 //   v     SAVE_VERSION; any other is an older game's
-//   run   the options the run was made with, whatever createRun takes ({ seed, start?, scale?… }), so a level or a
-//         difficulty rides along
+//   run   the options the run was made with, whatever createRun takes ({ seed, start?, scale?, ascension?, monarch?… }),
+//         so a level, a Monarch or a difficulty rides along
 //   log   run.state.log, every action applied, battle orders among them
 //   at    placeOf: the floor, the room's rank, the phase, the battle's turn, the purse, the Monarch's HP, the actions
 //   meta  what the interface keeps with the run that the run does not need (main.js: when it began, how long it has
@@ -16,7 +16,9 @@
 // The tutorial is never saved, and a finished run (cleared or lost: phase 'over') has no save.
 import { replay, monarchOf, currentNode } from './run.js'
 
-export const SAVE_VERSION = 1
+// 2 since the floors' bosses (redesign.md §4.7, Step 9): a run's floors are drawn on its souls since, so a save from
+// before them no longer plays, and is set aside at the title with its note rather than offered to Continue.
+export const SAVE_VERSION = 2
 
 // Where a run stands, as a save keeps it: the floor, the rank of the room it stands in (0: the floor's start), the
 // phase, the battle's turn (null out of battle), the purse, the Monarch's HP, and how many actions it took.

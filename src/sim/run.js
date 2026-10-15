@@ -125,7 +125,7 @@
 // elite; past it the floors simply go on. A fall in the deep ends the run as any defeat does (s.death says
 // what felled the Monarch) but leaves the clear standing: s.result stays 'victory'.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, relicDef, unitDef, abilityDef, statusDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef, TUTORIAL } from '../content.js'
+import { UNIT_LIST, relicDef, unitDef, abilityDef, statusDef, RELIC_LIST, RELIC_TIERS, CAMP_LIST, THREATS, FUSION_LIST, FUSIONS, fusionDef, TUTORIAL, MONARCH_LIST, MONARCHS } from '../content.js'
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CAMP_SLOTS, baseStats, onField, CENTRE_OUT, campOpen, wallTiles, tracksOf, canTrack, nextTracks,
@@ -160,9 +160,11 @@ const BATTLE_NODES = ['fight', 'elite', 'boss', 'siege']
 // row: ascensionOf), 0 the base game to ascensionTop(): its foes, their counts and their waves, the Monarch's HP and the
 // prices, from the first floor drawn on; a run at 0 has no such field. `scale` (the harness's override, autoplay.js
 // --builds --scale: redesign.md §3): every foe's HP and ATK × it on top of the level's (foeScale); a run at 1 has no such
-// field.
-export function createRun ({ seed, ablate = null, start = null, scale = 1, ascension = 0 }) {
+// field. `monarch`, who the player is (redesign.md §4.8; content.js MONARCH_LIST): another than the base Monarch holds
+// its relic from the start and drafts with its bias (draftOffer); a run as the base Monarch has no such field.
+export function createRun ({ seed, ablate = null, start = null, scale = 1, ascension = 0, monarch = BASE_MONARCH }) {
   if (!(Number.isInteger(ascension) && ascension >= 0 && ascension <= ascensionTop())) throw new Error(`ascension ${ascension}: a level from 0 to ${ascensionTop()}`)
+  if (!Object.hasOwn(MONARCHS, monarch)) throw new Error(`monarch "${monarch}": one of ${MONARCH_LIST.map((m) => m.id).join(', ')}`)
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [], shop: [],
     essence: TUNING.essence.start, result: null, death: null, draft: null, kinds: {},
@@ -175,6 +177,10 @@ export function createRun ({ seed, ablate = null, start = null, scale = 1, ascen
     state.ascension = ascension
     Object.assign(monarchOf(state), { hp: monarchHp(state), maxHp: monarchHp(state) })
   }
+  if (monarch !== BASE_MONARCH) {
+    state.monarch = monarch
+    if (MONARCHS[monarch].relic) takeRelic(state, MONARCHS[monarch].relic)
+  }
   const run = { state, battle: null, setup: null }
   enterFloor(run)
   if (start) {
@@ -182,10 +188,27 @@ export function createRun ({ seed, ablate = null, start = null, scale = 1, ascen
     setFrontier(state, souls(state.party))
     openFloor(run)
   } else {
-    state.draft = { pick: 0, offer: draftOffer(seed, 0) }
+    state.draft = { pick: 0, offer: draftOffer(seed, 0, [], biasOf(state)) }
     state.phase = 'draft'
   }
   return run
+}
+
+// ── the Monarchs (redesign.md §4.8; content.js MONARCH_LIST) ─────────────────────────────────────
+
+// The base Monarch: every run's unless another is chosen.
+export const BASE_MONARCH = MONARCH_LIST[0].id
+// The run's Monarch (its record): the base one for a run made without one.
+export const monarchDef = (s) => MONARCHS[s.monarch ?? BASE_MONARCH]
+// The kin the run's draft favours (its Monarch's `bias`), or null.
+export const biasOf = (s) => monarchDef(s).bias ?? null
+// The unlock rule: a player whose highest level cleared is `cleared` (−1 for none; the ascension's own record) may be
+// any Monarch whose `unlock` that reaches, the base one always. → the open Monarchs' ids, in content order.
+export const monarchsOpen = (cleared) => MONARCH_LIST.filter((m) => m.unlock === undefined || cleared >= m.unlock).map((m) => m.id)
+// The Monarchs a clear at `level` opened for a player whose highest cleared was `cleared`. → their ids (none: []).
+export function monarchsAt (cleared, level) {
+  const before = new Set(monarchsOpen(cleared))
+  return monarchsOpen(Math.max(cleared, level)).filter((id) => !before.has(id))
 }
 
 // The tutorial (redesign.md §4.8; content.js TUTORIAL): one room before floor 1, the threshold, in a real run state
@@ -213,18 +236,32 @@ export function tutorialRun () {
 export const draftPool = () => spawnPool(1).units.map((u) => u.id)
 
 // The kinds the draft's pick `pick` (0-based) offers, `held` the kinds of the souls taken before it: TUNING.draft.offer
-// different kinds of the pool (draftPool), drawn evenly by the run's seed, a stream a pick, in the order drawn. A kind
-// taken before may be offered again. From the second pick the offer holds a plan (redesign.md §4.2): at least one kind
-// that goes with a soul held (partners); a draw with none gives one of its places, drawn on the same stream, to one of
-// the pool's partners, drawn evenly. A draw that has one is the offer as drawn.
-export function draftOffer (seed, pick, held = []) {
+// different kinds of the pool (draftPool), drawn evenly by the run's seed, a stream a pick, in the order drawn; with a
+// Monarch's `bias` (a kin: biasOf), drawn one at a time by weight instead, that kin's kinds TUNING.monarchs.bias each and
+// every other 1. A kind taken before may be offered again. From the second pick the offer holds a plan (redesign.md
+// §4.2): at least one kind that goes with a soul held (partners); a draw with none gives one of its places, drawn on the
+// same stream, to one of the pool's partners, drawn evenly. A draw that has one is the offer as drawn.
+export function draftOffer (seed, pick, held = [], bias = null) {
   const rng = createRng(seed).stream(`draft|${pick}`)
   const pool = draftPool()
-  const offer = rng.shuffle(pool).slice(0, TUNING.draft.offer)
+  const offer = bias ? weighedDraw(rng, pool, (id) => (unitDef(id).kin === bias ? TUNING.monarchs.bias : 1), TUNING.draft.offer)
+    : rng.shuffle(pool).slice(0, TUNING.draft.offer)
   const mates = pool.filter((id) => held.some((h) => partners(h, id)))
   if (!mates.length || offer.some((id) => mates.includes(id))) return offer
   offer[rng.int(offer.length)] = rng.pick(mates)
   return offer
+}
+
+// `n` different items of `items` drawn one at a time on `rng`, each by its `weight` among those left. → in the order drawn
+function weighedDraw (rng, items, weight, n) {
+  const left = items.slice()
+  const out = []
+  while (out.length < n && left.length) {
+    const x = rng.weighted(left, left.map(weight))
+    out.push(x)
+    left.splice(left.indexOf(x), 1)
+  }
+  return out
 }
 
 // Whether kinds `a` and `b` make a plan together: they share a kin (a kind its own, so two of a kind is one), or a
@@ -647,7 +684,7 @@ function pick (run, { index }) {
   join(run, id)
   s.draft.pick++
   if (s.draft.pick < TUNING.draft.picks) {
-    s.draft.offer = draftOffer(s.seed, s.draft.pick, souls(s.party).map((u) => u.id))
+    s.draft.offer = draftOffer(s.seed, s.draft.pick, souls(s.party).map((u) => u.id), biasOf(s))
     return
   }
   s.draft = null

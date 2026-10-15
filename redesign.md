@@ -1580,9 +1580,35 @@ pattern and closed; every stylesheet, `url()`, icon and unit picture; never the 
 game module reaching one refused; dist's page marked, its worker listing exactly what ships, the hash stable). 491 on the
 second hunt → 501, all passing (`--test-concurrency=2`, 254 s).
 
+**The Monarch variants** (after the floors' bosses, on 094e111; `src/content.js` `MONARCH_LIST`): four records, the base
+Monarch and three, each of these a kin the floors feed least, its banner (Step 4's) held from the start as if bought, and
+that kin's kinds weighted ×3 in its draft's offers (`TUNING.monarchs.bias`, a new number: each kin has one kind in the
+floor-1 pool, offered in 71% of a pick's draws at ×3, 58% at ×2, 38% evenly): **the Brass Monarch** (Constructs, the
+Brass Standard), opened by the first clear; **the Ember Monarch** (Drakes, the Wyrm Standard), by a clear at ascension 2
+or above; **the Hive Monarch** (Insects, the Hive Standard), at 4 or above. The unlock reads the ladder's own record (prefs
+`ascended`, the highest level cleared: `run.js monarchsOpen`, `monarchsAt`), so no new pref keeps it; a clear's end screen
+names what it opened. A run's Monarch is a createRun option (`monarch`, the base's by default: a run as it has no field and
+draws its draft as before, `draftOffer`'s weighted draw taken only with a bias), carried by `replay`, the save (its
+options), the history (a line's `monarch`) and every report of the harness (`--monarch <id>`: `autoplay.js` jobs, a
+record's `variant`, `calc.js calcRun`). The title's second row leads with a crowned button naming the Monarch chosen
+(`ui.js monarchChooser`), which puts up the four as cards (`monarchPicker`: each's line, relic and bias, the locked with
+the clear that opens them); kept in prefs `monarch` and the URL (`?monarch=`), held to those open. The daily is played as
+the base Monarch. The save's version is 2 since the bosses: a save from before them no longer plays, and is set aside at
+the title with its note (Chromium: no Continue, the note, no error). **The check**: the expert's whole runs of `mon-0…2`
+and `div-3` and basic's of `mon-0…1` (each log, end state and harness record, each replayed), the calculator's of
+`mon-0…1` and the outside teacher's of `sim-10`: the same before (094e111) and after, byte for byte. In Chromium at the
+three sizes: a first visit's chooser (the base alone; a link asking for the Hive held to it; the three locked in the
+picker, a tap on one refused), a clear at 0 opening the Brass Monarch, chosen and kept, the title's two rows in one
+view each, a run begun as it (its banner held, its save carrying it), a run as it Continued at its floor-1 boss battle
+(the Barrow Marshal) and played on to its end, its History line naming it; no console error. `test/monarchs.test.js`
+(5: the records; the base changing nothing; a variant's relic, draft and bias over 300 seeds, its offers still a plan;
+replay, the save, the history and the harness; the unlock rule): 514 on the bosses' merge → 519, all passing but the
+expert's-turn milliseconds test, which fails alike on 094e111 with the machine at a load of 9 (367 ms here, 425 ms there,
+against its 250; `--test-concurrency=2`, 587 s).
+
 **Criterion 5**: a run saved and resumed, a clear in ~79 minutes of battle and a tutorial (Step 8), music, and the first
-unlocks (the ascension's, Step 7) hold; the Monarch variants unlocked by clears are this step's remaining part, then §4.7's
-bosses and the outside players.
+unlocks (the ascension's, Step 7; the Monarchs, here) hold; §4.7's bosses are their own subsection, the outside players
+are left.
 
 ### Bosses a floor (Step 9, 2026-10-15)
 

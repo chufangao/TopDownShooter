@@ -2699,6 +2699,31 @@ export const TUTORIAL = {
   }
 }
 
+// ── the Monarchs ─────────────────────────────────────────────────────────────────────────────
+
+// Who the player is (redesign.md §4.8, the meta), chosen on the title (ui.js monarchChooser) and kept with the run
+// (run.js createRun's `monarch`). The first is the base Monarch, every run's unless another is chosen, with nothing more:
+// every run and log from before the others is its. Each other starts its run holding `relic` (a run relic, one copy, as
+// if bought) and is offered its kin's kinds more often in the draft (`bias`: their weight in its draws,
+// TUNING.monarchs.bias, every other kind's 1), and is opened by a clear at ascension `unlock` or above (run.js
+// monarchsOpen). Its piece is the same Monarch (its picture, its seat, its HP): who it is is its run. Each favours a kin
+// the floors feed least, its banner its relic.
+export const MONARCH_LIST = [
+  { id: 'monarch', name: 'The Monarch', line: 'The necromancer every run began with. The dead it raises, it takes as they come.' },
+  {
+    id: 'brass', name: 'The Brass Monarch', relic: 'brass_standard', bias: 'construct', unlock: 0,
+    line: 'A clockwork crown on a hollow king. Its Constructs come to it first, and take less of every blow.'
+  },
+  {
+    id: 'ember', name: 'The Ember Monarch', relic: 'wyrm_standard', bias: 'drake', unlock: 2,
+    line: 'It warms its bones at a dragon\'s pyre. Its Drakes come to it first, and bite harder.'
+  },
+  {
+    id: 'hive', name: 'The Hive Monarch', relic: 'hive_standard', bias: 'insect', unlock: 4,
+    line: 'A queen\'s husk, humming. Its Insects come to it first, and run farther.'
+  }
+]
+
 // ── fusions ──────────────────────────────────────────────────────────────────────────────────
 
 // A recipe (DESIGN §2.6): `needs` counts pieces (souls) per kind, consumed whole from your pieces, fielded or in the
@@ -3026,6 +3051,7 @@ export const RELICS = byId(RELIC_LIST)
 export const ANIMS = byId(ANIM_LIST)
 const CAMPS = byId(CAMP_LIST)
 export const FUSIONS = byId(FUSION_LIST)
+export const MONARCHS = byId(MONARCH_LIST)
 
 function lookup (map, kind) {
   return (id) => {
