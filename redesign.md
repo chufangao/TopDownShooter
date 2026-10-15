@@ -1513,6 +1513,77 @@ run Continued from a save mid-battle in turn 2 at ascension 2, at an altar, at a
 runs and an audit's; the flares of every rule at work; the twelve at their edges; and in the tests that were, How to
 play's Wave at a level and the reports' and the level line's floors), all passing (`--test-concurrency=2`, 272 s).
 
+### The product (Step 9, 2026-10-15)
+
+**Built** (§4.8's meta but the Monarch variants, which wait on `src/content.js`; and a store build; on 710a50a, merged
+with the second bug hunt at 4c3e86e; §4.7's bosses and the outside players are not this step's part):
+
+- **The run history** (`src/sim/history.js`, pure; main.js keeps it in prefs `history`): every run that ends is a line,
+  cleared (the Sovereign slain and the run stopped there), fallen (on the way down, or in the deep after a clear) or
+  left (ended under way for a new run: the save is played back to read it), never the tutorial: when, its seed and level,
+  its daily, the floor and room it ended in, the battles won of those fought, the kinds it ended holding most (three, a
+  higher tier first among equals), its fused kinds and the kin most held, what felled the Monarch (the kind and its
+  threat) and its play time. The play time is the time between the run's actions, a gap counted at most two minutes and
+  a hidden page's not at all, kept with the save (`save.js`'s new `meta`: when it began, the time, its daily; a save
+  without one restores as before). A run is one line by its id (its seed and when it began): a clear that descends and
+  later falls is brought up to date, not added. The book keeps the last 100 newest first beside running totals of every
+  run (runs, clears, the best level cleared, the time); a book that does not read (bad JSON, a line of the wrong shape,
+  totals that count fewer than the lines) is read as far as it holds, its totals counted again, never thrown. The
+  History screen (`ui.js historyScreen`), from the title's History button, is laid out as the end screen: the totals and
+  Back (Escape) on the left, the runs behind three tabs on the right (every run, the clears, the dailies), a line a run
+  with its army's portraits and its killer's.
+- **The daily**: the title's Daily button plays `daily-YYYY-MM-DD`, the UTC day's seed, the same run for everyone: at
+  **ascension 0 whatever level is chosen** (one run to compare, the first-time player's too). **The first begun each UTC
+  day is the daily** (prefs `daily`, the last day begun, set as it begins: leaving it and beginning again does not
+  reset it); **later attempts the same day are allowed, as practice**, kept and marked so in the History. The button
+  says "practice" once the day's is begun, its tip the day's result.
+- **Music** (`src/music.js`): five loops of eight bars, synthesised as the effects are (no files): the title (D minor, a
+  music box), floor 1 (D minor), floor 2 (A phrygian), floor 3 (D phrygian), the deep (D harmonic minor), each a slow
+  pad, a bass and a few bells; in battle a heartbeat drum and a plucked ostinato come in (at once, mid-bar). A new loop
+  crossfades in over 2.5 s (title, floor, deep, the end screen's the title's); map and battle are the same loop, the
+  battle layer faded in and out. Notes are scheduled a bar ahead on the audio clock by a 250 ms timer that runs only
+  while music sounds; nothing runs a frame. It sounds only with sound on (the speaker: `sfx.muted`) and the music on (the
+  note button beside it, prefs `music`), never before the first gesture (sfx makes the context then; `sfx.audio`,
+  `sfx.listen` share it), and stops while the page is hidden. How to play's Basics ends with the sound's settings: the
+  effects and the music on or off, the music's volume (prefs `music:volume`). Rendered offline at the first visit's
+  volume, through a limiter as the effects': peaks −16 to −22 dBFS, −32.5 dBFS RMS over a loop, under the effects.
+- **The store build** (`build.js`, `npm run build`, `dist/` ignored): index.html, its stylesheets and their `url()`s,
+  the font, the manifest and its icons, every module `src/main.js` reaches by its static imports, and `src/assets/` whole
+  (a unit's pictures are named at run time): **122 files, 3.4 MB** (26 modules 2.5 MB, Phaser 1.3 MB of them; the art and
+  the font 0.75 MB; the stylesheets 0.15 MB). Never the offline tools (`teach.js`, `outside.js`, `fit.js`,
+  `outforest.js`, `calc.js`, `bundle.js`, `autoplay.js`), `expert.json` or `combos.json`; a game module reaching one fails
+  the build. `forest.js` ships, its fitting with it: `policy.js` imports its model reader statically (in a browser it
+  reads no forest; splitting the module was not this step's). The build's hash (sha256 of every file shipped) marks
+  `dist/index.html` and names the service worker's cache: `dist/sw.js` caches every file on install and serves them
+  first; a page is asked of the network first, and one with no build's mark (the source tree served on the same origin)
+  retires the worker and its cache; a new build's worker takes over once no page of the old one is open. main.js
+  registers it on a build's page alone (http or https), and on the source tree lets go of any a build left: `npm start`
+  runs none. `node serve.js 5174 dist` serves the build.
+- **The title**: the actions in one row (a run, the Daily, the Tutorial, the History), the ascension and the seed in a
+  quieter row under it; to stand in one view the four steps go to one row of four on a short or 1100–1280-wide frame,
+  and the sigil shrinks on a tall 4:3 one. The note button stands beside the speaker on every screen.
+
+**The browser** (Chromium at 1440×900, 1024×768 and 852×393, by scripts outside the repo; screenshots `s9-*` in the
+session's scratchpad): the title in its states (a save and none, the daily begun) with every control on the screen; a
+corrupt book opening an empty History; a saved run Continued and played by End Turn to its fall, its line kept with its
+play time carried from the save; the History from the title (its tabs, its lines); the daily begun at ascension 0 with
+2 chosen, left for a second attempt (asking first), that one practice, both kept; the music: nothing before a gesture
+(no context, no timer), the title's loop after one, the note button and the speaker stopping it and the timer with it,
+the page hidden and seen again, the draft's crossfade to floor 1, a battle's layer, the volume slider, the bars with the
+note on the screen; `dist/` served, its worker active and the page controlled, a run begun and a battle entered, the
+server stopped and the page reloaded from the cache, the saved battle Continued offline, then the source tree served on
+the same origin and the worker and its cache gone. No console error.
+
+**Tests**: `test/history.test.js` (6: the daily's UTC day, a run's line, its army, the book's cap and totals and a run
+kept again, a corrupt book, the save's meta) and `test/build.test.js` (4: every module the game imports, read by a second
+pattern and closed; every stylesheet, `url()`, icon and unit picture; never the offline tools, tests, press/ or docs, a
+game module reaching one refused; dist's page marked, its worker listing exactly what ships, the hash stable). 491 on the
+second hunt → 501, all passing (`--test-concurrency=2`, 254 s).
+
+**Criterion 5**: a run saved and resumed, a clear in ~79 minutes of battle and a tutorial (Step 8), music, and the first
+unlocks (the ascension's, Step 7) hold; the Monarch variants unlocked by clears are this step's remaining part, then §4.7's
+bosses and the outside players.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:

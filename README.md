@@ -27,6 +27,18 @@ then descend into the endless deep for as long as you last.
   less HP and every price is dearer (the line under the chooser says what moved). Clearing a level opens the one above
   it; level 0 is always open. The level is kept in the URL (`?ascension=`) and in this browser, and shown beside the
   floor in the top bar.
+- **The daily.** The title's **Daily** is the day's run, the same for everyone: the seed `daily-YYYY-MM-DD` of the
+  UTC day, always at ascension 0 whatever level is chosen. The first you begin each day is your daily; any after it the
+  same day is practice, and the History marks it so. A new one comes at midnight UTC.
+- **The History.** Every run you end in this browser is kept, cleared, fallen or left for a new one (not the
+  tutorial): when, its seed or its daily, its level, how far it went, the battles won, how long you played it, the
+  kinds it ended holding most (its fused kinds marked) and its kin, and what felled the Monarch. The title's
+  **History** lists the last 100, newest first, by tab (every run, the clears, the dailies), beside the totals of all:
+  runs, clears, the best level cleared, the time played.
+- **Sound and music.** Effects and music are made in the browser as they play, no files. A quiet loop a floor (the
+  title's, each floor's, the deep's), with a heartbeat and an ostinato over it in battle. The speaker turns all sound
+  on or off (M); the note beside it the music alone; How to play's Basics ends with both and the music's volume. Nothing
+  sounds before your first tap or key, nor while the page is hidden.
 - **The draft.** A run opens with the Monarch alone. Pick three souls, each from three kinds drawn from floor 1's
   foes by the run's seed. The second and third picks each offer at least one kind that goes with a soul you hold, of
   its kin or the other part of a recipe, so two of a kind (two thirds of its trine) or a recipe begun is a choice from
@@ -59,7 +71,14 @@ then descend into the endless deep for as long as you last.
 ```
 npm start         # serves the game (node serve.js [port]); open the printed URL, phones on the same Wi-Fi too
 npm test          # the functional tests (node --test)
+npm run build     # the store build: dist/, what the game ships and nothing more, and a service worker
+node serve.js 5174 dist   # serves the build: installed (Add to Home Screen, Install), it plays offline
 ```
+
+The build (`build.js`) takes index.html, its stylesheets, font, manifest and icons, every module `src/main.js` reaches by
+its static imports, and `src/assets/` (122 files, 3.4 MB, Phaser 1.3 MB of it); never the offline tools, the expert's
+file, the tests or `press/`. Its hash marks `dist/index.html` and names the service worker's cache: the worker caches
+every file and serves them first, and is registered only on a build's page, so `npm start` runs none.
 
 ## The autoplayer
 
@@ -117,7 +136,8 @@ by the end of floor 2 (criterion 1).
 - `src/sim/` is pure, seeded and DOM-free. `turns.js` the battle; `policy.js` the one policy (the camp's turn,
   the expert's); `rules.js` the rules registry (synergies, Legendary relics, capstones, boss overrides); `field.js` the
   roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`; the
-  tutorial's run, `tutorialRun`); `save.js` a run saved (its createRun options and its log) and played back; `map.js`
+  tutorial's run, `tutorialRun`); `save.js` a run saved (its createRun options and its log) and played back; `history.js`
+  the runs kept (a run's line, the book of them, read as far as it holds) and the daily's seed; `map.js`
   the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
   their fitting; `forest.js` holds the label rows' encoding the forests read); `autoplay.js` the players and CLI;
   `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers), `fit.js` (the
@@ -129,7 +149,8 @@ by the end of floor 2 (criterion 1).
   the expert's and the ascension's tables included).
 - The interface: `src/main.js` (composition), `ui.js` (screens), `board.js` (the Field's board), `engine.js`
   (Phaser, battles only), `codex.js` and `keywords.js` (rules text generated from content), `frame.js` (one
-  scaled landscape layout), `dom.js`, `sfx.js`, `css/`.
+  scaled landscape layout), `dom.js`, `sfx.js` (the effects), `music.js` (the loops), `css/`. `build.js` makes the store
+  build, `serve.js` serves the game or the build.
 - `test/` holds the functional tests. `redesign.md` is the improvement plan (and says where the rules live: the
   code's comments, and the superseded spec at `git show f8c536f:redesign.md`); `DESIGN.md` still holds the board,
   roads, essence, tracks, fusions, summons and the frame.
