@@ -561,12 +561,16 @@ export const ROMAN = ['I', 'II', 'III', 'IV']
 // Rough fighting power: √(HP × ATK × damage dealt), wounds included; no rule, skill, place or order is weighed. The
 // ratio of the two sides, measured on the old battle (to be measured again in the balance pass): below 0.6 every
 // battle won, 0.6–0.8 98%, 0.8–1.0 79%, 1.0–1.2 42%, above 1.2 19%.
-// A soul whose kind's tiers bring summons (`summons`: unit.js summonsOf) adds each one's power: a whole one's at
+// A soul whose kind's tiers bring summons (`summons`: unit.js summonsOf) adds each one's power: a whole one's of the kind
+// it calls up (its own, or a trine's the kind it was made of, at its level and tiers: unit.js summonedOf) at
 // TUNING.summon.hp of its HP, so √(that share) of a whole one's.
 function power (u, mods, summons = 0) {
+  const whole = (s) => Math.sqrt(Math.max(0, s.hp) * s.atk * s.damage.dealt)
   const s = statsOf(u, mods)
   const hpFrac = u.maxHp ? u.hp / u.maxHp : 1
-  return (hpFrac + summons * Math.sqrt(TUNING.summon.hp)) * Math.sqrt(Math.max(0, s.hp) * s.atk * s.damage.dealt)
+  const kind = summonedOf(u)
+  if (!summons || kind === u.id) return (hpFrac + summons * Math.sqrt(TUNING.summon.hp)) * whole(s)
+  return hpFrac * whole(s) + summons * Math.sqrt(TUNING.summon.hp) * whole(statsOf({ id: kind, lvl: u.lvl, tracks: u.tracks }, mods))
 }
 
 const THREAT = [
@@ -579,7 +583,7 @@ const THREAT = [
 // Nothing of yours on the board can strike: no ratio to read, and no win.
 const UNFIELDED = { label: 'Deadly', cls: 't-dead', text: 'Nothing of yours on the field can strike, and the Monarch alone cannot win.' }
 
-function threat (run, node) {
+export function threat (run, node) {
   const yours = souls(standing(run))
   const counted = { pieces: yours.length, summons: yours.reduce((n, u) => n + summonsOf(u), 0) }
   const mine = yours.reduce((n, u) => n + power(u, partyMods(run, u), summonsOf(u)), 0)

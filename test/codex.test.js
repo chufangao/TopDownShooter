@@ -314,6 +314,36 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   for (const u of souls(s.party)) assert.ok(reachRule(u).includes(`it uses ${basicOf(abilitiesOf(u).map(abilityDef)).name}`), reachRule(u))
 })
 
+// The threat meter counts a summon as a whole one of the kind it is, at the root of a summon's share of HP: a kind's own
+// as the soul, a trine's as the kind it was made of, at its level and tiers (the first bug hunt, 2026-10-15: it counted a
+// trine's as trines).
+test('the threat meter counts a trine\'s summons as the kind they are, a kind\'s own as itself', async () => {
+  const { threat } = await import('../src/codex.js')
+  const { statsOf, summonsOf } = await import('../src/sim/unit.js')
+  const { TUNING } = await import('../src/tuning.js')
+  const k = Math.sqrt(TUNING.summon.hp)
+  const node = { id: 'x', type: 'fight', rank: 1, next: [], foes: [{ id: 'tomb_knight', lvl: 1, slot: 3 }] }
+  // One soul alone, whole, its kind two tiers up Marrowcaller (two summons).
+  const alone = (id) => {
+    const run = createRun({ seed: 'meter', start: [id] })
+    run.state.essence = 1e4
+    for (let i = 0; i < 2; i++) apply(run, { type: 'upgrade', kind: id, track: 1 })
+    return run
+  }
+  const whole = (id, u) => {
+    const st = statsOf({ id, lvl: u.lvl, tracks: u.tracks })
+    return Math.sqrt(st.hp * st.atk * st.damage.dealt)
+  }
+  const chanter = alone('bone_chanter')
+  const trine = alone('trine:bone_chanter')
+  const [c, t] = [souls(chanter.state.party)[0], souls(trine.state.party)[0]]
+  assert.deepEqual([summonsOf(c), summonsOf(t), threat(chanter, node).summons], [2, 2, 2])
+  const near = (a, b) => Math.abs(a - b) < 1e-9 * b
+  assert.ok(near(threat(chanter, node).mine, (1 + 2 * k) * whole('bone_chanter', c)), 'a Chanter\'s two, Chanters')
+  const want = whole('trine:bone_chanter', t) + 2 * k * whole('bone_chanter', t)
+  assert.ok(near(threat(trine, node).mine, want), `${threat(trine, node).mine} against ${want}: the trine's two, Chanters`)
+})
+
 // The fusion graph told (redesign.md §4.1): the Fusions page lists the mixed recipes and the capstones and tells the
 // triple rule in one line, each triple a tile under it (its trine and its kind ×3, never its line); every kind's card,
 // a made trine's 2×2 one with borrowed pictures too, names its own trine.
