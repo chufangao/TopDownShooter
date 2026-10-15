@@ -738,6 +738,23 @@ Page's 0%); a capstone's parts must both be made first, and the Cathedral's Colo
 deaths 10 → 7 and floor 4 3 → 8, so the base difficulty is a little easier early, harder late; the forests are stale
 (§3), and the balance pass reads it after the refit.
 
+**The interface** (2026-10-15): a kind that borrows its pictures is drawn as what it is, by one rule (`dom.js
+figures`): a trine as the three it was made of, the front one whole and two behind it a step up and to either side,
+smaller and darker (a trine of a trine, three trines: seven figures), 2×2 from tier 4 as before; a capstone as its
+lender washed a pale ice (one colour matrix, `WASH`, for the board and the screens), so the Winter Court is never
+taken for the Pale Court; a kind with pictures of its own (the Pale Court) by them. The board and the battle draw a
+kind's figures as one picture made on first use from its lender's (`engine.js artOf`, `unit:<id>:<pose>`), so it
+poses, falls, fades, takes a tint, a shade and a ghost as any picture, its pool of shadow under the whole group; the
+screens as one portrait (`dom.js portrait`), so every card, the draft and the spoils, the ossuary, the altar and the
+codex show the same. The Field's Fuse and the in-battle fuse are unchanged. A summon's line names the soul that called
+it ("Summoned by your Bone Chanter Trine", `codex.js summonedBy`: a trine's summons are its kind, whose name misnamed
+the caller), and a trine's panel says its summons are the kind it was made of, at that kind's HP. The codex's Fusions
+page keeps the rule's line and adds a tile for each of the 33 triples (the trine drawn, its kind ×3), the one tapped
+showing its card beside them. No number moved. Played in Chromium at 1440×900, 1024×768 and 852×393 (the title, the
+draft, the Field with trines and a Fuse there, battles with a 1×1, a 2×2 and a great trine and a capstone through two
+End Turns and the foes' playback and an in-battle fuse, the codex, an altar's three rites and a consecration taken): no
+console error, nothing of Steps 1–5 broken.
+
 ### Availability (Step 1, 2026-10-15)
 
 **Built** (`src/sim/run.js`, `src/tuning.js`; beside Step 2, merged after it): §4.2 as planned. `draftOffer(seed, pick,
