@@ -183,13 +183,75 @@ const mendOut = (u, s) => Math.max(0, ...kitOf(u).filter((a) => isAllyShape(a.sh
 const fork = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
 
 // What a retinue brings to its next fight: the fieldable pieces' wounded power (their summons and the relics they hold
-// counted) and the shadows the Arise holders among them would raise (ariseWorth, a share of their worth:
-// TUNING.expert.growth.raise), raised by each run relic as worth raises a piece by one it holds (a piece relic works
-// only through its holder).
+// counted: a kin banner's mods on the souls it names, a trigger by what it brings: relicReads) and the shadows the
+// Arise holders among them would raise (ariseWorth, a share of their worth: TUNING.expert.growth.raise), raised by each
+// run relic as worth raises a piece by one it holds (a piece relic works only through its holder).
 function strength (s, summons = true) {
-  const best = souls(s.party).map((u) => ({ u, p: worth(u, summons) * Math.sqrt(hpPct(u)) })).sort((a, b) => b.p - a.p).slice(0, fieldCap({ state: s }))
+  const read = relicReads(s)
+  const best = souls(s.party).map((u) => ({ u, p: read(u, (mods) => worth(u, summons, mods)) * Math.sqrt(hpPct(u)) })).sort((a, b) => b.p - a.p).slice(0, fieldCap({ state: s }))
   const raised = TUNING.expert.growth.raise.share * ariseWorth(s, best.filter((x) => x.p > 0).map((x) => x.u))
   return (best.reduce((n, x) => n + x.p, 0) + raised) * (1 + TUNING.expert.growth.worth.relic * s.relics.filter(isRunRelic).length) || 1
+}
+
+// ── the relics a soul fights with, read (redesign.md §4.4; the sketch's and the book's) ───────────
+
+// The run relics' mods on a unit's path scoped to a kin or a role (`who`: a kin banner's), a copy each: what they put on
+// the souls they name, as statsOf reads `who` in battle (unit.js matches). A side-wide cost goes unread, as before.
+const scopedMods = (s) => s.relics.filter(isRunRelic).flatMap((id) => (relicDef(id).mods ?? []).filter((m) => m.who && !isRunPath(m.path)))
+// What the relics at work make of soul `u` in state `s`: `of(mods)`, its worth on its held relics' mods and the banners'
+// (scopedMods), a share more for each trigger it holds (triggerShare), and for skills that come back sooner (a
+// `cooldown.rate` past 1, which worth does not read: the Gossamer Standard's), a cooldown a turn sooner each blow, as
+// Quicksilver's is read. → (u, of) → its worth so read
+function relicReads (s) {
+  const banners = scopedMods(s)
+  return (u, of) => {
+    const mods = banners.length ? [...heldMods(u), ...banners] : heldMods(u)
+    const st = banners.length ? statsOf(u, mods) : null
+    const sooner = st ? Math.max(0, st.cooldown.rate - 1) * STATUS_WORTH.hasten * paid('status') * MOMENTS.blow / st.hp : 0
+    return of(mods) * (1 + sooner + (u.relics ?? []).reduce((n, id) => n + (relicDef(id).on ? triggerShare(s, u, relicDef(id)) : 0), 0))
+  }
+}
+// The moments a battle a fielded piece of the expert's meets, by trigger (content.js TRIGGERS), and how many of yours or
+// theirs an effect about a place touches when it fires: measured on its battles, not searched (2026-10-15, the content of
+// e6266bb: 170 battles of seeds `mom-0…5`, a piece's blows, the blows that landed on it and left it standing, its kills,
+// its falls, the waves it stood through; with Rally Horn and Hunter's Mark given to every fielded soul, yours within 2 of
+// a holder as it strikes, the Monarch and itself among them, and theirs within 1 of a slain foe).
+const MOMENTS = { blow: 3.2, kill: 2.4, struck: 0.8, wave: 1.4, fall: 0.01 }
+const AROUND = { allies: 3.4, foes: 1.7 }
+// What the battle's weights pay for an HP of each (TUNING.expert.battle.option: a status's STATUS_WORTH, an HP mended, a
+// shadow's max HP), in HP of damage.
+const paid = (what) => TUNING.expert.battle.option[what] / TUNING.expert.battle.option.damage
+// What piece relic `r`'s trigger brings holder `u` a battle, as a share of its max HP: each effect's worth where it lands,
+// in HP of damage as the battle's weights pay for it (paid: a status its STATUS_WORTH a stack; a heal what it mends,
+// its share of the holder's max HP or its power at the holder's ATK; damage its flat amount or its power at the holder's
+// ATK; skills a turn sooner, Hasten's worth; a raise the max HP of the shadow it lifts: raiseHp), on whom it lands (one,
+// or AROUND), as often as its moment comes (MOMENTS).
+function triggerShare (s, u, r) {
+  const st = statsOf(u, heldMods(u))
+  const hit = (power) => power * st.atk / TUNING.damage.atkDivisor
+  let hp = 0
+  for (const e of r.effects) {
+    const each = e.op === 'apply_status' ? (STATUS_WORTH[e.status] ?? 0) * paid('status')
+      : e.op === 'heal' ? (e.pct ? e.pct * st.hp : hit(e.power) * st.heal.given) * paid('mend')
+        : e.op === 'damage' ? e.amount ?? hit(e.power)
+          : e.op === 'cooldown' ? Math.max(0, -e.amount) * STATUS_WORTH.hasten * paid('status')
+            : e.op === 'raise' ? raiseHp(s.floor, e.tier ?? TUNING.arise.tier, u.lvl) * paid('shadow') : 0
+    hp += each * (AROUND[e.to] ?? 1)
+  }
+  return hp * (MOMENTS[r.on] ?? 0) / st.hp
+}
+// What a slain foe of a floor's fights yields a raise to `tier` (redesign.md §4.4: a raise read as a shadow's HP): the
+// max HP of a shadow of its kind at level `lvl` where its tier is no higher, else none, over the floor's draws
+// (run.js spawnPool).
+const raises = new Map()
+function raiseHp (floor, tier, lvl) {
+  const key = `${floor}|${tier}|${lvl}`
+  if (!raises.has(key)) {
+    const pool = spawnPool(floor)
+    const all = pool.weights.reduce((n, w) => n + w, 0)
+    raises.set(key, pool.units.reduce((n, d, i) => n + (d.tier <= tier ? pool.weights[i] * baseStats(d.id, lvl).hp : 0), 0) / all)
+  }
+  return raises.get(key)
 }
 
 // ── Arise's worth, read from the roads (redesign.md §2.15, §2.17) ────────────────────────────────
@@ -1397,17 +1459,19 @@ function bookArmy (combo, floor, relics = []) {
 }
 
 // A combo army's power (bookArmy's run), the book's static formula (TUNING.expert.book): each soul's worth (worth: its
-// stats, its tiers and the summons they bring, and the relics it holds), a fused soul's a share more, and a share of
-// its holder's more for a relic's trigger or rule; the whole a share more for each synergy rule its souls hold (a summon
-// counting as its kind), and for each run relic on Arise's reach or tier while a soul holds Arise.
+// stats, its tiers and the summons they bring, and the relics it holds: a kin banner's mods on the souls it names, a
+// trigger a share more by what it brings, relicReads), a fused soul's a share more, and a share of its holder's more for
+// a relic's trigger or rule; the whole a share more for each synergy rule its souls hold (a summon counting as its
+// kind), and for each run relic on Arise's reach or tier while a soul holds Arise.
 function bookPower (run) {
   const b = TUNING.expert.book
   const s = run.state
   const pieces = souls(s.party)
+  const read = relicReads(s)
   let power = 0
   for (const u of pieces) {
     const held = (u.relics ?? []).reduce((n, id) => n + (relicDef(id).on ? b.trigger : 0) + (relicDef(id).rule ? b.rule : 0), 0)
-    power += worth(u, true, heldMods(u), b.hits, b.worth) * (1 + (unitDef(u.id).fused ? b.fused : 0) + held)
+    power += read(u, (mods) => worth(u, true, mods, b.hits, b.worth)) * (1 + (unitDef(u.id).fused ? b.fused : 0) + held)
   }
   const rules = activeSynergies(pieces.flatMap((u) => Array(1 + summonsOf(u)).fill(u))).length
   const arise = pieces.some((u) => u.relics?.some(grantsArise)) ? s.relics.filter((id) => isRunRelic(id) && (relicDef(id).mods ?? []).some((m) => m.path.startsWith('arise.'))).length : 0
