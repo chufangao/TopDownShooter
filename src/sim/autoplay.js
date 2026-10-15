@@ -185,12 +185,13 @@ const fork = (run) => ({ state: structuredClone(run.state), battle: null, setup:
 // What a retinue brings to its next fight: the fieldable pieces' wounded power (their summons and the relics they hold
 // counted: a kin banner's mods on the souls it names, a trigger by what it brings: relicReads) and the shadows the
 // Arise holders among them would raise (ariseWorth, a share of their worth: TUNING.expert.growth.raise), raised by each
-// run relic as worth raises a piece by one it holds (a piece relic works only through its holder).
+// run relic as worth raises a piece by one it holds (a piece relic works only through its holder), but a kin banner,
+// read on its kin alone (bought on that share, 17 of the first 21 went to armies another kin led: redesign.md §8).
 function strength (s, summons = true) {
   const read = relicReads(s)
   const best = souls(s.party).map((u) => ({ u, p: read(u, (mods) => worth(u, summons, mods)) * Math.sqrt(hpPct(u)) })).sort((a, b) => b.p - a.p).slice(0, fieldCap({ state: s }))
   const raised = TUNING.expert.growth.raise.share * ariseWorth(s, best.filter((x) => x.p > 0).map((x) => x.u))
-  return (best.reduce((n, x) => n + x.p, 0) + raised) * (1 + TUNING.expert.growth.worth.relic * s.relics.filter(isRunRelic).length) || 1
+  return (best.reduce((n, x) => n + x.p, 0) + raised) * (1 + TUNING.expert.growth.worth.relic * s.relics.filter((id) => isRunRelic(id) && !isBanner(id)).length) || 1
 }
 
 // ── the relics a soul fights with, read (redesign.md §4.4; the sketch's and the book's) ───────────
@@ -198,6 +199,8 @@ function strength (s, summons = true) {
 // The run relics' mods on a unit's path scoped to a kin or a role (`who`: a kin banner's), a copy each: what they put on
 // the souls they name, as statsOf reads `who` in battle (unit.js matches). A side-wide cost goes unread, as before.
 const scopedMods = (s) => s.relics.filter(isRunRelic).flatMap((id) => (relicDef(id).mods ?? []).filter((m) => m.who && !isRunPath(m.path)))
+// Whether run relic `id` is a kin banner: every mod of it scoped to a kin or a role.
+const isBanner = (id) => !!relicDef(id).mods?.length && relicDef(id).mods.every((m) => m.who)
 // What the relics at work make of soul `u` in state `s`: `of(mods)`, its worth on its held relics' mods and the banners'
 // (scopedMods), a share more for each trigger it holds (triggerShare), and for skills that come back sooner (a
 // `cooldown.rate` past 1, which worth does not read: the Gossamer Standard's), a cooldown a turn sooner each blow, as
