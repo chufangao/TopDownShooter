@@ -1,5 +1,5 @@
 // Small DOM toolkit for the screens: element builder, the one shared tooltip, icons and portraits.
-import { artUrl } from './content.js'
+import { artUrl, unitDef } from './content.js'
 import { frame, toLocal, toLocalRect, onFrame } from './frame.js'
 
 // h('div', { class: 'x', onclick, tip }, ...children). null and false children are skipped; `tip`
@@ -342,11 +342,78 @@ export function icon (name, size = 18) {
   return span
 }
 
+// ── how a kind is drawn ──────────────────────────────────────────────────────────────────────────
+
+// Every picture is drawn on a square box, its feet at FEET of its height (engine.js reads it from here).
+export const FEET = 11 / 12
+// A kind that borrows another's pictures (content.js `art`, until its own are drawn) is drawn as what it is
+// (redesign.md §4.1), never as the kind it borrows from. A trine is drawn as the three it was made of (`trineOf`):
+// the front one whole, two behind it a step up and to either side (BACK), smaller and darker, each drawn as it is
+// itself (a trine of a trine: three trines, seven figures, the two that would stand on one another drawn once). A
+// fused kind that is no trine (a capstone) is its lender washed in WASH's pale ice. A kind with pictures of its own (the
+// Pale Court, the Wisp's written trine) is drawn by them. The board and the battle draw a kind's figures as one picture
+// (engine.js artOf), the screens as one portrait (portrait).
+// → [{ art, x, y, k, dim, wash }], back to front: `art` a picture's kind, `x`, `y` where its feet stand from the
+// front one's (in heights of a picture), `k` its scale, `dim` the share of its light it keeps, `wash` whether WASH
+// takes it.
+const BACK = { x: 0.24, y: -0.1, k: 0.78, dim: 0.7 }
+const FIGURES = new Map()
+export function figures (id) {
+  if (FIGURES.has(id)) return FIGURES.get(id)
+  const d = unitDef(id)
+  let figs = [{ art: d.art, x: 0, y: 0, k: 1, dim: 1, wash: false }]
+  if (d.art !== d.id && d.trineOf) {
+    const one = figures(d.trineOf)
+    const at = (x, y, k, dim) => one.map((f) => ({ ...f, x: x + f.x * k, y: y + f.y * k, k: f.k * k, dim: Math.max(0.5, f.dim * dim) }))
+    const all = new Map()
+    for (const f of [...at(-BACK.x, BACK.y, BACK.k, BACK.dim), ...at(BACK.x, BACK.y, BACK.k, BACK.dim), ...at(0, 0, 1, 1)]) {
+      all.set([f.x, f.y, f.k].map((v) => v.toFixed(3)).join(), f)
+    }
+    figs = [...all.values()].sort((a, b) => a.k - b.k || a.y - b.y)
+  } else if (d.art !== d.id && d.fused) figs = figures(d.art).map((f) => ({ ...f, wash: true }))
+  FIGURES.set(id, figs)
+  return figs
+}
+// Whether kind `id` is drawn by a picture as it is (its own or a plain borrowed one): no figures to make.
+export const plainFigure = (id) => figures(id).length === 1 && !figures(id)[0].wash
+// The wash a capstone wears over its lender's pictures, a colour matrix (feColorMatrix's, rows r g b a of
+// r g b a 1): `k` of each pixel's colour given over to the tint at the pixel's light (a white to the tint's own pale),
+// the rest kept, so its ink stays ink and its fills go ice. The same numbers wash its portrait (an SVG filter) and its
+// pictures on the board (engine.js artOf).
+const WASH_TINT = [0.56, 0.86, 1]
+export const WASH = (() => {
+  const k = 0.7
+  const lum = [0.3, 0.59, 0.11]
+  const rows = WASH_TINT.map((t, c) => [...lum.map((w, j) => (c === j ? 1 - k : 0) + k * t * 1.25 * w), 0, 0])
+  return [...rows.flat(), 0, 0, 0, 1, 0].map((v) => Math.round(v * 1e4) / 1e4)
+})()
+// The SVG filter the portraits wash by, put in the page once.
+let washed = false
+function washFilter () {
+  if (washed) return
+  washed = true
+  const defs = h('span', { class: 'wash-defs', 'aria-hidden': 'true' })
+  defs.innerHTML = `<svg width="0" height="0"><filter id="wash" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${WASH.join(' ')}"/></filter></svg>`
+  document.body.append(defs)
+}
+
 // ── portraits ────────────────────────────────────────────────────────────────────────────────────
 
-// A unit's picture: the fallen are shown dead.
+// A unit's picture: the fallen are shown dead. A kind drawn as more than its picture (figures) stands its figures in
+// one box: the group scaled to fit it, its feet on the picture's feet line (`--ps`: its size, which any rule sizing
+// a .portrait overrides, as it would an image's width).
 export function portrait (id, size = 32, dead = false) {
-  return h('img', { class: 'portrait', src: artUrl(id, dead ? 'dead' : 'alive'), width: size, height: size, alt: '', draggable: 'false' })
+  const pose = dead ? 'dead' : 'alive'
+  if (plainFigure(id)) return h('img', { class: 'portrait', src: artUrl(id, pose), width: size, height: size, alt: '', draggable: 'false' })
+  const figs = figures(id)
+  const s = 1 / Math.max(1, ...figs.map((f) => 2 * Math.abs(f.x) + f.k))
+  const pct = (v) => `${Math.round(v * 1e4) / 100}%`
+  if (figs.some((f) => f.wash)) washFilter()
+  return h('span', { class: 'portrait figs', style: `--ps:${size}px` }, figs.map((f) => h('img', {
+    src: artUrl(f.art, pose), alt: '', draggable: 'false',
+    style: `left:${pct(0.5 + (f.x - f.k / 2) * s)};top:${pct(FEET + (f.y - f.k * FEET) * s)};width:${pct(f.k * s)};height:${pct(f.k * s)}` +
+      (f.wash || f.dim < 1 ? `;filter:${f.wash ? 'url(#wash)' : ''}${f.dim < 1 ? ` brightness(${f.dim})` : ''}` : '')
+  })))
 }
 
 // Per-viewer UI preferences (dismissed guides). Storage can be missing or blocked; then nothing sticks.

@@ -7,7 +7,7 @@ import { createRun, apply, currentNode, depthOf, runStat } from './sim/run.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS } from './content.js'
 import { titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen, altarScreen } from './ui.js'
-import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, riteNote, recruitNote } from './codex.js'
+import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, riteNote, recruitNote, summonedBy } from './codex.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy } from './dom.js'
 import { sfx } from './sfx.js'
 import { board } from './board.js'
@@ -312,7 +312,7 @@ async function fight () {
         me && 'If it falls, the run ends',
         turn,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : 'Grave Tide shadow: falls with the Sovereign')
-          : u.summoned ? `Summoned by its ${unitDef(u.id).name}: gone after the battle`
+          : u.summoned ? `${summonedBy(battle, u)}: gone after the battle`
             : u.reap > 0 ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: acts on its own each turn, gone after the battle'),
         u.rose && 'Risen by Undying: its next fall is final',
         arise && `Arise: corpses within ${arise.domain} tiles, tier ≤ ${arise.tier}`,

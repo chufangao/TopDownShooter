@@ -8,12 +8,11 @@
 // not fit), and when a battle starts with it on screen (a room entered by its key from the Field) fades into the battle
 // with everyone where they stood. It decides nothing: every rule, every tooltip and every action stays in ui.js.
 import Phaser from './vendor/phaser.js'
-import { unitDef } from './content.js'
 import { LANES, DEPTH, TILES, ROWS, CAMP_ROWS, tileX, tileY, footprint } from './sim/unit.js'
 import {
   RES, FEET, SCALE, TILE_W, TILE_H, FOOT, HALF_W, HALF_H, BOX, posOf, posAt, BIG, HOVER, BOB, tileUnder, cellsBox, ringBox, fitBox, facesLeft, drawGround,
   WALLS, WALL_FOOT, WALL_SCALE, BAR, BAR_DROP, BREATH, PARTY, FOE, SOUL, CROWN, DOMAIN, RELIC, NEUTRAL, INK, hex, growthMarks, palette, reducedMotion,
-  legible, domainLabel, placeOutside, overlap, paintReach, inked
+  legible, domainLabel, placeOutside, overlap, paintReach, inked, artOf
 } from './engine.js'
 import { sfx } from './sfx.js'
 
@@ -337,18 +336,20 @@ class PrepScene extends Phaser.Scene {
 
   // ── units ────────────────────────────────────────────────────────────────────────────────────
 
-  // An actor: its picture (a 2×2's BIG× larger, at the middle of its four tiles), its pool of shadow on the
-  // ground, and for a flyer the HOVER it floats at over that shadow (update).
+  // An actor: its picture (a 2×2's BIG× larger, at the middle of its four tiles; a trine's three as one, engine.js
+  // artOf), its pool of shadow on the ground (under the whole group: `wide`, its width for its height), and for a
+  // flyer the HOVER it floats at over that shadow (update).
   addActor (u, appear) {
-    const art = unitDef(u.id).art
+    const art = artOf(this, u.id)
     const fp = u.size ?? 1
     const big = fp > 1 ? BIG : 1
     const home = posAt(u.tile, fp)
     const sprite = this.add.image(home.x, home.y, `unit:${art}:alive`).setOrigin(0.5, FEET).setFlipX(facesLeft(u.side))
-    const size = sprite.width / RES / 96
-    const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size * big, 13 * size * big, 0x000000, 0.5)
+    const size = sprite.height / RES / 96
+    const wide = sprite.width / sprite.height
+    const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size * big * wide, 13 * size * big, 0x000000, 0.5)
     const a = {
-      key: u.key, sprite, shadow, scale: SCALE / RES * big, size, fp, big, hover: u.flies ? HOVER : 0, chest: 30 * size * big, tile: u.tile, u, parts: [], growth: null,
+      key: u.key, sprite, shadow, scale: SCALE / RES * big, size, wide, fp, big, hover: u.flies ? HOVER : 0, chest: 30 * size * big, tile: u.tile, u, parts: [], growth: null,
       pop: { v: 0 }, rise: { v: appear ? 0 : 1 }, seed: Math.random() * 6
     }
     if (appear && reducedMotion()) a.rise.v = 1
@@ -374,12 +375,12 @@ class PrepScene extends Phaser.Scene {
     a.growth = null
     const u = a.u
     const part = (o, dx, dy, layer, extra = {}) => { a.parts.push({ o, dx, dy, layer, ...extra }); return o }
-    a.sprite.setTexture(`unit:${unitDef(u.id).art}:${u.fallen ? 'dead' : 'alive'}`)
+    a.sprite.setTexture(`unit:${artOf(this, u.id)}:${u.fallen ? 'dead' : 'alive'}`)
     if (u.fallen) a.sprite.setTint(0xc4bfd0)
     else a.sprite.clearTint()
     const k = a.size * a.big
-    const ring = (w, colour, alpha, line = 2) => part(this.add.ellipse(0, 0, w * k, w * 0.3 * k).setStrokeStyle(line, colour, alpha), 0, 4, 'under')
-    const glow = (w, colour, alpha) => part(this.add.image(0, 0, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(w * k, w * 0.32 * k).setAlpha(alpha), 0, 4, 'under')
+    const ring = (w, colour, alpha, line = 2) => part(this.add.ellipse(0, 0, w * k * a.wide, w * 0.3 * k).setStrokeStyle(line, colour, alpha), 0, 4, 'under')
+    const glow = (w, colour, alpha) => part(this.add.image(0, 0, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(w * k * a.wide, w * 0.32 * k).setAlpha(alpha), 0, 4, 'under')
     // The synergies it counts toward (DESIGN §2.7): a ring a synergy in its colour, one inside the other, over
     // a soft pool of the first's light; a partner of the selected piece (or of a chip pressed) glows bright.
     const syn = u.glow ?? []
@@ -749,7 +750,7 @@ class PrepScene extends Phaser.Scene {
       a.lifted = true
       a.drop = this.homeOf(a)
     } else {
-      ghost = this.add.image(0, 0, `unit:${unitDef(what.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES * big).setAlpha(0.92).setDepth(9500).setFlipX(facesLeft('party'))
+      ghost = this.add.image(0, 0, `unit:${artOf(this, what.id)}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES * big).setAlpha(0.92).setDepth(9500).setFlipX(facesLeft('party'))
       sprite = ghost
     }
     this.drag = { piece: true, key: a ? what : null, a, sprite, ghost, size, chest: a?.chest ?? 30 * big, preview: null, touch: pointerType === 'touch' }
@@ -785,7 +786,7 @@ class PrepScene extends Phaser.Scene {
     const sw = preview?.swap
     if (sw?.to != null) {
       const c = posAt(sw.to, sw.size ?? 1)
-      this.swapGhost = this.add.image(c.x, c.y, `unit:${unitDef(sw.id).art}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES * ((sw.size ?? 1) > 1 ? BIG : 1))
+      this.swapGhost = this.add.image(c.x, c.y, `unit:${artOf(this, sw.id)}:alive`).setOrigin(0.5, FEET).setScale(SCALE / RES * ((sw.size ?? 1) > 1 ? BIG : 1))
         .setAlpha(0.5).setTint(SOUL).setDepth(c.y).setFlipX(facesLeft('party'))
     }
   }

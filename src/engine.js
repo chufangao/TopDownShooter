@@ -12,9 +12,9 @@ import {
 import { foeEssence, eliteBonus } from './sim/run.js'
 import { tileX, tileY, tileAt, LANES, DEPTH, TILES, ROWS, CAMP_ROWS, distance, rangeOf, blowReach, footprint, alive, isBlow } from './sim/unit.js'
 import { sfx } from './sfx.js'
-import { hold, touchy } from './dom.js'
+import { hold, touchy, FEET, figures, plainFigure, WASH } from './dom.js'
 import { frame } from './frame.js'
-import { synergyLabels } from './codex.js'
+import { synergyLabels, summonedBy } from './codex.js'
 
 // ── engine and picture loading ───────────────────────────────────────────────────────────────────
 
@@ -50,9 +50,9 @@ export function createEngine (parent, { gate = null } = {}) {
 }
 
 // The pictures are SVG, rasterised once at RES× their size so they stay sharp when the camera zooms in.
-// A unit's are `unit:<art>:alive`, `:attack` and `:dead`; its feet stand at FEET of its height.
+// A unit's are `unit:<art>:alive`, `:attack` and `:dead`; its feet stand at FEET of its height (dom.js). A kind drawn
+// as more than its picture has its own made from them (artOf).
 const RES = 3
-const FEET = 11 / 12
 const prop = (name) => new URL(`./assets/props/${name}.svg`, import.meta.url).href
 const WALLS = ['wall-0', 'wall-1', 'wall-2']
 const WALL_FOOT = 80 / 96 // a wall picture's ground line
@@ -214,6 +214,54 @@ function shadeTextures (scene, art, skin = 'shade') {
     t.refresh()
     t.setFilter(Phaser.Textures.FilterMode.LINEAR)
   }
+}
+
+// The art kind `id`'s textures go by: its picture's (its own, or the kind's it borrows plainly), or for a kind drawn as
+// more than its picture (dom.js figures: a trine's three, a capstone's wash) its own id, its pictures made on first use
+// from its figures' as one: as tall as one, as wide as the group, the front one's feet at FEET, so it stands, poses,
+// falls, fades and takes a tint as any picture does. Shared with the Field board (board.js).
+export function artOf (scene, id) {
+  if (plainFigure(id)) return figures(id)[0].art
+  if (!scene.textures.exists(`unit:${id}:alive`)) for (const pose of ART_POSES) drawFigures(scene, `unit:${id}:${pose}`, figures(id), pose)
+  return id
+}
+
+function drawFigures (scene, key, figs, pose) {
+  const src = (f) => scene.textures.get(`unit:${f.art}:${pose}`).getSourceImage()
+  const H = src(figs.at(-1)).height
+  const half = Math.max(...figs.map((f) => Math.abs(f.x) * H + f.k * src(f).width / 2))
+  const t = scene.textures.createCanvas(key, Math.ceil(2 * half), H)
+  const ctx = t.getContext()
+  for (const f of figs) {
+    const img = src(f)
+    const [w, h] = [img.width * f.k, img.height * f.k]
+    const [x, y] = [t.width / 2 + f.x * H - w / 2, FEET * H + f.y * H - FEET * h]
+    if (f.dim === 1 && !f.wash) { ctx.drawImage(img, x, y, w, h); continue }
+    // Washed (WASH's matrix on every pixel) and darkened (black laid over it at 1 − dim, where it is opaque) apart,
+    // then laid in place.
+    const c = document.createElement('canvas')
+    c.width = Math.ceil(w)
+    c.height = Math.ceil(h)
+    const g = c.getContext('2d', { willReadFrequently: f.wash })
+    g.drawImage(img, 0, 0, w, h)
+    if (f.wash) {
+      const data = g.getImageData(0, 0, c.width, c.height)
+      const px = data.data
+      for (let i = 0; i < px.length; i += 4) {
+        const [r, gr, b] = [px[i], px[i + 1], px[i + 2]]
+        for (let k = 0; k < 3; k++) px[i + k] = Math.min(255, WASH[5 * k] * r + WASH[5 * k + 1] * gr + WASH[5 * k + 2] * b)
+      }
+      g.putImageData(data, 0, 0)
+    }
+    if (f.dim < 1) {
+      g.globalCompositeOperation = 'source-atop'
+      g.fillStyle = `rgba(0, 0, 0, ${1 - f.dim})`
+      g.fillRect(0, 0, c.width, c.height)
+    }
+    ctx.drawImage(c, x, y)
+  }
+  t.refresh()
+  t.setFilter(Phaser.Textures.FilterMode.LINEAR)
 }
 
 // ── a soul's marks, shared with the Field board (board.js) ───────────────────────────────────────
@@ -839,7 +887,7 @@ class BattleScene extends Phaser.Scene {
       const a = u.basic ?? u.mend
       const does = a ? `${a === u.basic ? 'strikes with' : 'mends with'} ${a.name} each turn` : 'acts on its own each turn'
       const reap = u.reap > 0 ? Math.round(foeEssence(u) * u.reap * this.essence) : 0
-      return `${u.summoned ? `Summoned by its ${unitDef(u.id).name}` : 'Shadow'}: ${does} · ${reap > 0 ? `+${reap} essence more if it stands at the win` : 'gone after the battle'}`
+      return `${u.summoned ? summonedBy(b, u) : 'Shadow'}: ${does} · ${reap > 0 ? `+${reap} essence more if it stands at the win` : 'gone after the battle'}`
     }
     if (this.locked() || this.ending || !alive(u)) return null
     const skills = u.kit.filter((a) => isSkill(u, a)).map((a) => (u.cooldowns[a.id] > 0 ? `${a.name} ready in ${u.cooldowns[a.id]}` : `${a.name} ready`))
@@ -896,7 +944,8 @@ class BattleScene extends Phaser.Scene {
   // ── stage ────────────────────────────────────────────────────────────────────────────────────
 
   // A shadow (u.shadow, raised by Arise, summoned by a kind's tier, or on the foes' side by Grave Tide) wears the
-  // shade pictures; the Monarch's HP bar is thicker, in a gold frame. One unit, one figure.
+  // shade pictures; the Monarch's HP bar is thicker, in a gold frame. One unit, one picture (a trine's three figures
+  // made one: artOf).
   // A 2×2 piece is drawn BIG× over the middle of its four tiles; a flyer (its kind's `flies`, a shadow of one too)
   // hovers HOVER over its shadow, which is fainter.
   addActor (u) {
@@ -904,7 +953,7 @@ class BattleScene extends Phaser.Scene {
     const big = fp > 1 ? BIG : 1
     const fly = unitDef(u.id).flies ? HOVER : 0
     const home = posAt(u.tile, fp)
-    const art = unitDef(u.id).art
+    const art = artOf(this, u.id)
     const theirs = u.side === 'foe'
     const skin = !u.shadow ? 'unit' : theirs ? 'shadefoe' : 'shade'
     if (u.shadow) shadeTextures(this, art, skin)
@@ -914,13 +963,15 @@ class BattleScene extends Phaser.Scene {
       .setFlipX(facesLeft(u.side))
     const whole = this.units.get(u.uid) ?? u
     const scale = SCALE / RES * big
-    // Pictures are drawn on a 96 box, the boss on a bigger one; the shadow and FX heights follow.
-    const size = sprite.width / RES / 96 * big
+    // Pictures are drawn on a 96 box, the boss on a bigger one; the shadow and FX heights follow, and a trine's pool
+    // of shadow spreads under its three (`wide`: its picture's width for its height).
+    const size = sprite.height / RES / 96 * big
+    const wide = sprite.width / sprite.height
     // A shadow stands in a pale-green glow of its own instead of a dark pool.
-    const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size * (fly ? 0.8 : 1), 13 * size * (fly ? 0.8 : 1), u.shadow ? (theirs ? ROT : RISE) : 0x000000,
+    const shadow = this.add.ellipse(home.x, home.y + 4, 46 * size * wide * (fly ? 0.8 : 1), 13 * size * (fly ? 0.8 : 1), u.shadow ? (theirs ? ROT : RISE) : 0x000000,
       (u.shadow ? 0.4 : 0.5) * (fly ? 0.65 : 1)).setDepth(home.y - 2)
     if (u.shadow) shadow.setBlendMode(Phaser.BlendModes.ADD)
-    const ring = this.add.ellipse(home.x, home.y + 4, 56 * size, 17 * size).setStrokeStyle(1.5, 0xffffff, 0.8).setDepth(home.y - 1).setVisible(false)
+    const ring = this.add.ellipse(home.x, home.y + 4, 56 * size * wide, 17 * size).setStrokeStyle(1.5, 0xffffff, 0.8).setDepth(home.y - 1).setVisible(false)
     const barBg = this.add.rectangle(home.x, home.y + 14, BAR + 2, crowned ? 12 : 10, INK, 0.92).setStrokeStyle(1, crowned ? CROWN : INK)
     const width = BAR * u.hp / u.maxHp
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)

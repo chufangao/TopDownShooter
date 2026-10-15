@@ -315,13 +315,15 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
 })
 
 // The fusion graph told (redesign.md §4.1): the Fusions page lists the mixed recipes and the capstones and tells the
-// triple rule in one line; every kind's card, a made trine's 2×2 one with borrowed pictures too, names its own trine.
-test('the codex\'s Fusions lists the mixed recipes and the capstones, the triples in one line; a kind\'s card names its own trine', async () => {
+// triple rule in one line, each triple a tile under it (its trine and its kind ×3, never its line); every kind's card,
+// a made trine's 2×2 one with borrowed pictures too, names its own trine.
+test('the codex\'s Fusions lists the mixed recipes and the capstones, the triples in one line and a tile each; a kind\'s card names its own trine', async () => {
   const { fusionsView } = await import('../src/codex.js')
-  const { isTriple, trineOf } = await import('../src/content.js')
+  const { isTriple, trineOf, unitDef } = await import('../src/content.js')
   const text = fusionsView().textContent
   for (const f of FUSION_LIST) assert.equal(text.includes(f.desc), !isTriple(f), f.id)
   assert.ok(/Trines: every kind of tier 4 or less fuses three of itself/.test(text) && /the Will-o'-Wisp's is the Pale Court/i.test(text), text.slice(0, 400))
+  for (const f of FUSION_LIST.filter(isTriple)) assert.ok(text.includes(`${f.name}${unitDef(Object.keys(f.needs)[0]).name} ×3`), f.id)
   for (const d of UNIT_LIST.filter((x) => !x.monarch)) {
     for (const tracks of [[0, 0], [4, 2], [2, 4]]) {
       const card = unitCard({ id: d.id, lvl: 3, tracks }, { open: true }).textContent
@@ -331,6 +333,32 @@ test('the codex\'s Fusions lists the mixed recipes and the capstones, the triple
       assert.ok(!/NaN|undefined/.test(card), `${d.id}: ${card}`)
     }
   }
+})
+
+// A kind that borrows its pictures is drawn as what it is (dom.js figures; redesign.md §4.1): a trine as three of the
+// kind it was made of, the front one whole and two behind it smaller and darker (a trine of a trine, three trines:
+// seven figures); a capstone as its lender washed; a kind with pictures of its own (the Pale Court) by them.
+test('a trine is drawn as three of its kind, a trine of a trine as seven, a capstone washed; a kind with pictures of its own by them', async () => {
+  const { figures, plainFigure, portrait } = await import('../src/dom.js')
+  for (const d of UNIT_LIST) {
+    const f = figures(d.id)
+    if (d.art === d.id || !d.fused) {
+      assert.ok(plainFigure(d.id) && f[0].art === d.art, d.id)
+      continue
+    }
+    if (d.trineOf) {
+      const inner = figures(d.trineOf)
+      assert.equal(f.length, inner.length === 1 ? 3 : 7, d.id)
+      assert.ok(f.every((x) => x.art === inner[0].art && x.wash === inner[0].wash), d.id)
+      assert.deepEqual(f.at(-1), { ...inner.at(-1), x: 0, y: 0, k: 1, dim: 1 }, `${d.id}: the front one whole`)
+      assert.ok(f.slice(0, -1).every((x) => x.k < 1 && x.dim < 1 && x.y < 0), `${d.id}: the rest behind it`)
+    } else assert.ok(f.length === 1 && f[0].wash && f[0].art === d.art, `${d.id}: its lender, washed`)
+  }
+  assert.ok(UNIT_LIST.filter((d) => d.id.startsWith('trine:')).every((d) => figures(d.id).length >= 3))
+  assert.equal(portrait('trine:grave_ghoul', 40).childNodes.length, 3)
+  assert.equal(portrait('trine:trine:grave_ghoul', 40).childNodes.length, 7)
+  assert.equal(portrait('pale_court', 40).tagName, 'IMG')
+  assert.equal(portrait('winter_court', 40).childNodes.length, 1)
 })
 
 // The altar's choice (the improvement plan's §4.5) told true: the room's line names the three rites; a transmutation's
