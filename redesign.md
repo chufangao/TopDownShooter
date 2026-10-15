@@ -11,7 +11,8 @@ to build, in what order, and what each step must measure before the next begins.
 The user's words that shape it: "Audit game for gameplay diversity and player skill differentiation. Inspiration:
 slay the spire level player customization + power. How do I get to a finished product?"; on the instruments, "use
 the more costly tree search rather than the expert random forest from now on for tuning", then "remove the hand
-expert… I don't want the old content. Plan around only the decision forest and the battle teacher"; on the content,
+expert… I don't want the old content. Plan around only the decision forest and the battle teacher", and after the
+spike that followed (§8), "just use the old ai to tune"; on the content,
 "include more fusions. Including fusions of fusions. Fusions of 3 of the same unit should always exist."
 
 ## 1. Why: what the audit found
@@ -69,117 +70,120 @@ against (§3 says with which instrument):
    or more battles by the end of floor 2 (`--pool`).
 2. **Viable.** The committed teacher's margin (§3) with every kin's archetype is within a band of the best
    archetype's, and its clears at the top difficulty within 15 points of the best's.
-3. **Diverse in free play.** No fused kind in more than 30% of the forest expert's final armies; every base recipe
+3. **Diverse in free play.** No fused kind in more than 30% of the expert's final armies; every base recipe
    made in 8% or more of runs; six or more of the eleven synergies each active in 5% or more of battles; the relics
    ablation worth 10 points or more.
-4. **Still a game.** At the base difficulty the forest expert (§4.0, refitted on the content) clears ~90% and the
+4. **Still a game.** At the base difficulty the expert (§4.0, its forests refitted on the content) clears ~90% and the
    calculator (§3: sound turns, no strategy, the novice's model) reaches floor 2 about half the time; at the top
    difficulty the teacher clears ~60%, and the ladder keeps its order at every level.
 5. **A product.** A run saved and resumed; a clear in 75–90 minutes; a tutorial; the first unlocks; music.
 
 ## 3. The instruments
 
-The user's word: "remove the hand expert… I don't want the old content. Plan around only the decision forest and the
-battle teacher." Nothing in the game runs the expert (the foes are `foeTurn`, the untouched the basic rule): the whole
-autoplayer stack exists to measure. **The hand expert goes**: expert.json's tree of hard rules and its leaf weights,
-`TUNING.expert` (178 numbers searched by CMA-ES on the old content), the hand rules out of battle (the growth sketch's
-worth, the formation's static score and hill-climb, the draft's ranged rule, the hand route, the give-relic rule), the
-combo book (`combos.json`, `--combos`: a hand prior for build targets) and the forests' δ margins over the hand
-choice. What stays is the **vocabulary**: the situation read, the option features, the conditions, the afterstate read,
-the out-of-battle reads (`outsideRead`, `prepRead`), the legal options and the candidate enumerators: a feature is a
-reading of the board, not a judgement. Above the two weight-free players, two remain, both made from the content by one
-loop, so nothing judged by hand on old content survives a content change:
+The user's word, after the spike of §8: "just use the old ai to tune". The autoplayer stays as it ships (§4.0 says
+what it is) and is the instrument; this plan rewrites, retunes and re-searches nothing of it. Nothing in the game runs
+it (the foes are `foeTurn`, the untouched the basic rule): it exists to measure, and these are the rules of its use.
 
-| Player | What | s/run | Use |
-|---|---|---|---|
-| basic (`LEVELS.basic`) | End Turn with basics; the first offer; the default frontier | ~1 | the ladder's floor; content-agnostic |
-| **the calculator** (`calc.js`) | no weight: each piece's legal options read by `features` with `brink` and `peril` at 0, taken by [Monarch safe, material in HP at unit weight]; out of battle a fixed order (the highest tier, the most souls an essence, the rarest relic, the default frontier) | ~3 | the novice's model: sound turns, no strategy (§8: dead on floor 1 in 22 of 32 runs, 9.5 battles a run, against basic's 2.3) |
-| **the forest expert** (§4.0) | a random forest a decision, over every legal option, fitted on the teacher's playouts of the current content | ~5–10 | the fast loop; the balance pass's player; the ladder's middle |
-| **the teacher** | the forest's top candidates each played out exactly to the end (`teach.js --teacher` in battle, `outside.js` out of it), the best taken; never shipped | ~70 (out of battle) to ~200 (battle) | the ceiling; the forest's labels; the yardstick for viability |
+| Player | What | s/run | Clears | Use |
+|---|---|---|---|---|
+| basic (`LEVELS.basic`) | End Turn with basics; the first offer; the default frontier | ~1 | 0% (2.3 battles a run) | the ladder's floor |
+| the calculator (`calc.js`) | no weight: each piece's legal options read by `features` with `brink` and `peril` at 0, taken by [Monarch safe, material in HP at unit weight]; out of battle a fixed order | ~3 | 0% (dead on floor 1 in 22 of 32) | the novice's model: sound turns, no strategy |
+| **the expert** (`LEVELS.expert`, §4.0) | the shipped expert of f8c536f: a situation read, a plan, a model tree with searched weights, three forests, the learned route, the combo book | ~7–9 | 65% on `aud-0…59` with the draft; 77.7% on 768 seeds from the trio | the fast loop; the balance pass's player; the ladder's middle |
+| **the outside teacher** (`outside.js`) | each out-of-battle choice among the expert's top six played out to the run's end by the expert, the first that clears taken | ~67 | 63/64 | the ceiling; viability |
+| the battle teacher (`teach.js --teacher`; `teacher.js`) | each battle option played out to the battle's end by the expert | ~200 (1,100+) | 75% (78%) on 64 | the battle forest's labels at a refit; never in the loop |
 
-- **The fast loop: the forest expert** as last fitted, free and committed, 256 paired seeds (`div-*`), ~30 min on
-  four cores, after every content change. Between refits it is stale (its trees were fitted before the change), but
-  its features are generic (HP, ATK, reach, tier, role, the recipe graph) so it degrades, it does not break, and the
-  paired differences are what count. Refit at milestones (§6), never per change.
+- **The fast loop: the expert as it stands**, free and committed (the harness, Step 0), 256 paired seeds (`div-*`),
+  ~30 min on four cores, after every content change, **`npm run combos` first**: the book is made from the content
+  by a static formula in seconds and the expert's build targets are the book's, so a new recipe or kind is in its
+  sights at once. Between refits its forests and route are stale (fitted on the Court's runs); its readers are generic
+  (HP, ATK, reach, tier, role, the recipes), so it degrades rather than breaks, and the paired differences are what
+  count.
 - **Viability and the ceiling: the outside teacher**, committed to each archetype, 64 seeds each, at the top
-  difficulty (§4.6), ~3 h for ten archetypes on four cores. It saturates at the base difficulty (63/64 with the old
-  expert's battles: nothing to rank), so it reports clears **and a margin**: the Monarch's HP share and the souls' at
-  the end, battles lost, essence left, turns. It needs no refitting when content moves: it judges by outcome. The
-  battle teacher (`teach.js --teacher`; `teacher.js` where the shortlist's best all lose) is the battle ceiling and the
-  battle forest's labeller; at ~200 s a run it is measured on 64 seeds, overnight, never in the loop.
-- **The balance pass's numbers: the forest expert refitted on the content**, 768 seeds, because "the expert ~90%" is
-  defined on a fast player who has learnt the game, and the forest is that player. The ladder (basic → forest →
-  teacher) at every difficulty is the skill-differentiation measure: its rungs must keep their order and their gaps.
-- **Dropped:** forest rounds for their own sake (the old spec spent days on them for a few points as corrections; a
-  round now is kept only where the ladder's rung moves on fresh seeds), and the 768-seed paired search over hand
-  weights (there are none).
-- **Measured and rejected: search alone** (§8, the spike of 2026-10-15). The teacher over the calculator, with no
-  learnt player at all, cleared 0 of 12 seeds (mean progress 0.76 against the calculator's 0.20 on the same seeds;
-  136 s a run), where the outside teacher over the shipped expert cleared 63 of 64. Search amplifies a competent base;
-  it does not supply one. Its playouts continue with the base, so a line that needs the base to follow through (save
-  for a Shop, field a sixth piece, keep a recipe's parts) is never seen to pay. A learnt player is needed, and it must
-  be learnt from a teacher whose base already wins (§4.0's round 0).
+  difficulty (§4.6), ~3 h for ten archetypes on four cores. It saturates at the base difficulty (63/64: nothing to
+  rank), so it reports clears **and a margin**: the Monarch's HP share and the souls' at the end, battles lost, essence
+  left, turns. It needs no refitting when content moves: it judges by outcome, and its playouts are the expert's.
+- **The balance pass's numbers: the expert refitted at the milestone** (§4.0's refit), 768 seeds, because "the expert
+  ~90%" is defined on a fast player who has learnt the game. The ladder (basic → calculator → expert → teacher) at every
+  difficulty is the skill-differentiation measure: its rungs must keep their order and their gaps.
+- **Not done in this plan**: no weight search on the content (the 178 numbers are feature preferences, damage against
+  danger against a kill's worth, not content, and stay where the search put them); no forest rounds beyond the
+  milestone refit; no new learner. Measured and rejected (§8): search alone over a weight-free player (0 of 12). Planned
+  and set aside the same day: a learnt player at every decision fitted by expert iteration, which the spike showed would
+  need the old expert as its seed anyway.
 
-**The harness** (`autoplay.js`, Step 1): `--builds [--player forest|teacher] [--commit <archetype>|all] [--scale
-<difficulty>] [--runs n] [--seed s]`: an archetype is a node of the recipe graph (a fused kind) or a synergy, read
-from the content, never from a book; a committed run's draft, recruits and purchases are filtered to the archetype's
-parts (its recipe's kinds, closed over the graph; a synergy's kin or role), and the forests choose among what is left;
-the teacher's candidates come from the same filter. A row an archetype: clears, progress, the margin columns, the
-share of runs that made its fusion or reached its synergy and the median battle it came on; a last block for free
-play: the archetype shares, kinds held, fusions made, synergies active, relics bought (the diversity block, also in
-the ladder report). `--pool`: the availability table of §1 from `spawnPool`, and for each recipe the expected battles
-offering each part by floor. Noise as the old spec reported it: ± one standard error of the paired difference; 64
-seeds resolve ~6 points of clear rate, 256 ~3.
+**The harness** (`autoplay.js`, Step 0): `--builds [--player expert|teacher] [--commit <archetype>|all] [--scale
+<difficulty>] [--runs n] [--seed s]`: an archetype is a fused kind (a node of the recipe graph) or a synergy; a
+committed run reads a book filtered to the archetype's combos (`BOOK.combos` by `fuse`, `kin` or `role`; `targetOf`,
+`comboWorth`), so its draft, recruits and spending follow it, and the teacher's candidates (`recruitCandidates`,
+`spendCandidates`) follow the same book. A row an archetype: clears, progress, the margin columns, the share of runs
+that made its fusion or reached its synergy and the median battle it came on; a last block for free play: the
+archetype shares, kinds held, fusions made, synergies active, relics bought (the diversity block, also in the ladder
+report). `--pool`: the availability table of §1 from `spawnPool`, and for each recipe the expected battles offering
+each part by floor. Noise as the old spec reported it: ± one standard error of the paired difference; 64 seeds
+resolve ~6 points of clear rate, 256 ~3.
 
 ## 4. The design
 
-### 4.0 The expert: forests fitted on the teacher
+### 4.0 The expert, as it stands
 
-Today's forests correct a hand choice among a hand shortlist (`forest.js choice`: the best candidate is taken only
-where the forest puts it more than δ above today's; `outforest.js`: the same over today's pick and its next five).
-Now the forest **is** the choice, at every decision, and the teacher is its only source of labels.
+The autoplayer of f8c536f, kept whole. One file holds what it learnt, `src/sim/expert.json` (3.5 MB: `tree`,
+`rules`, `forest`, `outforest`, `route`; `bundle.js` sets or splits a part), one table what was searched,
+`TUNING.expert`, and one what it reads of the content, `src/sim/combos.json`. Every decision is one shape: read the
+situation once, list the options, read each as named features, let a tree force or filter, weigh the rest, and where
+a forest is confident, take its word.
 
-- **One forest a decision kind**, each over the legal options of that decision and the reads that exist: the battle
-  (a piece's move and act, `policy.js options` pruned to a cap by geometry alone: every act at every target, from the
-  nearest tiles its Move reaches to each target, to each road's held tile and to the Monarch's side, and stay; no
-  hand score picks the shortlist), the prep (formations: the plan's drafts and `prepCandidates`' perturbations of the
-  best so far, climbed on the prep forest's own read without the opening boards, the top nine read with them), the
-  draft (new: an offer's kind, what it fuses into, the pool ahead), the recruit and the purchases (as now, over every
-  offer and every affordable tier and fusion, passing on and stopping among them), the Shop (new: each relic and
-  leaving), the holds (new: each unheld relic to each fielded soul), the route (the learned route's model tree stays:
-  it was fitted on playouts, not written; relabelled with the rest). **Only legality is hard**: what the game refuses
-  is never an option; no-waste, monarch-lethal, never-die and the rest are gone, and the audit records the forest's
-  margin over its second choice in their place.
-- **Inputs** as today's readers give them: the situation (the ~68 conditions), the option's features and the same
-  less the mean of its position's, the board the option leaves (`aft.*`), the piece's role and size, and the reads out
-  of battle; plus the recipe graph's reads that replace the book's "combo progress": for each soul, the share of each
-  recipe it is part of that the run holds, the nearest fusion's gap in souls and essence, the archetype a committed run
-  is held to. `expert.json` holds the forests and the route, nothing else; `bundle.js` as now.
-- **Labels by the teacher, offline**, as today's labellers make them (`teach.js` in battle: every option of the
-  decision played out to the battle's end; `outside.js --label` out of battle: every candidate to the run's end;
-  `--draw state`, the floors' factors), the **continuation the forest expert itself**, so no label leans on a hand
-  player. The target an option's value less its decision's mean; bagging by run; seeds ≡ 0 mod 5 held out.
-- **Rounds, by expert iteration.** Round 0 needs a continuation before any forest exists (§7.8): the shipped expert
-  of f8c536f, run once on the content as it stands, deleted with its weights when round 1 beats it on fresh seeds.
-  Measured, not assumed (§8): a weight-free base makes a teacher that clears nothing, so its labels say only which line
-  loses later; the shipped expert's teacher clears nearly every seed, so its labels separate a clear from a loss. Round k: 300–500 runs of forest k (ε 0.1 over its top three), labelled with forest k as the
-  continuation, forest k+1 fitted on every round's labels (the last two at full weight, older halved), kept only on a
-  paired gain on 768 fresh seeds; the battle forest and the out-of-battle forests alternate rounds, as the old spec's
-  did; 3–5 rounds, each about a night on four cores. The bar to pass before any content work is measured: the ladder's
-  order (basic < forest < teacher) and a forest at or above the old shipped expert's 65% on `aud-0…59` (§5).
-- **The milestone refit** (§6) is one round of this loop on the content as it stands, labels and all; a change of
-  content that adds a kind adds reads for it with no new feature (the readers are generic), so a refit is the whole of
-  what keeps the expert current.
-- **Cost**: a battle decision's options grow from ≤ 16 to ~40–60 with no hand shortlist; the forest's read is ~15 µs an
-  option and the afterstate read the larger part, so a run of ~45 battles reads in ~5–10 s; the prep's climb on the
-  boardless read ~0.2 s a prep. Acceptable for the fast loop; the teacher's costs are unchanged.
-- **Risk, stated plainly**: a forest was never the whole player here. As corrections the forests realised a hundredth
-  of the teacher's gain a decision, and a tree given free leaves lost 28 points. Expert iteration from a strong seed
-  is the answer to that (the labels' continuation improves with the forest), and the bar above is the test; if three
-  rounds do not pass it, the fallback is the forest over the shipped expert's shortlist (its candidates kept, its
-  choice not), and the hand expert's deletion waits until a round passes.
-- **The calculator** (`calc.js`) is kept beside it, not as a seed but as the ladder's novice rung (§3) and as the
-  check that the game asks for strategy: if the calculator ever clears the base difficulty, the run needs no plan.
+- **In battle** (`policy.js expertTurn`, the fast turn; the beam `TUNING.expert.beam.on` is off): the **situation**
+  read once a decision (`situation`, ~68 named conditions in `expert.js conditions`: the Monarch's danger and whether
+  it can be felled, lines of fire on it, threats by road and turns to reach, foes by threat type, the wave due, the
+  camp's patience, killable foes, each piece's exposure, synergies); a **plan** chosen by a tree once a turn and kept
+  (`plan.js`: hold, focus, push or protect; a target formation of posts, blocks and screens on the roads' lines out of
+  the Monarch's reach and an air slot; a kill list by exact arithmetic; a forecast of where the foes will stand; the
+  Monarch's shooters first); then the pieces one at a time on the board as the ones before left it, the kill list's
+  strikers first. A piece's **options** (`policy.js options`: every tile its Move reaches × every act at every target,
+  and its fusions) are read as ~34 **features** (`features`: damage, a kill and its worth, menace, focus, harry, a
+  status's worth, mending, rescue, the danger where it ends, a fall, the counter drawn, what the foes would take of
+  yours next turn by an assignment of their blows (`loss`, `shadowLoss`, `hit`), the Monarch's danger removed (`guard`),
+  lethal, cull, a shadow raised, a fusion's gain and price, waste, engage, and the plan's progress, role, post, listed
+  and forecast), filtered by the **model tree's hard rules** (`expert.json tree`; `expert.js TREES`: no-waste,
+  monarch-lethal, kill-first, never-die, hold-the-line; the modes guard, protect, push, press, frail), weighed by the
+  leaf's **weights** (`TUNING.expert.battle.option` and `.modes`: 178 numbers set by sep-CMA-ES on 128 seeds on
+  2026-10-11, checked on 128 others); and the **battle forest** (`expert.json forest`, round 3 of `forest.js`: 200
+  regression trees over 252 inputs, the conditions, the features, the same less the position's mean, and the
+  conditions of the board the option leaves, fitted on playouts of every option to the battle's end) overrules that
+  choice where it reads another candidate more than δ 0.02 above it. The untouched strike or mend with basics at End
+  Turn. `--audit` names the rule or the forest that decided each order.
+- **Prep** (`autoplay.js plan`, `planFor`): formations drafted from the plan's posts and the frontier, hill-climbed on a
+  static score (`formationFeatures`: the danger the pieces project on the roads, blockers on the roads into the
+  Monarch, shooters behind them, healers beside the threatened, the Monarch's exposure, synergies, an Arise holder by
+  the kill zone; `TUNING.expert.formation`) under the tree's filters (fill-field, answer-air, block-roads); the
+  **formation forest** (`expert.json outforest.prep`, δ 0.1) picks among nine (the plan's, its next five, the best
+  three drafts) by `prepRead`: the run's situation, the coming battle as scouted, the formation's own read, and the
+  battle's read of the board it opens on.
+- **Growth** (`grow`, `sketch`): the **sketch** is the field's strength (`strength`: a formula over the fielded pieces'
+  HP, blows, reach, tiers, summons and the shadows Arise would raise) plus the **book's** value (`combos.json`, made by
+  `--combos` in seconds: every fusion, core, kin and role combo ranked by floor by a static formula, with the relics
+  that pair with each; the run's target is the combo of the best worth × progress, `targetOf`). Each tier and fusion
+  is bought by its sketch gain an essence against the best a tier gives (`tierRate`); the **recruit** by the sketch
+  (`weighRecruits`), then the **recruit forest** (`expert.json outforest.recruit`, round 2, δ 0.25, over the pick and
+  its next five and passing on, read by `outsideRead`): the largest single gain the old spec found (+18 to +21 points,
+  mostly recruiting where the sketch declined); the Shop by sketch gain an essence against tiers (`buyFor`); a relic
+  waiting given by `pickHold`; the draft by the sketch under the ranged rule (`pickDraft`, `TUNING.expert.draft`).
+- **Route** (`pickRoute`): the **learned route** (`expert.json route`, `ROUTE_LEARNED` true: a model tree over the
+  run's situation and each room's scouted features, fitted by `fit.js` on 10,435 room choices played out), the hand
+  tree (`TREES.route`: a wounded army to an altar, never an elite on long odds or a hurt Monarch) its fallback.
+- **Hand and learnt.** Written or searched: the readers (vocabulary, generic), the tree's rules, the weights, the
+  plan, the formation score, the sketch, the book's formula, the draft and hold rules. Fitted on playouts of the
+  content as it was: the three forests and the route.
+- **Strength and cost.** ~7–9 s a run on one core; 77.7% on 768 seeds `fin` from the trio start, 65% on `aud-0…59`
+  with the draft; 99.5% of battles won; its deaths on floors 1 and 4; ~50 battles a clear. The ladder: basic 0%,
+  calculator 0%, expert 65–78%, outside teacher 98%.
+- **What a content change does to it.** The book must be remade (`npm run combos`; the content test fails a recipe
+  the book lacks). The readers need nothing for a new kind, relic or recipe; a new effect op or shape needs its line in
+  the readers (`estimate`, `STATUS_WORTH`). The forests and the route go stale and keep playing. **The refit** (a
+  milestone, overnight on four cores; the modules' headers give the flags): battle labels `npm run teach` (300 runs of
+  the expert, `--draw state`, ~3 h) and `npm run forest`, out-of-battle labels `npm run outside -- --label --phases
+  recruit,prep` (~3 h) and `npm run outforest`, the route `npm run teach -- --route` then `--fit`; each part set by
+  `npm run bundle`, and kept only on a paired gain on 768 fresh seeds (`--paired expert:a.json,expert:b.json`).
 
 ### 4.1 Fusions: a triple for every kind, and fusions of fusions
 
@@ -237,8 +241,8 @@ recipes; after this, a graph.
   no kind above tier 6; no cycle. Adding a kind adds its triple for free; a new mixed recipe or capstone is one
   recipe line and one unit record, as before.
 - **What it means for the rest.** `canFuse`, `fuseParts`, `fuseIn` and the in-battle fuse read `FUSION_LIST`
-  generically and need nothing; the archetypes `--builds` commits to and the forests' recipe reads (§4.0) are the
-  graph itself, so a new recipe is an archetype at once; `abilitiesOf` reads a generated kit as any. A trine counts once toward synergies, as every piece does: fusing trades count for a body,
+  generically and need nothing; `--combos` enumerates every recipe into the book (`combosOf`), so a new recipe is a
+  target the expert may play toward at once; `abilitiesOf` reads a generated kit as any. A trine counts once toward synergies, as every piece does: fusing trades count for a body,
   everywhere now, so a synergy at 4 should be reachable by a field of trines too (the counts are the balance pass's;
   §7). The roster (12) and Command (3–6) bound how far the graph is climbed in one run, which is the point: a run
   chooses where on it to stand.
@@ -292,7 +296,7 @@ of committed runs that change archetype after floor 1 and still clear.
 
 `TUNING.ascension`, a table of rows, each the multipliers of one level over the base (foe HP and ATK, a fight's and an
 elite's counts, the waves' spacing, the Monarch's HP, prices), chosen on the title screen, kept in the URL and prefs,
-unlocked a level a clear. Level 0 is tuned on the forest expert (~90%) with basic reaching floor 2 about half the
+unlocked a level a clear. Level 0 is tuned on the expert (~90%) with basic reaching floor 2 about half the
 time; the top level on the teacher (~60%); the levels between interpolate. "Floor 1 is hard" moves up the ladder: the
 first run is winnable, the twentieth is not. The ladder report runs every level.
 
@@ -335,85 +339,68 @@ The audit's numbers (f8c536f, 2026-10-15), the figures every step is paired agai
 
 Variants on `aud-0…39` (baseline 24 clears): no Echo 19; no Pale Court recipe 0. The scripts: `measure.mjs` (a run's
 draft, armies, fusions, synergies, battles), `analyse.mjs` (the tables), `variant.mjs` (a content variant in process),
-`reach.mjs` (the pool table), to be folded into `--builds` and `--pool` in Step 1 (they lived in a session's
-scratchpad; Step 1 rewrites them in `autoplay.js`).
+`reach.mjs` (the pool table), to be folded into `--builds` and `--pool` in Step 0 (they lived in a session's
+scratchpad; Step 0 rewrites them in `autoplay.js`).
 
 ## 6. Implementation
 
 One working tree; content is data; at most two agents at once, never two on `src/content.js`; tests check function;
 no number moves but the ones a step names, until the balance pass. Each step ends with its numbers appended to §8
-and the README's autoplayer section kept true. Step 0 comes before every other, because every measurement after it
-is made with the player it builds.
+and the README's autoplayer section kept true.
 
-### Step 0. The forest expert (sim, ~2 days of code, then 3–5 rounds of a night each)
-
-§4.0, in order: **(a)** the candidate enumerators with no hand score (battle: geometry; prep: the climb on the forest's
-read; the draft's, the Shop's and the holds' options), the recipe-graph reads, the committed filter; **(b)** the
-labellers pointed at the forest expert as their continuation (`teach.js`, `outside.js`: the draft, the Shop and the
-holds labelled as the recruit is), and the fitters (`forest.js`, `outforest.js`) over every decision kind; **(c)** the
-hand expert deleted: `expert.js`'s tree and weights, `TUNING.expert`, `plan.js`'s static score and hill-climb,
-`combos.json` and `--combos`, `value.js`/`value.json`, `ranker.js`, `fit.js`'s tree fitter and `train.js` where
-nothing reads them, `LEVELS.expert`'s `search`, `book` and the rest, and their tests (`planning`, `puzzles`,
-`ablation`'s formation band, `policy`'s hand-rule cases, the `*-learned` suites); the puzzles that state a *right
-move* (the healer first, the shooter felled before the healer, the walled road) stay, as the teacher's and the fitted
-forest's own checks; **(d)** round 0 seeded as §7.8 decides, then the rounds, each kept only on a paired gain on 768
-fresh seeds. Done when the ladder reads basic < forest < teacher and the forest expert clears at least the old
-shipped expert's 65% on `aud-0…59`; the README's autoplayer section rewritten for it; its numbers in §8.
-
-### Step 1. The harness (sim, ~3 h)
+### Step 0. The harness (sim, ~3 h)
 
 `--builds`, `--pool`, the diversity block in the ladder report (§3), the margin columns, `--scale`, `--player`,
-`--commit`; `test/builds.test.js` (a committed run's candidates are its archetype's; the pool table sums to one; the
-report's shape). Baseline rows for every archetype that exists today, forest and teacher, into §8.
+`--commit`; `test/builds.test.js` (a committed run's targets are its archetype's; the pool table sums to one; the
+report's shape). Baseline rows for every archetype that exists today, expert and teacher, into §8.
 
-### Step 2. Availability (sim, ~2 h)
+### Step 1. Availability (sim, ~2 h)
 
 §4.2: the draft's guarantee (`draftOffer`), `tierFalloff` and `tierOverCap`; tests: a second pick always offers a
 recipe partner or a kin-mate of the first; the pool's shares by floor. Measured by `--pool` against criterion 1 and by
-the forest ladder for the difficulty it moves.
+the ladder for the difficulty it moves.
 
-### Step 3. The fusion graph (content, ~6 h; then the interface, ~2 h)
+### Step 2. The fusion graph (content, ~6 h; then the interface, ~2 h)
 
 §4.1: `trineOf`, `TUNING.trine`, the Pale Court as a written trine, the seven capstones (art borrowed until drawn),
-the content test's graph rules, the codex's Fusions page and the kind cards, the glossary's Trine. The interface: a
-trine drawn as its kind, bigger (2×2 as now) or thrice overlapped (a `trine` flag the engine reads; the interface
-agent's call); the Field's Fuse button and the in-battle fuse unchanged. Measured: every archetype's reachability
-(criterion 1) and the committed forest on 256 seeds; the teacher's committed margins overnight.
+the content test's graph rules, `--combos`, the codex's Fusions page and the kind cards, the glossary's Trine. The
+interface: a trine drawn as its kind, bigger (2×2 as now) or thrice overlapped (a `trine` flag the engine reads; the
+interface agent's call); the Field's Fuse button and the in-battle fuse unchanged. Measured: every archetype's
+reachability (criterion 1) and the committed expert on 256 seeds; the teacher's committed margins overnight.
 
-### Step 4. Synergies (sim + content, ~2 h)
+### Step 3. Synergies (sim + content, ~2 h)
 
 §4.3 in `rules.js` and the synergy records' text; tests for each changed rule. Measured by the committed runs per
 role and kin.
 
-### Step 5. Relics (content, ~2 h)
+### Step 4. Relics (content, ~2 h)
 
-§4.4's twelve records; the content test holds their forms. Measured by the relics ablation and the committed runs'
-relic shares.
+§4.4's twelve records; the content test holds their forms; `--combos` (the book pairs relics with combos). Measured
+by the relics ablation and the committed runs' relic shares.
 
-### Step 6. The altar's choice (sim ~2 h, interface ~1.5 h)
+### Step 5. The altar's choice (sim ~2 h, interface ~1.5 h)
 
 §4.5: the altar's phase with three offers, `transmute` and `consecrate` as actions in the log and `replay`; the
-altar as a decision kind of the forest (labelled as the recruit is); the altar screen. Measured by archetype changes
-after floor 1.
+expert's altar choice by the growth sketch; the altar screen. Measured by archetype changes after floor 1.
 
-### Step 7. Measure, iterate, refit, balance
+### Step 6. Measure, iterate, refit, balance
 
 Two bug hunts (a trine fused onto a held tile, a capstone's part consumed twice, a transmute keeping the wrong relic,
-a generated kit missing a basic, a recipe cycle, a forest offered an illegal option). Then the loop: the forest expert
-on 256 seeds and the teacher committed on 64, criteria 1–3, content moved until they hold (the balance pass's domain:
-the trine table, the capstones' numbers, Echo's halves, the pool's falloff). Then the milestone refit (§4.0: one
-round of labels and fits on the content as it stands, overnight), the forest ladder on 768 seeds, criterion 4 at level
-0. Then the README, §8, a push to master.
+a generated kit missing a basic, a recipe cycle). Then the loop: the expert on 256 seeds and the teacher committed on
+64, criteria 1–3, content moved until they hold (the balance pass's domain: the trine table, the capstones' numbers,
+Echo's halves, the pool's falloff). Then the milestone refit (§4.0: the forests and the route relabelled and refitted
+on the content as it stands, overnight), the ladder on 768 seeds, criterion 4 at level 0. Then the README, §8, a push
+to master.
 
-### Step 8. The ascension ladder (sim ~2 h, interface ~1 h)
+### Step 7. The ascension ladder (sim ~2 h, interface ~1 h)
 
 §4.6; the top level tuned on the teacher; the ladder report every level; the title screen's choice.
 
-### Step 9. The skill curve (interface ~4 h, sim ~1 h)
+### Step 8. The skill curve (interface ~4 h, sim ~1 h)
 
 §4.8's save and resume, foe reach on tap, the tutorial room, `RANKS` by the measured orders a clear.
 
-### Step 10. The product
+### Step 9. The product
 
 §4.7's bosses; §4.8's history, daily seed, Monarch variants, music; a store build; five to ten outside players through
 a run with the time and the deaths recorded. Done when criterion 5 holds and the players' runs end where the ladder
@@ -422,8 +409,9 @@ says they should.
 ## 7. Decisions
 
 Taken on 2026-10-15, the user's word: a triple for every kind; fusions of fusions; the teacher as the yardstick for
-content, the forests refitted at milestones only; the hand expert removed, the autoplayer the decision forests and the
-teacher alone (§3, §4.0); this file the plan, the old spec to history.
+content; this file the plan, the old spec to history; and, after the spike of §8, **the old expert kept as the
+instrument** ("just use the old ai to tune"): no rewrite, no retuning, its forests refitted at a milestone only (§3,
+§4.0). Set aside the same day: the autoplayer rewritten as forests fitted by expert iteration, and search alone.
 
 Recommended here, open until the user rules:
 
@@ -441,15 +429,6 @@ Recommended here, open until the user rules:
    tier-3 parts (results ≤ 5) and leaves tier 6 to Iron Barrow.
 7. **A trine counts once toward synergies**, as every piece does; the alternative counts it as its parts did (three),
    which makes the synergy at 4 a trine and a soul.
-8. **Round 0's continuation** (§4.0): the shipped expert of f8c536f, run once on the new content as scaffolding and
-   deleted when round 1 beats it. Measured on 2026-10-15 (§8): the weight-free alternatives make a teacher that
-   clears nothing (the calculator's, 0 of 12), so the old expert is the only seed whose labels tell a clear from a
-   loss. Recommended; the user to confirm, since it keeps the old expert alive until round 1.
-9. **The combo book goes with the hand expert**; archetypes and the forests' build reads come from the recipe graph
-   and the synergies (§3, §4.0). The alternative keeps the book as a read-only prior feature; recommended against,
-   since its weights were chosen by hand on the old content.
-10. **Which puzzles survive** (Step 0c): those that state a right move a teacher must find, kept as checks on the
-    fitted forest; those that state a hand rule's behaviour go with the rule.
 
 ## 8. Record
 
@@ -489,7 +468,8 @@ expert's 6): it never walks into reach, so the camp waits out its patience; a Hi
 stalled one battle to the guard. What a playout continues with decides what search can see.
 
 **Kept**: `calc.js` as the novice rung of the ladder (§3; criterion 4) and as the check that the run asks for
-strategy. **Decided by it**: search alone rejected (§3); round 0 seeded by the shipped expert (§4.0, §7.8). Not built:
+strategy. **Decided by it**: search alone rejected, and with it the forest rebuild it was to seed; the user's word
+after it, "just use the old ai to tune" (§3, §4.0, §7). Not built:
 a calculator good enough to seed (saving, Command, a formation) would be hand rules of what to do, which §9 forbids.
 
 ## 9. Standing rules
@@ -509,8 +489,9 @@ In force before this plan and still, with the amendments it makes:
 - Balance comes once, at the end. No tuning while building, but the numbers a step names (§6).
 - Plan first; at most two agents at once; implement → verify → clean → bug hunt → bug hunt → balance. **Measure with
   the instrument §3 names for the question**, pair by seed, and never keep a change on the seeds it was chosen on.
-- **No judgement by hand in the autoplayer**: every weight it holds is fitted on the teacher's playouts of the content
-  as it stands; a reader of the board is vocabulary and may be written, a rule of what to do is not (§3, §4.0).
+- **The autoplayer is frozen** (§3, §4.0): its weights are not searched again and its rules not rewritten; its
+  forests and route are refitted only at a milestone, and a refit is kept only on a paired gain on fresh seeds. The
+  book is remade after every content change.
 - One universal landscape interface, modular tabs, nothing that needs hover or a key.
 - Recruit only: one slain foe a battle, as a full soul into the ossuary (§7.2 may amend).
 - Content is data; code grows only when the vocabulary grows. A generated trine is content made by one rule (§4.1).
