@@ -4,12 +4,14 @@
 // title's Continue to name, and to check the replay against: a save whose log no longer plays (an older game's: its
 // maps, its offers or its battles no longer the same) is no save, and is set aside with a note, never a crash.
 //
-//   { v, run, log, at }
+//   { v, run, log, at, meta? }
 //   v     SAVE_VERSION; any other is an older game's
 //   run   the options the run was made with, whatever createRun takes ({ seed, start?, scale?… }), so a level or a
 //         difficulty rides along
 //   log   run.state.log, every action applied, battle orders among them
 //   at    placeOf: the floor, the room's rank, the phase, the battle's turn, the purse, the Monarch's HP, the actions
+//   meta  what the interface keeps with the run that the run does not need (main.js: when it began, how long it has
+//         been played, the daily it is), handed back as it was given; a save without one has none
 //
 // The tutorial is never saved, and a finished run (cleared or lost: phase 'over') has no save.
 import { replay, monarchOf, currentNode } from './run.js'
@@ -34,13 +36,15 @@ export function placeOf (run) {
 // Whether a run is one a save keeps: a run under way (not over), and no tutorial.
 export const keeps = (run) => !!run && !run.state.tutorial && run.state.phase !== 'over'
 
-// The save of `run`, made with createRun options `made`, as the JSON text it is kept as; null for a run not kept.
-export function saveOf (run, made) {
+// The save of `run`, made with createRun options `made`, as the JSON text it is kept as (`meta` beside them, where
+// given); null for a run not kept.
+export function saveOf (run, made, meta = null) {
   if (!keeps(run)) return null
-  return JSON.stringify({ v: SAVE_VERSION, run: { ...made, seed: run.state.seed }, log: run.state.log, at: placeOf(run) })
+  return JSON.stringify({ v: SAVE_VERSION, run: { ...made, seed: run.state.seed }, log: run.state.log, at: placeOf(run), ...(meta && { meta }) })
 }
 
-// A save's text played back: { run, made, at } (the run as it stood, its options, where it stood), or { error, why }:
+// A save's text played back: { run, made, at, meta } (the run as it stood, its options, where it stood, what the
+// interface kept with it: null for nothing), or { error, why }:
 // 'unreadable' (not a save's text), 'outdated' (another version's, or a log that no longer plays the same: it throws,
 // or ends elsewhere than it says), or 'over' (a run already finished). Never throws.
 export function restore (text) {
@@ -64,5 +68,5 @@ export function restore (text) {
   const at = placeOf(run)
   const off = Object.keys(save.at).filter((k) => at[k] !== save.at[k])
   if (off.length || !keeps(run)) return { error: 'outdated', why: `it plays to another place (${off.join(', ') || at.phase})` }
-  return { run, made: save.run, at }
+  return { run, made: save.run, at, meta: save.meta && typeof save.meta === 'object' ? save.meta : null }
 }

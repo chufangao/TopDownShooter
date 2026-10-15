@@ -5,10 +5,12 @@ import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun } from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
+import { recordOf, readBook, withRun, dailySeed, dayOf } from './sim/history.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS, TUTORIAL } from './content.js'
 import {
-  titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText
+  titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText,
+  historyScreen
 } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, riteNote, recruitNote, summonedBy } from './codex.js'
 import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy, prefs } from './dom.js'
@@ -31,6 +33,10 @@ let screen = null
 let run = null
 // The options the run in play was made with (createRun's: save.js keeps them with its log); null for the tutorial.
 let made = null
+// What the interface keeps with the run in play beside them (save.js `meta`; null for the tutorial): when it began
+// (`begun`, ms since the epoch: with its seed, its id in the history), how long it has been played (`time`, ms), and
+// the daily it is (`daily`, its UTC day; `practice` where it is not that day's first attempt).
+let meta = null
 let trail = null
 let note = ''
 let help = null
@@ -205,9 +211,42 @@ function act (action) {
 // run (cleared or lost) drops its save; the tutorial never has one.
 function keep () {
   if (!run || run.state.tutorial) return
-  const text = saveOf(run, made)
+  played()
+  const text = saveOf(run, made, meta)
   if (text) prefs.set('save', text)
   else prefs.drop('save')
+}
+
+// ── the history and the daily (redesign.md §4.8; sim/history.js) ────────────────────────────────
+
+// The run's play time: the time between its actions, a gap counted at most IDLE (a page left open is not play), the
+// page's hidden spells not at all.
+const IDLE = 120000
+let ticked = null
+function played () {
+  const now = performance.now()
+  if (meta && ticked !== null) meta.time += Math.min(now - ticked, IDLE)
+  ticked = document.hidden ? null : now
+}
+document.addEventListener('visibilitychange', played)
+
+// The runs kept in this browser (prefs 'history'), read as far as they hold.
+const book = () => readBook(prefs.get('history'))
+// The run `r` kept in the history as it stands: over (cleared, or fallen) or left under way for a new one; `m` its meta,
+// its time as its last action left it (keep). Kept again as it changes (a clear that descends, then falls), as one line.
+function chronicle (r = run, m = meta) {
+  if (!r || r.state.tutorial || !m) return
+  const at = Date.now()
+  prefs.set('history', JSON.stringify(withRun(book(), recordOf(r, {
+    id: `${r.state.seed}@${m.begun ?? at}`, at, time: m.time, daily: m.daily, practice: m.practice
+  }))))
+}
+
+// The daily (dayOf, dailySeed): today's seed, the same for everyone, at ascension 0. The first begun each UTC day is the
+// day's daily (prefs 'daily': the last day begun); any after it the same day is practice, kept as such.
+function daily () {
+  const day = dayOf()
+  start(dailySeed(), { daily: day, practice: prefs.get('daily') === day })
 }
 
 const SET_ASIDE = 'Your saved run was made by an older version of the game and no longer plays the same: it was set aside.'
@@ -237,9 +276,18 @@ function resume () {
   }
   run = back.run
   made = back.made
+  meta = metaOf(back.meta)
+  ticked = performance.now()
   note = ''
   trail = trailOf(run)
   route()
+}
+
+// A save's meta as the run in play keeps it: one from before the history began, or that does not read, begins now.
+function metaOf (m) {
+  const out = { begun: Number.isFinite(m?.begun) ? m.begun : Date.now(), time: Number.isFinite(m?.time) && m.time >= 0 ? m.time : 0 }
+  if (typeof m?.daily === 'string') Object.assign(out, { daily: m.daily }, m.practice === true && { practice: true })
+  return out
 }
 
 // The rooms walked on the floor the run stands on, from its log: the start, then its last `rank` walks (a walk a rank).
@@ -261,12 +309,17 @@ function overlay (el) {
 function title (seed, said = '') {
   run = null
   made = null
+  meta = null
   overlay(null)
   ascension = Math.min(ascension, openTo(cleared()))
   const at = saved()
+  const day = dayOf()
+  const ran = book().runs.find((e) => e.daily === day && !e.practice) ?? null
   show(titleScreen({
     seed, level: ascension, open: openTo(cleared()), onLevel: choose, onStart: start, onHelp: toggleHelp,
-    saved: at, note: said || aside, onContinue: resume, onTutorial: tutorial
+    saved: at, note: said || aside, onContinue: resume, onTutorial: tutorial,
+    daily: { day, seed: dailySeed(), begun: prefs.get('daily') === day, ran }, onDaily: daily,
+    onHistory: (now) => chronicles(now)
   }))
   aside = ''
   // A first visit (no run saved, the tutorial never played) is offered the tutorial, once.
@@ -281,24 +334,42 @@ function title (seed, said = '') {
   }
 }
 
-// A new run. Over a saved one, it asks first: the saved run ends for good.
-function start (seed) {
+// The History (ui.js historyScreen): the runs kept, newest first, and their totals; back to the title with its seed.
+function chronicles (seed) {
+  overlay(null)
+  show(historyScreen({ book: book(), day: dayOf(), onBack: () => title(seed), onHelp: toggleHelp }))
+}
+
+// A new run: at the level chosen, or `daily`, the day's daily (daily()) at ascension 0. Over a saved one, it asks
+// first: the saved run ends for good, and the history keeps it as left.
+function start (seed, { daily = null, practice = false } = {}) {
   const at = saved()
   if (at) {
     return overlay(askOverlay({
       title: 'End your saved run?',
       text: `A run is saved at ${placeText(at)}. A new run ends it for good: defeat is absolute, and so is leaving.`,
       yes: 'End it and begin', no: 'Keep it',
-      onYes: () => { overlay(null); prefs.drop('save'); start(seed) },
+      onYes: () => { overlay(null); abandon(); start(seed, { daily, practice }) },
       onNo: () => overlay(null)
     }))
   }
-  made = ascension ? { seed, ascension } : { seed }
+  made = ascension && !daily ? { seed, ascension } : { seed }
   run = createRun(made)
+  meta = { begun: Date.now(), time: 0, ...(daily && { daily }), ...(daily && practice && { practice: true }) }
+  ticked = null
+  if (daily && !practice) prefs.set('daily', daily)
   note = ''
   trail = null
   keep()
   route()
+}
+
+// The saved run ended for a new one: kept in the history as left where it stood (played back to read it: one that no
+// longer plays is dropped unkept), its save dropped.
+function abandon () {
+  const back = restore(prefs.get('save') ?? '')
+  if (back.run) chronicle(back.run, metaOf(back.meta))
+  prefs.drop('save')
 }
 
 // ── the tutorial (redesign.md §4.8; content.js TUTORIAL, run.js tutorialRun) ───────────────────
@@ -310,6 +381,7 @@ function tutorial () {
   overlay(null)
   run = tutorialRun()
   made = null
+  meta = null
   note = ''
   trail = null
   taught.clear()
@@ -379,6 +451,8 @@ function route () {
   } else if (s.phase === 'altar') {
     show(altarScreen({ run, onRite: rite, onHelp: toggleHelp }))
   } else {
+    // The run over, cleared or fallen: kept in the history (again, as one line, for a clear gone on into the deep).
+    chronicle()
     show(endScreen({ run, opened: ascend(), onNew: () => title(newSeed()), onDescend: descend, onHelp: toggleHelp }))
   }
 }
