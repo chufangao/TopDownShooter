@@ -24,7 +24,8 @@ then descend into the endless deep for as long as you last.
 - **Fusions.** Three of any kind of tier 4 or less fuse into its **trine**, two tiers higher, its blows at one foe
   now blasts and its shots a tile longer (a trine of tier 4 or less has its own; the Will-o'-Wisp's is the Pale
   Court); mixed recipes join kinds, and seven capstones join fused kinds into pieces of tier 5 and 6. The Codex's
-  Fusions page lists the mixed recipes and the capstones; a kind's card names its trine.
+  Fusions page lists the mixed recipes and the capstones, and a tile for each trine, its card beside them; a kind's
+  card names its trine. A trine stands as three of its kind, a capstone in its lender's picture washed pale.
 - **A battle.** Tap a piece to light its Move and its targets. Tap a tile to move (Undo, or tap the old tile,
   until it acts). Tap a target to see the blow and the counter it draws; tap it again to strike. A skill is a
   button, then a target; it rests a few turns. **End Turn** hands the field over: pieces you gave no act strike
