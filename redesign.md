@@ -1335,6 +1335,89 @@ below the top (it was played at 10 alone); the expert's own clears fall from 66%
 expert's 66% on these seeds is short of its ~90%. Those are the balance pass's numbers (§6, Step 6), with the refit
 first: these rows are placeholders, as every number here.
 
+### The skill curve (Step 8, 2026-10-15)
+
+**Built** (§4.8 but its meta; on cddeab4 beside Step 7, merged after it at 65e5503):
+
+- **A run saved** (`src/sim/save.js`): a save is the run's createRun options (whatever createRun takes: the seed, a
+  level of the ladder, `scale`…) and its log, `{ v, run, log, at }` as JSON, with `at` where it stood (`placeOf`: the
+  floor, the room's rank, the phase, the battle's turn, the purse, the Monarch's HP, the actions taken). main.js saves
+  after every action, a battle's orders among them (prefs `save`, ~55 KB at a run's end), and drops the save of a run
+  cleared or lost; the tutorial is never saved. `restore` plays the log again (`replay`, which now passes every option
+  it is given) and checks it ends where `at` says: a save another version made, or whose log no longer plays the same
+  (an illegal action, another place), is set aside with a note on the title, never thrown. The title's Continue (its
+  primary button, Enter) stands in the tagline's place with where the run waits ("Floor 2, room 6 of 15 · in battle,
+  turn 3"); a new run over a saved one asks first. Resumed mid-battle, the battle is the replayed one, order by order;
+  the scene is built from its start and every order since played again at once (Skip's flush), unheard and as reduced
+  motion plays it, behind a dark camera that fades in once caught up. A full run's log (1,398 actions) restores in
+  ~0.7 s in Node.
+- **Foe reach on tap** (`policy.js threatOf`, exported for the board): the tiles a foe could stand on next turn (its road
+  ahead within its Move, as the board stands: `spotsOf`, the danger map's own, which `danger` now reads too) and every
+  tile a blow of its kit could strike from any of them (the danger map's reach and dilation; `air` apart: a melee blow
+  from the ground never reaches a flyer). What it could strike, never what it will: every blow whether it rests or not
+  (a foe's rests are never shown), no line of fire (your pieces may move first), nothing of its prey, its patience or
+  its path; a foe whose next act a Hex takes strikes nothing (its Hex is on its card). The battle scene draws it for a
+  foe of a kind met (the bestiary) when tapped (`engine.js study`, `drawStudy`): the struck tiles filled, hatched and
+  edged in the foes' red, the road dotted from it to a dashed ring on the farthest tile, apart in look from a selected
+  piece's box and dashes; the next tap anywhere, the same foe again, or End Turn clears it; a kind not met shows its card
+  alone, as before. The test holds it, foe by foe, to the danger map with its lines aside.
+- **The tutorial** (`run.js tutorialRun`, `content.js TUTORIAL`): one room before floor 1, the threshold, a real run
+  state under the game's rules (seed `threshold`, its floor-1 camp): the draft fixed (the old trio: a Tomb Knight, a Bone
+  Chanter, a Frost Sprite), one fight of two Clockwork Pages and a Will-o'-Wisp at floor 1's first level; won, its spoils
+  end it (phase `over`, no result) and the title says so; lost, the same, saying so. Three screens of text, once each at
+  their moment (the camp, as the battle opens, the spoils), in the game's voice. The tutorial's foes are met as its
+  battle opens, so its second screen can say to tap one. End Turn alone wins it in 8 turns, the expert in 7, random
+  orders 38 times in 40 (Ghouls in place of the Pages: End Turn alone lost it). Offered on the title always (the
+  Tutorial button, where How to play stood: the corner's ? and H open that still), and once, over the title, on a first
+  visit ("New here?").
+- **Run length**: `TUNING.run.floors` 4 → 3 (below). Nothing else moved: the per-floor lists keep their floor-by-floor
+  meaning (their fourth entries are the deep's first floor's now: the deep reads their last entries, as its counts
+  did), and floor 4's three camps are drawn by no floor (the deep reuses floor 3's). How to play's Basics names the
+  floors and rooms, the save and the foe's reach; the README's Playing too.
+
+**Measured** (the expert of cddeab4, its forests and route as Step 6 left them, the draft on; level 0, byte for byte
+Step 7's; seeds `div-0…63`, `npm run builds -- --commit none --runs 64 --workers 2` on cddeab4 and on copies of it with
+each change; an order is a battle order, a move, an act, an End Turn, a fusion, as the audit's 1,188 counted them):
+
+| | Today (16 ranks, 4 floors) | RANKS 12 | Three floors | Both |
+|---|---|---|---|---|
+| battle orders a clear (a run) | 1,274 (1,126) | 1,084 (910) | **949** (830) | 819 (692) |
+| every action a clear | 1,626 | 1,335 | 1,206 | 1,008 |
+| battles a clear; turns a battle | 49.9; 5.9 | 35.9; 7.1 | 37.2; 5.9 | 27.1; 7.1 |
+| clears (paired against today) | 44 (69%) | 34 (53%): +8 −18, −15.6 ± 7.7 | **50 (78%)**: +10 −4, +9.4 ± 5.7 | 36 (56%): +10 −18, −12.5 ± 8.1 |
+| died on floor 1 / 2 / 3 / 4 | 9 / 0 / 1 / 10 | 12 / 0 / 1 / 17 | 9 / 0 / 5 / – | 12 / 0 / 16 / – |
+| s a run | 10.2 | 6.8 | 6.7 | 4.8 |
+
+RANKS 12 scaled with it what reads rank, by 11/15 (an elite from rank 4 → 3, a siege from 9 → 7, a floor's Shops at
+most 7 → 5, a fight's waves from rank 8 → 6, a room's threat variety from rank 3 → 2); the map's weights are shares and
+stayed. Today's run reproduces Step 6's measure (44 clears, progress 85.9). **Neither change alone reaches ~600**, nor
+both (819). Three floors is the nearer (949 against 1,084), moves one number, keeps the floor's shape the expert's
+learned route and forests read (RANKS 12 makes them stale), and loses nothing the expert gains from: its battles stay 5.9
+turns, where on twelve ranks the army grows less a floor and its battles lengthen to 7.1, which is why twelve ranks save
+so few orders. So the run is three floors: −26% of the orders a clear (five seconds an order, §1's rate: 106 → 79
+minutes of battle; with every action, 136 → 100). Stacking twelve ranks on it was not done, as the plan asked; it
+would be another −14% of the orders at −22 points of clears against three floors alone (36 against 50). The expert at
+the new length clears **50 of 64 (78%)**, its deaths 9 on floor 1 as before and 5 on floor 3, the Sovereign's (were 1 on
+floor 3 and 10 on floor 4): the end is easier, the Sovereign's floor drawing floor 3's foes (×1.12 HP and ATK, not floor 4's
+×1.52 and ×1.45).
+§9's "floor 1 is hard" stands, the balance pass reads the end.
+
+**The browser** (Chromium at 1440×900, 1024×768 and 852×393, `npm start`, by a script outside the repo): a first visit
+offered the tutorial, played through its three screens to the title (the expert's orders given through the scene, as
+taps give them); a met foe's reach drawn on tap and gone at a tap elsewhere, a kind not met showing its card alone; a
+run begun, saved mid-battle in turn 2 with orders given in it, the page reloaded, Continue, and the battle the same, the
+sim's units (tile, HP, moved, acted, statuses) and the scene's (tile, HP, place on the screen) alike, then played on; a
+new run over the save asking first, and kept; a save given an illegal action set aside with its note; How to play's
+Basics; the title in its three states (a first visit, a save, neither), every control on the screen. No console error.
+
+**Tests**: `test/save.test.js` (5: a run saved mid-battle restored as it stood, the battle's units order by order, and
+played on the same; a save at ascension 2 and at a scale back with them, and without them set aside; the save's shape;
+every way a save is set aside; replay's options) and the foe's reach against the danger map in `policy.test.js`; the
+tests that pinned four floors read `TUNING.run.floors` (builds' and the ladder's deaths by floor, the last floor's siege,
+boss and multipliers, the deep's multipliers from the lists' last entries, a route's rooms by `routeRooms`), and the
+outside teacher's clearing line late on the last floor is sim-1's (sim-0 falls on floor 3). 481 on Step 7's merge →
+487, all passing (`--test-concurrency=2`, 212 s).
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
