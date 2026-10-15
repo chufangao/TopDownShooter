@@ -36,12 +36,37 @@ import {
 // ── title ────────────────────────────────────────────────────────────────────────────────────────
 
 // `level`: the ascension the run will be played at, `open` the highest the player may choose (run.js openTo), and
-// `onLevel(level)` hears each step of the chooser.
+// `onLevel(level)` hears each step of the chooser (ascensionChooser).
 export function titleScreen ({ seed, level = 0, open = 0, onLevel = () => {}, onStart, onHelp }) {
   const input = h('input', { value: seed, spellcheck: 'false', 'aria-label': 'seed' })
   const start = () => onStart(input.value.trim() || seed)
-  // The ascension ladder (redesign.md §4.6): − and + step the level from 0 to the highest open, a clear opening the one
-  // above it; what the level changes in a line under the actions, each number in full in the chooser's tip.
+  const ascension = ascensionChooser({ level, open, onLevel })
+  // The four steps of a run, one line each in its system's colour; the terms explain themselves on hover.
+  const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 26)), h('div', null, h('b', null, title), h('p', null, text)))
+  const el = h('div', { class: 'screen title-screen' },
+    h('div', { class: 'title-box' },
+      h('div', { class: 'sigil' }, icon('soul', 50)),
+      h('h1', { class: 'logo' }, 'RETINUE'),
+      h('p', { class: 'tagline' }, 'You are the Monarch, a necromancer, and the dead fight for you.', h('br'), 'Descend four floors, unmake the Hollow Sovereign, then go on into the deep.'),
+      h('div', { class: 'steps brief' },
+        step('crown', 'monarch', 'Stand', 'You never strike. The foes come down the ', kw('road', 'roads'), ' to you, and choose when to come in.'),
+        step('fight', 'foe', 'Scout', say('Hover', 'Tap'), ' a room to see its foes. What they do, you learn by fighting.'),
+        step('start', 'plan', 'Command', 'Place your souls, then fight turn by turn: each piece moves, then strikes. What you leave alone strikes anyway.'),
+        step('soul', 'essence', 'Reap', 'The slain pay ', kw('essence'), ', and one of them joins you.')),
+      h('div', { class: 'title-actions' },
+        h('button', { class: 'primary big', onclick: start, tip: () => 'Start a new run with this seed. (Enter)' }, 'Begin the descent ', h('kbd', null, 'Enter')),
+        h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, fusions and the foes met. (H)' }, icon('help', 22), ' How to play'),
+        ascension.chooser,
+        h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles. Share one to play the same run.' }, 'seed', input)),
+      ascension.line),
+    cornerButtons(onHelp))
+  return { el, key: (e) => { if (e.key === 'Enter') start() } }
+}
+
+// The ascension ladder's chooser (redesign.md §4.6), the title's: − and + step the level from 0 to `open`, the highest
+// open (a clear opening the one above it), each step heard by `onLevel`; `line`, what the level changes, for under the
+// actions, each number in full in the chooser's tip. → { chooser, line }
+function ascensionChooser ({ level, open, onLevel }) {
   let asc = Math.min(level, open)
   const num = h('b', { class: 'asc-num' })
   const down = h('button', { class: 'asc-step', 'aria-label': 'Ascension down', onclick: () => shift(-1) }, '−')
@@ -67,26 +92,7 @@ export function titleScreen ({ seed, level = 0, open = 0, onLevel = () => {}, on
       h('p', { class: 'dim' }, ASCENSION_RULE, ` Open here: 0 to ${open}.`))
   }, h('span', { class: 'asc-lbl' }, 'ascension'), down, num, up)
   shown()
-  // The four steps of a run, one line each in its system's colour; the terms explain themselves on hover.
-  const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 26)), h('div', null, h('b', null, title), h('p', null, text)))
-  const el = h('div', { class: 'screen title-screen' },
-    h('div', { class: 'title-box' },
-      h('div', { class: 'sigil' }, icon('soul', 50)),
-      h('h1', { class: 'logo' }, 'RETINUE'),
-      h('p', { class: 'tagline' }, 'You are the Monarch, a necromancer, and the dead fight for you.', h('br'), 'Descend four floors, unmake the Hollow Sovereign, then go on into the deep.'),
-      h('div', { class: 'steps brief' },
-        step('crown', 'monarch', 'Stand', 'You never strike. The foes come down the ', kw('road', 'roads'), ' to you, and choose when to come in.'),
-        step('fight', 'foe', 'Scout', say('Hover', 'Tap'), ' a room to see its foes. What they do, you learn by fighting.'),
-        step('start', 'plan', 'Command', 'Place your souls, then fight turn by turn: each piece moves, then strikes. What you leave alone strikes anyway.'),
-        step('soul', 'essence', 'Reap', 'The slain pay ', kw('essence'), ', and one of them joins you.')),
-      h('div', { class: 'title-actions' },
-        h('button', { class: 'primary big', onclick: start, tip: () => 'Start a new run with this seed. (Enter)' }, 'Begin the descent ', h('kbd', null, 'Enter')),
-        h('button', { class: 'ghost', onclick: onHelp, tip: () => 'Rules, the board, fusions and the foes met. (H)' }, icon('help', 22), ' How to play'),
-        chooser,
-        h('label', { class: 'seed', tip: () => 'The same seed always makes the same maps, foes and battles at an ascension. Share one to play the same run.' }, 'seed', input)),
-      line),
-    cornerButtons(onHelp))
-  return { el, key: (e) => { if (e.key === 'Enter') start() } }
+  return { chooser, line }
 }
 
 // Sound and How to play in the top corner of a screen with no top bar (the title, the end): a finger has no M
