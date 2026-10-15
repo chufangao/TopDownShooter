@@ -256,8 +256,8 @@ recipes; after this, a graph.
   generically and need nothing; `--combos` enumerates every recipe into the book (`combosOf`), so a new recipe is a
   target the expert may play toward at once; `abilitiesOf` reads a generated kit as any. A trine counts once toward synergies, as every piece does: fusing trades count for a body,
   everywhere now, so a synergy at 4 should be reachable by a field of trines too (the counts are the balance pass's;
-  §7). The roster (12) and Command (3–6) bound how far the graph is climbed in one run, which is the point: a run
-  chooses where on it to stand.
+  §7). **Since 2026-10-16 a trine counts as the three it was made of** (§7.7, the user's word). The roster (12) and
+  Command (3–6) bound how far the graph is climbed in one run, which is the point: a run chooses where on it to stand.
 
 ### 4.2 Availability: what a run can gather
 
@@ -445,11 +445,24 @@ content; this file the plan, the old spec to history; and, after the spike of §
 instrument** ("just use the old ai to tune"): no rewrite, no retuning, its forests refitted at a milestone only (§3,
 §4.0), its dead half removed with the logs held byte for byte (Step 0b). Set aside the same day: the autoplayer rewritten as forests fitted by expert iteration, and search alone.
 
+Taken on 2026-10-16, the user's word, before the expert's refit labels anything (so it learns the game as decided):
+**a boss is never Hexed twice in a row** (one whose act a Hex took shrugs off every Hex until it has acted again), and
+the bosses a Hex every turn had held lighter to answer it (the balance pass's draft numbers: floor 2's boss 2.4 HP and
+1.6 ATK of its own, the Sovereign 0.45 and 0.6, its court of 2); **a captain a tier above from floor 2** (§4.2's
+alternative: a fight's captain drawn a tier or more over the room's target, its cohort of the room's own kinds), the
+pool kept as §8's "The user's rules" says (decision 1); **a trine counts as three toward synergies** (decision 7's
+alternative: a trine as the three it was made of, a trine of a trine as three; mixed recipes and capstones once; both
+sides alike); **the expert retrained before the content is balanced again**; and **criterion 2 judged by the strict
+commitment** (`--builds --strict`, §8's balance pass, part 1), the soft commitment staying the harness's default.
+
 Recommended here, open until the user rules:
 
 1. **`tierFalloff` moves before the balance pass** (§4.2). "No tuning while building" stands; this is called
    structural, since without it there is nothing for a balance pass to balance between. The captain-a-tier-above
-   alternative keeps the number.
+   alternative keeps the number. **2026-10-16: the captain taken beside the flattened pool, not instead of it** (§8,
+   "The user's rules"): with the pool restored (3, 1) the captain brings the three mixed recipes' keystones by the end
+   of floor 2 in 0.2–1.8 battles, with it flattened in 0.8–2.0, criterion 1 met by neither (22 of 44 both); free play
+   between the two within noise. `tierFalloff` 1.5 and `tierOverCap` 2 stay.
 2. **Transmute at altars** (§4.5) bends "recruit only: one slain foe a battle": it reshapes a soul, adds none.
 3. **Rules below Legendary** stay forbidden; §4.4 uses the forms allowed. If the relics ablation does not reach 10
    points, Rare relics may carry a `rule`.
@@ -459,8 +472,8 @@ Recommended here, open until the user rules:
    hand-written kinds now and one more for every kind added later. Generation with written overrides is recommended.
 6. **Trines of trines** reach tier 6 (a trine of a Pale Court trine); the alternative caps the triple rule at
    tier-3 parts (results ≤ 5) and leaves tier 6 to Iron Barrow.
-7. **A trine counts once toward synergies**, as every piece does; the alternative counts it as its parts did (three),
-   which makes the synergy at 4 a trine and a soul.
+7. ~~A trine counts once toward synergies~~ **Taken 2026-10-16: the alternative.** A trine counts as its parts did
+   (three), so the synergy at 4 is a trine and a soul (and Echo whole at 8 two Courts and two Chanters).
 
 ## 8. Record
 
@@ -1889,6 +1902,140 @@ rests"), the Court's row 22 → 20 and free play 18 → 17, for the Chanters' Di
 every turn. So criterion 2 waits on the bosses as much as on the trines, and free play's diversity on what the refit
 learns once the Court no longer wins the last floor alone.
 
+### The user's rules (2026-10-16)
+
+**Taken** (§7, the user's word of 2026-10-16) and built on b083df2 before the expert's refit labels anything, a commit a
+rule. The balance pass's draft (`bal-phase2-draft`, 14d037e) is taken for its bosses alone, and Mirage's card (text
+only); its other changes (the Ember Drake on floor 1, the Marsh Hag a Trickster, Echo's lesser form) were not decided
+and are not here.
+
+- **A boss is never Hexed twice in a row.** A boss whose act a Hex took (`policy.js foeTurn`, where an act is lost)
+  carries `shrugs` until its turn next comes unHexed (it acts, it has acted already, the Sovereign's Tide, or it has
+  nothing to do but walk); while it does, `turns.js addStatus` lays no Hex on it, whoever lays it and whenever, and says
+  so (a `shrug` event: "SHRUGS OFF HEX" over it). One Hex of 2 turns (Wrench the Works, Gear Lock) is one Hex: it costs
+  two acts. The draft's check (`hexLost`, a turn number: shrug while `hexLost === turn − 1`) had holes this closes: a
+  Hex laid later in the round whose act it took (a trigger's in the foes' turn, anything at the turn's end before the
+  count moves) was not shrugged, came fresh and cost the next act too, two running (no content lays one so today: no
+  relic or tick Hexes, and a counter answers only the boss's own blow, which it cannot strike Hexed); its window was the
+  turn after, ending with the turn's count rather than with the boss's act; and the Hex vanished with no word to the
+  player. Where the two agree: a counter's Hex on the boss's act after a lost one lands now (it has acted), fresh, for
+  its next act, where the draft shrugged it and the next turn's Hex landed: the same act lost either way; an echo's or a
+  relic's Hex goes through `addStatus` as any; two bosses in a room each carry their own; the deep holds no boss
+  (`bossPool` is empty past the last floor), so the lighter Sovereign's numbers, the lists' last entries, reach no deep
+  room. The bosses lighter to answer it, the draft's numbers (the balance agent's confirmation on `chk-0…255`, −3.1 ±
+  4.4 points, was with its other changes): floor 2's boss 3.2 → 2.4 HP and 2 → 1.6 ATK of its own, the Sovereign 1 →
+  0.45 and 0.6, its court 4 → 2 (`TUNING.spawn`). Text: the Hexed card, How to play's lede, the README; no bestiary line
+  names a Hex. Tests: `enemy.test.js` (the Sovereign's and the Mire Mother's every other act lost beside a ghoul's every
+  one; Hexes after the lost act, in the foes' turn and at its end, by either side, shrugged and the one held not renewed;
+  the next landing once its turn came unHexed, fresh after it acted; a Hex of 2 turns costing two), `bosses.test.js`
+  (the Sovereign lighter).
+- **A captain a tier above from floor 2** (§4.2's alternative). From floor 2, where cohorts come, the first draw of each
+  fight's wave (`captains.fight`, one) is its captain, drawn from `run.js captainPool`: the pool `captains.above` (1)
+  tiers up, as an elite's foes are drawn (`spawnPool`'s target and caps, `tierMax` and `tierOverCap`), those of its kinds
+  a tier or more over the floor's target (a tier-1 Wisp would be no notable recruit), each by its weight there; where it
+  holds none, the pool's highest tier. It stands among its wave where a shuffle puts it, and its cohort (2 on floors
+  2–3) are of the wave's other kinds, each drawn among its other foes. With the pool as it stands a floor-2 fight's
+  captain is tier 2, and tier 3 in 11% of fights (the Ember Drake 4.2%, the Mantis Reaper 3.7%, the Iron Golem 3.1%); a
+  floor-3 fight's is tier 3 in 89% (each keystone 15–20%) and tier 4 in 11%. A siege's waves are fights'; an elite keeps
+  its captains among its foes, leading cohorts of their own kind (its foes are drawn a tier up already: a captain above
+  them would make a floor-2 elite a floor-3 one); a boss's room (its court, the Sovereign's waves) is as it was.
+  Deterministic per seed, on the room's own stream; replay-equal. `--pool` shows the captains' draws. The routes' passes
+  4 → 8 (`variety.routePasses`, a bound, the draft's for the same reason): a floor-2 walk of `route10` met no Shape after
+  four; a pass past the fourth acts only where a walk still misses a type (on `rul-0…255`'s floors drawn by the seed, 4
+  miss a type after four passes at the base, 1 with the captain, none after eight). Tests: `enemy.test.js` (the rooms: a
+  fight's captain from `captainPool`, a tier or more up, its cohort of the wave's own kinds, an elite's and a boss's waves
+  as before, captains of tiers 2, 3 and 4 met), `pieces.test.js` (a fight's cohort beside its captain, an elite's of its
+  kind), `endless.test.js` (the deep's).
+- **A trine counts as three toward synergies** (§7.7's alternative). `unit.js synergyWeight`: a trine (a kind with
+  `trineOf`, made or written: the Pale Court) counts as the three it was made of toward its kin and its role; a trine of
+  a trine as three too, its parts' own fusions not unfolded (three Courts are nine Fae, fused into a Court trine three:
+  fusing still trades count for a body, a level down); a mixed recipe's piece and a capstone once; a role a relic lends
+  (Mimicry's) once, the relic's and not the parts'. `synergyCounts` reads it, so `synergiesOf` on both sides, Echo's whole
+  form (two Courts and two Chanters are eight Channelers) and every reader built on it follow; the codex's counts (the
+  tracker, the board's glow, the Synergies page) are `synergyCounts`, and the tracker's card and the battle's chips name
+  a trine "(as 3)". The expert's and the harness's readers count the same way (reader fixes, nothing searched): the
+  formation's and the book's synergies and the field read's nearest one, a summon now as the kind it calls up
+  (`withSummons`: a trine's, its base kind, once; for every other piece the count it was); `policy.js synergyRead`'s breaks
+  and gains; `comboProgress`'s kin and role combos; the strict commitment's `strictShort` (short while the kin or role
+  counts under its need, or fewer souls of it are held than the field's cap). The field read's `kin` and `role` (the most
+  souls of one kin, of one role) count souls, as they say, and stay. Text: the glossary's Trine and Synergy (word and
+  more), the Synergies page, the count note, the README. Tests: `content.test.js` (every trine three toward its kin and
+  role, a trine of a trine three, the mixed recipes and the capstones one, Echo whole at two Courts and two Chanters,
+  Mimicry's lent role once, a Chanter trine's summons as Bone Chanters), `endless.test.js` (a trine and one more hold
+  Legion on either side, beside a shadow too), `codex.test.js` (the tracker's chip, the glossary, the page).
+- **The book**: `npm run combos` remade it byte for byte the same (`TUNING.expert.book.synergy` is 0: the book weighs no
+  synergy, nor a boss or the pool's weights).
+
+`npm test`: 521 → 524, all passing (`--test-concurrency=2`). Moved for the rules, their intent kept: the Sovereign's "as
+it was" (`bosses.test.js`), the cohorts' "of the captain's kind" for fights (`enemy.test.js`, `pieces.test.js`,
+`endless.test.js`), the trine's "counts once" (`content.test.js`); no test that pins a seed's outcome moved.
+
+**Measured** (the expert as Step 0 has it, its forests and route stale by design; the draft on; fresh seeds `rul-*`; four
+workers; the base b083df2 played from a copy of its tree): free play on `rul-0…127` for two arms, all three rules in
+each, the captain beside the pool as it stands (A: `tierFalloff` 1.5, `tierOverCap` 2) and with the pool restored (B: 3
+and 1), each paired against the base seed for seed; `npm run pool -- --seed rul` (256 seeds) for each; the strict
+commitment (`--builds --strict`) on `rul-0…31` for five archetypes, the arm kept against the base. The arms were played
+with four route passes; the commits' free play on `rul-0…127`, with eight, plays every run as A did (128 of 128: its result,
+its battles, its army).
+
+Free play, `rul-0…127`:
+
+| | Base (b083df2) | A: captain, pool flattened (kept) | B: captain, pool restored |
+|---|---|---|---|
+| clears | 80 (63%) | 95 (74%): +20 −5, +11.7 ± 3.8 points | 101 (79%): +37 −16, +16.4 ± 5.5 |
+| progress | 81.2 | 82.7 (+1.4 ± 0.8) | 86.8 (+5.6 ± 4.0) |
+| died on floor 1 / 2 / 3 | 26 / 5 / 17 | 26 / 1 / 6 | 21 / 0 / 6 |
+| floor 1's bosses met (lost) | Marshal 45 (1), Mire Mother 50 (1), Abbess 9 (1), Queen 1 | the same | Marshal 53 (5), Mire Mother 50 (2), Abbess 11 (1), Queen 1 |
+| floor 2's Mire Mother (lost; turns a battle) | 97 (4; 8.2) | 99 (1; 5.6) | 100 (0; 4.8) |
+| the Sovereign (lost; turns a battle) | 96 (16; 21.4) | 101 (6; 15.8) | 107 (6; 15.7) |
+| the Court in final armies (of the clears) | 77% (95%) | 79% (100%) | 80% (95%) |
+| fused kinds in final armies | Court 77%, Chanter's trine 57%, Sprite's trine 28%, Winter Court 27%, Rime Drake 2% | Court 79%, Chanter's trine 65%, Sprite's trine 39%, Winter Court 13%, Rime Drake 3% | Court 80%, Chanter's trine 55%, Sprite's trine 39%, Winter Court 20%, Rime Drake 2% |
+| synergies held (battles) | Echo 39%, Legion 21%, Mirage 4%; none 58% | Echo 73%, Mirage 66%, Legion 37%, Ambush 10%; none 18% | Echo 73%, Mirage 72%, Legion 25%, Ambush 10%; none 18% |
+
+A against B seed for seed: B +4.7 ± 5.4 points of clears, +4.1 ± 4.0 of progress, within noise.
+
+Criterion 1, the pool (`rul`, 256 seeds; battles offering a kind by the end of floor 2; on floor 3):
+
+| | Base | A | B |
+|---|---|---|---|
+| recipes reachable | 22 of 44 | 22 of 44 | 22 of 44 |
+| the Ember Drake (the Rime Drake's keystone) | 0.9; 2.9 | 1.1; 4.8 | 0.3; 4.5 |
+| the Mantis Reaper (the Hive Queen's) | 2.0; 3.1 | 2.0; 4.3 | 1.8; 4.1 |
+| the Iron Golem (the Clockwork Titan's) | 0.7; 2.4 | 0.8; 3.8 | 0.2; 3.6 |
+| the Thorn Dryad, the Rot Bloat | 1.7, 1.6 | 2.3, 2.2 | 1.8, 1.7 |
+
+**Criterion 1 is met by neither arm**: the Hive Queen, the Clockwork Titan and the Rime Drake stay out of reach by the end
+of floor 2. A floor-2 fight's target is tier 1, so its captain is tier 2 and reaches tier 3 only by the falloff (11% of
+captains flattened, 4% restored); what the captain brings is floor 3's keystones (×1.4–1.6) and floor 2's tier-2 kinds.
+**Kept: A**, the captain beside the flattened pool, no number moved: with neither arm meeting criterion 1, A comes
+nearer it (the three keystones 0.8–2.0 battles by the end of floor 2 against B's 0.2–1.8), and B's better free play is
+within one standard error and comes from floor 1 (21 deaths there against 26), whose fights the restored falloff fills
+with fewer tier-2 foes (10% of the draws against 24%): a softer floor 1, not a richer pool. §7's decision 1 says so.
+
+Criterion 2, the strict commitment, `rul-0…31` (free play 19 → 25 of 32):
+
+| Archetype | Base clears | A clears | Paired (clears; progress) | Died on floor 1 / 2 / 3 | Reached (made or held) |
+|---|---|---|---|---|---|
+| Pale Court | 23 | 20 | −9.4 ± 5.2; +1.9 ± 2.6 | 6 / 2 / 1 → 6 / 1 / 5 | 81% → 78% |
+| Fae 4 (Mirage) | 7 | 17 | +31.3 ± 9.5; +9.3 ± 2.8 | 5 / 9 / 11 → 5 / 0 / 10 | 13% → 75% |
+| Bone Chanter's trine | 5 | 11 | +18.8 ± 8.3; +1.8 ± 2.1 | 12 / 6 / 9 → 12 / 6 / 3 | 56% → 53% |
+| Rime Drake | 12 | 11 | −3.1 ± 7.1; +1.9 ± 2.3 | 18 / 2 / 0 → 18 / 0 / 3 | 38% → 41% |
+| Undead 4 (Legion) | 1 | 10 | +28.1 ± 8.1; +4.8 ± 2.5 | 7 / 12 / 12 → 7 / 7 / 8 | 72% → 84% |
+
+**What it says.** The bosses act again: in the expert's free play on `rul-1…4` the Sovereign was Hexed 12–42 times in
+battles of 19–33 turns and acted not once at the base; with the rule it is Hexed 0–10 times in 12–15 turns and acts 2–3
+times, and it falls sooner (21.4 → 15.8 turns a battle) for its lighter numbers; deaths in its room 16 → 6 of ~100, at
+floor 2's boss 4 → 1. Free play gains (+11.7 ± 3.8 points of clears with A), most of it, by the synergy lines, from the
+trine counted as three: the Court and any Fae are Fae 4, the Court and any Channeler Channeler 4, so Mirage (4% → 66% of
+battles) and Echo (39% → 73%) are held in most battles, and battles with no synergy fall from 58% to 18%; four synergies
+at 5% or more (two before), criterion 3's line still short of six. The monoculture holds: the Court in 79% of final
+armies and all of A's clears. Held to an archetype the gap narrows: the Court 23 → 20 of 32 while Fae 4 (7 → 17),
+Undead 4 (1 → 10) and the Chanter's trine (5 → 11) rise, the first two by their synergy reached with a trine and a soul
+(Fae 4 held in 75% of its runs, 13% before); the Rime Drake (12 → 11) waits on its keystone, which the captain brings to
+floor 3 rather than floor 2, and dies on floor 1 as before (18 of its 21 falls). The three rules were not measured apart.
+Not measured: the outside teacher (criterion 2's own instrument) and the ladder. The expert is stale against all three
+rules by design; its refit, next, learns them.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
@@ -1900,7 +2047,8 @@ In force before this plan and still, with the amendments it makes:
 - The skill gap opens in the player's decisions, in prep and in the turn, never in dice. **Floor 1 is hard at the top
   of the ladder** (§4.6), winnable at its foot.
 - The dead never block the roads. Foes keep to the one drawn road; flyers the air road, blocked by your pieces.
-- One soul is one piece is one body; no stacks. A piece counts once toward synergies (§7.7 may amend).
+- One soul is one piece is one body; no stacks. A piece counts once toward synergies, **a trine as the three it was
+  made of** (§7.7, 2026-10-16).
 - A fusion is never weaker than what went into it. **Every kind of tier 4 or less has a triple** (§4.1).
 - Money always matters: essence is scarce on every floor, and a relic bought is a tier not bought.
 - Balance comes once, at the end. No tuning while building, but the numbers a step names (§6).
