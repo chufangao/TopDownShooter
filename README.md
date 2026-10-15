@@ -1,18 +1,27 @@
 # RETINUE
 
 A small turn-based necromancer game in the browser. You are the **Monarch**, a necromancer who stands in its
-own camp, never strikes, and leads an army of the dead down four floors, choosing the route room by room. A run
+own camp, never strikes, and leads an army of the dead down three floors, choosing the route room by room. A run
 begins with a draft: three picks, each of one soul from three kinds offered.
 Between battles you buy tiers for your kinds with essence, fuse souls into colossi, recruit one slain foe a
 battle into the ossuary, buy relics in Shops, give each relic to a soul, and place your pieces around the
 Monarch's seat. A battle is played in turns on that same board: each of your pieces moves, then acts, and the
 living enemy answers as one opponent, walking the roads the board draws and striking what it can. There are no
 dice and no clock; a battle is lost only when the Monarch falls, and that ends the run. Hold the Arise relic and
-its holder can raise slain foes as shadows. Slay the Hollow Sovereign at the bottom of floor 4 to clear the run,
+its holder can raise slain foes as shadows. Slay the Hollow Sovereign at the bottom of floor 3 to clear the run,
 then descend into the endless deep for as long as you last.
 
 ## Playing
 
+- **The run.** Three floors, each a map of ranks: a walk through one is fifteen rooms, the last an elite (on floor 3,
+  the Sovereign's siege). A clear is some 35–40 battles; the expert gives about 950 orders in one. The run is saved in
+  this browser after every move you make, a battle's orders among them: close the page when you like, and the title's
+  **Continue** (where the run stands written beside it) puts it back as it was, mid-battle too. A run cleared or lost
+  leaves no save, and a new run over a saved one asks first. A save from an older version of the game that no longer
+  plays the same is set aside with a note.
+- **The tutorial.** One battle before floor 1, the threshold: three souls given you, three foes, and three short
+  screens of text (the camp, the battle, the spoils). The title offers it on a first visit and keeps a Tutorial button;
+  it is never saved, and ends back on the title.
 - **The ascension.** The title screen's − and + choose the level a run is played at, from 0, the base game, up to
   10: each level's foes have more HP and ATK, its fights and elites more foes, its waves come sooner, the Monarch has
   less HP and every price is dearer (the line under the chooser says what moved). Clearing a level opens the one above
@@ -35,7 +44,10 @@ then descend into the endless deep for as long as you last.
 - **A battle.** Tap a piece to light its Move and its targets. Tap a tile to move (Undo, or tap the old tile,
   until it acts). Tap a target to see the blow and the counter it draws; tap it again to strike. A skill is a
   button, then a target; it rests a few turns. **End Turn** hands the field over: pieces you gave no act strike
-  with their basic blow, then the foes move. Play on end-turn alone and you die on floor 1.
+  with their basic blow, then the foes move. Play on end-turn alone and you die on floor 1. Tap a foe for its card; a
+  foe of a kind you have met (fought in a battle before) also lights its reach in red: the road it could take within
+  its Move, and every tile it could strike from there next turn. What it could do, never what it will: nothing of the
+  foes' coming turn is drawn, and a kind not met shows nothing more than its card.
 - **Shops** sell relics, the only place they come from. Elites pay essence and offer their recruit.
 - **Altars** grant one rite of three: **heal** every soul and raise the fallen; **transmute** a standing soul into one
   of three kinds of the floor's foes at its tier, drawn by the seed, keeping its relic, its wounds and its level (tiers
@@ -104,8 +116,9 @@ by the end of floor 2 (criterion 1).
 
 - `src/sim/` is pure, seeded and DOM-free. `turns.js` the battle; `policy.js` the one policy (the camp's turn,
   the expert's); `rules.js` the rules registry (synergies, Legendary relics, capstones, boss overrides); `field.js` the
-  roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`);
-  `map.js` the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
+  roads and tile index; `unit.js` stats, reach, footprints; `run.js` the run state machine (`apply`, `replay`; the
+  tutorial's run, `tutorialRun`); `save.js` a run saved (its createRun options and its log) and played back; `map.js`
+  the floors; `expert.js` the decision tree and weights; `forest.js` and `outforest.js` the forests (and
   their fitting; `forest.js` holds the label rows' encoding the forests read); `autoplay.js` the players and CLI;
   `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers), `fit.js` (the
   learned route's fit), `calc.js` (the calculator, a weight-free player and the novice rung, and a rollout teacher

@@ -296,6 +296,7 @@ function start (seed) {
   made = ascension ? { seed, ascension } : { seed }
   run = createRun(made)
   note = ''
+  trail = null
   keep()
   route()
 }
@@ -310,6 +311,7 @@ function tutorial () {
   run = tutorialRun()
   made = null
   note = ''
+  trail = null
   taught.clear()
   route()
 }
