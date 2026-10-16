@@ -194,8 +194,8 @@ a forest is confident, take its word.
 - **Strength and cost.** ~4.4 s a run (the game of 7721702, a core of four busy), ~2.1 s since the speed pass (§8);
   78.4% on 768 seeds `rfc` after the refit (the shipped expert 76.2%); 82.9% on 768 seeds `rcd` after the recruit
   learner (the refit's 77.6% there); 99.5% of battles won; its deaths on floor 1 (14% of runs) and in the Sovereign's
-  room (2%); ~33 battles a run. At f8c536f: ~7–9 s a run, 77.7% on 768 seeds `fin` from the
-  trio start, 65% on `aud-0…59` with the draft. The ladder: basic 0%, calculator 0%, expert 65–78%, outside teacher 98%.
+  room (2%); ~33 battles a run. At f8c536f: ~7–9 s a run, 77.7% on 768 seeds `fin` from the trio start, 65% on
+  `aud-0…59` with the draft. The ladder: basic 0%, calculator 0%, expert 65–83%, outside teacher 98%.
 - **What a content change does to it.** The book must be remade (`npm run combos`; the content test fails a recipe the
   book lacks). The readers need nothing for a new kind, relic or recipe; a new effect op or shape needs its line in the
   readers (`estimate`, `STATUS_WORTH`). The forests and the route go stale and keep playing. **The refit** (a milestone,
@@ -2394,9 +2394,10 @@ to pass, and in play the passes compounded. The ask: a recruit decision-maker ju
 keeps deciding afterwards, kept only on a gain over the shipped expert on fresh seeds. Done on 0418ba3 (the speed pass),
 the base game (ascension 0, the base Monarch, free play), four workers; every run played by a frozen copy of the
 worktree's `src/` and an expert file (the shipped's, 0418ba3's `expert.json`, with its recruit phase changed).
-Selection on 256 seeds `rcs-0…255`, confirmation on 768 fresh ones `rcc-0…767`, each paired against the shipped expert
-and stopped by §3's rule (blocks of 64; Haybittle–Peto; futile under a point unless ahead on clears); progress ± one
-standard error of the paired difference, clears the tiebreak.
+Selection on 256 seeds `rcs-0…255`, confirmation on 768 fresh ones `rcc-0…767` (and `rcd-0…767`, fresh again, for the
+round after), each paired against the shipped expert or the one kept before and stopped by §3's rule (blocks of 64;
+Haybittle–Peto; futile under a point unless ahead on clears); progress ± one standard error of the paired difference,
+clears the tiebreak.
 
 **The design.** Of the brief's three, the cheapest robust one first: a recruit rule of a few numbers over the forest,
 searched by whole runs, which cannot be fooled by the compounding since every run is played by the candidate from first
@@ -2517,6 +2518,22 @@ error), clears 637 against 628 (+44 −35, +1.2 ± 1.2 points)**, died on floor 
 "recruit-merged-2-prep-2", its recruit phase 800 trees (round 2's twice, recruit-3's, recruit-4's; 47,384 nodes), δ
 0.25, the bias 0.4 on floor 1; 3.7 MB.
 
+**A second round** (labels under G1, seeds `rlr-0…127`: 128 runs (103 cleared), 1,381 floor-1 recruits, another
+candidate the better at 47% (by 5.3), 6.2% clearing where G1's line lost; 37 min). recruit-6 on them (held out, 271
+recruits: +0.10 to +0.12 a decision at δ 0–0.25, the first labels of this record to read above nothing; the teacher's
++1.68), its pass bias gone (−0.11 at the median); recruit-7 on both rounds' (2,727). Against G1 on `rcs` (212 clears,
+85.8; 10.1 recruits a run, 6.6 souls, the Court 70%):
+
+| Candidate | Seeds, decision | Progress | Clears | Recruits | Souls | Court |
+|---|---|---|---|---|---|---|
+| H3 recruit-6 alone, floors 2–3 silent | 128, futile | −7.81 ± 3.41 | +5 −42 | 7.3 | 6.0 | 37% |
+| H2 round 2 twice, recruit-3 and recruit-7, [0.4, 0, 0] | 256, level | +0.71 ± 0.78 | +4 −3 | 10.2 | 6.6 | 70% |
+| **H1 round 2 twice, recruit-3, recruit-4 and recruit-6, [0.4, 0, 0]** | 256, level | **+1.40 ± 1.09** | **+8 −7** | 9.9 | 6.5 | 70% |
+
+H1 on 768 fresh seeds `rce-0…767` against G1: **futile at 128** (−1.26 ± 0.88, clears +1 −2): **not kept**, G1 stays.
+Alone, recruit-6 holds floor 1 (28 deaths there in 128) and loses to the Sovereign (19), the Court in 37% of final
+armies. The second round's +1.40 on `rcs` was the selection's: on 1,400 labels a round the iteration paid once.
+
 **The expert at the end** (`rcd-0…767`, fresh to all three; E3 and the kept chosen on `rcs`, E3 confirmed on `rcc`):
 
 | | The shipped (0418ba3) | E3 (148dad0) | The kept (8948207) |
@@ -2541,20 +2558,24 @@ D) lost clears, on floor 1 or to the Sovereign. Breaking it stays the balance pa
 worktree's `src/` (and, for the labels, copies whose `expert.json` is the expert labelled); a queue of resumable jobs
 under one runner (a lock, `rf-refit`'s); a comparison a job (`rl-seq.mjs`: every run a line appended to its player's
 play file as it ends, never played twice, a base's file shared by every comparison on its seeds; §3's rule applied at
-each block); the diversity block by `autoplay.js diversity` on the same lines. Cost, four workers: selection 6,784 runs
-(rounds A–E 69 min, G 12), confirmation 3,840 (`rcc` 20 min, `rcd` 31), labels 39 min, fits a minute each;
-~3.5 h in all with the record and tests. 10,624 whole runs at ~0.7 s a run wall.
+each block); the diversity block by `autoplay.js diversity` on the same lines. Cost, four workers: selection 7,424 runs
+(rounds A–E 69 min, G 12, H 8), confirmation 4,096 (`rcc` 20 min, `rcd` 31, `rce` 3), labels 76 min (two rounds of
+128 runs, floor 1's recruits alone), fits a minute each: ~3.7 h of compute in 4.0 h, 11,520 whole runs at ~0.7 s a
+run wall. The kept expert's battle costs what the shipped's did (61.2 ms against 60.9 on `div-0…15`, one process,
+alternating); its runs are as long as they live (2.13 s a run against 1.43 there, 35 battles a run against 23).
 
 **What it says.** Judged by whole runs, the recruit decision is a floor-1 decision: later recruits, moved from 8 to 16
 a run, move no outcome. There the old forest is a sharp optimum against every rule of a few numbers, and forests
 of one decision's playouts, the refit's or the learner's own, fail alone (they pass, or choose the wrong kind). As a
 correction beside the old forest, their pass bias taken off by one number chosen on whole runs, they gain: the
 current game's playouts (the refit's) +2.3 to +2.9 points, the learner's own a point more. Policy iteration works here
-as a conservative step (the new forest's vote among the old ones', a bias set by whole runs), not as a refit.
+as a conservative step (the new forest's vote among the old ones', a bias set by whole runs), not as a refit, and its
+second step gave nothing on 1,400 labels. Labels made by the learner itself price a pass more truly each round (the
+pass bias +2.1, +0.33, −0.11): what the refit asked for. The next attempt: a round's labels from more runs (the held-out
+gain first read positive at the second round), or the label of a decision averaged over several continuations.
 
-**Tests**: 532, all passing (`--test-concurrency=2`, 203 s with four label workers beside them): `test/outforest.test.js`'s 3
-new (the correction and the margin by floor, the recruits' labels by floor, forests merged); no test's seed or
-expectation moved.
+**Tests**: 532, all passing (`--test-concurrency=2`, 113 s): `test/outforest.test.js`'s 3 new (the correction and the
+margin by floor, the recruits' labels by floor, forests merged); no test's seed or expectation moved.
 
 ## 9. Standing rules
 
