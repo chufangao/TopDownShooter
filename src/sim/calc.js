@@ -32,7 +32,7 @@
 //            else each free tier first (in the purchases' order, as if the purse paid) and then the heal; the
 //            transmutations last
 import { createRun, apply, availableNodes, currentNode, souls, fielded, fieldCap, canFuse, fuseParts, tierCost, heldKinds, canAdvance,
-  canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, altarActions } from './run.js'
+  canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, altarActions, copyRun } from './run.js'
 import { fork, orderable, stalled, order } from './turns.js'
 import { situation, features, options, untouchedOrders } from './policy.js'
 import { prepStep } from './outside.js'
@@ -230,7 +230,6 @@ export function calcStep (run) {
 
 // ── the teacher over it ───────────────────────────────────────────────────────────────────────────
 
-const copyRun = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
 // The board at a fight: the run's state but its log, hashed (the calculator's play from there is a pure function of it).
 const fightKey = (run) => {
   const { log, ...rest } = run.state

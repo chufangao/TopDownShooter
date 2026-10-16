@@ -104,7 +104,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   apply, availableNodes, currentNode, canPlace, canHold, canBuy, relicPrice, unheld, souls, fielded, isMonarch, soulCount, rosterCap, OSSUARY,
-  ascensionTop, BASE_MONARCH
+  ascensionTop, BASE_MONARCH, copyRun
 } from './run.js'
 import { createRng, hashString } from './rng.js'
 import {
@@ -147,8 +147,8 @@ export function configOf (cfg = {}) {
 
 // ── the base's dispatch out of battle (mirrors autoplay.js policy) ─────────────────────────────────
 
-// A copy of a run between battles, as teach.js playRoute makes one.
-const copyOf = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
+// A copy of a run between battles, as teach.js playRoute makes one (run.js copyRun).
+const copyOf = copyRun
 // The base's plan's key (autoplay.js planFor's): what a formation depends on. A formation chosen for one key holds while
 // the key does.
 export const planKey = (run) => {

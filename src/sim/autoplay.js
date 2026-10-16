@@ -71,7 +71,7 @@ import {
   isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse, fuseParts, fuseCost, OSSUARY, START_PARTY,
   relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy, relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat,
   spawnPool, captainPool, draftOffer, drawRoom, varyRoutes, altarActions, transmuteOffer, foeScale, ascensionTop, bossPool, bossIn, ANSWERS, tends,
-  BASE_MONARCH
+  BASE_MONARCH, copyRun, copyPlain
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
 import { TUNING } from '../tuning.js'
@@ -198,8 +198,8 @@ const mendOut = (u, s) => Math.max(0, ...kitOf(u).filter((a) => isAllyShape(a.sh
   .map((a) => a.effects.reduce((n, e) => n + (e.op === 'heal' && !e.self ? e.power : e.op === 'apply_status' ? STATUS_WORTH[e.status] ?? 0 : 0), 0))) *
   s.atk / TUNING.damage.atkDivisor * s.heal.given
 
-// A copy of the run to weigh a choice on (the growth search's): the state cloned, no battle.
-const fork = (run) => ({ state: structuredClone(run.state), battle: null, setup: null })
+// A copy of the run to weigh a choice on (the growth search's): the state copied, no battle (run.js copyRun).
+const fork = copyRun
 
 // What a retinue brings to its next fight: the fieldable pieces' wounded power (their summons and the relics they hold
 // counted: a kin banner's mods on the souls it names, a trigger by what it brings: relicReads) and the shadows the
@@ -2198,7 +2198,7 @@ export function altarCandidates (run, L, sit = null) {
 // (a purchase, a recruit or a release never touches one; a floor entered makes a new one), shared. Never played on.
 function lightFork (run) {
   const { log, map, ...rest } = run.state
-  return { state: { ...structuredClone(rest), map, log: [] }, battle: null, setup: null }
+  return { state: { ...copyPlain(rest), map, log: [] }, battle: null, setup: null }
 }
 
 // The battle rooms the run walks into next, as scouting and the route tell (no battle played): the room in prep first,

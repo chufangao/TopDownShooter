@@ -285,6 +285,31 @@ export function replay (seed, log, opts = {}) {
   return run
 }
 
+// A copy of a run to play ahead on (the expert's growth search, the teachers' playouts): its state copied, no battle
+// (taken between battles). By hand, not structuredClone (a late run's state in a twentieth of the time): the state is
+// plain data (objects, arrays, strings, numbers, booleans, null; no object in it reached twice), copied whole but for two
+// parts never written once made, shared: the log's entries (the log itself copied: the copy's actions go on its own) and
+// the floor's map, unless the draft is on (its last pick opens the floor: openFloor draws the rooms into the map's nodes;
+// any other map is opened by the action that makes it, enterFloor's, before a copy can be taken).
+export const copyRun = (run) => ({ state: copyState(run.state), battle: null, setup: null })
+export function copyState (s) {
+  const out = {}
+  for (const k in s) out[k] = k === 'log' ? s.log.slice() : k === 'map' && s.phase !== 'draft' ? s.map : copyPlain(s[k])
+  return out
+}
+// A deep copy of plain data (copyRun's): objects and arrays copied, key order kept, anything else as it is.
+export function copyPlain (v) {
+  if (typeof v !== 'object' || v === null) return v
+  if (Array.isArray(v)) {
+    const out = []
+    for (let i = 0; i < v.length; i++) out.push(copyPlain(v[i]))
+    return out
+  }
+  const out = {}
+  for (const k in v) out[k] = copyPlain(v[k])
+  return out
+}
+
 // ── the ascension ladder (redesign.md §4.6) ──────────────────────────────────────────────────────
 
 // The highest level: TUNING.ascension's last row (level 0 the base game).

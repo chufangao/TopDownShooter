@@ -115,7 +115,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createRun, apply, currentNode, availableNodes, monarchOf, souls, ascensionTop, BASE_MONARCH } from './run.js'
+import { createRun, apply, currentNode, availableNodes, monarchOf, souls, ascensionTop, BASE_MONARCH, copyRun } from './run.js'
 import { createRng, hashString } from './rng.js'
 import {
   policy, survey, roomFeatures, routeConditions, routeFeatures, tierScale, ROUTE_FEATURES, progressOf, foeShare, routeRooms, useRoute, routeModel, record, ablatedRun,
@@ -1256,7 +1256,7 @@ const roomDone = (was, now, action, run) => (now === 'over' ? !run.state.death :
 // (done), floor, at (where it stands), and to the end share }
 export function playRoute (run, id, { rooms = ROUTE_DEFAULTS.rooms, weights = null, before = runTally(run) } = {}) {
   const w = weights ?? routeWeightsOf({ rooms })
-  const r = { state: structuredClone(run.state), battle: null, setup: null }
+  const r = copyRun(run)
   const rng = createRng(r.state.seed).stream('autoplay')
   let done = 0
   let action = { type: 'node', id }
@@ -1339,7 +1339,7 @@ export function teachRoutes (seed, cfg = {}) {
             const t = performance.now()
             positions.push({ ...place(s, rank, keep), ...labelChoice(run, action.id, c) })
             labelMs += performance.now() - t
-          } else later.push({ at: place(s, rank, keep), run: { state: structuredClone(run.state), battle: null, setup: null }, chosen: action.id, done })
+          } else later.push({ at: place(s, rank, keep), run: copyRun(run), chosen: action.id, done })
         }
       }
       const was = run.state.phase
