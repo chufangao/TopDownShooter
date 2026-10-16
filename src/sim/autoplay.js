@@ -991,6 +991,10 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
   for (const u of pieces) for (const t of tiles.get(u)) (flies(u) ? air : ground).set(t, u)
   const v = { fielded: pieces.length, air: pieces.filter(ANSWERS.fly).length, power: 0, cover: 0, exposed: 0, open: 0, blockers: 0, behind: 0, mend: 0, monarch: 0, synergies: 0, aura: 0, arise: 0, lasts: 0, heals: 0, answers: 0, dps: 0, focus: 0, contact: 0 }
   const reached = new Map(pieces.map((u) => [u, 0]))
+  // Each piece's coverage, hardest blow and mitigation, read once (each a pure function of the piece and its cell).
+  const covers = new Map(pieces.map((u) => [u, coverage(u, u.slot, s.camp)]))
+  const punches = new Map(pieces.map((u) => [u, punch(u)]))
+  const mitigations = new Map(pieces.map((u) => [u, mitigation(u)]))
   let onSeat = 0
   for (const f of ctx.foes) {
     let k = 0
@@ -1009,26 +1013,26 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
     if (first !== undefined) {
       let dealt = 0
       for (const u of pieces) {
-        const c = coverage(u, u.slot, s.camp)
-        if ((f.flies ? c.air : c.ground).includes(first)) dealt += punch(u)
+        const c = covers.get(u)
+        if ((f.flies ? c.air : c.ground).includes(first)) dealt += punches.get(u)
       }
       v.focus += Math.min(1, dealt / Math.max(1, f.hp))
       let worst = 0
-      for (const u of pieces) if (tiles.get(u).some((x) => distance(first, x) <= (flies(u) ? f.air : f.reach))) worst = Math.max(worst, Math.min(1, f.raw * mitigation(u) / Math.max(1, u.hp)))
+      for (const u of pieces) if (tiles.get(u).some((x) => distance(first, x) <= (flies(u) ? f.air : f.reach))) worst = Math.max(worst, Math.min(1, f.raw * mitigations.get(u) / Math.max(1, u.hp)))
       v.contact += worst
     }
   }
-  const share = new Map(pieces.map((u) => [u, Math.min(1, reached.get(u) * mitigation(u) / Math.max(1, u.hp))]))
+  const share = new Map(pieces.map((u) => [u, Math.min(1, reached.get(u) * mitigations.get(u) / Math.max(1, u.hp))]))
   const apart = (a, b) => Math.min(...tiles.get(a).flatMap((x) => tiles.get(b).map((y) => distance(x, y))))
   for (const u of pieces) {
     const st = statsOf(u, heldMods(u))
-    const covers = covered(coverage(u, u.slot, s.camp), ctx.threat) / ctx.total
+    const part = covered(covers.get(u), ctx.threat) / ctx.total
     v.power += fieldPower(u) / ctx.best
-    v.cover += punch(u) * covers
+    v.cover += punches.get(u) * part
     v.exposed += share.get(u)
-    if (!meleeOnly(u) && covers > 0 && reached.get(u) === 0) v.behind++
+    if (!meleeOnly(u) && part > 0 && reached.get(u) === 0) v.behind++
     v.lasts += tough(u) / ctx.tough
-    v.dps += punch(u)
+    v.dps += punches.get(u)
     const heals = kitOf(u).filter((a) => isAllyShape(a.shape) && a.shape !== 'self' && a.effects.some((e) => e.op === 'heal' && !e.self))
     for (const a of heals) for (const e of a.effects) if (e.op === 'heal' && !e.self) v.heals += (e.pct ? e.pct * 100 : e.power * st.atk / TUNING.damage.atkDivisor * st.heal.given) / (a === heals[0] ? 1 : heals.length)
     if (heals.length) {
@@ -1793,24 +1797,36 @@ const atWork = (s) => new Set([...s.relics.filter(isRunRelic), ...standing(souls
 
 // The book's value of a state: the best of its combos, by worth times progress. The target (targetOf) is that combo.
 function bookValue (s) {
-  const work = atWork(s)
-  const bled = unhealed(s)
-  const counts = standingCounts(s)
-  let best = 0
-  for (const c of bookCombos()) best = Math.max(best, comboWorth(s, c, work, bled) * comboProgress(s, c, counts))
-  return best
+  return bookRead(s).value
 }
 export function targetOf (s) {
+  return bookRead(s).target
+}
+// Both, read once for what they read of a state (BOOK_READS, by the combos in play: bookCombos'): its floor, the relics
+// at work in order (their points are summed in it) and whether nothing heals the Monarch, the standing souls of each
+// kind in party order (the kin's and role's counts are summed in it), and those kinds' tiers; of the rest, only
+// TUNING.expert.book.ahead and the content. Dropped whole past 4,096 states.
+const BOOK_READS = new WeakMap()
+function bookRead (s) {
   const work = atWork(s)
   const bled = unhealed(s)
   const counts = standingCounts(s)
-  let best = null
+  const combos = bookCombos()
+  const key = JSON.stringify([s.floor, [...work], bled, [...counts], [...counts.keys()].map((id) => s.kinds[id]?.tracks ?? null), TUNING.expert.book.ahead])
+  let seen = BOOK_READS.get(combos)
+  if (!seen || seen.size >= 4096) BOOK_READS.set(combos, (seen = new Map()))
+  let read = seen.get(key)
+  if (read) return read
+  let value = 0
+  let target = null
   let most = 0
-  for (const c of bookCombos()) {
+  for (const c of combos) {
     const v = comboWorth(s, c, work, bled) * comboProgress(s, c, counts)
-    if (v > most) { most = v; best = c }
+    value = Math.max(value, v)
+    if (v > most) { most = v; target = c }
   }
-  return best
+  seen.set(key, (read = { value, target }))
+  return read
 }
 // The kinds a target is built of (its parts, its tracks'), and whether a soul is one of them.
 export const targetKinds = (c) => new Set([...Object.keys(c?.needs ?? {}), ...Object.keys(c?.tracks ?? {})])
