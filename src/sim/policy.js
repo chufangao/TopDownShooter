@@ -1254,7 +1254,7 @@ const gains = (o, b) => {
 export function rankerView (battle, u, sit, opts, c = conditions(sit, u), model = expertModel()) {
   const today = decideTree(model, c, opts, { better })
   const own = today.option
-  const short = shortlist(battle, u, sit, opts, model, readTree(model, c))
+  const short = shortlist(battle, u, sit, opts, model, readTree(model, c), today.left === opts)
   const kept = new Set(today.left)
   const seen = new Set()
   const label = []
@@ -1368,8 +1368,9 @@ const byPrior = (a, b) => (better(a, b) ? -1 : better(b, a) ? 1 : 0)
 // gives it (its role), the least endangered, the one that holds the most roads into the Monarch (a block), and the
 // least endangered on a line of fire into the Monarch (a screen); each fusion. → options, each with its features `v`
 // and its `prior` (and `score`), the best first. `all`: its options (expertOptions); `model` the prior's (the model in
-// use), `read` (expert.js readTree) where its options are read already (each with its `v`).
-function shortlist (battle, u, sit, all, model = expertModel(), read = null) {
+// use), `read` (expert.js readTree) where its options are read already (each with its `v`); `scored` where each holds
+// its score by that reading already (decideTree's, no hard rule having filtered: the same reading, the same numbers).
+function shortlist (battle, u, sit, all, model = expertModel(), read = null, scored = false) {
   if (!read) {
     read = readTree(model, conditions(sit, u))
     for (const o of all) {
@@ -1377,7 +1378,7 @@ function shortlist (battle, u, sit, all, model = expertModel(), read = null) {
       o.road = -o.path.length
     }
   }
-  for (const o of all) o.score = o.prior = scoreOf(read, o.v)
+  for (const o of all) o.score = o.prior = scored ? o.score : scoreOf(read, o.v)
   const list = all.slice().sort(byPrior)
   const cap = TUNING.expert.shortlist
   if (list.length <= cap) return list

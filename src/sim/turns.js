@@ -992,8 +992,9 @@ const lowest = (list) => list.slice().sort((a, b) => a.hp / a.maxHp - b.hp / b.m
 // ── moving ───────────────────────────────────────────────────────────────────────────────────────
 
 // Whether piece `u`'s footprint may pass anchored at `t`: on the board, and on the ground no wall and no foe on it (a
-// flyer goes over anything).
+// flyer goes over anything). (A piece of one tile is its footprint: read without one made, here, in clear and endable.)
 function passes (battle, u, t) {
+  if (u.size === 1) return u.flies || !(battle.walls.has(t) || (battle.at[t] !== null && battle.at[t].side !== u.side))
   const tiles = footprint(t, u.size)
   if (!tiles) return false
   if (u.flies) return true
@@ -1002,14 +1003,15 @@ function passes (battle, u, t) {
 }
 
 // Whether no wall stands on `u`'s footprint anchored at `t` (a diagonal step's corner test: unit.js steps).
-const clear = (battle, u, t) => footprint(t, u.size)?.every((x) => !battle.walls.has(x)) ?? false
+const clear = (battle, u, t) => (u.size === 1 ? !battle.walls.has(t) : footprint(t, u.size)?.every((x) => !battle.walls.has(x)) ?? false)
 
 // Whether `u` may end a move anchored at `t`: its footprint free in its layer (but for itself), no wall under one on
 // the ground.
 export function endable (battle, u, t) {
+  const layer = layerOf(battle, u)
+  if (u.size === 1) return (layer[t] === null || layer[t] === u) && (u.flies || !battle.walls.has(t))
   const tiles = footprint(t, u.size)
   if (!tiles) return false
-  const layer = layerOf(battle, u)
   return tiles.every((x) => (layer[x] === null || layer[x] === u) && (u.flies || !battle.walls.has(x)))
 }
 

@@ -690,8 +690,10 @@ function anchorFor (battle, u, tile, within = null) {
 // foe; a flyer over anything. The moves are symmetric, so it is the way back too. → by tile (Infinity: no way).
 function stepsFrom (battle, u, from, foes) {
   const out = new Array(TILES).fill(Infinity)
-  const clear = (t) => footprint(t, u.size)?.every((x) => !battle.walls.has(x)) ?? false
+  const one = u.size === 1
+  const clear = (t) => (one ? !battle.walls.has(t) : footprint(t, u.size)?.every((x) => !battle.walls.has(x)) ?? false)
   const passes = (t) => {
+    if (one) return u.flies || !(battle.walls.has(t) || (foes && battle.at[t] !== null && battle.at[t].side !== u.side))
     const fp = footprint(t, u.size)
     if (!fp) return false
     if (u.flies) return true
