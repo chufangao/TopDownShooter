@@ -373,7 +373,7 @@ export const NEIGHBOURS = Array.from({ length: TILES }, (_, t) => neighbours(t))
 export function steps (tile, walls) {
   const x = tileX(tile)
   const y = tileY(tile)
-  return neighbours(tile).filter((n) => !walls.has(n) &&
+  return (NEIGHBOURS[tile] ?? neighbours(tile)).filter((n) => !walls.has(n) &&
     (tileX(n) === x || tileY(n) === y || (!walls.has(tileAt(tileX(n), y)) && !walls.has(tileAt(x, tileY(n))))))
 }
 

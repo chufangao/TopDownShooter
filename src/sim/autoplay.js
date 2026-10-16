@@ -950,7 +950,8 @@ const toughness = (u) => {
 
 // What a formation is read against, made once a plan: the scouted foes (scout), the threat map (threatOf) and its
 // total, the seat's tile, the field's best (the fielded souls' worth L would want, wounds counted: wanted), and whether
-// your side holds synergies (not under their rules switch).
+// your side holds synergies (not under their rules switch); `reads`, what each soul brings wherever it stands, kept as
+// formationFeatures reads it (by uid: the plan's formations are the run's souls as they stand, only their cells differ).
 export function formationContext (run, L, want = wanted(run, L)) {
   const s = run.state
   const threat = threatOf(run)
@@ -962,7 +963,8 @@ export function formationContext (run, L, want = wanted(run, L)) {
     best: want.reduce((n, u) => n + fieldPower(u), 0) || 1,
     tough: standing(souls(s.party)).map(tough).sort((a, b) => b - a).slice(0, fieldCap(run)).reduce((n, x) => n + x, 0) || 1,
     threats: new Set(scoutThreats(run)),
-    synergies: !s.ablate?.includes('synergies')
+    synergies: !s.ablate?.includes('synergies'),
+    reads: new Map()
   }
 }
 
@@ -992,10 +994,18 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
   for (const u of pieces) for (const t of tiles.get(u)) (flies(u) ? air : ground).set(t, u)
   const v = { fielded: pieces.length, air: pieces.filter(ANSWERS.fly).length, power: 0, cover: 0, exposed: 0, open: 0, blockers: 0, behind: 0, mend: 0, monarch: 0, synergies: 0, aura: 0, arise: 0, lasts: 0, heals: 0, answers: 0, dps: 0, focus: 0, contact: 0 }
   const reached = new Map(pieces.map((u) => [u, 0]))
-  // Each piece's coverage, hardest blow and mitigation, read once (each a pure function of the piece and its cell).
+  // What each piece brings wherever it stands, once a plan (ctx.reads: its hardest blow, mitigation, worth, toughness,
+  // stats, heals, aura and Arise, none of which reads its cell); its coverage once a formation.
+  const reads = ctx.reads ?? new Map()
+  const readOf = (u) => {
+    let r = reads.get(u.uid)
+    if (r === undefined) {
+      const heals = kitOf(u).filter((a) => isAllyShape(a.shape) && a.shape !== 'self' && a.effects.some((e) => e.op === 'heal' && !e.self))
+      reads.set(u.uid, (r = { punch: punch(u), mitigation: mitigation(u), power: fieldPower(u), tough: tough(u), melee: meleeOnly(u), st: statsOf(u, heldMods(u)), heals, aura: auraOf(u), raises: ariseIn(s, u) }))
+    }
+    return r
+  }
   const covers = new Map(pieces.map((u) => [u, coverage(u, u.slot, s.camp)]))
-  const punches = new Map(pieces.map((u) => [u, punch(u)]))
-  const mitigations = new Map(pieces.map((u) => [u, mitigation(u)]))
   let onSeat = 0
   for (const f of ctx.foes) {
     let k = 0
@@ -1003,7 +1013,7 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
     for (; k < f.road.length - 1 && !by; k++) by = ground.get(f.road[k]) ?? (f.flies ? air.get(f.road[k]) : null) ?? null
     const stands = f.road.slice(0, by ? k - 1 : k)
     if (!by) v.open++
-    else if (meleeOnly(by)) v.blockers++
+    else if (readOf(by).melee) v.blockers++
     const near = (list, r) => r >= 0 && stands.some((t) => list.some((x) => distance(t, x) <= r))
     for (const u of pieces) if (near(tiles.get(u), flies(u) ? f.air : f.reach)) reached.set(u, reached.get(u) + f.raw)
     if (near([ctx.seat], f.reach)) onSeat += f.raw
@@ -1015,34 +1025,32 @@ export function formationFeatures (run, party, ctx = formationContext(run, LEVEL
       let dealt = 0
       for (const u of pieces) {
         const c = covers.get(u)
-        if ((f.flies ? c.air : c.ground).includes(first)) dealt += punches.get(u)
+        if ((f.flies ? c.air : c.ground).includes(first)) dealt += readOf(u).punch
       }
       v.focus += Math.min(1, dealt / Math.max(1, f.hp))
       let worst = 0
-      for (const u of pieces) if (tiles.get(u).some((x) => distance(first, x) <= (flies(u) ? f.air : f.reach))) worst = Math.max(worst, Math.min(1, f.raw * mitigations.get(u) / Math.max(1, u.hp)))
+      for (const u of pieces) if (tiles.get(u).some((x) => distance(first, x) <= (flies(u) ? f.air : f.reach))) worst = Math.max(worst, Math.min(1, f.raw * readOf(u).mitigation / Math.max(1, u.hp)))
       v.contact += worst
     }
   }
-  const share = new Map(pieces.map((u) => [u, Math.min(1, reached.get(u) * mitigations.get(u) / Math.max(1, u.hp))]))
+  const share = new Map(pieces.map((u) => [u, Math.min(1, reached.get(u) * readOf(u).mitigation / Math.max(1, u.hp))]))
   const apart = (a, b) => Math.min(...tiles.get(a).flatMap((x) => tiles.get(b).map((y) => distance(x, y))))
   for (const u of pieces) {
-    const st = statsOf(u, heldMods(u))
+    const p = readOf(u)
+    const { st, heals, aura, raises } = p
     const part = covered(covers.get(u), ctx.threat) / ctx.total
-    v.power += fieldPower(u) / ctx.best
-    v.cover += punches.get(u) * part
+    v.power += p.power / ctx.best
+    v.cover += p.punch * part
     v.exposed += share.get(u)
-    if (!meleeOnly(u) && part > 0 && reached.get(u) === 0) v.behind++
-    v.lasts += tough(u) / ctx.tough
-    v.dps += punches.get(u)
-    const heals = kitOf(u).filter((a) => isAllyShape(a.shape) && a.shape !== 'self' && a.effects.some((e) => e.op === 'heal' && !e.self))
+    if (!p.melee && part > 0 && reached.get(u) === 0) v.behind++
+    v.lasts += p.tough / ctx.tough
+    v.dps += p.punch
     for (const a of heals) for (const e of a.effects) if (e.op === 'heal' && !e.self) v.heals += (e.pct ? e.pct * 100 : e.power * st.atk / TUNING.damage.atkDivisor * st.heal.given) / (a === heals[0] ? 1 : heals.length)
     if (heals.length) {
       const r = Math.max(...heals.map(rangeOf)) + Math.floor(st.move)
       for (const x of pieces) if (x !== u && apart(u, x) <= r) v.mend += share.get(x)
     }
-    const aura = auraOf(u)
     if (aura) for (const x of pieces) if (x !== u && apart(u, x) <= aura.range) v.aura++
-    const raises = ariseIn(s, u)
     if (raises) {
       let n = 0
       for (let t = 0; t < TILES; t++) if (tiles.get(u).some((x) => distance(t, x) <= raises.domain)) n += ctx.threat.ground[t] + ctx.threat.air[t]
