@@ -86,6 +86,44 @@ export function outranks (a, b) {
 // lacks (a lean read's) reads 0.
 export function conditions (sit, u = null) {
   const m = sit.monarch
+  const roads = sit.roads ?? NONE
+  let foes = 0
+  let open = 0
+  let soonest = 99
+  let unheld = 0
+  for (const r of roads) {
+    foes += r.foes.length
+    if (r.held !== null) continue
+    unheld++
+    open += r.foes.length
+    for (const f of r.foes) soonest = Math.min(soonest, f.turns)
+  }
+  let held = 0
+  for (const xs of sit.holding?.values() ?? NONE) held += xs.length
+  const pieces = sit.pieces ?? NONE
+  let dies = 0
+  let danger = 0
+  let acted = 0
+  let ready = 0
+  for (const p of pieces) if (p.dies) dies++
+  for (const p of pieces) danger += p.danger
+  for (const p of pieces) if (p.acted) acted++
+  for (const p of pieces) ready += p.ready.length
+  const theirs = sit.foes ?? NONE
+  let hexed = 0
+  let primed = 0
+  let mends = 0
+  for (const x of theirs) if (x.hexed) hexed++
+  for (const x of theirs) primed += x.ready.length
+  for (const x of theirs) if (x.mends) mends++
+  let healing = 0
+  for (const x of sit.healing?.values() ?? NONE) healing += x
+  let raisable = 0
+  for (const x of sit.corpses ?? NONE) raisable += x.corpses.length
+  const w = sit.wave
+  const P = sit.plan
+  // One literal, its keys in the order the vocabulary has always listed them (the rows' and the trees' names; the
+  // plan's kinds hold, focus, push, protect), each sum in the order its list runs.
   const c = {
     turn: sit.turn ?? 0,
     patience: sit.patience ?? 0,
@@ -97,64 +135,53 @@ export function conditions (sit, u = null) {
     'monarch.peril': m ? Math.min(4, m.danger / Math.max(1, m.hp)) : 0,
     'monarch.lethal': m?.lethal ? 1 : 0,
     'monarch.threats': m?.threats?.length ?? 0,
-    'monarch.screened': m?.screened?.length ?? 0
+    'monarch.screened': m?.screened?.length ?? 0,
+    roads: roads.length,
+    'roads.open': unheld,
+    'roads.foes': foes,
+    'roads.openFoes': open,
+    'roads.soonest': soonest,
+    holding: sit.holding?.size ?? 0,
+    'holding.foes': held,
+    'entries.ground': sum(sit.entries?.ground),
+    'entries.air': sum(sit.entries?.air),
+    pieces: pieces.length,
+    'pieces.dies': dies,
+    'pieces.danger': danger,
+    'pieces.acted': acted,
+    'pieces.ready': ready,
+    killable: sit.killable?.length ?? 0,
+    foes: theirs.length,
+    'foes.hexed': hexed,
+    'foes.ready': primed,
+    'foes.mends': mends,
+    'healers.party': sit.healers?.party.length ?? 0,
+    'healers.foe': sit.healers?.foe.length ?? 0,
+    healing,
+    'synergies.party': sit.synergies?.party.length ?? 0,
+    'synergies.foe': sit.synergies?.foe.length ?? 0,
+    'synergies.breaks': sit.synergies?.breaks.length ?? 0,
+    'synergies.gains': sit.synergies?.gains.length ?? 0,
+    wave: w ? 1 : 0,
+    'wave.due': w?.due ? 1 : 0,
+    'wave.in': w ? w.turn - (sit.turn ?? 0) : 99,
+    'wave.lanes': w?.lanes.length ?? 0,
+    'wave.wave': w?.wave ?? 0,
+    shadows: sit.shadows ?? 0,
+    corpses: sit.corpses?.length ?? 0,
+    'corpses.corpses': raisable,
+    idle: sit.idle?.length ?? 0,
+    'threat.foes': sit.threat?.foes.length ?? 0,
+    'plan.hold': P?.kind === 'hold' ? 1 : 0,
+    'plan.focus': P?.kind === 'focus' ? 1 : 0,
+    'plan.push': P?.kind === 'push' ? 1 : 0,
+    'plan.protect': P?.kind === 'protect' ? 1 : 0,
+    'plan.shooters': P?.shooters?.length ?? 0,
+    'plan.kills': P?.kills?.length ?? 0,
+    'plan.age': P ? (sit.turn ?? 0) - P.since : 0,
+    'plan.quarry': P?.quarry?.length ?? 0,
+    'plan.shooter': P?.kind === 'focus' && P.shooters?.includes(P.target) ? 1 : 0
   }
-  const roads = sit.roads ?? NONE
-  let foes = 0
-  let open = 0
-  let soonest = 99
-  for (const r of roads) {
-    foes += r.foes.length
-    if (r.held !== null) continue
-    open += r.foes.length
-    for (const f of r.foes) soonest = Math.min(soonest, f.turns)
-  }
-  c.roads = roads.length
-  c['roads.open'] = roads.filter((r) => r.held === null).length
-  c['roads.foes'] = foes
-  c['roads.openFoes'] = open
-  c['roads.soonest'] = soonest
-  c.holding = sit.holding?.size ?? 0
-  c['holding.foes'] = [...(sit.holding?.values() ?? NONE)].reduce((n, xs) => n + xs.length, 0)
-  c['entries.ground'] = sum(sit.entries?.ground)
-  c['entries.air'] = sum(sit.entries?.air)
-  const pieces = sit.pieces ?? NONE
-  c.pieces = pieces.length
-  c['pieces.dies'] = pieces.filter((p) => p.dies).length
-  c['pieces.danger'] = pieces.reduce((n, p) => n + p.danger, 0)
-  c['pieces.acted'] = pieces.filter((p) => p.acted).length
-  c['pieces.ready'] = pieces.reduce((n, p) => n + p.ready.length, 0)
-  c.killable = sit.killable?.length ?? 0
-  const theirs = sit.foes ?? NONE
-  c.foes = theirs.length
-  c['foes.hexed'] = theirs.filter((x) => x.hexed).length
-  c['foes.ready'] = theirs.reduce((n, x) => n + x.ready.length, 0)
-  c['foes.mends'] = theirs.filter((x) => x.mends).length
-  c['healers.party'] = sit.healers?.party.length ?? 0
-  c['healers.foe'] = sit.healers?.foe.length ?? 0
-  c.healing = [...(sit.healing?.values() ?? NONE)].reduce((n, x) => n + x, 0)
-  c['synergies.party'] = sit.synergies?.party.length ?? 0
-  c['synergies.foe'] = sit.synergies?.foe.length ?? 0
-  c['synergies.breaks'] = sit.synergies?.breaks.length ?? 0
-  c['synergies.gains'] = sit.synergies?.gains.length ?? 0
-  const w = sit.wave
-  c.wave = w ? 1 : 0
-  c['wave.due'] = w?.due ? 1 : 0
-  c['wave.in'] = w ? w.turn - (sit.turn ?? 0) : 99
-  c['wave.lanes'] = w?.lanes.length ?? 0
-  c['wave.wave'] = w?.wave ?? 0
-  c.shadows = sit.shadows ?? 0
-  c.corpses = sit.corpses?.length ?? 0
-  c['corpses.corpses'] = (sit.corpses ?? NONE).reduce((n, x) => n + x.corpses.length, 0)
-  c.idle = sit.idle?.length ?? 0
-  c['threat.foes'] = sit.threat?.foes.length ?? 0
-  const P = sit.plan
-  for (const k of PLANS) c[`plan.${k}`] = P?.kind === k ? 1 : 0
-  c['plan.shooters'] = P?.shooters?.length ?? 0
-  c['plan.kills'] = P?.kills?.length ?? 0
-  c['plan.age'] = P ? (sit.turn ?? 0) - P.since : 0
-  c['plan.quarry'] = P?.quarry?.length ?? 0
-  c['plan.shooter'] = P?.kind === 'focus' && P.shooters?.includes(P.target) ? 1 : 0
   if (u) {
     const g = P?.goals?.get(u.uid)
     c['self.share'] = u.hp / u.maxHp
@@ -168,7 +195,6 @@ export function conditions (sit, u = null) {
   }
   return c
 }
-const PLANS = ['hold', 'focus', 'push', 'protect']
 const ROLES = ['block', 'air', 'heal', 'shoot', 'strike', 'screen']
 const NONE = Object.freeze([])
 const sum = (xs) => {

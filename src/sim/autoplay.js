@@ -2580,8 +2580,8 @@ function prepPick (run, L, made, sit) {
 
 // The board formation `party` opens the coming battle on, as the battle will set it up (run.js battleSetup, the pieces
 // on their cells and the foes on theirs: no turn played), read as the battle reads a board (policy.js situation, expert.js
-// conditions).
-const openingOf = (run, party) => conditions(situation(createBattle({ ...battleSetup(run, { party: party.filter((u) => u.slot >= 0) }), quiet: true })))
+// conditions; the situation `short` of what conditions never reads).
+const openingOf = (run, party) => conditions(situation(createBattle({ ...battleSetup(run, { party: party.filter((u) => u.slot >= 0) }), quiet: true }), { short: true }))
 
 // The reads the forest out of battle decides a formation by (outforest.js PREP_SIT_KEYS, PREP_CAND_KEYS), of the prep at
 // `run` (`sit` its survey) over formations `cands` (prepCandidates': today's pick first). The situation once: where the
