@@ -93,11 +93,11 @@ it (the foes are `foeTurn`, the untouched the basic rule): it exists to measure,
 | the battle teacher (`teach.js --teacher`) | each battle option played out to the battle's end by the expert | ~200 | 75% on 64 | the battle forest's labels at a refit; never in the loop |
 
 - **The fast loop: the expert as it stands**, free and committed (the harness, Step 0), 256 paired seeds (`div-*`),
-  ~30 min on four cores, after every content change, **`npm run combos` first**: the book is made from the content
-  by a static formula in seconds and the expert's build targets are the book's, so a new recipe or kind is in its
-  sights at once. Between refits its forests and route are stale (fitted on the Court's runs); its readers are generic
-  (HP, ATK, reach, tier, role, the recipes), so it degrades rather than breaks, and the paired differences are what
-  count.
+  ~30 min on four cores (less when a comparison stops early or its base side is cached: below), after every content
+  change, **`npm run combos` first**: the book is made from the content by a static formula in seconds and the
+  expert's build targets are the book's, so a new recipe or kind is in its sights at once. Between refits its forests
+  and route are stale (fitted on the Court's runs); its readers are generic (HP, ATK, reach, tier, role, the recipes),
+  so it degrades rather than breaks, and the paired differences are what count.
 - **Viability and the ceiling: the outside teacher**, committed to each archetype, 64 seeds each, at the top
   difficulty (§4.6), ~3 h for ten archetypes on four cores. It saturates at the base difficulty (63/64: nothing to
   rank), so it reports clears **and a margin**: the Monarch's HP share and the souls' at the end, battles lost, essence
@@ -120,7 +120,14 @@ that made its fusion or reached its synergy and the median battle it came on; a 
 archetype shares, kinds held, fusions made, synergies active, relics bought (the diversity block, also in the ladder
 report). `--pool`: the availability table of §1 from `spawnPool`, and for each recipe the expected battles offering
 each part by floor. Noise as the old spec reported it: ± one standard error of the paired difference; 64 seeds
-resolve ~6 points of clear rate, 256 ~3.
+resolve ~6 points of clear rate, 256 ~3. **A comparison may stop early** (§8, "Cheaper measurement", 2026-10-16:
+`--paired a,b --sequential`, `--builds --sequential`): seeds in blocks of 64 in seed order, a prefix of the fixed run's;
+stopped for a win or a loss at |z| ≥ 3 on progress (2.03 at the last block of 768, 1.98 of 256: Haybittle–Peto,
+two-sided α 0.05 over every look), for futility when b's one-sided 95% upper bound is under a point of progress and b
+is not ahead on clears, else played to the end, level there with the clears the tiebreak. The selection and
+confirmation seed sets stay distinct (§9): a change chosen on `rfs` stopped early is still confirmed on `rfc`. Every run
+the harness plays is kept in a cache keyed by the code, the expert's bytes and the run's options, and never played
+twice.
 
 ## 4. The design
 
@@ -2212,6 +2219,92 @@ hunt's "seen and left") is the hand formula's, not a learned part, and stays.
 clearing line, the cheap seeds of `outforest`, `teach` and `builds`, the puzzles: the same with the formation's forest
 refitted).
 
+### Cheaper measurement (2026-10-16)
+
+**Why** (the user's ask): every call of this plan, a refitted part kept or a content change, is a paired comparison of
+two autoplayer configurations on the same seeds, at a fixed 256 (selection) then 768 (confirmation), ~4.6 s a run on
+a core: a confirmation is 1,536 runs, its base side the same expert each time. Two changes, the game, the expert and a
+fixed comparison's results untouched (d8cd866): a comparison stops once it is decided, and no run whose record is
+known is played again.
+
+**The stopping rule** (`--paired a,b --sequential`; `--builds --sequential`, each archetype against free play;
+`src/sim/sequential.js`). Seeds in blocks of 64 (`--block`) in seed order, so a sequential comparison's seeds are a
+prefix of the fixed one's, to `--runs` at most (768 by default). After each block the paired difference in progress
+(b − a in points, the primary measure) over its standard error, z, against the look's bound:
+
+- **A win or a loss**: |z| at or past the bound. Haybittle–Peto: 3 at every look before the last, the last's solved
+  (recursive integration, Armitage–McPherson–Rowe; the published Pocock and O'Brien–Fleming constants to the third
+  decimal) so the whole design spends two-sided α 0.05: 2.03 at 768 seeds (12 looks), 1.98 at 256 (4). Why it: its
+  last bound is nearly the fixed test's 1.96, so a comparison played out reads and decides as before (power at a gain
+  of 2.8 standard errors 78% against 80%), and 3 is far enough out that the standard error's own noise at 64 seeds
+  hardly moves it. O'Brien–Fleming (`--design obf`) wants 7.3 at 64 seeds and stops nothing early there; Pocock
+  (`--design pocock`) holds 2.59 at every look (2.36 to 256), which costs power at the end and would have read the
+  formation's selection (+4.45 ± 2.15, z 2.07) level. On the history below the three saved alike: futility does most.
+- **Futility**, from the second look to the one before the last: b's one-sided 95% upper bound on the gain (difference
+  + 1.645 standard errors) under a point of progress (`--min-gain`, 1: under what 768 seeds resolve, ± ~1.2) **and** b
+  not ahead on clears (won ≤ lost), so a change level in progress and ahead on clears, the tiebreak's keep (the
+  formation's on `rfc`), is never cut. Non-binding: it spends no α, so it only lowers the error rate.
+- **Level**: neither by the last look; the clears break the tie as they always did, reported, the call the reader's.
+
+Each look is printed (seeds, progress ± its standard error, z against the bound, clears), then the paired report of the
+seeds played and the decision with its look. The fixed mode stays the default: every number of this record was made
+with it, and the harness's margins and diversity block want every seed.
+
+**On the record's paired data** (the stopping rule replayed in seed order on the refit's play files, `rf-refit/plays`,
+and on the free play of steps 1, the balance pass and the user's rules, their `--builds --out` files; the session's
+scratchpad, `seq/history.mjs`):
+
+| Comparison | All seeds: progress, z, clears | The record's call | Sequential: seeds, decision |
+|---|---|---|---|
+| `rfs` (256), against the shipped: the forests out of battle dropped | −7.50 ± 2.77, −2.71, +26 −83 | not dropped | 128, futile |
+| the formation's forest dropped | −6.62 ± 2.33, −2.85, +17 −40 | not dropped | 128, futile |
+| the recruit's forest dropped | +1.97 ± 2.42, +0.81, +26 −64 | not dropped | 256, level |
+| the learned route dropped | −3.33 ± 2.55, −1.31, +30 −43 | not dropped | 192, futile |
+| the battle forest dropped | −0.37 ± 2.12, −0.17, +19 −26 | to `rfc` | 256, level |
+| route A; C; D | +2.67, +0.97; −2.86, −0.96; +2.44, +1.90 | A and D to `rfc`; C not | 256, level (all three) |
+| the formation, δ 0.1; δ 0.05 | +3.74, +1.87; +4.45 ± 2.15, +2.07 | δ 0.05 to `rfc` | 256, level; 256, win |
+| the recruit 2, δ 0.25; δ 0.5 | −19.59, −6.61; −15.02, −5.08 | not kept | 128, loss (both) |
+| against the formation kept: the recruit, shipped δ 0.5 | −1.88 ± 1.01, −1.86, +7 −19 | not kept | 128, futile |
+| the recruit 3, δ 0.25; δ 0.5; round 1's set δ 0.5 | −7.56, −2.88; −6.65, −2.61; −33.18, −11.87 | not kept | 128 futile; 128 futile; 64 loss |
+| the battle forest, δ 0.02; δ 0.05 | −0.92, −0.39; −3.48, −1.52 | not kept | 256, level; 128, futile |
+| `rfc` (768), against the shipped: the battle forest dropped | −5.59 ± 1.33, −4.19, +62 −119 | not dropped | 128, futile |
+| route A; route D | −1.77 ± 1.41, −1.25; −0.49 ± 0.60, −0.81 | not kept | 256, futile; 128, futile |
+| the formation, δ 0.05 | −0.35 ± 1.18, −0.29, +80 −63 | **kept** (the clears) | 768, level, the tiebreak b's |
+
+The refit's 22 comparisons: **4,608 seeds of 7,680 (60%)**, and no call changed: every early stop is a reject where
+the record rejected, every candidate the record sent on or kept played to its end and read as before. The content
+steps' free play (10 comparisons of 128 or 256 seeds): 1,664 of 1,920; two stopped futile at 128 (step 1's `after2`
+against `base2`, −5.09 ± 2.72 on all; its draft alone, −1.18 ± 1.50), the rules' K won at its last look (+1.70 ±
+0.74, z 2.30), as their full runs read. In all 6,272 of 9,600 (65%). The largest savings are clear losses and futile
+candidates at confirmation: the battle forest's drop decided at 128 seeds of 768, route D at 128, route A at 256.
+
+**Null checks.** Each of the 32 comparisons with a and b swapped seed by seed at random (the paired difference's sign
+flipped, progress and clears together: nothing to find, the data's own spread and ties), 2,000 times each: **3.30%
+false positives** (a win or a loss), 14.6% futile, 93% of the seeds played. The shipped expert of 7721702 against
+itself on different seeds (its 1,024 runs, `rfc` and `rfs`), 4,000 draws each: split at random into a and b of 512,
+2.77% (to 256 seeds, 3.08%); 768 pairs drawn with replacement, 2.92% (the fixed test on the same draws 4.63%, to 256
+4.85%); futile in 12–27%, 83–95% of the seeds played. Under α everywhere: futility ends some paths that would have
+crossed. Power (per-seed differences normal with the expert's spread, 34 points; no clears to spare a futile path): at
+most 768 seeds, a true gain of 3.5 points is won 80.0% of the time (the fixed test 81.4%) in 599 seeds on average, 5
+points 97.5% in 432, 8 points always in 202; a point 12.3% (12.9%), 16% futile; no difference 2.6% won, in 603.
+
+**The run cache** (`src/sim/runcache.js`). A run is a pure function of the code, the expert and its job, so playAll
+keeps every finished run's record (the harness's line, gzipped JSON, ~1 KB) under a sha256 of the code (every file of
+`src/sim`, the sim, `expert.json` and `combos.json` and the offline tools beside them, so a change to any misses, the
+safe side; the `src/` modules it imports, `content.js` and `tuning.js`; Node's version), the job (its keys sorted:
+seed, level, ascension, Monarch, scale, commitment and strictness, ablation, rung…) and every file a job names
+(`expert:`, `forest:`, `outforest:`, a route's) by its bytes, never its path; it reads it before playing, and jobs alike
+in one call are played once (`--paired x,x`). `--paired`, `--builds`, `--ladder`, `--ablations` and the sim report use
+it; a caller of the exports, none. It lives in `~/.cache/retinue-runs/<code hash>/` (`--cache <dir>`, `RETINUE_CACHE`;
+`--no-cache` bypasses it), a directory a code version: deleting one clears it. A record read back is the one played,
+its seconds as played. So a comparison's base side is played once a code version, and since a sequential comparison's
+seeds are a fixed one's first, a fixed run after it plays only the seeds left. Checked on tiny `--paired`, `--builds`,
+`--ladder` and sim reports: the same lines as d4880b7's, played and read back; a changed source file misses (tested).
+
+**Tests**: 529, all passing (`--test-concurrency=2`, 199 s): `test/measure.test.js`'s 5 new (the bounds, the rule on
+made-up pairs, false positives under α, the cache's key and hits, `--paired --sequential` end to end);
+`ascension.test.js`'s run of the CLI takes `--no-cache`.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
@@ -2229,7 +2322,8 @@ In force before this plan and still, with the amendments it makes:
 - Money always matters: essence is scarce on every floor, and a relic bought is a tier not bought.
 - Balance comes once, at the end. No tuning while building, but the numbers a step names (§6).
 - Plan first; at most two agents at once; implement → verify → clean → bug hunt → bug hunt → balance. **Measure with
-  the instrument §3 names for the question**, pair by seed, and never keep a change on the seeds it was chosen on.
+  the instrument §3 names for the question**, pair by seed, and never keep a change on the seeds it was chosen on (a
+  comparison may stop once decided by §3's rule, 2026-10-16; its selection and confirmation seeds stay distinct).
 - **The autoplayer is frozen** (§3, §4.0): its weights are not searched again and its rules not rewritten; its
   forests and route are refitted only at a milestone, and a refit is kept only on a paired gain on fresh seeds. The
   book is remade after every content change.

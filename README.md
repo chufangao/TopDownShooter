@@ -136,6 +136,8 @@ npm run decisions     # how much the player's choices decide battles
 npm run audit         # what the expert considered, and which rule decided
 npm run combos        # rank the combo book into src/sim/combos.json
 npm run sim -- --paired a,b --runs 768 --seed chk   # two experts on the same seeds (forest:<f>, outforest:<f>, route:<hand|learned|f>, none)
+npm run sim -- --paired a,b --sequential [--runs 768] [--block 64] [--min-gain 1] [--design peto|pocock|obf]
+                      # the same, in blocks of seeds, stopped once decided (--builds --sequential: each archetype so)
 npm run teach         # labels: a piece's options played out (--draw state, --augment, --teacher for the teacher's ceiling)
 npm run outside       # the teacher out of battle, and its labels (--label --phases recruit,spend,prep)
 npm run forest        # fit the battle forest; npm run outforest: the recruit's and the formation's
@@ -144,6 +146,18 @@ npm run bundle -- --forest f.json   # ship a fitted part into src/sim/expert.jso
 
 Ablations: core `orders`, `tracks`, `summons`; `formation` (reported without a band); extras `fusions`,
 `legendaries`, `relics`, `synergies`.
+
+A comparison is cheaper two ways (redesign.md §3, §8 "Cheaper measurement"). `--sequential` plays the seeds in blocks
+of 64, in seed order, and after each block reads b's paired gain in progress against its standard error: it stops for
+a win or a loss once |z| ≥ 3 (at the last block 2.03 at 768 seeds, 1.98 at 256: a Haybittle–Peto design, two-sided α
+0.05 over every look), and for futility once b's one-sided 95% upper bound is under a point of progress while b is not
+ahead on clears; else it plays to `--runs` (768), level there with the clears the tiebreak. On the refit's comparisons
+it played 4,608 seeds of 7,680 and changed no decision. And every run played by `--paired`, `--builds`, `--ladder`,
+`--ablations` or the sim report is kept in a **run cache** keyed by the code (every file of `src/sim`, `content.js`,
+`tuning.js`, Node's version), the expert's bytes and the run's options, and read back instead of played: the base side
+of a comparison is played once per code version, and a changed file plays everything again. It lives in
+`~/.cache/retinue-runs` (`--cache <dir>` or `RETINUE_CACHE` to move it, `--no-cache` to bypass it), a directory a code
+version; `rm -rf ~/.cache/retinue-runs` clears it. A record read back keeps the seconds it took when played.
 
 The harness (redesign.md §3) measures the builds. An archetype is a fused kind or a synergy, as content makes them; a
 run committed to one reads the book's combos for it alone (those that fuse it, or reach its kin's or role's count), so
@@ -178,8 +192,9 @@ the same); `--scale` multiplies every foe's HP and ATK on top of it, an override
   players and CLI; `rng.js`. Offline only, never imported by play: `teach.js`, `outside.js` (labels and the teachers),
   `forestfit.js` (the battle forest's fitting), `outforest.js` (the forests out of battle and their fitting), `fit.js`
   (the learned route's fit), `calc.js` (the calculator, a weight-free player and the novice rung, and a rollout teacher
-  over it: redesign.md §3, §8). The earlier learners (V, the ranker), the stronger battle teacher and the turn's beam
-  were removed on 2026-10-15 (redesign.md §8).
+  over it: redesign.md §3, §8), `sequential.js` (a paired comparison's stopping rule) and `runcache.js` (the runs
+  kept). The earlier learners (V, the ranker), the stronger battle teacher and the turn's beam were removed on
+  2026-10-15 (redesign.md §8).
 - `src/content.js` is all content as records, one per unit, ability and relic, and the one rule that makes the trines
   a kind has no record for (`trineOf`, redesign.md §4.1); `src/tuning.js` every balance number (`TUNING`, the trines',
   the expert's and the ascension's tables included).

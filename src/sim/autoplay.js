@@ -29,7 +29,8 @@
 // (`--forest <file|none>`: the expert's forest, forest.js, from that file or none; the shipped expert's by default)
 // for two players on the same seeds, paired:  … --paired <a>,<b> [--runs 256] [--seed sel] [--workers 4]  (each a forest
 // file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, `expert:<file>` a whole expert, or none: today's
-// expert, playerOf)
+// expert, playerOf; `--sequential [--block 64] [--min-gain 1]`: in blocks, stopped once decided, sequential.js; a
+// report's runs kept and read back, runcache.js: `--cache <dir>`, `--no-cache`)
 // for the gap between the levels:     … --ladder [--runs 8] [--ascension 0|<a,b,…>|all] [--teacher] [--forest file|none]
 // (the rungs basic, the calculator, the expert and with --teacher the outside teacher, at each level of the ascension
 // ladder; `--ascension <level>` plays any report at that level, and `--monarch <id>` as that Monarch: content.js
@@ -3832,7 +3833,8 @@ async function necessity ({ runs, seed: seed0, setups: file = null, ascension = 
 // run's end by the expert, the first that clears taken; the expert in battle; ~67 s a run), committed through the same
 // book. `--ascension`: the level of the ladder its runs are played at (createRun's; 0 by default). `--scale`: every
 // foe's HP and ATK × it on top of the level's (createRun's: an override for probing). `--out`: the rows, the block and
-// every run's record, as JSON.
+// every run's record, as JSON. `--sequential [--block 64]`: each archetype against free play stopped once decided
+// (sequential.js), `--runs` the most (768).
 // Noise as the old spec reported it: ± one standard error of the paired difference; 64 seeds resolve ~6 points of
 // clear rate, 256 ~3.
 // --pool [--runs 256] [--seed div]  (npm run pool): what a run can gather (poolTable).
