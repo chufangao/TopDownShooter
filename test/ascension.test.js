@@ -263,7 +263,7 @@ test('a report at a level plays its runs there: --paired and --audit as --builds
   const mean = (rs) => (100 * rs.reduce((n, r) => n + r.progress, 0) / runs).toFixed(1)
   const [base, top] = [at(0), at(TOP)]
   assert.notEqual(mean(top), mean(base), 'the seeds read the level')
-  const out = execFileSync(process.execPath, ['src/sim/autoplay.js', '--paired', 'none,none', '--level', 'basic', '--runs', String(runs), '--seed', 'h2p', '--ascension', String(TOP), '--workers', '1'],
+  const out = execFileSync(process.execPath, ['src/sim/autoplay.js', '--paired', 'none,none', '--level', 'basic', '--runs', String(runs), '--seed', 'h2p', '--ascension', String(TOP), '--workers', '1', '--no-cache'],
     { cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8' })
   assert.ok(out.includes(`ascension ${TOP}`), out)
   const row = out.split('\n').find((l) => l.startsWith('a '))
