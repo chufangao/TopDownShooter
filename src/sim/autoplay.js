@@ -1748,9 +1748,9 @@ function comboProgress (s, c, counts = standingCounts(s)) {
       const r = have < k && recipeOf(id)
       if (!r) return
       const n = Object.values(r.needs).reduce((x, m) => x + m, 0)
-      for (const [part, m] of Object.entries(r.needs)) count(part, (k - have) * m, w / n)
+      for (const [part, m] of entriesOf(r.needs)) count(part, (k - have) * m, w / n)
     }
-    for (const [id, k] of Object.entries(needs)) count(id, k, 1)
+    for (const [id, k] of entriesOf(needs)) count(id, k, 1)
     return got / all
   }
   const of = (axis, value) => {
@@ -1758,17 +1758,34 @@ function comboProgress (s, c, counts = standingCounts(s)) {
     for (const [id, m] of counts) if (unitDef(id)[axis] === value) n += m * synergyWeight({ id })
     return n
   }
-  const parts = []
+  // The parts summed as they come (the order a list of them would sum in), and counted.
+  let sum = 0
+  let parts = 0
+  const part = (x) => {
+    sum += x
+    parts++
+  }
   if (c.fuse) {
     const made = pieces(fusionDef(c.fuse).result) > 0
-    parts.push(made ? 1 : share(c.needs), made ? 1 : 0)
+    const first = made ? 1 : share(c.needs)
+    part(first)
+    part(made ? 1 : 0)
   } else if (c.kin || c.role) {
-    for (const [k, n] of Object.entries(c.kin ?? {})) parts.push(Math.min(1, of('kin', k) / n))
-    for (const [r, n] of Object.entries(c.role ?? {})) parts.push(Math.min(1, of('role', r) / n))
-  } else parts.push(share(c.needs))
-  const held = Object.entries(c.tracks).filter(([id]) => pieces(id) > 0)
-  parts.push(held.length ? held.reduce((n, [id, t]) => n + (s.kinds[id]?.tracks[t] ?? 0) / 4, 0) / Object.keys(c.tracks).length : 0)
-  return parts.reduce((n, x) => n + x, 0) / parts.length
+    for (const [k, n] of entriesOf(c.kin ?? NO_NEEDS)) part(Math.min(1, of('kin', k) / n))
+    for (const [r, n] of entriesOf(c.role ?? NO_NEEDS)) part(Math.min(1, of('role', r) / n))
+  } else part(share(c.needs))
+  const tracks = entriesOf(c.tracks)
+  const held = tracks.filter(([id]) => pieces(id) > 0)
+  part(held.length ? held.reduce((n, [id, t]) => n + (s.kinds[id]?.tracks[t] ?? 0) / 4, 0) / tracks.length : 0)
+  return sum / parts
+}
+// An object's entries, made once an object: the book's combos and the recipes' needs (made at load, never changed).
+const ENTRIES = new WeakMap()
+const NO_NEEDS = Object.freeze({})
+function entriesOf (o) {
+  let out = ENTRIES.get(o)
+  if (out === undefined) ENTRIES.set(o, (out = Object.entries(o)))
+  return out
 }
 // The standing souls of each kind in state `s`.
 function standingCounts (s) {
