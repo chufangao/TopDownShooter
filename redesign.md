@@ -185,10 +185,10 @@ a forest is confident, take its word.
   the formation score, the sketch, the book's formula, the draft and hold rules. Fitted on playouts: the formation's
   forest on the game of 7721702 (the refit, 2026-10-16); the battle and the recruit's forests and the route on f8c536f's
   content, each kept at the refit as worth 7, 15 and 5 points of clears there.
-- **Strength and cost.** ~4.4 s a run (the game of 7721702, a core of four busy); 78.4% on 768 seeds `rfc` after the
-  refit (the shipped expert 76.2%); 99.3% of battles won; its deaths on floor 1 (20% of runs) and in the Sovereign's
-  room; ~31 battles a run. At f8c536f: ~7–9 s a run, 77.7% on 768 seeds `fin` from the trio start, 65% on `aud-0…59`
-  with the draft. The ladder: basic 0%, calculator 0%, expert 65–78%, outside teacher 98%.
+- **Strength and cost.** ~4.4 s a run (the game of 7721702, a core of four busy), ~2.1 s since the speed pass (§8);
+  78.4% on 768 seeds `rfc` after the refit (the shipped expert 76.2%); 99.3% of battles won; its deaths on floor 1 (20%
+  of runs) and in the Sovereign's room; ~31 battles a run. At f8c536f: ~7–9 s a run, 77.7% on 768 seeds `fin` from the
+  trio start, 65% on `aud-0…59` with the draft. The ladder: basic 0%, calculator 0%, expert 65–78%, outside teacher 98%.
 - **What a content change does to it.** The book must be remade (`npm run combos`; the content test fails a recipe the
   book lacks). The readers need nothing for a new kind, relic or recipe; a new effect op or shape needs its line in the
   readers (`estimate`, `STATUS_WORTH`). The forests and the route go stale and keep playing. **The refit** (a milestone,
@@ -2304,6 +2304,69 @@ seeds are a fixed one's first, a fixed run after it plays only the seeds left. C
 **Tests**: 529, all passing (`--test-concurrency=2`, 199 s): `test/measure.test.js`'s 5 new (the bounds, the rule on
 made-up pairs, false positives under α, the cache's key and hits, `--paired --sequential` end to end);
 `ascension.test.js`'s run of the CLI takes `--no-cache`.
+
+### The speed pass (2026-10-16)
+
+**Why** (the user's ask): every label, playout and paired measurement of this plan is made of expert runs, ~4.6 s each
+on a core. The ask: the expert and the sim under it at least twice as fast a run, every decision the same, every run's
+log byte for byte as it was. Thirteen commits on d4880b7 (9ecedee…b94c069), then improvement-plan merged in (ae5c410);
+no tuning number, no content, no decision changed, the harness's CLI untouched.
+
+**What was done**, by the profile's order (the four runs `prof-0…3`, `node --cpu-prof`; 3,411 actions, 112 battles):
+
+- **Copies of a run** (`run.js copyRun`): by hand, not by structuredClone (14% of the profile): the state is plain data
+  with no object reached twice; the log's entries and the floor's map shared (never written once made; the map copied
+  while the draft is on, whose last pick opens it). A late state: 1.40 ms → 5 µs. The growth search's forks, the
+  teachers' playouts (outside.js, calc.js, teach.js).
+- **A unit's stats** (`unit.js`): tiersOf kept a kind and pair of tiers, trackMods with it, statsOf kept on a key of all
+  it reads (kind, level, tiers, position, each mod by identity in order, TUNING.monarch.hp), the stats frozen and shared.
+- **The book and the formation** (autoplay.js): bookValue and targetOf one pass over the combos, kept by state on what
+  they read; a combo's entries made once; formationFeatures' per-piece reads once a plan (`ctx.reads`: the hill-climb's
+  120 formations are the run's souls in other cells), its coverage once a formation; coverage's key joined, not JSON.
+- **The battle forest** (forest.js `predictions`): the trees read tree by tree for all of a decision's candidates and
+  today's choice at once (megabytes of trees, a dozen candidates), the decision's inputs encoded once.
+- **The battle's reads** (policy.js, expert.js, turns.js, plan.js): an option's features start from a literal (a spread
+  of the frozen BLANK took V8's slow path: 773 ns against 34); conditions one literal; the full situation built whole (the
+  lean read's getter spread was slow too); afterOf's and the opening board's situation `short` of the threat's strikes,
+  which conditions never reads; a move given by the path its option read (turns.js order's `path`, not reach flooded
+  again); a road ahead as tiles where only tiles are read (`roadTiles`); a one-tile piece's footprint read without one
+  made; synergies' needs made once; danger's scratch kept; the shortlist's scores taken from decideTree's where no hard
+  rule filtered.
+
+Why reads may be skipped or reordered on the battle's copies: stats' cache (turns.js `stats`) answers the same whoever
+asks first. refresh reads every living unit after every order, so between orders each unit's entry stands at the
+current roster and synergies, and an entry's roster only ever moves with a list it was made with.
+
+**Before → after** (d4880b7 against ae5c410, one process at a time on a four-core box another agent shared; wall, CPU
+in brackets: V8's GC and compiler threads):
+
+| Job | Before | After | |
+|---|---|---|---|
+| The expert, 32 runs `div-0…31` | 123.8 s (159.4), 3.87 s a run | 66.5 s (97.6), 2.08 s a run | 1.86× |
+| The profile's four runs `prof-0…3` (min of three, interleaved) | 16.0 s | 8.7 s | 1.8× |
+| basic, 32 runs | 0.56 s | 0.43 s | 1.3× |
+| the calculator, 32 runs | 25.4 s | 21.3 s | 1.19× |
+| its teacher, `div-1` | 38.6 s | 34.0 s | 1.13× |
+| the outside teacher, `prof-1` `--won` | 16.5 s | 6.5 s | 2.5× |
+| `teach.js --runs 2 --draw state`, a worker (74 positions) | 36.6 s | 24.1 s | 1.52× |
+| `outside.js --label --phases recruit,prep --runs 1`, a worker | 12.9 s | 7.9 s | 1.62× |
+| `npm test` (529, `--test-concurrency=2`; a8d3bd1 against ae5c410) | 199 s | 119 s | 1.67× |
+
+Short of 2× on the expert: what is left is the battle's afterstate (afterOf, ~21%: a copied board, the option given, a
+full situation read for each candidate the forest weighs), the copies' unit spreads (megamorphic, a dozen shapes), V8's
+GC (~8%) and the forest's trees (~4%, memory-bound). The calculator reads every option's features, twice a piece, and
+none of this pass's large gains were its.
+
+**The identity check** (`sp-check.sh` in the session's scratchpad, after every step and after the merge): 117 files,
+each one's sha256 as at d4880b7: 16 expert runs (`div-0…7`, `prof-0…3`, clears and floor-1 deaths alike; `div-0` at
+ascension 5, `div-4` at 3; `div-1` as the Brass Monarch, `div-2` as the Hive) with each one's full log, end state, state
+replayed from the log, harness record and every battle's events; basic on 4 seeds, the calculator on 4 and its teacher
+on 1 with every battle's events; the outside teacher's run with `--won`; a battle-label job (`teach.js --runs 2 --draw
+state`) and an out-of-battle one (`outside.js --label --phases recruit,prep --runs 1`), their rows timing aside. One
+battle played in Chromium after the steps that touch the game's modules (unit.js, turns.js, run.js): no console error.
+Tried and not kept: the trees interleaved in one array (no faster), a larger young generation (`--max-semi-space-size`,
+no faster), synergyCounts reading each def once and statsOf's key without a join (no measurable gain). Tests: 529, all
+passing.
 
 ## 9. Standing rules
 
