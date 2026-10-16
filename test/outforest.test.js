@@ -10,9 +10,9 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D,
-  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard, adjustAt
+  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard, adjustAt, deltaAt
 } from '../src/sim/outforest.js'
-import { labelRun, rereadRun, baseStep, candidatesAt } from '../src/sim/outside.js'
+import { labelRun, rereadRun, baseStep, candidatesAt, labelConfig } from '../src/sim/outside.js'
 import { createRun, apply, availableNodes, souls, join, START_PARTY } from '../src/sim/run.js'
 import { slotAt } from '../src/sim/unit.js'
 import { fight } from './rooms.js'
@@ -158,6 +158,25 @@ test('the labeller is deterministic, its run the base\'s untouched by its playou
   }
 })
 
+test('the recruits are labelled by their floor\'s chance (recruits), each row as every recruit\'s labelling made it', () => {
+  const before = outForestModel()
+  try {
+    useOutForest(null)
+    // sim-10 falls on floor 1: floor 1's recruits are all of them, and a chance of 0 there labels none.
+    const all = labels().rows.filter((r) => r.phase === 'recruit')
+    assert.ok(all.length > 0 && all.every((r) => r.floor === 1))
+    const one = labelRun(SEED, { cap: CAP, phases: 'recruit', recruits: '1,0' })
+    assert.deepEqual(one.rows, all)
+    assert.deepEqual(one.line.settings.recruits, [1, 0])
+    assert.equal(labelRun(SEED, { cap: CAP, phases: 'recruit', recruits: [0, 1] }).rows.length, 0)
+    assert.equal(labelConfig().recruits.join(), '1')
+    assert.equal(labels().line.settings.recruits, undefined)
+    assert.throws(() => labelConfig({ recruits: '1,2' }), /recruits/)
+  } finally {
+    useOutForest(before)
+  }
+})
+
 test('with no forest out of battle the expert is today\'s; one whose advantages never pass its margin plays it move for move', () => {
   const before = outForestModel()
   try {
@@ -247,6 +266,13 @@ test('a phase\'s correction (adjust) moves each candidate\'s advantage by its re
   assert.deepEqual(chooseOut(floors, 'recruit', read(1)), { index: 1, margin: 0.3 })
   assert.deepEqual(chooseOut(floors, 'recruit', read(2)), { index: 2, margin: 0.2 })
   assert.deepEqual(chooseOut(floors, 'recruit', read(3)), { index: 2, margin: 0.2 })
+  // A margin by floor (deltas) over the one margin: the forest silent on floor 1, its word on 2 and past it.
+  const margins = outOf({ recruit: { ...by(null).phases.recruit, deltas: [1e9, 0.1] } })
+  assert.deepEqual(chooseOut(margins, 'recruit', read(1)), { index: 0, margin: 0 })
+  assert.deepEqual(chooseOut(margins, 'recruit', read(3)), { index: 1, margin: 0.3 })
+  assert.equal(deltaAt({ delta: 0.25 }, 2), 0.25)
+  assert.equal(deltaAt({ delta: 0.25, deltas: [1, 2] }, 1), 1)
+  assert.throws(() => checkOutForest(outOf({ recruit: { ...by(null).phases.recruit, deltas: [] } })), /deltas/)
   assert.deepEqual(adjustAt({ recruit: [1, 2, 3], 'r.new': 0 }, 2), [['recruit', 2]])
   assert.equal(adjustAt({ recruit: 0 }, 1), null)
   assert.equal(adjustAt(undefined, 1), null)

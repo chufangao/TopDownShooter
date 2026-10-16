@@ -76,7 +76,7 @@
 // (a stage gone on with must name the same), report.json the paired report. A stage stopped part way goes on from where it
 // was (the seeds done skipped).
 //   npm run outside -- --label [--runs 200] [--seed outl] [--from 0] [--workers 8] [--out dir] [--cap 6] [--spend 1] [--calm 0.25]
-// [--formations 9] [--phases recruit,spend,prep] [--floors 1,1,1,1]
+// [--formations 9] [--phases recruit,spend,prep] [--floors 1,1,1,1] [--recruits 1,0]
 // labels the base's recruits, purchases and formations for the forest out of battle (outforest.js): see LABEL below.
 //   npm run outside -- --reread <dir> --out <dir> [--workers 8]   a label set's reads made again (rereadRun).
 //
@@ -628,27 +628,33 @@ const settingsOf = (c) => ({
 // score, at most `cap`, and passing on: stopping played as passing on, the base's next decision taken now), at a prep
 // autoplay.js prepCandidates' (today's formation first, then the plan's next best in today's order, at most `cap`, and
 // the best of its drafts beside them); the base's own pick among them; each read as play reads it (autoplay.js
-// outsideRead, prepRead). Every recruit is labelled; a purchase's decision met again in a prep unchanged but for its
-// placements (the same purse, kinds, relics and souls) only the first time, and a purchase drawn (a hash of the seed and
-// the log index) with chance `spend` where two or more purchases of different kinds (a fusion one) are among its
-// candidates, else `calm`; a prep once a plan (planKey: a tier bought between its steps makes another), where the base
-// would first place a soul or fight, drawn with its floor's chance (`floors`, floor 1's first, the last for every floor
-// past them). A row weighs 1 / its chance (`wt`). A worker labels a whole run, so its fights' store (playout's) serves
-// every decision of the run: the base's own line is played once, each candidate's from where it leaves it.
-export const LABEL = Object.freeze({ cap: 6, formations: PREP_CAP, spend: 1, calm: 0.25, phases: 'recruit,spend', floors: Object.freeze([1]) })
+// outsideRead, prepRead). Every recruit is labelled, or drawn with its floor's chance (`recruits`, as `floors`: the recruit
+// learner's, 2026-10-16, floor 1's alone where the rest decide nothing); a purchase's decision met again in a prep
+// unchanged but for its placements (the same purse, kinds, relics and souls) only the first time, and a purchase drawn (a
+// hash of the seed and the log index) with chance `spend` where two or more purchases of different kinds (a fusion one)
+// are among its candidates, else `calm`; a prep once a plan (planKey: a tier bought between its steps makes another),
+// where the base would first place a soul or fight, drawn with its floor's chance (`floors`, floor 1's first, the last
+// for every floor past them). A row weighs 1 / its chance (`wt`). A worker labels a whole run, so its fights' store
+// (playout's) serves every decision of the run: the base's own line is played once, each candidate's from where it
+// leaves it.
+export const LABEL = Object.freeze({ cap: 6, formations: PREP_CAP, spend: 1, calm: 0.25, phases: 'recruit,spend', floors: Object.freeze([1]), recruits: Object.freeze([1]) })
 const LABEL_PHASES = Object.freeze(['recruit', 'spend', 'prep'])
 const labelDraw = (seed, at, phase) => parseInt(hashString(phase === 'prep' ? `outside-label|prep|${seed}|${at}` : `outside-label|${seed}|${at}`).slice(0, 8), 16) / 2 ** 32
 
-// A labelling's settings made whole: its phases a list of known names, its floors' chances a list of numbers in (0, 1].
+// A labelling's settings made whole: its phases a list of known names, its floors' chances (preps') a list of numbers in
+// (0, 1], its recruits' by floor in [0, 1].
 export function labelConfig (cfg = {}) {
   const lc = { ...LABEL, ...cfg }
   const phases = typeof lc.phases === 'string' ? lc.phases.split(',').filter(Boolean) : [...lc.phases]
   for (const p of phases) if (!LABEL_PHASES.includes(p)) throw new Error(`no labels for phase "${p}": ${LABEL_PHASES.join(', ')}`)
-  const floors = typeof lc.floors === 'string' ? lc.floors.split(',').map(Number) : [...lc.floors]
+  const list = (x) => (typeof x === 'string' ? x.split(',').map(Number) : [...x])
+  const floors = list(lc.floors)
   if (!floors.length || !floors.every((x) => x > 0 && x <= 1)) throw new Error(`floors ${floors}: each floor's chance in (0, 1]`)
-  return { ...lc, phases, floors }
+  const recruits = list(lc.recruits)
+  if (!recruits.length || !recruits.every((x) => x >= 0 && x <= 1)) throw new Error(`recruits ${recruits}: each floor's chance in [0, 1]`)
+  return { ...lc, phases, floors, recruits }
 }
-const floorChance = (floor, lc) => lc.floors[Math.min(floor, lc.floors.length) - 1]
+const floorChance = (floor, lc, of = lc.floors) => of[Math.min(floor, of.length) - 1]
 
 // The recruit or purchase the base meets first at `run`, as the labels read it: { phase, cands (today's first:
 // outsideRead's), plays (each candidate as a playout plays it), base (the base's pick's id) }, or null where the base
@@ -722,7 +728,7 @@ export function labelRun (seed, cfg = {}) {
         const k = counts[d.phase]
         k.met++
         const key = d.phase === 'spend' ? JSON.stringify([s.floor, s.at, s.essence, s.kinds, s.relics, s.party.map((u) => [u.uid, u.hp, u.relics])]) : null
-        const chance = d.phase === 'spend' ? spendChance(d.cands, lc) : d.phase === 'prep' ? floorChance(s.floor, lc) : 1
+        const chance = d.phase === 'spend' ? spendChance(d.cands, lc) : d.phase === 'prep' ? floorChance(s.floor, lc) : floorChance(s.floor, lc, lc.recruits)
         if (key && seen.has(key)) k.again++
         else if (labelDraw(seed, s.log.length, d.phase) >= chance) k.undrawn++
         else {
@@ -767,10 +773,13 @@ export function labelRun (seed, cfg = {}) {
 }
 // The settings a labelling's lines and manifest record (the recruit's and the purchases' alone as they were first
 // recorded).
-const labelSettings = (lc) => ({ label: true, cap: lc.cap, spend: lc.spend, calm: lc.calm, ...(lc.phases.join() !== LABEL.phases && { phases: lc.phases.join(), formations: lc.formations, floors: lc.floors }) })
+const labelSettings = (lc) => ({
+  label: true, cap: lc.cap, spend: lc.spend, calm: lc.calm, ...(lc.phases.join() !== LABEL.phases && { phases: lc.phases.join(), formations: lc.formations, floors: lc.floors }),
+  ...(lc.recruits.join() !== LABEL.recruits.join() && { recruits: lc.recruits })
+})
 
 // `npm run outside -- --label [--runs 200] [--seed outl] [--from 0] [--workers 8] [--out dir] [--cap 6] [--formations 9]
-// [--spend 1] [--calm 0.25] [--phases recruit,spend,prep] [--floors 1,1,1,1]`: labels seeds `<seed>-<from>`… (labelRun), each a
+// [--spend 1] [--calm 0.25] [--phases recruit,spend,prep] [--floors 1,1,1,1] [--recruits 1,0]`: labels seeds `<seed>-<from>`… (labelRun), each a
 // worker's whole run, into `--out` (the OS's temp directory, retinue-outlabel-<seed>, by default): labels.jsonl (a row a
 // decision), runs.jsonl (a line a run, written after its rows), manifest.json (the settings, the base, the counts, the
 // wall time and the throughput: decisions, candidates and runs an hour). A stage stopped part way goes on from where it
@@ -783,7 +792,7 @@ async function labelMain (arg) {
   const dir = arg('out', path.join(os.tmpdir(), `retinue-outlabel-${seed}`))
   const lc = labelConfig({
     cap: Number(arg('cap', LABEL.cap)), formations: Number(arg('formations', LABEL.formations)), spend: Number(arg('spend', LABEL.spend)), calm: Number(arg('calm', LABEL.calm)),
-    phases: arg('phases', LABEL.phases), floors: arg('floors', LABEL.floors.join())
+    phases: arg('phases', LABEL.phases), floors: arg('floors', LABEL.floors.join()), recruits: arg('recruits', LABEL.recruits.join())
   })
   const settings = labelSettings(lc)
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
