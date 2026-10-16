@@ -294,6 +294,15 @@ export function checkOutForest (config) {
     if (!Array.isArray(inputs) || !Array.isArray(size) || !Array.isArray(feat)) throw new Error(`outforest: ${phase} has no inputs or no trees`)
     for (const n of inputs) if (!known.has(n)) throw new Error(`outforest: unknown input "${n}"`)
     if (!Number.isFinite(m.delta)) throw new Error(`outforest: ${phase} has no margin (delta)`)
+    if (m.adjust !== undefined) {
+      if (typeof m.adjust !== 'object' || m.adjust === null || Array.isArray(m.adjust)) throw new Error(`outforest: ${phase}'s adjust is no object`)
+      const reads = new Set(KEYS[phase][1])
+      for (const [k, w] of Object.entries(m.adjust)) {
+        if (!reads.has(k)) throw new Error(`outforest: ${phase}'s adjust reads no candidate key "${k}"`)
+        const ws = Array.isArray(w) ? w : [w]
+        if (!ws.length || !ws.every(Number.isFinite)) throw new Error(`outforest: ${phase}'s adjust of "${k}" is no number or list of them`)
+      }
+    }
     if (!TARGETS.includes(m.target)) throw new Error(`outforest: ${phase} has no target "${m.target}"`)
     let inner = 0
     for (const f of feat) {
@@ -328,20 +337,34 @@ export function opensBoard (m) {
   return OPENS.get(m)
 }
 
+// A phase's correction (`adjust`: the recruit learner of 2026-10-16, redesign.md §8, searched on whole runs, not fitted
+// on playouts): { key: w } or { key: [w on floor 1, on floor 2, …] } over a candidate's reads (the phase's candidate
+// keys: CAND_KEYS, PREP_CAND_KEYS), each candidate's advantage gaining Σ w × (its read − today's pick's), w the floor's
+// (the situation's `floor`; the list's last past its end). None: the forest's advantage alone. → [[key, w], …] or null
+export function adjustAt (adjust, floor = 1) {
+  if (!adjust) return null
+  const at = (w) => (Array.isArray(w) ? w[Math.min(w.length, Math.max(1, floor)) - 1] : w)
+  const out = Object.entries(adjust).map(([k, w]) => [k, at(w)]).filter(([, w]) => w !== 0)
+  return out.length ? out : null
+}
+
 // The candidate forest `model` takes at decision `read` of `phase` (outsideRead's or prepRead's: `f[0]` today's pick's):
 // each candidate's R (the trees' mean), its advantage over today's R less today's own (target 'mean') or R itself
-// (target 'today'); the best other by it, the earlier where equal, where it exceeds the phase's delta, else today's. →
-// { index (into read.f, 0 today's), margin (the advantage it was taken by; 0 for today's) }
+// (target 'today'), corrected by the phase's `adjust` where it has one (adjustAt); the best other by it, the earlier
+// where equal, where it exceeds the phase's delta, else today's. → { index (into read.f, 0 today's), margin (the
+// advantage it was taken by; 0 for today's) }
 export function chooseOut (model, phase, read) {
   const m = model?.phases?.[phase]
   if (!m || read.f.length < 2) return { index: 0, margin: 0 }
   const rt = runtimeOf(m, phase)
   const today = read.f[0]
   const base = m.target === 'mean' ? treesMean(rt, encodeOut(read.sit, today, today, phase, rt.x)) : 0
+  const adj = adjustAt(m.adjust, read.sit.floor)
   let best = 0
   let top = -Infinity
   for (let i = 1; i < read.f.length; i++) {
-    const a = treesMean(rt, encodeOut(read.sit, read.f[i], today, phase, rt.x)) - base
+    let a = treesMean(rt, encodeOut(read.sit, read.f[i], today, phase, rt.x)) - base
+    if (adj) for (const [k, w] of adj) a += w * ((read.f[i][k] ?? 0) - (today[k] ?? 0))
     if (a > top + EPS) {
       top = a
       best = i

@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D,
-  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard
+  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard, adjustAt
 } from '../src/sim/outforest.js'
 import { labelRun, rereadRun, baseStep, candidatesAt } from '../src/sim/outside.js'
 import { createRun, apply, availableNodes, souls, join, START_PARTY } from '../src/sim/run.js'
@@ -229,6 +229,32 @@ test('a forest decides by the best other candidate\'s advantage over today\'s pi
   assert.throws(() => checkOutForest(outOf({ recruit: { ...phaseOf([0]), inputs: ['s.nothing'] } })), /unknown input/)
   assert.throws(() => checkOutForest(outOf({ recruit: { ...phaseOf([0]), delta: undefined } })), /margin/)
   assert.throws(() => checkOutForest({ kind: 'forest', phases: {} }), /no phases/)
+})
+
+test('a phase\'s correction (adjust) moves each candidate\'s advantage by its reads less today\'s, by floor where a list', () => {
+  const sit = (floor) => ({ ...Object.fromEntries(SIT_KEYS.map((k) => [k, 0])), floor })
+  const f = (over) => ({ ...Object.fromEntries(CAND_KEYS.map((k) => [k, 0])), ...over })
+  // Today's a recruit; passing on reads 0.3 above it, another recruit 0.2.
+  const cands = [f({ recruit: 1, 'k.count': 1 }), f({ none: 1 }), f({ recruit: 1, 'r.new': 1, 'k.count': 1 })]
+  const by = (adjust) => outOf({ recruit: { ...phaseOf([{ f: 'f.none', t: 0.5, l: { f: 'f.r.new', t: 0.5, l: 0, r: 0.2 }, r: 0.3 }], { delta: 0.1 }), ...(adjust && { adjust }) } })
+  const read = (floor) => ({ sit: sit(floor), f: cands })
+  assert.deepEqual(chooseOut(by(null), 'recruit', read(1)), { index: 1, margin: 0.3 })
+  // A bias toward recruiting of 0.25: passing on 0.05 above today's, under the margin; the other recruit unmoved.
+  assert.deepEqual(chooseOut(by({ recruit: 0.25 }), 'recruit', read(1)), { index: 2, margin: 0.2 })
+  assert.deepEqual(chooseOut(by({ recruit: 0.25, 'r.new': -0.15 }), 'recruit', read(1)), { index: 0, margin: 0 })
+  // By floor: the list's own on floors 1 and 2, its last past them.
+  const floors = by({ recruit: [0, 0.25] })
+  assert.deepEqual(chooseOut(floors, 'recruit', read(1)), { index: 1, margin: 0.3 })
+  assert.deepEqual(chooseOut(floors, 'recruit', read(2)), { index: 2, margin: 0.2 })
+  assert.deepEqual(chooseOut(floors, 'recruit', read(3)), { index: 2, margin: 0.2 })
+  assert.deepEqual(adjustAt({ recruit: [1, 2, 3], 'r.new': 0 }, 2), [['recruit', 2]])
+  assert.equal(adjustAt({ recruit: 0 }, 1), null)
+  assert.equal(adjustAt(undefined, 1), null)
+  checkOutForest(by({ recruit: [0, 0.25], 'k.count': -0.1 }))
+  assert.throws(() => checkOutForest(by({ 's.floor': 1 })), /no candidate key/)
+  assert.throws(() => checkOutForest(by({ recruit: [] })), /no number/)
+  assert.throws(() => checkOutForest(by({ recruit: 'a' })), /no number/)
+  assert.throws(() => checkOutForest(by([0.1])), /no object/)
 })
 
 test('a forest is fitted on the labels, bagged by run, and reads in play as it was fitted', async () => {
