@@ -10,7 +10,7 @@ import os from 'node:os'
 import path from 'node:path'
 import {
   useOutForest, outForestModel, outDecides, checkOutForest, outInputNames, encodeOut, chooseOut, predictOut, readOutDecision, readOutTable, fitOutForest, SIT_KEYS, CAND_KEYS, OUT_D,
-  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard, adjustAt, deltaAt
+  PREP_SIT_KEYS, PREP_CAND_KEYS, layoutOf, opensBoard, adjustAt, deltaAt, mergeOutForests
 } from '../src/sim/outforest.js'
 import { labelRun, rereadRun, baseStep, candidatesAt, labelConfig } from '../src/sim/outside.js'
 import { createRun, apply, availableNodes, souls, join, START_PARTY } from '../src/sim/run.js'
@@ -248,6 +248,34 @@ test('a forest decides by the best other candidate\'s advantage over today\'s pi
   assert.throws(() => checkOutForest(outOf({ recruit: { ...phaseOf([0]), inputs: ['s.nothing'] } })), /unknown input/)
   assert.throws(() => checkOutForest(outOf({ recruit: { ...phaseOf([0]), delta: undefined } })), /margin/)
   assert.throws(() => checkOutForest({ kind: 'forest', phases: {} }), /no phases/)
+})
+
+test('forests merged predict the mean of their trees, each counted its times, on their inputs\' union', () => {
+  const sit = Object.fromEntries(SIT_KEYS.map((k) => [k, 0]))
+  const f = (over) => ({ ...Object.fromEntries(CAND_KEYS.map((k) => [k, 0])), ...over })
+  const a = { ...phaseOf([{ f: 'f.k.tier', t: 1.5, l: 0, r: 0.6 }], { delta: 0.2 }), adjust: { recruit: [0.4, 0] } }
+  a.inputs = ['f.k.tier']
+  a.feat = [0, -1, -1]
+  const b = phaseOf([{ f: 'f.r.new', t: 0.5, l: 0, r: 0.9 }, 0.3])
+  b.inputs = ['s.floor', 'f.r.new']
+  b.feat = [1, -1, -1, -1]
+  const prep = phaseOf([0.1], { phase: 'prep' })
+  const merged = mergeOutForests([{ config: outOf({ recruit: a, prep }, 'a'), times: 2 }, { config: outOf({ recruit: b }, 'b') }], 'recruit', { name: 'ab' })
+  const m = merged.phases.recruit
+  assert.deepEqual(m.inputs, ['s.floor', 'f.k.tier', 'f.r.new'])
+  assert.equal(m.size.length, 4)
+  assert.equal(m.delta, 0.2)
+  assert.deepEqual(m.adjust, { recruit: [0.4, 0] })
+  assert.equal(merged.phases.prep, prep)
+  assert.equal(merged.name, 'ab')
+  assert.deepEqual(m.made.merged.map((x) => [x.name, x.times, x.trees]), [['a', 2, 1], ['b', 1, 2]])
+  const x = (c) => encodeOut(sit, c, f({}))
+  const p = (forest, c) => predictOut(forest, x(c))
+  for (const c of [f({ 'k.tier': 2, 'r.new': 1 }), f({ 'k.tier': 1 }), f({ 'r.new': 1 })]) {
+    assert.ok(Math.abs(p(m, c) - (2 * 1 * p(a, c) + 2 * p(b, c)) / 4) < 1e-12)
+  }
+  assert.throws(() => mergeOutForests([{ config: outOf({ prep }) }]), /no recruit forest/)
+  assert.throws(() => mergeOutForests([{ config: outOf({ recruit: a }), times: 0 }]), /times/)
 })
 
 test('a phase\'s correction (adjust) moves each candidate\'s advantage by its reads less today\'s, by floor where a list', () => {

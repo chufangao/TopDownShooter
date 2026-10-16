@@ -693,6 +693,39 @@ export async function evalOutForest (dirs, config, { log = null } = {}) {
   return out
 }
 
+// ── forests together ─────────────────────────────────────────────────────────────────────────────
+
+// Phase `phase`'s forests of configurations `parts` ([{ config, times }]) as one: every tree of each, `times` over (a
+// forest's weight in the mean: its trees counted that many times), on the union of their inputs in the phase's layout;
+// the target, the margin and the rest of the first's (an `adjust` or `deltas` of its own kept). The other phases are the
+// first configuration's. The recruit learner's (2026-10-16, redesign.md §8): the shipped recruit forest twice beside the
+// refit's of the current game. → the configuration (checked)
+export function mergeOutForests (parts, phase = 'recruit', { name = 'merged' } = {}) {
+  if (!parts.length) throw new Error('outforest: nothing to merge')
+  const ms = parts.map(({ config }) => config.phases?.[phase])
+  if (ms.some((m) => !m)) throw new Error(`outforest: a configuration has no ${phase} forest`)
+  if (new Set(ms.map((m) => m.target)).size > 1) throw new Error('outforest: forests of different targets')
+  const used = new Set(ms.flatMap((m) => m.inputs))
+  const inputs = outInputNames(phase).filter((n) => used.has(n))
+  const { size: _s, feat: _f, thr: _t, right: _r, value: _v, inputs: _i, made: _m, ...rest } = ms[0]
+  const out = { ...rest, inputs, size: [], feat: [], thr: [], right: [], value: [] }
+  for (const [k, m] of ms.entries()) {
+    const at = m.inputs.map((n) => inputs.indexOf(n))
+    const times = parts[k].times ?? 1
+    if (!(Number.isInteger(times) && times >= 1)) throw new Error(`outforest: a forest's times ${times}: a whole number, 1 or more`)
+    for (let t = 0; t < times; t++) {
+      out.size.push(...m.size)
+      for (const f of m.feat) out.feat.push(f < 0 ? -1 : at[f])
+      out.thr.push(...m.thr)
+      out.right.push(...m.right)
+      out.value.push(...m.value)
+    }
+  }
+  out.made = { merged: parts.map(({ config, times = 1 }, k) => ({ name: config.name, times, trees: ms[k].size.length, made: ms[k].made })) }
+  const first = parts[0].config
+  return checkOutForest({ ...first, name, made: new Date().toISOString(), phases: { ...first.phases, [phase]: out } })
+}
+
 // ── the command ──────────────────────────────────────────────────────────────────────────────────
 
 async function main () {
@@ -702,6 +735,25 @@ async function main () {
     return i >= 0 && argv[i + 1] !== undefined ? argv[i + 1] : def
   }
   const list = (k) => (arg(k, '') || '').split(',').filter(Boolean)
+  // --merge a.json[:2],b.json[:1] --out x.json [--phase recruit] [--adjust '{"recruit":[0.4,0,0]}'] [--name …]: the
+  // forests of a phase together (mergeOutForests; an expert file's `outforest` read as its configuration), the margin's
+  // correction set where given.
+  if (arg('merge', null)) {
+    const fs = node('fs')
+    const phase = arg('phase', 'recruit')
+    const parts = list('merge').map((spec) => {
+      const [file, times = '1'] = spec.split(':')
+      const x = JSON.parse(fs.readFileSync(file, 'utf8'))
+      return { config: x.kind === 'outforest' ? x : x.outforest, times: Number(times) }
+    })
+    const config = mergeOutForests(parts, phase, { name: arg('name', 'merged') })
+    if (arg('adjust', null)) config.phases[phase].adjust = JSON.parse(arg('adjust'))
+    const text = JSON.stringify(checkOutForest(config)) + '\n'
+    fs.writeFileSync(arg('out'), text)
+    const m = config.phases[phase]
+    console.log(`wrote ${arg('out')}: ${phase} ${m.size.length} trees, ${m.feat.length} nodes, ${m.inputs.length} inputs, delta ${m.delta}${m.adjust ? `, adjust ${JSON.stringify(m.adjust)}` : ''}; ${(text.length / 1e6).toFixed(2)} MB`)
+    return
+  }
   const dirs = list('data')
   if (!dirs.length) throw new Error('outforest: --data <dir>[,<dir>…] of outside.js --label labels')
   const fs = node('fs')
