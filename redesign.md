@@ -126,16 +126,16 @@ resolve ~6 points of clear rate, 256 ~3.
 
 ### 4.0 The expert, as it stands
 
-The autoplayer of f8c536f, kept whole. One file holds what it learnt, `src/sim/expert.json` (3.5 MB: `tree`,
+The autoplayer of f8c536f, kept whole. One file holds what it learnt, `src/sim/expert.json` (3.3 MB: `tree`,
 `rules`, `forest`, `outforest`, `route`; `bundle.js` sets or splits a part), one table what was searched,
 `TUNING.expert`, and one what it reads of the content, `src/sim/combos.json`. Every decision is one shape: read the
 situation once, list the options, read each as named features, let a tree force or filter, weigh the rest, and where
 a forest is confident, take its word.
 
-- **In battle** (`policy.js expertTurn`, the fast turn: each piece once, no beam): the **situation**
-  read once a decision (`situation`, ~68 named conditions in `expert.js conditions`: the Monarch's danger and whether
-  it can be felled, lines of fire on it, threats by road and turns to reach, foes by threat type, the wave due, the
-  camp's patience, killable foes, each piece's exposure, synergies); a **plan** chosen by a tree once a turn and kept
+- **In battle** (`policy.js expertTurn`, the fast turn: each piece once, no beam): the **situation** read once a
+  decision (`situation`, ~68 named conditions in `expert.js conditions`: the Monarch's danger and whether it can be
+  felled, lines of fire on it, threats by road and turns to reach, foes by threat type, the wave due, the camp's
+  patience, killable foes, each piece's exposure, synergies); a **plan** chosen by a tree once a turn and kept
   (`plan.js`: hold, focus, push or protect; a target formation of posts, blocks and screens on the roads' lines out of
   the Monarch's reach and an air slot; a kill list by exact arithmetic; a forecast of where the foes will stand; the
   Monarch's shooters first); then the pieces one at a time on the board as the ones before left it, the kill list's
@@ -148,42 +148,50 @@ a forest is confident, take its word.
   monarch-lethal, kill-first, never-die, hold-the-line; the modes guard, protect, push, press, frail), weighed by the
   leaf's **weights** (`TUNING.expert.battle.option` and `.modes`: 178 numbers set by sep-CMA-ES on 128 seeds on
   2026-10-11, checked on 128 others); and the **battle forest** (`expert.json forest`, round 3 of `forest.js`: 200
-  regression trees over 252 inputs, the conditions, the features, the same less the position's mean, and the
-  conditions of the board the option leaves, fitted on playouts of every option to the battle's end) overrules that
-  choice where it reads another candidate more than δ 0.02 above it. The untouched strike or mend with basics at End
-  Turn. `--audit` names the rule or the forest that decided each order.
+  regression trees over 252 inputs, the conditions, the features, the same less the position's mean, and the conditions
+  of the board the option leaves, fitted on playouts of every option to the battle's end) overrules that choice where it
+  reads another candidate more than δ 0.02 above it (not relabelled at the refit of 2026-10-16, §8; worth 5.6 points
+  there). The untouched strike or mend with basics at End Turn. `--audit` names the rule or the forest that decided each
+  order.
 - **Prep** (`autoplay.js plan`, `planFor`): formations drafted from the plan's posts and the frontier, hill-climbed on a
-  static score (`formationFeatures`: the danger the pieces project on the roads, blockers on the roads into the
-  Monarch, shooters behind them, healers beside the threatened, the Monarch's exposure, synergies, an Arise holder by
-  the kill zone; `TUNING.expert.formation`) under the tree's filters (fill-field, answer-air, block-roads); the
-  **formation forest** (`expert.json outforest.prep`, δ 0.1) picks among nine (the plan's, its next five, the best
-  three drafts) by `prepRead`: the run's situation, the coming battle as scouted, the formation's own read, and the
-  battle's read of the board it opens on.
+  static score (`formationFeatures`: the danger the pieces project on the roads, blockers on the roads into the Monarch,
+  shooters behind them, healers beside the threatened, the Monarch's exposure, synergies, an Arise holder by the kill
+  zone; `TUNING.expert.formation`) under the tree's filters (fill-field, answer-air, block-roads); the **formation
+  forest** (`expert.json outforest.prep`, refitted at the refit of 2026-10-16 on the game of 7721702, δ 0.05) picks
+  among nine (the plan's, its next five, the best three drafts) by `prepRead`: the run's situation, the coming battle as
+  scouted, the formation's own read, and the battle's read of the board it opens on.
 - **Growth** (`grow`, `sketch`): the **sketch** is the field's strength (`strength`: a formula over the fielded pieces'
   HP, blows, reach, tiers, summons and the shadows Arise would raise) plus the **book's** value (`combos.json`, made by
   `--combos` in seconds: every fusion, core, kin and role combo ranked by floor by a static formula, with the relics
-  that pair with each; the run's target is the combo of the best worth × progress, `targetOf`). Each tier and fusion
-  is bought by its sketch gain an essence against the best a tier gives (`tierRate`); the **recruit** by the sketch
+  that pair with each; the run's target is the combo of the best worth × progress, `targetOf`). Each tier and fusion is
+  bought by its sketch gain an essence against the best a tier gives (`tierRate`); the **recruit** by the sketch
   (`weighRecruits`), then the **recruit forest** (`expert.json outforest.recruit`, round 2, δ 0.25, over the pick and
   its next five and passing on, read by `outsideRead`): the largest single gain the old spec found (+18 to +21 points,
-  mostly recruiting where the sketch declined); the Shop by sketch gain an essence against tiers (`buyFor`); a relic
-  waiting given by `pickHold`; the draft by the sketch under the ranged rule (`pickDraft`, `TUNING.expert.draft`).
-- **Route** (`pickRoute`): the **learned route** (`expert.json route`, `ROUTE_LEARNED` true: a model tree over the
-  run's situation and each room's scouted features, fitted by `fit.js` on 10,435 room choices played out), the hand
-  tree (`TREES.route`: a wounded army to an altar, never an elite on long odds or a hurt Monarch) its fallback.
-- **Hand and learnt.** Written or searched: the readers (vocabulary, generic), the tree's rules, the weights, the
-  plan, the formation score, the sketch, the book's formula, the draft and hold rules. Fitted on playouts of the
-  content as it was: the three forests and the route.
-- **Strength and cost.** ~7–9 s a run on one core; 77.7% on 768 seeds `fin` from the trio start, 65% on `aud-0…59`
-  with the draft; 99.5% of battles won; its deaths on floors 1 and 4; ~50 battles a clear. The ladder: basic 0%,
-  calculator 0%, expert 65–78%, outside teacher 98%.
-- **What a content change does to it.** The book must be remade (`npm run combos`; the content test fails a recipe
-  the book lacks). The readers need nothing for a new kind, relic or recipe; a new effect op or shape needs its line in
-  the readers (`estimate`, `STATUS_WORTH`). The forests and the route go stale and keep playing. **The refit** (a
-  milestone, overnight on four cores; the modules' headers give the flags): battle labels `npm run teach` (300 runs of
-  the expert, `--draw state`, ~3 h) and `npm run forest`, out-of-battle labels `npm run outside -- --label --phases
-  recruit,prep` (~3 h) and `npm run outforest`, the route `npm run teach -- --route` then `--fit`; each part set by
-  `npm run bundle`, and kept only on a paired gain on 768 fresh seeds (`--paired expert:a.json,expert:b.json`).
+  mostly recruiting where the sketch declined), still 15 points of clears on the current game and kept at the refit, its
+  relabels failing (§8); the Shop by sketch gain an essence against tiers (`buyFor`); a relic waiting given by
+  `pickHold`; the draft by the sketch under the ranged rule (`pickDraft`, `TUNING.expert.draft`).
+- **Route** (`pickRoute`): the **learned route** (`expert.json route`, `ROUTE_LEARNED` true: a model tree over the run's
+  situation and each room's scouted features, fitted by `fit.js` on 10,435 room choices played out; kept at the refit,
+  its refits level or worse), the hand tree (`TREES.route`: a wounded army to an altar, never an elite on long odds or a
+  hurt Monarch) its fallback.
+- **Hand and learnt.** Written or searched: the readers (vocabulary, generic), the tree's rules, the weights, the plan,
+  the formation score, the sketch, the book's formula, the draft and hold rules. Fitted on playouts: the formation's
+  forest on the game of 7721702 (the refit, 2026-10-16); the battle and the recruit's forests and the route on f8c536f's
+  content, each kept at the refit as worth 7, 15 and 5 points of clears there.
+- **Strength and cost.** ~4.4 s a run (the game of 7721702, a core of four busy); 78.4% on 768 seeds `rfc` after the
+  refit (the shipped expert 76.2%); 99.3% of battles won; its deaths on floor 1 (20% of runs) and in the Sovereign's
+  room; ~31 battles a run. At f8c536f: ~7–9 s a run, 77.7% on 768 seeds `fin` from the trio start, 65% on `aud-0…59`
+  with the draft. The ladder: basic 0%, calculator 0%, expert 65–78%, outside teacher 98%.
+- **What a content change does to it.** The book must be remade (`npm run combos`; the content test fails a recipe the
+  book lacks). The readers need nothing for a new kind, relic or recipe; a new effect op or shape needs its line in the
+  readers (`estimate`, `STATUS_WORTH`). The forests and the route go stale and keep playing. **The refit** (a milestone,
+  overnight on four cores; the modules' headers give the flags): battle labels `npm run teach` (300 runs of the expert,
+  `--draw state`, ~3 h) and `npm run forest`, out-of-battle labels `npm run outside -- --label --phases recruit,prep`
+  (~3 h) and `npm run outforest`, the route `npm run teach -- --route` then `--fit`; each part set by `npm run bundle`,
+  and kept only on a paired gain on 768 fresh seeds (`--paired expert:a.json,expert:b.json`). The refit of 2026-10-16
+  (§8) kept the formation's forest; it found the recruit's labels (one decision played to the run's end, by a base that
+  decides the rest) pricing a pass as nearly free, so the recruit's next relabel needs whole runs played by the
+  candidate forest; the battle forest's relabel is the next refit's first job.
 - **What was kept and what went** (Step 0b, done 2026-10-15: §8). Kept, as it plays: everything above. Removed, as
   nothing played by it: the earlier learners (`value.js` and `value.json`, V; `ranker.js`, the MLP correction;
   `train.js`, V's trainer; `teacher.js`, the stronger battle teacher; 3,260 lines and 405 KB, `value.json` 240 KB of
@@ -2070,6 +2078,133 @@ Strictly committed, `rul-0…31` (base → A → K; free play 19 → 25 → 26 o
 41%, 38%; dead on floor 1 in 18 of its falls each time), the Hive Queen 0 → 1 → 1 (made 38%, 44%, 41%; dead on floors 1
 and 2), the Clockwork Titan 0 → 0 → 0 (dead on floor 1 in 28 of 32, made in one run). Held to these three, the expert
 seldom lives to floor 2's captains: their rows wait on floor 1, which the captain does not touch, and on the refit.
+
+### The refit (2026-10-16)
+
+**Why** (§4.0's refit; §7, "the expert retrained before the content is balanced again"): the expert's four learned
+parts (the battle forest, `expert.json forest`; the recruit's and the formation's forests, `outforest.recruit` and
+`.prep`; the learned route, `route`) were fitted on playouts of f8c536f's content, four floors and one boss, and every
+step of this record since, with the user's rules of 2026-10-16 (a boss never Hexed twice running, a captain of tier 3
+from floor 2, a trine three toward synergies), moved the game under them. Done on improvement-plan 7721702, the base
+game (ascension 0, the base Monarch, free play), the hand tree and the searched weights untouched, every label made
+from a frozen copy of 7721702's `src/` (its shipped expert unless said), four workers. Selection on 256 seeds
+`rfs-0…255`, confirmation on 768 fresh ones `rfc-0…767`; progress in points ± one standard error of the paired
+difference, clears as the tiebreak. (Begun on 47439ac and paused before labelling for the user's rules; step 1 below
+was measured on both, the earlier in the session's scratchpad, rf-status.md.)
+
+**What each part was worth before** (the shipped expert against itself with the part dropped: `npm run bundle --
+--<part> none`, the outforest with one phase; `rfs`):
+
+| Dropped | Clears | Progress (paired) | Clears won / lost | Died on floor 1 / 2 / 3 | s a run |
+|---|---|---|---|---|---|
+| nothing (the shipped) | 181 (70.7%) | 78.0 | | 67 / 2 / 6 | 4.0 |
+| both forests out of battle | 124 (48.4%) | −7.50 ± 2.77 | +26 −83 | 80 / 15 / 37 | 3.7 |
+| the formation's forest | 158 (61.7%) | −6.62 ± 2.33 | +17 −40 | 86 / 1 / 11 | 3.4 |
+| the recruit's forest | 143 (55.9%) | +1.97 ± 2.42 | +26 −64 | 56 / 11 / 46 | 4.7 |
+| the learned route (the hand route) | 168 (65.6%) | −3.33 ± 2.55 | +30 −43 | 80 / 0 / 8 | 4.1 |
+| the battle forest | 174 (68.0%) | −0.37 ± 2.12 | +19 −26 | 68 / 1 / 13 | 3.0 |
+| the battle forest, on `rfc` | 528 (68.8%) against 585 | −5.59 ± 1.33 | +62 −119 | 201 / 0 / 39 against 149 / 3 / 31 | 2.6 |
+
+Nothing stale hurt. The recruit's forest is worth its clears, not its progress: without it the runs die less on floor
+1 and more to the Sovereign (46 against 6), the Pale Court in 27% of final armies against 68% and the Sprite's trine in
+57% (the balance pass's lead holds: it is the monoculture's engine and its clears both). The battle forest read nothing
+on 256 seeds and 5.6 points on 768: step 1 at 47439ac had read it so too (−0.50 ± 2.16), and dropping it, the faster
+expert, is not the bargain 256 seeds suggest. The confirmation seeds' baseline, the shipped on `rfc`: 585 clears
+(76.2%), progress 83.4, died 149 / 3 / 31 (the Sovereign's room 30, the Barrow Marshal's 12, the Mire Mother's 8), 31.2
+battles a run, the Court in 75% of final armies, Echo held in 74% of battles and Mirage in 69%.
+
+**The route** (labels: `npm run teach -- --route --runs 20 --seed rfrN --out rf-route/cNN`, N 0…14: 300 runs of the
+shipped expert, 223 cleared, every room of a kept choice played to the run's end; 3,100 choices of 6,575 rooms, 1,329
+/ 1,213 / 558 by floor, 741 with an elite open; 68 min). The shipped route takes the playout's best room in 67.8% of the
+choices (held out 73.5%, regret 1.66; the hand route 67.1%, 2.14), and no tree fitted on them agrees more (`--fit`,
+held out top-1 and regret): grown as round 1 (tau 10, λ 0.3, depth 3) 69.5%, 2.08; with the hand rules kept (`--hand`)
+68.0%, 2.15; tau from the data 67.9%, 1.76; λ 3 69.0%, 1.74; the shipped tree's leaves refitted (`--prior <the
+shipped route> --structure prior`) 72.8%, 1.53 at λ 0.3 and 73.2%, 1.66 at λ 3. On `rfs` against the shipped: the
+grown tree +2.67 ± 2.74 (clears +47 −32), the shipped's leaves refitted +2.44 ± 1.29 (+15 −8), tau from the data −2.86
+± 2.98. The first on `rfc`: −1.77 ± 1.41 (587 clears, +98 −96); the second, a second look, −0.49 ± 0.60 (585, +26
+−26). **Not kept**: the shipped route stays.
+
+**The formation** (labels: `npm run outside -- --label --seed rfo --from 16N --runs 16 --phases recruit,prep --floors
+1,1,1 --out rf-out/cNN`, N 0…6, and `--seed rfp --from 24N --runs 24 --phases prep --floors 1,1,1 --out rf-prep/cNN`,
+N 0…11: every prep of 400 runs of the shipped expert, 112 and 288, its 9 formations each fielded and its battle played
+out; 12,291 preps, 4,307 / 4,008 / 3,976 by floor, another formation's battle the better at 52% of them by 0.21; the
+preps alone 39 min, those beside the recruits below). Refitted as round 1 (`npm run outforest -- --phases prep --depth
+12 --leaves 512 --min-leaf 40 --with <the shipped outforest>`: 200 trees, the centred target; 69,592 nodes): held out
+(seeds ≡ 0 mod 5, 2,568 preps) +0.031 a decision at δ 0.1 and +0.035 at 0.05, where the shipped formation forest gains
++0.019 at its 0.1 (the teacher +0.107). On `rfs`: δ 0.1 +3.74 ± 2.00 (193 clears, +28 −16), δ 0.05 +4.45 ± 2.15 (199,
++36 −18). δ 0.05 on `rfc`: **602 clears (78.4%) against 585 (+80 −63, +2.2 ± 1.6 points), progress −0.35 ± 1.18**,
+died 153 / 1 / 12, the Sovereign's room 10 against 30. **Kept** on the clears, its progress level (2a8632c: outforest
+`round-2-prep-2`, the recruit's forest of round 2 beside it as it was).
+
+**The recruit: refitted twice, kept as it was.** First as round 2 was relabelled, under the shipped expert (`rf-out`
+above: every recruit of the 112 runs, 3,284 of 4.3 candidates, each played to the run's end; another candidate's line
+the better at 42% of them, by 2.8, 6.8% clearing where the base's lost; ~3 h with the formations beside them), fitted
+as round 2 (200 trees, depth ≤ 6, ≤ 64 leaves of ≥ 50 rows): out of bag +0.21 a decision at δ 0.25, held out −0.03
+(679 recruits; the shipped recruit forest on them +0.03). On `rfs`: **−19.59 ± 2.97 at δ 0.25 (80 clears against
+181), −15.02 ± 2.95 at 0.5 (92)**, worse than none, its armies ending with 4.9 souls against 7.8 (the sketch alone
+6.3). Under a base that recruits at most offers, a candidate's playout is played on by that base, which recruits again
+at the next offer: passing on one reads as nearly free, and the forest learnt to pass. So, second, as round 1 was:
+labels under the expert without the recruit forest (a frozen copy whose `expert.json` drops it; `--seed rfq --from 16N
+--runs 16 --phases recruit --out rf-out1/cNN`, N 0…3: 64 runs, 1,912 recruits of 4.5 candidates, another candidate
+the better at 74%, by 1.3, 24% clearing where the sketch's line lost; ~1.7 h), fitted alone and with the first set as
+round 2 was (5,196 recruits), beside the kept formation forest; selection against the expert with it (199 clears, 82.4):
+
+| Recruit forest | Held out | `rfs` (paired) | Clears | Souls at the end |
+|---|---|---|---|---|
+| the shipped's (round 2 of f8c536f), δ 0.25 | +0.00 (1,070) | | 199 | 7.9 |
+| the shipped's at δ 0.5 | +0.09 | −1.88 ± 1.01 | 187 (+7 −19) | |
+| both sets, δ 0.25 | +0.13 | −7.56 ± 2.63 | 135 (+20 −84) | 4.8 |
+| both sets, δ 0.5 | +0.21 | −6.65 ± 2.55 | 120 (+18 −97) | 5.1 |
+| round 1's set alone, δ 0.5 | +0.15 (391) | −33.18 ± 2.80 | 89 (+9 −119) | 4.4 |
+
+Every refit ends with fewer souls than the sketch alone. In play (`rfs-0…7`) the last turned the sketch's recruit into a
+pass 44 times in 59 (the shipped forest 14); on its own labels, where the sketch recruits, passing beats the recruit's
+playout in 249 of 529 (47%, coin flips) and it learnt to pass in 372. One recruit's playout, run on by a base that
+decides the rest, cannot price a policy that passes at every such offer: the passes compound, the army thins and floor 1
+kills it (154 deaths there of 256). The old rounds escaped it (their sketch passed three offers in four, so recruiting
+showed); on the current game it does not. **Not kept**: the shipped recruit forest at its δ 0.25 stays. A recruit forest
+for this game needs labels that see a policy's repeated choice (whole runs played by the candidate forest, policy
+iteration over runs), not one decision's.
+
+**The battle forest: kept as it was, not relabelled.** Worth 5.6 points (above), so not dropped. Its relabel (`npm run
+teach -- --runs 20 --seed rftN --out rf-battle/cNN --draw state --keep 1,0.5,0.3,0.03 --keep-floor 1=2,3=3 --forest <the
+shipped's>`, then `--augment` and `npm run forest -- --inputs aft`; a pilot at 47439ac, 10 runs, 1,081 positions in 4
+min, so ~2 h for 300) was not run: the recruit's labels were made twice. The old spec's round 4 (relabelled under the
+shipped expert, 39,300 positions beside round 3's 95,749) played level on fresh seeds; a forest of ~30,000 fresh
+positions alone would stand in for one fitted on three times as many. It is the next refit's first job.
+
+**The expert at the end** (the shipped with the formation's forest refitted; `rfc-0…767`, seed for seed):
+
+| | The shipped (7721702) | The refit |
+|---|---|---|
+| clears | 585 (76.2%) | 602 (78.4%): +80 −63 |
+| progress | 83.4 | 83.0 (−0.35 ± 1.18) |
+| died on floor 1 / 2 / 3 | 149 / 3 / 31 | 153 / 1 / 12 |
+| in a boss's room | the Sovereign 30, the Barrow Marshal 12, the Mire Mother 8, the Molting Abbess 4, the Swarm Queen 2 | the Barrow Marshal 13, the Sovereign 10, the Mire Mother 8, the Swarm Queen 3, the Molting Abbess 2 |
+| battles a run; lost; s a run | 31.2; 183; 4.5 | 31.2; 166; 4.4 |
+| final armies | Court 75%, Chanter's trine 61%, Sprite's trine 38%, Winter Court 13%, Rime Drake 4% | Court 75%, Chanter's trine 60%, Sprite's trine 36%, Winter Court 15%, Rime Drake 6% |
+| synergies (battles); kinds in a tenth | Echo 74%, Mirage 69%, Legion 34%, Ambush 9%; 11 of 62 | Echo 74%, Mirage 67%, Legion 35%, Ambush 9%; 11 of 62 |
+
+**How it was run** (scripts in the session's scratchpad, `rf-refit/`, beside every label set and play file): a frozen
+copy of `src/` for the labels; a queue of resumable jobs, one runner at a time (a lock), each label set in chunks of
+seeds with its own directory, each play file a line a run, what a restart cut mended before a job went on (the
+container restarted once mid-measure: one play file's 214 runs resumed). Plays by `autoplay.js record` with `expert:`
+files (`--paired`'s players), paired per seed, the diversity block by `autoplay.js diversity` on the same records. ~9 h
+of four workers: labels ~6.5 h (the route 1.1, recruits and formations 3.0, formations alone 0.7, recruits under the
+sketch 1.7), plays ~2.5 h.
+
+**What it says.** The parts fitted on the old game still carry the expert on the new one: the recruit's forest 15 points
+of clears, the formation's 9, the battle forest 7, the route 5, against each dropped. A relabel under the shipped expert
+improves what is judged a battle deep (the formation, kept: more clears, the Sovereign's room 30 → 10 deaths) and not
+what is judged to the run's end by one decision's playout (the recruit, the route): those labels are coin flips where
+the parts decide, and the fits learn their noise or, for the recruit, a bias that compounds. The Court's monoculture is
+the recruit's forest's, and the refit leaves it (75% of final armies); breaking it is the balance pass's or a recruit
+forest fitted on whole runs'. Not done: the battle forest's relabel (above). The book's fourth army (the second bug
+hunt's "seen and left") is the hand formula's, not a learned part, and stays.
+
+**Tests**: 524, all passing (`--test-concurrency=2`, 191 s); no test's seed or expectation moved (the outside teacher's
+clearing line, the cheap seeds of `outforest`, `teach` and `builds`, the puzzles: the same with the formation's forest
+refitted).
 
 ## 9. Standing rules
 
