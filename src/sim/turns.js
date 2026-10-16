@@ -1217,8 +1217,10 @@ export function legalOrders (battle) {
   return out
 }
 
-// Applies one order (legalOrders' kinds) and returns the events it made; End Turn runs the rest of the round.
-export function order (battle, o) {
+// Applies one order (legalOrders' kinds) and returns the events it made; End Turn runs the rest of the round. `path`,
+// for a move: its path as reach found it on this very board (policy.js commit: the option's, read off the board the
+// order is given on or the copy it was made from, nothing changed between), so reach is not flooded again to find it.
+export function order (battle, o, path = null) {
   const from = battle.events.length
   if (o.type === 'end') {
     if (battle.over || battle.phase !== 'orders') throw new Error('no orders are taken now')
@@ -1232,9 +1234,9 @@ export function order (battle, o) {
   }
   const u = mine(battle, o.uid)
   if (o.type === 'move') {
-    const path = u.acted ? null : reach(battle, u).get(o.tile)
-    if (!path) throw new Error(`${u.id} ${u.uid} cannot move to ${o.tile}`)
-    walk(battle, u, path)
+    const way = u.acted ? null : path ?? reach(battle, u).get(o.tile)
+    if (!way) throw new Error(`${u.id} ${u.uid} cannot move to ${o.tile}`)
+    walk(battle, u, way)
   } else if (o.type === 'undo') {
     if (u.acted || !(u.moved > 0) || !endable(battle, u, u.from)) throw new Error(`${u.id} ${u.uid} has no move to undo`)
     battle.beat++

@@ -514,8 +514,9 @@ export const basicTurn = () => [{ type: 'end' }]
 //              may strike; `d`, what each could deal each; `spots`, the tiles each living foe's road could take it to)
 // `lean` (a board read only to be judged, boardFeatures, or for its danger, teach.js dangerOf): only what a piece's
 // features, the tree's rules and the board's features read (turn, map, healing, threat, entries, roads, holding,
-// monarch, patience, plan); the rest left out.
-export function situation (battle, { lean = false } = {}) {
+// monarch, patience, plan); the rest left out. `short` (a board read only for its conditions, expert.js conditions:
+// afterOf's): what each foe could deal each unit (threat.d) left out, the one read conditions never makes.
+export function situation (battle, { lean = false, short = false } = {}) {
   // Read when first asked for (a lean read's board may never be).
   let dmap = null
   const lazy = () => (dmap ??= danger(battle, 'party'))
@@ -556,7 +557,7 @@ export function situation (battle, { lean = false } = {}) {
     turn: battle.turn,
     get map () { return lazy() },
     healing: healingRead(battle),
-    threat: { foes: read, ours, d: strikes(battle, read, ours), spots: new Map(foes.map((x) => [x, byFoe.get(x)?.spots ?? aheads.get(x).map((p) => p.tile)])) },
+    threat: { foes: read, ours, d: short ? null : strikes(battle, read, ours), spots: new Map(foes.map((x) => [x, byFoe.get(x)?.spots ?? aheads.get(x).map((p) => p.tile)])) },
     entries,
     roads: [...roads.values()].sort((a, b) => a.tile - b.tile),
     holding,
@@ -871,7 +872,11 @@ function fells (battle, u, x) {
 function synergyRead (battle) {
   // Each side's living by kin and role, a trine as three (unit.js synergyCounts), the Monarch none.
   const counts = (side) => synergyCounts(battle.units.filter((u) => u.side === side && alive(u) && u !== battle.monarch))
-  const short = (syn, c) => ['kin', 'role'].reduce((n, axis) => n + Object.entries(syn.needs[axis] ?? {}).reduce((k, [id, need]) => k + Math.max(0, need - (c[axis][id] ?? 0)), 0), 0)
+  const short = (syn, c) => {
+    let n = 0
+    for (const [axis, id, need] of needsOf(syn)) n += Math.max(0, need - (c[axis][id] ?? 0))
+    return n
+  }
   const theirs = counts('foe')
   const ours = counts('party')
   const party = synergiesOf(battle, 'party').map((x) => x.id)
@@ -879,9 +884,16 @@ function synergyRead (battle) {
   return {
     party,
     foe: foe.map((x) => x.id),
-    breaks: foe.filter((syn) => ['kin', 'role'].some((axis) => Object.entries(syn.needs[axis] ?? {}).some(([id, need]) => theirs[axis][id] === need))).map((x) => x.id),
+    breaks: foe.filter((syn) => needsOf(syn).some(([axis, id, need]) => theirs[axis][id] === need)).map((x) => x.id),
     gains: SYNERGIES.filter((syn) => !party.includes(syn.id) && short(syn, ours) === 1).map((x) => x.id)
   }
+}
+// A synergy's needs as [axis, id, count], kin's then role's, made once a synergy (content's, never changed).
+const NEEDS = new Map()
+const needsOf = (syn) => {
+  let out = NEEDS.get(syn)
+  if (!out) NEEDS.set(syn, (out = ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, need]) => [axis, id, need]))))
+  return out
 }
 
 // ── the expert's features (redesign.md §2.17) ────────────────────────────────────────────────────
@@ -1257,7 +1269,7 @@ export function afterOf (battle, u, o, plan) {
     return null
   }
   if (alive(gu)) gu.acted = true
-  const sit = situation(g)
+  const sit = situation(g, { short: true })
   sit.plan = plan
   return conditions(sit, gu)
 }
@@ -1593,18 +1605,19 @@ export function untouchedOrders (f) {
   return out
 }
 
-// Option `o` of piece `u` given on `f`: its move, then its act or its fusion. → the orders.
+// Option `o` of piece `u` given on `f`: its move (by the path the option was read with: options reads reach on `f`,
+// or on the board `f` was copied from as it stands: turns.js order's `path`), then its act or its fusion. → the orders.
 function commit (f, u, o) {
   const out = []
-  if (o.tile !== u.tile) out.push(give(f, { type: 'move', uid: u.uid, tile: o.tile }))
+  if (o.tile !== u.tile) out.push(give(f, { type: 'move', uid: u.uid, tile: o.tile }, o.path))
   if (f.over) return out
   if (o.fusion) out.push(give(f, o.fusion))
   else if (o.ability) out.push(give(f, { type: 'act', uid: u.uid, ability: o.ability.id, target: o.target.uid }))
   return out
 }
 
-const give = (f, o) => {
-  order(f, o)
+const give = (f, o, path = null) => {
+  order(f, o, path)
   return o
 }
 
