@@ -107,9 +107,9 @@ it (the foes are `foeTurn`, the untouched the basic rule): it exists to measure,
   difficulty is the skill-differentiation measure: its rungs must keep their order and their gaps.
 - **Not done in this plan**: no weight search on the content (the 178 numbers are feature preferences, damage against
   danger against a kill's worth, not content, and stay where the search put them); no forest rounds beyond the
-  milestone refit; no new learner. Measured and rejected (§8): search alone over a weight-free player (0 of 12). Planned
-  and set aside the same day: a learnt player at every decision fitted by expert iteration, which the spike showed would
-  need the old expert as its seed anyway.
+  milestone refit; no new learner (but the recruit's, the user's word of 2026-10-16: §7). Measured and rejected (§8):
+  search alone over a weight-free player (0 of 12). Planned and set aside the same day: a learnt player at every
+  decision fitted by expert iteration, which the spike showed would need the old expert as its seed anyway.
 
 **The harness** (`autoplay.js`, Step 0): `--builds [--player expert|teacher] [--commit <archetype>|all] [--scale
 <difficulty>] [--runs n] [--seed s]`: an archetype is a fused kind (a node of the recipe graph) or a synergy; a
@@ -133,7 +133,7 @@ twice.
 
 ### 4.0 The expert, as it stands
 
-The autoplayer of f8c536f, kept whole. One file holds what it learnt, `src/sim/expert.json` (3.3 MB: `tree`,
+The autoplayer of f8c536f, kept whole. One file holds what it learnt, `src/sim/expert.json` (3.7 MB: `tree`,
 `rules`, `forest`, `outforest`, `route`; `bundle.js` sets or splits a part), one table what was searched,
 `TUNING.expert`, and one what it reads of the content, `src/sim/combos.json`. Every decision is one shape: read the
 situation once, list the options, read each as named features, let a tree force or filter, weigh the rest, and where
@@ -172,11 +172,15 @@ a forest is confident, take its word.
   `--combos` in seconds: every fusion, core, kin and role combo ranked by floor by a static formula, with the relics
   that pair with each; the run's target is the combo of the best worth × progress, `targetOf`). Each tier and fusion is
   bought by its sketch gain an essence against the best a tier gives (`tierRate`); the **recruit** by the sketch
-  (`weighRecruits`), then the **recruit forest** (`expert.json outforest.recruit`, round 2, δ 0.25, over the pick and
-  its next five and passing on, read by `outsideRead`): the largest single gain the old spec found (+18 to +21 points,
-  mostly recruiting where the sketch declined), still 15 points of clears on the current game and kept at the refit, its
-  relabels failing (§8); the Shop by sketch gain an essence against tiers (`buyFor`); a relic waiting given by
-  `pickHold`; the draft by the sketch under the ranged rule (`pickDraft`, `TUNING.expert.draft`).
+  (`weighRecruits`), then the **recruit forest** (`expert.json outforest.recruit`, over the pick and its next five and
+  passing on, read by `outsideRead`; the recruit learner's of 2026-10-16, §8): round 2's 200 trees, the largest single
+  gain the old spec found (+18 to +21 points, mostly recruiting where the sketch declined), counted twice beside 200
+  fitted at the refit on the current game's playouts and 200 on playouts made by the learner itself (a round of policy
+  iteration), their mean read, δ 0.25, and a bias of 0.4 toward recruiting on floor 1 (`adjust`) taking off the new
+  forests' pass bias, chosen on whole runs: +3.9 points and 41 clears of 768 over round 2 alone (82.9% against 77.6%).
+  Its worth is all floor 1's (silenced on floors 2 and 3 it plays level); the Shop by sketch gain an essence against
+  tiers (`buyFor`); a relic waiting given by `pickHold`; the draft by the sketch under the ranged rule (`pickDraft`,
+  `TUNING.expert.draft`).
 - **Route** (`pickRoute`): the **learned route** (`expert.json route`, `ROUTE_LEARNED` true: a model tree over the run's
   situation and each room's scouted features, fitted by `fit.js` on 10,435 room choices played out; kept at the refit,
   its refits level or worse), the hand tree (`TREES.route`: a wounded army to an altar, never an elite on long odds or a
@@ -184,10 +188,13 @@ a forest is confident, take its word.
 - **Hand and learnt.** Written or searched: the readers (vocabulary, generic), the tree's rules, the weights, the plan,
   the formation score, the sketch, the book's formula, the draft and hold rules. Fitted on playouts: the formation's
   forest on the game of 7721702 (the refit, 2026-10-16); the battle and the recruit's forests and the route on f8c536f's
-  content, each kept at the refit as worth 7, 15 and 5 points of clears there.
+  content, each kept at the refit as worth 7, 15 and 5 points of clears there; beside the recruit's, the refit's of the
+  current game and one of the learner's own playouts (2026-10-16). Searched on whole runs: the recruit's bias toward
+  taking on floor 1 (the recruit learner).
 - **Strength and cost.** ~4.4 s a run (the game of 7721702, a core of four busy), ~2.1 s since the speed pass (§8);
-  78.4% on 768 seeds `rfc` after the refit (the shipped expert 76.2%); 99.3% of battles won; its deaths on floor 1 (20%
-  of runs) and in the Sovereign's room; ~31 battles a run. At f8c536f: ~7–9 s a run, 77.7% on 768 seeds `fin` from the
+  78.4% on 768 seeds `rfc` after the refit (the shipped expert 76.2%); 82.9% on 768 seeds `rcd` after the recruit
+  learner (the refit's 77.6% there); 99.5% of battles won; its deaths on floor 1 (14% of runs) and in the Sovereign's
+  room (2%); ~33 battles a run. At f8c536f: ~7–9 s a run, 77.7% on 768 seeds `fin` from the
   trio start, 65% on `aud-0…59` with the draft. The ladder: basic 0%, calculator 0%, expert 65–78%, outside teacher 98%.
 - **What a content change does to it.** The book must be remade (`npm run combos`; the content test fails a recipe the
   book lacks). The readers need nothing for a new kind, relic or recipe; a new effect op or shape needs its line in the
@@ -197,8 +204,11 @@ a forest is confident, take its word.
   (~3 h) and `npm run outforest`, the route `npm run teach -- --route` then `--fit`; each part set by `npm run bundle`,
   and kept only on a paired gain on 768 fresh seeds (`--paired expert:a.json,expert:b.json`). The refit of 2026-10-16
   (§8) kept the formation's forest; it found the recruit's labels (one decision played to the run's end, by a base that
-  decides the rest) pricing a pass as nearly free, so the recruit's next relabel needs whole runs played by the
-  candidate forest; the battle forest's refit on 160 runs' labels played no better than the old one.
+  decides the rest) pricing a pass as nearly free; the battle forest's refit on 160 runs' labels played no better than
+  the old one. The recruit learner the same day kept the refit's recruit forest and one of its own playouts beside the
+  old one, their pass bias taken off by a correction searched on whole runs (§8): a recruit forest's refit is judged,
+  and corrected, by whole runs, and its next round's labels are made by the expert it ships in (`--recruits 1,0`:
+  floor 1's alone).
 - **What was kept and what went** (Step 0b, done 2026-10-15: §8). Kept, as it plays: everything above. Removed, as
   nothing played by it: the earlier learners (`value.js` and `value.json`, V; `ranker.js`, the MLP correction;
   `train.js`, V's trainer; `teacher.js`, the stronger battle teacher; 3,260 lines and 405 KB, `value.json` 240 KB of
@@ -470,6 +480,13 @@ user's rules" says (decision 1); **a trine counts as three toward synergies** (d
 alternative: a trine as the three it was made of, a trine of a trine as three; mixed recipes and capstones once; both
 sides alike); **the expert retrained before the content is balanced again**; and **criterion 2 judged by the strict
 commitment** (`--builds --strict`, §8's balance pass, part 1), the soft commitment staying the harness's default.
+
+Taken on 2026-10-16: **a new recruit learner**, the user's word ("New recruit learner first"), after the refit (§8)
+found the shipped recruit forest worth 15 points of clears and the Pale Court's engine, and both its relabels on one
+decision's playouts failing (a pass priced as nearly free, the passes compounding in play). It overrides §3's "no new
+learner" and §9's frozen autoplayer for the recruit alone: the recruit forest's advantages corrected and its margin set
+by floor, searched on whole runs, and forests fitted on the current game's playouts beside the old one (§8, "The recruit
+learner").
 
 Recommended here, open until the user rules:
 
@@ -2368,6 +2385,177 @@ Tried and not kept: the trees interleaved in one array (no faster), a larger you
 no faster), synergyCounts reading each def once and statsOf's key without a join (no measurable gain). Tests: 529, all
 passing.
 
+### The recruit learner (2026-10-16)
+
+**Why** (§7, the user's word: "New recruit learner first"): the refit found the shipped recruit forest (round 2, fitted on
+the four-floor game) worth 15 points of clears and the Pale Court's engine, and both its relabels failing: a candidate's
+playout is finished by a base that recruits at the next offer, so passing on one reads as nearly free, the forests learnt
+to pass, and in play the passes compounded. The ask: a recruit decision-maker judged by what a decision is worth when it
+keeps deciding afterwards, kept only on a gain over the shipped expert on fresh seeds. Done on 0418ba3 (the speed pass),
+the base game (ascension 0, the base Monarch, free play), four workers; every run played by a frozen copy of the
+worktree's `src/` and an expert file (the shipped's, 0418ba3's `expert.json`, with its recruit phase changed).
+Selection on 256 seeds `rcs-0…255`, confirmation on 768 fresh ones `rcc-0…767`, each paired against the shipped expert
+and stopped by §3's rule (blocks of 64; Haybittle–Peto; futile under a point unless ahead on clears); progress ± one
+standard error of the paired difference, clears the tiebreak.
+
+**The design.** Of the brief's three, the cheapest robust one first: a recruit rule of a few numbers over the forest,
+searched by whole runs, which cannot be fooled by the compounding since every run is played by the candidate from first
+to last. Two knobs on the forest out of battle (`outforest.js`, commits 1977ee8, 62a9246): `adjust`, a correction of
+each candidate's advantage over today's pick, Σ w × (its read − today's) over the candidate's reads (a recruit or
+passing on, a new kind, the souls of its kind, melee, ranged, tier, its answers to the rooms ahead), each w a number or a
+list by floor; and `deltas`, the margin by floor. Then the same search over forests fitted on one decision's playouts,
+the refit's (`rf-refit/rf-fits`: recruit-2 on `rf-out`, the labels made under the shipped expert, on-policy for it;
+recruit-3 on those and `rf-out1`, made under the sketch alone), whose pass bias a bias toward recruiting can take off;
+and over both forests at once (`mergeOutForests`: their trees as one forest, a forest's trees counted `times` over, the
+mean read). Then option 1 from the kept (policy iteration: labels made under the learner itself, a forest of them
+beside the rest, the bias set again by whole runs). Option 3 (ε-perturbed whole runs, each decision credited by its
+run) is option 1's label with one candidate a run in place of all, and was not run.
+
+**What the search found** (`rcs`, against the shipped: 201 clears, 78.5%; progress 83.1; died on floor 1 / 2 / 3 50 / 1
+/ 4; 11.6 recruits a run, 7.7 souls at the end; the Court in 78% of final armies; a w of a list is by floor):
+
+| Candidate | Seeds, decision | Progress | Clears | Recruits | Souls | Court |
+|---|---|---|---|---|---|---|
+| A1 δ 0.1 | 128, futile | −0.54 ± 0.53 | +3 −5 | 14.2 | 8.9 | 77% |
+| A2 recruit +0.1 | 128, futile | −0.80 ± 0.59 | +1 −1 | 13.3 | 8.4 | 77% |
+| A3 recruit −0.1 | 128, futile | +0.00 ± 0.00 | +0 −0 | 10.1 | 6.7 | 77% |
+| A4 recruit [+1, 0, 0] | 128, futile | −7.97 ± 2.80 | +6 −21 | 12.6 | 8.7 | 61% |
+| A5 recruit [−1, 0, 0] | 256, level | +0.17 ± 1.67 | +18 −18 | 9.7 | 6.7 | 74% |
+| A6 recruit [0, +0.2, +0.2] | 128, futile | −0.03 ± 0.38 | +2 −2 | 16.0 | 9.5 | 73% |
+| A7 recruit [0, −0.2, −0.2] | 128, futile | +0.00 ± 0.00 | +1 −1 | 9.3 | 6.1 | 76% |
+| A8 a new kind +0.3 | 192, futile | −0.23 ± 0.74 | +3 −3 | 12.7 | 8.7 | 77% |
+| B1 a new kind [1.5, 0, 0] | 128, futile | −5.95 ± 2.36 | +5 −13 | 10.9 | 8.1 | 68% |
+| B2 souls of its kind [−1, 0, 0] | 128, loss | −14.75 ± 3.19 | +5 −29 | 7.2 | 6.0 | 58% |
+| B3 melee [1.5, 0, 0] | 128, futile | −4.16 ± 1.99 | +4 −13 | 12.9 | 8.5 | 68% |
+| B4 ranged [1.5, 0, 0] | 128, loss | −11.92 ± 3.06 | +7 −26 | 11.5 | 8.3 | 59% |
+| B5 its answers to the next three rooms [3, 0, 0] | 128, loss | −10.02 ± 2.89 | +8 −23 | 12.0 | 8.4 | 63% |
+| B6 tier [1, 0, 0] | 128, loss | −13.68 ± 3.31 | +8 −32 | 11.8 | 8.7 | 51% |
+| B7 a new kind [0, 0.3, 0.3] | 256, level | +0.13 ± 0.13 | +3 −2 | 12.7 | 8.7 | 79% |
+| B8 souls of its kind [0, −0.2, −0.2] | 128, futile | +0.00 ± 0.00 | +3 −6 | 8.2 | 6.4 | 73% |
+| C1 floor 1 silent (δ 10⁹ there) | 192, futile | −3.98 ± 2.99 | +18 −32 | 12.2 | 8.5 | 58% |
+| C3 δ 3 on floor 1 | 256, level | −3.36 ± 2.41 | +23 −42 | 11.8 | 8.3 | 60% |
+| C2 δ 1 on floor 1 | 256, level | −1.14 ± 1.69 | +13 −24 | 11.2 | 7.5 | 71% |
+| C6 δ 0.5 on floor 1 | 256, level | +0.47 ± 0.74 | +4 −4 | 11.8 | 7.7 | 77% |
+| C4 floor 2 silent | 128, futile | +0.00 ± 0.00 | +2 −2 | 10.2 | 6.8 | 75% |
+| C5 floor 3 silent | 256, level | +0.00 ± 0.00 | +1 −0 | 10.2 | 6.7 | 77% |
+| C7 floors 2 and 3 silent | 128, futile | +0.00 ± 0.00 | +2 −3 | 8.2 | 5.6 | 75% |
+| D1 recruit-2, recruit [2, 0.15, 0.15] | 64, loss | −23.36 ± 4.89 | +1 −30 | 13.0 | 9.3 | 20% |
+| D2 recruit-2, [3, 0.15, 0.15] | 64, loss | −30.34 ± 4.84 | +0 −34 | 12.6 | 9.6 | 17% |
+| D6 recruit-2, [2, 0, 0] | 64, loss | −23.16 ± 4.89 | +1 −34 | 9.3 | 8.1 | 20% |
+| D3 recruit-3, [2.5, 0.2, 0.2] | 256, level | −1.83 ± 2.47 | +28 −56 | 24.0 | 10.4 | 52% |
+| D4 recruit-3, [3.5, 0.2, 0.2] | 128, futile | −5.10 ± 3.31 | +11 −28 | 24.5 | 10.5 | 48% |
+| D5 recruit-3, [2.5, 0, 0] | 256, level | −2.09 ± 2.47 | +26 −56 | 10.1 | 7.1 | 47% |
+| E4 round 2 and recruit-3 as one, no bias | 128, futile | −4.69 ± 3.08 | +9 −17 | 8.1 | 5.9 | 70% |
+| E2 the same, [1, 0, 0] | 256, level | +0.66 ± 1.95 | +24 −24 | 10.8 | 7.1 | 71% |
+| E1 the same, [0.5, 0, 0] | 256, level | +1.40 ± 2.08 | +26 −25 | 10.2 | 6.6 | 68% |
+| **E3 round 2 twice and recruit-3, [0.4, 0, 0]** | 256, level | **+1.75 ± 1.63** | **+19 −12** | 11.0 | 7.1 | 76% |
+
+- **Floors 2 and 3 decide nothing.** The forest silenced there (C4, C5, C7), or a bias of ±0.2 that moves the recruits
+  a run from 9.3 to 16 and the souls at the end from 6.1 to 9.5 (A6, A7), changes no run's progress and a few clears
+  either way. (A death in the Sovereign's room reads ~99.9 of progress: late changes show in the clears alone.)
+- **Floor 1 decides everything, and the shipped forest's floor 1 is a sharp optimum of this family.** Silenced there
+  −4 (+18 −32), its confident decisions alone (δ 3) −3.4, a bias toward taking −8, every nudge of its choice of kind −4
+  to −15; a bias toward passing (A5) and a margin of 0.5 (C6) level. The Court is made there: on `rcs`, 239 of the
+  shipped's 418 Courts in floor 1's battles, 147 on floor 2's. Every candidate that loosens the Court's grip (A4, B,
+  C1, C3, D) pays in clears: on floor 1 where its choice of kind is worse, in the Sovereign's room where its floor 1
+  holds (D3, D5): the Court is the Sovereign's answer.
+- **One decision's labels, corrected on whole runs.** recruit-2, fitted on labels made under the shipped expert (the
+  on-policy relabel, k = 0), stays ruinous whatever the bias (floor 1 kills 27 of 64 runs against 9): its floor-1
+  choice of kind is wrong, not only its passing. recruit-3, its pass bias taken off (it reads passing on floor 1
+  +2.1–2.4 over the sketch's recruit at the median, the shipped forest −0.1–0.1), plays floor 1 as well as the shipped
+  (D5 died there 53 against 50) and builds another army (the Court in 47% of final armies, the Frost Sprite's trine
+  62%, Winter Court 24%; 14 kinds in a tenth of them against 12, 15 recipes made against 11, the skirmishers' synergy
+  in 42% of battles against 9%) that the Sovereign kills (19 against 4).
+- **Both as one.** The shipped forest's trees and recruit-3's read together, their pass bias (+0.3 at the median on
+  floor 1) taken off by a bias of 0.4 toward recruiting there: level or better in every weighing, the best the old
+  forest counted twice (E3), where its sense of floor 1 leads and the refit's of the current game corrects it. Without
+  the bias (E4) it passes, −4.7.
+
+**Confirmation** (E3 on `rcc-0…767`, sequential, played to its last look):
+
+| | The shipped (0418ba3) | The recruit learner (E3) |
+|---|---|---|
+| clears | 584 (76.0%) | **599 (78.0%): +66 −51, +2.0 ± 1.4 points** |
+| progress | 81.9 | **84.2: +2.28 ± 0.96, z 2.38 ≥ 2.03, a win** |
+| died on floor 1 / 2 / 3 | 164 / 3 / 17 | 141 / 1 / 27 |
+| in a boss's room | the Sovereign 17, the Barrow Marshal 15, the Mire Mother 11, the Molting Abbess 5, the Swarm Queen 1 | the Sovereign 27, the Mire Mother 7, the Barrow Marshal 4, the Molting Abbess 4, the Swarm Queen 2 |
+| battles a run; lost | 30.8; 184 | 31.7; 169 |
+| recruits a run; souls at the end | 11.7; 7.8 | 11.0; 7.4 |
+| final armies | Court 74%, Chanter's trine 60%, Sprite's trine 40%, Winter Court 12%, Rime Drake 5% | Court 72%, Chanter's trine 56%, Sprite's trine 51%, Winter Court 19%, Rime Drake 5% |
+| synergies (battles); kinds in a tenth | channeler 74%, fae 67%, undead 36%, skirmisher 10%; 4 at 5%+; 10 of 62 | fae 72%, channeler 67%, undead 31%, skirmisher 20%; 4 at 5%+; 10 of 62 |
+
+**Kept** (148dad0; the round below built on it): `expert.json outforest` "recruit-merged-prep-2", its recruit phase 600
+trees (round 2's 200 twice and recruit-3's 200; 42,306 nodes; `npm run outforest -- --merge src/sim/expert.json:2,<recruit-3>
+--adjust '{"recruit":[0.4,0,0]}'`), δ 0.25, the formation's forest as it was; expert.json 3.3 → 3.6 MB. Fewer runs die on
+floor 1 (−23) and more in the Sovereign's room (+10); the Court's grip two points looser (74% → 72%, within the noise),
+the Frost Sprite's trine (40% → 51%), Winter Court (12% → 19%) and the skirmishers' synergy (10% → 20% of battles)
+grown.
+
+**Policy iteration, one round from the kept** (the brief's option 1: labels made under the learner itself). Labels under
+E3 (a frozen copy whose `expert.json` is E3's; `npm run outside -- --label --phases recruit --recruits 1,0`, the new
+chance of a recruit's label by floor, floor 1's alone since the rest decide nothing; seeds `rlq-0…127`): 128 runs (97
+cleared), 1,346 recruits of 3.3 candidates, each played to the run's end by E3; another candidate the better at 40% of
+them (by 6.9), 8.3% clearing where E3's line lost; 39 min. Fitted as round 2 was (200 trees, depth ≤ 6, ≤ 64 leaves of
+≥ 50 rows): recruit-4 on them alone (held out, 284 recruits: −0.28 a decision at δ 0.25, +0.31 at 1, the teacher's
++2.67), recruit-5 on them and the refit's (6,542). Under E3 the pass bias is a sixth of the refit's (passing on floor 1
++0.33 over the sketch's recruit at the median, recruit-3 +2.1): the line after a pass recruits as the learner would, so
+a pass costs what it costs. Against E3 on `rcs` (208 clears, 84.8; 11.0 recruits a run, 7.1 souls, the Court 76%):
+
+| Candidate | Seeds, decision | Progress | Clears | Recruits | Souls | Court |
+|---|---|---|---|---|---|---|
+| G4 recruit-4 alone, [0.4, 0, 0], floors 2–3 silent | 64, loss | −16.25 ± 3.96 | +0 −22 | 9.4 | 7.3 | 47% |
+| G2 round 2 twice and recruit-4, [0.2, 0, 0] | 128, futile | −2.94 ± 2.31 | +5 −12 | 9.3 | 6.4 | 73% |
+| G3 round 2 twice and recruit-5, [0.25, 0, 0] | 256, level | +0.82 ± 1.45 | +14 −11 | 10.8 | 6.9 | 77% |
+| G5 round 2 twice, recruit-3 and recruit-4, [0.6, 0, 0] | 256, level | +0.64 ± 1.53 | +15 −13 | 10.6 | 6.8 | 72% |
+| **G1 the same, [0.4, 0, 0]** | 256, level | **+0.99 ± 1.42** | **+13 −9** | 10.1 | 6.6 | 70% |
+
+The pure step (recruit-4 alone) fails as the refit's forests did: on-policy or not, one decision's playout is nearly a
+coin flip to a forest of a thousand decisions. Beside the old forest and the refit's it is a correction: G1 on 768
+fresh seeds `rcd-0…767` against E3, **progress +1.00 ± 0.83 (z 1.21, level by the sequential bound, beyond one standard
+error), clears 637 against 628 (+44 −35, +1.2 ± 1.2 points)**, died on floor 1 111 against 120, 17 and 17 on floor 3.
+**Kept** on the gain beyond one standard error, the clears ahead (8948207): `expert.json outforest`
+"recruit-merged-2-prep-2", its recruit phase 800 trees (round 2's twice, recruit-3's, recruit-4's; 47,384 nodes), δ
+0.25, the bias 0.4 on floor 1; 3.7 MB.
+
+**The expert at the end** (`rcd-0…767`, fresh to all three; E3 and the kept chosen on `rcs`, E3 confirmed on `rcc`):
+
+| | The shipped (0418ba3) | E3 (148dad0) | The kept (8948207) |
+|---|---|---|---|
+| clears | 596 (77.6%) | 628 (81.8%): +71 −39 | **637 (82.9%): +76 −35, +5.3 ± 1.4 points** |
+| progress | 83.4 | 86.3: +2.93 ± 0.97 | **87.3: +3.93 ± 0.97 (z 4.04)** |
+| died on floor 1 / 2 / 3 | 148 / 3 / 21 | 120 / 3 / 17 | 111 / 3 / 17 |
+| in a boss's room | the Sovereign 21, the Barrow Marshal 15, the Mire Mother 7, the Molting Abbess 3, the Swarm Queen 1 | the Sovereign 17, the Barrow Marshal 7, the Mire Mother 7, the Molting Abbess 3, the Swarm Queen 1 | the Sovereign 17, the Barrow Marshal 6, the Mire Mother 6, the Molting Abbess 3, the Swarm Queen 1 |
+| battles a run; lost | 31.4; 172 | 32.5; 140 | 32.9; 131 |
+| recruits a run; souls at the end | 11.9; 7.8 | 11.2; 7.3 | 10.1; 6.7 |
+| final armies | Court 76%, Chanter's trine 61%, Sprite's trine 34%, Winter Court 17%, Rime Drake 5% | Court 73%, Chanter's trine 61%, Sprite's trine 50%, Winter Court 22%, Rime Drake 5% | Court 72%, Sprite's trine 55%, Chanter's trine 51%, Winter Court 21%, Rime Drake 5% |
+| synergies (battles); at 5%+; kinds in a tenth | channeler 74%, fae 67%, undead 38%, skirmisher 10%; 4; 11 of 62 | fae 72%, channeler 69%, undead 33%, skirmisher 20%; 4; 10 | fae 73%, channeler 67%, undead 31%, skirmisher 24%; 4; 10 |
+
+**The monoculture.** The clears are gained while the Court's grip loosens a little (76% → 72% of final armies here, 74%
+→ 72% on `rcc`), the second pillar moving from the Chanter's trine (61% → 51%) to the Frost Sprite's (34% → 55%) and
+Winter Court (17% → 21%), the skirmishers' synergy held in 24% of battles against 10%; the kinds in a tenth of final
+armies (10–11) and the synergies held (4 at 5%+) as they were. The recruit can loosen the Court by a few points for
+nothing (E1 68%, the kept 70% on `rcs`), not break it: every candidate that held it under 64% (A4, B2, B4–B6, C1, C3,
+D) lost clears, on floor 1 or to the Sovereign. Breaking it stays the balance pass's.
+
+**How it was run** (scripts in the session's scratchpad, `rl-recruit/`, its NOTES.txt the log): a frozen copy of the
+worktree's `src/` (and, for the labels, copies whose `expert.json` is the expert labelled); a queue of resumable jobs
+under one runner (a lock, `rf-refit`'s); a comparison a job (`rl-seq.mjs`: every run a line appended to its player's
+play file as it ends, never played twice, a base's file shared by every comparison on its seeds; §3's rule applied at
+each block); the diversity block by `autoplay.js diversity` on the same lines. Cost, four workers: selection 6,784 runs
+(rounds A–E 69 min, G 12), confirmation 3,840 (`rcc` 20 min, `rcd` 31), labels 39 min, fits a minute each;
+~3.5 h in all with the record and tests. 10,624 whole runs at ~0.7 s a run wall.
+
+**What it says.** Judged by whole runs, the recruit decision is a floor-1 decision: later recruits, moved from 8 to 16
+a run, move no outcome. There the old forest is a sharp optimum against every rule of a few numbers, and forests
+of one decision's playouts, the refit's or the learner's own, fail alone (they pass, or choose the wrong kind). As a
+correction beside the old forest, their pass bias taken off by one number chosen on whole runs, they gain: the
+current game's playouts (the refit's) +2.3 to +2.9 points, the learner's own a point more. Policy iteration works here
+as a conservative step (the new forest's vote among the old ones', a bias set by whole runs), not as a refit.
+
+**Tests**: 532, all passing (`--test-concurrency=2`, 203 s with four label workers beside them): `test/outforest.test.js`'s 3
+new (the correction and the margin by floor, the recruits' labels by floor, forests merged); no test's seed or
+expectation moved.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
@@ -2388,8 +2576,8 @@ In force before this plan and still, with the amendments it makes:
   the instrument §3 names for the question**, pair by seed, and never keep a change on the seeds it was chosen on (a
   comparison may stop once decided by §3's rule, 2026-10-16; its selection and confirmation seeds stay distinct).
 - **The autoplayer is frozen** (§3, §4.0): its weights are not searched again and its rules not rewritten; its
-  forests and route are refitted only at a milestone, and a refit is kept only on a paired gain on fresh seeds. The
-  book is remade after every content change.
+  forests and route are refitted only at a milestone (the recruit learner of 2026-10-16 aside, §7), and a refit is kept
+  only on a paired gain on fresh seeds. The book is remade after every content change.
 - One universal landscape interface, modular tabs, nothing that needs hover or a key.
 - Recruit only: one slain foe a battle, as a full soul into the ossuary (§7.2 may amend).
 - Content is data; code grows only when the vocabulary grows. A generated trine is content made by one rule (§4.1).

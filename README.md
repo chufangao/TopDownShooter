@@ -116,8 +116,12 @@ them; `--paired expert:a.json,expert:b.json` compares two experts on the same se
 The forests are fitted on labels made by playing each candidate out, offline: every option of a piece's decision to
 the battle's end, every recruit to the run's end, every formation through the battle it opens. At a milestone they
 are refitted on the game as it stands and each is kept only on a paired gain on fresh seeds: the refit of 2026-10-16
-(redesign.md §8) kept the formation's; the recruit's forest and the route, fitted on the four-floor game, still play
-better than their refits, as does the battle forest against its refit on 160 runs' labels. The same playouts make
+(redesign.md §8) kept the formation's; the route, fitted on the four-floor game, still plays better than its refits,
+as does the battle forest against its refit on 160 runs' labels. The recruit's is the recruit learner's of the same
+day: the four-floor game's forest counted twice beside the refit's and one fitted on playouts made by the learner
+itself, one forest, with a bias toward recruiting on floor 1 chosen by playing whole runs (`outforest.js` `adjust`; one
+decision's playout prices a pass as nearly free, and a forest fitted on such labels alone passes until floor 1 kills
+the run): 82.9% of 768 fresh seeds cleared against 77.6%. The same playouts make
 the **teacher**, a slow player that takes the best of them (`teach.js --teacher`; out of battle `outside.js`): it is
 never shipped, and its clear rate is the ceiling of play (every battle is on the screen and combat is deterministic,
 so it calculates only what a player could).
@@ -139,8 +143,9 @@ npm run sim -- --paired a,b --runs 768 --seed chk   # two experts on the same se
 npm run sim -- --paired a,b --sequential [--runs 768] [--block 64] [--min-gain 1] [--design peto|pocock|obf]
                       # the same, in blocks of seeds, stopped once decided (--builds --sequential: each archetype so)
 npm run teach         # labels: a piece's options played out (--draw state, --augment, --teacher for the teacher's ceiling)
-npm run outside       # the teacher out of battle, and its labels (--label --phases recruit,spend,prep)
+npm run outside       # the teacher out of battle, and its labels (--label --phases recruit,spend,prep; --recruits 1,0: floor 1's)
 npm run forest        # fit the battle forest; npm run outforest: the recruit's and the formation's
+npm run outforest -- --merge a.json:2,b.json:1 --adjust '{"recruit":[0.4,0,0]}' --out x.json   # forests as one, corrected
 npm run bundle -- --forest f.json   # ship a fitted part into src/sim/expert.json (--split dir: each part as its own file)
 ```
 

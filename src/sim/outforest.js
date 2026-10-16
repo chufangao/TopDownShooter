@@ -62,7 +62,9 @@
 //
 // Shipped as outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend?, prep? } }, each phase's
 // forest { inputs, target, delta, size, feat, thr, right, value, made } in forest.json's shape (forest.js compileTrees
-// reads both); inside the expert's one file (src/sim/expert.json) as its `outforest`. Read Node-only.
+// reads both), and two knobs set by playing whole runs, not fitted (the recruit learner, 2026-10-16): `adjust`, a
+// correction of each candidate's advantage over today's pick by its reads (adjustAt), and `deltas`, the margin by floor
+// (deltaAt); inside the expert's one file (src/sim/expert.json) as its `outforest`. Read Node-only.
 //
 //   npm run outforest -- --data <dir>[,<dir>…] --out <file> [--phases recruit,spend,prep] [--delta 0.25] [--delta-recruit x]
 //                        [--delta-spend y] [--delta-prep z] [--target mean|today] [--trees 200] [--depth 6] [--leaves 64]
@@ -75,6 +77,8 @@
 //   npm run outforest -- --data <dir>[,<dir>…] --eval <file>   the held-out tables of a configuration fitted already.
 //   npm run outforest -- --data <dir>[,<dir>…] --stats          what the labels hold (decisions, candidates, how often
 //                                                                another than the base's pick played out the better).
+//   npm run outforest -- --merge a.json[:2],b.json[:1] --out <file> [--phase recruit] [--adjust '{"recruit":[0.4,0,0]}']
+//                        [--name merged]   a phase's forests as one (mergeOutForests; an expert file's outforest read).
 //
 // Round 1 (2026-10-13; labels R1: 120 runs `outl-0…119` of the shipped expert, the battle forest's round 3 and the
 // learned route; 3,887 recruit decisions of 4.5 candidates and 6,217 purchases of 5.3, every candidate played out to the
@@ -148,6 +152,16 @@
 // not kept. Nor a forest fitted on P1 and P2 without the opening boards' inputs (`--without s.o.,f.o.,vs.o.`: it makes
 // no board in play, opensBoard, a prep's read 0.8 ms against 3.2): against round 1 on 768 fresh seeds `chk11p`, clears
 // 78.0% against 79.6% (+30 −42), progress −1.39 ± 0.62, at 4.59 s a run against 4.84.
+// The recruit learner (2026-10-16, redesign.md §8; the current game): round 2's recruit forest counted twice beside the
+// refit's recruit-3 (5,196 recruits of 176 runs, made under the shipped expert and under the sketch alone, each
+// candidate played to the run's end), one forest of 600 trees, delta 0.25, adjust { recruit: [0.4, 0, 0] } (recruit-3
+// reads passing on floor 1 +2.1–2.4 over the sketch's recruit at the median; the bias taken off), chosen among 33 rules
+// and forests by whole runs on 256 seeds `rcs` (+1.75 ± 1.63 progress, clears +19 −12); on 768 fresh seeds `rcc` against
+// round 2 alone, clears 78.0% against 76.0% (+66 −51), progress +2.28 ± 0.96. Its worth is all floor 1's. Then a round of
+// policy iteration: recruit-4, fitted on 1,346 floor-1 recruits labelled under that expert itself (outside.js --label
+// --recruits 1,0; its pass bias a sixth of recruit-3's), beside the three (800 trees, the same bias): against it on 768
+// fresh seeds `rcd`, +1.00 ± 0.83, clears +44 −35; against round 2 alone there, clears 82.9% against 77.6% (+76 −35),
+// progress +3.93 ± 0.97. Alone, recruit-4 loses (−16 on 64 seeds), as every forest of one decision's labels has.
 import { compileTrees, treesMean, TARGETS } from './forest.js'
 import { cutsOf, binOf, growTree, growTrees, leafOn, shared, splitOf, mulberry } from './forestfit.js'
 import { shippedPart } from './expert.js'
