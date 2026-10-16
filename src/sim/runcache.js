@@ -1,0 +1,104 @@
+// The run cache (autoplay.js playAll's, for --paired, --builds, --ladder and the sim report; redesign.md §8 "Cheaper
+// measurement"): a run is a pure function of the code, the expert that plays it and its job (seed, level, Monarch,
+// ascension, scale, commitment, ablation, rung…), so a finished run's record is kept on disk under a hash of the three
+// and read back in place of playing it again. The code: every file of src/sim (the sim, expert.json, combos.json, and
+// the offline tools beside them: a change to any of them misses, the safe side), the src/ modules src/sim imports
+// (content.js, tuning.js) and Node's version. The expert: a job's file (`expert`, `forest`, `outforest`, a route's) by
+// its bytes, never its path. A record is stored as gzipped JSON, one file a run, under a directory a code version
+// (`<dir>/<code hash>/<key>.json.gz`): deleting the directory, or a version's, clears it. Records read back carry
+// their `secs` as first played. Writes go through a temporary file and a rename, so two processes filling one cache
+// never leave half a record.
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import zlib from 'node:zlib'
+import { fileURLToPath } from 'node:url'
+
+// Bumped when a record's shape changes without the code that makes it (never so far).
+const VERSION = 1
+const SRC = fileURLToPath(new URL('..', import.meta.url))
+const sha = (x) => crypto.createHash('sha256').update(x).digest('hex')
+
+// The default directory: RETINUE_CACHE, else the user's cache (XDG_CACHE_HOME or ~/.cache) /retinue-runs.
+export const defaultDir = () => process.env.RETINUE_CACHE || path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'retinue-runs')
+
+// The code's hash under `root` (src/): every file of root/sim, names and bytes in name order, the root's modules those
+// import (`from '../x.js'`), and Node's version. → hex
+export function codeHash (root = SRC) {
+  const h = crypto.createHash('sha256').update(`retinue-runs ${VERSION} ${process.version}\n`)
+  const sim = path.join(root, 'sim')
+  const outside = new Set()
+  const files = (dir) => fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))
+    .flatMap((e) => (e.isDirectory() ? files(path.join(dir, e.name)) : e.isFile() ? [path.join(dir, e.name)] : []))
+  for (const f of files(sim)) {
+    const bytes = fs.readFileSync(f)
+    h.update(`${path.relative(root, f)} ${bytes.length}\n`).update(bytes)
+    if (f.endsWith('.js')) for (const m of bytes.toString('utf8').matchAll(/^(?:import\s[^\n]*|\}) from '\.\.\/([^']+)'/gm)) outside.add(m[1])
+  }
+  for (const m of [...outside].sort()) {
+    const bytes = fs.readFileSync(path.join(root, m))
+    h.update(`${m} ${bytes.length}\n`).update(bytes)
+  }
+  return h.digest('hex')
+}
+
+// A job's fields that name a file (a forest, a forest out of battle, a route, a whole expert): read by its bytes.
+const FILES = ['expert', 'forest', 'outforest', 'route']
+const NAMES = new Set(['none', 'hand', 'learned'])
+// Job `job` as its key reads it: its keys sorted, undefined ones dropped, each file it names as its bytes' hash (`files`:
+// path, size and time → hash, filled as read: a file rewritten mid-report is read again, as a pool's next workers read it).
+function canonical (job, files) {
+  const out = {}
+  for (const k of Object.keys(job).sort()) {
+    const v = job[k]
+    if (v === undefined) continue
+    if (FILES.includes(k) && typeof v === 'string' && !NAMES.has(v)) {
+      const st = fs.statSync(v)
+      const at = `${path.resolve(v)}|${st.size}|${st.mtimeMs}`
+      if (!files.has(at)) files.set(at, `sha256:${sha(fs.readFileSync(v))}`)
+      out[k] = files.get(at)
+    } else out[k] = v
+  }
+  return out
+}
+
+// A cache in directory `dir` for the code under `root`. → { dir, code, key(job), get(key), put(key, record), hits: runs
+// read, played: runs kept }
+export function runCache ({ dir = defaultDir(), root = SRC } = {}) {
+  const code = codeHash(root)
+  const home = path.join(dir, code.slice(0, 16))
+  const files = new Map()
+  const file = (key) => path.join(home, `${key}.json.gz`)
+  const cache = {
+    dir,
+    code,
+    hits: 0,
+    played: 0,
+    key: (job) => sha(JSON.stringify([VERSION, code, canonical(job, files)])),
+    // The record kept under `key`, or null (none, or one unreadable: played again).
+    get (key) {
+      try {
+        const r = JSON.parse(zlib.gunzipSync(fs.readFileSync(file(key))).toString('utf8'))
+        cache.hits++
+        return r
+      } catch {
+        return null
+      }
+    },
+    // Keeps `record` under `key`. → the record as a hit would read it (JSON's: no undefined fields), so a report reads
+    // the same whether its runs were played or read
+    put (key, record) {
+      const text = JSON.stringify(record)
+      cache.played++
+      try {
+        fs.mkdirSync(home, { recursive: true })
+        const tmp = `${file(key)}.${process.pid}.${crypto.randomBytes(4).toString('hex')}`
+        fs.writeFileSync(tmp, zlib.gzipSync(text))
+        fs.renameSync(tmp, file(key))
+      } catch {}
+      return JSON.parse(text)
+    }
+  }
+  return cache
+}

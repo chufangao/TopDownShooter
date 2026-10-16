@@ -29,7 +29,8 @@
 // (`--forest <file|none>`: the expert's forest, forest.js, from that file or none; the shipped expert's by default)
 // for two players on the same seeds, paired:  … --paired <a>,<b> [--runs 256] [--seed sel] [--workers 4]  (each a forest
 // file, `forest:<file>`, `route:<route>`, `outforest:<file|none>`, `expert:<file>` a whole expert, or none: today's
-// expert, playerOf)
+// expert, playerOf; `--sequential [--block 64] [--min-gain 1]`: in blocks, stopped once decided, sequential.js; a
+// report's runs kept and read back, runcache.js: `--cache <dir>`, `--no-cache`)
 // for the gap between the levels:     … --ladder [--runs 8] [--ascension 0|<a,b,…>|all] [--teacher] [--forest file|none]
 // (the rungs basic, the calculator, the expert and with --teacher the outside teacher, at each level of the ascension
 // ladder; `--ascension <level>` plays any report at that level, and `--monarch <id>` as that Monarch: content.js
@@ -74,6 +75,8 @@ import {
   BASE_MONARCH, copyRun, copyPlain
 } from './run.js'
 import { nodeOf, RANKS, generateFloor } from './map.js'
+import { runCache, defaultDir } from './runcache.js'
+import * as SEQ from './sequential.js'
 import { TUNING } from '../tuning.js'
 import { unitDef, abilityDef, campDef, relicDef, fusionDef, FUSION_LIST, UNIT_LIST, SYNERGIES, RELIC_LIST, STATUS_WORTH, MONARCHS } from '../content.js'
 
@@ -3103,14 +3106,21 @@ export function foeShare (b) {
 // Plays every job in worker threads, one per core (or WORKERS: --workers), and returns the results in the jobs' order.
 // The workers live for the whole call, each playing job after job, the longest first (jobTime: how long the job took
 // the last time it was played here, else a guess), so the pool ends on short jobs. Which job runs where and when
-// changes no result: a run is a pure function of its job.
+// changes no result: a run is a pure function of its job. With `cache` (runcache.js: CACHE, the reports' by default),
+// a job whose record it holds is read, not played, and each one played is kept as it ends.
 let WORKERS = null
-async function playAll (jobs) {
+// The run cache the reports read and fill (runcache.js): the CLI's, unless --no-cache; none for a caller of the exports.
+let CACHE = null
+async function playAll (jobs, { cache = null } = {}) {
   const { Worker } = await import('node:worker_threads')
   const { availableParallelism } = await import('node:os')
   const times = loadTimes()
   const out = new Array(jobs.length)
-  const queue = [...jobs.keys()].sort((a, b) => jobTime(jobs[b], times) - jobTime(jobs[a], times) || a - b)
+  // With a cache, each job's key; a job it holds read; of jobs alike (one key), the first played and the rest its copies.
+  const keys = cache ? jobs.map((job) => cache.key(job)) : null
+  const first = new Map()
+  if (cache) jobs.forEach((_, i) => { out[i] = first.has(keys[i]) ? null : cache.get(keys[i]) ?? undefined; if (!first.has(keys[i])) first.set(keys[i], i) })
+  const queue = [...jobs.keys()].filter((i) => out[i] === undefined).sort((a, b) => jobTime(jobs[b], times) - jobTime(jobs[a], times) || a - b)
   const worker = async () => {
     const w = new Worker(new URL(import.meta.url), { workerData: { pool: true } })
     try {
@@ -3128,13 +3138,15 @@ async function playAll (jobs) {
           w.postMessage(jobs[i])
         })
         times[jobKey(jobs[i])] = (Date.now() - t0) / 1000
+        if (cache) out[i] = cache.put(keys[i], out[i])
       }
     } finally {
       await w.terminate()
     }
   }
-  await Promise.all(Array.from({ length: Math.min(jobs.length, WORKERS ?? availableParallelism()) }, worker))
+  await Promise.all(Array.from({ length: Math.min(queue.length, WORKERS ?? availableParallelism()) }, worker))
   saveTimes(times)
+  if (cache) jobs.forEach((_, i) => { if (out[i] === null) out[i] = structuredClone(out[first.get(keys[i])]) })
   return out
 }
 
@@ -3164,7 +3176,7 @@ const jobTime = (job, times) => times[jobKey(job)] ?? (job.refight || job.level 
 // With `ablate`, the level with that mechanic taken away (ABLATIONS); with `forest` (a file, or 'none'), that forest's;
 // at `ascension`, that level of the ladder.
 async function report ({ runs, seed: seed0, level, ablate = null, forest, ascension = 0, monarch = null }) {
-  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(forest !== undefined && { forest }), ...(ascension && { ascension }), ...asMonarch(monarch) })))
+  const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(forest !== undefined && { forest }), ...(ascension && { ascension }), ...asMonarch(monarch) })), { cache: CACHE })
   const battles = played.flatMap((r) => r.battles)
   const turns = battles.map((b) => b.t).sort((a, b) => a - b)
   const deaths = {}
@@ -3242,23 +3254,57 @@ export function pairedStats (A, B) {
 
 // The same `runs` seeds played by the expert as players `a` and `b` (each a forest file, a part or a whole expert, or
 // 'none' for today's expert: playerOf; redesign.md §2.23), and their paired report (pairedStats). A run is a pure
-// function of its seed and its player: every difference is the players'.
-async function paired ({ runs, seed: seed0, level, players, ascension = 0, monarch = null }) {
-  const [a, b] = players
-  const seeds = Array.from({ length: runs }, (_, i) => `${seed0}-${i}`)
-  const all = await playAll([a, b].flatMap((spec) => seeds.map((seed) => ({ seed, level, ...playerOf(spec), ...(ascension && { ascension }), ...asMonarch(monarch) }))))
+// function of its seed and its player: every difference is the players'. `sequential`: played in blocks and stopped
+// once decided (pairedSequential), `runs` the most it plays.
+async function paired (o) {
+  if (o.sequential) return pairedSequential(o)
+  const { runs, seed: seed0 } = o
+  const all = await playAll(pairedJobs(o, 0, runs), { cache: CACHE })
   const S = pairedStats(all.slice(0, runs), all.slice(runs))
-  const pct = (k, of = runs) => `${(100 * k / Math.max(1, of)).toFixed(1)}%`
+  for (const line of pairedLines(S, o, `${runs} seeds ${seed0}-0…${seed0}-${runs - 1}`)) console.log(line)
+  return S
+}
+// The jobs of a paired comparison: seeds `from`…`to` − 1 played by a, then the same by b.
+const pairedJobs = ({ seed, level, players, ascension = 0, monarch = null }, from, to) => players.flatMap((spec) =>
+  Array.from({ length: to - from }, (_, i) => ({ seed: `${seed}-${from + i}`, level, ...playerOf(spec), ...(ascension && { ascension }), ...asMonarch(monarch) })))
+// A paired report as lines (pairedStats' S): the header naming `seeds`, a row a player, b against a.
+function pairedLines (S, { level, players: [a, b], ascension = 0, monarch = null }, seeds, how = '') {
+  const pct = (k, of = S.runs) => `${(100 * k / Math.max(1, of)).toFixed(1)}%`
   const floors = [...new Set([...Object.keys(S.a.deaths), ...Object.keys(S.b.deaths)])].sort()
-  console.log(`paired: ${runs} seeds ${seed0}-0…${seed0}-${runs - 1}, ${level} player${ascension ? `, ascension ${ascension}` : ''}${monarchText(monarch)}; a = ${a}, b = ${b}`)
-  console.log('      clears   progress  battles won        ' + floors.map((f) => `died fl ${f}`.padStart(10)).join('') + '  s/run')
+  const out = [`paired${how}: ${seeds}, ${level} player${ascension ? `, ascension ${ascension}` : ''}${monarchText(monarch)}; a = ${a}, b = ${b}`]
+  out.push('      clears   progress  battles won        ' + floors.map((f) => `died fl ${f}`.padStart(10)).join('') + '  s/run')
   for (const [k, x] of [['a', S.a], ['b', S.b]]) {
-    console.log(`${k}     ${pct(x.clears).padStart(6)}  ${x.progress.toFixed(1).padStart(9)}  ${`${pct(x.won, x.battles)} (${x.won}/${x.battles})`.padStart(19)}` +
+    out.push(`${k}     ${pct(x.clears).padStart(6)}  ${x.progress.toFixed(1).padStart(9)}  ${`${pct(x.won, x.battles)} (${x.won}/${x.battles})`.padStart(19)}` +
       floors.map((f) => String(x.deaths[f] ?? 0).padStart(10)).join('') + `  ${x.secs.toFixed(2).padStart(5)}`)
   }
-  console.log(`b against a: clears won ${S.won}, lost ${S.lost} (net ${S.won - S.lost >= 0 ? '+' : ''}${S.won - S.lost}); ` +
+  out.push(`b against a: clears won ${S.won}, lost ${S.lost} (net ${S.won - S.lost >= 0 ? '+' : ''}${S.won - S.lost}); ` +
     `progress ${S.diff >= 0 ? '+' : ''}${S.diff.toFixed(2)} ± ${S.se.toFixed(2)} points (one standard error of the paired difference)`)
-  return S
+  return out
+}
+// --paired a,b --sequential (sequential.js; redesign.md §3): seeds `<seed>-0`… in blocks of `block`, a and b on each, in
+// seed order, so its seeds are a prefix of the fixed comparison's; after each block a look (look, decide: a win or a loss
+// past the design's bound, futility below `minGain` points), stopped at the first decided, else at `runs`. Prints each
+// look, the paired report of the seeds played (pairedLines) and the decision. → pairedStats' S with { stop, plan }
+async function pairedSequential (o) {
+  const { runs, seed: seed0, block = 64, design = 'peto', alpha = 0.05, minGain = SEQ.MIN_GAIN } = o
+  const p = SEQ.plan({ runs, block, design, alpha })
+  const A = []
+  const B = []
+  let stop = null
+  console.log(`paired, sequential: at most ${runs} seeds ${seed0}-0…, blocks of ${block}; ${SEQ.DESIGN_NAMES[design]}, two-sided α ${alpha}; futile below ${minGain >= 0 ? '+' : ''}${minGain} points`)
+  for (let k = 0; !stop || stop.decision === 'continue'; k++) {
+    const n = p.looks[k] - A.length
+    const all = await playAll(pairedJobs(o, A.length, p.looks[k]), { cache: CACHE })
+    A.push(...all.slice(0, n))
+    B.push(...all.slice(n))
+    const s = SEQ.look(A, B)
+    stop = { k, ...s, ...SEQ.decide(s, k, p, { minGain }) }
+    console.log(SEQ.lookLine(stop, p))
+  }
+  const S = pairedStats(A, B)
+  for (const line of pairedLines(S, o, `${A.length} of at most ${runs} seeds ${seed0}-0…${seed0}-${A.length - 1}`, ', sequential')) console.log(line)
+  console.log(SEQ.stopLine(stop, p, { minGain }))
+  return { ...S, stop, plan: p }
 }
 
 // ── skill ladder ─────────────────────────────────────────────────────────────────────────────────
@@ -3386,7 +3432,7 @@ export function ladderLines (t) {
 async function ladder ({ runs, seed: seed0, forest, ascensions = [0], teacher = false, monarch = null }) {
   const rungs = RUNGS.filter((r) => teacher || r !== 'teacher')
   const t0 = Date.now()
-  const all = await playAll(ladderJobs({ ascensions, rungs, runs, seed: seed0, forest, monarch }))
+  const all = await playAll(ladderJobs({ ascensions, rungs, runs, seed: seed0, forest, monarch }), { cache: CACHE })
   const t = ladderTable(all, { ascensions, rungs, runs, seed: seed0 })
   for (const line of ladderLines(t)) console.log(line)
   console.log(`(${all.length} runs in ${((Date.now() - t0) / 60000).toFixed(1)} min${forest !== undefined ? `, forest ${forest}` : ''}${monarchText(monarch)})`)
@@ -3585,7 +3631,7 @@ export const BANDS = { ...Object.fromEntries(CORE.map((m) => [m, [25, 50]])), ..
 async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out = null, ascension = 0, monarch = null }) {
   variants = [null, ...variants]
   const t0 = Date.now()
-  const played = await playAll(variants.flatMap((ablate) => Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level: 'expert', ablate, ...(ascension && { ascension }), ...asMonarch(monarch) }))))
+  const played = await playAll(variants.flatMap((ablate) => Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level: 'expert', ablate, ...(ascension && { ascension }), ...asMonarch(monarch) }))), { cache: CACHE })
   // With `out`, every run's outcome as JSON (for pairing two sweeps seed by seed).
   if (out) {
     fs.writeFileSync(out, JSON.stringify({
@@ -3829,7 +3875,8 @@ async function necessity ({ runs, seed: seed0, setups: file = null, ascension = 
 // run's end by the expert, the first that clears taken; the expert in battle; ~67 s a run), committed through the same
 // book. `--ascension`: the level of the ladder its runs are played at (createRun's; 0 by default). `--scale`: every
 // foe's HP and ATK × it on top of the level's (createRun's: an override for probing). `--out`: the rows, the block and
-// every run's record, as JSON.
+// every run's record, as JSON. `--sequential [--block 64]`: each archetype against free play stopped once decided
+// (sequential.js), `--runs` the most (768).
 // Noise as the old spec reported it: ± one standard error of the paired difference; 64 seeds resolve ~6 points of
 // clear rate, 256 ~3.
 // --pool [--runs 256] [--seed div]  (npm run pool): what a run can gather (poolTable).
@@ -3858,9 +3905,10 @@ export async function buildRecord ({ seed, player = 'expert', commit = null, str
 const jobKey = (job) => (job.builds ? `${job.seed}|builds|${job.player}|${job.commit ?? 'free'}${job.strict && job.commit ? '|strict' : ''}|${job.scale}${job.ascension ? `|a${job.ascension}` : ''}${job.monarch ? `|m:${job.monarch}` : ''}`
   : job.ladder ? `${job.seed}|ladder|${job.player}|a${job.ascension}${job.monarch ? `|m:${job.monarch}` : ''}` : timeKey(job))
 
-// The jobs of --builds: free play, then each archetype of `commits` committed (`strict`: strictly), on the same seeds.
-export function buildJobs ({ player = 'expert', commits = ARCHETYPES(), strict = false, scale = 1, ascension = 0, monarch = null, runs = 256, seed = 'div' } = {}) {
-  const seeds = Array.from({ length: runs }, (_, i) => `${seed}-${i}`)
+// The jobs of --builds: free play, then each archetype of `commits` committed (`strict`: strictly), on the same seeds
+// (`runs` of them from `<seed>-<from>`).
+export function buildJobs ({ player = 'expert', commits = ARCHETYPES(), strict = false, scale = 1, ascension = 0, monarch = null, runs = 256, seed = 'div', from = 0 } = {}) {
+  const seeds = Array.from({ length: runs }, (_, i) => `${seed}-${from + i}`)
   return [null, ...commits].flatMap((commit) => seeds.map((s) => ({ builds: true, seed: s, player, commit, ...(strict && commit && { strict: true }), scale, ascension, ...asMonarch(monarch) })))
 }
 // The archetypes a --commit names: `all`, `fused` (the fused kinds), `synergies`, `none` (free play alone), or a
@@ -4100,24 +4148,58 @@ export function diversityLines (d, label = 'free play') {
 }
 
 // --builds: plays the jobs (playAll), prints the rows and free play's diversity block (the teacher's counts too); with
-// `out`, all of it and every record as JSON. → { rows, diversity, records }
-export async function builds ({ player = 'expert', commits = ARCHETYPES(), strict = false, scale = 1, ascension = 0, monarch = null, runs = 256, seed = 'div', out = null, log = console.log } = {}) {
+// `out`, all of it and every record as JSON. `sequential` (with an archetype to compare): each archetype against free
+// play stopped once decided (buildsSequential), `runs` the most played, and where each stopped printed after the rows.
+// → { rows, diversity, records, sequential }
+export async function builds ({ player = 'expert', commits = ARCHETYPES(), strict = false, scale = 1, ascension = 0, monarch = null, runs = 256, seed = 'div', out = null, log = console.log, sequential = false, block = 64, design = 'peto', alpha = 0.05, minGain = SEQ.MIN_GAIN } = {}) {
   if (!PLAYERS.includes(player)) throw new Error(`unknown player "${player}": ${PLAYERS.join(', ')}`)
   if (!(scale > 0)) throw new Error(`scale ${scale}: a multiplier above 0`)
   ascensionsOf(String(ascension))
   const t0 = Date.now()
-  const played = await playAll(buildJobs({ player, commits, strict, scale, ascension, monarch, runs, seed }))
-  const free = played.slice(0, runs)
-  const rows = [buildRow(free), ...commits.map((arch, k) => buildRow(played.slice((k + 1) * runs, (k + 2) * runs), arch, free))]
+  const how = { player, strict, scale, ascension, monarch, seed }
+  const seq = sequential && commits.length ? await buildsSequential({ ...how, commits, runs, block, design, alpha, minGain }) : null
+  const played = seq ? [...seq.free, ...seq.each.flat()] : await playAll(buildJobs({ ...how, commits, runs }), { cache: CACHE })
+  const free = seq ? seq.free : played.slice(0, runs)
+  const each = seq ? seq.each : commits.map((_, k) => played.slice((k + 1) * runs, (k + 2) * runs))
+  const rows = [buildRow(free), ...commits.map((arch, k) => buildRow(each[k], arch, free.slice(0, each[k].length)))]
   const d = diversity(free)
-  for (const line of [...buildLines(rows, { player, strict, scale, ascension, monarch, runs, seed }), '', ...diversityLines(d)]) log(line)
+  for (const line of [...buildLines(rows, { ...how, runs: free.length }), ...(seq ? ['', ...buildStopLines(seq, { minGain })] : []), '', ...diversityLines(d)]) log(line)
   if (player === 'teacher') {
     const per = (k) => (played.reduce((n, r) => n + r.teacher[k], 0) / played.length).toFixed(1)
     log(`the teacher a run: ${per('decisions')} decisions played out, ${per('playouts')} playouts, ${per('overrides')} overrides of the expert's pick`)
   }
   log(`(${played.length} runs in ${((Date.now() - t0) / 60000).toFixed(1)} min)`)
-  if (out) fs.writeFileSync(out, JSON.stringify({ player, ...(strict && { strict }), scale, ascension, seed, runs, commits, rows, diversity: d, records: played }) + '\n')
-  return { rows, diversity: d, records: played }
+  // Sequential, the records are free play's seeds played and then each archetype's, `sequential.stops[k].n` of them.
+  const stops = seq && { max: runs, block, design, alpha, minGain, stops: seq.stops }
+  if (out) fs.writeFileSync(out, JSON.stringify({ player, ...(strict && { strict }), scale, ascension, seed, runs: free.length, commits, rows, diversity: d, ...(seq && { sequential: stops }), records: played }) + '\n')
+  return { rows, diversity: d, records: played, ...(seq && { sequential: stops }) }
+}
+// --builds --sequential: free play and each archetype of `commits` on seeds `<seed>-0`… in blocks of `block` (plan), each
+// archetype against free play looked at after each block (look, decide) and dropped once decided, free play played on
+// while any is not, to `runs` at most. → { free, each: [an archetype's records], stops: [where each stopped], plan }
+async function buildsSequential ({ commits, runs, block, design, alpha, minGain, ...how }) {
+  const p = SEQ.plan({ runs, block, design, alpha })
+  const free = []
+  const each = commits.map(() => [])
+  const stops = commits.map(() => null)
+  for (let k = 0; stops.includes(null); k++) {
+    const live = commits.map((_, j) => j).filter((j) => !stops[j])
+    const n = p.looks[k] - free.length
+    const played = await playAll(buildJobs({ ...how, commits: live.map((j) => commits[j]), runs: n, from: free.length }), { cache: CACHE })
+    free.push(...played.slice(0, n))
+    live.forEach((j, i) => each[j].push(...played.slice((i + 1) * n, (i + 2) * n)))
+    for (const j of live) {
+      const s = SEQ.look(free, each[j])
+      const x = { arch: commits[j], k, ...s, ...SEQ.decide(s, k, p, { minGain }) }
+      if (x.decision !== 'continue') stops[j] = x
+    }
+  }
+  return { free, each, stops, plan: p }
+}
+// Where each archetype of a sequential --builds stopped, as lines.
+function buildStopLines ({ stops, plan: p }, { minGain = SEQ.MIN_GAIN } = {}) {
+  return [`sequential: each archetype against free play, blocks of ${p.looks[0]} to at most ${p.looks.at(-1)} seeds; ${SEQ.DESIGN_NAMES[p.design]}, two-sided α ${p.alpha}; futile below ${minGain >= 0 ? '+' : ''}${minGain} points`,
+    ...stops.map((x) => `  ${x.arch.padEnd(16)}${SEQ.stopLine(x, p, { minGain })}`)]
 }
 
 // ── the pool: what a run can gather (redesign.md §1, §4.2; criterion 1) ──────────────────────────
@@ -4257,6 +4339,14 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     const opts = { seed: arg('seed', 'sim'), level: arg('level', 'expert'), ascension: ascensions[0], ...asMonarch(monarch) }
     // `--workers n`: the pool's size (one per core by default).
     if (arg('workers', null) !== null) WORKERS = Math.max(1, Number(arg('workers', 1)))
+    // `--cache <dir>`: where runs are kept and read back (runcache.js; RETINUE_CACHE, else ~/.cache/retinue-runs);
+    // `--no-cache`: every run played. `--sequential [--block 64] [--design peto|pocock|obf] [--alpha 0.05] [--min-gain 1]`:
+    // --paired and --builds stopped once decided (sequential.js), `--runs` the most they play (768 by default).
+    if (!process.argv.includes('--no-cache')) CACHE = runCache({ dir: arg('cache', defaultDir()) })
+    const sequential = process.argv.includes('--sequential')
+    const seq = sequential ? { sequential, block: Number(arg('block', 64)), design: arg('design', 'peto'), alpha: Number(arg('alpha', 0.05)), minGain: Number(arg('min-gain', SEQ.MIN_GAIN)) } : {}
+    if (sequential && !SEQ.DESIGN_NAMES[seq.design]) throw new Error(`unknown design "${seq.design}": ${Object.keys(SEQ.DESIGN_NAMES).join(', ')}`)
+    const most = (fixed) => Number(arg('runs', sequential ? 768 : fixed))
     if (!LEVELS[opts.level]) throw new Error(`unknown level "${opts.level}": ${Object.keys(LEVELS).join(', ')}`)
     const ablate = arg('ablate', null)
     if (ablate !== null && !ABLATIONS.includes(ablate)) throw new Error(`unknown ablation "${ablate}": ${ABLATIONS.join(', ')}`)
@@ -4274,13 +4364,13 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     else if (process.argv.includes('--builds')) {
       await builds({
         player: arg('player', 'expert'), commits: commitsOf(arg('commit', 'all')), strict: process.argv.includes('--strict'), scale: Number(arg('scale', 1)), ascension: ascensions[0], ...asMonarch(monarch),
-        runs: Number(arg('runs', 256)), seed: arg('seed', 'div'), out: arg('out', null)
+        runs: most(256), seed: arg('seed', 'div'), out: arg('out', null), ...seq
       })
     }
     else if (arg('paired', null)) {
       const players = arg('paired').split(',')
       if (players.length !== 2) throw new Error('--paired <a>,<b>: two players (a forest file, a part or a whole expert, or none), comma-separated')
-      await paired({ ...opts, players, runs: Number(arg('runs', 256)) })
+      await paired({ ...opts, players, runs: most(256), ...seq })
     }
     else if (process.argv.includes('--audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)), ascension: opts.ascension, ...asMonarch(monarch) })
     else if (process.argv.includes('--ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
@@ -4288,5 +4378,6 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     else if (process.argv.includes('--decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
     else if (process.argv.includes('--ladder')) await ladder({ ...opts, forest, ascensions, teacher: process.argv.includes('--teacher'), runs: Number(arg('runs', RUNS.ladder)) })
     else await report({ ...opts, ablate, forest, ascension: ascensions[0], runs: Number(arg('runs', RUNS.sim)) })
+    if (CACHE?.hits || CACHE?.played) console.error(`(the run cache, ${path.join(CACHE.dir, CACHE.code.slice(0, 16))}: ${CACHE.hits} runs read, ${CACHE.played} played)`)
   }
 }
