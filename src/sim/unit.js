@@ -30,9 +30,30 @@ export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {})
 
 // A kind's two tracks, on its def (redesign.md §2.13.1); none for the Monarch.
 export const tracksOf = (id) => unitDef(id).tracks ?? []
-// The tiers a unit holds: its first track's, then its second's.
-export const tiersOf = (u) => tracksOf(u.id).flatMap((t, i) => t.tiers.slice(0, u.tracks?.[i] ?? 0))
-const trackMods = (u) => tiersOf(u).flatMap((t) => t.mods ?? [])
+// The tiers a unit holds: its first track's, then its second's. Kept a kind and pair of tiers (a kind's tracks are its
+// def's, never changed in play: a tier's own fields are read through the list, never copied), so it is shared: read
+// only. A kind of more than two tracks, or tiers not whole from 0 to 4, are made afresh each time.
+const TIERS = new Map()
+const NO_TIERS = []
+const tiersFrom = (tracks, u) => tracks.flatMap((t, i) => t.tiers.slice(0, u.tracks?.[i] ?? 0))
+export const tiersOf = (u) => {
+  const t0 = u.tracks?.[0] ?? 0
+  const t1 = u.tracks?.[1] ?? 0
+  const tracks = tracksOf(u.id)
+  if (!tracks.length) return NO_TIERS
+  if (tracks.length > 2 || !(t0 >= 0 && t0 <= 4 && t1 >= 0 && t1 <= 4 && Number.isInteger(t0) && Number.isInteger(t1))) return tiersFrom(tracks, u)
+  let kind = TIERS.get(tracks)
+  if (kind === undefined) TIERS.set(tracks, (kind = []))
+  return (kind[t0 * 5 + t1] ??= tiersFrom(tracks, u))
+}
+// The mods its tiers bring, kept with the list of tiers (shared, as it is).
+const TIER_MODS = new WeakMap()
+const trackMods = (u) => {
+  const tiers = tiersOf(u)
+  let mods = TIER_MODS.get(tiers)
+  if (mods === undefined) TIER_MODS.set(tiers, (mods = tiers.flatMap((t) => t.mods ?? [])))
+  return mods
+}
 // The crosspath rule (DESIGN §2.6): whether a kind holding `tracks` may take the next tier on track `t`: up to
 // IV, but while one track stands past II the other stops at II.
 export const canTrack = (tracks, t) => tracks[t] < 4 && (tracks[t] < 2 || tracks[1 - t] <= 2)
@@ -105,7 +126,31 @@ function setPath (o, path, value) {
 // too. Several sets on one path: the largest wins, so order never matters. A unit's stats are HP, ATK, DEF and Move
 // (redesign.md §2.2), and the shares its blows and heals are bent by; `move` the tiles it may go in a turn (baseMove),
 // `cooldown.rate` how many turns its skills' cooldowns fall at each turn's end (1; Hasten's 2).
+//
+// Kept (STATS), as everything it reads is in the key: the unit's kind, level, tiers and position, each mod by identity
+// in order (the sums run in it), and for the Monarch TUNING.monarch.hp (baseStats'; a test's tuning moves it). A mod is
+// never changed once made (content's, a battle's side mods, a status's), and a kind's def never in play. So the stats
+// are shared: read only. Dropped whole past STATS_CAP keys (a battle's side mods are made anew each battle).
+const STATS = new Map()
+const STATS_CAP = 1 << 16
+const MOD_IDS = new WeakMap()
+let modCount = 0
 export function statsOf (unit, mods = []) {
+  let key = `${unit.id}|${unit.lvl}|${unit.tracks}|${unit.pos}`
+  for (const m of mods) {
+    let id = MOD_IDS.get(m)
+    if (id === undefined) MOD_IDS.set(m, (id = ++modCount))
+    key += `|${id}`
+  }
+  if (unitDef(unit.id).monarch) key += `|m${TUNING.monarch.hp}`
+  let s = STATS.get(key)
+  if (s === undefined) {
+    if (STATS.size >= STATS_CAP) STATS.clear()
+    STATS.set(key, (s = statsFrom(unit, mods)))
+  }
+  return s
+}
+function statsFrom (unit, mods) {
   const b = baseStats(unit.id, unit.lvl)
   const s = {
     hp: b.hp, atk: b.atk, def: b.def,
@@ -129,7 +174,10 @@ export function statsOf (unit, mods = []) {
     if (typeof base !== 'number') throw new Error(`unknown stat path "${path}"`)
     setPath(s, path, a.set ?? (base + a.add) * a.mul)
   }
-  return s
+  Object.freeze(s.cooldown)
+  Object.freeze(s.damage)
+  Object.freeze(s.heal)
+  return Object.freeze(s)
 }
 
 // The stat paths a relic's mods may name that are the run's, not a unit's (redesign.md §2.13.3; run.js runStat reads
