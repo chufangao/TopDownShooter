@@ -283,6 +283,22 @@ export function treesMean (rt, x) {
   }
   return roots.length ? s / roots.length : 0
 }
+// The same for several inputs at once (`xs`), each its own sum in the trees' order as treesMean's: tree by tree, each
+// tree's nodes read once for all of them, not once each (the trees are megabytes; a decision's candidates a dozen).
+export function treesMeans (rt, xs) {
+  const { feat, thr, right, val, roots } = rt
+  const sums = new Array(xs.length).fill(0)
+  for (let t = 0; t < roots.length; t++) {
+    const root = roots[t]
+    for (let j = 0; j < xs.length; j++) {
+      const x = xs[j]
+      let k = root
+      for (let f = feat[k]; f >= 0; f = feat[k]) k = x[f] <= thr[k] ? k + 1 : right[k]
+      sums[j] += val[k]
+    }
+  }
+  return sums.map((s) => (roots.length ? s / roots.length : 0))
+}
 // Whether forest `model` reads the board an option leaves (aft.*): only then does play read it (policy.js afterOf).
 export const readsAfter = (model) => runtimeOf(model).after
 // Forest `model`'s prediction for raw inputs `x` (encodeAgainst's).
@@ -296,4 +312,11 @@ export function predictor (model, c, unit, mean, own) {
   const rt = runtimeOf(model)
   const base = model.target === 'mean' ? treesMean(rt, encodeAgainst(c, unit, own, mean, own, rt.x)) : 0
   return (view) => treesMean(rt, encodeAgainst(c, unit, view, mean, own, rt.x)) - base
+}
+// predictor's advantages for each of `views` at once (treesMeans: the same numbers, made tree by tree). → [advantage]
+export function predictions (model, c, unit, mean, own, views) {
+  const rt = runtimeOf(model)
+  const base = model.target === 'mean' ? treesMean(rt, encodeAgainst(c, unit, own, mean, own, rt.x)) : 0
+  const D = layout().D
+  return treesMeans(rt, views.map((view) => encodeAgainst(c, unit, view, mean, own, new Float64Array(D)))).map((p) => p - base)
 }

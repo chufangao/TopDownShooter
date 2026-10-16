@@ -22,7 +22,7 @@ import {
 import { call } from './rules.js'
 import { value as weighed, TREES, conditions, expertModel, decideTree, readTree, scoreOf, defaultExpert } from './expert.js'
 import { readPlan } from './plan.js'
-import { forestModel, predictor, playOf, playView, meanOf, readsAfter as forestReadsAfter } from './forest.js'
+import { forestModel, predictions, playOf, playView, meanOf, readsAfter as forestReadsAfter } from './forest.js'
 
 // ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
 
@@ -569,9 +569,17 @@ export function situation (battle, { lean = false, short = false } = {}) {
   if (lean) return out
   const next = nextWave(battle)
   const map = lazy()
+  // The lean read's fields, then the rest (as `{ ...out, map, … }` would make it, its getter read: a plain field).
   return {
-    ...out,
+    turn: out.turn,
     map,
+    healing: out.healing,
+    threat: out.threat,
+    entries: out.entries,
+    roads: out.roads,
+    holding: out.holding,
+    monarch: out.monarch,
+    patience: out.patience,
     pieces: mine.map((u) => {
       const d = dangerAt(battle, u, u.tile, map)
       return { uid: u.uid, danger: d, dies: d >= u.hp, acted: u.acted, ready: ready(u) }
@@ -1204,12 +1212,15 @@ function forested (battle, u, sit, opts, c, model, F) {
   if (!own || candidates.length < 2) return today
   const after = forestReadsAfter(F)
   if (after && F.target === 'mean') own.after = afterOf(battle, u, own, sit.plan)
-  const gain = predictor(F, c, u.id, mean, playOf(own))
+  // Each candidate's afterstate first, then their advantages all at once (forest.js predictions: predictor's, the trees
+  // read once for them all); a read of either changes nothing the other reads.
+  const rest = candidates.filter((o) => o !== own)
+  if (after) for (const o of rest) o.after = afterOf(battle, u, o, sit.plan)
+  const g = predictions(F, c, u.id, mean, playOf(own), rest.map(playOf))
   let best = null
-  for (const o of candidates) {
-    if (o === own) continue
-    if (after) o.after = afterOf(battle, u, o, sit.plan)
-    o.gain = gain(playOf(o))
+  for (let i = 0; i < rest.length; i++) {
+    const o = rest[i]
+    o.gain = g[i]
     if (best === null || gains(o, best)) best = o
   }
   if (!(best.gain > F.delta)) return today

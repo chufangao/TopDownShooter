@@ -825,11 +825,12 @@ function roadFrom (t, f) {
 // Move takes it to (unit.js steps, round the camp's walls, over them for a flyer; from any tile of its footprint), and
 // from each, every tile its blows reach (unit.js blowReach), the air's only by a blow that strikes a flyer (a ranged
 // one, or a flyer's melee). → { ground, air }: lists of tiles. Made once for each kind, level, tiers, relics held, cell
-// and camp.
+// and camp (the key's parts joined, ids holding no '|' or ',').
 const covers = new Map()
 function coverage (u, slot, camp) {
-  const key = JSON.stringify([u.id, u.lvl, u.tracks, u.relics ?? [], slot, camp])
-  if (covers.has(key)) return covers.get(key)
+  const key = `${u.id}|${u.lvl}|${u.tracks}|${u.relics ?? ''}|${slot}|${camp}`
+  const had = covers.get(key)
+  if (had !== undefined) return had
   const flies = !!unitDef(u.id).flies
   const walls = new Set(flies ? [] : wallTiles(camp))
   const move = Math.max(0, Math.floor(statsOf(u, heldMods(u)).move))
