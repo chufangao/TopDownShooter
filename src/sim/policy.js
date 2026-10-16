@@ -932,7 +932,7 @@ const needsOf = (syn) => {
 //   basic HP that blow deals (as far as its target's HP) or that heal mends; basicKill: the max HP of a foe it fells;
 //   basicCounter: HP the counter that blow draws would take
 export function features (battle, u, o, sit = situation(battle)) {
-  const v = { ...BLANK }
+  const v = blank()
   const m = sit.monarch
   const P = sit.plan ??= readPlan(battle, sit, { store: false })
   const goal = P.goals.get(u.uid)
@@ -960,7 +960,16 @@ export function features (battle, u, o, sit = situation(battle)) {
     return v
   }
   const e = estimate(battle, u, o, m ? m.marked : NOBODY, sit.map)
-  for (const k of ['damage', 'kill', 'menace', 'focus', 'bane', 'status', 'mend', 'rescue', 'shadow', 'counter']) v[k] = e[k]
+  v.damage = e.damage
+  v.kill = e.kill
+  v.menace = e.menace
+  v.focus = e.focus
+  v.bane = e.bane
+  v.status = e.status
+  v.mend = e.mend
+  v.rescue = e.rescue
+  v.shadow = e.shadow
+  v.counter = e.counter
   v.harry = e.preyed
   const left = u.hp - e.counter
   v.danger = Math.max(0, Math.min(left, dangerAt(battle, u, o.tile, sit.map)))
@@ -1001,11 +1010,14 @@ export function features (battle, u, o, sit = situation(battle)) {
   return v
 }
 
-const BLANK = Object.freeze({
+// Every feature at 0, in order: made as a literal each time (a spread of a frozen object takes V8's slow path, twenty
+// times the cost).
+const blank = () => ({
   damage: 0, kill: 0, menace: 0, focus: 0, bane: 0, harry: 0, status: 0, mend: 0, rescue: 0, danger: 0, fall: 0, counter: 0, screen: 0, guard: 0, lethal: 0, cull: 0,
   shadow: 0, fuse: 0, essence: 0, waste: 0, loss: 0, shadowLoss: 0, hit: 0, engage: 0, undone: 0, quell: 0, progress: 0, role: 0, post: 0, listed: 0, forecast: 0,
   basic: 0, basicKill: 0, basicCounter: 0
 })
+const BLANK = Object.freeze(blank())
 // The option features by name, in order (features' vector).
 export const OPTION_FEATURES = Object.freeze(Object.keys(BLANK))
 
