@@ -16,7 +16,7 @@ import {
 } from './unit.js'
 import { LANE, roadOf } from './field.js'
 import {
-  stats, emit, computeDamage, fork, order, reach, roadAhead, targetsFrom, usable, canAct, hexed, perform, walk, aloft, helped, shape, impatience,
+  stats, emit, computeDamage, fork, order, reach, roadAhead, roadTiles, targetsFrom, usable, canAct, hexed, perform, walk, aloft, helped, shape, impatience,
   orderable, isSkill, counterOf, fusionsOf, rateOf, synergiesOf, corpses, nextWave, allowed, pick, lined, struckBy
 } from './turns.js'
 import { call } from './rules.js'
@@ -100,7 +100,7 @@ const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id
 // The tiles `u` could stand on to strike from on its side's next turn, as the danger map reads them: a foe its road's
 // tiles from where it stands, as far as its Move takes it and the board lets it (roadAhead), or the one tile `at`
 // (Map uid → tile) names; a piece of yours anywhere its Move reaches; a summon or a shadow where it stands.
-const spotsOf = (battle, u, at = null) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadAhead(battle, u, u.move).map((s) => s.tile))
+const spotsOf = (battle, u, at = null) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadTiles(battle, u, u.move))
   : orderable(battle, u) ? [u.tile, ...reach(battle, u, u.move).keys()] : [u.tile]
 
 // What a unit could do on its side's next turn, for the board to light when a foe of a kind met is tapped (redesign.md
@@ -532,16 +532,16 @@ export function situation (battle, { lean = false, short = false } = {}) {
   const screened = []
   const aheads = new Map()
   for (const x of foes) {
-    const spots = roadAhead(battle, x, x.move)
+    const spots = roadTiles(battle, x, x.move)
     aheads.set(x, spots)
     // The tile its road stops before this turn, short of its Move: who holds it there.
-    const stop = spots.length <= x.move ? roadOf(battle, x).arrow[spots[spots.length - 1].tile] : -1
+    const stop = spots.length <= x.move ? roadOf(battle, x).arrow[spots[spots.length - 1]] : -1
     const holder = stop >= 0 ? holderOn(battle, x, stop) : null
     if (holder && orderable(battle, holder)) holding.set(holder.uid, [...(holding.get(holder.uid) ?? []), x])
     if (!m) continue
-    const d = strikeOn(battle, x, m, spots.map((s) => s.tile))
+    const d = strikeOn(battle, x, m, spots)
     if (d > 0) deals.set(x, d)
-    else if (strikeOn(battle, x, m, spots.map((s) => s.tile), null, false) > 0) screened.push(x)
+    else if (strikeOn(battle, x, m, spots, null, false) > 0) screened.push(x)
     const road = roadOf(battle, x)
     const t = entryOf(road, x.tile)
     if (t < 0) continue
@@ -559,7 +559,7 @@ export function situation (battle, { lean = false, short = false } = {}) {
     turn: battle.turn,
     get map () { return lazy() },
     healing: healingRead(battle),
-    threat: { foes: read, ours, d: short ? null : strikes(battle, read, ours), spots: new Map(foes.map((x) => [x, byFoe.get(x)?.spots ?? aheads.get(x).map((p) => p.tile)])) },
+    threat: { foes: read, ours, d: short ? null : strikes(battle, read, ours), spots: new Map(foes.map((x) => [x, byFoe.get(x)?.spots ?? aheads.get(x).slice()])) },
     entries,
     roads: [...roads.values()].sort((a, b) => a.tile - b.tile),
     holding,
@@ -666,7 +666,7 @@ function clear (battle, t, size, y, tile, moved = null) {
 // yours blocks or frees), the blows it will have ready (the power of each, how far it reaches a piece on the ground and
 // one in the air), and how its way line says it hunts (its temperament, the bestiary's). The danger map counts every
 // foe on every tile; this counts each foe's blow once, on whom it would rather strike (assign).
-// `aheads` (Map foe → roadAhead's list, its Move's worth) may carry the roads already read.
+// `aheads` (Map foe → roadTiles' list, its Move's worth) may carry the roads already read.
 // → [{ x, s (its stats), blows: [{ power, r, ra }], temper, spots, ahead }]
 function threatRead (battle, aheads = null) {
   const out = []
@@ -684,7 +684,7 @@ function threatRead (battle, aheads = null) {
     const road = roadOf(battle, x)
     const ahead = []
     for (let t = road.arrow[x.tile], k = 0; t >= 0 && k < x.move; t = road.arrow[t], k++) ahead.push(t)
-    out.push({ x, s: stats(battle, x), blows, melee: blows.every((b) => b.melee), temper: x.temper ?? NEUTRAL, spots: (aheads?.get(x) ?? roadAhead(battle, x, x.move)).map((p) => p.tile), ahead, dist: road.dist[x.tile] })
+    out.push({ x, s: stats(battle, x), blows, melee: blows.every((b) => b.melee), temper: x.temper ?? NEUTRAL, spots: aheads?.get(x)?.slice() ?? roadTiles(battle, x, x.move), ahead, dist: road.dist[x.tile] })
   }
   return out.sort((a, b) => a.dist - b.dist || LANE[tileX(a.x.tile)] - LANE[tileX(b.x.tile)] || a.x.uid - b.x.uid)
 }

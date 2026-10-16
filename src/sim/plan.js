@@ -21,7 +21,7 @@ import {
   DEPTH, NEIGHBOURS
 } from './unit.js'
 import { fieldOf, airOf, roadOf } from './field.js'
-import { stats, roadAhead, canAct, aloft, orderable, counterOf, ariseOf, isSkill, lined, lineBlocker, hexed } from './turns.js'
+import { stats, roadTiles, canAct, aloft, orderable, counterOf, ariseOf, isSkill, lined, lineBlocker, hexed } from './turns.js'
 import { danger, dangerAt, options, hardest, blowOn, struckOf, rawOf } from './policy.js'
 import { unitDef, abilityDef } from '../content.js'
 import { decide, TREES } from './expert.js'
@@ -48,7 +48,7 @@ export function forecast (battle, sit, map = danger(battle, 'foe')) {
   const ours = battle.units.filter((y) => y.side === 'party' && alive(y))
   for (const x of battle.units) {
     if (x.side !== 'foe' || !alive(x)) continue
-    const spots = roadAhead(battle, x, x.move).map((s) => s.tile)
+    const spots = roadTiles(battle, x, x.move)
     const t = x.temper ?? NEUTRAL
     const hurt = x.flies ? map.air : map.ground
     if (impatient) {

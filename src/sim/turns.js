@@ -1050,14 +1050,19 @@ export function reach (battle, u, budget = u.move - u.moved) {
 // stopping before the first held one (a ground foe's by anyone on the ground; a flyer's by a piece of yours below or
 // anyone in the air) or a wall. → [{ tile, path }], its own tile first.
 export function roadAhead (battle, u, steps = u.move - u.moved) {
+  const tiles = roadTiles(battle, u, steps)
+  const out = [{ tile: tiles[0], path: [] }]
+  for (let i = 1; i < tiles.length; i++) out.push({ tile: tiles[i], path: tiles.slice(1, i + 1) })
+  return out
+}
+// roadAhead's tiles alone, its own first: no path made (for the readers that ask where it may stand, not how).
+export function roadTiles (battle, u, steps = u.move - u.moved) {
   const road = roadOf(battle, u)
-  const out = [{ tile: u.tile, path: [] }]
-  const path = []
+  const out = [u.tile]
   for (let t = road.arrow[u.tile], k = 0; t >= 0 && k < steps; t = road.arrow[t], k++) {
     const holder = u.flies ? (battle.at[t] !== null && battle.at[t].side !== u.side ? battle.at[t] : battle.sky[t]) : battle.at[t]
     if ((holder !== null && holder !== u) || (!u.flies && battle.walls.has(t))) break
-    path.push(t)
-    out.push({ tile: t, path: path.slice() })
+    out.push(t)
   }
   return out
 }
