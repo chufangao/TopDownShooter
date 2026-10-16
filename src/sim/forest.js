@@ -178,6 +178,7 @@ function encodeDecision (c, unit, out) {
   const def = unitDef(unit)
   for (let j = 0; j < R.length; j++) out[C.length + j] = def.role === R[j] ? 1 : 0
   out[C.length + R.length] = def.size ?? 1
+  return out
 }
 function encodeOption (view, mean, out, c) {
   const { C, F, shared } = rowLayout()
@@ -221,8 +222,14 @@ export const rowOf = (o, after = null) => ({ ...rowView(o, after), prior: o.prio
 // reference: meanOf) against today's choice `own` (its view, the same way): encode's, then the gap of today's score and
 // each feature less today's choice's. Written into `out` (inputNames' layout). → out
 export function encodeAgainst (c, unit, view, mean, own, out = new Float64Array(layout().D)) {
+  encodeDecision(c, unit, out)
+  return encodeOptionAgainst(c, view, mean, own, out)
+}
+// encodeAgainst's but the decision's part (encodeDecision: the first `shared` inputs, alike for all its options): every
+// input after it written.
+function encodeOptionAgainst (c, view, mean, own, out) {
   const L = layout()
-  encode(c, unit, view, mean, out)
+  encodeOption(view, mean, out, c)
   out[L.gap] = r6(num(own.prior) - num(view.prior))
   for (let k = 0; k < L.F.length; k++) out[L.vs + k] = out[L.opt + k] - num(own.f[L.F[k]])
   return out
@@ -313,10 +320,14 @@ export function predictor (model, c, unit, mean, own) {
   const base = model.target === 'mean' ? treesMean(rt, encodeAgainst(c, unit, own, mean, own, rt.x)) : 0
   return (view) => treesMean(rt, encodeAgainst(c, unit, view, mean, own, rt.x)) - base
 }
-// predictor's advantages for each of `views` at once (treesMeans: the same numbers, made tree by tree). → [advantage]
+// predictor's advantages for each of `views` at once (treesMeans: the same numbers, made tree by tree, today's choice's
+// own among them for a centred target; the decision's inputs encoded once and copied). → [advantage]
 export function predictions (model, c, unit, mean, own, views) {
   const rt = runtimeOf(model)
-  const base = model.target === 'mean' ? treesMean(rt, encodeAgainst(c, unit, own, mean, own, rt.x)) : 0
-  const D = layout().D
-  return treesMeans(rt, views.map((view) => encodeAgainst(c, unit, view, mean, own, new Float64Array(D)))).map((p) => p - base)
+  const head = encodeDecision(c, unit, new Float64Array(layout().D))
+  const xs = views.map((view) => encodeOptionAgainst(c, view, mean, own, head.slice()))
+  if (model.target === 'mean') xs.push(encodeOptionAgainst(c, own, mean, own, head.slice()))
+  const sums = treesMeans(rt, xs)
+  const base = model.target === 'mean' ? sums.pop() : 0
+  return sums.map((p) => p - base)
 }
