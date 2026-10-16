@@ -12,7 +12,7 @@ import { TUNING } from '../tuning.js'
 import { STATUS_WORTH, statusDef, unitDef, FUSIONS, SYNERGIES } from '../content.js'
 import {
   alive, enemySide, isBlow, isAllyShape, footprint, tileX, tileY, distanceBetween, statsOf, blowReach, rangeOf, steps, lineEnds, LINE_AT, LINE_TILES,
-  TILES, LANES, DEPTH, synergyCounts
+  TILES, LANES, DEPTH, synergyCounts, synergyNeeds
 } from './unit.js'
 import { LANE, roadOf } from './field.js'
 import {
@@ -45,8 +45,8 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
   // Yours, read in the foes' turn or at its end, act next after a turn's end: a skill whose cooldown falls to 0 by
   // then (at the rate turns.js rateOf gives it) counts. The foes, read in your turn, act before it.
   const later = dealer === 'party' && battle.stage !== 'party'
-  const g = new Array(TILES)
-  const a = new Array(TILES)
+  const g = DANGER_G
+  const a = DANGER_A
   for (const u of battle.units) {
     if (u.side !== dealer || !alive(u) || u === battle.monarch || stunned(u, later)) continue
     const rate = later ? rateOf(battle, u) : 0
@@ -89,6 +89,10 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
   }
   return { ground, air, shields }
 }
+
+// danger's scratch, a unit's reach at a time (one danger read at a time: nothing it calls reads one).
+const DANGER_G = new Array(TILES)
+const DANGER_A = new Array(TILES)
 
 // Whether a Hexed `u` will lose its next act (`later`: it acts after a turn's end, where a Hexed of a turn runs out).
 const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id === 'hexed' && (s.fresh || s.dur === 'battle' || s.dur > 1)))
@@ -269,11 +273,9 @@ const worth = (battle, x) => (x === battle.monarch ? MONARCH : x.maxHp)
 // Road gained: how much nearer the Monarch a foe would stand (none for yours).
 const gain = (battle, u, tile) => (u.side === 'foe' ? roadOf(battle, u).dist[u.tile] - roadOf(battle, u).dist[tile] : 0)
 
-// A blow of `power` from `a` (stats) on `x`, as it lands (before the rules that bend it).
-const hit = (battle, a, x, power) => {
-  const d = stats(battle, x)
-  return computeDamage({ power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
-}
+// A blow of `power` from `a` (stats) on `x`, as it lands (before the rules that bend it); `landed` on x's stats `d`.
+const hit = (battle, a, x, power) => landed(a, stats(battle, x), power)
+const landed = (a, d, power) => computeDamage({ power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
 
 const NONE = Object.freeze([])
 const ZERO = { dealt: 0, kill: 0, counter: 0, damage: 0, focus: 0, bane: 0, preyed: 0, menace: 0, status: 0, mend: 0, rescue: 0, shadow: 0, felled: NONE, hexed: NONE }
@@ -882,7 +884,7 @@ function synergyRead (battle) {
   const counts = (side) => synergyCounts(battle.units.filter((u) => u.side === side && alive(u) && u !== battle.monarch))
   const short = (syn, c) => {
     let n = 0
-    for (const [axis, id, need] of needsOf(syn)) n += Math.max(0, need - (c[axis][id] ?? 0))
+    for (const [axis, id, need] of synergyNeeds(syn)) n += Math.max(0, need - (c[axis][id] ?? 0))
     return n
   }
   const theirs = counts('foe')
@@ -892,16 +894,9 @@ function synergyRead (battle) {
   return {
     party,
     foe: foe.map((x) => x.id),
-    breaks: foe.filter((syn) => needsOf(syn).some(([axis, id, need]) => theirs[axis][id] === need)).map((x) => x.id),
+    breaks: foe.filter((syn) => synergyNeeds(syn).some(([axis, id, need]) => theirs[axis][id] === need)).map((x) => x.id),
     gains: SYNERGIES.filter((syn) => !party.includes(syn.id) && short(syn, ours) === 1).map((x) => x.id)
   }
-}
-// A synergy's needs as [axis, id, count], kin's then role's, made once a synergy (content's, never changed).
-const NEEDS = new Map()
-const needsOf = (syn) => {
-  let out = NEEDS.get(syn)
-  if (!out) NEEDS.set(syn, (out = ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, need]) => [axis, id, need]))))
-  return out
 }
 
 // ── the expert's features (redesign.md §2.17) ────────────────────────────────────────────────────
@@ -1108,7 +1103,8 @@ function engage (battle, sit, u, o, gone) {
       const rr = x.flies ? ra : r
       if (rr < 0 || !spots.some((t) => distanceBetween(o.tile, u.size, t, x.size) <= u.move + rr)) continue
       let n = 0
-      for (const e of b.effects) if (e.op === 'damage') n += hit(battle, s, x, e.power)
+      let sx = null
+      for (const e of b.effects) if (e.op === 'damage') n += landed(s, (sx ??= stats(battle, x)), e.power)
       if (Math.min(n, x.hp) > best) best = Math.min(n, x.hp)
     }
   }

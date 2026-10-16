@@ -172,8 +172,9 @@ const PLANS = ['hold', 'focus', 'push', 'protect']
 const ROLES = ['block', 'air', 'heal', 'shoot', 'strike', 'screen']
 const NONE = Object.freeze([])
 const sum = (xs) => {
+  const list = xs ?? NONE
   let n = 0
-  for (const x of xs ?? NONE) n += x
+  for (let i = 0; i < list.length; i++) n += list[i]
   return n
 }
 

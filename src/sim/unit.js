@@ -128,7 +128,7 @@ function setPath (o, path, value) {
 // `cooldown.rate` how many turns its skills' cooldowns fall at each turn's end (1; Hasten's 2).
 //
 // Kept (STATS), as everything it reads is in the key: the unit's kind, level, tiers and position, each mod by identity
-// in order (the sums run in it), and for the Monarch TUNING.monarch.hp (baseStats'; a test's tuning moves it). A mod is
+// in order (the sums run in it), and TUNING.monarch.hp (the Monarch's baseStats; a test's tuning moves it). A mod is
 // never changed once made (content's, a battle's side mods, a status's), and a kind's def never in play. So the stats
 // are shared: read only. Dropped whole past STATS_CAP keys (a battle's side mods are made anew each battle).
 const STATS = new Map()
@@ -142,7 +142,7 @@ export function statsOf (unit, mods = []) {
     if (id === undefined) MOD_IDS.set(m, (id = ++modCount))
     key += `|${id}`
   }
-  if (unitDef(unit.id).monarch) key += `|m${TUNING.monarch.hp}`
+  key += `|${TUNING.monarch.hp}`
   let s = STATS.get(key)
   if (s === undefined) {
     if (STATS.size >= STATS_CAP) STATS.clear()
@@ -225,8 +225,17 @@ export function activeSynergies (units, also = null) {
   return SYNERGIES.filter((s) => synergyActive(s, c))
 }
 
-export const synergyActive = (syn, counts) =>
-  ['kin', 'role'].every((axis) => Object.entries(syn.needs[axis] ?? {}).every(([id, n]) => (counts[axis][id] ?? 0) >= n))
+export const synergyActive = (syn, counts) => {
+  for (const [axis, id, n] of synergyNeeds(syn)) if (!((counts[axis][id] ?? 0) >= n)) return false
+  return true
+}
+// A synergy's needs as [axis, id, count], kin's then role's, made once a synergy (content's, never changed).
+const NEEDS = new Map()
+export const synergyNeeds = (syn) => {
+  let out = NEEDS.get(syn)
+  if (!out) NEEDS.set(syn, (out = ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, n]) => [axis, id, n]))))
+  return out
+}
 // Whether a synergy held holds its rule whole: one split (content.js `full`: Echo's) once its kin or role counts `full`,
 // below it its lesser form; any other wherever it holds.
 export const synergyFull = (syn, counts) =>
