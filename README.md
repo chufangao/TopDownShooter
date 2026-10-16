@@ -117,10 +117,10 @@ The forests are fitted on labels made by playing each candidate out, offline: ev
 the battle's end, every recruit to the run's end, every formation through the battle it opens. At a milestone they
 are refitted on the game as it stands and each is kept only on a paired gain on fresh seeds: the refit of 2026-10-16
 (redesign.md §8) kept the formation's; the recruit's forest and the route, fitted on the four-floor game, still play
-better than their refits, and the battle forest waits on its relabel. The same playouts make the **teacher**, a slow
-player that takes the best of them (`teach.js --teacher`; out of battle `outside.js`): it is never shipped, and its
-clear rate is the ceiling of play (every battle is on the screen and combat is deterministic, so it calculates only
-what a player could).
+better than their refits, as does the battle forest against its refit on 160 runs' labels. The same playouts make
+the **teacher**, a slow player that takes the best of them (`teach.js --teacher`; out of battle `outside.js`): it is
+never shipped, and its clear rate is the ceiling of play (every battle is on the screen and combat is deterministic,
+so it calculates only what a player could).
 
 ```
 npm run sim -- [--runs 8] [--seed sim] [--level expert] [--ablate orders]   # a balance report

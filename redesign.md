@@ -150,9 +150,9 @@ a forest is confident, take its word.
   2026-10-11, checked on 128 others); and the **battle forest** (`expert.json forest`, round 3 of `forest.js`: 200
   regression trees over 252 inputs, the conditions, the features, the same less the position's mean, and the conditions
   of the board the option leaves, fitted on playouts of every option to the battle's end) overrules that choice where it
-  reads another candidate more than δ 0.02 above it (not relabelled at the refit of 2026-10-16, §8; worth 5.6 points
-  there). The untouched strike or mend with basics at End Turn. `--audit` names the rule or the forest that decided each
-  order.
+  reads another candidate more than δ 0.02 above it (kept at the refit of 2026-10-16, §8, its refit on 160 runs' labels
+  no better; worth 5.6 points there). The untouched strike or mend with basics at End Turn. `--audit` names the rule or
+  the forest that decided each order.
 - **Prep** (`autoplay.js plan`, `planFor`): formations drafted from the plan's posts and the frontier, hill-climbed on a
   static score (`formationFeatures`: the danger the pieces project on the roads, blockers on the roads into the Monarch,
   shooters behind them, healers beside the threatened, the Monarch's exposure, synergies, an Arise holder by the kill
@@ -191,7 +191,7 @@ a forest is confident, take its word.
   and kept only on a paired gain on 768 fresh seeds (`--paired expert:a.json,expert:b.json`). The refit of 2026-10-16
   (§8) kept the formation's forest; it found the recruit's labels (one decision played to the run's end, by a base that
   decides the rest) pricing a pass as nearly free, so the recruit's next relabel needs whole runs played by the
-  candidate forest; the battle forest's relabel is the next refit's first job.
+  candidate forest; the battle forest's refit on 160 runs' labels played no better than the old one.
 - **What was kept and what went** (Step 0b, done 2026-10-15: §8). Kept, as it plays: everything above. Removed, as
   nothing played by it: the earlier learners (`value.js` and `value.json`, V; `ranker.js`, the MLP correction;
   `train.js`, V's trainer; `teacher.js`, the stronger battle teacher; 3,260 lines and 405 KB, `value.json` 240 KB of
@@ -2166,12 +2166,18 @@ showed); on the current game it does not. **Not kept**: the shipped recruit fore
 for this game needs labels that see a policy's repeated choice (whole runs played by the candidate forest, policy
 iteration over runs), not one decision's.
 
-**The battle forest: kept as it was, not relabelled.** Worth 5.6 points (above), so not dropped. Its relabel (`npm run
-teach -- --runs 20 --seed rftN --out rf-battle/cNN --draw state --keep 1,0.5,0.3,0.03 --keep-floor 1=2,3=3 --forest <the
-shipped's>`, then `--augment` and `npm run forest -- --inputs aft`; a pilot at 47439ac, 10 runs, 1,081 positions in 4
-min, so ~2 h for 300) was not run: the recruit's labels were made twice. The old spec's round 4 (relabelled under the
-shipped expert, 39,300 positions beside round 3's 95,749) played level on fresh seeds; a forest of ~30,000 fresh
-positions alone would stand in for one fitted on three times as many. It is the next refit's first job.
+**The battle forest: relabelled, kept as it was.** Worth 5.6 points (above), so not dropped. Labels: `npm run teach --
+--runs 20 --seed rftN --out rf-battle/cNN --draw state --keep 1,0.5,0.3,0.03 --keep-floor 1=2,3=3 --forest <the
+shipped's>`, N 0…7, then `--augment`: 160 runs of the shipped expert (120 cleared), 14,904 positions of 9.7 options,
+9,741 / 794 / 4,369 by floor, every option played to the battle's end; 51 min, cut from 300 runs for time once the
+recruit's labels had been made twice. Refitted as round 3 (`npm run forest -- --inputs aft`: 200 trees, depth ≤ 12, ≤
+512 leaves of ≥ 40 rows, the centred target; 64,358 nodes): held out (3,040 positions) +0.017 a decision at δ 0.02 and
++0.006 at 0.05, where the shipped forest, fitted on 95,749 positions of the old game, reads −0.021 at its 0.02 (the
+teacher +0.207). On `rfs`, beside the kept formation forest and against it: δ 0.02 −0.92 ± 2.37 (192 clears against 199,
++27 −34), δ 0.05 −3.48 ± 2.28 (183, +19 −35). **Not kept** (not a candidate for `rfc`): the shipped forest stays. The
+old spec's round 4 (relabelled under the shipped expert, 39,300 positions, fitted beside round 3's) played level too; a
+forest of 14,904 fresh positions alone stands in for one fitted on six times as many, and its next relabel wants the 300
+runs and more, or the old sets' successors beside it.
 
 **The expert at the end** (the shipped with the formation's forest refitted; `rfc-0…767`, seed for seed):
 
@@ -2187,19 +2193,19 @@ positions alone would stand in for one fitted on three times as many. It is the 
 
 **How it was run** (scripts in the session's scratchpad, `rf-refit/`, beside every label set and play file): a frozen
 copy of `src/` for the labels; a queue of resumable jobs, one runner at a time (a lock), each label set in chunks of
-seeds with its own directory, each play file a line a run, what a restart cut mended before a job went on (the
-container restarted once mid-measure: one play file's 214 runs resumed). Plays by `autoplay.js record` with `expert:`
-files (`--paired`'s players), paired per seed, the diversity block by `autoplay.js diversity` on the same records. ~9 h
-of four workers: labels ~6.5 h (the route 1.1, recruits and formations 3.0, formations alone 0.7, recruits under the
-sketch 1.7), plays ~2.5 h.
+seeds with its own directory, each play file a line a run, what a restart cut mended before a job went on (the container
+restarted once mid-measure: one play file's 214 runs resumed). Plays by `autoplay.js record` with `expert:` files
+(`--paired`'s players), paired per seed, the diversity block by `autoplay.js diversity` on the same records. ~10 h of
+four workers: labels ~7.4 h (the route 1.1, recruits and formations 3.0, formations alone 0.7, recruits under the sketch
+1.7, the battle 0.9), plays ~2.7 h.
 
 **What it says.** The parts fitted on the old game still carry the expert on the new one: the recruit's forest 15 points
 of clears, the formation's 9, the battle forest 7, the route 5, against each dropped. A relabel under the shipped expert
 improves what is judged a battle deep (the formation, kept: more clears, the Sovereign's room 30 → 10 deaths) and not
-what is judged to the run's end by one decision's playout (the recruit, the route): those labels are coin flips where
-the parts decide, and the fits learn their noise or, for the recruit, a bias that compounds. The Court's monoculture is
-the recruit's forest's, and the refit leaves it (75% of final armies); breaking it is the balance pass's or a recruit
-forest fitted on whole runs'. Not done: the battle forest's relabel (above). The book's fourth army (the second bug
+what is judged to the run's end by one decision's playout (the recruit, the route), nor the battle forest on a sixth of
+its old data: those labels are coin flips where the parts decide, and the fits learn their noise or, for the recruit, a
+bias that compounds. The Court's monoculture is the recruit's forest's, and the refit leaves it (75% of final armies);
+breaking it is the balance pass's or a recruit forest fitted on whole runs'. The book's fourth army (the second bug
 hunt's "seen and left") is the hand formula's, not a learned part, and stays.
 
 **Tests**: 524, all passing (`--test-concurrency=2`, 191 s); no test's seed or expectation moved (the outside teacher's
