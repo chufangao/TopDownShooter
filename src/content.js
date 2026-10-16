@@ -768,7 +768,9 @@ export const UNIT_LIST = [
   // a rule in the registry scoped to the piece of the kind (rules.js, as the Sovereign's override: `rule`): a rise on a
   // kill, a fire that spreads, drones at every wave, a stand once a battle. Their pictures are borrowed (`art`) until
   // drawn. Numbers: HP and its growth 1.1× the parts' sum, ATK 1.4× and DEF 1.1× the best part's (the heaviest 1.25×),
-  // by the trine table's spirit (TUNING.trine); placeholders until the balance pass.
+  // by the trine table's spirit (TUNING.trine); the five with a made trine among their parts set again on the table of
+  // the balance pass's second part (2026-10-16), on which the Winter Court and the Cinder Wyrm had fallen under their
+  // parts' HP and the expert kept its Frost Sprite Trines unfused.
   {
     // Bone Colossus + the Grave Ghoul's trine. The wall that feeds: its blows heal it, and a foe it slays beside it
     // rises as yours (rules.js charnel_cathedral).
@@ -779,8 +781,8 @@ export const UNIT_LIST = [
     tier: 5,
     fused: true,
     size: 2,
-    base: { hp: 1900, atk: 95, def: 31 },
-    growth: { hp: 196, atk: 12, def: 2.6 },
+    base: { hp: 2100, atk: 113, def: 31 },
+    growth: { hp: 220, atk: 15.7, def: 2.6 },
     abilities: ['charnel_sweep', 'feeding_strike'],
     move: 2,
     temper: TEMPERS.charger,
@@ -811,8 +813,8 @@ export const UNIT_LIST = [
     role: 'channeler',
     tier: 5,
     fused: true,
-    base: { hp: 800, atk: 101, def: 9 },
-    growth: { hp: 90, atk: 14, def: 0.7 },
+    base: { hp: 920, atk: 130, def: 10 },
+    growth: { hp: 103, atk: 17.4, def: 0.7 },
     abilities: ['long_winter', 'court_of_frost', 'winter_fire'],
     move: 2,
     temper: TEMPERS.seeker,
@@ -842,8 +844,8 @@ export const UNIT_LIST = [
     tier: 5,
     fused: true,
     flies: true,
-    base: { hp: 1280, atk: 115, def: 14 },
-    growth: { hp: 135, atk: 15, def: 1.3 },
+    base: { hp: 1460, atk: 130, def: 15 },
+    growth: { hp: 155, atk: 17.9, def: 1.3 },
     abilities: ['cinder_storm', 'wyrm_fire'],
     move: 3,
     temper: TEMPERS.crowd,
@@ -874,8 +876,8 @@ export const UNIT_LIST = [
     tier: 5,
     fused: true,
     size: 2,
-    base: { hp: 1425, atk: 97, def: 22 },
-    growth: { hp: 146, atk: 12.3, def: 2 },
+    base: { hp: 1530, atk: 104, def: 22 },
+    growth: { hp: 157, atk: 14.7, def: 2 },
     abilities: ['hive_chorus', 'hive_scythe', 'strike'],
     move: 2,
     temper: TEMPERS.keeper,
@@ -906,8 +908,8 @@ export const UNIT_LIST = [
     tier: 5,
     fused: true,
     size: 2,
-    base: { hp: 1760, atk: 84, def: 35 },
-    growth: { hp: 174, atk: 11.5, def: 2.9 },
+    base: { hp: 1910, atk: 104, def: 35 },
+    growth: { hp: 189, atk: 14.7, def: 2.9 },
     abilities: ['time_lock', 'gear_strike'],
     move: 2,
     temper: TEMPERS.sieger,

@@ -2653,6 +2653,87 @@ boss's room, each boss killing what it answers: the Swarm Queen (walls) 48% of t
 the Sovereign 35% of 417 (free play: 1.5%). The insect rows stall (Wardens mending against foes mending: 19–31 turns a
 battle, 1,000-turn stalls lost) and cost 10–15 s a run.
 
+**Phase B: the loop.** Each candidate in a copy of the tree, its book remade, against the base on the same seeds: a
+screen of twelve strict rows on `b2s-0…31` (the five kins but Insect 4, whose stalls cost a third of a screen, the Court,
+the Sprite's, the Chanter's, the Ghoul's, the Page's and the Hound's trines, the Rime Drake and the Bone Colossus: 384
+runs a tree; the base's are phase A's runs) and free play on `b2s-0…127`; what passed it, all 25 rows on 64 seeds and
+free play on 256, then the same on fresh `b2c-*`. "Strict sum": the twelve rows' clears added (the base's 65 of 384).
+
+Round 1 (`b2s`, free play 100 of 128 at the base):
+
+- **The floors' bosses lighter where they kill builds** (the Swarm Queen 280 → 220 HP and 22 → 18 ATK of its own, the
+  Barrow Marshal 380 → 320 and 24 → 20, floor 2's boss 2.4 → 2 HP and 1.6 → 1.4 ATK): free play the same runs to their
+  ends (+0 −0: its deaths come before the bosses), strict sum 65 → 67. Not kept.
+- **The Sovereign lighter** (`bossHp` 0.45 → 0.35, `bossAtk` 0.6 → 0.5): free play +2 −0 (+1.6 ± 1.1 points), its two
+  deaths in the Sovereign's room gone; strict sum 65 → 84, every row that reaches floor 3 up (Fae 4 12 → 17, the Sprite's
+  trine 11 → 15, Undead 4 8 → 11) and the Court with them (20 → 24).
+- **The trine table up a seventh** (`TUNING.trine.parts`: HP ×7 → 8 and ATK ×4.8 → 5.5 at tier 1, 7 → 8 and 4.5 → 5.2 at
+  tier 2, 6 → 7 and 3.8 → 4.4 at 3, 5.5 → 6.3 and 3.2 → 3.7 at 4; the Court, written, as it was): free play +3 −4 (−0.8 ±
+  2.1; progress −1.41 ± 1.28); strict sum 65 → 76, the Court 20 → 20 and the made trines up (the Chanter's 6 → 10, the
+  Sprite's 11 → 13, the Page's 2 → 3): the gap narrows from below.
+
+Round 2 (`b2s`, the same screen):
+
+- **Both** (the Sovereign 0.35 / 0.5 and the table up a seventh): free play +3 −3 (+0.0 ± 1.9); strict sum 65 → 93 (the
+  Court 20 → 24, Fae 4 12 → 19, the Chanter's trine 6 → 12, the Sprite's 11 → 15, Undead 4 8 → 11).
+- **The table up a third alone** (HP ×9, ×9, ×7.7, ×7 by the parts' tier 1–4; ATK ×6.2, ×5.8, ×4.9, ×4.1; DEF a tenth
+  up): free play +6 −4 (+1.6 ± 2.5); strict sum 65 → 81, the Court 20 → 20. The Winter Court falls out of free play
+  (26% → 8% of final armies): a Frost Sprite's trine now outweighs the capstone it would be fused into, which the
+  capstones' rule (HP 1.1× the parts' sum, ATK 1.4× the best part's) set on the old table.
+- **Both further** (the Sovereign 0.3 / 0.45 and its court of 1; the table up a third): free play +7 −3 (+3.1 ± 2.5),
+  the Sovereign's deaths gone; strict sum 65 → 104 (the Court 25, Fae 4 20, the Sprite's trine 17, Undead 4 and the
+  Chanter's trine 12, the Hound's 3, the Page's 4, Construct 4 3). The best so far; the Ghoul's trine (0), the Rime
+  Drake (5) and the Colossus (0–1) unmoved, dying on floor 1 and to the floors' bosses before the Sovereign.
+
+Round 3 (`b2s`; the screen with the Winter Court's and Aurora's rows added, the base's sum 109 of 448):
+
+- **The capstones on the new table** (the five with a made trine among their parts, set again by their own rule on the
+  table up a third: the Charnel Cathedral 2,100 HP and 113 ATK, the Winter Court 920 and 130, the Cinder Wyrm 1,460 and
+  130, the Hive Mind 1,530 and 104, the Engine of Ages 1,910 and 104, their growth alike; on the old ones the Winter Court
+  and the Cinder Wyrm fall under their parts' HP, which the content test forbids), with the Sovereign 0.3 / 0.45 and its
+  court of 1: free play +5 −4 (+0.8 ± 2.4), the Winter Court back in 28% of final armies; strict sum 109 → 149.
+- **The same with the Court lighter** (its ATK 72 → 62 and its growth 10 → 8.6): free play +7 −5 (+1.6 ± 2.7); strict
+  sum 142, the Court 25 → 19 but Fae 4, the Winter Court and Aurora (which hold it) no higher: four rows within 15 points
+  of the best, the gap closed from above at a cost to all of them. Not kept.
+- **The same with the Sovereign lighter still** (0.25 HP and 0.4 ATK of its own, its court of 1): free play as the
+  second (the same runs: none of them falls to the Sovereign either way); strict sum 109 → 158: Fae 4 12 → 24 beside the
+  Court's 25, the Sprite's trine 11 → 18, Undead 4 and the Chanter's trine 12, the Ghoul's trine 0 → 4. Four rows within
+  15 points of the best. **To confirmation.**
+
+**Kept: the Sovereign lighter, the trine table up a third, the capstones on it** (`TUNING.spawn.bossHp` and `bossAtk`
+on floor 3 0.45 → 0.25 and 0.6 → 0.4, `court` 2 → 1; `TUNING.trine.parts`; the five capstones' base and growth). Confirmed
+on fresh `b2c` (free play `b2c-0…255`; fifteen strict rows on `b2c-0…63`, Insect 4 among them):
+
+| | Base (eaeaab0) | Kept |
+|---|---|---|
+| free play: clears | 210 (82.0%) | **216 (84.4%): +13 −7, +2.3 ± 1.7 points** |
+| progress; died on floor 1 / 2 / 3 | 86.7; 39 / 0 / 7 (the Sovereign 7) | +0.08 ± 1.16; 39 / 0 / 1 (the Sovereign 1) |
+| final armies | the Court 75%, the Sprite's trine 54%, the Chanter's 45%, the Winter Court 24% | the Court 68%, the Chanter's trine 53%, the Sprite's 52%, the Winter Court 27%, the Ghoul's trine 6%, the Rime Drake 5% |
+| synergies at 5%+ | 4 | 4 (Mirage 77%, Echo 68%, Legion 30%, Ambush 23%) |
+
+| Strict, `b2c-0…63` | Base | Kept (paired) | Died on floor 1 / 2 / 3, kept |
+|---|---|---|---|
+| Winter Court | 46 | **54** (+9 −1) | 10 / 0 / 0 |
+| Pale Court | 41 | 45 (+5 −1) | 18 / 0 / 1 |
+| Fae 4 | 33 | **45** (+16 −4) | 10 / 3 / 6 |
+| Frost Sprite's trine | 26 | **44** (+21 −3) | 12 / 6 / 2 |
+| Aurora | 40 | 42 (+3 −1) | 18 / 2 / 2 |
+| Bone Chanter's trine | 16 | **25** (+10 −1) | 21 / 18 / 0 (the Mire Mother 12) |
+| Undead 4 | 15 | 21 (+6 −0) | 21 / 13 / 9 (the Swarm Queen 7) |
+| Rime Drake | 12 | 12 (+1 −1) | 46 / 4 / 2 (the Barrow Marshal 21) |
+| Clockwork Page's trine | 5 | 12 (+9 −2) | 43 / 6 / 3 |
+| Grave Ghoul's trine | 3 | 10 (+7 −0) | 20 / 17 / 17 |
+| Bone Colossus | 4 | 9 (+5 −0) | 29 / 18 / 8 |
+| Drake 4 | 2 | 6 (+4 −0) | 44 / 10 / 4 |
+| Pyre Hound's trine | 3 | 6 (+4 −1) | 39 / 14 / 5 |
+| Insect 4 | 0 | 5 (+5 −0) | 30 / 21 / 8 (the Swarm Queen 18) |
+| Construct 4 | 4 | 5 (+3 −2) | 45 / 8 / 6 |
+| sum of the fifteen | 250 | **341** | |
+
+Every row but the Rime Drake's up (it dies on floor 1, 21 of its falls to the Barrow Marshal, before its keystone is
+offered), the made trines most; the Sovereign kills 23 of the 960 strict runs against 88. The best is the Winter Court
+(54); within 15 points of it the Court and Fae 4 (45), the Sprite's trine a clear short (44).
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
