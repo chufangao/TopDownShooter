@@ -2577,6 +2577,82 @@ gain first read positive at the second round), or the label of a decision averag
 **Tests**: 532, all passing (`--test-concurrency=2`, 113 s): `test/outforest.test.js`'s 3 new (the correction and the
 margin by floor, the recruits' labels by floor, forests merged); no test's seed or expectation moved.
 
+### The balance pass, part 2 (2026-10-16)
+
+**What** (§6 Step 6's loop, on the retrained expert: §4.0, the refit's formation forest and the recruit learner's G1;
+`src/content.js` and `src/tuning.js`'s game numbers the domain; the expert's weights, tree and forests as they are).
+Criteria 1–3, criterion 2 first and judged by the strict commitment (§7, the user's word); criterion 4 is the next
+part's, and level-0 free play was held near where it stood. Selection on seeds `b2s-*`, confirmation on fresh `b2c-*`;
+the base eaeaab0. Each candidate played in a copy of the tree with the change and its book remade (`npm run combos`),
+paired seed for seed against the base by its own runs (a script beside the harness's `--builds --strict`, every run a
+harness job kept in the run cache, so the CLI's rows and the script's are the same runs): the strict rows on 64 seeds,
+free play on 256 in blocks of 64 stopped for a loss by §3's bound. Four workers, nothing else on the box.
+
+**Phase A: the base on the retrained expert** (eaeaab0; `npm run builds -- --commit none --runs 256 --seed b2s`;
+`npm run pool -- --seed b2s`; `--builds --strict --runs 64 --seed b2s` for the five kins, the five mixed and written
+fused kinds, the ten trines of base kinds a run can reach and the five reachable capstones; `npm run ablations --
+--variants relics --runs 256 --seed b2s`; free play on `b2c-0…255`, the confirmations' base).
+
+Free play, `b2s-0…255`: **201 clears (78.5%)**, progress 82.7; dead on floor 1 / 2 / 3 **50 / 2 / 3**, the floor-1 deaths
+in its fights (ranks 2–12; the Barrow Marshal's and the Molting Abbess's rooms one each), the Sovereign 3 of the 204
+that met it (15.8 turns a battle), floor 2's Mire Mother 1 of 189; 31.3 battles a run, 9.7 recruits, 6.6 souls at the
+end. Criterion 3: the Pale Court in 68% of final armies (the Frost Sprite's trine 55%, the Chanter's 47%, the Winter
+Court 22%, the Rime Drake 3%); 3 of the 22 base recipes made in 8% of runs or more, the Court (77%) and the Sprite's
+(69%) and the Chanter's (47%) trines (the Rime Drake 4%, the Ghoul's trine and the Colossus 2%); synergies held in 5% of battles
+or more **4 of 11** (Mirage 74%, Echo 67%, Legion 27%, Ambush 22%; Dragonfire under 1%; none in 16%); 10 of 62 kinds
+in a tenth of final armies (the Marsh Hag, the Mire Mother's court, in 39%); relics 2.7 a run (Command 33%), bought
+on floor 3 (557 of 702), floor 2 (131) and hardly on floor 1 (14); a clear ends with a median 507 essence unspent.
+On `b2c-0…255` (the confirmations' base): 210 clears (82.0%), progress 86.7, dead 39 / 0 / 7; the Court in 75% of
+final armies; the same four synergies at 5% or more.
+
+Criterion 1, the pool (256 seeds `b2s`): **31 of 44**, as the user's rules left it. Short: the Clockwork Titan (its
+Iron Golem 2.9 battles by the end of floor 2), the Engine of Ages and the Iron Barrow on it, the Golem's and the Titan's
+trines; the Thorn Dryad's and the Rot Bloat's trines (1.4, 1.5) and their trines; the Marsh Hag's (0.5) and the
+floor-3 kinds' (the Ash Wyvern's, the Barrow Wight's, the Frost Wyrm's: none by floor 2).
+
+Criterion 3's relic line, `--ablations --variants relics` (`b2s-0…255`): the full expert 201 clears, without Common,
+Uncommon and Rare relics 201: **a drop of 0 points** (progress −0.3 ± 0.2, the ablated a hair ahead; dead 50 / 0 / 5
+against 50 / 2 / 3). Relics are bought on floor 3, where hardly a run dies; the deaths are floor 1's, where none are
+bought.
+
+Criterion 2, the expert strictly committed, `b2s-0…63` (free play 48 of 64, progress 80.3; progress against it seed
+for seed; the boss rooms the most runs fell in; "reached": runs that made its fusion or held its synergy):
+
+| Archetype | Clears | Progress (vs free) | Died on floor 1 / 2 / 3 | Fell most to | Reached |
+|---|---|---|---|---|---|
+| Winter Court | **49** | 84.5 (+4.2 ± 3.5) | 11 / 0 / 4 | the Sovereign 4 | 19% |
+| Aurora | 46 | 78.3 (−2.1 ± 3.6) | 17 / 0 / 1 | the Marshal 3, the Abbess 3 | 2% |
+| Pale Court | 41 | 82.8 (+2.5 ± 5.5) | 13 / 0 / 10 | the Sovereign 10 | 80% |
+| Fae 4 (Mirage) | 26 | 79.3 (−1.1 ± 5.2) | 14 / 1 / 23 | the Sovereign 20 | 77% |
+| Bone Chanter's trine | 17 | 63.1 (−17.3 ± 5.4) | 22 / 16 / 9 | the Mire Mother on floor 2 12, the Sovereign 9 | 56% |
+| Frost Sprite's trine | 17 | 70.0 (−10.3 ± 5.2) | 20 / 3 / 24 | the Sovereign 19 | 69% |
+| Undead 4 (Legion) | 14 | 64.8 (−15.5 ± 6.2) | 22 / 10 / 18 | the Swarm Queen 12, the Sovereign 9 | 77% |
+| Rime Drake | 12 | 41.1 (−39.2 ± 4.8) | 39 / 12 / 1 | the Barrow Marshal 13 | 20% |
+| Hive Drone's trine | 9 | 45.8 (−34.5 ± 5.0) | 36 / 15 / 4 | the Barrow Marshal 13 | 25% |
+| Ember Drake's trine | 7 | 44.1 (−36.2 ± 4.7) | 36 / 19 / 2 | the Barrow Marshal 13, the Mire Mother 12 | 17% |
+| Clockwork Page's trine | 6 | 31.5 (−48.8 ± 5.1) | 47 / 6 / 5 | (floor 1's fights) | 33% |
+| Mantis Reaper's trine | 5 | 41.8 (−38.6 ± 4.6) | 36 / 21 / 2 | the Barrow Marshal 13, the Mire Mother 12 | 14% |
+| Cinder Wyrm | 5 | 37.7 (−42.6 ± 5.4) | 44 / 10 / 5 | the Barrow Marshal 13 | 6% |
+| Pyre Hound's trine | 4 | 38.9 (−41.5 ± 5.6) | 35 / 19 / 6 | (floor 1's fights) | 44% |
+| Bone Colossus | 3 | 47.8 (−32.6 ± 5.5) | 32 / 14 / 15 | the Swarm Queen 12 | 66% |
+| Tomb Knight's trine | 2 | 41.9 (−38.4 ± 5.4) | 37 / 14 / 11 | the Swarm Queen 8 | 38% |
+| Charnel Cathedral | 2 | 52.3 (−28.0 ± 5.0) | 27 / 20 / 15 | the Swarm Queen 16 | 55% |
+| Hive Mind | 2 | 44.4 (−35.9 ± 5.0) | 33 / 22 / 7 | the Swarm Queen 18 | 6% |
+| Grave Ghoul's trine | 1 | 64.1 (−16.3 ± 5.7) | 12 / 23 / 28 | the Sovereign 11, the Mire Mother 10 | 81% |
+| Drake 4 (Dragonfire) | 1 | 32.6 (−47.8 ± 5.6) | 44 / 12 / 7 | (floor 1's fights) | 22% |
+| Insect 4 (Frenzy) | 1 | 43.7 (−36.6 ± 4.5) | 32 / 26 / 5 | the Swarm Queen 17 | 69% |
+| Construct 4 (Last Stand) | 1 | 26.6 (−53.8 ± 4.9) | 49 / 10 / 4 | (floor 1's fights) | 31% |
+| Clockwork Titan | 1 | 20.5 (−59.9 ± 4.7) | 54 / 7 / 2 | (floor 1's fights) | 8% |
+| Hive Warden's trine | 1 | 51.2 (−29.2 ± 5.4) | 27 / 22 / 14 | the Mire Mother 12, the Swarm Queen 11 | 56% |
+| Hive Queen | 0 | 45.0 (−35.3 ± 5.0) | 32 / 24 / 8 | the Swarm Queen 16 | 31% |
+
+Three of 25 within 15 points of the best, all three the Court's graph (the Winter Court's and Aurora's kinds take in the
+Wisps and the Court). Across the 24 committed rows' 1,327 falls, 716 in the floors' fights (451 on floor 1) and 611 in a
+boss's room, each boss killing what it answers: the Swarm Queen (walls) 48% of the 257 strict runs that met it on floor
+1, the Barrow Marshal (shooters) 29% of 363 there, the Mire Mother (casters) 17% on floor 1 and 25% of 496 on floor 2,
+the Sovereign 35% of 417 (free play: 1.5%). The insect rows stall (Wardens mending against foes mending: 19–31 turns a
+battle, 1,000-turn stalls lost) and cost 10–15 s a run.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
