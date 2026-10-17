@@ -2755,6 +2755,83 @@ free play 216 → 217 (+1 −0; its one death in the Sovereign's room gone); the
 trine 44 → 42, the Winter Court 54 → 52, the Court 45 → 44); four rows within 15 points of the best (the Winter Court
 52; the Court, Fae 4 46, Aurora), the Sprite's trine at the line's edge (42). Criterion 1: **36 of 44**.
 
+Round 5 (`b2s`, on the second kept change; its sum 166 of 544, free play 101 of 128), screened and **not confirmed**
+(the pass was wrapped up here, the user's word: more mechanics are coming, no need to balance hard):
+
+- **A fusion cheaper** (`TUNING.essence.fuse` 8 → 6 an essence a tier of the result): free play +7 −1 (+4.7 ± 2.2 points;
+  progress +4.79 ± 1.77, z 2.7), its floor-1 deaths 27 → 20; strict sum 166 → 185 (the Page's trine 5 → 9, the Hound's 2
+  → 5, the Chanter's 13 → 16, Aurora 21 → 26; the Ghoul's trine 4 → 0). The best of the screen, and a floor-1 change: the
+  difficulty part's to weigh (below).
+- **Echo's lesser form at 0.35** (was half): free play the same outcomes on all 128 seeds; strict sum 166 → 162. Not kept.
+- **The fusion cheaper and the Barrow Marshal lighter** (320 HP, 20 ATK of its own): as the first, the Rime Drake 4 → 7;
+  strict sum 187.
+
+**Rejected or left, with why** (from part 1's side branch `bal-phase2-draft`, re-read on the new expert where still
+relevant): the bosses' Hex rule and lighter bosses are the user's rules now (§8, "The user's rules"); the Ember Drake on
+floor 1 is superseded by the captain; the Marsh Hag as a Trickster, Echo's lesser form laying a status only where none
+is held (a rule, `rules.js`), the synergies at 3 and Mirage foiling a whole blow were not re-measured (rules or rejected
+there by large losses); relics a third cheaper bought more and gained nothing there, and the relic line here is a rule's
+question (below).
+
+**The criteria at HEAD** (the two kept changes; `b2c` unless said):
+
+- **Criterion 1: 36 of 44** recipes reachable (`b2s`, 256 seeds; 31 at eaeaab0). Short: the Thorn Dryad's and the Rot
+  Bloat's trines (1.4, 1.5 battles; floor-2 kinds of a fight's draws, 4% each) and their trines, and the four floor-3
+  kinds' trines (the Marsh Hag's 0.5, the Ash Wyvern's, the Barrow Wight's, the Frost Wyrm's: none by floor 2). The first
+  two need the Dryad met on floor 1 (the floor-1 pool's slice, DESIGN §2.4, a test pins it) or the Bloat drawn twice as
+  often on floor 2; the floor-3 kinds can't be offered by the end of floor 2 while they are floor 3's.
+- **Criterion 2: not met.** Strict on `b2c-0…63`, the fifteen rows (eaeaab0 → HEAD): the Winter Court 46 → 52, Fae 4 33
+  → 46, Aurora 40 → 45, the Court 41 → 44, the Frost Sprite's trine 26 → 42, the Bone Chanter's 16 → 27, Undead 4 15 →
+  26, the Clockwork Page's 5 → 15, the Rime Drake 12 → 13, the Grave Ghoul's 3 → 9, the Bone Colossus 4 → 9, Construct
+  4 4 → 8, Drake 4 2 → 7, Insect 4 0 → 7, the Pyre Hound's 6 → 5: the sum 250 → 355, the kins' own archetypes in single
+  figures where the kin's one floor-1 kind fights in melee (Drake 4, Construct 4, Insect 4). Within 15 points of the
+  best (the Winter Court's 52 of 64): 4 of the 15 (were 3), the Sprite's trine at the edge. The other ten rows were not
+  measured at HEAD on `b2c`; on `b2s-0…31` at HEAD the Tomb Knight's trine 3, the Charnel Cathedral 5, the Clockwork Titan
+  0. What holds the bottom: held to its kinds a melee build fields melee pieces on floor 1 and falls there to shooters and
+  flyers (the Monarch's killers in the strict runs of the Ghoul's trine at eaeaab0: Reach 28, Shape 13, Fly 10; Undead 4:
+  Fly 20, Shape 15, Reach 9), and the mixed recipes and capstones whose keystone is a floor-2 kind (the Rime Drake, the
+  Hive Queen, the Titan) fight floor 1 with no fusion of theirs to make (the Rime Drake 46 of its 51 falls on floor 1,
+  21 to the Barrow Marshal). Neither is a number's to answer.
+- **Criterion 3: not met** (free play `b2c-0…255`, 217 clears): the Court in 66% of final armies (75% at eaeaab0); 3 of
+  22 base recipes made in 8% of runs or more (the Court 81%, the Sprite's trine 72%, the Chanter's 54%; the Ghoul's trine
+  6%, the Rime Drake 4%); 4 of 11 synergies at 5% of battles or more (Mirage 77%, Echo 68%, Legion 30%, Ambush 23%), as
+  at eaeaab0; 10 of 62 kinds in a tenth of final armies; the relics ablation 0 points at eaeaab0 (not measured again: no
+  change here touches a relic, a Shop or floor 1). The Court's grip is the recruit forest's (fitted on the old game: it
+  takes the Wisps on floor 1, §8 "The recruit learner"); content moved it 9 points, the made trines gaining.
+- **Not mine, for the difficulty part** (criterion 4): the expert's free play at level 0 on `b2c-0…255` 210 → 217 clears
+  (82.0% → 84.8%), its deaths 39 / 0 / 7 → 39 / 0 / 0: every death now on floor 1, in its fights (ranks 2–12) and once
+  in the Barrow Marshal's room; the Sovereign kills nothing in free play and 0–6 strict runs of 64 a row. The ~90%
+  is floor 1's to give: the screened fusion price (above) is +4.7 points there. The calculator's reach of floor 2 was
+  not measured in this part (part 1: 8 of 64 on `bal`); nothing kept touches floor 1's foes, so it should stand.
+
+**Left for later** (the user's, or the next pass's):
+
+1. **The relics line, a rule's question.** 0 points on 256 seeds at three floors: relics are bought on floor 3 (557 of
+   702; floor 2 131, floor 1 14), where hardly a run dies (50 / 2 / 3), and a clear ends with a median 507 essence
+   unspent. No price makes them matter while the deaths are floor 1's and the purchases floor 3's (part 1: relics a third
+   cheaper, more bought, nothing gained). For the user: relics where runs die (an elite's or a floor boss's spoils laying
+   out a relic, the old spec's "an elite lays out no relic" reversed, or a floor-1 Shop early), §7.3's Rare relics with a
+   rule (they would act on floor 3, where nothing is decided at level 0), or the line judged at a level of the ladder
+   where floors 2–3 kill.
+2. **Criterion 2's floor and the strict commitment.** The kins with one floor-1 kind, a melee one (Drake: the Pyre Hound;
+   Construct: the Clockwork Page; Insect: the Hive Warden, whose armies stall, mending against menders), and the melee
+   trines are held by the harness to melee armies on floor 1. A harness question (a strict run allowed the field's
+   answers, a soul outside its kinds that shoots), the kin archetypes judged as their Monarch (the Brass, Ember and Hive
+   Monarchs hold their kin's banner and draw it ×3), or content (a shooter of each kin on floor 1): the user's.
+3. **A fusion's price 8 → 6**, screened above (+4.7 points of free play, strict sum +19), to confirm on fresh seeds with
+   the difficulty part, since it eases floor 1 for every build.
+4. **Criterion 1's last eight** (above), and the recruit forest refitted on the content as it now stands (§3's
+   milestone) before criterion 3's fused-kind line is read again.
+
+**How it was run** (scripts in the session's scratchpad, `b2/`): the base and every candidate a copy of `src/` with its
+patch and its book remade (`b2-mkvar.sh`, `b2-patch.py`); `b2-seq.mjs` played a comparison as harness jobs through each
+copy's `buildRecord` and its run cache (the CLI's `--builds --strict` rows and the script's are the same runs), the free
+play in blocks of 64 stopped only for a loss. Four workers, ~0.6–0.9 s a run wall (a stalled strict run of the insect
+rows 10–80 s): phase A 2,600 runs in 37 min; five screens and two confirmations ~13,000 runs in 2.4 h.
+
+**Tests**: 532, all passing (`--test-concurrency=2`); no test's number moved (the trine table, the bosses' and the
+capstones' numbers are read from `TUNING` and the records where a test reads them).
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:
