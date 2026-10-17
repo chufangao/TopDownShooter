@@ -2734,6 +2734,27 @@ Every row but the Rime Drake's up (it dies on floor 1, 21 of its falls to the Ba
 offered), the made trines most; the Sovereign kills 23 of the 960 strict runs against 88. The best is the Winter Court
 (54); within 15 points of it the Court and Fae 4 (45), the Sprite's trine a clear short (44).
 
+Round 4 (`b2s`, on the kept; seventeen strict rows, the Tomb Knight's trine, the Charnel Cathedral and the Clockwork
+Titan added; the kept's sum 164 of 544; free play 101 of 128 at the kept):
+
+- **The Iron Golem's spawn weight 6 → 7** (criterion 1: a floor-2 fight's captain is a Golem in 32% of fights, was 29%):
+  criterion 1 31 → **36 of 44** (the Golem 2.9 → 3.2 battles by the end of floor 2: the Clockwork Titan, the Engine of
+  Ages, the Iron Barrow, the Golem's and the Titan's trines; the Ember Drake 4.1 → 3.9, the Mantis Reaper 3.7 → 3.6);
+  free play the same outcomes on all 128 seeds (+0 −0); strict sum 164 → 166 (the Titan 0 → 0).
+- **The Swarm Queen lighter and slower** (280 → 240 HP, 22 → 20 ATK; two drones every third turn, three standing at
+  most, `rules.js swarm_queen`'s params, were every second and four): free play the same; strict sum 164 → 164 (Undead 4,
+  the Colossus, the Cathedral as they were). Not kept.
+- **And floor 2's boss lighter** (`bossHp` 2.4 → 2, `bossAtk` 1.6 → 1.4: the Mire Mother, which kills the Chanter's
+  trine there): free play the same; strict sum 171 (the Sprite's trine 18 → 21, the Chanter's 12 → 13, Undead 4 12 → 13).
+  The Golem's weight and floor 2's boss together **to confirmation** (the Swarm Queen's numbers left).
+
+**Kept: the Iron Golem's weight 7 and floor 2's boss lighter** (`content.js` iron_golem `spawn.weight`;
+`TUNING.spawn.bossHp` and `bossAtk` on floor 2 2.4 → 2 and 1.6 → 1.4). Confirmed on `b2c` against the first kept change:
+free play 216 → 217 (+1 −0; its one death in the Sovereign's room gone); the fifteen strict rows 341 → 355 (Undead 4 21
+→ 26, Construct 4 5 → 8, the Page's trine 12 → 15, the Chanter's 25 → 27, Aurora 42 → 45, Insect 4 5 → 7; the Sprite's
+trine 44 → 42, the Winter Court 54 → 52, the Court 45 → 44); four rows within 15 points of the best (the Winter Court
+52; the Court, Fae 4 46, Aurora), the Sprite's trine at the line's edge (42). Criterion 1: **36 of 44**.
+
 ## 9. Standing rules
 
 In force before this plan and still, with the amendments it makes:

@@ -381,13 +381,14 @@ export const TUNING = {
   // boss 3.2 → 2.4 HP and 2 → 1.6 ATK, the Sovereign 1 → 0.45 and 0.6, its court 4 → 2 (`court`). The balance pass's
   // second part (2026-10-16, redesign.md §8) the Sovereign 0.45 → 0.25 HP and 0.6 → 0.4 ATK and its court 2 → 1: held
   // to their kinds, the builds without the Court fell to it in a third of the runs that met it (free play in 1.5%), and
-  // so it decided which builds could win. Floor 1's elite is 2 foes of the higher tier (and the late pair), so a
+  // so it decided which builds could win; and floor 2's boss 2.4 → 2 HP and 1.6 → 1.4 ATK (the Mire Mother, there the
+  // wall of the Chanters' trine held to its kind). Floor 1's elite is 2 foes of the higher tier (and the late pair), so a
   // rule-of-thumb run dies on floor 1 and an expert rarely does.
   spawn: {
     levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
     fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
     // Steepest at the bottom, where the expert's army has grown most; floor 1 is the basic player's wall already.
-    foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 2.4, 0.25], bossAtk: [1, 1.6, 0.4],
+    foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 2, 0.25], bossAtk: [1, 1.4, 0.4],
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an
     // elite's `elite`: a room that does not is redrawn, up to `tries` times, keeping the most varied. And
     // every walk through a floor meets every threat type its foes can bring: a room on a walk that misses

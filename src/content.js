@@ -400,7 +400,9 @@ export const UNIT_LIST = [
         { desc: 'Quake becomes Earthshatter: 26 power to a foe and everyone next to it, and leaves them Hexed.', ability: { id: 'earthshatter', replace: 'quake' } },
         { desc: 'Earthshatter becomes Worldbreaker: it hits everyone level with its target, and leaves them Hexed.', ability: { id: 'worldbreaker', replace: 'earthshatter' } }] }
     ],
-    spawn: { weight: 6, minFloor: 2 },
+    // 7 since the balance pass's second part (2026-10-16; was 6): a floor-2 fight's captain is a Golem in a third of the
+    // fights, so the Clockwork Titan's keystone is offered in three battles by the end of floor 2 (redesign.md §2, 1).
+    spawn: { weight: 7, minFloor: 2 },
     threats: ['shape'],
     behaviour: 'walk',
     flavour: 'A golem moves at the pace of settling stone, and nothing turns it once it does.'
