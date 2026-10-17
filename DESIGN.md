@@ -806,6 +806,116 @@ army). The teacher's committed margins say which archetype each boss should lean
 - **Meta**: a run history, a daily seed, Monarch variants (a starting run relic and a draft bias each) unlocked by
   clears; music (one loop a floor, synthesised like the effects, or files).
 
+### 4.9 Elements: one local rule each, for the player to combine (2026-10-17)
+
+The user's words, in order: synergies of this kind should not be rules over a team ("that's too complicated"); they
+"should occur as individual elements, and it should be up to the player to combine them in a powerful way", as a
+Spire deck's cards do (lightning spam is "spending all your energy in a turn" plus one card that channels it); and
+beyond multipliers, "ways to go infinite, mass poison stacking, defense being attack, etc." using the mechanics that
+exist; then "pick the top 10 easiest to implement", and "remove the ability to fuse during battle. Fusing should be
+done outside battle". This section is that plan; nothing of it is built (the user's word: "write the plan").
+
+**What the audit of 2026-10-17 found.** No rule reads a status on a target: the only status payoffs are the statuses'
+own stat mods and ticks (Burning 12 and Bleeding 8 true damage a turn a stack, capped at 3 and 5, nothing amplifying
+them), and Hexed's lost act. The eleven synergies are counts of kin and role; three touch statuses by the way they are
+built (Echo lays every status twice, Dragonfire bursts a single-target blow's status onto the neighbours, Frenzy resets
+skills on a kill). Status themes follow the kins (Drakes burn, Undead and Sprites lay Brittle, Constructs and the Court
+Hex, Insects and the Bloat Wither; Bleed is the Mantis alone) and no rule rewards any of them. In Spire's terms the
+game has generators and multipliers and no payoffs, and the one engine in play (Echo, the Chanters' Dirge, the Court's
+Pale Fire) is the monoculture.
+
+**The principle.** An element is one record with one local rule: a status, a piece relic on a moment of its holder, or
+a Legendary with a rule scoped to its holder (the forms §4.4 allows; no rule below Legendary). It reads something the
+player can pump (stacks on a foe, kills, tiles moved, the Monarch's HP, shadows standing) and never counts a team. The
+combinations are the player's: a generator, a multiplier and a payoff from different sources. Every number below is a
+placeholder.
+
+**The ten**, the easiest first, with what each combines with and the code it needs:
+
+| Element | Form | Rule | Combines with | Needs |
+|---|---|---|---|---|
+| Rooted | status, debuff, 1 turn | Move `set` to 0 (the `set` op beats Hasten's add) | a hold for the pile-up a blast pays off | record; `STATUS_WORTH` |
+| Snare | Uncommon piece relic, on blow | its target Rooted | any shooter; Shape blows | record |
+| Bloodlust | status, buff, the battle, 8 stacks | +6% ATK a stack | whoever kills | record; `STATUS_WORTH` |
+| Butcher's Hook | Rare piece relic, on kill | the holder gains Bloodlust (Feed) | Frenzy, Deathblow, Reaper's Hunger | record |
+| Powder Keg | Rare piece relic, on blow | 10 true damage a stack of Burning on the target, the fire spent (Detonate) | the Hound, Firebrand, Echo, Dragonfire | the `per` field |
+| Glass Hammer | Rare piece relic, on blow | 12 true damage a stack of Brittle, the Brittle spent (Shatter) | the Chanter's bolt, the Knight's and Ghoul's tiers, Hunter's Mark | the `per` field |
+| Headsman's Hood | Rare piece relic, on blow | 25 true damage more to a Hexed foe, the Hex left (Executioner) | the Court, the Hag, the Golem; a Hexed foe never counters, so melee | the `per` field |
+| Plague Mask | Rare piece relic, on blow | 8 true damage for each harmful status on the target (Plague) | the Hag's Hex and Wither, Brittle, Burning | the `per` field |
+| Reaper's Hunger | Legendary, a rule | a kill while your orders are taken gives the holder its act again (the infinite) | 1-HP foes, Deathblow, a trine's blast | an `onKill` rule |
+| Seven-League Boots | Legendary, a rule | its blows ×1.5 on a turn it has moved 3 tiles or more (a charge) | Hasten, Ambush, the Hive Standard | a `modify` rule |
+| Last Candle | Legendary, a rule | while the Monarch is below half, the holder is Desperate (the glass Monarch) | Blood Tithe, Court of Bone, the HP relics | an `onTurn` rule |
+| Grave Powder | Legendary, a rule | while the holder stands, a shadow of yours that falls bursts: 20 true damage to every foe beside it (the sacrifice horde) | Legion, the Chanter's summons, Gravedigger's Spade | an `onFall` rule |
+
+Two statuses and ten relics: twelve records for ten elements.
+
+**The vocabulary it needs: one field.** A relic's damage effect may carry `per: { status }` (the amount once for each
+stack of that status on the target) or `per: { tag }` (once for each status of the tag it carries), nothing where it
+carries none; and `consume: true`, the statuses counted spent as the damage lands (a `cleanse` event each). In
+`turns.js runEffect`'s damage branch, before the amount is dealt, a dozen lines and a `perOf(u, per)` reader; the
+content test's `checkEffect` holds a `per` to a relic's flat `amount` and a `consume` to a `per`. Nothing else in the
+vocabulary grows: the four rules are `rules.js` entries on hooks that exist (`onKill`, `modify`, `onTurn`, `onFall`),
+as Frenzy's, Deadeye's, Ambush's and Undying's are.
+
+**The rules, exactly.** Reaper's Hunger: `onKill`, the slayer the holder (`slew`), alive, `acted`, and the battle in
+`phase 'orders'` and `stage 'party'` (never a counter's kill in the foes' turn, nor a tick's at the turn's end): set
+`acted` false; the untouched rule uses an act left unspent, the expert's turn does not revisit the piece (its loop is
+once a piece), so the refund is the player's. Seven-League Boots: `modify` as the actor, no status tick, a foe the
+target, `actor.moved ≥ 3` (tiles this turn): `damage × 1.5`; a counter's too. Last Candle: `onTurn` for the holder's
+side, the Monarch standing below half: `addStatus(holder, 'desperate', 1)` (one turn, laid again each such turn, so
+it lapses once the Monarch is mended past it; Desperate's own record says "the battle"). Grave Powder: `onFall`, the
+fallen a shadow of the holder's side, the holder standing: `runEffect({ op: 'damage', amount: 20 }, holder, around(…, 1,
+the foes' side))`, so the holder is credited the kills. Each emits a `rule` event; `codex.js ruleFlares` must then name
+a relic's rule ("Relic · its name") or the codex test fails, since it holds every `rule` event in `rules.js` to a flare.
+
+**The expert's part.** Nothing it decides changes. `autoplay.js triggerShare` prices a damage effect by `e.amount ??
+hit(e.power)`: with `per` it would read `undefined × stacks`, so price it as the amount a stack and a half of the time
+(a guess, a constant). The four rules are priced as every Legendary is, by the flat relic share: the expert will buy
+them and never for what they do, as it never gathered a synergy's rule (Step 3's finding). `STATUS_WORTH` needs the two
+statuses (the content test holds every status to a worth). The book remade.
+
+**Fusing out of battle alone.** What goes: in `turns.js` the `fuse` order and event, `fusing`, `fusible`,
+`fusionsOf`, `fuse`, the battle's `purse`, `spent`, `fused` and `fuse` fields and a part's `into`; in `run.js`
+battleSetup's `essence` and `fuse`, closeBattle's payment and `fuseIn`, `'fuse'` in the battle's order list; in
+`policy.js` the fusion option of `expertOptions`, its `fuse` switch through `expertTurn`, `fastTurn` and `fastPass`,
+`features`' fusion branch; in `autoplay.js` the `unfused` turns and `battleFuse` (the fusions ablation keeps its
+out-of-battle half); in `teach.js` a label row's `fusion`; in `engine.js` the Fuse buttons of the piece panel, the
+`fused` animation, the battle's `bank`; in `ui.js` the `fusing` state and its buttons; the trine's codex line
+("fused out of battle or beside one another in it"). What stays, deliberately: the feature keys `fuse` and `essence`
+(`policy.js blank`) and the board feature `spent`, at 0, so the forests' rows keep their columns (`forest.js encode`
+reads the features by name; the shipped `expert.json` was fitted on them). The save's version goes to 3 (an older log
+may hold an order no battle takes). The tests of fusing in battle go (`turns`, `fusions`, `run`, `policy`,
+`ablation`, `builds`; the fuzz snapshot's `purse` and `fused`; the forest test's option key's `fusion` column). The
+expert's logs move wherever it fused in battle (24 fusions in battle over the 64 runs of `div-0…63` at Step 8), so no
+identity check: a measured step, paired on fresh seeds, if its clears are wanted. The "Measured at HEAD" numbers
+above predate it.
+
+**Order of work** (§6, Step 10): the removal first, in one commit, so the expert's logs move once; then the `per` field
+with its content test; then the twelve records and the rules; then a test a element (`test/elements.test.js`: Rooted's
+Move 0 under Hasten and a foe standing through the foes' turn, Bloodlust's stacks and cap, each payoff's true damage on
+a Golem's DEF, spent or not, nothing on a foe carrying none, the act refunded twice and never in the foes' turn, the
+Boots after 3 tiles and not 2, the Candle laid as a turn begins and gone once the Monarch is mended, the Powder beside
+the fallen shadow alone); then §8's entry. About four hours. A draft of all of it exists as a patch (6,646 lines, the
+session of 2026-10-17's scratchpad, `elements-and-no-battle-fuse.patch`): built, 536 tests green, then reverted at
+the user's word; worth reading, not applying blind, when the step is taken.
+
+**Measurement, after.** Not a balance pass: the elements go in at placeholders, by the user's word that more mechanics
+come before the next one. When it comes: the relics ablation (`--ablations --variants relics`, 0 points at HEAD; the
+elements are relics, so the line is theirs to move), the strict rows, and the Shop's supply (four on a shelf, one a
+Command relic, Legendaries from floor 2: whether a plan's payoff is offered often enough, the record's open relics
+question). The expert cannot show their worth until a reader values a `per` relic by the stacks its army lays and a
+rule by what it does; until then the measure is the strict commitment and play.
+
+**The rest of the list** (2026-10-17, not among the ten; each a few lines once wanted): a Burning cap lifter ("this
+piece's targets' Burning has no cap"), a Bleed that ticks again each tile a foe walks (the road as a weapon), a Feed
+for the run (+max HP on a kill, kept between rooms; needs run state), a ward that strikes ("when Barkskin or Shield
+lands on a piece, it strikes the nearest foe", Sanctuary's volley), a Tomb Knight tier whose counter uses DEF (Body
+Slam), Charge ("a piece that used no skill this turn deals +50% with its basic"; needs a per-turn flag), a wide army's
+bonus ("+10% ATK per empty Command slot"; needs the run's Command in the setup), a turtle's payoff ("a foe that has
+stood 5 turns in your reach turns Brittle each turn"), an in-battle essence spend ("pay 20 essence: this piece's skills
+are ready"; the purse would have to come back for it). Fusion as a heal (a fused piece enters whole) goes with fusing
+in battle.
+
 ## 5. Baseline
 
 The audit's numbers (f8c536f, 2026-10-15), the figures every step is paired against. Seeds `aud-0…59` (expert),
@@ -912,6 +1022,14 @@ to master.
 a run with the time and the deaths recorded. Done when criterion 5 holds and the players' runs end where the ladder
 says they should.
 
+### Step 10. Elements, and fusing out of battle alone (sim ~2 h, content ~1 h, interface ~1 h)
+
+§4.9, in its order: the removal of fusing in battle first (one commit; the save's version 3; the feature keys kept at
+0); the `per` field and its content test; the two statuses, six piece relics and four Legendary rules, with the codex's
+relic flares and the expert's reader; `test/elements.test.js`; the book remade; §8's entry. Not measured until the
+next balance pass (§4.9, "Measurement, after"). The standing rules then gain two lines: fusions are made between
+battles, never in one; and power the player assembles is made of elements, one local rule each, never a count of a team.
+
 ## 7. Decisions
 
 Taken on 2026-10-15, the user's word: a triple for every kind; fusions of fusions; the teacher as the yardstick for
@@ -936,6 +1054,10 @@ decision's playouts failing (a pass priced as nearly free, the passes compoundin
 learner" and §9's frozen autoplayer for the recruit alone: the recruit forest's advantages corrected and its margin set
 by floor, searched on whole runs, and forests fitted on the current game's playouts beside the old one (§8, "The recruit
 learner").
+
+Taken on 2026-10-17, the user's word (§4.9): **synergies are individual elements the player combines**, never rules
+over a team ("that's too complicated"); the **ten easiest** are the plan's; **fusing is done outside battle** alone.
+Written as a plan, not built ("Cancel, I just meant write the plan"): Step 10.
 
 Recommended here, open until the user rules:
 
