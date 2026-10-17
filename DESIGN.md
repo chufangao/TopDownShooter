@@ -1,6 +1,6 @@
 # RETINUE: design
 
-Short form, 2026-10-17. The full design, plan and record is `git show 46321e8:DESIGN.md`.
+2026-10-17. Everything a session needs is in this file and the code; the full history is the git log.
 
 ## What it is
 
@@ -40,9 +40,9 @@ Three steps, in order; the first two go in at placeholders, the third measures.
 - Two statuses: Rooted (debuff, 1 turn, Move `set` to 0 so Hasten cannot lift it) and Bloodlust (buff, the battle, 8 stacks, +6% ATK a stack), each with a `STATUS_WORTH`.
 - Six piece relics: Snare (Uncommon, on blow: Rooted); Butcher's Hook (Rare, on kill: Bloodlust to self); Powder Keg (Rare, on blow: 10 true a stack of Burning, consumed); Glass Hammer (Rare, on blow: 12 a stack of Brittle, consumed); Headsman's Hood (Rare, on blow: 25 to a Hexed foe, the Hex left); Plague Mask (Rare, on blow: 8 a harmful status).
 - Four Legendaries with rules in `rules.js`, on hooks that exist: Reaper's Hunger (`onKill` during your orders only, never a counter's or a tick's kill: `acted` false again); Seven-League Boots (`modify`: `moved` ≥ 3, ×1.5); Last Candle (`onTurn`: Monarch below half, Desperate one turn, relaid); Grave Powder (`onFall` of a shadow of yours, the holder standing: 20 true damage beside it).
-- `codex.js ruleFlares` must name a relic's rule. The expert prices a `per` damage at a stack and a half, the rules at the flat Legendary share. Remake the book.
+- `codex.js ruleFlares` must name a relic's rule (the codex test holds every `rule` event to a flare). `test/content.test.js` pins the Legendaries' list and checks each effect's keys: add the four, and allow `per` and `consume` on a relic's flat damage. The expert prices a `per` damage at a stack and a half (`autoplay.js triggerShare`), the rules at the flat Legendary share. Remake the book (`npm run combos`).
 - A test an element: Move 0 under Hasten; stacks and cap; each payoff on a Golem's DEF, spent or not; the act refunded twice, never in the foes' turn; the Boots after 3 tiles, not 2; the Candle lapsing; the Powder beside the shadow alone.
-- A built draft exists (`elements-and-no-battle-fuse.patch`, the 2026-10-17 session's scratchpad; 536 tests green, reverted). Read it, do not apply it blind.
+- A built draft of steps 1 and 2 is `plan/elements-and-no-battle-fuse.patch` (24 files, applies to this commit; it passed 536 tests, then was reverted to write this plan). Read it before building; apply it only after reading.
 - Later: a Burning cap lifter, a Bleed that ticks per tile walked, a Feed kept between rooms, a ward that strikes, a counter by DEF, Charge, a wide army's bonus, a turtle's payoff.
 
 ### 3. The next balance pass
