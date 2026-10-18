@@ -138,7 +138,10 @@ test('the draft: a kind may be taken twice, each a soul of its own; offers are t
   const run = createRun({ seed })
   const kind = run.state.draft.offer[0]
   apply(run, { type: 'pick', index: 0 })
-  apply(run, { type: 'pick', index: run.state.draft.offer.indexOf(kind) })
+  // Taken again: by a later pick where the draft has one (TUNING.draft.picks; one since 2026-10-18), else as every soul
+  // past the draft joins, as a pick's does (join).
+  if (run.state.draft) apply(run, { type: 'pick', index: run.state.draft.offer.indexOf(kind) })
+  else join(run, kind)
   const twins = souls(run.state.party).filter((u) => u.id === kind)
   assert.equal(twins.length, 2)
   assert.notEqual(twins[0].uid, twins[1].uid)
@@ -167,10 +170,13 @@ test('the draft guarantees a plan: every pick after the first offers a kin-mate 
   // the seed's (the same twice), and from the second pick one at least goes with a soul held. The first pick's is the
   // draw as it was, and a later one differs from the plain draw only where that draw had no partner, in one place.
   const plain = (seed, pick) => createRng(seed).stream(`draft|${pick}`).shuffle(draftPool()).slice(0, TUNING.draft.offer)
+  // Three picks deep, past the run's own where it drafts fewer (TUNING.draft.picks; one since 2026-10-18): draftOffer
+  // deals any pick its rule.
+  const depth = Math.max(TUNING.draft.picks, 3)
   let offers = 0
   let dealt = 0
   const walk = (seed, held) => {
-    if (held.length >= TUNING.draft.picks) return
+    if (held.length >= depth) return
     const offer = draftOffer(seed, held.length, held)
     const where = `${seed} ${held.join(',')}: ${offer.join(',')}`
     assert.equal(offer.length, TUNING.draft.offer, where)
@@ -189,7 +195,9 @@ test('the draft guarantees a plan: every pick after the first offers a kin-mate 
     for (const id of offer) walk(seed, [...held, id])
   }
   for (let i = 0; i < 100; i++) walk(`plan-${i}`, [])
-  assert.equal(offers, 100 * (1 + TUNING.draft.offer + TUNING.draft.offer ** 2))
+  let paths = 0
+  for (let k = 0; k < depth; k++) paths += TUNING.draft.offer ** k
+  assert.equal(offers, 100 * paths)
   assert.ok(dealt > 0, 'some draws had no partner')
   // The run deals it: each later offer in a run is draftOffer's for the souls the picks took.
   const run = createRun({ seed: 'plan-run' })

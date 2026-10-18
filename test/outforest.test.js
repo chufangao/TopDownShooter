@@ -23,12 +23,13 @@ import {
 import { createRng } from '../src/sim/rng.js'
 
 const L = LEVELS.expert
-// sim-45's expert drafts, then falls on floor 1 after three battles: a recruit and a purchase labelled, a whole run in
-// about a second; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run
+// sim-130's expert drafts, then falls on floor 1 after ten battles: its recruits and a purchase labelled, a whole run in
+// about ten seconds; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run
 // clears, and labelling it to the end takes minutes; sim-395 until the fusion graph, whose lines run longer; sim-540
 // until the pool was flattened, 2026-10-15: its run clears; sim-10 until the Shop opened between battles (DESIGN Next,
-// Step 3), 2026-10-18: its run clears, labelling it takes ten minutes.)
-const SEED = 'sim-45'
+// Step 3), 2026-10-18: its run clears, labelling it takes ten minutes; sim-45 until the draft of one soul, 2026-10-18:
+// its run lives long.)
+const SEED = 'sim-130'
 const CAP = 3
 
 // A phase's forest (outforest.json's shape) from trees given as nested nodes ({ f: an input's name, t: its threshold, l,
@@ -163,7 +164,7 @@ test('the recruits are labelled by their floor\'s chance (recruits), each row as
   const before = outForestModel()
   try {
     useOutForest(null)
-    // sim-10 falls on floor 1: floor 1's recruits are all of them, and a chance of 0 there labels none.
+    // SEED falls on floor 1: floor 1's recruits are all of them, and a chance of 0 there labels none.
     const all = labels().rows.filter((r) => r.phase === 'recruit')
     assert.ok(all.length > 0 && all.every((r) => r.floor === 1))
     const one = labelRun(SEED, { cap: CAP, phases: 'recruit', recruits: '1,0' })

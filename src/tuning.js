@@ -317,8 +317,11 @@ export const TUNING = {
   // each the player's choice of `offer` different kinds drawn evenly from the floor-1 pool by the run's seed; after the
   // first, an offer with no partner of a soul held (run.js partners: a kin-mate or a recipe's) gives one place to one
   // (redesign.md §4.2). The same kind may come again in a later pick. The user's call (2026-10-14): three picks of one
-  // of three.
-  draft: { picks: 3, offer: 3 },
+  // of three; and again (2026-10-18): one pick of three, a run starting with one drafted soul, every other recruited
+  // from the slain or bought. The other three numbers of that day (monarch.hp, essence.start, spawn.fight) carry the
+  // start it leaves: on 256 fresh seeds (p1fresh), the expert at ascension 0, paired, clears 86.3% with three souls as
+  // before, 41.0% with one and floor-1 fights of 2 alone, 60.5% with all four (chosen on 64 runs, seeds p1q).
+  draft: { picks: 1, offer: 3 },
   // The Monarchs (content.js MONARCH_LIST; redesign.md §4.8): a Monarch's kin is drawn `bias` times as often as any
   // other kind in its draft's offers (run.js draftOffer). Three, not two: each favours a kin with one kind in the
   // floor-1 pool, offered in 71% of a pick's offers at 3 (58% at 2, 38% evenly). A new number (Step 9); the base Monarch
@@ -326,8 +329,10 @@ export const TUNING = {
   monarchs: { bias: 3 },
   // The Monarch (DESIGN §2.5, §2.6): `hp` its base max HP; the HP relics add to it, a copy each (mods on
   // `run.monarchHp`), and nothing else touches it. 250 since the fourth balance pass (2026-10-10), so one Pyre Hound's
-  // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1.
-  monarch: { hp: 250 },
+  // burn or a long duel with a floor-1 shooter no longer ends an expert's run on floor 1. 375 since the draft of one soul
+  // (2026-10-18; TUNING.draft): with one soul beside it the Monarch takes the blows two more would have, and stands
+  // until the slain and the purse have raised a retinue.
+  monarch: { hp: 375 },
   // The summons a soul's tiers bring (unit.js summonsOf): shadows of its kind that rise beside it as each battle
   // begins, each at `hp` of a whole one's max HP (turns.js summon, fit), gone when it ends. A placeholder.
   summon: { hp: 0.4 },
@@ -365,8 +370,9 @@ export const TUNING = {
   // relic (redesign.md §2.11). refund: a soul released pays back that share of what recruiting it would cost now
   // (run.js releaseRefund), rounded down. Money always matters (the economy pass, 2026-10-10): paying by the piece and
   // by tier, and prices growing by the floor, keep what a battle buys about level from floor to floor; the tier prices
-  // are the fourth balance pass's (2026-10-10).
-  essence: { start: 20, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
+  // are the fourth balance pass's (2026-10-10). start 52 since the draft of one soul (2026-10-18; was 20): the two
+  // souls no longer drafted are bought instead, a tier or a relic before the first battle and a recruit after it.
+  essence: { start: 52, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks. A room draws its
   // kinds (run.js spawnPool) from those of tier at most tierOverCap above the floor's target tier (1 + (floor − 1) ×
   // tierPerFloor, rounded down, at most tierMax; an elite's eliteTier more), each by its spawn weight / (1 + its tiers
@@ -384,10 +390,11 @@ export const TUNING = {
   // to their kinds, the builds without the Court fell to it in a third of the runs that met it (free play in 1.5%), and
   // so it decided which builds could win; and floor 2's boss 2.4 → 2 HP and 1.6 → 1.4 ATK (the Mire Mother, there the
   // wall of the Chanters' trine held to its kind). Floor 1's elite is 2 foes of the higher tier (and the late pair), so a
-  // rule-of-thumb run dies on floor 1 and an expert rarely does.
+  // rule-of-thumb run dies on floor 1 and an expert rarely does. Floor 1's fights 3 → 2 foes since the draft of one soul
+  // (2026-10-18; TUNING.draft): one soul and the Monarch meet the first rooms, and a fight of 2 is one they can win.
   spawn: {
     levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
-    fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
+    fight: [2, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
     // Steepest at the bottom, where the expert's army has grown most; floor 1 is the basic player's wall already.
     foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 2, 0.25], bossAtk: [1, 1.4, 0.4],
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an

@@ -68,8 +68,11 @@ test('a save keeps the run\'s createRun options whatever they are (its ascension
 })
 
 test('a save is the options, the log and where it stood, as JSON; a finished run and the tutorial have none', () => {
-  const made = { seed: 'save-shape' }
+  // save-shape-1: a seed whose run under the expert wins a battle, to a reap ('save-shape' until the draft of one soul,
+  // 2026-10-18, falls in its first).
+  const made = { seed: 'save-shape-1' }
   const run = played(made, (r) => r.state.phase === 'reap')
+  assert.equal(run.state.phase, 'reap')
   const save = JSON.parse(saveOf(run, made))
   assert.deepEqual(Object.keys(save).sort(), ['at', 'log', 'run', 'v'])
   assert.equal(save.v, SAVE_VERSION)

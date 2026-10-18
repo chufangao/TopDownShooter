@@ -1753,10 +1753,11 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
 
 // ── the draft ────────────────────────────────────────────────────────────────────────────────────
 
-// The run's first souls (run.js draftOffer, TUNING.draft): each pick deals the kinds offered as cards, free, and the
-// one taken flies down into its seat along the foot, where the seats still empty wait. onPick(index) takes offer
-// `index`; the last pick opens the map. A kind offered again can be taken again: a second soul of a kind says what it
-// is worth (codex.js recruitWorth), a first the fusions its kind goes into.
+// The run's first souls (run.js draftOffer, TUNING.draft: one since 2026-10-18): each pick deals the kinds offered as
+// cards, free, and the one taken flies down into its seat along the foot, where the seats still empty wait.
+// onPick(index) takes offer `index`; the last pick opens the map. A kind offered again can be taken again: a second
+// soul of a kind says what it is worth (codex.js recruitWorth), a first the fusions its kind goes into. With one pick,
+// the lede and the foot speak of one soul.
 let draftDealt = null
 export function draftScreen ({ run, onPick, onHelp }) {
   const s = run.state
@@ -1820,14 +1821,14 @@ export function draftScreen ({ run, onPick, onHelp }) {
     h('div', { class: 'reap-main' },
       h('div', { class: 'reap-head' },
         h('div', { class: 'reap-title' }, icon('soul', 34), h('h1', null, 'Raise your retinue')),
-        h('p', { class: 'reap-lede' }, `Pick ${k + 1} of ${n}: choose a soul to walk with you. A kind can be offered again.`)),
+        h('p', { class: 'reap-lede' }, n > 1 ? `Pick ${k + 1} of ${n}: choose a soul to walk with you. A kind can be offered again.` : 'Choose a soul to walk with you.')),
       h('div', { class: 'reap-body' },
         h('div', { class: 'reap-picks' },
           h('div', { class: 'offers picks' + (deal ? ' deal' : ''), style: `--cols:${cards.length}` }, cards))),
       h('div', { class: 'reap-foot draft-foot' },
-        h('span', { class: 'draft-label' }, 'Your souls'),
+        h('span', { class: 'draft-label' }, n > 1 ? 'Your souls' : 'Your soul'),
         h('div', { class: 'draft-seats' }, Array.from({ length: n }, (_, j) => seat(j))),
-        h('p', { class: 'draft-after' }, 'After these, every soul is recruited from the slain.'))))
+        h('p', { class: 'draft-after' }, `After ${n > 1 ? 'these' : 'it'}, every soul is recruited from the slain.`))))
   return {
     el,
     key (e) {

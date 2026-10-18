@@ -283,18 +283,20 @@ test('a room choice played to the run\'s end: the deadly elite loses the run, th
 })
 
 test('to the end, the chosen room\'s label is the run\'s own rest; the route installed is put back', () => {
-  // A route tree that walks into fights; installed while the labeller plays, and taken out after.
+  // A route tree that walks into fights; installed while the labeller plays, and taken out after. (route-test-9: a seed
+  // whose run reaches a choice of rooms the labeller keeps; route-test-2 until the draft of one soul, 2026-10-18, falls
+  // before one.)
   const model = { name: 'test', tree: { leaf: 'x', w: { fight: 1, weak: -1 } }, rules: [] }
   const before = routeModel()
-  const a = teachRoutes('route-test-2', { route: model, limit: 1 })
+  const a = teachRoutes('route-test-9', { route: model, limit: 1 })
   assert.equal(routeModel(), before)
-  const b = teachRoutes('route-test-2', { route: model, limit: 1, reuse: false })
+  const b = teachRoutes('route-test-9', { route: model, limit: 1, reuse: false })
   assert.equal(a.positions.length, 1)
   assert.deepEqual(a.positions, b.positions)
   // Its progress as autoplay.js record reads it, under the same route.
   try {
     useRoute(model)
-    assert.equal(a.progress.toFixed(6), record({ seed: 'route-test-2', level: 'expert' }).progress.toFixed(6))
+    assert.equal(a.progress.toFixed(6), record({ seed: 'route-test-9', level: 'expert' }).progress.toFixed(6))
   } finally {
     useRoute()
   }
