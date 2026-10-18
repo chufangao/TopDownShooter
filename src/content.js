@@ -310,7 +310,7 @@ export const UNIT_LIST = [
         { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
         { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
         { desc: 'Gains an aura: allies next to it get +8% DEF.', aura: { range: 1, desc: 'Allies next to it get +8% DEF.', mods: [m('def', 'mul', 1.08)] } },
-        { desc: 'Learns Veil: Veiled (+20% DEF) for itself and every ally within 2 tiles.', ability: { id: 'veil' } }] }
+        { desc: 'Learns Veil: Barkskin (+25% DEF) for itself and every ally within 2 tiles.', ability: { id: 'veil' } }] }
     ],
     spawn: { weight: 11, minFloor: 1 },
     threats: ['reach'],
@@ -830,7 +830,7 @@ export const UNIT_LIST = [
         { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
         { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
         { desc: 'Gains an aura: allies within 2 tiles get +8% DEF.', aura: { range: 2, desc: 'Allies within 2 tiles get +8% DEF.', mods: [m('def', 'mul', 1.08)] } },
-        { desc: 'Court of Frost becomes Court Eternal: every ally within 4 tiles has its skills a turn sooner, and is Veiled.', ability: { id: 'court_eternal', replace: 'court_of_frost' } }] }
+        { desc: 'Court of Frost becomes Court Eternal: every ally within 4 tiles has its skills a turn sooner, and gains Barkskin.', ability: { id: 'court_eternal', replace: 'court_of_frost' } }] }
     ],
     threats: ['reach', 'drain', 'shape'],
     art: 'pale_court',
@@ -1625,7 +1625,7 @@ const ABILITY_LIST = [
     range: 2,
     tint: '#b57bff',
     anim: 'cast_beam',
-    effects: [{ op: 'apply_status', status: 'veiled' }]
+    effects: [{ op: 'apply_status', status: 'barkskin' }]
   },
   {
     id: 'verdant_bloom',
@@ -2169,7 +2169,7 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#cfe3ff',
     anim: 'cast_beam',
-    effects: [{ op: 'cooldown', amount: -1 }, { op: 'apply_status', status: 'veiled' }]
+    effects: [{ op: 'cooldown', amount: -1 }, { op: 'apply_status', status: 'barkskin' }]
   },
   {
     id: 'cinder_storm',
@@ -2434,6 +2434,8 @@ const STATUS_LIST = [
     mods: [{ path: 'damage.taken', op: 'mul', v: 0.95 }],
     tick: [{ op: 'heal', power: 48 }]
   },
+  // The one DEF ward (DESIGN Next, Step 3, 2026-10-18: Barkskin and Veiled merged, the abilities that laid Veiled's
+  // ×1.2 for 3 turns lay it now).
   {
     id: 'barkskin',
     desc: '+25% DEF.',
@@ -2444,16 +2446,7 @@ const STATUS_LIST = [
     stacks: 1,
     mods: [{ path: 'def', op: 'mul', v: 1.25 }]
   },
-  {
-    id: 'veiled',
-    desc: '+20% DEF.',
-    name: 'Veiled',
-    tags: ['buff'],
-    colour: '#9fb6d9',
-    turns: 3,
-    stacks: 1,
-    mods: [{ path: 'def', op: 'mul', v: 1.2 }]
-  },
+
   {
     id: 'withered',
     desc: '−20% ATK.',
@@ -2595,7 +2588,7 @@ export const BEHAVIOURS = {
 
 // What laying a status is worth to the policy (policy.js score), in HP-equivalents a stack. Placeholders.
 export const STATUS_WORTH = {
-  brittle: 20, hasten: 20, regen: 40, barkskin: 25, veiled: 20, withered: 20, enraged: 25, desperate: 20,
+  brittle: 20, hasten: 20, regen: 40, barkskin: 25, withered: 20, enraged: 25, desperate: 20,
   burning: 24, bleeding: 16, hexed: 40, shield: 30, rooted: 30, bloodlust: 12
 }
 
@@ -2928,8 +2921,8 @@ export const isTriple = (r) => Object.keys(r.needs).length === 1 && Object.value
 
 // ── relics ───────────────────────────────────────────────────────────────────────────────────
 
-// A relic's tier, from the most often stocked to the rarest (`colour`: the interface's colour token for it). A Shop
-// draws the first three by TUNING.relic.weights.shop, deeper floors weighted toward the rarer, and from floor
+// A relic's tier, from the most often stocked to the rarest (`colour`: the interface's colour token for it). The Shop's
+// shelf draws the first three by TUNING.relic.weights.shop, deeper floors weighted toward the rarer, and from floor
 // TUNING.relic.legendary.fromFloor stocks one Legendary (run.js stockShop). Legendaries are the rules that rewrite the
 // game.
 export const RELIC_TIERS = [
@@ -2939,7 +2932,7 @@ export const RELIC_TIERS = [
   { id: 'legendary', name: 'Legendary', colour: '--c-legendary' }
 ]
 
-// Relics, each of a `tier` (RELIC_TIERS), bought in Shops (run.js stockShop, buy); one held may be stocked and bought
+// Relics, each of a `tier` (RELIC_TIERS), bought in the Shop (run.js stockShop, buy); one held may be stocked and bought
 // again. Each is a run relic or a piece relic (redesign.md §2.15), in one of three forms (§2.13.3): `mods`, `on` +
 // `effects`, or a `rule`; a Common, Uncommon or Rare relic never has a rule.
 //
@@ -2952,7 +2945,7 @@ export const RELIC_TIERS = [
 // (`arise.domain`, `arise.tier`); and, where it has one, a side-wide cost, a loss on a unit's path for every soul
 // (Legion's −15% HP). A kin banner (redesign.md §4.4) is a run relic whose mods are a unit's, each scoped by `who` to
 // the souls of one kin ({ kin }; or one role, { role }: unit.js statsOf, as the foes' boss mods are): on every soul of
-// yours it names, shadows and summons too, never the Monarch. A Shop always stocks a Command relic.
+// yours it names, shadows and summons too, never the Monarch. The Shop's shelf always holds a Command relic.
 //
 // Every other relic is a piece relic: it works only through the piece that holds it (TUNING.relic.perPiece a piece,
 // given and taken back out of battle), and its copies are more holders. `mods`: the holder's, on a unit's stat path.

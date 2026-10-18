@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf, battleSetup, START_PARTY } from '../src/sim/run.js'
 import {
   drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay, formationFeatures,
-  survey, pickRoute, roomFeatures, record, withRoute
+  survey, pickRoute, roomFeatures, routeConditions, record, withRoute
 } from '../src/sim/autoplay.js'
 import { value, decide, TREES } from '../src/sim/expert.js'
 import { tuned } from './tuned.js'
@@ -250,6 +250,8 @@ test('idle essence: when its fielded kinds can buy nothing, the expert weighs ev
   const run = createRun({ start: START_PARTY, seed: 'idle' })
   const s = run.state
   s.essence = 5000
+  // The Shop's shelf bare (it is weighed before the tiers on the map: autoplay.js pickNode), so the tiers are all there is.
+  s.shop = []
   // Every held kind's tracks full: nothing remains to buy (no level, nothing for the Monarch, Arise or not); then a
   // kind with room to grow.
   for (const k of Object.values(s.kinds)) Object.assign(k, { lvl: 10, tracks: [4, 2] })
@@ -287,6 +289,8 @@ test('the expert weighs a track\'s next two tiers together: a tier whose level r
     tier(knight, [4, 2])
     tier(chanter, [4, 2])
     tier(sprite, start)
+    // The Shop's shelf bare (it is weighed before the tiers on the map: autoplay.js pickNode).
+    s.shop = []
     const tracks = s.kinds.frost_sprite.tracks
     s.essence = Math.max(...[0, 1].map((t) => TUNING.essence.tier[tracks[t]] + TUNING.essence.tier[tracks[t] + 1]))
     return run
@@ -435,22 +439,24 @@ function crossroads (seed, types) {
 }
 const seedWith = (n) => [...Array(40).keys()].map((k) => `route-${k}`).find((seed) => availableNodes(createRun({ start: START_PARTY, seed })).length >= n)
 
-test('the route: a Shop with a full purse; the weights, no rule', () => {
-  const { run, nodes } = crossroads(seedWith(2), ['fight', 'shop'])
-  run.state.essence = 1e4
-  const sit = survey(run)
-  assert.equal(withRoute('hand', () => pickRoute(run, sit)), nodes[1].id)
-  const shop = sit.rooms.find((r) => r.id === nodes[1].id)
-  assert.ok(roomFeatures(sit, shop).purse > 0)
-  // An empty purse: the Shop's purse is nothing.
-  run.state.essence = 0
-  assert.equal(roomFeatures(survey(run), shop).purse, 0)
+// No room is a Shop (DESIGN Next, Step 3): the route's Shop features are kept, for the fitted trees' columns, at 0.
+test('the route: no room is a Shop, and its Shop features stay 0 whatever the purse', () => {
+  const { run } = crossroads(seedWith(2), ['fight', 'altar'])
+  for (const essence of [0, 1e4]) {
+    run.state.essence = essence
+    const sit = survey(run)
+    for (const room of sit.rooms) {
+      const v = roomFeatures(sit, room)
+      assert.deepEqual([room.ahead.shop, v.shop, v.purse, v.shopAhead], [null, 0, 0, 0], `${room.type}, ${essence} essence`)
+    }
+    assert.equal(routeConditions(run, sit)['open.shop'], 0)
+  }
 })
 
 test('rule wounded-altar: a badly wounded army takes the altar; rule wounded-no-elite: it never walks into an elite where another room is open', () => {
   const wound = (run, share) => { for (const u of souls(run.state.party)) u.hp = Math.max(1, Math.floor(u.maxHp * share)) }
   const seed = seedWith(3)
-  const altar = crossroads(seed, ['fight', 'altar', 'shop'])
+  const altar = crossroads(seed, ['fight', 'altar', 'fight'])
   wound(altar.run, 0.1)
   resetAudit(true, altar.run)
   try {
@@ -494,7 +500,7 @@ test('the survey: where the run stands, its purse and prices, wounds, the target
   assert.deepEqual(sit.rooms.map((r) => r.id), availableNodes(run).map((n) => n.id))
   for (const r of sit.rooms) {
     assert.ok(r.threat > 0 && r.threats.length > 0 && r.unanswered.every((t) => r.threats.includes(t)), JSON.stringify(r))
-    assert.ok(r.ahead.shop === null || r.ahead.shop >= 1)
+    assert.equal(r.ahead.shop, null, 'no room is a Shop')
   }
 })
 

@@ -1,5 +1,5 @@
 /* spoils: the reap screen's, the Shop's and the altar's cards (picked the Slay the Spire way), the title's four steps
-   and the end screen's sting. Owned by titleScreen, reapScreen, shopScreen, altarScreen, endScreen and deathPanel in
+   and the end screen's sting. Owned by titleScreen, reapScreen, shopView, altarScreen, endScreen and deathPanel in
    ui.js. Each card wears its system's colour as --f: a recruit essence, a relic its tier's (--rt: common to legendary),
    a tier the tracks' cyan, a transmutation the shadows' pink. */
 
@@ -68,9 +68,31 @@
 .reap-screen .offers.picks.rows .offer-art > .portrait { width: 68px; height: 68px; }
 /* …the effect kept to three lines (all of it on the hover). */
 .reap-screen .offers.picks.rows .offer-line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
-/* The Shop (ui.js shopScreen): the spoils' cards, each relic with its price; a slot bought stays as a faint card. */
+/* The Shop (ui.js shopView): the run screen's Shop tab, or the spoils' cards' place at a press. Its head, then its two
+   sections side by side where the width holds them, stacked where it does not: Relics, the spoils' cards, each relic
+   with its price, a slot bought a faint card until the next win restocks it; Fusions, a row a recipe (the Field's
+   card's rows, card.css), the ready first, those toward dim. The panel scrolls inside itself. */
 .shop-screen .o-sold { --f: var(--line); justify-content: center; opacity: .4; color: var(--dim); }
 .shop-screen .o-sold .offer-art { color: var(--dim); }
+.shop-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px 18px 12px; overflow-y: auto; overscroll-behavior: contain; text-align: left; }
+.shop-head { flex: none; display: flex; align-items: center; gap: 6px 22px; flex-wrap: wrap; }
+.shop-head .reap-title { display: flex; align-items: center; gap: 8px; color: var(--c-relic); }
+.shop-head h2 { margin: 0; }
+.shop-head .reap-lede { margin: 0; }
+.shop-said { flex: none; margin: 0; }
+.shop-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: 14px 24px; align-items: start; }
+.shop-sec > h3 { margin: 0 0 10px; font-size: var(--fs-md); }
+.shop-relics .offers.picks { justify-content: flex-start; max-width: none; }
+.shop-fusions .fuse-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+.shop-fusions .fuse-row.toward { opacity: .6; }
+.shop-fusions .fuse-row .buy { padding: 3.5px 12.5px 5.5px; }
+.shop-fusions .fuse-row .price { display: inline-flex; align-items: center; gap: 2px; }
+.shop-toward { margin: 12px 0 6px; }
+@container frame (max-width: 900px) { .shop-cols { grid-template-columns: minmax(0, 1fr); } }
+/* On the spoils, the Shop fills the cards' place. */
+.reap-screen .reap-body.shopping { padding: 6px 0 0; }
+.reap-screen .reap-body.shopping > .shop-panel { margin: 0; flex: 1 0 auto; overflow: visible; }
+.reap-actions .open-shop.on { color: var(--c-relic); }
 @container frame (max-height: 640px) {
   .reap-screen .offers.picks .offer-art > .portrait { width: 84px; height: 84px; }
   .reap-screen .offers.picks .offer-art { height: 96px; }

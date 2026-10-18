@@ -190,21 +190,21 @@ test('every walk through a floor meets every threat type its foes can bring', ()
 
 // ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
 
-test('basic\'s weighted draws cover every room type: a Shop is a choice like any other, and a missing weight fails loudly', () => {
+test('basic\'s weighted draws cover every room type: an altar is a choice like any other, and a missing weight fails loudly', () => {
   assert.throws(() => createRng('w').weighted(['a', 'b'], [1, undefined]), /finite/)
   assert.throws(() => createRng('w').weighted(['a', 'b'], [1, NaN]), /finite/)
   const picks = new Set()
   for (let k = 0; k < 40; k++) {
     const run = createRun({ start: START_PARTY, seed: 'rites' })
-    const [shop, ...rest] = availableNodes(run)
-    shop.type = 'shop'
+    const [altar, ...rest] = availableNodes(run)
+    altar.type = 'altar'
     for (const n of rest) n.type = 'fight'
     const rng = createRng(`rites${k}`).stream('autoplay')
     let act
     while ((act = policy(run, rng, 'basic')).type !== 'node') apply(run, act)
-    picks.add(act.id === availableNodes(run)[0].id ? 'shop' : 'fight')
+    picks.add(act.id === availableNodes(run)[0].id ? 'altar' : 'fight')
   }
-  assert.deepEqual([...picks].sort(), ['fight', 'shop'], 'the Shop and a fight are each taken, on different rolls')
+  assert.deepEqual([...picks].sort(), ['altar', 'fight'], 'the altar and a fight are each taken, on different rolls')
 })
 
 test('the ladder\'s measures: one cause a defeat, the killer\'s threat or a stall, depth no second one; the army\'s actors', () => {

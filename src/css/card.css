@@ -58,9 +58,9 @@
 .uc-relic { margin-top: 4px; }
 .rs-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .rs-give { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-/* Fuse (DESIGN §4): the recipes the kind is part of, one row each: the result's picture, its name and parts (each
-   the souls of its kind held of those it needs), and its button, lit when every part is held and the essence suffices. */
-.uc-fuse { margin-top: 4px; }
+/* Fusions (the Shop's, ui.js shopView; spoils.css lays out its section): the recipes, one row each: the result's
+   picture, its name and parts (each the souls of its kind held of those it needs), and its button, lit when every
+   part is held and the essence suffices. */
 .fuse-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .fuse-row {
   display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 10px; padding: 7px 9px; border-radius: var(--radius);
@@ -73,7 +73,7 @@
 .fuse-parts { display: flex; flex-wrap: wrap; gap: 2px 8px; }
 .fuse-parts .short { color: var(--c-foe2); }
 .fuse-parts .met { color: var(--c-path2); }
-.tray .fuse-row .buy { grid-column: 1 / -1; justify-self: end; padding: 3.5px 12.5px 5.5px; }
+
 .uc-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 10px; }
 .tray .uc-acts button { gap: 6px; }
 .uc-abs .ability { font-size: var(--fs-sm); }

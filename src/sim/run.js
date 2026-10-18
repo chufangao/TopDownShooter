@@ -12,8 +12,8 @@
 // floor, all run. No action moves it or puts anything on its cell; it can never be put in the ossuary, released or
 // upgraded, holds no relic, has no level, and counts toward no cap. Nothing is bought for it (DESIGN §2.6): its two
 // numbers come from run relics, a copy each, with no cap: its max HP (TUNING.monarch.hp and the HP relics: monarchHp)
-// and its Command, the field cap, how many pieces fight (TUNING.party.field and the Command relics: commandOf); every
-// Shop stocks a Command relic. The roads run to it (field.js field). If it falls, the battle is lost and so is the
+// and its Command, the field cap, how many pieces fight (TUNING.party.field and the Command relics: commandOf); the
+// Shop's shelf always holds a Command relic. The roads run to it (field.js field). If it falls, the battle is lost and so is the
 // run.
 //
 // Pieces and footprints (DESIGN §2.2): one soul is one piece is one body, everywhere. The party is pieces, each one
@@ -50,10 +50,12 @@
 // into it. Recipes are public: legalActions lists one fuse a recipe that can be made (fuseParts).
 //
 // Relics (content.js RELIC_LIST, RELIC_TIERS): s.relics, every relic owned, by id in the order bought, a relic bought
-// twice named twice (relicCount). Relics are bought in Shops, and only there (redesign.md §2.11): a Shop stocks
-// TUNING.shop.relics, drawn by tier from TUNING.relic.weights.shop for the floor, one of them always a Command relic
-// and from floor TUNING.relic.legendary.fromFloor one a Legendary, the rules that rewrite the game (stockShop); each
-// priced by its tier and the floor (relicPrice), and any number bought while the purse allows. A won elite lays out
+// twice named twice (relicCount). Relics are bought from the Shop, and only there (redesign.md §2.11; DESIGN Next, Step
+// 3): no room, but the floor's shelf, open wherever essence is spent (map, prep, reap). It holds TUNING.shop.relics,
+// drawn as the floor is arrived at by tier from TUNING.relic.weights.shop for the floor, one of them always a Command
+// relic and from floor TUNING.relic.legendary.fromFloor one a Legendary, the rules that rewrite the game (stockShop),
+// kept in s.shop across the floor's rooms; a slot bought stays empty until the next battle won refills it (restock).
+// Each is priced by its tier and the floor (relicPrice), and any number bought while the purse allows. A won elite lays out
 // no relic: it pays essence on top of its foes' (eliteBonus). A relic is a run relic or a piece relic (redesign.md
 // §2.15). A run relic (`run: true`) works unheld and its copies stack without cap: its mods on the run's own paths
 // (RUN_PATHS: Command, the Monarch's HP, the roster, the prices, essence gain, Arise's reach and tier) are the run's to
@@ -97,19 +99,19 @@
 //                                                   fused piece waits in the ossuary
 //   map, prep        { type: 'upgrade', kind, track }  buy a kind you hold its next tier on track 0 or 1 (and
 //                                                   with it the kind's level: levelOf)
-//   map, prep, reap, shop  { type: 'release', uid }  let a soul go (never the last one standing), for its refund
+//   map, prep, reap  { type: 'release', uid }      let a soul go (never the last one standing), for its refund
 //                                                   (releaseRefund); the relics it held come back unheld
-//   map, prep, reap, shop  { type: 'hold', relic, uid }  soul `uid` takes unheld piece relic `relic` (canHold); one
+//   map, prep, reap  { type: 'hold', relic, uid }  soul `uid` takes unheld piece relic `relic` (canHold); one
 //                                                   already holding TUNING.relic.perPiece gives its first back
-//   map, prep, reap, shop  { type: 'unhold', uid, relic? }  soul `uid` gives back `relic`, or every relic it holds
+//   map, prep, reap  { type: 'unhold', uid, relic? }  soul `uid` gives back `relic`, or every relic it holds
+//   map, prep, reap  { type: 'buy', index }        buy the shelf's slot `index` (s.shop: a relic id, null once bought
+//                                                   until the next battle won refills it) for its price (relicPrice),
+//                                                   any number while the purse allows
 //   prep             { type: 'fight' }              the battle opens (phase 'battle')
 //   battle           an order (turns.js legalOrders: { type: 'move' | 'undo' | 'act' | 'end', … })
 //                                                   given in the battle (turns.js order); returns its events
 //   reap             { type: 'reap', index }        recruit offer `index`, one soul for its price, or null to move
 //                                                   on; one a battle
-//   shop             { type: 'buy', index }         buy stock slot `index` (s.shop: a relic id, null once bought)
-//                                                   for its price (relicPrice), any number while the purse allows
-//   shop             { type: 'leave' }              walk on, free
 //   altar            { type: 'heal' }               every soul heals, the fallen rise (heal); the room ends
 //   altar            { type: 'transmute', uid, index }  soul `uid` becomes the kind its offer `index` names
 //                                                   (transmuteOffer), keeping its level and relics (transmute); the
@@ -153,7 +155,7 @@ const BATTLE_NODES = ['fight', 'elite', 'boss', 'siege']
 // there is no draft: those souls stand on the frontier at once and the run opens on the map, as every run did before
 // the draft (the tests' fixed team; a saved run from then, replayed: replay).
 // `death` is what felled the Monarch, once something has. The ossuary starts empty. No relics (ids, in the order
-// bought, a copy each); `shop`, the stock of the Shop the run stands in (stockShop), empty elsewhere.
+// bought, a copy each); `shop`, the floor's shelf (stockShop, as enterFloor draws it; restock refills it after a win).
 // `ablate` (the autoplayer's ablation reports only, never a player's run): battle rules taken from the party in
 // every battle of the run, carried in each battle's setup (turns.js createBattle: 'arise', 'synergies', 'summons').
 // A run made without it has no such field. `ascension`, the run's level of the ladder (redesign.md §4.6; TUNING.ascension's
@@ -361,11 +363,7 @@ export function legalActions (run) {
   if (s.phase === 'prep') return [...(canFight(s) ? [{ type: 'fight' }] : []), ...rosterActions(run)]
   if (s.phase === 'reap') {
     const offers = s.offers.flatMap((o, index) => (canTake(run, o) ? [{ type: 'reap', index }] : []))
-    return [...offers, { type: 'reap', index: null }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid })), ...holdActions(s)]
-  }
-  if (s.phase === 'shop') {
-    const buys = s.shop.flatMap((id, index) => (canBuy(run, index) ? [{ type: 'buy', index }] : []))
-    return [...buys, { type: 'leave' }, ...releasable(s).map((u) => ({ type: 'release', uid: u.uid })), ...holdActions(s)]
+    return [...offers, { type: 'reap', index: null }, ...buyActions(run), ...releasable(s).map((u) => ({ type: 'release', uid: u.uid })), ...holdActions(s)]
   }
   if (s.phase === 'altar') return altarActions(run)
   if (s.phase === 'over') return canDescend(s) ? [{ type: 'descend' }] : []
@@ -381,10 +379,14 @@ function rosterActions (run) {
   for (const kind of heldKinds(s)) for (const track of [0, 1]) if (canUpgrade(run, kind, track)) out.push({ type: 'upgrade', kind, track })
   // One fuse a recipe that can be made, of its canonical parts (fuseParts: the ossuary's pieces first).
   for (const r of FUSION_LIST) if (canFuse(run, r.id)) out.push({ type: 'fuse', id: r.id, parts: fuseParts(run, r.id) })
+  out.push(...buyActions(run))
   out.push(...releasable(s).map((u) => ({ type: 'release', uid: u.uid })))
   out.push(...holdActions(s))
   return out
 }
+
+// Every slot of the Shop's shelf the purse pays for now (canBuy).
+const buyActions = (run) => run.state.shop.flatMap((id, index) => (canBuy(run, index) ? [{ type: 'buy', index }] : []))
 
 // Every relic a soul may take or give back now: each unheld piece relic (one a relic id) to each soul that may hold it,
 // and each soul's relics back.
@@ -686,14 +688,13 @@ const HANDLERS = {
   node: { phases: ['map'], run: walk },
   place: { phases: ['map', 'prep'], run: place },
   upgrade: { phases: ['map', 'prep'], run: upgrade },
-  release: { phases: ['map', 'prep', 'reap', 'shop'], run: release },
-  hold: { phases: ['map', 'prep', 'reap', 'shop'], run: hold },
-  unhold: { phases: ['map', 'prep', 'reap', 'shop'], run: unhold },
+  release: { phases: ['map', 'prep', 'reap'], run: release },
+  hold: { phases: ['map', 'prep', 'reap'], run: hold },
+  unhold: { phases: ['map', 'prep', 'reap'], run: unhold },
   fuse: { phases: ['map', 'prep'], run: fuse },
   fight: { phases: ['prep'], run: fight },
   reap: { phases: ['reap'], run: reap },
-  buy: { phases: ['shop'], run: buy },
-  leave: { phases: ['shop'], run: leave },
+  buy: { phases: ['map', 'prep', 'reap'], run: buy },
   heal: { phases: ['altar'], run: heal },
   transmute: { phases: ['altar'], run: transmute },
   consecrate: { phases: ['altar'], run: consecrate },
@@ -725,9 +726,6 @@ function walk (run, { id }) {
   s.at = id
   if (BATTLE_NODES.includes(node.type)) {
     s.phase = 'prep'
-  } else if (node.type === 'shop') {
-    s.shop = stockShop(s)
-    s.phase = 'shop'
   } else if (node.type === 'altar') {
     // The altar asks its rite (heal, transmute, consecrate); the room ends with it.
     s.phase = 'altar'
@@ -884,23 +882,35 @@ function takeRelic (s, id) {
   if (!unhealed(s)) m.hp += gain
 }
 
-// ── the Shop (redesign.md §2.11) ─────────────────────────────────────────────────────────────────
+// ── the Shop (redesign.md §2.11; DESIGN Next, Step 3) ────────────────────────────────────────────
+
+// No room: the floor's shelf (s.shop), open in map, prep and reap, where tiers, recruits and fusions are bought too.
+// The fusions it lists are the fuse action's (the interface's Shop tab shows them beside the relics).
 
 // What relic `id` costs: TUNING.shop.price for its tier × the floor's price scale (floorPrice), after the relics that
 // cut it (`price.relic`), never below 1.
 export const relicPrice = (run, id) => relicTierPrice(run, relicTier(id))
-// What a relic of tier `tier` (RELIC_TIERS id) costs here: relicPrice's, by tier (the Shop's prices, as a room's tip
-// lists them before it is entered).
+// What a relic of tier `tier` (RELIC_TIERS id) costs here: relicPrice's, by tier (the shelf's prices on the floor).
 export const relicTierPrice = (run, tier) => price(run, TUNING.shop.price[tier], 'price.relic')
 // Whether stock slot `index` can be bought now: a relic still on the shelf, and the purse holds its price.
 export const canBuy = (run, index) => {
   const id = run.state.shop[index]
   return !!id && run.state.essence >= relicPrice(run, id)
 }
-// The stock as the interface shows it: each slot's relic and its price now, null for one bought.
+// The shelf as the interface shows it: each slot's relic and its price now, null for one bought.
 export const shopOffers = (run) => run.state.shop.map((id, index) => id && { ...relicOffer(relicDef(id)), index, cost: relicPrice(run, id) })
+// The Shop's Fusions as the interface shows them: every recipe whose parts are all held (fuseParts), in content order,
+// each with the one fuse action its button fires (the parts the run picks, as legalActions lists it), its price,
+// whether the phase fuses (`open`: map and prep; not the spoils) and whether it can be made now (`can`: the essence too).
+export function shelfFusions (run) {
+  const open = HANDLERS.fuse.phases.includes(run.state.phase)
+  return FUSION_LIST.flatMap((f) => {
+    const parts = fuseParts(run, f.id)
+    return parts ? [{ id: f.id, action: { type: 'fuse', id: f.id, parts }, cost: fuseCost(run, f.id), open, can: open && canFuse(run, f.id) }] : []
+  })
+}
 
-// A slot bought: its price paid, the relic held (takeRelic), the slot empty. The Shop stays open for more.
+// A slot bought: its price paid, the relic owned (takeRelic), the slot empty until the next battle won (restock).
 function buy (run, { index }) {
   const s = run.state
   const id = s.shop[index]
@@ -911,11 +921,6 @@ function buy (run, { index }) {
   s.shop[index] = null
 }
 
-// Out of the Shop, free; what is left on its shelves is left behind with the room.
-function leave (run) {
-  run.state.shop = []
-  nextRoom(run)
-}
 
 // ── the altar (redesign.md §4.5) ─────────────────────────────────────────────────────────────────
 
@@ -994,8 +999,8 @@ function consecrate (run, { kind, track }) {
 // A floor entered: its map (ending in a boss room where the floor has a boss: bossPool) and its camp, drawn from the
 // floor's list: the Monarch takes its seat (monarchSlot), and the fielded pieces take the new camp's default frontier
 // (setFrontier), any it leaves no room for going to the ossuary. A camp drawn again on the next floor (the deep reuses
-// the last floor's few) is no camp new to them: they keep the cells the player gave them there. Its rooms wait for the
-// floor to open (openFloor).
+// the last floor's few) is no camp new to them: they keep the cells the player gave them there. The floor's Shop shelf
+// is drawn (stockShop), whatever the last floor's held. Its rooms wait for the floor to open (openFloor).
 function enterFloor (run) {
   const s = run.state
   const was = s.camp
@@ -1005,6 +1010,7 @@ function enterFloor (run) {
   if (s.camp !== was) setFrontier(s, fielded(souls(s.party)))
   s.at = s.map.start
   s.phase = 'map'
+  s.shop = stockShop(s)
 }
 
 // A floor opens on the army as it stands (redesign.md §4.7): as it is entered, the first once the draft is done. Its
@@ -1418,6 +1424,7 @@ function finishBattle (run) {
     return
   }
   s.offers = soulOffers(run, b)
+  restock(s)
   s.phase = 'reap'
 }
 
@@ -1620,30 +1627,62 @@ export function soulOffer (run, o) {
 const relicOffer = (r) => ({ type: 'relic', id: r.id, name: r.name, desc: r.desc, tier: r.tier })
 // Whether relic `r` may be stocked for the run: one that needs Arise only once an Arise relic is owned; one owned, again.
 const offerable = (s, r) => !r.needsArise || ariseHeld(s)
-// A Shop's tier weights on the floor (TUNING.relic.weights.shop: the floor's entry, the last for every floor past).
+// The shelf's tier weights on the floor (TUNING.relic.weights.shop: the floor's entry, the last for every floor past).
 export const relicWeights = (floor) => {
   const w = TUNING.relic.weights.shop
   return w[Math.min(floor, w.length) - 1]
 }
 
-// A Shop's stock (redesign.md §2.11): TUNING.shop.relics relic ids, drawn on a stream of the room's own, so a replay
-// stocks it again. Each Common to Rare relic is of a tier drawn by the Shop's weights on the floor (relicWeights; a
-// tier with nothing left to draw is passed over), then one of that tier, never one already on the shelf; the first
-// drawn from the Command relics alone, so the field never grows by luck. From floor TUNING.relic.legendary.fromFloor
-// one slot is a Legendary. One the run holds may come again. Laid out in shuffled order.
-function stockShop (s) {
-  const rng = createRng(s.seed).stream(`shop|${s.floor}|${s.at}`)
-  const weights = relicWeights(s.floor)
-  const command = (r) => (r.mods ?? []).some((m) => m.path === 'run.command' && m.v > 0)
-  const out = []
-  const legendary = s.floor >= TUNING.relic.legendary.fromFloor ? 1 : 0
-  for (let k = 0; k < TUNING.shop.relics - legendary; k++) {
-    const left = (tier) => RELIC_LIST.filter((r) => r.tier === tier && offerable(s, r) && !out.includes(r) && (k > 0 || command(r)))
-    const tiers = RELIC_TIERS.filter((t) => t.id !== 'legendary' && (weights[t.id] ?? 0) > 0 && left(t.id).length)
-    if (!tiers.length) break
-    out.push(rng.pick(left(rng.weighted(tiers, tiers.map((t) => weights[t.id])).id)))
+// A relic that raises Command (the shelf always holds one).
+const isCommandRelic = (r) => (r.mods ?? []).some((m) => m.path === 'run.command' && m.v > 0)
+// One relic for a slot of the shelf, drawn on `rng`, never one of `on` (the relics on the shelf now): a Legendary
+// (`legendary`), else a Common to Rare relic of a tier drawn by the shelf's weights on the floor (relicWeights; a tier
+// with nothing left to draw is passed over), then one of that tier, from the Command relics alone where `command`.
+// Only a relic the run may be offered (offerable). → a relic record, or null where none is left to draw.
+function drawSlot (s, rng, on, { command = false, legendary = false } = {}) {
+  if (legendary) {
+    const legendaries = RELIC_LIST.filter((r) => r.tier === 'legendary' && offerable(s, r) && !on.includes(r))
+    return legendaries.length ? rng.pick(legendaries) : null
   }
-  const legendaries = RELIC_LIST.filter((r) => r.tier === 'legendary' && offerable(s, r))
-  if (legendary && legendaries.length) out.push(rng.pick(legendaries))
+  const weights = relicWeights(s.floor)
+  const left = (tier) => RELIC_LIST.filter((r) => r.tier === tier && offerable(s, r) && !on.includes(r) && (!command || isCommandRelic(r)))
+  const tiers = RELIC_TIERS.filter((t) => t.id !== 'legendary' && (weights[t.id] ?? 0) > 0 && left(t.id).length)
+  if (!tiers.length) return null
+  return rng.pick(left(rng.weighted(tiers, tiers.map((t) => weights[t.id])).id))
+}
+// Whether the floor's shelf holds a Legendary.
+const legendaryFloor = (s) => s.floor >= TUNING.relic.legendary.fromFloor
+
+// The floor's shelf (redesign.md §2.11; DESIGN Next, Step 3): TUNING.shop.relics relic ids, drawn as the floor is
+// arrived at (enterFloor) on a stream of the floor's own, so a replay stocks it again. Each a drawSlot, never one
+// already on the shelf; the first from the Command relics alone, so the field never grows by luck. From floor
+// TUNING.relic.legendary.fromFloor one slot is a Legendary. One the run holds may come again. Laid out in shuffled order.
+export function stockShop (s) {
+  const rng = createRng(s.seed).stream(`shop|${s.floor}`)
+  const out = []
+  const legendary = legendaryFloor(s) ? 1 : 0
+  for (let k = 0; k < TUNING.shop.relics - legendary; k++) {
+    const r = drawSlot(s, rng, out, { command: k === 0 })
+    if (!r) break
+    out.push(r)
+  }
+  const top = legendary ? drawSlot(s, rng, out, { legendary: true }) : null
+  if (top) out.push(top)
   return rng.shuffle(out).map((r) => r.id)
+}
+
+// The shelf after a battle won (finishBattle): each slot bought (null) drawn again, in slot order, on a stream of the
+// floor and the room's own, so a replay refills it the same: a Legendary while the floor has one (legendaryFloor) and
+// none is left on the shelf, else a Command relic while none is left, else as any slot; never one already on the
+// shelf. A slot with nothing left to draw stays empty; the relics on the shelf stay where they are.
+export function restock (s) {
+  if (!s.shop.includes(null)) return
+  const rng = createRng(s.seed).stream(`shop|${s.floor}|${s.at}`)
+  const on = () => s.shop.filter(Boolean).map(relicDef)
+  for (let i = 0; i < s.shop.length; i++) {
+    if (s.shop[i] !== null) continue
+    const legendary = legendaryFloor(s) && !on().some((r) => r.tier === 'legendary')
+    const command = !legendary && !on().some((r) => r.tier !== 'legendary' && isCommandRelic(r))
+    s.shop[i] = drawSlot(s, rng, on(), { command, legendary })?.id ?? null
+  }
 }

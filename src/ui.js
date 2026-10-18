@@ -1,4 +1,4 @@
-// The DOM side: the title, the run's screen (its Field, Map and Codex tabs), the spoils, the altar and the end, the
+// The DOM side: the title, the run's screen (its Field, Map, Shop and Codex tabs), the spoils, the altar and the end, the
 // playback bar and the panels beside the battle, and the parts they share. Screens only read run.state and report
 // input upward; the Field sends its actions through act(action), which returns an error message or null. Every
 // control has a tooltip saying exactly what it does (rules text lives in codex.js).
@@ -7,11 +7,11 @@ import {
   availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, souls, isMonarch, monarchOf,
   reapedShadows, essenceByWave, canDescend, depthOf, OSSUARY, canAdvance, tierCost, canPlace, canFuse,
   fuseCost, fuseParts, relicCount, levelOf, kindLevel, floorPrice, swapWith, releaseRefund,
-  soulOffer, shopOffers, canBuy, eliteBonus, runStat, unheld, canHold, isRunRelic, heldKinds, foeEssence, unhealed,
+  soulOffer, shopOffers, shelfFusions, canBuy, eliteBonus, runStat, unheld, canHold, isRunRelic, heldKinds, foeEssence, unhealed,
   transmuteOffer, canTransmute, ascensionOf, ascensionTop, priceScale
 } from './sim/run.js'
 import { RANKS, WIDTH } from './sim/map.js'
-import { unitDef, relicDef, KIN, ROLES, FUSION_LIST, RELIC_TIERS, THREATS, MONARCHS, MONARCH_LIST } from './content.js'
+import { unitDef, relicDef, fusionDef, KIN, ROLES, FUSION_LIST, RELIC_TIERS, THREATS, MONARCHS, MONARCH_LIST } from './content.js'
 import {
   COLS, ROWS, CAMP_ROWS, slotAt, rowOf, isWall, LANES, DEPTH, tileAt, deployTile, wallTiles, onField, tileX, tileY,
   statsOf, tracksOf, canTrack, nextTracks, sizeOf, footprint, footprintSlots,
@@ -123,7 +123,7 @@ function metaActions ({ daily, saved, onDaily, onHistory }) {
 }
 
 // Where a saved run stands (save.js placeOf), in a line: "Floor 2, room 6 of 15 · in battle, turn 3".
-const PHASE_AT = { draft: 'the draft', prep: 'entering a battle', reap: 'the spoils', shop: 'in a Shop', altar: 'at an altar' }
+const PHASE_AT = { draft: 'the draft', prep: 'entering a battle', reap: 'the spoils', altar: 'at an altar' }
 export function placeText (at) {
   const deep = depthOf(at.floor)
   const floor = `Floor ${at.floor}${deep ? ` (deep ${deep})` : ''}`
@@ -457,23 +457,33 @@ function monarchChip (run) {
 }
 
 // The Field's gestures, taught one at a time in a slim pill atop the panel (never over the board), on every frame,
-// each until it has been done once (remembered in this browser): select, then place a soul, then fuse.
+// each until it has been done once (remembered in this browser): select, then place a soul, then fuse (in the Shop).
 const done = (k) => prefs.get('did:' + k) === '1'
 const learnt = (k) => { if (!done(k)) prefs.set('did:' + k, '1') }
 
-// ── the run's screen: Field · Map · Codex ───────────────────────────────────────────────────────
+// ── the run's screen: Field · Map · Shop · Codex ────────────────────────────────────────────────
 
-// The run between battles, one screen with its three tabs folded into the top bar (DESIGN §4), one view at a time:
+// The run between battles, one screen with its four tabs folded into the top bar (DESIGN §4), one view at a time:
 // the Field (the board, as large as the screen holds, and one slim panel beside it: the selected piece's card, the
 // ossuary at its foot like a Bloons TD shop), the Map (the floor's rooms: scout them, and walk to the next; a battle
-// room's battle starts as it is entered) and the Codex (the rules, the words, the foes met). The Map opens first.
-// Each tab's tooltip leads with its counts (`now`).
+// room's battle starts as it is entered), the Shop (the floor's shelf of relics, and the fusions: shopView) and the
+// Codex (the rules, the words, the foes met). The Map opens first. Each tab's tooltip leads with its counts (`now`).
 const TABS = [
   { id: 'field', name: 'Field', ico: 'field', key: 'F', desc: 'The board: place your souls and read the roads.', now: ossuaryCount },
   { id: 'map', name: 'Map', ico: 'map', key: 'R', desc: 'The floor: scout its rooms.',
     now: (run) => { const n = availableNodes(run).length; return `Floor ${run.state.floor}: ${n} room${n === 1 ? '' : 's'} open to you next.` } },
+  { id: 'shop', name: 'Shop', ico: 'shop', key: 'B', desc: 'Relics and fusions for essence, open between battles.', now: shopCount },
   { id: 'codex', name: 'Codex', ico: 'codex', key: 'C', desc: 'The rules, the words and the foes you have met.',
     now: () => { const b = bestiaryCount(); return `${b.met} of ${b.of} foe kinds met.` } }]
+
+// The Shop's counts: the relics on the shelf the purse reaches, and the fusions ready (every part held) and affordable.
+function shopCount (run) {
+  const left = shopOffers(run).filter(Boolean)
+  const reach = left.filter((o) => o.cost <= run.state.essence).length
+  const ready = shelfFusions(run)
+  const afford = ready.filter((x) => x.can).length
+  return `${reach} of ${left.length} relic${left.length === 1 ? '' : 's'} within reach; ${ready.length} fusion${ready.length === 1 ? '' : 's'} ready, ${afford} affordable.`
+}
 
 // trail: node ids visited on this floor, in order (starts with the start node). onNode: walk to a room.
 export function runScreen ({ run, act, trail, note = '', onNode, onHelp }) {
@@ -500,7 +510,8 @@ export function runScreen ({ run, act, trail, note = '', onNode, onHelp }) {
     }, icon(t.ico, 22), h('span', { class: 'top-tab-name' }, t.name))))
     fill(body, id === 'field' ? editor.el
       : id === 'map' ? mapView({ run, trail, onNode })
-        : h('section', { class: 'panel codex-panel' }, codexView(run)))
+        : id === 'shop' ? shopView({ run, act, onChange: refresh }).el
+          : h('section', { class: 'panel codex-panel' }, codexView(run)))
     if (id === 'field') editor.shown()
   }
   show('map')
@@ -511,6 +522,7 @@ export function runScreen ({ run, act, trail, note = '', onNode, onHelp }) {
       const n = reach[Number(e.key) - 1]
       if (n) { editor.release(); onNode(n.id) } else if (e.key === 'f' || e.key === 'F') show('field')
       else if (e.key === 'r' || e.key === 'R') show('map')
+      else if (e.key === 'b' || e.key === 'B') show('shop')
       else if (e.key === 'c' || e.key === 'C') show('codex')
       else if (tab === 'field') editor.key(e)
     }
@@ -687,7 +699,7 @@ function fieldEditor ({ run, act, onChange = null }) {
     if (!done('select')) return [h('b', null, tap), ' a piece to select it · ', h('b', null, 'drag'), ' one to move it']
     if (!done('place') && inOssuary(souls(s.party)).some((u) => u.hp > 0) && !full()) return [h('b', null, 'Drag'), ' a soul from the ossuary onto the camp to field it']
     const ready = !done('fuse') && FUSION_LIST.find((f) => canFuse(run, f.id))
-    if (ready && !(p && Object.hasOwn(ready.needs, p.id))) return [h('b', null, ready.name), ' can be made: ', tap.toLowerCase(), ' one of its parts, then ', h('b', null, 'Fuse')]
+    if (ready) return [h('b', null, ready.name), ' can be made: open the ', h('b', null, 'Shop'), ' tab, then ', h('b', null, 'Fuse')]
     return null
   }
 
@@ -839,7 +851,7 @@ function fieldEditor ({ run, act, onChange = null }) {
       h('div', { class: 'rs-row' },
         held.map((id) => [h('span', { class: `rs-relic rt-${relicDef(id).tier}`, tip: () => relicTip(id, run) }, icon(relicIcon(id), 18), relicDef(id).name),
           h('button', { class: 'ghost small', onclick: () => send({ type: 'unhold', uid: u.uid, relic: id }), tip: () => `Take ${relicDef(id).name} back: it waits unheld, to give again.` }, 'Take back')]),
-        !full && h('span', { class: 'rs-empty dim' }, ids.length ? '◇ Empty: give it one' : '◇ Empty: buy a piece relic in a Shop')),
+        !full && h('span', { class: 'rs-empty dim' }, ids.length ? '◇ Empty: give it one' : '◇ Empty: buy a piece relic in the Shop')),
       ids.length > 0 && h('div', { class: 'rs-give' }, ids.map((id) => h('button', {
         class: `give-relic small rt-${relicDef(id).tier}` + (giving === id ? ' on' : ''),
         onclick: () => give(u, id),
@@ -881,8 +893,8 @@ function fieldEditor ({ run, act, onChange = null }) {
   const abilities = (u, st) => h('div', { class: 'uc-abs' }, abilityBlocks(u, st, realmOf(run)), auraBlock(u))
 
   // A soul's panel: its head; its relic slot; the summons its kind's tiers bring it each battle, if any; where it
-  // stands (how to field it); its kind (its level, read from its tiers, and the two tracks); Fuse (the recipes its
-  // kind is part of); its abilities (Arise among them while it holds an Arise relic); to the ossuary.
+  // stands (how to field it); its kind (its level, read from its tiers, and the two tracks); its abilities (Arise
+  // among them while it holds an Arise relic); to the ossuary. Its fusions are the Shop's (shopView): one place to buy.
   function soulPanel (u) {
     const mods = partyMods(run, u)
     const on = onField(u)
@@ -893,7 +905,6 @@ function fieldEditor ({ run, act, onChange = null }) {
       !on && h('p', { class: 'dim uc-note' }, u.hp <= 0 ? 'Fallen, in the ossuary: it cannot be fielded until an altar raises it.'
         : full() ? fullText(u) : say('In the ossuary. Drag it onto an open tile of the camp, or click one.', 'In the ossuary. Drag it onto an open tile of the camp, or tap one.')),
       kindPanel(u.id),
-      fuseSection(u.id),
       h('div', { class: 'uc-sec' }, 'Abilities'),
       abilities(u, statsOf(u, mods)),
       h('div', { class: 'uc-acts' },
@@ -1000,59 +1011,6 @@ function fieldEditor ({ run, act, onChange = null }) {
     const name = unitDef(kind).name
     error = `${n === 1 ? `A ${name} no longer fits` : `${n} ${name} pieces no longer fit`} 2×2 where ${n === 1 ? 'it' : 'they'} stood: in the ossuary until you place ${n === 1 ? 'it' : 'them'} again.`
     render()
-  }
-
-  // Fuse (DESIGN §2.6, §4): the recipes this kind is part of, each its result's picture (its card on hover), its parts
-  // (of the souls of each kind it takes, how many you hold) and one button, lit when every part is held and the
-  // essence suffices. The run picks the pieces, whole (fuseParts: the ossuary's first, then the fielded); the fused
-  // piece waits in the ossuary, selected.
-  function fuseSection (kind) {
-    const recipes = FUSION_LIST.filter((f) => Object.hasOwn(f.needs, kind))
-    if (!recipes.length) return null
-    const held = (k) => souls(s.party).filter((x) => x.id === k).length
-    const row = (f) => {
-      const d = unitDef(f.result)
-      const k = s.kinds[f.result]
-      return h('div', { class: 'fuse-row' + (canFuse(run, f.id) ? ' ready' : '') },
-        h('span', { tip: () => unitCard({ id: f.result, lvl: k?.lvl ?? 1, tracks: k?.tracks ?? [0, 0] }, { realm: realmOf(run), notes: [f.desc] }) }, portrait(f.result, 40)),
-        h('div', { class: 'fuse-text' },
-          h('div', null, h('b', null, f.name), h('span', { class: 'dim' }, ` · tier ${d.tier}${(d.size ?? 1) > 1 ? ' · 2×2' : ''}`)),
-          h('div', { class: 'fuse-parts' }, Object.entries(f.needs).map(([id, n]) => {
-            const have = held(id)
-            return h('span', { class: have >= n ? 'met' : 'short' }, `${unitDef(id).name} ${Math.min(have, n)}/${n}`)
-          }))),
-        fuseButton(f))
-    }
-    return h('div', { class: 'uc-fuse' },
-      h('div', { class: 'uc-sec' }, kw('fusion', 'Fuse'), h('span', { class: 'dim' }, ` · ${recipes.length} recipe${recipes.length === 1 ? '' : 's'}`)),
-      h('div', { class: 'fuse-list' }, recipes.map(row)))
-  }
-  function fuseButton (f) {
-    const cost = fuseCost(run, f.id)
-    const parts = fuseParts(run, f.id)
-    const can = canFuse(run, f.id)
-    // Each part a piece of its own: its name, and where it stands now.
-    const partsText = (uids) => uids.map((uid) => {
-      const p = soulOf(uid)
-      return `the ${unitDef(p.id).name} ${onField(p) ? `on ${tileText(deployTile('party', p.slot)).replace(/^your camp, /, '')}` : 'in the ossuary'}`
-    }).join(', ')
-    const tip = () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ' ', f.desc,
-      !parts ? h('p', { class: 'warn' }, 'Not every part is held yet.')
-        : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
-          : h('p', { class: 'dim' }, `It takes ${partsText(parts)}, for ${cost} essence; the ${unitDef(f.result).name} waits in the ossuary.`))
-    const press = (e) => {
-      if (!can) { sfx.play('poor'); return shake(e) }
-      if (!send({ type: 'fuse', id: f.id, parts: fuseParts(run, f.id) })) return
-      learnt('fuse')
-      sfx.play('buy')
-      sel = { uid: s.party.at(-1).uid }
-      render()
-    }
-    return h('button', {
-      class: 'buy' + (can ? '' : ' poor'), 'aria-disabled': can ? null : 'true', 'aria-label': `Fuse ${f.name}`,
-      onclick: (e) => twice(e, tip, `Fuse ${f.name} ▸`, () => can, press),
-      tip
-    }, icon('fuse', 18), 'Fuse', h('span', { class: 'price' }, icon('soul', 16), cost))
   }
 
   // The Monarch's panel, with nothing selected (DESIGN §4): a read-out, nothing to buy. Its HP and Command (the
@@ -1533,8 +1491,8 @@ function cardDeck () {
   }
 }
 
-// Your souls, one line at the foot: how many. Where a soul may be let go (`open`: always in a Shop, for its refund;
-// on the spoils only with no room for a recruit), the line opens (a press) a panel over the cards: each soul but the
+// Your souls, one line at the foot: how many. Where a soul may be let go (`open`: on the spoils, with no room for a
+// recruit), the line opens (a press) a panel over the cards: each soul but the
 // Monarch, with a Release button that says the essence it pays back (run.js releaseRefund: a share of what
 // recruiting it would cost now). `busy()`: a card on its way, nothing pressed now; `again()`: the screen redrawn.
 function soulsStrip ({ run, act, busy, again, why }) {
@@ -1562,7 +1520,7 @@ function soulsStrip ({ run, act, busy, again, why }) {
   }
 }
 
-// The Relics strip's parts (the Field's, and the Shop's and spoils' below): its label, and the piece relics held by no
+// The Relics strip's parts (the Field's, and the spoils' below): its label, and the piece relics held by no
 // soul, a button each (a copy more a ×N); `giving` is the one readied, `pick(id)` readies or lets go of one.
 function relicChips (run, giving, pick) {
   const ids = unheld(run.state)
@@ -1588,7 +1546,7 @@ function relicChips (run, giving, pick) {
     }))]
 }
 
-// The piece relics, at the foot of the Shop and the spoils (redesign.md §2.15: give, take back and swap out of battle,
+// The piece relics, at the foot of the spoils (redesign.md §2.15: give, take back and swap out of battle,
 // as the Field's Relics strip does, and by its gesture): a line of how many wait unheld; a press opens, over the cards,
 // the same strip of them and a compact list of your souls, a row each: tap a relic, then a soul to give it (a soul
 // holding one swaps); a soul's relic slot takes it back. Nothing while no piece relic is owned. `busy()`, `again()`:
@@ -1644,7 +1602,8 @@ const mostCards = () => Math.max(3, Math.min(6, Math.floor((frame.w - 44 + 18) /
 
 // The spoils of a won battle: one of the slain to recruit (relics are the Shop's alone, redesign.md §2.11), what
 // each wave paid, and a won elite's essence on top of its foes'. onDone(index): recruit offer `index`, or null to
-// move on. The offers are cards to pick, framed in essence's colour.
+// move on. The offers are cards to pick, framed in essence's colour. The Shop (shopView), its shelf just restocked,
+// opens in their place at a press (B) and closes at another.
 export function reapScreen ({ run, title, act, onDone, onHelp }) {
   const s = run.state
   const el = h('div', { class: 'screen fit reap-screen' })
@@ -1688,7 +1647,7 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
   const bounty = node.type === 'elite' || node.type === 'boss'
   const elitePay = bounty && h('p', {
     class: 'wave-pay elite-pay',
-    tip: () => `${TUNING.essence.eliteBonus} at floor-1 prices, ${times(floorPrice(s.floor))} here${boost !== 1 ? `, ${times(boost)} by relics` : ''}: +${Math.round(eliteBonus(s.floor) * boost)}, on top of its foes'. ${node.type === 'boss' ? 'A boss' : 'An elite'} lays out no relic: the Shops sell those.`
+    tip: () => `${TUNING.essence.eliteBonus} at floor-1 prices, ${times(floorPrice(s.floor))} here${boost !== 1 ? `, ${times(boost)} by relics` : ''}: +${Math.round(eliteBonus(s.floor) * boost)}, on top of its foes'. ${node.type === 'boss' ? 'A boss' : 'An elite'} lays out no relic: the Shop sells those.`
   }, icon('soul', 18), ` The ${node.type === 'boss' ? 'boss' : 'elite'}'s bounty: `, h('b', null, `+${Math.round(eliteBonus(s.floor) * boost)}`), ' essence, on top of its foes\'.')
   // What the battle just won paid in all (run.js finishBattle: its slain, Hollow Court's shadows, an elite's bounty, ×
   // the relics' gain), and where a recruit would go.
@@ -1702,6 +1661,17 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
   }
   const strip = soulsStrip({ run, act, busy: () => busy, again: () => render(), why: 'Your souls are at their most: open the list to release one, and make room for a recruit.' })
   const relics = relicsStrip({ run, act, busy: () => busy, again: () => render() })
+  // The Shop, open over the cards (`shopping`) or not.
+  let shopping = false
+  const shop = shopView({ run, act, onChange: () => render() })
+  const toggleShop = () => {
+    if (busy) return
+    shopping = !shopping
+    hideTip()
+    sfx.play('select')
+    if (shopping) shop.render()
+    render()
+  }
 
   // A card: big art, the name, one line; the rest is on the hover. A recruit of a kind you already hold says what one
   // more is worth (codex.js recruitWorth): how many you hold, the synergy steps one more fielded would reach, the
@@ -1753,15 +1723,19 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
         elitePay,
         reaped && h('p', { class: 'note-line reap-note' }, reaped),
         wavePay,
-        h('div', { class: 'reap-body' },
-          h('div', { class: 'reap-picks' },
+        h('div', { class: 'reap-body' + (shopping ? ' shopping' : '') },
+          shopping ? shop.el : h('div', { class: 'reap-picks' },
             offers.length > 0 && h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (offers.length > cols ? ' rows' : ''), style: `--cols:${cols}` }, offers))),
         h('div', { class: 'reap-foot' },
           strip(s.offers.length > 0 && full()),
           relics(),
           h('div', { class: 'reap-actions' },
+            h('button', {
+              class: 'ghost big open-shop' + (shopping ? ' on' : ''), 'aria-pressed': shopping ? 'true' : 'false', onclick: toggleShop,
+              tip: () => shopping ? 'Back to the spoils. (B)' : 'Open the Shop: its relics, restocked by this win, and your fusions. (B)'
+            }, icon('shop', 20), shopping ? 'Spoils ' : 'Shop ', h('kbd', null, 'B')),
             h('button', { class: 'ghost big move-on', onclick: () => take(null), tip: () => `Go on.${s.offers.length ? ' The slain not recruited are lost.' : ''} (S)` }, 'Move on ', h('kbd', null, 'S'))))))
-    deal = false
+    if (!shopping) deal = false
   }
 
   render()
@@ -1769,8 +1743,9 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
     el,
     key (e) {
       if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
-      const hit = [...keys].find(([, k]) => e.key.toUpperCase() === k)
+      const hit = !shopping && [...keys].find(([, k]) => e.key.toUpperCase() === k)
       if (hit) take(hit[0])
+      else if (e.key === 'b' || e.key === 'B') toggleShop()
       else if (e.key === 's' || e.key === 'S') take(null)
     }
   }
@@ -1881,17 +1856,21 @@ function seatSoul (id, rect, k) {
 
 // ── the Shop ─────────────────────────────────────────────────────────────────────────────────────
 
-// A Shop (redesign.md §2.11): its stock of relics (run.js shopOffers: a slot null once bought), each card with its
-// price; a card lights only while the purse (the bar's essence) pays for it, and any number may be bought. Leave is
-// free (onLeave). A soul may be released here for its refund.
-export function shopScreen ({ run, act, onLeave, onHelp }) {
+// The Shop (redesign.md §2.11; DESIGN Next, Step 3): no room, but the floor's shelf, open wherever essence is spent: a
+// tab of the run's screen beside the Field, the Map and the Codex, and a press away on the spoils; closed in battle. Two
+// sections. Relics: the shelf's slots (run.js shopOffers: a slot null once bought, filled again after the next battle
+// won), each card with its price, lit only while the purse (the bar's essence) pays for it, any number bought.
+// Fusions: every recipe whose parts are all held (run.js fuseParts), lit when the essence suffices, its one button the
+// fuse action (the run picks the pieces, whole: the ossuary's first, then the fielded; the fused piece waits in the
+// ossuary); then, dim, the recipes a kind held goes into, each part counted, so the plan is in view with its price.
+// `onChange` runs after every action it sends (the bar redrawn). → { el, render }
+export function shopView ({ run, act, onChange = null }) {
   const s = run.state
-  const el = h('div', { class: 'screen fit reap-screen shop-screen' })
-  let deal = freshRoom(run)
+  const el = h('section', { class: 'panel shop-panel reap-screen shop-screen', 'aria-label': 'The Shop' })
+  let deal = true
+  let said = ''
   const deck = cardDeck()
-  const keys = offerKeys(s.shop)
-  const keyTag = (i) => keys.has(i) && h('kbd', null, keys.get(i))
-  const keyNote = (i) => keys.has(i) ? ` (${keys.get(i)})` : ''
+  const done = () => { hideTip(); render(); onChange?.() }
   const buy = (i) => {
     const o = shopOffers(run)[i]
     if (!o) return
@@ -1899,22 +1878,23 @@ export function shopScreen ({ run, act, onLeave, onHelp }) {
     const rect = deck.artRect(i)
     if (act({ type: 'buy', index: i })) return deck.refuse(i)
     sfx.play('buy')
-    hideTip()
-    render()
+    said = ''
+    done()
     flyTrinket(o, rect)
   }
-  const strip = soulsStrip({ run, act, busy: () => false, again: () => render(), why: 'Let a soul go for part of what recruiting it would cost now.' })
-  const relics = relicsStrip({ run, act, busy: () => false, again: () => render() })
 
   function card (o, i) {
-    if (!o) return deck.cards[i] = h('div', { class: 'offer o-sold', style: `--i:${i}` }, h('div', { class: 'offer-art' }, icon('shop', 48)), h('div', { class: 'offer-name' }, 'Bought'))
+    if (!o) {
+      return deck.cards[i] = h('div', { class: 'offer o-sold', style: `--i:${i}`, tip: () => 'Bought. The slot fills again after your next win.' },
+        h('div', { class: 'offer-art' }, icon('shop', 48)), h('div', { class: 'offer-name' }, 'Bought'), h('div', { class: 'offer-sub' }, 'Restocked after a win'))
+    }
     const why = canBuy(run, i) ? null : 'poor'
     const r = relicDef(o.id)
     const copies = relicCount(s, o.id)
     const tip = () => h('div', null, relicTip(o.id, run),
-      h('p', { class: 'dim' }, why ? `You need ${o.cost} essence; you have ${s.essence}.` : `${say('Click', 'Tap it again (or Buy ▸)')} to buy it for ${o.cost} essence.${keyNote(i)}`))
+      h('p', { class: 'dim' }, why ? `You need ${o.cost} essence; you have ${s.essence}.` : `${say('Click', 'Tap it again (or Buy ▸)')} to buy it for ${o.cost} essence.`))
     return deck.cards[i] = h('button', { class: `offer o-relic o-${o.tier} rt-${o.tier}` + (why ? ' locked' : ''), style: `--i:${i}`, onclick: (e) => deck.press(e, i, tip, 'Buy ▸', () => canBuy(run, i), buy), 'aria-disabled': why ? 'true' : null, tip },
-      h('div', { class: 'offer-tag' }, keyTag(i), h('span', { class: 'tag-word' }, ` ${RELIC_TIER_NAME[o.tier]}`),
+      h('div', { class: 'offer-tag' }, h('span', { class: 'tag-word' }, RELIC_TIER_NAME[o.tier]),
         h('span', { class: 'kind-tag', tip: () => isRunRelic(o.id) ? 'A run relic: it works for the whole run, unheld.' : 'A piece relic: it works only through the soul you give it to, on the Field.' }, relicKind(o.id))),
       h('div', { class: 'offer-art' }, icon(relicIcon(o.id), 64),
         r.on && h('span', { class: 'trig-tag', tip: () => `Fires each time ${TRIGGER_TEXT[r.on].short}` }, TRIGGER_TEXT[r.on].name)),
@@ -1928,41 +1908,106 @@ export function shopScreen ({ run, act, onLeave, onHelp }) {
   function shelfLine () {
     const left = shopOffers(run).filter(Boolean)
     const k = left.filter((o) => o.cost <= s.essence).length
-    return !left.length ? `You have ${s.essence}; the shelves are bare.`
-      : `You have ${s.essence}: ${k === left.length ? (k === 1 ? 'the last one is' : `all ${k} are`) : `${k} of these ${left.length} ${k === 1 ? 'is' : 'are'}`} within reach.`
+    return !left.length ? `You have ${s.essence}; the shelf is bare until your next win.`
+      : `You have ${s.essence}: ${k === left.length ? (k === 1 ? 'the last relic is' : `all ${k} relics are`) : `${k} of these ${left.length} relics ${k === 1 ? 'is' : 'are'}`} within reach.`
+  }
+
+  // By touch a fusion is read before it is made, as a card is: the first tap pins its text with `label` under it, and a
+  // second tap on it, or that button, makes it. A click makes it at once: its hover read it.
+  let reading = null
+  function twice (e, tip, label, ok, go) {
+    const b = e.currentTarget
+    if (!touchy() || reading === b) { reading = null; return go(e) }
+    reading = b
+    b.classList.add('chosen')
+    pinTip(b, () => [tip(), ok() && h('button', { class: 'primary small tip-act', onclick: () => { hideTip(); reading = null; go(e) } }, label)], {
+      keep: true,
+      onHide: () => { b.classList.remove('chosen'); if (reading === b) reading = null }
+    })
+  }
+  const shake = (e) => {
+    const t = e?.currentTarget
+    if (!t?.classList) return
+    t.classList.remove('shake')
+    void t.offsetWidth
+    t.classList.add('shake')
+  }
+
+  // A recipe's row: its result's picture (its card on hover), its name, its parts (of the souls of each kind it takes,
+  // how many you hold) and, where every part is held, its button, lit when the essence suffices.
+  const heldOf = (k) => souls(s.party).filter((x) => x.id === k).length
+  function fuseRow (f, entry = null) {
+    const d = unitDef(f.result)
+    const k = s.kinds[f.result]
+    return h('div', { class: 'fuse-row' + (entry?.can ? ' ready' : '') + (entry ? '' : ' toward') },
+      h('span', { tip: () => unitCard({ id: f.result, lvl: k?.lvl ?? 1, tracks: k?.tracks ?? [0, 0] }, { realm: realmOf(run), notes: [f.desc] }) }, portrait(f.result, 40)),
+      h('div', { class: 'fuse-text' },
+        h('div', null, h('b', null, f.name), h('span', { class: 'dim' }, ` · tier ${d.tier}${(d.size ?? 1) > 1 ? ' · 2×2' : ''}`)),
+        h('div', { class: 'fuse-parts' }, Object.entries(f.needs).map(([id, n]) => {
+          const have = heldOf(id)
+          return h('span', { class: have >= n ? 'met' : 'short' }, `${unitDef(id).name} ${Math.min(have, n)}/${n}`)
+        }))),
+      entry ? fuseButton(f, entry) : h('span', { class: 'price dim', tip: () => `${fuseCost(run, f.id)} essence once every part is held.` }, icon('soul', 16), fuseCost(run, f.id)))
+  }
+  // A ready recipe's button: the one fuse action (run.js shelfFusions: the parts the run picks, whole, the ossuary's
+  // first), lit when it can be made now; on the spoils it waits for the map.
+  function fuseButton (f, entry) {
+    const { cost, can, open } = entry
+    // Each part a piece of its own: its name, and where it stands now.
+    const partsText = entry.action.parts.map((uid) => {
+      const p = s.party.find((x) => x.uid === uid)
+      return `the ${unitDef(p.id).name} ${onField(p) ? `on ${tileText(deployTile('party', p.slot)).replace(/^your camp, /, '')}` : 'in the ossuary'}`
+    }).join(', ')
+    const tip = () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ' ', f.desc,
+      !open ? h('p', { class: 'warn' }, `Fused on the map, once the spoils are done: it takes ${partsText}, for ${cost} essence.`)
+        : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
+          : h('p', { class: 'dim' }, `It takes ${partsText}, for ${cost} essence; the ${unitDef(f.result).name} waits in the ossuary.`))
+    const press = (e) => {
+      if (!can) { sfx.play('poor'); return shake(e) }
+      const error = act(entry.action)
+      if (error) { said = error; sfx.play('poor'); return done() }
+      learnt('fuse')
+      sfx.play('buy')
+      said = `${unitDef(f.result).name} is made: it waits in the ossuary.`
+      done()
+    }
+    return h('button', {
+      class: 'buy' + (can ? '' : ' poor'), 'aria-disabled': can ? null : 'true', 'aria-label': `Fuse ${f.name}`,
+      onclick: (e) => twice(e, tip, `Fuse ${f.name} ▸`, () => can, press),
+      tip
+    }, icon('fuse', 18), 'Fuse', h('span', { class: 'price' }, icon('soul', 16), cost))
+  }
+  function fusions () {
+    const ready = shelfFusions(run)
+    const share = (f) => Object.entries(f.needs).reduce((n, [id, k]) => n + Math.min(heldOf(id), k), 0) / Object.values(f.needs).reduce((n, k) => n + k, 0)
+    const toward = FUSION_LIST.filter((f) => !ready.some((x) => x.id === f.id) && Object.keys(f.needs).some((id) => heldOf(id) > 0))
+      .map((f) => ({ f, at: share(f) })).sort((a, b) => b.at - a.at).map((x) => x.f)
+    return h('div', { class: 'shop-sec shop-fusions' },
+      h('h3', null, kw('fusion', 'Fusions'), h('span', { class: 'dim' }, ` · ${ready.length} ready`)),
+      ready.length ? h('div', { class: 'fuse-list' }, ready.map((x) => fuseRow(fusionDef(x.id), x)))
+        : h('p', { class: 'dim small' }, 'No recipe has every part held yet. Recruit its kinds from the slain.'),
+      toward.length > 0 && [h('p', { class: 'dim small shop-toward' }, 'Toward, from the kinds you hold:'), h('div', { class: 'fuse-list' }, toward.map((f) => fuseRow(f)))])
   }
 
   function render () {
     deck.cards.length = 0
     const stock = shopOffers(run).map(card)
-    const cols = cardRow(stock.length, mostCards())
+    const cols = cardRow(stock.length, Math.min(4, mostCards()))
     fill(el,
-      topbar(run, onHelp),
-      h('div', { class: 'reap-main' },
-        h('div', { class: 'reap-head' },
-          h('div', { class: 'reap-title' }, icon('shop', 34), h('h1', null, 'Shop')),
-          h('p', { class: 'reap-lede' }, [kw('relic', 'Relics'), ' for ', kw('essence'), `. ${shelfLine()} Leaving is free.`])),
-        h('div', { class: 'reap-body' },
-          h('div', { class: 'reap-picks' },
-            h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (stock.length > cols ? ' rows' : ''), style: `--cols:${cols}` }, stock))),
-        h('div', { class: 'reap-foot' },
-          strip(true),
-          relics(),
-          h('div', { class: 'reap-actions' },
-            h('button', { class: 'ghost big move-on', onclick: onLeave, tip: () => 'Leave the Shop and go on. (S)' }, 'Leave ', h('kbd', null, 'S'))))))
+      h('div', { class: 'shop-head' },
+        h('div', { class: 'reap-title' }, icon('shop', 30), h('h2', null, 'Shop')),
+        h('p', { class: 'reap-lede' }, [kw('relic', 'Relics'), ' and ', kw('fusion', 'fusions'), ' for ', kw('essence'), `. ${shelfLine()}`])),
+      said && h('p', { class: 'note-line shop-said', role: 'status' }, said),
+      h('div', { class: 'shop-cols' },
+        h('div', { class: 'shop-sec shop-relics' },
+          h('h3', null, kw('relic', 'Relics'), h('span', { class: 'dim' }, ` · a slot bought fills again after your next win`)),
+          h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (stock.length > cols ? ' rows' : ''), style: `--cols:${cols}` }, stock)),
+        fusions()))
     deal = false
   }
 
   render()
-  return {
-    el,
-    key (e) {
-      if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
-      const hit = [...keys].find(([, k]) => e.key.toUpperCase() === k)
-      if (hit) buy(hit[0])
-      else if (e.key === 's' || e.key === 'S') onLeave()
-    }
-  }
+  return { el, render }
 }
 
 // ── the altar (redesign.md §4.5) ─────────────────────────────────────────────────────────────────
@@ -2639,7 +2684,7 @@ function unitRow (run, u, extra = null) {
 // The relics owned as chips, one per relic in its tier's colour (×N for copies; a trigger relic marked with a
 // spark), grouped by tier; hover one for its rule, whether it is a run relic, and who holds it.
 function relicList (ids, run = null) {
-  if (!ids.length) return h('p', { class: 'dim small' }, 'None yet: the Shops sell them.')
+  if (!ids.length) return h('p', { class: 'dim small' }, 'None yet: the Shop sells them.')
   return h('div', { class: 'relics by-tier' }, relicsByTier(ids, ({ id, n }) =>
     h('span', { class: `relic rt-${relicDef(id).tier}` + (relicDef(id).on ? ' trig' : ''), tip: () => relicTip(id, run) },
       icon(relicIcon(id), 14), relicDef(id).name, n > 1 && h('span', { class: 'relic-n' }, `×${n}`))))

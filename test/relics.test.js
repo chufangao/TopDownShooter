@@ -1,4 +1,4 @@
-// Relics (redesign.md §2.11, §2.15): four tiers, bought in Shops; a run relic works unheld and its copies stack, a piece
+// Relics (redesign.md §2.11, §2.15): four tiers, bought in the Shop; a run relic works unheld and its copies stack, a piece
 // relic works only through the soul holding it (its mods, its moments, a Legendary's rule scoped to it), at most
 // TUNING.relic.perPiece a soul, given and taken back out of battle; Arise a skill its holder learns. The Monarch's HP and
 // Command are run relics alone.
@@ -9,7 +9,7 @@ import { expertTurn, basicTurn } from '../src/sim/policy.js'
 import {
   createRun, apply, battleSetup, fieldCap, rosterCap, souls, monarchOf, fielded, legalActions, join, reapedShadows, encounter,
   relicCount, ariseHeld, relicWeights, replay, tierCost, ariseOf, monarchHp, commandOf, isRunPath, floorPrice, shopOffers, relicTier,
-  unheld, canHold, isRunRelic, fuseParts, OSSUARY, START_PARTY
+  unheld, canHold, isRunRelic, fuseParts, OSSUARY, START_PARTY, stockShop
 } from '../src/sim/run.js'
 import { policy, planFor, LEVELS, autoplay, offerState } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
@@ -51,6 +51,9 @@ const runIn = (seed, type = 'fight') => {
   return run
 }
 const soul = (run, id) => souls(run.state.party).find((u) => u.id === id)
+// The Shop's shelf drawn again for the run as it stands (its floor, its relics), as arriving on its floor draws it
+// (run.js stockShop; the state set outside the log).
+const stock = (run) => { run.state.shop = stockShop(run.state) }
 
 // ── holding (§2.15) ──────────────────────────────────────────────────────────────────────────────
 
@@ -401,7 +404,7 @@ test('the twelve at their edges: a banner on your shadows and summons of its kin
   assert.deepEqual(alone.events.filter((e) => e.type === 'status' && e.status === 'barkskin').map((e) => e.target), [1])
 })
 
-// A Shop stocks the twelve as it stocks every relic: by its tier's weights, at its tier's price.
+// The Shop stocks the twelve as it stocks every relic: by its tier's weights, at its tier's price.
 test('the Shop stocks the twelve by their tiers, each at its tier\'s price', () => {
   const twelve = ['wyrm_standard', 'brass_standard', 'barrow_standard', 'gossamer_standard', 'hive_standard', 'gravediggers_spade', 'firebrand', 'briar_mail',
     'leech_fang', 'quicksilver', 'rowan_charm', 'raiders_spur']
@@ -410,7 +413,7 @@ test('the Shop stocks the twelve by their tiers, each at its tier\'s price', () 
       const seen = new Set()
       for (let i = 0; i < 60; i++) {
         const run = createRun({ start: START_PARTY, seed: `twelve-${tier}-${i}` })
-        visit(run, 'shop')
+        stock(run)
         for (const o of shopOffers(run)) {
           assert.equal(o.tier, tier, o.id)
           assert.equal(o.cost, Math.round(TUNING.shop.price[tier] * floorPrice(1)), o.id)
@@ -561,11 +564,11 @@ test('every Legendary, held alone, together and twice over, plays deterministica
 
 // ── the Shop's Legendaries, and the autoplayer ───────────────────────────────────────────────────
 
-test('Legendaries are sold in Shops from floor 2, one a Shop, one owned too, with no cap; never on floor 1, and no elite lays one out', () => {
+test('Legendaries are sold in the Shop from floor 2, one a shelf, one owned too, with no cap; never on floor 1, and no elite lays one out', () => {
   const legendary = (id) => id && relicTier(id) === 'legendary'
   for (let i = 0; i < 10; i++) {
     const one = createRun({ start: START_PARTY, seed: 'ks' + i })
-    visit(one, 'shop')
+    stock(one)
     assert.ok(!one.state.shop.some(legendary), JSON.stringify(one.state.shop))
   }
   for (let i = 0; i < 30; i++) {
@@ -573,7 +576,7 @@ test('Legendaries are sold in Shops from floor 2, one a Shop, one owned too, wit
     const s = run.state
     s.floor = 2
     s.relics = i % 2 ? ['legion', 'undying', 'arise'] : []
-    visit(run, 'shop')
+    stock(run)
     const ks = shopOffers(run).filter((o) => legendary(o?.id))
     assert.equal(ks.length, 1)
     for (const o of ks) {
@@ -584,16 +587,15 @@ test('Legendaries are sold in Shops from floor 2, one a Shop, one owned too, wit
   const run = createRun({ start: START_PARTY, seed: 'ks0' })
   const s = run.state
   s.floor = 2
-  visit(run, 'shop')
+  stock(run)
   s.essence = 1e4
   const index = s.shop.findIndex(legendary)
   const id = s.shop[index]
   apply(run, { type: 'buy', index })
-  assert.deepEqual([s.relics, s.shop[index], s.phase], [[id], null, 'shop'])
+  assert.deepEqual([s.relics, s.shop[index], s.phase], [[id], null, 'map'])
   assert.deepEqual(unheld(s), isRunRelic(id) ? [] : [id], 'a piece relic bought waits unheld')
-  apply(run, { type: 'leave' })
   s.relics = [...LEGENDARIES, ...LEGENDARIES]
-  visit(run, 'shop')
+  stock(run)
   const again = s.shop.findIndex(legendary)
   const twice = s.shop[again]
   apply(run, { type: 'buy', index: again })
@@ -601,24 +603,24 @@ test('Legendaries are sold in Shops from floor 2, one a Shop, one owned too, wit
   assert.ok(win('kselite', (r) => { r.state.floor = 2 }, 'elite').state.offers.every((o) => o.type === 'soul'))
 })
 
-// Basic's Shop buys Command and nothing else (autoplay.js pickShop), and gives a piece relic waiting to a fielded soul
-// holding none. (The expert weighs a relic against the tiers it displaces: run.test.js.)
-test('basic in a Shop: it buys Legion for its Command, gives a piece relic waiting to a fielded soul, and fields the souls waiting; offerState sees an HP relic\'s Monarch', () => tuned({ party: { fieldPerFloor: 0 } }, () => {
+// Basic's Shop, on the map, buys Command and no other relic (autoplay.js pickShop), and gives a piece relic waiting to
+// a fielded soul holding none. (The expert weighs a relic against the tiers it displaces: run.test.js.)
+test('basic at the Shop: it buys Legion for its Command, gives a piece relic waiting to a fielded soul, and fields the souls waiting; offerState sees an HP relic\'s Monarch', () => tuned({ party: { fieldPerFloor: 0 } }, () => {
   const rng = createRng('ksauto').stream('autoplay')
   for (const level of ['basic']) {
     const run = createRun({ start: START_PARTY, seed: 'ksauto' })
     run.state.floor = 2
-    visit(run, 'shop')
+    stock(run)
     Object.assign(run.state, { shop: ['hollow_court', 'legion'], essence: 1e4 })
     assert.deepEqual(policy(run, rng, level), { type: 'buy', index: 1 }, level)
     apply(run, { type: 'buy', index: 1 })
-    assert.deepEqual(policy(run, rng, level), { type: 'leave' }, level)
+    assert.notEqual(policy(run, rng, level).type, 'buy', level)
     run.state.relics.push('whetstone')
     const give = policy(run, rng, level)
     assert.equal(give.type, 'hold')
     assert.ok(fielded(run.state.party).some((u) => u.uid === give.uid) && give.relic === 'whetstone')
     apply(run, give)
-    assert.deepEqual(policy(run, rng, level), { type: 'leave' }, level)
+    assert.ok(!['buy', 'hold'].includes(policy(run, rng, level).type), level)
   }
   const bench = createRun({ start: START_PARTY, seed: 'ksbench' })
   bench.state.floor = 2
@@ -667,7 +669,7 @@ test('the Monarch\'s HP and Command are run relics: a family of each, every copy
   assert.ok([...HP, ...COMMAND].every((r) => r.run && !r.needsArise && r.desc), 'run relics, sold from the start')
   m.hp = 100
   let [hp, max, command] = [100, m.maxHp, commandOf(s)]
-  visit(run, 'shop')
+  stock(run)
   for (const r of [...HP, ...COMMAND, HP[0], HP[0], COMMAND[2], COMMAND[2]]) {
     Object.assign(s, { shop: [r.id], essence: 1e4 })
     apply(run, { type: 'buy', index: 0 })
@@ -677,7 +679,6 @@ test('the Monarch\'s HP and Command are run relics: a family of each, every copy
     assert.deepEqual([m.hp, m.maxHp, monarchHp(s), commandOf(s), fieldCap(run)], [hp, max, max, command, Math.min(TUNING.army.board, command)], r.id)
   }
   assert.equal(command, TUNING.party.field + 5)
-  apply(run, { type: 'leave' })
   visit(run, 'fight')
   const setup = battleSetup(run)
   assert.deepEqual(setup.partyMods.filter((x) => x.path === 'hp').map((x) => x.v), COMMAND.flatMap((r) => r.mods.filter((x) => x.path === 'hp').map((x) => x.v)))
@@ -686,13 +687,13 @@ test('the Monarch\'s HP and Command are run relics: a family of each, every copy
   assert.deepEqual([b.monarch.hp, b.monarch.maxHp], [m.hp, m.maxHp])
 })
 
-test('every Shop stocks a Command relic, on every floor and whatever the tier weights, so the field never grows by luck alone', () => {
+test('every shelf stocks a Command relic, on every floor and whatever the tier weights, so the field never grows by luck alone', () => {
   const command = (id) => relicMod(id, 'run.command') > 0 && relicTier(id) !== 'legendary'
   const shops = (prefix, n, tier = null) => {
     for (let i = 0; i < n; i++) {
       const run = createRun({ start: START_PARTY, seed: `${prefix}${i}` })
       run.state.floor = 1 + (i % 4)
-      visit(run, 'shop')
+      stock(run)
       const ids = run.state.shop.filter(command)
       assert.ok(ids.length >= 1, JSON.stringify(run.state.shop))
       if (tier) assert.ok(ids.every((id) => relicTier(id) === tier), `${tier}: ${ids}`)
@@ -742,7 +743,7 @@ test('no cap: a relic owned is stocked again and bought again, however many the 
     const run = createRun({ start: START_PARTY, seed: 'nocap' + i })
     const s = run.state
     s.relics = [...others, ...others, ...others]
-    visit(run, 'shop')
+    stock(run)
     s.essence = 1e4
     assert.equal(s.shop.length, TUNING.shop.relics)
     assert.equal(new Set(s.shop).size, s.shop.length, 'never the same relic twice on one shelf')
@@ -752,7 +753,7 @@ test('no cap: a relic owned is stocked again and bought again, however many the 
   }
 })
 
-test('the tiers a Shop draws: by TUNING.relic.weights for its floor, the last entry past them; a tier weighed 0 never comes', () => {
+test('the tiers the Shop draws: by TUNING.relic.weights for its floor, the last entry past them; a tier weighed 0 never comes', () => {
   assert.deepEqual(relicWeights(1), TUNING.relic.weights.shop[0])
   assert.deepEqual(relicWeights(99), TUNING.relic.weights.shop.at(-1))
   assert.deepEqual(Object.keys(TUNING.relic.weights), ['shop'])
@@ -761,7 +762,7 @@ test('the tiers a Shop draws: by TUNING.relic.weights for its floor, the last en
     tuned(only(tier), () => {
       for (let i = 0; i < 8; i++) {
         const run = createRun({ start: START_PARTY, seed: `tier-${tier}-${i}` })
-        visit(run, 'shop')
+        stock(run)
         assert.ok(run.state.shop.length && run.state.shop.every((id) => RELICS[id].tier === tier), JSON.stringify(run.state.shop))
       }
     })
@@ -769,7 +770,7 @@ test('the tiers a Shop draws: by TUNING.relic.weights for its floor, the last en
   const rares = RELIC_LIST.filter((r) => r.tier === 'rare').length
   tuned({ shop: { relics: rares + 2 }, relic: { ...TUNING.relic, weights: { shop: [{ common: 0, uncommon: 0, rare: 1 }] } } }, () => {
     const run = createRun({ start: START_PARTY, seed: 'tier-few' })
-    visit(run, 'shop')
+    stock(run)
     assert.equal(run.state.shop.length, rares)
   })
 })
@@ -806,7 +807,7 @@ test('what needs an Arise relic is stocked only once one is owned: Hourglass, Bo
       const run = createRun({ start: START_PARTY, seed: `needs-shop-${i}` })
       run.state.floor = 2 + (i % 3)
       run.state.relics = relics.slice()
-      visit(run, 'shop')
+      stock(run)
       for (const id of run.state.shop) seen.add(id)
     }
     return seen

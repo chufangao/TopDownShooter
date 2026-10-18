@@ -1,10 +1,10 @@
 // A player for tests and balance runs: a policy that picks one action at a time for apply(). It plays at one of two
 // levels (LEVELS), on the same choices and the same scouting a player has:
 //   basic   rules of thumb: rooms by weighted draws, the strongest souls fielded in its first draft (each role's row,
-//           packed from the middle lane, every other lane against blasts), in a Shop a Command relic it can pay for
-//           (pickShop), recruits only to fill the field, essence on the lowest kind's next tier (on the track it is on),
-//           an altar's heal; it never fuses, and in battle it ends every turn without an order (policy.js basicTurn: what
-//           it leaves alone strikes with its basic blow)
+//           packed from the middle lane, every other lane against blasts), on the map a Command relic off the Shop's
+//           shelf it can pay for (pickShop), recruits only to fill the field, essence on the lowest kind's next tier
+//           (on the track it is on), an altar's heal; it never fuses, and in battle it ends every turn without an
+//           order (policy.js basicTurn: what it leaves alone strikes with its basic blow)
 //   expert  judges (redesign.md §2.17; expert.js), and has studied the combo book (BOOK, src/sim/combos.json, ranked
 //           by a static formula: --combos). Every decision is one shape: the situation read once (survey out of battle,
 //           policy.js situation in it: what a player is shown, and the book), the options listed, each read as a named
@@ -22,7 +22,7 @@
 //           battle plan kept across turns, its target formation, kill list and forecast: plan.js; then each piece once,
 //           on the board as the ones before it left it, by the model tree, the battle forest overruling it where it is
 //           confident: forest.js). It never plays a battle, a turn of the foes, or a route ahead to decide anything.
-// Essence buys tiers, recruits, fusions and relics (a Shop's): the Monarch's HP and Command come from run relics, a
+// Essence buys tiers, recruits, fusions and relics (the Shop's shelf): the Monarch's HP and Command come from run relics, a
 // kind's level from its tiers (run.js). The Monarch is the camp's (run.js: on its seat, monarchSlot); nothing moves it.
 // In a battle it gives the level's turn policy's orders, one at a time.
 // Run directly for a balance report:  node src/sim/autoplay.js [--runs 8] [--seed sim] [--level expert] [--workers n]
@@ -374,7 +374,7 @@ function shadowWorth (id, lvl) {
 //   rooms                    each room it may walk into next: { id, type, threat (its scouted foes' worth), threats
 //                            (their types), unanswered (those the army has no answer to: ANSWERS), want (its foes of the
 //                            target's kinds), ahead ({ shop, altar }: rooms to the nearest on a route through it, null
-//                            for none) }
+//                            for none; `shop` always null, for no room is a Shop since DESIGN Next, Step 3) }
 export function survey (run, L = LEVELS.expert) {
   const s = run.state
   const all = souls(s.party)
@@ -421,7 +421,7 @@ function scoutRoom (run, n, up, keeps) {
     threats,
     unanswered: threats.filter((t) => ANSWERS[t] && !up.some(ANSWERS[t])),
     want: foes.filter((f) => keeps.has(f.id)).length,
-    ahead: { shop: roomsTo(s.map, n.id, 'shop'), altar: roomsTo(s.map, n.id, 'altar') }
+    ahead: { shop: null, altar: roomsTo(s.map, n.id, 'altar') }
   }
 }
 
@@ -452,12 +452,14 @@ function roomsTo (map, from, type) {
 // ── map: the route ───────────────────────────────────────────────────────────────────────────────
 
 function pickNode (run, rng, L, sit) {
+  const shop = pickShop(run, L, sit)
+  if (shop) return shop
   const spend = pickSpend(run, L, sit)
   if (spend) return spend
   const nodes = availableNodes(run)
   if (L.route && nodes.length > 1) return { type: 'node', id: pickRoute(run, sit) }
   const health = partyHealth(run.state.party)
-  const w = { fight: 3, elite: health > 0.7 ? 1.5 : 0.3, shop: 2, altar: health < 0.6 ? 5 : 0.5, boss: 1, siege: health > 0.7 ? 1.5 : 0.3 }
+  const w = { fight: 3, elite: health > 0.7 ? 1.5 : 0.3, altar: health < 0.6 ? 5 : 0.5, boss: 1, siege: health > 0.7 ? 1.5 : 0.3 }
   return { type: 'node', id: rng.weighted(nodes, nodes.map((n) => w[n.type])).id }
 }
 
@@ -531,10 +533,11 @@ const THREAT_TYPES = ['reach', 'shape', 'drain', 'sustain', 'fly', 'burn', 'blee
 // anything may heal it), the purse (in tier prices and in the floor's cheapest relic's), the relics owned, the combo
 // it plays toward (how far along), and the rooms open (how many, whether an elite, an altar or a Shop is among them,
 // and the army's odds against the elite open, the worst and the best battle room open: autoplay.js roomFeatures' odds).
+// `open.shop` is always 0 (no room is a Shop since DESIGN Next, Step 3), kept for the fitted trees' columns.
 export function routeConditions (run, sit = survey(run)) {
   const s = run.state
   const m = monarchOf(s)
-  const odds = sit.rooms.filter((r) => r.threat > 0 && r.type !== 'shop' && r.type !== 'altar').map((r) => ({ type: r.type, odds: Math.log(sit.strength / r.threat) }))
+  const odds = sit.rooms.filter((r) => r.threat > 0 && r.type !== 'altar').map((r) => ({ type: r.type, odds: Math.log(sit.strength / r.threat) }))
   const elite = odds.find((x) => x.type === 'elite')
   return {
     floor: sit.floor,
@@ -556,7 +559,7 @@ export function routeConditions (run, sit = survey(run)) {
     rooms: sit.rooms.length,
     'open.elite': sit.rooms.some((r) => r.type === 'elite') ? 1 : 0,
     'open.altar': sit.rooms.some((r) => r.type === 'altar') ? 1 : 0,
-    'open.shop': sit.rooms.some((r) => r.type === 'shop') ? 1 : 0,
+    'open.shop': 0,
     'odds.elite': elite ? elite.odds : 0,
     'odds.min': odds.length ? Math.min(...odds.map((x) => x.odds)) : 0,
     'odds.max': odds.length ? Math.max(...odds.map((x) => x.odds)) : 0
@@ -593,7 +596,7 @@ export function routeFeatures (run, sit, room) {
   for (const t of room.threats) if (THREAT_TYPES.includes(t)) out[`t.${t}`] = 1
   const pay = foes.reduce((n, f) => n + foeEssence(f), 0) + (node.type === 'elite' ? eliteBonus(s.floor) : 0)
   out.pay = pay * runStat(s, 'essence.gain', 1) / tierScale(s.floor)
-  const battle = room.threat > 0 && room.type !== 'shop' && room.type !== 'altar'
+  const battle = room.threat > 0 && room.type !== 'altar'
   out.long = battle && v.odds < TUNING.expert.tree.odds ? 1 : 0
   out.hurt = battle ? 1 - sit.monarch : 0
   out.worn = battle ? 1 - sit.health : 0
@@ -603,13 +606,14 @@ export function routeFeatures (run, sit, room) {
 // A room read as the features its decision weighs (TUNING.expert.route): its type, one of six; for a battle room the
 // odds (the log of the army's strength over the room's scouted threat; `weak` where the room is the stronger), its foes
 // of the target's kinds (`want`) and its threat types the army has no answer to (`unanswered`); for an altar the souls'
-// wounds and the Monarch's (none while nothing may heal it); for a Shop the purse over the floor's cheapest relic, up
-// to 3; and an altar or a Shop on a route through it (`altarAhead`, `shopAhead`), the nearer the more, an altar by the
-// souls' wounds and by the Monarch's (`monarchAhead`, none while nothing may heal it: redesign.md §2.18 C).
+// wounds and the Monarch's (none while nothing may heal it); and an altar on a route through it (`altarAhead`), the
+// nearer the more, by the souls' wounds and by the Monarch's (`monarchAhead`, none while nothing may heal it:
+// redesign.md §2.18 C). No room is a Shop since DESIGN Next, Step 3 (the Shop is the floor's shelf, open between
+// battles): `shop`, a Shop's `purse` (the purse over the floor's cheapest relic) and `shopAhead` are always 0, kept so
+// the fitted trees and forests (src/sim/expert.json, read by name) keep their columns.
 export function roomFeatures (sit, room) {
-  const fights = room.threat > 0 && room.type !== 'shop' && room.type !== 'altar'
+  const fights = room.threat > 0 && room.type !== 'altar'
   const odds = fights ? Math.log(sit.strength / room.threat) : 0
-  const purse = sit.prices.relic ? Math.min(3, sit.purse / sit.prices.relic) : 0
   const v = { fight: 0, elite: 0, shop: 0, altar: 0, boss: 0, siege: 0 }
   v[room.type] = 1
   return {
@@ -618,12 +622,12 @@ export function roomFeatures (sit, room) {
     weak: Math.max(0, -odds),
     wounds: room.type === 'altar' ? 1 - sit.health : 0,
     monarch: room.type === 'altar' && !sit.unhealed ? 1 - sit.monarch : 0,
-    purse: room.type === 'shop' ? purse : 0,
+    purse: 0,
     want: room.want,
     unanswered: room.unanswered.length,
     altarAhead: room.ahead.altar === null ? 0 : (1 - sit.health) / (1 + room.ahead.altar),
     monarchAhead: room.ahead.altar === null || sit.unhealed ? 0 : (1 - sit.monarch) / (1 + room.ahead.altar),
-    shopAhead: room.ahead.shop === null ? 0 : purse / (1 + room.ahead.shop)
+    shopAhead: 0
   }
 }
 
@@ -1281,7 +1285,7 @@ function chose (s, goal) {
 
 // Basic buys by rule of thumb (basicSpend) and never fuses. The expert grows by one search (grow): every choice it
 // has — a fusion it can make, any held kind's next tier (and that tier with the one after it on its track, as one); a
-// recruit (weighRecruits); a relic on a Shop's shelf (buyFor); a relic given to a soul (pickHold) — sketched (sketch:
+// recruit (weighRecruits); a relic on the Shop's shelf (buyFor, on the map); a relic given to a soul (pickHold) — sketched (sketch:
 // the strength of the field it leaves, and what the book says it is worth ahead), the best taken if it beats keeping
 // what it has. Out of battle it gives its relics where they are worth most before it spends. Nothing is bought for the
 // Monarch: its HP and Command are run relics.
@@ -2040,18 +2044,20 @@ export function offerState (s, o) {
 
 // ── the Shop ─────────────────────────────────────────────────────────────────────────────────────
 
-// Basic buys a Command relic it can pay for and L may take, the first on the shelf; then gives a piece relic waiting to
-// the first fielded soul that holds none (the first such relic, the first such soul); else it leaves. The expert gives
-// what waits where it is worth most (pickHold), then buys what is worth its price (buyFor), a relic at a time, and
-// leaves when neither is.
+// The Shop's shelf, on the map (DESIGN Next, Step 3: it was a room's; now the floor's, open between battles, its slots
+// bought refilled after each battle won, so the map after a win is where the autoplayer looks at it, before it spends on
+// tiers and fusions, as it did walking out of a Shop). Basic buys a Command relic it can pay for and L may take, the
+// first on the shelf; then gives a piece relic waiting to the first fielded soul that holds none (the first such relic,
+// the first such soul). The expert gives what waits where it is worth most (pickHold), then buys what is worth its
+// price (buyFor), a relic at a time. → a buy or a hold, or null: on to the purse and the route.
 function pickShop (run, L, sit) {
-  if (L.spend) return pickHold(run, L, sit) ?? buyFor(run, L, sit) ?? { type: 'leave' }
+  if (L.spend) return pickHold(run, L, sit) ?? buyFor(run, L, sit)
   const s = run.state
   const index = s.shop.findIndex((id, i) => id && gives(relicDef(id), 'run.command') && !banned(L, id) && canBuy(run, i))
   if (index >= 0) return { type: 'buy', index }
   const relic = unheld(s)[0]
   const holder = relic && souls(s.party).find((u) => u.slot >= 0 && u.hp > 0 && !u.relics?.length && canHold(s, relic, u))
-  return holder ? { type: 'hold', relic, uid: holder.uid } : { type: 'leave' }
+  return holder ? { type: 'hold', relic, uid: holder.uid } : null
 }
 
 // What the expert buys (redesign.md §2.11: a relic bought is a tier not bought): of the relics on the shelf it can pay
@@ -2061,6 +2067,8 @@ function pickShop (run, L, sit) {
 // all. → a buy, or null.
 export function buyFor (run, L, sit = null) {
   const s = run.state
+  // Nothing on the shelf it may pay for: no sketch to read (the map meets the shelf at every step: pickShop).
+  if (!s.shop.some((id, index) => id && !banned(L, id) && canBuy(run, index))) return null
   const base = sketch(s, L)
   const bar = tierRate(run, L, base)
   let pick = null
@@ -2451,6 +2459,7 @@ export function outsideRead (run, L, sit, phase, cands) {
   put(x, 'relics', s.relics.length)
   put(x, 'unheld', sit.relics.unheld.length)
   put(x, 'cands', cands.length)
+  // Always 0 since no room is a Shop (DESIGN Next, Step 3): kept for the forest's columns.
   put(x, 'shop', ahead.shop === null ? 0 : 1 / (1 + ahead.shop))
   put(x, 'altar', ahead.altar === null ? 0 : 1 / (1 + ahead.altar))
   for (const k of FIELD_KEYS) put(x, k, was.f[k])
@@ -2756,7 +2765,6 @@ export function policy (run, rng, level = 'basic', turnOptions = null) {
   if (s.phase === 'map') return pickNode(run, rng, L, sit)
   if (s.phase === 'prep') return pickPrep(run, L, sit)
   if (s.phase === 'reap') return pickReap(run, L, sit)
-  if (s.phase === 'shop') return pickShop(run, L, sit)
   if (s.phase === 'altar') return pickAltar(run, L, sit)
   throw new Error(`no policy for phase "${s.phase}"`)
 }

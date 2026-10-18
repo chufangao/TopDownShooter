@@ -11,7 +11,7 @@
 // A playout of a candidate: the run's state copied (the expert's play is a pure function of it, as teach.js playRoute
 // copies a run: a fresh 'autoplay' stream, which the expert reads for nothing it decides), the candidate's actions applied,
 // and the base plays on to the run's end (`rooms` 0, the default), or until `rooms` rooms are done (teach.js's room count:
-// back on the map from a room's battle or its Shop, or walked through an altar). Valued as teach.js values a room
+// back on the map from a room's battle, or walked through an altar). Valued as teach.js values a room
 // choice: to the end by routeEndValue (ROUTE_END_WEIGHTS: −10·(1 − the run's progress at its end) for a loss, + the rooms
 // and floors cleared from the decision, + the Monarch's and the souls' share of their max HP at the end of a cleared
 // run), a window by routeValue (ROUTE_WEIGHTS: −10 the run lost in it, −3 the Monarch's share lost, − the souls', + the
@@ -19,7 +19,7 @@
 // is 'run'. Deterministic: the same run gives the same playouts and the same choice.
 //
 // The decisions, in the order the base meets them (autoplay.js policy out of battle), each one where the base makes it:
-//   hold     (map, prep, Shop) a piece relic waiting: each soul standing that may hold it (pickHold's options), and
+//   hold     (map, prep) a piece relic waiting: each soul standing that may hold it (pickHold's options), and
 //            keeping it (passing on: the base's next decision taken now). A soul fallen with relics gives them back:
 //            the base's, a decision of one.
 //   spend    (map, prep) each tier the purse affords (spendOptions), each fusion it can make (fusionOptions), and
@@ -34,7 +34,8 @@
 //            base's plan.
 //   recruit  (reap) each soul offered that the purse affords (a full retinue letting its weakest go first, as the base's
 //            weighRecruits chooses that soul), and none.
-//   shop     (Shop) each relic on the shelf the purse affords, and buying nothing (leaving).
+//   shop     (map, before the purchases) each relic on the Shop's shelf the purse affords, and buying nothing (passing
+//            on: the purchases, then the room walked into).
 //   altar    (altar) its rites (autoplay.js altarCandidates: the heal, each transmutation, each free tier), one taken.
 // Each candidate list is the base's own pick first, then the rest in the base's own order (the growth search's score for
 // holds and tiers, the sketch's gain for recruits and rites, the gain an essence for relics, the formation's standing), at most
@@ -173,10 +174,11 @@ export function prepStep (run, goal) {
   return { type: 'fight' }
 }
 
-// The base's action out of battle (autoplay.js policy: pickNode, pickPrep, pickReap, pickShop, pickAltar), with a decision passed
-// on (`skip`: 'hold' the relics given; 'spend' the relics and the purchases, as passing on spending follows the relics;
-// 'shop' the relics and the Shop's buys) and in prep the formation `goal` walked to in place of the base's plan. With
-// neither, the base's own action (the tests hold it to policy's).
+// The base's action out of battle (autoplay.js policy: pickNode, pickPrep, pickReap, pickAltar), with a decision passed
+// on (`skip`: 'hold' the relics given; 'shop' the relics and the shelf's buys (the map's: pickNode's pickShop); 'spend'
+// the relics, the buys and the purchases, as each decision passed on follows the ones before it) and in prep the
+// formation `goal` walked to in place of the base's plan. With neither, the base's own action (the tests hold it to
+// policy's).
 export function baseStep (run, sit = survey(run, L), { skip = null, goal = null } = {}) {
   const s = run.state
   if (s.phase === 'draft') return pickDraft(run, L)
@@ -184,8 +186,9 @@ export function baseStep (run, sit = survey(run, L), { skip = null, goal = null 
   if (s.phase === 'altar') return pickAltar(run, L, sit)
   const hold = skip ? null : pickHold(run, L, sit)
   if (hold) return hold
-  if (s.phase === 'shop') return (skip === 'shop' ? null : buyFor(run, L, sit)) ?? { type: 'leave' }
   if (s.phase !== 'map' && s.phase !== 'prep') throw new Error(`no step out of battle for phase "${s.phase}"`)
+  const buy = s.phase === 'map' && skip !== 'shop' && skip !== 'spend' ? buyFor(run, L, sit) : null
+  if (buy) return buy
   const spend = skip === 'spend' ? null : spendPick(run, L, sit)
   if (spend) return spend
   if (s.phase === 'map') {
@@ -225,7 +228,7 @@ function tallyOf (run) {
   const share = s.phase === 'map' ? progressOf({ result: null, floor: s.floor, rank: (currentNode(run)?.rank ?? 0) + 1 }) : null
   return { floor: s.floor, m: Math.max(0, m.hp) / m.maxHp, own: max ? hp / max : 0, essence: s.stats.essence, purse: s.essence, power: Math.log(survey(run).strength), share }
 }
-// A room done as teach.js counts one: back on the map from a room's battle or its Shop, or walked through an altar; or
+// A room done as teach.js counts one: back on the map from a room's battle, or walked through an altar; or
 // the run over, the Monarch standing.
 const roomDone = (was, now, action, run) => (now === 'over' ? !run.state.death : now === 'map' && (was !== 'map' || action.type === 'node'))
 
@@ -414,20 +417,22 @@ function spendList (run, m, c, sit) {
   return { phase: 'spend', cands: rankCandidates(cands, idOf(base), c.cap), then: (x) => x.take }
 }
 
-// A relic off the Shop's shelf (each the purse affords), or leaving.
+// A relic off the Shop's shelf (each the purse affords), or buying none (passing on: the base's purchases, then its
+// room), on the map as the base meets it (autoplay.js pickNode).
 function shopList (run, m, c, sit) {
   const s = run.state
-  const base = buyFor(run, L, sit) ?? { type: 'leave' }
+  const base = buyFor(run, L, sit)
   if (!c.phases.has('shop')) return { act: base }
   const sk = sketch(s, L)
-  const leave = { id: idOf({ type: 'leave' }), label: 'leave', take: { type: 'leave' }, actions: [{ type: 'leave' }], score: tierRate(run, L, sk) }
-  const cands = [leave]
+  const cands = []
   for (const [index, id] of s.shop.entries()) {
     if (!id || !canBuy(run, index)) continue
     const a = { type: 'buy', index }
     cands.push({ id: idOf(a), label: `buy ${id}`, take: a, actions: [a], score: (held({ ...s, ...offerState(s, { type: 'relic', id }) }, id, L) - sk) / relicPrice(run, id) })
   }
-  return { phase: 'shop', cands: rankCandidates(cands, idOf(base), c.cap), then: (x) => x.take }
+  if (!cands.length) return { act: base }
+  const none = { ...passOn(run, m, sit, 'shop'), score: tierRate(run, L, sk) }
+  return { phase: 'shop', cands: rankCandidates([none, ...cands], idOf(base), c.cap), then: (x) => x.take }
 }
 
 // The one recruit a battle allows: each soul offered the purse affords (a full retinue letting go first the soul the
@@ -493,9 +498,9 @@ const roomList = (run, m, c, sit) => ({ act: baseStep(run, sit, { skip: 'spend' 
 // The draft's picks are the base's (autoplay.js pickDraft): no decision the teacher plays out.
 const draftList = (run) => ({ act: pickDraft(run, L) })
 
-// The decisions each phase meets, in the order the base meets them (autoplay.js pickDraft, pickNode, pickPrep, pickReap,
-// pickShop, pickAltar).
-const ORDER = { draft: [draftList], map: [holdList, spendList, roomList], prep: [holdList, spendList, formationList], reap: [recruitList], shop: [holdList, shopList], altar: [altarList] }
+// The decisions each phase meets, in the order the base meets them (autoplay.js pickDraft, pickNode: the shelf, the
+// purchases, the room; pickPrep, pickReap, pickAltar).
+const ORDER = { draft: [draftList], map: [holdList, shopList, spendList, roomList], prep: [holdList, spendList, formationList], reap: [recruitList], altar: [altarList] }
 
 // The decisions at `run` in order, each made (`play`: its candidates played out, the best taken) or passed on, until
 // one gives an action. Without `play`, the first decision met unmade: { phase, cands }, or { act } where none is met
@@ -546,8 +551,8 @@ export function outsideStats (run) {
 
 // The outside teacher's action for `run` out of battle (in battle, or over, the base's: policy), `cfg` its
 // configuration (configOf: `phases`, `cap`, `rooms`, `prep`). The decisions in the order the base meets them: a relic
-// given, a purchase, then on the map the base's room, in prep the formation's step; in the reap the recruit; in a Shop a
-// relic given, then a relic bought or leaving; at an altar its rite. Use it in place of autoplay.js policy out of battle; what it keeps for the
+// given, on the map a relic bought off the shelf, a purchase, then on the map the base's room, in prep the formation's
+// step; in the reap the recruit; at an altar its rite. Use it in place of autoplay.js policy out of battle; what it keeps for the
 // run (outsideStats) lives as long as the run object does.
 export function outsideTeacher (run, rng, cfg = {}) {
   const s = run.state

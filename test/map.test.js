@@ -2,8 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 
-// The room types (redesign.md §2.11: relics come from the Shop alone).
-const TYPES = ['fight', 'elite', 'shop', 'altar', 'boss', 'siege']
+// The room types: no Shop among them (DESIGN Next, Step 3: the Shop is the floor's shelf, open between battles).
+const TYPES = ['fight', 'elite', 'altar', 'boss', 'siege']
 
 function reach (map, from, edges) {
   const seen = new Set([from])
@@ -17,8 +17,7 @@ test('the same seed gives the same floor', () => {
   assert.notDeepEqual(generateFloor({ seed: 'm', floor: 2 }), generateFloor({ seed: 'm', floor: 3 }))
 })
 
-test('500 seeded floors keep the rank, link and type rules: one to seven Shops in the middle', () => {
-  let lateShops = 0
+test('500 seeded floors keep the rank, link and type rules, and no room is a Shop', () => {
   for (let i = 0; i < 500; i++) {
     const floor = 1 + (i % 4)
     const boss = floor <= 3
@@ -44,9 +43,7 @@ test('500 seeded floors keep the rank, link and type rules: one to seven Shops i
     assert.ok(ranks[1].every((n) => n.type === 'fight'), `${where} rank 1 is all fights`)
     const late = ranks[RANKS - 2]
     assert.equal(late.filter((n) => n.type === 'altar').length, 1, `${where} one altar before the end`)
-    const shops = map.nodes.filter((n) => n.type === 'shop' && n.rank < RANKS - 2).length
-    assert.ok(shops >= 1 && shops <= 7, `${where} shops ${shops}`)
-    lateShops += ranks[RANKS - 2].some((n) => n.type === 'shop')
+    assert.ok(!map.nodes.some((n) => n.type === 'shop'), `${where} no Shop room`)
 
     for (const n of map.nodes) {
       for (const id of n.next) assert.equal(nodeOf(map, id).rank, n.rank + 1, `${where} ${n.id} → ${id}`)
@@ -64,6 +61,4 @@ test('500 seeded floors keep the rank, link and type rules: one to seven Shops i
       }
     }
   }
-  // The rank before the last may hold a Shop beside its altar (LATE_WEIGHTS).
-  assert.ok(lateShops > 0, 'a late Shop on some floor')
 })

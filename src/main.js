@@ -9,7 +9,7 @@ import { recordOf, readBook, withRun, dailySeed, dayOf } from './sim/history.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS, TUTORIAL } from './content.js'
 import {
-  titleScreen, runScreen, NODE, reapScreen, shopScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText,
+  titleScreen, runScreen, NODE, reapScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText,
   historyScreen, soundControls
 } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, riteNote, recruitNote, summonedBy } from './codex.js'
@@ -428,8 +428,9 @@ function graduate () {
 // A run state from before relics had tiers (one with `keystones`, its Arise free) carries on under the new rules:
 // its keystones join its relics (the same ids, now Legendaries, waiting unheld: redesign.md §2.15), and an id no
 // longer known is dropped, from the relics and from what a soul holds, so an old state never breaks the page. One
-// from before the Monarch lost its points drops them (a Monarch's id, the run's own since Step 9, is no points), and its
-// rites and reliquaries are shops.
+// from before the Monarch lost its points drops them (a Monarch's id, the run's own since Step 9, is no points). (Its
+// rites and reliquaries were once made Shops; no room is a Shop since DESIGN Next, Step 3, and a save that old is
+// outdated: save.js SAVE_VERSION.)
 function migrate (s) {
   if (!Array.isArray(s.relics)) s.relics = []
   if ('keystones' in s) {
@@ -440,7 +441,6 @@ function migrate (s) {
   s.relics = s.relics.filter((id) => RELICS[id])
   for (const u of s.party) if (u.relics) u.relics = u.relics.filter((id) => RELICS[id])
   if (typeof s.monarch !== 'string') delete s.monarch
-  for (const n of s.map?.nodes ?? []) if (n.type === 'rite' || n.type === 'reliquary') n.type = 'shop'
   s.shop ??= []
 }
 
@@ -471,8 +471,6 @@ function route () {
   } else if (s.phase === 'reap') {
     show(reapScreen({ run, title: { elite: 'The elite falls', boss: 'The boss falls' }[currentNode(run).type] ?? 'Spoils', act, onDone: reap, onHelp: toggleHelp }))
     lesson('spoils')
-  } else if (s.phase === 'shop') {
-    show(shopScreen({ run, act, onLeave: leave, onHelp: toggleHelp }))
   } else if (s.phase === 'altar') {
     show(altarScreen({ run, onRite: rite, onHelp: toggleHelp }))
   } else {
@@ -503,11 +501,6 @@ function pick (index) {
   route()
 }
 
-// Out of a Shop, free; what was bought is already in the bar.
-function leave () {
-  play({ type: 'leave' })
-  route()
-}
 
 // Past the slain Sovereign, on into the deep: the next floor's map (route() notes the new floor).
 function descend () {
@@ -515,8 +508,8 @@ function descend () {
   route()
 }
 
-// The spoils are one recruit at most (relics are the Shop's): a recruit rises a piece of its own, and its note says
-// where it went (run.js join pushes it last into the party).
+// The spoils are one recruit at most (relics are the Shop's, open on the spoils too): a recruit rises a piece of
+// its own, and its note says where it went (run.js join pushes it last into the party).
 function reap (index) {
   const o = index === null ? null : run.state.offers[index]
   play({ type: 'reap', index })
