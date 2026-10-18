@@ -1,6 +1,6 @@
 # RETINUE: design
 
-2026-10-17. Everything a session needs is in this file and the code; the full history is the git log.
+2026-10-18. Everything a session needs is in this file and the code; the full history is the git log.
 
 ## What it is
 
@@ -24,7 +24,7 @@
 
 ## Next
 
-Three steps, in order; the first two go in at placeholders, the third measures.
+Five steps, in order; the first four go in at placeholders, the fifth measures.
 
 ### 1. Fusing out of battle alone (sim ~2 h)
 
@@ -45,12 +45,39 @@ Three steps, in order; the first two go in at placeholders, the third measures.
 - A built draft of steps 1 and 2 is `plan/elements-and-no-battle-fuse.patch` (24 files, applies to this commit; it passed 536 tests, then was reverted to write this plan). Read it before building; apply it only after reading.
 - Later: a Burning cap lifter, a Bleed that ticks per tile walked, a Feed kept between rooms, a ward that strikes, a counter by DEF, Charge, a wide army's bonus, a turtle's payoff.
 
-### 3. The next balance pass
+### 3. The Shop open between battles, fusions on its shelf (sim ~1.5 h, interface ~1 h)
+
+- The user's word (2026-10-18): the Shop is reachable wherever essence can be spent, and a fusion is a thing it sells.
+- The shelf is the floor's, not a room's: drawn on the floor's arrival on a stream keyed by the floor (`stockShop`), kept in `s.shop` across rooms; a slot bought is refilled after the next won battle, on a stream keyed by the floor and the room, so a replay stocks it the same. Four slots, one a Command relic, a Legendary from floor 2, prices by tier × the floor's scale, as now.
+- `buy` legal in `map`, `prep` and `reap`, the phases the tier, recruit, fuse and release actions have; `leave` goes. The Shop room goes from the map (`map.js` MID_TYPES, LATE_TYPES; its weight to fights and altars). Save version 3.
+- Fusion on the shelf: the `fuse` action unchanged; the Shop lists every recipe whose parts are held, lit when affordable, one button the action the piece panel fires today. The panel's Fuse section goes: one place to buy.
+- Interface: a Shop tab beside Field, Map and Codex, open in map, prep and reap, closed in battle; two sections, Relics and Fusions. Tiers and recruits stay where they are.
+- The expert: its relic buy moves from the Shop room to after each won battle; the route features `shop`, `shopAhead` and `open.shop` kept at 0, the forests' rows unchanged (as the fuse keys in Step 1). Its logs move: a measured change on fresh seeds.
+- Why: the relics line's early-Shop lever, from floor 1; the plan visible, the trine three recruits off, with its price, every time the shelf opens.
+- Tests: a buy in prep and in map; the shelf drawn on arrival and refilled after a win, the same on replay; no Shop node on any map; a fusion from the shelf identical to the panel's; an old save read as outdated.
+- The one cut of the simplicity audit (2026-10-18, the user's word: nothing else is cut): **Barkskin and Veiled merge** into one ward, DEF × 1.25, laid by the nine abilities that laid either; twelve statuses become eleven.
+
+### 4. Movement as a channel (sim ~1.5 h, content ~1 h, tests ~0.5 h)
+
+- The user's word (2026-10-18): mechanics and synergies read movement, a core mechanic. Elements read it as they read statuses: a piece's own tiles moved, or its target's, never a count of a team. The eleven synergies stay as they are; a per-piece movement condition on one (Deadeye from a piece that did not move) is the balance pass's.
+- The battle tracks `move`, `moved` and `from` on every unit, both sides (`turns.js walk`, `ready`): a foe's `moved` survives your orders phase (the foes reset at their stage), yours survives the foes' turn.
+- Three vocabulary items: `per: { moved: 'actor' | 'target' }` on a relic's damage (Step 2's `per` reader, the actor beside the target); `when: { moved: n }` or `{ still: true }` on a piece relic's trigger; a `move` trigger (`TRIGGERS`) and an `onMove` hook (`rules.js`, called on both sides as `modify` is), **fired at commit** (the piece's act, or the untouched pass), never on the walk, so Undo stays whole. No path kept: a reader reads the tile it ends on and `moved`.
+- Six elements, numbers placeholders: Momentum (Rare, on blow: 6 true a tile moved this turn), Quarry (Rare, on blow: 15 more to a foe that walked last turn), Bastion (Uncommon, on struck when still: 12 to the attacker), Trample (Rare, on move: 10 to each foe beside where it ends), Overwatch (Legendary: the holder's basic strikes a foe ending its walk within its reach, once a turn, as a counter is performed), Hold the Line (Legendary: the holder and the still allies beside it deal 25% more).
+- The expert prices `per moved` and `when moved` from the option's path length (`triggerShare`), the two rules flat. `ruleFlares` names them. A test an element (`test/movement.test.js`): Momentum at 0, 1 and 3 tiles and once after an Undo; Quarry on a walker, nothing on one that stood; Trample at the act, nothing after an Undo; Overwatch once a turn, never on a flyer out of a melee holder's reach. After Step 2.
+
+### 5. The next balance pass
 
 - Relics: worth 0 because they are bought on floor 3 and runs die on floor 1. Levers: a relic in an elite's or a boss's spoils, an early Shop, or the elements.
 - Viability: kins whose one floor-1 kind is melee die there under strict commitment. Levers: a shooter a kin on floor 1, or judging a kin as its Monarch.
 - The ladder's top on the outside teacher at ~60%; level 0 on the expert at ~90%, a fusion's price 8 → 6 confirmed on fresh seeds.
 - The recruit forest refitted on whole runs, then diversity read again. Instruments as before: strict rows, free play, fresh seeds, every comparison paired.
+
+## Decisions of 2026-10-18 (the user's word)
+
+- Nothing is cut but the two DEF wards: the triple rule, the trines' own tracks, the relic shelf's size and the synergies stand as they are.
+- The Shop is open wherever essence is spent, and sells fusions (Step 3).
+- Movement is a channel the elements read (Step 4).
+- **Open: the draft.** Three starting souls are too many; one or two. Recommended one: the Monarch's kin is the plan, the two empty Command slots the first two recruits, the partner rule and the kin bias no longer needed; floor 1's first room sized to it (`spawn.fight[0]`), the offer never all melee. Two keeps the partner rule. Decided by the user before it is built; the expert's draft rule and floor-1 labels follow in the refit.
 
 ## Standing rules
 
