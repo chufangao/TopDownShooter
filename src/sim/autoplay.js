@@ -238,6 +238,8 @@ function relicReads (s) {
 // its falls, the waves it stood through; with Rally Horn and Hunter's Mark given to every fielded soul, yours within 2 of
 // a holder as it strikes, the Monarch and itself among them, and theirs within 1 of a slain foe).
 const MOMENTS = { blow: 3.2, kill: 2.4, struck: 0.8, wave: 1.4, fall: 0.01 }
+// What a damage `per` a status finds on the foe struck, stacks a blow, as a flat guess (nothing measured: 2026-10-17).
+const PER_STACKS = 1.5
 const AROUND = { allies: 3.4, foes: 1.7 }
 // What the battle's weights pay for an HP of each (TUNING.expert.battle.option: a status's STATUS_WORTH, an HP mended, a
 // shadow's max HP), in HP of damage.
@@ -254,7 +256,7 @@ function triggerShare (s, u, r) {
   for (const e of r.effects) {
     const each = e.op === 'apply_status' ? (STATUS_WORTH[e.status] ?? 0) * paid('status')
       : e.op === 'heal' ? (e.pct ? e.pct * st.hp : hit(e.power) * st.heal.given) * paid('mend')
-        : e.op === 'damage' ? e.amount ?? hit(e.power)
+        : e.op === 'damage' ? (e.per ? e.amount * PER_STACKS : e.amount ?? hit(e.power))
           : e.op === 'cooldown' ? Math.max(0, -e.amount) * STATUS_WORTH.hasten * paid('status')
             : e.op === 'raise' ? raiseHp(s.floor, e.tier ?? TUNING.arise.tier, u.lvl) * paid('shadow') : 0
     hp += each * (AROUND[e.to] ?? 1)

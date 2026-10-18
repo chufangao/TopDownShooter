@@ -2536,6 +2536,29 @@ const STATUS_LIST = [
     turns: 4,
     stacks: 1,
     mods: [{ path: 'damage.taken', op: 'mul', v: 0.6 }]
+  },
+  {
+    // Snare's: a foe held where it stands for a turn (Move set to 0, whatever adds to it), the pile-up built, not hoped
+    // for (2026-10-17).
+    id: 'rooted',
+    desc: 'Cannot move.',
+    name: 'Rooted',
+    tags: ['debuff'],
+    colour: '#9a7a4a',
+    turns: 1,
+    stacks: 1,
+    mods: [{ path: 'move', op: 'set', v: 0 }]
+  },
+  {
+    // Butcher's Hook's: strength that grows with each kill for the rest of the battle (2026-10-17).
+    id: 'bloodlust',
+    desc: '+6% ATK per stack, up to 8 stacks, for the rest of the battle.',
+    name: 'Bloodlust',
+    tags: ['buff'],
+    colour: '#c43a3a',
+    turns: 'battle',
+    stacks: 8,
+    mods: [m('atk', 'mul', 1.06)]
   }
 ]
 
@@ -2573,7 +2596,7 @@ export const BEHAVIOURS = {
 // What laying a status is worth to the policy (policy.js score), in HP-equivalents a stack. Placeholders.
 export const STATUS_WORTH = {
   brittle: 20, hasten: 20, regen: 40, barkskin: 25, veiled: 20, withered: 20, enraged: 25, desperate: 20,
-  burning: 24, bleeding: 16, hexed: 40, shield: 30
+  burning: 24, bleeding: 16, hexed: 40, shield: 30, rooted: 30, bloodlust: 12
 }
 
 // What a foe can do to a Monarch, by kind (UNIT_LIST `threats`). The scouted roles hint at them; what each
@@ -2987,13 +3010,27 @@ export const RELIC_LIST = [
   { id: 'glass_crown', tier: 'rare', name: 'Glass Crown', desc: 'Its holder deals 32% more damage, but takes 15% more.', mods: [m('damage.dealt', 'mul', 1.32), m('damage.taken', 'mul', 1.15)] },
   { id: 'gravediggers_spade', tier: 'rare', name: "Gravedigger's Spade", desc: 'When its holder slays a foe of tier 1 (not a shadow), the slain rises at once as a shadow on your side, while your side has room on the board for it.', on: 'kill', effects: [{ op: 'raise', tier: 1, to: 'other' }] },
   { id: 'quicksilver', tier: 'rare', name: 'Quicksilver', desc: 'When its holder strikes, its skills come back a turn sooner.', on: 'blow', effects: [{ op: 'cooldown', amount: -1, to: 'self' }] },
+  // The elements of 2026-10-17 (DESIGN.md Part two §8, "Elements"): each one local rule a player combines with the rest.
+  // Snare holds a foe; Butcher's Hook grows on kills; the four payoffs read what the target carries (turns.js runEffect
+  // `per`), two of them spending it.
+  { id: 'snare', tier: 'uncommon', name: 'Snare', desc: 'When its holder strikes, its target is Rooted: it cannot move on its next turn.', on: 'blow', effects: [{ op: 'apply_status', status: 'rooted', to: 'other' }] },
+  { id: 'butchers_hook', tier: 'rare', name: "Butcher's Hook", desc: 'When its holder slays a foe, it gains Bloodlust (+6% ATK a stack, up to 8 stacks, for the rest of the battle).', on: 'kill', effects: [{ op: 'apply_status', status: 'bloodlust', to: 'self' }] },
+  { id: 'powder_keg', tier: 'rare', name: 'Powder Keg', desc: 'When its holder strikes, its target takes 10 true damage for each stack of Burning on it, and the fire goes out.', on: 'blow', effects: [{ op: 'damage', amount: 10, per: { status: 'burning' }, consume: true, to: 'other' }] },
+  { id: 'glass_hammer', tier: 'rare', name: 'Glass Hammer', desc: 'When its holder strikes, its target takes 12 true damage for each stack of Brittle on it, and the Brittle is spent.', on: 'blow', effects: [{ op: 'damage', amount: 12, per: { status: 'brittle' }, consume: true, to: 'other' }] },
+  { id: 'headsmans_hood', tier: 'rare', name: "Headsman's Hood", desc: 'When its holder strikes a Hexed foe, the foe takes 25 true damage more.', on: 'blow', effects: [{ op: 'damage', amount: 25, per: { status: 'hexed' }, to: 'other' }] },
+  { id: 'plague_mask', tier: 'rare', name: 'Plague Mask', desc: 'When its holder strikes, its target takes 8 true damage for each harmful status on it.', on: 'blow', effects: [{ op: 'damage', amount: 8, per: { tag: 'debuff' }, to: 'other' }] },
   { id: 'arise', tier: 'legendary', name: 'Arise', desc: 'Its holder learns Arise, a skill usable every turn: a foe of tier 4 or lower that fell within 7 tiles of it rises as your shadow, the corpse of your choosing.', rule: 'arise' },
   { id: 'legion', tier: 'legendary', name: 'Legion', run: true, desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', mods: [m('run.command', 'add', 2), m('hp', 'mul', 0.85)] },
   { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'When its holder falls, it rises at once at 60% HP, once a battle.', rule: 'undying', params: { hp: 0.6 } },
   { id: 'mimicry', tier: 'legendary', name: 'Mimicry', desc: 'Its holder counts as a Warden too, for synergies.', rule: 'mimicry', params: { role: 'warden' } },
   { id: 'hollow_court', tier: 'legendary', name: 'Hollow Court', desc: 'Its holder learns Arise, as the relic gives it; the shadows it raised that still stand when a battle is won are reaped, and each pays its essence again.', rule: 'hollow_court' },
   { id: 'blood_tithe', tier: 'legendary', name: 'Blood Tithe', desc: 'Its holder learns Arise, as the relic gives it but raising two corpses a turn (the one you choose, then the highest tier in its reach); each shadow it raises costs the Monarch 2% of its max HP.', rule: 'blood_tithe', params: { count: 2, tithe: 0.02 } },
-  { id: 'court_of_bone', tier: 'legendary', name: 'Court of Bone', desc: 'Its holder learns Arise, as the relic gives it but reaching 2 tiles farther; and nothing heals the Monarch, in battle or out.', rule: 'court_of_bone', params: { domain: 2 } }
+  { id: 'court_of_bone', tier: 'legendary', name: 'Court of Bone', desc: 'Its holder learns Arise, as the relic gives it but reaching 2 tiles farther; and nothing heals the Monarch, in battle or out.', rule: 'court_of_bone', params: { domain: 2 } },
+  // The elements of 2026-10-17 with a rule (rules.js): an act refunded, a charge, a glass Monarch, a horde that bursts.
+  { id: 'reapers_hunger', tier: 'legendary', name: "Reaper's Hunger", desc: 'When its holder slays a foe in your turn, it may act again.', rule: 'reapers_hunger' },
+  { id: 'seven_league_boots', tier: 'legendary', name: 'Seven-League Boots', desc: 'On a turn its holder has moved 3 tiles or more, its blows deal 50% more damage.', rule: 'seven_league_boots', params: { tiles: 3, mul: 1.5 } },
+  { id: 'last_candle', tier: 'legendary', name: 'Last Candle', desc: 'While the Monarch is below half its HP, its holder is Desperate (+50% damage dealt, +25% damage taken, +1 Move, and its skills come back a turn sooner).', rule: 'last_candle', params: { below: 0.5 } },
+  { id: 'grave_powder', tier: 'legendary', name: 'Grave Powder', desc: 'While its holder stands, a shadow of yours that falls bursts: every foe next to it takes 20 true damage.', rule: 'grave_powder', params: { amount: 20 } }
 ]
 
 // The holder's moments a piece relic can trigger on.

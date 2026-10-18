@@ -892,10 +892,12 @@ export const synergyLabels = (active) => active.filter((syn) => ladderOf(syn).st
   .map((syn) => ({ id: syn.id, name: syn.name, rule: ruleName(syn), text: ruleText(syn) }))
 // The rules at work the battle scene flares (engine.js rule), by rule: { step, name }. A synergy's its step and its rule's
 // name ("Undead 4", "Legion"); a capstone's (rules.js, scoped to the piece: redesign.md §4.1) its kind's name, and a
-// boss's (redesign.md §4.7) too.
+// boss's (redesign.md §4.7) too; a Legendary relic's (2026-10-17) as "Relic" and the relic's name.
 export const ruleFlares = () => ({
   ...Object.fromEntries(SYNERGIES.filter((syn) => syn.rule).map((syn) => [syn.rule, { step: syn.name, name: ruleName(syn) }])),
-  ...Object.fromEntries(UNIT_LIST.filter((d) => d.rule).map((d) => [d.rule, { step: d.boss ? 'Boss' : 'Capstone', name: d.name }]))
+  ...Object.fromEntries(UNIT_LIST.filter((d) => d.rule).map((d) => [d.rule, { step: d.boss ? 'Boss' : 'Capstone', name: d.name }])),
+  // A Legendary relic's that says it is at work (Reaper's Hunger, Last Candle, Grave Powder), as "Relic · its name".
+  ...Object.fromEntries(RELIC_LIST.filter((r) => r.rule).map((r) => [r.rule, { step: 'Relic', name: r.name }]))
 })
 
 // Your pieces' counts by kin and role, as the battle counts them (unit.js synergyCounts: a trine as three).

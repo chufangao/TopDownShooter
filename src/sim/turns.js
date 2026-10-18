@@ -427,14 +427,29 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
     if (!alive(target)) continue
     if (effect.op === 'damage') {
       // `power` by the actor's ATK against the target's DEF; a flat `amount` (a relic's: Briar Mail's) as it is, true
-      // damage as a tick's: no ATK, DEF or mod, only the rules bending it as it lands.
+      // damage as a tick's: no ATK, DEF or mod, only the rules bending it as it lands. With `per`, the amount once for
+      // each stack of a status on the target (`per.status`: Powder Keg's Burning) or each status of a tag it carries
+      // (`per.tag`: Plague Mask's debuffs), nothing where it carries none; `consume`, and the statuses counted are spent
+      // as it lands (a cleanse: the payoff of a status built up, 2026-10-17).
       let damage = effect.amount
+      const counted = effect.per ? perOf(target, effect.per) : null
+      if (counted) {
+        if (!counted.length) continue
+        damage *= counted.reduce((n, s) => n + (effect.per.status ? s.stacks : 1), 0)
+      }
       if (damage === undefined) {
         const a = stats(battle, actor)
         const d = stats(battle, target)
         damage = computeDamage({ power: effect.power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
       }
       applyDamage(battle, target, damage, { actor, ability: ability?.id ?? null })
+      if (counted && effect.consume && alive(target)) {
+        for (const s of counted) {
+          if (!target.statuses.includes(s)) continue
+          target.statuses.splice(target.statuses.indexOf(s), 1)
+          emit(battle, { type: 'cleanse', target: target.uid, status: s.id })
+        }
+      }
     } else if (effect.op === 'heal') {
       heal(battle, actor, target, effect.power, effect.pct)
     } else if (effect.op === 'apply_status') {
@@ -451,6 +466,9 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
     }
   }
 }
+
+// The statuses on `u` a `per` names: the one of `per.status`, or every one tagged `per.tag`.
+const perOf = (u, per) => u.statuses.filter((s) => (per.status ? s.id === per.status : statusDef(s.id).tags.includes(per.tag)))
 
 // The `cooldown` op: `amount` turns added to every cooldown of each target (−1: its skills a turn sooner; a delay
 // never touches a boss), none below 0.

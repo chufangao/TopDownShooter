@@ -99,6 +99,10 @@ function checkEffect (e, where, relic = false) {
   else assert.ok(!e.status && e.turns === undefined, `${where}: a status only with apply_status`)
   if (e.op === 'cooldown') assert.ok(Number.isInteger(e.amount) && e.amount !== 0, `${where}: cooldown ${e.amount}`)
   if (e.op === 'damage') assert.ok(e.power > 0 !== (relic && Number.isInteger(e.amount) && e.amount > 0), `${where}: damage of a power, or a relic's flat amount`)
+  // A relic's flat damage may be `per` a status on the target (one status's stacks, or each status of a tag: the elements of
+  // 2026-10-17), and then may `consume` what it counted; an ability's never.
+  if (e.per !== undefined) assert.ok(relic && e.op === 'damage' && Number.isInteger(e.amount) && ((STATUSES[e.per.status] && !e.per.tag) || (['buff', 'debuff'].includes(e.per.tag) && !e.per.status)), `${where}: per ${JSON.stringify(e.per)}`)
+  if (e.consume !== undefined) assert.ok(e.consume === true && e.per, `${where}: consume what a per counts`)
   if (e.op === 'heal') assert.ok(e.power > 0 || e.pct > 0, `${where}: ${e.op} power`)
   if (e.op === 'raise' && e.tier !== undefined) assert.ok(relic && Number.isInteger(e.tier) && e.tier >= 1 && !e.count, `${where}: a relic's raise, to a tier`)
 }
@@ -436,8 +440,7 @@ test('every ability is ops, a shape and an anim; Hexed for one act or two; no co
 
 // The statuses' turns (§2.8): 'battle' the battle; Hexed's turns the acts it costs.
 const TURNS = {
-  brittle: 3, hasten: 2, regen: 5, barkskin: 4, veiled: 3, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4
-}
+  brittle: 3, hasten: 2, regen: 5, barkskin: 4, veiled: 3, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4, rooted: 1, bloodlust: 'battle' }
 
 test('every status lasts turns, is drawn in its colour, has a worth, and its text is for turns', () => {
   assert.deepEqual(Object.keys(STATUSES).sort(), Object.keys(TURNS).sort())
@@ -636,7 +639,7 @@ test('the twelve relics that define a build: a kin banner for every kin, and sev
 
 test('the Legendaries: a rule scoped to the holder, Arise a skill it teaches, and the Arise variants', () => {
   const legendary = RELIC_LIST.filter((r) => r.tier === 'legendary')
-  assert.deepEqual(legendary.map((r) => r.id), ['arise', 'legion', 'undying', 'mimicry', 'hollow_court', 'blood_tithe', 'court_of_bone'])
+  assert.deepEqual(legendary.map((r) => r.id), ['arise', 'legion', 'undying', 'mimicry', 'hollow_court', 'blood_tithe', 'court_of_bone', 'reapers_hunger', 'seven_league_boots', 'last_candle', 'grave_powder'])
   // Legion is a run relic, Command at a cost; every other a piece relic with a rule.
   assert.ok(RELICS.legion.run && !RELICS.legion.rule)
   for (const r of legendary.filter((x) => !x.run)) assert.equal(r.rule, r.id, `${r.id}: its rule is its own`)

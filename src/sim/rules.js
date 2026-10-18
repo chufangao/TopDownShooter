@@ -32,7 +32,7 @@
 // Blood Tithe's raises paid in the Monarch's HP (`bleeds`: bleeds, the autoplayer's).
 import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef, statusDef } from '../content.js'
-import { alive, livingOn, unitDistance, makeUnit, synergyFull } from './unit.js'
+import { alive, livingOn, unitDistance, makeUnit, synergyFull, enemySide } from './unit.js'
 import { around, riseTile, summonTile } from './field.js'
 import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle, lined } from './turns.js'
 
@@ -175,6 +175,49 @@ export const RULES = {
       if (fallen !== r.holder || fallen.rose) return
       fallen.rose = 1
       fallen.hp = Math.max(1, Math.round(fallen.maxHp * r.params.hp))
+    }
+  },
+  // Reaper's Hunger: its holder, slaying a foe while your orders are taken (never by a counter in the foes' turn, nor by
+  // a status's tick at the turn's end), has its act again: as many times as it slays (2026-10-17).
+  reapers_hunger: {
+    onKill (battle, { slain, by, side }, r) {
+      if (by !== r.holder || !slew(by, side, slain) || !alive(by) || !by.acted || battle.phase !== 'orders' || battle.stage !== 'party') return
+      emit(battle, { type: 'rule', rule: 'reapers_hunger', side, actor: by.uid, target: slain.uid })
+      by.acted = false
+    }
+  },
+  // Seven-League Boots: its holder's blows (a counter's too) deal `mul` on a turn it has moved `tiles` or more.
+  seven_league_boots: {
+    params: { tiles: 3, mul: 1.5 },
+    modify (battle, ctx, r) {
+      const { actor, target, ability } = ctx
+      if (ctx.as !== 'actor' || actor !== r.holder || ctx.status || !ability || target.side === actor.side) return
+      if (actor.moved >= r.params.tiles) ctx.damage *= r.params.mul
+    }
+  },
+  // Last Candle: as your turn begins with the Monarch below `below` of its HP, its holder is Desperate for the round
+  // (laid again each such turn; it lapses once the Monarch is mended past it).
+  last_candle: {
+    params: { below: 0.5 },
+    onTurn (battle, { side }, r) {
+      const u = r.holder
+      const m = battle.monarch
+      if (side !== u.side || !alive(u) || !m || !alive(m) || m.hp >= m.maxHp * r.params.below) return
+      if (!u.statuses.some((s) => s.id === 'desperate')) emit(battle, { type: 'rule', rule: 'last_candle', side, actor: u.uid })
+      addStatus(battle, u, 'desperate', 1, u)
+    }
+  },
+  // Grave Powder: while its holder stands, a shadow of its side that falls bursts, `amount` true damage to every foe
+  // next to it, dealt by the holder (its kills, its essence).
+  grave_powder: {
+    params: { amount: 20 },
+    onFall (battle, { fallen }, r) {
+      const u = r.holder
+      if (!fallen.shadow || fallen.side !== u.side || !alive(u)) return
+      const near = around(battle, fallen.tile, 1, enemySide(fallen.side), fallen.size)
+      if (!near.length) return
+      emit(battle, { type: 'rule', rule: 'grave_powder', side: u.side, actor: u.uid, target: fallen.uid })
+      runEffect(battle, { op: 'damage', amount: r.params.amount }, u, near)
     }
   },
   // Mimicry: its holder counts as a `role` too, for its side's synergies.
