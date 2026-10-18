@@ -613,8 +613,8 @@ async function fight ({ resume = false } = {}) {
       // Every foe kind that took the field is met: its reach and its way are told from now on (the bestiary).
       bestiary.record(battle.units.filter((u) => u.side === 'foe' && !u.shadow).map((u) => u.id))
       // Shadows are not souls: they were never yours to keep. The fallen souls have left the field for the ossuary
-      // (run.js finishBattle), their cells and Command free, and wait there for an altar. A part fused away is no fall.
-      const fallen = battle.units.filter((u) => u.side === 'party' && !u.shadow && !u.into && u.hp <= 0 && u.uid !== battle.monarch?.uid).map((u) => unitDef(u.id).name)
+      // (run.js finishBattle), their cells and Command free, and wait there for an altar.
+      const fallen = battle.units.filter((u) => u.side === 'party' && !u.shadow && u.hp <= 0 && u.uid !== battle.monarch?.uid).map((u) => unitDef(u.id).name)
       if (fallen.length && s.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. ${fallen.length > 1 ? 'They lie' : 'It lies'} in the ossuary, ${fallen.length > 1 ? 'their cells' : 'its cell'} and Command free, until an altar raises ${fallen.length > 1 ? 'them' : 'it'}.`
       route()
     }

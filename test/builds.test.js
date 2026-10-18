@@ -9,10 +9,9 @@ import {
   floorOf, visits, LEVELS, altarRites, pivots, fusionOptions, altarOptions
 } from '../src/sim/autoplay.js'
 import { createRun, apply, battleSetup, foeMods, draftPool, join, souls, transmuteOffer } from '../src/sim/run.js'
-import { expertOptions } from '../src/sim/policy.js'
 import { FUSION_LIST, SYNERGIES, UNIT_LIST, fusionDef, unitDef } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
-import { on, scene, unit } from './scene.js'
+import { on, scene } from './scene.js'
 
 test('the archetypes come from content: every fused kind and every synergy, each with its combos in the book', () => {
   const all = ARCHETYPES()
@@ -87,17 +86,13 @@ test('the strict commitment: its kinds drafted and recruited where offered, its 
   assert.ok([...constructs.kinds].every((id) => unitDef(id).kin === 'construct') && constructs.kinds.has('clockwork_page') && constructs.kinds.has('trine:clockwork_page'))
   assert.ok([...constructs.recipes].every((id) => unitDef(fusionDef(id).result).kin === 'construct') && constructs.recipes.has('clockwork_titan'))
   assert.equal(constructs.need, 4)
-  // Out of battle: a fusion of another recipe is not offered; in battle, the expert's fuse passes its recipes alone.
+  // A fusion of another recipe is not offered.
   const run = createRun({ seed: 'strict', start: ['will_o_wisp', 'will_o_wisp', 'will_o_wisp', 'frost_sprite', 'frost_sprite', 'frost_sprite'] })
   run.state.essence = 1e4
   const free = fusionOptions(run, LEVELS.expert).map((a) => a.id).sort()
   assert.deepEqual(free, ['pale_court', 'trine:frost_sprite', 'trine:will_o_wisp'].filter((id) => FUSION_LIST.some((r) => r.id === id)))
   assert.deepEqual(withCommit('pale_court', () => fusionOptions(run, LEVELS.expert).map((a) => a.id), true), ['pale_court'])
   assert.deepEqual(withCommit('pale_court', () => fusionOptions(run, LEVELS.expert).map((a) => a.id).sort()), free, 'the soft commitment fuses as free play')
-  const sprites = [1, 2, 3].map((uid, i) => on('frost_sprite', uid, 'party', 2 + i, 3))
-  const b = scene([...sprites, on('iron_golem', 9, 'foe', 6, 10, 20)], { essence: 100, fuse: { 'trine:frost_sprite': { price: 20, lvl: 2, tracks: [0, 0] } } })
-  assert.ok(expertOptions(b, unit(b, 2)).some((o) => o.fusion?.id === 'trine:frost_sprite'))
-  assert.ok(!expertOptions(b, unit(b, 2), { fuse: (id) => strictOf('pale_court').recipes.has(id) }).some((o) => o.fusion))
   // A whole run held to each: every pick and recruit of its kinds where one is offered, every fusion and transmutation
   // within them; its commitment put back after.
   for (const arch of ['pale_court', 'undead_4']) {

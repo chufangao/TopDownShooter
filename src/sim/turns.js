@@ -20,8 +20,7 @@
 // `turn` (1-based), `phase` ('orders' while your orders are taken, 'resolving' inside End Turn), `stage` ('party',
 // 'foes' or 'end': whose part of the round it is), `beat` (the index its events carry), `foeIn` (the turn the last
 // wave came in: the camp's patience counts from it), `waves` ([{ wave, turn, foes, entered }]: the later waves and the
-// turn each enters on), `purse` (the essence the run held as the battle began, less what it has spent here), `spent`,
-// `fused` ([{ recipe, uid, id, lvl, tracks, parts, by, price }]: the fusions made here, for the run; `by` the fuser).
+// turn each enters on).
 // On each unit: `move` (its Move now), `moved` (tiles spent this turn), `acted`, `from` (where it stood as its turn
 // began: Undo's tile), `cooldowns` ({ ability id: turns left }), `temper`, `basic` and `mend` (its basic blow and
 // basic heal, ability defs or null), `kit` (its abilities, with what its relics grant: Arise), `relics` (the piece
@@ -33,7 +32,6 @@
 //   { type: 'act', uid, ability, target }      it acts: `target` is always a unit's uid: a blow's primary (a Shape's
 //                                              too), an ally for a heal, itself for a self or all-allies ability, the
 //                                              corpse for Arise (a skill of the piece holding an Arise relic)
-//   { type: 'fuse', id, uid, parts }           piece `uid` fuses recipe `id` of `parts` (uids, `uid` among them)
 //   { type: 'end' }                            End Turn
 //   { type: 'stall' }                          past TUNING.turn.guard turns, the battle ends as a stall: never the
 //                                              player's (legalOrders never lists it), the autoplayer's and playOut's
@@ -49,13 +47,12 @@
 //   { type: 'cooldown', target, ability, turns }  a skill's cooldown set or fallen (0: ready)
 //   { type: 'hexed', target }                  a Hexed unit's act lost
 //   { type: 'shrug', target, status }          a boss shrugs off a Hex (addStatus): its last act was lost to one
-//   { type: 'fuse', actor, recipe, parts, price, unit }  a fusion in battle: `unit` the fused piece, as `enter`'s
 //
 // `ablate` (a measuring switch, never a player's: autoplay.js ABLATIONS) lists rules taken from your side: 'arise' (no
 // relic grants Arise), 'synergies' (your side holds no synergy) and 'summons' (no tier brings a summon). `quiet` (a
 // rehearsal's): the battle keeps no events; it plays out exactly as it would otherwise.
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, statusDef, relicDef, FUSION_LIST, FUSIONS, SYNERGIES } from '../content.js'
+import { unitDef, abilityDef, statusDef, relicDef, SYNERGIES } from '../content.js'
 import { hashString } from './rng.js'
 import {
   alive, livingOn, enemySide, isAllyShape, isBlow, footprint, distanceBetween, unitDistance, rangeOf, expand, makeUnit, sizeOf, tileX, tileY,
@@ -82,10 +79,7 @@ export { rulesOf, holds } from './rules.js'
 // `foeMods`: mods on every unit of the side but the Monarch, a mod with `who` on those it names (the run relics': a
 // side-wide cost, a kin banner's; the floor's growth and the run's level, the boss's apart);
 // `relics`: the run's, every copy owned; `arise`: { domain, tier }, Arise's reach and tier for any holder (run.js
-// ariseOf; TUNING.arise by default); `essence`, the run's purse as the battle begins (what a fusion here may spend:
-// default 0); `fuse`, per recipe id { price, lvl, tracks }: what it costs here (run.js fuseCost), and the level and
-// tiers its fused kind stands at in the run (a recipe with no price is not made here; no level, the parts' highest; no
-// tiers, none); `nextUid`: where the uids of units made here start (by default past every uid here, the reserve's
+// ariseOf; TUNING.arise by default); `nextUid`: where the uids of units made here start (by default past every uid here, the reserve's
 // included); battle.nextUid is the first still free when it ends. The foes hold their synergies' rules on every floor,
 // as yours do (redesign.md §2.12).
 //
@@ -94,7 +88,7 @@ export { rulesOf, holds } from './rules.js'
 // rear middle tile, and ends on a wipe.
 export function createBattle ({
   party, foes, floor = 1, boss = false, partyMods = [], foeMods = [], walls = [], arise = TUNING.arise, nextUid = null,
-  reserve = [], relics = [], ablate = [], quiet = false, essence = 0, fuse = {}, every = null
+  reserve = [], relics = [], ablate = [], quiet = false, every = null
 }) {
   const stamp = (u, side) => fresh({ ...u, side, tile: deployTile(side, u.slot) })
   const units = [...party.map((u) => stamp(u, 'party')), ...foes.map((u) => stamp(u, 'foe'))]
@@ -112,7 +106,7 @@ export function createBattle ({
     at: new Array(TILES).fill(null), sky: new Array(TILES).fill(null), roster: 0, auraReach: 0, auras: [], phased: [],
     syn: {}, cache: new Map(), ruleList: {},
     turn: 1, phase: 'orders', stage: 'party', beat: 0, foeIn: 1,
-    purse: essence, spent: 0, fused: [], fuse, ...(every && { every })
+    ...(every && { every })
   }
   for (const u of units) occupy(battle, u)
   for (const u of units) fit(battle, u)
@@ -635,17 +629,16 @@ export function raise (battle, actor, corpse, { side = actor.side, rule = null }
   return shadow
 }
 
-// Whether `corpse` may rise on `side` as Legion raises (rules.js legion): fallen, never risen, never a shadow, a boss, a
-// Monarch or one consumed by a fusion, while the side has room for it (roomFor; raise finds its tile or none).
-export const risable = (battle, corpse, side) => !alive(corpse) && !corpse.raised && !corpse.shadow && !corpse.into &&
+// Whether `corpse` may rise on `side` as Legion raises (rules.js legion): fallen, never risen, never a shadow, a boss or a
+// Monarch, while the side has room for it (roomFor; raise finds its tile or none).
+export const risable = (battle, corpse, side) => !alive(corpse) && !corpse.raised && !corpse.shadow &&
   !unitDef(corpse.id).boss && !unitDef(corpse.id).monarch && roomFor(battle, side)
 
 // The Sovereign's Grave Tide: up to `count` of the field's dead rise on the actor's side as shadows, where they fell
-// (raise): the fallen of either side, never a shadow, a boss, the Monarch, one consumed by a fusion or one risen
-// already, lying where no one living stands; the strongest first, then the nearest, then the first to have stood.
+// (raise): the fallen of either side, never a shadow, a boss, the Monarch or one risen already, lying where no one living stands; the strongest first, then the nearest, then the first to have stood.
 function raiseDead (battle, actor, count) {
   const d = (c) => unitDistance(actor, c)
-  const dead = battle.units.filter((c) => !alive(c) && !c.raised && !c.shadow && !c.into && !unitDef(c.id).boss && !unitDef(c.id).monarch)
+  const dead = battle.units.filter((c) => !alive(c) && !c.raised && !c.shadow && !unitDef(c.id).boss && !unitDef(c.id).monarch)
     .sort((a, b) => unitDef(b.id).tier - unitDef(a.id).tier || d(a) - d(b) || a.uid - b.uid)
   for (const c of dead) {
     if (count <= 0) break
@@ -806,7 +799,7 @@ export function corpses (battle, u, tile = u.tile) {
   const arise = ariseOf(battle, u)
   if (!arise || !alive(u) || battle.crumbled) return []
   if (u.held.some((r) => r.raisable && !r.raisable(battle, u, r))) return []
-  return battle.units.filter((c) => c.side !== u.side && !alive(c) && !c.raised && !c.shadow && !c.into && !unitDef(c.id).boss &&
+  return battle.units.filter((c) => c.side !== u.side && !alive(c) && !c.raised && !c.shadow && !unitDef(c.id).boss &&
     unitDef(c.id).tier <= arise.tier && distanceBetween(c.tile, c.size, tile, u.size) <= arise.domain &&
     (u.side !== 'party' || riseTile(battle, c.tile, shadowSize(c, u.side), c.flies) >= 0))
 }
@@ -1105,88 +1098,10 @@ export function summon (battle, u) {
   }
 }
 
-// ── fusing in battle (redesign.md §2.4) ──────────────────────────────────────────────────────────
-
-// What fusion `id` costs here and the level and tiers its piece stands at, as the setup gives them (the run's: run.js
-// battleSetup, its fuseCost; the battle keeps no price of its own), or null: a recipe the setup does not price is not
-// made here. The piece stands at least at its parts' highest level (fuse), its tiers none where none are given.
-function fusing (battle, id) {
-  const given = Object.hasOwn(FUSIONS, id) ? battle.fuse?.[id] : null
-  if (!Number.isFinite(given?.price)) return null
-  return { recipe: FUSIONS[id], price: given.price, lvl: given.lvl ?? 1, tracks: (given.tracks ?? [0, 0]).slice() }
-}
-
-// Whether `parts` (units) are recipe `id`'s exactly, fused by `u` among them: souls, each within a tile of `u`, the
-// recipe priced here (fusing) and the purse holding the price, and the fused piece's footprint free on `u`'s anchor once
-// the parts' tiles count free.
-function fusible (battle, u, id, parts) {
-  const terms = fusing(battle, id)
-  if (!terms || !parts.includes(u) || new Set(parts).size !== parts.length) return false
-  const { recipe, price, tracks } = terms
-  const got = {}
-  for (const p of parts) {
-    if (!orderable(battle, p) || unitDistance(p, u) > 1 || !Object.hasOwn(recipe.needs, p.id)) return false
-    got[p.id] = (got[p.id] ?? 0) + 1
-  }
-  if (!Object.entries(recipe.needs).every(([kind, n]) => got[kind] === n) || battle.purse < price) return false
-  const flies = !!unitDef(recipe.result).flies
-  const tiles = footprint(u.tile, sizeOf({ id: recipe.result, tracks }))
-  const layer = flies ? battle.sky : battle.at
-  return !!tiles && tiles.every((t) => (flies || !battle.walls.has(t)) && (layer[t] === null || parts.includes(layer[t])))
-}
-
-// The fusions `u` may make where it stands, as orders: per recipe it is a part of, its nearest parts (then the lower
-// uids). Whether it may act at all is the caller's (legalOrders, policy.js expertTurn: canAct).
-export function fusionsOf (battle, u) {
-  const out = []
-  if (!orderable(battle, u)) return out
-  for (const r of FUSION_LIST) {
-    if (!Object.hasOwn(r.needs, u.id)) continue
-    const parts = [u]
-    for (const [kind, n] of Object.entries(r.needs)) {
-      const near = battle.units.filter((x) => x !== u && x.id === kind && orderable(battle, x) && unitDistance(x, u) <= 1)
-        .sort((a, b) => unitDistance(a, u) - unitDistance(b, u) || a.uid - b.uid)
-      parts.push(...near.slice(0, n - (kind === u.id ? 1 : 0)))
-    }
-    if (fusible(battle, u, r.id, parts)) out.push({ type: 'fuse', id: r.id, uid: u.uid, parts: parts.map((p) => p.uid) })
-  }
-  return out
-}
-
-// The parts are consumed where they stand (off the board: `into` the fused piece's uid, never a corpse; the relics they
-// held go back to the run unheld, and their rules with them), the price is paid from the purse, and the fused piece
-// stands on `u`'s anchor, full HP, fresh cooldowns, holding no relic, its act spent.
-function fuse (battle, u, id, parts) {
-  const { recipe, price, lvl, tracks } = fusing(battle, id)
-  battle.beat++
-  battle.purse -= price
-  battle.spent += price
-  const uid = battle.nextUid++
-  for (const p of parts) {
-    vacate(battle, p)
-    p.hp = 0
-    p.statuses = []
-    p.raised = true
-    p.into = uid
-    // Its relics go back to the run with their rules: none fires for it again (a Burning it laid that slays later).
-    p.relics = []
-    p.held = []
-  }
-  battle.roster++
-  const level = Math.max(lvl, ...parts.map((p) => p.lvl))
-  const unit = enterBattle(battle, { ...makeUnit(recipe.result, { uid, lvl: level, tracks }), side: 'party', tile: u.tile })
-  unit.acted = true
-  battle.fused.push({ recipe: id, uid, id: recipe.result, lvl: level, tracks, parts: parts.map((p) => p.uid), by: u.uid, price })
-  emit(battle, {
-    type: 'fuse', actor: u.uid, recipe: id, parts: parts.map((p) => p.uid), price,
-    unit: { uid, id: unit.id, side: 'party', tile: unit.tile, lvl: unit.lvl, hp: unit.hp, maxHp: unit.maxHp, ...(unit.size > 1 && { size: unit.size }) }
-  })
-}
-
 // ── orders ───────────────────────────────────────────────────────────────────────────────────────
 
-// A piece the player orders, and a soul that may go into a fusion: one of yours, living, no shadow (summons and
-// shadows act as the untouched do), never the Monarch (it never moves nor acts).
+// A piece the player orders: one of yours, living, no shadow (summons and shadows act as the untouched do), never the
+// Monarch (it never moves nor acts).
 export const orderable = (battle, u) => u.side === 'party' && alive(u) && !u.shadow && u !== battle.monarch
 
 function mine (battle, uid) {
@@ -1217,7 +1132,6 @@ export function legalOrders (battle) {
     if (!orderable(battle, u) || u.acted) continue
     for (const tile of reach(battle, u).keys()) out.push({ type: 'move', uid: u.uid, tile })
     out.push(...actsOf(battle, u))
-    if (canAct(battle, u)) out.push(...fusionsOf(battle, u))
     if (u.moved > 0 && endable(battle, u, u.from)) out.push({ type: 'undo', uid: u.uid })
   }
   out.push({ type: 'end' })
@@ -1255,11 +1169,6 @@ export function order (battle, o, path = null) {
     const target = a && canAct(battle, u) && usable(battle, u, a) ? targetsFrom(battle, u, a).find((x) => x.uid === o.target) : null
     if (!target) throw new Error(`${u.id} ${u.uid} cannot use ${o.ability} on ${o.target}`)
     perform(battle, u, a, target)
-  } else if (o.type === 'fuse') {
-    const parts = Array.isArray(o.parts) ? o.parts.map((uid) => battle.byUid.get(uid)) : []
-    if (!canAct(battle, u) || parts.some((p) => !p) || !fusible(battle, u, o.id, parts)) throw new Error(`${u.id} ${u.uid} cannot fuse ${o.id} of ${JSON.stringify(o.parts)}`)
-    fuse(battle, u, o.id, parts)
-    settle(battle)
   } else {
     throw new Error(`unknown order "${o.type}"`)
   }
@@ -1536,7 +1445,6 @@ export function fork (battle, { quiet = true } = {}) {
     reserve: battle.reserve.map((u) => ({ ...u })),
     waveAt: battle.waveAt.slice(),
     waves: battle.waves.map((w) => ({ ...w })),
-    fused: battle.fused.slice(),
     events: [],
     quiet,
     syn: {},

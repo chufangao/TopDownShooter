@@ -430,8 +430,8 @@ const threatened = (sit) => !!sit.monarch && (sit.monarch.danger > 0 || sit.mona
 // you to be in its reach), and where it will stand your side could not strike it next turn (`reached`, the danger map
 // for the foes).
 const holdsOff = (x, fc, reached) => !fc.bold.has(x.uid) && (x.flies ? reached.air : reached.ground)[fc.at.get(x.uid) ?? x.tile] === 0
-// Your souls fallen in the battle (a fusion's parts are not fallen).
-const fallenOf = (battle) => battle.units.reduce((n, u) => n + (u.side === 'party' && !u.shadow && u !== battle.monarch && !alive(u) && !u.into ? 1 : 0), 0)
+// Your souls fallen in the battle.
+const fallenOf = (battle) => battle.units.reduce((n, u) => n + (u.side === 'party' && !u.shadow && u !== battle.monarch && !alive(u) ? 1 : 0), 0)
 // The foes' road still to walk to the Monarch, summed.
 const distOf = (battle, foes) => foes.reduce((n, x) => n + Math.min(DEPTH, roadOf(battle, x).dist[x.tile]), 0)
 // How far `u`'s blows reach a foe (one that flies, `air`: only a ranged blow, or a flyer's); −1 for none.

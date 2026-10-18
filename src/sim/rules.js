@@ -46,7 +46,7 @@ export const RULES = {
   // riseTile). Its raiser is the slayer when it stands on that side.
   legion: {
     onKill (battle, { slain, by, side }) {
-      if (alive(slain) || slain.raised || slain.shadow || slain.into || unitDef(slain.id).boss || !roomFor(battle, side)) return
+      if (alive(slain) || slain.raised || slain.shadow || unitDef(slain.id).boss || !roomFor(battle, side)) return
       if (side === 'party' && riseTile(battle, slain.tile, shadowSize(slain, side), slain.flies) < 0) return
       const actor = by?.side === side ? by : null
       emit(battle, { type: 'rule', rule: 'legion', side, actor: actor?.uid ?? null, target: slain.uid })
@@ -229,7 +229,7 @@ export const RULES = {
   charnel_cathedral: {
     onKill (battle, { slain, by, side }, r) {
       const u = r.holder
-      if (by !== u || !alive(u) || alive(slain) || slain.raised || slain.shadow || slain.into || unitDef(slain.id).boss || !roomFor(battle, side)) return
+      if (by !== u || !alive(u) || alive(slain) || slain.raised || slain.shadow || unitDef(slain.id).boss || !roomFor(battle, side)) return
       if (unitDistance(u, slain) > 1) return
       if (side === 'party' && riseTile(battle, slain.tile, shadowSize(slain, side), slain.flies) < 0) return
       emit(battle, { type: 'rule', rule: 'charnel_cathedral', side, actor: u.uid, target: slain.uid })
@@ -399,7 +399,7 @@ export function rulesOf (battle, side) {
   if (kept?.syn === syn && kept.roster === battle.roster) return kept.list
   const counts = synergyCountsOf(battle, side)
   const list = syn.filter((s) => s.rule).map((s) => entry(s.rule, null, s.full ? { full: synergyFull(s, counts) } : null))
-  for (const u of battle.units) if (u.side === side && !u.into && u.held?.length) list.push(...u.held)
+  for (const u of battle.units) if (u.side === side && u.held?.length) list.push(...u.held)
   battle.ruleList[side] = { syn, roster: battle.roster, list }
   return list
 }

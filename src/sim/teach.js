@@ -173,7 +173,7 @@ function screenLines (battle, sit) {
   return out
 }
 
-const kindOf = (o) => (o.ability ? `${o.ability.id}:${o.target.uid}` : o.fusion ? `fuse:${o.fusion.id}` : 'move')
+const kindOf = (o) => (o.ability ? `${o.ability.id}:${o.target.uid}` : 'move')
 // The first `n` of `list` not in `taken`, no more than `per` of one act at one target (twice that of moves alone).
 function spread (list, n, taken, per = 2) {
   const out = []
@@ -233,8 +233,7 @@ export function optionsAt (battle, u, sit, cap = DEFAULTS.cap, c = P.conditions(
   const groups = new Map()
   const moves = []
   for (const o of list) {
-    if (o.fusion) keep.add(o)
-    else if (o.ability) {
+    if (o.ability) {
       const k = kindOf(o)
       if (groups.has(k)) groups.get(k).push(o)
       else groups.set(k, [o])
@@ -287,8 +286,7 @@ export function give (g, uid, o) {
   }
   if (o.tile !== u.tile) put({ type: 'move', uid, tile: o.tile })
   if (!g.over) {
-    if (o.fusion) put({ type: 'fuse', id: o.fusion.id, uid, parts: o.fusion.parts.slice() })
-    else if (o.ability) put({ type: 'act', uid, ability: o.ability.id, target: o.target.uid })
+    if (o.ability) put({ type: 'act', uid, ability: o.ability.id, target: o.target.uid })
     else {
       const x = untouchedOrder(g, u)
       if (x) put(x)
@@ -305,7 +303,6 @@ export function signature (orders, from) {
   for (const o of orders) {
     if (o.type === 'move') tile = o.tile
     else if (o.type === 'act') act = `a:${o.ability}:${o.target}`
-    else if (o.type === 'fuse') act = `f:${o.id}:${o.parts}`
   }
   return `${tile}|${act}`
 }
@@ -383,7 +380,7 @@ export function endValue (before, g, w = END_WEIGHTS, stall = false) {
   for (const [uid, s] of before.souls) {
     had += s.hp
     const x = g.byUid.get(uid)
-    if (x && !alive(x) && x.into == null) {
+    if (x && !alive(x)) {
       fell++
       fallen += s.maxHp - s.hp
     }
@@ -492,7 +489,7 @@ export function labelled (board, uid, chosen, c, read = readDecision(board, uid,
     const more = Array.from({ length: k - 1 }, (_, j) => playout(board, uid, o, { ...how, turn: perturbed(c, c.key ?? '', i, j + 1) }))
     const m = more.length ? averaged([p, ...more]) : null
     const row = {
-      i, tile: o.tile, steps: o.path.length, ability: o.ability?.id ?? null, target: o.target?.uid ?? null, fusion: o.fusion?.id ?? null,
+      i, tile: o.tile, steps: o.path.length, ability: o.ability?.id ?? null, target: o.target?.uid ?? null,
       f: sparse(o.v), prior: r6(o.prior ?? 0), kept: o.kept === false ? 0 : 1, legal: p.legal ? 1 : 0, chosen: p.legal && p.sig === chosen ? 1 : 0, added: added ? 1 : 0,
       value: p.legal ? (m ? m.value : p.value) : null, ...(m && { values: m.values }), parts: p.legal ? (m ? m.parts : p.parts) : null
     }
@@ -541,9 +538,9 @@ export function bestOf (rows, opts) {
 export function fromSignature (opts, sig) {
   const [tile, act] = sig.split('|')
   const t = Number(tile)
-  return opts.find((o) => o.tile === t && (o.fusion ? `f:${o.fusion.id}:${o.fusion.parts}` : o.ability ? `a:${o.ability.id}:${o.target.uid}` : '') === act) ??
+  return opts.find((o) => o.tile === t && (o.ability ? `a:${o.ability.id}:${o.target.uid}` : '') === act) ??
     // A stay or a move whose End-Turn act is the act: the option that only moves there.
-    opts.find((o) => o.tile === t && !o.ability && !o.fusion) ?? null
+    opts.find((o) => o.tile === t && !o.ability) ?? null
 }
 
 // ── positions from runs ──────────────────────────────────────────────────────────────────────────
@@ -631,7 +628,7 @@ export function teachRun (seed, cfg = {}) {
         cur.shares.push(share(b))
         cur.decided = new Set()
       }
-      if (action.type === 'move' || action.type === 'act' || action.type === 'fuse') {
+      if (action.type === 'move' || action.type === 'act') {
         if (cur.open?.uid === action.uid) cur.open.orders.push(action)
         else {
           cur.open = null
@@ -669,14 +666,14 @@ export function afterRow (board, row) {
   const sit = P.situation(board)
   sit.plan = readPlan(board, sit)
   const same = JSON.stringify(sparse(P.conditions(sit, u))) === JSON.stringify(row.sit)
-  const key = (tile, ability, target, fusion) => `${tile}|${ability ?? ''}|${target ?? ''}|${fusion ?? ''}`
+  const key = (tile, ability, target) => `${tile}|${ability ?? ''}|${target ?? ''}`
   const live = new Map()
   for (const o of P.expertOptions(board, u)) {
-    const k = key(o.tile, o.ability?.id, o.target?.uid, o.fusion?.id)
+    const k = key(o.tile, o.ability?.id, o.target?.uid)
     if (!live.has(k)) live.set(k, o)
   }
   const a = row.options.map((r) => {
-    const o = live.get(key(r.tile, r.ability, r.target, r.fusion))
+    const o = live.get(key(r.tile, r.ability, r.target))
     const after = o ? P.afterOf(board, u, o, sit.plan) : null
     return after ? afterDiff(after, row.sit) : null
   })
@@ -738,7 +735,7 @@ async function augmentMain (dir, arg, workers) {
     const r = JSON.parse(line)
     order.push(r.id)
     if (!bySeed.has(r.seed)) bySeed.set(r.seed, [])
-    bySeed.get(r.seed).push({ id: r.id, at: r.at, uid: r.uid, sit: r.sit, options: r.options.map((o) => ({ i: o.i, tile: o.tile, ability: o.ability, target: o.target, fusion: o.fusion })) })
+    bySeed.get(r.seed).push({ id: r.id, at: r.at, uid: r.uid, sit: r.sit, options: r.options.map((o) => ({ i: o.i, tile: o.tile, ability: o.ability, target: o.target })) })
   }
   console.log(`augmenting ${order.length} positions of ${bySeed.size} runs in ${dir} on ${workers} workers (forest ${forest?.name ?? 'none'})`)
   const got = new Map()

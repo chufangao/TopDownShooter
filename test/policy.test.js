@@ -369,39 +369,8 @@ test('the expert gives legal orders, the same for the same board, and ends its t
   assert.deepEqual(basicTurn(b), [{ type: 'end' }])
 })
 
-// Two Tomb Knights and a Bone Chanter standing together, the purse full: a fusion is an option of each (its worth, the
-// fused piece's HP over its parts', against its price: TUNING.expert.battle.option.essence an essence).
-const fusing = (price, hp = (u) => Math.ceil(u.maxHp / 4)) => {
-  const b = board([
-    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
-    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
-    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
-    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6 },
-    { id: 'pyre_hound', uid: 10, side: 'foe', x: 4, y: 8 }
-  ], { essence: 1e9, fuse: { bone_colossus: { price, lvl: 3, tracks: [0, 0] } } })
-  for (const uid of [1, 2, 3]) b.byUid.get(uid).hp = hp(b.byUid.get(uid))
-  return b
-}
-const fuses = (orders) => orders.some((o) => o.type === 'fuse')
-
-test('the expert weighs Fuse as an act: wounded parts and a cheap price, it fuses; at a price no board could repay it does not; never with `fuse` false', () => {
-  const b = fusing(30)
-  const orders = expertTurn(b)
-  const fused = orders.find((o) => o.type === 'fuse')
-  assert.ok(fused && fused.id === 'bone_colossus', JSON.stringify(orders))
-  assert.ok(legalOrders(b).some((l) => JSON.stringify(l) === JSON.stringify(fused)), 'a legal order')
-  for (const o of orders) if (!b.over) order(b, o)
-  assert.equal(b.fused.length, 1)
-  // Ten times every max HP on the board, in essence.
-  const dear = Math.ceil(10 * fusing(1).units.reduce((n, u) => n + u.maxHp, 0) / -TUNING.expert.battle.option.essence)
-  assert.ok(legalOrders(fusing(dear)).some((o) => o.type === 'fuse'), 'dear: a legal fusion')
-  assert.ok(!fuses(expertTurn(fusing(dear))), 'dear: not made')
-  assert.ok(!fuses(expertTurn(fusing(1), { fuse: false })), 'never under the ablation')
-})
-
 // Every order the expert gives over whole battles is one legalOrders lists as it is given, the same board giving the
-// same orders, its copy too: a battle with a piece holding Arise and corpses to raise, and one with a fusion to make.
+// same orders, its copy too: a battle with a piece holding Arise and corpses to raise.
 test('the expert never gives an illegal order, and the same board gives the same orders', () => {
   const arise = board([
     { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
@@ -415,7 +384,7 @@ test('the expert never gives an illegal order, and the same board gives the same
   ])
   slay(arise, arise.byUid.get(8))
   const kinds = new Set()
-  for (const b of [arise, fusing(30, (u) => Math.ceil(u.maxHp / 3))]) {
+  for (const b of [arise]) {
     assert.deepEqual(expertTurn(fork(b)), expertTurn(b))
     for (let turn = 0; turn < 12 && !b.over; turn++) {
       const orders = expertTurn(b)
@@ -428,7 +397,7 @@ test('the expert never gives an illegal order, and the same board gives the same
       }
     }
   }
-  assert.ok(['move', 'fuse', 'arise'].every((k) => kinds.has(k)), [...kinds].join())
+  assert.ok(['move', 'arise'].every((k) => kinds.has(k)), [...kinds].join())
 })
 
 test('judge: the static board evaluation, the board tree\'s rules above its weights', () => {

@@ -1,41 +1,19 @@
-// The fusion graph in play (redesign.md §4.1): a trine fused in battle and out of it, generically, as any recipe is; a
-// trine's summons its parts' kind; a capstone made of fused parts; the four capstones' rules (rules.js), each scoped to
+// The fusion graph in play (redesign.md §4.1): a trine fused out of battle, generically, as any recipe is; a trine's
+// summons its parts' kind; a capstone made of fused parts; the four capstones' rules (rules.js), each scoped to
 // the piece of its kind; and the book reading a fused part as its own recipe's parts.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { UNITS, FUSION_LIST, trineOf, isTriple } from '../src/content.js'
-import { order, legalOrders, perform, applyDamage } from '../src/sim/turns.js'
+import { perform, applyDamage } from '../src/sim/turns.js'
 import { call } from '../src/sim/rules.js'
-import { createRun, apply, join, souls, canFuse, fuseParts, fuseCost, kindLevel, legalActions, availableNodes, OSSUARY, START_PARTY } from '../src/sim/run.js'
+import { createRun, apply, join, souls, canFuse, fuseParts, fuseCost, kindLevel, legalActions, START_PARTY } from '../src/sim/run.js'
 import { combosOf, growthOf, LEVELS } from '../src/sim/autoplay.js'
-import { alive, tileAt, footprint, summonsOf, fits, monarchSlot, rowOf, COLS, CAMP_SLOTS } from '../src/sim/unit.js'
+import { alive, tileAt, summonsOf } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
-import { on, scene, unit, slay } from './scene.js'
+import { on, scene, unit } from './scene.js'
 
 const at = (x, y) => tileAt(x, y)
-const field = (units, opts = {}) => scene(units.map((u) => on(u.id, u.uid, u.side, u.x, u.y, u.lvl ?? 3, u.tracks ?? [0, 0])), { ablate: ['summons'], ...opts })
-const priced = (id) => ({ [id]: { price: 20, lvl: 2, tracks: [0, 0] } })
 const rose = (b, rule) => b.events.filter((e) => e.type === 'arise' && e.rule === rule)
-
-test('a triple fuses in battle as any recipe does: three of a kind beside one another, priced; the trine stands on the fuser\'s anchor', () => {
-  const parts = [1, 2, 3].map((uid, i) => ({ id: 'frost_sprite', uid, side: 'party', x: 2 + i, y: 3 }))
-  const b = field([...parts, { id: 'iron_golem', uid: 9, side: 'foe', x: 6, y: 10, lvl: 20 }], { essence: 100, fuse: priced('trine:frost_sprite') })
-  const lit = legalOrders(b).filter((o) => o.type === 'fuse')
-  assert.ok(lit.some((o) => o.uid === 2 && o.id === 'trine:frost_sprite'), JSON.stringify(lit))
-  const made = order(b, { type: 'fuse', id: 'trine:frost_sprite', uid: 2, parts: [2, 1, 3] }).find((e) => e.type === 'fuse')
-  assert.deepEqual([made.recipe, made.unit.id, made.unit.tile, made.price], ['trine:frost_sprite', 'trine:frost_sprite', at(3, 3), 20])
-  for (const uid of [1, 2, 3]) assert.ok(!alive(unit(b, uid)), `${uid} consumed`)
-  // Two of a kind are no triple; a third too far is no part.
-  const two = field([...parts.slice(0, 2), { ...parts[2], x: 6, y: 0 }, { id: 'iron_golem', uid: 9, side: 'foe', x: 6, y: 10 }], { essence: 100, fuse: priced('trine:frost_sprite') })
-  assert.ok(!legalOrders(two).some((o) => o.type === 'fuse'))
-  // A 2×2 trine where its footprint is free, a flyer's in the air (the Ash Wyvern's).
-  const wyverns = [1, 2, 3].map((uid, i) => ({ id: 'ash_wyvern', uid, side: 'party', x: 2 + i, y: 3 }))
-  const w = field([...wyverns, { id: 'iron_golem', uid: 9, side: 'foe', x: 6, y: 10, lvl: 20 }], { essence: 100, fuse: priced('trine:ash_wyvern') })
-  const ev = order(w, { type: 'fuse', id: 'trine:ash_wyvern', uid: 2, parts: [1, 2, 3] }).find((e) => e.type === 'fuse')
-  const piece = unit(w, ev.unit.uid)
-  assert.ok(piece.flies && piece.size === 2)
-  for (const t of footprint(at(3, 3), 2)) assert.equal(w.sky[t], piece)
-})
 
 test('out of battle: a triple and a capstone are made as any recipe is, the result at least at its parts\' level', () => {
   const run = createRun({ start: START_PARTY, seed: 'graph' })
@@ -55,42 +33,6 @@ test('out of battle: a triple and a capstone are made as any recipe is, the resu
   apply(run, { type: 'fuse', id: 'charnel_cathedral', parts: fuseParts(run, 'charnel_cathedral') })
   assert.equal(before - run.state.essence, fuseCost(run, 'charnel_cathedral'))
   assert.ok(souls(run.state.party).some((u) => u.id === 'charnel_cathedral') && !souls(run.state.party).some((u) => u.id === 'bone_colossus' || u.id === 'trine:grave_ghoul'))
-})
-
-// A piece that falls in a battle leaves the field as the battle ends, its cell free (DESIGN §2.2), and a fusion made in
-// that battle stands on its fuser's cell where it fits as the battle ends (run.js fuseIn): a cell one of the battle's
-// fallen held is no reason to send it to the ossuary (the second bug hunt: it was, the fused piece placed before the
-// fallen left).
-test('a fusion in battle stands on its fuser\'s cell as the battle ends, though a piece that fell in it held a cell of its footprint', () => {
-  const run = createRun({ start: START_PARTY, seed: 'fusefallen' })
-  apply(run, { type: 'node', id: availableNodes(run).find((n) => n.type === 'fight').id })
-  const s = run.state
-  s.relics = ['grave_banner']
-  join(run, 'tomb_knight')
-  join(run, 'grave_ghoul')
-  const [a, b] = souls(s.party).filter((u) => u.id === 'tomb_knight')
-  const c = souls(s.party).find((u) => u.id === 'bone_chanter')
-  const ghoul = souls(s.party).find((u) => u.id === 'grave_ghoul')
-  for (const u of souls(s.party)) u.slot = OSSUARY
-  // The Colossus's 2×2 on the first Knight's cell: the Knights side by side, the Chanter before the first, the Ghoul
-  // before the second.
-  const slot = [...Array(CAMP_SLOTS).keys()].find((x) => rowOf(x) > 0 && fits(s.camp, x, 2, new Set([monarchSlot(s.camp)])))
-  Object.assign(a, { slot })
-  Object.assign(b, { slot: slot + 1 })
-  Object.assign(c, { slot: slot - COLS })
-  Object.assign(ghoul, { slot: slot - COLS + 1 })
-  s.essence = 200
-  apply(run, { type: 'fight' })
-  // The Ghoul falls first; then the Knight fuses, the Ghoul's tile free on the board.
-  slay(run.battle, run.battle.byUid.get(ghoul.uid))
-  const o = legalActions(run).find((x) => x.type === 'fuse' && x.uid === a.uid && x.id === 'bone_colossus')
-  assert.ok(o, 'the fusion is there to make')
-  apply(run, o)
-  while (s.phase === 'battle') apply(run, { type: 'end' })
-  const piece = s.party.find((u) => u.uid === run.battle.fused[0].uid)
-  assert.ok(piece.hp > 0, 'it stood to the end')
-  assert.deepEqual([ghoul.hp, ghoul.slot], [0, OSSUARY], 'the Ghoul fallen, in the ossuary')
-  assert.equal(piece.slot, slot, 'on the fuser\'s cell')
 })
 
 test('a trine\'s summon tier calls up the kind it was made of, at its level and tiers', () => {

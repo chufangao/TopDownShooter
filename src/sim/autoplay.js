@@ -90,21 +90,17 @@ export const LEVELS = {
   basic: { search: 0, wounds: false, route: false, spend: false, fuse: false, turns: 'basic' },
   expert: { search: 120, wounds: true, route: true, spend: true, fuse: true, more: true, book: true, turns: 'expert' }
 }
-// The turn policies by name (LEVELS `turns`; `unfused`, the expert's that never fuses in battle: the fusions
-// ablation's; `still`, the expert's that never moves a piece: the moves ablation's). Each takes the battle and options
-// (expertTurn's `note`, the audit's).
+// The turn policies by name (LEVELS `turns`; `still`, the expert's that never moves a piece: the moves ablation's). Each
+// takes the battle and options (expertTurn's `note`, the audit's).
 const TURNS = {
   basic: basicTurn,
-  // (under the harness's strict commitment, its recipes alone fused: battleFuse)
-  expert: (b, o) => expertTurn(b, battleFuse() === true ? o : { ...o, fuse: battleFuse() }),
-  unfused: (b, o) => expertTurn(b, { ...o, fuse: false }),
+  expert: (b, o) => expertTurn(b, o),
   still: (b, o) => expertTurn(b, { ...o, moving: false })
 }
 // The turn policy L fights by: its `turns`, with its ablation's mechanic taken from them (ablatedTurns).
 const turnsOf = (L) => ablatedTurns(L.turns ?? 'basic', L.ablate)
-// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, the expert's unfused without
-// fusions, its still without moves.
-const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 'expert' ? turns : m === 'fusions' ? 'unfused' : m === 'moves' ? 'still' : turns)
+// Turn policy `turns` with mechanic `m` taken away: End Turn alone without orders, the expert's still without moves.
+const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 'expert' ? turns : m === 'moves' ? 'still' : turns)
 
 // ── ablation: the expert with one mechanic taken away ─────────────────────────────────────────────
 
@@ -113,7 +109,7 @@ const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 'expert
 // spending logic already sends it:
 //   orders         ends every turn of every battle without an order (policy.js basicTurn: what is left alone strikes
 //                  or mends with its basic, and no skill is ever used): what in-battle play is worth
-//   fusions        never fuses (fusionOptions lists none; its turns give no fuse order in battle either: TURNS unfused)
+//   fusions        never fuses (fusionOptions lists none)
 //   summons        no tier brings a summon in battle (a rules switch: the run's `ablate`, carried in every battle's
 //                  setup, so a snapshot stripped of it, necessity, fights without it too), and such a tier is worth
 //                  only its place on the track (worth: its summons not counted), so the essence goes elsewhere
@@ -1632,7 +1628,7 @@ export function withCommit (arch, fn, strict = false) {
 // of its kinds where the spoils offer one the purse affords, taken while the archetype is short of it (strictRecruit:
 // the most the sketch gains of them, whatever keeping would), else the expert's choice among them or none; a soul let
 // go to make room is never of its kinds while another will do; no fusion is made out of its recipes (fusionOptions,
-// completes, and in battle expertTurn's `fuse`); no transmutation turns a soul of its kinds into another kind
+// completes); no transmutation turns a soul of its kinds into another kind
 // (altarOptions). Everything else is the expert's: the Shop, the altar's other rites, the route, prep and battle; and
 // where no kind of it is offered, the recruit.
 export function strictOf (arch) {
@@ -1647,8 +1643,6 @@ export function strictOf (arch) {
 }
 // Whether recipe `id` may be made: any, but under the strict commitment one of its recipes.
 const mayFuse = (id) => !COMMIT?.strict || COMMIT.strict.recipes.has(id)
-// In battle, the expert's `fuse` (policy.js expertOptions): true, or under the strict commitment its recipes alone.
-const battleFuse = () => (COMMIT?.strict ? mayFuse : true)
 // Whether the strict archetype is short of a soul of kind `id` in run `run` (every soul held counted, the fallen too,
 // and a fused kind of it held as the parts it was made of): a fused kind's, while its recipe graph wants more of that
 // kind than the run holds, from the archetype down (comboProgress's walk); a synergy's, while its kin or role counts
@@ -3561,7 +3555,7 @@ async function decisions ({ runs, seed: seed0, level, tries = 8, ascension = 0, 
   for (const setup of setups) {
     const fight = (party) => {
       const b = playOut(createBattle({ ...setup, party, quiet: true }), TURNS[turnsOf(LEVELS[level])])
-      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.into)
+      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow)
       const hp = b.winner === 'party' ? mine.reduce((n, u) => n + u.hp, 0) / mine.reduce((n, u) => n + u.maxHp, 0) : 0
       return { won: b.winner === 'party', hp }
     }
@@ -3807,7 +3801,7 @@ export function refight ({ snaps, variants = [null, ...NECESSITY] }) {
     for (const m of variants) {
       // Only the as-it-stood refight is compared event by event; the rest keep no events.
       const b = playOut(createBattle({ ...battleSetup(stripped(snapshot, m)), quiet: m !== null }), TURNS[ablatedTurns(outcome?.turns ?? 'basic', m)])
-      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow && !u.into)
+      const mine = b.units.filter((u) => u.side === 'party' && !u.shadow)
       const won = b.winner === 'party'
       out[m ?? 'full'] = { won, alive: !!b.monarch && b.monarch.hp > 0, hp: won ? mine.reduce((n, u) => n + u.hp, 0) / mine.reduce((n, u) => n + u.maxHp, 0) : 0 }
       if (m === null) out.same = !!outcome && timelineHash(b.events) === outcome.hash
@@ -3945,8 +3939,8 @@ export function builtOf (run) {
   let battle = 0
   for (const a of s.log) {
     if (a.type === 'fight') battle++
-    // An order in battle names the piece that fuses (`uid`); a fusion out of battle names none.
-    if (a.type === 'fuse') (made[a.id] ??= []).push(a.uid === undefined ? battle + 1 : battle)
+    // A fusion is made between battles: it counts toward the battle it precedes.
+    if (a.type === 'fuse') (made[a.id] ??= []).push(battle + 1)
   }
   return { army: souls(s.party).map((u) => u.id), field: run.setup ? souls(run.setup.party).map((u) => u.id) : [], made, bought: s.relics.slice() }
 }
@@ -3960,7 +3954,7 @@ export function endOf (run, battles) {
   let hp = 0
   let max = 0
   for (const u of b?.units ?? []) {
-    if (u.side !== 'party' || u.shadow || u === m || u.into != null) continue
+    if (u.side !== 'party' || u.shadow || u === m) continue
     hp += Math.max(0, u.hp)
     max += u.maxHp
   }

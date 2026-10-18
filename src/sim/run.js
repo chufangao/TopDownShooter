@@ -103,7 +103,7 @@
 //                                                   already holding TUNING.relic.perPiece gives its first back
 //   map, prep, reap, shop  { type: 'unhold', uid, relic? }  soul `uid` gives back `relic`, or every relic it holds
 //   prep             { type: 'fight' }              the battle opens (phase 'battle')
-//   battle           an order (turns.js legalOrders: { type: 'move' | 'undo' | 'act' | 'fuse' | 'end', … })
+//   battle           an order (turns.js legalOrders: { type: 'move' | 'undo' | 'act' | 'end', … })
 //                                                   given in the battle (turns.js order); returns its events
 //   reap             { type: 'reap', index }        recruit offer `index`, one soul for its price, or null to move
 //                                                   on; one a battle
@@ -772,20 +772,6 @@ function fused (s, kind, took, uid) {
   return makeUnit(kind, { uid, lvl: s.kinds[kind].lvl, tracks: s.kinds[kind].tracks })
 }
 
-// A fusion made in a battle (turns.js `fused`: its price already paid, closeBattle): its parts leave the party (their
-// relics come back unheld) and its piece joins it with the uid it fought under, on the fuser's cell where its footprint
-// fits there as the battle ends, the souls that fell in it gone from the field (finishBattle: their cells free), else in
-// the ossuary (its HP the battle's, as any piece's: finishBattle).
-function fuseIn (run, f) {
-  const s = run.state
-  const took = s.party.filter((u) => f.parts.includes(u.uid))
-  const fuser = took.find((u) => u.uid === f.by)
-  const u = fused(s, f.id, took, f.uid)
-  const fell = souls(s.party).filter((x) => !(run.battle.byUid.get(x.uid)?.hp > 0))
-  if (fuser?.slot >= 0 && fits(s.camp, fuser.slot, sizeOf(u), takenBy(s, fell))) u.slot = fuser.slot
-  s.party.push(u)
-}
-
 function upgrade (run, { kind, track }) {
   if (!canUpgrade(run, kind, track)) throw new Error(`cannot upgrade ${kind} on track ${track}`)
   pay(run, tierCost(run, kind, track))
@@ -832,7 +818,7 @@ function fight (run) {
 }
 
 // The orders a battle takes (turns.js order): 'stall' only past the sim's bound on turns, the autoplayer's alone.
-const ORDERS = ['move', 'undo', 'act', 'fuse', 'end', 'stall']
+const ORDERS = ['move', 'undo', 'act', 'end', 'stall']
 
 // An order in the battle: given (turns.js order, which throws on one not legal now), logged, and its events
 // returned; the battle over, the run moves on (closeBattle).
@@ -844,13 +830,9 @@ function command (run, action) {
   return events
 }
 
-// A battle is over: the run takes the uids it used, pays what it spent of the purse (its fusions), takes its fusions'
-// pieces in place of their parts (fuseIn), and moves on (finishBattle).
+// A battle is over: the run takes the uids it used and moves on (finishBattle).
 function closeBattle (run) {
-  const b = run.battle
-  run.state.nextUid = b.nextUid
-  if (b.spent) pay(run, b.spent)
-  for (const f of b.fused) fuseIn(run, f)
+  run.state.nextUid = run.battle.nextUid
   finishBattle(run)
 }
 
@@ -1345,7 +1327,7 @@ function formation (rng, ids, lvl, captains, cohort, led = 0) {
 // relics' mods on a unit's stats (a side-wide cost, a kin banner's on its kin) go as `partyMods` (a piece relic's mods
 // go with its holder); Arise's reach
 // and tier for any holder as `arise` (ariseOf); every relic owned as `relics` (Court of Bone's Monarch that nothing
-// heals); the purse a fusion in battle pays from, and each recipe's price and its fused kind's level and tiers. Shadows
+// heals). Shadows
 // take uids after the foes' (the battle makes them: turns.js raise).
 // The foes (foeUnits): the room's formation stands from the start, and its later waves wait in the reserve, each
 // foe with `side: 'foe'`, its `wave` and its slot's `lane`; the foes take the first uids, the formation's then each
@@ -1371,9 +1353,7 @@ export function battleSetup (run, { party = fielded(run.state.party) } = {}) {
     arise: ariseOf(s),
     nextUid: s.nextUid + foes.length,
     relics: s.relics.slice(),
-    ...(s.ablate && { ablate: s.ablate.slice() }),
-    essence: s.essence,
-    fuse: Object.fromEntries(FUSION_LIST.map((r) => [r.id, { price: fuseCost(run, r.id), lvl: kindLevel(s, r.result), tracks: (s.kinds[r.result]?.tracks ?? [0, 0]).slice() }]))
+    ...(s.ablate && { ablate: s.ablate.slice() })
   }
 }
 

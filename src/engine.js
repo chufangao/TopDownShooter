@@ -4,9 +4,9 @@
 // back the events each one made, the foes' turn among them.
 import Phaser from './vendor/phaser.js'
 import { TUNING } from './tuning.js'
-import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, FUSIONS, ROLES } from './content.js'
+import { UNIT_LIST, unitDef, statusDef, animDef, abilityDef, artUrl, ART_POSES, relicDef, SYNERGIES, ROLES } from './content.js'
 import {
-  reach, targetsFrom, preview, legalOrders, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
+  reach, targetsFrom, preview, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
   lined, lineOf, lineStruck, stats, untouchedPreview
 } from './sim/turns.js'
 import { foeEssence, eliteBonus } from './sim/run.js'
@@ -943,7 +943,7 @@ class BattleScene extends Phaser.Scene {
     for (const a of this.actors.values()) if (a.side === 'foe') { if (!a.gone) foes++; else if (a.paid) slain++ }
     const court = this.locked() ? [] : b.units.filter((u) => u.side === 'party' && u.reap > 0 && alive(u))
     return {
-      foes, slain, owed: Math.round(this.owed), bank: b.purse, gain: this.essence,
+      foes, slain, owed: Math.round(this.owed), gain: this.essence,
       bonus: this.args.elite ? Math.round(eliteBonus(b.floor) * this.essence) : 0,
       court: court.length ? { n: court.length, essence: Math.round(court.reduce((n, u) => n + foeEssence(u) * u.reap, 0) * this.essence) } : null
     }
@@ -1580,10 +1580,6 @@ class BattleScene extends Phaser.Scene {
     this.send({ type: 'end' })
   }
 
-  fuse (o) {
-    if (!this.locked() && !this.paused) this.send(o)
-  }
-
   // Gives an order (args.order: the run applies it) and plays back its events; the board waits until they have
   // played (settle).
   send (o) {
@@ -1669,14 +1665,9 @@ class BattleScene extends Phaser.Scene {
     })
     return {
       uid: u.uid, id: u.id, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, acted: u.acted, hexed: hexed(u), relics: u.relics ?? [],
-      acts, aim: s.aim != null, undo: free && this.undoable(u), from: u.from, purse: b.purse,
+      acts, aim: s.aim != null, undo: free && this.undoable(u), from: u.from,
       // Aimed through a screen: the kind of the piece on the line that takes the blow (redesign.md §2.19).
-      screen: s.aim != null && s.shot && s.shot.hit !== s.aim ? unitDef(b.byUid.get(s.shot.hit)?.id ?? b.byUid.get(s.aim).id).name : null,
-      // Each fusion with the kinds of the other parts it takes, those beside it.
-      fusions: free ? legalOrders(b).filter((o) => o.type === 'fuse' && o.uid === u.uid).map((o) => ({
-        order: o, name: FUSIONS[o.id].name, price: b.fuse?.[o.id]?.price ?? null,
-        parts: o.parts.filter((x) => x !== u.uid).map((x) => unitDef(b.byUid.get(x).id).name)
-      })) : []
+      screen: s.aim != null && s.shot && s.shot.hit !== s.aim ? unitDef(b.byUid.get(s.shot.hit)?.id ?? b.byUid.get(s.aim).id).name : null
     }
   }
 
@@ -1976,26 +1967,6 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: this.flagged, alpha: 0, delay: 650, duration: 300, onComplete: () => { plate.destroy(); t.destroy() } })
   }
 
-  // A fusion in battle: its parts are drawn into the fuser's tile and go, and the fused piece rises there out of
-  // soulfire (enter).
-  fused (ev) {
-    const at = posAt(ev.unit.tile, ev.unit.size ?? 1)
-    for (const uid of ev.parts) {
-      const p = this.actors.get(uid)
-      if (!p) continue
-      p.gone = true
-      this.halt(p)
-      p.ring.setVisible(false)
-      p.sprite.disableInteractive()
-      this.tweens.add({ targets: p.sprite, x: at.x, y: at.y, duration: 360, ease: 'Quad.In' })
-      this.tweens.add({ targets: p, fade: 0, duration: 420, ease: 'Quad.In' })
-      this.tweens.add({ targets: this.parts(p), alpha: 0, duration: 260 })
-    }
-    this.burst(at.x, at.y - 20, SOUL, 18, { up: true, speed: 90 })
-    sfx.play('arise')
-    this.time.delayedCall(300, () => this.enter({ unit: ev.unit }))
-  }
-
   // A foe slain in a battle of waves: its essence goes to its wave's tally, and once the whole wave is slain
   // (or the battle ends, for one cut short by the Sovereign's fall) a popup says what that wave paid, relics
   // included, before the purse rounds the battle's total. Shadows pay nothing.
@@ -2253,10 +2224,9 @@ class BattleScene extends Phaser.Scene {
       this.changed()
       return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined
     }
-    // A turn of yours begins (its counts for the chrome), the foes' turn begins, a fusion in battle.
+    // A turn of yours begins (its counts for the chrome), the foes' turn begins.
     if (ev.type === 'turn') return this.newTurn(ev)
     if (ev.type === 'stage') return ev.stage === 'foes' ? this.flag('THE FOES\' TURN', '#ff8a9a', FOE) : undefined
-    if (ev.type === 'fuse') return this.fused(ev)
     if (ev.type === 'action') {
       // A counter: the struck answers at once, and says so over itself.
       if (ev.counter) { const x = this.actors.get(ev.actor); if (x) this.floating(x, 'COUNTER', '#ffb27a', 11) }
@@ -2768,7 +2738,6 @@ function spanOf (ev, template) {
     case 'wave': return 900
     case 'enter': return 600
     case 'arise': return 1100
-    case 'fuse': return 1000
     case 'death': return 450
     case 'hexed': return 500
     default: return 100

@@ -184,12 +184,12 @@ test('the rows\' inputs from a label row (teach.js) are the inputs in play, numb
     const view = rankerView(f, u, sit, opts, c)
     // teach.js's shortlist is policy.js's, option for option; the label's options are the row's, in its order, the same
     // kept.
-    const key = (o) => `${o.tile}|${o.ability?.id ?? ''}|${o.target?.uid ?? ''}|${o.fusion?.id ?? ''}`
+    const key = (o) => `${o.tile}|${o.ability?.id ?? ''}|${o.target?.uid ?? ''}`
     const g = fork(p.board)
     const gs = situation(g)
     gs.plan = readPlan(g, gs)
     assert.deepEqual(optionsAt(g, g.byUid.get(p.uid), gs).short.map(key), view.short.map(key))
-    const same = (o, r) => o.tile === r.tile && (o.ability?.id ?? null) === r.ability && (o.target?.uid ?? null) === r.target && (o.fusion?.id ?? null) === r.fusion
+    const same = (o, r) => o.tile === r.tile && (o.ability?.id ?? null) === r.ability && (o.target?.uid ?? null) === r.target
     assert.equal(view.label.length, row.options.length)
     view.label.forEach((o, i) => {
       assert.ok(same(o, row.options[i]), `option ${i}`)
@@ -283,7 +283,7 @@ test('a forest\'s inputs and prediction in play are its inputs and prediction on
     }
     const c = conditions(sit, u)
     const view = playing({}, () => rankerView(g, u, sit, opts, c))
-    const same = (o, x) => o.tile === x.tile && (o.ability?.id ?? null) === x.ability && (o.target?.uid ?? null) === x.target && (o.fusion?.id ?? null) === x.fusion
+    const same = (o, x) => o.tile === x.tile && (o.ability?.id ?? null) === x.ability && (o.target?.uid ?? null) === x.target
     assert.ok(same(view.own, d.today), `${row.id}: today's choice`)
     assert.deepEqual(Array.from(view.mean), Array.from(d.mean))
     const gain = predictor(f, c, u.id, view.mean, playOf(view.own))

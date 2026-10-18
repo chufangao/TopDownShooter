@@ -13,7 +13,7 @@ import {
 } from '../src/sim/unit.js'
 import { CAMP_LIST, RELICS, UNIT_LIST, FUSION_LIST, unitDef, statusDef } from '../src/content.js'
 import { createRng } from '../src/sim/rng.js'
-import { foeLevel, fuseCost, START_PARTY } from '../src/sim/run.js'
+import { foeLevel, START_PARTY } from '../src/sim/run.js'
 import { tuned, FIRST_ARISE } from './tuned.js'
 import { on, scene, slay, moves, turns, listFoesNextTo, listAuraGivers } from './scene.js'
 
@@ -384,47 +384,10 @@ test('Arise at its numbers: a corpse 7 tiles off rises, one 8 off does not; a ti
   assert.deepEqual(corpses(b, unit(b, 1)).map((c) => c.uid), [20], 'a tier 4 past a tier of 3')
 })
 
-test('fuse in battle: the parts are consumed, the price paid, the piece placed on the fuser\'s anchor; refused where a 2×2 cannot fit', () => {
-  const parts = [
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
-    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
-    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3 },
-    { id: 'iron_golem', uid: 9, side: 'foe', x: 6, y: 10, lvl: 20 }
-  ]
-  const priced = { bone_colossus: { price: 30, lvl: 2, tracks: [0, 0] } }
-  const b = field(parts, { essence: 100, fuse: priced })
-  const lit = legalOrders(b).filter((o) => o.type === 'fuse')
-  assert.ok(lit.some((o) => o.uid === 1 && o.id === 'bone_colossus'))
-  const events = order(b, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] })
-  const made = events.find((e) => e.type === 'fuse')
-  assert.deepEqual([made.recipe, made.parts, made.price, made.unit.id, made.unit.tile, made.unit.size], ['bone_colossus', [1, 2, 3], 30, 'bone_colossus', at(2, 2), 2])
-  assert.deepEqual([b.purse, b.spent], [70, 30])
-  assert.deepEqual(b.fused.map((f) => [f.recipe, f.parts, f.price, f.lvl]), [['bone_colossus', [1, 2, 3], 30, 3]])
-  for (const uid of [1, 2, 3]) assert.ok(!alive(unit(b, uid)) && unit(b, uid).into === made.unit.uid, `${uid} consumed`)
-  const piece = unit(b, made.unit.uid)
-  assert.equal(piece.hp, piece.maxHp, 'full HP')
-  for (const t of footprint(at(2, 2), 2)) assert.equal(b.at[t], piece)
-  assert.ok(piece.acted, 'the fuser\'s act')
-  // Not where its footprint is held, and not past the purse.
-  const blocked = field([...parts, { id: 'grave_ghoul', uid: 4, side: 'party', x: 3, y: 3 }], { essence: 100, fuse: priced })
-  assert.ok(!legalOrders(blocked).some((o) => o.type === 'fuse' && o.uid === 1))
-  assert.throws(() => order(blocked, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] }))
-  const walled = field(parts, { essence: 100, walls: [at(3, 3)], fuse: priced })
-  assert.throws(() => order(walled, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] }))
-  const poor = field(parts, { essence: 29, fuse: priced })
-  assert.ok(!legalOrders(poor).some((o) => o.type === 'fuse'))
-  // The price is the run's (run.js fuseCost, carried in the setup): a battle keeps none of its own.
-  const unpriced = field(parts, { essence: 1e4 })
-  assert.ok(!legalOrders(unpriced).some((o) => o.type === 'fuse'))
-  assert.throws(() => order(unpriced, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] }))
-})
-
 // A floor-1 battle: a camp of the floor's with its walls, the Monarch on its seat, a party of the floor's kinds at
 // random tiers, some holding a relic each, a formation of its foes, and sometimes a later wave.
 const FLOOR_1 = ['tomb_knight', 'bone_chanter', 'frost_sprite', 'hive_warden', 'clockwork_page', 'grave_ghoul', 'will_o_wisp', 'pyre_hound']
 const RELIC_POOL = ['arise', 'whetstone', 'heartwood', 'tower_shield', 'grave_bell', 'blood_chalice', 'balm', 'war_drum', 'hunters_mark', 'iron_oath']
-// Every recipe priced as a floor-1 run with no relics prices it (run.js fuseCost; battleSetup carries the table).
-const PRICED = Object.fromEntries(FUSION_LIST.map((r) => [r.id, { price: fuseCost({ state: { floor: 1, relics: [] } }, r.id), lvl: 2, tracks: [0, 0] }]))
 function floorOne (seed) {
   const rng = createRng(seed)
   const camp = rng.pick(CAMP_LIST.filter((c) => c.floor === 1)).id
@@ -438,7 +401,7 @@ function floorOne (seed) {
   party.push(makeUnit('monarch', { uid: 0, slot: seat }))
   const foes = autoPlace(Array.from({ length: 3 + rng.int(3) }, (_, i) => makeUnit(rng.pick(FLOOR_1), { uid: 100 + i, lvl: 1 + rng.int(3) })))
   const reserve = rng.chance(0.5) ? [0, 1].map((i) => ({ ...makeUnit(rng.pick(FLOOR_1), { uid: 200 + i, lvl: 2 }), side: 'foe', wave: 1, lane: rng.int(7), slot: -1 })) : []
-  return { party, foes, reserve, floor: 1, walls: wallTiles(camp), relics, essence: rng.int(80), fuse: PRICED, nextUid: 300 }
+  return { party, foes, reserve, floor: 1, walls: wallTiles(camp), relics, nextUid: 300 }
 }
 
 // What must hold of a battle at every step: each foe on its road, each tile held by at most one unit in each layer and
@@ -1112,8 +1075,6 @@ test('Arise never raises a boss, a shadow, one consumed by a fusion, or its own 
   assert.deepEqual(raisable(shade), [])
   unit(shade, 10).shadow = false
   assert.deepEqual(raisable(shade), [10])
-  unit(shade, 10).into = 99
-  assert.deepEqual(raisable(shade), [], 'consumed by a fusion')
   assert.deepEqual(raisable(build([on('grave_ghoul', 5, 'party', 3, 3, 2)])), [], 'never its own dead')
   const past = build([on('grave_ghoul', 10, 'foe', 3, 4, 2)])
   assert.ok(order(past, { type: 'act', uid: 1, ability: 'arise', target: 10 }).some((e) => e.type === 'arise'), 'two souls on a board of one, and it raised')
@@ -1299,26 +1260,6 @@ test('a status laid again lasts the longer, counting a turn the second does not 
   assert.deepEqual(u.statuses.map((s) => [s.id, s.dur, s.fresh]), [['withered', 1, true]])
 })
 
-test('a part fused away gives its relics back: a Burning it laid that slays later fires none of them', () => {
-  const b = field([
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 2, y: 2 },
-    { id: 'tomb_knight', uid: 2, side: 'party', x: 3, y: 2 },
-    { id: 'bone_chanter', uid: 3, side: 'party', x: 2, y: 3, relics: ['hunters_mark'] },
-    { id: 'clockwork_page', uid: 9, side: 'foe', x: 4, y: 9 },
-    { id: 'clockwork_page', uid: 10, side: 'foe', x: 5, y: 9 }
-  ], { essence: 100, fuse: { bone_colossus: { price: 30, lvl: 2, tracks: [0, 0] } } })
-  const foe = unit(b, 9)
-  addStatus(b, foe, 'burning', 3, unit(b, 3))
-  order(b, { type: 'fuse', id: 'bone_colossus', uid: 1, parts: [1, 2, 3] })
-  foe.hp = 1
-  const from = b.events.length
-  runEffect(b, { op: 'dot', power: 12 }, foe, [foe], null, foe.statuses[0])
-  const ev = b.events.slice(from)
-  assert.ok(ev.some((e) => e.type === 'death' && e.target === 9))
-  assert.ok(!ev.some((e) => e.type === 'trigger'), 'Hunter\'s Mark went back to the run with its holder')
-  assert.ok(!unit(b, 10).statuses.some((s) => s.id === 'brittle'))
-})
-
 test('the battle is lost the instant the Monarch falls: a blow that fells it draws no counter after', () => {
   // A Knight's Cleave (a melee row) at a Knight of yours fells the Monarch beside it in the row; the Knight it struck
   // still stands, within its arm, and would answer, but the battle is over.
@@ -1340,11 +1281,11 @@ test('the battle is lost the instant the Monarch falls: a blow that fells it dra
 })
 
 // A battle as it stands, for comparing: every unit's place, HP, turn fields, statuses and cooldowns, the tile index, the
-// purse, the events and the counts.
+// events and the counts.
 const snapshot = (b) => JSON.stringify({
   units: b.units.map((u) => [u.uid, u.tile, u.hp, u.maxHp, u.acted, u.moved, u.from, u.statuses, u.cooldowns, u.relics]),
   at: b.at.map((u) => u?.uid ?? null), sky: b.sky.map((u) => u?.uid ?? null),
-  purse: b.purse, spent: b.spent, events: b.events.length, beat: b.beat, turn: b.turn, uid: b.nextUid, over: b.over, fused: b.fused.length
+  events: b.events.length, beat: b.beat, turn: b.turn, uid: b.nextUid, over: b.over
 })
 
 test('fuzz: every legal order is taken, and every order refused changes nothing', () => {

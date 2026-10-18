@@ -13,8 +13,8 @@
 // what the foes would take of yours next turn where it ends (souls, shadows and the Monarch, a fall its max HP more:
 // features' `loss`, `shadowLoss`, `hit` with TUNING.expert.battle.brink and .peril at 0, so a wound counts its HP and
 // no more). A hold counts what End Turn will have it strike or mend from there. The pieces go in the order of their
-// best option on the turn's first board, each read again on the board as the ones before left it. No fusion in battle
-// (a fusion is a purchase: the teacher's, out of battle).
+// best option on the turn's first board, each read again on the board as the ones before left it. A fusion is a purchase
+// out of battle, the teacher's.
 //
 // Out of battle (calcStep, calcDecision), each decision's options in a fixed order, the first its pick:
 //   draft    the offers, the highest tier first

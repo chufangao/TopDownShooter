@@ -1662,39 +1662,3 @@ test('a fight opens the battle: its orders are the run\'s actions, each returnin
   }
 })
 
-test('a fusion in battle pays from the purse, its parts leave the party (the relics they held back unheld), its piece joins it and its kind', () => {
-  const run = atBattle('fusebattle')
-  const s = run.state
-  join(run, 'tomb_knight')
-  const [a, b] = souls(s.party).filter((u) => u.id === 'tomb_knight')
-  const c = souls(s.party).find((u) => u.id === 'bone_chanter')
-  for (const u of souls(s.party)) u.slot = OSSUARY
-  // Two Knights side by side, the Chanter before the first, and the fourth cell of the Colossus's 2×2 open.
-  const slot = [...Array(CAMP_SLOTS).keys()].find((x) => rowOf(x) > 0 && fits(s.camp, x, 2, new Set([monarchSlot(s.camp)])))
-  Object.assign(a, { slot })
-  Object.assign(b, { slot: slot + 1 })
-  Object.assign(c, { slot: slot - COLS })
-  s.relics = ['whetstone']
-  b.relics = ['whetstone']
-  assert.deepEqual(unheld(s), [])
-  s.essence = 200
-  const spent = s.stats.spent
-  const earned = s.stats.essence
-  apply(run, { type: 'fight' })
-  const o = legalActions(run).find((x) => x.type === 'fuse' && x.uid === a.uid)
-  assert.deepEqual([o.id, [...o.parts].sort((x, y) => x - y)], ['bone_colossus', [a.uid, b.uid, c.uid].sort((x, y) => x - y)])
-  const price = run.setup.fuse.bone_colossus.price
-  assert.equal(price, fuseCost(run, 'bone_colossus'))
-  apply(run, o)
-  assert.equal(run.battle.purse, 200 - price)
-  while (s.phase === 'battle') apply(run, { type: 'end' })
-  assert.equal(s.stats.spent, spent + price)
-  assert.equal(s.essence, 200 - price + s.stats.essence - earned)
-  for (const uid of o.parts) assert.ok(!s.party.some((u) => u.uid === uid), `part ${uid} gone`)
-  assert.deepEqual(unheld(s), ['whetstone'], 'its relic back, unheld')
-  const piece = s.party.find((u) => u.uid === run.battle.fused[0].uid)
-  assert.ok(piece && piece.id === 'bone_colossus' && !piece.relics?.length)
-  assert.deepEqual([piece.lvl, piece.tracks], [s.kinds.bone_colossus.lvl, s.kinds.bone_colossus.tracks])
-  assert.ok(piece.lvl >= kindLevel(s, 'tomb_knight'))
-  assert.equal(piece.slot, piece.hp > 0 ? slot : OSSUARY, 'on the fuser\'s cell, or fallen')
-})

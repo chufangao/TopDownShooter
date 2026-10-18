@@ -180,10 +180,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
    the piece's bars). */
 .cd-pip { flex: none; width: 10px; height: 10px; border-radius: 3px 2px 3px 2px; background: var(--c-monarch); box-shadow: 0 0 0 1.5px var(--ink); rotate: 8deg; }
 .cd-pip.rest { background: #3a3258; }
-.fuse-btn { color: var(--c-path); }
-.fuse-btn.confirm { background: #164852; color: var(--bright); box-shadow: inset 0 0 0 2px var(--c-path), inset 0 -4px 0 #0d2d34, var(--drop-sm); }
-.fuse-btn.confirm:hover:not([aria-disabled]) { background-color: #1b5662; color: var(--bright); }
-.fuse-btn .price, .sel-acts .price { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: var(--c-essence2); }
+.sel-acts .price { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: var(--c-essence2); }
 /* What a tap does next stays in view at the box's foot while the orders above it scroll. */
 .sel-line { position: sticky; bottom: calc(-1 * var(--pad)); margin-bottom: calc(-1 * var(--pad)); padding-bottom: var(--pad); background: var(--sunk); font-size: var(--fs-sm); line-height: 1.3; min-height: 1.3em; }
 .sel-line .aim-line { color: var(--c-warn); }

@@ -2385,7 +2385,6 @@ export function battleChrome ({ onHelp = null } = {}) {
     for (const n of names) m.set(n, (m.get(n) ?? 0) + 1)
     return [...m].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(', ')
   }
-  const the = (names) => names.map((n) => `the ${n}`).join(', ').replace(/, (?=[^,]*$)/, ' and ')
   const count = h('b', null, '0')
   // The purse's card (engine.js tally, as the playback has shown the battle): what the foes slain so far carry, the
   // relics' share in, and the purse a win pays it into; what a win adds besides (an elite's bounty, Hollow Court's
@@ -2482,14 +2481,11 @@ export function battleChrome ({ onHelp = null } = {}) {
 
   // The selected piece's orders (engine.js panel): its name, HP, Move left and the relic it holds; an act a button
   // (the armed one lit), a skill with its cooldown pip (lit: ready; dark: resting a turn), Arise among them for a
-  // holder of its relic; Undo while its move may be undone; a Fuse for each recipe whose parts stand beside it (a
-  // second press makes it). With none selected, how to begin.
-  let fusing = null
+  // holder of its relic; Undo while its move may be undone. With none selected, how to begin.
   function selection () {
     const p = st.panel
     // With none selected: how many of yours may still act, and which (engine.js roster, read while the board takes orders).
     if (!p) {
-      fusing = null
       const r = st.roster
       return fill(selBox, h('p', { class: 'bs-hint dim' }, st.over ? 'The battle is over.' : st.busy || !r ? 'The turn plays out…'
         : r.ready.length ? [`${r.ready.length} of ${r.total} still to act: ${group(r.ready)}. `, say('Click', 'Tap'), ' one, or ', h('b', null, 'End Turn'), '.']
@@ -2521,13 +2517,6 @@ export function battleChrome ({ onHelp = null } = {}) {
       class: 'act-btn' + (a.armed ? ' armed' : '') + (a.skill ? ' skill' : '') + (a.arise ? ' arise' : ''), 'aria-pressed': a.armed ? 'true' : 'false',
       'aria-disabled': a.can ? null : 'true', onclick: () => a.can && scene?.arm(a.id), tip: actTip(a)
     }, pip(a), h('span', { class: 'act-name' }, a.name), h('span', { class: 'act-kind' }, a.skill ? 'skill' : 'basic')))
-    const fuses = p.fusions.map((f) => btn({
-      class: 'fuse-btn' + (fusing === f.order.id ? ' confirm' : ''), 'data-sfx': 'none',
-      onclick: () => { if (fusing === f.order.id) { fusing = null; scene?.fuse(f.order) } else { fusing = f.order.id; sfx.play('select'); selection() } },
-      tip: () => h('div', { class: 'syn-tip' }, h('b', null, f.name),
-        `: takes this ${d.name}${f.parts.length ? `, ${the(f.parts)} beside it` : ''}, ${f.price ?? '?'} essence (you have ${p.purse}). Stands here at full HP as its act.`,
-        h('p', { class: 'dim' }, 'Press again to fuse.'))
-    }, icon('fuse', 18), fusing === f.order.id ? `Fuse: ${f.name}?` : `Fuse ${f.name}`, f.price != null && h('span', { class: 'price' }, icon('soul', 14), f.price)))
     const armed = p.acts.find((a) => a.armed)
     // The armed act with nothing to take from here: why (it rests, no ally needs it), and who a move brings in reach
     // (engine.js actInfo `later`), or that none would, or that it has no Move left.
@@ -2555,9 +2544,8 @@ export function battleChrome ({ onHelp = null } = {}) {
             h('span', { class: 'sel-move', tip: () => `Move: ${p.move - p.moved} of ${p.move} tiles left this turn.` }, `Move ${Math.max(0, p.move - p.moved)}/${p.move}`)),
           p.relics.length > 0 && h('div', { class: 'sel-relic' }, p.relics.map((id) => h('span', { class: `rs-relic rt-${relicDef(id).tier}`, tip: () => relicTip(id) }, icon(relicIcon(id), 14), relicDef(id).name))))),
       acts.length > 0 && h('div', { class: 'sel-acts' }, acts),
-      (p.undo || fuses.length > 0) && h('div', { class: 'sel-acts' },
-        p.undo && btn({ class: 'undo-btn', onclick: () => scene?.undo(), tip: () => `Back to ${tileText(p.from)}, Move ${p.move}/${p.move} again. (U)` }, icon('undo', 18), 'Undo move'),
-        fuses),
+      p.undo && h('div', { class: 'sel-acts' },
+        btn({ class: 'undo-btn', onclick: () => scene?.undo(), tip: () => `Back to ${tileText(p.from)}, Move ${p.move}/${p.move} again. (U)` }, icon('undo', 18), 'Undo move')),
       h('div', { class: 'sel-line' }, line))
   }
 
@@ -2588,7 +2576,7 @@ export function battleChrome ({ onHelp = null } = {}) {
         title.textContent = t
         crown.hidden = !monarch
       },
-      // Each side's synergies as the battle holds them now (engine.js changed: a fuse, a fall or a rise may change
+      // Each side's synergies as the battle holds them now (engine.js changed: a fall or a rise may change
       // them mid-battle).
       synergies ({ theirs: th, mine: m }) {
         list(theirs, th, true)

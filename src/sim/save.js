@@ -18,7 +18,7 @@ import { replay, monarchOf, currentNode } from './run.js'
 
 // 2 since the floors' bosses (redesign.md §4.7, Step 9): a run's floors are drawn on its souls since, so a save from
 // before them no longer plays, and is set aside at the title with its note rather than offered to Continue.
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3 // 3 since 2026-10-17: no order fuses in battle, so an older log may no longer play
 
 // Where a run stands, as a save keeps it: the floor, the rank of the room it stands in (0: the floor's start), the
 // phase, the battle's turn (null out of battle), the purse, the Monarch's HP, and how many actions it took.
