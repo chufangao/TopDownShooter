@@ -310,7 +310,7 @@ export const UNIT_LIST = [
         { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
         { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
         { desc: 'Gains an aura: allies next to it get +8% DEF.', aura: { range: 1, desc: 'Allies next to it get +8% DEF.', mods: [m('def', 'mul', 1.08)] } },
-        { desc: 'Learns Veil: Veiled (+20% DEF) for itself and every ally within 2 tiles.', ability: { id: 'veil' } }] }
+        { desc: 'Learns Veil: Barkskin (+25% DEF) for itself and every ally within 2 tiles.', ability: { id: 'veil' } }] }
     ],
     spawn: { weight: 11, minFloor: 1 },
     threats: ['reach'],
@@ -830,7 +830,7 @@ export const UNIT_LIST = [
         { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
         { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
         { desc: 'Gains an aura: allies within 2 tiles get +8% DEF.', aura: { range: 2, desc: 'Allies within 2 tiles get +8% DEF.', mods: [m('def', 'mul', 1.08)] } },
-        { desc: 'Court of Frost becomes Court Eternal: every ally within 4 tiles has its skills a turn sooner, and is Veiled.', ability: { id: 'court_eternal', replace: 'court_of_frost' } }] }
+        { desc: 'Court of Frost becomes Court Eternal: every ally within 4 tiles has its skills a turn sooner, and gains Barkskin.', ability: { id: 'court_eternal', replace: 'court_of_frost' } }] }
     ],
     threats: ['reach', 'drain', 'shape'],
     art: 'pale_court',
@@ -1625,7 +1625,7 @@ const ABILITY_LIST = [
     range: 2,
     tint: '#b57bff',
     anim: 'cast_beam',
-    effects: [{ op: 'apply_status', status: 'veiled' }]
+    effects: [{ op: 'apply_status', status: 'barkskin' }]
   },
   {
     id: 'verdant_bloom',
@@ -2169,7 +2169,7 @@ const ABILITY_LIST = [
     range: 4,
     tint: '#cfe3ff',
     anim: 'cast_beam',
-    effects: [{ op: 'cooldown', amount: -1 }, { op: 'apply_status', status: 'veiled' }]
+    effects: [{ op: 'cooldown', amount: -1 }, { op: 'apply_status', status: 'barkskin' }]
   },
   {
     id: 'cinder_storm',
@@ -2434,6 +2434,8 @@ const STATUS_LIST = [
     mods: [{ path: 'damage.taken', op: 'mul', v: 0.95 }],
     tick: [{ op: 'heal', power: 48 }]
   },
+  // The one DEF ward (DESIGN Next, Step 3, 2026-10-18: Barkskin and Veiled merged, the abilities that laid Veiled's
+  // ×1.2 for 3 turns lay it now).
   {
     id: 'barkskin',
     desc: '+25% DEF.',
@@ -2444,16 +2446,7 @@ const STATUS_LIST = [
     stacks: 1,
     mods: [{ path: 'def', op: 'mul', v: 1.25 }]
   },
-  {
-    id: 'veiled',
-    desc: '+20% DEF.',
-    name: 'Veiled',
-    tags: ['buff'],
-    colour: '#9fb6d9',
-    turns: 3,
-    stacks: 1,
-    mods: [{ path: 'def', op: 'mul', v: 1.2 }]
-  },
+
   {
     id: 'withered',
     desc: '−20% ATK.',
@@ -2595,7 +2588,7 @@ export const BEHAVIOURS = {
 
 // What laying a status is worth to the policy (policy.js score), in HP-equivalents a stack. Placeholders.
 export const STATUS_WORTH = {
-  brittle: 20, hasten: 20, regen: 40, barkskin: 25, veiled: 20, withered: 20, enraged: 25, desperate: 20,
+  brittle: 20, hasten: 20, regen: 40, barkskin: 25, withered: 20, enraged: 25, desperate: 20,
   burning: 24, bleeding: 16, hexed: 40, shield: 30, rooted: 30, bloodlust: 12
 }
 

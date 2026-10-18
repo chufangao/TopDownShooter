@@ -440,7 +440,7 @@ test('every ability is ops, a shape and an anim; Hexed for one act or two; no co
 
 // The statuses' turns (§2.8): 'battle' the battle; Hexed's turns the acts it costs.
 const TURNS = {
-  brittle: 3, hasten: 2, regen: 5, barkskin: 4, veiled: 3, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4, rooted: 1, bloodlust: 'battle' }
+  brittle: 3, hasten: 2, regen: 5, barkskin: 4, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4, rooted: 1, bloodlust: 'battle' }
 
 test('every status lasts turns, is drawn in its colour, has a worth, and its text is for turns', () => {
   assert.deepEqual(Object.keys(STATUSES).sort(), Object.keys(TURNS).sort())
@@ -473,8 +473,8 @@ test('every status lasts turns, is drawn in its colour, has a worth, and its tex
     const mods = STATUSES[id].mods
     assert.ok(['move', 'cooldown.rate'].every((path) => mods.some((x) => x.path === path && x.op === 'add' && x.v === 1)), id)
   }
-  // Veiled: +20% DEF.
-  assert.deepEqual(STATUSES.veiled.mods, [{ path: 'def', op: 'mul', v: 1.2 }])
+  // Barkskin, the one DEF ward (Veiled merged into it, DESIGN Next, Step 3): +25% DEF.
+  assert.deepEqual(STATUSES.barkskin.mods, [{ path: 'def', op: 'mul', v: 1.25 }])
 })
 
 test('a status shapes stats the way its mods say', () => {
