@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Cinder Whelp, fallen: tipped over backwards onto its back in a drift of ash, clown feet stuck up stiff, the head
+       flopped back with X for eyes (a matched pair) and the tongue spilled out, the baby wing squashed underneath; the
+       tail-flame snuffed to a curl of smoke and the eggshell cap rolled off, rocking upside down. Same parts as the alive
+       picture, a shade greyer. -->
+  <defs>
+    <filter id="cwd-ink" x="-6%" y="-6%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feFlood flood-color="#1d1427"/><feComposite in2="SourceAlpha" operator="in"/><feOffset dx="1.1" dy="1.3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- a drift of ash -->
+  <path d="M5 88.6 C8 84.6 26 84 48 84.4 C70 84.8 88 84.6 92 87.6 C94 90.6 82 93.2 52 93.4 C26 93.6 4 92.4 5 88.6 Z" fill="#4a4250"/>
+  <!-- the snuffed tail-flame, a curl of smoke -->
+  <path d="M78.6 78.6 C76.4 75 79.6 72.6 78.4 69 C77.6 66.6 79.4 64.8 81.4 65.8" fill="none" stroke="#a39cab" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+  <g filter="url(#cwd-ink)" stroke="#1d1427" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- the baby wing, squashed flat underneath -->
+    <path d="M30 84 C34 80.4 40 79.6 46 80.6 L44.6 85.4 L49.6 84 L48.4 88.6 L42 88.8 C37 88.8 32.6 87.6 30 84 Z" fill="#a84a3a" stroke-width="2"/>
+    <path d="M44.2 81.2 L32.4 84.6 M45.6 84.4 L36 87.4" fill="none" stroke="#d27a4a" stroke-width="1.4"/>
+    <!-- the tail, laid out along the ground, its tip smoking -->
+    <path d="M58 79 C64 80.4 69 81.8 73.4 82.6 C75.6 83 77.4 82.4 78.2 81.2 C79.8 82.6 79.4 85.6 76.6 86.6 C71 88.2 65 88 58.6 86 Z" fill="#d27a4a"/>
+    <path d="M60 85.2 C66 86.8 72 87.2 76.4 86.4 C72 88.2 66 88.2 59.6 86.8 Z" fill="#9c4c2e" stroke="none"/>
+    <path d="M66.4 81.2 L68.2 78 L70.2 81.6 Z" fill="#ddd2bc" stroke-width="1.3"/>
+    <path d="M77.4 82 C76.6 80.6 77.4 79 78.8 78.8 C80.4 78.8 81.2 80.4 80.4 81.8 C79.8 82.8 78.2 83 77.4 82 Z" fill="#6c6474" stroke-width="1.4"/>
+    <!-- the back leg, stuck up stiff, the clown foot's sole to the sky -->
+    <path d="M61 70 C60.8 64.6 62.4 59.6 65.6 55.6 L70.4 57.6 C68 61 67 64.8 67.4 69.4 Z" fill="#9c4c2e"/>
+    <path d="M62.6 56.4 C62.6 54 64.6 52.6 67.4 52.6 L76 52.6 C78.2 52.6 79.4 53.6 79.6 55 C79.8 56.4 78.8 57.2 77.4 57.4 C73.4 58 68.4 58.2 64.6 57.8 C63.4 57.6 62.6 57.2 62.6 56.4 Z" fill="#9c4c2e"/>
+    <path d="M78.8 54 L82 53 L80.4 55.8 Z" fill="#ddd2bc" stroke-width="1.3"/>
+    <!-- the pot-belly, on its back, the cream plate to the sky -->
+    <path d="M30 76 C30 67 38 61.6 48 61.6 C58 61.6 66.6 66.6 66.6 75 C66.6 82 60 86.6 48 86.6 C37 86.6 30 83 30 76 Z" fill="#d27a4a"/>
+    <path d="M31.4 80 C34 84.4 40 86.4 48 86.4 C57 86.4 63.6 83.6 65.8 79 C62 82 56 83.4 48 83.4 C40 83.4 34.6 82.4 31.4 80 Z" fill="#9c4c2e" stroke="none"/>
+    <path d="M34.6 70.4 C37.6 65.4 42.8 63.4 48.6 63.4 C54.4 63.4 59.6 65.6 62.2 69.8 C58 71.8 53 72.6 48 72.6 C43 72.6 38.2 71.8 34.6 70.4 Z" fill="#e6cd9c" stroke-width="1.8"/>
+    <path d="M36.6 70.6 C40 72 44 72.4 48 72.4 C53 72.4 57.6 71.8 61.6 70.2 C58 73 53 73.6 48 73.6 C43.6 73.6 39.6 72.8 36.6 70.6 Z" fill="#c4a266" stroke="none"/>
+    <path d="M43.6 64.4 C42.6 66.6 42.4 69.4 43 72 M53.4 64.4 C54.4 66.6 54.6 69.4 54 72" fill="none" stroke="#c4a266" stroke-width="1.4"/>
+    <!-- the front leg, stuck up stiff, the big clown foot's sole to the sky -->
+    <path d="M53 67 C52 61.6 53 56.4 56 52.6 L61.4 53.8 C59.4 57.4 59 61.6 60 66.4 Z" fill="#d27a4a"/>
+    <path d="M50.4 51.4 C50.4 48.6 52.6 47 55.6 47 L66 47 C68.8 47 70.4 48.2 70.8 49.8 C71 51.4 70 52.4 68.2 52.6 C63 53.2 57 53.4 52.6 53 C51.2 52.8 50.4 52.4 50.4 51.4 Z" fill="#d27a4a"/>
+    <path d="M51.4 47.6 C52.4 46.4 54 45.4 56 45.4 L66.4 45.4 C68.4 45.4 70 46.2 70.6 47.8 C69.4 47.2 67.8 47 66 47 L55.6 47 C53.8 47 52.4 47.2 51.4 47.6 Z" fill="#9c4c2e" stroke-width="1.8"/>
+    <path d="M69.6 48 L73.2 47 L71.4 50 Z M70.2 51 L73.6 51.4 L70.8 53 Z" fill="#ddd2bc" stroke-width="1.3"/>
+    <!-- a T-rex arm flopped up off the belly -->
+    <path d="M40.4 61 C39.6 57.4 40 54 41.6 51 L44.4 52 C43.2 54.8 43 57.6 43.6 60.6 Z" fill="#d27a4a"/>
+    <path d="M40.6 51.6 C39.4 50 40 48 41.8 47.6 C43.6 47.2 45.2 48.6 45 50.4 C44.8 52 43 53 41.6 52.6 C41.2 52.4 40.8 52 40.6 51.6 Z" fill="#d27a4a" stroke-width="1.8"/>
+    <path d="M40.6 47.6 L39.8 45.6 M43.2 47.2 L43.4 45" fill="none" stroke-width="1.3"/>
+    <!-- the head, flopped back on the ground, chin to the sky -->
+    <g transform="translate(20 70.6) rotate(-38) scale(.8) translate(-62 -36)">
+      <path d="M42 36 C41.4 27 47.6 20.4 56.6 20 C63 19.8 68 22.6 70.6 27 C75.6 27.4 81 29.4 84 33 C86.4 36 85.6 40.6 82.6 43 C79 46 73 47.4 66 47.6 C61 50.4 53 51.4 47.6 48.6 C43.6 46.4 42.2 41.6 42 36 Z" fill="#d27a4a"/>
+      <path d="M44 30 C46 24 51 20.6 56.6 20 C51 22.6 47 27 45.6 33 C44.8 32.6 44.2 31.4 44 30 Z" fill="#9c4c2e" stroke="none"/>
+      <path d="M72 29.4 C76 29.8 79.6 31.2 81.6 33.4 C78.2 32.6 74.6 31.6 72 29.4 Z" fill="#e49a6c" stroke="none"/>
+      <path d="M79.8 33.4 C80.8 33 81.8 33.6 81.6 34.6" fill="none" stroke-width="1.4"/>
+      <!-- the jaw hanging slack -->
+      <path d="M64.4 40.6 C70 43 77 43 83 39.4 C82 43.4 78 46.4 72.6 46.6 C68.6 46.6 65.8 44 64.4 40.6 Z" fill="#3b1630" stroke-width="1.8"/>
+      <path d="M73.4 42.6 L74.2 45 L75.6 42.4 Z" fill="#fff4dc" stroke-width="1"/>
+      <!-- X for eyes, a matched pair -->
+      <path d="M48.6 33.4 C48.6 29.8 51.4 27.4 54.8 27.4 C58.2 27.4 60.8 30 60.8 33.4 C60.8 37 58 39.6 54.6 39.6 C51.2 39.6 48.6 37 48.6 33.4 Z M61 32.8 C61 29.2 63.8 26.8 67.2 26.8 C70.6 26.8 73.2 29.4 73.2 32.8 C73.2 36.4 70.4 39 67 39 C63.6 39 61 36.4 61 32.8 Z" fill="#f2eee8" stroke-width="1.8"/>
+      <path transform="rotate(38 54.8 33.4)" d="M52.2 30.8 L57.4 36 M57.4 30.8 L52.2 36" fill="none" stroke-width="2"/>
+      <path transform="rotate(38 67.2 32.8)" d="M64.6 30.2 L69.8 35.4 M69.8 30.2 L64.6 35.4" fill="none" stroke-width="2"/>
+    </g>
+    <!-- the tongue, spilled out on the ash -->
+    <path d="M33.4 66.6 C36.4 68.2 38 72 37.6 75.6 C37.2 78.2 34.6 79.6 32.6 78.2 C31 76.8 31.8 74.2 32 71.8 C32.2 69.8 32.4 67.8 33.4 66.6 Z" fill="#d8708a" stroke-width="1.6"/>
+    <path d="M34.2 70 L34.8 75" fill="none" stroke="#a8473a" stroke-width="1.1"/>
+    <!-- the eggshell cap, rolled off, rocking upside down -->
+    <g transform="translate(86 79) rotate(172) scale(.72) translate(-56 -21)">
+      <path d="M44 28.2 C43.2 20.2 47.8 13.4 55.4 12.6 C62.6 12 67.8 16.6 68.8 23.4 L66 21.6 L64.2 25.8 L60.8 22.8 L57.8 27 L54.6 23.4 L51.4 27.4 L48.6 24.2 L46.4 28.6 Z" fill="#e4ded2" stroke-width="2.1"/>
+      <path d="M44.6 20.6 C44 23 44 25.6 44 28.2 L46.4 28.6 L47.6 26 C46 24.4 45 22.6 44.6 20.6 Z" fill="#c8bfac" stroke="none"/>
+      <path d="M57.6 12.8 L58.6 15.8 L56.8 18.2 M52 13.4 L51 16.8" fill="none" stroke-width="1.1"/>
+      <path d="M50 17.2 L50.1 17.3 M61.6 19.2 L61.7 19.3 M48.4 21.6 L48.5 21.7 M53.8 15.6 L53.9 15.7" fill="none" stroke="#b89a68" stroke-width="1.4"/>
+    </g>
+    <path d="M73 89 L71 90.4 M92 85 L94 86.4" fill="none" stroke="#a39cab" stroke-width="1.4"/>
+  </g>
+</svg>

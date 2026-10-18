@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Thornling: a little fae of bramble and bark, a stump that got up and stood in the way, holding the line behind a shield
+       sawn from a log. Goofy pass: a squat round stump of a body that is all head, a big matched pair of fae eyes, both
+       on the foe, a stubborn underbite with one thorn for a tooth; a tangled crown of brambles with a few leaves, one pink
+       blossom and a sprout sticking up; a thorny bramble arm curled up behind ready to swipe, the log-slice shield too big
+       for it, rings and a crack; stubby root legs with splayed toes. Flat cel: base + one shadow; ink offset down-right. -->
+  <defs>
+    <filter id="tl-ink" x="-6%" y="-6%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feFlood flood-color="#1d1427"/><feComposite in2="SourceAlpha" operator="in"/><feOffset dx="1.1" dy="1.3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#tl-ink)" stroke="#1d1427" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- the bramble arm, curled up behind, thorns out -->
+    <g fill="none"><g stroke-width="5.4"><path id="tl-arm" d="M33 58 C26 58 19.6 54.6 16.6 48.4 C14 43 15.4 36.6 20.4 34.4 C24.4 32.8 28 35.6 27 39.2"/></g><use href="#tl-arm" stroke="#6f8a34" stroke-width="3"/></g>
+    <path d="M22.6 56.4 L20.4 60.6 L25.8 57.6 Z M16.4 50.4 L11.4 51.6 L16 46.6 Z M14.6 40.4 L10.6 37.6 L16.4 37 Z M21.6 33.4 L21.4 28.6 L25 33.2 Z M28 40.4 L31.6 42.6 L27 43.4 Z" fill="#e8dcc0" stroke-width="1.4"/>
+    <path d="M25.4 37.4 C28 36.6 30.6 37.6 31.4 39.8 C30 41 28 41 26.6 40.2 M25.6 40.6 C26.6 42.4 28.6 43.4 30.4 43" fill="none" stroke-width="1.8"/>
+    <!-- stubby root legs, splayed toes -->
+    <path d="M36 74 C35 78.6 34.6 82.6 35 86 L42.4 86.4 C42 82.4 42.4 78.4 43.6 75 Z" fill="#78552f"/>
+    <path d="M28.6 88.6 C29 86.4 31 85 33.4 85.2 L35.4 83.6 L38.4 85 L41.6 83.8 L43.8 85.6 C45.6 85.8 46.8 87 46.8 88.6 Z" fill="#78552f"/>
+    <path d="M52 75 C52.4 79 52 82.6 51.2 86 L58.8 86.4 C59.2 82.6 59.4 78.8 59 75 Z" fill="#a97f50"/>
+    <path d="M45.4 88.6 C45.8 86.2 47.8 84.8 50.4 85 L52.6 83.4 L55.6 85 L59 83.6 L61.6 85.8 C63.6 86 65 87.2 65 88.6 Z" fill="#a97f50"/>
+    <path d="M57.6 87.4 C59.4 86.6 62.2 86.6 64 87.6 L64.2 88 L57.8 88 Z" fill="#78552f" stroke="none"/>
+    <!-- the stump of a body: all head, bark grain, a knot -->
+    <path d="M29 59 C28.4 45.4 36 36.4 47 36 C58.4 35.6 66.4 44.4 66 58.4 C65.6 71 59.6 79.6 47.4 80 C35.4 80.4 29.4 71.4 29 59 Z" fill="#a97f50"/>
+    <path d="M62.6 50 C64.6 60 62.4 70.6 55.6 76.4 C52.4 78.6 49 79.4 45.6 79.4 C54 75 60.6 64 62.6 50 Z" fill="#78552f" stroke="none"/>
+    <path d="M33 52.6 C34 46.6 37.4 41.6 42.2 39.2 C38.6 43.2 36 47.4 33 52.6 Z" fill="#c9a272" stroke="none"/>
+    <path d="M32.4 50 C31.6 54.6 31.8 60 33 64.4 C33.6 68.6 35.4 72.4 37.8 75.4 M36.6 44 C35.6 48 35.4 52.4 36 56 M40.2 64.4 C40.4 69.6 41.8 74.6 44.4 77.6 M57.6 62 C57.8 66.6 56.6 71 54 74.6 M62.4 46.6 C63.4 49.6 63.8 53 63.4 56.4" fill="none" stroke="#78552f" stroke-width="1.5"/>
+    <path d="M29.2 54.4 L32.2 55.6 L29.4 57.2 M29.8 66 L32.6 66.4 L30.6 68.6 M65.6 54 L63 55.2 L65.6 56.8" fill="none" stroke-width="1.6"/>
+    <!-- a mossy patch -->
+    <path d="M36.4 74.6 C37.8 72.6 40.6 72.2 42.4 73.4 C44 72.6 46 73.2 46.4 75 C46.8 76.6 45.4 77.8 44 77.6 C42 78.6 38.4 78.2 36.4 74.6 Z" fill="#7fb04a" stroke-width="1.6"/>
+    <path d="M45.6 69.4 C45.6 67.8 47 66.6 48.6 66.8 C50.2 67 51 68.4 50.6 70 C50.2 71.4 48.6 72.2 47.2 71.6 C46.2 71.2 45.6 70.4 45.6 69.4 Z" fill="#78552f" stroke-width="1.4"/>
+    <!-- the tangled crown of brambles, leaves, a blossom and a sprout -->
+    <g fill="none"><g stroke-width="4.4"><path id="tl-crown" d="M31.6 46 C28.4 39 31 32 37.6 30.6 C42 29.8 44.4 33.4 42.4 36.4 M40.4 37 C42 30.4 48 26.4 54.6 28.2 C59.6 29.6 61.6 34.6 59 38.4 M56 36.8 C60.6 34 66.2 36.4 66.8 41.6 C67.2 45 65.4 48 63.6 49.6"/></g><use href="#tl-crown" stroke="#6f8a34" stroke-width="2.2"/></g>
+    <path d="M30.2 40.6 L26.6 39.2 L30.6 37.4 Z M35 30.8 L33.4 27 L37.6 29.6 Z M47.4 27.4 L47.6 23.4 L50.6 27.4 Z M58 30.6 L61.6 28.6 L60.4 32.6 Z M66.6 38.6 L70.4 37.4 L68 41 Z M67 45.8 L70.6 47 L66.4 48.6 Z" fill="#e8dcc0" stroke-width="1.4"/>
+    <path d="M36.4 31.4 C33.4 27.4 28.2 26.6 24.6 28.6 C27.4 32.4 32.6 33.4 36.4 31.4 Z" fill="#7fb04a" stroke-width="1.8"/>
+    <path d="M36.4 31.4 L27.4 29" fill="none" stroke="#4f7a2a" stroke-width="1.1"/>
+    <path d="M60.4 36.4 C64 33 69.6 32.8 73 35.8 C69.6 39.2 64 39.4 60.4 36.4 Z" fill="#7fb04a" stroke-width="1.8"/>
+    <path d="M60.4 36.4 L71.4 35.8" fill="none" stroke="#4f7a2a" stroke-width="1.1"/>
+    <path d="M51.6 28.4 C51.4 23 53.4 18 57.6 15.6 C58.6 20.6 56.6 25.8 51.6 28.4 Z" fill="#a6d06a" stroke-width="1.8"/>
+    <path d="M51.6 28.4 C51 24 49.6 20.8 46.6 19 C45.4 22.6 47.4 26.6 51.6 28.4 Z" fill="#7fb04a" stroke-width="1.8"/>
+    <!-- one pink blossom -->
+    <path d="M39.6 33.6 C37.4 33.2 36.4 30.6 38.2 29.4 C37.6 27.2 40 25.8 41.6 27.2 C43 25.6 45.6 26.6 45.2 28.8 C47.2 29.6 46.8 32.4 44.6 32.8 C44.2 35 41.4 35.6 40.4 33.8 Z" fill="#f0b8c8" stroke-width="1.6"/>
+    <path d="M40.6 30.6 C40.6 29.6 41.4 29 42.2 29.2 C43 29.4 43.4 30.2 43 31 C42.6 31.8 41.6 32 41 31.6 C40.8 31.4 40.6 31 40.6 30.6 Z" fill="#ffe08a" stroke-width="1"/>
+    <!-- a big matched pair of fae eyes, both on the foe -->
+    <path d="M37.4 50.6 C37.4 46.4 40.4 43.4 44.2 43.4 C48 43.4 50.8 46.4 50.8 50.6 C50.8 54.8 47.8 57.8 44 57.8 C40.2 57.8 37.4 54.8 37.4 50.6 Z M50.4 50 C50.4 45.8 53.4 42.8 57.2 42.8 C61 42.8 63.8 45.8 63.8 50 C63.8 54.2 60.8 57.2 57 57.2 C53.2 57.2 50.4 54.2 50.4 50 Z" fill="#fff4e0" stroke-width="1.8"/>
+    <path d="M43.4 51 C43.4 48.6 45 47 47 47.2 C49 47.4 50.2 49.2 50 51.4 C49.8 53.6 48 55 46.2 54.8 C44.6 54.6 43.4 53 43.4 51 Z M56.4 50.4 C56.4 48 58 46.4 60 46.6 C62 46.8 63.2 48.6 63 50.8 C62.8 53 61 54.4 59.2 54.2 C57.6 54 56.4 52.4 56.4 50.4 Z" fill="#6fbf4a" stroke-width="1"/>
+    <path d="M45.4 51.2 C45.4 50 46.2 49.2 47.2 49.4 C48.2 49.6 48.6 50.6 48.4 51.6 C48.2 52.6 47.2 53.2 46.4 52.8 C45.8 52.6 45.4 52 45.4 51.2 Z M58.4 50.6 C58.4 49.4 59.2 48.6 60.2 48.8 C61.2 49 61.6 50 61.4 51 C61.2 52 60.2 52.6 59.4 52.2 C58.8 52 58.4 51.4 58.4 50.6 Z" fill="#1d1427" stroke="none"/>
+    <path d="M46.6 50.2 L46.8 50 M59.6 49.6 L59.8 49.4" stroke="#ffffff" stroke-width="1.2"/>
+    <path d="M37.6 42.4 C40.6 40.2 45.4 40.4 48.6 42.6 M52.4 42 C55.6 40.2 60 40.6 62.8 43" fill="none" stroke-width="2.2"/>
+    <!-- a stubborn underbite, one thorn for a tooth -->
+    <path d="M45.6 62.6 C50 64.6 55.6 64.2 60 61.2 C59.4 64.8 56.4 67 52.6 67 C49.2 67 46.6 65.2 45.6 62.6 Z" fill="#3b1630" stroke-width="1.8"/>
+    <path d="M54.4 63.8 L55.6 60.4 L57 63.4 Z" fill="#e8dcc0" stroke-width="1.1"/>
+    <path d="M38.8 59.6 C39.6 58.4 42.2 58.4 42.8 59.8 C42.2 61 39.6 61.2 38.8 59.6 Z" fill="#d89a7a" stroke="none"/>
+    <!-- the log-slice shield, too big for it: bark rim, rings, a crack -->
+    <path d="M58.4 67.4 C58.4 59.8 64.2 54 71.6 54 C79 54 84.6 59.8 84.6 67.4 C84.6 75 78.8 80.8 71.4 80.8 C64 80.8 58.4 75 58.4 67.4 Z" fill="#78552f"/>
+    <path d="M61.6 67.4 C61.6 61.6 66 57.2 71.6 57.2 C77.2 57.2 81.4 61.6 81.4 67.4 C81.4 73.2 77 77.6 71.4 77.6 C65.8 77.6 61.6 73.2 61.6 67.4 Z" fill="#e6c894" stroke-width="1.8"/>
+    <path d="M78.8 63 C80.4 67.6 79.4 72.6 75.6 75.4 C73.8 76.6 71.8 77 70 76.8 C75.4 75 78.8 70 78.8 63 Z" fill="#c9a46a" stroke="none"/>
+    <path d="M65.6 67.4 C65.6 63.8 68.2 61.2 71.6 61.2 C75 61.2 77.4 63.8 77.4 67.4 C77.4 71 74.8 73.6 71.4 73.6 C68 73.6 65.6 71 65.6 67.4 Z M69 67.4 C69 66 70.2 64.8 71.6 64.8 C73 64.8 74 66 74 67.4 C74 68.8 72.8 70 71.4 70 C70 70 69 68.8 69 67.4 Z" fill="none" stroke="#a97f50" stroke-width="1.3"/>
+    <path d="M71.6 57.4 L70.6 61.4 L72.6 64.2" fill="none" stroke-width="1.4"/>
+    <!-- the little hand gripping its rim -->
+    <path d="M58 62.4 C57.4 60.6 58.8 58.8 60.8 59 C62.6 59.2 63.6 61 63 62.8 C62.4 64.6 60.4 65.4 59 64.6 C58.4 64.2 58.2 63.2 58 62.4 Z" fill="#a97f50" stroke-width="1.8"/>
+  </g>
+</svg>

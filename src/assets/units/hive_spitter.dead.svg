@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Hive Spitter, dead: keeled over onto its back, its six spindly legs curled up to the sky, the snout planted in the dirt
+       and the eyes spun to spirals; the acid sac burst and gone flat as a balloon, spilled out in a fizzing green puddle,
+       one antenna snapped. Same parts as the alive picture, a shade greyer. -->
+  <defs>
+    <filter id="hpd-ink" x="-6%" y="-6%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feFlood flood-color="#1d1427"/><feComposite in2="SourceAlpha" operator="in"/><feOffset dx="1.1" dy="1.3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- the ground, and the spilled acid fizzing on it (no ink) -->
+  <path d="M10 88.6 C13 85.6 30 85 48 85.2 C66 85.4 82 85.6 86 88 C87.6 90.4 76 92 50 92.2 C28 92.4 8 91.4 10 88.6 Z" fill="#4a4250" opacity=".9"/>
+  <path d="M2.6 88.4 C3.4 84.6 12 83.4 22 84 C30 84.4 38 85.6 38.4 88.2 C38.6 91 28 92.6 18 92.4 C9 92.2 2 91.4 2.6 88.4 Z" fill="#8fb040" opacity=".85"/>
+  <path d="M9 87.4 L14 87.6 M24 89.6 L30 89.4" fill="none" stroke="#e4f59a" stroke-width="1.3" stroke-linecap="round" opacity=".8"/>
+  <path d="M12.6 80 C12.6 79 13.6 78.4 14.4 78.8 C15.2 79.2 15.2 80.4 14.4 80.8 C13.6 81.2 12.6 80.8 12.6 80 Z M30 78.4 C30 77.8 30.6 77.4 31.2 77.6 C31.8 77.8 31.8 78.6 31.2 79 C30.6 79.2 30 79 30 78.4 Z M21 75 C21 74.4 21.6 74 22 74.2" fill="none" stroke="#e4f59a" stroke-width="1.2" opacity=".85"/>
+  <g filter="url(#hpd-ink)" stroke="#1d1427" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- the sac, burst and gone flat as a balloon, its bands crumpled -->
+    <path d="M38 80.4 C33 77.4 26 77 19.4 78.6 C14 80 10 83 9.6 86.2 C14 87.6 22 88 29 87.4 C33.6 87 37 85.6 38.6 84 Z" fill="#a4c062"/>
+    <path d="M10.4 85.8 C15 86.8 22 87.2 28.4 86.6 C32.6 86.2 36 85 38.4 83.4 L38.6 84 C37 85.6 33.6 87 29 87.4 C22 88 14 87.6 9.6 86.2 Z" fill="#6f8f3a" stroke="none"/>
+    <path d="M20.6 78.4 C19.4 81 19.6 84.2 21.4 87.6 L25.6 87.8 C23.6 84.6 23.4 81 24.6 77.8 Z M30.4 77.6 C29.6 80.6 30 84 31.6 87 L35 86 C33.6 83.4 33.2 80.4 34 78.2 Z" fill="#5e5276" stroke-width="1.8"/>
+    <path d="M13.4 80.6 L11.2 78.2 L14.6 78.8 L13.6 76.4 L16.6 78.6" fill="none" stroke-width="1.6"/>
+    <!-- the far legs, curled up to the sky -->
+    <g fill="none"><g stroke-width="3.6"><path id="hpd-far" d="M40.4 76.6 L33.6 66 L37.4 58.8 M45.6 75 L45.2 62.4 L50.6 57.6 M51.6 76.4 L59.6 67.4 L58 61"/></g><use href="#hpd-far" stroke="#41385a" stroke-width="1.7"/></g>
+    <!-- the weedy thorax, on its back, a stub wing squashed under it -->
+    <path d="M38.6 82 C36.6 79 37.4 76.8 40.4 76.4 L46 80.6 C43.6 83 40.8 83.6 38.6 82 Z" fill="#c4d4dc" stroke-width="1.6"/>
+    <path d="M38 80 C38 75.6 41.4 72.6 45.6 72.6 C50 72.6 53.4 75.4 53.4 79.4 C53.4 83.4 50 86 45.6 86 C41.4 86 38 83.6 38 80 Z" fill="#615478"/>
+    <path d="M39.4 83 C41.4 85 44 86 46.6 85.8 C49.6 85.6 52 84 53 81.6 C50 83 46.6 83.6 43.6 83.4 C42 83.2 40.6 83.2 39.4 83 Z" fill="#41385a" stroke="none"/>
+    <path d="M41.8 76.4 C43 75 44.6 74.4 46.4 74.4" fill="none" stroke="#857aa0" stroke-width="1.4"/>
+    <!-- the near legs, curled up to the sky, the bandaged one too -->
+    <g fill="none"><g stroke-width="3.8"><path id="hpd-near" d="M42 74 L37.6 61 L43.4 53.6 M47.6 73.4 L52.4 61.8 L60 59.4 M52.8 77.6 L64.4 72.6 L68.6 64.6"/></g><use href="#hpd-near" stroke="#857aa0" stroke-width="1.8"/></g>
+    <path d="M36.4 61.6 C36.6 60.2 38.2 59.6 39.2 60.6 C40 61.6 39.4 63 38 63.2 C37 63.2 36.2 62.6 36.4 61.6 Z M51 62.2 C51.2 60.8 52.8 60.4 53.8 61.4 C54.6 62.4 53.8 63.6 52.6 63.6 C51.6 63.6 50.8 63 51 62.2 Z M63.2 73 C63.4 71.6 65 71.2 66 72.2 C66.8 73.2 66 74.4 64.8 74.4 C63.8 74.4 63 73.8 63.2 73 Z" fill="#857aa0" stroke-width="1.5"/>
+    <path d="M65.6 69.8 L68.4 71.6 L66.6 74.4 L63.8 72.6 Z" fill="#e6e0d4" stroke-width="1.2"/>
+    <path d="M42 52.4 L45.6 52.8 L43.4 55.6 Z M59.2 57.6 L62.2 59.6 L59 61.4 Z M67.4 62.6 L70.2 63.2 L68.8 66 Z" fill="#41385a" stroke-width="1.4"/>
+    <!-- the skinny neck, lying out to the head -->
+    <path d="M52 81.2 C56 79.4 60 78.6 64 78.6 L64.6 83.4 C60.6 83.4 56.6 84 53 85.6 Z" fill="#615478" stroke-width="2.2"/>
+    <path d="M56.4 79.6 L57.4 84.2 M60.4 78.8 L61 83.6" fill="none" stroke="#41385a" stroke-width="1.3"/>
+    <!-- the head, the snout planted in the dirt -->
+    <g transform="translate(71 68) rotate(32) scale(1.02) translate(-67 -30)">
+      <!-- antennae: one snapped, one drooped -->
+      <g fill="none"><g stroke-width="3.4"><path id="hpd-ant" d="M62 22 C60 17 60.4 13 62.4 10.6 M68 21 C71 16.4 75.6 14.8 78.4 17.6 C80 19.4 79.8 22.4 79.4 25.4"/></g><use href="#hpd-ant" stroke="#41385a" stroke-width="1.5"/></g>
+      <path d="M61.4 10.6 L63.8 9.4 L63.2 12" fill="none" stroke-width="1.4"/>
+      <!-- the head: big and round on that skinny neck -->
+      <path d="M55 32 C54.6 24.4 60 18.8 67 18.6 C74 18.4 79 23.6 79 30.4 C79 37.4 73.8 42.4 66.8 42.4 C60 42.4 55.4 38.4 55 32 Z" fill="#d8a650"/>
+      <path d="M77.6 34.6 C75.8 39 71.6 41.6 66.8 41.6 C63 41.6 60 40.4 58 38.2 C62.6 39.6 67.6 39.6 71.6 38 C74.2 37 76.2 35.8 77.6 34.6 Z" fill="#9a6a2a" stroke="none"/>
+      <path d="M58.8 27 C59.6 23.6 62 21.2 65.4 20.4 C63 22.6 61.2 24.8 58.8 27 Z" fill="#e4c47e" stroke="none"/>
+      <path d="M55.6 29 C56.8 22.4 62 18.6 67.4 18.6 C72.4 18.6 76.6 21.6 78.2 26 C72.4 23.6 64 24 55.6 29 Z" fill="#615478" stroke-width="2"/>
+      <!-- the long spitting snout, ringed, a drip of acid on the tip -->
+      <path d="M75.6 31.8 C80 31 84.6 30.4 88.6 29.4 L90.8 27.8 L91.6 34.2 L89 33.4 C85 34.6 80.4 35.8 76.4 36.6 Z" fill="#d8a650" stroke-width="2.2"/>
+      <path d="M77 35.6 C81 35 85 34 89 32.8 L89.4 33.6 C85 34.8 80.6 35.8 76.6 36.6 Z" fill="#9a6a2a" stroke="none"/>
+      <path d="M80.4 30.8 L81.2 35.6 M84.6 30 L85.4 34.6" fill="none" stroke="#615478" stroke-width="2"/>
+      <path d="M90.6 34.4 C91.6 36 92 37.6 91.4 38.8 C90.6 39.8 89.2 39.4 89 38.2 C88.8 37 89.6 35.6 90.6 34.4 Z" fill="#b8dc5a" stroke-width="1.4"/>
+      <!-- the long spitting snout, ringed, a drip of acid on the tip -->
+      <path d="M75.6 31.8 C80 31 84.6 30.4 88.6 29.4 L90.8 27.8 L91.6 34.2 L89 33.4 C85 34.6 80.4 35.8 76.4 36.6 Z" fill="#d8a650" stroke-width="2.2"/>
+      <path d="M77 35.6 C81 35 85 34 89 32.8 L89.4 33.6 C85 34.8 80.6 35.8 76.6 36.6 Z" fill="#9a6a2a" stroke="none"/>
+      <path d="M80.4 30.8 L81.2 35.6 M84.6 30 L85.4 34.6" fill="none" stroke="#615478" stroke-width="2"/>
+      <!-- eyes spun to spirals -->
+      <path d="M58.8 30.4 C58.8 27.4 61 25.2 63.8 25.2 C66.6 25.2 68.6 27.4 68.6 30.4 C68.6 33.4 66.4 35.6 63.6 35.6 C61 35.6 58.8 33.4 58.8 30.4 Z M67.6 29.8 C67.6 26.8 69.8 24.6 72.6 24.6 C75.4 24.6 77.4 26.8 77.4 29.8 C77.4 32.8 75.2 35 72.4 35 C69.8 35 67.6 32.8 67.6 29.8 Z" fill="#f2e2c0" stroke-width="1.7"/>
+      <path transform="translate(16.8 0)" d="M46.9 30.2 C47.7 30 48 31 47.4 31.5 C46.4 32.2 45.1 31.2 45.4 29.9 C45.8 28.4 47.9 27.9 49 29.1 C50.3 30.4 49.7 33 47.7 33.7 C45.9 34.1 43.9 33.3 43.5 31.5" fill="none" stroke-width="1.3"/>
+      <path transform="translate(13 -0.6)" d="M59.5 30.5 C60.3 30.3 60.6 31.3 60 31.8 C59 32.5 57.7 31.5 58 30.2 C58.4 28.7 60.5 28.2 61.6 29.4 C62.9 30.7 62.3 33.3 60.3 34 C58.5 34.4 56.5 33.6 56.1 31.8" fill="none" stroke-width="1.3"/>
+      <path d="M67 38.8 C69 37.8 71.4 38 73 39.4 C71.6 40.8 69 41 67 38.8 Z" fill="#3b1630" stroke-width="1.3"/>
+    </g>
+    <path d="M88.4 82 L90.6 80 M93 85.6 L95.2 85" fill="none" stroke="#a39cab" stroke-width="1.4"/>
+  </g>
+</svg>
