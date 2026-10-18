@@ -650,7 +650,6 @@ export const UNIT_LIST = [
     spawn: { weight: 8, minFloor: 1 },
     threats: ['reach'],
     behaviour: 'walk',
-    art: 'pyre_hound',
     flavour: 'A whelp has not yet the fire for a crowd: it spits what it has at one foe, from three paces back.'
   },
   {
@@ -680,7 +679,6 @@ export const UNIT_LIST = [
     spawn: { weight: 8, minFloor: 1 },
     threats: ['reach'],
     behaviour: 'walk',
-    art: 'clockwork_page',
     flavour: 'A sentry was built to stand a post, not to walk to one: it grinds forward a pace at a time, and looses at whatever comes within three.'
   },
   {
@@ -710,7 +708,6 @@ export const UNIT_LIST = [
     spawn: { weight: 8, minFloor: 1 },
     threats: ['reach'],
     behaviour: 'walk',
-    art: 'hive_drone',
     flavour: 'A spitter\'s shell is thin as a wing: it keeps three paces behind the swarm, and spits at the weakest thing it sees.'
   },
   {
@@ -740,7 +737,6 @@ export const UNIT_LIST = [
     spawn: { weight: 8, minFloor: 1 },
     threats: ['shape'],
     behaviour: 'walk',
-    art: 'thorn_dryad',
     flavour: 'A thornling roots itself across the road like a hedge, and its thorns lash at everything that stands level with it.'
   },
   {
