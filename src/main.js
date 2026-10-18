@@ -5,7 +5,7 @@ import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun, bountyOf, BASE_MONARCH, monarchsOpen, monarchsAt } from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
-import { recordOf, readBook, withRun, dailySeed, dayOf } from './sim/history.js'
+import { recordOf, readBook, withRun } from './sim/history.js'
 import { stats, ariseOf } from './sim/turns.js'
 import { unitDef, RELICS, TUTORIAL } from './content.js'
 import {
@@ -35,8 +35,7 @@ let run = null
 // The options the run in play was made with (createRun's: save.js keeps them with its log); null for the tutorial.
 let made = null
 // What the interface keeps with the run in play beside them (save.js `meta`; null for the tutorial): when it began
-// (`begun`, ms since the epoch: with its seed, its id in the history), how long it has been played (`time`, ms), and
-// the daily it is (`daily`, its UTC day; `practice` where it is not that day's first attempt).
+// (`begun`, ms since the epoch: with its seed, its id in the history) and how long it has been played (`time`, ms).
 let meta = null
 let trail = null
 let note = ''
@@ -234,7 +233,7 @@ function keep () {
   else prefs.drop('save')
 }
 
-// ── the history and the daily (redesign.md §4.8; sim/history.js) ────────────────────────────────
+// ── the history (redesign.md §4.8; sim/history.js) ──────────────────────────────────────────────
 
 // The run's play time: the time between its actions, a gap counted at most IDLE (a page left open is not play), the
 // page's hidden spells not at all.
@@ -255,15 +254,8 @@ function chronicle (r = run, m = meta) {
   if (!r || r.state.tutorial || !m) return
   const at = Date.now()
   prefs.set('history', JSON.stringify(withRun(book(), recordOf(r, {
-    id: `${r.state.seed}@${m.begun ?? at}`, at, time: m.time, daily: m.daily, practice: m.practice
+    id: `${r.state.seed}@${m.begun ?? at}`, at, time: m.time
   }))))
-}
-
-// The daily (dayOf, dailySeed): today's seed, the same for everyone, at ascension 0 as the base Monarch. The first begun
-// each UTC day is the day's daily (prefs 'daily': the last day begun); any after it the same day is practice, kept as such.
-function daily () {
-  const day = dayOf()
-  start(dailySeed(), { daily: day, practice: prefs.get('daily') === day })
 }
 
 const SET_ASIDE = 'Your saved run was made by an older version of the game and no longer plays the same: it was set aside.'
@@ -302,9 +294,7 @@ function resume () {
 
 // A save's meta as the run in play keeps it: one from before the history began, or that does not read, begins now.
 function metaOf (m) {
-  const out = { begun: Number.isFinite(m?.begun) ? m.begun : Date.now(), time: Number.isFinite(m?.time) && m.time >= 0 ? m.time : 0 }
-  if (typeof m?.daily === 'string') Object.assign(out, { daily: m.daily }, m.practice === true && { practice: true })
-  return out
+  return { begun: Number.isFinite(m?.begun) ? m.begun : Date.now(), time: Number.isFinite(m?.time) && m.time >= 0 ? m.time : 0 }
 }
 
 // The rooms walked on the floor the run stands on, from its log: the start, then its last `rank` walks (a walk a rank).
@@ -331,14 +321,11 @@ function title (seed, said = '') {
   ascension = Math.min(ascension, openTo(cleared()))
   if (!opens(monarch)) crown(BASE_MONARCH)
   const at = saved()
-  const day = dayOf()
-  const ran = book().runs.find((e) => e.daily === day && !e.practice) ?? null
   music.set('title')
   show(titleScreen({
     seed, level: ascension, open: openTo(cleared()), onLevel: choose, onStart: start, onHelp: toggleHelp,
     monarch, monarchs: monarchsOpen(cleared()), onMonarch: crown, overlay,
     saved: at, note: said || aside, onContinue: resume, onTutorial: tutorial,
-    daily: { day, seed: dailySeed(), begun: prefs.get('daily') === day, ran }, onDaily: daily,
     onHistory: (now) => chronicles(now)
   }))
   aside = ''
@@ -347,7 +334,7 @@ function title (seed, said = '') {
     prefs.set('did:offer', '1')
     overlay(askOverlay({
       title: 'New here?',
-      text: 'The tutorial is one battle before floor 1, with three souls given you and three short screens of text: a few minutes, never saved. The title offers it again whenever you like.',
+      text: 'The tutorial is one battle before floor 1, one soul given you against one foe, and three short screens of text: a few minutes, never saved. The title offers it again whenever you like.',
       yes: 'Play the tutorial', no: 'Not now', lead: 'yes',
       onYes: tutorial, onNo: () => overlay(null)
     }))
@@ -358,27 +345,26 @@ function title (seed, said = '') {
 function chronicles (seed) {
   overlay(null)
   music.set('title')
-  show(historyScreen({ book: book(), day: dayOf(), onBack: () => title(seed), onHelp: toggleHelp }))
+  show(historyScreen({ book: book(), onBack: () => title(seed), onHelp: toggleHelp }))
 }
 
-// A new run: at the level chosen, as the Monarch chosen, or `daily`, the day's daily (daily()) at ascension 0 as the base
-// Monarch. Over a saved one, it asks first: the saved run ends for good, and the history keeps it as left.
-function start (seed, { daily = null, practice = false } = {}) {
+// A new run: at the level chosen, as the Monarch chosen. Over a saved one, it asks first: the saved run ends for good, and
+// the history keeps it as left.
+function start (seed) {
   const at = saved()
   if (at) {
     return overlay(askOverlay({
       title: 'End your saved run?',
       text: `A run is saved at ${placeText(at)}. A new run ends it for good: defeat is absolute, and so is leaving.`,
       yes: 'End it and begin', no: 'Keep it',
-      onYes: () => { overlay(null); abandon(); start(seed, { daily, practice }) },
+      onYes: () => { overlay(null); abandon(); start(seed) },
       onNo: () => overlay(null)
     }))
   }
-  made = daily ? { seed } : { seed, ...(ascension && { ascension }), ...(monarch !== BASE_MONARCH && { monarch }) }
+  made = { seed, ...(ascension && { ascension }), ...(monarch !== BASE_MONARCH && { monarch }) }
   run = createRun(made)
-  meta = { begun: Date.now(), time: 0, ...(daily && { daily }), ...(daily && practice && { practice: true }) }
+  meta = { begun: Date.now(), time: 0 }
   ticked = null
-  if (daily && !practice) prefs.set('daily', daily)
   note = ''
   trail = null
   keep()

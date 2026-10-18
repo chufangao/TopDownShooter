@@ -1,19 +1,17 @@
 // The runs played in this browser (redesign.md §4.8, the meta): every run that ends, cleared, fallen or left for a new
 // one, kept as a line of what it was, newest first, the last HISTORY_CAP of them, beside running totals of every one
-// ever kept; and the daily seed. Pure and DOM-free: main.js keeps the book's text in prefs ('history') and hands it
+// ever kept. Pure and DOM-free: main.js keeps the book's text in prefs ('history') and hands it
 // here. A book that does not read (another version's, a hand's edit, a broken write) is read as far as it holds: its
 // readable lines kept, its totals counted again from them where they do not read; never thrown. The tutorial is never
 // kept.
 //
 //   book   { v, total: { runs, clears, best, time }, runs: [entry, …] }   the runs newest first
 //          total.best: the highest ascension cleared (−1 for none); total.time: the play time of every run, in ms
-//   entry  { id, at, seed, ascension, daily?, practice?, monarch?, end, cleared, floor, room, fell?, wins, fights,
+//   entry  { id, at, seed, ascension, monarch?, end, cleared, floor, room, fell?, wins, fights,
 //            army: { kinds, fused, kin }, time }
 //     id         the run's own (main.js: its seed and when it began), so a clear that descends and later falls, or is
 //                left, is one run, its line brought up to date
 //     at         when it ended, in ms since the epoch
-//     daily      the UTC day of the daily it was ('2026-10-15'), and `practice` where it was not that day's first
-//                attempt (main.js); none for a run of any other seed
 //     monarch    the Monarch it was played as (content.js MONARCHS), where not the base one
 //     end        'cleared' (the Sovereign slain, the run stopped there), 'fell' (the Monarch fell: after a clear, in
 //                the deep) or 'left' (ended for a new run while under way)
@@ -31,18 +29,11 @@ import { currentNode, souls } from './run.js'
 export const HISTORY_VERSION = 1
 export const HISTORY_CAP = 100
 
-// ── the daily ────────────────────────────────────────────────────────────────────────────────────
-
-// The UTC day of `date` as 'YYYY-MM-DD': the same day for everyone, wherever they play.
-export const dayOf = (date = new Date()) => date.toISOString().slice(0, 10)
-// The daily's seed for `date`: one run a day, the same for everyone ('daily-2026-10-15').
-export const dailySeed = (date = new Date()) => `daily-${dayOf(date)}`
-
 // ── a run's line ─────────────────────────────────────────────────────────────────────────────────
 
 // The line a run ends with: over (cleared, or fallen), or under way and left for a new one. `id`, `at` (now, by
-// default), `time` (its play time), `daily`, `practice`: what main.js knows of it and the run does not.
-export function recordOf (run, { id, at = Date.now(), time = 0, daily = null, practice = false } = {}) {
+// default), `time` (its play time): what main.js knows of it and the run does not.
+export function recordOf (run, { id, at = Date.now(), time = 0 } = {}) {
   const s = run.state
   const cleared = s.result === 'victory'
   const end = s.phase !== 'over' ? 'left' : s.death ? 'fell' : 'cleared'
@@ -60,8 +51,6 @@ export function recordOf (run, { id, at = Date.now(), time = 0, daily = null, pr
     army: armyOf(s),
     time: Math.max(0, Math.round(time))
   }
-  if (daily) entry.daily = daily
-  if (daily && practice) entry.practice = true
   if (s.monarch) entry.monarch = s.monarch
   if (end === 'fell') entry.fell = { by: s.death.by ?? null, threat: s.death.threat ?? null }
   return entry

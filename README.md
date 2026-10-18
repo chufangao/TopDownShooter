@@ -5,7 +5,7 @@
 ## What it is
 
 - A turn-based tactics roguelike in the browser: a necromancer's retinue holds a line against foes walking down to the Monarch.
-- A run: draft three souls, walk three floors of rooms (fights, elites, Shops, altars, a boss a floor), at ascension 0–10, as one of four Monarchs. Saves, a daily seed, a history, a tutorial, music.
+- A run: draft three souls, walk three floors of rooms (fights, elites, Shops, altars, a boss a floor), at ascension 0–10, as one of four Monarchs. Saves, a history, a tutorial, music.
 - A battle: foes enter in waves along one drawn road toward your camp. Each piece moves and acts once a turn: a free basic, or a skill that then rests. End Turn: idle pieces use basics, the foes play, statuses tick. No dice. Lost when the Monarch falls.
 - Between battles, essence buys tiers (two tracks a kind), recruits (one slain foe a battle), fusions (44 recipes) and relics (Shops only). Altars heal, transmute or consecrate. Eleven synergies of kin and role at four pieces.
 - Twelve statuses (Burning, Hexed, Brittle, Bleeding, Hasten…), each a stat mod or a tick.

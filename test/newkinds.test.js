@@ -6,7 +6,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { UNITS, ABILITIES, TEMPERS, BEHAVIOURS, THREATS, FUSIONS, FUSION_LIST, TUTORIAL, trineOf, isTriple } from '../src/content.js'
-import { spawnPool, draftPool, draftOffer, tutorialRun, createRun } from '../src/sim/run.js'
+import { spawnPool, draftPool, draftOffer, tutorialRun, createRun, souls } from '../src/sim/run.js'
 import { isBlow } from '../src/sim/unit.js'
 import { basicOf } from '../src/sim/turns.js'
 
@@ -31,6 +31,9 @@ test('the Tomb Knight is met from floor 2: never in floor 1\'s pool nor the draf
   assert.ok(TUTORIAL.party.includes('tomb_knight'))
   const run = tutorialRun()
   assert.ok(run.state.party.some((u) => u.id === 'tomb_knight'))
+  // One on one: the Knight alone against one foe.
+  assert.deepEqual(souls(run.state.party).map((u) => u.id), ['tomb_knight'])
+  assert.equal(run.state.map.nodes.find((n) => n.type === 'fight').foes.length, 1)
 })
 
 test('four new kinds of tier 1 on floor 1, each in the floor-1 pool and offered by the draft on some seed', () => {

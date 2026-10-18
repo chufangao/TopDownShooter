@@ -11,7 +11,7 @@
 //   log   run.state.log, every action applied, battle orders among them
 //   at    placeOf: the floor, the room's rank, the phase, the battle's turn, the purse, the Monarch's HP, the actions
 //   meta  what the interface keeps with the run that the run does not need (main.js: when it began, how long it has
-//         been played, the daily it is), handed back as it was given; a save without one has none
+//         been played), handed back as it was given; a save without one has none
 //
 // The tutorial is never saved, and a finished run (cleared or lost: phase 'over') has no save.
 import { replay, monarchOf, currentNode } from './run.js'

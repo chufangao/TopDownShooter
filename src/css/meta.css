@@ -1,16 +1,12 @@
-/* The meta (redesign.md §4.8): the title's second row, the daily, the History screen. */
+/* The meta (redesign.md §4.8): the title's second row, the History screen. */
 
 /* ── title: a second row ──────────────────────────────────────────────────────────────────────── */
-/* The actions in one row (a run, the daily, the tutorial, the History), what the run is played with in a quieter row
+/* The actions in one row (a run, the tutorial, the History), what the run is played with in a quieter row
    under it (the ascension, the seed), then the level's line. Room for the second row is made by the four steps
    standing in one row of four wherever the frame is short or wide enough (each its icon beside its name, its line
    under both, a size smaller), and by a smaller sigil on a 4:3 frame that keeps them two by two. */
 .title-box .title-settings { margin-top: 12px; gap: 22px; }
-.daily-btn .tag {
-  margin-left: 2px; padding: 0 7px; border-radius: 6px 4px 7px 5px; font: 600 var(--fs-xs)/1.5 var(--display);
-  background: color-mix(in srgb, var(--c-warn) 18%, var(--sunk)); color: var(--c-warn);
-}
-.daily-btn > .ico, .title-actions > button > .ico { color: var(--c-essence2); }
+.title-actions > button > .ico { color: var(--c-essence2); }
 
 @container frame (max-height: 640px) {
   .title-box .title-settings { margin-top: 8px; }
@@ -104,8 +100,6 @@ html[data-music="0"] .music-btn, html[data-muted="1"] .music-btn { color: #6a628
 .hist-run.won .hist-head > b { color: #ffd46a; }
 .hist-run.fell:not(.won) .hist-head > b { color: var(--c-foe2); }
 .hist-asc { color: var(--c-warn); font-size: var(--fs-sm); }
-.hist-daily { display: inline-flex; align-items: center; gap: 4px; color: var(--c-essence2); font-size: var(--fs-sm); }
-.hist-daily.practice { color: var(--dim); }
 .hist-sub { font-size: var(--fs-sm); line-height: 1.35; color: var(--dim); }
 .hist-army { grid-area: army; display: flex; align-items: center; gap: 4px; }
 .hist-kind { position: relative; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 10px 8px 11px 9px; background: var(--panel); border: 2px solid var(--ink); }

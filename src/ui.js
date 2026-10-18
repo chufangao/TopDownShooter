@@ -39,20 +39,20 @@ import {
 // `level`: the ascension the run will be played at, `open` the highest the player may choose (run.js openTo), and
 // `onLevel(level)` hears each step of the chooser (ascensionChooser). `saved`, `note`, `onContinue`, `onTutorial`:
 // the run saved and the tutorial (resumeActions), and a note over the foot (a save set aside, the tutorial done).
-// `daily`, `onDaily`, `onHistory(seed)`: the day's daily and the History (metaActions). `monarch`, `monarchs`,
-// `onMonarch`, `overlay`: the Monarch the run will be played as, those open, each choice heard, and how the picker is put
-// up (monarchChooser). The actions in one row (a run, the daily, the tutorial, the History), what the run is played with
-// in a quieter row under it (the Monarch, the ascension, the seed), and the level's line under that.
+// `onHistory(seed)`: the History (historyAction). `monarch`, `monarchs`, `onMonarch`, `overlay`: the Monarch the run will
+// be played as, those open, each choice heard, and how the picker is put up (monarchChooser). The actions in one row (a
+// run, the tutorial, the History), what the run is played with in a quieter row under it (the Monarch, the ascension,
+// the seed), and the level's line under that.
 export function titleScreen ({
   seed, level = 0, open = 0, onLevel = () => {}, onStart, onHelp, saved = null, note = '', onContinue = null, onTutorial = null,
-  daily = null, onDaily = null, onHistory = null, monarch = MONARCH_LIST[0].id, monarchs = [MONARCH_LIST[0].id], onMonarch = () => {}, overlay = null
+  onHistory = null, monarch = MONARCH_LIST[0].id, monarchs = [MONARCH_LIST[0].id], onMonarch = () => {}, overlay = null
 }) {
   const input = h('input', { value: seed, spellcheck: 'false', 'aria-label': 'seed' })
   const seedNow = () => input.value.trim() || seed
   const start = () => onStart(seedNow())
   const ascension = ascensionChooser({ level, open, onLevel })
   const resume = resumeActions({ saved, onContinue, onTutorial })
-  const meta = metaActions({ daily, saved, onDaily, onHistory: onHistory && (() => onHistory(seedNow())) })
+  const history = onHistory && historyAction(() => onHistory(seedNow()))
   const crown = overlay && monarchChooser({ monarch, open: monarchs, onMonarch, overlay })
   // The four steps of a run, one line each in its system's colour; the terms explain themselves on hover.
   const step = (ico, sys, title, ...text) => h('div', { class: 'step', style: `--s:var(--c-${sys})` }, h('div', { class: 'step-ico' }, icon(ico, 26)), h('div', null, h('b', null, title), h('p', null, text)))
@@ -70,9 +70,8 @@ export function titleScreen ({
       h('div', { class: 'title-actions' },
         h('button', { class: `${saved ? 'ghost' : 'primary'} big`, onclick: start, tip: () => saved ? 'Start a new run with this seed: your saved run ends. (asks first)' : 'Start a new run with this seed. (Enter)' },
           saved ? 'New run' : 'Begin the descent ', !saved && h('kbd', null, 'Enter')),
-        meta.daily,
         resume.tutorial,
-        meta.history),
+        history),
       h('div', { class: 'title-actions title-settings' },
         crown?.chooser,
         ascension.chooser,
@@ -97,29 +96,17 @@ function resumeActions ({ saved, onContinue, onTutorial }) {
     h('span', { class: 'cont-at' }, h('b', null, 'Your run waits'), ` · ${placeText(saved)}`))
   const tutorial = onTutorial && h('button', {
     class: 'ghost', onclick: onTutorial,
-    tip: () => 'One battle before floor 1, with three souls given you and three short screens of text: the camp, the battle, the spoils. Never saved.'
+    tip: () => 'One battle before floor 1, one soul given you against one foe, and three short screens of text: the camp, the battle, the spoils. Never saved.'
   }, icon('codex', 22), ' Tutorial')
   return { banner: banner || null, tutorial, enter: banner ? onContinue : null }
 }
 
-// What the title offers beside a run (redesign.md §4.8, the meta; sim/history.js): the day's daily, and the History.
-// `daily`: { day, seed, begun, ran }, today's UTC day and seed, whether its daily is begun here (its first attempt
-// made), and that attempt's line in the history once it ended (null before). → { daily, history }, their buttons.
-function metaActions ({ daily, saved, onDaily, onHistory }) {
-  const practice = !!daily?.begun
-  const dailyBtn = daily && onDaily && h('button', {
-    class: 'ghost daily-btn', onclick: onDaily,
-    tip: () => h('div', { class: 'syn-tip' }, h('b', null, `The daily · ${dayText(daily.day)}`),
-      h('p', null, `Today's run, the same for everyone: seed ${daily.seed}, at ascension 0 as the Monarch, whatever is chosen here. A new one comes at midnight UTC.`),
-      practice ? h('p', null, daily.ran ? `Your daily today: ${endText(daily.ran)}.` : 'Your daily today is begun.', ' Play it again as practice: kept in your History, marked so.')
-        : h('p', null, 'Your first run of it today counts as the daily; any after it is practice.'),
-      saved && h('p', { class: 'dim' }, 'Your saved run ends if you begin it. (asks first)'))
-  }, icon('daily', 22), ' Daily', practice && h('span', { class: 'tag' }, 'practice'))
-  const history = onHistory && h('button', {
+// What the title offers beside a run (redesign.md §4.8, the meta; sim/history.js): the History's button.
+function historyAction (onHistory) {
+  return h('button', {
     class: 'ghost', onclick: onHistory,
     tip: () => 'Every run ended in this browser, cleared, fallen or left, the newest first: how far it went, at what level, the souls it ended with and what felled the Monarch, and the totals.'
   }, icon('history', 22), ' History')
-  return { daily: dailyBtn || null, history: history || null }
 }
 
 // Where a saved run stands (save.js placeOf), in a line: "Floor 2, room 6 of 15 · in battle, turn 3".
@@ -2349,17 +2336,16 @@ const endStat = (ico, sys, v, label, name) => h('div', { class: 'end-stat', styl
 // ── history ──────────────────────────────────────────────────────────────────────────────────────
 
 // The runs ended in this browser (redesign.md §4.8; sim/history.js), the newest first, beside their totals, laid out
-// as the end screen is: the totals and Back in a column on the left, the runs on the right behind three tabs (every
-// run, the clears, the dailies), each a line: how it ended and where, its level, its daily or its seed, when, the
-// battles it won and how long it was played; the kinds it ended holding most (its fused kinds marked) and its kin;
-// what felled the Monarch. Back (Escape, Enter) to the title. `day`: today's UTC day, for the daily's mark.
-export function historyScreen ({ book, day, onBack, onHelp }) {
+// as the end screen is: the totals and Back in a column on the left, the runs on the right behind two tabs (every
+// run, the clears), each a line: how it ended and where, its level, its seed, when, the battles it won and how long
+// it was played; the kinds it ended holding most (its fused kinds marked) and its kin; what felled the Monarch. Back
+// (Escape, Enter) to the title.
+export function historyScreen ({ book, onBack, onHelp }) {
   const t = book.total
   const runs = book.runs
   const views = [
     { id: 'all', name: 'Every run', of: runs, none: 'No run has ended here yet. Every run you finish, clear or lose, or leave for a new one, is kept here: the last 100 of them, and the totals of all.' },
-    { id: 'clears', name: 'Clears', of: runs.filter((e) => e.cleared), none: 'No clear kept yet: slay the Hollow Sovereign at the bottom of the last floor.' },
-    { id: 'daily', name: 'Dailies', of: runs.filter((e) => e.daily), none: 'No daily kept yet. The title\'s Daily is the day\'s run, the same for everyone.' }]
+    { id: 'clears', name: 'Clears', of: runs.filter((e) => e.cleared), none: 'No clear kept yet: slay the Hollow Sovereign at the bottom of the last floor.' }]
   const tabs = h('div', { class: 'tabs end-tabs', role: 'tablist' })
   const panel = h('div', { class: 'panel end-panel hist-panel', role: 'tabpanel' })
   const view = (id) => {
@@ -2367,7 +2353,7 @@ export function historyScreen ({ book, day, onBack, onHelp }) {
     fill(tabs, views.map((v) => h('button', { class: 'tab' + (v.id === id ? ' on' : ''), role: 'tab', 'aria-selected': v.id === id ? 'true' : 'false', 'data-tab': v.id, onclick: () => view(v.id) },
       v.name, h('span', { class: 'tab-n' }, v.of.length))))
     const v = views.find((x) => x.id === id)
-    fill(panel, v.of.length ? h('div', { class: 'hist-runs' }, v.of.map((e) => runLine(e, day))) : h('p', { class: 'dim' }, v.none))
+    fill(panel, v.of.length ? h('div', { class: 'hist-runs' }, v.of.map(runLine)) : h('p', { class: 'dim' }, v.none))
     panel.scrollTop = 0
   }
   view('all')
@@ -2391,22 +2377,20 @@ export function historyScreen ({ book, day, onBack, onHelp }) {
 }
 
 // A kept run's line (the History's): its mark (a crown for a clear, a skull for a fall, a step away for one left),
-// how it ended, its level and its daily; when, its seed, its battles, its time; the souls it ended with; its killer.
-function runLine (e, day) {
+// how it ended and its level; when, its seed, its battles, its time; the souls it ended with; its killer.
+function runLine (e) {
   const kind = (id) => { try { return unitDef(id) } catch { return null } }
   const kin = e.army.kin && KIN[e.army.kin]
   const army = e.army.kinds.filter((k) => kind(k.id))
   const by = e.fell?.by && kind(e.fell.by)
   const threat = e.fell?.threat && THREATS[e.fell.threat]
   const when = new Date(e.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-  const daily = e.daily && h('span', { class: 'hist-daily' + (e.practice ? ' practice' : ''), tip: () => e.practice ? `A practice run of the daily of ${dayText(e.daily)}: the day's first attempt was made before it.` : `The daily of ${dayText(e.daily)}: the day's run, the same for everyone, and your first attempt of it.` },
-    icon('daily', 16), e.daily === day ? 'Today\'s daily' : `Daily ${dayText(e.daily)}`, e.practice && ' (practice)')
   return h('div', { class: `hist-run ${e.end}${e.cleared ? ' won' : ''}` },
     h('span', { class: 'hist-mark', 'aria-hidden': 'true' }, icon(e.cleared ? 'boss' : e.end === 'left' ? 'release' : 'elite', 22)),
     h('div', { class: 'hist-main' },
       h('p', { class: 'hist-head' }, h('b', null, endText(e)), e.ascension > 0 && h('span', { class: 'hist-asc', tip: () => `Played at ascension ${e.ascension}: ${ascensionText(e.ascension).short}.` }, `A${e.ascension}`),
-        MONARCHS[e.monarch] && h('span', { class: 'hist-mon', tip: () => `Played as ${MONARCHS[e.monarch].name}: ${MONARCHS[e.monarch].line}` }, icon('crown', 16), MONARCHS[e.monarch].name), daily),
-      h('p', { class: 'hist-sub' }, [when, !e.daily && `seed ${e.seed}`, `${e.wins}/${e.fights} battle${e.fights === 1 ? '' : 's'} won`, timeText(e.time)].filter(Boolean).join(' · '))),
+        MONARCHS[e.monarch] && h('span', { class: 'hist-mon', tip: () => `Played as ${MONARCHS[e.monarch].name}: ${MONARCHS[e.monarch].line}` }, icon('crown', 16), MONARCHS[e.monarch].name)),
+      h('p', { class: 'hist-sub' }, [when, `seed ${e.seed}`, `${e.wins}/${e.fights} battle${e.fights === 1 ? '' : 's'} won`, timeText(e.time)].filter(Boolean).join(' · '))),
     army.length > 0 && h('div', {
       class: 'hist-army',
       tip: () => h('div', { class: 'syn-tip' }, h('b', null, 'The souls it ended with'),
@@ -2428,8 +2412,6 @@ export function endText (e) {
   if (e.cleared) return e.end === 'cleared' ? 'Cleared' : `Cleared; ${e.end === 'fell' ? 'fell' : 'left'} ${where}`
   return `${e.end === 'fell' ? 'Fell' : 'Left'} ${where}`
 }
-// A UTC day ('2026-10-15') as the player reads a date ("Oct 15"), in UTC.
-const dayText = (day) => new Date(`${day}T12:00:00Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' })
 // A play time in words ("1 h 12 min", "41 min", "under a minute"); `short`, for a tile ("1h 12m", "41m").
 function timeText (ms, short = false) {
   const m = Math.floor(ms / 60000)

@@ -314,9 +314,8 @@ const PATHS = {
   // Music on (two notes beamed) and off (the notes struck through).
   music: '<path d="M9.2 17.6c0 1.6-1.4 2.9-3 2.8-1.6 0-2.8-1.3-2.7-2.8.1-1.5 1.4-2.6 2.9-2.6 1.5.1 2.8 1.1 2.8 2.6z" fill="currentColor" fill-opacity=".25"/><path d="M19.6 15.4c0 1.5-1.3 2.7-2.9 2.6-1.5 0-2.7-1.2-2.6-2.7.1-1.4 1.3-2.5 2.8-2.4 1.5 0 2.7 1.1 2.7 2.5z" fill="currentColor" fill-opacity=".25"/><path d="M9.2 17.6V5.2l10.4-1.9v12.1M9.2 9l10.4-1.9"/>',
   nomusic: '<path d="M9.2 17.6c0 1.6-1.4 2.9-3 2.8-1.6 0-2.8-1.3-2.7-2.8.1-1.5 1.4-2.6 2.9-2.6 1.5.1 2.8 1.1 2.8 2.6z" fill="currentColor" fill-opacity=".25"/><path d="M19.6 15.4c0 1.5-1.3 2.7-2.9 2.6-1.5 0-2.7-1.2-2.6-2.7.1-1.4 1.3-2.5 2.8-2.4 1.5 0 2.7 1.1 2.7 2.5z" fill="currentColor" fill-opacity=".25"/><path d="M9.2 17.6V5.2l10.4-1.9v12.1M3.6 3.9l16.8 16.6"/>',
-  // The title's meta (redesign.md §4.8): the History a scroll of lines, the daily a calendar's page with its day marked.
+  // The title's meta (redesign.md §4.8): the History a scroll of lines.
   history: '<path d="M16.4 6.2l.1 12.2c0 1.3-1 2.3-2.3 2.3l-9.9.1c1.2 0 2.2-1 2.2-2.3L6.4 6c0-1.3 1-2.4 2.3-2.4l9.1-.1c1.3 0 2.3 1 2.3 2.3l-.1 1.5h-3.6" fill="currentColor" fill-opacity=".15"/><path d="M9.4 9.4l4.3-.1M9.5 12.6h4.1M9.4 15.8l2.7-.1"/>',
-  daily: '<path d="M4.6 6.1l14.9-.2c.5 0 .9.4.9.9l-.1 12.8c0 .5-.4.9-.9.9L4.5 20.6c-.5 0-.9-.4-.9-.9l.1-12.7c0-.5.4-.9.9-.9z" fill="currentColor" fill-opacity=".15"/><path d="M3.8 10.4l16.5-.1M8.2 3.4v4.3M15.9 3.3v4.4"/><path d="M12 13.1c1 0 1.8.8 1.8 1.8s-.8 1.9-1.9 1.8c-1 0-1.8-.8-1.7-1.9 0-1 .8-1.7 1.8-1.7z" fill="currentColor"/>',
   // A glyph per relic (ui.js RELIC_ICON maps each relic id to its own), so no two tiles look alike.
   'r-whetstone': '<path d="M3.5 17.5h17l-2 3h-13z" fill="currentColor" fill-opacity=".25"/><path d="M6.5 14.5L18 3.5l1.8 1.8L9 16.3zM6.5 14.5l-2 2"/>',
   'r-banner': '<path d="M4 3.5h16"/><path d="M6.5 3.5v15l5.5-3.5 5.5 3.5v-15" fill="currentColor" fill-opacity=".2"/><path d="M14.1 8.8C13.9 9.9 12.8 10.6 11.8 10.4C10.7 10.3 9.7 9.4 9.9 8.2C10 7.1 11.1 6.4 12.3 6.5C13.4 6.6 14.2 7.6 14.1 8.8z"/><path d="M11 10.5v1.5M13 10.5v1.5"/>',

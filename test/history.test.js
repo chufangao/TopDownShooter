@@ -1,10 +1,10 @@
-// The runs kept in this browser and the daily (redesign.md §4.8, the meta; src/sim/history.js): a run's line as it
-// ended, the book of them newest first with its totals, read as far as it holds whatever was kept, and the day's seed.
+// The runs kept in this browser (redesign.md §4.8, the meta; src/sim/history.js): a run's line as it ended, the book of
+// them newest first with its totals, read as far as it holds whatever was kept.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRun, apply } from '../src/sim/run.js'
 import { saveOf, restore } from '../src/sim/save.js'
-import { recordOf, armyOf, readBook, withRun, totalOf, isEntry, dailySeed, dayOf, HISTORY_CAP } from '../src/sim/history.js'
+import { recordOf, armyOf, readBook, withRun, totalOf, isEntry, HISTORY_CAP } from '../src/sim/history.js'
 import { policy } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { unitDef } from '../src/content.js'
@@ -16,24 +16,14 @@ function played (made, stop = () => false, level = 'basic') {
   return run
 }
 
-test('the daily is the UTC day\'s seed, the same wherever it is played', () => {
-  assert.equal(dayOf(new Date('2026-10-15T12:00:00Z')), '2026-10-15')
-  // Late on the 15th in New York is the 16th in UTC; early on the 16th in Tokyo is the 15th.
-  assert.equal(dailySeed(new Date('2026-10-15T23:30:00-05:00')), 'daily-2026-10-16')
-  assert.equal(dailySeed(new Date('2026-10-16T08:00:00+09:00')), 'daily-2026-10-15')
-  const a = createRun({ seed: dailySeed(new Date('2026-10-15T01:00:00Z')) })
-  const b = createRun({ seed: dailySeed(new Date('2026-10-15T23:00:00Z')) })
-  assert.deepEqual(a.state, b.state)
-})
-
 test('a run\'s line: how it ended and where, its battles, its army and its killer', () => {
   const fell = played({ seed: 'hist-fell' })
   assert.equal(fell.state.phase, 'over')
-  const e = recordOf(fell, { id: 'x@1', at: 1000, time: 61234.4, daily: '2026-10-15', practice: true })
+  const e = recordOf(fell, { id: 'x@1', at: 1000, time: 61234.4 })
   assert.ok(isEntry(e))
   assert.equal(e.end, 'fell')
   assert.equal(e.cleared, false)
-  assert.deepEqual([e.id, e.at, e.seed, e.ascension, e.time, e.daily, e.practice], ['x@1', 1000, 'hist-fell', 0, 61234, '2026-10-15', true])
+  assert.deepEqual([e.id, e.at, e.seed, e.ascension, e.time], ['x@1', 1000, 'hist-fell', 0, 61234])
   assert.deepEqual([e.floor, e.wins, e.fights], [fell.state.floor, fell.state.stats.wins, fell.state.stats.fights])
   assert.equal(e.fell.by, fell.state.death.by)
   assert.equal(e.fell.threat, fell.state.death.threat ?? null)
@@ -51,9 +41,6 @@ test('a run\'s line: how it ended and where, its battles, its army and its kille
   assert.deepEqual([recordOf(won).end, recordOf(won).cleared], ['cleared', true])
   won.state.death = fell.state.death
   assert.deepEqual([recordOf(won).end, recordOf(won).cleared], ['fell', true])
-  // Not the daily: no mark.
-  assert.equal('daily' in recordOf(fell), false)
-  assert.equal('practice' in recordOf(fell, { practice: true }), false)
 })
 
 test('the army a line keeps: the kinds most held, every fused kind, the kin most held', () => {
@@ -116,7 +103,7 @@ test('a book that does not read is read as far as it holds, never thrown', () =>
 test('a save carries what the interface keeps with its run, handed back as given', () => {
   const made = { seed: 'hist-meta' }
   const run = played(made, (r) => r.state.phase === 'reap', 'expert')
-  const meta = { begun: 1760000000000, time: 123456, daily: '2026-10-15', practice: true }
+  const meta = { begun: 1760000000000, time: 123456 }
   const back = restore(saveOf(run, made, meta))
   assert.deepEqual(back.meta, meta)
   assert.deepEqual(back.run.state, run.state)
