@@ -2475,7 +2475,9 @@ export const CAMP_LIST = [
 export const TUTORIAL = {
   seed: 'threshold',
   party: ['tomb_knight'],
-  foes: [{ id: 'clockwork_page', row: 0, lane: 3 }],
+  // One foe, a plain melee brute, at a fraction of its strength: it walks into the Knight's reach and falls in a few blows.
+  scale: 0.35,
+  foes: [{ id: 'grave_ghoul', row: 0, lane: 3 }],
   screens: {
     field: {
       title: 'The threshold',

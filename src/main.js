@@ -6,14 +6,15 @@ import { createEngine } from './engine.js'
 import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun, bountyOf, BASE_MONARCH, monarchsOpen, monarchsAt } from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
 import { recordOf, readBook, withRun } from './sim/history.js'
-import { stats, ariseOf } from './sim/turns.js'
+import { stats, ariseOf, targetsFrom, canAct } from './sim/turns.js'
+import { deployTile } from './sim/unit.js'
 import { unitDef, RELICS, TUTORIAL } from './content.js'
 import {
-  titleScreen, runScreen, NODE, reapScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText,
+  coach, titleScreen, runScreen, NODE, reapScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText,
   historyScreen, soundControls
 } from './ui.js'
 import { helpOverlay, unitCard, tipDetail, deathText, bestiary, floorNote, riteNote, recruitNote, summonedBy } from './codex.js'
-import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy, prefs } from './dom.js'
+import { showTip, pinTip, hideTip, refreshTip, tipMore, tipPinned, touchy, prefs, say } from './dom.js'
 import { sfx } from './sfx.js'
 import { music, trackOf } from './music.js'
 import { board } from './board.js'
@@ -107,11 +108,13 @@ function toggleHelp () {
   if (help) {
     help.remove()
     help = null
-    return cover('help', false)
+    cover('help', false)
+    return hint()
   }
   help = helpOverlay(toggleHelp, run, { sound: soundControls() })
   frame.el.append(help)
   cover('help', true)
+  hint()
   if (!touchy()) help.querySelector('.gl-search')?.focus({ preventScroll: true })
 }
 
@@ -201,6 +204,8 @@ function ascend () {
 function act (action) {
   try {
     play(action)
+    if (action.type === 'place') placed = true
+    hint()
     return null
   } catch (e) {
     return e.message
@@ -291,6 +296,7 @@ function overlay (el) {
   over = el
   if (el) frame.el.append(el)
   cover('overlay', !!el)
+  hint()
 }
 
 function title (seed, said = '') {
@@ -357,6 +363,54 @@ function abandon () {
   prefs.drop('save')
 }
 
+// ── the coach ────────────────────────────────────────────────────────────────────────────────────
+
+// The threshold's callouts (ui/coach.js): what to do next, beside the thing to do it with, read again on every change
+// of the run, the screen, the tab, the battle's selection or an overlay; nothing outside the tutorial.
+let tab = null
+let fieldSeen = false
+let placed = false
+const tabEl = (id) => frame.el.querySelector(`.top-tab[data-tab="${id}"]`)
+function hintFor () {
+  const s = run.state
+  if (s.phase === 'map') {
+    const k = s.party.find((u) => u.id === 'tomb_knight')
+    if (tab === 'field') {
+      return placed ? { at: tabEl('map'), text: 'Now open the Map' }
+        : { at: () => (k && k.slot >= 0 ? board.rectOf(deployTile('party', k.slot)) : null), text: 'Drag your Knight to a tile in front of the Monarch' }
+    }
+    if (!fieldSeen) return { at: tabEl('field'), text: 'Open the Field' }
+    return { at: frame.el.querySelector('.node.reach'), text: say('Click the room to enter it', 'Tap the room twice to enter it') }
+  }
+  if (s.phase === 'battle') {
+    const sc = battleScene()
+    const b = run.battle
+    if (!sc || !b || b.over || sc.locked() || sc.ending || sc.paused) return null
+    const k = b.units.find((u) => u.side === 'party' && u.id === 'tomb_knight')
+    const foe = b.units.find((u) => u.side === 'foe' && u.hp > 0)
+    if (!k || k.hp <= 0 || !foe) return null
+    const end = frame.el.querySelector('.end-turn')
+    if (!canAct(b, k)) return { at: end, text: 'End Turn' }
+    if (sc.sel?.uid !== k.uid) return { at: () => sc.rectOf(k.uid), text: 'Tap your Knight' }
+    if (k.basic && targetsFrom(b, k, k.basic).some((x) => x.uid === foe.uid)) {
+      return { at: () => sc.rectOf(foe.uid), text: sc.sel.aim === foe.uid ? 'Tap it again to strike' : 'Tap the foe to aim at it' }
+    }
+    if (k.moved < k.move) return { at: () => sc.rectOf(k.uid), text: 'Tap a blue tile to move toward the foe' }
+    return { at: end, text: 'End Turn: the foe comes to you' }
+  }
+  if (s.phase === 'reap') {
+    const offer = frame.el.querySelector('.offer')
+    return offer ? { at: offer, text: 'Recruit it, or move on' } : { at: frame.el.querySelector('.move-on'), text: 'Move on' }
+  }
+  return null
+}
+function hint () {
+  if (!run?.state.tutorial || over || help) return coach.hide()
+  const next = hintFor()
+  if (next) coach.show(next)
+  else coach.hide()
+}
+
 // ── the tutorial ─────────────────────────────────────────────────────────────────────────────────
 
 // One room before floor 1, played as any run is, never saved; its three screens come once each (lesson).
@@ -369,6 +423,9 @@ function tutorial () {
   note = ''
   trail = null
   taught.clear()
+  tab = null
+  fieldSeen = false
+  placed = false
   route()
 }
 
@@ -383,6 +440,7 @@ function lesson (key) {
 function graduate () {
   const fell = !!run.state.death
   prefs.set('did:tutorial', '1')
+  coach.hide()
   title(newSeed(), fell ? 'The Monarch fell on the threshold. In a run, that would be the end of it: try the tutorial again, or begin.'
     : 'The tutorial is done. Begin the descent when you are ready: your first floor is like the threshold, with more rooms and more foes.')
 }
@@ -418,15 +476,18 @@ function route () {
   } else if (s.phase === 'draft') {
     show(draftScreen({ run, onPick: pick, onHelp: toggleHelp }))
   } else if (s.phase === 'map') {
-    show(runScreen({ run, trail: trail.ids, note, onNode, act, onHelp: toggleHelp }))
+    tab = 'map'
+    show(runScreen({ run, trail: trail.ids, note, onNode, act, onHelp: toggleHelp, onTab: (id) => { tab = id; if (id === 'field') fieldSeen = true; hint() } }))
     note = ''
     lesson('field')
+    hint()
   } else if (s.phase === 'prep') {
     // A battle room entered: its battle starts at once, with the souls where the Field left them.
     fight()
   } else if (s.phase === 'reap') {
     show(reapScreen({ run, title: { elite: 'The elite falls', boss: 'The boss falls' }[currentNode(run).type] ?? 'Spoils', act, onDone: reap, onHelp: toggleHelp }))
     lesson('spoils')
+    hint()
   } else if (s.phase === 'altar') {
     show(altarScreen({ run, onRite: rite, onHelp: toggleHelp }))
   } else {
@@ -505,7 +566,7 @@ async function fight ({ resume = false } = {}) {
     // A foe kind met (the bestiary): tapped, its reach is drawn.
     met: (id) => bestiary.has(id),
     title: `${s.tutorial ? 'The threshold' : `Floor ${run.setup.floor}${depthOf(run.setup.floor) ? ` · deep ${depthOf(run.setup.floor)}` : ''}`} · ${NODE[node.type].name}`,
-    onChange: (st) => bar.update(st),
+    onChange: (st) => { bar.update(st); hint() },
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: runStat(s, 'essence.gain', 1),
     // An elite or a floor's boss pays its bounty on a win (the purse's card); what the run took for the battle, read as it ends.

@@ -164,7 +164,7 @@ export function monarchsAt (cleared, level) {
 // The tutorial: one room before floor 1 in a real run state, never saved: a fixed start, its seed's floor-1 camp, and a
 // map of the threshold and one fight of the tutorial's foes; won, its spoils end it (phase 'over', no result).
 export function tutorialRun () {
-  const run = createRun({ seed: TUTORIAL.seed, start: TUTORIAL.party })
+  const run = createRun({ seed: TUTORIAL.seed, start: TUTORIAL.party, scale: TUTORIAL.scale ?? 1 })
   const s = run.state
   s.tutorial = true
   const lane = (WIDTH - 1) / 2

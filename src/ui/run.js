@@ -28,7 +28,7 @@ function shopCount (run) {
 }
 
 // trail: node ids visited on this floor, in order (starts with the start node). onNode: walk to a room.
-export function runScreen ({ run, act, trail, note = '', onNode, onHelp }) {
+export function runScreen ({ run, act, trail, note = '', onNode, onHelp, onTab = null }) {
   const bar = h('div', { class: 'bar-slot' })
   const tabsEl = h('nav', { class: 'top-tabs', role: 'tablist', 'aria-label': 'Views' })
   const refresh = () => fill(bar, topbar(run, onHelp, tabsEl))
@@ -55,6 +55,7 @@ export function runScreen ({ run, act, trail, note = '', onNode, onHelp }) {
         : id === 'shop' ? shopView({ run, act, onChange: refresh }).el
           : h('section', { class: 'panel codex-panel' }, codexView(run)))
     if (id === 'field') editor.shown()
+    onTab?.(id)
   }
   show('map')
   const el = h('div', { class: 'screen fit run-screen' }, bar, body, toast)

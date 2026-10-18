@@ -6,8 +6,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { UNITS, ABILITIES, TEMPERS, BEHAVIOURS, THREATS, FUSIONS, FUSION_LIST, TUTORIAL, trineOf, isTriple } from '../src/content.js'
-import { spawnPool, draftPool, draftOffer, tutorialRun, createRun, souls } from '../src/sim/run.js'
-import { isBlow } from '../src/sim/unit.js'
+import { spawnPool, draftPool, draftOffer, tutorialRun, createRun, souls, apply } from '../src/sim/run.js'
+import { isBlow, makeUnit } from '../src/sim/unit.js'
 import { basicOf } from '../src/sim/turns.js'
 
 const NEW = ['cinder_whelp', 'brass_sentry', 'hive_spitter', 'thornling']
@@ -34,6 +34,13 @@ test('the Tomb Knight is met from floor 2: never in floor 1\'s pool nor the draf
   // One on one: the Knight alone against one foe.
   assert.deepEqual(souls(run.state.party).map((u) => u.id), ['tomb_knight'])
   assert.equal(run.state.map.nodes.find((n) => n.type === 'fight').foes.length, 1)
+  // The threshold's foe: a Grave Ghoul at the tutorial's scale, with far less HP than the kind has at its level.
+  const foe = run.state.map.nodes.find((n) => n.type === 'fight').foes[0]
+  assert.equal(foe.id, 'grave_ghoul')
+  apply(run, { type: 'node', id: run.state.map.end })
+  apply(run, { type: 'fight' })
+  const ghoul = run.battle.units.find((u) => u.side === 'foe')
+  assert.ok(ghoul.maxHp < makeUnit('grave_ghoul', { uid: 1, lvl: foe.lvl }).hp * 0.5, `${ghoul.maxHp}`)
 })
 
 test('four new kinds of tier 1 on floor 1, each in the floor-1 pool and offered by the draft on some seed', () => {

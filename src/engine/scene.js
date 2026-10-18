@@ -827,6 +827,18 @@ export class BattleScene extends Phaser.Scene {
     return a ? { x: a.vx ?? a.sprite.x, y: a.sprite.y - a.chest } : null
   }
 
+  // A unit's picture as a viewport rect (the coach's anchor); null for none.
+  rectOf (uid) {
+    const a = this.actors.get(uid)
+    if (!a || !this.sys.isActive()) return null
+    const b = a.sprite.getBounds()
+    const cam = this.cameras.main
+    const r = this.game.canvas.getBoundingClientRect()
+    const sx = (x) => r.left + (cam.x + (x - cam.worldView.x) * cam.zoom) * r.width / this.scale.width
+    const sy = (y) => r.top + (cam.y + (y - cam.worldView.y) * cam.zoom) * r.height / this.scale.height
+    return { left: sx(b.left), right: sx(b.right), top: sy(b.top), bottom: sy(b.bottom) }
+  }
+
   // Aims the selected piece's armed act at `uid` (null: none): the sim's preview in numbers over the struck, a counter's.
   aim (uid) {
     const s = this.sel
