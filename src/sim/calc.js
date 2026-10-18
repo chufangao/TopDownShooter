@@ -1,37 +1,19 @@
-// The calculator, and the teacher over it (redesign.md §3, the spike of 2026-10-15). A player with no weight fitted or
-// searched: every decision is legal options read by exact arithmetic and taken by a fixed order that names no kind,
-// relic or number of the content. The teacher plays the calculator's candidates out to the run's end and takes the
-// best (the outside teacher's method, outside.js, over this base instead of the hand expert). Offline only, like
-// teach.js and outside.js: nothing in the game imports it.
-//
-// In battle (calcTurn): each piece of yours, one at a time, takes the option (policy.js options: a tile its Move
-// reaches, then an act from there, or none) whose consequences, read by policy.js features on the board as it stands,
-// score best by
-//   [ the Monarch out of the foes' reach to fell next turn, material ]
-// in that order, material being HP at unit weight, both sides alike: what it deals (damage, and a kill's max HP more),
-// mends, lays as a status (content.js STATUS_WORTH, the content's own price) and raises, less the counter it draws and
-// what the foes would take of yours next turn where it ends (souls, shadows and the Monarch, a fall its max HP more:
-// features' `loss`, `shadowLoss`, `hit` with TUNING.expert.battle.brink and .peril at 0, so a wound counts its HP and
-// no more). A hold counts what End Turn will have it strike or mend from there. The pieces go in the order of their
-// best option on the turn's first board, each read again on the board as the ones before left it. A fusion is a purchase
-// out of battle, the teacher's.
-//
-// Out of battle (calcStep, calcDecision), each decision's options in a fixed order, the first its pick:
+// The calculator, and the teacher over it: a player with no weight fitted or searched, each decision's legal options
+// read by exact arithmetic and taken in a fixed order that names no kind, relic or number of the content; the teacher
+// plays the calculator's candidates out to the run's end and takes the best. Offline only. The order:
+//   battle   each piece, in the order of its best option on the turn's first board, takes the option that scores best by
+//            [ the Monarch out of the foes' reach next turn, material in HP: dealt, mended, statuses and raised, less the
+//            counter and next turn's losses ], read again on the board the ones before left (calcTurn)
 //   draft    the offers, the highest tier first
-//   map      each purchase the purse affords (a fusion first, the highest tier; then a tier, the most souls of its kind
-//            an essence), then each relic of the Shop's shelf it affords (the rarest first, as the relics are below),
-//            and each room open (an altar first while the Monarch stands below half or a soul is fallen, then a fight,
-//            an elite, the rest): the pick the first purchase, else the first relic, else the first room
+//   map      each purchase the purse affords (a fusion first, the highest tier; then a tier, the most souls of its kind an
+//            essence), then each relic of the shelf it affords (the rarest first), then each room open (an altar first
+//            while the Monarch stands below half or a soul is fallen, then a fight, a siege, an elite, the rest)
 //   prep     the strongest souls standing (tier, level, max HP) up to Command, on the camp's default frontier
-//            (run.js frontier), walked to as outside.js prepStep walks
 //   reap     each soul offered the purse affords (the highest tier, then a kind held), and none; a full retinue lets its
 //            weakest soul go first
-//   shop     (the map's, once no purchase is left) each relic of the shelf the purse affords, the rarest first, and
-//            each room open; a piece relic then given
-//   hold     an unheld piece relic to each fielded soul that may take it, the strongest first
-//   altar    its rites (run.js altarActions): the heal first while the Monarch stands below half or a soul is fallen,
-//            else each free tier first (in the purchases' order, as if the purse paid) and then the heal; the
-//            transmutations last
+//   shop     each relic of the shelf the purse affords, the rarest first, then each room open
+//   hold     an unheld piece relic to the strongest fielded soul that may take it
+//   altar    the heal first while hurt (as the map's altar), else each free tier and then the heal; the transmutations last
 import { createRun, apply, availableNodes, currentNode, souls, fielded, fieldCap, canFuse, fuseParts, tierCost, heldKinds, canAdvance,
   canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, altarActions, copyRun } from './run.js'
 import { fork, orderable, stalled, order } from './turns.js'
@@ -41,6 +23,7 @@ import { progressOf } from './autoplay.js'
 import { hashString } from './rng.js'
 import { unitDef, FUSION_LIST } from '../content.js'
 import { TUNING } from '../tuning.js'
+import { arg, has, isMain } from './cli.js'
 
 // The readers' two searched numbers at 0: a wound counts its HP, a fall the piece's max HP more, the Monarch's HP its HP.
 export function plainReaders () {
@@ -61,8 +44,8 @@ function keyOf (v, o) {
   const lost = v.counter + v.loss + v.shadowLoss + v.hit
   return [-v.lethal, dealt - lost, -o.path.length, -o.tile, -(o.target?.uid ?? -1)]
 }
-// The plan the readers ask for (features' sit.plan): none, so the plan's features (progress, role, post, listed) read
-// nothing; its forecast map is the danger map itself (`forecast`, unscored).
+// The plan the readers ask for (features' sit.plan): none, so the plan's features read nothing; its forecast map is the
+// danger map itself.
 const NONE = new Map()
 function best (f, u) {
   const sit = situation(f)
@@ -86,7 +69,7 @@ function commit (f, u, o, out) {
   if (!f.over && o.ability) give(f, { type: 'act', uid: u.uid, ability: o.ability.id, target: o.target.uid }, out)
 }
 // One turn's orders, End Turn last.
-export function calcTurn (battle) {
+function calcTurn (battle) {
   if (battle.over) return []
   const f = copyOf(battle)
   const out = []
@@ -156,8 +139,7 @@ function holds (run) {
   return fielded(souls(s.party)).filter((u) => u.hp > 0 && !u.relics?.length && canHold(s, relic, u)).sort(strongest)
     .map((u) => ({ type: 'hold', relic, uid: u.uid }))
 }
-// An altar's rites in the calculator's order (see the head): the transmutations, a soul for another kind of its tier,
-// are a strategy's, not a sum's, so last, in the run's order.
+// An altar's rites in the calculator's order; the transmutations, a strategy's and not a sum's, last in the run's order.
 function rites (run) {
   const heal = { type: 'heal' }
   const free = tiers(run, { type: 'consecrate', free: true })
@@ -195,7 +177,7 @@ function relics (run) {
 
 // The decision the calculator meets now out of battle: its kind and its candidates (each a list of actions), the
 // calculator's own pick first. → { kind, cands }
-export function calcDecision (run) {
+function calcDecision (run) {
   const s = run.state
   if (s.phase === 'draft') {
     const ix = s.draft.offer.map((id, index) => ({ id, index })).sort((a, b) => tierOf(b.id) - tierOf(a.id) || a.index - b.index)
@@ -217,7 +199,7 @@ export function calcDecision (run) {
 
 // The calculator's action now: in battle its turn's next order (a turn planned once at its start), else its pick.
 const planned = new WeakMap()
-export function calcStep (run) {
+function calcStep (run) {
   if (run.state.phase === 'battle') {
     const b = run.battle
     if (stalled(b)) return { type: 'stall' }
@@ -273,10 +255,9 @@ export function playout (run, acts, memo) {
 
 export const PHASES = Object.freeze(['draft', 'spend', 'route', 'recruit', 'shop', 'hold', 'altar'])
 
-// One run: the calculator (`teacher` false), or the teacher over it: at each decision of `phases` with two candidates or
-// more, at most `cap` of them (the calculator's first) played out to the end, the first that clears taken, else the best.
-// At level `ascension` of the ladder and as `monarch` (run.js createRun's; its playouts' copies keep them), the level
-// named in the result where not 0.
+// One run: the calculator (`teacher` false), or the teacher over it: at each decision of `phases` with two candidates
+// or more, at most `cap` of them (the calculator's first) played out, the first that clears taken, else the best.
+// `ascension` and `monarch` as run.js createRun's.
 export function calcRun (seed, { teacher = false, phases = PHASES, cap = 6, onBattle = null, ascension = 0, monarch = undefined } = {}) {
   const t0 = Date.now()
   const run = createRun({ seed, ascension, ...(monarch && { monarch }) })
@@ -332,21 +313,16 @@ function capMap (cands, cap) {
 
 // ── the command line ──────────────────────────────────────────────────────────────────────────────
 
-// node src/sim/calc.js [--teacher] [--seed aud] [--from 0] [--runs 8] [--ascension 0]: a line a run (calcRun's, with its
-// battles fought and won and their turns); run several at once on disjoint `--from` ranges for cores. (The ladder plays
-// the calculator as a rung: autoplay.js --ladder.)
-if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new URL(import.meta.url).pathname)) {
-  const arg = (name, def) => {
-    const i = process.argv.indexOf('--' + name)
-    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
-  }
+// node src/sim/calc.js [--teacher] [--seed aud] [--from 0] [--runs 8] [--ascension 0]: a line a run (calcRun's, with
+// its battles fought and won and their turns); run several at once on disjoint `--from` ranges for cores.
+if (isMain(import.meta.url)) {
   plainReaders()
   const from = Number(arg('from', 0))
   for (let i = from; i < from + Number(arg('runs', 8)); i++) {
     let battles = 0
     let won = 0
     let turns = 0
-    const r = calcRun(`${arg('seed', 'aud')}-${i}`, { teacher: process.argv.includes('--teacher'), ascension: Number(arg('ascension', 0)), onBattle: (b) => { battles++; won += b.winner === 'party'; turns += b.turn } })
+    const r = calcRun(`${arg('seed', 'aud')}-${i}`, { teacher: has('teacher'), ascension: Number(arg('ascension', 0)), onBattle: (b) => { battles++; won += b.winner === 'party'; turns += b.turn } })
     console.log(JSON.stringify({ ...r, battles, won, turns }))
   }
 }

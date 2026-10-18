@@ -1,4 +1,4 @@
-// The expert decides with every mechanic (redesign.md §2.17: it scores, it never rehearses): formations drafted and
+// The expert decides with every mechanic: formations drafted and
 // climbed on a static read of the scouted room with each piece where its footprint fits, 2×2 pieces too; the next room
 // by its features; every fusion it can make weighed by the growth search; the tree's rules out of battle; basic never
 // fuses; and the audit that says what it considered against what it chose, and which rule decided.
@@ -97,7 +97,7 @@ function walkRoads (camp) {
   return { roads, d: (c) => f.dist[deployTile('party', c)] }
 }
 
-// Prep's first draft is the plan's target formation (redesign.md §2.18: where you deploy and where you move are one
+// Prep's first draft is the plan's target formation (where you deploy and where you move are one
 // idea): set up from it, the first turn's plan finds each of its blockers already on the choke it gives it.
 test('the plan\'s draft, in every camp: the first turn\'s blockers already on their chokes, every road held', () => {
   for (const c of CAMP_LIST) {
@@ -220,7 +220,7 @@ test('the autoplayer plays a run to its end at each level, the same seed the sam
   }
 })
 
-// The learner's hooks (redesign.md §5 Step 8) pass through the autoplayer to every turn of the expert's: `record` hears
+// The learner's hooks pass through the autoplayer to every turn of the expert's: `record` hears
 // each decision in battle, `explore` with epsilon 1 marks each one explored; with epsilon 0 the run is the run.
 test('the autoplayer hands the expert\'s turns the learner\'s hooks: record and explore', () => {
   const play = (turnOptions) => {
@@ -374,7 +374,7 @@ test('the combo book: every combo, kind, track, recipe, synergy and relic in it 
   for (const c of combosOf()) assert.ok(ids.has(c.id), `the book is out of date: ${c.id} is missing (node src/sim/autoplay.js --combos)`)
 })
 
-// ── the expert's judgement out of battle (redesign.md §2.17) ────────────────────────────────────
+// ── the expert's judgement out of battle ────────────────────────────────────
 
 // A run standing in a fight's prep in camp `camp`, its three start souls fielded on `cells` (the Knight's, the
 // Chanter's, the Sprite's), against two ground foes up the middle.
@@ -439,7 +439,7 @@ function crossroads (seed, types) {
 }
 const seedWith = (n) => [...Array(40).keys()].map((k) => `route-${k}`).find((seed) => availableNodes(createRun({ start: START_PARTY, seed })).length >= n)
 
-// No room is a Shop (DESIGN Next, Step 3): the route's Shop features are kept, for the fitted trees' columns, at 0.
+// No room is a Shop: the route's Shop features are kept, for the fitted trees' columns, at 0.
 test('the route: no room is a Shop, and its Shop features stay 0 whatever the purse', () => {
   const { run } = crossroads(seedWith(2), ['fight', 'altar'])
   for (const essence of [0, 1e4]) {

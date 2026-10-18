@@ -1,6 +1,5 @@
-// The board inside a battle (turns.js): the roads the foes keep to, and the tile index every reach is read from. Pure
-// reads of a battle's `at`, `sky`, `walls`, `root` and `monarch`; nothing here changes a battle but the roads it makes
-// the first time they are read.
+// The board inside a battle (turns.js): the roads the foes keep to, and the tile index every reach is read from.
+// Pure reads of a battle, but for the roads, made the first time they are read.
 import {
   steps, tileX, tileY, tileAt, distance, distanceBetween, unitDistance, footprint, deployTile, slotAt, enemySide, monarchSlot, wallTiles,
   TILES, LANES, DEPTH, ROWS, CENTRE_OUT, CAMP_ROWS, NEIGHBOURS
@@ -11,16 +10,11 @@ export const LANE = CENTRE_OUT.reduce((rank, x, i) => { rank[x] = i; return rank
 
 // ── roads ────────────────────────────────────────────────────────────────────────────────────────
 
-// The order arrows break ties in, from `root` (DESIGN §2.4): the tile nearest the root's lane, then the one nearest
-// its row (straight ahead), then the lane nearer the centre (CENTRE_OUT). Lower first.
+// The order arrows break ties in, lower first: nearest the root's lane, then its row, then the lane nearer the centre.
 const arrowKey = (root, n) => Math.abs(tileX(n) - tileX(root)) * 1e4 + Math.abs(tileY(n) - tileY(root)) * 100 + LANE[tileX(n)]
 
-// The roads (DESIGN §2.4): a flood from `root` (the Monarch's tile) out through every tile no wall stands on, steps
-// as unit.js steps them, giving each tile its road distance (the steps to the root; Infinity where no road reaches)
-// and its arrow: the neighbouring tile with the lowest distance (−1 at the root and where no road reaches), ties in a
-// fixed order (arrowKey), so two foes on one tile always walk the same way. Every arrow points strictly closer to the
-// root. With no walls at all it is the air road (airOf), every tile's distance its Chebyshev distance to the root.
-// Pure: the board draws it in prep as a battle walks it (fieldOf). → { root, dist, arrow }, each list by tile.
+// The roads from `root` round `walls`: → { root, dist, arrow } by tile, `dist` the steps to the root (Infinity: no road),
+// `arrow` the neighbour a step closer (ties by arrowKey, so two foes on a tile walk alike; −1 at the root or no road).
 export function field ({ root, walls = [] }) {
   const closed = new Set(walls)
   closed.delete(root)
@@ -41,27 +35,21 @@ export function field ({ root, walls = [] }) {
   return { root, dist, arrow }
 }
 
-// A battle's road, the Walk field, made when first read: every ground foe's, its root the Monarch, which never moves.
-// Your pieces are no wall to it: one standing on a foe's road holds it there (turns.js roadAhead); no foe routes round
-// them.
+// A battle's Walk road, made when first read: every ground foe's, rooted at the Monarch. Your pieces are no wall to it.
 export const fieldOf = (battle) => (battle.roads.walk ??= field({ root: battle.root, walls: battle.walls }))
 
-// A battle's air road (DESIGN §2.4 Fly), made when first read: the road flooded from the Monarch's tile over every
-// tile, walls and all (a flyer flies over them, and may hover over one). Your pieces are no wall to it either.
+// A battle's air road, made when first read: flooded over every tile, walls and all.
 export const airOf = (battle) => (battle.roads.air ??= field({ root: battle.root, walls: [] }))
 
-// The road a foe walks: a flyer's the air road (airOf), any other's the Walk field (fieldOf).
 export const roadOf = (battle, u) => (u.flies ? airOf(battle) : fieldOf(battle))
 
 // The tile a foe's road takes it to next; −1 where none does (the root, or a tile no road reaches).
 export const arrowOf = (battle, u) => roadOf(battle, u).arrow[u.tile]
 
-// How far a foe's road still runs to the Monarch, along the road it walks: its progress (redesign.md §2.6).
+// How far a foe's road still runs to the Monarch: its progress.
 export const roadLeft = (battle, x) => roadOf(battle, x).dist[x.tile]
 
-// A camp's roads to the Monarch on its seat, as a battle there makes them (fieldOf, airOf), with no battle: `field` the
-// ground foes', round the camp's walls, and `air` the flyers', over every tile. Made once per camp (run.js frontier,
-// autoplay.js gateOf).
+// A camp's roads to the Monarch's seat with no battle: `field` the ground foes', round its walls; `air` the flyers'.
 const campRoads = new Map()
 export function roadsTo (camp) {
   if (!campRoads.has(camp)) {
@@ -73,20 +61,13 @@ export function roadsTo (camp) {
 
 // ── the tile index ───────────────────────────────────────────────────────────────────────────────
 
-// Who stands where, answered from the index (battle.at, the ground, and battle.sky, the air: both are read) at the
-// cost of a few tiles instead of every unit on the board (test/scene.js holds it to a filter over the units). Lists
-// come back in the order the units act (u.ord), as a filter over battle.units would give them, so effects happen in
-// the same order. Every reach is measured from a footprint (DESIGN §2.3): `tile` its anchor and
-// `size` its side; the tiles within r of it are a square r wider on every side, and a 2×2 piece found on several of
-// them is listed once.
+// Who stands where, read from the index (battle.at, the ground; battle.sky, the air) at the cost of a few tiles. Lists
+// come in acting order (u.ord), as a filter over battle.units would; a reach is a square r wider than a footprint.
 
-// Where a unit stands in the index: a flyer in the air, anyone else on the ground.
 export const layerOf = (battle, u) => (u.flies ? battle.sky : battle.at)
 
-// The living units on `side` within `r` tiles of a footprint, in acting order; a flyer only within `air` tiles
-// (a melee blow's −1: none).
-// (The window clipped to the board, and each unit inserted in acting order as it is found, once: the same list
-// as filtering every tile in reach and sorting it, with no sort to call.)
+// The living units on `side` within `r` tiles of a footprint, in acting order, each once; a flyer only within `air`
+// tiles (a melee blow's −1: none).
 export function around (battle, tile, r, side, size = 1, air = r) {
   const out = []
   const x0 = tileX(tile)
@@ -133,8 +114,7 @@ export const auraGivers = (battle, u) => battle.auraReach
   ? around(battle, u.tile, battle.auraReach, u.side, u.size).filter((a) => a !== u && a.aura && unitDistance(a, u) <= a.aura.range)
   : []
 
-// Whether a piece of `size` may stand anchored at `tile`: its whole footprint on the board, with no one on it in its
-// layer: on open ground, or for a flyer (`flies`) in the air, over anyone on the ground or a wall.
+// Whether a piece of `size` fits anchored at `tile`: its footprint on the board, empty in its layer (a flyer's: the air).
 export function free (battle, tile, size = 1, flies = false) {
   const layer = flies ? battle.sky : battle.at
   const open = (t) => layer[t] === null && (flies || !battle.walls.has(t))
@@ -143,11 +123,8 @@ export function free (battle, tile, size = 1, flies = false) {
   return tiles !== null && tiles.every(open)
 }
 
-// Where a shadow of yours of `size` rises (DESIGN §2.5): never where it fell, so the enemy's dead never block its
-// roads, but anchored where its footprint is free (free; in the air for a flyer's, `flies`: over the Monarch itself,
-// if that is free) closest to the Monarch (with none, to the tile the roads run to); ties to the footprint nearest
-// `from`, where it fell, then lane order (CENTRE_OUT), then the lower tile. −1 when no footprint on the board is
-// free.
+// Where a shadow of yours rises: never where it fell, but on a free footprint (a flyer's in the air) closest to the
+// Monarch, ties nearest `from` (where it fell), then lane order, then the lower tile. −1 when none is free.
 export function riseTile (battle, from, size = 1, flies = false) {
   const to = battle.monarch?.tile ?? battle.root
   let best = -1
@@ -164,11 +141,8 @@ export function riseTile (battle, from, size = 1, flies = false) {
   return best
 }
 
-// Where a summon of `u` (of `size`, a flyer's when `flies`) rises: anchored where its whole footprint lies on the camp
-// (its rows, y below CAMP_ROWS; a foe's summoner's, anywhere on the board: the Swarm Queen's brood), on no wall and not
-// on the Monarch's seat, free in its layer (free: open ground, or the air for a flyer's), nearest the summoner's
-// footprint (Chebyshev); ties as riseTile's: nearest the Monarch (with none, the tile the roads run to), then lane order
-// (CENTRE_OUT), then the lower tile. −1 when no such footprint is free.
+// Where a summon of `u` rises: a free footprint on the camp's rows (a foe's: anywhere), off walls and the Monarch's seat,
+// nearest the summoner, ties as riseTile's. −1 when none is free.
 export function summonTile (battle, u, size, flies) {
   const to = battle.monarch?.tile ?? battle.root
   const seat = battle.monarch?.tile ?? -1
@@ -187,10 +161,8 @@ export function summonTile (battle, u, size, flies) {
   return best
 }
 
-// Where a foe enters: the open tile of the foes' rows nearest the top edge in its `lane` (the middle one by default),
-// in the air for a flyer (over anyone on the ground, or a wall), ties going to tiles ahead of it (down the board),
-// then level with it, then the nearest lane, then the lower tile; −1 while the foes' rows are full (it waits in the
-// reserve: foes come from the top edge, never out of the gap row or your camp, past the pieces you placed).
+// Where a foe enters: the open tile of the foes' rows nearest the top edge in its `lane` (a flyer's in the air), ties
+// ahead of it, then level, then the nearest lane, then the lower tile; −1 while the rows are full (it waits in reserve).
 export function entryTile (battle, lane = CENTRE_OUT[0], flies = false) {
   const from = deployTile('foe', slotAt(ROWS - 1, lane))
   const layer = flies ? battle.sky : battle.at

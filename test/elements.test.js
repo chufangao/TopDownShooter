@@ -1,4 +1,4 @@
-// The elements of 2026-10-17 (DESIGN.md Part two §8, "Elements"): ten individual rules a player combines, each one
+// The elements of 2026-10-17: ten individual rules a player combines, each one
 // relic or status, none a synergy. A hold (Snare: Rooted), strength that grows (Butcher's Hook: Bloodlust), four payoffs
 // that read what the foe struck carries (`per` on a damage effect, turns.js runEffect: Powder Keg and Glass Hammer spend
 // it, Headsman's Hood and Plague Mask do not), and four Legendary rules (rules.js): an act refunded on a kill (Reaper's

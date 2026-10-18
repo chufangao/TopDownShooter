@@ -1,4 +1,4 @@
-// The expert's plan (redesign.md §2.18), tested as tactical puzzles: hand-built boards with a known right answer, each
+// The expert's plan, tested as tactical puzzles: hand-built boards with a known right answer, each
 // asserting the plan, the target formation, the kill list or the orders a turn gives do it. Functional only: what the
 // expert does on a board, never how often it wins. The boards are clear-cut (the right answer wins by far), so that
 // the weight search can move the numbers without flipping them.
@@ -320,7 +320,7 @@ test('puzzle: protect, the Knight steps in front of the Monarch\'s attacker', ()
   assert.equal(piece(b, 0).hp, hp, 'the Monarch unhurt through the foes\' turn')
 })
 
-// ── the line out of range, the Monarch's shooters, its wounds (redesign.md §2.18 A–C) ─────────────
+// ── the line out of range, the Monarch's shooters, its wounds ─────────────
 
 // The tile a foe walking the road from tile `from` waits on, held by a piece on road tile `t`: the one before t.
 const before = (b, t, from) => roadFrom(fieldOf(b), from).find((x) => fieldOf(b).arrow[x] === t)

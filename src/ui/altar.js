@@ -1,0 +1,169 @@
+// An altar: one rite of three, heal, transmute or consecrate.
+import { unitCard, partyMods, realmOf, ROMAN, roomGain, transmuteWorth } from '../codex.js'
+import { unitDef, KIN, ROLES } from '../content.js'
+import { h, fill, icon, portrait, hideTip, touchy, say } from '../dom.js'
+import { frame } from '../frame.js'
+import { kw } from '../keywords.js'
+import { sfx } from '../sfx.js'
+import {
+  souls, isMonarch, canAdvance, tierCost, levelOf, kindLevel, heldKinds, unhealed, transmuteOffer, canTransmute
+} from '../sim/run.js'
+import { tracksOf, nextTracks } from '../sim/unit.js'
+import { TUNING } from '../tuning.js'
+import { hiNums, still, cardDeck } from './cards.js'
+import { topbar } from './chrome.js'
+import { fieldOrder } from './parts.js'
+
+// ── the altar ────────────────────────────────────────────────────────────────────────────────────
+
+// One rite of three, and the room ends with it. The rites are tabs, the heal open first where anything is hurt or fallen
+// (or no kind has a tier left). A card is taken as the spoils' are, its keys 1, 2, 3. onRite(action) takes the rite.
+const RITES = [
+  { id: 'heal', name: 'Heal', ico: 'altar', desc: 'Every soul healed, the Monarch too, and the fallen raised.' },
+  { id: 'transmute', name: 'Transmute', ico: 'soul', desc: 'One standing soul becomes another kind of its tier, one of this floor\'s foes.' },
+  { id: 'consecrate', name: 'Consecrate', ico: 'levelup', desc: 'One kind takes its next tier on a track you choose, free.' }
+]
+export function altarScreen ({ run, onRite, onHelp }) {
+  const s = run.state
+  const el = h('div', { class: 'screen fit reap-screen altar-screen' })
+  const deck = cardDeck()
+  const t = TUNING.run
+  const turnable = souls(s.party).sort(fieldOrder).filter((u) => canTransmute(s, u))
+  const kinds = heldKinds(s).filter((k) => canAdvance(s, k, 0) || canAdvance(s, k, 1))
+  // The heal mends the souls below altarHeal of their HP (the Monarch unless nothing may heal it) and the fallen.
+  const mends = (u) => (u.hp <= 0 ? !isMonarch(u) : u.hp < Math.round(u.maxHp * t.altarHeal) && !(isMonarch(u) && unhealed(s)))
+  const hurt = s.party.filter(mends)
+  let tab = hurt.length || !kinds.length ? 'heal' : 'consecrate'
+  let soul = turnable[0]?.uid ?? null
+  let kind = kinds[0] ?? null
+  let busy = false
+  let deal = true
+  const take = (action, i = null) => {
+    if (busy) return
+    busy = true
+    hideTip()
+    sfx.play(i === null ? 'buy' : 'card')
+    if (i !== null) { el.classList.add('picking'); deck.cards[i]?.classList.add('taking') }
+    i === null || still() ? onRite(action) : setTimeout(() => onRite(action), 300)
+  }
+  const pick = (k) => { tab = k; deal = true; hideTip(); sfx.play('select'); render() }
+
+  // The rites' tabs, each with its count now.
+  const count = {
+    heal: () => (hurt.length ? `${hurt.filter((u) => u.hp > 0).length} hurt · ${hurt.filter((u) => u.hp <= 0).length} fallen` : 'nothing hurt'),
+    transmute: () => `${turnable.length} soul${turnable.length === 1 ? '' : 's'}`,
+    consecrate: () => `${kinds.length} kind${kinds.length === 1 ? '' : 's'}`
+  }
+  const tabs = () => h('div', { class: 'tabs rite-tabs', role: 'tablist', 'aria-label': 'Rites' }, RITES.map((r) => h('button', {
+    class: `tab rite-tab r-${r.id}` + (tab === r.id ? ' on' : ''), role: 'tab', 'aria-selected': tab === r.id ? 'true' : 'false', 'data-rite': r.id,
+    onclick: () => pick(r.id), tip: () => h('div', { class: 'syn-tip' }, h('b', null, r.name), h('p', null, r.desc), h('p', { class: 'dim' }, `Now: ${count[r.id]()}.`))
+  }, icon(r.ico, 20), h('span', null, r.name), h('span', { class: 'rite-n dim' }, count[r.id]()))))
+
+  // A chooser beside the cards: a column of buttons, a soul or a kind each, the chosen pressed.
+  const chooser = (label, items) => h('div', { class: 'rite-side' }, h('div', { class: 'rite-label dim' }, label), h('div', { class: 'rite-choose', role: 'group', 'aria-label': label }, items))
+  const split = (side, say, cards) => h('div', { class: 'rite-panel split' }, side,
+    h('div', { class: 'rite-main' }, h('p', { class: 'rite-say' }, say),
+      h('div', { class: 'offers picks' + (frame.h < 640 ? ' rows' : '') + (deal ? ' deal' : ''), style: `--cols:${cards.length}` }, cards)))
+  const option = (on, face, name, sub, onclick, tip) => h('button', { class: 'rite-opt' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', onclick, tip },
+    h('span', { class: 'rank-port' }, face), h('span', { class: 'rite-opt-text' }, h('b', null, name), h('span', { class: 'dim' }, sub)))
+
+  // Heal: what it mends and raises now, a soul each.
+  function healPanel () {
+    const after = (u) => (u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive))
+    return h('div', { class: 'rite-panel' },
+      h('p', { class: 'rite-say' }, roomGain(run, { type: 'altar' })),
+      unhealed(s) && h('p', { class: 'warn' }, 'Court of Bone: not the Monarch.'),
+      hurt.length > 0 && h('div', { class: 'rite-mends' }, hurt.map((u) => h('div', { class: 'rite-mend', tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run), run }) },
+        h('span', { class: 'rank-port' + (isMonarch(u) ? ' monarch' : '') + (u.hp <= 0 ? ' fallen' : '') }, portrait(u.id, 40, u.hp <= 0)),
+        h('span', null, h('b', null, unitDef(u.id).name), h('span', { class: 'dim' }, u.hp > 0 ? ` ${u.hp} → ${after(u)}` : ` rises at ${after(u)}`))))))
+  }
+
+  // Transmute: the soul, then the kind it becomes, a card each.
+  function transmutePanel () {
+    if (!turnable.length) return h('div', { class: 'rite-panel' }, h('p', { class: 'rite-say' }, 'No soul here can be transmuted: the fallen wait for a heal, and a fused soul is made, not met.'))
+    const u = s.party.find((x) => x.uid === soul)
+    const offer = transmuteOffer(s, u.id)
+    const card = (id, i) => {
+      const d = unitDef(id)
+      const worth = transmuteWorth(run, u, id)
+      const tip = () => unitCard({ id, lvl: worth.lvl, tracks: s.kinds[id]?.tracks ?? [0, 0], slot: -1 }, {
+        open: !touchy(), realm: realmOf(run), live: `${unitDef(u.id).name} → ${d.name}, Lv ${worth.lvl}`,
+        notes: [`${say('Click', 'Tap it again (or Transmute ▸)')} to transmute it. (${i + 1})`, ...worth.lines]
+      })
+      const action = { type: 'transmute', uid: u.uid, index: i }
+      return deck.cards[i] = h('button', { class: 'offer o-soul o-turn', style: `--i:${i}`, onclick: (e) => deck.press(e, i, tip, 'Transmute ▸', () => true, () => take(action, i)), tip },
+        h('div', { class: 'offer-tag' }, h('kbd', null, i + 1), h('span', { class: 'tag-word' }, ' Becomes')),
+        h('div', { class: 'offer-art' }, portrait(id, 104)),
+        h('div', { class: 'offer-name' }, d.name),
+        h('div', { class: 'offer-worth' }, worth.chips.map((c) => h('span', { class: 'ow-chip' + (c.up ? ' up' : '') }, c.text))),
+        h('div', { class: 'offer-line' }, `${KIN[d.kin].name} ${ROLES[d.role].name} · `, h('span', { class: 'nowrap' }, 'level ', h('b', { class: 'num' }, worth.lvl))))
+    }
+    const cards = offer.map(card)
+    return split(
+      chooser('The soul', turnable.map((x) => option(x.uid === soul, portrait(x.id, 36), unitDef(x.id).name, ` Lv ${x.lvl} · tier ${unitDef(x.id).tier}`,
+        () => { if (x.uid !== soul) { soul = x.uid; deal = true; sfx.play('select'); render() } },
+        () => unitCard(x, { mods: partyMods(run, x), realm: realmOf(run), run, notes: [`${say('Click', 'Tap')} it, then the kind it becomes.`] })))),
+      `It becomes one of this floor's foes of its tier, keeping its relic, its wounds and its level. Tiers stay with their kind: the ${unitDef(u.id).name}'s with the ${unitDef(u.id).name}, and it takes its new kind's.`,
+      cards)
+  }
+
+  // Consecrate: the kind, then a track's next tier, a card each.
+  function consecratePanel () {
+    if (!kinds.length) return h('div', { class: 'rite-panel' }, h('p', { class: 'rite-say' }, 'Every kind you hold has taken all the tiers its tracks allow.'))
+    const k = s.kinds[kind]
+    const name = unitDef(kind).name
+    const lvl = kindLevel(s, kind)
+    const card = (tr, i) => {
+      const have = k.tracks[i]
+      const can = canAdvance(s, kind, i)
+      const tier = tr.tiers[have]
+      const up = can ? levelOf({ ...k, tracks: nextTracks(k.tracks, i) }) : lvl
+      const why = can ? null : have >= tr.tiers.length ? 'Complete.' : `Locked: ${tracksOf(kind)[1 - i].name} has passed II, so ${tr.name} stops at II.`
+      const tip = () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${tr.name} ${can ? ROMAN[have] : ''}`), ' ', can ? tier.desc : tr.desc),
+        can ? h('p', { class: 'dim' }, `Free here (${tierCost(run, kind, i)} essence in the Field), for every ${name}. ${up > lvl ? `Level ${lvl} → ${up}.` : `Level stays ${lvl}.`} ${say('Click', 'Tap it again (or Consecrate ▸)')} to take it. (${i + 1})`)
+          : h('p', { class: 'warn' }, why))
+      const action = { type: 'consecrate', kind, track: i }
+      return deck.cards[i] = h('button', { class: 'offer o-tier' + (can ? '' : ' locked'), style: `--i:${i}`, 'aria-disabled': can ? null : 'true', onclick: (e) => deck.press(e, i, tip, 'Consecrate ▸', () => can, () => (can ? take(action, i) : deck.refuse(i))), tip },
+        h('div', { class: 'offer-tag' }, h('kbd', null, i + 1), h('span', { class: 'tag-word' }, ` Track ${i + 1}`)),
+        h('div', { class: 'offer-art' }, portrait(kind, 84), h('span', { class: 'tier-badge' }, can ? ROMAN[have] : '✓')),
+        h('div', { class: 'offer-name' }, tr.name, can && ` ${ROMAN[have]}`),
+        h('div', { class: 'offer-line' }, can ? hiNums(tier.desc) : why),
+        h('div', { class: 'offer-price' + (can ? '' : ' poor') }, can ? ['Free', up > lvl && h('span', { class: 'dim' }, ` · Lv ${lvl} → ${up}`)] : 'No tier'))
+    }
+    const cards = tracksOf(kind).map(card)
+    return split(
+      chooser('The kind', kinds.map((id) => option(id === kind, portrait(id, 36), unitDef(id).name, ` Lv ${kindLevel(s, id)} · tiers ${s.kinds[id].tracks.join('·')}`,
+        () => { if (id !== kind) { kind = id; deal = true; sfx.play('select'); render() } },
+        () => h('div', { class: 'syn-tip' }, h('b', null, unitDef(id).name), h('p', null, tracksOf(id).map((tr, i) => `${tr.name} ${s.kinds[id].tracks[i]}/${tr.tiers.length}`).join(' · ')), h('p', { class: 'dim' }, `${say('Click', 'Tap')} it, then a track.`))))),
+      `Every ${name} takes its next tier on the track you choose, free, as buying it would give it.`,
+      cards)
+  }
+
+  function render () {
+    deck.cards.length = 0
+    const panel = tab === 'heal' ? healPanel() : tab === 'transmute' ? transmutePanel() : consecratePanel()
+    fill(el,
+      topbar(run, onHelp),
+      h('div', { class: 'reap-main' },
+        h('div', { class: 'reap-head' },
+          h('div', { class: 'reap-title' }, icon('altar', 34), h('h1', null, 'Altar')),
+          h('p', { class: 'reap-lede' }, ['One rite, then the altar is spent: ', kw('altar', 'heal, transmute or consecrate'), '.'])),
+        tabs(),
+        h('div', { class: `reap-body rite-body r-${tab}` }, panel),
+        h('div', { class: 'reap-foot rite-foot' },
+          h('p', { class: 'dim rite-hint' }, tab === 'heal' ? RITES[0].desc : `${say('Click', 'Tap')} a card to ${tab}; another rite's tab to change your mind.`),
+          h('div', { class: 'reap-actions' },
+            tab === 'heal' && h('button', { class: 'primary big', onclick: () => take({ type: 'heal' }), tip: () => `Heal: ${RITES[0].desc} The altar is then spent.` }, icon('altar', 20), 'Heal ▸')))))
+    deal = false
+  }
+
+  render()
+  return {
+    el,
+    key (e) {
+      if (e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return
+      const i = Number(e.key) - 1
+      if (tab !== 'heal' && deck.cards[i]) deck.cards[i].click()
+    }
+  }
+}

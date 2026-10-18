@@ -1,19 +1,18 @@
-// The expert as one file (2026-10-13; the user: "combine"): src/sim/expert.json, its model tree at its top (expert.js:
-// name, about, tree, rules) and its other parts beside it, each the configuration its module reads (expert.js
-// shippedFile): `forest` the battle forest (forest.js), `outforest` the forests out of battle (outforest.js: the
-// recruit, the formation), `route` the learned route (autoplay.js). Offline only, like the fitters that make the parts:
-// never imported by the expert's play code.
+// The expert as one file, src/sim/expert.json: the model tree (name, about, options, tree, rules) at its top and beside
+// it the parts `forest` (the battle forest), `outforest` (the forests out of battle) and `route` (the learned route).
+// Offline only: the expert's play code never imports it.
 //
-//   npm run bundle -- [--tree file] [--forest file|none] [--outforest file|none] [--route file|none] [--from file]
-//                     [--out src/sim/expert.json] [--name …] [--about …] [--dry]
-// starts from `--from` (the shipped expert.json by default), sets each part given (a file of that part's own shape,
-// or none to drop it; `--tree` a model tree's file: its name, about, tree, rules, options), and writes `--out`. A part
-// not given is kept as it was. `--split dir`: the other way, each part of `--from` written to dir as its own file
-// (tree.json, forest.json, outforest.json, route.json), for a fitter or a measurement that reads a part alone.
+//   npm run bundle -- [--from file] [--tree file] [--forest|--outforest|--route file|none] [--out file] [--name …] [--about …] [--dry] [--split dir]
+//   --from       the file to start from (the shipped expert.json by default); a part not given is kept
+//   --tree       a model tree's file (name, about, tree, rules, options)
+//   --forest, --outforest, --route   that part's own file, or none to drop it
+//   --out        the file written (src/sim/expert.json by default); --dry writes nothing
+//   --split dir  the other way: each part of --from written to dir as its own file (tree.json, forest.json, …)
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { checkModel } from './expert.js'
+import { arg, has, isMain } from './cli.js'
 
 export const SHIPPED = fileURLToPath(new URL('./expert.json', import.meta.url))
 // The parts beside the model tree, in the file's order.
@@ -52,11 +51,7 @@ export function writePart (name, config, out = SHIPPED) {
   return file
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const arg = (name, def = null) => {
-    const i = process.argv.indexOf('--' + name)
-    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
-  }
+if (isMain(import.meta.url)) {
   const from = read(arg('from', SHIPPED))
   if (arg('split')) {
     const dir = arg('split')
@@ -71,7 +66,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (arg('name')) file.name = arg('name')
     if (arg('about')) file.about = arg('about')
     const out = arg('out', SHIPPED)
-    if (!process.argv.includes('--dry')) fs.writeFileSync(out, JSON.stringify(file) + '\n')
-    console.log(`${process.argv.includes('--dry') ? 'would write' : 'written'} ${out}: the tree "${file.name}"${PARTS.map((k) => (file[k] ? `, ${k} "${file[k].name ?? 'unnamed'}"` : '')).join('')}`)
+    if (!has('dry')) fs.writeFileSync(out, JSON.stringify(file) + '\n')
+    console.log(`${has('dry') ? 'would write' : 'written'} ${out}: the tree "${file.name}"${PARTS.map((k) => (file[k] ? `, ${k} "${file[k].name ?? 'unnamed'}"` : '')).join('')}`)
   }
 }

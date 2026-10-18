@@ -1,39 +1,23 @@
-// The rules registry (redesign.md §2.13.4): each rule a synergy, a Legendary relic, a capstone (redesign.md §4.1) or a
-// boss's override brings to a battle, its hooks in one place. A new rule is one entry here. turns.js calls the hooks at fixed points, each with
-// the battle, a context it may change, and the rule as the side holds it (`r`: its entry, with `holder`, the unit
-// whose relic or def brings it, or null for a synergy's, which is the whole side's; and `params`, its numbers):
+// The rules registry: each rule a synergy, a Legendary relic, a capstone or a boss's override brings to a battle, its
+// hooks in one place. turns.js calls a hook with (battle, ctx, r), `r` the rule as the side holds it: its entry, `holder`
+// (the unit whose relic or def brings it; null for a synergy's) and `params` (its defaults here, a relic's over them).
 //   onBlow    an act has resolved (never a counter): { actor, ability, primary, targets }
 //   onStruck  a blow has landed on one that still stands: { actor, target, ability, damage }
-//   onFall    one of the side's own has fallen (the Monarch's fall ends the battle first): { fallen, by }; a rule
-//             may lift it again (Undying), and then it has not fallen for anything after
+//   onFall    one of the side's own has fallen: { fallen, by }; a rule may lift it again (Undying)
 //   onKill    one of the other side has fallen, whoever felled it (a status too): { slain, by, side }
 //   onRaise   a shadow has risen to an Arise of the side's: { actor, corpse, shadow }
 //   onTurn    the side's turn begins: { side, turn }
 //   onWave    a foe wave has entered: { wave }
-//   onMove    a walk has been committed (turns.js moveMoment: one of yours as it acts or in End Turn's untouched pass,
-//             a foe as its move resolves; never on the walk, never on one undone): { actor, from, to, moved, as },
-//             called with `as` 'actor' on the mover's side, then 'other' on the other side (`to` the tile it ends on,
-//             `moved` its tiles this turn; no path is kept)
-//   targets   whom an ability touches: { actor, ability, primary, targets, as }, called first with `as` 'target' on the
-//             side of a blow's target, before its shape spreads (it may change `primary`), then with 'actor' on the
-//             actor's side, after (it may change `targets`)
+//   onMove    a walk committed (never one undone): { actor, from, to, moved, as }, `as` 'actor', then 'other'
+//   targets   whom an ability touches: { actor, ability, primary, targets, as }, 'target' sets primary, 'actor' targets
 //   reach     how far an ability of the side reaches its primaries: { actor, ability, range } (it may change `range`)
-//   modify    damage about to land, a blow's or a status tick's: { actor, target, ability, status, damage, miss, as },
-//             called with `as` 'actor' on the actor's side, then 'target' on the target's (it may change `damage`
-//             or set `miss`)
-//   stand     the same damage once every modify has bent it and it has not missed, whole, on the target's side alone:
-//             { actor, target, ability, status, damage, mend } (it may lower `damage`, and set `mend`, a share of the
-//             target's max HP it heals once the damage has landed): a stand against a fall comes after what lessens a
-//             blow, so it is spent only on one that would still fell
+//   modify    damage about to land: { actor, target, ability, status, damage, miss, as }, 'actor' then 'target'
+//   stand     that damage bent, not missed, target's side: { …, damage, mend } (lower `damage`, `mend` a share healed)
 //   queue     the foes' turn's order: { queue } (it may reorder it)
-// and three that are not moments:
-//   grants    an ability id its holder gains (Arise's: redesign.md §2.15)
+//   grants    an ability id its holder gains (Arise's)
 //   roles     (battle, u, r) → the roles its holder counts as besides its own, for synergies (Mimicry)
-//   raisable  (battle, u, r) → whether its holder may raise now (Blood Tithe: not with the Monarch's HP at the tithe)
-// `params`: a rule's numbers, its defaults here, a relic's own `params` over them. A Legendary's rule is scoped to its
-// holder (§2.15): its hooks look at `r.holder`. A Legendary's cost that is not its holder's is a flag on its entry,
-// read for the run wherever it holds the relic: Court of Bone's Monarch that nothing heals (`unhealable`: unhealable),
-// Blood Tithe's raises paid in the Monarch's HP (`bleeds`: bleeds, the autoplayer's).
+//   raisable  (battle, u, r) → whether its holder may raise now (Blood Tithe)
+// A Legendary's cost beyond its holder is a flag on its entry, read for the run: `unhealable`, `bleeds`.
 import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef, statusDef } from '../content.js'
 import { alive, livingOn, unitDistance, distanceBetween, blowReach, makeUnit, synergyFull, enemySide } from './unit.js'
@@ -45,9 +29,7 @@ const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 const slew = (by, side, slain) => !!by && by.side === side && slain.side !== side
 
 export const RULES = {
-  // Undead 4: a foe slain rises at once as a shadow of the side holding it, past Arise's reach and tier, never a boss,
-  // a shadow or a Monarch, while that side has room for it (turns.js roomFor; one of yours rises beside the Monarch:
-  // riseTile). Its raiser is the slayer when it stands on that side.
+  // Undead 4: a foe slain rises at once as a shadow of the side, past Arise's reach and tier (never a boss or a shadow).
   legion: {
     onKill (battle, { slain, by, side }) {
       if (alive(slain) || slain.raised || slain.shadow || unitDef(slain.id).boss || !roomFor(battle, side)) return
@@ -84,8 +66,7 @@ export const RULES = {
       for (const id in by.cooldowns) if (by.cooldowns[id] > 0) cool(battle, by, id, 0)
     }
   },
-  // Construct 4: the first damage that would fell each of the side's (a blow's, a burst's or a status tick's, as every
-  // rule has bent it: stand) leaves it at 1 HP, and it heals TUNING.lastStand.heal of its max HP (never the Monarch).
+  // Construct 4: the first damage that would fell each of the side's but the Monarch leaves it at 1 HP, and it heals.
   last_stand: {
     stand (battle, ctx) {
       const { target } = ctx
@@ -96,9 +77,7 @@ export const RULES = {
       emit(battle, { type: 'rule', rule: 'last_stand', side: target.side, target: target.uid })
     }
   },
-  // Vanguard 4: a single-target blow at one of the side's not itself a Vanguard falls on a Vanguard beside it (the one
-  // with the most HP, then the first to act); and the side's Vanguards take TUNING.bodyguard.taken of the damage that
-  // lands on them (a blow's, a burst's or a status tick's).
+  // Vanguard 4: a single-target blow at one not a Vanguard falls on a Vanguard beside it; Vanguards take less damage.
   bodyguard: {
     modify (battle, ctx) {
       if (ctx.as === 'target' && !ctx.miss && vanguard(ctx.target)) ctx.damage *= TUNING.bodyguard.taken
@@ -112,7 +91,7 @@ export const RULES = {
       ctx.primary = guard
     }
   },
-  // Ranger 4: the side's ranged blows deal `mul` times their damage (redesign.md §2.16).
+  // Ranger 4: the side's ranged blows deal `mul` times their damage.
   deadeye: {
     params: { mul: 1.5 },
     modify (battle, ctx, r) {
@@ -121,8 +100,7 @@ export const RULES = {
       ctx.damage *= r.params.mul
     }
   },
-  // Skirmisher 4: the side's pieces start the battle, and enter it, Hastened (+1 Move, cooldowns falling faster) for
-  // their first TUNING.ambush.turns turns: each from the first time its side's turn begins with it on the board.
+  // Skirmisher 4: the side's pieces start or enter the battle Hastened for TUNING.ambush.turns turns.
   ambush: {
     onTurn (battle, { side }) {
       const fresh = battle.units.filter((u) => u.side === side && alive(u) && !u.ambushed && u !== battle.monarch)
@@ -134,9 +112,7 @@ export const RULES = {
       }
     }
   },
-  // Channeler 4: every ability of the side's rings out once more, free, on the same targets (an Arise never echoes):
-  // split (the improvement plan's §4.3), at TUNING.echo.half of its effect while the side counts fewer Channelers than
-  // its synergy's `full` (`r.params.full` false: rulesOf), whole from there.
+  // Channeler 4: every ability of the side's (never an Arise) rings out once more, free; at TUNING.echo.half below `full`.
   echo: {
     params: { full: true },
     onBlow (battle, { actor, ability, targets }, r) {
@@ -145,8 +121,7 @@ export const RULES = {
       for (const effect of ability.effects) runEffect(battle, r.params.full ? effect : scaled(effect, TUNING.echo.half), actor, targets, ability)
     }
   },
-  // Warden 4: an ability of the side's aimed at an ally reaches anyone of its side, and touches every one of its side
-  // on the board.
+  // Warden 4: an ability of the side's aimed at an ally reaches, and touches, every one of its side on the board.
   sanctuary: {
     reach (battle, ctx) {
       if (ctx.ability.shape === 'ally' || ctx.ability.shape === 'all_allies') ctx.range = Infinity
@@ -156,8 +131,7 @@ export const RULES = {
       ctx.targets = livingOn(battle.units, ctx.actor.side)
     }
   },
-  // Trickster 4: an execute (redesign.md §2.16): a blow of the side's on a foe below TUNING.deathblow.below of its max
-  // HP deals TUNING.deathblow.mult times its damage.
+  // Trickster 4: a blow on a foe below TUNING.deathblow.below of its max HP deals TUNING.deathblow.mult its damage.
   deathblow: {
     modify (battle, ctx) {
       const { actor, target } = ctx
@@ -168,9 +142,9 @@ export const RULES = {
     }
   },
 
-  // ── the Legendaries, each scoped to its holder (§2.15) ──
+  // ── the Legendaries, each scoped to its holder ──
 
-  // Arise: its holder gains the skill (content.js `arise`: one corpse within its reach rises, turns.js corpses).
+  // Arise: its holder gains the skill (one corpse within its reach rises).
   arise: { grants: 'arise' },
   // Undying: its holder, fallen, rises where it fell at `hp` of its max HP, once a battle.
   undying: {
@@ -181,8 +155,7 @@ export const RULES = {
       fallen.hp = Math.max(1, Math.round(fallen.maxHp * r.params.hp))
     }
   },
-  // Reaper's Hunger: its holder, slaying a foe while your orders are taken (never by a counter in the foes' turn, nor by
-  // a status's tick at the turn's end), has its act again: as many times as it slays (2026-10-17).
+  // Reaper's Hunger: its holder, slaying a foe in your orders (never by a counter or a tick), has its act again.
   reapers_hunger: {
     onKill (battle, { slain, by, side }, r) {
       if (by !== r.holder || !slew(by, side, slain) || !alive(by) || !by.acted || battle.phase !== 'orders' || battle.stage !== 'party') return
@@ -199,8 +172,7 @@ export const RULES = {
       if (actor.moved >= r.params.tiles) ctx.damage *= r.params.mul
     }
   },
-  // Last Candle: as your turn begins with the Monarch below `below` of its HP, its holder is Desperate for the round
-  // (laid again each such turn; it lapses once the Monarch is mended past it).
+  // Last Candle: as your turn begins with the Monarch below `below` of its HP, its holder is Desperate for the round.
   last_candle: {
     params: { below: 0.5 },
     onTurn (battle, { side }, r) {
@@ -211,8 +183,7 @@ export const RULES = {
       addStatus(battle, u, 'desperate', 1, u)
     }
   },
-  // Grave Powder: while its holder stands, a shadow of its side that falls bursts, `amount` true damage to every foe
-  // next to it, dealt by the holder (its kills, its essence).
+  // Grave Powder: while its holder stands, a shadow of its side that falls bursts, `amount` true damage to foes beside it.
   grave_powder: {
     params: { amount: 20 },
     onFall (battle, { fallen }, r) {
@@ -224,11 +195,7 @@ export const RULES = {
       runEffect(battle, { op: 'damage', amount: r.params.amount }, u, near)
     }
   },
-  // Overwatch (DESIGN.md Step 4): as a foe's walk ends (its move's moment: turns.js moveMoment, as it resolves in the
-  // foes' turn) within reach of its holder's basic blow, from where the holder stands, the holder strikes it with that
-  // blow at once, as a counter is performed (turns.js answer: on the mover alone, never itself answered), `times` a turn
-  // (`watched`, set back as the holder's turn begins: turns.js ready). Never a Hexed holder, nor one fallen; a melee
-  // holder on the ground never strikes a flyer (turns.js aloft).
+  // Overwatch: a foe ending its walk in reach of its holder's basic blow is struck by it at once, `times` a turn.
   overwatch: {
     params: { times: 1 },
     onMove (battle, { actor, to, as }, r) {
@@ -242,9 +209,7 @@ export const RULES = {
       answer(battle, u, b, actor, { rule: 'overwatch' })
     }
   },
-  // Hold the Line (DESIGN.md Step 4): while its holder stands, its holder and every one of its side within a tile of
-  // it deal `mul` at a foe on a turn they have not moved (`moved` 0: yours through the foes' turn too, a counter among
-  // them): a blow's damage or a relic's, never a status's tick.
+  // Hold the Line: its holder and its side within a tile deal `mul` at a foe on a turn they have not moved (never a tick).
   hold_the_line: {
     params: { mul: 1.25 },
     modify (battle, ctx, r) {
@@ -259,8 +224,7 @@ export const RULES = {
     params: { role: 'warden' },
     roles: (battle, u, r) => (u === r.holder ? [r.params.role] : [])
   },
-  // Hollow Court, an Arise variant: the shadows its holder raises that still stand when the battle is won pay their
-  // essence again, `reap` times (run.js finishBattle reads `reap` on the shadow).
+  // Hollow Court, an Arise variant: its holder's shadows standing when the battle is won pay their essence again (`reap`).
   hollow_court: {
     grants: 'arise',
     params: { reap: 1 },
@@ -268,10 +232,7 @@ export const RULES = {
       if (actor === r.holder) shadow.reap = (shadow.reap ?? 0) + r.params.reap
     }
   },
-  // Blood Tithe, an Arise variant: its holder's Arise raises `count` corpses a turn, the one chosen and then the others
-  // in its reach (the highest tier first, then the nearest, then the first to have stood), and each shadow it raises
-  // costs the Monarch `tithe` of its max HP; never its last (raisable, and no more corpses than its HP pays for). It
-  // was "no turn's rest" until Arise itself lost the rest (2026-10-11; redesign.md §2.15).
+  // Blood Tithe, an Arise variant: its Arise raises `count` corpses, each costing the Monarch `tithe` of its max HP.
   blood_tithe: {
     grants: 'arise',
     bleeds: true,
@@ -294,15 +255,12 @@ export const RULES = {
       emit(battle, { type: 'tithe', target: m.uid, damage: cost, hp: m.hp })
     }
   },
-  // Court of Bone, an Arise variant: its holder's Arise reaches `domain` tiles farther; and while the run holds it,
-  // nothing heals the Monarch, in battle or out (unhealable).
+  // Court of Bone, an Arise variant: its holder's Arise reaches `domain` tiles farther; nothing heals the Monarch.
   court_of_bone: { grants: 'arise', params: { domain: 2 }, unhealable: true },
 
-  // ── a capstone's rule, scoped to the piece of its kind (redesign.md §4.1): what its abilities cannot say ──
+  // ── a capstone's rule, scoped to the piece of its kind: what its abilities cannot say ──
 
-  // The Charnel Cathedral: a foe it slays beside it (its blow or a status it laid, the slain within a tile of its
-  // footprint) rises at once as a shadow of its side, as Legion raises (never a boss, a shadow or a Monarch, while the
-  // side has room), unless something rose from it first.
+  // The Charnel Cathedral: a foe it slays within a tile of it rises at once as a shadow of its side, as Legion raises.
   charnel_cathedral: {
     onKill (battle, { slain, by, side }, r) {
       const u = r.holder
@@ -313,8 +271,7 @@ export const RULES = {
       raise(battle, u, slain, { side, rule: 'charnel_cathedral' })
     }
   },
-  // The Cinder Wyrm: a foe it slays (its blow, or a Burning it laid) sets every foe next to it Burning, laid by it: the
-  // fire spreads, and a burn it laid that slays spreads again.
+  // The Cinder Wyrm: a foe it slays (a blow or its Burning) sets every foe next to it Burning, laid by it: the fire spreads.
   cinder_wyrm: {
     onKill (battle, { slain, by }, r) {
       if (by !== r.holder) return
@@ -324,10 +281,7 @@ export const RULES = {
       for (const x of near) addStatus(battle, x, 'burning', null, by)
     }
   },
-  // The Hive Mind: as the battle begins (its side's first turn) and as each later wave enters, while it stands,
-  // `drones` of `kind` hatch beside it as its summons (shadows at TUNING.summon.hp of a whole one's HP, at its level, with
-  // no tiers, while its side has room on the board: hatch); and one it slays has its every skill ready again, as Frenzy
-  // has it for a side.
+  // The Hive Mind: as the battle begins and each wave enters, `drones` of `kind` hatch beside it; a kill readies its skills.
   hive_mind: {
     params: { drones: 2, kind: 'hive_drone' },
     onTurn (battle, { side, turn }, r) {
@@ -342,8 +296,7 @@ export const RULES = {
       for (const id in by.cooldowns) if (by.cooldowns[id] > 0) cool(battle, by, id, 0)
     }
   },
-  // The Engine of Ages: the first damage each battle that would fell it (a blow's, a burst's or a status tick's, as
-  // every rule has bent it: stand) leaves it at 1 HP instead, as Last Stand does its side's, and apart from it.
+  // The Engine of Ages: the first damage each battle that would fell it leaves it at 1 HP instead, apart from Last Stand.
   engine_of_ages: {
     stand (battle, ctx, r) {
       const { target } = ctx
@@ -354,12 +307,9 @@ export const RULES = {
     }
   },
 
-  // ── a boss's override, on top of its temperament (§2.9.6) ──
+  // ── a boss's override, on top of its temperament ──
 
-  // The Hollow Sovereign: its court (the foes of its own wave) moves before every other foe, and it casts Grave Tide
-  // as its act every `every` turns, at the start of the foes' turn, whatever the scoring would rather: where its
-  // shape covers the most of yours (then the lowest uid), while its own condition holds (content.js `when`) and it may
-  // act at all (a Hexed Sovereign loses the act, as any foe does: turns.js canAct).
+  // The Hollow Sovereign: its court moves first; it casts Grave Tide every `every` turns, where it covers the most of yours.
   sovereign: {
     params: { every: 3, ability: 'grave_tide' },
     queue (battle, ctx, r) {
@@ -376,9 +326,7 @@ export const RULES = {
       if (at) perform(battle, u, tide, at)
     }
   },
-  // The floors' bosses (redesign.md §4.7), each what its kit cannot say of its counter:
-  // The Molting Abbess (against statuses): as the foes' turn begins it sheds every debuff on itself, while it stands (a
-  // Hex laid in your turn is gone before it acts; a burn never ticks on it).
+  // The Molting Abbess (against statuses): as the foes' turn begins it sheds every debuff on itself, while it stands.
   molting_abbess: {
     onTurn (battle, ctx, r) {
       const u = r.holder
@@ -392,9 +340,7 @@ export const RULES = {
       }
     }
   },
-  // The Barrow Marshal (against shooters): while it stands, a shot (a blow at one foe from range that keeps to a line:
-  // turns.js lined) at one of its side not itself a Vanguard lands on a Vanguard of its side beside its target (the one
-  // with the most HP, then the first to act), as Bodyguard takes a blow, but shots alone and with no count to reach.
+  // The Barrow Marshal (against shooters): while it stands, a shot at a non-Vanguard of its side lands on a Vanguard beside it.
   barrow_marshal: {
     targets (battle, ctx, r) {
       const { actor, ability, primary } = ctx
@@ -405,8 +351,7 @@ export const RULES = {
       ctx.primary = guard
     }
   },
-  // The Swarm Queen (against walls): every `every` turns as the foes' turn begins, while it stands, `drones` of `kind`
-  // hatch beside it as its summons (hatch), while fewer than `most` of them stand.
+  // The Swarm Queen (against walls): every `every` turns, while it stands, `drones` of `kind` hatch beside it, up to `most`.
   swarm_queen: {
     params: { every: 2, drones: 2, most: 4, kind: 'hive_drone' },
     onTurn (battle, { turn }, r) {
@@ -417,9 +362,7 @@ export const RULES = {
   }
 }
 
-// An effect at `k` of its strength (Echo's lesser form): its damage's and its healing's power (a heal's share of max HP
-// too) × k, and a status laid for k of its turns, rounded up (one of a battle's as it was); a cleanse or a cooldown
-// as it is.
+// An effect at `k` of its strength (Echo's lesser form): damage and healing × k, a status's turns × k rounded up.
 function scaled (e, k) {
   if (e.op === 'damage' || e.op === 'heal') return { ...e, ...(e.power != null && { power: e.power * k }), ...(e.pct && { pct: e.pct * k }) }
   if (e.op !== 'apply_status') return e
@@ -428,11 +371,10 @@ function scaled (e, k) {
 }
 
 // What a shadow of a Blood Tithe holder's costs the Monarch.
-export const titheOf = (battle, r) => Math.ceil(battle.monarch.maxHp * r.params.tithe)
+const titheOf = (battle, r) => Math.ceil(battle.monarch.maxHp * r.params.tithe)
 
-// A Hive Mind's drones hatch (hive_mind), or a Swarm Queen's (swarm_queen): `n` of them (its `drones` by default), each
-// a summon of its holder's on the free tile nearest it (field.js summonTile: of your camp, for yours), announced as it
-// enters, while the holder stands and its side has room; with no tile free, fewer hatch.
+// A Hive Mind's or a Swarm Queen's drones hatch: `n` summons of its holder's on the free tiles nearest it (summonTile),
+// while it stands and its side has room; with no tile free, fewer.
 function hatch (battle, r, n = r.params.drones) {
   const u = r.holder
   if (!alive(u)) return
@@ -452,8 +394,7 @@ const entry = (id, holder = null, params = null) => {
   return { id, ...RULES[id], holder, params: { ...RULES[id].params, ...params } }
 }
 
-// The rules a unit's relics bring it (a piece relic's `rule`, scoped to it; turns.js reads them as it takes its place:
-// held), and its kind's (a def's `rule`: a boss's override, a capstone's), scoped to it too. → entries.
+// The rules a unit's piece relics and its kind's def (a boss's override, a capstone's) bring it, scoped to it. → entries.
 export function heldRules (u) {
   const out = []
   for (const id of u.relics ?? []) {
@@ -465,11 +406,8 @@ export function heldRules (u) {
   return out
 }
 
-// The rules `side` holds now, in a fixed order: its synergies' (turns.js synergiesOf: the foes' on every floor, as
-// yours, redesign.md §2.12; none of yours with the `synergies` ablation), a split one's told whether it holds whole
-// (`params.full`: unit.js synergyFull, by the side's counts), then each of its units' held rules (`u.held`, in acting
-// order; a fallen holder keeps its relic and its rule, one consumed by a fusion gave it back). Kept until the
-// synergies or the roster change.
+// The rules `side` holds now, in a fixed order: its synergies' (a split one told whether it holds whole: `params.full`),
+// then its units' held rules (`u.held`, acting order; a fallen holder keeps its). Kept until the synergies or roster change.
 export function rulesOf (battle, side) {
   const syn = synergiesOf(battle, side)
   const kept = (battle.ruleList ??= {})[side]
@@ -489,8 +427,7 @@ export function call (battle, hook, side, ctx) {
 // Whether `side` holds rule `id` (for the interface's glow; nothing in a battle branches on a rule's name).
 export const holds = (battle, side, id) => rulesOf(battle, side).some((r) => r.id === id)
 
-// The abilities a unit's held rules grant it (Arise), as defs, but none the `arise` ablation takes away
-// (autoplay.js: a measuring switch, never a player's).
+// The abilities a unit's held rules grant it (Arise), as defs, but none the `arise` ablation takes away.
 export const grantsOf = (battle, u) => (u.held ?? []).filter((r) => r.grants && !(battle.ablate.has('arise') && r.grants === 'arise'))
   .map((r) => abilityDef(r.grants))
 
@@ -500,7 +437,7 @@ export const unhealable = (ids) => ids.some((id) => RULES[relicDef(id).rule]?.un
 // Whether relic `id` brings a rule its holder's raises pay for in the Monarch's HP (Blood Tithe).
 export const bleeds = (id) => !!RULES[relicDef(id).rule]?.bleeds
 
-// Whether relic `id` grants its holder Arise (an Arise relic: Arise and its variants; run.js needsArise).
+// Whether relic `id` grants its holder Arise (Arise and its variants).
 export const grantsArise = (id) => RULES[relicDef(id).rule]?.grants === 'arise'
-// The rules of the relics `u` holds that grant it Arise, as it holds them, its params among them (autoplay.js ariseIn).
+// The Arise rules of the relics `u` holds, as it holds them, their params among them.
 export const ariseGrants = (u) => heldRules(u).filter((r) => r.grants === 'arise')

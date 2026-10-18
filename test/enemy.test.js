@@ -61,7 +61,7 @@ test('every foe kind comes by Walk or Fly, hinted only in its flavour; depth is 
     // Flavour hints; it never names the behaviour it hints at.
     assert.doesNotMatch(u.flavour, /\b(flank(s|ing)?|fl(y|ies|ying|ight)|stays?|hunts?|orders?)\b/i, u.id)
   }
-  // Two ways: every kind Walks but the flyers, first met on floors 2 and 3, and a floor's boss (redesign.md §4.7) and its
+  // Two ways: every kind Walks but the flyers, first met on floors 2 and 3, and a floor's boss and its
   // brood.
   assert.deepEqual(Object.keys(BEHAVIOURS), ['walk', 'fly'])
   const flyers = Object.values(UNITS).filter((u) => u.behaviour === 'fly' && u.spawn).map((u) => [u.id, u.spawn.minFloor]).sort()
@@ -323,8 +323,8 @@ test('the Sovereign\'s override casts Grave Tide as the foes\' turn begins, ever
   assert.deepEqual(tideTurn(true), { cast: false, lost: true }, 'Hexed: no Tide, no act')
 })
 
-// The user's rule of 2026-10-16 (redesign.md §7): the Pale Court's Hex every turn held the Sovereign to 0–1 acts a
-// battle (§8). A boss whose act a Hex took shrugs off every Hex until its turn comes unHexed; any other foe does not.
+// The user's rule of 2026-10-16: the Pale Court's Hex every turn held the Sovereign to 0–1 acts a
+// battle. A boss whose act a Hex took shrugs off every Hex until its turn comes unHexed; any other foe does not.
 test('a boss is never Hexed twice in a row: one that lost its act to a Hex shrugs off every Hex until it has acted again', () => {
   const hexed = (u) => u.statuses.find((s) => s.id === 'hexed')
   for (const id of ['hollow_sovereign', 'mire_mother']) {

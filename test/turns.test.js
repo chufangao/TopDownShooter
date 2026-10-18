@@ -253,7 +253,7 @@ test('a wave enters on its turn, and the counter says which turn', () => {
   assert.deepEqual([b.foeIn, impatience(b)], [due, 0], 'the camp\'s patience counts from it')
 })
 
-// No clock (redesign.md §2.10): the camp's impatience, 0 as the last wave enters, 1 TUNING.policy.press.turns later;
+// No clock: the camp's impatience, 0 as the last wave enters, 1 TUNING.policy.press.turns later;
 // the pressure is 1 there whatever the trade, and a wave's entry starts it again.
 test('the pressure reaches 1 press.turns after the last wave entered, whatever the trade, and a wave resets it', () => {
   const sprite = { ...makeUnit('frost_sprite', { uid: 50, lvl: 1 }), side: 'foe', wave: 1, lane: 3, slot: -1 }
@@ -366,7 +366,7 @@ test('Arise is a skill of the piece holding the relic: one corpse within its rea
   assert.deepEqual(corpses(far, unit(far, 1)).map((c) => c.uid), [20])
 })
 
-// 2026-10-11 (redesign.md §2.15): Arise's placeholders, reach 7 and tier 4, as TUNING.arise holds them.
+// 2026-10-11: Arise's placeholders, reach 7 and tier 4, as TUNING.arise holds them.
 test('Arise at its numbers: a corpse 7 tiles off rises, one 8 off does not; a tier 4 rises, and not under a tier of 3', () => {
   assert.deepEqual(TUNING.arise, { domain: 7, tier: 4 })
   const b = field([
@@ -1083,7 +1083,7 @@ test('Arise never raises a boss, a shadow, one consumed by a fusion, or its own 
   assert.deepEqual(raisable(dust), [], 'a boss\'s court is dust')
 }))
 
-// ── pieces and footprints (DESIGN §2.2) ──────────────────────────────────────────────────────────
+// ── pieces and footprints ──────────────────────────────────────────────────────────
 
 test('a 2×2 piece stands on its whole footprint: on the index four times, every reach measured from it, listed once, and its fall clears all four', () => {
   const b = scene([on('bone_colossus', 1, 'party', 2, 3, 9), on('frost_sprite', 2, 'party', 5, 6), on('bone_chanter', 3, 'party', 6, 3),
@@ -1107,7 +1107,7 @@ test('a 2×2 piece stands on its whole footprint: on the index four times, every
   assert.ok(tiles.every((t) => b.at[t] === null), 'off the index on every tile')
 })
 
-// ── flyers (DESIGN §2.4) ─────────────────────────────────────────────────────────────────────────
+// ── flyers ─────────────────────────────────────────────────────────────────────────
 
 test('the air road: the roads flooded from the Monarch over every tile, walls and all, a flyer\'s road; your aim at a flyer reads it', () => {
   const walls = [...Array(7).keys()].map((x) => tileAt(x, 5))

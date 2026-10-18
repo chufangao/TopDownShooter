@@ -61,7 +61,7 @@ test('the danger map: what your side could deal next turn, by tile, from everywh
   assert.ok(dangerAt(b, foe, at(3, far), map) > 0 && dangerAt(b, foe, at(3, far), map) <= foe.hp)
 })
 
-test('a foe\'s reach, for the board to light when its kind is met (redesign.md §4.8): its road ahead within its Move, and every tile a blow could strike from there, as the danger map reads them', () => {
+test('a foe\'s reach, for the board to light when its kind is met: its road ahead within its Move, and every tile a blow could strike from there, as the danger map reads them', () => {
   // A Tomb Knight of the camp down the middle lane: melee, so nothing in the air; its road's tiles, its own first.
   const b = approach()
   const knight = b.byUid.get(9)
@@ -172,7 +172,7 @@ test('a Hexed foe moves but does not act', () => {
   assert.ok(events.some((e) => e.type === 'hexed' && e.target === 9))
 })
 
-// ── the expert scores (redesign.md §2.17) ───────────────────────────────────────────────────────
+// ── the expert scores ───────────────────────────────────────────────────────
 
 // A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp?, relics? }], `hp` the HP it stands at.
 const board = (units, opts = {}) => {

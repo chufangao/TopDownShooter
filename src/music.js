@@ -1,15 +1,6 @@
-// Music (redesign.md §4.8): a loop for the title, one for each floor and one for the deep below them, synthesised in
-// the browser as the effects are (Web Audio, no files). Each loop is eight bars in a dark key of its own: a slow pad,
-// a bass, and a few bells (the title's a music box) over them; a floor's loop in battle adds a heartbeat drum and a
-// plucked ostinato. Quiet, under the effects, through their limiter (sfx.audio).
-//
-// It sounds only while the music is on (prefs 'music', the note button; its volume prefs 'music:volume', How to play's
-// slider) and sound is (sfx.muted, the speaker), never before the first gesture (sfx makes the context then), and
-// never while the page is hidden. music.set(track, battle) asks for a loop: another loop crossfades in over the one
-// playing; the same floor's in or out of battle brings its battle layer in or takes it out. The notes are scheduled
-// ahead on the audio clock, a bar at a time, by a timer that runs only while music plays: nothing runs a frame.
-// <html data-music> marks it on or off for the note buttons' icons. music.state says what it is doing (for debugging,
-// and the browser check).
+// Music: a loop for the title, one for each floor and one for the deep, synthesised with Web Audio under the effects,
+// through their limiter. It sounds only while music and sound are on, after the first gesture, while the page shows.
+// music.set(track, battle) asks for a loop: another crossfades in; the same floor's in battle adds its battle layer.
 import { prefs } from './dom.js'
 import { sfx } from './sfx.js'
 
@@ -30,13 +21,12 @@ const MODES = {
   harmonic: [0, 2, 3, 5, 7, 8, 11]
 }
 
-// A loop: its tempo (`bpm`, four beats a bar), its key (`tonic`, the MIDI note of the bass's tonic) and `mode`; a bar
-// each: `chords`, the degree its triad stands on (in the mode: the pad an octave over the bass, the bass its root), and
-// `tune`, its notes as [beat, degree, beats], a degree counted from the tonic two octaves over the bass (7 an octave
-// higher), played by `voice` (a bell, or the title's music box). `cut`: the pad's low-pass (Hz). `battle`: in battle,
-// the heartbeat on each of `beats` and the ostinato's notes, eighths of the chord's root (0), third (1) and fifth (2).
+// A loop: `bpm` (four beats a bar), `tonic` (the bass's MIDI tonic) and `mode`; a bar each: `chords`, the degree its
+// triad stands on, and `tune`, its notes as [beat, degree, beats], a degree counted from the tonic two octaves over the
+// bass, played by `voice`. `cut`: the pad's low-pass (Hz). `battle`: in battle, the heartbeat on each of `beats` and
+// the ostinato's eighths, of the chord's root (0), third (1) and fifth (2).
 const TRACKS = {
-  // The title: the Monarch's music box over the pad, D minor, i VI iv v i VI VII i.
+  // The title: the Monarch's music box over the pad, D minor.
   title: {
     bpm: 52, tonic: 38, mode: 'aeolian', voice: 'box', cut: 650,
     chords: [0, 5, 3, 4, 0, 5, 6, 0],
@@ -116,8 +106,7 @@ const TRACKS = {
     battle: { beats: [0], arp: [0, null, 2, null, 1, null, 2, null] }
   }
 }
-// The loop of a floor: floors past the run's last are the deep's (`deep`), the run's own its own, the last's beyond
-// the three written.
+// The loop of a floor: the deep's when `deep`, else its own, floor 3's beyond the three written.
 export const trackOf = (floor, deep = false) => (deep ? 'deep' : `floor${Math.max(1, Math.min(3, floor))}`)
 
 // The semitones of the mode's degree `step` above the tonic (degrees past the seventh in the octaves above).
@@ -125,7 +114,7 @@ const semi = (mode, step) => 12 * Math.floor(step / 7) + MODES[mode][((step % 7)
 const hz = (midi) => 440 * 2 ** ((midi - 69) / 12)
 
 // The notes of bar `bar` of loop `def`: { t (beats into the bar), midi, beats, voice, layer ('base' or 'battle') }.
-export function notesOf (def, bar) {
+function notesOf (def, bar) {
   const c = def.chords[bar]
   const triad = [c, c + 2, c + 4].map((step) => def.tonic + 12 + semi(def.mode, step))
   const root = semi(def.mode, c)
@@ -141,8 +130,7 @@ export function notesOf (def, bar) {
 
 // ── the voices ───────────────────────────────────────────────────────────────────────────────────
 
-// Each voice plays one note at `t` (the context's seconds) for `dur` seconds into `dest`, `send` its echo's input where
-// it rings. Every one starts from silence and ends in it.
+// One note of `kind` at `t` (context seconds) for `dur` seconds into `dest`, `send` its echo's input; silence to silence.
 function voice (ctx, noise, kind, f, t, dur, dest, send) {
   const gain = (peak, attack, hold, release, to = dest) => {
     const g = ctx.createGain()
@@ -230,11 +218,9 @@ const stats = { bars: 0, notes: 0, ticks: 0, fades: 0 }
 const mark = () => { if (typeof document !== 'undefined') document.documentElement.dataset.music = on ? '1' : '0' }
 mark()
 
-// Whether music should sound now.
 const audible = () => on && volume > 0 && !sfx.muted && !!want.id && typeof document !== 'undefined' && !document.hidden && sfx.audio?.ctx.state === 'running'
 
-// The context's own parts, made once on it: the music's master (its level × the volume) into the effects' limiter, and
-// a second of noise for the drum.
+// The context's own parts, made once: the music's master into the effects' limiter, and a second of noise for the drum.
 function parts (ctx, out) {
   if (graph?.ctx === ctx) return graph
   graph = partsOf(ctx, out, 0)
@@ -250,8 +236,7 @@ function partsOf (ctx, out, level) {
   return { ctx, master, noise }
 }
 
-// A loop begun at `t` on bus `into` (its own gain, for the crossfade): its battle layer's gain, its echo (a dotted
-// eighth's delay, fed back through a low-pass), and where it stands.
+// A loop begun at `t` on bus `into` (its own gain, for the crossfade): its battle layer, its echo, and where it stands.
 function begin (ctx, id, t, into, inBattle = want.battle, fade = FADE) {
   const def = TRACKS[id]
   const bus = ctx.createGain()
@@ -344,21 +329,6 @@ function sync () {
   }
   if (!timer) timer = setInterval(tick, WAKE)
   tick()
-}
-
-// Loop `id` scheduled whole on `ctx`, `bars` bars from its first (its battle layer with `battle`), at the level the
-// player hears at `volume`, through a limiter as the effects' (sfx.js): for an OfflineAudioContext to render, and the
-// browser check to measure. → the number of notes scheduled.
-export function renderLoop (ctx, id, { bars = 8, battle = false, volume: v = volume } = {}) {
-  const comp = ctx.createDynamicsCompressor()
-  comp.threshold.value = -14
-  comp.ratio.value = 6
-  comp.connect(ctx.destination)
-  const g = partsOf(ctx, comp, LEVEL * v)
-  const p = begin(ctx, id, 0, g.master, battle, 0.01)
-  const before = stats.notes
-  for (let i = 0; i < bars; i++) schedule(p, i % p.def.chords.length, i * 240 / p.def.bpm, {}, g)
-  return stats.notes - before
 }
 
 sfx.listen(sync)

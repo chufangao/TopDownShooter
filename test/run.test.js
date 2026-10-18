@@ -159,8 +159,7 @@ test('the draft: a kind may be taken twice, each a soul of its own; offers are t
   }
   assert.deepEqual([...seen].sort(), draftPool().slice().sort())
 })
-
-// redesign.md §4.2: from the second pick, the offer holds a plan.
+// From the second pick, the offer holds a plan.
 test('the draft guarantees a plan: every pick after the first offers a kin-mate or a recipe partner of a soul held', () => {
   // The relation, read from the kins and the recipes: a kin (a kind its own), a recipe across kins, nothing else.
   assert.ok(partners('grave_ghoul', 'tomb_knight') && partners('grave_ghoul', 'grave_ghoul') && partners('will_o_wisp', 'frost_sprite'))
@@ -209,7 +208,7 @@ test('the draft guarantees a plan: every pick after the first offers a kin-mate 
   }
 })
 
-// TUNING.spawn's tierFalloff and tierOverCap (redesign.md §4.2): a room's draws by tier, each pool summing to one.
+// TUNING.spawn's tierFalloff and tierOverCap: a room's draws by tier, each pool summing to one.
 test('the pool by floor: tier 1 the bulk of floor 1 and still a fifth of floor 3; tier 3 a few per cent of floor 2, a tenth of floor 3', () => {
   const shares = (floor, bias = 0) => {
     const p = spawnPool(floor, bias)
@@ -476,8 +475,7 @@ test('altar\'s heal heals everyone and raises the fallen', () => {
   assert.equal(a.hp, a.maxHp)
   assert.equal(b.hp, Math.ceil(b.maxHp * TUNING.run.altarRevive))
 })
-
-// DESIGN §2.2: a piece that fell leaves the field as the battle ends: it lies fallen in the ossuary, its cell and its
+// A piece that fell leaves the field as the battle ends: it lies fallen in the ossuary, its cell and its
 // Command free, and nothing fields it until an altar raises it. It still fuses and is released.
 // The first room given a full fight's foes, those of the floor's first fight past the opening (floor 1's first rooms
 // hold one foe since the first battle of 2026-10-18: TUNING.spawn.opening), for a test that needs a fight's dead.
@@ -524,7 +522,7 @@ test('a piece that falls in a won battle goes to the ossuary: its cell and Comma
   assert.ok([...Array(CAMP_SLOTS).keys()].some((slot) => canPlace(won, u, slot)))
 })
 
-// ── the Shop (redesign.md §2.11; DESIGN Next, Step 3: the floor's shelf, open between battles) ─────
+// ── the Shop ─────
 
 // A run on the map of `floor` with `essence` in the purse, its shelf drawn for that floor as arriving there draws it
 // (stockShop: the state set outside the log).
@@ -768,7 +766,7 @@ test('the autoplayer uses the choices a player has: every piece where its footpr
   }
 })
 
-// The Monarch is the camp's (DESIGN §2.1): neither level ever places it, and it fights from its seat. Nothing is
+// The Monarch is the camp's: neither level ever places it, and it fights from its seat. Nothing is
 // bought for it: its HP and Command are relics.
 test('the autoplayer and the Monarch: neither level moves it from its seat, nor buys it anything', () => {
   const seated = (b, r) => assert.equal(r.setup.party.find((u) => u.uid === MONARCH_UID).slot, monarchSlot(r.setup.camp), `${r.state.seed} floor ${b.floor}`)
@@ -1155,7 +1153,7 @@ test('a recruit with room on the field takes the free cell nearest the Monarch, 
   }
 })
 
-// ── a soul's HP, and prices (DESIGN §2.2) ────────────────────────────────────────────────────────
+// ── a soul's HP, and prices ────────────────────────────────────────────────────────
 
 // One soul is one piece is one body: it fights as one, comes out of a won battle with the share of its HP it kept, and
 // heals; one that fell stays down, in the ossuary.
@@ -1226,7 +1224,7 @@ test('every price grows by the floor: a tier, a recruit and a fusion cost their 
   }
 })
 
-// ── footprints (DESIGN §2.2) ─────────────────────────────────────────────────────────────────────
+// ── footprints ─────────────────────────────────────────────────────────────────────
 
 test('a 2×2 piece stands where its whole footprint fits: on the camp, open ground, not the seat, no other piece\'s; place says exactly where', () => {
   const run = createRun({ start: START_PARTY, seed: 'big' })
@@ -1320,7 +1318,7 @@ test('a Colossus tier bumps only what cannot stand: a piece growing over one of 
   checkField(s)
 })
 
-// ── fusions (DESIGN §2.6) ────────────────────────────────────────────────────────────────────────
+// ── fusions ────────────────────────────────────────────────────────────────────────
 
 // How many pieces of `kind` the retinue holds (a soul each).
 const piecesOf = (s, kind) => souls(s.party).filter((u) => u.id === kind).length
@@ -1516,7 +1514,7 @@ function checkState (s) {
   }
   assert.ok(Number.isInteger(m[0].hp) && m[0].hp >= 0 && m[0].hp <= m[0].maxHp)
   // The army is souls, a piece each: no shadow or boss ever in the retinue (the ossuary is the pieces off the field);
-  // the spoils' offers are souls alone (relics are bought: redesign.md §2.11).
+  // the spoils' offers are souls alone (relics are bought).
   for (const u of all) assert.ok(!UNITS[u.id].boss && !u.shadow && !('cohort' in u), u.id)
   assert.ok(s.offers.every((o) => o.type === 'soul'), JSON.stringify(s.offers))
   assert.ok(fieldCap({ state: s }) <= TUNING.army.board)
@@ -1660,7 +1658,7 @@ test('fuzz: 120 runs of random legal actions keep every invariant, cover every a
   assert.ok(big > 0, 'a 2×2 piece fought')
 })
 
-// ── the battle in the run (redesign.md §2.3) ─────────────────────────────────────────────────────
+// ── the battle in the run ─────────────────────────────────────────────────────
 
 // A new run walked into the first battle room it can reach (by the log: replay walks it too).
 function atBattle (seed) {

@@ -9,7 +9,7 @@ import { CAMP_LIST, abilityDef, RELICS } from '../src/content.js'
 import { frontier, START_PARTY } from '../src/sim/run.js'
 import { on, scene, unit } from './scene.js'
 
-// Reach (redesign.md §2.6): a blow's range and nothing else, from where a piece stands after its move; your melee
+// Reach: a blow's range and nothing else, from where a piece stands after its move; your melee
 // reaches 1, or 2 for a long arm. (The foes' roads, and that your pieces hold them, are test/turns.test.js's and
 // test/policy.test.js's.)
 
@@ -77,7 +77,7 @@ test('the default frontier: each start soul on a cell of its own, the Tomb Knigh
   }
 })
 
-// ── movement as a channel (DESIGN.md Step 4) ─────────────────────────────────────────────────────
+// ── movement as a channel ─────────────────────────────────────────────────────
 
 // The elements that read movement: a piece's own tiles moved this turn or its target's (`per: { moved }`, `per: {
 // walked }`, a trigger's `when`), and a walk once committed (the 'move' moment, rules.js onMove), told as the piece acts

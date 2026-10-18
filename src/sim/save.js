@@ -1,29 +1,17 @@
-// A run saved (redesign.md §4.8). A run is its createRun options and its log of actions (run.js replay), so a save is
-// those two and nothing more of the state: written after every action (main.js), read back by playing the log again
-// from the options, the battle under way order by order. Beside them it keeps where the run stood (`at`), for the
-// title's Continue to name, and to check the replay against: a save whose log no longer plays (an older game's: its
-// maps, its offers or its battles no longer the same) is no save, and is set aside with a note, never a crash.
-//
+// A run saved: its createRun options and its log of actions, played again on load (run.js replay). Written after every
+// action (main.js); never for the tutorial nor a finished run. A save whose log no longer plays is set aside, never a crash.
 //   { v, run, log, at, meta? }
 //   v     SAVE_VERSION; any other is an older game's
-//   run   the options the run was made with, whatever createRun takes ({ seed, start?, scale?, ascension?, monarch?… }),
-//         so a level, a Monarch or a difficulty rides along
+//   run   the options the run was made with ({ seed, start?, scale?, ascension?, monarch?… })
 //   log   run.state.log, every action applied, battle orders among them
-//   at    placeOf: the floor, the room's rank, the phase, the battle's turn, the purse, the Monarch's HP, the actions
-//   meta  what the interface keeps with the run that the run does not need (main.js: when it began, how long it has
-//         been played), handed back as it was given; a save without one has none
-//
-// The tutorial is never saved, and a finished run (cleared or lost: phase 'over') has no save.
+//   at    placeOf(run): where the run stood, for the title's Continue and to check the replay against
+//   meta  what the interface keeps with the run (main.js), handed back as it was given
 import { replay, monarchOf, currentNode } from './run.js'
 
-// 2 since the floors' bosses (redesign.md §4.7, Step 9): a run's floors are drawn on its souls since, so a save from
-// before them no longer plays, and is set aside at the title with its note rather than offered to Continue.
-export const SAVE_VERSION = 4 // 3 since 2026-10-17: no order fuses in battle, so an older log may no longer play; 4 since
-// 2026-10-18 (DESIGN Next, Step 3): no room is a Shop and no action leaves one, so an older log may hold a `leave`
-// and maps with Shop rooms
+// Raised whenever an older save's log may no longer play the same.
+export const SAVE_VERSION = 4
 
-// Where a run stands, as a save keeps it: the floor, the rank of the room it stands in (0: the floor's start), the
-// phase, the battle's turn (null out of battle), the purse, the Monarch's HP, and how many actions it took.
+// Where a run stands, as a save keeps it. room: the rank of its room (0: the floor's start); turn: null out of battle.
 export function placeOf (run) {
   const s = run.state
   return {
@@ -37,20 +25,16 @@ export function placeOf (run) {
   }
 }
 
-// Whether a run is one a save keeps: a run under way (not over), and no tutorial.
 export const keeps = (run) => !!run && !run.state.tutorial && run.state.phase !== 'over'
 
-// The save of `run`, made with createRun options `made`, as the JSON text it is kept as (`meta` beside them, where
-// given); null for a run not kept.
+// The save of `run` (made with createRun options `made`) as its JSON text; null for a run not kept.
 export function saveOf (run, made, meta = null) {
   if (!keeps(run)) return null
   return JSON.stringify({ v: SAVE_VERSION, run: { ...made, seed: run.state.seed }, log: run.state.log, at: placeOf(run), ...(meta && { meta }) })
 }
 
-// A save's text played back: { run, made, at, meta } (the run as it stood, its options, where it stood, what the
-// interface kept with it: null for nothing), or { error, why }:
-// 'unreadable' (not a save's text), 'outdated' (another version's, or a log that no longer plays the same: it throws,
-// or ends elsewhere than it says), or 'over' (a run already finished). Never throws.
+// A save's text played back: { run, made, at, meta } (meta null for none), or { error, why }, error 'unreadable', 'outdated'
+// (another version's, or a log that throws or plays elsewhere than `at`) or 'over' (a finished run). Never throws.
 export function restore (text) {
   let save
   try {

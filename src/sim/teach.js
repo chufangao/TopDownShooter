@@ -1,120 +1,49 @@
-// The labeller (redesign.md §2.22, §5 Step 9a): labels for the learned decision tree, made by playing a piece's options
-// out, offline. Never imported by the expert's play code: like the combo book and the fitters, it is training, and it
-// is the one place the foes' real turn is played ahead of a decision of yours.
+// The battle teacher, offline and never shipped: labels for the model tree and the forest, made by playing each of a
+// piece's options out on a copy of the board; the teacher as a player, the afterstates, the route's labels and fit.
 //
-// Positions: expert runs (autoplay.js policy, the default expert, the stream autoplay's; seeds `<seed>-1`…`<seed>-<runs>`)
-// played live; each piece decision of each battle turn (the board as the expert's orders before it in that turn left it,
-// the piece whose orders come next) a candidate, kept by a deterministic draw (a hash of the seed, the battle and the
-// decision's place) with a chance by its danger (KEEP): every decision of a battle the expert lost, half of a near-lost
-// one's (NEAR: the Monarch at or under 35% of its max at a turn's start or the end, or 40% of it lost in the
-// battle), a quarter of those of a won battle where the Monarch is in the foes' reach or a foe has a clear line on it
-// (the plan's shooters), 3% of the rest; each kept one weighed 1 / its chance (`wt`), so the data can stand for every
-// decision. That is the draw by the outcome (`draw` 'outcome', the default; L2's and L3's labels). With `draw` 'state'
-// (`--draw state`) a decision's chance reads only the board as it stands when the piece decides, never how the battle
-// ended: a quarter where the Monarch is in the foes' reach or a foe has a clear line on it ('reach'), 3% else ('calm'),
-// KEEP's `lost` and `near` unused; the row's `group` is still the battle's, its `danger` the board's class. (Drawn by the
-// outcome, a lost battle's rows are biased: there the option the expert took loses by construction, in a near-lost one
-// it wins; the ranker's variants that trusted those rows played worse, 2026-10-12.) By the floor (`keepFloor`,
-// `--keep-floor 1=2,3=2,4=2`): a decision's chance by its danger times its floor's factor (1 for a floor not named),
-// at most 1; the floor the battle is fought on is the run's state as the piece decides, so a draw by the state and the
-// floor still reads nothing of how the battle ends, and the row's `wt` stays 1 / its chance. Why: the expert dies on
-// floors 1 and 4 (2026-10-13), and the floors it walks through would fill the labels; their factors raised, its
-// decisions where runs are lost are learnt from more positions (R6). Without it every floor is drawn alike, as before.
-// Held out by seed: a seed number ≡ 0 (mod 5) is `held`, the rest `train`.
+//   npm run teach -- [flags]                   label the battle decisions of expert runs
+//   npm run teach -- --teacher [flags]         seeds played by the teacher and by the expert, paired
+//   npm run teach -- --augment <dir> [flags]   a label set's afterstates written beside it
+//   npm run teach -- --route [--fit] [flags]   label the room choices of expert runs, or fit the route's tree to them
+//     --runs 300 --seed teach   seeds <seed>-1…<seed>-<runs> (--teacher: 64 of sim-<from>…, --from 0; --route: route)
+//     --workers 5               worker threads (--teacher 4)
+//     --out dir                 the stage's directory (retinue-<mode>-<seed> in the OS temp dir); one stopped part way goes on
+//     --report-only             the report alone, from what --out holds
+//     --ascension 0 --monarch id   the runs' ascension level and Monarch (the base one by default)
+//     --expert file.json        the battle expert that plays (src/sim/expert.json by default)
+//     --forest file.json|none   the forest it plays with (the one forest.js holds by default)
+//     --rounds 0                0: each option played to the battle's end; n: stopped after n End Turns
+//     --turns 150               the rounds a playout to the end may last; a battle still going then is a stall, lost
+//     --cap 16                  a decision's options labelled at most, the expert's choice added
+//     --weights k=x,…           the value's weights over the defaults (positional: WEIGHTS' order; --route: its kind's)
+//     --keep 1,0.5,0.25,0.03    a decision's chance to be labelled by its danger: lost, near, reach, calm
+//     --draw outcome|state      the danger read with the battle's outcome, or from the board alone
+//     --keep-floor 1=2,…        a factor on that chance for each floor named
+//     --smooth 1 --epsilon 0.1 --top 3   k playouts an option, the first exact, in the rest each decision with chance
+//                               epsilon one of its top options at random
+//     --rooms end               --route: end, each room played to the run's end; n, until n rooms are done
+//     --policy learned          --route: the route that plays (learned, hand or a tree's file)
+//     --compare a.json,…        --route: more route trees measured against the labels
+//     --fit                     --route: fit the tree to --out's labels, into src/sim/expert.json's route
+//     --model file, --dry       --fit: the tree written to this file instead, or nowhere
+//     --depth 3 --leaves 8 --lambda 3 --tau 0 --min-leaf 0 --weighted   --fit: fit.js fitExpert's
+//     --hand                    --fit: the hand-built route's rules kept, only the rooms they leave fitted
+//     --prior file.json --structure grow|prior   --fit: the tree to start from (the hand-built route's weights by
+//                               default), grown or its leaves refitted
 //
-// Options: the deciding piece's options as the expert lists them (policy.js expertOptions: each tile and act or
-// fusion), cut to a shortlist of at most `cap` (options: the one it has where it stands, for each act at each target
-// the best tile by the prior and the least endangered, the tile nearest its role, the least endangered, the best block
-// and screen, each fusion, then the best by the prior, no more than two of one act at one target), and the option the
-// expert took added where the shortlist lacks it. The prior is the expert's own score of the option (the model tree in
-// use, expert.js expertModel: its leaf's weights and soft rules over policy.js optionFeatures, the conditions policy.js
-// conditions reads), only to choose what is labelled; `kept` says whether the model's hard rules leave it.
-//
-// Label (playout): each option given exactly on a copy of the board (turns.js fork: its move, then its act or fusion;
-// one that only moves or stays is given what End Turn would have it do from there now, as the expert's turn gives a
-// hold), the piece then done (marked acted); the rest of that turn played by the current expert (policy.js expertTurn
-// on the copy, the piece left out), End Turn (the untouched act, the foes' real turn: policy.js foeTurn, the turn's end,
-// a wave due), then, by default (`rounds` 0), the battle played out to its end by the current expert, its turn and End
-// Turn round after round (at most `cap.turns` 150 rounds past the decision: a battle still going then is labelled a
-// stall, lost, as the run's guard would end it). Measured from the board the piece decided on to the battle's end, and
-// what of it the run carries (run.js finishBattle: each living soul and the Monarch, unless nothing heals it, heals
-// TUNING.run.postBattleHeal of its max; the fallen stay down until an altar):
-//   value = −lost                                         the battle (the run) lost, a stall among them; else
-//           −monarch·(the share of its max HP the Monarch lost, as it carries)
-//           −own·(the share of your souls' max HP summed lost, as it carries: a fallen soul all of its share, its HP
-//                 before and the rest, its fall being for the run)
-//           −turn·(the rounds the battle took after the decision: a faster win, a bonus per round saved)
-// with END_WEIGHTS { lost 10, monarch 3, own 1, turn 0.02 } (`--weights monarch=3,own=1,lost=10,turn=0.02`). Shadows
-// and summons count in neither; a fusion's parts are the fused piece's (its HP carried, they fallen in none). Two rounds
-// and no more (`rounds` 2, the round-1 labels of 2026-10-11) price neither a soul's fall for the run, nor a slow battle,
-// nor the wounds that carry out of it, and the weights fitted to them lean on the expert to finish what they start.
-// With `rounds` > 0 the playout stops after that many End Turns, measured to the board then:
-//   value = −monarch·(the Monarch's HP lost, a share of its max) − own·(your pieces' HP lost, a share of their max HP
-//           summed as the board stood; a fusion's parts lost and the fused piece's HP gained) + foe·(the HP the foes
-//           standing then lost, a share of their max HP summed) − lost·(the battle lost) + won·(the battle won)
-// with WEIGHTS { monarch 3, own 1, foe 1, lost 10, won 1 } (`--weights`). Each part is written beside it, so other
-// weights can be read off the same data (fit.js readRows `weights`). HP lost is net of healing (below 0 when mended).
-// Two options that leave the same orders (a stay whose End-Turn blow is another option's act) are one: the first kept.
-// Deterministic: the same seed gives the same positions and the same labels.
-//
-// Smoothed labels (`smooth` k > 1, `--smooth k`; `epsilon`, `--epsilon e`, 0.1 by default; `top`, `--top 3`): each
-// option played out k times, its label their mean. The first is the exact playout above; each of the other k − 1 has
-// its continuation (the rest of that turn and every later turn of the battle, by the expert in use) perturbed: at each
-// piece's decision, with chance epsilon, one of its `top` best options by today's score taken at random in place of the
-// expert's choice, the forest's where one is in use (policy.js expertTurn's `explore`, which acts on the decision once
-// choice has made it; the kill list's turn still weighed against the greedy one, `weigh`, so the rest is the expert's
-// own turn but for the draws), each such playout with its own rng (a hash of the position's id, which names the seed,
-// the option's index and the playout's number), so the labels stay deterministic. Why: one exact playout is one line of
-// a chaotic battle, and in R3's positions where some options lose and some win, one pair of twins in five (the same
-// features and act, another tile) fell on opposite sides of it (redesign.md §6); the mean over small perturbations is
-// what an option is worth on average, which a reader of the board can learn. The exact line is kept as the first, so
-// k = 1 is today's labels exactly and every smoothed row holds today's label too (`values[0]`).
-//
-// Rows, one JSON line a position (labels.jsonl, in `--out`): { id, seed, run (its number), split, floor, room, battle,
-// turn, uid, kind, at (the run's log index of the decision: the run replayed to it stands there), group (0 won, 1
-// near-lost, 2 lost), danger ('lost', 'near', 'reach', 'calm'), wt, sit (policy.js conditions: the tree's vocabulary,
-// the piece's own `self.*` among them), options: [{ i, tile, steps, ability, target, fusion, f (policy.js
-// optionFeatures, a named vector; zeros left out), prior, kept, legal (it could be given), chosen (the expert took it),
-// added (listed for being chosen), value, parts (to the battle's end: { lost, stall, monarch, own, fell (souls fallen),
-// turns }; else { monarch, own, foe, lost, won }); smoothed, `value` the mean of `values` (each playout's, k of them, the
-// exact first) and `parts` each part's mean (`lost` the share of the k lost); k = 1 writes no `values` }], chosen (its
-// index), best (the index of the option the teacher takes, bestOf: the best value of the legal; ties, within 1e-9, to
-// the expert's own score, the higher prior, then its own tie order, the fewer steps, the lower lane, the lower target
-// uid, as policy.js better) }. (Before 2026-10-12, L2's and L3's
-// labels, `best` was the first best value in the rows' order: the shortlist's, in the prior's order, the added option
-// last. The two differ only where an added option ties the best value with a higher prior.)
-// Beside it runs.jsonl (a line a run played: its result, decisions, positions kept, time), manifest.json (the names of
-// the features and conditions, the counts, the settings, the throughput) and report.json (how often the expert's
-// choice was the playout's best, and its regret, by floor and by danger: report). loadLabels reads it back.
-//
-//   npm run teach -- [--runs 300] [--seed teach] [--workers 5] [--out dir] [--rounds 0] [--cap 16] [--turns 150]
-//                    [--weights monarch=3,own=1,…] [--keep lost,near,reach,calm] [--draw outcome|state]
-//                    [--keep-floor 1=2,3=2,…] [--expert file.json] [--forest file.json|none] [--smooth 1]
-//                    [--epsilon 0.1] [--top 3] [--report-only]
-// (`--expert`: the expert configuration that plays and completes the turns, src/sim/expert.json by default. `--forest`:
-// the forest it plays with (forest.js useForest: §2.23's correction as regression trees), installed in this thread and
-// in every worker before a run is played, so the runs and every playout's rest are the expert's with that forest;
-// `none` for none, today's expert; without it, the one forest.js holds. The labels' prior stays today's score, the
-// forest's correction aside. Its file and `name` go into manifest.json. `--draw`: how a decision's chance to be
-// labelled is read, see Positions above; `--keep`'s `lost` and `near` are unused under `state`; the draw goes into
-// manifest.json, and into its settings where it is not the default. `--keep-floor`: each named floor's factor on the
-// chance (see Positions above), into the settings (`keepFloor`) where given. `--smooth`, `--epsilon`, `--top`: smoothed
-// labels, see above; k, epsilon and top go into manifest.json's `smooth`, and into its settings where k > 1.)
-//
-// The teacher (below, `--teacher`): this labeller as a player, every battle decision of a run the playout-best.
-// The afterstates (below, `--augment <dir>`): a label set's runs replayed and each option's afterstate written beside its
-// labels (after.jsonl), for the forest's "after the move" inputs (forest.js aft.*).
-//
-// `--out` defaults to the OS's temp directory (retinue-teach-<seed>); a stage stopped part way goes on from where it
-// was (runs.jsonl names the runs done). Delete it (or take another --seed) once the game or the expert has changed.
-// Every mode takes `--ascension <level>`: its runs played at that level of the ascension ladder (run.js createRun's;
-// 0, the base game, by default), into its settings where it is not 0; and `--monarch <id>`: as that Monarch (content.js
-// MONARCHS; the base one by default), into its settings where it is not the base one.
+// labels.jsonl, a line a position: { id, seed, run, split ('held' where the seed's number ≡ 0 mod 5, else 'train'),
+//   floor, room, battle, turn, uid, kind, at (the run's log index), group (0 won, 1 near-lost, 2 lost), danger,
+//   wt (1 / its chance), sit (policy.js conditions), options, chosen, best (bestOf's) }
+// an option: { i, tile, steps, ability, target, f (optionFeatures, zeros left out), prior, kept, legal, chosen, added,
+//   value, values (each playout's, smoothed only), parts }
+// value to the battle's end (END_WEIGHTS) = −lost where lost (a stall too), else −monarch·monarch − own·own − turn·turns
+// value after `rounds` End Turns (WEIGHTS) = −monarch·monarch − own·own + foe·foe − lost·lost + won·won
+// Beside it runs.jsonl (a line a run), report.json (report's) and manifest.json { made, settings, expert, forest, draw,
+//   smooth, value, features, conditions, counts, throughput }.
 import { isMainThread, parentPort, workerData } from 'node:worker_threads'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { createRun, apply, currentNode, availableNodes, monarchOf, souls, ascensionTop, BASE_MONARCH, copyRun } from './run.js'
 import { createRng, hashString } from './rng.js'
 import {
@@ -123,73 +52,32 @@ import {
 } from './autoplay.js'
 import * as P from './policy.js'
 import * as E from './expert.js'
-import { useForest, forestModel, afterDiff, afterNames } from './forest.js'
+import { useForest, forestModel, afterDiff, afterNames, r6 } from './forest.js'
+import { holds, screenLines, kindOf, spread, untouchedOrder } from './policy.js'
+import { pool as workerPool } from './pool.js'
 import { readPlan } from './plan.js'
 import { fork, order, canAct, allowed, targetsFrom, pick, helped, lined, stalled } from './turns.js'
 import { alive, footprint, isBlow, blowReach, distanceBetween, lineEnds, LINE_AT, LINE_TILES, TILES, tileX } from './unit.js'
 import { LANE } from './field.js'
 import { TUNING } from '../tuning.js'
+import { arg, has, isMain } from './cli.js'
 
-// The playout value's weights (see above: END_WEIGHTS to the battle's end, WEIGHTS for `rounds` > 0), the chance a
-// decision is kept by its danger, and the defaults (`turns`: the rounds a playout to the end may last; `keepFloor`, the
-// floors' factors on that chance, none; `smooth`, the playouts an option, `epsilon` and `top` their perturbation's: see
-// Smoothed labels above).
 export const WEIGHTS = Object.freeze({ monarch: 3, own: 1, foe: 1, lost: 10, won: 1 })
 export const END_WEIGHTS = Object.freeze({ lost: 10, monarch: 3, own: 1, turn: 0.02 })
 export const KEEP = Object.freeze({ lost: 1, near: 0.5, reach: 0.25, calm: 0.03 })
 export const DEFAULTS = Object.freeze({ rounds: 0, cap: 16, turns: 150, weights: null, keep: KEEP, keepFloor: null, draw: 'outcome', smooth: 1, epsilon: 0.1, top: 3 })
-// How a decision's chance to be labelled is read (see above): by its battle's outcome, or by the board alone.
-export const DRAWS = Object.freeze(['outcome', 'state'])
-// The weights a configuration's labels are read by: its own, else its kind's.
+const DRAWS = Object.freeze(['outcome', 'state'])
 const weightsOf = (c) => c.weights ?? (c.rounds > 0 ? WEIGHTS : END_WEIGHTS)
 
-// What makes a won battle near-lost (KEEP's `near`): the Monarch at or under `share` of its max at a turn's start or the
-// end, or `drop` of its max lost in the battle (V's trainer's, train.js, before it went).
+// A won battle is near-lost where the Monarch is at or under `share` of its max at a turn's start or the end, or lost `drop`.
 const NEAR = Object.freeze({ share: 0.35, drop: 0.4 })
 // A seed's number (`teach-17` → 17): what the split by run reads.
 const seedNo = (seed) => Number(String(seed).match(/(\d+)$/)?.[1] ?? 0)
 
 const NONE = Object.freeze([])
 const EPS = 1e-9
-const r6 = (x) => Math.round(x * 1e6) / 1e6
 
 // ── the options ──────────────────────────────────────────────────────────────────────────────────
-
-// The roads into the Monarch piece `u` would hold standing on `tile` (sit.entries over its footprint: policy.js holds).
-const holds = (u, tile, sit) => (footprint(tile, u.size) ?? [tile]).reduce((n, t) => n + sit.entries.air[t] + (u.flies ? 0 : sit.entries.ground[t]), 0)
-
-// The tiles strictly between the Monarch and each foe whose blow that keeps to a line reaches it, or would but for a
-// screen of yours (policy.js screenLines).
-function screenLines (battle, sit) {
-  const out = new Set()
-  const m = battle.monarch
-  if (!sit.monarch || !m) return out
-  for (const x of [...sit.monarch.deals.keys(), ...sit.monarch.screened]) {
-    if (!x.kit.some((b) => isBlow(b) && lined(b) && distanceBetween(x.tile, x.size, m.tile, m.size) <= blowReach(x, b))) continue
-    const [p, q] = lineEnds(x.tile, x.size, m.tile, m.size)
-    const k = p * TILES + q
-    for (let i = LINE_AT[k]; i < LINE_AT[k + 1]; i++) out.add(LINE_TILES[i])
-  }
-  return out
-}
-
-const kindOf = (o) => (o.ability ? `${o.ability.id}:${o.target.uid}` : 'move')
-// The first `n` of `list` not in `taken`, no more than `per` of one act at one target (twice that of moves alone).
-function spread (list, n, taken, per = 2) {
-  const out = []
-  const count = new Map()
-  for (const o of taken) count.set(kindOf(o), (count.get(kindOf(o)) ?? 0) + 1)
-  for (const o of list) {
-    if (out.length >= n) break
-    if (taken.has(o)) continue
-    const k = kindOf(o)
-    const c = count.get(k) ?? 0
-    if (c >= (k === 'move' ? 2 * per : per)) continue
-    count.set(k, c + 1)
-    out.push(o)
-  }
-  return out
-}
 
 // The better of two options by the prior; ties: the fewer steps, the lower lane, the lower target uid (policy.js better).
 const byPrior = (a, b) => b.prior - a.prior || a.path.length - b.path.length || LANE[tileX(a.tile)] - LANE[tileX(b.tile)] || (a.target?.uid ?? -1) - (b.target?.uid ?? -1)
@@ -197,14 +85,10 @@ const byPrior = (a, b) => b.prior - a.prior || a.path.length - b.path.length || 
 const expertOrder = (a, b) => (Math.abs(a.prior - b.prior) > EPS ? b.prior - a.prior : 0) || a.path.length - b.path.length ||
   LANE[tileX(a.tile)] - LANE[tileX(b.tile)] || (a.target?.uid ?? -1) - (b.target?.uid ?? -1)
 
-// The expert's reading of a decision (expert.js readTree over the model in use, on conditions `c`), where the expert
-// has a model tree; else null (the prior then TUNING.expert.battle.option's weighted sum).
+// The expert's reading of a decision on conditions `c` (expert.js readTree over the model in use); null without a tree.
 const readOf = (c) => (typeof E.readTree === 'function' && typeof E.expertModel === 'function' ? E.readTree(E.expertModel(), c) : null)
 
-// Piece `u`'s options to label on `battle` (`sit` its situation, the plan on it; `c` its conditions): every option the
-// expert lists, each read as its features (`v`), its prior and whether the model's hard rules keep it (`kept`), and the
-// shortlist of at most `cap` kept as the expert's shortlist keeps one (policy.js shortlist's rules). → the shortlist, the
-// best by the prior first, and `all` its options as read.
+// Piece `u`'s options read (`v`, `prior`, `kept` by the hard rules), shortlisted to `cap` as policy.js shortlist does.
 export function optionsAt (battle, u, sit, cap = DEFAULTS.cap, c = P.conditions(sit, u)) {
   const all = P.expertOptions(battle, u)
   const read = readOf(c)
@@ -261,22 +145,7 @@ export function optionsAt (battle, u, sit, cap = DEFAULTS.cap, c = P.conditions(
 
 // ── giving an option, and playing it out ─────────────────────────────────────────────────────────
 
-// What End Turn has one of yours yet to act do from where it stands, as an order (turns.js untouched; policy.js
-// untouchedOrder): its basic blow at the foe furthest along its road, else its basic heal on the most wounded it can
-// do something for; null for nothing.
-function untouchedOrder (f, u) {
-  if (!canAct(f, u)) return null
-  const b = u.basic
-  const foes = b && allowed(f, u, b) ? targetsFrom(f, u, b, u.tile) : NONE
-  if (foes.length) return { type: 'act', uid: u.uid, ability: b.id, target: pick(f, u, foes).uid }
-  const m = u.mend
-  const allies = m && allowed(f, u, m) ? helped(f, u, m, u.tile) : NONE
-  if (allies.length) return { type: 'act', uid: u.uid, ability: m.id, target: allies.slice().sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp || p.uid - q.uid)[0].uid }
-  return null
-}
-
-// Option `o` of piece `uid` given on `g` (a copy): its move, then its act or fusion, or for a move alone or a stay what
-// End Turn would have it do from there; the piece then marked done. → its orders (throws where one may not be given).
+// Option `o` given on copy `g` (a move or stay with what End Turn would have it do), the piece then done. → its orders
 export function give (g, uid, o) {
   const u = g.byUid.get(uid)
   const out = []
@@ -307,8 +176,7 @@ export function signature (orders, from) {
   return `${tile}|${act}`
 }
 
-// What the playout value reads of a board: the Monarch's HP and max, your pieces' HP and max HP summed (those that take
-// orders), and each standing foe's HP (by uid) with their max HP summed.
+// What the value after `rounds` reads of a board: the Monarch's HP, your pieces' HP and max, each standing foe's HP.
 function tally (b) {
   const m = b.monarch
   let own = 0
@@ -349,8 +217,7 @@ export function valueOf (before, g, w = WEIGHTS) {
   return { value: r6(value), parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, r6(v)])) }
 }
 
-// What the label to the battle's end reads of the board a piece decided on: the Monarch's share of its max HP, each of
-// your souls standing (not the Monarch, no shadow or summon) with its HP and max, their max summed, and the round.
+// What the value to the end reads of a board: the Monarch's HP share, each soul's HP and max (no shadow), the round.
 export function endTally (b) {
   const m = b.monarch
   const souls = new Map()
@@ -363,16 +230,14 @@ export function endTally (b) {
   return { m: m ? Math.max(0, m.hp) / m.maxHp : 0, souls, max, turn: b.turn }
 }
 
-// The label to the battle's end (see the head of this file) of board `g`, played out, against `before` (endTally of the
-// board the piece decided on), by `w` (END_WEIGHTS'). `stall`: the playout reached its bound on rounds still going. →
-// { value, parts: { lost, stall, monarch, own, fell, turns } }
+// The label to the battle's end of played-out `g` against `before` (endTally): monarch and own the share of max HP lost
+// as the run carries it (post-battle heal; a fallen soul all of its share). `stall`: the playout ran out of rounds.
 export function endValue (before, g, w = END_WEIGHTS, stall = false) {
   const won = g.over && g.winner === 'party'
   const heal = TUNING.run.postBattleHeal
   const carried = (hp, max, healed = true) => (hp > 0 ? Math.min(max, hp + (healed ? Math.ceil(max * heal) : 0)) : 0)
   const m = g.monarch
   const mAfter = m && m.hp > 0 ? carried(m.hp, m.maxHp, !g.unhealable) / m.maxHp : 0
-  // Your souls as the run gets them back: each standing one carried; each fallen of those that stood, all its share.
   let had = 0
   let kept = 0
   let fell = 0
@@ -398,10 +263,8 @@ export function endValue (before, g, w = END_WEIGHTS, stall = false) {
   return { value: r6(value), parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, r6(v)])) }
 }
 
-// One option played out from `board` (see the head of this file): given on a copy, the rest of the turn by the expert,
-// End Turn, then to the battle's end (`rounds` 0: at most `turns` rounds past the decision), or `rounds` − 1 rounds more.
-// `seen`: the signatures already played (one that repeats is not played again: null). `before`: the board's tally
-// (endTally to the end, else tally). → { sig, orders (the option's, as given), value, parts } or { legal: false }.
+// One option played out: given on a copy of `board`, then turn after turn by `turn` to the battle's end (at most `turns`
+// rounds) or for `rounds` End Turns. `seen`: the signatures played (a repeat → null). → { legal, sig, orders, value, parts }
 export function playout (board, uid, o, { rounds = DEFAULTS.rounds, turns = DEFAULTS.turns, weights = null, before = null, seen = null, turn = P.expertTurn } = {}) {
   const end = !(rounds > 0)
   before ??= end ? endTally(board) : tally(board)
@@ -443,19 +306,16 @@ const sparse = (v) => {
   return out
 }
 
-// Piece `uid`'s decision on `board` (a copy taken as it decided; the plan on it as the turn's) read: its situation, its
-// conditions and its options (optionsAt, at most `cap` shortlisted). → { u, cond, short, all }
+// Piece `uid`'s decision on `board` (a copy as it decided) read: its conditions and options. → { u, cond, short, all }
 export function readDecision (board, uid, cap) {
   const u = board.byUid.get(uid)
   const sit = P.situation(board)
-  // The turn's plan, as the expert's turn read it (one the board carries), else read now.
   sit.plan = readPlan(board, sit)
   const cond = P.conditions(sit, u)
   return { u, cond, ...optionsAt(board, u, sit, cap, cond) }
 }
 
-// The turn a smoothed playout's continuation is played by (see Smoothed labels above): the expert's, exploring with the
-// rng of position `key`, option `i` and playout `j`.
+// The turn a smoothed playout continues by: the expert's, exploring with the rng of position `key`, option `i`, playout `j`.
 function perturbed (c, key, i, j) {
   const explore = { rng: createRng(`smooth|${key}|${i}|${j}`), epsilon: c.epsilon, top: c.top, weigh: true }
   return (g) => P.expertTurn(g, { explore })
@@ -469,10 +329,8 @@ function averaged (ps) {
   return { value: r6(values.reduce((t, v) => t + v, 0) / ps.length), values, parts }
 }
 
-// Each option of a decision read (readDecision) played out, `chosen` the signature of what the expert did (null for
-// none), its option added where the shortlist lacks it; `c.smooth` > 1, each legal option `c.smooth` times, the first
-// exact, the rest perturbed by the rng of `c.key` (the position's id). → { rows (the labels' options), plays (each row's
-// option and its orders as given), at (the chosen's index), best (bestOf's) }
+// Each option of decision `read` played out (smoothed where `c.smooth` > 1), the expert's `chosen` added where the
+// shortlist lacks it. → { rows, plays (each row's option and orders), at (the chosen's index), best }
 export function labelled (board, uid, chosen, c, read = readDecision(board, uid, c.cap)) {
   const { short, all } = read
   const before = c.rounds > 0 ? tally(board) : endTally(board)
@@ -484,7 +342,6 @@ export function labelled (board, uid, chosen, c, read = readDecision(board, uid,
     const p = playout(board, uid, o, { ...how, seen })
     if (p === null) return null
     const i = rows.length
-    // Smoothed, a legal option's exact playout first, then k − 1 with its continuation perturbed (Smoothed labels, above).
     const k = p.legal ? Math.max(1, Math.floor(c.smooth ?? 1)) : 1
     const more = Array.from({ length: k - 1 }, (_, j) => playout(board, uid, o, { ...how, turn: perturbed(c, c.key ?? '', i, j + 1) }))
     const m = more.length ? averaged([p, ...more]) : null
@@ -500,7 +357,6 @@ export function labelled (board, uid, chosen, c, read = readDecision(board, uid,
   for (const o of short) label(o, false)
   let at = rows.findIndex((r) => r.chosen)
   if (at < 0 && chosen) {
-    // The expert's choice, where the shortlist lacks it: found among all its options by its signature.
     const o = fromSignature(all, chosen)
     if (o) {
       const row = label(o, true)
@@ -510,9 +366,7 @@ export function labelled (board, uid, chosen, c, read = readDecision(board, uid,
   return { rows, plays, at, best: bestOf(rows, plays.map((x) => x.o)) }
 }
 
-// One position labelled: piece `uid` deciding on `board` (a copy taken as it decided; the plan on it as the turn's),
-// `chosen` the signature of what the expert did (null for none); `cfg.key` the position's id, its smoothed playouts'
-// rng drawn from it (teachRun's). → { uid, kind, sit, options, chosen, best }
+// One position labelled; `cfg.key`, the position's id, seeds its smoothed playouts. → { uid, kind, sit, options, chosen, best }
 export function labelPosition (board, uid, chosen = null, cfg = {}) {
   const c = { ...DEFAULTS, ...cfg }
   const read = readDecision(board, uid, c.cap)
@@ -520,10 +374,7 @@ export function labelPosition (board, uid, chosen = null, cfg = {}) {
   return { uid, kind: read.u.id, sit: sparse(read.cond), options: rows, chosen: at, best }
 }
 
-// The option the teacher takes of a decision's rows played out (`opts` their options, each with its prior, path, tile
-// and target): the best value among the legal; ties (within EPS: every lost option is worth −lost alike, and many won
-// ones tie too) to the expert's own score, the higher prior, then the expert's own tie order (the fewer steps, the
-// lower lane, the lower target uid: policy.js better); of those alike in all, the first. → its index, −1 for none legal
+// The teacher's pick of played-out `rows`: the best value of the legal, ties by policy.js better's order. → its index or −1
 export function bestOf (rows, opts) {
   let best = -1
   for (let i = 0; i < rows.length; i++) {
@@ -534,8 +385,7 @@ export function bestOf (rows, opts) {
   return best
 }
 
-// Of options `opts`, the one a decision's signature (signature) names: its tile and act or fusion.
-export function fromSignature (opts, sig) {
+function fromSignature (opts, sig) {
   const [tile, act] = sig.split('|')
   const t = Number(tile)
   return opts.find((o) => o.tile === t && (o.ability ? `a:${o.ability.id}:${o.target.uid}` : '') === act) ??
@@ -545,9 +395,7 @@ export function fromSignature (opts, sig) {
 
 // ── positions from runs ──────────────────────────────────────────────────────────────────────────
 
-// The expert a run plays by and completes its playouts with, installed for the thread (a worker's: each run installs
-// it again) where `c` names it: `expert` a configuration file (expert.js useExpert), else the one in use; `forest` a
-// forest configuration or its file (forest.js useForest; null for none, today's expert), else the one in use.
+// Installs for the thread `c.expert` (a configuration's file) and `c.forest` (a forest, its file, or null) where named.
 export function install (c) {
   if (c.expert) E.useExpert(JSON.parse(fs.readFileSync(c.expert, 'utf8')))
   if (c.forest !== undefined) useForest(modelOf(c.forest))
@@ -555,11 +403,9 @@ export function install (c) {
 // A configuration or its file (a forest's), null for none.
 const modelOf = (r) => (typeof r === 'string' ? JSON.parse(fs.readFileSync(r, 'utf8')) : r ?? null)
 
-// A decision's draw in [0, 1): a hash of the seed, the battle and its place.
 const draw = (seed, battle, seq) => parseInt(hashString(`teach|${seed}|${battle}|${seq}`).slice(0, 8), 16) / 2 ** 32
 
-// The danger of a decision: its battle's group (lost, near-lost), else the Monarch in the foes' reach or a foe with a
-// clear line on it (the plan's shooters), else calm. `b` the board, `group` its battle's (null: the board alone).
+// A decision's danger: its battle's `group` (null: the board alone), else 'reach' (the Monarch in reach or line), else 'calm'.
 function dangerOf (b, group) {
   if (group === 2) return 'lost'
   if (group === 1) return 'near'
@@ -569,9 +415,7 @@ function dangerOf (b, group) {
   return reach || line ? 'reach' : 'calm'
 }
 
-// A decision's class and its chance to be labelled (KEEP's, or `cfg.keep`'s) by `cfg.draw`: by the outcome, its battle's
-// `group` first (dangerOf); by the state, the board `b` alone, whatever `group` is; times `floor`'s factor where
-// `cfg.keepFloor` names it (the floor the battle is fought on), at most 1. → { danger, keep }
+// A decision's danger by `cfg.draw` and its chance to be labelled, times its floor's `cfg.keepFloor`, at most 1.
 export function drawOf (b, group, cfg = {}, floor = null) {
   const how = cfg.draw ?? DEFAULTS.draw
   if (!DRAWS.includes(how)) throw new Error(`no draw "${how}": ${DRAWS.join(', ')}`)
@@ -580,9 +424,7 @@ export function drawOf (b, group, cfg = {}, floor = null) {
   return { danger, keep: Math.min(1, keep) }
 }
 
-// One expert run played live, its battles' decisions drawn and the kept ones labelled. `battles`: stop after that many
-// battles (0: the whole run); `limit`: at most that many positions labelled. → { seed, result, floor, decisions,
-// positions, ms, labelMs }
+// One expert run played live, its kept decisions labelled (`battles`, `limit`: stop early). → its runs.jsonl line, `positions`
 export function teachRun (seed, cfg = {}) {
   const c = { ...DEFAULTS, ...cfg, keep: { ...KEEP, ...cfg.keep } }
   install(c)
@@ -651,15 +493,10 @@ export function teachRun (seed, cfg = {}) {
   return { seed, result: run.state.result ?? null, floor: run.state.floor, decisions, positions, ms: Math.round(performance.now() - t0), labelMs: Math.round(labelMs) }
 }
 
-// ── the afterstates (redesign.md §2.23: the ranker's "after the move") ────────────────────────────
+// ── the afterstates ──────────────────────────────────────────────────────────────────────────────
 
-// The board each option of a labelled position leaves, read for the forest (its aft.* inputs): `row` (a labels.jsonl
-// line) on `board` (a copy of the board it was labelled on: the run replayed to its decision, augmentRun). Each of the
-// row's options found among the piece's (policy.js expertOptions, by its tile, act, target and fusion) and given on a
-// copy as the playouts give it (policy.js afterOf, the very read play makes), its conditions written against the row's
-// own (forest.js afterDiff: those that differ, rounded as the rows are); null where it is not found or may not be given.
-// `same`: whether the board's own conditions, read as the row's were, are the row's `sit` (the replay is the run). →
-// { same, a (one an option, in the row's order) }
+// The afterstates of labelled `row` on `board` (the run replayed to it): each option's conditions given as play gives it,
+// as they differ from the row's `sit` (forest.js afterDiff); null where not found. `same`: the replay is the run.
 export function afterRow (board, row) {
   const u = board.byUid.get(row.uid)
   if (!u) return { same: false, a: row.options.map(() => null) }
@@ -680,11 +517,7 @@ export function afterRow (board, row) {
   return { same, a }
 }
 
-// One run's positions augmented (a worker's job: { seed, positions: [{ id, at, uid, sit, options }] }, labels.jsonl's
-// rows of that seed): the run replayed as teachRun plays it (the expert and forest of `cfg` installed, the same stream,
-// each action asked of the policy before the board is copied), and at each position's decision (`at`, the run's log
-// index) its afterstates read on a copy of the board (afterRow). A position the replay never meets is `missed`. →
-// { seed, rows: [{ id, same, a } or { id, missed: true }] }
+// A worker's job { seed, positions }: the run replayed as teachRun plays it, each position's afterRow read at its `at`.
 export function augmentRun ({ seed, positions }, cfg = {}) {
   install(cfg)
   const run = createRun({ seed, ascension: cfg.ascension ?? 0, ...asMonarch(cfg.monarch) })
@@ -703,21 +536,14 @@ export function augmentRun ({ seed, positions }, cfg = {}) {
   return { seed, rows }
 }
 
-// `npm run teach -- --augment <dir> [--workers n] [--forest file|none]`: a label set's afterstates (afterRow) written
-// beside it, after.jsonl (a line a position, labels.jsonl's order: { id, a }) and after.json (the conditions `a`'s
-// indices name, the expert and forest the runs were replayed with, how many positions were replayed to the board they
-// were labelled on). The runs are replayed with the expert and forest their manifest names (its settings' `expert` and
-// `forest`; a label set made before forests, or with none, none), or the `--forest` given (needed where there is no
-// manifest yet). A label set played with §2.23's ranker (R2) can be replayed no more: its manifest names it, and it is
-// refused. Positions labelled after it was written have no line: augment again.
+// --augment: after.jsonl (a line a position: { id, a }) and after.json { made, conditions, forest, expert, positions,
+// same, missed, differ, seconds }, replayed with the expert and forest the manifest names, or `--forest`'s.
 async function augmentMain (dir, arg, workers) {
   const t0 = performance.now()
-  // A label set still being made has no manifest yet: then its forest given (and the expert in use).
   const mf = path.join(dir, 'manifest.json')
   if (!fs.existsSync(mf) && arg('forest', null) === null) throw new Error(`${dir} has no manifest.json: give --forest <file|none>`)
   const manifest = fs.existsSync(mf) ? JSON.parse(fs.readFileSync(mf, 'utf8')) : {}
-  if (manifest.ranker?.name) throw new Error(`${dir} was played with ranker ${manifest.ranker.name}, which is gone (redesign.md §6 Step 0b)`)
-  // The forest (none where the manifest names none, as every label set before forests).
+  if (manifest.ranker?.name) throw new Error(`${dir} was played with ranker ${manifest.ranker.name}, which is gone`)
   const givenForest = arg('forest', null)
   const named = manifest.settings?.forest
   const forestFile = givenForest !== null ? (givenForest === 'none' ? null : path.resolve(givenForest)) : named?.file ?? null
@@ -766,8 +592,7 @@ async function augmentMain (dir, arg, workers) {
 
 // ── reading the labels ───────────────────────────────────────────────────────────────────────────
 
-// The names of the option features and the conditions (the rows leave out zeros): the code's own, in its order
-// (policy.js OPTION_FEATURES, the keys conditions gives a piece), then any other the rows carry, sorted.
+// The option features' and conditions' names: the code's own in its order, then any other the rows carry, sorted.
 export function names (positions = NONE) {
   const seen = (key) => [...new Set(positions.flatMap(key))].sort()
   const own = (list, extra) => [...list, ...extra.filter((k) => !list.includes(k))]
@@ -778,10 +603,8 @@ export function names (positions = NONE) {
   }
 }
 
-// The labels in `dir` (labels.jsonl), sorted by run, battle and place; with `flat`, also as flat arrays for a fitter:
-// { positions, features (names: the manifest's where there is one, else names), conditions (the same), X (rows ×
-// features), S (positions × conditions), rows: { pos (its position's index), value, chosen, legal, kept, prior } (typed
-// arrays, a row an option) }.
+// The labels in `dir`, sorted by run, battle and place; `flat` adds arrays for a fitter: { features, conditions,
+// X (rows × features), S (positions × conditions), rows: { pos, value, chosen, legal, kept, prior } }, a row an option.
 export function loadLabels (dir, { flat = false } = {}) {
   const text = fs.readFileSync(path.join(dir, 'labels.jsonl'), 'utf8')
   const positions = text.split('\n').filter(Boolean).map((l) => JSON.parse(l))
@@ -815,13 +638,9 @@ export function loadLabels (dir, { flat = false } = {}) {
   return { positions, features: fNames, conditions: sNames, X, S, rows }
 }
 
-// How the expert's choices stand against the playouts, over `positions` (labelPosition's, with floor and danger; or
-// labelChoice's, with floor and elite): for all, and grouped by each of `by` ({ name: a position's key, or a function of
-// it }: by floor, danger and split by default), { positions, options (mean), decisive (the share where the options' values differ),
-// agree (the share where the expert's choice is the playout's best, ties counted), agreeDecisive (the same among the
-// decisive), regret (the mean of the best value less the chosen's), regretDecisive, random (a uniformly random
-// option's mean regret), spread (the mean of the best value less the worst), scoreOnly (the agreement of the best by
-// the expert's score alone, its hard rules aside) }.
+// How the expert's choices stand against the playouts, over all and by each of `by`: positions, options, decisive (the
+// share where the values differ), agree (its choice a best), agreeDecisive, regret (the best value less the chosen's),
+// regretDecisive, random (a random option's regret), spread (the best less the worst), scoreOnly (by the prior alone).
 export function report (positions, by = { byFloor: 'floor', byDanger: 'danger', bySplit: 'split' }) {
   const stats = (list) => {
     let n = 0
@@ -871,38 +690,13 @@ export function report (positions, by = { byFloor: 'floor', byDanger: 'danger', 
   return { all: stats(positions), ...Object.fromEntries(Object.entries(by).map(([name, key]) => [name, group(key)])) }
 }
 
-// ── the teacher (redesign.md §2.23, §5 Step 10a) ─────────────────────────────────────────────────
+// ── the teacher ──────────────────────────────────────────────────────────────────────────────────
 
-// The labeller as a player: whole runs with every battle decision the playout-best, for a learner's targets and for
-// the ceiling (how far battle play alone can take the expert). Never shipped, like the combo book.
-//
-// Out of battle today's expert decides (autoplay.js policy, the default expert, on the 'autoplay' stream, as
-// autoplay.js record plays it), so a teacher run of a seed is today's expert's run of that seed (record's) up to the
-// first battle decision the two take differently. In battle, each turn, one piece at a time on the board as the ones
-// before it left it: the next to decide is the one today's expert would order next on the board as it stands (its turn,
-// policy.js expertTurn, read on the board at the turn's first decision, its plan kept on the board as the expert's turn
-// keeps it, then on a copy with the pieces the teacher has decided marked done: the first piece it decides); its options
-// the labeller's (optionsAt: at most `cap`), the expert's own choice added where the shortlist lacks it (so the teacher
-// does no worse than the expert by its own playouts); each played out to the battle's end by the current expert
-// (playout: the expert of the thread, the forest in use with it), and the best taken (bestOf: the best value, ties to the
-// expert's own score and its tie order); given as orders (its move, then its act or fusion; a move alone or a stay given
-// what End Turn would have it do from there, as the labeller gives it). A piece with one option takes it with no
-// playout. Where the expert would order no piece, the turn ends as the expert ends it: what End Turn has the untouched
-// do (policy.js untouchedOrders), then End Turn. Nothing else changes: the same bound on a battle's rounds (a stall past
-// TUNING.turn.guard, as autoplay.js ends it), the same End Turn; a turn is one decision a piece more than the expert
-// reads, about ten playouts each (9–12 on the bar's seeds, 2026-10-12: ~40 ms a decision on floor 1 and ~200 ms over a
-// run on four workers, a run of ~800 decisions 2–5 minutes). Deterministic: the same board gives the same orders.
-//
-//   npm run teach -- --teacher [--runs 64] [--seed sim] [--from 0] [--workers 4] [--out dir] [--cap 16] [--turns 150]
-//                    [--weights monarch=3,own=1,…] [--expert file.json] [--forest file.json|none]
-//                    [--report-only]
-// plays seeds `<seed>-<from>`…`<seed>-<from + runs − 1>` (autoplay.js's naming: sim-0…sim-63, the bar's seeds), each by
-// the teacher and by today's expert (record), in worker threads; runs.jsonl in `--out` (the OS's temp directory,
-// retinue-teacher-<seed>, by default) holds a line a run: { seed, player ('teacher' or 'expert'), result, floor, progress
-// (autoplay.js progressOf, as record reads it), battles: { won, fought }, ms, and the teacher's decisions, playouts (in
-// all), single (decisions of one option) and decisionMs }; manifest.json the settings (a stage stopped part way goes on
-// from where it was, the runs done skipped; other settings refused); report.json the paired report (pairedReport),
-// printed.
+// The labeller as a player: each battle decision the playout-best of the piece's options (the expert's own choice among
+// them), the pieces in the order the expert would order them; out of battle the expert decides.
+// --teacher runs.jsonl, a line a run: { seed, player ('teacher' or 'expert'), result, floor, progress, battles: { won,
+//   fought }, ms, and the teacher's decisions, playouts, single (decisions of one option), decisionMs };
+//   manifest.json { made, settings, expert, forest, counts, wall, workers }; report.json pairedReport's.
 
 // A copy of board `b` with the pieces in `done` marked done (acted), as the labeller's playout marks the piece it gives.
 export function marked (b, done) {
@@ -914,10 +708,8 @@ export function marked (b, done) {
   return g
 }
 
-// The piece today's expert would order next on board `b` (policy.js expertTurn read on it: the first piece its turn
-// decides), and the orders its turn gives it there (the leading orders of the turn, that piece's). → { uid (null: none,
-// End Turn), orders }
-export function nextPiece (b) {
+// The piece the expert would order next on `b` and the orders its turn gives it. → { uid (null: End Turn), orders }
+function nextPiece (b) {
   let uid = null
   const turn = P.expertTurn(b, { note: (r) => { if (uid === null && r.decision === 'battle') uid = r.uid } })
   const orders = []
@@ -930,10 +722,7 @@ export function nextPiece (b) {
   return { uid, orders }
 }
 
-// The teacher's decision for piece `uid` on `board` (a copy as it decides, the turn's plan on it): the options read as
-// the labeller reads them, `chosen` the signature of the expert's own choice (added where the shortlist lacks it), each
-// played out to the battle's end and the best taken (bestOf); one option taken with no playout. → { option, orders
-// (its orders, as given on a copy), playouts, value (its playout's; null unplayed) }
+// The teacher's decision for piece `uid`: the playout-best of the labeller's options; a lone option taken unplayed.
 export function teacherPick (board, uid, chosen = null, cfg = {}) {
   const c = { ...DEFAULTS, ...cfg }
   const read = readDecision(board, uid, c.cap)
@@ -950,16 +739,13 @@ export function teacherPick (board, uid, chosen = null, cfg = {}) {
   return { option: L.plays[L.best].o, orders: L.plays[L.best].orders, playouts: L.rows.length, value: L.rows[L.best].value }
 }
 
-// The teacher's turn on `battle` (yours to order; read only but for the turn's plan, which the expert's turn keeps on it
-// too): see the head of this section. `count` (optional) adds up its decisions, playouts, single (the decisions of one
-// option) and ms (the time its decisions took). → the turn's orders, End Turn last (none once the battle is over)
+// The teacher's turn on `battle`; `count` adds up its decisions, playouts, single and ms. → its orders, End Turn last
 export function teacherTurn (battle, cfg = {}, count = null) {
   if (battle.over || battle.phase !== 'orders') return []
   const c = { ...DEFAULTS, ...cfg }
   const done = new Set()
   const out = []
-  // The first read on the board itself, so its plan is the turn's (plan.js readPlan keeps it on the board), as the
-  // expert's turn reads it; the rest on the teacher's own copy, the turn's plan on it.
+  // The first read on the board itself, so the turn's plan is kept on it as the expert's turn keeps it; the rest on a copy.
   let next = nextPiece(battle)
   const f = fork(battle)
   const put = (x) => {
@@ -970,8 +756,7 @@ export function teacherTurn (battle, cfg = {}, count = null) {
     const u = f.byUid.get(next.uid)
     const t = performance.now()
     const pick = teacherPick(marked(f, done), u.uid, signature(next.orders, u.tile), c)
-    // (Given on a copy that differs only in the pieces marked done, its orders stand on the teacher's; one that would
-    // not is left, as a playout leaves it.)
+    // Given on a copy that differs only in the pieces marked done; an order that does not stand here is dropped.
     for (const x of pick.orders) {
       if (f.over) break
       try {
@@ -1001,10 +786,7 @@ export function closeOf (run) {
   return b.winner === 'party' ? { won: true, fell: null } : { won: false, fell: { rank: currentNode(run)?.rank ?? 1, share: foeShare(b) } }
 }
 
-// One run played by the teacher (see the head of this section), `expert` and `forest` installed as teachRun installs
-// them. `battles`: stop once that many battles are over (0: the whole run); `fights`: stop as that many fights open,
-// before the last's first order; `log`: the run's log in the result. → { seed, player, result, floor, progress,
-// battles: { won, fought }, ms, decisions, playouts, single, decisionMs }
+// One run by the teacher; `battles` and `fights` stop it early, `log` adds the run's log. → its runs.jsonl line
 export function teacherRun (seed, cfg = {}) {
   const c = { ...DEFAULTS, ...cfg }
   install(c)
@@ -1023,7 +805,6 @@ export function teacherRun (seed, cfg = {}) {
     let action
     if (was === 'battle') {
       const b = run.battle
-      // Past the sim's bound on turns, as autoplay.js ends it: a stall.
       if (stalled(b)) action = { type: 'stall' }
       else {
         if (!queue || queue.b !== b || queue.turn !== b.turn || !queue.orders.length) queue = { b, turn: b.turn, orders: teacherTurn(b, c, count) }
@@ -1031,7 +812,7 @@ export function teacherRun (seed, cfg = {}) {
       }
     } else action = policy(run, rng, 'expert')
     apply(run, action)
-    // On turns a battle ends with an order, not with the fight that opened it (autoplay.js autoplay's onBattle).
+    // A battle is over once the phase leaves it, after an order or the fight that opened it.
     if (run.state.phase !== 'battle' && (action.type === 'fight' || was === 'battle')) {
       const x = closeOf(run)
       fought++
@@ -1051,8 +832,7 @@ export function teacherRun (seed, cfg = {}) {
   }
 }
 
-// One run of today's expert (autoplay.js record, `expert` and `forest` installed as teachRun installs them), in the
-// teacher's lines. → { seed, player, result, floor, progress, battles: { won, fought }, ms }
+// One run of today's expert (autoplay.js record), as the teacher's runs.jsonl line.
 export function expertRun (seed, cfg = {}) {
   install(cfg)
   const t0 = performance.now()
@@ -1063,12 +843,8 @@ export function expertRun (seed, cfg = {}) {
   }
 }
 
-// The teacher against today's expert, paired by seed over runs.jsonl's lines (`lines`; a seed counted where both have
-// played it): each one's clears, the seeds the teacher cleared and today's lost (`gained`) and the other way (`lost`),
-// the mean progress and the paired difference (the teacher's less today's) ± one standard error, the battles won of
-// those fought, the runs lost by the floor they fell on, and the mean time a run; the teacher's decisions a run,
-// playouts a decision and time a decision. → { n, teacher, expert, clears: { gained, lost }, progress: { diff, se },
-// cost }
+// The teacher against the expert, paired by seed over runs.jsonl's `lines`. → { n, teacher, expert, clears: { gained,
+// lost }, progress: { diff, se } (the paired difference ± one standard error), cost }
 export function pairedReport (lines) {
   const by = new Map()
   for (const r of lines) {
@@ -1107,82 +883,38 @@ export function pairedReport (lines) {
 }
 
 // pairedReport's in lines, for the console.
-export function pairedLines (rep) {
-  const pc = (x) => (x === null ? '-' : `${(100 * x).toFixed(1)}%`)
-  const deaths = (x) => Object.entries(x).map(([k, v]) => `floor ${k} ${v}`).join(', ') || 'none'
+export const pc = (x) => (x === null ? '-' : `${(100 * x).toFixed(1)}%`)
+const deathsText = (x) => Object.entries(x).map(([k, v]) => `floor ${k} ${v}`).join(', ') || 'none'
+export function pairedLines (rep, { who = 'the teacher', vs = "today's expert", a = 'teacher', b = "today's", more = `${pc(rep.cost.single)} of one option` } = {}) {
   const { teacher: t, expert: e } = rep
   return [
-    `the teacher against today's expert, ${rep.n} seeds paired:`,
-    `  clears          teacher ${t.clears}/${rep.n} (${pc(t.rate)}), today's ${e.clears}/${rep.n} (${pc(e.rate)}); the teacher cleared ${rep.clears.gained} today's lost, lost ${rep.clears.lost} today's cleared`,
-    `  progress        teacher ${t.progress.toFixed(4)}, today's ${e.progress.toFixed(4)}; difference ${rep.progress.diff >= 0 ? '+' : ''}${rep.progress.diff.toFixed(4)} ± ${rep.progress.se.toFixed(4)} (one standard error, paired)`,
-    `  battles won     teacher ${t.battles.won}/${t.battles.fought} (${pc(t.battles.rate)}), today's ${e.battles.won}/${e.battles.fought} (${pc(e.battles.rate)})`,
-    `  deaths by floor teacher ${deaths(t.deaths)}; today's ${deaths(e.deaths)}`,
-    `  time a run      teacher ${(t.msPerRun / 1000).toFixed(1)} s (${rep.cost.decisionsPerRun} decisions, ${rep.cost.playoutsPerDecision} playouts and ${rep.cost.msPerDecision} ms a decision, ${pc(rep.cost.single)} of one option), today's ${(e.msPerRun / 1000).toFixed(1)} s`
+    `${who} against ${vs}, ${rep.n} seeds paired:`,
+    `  clears          ${a} ${t.clears}/${rep.n} (${pc(t.rate)}), ${b} ${e.clears}/${rep.n} (${pc(e.rate)}); ${who} cleared ${rep.clears.gained} ${b} lost, lost ${rep.clears.lost} ${b} cleared`,
+    `  progress        ${a} ${t.progress.toFixed(4)}, ${b} ${e.progress.toFixed(4)}; difference ${rep.progress.diff >= 0 ? '+' : ''}${rep.progress.diff.toFixed(4)} ± ${rep.progress.se.toFixed(4)} (one standard error, paired)`,
+    `  battles won     ${a} ${t.battles.won}/${t.battles.fought} (${pc(t.battles.rate)}), ${b} ${e.battles.won}/${e.battles.fought} (${pc(e.battles.rate)})`,
+    `  deaths by floor ${a} ${deathsText(t.deaths)}; ${b} ${deathsText(e.deaths)}`,
+    `  time a run      ${a} ${(t.msPerRun / 1000).toFixed(1)} s (${rep.cost.decisionsPerRun} decisions, ${rep.cost.playoutsPerDecision} playouts and ${rep.cost.msPerDecision} ms a decision, ${more}), ${b} ${(e.msPerRun / 1000).toFixed(1)} s`
   ]
 }
 
-// ── the route (redesign.md §2.22: the route by the same machinery; §5 Step 9b) ───────────────────
+// ── the route ────────────────────────────────────────────────────────────────────────────────────
 
-// Room choices labelled as the battle's options are: each room the run may walk into played out, offline.
-//
-// Choices: expert runs (as above: autoplay.js policy, seeds `<seed>-1`…; its route the one `route` installs for the
-// labelling, useRoute: a learned tree, false for the hand-built; `expert` the battle expert's configuration, useExpert),
-// each map decision where the expert walks on and more than one room is open a candidate, kept by a deterministic draw
-// (a hash of the seed, the floor and the rank) with a chance by its floor and whether an elite is open (ROUTE_KEEP:
-// floors 1–2 with an elite open, all; floors 1–2 else, 0.6; later floors, 0.6 with an elite open and 0.25 else), each
-// kept one weighed 1 / its chance (`wt`). Held out by seed, as above.
-//
-// Label (playout): for each open room, a copy of the run (its state cloned: the expert's play is a pure function of it)
-// walks into it, and the expert plays on (autoplay.js policy: its prep, the battle with the foes' real turns, the reap,
-// a Shop, its spending and its own choices of the rooms after, by the route installed) to the run's end (`rooms` 0, the
-// default since round 2: labels play to the end, redesign.md §6 "The learned route"), or until `rooms` rooms are done
-// (round 1's window: 2, the room and the next). To the end, the chosen room's playout is the run's own rest (`reuse`:
-// the run played on is the same pure function of the same state; teach.test.js holds it to that).
-//   To the end, measured at the run's end (ROUTE_END_WEIGHTS { lost 10, rooms 1, floors 1, monarch 1, own 1, souls 0,
-//   won 0 }):
-//     value = −lost·(the run lost: 1 − its progress at the end, autoplay.js progressOf, so a loss the later the less)
-//             + rooms·(the rooms cleared from the choice to the end, the battle lost by the share of its foes' HP
-//             removed: progressOf × routeRooms) + floors·(the floors cleared after the choice, the Sovereign's floor
-//             the last) + monarch·(the Monarch's share of its max HP at the end) + own·(the souls' share of their max
-//             HP at the end, the fallen at none) + souls·(the souls standing at the end) + won·(the run cleared)
-//   with nothing carried out of a lost run (monarch, own and souls 0 there).
-//   A window (round 1), measured from the run as it stood at the choice to the run at the window's end (ROUTE_WEIGHTS
-//   { lost 10, monarch 3, own 1, essence 1, cleared 1 }):
-//     value = −lost·(the run lost in the window: the Monarch fell, or a stall) − monarch·(the share of its max HP the
-//             Monarch lost) − own·(the share of their max HP the souls lost, the fallen at none: net of healing, an
-//             altar's below 0) + essence·(the essence earned, in tier prices: autoplay.js tierScale on the choice's
-//             floor) + cleared·(the rooms done, the run standing)
-//   and two more weighed 0 by default, so other weights can be read off the same data: `power` (the change in the log
-//   of the army's strength, autoplay.js survey's: tiers, recruits, relics and wounds) and `purse` (the change in the
-//   purse, in tier prices).
-// Each part is written beside the value, so the labels can be read again by other weights (fitRoute's `weights`).
-//
-// Rows, one JSON line a choice (labels.jsonl in the route's `--out`), the battle's shape so fit.js reads them: { id,
-// seed, run, split, floor, rank (the rank the run stands on: the rooms are the next), elite (an elite open: 0 or 1), wt,
-// sit (autoplay.js routeConditions: the route tree's vocabulary), options: [{ i (the room's index among those open), id
-// (its map id), type, f (autoplay.js routeFeatures), prior (the hand-built route's weighted sum, its rules aside), legal,
-// chosen (the expert walked into it), value, parts, rooms (done), and to the end share (the run's progress at its end)
-// and end (the floor it ended on) }], chosen, best, hand (the room the hand-built route takes: TREES.route's rules, then
-// TUNING.expert.route's weights) }.
-//
-//   npm run teach -- --route [--runs 300] [--seed route] [--workers 5] [--out dir] [--rooms 0] [--report-only]
-//                    [--policy learned|hand|file.json] [--expert file.json] [--compare file.json]
-//   npm run teach -- --route --fit [--out dir] [--model file] [--depth 3] [--lambda 3] [--tau 0] [--hand]
-//                    [--weights lost,rooms,floors,monarch,own,souls,won] [--prior file.json] [--structure prior] [--dry]
-// (`--policy`: the route that plays the runs and their playouts, the shipped expert's learned route by default;
-// `--expert`: the battle expert, src/sim/expert.json; both kept in `--out` as they were, route-policy.json and
-// expert.json, so a stage gone on with plays the same; `--compare`: another route tree to measure against the labels;
-// `--weights`: a window's are lost,monarch,own,essence,cleared,power,purse.)
+// Room choices labelled as the battle's options are: each map decision of an expert run with more than one room open,
+// kept by a draw (ROUTE_KEEP, by floor and an open elite), each open room played out by the expert on a copy of the run
+// to the run's end (`rooms` 0) or until `rooms` rooms are done; to the end, the chosen room's playout is the run's own rest.
+// value to the end (ROUTE_END_WEIGHTS) = −lost·lost + Σ w·part over rooms, floors, monarch, own, souls, won
+// value over a window (ROUTE_WEIGHTS) = −lost·lost − monarch·monarch − own·own + Σ w·part over essence, cleared, power, purse
+// labels.jsonl, a line a choice: { id, seed, run, split, floor, rank, elite, wt, sit (routeConditions), options, chosen,
+//   best, hand (the hand-built route's room) }; an option: { i, id, type, f (routeFeatures), prior, legal, chosen,
+//   value, parts, rooms, and to the end share (the run's progress at its end) and end (its floor) }
+// Beside it runs.jsonl, report.json, manifest.json, and the route and expert that play (route-policy.json, expert.json).
 export const ROUTE_WEIGHTS = Object.freeze({ lost: 10, monarch: 3, own: 1, essence: 1, cleared: 1, power: 0, purse: 0 })
 export const ROUTE_END_WEIGHTS = Object.freeze({ lost: 10, rooms: 1, floors: 1, monarch: 1, own: 1, souls: 0, won: 0 })
-export const ROUTE_KEEP = Object.freeze({ early: 1, earlyCalm: 0.6, late: 0.6, lateCalm: 0.25 })
-export const ROUTE_DEFAULTS = Object.freeze({ rooms: 0, weights: null, keep: ROUTE_KEEP, reuse: true })
-// The weights a configuration's route labels are read by: its own, else its kind's (to the end, or a window).
-export const routeWeightsOf = (c) => c.weights ?? (c.rooms > 0 ? ROUTE_WEIGHTS : ROUTE_END_WEIGHTS)
+const ROUTE_KEEP = Object.freeze({ early: 1, earlyCalm: 0.6, late: 0.6, lateCalm: 0.25 })
+const ROUTE_DEFAULTS = Object.freeze({ rooms: 0, weights: null, keep: ROUTE_KEEP, reuse: true })
+const routeWeightsOf = (c) => c.weights ?? (c.rooms > 0 ? ROUTE_WEIGHTS : ROUTE_END_WEIGHTS)
 
-// What the route's playout value reads of a run: its floor, the Monarch's share of its max HP, the souls' HP over their
-// max (the fallen's none), the essence earned so far, the purse, the army's strength (survey's, as a log), and at a
-// map decision its progress (progressOf: the rooms done of the route's).
+// What the route's value reads of a run: floor, the HP shares, essence, purse, log strength, and on the map its progress.
 function runTally (run) {
   const s = run.state
   const m = monarchOf(s)
@@ -1196,8 +928,7 @@ function runTally (run) {
   return { floor: s.floor, m: Math.max(0, m.hp) / m.maxHp, own: max ? hp / max : 0, essence: s.stats.essence, purse: s.essence, power: Math.log(survey(run).strength), share }
 }
 
-// The route's window value of `run` against `before` (runTally of the run at the choice), `cleared` the rooms done, by
-// `w` (round 1's). → { value, parts }
+// The route's window value of `run` against `before` (runTally at the choice), `cleared` the rooms done. → { value, parts }
 export function routeValue (before, run, cleared, w = ROUTE_WEIGHTS) {
   const after = runTally(run)
   const scale = tierScale(before.floor)
@@ -1213,14 +944,14 @@ export function routeValue (before, run, cleared, w = ROUTE_WEIGHTS) {
   return { value: r6(routeWindowOf(parts, w)), parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, r6(v)])) }
 }
 // A window label's value from its parts, by `w`.
-export const routeWindowOf = (p, w = ROUTE_WEIGHTS) => -w.lost * p.lost - w.monarch * p.monarch - w.own * p.own + w.essence * p.essence + w.cleared * p.cleared +
+const routeWindowOf = (p, w = ROUTE_WEIGHTS) => -w.lost * p.lost - w.monarch * p.monarch - w.own * p.own + w.essence * p.essence + w.cleared * p.cleared +
   (w.power ?? 0) * (p.power ?? 0) + (w.purse ?? 0) * (p.purse ?? 0)
 // A label to the end's value from its parts, by `w`.
 export const routeEndOf = (p, w = ROUTE_END_WEIGHTS) => -w.lost * p.lost + w.rooms * p.rooms + w.floors * p.floors + w.monarch * p.monarch + w.own * p.own +
   w.souls * p.souls + w.won * p.won
 
-// The route's value to the end of `run` (over: cleared or lost) against `before` (runTally of the run at the choice), by
-// `w` (see the head above). → { value, parts, share (its progress at the end), floor }
+// The route's value to the end of `run` (over) against `before` (runTally at the choice): lost 1 − the progress, the HP
+// shares and souls at the end (none from a lost run). → { value, parts, share (the progress at the end), floor }
 export function routeEndValue (before, run, w = ROUTE_END_WEIGHTS) {
   const s = run.state
   if (s.phase !== 'over') throw new Error(`${s.seed}: a route's value to the end, the run not over`)
@@ -1244,14 +975,12 @@ export function routeEndValue (before, run, w = ROUTE_END_WEIGHTS) {
   return { value: r6(routeEndOf(parts, w)), parts: Object.fromEntries(Object.entries(parts).map(([k, v]) => [k, r6(v)])), share: r6(share), floor: s.floor }
 }
 
-// Counts a room done as the route's labels do: the run back on the map from a room's battle (its reap) or its Shop, or
-// walked through an altar; or the run over, the Monarch standing (the Sovereign slain).
+// A room done: back on the map from a room's battle or Shop, or through an altar; or the run over, the Monarch standing.
 const roomDone = (was, now, action, run) => (now === 'over' ? !run.state.death : now === 'map' && (was !== 'map' || action.type === 'node'))
 
-// Room `id` played out from `run` (at a map decision; never touched): a copy walks into it and the expert plays on to
-// the run's end (`rooms` 0), or until `rooms` rooms are done or the run is over (see above). → { value, parts, rooms
-// (done), floor, at (where it stands), and to the end share }
-export function playRoute (run, id, { rooms = ROUTE_DEFAULTS.rooms, weights = null, before = runTally(run) } = {}) {
+// Room `id` played out by the expert on a copy of `run`, to the run's end (`rooms` 0) or `rooms` rooms.
+// → { value, parts, rooms, floor, at, share (to the end) }
+function playRoute (run, id, { rooms = ROUTE_DEFAULTS.rooms, weights = null, before = runTally(run) } = {}) {
   const w = weights ?? routeWeightsOf({ rooms })
   const r = copyRun(run)
   const rng = createRng(r.state.seed).stream('autoplay')
@@ -1270,13 +999,10 @@ export function playRoute (run, id, { rooms = ROUTE_DEFAULTS.rooms, weights = nu
   return { ...routeEndValue(before, r, w), rooms: done, at: r.state.at }
 }
 
-// The room the hand-built route takes at a choice (autoplay.js pickRoute without a learned tree: TREES.route's rules,
-// then TUNING.expert.route's weights over roomFeatures). → its id
+// The room the hand-built route takes: TREES.route's rules, then TUNING.expert.route's weights. → its id
 const handRoom = (sit) => E.decide(E.TREES.route, sit, sit.rooms.map((room) => ({ id: room.id, node: { type: room.type }, v: roomFeatures(sit, room) })), TUNING.expert.route).option?.id
 
-// One room choice labelled: `run` at a map decision (more than one room open), `chosen` the id of the room the expert
-// walked into (null for none); `known` ({ [room id]: playRoute's result }) the rooms already played out (the chosen
-// one's, the run's own rest). → { elite, sit, options, chosen (its index), best (the index of the best value), hand }
+// One room choice labelled (`chosen` the expert's room; `cfg.known` the rooms already played out, by id).
 export function labelChoice (run, chosen = null, cfg = {}) {
   const c = { ...ROUTE_DEFAULTS, ...cfg }
   const w = routeWeightsOf(c)
@@ -1296,15 +1022,10 @@ export function labelChoice (run, chosen = null, cfg = {}) {
   return { elite: cond['open.elite'], sit: sparse(cond), options, chosen: options.findIndex((o) => o.chosen), best, hand: options.findIndex((o) => o.id === hand) }
 }
 
-// A choice's draw in [0, 1): a hash of the seed, the floor and the rank.
 const routeDraw = (seed, floor, rank) => parseInt(hashString(`route|${seed}|${floor}|${rank}`).slice(0, 8), 16) / 2 ** 32
-// The chance a choice is kept (ROUTE_KEEP) by its floor and whether an elite is open.
 const routeKeep = (keep, floor, elite) => (floor <= 2 ? (elite ? keep.early : keep.earlyCalm) : elite ? keep.late : keep.lateCalm)
 
-// One expert run played live, its room choices drawn and the kept ones labelled, with `route` (a route tree, false for
-// the hand-built) and `expert` (a battle configuration) installed while it plays, where given. To the end, the kept
-// choices are labelled once the run is over: the chosen room's value its own rest (unless `reuse` is off). → { seed,
-// result, floor, progress (progressOf, as autoplay.js record reads it), choices, positions, ms, labelMs }
+// One expert run with `route` and `expert` installed, its kept room choices labelled. → its runs.jsonl line, `positions`
 export function teachRoutes (seed, cfg = {}) {
   const c = { ...ROUTE_DEFAULTS, ...cfg, keep: { ...ROUTE_KEEP, ...cfg.keep } }
   const w = routeWeightsOf(c)
@@ -1357,10 +1078,8 @@ export function teachRoutes (seed, cfg = {}) {
   }
 }
 
-// The rooms of a labelled choice the hand-built route's rules leave (expert.js TREES.route, its own nodes, read off the
-// choice's stored situation and rooms: the souls' health, the Monarch's share, whether it may be healed, each room's type
-// and odds): the indices of its options, one where a rule forces it.
-export function handLeft (p) {
+// The rooms of labelled choice `p` the hand-built route's rules leave: their indices, one where a rule forces it.
+function handLeft (p) {
   const sit = { health: p.sit.health ?? 0, monarch: p.sit.monarch ?? 0, unhealed: !!p.sit.unhealed }
   let left = p.options.map((o) => ({ i: o.i, node: { type: o.type }, v: { odds: o.f.odds ?? 0 } }))
   for (const node of E.TREES.route) {
@@ -1377,10 +1096,8 @@ export function handLeft (p) {
   return left.map((o) => o.i)
 }
 
-// The room a route takes at a labelled choice, read off its stored situation and rooms: `model` a route tree (autoplay.js
-// learnedRoute: its leaf by the conditions, the first best room by its weights, the hand-built rules first where it keeps
-// them), 'hand' the hand-built route (the choice's `hand` where labelled, else handLeft and the prior), 'chosen' the
-// room the expert walked into. → the room's index (−1 for none)
+// The room a route takes at labelled choice `p`: `model` a route tree (its leaf's weights, the hand-built rules first
+// where it keeps them), 'hand' the hand-built route, 'chosen' the expert's room. → its index (−1 for none)
 export function routePick (model, p) {
   if (model === 'chosen') return p.chosen
   if (model === 'hand' && p.hand !== undefined) return p.hand
@@ -1401,10 +1118,8 @@ export function routePick (model, p) {
   return best
 }
 
-// How routes' picks (`picks`: { name: (choice) → its room's index }) agree with the labels over choices `positions`:
-// each one's top-1 (its room a playout-best, within 1e-6), regret (the best value less its room's), how often its room's
-// playout lost the run (`lost`), and walked into an elite (`elite`) or a Shop (`shop`); and each one's regret less the
-// first's (`vs`, paired by choice, ± one standard error). → { [name]: { n, top1, regret, lost, elite, shop, vs, se } }
+// How routes' picks ({ name: (choice) → its room's index }) agree with the labels: top-1, regret, how often the room's
+// playout lost or took an elite or a Shop, and the regret less the first pick's (`vs`, paired) ± one standard error (`se`).
 export function routeAgreement (positions, picks) {
   const names = Object.keys(picks)
   const at = positions.map((p) => {
@@ -1427,14 +1142,9 @@ export function routeAgreement (positions, picks) {
   return out
 }
 
-// Fits the route's model tree (fit.js fitExpert, the battle's fitter: a listwise loss over each choice's rooms, splits
-// on routeConditions, each leaf's weights over routeFeatures) to the route labels in `dir`, from `prior` (a route tree:
-// its else-most leaf the root's prior, or with `structure` 'prior' its own tree, its leaves refitted; the hand-built
-// route's weights, TUNING.expert.route, by default); no rules (the battle's soft rules read no room). `weights`: each
-// room's value read again off its parts by these (routeEndOf's or routeWindowOf's, by the labels' kind), else as
-// labelled. `hand`: the hand-built route's rules kept in play (the model's `hand`: autoplay.js learnedRoute), so it is
-// fitted only on the rooms they leave (handLeft), a choice they decide left out. → { model, report, d }
-export async function fitRoute (dir, { depth = 3, maxLeaves = 8, lambda = 3, tau = 0, minLeaf = 0, weighted = false, weights = null, hand = false, prior = null, structure = 'grow', log = null } = {}) {
+// Fits the route's tree (fit.js fitExpert, listwise over each choice's rooms) to the labels in `dir`, from `prior` (the
+// hand-built route's weights by default). `weights`: the values read again off their parts; `hand`: see --hand.
+async function fitRoute (dir, { depth = 3, maxLeaves = 8, lambda = 3, tau = 0, minLeaf = 0, weighted = false, weights = null, hand = false, prior = null, structure = 'grow', log = null } = {}) {
   const F = await import('./fit.js')
   const { positions } = loadLabels(dir)
   const end = positions.some((p) => p.options.some((o) => o.parts.rooms !== undefined))
@@ -1461,8 +1171,7 @@ export async function fitRoute (dir, { depth = 3, maxLeaves = 8, lambda = 3, tau
 
 // ── run directly ─────────────────────────────────────────────────────────────────────────────────
 
-// What a worker plays for each job, by the pool's `mode`: a seed's run labelled (teachRun), its room choices (teachRoutes),
-// or a run by the teacher or by today's expert ({ seed, player }: teacherRun, expertRun).
+// What a worker plays for a job, by the pool's `mode`.
 const JOBS = {
   battle: (seed, cfg) => teachRun(seed, cfg),
   route: (seed, cfg) => teachRoutes(seed, cfg),
@@ -1470,44 +1179,9 @@ const JOBS = {
   augment: (job, cfg) => augmentRun(job, cfg)
 }
 
-// Runs `jobs` (JOBS[mode]'s) in worker threads of this module, `workers` at a time, handing each result to `done` as it
-// ends.
-async function pool (jobs, workers, cfg, done, mode = 'battle') {
-  const { Worker } = await import('node:worker_threads')
-  const queue = jobs.slice()
-  const worker = async () => {
-    const w = new Worker(new URL(import.meta.url), { workerData: { teach: true, cfg, mode } })
-    try {
-      while (queue.length) {
-        const job = queue.shift()
-        done(await new Promise((resolve, reject) => {
-          const off = () => {
-            w.off('message', ok)
-            w.off('error', fail)
-          }
-          const ok = (msg) => {
-            off()
-            resolve(msg)
-          }
-          const fail = (err) => {
-            off()
-            reject(err)
-          }
-          w.on('message', ok)
-          w.on('error', fail)
-          w.postMessage(job)
-        }))
-      }
-    } finally {
-      await w.terminate()
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(workers, jobs.length) }, worker))
-}
+const pool = (jobs, workers, cfg, done, mode = 'battle') => workerPool(import.meta.url, { teach: true, cfg, mode }, jobs, workers, (_, out) => done(out))
 
-// `--forest file.json|none` read (`arg` the command line's): the configuration to install (undefined where none is
-// named: the one forest.js holds; null for none, today's expert) and what the settings record of it ({ file, name };
-// null for none; undefined where none is named).
+// `--forest file.json|none` read: { config (undefined: the one forest.js holds; null: none), setting ({ file, name }) }
 function forestArg (arg) {
   const f = arg('forest', null)
   if (f === null) return { config: undefined, setting: undefined }
@@ -1525,10 +1199,8 @@ const table = (rep) => {
   return [line('all', rep.all), ...groups.flatMap(([name, g]) => [`${name.replace(/^by/, 'by ').toLowerCase()}:`, ...Object.entries(g).map(([k, s]) => line(k, s))])].join('\n')
 }
 
-// The route's labels in a report: report's, by floor, by whether an elite was open and by both, and by split; and of the
-// expert's choices, how often its room's playout lost the run (`lost`), how often while another room's did not
-// (`avoidable`), and how often it walked into an open elite (`elite`) and lost there (`eliteLost`).
-export function routeReport (positions, picks = null) {
+// The route labels' report: report's by floor, by an open elite and by split, the expert's losses, and routeAgreement.
+function routeReport (positions, picks = null) {
   const rep = report(positions, { byFloor: 'floor', byElite: 'elite', byFloorElite: (p) => `${p.floor}${p.elite ? ' elite' : ''}`, bySplit: 'split' })
   const losses = (list) => {
     const mine = list.filter((p) => p.chosen >= 0)
@@ -1567,7 +1239,7 @@ export function routeReport (positions, picks = null) {
 }
 
 // A route model's tree in words, a line a node.
-export function treeWords (node, depth = 0) {
+function treeWords (node, depth = 0) {
   const pad = '  '.repeat(depth)
   if (node.leaf !== undefined) {
     const top = Object.entries(node.w).filter(([, x]) => x).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 8)
@@ -1576,15 +1248,13 @@ export function treeWords (node, depth = 0) {
   return [`${pad}${node.if} > ${node.gt}:`, ...treeWords(node.then, depth + 1), `${pad}${node.if} ≤ ${node.gt}:`, ...treeWords(node.else, depth + 1)]
 }
 
-// What a mode's runs are made with beside their seeds (every mode's `--ascension <level>` and `--monarch <id>`): the
-// settings' level where it is not 0 and Monarch where it is not the base one, checked.
+// Every mode's `--ascension` and `--monarch`, checked: the level where it is not 0, the Monarch where not the base one.
 function runArgs (arg) {
   const a = Number(arg('ascension', 0))
   if (!(Number.isInteger(a) && a >= 0 && a <= ascensionTop())) throw new Error(`--ascension ${a}: a level from 0 to ${ascensionTop()}`)
   return { ...(a && { ascension: a }), ...asMonarch(monarchArg(arg('monarch', BASE_MONARCH))) }
 }
 
-// `npm run teach -- --route …` (see the route's head above): label room choices, or with --fit fit the route's tree.
 async function routeMain (arg, workers) {
   const seed = arg('seed', 'route')
   const runs = Number(arg('runs', 300))
@@ -1600,8 +1270,7 @@ async function routeMain (arg, workers) {
   const rooms = r === 'end' ? 0 : Number(r)
   const keys = Object.keys(rooms > 0 ? ROUTE_WEIGHTS : ROUTE_END_WEIGHTS)
   const w = arg('weights', null) && Object.fromEntries(keys.map((k, i) => [k, Number(arg('weights').split(',')[i] ?? 0)]))
-  // The routes measured against the labels: the hand-built, the expert's own choices, the route that played (its tree,
-  // route-policy.json in `--out`), and `--compare`'s trees.
+  // The routes measured against the labels: hand-built, the expert's choices, the one that played and `--compare`'s.
   const picks = () => {
     const out = { hand: (p) => routePick('hand', p), chosen: (p) => p.chosen }
     const played = fs.existsSync(policyFile) ? json(policyFile) : false
@@ -1613,18 +1282,17 @@ async function routeMain (arg, workers) {
     return out
   }
   const agreeLines = (ag) => Object.entries(ag).map(([k, x]) => `  ${k.padEnd(12)} ${String(x.n).padStart(6)}  top-1 ${pc(x.top1)}  regret ${x.regret.toFixed(3)} (${x.vs >= 0 ? '+' : ''}${x.vs.toFixed(3)} ± ${x.se.toFixed(3)} against the first)  lost ${pc(x.lost)}  elite ${pc(x.elite)}  shop ${pc(x.shop)}`)
-  if (process.argv.includes('--fit')) {
+  if (has('fit')) {
     const prior = arg('prior', null)
     const { model, report: rep } = await fitRoute(dir, {
       depth: Number(arg('depth', 3)), maxLeaves: Number(arg('leaves', 8)), lambda: Number(arg('lambda', 3)), tau: Number(arg('tau', 0)),
-      minLeaf: Number(arg('min-leaf', 0)), weighted: process.argv.includes('--weighted'), hand: process.argv.includes('--hand'), log: console.log,
+      minLeaf: Number(arg('min-leaf', 0)), weighted: has('weighted'), hand: has('hand'), log: console.log,
       weights: w, prior: prior && { name: path.basename(prior, '.json'), ...json(prior) }, structure: arg('structure', 'grow')
     })
     for (const name of ['train', 'test']) {
       const r = rep[name]
       if (r) console.log(`${name}: learned top-1 ${pc(r.learned.top1)} regret ${r.learned.regret.toFixed(3)}; the prior's weights alone ${pc(r.today.top1)} ${r.today.regret.toFixed(3)}; the expert's choices ${pc(r.chosen.top1)} ${r.chosen.regret.toFixed(3)} (${r.learned.n} choices)`)
     }
-    // Held out, as the labels were read (`weights`): the fitted tree beside the hand-built route and the rest.
     const held = loadLabels(dir).positions.filter((p) => p.split === 'held').map((p) => {
       if (!w) return p
       const options = p.options.map((o) => ({ ...o, value: rooms > 0 ? routeWindowOf(o.parts, { ...ROUTE_WEIGHTS, ...w }) : routeEndOf(o.parts, { ...ROUTE_END_WEIGHTS, ...w }) }))
@@ -1633,10 +1301,9 @@ async function routeMain (arg, workers) {
     console.log('held out, against the labels:')
     console.log(agreeLines(routeAgreement(held, { ...picks(), fitted: (p) => routePick(model, p) })).join('\n'))
     console.log(treeWords(model.tree).join('\n'))
-    // By default the shipped expert's route (src/sim/expert.json's `route`, bundle.js writePart); `--model` a file of
-    // the route alone.
+    // Written to src/sim/expert.json's route (bundle.js writePart), or to `--model`'s file.
     const out = arg('model', null)
-    if (!process.argv.includes('--dry')) {
+    if (!has('dry')) {
       if (out) fs.writeFileSync(out, JSON.stringify(model, null, 1) + '\n')
       else (await import('./bundle.js')).writePart('route', model)
       console.log(`written to ${out ?? 'src/sim/expert.json (its route)'}`)
@@ -1657,7 +1324,7 @@ async function routeMain (arg, workers) {
   const todo = Array.from({ length: runs }, (_, k) => `${seed}-${k + 1}`).filter((x) => !done.has(x))
   const t0 = performance.now()
   let made = 0
-  if (todo.length && !process.argv.includes('--report-only')) {
+  if (todo.length && !has('report-only')) {
     console.log(`labelling the room choices of ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${done.size} done in ${dir}) on ${workers} workers: ${rooms ? `rooms ${rooms}` : 'to the run\'s end'}, the route ${route}`)
     let n = 0
     await pool(todo, workers, cfg, (r) => {
@@ -1692,8 +1359,6 @@ async function routeMain (arg, workers) {
       choices: runList.reduce((k, r) => k + r.choices, 0), positions: positions.length, options,
       bySplit: count('split'), byFloor: count('floor'), byElite: count('elite')
     },
-    // The wall time is every invocation's that labelled (a stage gone on with adds to it); per worker, a run's time
-    // (its own play and its choices' playouts) summed.
     throughput: { wall: +total.toFixed(1), workers, choicesPerSecond: +(positions.length / total).toFixed(2), roomsPerSecond: +(options / total).toFixed(2), perWorker: { msPerChoice: Math.round(ms / Math.max(1, positions.length)) } }
   }
   fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 1) + '\n')
@@ -1716,8 +1381,6 @@ async function routeMain (arg, workers) {
   }
 }
 
-// `npm run teach -- --teacher …` (see the teacher's head above): seeds played by the teacher and by today's expert,
-// paired.
 async function teacherMain (arg, workers) {
   const seed = arg('seed', 'sim')
   const runs = Number(arg('runs', 64))
@@ -1726,8 +1389,7 @@ async function teacherMain (arg, workers) {
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [])
   const given = arg('weights', null)
   const fk = forestArg(arg)
-  // The settings it plays by (manifest.json's, a stage gone on with held to them), and what the workers get: the same
-  // with the forest's configuration in place of its file and name. Its playouts go to the battle's end.
+  // The settings, held to the manifest's; the workers get the forest's configuration in place of its file.
   const settings = {
     cap: Number(arg('cap', DEFAULTS.cap)), turns: Number(arg('turns', DEFAULTS.turns)),
     weights: given ? { ...END_WEIGHTS, ...Object.fromEntries(given.split(',').map((kv) => kv.split('=')).map(([k, x]) => [k, Number(x)])) } : END_WEIGHTS,
@@ -1750,7 +1412,7 @@ async function teacherMain (arg, workers) {
   // A seed's two runs side by side in the queue (the teacher's first, the longer), so the pairs fill in order.
   const jobs = seeds.flatMap((s) => ['teacher', 'expert'].map((player) => ({ seed: s, player }))).filter((j) => !done.has(key(j)))
   const t0 = performance.now()
-  if (jobs.length && !process.argv.includes('--report-only')) {
+  if (jobs.length && !has('report-only')) {
     console.log(`playing ${jobs.length} runs (seeds ${seeds[0]}…${seeds.at(-1)}, the teacher's and today's expert's; ${done.size} done in ${dir}) on ${workers} workers: cap ${settings.cap}, to the battle's end`)
     let n = 0
     await pool(jobs, workers, cfg, (r) => {
@@ -1774,36 +1436,20 @@ async function teacherMain (arg, workers) {
 
 if (!isMainThread && workerData?.teach) {
   parentPort.on('message', (job) => parentPort.postMessage(JOBS[workerData.mode](job, workerData.cfg)))
-} else if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url) && process.argv.includes('--route')) {
-  const arg = (name, def) => {
-    const i = process.argv.indexOf('--' + name)
-    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
-  }
+} else if (isMainThread && isMain(import.meta.url) && has('route')) {
   await routeMain(arg, Number(arg('workers', Math.max(1, Math.min(5, os.availableParallelism() - 3)))))
-} else if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url) && process.argv.includes('--augment')) {
-  const arg = (name, def) => {
-    const i = process.argv.indexOf('--' + name)
-    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
-  }
-  await augmentMain(path.resolve(arg('augment')), arg, Number(arg('workers', Math.max(1, Math.min(5, os.availableParallelism() - 3)))))
-} else if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url) && process.argv.includes('--teacher')) {
-  const arg = (name, def) => {
-    const i = process.argv.indexOf('--' + name)
-    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
-  }
+} else if (isMainThread && isMain(import.meta.url) && has('augment')) {
+  await augmentMain(path.resolve(arg('augment') ?? undefined), arg, Number(arg('workers', Math.max(1, Math.min(5, os.availableParallelism() - 3)))))
+} else if (isMainThread && isMain(import.meta.url) && has('teacher')) {
   await teacherMain(arg, Number(arg('workers', Math.max(1, Math.min(4, os.availableParallelism() - 4)))))
-} else if (isMainThread && process.argv[1] === fileURLToPath(import.meta.url)) {
-  const arg = (name, def) => {
-    const i = process.argv.indexOf('--' + name)
-    return i > 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : def
-  }
+} else if (isMainThread && isMain(import.meta.url)) {
   const seed = arg('seed', 'teach')
   const runs = Number(arg('runs', 300))
   const workers = Number(arg('workers', Math.max(1, Math.min(5, os.availableParallelism() - 3))))
   const dir = arg('out', path.join(os.tmpdir(), `retinue-teach-${seed}`))
   const nums = (s, keys, def) => (s ? Object.fromEntries(keys.map((k, i) => [k, Number(s.split(',')[i])])) : def)
   const rounds = Number(arg('rounds', DEFAULTS.rounds))
-  // `--weights`: named (monarch=3,own=1,…) over the kind's own, or in WEIGHTS' order for `rounds` > 0.
+  // `--weights`: named pairs over the kind's own weights, or positional in WEIGHTS' order.
   const given = arg('weights', null)
   const base = rounds > 0 ? WEIGHTS : END_WEIGHTS
   const weights = !given ? base : given.includes('=') ? { ...base, ...Object.fromEntries(given.split(',').map((kv) => kv.split('=')).map(([k, x]) => [k, Number(x)])) }
@@ -1811,16 +1457,13 @@ if (!isMainThread && workerData?.teach) {
   const fk = forestArg(arg)
   const how = arg('draw', DEFAULTS.draw)
   if (!DRAWS.includes(how)) throw new Error(`--draw ${how}: one of ${DRAWS.join(', ')}`)
-  // `--keep-floor 1=2,3=2,4=2`: each named floor's factor on a decision's chance (drawOf).
   const byFloor = arg('keep-floor', null)
   const keepFloor = byFloor ? Object.fromEntries(byFloor.split(',').map((kv) => kv.split('=')).map(([f, x]) => [Number(f), Number(x)])) : null
   if (keepFloor && Object.entries(keepFloor).some(([f, x]) => !(Number.isInteger(Number(f)) && Number(f) >= 1) || !(x >= 0 && Number.isFinite(x)))) throw new Error(`--keep-floor ${byFloor}: floor=factor pairs, each floor a whole number from 1, each factor 0 or more`)
   const smooth = { k: Number(arg('smooth', DEFAULTS.smooth)), epsilon: Number(arg('epsilon', DEFAULTS.epsilon)), top: Number(arg('top', DEFAULTS.top)) }
   if (!(Number.isInteger(smooth.k) && smooth.k >= 1)) throw new Error(`--smooth ${smooth.k}: a whole number of playouts, 1 or more`)
   if (!(smooth.epsilon >= 0 && smooth.epsilon <= 1) || !(Number.isInteger(smooth.top) && smooth.top >= 1)) throw new Error('--epsilon in [0, 1], --top a whole number, 1 or more')
-  // The settings the labels are made by (manifest.json's, a stage gone on with held to them; the default draw and one
-  // playout an option left out, as the labels before them were made), and what the workers get: the same with the
-  // forest's configuration in place of its file and name.
+  // The settings, held to the manifest's (the default draw and one playout left out); the workers get the forest itself.
   const settings = {
     rounds, cap: Number(arg('cap', DEFAULTS.cap)), ...(!(rounds > 0) && { turns: Number(arg('turns', DEFAULTS.turns)) }),
     weights, keep: nums(arg('keep', null), ['lost', 'near', 'reach', 'calm'], KEEP), ...(keepFloor && { keepFloor }), ...(arg('expert', null) && { expert: path.resolve(arg('expert')) }),
@@ -1840,7 +1483,7 @@ if (!isMainThread && workerData?.teach) {
   const todo = Array.from({ length: runs }, (_, k) => `${seed}-${k + 1}`).filter((x) => !done.has(x))
   const t0 = performance.now()
   let made = 0
-  if (todo.length && !process.argv.includes('--report-only')) {
+  if (todo.length && !has('report-only')) {
     console.log(`labelling ${todo.length} expert runs (seeds ${seed}-1…${runs}, ${done.size} done in ${dir}) on ${workers} workers: rounds ${cfg.rounds}, cap ${cfg.cap}, drawn by the ${how}` +
       (keepFloor ? ` (by floor ${byFloor})` : '') +
       (smooth.k > 1 ? `, ${smooth.k} playouts an option (epsilon ${smooth.epsilon}, top ${smooth.top})` : ''))
@@ -1864,14 +1507,9 @@ if (!isMainThread && workerData?.teach) {
   const manifest = {
     made: new Date().toISOString(),
     settings,
-    // The expert that played and completed the turns: its model tree (expert.js expertModel), and the forest it played
-    // with (its file, where named, and its name; null for none).
     expert: { model: typeof E.expertModel === 'function' ? E.expertModel().name ?? null : null },
     forest: forestIn(fk),
-    // How the decisions were drawn: by their battle's outcome, or by the board alone (see the head of this file).
     draw: how,
-    // The playouts an option (k: 1, the exact playout alone), and the perturbation of all but the first (see Smoothed
-    // labels at the head of this file).
     smooth: { k: smooth.k, epsilon: smooth.k > 1 ? smooth.epsilon : 0, top: smooth.top, exact: 'the first of the k playouts, values[0]' },
     value: cfg.rounds > 0
       ? 'value = −monarch·(Monarch HP lost / its max) − own·(pieces\' HP lost / their max summed) + foe·(standing foes\' HP lost / their max summed) − lost·[lost] + won·[won], from the board the piece decided on to the board after `rounds` End Turns (src/sim/teach.js)'
@@ -1881,7 +1519,6 @@ if (!isMainThread && workerData?.teach) {
       runs: runList.length, decisions: runList.reduce((k, r) => k + r.decisions, 0), positions: positions.length, options: positions.reduce((k, p) => k + p.options.length, 0),
       bySplit: count('split'), byFloor: count('floor'), byDanger: count('danger'), byGroup: count('group')
     },
-    // The wall time is every invocation's that labelled (a stage gone on with adds to it), the rate the positions over it.
     throughput: {
       wall: +((had?.throughput?.wall ?? 0) + (made ? wall : 0)).toFixed(1), positionsPerSecond: +(positions.length / ((had?.throughput?.wall ?? 0) + (made ? wall : 0))).toFixed(2),
       workers,

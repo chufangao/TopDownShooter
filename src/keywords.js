@@ -1,8 +1,6 @@
-// Keywords: the game's words (the seventeen of redesign.md §2.14, Line of fire, §2.19, Trine, the improvement plan's
-// §4.1, and Altar, its §4.5), the foes' two ways and the statuses, each a bold word in its system's colour with a
-// one-line hover (the Slay the Spire style). Write kw('road') in any text instead of explaining the rule again; the full
-// rules live in the codex's glossary. `sys` picks the colour token (--c-<sys> in style.css); `group` files the term
-// under a heading of the glossary. Every number comes from TUNING, so a line never drifts.
+// Keywords: the game's words, the foes' ways and the statuses, each a bold word in its system's colour with a one-line
+// hover. Write kw('road') in any text instead of explaining the rule again; the codex's glossary holds the full rules.
+// `sys` picks the colour token (--c-<sys>), `group` the glossary heading; every number comes from TUNING.
 import { TUNING } from './tuning.js'
 import { STATUSES, BEHAVIOURS, TOP_TIER, TRINE_RISE } from './content.js'
 import { h } from './dom.js'
@@ -35,12 +33,10 @@ export const KEYWORDS = {
 }
 for (const k of Object.values(KEYWORDS)) k.group = 'Words'
 
-// The foes' ways on the board (content.js BEHAVIOURS): where each goes, never which kinds do it (that is learnt by
-// meeting them, and the bestiary keeps it); how far it comes, and whether it comes in at all, is its judgement.
+// The foes' ways: where each goes, never which kinds do it (that is learnt by meeting them).
 for (const [id, b] of Object.entries(BEHAVIOURS)) KEYWORDS[id] ??= { name: b.name, sys: 'foe', group: 'Behaviours', line: b.desc }
 
-// The statuses, from the content, so they stay true, each with how long it lasts; LINE holds the few whose content
-// text says less than the rules do.
+// The statuses, each with how long it lasts; LINE replaces the few whose content text says less than the rules do.
 const brittle = STATUSES.brittle
 const brittleMul = brittle.mods[0].v
 const LINE = {
@@ -52,12 +48,11 @@ for (const [id, st] of Object.entries(STATUSES)) {
   KEYWORDS[id] ??= { name: st.name, sys: st.tags.includes('debuff') ? 'foe' : 'synergy', group: 'Statuses', line: `${LINE[id] ?? st.desc}${lasts}` }
 }
 
-// A keyword span: kw('road'), or kw('road', 'roads') to show other words for the same term. An id that is no
-// keyword is plain text.
+// A keyword span: kw('road'), or kw('road', 'roads') to show other words for the same term; an unknown id is plain text.
 export function kw (id, text = null) {
   const k = KEYWORDS[id]
   if (!k) return text ?? id
-  // Foe red as words is its pale text tint (style.css --c-foe2): the red itself reads too dark on the panels.
+// Foe red as words is its pale tint (--c-foe2): the red itself reads too dark on the panels.
   const c = `var(--c-${k.sys === 'foe' ? 'foe2' : k.sys})`
   return h('span', { class: 'kw', style: `--k:${c}`, tip: () => h('div', { class: 'syn-tip kw-tip' }, h('b', { style: `color:${c}` }, k.name), ' ', h('span', null, k.line)) }, text ?? k.name)
 }

@@ -24,16 +24,14 @@ export function fill (el, ...kids) {
 
 // ── tooltip ──────────────────────────────────────────────────────────────────────────────────────
 
-// One floating panel for the whole page. It sits beside its anchor (right, else left, else below or
-// above) and never leaves the frame, nor covers the battle's playback bar. It lives in the frame (frame.js), so
-// it is laid out in logical px: the anchor's viewport rect is taken into the frame first.
+// One floating panel for the whole page, beside its anchor (right, else left, else below or above), never leaving the
+// frame nor covering the playback bar; laid out in the frame's logical px.
 
 const tipEl = h('div', { class: 'tip', role: 'tooltip' })
 frame.el.append(tipEl)
 let anchor = null
 
-// A mouse or a pen shows an element's tooltip while over it (and the keyboard while focused on it); a finger
-// shows it by a long press (hold), pinned until the next tap. A plain tap only does what the element does.
+// A mouse, a pen or the keyboard's focus shows an element's tooltip; a finger by a long press, pinned until the next tap.
 function tip (el, content) {
   el.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') showTip(el, content) })
   el.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch' && !pinned) hideTip() })
@@ -44,8 +42,7 @@ function tip (el, content) {
   el.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'touch' && e.isPrimary && !tipEl.contains(el)) hold(e, () => { pinTip(el, content); felt(el) })
   })
-  // A mouse's click on a unit's card that is no control (a portrait, a row, a face in a wave) pins it as a long
-  // press does by touch, so its details open by More ▾ and never need Shift (DESIGN §7).
+// A mouse's click on a unit card that is no control pins it as a long press does, so More ▾ opens its details.
   el.addEventListener('click', (e) => {
     if (finger || tipEl.contains(el) || e.target.closest?.(ACTIVE)) return
     if (content()?.classList?.contains('card-tip')) pinTip(el, content)
@@ -54,13 +51,11 @@ function tip (el, content) {
 }
 const focusVisible = (el) => { try { return el.matches(':focus-visible') } catch { return true } }
 
-// target: an element, or a { left, top, right, bottom } rect in viewport pixels. None while a soul is dragged.
-// `pin` (a long press, a click on a card, pinTip): it stays after the finger lifts, until the next tap anywhere or
-// a scroll.
+// target: an element, or a { left, top, right, bottom } rect in viewport pixels; none while a soul is dragged.
+// `pin`: it stays after the finger lifts, until the next tap anywhere or a scroll.
 export function showTip (target, content, pin = false) {
   if (document.body.classList.contains('dragging')) return hideTip()
-  // A pinned tooltip stays over whatever the pointer passes; another pinned in its place goes first (its anchor
-  // lets go, its details close).
+// A pinned tooltip stays while the pointer passes others; another pinned in its place replaces it.
   if (pinned && !pin) return
   if (pinned && target !== anchor) hideTip()
   anchor = target
@@ -74,7 +69,7 @@ export function showTip (target, content, pin = false) {
   place()
 }
 
-// The tooltip on show, built again in place: Shift opens or closes a card's details (main.js).
+// The tooltip on show, built again in place when Shift opens or closes a card's details.
 let shown = null
 export function refreshTip () {
   if (anchor && shown && tipEl.classList.contains('on')) showTip(anchor, shown, pinned)
@@ -82,15 +77,13 @@ export function refreshTip () {
 
 // ── touch: the long press, the pinned tooltip, the wording ──
 
-// Whether the last pointer was a finger (before any, a screen that cannot hover). The gestures and the wording
-// ("Tap" or "Click", touchText) read it; a mouse moved again takes it back.
+// Whether the last pointer was a finger (before any: a screen that cannot hover); a mouse moved again clears it.
 let finger = matchMedia('(hover: none)').matches
 export const touchy = () => finger
 // The text a guide or a hint shows: the mouse's words, or the finger's.
 export const say = (mouse, touch) => (finger ? touch : mouse)
 
-// The tooltips speak to the mouse and the keyboard ("Click to…", "(Enter)"); to a finger they say Tap, and
-// drop the key in brackets (the button is the way).
+// To a finger the tooltips say Tap for Click and drop the key in brackets.
 const WORDS = [
   [/\b([Cc])lick(s|ed|ing)?\b/g, (_, c, end = '') => (c === 'C' ? 'T' : 't') + 'ap' + ({ s: 's', ed: 'ped', ing: 'ping' }[end] ?? '')],
   [/\bHover\b/g, 'Long-press'],
@@ -106,8 +99,8 @@ function touchWords (el) {
   }
 }
 
-// A long press: HOLD ms still (within SLOP px) under one finger. → { cancel }; fire() runs as it fires.
-// Its release is then no tap: the click it would make is eaten (and a press that starts anew forgets that).
+// A long press: HOLD ms still (within SLOP px) under one finger. → { cancel }; fire() runs as it fires, and the click
+// its release would make is eaten.
 export const HOLD = 400
 const SLOP = 8
 const LATE = 50 // ms past HOLD a timer may run before the page counts as having been busy (hold)
@@ -115,9 +108,8 @@ export function hold (e, fire) {
   const { pointerId: id, clientX: x0, clientY: y0 } = e
   let live = true
   let waited = false
-  // Under load (End Turn's foe turn, a preview) the page can be busy past HOLD: the timer then comes due beside a
-  // lift already made but not yet dispatched, and may run first, turning a quick tap into a long press. A timer that
-  // runs late waits a frame and a task for that lift to be read first.
+// Under load the timer can come due before a lift already made is dispatched: a late timer waits a frame and a task,
+// so a quick tap is never taken for a long press.
   const check = () => {
     if (!live) return
     if (!waited && performance.now() - e.timeStamp > HOLD + LATE) {
@@ -146,8 +138,7 @@ export function hold (e, fire) {
   return { cancel }
 }
 
-// The tooltip pinned (a long press). `keep`: a tap on its anchor still goes through to it (a room on the map,
-// tapped again, is entered); `onHide` runs when it goes (the room is let go of).
+// A pinned tooltip. `keep`: a tap on its anchor still reaches it (a map room is entered); `onHide` runs as it goes.
 let pinned = false
 let pinOpts = {}
 export function pinTip (target, content, opts = {}) {
@@ -156,7 +147,7 @@ export function pinTip (target, content, opts = {}) {
 }
 export const tipPinned = () => pinned
 
-// A long press answered: the element swells a moment (touch.css), a ring spreads under the finger.
+// A long press answered: the element swells a moment, a ring spreads under the finger.
 function felt (el) {
   el.classList.remove('held')
   void el.offsetWidth
@@ -170,8 +161,7 @@ function ring (x, y) {
   setTimeout(() => r.remove(), 600)
 }
 
-// A card's details (Shift, held) on a pinned tooltip: More ▾ opens them, Less ▴ closes them. main.js links it to
-// codex.js's tipDetail; only a tooltip with details (a unit card) shows it.
+// More ▾ / Less ▴ on a pinned unit card opens or closes its details (Shift's job for a mouse); main.js links it.
 export const tipMore = { get: () => false, set: () => {} }
 function moreButton () {
   if (!tipEl.querySelector('.card-tip')) return null
@@ -179,10 +169,7 @@ function moreButton () {
   return h('button', { class: 'tip-more small', onclick: () => tipMore.set(!on) }, on ? 'Less ▴' : 'More ▾')
 }
 
-// The click a long press would make, eaten; a new press forgets it. A press while a tooltip is pinned closes it
-// and goes on to do what it would (a tap on a button presses it; on another room scouts it, on the board
-// selects, a drag drags, a swipe scrolls, a long press pins the next tooltip). Its click is eaten only on nothing
-// that answers a click (that tap just closes the tooltip). A tap inside it (on its buttons) acts as ever.
+// A press while a tooltip is pinned closes it and does what it would; its click is eaten only where nothing answers one.
 const ACTIVE = 'button, a, input, select, textarea, label, summary, [role="tab"], [tabindex], .node, .stage-wrap, .bench, #game'
 let eat = false
 window.addEventListener('pointerdown', (e) => {
@@ -229,7 +216,7 @@ export function hideTip () {
   anchor = null
   tipEl.classList.remove('on', 'pinned')
   if (!pinned) return
-  // A pinned tooltip gone: its details close again (a held Shift is the mouse's own), and its anchor lets go.
+  // A pinned tooltip gone: its details close and its anchor lets go.
   const { onHide } = pinOpts
   pinned = false
   pinOpts = {}
@@ -240,9 +227,7 @@ export function hideTip () {
 // A re-render can remove the hovered element without a mouseleave; drop a tooltip left orphaned.
 new MutationObserver(() => { if (anchor?.nodeType && !anchor.isConnected) hideTip() })
   .observe(document.body, { childList: true, subtree: true })
-// A scroll or a resize moves an element out from under its tooltip, which follows it; a rect (a board tile, a
-// unit in battle) is only where it was, so its tooltip goes until the pointer moves again. A scroll closes a
-// pinned one (but one inside it, of its own text).
+// A scroll or a resize: an element's tooltip follows it, a rect's goes; a scroll outside a pinned one closes it.
 const moved = (e) => {
   if (!anchor) return
   if (pinned && e?.type === 'scroll' && !tipEl.contains(e.target)) hideTip()
@@ -255,8 +240,7 @@ onFrame(moved)
 
 // ── icons ────────────────────────────────────────────────────────────────────────────────────────
 
-// 24×24 stroke icons, drawn in currentColor by the art's hand: fat round strokes, no perfect circle or square (each a
-// slightly uneven path), the most seen of them drawn wonky on purpose.
+// 24×24 stroke icons in currentColor, in the art's hand: fat round strokes, no perfect circle or square.
 const PATHS = {
   start: '<path d="M12.2 8.6c2 .1 3.4 1.6 3.2 3.6-.2 1.9-1.8 3.2-3.6 3-1.9-.2-3.1-1.8-2.9-3.6.2-1.8 1.5-3.1 3.3-3z"/><path d="M12 3.8c4.6 0 8.3 3.6 8.2 8.3-.1 4.5-3.8 8.1-8.4 8-4.4-.1-8-3.8-7.9-8.2.1-4.6 3.6-8.2 8.1-8.1z" stroke-dasharray="2.2 3"/>',
   fight: '<path d="M4.2 4.4l10.4 10M19.8 3.9L9.3 14.7M6.3 14.4l3.6 3.4M14 17.9l3.7-3.5M4 20.3l3.1-2.9M20.2 20.1l-3-3.2"/>',
@@ -273,50 +257,40 @@ const PATHS = {
   pause: '<path d="M8.2 5.2v13.7M15.9 4.8v14.3" stroke-width="3.4"/>',
   skip: '<path d="M4.8 5.2l8.2 6.9-8 7.1zM12.9 4.9l8.3 7.2-8.1 6.9z" fill="currentColor"/>',
   undo: '<path d="M9.1 7L4.5 11.6l4.4 4.5"/><path d="M4.6 11.6h9.6c2.5 0 4.6 2 4.5 4.6-.1 2.4-2.1 4.3-4.6 4.3H10.2"/>',
-  // A turn: a round, two arrows chasing (yours, then the foes'), a count and never an hourglass: there is no clock.
+  // Two arrows chasing (yours, then the foes'), never an hourglass: there is no clock.
   turn: '<path d="M21.1 5.4v5h-5M2.9 18.6v-5h5"/><path d="M5 9.5a7.5 7.5 0 0 1 12.3-2.8l3.8 3.6M2.9 13.7l3.8 3.6a7.5 7.5 0 0 0 12.3-2.8"/>',
   close: '<path d="M6.2 5.9l11.7 12.3M18.1 6.1L5.8 17.9"/>',
-  // The Monarch: a circlet under a crown of three flames.
+  // The Monarch: a crown of three flames.
   crown: '<path d="M5.5 20.6l13.1-.2-.9-4.5H6.2z"/><path d="M8.5 16c-1.7-1.9-1-3.9.1-5.3.3 1.5 1.3 2.1 1.3 2.1M12 15.9c-2.3-2.7-1.4-6.1.1-8.6 1.3 2.6 2.1 6-.1 8.6M15.6 16.1c1.5-1.9.9-3.7-.2-5.2-.3 1.4-1.4 1.9-1.4 1.9"/>',
-  // A Legendary relic: the keystone, the wedge at the crown of an arch, holding up the stones on either side.
+  // A Legendary relic: a keystone.
   legendary: '<path d="M8.6 3h6.8l-1.2 7.2H9.8z" fill="currentColor" fill-opacity=".25"/><path d="M8.6 3h6.8l-1.2 7.2H9.8z"/><path d="M8.8 5.2C5.6 6.6 3.5 9.8 3.5 13.5V21h4v-7c0-1.6 1-3 2.3-3.8M15.2 5.2c3.2 1.4 5.3 4.6 5.3 8.3V21h-4v-7c0-1.6-1-3-2.3-3.8"/>',
-  // The battle bar's wave counter: two swells.
   wave: '<path d="M2.5 9.2c2-2.1 4.1-2 6 .1s4.1 1.9 6-.2 4.2-1.9 7 .3M2.6 15.1c2.1-2 4-1.9 6 0s4 2.1 6.1-.1 4.1-2 6.9.2"/>',
-  // A siege: a crenellated wall and its gate, wave after wave against it.
   siege: '<path d="M3.5 20.5V9h3v2.5h3V9h5v2.5h3V9h3v11.5z"/><path d="M9.5 20.5v-4a2.5 2.5 0 0 1 5 0v4M3.5 4.5c1.5-1 3-1 4.5 0s3 1 4.5 0 3-1 4.5 0 3 1 3.5.4"/>',
-  // Sound on (a speaker and its waves) and muted (the speaker crossed out).
   sound: '<path d="M4 9.6h3.6L12.1 5.4v13.3l-4.6-4.1H4z" fill="currentColor" fill-opacity=".25"/><path d="M15.6 8.9c1.9 1.6 1.9 4.6-.1 6.2M18.1 6.3c3.6 3.1 3.6 8.4-.2 11.4"/>',
   mute: '<path d="M4 9.6h3.6L12.1 5.4v13.3l-4.6-4.1H4z" fill="currentColor" fill-opacity=".25"/><path d="M16.1 9.4l4.8 5.2M21.1 9.6l-5.2 4.9"/>',
-  // A unit card's stats: HP a heart, ATK a sword, DEF a shield (Move's footprints below).
   hp: '<path d="M12 20.2s-7.6-4.5-7.6-10.3c0-2.4 1.8-4.3 4.1-4.3 1.6 0 2.8.8 3.5 2 .8-1.4 2.2-2.4 3.9-2.3 2.2.1 3.8 2 3.6 4.4-.3 5.7-7.5 10.5-7.5 10.5z" fill="currentColor" fill-opacity=".25"/>',
   atk: '<path d="M19.6 4.4L9.9 14.1M19.6 4.4h-4.2M19.6 4.4v4.1M6.9 11.4l5.7 5.5M9.8 14.2l-4.7 4.7"/><path d="M4.5 18.2c.7-.1 1.3.5 1.3 1.2 0 .7-.6 1.2-1.3 1.2-.6 0-1.1-.6-1.1-1.2.1-.7.5-1.1 1.1-1.2z"/>',
   def: '<path d="M12.1 3l7 2.9v5.3c-.1 4.7-3.1 7.9-7.1 9.8-4-1.8-7.1-5.3-7-9.9V5.7z" fill="currentColor" fill-opacity=".2"/>',
-  // Move: a piece's steps, two footprints and the way ahead.
   move: '<path d="M3 16.6h3.1M8.6 16.4h3"/><path d="M14 16.5h6.6M17.4 13.4l3.2 3.1-3.1 3.1"/><path d="M5.9 6.1c1 0 1.7 1.2 1.7 2.6 0 1.5-.8 2.7-1.8 2.6-1 0-1.6-1.2-1.6-2.6.1-1.5.7-2.6 1.7-2.6z" fill="currentColor" fill-opacity=".25"/><path d="M12.1 3.2c1.3 0 2.2 1.5 2.1 3.4 0 1.8-1 3.3-2.2 3.2-1.2 0-2.1-1.5-2-3.3 0-1.9.9-3.3 2.1-3.3z" fill="currentColor" fill-opacity=".25"/>',
   levelup: '<path d="M6 12.5l6-6 6 6M6 18.5l6-6 6 6"/>',
-  // The Monarch's Command: a banner.
   command: '<path d="M6 21.5V2.5"/><path d="M6 4h12v8l-3-2.2L12 12H6z" fill="currentColor" fill-opacity=".25"/>',
-  // The end screen's tally: floors as stairs down, a recruit as a hooded soul, the souls held as a bone.
+  // The end screen's tally: floors, recruits, souls held.
   stairs: '<path d="M3.5 6.5h4.5V11h4.5v4.5H17v4.5h3.5"/><path d="M3.5 20.5h17" stroke-opacity=".4"/>',
   hood: '<path d="M12 3c-4 0-6.5 3.6-6.5 8.2v9.3h13v-9.3C18.5 6.6 16 3 12 3z"/><path d="M9 13c0-2.2 1.3-3.8 3-3.8s3 1.6 3 3.8v2.5H9z" fill="currentColor" fill-opacity=".35"/>',
   bone: '<path d="M9.6 14.4l4.8-4.8"/><path d="M8.4 16.2C8.1 17.3 6.9 17.7 5.9 17.4C4.9 17.2 4.1 16.1 4.4 15C4.7 14 5.9 13.5 6.9 13.8C7.9 14.1 8.8 15.1 8.4 16.2z"/><path d="M10.3 17.9C10.1 19 9.2 19.8 8.1 19.6C7 19.4 6.4 18.3 6.6 17.3C6.7 16.3 7.6 15.5 8.7 15.7C9.8 15.8 10.5 16.9 10.3 17.9z"/><path d="M17.6 6.5C17.6 7.6 16.7 8.6 15.5 8.5C14.4 8.5 13.5 7.5 13.5 6.3C13.5 5.2 14.6 4.5 15.7 4.5C16.7 4.5 17.7 5.3 17.6 6.5z"/><path d="M19.5 8C19.7 9 19.1 10.1 18 10.4C16.9 10.6 15.9 9.9 15.7 8.8C15.4 7.8 16 6.6 17.1 6.3C18.3 6.1 19.2 7 19.5 8z"/>',
-  // The run's tabs: the Field a board of tiles, the Map a route of rooms, the Codex a book.
-  // A 2×2 piece: four cells, a hair uneven.
+  // A 2×2 piece.
   big: '<path d="M4.2 4.4h6.6l.1 6.4-6.7.1zM13.1 4.3l6.7.1-.1 6.5h-6.5zM4.1 13.2l6.6-.1.2 6.6-6.8.1zM13.2 13.1h6.5l.1 6.7-6.7-.1z" fill="currentColor" fill-opacity=".35"/>',
   field: '<path d="M4.3 3.6l15.8-.2c.3 0 .5.2.5.5l-.1 16.1c0 .3-.2.5-.5.5L4 20.6c-.3 0-.5-.2-.5-.5l.2-16c0-.3.3-.5.6-.5z"/><path d="M3.6 9.3h16.9M3.6 14.7l16.9.2M9.1 3.5l.2 17M14.9 3.4l-.1 17.1"/><path d="M12 16.3c.8 0 1.4.6 1.3 1.4 0 .7-.6 1.3-1.4 1.3-.7 0-1.3-.6-1.3-1.4.1-.7.7-1.3 1.4-1.3z" fill="currentColor"/>',
   map: '<path d="M5 15.3c1.3 0 2.3 1 2.2 2.3 0 1.2-1 2.2-2.3 2.1-1.2 0-2.1-1-2.1-2.2.1-1.3 1-2.2 2.2-2.2z"/><path d="M12.1 5.2c1 0 1.8.8 1.8 1.8s-.8 1.9-1.9 1.8c-1 0-1.8-.8-1.7-1.9 0-1 .8-1.7 1.8-1.7z"/><path d="M19 12.6c1.4 0 2.4 1.1 2.3 2.4 0 1.3-1.1 2.3-2.4 2.3-1.3-.1-2.2-1.1-2.2-2.4.1-1.3 1.1-2.3 2.3-2.3z"/><path d="M6.4 15.9l4.3-7.3M13.6 8.4l3.9 5.1" stroke-dasharray="2 1.8"/>',
   codex: '<path d="M4 5.6c2.7-1.4 5.4-1.3 8 .1v14c-2.6-1.4-5.3-1.4-8-.1zM20 5.4c-2.7-1.3-5.4-1.2-8 .3v14c2.6-1.5 5.3-1.4 8-.2z" fill="currentColor" fill-opacity=".15"/>',
   // A piece's reach: the tile it stands on in the square its blows reach.
   reach: '<path d="M5.3 3.7L17.2 3.2Q20.5 3.2 20.5 6.5L20.6 16.7Q20.6 20.4 17 20.4L6.6 20.6Q3.8 20.6 3.8 17.8L3.3 5.7Q3.3 3.7 5.3 3.7z" stroke-dasharray="3.2 2.2"/><path d="M14.6 12.1C14.6 13.6 13.2 14.6 11.9 14.5C10.5 14.4 9.2 13.4 9.3 11.8C9.3 10.3 10.7 9.3 12.1 9.4C13.6 9.5 14.7 10.7 14.6 12.1z" fill="currentColor"/>',
-  // A fusion: three souls drawn into one.
   fuse: '<path d="M7.6 6.2C7.8 7.3 7.1 8.5 5.9 8.7C4.6 8.9 3.4 8.2 3.2 6.9C2.9 5.6 4 4.6 5.1 4.4C6.3 4.2 7.4 5 7.6 6.2z"/><path d="M20.8 6.2C20.9 7.5 19.9 8.4 18.7 8.6C17.6 8.7 16.6 7.9 16.5 6.7C16.3 5.6 17.1 4.5 18.3 4.3C19.4 4.2 20.6 5 20.8 6.2z"/><path d="M13.8 3.4C14.1 4.4 13.3 5.2 12.4 5.5C11.5 5.7 10.5 5.2 10.2 4.2C10 3.2 10.5 2.2 11.6 1.9C12.6 1.7 13.6 2.4 13.8 3.4z"/><path d="M7 8.5l3.2 4.2M17 8.5l-3.2 4.2M12 5.8v6"/><path d="M16.3 17.2C15.9 19.5 13.8 21.5 11.3 21.1C8.8 20.7 7.1 18.3 7.5 15.8C7.9 13.3 10.1 11.3 12.7 11.8C15.4 12.2 16.7 14.8 16.3 17.2z" fill="currentColor" fill-opacity=".25"/>',
   search: '<path d="M10.6 4.4c3.4.1 6 2.8 5.9 6.2-.1 3.3-2.8 5.9-6.2 5.8-3.3-.1-5.9-2.8-5.8-6.1.1-3.4 2.8-6 6.1-5.9z"/><path d="M15.1 15.1l5.5 5.6"/>',
-  // Music on (two notes beamed) and off (the notes struck through).
   music: '<path d="M9.2 17.6c0 1.6-1.4 2.9-3 2.8-1.6 0-2.8-1.3-2.7-2.8.1-1.5 1.4-2.6 2.9-2.6 1.5.1 2.8 1.1 2.8 2.6z" fill="currentColor" fill-opacity=".25"/><path d="M19.6 15.4c0 1.5-1.3 2.7-2.9 2.6-1.5 0-2.7-1.2-2.6-2.7.1-1.4 1.3-2.5 2.8-2.4 1.5 0 2.7 1.1 2.7 2.5z" fill="currentColor" fill-opacity=".25"/><path d="M9.2 17.6V5.2l10.4-1.9v12.1M9.2 9l10.4-1.9"/>',
   nomusic: '<path d="M9.2 17.6c0 1.6-1.4 2.9-3 2.8-1.6 0-2.8-1.3-2.7-2.8.1-1.5 1.4-2.6 2.9-2.6 1.5.1 2.8 1.1 2.8 2.6z" fill="currentColor" fill-opacity=".25"/><path d="M19.6 15.4c0 1.5-1.3 2.7-2.9 2.6-1.5 0-2.7-1.2-2.6-2.7.1-1.4 1.3-2.5 2.8-2.4 1.5 0 2.7 1.1 2.7 2.5z" fill="currentColor" fill-opacity=".25"/><path d="M9.2 17.6V5.2l10.4-1.9v12.1M3.6 3.9l16.8 16.6"/>',
-  // The title's meta (redesign.md §4.8): the History a scroll of lines.
   history: '<path d="M16.4 6.2l.1 12.2c0 1.3-1 2.3-2.3 2.3l-9.9.1c1.2 0 2.2-1 2.2-2.3L6.4 6c0-1.3 1-2.4 2.3-2.4l9.1-.1c1.3 0 2.3 1 2.3 2.3l-.1 1.5h-3.6" fill="currentColor" fill-opacity=".15"/><path d="M9.4 9.4l4.3-.1M9.5 12.6h4.1M9.4 15.8l2.7-.1"/>',
-  // A glyph per relic (ui.js RELIC_ICON maps each relic id to its own), so no two tiles look alike.
+  // A glyph per relic (ui.js RELIC_ICON maps each relic id to its own).
   'r-whetstone': '<path d="M3.5 17.5h17l-2 3h-13z" fill="currentColor" fill-opacity=".25"/><path d="M6.5 14.5L18 3.5l1.8 1.8L9 16.3zM6.5 14.5l-2 2"/>',
   'r-banner': '<path d="M4 3.5h16"/><path d="M6.5 3.5v15l5.5-3.5 5.5 3.5v-15" fill="currentColor" fill-opacity=".2"/><path d="M14.1 8.8C13.9 9.9 12.8 10.6 11.8 10.4C10.7 10.3 9.7 9.4 9.9 8.2C10 7.1 11.1 6.4 12.3 6.5C13.4 6.6 14.2 7.6 14.1 8.8z"/><path d="M11 10.5v1.5M13 10.5v1.5"/>',
   'r-lantern': '<path d="M9 5.5h6M12 2.5v3"/><path d="M8 7.5h8l-1 11H9z" fill="currentColor" fill-opacity=".15"/><path d="M7 20.5h10"/><path d="M12 10.5c1.4 1.6 1.7 3.1 0 4.6-1.7-1.5-1.4-3 0-4.6z" fill="currentColor"/>',
@@ -349,19 +323,13 @@ export function icon (name, size = 18) {
 
 // ── how a kind is drawn ──────────────────────────────────────────────────────────────────────────
 
-// Every picture is drawn on a square box, its feet at FEET of its height (engine.js reads it from here).
+// Every picture is drawn on a square box, its feet at FEET of its height.
 export const FEET = 11 / 12
-// A kind that borrows another's pictures (content.js `art`, until its own are drawn) is drawn as what it is
-// (redesign.md §4.1), never as the kind it borrows from. A trine is drawn as the three it was made of (`trineOf`):
-// the front one whole, two behind it a step up and to either side (BACK), smaller and darker, each drawn as it is
-// itself (a trine of a trine: three trines, seven figures, the two that would stand on one another drawn once). A
-// fused kind that is no trine (a capstone), or a boss (a floor's: redesign.md §4.7), is its lender washed in WASH's
-// pale ice, a boss as big as the Sovereign's own are drawn (BOSS_SIZE). A kind with pictures of its own (the
-// Pale Court, the Wisp's written trine) is drawn by them. The board and the battle draw a kind's figures as one picture
-// (engine.js artOf), the screens as one portrait (portrait).
-// → [{ art, x, y, k, dim, wash }], back to front: `art` a picture's kind, `x`, `y` where its feet stand from the
-// front one's (in heights of a picture), `k` its scale, `dim` the share of its light it keeps, `wash` whether WASH
-// takes it.
+// How a kind is drawn, back to front: a trine as the three it was made of (the front one whole, two behind it a step
+// up and to either side: BACK), a trine of a trine as seven figures (one that would stand on another drawn once); a
+// capstone or a boss as its lender washed in WASH (a boss BOSS_SIZE bigger); any other kind by its own picture.
+// → [{ art, x, y, k, dim, wash }]: `art` a picture's kind, `x`, `y` its feet from the front one's (in picture
+// heights), `k` its scale, `dim` the share of its light it keeps, `wash` whether WASH takes it.
 const BACK = { x: 0.24, y: -0.1, k: 0.78, dim: 0.7 }
 // A boss's pictures to a kind's: the Sovereign's 144 box to every other's 96.
 const BOSS_SIZE = 1.5
@@ -387,10 +355,8 @@ export function figures (id) {
 }
 // Whether kind `id` is drawn by a picture as it is (its own or a plain borrowed one): no figures to make.
 export const plainFigure = (id) => figures(id).length === 1 && !figures(id)[0].wash
-// The wash a capstone wears over its lender's pictures, a colour matrix (feColorMatrix's, rows r g b a of
-// r g b a 1): `k` of each pixel's colour given over to the tint at the pixel's light (a white to the tint's own pale),
-// the rest kept, so its ink stays ink and its fills go ice. The same numbers wash its portrait (an SVG filter) and its
-// pictures on the board (engine.js artOf).
+// The wash a capstone wears over its lender's pictures, a feColorMatrix: `k` of each pixel's colour given to the tint at
+// its light, so ink stays ink and fills go ice. Its portrait (an SVG filter) and the board use the same numbers.
 const WASH_TINT = [0.56, 0.86, 1]
 export const WASH = (() => {
   const k = 0.7
@@ -410,9 +376,7 @@ function washFilter () {
 
 // ── portraits ────────────────────────────────────────────────────────────────────────────────────
 
-// A unit's picture: the fallen are shown dead. A kind drawn as more than its picture (figures) stands its figures in
-// one box: the group scaled to fit it, its feet on the picture's feet line (`--ps`: its size, which any rule sizing
-// a .portrait overrides, as it would an image's width).
+// A unit's picture, the fallen shown dead; a kind of several figures stands them in one box, scaled to fit.
 export function portrait (id, size = 32, dead = false) {
   const pose = dead ? 'dead' : 'alive'
   if (plainFigure(id)) return h('img', { class: 'portrait', src: artUrl(id, pose), width: size, height: size, alt: '', draggable: 'false' })
@@ -427,8 +391,7 @@ export function portrait (id, size = 32, dead = false) {
   })))
 }
 
-// Per-viewer UI preferences (dismissed guides, the foes met, the run saved). Storage can be missing, blocked or full;
-// then nothing sticks.
+// Per-viewer UI preferences (guides dismissed, foes met, the run saved); storage missing, blocked or full keeps nothing.
 export const prefs = {
   get (key) { try { return localStorage.getItem('retinue:' + key) } catch { return null } },
   set (key, v) { try { localStorage.setItem('retinue:' + key, v) } catch {} },

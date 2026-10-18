@@ -1,4 +1,4 @@
-// The synergies' rules at 4 (redesign.md §2.12: one rule a kin and a role), for either side, and
+// The synergies' rules at 4, for either side, and
 // the endless floors past the Sovereign.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -59,7 +59,7 @@ test('synergies: shadows count, the Monarch never; a battle announces its rules 
   assert.ok(holding(t, 'party').includes('legion'), 'three and a shadow')
 })
 
-// A trine counts as the three it was made of (the user's rule of 2026-10-16, redesign.md §7.7), on either side; with a
+// A trine counts as the three it was made of (the user's rule of 2026-10-16), on either side; with a
 // shadow beside it as with a soul.
 test('synergies: a trine counts as three, on either side, a shadow beside it as a soul', () => {
   const b = scene([
@@ -121,7 +121,7 @@ test('Legion works for the foes too: one of yours slain rises on their side, whe
 // A run's reap after the foes' Legion: a soul of yours that rose against you is no foe's soul. It is not for
 // sale and pays no essence (iron golem: a kind none of the four ghouls is).
 test('Legion on the foes\' side: your fallen risen against you are not sold back or paid for', () => {
-  // The foes hold their rules on every floor (redesign.md §2.12): here, on floor 1.
+  // The foes hold their rules on every floor: here, on floor 1.
   legionReap()
 })
 function legionReap () {
@@ -227,7 +227,7 @@ test('a preview reports the fall of whoever would take the blow, a Bodyguard tha
   set(theirs, 108, 1)
   const before = theirs.events.length
   const p = preview(theirs, 1, 'witchfire', 120)
-  // The damage stands on the one that takes it (redesign.md §2.19: `damage` is the struck's since lines of fire).
+  // The damage stands on the one that takes it.
   assert.deepEqual([p.struck, p.kills, p.falls, p.damage], [108, true, [108], p.hits[108]])
   assert.ok(p.hits[108] > 0 && !(120 in p.hits))
   // Unguarded, the target is struck and falls as before.
@@ -397,7 +397,7 @@ test('Echo: every ability of the side\'s rings out once more on the same targets
   assert.deepEqual([twice.length, rules(theirs, 'echo')[0].side], [2, 'foe'])
 })
 
-// Echo is split (the improvement plan's §4.3): from 4 Channelers its second landing is at TUNING.echo.half of the effect
+// Echo is split: from 4 Channelers its second landing is at TUNING.echo.half of the effect
 // (the damage, the healing, a status's turns, rounded up), from the synergy's `full` (8) whole.
 test('Echo at half from 4 Channelers, whole from 8: the second landing\'s damage, healing and a status\'s turns', () => {
   const full = SYNERGIES.find((s) => s.rule === 'echo').full
@@ -489,7 +489,7 @@ test('Last Stand under Undying comes before the rise; Undying lifts only its hol
   assert.ok(!alive(page) && !u.events.some((e) => e.type === 'rise' && e.target === 30))
 })
 
-// The foes hold their rules on every floor, as yours do (redesign.md §2.12: the deep-floor gate went with the stat steps).
+// The foes hold their rules on every floor, as yours do.
 test('the foes hold their synergies\' rules on every floor, the first among them', () => {
   const drakes = scene([...foeSquad(['ember_drake', 'frost_wyrm'], four(9)), on('tomb_knight', 1, 'party', 3, 4)], { floor: 1 })
   assert.deepEqual(holding(drakes, 'foe').sort(), ['deadeye', 'dragonfire'])

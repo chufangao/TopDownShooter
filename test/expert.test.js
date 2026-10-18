@@ -1,4 +1,4 @@
-// The learned decision tree (redesign.md §2.22): the vocabulary of conditions, the model tree as data and its soft
+// The learned decision tree: the vocabulary of conditions, the model tree as data and its soft
 // rules (expert.js), today's scorer as a configuration, the fast turn (policy.js), and the fitter on a planted problem
 // (fit.js). Functional only: what a configuration decides, never how often it wins.
 import { test } from 'node:test'

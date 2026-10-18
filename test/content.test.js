@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import {
   UNITS, UNIT_LIST, ABILITIES, STATUSES, KIN, ROLES, SYNERGIES, RELIC_LIST, RELICS, RELIC_TIERS, ANIMS, CAMP_LIST, BEHAVIOURS, ART_POSES, artUrl, TRACKS,
   THREATS, TRIGGERS, FUSION_LIST, FUSIONS, fusionDef, TEMPERS, temperLine, STATUS_WORTH, trineOf, isTriple, holdable, TOP_TIER
@@ -14,22 +14,22 @@ import {
 import { TUNING } from '../src/tuning.js'
 import { RULES } from '../src/sim/rules.js'
 
-// ── content is data (redesign.md §2.13): the vocabulary and the checklist ──────────────────────────
+// ── content is data: the vocabulary and the checklist ──────────────────────────
 
-// What an ability is made of (§2.13.2): its ops (and a status tick's dot), its shapes (the ally shapes too), its anims.
+// What an ability is made of: its ops (and a status tick's dot), its shapes (the ally shapes too), its anims.
 const OPS = ['damage', 'heal', 'cleanse', 'apply_status', 'raise', 'cooldown']
 const SHAPES = ['single', 'blast', 'column', 'row', 'all', 'corpse', 'ally', 'all_allies', 'self']
 const ANIM_IDS = ['cast_beam', 'melee_lunge', 'ranged_bolt']
 const PREYS = ['weakest', 'wounded', 'unarmoured', 'monarch', 'crowd', 'rested']
-// A unit's stats (§2.2): HP, ATK and DEF on its base, Move on its def. No record carries a cut mechanic's key or stat
-// path (§2.14, §2.16): no ring, stride, gauge price, chance or dice stat.
+// A unit's stats: HP, ATK and DEF on its base, Move on its def. No record carries a cut mechanic's key or stat
+// path: no ring, stride, gauge price, chance or dice stat.
 const STATS = ['hp', 'atk', 'def']
 const GONE_PATHS = ['acc', 'eva', 'crt', 'spd', 'gauge.rate']
 const GONE_KEYS = ['ring', 'stride', 'castCost', 'chance', 'dur', 'tickEvery', 'acc', 'eva', 'crt', 'spd']
-// Every card speaks of turns and tiles (§2.14): no gauge, ring, dice, nor a clock at all (§2.10: a fight is never lost
+// Every card speaks of turns and tiles: no gauge, ring, dice, nor a clock at all (a fight is never lost
 // by time), in ticks and seconds or in turns.
 const GONE_WORDS = /\bgauge\b|\brings?\b|\bACC\b|\bEVA\b|\bCRT\b|\bSPD\b|\bchance\b|\bmiss(es)?\b|\bcrit|\bticks?\b|\bticking\b|\bseconds?\b|\d s\b|\bclock\b/i
-// The conditions that are the rule itself, the only `when`s left (§2.7): Killing Cold's execute and Grave Tide's tide.
+// The conditions that are the rule itself, the only `when`s left: Killing Cold's execute and Grave Tide's tide.
 const RULE_CONDITIONS = ['killing_cold', 'grave_tide']
 const turnsOk = (t) => t === undefined || t === 'battle' || (Number.isInteger(t) && t >= 1)
 // A trine the content made (content.js trineOf), not a record written; the kinds written; and a made trine's ability
@@ -75,7 +75,7 @@ function * cardText () {
   for (const [id, t] of Object.entries(THREATS)) yield [`${t.name} ${t.desc}`, id]
 }
 
-// An ability's record (§2.7, §2.13.2): ops, a shape and an anim from the vocabulary, every status it lays known and for
+// An ability's record: ops, a shape and an anim from the vocabulary, every status it lays known and for
 // whole turns, a cooldown only where it is not 2, no gauge price, and no condition but the rule ones.
 function checkAbility (id, where) {
   const a = ABILITIES[id]
@@ -90,7 +90,7 @@ function checkAbility (id, where) {
   for (const e of a.effects) checkEffect(e, `${where} ${id}`)
 }
 
-// A relic's effects may carry what an ability's never do (redesign.md §4.4): damage of a flat `amount`, a raise's
+// A relic's effects may carry what an ability's never do: damage of a flat `amount`, a raise's
 // `tier` (the slain of that tier or lower); an ability's damage is its power at its caster's ATK, and its Arise reads
 // the run's tier.
 function checkEffect (e, where, relic = false) {
@@ -113,7 +113,7 @@ function checkEffect (e, where, relic = false) {
 
 // ── units ─────────────────────────────────────────────────────────────────────────────────────────
 
-// The Move placeholders (redesign.md §2.2): 1 for the slowest, 3 for the quickest and the flyers, the fused and the
+// The Move placeholders: 1 for the slowest, 3 for the quickest and the flyers, the fused and the
 // bosses 2 (the Swarm Queen, a flyer, 3), the Monarch 0.
 const MOVE = {
   monarch: 0, bone_chanter: 2, tomb_knight: 2, ember_drake: 2, frost_sprite: 3, hive_warden: 2, clockwork_page: 2, grave_ghoul: 2, will_o_wisp: 2,
@@ -123,7 +123,7 @@ const MOVE = {
   mire_mother: 2, molting_abbess: 2, barrow_marshal: 2, swarm_queen: 3,
   cinder_whelp: 2, brass_sentry: 1, hive_spitter: 2, thornling: 2
 }
-// The temperaments (§2.9.4): each kind on its preset; the fused on the preset their parts would have.
+// The temperaments: each kind on its preset; the fused on the preset their parts would have.
 const TEMPER = {
   charger: ['tomb_knight', 'pyre_hound', 'rot_bloat', 'bone_colossus', 'charnel_cathedral', 'iron_barrow', 'thornling'],
   shooter: ['frost_sprite', 'bone_chanter', 'barrow_wight', 'barrow_marshal', 'cinder_whelp', 'brass_sentry', 'hive_spitter'],
@@ -219,7 +219,7 @@ test('every kind is one record: base, Move, temper, threats, two tracks of four 
 })
 
 test('the foes by floor: each pool brings its threats and its statuses', () => {
-  // The foes scale in kind by floor (DESIGN §2.4): floor 1's pool carries every threat type but depth (a room's, not a
+  // The foes scale in kind by floor: floor 1's pool carries every threat type but depth (a room's, not a
   // kind's: it comes with waves), fly and bleed; floor 2 brings the flyer, the death burst, the Mantis's Bleed and the
   // Golem's Quake, which Hexes; floor 3 the hexer and the flying burner.
   const pool = (floor) => UNIT_LIST.filter((u) => u.spawn?.minFloor === floor)
@@ -240,7 +240,7 @@ test('the Monarch: one of a kind, never spawned, never moving, never striking, n
   assert.deepEqual([m.name, m.kin, m.role, m.tier, m.monarch, m.spawn, m.abilities, m.move, m.tracks, m.temper], ['The Monarch', null, 'monarch', 0, true, undefined, [], 0, undefined, undefined])
   assert.equal(UNIT_LIST.filter((u) => u.monarch).length, 1)
   assert.equal(ROLES.monarch.hidden, true)
-  // Arise is a skill of the piece that holds an Arise relic (§2.15): no kind holds it of its own.
+  // Arise is a skill of the piece that holds an Arise relic: no kind holds it of its own.
   const arise = ABILITIES.arise
   assert.deepEqual([arise.shape, arise.anim, arise.effects, arise.cooldown], ['corpse', 'cast_beam', [{ op: 'raise' }], 1])
   assert.ok(!UNIT_LIST.some((u) => u.abilities.includes('arise') || Object.values(u.tracks ?? []).some((t) => t.tiers.some((x) => x.ability?.id === 'arise'))))
@@ -256,9 +256,9 @@ test('the Monarch: one of a kind, never spawned, never moving, never striking, n
   assert.deepEqual(activeSynergies([...party, at('rot_bloat', 4, 1, 4)]).map((s) => s.id), ['undead_4'])
 })
 
-// The Sovereign carries its override as a rule (§2.9.6), on top of its temperament, and a floor's boss what its kit
-// cannot say of its counter (redesign.md §4.7: a shell shed, screens, a brood); a capstone carries as a rule what its
-// abilities cannot say (redesign.md §4.1), scoped to its piece as the Sovereign's is: a rise on a kill, a fire that
+// The Sovereign carries its override as a rule, on top of its temperament, and a floor's boss what its kit
+// cannot say of its counter; a capstone carries as a rule what its
+// abilities cannot say, scoped to its piece as the Sovereign's is: a rise on a kill, a fire that
 // spreads, drones at every wave and skills ready on a kill, a stand once a battle. No other kind carries one.
 const CAPSTONES = ['charnel_cathedral', 'winter_court', 'cinder_wyrm', 'hive_mind', 'engine_of_ages', 'aurora', 'iron_barrow']
 const CAPSTONE_RULES = { charnel_cathedral: 'charnel_cathedral', cinder_wyrm: 'cinder_wyrm', hive_mind: 'hive_mind', engine_of_ages: 'engine_of_ages' }
@@ -291,7 +291,7 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
       const soul = makeUnit(id, { uid: 1 })
       const at = (n) => ({ ...soul, tracks: k ? [0, n] : [n, 0] })
       // Tiers I–II, which the other track may sit beside, remake no ability and grant no aura. IV is a rule, never a
-      // percentage: a new or remade ability, an aura, or Colossus (DESIGN §2.6).
+      // percentage: a new or remade ability, an aura, or Colossus.
       assert.ok(p.tiers.slice(0, 2).every((t) => !t.ability && !t.aura), `${id} ${p.id}: I–II`)
       const iv = p.tiers[3]
       assert.ok(!iv.mods && (iv.ability || iv.aura || iv.size === 2), `${id} ${p.id}: IV a rule`)
@@ -330,17 +330,17 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
   // a 2×2 one's aura a tile wider.
   assert.deepEqual(colossi.filter(([id]) => !made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['tomb_knight:0', 'grave_ghoul:0', 'iron_golem:0', 'rot_bloat:0', 'thornling:0'])
   assert.deepEqual(colossi.filter(([id]) => made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['trine:grave_ghoul:0', 'trine:thornling:0'])
-  // Your kinds can learn to inflict Burning and Hexed too (DESIGN §2.4): a tier of a kind met on floors 1–2 grants a
+  // Your kinds can learn to inflict Burning and Hexed too: a tier of a kind met on floors 1–2 grants a
   // blow that does each.
   const early = Object.keys(TRACKS).filter((id) => UNITS[id].spawn?.minFloor <= 2)
   const grants = (status) => early.filter((id) => TRACKS[id].some((p) => p.tiers.some((t) => t.ability && ABILITIES[t.ability.id].effects.some((e) => e.status === status))))
   assert.ok(grants('burning').includes('ember_drake') && grants('hexed').includes('clockwork_page'), `${grants('burning')} / ${grants('hexed')}`)
-  // A tier on `move` adds a whole tile (§2.7).
+  // A tier on `move` adds a whole tile.
   const moves = Object.values(TRACKS).flat().flatMap((p) => p.tiers.flatMap((t) => [...(t.mods ?? []), ...(t.aura?.mods ?? [])])).filter((x) => x.path === 'move')
   assert.ok(moves.length >= 12 && moves.every((x) => x.op === 'add' && x.v === 1), `${moves.length} Move tiers`)
 })
 
-// The card never lies about reach (§2.6): a tier that says how far the blow it grants reaches ("reaches 2 tiles", "at
+// The card never lies about reach: a tier that says how far the blow it grants reaches ("reaches 2 tiles", "at
 // range 5", "within 3 tiles", "from up to 3 tiles") says what its range gives it: a ranged blow its range, a melee one
 // its own range where it has one, else the kind's arm.
 test('a tier that says how far its blow reaches says what the blow\'s range gives it', () => {
@@ -362,7 +362,7 @@ test('a tier that says how far its blow reaches says what the blow\'s range give
   assert.ok(n >= 20, `${n} tiers say a reach`)
 })
 
-// A tier that replaces an ability (DESIGN §2.6) replaces one the kind holds at that point, whatever the other track
+// A tier that replaces an ability replaces one the kind holds at that point, whatever the other track
 // holds: every holding the crosspath rule allows (canTrack), for every kind, makes a whole kit of known abilities whose
 // last blow, its basic (turns.js basicOf), is usable every turn: no cooldown, no condition. One that does not is a
 // content error, and abilitiesOf says so rather than leaving a hole in the kit.
@@ -391,7 +391,7 @@ test('abilitiesOf: every legal holding of every kind\'s tiers makes a whole kit,
     }
   }
   assert.ok(holdings > Object.keys(TRACKS).length * 10, `${holdings} holdings walked`)
-  // The basics (§2.7): a tier that adds a blow puts it before them.
+  // The basics: a tier that adds a blow puts it before them.
   const basicOf = (id, tracks = [0, 0]) => lastOf(abilitiesOf({ id, tracks }), isBlow).id
   assert.deepEqual(['tomb_knight', 'bone_chanter', 'frost_sprite', 'pyre_hound', 'pale_court', 'rime_drake'].map((id) => basicOf(id)), ['strike', 'marrow_bolt', 'frost_lance', 'pyre_bite', 'pale_fire', 'frost_lance'])
   assert.equal(basicOf('pyre_hound', [2, 4]), 'pyre_bite', 'Cinder Spit is a skill')
@@ -409,7 +409,7 @@ test('abilitiesOf: every legal holding of every kind\'s tiers makes a whole kit,
   assert.deepEqual(abilitiesOf({ id: 'bone_chanter', tracks: [1, 0] }), abilitiesOf({ id: 'bone_chanter', tracks: [0, 0] }))
 })
 
-// Summon tiers (DESIGN §2.6): one per kin, at tier II, two summons each, of the kinds written; a trine keeps its kind's.
+// Summon tiers: one per kin, at tier II, two summons each, of the kinds written; a trine keeps its kind's.
 test('summon tiers: one kin each, at tier II, two summons each battle', () => {
   const tiers = Object.entries(TRACKS).filter(([id]) => !made(UNITS[id])).flatMap(([id, tracks]) => tracks.flatMap((p) => p.tiers.flatMap((t, i) => (t.summon ? [{ id, track: p.id, i, summon: t.summon }] : []))))
   assert.deepEqual(tiers.map((t) => [t.id, t.track, t.summon]), [
@@ -431,7 +431,7 @@ test('every ability is ops, a shape and an anim; Hexed for one act or two; no co
   for (const id of Object.keys(ABILITIES)) checkAbility(id, 'ABILITIES')
   // One cooldown exception (the balance pass grants them): Arise rests no turn (2026-10-11); every other skill rests a turn.
   assert.deepEqual(Object.values(ABILITIES).filter((a) => a.cooldown !== undefined).map((a) => [a.id, a.cooldown]), [['arise', 1]])
-  // Hexed (§2.7): for one act, or two from Wrench and Gear Lock; the frost blows deal damage and lay none.
+  // Hexed: for one act, or two from Wrench and Gear Lock; the frost blows deal damage and lay none.
   const hex = (id) => ABILITIES[id].effects.find((e) => e.status === 'hexed')
   const one = ['quake', 'hoarfrost', 'spanner', 'earthshatter', 'deep_winter', 'worldbreaker', 'ice_age', 'piston_slam', 'bone_quake', 'equinox', 'kindled_lance', 'steam_hammer']
   for (const id of one) assert.equal(hex(id)?.turns ?? STATUSES.hexed.turns, 1, id)
@@ -444,7 +444,7 @@ test('every ability is ops, a shape and an anim; Hexed for one act or two; no co
   assert.equal(ABILITIES.grave_tide.cond, 'once it is at 60% HP or less')
 })
 
-// The statuses' turns (§2.8): 'battle' the battle; Hexed's turns the acts it costs.
+// The statuses' turns: 'battle' the battle; Hexed's turns the acts it costs.
 const TURNS = {
   brittle: 3, hasten: 2, regen: 5, barkskin: 4, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4, rooted: 1, bloodlust: 'battle' }
 
@@ -462,7 +462,7 @@ test('every status lasts turns, is drawn in its colour, has a worth, and its tex
     statsOf(unit, s.mods)
     for (const e of s.tick ?? []) assert.ok(['dot', 'heal'].includes(e.op) && e.power > 0, `${s.id} tick`)
   }
-  // A damage-over-time or Regen ticks once a turn, for its power (§2.8), and its card says how much.
+  // A damage-over-time or Regen ticks once a turn, for its power, and its card says how much.
   assert.deepEqual(['burning', 'bleeding', 'regen'].map((id) => STATUSES[id].tick[0].power), [12, 8, 48])
   for (const id of ['burning', 'bleeding', 'regen']) {
     const s = STATUSES[id]
@@ -479,7 +479,7 @@ test('every status lasts turns, is drawn in its colour, has a worth, and its tex
     const mods = STATUSES[id].mods
     assert.ok(['move', 'cooldown.rate'].every((path) => mods.some((x) => x.path === path && x.op === 'add' && x.v === 1)), id)
   }
-  // Barkskin, the one DEF ward (Veiled merged into it, DESIGN Next, Step 3): +25% DEF.
+  // Barkskin, the one DEF ward (Veiled merged into itNext, Step 3): +25% DEF.
   assert.deepEqual(STATUSES.barkskin.mods, [{ path: 'def', op: 'mul', v: 1.25 }])
 })
 
@@ -501,7 +501,7 @@ test('a status shapes stats the way its mods say', () => {
 
 // ── synergies ─────────────────────────────────────────────────────────────────────────────────────
 
-// One rule a kin and one a role, at 4 (§2.12): the rules that stood at 8, under the ids the registry knows.
+// One rule a kin and one a role, at 4: the rules that stood at 8, under the ids the registry knows.
 const SYNERGY_RULES = {
   undead: 'legion', drake: 'dragonfire', fae: 'mirage', insect: 'frenzy', construct: 'last_stand',
   vanguard: 'bodyguard', ranger: 'deadeye', skirmisher: 'ambush', channeler: 'echo', warden: 'sanctuary', trickster: 'deathblow'
@@ -521,8 +521,8 @@ test('every kin and every role has one synergy, a rule at 4 pieces, and no stat 
     assert.ok(!('mods' in syn), `${syn.id}: no stat step`)
     assert.ok(syn.name && syn.desc.includes(': '), `${syn.id}: its text says what the rule does`)
   }
-  // Deadeye's card says its number; Deathblow's its execute (§2.16); the rules raised to Echo's class theirs, and Echo
-  // its split (the improvement plan's §4.3), each from TUNING.
+  // Deadeye's card says its number; Deathblow's its execute; the rules raised to Echo's class theirs, and Echo
+  // its split, each from TUNING.
   const card = (rule) => SYNERGIES.find((s) => s.rule === rule).desc
   const pct = (x) => `${Math.round(x * 100)}%`
   assert.ok(card('deadeye').includes(`${Math.round((RULES.deadeye.params.mul - 1) * 100)}% more`))
@@ -535,7 +535,7 @@ test('every kin and every role has one synergy, a rule at 4 pieces, and no stat 
   assert.ok(card('echo').includes(`with ${SYNERGIES.find((s) => s.rule === 'echo').full} Channelers, in full`))
 })
 
-// The one split (§2.12: a lesser form at 4, the full at 8) is Echo's: `full` twice its count, on its own kin or role.
+// The one split is Echo's: `full` twice its count, on its own kin or role.
 test('a synergy split holds whole at its `full`: Echo\'s alone, at 8 Channelers', () => {
   const split = SYNERGIES.filter((s) => 'full' in s)
   assert.deepEqual(split.map((s) => [s.id, s.full]), [['channeler_4', 8]])
@@ -550,12 +550,12 @@ test('a synergy split holds whole at its `full`: Echo\'s alone, at 8 Channelers'
 
 // ── relics ────────────────────────────────────────────────────────────────────────────────────────
 
-// The keys a relic may carry: its identity, its form (§2.13.3) and, for a run relic, `run`; for a Legendary, a rule
+// The keys a relic may carry: its identity, its form and, for a run relic, `run`; for a Legendary, a rule
 // and its params. The sixteen bespoke keys of before are none of them.
 const RELIC_KEYS = ['id', 'tier', 'name', 'desc', 'run', 'mods', 'on', 'when', 'effects', 'rule', 'params', 'needsArise']
-// A run relic's side-wide cost (§2.15): a loss on a unit's path for every soul (Legion's −15% HP).
+// A run relic's side-wide cost: a loss on a unit's path for every soul (Legion's −15% HP).
 const isCost = (x) => x.path === 'hp' && x.op === 'mul' && x.v < 1 && !x.who
-// A kin banner's mod (redesign.md §4.4): a unit's, scoped to the souls of one kin or one role (`who`, unit.js statsOf).
+// A kin banner's mod: a unit's, scoped to the souls of one kin or one role (`who`, unit.js statsOf).
 const isBanner = (x) => !isRunPath(x.path) && !!x.who && Object.keys(x.who).length === 1 &&
   (!!KIN[x.who.kin] || (!!ROLES[x.who.role] && !ROLES[x.who.role].hidden))
 const ARISE_RELICS = ['arise', 'hollow_court', 'blood_tithe', 'court_of_bone']
@@ -612,14 +612,14 @@ test('every relic is a run relic or a piece relic, in one of the three forms, it
   for (const tier of ['common', 'uncommon', 'rare', 'legendary']) {
     assert.ok(RELIC_LIST.some((r) => r.tier === tier && r.run && r.mods.some((x) => x.path === 'run.command' && x.v > 0)), `a Command relic, ${tier}`)
   }
-  // Arcane Focus: the killer's skills come back a turn sooner (§2.7). Hourglass and Bone Idol
+  // Arcane Focus: the killer's skills come back a turn sooner. Hourglass and Bone Idol
   // are run relics on every Arise's reach and tier.
   assert.deepEqual(RELICS.arcane_focus.effects, [{ op: 'cooldown', amount: -1, to: 'self' }])
   assert.deepEqual([RELICS.hourglass.mods, RELICS.bone_idol.mods].map((x) => x.map((y) => y.path)), [['arise.domain'], ['arise.tier']])
   assert.ok(RELICS.hourglass.run && RELICS.bone_idol.run)
 })
 
-// The twelve of redesign.md §4.4, in the forms allowed and on the numbers it names: five kin banners, Uncommon run
+// The twelve, in the forms allowed and on the numbers it names: five kin banners, Uncommon run
 // relics a kin's mod each, the card naming its kin; seven piece relics on a moment of the holder's.
 test('the twelve relics that define a build: a kin banner for every kin, and seven piece relics on a moment', () => {
   const banners = {
@@ -673,7 +673,7 @@ test('the Legendaries: a rule scoped to the holder, Arise a skill it teaches, an
   assert.ok(ARISE_RELICS.every((id) => !RELICS[id].needsArise))
 })
 
-// One registry for rules (§2.13.4): what a synergy, a relic or a boss's def names as its rule is an entry of it, and
+// One registry for rules: what a synergy, a relic or a boss's def names as its rule is an entry of it, and
 // every entry is brought by one.
 test('the rules registry: every rule a synergy, a relic or a boss names is in it, and every rule in it is named by one', () => {
   const named = [...SYNERGIES, ...RELIC_LIST, ...UNIT_LIST].filter((x) => x.rule)
@@ -681,23 +681,25 @@ test('the rules registry: every rule a synergy, a relic or a boss names is in it
   for (const id of Object.keys(RULES)) assert.ok(named.some((x) => x.rule === id), `${id}: named by nothing`)
 })
 
-// A rule's hooks and flags are its entry's (§2.13.4: a new rule is one entry in one file): no module of the sim but the
+// A rule's hooks and flags are its entry's: no module of the sim but the
 // registry branches on a rule's name.
 test('nothing in the sim but the registry branches on a rule\'s name', () => {
   const name = `'(${Object.keys(RULES).join('|')})'`
   const branch = new RegExp(`(===|!==)\\s*${name}|${name}\\s*(===|!==)|has\\(${name}\\)`)
-  for (const file of ['turns.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'map.js', 'autoplay.js']) {
+  for (const file of ['turns.js', 'foe.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'state.js', 'economy.js', 'spawn.js', 'map.js', 'autoplay.js', 'player.js', 'reports.js']) {
     readFileSync(new URL(`../src/sim/${file}`, import.meta.url), 'utf8').split('\n').forEach((line, i) => {
       if (!line.trim().startsWith('//')) assert.doesNotMatch(line, branch, `${file}:${i + 1}`)
     })
   }
 })
 
-// No clock (redesign.md §2.10): no module of the game keeps a turn cap, a deadline or a battle lost by time ('turn-cap');
+// No clock: no module of the game keeps a turn cap, a deadline or a battle lost by time ('turn-cap');
 // TUNING.turn holds only the sim's bug guard.
 test('no clock anywhere: no turn cap, no deadline, no \'turn-cap\' end; TUNING.turn is the bug guard alone', () => {
-  const sim = ['turns.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'map.js', 'rules.js', 'autoplay.js'].map((f) => `sim/${f}`)
-  for (const file of [...sim, 'engine.js', 'ui.js', 'board.js', 'codex.js', 'keywords.js', 'main.js', 'dom.js', 'content.js', 'tuning.js']) {
+  const sim = ['turns.js', 'foe.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'state.js', 'economy.js', 'spawn.js', 'map.js', 'rules.js', 'autoplay.js', 'player.js', 'reports.js'].map((f) => `sim/${f}`)
+  // The engine's and the UI's directories whole, as they are split.
+  const under = (dir) => (existsSync(new URL(`../src/${dir}/`, import.meta.url)) ? readdirSync(new URL(`../src/${dir}/`, import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => `${dir}/${f}`) : [])
+  for (const file of [...sim, 'engine.js', 'ui.js', ...under('engine'), ...under('ui'), 'board.js', 'codex.js', 'keywords.js', 'main.js', 'dom.js', 'content.js', 'tuning.js']) {
     readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8').split('\n').forEach((line, i) => {
       assert.doesNotMatch(line, /turn-cap|\bdeadline\b|turn\.cap\b|\bceiling\b/, `${file}:${i + 1}`)
     })
@@ -705,7 +707,7 @@ test('no clock anywhere: no turn cap, no deadline, no \'turn-cap\' end; TUNING.t
   assert.deepEqual(Object.keys(TUNING.turn), ['guard'])
 })
 
-// ── no dice, no gauge, and the cards (§2.14–2.16) ──────────────────────────────────────────────────
+// ── no dice, no gauge, and the cards ──────────────────────────────────────────────────
 
 test('no dice and no gauge anywhere: no chance, no ACC, EVA or CRT, no ring, stride, gauge price or tick span', () => {
   const records = { UNITS, ABILITIES, STATUSES, RELICS, SYNERGIES, FUSIONS }
@@ -728,7 +730,7 @@ test('every card is for turns and tiles: no gauge, ring, dice, chance, ticks or 
     n++
   }
   assert.ok(n > 300, `${n} lines read`)
-  // The ways say how a kind moves on turns, and carry no rule of their own for a foe's melee (§2.6).
+  // The ways say how a kind moves on turns, and carry no rule of their own for a foe's melee.
   for (const b of Object.values(BEHAVIOURS)) assert.ok(b.name && b.desc && !('melee' in b), b.name)
 })
 
@@ -790,8 +792,8 @@ test('camps: twelve, every floor some; each 7×7 with one seat, a road from ever
   }
 })
 
-// The recipe graph (DESIGN §2.6; redesign.md §4.1): the mixed recipes and the capstones written, a triple for every
-// kind of tier 4 or less, public, each of parts a run can hold into a fused kind (§2.13: a recipe fails if its result
+// The recipe graph: the mixed recipes and the capstones written, a triple for every
+// kind of tier 4 or less, public, each of parts a run can hold into a fused kind (a recipe fails if its result
 // is not one), held to the graph's rules.
 test('the recipe graph: one recipe a fused kind, parts a run can hold, tiers by the line, a fusion of fusions of two fused pieces, nothing past tier 6, no cycle, every recipe in the book', () => {
   assert.deepEqual(FUSION_LIST.filter((r) => !isTriple(r)).map((r) => [r.id, r.needs]), [
@@ -848,7 +850,7 @@ test('the recipe graph: one recipe a fused kind, parts a run can hold, tiers by 
   for (const r of FUSION_LIST) assert.ok(booked.has(r.id), `${r.id} is not in the book: node src/sim/autoplay.js --combos`)
 })
 
-// The triple rule (redesign.md §4.1): every kind of tier 4 or less a run can hold fuses three of itself into its trine,
+// The triple rule: every kind of tier 4 or less a run can hold fuses three of itself into its trine,
 // two tiers up; one written (`trineOf`: the Pale Court, the Wisp's) stands for the one content would make, and every
 // other is made by one rule: its kind three times over, a blow at one foe a blast, a shot a tile longer.
 test('the triple rule: one triple a kind of tier 4 or less, into its trine two tiers up; the Pale Court written; a made trine its kind three times over', () => {
@@ -907,7 +909,7 @@ test('the triple rule: one triple a kind of tier 4 or less, into its trine two t
     }
   }
   // One piece, counted as the three it was made of toward its kin's and its role's synergies (the user's rule of
-  // 2026-10-16, redesign.md §7.7): a trine and one more Undead are four.
+  // 2026-10-16): a trine and one more Undead are four.
   const at = (id, uid) => makeUnit(id, { uid, slot: uid })
   const ids = (units) => activeSynergies(units).map((x) => x.id)
   assert.deepEqual(ids([at('trine:tomb_knight', 1)]), [])
@@ -937,7 +939,7 @@ test('the triple rule: one triple a kind of tier 4 or less, into its trine two t
   assert.deepEqual(synergyCounts(withSummons(caller)), { kin: { undead: 5 }, role: { channeler: 5 } })
 })
 
-// A fusion is never weaker than what went into it (§9): at every level a kind reaches (6 at most: TUNING.level), its HP
+// A fusion is never weaker than what went into it: at every level a kind reaches (6 at most: TUNING.level), its HP
 // at least the sum of its parts' at that level, and its best blow (its power × ATK) at least each part's.
 test('a fusion is never weaker than what went into it: its HP at least its parts\' sum, its best blow at least the best of theirs', () => {
   const best = (id, lvl) => {
@@ -955,7 +957,7 @@ test('a fusion is never weaker than what went into it: its HP at least its parts
   }
 })
 
-// The floor-1 slice's kinds (§5 Step 2) and the four of 2026-10-18 are the floor-1 pool, the Tomb Knight gone to floor 2
+// The floor-1 slice's kinds and the four of 2026-10-18 are the floor-1 pool, the Tomb Knight gone to floor 2
 // (the user's word: too strong for the first battle); the old start souls a run can hold, two of them floor 1's.
 test('the floor-1 pool and the start souls', () => {
   const pool = UNIT_LIST.filter((u) => u.spawn?.minFloor === 1).map((u) => u.id).sort()

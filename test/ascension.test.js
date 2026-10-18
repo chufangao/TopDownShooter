@@ -1,4 +1,4 @@
-// The ascension ladder (redesign.md §4.6, §6 Step 7): TUNING.ascension's rows, a run's level and what it reaches (every
+// The ascension ladder: TUNING.ascension's rows, a run's level and what it reaches (every
 // foe, the boss and the foes' shadows too; a fight's and an elite's counts; the waves' spacing; the Monarch's HP; the
 // prices), level 0 the base game, replay at a level, the unlock rule, and the ladder report's shape.
 import { test } from 'node:test'
@@ -117,7 +117,7 @@ test('a level\'s counts and waves: a fight\'s and an elite\'s foes × its row, i
   }
   assert.ok(roomSize(4, false, TOP) > roomSize(4, false) && roomSize(4, true, TOP) > roomSize(4, true))
   // Floor 1's rooms have no cohorts: a fight's formation is its count, an elite's too, its late pair a wave of its own;
-  // its boss's court, as the Sovereign's, is the floor's at every level (redesign.md §4.7). The rooms are drawn as the
+  // its boss's court, as the Sovereign's, is the floor's at every level. The rooms are drawn as the
   // floor opens: a run from the fixed start here, not the draft.
   const run = createRun({ seed: 'counts', ascension: TOP, start: START_PARTY })
   const rooms = run.state.map.nodes.filter((n) => n.foes && n.type !== 'boss')

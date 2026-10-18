@@ -1,4 +1,4 @@
-// The Monarchs (redesign.md §4.8, the meta; content.js MONARCH_LIST): who the player is. The base Monarch is every run's
+// The Monarchs: who the player is. The base Monarch is every run's
 // unless another is chosen, and changes nothing; each other starts holding its relic and drafts its kin more often, is
 // carried by replay, the save, the history, the harness and the offline tools, and is opened by a clear at its level.
 import { test } from 'node:test'

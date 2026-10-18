@@ -71,11 +71,11 @@ test('the un-ablated players: a level with no ablation plays exactly as the leve
 })
 
 test('ablation: the names, the rules switches carried by the run and its replay, and a policy that refuses a run without its switch', () => {
-  // The orders given in battle are core (redesign.md §5 Step 5).
+  // The orders given in battle are core.
   assert.deepEqual(ABLATIONS, ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves'])
   assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons'])
   // The formation measured with no band since 2026-10-11 (pieces move in battle: the orders absorb it), and the moves
-  // (the plan's walking, redesign.md §2.18).
+  // (the plan's walking).
   assert.deepEqual(CORE, ['orders', 'tracks', 'summons'])
   assert.deepEqual(MEASURED, ['formation', 'moves'])
   // Every ablation is played: a core one targeted at 25–50 points, an extra one at 8–25, a measured one at none.
@@ -219,7 +219,7 @@ test('ablating orders: the expert gives no order in battle but End Turn, where t
   assert.ok(!('ablate' in ablatedRun('orders', 'orders', START_PARTY).state))
 })
 
-// Under the moves ablation its pieces act from where they stand (redesign.md §2.18: what the plan's walking is worth);
+// Under the moves ablation its pieces act from where they stand;
 // prep is the full expert's.
 test('ablating moves: the expert acts in battle but never moves a piece, where the full expert does', () => {
   const given = (L) => {

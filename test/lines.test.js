@@ -1,4 +1,4 @@
-// Lines of fire (redesign.md §2.19): a single-target blow from range strikes the first piece of its target's side
+// Lines of fire: a single-target blow from range strikes the first piece of its target's side
 // standing strictly between them on a supercover line; the shooter's own side never blocks; melee, shapes and a blow
 // that arcs ignore lines; a Bodyguard comes after the line. And the policy reads it: the danger map, the camp's scoring,
 // the expert's threat read and features count the piece a blow would actually strike.

@@ -5,8 +5,7 @@ import { unitDef, campDef, abilityDef, relicDef, SYNERGIES, ROLES } from '../con
 
 // ── stats ────────────────────────────────────────────────────────────────────────────────────────
 
-// The Monarch has no level: its base HP is TUNING.monarch.hp, whatever `lvl` says; the HP relics add to the run's
-// Monarch (run.js monarchHp), and the battle takes the run's (turns.js fit).
+// A kind's base stats at `lvl`. The Monarch has no level: its base HP is TUNING.monarch.hp (its HP relics add in the run).
 export function baseStats (id, lvl = 1) {
   const def = unitDef(id)
   const out = {}
@@ -16,11 +15,9 @@ export function baseStats (id, lvl = 1) {
   return out
 }
 
-// A piece (DESIGN §2.2) as the run keeps it between battles; createBattle adds the per-battle fields. One soul of
-// one kind on one tile, one body, its HP its own (`hp` of `maxHp`): it stands while it has HP left. slot −1 is the
-// ossuary: the piece is kept but does not fight. `lvl` and `tracks` (the tier held on each of its kind's two
-// tracks, 0–4) are its kind's (run.js s.kinds), the same for every soul of it; a foe's are its own. A soul may hold
-// relics (run.js hold: `relics`, ids, at most TUNING.relic.perPiece), which a piece made here holds none of.
+// A piece as the run keeps it between battles (createBattle adds the per-battle fields): { uid, id, lvl, tracks, hp,
+// maxHp, slot, relics? }. slot −1: the ossuary. `lvl` and `tracks` (the tier held on each of its kind's two tracks, 0–4)
+// are its kind's, a foe's its own; `relics`: the piece relics it holds (ids, at most TUNING.relic.perPiece).
 export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {}) {
   const hp = baseStats(id, lvl).hp
   return { uid, id, lvl, tracks: tracks.slice(), hp, maxHp: hp, slot }
@@ -28,11 +25,8 @@ export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {})
 
 // ── upgrade tracks ───────────────────────────────────────────────────────────────────────────────
 
-// A kind's two tracks, on its def (redesign.md §2.13.1); none for the Monarch.
 export const tracksOf = (id) => unitDef(id).tracks ?? []
-// The tiers a unit holds: its first track's, then its second's. Kept a kind and pair of tiers (a kind's tracks are its
-// def's, never changed in play: a tier's own fields are read through the list, never copied), so it is shared: read
-// only. A kind of more than two tracks, or tiers not whole from 0 to 4, are made afresh each time.
+// The tiers a unit holds, its first track's then its second's: shared per kind and pair of tiers, so read only.
 const TIERS = new Map()
 const NO_TIERS = []
 const tiersFrom = (tracks, u) => tracks.flatMap((t, i) => t.tiers.slice(0, u.tracks?.[i] ?? 0))
@@ -54,15 +48,12 @@ const trackMods = (u) => {
   if (mods === undefined) TIER_MODS.set(tiers, (mods = tiers.flatMap((t) => t.mods ?? [])))
   return mods
 }
-// The crosspath rule (DESIGN §2.6): whether a kind holding `tracks` may take the next tier on track `t`: up to
-// IV, but while one track stands past II the other stops at II.
+// The crosspath rule: whether a kind holding `tracks` may take the next tier on `t`: up to IV, but while one track
+// stands past II the other stops at II.
 export const canTrack = (tracks, t) => tracks[t] < 4 && (tracks[t] < 2 || tracks[1 - t] <= 2)
-// The kind's tracks with the next tier taken on `t`.
 export const nextTracks = (tracks, t) => tracks.map((tier, i) => (i === t ? tier + 1 : tier))
 
-// Its abilities in priority order, with the swaps and additions its tiers grant. A tier that replaces an ability the
-// list does not hold (its kind's, or one an earlier tier taught) is a content error, and says so: it would otherwise
-// write the new ability past the list's end and leave a hole in the kit.
+// Its abilities in priority order, with its tiers' swaps and additions; a tier replacing an ability the list lacks throws.
 export function abilitiesOf (u) {
   const list = unitDef(u.id).abilities.slice()
   for (const { ability: a } of tiersOf(u)) {
@@ -80,33 +71,25 @@ export function abilitiesOf (u) {
 
 export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unitDef(u.id).aura ?? null)
 
-// Its kind's Move (redesign.md §2.2), before mods: the def's `move` (every kind carries one, the Monarch's 0:
-// content.test.js). A stat path (statsOf `move`), so tiers, auras and statuses add to it.
-export const baseMove = (id) => unitDef(id).move
+// Its kind's Move before mods (every kind carries one, the Monarch's 0): a stat path tiers, auras and statuses add to.
+const baseMove = (id) => unitDef(id).move
 export const behaviourOf = (u) => unitDef(u.id).behaviour ?? 'walk'
-// Its arm (DESIGN §2.3): how far a melee blow with no range of its own reaches: the kind's `arm`, 1, or 2 for a
-// long-armed kind (Grave Ghoul, Mantis Reaper).
+// How far a melee blow with no range of its own reaches: the kind's `arm`, 1, or 2 for a long-armed kind.
 export const armOf = (u) => unitDef(u.id).arm ?? 1
-// How far a blow of its reaches (redesign.md §2.6): a melee blow its own range, else its kind's arm; a
-// ranged blow its range (one with none, an `all` shape's, the whole board).
+// How far a blow of its reaches: a melee blow its own range, else its arm; a ranged blow its range (none: the board).
 export const blowReach = (u, a) => (a.melee ? a.range ?? armOf(u) : a.range ?? Infinity)
-// Its reach, the union of its blows' (blowReach), from its footprint: never past the board (DEPTH), 0 with no blow (the
-// Monarch).
+// Its reach, the farthest of its blows', from its footprint: never past the board, 0 with no blow (the Monarch).
 export const reachOf = (u) => Math.min(DEPTH, Math.max(0, ...abilitiesOf(u).map(abilityDef).filter(isBlow).map((a) => blowReach(u, a))))
-// Whether it fights in melee alone: it has a blow, and every blow of its kit, its tiers' too, is melee (a long arm's
-// is: a Grave Ghoul's), so a formation puts it in front (run.js frontier, autoplay.js drafts).
 export const meleeOnly = (u) => {
   const blows = abilitiesOf(u).map(abilityDef).filter(isBlow)
   return blows.length > 0 && blows.every((a) => a.melee)
 }
 
-// The summons a piece's tiers bring to each battle (a tier's `summon`): shadows of its kind that rise beside it as
-// the battle begins and are gone when it ends (turns.js summon). A summon is a shadow, and brings none of its own.
+// The summons its tiers bring to each battle: shadows of its kind risen beside it for the battle, bringing none of theirs.
 export const summonsOf = (u) => tiersOf(u).reduce((n, t) => n + (t.summon ?? 0), 0)
-// The kind its summons are: its own, or for a trine the kind it was made of (its def's `summons`: content.js trineOf).
+// The kind its summons are: its own, or for a trine the kind it was made of (its def's `summons`).
 export const summonedOf = (u) => unitDef(u.id).summons ?? u.id
 
-// A stat path's keys, split once.
 const pathKeys = new Map()
 const keysOf = (path) => {
   let keys = pathKeys.get(path)
@@ -120,17 +103,11 @@ function setPath (o, path, value) {
   o[keys[keys.length - 1]] = value
 }
 
-// Modifiers { path, op: add|mul|set, v, pos?, who? } apply add → mul → set; a `pos` mod ('engaged': a foe next
-// to it, or 'free') only applies to a battle unit in that position (unit.pos), never outside a battle, and a
-// `who` mod ({ role?, kin? }, one or a list; `boss`, true or false) only to units it matches. The unit's own track tiers count
-// too. Several sets on one path: the largest wins, so order never matters. A unit's stats are HP, ATK, DEF and Move
-// (redesign.md §2.2), and the shares its blows and heals are bent by; `move` the tiles it may go in a turn (baseMove),
-// `cooldown.rate` how many turns its skills' cooldowns fall at each turn's end (1; Hasten's 2).
-//
-// Kept (STATS), as everything it reads is in the key: the unit's kind, level, tiers and position, each mod by identity
-// in order (the sums run in it), and TUNING.monarch.hp (the Monarch's baseStats; a test's tuning moves it). A mod is
-// never changed once made (content's, a battle's side mods, a status's), and a kind's def never in play. So the stats
-// are shared: read only. Dropped whole past STATS_CAP keys (a battle's side mods are made anew each battle).
+// Modifiers { path, op: add|mul|set, v, pos?, who? }, its tiers' and `mods`, apply add → mul → set (the largest set wins):
+// a `pos` mod ('engaged' or 'free') only to a battle unit in that position, a `who` mod ({ role?, kin?, boss? }) only
+// to units it matches. The stats: hp, atk, def, move, cooldown.rate, and the shares damage.dealt/taken, heal.given.
+// Kept by all they read (kind, level, tiers, position, each mod by identity, TUNING.monarch.hp), so shared and read
+// only: a mod is never changed once made. Dropped whole past STATS_CAP keys.
 const STATS = new Map()
 const STATS_CAP = 1 << 16
 const MOD_IDS = new WeakMap()
@@ -180,32 +157,23 @@ function statsFrom (unit, mods) {
   return Object.freeze(s)
 }
 
-// The stat paths a relic's mods may name that are the run's, not a unit's (redesign.md §2.13.3; run.js runStat reads
-// them): Command, the Monarch's max HP, the retinue's room, the free tiers a new kind joins with, the shares the prices
-// are cut by (a tier, tiers I–II besides, a recruit, a relic), the share more battles pay, and Arise's reach and tier.
-// Every other path is a unit's.
+// The stat paths a relic's mods may name that are the run's, not a unit's (runStat reads them).
 export const RUN_PATHS = ['run.command', 'run.monarchHp', 'run.roster', 'run.soulTiers', 'price.tier', 'price.lowTier', 'price.recruit', 'price.relic', 'essence.gain', 'arise.domain', 'arise.tier']
 export const isRunPath = (path) => RUN_PATHS.includes(path)
-// The mods the piece relics a soul holds (`relics`, ids) put on it (redesign.md §2.15): a unit's paths alone.
+// The mods the piece relics a soul holds put on it: a unit's paths alone.
 export const heldMods = (u) => (u.relics ?? []).flatMap((id) => relicDef(id).mods ?? []).filter((m) => !isRunPath(m.path))
 
 // A unit of a hidden role (the Monarch) counts toward no synergy.
 const hidden = (u) => !!ROLES[unitDef(u.id).role].hidden
 
-// What a piece counts toward its kin's and its role's synergies (the user's rule of 2026-10-16, redesign.md §7.7): a
-// trine (three of one kind fused, written or made: content.js `trineOf`, the Pale Court among them) as the three it was
-// made of, a trine of a trine as three too (its parts' own fusions are not unfolded further); every other piece once, a
-// mixed recipe's and a capstone's too. Either side's alike.
-export const TRINE_COUNT = 3
+// What a piece counts toward its kin's and role's synergies: a trine (three of one kind fused) as three, any other once.
+const TRINE_COUNT = 3
 export const synergyWeight = (u) => (unitDef(u.id).trineOf ? TRINE_COUNT : 1)
-// A piece and the summons its tiers bring (summonsOf), each summon as the kind it calls up (summonedOf: a trine's, the
-// kind it was made of), as the board will count them: for the readers that weigh a field before its battle.
+// A piece and the summons its tiers bring, each as the kind it calls up, as the board will count them before a battle.
 export const withSummons = (u) => [u, ...Array(summonsOf(u)).fill({ id: summonedOf(u) })]
 
-// These units' counts toward synergies, per kin and role: { kin: { id: n }, role: { id: n } }, each unit by its weight
-// (synergyWeight: a trine three). `also(u)`, where given, lists the roles a unit counts as besides its own (a holder
-// of Mimicry's, a Warden too: turns.js synergiesOf), a role not its own once each, a trine's too (the relic's, not its
-// parts').
+// These units' counts toward synergies by weight (synergyWeight): { kin: { id: n }, role: { id: n } }. `also(u)`, where
+// given, lists the roles a unit counts as besides its own (Mimicry's), each once.
 export function synergyCounts (units, also = null) {
   const c = { kin: {}, role: {} }
   for (const u of units) {
@@ -219,7 +187,6 @@ export function synergyCounts (units, also = null) {
   return c
 }
 
-// Synergies active for these units, from their counts per kin and role (synergyCounts).
 export function activeSynergies (units, also = null) {
   const c = synergyCounts(units, also)
   return SYNERGIES.filter((s) => synergyActive(s, c))
@@ -229,23 +196,21 @@ export const synergyActive = (syn, counts) => {
   for (const [axis, id, n] of synergyNeeds(syn)) if (!((counts[axis][id] ?? 0) >= n)) return false
   return true
 }
-// A synergy's needs as [axis, id, count], kin's then role's, made once a synergy (content's, never changed).
+// A synergy's needs as [axis, id, count], kin's then role's, made once a synergy.
 const NEEDS = new Map()
 export const synergyNeeds = (syn) => {
   let out = NEEDS.get(syn)
   if (!out) NEEDS.set(syn, (out = ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, n]) => [axis, id, n]))))
   return out
 }
-// Whether a synergy held holds its rule whole: one split (content.js `full`: Echo's) once its kin or role counts `full`,
-// below it its lesser form; any other wherever it holds.
+// Whether a synergy holds its rule whole: one split (`full`: Echo's) once its counts reach `full`, below it its lesser form.
 export const synergyFull = (syn, counts) =>
   !syn.full || ['kin', 'role'].every((axis) => Object.keys(syn.needs[axis] ?? {}).every((id) => (counts[axis][id] ?? 0) >= syn.full))
 
 // ── formation and camp ───────────────────────────────────────────────────────────────────────────
 
-// Where each side deploys: a grid COLS wide, slot = row × COLS + col, row 0 the front (nearest the
-// other side). The foes stand in a ROWS-deep formation with nothing in the way; the party in its
-// CAMP_ROWS-deep camp, whose walls (campDef(id).map, front row first) no soul may stand on.
+// Where each side deploys: a grid COLS wide, slot = row × COLS + col, row 0 the front (nearest the other side). The foes
+// stand in a ROWS-deep formation; the party in its CAMP_ROWS-deep camp, whose walls (campDef(id).map) no soul stands on.
 
 export const COLS = 7
 export const ROWS = 3
@@ -271,8 +236,7 @@ export const CENTRE_OUT = Array.from({ length: COLS }, (_, i) => (COLS - 1) / 2 
 export const isWall = (camp, slot) => campDef(camp).map[rowOf(slot)][colOf(slot)] === '#'
 export const campOpen = (camp, slot) => Number.isInteger(slot) && slot >= 0 && slot < CAMP_SLOTS && !isWall(camp, slot)
 
-// A grid to place on: how many rows it has, which slots a piece may stand on, and the size a piece stands at on it
-// (a foe piece always 1; one of yours its kind's and its tiers', sizeOf).
+// A grid to place on: its rows, which slots a piece may stand on, and a piece's size on it (a foe's always 1).
 export const FORMATION = { rows: ROWS, open: (slot) => Number.isInteger(slot) && slot >= 0 && slot < SLOTS, size: () => 1 }
 export const campGrid = (camp) => ({ rows: CAMP_ROWS, open: (slot) => campOpen(camp, slot), size: sizeOf })
 
@@ -292,8 +256,7 @@ export function nearestOpen (grid, slot, taken = new Set()) {
   return best
 }
 
-// Whether a unit matches { role?, kin?, boss? } (role and kin: one or a list; boss: whether it is a boss, or
-// either when unset).
+// Whether a unit matches { role?, kin?, boss? } (role and kin: one or a list; boss unset: either).
 function matches (u, need) {
   if (need.boss !== undefined && !!unitDef(u.id).boss !== need.boss) return false
   return ['role', 'kin'].every((axis) => {
@@ -302,12 +265,9 @@ function matches (u, need) {
   })
 }
 
-// Pieces onto `grid` (FORMATION or a campGrid) by their footprints (DESIGN §2.2): in order, each standing where its
-// footprint still fits keeps its slot; the rest (slot −1, clashing or walled) take the first slot theirs fits, the
-// front row first, its columns in `cols` order (the middle lane first by default), or −1 with none left (off the
-// field: for yours, the ossuary). A footprint fits where every cell of it is open on the grid and not in `taken`
-// (the cells others hold: the Monarch's seat, the pieces not being placed; it grows as these are). Mutates and
-// returns units.
+// Pieces onto `grid` by their footprints, in order: one whose footprint still fits keeps its slot; the rest take the
+// first that fits, front row first, columns in `cols` order, or −1 (for yours, the ossuary). A footprint fits on open
+// cells not in `taken`, which grows as these are placed. Mutates and returns units.
 export function autoPlace (units, { cols = CENTRE_OUT, grid = FORMATION, taken = new Set() } = {}) {
   const cells = (slot, u) => footprintSlots(slot, grid.size(u))
   const fitsAt = (slot, u) => cells(slot, u)?.every((c) => grid.open(c) && !taken.has(c)) ?? false
@@ -330,11 +290,8 @@ export function autoPlace (units, { cols = CENTRE_OUT, grid = FORMATION, taken =
 
 // ── the board ────────────────────────────────────────────────────────────────────────────────────
 
-// Both sides fight on one board, LANES wide and DEPTH deep: tile = y × LANES + x. The party's camp
-// fills y 0 to CAMP_ROWS − 1 (its rear row at y 0, its front facing up), then come TUNING.board.gap
-// open rows, then the foes' formation, front row first, to the far edge: the foes always attack from
-// above, over open ground. A lane is a column, on both sides. Distance counts diagonal steps as one,
-// so the 8 tiles around a unit are all at distance 1.
+// Both sides fight on one board, LANES wide and DEPTH deep: tile = y × LANES + x. The camp fills y 0 to CAMP_ROWS − 1
+// (its front facing up), then TUNING.board.gap open rows, then the foes' formation to the far edge. Distance is Chebyshev.
 
 export const LANES = COLS
 export const DEPTH = CAMP_ROWS + TUNING.board.gap + ROWS
@@ -351,7 +308,6 @@ export function deployTile (side, slot) {
   return tileAt(colOf(slot), y)
 }
 
-// The board tiles a camp's walls stand on.
 export const wallTiles = (camp) => [...Array(CAMP_SLOTS).keys()].filter((slot) => isWall(camp, slot)).map((slot) => deployTile('party', slot))
 
 export function neighbours (tile) {
@@ -367,9 +323,8 @@ export function neighbours (tile) {
 // neighbours(tile) for every tile, made once: the board never changes size.
 export const NEIGHBOURS = Array.from({ length: TILES }, (_, t) => neighbours(t))
 
-// The tiles a unit can step to from `tile` past `walls` (a Set of tiles): no wall, and no diagonal
-// squeezing past a wall's corner. Moves are symmetric, so this also lists where a step to `tile` can
-// come from.
+// The tiles a unit can step to from `tile` past `walls` (a Set): no wall, no diagonal squeezing past a wall's corner.
+// Moves are symmetric, so this also lists where a step to `tile` can come from.
 export function steps (tile, walls) {
   const x = tileX(tile)
   const y = tileY(tile)
@@ -377,9 +332,7 @@ export function steps (tile, walls) {
     (tileX(n) === x || tileY(n) === y || (!walls.has(tileAt(tileX(n), y)) && !walls.has(tileAt(x, tileY(n))))))
 }
 
-// An ability's own range: its `range`, else melee the 8 tiles around and anything else (an ally ability, an `all`
-// shape) the whole board. An ally ability reaches by this; a blow by blowReach (a melee one with no range of its own
-// reaches its kind's arm).
+// An ability's own range: its `range`, else 1 for melee and the whole board for anything else (a blow's: blowReach).
 export const rangeOf = (ability) => ability.range ?? (ability.melee ? 1 : Infinity)
 
 // The open cells of `camp` (slots) that a unit standing for good on cell `slot` (the Monarch on its seat) cuts
@@ -398,12 +351,11 @@ export function sealedBy (camp, slot) {
   return [...Array(CAMP_SLOTS).keys()].filter((c) => c !== slot && campOpen(camp, c) && !seen.has(deployTile('party', c)))
 }
 
-// ── lines of fire (redesign.md §2.19) ───────────────────────────────────────────────────────────
+// ── lines of fire ────────────────────────────────────────────────────────────────────────────────
 
-// The tiles strictly between two tiles, in order from the first: a supercover line, every tile the segment between
-// their centres touches; one through a corner touches both tiles beside it (the lower first), so no blow slips between
-// two diagonal blockers. Made once for every pair, a flat list: pair a × TILES + b's tiles are LINE_TILES from
-// LINE_AT[pair] up to LINE_AT[pair + 1] (the board never changes size; a line is at most 17 tiles).
+// The tiles strictly between two tiles, in order from the first: a supercover line, a corner touching both tiles beside
+// it (the lower first), so no blow slips between two diagonal blockers. Pair a × TILES + b's tiles are LINE_TILES from
+// LINE_AT[pair] up to LINE_AT[pair + 1].
 export const LINE_AT = new Int32Array(TILES * TILES + 1)
 export const LINE_TILES = (() => {
   const out = []
@@ -446,18 +398,17 @@ export const LINE_TILES = (() => {
   return Int8Array.from(out)
 })()
 
-// The tiles strictly between tiles a and b, in order from a (LINE_TILES'), as a list.
+// The tiles strictly between tiles a and b, in order from a.
 export const between = (a, b) => Array.from(LINE_TILES.subarray(LINE_AT[a * TILES + b], LINE_AT[a * TILES + b + 1]))
 
-// The ends of a line between two footprints (anchor `a` of side `sa`, `b` of `sb`): each the tile of its footprint
-// nearest the other (a 2×2 piece's nearest tile; lane and row each held within its footprint).
+// The ends of a line between two footprints (anchor `a` of side `sa`, `b` of `sb`): each its tile nearest the other.
 export function lineEnds (a, sa, b, sb) {
   const to = sb === 1 ? b : nearestIn(b, sb, a)
   return [sa === 1 ? a : nearestIn(a, sa, to), to]
 }
 const nearestIn = (t, s, p) => tileAt(Math.min(Math.max(tileX(p), tileX(t)), tileX(t) + s - 1), Math.min(Math.max(tileY(p), tileY(t)), tileY(t) + s - 1))
 
-// ── footprints and the seat (DESIGN §2.1–§2.2) ──────────────────────────────────────────────────
+// ── footprints and the seat ──────────────────────────────────────────────────────────────────────
 
 // A piece's size: 1, or 2 for a kind of size 2 (a fused kind's) or one holding a Colossus tier (`size: 2`).
 export const sizeOf = (u) => Math.max(unitDef(u.id).size ?? 1, ...tiersOf(u).map((t) => t.size ?? 1))
@@ -489,7 +440,7 @@ export function footprintSlots (slot, size = 1) {
 // The camp cells a run piece covers: its footprint from its anchor (footprintSlots); none in the ossuary (slot −1).
 export const cellsOf = (u) => (u.slot >= 0 ? footprintSlots(u.slot, sizeOf(u)) ?? [u.slot] : [])
 
-// The Monarch's seat: the camp's 'M' cell (DESIGN §2.1). It is pre-placed there and never moves.
+// The Monarch's seat: the camp's 'M' cell. It is pre-placed there and never moves.
 export function monarchSlot (camp) {
   const map = campDef(camp).map
   for (let r = 0; r < map.length; r++) {
@@ -500,16 +451,13 @@ export function monarchSlot (camp) {
 }
 export const isMonarchCell = (camp, slot) => Number.isInteger(slot) && slot >= 0 && slot < CAMP_SLOTS && campDef(camp).map[rowOf(slot)][colOf(slot)] === 'M'
 
-// Whether a piece of `size` anchored at `slot` stands wholly on open cells of `camp`, none the seat, none in
-// `taken` (a Set of cells other pieces hold).
+// Whether a piece of `size` anchored at `slot` stands wholly on open cells of `camp`, none the seat nor in `taken`.
 export function fits (camp, slot, size = 1, taken = new Set()) {
   const cells = footprintSlots(slot, size)
   return !!cells && cells.every((c) => campOpen(camp, c) && !isMonarchCell(camp, c) && !taken.has(c))
 }
 
-// The least Chebyshev distance between two footprints, a square of side `sa` at anchor `a` and one of `sb` at `b`
-// (the gap between them, 0 where they overlap); and between two units' footprints (a battle unit carries its size,
-// `u.size`; a run piece reads its kind and tiers).
+// The least Chebyshev distance between two footprints (squares of side `sa` at `a`, `sb` at `b`; 0 where they overlap).
 export function distanceBetween (a, sa, b, sb) {
   const dx = Math.max(0, tileX(b) - tileX(a) - sa + 1, tileX(a) - tileX(b) - sb + 1)
   const dy = Math.max(0, tileY(b) - tileY(a) - sa + 1, tileY(a) - tileY(b) - sb + 1)
@@ -517,15 +465,12 @@ export function distanceBetween (a, sa, b, sb) {
 }
 export const unitDistance = (a, b) => distanceBetween(a.tile, a.size ?? sizeOf(a), b.tile, b.size ?? sizeOf(b))
 
-// Whether two spans of lanes (or of rows), [a, a + sa) and [b, b + sb), overlap: two footprints sharing a lane (or
-// a row).
+// Whether two spans [a, a + sa) and [b, b + sb) overlap: two footprints sharing a lane (or a row).
 const overlap = (a, sa, b, sb) => a < b + sb && b < a + sa
 
-// Who a Shape touches, from a list of units (turns.js shape), every distance between footprints (unitDistance).
-// row: everyone on the primary's side across the board in its row (any row its footprint spans); column: everyone
-// in its lane (likewise); blast: the primary and everyone on its side next to it; all_allies: every ally within
-// range; all: everyone on the primary's side, within range of the actor if it has one. A unit counts once whatever
-// its footprint, and is in a row or lane if any tile of it is.
+// Who a Shape touches, every distance between footprints: row / column, everyone on the primary's side sharing its row /
+// lane; blast, the primary and its side next to it; all_allies, every ally in range; all, the primary's side (within the
+// actor's range, if it has one).
 export function expand (units, actor, ability, primary) {
   const living = livingOn(units, primary.side)
   const size = (u) => u.size ?? sizeOf(u)

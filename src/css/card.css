@@ -53,7 +53,7 @@
 /* Its reach and Move, a line under its stats (the rule on hover). */
 .uc-reach { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--fs-sm); color: var(--text); cursor: help; }
 .uc-reach .ico { color: var(--c-plan); }
-/* Its relic slot (redesign.md §2.15): the relic it holds and Take back, then the unheld ones it may take, each a
+/* Its relic slot: the relic it holds and Take back, then the unheld ones it may take, each a
    button. */
 .uc-relic { margin-top: 4px; }
 .rs-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

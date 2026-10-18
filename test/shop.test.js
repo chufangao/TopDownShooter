@@ -1,4 +1,4 @@
-// The Shop between battles (DESIGN Next, Step 3; run.js stockShop, restock, buy, shelfFusions): no room, but the
+// The Shop between battles: no room, but the
 // floor's shelf, drawn as the floor is arrived at and kept across its rooms, a slot bought filled again after the next
 // battle won, both on streams of the seed, so a replay stocks it the same; bought from in map, prep and reap, never in
 // battle; its fusions the fuse action itself. Functional: the rules, never a seed's outcome.

@@ -1,6 +1,6 @@
-// The forest (src/sim/forest.js; redesign.md §2.23's correction as regression trees): trees that may overrule today's
+// The forest (src/sim/forest.js;'s correction as regression trees): trees that may overrule today's
 // choice of a piece where they read another option the better by more than their margin; their inputs read alike from a
-// label row and in play (the rows' encoding, as §2.23's ranker read them, and teach.js's afterstates), their fitting
+// label row and in play (the rows' encoding, as's ranker read them, and teach.js's afterstates), their fitting
 // (src/sim/forestfit.js), forest.json's shape, and the measurement's plumbing (autoplay.js withForest, record's
 // `forest`, playerOf, pairedStats; teach.js's install). Functional only: what a forest decides and how it is read, never
 // how often it wins.
@@ -114,7 +114,7 @@ function battles (seed, n) {
   return { log: run.state.log, points }
 }
 
-// `fn()` with the forest given in use (none by default: today's expert), the one before put back after.
+// `fn` with the forest given in use (none by default: today's expert), the one before put back after.
 function playing ({ forest = null }, fn) {
   const had = forestModel()
   try {

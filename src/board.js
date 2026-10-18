@@ -1,12 +1,6 @@
-// The prep board: the battle's own board, drawn in Phaser under the Field tab (ui.js fieldEditor), so the army
-// is arranged on the very picture the battle plays on. It draws a picture of plain data that the editor builds
-// on every render (ui.js: the picture), with the plan laid over it (redesign.md §4): the roads as arrows, the selected
-// soul's reach (in the battle's look: engine.js paintReach), Arise's reach round the soul holding it, the crown on the Monarch's seat, each
-// synergy's glow, the relic each soul holds (engine.js growthMarks), and while a relic waits to be given the souls that
-// may take it; a 2×2 piece drawn large over its four tiles, a flyer hovering over its shadow. It tells the editor which
-// tile lies under the pointer, lifts a piece while it is dragged (a 2×2's four cells lit under it, red where they do
-// not fit), and when a battle starts with it on screen (a room entered by its key from the Field) fades into the battle
-// with everyone where they stood. It decides nothing: every rule, every tooltip and every action stays in ui.js.
+// The prep board: the battle's own board, drawn in Phaser under the Field tab, so the army is arranged on the very
+// picture the battle plays on. It draws a picture of plain data the editor builds on every render, tells it which tile
+// lies under the pointer, lifts a piece while it is dragged, and fades into a battle begun from it. It decides nothing.
 import Phaser from './vendor/phaser.js'
 import { LANES, DEPTH, TILES, ROWS, CAMP_ROWS, tileX, tileY, footprint } from './sim/unit.js'
 import {
@@ -18,16 +12,14 @@ import { sfx } from './sfx.js'
 
 const HIT_UP = 14                // a tile takes the pointer over its unit's body: centred this far above the feet
 const GROUND = 6                 // a tile's ground lies this far under its centre: the arrows run on it
-// A drag by touch: the piece is drawn LIFT CSS px above the finger (feet first), so the finger hides neither it
-// nor the tile it would land on, and the drop goes by its feet. Where a tile stands under ZOOM_UNDER CSS px tall
-// (a phone's whole board), the camera eases in on the camp for the drag and back out after (dragView).
+// A drag by touch: the piece is drawn `lift` CSS px above the finger, so the finger hides neither it nor its tile;
+// where a tile stands under `zoomUnder` CSS px tall, the camera eases in on the camp for the drag (dragView).
 const DRAG = { lift: 48, zoomUnder: 40, ms: 200, zoom: 1.8 }
 const TOUCH_SLOP = 8
-const REACH_FADE = 160           // ms the selected soul's reach fades in and out over (drawReach)
+const REACH_FADE = 160           // ms the selected soul's reach fades in and out over
 // The pointer of the last press (touch or not), read when a drag lifts.
 let pointerType = 'mouse'
-// Every tile becomes a point by the board's one transform (engine.js posOf: the board on its side); its ground lies
-// GROUND under it.
+// A tile's ground, GROUND under its point.
 const groundOf = (tile) => { const p = posOf(tile); return { x: p.x, y: p.y + GROUND } }
 // A road's step from tile `t` to `to` (its arrow), on the ground: where it starts, and its unit direction.
 function stepOn (t, to) {
@@ -59,9 +51,8 @@ export const board = {
     window.addEventListener('pointerdown', (ev) => { pointerType = ev.pointerType }, true)
   },
 
-  // Draws `picture` inside `stage`; starts the scene the first time, and wakes it when it slept (see update).
-  // A stage not on the page is drawn once it is, if that is still its last picture (an editor builds before
-  // its screen goes up); one that never arrives, or left (an old screen's), is ignored.
+  // Draws `picture` inside `stage`, starting or waking the scene. A stage not on the page yet is drawn once it is, if
+  // that is still its last picture; one that never arrives is ignored.
   show (stage, picture) {
     const w = { stage, picture }
     if (!stage.isConnected) {
@@ -81,14 +72,11 @@ export const board = {
 
   // The board tile under a viewport point, or null; while a 2×2 is dragged, the anchor of the footprint under it.
   tileAt: (x, y) => scene?.tileAt(x, y) ?? null,
-  // A tile's rect in viewport pixels, for its tooltip.
   rectOf: (tile) => scene?.rectOf(tile) ?? null,
   hover (tile) { if (scene) scene.hovered = tile },
-  // Moving: lift a board piece by its key (or a soul from the bench, { id, size }), follow the pointer with what a
-  // drop there would do (`preview`, see the editor's dragPreview), and put it down (the editor's next picture
-  // places it).
+  // Moving: lift a board piece by key (or a bench soul, { id, size }), follow the pointer with a drop's `preview`, put it down.
   lift (what, x, y) { scene?.lift(what, x, y) },
-  // `off`: the pointer is off the board (over the bench, the panel): the lifted piece hides (the editor shows it).
+  // `off`: the pointer is off the board: the lifted piece hides (the editor's ghost carries it).
   follow (x, y, preview, off = false) { scene?.follow(x, y, preview, off) },
   drop () { scene?.dropped() },
   // A purchase or a change to one unit (by key): a pop of light on it.
@@ -98,9 +86,8 @@ export const board = {
   // The keyboard's tile (a frame of its own while the board has focus), or null.
   focus (tile) { if (scene) scene.focused = tile },
 
-  // A battle starts: the prep picture stays up until the battle's is built under it, then glides to the battle's view
-  // and fades into it, so nobody seems to move. → a function to call with the battle scene, or null (no board on
-  // screen: the battle fades in on its own).
+  // A battle starts: the prep picture stays up until the battle's is built under it, then glides and fades into it.
+  // → a function to call with the battle scene, or null (no board on screen: the battle fades in on its own).
   leave () {
     const sc = scene
     if (!sc || sc.leaving || !want?.stage.isConnected || sc.sys.isSleeping()) return null
@@ -123,8 +110,8 @@ class PrepScene extends Phaser.Scene {
     starting = false
     this.actors = new Map() // key → { sprite, shadow, scale, size, chest, tile, u, parts, growth, pop, rise, lifted }
     this.picture = null
-    this.view = null        // the camera's mapping (see fit)
-    this.fitted = null      // the board's own view, the one fit chose; a drag by touch may ease in from it (dragView)
+    this.view = null        // the camera's mapping
+    this.fitted = null      // the board's own view, the one fit chose
     this.camAnim = null     // { from, to, t0, ms, back }: the camera easing between the two
     this.fitKey = ''
     this.hovered = null
@@ -135,7 +122,6 @@ class PrepScene extends Phaser.Scene {
     this.into = null
     this.beat = { v: 0 }
     this.tweens.add({ targets: this.beat, v: 1, duration: 750, yoyo: true, repeat: -1, ease: 'Sine.InOut' })
-    // The floor, the vignette, the two daises and the seam between them, and the motes: the battle's own.
     drawGround(this)
     this.wallArt = { key: null, art: [] }
     this.tileG = this.add.graphics().setDepth(-400)
@@ -143,7 +129,7 @@ class PrepScene extends Phaser.Scene {
     this.reachG = this.add.graphics().setDepth(-396)
     this.reachKey = ''
     this.domG = this.add.graphics().setDepth(-395)
-    // While a piece is dragged: the domain lit (pulsing, see update) and the ground outside it dimmed.
+    // While a piece is dragged: the domain lit (pulsing) and the ground outside it dimmed.
     this.glowG = this.add.graphics().setDepth(-394)
     this.dimG = this.add.graphics().setDepth(-393)
     this.seatG = this.add.graphics().setDepth(-388) // the gold ring on the Monarch's seat
@@ -165,11 +151,10 @@ class PrepScene extends Phaser.Scene {
 
   // ── the picture ──────────────────────────────────────────────────────────────────────────────
 
-  // p: { walls, units, domain: { centre, size, r } (Arise's reach round its holder's footprint, null with no holder
-  // fielded), reach: { centre, size, r } (the selected soul's reach round its footprint, null with none), roads (each
-  // tile's arrow, field().arrow), seat (the Monarch's tile), drop (the anchors a drag may land on), dropSize (the dragged
-  // piece's size), selKey }. A unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp, maxHp, lvl, tracks,
-  // relics, monarch, fallen, sel, glow (colours), lit, offer (it may take the relic readied), flies (hovers) }.
+  // p: { walls, units, domain and reach ({ centre, size, r }, or null), roads (each tile's arrow), seat (the Monarch's
+  // tile), drop (the anchors a drag may land on), dropSize, selKey }. A unit: { key, id, tile (its anchor), size (1, or
+  // 2: a 2×2), side, hp, maxHp, lvl, tracks, relics, monarch, fallen, sel, glow (colours), lit, offer (it may take the
+  // relic readied), flies }.
   draw (p) {
     const old = this.picture
     this.picture = p
@@ -207,7 +192,6 @@ class PrepScene extends Phaser.Scene {
     this.fitKey = ''
   }
 
-  // Where an actor's feet stand: its tile's, or for a 2×2 the middle of its four (engine.js posAt).
   homeOf (a) {
     return posAt(a.tile, a.fp)
   }
@@ -226,8 +210,7 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
-  // A rune under every open tile, in its side's colour; brighter where someone stands (each tile of a 2×2's), and
-  // where a dragged piece may go (`drop`: a 2×2's at the middle of the four cells it would take).
+  // A rune under every open tile in its side's colour, brighter under a piece and where a dragged piece may go.
   drawTiles (p) {
     const g = this.tileG.clear()
     const walls = new Set(p.walls)
@@ -254,8 +237,7 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
-  // The roads (DESIGN §2.4): on every tile a road reaches, a small chevron toward the next tile on it, in the
-  // foes' red, faint: terrain, under everything. `arrow`: each tile's next tile (−1: none, the Monarch's own).
+  // The roads: on every tile a road reaches, a faint chevron toward the next. `arrow`: each tile's next (−1: none).
   drawRoads (arrow) {
     const g = this.roadG.clear()
     if (!arrow) return
@@ -269,8 +251,7 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
-  // The selected soul's reach round its footprint, in the foes' red, the box the battle draws round a selected piece:
-  // it fades in as a soul is selected, and out as it is let go of (at once under reduced motion).
+  // The selected soul's reach round its footprint, as the battle draws it; it fades in and out (at once if reduced).
   drawReach (reach) {
     const key = reach ? `${reach.centre}:${reach.size}:${reach.r}` : ''
     if (key === this.reachKey) return
@@ -287,8 +268,7 @@ class PrepScene extends Phaser.Scene {
     if (ms) this.tweens.add({ targets: g, alpha: 1, duration: ms })
   }
 
-  // Arise's reach (the domain) round the footprint of the soul holding it, where it starts the battle (redesign.md
-  // §2.15). While a piece is dragged it lights up and the ground outside it dims.
+  // Arise's reach round its holder's footprint; while a piece is dragged it lights up and the ground outside it dims.
   drawDomain () {
     const g = this.domG.clear()
     const glow = this.glowG.clear()
@@ -309,16 +289,14 @@ class PrepScene extends Phaser.Scene {
         .fillRect(-far, -far, 2 * far, box.t + far).fillRect(-far, box.b, 2 * far, far)
         .fillRect(-far, box.t, box.l + far, h).fillRect(box.r, box.t, far, h)
     }
-    // Just outside the box, as the battle's (engine.js domainLabel), over the units, at the corner that covers
-    // fewest of their bodies and marks (placeDomain).
+    // Just outside the box, at the corner that covers fewest of the units' bodies and marks.
     this.domLabel = domainLabel(this, d.r).setDepth(7900)
     this.domBox = box
     legible(this.domLabel, this.labelZ, 'word')
     this.placeDomain()
   }
 
-  // The crown on the Monarch's seat (DESIGN §4): the camp's own cell, fixed, which nothing else may take. A gold
-  // ring on its ground and a crown at the cell's front corner, clear of the Monarch's bars.
+  // The Monarch's seat, which nothing else may take: a gold ring on its ground and a crown at its front corner.
   drawSeat (tile) {
     const g = this.seatG.clear()
     const c = this.crownG.clear()
@@ -336,9 +314,7 @@ class PrepScene extends Phaser.Scene {
 
   // ── units ────────────────────────────────────────────────────────────────────────────────────
 
-  // An actor: its picture (a 2×2's BIG× larger, at the middle of its four tiles; a trine's three as one, engine.js
-  // artOf), its pool of shadow on the ground (under the whole group: `wide`, its width for its height), and for a
-  // flyer the HOVER it floats at over that shadow (update).
+  // An actor: its picture (a 2×2's BIG× larger), its pool of shadow (`wide` for a group), a flyer's HOVER over it.
   addActor (u, appear) {
     const art = artOf(this, u.id)
     const fp = u.size ?? 1
@@ -365,9 +341,8 @@ class PrepScene extends Phaser.Scene {
     this.tweens.add({ targets: all, alpha: 0, duration: 220, onComplete: () => all.forEach((o) => o.destroy()) })
   }
 
-  // A unit's marks, made anew from its picture entry: its bars, its growth (growthMarks, as in battle: its tiers),
-  // the glow of each synergy it counts toward, and the selection. Each part keeps an offset from the feet
-  // and a layer: 'under' the unit, 'ground' with its bars, 'mark' and 'top' over everyone.
+  // A unit's marks, made anew from its picture entry: its bars, its growth, its synergies' glow and the selection; each
+  // part keeps an offset from the feet and a layer ('under' the unit, 'ground' with its bars, 'mark' and 'top' over all).
   dress (a) {
     for (const x of a.parts) x.o.destroy()
     for (const o of a.growth?.parts ?? []) o.destroy()
@@ -381,8 +356,7 @@ class PrepScene extends Phaser.Scene {
     const k = a.size * a.big
     const ring = (w, colour, alpha, line = 2) => part(this.add.ellipse(0, 0, w * k * a.wide, w * 0.3 * k).setStrokeStyle(line, colour, alpha), 0, 4, 'under')
     const glow = (w, colour, alpha) => part(this.add.image(0, 0, 'glow').setTint(colour).setBlendMode(Phaser.BlendModes.ADD).setDisplaySize(w * k * a.wide, w * 0.32 * k).setAlpha(alpha), 0, 4, 'under')
-    // The synergies it counts toward (DESIGN §2.7): a ring a synergy in its colour, one inside the other, over
-    // a soft pool of the first's light; a partner of the selected piece (or of a chip pressed) glows bright.
+    // A ring a synergy it counts toward, one inside the other; a partner of the selected piece (or a chip's) glows bright.
     const syn = u.glow ?? []
     if (syn.length) {
       glow(u.lit ? 120 : 92, hex(syn[0]), u.lit ? 0.85 : 0.4).setData(u.lit ? 'pulse' : 'still', true)
@@ -390,8 +364,7 @@ class PrepScene extends Phaser.Scene {
     }
     // A soul that may take the relic readied in the Relics strip: a pulsing ring in the relics' orange.
     if (u.offer) ring(84, RELIC, 0.95, 3).setData('pulse', true)
-    // The selected piece, found at a glance while its panel is open: a bright pulsing ring in a pool of light, a
-    // ripple spreading from it (update), and a bobbing chevron over its head (placed first: layoutMarks).
+    // The selected piece: a bright pulsing ring in a pool of light, a ripple, and a bobbing chevron over its head.
     if (u.sel) {
       glow(124, SOUL, 0.6).setData('pulse', true)
       ring(76, SOUL, 1, 4).setData('pulse', true)
@@ -402,26 +375,21 @@ class PrepScene extends Phaser.Scene {
       chev.lineStyle(2, INK, 0.95).strokeTriangle(-9, -11, 9, -11, 0, 0)
       part(legible(chev.setData('size', 6), this.labelZ, 'num'), 0, -a.chest * 2.95 - 4 - a.hover, 'top', { move: 0, bob: true, box: [-11, -17, 11, 5] })
     }
-    // The bars: the Monarch's thicker, in its gold frame.
     const crowned = !!u.monarch
     part(this.add.rectangle(0, 0, BAR + 2, crowned ? 12 : 10, INK, 0.92).setStrokeStyle(1, crowned ? CROWN : INK), 0, BAR_DROP + 2, 'ground', { keep: true })
     const f = u.maxHp ? Math.max(0, u.hp / u.maxHp) : 1
     if (f > 0) part(this.add.rectangle(0, 0, BAR * f, crowned ? 6 : 4, PARTY).setOrigin(0, 0.5), -BAR / 2, BAR_DROP, 'ground', { z: 0.2, keep: true })
-    // Souls wear their growth as in battle: their tiers.
     if (!u.monarch) a.growth = growthMarks(this, u)
   }
 
-  // A unit's body as drawn at its tile (its picture's middle, from its head down to its bars; a flyer's head
-  // higher by its hover), in world px.
+  // A unit's body as drawn at its tile (its head down to its bars; a flyer's higher), in world px.
   bodyOf (a, at = this.homeOf(a)) {
     const s = a.sprite
     const w = s.displayWidth * 0.3
     return { l: at.x - w, r: at.x + w, t: at.y - s.displayHeight * FEET * 0.92 - a.hover, b: at.y + BAR_DROP + 6 }
   }
 
-  // The marks that carry print, laid out together so none covers another: the selected piece's first, then
-  // front to back, each mark (by its `move`) nudged the least way clear of every one placed before it, and of
-  // the domain's caption.
+  // The marks that carry print, laid out so none covers another: the selected piece's first, then front to back.
   layoutMarks () {
     const placed = []
     const units = [...this.actors.values()].sort((a, b) => (b.u.sel ? 1 : 0) - (a.u.sel ? 1 : 0) || this.homeOf(b).y - this.homeOf(a).y)
@@ -467,8 +435,7 @@ class PrepScene extends Phaser.Scene {
     this.markRects = placed.filter((r) => r !== dom)
   }
 
-  // The domain's caption, outside its box where it covers fewest of the units' bodies and of `marks` (world
-  // rects; the last layout's when not given), inside the board's own box. → its rect.
+  // The domain's caption, where it covers fewest of the units and of `marks`, inside the board's box. → its rect.
   placeDomain (marks = this.markRects ?? []) {
     const t = this.domLabel
     if (!t?.active || !this.domBox) return null
@@ -477,11 +444,10 @@ class PrepScene extends Phaser.Scene {
   }
 
   update (time) {
-    // Asleep while its editor is off screen (the Map, Shop or Codex tab, the spoils): the next show wakes it.
+    // Asleep while its editor is off screen: the next show wakes it.
     if (!this.leaving && !want?.stage.isConnected) return this.rest()
     const v = reducedMotion() ? 0.8 : this.beat.v // the selection pulses; held still if reduced
-    // While moving a piece: the lifted piece hides off the board (the editor's ghost carries it over the page),
-    // and a piece the drop would displace dims.
+    // While moving a piece: the lifted piece hides off the board, and a piece the drop would displace dims.
     const drag = this.drag
     const seen = (a) => a.lifted && drag?.off ? 0 : drag?.preview?.swap?.key === a.key ? 0.35 : 1
     for (const a of this.actors.values()) {
@@ -530,9 +496,7 @@ class PrepScene extends Phaser.Scene {
     this.sys.sleep()
   }
 
-  // Redrawn every frame: the tile under the pointer, the keyboard's tile, and while a piece is moved the cells the
-  // drop would take (a 2×2's four), green where they fit and red where they do not (all red, the bad ones
-  // brightest, where the drop is refused).
+  // Redrawn every frame: the tile hovered, the keyboard's, and a drag's cells, green where they fit and red where not.
   live (v) {
     const g = this.liveG.clear()
     const p = this.picture
@@ -579,9 +543,7 @@ class PrepScene extends Phaser.Scene {
 
   // ── the camera ───────────────────────────────────────────────────────────────────────────────
 
-  // Fits the board's world box (the battle's, engine.js BOX: the board, with room over its top lane for heads) inside
-  // the stage's rect, in the viewport, so a scroll or a resize carries it along. Checked every frame; it only moves
-  // when something did.
+  // Fits the board's world box inside the stage's viewport rect; checked every frame, it moves only when something did.
   fit () {
     const w = want
     // A drag's eased-in view holds until the camera is back on the board's own (dragView).
@@ -614,10 +576,8 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
-  // A drag by touch on a board whose tiles stand under DRAG.zoomUnder CSS px tall (a phone's): the view it eases in
-  // to, the point under the finger (fx, fy) kept under it: your camp and the open ground with their front row's
-  // feet as large as the stage holds (at most DRAG.zoom×), kept inside the stage as far as it fits. Null when that
-  // would hardly zoom.
+  // A drag by touch on a board whose tiles stand under DRAG.zoomUnder CSS px: the view it eases in to, the finger's
+  // point (fx, fy) kept under it, the camp as large as the stage holds (at most DRAG.zoom×). Null if it would hardly zoom.
   dragView (fx, fy) {
     const f = this.fitted
     if (!f || !want?.stage.isConnected || TILE_H * f.z >= DRAG.zoomUnder) return null
@@ -631,8 +591,7 @@ class PrepScene extends Phaser.Scene {
     return this.keepIn(v, box, r)
   }
 
-  // View v with world box `box` kept to the stage's rect `r`, each way: inside it where the box is the smaller,
-  // else with no gap at either of its edges.
+  // View v with `box` kept to the stage's rect `r`: inside it where the box is smaller, else with no gap at its edges.
   keepIn (v, box, r) {
     const keep = (lo, hi, m, half, o, a, b) => {
       const [s0, s1] = [o + (lo - m) * v.z + half, o + (hi - m) * v.z + half]
@@ -650,8 +609,7 @@ class PrepScene extends Phaser.Scene {
     this.view = v
   }
 
-  // The camera eases from where it stands to view `to` (DRAG.ms; at once under reduced motion); `back`: to the
-  // board's own view, after which fit takes over again.
+  // The camera eases to view `to` (DRAG.ms; at once if reduced); `back`: to the board's own view, then fit resumes.
   easeTo (to, back = false) {
     this.camAnim = { from: this.view, to, t0: this.time.now, ms: reducedMotion() ? 0 : DRAG.ms, back }
   }
@@ -686,12 +644,8 @@ class PrepScene extends Phaser.Scene {
     return { x: v.ox + (x - v.mx) * v.z + v.w / 2, y: v.oy + (y - v.my) * v.z + v.h / 2 }
   }
 
-  // The tile under a viewport point. A unit's drawn body takes the point first, so a press on a head picks that
-  // unit, not the tile behind it: of the bodies that hold it, the one standing on the cell under the point (a
-  // 2×2's head reaches over the lane behind it, whose own piece keeps its cell), else the front-most; then the
-  // tile whose cell holds it. While a piece is moved by touch the drop goes by its feet, drawn DRAG.lift above the
-  // finger (follow); a 2×2's by the anchor of the four cells round its feet (its lower right one on the screen:
-  // unit.js footprint).
+  // The tile under a viewport point. A unit's drawn body takes the point first (the one standing on the cell under it,
+  // else the front-most), then the tile whose cell holds it; while a piece is dragged by touch, the drop goes by its feet.
   tileAt (x, y) {
     if (!this.view) return null
     const feet = !!this.drag?.piece && this.drag.touch
@@ -712,8 +666,7 @@ class PrepScene extends Phaser.Scene {
       }
       if (best) return best.a.tile
     }
-    // A 2×2 dragged: its feet (under the finger by touch, a chest below the pointer by mouse) stand at the middle
-    // of its four cells.
+    // A 2×2 dragged: its feet stand at the middle of its four cells.
     const size = this.drag?.piece ? this.drag.size ?? 1 : 1
     if (size > 1) {
       const fy = (feet ? p.y : p.y + this.drag.chest) - FOOT
@@ -763,7 +716,7 @@ class PrepScene extends Phaser.Scene {
     this.follow(x, y, null)
   }
 
-  // The lifted piece follows the pointer (its feet under it); a new `preview` ({ tile, size, cells, bad, ok, swap }) shows a piece it would displace, ghosted where it would go (live draws the cells).
+  // The lifted piece follows the pointer; a new `preview` ({ tile, size, cells, bad, ok, swap }) ghosts a piece it displaces.
   follow (x, y, preview, off = this.drag?.off) {
     const d = this.drag
     if (!d?.piece || !this.view) return
@@ -791,8 +744,7 @@ class PrepScene extends Phaser.Scene {
     }
   }
 
-  // A drag ends: the lifted piece goes home (the editor's next picture places it), and an eased-in camera eases
-  // back to the board's own view.
+  // A drag ends: the lifted piece goes home, and an eased-in camera eases back to the board's own view.
   dropped () {
     const d = this.drag
     if (!d) return
@@ -811,10 +763,8 @@ class PrepScene extends Phaser.Scene {
 
   // ── into the battle ──────────────────────────────────────────────────────────────────────────
 
-  // The battle is built under this picture: it plays one frame (its units take their size) and holds, the prep
-  // marks fade, and once that heavy first frame is past the camera glides to the battle's view and the board
-  // fades into the battle's own, which starts as it shows. The battle may end at any moment of it (Skip): then
-  // the handoff stops where it is, and so does this scene; a stopped battle is never resumed.
+  // The battle is built under this picture and holds a frame; the prep marks fade, the camera glides to the battle's
+  // view and the board fades into it. The battle may end at any moment of it (Skip): then the handoff stops where it is.
   handoff (battle) {
     if (!this.leaving || !this.sys.isActive()) return
     if (this.drag) this.dropped()
@@ -844,8 +794,7 @@ class PrepScene extends Phaser.Scene {
     this.into = h
   }
 
-  // Called each frame while handing off: two frames after the battle held, the glide, then the fade. Under
-  // reduced motion there is no glide: the camera cuts to the battle's view and the board cross-fades into it.
+  // Each frame while handing off: two frames after the battle held, the glide, then the fade (a cut if reduced).
   glide () {
     const h = this.into
     if (h?.step !== 'held' || ++h.frames < 2) return
@@ -869,8 +818,7 @@ class PrepScene extends Phaser.Scene {
     cam.once('camerazoomcomplete', fade)
   }
 
-  // The handoff ends, done or cut short (the battle stopped under it, or never came): this scene stops, and
-  // starts afresh (not leaving) the next time a board is shown.
+  // The handoff ends, done or cut short: this scene stops, and starts afresh the next time a board is shown.
   abort (h = this.into) {
     if (h !== this.into) return
     h?.off()

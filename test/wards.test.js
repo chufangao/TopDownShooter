@@ -1,4 +1,4 @@
-// The one DEF ward (DESIGN Next, Step 3: the simplicity audit's one cut, 2026-10-18): Barkskin and Veiled merged into
+// The one DEF ward: Barkskin and Veiled merged into
 // Barkskin, DEF ×1.25; every ability, tier, relic or rule that laid Veiled lays Barkskin. Functional: the records.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

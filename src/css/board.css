@@ -91,7 +91,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
    a card's class (style.css .offer: at least 250 tall) and would stretch the cell to it. */
 .bench .cell.gift { box-shadow: 0 0 0 3px var(--c-relic), 2px 3px 0 3px var(--ink); }
 
-/* The Relics strip beside the ossuary (redesign.md §2.15): the piece relics held by no soul, each a button that readies
+/* The Relics strip beside the ossuary: the piece relics held by no soul, each a button that readies
    it to give; a soul tapped then takes it. Hidden while none waits. */
 .relic-strip {
   flex: none; display: flex; flex-direction: column; gap: 4px; padding: 4.5px 6.5px 6.5px; border-radius: var(--r-panel);
@@ -149,8 +149,8 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .bs-crown.low .bs-hpbar > span { background: #ff6a7a; box-shadow: inset 0 -2.5px 0 #b03a4c; }
 @media (prefers-reduced-motion: reduce) { .bs-hpbar > span, .bs-rule { transition: none; } }
 
-/* ── the turn (redesign.md §4): the turn's count, the wave counter, the selected piece's orders, End Turn ──────── */
-/* A count, never a clock (§2.10): the turn's number holds its width, so the wave counter beside it never jumps. */
+/* ── the turn: the turn's count, the wave counter, the selected piece's orders, End Turn ──────── */
+/* A count, never a clock: the turn's number holds its width, so the wave counter beside it never jumps. */
 .turn-n { color: var(--bright); font-weight: 600; }
 .turn-n b { min-width: 7ch; font-variant-numeric: tabular-nums; }
 /* When the panel runs short the synergies give way first, then the selected piece's orders (each scrolling inside
@@ -188,7 +188,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .sel-line .aim-line .screened { color: #d8d0ff; }
 .battle-panel .end-turn { width: 100%; }
 .battle-screen.busy .end-turn, .end-turn[aria-disabled="true"] { opacity: .55; }
-/* Arise, a holder's skill (redesign.md §2.15): armed, in its domain's green. */
+/* Arise, a holder's skill: armed, in its domain's green. */
 .act-btn.arise .act-name { color: var(--c-domain); }
 .act-btn.arise.armed { background: #2c4a12; box-shadow: inset 0 0 0 2px var(--c-domain), inset 0 -4px 0 #1a2e0a, var(--drop-sm); }
 .act-btn.arise.armed:hover:not([aria-disabled]) { background-color: #355916; }

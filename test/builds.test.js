@@ -1,4 +1,4 @@
-// The harness (autoplay.js --builds and --pool, redesign.md §3, §6 Step 0): a run committed to an archetype, the
+// The harness (autoplay.js --builds and --pool): a run committed to an archetype, the
 // difficulty's scale, the pool's table and the report's shape. Functional only: what a committed run plays toward,
 // never how well it does.
 import { test } from 'node:test'
@@ -156,7 +156,7 @@ test('the pool\'s table: each floor\'s draws sum to one, a walk\'s chances to it
   }
   assert.deepEqual(t.recipes.map((r) => r.id), FUSION_LIST.map((r) => r.id))
   // A recipe's reach its parts' least by the end of floor 2, a fused part's its own recipe's (a capstone's, a trine of
-  // a fused kind's: redesign.md §4.1).
+  // a fused kind's).
   const reach = (id) => t.recipes.find((x) => x.result === id).reach
   for (const r of t.recipes) {
     assert.equal(r.parts.length, Object.keys(fusionDef(r.id).needs).length)

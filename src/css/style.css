@@ -3,7 +3,7 @@
    alone); body text stays in the system's own sans. main.js waits for it before the board draws a label. */
 @font-face {
   font-family: "Fredoka"; font-style: normal; font-weight: 500 700; font-display: swap;
-  src: url("assets/fonts/fredoka-latin.woff2") format("woff2");
+  src: url("../assets/fonts/fredoka-latin.woff2") format("woff2");
 }
 :root {
   color-scheme: dark;
@@ -155,7 +155,7 @@ b { font-weight: 600; color: var(--bright); }
 }
 .screen::before {
   content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .5;
-  background: url("assets/props/floor.svg") 0 0 / 256px 256px;
+  background: url("../assets/props/floor.svg") 0 0 / 256px 256px;
 }
 .screen:has(.board-stage)::before { content: none; }
 .screen > * { position: relative; }
@@ -549,7 +549,7 @@ b { font-weight: 600; color: var(--bright); }
 .o-legendary .offer-price { color: #e2d4ff; }
 .tier-tag, .trig-tag { display: inline-block; align-self: flex-start; margin: 2px 0; font: 600 var(--fs-sm) var(--display); padding: 0 8px; border-radius: 6px 4px 7px 5px; rotate: -1.5deg; }
 .tier-tag { background: color-mix(in srgb, var(--rt, var(--c-relic)) 22%, var(--sunk)); color: var(--rt, var(--c-relic)); }
-/* A relic's kind (redesign.md §2.15): Run (works unheld) or Held (a piece relic). */
+/* A relic's kind: Run (works unheld) or Held (a piece relic). */
 .kind-tag { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 6px 4px 7px 5px; font: 700 var(--fs-xs) var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--text); background: var(--sunk); border: 2px solid var(--ink); rotate: 1.5deg; }
 .trig-tag { background: #45230f; color: var(--c-relic); }
 

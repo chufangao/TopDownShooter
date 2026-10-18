@@ -1,20 +1,10 @@
-// The expert's plan (redesign.md §2.18): what your pieces do together, read off the board and kept across turns, never
-// played out (§2.17: no turn of the foes is played and the camp's policy is never called). Four reads, made once a
-// turn (readPlan) and read by each piece's options as features (policy.js features):
-//   the plan       hold (a line on the roads into the Monarch: let them come into overlapping fire), focus (go and
-//                  fell one key foe), push (take the fight to foes that will not come) or protect (close about the
-//                  Monarch): the tree (expert.js TREES.plan) and the weights (TUNING.expert.plan.choose) pick one, and
-//                  it is kept on the battle (battle.plan) until a trigger changes it: a wave enters, a piece of yours
-//                  falls, the Monarch comes into the foes' reach, the camp's patience runs long, the plan's goal is met
-//                  or fails. So the pieces do not dither, and a walk may span turns.
-//   the formation  roles to tiles for the plan, read off the board (blockers on the roads' chokes, shooters behind
-//                  them, healers beside them, a piece that strikes flyers where the air road comes in, strikers about a
-//                  target), pieces to roles by an assignment (the Hungarian method on a fit score), each piece walking
-//                  to its tile over the turns it takes. Prep deploys by its first answer (deployment).
-//   the kill list  which foes your pieces can fell this turn together, by exact arithmetic on your own blows (no dice),
-//                  and who strikes whom in what order (killList).
-//   the forecast   where each foe will likely stand next turn: its road and Move bound it, its temperament (the
-//                  bestiary's way line) says how far it comes (forecast).
+// The expert's plan: what your pieces do together, read off the board once a turn (readPlan) and kept across turns,
+// never played out; each piece's options read it as features (policy.js features). Four reads:
+//   the plan       hold, focus (one key foe), push (at foes that will not come) or protect (close about the Monarch),
+//                  picked by expert.js TREES.plan and TUNING.expert.plan.choose, kept until a trigger fires (triggerOf)
+//   the formation  roles to tiles for the plan, pieces to roles by assignment (formation); prep deploys by it (deployment)
+//   the kill list  the foes your pieces can fell together this turn, and who strikes whom in what order (killList)
+//   the forecast   where each foe will likely stand next turn (forecast)
 import { TUNING } from '../tuning.js'
 import {
   alive, isBlow, footprint, tileX, tileY, tileAt, distance, distanceBetween, blowReach, statsOf, abilitiesOf, lineEnds, between, LINE_AT, LINE_TILES, TILES, LANES,
@@ -33,13 +23,9 @@ const NOBODY = new Set()
 
 // ── the forecast ─────────────────────────────────────────────────────────────────────────────────
 
-// Where each living foe will likely stand next turn, by rule: its road and its Move bound it (turns.js roadAhead: a held
-// tile stops it), and its temperament, as the bestiary's way line tells it, picks how far. The bold (aggression ≥ 1)
-// come to the edge of your pieces: as far as lets them strike one of yours (the Monarch too), else to the edge of your
-// reach; and once the camp's patience has run TUNING.expert.plan.impatient turns as the counts show it, every foe comes
-// as far as it can. A keeper (aggression 0) keeps behind its comrades, out of your reach where it can. The rest are
-// wary: the farthest tile your side could not strike next turn (`map`, the danger map for the foes), else the least
-// struck. → { at: Map uid → tile, bold: Set of the uids that come on (the bold, or all once impatient) }
+// Where each living foe will likely stand next turn, along its road within its Move: the bold (aggression ≥ 1) as far
+// as lets them strike one of yours, else to your reach's edge; a keeper (0) behind its comrades; the rest wary (`map`,
+// the foes' danger map); all as far as they can once patience reaches plan.impatient. → { at: Map uid → tile, bold: Set }
 export function forecast (battle, sit, map = danger(battle, 'foe')) {
   const impatient = (sit?.patience ?? battle.turn - battle.foeIn) >= T().impatient
   const at = new Map()
@@ -87,14 +73,10 @@ function wary (spots, hurt) {
 
 // ── the roads' chokes ────────────────────────────────────────────────────────────────────────────
 
-// The chokes of `road` (field.js field: the arrows make a tree into the Monarch's seat) for foes walking from `sources`
-// (tiles): for each road into the seat a source's walk takes (by the tile beside the seat it comes in by, its entry),
-// the chain of tiles out from the entry where one piece standing holds every source that comes that way (where no road
-// splits and none of those foes stands), never more than `cap` steps from the seat, and of it the tile `hold` picks
-// (given the chain, from the entry out, and the indices of the sources that come in by it; → an index), else the
-// farthest. A piece on a road holds every foe whose walk crosses it (a foe never passes through a piece, nor routes
-// round one: turns.js roadAhead). → [{ tile, sources (how many it holds), front (the tiles just before it, where the
-// foes it holds would wait) }], by the tile it comes in by.
+// The chokes of `road` (a field: arrows into the Monarch's seat) for foes walking from `sources`: for each road into the
+// seat, of the chain of tiles out from its entry where one piece holds every source that comes that way (no split, no
+// foe on it, within `cap` steps), the tile `hold(chain, sources' indices)` picks, else the farthest.
+// → [{ tile, sources (how many it holds), front (the tiles just before it, where those foes wait) }], by entry tile
 export function chokes (road, sources, cap, hold = null) {
   const count = new Map()
   const by = new Map()
@@ -125,12 +107,8 @@ export function chokes (road, sources, cap, hold = null) {
   return out
 }
 
-// The line out of range (redesign.md §2.18, A): the `hold` chokes takes on a road. Of its chain, from the entry out,
-// the first tile (`ok` to stand on) where a piece standing keeps every foe that comes in by that road out of the
-// Monarch's reach (exposure 0: from no tile of its road short of the piece does a blow of its reach the Monarch, a
-// blow that keeps to a line not where the piece stands on that line, redesign.md §2.19); where none does, the
-// farthest of those the least of their blows reaches it from. `src` (roadSources): the sources' tiles and the foes on
-// each.
+// The line out of range, as chokes' `hold`: the first tile of the chain (`ok` to stand on) where a piece keeps every foe
+// of that road out of the Monarch's reach (exposure 0), else the farthest of the least exposed. `src`: roadSources'.
 function outOfRange (battle, road, src, ok) {
   const m = battle.monarch
   return (chain, from) => {
@@ -150,9 +128,8 @@ function outOfRange (battle, road, src, ok) {
   }
 }
 
-// The Monarch's exposure with a piece on road tile `b`: for each foe of sources `from` (indices into src), the hardest
-// blow (raw) that reaches the Monarch from a tile of its road short of b (where it stands or enters, on to b), a blow
-// that keeps to a line not where b stands on it; summed.
+// The Monarch's exposure with a piece on road tile `b`: the hardest blow (raw) of each foe of sources `from` that reaches
+// it from its road short of b (a lined one not through b), summed.
 function exposure (battle, road, src, from, b, m) {
   let n = 0
   for (const i of from) {
@@ -163,11 +140,8 @@ function exposure (battle, road, src, from, b, m) {
   return n
 }
 
-// Foe `x`'s hardest blow (raw) that reaches `m` (the Monarch) from one of tiles `pos`, a blow that keeps to a line
-// only where tile `screen` is not on it (−1 for none) and, `board` true, no piece of m's side stands on it as the
-// board stands; 0 for none. Every blow of its kind counts (a skill on cooldown will be ready again), unless `board`:
-// then only those it will have next turn, and none from a foe a Hex will cost its act. `ranged`: its blows from range
-// alone (no melee). A foe of the reserve (not on the board) reads its kind's kit at its level.
+// Foe `x`'s hardest blow (raw) reaching `m` from one of `pos` (a lined one not through `screen`), 0 for none; `board`: ready
+// next turn, none if Hexed, lines as the board stands; `ranged`: no melee. A reserve foe reads its kind's kit.
 function reachesFrom (battle, x, pos, m, { screen = -1, board = false, ranged = false } = {}) {
   if (board && hexed(x)) return 0
   let best = 0
@@ -198,9 +172,8 @@ function onLine (p, q, t) {
   return false
 }
 
-// The foes that walk a layer's road (`flies`), as chokes reads its sources: the tile each living one stands on, and
-// each tile the foes still to come will walk from (each one's lane at the top edge, turns.js entryTile, as near as a
-// player can say), with the foes there (`who`, by the same index). → { tiles, who }
+// The foes that walk a layer's road (`flies`), as chokes' sources: each living one's tile, and each lane's top-edge tile
+// the foes still to come enter by, with the foes there (`who`, by the same index). → { tiles, who }
 function roadSources (battle, foes, flies) {
   const tiles = []
   const who = []
@@ -224,18 +197,11 @@ function roadSources (battle, foes, flies) {
 
 // ── the kill list ────────────────────────────────────────────────────────────────────────────────
 
-// Which foes your pieces can fell this turn together, by exact arithmetic on your own blows (no dice: computeDamage, as
-// policy.js blowOn reads a blow), and who strikes whom in what order. The foes in turn, the most pressing first (one of
-// `first`, the uids of the Monarch's shooters: readPlan's, redesign.md §2.18 B; then one that could strike the Monarch
-// next turn; then one that mends; then the hardest blow for its HP), each listed where the
-// pieces not yet listed can deal its HP between them: each piece's hardest blow at it, from a tile it may strike it from
-// (no foe in the line between: policy.js struckOf) that no listed piece takes (the least endangered by the danger map,
-// then the fewest steps); the fewest such pieces; the blows that draw no counter (ranged) first, so that the last, the
-// one that fells, may be melee (a counter answers only a blow its target survives). A melee blow before it draws one, and a kill whose counter would fell a piece is not
-// listed. `moving` false: each strikes from where it stands. `opts` (Map piece uid → its options: policy.js
-// expertTurn's, read once a turn) may carry the options already listed. → { list: [{ uid (the foe), strikes: [{ uid,
-// ability, target, tile, damage }] }], deal: Map foe uid → what your pieces could deal it this turn, each its hardest
-// blow }
+// Which foes your pieces can fell together this turn, and who strikes whom in what order: the foes the most pressing
+// first (in `first`, the Monarch's shooters; able to strike the Monarch; a healer; the hardest blow for its HP), each
+// listed where the pieces not yet listed can deal its HP, the fewest of them, ranged blows first (a counter answers only
+// a blow its target survives), none whose counter would fell a piece. `opts`: Map piece uid → its options, read already.
+// → { list: [{ uid, strikes: [{ uid, ability, target, tile, damage }] }], deal: Map foe uid → what yours could deal it }
 export function killList (battle, sit, { moving = true, first = NOBODY, opts = null } = {}) {
   const mine = battle.units.filter((u) => orderable(battle, u) && canAct(battle, u))
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
@@ -245,7 +211,7 @@ export function killList (battle, sit, { moving = true, first = NOBODY, opts = n
     const row = new Map()
     for (const o of opts?.get(u.uid) ?? options(battle, u, { moving })) {
       const a = o.ability
-      // A blow from a tile whence one of its side stands in its line strikes that one, not this foe (§2.19).
+      // A blow from a tile whence one of its side stands in its line strikes that one, not this foe.
       if (!a || !isBlow(a) || o.target.side === u.side || struckOf(battle, u, o) !== o.target) continue
       const d = blowOn(battle, u, a, o.target)
       if (!(d > 0)) continue
@@ -308,16 +274,12 @@ export function killList (battle, sit, { moving = true, first = NOBODY, opts = n
 
 // ── the plan ─────────────────────────────────────────────────────────────────────────────────────
 
-// The plan for this turn (redesign.md §2.18): the one kept from the last turn where no trigger fires (expert.js
-// TREES.plan's keep-plan), else chosen afresh by the tree and the weights; then its target formation, the kill list and
-// the forecast, all read off the board as it stands. Made once a turn: read again in the same turn (a test's, the
-// interface's), it is the same. `store` false: the battle keeps no plan (a decision read alone: policy.js choice).
-// `moving` false (the moves ablation's): the kill list strikes from where each stands. → { turn, kind, target (a foe's
-// uid for focus, else null), since, trigger (what changed it: 'start', 'wave', 'fell', 'reach', 'stall', 'met',
-// 'failed'; null: kept), by, rules, goals (formation), kills, listed (Map piece uid → its strike), fc (forecast), fmap
-// (the danger map from where the forecast has the foes), open (the same with no line of fire stopped by a piece of
-// yours: the formation's, which decides where they will stand), quarry (a push's: the uids of the foes it goes for) }
-// `opts`: the pieces' options already listed (killList's).
+// The plan for this turn: last turn's where no trigger fires, else chosen afresh by the tree and the weights; then its
+// formation, the kill list and the forecast. Made once a turn (read again, the same). `store` false: the battle keeps
+// no plan; `moving` false: the kill list strikes from where each stands; `opts`: as killList's.
+// → { turn, kind, target (focus: a foe's uid), since, trigger ('start', 'wave', 'fell', 'shooter', 'reach', 'stall', 'met',
+// 'failed'; null: kept), by, rules, goals (formation), kills, listed (Map piece uid → its strike), shooters, quarry (a
+// push's foes), fc (forecast), fmap (danger from where it has the foes), open (the same, no line of fire stopped) }
 export function readPlan (battle, sit, { moving = true, store = true, opts = null } = {}) {
   const had = battle.plan
   if (had && had.turn === battle.turn && had.moving === moving) return had
@@ -357,18 +319,15 @@ export function readPlan (battle, sit, { moving = true, store = true, opts = nul
   return plan
 }
 
-// What changed since the plan was made, if anything (`prev`, last turn's): a wave entered, a piece of yours fell, a
-// shooter reaches the Monarch (`shooters`, shootersOf) and the plan is neither to fell one nor, none being `fellable`,
-// to close about the Monarch, the Monarch came into the foes' reach, the camp's patience ran long, or the plan's goal
-// is met or has failed (focus: its target felled, or none of yours can come to strike it within
-// TUNING.expert.plan.far turns; push: its quarry felled; protect: the Monarch out of the foes' reach; hold: the foes
-// came no nearer, none in your reach). → its name, or null for none.
+// What changed since last turn's plan `prev`: a wave entered, a piece fell, an unanswered shooter, the Monarch in reach,
+// the camp's patience long, or the goal met or failed (focus: felled, or out of reach for plan.far turns; push: quarry
+// felled; protect: the Monarch out of reach; hold: the foes came no nearer). → the trigger's name, or null.
 function triggerOf (battle, sit, prev, fc, reached, foes, { shooters, fellable }) {
   if (battle.foeIn !== prev.foeIn) return 'wave'
   if (fallenOf(battle) > prev.fallen) return 'fell'
   if (shooters.length && !(prev.kind === 'focus' && shooters.includes(prev.target)) && !(prev.kind === 'protect' && !fellable.length)) return 'shooter'
   const m = sit.monarch
-  // A screened Monarch is safe from that shooter (redesign.md §2.19): only a blow that would land is a trigger.
+  // A screened Monarch is safe from that shooter: only a blow that would land is a trigger.
   const reach = !!m && m.danger > 0
   const guarding = prev.kind === 'protect' || (prev.kind === 'focus' && m?.deals.has(battle.byUid.get(prev.target)))
   if (reach && !guarding) return 'reach'
@@ -386,10 +345,8 @@ function triggerOf (battle, sit, prev, fc, reached, foes, { shooters, fellable }
   return !inReach && distOf(battle, foes) >= prev.dist ? 'failed' : null
 }
 
-// The Monarch's shooters (redesign.md §2.18, B): the uids of the living foes a blow of whose from range (no melee: a
-// foe at the Monarch's side is met on its road) could reach the Monarch next turn from where it stands or from where
-// the forecast (`fc`) has it stand, on a clear line as the board stands (a screened Monarch is safe from it), a blow
-// it will have ready and a foe a Hex leaves its act.
+// The Monarch's shooters: the uids of the living foes whose ranged blow, ready next turn, could reach the Monarch from
+// where they stand or the forecast has them, on a clear line as the board stands.
 function shootersOf (battle, fc, foes) {
   const m = battle.monarch
   if (!m || !alive(m)) return NONE
@@ -401,10 +358,8 @@ function shootersOf (battle, fc, foes) {
   return out
 }
 
-// Whether your pieces could fell foe `x` within TUNING.expert.plan.horizon turns, as a player reckons it: each piece
-// that can strike it at all (a flyer only by a blow that reaches one) strikes it with its hardest blow once a turn
-// from the turn its Move brings it within reach of where the forecast (`fc`) has x stand (as the crow flies); x's HP
-// against their sum (its healers aside).
+// Whether your pieces could fell foe `x` within TUNING.expert.plan.horizon turns: each that can strike it at all, its
+// hardest blow once a turn from when its Move brings it in reach of x's forecast tile, against x's HP.
 function canFell (battle, x, fc) {
   const at = fc.at.get(x.uid) ?? x.tile
   let dealt = 0
@@ -419,16 +374,11 @@ function canFell (battle, x, fc) {
   return dealt >= x.hp
 }
 
-// Whether the Monarch is in the foes' reach as the plan reads it: one could strike it next turn, or could but for a
-// screen of yours in its line (sit.monarch.screened, redesign.md §2.19). The screen is the plan's doing (protect closes
-// about the Monarch): a plan that dropped protect once its screen stood would walk the screen away the next turn, and
-// prep's draft (deployment) would never settle. A screened Monarch is no trigger to change a plan (triggerOf's
-// `reach`), and its peril is what would land (planOptions).
+// Whether the Monarch is in the foes' reach for the plan: one could strike it next turn, or could but for a screen
+// (counting the screened keeps a protect from walking its own screen away the next turn).
 const threatened = (sit) => !!sit.monarch && (sit.monarch.danger > 0 || sit.monarch.screened?.length > 0)
 
-// Whether foe `x` holds off: the forecast has it wary (a bold one comes as soon as it can strike: it is only waiting for
-// you to be in its reach), and where it will stand your side could not strike it next turn (`reached`, the danger map
-// for the foes).
+// Whether foe `x` holds off: the forecast has it wary, where your side could not strike it next turn (`reached`).
 const holdsOff = (x, fc, reached) => !fc.bold.has(x.uid) && (x.flies ? reached.air : reached.ground)[fc.at.get(x.uid) ?? x.tile] === 0
 // Your souls fallen in the battle.
 const fallenOf = (battle) => battle.units.reduce((n, u) => n + (u.side === 'party' && !u.shadow && u !== battle.monarch && !alive(u) ? 1 : 0), 0)
@@ -441,15 +391,13 @@ const reachOf = (u, air) => u.kit.reduce((r, b) => (isBlow(b) ? Math.max(r, air 
 //   hold, focus, push, protect   which plan it is (1)
 //   bold      hold: the share of the foes' HP the forecast has coming on
 //   waves     hold: a wave is still to come
-//   peril     protect: what the foes could deal the Monarch next turn, a share of its HP (at most 2)
-//   mends, picks, menace   focus, of its target: it mends; it strikes from afar and could strike one of yours next turn;
-//             its hardest blow, a share of the hardest of the foes'
-//   fell      focus: 1 where the kill list fells the target, else the share of its HP your pieces could deal it this turn
+//   peril     protect: the Monarch's danger next turn, a share of its HP (at most 2)
+//   mends, picks, menace   focus, of its target: it mends; it strikes from afar at one of yours; its hardest blow's share
+//   fell      focus: 1 where the kill list fells the target, else the share of its HP yours could deal this turn
 //   threat    focus: the target could strike the Monarch next turn; cull: and the kill list fells it
-//   shooter   focus: the target is one of the Monarch's shooters your pieces could fell (`fellable`: readPlan's; the
-//             tree's monarch-shooter)
-//   wary      push: the share of the foes' HP that holds off (wary, and out of your reach where the forecast has them)
-//   edge      push: your side's HP × hardest blows over the foes', as a log (−2 to 2)
+//   shooter   focus: the target is one of the Monarch's shooters yours could fell
+//   wary      push: the share of the foes' HP that holds off
+//   edge      push: edgeOf
 // A focus is offered on every living foe.
 function planOptions (battle, sit, kills, fc, foes, reached, fellable = NONE) {
   const hp = foes.reduce((n, x) => n + x.hp, 0) || 1
@@ -501,40 +449,19 @@ function edgeOf (battle) {
 
 // ── the target formation ─────────────────────────────────────────────────────────────────────────
 
-// Roles to tiles for `plan` (readPlan's: its kind and target, its forecast), read off the board, then your pieces to
-// them. The slots:
-//   block   the ground roads' chokes, the roads walked by the foes standing and the waves to come, each at the line out
-//           of range (outOfRange: the first tile from the seat out where the piece keeps every foe of its road out of
-//           the Monarch's reach, a screen on a shooter's line counted, else the farthest that leaves it least exposed;
-//           no farther than TUNING.expert.plan.line road steps from the seat)
-//   air     the air road's chokes where flyers walk it (a piece there holds a flyer, ground or not), where no block is,
-//           at its line out of range as the ground's; one with a wall between it and the seat, the tile inside the
-//           last wall its road crosses (but the seat)
-//   shoot   the tiles behind the line (off the foes' roads up to it, and no more than a step farther from the seat by the
-//           ground road than its farthest choke) within TUNING.expert.plan.reach of the tiles before the chokes, where
-//           the held foes wait (the kill zone): the TUNING.expert.plan.shooters the forecast foes could deal least to
+// Roles to tiles for `plan` (its kind, target and forecast), read off the board, then your pieces to them. The slots:
+//   block   each ground road's choke at the line out of range (outOfRange), within TUNING.expert.plan.line steps
+//   air     the air road's chokes where flyers walk it and no block is
+//   shoot   the TUNING.expert.plan.shooters safest tiles behind the line within plan.reach of the kill zone
 //   heal    the tiles beside each block, behind it
-//   screen  the line of each foe whose blow that keeps to a line reaches the Monarch from where the forecast has it
-//           (redesign.md §2.18 B), where no other slot stands on that line: its tile nearest the Monarch, or the one a
-//           piece of yours stands on already
-//   strike  focus: about its target's forecast tile; push: about each of its quarry's. TUNING.expert.plan.strikers
-//           tiles beside it, as many 2 tiles off, and as many farther (to the reach), each the least endangered by the
-//           forecast
-// The forecast's danger here is the plan's `open` map, lines of fire taken as clear (redesign.md §2.19): screens stand
-// where your pieces stand now, and the formation decides where they will, so it reads none (else it chases its own
-// shadow from turn to turn). A slot one of your shadows or summons holds already is held. Each piece's fit for a slot
-// (TUNING.expert.plan): its role's worth for the plan (roles) × the piece's aptness for it (block: its toughness, a
-// share of your toughest, less fit.melee for one with a ranged blow; screen: its toughness, so; air: 1 if it can
-// strike a flyer, else 0.2; shoot: its hardest blow, a share of your hardest, where its ranged blow reaches the kill
-// zone from there; heal: 1 for a healer; strike: its hardest blow at the target, a share of the hardest of yours, where
-// it reaches the target from there), plus fit.travel a turn of its walk there (its path on its layer, footprints
-// counted, foes in the way), fit.exposed × the share of its HP the forecast foes could deal it there, fit.keep where it
-// held that slot last turn, fit.raise for an Arise holder within its reach of the kill zone. The assignment (hungarian)
-// takes the most fit in all, a hold's or a protect's every road held first (the block and air slots, and a protect's
-// screens, while a piece can take them); a piece that no slot fits better than none skirmishes: it goes where its blow
-// would reach the nearest foe. `travel` false (prep's): no walk counted; `within`: the tiles a piece may stand on
-// (prep's: the camp's). → Map piece uid → { role, slot (the tile), tile (its anchor there, −1 for none), target, field
-// (steps to that anchor from each tile, on its layer: policy.js progress) }
+//   screen  on the line of each foe whose lined blow reaches the Monarch from its forecast tile
+//   strike  focus: about its target's forecast tile; push: about each of its quarry's (plan.strikers a ring)
+// Danger here is the plan's `open` map (lines of fire as clear: the formation decides where the screens will stand).
+// A piece's fit for a slot (TUNING.expert.plan): the role's worth for the plan × its aptness, plus fit.travel a turn of
+// its walk, fit.exposed × its danger there, fit.keep for last turn's slot, fit.raise for an Arise holder near the kill
+// zone; the assignment (hungarian) fills a hold's or protect's road slots first; a piece no slot fits skirmishes.
+// `travel` false: no walk counted; `within`: the tiles a piece may stand on (prep's).
+// → Map piece uid → { role, slot, tile (its anchor, −1 for none), target, field (steps to the anchor, by tile) }
 export function formation (battle, plan, sit, { prev = null, travel = true, within = null } = {}) {
   const W = T()
   const worth = W.roles[plan.kind]
@@ -560,18 +487,15 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
   for (const c of line) if (ok(c.tile) && !shadow(battle.at[c.tile])) add({ role: 'block', tile: c.tile })
   const asrc = roadSources(battle, foes, true)
   const aline = chokes(air, asrc.tiles, W.line, outOfRange(battle, air, asrc, (t) => ok(t) || line.some((g) => g.tile === t && taken.has(t))))
-  // Where the air road comes in: an air choke with a wall between it and the seat comes back to the tile inside the last
-  // wall its road crosses (a flyer comes over the walls; your pieces on the ground meet it on your side of them), unless
-  // that is the seat itself (the wall stands against it: the road is held beyond).
+  // An air choke past a wall comes back to the tile inside the last wall its road crosses, unless that is the seat.
   for (const c of aline) {
     let t = c.tile
     for (let n = c.tile; n >= 0 && air.dist[n] > 0; n = air.arrow[n]) if (battle.walls.has(n)) t = air.arrow[n]
     if (t === battle.root) t = c.tile
     if (!line.some((g) => g.tile === t) && ok(t) && !shadow(battle.at[t]) && !shadow(battle.sky[t])) add({ role: 'air', tile: t })
   }
-  // A screen on the line of each foe whose blow that keeps to a line reaches the Monarch from where the forecast has it
-  // stand (redesign.md §2.18 B, §2.19; lines taken as clear, the screens being the formation's to place), where no slot
-  // stands on that line already: the tile of it nearest the Monarch, one of yours on it already kept there.
+  // A screen on the line of each foe whose lined blow reaches the Monarch from its forecast tile, where no slot stands on
+  // that line already: its tile nearest the Monarch, or one of yours on it already.
   const m = battle.monarch
   if (m && alive(m) && worth.screen > 0) {
     for (const x of foes) {
@@ -625,8 +549,7 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
   const most = Math.max(1e-9, ...pieces.map(toughOf))
   const top = Math.max(1e-9, ...pieces.map((u) => hardest(battle, u)))
   const BIG = 1e6
-  // Holding or protecting, every road is held while a piece can hold it (as the formation tree's block-roads): the road
-  // slots are filled first (protecting, the screens with them), the weights choosing who.
+  // Holding or protecting, the road slots (and a protect's screens) are filled first while a piece can take them.
   const held = plan.kind === 'hold' || plan.kind === 'protect'
   const HELD = 1e3
   const hits = new Map()
@@ -675,8 +598,8 @@ export function formation (battle, plan, sit, { prev = null, travel = true, with
 // What `u`'s hardest blow at `x` would deal it (policy.js blowOn), wherever it stands.
 const strikeOn = (battle, u, x) => u.kit.reduce((n, b) => (isBlow(b) ? Math.max(n, blowOn(battle, u, b, x)) : n), 0)
 
-// Where piece `u` stands to cover `tile`: its anchor there (a 2×2 piece's, the first of the four whose footprint covers
-// the tile and is clear of walls, and of the board's edge), within `within` where given; −1 for none.
+// Where piece `u` stands to cover `tile`: its anchor (a 2×2's, the first of the four whose footprint covers it, clear of
+// walls and the edge), within `within` where given; −1 for none.
 function anchorFor (battle, u, tile, within = null) {
   for (const a of u.size === 1 ? [tile] : [tile, tile - 1, tile - LANES, tile - LANES - 1]) {
     const fp = a >= 0 ? footprint(a, u.size) : null
@@ -685,9 +608,8 @@ function anchorFor (battle, u, tile, within = null) {
   return -1
 }
 
-// Steps for piece `u`'s footprint from each anchor to the nearest of `from` (anchors), as it moves (turns.js reach):
-// 8 ways, a piece on the ground never on a wall nor diagonally past a wall's corner, and with `foes`, never through a
-// foe; a flyer over anything. The moves are symmetric, so it is the way back too. → by tile (Infinity: no way).
+// Steps for `u`'s footprint from each anchor to the nearest of `from`, as it moves (turns.js reach), with `foes` never
+// through one; the moves are symmetric, so the way back too. → by tile (Infinity: no way)
 function stepsFrom (battle, u, from, foes) {
   const out = new Array(TILES).fill(Infinity)
   const one = u.size === 1
@@ -720,8 +642,7 @@ function stepsFrom (battle, u, from, foes) {
   return out
 }
 
-// Where a piece with no slot goes: the nearest tile (by its walk, `from`) whence a blow of its reaches a foe where the
-// forecast has it, and no one else stands; −1 for none.
+// Where a piece with no slot goes: the nearest tile by its walk (`from`) whence it reaches a foe's forecast tile, unoccupied; −1 for none.
 function skirmish (battle, u, fc, from, foes) {
   let best = -1
   for (const x of foes) {
@@ -738,8 +659,7 @@ function skirmish (battle, u, fc, from, foes) {
   return best
 }
 
-// Rows to columns (n ≤ m), the least cost in all: the Hungarian method (Kuhn–Munkres, by potentials), O(n² m). → each
-// row's column.
+// Rows to columns (n ≤ m), the least cost in all: the Hungarian method (Kuhn–Munkres, by potentials). → each row's column
 export function hungarian (cost) {
   const n = cost.length
   const m = n ? cost[0].length : 0
@@ -790,9 +710,8 @@ export function hungarian (cost) {
 
 // ── prep ─────────────────────────────────────────────────────────────────────────────────────────
 
-// Prep's formation (autoplay.js drafts): the target formation's first answer, on `battle` set up as the room would
-// begin (no turn played): the plan the tree would choose then, its roles' slots among the `within` tiles (the camp's),
-// no walk counted. → Map piece uid → its anchor tile (the pieces it gives a slot)
+// Prep's formation (autoplay.js drafts): the formation's first answer on `battle` as the room would begin, its slots
+// among the camp's `within` tiles, no walk counted. → Map piece uid → its anchor tile
 export function deployment (battle, sit, within) {
   const plan = readPlan(battle, sit, { store: false })
   const goals = formation(battle, plan, sit, { travel: false, within })

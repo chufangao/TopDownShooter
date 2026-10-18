@@ -1,88 +1,36 @@
-// The battle forest's fitting (forest.js's random forest, fitted offline): teach.js's labels read as play reads a
-// board (forest.js's encoding), the trees grown on histogram splits and bagged by run in worker threads, the margins
-// measured, and the command (`npm run forest`). Never shipped: the game reads a forest through forest.js alone, and
-// only the offline tools import this (outforest.js grows its forests by these trees). Split from forest.js on
-// 2026-10-15, so the store build carries no fitting.
+// The battle forest's fitting, offline (play reads a forest through forest.js alone): teach.js's labels read as play
+// reads a board, regression trees on histogram splits bagged by run in worker threads, the margins measured.
+// outforest.js fits and measures its forests by binTable, fitForest and marginText.
 //
-// The target (targetsOf), a row an option of a position: its playout value (teach.js, to the battle's end: −10 a battle
-// lost, else the HP shares carried and the rounds) less the mean of its position's options' (`target` 'mean', the
-// default: the centred value R), or less today's choice's (`target` 'today', today's own row left out: the advantage A
-// itself), clipped to ±`clip`. The centred target is the one kept (2026-10-12, R3): today's own playout is one draw of
-// a chaotic battle, and as the reference of every row of its position its luck is in all of them alike, where the mean
-// of ~10 options averages it out; fitted to A directly, the top 1% of the held-out predictions (+0.36) realised −0.23,
-// fitted to R, +0.14 realised +0.14, and the correlation of the predicted advantage with the realised 0.07 against 0.10.
-// Today's choice of a row is the best by today's score (the row's `prior`, ties as policy.js better), as play finds it:
-// in R2's rows the `chosen` is round 1's ranker's, not today's. Positions whose options all tie are kept (they say
-// "nothing to gain here", which is what keeps the forest at today's choice), positions with fewer than two options left
-// out.
+//   npm run forest -- --data <dir>[,<dir>…] [--out file] [flags]   fit a forest, printing its out-of-bag and held-out margins
+//   npm run forest -- --data <dir>[,<dir>…] --eval <file>[,<file>…]   the held-out margins of forests already fitted
+//     --out file                 where the forest is written (src/sim/forest.json is the one play reads)
+//     --inputs base|aft          the inputs; aft adds the afterstate's (each label set augmented: teach.js --augment)
+//     --data-weight 1,0.5,…      each label set's weight, in --data's order
+//     --use <dir>,…              the label sets fitted on (all by default; the rest read only for the bins)
+//     --label mean|exact         a smoothed set's means, or its exact lines
+//     --target mean|today        an option's value less its position's mean, or less today's choice's
+//     --trees 200 --depth 12 --leaves 512 --min-leaf 40   the trees' bounds
+//     --mtry 0.333               the share of the inputs drawn at each split
+//     --shrink 0                 a leaf's value its rows' mean, shrunk by that many rows of 0
+//     --bins 64                  the bins an input is cut into, at most
+//     --weighted --wclip 10      each row by its draw's `wt`, clipped
+//     --seed 1                   the trees' draws
+//     --delta 0.1                the margin play reads the forest at
+//     --name forest              the forest's name
+//     --workers n                worker threads (every core but one by default)
 //
-// The trees (fitForest; `npm run forest`): regression trees on histogram splits (each input cut into at most `bins`
-// quantile bins of a sample of the training rows, at short decimals strictly between two values met, so a split read on
-// the bins is the split read on the raw number, exactly), the squared error's reduction, `mtry` of the inputs drawn at
-// each split, grown best first to at most `leaves` leaves and `depth` levels, each leaf at least `minLeaf` rows, its
-// value its rows' mean (shrunk by `shrink` rows of 0). Bagged by run: each tree's rows are whole runs drawn with
-// replacement (a battle's decisions are correlated and their playouts chaotic: rows drawn alone would let a tree learn a
-// run by heart), the runs left out its out-of-bag rows (an honest estimate of each training row). Rows weigh alike by
-// default: the state draw's chance (teach.js `--draw state`) is a function of the board, so E[A | x] is the same under
-// any weighting by it, and the reach positions, drawn the more, get the finer leaves (`weighted`: by the draw's `wt`,
-// clipped, as the ranker's). Labels drawn by their battle's outcome (L2, L3) are biased (in a lost battle today's choice
-// loses by construction); their `wt` (1 / the draw's chance) would undo it in expectation, read `weighted`, at a cost in
-// variance (a calm decision of a won battle weighs 33): no forest kept reads them. Seeds ≡ 0 mod 5 are held out
-// (splitOf), never fitted; the rest are fitted. Worker threads, typed arrays.
-//
-// Round 1 (2026-10-12; labels R3: 500 runs `teachd-*` of today's expert, drawn by the board's state, half of the
-// decisions where the Monarch is in reach or on a foe's line and 5% of the calm, 48,889 positions, every option played
-// out to the battle's end by today's expert; R2 beside them, 52,077 positions of the ranker's round 1, at half weight,
-// its playouts' rest the ranker's).
-// Held out (seeds ≡ 0 mod 5) the label metrics are near their noise: of R3's held-out decisions the teacher gains 0.21
-// a decision; the forests below, deviating where they read more than delta, realise +0.000 to +0.009 (a decision's
-// standard error ~0.004), and their out-of-bag tables less. What they settled: the centred target (above), and that
-// more data and the afterstate help a little (held-out correlation of the predicted advantage with the realised: R3
-// 0.100, with aft 0.101, R3 and R2 0.107). Four variants (200 trees, depth ≤ 12, ≤ 512 leaves of ≥ 40 rows, mtry 1/3,
-// ≤ 64 bins), paired against today's expert on 256 seeds `sel3`:
-//   R3 and R2, round 1's inputs and the forest's, delta 0.05     +0.45 ± 1.90 progress  (clears +17 −31)
-//   R3 and R2, with the afterstate's, delta 0.05                 +2.68 ± 1.63           (clears +29 −27)
-//   R3 and R2, with the afterstate's, delta 0.02                 +0.88 ± 2.42           (clears +32 −41)
-//   R3 alone, with the afterstate's, delta 0.05                  +1.59 ± 1.99           (clears +29 −31)
-// The second, on 768 fresh seeds `chk3`: against today's expert, clears 35.4% against 30.7% (+89 −53), progress
-// +3.28 ± 0.98, at 4.3 s a run against 2.1; against the ranker's round 1 (ranker.json as it stood), clears 35.4% against
-// 36.7% (+119 −129), progress −0.64 ± 1.35, at 4.6 s against 2.8: within one standard error of it. Kept as forest.json
-// (200 trees, 184,726 nodes, 2.1 MB; it changes ~5% of the held-out decisions), ranker.json removed from src/sim: the
-// shipped expert is decisions only, no network.
-// Round 2 (2026-10-12; labels R4: 500 runs `teachf-*` of round 1's forest, drawn by the state as R3's, 53,459
-// positions, every option played out to the battle's end by round 1's forest, so no label leans on today's expert to
-// do later what the option did not; its afterstate read in every playout's decision, 9 positions a second on seven
-// workers against R3's 38; augmented with the afterstates). Refitted as round 1, with the afterstate's inputs. On R4's
-// held-out decisions at delta 0.05, the gain realised: round 1 +0.008, R3 and R4 +0.008, R3, R4 and R2 +0.013. Paired
-// against round 1 on 256 seeds `sel4`:
-//   R3, R4 and R2 (at half weight), delta 0.05                    +1.65 ± 1.73 progress  (clears +23 −16)
-//   R3, R4 and R2, delta 0.035                                    +3.03 ± 1.72           (clears +28 −16)
-//   R3, R4 and R2, delta 0.02                                     +3.24 ± 1.69           (clears +29 −14)
-//   R3 and R4, delta 0.05                                         +3.38 ± 1.56           (clears +27 −17)
-// The last, on 768 fresh seeds `chk4`: against round 1, clears 33.1% against 34.1% (+78 −86), progress +1.78 ± 0.98, at
-// 5.0 s a run against 4.8 (the runs go further: deaths on floors 1 and 2 272 against 296, on 3 and 4 242 against 210);
-// against today's expert, clears 33.1% against 29.6% (+102 −75), progress +2.81 ± 1.03, at 5.1 s against 2.4. Kept as
-// forest.json (200 trees, 196,322 nodes, 2.3 MB), on the gain in progress.
-// Round 3 (2026-10-12; labels R5: 200 runs `teache-*` of round 2's forest, the learned route on, drawn by the state as
-// R4's, 20,849 positions, each option played out three times to the battle's end, its label their mean: teach.js
-// `--smooth 3 --epsilon 0.1`, the exact line and two with the continuation perturbed, round 2's forest deciding it; 2.3
-// positions a second on eight workers; augmented). Of the options, 28% have three playouts not all alike, and where
-// the exact lines of a position lose and win, a quarter have three that span a loss and a win; the perturbed playouts
-// lose as often as the exact (9.4% against 9.3%). The means are the more learnable: on R5's held-out decisions at delta
-// 0.05, a forest fitted to R5's means realises +0.008 on the means and +0.009 on the exact lines, one fitted to R5's
-// exact lines alone (`--label exact`, the same positions) +0.001 and +0.000. Paired against round 2 on 256 seeds `sel6`:
-//   R5 alone (its means), delta 0.05                              −1.80 ± 2.11 progress  (clears +25 −43)
-//   R5's exact lines alone, delta 0.05                            −1.31 ± 2.22           (clears +26 −46)
-//   R5 at twice the weight, R3 and R4, delta 0.05                 −2.43 ± 1.67           (clears +26 −29)
-//   R5 at twice the weight, R3 and R4, delta 0.02                 +0.49 ± 2.05           (clears +38 −32)
-// The last, on 768 fresh seeds `chk6`: against round 2, clears 36.3% against 34.2% (+107 −91), progress +1.94 ± 1.27,
-// at 5.1 s a run against 4.9; against today's expert, clears 36.3% against 30.7% (+111 −68), progress +3.67 ± 1.22, at
-// 5.2 s against 2.5. Kept as forest.json (200 trees, 201,376 nodes, 2.3 MB), on the gain in progress.
+// The target, a row an option: its playout value less its position's mean (`mean`) or today's choice's (`today`),
+//   clipped to ±`clip`; today's choice the best by the row's `prior`, ties as policy.js better. Trees are bagged by
+//   whole runs; seeds ≡ 0 mod 5 are held out (splitOf), never fitted.
+// forest.json: { kind, name, about, made, data, inputs, target, delta, size, feat, thr, right, value }.
 import {
   inputNames, INPUT_SETS, checkForest, TARGETS, meanOf, rowView, rowOf, rowAfter, afterNames, encodeAgainst, readsAfter, predict
 } from './forest.js'
 import { LANE } from './field.js'
 import { tileX } from './unit.js'
+import { pool as workerPool } from './pool.js'
+import { arg, has, list, num, isMain } from './cli.js'
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
 
@@ -100,7 +48,6 @@ export function mulberry (seed) {
 
 // ── the labels ───────────────────────────────────────────────────────────────────────────────────
 
-// The lines of a label file, streamed (a labels.jsonl of 90 MB is read a line at a time).
 export async function * linesOf (file) {
   const fs = node('fs')
   const readline = node('readline')
@@ -108,7 +55,7 @@ export async function * linesOf (file) {
   for await (const line of rl) if (line.trim()) yield line
 }
 // A label set's file: a directory's labels.jsonl, else the file named.
-export const labelsIn = (where) => {
+const labelsIn = (where) => {
   const fs = node('fs')
   return fs.statSync(where).isDirectory() ? `${where.replace(/\/$/, '')}/labels.jsonl` : where
 }
@@ -117,8 +64,7 @@ export const labelsIn = (where) => {
 export const splitOf = (run) => (run % 5 === 0 ? 'held' : run % 5 === 1 ? 'val' : 'train')
 
 const EPS = 1e-9
-// The better of two label options by today's score (ties as policy.js better: the fewer steps, the lower lane, the
-// lower target uid).
+// The better of two label options by today's score, ties as policy.js better.
 const ahead = (o, b) => {
   if (Math.abs(o.prior - b.prior) > EPS) return o.prior > b.prior
   if (o.steps !== b.steps) return o.steps < b.steps
@@ -128,11 +74,8 @@ const ahead = (o, b) => {
   return (o.target ?? -1) < (b.target ?? -1)
 }
 
-// One label row (teach.js: a position and its options) as the forest reads it: its options today's hard rules keep (the
-// reference, meanOf), of them those legal with a value (the decision's), today's choice among them (the best by today's
-// score, as play's), and each one's raw inputs against it (encodeAgainst; today's choice's own, its gap and vs.* 0),
-// value and tie keys, today's choice first. `after`: after.jsonl's line for the row (`names` its conditions), null where
-// none was written. Fewer than two such options: null. → { today, mean, rows: [{ o, x, value, steps, lane, target }] }
+// One label row as the forest reads it: of the options the hard rules keep (meanOf's reference), the legal with a value,
+// today's first, each with its inputs against today's (encodeAgainst). → { today, mean, rows: [{ o, x, value, … }] } or null
 export function readDecision (row, after = null, names = afterNames()) {
   const kept = row.options.filter((o) => o.kept)
   const opts = kept.filter((o) => o.legal && Number.isFinite(o.value))
@@ -148,14 +91,11 @@ export function readDecision (row, after = null, names = afterNames()) {
   return { today, mean, rows }
 }
 
-// The labels an option's value is read from (`label`): its `value` (a smoothed set's mean of its playouts, teach.js
-// `--smooth`), or a smoothed set's exact line alone (`values[0]`: the label one playout would have given; a set not
-// smoothed has only `value`, which is that).
+// What an option's value is read from: `value` (a smoothed set's mean), or `values[0]` (its exact line).
 export const LABELS = Object.freeze(['mean', 'exact'])
 
-// The decisions of label sets `dirs`, streamed: each { row, d (readDecision's), k (its set's index) }, the afterstates
-// read from each set's after.jsonl (line for line with its labels: teach.js augment) where `after`; rows labelled after
-// the augmentation have none and are left out (counted in `skipped`); each option's value by `label` (LABELS).
+// The decisions of label sets `dirs`, streamed as { row, d (readDecision's), k (its set's index) }, with the afterstates
+// of each set's after.jsonl where `after` (rows past it left out, counted in `skipped`), each value by `label`.
 async function * decisionsOf (dirs, after, skipped = null, label = 'mean') {
   if (!LABELS.includes(label)) throw new Error(`forest: no label "${label}": ${LABELS.join(', ')}`)
   const fs = node('fs')
@@ -209,7 +149,7 @@ function between (a, b) {
   return a
 }
 // The bin of `x` among `cuts`: the first cut it is at most, else past the last.
-export function binOf (cuts, x) {
+function binOf (cuts, x) {
   let lo = 0
   let hi = cuts.length
   while (lo < hi) {
@@ -222,29 +162,18 @@ export function binOf (cuts, x) {
 
 export const shared = (Type, n) => new Type(new SharedArrayBuffer(Math.max(1, n) * Type.BYTES_PER_ELEMENT))
 
-// The decisions of label sets `dirs` (each a directory of teach.js's labels, or a file) read into one table for fitting:
-// a row an option of a position (readDecision's: today's choice first), its inputs `inputs` (INPUT_SETS' base by
-// default) cut into at most `bins` bins (cutsOf, on a reservoir of `sample` rows: two passes over the labels) and stored
-// by column, bin for bin (shared memory, for the workers); per row its playout value (v), its position and tie keys
-// (steps, lane, target); per position its first row (start: today's choice's), id, run, split, group, floor, danger,
-// draw weight (`wt`), its label set (`data`, `dw` its weight: `weights`, 1 each by default) and the key of its run
-// (`runKey`); each option's value by `label` (LABELS: a smoothed set's mean by default). → the table
-export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = null, bins = 64, sample = 100000, seed = 1, log = null, label = 'mean' } = {}) {
-  const known = inputNames()
-  const cols = Int32Array.from(inputs.map((n) => {
-    const i = known.indexOf(n)
-    if (i < 0) throw new Error(`forest: unknown input "${n}"`)
-    return i
-  }))
+// A table for fitting, read in two passes of `decisions(pass)` ({ row, d, k } each; a row's input j at x[cols[j]]): the
+// first counts the rows and keeps a reservoir of `sample` for the cuts (cutsOf, at most `bins` bins); the second bins
+// every row in shared memory, column by column, with its value (v) and `extras` ({ name: [Type, (o, p) → a value] }),
+// and per decision its start and `metaOf(row, k)`. → { D, N, P, cuts, nb, bins, v, ...extras, start, meta }
+export async function binTable (decisions, cols, { bins = 64, sample = 100000, seed = 1, extras = {}, metaOf, what = 'forest' }) {
   const D = cols.length
-  const after = inputs.some((n) => n.startsWith('aft.'))
-  // The first pass: the rows counted, a reservoir of them for the cuts.
   const S = Math.max(1, sample)
   const res = new Float64Array(S * D)
   const rand = mulberry(seed)
   let N = 0
   let P = 0
-  for await (const { d } of decisionsOf(dirs, after, null, label)) {
+  for await (const { d } of decisions(1)) {
     P++
     for (const r of d.rows) {
       const k = N < S ? N : Math.floor(rand() * (N + 1))
@@ -259,49 +188,59 @@ export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = n
     for (let i = 0; i < got; i++) column[i] = res[i * D + j]
     cuts.push(cutsOf(column, bins))
   }
-  // The second pass: every row binned.
   const B = shared(Uint8Array, N * D)
   const v = new Float64Array(N)
-  const pos = new Int32Array(N)
-  const steps = new Int16Array(N)
-  const lane = new Int8Array(N)
-  const target = new Int32Array(N)
+  const own = Object.entries(extras).map(([name, [Type, of]]) => [name, new Type(N), of])
   const start = new Int32Array(P + 1)
   const meta = []
-  const skipped = {}
   let r = 0
   let p = 0
-  for await (const { row, d, k } of decisionsOf(dirs, after, skipped, label)) {
+  for await (const { row, d, k } of decisions(2)) {
     start[p] = r
     for (const o of d.rows) {
       for (let j = 0; j < D; j++) B[j * N + r] = binOf(cuts[j], o.x[cols[j]])
       v[r] = o.value
-      pos[r] = p
-      steps[r] = o.steps
-      lane[r] = o.lane
-      target[r] = o.target
+      for (const [, a, of] of own) a[r] = of(o, p)
       r++
     }
-    meta.push({ id: row.id, run: row.run, split: splitOf(row.run), group: row.group, floor: row.floor, danger: row.danger, wt: row.wt ?? 1, data: dirs[k], dw: weights?.[k] ?? 1, runKey: `${k}:${row.run}` })
+    meta.push(metaOf(row, k))
     p++
   }
   start[p] = r
-  if (r !== N || p !== P) throw new Error('forest: the labels changed between the passes')
+  if (r !== N || p !== P) throw new Error(`${what}: the labels changed between the passes`)
+  return { D, N, P, cuts, nb: Uint8Array.from(cuts, (c) => c.length + 1), bins: B, v, ...Object.fromEntries(own.map(([name, a]) => [name, a])), start, meta }
+}
+
+// The decisions of label sets `dirs` (directories of teach.js's labels, or files) as one table (binTable's): a row an
+// option, today's choice first, its `inputs` binned; per row its value (v), position and tie keys (steps, lane, target);
+// per position its start, id, run, split, group, floor, danger, `wt`, label set (`data`, `dw` its `weights`) and `runKey`.
+export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = null, bins = 64, sample = 100000, seed = 1, log = null, label = 'mean' } = {}) {
+  const known = inputNames()
+  const cols = Int32Array.from(inputs.map((n) => {
+    const i = known.indexOf(n)
+    if (i < 0) throw new Error(`forest: unknown input "${n}"`)
+    return i
+  }))
+  const after = inputs.some((n) => n.startsWith('aft.'))
+  const skipped = {}
+  const t = await binTable((pass) => decisionsOf(dirs, after, pass === 2 ? skipped : null, label), cols, {
+    bins,
+    sample,
+    seed,
+    extras: { pos: [Int32Array, (o, p) => p], steps: [Int16Array, (o) => o.steps], lane: [Int8Array, (o) => o.lane], target: [Int32Array, (o) => o.target] },
+    metaOf: (row, k) => ({ id: row.id, run: row.run, split: splitOf(row.run), group: row.group, floor: row.floor, danger: row.danger, wt: row.wt ?? 1, data: dirs[k], dw: weights?.[k] ?? 1, runKey: `${k}:${row.run}` })
+  })
   for (const [k, n] of Object.entries(skipped)) log?.(`  ${dirs[k]}: ${n} rows past its after.jsonl left out`)
-  return { names: inputs.slice(), D, N, P, cuts, nb: Uint8Array.from(cuts, (c) => c.length + 1), bins: B, v, pos, steps, lane, target, start, meta, dirs: dirs.slice(), label }
+  return { names: inputs.slice(), ...t, dirs: dirs.slice(), label }
 }
 
 // ── the trees ────────────────────────────────────────────────────────────────────────────────────
 
 export const FIT = Object.freeze({ target: 'mean', trees: 200, depth: 12, leaves: 512, minLeaf: 40, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 10, weighted: false, wclip: 10, seed: 1, delta: 0.1 })
 
-// Tree `t` of a forest grown on shared table `S` ({ bins (column by column), N, cols (the table's columns it reads), nb
-// (each column's bins), y (the clipped target), w (each row's weight), run (each row's run, −1 for a row not fitted),
-// nRuns }) by `cfg` (FIT's keys): its runs drawn with replacement (`count`, a run's draws), its rows those of the runs
-// drawn, each weighing w × its run's draws; grown best first (the leaf whose split reduces the squared error the most
-// split next) on `mtry` of the columns drawn at each split. Deterministic for the seed and t. → { feat (the column's
-// place in `cols`, −1 a leaf), bin (left: the bin at most it), right (the right child's index), value (a leaf's), count }
-// in preorder
+// Tree `t` grown on shared table `S` ({ bins, N, cols, nb, y (the clipped target), w (weights), run (−1: not fitted),
+// nRuns }) by `cfg` (FIT's keys): whole runs drawn with replacement, grown best first on `mtry` of the columns at each
+// split; deterministic for the seed and t. → { feat (−1 a leaf), bin (left: at most it), right, value, count } in preorder
 export function growTree (S, cfg, t) {
   const { bins, N, cols, nb, y, w, run, nRuns } = S
   const rand = mulberry((Math.imul(cfg.seed >>> 0, 0x9E3779B1) ^ Math.imul(t + 1, 0x85EBCA77)) >>> 0)
@@ -416,7 +355,6 @@ export function growTree (S, cfg, t) {
     for (const c of [x.left, x.right]) if (nodes[c].c >= 0) open.push(c)
     leaves++
   }
-  // In preorder: a node, its left subtree, its right.
   const order = []
   const stack = [0]
   while (stack.length) {
@@ -446,67 +384,36 @@ export function growTree (S, cfg, t) {
 }
 
 // A tree's leaf value for table row `r`, read on its bins.
-export function leafOn (S, tree, r) {
+function leafOn (S, tree, r) {
   const { feat, bin, right, value } = tree
   let k = 0
   for (let f = feat[0]; f >= 0; f = feat[k]) k = S.bins[S.cols[f] * S.N + r] <= bin[k] ? k + 1 : right[k]
   return value[k]
 }
 
-// The trees `cfg.trees` of shared table `S` (growTree's), in worker threads (`workers` at a time; in this thread for 0
-// or 1), each handed to `done(t, tree)` in the order they end. outforest.js grows its trees by it too.
+// The trees `cfg.trees` of shared table `S`, in worker threads (in this one for 0 or 1), each to `done(t, tree)`.
 export async function growTrees (S, cfg, workers, done) {
   if (!(workers > 1)) {
     for (let t = 0; t < cfg.trees; t++) done(t, growTree(S, cfg, t))
     return
   }
-  const { Worker } = node('worker_threads')
-  const queue = Array.from({ length: cfg.trees }, (_, t) => t)
-  const one = async () => {
-    const w = new Worker(new URL(import.meta.url), { workerData: { forest: 'fit', S, cfg } })
-    try {
-      while (queue.length) {
-        const t = queue.shift()
-        const tree = await new Promise((resolve, reject) => {
-          const off = () => {
-            w.off('message', ok)
-            w.off('error', fail)
-          }
-          const ok = (msg) => {
-            off()
-            resolve(msg)
-          }
-          const fail = (err) => {
-            off()
-            reject(err)
-          }
-          w.on('message', ok)
-          w.on('error', fail)
-          w.postMessage(t)
-        })
-        done(t, tree)
-      }
-    } finally {
-      await w.terminate()
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(workers, cfg.trees) }, one))
+  await workerPool(import.meta.url, { forest: 'fit', S, cfg }, Array.from({ length: cfg.trees }, (_, t) => t), workers, (t, tree) => done(t, tree))
 }
 
-// Fits a forest on table `t` (readTable's) by `cfg` (FIT's keys; `inputs`, the table's inputs it reads, all by default;
-// `use`, the label sets it is fitted on, all by default), on `workers` threads: the positions not held out are fitted,
-// each row weighing alike (or by its draw's `wt` clipped, `weighted`) × its label set's `dw`, normalised to a mean of
-// 1; its target `cfg.target`'s (targetsOf). → { config (forest.json's shape), trees, oob (each fitted row's prediction
-// by the trees whose draw left its run out; NaN for none), held (each held-out row's prediction by them all; NaN for the
-// rest), fitted (the positions fitted), heldOut (the positions held out) }
-export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0 } = {}) {
-  cfg = { ...FIT, ...cfg }
-  if (!TARGETS.includes(cfg.target)) throw new Error(`forest: no target "${cfg.target}": ${TARGETS.join(', ')}`)
+// Fits a forest on table `t` (binTable's) by `cfg` (`defaults`' keys; `inputs`, less those starting with one of
+//   `without`; `use`, the label sets fitted on) on `workers` threads: the positions not held out fitted, each row weighing
+//   alike or by its `wt` clipped (`weighted`), × `weightOf(meta, cfg)`, normalised to a mean of 1. `what`, `lineOf`,
+//   `progress` and `configOf(trees, t, cols, cfg, fit)` are the caller's (the battle forest's by default).
+//   → { config, trees, oob (each fitted row by the trees whose draw left its run out; NaN for none), held (each held-out
+//   row by them all), fitted, heldOut (the positions) }
+export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0, defaults = FIT, what = 'forest', weightOf = (M) => M.dw, lineOf = fitLine, progress = true, configOf = toConfig } = {}) {
+  cfg = { ...defaults, ...cfg }
+  if (!TARGETS.includes(cfg.target)) throw new Error(`${what}: no target "${cfg.target}": ${TARGETS.join(', ')}`)
   const yt = targetsOf(t, cfg.target)
-  const names = cfg.inputs ?? t.names
+  const names = (cfg.inputs ?? t.names).filter((n) => !cfg.without?.some((pre) => n.startsWith(pre)))
   const cols = Int32Array.from(names.map((n) => {
     const j = t.names.indexOf(n)
-    if (j < 0) throw new Error(`forest: the table lacks input "${n}"`)
+    if (j < 0) throw new Error(`${what}: the table lacks input "${n}"`)
     return j
   }))
   const use = cfg.use ? new Set(cfg.use) : null
@@ -527,8 +434,8 @@ export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0 } = 
     if (use && !use.has(M.data)) continue
     fitted.push(p)
     if (!runs.has(M.runKey)) runs.set(M.runKey, runs.size)
-    const wp = (cfg.weighted ? Math.min(M.wt, cfg.wclip) : 1) * M.dw
-    // (Today's choice's own row is no advantage over itself: fitted only to the centred target.)
+    const wp = (cfg.weighted ? Math.min(M.wt, cfg.wclip) : 1) * weightOf(M, cfg)
+    // Today's choice's own row is no advantage over itself: fitted only to the centred target.
     for (let r = t.start[p] + (cfg.target === 'today' ? 1 : 0); r < t.start[p + 1]; r++) {
       run[r] = runs.get(M.runKey)
       w[r] = wp
@@ -541,21 +448,19 @@ export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0 } = 
     y[r] = Math.max(-cfg.clip, Math.min(cfg.clip, yt[r]))
   }
   const S = { bins: t.bins, N: t.N, cols, nb: t.nb, y, w, run, nRuns: runs.size }
-  log(`fitting ${cfg.trees} trees to the ${cfg.target === 'mean' ? 'centred value' : 'advantage over today\'s choice'} on ${fitted.length} positions (${rows} rows, ${runs.size} runs), ${cols.length} inputs: depth ≤ ${cfg.depth}, leaves ≤ ${cfg.leaves}, ` +
-    `min leaf ${cfg.minLeaf}, mtry ${+cfg.mtry.toFixed(3)}, shrink ${cfg.shrink}${cfg.weighted ? `, weighted (clip ${cfg.wclip})` : ''}`)
+  log(lineOf(cfg, t, { fitted: fitted.length, rows, runs: runs.size, inputs: cols.length }))
   const t0 = Date.now()
   const trees = new Array(cfg.trees)
   let made = 0
   await growTrees(S, cfg, workers, (k, tree) => {
     trees[k] = tree
-    if (++made % Math.max(1, Math.round(cfg.trees / 5)) === 0) log(`  ${made}/${cfg.trees} trees, ${((Date.now() - t0) / 1000).toFixed(0)} s`)
+    if (progress && ++made % Math.max(1, Math.round(cfg.trees / 5)) === 0) log(`  ${made}/${cfg.trees} trees, ${((Date.now() - t0) / 1000).toFixed(0)} s`)
   })
-  // Out of bag, in the trees' order (each row of a fitted position by the trees whose draw left its run out); the
-  // held-out rows by every tree.
   const sum = new Float64Array(t.N)
   const cnt = new Int32Array(t.N)
   const runOf = new Int32Array(t.N).fill(-1)
-  const isHeld = Uint8Array.from(t.pos, (p) => +(t.meta[p].split === 'held'))
+  const isHeld = new Uint8Array(t.N)
+  for (const p of heldOut) for (let r = t.start[p]; r < t.start[p + 1]; r++) isHeld[r] = 1
   for (const p of fitted) for (let r = t.start[p]; r < t.start[p + 1]; r++) runOf[r] = runs.get(t.meta[p].runKey)
   for (const tree of trees) {
     for (let r = 0; r < t.N; r++) {
@@ -572,12 +477,15 @@ export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0 } = 
     if (runOf[r] >= 0) oob[r] = sum[r] / cnt[r]
     else held[r] = sum[r] / cnt[r]
   }
-  const config = toConfig(trees, t, cols, cfg, { positions: fitted.length, rows, runs: runs.size, seconds: (Date.now() - t0) / 1000 })
+  const config = configOf(trees, t, cols, cfg, { fitted: fitted.length, rows, runs: runs.size, seconds: (Date.now() - t0) / 1000 })
   return { config, trees, oob, held, fitted, heldOut }
 }
 
-// Each row's target: its value less its position's mean (`mean`, the centred value), or less today's choice's
-// (`today`, the advantage over it). → Float64Array
+// The battle forest's first line of a fitting (fitForest's lineOf).
+const fitLine = (cfg, t, n) => `fitting ${cfg.trees} trees to the ${cfg.target === 'mean' ? 'centred value' : 'advantage over today\'s choice'} on ${n.fitted} positions (${n.rows} rows, ${n.runs} runs), ${n.inputs} inputs: depth ≤ ${cfg.depth}, leaves ≤ ${cfg.leaves}, ` +
+  `min leaf ${cfg.minLeaf}, mtry ${+cfg.mtry.toFixed(3)}, shrink ${cfg.shrink}${cfg.weighted ? `, weighted (clip ${cfg.wclip})` : ''}`
+
+// Each row's target: its value less its position's mean (`mean`), or less today's choice's (`today`).
 function targetsOf (t, target) {
   const y = new Float64Array(t.N)
   for (let p = 0; p < t.P; p++) {
@@ -595,9 +503,9 @@ function targetsOf (t, target) {
 }
 
 const round = (v, p = 5) => +v.toPrecision(p)
-// Fitted trees as forest.json's configuration: the inputs the table's columns `cols` are, every split's threshold its
-// bin's cut, every right child as nodes ahead.
-function toConfig (trees, t, cols, cfg, fit) {
+// Fitted trees as forest.js reads them (compileTrees): each tree's size, each node's input its place among `cols` (−1 a
+// leaf), each split's threshold its bin's cut, each right child as nodes ahead, each leaf's value to five figures.
+export function flatTrees (trees, t, cols) {
   const feat = []
   const thr = []
   const right = []
@@ -613,41 +521,39 @@ function toConfig (trees, t, cols, cfg, fit) {
       }
     }
   }
+  return { size: trees.map((x) => x.feat.length), feat, thr, right, value }
+}
+// Fitted trees as forest.json's configuration (fitForest's configOf).
+function toConfig (trees, t, cols, cfg, fit) {
   const { target, trees: n, depth, leaves, minLeaf, mtry, shrink, weighted, wclip, clip, seed, delta } = cfg
   return {
     kind: 'forest',
     name: cfg.name ?? 'forest',
     about: `a random forest's advantage over today's choice (src/sim/forest.js), fitted on teach.js's labels to the battle's end (target ${target}); today's choice unless the best other candidate's exceeds delta`,
-    made: { at: new Date().toISOString(), trees: n, depth, leaves, minLeaf, mtry: +mtry.toFixed(4), shrink, weighted, wclip, clip, seed, bins: Math.max(...t.nb), label: t.label ?? 'mean', ...fit, seconds: +fit.seconds.toFixed(1) },
+    made: { at: new Date().toISOString(), trees: n, depth, leaves, minLeaf, mtry: +mtry.toFixed(4), shrink, weighted, wclip, clip, seed, bins: Math.max(...t.nb), label: t.label ?? 'mean', positions: fit.fitted, rows: fit.rows, runs: fit.runs, seconds: +fit.seconds.toFixed(1) },
     data: cfg.data ?? t.dirs,
     inputs: Array.from(cols, (j) => t.names[j]),
     target,
     delta,
-    size: trees.map((x) => x.feat.length),
-    feat,
-    thr,
-    right,
-    value
+    ...flatTrees(trees, t, cols)
   }
 }
 
 // ── measuring ────────────────────────────────────────────────────────────────────────────────────
 
-// The better of two table rows by predictions `P`: the higher; ties as policy.js better (the fewer steps, the lower lane,
-// the lower target uid).
+// The better of two table rows by predictions `P`, ties as policy.js better where the table has the tie keys, else the earlier.
 const aheadRow = (t, P, r, b) => {
   if (Math.abs(P[r] - P[b]) > EPS) return P[r] > P[b]
+  if (!t.steps) return false
   if (t.steps[r] !== t.steps[b]) return t.steps[r] < t.steps[b]
   if (t.lane[r] !== t.lane[b]) return t.lane[r] < t.lane[b]
   return t.target[r] < t.target[b]
 }
 
-// How predictions `P` (a table row each; NaN unread) of a forest of target `target` decide positions `list` at margin
-// `delta`, as play would: each other option's advantage over today's choice read (P, less today's choice's own P for
-// the centred target), the best taken where it exceeds delta, else today's choice. → { n, changed (the share it
-// changed), gain (the mean advantage realised by the playouts: the option's value less today's, 0 where unchanged),
-// wgain (the same by the draw's weight: as play meets the decisions), up and down (the shares changed for a better and
-// for a worse playout), oracle (the mean best advantage: the teacher's), woracle }
+// How predictions `P` (a table row each) decide positions `list` at margin `delta`, as play would: the best other option
+//   taken where its advantage over today's choice exceeds delta. → { n, changed (the share), gain (the mean advantage
+//   realised by the playouts), wgain (the same by the draw's weight), up and down (the shares changed for a better and a
+//   worse playout), oracle (the mean best advantage: the teacher's), woracle }
 export function decided (t, list, P, delta, target = 'mean') {
   let n = 0
   let changed = 0
@@ -687,9 +593,9 @@ export function decided (t, list, P, delta, target = 'mean') {
 }
 
 // The margins a table is read at.
-export const DELTAS = Object.freeze([0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1])
-// A table of predictions `P` over positions `list`, a line a margin: the decisions changed, the advantage realised (per
-// position, and by the draw's weight), the changes that gained and lost.
+const DELTAS = Object.freeze([0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1])
+// A table of predictions `P` over positions `list`, a line a margin (decided's): the decisions changed, the advantage
+// realised (per position and by the draw's weight), the changes that gained and lost.
 export function marginText (t, list, P, deltas = DELTAS, target = 'mean') {
   const pct = (x) => `${(100 * x).toFixed(1)}%`.padStart(7)
   const out = [`${'delta'.padStart(6)} ${'n'.padStart(7)} ${'changed'.padStart(8)} ${'gain'.padStart(8)} ${'w gain'.padStart(8)} ${'better'.padStart(7)} ${'worse'.padStart(7)}`]
@@ -703,24 +609,28 @@ export function marginText (t, list, P, deltas = DELTAS, target = 'mean') {
   return out.join('\n')
 }
 
-// Forests `configs` read on label sets `dirs` as play reads them (each option's raw inputs, encodeAgainst; no bins): the
-// held-out positions' margins table of each at its own delta and at DELTAS. → { [name]: text }
-export async function evalForests (dirs, configs, { log = null } = {}) {
-  const after = configs.some((c) => readsAfter(c))
-  const P = configs.map(() => [])
-  const t = { v: [], steps: [], lane: [], target: [], start: [0], meta: [] }
-  for await (const { row, d } of decisionsOf(dirs, after)) {
+// The held-out decisions of `decisions` as a table for decided and marginText, raw inputs read as play reads them, with
+// each of predictors `of` (inputs → a prediction) on every row. → { t (v, `keys`, start, meta), P: [an array a predictor] }
+export async function heldTable (decisions, of, keys = []) {
+  const t = { v: [], ...Object.fromEntries(keys.map((k) => [k, []])), start: [0], meta: [] }
+  const P = of.map(() => [])
+  for await (const { row, d } of decisions) {
     if (splitOf(row.run) !== 'held') continue
     for (const o of d.rows) {
-      configs.forEach((c, i) => P[i].push(predict(c, o.x)))
+      of.forEach((f, i) => P[i].push(f(o.x)))
       t.v.push(o.value)
-      t.steps.push(o.steps)
-      t.lane.push(o.lane)
-      t.target.push(o.target)
+      for (const k of keys) t[k].push(o[k])
     }
     t.start.push(t.v.length)
     t.meta.push({ wt: row.wt ?? 1 })
   }
+  return { t, P }
+}
+
+// The held-out margins table of forests `configs` on label sets `dirs`, read as play reads them. → { [name]: text }
+async function evalForests (dirs, configs, { log = null } = {}) {
+  const after = configs.some((c) => readsAfter(c))
+  const { t, P } = await heldTable(decisionsOf(dirs, after), configs.map((c) => (x) => predict(c, x)), ['steps', 'lane', 'target'])
   const list = t.meta.map((_, p) => p)
   const out = {}
   configs.forEach((c, i) => {
@@ -732,24 +642,7 @@ export async function evalForests (dirs, configs, { log = null } = {}) {
 
 // ── the command ──────────────────────────────────────────────────────────────────────────────────
 
-// npm run forest -- --data <dir>[,<dir>…] --out <file> [--inputs base|aft] [--data-weight 1,0.5,…] [--use <dir>,…]
-//                   [--target mean|today] [--trees 200] [--depth 12] [--leaves 512] [--min-leaf 40] [--mtry 0.333]
-//                   [--shrink 0] [--bins 64] [--weighted] [--wclip 10] [--seed 1] [--delta 0.1] [--name forest]
-//                   [--label mean|exact] [--workers 7]
-//   fits a forest and writes it (src/sim/forest.json is the one play reads: write it only for a forest kept on a paired
-//   gain), printing its out-of-bag and held-out margins tables (marginText). `--inputs aft`: with the afterstate's
-//   (each label set augmented: teach.js --augment); `--data-weight`: each label set's weight, in --data's order;
-//   `--use`: the label sets fitted on (all by default; the rest only read for the bins); `--label exact`: a smoothed
-//   set's exact lines in place of its means (LABELS).
-// npm run forest -- --data <dir>[,<dir>…] --eval <file>[,<file>…]   the held-out tables of forests fitted already, read
-//   as play reads them.
 async function main () {
-  const argv = process.argv.slice(2)
-  const arg = (name, def) => {
-    const i = argv.indexOf('--' + name)
-    return i >= 0 && argv[i + 1] !== undefined ? argv[i + 1] : def
-  }
-  const list = (k) => (arg(k, '') || '').split(',').filter(Boolean)
   const dirs = list('data')
   if (!dirs.length) throw new Error('forest: --data <dir>[,<dir>…] of teach.js labels')
   const fs = node('fs')
@@ -769,12 +662,11 @@ async function main () {
   console.log(`reading ${dirs.join(', ')} (inputs ${set}${weights.length ? `, weights ${weights.join(', ')}` : ''}, ${bins} bins${label !== 'mean' ? `, the ${label} labels` : ''})`)
   const t = await readTable(dirs, { inputs: INPUT_SETS[set](), weights: weights.length ? weights : null, bins, log: console.log, label })
   console.log(`${t.P} positions, ${t.N} rows, ${t.D} inputs (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
-  const num = (k) => (arg(k, null) === null ? undefined : Number(arg(k)))
   const cfg = Object.fromEntries(Object.entries({
-    target: arg('target', undefined), trees: num('trees'), depth: num('depth'), leaves: num('leaves'), minLeaf: num('min-leaf'), mtry: num('mtry'), shrink: num('shrink'), wclip: num('wclip'), seed: num('seed'), delta: num('delta'),
-    name: arg('name', undefined)
-  }).filter(([, v]) => v !== undefined))
-  if (argv.includes('--weighted')) cfg.weighted = true
+    target: arg('target'), trees: num('trees'), depth: num('depth'), leaves: num('leaves'), minLeaf: num('min-leaf'), mtry: num('mtry'), shrink: num('shrink'), wclip: num('wclip'), seed: num('seed'), delta: num('delta'),
+    name: arg('name')
+  }).filter(([, v]) => v != null))
+  if (has('weighted')) cfg.weighted = true
   if (list('use').length) cfg.use = list('use')
   cfg.data = dirs
   const workers = Number(arg('workers', Math.max(1, os.availableParallelism() - 1)))
@@ -798,7 +690,7 @@ if (threads && !threads.isMainThread && threads.workerData?.forest === 'fit') {
     const tree = growTree(S, cfg, t)
     threads.parentPort.postMessage(tree, [tree.feat.buffer, tree.bin.buffer, tree.right.buffer, tree.value.buffer, tree.count.buffer])
   })
-} else if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new URL(import.meta.url).pathname)) {
+} else if (isMain(import.meta.url)) {
   main().catch((e) => {
     console.error(e)
     process.exit(1)

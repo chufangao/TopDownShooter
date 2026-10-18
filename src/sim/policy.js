@@ -1,526 +1,39 @@
-// The one policy (redesign.md §2.9), both sides: enumerate a unit's options (where it may stand, then what it may do
-// from there), score each, commit the best, and go on to the next unit on the board as it now stands. The camp plays
-// its whole turn so (foeTurn), each kind by its temperament and one score; the expert plays yours so (expertTurn), each
-// option read as a vector of features and weighed by TUNING.expert (redesign.md §2.17), with no turn of the foes played
-// ahead. Above the pieces stands the expert's plan (redesign.md §2.18; plan.js): read once a turn and kept across turns,
-// its target formation (a tile for each piece), its kill list and its forecast of the foes are features of each piece's
-// options, and the kill list played is one of the boards a turn compares. Where a forest is in use (forest.js: regression
-// trees fitted offline on teach.js's playouts, the successor of redesign.md §2.23's ranker), it may overrule today's
-// choice of a piece where it reads another option the better by more than its margin (choice). Nothing reads a seed:
-// the same board gives the same turn.
+// The expert's turn (the autoplayer's battle play; never shipped): the situation, the threat read, each option's features
+// for the model tree (expert.js), the plan (plan.js) and the forest that may overrule a choice (forest.js). Re-exports foe.js.
+import { statusDef, SYNERGIES } from '../content.js'
 import { TUNING } from '../tuning.js'
-import { STATUS_WORTH, statusDef, unitDef, SYNERGIES } from '../content.js'
-import {
-  alive, enemySide, isBlow, isAllyShape, footprint, tileX, tileY, distanceBetween, blowReach, rangeOf, steps, lineEnds, LINE_AT, LINE_TILES,
-  TILES, LANES, DEPTH, synergyCounts, synergyNeeds
-} from './unit.js'
-import { LANE, roadOf } from './field.js'
-import {
-  stats, emit, computeDamage, fork, order, reach, roadAhead, roadTiles, targetsFrom, usable, canAct, hexed, perform, walk, moveMoment, aloft, helped, shape, impatience,
-  orderable, isSkill, counterOf, rateOf, synergiesOf, corpses, nextWave, allowed, pick, lined, struckBy
-} from './turns.js'
-import { call } from './rules.js'
 import { value as weighed, TREES, conditions, expertModel, decideTree, readTree, scoreOf, defaultExpert } from './expert.js'
-import { readPlan } from './plan.js'
+import { LANE, roadOf } from './field.js'
+import { danger, stunned, rawOf, mitigation, dangerAt, options, score, NOBODY, MONARCH, gain, hit, landed, NONE, estimate, struckOf, EPS, lane, better, hardest } from './foe.js'
 import { forestModel, predictions, playOf, playView, meanOf, readsAfter as forestReadsAfter } from './forest.js'
+import { readPlan } from './plan.js'
+import { stats, computeDamage, fork, order, reach, roadTiles, targetsFrom, usable, canAct, hexed, perform, aloft, helped, shape, orderable, isSkill, synergiesOf, corpses, nextWave, allowed, pick, lined } from './turns.js'
+import { alive, isBlow, isAllyShape, footprint, tileX, distanceBetween, blowReach, rangeOf, steps, lineEnds, LINE_AT, LINE_TILES, TILES, DEPTH, synergyCounts, synergyNeeds } from './unit.js'
+export * from './foe.js'
 
-// ── the danger map (§2.9.2) ──────────────────────────────────────────────────────────────────────
+// ── the expert's situation ───────────────────────────────────────────────────────────────────────
 
-// By tile, how much the other side could deal on its next turn to one of `side`'s standing there, before that one's
-// DEF (dangerAt counts it): each unit of the other side, from every tile it could stand on next turn (a piece of
-// yours anywhere its Move reaches, a summon or a shadow where it stands, a foe along its road), its best blow that will
-// be ready (a basic, or a skill off cooldown by then) at that tile, summed over the units. → { ground, air, shields }:
-// the air for a flyer standing there (a melee blow from the ground never reaches one). The Monarch deals nothing; a unit
-// whose next act Hexed takes deals nothing. `at` (Map uid → tile: plan.js forecast's) puts each foe dealing on the one
-// tile it names instead of its whole road ahead. Lines count (redesign.md §2.19): a blow that keeps to one (turns.js
-// lined) reaches no tile with one of `side`'s standing strictly between, as the board stands; what one piece alone
-// shields so is kept apart (`shields`: Map unit → { ground, air }), so that the piece itself, read on another tile
-// (dangerAt), is not shielded by where it stood. With `lines` false, as if no one stood in the way (plan.js formation's:
-// where your pieces will stand is what it decides).
-export function danger (battle, side, at = null, { lines = true } = {}) {
-  const dealer = enemySide(side)
-  const ground = new Array(TILES).fill(0)
-  const air = new Array(TILES).fill(0)
-  const shields = new Map()
-  // Yours, read in the foes' turn or at its end, act next after a turn's end: a skill whose cooldown falls to 0 by
-  // then (at the rate turns.js rateOf gives it) counts. The foes, read in your turn, act before it.
-  const later = dealer === 'party' && battle.stage !== 'party'
-  const g = DANGER_G
-  const a = DANGER_A
-  for (const u of battle.units) {
-    if (u.side !== dealer || !alive(u) || u === battle.monarch || stunned(u, later)) continue
-    const rate = later ? rateOf(battle, u) : 0
-    const blows = u.kit.filter((x) => isBlow(x) && (!isSkill(u, x) || (u.cooldowns[x.id] ?? 0) <= rate))
-    if (!blows.length) continue
-    const spots = spotsOf(battle, u, at)
-    g.fill(0)
-    a.fill(0)
-    const alone = new Map()
-    for (const b of blows) {
-      const raw = rawOf(battle, u, b)
-      if (!(raw > 0)) continue
-      const r = blowReach(u, b)
-      const ra = aloft(u, b, r)
-      for (const t of spots) {
-        if (lines && lined(b)) {
-          // A ranged blow reaches the air as the ground (aloft), on the same lines.
-          sight(battle, side, t, u.size, r, raw, g, a, alone)
-          continue
-        }
-        dilate(g, t, u.size, r, raw)
-        if (ra >= 0) dilate(a, t, u.size, ra, raw)
-      }
-    }
-    for (let t = 0; t < TILES; t++) {
-      ground[t] += g[t]
-      air[t] += a[t]
-    }
-    for (const [y, list] of alone) {
-      let w = null
-      for (let t = 0; t < TILES; t++) {
-        const dg = list[t] - g[t]
-        const da = list[t] - a[t]
-        if (dg <= 0 && da <= 0) continue
-        w ??= shields.get(y) ?? shields.set(y, { ground: new Float64Array(TILES), air: new Float64Array(TILES) }).get(y)
-        if (dg > 0) w.ground[t] += dg
-        if (da > 0) w.air[t] += da
-      }
-    }
-  }
-  return { ground, air, shields }
-}
-
-// danger's scratch, a unit's reach at a time (one danger read at a time: nothing it calls reads one).
-const DANGER_G = new Array(TILES)
-const DANGER_A = new Array(TILES)
-
-// Whether a Hexed `u` will lose its next act (`later`: it acts after a turn's end, where a Hexed of a turn runs out).
-const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id === 'hexed' && (s.fresh || s.dur === 'battle' || s.dur > 1)))
-
-// The tiles `u` could stand on to strike from on its side's next turn, as the danger map reads them: a foe its road's
-// tiles from where it stands, as far as its Move takes it and the board lets it (roadAhead), or the one tile `at`
-// (Map uid → tile) names; a piece of yours anywhere its Move reaches; a summon or a shadow where it stands.
-const spotsOf = (battle, u, at = null) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadTiles(battle, u, u.move))
-  : orderable(battle, u) ? [u.tile, ...reach(battle, u, u.move).keys()] : [u.tile]
-
-// What a unit could do on its side's next turn, for the board to light when a foe of a kind met is tapped (redesign.md
-// §4.8, §9): `move`, the tiles it could stand on (spotsOf: a foe's road ahead within its Move, its own tile first), and
-// `ground`, every tile a blow of its kit could strike from any of them (the danger map's spots, reach and dilation:
-// blowReach round its footprint), with `air` those where it could strike a flyer (aloft: a melee blow from the ground
-// never could). What it could strike, never what it will: every blow counts whether it rests or not (a foe's rests are
-// not shown), no line of fire is drawn (the pieces in the way may move first), and nothing says where it goes, whom it
-// takes, or whether it comes at all. One whose next act a Hex takes strikes nothing (its Hex is on its card). → tile
-// lists, ascending (`move` in road order).
-export function threatOf (battle, u) {
-  const move = alive(u) ? spotsOf(battle, u) : []
-  const ground = new Array(TILES).fill(0)
-  const air = new Array(TILES).fill(0)
-  if (move.length && !stunned(u, false)) {
-    for (const b of u.kit) {
-      if (!isBlow(b)) continue
-      const r = blowReach(u, b)
-      const ra = aloft(u, b, r)
-      for (const t of move) {
-        dilate(ground, t, u.size ?? 1, r, 1)
-        if (ra >= 0) dilate(air, t, u.size ?? 1, ra, 1)
-      }
-    }
-  }
-  const tiles = (list) => list.flatMap((v, t) => (v ? [t] : []))
-  return { move, ground: tiles(ground), air: tiles(air) }
-}
-
-// A blow that keeps to a line, of `raw`, from a footprint at `tile` (of `size`) within `r`: every tile it reaches with
-// no one of `side` strictly between (turns.js lineBlocker, as the board stands) holds at least `raw` in `g` and `a`
-// (the ground's and the air's lists); one that a single unit of side alone stands in the way of holds it in that unit's
-// own list (`alone`: Map unit → list), what the danger there is were that one elsewhere.
-function sight (battle, side, tile, size, r, raw, g, a, alone) {
-  const x0 = tileX(tile)
-  const y0 = tileY(tile)
-  const yb = Math.min(DEPTH - 1, y0 + size - 1 + r)
-  const xa = Math.max(0, x0 - r)
-  const xb = Math.min(LANES - 1, x0 + size - 1 + r)
-  for (let y = Math.max(0, y0 - r); y <= yb; y++) {
-    for (let x = xa, t = y * LANES + xa; x <= xb; x++, t++) {
-      if (g[t] >= raw && a[t] >= raw) continue
-      const [p, q] = size === 1 ? [tile, t] : lineEnds(tile, size, t, 1)
-      const k = p * TILES + q
-      let one = null
-      let many = false
-      for (let i = LINE_AT[k]; i < LINE_AT[k + 1] && !many; i++) {
-        const c = LINE_TILES[i]
-        for (let n = 0; n < 2; n++) {
-          const w = n ? battle.sky[c] : battle.at[c]
-          if (w === null || w.side !== side || w === one) continue
-          if (one === null) one = w
-          else many = true
-        }
-      }
-      if (one === null) {
-        if (g[t] < raw) g[t] = raw
-        if (a[t] < raw) a[t] = raw
-      } else if (!many) {
-        const list = alone.get(one) ?? alone.set(one, new Float64Array(TILES)).get(one)
-        if (list[t] < raw) list[t] = raw
-      }
-    }
-  }
-}
-
-// Every tile within `r` of a footprint at `tile` holds at least `raw`.
-function dilate (list, tile, size, r, raw) {
-  const x0 = tileX(tile)
-  const y0 = tileY(tile)
-  const yb = Math.min(DEPTH - 1, y0 + size - 1 + r)
-  const xa = Math.max(0, x0 - r)
-  const xb = Math.min(LANES - 1, x0 + size - 1 + r)
-  for (let y = Math.max(0, y0 - r); y <= yb; y++) {
-    for (let x = xa, t = y * LANES + xa; x <= xb; x++, t++) if (list[t] < raw) list[t] = raw
-  }
-}
-
-// A blow's damage before the target's DEF and damage taken: computeDamage's raw, with its dealer's damage dealt.
-export function rawOf (battle, u, b) {
-  const s = stats(battle, u)
-  let power = 0
-  for (const e of b.effects) if (e.op === 'damage') power += e.power
-  return power * s.atk / TUNING.damage.atkDivisor * s.damage.dealt
-}
-
-// What share of the raw a unit takes: its DEF's mitigation and its damage taken.
-const mitigation = (battle, x) => {
-  const s = stats(battle, x)
-  return TUNING.damage.defConstant / (TUNING.damage.defConstant + Math.max(0, s.def)) * s.damage.taken
-}
-
-// What `u` would take standing on `tile` (a footprint: its worst tile), by a danger map for its side: never more than
-// its HP (a fall is the most it can lose). Where it stands now it shields nothing of its own: what the map has it alone
-// shield (its `shields`) is danger to it elsewhere.
-export function dangerAt (battle, u, tile, map) {
-  const list = u.flies ? map.air : map.ground
-  const own = map.shields?.get(u)
-  const mine = own && (u.flies ? own.air : own.ground)
-  let raw = 0
-  for (const t of footprint(tile, u.size) ?? [tile]) raw = Math.max(raw, list[t] + (mine ? mine[t] : 0))
-  return Math.min(u.hp, raw * mitigation(battle, u))
-}
-
-// ── the pressure (§2.9.1) ────────────────────────────────────────────────────────────────────────
-
-// The camp's pressure, 0 to 1: its impatience (turns.js: 0 as the last wave enters, 1 TUNING.policy.press.turns
-// later; there is no clock), nudged by TUNING.policy.press.strength toward the trade the camp could make: up when its
-// foes could deal more to your pieces in their reach than yours to them, down when less. Out of patience it is 1,
-// whatever the trade: the horde always comes, so a battle always ends. Never shown. `maps` may carry the danger maps
-// already made ({ party, foe }: danger to each side).
-export function press (battle, maps = {}) {
-  const time = impatience(battle)
-  if (time >= 1) return 1
-  const theirs = onSide(battle, 'party', maps.party ?? danger(battle, 'party'))
-  const ours = onSide(battle, 'foe', maps.foe ?? danger(battle, 'foe'))
-  const nudge = (theirs - ours) / Math.max(1, theirs + ours)
-  return Math.min(1, Math.max(0, time + TUNING.policy.press.strength * nudge))
-}
-
-// A foe at full pressure (foeTurn): bold at least (aggression 1), so even a Keeper (0) comes along its road as far as
-// its Move and the board allow, preyOf making the Monarch its prey; and it fights, tending no one (no heal, cleanse or
-// ward on its own side): a camp that mends what you deal as fast as you deal it would hold a battle forever.
-const hasty = (temper) => (temper.aggression >= 1 ? temper : { ...temper, aggression: 1 })
-const fighting = (battle, u) => options(battle, u).filter((o) => !o.ability || o.target.side !== u.side)
-
-const onSide = (battle, side, map) => battle.units.reduce((n, u) => n + (u.side === side && alive(u) ? dangerAt(battle, u, u.tile, map) : 0), 0)
-
-// ── options and their scores (§2.9.3) ────────────────────────────────────────────────────────────
-
-// A unit's options: each place it may stand this turn (a foe its road's tiles, 0 to its Move ahead; a piece of yours
-// where it stands and everywhere its Move left reaches, unless `moving` is false), and from each, holding or each act
-// it may make: each blow at each foe in reach (a shape that touches all it reaches, once), each heal or cleanse at each
-// ally it can do something for, each ward on whom it reaches, Arise at each corpse. → [{ tile, path, ability, target }]
-// (`ability` an ability def or null, `target` a unit or null).
-export function options (battle, u, { moving = true } = {}) {
-  const spots = u.side === 'foe' ? roadAhead(battle, u)
-    : [{ tile: u.tile, path: [] }, ...(moving && !u.acted ? [...reach(battle, u)].map(([tile, path]) => ({ tile, path })) : [])]
-  const acts = canAct(battle, u) ? u.kit.filter((a) => usable(battle, u, a)) : []
-  const out = []
-  for (const s of spots) {
-    out.push({ tile: s.tile, path: s.path, ability: null, target: null })
-    for (const a of acts) {
-      let list
-      if (isAllyShape(a.shape) && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse')) list = helped(battle, u, a, s.tile)
-      else list = targetsFrom(battle, u, a, s.tile)
-      if (a.shape === 'all') list = list.slice(0, 1)
-      for (const x of list) out.push({ tile: s.tile, path: s.path, ability: a, target: x })
-    }
-  }
-  return out
-}
-
-// The one score (§2.9.3):
-//   dealt × (the target is its prey ? 1.5 : 1) − caution × (1 − press) × taken + aggression × (1 + press) × gained
-// dealt: damage (as far as each target's HP), HP mended, a status's worth (STATUS_WORTH); taken: the
-// danger where it would stand (ctx.danger, for its side: danger) and the counter its blow would draw; gained: road
-// gained (a foe's) and each kill's worth (its max HP; the Monarch's, the battle). `ctx` may carry the danger map and
-// `prey` (a Set of units: preyOf).
-export function score (battle, u, o, temper, p, ctx = {}) {
-  const map = ctx.danger ??= danger(battle, u.side)
-  const e = estimate(battle, u, o, ctx.prey ?? NOBODY)
-  const taken = dangerAt(battle, u, o.tile, map) + e.counter
-  return e.dealt - temper.caution * (1 - p) * taken + temper.aggression * (1 + p) * (gain(battle, u, o.tile) + e.kill)
-}
-
-const NOBODY = new Set()
-const MONARCH = 1e6
-const worth = (battle, x) => (x === battle.monarch ? MONARCH : x.maxHp)
-// Road gained: how much nearer the Monarch a foe would stand (none for yours).
-const gain = (battle, u, tile) => (u.side === 'foe' ? roadOf(battle, u).dist[u.tile] - roadOf(battle, u).dist[tile] : 0)
-
-// A blow of `power` from `a` (stats) on `x`, as it lands (before the rules that bend it); `landed` on x's stats `d`.
-const hit = (battle, a, x, power) => landed(a, stats(battle, x), power)
-const landed = (a, d, power) => computeDamage({ power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
-
-const NONE = Object.freeze([])
-const ZERO = { dealt: 0, kill: 0, counter: 0, damage: 0, focus: 0, bane: 0, preyed: 0, menace: 0, status: 0, mend: 0, rescue: 0, shadow: 0, felled: NONE, hexed: NONE }
-// A status laid on `x` (it always lands): its worth, nothing where `x` holds it already at its full stacks (it would
-// only last longer).
-const statusWorth = (e, x) => {
-  const had = x.statuses.find((s) => s.id === e.status)
-  return had && had.stacks >= statusDef(e.status).stacks ? 0 : STATUS_WORTH[e.status] ?? 0
-}
-const debuff = (id) => statusDef(id).tags.includes('debuff')
-
-// What an option would do, read off the board without playing it. For the one score: `dealt` (damage as far as each
-// target's HP, × 1.5 on the actor's prey; HP mended; a status's worth; a corpse raised, its max HP), `kill` (each
-// kill's worth) and `counter` (what the counter its blow draws would take). And the same split for the expert's
-// features: `damage` (no prey), `focus` (damage × the share of HP its target had lost already), `bane` (damage on a
-// target that has a heal: turns.js `mend`), `preyed` (damage on the actor's prey: the expert's, the foes that could
-// strike the Monarch), `menace` (the hardest
-// blow of each foe it fells), `status`, `mend`, `rescue` (HP mended on one of the actor's side that danger map `map`,
-// where given, says could fall next turn) and `shadow` (a corpse raised); `felled` and `hexed`, the foes it would fell
-// and those it would Hex.
-function estimate (battle, u, o, prey, map = null) {
-  const a = o.ability
-  if (!a) return ZERO
-  if (a.shape === 'corpse') return { ...ZERO, dealt: o.target.maxHp, shadow: o.target.maxHp }
-  const s = stats(battle, u)
-  // The actor where it would stand, for the shapes that measure from it; a blow spreads from the one it strikes.
-  const at = { uid: u.uid, side: u.side, tile: o.tile, size: u.size, flies: u.flies }
-  const struck = struckOf(battle, u, o)
-  const targets = shape(battle, at, a, struck).map((x) => (x === at ? u : x))
-  const out = { ...ZERO }
-  if (map !== null) out.hits = []
-  let primary = 0
-  for (const x of targets) {
-    if (x.side !== u.side) {
-      let d = 0
-      for (const e of a.effects) if (e.op === 'damage') d += hit(battle, s, x, e.power)
-      if (x === struck) primary = d
-      const dd = Math.min(d, x.hp)
-      if (map !== null && dd > 0 && dd < x.hp) out.hits.push([x, dd])
-      out.dealt += dd * (prey.has(x) ? 1.5 : 1)
-      out.damage += dd
-      out.focus += dd * (1 - x.hp / x.maxHp)
-      if (x.mend) out.bane += dd
-      if (prey.has(x)) out.preyed += dd
-      if (d >= x.hp) {
-        out.kill += worth(battle, x)
-        out.menace += hardest(battle, x)
-        out.felled = [...out.felled, x]
-      } else {
-        for (const e of a.effects) {
-          if (e.op !== 'apply_status' || !debuff(e.status)) continue
-          const w = statusWorth(e, x)
-          out.dealt += w
-          out.status += w
-          if (e.status === 'hexed') out.hexed = [...out.hexed, x]
-        }
-      }
-    } else {
-      const missing = x === battle.monarch && battle.unhealable ? 0 : x.maxHp - x.hp
-      const brink = map !== null && x.hp <= dangerAt(battle, x, x.tile, map)
-      for (const e of a.effects) {
-        if (e.op === 'heal' && !e.self) {
-          const m = Math.min(missing, e.pct ? x.maxHp * e.pct : e.power * s.atk / TUNING.damage.atkDivisor * s.heal.given)
-          out.dealt += m
-          out.mend += m
-          if (brink) out.rescue += m
-        } else if (e.op === 'cleanse' || (e.op === 'apply_status' && !debuff(e.status))) {
-          const w = e.op === 'cleanse' ? x.statuses.filter((st) => statusDef(st.id).tags.includes(e.tag)).slice(0, e.count).reduce((n, st) => n + (STATUS_WORTH[st.id] ?? 0), 0) : statusWorth(e, x)
-          out.dealt += w
-          out.status += w
-        }
-      }
-    }
-  }
-  for (const e of a.effects) {
-    if (e.op !== 'heal' || !e.self) continue
-    const m = Math.min(u.maxHp - u.hp, e.power * s.atk / TUNING.damage.atkDivisor * s.heal.given)
-    out.dealt += m
-    out.mend += m
-  }
-  out.counter = isBlow(a) && a.melee && primary < struck.hp ? answer(battle, u, o, struck) : 0
-  return out
-}
-
-// Whom option `o` of `u`'s strikes (redesign.md §2.19): a blow's, the first of its target's side on its line from where
-// it would stand, or a Bodyguard that takes it (turns.js struckBy); else its target. Read once an option.
-export const struckOf = (battle, u, o) => (o.struck ??= o.ability && isBlow(o.ability) && o.target.side !== u.side ? struckBy(battle, u, o.ability, o.target, o.tile) : o.target)
-
-// The counter a melee blow from `o.tile` would draw from `x`, the one it strikes (turns.js counterOf, measured from there).
-function answer (battle, u, o, x) {
-  const b = counterOf(battle, x, u, o.tile)
-  if (!b) return 0
-  const s = stats(battle, x)
-  let d = 0
-  for (const e of b.effects) if (e.op === 'damage') d += hit(battle, s, u, e.power)
-  return Math.min(d, u.hp)
-}
-
-// Whom `u` would rather strike this turn (its temperament's `prey`, among the foes its options reach; the Monarch for
-// everyone once the pressure is 1): weakest the lowest HP, wounded the lowest share of it, unarmoured the lowest DEF,
-// monarch the Monarch, crowd where its shape covers the most, rested the most skills ready. Ties all count.
-export function preyOf (battle, u, opts, temper, p) {
-  const kind = p >= 1 ? 'monarch' : temper.prey
-  const blows = opts.filter((o) => o.ability && isBlow(o.ability) && o.target.side !== u.side)
-  // Among those its blows would strike (struckOf: a screen on the line, not the one behind it).
-  const list = [...new Set(blows.map((o) => struckOf(battle, u, o)))]
-  if (!list.length) return NOBODY
-  if (kind === 'monarch') return new Set(list.filter((x) => x === battle.monarch))
-  if (kind === 'crowd') {
-    let most = 0
-    let out = new Set()
-    for (const o of blows) {
-      const x = struckOf(battle, u, o)
-      const n = shape(battle, { uid: u.uid, side: u.side, tile: o.tile, size: u.size, flies: u.flies }, o.ability, x).filter((y) => y.side !== u.side).length
-      if (n > most) {
-        most = n
-        out = new Set([x])
-      } else if (n === most) out.add(x)
-    }
-    return out
-  }
-  const key = PREY[kind]
-  const low = Math.min(...list.map((x) => key(battle, x)))
-  return new Set(list.filter((x) => key(battle, x) === low))
-}
-
-const PREY = {
-  weakest: (battle, x) => x.hp,
-  wounded: (battle, x) => x.hp / x.maxHp,
-  unarmoured: (battle, x) => stats(battle, x).def,
-  rested: (battle, x) => -x.kit.filter((a) => isSkill(x, a) && !(x.cooldowns[a.id] > 0)).length
-}
-
-// The better of two scored options: the higher score; ties: more road gained (`road`), the lower lane, the lower uid of
-// its target, holding first (an act that changes nothing is not made: a ward recast on those who hold it).
-const EPS = 1e-9
-const lane = (o) => LANE[tileX(o.tile)]
-const better = (o, b) => {
-  if (Math.abs(o.score - b.score) > EPS) return o.score > b.score
-  if (o.road !== b.road) return o.road > b.road
-  if (lane(o) !== lane(b)) return lane(o) < lane(b)
-  return (o.target?.uid ?? -1) < (b.target?.uid ?? -1)
-}
-
-// `u`'s best option now, by `temper` at pressure `p`, against danger map `map` for its side.
-export function choose (battle, u, temper, p, map, opts = options(battle, u)) {
-  const ctx = { danger: map, prey: preyOf(battle, u, opts, temper, p) }
-  let best = null
-  for (const o of opts) {
-    o.score = score(battle, u, o, temper, p, ctx)
-    // Yours gain no road: the fewer steps the better.
-    o.road = u.side === 'foe' ? gain(battle, u, o.tile) : -o.path.length
-    if (best === null || better(o, best)) best = o
-  }
-  return best
-}
-
-// ── the camp's turn (§2.9) ───────────────────────────────────────────────────────────────────────
-
-// The foes' turn: the pressure and the danger map read once, then each foe in road order (nearest the Monarch first,
-// ties by lane, then uid; a boss's override may reorder it: rules.js `queue`, the Sovereign's court first) commits
-// its best option (choose, by its temperament; at full pressure a hasty one, among its fighting options) on the board
-// as it stands after the ones before it: its move along its road, its move's moment told as it resolves (turns.js
-// moveMoment: an Overwatch of yours may strike it there), then its act, if it still stands. Deterministic. → { orders,
-// events } (orders as the player's are written).
-export function foeTurn (battle) {
-  const from = battle.events.length
-  const out = []
-  const maps = { foe: danger(battle, 'foe') }
-  const p = press(battle, maps)
-  const dist = (u) => roadOf(battle, u).dist[u.tile]
-  const queue = battle.units.filter((u) => u.side === 'foe' && alive(u))
-    .sort((a, b) => dist(a) - dist(b) || LANE[tileX(a.tile)] - LANE[tileX(b.tile)] || a.uid - b.uid)
-  call(battle, 'queue', 'foe', { queue })
-  for (const u of queue) {
-    if (battle.over) break
-    if (!alive(u)) continue
-    // A boss whose act a Hex took shrugs off Hexes until its act is its own again (turns.js addStatus): now, as its
-    // turn comes unHexed (it acts, it has acted already, the Sovereign's Tide, or it has nothing to do but walk).
-    const lost = hexed(u) && !u.acted
-    if (u.shrugs && !lost) u.shrugs = false
-    const best = p >= 1 ? choose(battle, u, hasty(u.temper), p, maps.foe, fighting(battle, u)) : choose(battle, u, u.temper, p, maps.foe)
-    if (best.tile !== u.tile) {
-      out.push({ type: 'move', uid: u.uid, tile: best.tile })
-      walk(battle, u, best.path)
-      moveMoment(battle, u)
-      if (battle.over || !alive(u)) continue
-    }
-    if (best.ability) {
-      out.push({ type: 'act', uid: u.uid, ability: best.ability.id, target: best.target.uid })
-      perform(battle, u, best.ability, best.target)
-    } else if (lost) {
-      battle.beat++
-      emit(battle, { type: 'hexed', target: u.uid })
-      if (unitDef(u.id).boss) u.shrugs = true
-    }
-    u.acted = true
-  }
-  return { orders: out, events: battle.events.slice(from) }
-}
-
-// ── your side's turns ────────────────────────────────────────────────────────────────────────────
-
-// The basic player: End Turn, every turn (what it leaves alone strikes or mends with its basic: turns.js untouched).
-export const basicTurn = () => [{ type: 'end' }]
-
-// ── the expert's situation (redesign.md §2.17) ───────────────────────────────────────────────────
-
-// What the expert reads of the board before a piece of its decides, read again for each (the pieces before it have
-// moved, struck and felled): what the board, the wave counter and the bestiary show a player, never the camp's pressure
-// nor its coming turn. Every option of the piece is read against it (features), and the tree's rules read it
-// (expert.js TREES.battle):
+// What the expert reads of the board before each piece decides, read again for each: what a player sees, never the
+// camp's pressure nor its coming turn. The fields the features and the tree's rules read:
 //   turn       the turn
-//   map        the danger map: what the foes could deal next turn to one of yours on each tile (danger)
-//   entries    { ground, air }, by tile beside the Monarch's seat: how many living foes' roads come in by it (a piece of
-//              yours on the ground there holds either kind; a flyer of yours, only the flyers)
-//   roads      each tile a foe's road comes into the Monarch by: { tile, held (the uid of yours on it, or null), foes:
-//              [{ uid, turns (to come beside the Monarch: its road ÷ its Move, rounded up), reach }] }
-//   holding    by the uid of a piece of yours, the foes whose road it holds within their Move (those it frees by leaving)
-//   monarch    { hp, share (of its max HP: its wounds are the run's, carried from battle to battle, redesign.md §2.18
-//              C), danger (what the foes could deal it next turn: their `deals` summed), lethal (danger ≥ hp), threats
-//              ([{ uid, deals }], the foes that could strike it), deals (Map: foe → what it could deal), marked (a Set of
-//              those foes), screened (the foes in reach of it whose every line to it one of yours stands in: §2.19) };
-//              null with none
-//   pieces     each of yours that takes orders: { uid, danger (where it stands), dies (that danger would fell it), acted,
-//              ready (its skills off cooldown) }
-//   killable   each foe one of yours could fell alone this turn (its blow's exact damage; within its Move left and its
-//              reach, as the crow flies): [{ uid, by: [uids] }]
-//   foes       each living foe: { uid, hexed, ready (its skills off cooldown), mends (it has a heal) }
-//   healers    { party, foe }: the uids that heal, on each side
-//   synergies  { party, foe }: the rules each side holds (ids); `breaks`: the foes' that one fewer of a kin or role
-//              would end (a kill that breaks a cohort's 4); `gains`: yours that one more piece would bring
-//   wave       the next wave as the counter shows it ({ wave, turn }), `due` (it enters as this turn ends) and the
-//              `lanes` it enters by; null with none to come
-//   patience   turns since the last wave's first entry (the camp's impatience grows with it: a player sees as much)
-//   shadows    your shadows and summons standing
-//   corpses    each Arise holder of yours that may raise now: [{ uid, corpses (uids in its reach where it stands) }]
+//   map        the danger map for your side (danger)
+//   healing    Map foe → what the foes' healers could mend it next turn (healingRead)
+//   threat     { foes (threatRead), ours (the units they may strike), d (Map foe → Map unit → HP), spots (Map foe → tiles) }
+//   entries    { ground, air }: by tile beside the Monarch, how many foes' roads come in by it
+//   roads      [{ tile, held (a uid or null), foes: [{ uid, turns (to come beside the Monarch), reach }] }]
+//   holding    Map piece uid → the foes whose road it holds within their Move
+//   monarch    { hp, share, danger, lethal, threats: [{ uid, deals }], deals (Map), marked (Set), screened }, or null
+//   patience   turns since the last wave's first entry
+//   pieces     [{ uid, danger, dies, acted, ready }]: yours that take orders
+//   killable   [{ uid, by: [uids] }]: the foes one of yours could fell alone this turn
+//   foes       [{ uid, hexed, ready, mends }]: the living foes
+//   healers    { party, foe }: the uids that heal
+//   synergies  { party, foe, breaks (the foes' one kill would end), gains (yours one more piece would bring) }
+//   wave       the next wave { wave, turn, due, lanes }, or null
+//   shadows    how many shadows and summons of yours stand
+//   corpses    [{ uid, corpses }]: your Arise holders that may raise now
 //   idle       the uids of your pieces yet to act
-//   healing    what the foes' healers could mend each foe next turn (healingRead: Map foe → HP)
-//   threat     the foes' coming blows, each foe's once (threatRead: `foes`, in road order; `ours`, the units of yours they
-//              may strike; `d`, what each could deal each; `spots`, the tiles each living foe's road could take it to)
-// `lean` (a board read only to be judged, boardFeatures, or for its danger, teach.js dangerOf): only what a piece's
-// features, the tree's rules and the board's features read (turn, map, healing, threat, entries, roads, holding,
-// monarch, patience, plan); the rest left out. `short` (a board read only for its conditions, expert.js conditions:
-// afterOf's): what each foe could deal each unit (threat.d) left out, the one read conditions never makes.
+// `lean`: the fields turn to patience alone (a board read to be judged). `short`: threat.d left out (afterOf's).
 export function situation (battle, { lean = false, short = false } = {}) {
   // Read when first asked for (a lean read's board may never be).
   let dmap = null
@@ -574,7 +87,7 @@ export function situation (battle, { lean = false, short = false } = {}) {
   if (lean) return out
   const next = nextWave(battle)
   const map = lazy()
-  // The lean read's fields, then the rest (as `{ ...out, map, … }` would make it, its getter read: a plain field).
+  // The lean read's fields, its map a plain field, then the rest.
   return {
     turn: out.turn,
     map,
@@ -610,8 +123,7 @@ export const brief = (sit) => [
   sit.wave ? `wave ${sit.wave.wave} on turn ${sit.wave.turn}` : 'no wave to come'
 ].join(', ')
 
-// Who holds a foe `x`'s road on tile `t` (as turns.js roadAhead reads it): for a ground foe whoever stands there, for a
-// flyer one of yours on the ground there, else whoever is in the air there; null for no one.
+// Who holds foe `x`'s road on tile `t`, as turns.js roadAhead reads it (a flyer's: one of yours on the ground, else the air).
 const holderOn = (battle, x, t) => (x.flies ? (battle.at[t] !== null && battle.at[t].side !== x.side ? battle.at[t] : battle.sky[t]) : battle.at[t])
 
 // The tile road `road` comes into its root by (the one beside it), from `tile`; −1 where no road runs.
@@ -625,11 +137,8 @@ function entryOf (road, tile) {
 // How far a unit's blows reach at most (on the board).
 const farthest = (u) => Math.min(DEPTH, Math.max(0, ...u.kit.filter(isBlow).map((b) => blowReach(u, b))))
 
-// What foe `x` could deal `m` (the Monarch) on its next turn, after its DEF: its hardest blow ready by then that
-// reaches `m` from one of `spots` (the tiles its road takes it to), on a clear line for a blow that keeps to one (a
-// Monarch screened from a shooter is safe from it: redesign.md §2.19; `moved`, { u, at }: piece u standing on the
-// footprint `at` instead), 0 where none does or a Hex costs it its act. With `lines` false, as if no one stood in the
-// way. Summed over the foes, the danger map's read at the Monarch's tile, foe by foe.
+// What foe `x` could deal the Monarch `m` next turn after DEF: its hardest ready blow reaching m from `spots` (a lined one
+// on a clear line, `moved` as clear's; `lines` false: no lines), 0 for none.
 function strikeOn (battle, x, m, spots, moved = null, lines = true) {
   if (stunned(x, false)) return 0
   let best = 0
@@ -644,9 +153,8 @@ function strikeOn (battle, x, m, spots, moved = null, lines = true) {
   return best * mitigation(battle, m)
 }
 
-// Whether no one of `y`'s side stands strictly between a footprint at `t` (of side `size`) and y standing on `tile`, y
-// itself aside (the line a blow keeps to: turns.js lineStruck); `moved` ({ u, at }) has piece u on the footprint `at`
-// instead of where it stands.
+// Whether no one of `y`'s side, y aside, stands strictly between a footprint at `t` (of `size`) and y on `tile`;
+// `moved` ({ u, at }) has piece u on footprint `at` instead.
 function clear (battle, t, size, y, tile, moved = null) {
   const [p, q] = lineEnds(t, size, tile, y.size)
   const k = p * TILES + q
@@ -661,16 +169,11 @@ function clear (battle, t, size, y, tile, moved = null) {
   return true
 }
 
-// ── the expert's threat read (redesign.md §2.17) ─────────────────────────────────────────────────
+// ── the expert's threat read ─────────────────────────────────────────────────────────────────────
 
-// The foes' coming blows as a player who has met them reads them, never played: each living foe that will act next
-// turn, in road order (nearest the Monarch first, as the camp moves them), with the tiles its road could take it to
-// (roadAhead: a held tile stops it), the road it would walk with no one in its way (`ahead`: to see whom a move of
-// yours blocks or frees), the blows it will have ready (the power of each, how far it reaches a piece on the ground and
-// one in the air), and how its way line says it hunts (its temperament, the bestiary's). The danger map counts every
-// foe on every tile; this counts each foe's blow once, on whom it would rather strike (assign).
-// `aheads` (Map foe → roadTiles' list, its Move's worth) may carry the roads already read.
-// → [{ x, s (its stats), blows: [{ power, r, ra }], temper, spots, ahead }]
+// The foes' coming blows as a player who has met them reads them: each foe that will act next turn, in road order, with
+// its road's tiles (`spots`; `ahead` with no one in the way), its ready blows and temperament. `aheads`: spots read already.
+// → [{ x, s (its stats), blows: [{ power, r, ra, melee, lined, def }], melee, temper, spots, ahead, dist }]
 function threatRead (battle, aheads = null) {
   const out = []
   for (const x of battle.units) {
@@ -693,9 +196,8 @@ function threatRead (battle, aheads = null) {
 }
 const NEUTRAL = { aggression: 1, caution: 1, prey: 'weakest' }
 
-// What foe `f` (threatRead's) could deal `y` of yours standing on `tile` next turn from one of `spots`: its hardest
-// blow that reaches y there (a flyer only by one that reaches the air; one that keeps to a line, on a clear line: a
-// screen of yours takes it instead, redesign.md §2.19; `moved` as clear's), after y's DEF; 0 for none.
+// What foe `f` (threatRead's) could deal `y` standing on `tile` next turn from one of `spots`: its hardest blow that
+// reaches y there (a flyer only from the air; a lined one on a clear line, `moved` as clear's), after DEF; 0 for none.
 function strikeAt (battle, f, y, tile, spots, moved = null) {
   let best = 0
   let sy = null
@@ -712,9 +214,8 @@ function strikeAt (battle, f, y, tile, spots, moved = null) {
   return best
 }
 
-// What the foes' healers could mend each foe next turn (their heals ready, within their Move and the heal's range of
-// it, as the crow flies; each healer counted for everyone it could reach, as if it mended each): Map foe → HP. A blow
-// that leaves a foe less wounded than this is undone on the camp's turn (features' `undone`).
+// What the foes' healers could mend each foe next turn (ready heals within Move and range, each healer counted for
+// everyone it reaches): Map foe → HP, with `healers` each one's amounts. Damage it would mend back is `undone`.
 function healingRead (battle) {
   const out = new Map()
   out.healers = []
@@ -756,11 +257,9 @@ function strikes (battle, threat, ours) {
   return d
 }
 
-// The blows the foes would land next turn, each foe's once (the threat read's `d`, foe → Map unit → HP it could
-// deal): in road order, each on the unit of yours its way line says it would rather strike, as the camp scores a blow
-// (§2.9.3) with nothing played: the HP it would deal (as far as that one's HP left), half again on its prey, and its
-// aggression × a kill's worth (the max HP; the Monarch's, the battle) where it would fell it. `hp`: Map unit → the HP it
-// stands at (where an option changes it); `skip`: foes that will not strike (felled or Hexed). → Map unit → HP taken.
+// The blows the foes would land next turn, each foe's once in road order, on the one of yours it would rather strike as
+// the camp scores (dealt, half again on its prey, aggression × a kill's worth). `hp`: Map unit → HP where an option
+// changes it; `skip`: foes that will not strike; `picks` gets [foe, unit, dealt, HP left]. → Map unit → HP taken.
 function assign (battle, threat, d, hp, skip, picks = null) {
   const taken = new Map()
   const m = battle.monarch
@@ -791,8 +290,7 @@ function assign (battle, threat, d, hp, skip, picks = null) {
   return taken
 }
 
-// The others of yours foe `f`'s blow at `y` (the one that deals it `n`) covers, where that blow has a Shape: as
-// turns.js shape spreads it from the first tile of its road it would strike y from.
+// The others of yours foe `f`'s Shaped blow at `y` (dealing it `n`) covers, spread from the first tile it could strike y from.
 function spill (battle, f, y, n) {
   for (const b of f.blows) {
     if (b.def.shape === 'single' || b.def.shape === undefined) continue
@@ -807,8 +305,7 @@ function spill (battle, f, y, n) {
   return NONE
 }
 
-// The one of `row`'s units (those a foe could strike) its prey (TEMPERS) makes it hunt, by what it stands at now; null
-// where its prey reads nothing static (a crowd, the most rested).
+// The unit of `row` a foe's prey `kind` makes it hunt; null for a kind with no static read (crowd, rested).
 function preyAmong (battle, kind, row, left) {
   if (kind === 'monarch') return row.has(battle.monarch) ? battle.monarch : null
   const key = kind === 'weakest' ? left : kind === 'wounded' ? (y) => left(y) / y.maxHp : kind === 'unarmoured' ? (y) => stats(battle, y).def : null
@@ -823,24 +320,20 @@ function preyAmong (battle, kind, row, left) {
   return out
 }
 
-// What a unit of yours standing at `hp` is worth, in HP: its HP and its max HP more (what felling it takes from your
-// side), less TUNING.expert.battle.brink of its max HP × the square of the share it has lost (the nearer its fall, the
-// dearer each HP); 0 fallen. So what a blow takes from it (lossOf) weighs a wound on the wounded more, and a fall most.
+// What a unit of yours at `hp` is worth in HP: hp + max − brink × max × (share lost)², 0 fallen
+// (TUNING.expert.battle.brink): so a wound on the wounded weighs more, and a fall most.
 const standingAt = (hp, max) => (hp > 0 ? hp + max - TUNING.expert.battle.brink * max * (1 - hp / max) ** 2 : 0)
 const lossOf = (hp, max, taken) => standingAt(hp, max) - standingAt(hp - taken, max)
 
-// What the Monarch standing at `hp` (of `max`) is worth, in HP: its max HP × g(x), x the share it stands at, g(x) =
-// (1 + peril) x − peril x² / 2 (TUNING.expert.battle.peril): an HP of its weighs 1 while it is whole and 1 + peril as it
-// is about to fall (its HP carries from room to room, and its fall is the run's end).
+// What the Monarch at `hp` (of `max`) is worth in HP: max × ((1 + peril) x − peril x² / 2), x its share left
+// (TUNING.expert.battle.peril): an HP weighs 1 while it is whole, 1 + peril as it falls.
 const guardAt = (hp, max) => {
   const x = Math.max(0, hp) / max
   const p = TUNING.expert.battle.peril
   return max * ((1 + p) * x - p * x * x / 2)
 }
 
-// Your side's losses next turn as the threat read says (assign), by kind of unit: `souls` (your pieces, a soul's wounds
-// leaving the battle with it, its fall worst), `shadows` (shadows and summons), each in HP weighed by lossOf, and
-// `monarch` what the Monarch would take, weighed by guardAt; `taken` the map assign made.
+// Your side's losses next turn from assign's `taken`: `souls` and `shadows` weighed by lossOf, `monarch` by guardAt.
 function losses (battle, taken, hp) {
   const out = { souls: 0, shadows: 0, monarch: 0, taken }
   for (const [y, n] of taken) {
@@ -850,9 +343,8 @@ function losses (battle, taken, hp) {
   return out
 }
 
-// The tiles foe `x`'s road takes it to next turn (roadAhead's), were piece `u` standing on `tile` instead of where it
-// stands: its footprint there holds the road (a ground piece's anyone's, a flyer's only a flyer's), and where it stood
-// is free.
+// The tiles foe `x`'s road takes it to next turn were piece `u` on `tile` instead: its footprint there holds the road
+// (a flyer's only a flyer's), where it stood is free.
 function roadWith (battle, x, u, tile) {
   const road = roadOf(battle, x)
   const held = footprint(tile, u.size)
@@ -867,8 +359,7 @@ function roadWith (battle, x, u, tile) {
   return out
 }
 
-// Whether piece `u` could fell foe `x` alone this turn: a blow it may use now whose damage (exact: no dice) is x's HP,
-// within its Move left and that blow's reach of it, as the crow flies (a melee blow from the ground never at a flyer).
+// Whether piece `u` could fell foe `x` alone this turn: a usable blow within its Move left and reach (as the crow flies).
 function fells (battle, u, x) {
   if (!canAct(battle, u)) return false
   const gap = distanceBetween(u.tile, u.size, x.tile, x.size) - Math.max(0, u.move - u.moved)
@@ -880,8 +371,7 @@ function fells (battle, u, x) {
   return false
 }
 
-// The synergies on each side (synergiesOf), and how near each side is to losing or gaining one: `breaks` the foes'
-// rules that one fewer of a kin or role they count would end, `gains` the rules of yours one more piece would bring.
+// The synergies on each side; `breaks`: the foes' one fewer of a kin or role would end; `gains`: yours one more would bring.
 function synergyRead (battle) {
   // Each side's living by kin and role, a trine as three (unit.js synergyCounts), the Monarch none.
   const counts = (side) => synergyCounts(battle.units.filter((u) => u.side === side && alive(u) && u !== battle.monarch))
@@ -902,34 +392,43 @@ function synergyRead (battle) {
   }
 }
 
-// ── the expert's features (redesign.md §2.17) ────────────────────────────────────────────────────
+// ── the expert's features ────────────────────────────────────────────────────────────────────────
 
-// An option of piece `u` (a tile, and its act there: options, expertOptions) read as the features its
-// decision weighs (TUNING.expert.battle.option) and its tree's rules read (expert.js TREES.battle), off the board as it
-// stands and the situation `sit`; nothing is played:
-//   damage, kill, menace, focus, bane, status, mend, rescue, shadow, counter   what its act does (estimate)
-//   harry    its damage on the foes that could strike the Monarch next turn (sit.monarch.deals)
-//   danger   HP the foes could deal it next turn where it ends (the danger map), as far as the HP its counter leaves
-//   fall     its max HP, where that danger or the counter would fell it
-//   screen   the foes' roads into the Monarch it holds from where it ends (sit.entries), less those it holds now
-//   guard    HP of the Monarch's danger next turn that the option takes away: the threats it fells or Hexes deal
-//            nothing, and each foe whose road it would hold (or free) reaches the Monarch, or not, from where it ends
-//   lethal   1 where the foes could still fell the Monarch next turn after it; cull: Monarch threats it fells
-//   fuse, essence   always 0: a fusion was an option in battle until 2026-10-17 (fusing is out of battle alone now); the
-//            two keys stay so the forests' rows keep their columns (forest.js encode)
-//   waste    1 for an act that changes nothing (no damage, no mend, no status, no shadow)
-// and from the plan (sit.plan: plan.js readPlan, read once a turn; made here where a decision is read alone):
-//   progress steps it ends nearer the tile the target formation gives it (its path on its layer, footprints counted;
-//            a piece with no slot, the tile whence it would strike the nearest foe)
-//   role     1 where it ends on that tile: its role held; post: and that role a post (a road's block or air slot, a
-//            screen: the tree's hold-the-line)
-//   listed   1 where its act is its strike on the kill list (the same blow at the same foe)
-//   forecast HP the foes could deal it next turn where it ends, each from where the forecast has it stand (not every
-//            tile its road could take it to, as `danger` and `loss` read them)
-// and for a hold (no act; 2026-10-11, the learned tree's: redesign.md §2.22), what End Turn will have it do
-// from the tile it ends on, its basic blow at the foe furthest along its road or its basic heal (untouchedOrder):
-//   basic HP that blow deals (as far as its target's HP) or that heal mends; basicKill: the max HP of a foe it fells;
-//   basicCounter: HP the counter that blow draws would take
+// Piece `u`'s option `o` read as the features its decision weighs and its tree's rules read, off the board and the
+// situation `sit`; nothing is played. By name, in OPTION_FEATURES' order:
+//   damage        damage dealt, as far as HP (estimate's, as are kill to rescue)
+//   kill          the kills' worth
+//   menace        the hardest blows of the foes it fells
+//   focus         damage × the target's lost share of HP
+//   bane          damage on foes that heal
+//   harry         damage on the foes that could strike the Monarch
+//   status        the statuses' worth
+//   mend          HP mended
+//   rescue        HP mended on one who could fall next turn
+//   danger        what the foes could deal it next turn where it ends (the danger map)
+//   fall          its max HP where that danger or the counter would fell it
+//   counter       what the counter its blow draws would take
+//   screen        the roads into the Monarch it holds where it ends, less those it holds now
+//   guard         the Monarch's danger next turn it takes away
+//   lethal        1 where the foes could still fell the Monarch after it
+//   cull          the Monarch's threats it fells
+//   shadow        a corpse raised (its max HP)
+//   fuse, essence always 0, kept so the forests' rows keep their columns
+//   waste         1 for an act that changes nothing
+//   loss          your souls' losses next turn (losses)
+//   shadowLoss    your shadows' and summons' losses
+//   hit           the Monarch's loss, weighed by guardAt
+//   engage        what it could deal next turn from where it ends
+//   undone        damage the foes' healers would mend back
+//   quell         each target's share of HP dealt × its hardest blow
+//   progress      steps nearer its tile in the plan's formation
+//   role          1 where it ends on that tile
+//   post          1 where that role is a post (block, air, screen)
+//   listed        1 for its strike on the kill list
+//   forecast      what the foes could deal it next turn from where the forecast has them stand
+//   basic         a hold's End-Turn blow's damage or heal (untouchedOrder)
+//   basicKill     the max HP of the foe that blow fells
+//   basicCounter  what the counter that blow draws would take
 export function features (battle, u, o, sit = situation(battle)) {
   const v = blank()
   const m = sit.monarch
@@ -975,8 +474,7 @@ export function features (battle, u, o, sit = situation(battle)) {
   if (k && o.ability?.id === k.ability && o.target?.uid === k.target) v.listed = 1
   v.forecast = Math.max(0, Math.min(left, dangerAt(battle, u, o.tile, P.fmap)))
   if (o.ability && e.damage + e.kill + e.status + e.mend + e.shadow === 0) v.waste = 1
-  // A hold: what End Turn will have it do from the tile it ends on (its basic blow or heal: untouchedOrder), which the
-  // turn gives it at once (expertTurn).
+  // A hold: what End Turn will have it do from the tile it ends on, which the turn gives it at once.
   if (!o.ability && canAct(battle, u)) {
     const x = untouchedOrder(battle, u, o.tile)
     if (x) {
@@ -995,8 +493,7 @@ export function features (battle, u, o, sit = situation(battle)) {
   return v
 }
 
-// Every feature at 0, in order: made as a literal each time (a spread of a frozen object takes V8's slow path, twenty
-// times the cost).
+// Every feature at 0, in order: a literal each time (a spread of a frozen object is V8's slow path).
 const blank = () => ({
   damage: 0, kill: 0, menace: 0, focus: 0, bane: 0, harry: 0, status: 0, mend: 0, rescue: 0, danger: 0, fall: 0, counter: 0, screen: 0, guard: 0, lethal: 0, cull: 0,
   shadow: 0, fuse: 0, essence: 0, waste: 0, loss: 0, shadowLoss: 0, hit: 0, engage: 0, undone: 0, quell: 0, progress: 0, role: 0, post: 0, listed: 0, forecast: 0,
@@ -1006,19 +503,15 @@ const BLANK = Object.freeze(blank())
 // The option features by name, in order (features' vector).
 export const OPTION_FEATURES = Object.freeze(Object.keys(BLANK))
 
-// The option features the learned tree's leaves weigh and its labelled data carries (redesign.md §5 Step 9: the
-// contract with src/sim/teach.js): `features`, by its name in that contract; and the conditions it splits on
-// (expert.js conditions).
+// The option features the learned tree's leaves weigh and teach.js's labels carry, and the conditions it splits on.
 export const optionFeatures = (battle, u, o, sit = situation(battle)) => features(battle, u, o, sit)
 export { conditions } from './expert.js'
 
 // The formation's roles that hold the Monarch's ground (plan.js formation): a road's block and air slots, a screen.
 const POSTS = new Set(['block', 'air', 'screen'])
 
-// The threat read (sit.threat) with piece `u` taking option `o` (its estimate `e`): the foes it fells or Hexes strike no
-// one; each foe whose road it holds or frees (its footprint where it stands or where it ends, on the road the foe would
-// walk) is read again from where its road would take it (roadWith); the rest as read, u struck where it ends, at the
-// HP its counter leaves it, and the one it mends at the HP it mends it to. → losses.
+// The threat read with piece `u` taking option `o` (estimate `e`): the foes it fells or Hexes strike no one, each whose
+// road it holds or frees read again (rowsWith), u at the HP its counter leaves, the one it mends at the HP mended. → losses.
 function threatWith (battle, sit, u, o, e) {
   const { foes, d } = sit.threat
   const key = u.uid * TILES + o.tile
@@ -1036,19 +529,15 @@ function threatWith (battle, sit, u, o, e) {
   if (e.mend && x && x.side === u.side && o.ability.shape !== 'all_allies') hp.set(x, Math.min(x.maxHp, (hp.get(x) ?? x.hp) + e.mend))
   const skip = e.felled.length || e.hexed.length ? new Set([...e.felled, ...e.hexed]) : NOBODY
   if (hp.size || skip !== NOBODY) return losses(battle, assign(battle, foes, dd, hp, skip), hp)
-  // An act that changes no one's HP the foes read, and fells or Hexes none of them, leaves the foes' turn as holding
-  // there would: read once a tile.
+  // An act that changes no HP the foes read and fells or Hexes none leaves their turn as holding would: once a tile.
   const plain = (sit.threat.plain ??= new Map())
   let out = plain.get(key)
   if (!out) plain.set(key, (out = losses(battle, assign(battle, foes, dd, hp, skip), hp)))
   return out
 }
 
-// The threat read's rows (sit.threat.d) with piece `u` standing on `tile` instead: each foe whose road it would hold or
-// free (on the road the foe would walk) read again from where its road would take it (roadWith); each shooter whose
-// lines it could close or open (where it stood or where it ends within that shooter's reach of the tiles its road could
-// take it to: a tile strictly between is nearer than the one struck) read again with u where it ends (redesign.md
-// §2.19); the rest as read, u struck where it ends. → Map foe entry → Map unit → HP.
+// The threat read's rows with piece `u` on `tile` instead: each foe whose road it would hold or free, and each shooter
+// whose lines it could close or open, read again; the rest as read, u struck where it ends. → Map foe → Map unit → HP.
 function rowsWith (battle, sit, u, tile) {
   const { foes, ours, d } = sit.threat
   const at = footprint(tile, u.size)
@@ -1078,9 +567,8 @@ function rowsWith (battle, sit, u, tile) {
   return dd
 }
 
-// What piece `u` could deal next turn from where option `o` leaves it: its hardest blow it will have ready (a skill it
-// uses now rests), as far as the HP of the foe it lands on, at a foe it could reach then (its Move and the blow's reach,
-// as the crow flies, to a tile that foe's road could take it to: sit.threat.spots), none of `gone` (those it fells now).
+// What piece `u` could deal next turn from where option `o` leaves it: its hardest blow ready by then (one used now
+// rests), as far as the HP of a foe it could reach (sit.threat.spots), none of `gone`.
 function engage (battle, sit, u, o, gone) {
   const s = stats(battle, u)
   let best = 0
@@ -1101,8 +589,7 @@ function engage (battle, sit, u, o, gone) {
   return best
 }
 
-// What the damage over time a unit holds will deal it at the turn's end (each status's `dot` tick, its power a stack),
-// none from one laid since its holder's turn passed (it waits a round).
+// What the damage over time `u` holds deals it at the turn's end, none from one laid since its turn passed.
 function dotOn (u) {
   let n = 0
   for (const s of u.statuses) {
@@ -1113,11 +600,9 @@ function dotOn (u) {
 }
 
 // The roads into the Monarch piece `u` would hold standing on `tile` (sit.entries, over its footprint).
-const holds = (u, tile, sit) => (footprint(tile, u.size) ?? [tile]).reduce((n, t) => n + sit.entries.air[t] + (u.flies ? 0 : sit.entries.ground[t]), 0)
+export const holds = (u, tile, sit) => (footprint(tile, u.size) ?? [tile]).reduce((n, t) => n + sit.entries.air[t] + (u.flies ? 0 : sit.entries.ground[t]), 0)
 
-// How far `u` standing on `tile` would be from the nearest living foe, footprints counted: for a flyer as the crow
-// flies (Chebyshev), for a piece on the ground in steps round the camp's walls (walkField; 2026-10-11: as the crow
-// flies, a piece behind a wall read itself beside a foe it could never reach, and stayed).
+// How far `u` on `tile` is from the nearest living foe: a flyer as the crow flies, on the ground round the walls (walkField).
 const gap = (battle, u, tile) => {
   if (u.flies) return battle.units.reduce((d, x) => (x.side !== u.side && alive(x) ? Math.min(d, distanceBetween(tile, u.size, x.tile, x.size)) : d), Infinity)
   const field = walkField(battle, u.side)
@@ -1125,8 +610,8 @@ const gap = (battle, u, tile) => {
   for (const t of footprint(tile, u.size) ?? [tile]) d = Math.min(d, field[t])
   return d
 }
-// Steps (8 ways, never cutting a wall's corner: unit.js steps) from each tile to the nearest living unit not of
-// `side`, walls in the way; Infinity where none can be reached. Made once for a board as its foes stand.
+// Steps (8 ways, never cutting a wall's corner) from each tile to the nearest living unit not of `side`, Infinity where
+// none can be reached. Kept for a board as its foes stand.
 const walks = new WeakMap()
 function walkField (battle, side) {
   const from = []
@@ -1148,10 +633,8 @@ function walkField (battle, side) {
   return field
 }
 
-// The Monarch's danger next turn were `u` to take option `o` (its estimate `e`): sit.monarch.danger, with each foe
-// that threatens it now, whose road `u` holds, or that one of yours screens from it, read again: nothing from one it
-// fells or Hexes, and from the rest what they could deal from where their roads would take them with `u` where `o`
-// leaves it (roadWith), on the lines u's footprint there closes or where it stood opens (a screen works: §2.19).
+// The Monarch's danger next turn were `u` to take option `o` (estimate `e`): each foe that threatens it, whose road u
+// holds, or that a screen stops, read again: nothing from one it fells or Hexes, the rest from roadWith's tiles.
 function monarchAfter (battle, sit, u, o, e) {
   const { deals, screened } = sit.monarch
   const moved = o.tile !== u.tile
@@ -1165,21 +648,14 @@ function monarchAfter (battle, sit, u, o, e) {
   return after
 }
 
-// ── the expert's turn (redesign.md §2.17, §2.21) ─────────────────────────────────────────────────
+// ── the expert's turn ────────────────────────────────────────────────────────────────────────────
 
-// Piece `u`'s options for the expert: options' (each tile it may end on, and from there holding or each act at each
-// target).
 export function expertOptions (battle, u, { moving = true } = {}) {
   return options(battle, u, { moving })
 }
 
-// One piece's decision alone (redesign.md §2.22; expert.js decideTree): its options read against the situation
-// (features; the plan the situation carries, else the turn's as plan.js reads it), the situation's conditions (expert.js
-// conditions, the piece's own among them), then the model tree in use (`model`: expert.js expertModel, src/sim/expert.json
-// or today's): its hard rules, its leaf's weights and its soft rules; ties as `better` breaks them (the fewer steps, the
-// lower lane, the lower target uid). Where a forest is in use (forest.js forestModel), it may overrule that choice
-// (forested). The fast turn's decision. → { option, by, rules, leaf, path, left (the options weighed, each scored) },
-// and with a forest `margin`.
+// One piece's decision alone: its options' features and its conditions through the model tree in use (expert.js
+// decideTree; ties as `better`), which a forest may overrule (forested). → { option, by, rules, leaf, path, left, margin? }
 export function choice (battle, u, sit = situation(battle), opts = expertOptions(battle, u), model = expertModel()) {
   for (const o of opts) {
     o.v = features(battle, u, o, sit)
@@ -1191,24 +667,15 @@ export function choice (battle, u, sit = situation(battle), opts = expertOptions
   return decideTree(model, c, model.options === 'shortlist' ? shortlisted(battle, u, sit, opts, c) : opts, { better })
 }
 
-// One piece's decision with forest `F` (forest.js: redesign.md §2.23's correction as rules mined from the playouts):
-// today's decision first (rankerView: the model in use over all the piece's options, its hard rules and its choice),
-// then each of the candidates §2.23's ranker weighed (today's shortlist that the hard rules keep: the options
-// teach.js's labels hold) other than today's choice read by the forest, its predicted advantage over today's choice
-// (`o.gain`: forest.js predictor). The best of them by it (ties as `better` breaks a tie of scores: the fewer steps,
-// the lower lane, the lower target uid) is taken where its advantage exceeds F's margin `delta`, else today's choice,
-// its decision as it stands: so a forest whose advantages never exceed its margin is today's expert, move for move.
-// `by`: the hard rule that filtered first, else 'forest' where the forest changed the choice (and `margin`, the
-// advantage it took the option by). A forest whose inputs read the board an option leaves (forest.js aft.*) has each
-// candidate's afterstate read too (afterOf: `o.after`; today's choice's as well for a forest of the centred target),
-// and only such a forest.
+// One piece's decision with forest `F`: today's decision (rankerView), then each other candidate's predicted advantage
+// over its choice (`o.gain`); the best is taken where it exceeds `F.delta`, else today's choice stands, `by` 'forest'
+// with its `margin` where it changed. A forest that reads afterstates (forest.js aft.*) has each candidate's read.
 function forested (battle, u, sit, opts, c, model, F) {
   const { today, own, candidates, mean } = rankerView(battle, u, sit, opts, c, model)
   if (!own || candidates.length < 2) return today
   const after = forestReadsAfter(F)
   if (after && F.target === 'mean') own.after = afterOf(battle, u, own, sit.plan)
-  // Each candidate's afterstate first, then their advantages all at once (forest.js predictions: predictor's, the trees
-  // read once for them all); a read of either changes nothing the other reads.
+  // Each candidate's afterstate first, then their advantages all at once (forest.js predictions).
   const rest = candidates.filter((o) => o !== own)
   if (after) for (const o of rest) o.after = afterOf(battle, u, o, sit.plan)
   const g = predictions(F, c, u.id, mean, playOf(own), rest.map(playOf))
@@ -1229,15 +696,10 @@ const gains = (o, b) => {
   return (o.target?.uid ?? -1) < (b.target?.uid ?? -1)
 }
 
-// What the forest reads of piece `u`'s decision, as §2.23's ranker read it (its options `opts`, each with its features
-// `v`; `c` its conditions; `model` the expert in use): `today`, today's decision over all of them (expert.js
-// decideTree: `left` the options its hard rules keep); `own`, today's choice; `short`, today's shortlist (shortlist, by
-// the model in use's score, as teach.js optionsAt draws the labels'); `label`, the options a label row of this decision
-// holds: the shortlist, then today's choice where its orders are not among them (as teach.js finds it among all: a move
-// whose End-Turn blow is an act at the same foe from the same tile, that act), each set of orders once, the first kept
-// (a stay whose End-Turn blow is another option's act is that option); `candidates`, the shortlist's options the hard
-// rules keep and today's choice; `mean`, the reference the inputs are read against (forest.js meanOf: over the label's
-// options the hard rules keep). → { today, own, short, label, kept (a Set), candidates, mean }
+// What the forest reads of piece `u`'s decision (`opts` read already, `c` its conditions, `model` the expert in use).
+// → { today (decideTree's), own (its choice), short (the shortlist), label (a label row's options: the shortlist, then
+// today's choice, each set of orders once), kept (a Set: what the hard rules keep), candidates (the shortlist's kept,
+// and today's choice), mean (forest.js meanOf over the label's kept) }
 export function rankerView (battle, u, sit, opts, c = conditions(sit, u), model = expertModel()) {
   const today = decideTree(model, c, opts, { better })
   const own = today.option
@@ -1257,11 +719,8 @@ export function rankerView (battle, u, sit, opts, c = conditions(sit, u), model 
   if (own && !candidates.includes(own)) candidates.push(own)
   return { today, own, short, label, kept, candidates, mean: meanOf(label.filter((o) => kept.has(o)).map(playView)) }
 }
-// The conditions (expert.js conditions) of the board option `o` of piece `u` leaves (redesign.md §2.23, the ranker's
-// "after the move"): the option given on a copy of `battle` as teach.js's playouts give it (its move, then its act or
-// a hold given what End Turn would have it do from there; the piece then done), read as the decision is (the
-// full situation, the turn's `plan` on it), the piece's own from its copy. No turn of the foes is played: the board is
-// your order's exact result. → the conditions, or null where an order of it may not be given.
+// The conditions of the board option `o` of piece `u` leaves, given on a copy as teach.js's playouts give it (a hold
+// with its End-Turn act), the piece then done, no foes' turn played. → the conditions, or null where an order is refused.
 export function afterOf (battle, u, o, plan) {
   const g = copy(battle)
   const gu = g.byUid.get(u.uid)
@@ -1280,31 +739,28 @@ export function afterOf (battle, u, o, plan) {
   return conditions(sit, gu)
 }
 
-// The orders an option gives, as one decision (teach.js signature): the tile it ends on, and its act, or for a hold what End Turn would have it do from there.
+// The orders an option gives, as one decision (teach.js signature): its tile and its act, a hold's End-Turn act.
 function signatureOf (battle, u, o) {
   if (o.ability) return `${o.tile}|a:${o.ability.id}:${o.target.uid}`
   const x = untouchedOrder(battle, u, o.tile)
   return `${o.tile}|${x ? `a:${x.ability}:${x.target}` : ''}`
 }
-// The option of `opts` that gives the same orders as hold `o` with its End-Turn act made an act (teach.js fromSignature's
-// first find), else `o`.
+// The option of `opts` that gives the same orders as hold `o` with its End-Turn act made an act, else `o`.
 function twinOf (battle, u, o, opts) {
   if (o.ability) return o
   const x = untouchedOrder(battle, u, o.tile)
   return (x && opts.find((y) => y.tile === o.tile && y.ability && y.ability.id === x.ability && y.target.uid === x.target)) || o
 }
 
-// The options a model fitted on today's shortlists decides among (a configuration's `options: 'shortlist'`; fit.js, on
-// teach.js's labels): today's scorer's shortlist of them (shortlist, its prior expert.js defaultExpert, as the labels'
-// were drawn) and today's own choice among them all, as the labelled data had them: what the model never saw ranked
-// it does not judge. `opts` read already (each with its `v`). → the options, the shortlist's order.
+// The options a model fitted on the shortlists decides among (`options: 'shortlist'`): today's scorer's shortlist and
+// today's own choice, as the labels had them. → the options, the shortlist's order.
 function shortlisted (battle, u, sit, opts, c) {
   const today = todayModel()
   const short = shortlist(battle, u, sit, opts, today, readTree(today, c))
   const own = decideTree(today, c, opts, { better }).option
   return own && !short.includes(own) ? [...short, own] : short
 }
-// Today's scorer (expert.js defaultExpert), made once for the weights it is made of.
+// Today's scorer (expert.js defaultExpert), made again only when its weights change.
 let TODAY = null
 const todayModel = () => {
   const W = TUNING.expert.battle
@@ -1312,11 +768,8 @@ const todayModel = () => {
   return TODAY.model
 }
 
-// Today's static board evaluation (redesign.md §2.17–2.19): the features a board leaves (boardFeatures, against `from`,
-// the board the turn began on), read by the board's tree (TREES.board: its filters as keys, the first the most binding,
-// each above everything after it; its modes switching the weights, TUNING.expert.battle.boardModes) and weighed by
-// TUNING.expert.battle.board. → { keys, score, v, value (the keys folded above the score: one number, as the tree and the
-// weights would order boards) }
+// Today's static board evaluation: the board's features (against `from`, the board the turn began on), filtered and
+// moded by TREES.board and weighed by TUNING.expert.battle.board. → { keys, score, v, value (keys folded above score) }
 export function judge (battle, from = battle, sit = null) {
   const ctx = boardContext(from)
   const W = TUNING.expert.battle
@@ -1334,27 +787,18 @@ export function judge (battle, from = battle, sit = null) {
   for (let i = 0; i < keys.length; i++) n += keys[i] * FOLD[i]
   return { keys, score, v, value: n }
 }
-// What the board's tree reads (TREES.board's `sit`): the camp's patience, the plan's kind and how many shooters of the
-// Monarch's it read, as the turn began.
+// What the board's tree reads (TREES.board's `sit`): the camp's patience, the plan's kind and shooters, as the turn began.
 const boardContext = (from) => ({ patience: from.turn - from.foeIn, plan: from.plan?.kind, shooters: from.plan?.shooters.length ?? 0 })
-// Each key of the board's tree above all that follows it: no board's score reaches 1e10 (a battle won is 1e9), and the
-// shooters a turn leaves standing are a handful.
+// Each key of the board's tree above all after it: no score reaches 1e10 (a battle won is 1e9); shooters are a handful.
 const FOLD = [1e14, 1e10, 1e7]
 
 // The better of two options by the prior (o.score), ties as `better`, for a sort.
 const byPrior = (a, b) => (better(a, b) ? -1 : better(b, a) ? 1 : 0)
 
-// The options of piece `u` worth a second read (redesign.md §2.21's shortlist: a dozen or so of the hundred-odd tiles ×
-// acts options lists; the forest's candidates, rankerView, and a shortlist model's, shortlisted; teach.js optionsAt
-// draws a label row's alike), read on the board it decides on. Every option read by today's scorer (features, weighed
-// by the tree's modes' weights: the prior), and of them kept, the best of each kind first, then the best by the prior,
-// to TUNING.expert.shortlist: holding where it stands; for each ability and target, the best option to use it from and
-// the least endangered (the danger map); of the tiles it may only move to, the nearest the tile the plan's formation
-// gives it (its role), the least endangered, the one that holds the most roads into the Monarch (a block), and the
-// least endangered on a line of fire into the Monarch (a screen); each fusion. → options, each with its features `v`
-// and its `prior` (and `score`), the best first. `all`: its options (expertOptions); `model` the prior's (the model in
-// use), `read` (expert.js readTree) where its options are read already (each with its `v`); `scored` where each holds
-// its score by that reading already (decideTree's, no hard rule having filtered: the same reading, the same numbers).
+// The options of piece `u` worth a second read, each scored by today's scorer (the prior): holding where it stands; for
+// each act and target the best and the least endangered; of the moves the nearest its formation tile, the least
+// endangered, the best block and the safest screen; then the best by the prior to TUNING.expert.shortlist. → options,
+// the best first, each with `v`, `prior` and `score`. `read` (expert.js readTree): `all` read already; `scored`: scored too.
 function shortlist (battle, u, sit, all, model = expertModel(), read = null, scored = false) {
   if (!read) {
     read = readTree(model, conditions(sit, u))
@@ -1412,11 +856,11 @@ function shortlist (battle, u, sit, all, model = expertModel(), read = null, sco
   return list.filter((o) => keep.has(o))
 }
 
-// What an option does, for the spread of a decision's options: its act at its target, its fusion, or a move alone.
-const kindOf = (o) => (o.ability ? `${o.ability.id}:${o.target.uid}` : 'move')
+// What an option does, for the spread of a decision's options: its act at its target, or a move alone.
+export const kindOf = (o) => (o.ability ? `${o.ability.id}:${o.target.uid}` : 'move')
 // The first `n` of `list` (in its order) that are not in `taken`, no more than `per` of one act at one target (twice
 // that of moves alone): so that the same act from a dozen tiles does not crowd out the others.
-function spread (list, n, taken = NOBODY, per = 2) {
+export function spread (list, n, taken = NOBODY, per = 2) {
   const out = []
   const count = new Map()
   for (const o of taken) count.set(kindOf(o), (count.get(kindOf(o)) ?? 0) + 1)
@@ -1432,9 +876,8 @@ function spread (list, n, taken = NOBODY, per = 2) {
   return out
 }
 
-// The tiles strictly between the Monarch and each foe whose blow that keeps to a line reaches it from where it stands
-// (its danger read: sit.monarch.deals), or would but for a screen of yours (sit.monarch.screened). → a Set of tiles.
-function screenLines (battle, sit) {
+// The tiles strictly between the Monarch and each foe whose lined blow reaches it, or would but for a screen. → a Set.
+export function screenLines (battle, sit) {
   const out = new Set()
   const m = battle.monarch
   if (!sit.monarch || !m) return out
@@ -1447,10 +890,8 @@ function screenLines (battle, sit) {
   return out
 }
 
-// A copy of the battle for an afterstate (turns.js fork), with the caches that stay true carried over: each unit's
-// stats (turns.js stats checks every entry against what its stats depend on, as the battle it was made on would: a
-// copy is that battle's future) and each side's synergies (kept by the roster). Not the rules' list: its rules point at
-// the units they were made with.
+// A copy of the battle for an afterstate (turns.js fork), with the caches that stay true: each unit's stats (checked on
+// read) and each side's synergies. Not the rules' list: its rules point at the units they were made with.
 function copy (battle) {
   const f = fork(battle)
   f.cache = new Map(battle.cache)
@@ -1458,39 +899,20 @@ function copy (battle) {
   return f
 }
 
-// The expert's turn (redesign.md §2.17, §2.18, §2.22): the fast turn (fastTurn: each piece once by the model tree in
-// use; the beam of partial turns §2.21 weighed, off since §2.22, was removed on 2026-10-15). Options: `moving` false (the moves ablation's): every piece acts from where it
-// stands. `note` (the audit's) hears each decision of the turn given: { decision ('plan', 'battle' a piece's, 'path'
-// its path through the tree), uid, by, rules, sit }. For a learner (V's trainer was one; the tests hold it):
-// `record(battle, { uid, options, chosen, explored })` is called at each decision of the turn given, in order, with the
-// board before the piece decides (read only), `options` the options its decision scored ({ tile, ability, target,
-// (ids, null for none), prior, value }) and `chosen` the index of the one taken. For the labeller (teach.js's
-// smoothed playouts): `explore: { rng (a function → [0, 1)), epsilon, top, weigh }`, at each decision, with chance
-// epsilon, one of the `top` best options at random in place of the choice, `explored` true in its record (fastTurn
-// says how). The same board gives the same orders (but under `explore`).
+// The expert's turn (fastTurn). `moving` false: every piece acts from where it stands. `note` hears each decision
+// ({ decision: 'plan', 'battle' or 'path', uid, by, rules, sit }). `record(battle, { uid, options, chosen, explored })` at
+// each decision, with the board before it (read only) and the options scored ({ tile, ability, target, prior, value }).
+// `explore: { rng, epsilon, top, weigh }`: with chance epsilon, one of the `top` best at random instead of the choice.
+// The same board gives the same orders (but under `explore`).
 export function expertTurn (battle, { note = null, moving = true, record = null, explore = null } = {}) {
   if (battle.over) return []
   return fastTurn(battle, { note, moving, record, explore })
 }
 
-// The fast turn (redesign.md §2.22; the expert's turn since): the plan read once on the board as it stands (plan.js
-// readPlan), then each piece decides once, on the board as the ones before it left it (a copy of it: so a kill, focus
-// fire and a blow's exact damage are known), by the model tree in use (choice: its rules, its leaf's weights); the kill
-// list's strikers first, in its order, then the acting order (fastPass). A hold is given what End Turn would have it do
-// from its tile, now (its basic blow or heal). Where the plan reads shooters of the Monarch's (plan.js shootersOf) and
-// the kill list strikes, the kill list played as listed is a second turn (fastPass's `kills`), and of the two the
-// better board by today's static evaluation (judge: never a board where the foes could fell the Monarch where the other
-// is not, then the fewer of its shooters left standing, then the weights; TREES.board's rules, redesign.md §2.18 B)
-// gives the orders. No turn of the foes is played: a turn is the situation read once a piece and a dot product an
-// option, and a second pass and two boards read where the Monarch's shooters stand. `note` hears the plan, then each
-// piece's decision of the turn given (`by`, its rules; 'kill-list' for a strike as listed; 'forest' where a forest
-// changed today's choice, with its `margin`: choice) and its path through the tree (decision 'path', `by` the path in
-// words: expert.js pathName); `record` each decision of the turn given (the board before it, read only; its options as
-// scored, without their boards: the pass that gives the orders played again with it, the same orders, so that a run
-// that records is the run that does not) and `explore` (with chance epsilon, one of the `top` best by today's score at
-// random, in place of the choice, the forest's where one is in use; expertTurn's), the greedy pass alone where epsilon
-// is above 0 (no second turn is weighed) unless `explore.weigh` (teach.js's smoothed playouts: the expert's own turn,
-// the kill list's weighed as ever, then the pass taken played again exploring).
+// The fast turn: the plan read once (plan.js readPlan), then each piece decides once on the board the ones before left
+// (choice), the kill list's strikers first. Where the plan reads shooters of the Monarch's and the kill list strikes, the
+// kill list as listed is a second pass, and the better board by judge gives the orders. With epsilon above 0 the greedy
+// pass alone unless `explore.weigh`; `record` and `explore` replay the pass taken, so recording changes no orders.
 function fastTurn (battle, { note, moving, record, explore }) {
   const sit = situation(battle)
   const pieces = battle.units.filter((u) => orderable(battle, u) && !u.acted)
@@ -1512,10 +934,8 @@ function fastTurn (battle, { note, moving, record, explore }) {
   return [...pick.orders, { type: 'end' }]
 }
 
-// One pass of the fast turn (fastTurn) on a copy of `battle`: with `kills`, the kill list's strikes first as listed
-// (each from its tile, or the nearest it may strike its foe from, not a screen before it), then each piece of
-// `turnOrder` yet to act by the model tree, then what End Turn has the untouched do. → { f (the board it leaves, End
-// Turn not yet), orders, log (each decision's notes, where `log` is given) }
+// One pass of the fast turn on a copy of `battle`: with `kills`, the kill list's strikes first as listed, then each
+// piece of `turnOrder` yet to act by choice, then End Turn's untouched. → { f (the board, End Turn not yet), orders, log }
 function fastPass (battle, plan, turnOrder, { moving, record = null, explore = null, log = null, kills = false }) {
   const f = copy(battle)
   const orders = []
@@ -1570,10 +990,9 @@ function fastPass (battle, plan, turnOrder, { moving, record = null, explore = n
   return { f, orders, log }
 }
 
-// What End Turn has one of yours yet to act do (turns.js untouched; redesign.md §2.5), as an order: its basic blow from
-// where it stands (or from `tile`) at the foe furthest along its road (turns.js pick), else its basic heal on the most
-// wounded it can do something for; null for nothing (a Hexed one loses its act).
-function untouchedOrder (f, u, tile = u.tile) {
+// What End Turn has one of yours yet to act do (turns.js untouched), as an order: its basic blow from `tile` at the foe
+// furthest along its road, else its basic heal on the most wounded; null for nothing.
+export function untouchedOrder (f, u, tile = u.tile) {
   if (!canAct(f, u)) return null
   const b = u.basic
   const foes = b && allowed(f, u, b) ? targetsFrom(f, u, b, tile) : NONE
@@ -1584,13 +1003,8 @@ function untouchedOrder (f, u, tile = u.tile) {
   return null
 }
 
-// What End Turn has the untouched do (turns.js untouched; redesign.md §2.5), done on copy `f` so that a board is read
-// with it done: each unit of yours yet to act, in acting order, strikes with its basic blow from where it stands at the
-// foe furthest along its road (turns.js pick), else mends with its basic heal the most wounded it can do something for;
-// a Hexed one loses its act. Your pieces' acts are given as orders (the same acts End Turn would make); your shadows'
-// and summons', which take no orders, are made as End Turn makes them, and so is the act of a piece of yours that could
-// not act as they began: one a shadow's cleanse frees of its Hex on the way acts in End Turn's untouched stage, after
-// that shadow, and an order for it now would be refused (seen on div-25 committed to Fae 4, 2026-10-15). → the orders.
+// End Turn's untouched done on copy `f` (untouchedOrder, in acting order): your pieces' acts as orders; shadows', summons'
+// and those a cleanse freed on the way made as End Turn makes them (an order would be refused). → the orders.
 export function untouchedOrders (f) {
   const out = []
   const ordered = new Set(f.units.filter((u) => orderable(f, u) && canAct(f, u)))
@@ -1608,8 +1022,7 @@ export function untouchedOrders (f) {
   return out
 }
 
-// Option `o` of piece `u` given on `f`: its move (by the path the option was read with: options reads reach on `f`,
-// or on the board `f` was copied from as it stands: turns.js order's `path`), then its act. → the orders.
+// Option `o` of piece `u` given on `f`: its move, by the path the option was read with, then its act. → the orders.
 function commit (f, u, o) {
   const out = []
   if (o.tile !== u.tile) out.push(give(f, { type: 'move', uid: u.uid, tile: o.tile }, o.path))
@@ -1623,9 +1036,6 @@ const give = (f, o, path = null) => {
   return o
 }
 
-// A unit's hardest blow, raw (rawOf).
-export const hardest = (battle, u) => u.kit.reduce((n, b) => (isBlow(b) ? Math.max(n, rawOf(battle, u, b)) : n), 0)
-
 // What blow `a` of `u` would deal `x` as it lands (its damage effects; before the rules that bend it).
 export const blowOn = (battle, u, a, x) => {
   const s = stats(battle, u)
@@ -1634,18 +1044,12 @@ export const blowOn = (battle, u, a, x) => {
   return d
 }
 
-// A board a turn's orders leave (`battle`, a copy of `from` with them given, End Turn not yet), read as the features
-// its decision weighs (TUNING.expert.battle.board) and its tree reads (TREES.board): your souls' HP (`hp`) and your
-// shadows' and summons' (`shadows`); the foes' HP (`foeHp`) and the max HP of each standing (`foes`); what the foes
-// could deal your pieces next turn where they stand (`danger`, by the danger map) and the max HP of those it could fell
-// (`falls`); what they could deal the Monarch (`monarch`), `doom` 1 where that fells it, and the foes whose road into
-// it nothing of yours holds (`open`); `spent`, the essence a fusion in battle spent this turn, 0 since fusing left the
-// battle (2026-10-17; the key stays for its column); the tiles your pieces came nearer the
-// nearest foe this turn (`closer`, walking: gap), and nearer the tiles the plan's target formation gives them
-// (`progress`: plan.js, from.plan); the Monarch's shooters the plan read (from.plan.shooters: plan.js shootersOf) still
-// standing (`shooters`); and the battle `won` or `lost`. `sit`: the board's situation, where it is read already (a lean
-// one will do). Your pieces' danger is the threat read's (sit.threat.d: each foe's hardest blow that reaches the piece,
-// summed), the danger map's read without the map. `closer` false: left 0 (the weights in effect read none: judge).
+// A board a turn's orders leave (`battle`, `from` with them given, End Turn not yet), as the features TREES.board and
+// TUNING.expert.battle.board read: hp and shadows (your HP), foeHp and foes (theirs, and their max HP), danger and falls
+// (what the foes could deal your pieces, the max HP of those it fells), monarch, doom (1: lethal), open (foes on roads
+// nothing holds), loss, shadowLoss and hit (losses), counters, mended (by the foes' healers), foeTicks and ticks (damage
+// over time), closer (tiles nearer the foes; 0 with `closer` false), progress, shooters (the plan's still standing),
+// spent (always 0), won and lost. `sit`: the board's situation where read already (a lean one will do).
 export function boardFeatures (battle, from = battle, sit = null, closer = true) {
   const v = {
     hp: 0, shadows: 0, foeHp: 0, foes: 0, danger: 0, falls: 0, monarch: 0, doom: 0, open: 0, spent: 0, won: 0, lost: 0, loss: 0, shadowLoss: 0, hit: 0,
@@ -1680,8 +1084,7 @@ export function boardFeatures (battle, from = battle, sit = null, closer = true)
   v.loss = t.souls
   v.shadowLoss = t.shadows
   v.hit = t.monarch
-  // The counters yours would draw from the foes' melee blows (each foe's once, on whom assign says), where they stand
-  // through it.
+  // The counters yours would draw from the foes' melee blows (each foe's once, on whom assign says).
   for (const [f, y, n, left] of picks) {
     if (!f.melee || y === battle.monarch || n >= left || hexed(y) || !y.basic?.melee) continue
     const s = stats(battle, y)
@@ -1701,7 +1104,7 @@ export function boardFeatures (battle, from = battle, sit = null, closer = true)
     if (u.side === 'foe') v.foeTicks += Math.min(n, u.hp)
     else if (u !== battle.monarch) v.ticks += Math.min(n, u.hp)
   }
-  // The tiles your pieces came nearer the nearest foe this turn, summed (the press's: a battle is ended by coming on).
+  // The tiles your pieces came nearer the nearest foe this turn, and nearer their formation tiles.
   for (const u of from.units) {
     if (u.side !== 'party' || u === from.monarch || !orderable(from, u)) continue
     const now = battle.byUid.get(u.uid)

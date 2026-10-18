@@ -100,7 +100,7 @@ test('camp: placement skips walls; the Monarch\'s seat is the camp\'s \'M\' cell
   assert.ok(steps(tileAt(1, 2), walls).includes(tileAt(0, 3)), 'a diagonal past open ground is fine')
   assert.ok(!steps(tileAt(1, 2), walls).includes(tileAt(1, 1)))
   assert.equal(wallTiles('palisade').length, campDef('palisade').map.join('').split('#').length - 1)
-  // The seat (DESIGN §2.1): the one 'M' cell, open ground that no piece may stand on.
+  // The seat: the one 'M' cell, open ground that no piece may stand on.
   const seat = monarchSlot('palisade')
   assert.equal(campDef('palisade').map[rowOf(seat)][colOf(seat)], 'M')
   assert.deepEqual([...Array(CAMP_SLOTS).keys()].filter((slot) => isMonarchCell('palisade', slot)), [seat])

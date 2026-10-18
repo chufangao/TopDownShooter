@@ -1,14 +1,10 @@
-// A floor is a DAG of ranks: start → 14 ranks of 2–4 rooms → a boss's room (a floor with a boss: every floor of the
-// run, redesign.md §4.7) or an elite (the deep's), so a walk through it is 15 rooms long. From floor SIEGE_FLOOR one or two of the late ranks' fights are
-// sieges: one battle of three waves, with no prep between them.
+// A floor's map: a DAG of RANKS ranks (the start, 14 ranks of 2–4 rooms, then a boss's room or an elite), a walk of 15
+// rooms. From SIEGE_FLOOR one or two of the late ranks' fights are sieges: one battle of three waves, no prep between.
 import { createRng } from './rng.js'
 
 export const RANKS = 16
 export const WIDTH = 4 // the most rooms in a rank
 
-// No room is a Shop (DESIGN Next, Step 3, 2026-10-18): the Shop is the floor's shelf, open between battles (run.js
-// stockShop). The Shop rooms' weight went to the fights and the altars: in the middle 5 → fight 4.5, altar 0.5 (were fight
-// 5, Shop 5, altar 1), in the rank before the last 1 → fight (was 3, Shop 1). Placeholders until the balance pass.
 const MID_TYPES = ['fight', 'elite', 'altar']
 const MID_WEIGHTS = [9.5, 1.5, 1.5]
 const LATE_TYPES = ['fight', 'elite']
@@ -83,7 +79,7 @@ function assignSieges (rng, ranks, floor) {
   for (const fights of rng.shuffle(options).slice(0, 1 + rng.int(2))) rng.pick(fights).type = 'siege'
 }
 
-// `boss`: whether the floor ends in a boss's room (run.js bossPool), else in an elite.
+// `boss`: whether the floor ends in a boss's room, else in an elite.
 export function generateFloor ({ seed, floor = 1, boss = false }) {
   const rng = createRng(seed).stream('map' + floor)
   const ranks = []

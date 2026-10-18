@@ -1,4 +1,4 @@
-// The fusion graph in play (redesign.md §4.1): a trine fused out of battle, generically, as any recipe is; a trine's
+// The fusion graph in play: a trine fused out of battle, generically, as any recipe is; a trine's
 // summons its parts' kind; a capstone made of fused parts; the four capstones' rules (rules.js), each scoped to
 // the piece of its kind; and the book reading a fused part as its own recipe's parts.
 import { test } from 'node:test'

@@ -1,20 +1,9 @@
-// The store build:  npm run build  (node build.js [out], dist/ by default)
-// dist/ is the game as it ships and nothing more, laid out as the source tree is (so every relative URL holds), with a
-// service worker so the installed app plays offline. What ships (shipped): index.html, the manifest and its icons, the
-// stylesheets, the font and the script index.html loads, every url() in those stylesheets, every module src/main.js
-// reaches by its static imports, and src/assets/ whole (a unit's pictures are named at run time: content.js artUrl).
-// Never the offline tools (OFFLINE: the labellers, the teachers, the fitters, the autoplayer's CLI), the expert's file
-// (expert.json: in a browser the expert is today's scorer, and nothing in play runs it), the combo book, the tests,
-// press/ or the docs; a game module that reached one would fail the build.
-//
-// The build's hash (sha256 of every file shipped, by path and content) names the service worker's cache and marks
-// dist/index.html (<meta name="retinue-build">): main.js registers the worker only on a page so marked, so the source
-// tree that npm start serves registers none. The worker (SW, written as dist/sw.js with the hash and the files)
-// caches every file on install and serves them from its cache first; a page is asked of the network first, and one
-// with no build's mark (the source tree served on the same origin) retires the worker and its cache. A new build's
-// worker takes over once no page of the old one is open, and drops the old cache.
-//
-// Serve dist/ as the source tree is served:  node serve.js 5174 dist
+// The store build:  npm run build  (node build.js [out], dist/ by default); serve it with  node serve.js 5174 dist
+// dist/ is the game as it ships, laid out as the source tree is (so every relative URL holds): index.html, the manifest
+// and its icons, the stylesheets and what they name, every module src/main.js reaches, and src/assets/ whole; never an
+// offline tool (OFFLINE: a game module that reached one fails the build).
+// The build's hash names the service worker's cache and marks dist/index.html; main.js registers the worker only on a
+// marked page. The worker (SW) caches every file on install and serves them offline, a page from the network first.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { dirname, join, relative, resolve, posix } from 'node:path'
@@ -22,12 +11,12 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-// What never ships: the offline tools (src/sim's labellers, teachers, fitters, the calculator and the autoplayer's
-// CLI, its stopping rule and run cache), the expert's file and the book they read. The battle forest ships as play reads
-// it (forest.js), its fitting (forestfit.js) never.
+// What never ships: the offline tools, the expert's file and the combo book.
 export const OFFLINE = [
   'src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/calc.js',
-  'src/sim/bundle.js', 'src/sim/autoplay.js', 'src/sim/sequential.js', 'src/sim/runcache.js', 'src/sim/expert.json', 'src/sim/combos.json'
+  'src/sim/bundle.js', 'src/sim/autoplay.js', 'src/sim/player.js', 'src/sim/reports.js', 'src/sim/sequential.js', 'src/sim/runcache.js', 'src/sim/pool.js', 'src/sim/cli.js', 'src/sim/expert.json', 'src/sim/combos.json',
+  // The expert's battle play and what it reads (the game plays the foes by foe.js alone).
+  'src/sim/policy.js', 'src/sim/plan.js', 'src/sim/expert.js', 'src/sim/forest.js'
 ]
 
 // A module's relative static imports and re-exports ('./x.js', '../y.js'), as written.
@@ -80,7 +69,7 @@ export function hashOf (root, files) {
   return h.digest('hex').slice(0, 16)
 }
 
-// The service worker: BUILD and FILES filled in by the build (redesign.md §8, Step 9; the header says what it does).
+// The service worker: BUILD and FILES filled in by the build.
 const SW = `// RETINUE's service worker, written by build.js: build BUILD_HASH. Every file the build ships is cached on install under
 // the build's own cache and served from it first, so the installed app plays offline. A page is asked of the network
 // first: a page with no build's mark (the source tree served on this origin) retires this worker and its cache; any

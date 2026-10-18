@@ -1,4 +1,4 @@
-// Cheaper measurement (redesign.md §3, §8 "Cheaper measurement"): the paired comparison stopped once decided
+// Cheaper measurement: the paired comparison stopped once decided
 // (src/sim/sequential.js: the design's bounds, the rule at each look) and the run cache (src/sim/runcache.js: its key
 // and what a hit returns), and --paired --sequential end to end on a few basic runs. Functional only: the rule on
 // made-up paired data, never a measured difference.

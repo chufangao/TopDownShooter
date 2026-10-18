@@ -1,4 +1,4 @@
-// Relics (redesign.md §2.11, §2.15): four tiers, bought in the Shop; a run relic works unheld and its copies stack, a piece
+// Relics: four tiers, bought in the Shop; a run relic works unheld and its copies stack, a piece
 // relic works only through the soul holding it (its mods, its moments, a Legendary's rule scoped to it), at most
 // TUNING.relic.perPiece a soul, given and taken back out of battle; Arise a skill its holder learns. The Monarch's HP and
 // Command are run relics alone.
@@ -55,7 +55,7 @@ const soul = (run, id) => souls(run.state.party).find((u) => u.id === id)
 // (run.js stockShop; the state set outside the log).
 const stock = (run) => { run.state.shop = stockShop(run.state) }
 
-// ── holding (§2.15) ──────────────────────────────────────────────────────────────────────────────
+// ── holding ──────────────────────────────────────────────────────────────────────────────
 
 test('hold and unhold: a piece relic bought waits unheld; a soul holds at most perPiece, one copy each; a hold onto a full soul swaps; never the Monarch; never in battle', () => {
   const run = runIn('hold')
@@ -254,7 +254,7 @@ test('Tower Shield: as the battle begins and as each later wave enters, while it
   assert.deepEqual(ev.filter((e) => e.type === 'status' && e.status === 'hasten').map((e) => e.target).sort(), [1, 2])
 })
 
-// ── the twelve that define a build (redesign.md §4.4) ───────────────────────────────────────────
+// ── the twelve that define a build ───────────────────────────────────────────
 
 // A kin banner works unheld on every soul of its kin (unit.js statsOf reads its `who`), never on another's, the
 // Monarch's or a foe's; its copies stack. A scene's pieces each a kin, the run's partyMods given them.

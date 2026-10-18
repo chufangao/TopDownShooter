@@ -1,4 +1,4 @@
-// The store build (build.js; redesign.md §8, Step 9): dist/ holds every file the game loads, by any static import from
+// The store build (build.js): dist/ holds every file the game loads, by any static import from
 // src/main.js and by index.html, its stylesheets and its manifest, and every picture a unit is drawn by; never the
 // offline tools, the expert's file, the tests or press/; its page marked with the build's hash, and a service worker
 // caching exactly what ships.
@@ -24,7 +24,7 @@ test('the build ships every module the game imports, the whole way down from mai
     for (const s of specs) assert.ok(has.has(posix.normalize(posix.join(posix.dirname(f), s))), `${f} imports ${s}`)
   }
   for (const f of ['src/main.js', 'src/ui.js', 'src/engine.js', 'src/board.js', 'src/music.js', 'src/sfx.js', 'src/vendor/phaser.js',
-    'src/sim/run.js', 'src/sim/turns.js', 'src/sim/policy.js', 'src/sim/save.js', 'src/sim/history.js', 'src/content.js', 'src/tuning.js']) {
+    'src/sim/run.js', 'src/sim/turns.js', 'src/sim/foe.js', 'src/sim/save.js', 'src/sim/history.js', 'src/content.js', 'src/tuning.js']) {
     assert.ok(has.has(f), f)
   }
 })
@@ -45,11 +45,11 @@ test('the build ships what the page loads: its stylesheets and what they name, t
 })
 
 test('the build never ships the offline tools (the forest\'s fitting among them), the expert\'s file, the tests, press/ or the docs', () => {
-  for (const f of ['src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/expert.json', 'src/sim/autoplay.js', 'src/sim/calc.js']) {
+  for (const f of ['src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/expert.json', 'src/sim/autoplay.js', 'src/sim/player.js', 'src/sim/reports.js', 'src/sim/calc.js',
+    'src/sim/policy.js', 'src/sim/plan.js', 'src/sim/expert.js', 'src/sim/forest.js', 'src/sim/pool.js', 'src/sim/cli.js']) {
     assert.ok(OFFLINE.includes(f) && !has.has(f), f)
   }
-  // The battle forest as play reads it, never its fitting: no module shipped grows a tree, bins a column or reads a label.
-  assert.ok(has.has('src/sim/forest.js'))
+  // No module shipped grows a tree, bins a column or reads a label.
   for (const f of files.filter((f) => f.endsWith('.js') && !f.includes('vendor/'))) {
     assert.ok(!/\bfunction\s*\*?\s*(growTrees?|fitForest|readTable|cutsOf|linesOf|decisionsOf)\b/.test(readFileSync(join(root, f), 'utf8')), f)
   }

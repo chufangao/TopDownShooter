@@ -1,60 +1,6 @@
-// The battle (redesign.md §2.3–2.10): the board, pieces, effects, statuses and relics, played as rounds of orders.
-// Pure: the same setup and the same orders give the same battle. No dice (§2.16): nothing here reads a random number;
-// every blow hits, none crits, and deals computeDamage's mean.
-//
-// A round: your turn, where each piece of yours may move up to its Move and then act once (order); End Turn ('end'),
-// where every piece of yours given no act strikes or mends with its basic alone (untouched), the camp plays its turn
-// as one opponent (policy.js foeTurn), and the turn ends: statuses tick, cooldowns fall, a wave whose turn has come
-// enters, the turn count advances, and the battle is checked for its end. It is won when no foe stands and none is
-// still to come, and lost only the instant the Monarch falls: there is no clock (redesign.md §2.10). The camp's
-// impatience ends a battle that would drag (policy.js press: full `TUNING.policy.press.turns` after the last wave
-// entered, every foe comes, and tends no one). Only a side that never acts can still hold one forever (it mends the
-// Monarch as fast as the foes in reach hurt it): for the autoplayer and the tests, played out past TUNING.turn.guard
-// turns, a battle ends as a stall (playOut, the `stall` order), never in play order by order, as the interface's.
-//
-// The battle (createBattle) carries: `units` (every unit that has taken its place, in acting order, the dead too),
-// `at` and `sky` (the tile index: the living unit on the ground and in the air on each tile, a 2×2 piece on all four),
-// `byUid`, `monarch`, `walls`, `root` (the tile the roads run to), `reserve` (the foes still to enter), `events`,
-// `relics` (the run's, every copy owned: run relics work unheld), `arise` (Arise's reach and tier for a holder, the
-// run's: run.js ariseOf), `over`, `winner`, `reason`, `death` (what felled the Monarch); and the turns':
-// `turn` (1-based), `phase` ('orders' while your orders are taken, 'resolving' inside End Turn), `stage` ('party',
-// 'foes' or 'end': whose part of the round it is), `beat` (the index its events carry), `foeIn` (the turn the last
-// wave came in: the camp's patience counts from it), `waves` ([{ wave, turn, foes, entered }]: the later waves and the
-// turn each enters on).
-// On each unit: `move` (its Move now), `moved` (tiles spent this turn: yours kept through the foes' turn, a foe's
-// through your orders, each side's set back as its own turn begins: ready), `acted`, `from` (where it stood as its turn
-// began: Undo's tile), `told` (the tiles of `moved` its move's moment has told: moveMoment), `watched` (the blows
-// its Overwatch has struck this turn: rules.js overwatch), `cooldowns` ({ ability id: turns left }), `temper`, `basic`
-// and `mend` (its basic blow and basic heal, ability defs or null), `kit` (its abilities, with what its relics grant:
-// Arise), `relics` (the piece relics it holds, ids: redesign.md §2.15) and `held` (their rules, and its kind's
-// override: rules.js heldRules).
-//
-// Orders (legalOrders lists every one the player may give now; order applies one, throwing on an illegal one):
-//   { type: 'move', uid, tile }                a piece of yours moves to `tile` (reach: within its Move, by a path)
-//   { type: 'undo', uid }                      it goes back to `from`, its Move whole again (until it acts): nothing
-//                                              of a move is told before its act or End Turn commits it (moveMoment)
-//   { type: 'act', uid, ability, target }      it acts: `target` is always a unit's uid: a blow's primary (a Shape's
-//                                              too), an ally for a heal, itself for a self or all-allies ability, the
-//                                              corpse for Arise (a skill of the piece holding an Arise relic)
-//   { type: 'end' }                            End Turn
-//   { type: 'stall' }                          past TUNING.turn.guard turns, the battle ends as a stall: never the
-//                                              player's (legalOrders never lists it), the autoplayer's and playOut's
-//
-// Events, each stamped with its `beat` (events of one beat play together):
-//   battle:start, enter, wave, action, damage, miss, heal, status (`dur` in turns), expire, cleanse, death, burst, arise,
-//   tithe, rise, rule, trigger, phase, battle:end (reason 'monarch', 'wipe', 'crumble': a boss's fall, or 'stall': no winner)
-//   { type: 'turn', turn, next }               a turn begins: `next` the next wave ({ wave, turn }) or null
-//   { type: 'stage', stage }                   'untouched', 'foes' or 'end': a part of the round begins
-//   { type: 'move', actor, from, to, path }    a move (`path`: each tile stepped onto, `to` the last)
-//   { type: 'undo', actor, from, to }          a move undone
-//   { type: 'action', …, tile, counter? }      `tile`: where it acts from; `counter`: a counter, the target's answer
-//   { type: 'cooldown', target, ability, turns }  a skill's cooldown set or fallen (0: ready)
-//   { type: 'hexed', target }                  a Hexed unit's act lost
-//   { type: 'shrug', target, status }          a boss shrugs off a Hex (addStatus): its last act was lost to one
-//
-// `ablate` (a measuring switch, never a player's: autoplay.js ABLATIONS) lists rules taken from your side: 'arise' (no
-// relic grants Arise), 'synergies' (your side holds no synergy) and 'summons' (no tier brings a summon). `quiet` (a
-// rehearsal's): the battle keeps no events; it plays out exactly as it would otherwise.
+// The battle: the board, pieces, effects, statuses and relics, played as rounds of orders. Pure and dice-free: the same
+// setup and orders give the same battle. A round: your turn (each piece moves, then acts once), then End Turn: the
+// untouched strike with their basics, the foes take their turn (foe.js foeTurn), statuses tick, waves enter.
 import { TUNING } from '../tuning.js'
 import { unitDef, abilityDef, statusDef, relicDef, SYNERGIES } from '../content.js'
 import { hashString } from './rng.js'
@@ -67,7 +13,7 @@ import {
   LANE, field, fieldOf, airOf, roadOf, arrowOf, roadLeft, layerOf, around, foesNextTo, pressed, auraGivers, riseTile, summonTile, entryTile
 } from './field.js'
 import { call, heldRules, grantsOf, unhealable } from './rules.js'
-import { foeTurn, basicTurn } from './policy.js'
+import { foeTurn, basicTurn } from './foe.js'
 
 // The board's reads and the rules a side holds, for the interface and the tests: one module to import the battle from.
 export { field, fieldOf, airOf, roadOf, arrowOf, foesNextTo, auraGivers, riseTile }
@@ -75,21 +21,12 @@ export { rulesOf, holds } from './rules.js'
 
 // ── the battle ───────────────────────────────────────────────────────────────────────────────────
 
-// `setup` (run.js battleSetup): `party` and `foes` are run pieces { uid, id, lvl, tracks, hp, maxHp, slot, relics? };
-// the battle works on copies, and only pieces on the field (slot ≥ 0) with HP left take part, each on its slot's board
-// tile (the party's in its camp, past `walls`, a list of board tiles). `reserve`: the foes still to come, each with
-// its `wave` (1, 2…: wave k enters at turn 1 + k × `every`, TUNING.spawn.waves.every unless the run's level says
-// otherwise: run.js waveEvery) and its slot's `lane`. `partyMods` and
-// `foeMods`: mods on every unit of the side but the Monarch, a mod with `who` on those it names (the run relics': a
-// side-wide cost, a kin banner's; the floor's growth and the run's level, the boss's apart);
-// `relics`: the run's, every copy owned; `arise`: { domain, tier }, Arise's reach and tier for any holder (run.js
-// ariseOf; TUNING.arise by default); `nextUid`: where the uids of units made here start (by default past every uid here, the reserve's
-// included); battle.nextUid is the first still free when it ends. The foes hold their synergies' rules on every floor,
-// as yours do (redesign.md §2.12).
-//
-// The Monarch (a party unit whose def is `monarch`) stands on its seat: the roads run to it. It holds no relic, never
-// moves, never strikes and never raises. A battle with no Monarch (a test, a sample) has its roads run to the camp's
-// rear middle tile, and ends on a wipe.
+// `setup` (run.js battleSetup): run pieces `party` and `foes` (copied; those on the field with HP fight), `reserve` (each
+// with its `wave` and `lane`), side `partyMods`/`foeMods` (never the Monarch's), `ablate` ('arise', 'synergies', 'summons').
+// The battle: `units` (acting order, the dead too), `byUid`, `monarch` (null: the roads run to the camp's rear middle),
+//   `at`/`sky` the tile index (the living unit on each tile, ground and air; a 2×2 piece on all four),
+//   `turn` (1-based), `phase` ('orders' | 'resolving'), `stage` ('party' | 'foes' | 'end'), `beat` (the events' index),
+//   `waves` ([{ wave, turn, foes, entered }]), `foeIn` (the turn the last came in), `over`, `winner`, `reason`, `death`.
 export function createBattle ({
   party, foes, floor = 1, boss = false, partyMods = [], foeMods = [], walls = [], arise = TUNING.arise, nextUid = null,
   reserve = [], relics = [], ablate = [], quiet = false, every = null
@@ -114,23 +51,18 @@ export function createBattle ({
   }
   for (const u of units) occupy(battle, u)
   for (const u of units) fit(battle, u)
-  // Each soul of yours whose tiers bring summons calls them now, in acting order (none with the `summons` switch).
   if (!battle.ablate.has('summons')) for (const u of units) if (u.side === 'party' && u !== monarch) summon(battle, u)
   battle.waves = schedule(battle.reserve, battle.every)
   emit(battle, {
     type: 'battle:start',
     walls: [...battle.walls],
-    // A summon is marked as a shadow (and `summoned`), with the uid of the soul that called it (`summoner`); a piece
-    // holding relics names them (`relics`).
     units: battle.units.map((u) => ({
       uid: u.uid, id: u.id, side: u.side, slot: u.slot, tile: u.tile, lvl: u.lvl, hp: u.hp, maxHp: u.maxHp, ...marks(u),
       ...(u.summoned && { shadow: true, summoned: true, summoner: u.summoner }), ...(u.relics.length && { relics: u.relics.slice() })
     })),
     synergies: ['party', 'foe'].flatMap((side) => synergiesOf(battle, side).map((s) => ({ side, id: s.id, name: s.name }))),
-    // The Monarch's uid (null without one) and the tile the roads run to, for the renderer.
     monarch: monarch?.uid ?? null,
     root: battle.root,
-    // The foes still to enter, in order, with the wave each comes in.
     reserve: battle.reserve.map((u) => ({ uid: u.uid, id: u.id, lvl: u.lvl, ...marks(u), side: 'foe' }))
   })
   // The opening formation is the first wave: its moment comes before anyone acts.
@@ -140,21 +72,12 @@ export function createBattle ({
   return battle
 }
 
-// What marks a unit in the events that announce it: a foe's wave (k ≥ 1: it came after the first formation), and a
-// 2×2 piece's size.
+// What marks a unit in the events that announce it: a later wave's foe its `wave`, a 2×2 piece its `size`.
 const marks = (u) => ({ ...(u.wave && { wave: u.wave }), ...(u.size > 1 && { size: u.size }) })
 
-// The per-battle fields a unit fights with, on a copy: no statuses yet, no phase reached; the rest is set as it takes
-// its place (occupy).
 const fresh = (u) => ({ ...u, relics: (u.relics ?? []).slice(), statuses: [], phase: 0 })
 
-// A unit takes its place in the battle: on the board's index (on every tile of its footprint; a flyer's in the air,
-// battle.sky, anyone else's on the ground, battle.at), in the order it acts (after everyone already there), with
-// what its kit makes fixed for the battle: its abilities (and what its relics' rules grant it: Arise), its aura, its
-// arm, whether it flies, its size (a piece of yours its kind's and tiers', a foe piece always 1), its relics' rules
-// and mods; and its turn fields. The Monarch has no ability: it never acts. A flyer may hover over a wall; nothing
-// else stands on one. Two flyers never share a tile, nor two on the ground. Everything that enters mid-battle comes
-// through here too (enterBattle).
+// A unit takes its place: on the tile index in its layer, last in acting order, its kit and turn fields set for the battle.
 function occupy (battle, u) {
   if (!alive(u)) throw new Error(`${u.id} has no HP to fight with`)
   u.flies = !!unitDef(u.id).flies
@@ -167,7 +90,6 @@ function occupy (battle, u) {
   u.held = heldRules(u)
   const monarch = !!unitDef(u.id).monarch
   u.kit = monarch ? [] : [...abilitiesOf(u).map(abilityDef), ...grantsOf(battle, u)].filter((a, i, list) => list.indexOf(a) === i)
-  // A piece relic's mods are its holder's (redesign.md §2.15).
   u.relicMods = heldMods(u)
   u.aura = auraOf(u)
   u.arm = armOf(u)
@@ -189,9 +111,7 @@ function occupy (battle, u) {
   u.mend = mendOf(u.kit)
 }
 
-// Max HP includes the unit's HP mods (synergies, relics, track tiers); a summon rises at TUNING.summon.hp of it;
-// current HP keeps its fraction. Read once, as it takes its place: HP mods that come and go mid-battle do not stretch
-// the bar. The Monarch's max HP is the run's (its base and its HP relics) and nothing else's (see modsFor).
+// Max HP with its HP mods, read once as it takes its place (a summon's × TUNING.summon.hp), HP keeping its fraction.
 function fit (battle, u) {
   if (u === battle.monarch) return
   const max = Math.max(1, Math.round(stats(battle, u).hp * (u.summoned ? TUNING.summon.hp : 1)))
@@ -200,10 +120,7 @@ function fit (battle, u) {
   u.maxHp = max
 }
 
-// A unit joins a battle under way (a shadow, a foe from the reserve, a fused piece): `u` is a living run unit with its
-// `side` and an open `tile` on the board; it gets the per-battle fields and its max HP fitted to its mods, as a unit
-// there from the start does, and acts after everyone already there. The caller emits the event that announces it.
-// The roster changes, so every cache of who is on the board refreshes. Returns the battle unit.
+// A living run unit with its `side` and an open `tile` joins a battle under way; the caller announces it. → the battle unit.
 export function enterBattle (battle, u) {
   const unit = fresh(u)
   occupy(battle, unit)
@@ -216,9 +133,7 @@ export function enterBattle (battle, u) {
 // Whether the Monarch has fallen (never, in a battle with none).
 export const fallen = (battle) => battle.monarch !== null && !alive(battle.monarch)
 
-// The turn a foe of the reserve's wave comes on (redesign.md §2.10: "wave 2 on turn 5"), `every` turns apart from the
-// first (turn 1), the battle's (TUNING.spawn.waves.every unless its setup says otherwise): it enters as the turn before
-// ends (arrive), and stands on the board for that turn.
+// The turn a reserve foe's wave comes on, `every` turns apart from turn 1: it enters as the turn before ends (arrive).
 export const entryTurn = (foe, every = TUNING.spawn.waves.every) => 1 + (foe.wave || 1) * every
 
 function schedule (reserve, every) {
@@ -232,17 +147,14 @@ function schedule (reserve, every) {
   return out.sort((a, b) => a.turn - b.turn || a.wave - b.wave)
 }
 
-// The next wave still to enter ({ wave, turn }), or null.
 export const nextWave = (battle) => {
   const w = battle.waves.find((x) => !x.entered)
   return w ? { wave: w.wave, turn: w.turn } : null
 }
 
-// How far the camp's patience has run, 0 to 1: the turns since the last wave came in (foeIn), of
-// TUNING.policy.press.turns. At 1 the camp is out of it (policy.js press, hasty): every foe comes. Never shown.
+// How far the camp's patience has run, 0 to 1: the turns since the last wave came in, of TUNING.policy.press.turns.
 export const impatience = (battle) => Math.min(1, Math.max(0, (battle.turn - battle.foeIn) / Math.max(1, TUNING.policy.press.turns)))
 
-// A turn of yours begins: every piece of yours whole again, the rules' moment, its Move read, the counts announced.
 function startTurn (battle) {
   battle.stage = 'party'
   battle.phase = 'orders'
@@ -253,8 +165,7 @@ function startTurn (battle) {
   emit(battle, { type: 'turn', turn: battle.turn, next: nextWave(battle) })
 }
 
-// A unit's turn fields set back as its side's turn begins: no tile moved or told, no act, Undo's tile where it stands,
-// and no Overwatch blow struck yet (`watched`, rules.js overwatch: its count this turn).
+// A unit's turn fields set back as its side's turn begins: nothing moved, told, acted or watched; Undo's tile its own.
 const ready = (u) => {
   u.moved = 0
   u.told = 0
@@ -263,14 +174,12 @@ const ready = (u) => {
   u.from = u.tile
 }
 
-// Every living unit's Move as its stats give it now (statuses, auras and tiers counted), for the board to show and
-// the orders to read. The Monarch never moves, whatever hastens it.
+// Every living unit's Move as its stats give it now; the Monarch never moves.
 function refresh (battle) {
   for (const u of battle.units) if (alive(u)) u.move = u === battle.monarch ? 0 : Math.max(0, Math.floor(stats(battle, u).move))
 }
 
-// Won when no foe stands and none is to come (a boss's fall crumbles its side: 'crumble'); lost the instant
-// the Monarch falls, or, with none, when the party is wiped. Whether the battle is over.
+// Whether the battle is over: won once no foe stands nor is to come; lost the instant the Monarch falls (none: a wipe).
 export function settle (battle) {
   if (battle.over) return true
   const m = battle.monarch
@@ -292,7 +201,7 @@ function finish (battle, winner, reason) {
   emit(battle, { type: 'battle:end', winner, reason, ...(battle.death && { death: battle.death }) })
 }
 
-// A quiet battle (a rehearsal's) keeps no events: nothing in the battle reads them back.
+// An event: { beat, type, … }, the events of one beat playing together. A quiet battle (a fork's) keeps none.
 export function emit (battle, ev) {
   if (battle.quiet) return
   battle.events.push({ beat: battle.beat, ...ev })
@@ -302,26 +211,22 @@ export const timelineHash = (events) => hashString(JSON.stringify(events))
 
 // ── kinds on turns ───────────────────────────────────────────────────────────────────────────────
 
-// A kind's temperament (content.js TEMPERS): its def's three values; none for the Monarch, which never acts.
 export const temperOf = (id) => unitDef(id).temper ?? null
 
-// A kind's basic blow: the blow its def marks `basic`, else the last in its kit (a kit lists its basics last, and a
-// tier that teaches a skill puts it before them); its basic heal, the same among its abilities that mend or cleanse an
-// ally. A tier that swaps a basic swaps a basic (Shatter Lance for Frost Lance).
+// A kit's basic blow: the blow its def marks `basic`, else its last (a kit lists its basics last); its basic heal, the
+// same among its abilities that mend or cleanse an ally.
 const basicIn = (list) => list.find((a) => a.basic) ?? list.at(-1) ?? null
 export const basicOf = (kit) => basicIn(kit.filter(isBlow))
 export const mendOf = (kit) => basicIn(kit.filter((a) => isAllyShape(a.shape) && a.shape !== 'self' && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse')))
-// A skill: anything not a basic. Every skill rests a turn: cooldown 2 unless its def says (restOf; Arise's 1, no rest).
+// A skill: anything not a basic; it rests once used (restOf).
 export const isSkill = (u, a) => a !== u.basic && a !== u.mend
 
-// How long a skill of `u`'s rests once used: its def's `cooldown`, 2 where absent (Arise's 1: no rest), or less where
-// a rule granting it says (a `cooldown` in its params; none does since Arise itself lost its rest, 2026-10-11).
+// How long a skill of `u`'s rests once used: its def's `cooldown` (2 where absent), or less where a rule granting it says.
 const restOf = (u, a) => Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.grants === a.id && r.params.cooldown).map((r) => r.params.cooldown))
 
 // ── stats and synergies ──────────────────────────────────────────────────────────────────────────
 
-// Who stands on a side only changes when someone dies, enters or rises, and each bumps the roster (a rise clears the
-// side's list). A holder of Mimicry counts as its role besides its own (rules.js `roles`).
+// The synergies `side` holds, kept until the roster changes; a holder of Mimicry counts as its role too (rules.js `roles`).
 export function synergiesOf (battle, side) {
   const c = battle.syn[side]
   if (c?.v === battle.roster) return c.list
@@ -331,18 +236,15 @@ export function synergiesOf (battle, side) {
   battle.syn[side] = { v: battle.roster, list, counts }
   return list
 }
-// The counts `side` holds its synergies by (unit.js synergyCounts), kept with them: a split rule reads how far it holds
-// (rules.js rulesOf).
+// The counts `side` holds its synergies by, kept with them (a split rule reads how far it holds).
 export const synergyCountsOf = (battle, side) => {
   synergiesOf(battle, side)
   return battle.syn[side].counts
 }
 
-// What bends a unit's stats now: its statuses (or those given: rateOf's), its side's synergies, the auras it stands
-// in, its side's mods, and the piece relics it holds. The Monarch takes no synergy's or relic's mods: its stats are its
-// own, its max HP the run's (guarding it is a placement problem, never a stat purchase). What stands around it still
-// counts (a status on it, an aura it stands in).
-export function modsFor (battle, unit, statuses = unit.statuses) {
+// What bends a unit's stats now: its statuses (or those given), its side's synergies, the auras it stands in, its side's
+// mods and its piece relics. The Monarch takes no synergy's, side's or relic's mods, only its statuses and auras.
+function modsFor (battle, unit, statuses = unit.statuses) {
   const mods = []
   const own = unit !== battle.monarch
   for (const s of statuses) {
@@ -354,9 +256,7 @@ export function modsFor (battle, unit, statuses = unit.statuses) {
   return mods
 }
 
-// Cached on everything stats depend on, so nothing has to remember to invalidate it: whether a foe stands next
-// to it, the allies whose aura reaches it, its statuses with their stacks (in order), and its side's synergies
-// (the Monarch takes none). Everything else modsFor reads is the battle's, or the unit's, for good.
+// A unit's stats now, cached on everything they depend on, so nothing has to remember to invalidate them.
 export function stats (battle, unit) {
   const engaged = pressed(battle, unit)
   const hit = battle.cache.get(unit.uid)
@@ -367,7 +267,6 @@ export function stats (battle, unit) {
       return hit.s
     }
   }
-  // (statsOf reads only these of a unit: its kind, level and track tiers, and its position.)
   const s = statsOf({ id: unit.id, lvl: unit.lvl, tracks: unit.tracks, pos: engaged ? 'engaged' : 'free' }, modsFor(battle, unit))
   const givers = auraGivers(battle, unit).map((u) => u.uid)
   const statuses = unit.statuses.map((x) => [x.id, x.stacks])
@@ -395,21 +294,19 @@ function sameGivers (battle, u, had) {
 
 // ── effects ──────────────────────────────────────────────────────────────────────────────────────
 
-// A blow's damage, with no dice: the mean of power × ATK ÷ atkDivisor, mitigated by DEF, × `mul` (damage dealt and
-// taken), rounded, never below the minimum.
+// A blow's damage: power × ATK ÷ atkDivisor, mitigated by DEF, × `mul` (dealt and taken), rounded, never below the min.
 export function computeDamage ({ power, atk, def, mul = 1 }) {
   const t = TUNING.damage
   const raw = power * (atk / t.atkDivisor)
   return Math.max(t.min, Math.round(raw * (t.defConstant / (t.defConstant + Math.max(0, def))) * mul))
 }
 
-// `status` is the status whose tick runs the effect, if one does.
+// One effect run by `actor` on `targets`: of `ability`, or of the status whose tick runs it (`status`).
 export function runEffect (battle, effect, actor, targets, ability = null, status = null) {
   if (effect.op === 'cooldown') return cooldown(battle, effect, effect.self ? [actor] : targets)
   // A `self` heal mends the actor once, whoever it struck and whether they still stand.
   if (effect.self) return alive(actor) && heal(battle, actor, actor, effect.power)
-  // A damage-over-time tick (Burning): `power` true damage a stack of the status: it takes no DEF and no mod, and is no
-  // blow. Whoever laid the status deals it (its `by`, standing or fallen), else its holder.
+  // A damage-over-time tick: `power` true damage a stack, no blow, dealt by whoever laid the status (`by`), else its holder.
   if (effect.op === 'dot') {
     const by = (status?.by != null && battle.byUid.get(status.by)) || actor
     for (const target of targets) {
@@ -417,9 +314,8 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
     }
     return
   }
-  // Raising works on the dead: an Arise's corpse (its shadow `arisen`, its raiser's: the rules hear of it, onRaise), a
-  // relic's slain with `tier` (Gravedigger's Spade: one of that tier or lower, as Legion would raise it: risable), or
-  // with `count` the field's dead (Grave Tide: raiseDead).
+  // Raising works on the dead: an Arise's corpse (its shadow `arisen`; onRaise), a relic's slain of up to `tier`
+  // (risable), or `count` of the field's dead (Grave Tide: raiseDead).
   if (effect.op === 'raise') {
     if (effect.count) return raiseDead(battle, actor, effect.count)
     for (const corpse of targets) {
@@ -436,15 +332,9 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
   for (const target of targets) {
     if (!alive(target)) continue
     if (effect.op === 'damage') {
-      // `power` by the actor's ATK against the target's DEF; a flat `amount` (a relic's: Briar Mail's) as it is, true
-      // damage as a tick's: no ATK, DEF or mod, only the rules bending it as it lands. With `per`, the amount once for
-      // each stack of a status on the target (`per.status`: Powder Keg's Burning) or each status of a tag it carries
-      // (`per.tag`: Plague Mask's debuffs), nothing where it carries none; `consume`, and the statuses counted are spent
-      // as it lands (a cleanse: the payoff of a status built up, 2026-10-17). Or once for each tile moved this turn by
-      // the one `per.moved` names, the actor (Momentum's holder) or the target, or once if the one `per.walked` names
-      // moved at all (Quarry's: a flag, not a count); nothing for none (DESIGN.md Step 4: movement read as a status
-      // is). A foe's `moved` read in your orders is the tiles it walked in its last turn (the foes set it back at their
-      // stage: ready), yours read in the foes' turn the tiles of your last.
+      // `power` by ATK against DEF; a flat `amount` as true damage. With `per`, the amount once a stack of `per.status` or a
+      // status tagged `per.tag` on the target (`consume`: those are spent as it lands), or once a tile the one `per.moved`
+      // names moved this turn, or once if the one `per.walked` names moved at all; nothing for none.
       let damage = effect.amount
       const counted = effect.per && (effect.per.status || effect.per.tag) ? perOf(target, effect.per) : null
       if (effect.per) {
@@ -468,7 +358,7 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
     } else if (effect.op === 'heal') {
       heal(battle, actor, target, effect.power, effect.pct)
     } else if (effect.op === 'apply_status') {
-      // A status an effect lays always lands (§2.16), for the effect's `turns`, else its own.
+      // A status an effect lays always lands.
       addStatus(battle, target, effect.status, effect.turns, actor)
     } else if (effect.op === 'cleanse') {
       const hits = target.statuses.filter((s) => statusDef(s.id).tags.includes(effect.tag)).slice(0, effect.count)
@@ -484,15 +374,13 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
 
 // The statuses on `u` a `per` names: the one of `per.status`, or every one tagged `per.tag`.
 const perOf = (u, per) => u.statuses.filter((s) => (per.status ? s.id === per.status : statusDef(s.id).tags.includes(per.tag)))
-// How many times a `per` on movement counts: the tiles moved this turn by the one `per.moved` names ('actor' or
-// 'target'), or 1 if the one `per.walked` names moved at all, else 0.
+// How many times a `per` on movement counts: the tiles `per.moved`'s one moved this turn, or 1 if `per.walked`'s moved.
 const tilesOf = (per, actor, target) => {
   const who = (per.moved ?? per.walked) === 'actor' ? actor : target
   return per.moved ? who.moved : who.moved > 0 ? 1 : 0
 }
 
-// The `cooldown` op: `amount` turns added to every cooldown of each target (−1: its skills a turn sooner; a delay
-// never touches a boss), none below 0.
+// The `cooldown` op: `amount` turns on each target's skill cooldowns (a delay never touches a boss), none below 0.
 function cooldown (battle, effect, targets) {
   for (const x of targets) {
     if (!alive(x) || (effect.amount > 0 && unitDef(x.id).boss)) continue
@@ -505,14 +393,14 @@ function cooldown (battle, effect, targets) {
   }
 }
 
-// A skill of `u`'s set to rest `turns` (0: ready), and said (the sprite's pip reads it).
+// A skill of `u`'s set to rest `turns` (0: ready), and announced.
 export function cool (battle, u, id, turns) {
   u.cooldowns[id] = turns
   emit(battle, { type: 'cooldown', target: u.uid, ability: id, turns })
 }
 
-// A heal mends `power` scaled by the healer's ATK and healing given, or with `pct` that share of the target's max
-// HP (a relic's), never past its max HP. While the run holds Court of Bone nothing heals the Monarch.
+// A heal mends `power` by the healer's ATK and healing given, or `pct` of the target's max HP, never past its max.
+// Nothing heals the Monarch while the run holds Court of Bone.
 export function heal (battle, actor, target, power, pct = 0) {
   if (target === battle.monarch && battle.unhealable) return
   let amount
@@ -527,10 +415,8 @@ export function heal (battle, actor, target, power, pct = 0) {
   emit(battle, { type: 'heal', actor: actor.uid, target: target.uid, heal: target.hp - before, hp: target.hp })
 }
 
-// The rules that bend damage as it lands (rules.js modify: the actor's side's, then the target's), then, on what is
-// left of it, whole, those of the target's side that stand against a fall (stand: Last Stand's, a capstone's), which
-// may leave a share of its max HP for it to mend once the damage has landed (`mend`). → { damage, mend }, or null: it
-// missed.
+// The rules bend damage as it lands (modify: the actor's side's, then the target's), then those of the target's side
+// that stand against a fall (stand). → { damage, mend }, or null: it missed.
 function land (battle, target, amount, { actor, ability, status }) {
   const ctx = { actor, target, ability: ability ? abilityDef(ability) : null, status, damage: amount, miss: false, as: 'actor' }
   if (actor) call(battle, 'modify', actor.side, ctx)
@@ -546,10 +432,7 @@ function land (battle, target, amount, { actor, ability, status }) {
   return ctx
 }
 
-// Damage lands: a blow's, or a status's tick (`status`, its id: Burning's), which is no blow. The rules bend it
-// first (land: Mirage turns the first blow a foe would land a turn, Bodyguard lessens a Vanguard's, Last Stand leaves
-// the first damage that would fell at 1 HP and mends it). A blow that lands on one that stands is the 'struck' moment
-// of the relics it holds.
+// Damage lands, a blow's or a status's tick (`status`: no blow); a blow on one that still stands is its 'struck' moment.
 export function applyDamage (battle, target, amount, { actor, ability = null, status = null }) {
   const landed = land(battle, target, amount, { actor, ability, status })
   if (!landed) return
@@ -562,12 +445,8 @@ export function applyDamage (battle, target, amount, { actor, ability = null, st
   }
 }
 
-// A unit falls to `actor`'s blow (or a status `actor` laid). A kind that bursts on death bursts (burst). The rules of
-// its side hear of it first (onFall): Undying may lift its holder again where it fell, which has still fallen (it was
-// struck down, and the death shows: it burst, and the fall relics fire over it) but leaves the board as it was.
-// Otherwise it leaves the board; a boss's fall crumbles its side; the Monarch's is recorded and ends the battle; the
-// fallen's relics fire ('fall'), its slayer's ('kill'), and the other side's rules hear of the kill (onKill: the
-// Legion, Frenzy).
+// A unit falls to `actor`'s blow (or a status it laid): it bursts, its side's rules hear first (onFall: Undying may lift
+// it again); else it leaves the board, a boss crumbles its side, and the fall and kill moments and onKill follow.
 export function fall (battle, target, actor, ability) {
   target.statuses = []
   emit(battle, { type: 'death', target: target.uid, actor: actor.uid })
@@ -586,8 +465,7 @@ export function fall (battle, target, actor, ability) {
   vacate(battle, target)
   battle.roster++
   if (target.side === 'foe' && unitDef(target.id).boss) crumble(battle, target)
-  // What felled the Monarch, for the defeat screen and the ladder: who, with what, from where, the first threat its
-  // kind carries, and for a foe that came in a later wave, which one.
+    // What felled the Monarch, for the defeat screen and the ladder.
   if (target === battle.monarch) {
     battle.death = {
       by: actor.id, uid: actor.uid, ability, from: actor.tile,
@@ -603,14 +481,12 @@ export function fall (battle, target, actor, ability) {
   call(battle, 'onKill', side, { slain: target, by: actor, side })
 }
 
-// A fallen piece leaves the tile index, every tile of its footprint, in its layer.
-export function vacate (battle, u) {
+function vacate (battle, u) {
   const layer = layerOf(battle, u)
   for (const t of footprint(u.tile, u.size)) if (layer[t] === u) layer[t] = null
 }
 
-// A death burst (its kind's `onFall`, { range, effects }): as a piece of the kind falls, its effects run from where it
-// fell, the fallen piece their caster, on the other side's living within `range` of its footprint. Announced first.
+// A death burst (its kind's `onFall`: { range, effects }), run from where it fell on the other side within `range`.
 export function burst (battle, u) {
   const on = unitDef(u.id).onFall
   if (!on) return
@@ -619,9 +495,8 @@ export function burst (battle, u) {
   for (const effect of on.effects) runEffect(battle, effect, u, targets)
 }
 
-// A boss's fall: its court and every other foe still standing crumble with it, each a death (`crumble: true`) as if
-// slain (they pay essence), and the foes still to come never enter. The battle is won: no crumbled foe bursts, rises,
-// or is a moment.
+// A boss's fall: every other foe standing crumbles with it, a death (`crumble: true`) as if slain (they pay), and the
+// foes still to come never enter. No crumbled foe bursts, rises, or is a moment.
 export function crumble (battle, boss) {
   battle.crumbled = true
   battle.reserve = []
@@ -638,21 +513,15 @@ export function crumble (battle, boss) {
 
 // The party's pieces on the board: everyone living but the Monarch (shadows and summons too).
 const pieces = (battle) => battle.units.reduce((n, u) => n + (u.side === 'party' && alive(u) && u !== battle.monarch ? 1 : 0), 0)
-// Whether a Legion's shadow may rise on `side`: for the party, only while it has fewer than TUNING.army.board pieces on
-// the board (unbounded, one for every foe slain would pack the board until a later wave found no tile to enter on). A
-// foe side needs no bound: its shadows only ever rise from your dead.
+// Whether a shadow may rise on `side`: for the party, while it has fewer than TUNING.army.board pieces, so a later wave
+// still finds tiles to enter on; a foe side needs no bound.
 export const roomFor = (battle, side) => side !== 'party' || pieces(battle) < TUNING.army.board
 
-// The size a shadow of `corpse` rising on `side` stands at: a foe piece's 1; one of yours its kind's (a shadow holds
-// no tiers).
+// The size a shadow of `corpse` rising on `side` stands at: a foe piece's 1, one of yours its kind's (no tiers).
 export const shadowSize = (corpse, side) => (side === 'party' ? sizeOf({ id: corpse.id }) : 1)
 
-// The corpse rises on `side` (the actor's) as a shadow of itself, at its level with its own kit, at full HP. One of
-// yours rises where its footprint is free closest to the Monarch (riseTile; in the air, for a flying kind's), never
-// where it fell: with none free it does not rise (null). One on the foes' side rises where it fell, if no one holds
-// that tile in its layer (else null). A shadow counts toward synergies and leaves when the battle ends; its corpse
-// cannot rise again. It keeps the uid of the corpse it rose from (`corpse`); the event says where it fell (`from`), and
-// marks a Legion's (`rule`). Returns the shadow, or null.
+// The corpse rises on `side` as a shadow of itself at full HP: yours on the free tile closest to the Monarch (riseTile),
+// a foe's where it fell if free; its corpse never rises again. → the shadow, or null with no tile.
 export function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) {
   const tile = side === 'party' ? riseTile(battle, corpse.tile, shadowSize(corpse, side), corpse.flies)
     : layerOf(battle, corpse)[corpse.tile] === null ? corpse.tile : -1
@@ -668,13 +537,12 @@ export function raise (battle, actor, corpse, { side = actor.side, rule = null }
   return shadow
 }
 
-// Whether `corpse` may rise on `side` as Legion raises (rules.js legion): fallen, never risen, never a shadow, a boss or a
-// Monarch, while the side has room for it (roomFor; raise finds its tile or none).
+// Whether `corpse` may rise on `side` as Legion raises: fallen, never risen, no shadow, boss or Monarch, while there is room.
 export const risable = (battle, corpse, side) => !alive(corpse) && !corpse.raised && !corpse.shadow &&
   !unitDef(corpse.id).boss && !unitDef(corpse.id).monarch && roomFor(battle, side)
 
-// The Sovereign's Grave Tide: up to `count` of the field's dead rise on the actor's side as shadows, where they fell
-// (raise): the fallen of either side, never a shadow, a boss, the Monarch or one risen already, lying where no one living stands; the strongest first, then the nearest, then the first to have stood.
+// Grave Tide: up to `count` of the field's dead (no shadow, boss, Monarch or one risen) rise on the actor's side where
+// they fell, where no one living lies; the highest tier first, then the nearest, then the lowest uid.
 function raiseDead (battle, actor, count) {
   const d = (c) => unitDistance(actor, c)
   const dead = battle.units.filter((c) => !alive(c) && !c.raised && !c.shadow && !unitDef(c.id).boss && !unitDef(c.id).monarch)
@@ -687,15 +555,9 @@ function raiseDead (battle, actor, count) {
   }
 }
 
-// A status laid on `target` by `by` (a unit, or none) for `turns` (its def's when not given; 'battle' for the battle):
-// a second of one held stacks (up to its def's stacks) and lasts the longer (one as long but `fresh` lasts a turn
-// more); `by` is who laid it last, the one its damage ticks are dealt by. A status laid after its holder's turn of the
-// round has passed (on one of yours in the foes' turn, on anyone at the turn's end) is `fresh`: the round's end does not
-// count against it (redesign.md §2.8). Hexed always costs an act: laid on one that has already acted this round (a
-// counter's on its attacker), it is fresh too, and holds until its next act is lost. A boss that lost its act to a Hex
-// shrugs off every Hex laid on it until its act is its own again (`shrugs`, policy.js foeTurn: set as the act is lost,
-// cleared as its next turn comes unHexed), whoever lays it and whenever: no boss loses two acts running to Hexes
-// (the user's rule, 2026-10-16). One Hex of 2 turns is one Hex: it still costs two.
+// A status laid on `target` by `by` for `turns` (its def's when not given; 'battle': the battle): a second of one held
+// stacks and lasts the longer. One laid after its holder's turn has passed, or a Hex on one that has acted, is `fresh`:
+// the round's end does not count against it. A boss that lost its act to a Hex shrugs off Hexes (`shrugs`) till it acts.
 export function addStatus (battle, target, id, turns, by = null) {
   if (id === 'hexed' && target.shrugs) {
     emit(battle, { type: 'shrug', target: target.uid, status: id })
@@ -733,16 +595,8 @@ export function phases (battle) {
 
 // ── relics: the moments their holders meet ───────────────────────────────────────────────────────
 
-// A moment of a holder's (redesign.md §2.15: a piece relic's `on` fires on its holder's events): 'kill' (it slays a
-// foe: the slain the place and the other end), 'struck' (a blow lands on it and it stands: its attacker the other
-// end), 'fall' (it falls: its killer the other end), 'blow' (it strikes, an act of its: its primary the other end),
-// 'wave' (a foe wave begins while it stands: the battle's opening, then each later wave), 'move' (a walk of its is
-// committed: moveMoment; where it ends the place, no one the other end). A relic's `when` is checked once, as the moment
-// comes and before anything is said: { moved: n } (its holder has moved n tiles or more this turn) or { still: true }
-// (it has moved none: yours keep the turn's tiles through the foes' turn). Each relic it holds that fires on the
-// moment is announced ({ type: 'trigger', relic, on, unit: the holder }) and its effects run, the holder their caster,
-// on the targets each picks: the holder, the one on the other end, the Monarch, or either side around the place
-// (`place`, a unit: around its footprint).
+// A holder's moment `on`: each relic it holds firing on it whose `when` holds is announced, its effects run with the
+// holder as caster on each's `to` (the holder, the 'other' end, the Monarch, or 'allies' / 'foes' around `place`).
 export function trigger (battle, on, subject, place, other = null) {
   for (const id of subject.relics) {
     const relic = relicDef(id)
@@ -772,15 +626,8 @@ function waveMoment (battle) {
   for (const u of battle.units.slice()) if (alive(u) && u.relics.length) trigger(battle, 'wave', u, u)
 }
 
-// A move's moment (DESIGN.md Step 4, movement as a channel), fired as `u`'s walk is committed, never on the walk, so an
-// Undo before the act leaves nothing to unwind: a piece of yours commits as its act has resolved (order 'act', once
-// perform is done: the act strikes what it was aimed at, on the board it was previewed on, and nothing the moment does
-// can void it), or, given no act, in End Turn's untouched pass, once its turn there is played (untouchedAll); a foe as
-// its move resolves in the foes' turn, before its act (policy.js foeTurn: foes never undo). Only while the battle goes
-// on and `u` stands, and only for tiles not told yet (`told`: a piece given its act again, Reaper's Hunger's, that walks
-// on tells again; an Undo sets it back with `moved`). The rules hear of it first (onMove: { actor, from, to, moved, as },
-// `as` 'actor' on its side, then 'other' on the other), then, if it still stands, it is its holder's moment ('move',
-// where it ends). No path is kept: a reader reads the tile it ends on (`to`) and `moved` (this turn's, whole).
+// A move's moment, fired as `u`'s walk is committed, never on the walk (an Undo leaves nothing to unwind), for tiles not
+// told yet (`told`): the rules hear first (onMove), then, if it still stands, its holder's 'move' moment.
 export function moveMoment (battle, u) {
   if (battle.over || !alive(u) || !(u.moved > u.told)) return
   u.told = u.moved
@@ -795,27 +642,23 @@ export function moveMoment (battle, u) {
 
 export const hexed = (u) => u.statuses.some((s) => s.id === 'hexed')
 
-// How far a blow of `u`'s reaches a flyer, its reach being `r`: melee from the ground reaches none (−1), a flyer's
-// melee meets a flyer in the air.
+// How far a blow of `u`'s reaches a flyer, its reach being `r`: melee from the ground none (−1).
 export const aloft = (u, a, r) => (a.melee && !u.flies ? -1 : r)
 
-// Whether an ally ability of `u`'s can do anything for `x`: mend it (the ability heals, its HP is short, and it is no
-// Monarch nothing may heal), or strip a status it would cleanse.
-export function canMend (battle, u, a, x) {
+// Whether ally ability `a` of `u`'s can do anything for `x`: mend it (hurt and healable), or strip a status it cleanses.
+function canMend (battle, u, a, x) {
   if (mends(a) && x.hp < x.maxHp && !(x === battle.monarch && battle.unhealable)) return true
   return a.effects.some((e) => e.op === 'cleanse' && x.statuses.some((s) => statusDef(s.id).tags.includes(e.tag)))
 }
 
-// How far ability `a` of `u`'s reaches its primaries: a blow its reach (blowReach), an ally ability its range, as the
-// rules of its side bend it (rules.js reach: Sanctuary's anywhere).
+// How far ability `a` of `u`'s reaches its primaries (a blow by blowReach, else rangeOf), as its side's rules bend it.
 function rangeFor (battle, u, a) {
   const ctx = { actor: u, ability: a, range: isBlow(a) ? blowReach(u, a) : rangeOf(a) }
   call(battle, 'reach', u.side, ctx)
   return ctx.range
 }
 
-// The primaries ability `a` of `u`'s may take with `u` standing on `tile`: a blow's foes within its reach; an ally
-// ability's allies within its range; itself for a self or all-allies ability; Arise's corpses.
+// The primaries ability `a` of `u`'s may take with `u` on `tile`: foes in reach, allies in range, itself, or corpses.
 export function targetsFrom (battle, u, a, tile = u.tile) {
   if (a.shape === 'corpse') return corpses(battle, u, tile)
   if (a.shape === 'self' || a.shape === 'all_allies') return [u]
@@ -824,11 +667,9 @@ export function targetsFrom (battle, u, a, tile = u.tile) {
   return around(battle, tile, r, enemySide(u.side), u.size, aloft(u, a, r))
 }
 
-// Whether a heal of others (`mends`): an ability that heals someone not its caster.
 export const mends = (a) => a.effects.some((e) => e.op === 'heal' && !e.self)
 
-// Whether `a`'s condition holds for `u` (content.js `when`, where the condition is the rule): a heal's allies those it
-// can do something for.
+// Whether `a`'s condition (content.js `when`) holds for `u`; a heal's allies are those it can do something for.
 export function allowed (battle, u, a) {
   if (!a.when) return true
   const enemies = livingOn(battle.units, enemySide(u.side))
@@ -837,15 +678,11 @@ export function allowed (battle, u, a) {
   return a.when({ self: u, allies, enemies })
 }
 
-// Whether `u` may use `a` now, whatever its target: a basic always; a skill off cooldown; its condition holding.
 export const usable = (battle, u, a) => (!isSkill(u, a) || !(u.cooldowns[a.id] > 0)) && allowed(battle, u, a)
 
-// Whether `u` may still act this turn.
 export const canAct = (battle, u) => !battle.over && alive(u) && !u.acted && !hexed(u)
 
-// Arise's reach and tier for a holder `u` (redesign.md §2.15): the battle's (the run's: TUNING.arise and the run
-// relics on `arise.domain` and `arise.tier`), and what the rules granting it add (Court of Bone's tiles). → { domain,
-// tier }, or null for a unit whose kit holds no Arise.
+// Arise's reach and tier for holder `u`, the battle's and its granting rules': { domain, tier }, or null with no Arise.
 export function ariseOf (battle, u) {
   if (!u.kit.some((a) => a.shape === 'corpse')) return null
   const grants = u.held.filter((r) => r.grants)
@@ -855,10 +692,8 @@ export function ariseOf (battle, u) {
   }
 }
 
-// What `u`'s Arise may raise, it standing on `tile`: a fallen foe, never raised, never a shadow, a boss or one consumed
-// by a fusion, of a tier up to its Arise's, within its Arise's reach of it (ariseOf), with a free tile for its shadow
-// beside the Monarch; none once a boss has fallen (its court is dust), and none while a rule of its holder's says no
-// (Blood Tithe with the Monarch's HP at the tithe).
+// What `u`'s Arise may raise from `tile`: a fallen foe, never raised, no shadow nor boss, of a tier and within a reach
+// up to its Arise's, with a tile for its shadow; none once a boss has fallen, nor while a held rule says no (raisable).
 export function corpses (battle, u, tile = u.tile) {
   const arise = ariseOf(battle, u)
   if (!arise || !alive(u) || battle.crumbled) return []
@@ -868,16 +703,13 @@ export function corpses (battle, u, tile = u.tile) {
     (u.side !== 'party' || riseTile(battle, c.tile, shadowSize(c, u.side), c.flies) >= 0))
 }
 
-// ── lines of fire (redesign.md §2.19) ────────────────────────────────────────────────────────────
+// ── lines of fire ────────────────────────────────────────────────────────────────────────────────
 
-// Whether blow `a` keeps to a line: a single-target blow from range (its `range` above 1; none, the whole board), never
-// melee (a reach-2 arm's neither), never one that arcs (`arc`: lobbed or cast over everything, Skyfall, Killing Cold).
-// Shapes (blast, column, row, all) and Arise ignore lines.
+// Whether blow `a` keeps to a line: a single-target blow from range (above 1), never melee nor arcing (`arc`).
 export const lined = (a) => a.shape === 'single' && !a.melee && !a.arc && (a.range ?? Infinity) > 1
 
-// The tiles a blow of `u`'s at `x` crosses, strictly between them, in order from u (u standing on `from`): from u's
-// footprint tile nearest x to x's nearest u (unit.js lineEnds, between). With an ability `a` that keeps to no line
-// (lined: melee, a shape, an arc), none; with none given, the line itself. The interface draws it (preview's `line`).
+// The tiles a blow of `u`'s (on `from`) at `x` crosses, strictly between, in order from u; none for an ability that
+// keeps to no line. The interface draws it.
 export function lineOf (battle, u, x, a = null, from = u.tile) {
   if (a && !lined(defOf(a))) return []
   const [p, q] = lineEnds(from, u.size ?? 1, x.tile, x.size ?? 1)
@@ -887,8 +719,7 @@ export function lineOf (battle, u, x, a = null, from = u.tile) {
 // An ability given by its def or its id (the interface's).
 const defOf = (a) => (typeof a === 'string' ? abilityDef(a) : a)
 
-// The first unit of `side` on the tiles strictly between tiles p and q (a flyer as any piece: the line is the board's,
-// not a layer's; of two on one tile, the one on the ground), `not` aside; null for none.
+// The first unit of `side` on the tiles strictly between p and q (the ground's first on a shared tile), `not` aside.
 export function lineBlocker (battle, p, q, side, not = null) {
   const k = p * TILES + q
   for (let i = LINE_AT[k]; i < LINE_AT[k + 1]; i++) {
@@ -901,18 +732,16 @@ export function lineBlocker (battle, p, q, side, not = null) {
   return null
 }
 
-// Whom blow `a` of `u`'s aimed at `x` meets first on its line, u standing on `from`: the first piece of x's side on a
-// tile strictly between them (lineBlocker), else x. The shooter's own side never blocks: it fires over its friends.
-// x for a blow that keeps to no line.
+// Whom blow `a` of `u`'s (on `from`) aimed at `x` meets first on its line: the first of x's side between them, else x.
+// The shooter's own side never blocks: it fires over its friends.
 export function lineStruck (battle, u, a, x, from = u.tile) {
   if (!lined(a) || x.side === u.side) return x
   const [p, q] = lineEnds(from, u.size ?? 1, x.tile, x.size ?? 1)
   return lineBlocker(battle, p, q, x.side, x) ?? x
 }
 
-// The unit blow `a` of `u`'s aimed at `x` strikes (u standing on `from`): the line's (lineStruck), then the rules of
-// that one's side may turn it (a Bodyguard takes it from that piece: rules.js `targets`, read here without a word
-// said). x itself for an ability that is no blow. What perform resolves, and what the policy scores.
+// The unit blow `a` of `u`'s aimed at `x` strikes: the line's, then as the rules of that one's side turn it (a
+// Bodyguard), read without a word said. What perform resolves and the policy scores.
 export function struckBy (battle, u, a, x, from = u.tile) {
   a = defOf(a)
   if (!isBlow(a)) return x
@@ -927,9 +756,8 @@ export function struckBy (battle, u, a, x, from = u.tile) {
   return ctx.primary
 }
 
-// Who an ability touches, aimed at `primary`: a blow's line picks who is struck first (lineStruck), then the rules of
-// that one's side may turn it (a Bodyguard), then its shape spreads and the actor's rules turn that (Dragonfire,
-// Sanctuary). → { primary (who is struck), targets }.
+// Who an ability aimed at `primary` touches: the line's pick and its side's rules, then its shape, then the actor's
+// rules (Dragonfire, Sanctuary). → { primary, targets }.
 function spread (battle, u, a, primary) {
   const ctx = { actor: u, ability: a, primary, targets: null, as: 'target' }
   if (isBlow(a)) {
@@ -942,8 +770,8 @@ function spread (battle, u, a, primary) {
   return ctx
 }
 
-// The units a shape touches from its primary: a blast its primary and its side's units around its footprint, the
-// rest as unit.js expand; a melee blow from the ground never strikes a flyer.
+// The units a shape touches from its primary (blast: its side around its footprint; else unit.js expand); a melee blow
+// from the ground never strikes a flyer.
 export function shape (battle, u, a, primary) {
   if (a.shape === 'corpse') return [primary]
   const out = a.shape === 'blast' ? around(battle, primary.tile, 1, primary.side, primary.size) : expand(battle.units, u, a, primary)
@@ -952,12 +780,8 @@ export function shape (battle, u, a, primary) {
 
 // ── acting ───────────────────────────────────────────────────────────────────────────────────────
 
-// `u` uses `a` on `primary`, from where it stands: its act for the turn. A blow strikes whom its line and the rules
-// say (spread: struckBy's); the action says whom it was aimed at (`primary`) and, where another takes it, who did
-// (`struck`). A skill rests (its cooldown set first, so a rule that readies it, Frenzy's, may undo that); the rules hear
-// of it (onStruck, onBlow: Echo); a blow is its holder's 'blow' moment; a melee blow's target answers it (counter); the
-// HP phases are read; the battle may end. The battle is lost the instant the Monarch falls: once a blow has felled it,
-// nothing of the blow follows.
+// `u` uses `a` on `primary`: its act for the turn. A skill rests (set first, so a rule may ready it again); the rules
+// hear of it; a blow is its 'blow' moment and a melee one is countered. Once the Monarch falls nothing follows.
 export function perform (battle, u, a, primary) {
   battle.beat++
   const { primary: aimed, targets } = spread(battle, u, a, primary)
@@ -980,10 +804,8 @@ export function perform (battle, u, a, primary) {
   settle(battle)
 }
 
-// A counter (redesign.md §2.6): the target of a melee blow, still standing within its own basic blow's reach of the
-// attacker (the attacker on `from`: where it stands, or where the policy weighs striking from), answers at once with
-// that blow, if it is melee, on the attacker alone; never a Hexed piece, never the Monarch, never ground at a flyer;
-// one a blow, and a counter is never answered. → the blow, or null.
+// A counter: the target of a melee blow, standing within its melee basic blow's reach of the attacker (on `from`),
+// answers with it; never Hexed, never the Monarch, never ground at a flyer. → the blow, or null.
 export function counterOf (battle, defender, attacker, from = attacker.tile) {
   if (!alive(defender) || !alive(attacker) || defender.side === attacker.side || defender === battle.monarch || hexed(defender)) return null
   const b = defender.basic
@@ -997,17 +819,16 @@ function counter (battle, defender, attacker) {
   if (b) answer(battle, defender, b, attacker, { counter: true })
 }
 
-// Blow `b` of `u`'s at `x` alone, as a counter is performed: its effects on x, from where u stands, no line, no shape,
-// no moment of a blow's (no onBlow, no 'blow' relic) and never itself answered; the action marked by `mark` (a
-// counter's `counter`, Overwatch's `rule`: rules.js overwatch).
+// Blow `b` of `u`'s at `x` alone, as a counter: no line, no shape, no blow's moment, never answered; the action marked
+// by `mark` (`counter`, or Overwatch's `rule`).
 export function answer (battle, u, b, x, mark) {
   battle.beat++
   emit(battle, { type: 'action', actor: u.uid, ability: b.id, anim: b.anim, targets: [x.uid], tile: u.tile, ...mark })
   for (const effect of b.effects) runEffect(battle, effect, u, [x], b)
 }
 
-// Whom one of yours left untouched aims a blow at among `list`: the foe furthest along its road (roadLeft: the lowest
-// road distance to the Monarch), ties by lane, centre first, then the nearest, then the first to act.
+// Whom one of yours left untouched strikes among `list`: the foe furthest along its road, then by lane (centre first),
+// then the nearest, then the first to act.
 export function pick (battle, u, list) {
   let best = list[0] ?? null
   for (let i = 1; i < list.length; i++) {
@@ -1018,9 +839,8 @@ export function pick (battle, u, list) {
   return best
 }
 
-// One left untouched this turn acts at End Turn (redesign.md §2.5), from where it stands, with its basics alone: its
-// basic blow at the foe furthest along its road (pick), else its basic heal on the most wounded it can do something
-// for, else nothing. A Hexed one loses its act.
+// One left untouched acts at End Turn with its basics alone: its blow at `pick`'s foe, else its heal on the most
+// wounded it can help, else nothing. A Hexed one loses its act.
 function untouched (battle, u) {
   if (hexed(u)) {
     battle.beat++
@@ -1040,8 +860,7 @@ function untouched (battle, u) {
   }
 }
 
-// The allies a heal of `u`'s standing on `tile` can do something for (canMend), as primaries: for an all-allies one,
-// itself, once anyone in its range can use it.
+// The allies a heal of `u`'s on `tile` can do something for, as primaries (an all-allies one: itself, once anyone can).
 export function helped (battle, u, a, tile) {
   if (a.shape === 'all_allies') {
     const r = rangeFor(battle, u, a)
@@ -1054,8 +873,7 @@ const lowest = (list) => list.slice().sort((a, b) => a.hp / a.maxHp - b.hp / b.m
 
 // ── moving ───────────────────────────────────────────────────────────────────────────────────────
 
-// Whether piece `u`'s footprint may pass anchored at `t`: on the board, and on the ground no wall and no foe on it (a
-// flyer goes over anything). (A piece of one tile is its footprint: read without one made, here, in clear and endable.)
+// Whether `u`'s footprint may pass anchored at `t`: on the board, and on the ground no wall nor foe on it.
 function passes (battle, u, t) {
   if (u.size === 1) return u.flies || !(battle.walls.has(t) || (battle.at[t] !== null && battle.at[t].side !== u.side))
   const tiles = footprint(t, u.size)
@@ -1068,8 +886,7 @@ function passes (battle, u, t) {
 // Whether no wall stands on `u`'s footprint anchored at `t` (a diagonal step's corner test: unit.js steps).
 const clear = (battle, u, t) => (u.size === 1 ? !battle.walls.has(t) : footprint(t, u.size)?.every((x) => !battle.walls.has(x)) ?? false)
 
-// Whether `u` may end a move anchored at `t`: its footprint free in its layer (but for itself), no wall under one on
-// the ground.
+// Whether `u` may end a move anchored at `t`: its footprint free in its layer but for itself, and on the ground no wall.
 export function endable (battle, u, t) {
   const layer = layerOf(battle, u)
   if (u.size === 1) return (layer[t] === null || layer[t] === u) && (u.flies || !battle.walls.has(t))
@@ -1078,10 +895,8 @@ export function endable (battle, u, t) {
   return tiles.every((x) => (layer[x] === null || layer[x] === u) && (u.flies || !battle.walls.has(x)))
 }
 
-// The tiles a piece of yours may move to now, each with its path (redesign.md §2.2): within `budget` steps (its Move
-// left, by default), stepping as unit.js steps (no wall, never diagonally past a wall's corner), through your own
-// pieces but never through a foe, never ending on a held tile; a flyer over anything. → Map tile → path (each tile
-// stepped onto, the last the tile), in the order a flood finds them.
+// The tiles a piece of yours may move to now within `budget` steps (no wall, no corner cut, through your own but never
+// a foe, never ending on a held tile; a flyer over anything). → Map tile → path (each tile stepped onto, the last it).
 export function reach (battle, u, budget = u.move - u.moved) {
   const out = new Map()
   if (!(budget > 0)) return out
@@ -1111,16 +926,15 @@ export function reach (battle, u, budget = u.move - u.moved) {
   return out
 }
 
-// The road a foe may take this turn (redesign.md §2.9.3): its road's tiles from where it stands, up to `steps` ahead,
-// stopping before the first held one (a ground foe's by anyone on the ground; a flyer's by a piece of yours below or
-// anyone in the air) or a wall. → [{ tile, path }], its own tile first.
+// The road a foe may take this turn: its road's tiles up to `steps` ahead, stopping before the first held one or a
+// wall. → [{ tile, path }], its own tile first.
 export function roadAhead (battle, u, steps = u.move - u.moved) {
   const tiles = roadTiles(battle, u, steps)
   const out = [{ tile: tiles[0], path: [] }]
   for (let i = 1; i < tiles.length; i++) out.push({ tile: tiles[i], path: tiles.slice(1, i + 1) })
   return out
 }
-// roadAhead's tiles alone, its own first: no path made (for the readers that ask where it may stand, not how).
+// roadAhead's tiles alone, its own first, with no path made.
 export function roadTiles (battle, u, steps = u.move - u.moved) {
   const road = roadOf(battle, u)
   const out = [u.tile]
@@ -1150,12 +964,8 @@ function relocate (battle, u, to) {
 
 // ── summons ──────────────────────────────────────────────────────────────────────────────────────
 
-// A soul's summons (unit.js summonsOf: its tiers' `summon`), called as the battle begins: each a shadow of its kind on
-// your side (a trine's, of the kind it was made of: summonedOf; `shadow`, `summoned`, and `summoner`: the soul's uid),
-// at its level and with its tiers, at TUNING.summon.hp of a whole one's HP (see fit), on the free tile nearest it where
-// its footprint fits (field.js summonTile); with no free tile left, fewer rise. A summon is a shadow in every other way:
-// it takes no orders, counts toward synergies, holds no relic, pays nothing, and is gone when the battle ends. It
-// brings no summons of its own.
+// A soul's summons, called as the battle begins: shadows of the kind it summons (`summoned`, `summoner` its uid), at its
+// level and tiers and TUNING.summon.hp of the HP, each on the free tile nearest it (summonTile); fewer with none free.
 export function summon (battle, u) {
   const kind = summonedOf(u)
   const size = sizeOf({ id: kind, tracks: u.tracks })
@@ -1170,8 +980,7 @@ export function summon (battle, u) {
 
 // ── orders ───────────────────────────────────────────────────────────────────────────────────────
 
-// A piece the player orders: one of yours, living, no shadow (summons and shadows act as the untouched do), never the
-// Monarch (it never moves nor acts).
+// A piece the player orders: one of yours, living, no shadow, never the Monarch.
 export const orderable = (battle, u) => u.side === 'party' && alive(u) && !u.shadow && u !== battle.monarch
 
 function mine (battle, uid) {
@@ -1181,9 +990,8 @@ function mine (battle, uid) {
   return u
 }
 
-// The acts `u` may make from where it stands: each ability it may use at each target it may take (a shape that
-// touches all it reaches, once).
-export function actsOf (battle, u) {
+// The acts `u` may make from where it stands: each usable ability at each target (an `all` shape's once).
+function actsOf (battle, u) {
   const out = []
   if (!canAct(battle, u)) return out
   for (const a of u.kit) {
@@ -1194,7 +1002,6 @@ export function actsOf (battle, u) {
   return out
 }
 
-// Every order the player may give now (none once the battle is over).
 export function legalOrders (battle) {
   if (battle.over || battle.phase !== 'orders') return []
   const out = []
@@ -1208,9 +1015,12 @@ export function legalOrders (battle) {
   return out
 }
 
-// Applies one order (legalOrders' kinds) and returns the events it made; End Turn runs the rest of the round. `path`,
-// for a move: its path as reach found it on this very board (policy.js commit: the option's, read off the board the
-// order is given on or the copy it was made from, nothing changed between), so reach is not flooded again to find it.
+// Applies order `o` and returns the events it made, throwing on an illegal one (`path`: a move's, as reach found it here):
+//   { type: 'move', uid, tile }             a piece of yours moves, within its Move by a path
+//   { type: 'undo', uid }                   it goes back where its turn began, its Move whole again (until it acts)
+//   { type: 'act', uid, ability, target }   it acts: `target` a unit's uid (a corpse's for Arise)
+//   { type: 'end' }                         End Turn: the rest of the round
+//   { type: 'stall' }                       past TUNING.turn.guard turns the battle ends with no winner (never the player's)
 export function order (battle, o, path = null) {
   const from = battle.events.length
   if (o.type === 'end') {
@@ -1248,8 +1058,7 @@ export function order (battle, o, path = null) {
   return battle.events.slice(from)
 }
 
-// End Turn (redesign.md §2.3, steps 2–4): the untouched act, the foes take their turn, the turn ends; then your next
-// turn begins, unless the battle is over.
+// End Turn: the untouched act, the foes take their turn, the turn ends; then your next begins, unless the battle is over.
 function endTurn (battle) {
   battle.phase = 'resolving'
   battle.beat++
@@ -1269,9 +1078,8 @@ function endTurn (battle) {
   battle.phase = 'orders'
 }
 
-// End Turn's first part: every piece of yours given no act acts as the untouched do (untouched), in acting order, and
-// anyone who rises meanwhile (a Legion's shadow) too; `each(u, from)` hears of each after it acts, `from` the index of
-// its first event.
+// Every piece of yours given no act acts as the untouched do, in acting order (one risen meanwhile too); `each(u, from)`
+// hears of each after it acts, `from` the index of its first event.
 function untouchedAll (battle, each = null) {
   for (let i = 0; i < battle.units.length && !battle.over; i++) {
     const u = battle.units[i]
@@ -1283,14 +1091,9 @@ function untouchedAll (battle, each = null) {
   }
 }
 
-// What End Turn's first part would do now (untouchedAll), played on a copy (fork) and read back from its events, for
-// the End Turn button's card: one entry per piece of yours that would act in it (shadows too, and one that rises
-// meanwhile), in acting order → { acts: [{ uid, id, shadow, hexed (its act lost), ability (the act's id; null: nothing
-// to do), target (the uid aimed at), struck (who took it: a piece on the line, a Bodyguard), hits ({ uid: damage }),
-// missed (uids), heals ({ uid: HP mended }), statuses ({ uid: [{ id, dur, stacks }] }: what it lays, as it stands once
-// the part is over), falls (the foes it fells), counter (the damage the answer deals it), lost (yours that fall in its
-// act: itself to a counter, an ally to a burst) }], over, winner }. It never plays the foes' turn: nothing of it is
-// read. Null while no orders are taken (the battle over, or inside End Turn).
+// What End Turn's untouched pass would do now, played on a fork, for the End Turn button's card: { acts: [{ uid, id,
+// shadow, hexed, ability, target, struck, hits, missed, heals, statuses, falls, counter, lost }], over, winner }, one
+// per piece that would act; never the foes' turn. Null while no orders are taken.
 export function untouchedPreview (battle) {
   if (battle.over || battle.phase !== 'orders') return null
   const f = fork(battle, { quiet: false })
@@ -1328,9 +1131,8 @@ export function untouchedPreview (battle) {
   return { acts, over: f.over, winner: f.winner }
 }
 
-// The statuses `events` lay (status events; none a boss's phase grants: that is the boss's to show), each as its
-// holder wears it in battle `f` now ({ id, dur, stacks }), by holder uid; none on one that has fallen since, or lost
-// it again.
+// The statuses `events` lay (none a boss's phase grants), as each holder wears them in `f` now: { uid: [{ id, dur,
+// stacks }] }; none on one fallen since or that lost it.
 function laid (f, events) {
   const out = {}
   const phase = new Set(events.filter((e) => e.type === 'phase').map((e) => `${e.target}|${e.status}`))
@@ -1344,9 +1146,8 @@ function laid (f, events) {
   return out
 }
 
-// The turn's end: statuses tick and age, cooldowns fall, the turn count advances, a wave whose turn has come enters,
-// and the battle is checked for its end. Each one's cooldowns fall at the rate it played the turn at, read before its
-// statuses age (rateOf).
+// The turn's end: statuses tick and age, cooldowns fall (at the rate the turn was played at: rateOf), the turn
+// advances, a wave whose turn has come enters, and the battle is checked for its end.
 function closeTurn (battle) {
   battle.stage = 'end'
   battle.beat++
@@ -1368,9 +1169,8 @@ function closeTurn (battle) {
 // Whether the battle has run past the sim's bound on turns (TUNING.turn.guard) and may end as a stall (order 'stall').
 export const stalled = (battle) => !battle.over && battle.turn > TUNING.turn.guard
 
-// How many turns `u`'s cooldowns fall at this turn's end (`cooldown.rate`: Hasten's 2): as the turn was played, with
-// every status that held through it, the one whose last turn it was too (so a Hasten in its last turn, Ambush's second,
-// brings a skill back sooner), but none laid since its holder's turn passed (`fresh`), which counts from its holder's next.
+// How many turns `u`'s cooldowns fall at this turn's end (`cooldown.rate`): with every status that held through the
+// turn, its last one's too, but none laid since its holder's turn passed (`fresh`).
 export function rateOf (battle, u) {
   const s = u.statuses.some((x) => x.fresh)
     ? statsOf({ id: u.id, lvl: u.lvl, tracks: u.tracks, pos: pressed(battle, u) ? 'engaged' : 'free' }, modsFor(battle, u, u.statuses.filter((x) => !x.fresh)))
@@ -1378,8 +1178,7 @@ export function rateOf (battle, u) {
   return Math.max(1, Math.round(s.cooldown.rate))
 }
 
-// Each status's tick runs once (a damage-over-time its power a stack, a turn's worth), then it ages a turn and may
-// run out; one laid since its holder's turn passed (`fresh`) waits a round. Nothing ticks once the Monarch has fallen.
+// Each status ticks once, then ages a turn and may run out; a `fresh` one waits a round. None once the Monarch falls.
 function age (battle) {
   for (let i = 0; i < battle.units.length; i++) {
     const u = battle.units[i]
@@ -1400,10 +1199,8 @@ function age (battle) {
   }
 }
 
-// The foes whose wave's turn has come enter at the top edge (entryTile: each its lane; one with no free entry tile
-// waits for a later turn's end). Each wave is announced as its first foe enters; once they are in, it is its holders'
-// moment ('wave') and the rules hear of it (onWave). The camp's patience counts from the last wave's first entry
-// (foeIn): a straggler that waited for a free tile is that wave's, and never sets it back.
+// The foes whose wave's turn has come enter at the top edge (entryTile; one with no free tile waits); each wave announced
+// as its first foe enters, then its moment and onWave. `foeIn` counts from a wave's first entry, never a straggler's.
 function arrive (battle) {
   const begun = []
   for (const foe of battle.reserve.slice()) {
@@ -1431,8 +1228,7 @@ function arrive (battle) {
 
 // ── playing ──────────────────────────────────────────────────────────────────────────────────────
 
-// Plays `n` turns, `policy(battle)` giving each of your turns' orders (policy.js expertTurn; basicTurn by default: End
-// Turn alone) up to End Turn, which ends a turn whose orders do not; fewer if the battle ends first. Returns the battle.
+// Plays `n` turns, `policy(battle)` giving your turns' orders (basicTurn: End Turn alone), fewer if the battle ends.
 export function playTurns (battle, n, policy = basicTurn) {
   for (let k = 0; k < n && !battle.over; k++) {
     const orders = policy(battle)
@@ -1442,24 +1238,17 @@ export function playTurns (battle, n, policy = basicTurn) {
   return battle
 }
 
-// Plays a battle to its end (playTurns), or, still going once TUNING.turn.guard turns are played, to a stall (the
-// autoplayer's rehearsals and the tests: a passive side may hold a battle forever). Returns the battle.
+// Plays a battle to its end, or past TUNING.turn.guard turns to a stall (a passive side may hold one forever).
 export function playOut (battle, policy = basicTurn) {
   playTurns(battle, Math.max(0, TUNING.turn.guard + 1 - battle.turn), policy)
   if (stalled(battle)) order(battle, { type: 'stall' })
   return battle
 }
 
-// What a blow would do, shown before it is committed (redesign.md §2.4, §2.19): the act played on a copy of the battle
-// (fork), read back from its events: `struck` the uid the blow lands on (`target`; the first piece of its side on the
-// line where one stands in the way; a Bodyguard that takes it from that one), `line` the tiles between the actor and
-// `target` (lineOf: none for a blow that keeps to no line; the interface draws it to `struck`), `damage` dealt to the
-// struck, `counter` the damage its answer would deal the actor, `heal` mended on `target`, `hits` damage by uid (a
-// Shape's every target, a Bodyguard's), `kills` whether the struck would fall, and `falls` every one of the other side
-// the act would fell (uids: the interface marks FALLS on each); and for the aim's marks, `heals` HP mended by uid (a
-// group heal's every ally, a blow's self heal), `statuses` what it lays by uid ([{ id, dur, stacks }] as each would
-// wear it after; laid, the counter's too), `cleansed` the statuses it strips by uid, and `rises` the corpses that rise
-// on the actor's side (Arise's, a Legion's). Null for an act that may not be given.
+// What an act would do, played on a fork before it is committed: { struck, line, damage, counter, heal, hits, kills,
+// falls, heals, statuses, cleansed, rises }: `struck` who it lands on (a blocker on the line, a Bodyguard), `line` the
+// tiles it crosses, `damage` on the struck, `counter` its answer's on the actor, `heal` on `target`; `hits`, `heals`,
+// `statuses`, `cleansed` by uid; `falls` the foes it fells, `rises` the corpses risen on its side. Null: not a legal act.
 export function preview (battle, uid, ability, target) {
   const f = fork(battle, { quiet: false })
   try {
@@ -1490,7 +1279,7 @@ export function preview (battle, uid, ability, target) {
       out.heals[e.target] = (out.heals[e.target] ?? 0) + e.heal
       if (e.target === target) out.heal += e.heal
     } else if (e.type === 'cleanse' && !answered) (out.cleansed[e.target] ??= []).push(e.status)
-    // A corpse risen on the actor's side (the one event that names a corpse: by its shape, as no rule is branched on here).
+    // A corpse risen on the actor's side (the one event that names a corpse).
     else if (e.corpse != null && e.unit?.side === u.side) out.rises.push(e.corpse)
   }
   // One lifted again where it fell (Undying) has not fallen.

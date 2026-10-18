@@ -1,5 +1,5 @@
-// The labeller (src/sim/teach.js, redesign.md §2.22, §5 Step 9a): options played out through the foes' real turn,
-// offline; and the teacher (§2.23, §5 Step 10a), the labeller as a player. Functional only: what a playout reads, that
+// The labeller (src/sim/teach.js): options played out through the foes' real turn,
+// offline; and the teacher, the labeller as a player. Functional only: what a playout reads, that
 // it is deterministic, the rows' shape, and what the teacher takes.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -165,7 +165,7 @@ test('labels are deterministic, and every row has its shape', () => {
   }
 })
 
-// ── the route (redesign.md §2.22: room choices played out) ───────────────────────────────────────
+// ── the route ───────────────────────────────────────
 
 // A run at its first choice, its first two rooms made a deadly elite (the rank's foes at level 40) and an altar.
 const deadlyChoice = () => {
@@ -221,7 +221,7 @@ test('a learned route reads its leaf by the run\'s situation and takes the best 
   assert.equal(learnedRoute(model, run, sit).option.node.id, elite)
   run.state.party[0].hp = 1
   assert.equal(learnedRoute(model, run, survey(run)).option.node.id, altar)
-  // Installed, it is the expert's route; useRoute(false) the hand-built's, useRoute() route.json's where switched on.
+  // Installed, it is the expert's route; useRoute(false) the hand-built's, useRoute route.json's where switched on.
   try {
     useRoute(model)
     assert.equal(pickRoute(run), altar)
@@ -331,7 +331,7 @@ test('routes read off a labelled choice: a tree\'s pick, the hand-built\'s, and 
   assert.equal(ag.hand.shop, 1)
 })
 
-// ── the teacher (redesign.md §2.23: the labeller as a player) ────────────────────────────────────
+// ── the teacher ────────────────────────────────────
 
 // A piece's options as the teacher weighs them: the prior, the steps, the tile and the target.
 const opt = (prior, { steps = 0, tile = 0, target = null } = {}) => ({ prior, path: Array(steps).fill(0), tile, target: target === null ? null : { uid: target } })

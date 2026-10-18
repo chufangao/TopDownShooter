@@ -1,4 +1,4 @@
-// A boss a floor (redesign.md §4.7): each floor's boss, the one that answers what the army leans on as the floor opens,
+// A boss a floor: each floor's boss, the one that answers what the army leans on as the floor opens,
 // its counter in its kit and in its rule; the elites that answer the army; the run's boss rooms as any boss's.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -26,7 +26,7 @@ const souled = (ids) => ids.map((id, i) => makeUnit(id, { uid: i + 1, lvl: 2 }))
 test('the floors\' bosses: one record each, tagged with the floors before the last, one for each counter; the Sovereign the last floor\'s', () => {
   assert.deepEqual(UNIT_LIST.filter((u) => u.boss && !u.last).map((u) => u.id), FLOOR_BOSSES)
   assert.deepEqual(UNIT_LIST.filter((u) => u.last).map((u) => u.id), ['hollow_sovereign'])
-  // One for each counter of §4.7: casters, statuses, shooters, walls.
+  // One for each counter of: casters, statuses, shooters, walls.
   assert.deepEqual(FLOOR_BOSSES.map((id) => UNITS[id].answers).sort(), LEANINGS.slice().sort())
   for (const id of FLOOR_BOSSES) {
     const d = UNITS[id]

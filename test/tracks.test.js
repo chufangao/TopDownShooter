@@ -1,4 +1,4 @@
-// Upgrades per kind (DESIGN §2.6): a kind's two tracks of tiers and the level they give, held by every soul of it,
+// Upgrades per kind: a kind's two tracks of tiers and the level they give, held by every soul of it,
 // the crosspath rule, the costs, recruits at the kind's level, and how the autoplayer spends on them.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -57,7 +57,7 @@ test('a kind\'s tiers: both tracks\' kits and mods together, one aura; IV is a r
   for (const [id, tracks] of Object.entries(TRACKS)) {
     for (const [k, t] of tracks.entries()) {
       const iv = t.tiers[3]
-      // A new or remade ability, an aura, or Colossus (DESIGN §2.6).
+      // A new or remade ability, an aura, or Colossus.
       assert.ok(iv.desc && !iv.mods && !iv.banner && (iv.ability || iv.aura || iv.size === 2), `${id} ${t.id} IV: a rule, no mods`)
       if (!iv.ability) continue
       const at = (n) => ({ ...makeUnit(id, { uid: 1 }), tracks: k ? [0, n] : [n, 0] })
@@ -217,7 +217,7 @@ test('legalActions lists exactly the tiers apply accepts, and no level', () => {
   }
 })
 
-// The Shop's shelf holds relics alone (redesign.md §2.11; DESIGN Next, Step 3), and a kind's next tier is bought on the
+// The Shop's shelf holds relics alone, and a kind's next tier is bought on the
 // field, at its price, beside it.
 test('no shelf gives a tier: the Shop sells relics alone, and the Knight\'s Bulwark IV is bought on the field beside it', () => {
   const run = createRun({ start: START_PARTY, seed: 'rite-kinds' })

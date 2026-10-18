@@ -1,4 +1,4 @@
-// A run saved and resumed (redesign.md §4.8; src/sim/save.js): a save is the run's createRun options and its log, and
+// A run saved and resumed: a save is the run's createRun options and its log, and
 // playing it back rebuilds the run as it stood, mid-battle too, order by order; a save that no longer plays is set
 // aside, never thrown.
 import { test } from 'node:test'

@@ -1,13 +1,7 @@
-// The run cache (autoplay.js playAll's, for --paired, --builds, --ladder and the sim report; redesign.md §8 "Cheaper
-// measurement"): a run is a pure function of the code, the expert that plays it and its job (seed, level, Monarch,
-// ascension, scale, commitment, ablation, rung…), so a finished run's record is kept on disk under a hash of the three
-// and read back in place of playing it again. The code: every file of src/sim (the sim, expert.json, combos.json, and
-// the offline tools beside them: a change to any of them misses, the safe side), the src/ modules src/sim imports
-// (content.js, tuning.js) and Node's version. The expert: a job's file (`expert`, `forest`, `outforest`, a route's) by
-// its bytes, never its path. A record is stored as gzipped JSON, one file a run, under a directory a code version
-// (`<dir>/<code hash>/<key>.json.gz`): deleting the directory, or a version's, clears it. Records read back carry
-// their `secs` as first played. Writes go through a temporary file and a rename, so two processes filling one cache
-// never leave half a record.
+// The run cache for autoplay.js playAll: a run is a pure function of the code, the expert and its job, so a finished
+// run's record is kept on disk under a hash of the three and read back instead of playing it again.
+// Layout: `<dir>/<code hash>/<key>.json.gz`, gzipped JSON, one file a run; deleting a directory clears it. Writes go
+// through a temporary file and a rename, so two processes filling one cache never leave half a record.
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -15,7 +9,7 @@ import crypto from 'node:crypto'
 import zlib from 'node:zlib'
 import { fileURLToPath } from 'node:url'
 
-// Bumped when a record's shape changes without the code that makes it (never so far).
+// Bumped when a record's shape changes without the code that makes it.
 const VERSION = 1
 const SRC = fileURLToPath(new URL('..', import.meta.url))
 const sha = (x) => crypto.createHash('sha256').update(x).digest('hex')
@@ -46,8 +40,8 @@ export function codeHash (root = SRC) {
 // A job's fields that name a file (a forest, a forest out of battle, a route, a whole expert): read by its bytes.
 const FILES = ['expert', 'forest', 'outforest', 'route']
 const NAMES = new Set(['none', 'hand', 'learned'])
-// Job `job` as its key reads it: its keys sorted, undefined ones dropped, each file it names as its bytes' hash (`files`:
-// path, size and time → hash, filled as read: a file rewritten mid-report is read again, as a pool's next workers read it).
+// A job as its key reads it: its keys sorted, undefined ones dropped, each file it names as its bytes' hash (`files`
+// caches path, size and time → hash).
 function canonical (job, files) {
   const out = {}
   for (const k of Object.keys(job).sort()) {
@@ -86,8 +80,7 @@ export function runCache ({ dir = defaultDir(), root = SRC } = {}) {
         return null
       }
     },
-    // Keeps `record` under `key`. → the record as a hit would read it (JSON's: no undefined fields), so a report reads
-    // the same whether its runs were played or read
+    // Keeps `record` under `key`. → the record as a hit would read it back (JSON: no undefined fields)
     put (key, record) {
       const text = JSON.stringify(record)
       cache.played++

@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 
-// The room types: no Shop among them (DESIGN Next, Step 3: the Shop is the floor's shelf, open between battles).
+// The room types: no Shop among them.
 const TYPES = ['fight', 'elite', 'altar', 'boss', 'siege']
 
 function reach (map, from, edges) {

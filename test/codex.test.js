@@ -70,9 +70,8 @@ test('a met foe\'s card tells its reach, its Move, its way and its way line; no 
   localStorage.setItem('retinue:met', met)
 })
 
-// The seventeen of redesign.md §2.14, Line of fire (§2.19, 2026-10-11): a rule the player must read to screen the
-// Monarch, so it is a word of its own; Trine (the improvement plan's §4.1, 2026-10-15): three of a kind fused; and Altar
-// (its §4.5): one rite of three.
+// The seventeen, Line of fire: a rule the player must read to screen the
+// Monarch, so it is a word of its own; Trine: three of a kind fused; and Altar: one rite of three.
 test('the glossary\'s words are the seventeen, Line of fire, Trine and Altar; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
   const names = Object.values(KEYWORDS).filter((k) => k.group === 'Words').map((k) => k.name)
   assert.deepEqual(names.slice().sort(), ['Altar', 'Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Line of fire', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
@@ -114,11 +113,11 @@ test('How to play is the turn\'s: a turn is yours, the untouched strike with the
   const text = codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent
   assert.ok(text.includes('A turn is yours'), text.slice(0, 200))
   assert.ok(text.includes('never a skill') && text.includes('No dice'))
-  assert.ok(/piece relic works through the soul you give it to/.test(text) && /Arise is one/.test(text), 'held relics (redesign.md §2.15)')
+  assert.ok(/piece relic works through the soul you give it to/.test(text) && /Arise is one/.test(text), 'held relics')
   assert.ok(!/never moves'?\.|stop line|rings? cover|\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit/i.test(text), text.match(/.{0,40}(never moves|stop line|rings? cover|\bring\b|gauge|ACC|EVA|CRT|crit).{0,40}/i)?.[0])
 })
 
-// No clock (redesign.md §2.10): nothing the player reads speaks of one, of turns left, or of a battle lost by time.
+// No clock: nothing the player reads speaks of one, of turns left, or of a battle lost by time.
 test('no word, no line of How to play and no wave tip speaks of a clock, a cap on turns or a battle lost undecided', () => {
   const text = [codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent, ...Object.values(KEYWORDS).map((k) => k.line), ...Object.values(ENEMY_TEXT)].join(' ')
   const gone = /\bclock\b|undecided|turns? left|last turn|\bthe cap\b|dragged on/i
@@ -167,7 +166,7 @@ test('a battle\'s synergy labels name the rule each brings at 4', () => {
   }
 })
 
-// Echo split (the improvement plan's §4.3): its ladder a step at 4 and one at its `full`, 8, the codex's Synergies and
+// Echo split: its ladder a step at 4 and one at its `full`, 8, the codex's Synergies and
 // the tracker's chip telling both; every rule's card from content.
 test('the codex\'s Synergies and the tracker tell Echo\'s two steps: its lesser form at 4, in full at 8', async () => {
   const { synergiesView, synergyTracker } = await import('../src/codex.js')
@@ -183,7 +182,7 @@ test('the codex\'s Synergies and the tracker tell Echo\'s two steps: its lesser 
   }
 })
 
-// A trine counts as the three it was made of (the user's rule of 2026-10-16, redesign.md §7.7): the tracker counts it
+// A trine counts as the three it was made of (the user's rule of 2026-10-16): the tracker counts it
 // so, the Synergies page and the glossary's Trine and Synergy say so.
 test('the tracker counts a trine as three, and the codex says so', async () => {
   const { synergiesView, synergyTracker, glossary } = await import('../src/codex.js')
@@ -300,7 +299,7 @@ test('the foes\' synergies are told on every floor, a later wave\'s too, as the 
   for (const text of [DEEP_TEXT.growth, DEEP_TEXT.now(7), tip]) assert.ok(!/NaN|undefined/.test(text), text)
 })
 
-// Lines of fire (redesign.md §2.19): a kind whose blow keeps to a line says so on its card, every lobbed blow's line
+// Lines of fire: a kind whose blow keeps to a line says so on its card, every lobbed blow's line
 // says it ignores lines, and How to play tells the rule.
 test('a kind with a blow that keeps to its line says so; a lobbed blow says it ignores lines; How to play tells the line of fire', async () => {
   const { abilityBlock } = await import('../src/codex.js')
@@ -346,7 +345,7 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   monarchOf(s).hp -= 30
   assert.match(text(roomGain(run, altar)), /^Heals the Monarch \+30\b/)
   assert.ok(relicTip('grave_banner', run).textContent.includes(`One more: Command ${commandOf(s)} → ${commandOf(s) + 1}`))
-  // A kin banner's tip tells its kin's stat, its own copies apart from every soul's cost (redesign.md §4.4).
+  // A kin banner's tip tells its kin's stat, its own copies apart from every soul's cost.
   s.relics.push('bone_horn', 'wyrm_standard')
   assert.ok(relicTip('wyrm_standard', run).textContent.includes('×1 owned: every Drake\'s ATK ×1 → ×1.25 · one more: every Drake\'s ATK ×1.25 → ×1.56'), relicTip('wyrm_standard', run).textContent)
   assert.ok(relicTip('bone_horn', run).textContent.includes('every soul\'s HP ×1 → ×0.9'), relicTip('bone_horn', run).textContent)
@@ -384,7 +383,7 @@ test('the threat meter counts a trine\'s summons as the kind they are, a kind\'s
   assert.ok(near(threat(trine, node).mine, want), `${threat(trine, node).mine} against ${want}: the trine's two, Chanters`)
 })
 
-// The fusion graph told (redesign.md §4.1): the Fusions page lists the mixed recipes and the capstones and tells the
+// The fusion graph told: the Fusions page lists the mixed recipes and the capstones and tells the
 // triple rule in one line, each triple a tile under it (its trine and its kind ×3, never its line); every kind's card,
 // a made trine's 2×2 one with borrowed pictures too, names its own trine.
 test('the codex\'s Fusions lists the mixed recipes and the capstones, the triples in one line and a tile each; a kind\'s card names its own trine', async () => {
@@ -405,9 +404,9 @@ test('the codex\'s Fusions lists the mixed recipes and the capstones, the triple
   }
 })
 
-// A kind that borrows its pictures is drawn as what it is (dom.js figures; redesign.md §4.1): a trine as three of the
+// A kind that borrows its pictures is drawn as what it is (dom.js figures): a trine as three of the
 // kind it was made of, the front one whole and two behind it smaller and darker (a trine of a trine, three trines:
-// seven figures); a capstone as its lender washed, a floor's boss (redesign.md §4.7) too and as big as the Sovereign's
+// seven figures); a capstone as its lender washed, a floor's boss too and as big as the Sovereign's
 // pictures are drawn (144 to 96); a kind with pictures of its own (the Pale Court) by them.
 test('a trine is drawn as three of its kind, a trine of a trine as seven, a capstone washed, a floor\'s boss washed and bigger; a kind with pictures of its own by them', async () => {
   const { figures, plainFigure, portrait } = await import('../src/dom.js')
@@ -437,7 +436,7 @@ test('a trine is drawn as three of its kind, a trine of a trine as seven, a caps
   assert.equal(portrait('winter_court', 40).childNodes.length, 1)
 })
 
-// The altar's choice (the improvement plan's §4.5) told true: the room's line names the three rites; a transmutation's
+// The altar's choice told true: the room's line names the three rites; a transmutation's
 // worth the level the soul will stand at and its new kind's tiers; each rite's note what it did.
 test('an altar\'s rites are told as they are: the room names the three, a transmutation\'s card its level, each note what the rite did', () => {
   assert.match(ROOM.altar.text, /one rite of three.*[Hh]eal.*transmute.*consecrate/)
@@ -468,7 +467,7 @@ test('an altar\'s rites are told as they are: the room names the three, a transm
   assert.deepEqual(Object.keys(said).sort(), ['consecrate', 'heal', 'transmute'])
 })
 
-// The ascension ladder (the improvement plan's §4.6) told true: a level's words each number that moved, as run.js reads
+// The ascension ladder told true: a level's words each number that moved, as run.js reads
 // it; a room at a level scouted with its foes' mods and its waves' turns.
 test('an ascension is told as it plays: level 0 the base game, a level each number that moved, its rooms on its numbers', async () => {
   const { ascensionText, ASCENSION_RULE, roomFoeMods } = await import('../src/codex.js')
@@ -519,11 +518,11 @@ test('every rule at work flares in battle: the synergies\' by step and name, a c
   for (const rule of new Set(said)) assert.ok(flares[rule]?.name && flares[rule].step, `${rule} flares`)
   for (const syn of SYNERGIES.filter((x) => x.rule)) assert.deepEqual(flares[syn.rule], { step: syn.name, name: syn.desc.split(': ')[0] })
   for (const d of UNIT_LIST.filter((x) => x.rule && !x.boss)) assert.equal(flares[d.rule].name, d.name, d.id)
-  // A boss's (redesign.md §4.7) as "Boss · its name".
+  // A boss's as "Boss · its name".
   for (const d of UNIT_LIST.filter((x) => x.rule && x.boss)) assert.deepEqual(flares[d.rule], { step: 'Boss', name: d.name }, d.id)
 })
 
-// A boss a floor (redesign.md §4.7), told: the map's boss room names its boss, and a floor's what it came for of the
+// A boss a floor, told: the map's boss room names its boss, and a floor's what it came for of the
 // army; the last floor's that its fall clears the run; a wave its boss comes in by its name; the bestiary, once met,
 // where a boss meets you and what it comes for; How to play's lede.
 test('a floor\'s boss is told: its room by its name and what it came for, the Sovereign\'s that it clears the run, its wave, its bestiary line', async () => {

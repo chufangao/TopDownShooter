@@ -1,4 +1,4 @@
-// The altar's choice (run.js, redesign.md §4.5): one rite of three, the heal, a transmutation or a free tier, legal
+// The altar's choice (run.js): one rite of three, the heal, a transmutation or a free tier, legal
 // and exclusive; a transmutation keeps the soul (its level, its relics, its wounds, its cell) and draws its new kind
 // from the floor's pool at its tier, by the seed; a consecration is one tier, free; a log of each replays; basic heals,
 // the expert weighs them (autoplay.js pickAltar). Functional only: never which rite wins runs.

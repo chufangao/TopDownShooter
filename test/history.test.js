@@ -1,4 +1,4 @@
-// The runs kept in this browser (redesign.md §4.8, the meta; src/sim/history.js): a run's line as it ended, the book of
+// The runs kept in this browser: a run's line as it ended, the book of
 // them newest first with its totals, read as far as it holds whatever was kept.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
