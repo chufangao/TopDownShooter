@@ -217,8 +217,9 @@ test('legalActions lists exactly the tiers apply accepts, and no level', () => {
   }
 })
 
-// A Shop sells relics alone (redesign.md §2.11), and a kind's next tier is bought on the field, at its price.
-test('no room gives a tier: a Shop sells relics alone, and the Knight\'s Bulwark IV is bought on the field once out of it', () => {
+// The Shop's shelf holds relics alone (redesign.md §2.11; DESIGN Next, Step 3), and a kind's next tier is bought on the
+// field, at its price, beside it.
+test('no shelf gives a tier: the Shop sells relics alone, and the Knight\'s Bulwark IV is bought on the field beside it', () => {
   const run = createRun({ start: START_PARTY, seed: 'rite-kinds' })
   const r = run.state
   // Every kind past II on track 0 but the Knight, which stands at III with Reaver at II: Bulwark IV is its only tier.
@@ -226,14 +227,9 @@ test('no room gives a tier: a Shop sells relics alone, and the Knight\'s Bulwark
   r.kinds.tomb_knight.tracks = [3, 2]
   for (const u of souls(r.party)) u.tracks = r.kinds[u.id].tracks.slice()
   r.essence = 1000
-  const node = availableNodes(run)[0]
-  node.type = 'shop'
-  apply(run, { type: 'node', id: node.id })
-  assert.equal(r.phase, 'shop')
-  assert.ok(r.offers.length === 0 && r.shop.every((id) => RELICS[id]), JSON.stringify(r.shop))
-  assert.ok(!legalActions(run).some((a) => a.type === 'upgrade'))
-  assert.throws(() => apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 }), /needs phase/)
-  apply(run, { type: 'leave' })
+  assert.equal(r.phase, 'map')
+  assert.ok(r.offers.length === 0 && r.shop.length > 0 && r.shop.every((id) => RELICS[id]), JSON.stringify(r.shop))
+  assert.ok(legalActions(run).some((a) => a.type === 'buy'), 'the shelf is open')
   assert.deepEqual(legalActions(run).filter((a) => a.type === 'upgrade'), [{ type: 'upgrade', kind: 'tomb_knight', track: 0 }])
   apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 })
   assert.deepEqual([r.kinds.tomb_knight.tracks, soul(run, 'tomb_knight').tracks], [[4, 2], [4, 2]])
@@ -259,6 +255,8 @@ test('the battle fights with a kind\'s tiers: battleSetup carries them into the 
 test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, on the track it is on; the expert by worth; neither buys a level', () => {
   const run = createRun({ start: START_PARTY, seed: 'spender' })
   const s = run.state
+  // The Shop's shelf bare (basic buys a Command relic off it before a tier: autoplay.js pickNode): tiers alone here.
+  s.shop = []
   s.essence = TUNING.essence.tier[0]
   const rng = createRng('spender').stream('autoplay')
   const a = policy(copyOf(run), rng, 'basic')

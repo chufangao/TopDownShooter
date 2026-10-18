@@ -55,7 +55,7 @@
   .kw::before { content: ''; position: absolute; inset: -6px 0; }
 }
 
-/* A tier or a fusion read by a first tap (ui.js fieldEditor twice): its text pinned, a second tap makes it. */
-.tnode.chosen, .uc-fuse .buy.chosen {
+/* A tier or a fusion read by a first tap (ui.js fieldEditor twice, shopView twice): its text pinned, a second tap makes it. */
+.tnode.chosen, .shop-fusions .buy.chosen {
   box-shadow: 0 0 0 3px var(--bright), 0 0 0 5px var(--c-essence), 2px 3px 0 5px var(--ink);
 }

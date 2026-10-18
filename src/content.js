@@ -2928,8 +2928,8 @@ export const isTriple = (r) => Object.keys(r.needs).length === 1 && Object.value
 
 // ── relics ───────────────────────────────────────────────────────────────────────────────────
 
-// A relic's tier, from the most often stocked to the rarest (`colour`: the interface's colour token for it). A Shop
-// draws the first three by TUNING.relic.weights.shop, deeper floors weighted toward the rarer, and from floor
+// A relic's tier, from the most often stocked to the rarest (`colour`: the interface's colour token for it). The Shop's
+// shelf draws the first three by TUNING.relic.weights.shop, deeper floors weighted toward the rarer, and from floor
 // TUNING.relic.legendary.fromFloor stocks one Legendary (run.js stockShop). Legendaries are the rules that rewrite the
 // game.
 export const RELIC_TIERS = [
@@ -2939,7 +2939,7 @@ export const RELIC_TIERS = [
   { id: 'legendary', name: 'Legendary', colour: '--c-legendary' }
 ]
 
-// Relics, each of a `tier` (RELIC_TIERS), bought in Shops (run.js stockShop, buy); one held may be stocked and bought
+// Relics, each of a `tier` (RELIC_TIERS), bought in the Shop (run.js stockShop, buy); one held may be stocked and bought
 // again. Each is a run relic or a piece relic (redesign.md §2.15), in one of three forms (§2.13.3): `mods`, `on` +
 // `effects`, or a `rule`; a Common, Uncommon or Rare relic never has a rule.
 //
@@ -2952,7 +2952,7 @@ export const RELIC_TIERS = [
 // (`arise.domain`, `arise.tier`); and, where it has one, a side-wide cost, a loss on a unit's path for every soul
 // (Legion's −15% HP). A kin banner (redesign.md §4.4) is a run relic whose mods are a unit's, each scoped by `who` to
 // the souls of one kin ({ kin }; or one role, { role }: unit.js statsOf, as the foes' boss mods are): on every soul of
-// yours it names, shadows and summons too, never the Monarch. A Shop always stocks a Command relic.
+// yours it names, shadows and summons too, never the Monarch. The Shop's shelf always holds a Command relic.
 //
 // Every other relic is a piece relic: it works only through the piece that holds it (TUNING.relic.perPiece a piece,
 // given and taken back out of battle), and its copies are more holders. `mods`: the holder's, on a unit's stat path.

@@ -57,7 +57,7 @@ test('an altar asks one rite of three: the heal, each soul\'s transmutations, ea
   for (const kind of heldKinds(s)) for (const track of [0, 1]) assert.equal(legal.some((a) => a.type === 'consecrate' && a.kind === kind && a.track === track), canAdvance(s, kind, track))
   // No room walked, no soul placed, released or given a relic there.
   const u = souls(s.party)[0]
-  for (const a of [{ type: 'node', id: availableNodes(BEFORE.run)[0].id }, { type: 'place', uid: u.uid, slot: -1 }, { type: 'release', uid: u.uid }, { type: 'leave' }]) {
+  for (const a of [{ type: 'node', id: availableNodes(BEFORE.run)[0].id }, { type: 'place', uid: u.uid, slot: -1 }, { type: 'release', uid: u.uid }, { type: 'buy', index: 0 }]) {
     assert.throws(() => apply(run, a), /needs phase/, a.type)
   }
 })

@@ -19,14 +19,15 @@
 // Out of battle (calcStep, calcDecision), each decision's options in a fixed order, the first its pick:
 //   draft    the offers, the highest tier first
 //   map      each purchase the purse affords (a fusion first, the highest tier; then a tier, the most souls of its kind
-//            an essence) and each room open (an altar first while the Monarch stands below half or a soul is fallen,
-//            then a Shop while the purse buys its cheapest relic, then a fight, an elite, the rest): the pick the first
-//            purchase, else the first room
+//            an essence), then each relic of the Shop's shelf it affords (the rarest first, as the relics are below),
+//            and each room open (an altar first while the Monarch stands below half or a soul is fallen, then a fight,
+//            an elite, the rest): the pick the first purchase, else the first relic, else the first room
 //   prep     the strongest souls standing (tier, level, max HP) up to Command, on the camp's default frontier
 //            (run.js frontier), walked to as outside.js prepStep walks
 //   reap     each soul offered the purse affords (the highest tier, then a kind held), and none; a full retinue lets its
 //            weakest soul go first
-//   shop     each relic the purse affords, the rarest first, and leaving; a piece relic then given
+//   shop     (the map's, once no purchase is left) each relic of the shelf the purse affords, the rarest first, and
+//            each room open; a piece relic then given
 //   hold     an unheld piece relic to each fielded soul that may take it, the strongest first
 //   altar    its rites (run.js altarActions): the heal first while the Monarch stands below half or a soul is fallen,
 //            else each free tier first (in the purchases' order, as if the purse paid) and then the heal; the
@@ -144,8 +145,7 @@ function hurt (s) {
 export function rooms (run) {
   const s = run.state
   const sore = hurt(s)
-  const rich = s.essence >= relicPrice(run, 'whetstone')
-  const rank = (n) => n.type === 'altar' ? (sore ? 0 : 6) : n.type === 'shop' ? (rich ? 1 : 5) : { fight: 2, boss: 2, siege: 3, elite: 4 }[n.type] ?? 7
+  const rank = (n) => n.type === 'altar' ? (sore ? 0 : 6) : { fight: 2, boss: 2, siege: 3, elite: 4 }[n.type] ?? 7
   return availableNodes(run).slice().sort((a, b) => rank(a) - rank(b) || (a.id < b.id ? -1 : 1)).map((n) => ({ type: 'node', id: n.id }))
 }
 // A relic waiting: the strongest fielded soul that may take it, each a candidate.
@@ -185,12 +185,12 @@ function recruits (run) {
   out.sort((a, b) => tierOf(b.o.id) - tierOf(a.o.id) || held.has(b.o.id) - held.has(a.o.id) || a.acts.at(-1).index - b.acts.at(-1).index)
   return [...out.map((x) => x.acts), [{ type: 'reap', index: null }]]
 }
-// The relics the purse affords, the rarest first, then the dearest, then the shelf's order; and leaving.
+// The relics of the Shop's shelf the purse affords, the rarest first, then the dearest, then the shelf's order.
 function relics (run) {
   const s = run.state
   const out = s.shop.map((id, index) => ({ id, index })).filter((x) => x.id && canBuy(run, x.index))
     .sort((a, b) => RARITY[relicTier(b.id)] - RARITY[relicTier(a.id)] || relicPrice(run, b.id) - relicPrice(run, a.id) || a.index - b.index)
-  return [...out.map((x) => [{ type: 'buy', index: x.index }]), [{ type: 'leave' }]]
+  return out.map((x) => [{ type: 'buy', index: x.index }])
 }
 
 // The decision the calculator meets now out of battle: its kind and its candidates (each a list of actions), the
@@ -205,11 +205,11 @@ export function calcDecision (run) {
   if (s.phase === 'altar') return { kind: 'altar', cands: rites(run).map((a) => [a]) }
   const h = holds(run)
   if (h.length) return { kind: 'hold', cands: h.map((a) => [a]) }
-  if (s.phase === 'shop') return { kind: 'shop', cands: relics(run) }
   if (s.phase === 'map') {
     const buys = purchases(run).map((a) => [a])
+    const shelf = relics(run)
     const open = rooms(run).map((a) => [a])
-    return { kind: buys.length ? 'spend' : 'route', cands: [...buys, ...open] }
+    return { kind: buys.length ? 'spend' : shelf.length ? 'shop' : 'route', cands: [...buys, ...shelf, ...open] }
   }
   if (s.phase === 'prep') return { kind: 'prep', cands: [[prepStep(run, goalOf(run))]] }
   throw new Error(`no decision out of battle for phase "${s.phase}"`)

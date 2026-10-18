@@ -22,7 +22,7 @@ export const KEYWORDS = {
   fusion: { name: 'Fusion', sys: 'path', line: 'A recipe: souls of set kinds become one much stronger piece, most of them 2×2. The Codex lists every one.' },
   trine: { name: 'Trine', sys: 'path', line: `Three of a kind fused: one piece ${TRINE_RISE} tiers higher, its blows at one foe now strike a crowd and its shots reach a tile farther. It counts as three toward synergies. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has one.` },
   synergy: { name: 'Synergy', sys: 'synergy', line: 'Four pieces of one kin or role on the board bring its rule, which changes what happens, a trine counting as three. Its pieces glow in its colour.' },
-  relic: { name: 'Relic', sys: 'relic', line: `Bought in a Shop: Common, Uncommon, Rare or Legendary. A run relic works for the whole run; a piece relic works only through the soul holding it, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul, given and taken back out of battle.` },
+  relic: { name: 'Relic', sys: 'relic', line: `Bought in the Shop: Common, Uncommon, Rare or Legendary. A run relic works for the whole run; a piece relic works only through the soul holding it, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul, given and taken back out of battle.` },
   command: { name: 'Command', sys: 'monarch', line: `How many pieces the Monarch fields: ${TUNING.party.field} to begin, more with each Command relic, at most ${TUNING.army.board}.` },
   turn: { name: 'Turn', sys: 'plan', line: `Yours, then the foes'. Give your pieces their orders, then End Turn: what you left alone strikes with its basic blow (or mends with its basic heal), then the foes move and strike. A battle lasts until no foe is left, or the Monarch falls.` },
   move: { name: 'Move', sys: 'plan', line: 'How many tiles a piece may go in a turn, before it acts: through your own pieces, never through a foe, never diagonally past a wall\'s corner. A move may be undone until the piece acts.' },
@@ -30,7 +30,7 @@ export const KEYWORDS = {
   cooldown: { name: 'Cooldown', sys: 'plan', line: 'The turn a skill rests once used: its pip goes dark, and lights again when it is ready.' },
   counter: { name: 'Counter', sys: 'foe', line: 'A melee blow whose target stands and can reach back is answered at once by its basic melee blow, both sides alike. A ranged blow never is; a Hexed piece never answers; a counter is never countered.' },
   line: { name: 'Line of fire', sys: 'plan', line: 'A ranged blow at one target flies straight from the shooter: the first piece of the target\'s side on a tile it crosses takes it instead, both sides alike. A side never blocks its own shots. Melee, a blow that strikes an area and a lobbed blow ignore lines.' },
-  shop: { name: 'Shop', sys: 'relic', line: `A room that sells relics for essence, ${TUNING.shop.relics} on its shelf, one always a Command relic: buy as many as you can pay for. Leaving is free.` },
+  shop: { name: 'Shop', sys: 'relic', line: `Open between battles, never in one: the floor's shelf of ${TUNING.shop.relics} relics for essence, one always a Command relic, a slot bought filled again after your next win; and every fusion whose parts you hold. Buy as many as you can pay for.` },
   altar: { name: 'Altar', sys: 'path', line: 'A room with no battle that grants one rite of three: heal every soul and raise the fallen; transmute a soul into another kind of its tier from this floor\'s foes; or consecrate a kind, its next tier free.' }
 }
 for (const k of Object.values(KEYWORDS)) k.group = 'Words'

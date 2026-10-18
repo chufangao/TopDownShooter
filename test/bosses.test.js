@@ -346,7 +346,8 @@ test('the elites answer the army: where none brings a threat it has no answer to
   assert.ok(army.every((u) => !ANSWERS.drain(u)) && army.some(ANSWERS.reach) && army.some(ANSWERS.fly))
   let changed = 0
   let held = 0
-  for (let i = 0; i < 60; i++) {
+  // Seeds until one floor is drawn again (an elite that answers nothing is rare: a few floors in a thousand).
+  for (let i = 0; i < 1000 && !changed; i++) {
     const seed = `ans${i}`
     for (const f of [1, 2, 3]) {
       const map = floorOf(seed, f)

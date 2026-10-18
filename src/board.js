@@ -477,7 +477,7 @@ class PrepScene extends Phaser.Scene {
   }
 
   update (time) {
-    // Asleep while its editor is off screen (the Map or Codex tab, the spoils, a Shop): the next show wakes it.
+    // Asleep while its editor is off screen (the Map, Shop or Codex tab, the spoils): the next show wakes it.
     if (!this.leaving && !want?.stage.isConnected) return this.rest()
     const v = reducedMotion() ? 0.8 : this.beat.v // the selection pulses; held still if reduced
     // While moving a piece: the lifted piece hides off the board (the editor's ghost carries it over the page),

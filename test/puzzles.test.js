@@ -408,9 +408,9 @@ function crossroads (types) {
 }
 
 test('puzzle: a wounded Monarch takes the altar, and walks into no elite', () => {
-  // The souls whole, the Monarch's wounds carried from the last battle: an altar beside a fight and a Shop.
+  // The souls whole, the Monarch's wounds carried from the last battle: an altar between two fights.
   const T = TUNING.expert.tree
-  const { run, nodes } = crossroads(['fight', 'altar', 'shop'])
+  const { run, nodes } = crossroads(['fight', 'altar', 'fight'])
   const m = monarchOf(run.state)
   m.hp = Math.floor(m.maxHp * T.altar * 0.6)
   assert.ok(survey(run).health === 1 && survey(run).monarch < T.altar)

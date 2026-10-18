@@ -164,22 +164,21 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
   assert.ok(battles.length && battles.every((b) => b.ablate.has('summons')))
 })
 
-// A Shop stocked by hand, the purse full and every tier its kinds can take already held (so a relic's price displaces
-// none, and the expert's buyFor has every reason to buy).
+// The Shop's shelf stocked by hand, on the map, the purse full and every tier its kinds can take already held (so a
+// relic's price displaces none, and the expert's buyFor has every reason to buy).
 function shop (stock, floor = 1) {
   const run = createRun({ start: START_PARTY, seed: 'shopx' })
   const s = run.state
   s.floor = floor
-  visit(run, 'shop')
   for (const kind of Object.keys(s.kinds)) hold(run, kind, [4, 2])
   Object.assign(s, { shop: stock.slice(), essence: 1e4 })
   return run
 }
-// What `L` buys in `run`'s Shop before it leaves (it may give what it buys to a soul on the way).
+// What `L` buys off `run`'s shelf before it goes on (it may give what it buys to a soul on the way).
 function bought (run, L) {
   const rng = createRng('buys').stream('autoplay')
   const out = []
-  for (let a, k = 0; k < 20 && (a = policy(run, rng, L)).type !== 'leave'; k++) {
+  for (let a, k = 0; k < 20 && ['buy', 'hold', 'unhold'].includes((a = policy(run, rng, L)).type); k++) {
     if (a.type === 'buy') out.push(run.state.shop[a.index])
     apply(run, a)
   }

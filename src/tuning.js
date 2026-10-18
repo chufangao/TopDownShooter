@@ -224,7 +224,7 @@ export const TUNING = {
     route: {
       fight: 0.918, // a room's type
       elite: 10,
-      shop: 0.333,
+      shop: 0.333, // never a room's since DESIGN Next, Step 3: its feature always 0, as `purse` and `shopAhead`
       altar: -0.586,
       boss: 1.12,
       siege: 0.0966,
@@ -280,7 +280,8 @@ export const TUNING = {
       ahead: 1.3 // a combo whose kinds are first met on a later floor is worth this share of its worth until that floor
     }
   },
-  // The Shop (redesign.md §2.11): `relics` stocked, one always a Command relic, and from floor 2 one a Legendary;
+  // The Shop (redesign.md §2.11; since DESIGN Next, Step 3 the floor's shelf, open between battles, no room: run.js
+  // stockShop, restock): `relics` stocked, one always a Command relic, and from floor 2 one a Legendary;
   // each priced price[tier] × the floor's price scale (run.js relicPrice, floorPrice), after the discount relics
   // (`price.relic`). Common 24 and Uncommon 48 since the balance pass (2026-10-11; were 36 and 60): with the Shops met
   // ~2.5 a floor, the expert still left 150–300 essence unspent on floors 3–4 and bought 1.5 relics a floor there; at
@@ -440,8 +441,8 @@ export const TUNING = {
   // Heartwood count between rooms, and an altar is worth walking to. An altar's transmutation offers a soul altarOffer
   // kinds of the floor's pool at its tier (run.js transmuteOffer; redesign.md §4.5).
   run: { floors: 3, postBattleHeal: 0.2, altarHeal: 1, altarRevive: 0.5, altarOffer: 3 },
-  // Relics (content.js RELIC_LIST, RELIC_TIERS), bought in Shops and only there (TUNING.shop; redesign.md §2.11). A
-  // Shop draws each relic's tier by `weights.shop`, the entry for the floor (index floor − 1; the last one for every
+  // Relics (content.js RELIC_LIST, RELIC_TIERS), bought in the Shop and only there (TUNING.shop; redesign.md §2.11). Its
+  // shelf draws each relic's tier by `weights.shop`, the entry for the floor (index floor − 1; the last one for every
   // floor past them), then a relic of that tier, never the same one twice in one stock; one held may come again
   // (copies stack; no cap). From floor `legendary.fromFloor` one of its relics is a Legendary (the ones that need Arise
   // only once an Arise relic is owned). `perPiece`: how many relics a soul may hold (redesign.md §2.15: a piece relic

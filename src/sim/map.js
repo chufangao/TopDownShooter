@@ -6,15 +6,14 @@ import { createRng } from './rng.js'
 export const RANKS = 16
 export const WIDTH = 4 // the most rooms in a rank
 
-// The Shop is where relics are bought, and the only place they come from (redesign.md §2.11): about 2.5 to a walk.
-// Its weight 5 and a floor's middle up to 7 Shops since the balance pass (2026-10-11; were 3 and 4): at those a room
-// was a Shop one time in ten and a walk met ~1.5; now one in six, and the expert's walks meet 2–3 a floor.
-const MID_TYPES = ['fight', 'elite', 'shop', 'altar']
-const MID_WEIGHTS = [5, 1.5, 5, 1]
-const LATE_TYPES = ['fight', 'elite', 'shop']
-const LATE_WEIGHTS = [3, 1, 1]
+// No room is a Shop (DESIGN Next, Step 3, 2026-10-18): the Shop is the floor's shelf, open between battles (run.js
+// stockShop). The Shop rooms' weight went to the fights and the altars: in the middle 5 → fight 4.5, altar 0.5 (were fight
+// 5, Shop 5, altar 1), in the rank before the last 1 → fight (was 3, Shop 1). Placeholders until the balance pass.
+const MID_TYPES = ['fight', 'elite', 'altar']
+const MID_WEIGHTS = [9.5, 1.5, 1.5]
+const LATE_TYPES = ['fight', 'elite']
+const LATE_WEIGHTS = [4, 1]
 const ELITE_FROM = 4 // the first rank an elite may stand in
-const RARE = { shop: 7 } // a floor's middle holds one to this many of each
 const SIEGE_FLOOR = 3 // the first floor with sieges
 export const SIEGE_RANK = 9 // the first rank a siege may stand in
 
@@ -48,8 +47,7 @@ function link (rng, a, b) {
 }
 
 // Rank 1 is all fights; the middle ranks mix rooms, with no elite before ELITE_FROM, at most one elite a
-// rank, one to seven Shops (RARE), and no rank all of one kind but fights; the rank before the last always holds
-// exactly one altar.
+// rank, and no rank all of one kind but fights; the rank before the last always holds exactly one altar.
 function assignTypes (rng, ranks, boss) {
   const pick = (types, weights) => rng.weighted(types, weights)
   const late = RANKS - 2
@@ -60,15 +58,6 @@ function assignTypes (rng, ranks, boss) {
       n.type = pick(MID_TYPES, MID_WEIGHTS)
       if (n.type === 'elite' && (elite || r < ELITE_FROM)) n.type = 'fight'
       if (n.type === 'elite') elite = true
-    }
-  }
-  const mid = ranks.slice(2, late).flat()
-  for (const [type, most] of Object.entries(RARE)) {
-    const rooms = mid.filter((n) => n.type === type)
-    for (const n of rng.shuffle(rooms).slice(most)) n.type = 'fight'
-    if (!rooms.length) {
-      const fights = mid.filter((n) => n.type === 'fight')
-      rng.pick(fights.length ? fights : mid).type = type
     }
   }
   for (let r = 2; r < late; r++) {
