@@ -237,9 +237,18 @@ function relicReads (s) {
 // e6266bb: 170 battles of seeds `mom-0…5`, a piece's blows, the blows that landed on it and left it standing, its kills,
 // its falls, the waves it stood through; with Rally Horn and Hunter's Mark given to every fielded soul, yours within 2 of
 // a holder as it strikes, the Monarch and itself among them, and theirs within 1 of a slain foe).
-const MOMENTS = { blow: 3.2, kill: 2.4, struck: 0.8, wave: 1.4, fall: 0.01 }
+// A committed walk (`move`, DESIGN.md Step 4) is a guess, nothing measured (2026-10-18): a piece walks on most turns it
+// strikes, fewer once the line is held.
+const MOMENTS = { blow: 3.2, kill: 2.4, struck: 0.8, wave: 1.4, fall: 0.01, move: 2 }
 // What a damage `per` a status finds on the foe struck, stacks a blow, as a flat guess (nothing measured: 2026-10-17).
 const PER_STACKS = 1.5
+// What a damage `per` tile moved reads a blow (`per: { moved }`: the holder's tiles or its target's), and the share of
+// blows a `per: { walked }` finds on a foe that walked, as flat guesses: out of battle no option's path is known
+// (nothing measured: 2026-10-18).
+const PER_TILES = 2
+const PER_WALKED = 0.5
+// The share of its moments a trigger's `when` holds (moved n tiles, or none), a flat guess (2026-10-18).
+const WHEN_SHARE = 0.5
 const AROUND = { allies: 3.4, foes: 1.7 }
 // What the battle's weights pay for an HP of each (TUNING.expert.battle.option: a status's STATUS_WORTH, an HP mended, a
 // shadow's max HP), in HP of damage.
@@ -247,8 +256,9 @@ const paid = (what) => TUNING.expert.battle.option[what] / TUNING.expert.battle.
 // What piece relic `r`'s trigger brings holder `u` a battle, as a share of its max HP: each effect's worth where it lands,
 // in HP of damage as the battle's weights pay for it (paid: a status its STATUS_WORTH a stack; a heal what it mends,
 // its share of the holder's max HP or its power at the holder's ATK; damage its flat amount or its power at the holder's
-// ATK; skills a turn sooner, Hasten's worth; a raise the max HP of the shadow it lifts: raiseHp), on whom it lands (one,
-// or AROUND), as often as its moment comes (MOMENTS).
+// ATK, `per` a status or a tile moved at a guessed count: perTimes; skills a turn sooner, Hasten's worth; a raise the
+// max HP of the shadow it lifts: raiseHp), on whom it lands (one, or AROUND), as often as its moment comes (MOMENTS),
+// at a share where a `when` decides it (WHEN_SHARE).
 function triggerShare (s, u, r) {
   const st = statsOf(u, heldMods(u))
   const hit = (power) => power * st.atk / TUNING.damage.atkDivisor
@@ -256,13 +266,16 @@ function triggerShare (s, u, r) {
   for (const e of r.effects) {
     const each = e.op === 'apply_status' ? (STATUS_WORTH[e.status] ?? 0) * paid('status')
       : e.op === 'heal' ? (e.pct ? e.pct * st.hp : hit(e.power) * st.heal.given) * paid('mend')
-        : e.op === 'damage' ? (e.per ? e.amount * PER_STACKS : e.amount ?? hit(e.power))
+        : e.op === 'damage' ? (e.per ? e.amount * perTimes(e.per) : e.amount ?? hit(e.power))
           : e.op === 'cooldown' ? Math.max(0, -e.amount) * STATUS_WORTH.hasten * paid('status')
             : e.op === 'raise' ? raiseHp(s.floor, e.tier ?? TUNING.arise.tier, u.lvl) * paid('shadow') : 0
     hp += each * (AROUND[e.to] ?? 1)
   }
-  return hp * (MOMENTS[r.on] ?? 0) / st.hp
+  return hp * (MOMENTS[r.on] ?? 0) * (r.when ? WHEN_SHARE : 1) / st.hp
 }
+// How many times a `per` damage counts, as the book guesses it: a status's stacks (PER_STACKS), tiles moved
+// (PER_TILES), or the share of foes that walked (PER_WALKED).
+const perTimes = (per) => (per.moved ? PER_TILES : per.walked ? PER_WALKED : PER_STACKS)
 // What a slain foe of a floor's fights yields a raise to `tier` (redesign.md §4.4: a raise read as a shadow's HP): the
 // max HP of a shadow of its kind at level `lvl` where its tier is no higher, else none, over the floor's draws
 // (run.js spawnPool).

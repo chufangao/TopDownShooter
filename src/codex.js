@@ -896,7 +896,8 @@ export const synergyLabels = (active) => active.filter((syn) => ladderOf(syn).st
 export const ruleFlares = () => ({
   ...Object.fromEntries(SYNERGIES.filter((syn) => syn.rule).map((syn) => [syn.rule, { step: syn.name, name: ruleName(syn) }])),
   ...Object.fromEntries(UNIT_LIST.filter((d) => d.rule).map((d) => [d.rule, { step: d.boss ? 'Boss' : 'Capstone', name: d.name }])),
-  // A Legendary relic's that says it is at work (Reaper's Hunger, Last Candle, Grave Powder), as "Relic · its name".
+  // A Legendary relic's that says it is at work (Reaper's Hunger, Last Candle, Grave Powder, Overwatch), as "Relic · its
+  // name".
   ...Object.fromEntries(RELIC_LIST.filter((r) => r.rule).map((r) => [r.rule, { step: 'Relic', name: r.name }]))
 })
 
@@ -1032,7 +1033,8 @@ export const TRIGGER_TEXT = {
   fall: { name: 'On a fall', short: 'its holder falls' },
   wave: { name: 'On a wave', short: 'a wave begins while its holder stands: the opening formation as the battle starts, then each later wave as it enters' },
   blow: { name: 'On a blow', short: 'its holder strikes' },
-  struck: { name: 'When struck', short: 'its holder is struck and stands' }
+  struck: { name: 'When struck', short: 'its holder is struck and stands' },
+  move: { name: 'On a move', short: 'its holder ends a move: as it acts, or at End Turn if it was given no act' }
 }
 
 // A relic's tier (RELIC_TIERS): { id, name, colour }.

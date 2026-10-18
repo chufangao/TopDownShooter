@@ -21,14 +21,18 @@
 // 'foes' or 'end': whose part of the round it is), `beat` (the index its events carry), `foeIn` (the turn the last
 // wave came in: the camp's patience counts from it), `waves` ([{ wave, turn, foes, entered }]: the later waves and the
 // turn each enters on).
-// On each unit: `move` (its Move now), `moved` (tiles spent this turn), `acted`, `from` (where it stood as its turn
-// began: Undo's tile), `cooldowns` ({ ability id: turns left }), `temper`, `basic` and `mend` (its basic blow and
-// basic heal, ability defs or null), `kit` (its abilities, with what its relics grant: Arise), `relics` (the piece
-// relics it holds, ids: redesign.md §2.15) and `held` (their rules, and its kind's override: rules.js heldRules).
+// On each unit: `move` (its Move now), `moved` (tiles spent this turn: yours kept through the foes' turn, a foe's
+// through your orders, each side's set back as its own turn begins: ready), `acted`, `from` (where it stood as its turn
+// began: Undo's tile), `told` (the tiles of `moved` its move's moment has told: moveMoment), `watched` (the blows
+// its Overwatch has struck this turn: rules.js overwatch), `cooldowns` ({ ability id: turns left }), `temper`, `basic`
+// and `mend` (its basic blow and basic heal, ability defs or null), `kit` (its abilities, with what its relics grant:
+// Arise), `relics` (the piece relics it holds, ids: redesign.md §2.15) and `held` (their rules, and its kind's
+// override: rules.js heldRules).
 //
 // Orders (legalOrders lists every one the player may give now; order applies one, throwing on an illegal one):
 //   { type: 'move', uid, tile }                a piece of yours moves to `tile` (reach: within its Move, by a path)
-//   { type: 'undo', uid }                      it goes back to `from`, its Move whole again (until it acts)
+//   { type: 'undo', uid }                      it goes back to `from`, its Move whole again (until it acts): nothing
+//                                              of a move is told before its act or End Turn commits it (moveMoment)
 //   { type: 'act', uid, ability, target }      it acts: `target` is always a unit's uid: a blow's primary (a Shape's
 //                                              too), an ally for a heal, itself for a self or all-allies ability, the
 //                                              corpse for Arise (a skill of the piece holding an Arise relic)
@@ -175,6 +179,8 @@ function occupy (battle, u) {
   if (unitDef(u.id).phases) battle.phased.push(u)
   u.move = 0
   u.moved = 0
+  u.told = 0
+  u.watched = 0
   u.acted = false
   u.from = u.tile
   u.cooldowns = {}
@@ -247,8 +253,12 @@ function startTurn (battle) {
   emit(battle, { type: 'turn', turn: battle.turn, next: nextWave(battle) })
 }
 
+// A unit's turn fields set back as its side's turn begins: no tile moved or told, no act, Undo's tile where it stands,
+// and no Overwatch blow struck yet (`watched`, rules.js overwatch: its count this turn).
 const ready = (u) => {
   u.moved = 0
+  u.told = 0
+  u.watched = 0
   u.acted = false
   u.from = u.tile
 }
@@ -430,12 +440,17 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
       // damage as a tick's: no ATK, DEF or mod, only the rules bending it as it lands. With `per`, the amount once for
       // each stack of a status on the target (`per.status`: Powder Keg's Burning) or each status of a tag it carries
       // (`per.tag`: Plague Mask's debuffs), nothing where it carries none; `consume`, and the statuses counted are spent
-      // as it lands (a cleanse: the payoff of a status built up, 2026-10-17).
+      // as it lands (a cleanse: the payoff of a status built up, 2026-10-17). Or once for each tile moved this turn by
+      // the one `per.moved` names, the actor (Momentum's holder) or the target, or once if the one `per.walked` names
+      // moved at all (Quarry's: a flag, not a count); nothing for none (DESIGN.md Step 4: movement read as a status
+      // is). A foe's `moved` read in your orders is the tiles it walked in its last turn (the foes set it back at their
+      // stage: ready), yours read in the foes' turn the tiles of your last.
       let damage = effect.amount
-      const counted = effect.per ? perOf(target, effect.per) : null
-      if (counted) {
-        if (!counted.length) continue
-        damage *= counted.reduce((n, s) => n + (effect.per.status ? s.stacks : 1), 0)
+      const counted = effect.per && (effect.per.status || effect.per.tag) ? perOf(target, effect.per) : null
+      if (effect.per) {
+        const times = counted ? counted.reduce((n, s) => n + (effect.per.status ? s.stacks : 1), 0) : tilesOf(effect.per, actor, target)
+        if (!times) continue
+        damage *= times
       }
       if (damage === undefined) {
         const a = stats(battle, actor)
@@ -469,6 +484,12 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
 
 // The statuses on `u` a `per` names: the one of `per.status`, or every one tagged `per.tag`.
 const perOf = (u, per) => u.statuses.filter((s) => (per.status ? s.id === per.status : statusDef(s.id).tags.includes(per.tag)))
+// How many times a `per` on movement counts: the tiles moved this turn by the one `per.moved` names ('actor' or
+// 'target'), or 1 if the one `per.walked` names moved at all, else 0.
+const tilesOf = (per, actor, target) => {
+  const who = (per.moved ?? per.walked) === 'actor' ? actor : target
+  return per.moved ? who.moved : who.moved > 0 ? 1 : 0
+}
 
 // The `cooldown` op: `amount` turns added to every cooldown of each target (−1: its skills a turn sooner; a delay
 // never touches a boss), none below 0.
@@ -715,14 +736,17 @@ export function phases (battle) {
 // A moment of a holder's (redesign.md §2.15: a piece relic's `on` fires on its holder's events): 'kill' (it slays a
 // foe: the slain the place and the other end), 'struck' (a blow lands on it and it stands: its attacker the other
 // end), 'fall' (it falls: its killer the other end), 'blow' (it strikes, an act of its: its primary the other end),
-// 'wave' (a foe wave begins while it stands: the battle's opening, then each later wave). Each relic it holds that
-// fires on the moment is announced ({ type: 'trigger', relic, on, unit: the holder }) and its effects run, the holder
-// their caster, on the targets each picks: the holder, the one on the other end, the Monarch, or either side around
-// the place (`place`, a unit: around its footprint).
+// 'wave' (a foe wave begins while it stands: the battle's opening, then each later wave), 'move' (a walk of its is
+// committed: moveMoment; where it ends the place, no one the other end). A relic's `when` is checked once, as the moment
+// comes and before anything is said: { moved: n } (its holder has moved n tiles or more this turn) or { still: true }
+// (it has moved none: yours keep the turn's tiles through the foes' turn). Each relic it holds that fires on the
+// moment is announced ({ type: 'trigger', relic, on, unit: the holder }) and its effects run, the holder their caster,
+// on the targets each picks: the holder, the one on the other end, the Monarch, or either side around the place
+// (`place`, a unit: around its footprint).
 export function trigger (battle, on, subject, place, other = null) {
   for (const id of subject.relics) {
     const relic = relicDef(id)
-    if (relic.on !== on) continue
+    if (relic.on !== on || !moving(relic.when, subject)) continue
     emit(battle, { type: 'trigger', relic: id, on, unit: subject.uid })
     for (const effect of relic.effects) runEffect(battle, effect, subject, triggered(battle, effect, subject, place, other))
   }
@@ -740,9 +764,31 @@ function triggered (battle, effect, subject, place, other) {
   }
 }
 
+// Whether a trigger's `when` holds for its holder `u` (none: always).
+const moving = (when, u) => !when || (when.still ? u.moved === 0 : u.moved >= when.moved)
+
 // A wave's moment: every living holder of a 'wave' relic, in acting order.
 function waveMoment (battle) {
   for (const u of battle.units.slice()) if (alive(u) && u.relics.length) trigger(battle, 'wave', u, u)
+}
+
+// A move's moment (DESIGN.md Step 4, movement as a channel), fired as `u`'s walk is committed, never on the walk, so an
+// Undo before the act leaves nothing to unwind: a piece of yours commits as its act has resolved (order 'act', once
+// perform is done: the act strikes what it was aimed at, on the board it was previewed on, and nothing the moment does
+// can void it), or, given no act, in End Turn's untouched pass, once its turn there is played (untouchedAll); a foe as
+// its move resolves in the foes' turn, before its act (policy.js foeTurn: foes never undo). Only while the battle goes
+// on and `u` stands, and only for tiles not told yet (`told`: a piece given its act again, Reaper's Hunger's, that walks
+// on tells again; an Undo sets it back with `moved`). The rules hear of it first (onMove: { actor, from, to, moved, as },
+// `as` 'actor' on its side, then 'other' on the other), then, if it still stands, it is its holder's moment ('move',
+// where it ends). No path is kept: a reader reads the tile it ends on (`to`) and `moved` (this turn's, whole).
+export function moveMoment (battle, u) {
+  if (battle.over || !alive(u) || !(u.moved > u.told)) return
+  u.told = u.moved
+  const ctx = { actor: u, from: u.from, to: u.tile, moved: u.moved, as: 'actor' }
+  call(battle, 'onMove', u.side, ctx)
+  ctx.as = 'other'
+  call(battle, 'onMove', enemySide(u.side), ctx)
+  if (!battle.over && alive(u)) trigger(battle, 'move', u, u)
 }
 
 // ── reach and targets ────────────────────────────────────────────────────────────────────────────
@@ -948,10 +994,16 @@ export function counterOf (battle, defender, attacker, from = attacker.tile) {
 function counter (battle, defender, attacker) {
   if (battle.over || fallen(battle)) return
   const b = counterOf(battle, defender, attacker)
-  if (!b) return
+  if (b) answer(battle, defender, b, attacker, { counter: true })
+}
+
+// Blow `b` of `u`'s at `x` alone, as a counter is performed: its effects on x, from where u stands, no line, no shape,
+// no moment of a blow's (no onBlow, no 'blow' relic) and never itself answered; the action marked by `mark` (a
+// counter's `counter`, Overwatch's `rule`: rules.js overwatch).
+export function answer (battle, u, b, x, mark) {
   battle.beat++
-  emit(battle, { type: 'action', actor: defender.uid, ability: b.id, anim: b.anim, targets: [attacker.uid], tile: defender.tile, counter: true })
-  for (const effect of b.effects) runEffect(battle, effect, defender, [attacker], b)
+  emit(battle, { type: 'action', actor: u.uid, ability: b.id, anim: b.anim, targets: [x.uid], tile: u.tile, ...mark })
+  for (const effect of b.effects) runEffect(battle, effect, u, [x], b)
 }
 
 // Whom one of yours left untouched aims a blow at among `list`: the foe furthest along its road (roadLeft: the lowest
@@ -1182,11 +1234,13 @@ export function order (battle, o, path = null) {
     emit(battle, { type: 'undo', actor: u.uid, from: u.tile, to: u.from })
     relocate(battle, u, u.from)
     u.moved = 0
+    u.told = 0
   } else if (o.type === 'act') {
     const a = u.kit.find((x) => x.id === o.ability)
     const target = a && canAct(battle, u) && usable(battle, u, a) ? targetsFrom(battle, u, a).find((x) => x.uid === o.target) : null
     if (!target) throw new Error(`${u.id} ${u.uid} cannot use ${o.ability} on ${o.target}`)
     perform(battle, u, a, target)
+    moveMoment(battle, u)
   } else {
     throw new Error(`unknown order "${o.type}"`)
   }
@@ -1224,6 +1278,7 @@ function untouchedAll (battle, each = null) {
     if (u.side !== 'party' || !alive(u) || u.acted || u === battle.monarch) continue
     const from = battle.events.length
     untouched(battle, u)
+    moveMoment(battle, u)
     each?.(u, from)
   }
 }
@@ -1249,6 +1304,8 @@ export function untouchedPreview (battle) {
     for (const e of events) {
       if (e.type === 'hexed' && e.target === u.uid) out.hexed = true
       else if (e.type === 'action' && e.counter) answered = true
+      // Its move's moment comes once its act is over, a counter's answer too (moveMoment): what it does is the piece's.
+      else if (e.type === 'trigger' && e.on === 'move' && e.unit === u.uid) answered = false
       else if (e.type === 'action' && e.actor === u.uid && out.ability === null) {
         out.ability = e.ability
         out.target = e.primary ?? null
@@ -1418,6 +1475,8 @@ export function preview (battle, uid, ability, target) {
   let answered = false
   for (const e of f.events) {
     if (e.type === 'action' && e.counter) answered = true
+    // The actor's move's moment, once its act and any answer are over (moveMoment): the act's again.
+    else if (e.type === 'trigger' && e.on === 'move' && e.unit === uid) answered = false
     else if (e.type === 'action' && e.actor === uid && e.primary != null && !answered) out.struck = e.struck ?? e.primary
     else if (e.type === 'death' && !answered && f.byUid.get(e.target)?.side !== f.byUid.get(uid).side && !out.falls.includes(e.target)) out.falls.push(e.target)
     else if (e.type === 'damage' && !e.status) {

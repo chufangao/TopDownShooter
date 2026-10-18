@@ -16,7 +16,7 @@ import {
 } from './unit.js'
 import { LANE, roadOf } from './field.js'
 import {
-  stats, emit, computeDamage, fork, order, reach, roadAhead, roadTiles, targetsFrom, usable, canAct, hexed, perform, walk, aloft, helped, shape, impatience,
+  stats, emit, computeDamage, fork, order, reach, roadAhead, roadTiles, targetsFrom, usable, canAct, hexed, perform, walk, moveMoment, aloft, helped, shape, impatience,
   orderable, isSkill, counterOf, rateOf, synergiesOf, corpses, nextWave, allowed, pick, lined, struckBy
 } from './turns.js'
 import { call } from './rules.js'
@@ -438,8 +438,9 @@ export function choose (battle, u, temper, p, map, opts = options(battle, u)) {
 // The foes' turn: the pressure and the danger map read once, then each foe in road order (nearest the Monarch first,
 // ties by lane, then uid; a boss's override may reorder it: rules.js `queue`, the Sovereign's court first) commits
 // its best option (choose, by its temperament; at full pressure a hasty one, among its fighting options) on the board
-// as it stands after the ones before it: its move along its road, then its act. Deterministic. → { orders, events }
-// (orders as the player's are written).
+// as it stands after the ones before it: its move along its road, its move's moment told as it resolves (turns.js
+// moveMoment: an Overwatch of yours may strike it there), then its act, if it still stands. Deterministic. → { orders,
+// events } (orders as the player's are written).
 export function foeTurn (battle) {
   const from = battle.events.length
   const out = []
@@ -460,6 +461,8 @@ export function foeTurn (battle) {
     if (best.tile !== u.tile) {
       out.push({ type: 'move', uid: u.uid, tile: best.tile })
       walk(battle, u, best.path)
+      moveMoment(battle, u)
+      if (battle.over || !alive(u)) continue
     }
     if (best.ability) {
       out.push({ type: 'act', uid: u.uid, ability: best.ability.id, target: best.target.uid })

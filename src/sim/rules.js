@@ -10,6 +10,10 @@
 //   onRaise   a shadow has risen to an Arise of the side's: { actor, corpse, shadow }
 //   onTurn    the side's turn begins: { side, turn }
 //   onWave    a foe wave has entered: { wave }
+//   onMove    a walk has been committed (turns.js moveMoment: one of yours as it acts or in End Turn's untouched pass,
+//             a foe as its move resolves; never on the walk, never on one undone): { actor, from, to, moved, as },
+//             called with `as` 'actor' on the mover's side, then 'other' on the other side (`to` the tile it ends on,
+//             `moved` its tiles this turn; no path is kept)
 //   targets   whom an ability touches: { actor, ability, primary, targets, as }, called first with `as` 'target' on the
 //             side of a blow's target, before its shape spreads (it may change `primary`), then with 'actor' on the
 //             actor's side, after (it may change `targets`)
@@ -32,9 +36,9 @@
 // Blood Tithe's raises paid in the Monarch's HP (`bleeds`: bleeds, the autoplayer's).
 import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef, statusDef } from '../content.js'
-import { alive, livingOn, unitDistance, makeUnit, synergyFull, enemySide } from './unit.js'
+import { alive, livingOn, unitDistance, distanceBetween, blowReach, makeUnit, synergyFull, enemySide } from './unit.js'
 import { around, riseTile, summonTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle, lined } from './turns.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle, lined, hexed, aloft, answer } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -218,6 +222,36 @@ export const RULES = {
       if (!near.length) return
       emit(battle, { type: 'rule', rule: 'grave_powder', side: u.side, actor: u.uid, target: fallen.uid })
       runEffect(battle, { op: 'damage', amount: r.params.amount }, u, near)
+    }
+  },
+  // Overwatch (DESIGN.md Step 4): as a foe's walk ends (its move's moment: turns.js moveMoment, as it resolves in the
+  // foes' turn) within reach of its holder's basic blow, from where the holder stands, the holder strikes it with that
+  // blow at once, as a counter is performed (turns.js answer: on the mover alone, never itself answered), `times` a turn
+  // (`watched`, set back as the holder's turn begins: turns.js ready). Never a Hexed holder, nor one fallen; a melee
+  // holder on the ground never strikes a flyer (turns.js aloft).
+  overwatch: {
+    params: { times: 1 },
+    onMove (battle, { actor, to, as }, r) {
+      const u = r.holder
+      const b = u.basic
+      if (as !== 'other' || !b || u.watched >= r.params.times || !alive(u) || !alive(actor) || actor.side === u.side || hexed(u)) return
+      const reach = blowReach(u, b)
+      if (distanceBetween(u.tile, u.size, to, actor.size) > (actor.flies ? aloft(u, b, reach) : reach)) return
+      u.watched++
+      emit(battle, { type: 'rule', rule: 'overwatch', side: u.side, actor: u.uid, target: actor.uid })
+      answer(battle, u, b, actor, { rule: 'overwatch' })
+    }
+  },
+  // Hold the Line (DESIGN.md Step 4): while its holder stands, its holder and every one of its side within a tile of
+  // it deal `mul` at a foe on a turn they have not moved (`moved` 0: yours through the foes' turn too, a counter among
+  // them): a blow's damage or a relic's, never a status's tick.
+  hold_the_line: {
+    params: { mul: 1.25 },
+    modify (battle, ctx, r) {
+      const { actor, target } = ctx
+      const u = r.holder
+      if (ctx.as !== 'actor' || ctx.status || !actor || target.side === actor.side || actor.side !== u.side || !alive(u)) return
+      if (actor.moved === 0 && unitDistance(actor, u) <= 1) ctx.damage *= r.params.mul
     }
   },
   // Mimicry: its holder counts as a `role` too, for its side's synergies.

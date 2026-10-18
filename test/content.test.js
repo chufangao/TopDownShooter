@@ -101,8 +101,12 @@ function checkEffect (e, where, relic = false) {
   if (e.op === 'damage') assert.ok(e.power > 0 !== (relic && Number.isInteger(e.amount) && e.amount > 0), `${where}: damage of a power, or a relic's flat amount`)
   // A relic's flat damage may be `per` a status on the target (one status's stacks, or each status of a tag: the elements of
   // 2026-10-17), and then may `consume` what it counted; an ability's never.
-  if (e.per !== undefined) assert.ok(relic && e.op === 'damage' && Number.isInteger(e.amount) && ((STATUSES[e.per.status] && !e.per.tag) || (['buff', 'debuff'].includes(e.per.tag) && !e.per.status)), `${where}: per ${JSON.stringify(e.per)}`)
-  if (e.consume !== undefined) assert.ok(e.consume === true && e.per, `${where}: consume what a per counts`)
+  // Or (2026-10-18, movement as a channel) `per` the tiles moved this turn by the actor or the target (`moved`), or
+  // once if it moved at all (`walked`), one key alone; nothing to consume there.
+  const ONE = ['actor', 'target']
+  const perOk = (p) => Object.keys(p).length === 1 && ((STATUSES[p.status]) || ['buff', 'debuff'].includes(p.tag) || ONE.includes(p.moved) || ONE.includes(p.walked))
+  if (e.per !== undefined) assert.ok(relic && e.op === 'damage' && Number.isInteger(e.amount) && perOk(e.per), `${where}: per ${JSON.stringify(e.per)}`)
+  if (e.consume !== undefined) assert.ok(e.consume === true && (e.per?.status || e.per?.tag), `${where}: consume what a per counts`)
   if (e.op === 'heal') assert.ok(e.power > 0 || e.pct > 0, `${where}: ${e.op} power`)
   if (e.op === 'raise' && e.tier !== undefined) assert.ok(relic && Number.isInteger(e.tier) && e.tier >= 1 && !e.count, `${where}: a relic's raise, to a tier`)
 }
@@ -546,7 +550,7 @@ test('a synergy split holds whole at its `full`: Echo\'s alone, at 8 Channelers'
 
 // The keys a relic may carry: its identity, its form (§2.13.3) and, for a run relic, `run`; for a Legendary, a rule
 // and its params. The sixteen bespoke keys of before are none of them.
-const RELIC_KEYS = ['id', 'tier', 'name', 'desc', 'run', 'mods', 'on', 'effects', 'rule', 'params', 'needsArise']
+const RELIC_KEYS = ['id', 'tier', 'name', 'desc', 'run', 'mods', 'on', 'when', 'effects', 'rule', 'params', 'needsArise']
 // A run relic's side-wide cost (§2.15): a loss on a unit's path for every soul (Legion's −15% HP).
 const isCost = (x) => x.path === 'hp' && x.op === 'mul' && x.v < 1 && !x.who
 // A kin banner's mod (redesign.md §4.4): a unit's, scoped to the souls of one kin or one role (`who`, unit.js statsOf).
@@ -583,6 +587,10 @@ test('every relic is a run relic or a piece relic, in one of the three forms, it
       assert.match(r.desc, /\b[Ii]ts holder\b/, `${r.id}: its text speaks of its holder`)
       assert.ok(!r.needsArise, `${r.id}: needs nothing`)
     }
+    // A trigger's `when` (2026-10-18): its holder moved n tiles or more this turn, or none.
+    if (r.when !== undefined) {
+      assert.ok(r.on && Object.keys(r.when).length === 1 && (r.when.still === true || (Number.isInteger(r.when.moved) && r.when.moved >= 1)), `${r.id}: when ${JSON.stringify(r.when)}`)
+    }
     if (r.on) {
       assert.ok(TRIGGERS.includes(r.on), `${r.id} on ${r.on}`)
       for (const e of r.effects) {
@@ -596,7 +604,7 @@ test('every relic is a run relic or a piece relic, in one of the three forms, it
   }
   assert.deepEqual(RELIC_TIERS.map((t) => t.id), ['common', 'uncommon', 'rare', 'legendary'])
   for (const t of RELIC_TIERS) assert.ok(t.name && /^--c-/.test(t.colour), JSON.stringify(t))
-  assert.deepEqual(TRIGGERS, ['kill', 'fall', 'wave', 'blow', 'struck'])
+  assert.deepEqual(TRIGGERS, ['kill', 'fall', 'wave', 'blow', 'struck', 'move'])
   assert.deepEqual(new Set(RELIC_LIST.filter((r) => r.on).map((r) => r.on)), new Set(TRIGGERS), 'every moment some relic\'s')
   // A Shop always stocks a Command relic: there are some at every tier but the Legendary's own.
   for (const tier of ['common', 'uncommon', 'rare', 'legendary']) {
@@ -639,7 +647,7 @@ test('the twelve relics that define a build: a kin banner for every kin, and sev
 
 test('the Legendaries: a rule scoped to the holder, Arise a skill it teaches, and the Arise variants', () => {
   const legendary = RELIC_LIST.filter((r) => r.tier === 'legendary')
-  assert.deepEqual(legendary.map((r) => r.id), ['arise', 'legion', 'undying', 'mimicry', 'hollow_court', 'blood_tithe', 'court_of_bone', 'reapers_hunger', 'seven_league_boots', 'last_candle', 'grave_powder'])
+  assert.deepEqual(legendary.map((r) => r.id), ['arise', 'legion', 'undying', 'mimicry', 'hollow_court', 'blood_tithe', 'court_of_bone', 'reapers_hunger', 'seven_league_boots', 'last_candle', 'grave_powder', 'overwatch', 'hold_the_line'])
   // Legion is a run relic, Command at a cost; every other a piece relic with a rule.
   assert.ok(RELICS.legion.run && !RELICS.legion.rule)
   for (const r of legendary.filter((x) => !x.run)) assert.equal(r.rule, r.id, `${r.id}: its rule is its own`)

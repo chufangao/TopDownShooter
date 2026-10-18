@@ -2958,8 +2958,10 @@ export const RELIC_TIERS = [
 // given and taken back out of battle), and its copies are more holders. `mods`: the holder's, on a unit's stat path.
 // `on` + `effects`, a trigger on the holder's own moments, each with a place and the one on its other end: 'kill' (it
 // slays a foe: where the slain fell, the slain), 'struck' (a blow lands on it and it stands: where it stands, its
-// attacker), 'fall' (it falls: where it fell, its killer), 'blow' (it strikes: where it stands, its target) and 'wave'
-// (the battle begins, and each later wave begins to enter, while it stands: where it stands, no one). `effects` run
+// attacker), 'fall' (it falls: where it fell, its killer), 'blow' (it strikes: where it stands, its target), 'wave'
+// (the battle begins, and each later wave begins to enter, while it stands: where it stands, no one) and 'move' (a
+// walk of its is committed, as it acts or at End Turn: where it ends, no one); `when`, a condition on its holder's
+// tiles this turn checked as the moment comes: { moved: n } (n or more) or { still: true } (none). `effects` run
 // then as an ability's do (a heal with `pct` mends that share of the target's max HP; damage with a flat `amount`
 // deals that much true damage; a raise with a `tier` lifts the slain as yours where its tier is no higher); an
 // effect's `to` picks its targets: 'self' (the holder) or 'other', if it stands (for a raise, if it lies dead), or
@@ -3030,11 +3032,20 @@ export const RELIC_LIST = [
   { id: 'reapers_hunger', tier: 'legendary', name: "Reaper's Hunger", desc: 'When its holder slays a foe in your turn, it may act again.', rule: 'reapers_hunger' },
   { id: 'seven_league_boots', tier: 'legendary', name: 'Seven-League Boots', desc: 'On a turn its holder has moved 3 tiles or more, its blows deal 50% more damage.', rule: 'seven_league_boots', params: { tiles: 3, mul: 1.5 } },
   { id: 'last_candle', tier: 'legendary', name: 'Last Candle', desc: 'While the Monarch is below half its HP, its holder is Desperate (+50% damage dealt, +25% damage taken, +1 Move, and its skills come back a turn sooner).', rule: 'last_candle', params: { below: 0.5 } },
-  { id: 'grave_powder', tier: 'legendary', name: 'Grave Powder', desc: 'While its holder stands, a shadow of yours that falls bursts: every foe next to it takes 20 true damage.', rule: 'grave_powder', params: { amount: 20 } }
+  { id: 'grave_powder', tier: 'legendary', name: 'Grave Powder', desc: 'While its holder stands, a shadow of yours that falls bursts: every foe next to it takes 20 true damage.', rule: 'grave_powder', params: { amount: 20 } },
+  // The elements of 2026-10-18 (DESIGN.md Step 4, movement as a channel): each reads a piece's own tiles moved this turn,
+  // or its target's (turns.js runEffect `per: { moved }`, `per: { walked }`; a trigger's `when`), or a walk once it is
+  // committed (the 'move' moment, rules.js onMove), never a count of a team. Numbers are placeholders.
+  { id: 'momentum', tier: 'rare', name: 'Momentum', desc: 'When its holder strikes, its target takes 6 true damage for each tile its holder moved this turn.', on: 'blow', effects: [{ op: 'damage', amount: 6, per: { moved: 'actor' }, to: 'other' }] },
+  { id: 'quarry', tier: 'rare', name: 'Quarry', desc: 'When its holder strikes a foe that moved on its last turn, the foe takes 15 true damage more.', on: 'blow', effects: [{ op: 'damage', amount: 15, per: { walked: 'target' }, to: 'other' }] },
+  { id: 'bastion', tier: 'uncommon', name: 'Bastion', desc: 'When its holder is struck on a turn it has not moved, its attacker takes 12 true damage.', on: 'struck', when: { still: true }, effects: [{ op: 'damage', amount: 12, to: 'other' }] },
+  { id: 'trample', tier: 'rare', name: 'Trample', desc: 'When its holder ends a move (as it acts, or at End Turn), every foe next to where it stands takes 10 true damage.', on: 'move', effects: [{ op: 'damage', amount: 10, to: 'foes', range: 1 }] },
+  { id: 'overwatch', tier: 'legendary', name: 'Overwatch', desc: 'Once a turn, when a foe ends its move within reach of its holder\'s basic blow, its holder strikes it at once with that blow, as a counter (a melee holder never reaches a flyer).', rule: 'overwatch', params: { times: 1 } },
+  { id: 'hold_the_line', tier: 'legendary', name: 'Hold the Line', desc: 'On a turn they have not moved, its holder and each of yours next to it deal 25% more damage to foes.', rule: 'hold_the_line', params: { mul: 1.25 } }
 ]
 
-// The holder's moments a piece relic can trigger on.
-export const TRIGGERS = ['kill', 'fall', 'wave', 'blow', 'struck']
+// The holder's moments a piece relic can trigger on ('move': a walk of its committed, turns.js moveMoment).
+export const TRIGGERS = ['kill', 'fall', 'wave', 'blow', 'struck', 'move']
 
 // ── attack animations ────────────────────────────────────────────────────────────────────────
 
