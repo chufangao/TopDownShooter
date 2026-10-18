@@ -806,7 +806,7 @@ function fieldEditor ({ run, act, onChange = null }) {
       (bench.length || target) && h('div', { class: 'bench' + (target ? ' target' : '') + (drag?.target?.bench && drag.target.ok ? ' over' : '') },
         bench.length
           ? bench.map((u) => h('button', {
-            class: 'cell has' + (sel?.uid === u.uid ? ' sel' : '') + (u.hp <= 0 ? ' fallen' : '') + (giving && canHold(s, giving, u) ? ' offer' : ''),
+            class: 'cell has' + (sel?.uid === u.uid ? ' sel' : '') + (u.hp <= 0 ? ' fallen' : '') + (giving && canHold(s, giving, u) ? ' gift' : ''),
             'data-uid': u.uid,
             onpointerdown: (e) => pressBench(e, u),
             onclick: () => { if (swallow) { swallow = false; return } if (giving) return give(u); select(sel?.uid === u.uid ? null : { uid: u.uid }) },
@@ -1574,7 +1574,7 @@ function relicsStrip ({ run, act, busy, again }) {
         class: `give-relic small on rt-${relicDef(id).tier}`, onclick: () => (giving ? give(u) : go({ type: 'unhold', uid: u.uid, relic: id })),
         tip: () => giving ? `Swap it for ${relicDef(id).name}, which waits unheld.` : `Take ${relicDef(id).name} back from ${unitDef(u.id).name}: it waits unheld, to give again.`
       }, icon(relicIcon(id), 16), relicDef(id).name, giving ? '' : ' ✕')
-      return h('div', { class: 'give-soul' + (giving && canHold(s, giving, u) ? ' offer' : '') },
+      return h('div', { class: 'give-soul' + (giving && canHold(s, giving, u) ? ' gift' : '') },
         h('button', { class: 'gs-soul', onclick: () => give(u), tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run), run }) },
           h('span', { class: 'rank-port' + (u.hp <= 0 ? ' fallen' : '') }, portrait(u.id, 32, u.hp <= 0)), h('b', null, unitDef(u.id).name)),
         held.length ? held.map(slot) : h('button', { class: 'give-relic small empty dim', onclick: () => give(u) }, '◇ empty'))
@@ -1599,6 +1599,38 @@ const cardRow = (n, most) => (n <= most ? Math.max(n, 1) : Math.ceil(n / Math.ce
 const mostCards = () => Math.max(3, Math.min(6, Math.floor((frame.w - 44 + 18) / (168 + 18))))
 
 // ── reap ─────────────────────────────────────────────────────────────────────────────────────────
+
+// The spoils' Shop fitted to its place, the reap body (spoils.css): its relics' pictures (--art) only as tall as leaves
+// the cards' prices in view, 144 px down to 64 (a row of cards: by as much as they overflow; rows keep their own
+// compact pictures). Whatever still lies below the fold, the body's or the fusions' column's, is marked `.more` (a
+// fade and a ▾ along its foot) until scrolled into view. Again whenever the body changes size (a resize, a rotation).
+const ART = { most: 144, least: 64 }
+function fitShop (box) {
+  if (!box.classList.contains('shopping')) return box
+  const rect = (e) => e.getBoundingClientRect()
+  // Logical px of `e` below the body's foot (frame.js: rects are in viewport px).
+  const below = (e) => (rect(e).bottom - rect(box).bottom) / frame.k
+  const mark = () => {
+    if (box.firstElementChild) box.classList.toggle('more', below(box.firstElementChild) > 2)
+    const fus = box.querySelector('.shop-fusions')
+    if (fus) fus.classList.toggle('more', fus.scrollHeight - fus.clientHeight - fus.scrollTop > 2)
+  }
+  const fit = () => {
+    if (!box.isConnected) return seen.disconnect()
+    const offers = box.querySelector('.shop-relics .offers')
+    box.style.setProperty('--art', `${ART.most}px`)
+    if (offers && !offers.classList.contains('rows')) {
+      // The cards' foot, and the panel's under them (its padding and edge), against the body's.
+      const over = below(offers) + box.scrollTop + 16
+      if (over > 0) box.style.setProperty('--art', `${Math.max(ART.least, ART.most - Math.ceil(over))}px`)
+    }
+    mark()
+  }
+  const seen = new ResizeObserver(fit)
+  seen.observe(box)
+  box.addEventListener('scroll', mark, { capture: true, passive: true })
+  return box
+}
 
 // The spoils of a won battle: one of the slain to recruit (relics are the Shop's alone, redesign.md §2.11), what
 // each wave paid, and a won elite's essence on top of its foes'. onDone(index): recruit offer `index`, or null to
@@ -1723,9 +1755,9 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
         elitePay,
         reaped && h('p', { class: 'note-line reap-note' }, reaped),
         wavePay,
-        h('div', { class: 'reap-body' + (shopping ? ' shopping' : '') },
+        fitShop(h('div', { class: 'reap-body' + (shopping ? ' shopping' : '') },
           shopping ? shop.el : h('div', { class: 'reap-picks' },
-            offers.length > 0 && h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (offers.length > cols ? ' rows' : ''), style: `--cols:${cols}` }, offers))),
+            offers.length > 0 && h('div', { class: 'offers picks' + (deal ? ' deal' : '') + (offers.length > cols ? ' rows' : ''), style: `--cols:${cols}` }, offers)))),
         h('div', { class: 'reap-foot' },
           strip(s.offers.length > 0 && full()),
           relics(),
@@ -1972,8 +2004,9 @@ export function shopView ({ run, act, onChange = null }) {
       said = `${unitDef(f.result).name} is made: it waits in the ossuary.`
       done()
     }
+    // Dim while it cannot be made; its price red only when the essence is short (on the spoils it waits for the map).
     return h('button', {
-      class: 'buy' + (can ? '' : ' poor'), 'aria-disabled': can ? null : 'true', 'aria-label': `Fuse ${f.name}`,
+      class: 'buy' + (can ? '' : ' off') + (s.essence < cost ? ' poor' : ''), 'aria-disabled': can ? null : 'true', 'aria-label': `Fuse ${f.name}`,
       onclick: (e) => twice(e, tip, `Fuse ${f.name} ▸`, () => can, press),
       tip
     }, icon('fuse', 18), 'Fuse', h('span', { class: 'price' }, icon('soul', 16), cost))
@@ -1985,6 +2018,8 @@ export function shopView ({ run, act, onChange = null }) {
       .map((f) => ({ f, at: share(f) })).sort((a, b) => b.at - a.at).map((x) => x.f)
     return h('div', { class: 'shop-sec shop-fusions' },
       h('h3', null, kw('fusion', 'Fusions'), h('span', { class: 'dim' }, ` · ${ready.length} ready`)),
+      // On the spoils a ready recipe waits for the map: said, not only on its button's hover.
+      ready.some((x) => !x.open) && h('p', { class: 'dim small fuse-wait' }, 'Fused on the map, once the spoils are done.'),
       ready.length ? h('div', { class: 'fuse-list' }, ready.map((x) => fuseRow(fusionDef(x.id), x)))
         : h('p', { class: 'dim small' }, 'No recipe has every part held yet. Recruit its kinds from the slain.'),
       toward.length > 0 && [h('p', { class: 'dim small shop-toward' }, 'Toward, from the kinds you hold:'), h('div', { class: 'fuse-list' }, toward.map((f) => fuseRow(f)))])
