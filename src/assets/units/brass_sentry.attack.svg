@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!-- Brass Sentry, attack key pose: the bolt loosed. The crossbow has just twanged, its string snapped forward to the
+       limbs and still humming, the bolt streaking off at the foe; the whole pot rocked back on its legs by the kick, the
+       front foot lifted, a burst of steam out of the chimney, both lamp eyes narrowed along the shot, the grille grin
+       gritted. Same parts as the alive picture. -->
+  <defs>
+    <filter id="bsa-ink" x="-6%" y="-6%" width="116%" height="116%" color-interpolation-filters="sRGB">
+      <feFlood flood-color="#1d1427"/><feComposite in2="SourceAlpha" operator="in"/><feOffset dx="1.1" dy="1.3"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- a burst of steam from the chimney, and the bolt's wake (effects: no ink) -->
+  <path d="M14.6 24.6 C11.6 23.4 11.8 19.2 14.8 18.6 C14.6 15.2 18.8 13.6 21 16 C23.2 13.8 27 15.2 26.6 18.2 C29.6 18.8 29.6 23 26.6 23.8 C25.4 26 21.6 26.4 20 24.6 C18.6 26 15.8 25.8 14.6 24.6 Z" fill="#e4dce8" opacity=".8"/>
+  <path d="M7.4 15 C6 13.6 7 11.4 8.8 11.6 C9.4 9.8 12 9.8 12.4 11.8 C14 12.4 13.6 14.8 11.8 15.2 C10.8 16.4 8.4 16.4 7.4 15 Z M20.4 9.6 C19.6 8.6 20.4 7.2 21.6 7.4 C22 6.2 23.8 6.2 24 7.6 C25 8 24.8 9.6 23.6 9.8 C22.8 10.6 21.2 10.6 20.4 9.6 Z" fill="#e4dce8" opacity=".55"/>
+  <path d="M80 16.4 L88.6 17 M81.4 30.4 L89 29.8 M53 15.6 L64 14.6" fill="none" stroke="#f4efe2" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+  <g filter="url(#bsa-ink)" stroke="#1d1427" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- the back leg and its big round foot -->
+    <path d="M32.4 70 L27.6 82 L32.6 83.6 L37.6 72 Z" fill="#5e5650"/>
+    <path d="M21 88.6 C20.8 84.8 24 82.4 28.6 82.4 C33 82.4 36.4 84.8 36.4 88.6 Z" fill="#a87a30"/>
+    <g transform="rotate(-6 46 84)">
+    <!-- the wind-up key, much too big, stuck in its back -->
+    <path d="M25 52 L15.6 51 L15.4 55.6 L25 56.4 Z" fill="#a87a30" stroke-width="2"/>
+    <path d="M15.8 53.2 C13 47 6 45.6 4.6 50.6 C3.6 54.2 8.6 56 12 54 C8.4 57 9.4 61.4 13 61 C16.8 60.6 17.4 56.6 15.8 53.2 Z" fill="#d8a650" stroke-width="2.1"/>
+    <path d="M7.4 50.8 C7.6 49.4 9.4 49 10.6 50.2 M11 58.4 C11.2 57.6 12.4 57.2 13.4 57.8" fill="none" stroke="#f0d080" stroke-width="1.4"/>
+    <!-- the chimney -->
+    <path d="M27.6 42 L25.4 31 L32.2 29.8 L33.8 39.2 Z" fill="#5e5650"/>
+    <path d="M23.4 32 L22.8 28.6 L32.8 26.8 L33.4 30.2 Z" fill="#8d847b" stroke-width="2"/>
+    <!-- the body: a squat round brass pot -->
+    <path d="M23.4 56 C23.4 42.4 33.4 33.6 46.2 33.6 C59 33.6 69 42.4 69 56 C69 65.6 65 73.6 58.6 77.4 L34 77.4 C27.6 73.6 23.4 65.6 23.4 56 Z" fill="#d8a650"/>
+    <path d="M64.6 45 C67.6 50.4 68.2 58 66 65 C64 71 60.6 75.2 57.2 77.2 L48.6 77.2 C56.6 72.6 63 63 64.6 45 Z" fill="#a87a30" stroke="none"/>
+    <path d="M28.4 50 C29.2 44.2 33 39.4 38.4 36.8 C34.6 41 32 45.4 28.4 50 Z" fill="#f0d080" stroke="none"/>
+    <!-- the purple livery band, riveted -->
+    <path d="M23.8 59.4 C31 61.6 39 62.6 46.4 62.6 C54 62.6 61.6 61.6 68.6 59.4 L68 65.6 C61.4 67.8 54 68.8 46.4 68.8 C38.6 68.8 30.6 67.8 24.8 65.6 Z" fill="#7a5aa8" stroke-width="2.1"/>
+    <path d="M56.4 68 C60.6 67.4 64.6 66.6 68 65.6 L68.4 62 C64.4 64.8 60.4 66.6 56.4 68 Z" fill="#573e80" stroke="none"/>
+    <path d="M29.4 63.6 L29.5 63.7 M37.6 65.2 L37.7 65.3 M46.4 65.6 L46.5 65.7 M55.2 65.2 L55.3 65.3 M63.4 63.6 L63.5 63.7" fill="none" stroke="#f0d080" stroke-width="2.2"/>
+    <!-- the bottom rim -->
+    <path d="M31.8 75.8 L60.8 75.8 L59.4 79.6 L33.2 79.6 Z" fill="#8d847b" stroke-width="2"/>
+    <!-- a dent with a sticking plaster -->
+    <path d="M33.8 45.6 L40.2 50.6 L39 52.2 L32.6 47.2 Z M39.4 45.4 L33.4 51 L34.8 52.4 L40.8 46.8 Z" fill="#e8c9a0" stroke-width="1"/>
+    <!-- a toothy grille grin -->
+    <path d="M50.4 55.6 C55.4 56.6 61.4 56 66.6 53.6 C66.2 56.8 63.4 59 59 59.4 C55 59.6 51.8 58.4 50.4 55.6 Z" fill="#3d2e50" stroke-width="1.8"/>
+    <path d="M54.4 57 L54.6 59.4 M57.8 57.6 L57.8 60.2 M61.2 57.2 L61 59.8 M64 55.8 L63.4 58.2" fill="none" stroke="#c9c2d0" stroke-width="1.4"/>
+    <!-- a matched pair of googly lamp eyes in brass portholes, both on the foe -->
+    <path d="M43.4 45.6 C43.4 41.6 46.4 38.6 50.4 38.6 C54.4 38.6 57.4 41.6 57.4 45.6 C57.4 49.6 54.4 52.6 50.4 52.6 C46.4 52.6 43.4 49.6 43.4 45.6 Z M56.4 44.8 C56.4 40.8 59.4 37.8 63.4 37.8 C67.4 37.8 70.4 40.8 70.4 44.8 C70.4 48.8 67.4 51.8 63.4 51.8 C59.4 51.8 56.4 48.8 56.4 44.8 Z" fill="#f0d080" stroke-width="2"/>
+    <path d="M45.6 45.6 C45.6 42.8 47.8 40.8 50.4 40.8 C53 40.8 55.2 42.8 55.2 45.6 C55.2 48.4 53 50.4 50.4 50.4 C47.8 50.4 45.6 48.4 45.6 45.6 Z M58.6 44.8 C58.6 42 60.8 40 63.4 40 C66 40 68.2 42 68.2 44.8 C68.2 47.6 66 49.6 63.4 49.6 C60.8 49.6 58.6 47.6 58.6 44.8 Z" fill="#efe4ff" stroke-width="1.4"/>
+    <path d="M50.6 45.8 C50.6 44.2 51.8 43 53.2 43.2 C54.6 43.4 55.2 44.8 54.8 46.2 C54.4 47.6 53.2 48.4 52 48 C51.2 47.8 50.6 46.8 50.6 45.8 Z M63.6 45 C63.6 43.4 64.8 42.2 66.2 42.4 C67.6 42.6 68.2 44 67.8 45.4 C67.4 46.8 66.2 47.6 65 47.2 C64.2 47 63.6 46 63.6 45 Z" fill="#573e80" stroke="none"/>
+    <path d="M52.4 44.4 L52.6 44.6 M65.4 43.6 L65.6 43.8" stroke="#ffffff" stroke-width="1.3"/>
+    <path d="M44.4 43.6 C47 41.4 54 41 56.8 44.2 C55 40 52.8 38.8 50.4 38.8 C47.4 38.8 45 40.8 44.4 43.6 Z M57.4 42.8 C60 40.6 67 40.2 69.8 43.4 C68 39.2 65.8 38 63.4 38 C60.4 38 58 40 57.4 42.8 Z" fill="#a87a30" stroke-width="1.6"/>
+    <path d="M44.4 39.6 L55.4 42 M58.4 41.2 L69.8 37.2" fill="none" stroke-width="2.2"/>
+    <!-- the bracket, the crossbow on top, cocked and loaded -->
+    <path d="M42 35 L44 27.4 L52.4 27.4 L52.6 34.6 Z" fill="#5e5650" stroke-width="2.2"/>
+    <path d="M36 22.6 L76 22.6 L76.4 28.4 L39.6 28.6 C37.4 28.6 36 27 36 25.4 Z" fill="#a8693e"/>
+    <path d="M38 27 L76.2 26.8 L76.4 28.4 L39.6 28.6 C38.8 28.6 38.2 28 38 27 Z" fill="#7a4a2a" stroke="none"/>
+    <!-- the bow: two iron limbs, the string drawn back to the nut -->
+    <path d="M74.6 25 C75.6 19 74.6 14.2 72.8 11 L75.4 9.6 C78 13.6 79.2 19.4 78.4 25.4 C79.2 31.2 78 37 75.6 41 L73 39.6 C74.8 36.2 75.6 31 74.6 25 Z" fill="#5e5650" stroke-width="2.1"/>
+    <path d="M76.6 14.2 C77.6 17.4 78 21 77.6 24.4 L76 24.6 C76.4 21.2 76.2 17.6 76.6 14.2 Z" fill="#8d847b" stroke="none"/>
+    <path d="M57 23.4 L61 23.4 L61 27.6 L57 27.6 Z" fill="#d8a650" stroke-width="1.6"/>
+    <path d="M76.2 11.8 L76.6 39.2" fill="none" stroke="#e8dcc0" stroke-width="1.3"/>
+    <path d="M80.4 14.6 L82.6 13 M81.4 25.4 L84 25.4 M80.4 36 L82.6 37.8" fill="none" stroke="#f4efe2" stroke-width="1.3"/>
+    </g>
+    <!-- the middle and front legs, the front foot kicked up by the recoil -->
+    <path d="M44 76 L43.2 84 L49.4 84 L49.6 76 Z" fill="#5e5650"/>
+    <path d="M38 88.6 C37.8 85 41.2 82.8 46.2 82.8 C51.2 82.8 54.6 85 54.6 88.6 Z" fill="#d8a650"/>
+    <path d="M57.6 74 L64 81.6 L68.6 78.8 L62.4 72 Z" fill="#8d847b"/>
+    <path d="M59.4 86.2 C58.6 82.4 61.4 79.4 66.4 78.6 C71.4 77.8 75.2 79.6 75.8 83.4 Z" fill="#d8a650"/>
+    <path d="M66.6 80 C70 79.6 73 80.8 74.2 83 L68.8 83.8 C69.2 82.4 68.4 80.8 66.6 80 Z M47.2 84.2 C50.6 84.6 53 86 53.4 88 L48.8 88 C49.2 86.6 48.6 85.2 47.2 84.2 Z" fill="#a87a30" stroke="none"/>
+    <!-- the bolt, loosed: streaking off, purple fletching, an iron head -->
+    <g transform="translate(10.6 -2.4)">
+      <path d="M64.6 24.8 L77.4 24.8" fill="none" stroke-width="3.6"/>
+      <path d="M64.6 24.8 L77.4 24.8" fill="none" stroke="#e8c88a" stroke-width="1.6"/>
+      <path d="M62.6 24.8 L66.4 20.4 L70.6 20.4 L68 24.8 L70.6 29.2 L66.4 29.2 Z" fill="#7a5aa8" stroke-width="1.6"/>
+      <path d="M76 21.6 L83.6 24.8 L76 28 C76.8 26 76.8 23.6 76 21.6 Z" fill="#c9d0dc" stroke-width="1.8"/>
+    </g>
+  </g>
+</svg>
