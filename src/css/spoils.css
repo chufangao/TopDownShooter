@@ -53,7 +53,16 @@
 }
 .reap-screen .offer-art .ico { filter: drop-shadow(3px 4px 0 var(--ink)); }
 .reap-screen .offer-art > .ico svg { width: 72px; height: 72px; }
-.reap-screen .offer-art .trig-tag { position: absolute; left: 6px; bottom: 6px; margin: 0; cursor: help; }
+.reap-screen .offer-art .trig-tag {
+  position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); margin: 0; padding: 0 6px; cursor: help;
+  font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* A relic's tags stay inside its card, each on one line: its tier's word and Run/Held side by side where the card
+   holds both, Run/Held under the word where it does not (four cards to a row), the word cut short only past that;
+   its trigger along the picture's foot. */
+.reap-screen .o-relic .offer-tag { flex-wrap: wrap; gap: 2px 8px; min-width: 0; }
+.reap-screen .o-relic .tag-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reap-screen .o-relic .kind-tag { flex: none; margin-left: 0; }
 .reap-screen .offer-name { font: 600 var(--fs-lg)/1.2 var(--display); color: var(--bright); }
 .reap-screen .offer-sub { font-size: var(--fs-sm); color: var(--dim); margin-top: -2px; }
 .reap-screen .offer-line { font-size: var(--fs-md); line-height: 1.4; color: var(--text); }
@@ -89,9 +98,37 @@
 .shop-fusions .fuse-row .price { display: inline-flex; align-items: center; gap: 2px; }
 .shop-toward { margin: 12px 0 6px; }
 @container frame (max-width: 900px) { .shop-cols { grid-template-columns: minmax(0, 1fr); } }
-/* On the spoils, the Shop fills the cards' place. */
+/* A ready fusion that waits for the map (on the spoils): dim, its price the button's own colour; red is for too little
+   essence. The line under the heading says why. */
+.shop-fusions .buy.off { opacity: .5; cursor: not-allowed; }
+.shop-fusions .buy.off:not(.poor) .price { color: inherit; }
+.shop-fusions .fuse-wait { margin: -4px 0 0; }
+/* On the spoils, the Shop fills the cards' place, fitted to it (ui.js fitShop): the relics' pictures only as tall as
+   leaves every price in view (--art, 144 px down to 64). Side by side, the relics take five eighths (their cards wider,
+   their lines fewer) and a long list of fusions scrolls in its own column, never pushing the cards' prices down. What
+   still lies below the fold (the shortest frames) scrolls, and says so: `.more`, a fade and a ▾ along the foot. */
 .reap-screen .reap-body.shopping { padding: 6px 0 0; }
 .reap-screen .reap-body.shopping > .shop-panel { margin: 0; flex: 1 0 auto; overflow: visible; }
+.reap-screen .reap-body.shopping .shop-relics .offers.picks:not(.rows) .offer-art { height: var(--art, 144px); }
+/* …its icon as large as the picture holds, above the trigger's tag where it has one. */
+.reap-body.shopping .shop-relics .offers.picks:not(.rows) .o-relic .offer-art > .ico svg { width: min(72px, calc(var(--art, 144px) - 12px)); height: min(72px, calc(var(--art, 144px) - 12px)); }
+.reap-body.shopping .shop-relics .offers.picks:not(.rows) .o-relic .offer-art:has(.trig-tag) { padding-bottom: 24px; }
+.reap-body.shopping .shop-relics .offers.picks:not(.rows) .o-relic .offer-art:has(.trig-tag) > .ico svg { width: min(72px, calc(var(--art, 144px) - 36px)); height: min(72px, calc(var(--art, 144px) - 36px)); }
+@container frame (min-width: 901px) {
+  .reap-body.shopping .shop-cols { flex: 1 0 auto; grid-template-columns: minmax(0, 5fr) minmax(320px, 3fr); align-items: stretch; }
+  .reap-body.shopping .shop-fusions { contain: size; overflow-y: auto; overscroll-behavior: contain; }
+}
+.reap-body.shopping.more::after, .reap-body.shopping .shop-fusions.more::after {
+  content: "▾"; position: sticky; bottom: 0; z-index: 3; display: block; flex: none; height: 24px; margin-top: -24px; padding-right: 14px;
+  text-align: right; font: 700 var(--fs-lg)/24px var(--display); color: var(--bright); text-shadow: 1px 2px 0 var(--ink), 0 0 4px var(--ink);
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ink) 80%, transparent)); pointer-events: none;
+}
+/* A short frame: the Shop's own spacing tighter, so a row of cards keeps its prices above the fold. */
+@container frame (max-height: 640px) {
+  .reap-screen .reap-body.shopping { padding-top: 4px; }
+  .reap-body.shopping > .shop-panel { gap: 6px; padding-top: 8px; padding-bottom: 8px; }
+  .reap-body.shopping .shop-sec > h3 { margin-bottom: 6px; }
+}
 .reap-actions .open-shop.on { color: var(--c-relic); }
 @container frame (max-height: 640px) {
   .reap-screen .offers.picks .offer-art > .portrait { width: 84px; height: 84px; }
@@ -384,7 +421,7 @@ button.ret-toggle:hover:not([aria-disabled]) { background-color: #463614; color:
 .give-hint { margin: 0 0 8px; font-size: var(--fs-sm); }
 .give-souls { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px; }
 .give-soul { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: var(--radius); border: 1px solid transparent; }
-.give-soul.offer { box-shadow: 0 0 0 3px var(--c-relic); }
+.give-soul.gift { box-shadow: 0 0 0 3px var(--c-relic); }
 .give-soul .gs-soul { flex: 1; min-width: 0; justify-content: flex-start; gap: 8px; padding: 0 8px; min-height: var(--tap); overflow: hidden; }
 .give-soul .gs-soul b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .give-soul .give-relic { max-width: 50%; min-height: var(--tap); }

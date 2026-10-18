@@ -87,8 +87,9 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .bench .cell .portrait { width: 42px; height: 42px; }
 .bench .cell .hpbar { width: 48px; height: 5px; }
 .bench .cell.fallen::after { bottom: 10px; font-size: var(--fs-badge); letter-spacing: .04em; }
-/* A soul that may take the relic readied (the Relics strip): ringed in the relics' orange. */
-.bench .cell.offer { box-shadow: 0 0 0 3px var(--c-relic), 2px 3px 0 3px var(--ink); }
+/* A soul that may take the relic readied (the Relics strip): ringed in the relics' orange. `gift`, not `offer`, which is
+   a card's class (style.css .offer: at least 250 tall) and would stretch the cell to it. */
+.bench .cell.gift { box-shadow: 0 0 0 3px var(--c-relic), 2px 3px 0 3px var(--ink); }
 
 /* The Relics strip beside the ossuary (redesign.md §2.15): the piece relics held by no soul, each a button that readies
    it to give; a soul tapped then takes it. Hidden while none waits. */
