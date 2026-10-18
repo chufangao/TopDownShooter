@@ -136,7 +136,9 @@ test('the book: every recipe a combo of its own, a fused part met on the floor i
   const combos = combosOf()
   for (const r of FUSION_LIST) assert.ok(combos.some((c) => c.fuse === r.id), r.id)
   const from = (id) => combos.find((c) => c.fuse === id).from
-  assert.deepEqual(['charnel_cathedral', 'winter_court', 'hive_mind', 'engine_of_ages', 'iron_barrow'].map(from), [1, 1, 2, 2, 2])
+  // The Tomb Knight met from floor 2 (2026-10-18): the Bone Colossus and the Charnel Cathedral from there.
+  assert.deepEqual(['charnel_cathedral', 'winter_court', 'hive_mind', 'engine_of_ages', 'iron_barrow'].map(from), [2, 1, 2, 2, 2])
+  assert.equal(from('bone_colossus'), 2)
   assert.equal(from(trineOf('ash_wyvern').id), 3)
-  assert.equal(FUSION_LIST.filter(isTriple).length, 33)
+  assert.equal(FUSION_LIST.filter(isTriple).length, 41)
 })

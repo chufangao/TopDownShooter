@@ -44,9 +44,10 @@ test('the base Monarch changes nothing: the same run, no field, the even draft',
 })
 
 test('another Monarch holds its relic from the start and drafts its kin more often, the offer a plan still', () => {
-  // mv0-: a seed whose draft offers each Monarch's kin (the draft of one soul, 2026-10-18: mv- offered Ember none).
+  // mv1-: a seed whose draft offers each Monarch's kin, found by search (the draft of one soul, 2026-10-18: mv- offered
+  // Ember none; the floor-1 pool of the same day: mv0- offered Hive none).
   for (const m of MONARCH_LIST.slice(1)) {
-    const run = createRun({ seed: `mv0-${m.id}`, monarch: m.id })
+    const run = createRun({ seed: `mv1-${m.id}`, monarch: m.id })
     const s = run.state
     assert.equal(s.monarch, m.id)
     assert.deepEqual(s.relics, [m.relic])

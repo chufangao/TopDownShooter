@@ -120,12 +120,13 @@ const MOVE = {
   thorn_dryad: 1, mantis_reaper: 3, iron_golem: 1, barrow_wight: 2, frost_wyrm: 2, pyre_hound: 3, hive_drone: 3, rot_bloat: 2, marsh_hag: 2,
   ash_wyvern: 3, bone_colossus: 2, rime_drake: 2, hive_queen: 2, clockwork_titan: 2, pale_court: 2, hollow_sovereign: 2,
   charnel_cathedral: 2, winter_court: 2, cinder_wyrm: 3, hive_mind: 2, engine_of_ages: 2, aurora: 2, iron_barrow: 1,
-  mire_mother: 2, molting_abbess: 2, barrow_marshal: 2, swarm_queen: 3
+  mire_mother: 2, molting_abbess: 2, barrow_marshal: 2, swarm_queen: 3,
+  cinder_whelp: 2, brass_sentry: 1, hive_spitter: 2, thornling: 2
 }
 // The temperaments (§2.9.4): each kind on its preset; the fused on the preset their parts would have.
 const TEMPER = {
-  charger: ['tomb_knight', 'pyre_hound', 'rot_bloat', 'bone_colossus', 'charnel_cathedral', 'iron_barrow'],
-  shooter: ['frost_sprite', 'bone_chanter', 'barrow_wight', 'barrow_marshal'],
+  charger: ['tomb_knight', 'pyre_hound', 'rot_bloat', 'bone_colossus', 'charnel_cathedral', 'iron_barrow', 'thornling'],
+  shooter: ['frost_sprite', 'bone_chanter', 'barrow_wight', 'barrow_marshal', 'cinder_whelp', 'brass_sentry', 'hive_spitter'],
   seeker: ['will_o_wisp', 'hive_drone', 'ash_wyvern', 'pale_court', 'winter_court', 'swarm_queen'],
   keeper: ['hive_warden', 'clockwork_page', 'thorn_dryad', 'hive_queen', 'hive_mind'],
   sieger: ['iron_golem', 'clockwork_titan', 'engine_of_ages'],
@@ -137,7 +138,7 @@ const TEMPER = {
 
 // Every kind, written or made (the trines content makes: content.js trineOf), is held to the one checklist.
 test('every kind is one record: base, Move, temper, threats, two tracks of four on its def, pictures, every ability in the vocabulary', () => {
-  assert.equal(WRITTEN.length, 36)
+  assert.equal(WRITTEN.length, 40)
   assert.deepEqual(Object.keys(MOVE).sort(), WRITTEN.map((u) => u.id).sort())
   for (const u of UNIT_LIST) {
     const where = u.id
@@ -209,7 +210,7 @@ test('every kind is one record: base, Move, temper, threats, two tracks of four 
   // seven 2×2s.
   const of = (f) => WRITTEN.filter(f).map((u) => u.id).sort()
   assert.deepEqual(of((u) => u.arm === 2), ['grave_ghoul', 'mantis_reaper'])
-  assert.deepEqual(of((u) => u.move === 1), ['iron_barrow', 'iron_golem', 'thorn_dryad'])
+  assert.deepEqual(of((u) => u.move === 1), ['brass_sentry', 'iron_barrow', 'iron_golem', 'thorn_dryad'])
   assert.deepEqual(of((u) => u.move === 3 && !u.flies), ['frost_sprite', 'mantis_reaper', 'pyre_hound'])
   assert.deepEqual(of((u) => u.flies), ['ash_wyvern', 'cinder_wyrm', 'hive_drone', 'swarm_queen'])
   assert.ok(of((u) => u.flies).every((id) => UNITS[id].move === 3), 'flyers 3')
@@ -325,9 +326,10 @@ test('every kind of soul has two tracks of four tiers, IV a rule, I–II never r
     }
   }
   // Colossus where Banner was, on the front-line kinds' first track (Tomb Knight's Barrow Wall the first), and the Rot
-  // Bloat's; a trine keeps its kind's only while it stands 1×1 (the Grave Ghoul's), a 2×2 one's aura a tile wider.
-  assert.deepEqual(colossi.filter(([id]) => !made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['tomb_knight:0', 'grave_ghoul:0', 'iron_golem:0', 'rot_bloat:0'])
-  assert.deepEqual(colossi.filter(([id]) => made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['trine:grave_ghoul:0'])
+  // Bloat's and the Thornling's; a trine keeps its kind's only while it stands 1×1 (the Grave Ghoul's, the Thornling's),
+  // a 2×2 one's aura a tile wider.
+  assert.deepEqual(colossi.filter(([id]) => !made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['tomb_knight:0', 'grave_ghoul:0', 'iron_golem:0', 'rot_bloat:0', 'thornling:0'])
+  assert.deepEqual(colossi.filter(([id]) => made(UNITS[id])).map(([id, k]) => `${id}:${k}`), ['trine:grave_ghoul:0', 'trine:thornling:0'])
   // Your kinds can learn to inflict Burning and Hexed too (DESIGN §2.4): a tier of a kind met on floors 1–2 grants a
   // blow that does each.
   const early = Object.keys(TRACKS).filter((id) => UNITS[id].spawn?.minFloor <= 2)
@@ -864,9 +866,9 @@ test('the triple rule: one triple a kind of tier 4 or less, into its trine two t
   }
   assert.deepEqual(UNIT_LIST.filter((u) => u.trineOf && !made(u)).map((u) => [u.trineOf, u.id]), [['will_o_wisp', 'pale_court']])
   assert.deepEqual(FUSIONS.pale_court.needs, { will_o_wisp: 3 })
-  // 17 trines of the kinds met (the Wisp's written), 4 of the mixed fused kinds, 11 of trines (5 of tier 3, 6 of tier 4).
-  assert.equal(UNIT_LIST.filter(made).length, 32)
-  assert.equal(triples.length, 33)
+  // 21 trines of the kinds met (the Wisp's written), 4 of the mixed fused kinds, 15 of trines (9 of tier 3, 6 of tier 4).
+  assert.equal(UNIT_LIST.filter(made).length, 40)
+  assert.equal(triples.length, 41)
   for (const t of UNIT_LIST.filter(made)) {
     const d = UNITS[t.trineOf]
     const k = d.fused ? TUNING.trine.fused : TUNING.trine.parts[d.tier - 1]
@@ -953,9 +955,13 @@ test('a fusion is never weaker than what went into it: its HP at least its parts
   }
 })
 
-// The floor-1 slice's kinds (§5 Step 2) are still the floor-1 pool, and the start souls among them.
+// The floor-1 slice's kinds (§5 Step 2) and the four of 2026-10-18 are the floor-1 pool, the Tomb Knight gone to floor 2
+// (the user's word: too strong for the first battle); the old start souls a run can hold, two of them floor 1's.
 test('the floor-1 pool and the start souls', () => {
   const pool = UNIT_LIST.filter((u) => u.spawn?.minFloor === 1).map((u) => u.id).sort()
-  assert.deepEqual(pool, ['bone_chanter', 'clockwork_page', 'frost_sprite', 'grave_ghoul', 'hive_warden', 'pyre_hound', 'tomb_knight', 'will_o_wisp'])
-  assert.ok(START_PARTY.every((id) => pool.includes(id)))
+  assert.deepEqual(pool, ['bone_chanter', 'brass_sentry', 'cinder_whelp', 'clockwork_page', 'frost_sprite', 'grave_ghoul', 'hive_spitter', 'hive_warden', 'pyre_hound', 'thornling', 'will_o_wisp'])
+  assert.deepEqual(START_PARTY, ['tomb_knight', 'bone_chanter', 'frost_sprite'])
+  assert.ok(START_PARTY.every((id) => holdable(UNITS[id]) && UNITS[id].spawn.minFloor <= 2))
+  assert.deepEqual(START_PARTY.filter((id) => !pool.includes(id)), ['tomb_knight'])
+  assert.equal(UNITS.tomb_knight.spawn.minFloor, 2)
 })

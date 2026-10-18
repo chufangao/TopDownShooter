@@ -137,7 +137,9 @@ export const UNIT_LIST = [
         { desc: 'Strike becomes Rending Strike: 36 power, and leaves it Brittle.', ability: { id: 'rending_strike', replace: 'strike' } },
         { desc: 'Cleave becomes Reaving Cleave: everyone level with its target, left Brittle.', ability: { id: 'reaving_cleave', replace: 'cleave' } }] }
     ],
-    spawn: { weight: 10, minFloor: 1 },
+    // From floor 2 since the user's word of 2026-10-18 (the first battle too hard, the Knight too strong for it): its kit,
+    // tracks and recipes kept, so the Bone Colossus is reached from floor 2; the threshold's fixed party keeps it.
+    spawn: { weight: 10, minFloor: 2 },
     threats: ['shape'],
     behaviour: 'walk',
     flavour: "A tomb knight's plate is older than its barrow, and it moves like the barrow does: slowly, and never back."
@@ -613,6 +615,133 @@ export const UNIT_LIST = [
     threats: ['fly', 'burn'],
     behaviour: 'fly',
     flavour: 'An ash wyvern is seen first as a shadow on the ground, and the ground its breath falls on goes on smouldering.'
+  },
+  // ── the floor-1 kinds of 2026-10-18 (the user's word: the first battle too hard, more foes and souls) ──
+  // Four simple kinds of tier 1, each one blow of its own and at most a basic, no aura: what each kin's floor-1 slice
+  // lacked, so a lone first soul of any kin can hold a road or shoot from behind one. Numbers placeholders in the
+  // floor-1 tier-1 band (none past the Grave Ghoul's HP × ATK), growth as their peers'; the balance pass's after. Spawn
+  // weight 8 each, a little under their peers' 10–13: the four together hold the tier-1 kinds to under 30% of a
+  // floor-3 fight's draws (test/run.test.js, the pool by floor), and a floor-1 elite's still leaning a tier up.
+  // Pictures borrowed (`art`) until their own are drawn.
+  {
+    // The drakes' shooter on floor 1: a spit three tiles long at one foe.
+    id: 'cinder_whelp',
+    name: 'Cinder Whelp',
+    kin: 'drake',
+    role: 'ranger',
+    tier: 1,
+    base: { hp: 58, atk: 14, def: 5 },
+    growth: { hp: 6, atk: 1.9, def: 0.4 },
+    abilities: ['ember_spit'],
+    move: 2,
+    temper: TEMPERS.shooter,
+    tracks: [
+      { id: 'kindling', name: 'Kindling', desc: 'Its spit catches.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Ember Spit becomes Cinder Spit: 26 power and Burning at range 3.', ability: { id: 'cinder_spit', replace: 'ember_spit' } },
+        { desc: 'Cinder Spit becomes Ember Lance: 34 power and Burning at range 4.', ability: { id: 'ember_lance', replace: 'cinder_spit' } }] },
+      { id: 'fledgling', name: 'Fledgling', desc: 'Grows into its fire.', tiers: [
+        { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+        { desc: '+1 Move.', mods: [m('move', 'add', 1)] },
+        { desc: 'Learns Ashfall: 26 power to a foe and everyone next to it, at range 3, and leaves them Burning.', ability: { id: 'ashfall' } },
+        { desc: 'Ashfall becomes Pyre Rain: Burning for 4 turns on every foe within 3 tiles.', ability: { id: 'pyre_rain', replace: 'ashfall' } }] }
+    ],
+    spawn: { weight: 8, minFloor: 1 },
+    threats: ['reach'],
+    behaviour: 'walk',
+    art: 'pyre_hound',
+    flavour: 'A whelp has not yet the fire for a crowd: it spits what it has at one foe, from three paces back.'
+  },
+  {
+    // The constructs' turret: a tile a turn, and a bolt three tiles long at one foe.
+    id: 'brass_sentry',
+    name: 'Brass Sentry',
+    kin: 'construct',
+    role: 'ranger',
+    tier: 1,
+    base: { hp: 76, atk: 12, def: 10 },
+    growth: { hp: 8, atk: 1.6, def: 0.9 },
+    abilities: ['brass_bolt'],
+    move: 1,
+    temper: TEMPERS.shooter,
+    tracks: [
+      { id: 'calibrator', name: 'Calibrator', desc: 'Truer bolts, from farther off.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Brass Bolt becomes Long Bolt: 34 power at range 4.', ability: { id: 'long_bolt', replace: 'brass_bolt' } },
+        { desc: "Long Bolt becomes Piercing Bolt: it pierces everyone in its target's lane, at range 4.", ability: { id: 'piercing_bolt', replace: 'long_bolt' } }] },
+      { id: 'riveted', name: 'Riveted', desc: 'Plated, and keeps its fellows wound.', tiers: [
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
+        { desc: 'Learns Overclock: Hasten and one debuff removed, on the most wounded ally.', ability: { id: 'overclock' } },
+        { desc: 'Overclock becomes Perpetual Motion: Hasten and a debuff removed for every ally within 2 tiles.', ability: { id: 'perpetual_motion', replace: 'overclock' } }] }
+    ],
+    spawn: { weight: 8, minFloor: 1 },
+    threats: ['reach'],
+    behaviour: 'walk',
+    art: 'clockwork_page',
+    flavour: 'A sentry was built to stand a post, not to walk to one: it grinds forward a pace at a time, and looses at whatever comes within three.'
+  },
+  {
+    // The insects' shooter: a spit three tiles long at one foe, from a shell that cannot take much back.
+    id: 'hive_spitter',
+    name: 'Hive Spitter',
+    kin: 'insect',
+    role: 'ranger',
+    tier: 1,
+    base: { hp: 46, atk: 14, def: 3 },
+    growth: { hp: 5, atk: 1.9, def: 0.3 },
+    abilities: ['acid_spit'],
+    move: 2,
+    temper: TEMPERS.shooter,
+    tracks: [
+      { id: 'caustic', name: 'Caustic', desc: 'Spit that eats what it lands on.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Acid Spit becomes Venom Spit: 30 power, and leaves it Withered.', ability: { id: 'venom_spit', replace: 'acid_spit' } },
+        { desc: 'Venom Spit becomes Sting Storm: it strikes every foe within 3 tiles, and leaves them Withered.', ability: { id: 'sting_storm', replace: 'venom_spit' } }] },
+      { id: 'swarmer', name: 'Swarmer', desc: 'Bites when the swarm closes in.', tiers: [
+        { desc: '+15% max HP.', mods: [m('hp', 'mul', 1.15)] },
+        { desc: '+8% DEF.', mods: [m('def', 'mul', 1.08)] },
+        { desc: 'Learns Swarm Cloud: it stings a foe and every foe next to it.', ability: { id: 'swarm_cloud' } },
+        { desc: 'Swarm Cloud becomes Reaping Swarm: 34 power to a foe and every foe next to it, and leaves them Brittle.', ability: { id: 'reaping_swarm', replace: 'swarm_cloud' } }] }
+    ],
+    spawn: { weight: 8, minFloor: 1 },
+    threats: ['reach'],
+    behaviour: 'walk',
+    art: 'hive_drone',
+    flavour: 'A spitter\'s shell is thin as a wing: it keeps three paces behind the swarm, and spits at the weakest thing it sees.'
+  },
+  {
+    // The fae's blocker: it holds the road, and its lash takes the whole row it stands level with.
+    id: 'thornling',
+    name: 'Thornling',
+    kin: 'fae',
+    role: 'vanguard',
+    tier: 1,
+    base: { hp: 84, atk: 12, def: 8 },
+    growth: { hp: 10, atk: 1.6, def: 0.7 },
+    abilities: ['thorn_lash', 'strike'],
+    move: 2,
+    temper: TEMPERS.charger,
+    tracks: [
+      { id: 'hedgerow', name: 'Hedgerow', desc: 'A wall of thorns across the road.', tiers: [
+        { desc: '+20% max HP.', mods: [m('hp', 'mul', 1.2)] },
+        { desc: '+15% DEF.', mods: [m('def', 'mul', 1.15)] },
+        { desc: 'Learns Barkskin: Barkskin (+25% DEF) for itself and every ally within 2 tiles.', ability: { id: 'barkskin' } },
+        { desc: 'Bramble Wall (Colossus): every piece of the kind grows to 2×2, its blows reaching from all four tiles.', size: 2 }] },
+      { id: 'briar', name: 'Briar', desc: 'Thorns that bite deeper.', tiers: [
+        { desc: '+15% ATK.', mods: [m('atk', 'mul', 1.15)] },
+        { desc: '+10% ATK.', mods: [m('atk', 'mul', 1.1)] },
+        { desc: 'Strike becomes Rending Strike: 36 power, and leaves it Brittle.', ability: { id: 'rending_strike', replace: 'strike' } },
+        { desc: 'Thorn Lash becomes Briar Lash: it reaches 2 tiles, and leaves everyone level with its target Brittle.', ability: { id: 'briar_lash', replace: 'thorn_lash' } }] }
+    ],
+    spawn: { weight: 8, minFloor: 1 },
+    threats: ['shape'],
+    behaviour: 'walk',
+    art: 'thorn_dryad',
+    flavour: 'A thornling roots itself across the road like a hedge, and its thorns lash at everything that stands level with it.'
   },
   {
     // A fused kind (DESIGN §2.6): Tomb Knight ×2 + Bone Chanter. A 2×2 wall whose sweep strikes every foe next to
@@ -1732,6 +1861,62 @@ const ABILITY_LIST = [
     tint: '#d8d4cc',
     anim: 'melee_lunge',
     effects: [{ op: 'damage', power: 24 }]
+  },
+  // The floor-1 kinds of 2026-10-18: three shots three tiles long at one foe (frost_lance's shape), each its kind's
+  // basic, and the tiers that lengthen or sharpen them. Placeholders.
+  {
+    id: 'ember_spit',
+    name: 'Ember Spit',
+    shape: 'single',
+    range: 3,
+    tint: '#ff7a33',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 30 }]
+  },
+  {
+    id: 'brass_bolt',
+    name: 'Brass Bolt',
+    shape: 'single',
+    range: 3,
+    tint: '#c9a45c',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 30 }]
+  },
+  {
+    id: 'long_bolt',
+    name: 'Long Bolt',
+    shape: 'single',
+    range: 4,
+    tint: '#c9a45c',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 34 }]
+  },
+  {
+    id: 'piercing_bolt',
+    name: 'Piercing Bolt',
+    shape: 'column',
+    range: 4,
+    tint: '#c9a45c',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 30 }]
+  },
+  {
+    id: 'acid_spit',
+    name: 'Acid Spit',
+    shape: 'single',
+    range: 3,
+    tint: '#9bd14a',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 30 }]
+  },
+  {
+    id: 'venom_spit',
+    name: 'Venom Spit',
+    shape: 'single',
+    range: 3,
+    tint: '#9bd14a',
+    anim: 'ranged_bolt',
+    effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'withered' }]
   },
   {
     id: 'bile',

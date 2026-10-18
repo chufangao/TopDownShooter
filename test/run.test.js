@@ -84,10 +84,11 @@ test('a new run opens on the draft: the Monarch alone, the map drawn but closed,
   assert.ok(s.map && s.camp && s.at === s.map.start)
   assert.deepEqual(availableNodes(run), [])
   assert.deepEqual(legalActions(run), s.draft.offer.map((_, index) => ({ type: 'pick', index })))
-  // The pool is floor 1's: every kind its rooms can bring and no other, the old trio among them.
+  // The pool is floor 1's: every kind its rooms can bring and no other, the old trio's Chanter and Sprite among them,
+  // its Tomb Knight not (met from floor 2 since 2026-10-18, the user's word).
   const floor1 = new Set(Object.values(drawFloorKinds(40)))
   assert.deepEqual([...floor1].sort(), draftPool().slice().sort())
-  assert.ok(START_PARTY.every((id) => draftPool().includes(id)))
+  assert.deepEqual(START_PARTY.filter((id) => !draftPool().includes(id)), ['tomb_knight'])
   for (const bad of [{ type: 'node', id: s.map.nodes[1].id }, { type: 'pick', index: TUNING.draft.offer }, { type: 'pick', index: null }, { type: 'pick', index: '0' }, { type: 'fight' }]) {
     assert.throws(() => apply(run, bad), undefined, JSON.stringify(bad))
   }

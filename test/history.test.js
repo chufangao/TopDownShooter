@@ -39,9 +39,10 @@ test('a run\'s line: how it ended and where, its battles, its army and its kille
   assert.equal(e.fell.threat, fell.state.death.threat ?? null)
   assert.ok(e.room >= 1)
   assert.equal(e.monarch, undefined)
-  // Under way, it is a run left; cleared, a clear; fallen after a clear (in the deep), both. (hist-going-18: a seed whose
-  // run under basic wins a battle, to a reap; 'hist-going' until the draft of one soul, 2026-10-18, falls in its first.)
-  const going = played({ seed: 'hist-going-18' }, (r) => r.state.phase === 'reap')
+  // Under way, it is a run left; cleared, a clear; fallen after a clear (in the deep), both. (hist-going-25: a seed whose
+  // run under basic wins a battle, to a reap, found by search; 'hist-going' until the draft of one soul, 2026-10-18,
+  // falls in its first, and 'hist-going-18' until the floor-1 pool of the same day.)
+  const going = played({ seed: 'hist-going-25' }, (r) => r.state.phase === 'reap')
   assert.equal(going.state.phase, 'reap')
   assert.equal(recordOf(going).end, 'left')
   assert.equal(recordOf(going).fell, undefined)

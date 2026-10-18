@@ -23,13 +23,14 @@ import {
 import { createRng } from '../src/sim/rng.js'
 
 const L = LEVELS.expert
-// sim-130's expert drafts, then falls on floor 1 after ten battles: its recruits and a purchase labelled, a whole run in
-// about ten seconds; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run
+// sim-395's expert drafts, then falls on floor 1 after twelve battles: its recruits and a purchase labelled, a whole run
+// in about ten seconds; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run
 // clears, and labelling it to the end takes minutes; sim-395 until the fusion graph, whose lines run longer; sim-540
 // until the pool was flattened, 2026-10-15: its run clears; sim-10 until the Shop opened between battles (DESIGN Next,
 // Step 3), 2026-10-18: its run clears, labelling it takes ten minutes; sim-45 until the draft of one soul, 2026-10-18:
-// its run lives long.)
-const SEED = 'sim-130'
+// its run lives long; sim-130 until the floor-1 pool of 2026-10-18, the Tomb Knight to floor 2 and four kinds of tier
+// 1: it falls in its first battle; sim-395 again since, found by search, a run whose passer still walks past ten steps.)
+const SEED = 'sim-395'
 const CAP = 3
 
 // A phase's forest (outforest.json's shape) from trees given as nested nodes ({ f: an input's name, t: its threshold, l,
