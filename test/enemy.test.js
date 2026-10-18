@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
-  essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier
+  essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier, roomSize
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
@@ -137,8 +137,11 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
           }
           assert.ok(!g.some((f) => unitDef(f.id).boss), w)
           if (floor === 1) {
-            // No captains on floor 1: the formation is the foes drawn, no more.
-            assert.equal(g.length, k ? sp.late.n : at(elite ? sp.elite : sp.fight, floor), w)
+            // No captains on floor 1: the formation is the foes drawn, no more, a fight's first ranks as many as the
+            // opening says (roomSize), and those of the first openingTier ranks of tier 1 alone.
+            assert.equal(g.length, k ? sp.late.n : roomSize(floor, elite, 0, node.rank), w)
+            if (!elite) assert.equal(g.length, node.rank <= sp.opening.length ? sp.opening[node.rank - 1] : sp.fight[0], w)
+            if (!elite && node.rank <= sp.openingTier) assert.ok(g.every((f) => UNITS[f.id].tier === 1), `${w}: tier 1`)
             // The late pair comes from the floor's own pool: within its tier cap, and weighted to its tier.
             if (k) {
               const cap = Math.min(sp.tierMax, 1 + Math.floor((floor - 1) * sp.tierPerFloor)) + sp.tierOverCap
@@ -395,8 +398,8 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
   assert.deepEqual(b.events.at(-1), { beat: b.beat, type: 'battle:end', winner: 'party', reason: 'crumble' })
   // They pay as if slain (not the shadow): the court in the Sovereign's wave, the Wisp in the first.
   const pay = essenceByWave(b)
-  assert.equal(pay[2], foeEssence(sov) + foeEssence(unit(b, 51)))
-  assert.equal(pay[0], foeEssence(unit(b, 53)))
+  assert.equal(pay[2], foeEssence(sov, b.floor) + foeEssence(unit(b, 51), b.floor))
+  assert.equal(pay[0], foeEssence(unit(b, 53), b.floor))
   assert.equal(pay[1], 0)
 })
 

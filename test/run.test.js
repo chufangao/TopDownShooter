@@ -479,15 +479,27 @@ test('altar\'s heal heals everyone and raises the fallen', () => {
 
 // DESIGN §2.2: a piece that fell leaves the field as the battle ends: it lies fallen in the ossuary, its cell and its
 // Command free, and nothing fields it until an altar raises it. It still fuses and is released.
+// The first room given a full fight's foes, those of the floor's first fight past the opening (floor 1's first rooms
+// hold one foe since the first battle of 2026-10-18: TUNING.spawn.opening), for a test that needs a fight's dead.
+const fuller = (run) => { availableNodes(run)[0].foes = run.state.map.nodes.find((n) => n.type === 'fight' && n.rank > TUNING.spawn.opening.length).foes }
+
 test('a piece that falls in a won battle goes to the ossuary: its cell and Command free, never placed, until an altar raises it', () => {
   const won = (() => {
     for (let i = 0; i < 200; i++) {
+      // The fights of the floor walked in turn, as the log records them (floor 1's first rooms hold one foe since the
+      // first battle of 2026-10-18: TUNING.spawn.opening), to the first won one that felled a soul.
       const run = createRun({ start: START_PARTY, seed: 'fallen' + i })
-      apply(run, { type: 'node', id: availableNodes(run)[0].id })
-      fight(run)
-      if (run.state.phase === 'reap' && souls(run.state.party).some((u) => u.hp <= 0)) return run
+      for (let room = 0; room < 4; room++) {
+        const node = availableNodes(run).find((n) => n.type === 'fight')
+        if (!node) break
+        apply(run, { type: 'node', id: node.id })
+        fight(run)
+        if (run.state.phase !== 'reap') break
+        if (souls(run.state.party).some((u) => u.hp <= 0)) return run
+        apply(run, { type: 'reap', index: null })
+      }
     }
-    assert.fail('no seed felled a soul in a won first fight')
+    assert.fail('no seed felled a soul in a won fight')
   })()
   const s = won.state
   const u = souls(s.party).find((x) => x.hp <= 0)
@@ -615,7 +627,7 @@ test('a won elite pays its bonus on top of its foes\' pay, lays out no relic, an
   for (const floor of [1, 2]) {
     const run = win('elite-pay', (r) => { r.state.floor = floor }, 'elite')
     const s = run.state
-    const pay = run.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+    const pay = run.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u, floor), 0)
     assert.equal(eliteBonus(floor), Math.round(TUNING.essence.eliteBonus * floorPrice(floor)))
     assert.equal(s.stats.essence, Math.round(pay + eliteBonus(floor)), `floor ${floor}`)
     assert.equal(s.essence, TUNING.essence.start + s.stats.essence)
@@ -626,10 +638,10 @@ test('a won elite pays its bonus on top of its foes\' pay, lays out no relic, an
   }
   // A fight pays no bonus; Tithe Bowl's share counts the bonus too.
   const fight = win('elite-pay')
-  const paid = fight.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+  const paid = fight.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u, fight.battle.floor), 0)
   assert.equal(fight.state.stats.essence, Math.round(paid))
   const bowl = win('elite-pay', (r) => { r.state.relics = ['tithe_bowl'] }, 'elite')
-  const foes = bowl.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+  const foes = bowl.battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u, bowl.battle.floor), 0)
   assert.equal(bowl.state.stats.essence, Math.round((foes + eliteBonus(1)) * (1 + relicMod('tithe_bowl', 'essence.gain'))))
 })
 
@@ -950,6 +962,7 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
     const run = createRun({ start: START_PARTY, seed })
     run.state.relics = ['arise', 'arise']
     souls(run.state.party).slice(0, 2).forEach((u) => { u.relics = ['arise'] })
+    fuller(run)
     visit(run, 'fight')
     if (hp) {
       monarchOf(run.state).hp = hp
@@ -975,7 +988,7 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
   assert.ok(shadows.every((u) => u.uid >= first && u.uid < run.state.nextUid))
   // Only the room's own foes pay essence, not the shadows that rose, standing or fallen.
   const slain = run.battle.units.filter((u) => run.setup.foes.some((f) => f.uid === u.uid) && u.hp <= 0)
-  assert.equal(run.state.stats.essence, Math.round(slain.reduce((n, u) => n + foeEssence(u), 0)))
+  assert.equal(run.state.stats.essence, Math.round(slain.reduce((n, u) => n + foeEssence(u, run.battle.floor), 0)))
   assert.equal(run.state.nextUid, run.battle.nextUid)
   assert.ok(!run.state.party.some((u) => shadows.some((x) => x.uid === u.uid)))
   // A won fight where the Monarch, wounded coming in, was struck: it keeps its share of HP, then heals.
@@ -1187,11 +1200,17 @@ test('a tier\'s level heals a living soul by its gain and leaves a fallen one do
   assert.deepEqual([knight.hp, fallen.hp], [Math.max(10, Math.round(b2 * T.altarHeal)), Math.ceil(b2 * T.altarRevive)])
 }))
 
-test('a foe pays essence by its tier alone, whatever its level', () => {
+test('a foe pays essence by its tier alone, whatever its level: the floor\'s pay a tier, the last floor\'s past them', () => {
   const one = makeUnit('grave_ghoul', { lvl: 4 })
-  assert.equal(foeEssence(makeUnit('grave_ghoul', { lvl: 1 })), foeEssence(one))
-  assert.equal(foeEssence(one), TUNING.essence.perTier * UNITS.grave_ghoul.tier)
-  assert.equal(foeEssence(makeUnit('iron_golem', { lvl: 4 })), TUNING.essence.perTier * UNITS.iron_golem.tier)
+  const per = TUNING.essence.perTier
+  for (let floor = 1; floor <= per.length + 1; floor++) {
+    const pay = per[Math.min(floor, per.length) - 1]
+    assert.equal(foeEssence(makeUnit('grave_ghoul', { lvl: 1 }), floor), foeEssence(one, floor))
+    assert.equal(foeEssence(one, floor), pay * UNITS.grave_ghoul.tier)
+    assert.equal(foeEssence(makeUnit('iron_golem', { lvl: 4 }), floor), pay * UNITS.iron_golem.tier)
+  }
+  // A reader that names no floor reads the last floor's pay.
+  assert.equal(foeEssence(one), per.at(-1) * UNITS.grave_ghoul.tier)
 })
 
 test('every price grows by the floor: a tier, a recruit and a fusion cost their base × floorPrice, 1 on floor 1', () => {

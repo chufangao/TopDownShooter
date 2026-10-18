@@ -659,9 +659,11 @@ export const UNIT_LIST = [
     kin: 'construct',
     role: 'ranger',
     tier: 1,
-    base: { hp: 76, atk: 12, def: 10 },
+    base: { hp: 76, atk: 10, def: 10 },
     growth: { hp: 8, atk: 1.6, def: 0.9 },
     abilities: ['brass_bolt'],
+    // ATK 12 → 10 since the first battle (2026-10-18): the hardest of the four for a lone first soul to meet, a bolt
+    // from where it cannot be struck back; still the steadiest first soul of them.
     move: 1,
     temper: TEMPERS.shooter,
     tracks: [
@@ -688,7 +690,9 @@ export const UNIT_LIST = [
     kin: 'insect',
     role: 'ranger',
     tier: 1,
-    base: { hp: 46, atk: 14, def: 3 },
+    // HP 46 → 57 since the first battle (2026-10-18): a lone first soul of it lost two first battles in three; still
+    // the frailest of the three shooters (HP and HP × ATK under the Whelp's), its DEF the shell's.
+    base: { hp: 57, atk: 14, def: 3 },
     growth: { hp: 5, atk: 1.9, def: 0.3 },
     abilities: ['acid_spit'],
     move: 2,

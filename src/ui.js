@@ -7,7 +7,7 @@ import {
   availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, souls, isMonarch, monarchOf,
   reapedShadows, essenceByWave, canDescend, depthOf, OSSUARY, canAdvance, tierCost, canPlace, canFuse,
   fuseCost, fuseParts, relicCount, levelOf, kindLevel, floorPrice, swapWith, releaseRefund,
-  soulOffer, shopOffers, shelfFusions, canBuy, eliteBonus, runStat, unheld, canHold, isRunRelic, heldKinds, foeEssence, unhealed,
+  soulOffer, shopOffers, shelfFusions, canBuy, eliteBonus, runStat, unheld, canHold, isRunRelic, heldKinds, foeEssence, payPer, unhealed,
   transmuteOffer, canTransmute, ascensionOf, ascensionTop, priceScale
 } from './sim/run.js'
 import { RANKS, WIDTH } from './sim/map.js'
@@ -330,7 +330,7 @@ function essenceTip (run) {
     h('p', null, `${s.stats.essence} earned, ${s.stats.spent} spent this run · ${scale === 1 ? 'floor 1 prices' : `prices ×${+scale.toFixed(2)} floor 1's`}` +
       `${ascensionOf(s).price !== 1 ? `, ascension ${s.ascension}'s ×${+ascensionOf(s).price.toFixed(2)} among them` : ''}.`),
     next && h('p', null, `Cheapest tier now: ${unitDef(next.id).name}, ${tracksOf(next.id)[next.t].name} ${ROMAN[s.kinds[next.id].tracks[next.t]]}, for ${next.cost}${next.cost > s.essence ? ` (${next.cost - s.essence} short)` : ''}.`),
-    h('p', { class: 'dim' }, `A slain foe pays ${TUNING.essence.perTier} × its tier.`))
+    h('p', { class: 'dim' }, `A slain foe pays ${payPer(s.floor)} × its tier on this floor.`))
 }
 
 // A Legendary's tag, its words' initials ("Court of Bone" CB), small words skipped.
@@ -1683,7 +1683,7 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
   }, icon('soul', 18), ` The ${node.type === 'boss' ? 'boss' : 'elite'}'s bounty: `, h('b', null, `+${Math.round(eliteBonus(s.floor) * boost)}`), ' essence, on top of its foes\'.')
   // What the battle just won paid in all (run.js finishBattle: its slain, Hollow Court's shadows, an elite's bounty, ×
   // the relics' gain), and where a recruit would go.
-  const won = run.battle && Math.round((essenceByWave(run.battle).reduce((a, b) => a + b, 0) + shades.reduce((n, u) => n + foeEssence(u) * u.reap, 0) +
+  const won = run.battle && Math.round((essenceByWave(run.battle).reduce((a, b) => a + b, 0) + shades.reduce((n, u) => n + foeEssence(u, s.floor) * u.reap, 0) +
     (bounty ? eliteBonus(s.floor) : 0)) * boost)
   const ledeTip = () => {
     const f = fielded(souls(s.party)).length

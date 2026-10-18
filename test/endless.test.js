@@ -148,7 +148,7 @@ function legionReap () {
   assert.ok(b.units.some((u) => u.side === 'foe' && u.shadow && u.id === 'iron_golem' && u.hp <= 0), 'the golem rose against you, and fell')
   assert.ok(!run.state.offers.some((o) => o.type === 'soul' && o.id === 'iron_golem'))
   assert.ok(run.state.offers.some((o) => o.type === 'soul' && o.id === 'grave_ghoul'))
-  const paid = b.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+  const paid = b.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u, b.floor), 0)
   assert.equal(earned, Math.round(paid))
 }
 

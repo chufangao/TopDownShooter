@@ -17,6 +17,7 @@ import { on, scene } from './scene.js'
 import { teachRoutes, routeEndOf, routePick, routeAgreement, ROUTE_END_WEIGHTS } from '../src/sim/teach.js'
 import { record, routeModel, policy } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
+import { TUNING } from '../src/tuning.js'
 
 // A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp? }], `hp` the HP it stands at.
 const board = (units) => {
@@ -174,7 +175,9 @@ const deadlyChoice = () => {
   const [a, b] = start.next.map((id) => nodeOf(s.map, id))
   start.next = [a.id, b.id]
   a.type = 'elite'
-  a.foes = a.foes.map((f) => ({ ...f, lvl: 40 }))
+  // A full fight's foes (the floor's first past the opening), not the first room's: floor 1's first rooms hold one foe
+  // since the first battle of 2026-10-18 (TUNING.spawn.opening).
+  a.foes = s.map.nodes.find((n) => n.type === 'fight' && n.rank > TUNING.spawn.opening.length).foes.map((f) => ({ ...f, lvl: 40 }))
   delete a.waves
   b.type = 'altar'
   delete b.foes

@@ -372,7 +372,14 @@ export const TUNING = {
   // by tier, and prices growing by the floor, keep what a battle buys about level from floor to floor; the tier prices
   // are the fourth balance pass's (2026-10-10). start 52 since the draft of one soul (2026-10-18; was 20): the two
   // souls no longer drafted are bought instead, a tier or a relic before the first battle and a recruit after it.
-  essence: { start: 52, perTier: 3.5, perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
+  // perTier by floor (the entry for the floor a foe falls on, the last one's past them; run.js foeEssence) since the
+  // first battle (the user's word, 2026-10-18; and the user's ruling that day: no bonuses, the regular pay rebalanced): floor
+  // 1's 3.5 → 7, every foe of the floor alike, so the one soul's first two wins of one foe pay its first recruit (about
+  // 11 at level 2) and a floor of small rooms raises a retinue; floors 2–3 as they were. The purse a floor ends with,
+  // its boss's bounty in (the expert, 256 fresh runs, conf18, against HEAD): 136 → 162 on floor 1, 290 → 297 on floor
+  // 2, 203 → 228 at the clear; money still matters. Chosen at 7 over 9 and 12 (sel18: 85.9%, 89.5%, 90.2% clears with
+  // spawn's other numbers, floor 1's purse 162, 179, 203).
+  essence: { start: 52, perTier: [7, 3.5, 3.5], perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp more across a floor's ranks. A room draws its
   // kinds (run.js spawnPool) from those of tier at most tierOverCap above the floor's target tier (1 + (floor − 1) ×
   // tierPerFloor, rounded down, at most tierMax; an elite's eliteTier more), each by its spawn weight / (1 + its tiers
@@ -392,9 +399,23 @@ export const TUNING = {
   // wall of the Chanters' trine held to its kind). Floor 1's elite is 2 foes of the higher tier (and the late pair), so a
   // rule-of-thumb run dies on floor 1 and an expert rarely does. Floor 1's fights 3 → 2 foes since the draft of one soul
   // (2026-10-18; TUNING.draft): one soul and the Monarch meet the first rooms, and a fight of 2 is one they can win.
+  // The first battle (the user's word, 2026-10-18: "First battle is too hard"): a run's first rooms are sized to the
+  // soul it starts with instead. `opening`: a floor-1 fight of rank k counts opening[k − 1] foes where it has an entry
+  // (run.js roomSize; the ascension's `fight` on top), so 1, 1, then 2, and floor 1's fights after them 2 → 3 again,
+  // the recruits a battle offers and its pay restored once the retinue is two or three. `openingTier`: floor 1's fights
+  // of the first that many ranks draw from its tier-1 kinds alone (run.js drawRoom), a lone soul's first foe no Pyre
+  // Hound, Bone Chanter or Hive Warden. levelRamp by floor (foeLevel; was 2 on every floor): floor 1's 0, its foes level
+  // 1 to the boss, so the floor's last rooms, the Barrow Marshal's above all, meet a retinue of recruits. With
+  // essence.perTier's floor-1 pay, chosen one lever at a time on sel18 (256 runs, the expert, ascension 0, paired):
+  // HEAD 39.8% clears; the opening, 2 → 3 and the ramp 0 with the pay at 7, 85.9%; with openingTier and the Hive
+  // Spitter's and Brass Sentry's numbers (content.js; the Spitter's HP measured at 60 there, kept at 57, the frailest
+  // shooter still, and the same on the basic player's 1,024 runs) 90.2%; the basic player's first battle (1,024 runs,
+  // sel18b) 7% → 56%. Confirmed on 256 fresh seeds (conf18), paired against HEAD: the expert 41.0% → 87.9% clears (+128 −8), its
+  // first battle 75% → 100%, its floor-1 deaths 52.7% → 10.2%; the basic player's first battle 7.0% → 57.8% won
+  // (+131 −1), floor 2 reached 0 → 1.2%; the calculator (the novice's model) floor 2 reached 5.1% → 41.0%.
   spawn: {
-    levelPerFloor: 1, levelRamp: 2, tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
-    fight: [2, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1,
+    levelPerFloor: 1, levelRamp: [0, 2, 2], tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
+    fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1, opening: [1, 1, 2], openingTier: 1,
     // Steepest at the bottom, where the expert's army has grown most; floor 1 is the basic player's wall already.
     foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 2, 0.25], bossAtk: [1, 1.4, 0.4],
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an

@@ -332,7 +332,7 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   const run = createRun({ start: START_PARTY, seed: 'told' })
   const s = run.state
   const node = s.map.nodes.find((n) => n.type === 'fight')
-  const pay = [node.foes, ...(node.waves ?? []).map((w) => w.foes)].flat().reduce((n, f) => n + foeEssence(f), 0)
+  const pay = [node.foes, ...(node.waves ?? []).map((w) => w.foes)].flat().reduce((n, f) => n + foeEssence(f, s.floor), 0)
   const said = roomTip(run, node, { reachable: true }).textContent
   assert.ok(said.includes(`Win: +${Math.round(pay)} essence and a recruit: `), said)
   // Each kind on offer by name with its price: "A for 11, B for 22", or "A or B for 11 essence each".

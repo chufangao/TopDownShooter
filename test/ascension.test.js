@@ -123,7 +123,7 @@ test('a level\'s counts and waves: a fight\'s and an elite\'s foes × its row, i
   const rooms = run.state.map.nodes.filter((n) => n.foes && n.type !== 'boss')
   assert.ok(rooms.some((n) => n.type === 'fight') && rooms.some((n) => n.type === 'elite'))
   for (const n of rooms) {
-    assert.equal(n.foes.length, roomSize(1, n.type === 'elite', TOP), `${n.id} ${n.type}`)
+    assert.equal(n.foes.length, roomSize(1, n.type === 'elite', TOP, n.rank), `${n.id} ${n.type}`)
     if (n.type === 'elite') assert.deepEqual(n.waves.map((w) => w.foes.length), [sp.late.n])
   }
   assert.equal(run.state.map.nodes.find((n) => n.type === 'boss').foes.length, 1 + sp.court[0])

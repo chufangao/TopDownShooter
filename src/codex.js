@@ -666,7 +666,7 @@ export function roomGain (run, node) {
   const num = (v) => h('b', { class: 'num' }, v)
   if (node.foes && !clearsRun(s, node)) {
     const gain = runStat(s, 'essence.gain', 1)
-    const pay = Math.round(roomFoes(node).reduce((n, f) => n + foeEssence(f), 0) * gain)
+    const pay = Math.round(roomFoes(node).reduce((n, f) => n + foeEssence(f, s.floor), 0) * gain)
     const bounty = Math.round(bountyOf(s, node) * gain)
     const kinds = [...new Set(roomFoes(node).map((f) => f.id))].filter((id) => !unitDef(id).boss)
     return ['Win: ', num(`+${pay}`), ' essence', bounty > 0 && [', ', num(`+${bounty}`), ' bounty'],

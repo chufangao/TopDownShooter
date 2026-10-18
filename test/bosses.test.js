@@ -206,7 +206,7 @@ test('a run meets a boss a floor: a floor\'s boss won as an elite (its bounty, i
       assert.ok(d.floors.includes(r.floor) && !d.last, r.boss)
       assert.equal(r.phase, 'reap', 'its spoils')
       assert.ok(r.offers.length && !r.offers.some((id) => UNITS[id].boss), `floor ${r.floor}: ${r.offers}`)
-      const slain = r.battle.units.filter((u) => u.side === 'foe' && !u.shadow && !alive(u)).reduce((n, u) => n + foeEssence(u), 0)
+      const slain = r.battle.units.filter((u) => u.side === 'foe' && !u.shadow && !alive(u)).reduce((n, u) => n + foeEssence(u, r.floor), 0)
       assert.equal(r.earned, Math.round(slain + eliteBonus(r.floor)), `floor ${r.floor}: the bounty`)
     } else {
       assert.deepEqual([r.boss, r.phase], ['hollow_sovereign', 'over'])

@@ -921,7 +921,7 @@ class BattleScene extends Phaser.Scene {
     if (u.shadow) {
       const a = u.basic ?? u.mend
       const does = a ? `${a === u.basic ? 'strikes with' : 'mends with'} ${a.name} each turn` : 'acts on its own each turn'
-      const reap = u.reap > 0 ? Math.round(foeEssence(u) * u.reap * this.essence) : 0
+      const reap = u.reap > 0 ? Math.round(foeEssence(u, b.floor) * u.reap * this.essence) : 0
       return `${u.summoned ? summonedBy(b, u) : 'Shadow'}: ${does} · ${reap > 0 ? `+${reap} essence more if it stands at the win` : 'gone after the battle'}`
     }
     if (this.locked() || this.ending || !alive(u)) return null
@@ -945,7 +945,7 @@ class BattleScene extends Phaser.Scene {
     return {
       foes, slain, owed: Math.round(this.owed), gain: this.essence,
       bonus: this.args.elite ? Math.round(eliteBonus(b.floor) * this.essence) : 0,
-      court: court.length ? { n: court.length, essence: Math.round(court.reduce((n, u) => n + foeEssence(u) * u.reap, 0) * this.essence) } : null
+      court: court.length ? { n: court.length, essence: Math.round(court.reduce((n, u) => n + foeEssence(u, b.floor) * u.reap, 0) * this.essence) } : null
     }
   }
 
@@ -1976,7 +1976,7 @@ class BattleScene extends Phaser.Scene {
     const k = u?.wave ?? 0
     const w = this.waves[k]
     if (!w) return
-    w.paid += foeEssence(u) * this.essence
+    w.paid += foeEssence(u, this.battle.floor) * this.essence
     if (--w.left <= 0) this.wavePaid(k)
   }
 
@@ -2194,7 +2194,7 @@ class BattleScene extends Phaser.Scene {
     const u = this.units.get(a.uid)
     if (!u) return
     a.paid = true
-    a.worth = foeEssence(u) * this.essence
+    a.worth = foeEssence(u, this.battle.floor) * this.essence
     this.owed += a.worth
   }
 

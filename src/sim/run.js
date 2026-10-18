@@ -321,10 +321,12 @@ export const ascensionOf = (s) => TUNING.ascension[s.ascension ?? 0]
 // What every foe's HP and ATK are multiplied by in the run's battles (foeMods): its level's, × the harness's `scale`.
 export const foeScale = (s) => ({ hp: ascensionOf(s).foeHp * (s.scale ?? 1), atk: ascensionOf(s).foeAtk * (s.scale ?? 1) })
 // A formation's foes on `floor` (each wave's, the late pair and the cohorts aside: drawRoom), an elite's or a fight's, at
-// level `ascension`: TUNING.spawn's count × the level's, rounded.
-export const roomSize = (floor, elite, ascension = 0) => {
+// level `ascension`: TUNING.spawn's count × the level's, rounded. A floor-1 fight of rank `rank` within
+// TUNING.spawn.opening counts its entry there instead (a run's first rooms, sized to the one soul it starts with).
+export const roomSize = (floor, elite, ascension = 0, rank = null) => {
   const row = TUNING.ascension[ascension]
-  return Math.round(at(elite ? TUNING.spawn.elite : TUNING.spawn.fight, floor) * (elite ? row.elite : row.fight))
+  const open = !elite && floor === 1 && rank !== null ? TUNING.spawn.opening[rank - 1] : undefined
+  return Math.round((open ?? at(elite ? TUNING.spawn.elite : TUNING.spawn.fight, floor)) * (elite ? row.elite : row.fight))
 }
 // The turns between waves in the run's battles: TUNING.spawn.waves.every × the level's, rounded, at least 1 (turns.js
 // entryTurn; battleSetup carries it where it is not the base's).
@@ -1142,8 +1144,11 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
   const elite = node.type === 'elite'
   if (node.type === 'boss') boss ??= bossFor(seed, floor)?.id
   else boss = null
-  const pool = spawnPool(poolFloor(floor), elite ? sp.eliteTier : 0)
-  const n = Math.min(SLOTS, roomSize(floor, elite, ascension) + grow.count)
+  // Floor 1's fights of the first TUNING.spawn.openingTier ranks draw from its tier-1 kinds alone.
+  const drawn = spawnPool(poolFloor(floor), elite ? sp.eliteTier : 0)
+  const keep = !elite && !boss && floor === 1 && node.rank <= sp.openingTier ? (u) => u.tier === 1 : () => true
+  const pool = { units: drawn.units.filter(keep), weights: drawn.weights.filter((_, i) => keep(drawn.units[i])) }
+  const n = Math.min(SLOTS, roomSize(floor, elite, ascension, node.rank) + grow.count)
   const cohort = at(sp.cohort, floor) + grow.cohort
   // A fight's captains, from floor 2 (where cohorts come): the first of each wave's draws, from the pool a tier up.
   const lead = !elite && !boss && cohort > 0 ? Math.min(n, sp.captains.fight) : 0
@@ -1408,7 +1413,7 @@ function finishBattle (run) {
   // won elite or floor's boss pays its bounty on top (bountyOf), and what relics add to a battle's pay (`essence.gain`)
   // counts it too.
   const node = currentNode(run)
-  const court = reapedShadows(run).reduce((n, u) => n + foeEssence(u) * u.reap, 0)
+  const court = reapedShadows(run).reduce((n, u) => n + foeEssence(u, s.floor) * u.reap, 0)
   const earned = Math.round((battleEssence(b) + court + bountyOf(s, node)) * runStat(s, 'essence.gain', 1))
   s.essence += earned
   s.stats.essence += earned
@@ -1436,17 +1441,20 @@ export const bountyOf = (s, node) => (node.type === 'elite' || (node.type === 'b
 
 // ── progression: the retinue ─────────────────────────────────────────────────────────────────────
 
-// Every foe slain pays essence by its tier alone (perTier × tier), whatever its level; it all goes to one purse. Only real foes pay: a shadow (of either side) was paid for once already, as the corpse it rose from.
-export const foeEssence = (u) => TUNING.essence.perTier * unitDef(u.id).tier
+// Every foe slain pays essence by its tier alone (perTier × tier, perTier the entry for the floor it falls on: the
+// last entry's past them, and for a reader that names no floor), whatever its level; it all goes to one purse. Only real
+// foes pay: a shadow (of either side) was paid for once already, as the corpse it rose from.
+export const payPer = (floor = Infinity) => at(TUNING.essence.perTier, floor)
+export const foeEssence = (u, floor = Infinity) => payPer(floor) * unitDef(u.id).tier
 // What a won elite pays on top of its foes (TUNING.essence.eliteBonus × the floor's price scale), before the relics
 // that raise a battle's pay. It lays out no relic: relics are bought (redesign.md §2.11).
 export const eliteBonus = (floor) => Math.round(TUNING.essence.eliteBonus * floorPrice(floor))
-const battleEssence = (battle) => battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u), 0)
+const battleEssence = (battle) => battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u, battle.floor), 0)
 // What each foe wave of a battle paid (the formation's first), before relics: a siege pays wave by wave,
 // and a boss's crumbled court as if slain.
 export function essenceByWave (battle) {
   const out = battle.waveAt.map(() => 0)
-  for (const u of battle.units) if (u.side === 'foe' && !u.shadow && u.hp <= 0) out[u.wave ?? 0] = (out[u.wave ?? 0] ?? 0) + foeEssence(u)
+  for (const u of battle.units) if (u.side === 'foe' && !u.shadow && u.hp <= 0) out[u.wave ?? 0] = (out[u.wave ?? 0] ?? 0) + foeEssence(u, battle.floor)
   return Array.from(out, (v) => v ?? 0)
 }
 
@@ -1532,11 +1540,11 @@ function lanternSteps (s) {
 
 const at = (list, floor) => list[Math.min(floor, list.length) - 1]
 
-// Foes grow floor by floor and, across a floor, rank by rank: the floor's last room is `levelRamp`
+// Foes grow floor by floor and, across a floor, rank by rank: the floor's last room is `levelRamp` (the floor's entry)
 // levels above its first.
 export const foeLevel = (floor, rank = 1) => {
   const sp = TUNING.spawn
-  return Math.max(1, Math.round(1 + (floor - 1) * sp.levelPerFloor + sp.levelRamp * (rank - 1) / (RANKS - 2)))
+  return Math.max(1, Math.round(1 + (floor - 1) * sp.levelPerFloor + at(sp.levelRamp, floor) * (rank - 1) / (RANKS - 2)))
 }
 
 // Floors past the Sovereign's (TUNING.run.floors): 0 down to it, then 1, 2… An endless floor takes its
