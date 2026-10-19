@@ -4,7 +4,7 @@ import { TUNING } from '../tuning.js'
 import { unitDef, statusDef, animDef, abilityDef, relicDef, SYNERGIES, ROLES } from '../content.js'
 import {
   reach, targetsFrom, preview, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
-  lined, lineOf, lineStruck, stats, untouchedPreview
+  lined, lineOf, lineStruck, stats, intents
 } from '../sim/turns.js'
 import { foeEssence, eliteBonus } from '../sim/run.js'
 import { threatOf } from '../sim/foe.js'
@@ -20,7 +20,7 @@ import { RES, WALLS, WALL_FOOT, shadeTextures, artOf } from './textures.js'
 import { BAR, BAR_DROP, growthMarks } from './marks.js'
 import {
   TILE_W, TILE_H, HALF_W, HALF_H, posOf, posAt, BIG, HOVER, BOB, SHARE, tileUnder, offBoard, cellsBox, BOX, facesLeft, fitBox, ringBox,
-  lineOfFire, REACH, STUDY, inked, paintReach, envelope, dashedEllipse, actReach, drawGround
+  lineOfFire, REACH, STUDY, inked, paintReach, envelope, dashedEllipse, actReach, drawGround, dottedPath
 } from './geometry.js'
 import { STEP_MS, TimelinePlayer, tint } from './timeline.js'
 
@@ -77,7 +77,9 @@ export class BattleScene extends Phaser.Scene {
     this.paused = false
     this.playMs = 0
     this.sel = null
-    // A met foe tapped: its reach is drawn until the next tap elsewhere.
+    // A foe tapped: its intent drawn in full and the others' faint (focus), and, of a kind met, its reach (studied),
+    // until the next tap elsewhere.
+    this.focus = null
     this.studied = null
     this.waiting = false
     this.counts = { turn: this.battle.turn, next: nextWave(this.battle), wave: 1 }
@@ -148,6 +150,14 @@ export class BattleScene extends Phaser.Scene {
     this.lock = []
     this.pointer = null
     this.ghost = { tile: null, img: null }
+    // Each piece's intent if End Turn came now (drawIntents): the foes' walks, dotted, under the units (intentG), the
+    // lines to the struck over them (intentLines), the numbers (intentMarks) and the ghosts where the foes stop
+    // (intentGhosts); the reading itself (intent), made once a board.
+    this.intentG = this.add.graphics().setDepth(-385)
+    this.intentLines = this.add.graphics().setDepth(9590)
+    this.intentMarks = []
+    this.intentGhosts = []
+    this.intent = null
     // battle:start is already in battle.events; anything after it has not been played.
     this.player.enqueue(this.battle.events.slice(this.battle.events.indexOf(start) + 1))
     // A saved battle resumed: its orders play again at once, unheard and out of sight; the board fades in after.
@@ -175,6 +185,7 @@ export class BattleScene extends Phaser.Scene {
       canvas.removeEventListener('pointerleave', point)
       this.dropMarks()
       this.dropGhost()
+      this.dropIntents()
       if (this.resuming) { calm = !!motion?.matches; sfx.quiet = false }
       this.tweens.timeScale = 1
       this.args.onHover?.(null)
@@ -344,13 +355,12 @@ export class BattleScene extends Phaser.Scene {
 
   // End Turn's own part as it would play now: what each untouched piece of yours would do; `won`; null while busy.
   endInfo () {
-    if (this.locked() || this.ending) return null
     const b = this.battle
-    const p = untouchedPreview(b)
+    const p = this.intentsNow()
     if (!p) return null
     return {
-      won: p.over && p.winner === 'party',
-      acts: p.acts.map((x) => {
+      won: p.ended && p.winner === 'party',
+      acts: p.mine.map((x) => {
         const name = (uid) => (uid === x.uid ? 'itself' : unitDef(b.byUid.get(uid)?.id ?? x.id).name)
         const laid = (uid) => (x.statuses[uid] ?? []).map((s) => statusDef(s.id).name)
         const hit = Object.entries(x.hits).map(([uid, n]) => [+uid, n]).filter(([uid, n]) => n > 0 && b.byUid.get(uid)?.side === 'foe')
@@ -366,16 +376,14 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  // The lead line of a piece of yours' card: a shadow's way, or a piece's Move, skills and foes in reach; null while busy.
+  // The lead line of a piece of yours' card: a shadow's fate, or a piece's Move, skills and foes in reach; null while busy.
   pieceLine (uid) {
     const b = this.battle
     const u = b.byUid.get(uid)
     if (!u || u.side !== 'party' || u === b.monarch) return null
     if (u.shadow) {
-      const a = u.basic ?? u.mend
-      const does = a ? `${a === u.basic ? 'strikes with' : 'mends with'} ${a.name} each turn` : 'acts on its own each turn'
       const reap = u.reap > 0 ? Math.round(foeEssence(u, b.floor) * u.reap * this.essence) : 0
-      return `${u.summoned ? summonedBy(b, u) : 'Shadow'}: ${does} · ${reap > 0 ? `+${reap} essence more if it stands at the win` : 'gone after the battle'}`
+      return `${u.summoned ? summonedBy(b, u) : 'Shadow'}: ${reap > 0 ? `+${reap} essence if it stands at the win` : 'gone after the battle'}`
     }
     if (this.locked() || this.ending || !alive(u)) return null
     const skills = u.kit.filter((a) => isSkill(u, a)).map((a) => (u.cooldowns[a.id] > 0 ? `${a.name} ready in ${u.cooldowns[a.id]}` : `${a.name} ready`))
@@ -453,7 +461,7 @@ export class BattleScene extends Phaser.Scene {
     const width = BAR * u.hp / u.maxHp
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
     const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, side).setOrigin(0, 0.5)
-    // A piece of yours carries a pip a skill under its bars; the foes none (a foe's readiness would tell its coming turn).
+    // A piece of yours carries a pip a skill under its bars; the foes none (their coming turn is on the board: drawIntents).
     const skills = u.side === 'party' && !u.shadow && !crowned ? (whole.kit ?? []).filter((a) => isSkill(whole, a)).map((a) => a.id) : []
     const actor = {
       uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg,
@@ -551,9 +559,9 @@ export class BattleScene extends Phaser.Scene {
     const hits = this.unitsAt(w, tile)
     const s = this.sel
     const u = s && b.byUid.get(s.uid)
-    // A studied foe's reach goes with any tap; one on a met foe draws its own.
-    const studied = this.studied
-    this.studied = null
+    // A focused foe's intent and a studied one's reach go with any tap; one on a foe draws its own.
+    const was = this.focus
+    this.studied = this.focus = null
     if (u) {
       const t = hits.find((x) => s.targets.has(x.uid))
       if (t) return t.uid === s.aim ? this.commit() : this.aim(t.uid)
@@ -567,7 +575,7 @@ export class BattleScene extends Phaser.Scene {
     if (mine) return this.select(mine.uid === s?.uid ? null : mine.uid)
     const other = hits.find(alive)
     if (other) {
-      this.study(other, studied)
+      this.study(other, was)
       if (s) this.aim(null)
       else this.plan()
       return this.pressAt(x, y, other.uid)
@@ -575,10 +583,12 @@ export class BattleScene extends Phaser.Scene {
     this.select(null)
   }
 
-  // A foe of a kind met has its reach drawn until the next tap elsewhere or on it again (`was`: the one studied before).
+  // A foe tapped has its intent drawn in full (focus) and, of a kind met, its reach (studied), until the next tap
+  // elsewhere or on it again (`was`: the one focused before).
   study (u, was = null) {
-    const met = u?.side === 'foe' && (this.args.met?.(u.id) ?? false)
-    this.studied = met && was !== u.uid ? u.uid : null
+    const foe = u?.side === 'foe' && was !== u.uid
+    this.focus = foe ? u.uid : null
+    this.studied = foe && (this.args.met?.(u.id) ?? false) ? u.uid : null
   }
 
   // The units at a world point, as a tap reads it: the living first, then those under the point, then the nearest.
@@ -643,7 +653,7 @@ export class BattleScene extends Phaser.Scene {
     const g = this.planG.clear()
     this.shotG.clear()
     this.dropGhost()
-    if (this.locked()) return this.dropMarks()
+    if (this.locked()) { this.dropIntents(); return this.dropMarks() }
     const b = this.battle
     const s = this.sel
     const u = s && b.byUid.get(s.uid)
@@ -655,6 +665,7 @@ export class BattleScene extends Phaser.Scene {
     }
     for (const x of b.units) if (x !== u && orderable(b, x) && canAct(b, x)) ring(x, PARTY, 0.5, 2)
     this.drawStudy(g)
+    this.drawIntents()
     if (!this.sel) return
     const size = u.size ?? 1
     s.reach = u.acted ? new Map() : reach(b, u)
@@ -688,16 +699,7 @@ export class BattleScene extends Phaser.Scene {
       inked(g, REACH.line, colour, 0.5 * fade, (g) => envelope(g, [u.tile, ...s.reach.keys()], r, size, box))
     }
     if (at != null) {
-      const path = [foot(u), ...s.reach.get(at).map((t) => posAt(t, size))]
-      for (let i = 1, d = 12; i < path.length; i++) {
-        const [v, w] = [path[i - 1], path[i]]
-        const len = Math.hypot(w.x - v.x, w.y - v.y)
-        for (; d < len; d += 12) {
-          const [x, y] = [v.x + (w.x - v.x) * d / len, v.y + 4 + (w.y - v.y) * d / len]
-          g.fillStyle(INK, 0.4).fillCircle(x, y, 3.8).fillStyle(0xffffff, 0.55).fillCircle(x, y, 2.5)
-        }
-        d -= len
-      }
+      dottedPath(g, [foot(u), ...s.reach.get(at).map((t) => posAt(t, size))], 0xffffff, 0.55, 0.4)
       ring(u, 0xffffff, 0.45, 2, 0, spot(u))
       this.ghost = { tile: at, img: this.ghostOf(u, at) }
     }
@@ -763,18 +765,93 @@ export class BattleScene extends Phaser.Scene {
     })
     // Its road within its Move: dots from its feet, a dashed ring on the farthest it could come.
     const pts = move.map((t) => posAt(t, u.size ?? 1))
-    for (let i = 1, d = 12; i < pts.length; i++) {
-      const [v, w] = [pts[i - 1], pts[i]]
-      const len = Math.hypot(w.x - v.x, w.y - v.y)
-      for (; d < len; d += 12) {
-        const [x, y] = [v.x + (w.x - v.x) * d / len, v.y + 4 + (w.y - v.y) * d / len]
-        g.fillStyle(INK, 0.45).fillCircle(x, y, 3.8).fillStyle(FOE, 0.95).fillCircle(x, y, 2.5)
-      }
-      d -= len
-    }
+    dottedPath(g, pts, FOE, 0.95)
     const p = pts[0]
     inked(g, 3, FOE, 0.95, (g) => g.strokeEllipse(p.x, p.y + 4, 62, 20))
     if (pts.length > 1) inked(g, 2.5, FOE, 0.85, (g) => dashedEllipse(g, pts.at(-1).x, pts.at(-1).y + 4, 58, 18))
+  }
+
+  // If End Turn came now, what each piece does (turns.js intents), read once a board: an order makes a new one.
+  intentsNow () {
+    const b = this.battle
+    if (this.locked() || this.ending) return null
+    const key = `${b.turn}|${b.events.length}`
+    if (this.intent?.key !== key) this.intent = { key, data: intents(b) }
+    return this.intent.data
+  }
+
+  // Each piece's intent on the board, if End Turn came now (intentsNow): a foe's walk, dotted, to a ghost where it
+  // stops, and from there its line to the piece it strikes, the damage over the struck (FALLS where it fells, SCREENED
+  // over the one aimed at past a screen), a heal's number in green, HOLDS over one that does nothing; each of yours
+  // left untouched the same from where it stands, but the selected one, whose act is being chosen. A tapped foe's
+  // (focus) in full and the rest faint while one is.
+  drawIntents () {
+    this.dropIntents()
+    const c = this.intentsNow()
+    if (!c) return
+    const b = this.battle
+    const sel = this.sel?.uid ?? null
+    const f = this.focus != null ? b.byUid.get(this.focus) : null
+    const dim = f && alive(f) ? 0.35 : 1
+    for (const x of c.mine) if (x.uid !== sel) this.intentOf(x, 'party', dim)
+    for (const x of c.theirs) this.intentOf(x, 'foe', x.uid === this.focus ? 1 : dim)
+  }
+
+  // One piece's intent (drawIntents), the whole of it at `alpha`.
+  intentOf (x, side, alpha) {
+    const b = this.battle
+    const u = b.byUid.get(x.uid)
+    const a = this.actors.get(x.uid)
+    if (!u || !a || a.gone) return
+    const theirs = side === 'foe'
+    const colour = theirs ? FOE : PARTY
+    const g = this.intentG
+    const size = u.size ?? 1
+    const k = size > 1 ? BIG : 1
+    const label = (uid, text, col, px = 12) => this.mark(uid, text, col, px, this.intentMarks, alpha)
+    let feet = posAt(u.tile, size)
+    if (x.to != null && x.to !== u.tile) {
+      dottedPath(g, [feet, ...x.path.map((t) => posAt(t, size))], colour, 0.95 * alpha)
+      feet = posAt(x.to, size)
+      const img = this.ghostOf(u, x.to, 0.35 * alpha)
+      if (img) this.intentGhosts.push(img)
+      inked(g, 2.5, colour, 0.85 * alpha, (g) => dashedEllipse(g, feet.x, feet.y + 4, 58 * k, 18 * k))
+    }
+    if (x.hexed) label(x.uid, 'HEXED', '#c9a6ff', 11)
+    if (!x.ability) {
+      if (x.holds) label(x.uid, 'HOLDS', '#8e8e9e', 11)
+      return
+    }
+    const def = abilityDef(x.ability)
+    const struck = x.struck ?? x.target
+    const to = struck != null ? this.chestOf(struck) : null
+    if (to) lineOfFire(this.intentLines, { x: feet.x, y: feet.y - a.chest }, to, x.struck !== x.target ? this.chestOf(x.target) : null, isBlow(def) ? colour : BOON, this.cameras.main.zoom, 0.8 * alpha)
+    if (x.struck != null && x.struck !== x.target) label(x.target, 'SCREENED', '#d8d0ff', 11)
+    const fell = new Set([...x.falls, ...x.lost])
+    const dmg = theirs ? '#ff9aaa' : '#cfe3ff'
+    const big = (uid) => (uid === this.monarch && fell.has(uid) ? 16 : 12)
+    const n = this.intentMarks.length
+    for (const [uid, d] of Object.entries(x.hits)) if (d > 0 && +uid !== x.uid) label(+uid, `−${d}${fell.has(+uid) ? ' · FALLS' : ''}`, fell.has(+uid) ? '#ff8a9a' : dmg, big(+uid))
+    for (const uid of fell) if (!(x.hits[uid] > 0) && uid !== x.uid) label(uid, 'FALLS', '#ff8a9a', big(uid))
+    for (const [uid, m] of Object.entries(x.heals)) if (m > 0) label(+uid, `+${m}`, '#7be0a0')
+    for (const [uid, list] of Object.entries(x.statuses)) {
+      for (const st of list) {
+        const d = statusDef(st.id)
+        label(+uid, `${d.name.toUpperCase()}${st.stacks > 1 ? ` ×${st.stacks}` : ''}${st.dur === 'battle' ? '' : ` ${st.dur}T`}`, d.tags.includes('debuff') ? C.foe : C.synergy, 11)
+      }
+    }
+    // An act with nothing to show (a cooldown's, a raise): its name over its target.
+    if (this.intentMarks.length === n && struck != null) label(struck, def.name.toUpperCase(), '#d8d0ff', 11)
+    if (x.counter > 0) label(x.uid, `↩ −${x.counter}${fell.has(x.uid) ? ' · FALLS' : ''}`, '#ffb27a')
+    else if (fell.has(x.uid)) label(x.uid, 'FALLS', '#ff8a9a')
+  }
+
+  dropIntents () {
+    for (const t of [...this.intentMarks, ...this.intentGhosts]) t.destroy()
+    this.intentMarks = []
+    this.intentGhosts = []
+    this.intentG.clear()
+    this.intentLines.clear()
   }
 
   // Where a click at the mouse would move the selected piece; null off its Move tiles, on a target or Undo's, by touch.
@@ -797,11 +874,11 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // The selected piece's ghost standing on anchor `at` (plan): its picture, faint, with no bars.
-  ghostOf (u, at) {
+  ghostOf (u, at, alpha = 0.4) {
     const a = this.actors.get(u.uid)
     if (!a) return null
     const p = posAt(at, a.fp)
-    const img = this.add.image(p.x, p.y, `${a.skin}:${a.art}:alive`).setFlipX(a.sprite.flipX).setScale(a.scale).setAlpha(0.4).setDepth(p.y - 0.5)
+    const img = this.add.image(p.x, p.y, `${a.skin}:${a.art}:alive`).setFlipX(a.sprite.flipX).setScale(a.scale).setAlpha(alpha).setDepth(p.y - 0.5)
     return img.setOrigin(0.5, FEET + a.fly / img.displayHeight)
   }
 
@@ -897,15 +974,16 @@ export class BattleScene extends Phaser.Scene {
     return { line, hit: lineStruck(b, u, a, target).uid, aim: uid }
   }
 
-  // A preview's number over a unit, held until the aim changes; a second over the same unit stands over the first.
-  mark (uid, text, colour, size = 15) {
+  // A number or a word over a unit, held in `list` (the aim's marks, or the intents') until that list is dropped; a
+  // second over the same unit, from either list, stands over the first.
+  mark (uid, text, colour, size = 15, list = this.aimMarks, alpha = 1) {
     const a = this.actors.get(uid)
     if (!a) return
     const z = this.cameras.main.zoom
-    const under = this.aimMarks.filter((m) => m.getData('uid') === uid).reduce((y, m) => Math.min(y, m.y - m.displayHeight + 2), Infinity)
+    const under = [...this.aimMarks, ...this.intentMarks].filter((m) => m.getData('uid') === uid).reduce((y, m) => Math.min(y, m.y - m.displayHeight + 2), Infinity)
     const y = Math.min(a.sprite.y - a.chest - a.hover - 24, under)
-    const t = this.text(a.vx ?? a.sprite.x, y, text, labelSize(size, z, 'num'), colour, 4).setOrigin(0.5, 1).setDepth(9700)
-    this.aimMarks.push(t.setData('uid', uid))
+    const t = this.text(a.vx ?? a.sprite.x, y, text, labelSize(size, z, 'num'), colour, 4).setOrigin(0.5, 1).setDepth(list === this.aimMarks ? 9700 : 9690).setAlpha(alpha)
+    list.push(t.setData('uid', uid))
   }
 
   // The aimed target's lock-on: brackets closing on its tile, a ripple from its feet, a ticked badge; no ripple if reduced.
@@ -976,7 +1054,7 @@ export class BattleScene extends Phaser.Scene {
   // End Turn: the untouched act, the foes take their turn, and it all plays back.
   endTurn () {
     if (this.locked() || this.paused) return
-    this.studied = null
+    this.studied = this.focus = null
     this.select(null)
     this.send({ type: 'end' })
   }
@@ -1008,6 +1086,7 @@ export class BattleScene extends Phaser.Scene {
     }
     this.dropMarks()
     this.dropGhost()
+    this.dropIntents()
     if (this.sel) { this.sel.aim = null; this.sel.shot = null }
     this.planG.clear()
     this.shotG.clear()
@@ -1861,6 +1940,7 @@ export class BattleScene extends Phaser.Scene {
     // No piece takes orders now: the panel says the battle is over.
     this.sel = null
     this.dropMarks()
+    this.dropIntents()
     this.setPaused(false)
     this.ending = true
     this.changed()

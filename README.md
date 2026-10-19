@@ -64,9 +64,14 @@ Landed on 2026-10-18: fusing out of battle alone; the elements (two statuses, si
 - Everything bought is a trade on one shelf, in words: a tier, a relic, a fusion, a recruit. The Shop as the one screen for them (the soul's panel its filter, the spoils and the altar its modes) is the next step; the rules are in.
 - Reversed: "a tier is the kind's" (2026-10-10). Kept: relics held one a soul, the trines' own tracks (content), Arise a holder's skill, fusion a recipe, tier-V placement cancelled. The expert, its forest and the combo book were fit on per-kind tiers: the refit follows.
 
+## Decisions of 2026-10-19 (the user's word): intents on the board
+
+- Every unit's exact intent is drawn in battle, if End Turn came now: each foe's walk (dots down its road to a faint ghost where it stops), whom it strikes from there (a line, the damage over the struck, FALLS, SCREENED past a screen), a heal's number, HOLDS for one that does nothing, HEXED for a lost act; each of yours left untouched the same, but the selected one. Read on a fork of the sim (`turns.js intents`, the End Turn card's `untouchedPreview` its first half), so it is exact for the board as it stands and changes with every order. Tapping a foe draws its intent in full and the rest faint (and, of a kind met, its whole reach as before).
+- Reverses "enemy behaviour is discovered, never previewed" (2026-10-05). A kind's reach and way are still learned by meeting it.
+
 ## Standing rules
 
-- Enemy behaviour is discovered, never previewed. Defeat is absolute. Floor 1 is hard at the top of the ladder, winnable at its foot.
+- Every piece's intent is on the board, exactly, as the board stands (2026-10-19); what a kind could do is learned by meeting it. Defeat is absolute. Floor 1 is hard at the top of the ladder, winnable at its foot.
 - One soul is one piece. Growth is a soul's own. A fusion is never weaker in power than its parts. Money always matters.
 - Content is data; code grows only when the vocabulary grows. Balance once, at the end.
 - Measure with the right instrument, pair by seed, never keep a change on the seeds it was chosen on.

@@ -1084,57 +1084,104 @@ function endTurn (battle) {
   battle.phase = 'orders'
 }
 
-// Every piece of yours given no act acts as the untouched do, in acting order (one risen meanwhile too); `each(u, from)`
-// hears of each after it acts, `from` the index of its first event.
-function untouchedAll (battle, each = null) {
+// Every piece of yours given no act acts as the untouched do, in acting order (one risen meanwhile too).
+function untouchedAll (battle) {
   for (let i = 0; i < battle.units.length && !battle.over; i++) {
     const u = battle.units[i]
     if (u.side !== 'party' || !alive(u) || u.acted || u === battle.monarch) continue
-    const from = battle.events.length
     untouched(battle, u)
     moveMoment(battle, u)
-    each?.(u, from)
   }
 }
 
-// What End Turn's untouched pass would do now, played on a fork, for the End Turn button's card: { acts: [{ uid, id,
-// shadow, hexed, ability, target, struck, hits, missed, heals, statuses, falls, counter, lost }], over, winner }, one
-// per piece that would act; never the foes' turn. Null while no orders are taken.
-export function untouchedPreview (battle) {
+// If End Turn came now, what each piece does, played on a fork and read a piece at a time: `mine`, each of yours left
+// untouched in acting order (one that would do nothing too, and one risen meanwhile); `theirs`, each foe in its turn's
+// order, then those that hold. An act: { uid, id, shadow, from, to, path (a foe's walk, null for none), hexed (its act
+// lost), ability, target, struck (whom it lands on: a screen on the line, a Bodyguard), hits, missed, heals, statuses
+// (laid, by uid), falls (the other side's fallen to it), counter (what it takes back: a counter's blow, an Overwatch's
+// on its walk), lost (its own side's fallen to it, itself too), holds (a foe that neither walks nor acts) }. `ended`:
+// the untouched pass alone ends the battle; `over`, `winner`: the whole turn's. Null while no orders are taken.
+export function intents (battle) {
   if (battle.over || battle.phase !== 'orders') return null
   const f = fork(battle, { quiet: false })
-  f.phase = 'resolving'
-  f.beat++
-  const acts = []
-  untouchedAll(f, (u, from) => {
-    const out = { uid: u.uid, id: u.id, shadow: !!u.shadow, hexed: false, ability: null, target: null, struck: null, hits: {}, missed: [], heals: {}, statuses: {}, falls: [], counter: 0, lost: [] }
-    const events = f.events.slice(from)
-    let answered = false
-    for (const e of events) {
-      if (e.type === 'hexed' && e.target === u.uid) out.hexed = true
-      else if (e.type === 'action' && e.counter) answered = true
-      // Its move's moment comes once its act is over, a counter's answer too (moveMoment): what it does is the piece's.
-      else if (e.type === 'trigger' && e.on === 'move' && e.unit === u.uid) answered = false
-      else if (e.type === 'action' && e.actor === u.uid && out.ability === null) {
-        out.ability = e.ability
-        out.target = e.primary ?? null
-        out.struck = e.struck ?? e.primary ?? null
-      } else if (e.type === 'damage' && !e.status) {
-        if (!answered) out.hits[e.target] = (out.hits[e.target] ?? 0) + e.damage
-        else if (e.target === u.uid) out.counter += e.damage
-      } else if (e.type === 'miss' && !answered) out.missed.push(e.target)
-      else if (e.type === 'heal' && !answered) out.heals[e.target] = (out.heals[e.target] ?? 0) + e.heal
-      else if (e.type === 'death') (f.byUid.get(e.target)?.side === u.side ? out.lost : out.falls).push(e.target)
-    }
-    out.statuses = laid(f, events)
-    acts.push(out)
-  })
-  // One lifted again where it fell (Undying) has not fallen.
-  for (const x of acts) {
-    x.falls = [...new Set(x.falls)].filter((uid) => !alive(f.byUid.get(uid)))
-    x.lost = [...new Set(x.lost)].filter((uid) => !alive(f.byUid.get(uid)))
+  order(f, { type: 'end' })
+  const ev = f.events
+  const at = (stage) => ev.findIndex((e) => e.type === 'stage' && e.stage === stage)
+  const foes = at('foes')
+  const end = at('end')
+  const untouched = ev.slice(0, foes < 0 ? (end < 0 ? ev.length : end) : foes)
+  const theirs = foes < 0 ? [] : ev.slice(foes, end < 0 ? ev.length : end)
+  const acted = readActs(f, untouched, 'party')
+  // Yours in acting order, one with nothing to do an empty act; the risen that acted after them.
+  const mine = []
+  for (const u of battle.units) {
+    if (u.side !== 'party' || !alive(u) || u.acted || u === battle.monarch) continue
+    mine.push(acted.find((x) => x.uid === u.uid) ?? blank(u))
   }
-  return { acts, over: f.over, winner: f.winner }
+  for (const x of acted) if (!battle.byUid.has(x.uid)) mine.push(x)
+  const out = readActs(f, theirs, 'foe')
+  // A foe standing as its turn came that neither walked nor acted holds.
+  if (foes >= 0) {
+    const fell = new Set(untouched.filter((e) => e.type === 'death').map((e) => e.target))
+    for (const u of battle.units) {
+      if (u.side !== 'foe' || !alive(u) || fell.has(u.uid) || out.some((x) => x.uid === u.uid)) continue
+      out.push({ ...blank(u), holds: true })
+    }
+  }
+  return { mine, theirs: out, ended: foes < 0 && f.over, over: f.over, winner: f.winner }
+}
+
+const blank = (u) => ({ uid: u.uid, id: u.id, shadow: !!u.shadow, from: null, to: null, path: null, hexed: false, ability: null, target: null, struck: null, hits: {}, missed: [], heals: {}, statuses: {}, falls: [], counter: 0, lost: [], holds: false })
+
+// The acts of `side` in `events`, one a piece: a piece's begins at its walk, its lost act or its act, and runs to the
+// next piece's. An answer (a counter, an Overwatch) is what the piece takes, not what it does: its damage on the piece
+// counts to `counter`; the piece's own move's moment (moveMoment, once its act and any answer are over) is its own again.
+function readActs (f, events, side) {
+  const acts = []
+  let cur = null
+  let answered = false
+  for (const e of events) {
+    const uid = e.type === 'hexed' ? e.target : e.actor
+    const begins = (e.type === 'move' || e.type === 'hexed' || (e.type === 'action' && !e.counter && !e.rule)) && f.byUid.get(uid)?.side === side
+    if (begins && (!cur || cur.uid !== uid)) {
+      cur = { ...blank(f.byUid.get(uid)), events: [] }
+      acts.push(cur)
+      answered = false
+    }
+    if (!cur) continue
+    cur.events.push(e)
+    if (e.type === 'hexed' && e.target === cur.uid) cur.hexed = true
+    else if (e.type === 'move' && e.actor === cur.uid) [cur.from, cur.to, cur.path] = [e.from, e.to, e.path]
+    else if (e.type === 'action') {
+      if (e.actor !== cur.uid || e.counter) answered = true
+      else {
+        answered = false
+        if (cur.ability === null) [cur.ability, cur.target, cur.struck] = [e.ability, e.primary ?? null, e.struck ?? e.primary ?? null]
+      }
+    } else if (e.type === 'trigger' && e.on === 'move' && e.unit === cur.uid) answered = false
+    else if (e.type === 'damage' && !e.status) {
+      if (!answered) cur.hits[e.target] = (cur.hits[e.target] ?? 0) + e.damage
+      else if (e.target === cur.uid) cur.counter += e.damage
+    } else if (e.type === 'miss' && !answered) cur.missed.push(e.target)
+    else if (e.type === 'heal' && !answered) cur.heals[e.target] = (cur.heals[e.target] ?? 0) + e.heal
+    else if (e.type === 'death') (f.byUid.get(e.target)?.side === side ? cur.lost : cur.falls).push(e.target)
+  }
+  for (const x of acts) {
+    // One lifted again where it fell (Undying) has not fallen.
+    const lifted = (uid) => x.events.some((e) => e.type === 'rise' && e.target === uid)
+    x.falls = [...new Set(x.falls)].filter((uid) => !lifted(uid))
+    x.lost = [...new Set(x.lost)].filter((uid) => !lifted(uid))
+    x.statuses = laid(f, x.events)
+    delete x.events
+  }
+  return acts
+}
+
+// What End Turn's untouched pass would do now (intents' `mine`), for the End Turn button's card: { acts, over, winner },
+// `over` and `winner` the untouched pass's alone (the last foe falling in it). Null while no orders are taken.
+export function untouchedPreview (battle) {
+  const c = intents(battle)
+  return c && { acts: c.mine, over: c.ended, winner: c.ended ? c.winner : null }
 }
 
 // The statuses `events` lay (none a boss's phase grants), as each holder wears them in `f` now: { uid: [{ id, dur,

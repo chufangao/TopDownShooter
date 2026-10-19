@@ -89,6 +89,20 @@ export function lineOfFire (g, from, to, past, colour, zoom, alpha = 1) {
   }
 }
 
+// Dots along `pts` (world points, feet), `step` apart, on the ground (4 px under the feet): a dot of `colour` at `alpha`
+// on a dot of ink at `ink`. A walk's, a road's.
+export function dottedPath (g, pts, colour, alpha = 1, ink = 0.45, step = 12) {
+  for (let i = 1, d = step; i < pts.length; i++) {
+    const [v, w] = [pts[i - 1], pts[i]]
+    const len = Math.hypot(w.x - v.x, w.y - v.y)
+    for (; d < len; d += step) {
+      const [x, y] = [v.x + (w.x - v.x) * d / len, v.y + 4 + (w.y - v.y) * d / len]
+      g.fillStyle(INK, ink).fillCircle(x, y, 3.8).fillStyle(colour, alpha).fillCircle(x, y, 2.5)
+    }
+    d -= len
+  }
+}
+
 // A reach's look: a rounded box round the piece, faintly filled and edged in its act's colour; what a move first adds,
 // a dashed line on a grid fixed to the board. Every line stands on a wider stroke of ink (INKED), as the art's outlines.
 export const REACH = { pad: 4, round: 12, fill: 0.06, line: 2, alpha: 0.85 }

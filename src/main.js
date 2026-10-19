@@ -602,10 +602,10 @@ async function fight ({ resume = false } = {}) {
         turn,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : u.summoned ? `${summonedBy(battle, u)}: falls with it` : 'Grave Tide shadow: falls with the Sovereign')
           : u.summoned ? `${summonedBy(battle, u)}: gone after the battle`
-            : u.reap > 0 ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: acts on its own each turn, gone after the battle'),
+            : u.reap > 0 ? 'Shadow: Hollow Court reaps it if it stands' : 'Shadow: gone after the battle'),
         u.rose && 'Risen by Undying: its next fall is final',
         arise && `Arise: corpses within ${arise.domain} tiles, tier ≤ ${arise.tier}`,
-        u.flies && 'Flying: only a ranged blow (or a flyer\'s melee) can strike it',
+        u.flies && 'Flying: ranged blows and flyers alone reach it',
         foe && u.wave && `Came with wave ${u.wave + 1}`].find(Boolean) || null
       const realm = { arise: (x) => (x.kit ? ariseOf(battle, x) : null) }
       const tip = pin ? pinTip : showTip

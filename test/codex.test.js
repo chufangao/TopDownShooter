@@ -339,7 +339,7 @@ test('a kind with a blow that keeps to its line says so; a lobbed blow says it i
 
 // The tooltips out of battle tell the run's own numbers, not the design: what a room pays or mends now, what one more
 // copy of a run relic makes of the run, what a soul does when left alone.
-test('a room\'s tip tells its pay and recruit prices, an altar what it would mend now; a run relic one more copy; a soul its basic left alone', async () => {
+test('a room\'s tip tells its pay and recruit prices, an altar what it would mend now; a run relic one more copy; a soul its Move and reach alone', async () => {
   const { roomGain } = await import('../src/codex.js')
   const { foeEssence, commandOf, monarchOf, soulOffer } = await import('../src/sim/run.js')
   const { abilitiesOf } = await import('../src/sim/unit.js')
@@ -367,7 +367,9 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   assert.ok(relicTip('wyrm_standard', run).textContent.includes('×1 owned: every Drake\'s ATK ×1 → ×1.25 · one more: every Drake\'s ATK ×1.25 → ×1.56'), relicTip('wyrm_standard', run).textContent)
   assert.ok(relicTip('bone_horn', run).textContent.includes('every soul\'s HP ×1 → ×0.9'), relicTip('bone_horn', run).textContent)
   assert.ok(relicTip('hive_standard', run).textContent.includes('One more: every Insect\'s Move +0 → +1'), relicTip('hive_standard', run).textContent)
-  for (const u of souls(s.party)) assert.ok(reachRule(u).includes(`it uses ${basicOf(abilitiesOf(u).map(abilityDef)).name}`), reachRule(u))
+  // A soul's rule is its Move and reach alone: what it does left alone is on the board (the intents), never on its card.
+  for (const u of souls(s.party)) assert.match(reachRule(u), /^Moves up to \d+ tiles, then acts once; its blows reach \d+ tiles?\./, reachRule(u))
+  for (const u of souls(s.party)) assert.ok(!/left alone|it uses/i.test(reachRule(u)), reachRule(u))
 })
 
 // The threat meter counts a summon as a whole one of the kind it is, at the root of a summon's share of HP: a kind's own

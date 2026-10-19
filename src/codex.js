@@ -114,7 +114,7 @@ export function abilityBlocks (u, st, realm = null) {
 // `arise`: Arise's { domain, tier }; `flies`: the piece flies. For the act buttons' cards.
 export function actText (a, st, { range, arise = null, flies = false } = {}) {
   const tiles = (r) => `${r} tile${r === 1 ? '' : 's'}`
-  if (a.shape === 'corpse') return [h('p', null, `Raises one fallen foe of tier ${arise.tier} or lower within ${tiles(arise.domain)} as your `, kw('shadow'), ', for the rest of the battle.')]
+  if (a.shape === 'corpse') return [h('p', null, `Raises one fallen foe of tier ${arise.tier} or lower within ${tiles(arise.domain)} as your `, kw('shadow'), '.')]
   const far = Number.isFinite(range)
   const where = a.melee && range === 1 ? 'beside it' : far ? `within ${tiles(range)}` : 'anywhere on the board'
   const blow = isBlow(a)
@@ -127,7 +127,7 @@ export function actText (a, st, { range, arise = null, flies = false } = {}) {
   const them = a.shape === 'self' ? 'itself' : many ? 'them' : 'it'
   const lines = []
   for (const e of a.effects) {
-    if (e.op === 'damage') lines.push([`Hits ${who}${who.includes(',') ? ',' : ''} for `, h('b', null, `≈${est(e.power)}`), `${many ? ' each' : ''}, less the target's DEF.`])
+    if (e.op === 'damage') lines.push([`Hits ${who}${who.includes(',') ? ',' : ''} for `, h('b', null, `≈${est(e.power)}`), `${many ? ' each' : ''}.`])
     else if (e.op === 'heal' && e.self) lines.push(['Heals itself ', h('b', null, `≈${Math.round(est(e.power) * st.heal.given)}`), ' HP.'])
     else if (e.op === 'heal') lines.push([`Heals ${lines.length ? them : who} for `, h('b', null, `≈${Math.round(est(e.power) * st.heal.given)}`), ' HP.'])
     else if (e.op === 'apply_status') {
@@ -142,9 +142,8 @@ export function actText (a, st, { range, arise = null, flies = false } = {}) {
   }
   if (!lines.length) lines.push([`Acts on ${who}.`])
   const notes = [
-    a.melee && blow && !flies && 'Ground melee: it cannot reach a flyer.',
     blow && lined(a) && 'The first foe on its line takes it.',
-    a.arc && 'Lobbed: it flies over anything in the way.',
+    a.arc && 'Lobbed: ignores lines.',
     a.cond && `Only ${a.cond}.`].filter(Boolean)
   return [...lines.map((l) => h('p', null, l)), notes.length > 0 && h('p', { class: 'dim' }, notes.join(' '))]
 }
@@ -221,7 +220,7 @@ export function summonText (u, st = statsOf(u), mods = []) {
   const of = own ? st : statsOf({ id: kind, lvl: u.lvl, tracks: u.tracks }, mods)
   const hp = Math.max(1, Math.round(of.hp * TUNING.summon.hp))
   return [h('b', null, `Brings ${n} `), kw('summon', `summon${n === 1 ? '' : 's'}`), h('b', null, ' each battle'),
-    `: ${n === 1 ? 'a shadow' : `${n} shadows`} ${own ? 'of it' : `of the ${unitDef(kind).name} it was made of,`} at ${hp} HP${n === 1 ? '' : ' each'} (${pct(TUNING.summon.hp)} of ${own ? 'its' : 'a whole one\'s'} ${Math.round(of.hp)}), on the free tiles nearest it; they use ${own ? 'its' : 'their'} basics and are gone after the battle.`]
+    `: ${n === 1 ? 'a shadow' : 'shadows'} ${own ? 'of it' : `of the ${unitDef(kind).name} it was made of`} at ${hp} HP${n === 1 ? '' : ' each'} (${pct(TUNING.summon.hp)}), beside it, ${own ? 'its' : 'their'} basics only.`]
 }
 
 // Who called summon `u` up, for its card's live line: "Summoned by your Bone Chanter Trine" (a trine's summons are of
@@ -335,33 +334,20 @@ export function reachText (u, foe = false) {
   const d = unitDef(u.id)
   if (d.monarch) return 'Never strikes · never moves'
   const big = sizeOf(u) > 1 && '2×2'
-  if (foe && !bestiary.has(u.id)) return ['Reach ?', big, 'its ways unknown until met'].filter(Boolean).join(' · ')
+  if (foe && !bestiary.has(u.id)) return ['Reach ?', big].filter(Boolean).join(' · ')
   return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Move ${moveOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
 }
-// The same in a sentence: yours move, then strike what their blows reach; a foe met comes down its road and strikes
-// what it reaches, and thinks as its way line says. A kind with a lined blow says so.
+// The same in a sentence, short: what the reach line, the tags and the board (a piece's intent) do not already say.
+// A kind with a lined blow says so; a foe met, its way.
 export function reachRule (u, foe = false) {
   const d = unitDef(u.id)
-  if (d.monarch) return 'It stands on its seat, never moves and never strikes; the roads run to it. If it falls, the run ends.'
-  if (foe && !bestiary.has(u.id)) return 'Not met yet: how far it strikes, how far it comes and how it thinks, you learn by meeting it.'
+  if (d.monarch) return 'The roads run to it; if it falls, the run ends.'
+  if (foe && !bestiary.has(u.id)) return 'Not met yet: meet it to learn its reach and way.'
   const r = reachOf(u)
-  const tiles = `${r} tile${r === 1 ? '' : 's'}`
-  const melee = meleeOnly(u) && !d.flies ? ' Its blows are melee: they never reach up to a flyer.' : ''
-  const line = abilitiesOf(u).map(abilityDef).some(lined)
-    ? foe ? ' Its shots take the first of yours on their line of fire: a piece of yours in the way screens the one behind it.'
-      : ' Its shots take the first foe on their line of fire: a foe in front screens the one behind it.'
-    : ''
-  if (!foe) return `On your turn it moves up to ${moveOf(u)} tiles, then acts: its blows reach ${tiles} from where it stands.${aloneText(u)}${melee}${line}`
+  const line = abilitiesOf(u).map(abilityDef).some(lined) ? ` Its shots stop at the first ${foe ? 'of yours' : 'foe'} on their line of fire.` : ''
+  if (!foe) return `Moves up to ${moveOf(u)} tiles, then acts once; its blows reach ${r} tile${r === 1 ? '' : 's'}.${line}`
   const way = d.temper ? ` Its way: ${temperLine(temperOf(u.id)).toLowerCase()}.` : ''
-  return `${BEHAVIOURS[behaviourOf(u)].desc} It strikes whatever its blows reach, ${tiles} from where it stands.${melee}${line}${way}`
-}
-// Left alone at End Turn: a soul's basic blow at the foe furthest down its road, else its basic heal on the most wounded.
-function aloneText (u) {
-  const kit = abilitiesOf(u).map(abilityDef)
-  const [b, m] = [basicOf(kit), mendOf(kit)]
-  const blow = b && `${b.name} on the foe furthest down its road`
-  const mend = m && `${m.name} on the most wounded it can mend`
-  return blow || mend ? ` Left alone at End Turn, it uses ${[blow, mend].filter(Boolean).join(', else ')}.` : ''
+  return `${BEHAVIOURS[behaviourOf(u)].desc}${line}${way}`
 }
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
@@ -518,7 +504,7 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
       statuses?.length > 0 && h('div', { class: 'ct-statuses' }, statuses.map((x, i) => [i ? ' · ' : '', statusLine(x)])),
       h('div', { class: 'ct-foot' },
         h('div', { class: 'ct-role' }, h('b', null, reachText(u, foe)), h('span', { class: 'dim' }, ` · ${reachRule(u, foe)}`)),
-        d.monarch && h('div', { class: 'warn' }, 'Never strikes; if it falls, the run ends. Only relics raise its HP and Command.'),
+        d.monarch && h('div', { class: 'warn' }, 'Only relics raise its HP and Command.'),
         // A foe's lore hints at what its kind does: what it will do is never shown.
         foe && d.flavour && h('div', { class: 'flavour' }, d.flavour),
         notes.filter(Boolean).map((n) => h('div', { class: 'note-line' }, n)))])
@@ -1205,7 +1191,7 @@ export function codexView (run = null, { onClose = null, sound = null } = {}) {
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its tiers and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),
-    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ', say('Click', 'Tap'), ' a foe of a kind you have met to light its reach in red: the road it could take within its Move, dotted, and every tile it could strike from there next turn (what it could do, never what it will); ', say('click', 'tap'), ' elsewhere and it goes. ',
+    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ', say('Click', 'Tap'), ' a foe to see its coming turn alone: every foe shows it on the board as it stands, dots down its road to a faint ghost where it will stop, a line from there to the piece it will strike and the damage over that piece (yours left alone show their basic the same way); move a piece and it changes. A foe of a kind you have met lights its whole reach in red too: the road it could take within its Move, dotted, and every tile it could strike from there; ', say('click', 'tap'), ' elsewhere and it goes. ',
       h('b', null, 'End Turn'), ' when you are done.'),
     s && h('div', { class: 'gl-run' },
       h('span', null, `The Monarch ${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · Command ${commandOf(s)}${ariseHeld(s) ? ` · Arise: tier ≤ ${ariseOf(s).tier} within ${ariseOf(s).domain} tiles of its holder` : ''}`),
@@ -1247,7 +1233,7 @@ const primer = () => h('ol', { class: 'primer' },
   h('li', null, 'You are the Monarch. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
   h('li', null, 'Place your souls in the camp, then fight ', kw('turn'), ' by turn. ', h('b', null, 'A turn is yours'), ': each ', kw('piece'), ' may ', kw('move'), ', then act once: its basic blow, a ', kw('skill'), ' or a heal. A blow shows its damage and the ', kw('counter'), ' it would draw before you commit; a move can be undone until the piece acts.'),
   h('li', null, 'What you leave alone strikes anyway at ', h('b', null, 'End Turn'), ', with its basic blow or heal, never a skill. Every skill rests a turn once used.'),
-  h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. How far each comes is its own judgement: you learn each kind by meeting it, and a kind met shows its reach when tapped. Nothing of what they will do is shown.'),
+  h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. Each foe\'s coming turn is drawn on the board as it stands, exactly: where it will stop, whom it will strike and for how much; your moves change it. How far each kind could come and strike you learn by meeting it: a kind met shows its whole reach when tapped.'),
   h('li', null, 'A ranged blow at one target strikes the first piece of the target\'s side on its ', kw('line', 'line of fire'), ', both sides alike; a side never blocks its own shots. Stand a piece between their shooters and the Monarch, and mind who stands in front of the foe you aim at. Melee, blows that strike an area and lobbed blows ignore lines.'),
   h('li', null, `No dice: every blow lands and deals what its preview says; the same board and the same orders give the same battle. A battle is lost only when you fall, however long it lasts, and a horde that waits at the edge of your reach comes in time. ${WOUNDS_TEXT}.`),
   h('li', null, 'Spend ', kw('essence'), ' on your souls\' ', kw('tier', 'tiers'), ' and ', kw('fusion', 'fusions'), ' (three of a kind make its ', kw('trine'), '), on a recruit after a win, and in the ', kw('shop'), ' on ', kw('relic', 'relics'), '. A run relic works for the whole run: the Monarch grows only by them, its HP and its ', kw('command'), '. A piece relic works through the soul you give it to, one a soul, out of battle; Arise is one, and its holder raises the slain.'))

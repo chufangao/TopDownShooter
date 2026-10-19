@@ -2400,9 +2400,9 @@ const ROLE_LIST = [
 // How a foe moves, by its kind's `behaviour`: Walk for every ground kind (the one drawn road), Fly for the flyers (the
 // air road). A foe chooses how far it comes each turn, up to its Move, never where; the text says only what each does.
 export const BEHAVIOURS = {
-  walk: { name: 'Walk', desc: 'Comes down the arrows to the Monarch, as far as it chooses each turn and never off them; a piece of yours in its way blocks it.' },
+  walk: { name: 'Walk', desc: 'Walks the arrows to the Monarch; a piece of yours in its way blocks it.' },
   // A flyer flies the air road: no wall stops it, but a piece of yours in its way does, and it never goes round.
-  fly: { name: 'Fly', desc: 'Flies the air road straight at the Monarch over the walls, as far as it chooses each turn, and may hover over one, but never through your pieces: one of yours in its way, on the ground or in the air, blocks it. Only a ranged blow, or a flyer\'s melee, can strike it.' }
+  fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls; a piece of yours in its way, on the ground or in the air, blocks it. Ranged blows and flyers alone reach it.' }
 }
 
 // What laying a status is worth to the policy, in HP-equivalents a stack.
@@ -2494,7 +2494,7 @@ export const TUTORIAL = {
       lines: [
         'Tap a piece: its Move lights blue, its blow\'s reach red. Tap a lit tile to move it there, a foe in reach to see the blow, and the foe again to strike.',
         'End Turn when you are done: what you left alone strikes with its basic blow, then the foes take their turn.',
-        'Tap a foe to read it. A kind you have met also lights every tile it could reach and strike next turn: this one you meet now.'
+        'Every foe shows its coming turn on the board: dots to where it will stop, a line to what it will strike, the damage over it. Tap a foe to read it; a kind you have met also lights every tile it could reach and strike: this one you meet now.'
       ],
       go: 'Fight'
     },
