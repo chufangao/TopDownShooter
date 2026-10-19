@@ -300,7 +300,8 @@ test('the kin banners: run relics on their kin alone, unheld, copies stacking: a
 function blowing (relics, ability = 'strike') {
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 6, 9, [0, 0], relics), on('iron_golem', 10, 'foe', 3, 7, 9),
     on('iron_golem', 11, 'foe', 6, 10)])
-  unit(b, 1).hp = 50
+  // Wounded to half: room for a mend, and it must outlive the Golem's answer and the foes' turn.
+  unit(b, 1).hp = Math.round(unit(b, 1).maxHp / 2)
   return { b, events: order(b, { type: 'act', uid: 1, ability, target: 10 }) }
 }
 
@@ -495,7 +496,7 @@ test('Court of Bone: its holder\'s Arise reaches 2 farther; and while the run ho
   mend.monarch.hp = 30
   assert.ok(!legalOrders(mend).some((o) => o.ability === 'mend' && o.target === 0) || !preview(mend, 1, 'mend', 0)?.heal, 'no heal lands on it')
   assert.ok(!turns(mend).some((e) => e.type === 'heal' && e.target === 0))
-  // Out of battle: not an altar (a win's mending and an HP relic bought: run.test.js, offerState above).
+  // Out of battle: not an altar (an HP relic bought: run.test.js, offerState above).
   const run = createRun({ start: START_PARTY, seed: 'cob-out' })
   const s = run.state
   s.relics = ['court_of_bone']

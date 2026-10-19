@@ -12,15 +12,19 @@ export const TUNING = {
   // `turn.guard`: the sim's bound on a battle's turns, past which it is a stall. `policy.press`: the camp's pressure, 0
   // as the last wave enters, 1 `turns` turns later, nudged ± `strength` by the trade it could make.
   turn: { guard: 1000 },
-  policy: { press: { strength: 0.25, turns: 20 } },
+  policy: {
+    press: { strength: 0.25, turns: 6 },
+    walk: 0.5 // the least aggression a foe that can land no blow this turn weighs its road by, so keepers and shooters with nothing to shoot come on
+  },
   // The expert's weights: a decision reads each option as a named vector of features, the tree of hard rules
   // (expert.js TREES) forces or filters them, and the highest weighted sum wins; 0 marks a feature the tree reads or none.
   expert: {
     // The tree's thresholds: `wounded`, the army's share of HP below which it is badly wounded; `odds`, the log of its
     // strength over a room's threat below which a battle is the long odds; `stall`, the turns past the last wave's entry
-    // after which the expert presses; `altar`, `elite`, the Monarch's share of its max HP below which it takes an open
-    // altar, and below which it walks into no elite while another room is open.
-    tree: { wounded: 0.653, odds: 0.158, stall: 30, altar: 0.5, elite: 0.7 },
+    // after which the expert presses, two turns past the camp's own press (policy.press.turns); `altar`, `elite`, the
+    // Monarch's share of its max HP below which it takes an open altar, and below which it walks into no elite while
+    // another room is open.
+    tree: { wounded: 0.653, odds: 0.158, stall: 8, altar: 0.5, elite: 0.7 },
     // The draft: below `ranged` drafted pieces that reach past melee, a ranged kind offered is taken over any melee one.
     draft: { ranged: 2 },
     // In battle, in HP: `option`, one piece's move and act read off the board as it stands; `board`, the board a turn's
@@ -120,7 +124,7 @@ export const TUNING = {
       // wave past which the forecast has every foe come on; `far`: a focus fails when none of yours could strike its
       // target within this many turns; `horizon`: the turns within which yours could fell one of the Monarch's shooters,
       // or they screen it instead.
-      line: 4, reach: 4, shooters: 8, strikers: 4, impatient: 20, far: 2, horizon: 2,
+      line: 4, reach: 4, shooters: 8, strikers: 4, impatient: 6, far: 2, horizon: 2,
       // Choosing the plan: a bias for each of hold, focus, push and protect, and what makes each worth it.
       choose: {
         hold: 1, focus: -0.5, push: -0.5, protect: -0.5,
@@ -227,8 +231,9 @@ export const TUNING = {
   // The Shop, the floor's shelf, open between battles: `relics` stocked, one always a Command relic and from floor 2 one
   // a Legendary; each priced price[tier] × the floor's price scale, after the discount relics.
   shop: { relics: 4, price: { common: 24, uncommon: 48, rare: 96, legendary: 72 } },
-  // raw = power × atk / atkDivisor, then × defConstant / (defConstant + def)
-  damage: { atkDivisor: 40, defConstant: 100, min: 1 },
+  // raw = power × atk / atkDivisor, then × defConstant / (defConstant + def). The lethality band: a same-tier foe falls
+  // to about three or four basic blows; the balance pass sets the number.
+  damage: { atkDivisor: 16, defConstant: 100, min: 1 },
   // Deathblow (the Trickster's rule): a blow on a foe below `below` of its max HP deals `mult` times its damage.
   deathblow: { below: 0.35, mult: 2 },
   // The other synergies' numbers. Echo (the Channeler's): below its synergy's `full` count every ability echoes at `half`
@@ -246,7 +251,7 @@ export const TUNING = {
   party: { field: 3, fieldPerFloor: 0, roster: 12 },
   // The draft: a run starts with the Monarch alone and takes `picks` souls before the first map, each one of `offer`
   // different kinds drawn evenly from the floor-1 pool; after the first, an offer with no partner of a soul held gives
-  // one place to one.
+  // one place to one, and any offer with no kind that strikes past melee gives one place to one that does.
   draft: { picks: 1, offer: 3 },
   // A Monarch's kin is drawn `bias` times as often as any other kind in its draft's offers; the base Monarch has none.
   monarchs: { bias: 3 },
@@ -309,10 +314,11 @@ export const TUNING = {
     endless: { level: 0, count: 0.5, hp: 0.08, atk: 0.05, waves: 0.5, cohort: 0.5, maxWaves: 6, final: { count: 2, level: 1 } }
   },
   // `floors`: the Sovereign's floor; beating it is a clear, and the run may descend past it (the per-floor lists' fourth
-  // entries serve the first floor past it). A won battle heals each living soul postBattleHeal of its max HP; an altar
-  // heals each to altarHeal and raises a fallen one at altarRevive; its transmutation offers altarOffer kinds of the
-  // floor's pool at the soul's tier.
-  run: { floors: 3, postBattleHeal: 0.2, altarHeal: 1, altarRevive: 0.5, altarOffer: 3 },
+  // entries serve the first floor past it). A won battle heals every soul to postBattleHeal of its max HP, the fallen
+  // standing again in their cells; the Monarch keeps the HP it ended with, and between battles only an altar's heal (to
+  // altarHeal of its max HP) and its HP relics mend it. An altar's transmutation offers altarOffer kinds of the floor's
+  // pool at the soul's tier.
+  run: { floors: 3, postBattleHeal: 1, altarHeal: 1, altarOffer: 3 },
   // Relics, bought in the Shop alone: its shelf draws each relic's tier by weights.shop[floor − 1] (the last entry past
   // them), then a relic of that tier, never one twice in a stock (copies stack, no cap). From floor `legendary.fromFloor`
   // one is a Legendary (one that needs Arise only once an Arise relic is owned). `perPiece`: the relics a soul may hold.

@@ -18,8 +18,9 @@
 //     --phases recruit,spend    the decisions labelled, of recruit, spend and prep
 //     --cap 6 --formations 9    a recruit's or a purchase's candidates at most, and a prep's
 //     --spend 1 --calm 0.25     a purchase's chance of a label with two kinds (or a fusion) among its candidates, and without
-//     --floors 1,…              a prep's chance of a label by floor, the last for every floor past them
-//     --recruits 1,…            a recruit's chance of a label by floor, as --floors
+//     --floors 1,…              a label's chance by floor, the last for every floor past them, 0 for none there; a
+//                               purchase's is it × --spend or --calm, a recruit's it × --recruits
+//     --recruits 1,…            a recruit's chance of a label by floor, × --floors
 //   npm run outside -- --reread <dir> --out <dir> [--workers 8]   a label set's reads made again, its values kept
 //
 // A playout's value: to the run's end teach.js routeEndValue's from the decision (ROUTE_END_WEIGHTS), over a window
@@ -506,14 +507,14 @@ export const LABEL = Object.freeze({ cap: 6, formations: PREP_CAP, spend: 1, cal
 const LABEL_PHASES = Object.freeze(['recruit', 'spend', 'prep'])
 const labelDraw = (seed, at, phase) => parseInt(hashString(phase === 'prep' ? `outside-label|prep|${seed}|${at}` : `outside-label|${seed}|${at}`).slice(0, 8), 16) / 2 ** 32
 
-// A labelling's settings made whole: its phases known, its floors' chances in (0, 1], its recruits' in [0, 1].
+// A labelling's settings made whole: its phases known, its floors' and its recruits' chances each in [0, 1].
 export function labelConfig (cfg = {}) {
   const lc = { ...LABEL, ...cfg }
   const phases = typeof lc.phases === 'string' ? lc.phases.split(',').filter(Boolean) : [...lc.phases]
   for (const p of phases) if (!LABEL_PHASES.includes(p)) throw new Error(`no labels for phase "${p}": ${LABEL_PHASES.join(', ')}`)
   const list = (x) => (typeof x === 'string' ? x.split(',').map(Number) : [...x])
   const floors = list(lc.floors)
-  if (!floors.length || !floors.every((x) => x > 0 && x <= 1)) throw new Error(`floors ${floors}: each floor's chance in (0, 1]`)
+  if (!floors.length || !floors.every((x) => x >= 0 && x <= 1)) throw new Error(`floors ${floors}: each floor's chance in [0, 1]`)
   const recruits = list(lc.recruits)
   if (!recruits.length || !recruits.every((x) => x >= 0 && x <= 1)) throw new Error(`recruits ${recruits}: each floor's chance in [0, 1]`)
   return { ...lc, phases, floors, recruits }
@@ -584,7 +585,7 @@ export function labelRun (seed, cfg = {}) {
         const k = counts[d.phase]
         k.met++
         const key = d.phase === 'spend' ? JSON.stringify([s.floor, s.at, s.essence, s.kinds, s.relics, s.party.map((u) => [u.uid, u.hp, u.relics])]) : null
-        const chance = d.phase === 'spend' ? spendChance(d.cands, lc) : d.phase === 'prep' ? floorChance(s.floor, lc) : floorChance(s.floor, lc, lc.recruits)
+        const chance = floorChance(s.floor, lc) * (d.phase === 'spend' ? spendChance(d.cands, lc) : d.phase === 'prep' ? 1 : floorChance(s.floor, lc, lc.recruits))
         if (key && seen.has(key)) k.again++
         else if (labelDraw(seed, s.log.length, d.phase) >= chance) k.undrawn++
         else {

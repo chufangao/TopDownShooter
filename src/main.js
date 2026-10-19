@@ -3,12 +3,15 @@
 // The DOM screens are laid out at one logical size and scaled to the screen; the canvas is not.
 import { frame, onFrame } from './frame.js'
 import { createEngine } from './engine.js'
-import { createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun, bountyOf, BASE_MONARCH, monarchsOpen, monarchsAt } from './sim/run.js'
+import {
+  createRun, apply, currentNode, depthOf, runStat, ascensionTop, openTo, clearAt, tutorialRun, bountyOf, BASE_MONARCH, monarchsOpen, monarchsAt,
+  BATTLE_NODES, fielded, souls
+} from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
 import { recordOf, readBook, withRun } from './sim/history.js'
 import { stats, ariseOf, targetsFrom, canAct } from './sim/turns.js'
 import { deployTile } from './sim/unit.js'
-import { unitDef, RELICS, TUTORIAL } from './content.js'
+import { RELICS, TUTORIAL } from './content.js'
 import {
   coach, titleScreen, runScreen, NODE, reapScreen, endScreen, battleChrome, draftScreen, altarScreen, askOverlay, tutorialCard, placeText,
   historyScreen, soundControls
@@ -498,7 +501,11 @@ function route () {
   }
 }
 
+// A battle room is entered only with a living soul on the field: refused, the Field opens asking for one.
 function onNode (id) {
+  const s = run.state
+  const node = s.map.nodes.find((n) => n.id === id)
+  if (BATTLE_NODES.includes(node?.type) && !fielded(souls(s.party)).some((u) => u.hp > 0)) return screen?.wantSoul?.()
   play({ type: 'node', id })
   trail.ids.push(id)
   route()
@@ -590,7 +597,7 @@ async function fight ({ resume = false } = {}) {
       // One of yours leads with its turn as it stands (its Move left, its skills, how many foes its basic reaches).
       const turn = !foe && u.hp > 0 ? battleScene()?.pieceLine(u.uid) ?? null : null
       const live = [
-        u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: an altar raises it'),
+        u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: whole again after a win'),
         me && 'If it falls, the run ends',
         turn,
         u.shadow && (foe ? (legion ? 'Your fallen, raised by their Legion' : u.summoned ? `${summonedBy(battle, u)}: falls with it` : 'Grave Tide shadow: falls with the Sovereign')
@@ -610,9 +617,6 @@ async function fight ({ resume = false } = {}) {
       // Skipped before its end: the result still sounds (a played-out battle sounded it as its banner rose).
       if (!scene?.ending) sfx.play(battle.winner === 'party' ? 'win' : 'lose')
       bestiary.record(battle.units.filter((u) => u.side === 'foe' && !u.shadow).map((u) => u.id))
-      // Shadows are not souls; the fallen souls wait in the ossuary for an altar, their cells and Command free.
-      const fallen = battle.units.filter((u) => u.side === 'party' && !u.shadow && u.hp <= 0 && u.uid !== battle.monarch?.uid).map((u) => unitDef(u.id).name)
-      if (fallen.length && s.phase !== 'over') note = `Fallen: ${fallen.join(', ')}. ${fallen.length > 1 ? 'They lie' : 'It lies'} in the ossuary, ${fallen.length > 1 ? 'their cells' : 'its cell'} and Command free, until an altar raises ${fallen.length > 1 ? 'them' : 'it'}.`
       route()
     }
   })

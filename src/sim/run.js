@@ -183,17 +183,28 @@ export function tutorialRun () {
 export const draftPool = () => spawnPool(1).units.map((u) => u.id)
 
 // The kinds draft pick `pick` offers, `held` the kinds taken before: TUNING.draft.offer of the pool on a stream a pick
-// (a Monarch's `bias` kin weighed TUNING.monarchs.bias); from the second pick, at least one a partner of a soul held.
+// (a Monarch's `bias` kin weighed TUNING.monarchs.bias); from the second pick, at least one a partner of a soul held;
+// and always one at least that strikes past melee, drawn as the rest are into a place no partner nor `bias` kin needs.
 export function draftOffer (seed, pick, held = [], bias = null) {
   const rng = createRng(seed).stream(`draft|${pick}`)
   const pool = draftPool()
-  const offer = bias ? weighedDraw(rng, pool, (id) => (unitDef(id).kin === bias ? TUNING.monarchs.bias : 1), TUNING.draft.offer)
-    : rng.shuffle(pool).slice(0, TUNING.draft.offer)
+  const weight = (id) => (bias && unitDef(id).kin === bias ? TUNING.monarchs.bias : 1)
+  const offer = bias ? weighedDraw(rng, pool, weight, TUNING.draft.offer) : rng.shuffle(pool).slice(0, TUNING.draft.offer)
   const mates = pool.filter((id) => held.some((h) => partners(h, id)))
-  if (!mates.length || offer.some((id) => mates.includes(id))) return offer
-  offer[rng.int(offer.length)] = rng.pick(mates)
+  if (mates.length && !offer.some((id) => mates.includes(id))) offer[rng.int(offer.length)] = rng.pick(mates)
+  const shooters = pool.filter((id) => shoots(id) && !offer.includes(id))
+  if (offer.some(shoots) || !shooters.length) return offer
+  // The place given up: none the only partner held, nor of the bias kin, where another will do.
+  const needed = (id) => mates.includes(id) && offer.filter((x) => mates.includes(x)).length === 1
+  const all = offer.map((id, i) => i).filter((i) => !needed(offer[i]))
+  const free = all.filter((i) => !(bias && unitDef(offer[i]).kin === bias))
+  const places = free.length ? free : all.length ? all : offer.map((id, i) => i)
+  offer[places[rng.int(places.length)]] = rng.weighted(shooters, shooters.map(weight))
   return offer
 }
+
+// Whether a kind's kit holds a blow past melee (every kind has a blow: unit.js meleeOnly).
+const shoots = (id) => !meleeOnly(makeUnit(id))
 
 // `n` different items of `items` drawn one at a time on `rng`, each by its `weight` among those left. → in the order drawn
 function weighedDraw (rng, items, weight, n) {
@@ -626,7 +637,7 @@ function buy (run, { index }) {
 
 // ── the altar ────────────────────────────────────────────────────────────────────────────────────
 
-// An altar asks one rite of three, and the room ends with it: heal, transmute or consecrate.
+// An altar asks one rite of three, and the room ends with it: the Monarch's heal, transmute or consecrate.
 
 // The kinds an altar offers to make a soul of `kind`: TUNING.run.altarOffer of the floor's pool of its tier, never its
 // own, drawn on the altar's and the kind's stream; none for a kind no foe brings (a fused kind).
@@ -648,15 +659,11 @@ export function altarActions (run) {
   return out
 }
 
-// The heal: each soul to TUNING.run.altarHeal of its max HP, the fallen up at altarRevive in the ossuary, the Monarch too
-// unless nothing may heal it.
+// The heal: the Monarch to TUNING.run.altarHeal of its max HP, unless nothing may heal it; the souls are whole already.
 function heal (run) {
   const s = run.state
-  const t = TUNING.run
-  for (const u of s.party) {
-    if (isMonarch(u) && unhealed(s)) continue
-    u.hp = u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive)
-  }
+  const m = monarchOf(s)
+  if (!unhealed(s)) m.hp = Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal))
   nextRoom(run)
 }
 
@@ -760,12 +767,11 @@ function finishBattle (run) {
   const b = run.battle
   const s = run.state
   const byUid = new Map(b.units.map((u) => [u.uid, u]))
-  // A piece keeps the share of its HP it ended with; one that fell lies in the ossuary, keeping its relics, till an altar.
+  // A piece carries the share of its HP it ended with: a win makes a soul whole again below, a loss ends the run.
   for (const u of s.party) {
     const bu = byUid.get(u.uid)
     if (!bu) continue
     u.hp = bu.hp > 0 ? Math.min(u.maxHp, Math.max(1, Math.round(bu.hp / bu.maxHp * u.maxHp))) : 0
-    if (u.hp <= 0 && !isMonarch(u)) u.slot = OSSUARY
   }
   // Shadows and summons are the battle's alone.
   s.stats.fights++
@@ -773,7 +779,8 @@ function finishBattle (run) {
     s.phase = 'over'
     // A fall in the deep, past the Sovereign, leaves the clear standing.
     if (s.result !== 'victory') s.result = 'defeat'
-    // Only the Monarch's fall loses a battle in play; the autoplayer's may also end as a stall, no one's blow.
+    // The Monarch's fall loses a battle in play (its killer told), and so does an overrun, nothing of yours but the
+    // Monarch standing (no one's blow); the autoplayer's may also end as a stall.
     s.death = b.reason === 'monarch' ? { ...b.death, reason: 'monarch' } : { by: null, reason: b.reason, threat: null }
     return
   }
@@ -784,10 +791,9 @@ function finishBattle (run) {
   const earned = Math.round((battleEssence(b) + court + bountyOf(s, node)) * runStat(s, 'essence.gain', 1))
   s.essence += earned
   s.stats.essence += earned
-  for (const u of s.party) {
-    if (isMonarch(u) && unhealed(s)) continue
-    if (u.hp > 0) u.hp = Math.min(u.maxHp, u.hp + Math.ceil(u.maxHp * TUNING.run.postBattleHeal))
-  }
+  // Every soul whole again at TUNING.run.postBattleHeal of its max HP, the fallen standing in their cells: no wound and
+  // no fall of a soul carries from one battle to the next. The Monarch keeps the HP it ended with: its HP is the run's.
+  for (const u of souls(s.party)) u.hp = Math.max(u.hp, Math.min(u.maxHp, Math.ceil(u.maxHp * TUNING.run.postBattleHeal)))
   if (clearsRun(s, node)) {
     s.stats.floorsCleared++
     s.phase = 'over'

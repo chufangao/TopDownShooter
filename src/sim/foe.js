@@ -1,7 +1,7 @@
 // The camp's play, and what both sides read of the board: the danger map, the pressure, a unit's options and their
 // scores, and the foes' turn; basicTurn is your side's plainest player. Nothing reads a seed. Shipped with the game
 // (turns.js plays the foes by it; engine.js reads threatOf).
-import { STATUS_WORTH, statusDef, unitDef } from '../content.js'
+import { STATUS_WORTH, statusDef } from '../content.js'
 import { TUNING } from '../tuning.js'
 import { LANE, roadOf } from './field.js'
 import { call } from './rules.js'
@@ -233,8 +233,10 @@ export const landed = (a, d, power) => computeDamage({ power, atk: a.atk, def: d
 
 export const NONE = Object.freeze([])
 const ZERO = { dealt: 0, kill: 0, counter: 0, damage: 0, focus: 0, bane: 0, preyed: 0, menace: 0, status: 0, mend: 0, rescue: 0, shadow: 0, felled: NONE, hexed: NONE }
-// A status laid on `x`: its worth, or nothing where `x` holds it at its full stacks already.
+// A status laid on `x`: its worth, or nothing where `x` holds it at its full stacks already or shrugs it off (a Hex on
+// one whose act a Hex cost: turns.js addStatus).
 const statusWorth = (e, x) => {
+  if (e.status === 'hexed' && x.shrugs) return 0
   const had = x.statuses.find((s) => s.id === e.status)
   return had && had.stacks >= statusDef(e.status).stacks ? 0 : STATUS_WORTH[e.status] ?? 0
 }
@@ -242,7 +244,8 @@ const debuff = (id) => statusDef(id).tags.includes('debuff')
 
 // What an option would do, read off the board: for the score `dealt`, `kill`, `counter`; for the expert's features
 // `damage`, `focus` (× the target's lost share of HP), `bane` (on a healer), `preyed`, `menace` (the hardest blow of each
-// foe felled), `status`, `mend`, `rescue` (mending one `map` says could fall), `shadow`, and the `felled` and `hexed`.
+// foe felled), `status`, `mend`, `rescue` (mending one `map` says could fall), `shadow`, and the `felled` and `hexed` (a
+// Hex on one that shrugs it off stuns nobody).
 export function estimate (battle, u, o, prey, map = null) {
   const a = o.ability
   if (!a) return ZERO
@@ -277,7 +280,7 @@ export function estimate (battle, u, o, prey, map = null) {
           const w = statusWorth(e, x)
           out.dealt += w
           out.status += w
-          if (e.status === 'hexed') out.hexed = [...out.hexed, x]
+          if (e.status === 'hexed' && !x.shrugs) out.hexed = [...out.hexed, x]
         }
       }
     } else {
@@ -364,7 +367,12 @@ export const better = (o, b) => {
   return (o.target?.uid ?? -1) < (b.target?.uid ?? -1)
 }
 
+// A unit's best option by `score`; a foe whose options hold no blow at one of yours, from any tile of its road ahead
+// this turn, weighs its road at TUNING.policy.walk's aggression at least.
 export function choose (battle, u, temper, p, map, opts = options(battle, u)) {
+  const least = TUNING.policy.walk
+  const idle = u.side === 'foe' && !opts.some((o) => o.ability && isBlow(o.ability) && o.target.side !== u.side)
+  if (idle && temper.aggression < least) temper = { ...temper, aggression: least }
   const ctx = { danger: map, prey: preyOf(battle, u, opts, temper, p) }
   let best = null
   for (const o of opts) {
@@ -392,7 +400,7 @@ export function foeTurn (battle) {
   for (const u of queue) {
     if (battle.over) break
     if (!alive(u)) continue
-    // A boss shrugs off Hexes until a turn comes to it unHexed (turns.js addStatus).
+    // One whose act a Hex cost shrugs off Hexes until a turn comes to it unHexed (turns.js addStatus).
     const lost = hexed(u) && !u.acted
     if (u.shrugs && !lost) u.shrugs = false
     const best = p >= 1 ? choose(battle, u, hasty(u.temper), p, maps.foe, fighting(battle, u)) : choose(battle, u, u.temper, p, maps.foe)
@@ -408,7 +416,7 @@ export function foeTurn (battle) {
     } else if (lost) {
       battle.beat++
       emit(battle, { type: 'hexed', target: u.uid })
-      if (unitDef(u.id).boss) u.shrugs = true
+      u.shrugs = true
     }
     u.acted = true
   }

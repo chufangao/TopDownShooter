@@ -239,9 +239,8 @@ export const TREES = {
     // A piece relic waiting works for no one: given, where a standing soul has a free slot.
     { id: 'give-relic', when: (sit) => sit.relics.unheld.length > 0 && sit.relics.free > 0, keep: (o) => !!o.free }
   ],
-  // An altar's rite (autoplay.js pickAltar: `o.action`): a heal for the route's two reasons to walk to an altar.
+  // An altar's rite (autoplay.js pickAltar: `o.action`): the heal, for the route's reason to walk to an altar.
   altar: [
-    { id: 'wounded-heal', when: (sit) => sit.health < T().wounded, force: (opts) => opts.find((o) => o.action?.type === 'heal') },
     { id: 'monarch-heal', when: (sit) => !sit.unhealed && sit.monarch < T().altar, force: (opts) => opts.find((o) => o.action?.type === 'heal') }
   ]
 }

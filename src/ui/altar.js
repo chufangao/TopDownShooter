@@ -1,4 +1,4 @@
-// An altar: one rite of three, heal, transmute or consecrate.
+// An altar: one rite of three, the Monarch's heal, a transmutation or a consecration.
 import { unitCard, partyMods, realmOf, ROMAN, roomGain, transmuteWorth } from '../codex.js'
 import { unitDef, KIN, ROLES } from '../content.js'
 import { h, fill, icon, portrait, hideTip, touchy, say } from '../dom.js'
@@ -6,7 +6,7 @@ import { frame } from '../frame.js'
 import { kw } from '../keywords.js'
 import { sfx } from '../sfx.js'
 import {
-  souls, isMonarch, canAdvance, tierCost, levelOf, kindLevel, heldKinds, unhealed, transmuteOffer, canTransmute
+  souls, monarchOf, canAdvance, tierCost, levelOf, kindLevel, heldKinds, unhealed, transmuteOffer, canTransmute
 } from '../sim/run.js'
 import { tracksOf, nextTracks } from '../sim/unit.js'
 import { TUNING } from '../tuning.js'
@@ -16,10 +16,11 @@ import { fieldOrder } from './parts.js'
 
 // ── the altar ────────────────────────────────────────────────────────────────────────────────────
 
-// One rite of three, and the room ends with it. The rites are tabs, the heal open first where anything is hurt or fallen
-// (or no kind has a tier left). A card is taken as the spoils' are, its keys 1, 2, 3. onRite(action) takes the rite.
+// One rite of three, and the room ends with it. The rites are tabs, the heal open first where the Monarch is hurt (or no
+// kind has a tier left); whole, the heal's button leaves the altar unburnt. A card is taken as the spoils' are, its keys
+// 1, 2, 3. onRite(action) takes the rite.
 const RITES = [
-  { id: 'heal', name: 'Heal', ico: 'altar', desc: 'Every soul healed, the Monarch too, and the fallen raised.' },
+  { id: 'heal', name: 'Heal', ico: 'altar', desc: 'The Monarch healed to full. Your souls are whole after every win.' },
   { id: 'transmute', name: 'Transmute', ico: 'soul', desc: 'One standing soul becomes another kind of its tier, one of this floor\'s foes.' },
   { id: 'consecrate', name: 'Consecrate', ico: 'levelup', desc: 'One kind takes its next tier on a track you choose, free.' }
 ]
@@ -28,12 +29,13 @@ export function altarScreen ({ run, onRite, onHelp }) {
   const el = h('div', { class: 'screen fit reap-screen altar-screen' })
   const deck = cardDeck()
   const t = TUNING.run
+  const m = monarchOf(s)
   const turnable = souls(s.party).sort(fieldOrder).filter((u) => canTransmute(s, u))
   const kinds = heldKinds(s).filter((k) => canAdvance(s, k, 0) || canAdvance(s, k, 1))
-  // The heal mends the souls below altarHeal of their HP (the Monarch unless nothing may heal it) and the fallen.
-  const mends = (u) => (u.hp <= 0 ? !isMonarch(u) : u.hp < Math.round(u.maxHp * t.altarHeal) && !(isMonarch(u) && unhealed(s)))
-  const hurt = s.party.filter(mends)
-  let tab = hurt.length || !kinds.length ? 'heal' : 'consecrate'
+  // What the heal would leave the Monarch at: nothing more under Court of Bone.
+  const after = unhealed(s) ? m.hp : Math.max(m.hp, Math.round(m.maxHp * t.altarHeal))
+  const mends = after > m.hp
+  let tab = mends || !kinds.length ? 'heal' : 'consecrate'
   let soul = turnable[0]?.uid ?? null
   let kind = kinds[0] ?? null
   let busy = false
@@ -50,7 +52,7 @@ export function altarScreen ({ run, onRite, onHelp }) {
 
   // The rites' tabs, each with its count now.
   const count = {
-    heal: () => (hurt.length ? `${hurt.filter((u) => u.hp > 0).length} hurt · ${hurt.filter((u) => u.hp <= 0).length} fallen` : 'nothing hurt'),
+    heal: () => (mends ? `the Monarch ${m.hp} → ${after}` : unhealed(s) && m.hp < m.maxHp ? 'Court of Bone: nothing heals it' : 'the Monarch whole'),
     transmute: () => `${turnable.length} soul${turnable.length === 1 ? '' : 's'}`,
     consecrate: () => `${kinds.length} kind${kinds.length === 1 ? '' : 's'}`
   }
@@ -67,20 +69,19 @@ export function altarScreen ({ run, onRite, onHelp }) {
   const option = (on, face, name, sub, onclick, tip) => h('button', { class: 'rite-opt' + (on ? ' on' : ''), 'aria-pressed': on ? 'true' : 'false', onclick, tip },
     h('span', { class: 'rank-port' }, face), h('span', { class: 'rite-opt-text' }, h('b', null, name), h('span', { class: 'dim' }, sub)))
 
-  // Heal: what it mends and raises now, a soul each.
+  // Heal: the Monarch, and what the heal leaves it at.
   function healPanel () {
-    const after = (u) => (u.hp > 0 ? Math.max(u.hp, Math.round(u.maxHp * t.altarHeal)) : Math.ceil(u.maxHp * t.altarRevive))
     return h('div', { class: 'rite-panel' },
       h('p', { class: 'rite-say' }, roomGain(run, { type: 'altar' })),
-      unhealed(s) && h('p', { class: 'warn' }, 'Court of Bone: not the Monarch.'),
-      hurt.length > 0 && h('div', { class: 'rite-mends' }, hurt.map((u) => h('div', { class: 'rite-mend', tip: () => unitCard(u, { mods: partyMods(run, u), realm: realmOf(run), run }) },
-        h('span', { class: 'rank-port' + (isMonarch(u) ? ' monarch' : '') + (u.hp <= 0 ? ' fallen' : '') }, portrait(u.id, 40, u.hp <= 0)),
-        h('span', null, h('b', null, unitDef(u.id).name), h('span', { class: 'dim' }, u.hp > 0 ? ` ${u.hp} → ${after(u)}` : ` rises at ${after(u)}`))))))
+      unhealed(s) && m.hp < m.maxHp && h('p', { class: 'warn' }, 'Court of Bone: nothing heals the Monarch.'),
+      h('div', { class: 'rite-mends' }, h('div', { class: 'rite-mend', tip: () => unitCard(m, { mods: partyMods(run, m), realm: realmOf(run), run }) },
+        h('span', { class: 'rank-port monarch' }, portrait(m.id, 40)),
+        h('span', null, h('b', null, 'The Monarch'), h('span', { class: 'dim' }, mends ? ` ${m.hp} → ${after}` : ` ${m.hp}/${m.maxHp}`)))))
   }
 
   // Transmute: the soul, then the kind it becomes, a card each.
   function transmutePanel () {
-    if (!turnable.length) return h('div', { class: 'rite-panel' }, h('p', { class: 'rite-say' }, 'No soul here can be transmuted: the fallen wait for a heal, and a fused soul is made, not met.'))
+    if (!turnable.length) return h('div', { class: 'rite-panel' }, h('p', { class: 'rite-say' }, 'No soul here can be transmuted: a fused soul is made, not met.'))
     const u = s.party.find((x) => x.uid === soul)
     const offer = transmuteOffer(s, u.id)
     const card = (id, i) => {
@@ -103,7 +104,7 @@ export function altarScreen ({ run, onRite, onHelp }) {
       chooser('The soul', turnable.map((x) => option(x.uid === soul, portrait(x.id, 36), unitDef(x.id).name, ` Lv ${x.lvl} · tier ${unitDef(x.id).tier}`,
         () => { if (x.uid !== soul) { soul = x.uid; deal = true; sfx.play('select'); render() } },
         () => unitCard(x, { mods: partyMods(run, x), realm: realmOf(run), run, notes: [`${say('Click', 'Tap')} it, then the kind it becomes.`] })))),
-      `It becomes one of this floor's foes of its tier, keeping its relic, its wounds and its level. Tiers stay with their kind: the ${unitDef(u.id).name}'s with the ${unitDef(u.id).name}, and it takes its new kind's.`,
+      `It becomes one of this floor's foes of its tier, keeping its relic and its level. Tiers stay with their kind: the ${unitDef(u.id).name}'s with the ${unitDef(u.id).name}, and it takes its new kind's.`,
       cards)
   }
 
@@ -153,7 +154,9 @@ export function altarScreen ({ run, onRite, onHelp }) {
         h('div', { class: 'reap-foot rite-foot' },
           h('p', { class: 'dim rite-hint' }, tab === 'heal' ? RITES[0].desc : `${say('Click', 'Tap')} a card to ${tab}; another rite's tab to change your mind.`),
           h('div', { class: 'reap-actions' },
-            tab === 'heal' && h('button', { class: 'primary big', onclick: () => take({ type: 'heal' }), tip: () => `Heal: ${RITES[0].desc} The altar is then spent.` }, icon('altar', 20), 'Heal ▸')))))
+            tab === 'heal' && (mends
+              ? h('button', { class: 'primary big', onclick: () => take({ type: 'heal' }), tip: () => `Heal: the Monarch ${m.hp} → ${after}. The altar is then spent.` }, icon('altar', 20), 'Heal ▸')
+              : h('button', { class: 'ghost big', onclick: () => take({ type: 'heal' }), tip: () => 'Nothing to heal: the altar is left unburnt, and the room is done.' }, 'Leave ▸'))))))
     deal = false
   }
 

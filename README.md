@@ -6,8 +6,8 @@
 
 - A turn-based tactics roguelike in the browser: a necromancer's retinue holds a line against foes walking down to the Monarch.
 - A run: draft one soul, walk three floors of rooms (fights, elites, altars, a boss a floor; the Shop open wherever essence is spent), at ascension 0–10, as one of four Monarchs. Saves, a history, a tutorial, music.
-- A battle: foes enter in waves along one drawn road toward your camp. Each piece moves and acts once a turn: a free basic, or a skill that then rests. End Turn: idle pieces use basics, the foes play, statuses tick. No dice. Lost when the Monarch falls.
-- Between battles, essence buys tiers (two tracks a kind), recruits (one slain foe a battle), fusions (44 recipes, on the Shop's shelf) and relics. Altars heal, transmute or consecrate. Eleven synergies of kin and role at four pieces.
+- A battle: foes enter in waves along one drawn road toward your camp. Each piece moves and acts once a turn: a free basic, or a skill that then rests. End Turn: idle pieces use basics, the foes play, statuses tick. No dice. Lost the instant the Monarch falls, or nothing of yours but the Monarch stands.
+- Between battles, essence buys tiers (two tracks a kind), recruits (one slain foe a battle), fusions (44 recipes, on the Shop's shelf) and relics. A won battle makes every soul whole again, the fallen too; the Monarch's HP carries, and altars heal it, transmute or consecrate. Eleven synergies of kin and role at four pieces.
 - Statuses (Burning, Hexed, Brittle, Bleeding, Hasten, Rooted, Bloodlust…), each a stat mod or a tick. Elements: piece relics and Legendaries that read a status or a piece's own movement.
 - Not a card game: no deck, hand, energy, discard or exhaust.
 
@@ -39,6 +39,7 @@ Landed on 2026-10-18: fusing out of battle alone; the elements (two statuses, si
 - The ladder's top on the outside teacher at ~60%; level 0 on the expert at ~90%, a fusion's price 8 → 6 confirmed on fresh seeds.
 - The recruit forest refitted on whole runs, then diversity read again. Instruments as before: strict rows, free play, fresh seeds, every comparison paired.
 - The expert's draft rule and floor-1 labels follow the draft of one soul in the refit.
+- The shipped expert, its forest and the combo book were fit before the rules of 2026-10-18's evening (full heals, overrun, the shrug, the 6-turn press, the lethality band): the refit follows them.
 
 ## Decisions of 2026-10-18 (the user's word)
 
@@ -47,6 +48,14 @@ Landed on 2026-10-18: fusing out of battle alone; the elements (two statuses, si
 - Movement is a channel the elements read.
 - The draft is one soul: the Monarch's kin is the plan, the two empty Command slots the first two recruits.
 - The forests and the calculator stay, for the balance passes to come.
+- Every soul is whole after a won battle, the fallen standing again in their cells: no wound and no fall of a soul carries between battles. The Monarch's HP is the run's: it carries from battle to battle, and only an altar's heal (the Monarch's alone now) or an HP relic mends it.
+- A battle is lost the instant it cannot be won: the Monarch's fall, or nothing of yours but the Monarch standing (overrun). The Monarch has no blow of its own.
+- No unit is Hexed twice in a row: once a Hex has cost it an act, it shrugs off every Hex until it has acted again.
+- Standoffs end in a few turns: the camp's pressure runs its course in `policy.press.turns` (6), a foe that can land no blow comes on at an aggression of at least `policy.walk`, and Regen heals a share of max HP.
+- Every draft offer holds a ranged kind. Every walk meets every threat type but Fly; Fly comes by the draw and to an elite that answers the army. The Map marks a room ahead whose threat nothing fielded can answer.
+- A battle room is entered only with a living soul on the field. With nothing of yours to order, the turn ends by itself. A tile of a walk is 120 ms, the foes' stage 250 ms, and a line of foes walks as one.
+- Skill rests stay at 2: a rest of 1 would leave the cooldown vocabulary (Hasten's second half, Arcane Focus, Quicksilver, Gossamer Standard, Court of Frost) with nothing to do.
+- The lethality band: `damage.atkDivisor` 16, provisional, so a same-tier foe falls to about three or four basic blows (a level-2 Tomb Knight fells a level-1 Grave Ghoul in 4; the Ghoul fells the Knight in 8). The balance pass sets the number.
 
 ## Standing rules
 

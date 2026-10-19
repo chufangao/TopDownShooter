@@ -230,14 +230,13 @@ export function endTally (b) {
   return { m: m ? Math.max(0, m.hp) / m.maxHp : 0, souls, max, turn: b.turn }
 }
 
-// The label to the battle's end of played-out `g` against `before` (endTally): monarch and own the share of max HP lost
-// as the run carries it (post-battle heal; a fallen soul all of its share). `stall`: the playout ran out of rounds.
+// The label to the battle's end of played-out `g` against `before` (endTally): monarch the share of its max HP lost, as
+// the run carries it; own the souls' share lost in the battle (the run heals it back: the margin is the label's, a
+// fallen soul all of its share). `stall`: the playout ran out of rounds.
 export function endValue (before, g, w = END_WEIGHTS, stall = false) {
   const won = g.over && g.winner === 'party'
-  const heal = TUNING.run.postBattleHeal
-  const carried = (hp, max, healed = true) => (hp > 0 ? Math.min(max, hp + (healed ? Math.ceil(max * heal) : 0)) : 0)
   const m = g.monarch
-  const mAfter = m && m.hp > 0 ? carried(m.hp, m.maxHp, !g.unhealable) / m.maxHp : 0
+  const mAfter = m && m.hp > 0 ? m.hp / m.maxHp : 0
   let had = 0
   let kept = 0
   let fell = 0
@@ -250,7 +249,7 @@ export function endValue (before, g, w = END_WEIGHTS, stall = false) {
       fallen += s.maxHp - s.hp
     }
   }
-  for (const u of g.units) if (alive(u) && u.side === 'party' && u !== m && !u.shadow) kept += carried(u.hp, u.maxHp)
+  for (const u of g.units) if (alive(u) && u.side === 'party' && u !== m && !u.shadow) kept += u.hp
   const parts = {
     lost: won ? 0 : 1,
     stall: stall ? 1 : 0,

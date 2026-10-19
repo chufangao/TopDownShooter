@@ -30,7 +30,7 @@ const PREY_WORDS = {
 
 // The bestiary's way line, generated from the three values so it can never say what the kind does not do.
 export const temperLine = ({ aggression, caution, prey }) => [
-  aggression >= 1.25 ? 'bold' : aggression >= 0.75 ? 'steady' : aggression > 0 ? 'patient' : 'never presses',
+  aggression >= 1.25 ? 'bold' : aggression >= 0.75 ? 'steady' : aggression > 0 ? 'patient' : 'holds while anything is in reach',
   caution >= 1.25 ? 'wary, keeps its distance' : caution >= 0.6 ? 'careful' : 'heedless',
   PREY_WORDS[prey]
 ].join('; ').replace(/^./, (c) => c.toUpperCase())
@@ -2265,15 +2265,16 @@ const STATUS_LIST = [
     mods: [m('move', 'add', 1), m('cooldown.rate', 'add', 1)]
   },
   {
+    // Its tick heals a share of its holder's max HP (`pct`), whoever laid it: 0.06 a turn.
     id: 'regen',
-    desc: 'Heals 48 power each turn and takes 5% less damage.',
+    desc: 'Heals 6% of its max HP each turn and takes 5% less damage.',
     name: 'Regen',
     tags: ['buff'],
     colour: '#7fe08a',
     turns: 5,
     stacks: 1,
     mods: [{ path: 'damage.taken', op: 'mul', v: 0.95 }],
-    tick: [{ op: 'heal', power: 48 }]
+    tick: [{ op: 'heal', pct: 0.06 }]
   },
   // The one DEF ward.
   { id: 'barkskin', desc: '+25% DEF.', name: 'Barkskin', tags: ['buff'], colour: '#a0763f', turns: 4, stacks: 1, mods: [{ path: 'def', op: 'mul', v: 1.25 }] },
@@ -2329,10 +2330,10 @@ const STATUS_LIST = [
     tick: [{ op: 'dot', power: 8 }]
   },
   {
-    // The one disabling status: no act and no counter while it holds, so its `turns` are the acts it costs. A boss is
-    // never Hexed twice running.
+    // The one disabling status: no act and no counter while it holds, so its `turns` are the acts it costs. Nothing is
+    // Hexed twice running (turns.js addStatus).
     id: 'hexed',
-    desc: 'Loses its next act, and does not counter until then. A boss is never Hexed twice in a row: once a Hex has cost it an act, it shrugs off every Hex until it has acted again.',
+    desc: 'Loses its next act, and does not counter until then. Never twice in a row: once a Hex has cost a piece or a foe its act, it shrugs off every Hex until it has acted again.',
     name: 'Hexed',
     tags: ['debuff'],
     colour: '#9b5cff',

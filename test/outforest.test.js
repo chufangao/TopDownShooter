@@ -30,9 +30,12 @@ const L = LEVELS.expert
 // Step 3), 2026-10-18: its run clears, labelling it takes ten minutes; sim-45 until the draft of one soul, 2026-10-18:
 // its run lives long; sim-130 until the floor-1 pool of 2026-10-18, the Tomb Knight to floor 2 and four kinds of tier
 // 1: it falls in its first battle; sim-395 again until the first battle of 2026-10-18 (the opening's rooms, floor 1's
-// pay and levels): its run clears; sim-130 again since, found by search among the seeds ≡ 0 mod 5.)
+// pay and levels): its run clears; sim-130 again since, found by search among the seeds ≡ 0 mod 5. Since every unit is
+// whole after a won battle, 2026-10-18 later, its run lives long: the fixture labels floor 1 alone, FLOORS, as --floors 1,0
+// would.)
 const SEED = 'sim-130'
 const CAP = 3
+const FLOORS = [1, 0]
 
 // A phase's forest (outforest.json's shape) from trees given as nested nodes ({ f: an input's name, t: its threshold, l,
 // r } or a leaf's number), its margin `delta` and target, over the inputs of `phase` (the recruit's and the purchases'
@@ -83,7 +86,7 @@ const todays = (fn) => {
   }
 }
 let LABELS = null
-const labels = () => (LABELS ??= todays(() => labelRun(SEED, { cap: CAP })))
+const labels = () => (LABELS ??= todays(() => labelRun(SEED, { cap: CAP, floors: FLOORS })))
 const FORMATIONS = 4
 let PREPS = null
 const preps = () => (PREPS ??= todays(() => labelRun(SEED, { phases: 'prep', formations: FORMATIONS })))
@@ -133,7 +136,7 @@ test('the labeller is deterministic, its run the base\'s untouched by its playou
   try {
     useOutForest(null)
     const a = labels()
-    const b = labelRun(SEED, { cap: CAP })
+    const b = labelRun(SEED, { cap: CAP, floors: FLOORS })
     assert.deepEqual(b.rows, a.rows)
     const base = record({ seed: SEED, level: 'expert' })
     assert.equal(a.line.result, base.result)
@@ -166,13 +169,13 @@ test('the recruits are labelled by their floor\'s chance (recruits), each row as
   const before = outForestModel()
   try {
     useOutForest(null)
-    // SEED falls on floor 1: floor 1's recruits are all of them, and a chance of 0 there labels none.
+    // The fixture labels floor 1 alone: its recruits are all of them, and a chance of 0 there labels none.
     const all = labels().rows.filter((r) => r.phase === 'recruit')
     assert.ok(all.length > 0 && all.every((r) => r.floor === 1))
-    const one = labelRun(SEED, { cap: CAP, phases: 'recruit', recruits: '1,0' })
+    const one = labelRun(SEED, { cap: CAP, phases: 'recruit', floors: FLOORS, recruits: '1,0' })
     assert.deepEqual(one.rows, all)
     assert.deepEqual(one.line.settings.recruits, [1, 0])
-    assert.equal(labelRun(SEED, { cap: CAP, phases: 'recruit', recruits: [0, 1] }).rows.length, 0)
+    assert.equal(labelRun(SEED, { cap: CAP, phases: 'recruit', floors: FLOORS, recruits: [0, 1] }).rows.length, 0)
     assert.equal(labelConfig().recruits.join(), '1')
     assert.equal(labels().line.settings.recruits, undefined)
     assert.throws(() => labelConfig({ recruits: '1,2' }), /recruits/)

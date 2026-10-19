@@ -152,9 +152,9 @@ class PrepScene extends Phaser.Scene {
   // ── the picture ──────────────────────────────────────────────────────────────────────────────
 
   // p: { walls, units, domain and reach ({ centre, size, r }, or null), roads (each tile's arrow), seat (the Monarch's
-  // tile), drop (the anchors a drag may land on), dropSize, selKey }. A unit: { key, id, tile (its anchor), size (1, or
-  // 2: a 2×2), side, hp, maxHp, lvl, tracks, relics, monarch, fallen, sel, glow (colours), lit, offer (it may take the
-  // relic readied), flies }.
+  // tile), drop (the anchors a drag may land on, or a soul may take while a battle waits for one), dropSize, selKey }. A
+  // unit: { key, id, tile (its anchor), size (1, or 2: a 2×2), side, hp, maxHp, lvl, tracks, relics, monarch, fallen,
+  // sel, glow (colours), lit, offer (it may take the relic readied), flies }.
   draw (p) {
     const old = this.picture
     this.picture = p

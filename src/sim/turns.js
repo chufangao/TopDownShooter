@@ -179,7 +179,9 @@ function refresh (battle) {
   for (const u of battle.units) if (alive(u)) u.move = u === battle.monarch ? 0 : Math.max(0, Math.floor(stats(battle, u).move))
 }
 
-// Whether the battle is over: won once no foe stands nor is to come; lost the instant the Monarch falls (none: a wipe).
+// Whether the battle is over: lost the instant the Monarch falls (none: a wipe once nobody stands); else won once no foe
+// stands nor is to come; else overrun, lost, the instant nothing of yours but the Monarch stands (a shadow and a summon
+// count): the Monarch never acts, and nothing of yours can come again.
 export function settle (battle) {
   if (battle.over) return true
   const m = battle.monarch
@@ -187,9 +189,9 @@ export function settle (battle) {
   let foe = battle.reserve.length
   for (const u of battle.units) if (u.hp > 0) u.side === 'party' ? party++ : foe++
   const lost = m ? !alive(m) : !party
-  if (!lost && foe) return false
-  finish(battle, lost ? 'foe' : 'party', lost ? (m ? 'monarch' : 'wipe') : battle.crumbled ? 'crumble' : 'wipe')
-  return true
+  if (lost || !foe) finish(battle, lost ? 'foe' : 'party', lost ? (m ? 'monarch' : 'wipe') : battle.crumbled ? 'crumble' : 'wipe')
+  else if (m && !pieces(battle)) finish(battle, 'foe', 'overrun')
+  return battle.over
 }
 
 function finish (battle, winner, reason) {
@@ -557,7 +559,8 @@ function raiseDead (battle, actor, count) {
 
 // A status laid on `target` by `by` for `turns` (its def's when not given; 'battle': the battle): a second of one held
 // stacks and lasts the longer. One laid after its holder's turn has passed, or a Hex on one that has acted, is `fresh`:
-// the round's end does not count against it. A boss that lost its act to a Hex shrugs off Hexes (`shrugs`) till it acts.
+// the round's end does not count against it. No unit is Hexed twice in a row: one whose act a Hex cost shrugs off every
+// Hex (`shrugs`) until it acts again.
 export function addStatus (battle, target, id, turns, by = null) {
   if (id === 'hexed' && target.shrugs) {
     emit(battle, { type: 'shrug', target: target.uid, status: id })
@@ -780,13 +783,15 @@ export function shape (battle, u, a, primary) {
 
 // ── acting ───────────────────────────────────────────────────────────────────────────────────────
 
-// `u` uses `a` on `primary`: its act for the turn. A skill rests (set first, so a rule may ready it again); the rules
-// hear of it; a blow is its 'blow' moment and a melee one is countered. Once the Monarch falls nothing follows.
+// `u` uses `a` on `primary`: its act for the turn, after which a Hex may take hold of it again (a counter is no act). A
+// skill rests (set first, so a rule may ready it again); the rules hear of it; a blow is its 'blow' moment and a melee
+// one is countered. Once the Monarch falls nothing follows.
 export function perform (battle, u, a, primary) {
   battle.beat++
   const { primary: aimed, targets } = spread(battle, u, a, primary)
   emit(battle, { type: 'action', actor: u.uid, ability: a.id, anim: a.anim, primary: primary.uid, ...(aimed !== primary && { struck: aimed.uid }), targets: targets.map((x) => x.uid), tile: u.tile })
   u.acted = true
+  if (u.shrugs) u.shrugs = false
   if (isSkill(u, a)) cool(battle, u, a.id, restOf(u, a))
   const before = targets.map((x) => x.hp)
   for (const effect of a.effects) runEffect(battle, effect, u, targets, a)
@@ -840,12 +845,13 @@ export function pick (battle, u, list) {
 }
 
 // One left untouched acts at End Turn with its basics alone: its blow at `pick`'s foe, else its heal on the most
-// wounded it can help, else nothing. A Hexed one loses its act.
+// wounded it can help, else nothing. A Hexed one loses its act, and shrugs off every Hex until it acts again.
 function untouched (battle, u) {
   if (hexed(u)) {
     battle.beat++
     emit(battle, { type: 'hexed', target: u.uid })
     u.acted = true
+    u.shrugs = true
     return
   }
   const b = u.basic

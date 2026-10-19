@@ -183,7 +183,7 @@ function statParts (run, u, path) {
   return { base, total: prev, parts }
 }
 
-// A soul's stat on its panel, told with its numbers: "ATK 14: 12 at Lv 3, +2 Whetstone · Strike ≈7 before DEF"; DEF
+// A soul's stat on its panel, told with its numbers: "ATK 14: 12 at Lv 3, +2 Whetstone · Strike ≈26 before DEF"; DEF
 // and the share it takes off every blow; HP and what a win heals; Move.
 export function statTip (run, u, key) {
   const st = statsOf(u, partyMods(run, u))
@@ -191,8 +191,7 @@ export function statTip (run, u, key) {
   const from = [key === 'move' ? `${p.base} base` : `${p.base} at Lv ${u.lvl}`, ...p.parts.map((x) => `${x.v < 0 ? '−' : '+'}${Math.abs(x.v)} ${x.name}`)].join(', ')
   if (key === 'hp') {
     const [hp, max] = hpAt(u, st)
-    if (u.hp != null && u.hp <= 0) return `Fallen: an altar raises it at ${pct(TUNING.run.altarRevive)} HP. Max ${max}: ${from}.`
-    return hp >= max ? `HP ${max}, full: ${from}.` : `HP ${hp}/${max}: ${from} · a win heals +${Math.min(max - hp, Math.ceil(max * TUNING.run.postBattleHeal))}.`
+    return hp >= max ? `HP ${max}, full: ${from}.` : `HP ${hp}/${max}: ${from} · whole again after a win.`
   }
   if (key === 'atk') {
     const b = basicOf(abilitiesOf(u).map(abilityDef))
@@ -310,19 +309,16 @@ export const MONARCH_TEXT = {
       `Raised only by relics: ${giversOf('run.command').join(', ')}. The Shop's shelf always holds one.`]
   }
 }
-// What would mend the Monarch now: a win's share and an altar's (none under Court of Bone), or "full".
+// What would mend the Monarch now: an altar's heal (nothing under Court of Bone), or "full"; no win heals it.
 function monarchMends (run) {
   const m = monarchOf(run.state)
   if (unhealed(run.state)) return 'nothing heals it (Court of Bone)'
-  if (m.hp >= m.maxHp) return 'full'
-  const win = Math.min(m.maxHp - m.hp, Math.ceil(m.maxHp * TUNING.run.postBattleHeal))
-  const altar = Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal)) - m.hp
-  return `a win heals +${win}, an altar ${TUNING.run.altarHeal >= 1 ? 'to full' : `+${altar}`}`
+  return m.hp >= m.maxHp ? 'full' : `an altar heals it ${TUNING.run.altarHeal >= 1 ? 'to full' : `+${Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal)) - m.hp}`}`
 }
-// The Monarch's HP in a line, for the top bar's chip: "210/250 · a win heals +50, an altar to full".
+// The Monarch's HP in a line, for the top bar's chip: "210/250 · an altar heals it to full".
 export const monarchHpText = (run) => `${monarchOf(run.state).hp}/${monarchOf(run.state).maxHp} · ${monarchMends(run)}`
 export const MONARCH_RULE = 'Nothing is bought for the Monarch: its HP and Command grow only by relics.'
-const WOUNDS_TEXT = `a win heals each piece still standing ${pct(TUNING.run.postBattleHeal)} of its HP; an altar's heal, one rite of its three, heals ${TUNING.run.altarHeal >= 1 ? 'every piece to full' : `each to ${pct(TUNING.run.altarHeal)} of its HP`}`
+const WOUNDS_TEXT = `A win makes every soul whole again, the fallen standing in their cells: no wound and no fall of a soul carries from one battle to the next. The Monarch's HP is the run's: it carries from battle to battle, and only an altar's heal (${TUNING.run.altarHeal >= 1 ? 'to full' : `to ${pct(TUNING.run.altarHeal)}`}) or an HP relic mends it, never under Court of Bone`
 
 // ── reach and Move ───────────────────────────────────────────────────────────────────────────────
 
@@ -406,9 +402,12 @@ export function tileText (tile) {
 
 // What felled the Monarch (run.state.death), in words: who, with what, from where, and the threat. `battle` tells a
 // shadow (one of your own dead risen against you) from the living; a status's tick tells no tile and replays no blow.
+// A battle lost with no blow on the Monarch (overrun, or the sim's stall) is told by its reason alone.
 export function deathText (s, battle = null) {
   const d = s.death
   if (!d) return null
+  const end = d.reason && d.reason !== 'monarch' ? ENDS[d.reason] ?? ENDS.lost : null
+  if (end) return { head: end.head, lines: [end.line], threat: null, tick: null }
   const threat = d.threat && THREATS[d.threat]
   const m = monarchOf(s)
   const own = d.uid === m?.uid
@@ -426,6 +425,13 @@ export function deathText (s, battle = null) {
     threat,
     tick
   }
+}
+
+// The battles lost with no blow on the Monarch, by their reason (turns.js settle).
+const ENDS = {
+  overrun: { head: 'Overrun', line: 'The retinue fell, and with it the Monarch: nothing stood between the foes and the seat.' },
+  stall: { head: 'The battle stalled', line: 'It ran past the bound on turns with no side fallen.' },
+  lost: { head: 'The battle was lost', line: 'It ended with no blow on the Monarch.' }
 }
 
 // The killer came in a later wave (d.wave: 1 is the first after the formation): which, from the room's scouting.
@@ -581,7 +587,7 @@ export const ROOM = {
   fight: { name: 'Fight', text: 'A battle.' },
   elite: { name: 'Elite', text: 'A battle a tier stronger, with a bounty.' },
 
-  altar: { name: 'Altar', text: 'No battle: one rite of three. Heal every soul and raise the fallen, transmute a soul into another kind of its tier, or consecrate a kind: a tier free.' },
+  altar: { name: 'Altar', text: 'No battle: one rite of three. Heal the Monarch, transmute a soul into another kind of its tier, or consecrate a kind: a tier free.' },
   boss: { name: 'Boss', text: 'A boss and its court: its fall crumbles them.' },
   siege: { name: 'Siege', text: 'Wave after wave, no prep between.' }
 }
@@ -609,16 +615,9 @@ export function roomGain (run, node) {
       kinds.length > 0 && [' and a recruit: ', recruitList(run, kinds)], '.']
   }
   if (node.type === 'altar') {
-    const t = TUNING.run
     const m = monarchOf(s)
-    const mon = unhealed(s) ? 0 : Math.max(m.hp, Math.round(m.maxHp * t.altarHeal)) - m.hp
-    const hurt = souls(s.party).filter((u) => u.hp > 0 && u.hp < Math.round(u.maxHp * t.altarHeal)).length
-    const fallen = souls(s.party).filter((u) => u.hp <= 0).map((u) => unitDef(u.id).name)
-    const heals = [mon > 0 && ['the Monarch ', num(`+${mon}`)], hurt > 0 && `${hurt} wounded soul${hurt === 1 ? '' : 's'}`].filter(Boolean)
-    const parts = [heals.length > 0 && ['Heals ', heals.map((x, i) => [i ? ' and ' : '', x])],
-      fallen.length > 0 && `${heals.length ? 'raises' : 'Raises'} ${tally(fallen)} in the ossuary at ${pct(t.altarRevive)} HP`].filter(Boolean)
-    if (!parts.length) return 'Nothing to heal now.'
-    return [parts.map((x, i) => [i ? '; ' : '', x]), '.']
+    const mon = unhealed(s) ? 0 : Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal)) - m.hp
+    return [mon > 0 ? ['Heals the Monarch ', num(`+${mon}`), '; or '] : 'The Monarch is whole. One rite: ', 'transmute a soul into another kind of its tier, or consecrate a kind its next tier, free.']
   }
   return null
 }
@@ -735,21 +734,15 @@ export function floorNote (s) {
   return !deep ? `Floor ${s.floor} of ${TUNING.run.floors}: ${prices}. The air grows colder.`
     : `Floor ${s.floor}, ${deep === 1 ? 'the first of the deep' : `${deep} floors below the Sovereign's`}: ${prices}. ${DEEP_TEXT.now(s.floor)}`
 }
-// An altar just burned: what it did, read off each piece's HP before it (`before`: uid → hp) and now.
-function altarNote (s, before) {
+// An altar just burned its heal: what it did for the Monarch, against its HP before (`was`).
+function altarNote (s, was) {
   const m = monarchOf(s)
-  const mon = m.hp - (before.get(m.uid) ?? m.hp)
-  const healed = souls(s.party).filter((u) => (before.get(u.uid) ?? 0) > 0 && u.hp > before.get(u.uid)).length
-  const raised = souls(s.party).filter((u) => (before.get(u.uid) ?? 1) <= 0 && u.hp > 0).map((u) => unitDef(u.id).name)
-  const parts = [mon > 0 && `the Monarch +${mon} (${m.hp}/${m.maxHp})`,
-    healed > 0 && `${healed} soul${healed === 1 ? '' : 's'} healed ${TUNING.run.altarHeal >= 1 ? 'to full' : `to ${pct(TUNING.run.altarHeal)}`}`,
-    raised.length > 0 && `${tally(raised)} rise${raised.length === 1 ? 's' : ''} in the ossuary at ${pct(TUNING.run.altarRevive)} HP`].filter(Boolean)
-  const court = unhealed(s) && m.hp < m.maxHp ? ' Court of Bone: not the Monarch.' : ''
-  return parts.length ? `The altar burns: ${parts.join('; ')}.${court}` : `The altar burns, but nothing was wounded.${court}`
+  if (m.hp > was) return `The altar burns: the Monarch +${m.hp - was} (${m.hp}/${m.maxHp}).`
+  return unhealed(s) && m.hp < m.maxHp ? 'The altar burns, but Court of Bone holds: nothing heals the Monarch.' : 'The altar burns, but the Monarch was whole.'
 }
 // An altar's rite just taken (`a`: heal, transmute or consecrate), read off the party as it stood before (`before`).
 export function riteNote (s, a, before) {
-  if (a.type === 'heal') return altarNote(s, new Map(before.map((u) => [u.uid, u.hp])))
+  if (a.type === 'heal') return altarNote(s, monarchOf({ party: before }).hp)
   if (a.type === 'consecrate') {
     const tr = tracksOf(a.kind)[a.track]
     const was = before.find((u) => u.id === a.kind)?.lvl
@@ -912,7 +905,7 @@ export function transmuteWorth (run, u, id) {
   const part = (r) => `${Math.min(r.have, r.n)}/${r.n} for ${r.name}`
   return {
     lvl,
-    lines: [`It rises a ${unitDef(id).name} at Lv ${lvl}${lvl > u.lvl ? ` (its new kind's, above its own ${u.lvl})` : ', its own level'}, with its relic and its wounds; the tiers bought for the ${unitDef(u.id).name} stay with that kind.`,
+    lines: [`It rises a ${unitDef(id).name} at Lv ${lvl}${lvl > u.lvl ? ` (its new kind's, above its own ${u.lvl})` : ', its own level'}, with its relic; the tiers bought for the ${unitDef(u.id).name} stay with that kind.`,
       held ? `You hold ${held} of its kind; with it, ${held + 1}.` : 'New to your souls.',
       tiers.length ? `It takes its new kind's tiers: ${tiers.join(', ')}.` : 'Its new kind holds no tiers yet.',
       gained.length > 0 && `Fielded, it brings ${gained.join(', ')}.`,
@@ -1046,9 +1039,9 @@ const WORD_MORE = {
   synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A trine counts as the three of a kind it was made of (a trine of a trine as three too), so a trine and one more piece hold a rule at 4; every other fused piece counts once, with its own kin and role; a relic may make its holder count as another role too, once. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
   relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Only the Shop sells them, for essence, between battles: its shelf is the floor's, deeper floors the rarer, and always holds a Command relic, and from floor ${R.legendary.fromFloor} a Legendary, a rule that rewrites the game. A run relic (its card says Run) touches the run or the whole side and works unheld: Command, the Monarch's HP, prices, essence, Arise's reach; its copies add up with no cap. Every other is a piece relic (Held): it waits unheld until you give it to a soul (tap it in the Relics strip beside the ossuary, then the soul, or the slot in the soul's panel), and works only through its holder, its triggers on its holder's own moments. Give, take back and swap freely out of battle, never in one. A held relic stays with its soul in the ossuary, works only on the field, and comes back unheld when its holder is released or fused away; copies are more holders. Arise is one: its holder learns the skill Arise.` +
     (run && unheld(run.state).length ? ` Unheld now: ${tally(unheld(run.state).map((id) => relicDef(id).name))}.` : ''),
-  altar: () => `One rite, then the room is done. Heal: every soul to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)}, in the ossuary too, and the fallen raised there at ${pct(TUNING.run.altarRevive)} HP; the Monarch too, unless Court of Bone holds. Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic, its wounds and its level: its new kind rises to that level if it stood lower, every soul of it with it. Tiers are a kind's, not a soul's: those bought for its old kind stay there, and it holds its new kind's, none if the kind is new to you. Consecrate: one kind's next tier on the track you choose, free, as buying it would give it.`,
+  altar: () => `One rite, then the room is done. Heal: the Monarch to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)}, unless Court of Bone holds (your souls are whole after every win, and need none). Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic and its level: its new kind rises to that level if it stood lower, every soul of it with it. Tiers are a kind's, not a soul's: those bought for its old kind stay there, and it holds its new kind's, none if the kind is new to you. Consecrate: one kind's next tier on the track you choose, free, as buying it would give it.`,
   shop: (run) => `Open between battles wherever essence is spent: its tab beside the Map, and on the spoils; closed in battle. Its shelf of ${TUNING.shop.relics} relics is the floor's, drawn as you arrive and kept from room to room; a relic bought leaves its slot empty until your next win fills it again. Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows: a relic bought is a tier not bought. Its Fusions list every recipe whose parts you hold, lit when you can pay, one press to fuse.`,
-  turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, and lost only the instant the Monarch falls, however long it lasts.`,
+  turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, and lost the instant the Monarch falls or nothing of yours but the Monarch stands (a shadow and a summon count), however long it lasts: the Monarch never acts.`,
   move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its Move whole again, until it acts. Some tiers and statuses add Move.',
   skill: () => 'Every kind has a basic blow, usable every turn, and a mender a basic heal too; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise: Arise rests none. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
   cooldown: () => 'Every skill but Arise rests a turn once used: its pip under the piece\'s bars goes dark, and lights again as the turn after next begins. Arise rests none: its pip lights again as the next turn begins. Some statuses and relics hurry a rest.',
@@ -1198,7 +1191,7 @@ export function codexView (run = null, { onClose = null, sound = null } = {}) {
     class: 'small ghost', onclick: () => { for (const k of ['select', 'place', 'fuse']) prefs.set('did:' + k, '0'); tipsBack.textContent = 'The tips are back on the Field' }
   }, 'Show the tips again')
   const basics = h('div', { class: 'help-view basics' },
-    h('p', { class: 'lede' }, `${TUNING.draft.picks > 1 ? `Pick your first ${TUNING.draft.picks} souls, each` : 'Pick your first soul'} from ${TUNING.draft.offer} kinds offered; the rest are recruited from the slain. ${TUNING.run.floors} floors, a walk through each ${RANKS - 1} rooms long and ending in a boss and its court, the last floor's the Hollow Sovereign: slay it to clear the run, then descend as deep as you dare. Each other floor's boss is the one that answers what your army leans on most as the floor opens (casters, shooters, statuses or walls), shown on the map from then. A boss is never Hexed twice in a row: once a Hex has cost it an act, it shrugs off every Hex until it has acted again. The run is saved after every move you make: leave when you like, and Continue from the title, where the tutorial waits too.`),
+    h('p', { class: 'lede' }, `${TUNING.draft.picks > 1 ? `Pick your first ${TUNING.draft.picks} souls, each` : 'Pick your first soul'} from ${TUNING.draft.offer} kinds offered, one at least with a ranged blow; the rest are recruited from the slain. ${TUNING.run.floors} floors, a walk through each ${RANKS - 1} rooms long and ending in a boss and its court, the last floor's the Hollow Sovereign: slay it to clear the run, then descend as deep as you dare. Each other floor's boss is the one that answers what your army leans on most as the floor opens (casters, shooters, statuses or walls), shown on the map from then. Nothing is Hexed twice in a row: once a Hex has cost a piece or a foe its act, it shrugs off every Hex until it has acted again. The run is saved after every move you make: leave when you like, and Continue from the title, where the tutorial waits too.`),
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its kind\'s upgrades, Fuse and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),
@@ -1246,7 +1239,7 @@ const primer = () => h('ol', { class: 'primer' },
   h('li', null, 'What you leave alone strikes anyway at ', h('b', null, 'End Turn'), ', with its basic blow or heal, never a skill. Every skill rests a turn once used.'),
   h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. How far each comes is its own judgement: you learn each kind by meeting it, and a kind met shows its reach when tapped. Nothing of what they will do is shown.'),
   h('li', null, 'A ranged blow at one target strikes the first piece of the target\'s side on its ', kw('line', 'line of fire'), ', both sides alike; a side never blocks its own shots. Stand a piece between their shooters and the Monarch, and mind who stands in front of the foe you aim at. Melee, blows that strike an area and lobbed blows ignore lines.'),
-  h('li', null, `No dice: every blow lands and deals what its preview says; the same board and the same orders give the same battle. A battle is lost only when you fall, however long it lasts, and a horde that waits at the edge of your reach comes in time. Wounds carry: ${WOUNDS_TEXT}.`),
+  h('li', null, `No dice: every blow lands and deals what its preview says; the same board and the same orders give the same battle. A battle is lost only when you fall, however long it lasts, and a horde that waits at the edge of your reach comes in time. ${WOUNDS_TEXT}.`),
   h('li', null, 'Spend ', kw('essence'), ' on your kinds\' ', kw('tier', 'tiers'), ' and ', kw('fusion', 'fusions'), ' (three of a kind make its ', kw('trine'), '), on a recruit after a win, and in the ', kw('shop'), ' on ', kw('relic', 'relics'), '. A run relic works for the whole run: the Monarch grows only by them, its HP and its ', kw('command'), '. A piece relic works through the soul you give it to, one a soul, out of battle; Arise is one, and its holder raises the slain.'))
 
 // The bestiary: every foe kind, the ones met with their reach and Move, their way line (from the kind's temperament,

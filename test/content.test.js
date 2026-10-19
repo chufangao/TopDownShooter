@@ -460,14 +460,17 @@ test('every status lasts turns, is drawn in its colour, has a worth, and its tex
     assert.ok(!('dur' in s), `${s.id}: no dur`)
     for (const x of s.mods) assert.ok(!GONE_PATHS.includes(x.path), `${s.id}: ${x.path}`)
     statsOf(unit, s.mods)
-    for (const e of s.tick ?? []) assert.ok(['dot', 'heal'].includes(e.op) && e.power > 0, `${s.id} tick`)
+    for (const e of s.tick ?? []) assert.ok((e.op === 'dot' && e.power > 0) || (e.op === 'heal' && e.pct > 0 && e.pct < 1 && !('power' in e)), `${s.id} tick`)
   }
-  // A damage-over-time or Regen ticks once a turn, for its power, and its card says how much.
-  assert.deepEqual(['burning', 'bleeding', 'regen'].map((id) => STATUSES[id].tick[0].power), [12, 8, 48])
-  for (const id of ['burning', 'bleeding', 'regen']) {
+  // A damage-over-time ticks once a turn for its power, Regen for a share of its holder's max HP, and the card says how much.
+  assert.deepEqual(['burning', 'bleeding'].map((id) => STATUSES[id].tick[0].power), [12, 8])
+  for (const id of ['burning', 'bleeding']) {
     const s = STATUSES[id]
     assert.ok(s.desc.includes(`${s.tick[0].power} `) && !('tickEvery' in s), `${id}: ${s.desc}`)
   }
+  const regen = STATUSES.regen
+  assert.deepEqual(regen.tick.map((e) => e.op), ['heal'])
+  assert.ok(regen.desc.includes(`${Math.round(regen.tick[0].pct * 100)}% of its max HP`) && !('tickEvery' in regen), regen.desc)
   // Burning a damage-over-time up to 3 stacks; Hexed the one that disables (no mods: it costs its next act), both
   // debuffs, so Purge and Molt cleanse them.
   const { burning, hexed } = STATUSES

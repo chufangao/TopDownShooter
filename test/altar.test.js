@@ -1,4 +1,4 @@
-// The altar's choice (run.js): one rite of three, the heal, a transmutation or a free tier, legal
+// The altar's choice (run.js): one rite of three, the Monarch's heal, a transmutation or a free tier, legal
 // and exclusive; a transmutation keeps the soul (its level, its relics, its wounds, its cell) and draws its new kind
 // from the floor's pool at its tier, by the seed; a consecration is one tier, free; a log of each replays; basic heals,
 // the expert weighs them (autoplay.js pickAltar). Functional only: never which rite wins runs.
@@ -202,8 +202,7 @@ test('a log with each rite replays to the same run', () => {
 })
 
 test('basic heals; the expert takes the rite that adds most to its sketch, heals a wounded Monarch, and takes no free tier under the tracks ablation', () => {
-  const whole = (r) => { for (const u of r.state.party) u.hp = u.maxHp }
-  const run = atAltar(whole)
+  const run = atAltar()
   assert.deepEqual(policy(run, null, 'basic'), { type: 'heal' })
   const L = LEVELS.expert
   const pick = policy(run, null, 'expert')
@@ -215,8 +214,10 @@ test('basic heals; the expert takes the rite that adds most to its sketch, heals
   assert.equal(d.today, best.score > TUNING.expert.growth.keep ? best.id : JSON.stringify({ type: 'heal' }))
   assert.equal(d.cands.length, altarOptions(run, L).length)
   // A Monarch below TUNING.expert.tree.altar of its HP is healed (TREES.altar's monarch-heal), unless nothing may heal it.
-  const hurt = atAltar((r) => { whole(r); const m = monarchOf(r.state); m.hp = Math.floor(m.maxHp * TUNING.expert.tree.altar * 0.5) })
+  const hurt = atAltar((r) => { const m = monarchOf(r.state); m.hp = Math.floor(m.maxHp * TUNING.expert.tree.altar * 0.5) })
   assert.deepEqual(policy(hurt, null, 'expert'), { type: 'heal' })
+  const cob = atAltar((r) => { r.state.relics.push('court_of_bone'); const m = monarchOf(r.state); m.hp = Math.floor(m.maxHp * TUNING.expert.tree.altar * 0.5) })
+  assert.notDeepEqual(policy(cob, null, 'expert'), { type: 'heal' })
   // The tracks ablation takes no tier, bought or free.
   assert.ok(!altarOptions(run, { ...L, ablate: 'tracks' }).some((a) => a.type === 'consecrate'))
   assert.ok(altarOptions(run, L).some((a) => a.type === 'consecrate'))

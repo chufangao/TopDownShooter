@@ -61,7 +61,7 @@ export function endScreen ({ run, opened = null, crowned = [], onNew, onDescend,
         h('div', { class: 'title-actions end-actions' },
           descend && h('button', {
             class: 'primary big', onclick: onDescend,
-            tip: () => `Go on to floor ${s.floor + 1}, the first of the deep, with your retinue, relics, essence and wounds as they are. The clear is already yours. (Enter)`
+            tip: () => `Go on to floor ${s.floor + 1}, the first of the deep, with your retinue, relics, essence and the Monarch's HP as they are. The clear is already yours. (Enter)`
           }, 'Descend ', h('kbd', null, 'Enter')),
           newRun),
         h('p', { class: 'dim end-seed' }, `seed ${s.seed}`, asc > 0 && h('span', { tip: () => `Played at ascension ${asc}: ${ascensionText(asc).short}.` }, ` · ascension ${asc}`),

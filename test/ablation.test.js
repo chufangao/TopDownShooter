@@ -101,8 +101,9 @@ test('the arise switch: no relic grants Arise; the synergies switch: the party h
   let raised = 0
   let held = 0
   // Each refought under the expert's turns, a fielded soul holding Arise, its reach over the whole board, so that the
-  // corpses fall in it; and the undead fielded among them (Undead 4).
-  for (const snap of [...snapshots('switch-a'), ...snapshots('switch-b')]) {
+  // corpses fall in it; and the undead fielded among them (Undead 4). Every fight of the two runs: floor 1's first
+  // rooms fall before a corpse can be raised.
+  for (const snap of [...snapshots('switch-a', Infinity), ...snapshots('switch-b', Infinity)]) {
     const fight = (mechanic) => {
       const s = structuredClone({ ...snap, relics: [...snap.relics, 'arise'] })
       s.party.find((u) => u.uid !== 0 && u.slot >= 0 && u.hp > 0).relics = ['arise']

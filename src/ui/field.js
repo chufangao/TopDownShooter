@@ -43,6 +43,8 @@ export function fieldEditor ({ run, act, onChange = null }) {
   let focusSyn = null
   // A piece relic tapped in the Relics strip, waiting for the soul to give it to (null: none).
   let giving = null
+  // A battle refused for want of a soul on the field: the hint says so and the cells a soul may take ring, until one stands.
+  let wanting = false
   const stage = h('div', { class: 'board-stage', 'aria-label': 'The board. Tap a piece to select it; drag a piece to move it. Keys: the arrows move a cursor, Enter taps, Escape lets go.' })
   const hintEl = h('div', { class: 'board-hint', role: 'status' })
   const stageWrap = h('div', { class: 'stage-wrap' }, stage)
@@ -112,6 +114,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
     const p = selected()
     const tap = say('Click', 'Tap')
     if (giving) return [h('b', null, tap), ' a soul to give it ', h('b', { class: `c-${relicDef(giving).tier}` }, relicDef(giving).name), ' · again to cancel']
+    if (wanting) return [h('b', null, 'A soul must stand on the field'), ' to enter a battle']
     if (!done('select')) return [h('b', null, tap), ' a piece to select it · ', h('b', null, 'drag'), ' one to move it']
     if (!done('place') && inOssuary(souls(s.party)).some((u) => u.hp > 0) && !full()) return [h('b', null, 'Drag'), ' a soul from the ossuary onto the camp to field it']
     const ready = !done('fuse') && FUSION_LIST.find((f) => canFuse(run, f.id))
@@ -136,6 +139,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
   function render () {
     // A Release armed on one soul is let go of once another is selected.
     if (arming != null && selected()?.uid !== arming) arming = null
+    if (wanting && fielded(souls(s.party)).some((u) => u.hp > 0)) wanting = false
     const fieldNow = fielded(s.party)
     const m = monarchOf(s)
     const mTile = deployTile('party', m.slot)
@@ -169,12 +173,15 @@ export function fieldEditor ({ run, act, onChange = null }) {
           : Number.isFinite(d) ? `Its road runs ${d} step${d === 1 ? '' : 's'} to the Monarch.` : 'No road runs from here.')))
     }
     const moving = drag ? soulOf(drag.uid) : null
+    const open = !moving && wanting ? readyCells() : null
     const picture = {
       walls, units, domain: dom, reach: reachNow(picked), roads: roads.arrow, seat: mTile,
-      drop: dropTiles(moving), dropSize: moving ? sizeOf(moving) : 1, selKey: picked && onField(picked) ? `s${picked.uid}` : null
+      drop: open ? open.tiles : dropTiles(moving), dropSize: open ? open.size : moving ? sizeOf(moving) : 1,
+      selKey: picked && onField(picked) ? `s${picked.uid}` : null
     }
     stage.className = 'board-stage' + (drag ? ' dragging' : '') + (keyed ? ' kb' : '')
     const teach = hint()
+    hintEl.className = 'board-hint' + (wanting ? ' want' : '')
     fill(hintEl, teach)
     hintEl.hidden = !teach || !!drag
     fill(benchEl, benchStrip())
@@ -224,11 +231,10 @@ export function fieldEditor ({ run, act, onChange = null }) {
           : h('span', { class: 'dim empty-bench' }, 'Drop it here to keep it in the ossuary.'))]
   }
 
-  // A soul in the ossuary, its card's lead: whether the field has room for it, or that it lies fallen.
+  // A soul in the ossuary, its card's lead: whether the field has room for it.
   function benchLead (u) {
     const f = `${fielded(souls(s.party)).length}/${fieldCap(run)}`
-    return u.hp <= 0 ? `Fallen: an altar raises it at ${Math.round(TUNING.run.altarRevive * 100)}% HP`
-      : full() ? `In the ossuary · field ${f}, full: drop it on a piece to swap` : `In the ossuary · field ${f}: room for it`
+    return full() ? `In the ossuary · field ${f}, full: drop it on a piece to swap` : `In the ossuary · field ${f}: room for it`
   }
 
   // ── relics ──
@@ -299,8 +305,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
       pieceHead(u, mods),
       relicSection(u),
       summonsOf(u) > 0 && h('p', { class: 'uc-note uc-summons' }, summonText(u, statsOf(u, mods), mods)),
-      !on && h('p', { class: 'dim uc-note' }, u.hp <= 0 ? 'Fallen, in the ossuary: it cannot be fielded until an altar raises it.'
-        : full() ? fullText(u) : say('In the ossuary. Drag it onto an open tile of the camp, or click one.', 'In the ossuary. Drag it onto an open tile of the camp, or tap one.')),
+      !on && h('p', { class: 'dim uc-note' }, full() ? fullText(u) : say('In the ossuary. Drag it onto an open tile of the camp, or click one.', 'In the ossuary. Drag it onto an open tile of the camp, or tap one.')),
       kindPanel(u.id),
       h('div', { class: 'uc-sec' }, 'Abilities'),
       abilities(u, statsOf(u, mods)),
@@ -470,7 +475,6 @@ export function fieldEditor ({ run, act, onChange = null }) {
   // a wall, two pieces under it (a move swaps with one, never two), the one under it with no room, last a full field.
   function placeRefusal (u, slot) {
     const name = unitDef(u.id).name
-    if (u.hp <= 0) return `${name} has fallen: it lies in the ossuary until an altar raises it.`
     const cells = footprintSlots(slot, sizeOf(u))
     if (!cells) return `${name} is 2×2: its four cells must all lie in the camp.`
     if (cells.some((c) => isMonarchCell(s.camp, c))) return 'The Monarch\'s seat is its own: nothing else stands on it.'
@@ -664,6 +668,19 @@ export function fieldEditor ({ run, act, onChange = null }) {
     return out
   }
 
+  // Where a soul may stand now, rung while a battle waits for one (wanting): the tiles the ossuary's first ready soul may
+  // be dropped on (by its footprint), else every open cell of the camp. → { tiles, size }
+  function readyCells () {
+    const next = inOssuary(souls(s.party)).find((u) => u.hp > 0)
+    if (next) return { tiles: dropTiles(next), size: sizeOf(next) }
+    const held = heldBut()
+    const tiles = []
+    for (let slot = 0; slot < COLS * CAMP_ROWS; slot++) {
+      if (campOpen(s.camp, slot) && !isMonarchCell(s.camp, slot) && !held.has(slot)) tiles.push(deployTile('party', slot))
+    }
+    return { tiles, size: 1 }
+  }
+
   // The drop under the pointer and, when it changes, its preview for the board; there the tile is the footprint's anchor.
   function overMove (e) {
     const hit = document.elementFromPoint(e.clientX, e.clientY)
@@ -744,6 +761,14 @@ export function fieldEditor ({ run, act, onChange = null }) {
     el,
     release,
     shown: render,
+    // A battle refused for want of a soul on the field: the hint asks for one, shaken afresh, and the cells it may take ring.
+    wantSoul () {
+      wanting = true
+      sfx.play('poor')
+      hintEl.classList.remove('want')
+      void hintEl.offsetWidth
+      render()
+    },
     key (e) {
       if (e.key !== 'Escape') return
       if (drag) { end(); return cancelDrag() }

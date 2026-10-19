@@ -118,11 +118,14 @@ test('How to play is the turn\'s: a turn is yours, the untouched strike with the
 })
 
 // No clock: nothing the player reads speaks of one, of turns left, or of a battle lost by time.
-test('no word, no line of How to play and no wave tip speaks of a clock, a cap on turns or a battle lost undecided', () => {
+test('no word, no line of How to play and no wave tip speaks of a clock, a cap on turns or a battle lost undecided', async () => {
   const text = [codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent, ...Object.values(KEYWORDS).map((k) => k.line), ...Object.values(ENEMY_TEXT)].join(' ')
   const gone = /\bclock\b|undecided|turns? left|last turn|\bthe cap\b|dragged on/i
   assert.ok(!gone.test(text), text.match(new RegExp(`.{0,40}(${gone.source}).{0,40}`, 'i'))?.[0])
-  assert.ok(/lost only the instant the Monarch falls|lasts until no foe is left, or the Monarch falls/.test(text), 'what ends a battle')
+  assert.ok(/lasts until no foe is left, the Monarch falls, or nothing of yours but the Monarch stands/.test(text), 'what ends a battle')
+  const { glossary } = await import('../src/codex.js')
+  const turn = glossary(null).flatMap((g) => g.entries).find((e) => e.name === 'Turn').more
+  assert.ok(/lost the instant the Monarch falls or nothing of yours but the Monarch stands/.test(turn) && !gone.test(turn), turn)
 })
 
 test('a relic card says Run or Held; a soul\'s card shows its relic slot, the Monarch\'s none, and no stat but HP, ATK, DEF and Move', () => {
@@ -212,6 +215,20 @@ test('a fall to a status\'s tick is told as that status, from no tile and with n
   const blow = deathText(s, battle(null))
   assert.equal(blow.tick, null)
   assert.ok(blow.lines.some((l) => l.startsWith('From ')), blow.lines.join(' | '))
+  // Overrun (turns.js settle): no blow on the Monarch, told in one sentence by its reason, from no tile.
+  s.death = { by: null, reason: 'overrun', threat: null }
+  const overrun = deathText(s, battle(null))
+  assert.deepEqual([overrun.threat, overrun.tick, overrun.lines.length], [null, null, 1])
+  assert.match(overrun.lines[0], /^The retinue fell, and with it the Monarch: .+\.$/)
+  assert.ok(!/undefined|NaN|null/.test(`${overrun.head} ${overrun.lines.join(' ')}`), overrun.head)
+  // A run overrun as its battle opens (every soul benched): its own death record, told the same.
+  const { visit } = await import('./rooms.js')
+  const lone = createRun({ start: START_PARTY, seed: 'lone' })
+  visit(lone, 'fight')
+  for (const u of souls(lone.state.party)) apply(lone, { type: 'place', uid: u.uid, slot: -1 })
+  apply(lone, { type: 'fight' })
+  assert.deepEqual([lone.state.phase, lone.state.result, lone.state.death], ['over', 'defeat', { by: null, reason: 'overrun', threat: null }])
+  assert.deepEqual(deathText(lone.state, lone.battle), overrun)
 })
 
 test('the glossary never says most kinds have a basic heal: only menders do', async () => {
@@ -341,9 +358,9 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   if (same) assert.ok(said.includes(`for ${offers[0].cost} essence`), said)
   const altar = { id: 'a', type: 'altar', next: [] }
   const text = (x) => [x].flat(Infinity).filter((c) => c != null && c !== false).map((c) => (typeof c === 'object' ? c.textContent : String(c))).join('')
-  assert.equal(text(roomGain(run, altar)), 'Nothing to heal now.')
+  assert.match(text(roomGain(run, altar)), /^The Monarch is whole\. One rite: transmute .* or consecrate .*, free\.$/)
   monarchOf(s).hp -= 30
-  assert.match(text(roomGain(run, altar)), /^Heals the Monarch \+30\b/)
+  assert.match(text(roomGain(run, altar)), /^Heals the Monarch \+30; or transmute/)
   assert.ok(relicTip('grave_banner', run).textContent.includes(`One more: Command ${commandOf(s)} → ${commandOf(s) + 1}`))
   // A kin banner's tip tells its kin's stat, its own copies apart from every soul's cost.
   s.relics.push('bone_horn', 'wyrm_standard')

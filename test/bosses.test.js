@@ -333,8 +333,7 @@ test('the ascension scales every boss, the floor\'s boss multipliers under its r
     }
   }
   assert.ok(at(TUNING.spawn.bossHp, 2) > at(TUNING.spawn.bossHp, 1) && at(TUNING.spawn.court, 2) > at(TUNING.spawn.court, 1))
-  // The Sovereign lighter since the user's rule of 2026-10-16 (a boss shrugs off a second Hex in a row): no Hex holds it
-  // every turn now.
+  // The Sovereign lighter, for no unit is Hexed twice in a row: no Hex holds it every turn.
   assert.ok(at(TUNING.spawn.bossHp, F) < 1 && at(TUNING.spawn.bossAtk, F) < 1, 'the Sovereign lighter')
 })
 

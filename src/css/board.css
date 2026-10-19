@@ -66,6 +66,13 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 }
 .board-hint b { color: #ffffff; }
 .board-hint[hidden] { display: none; }
+/* A battle refused for want of a soul on the field (field.js wanting): the pill in the warning's colour, shaken as it
+   comes (spoils.css refuse), while the cells a soul may take ring on the board. */
+.board-hint.want {
+  background: #3a2a14; color: #ffe9a8; animation: refuse .36s ease-in-out;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-warn) 60%, transparent), var(--drop-sm);
+}
+@media (prefers-reduced-motion: reduce) { .board-hint.want { animation: none; } }
 
 /* The ossuary, the panel's foot: your souls not on the field in a row (it scrolls sideways past what fits), each
    dragged onto the board as a tower from a shop; a piece dropped on it goes back in. */

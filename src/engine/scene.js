@@ -62,6 +62,8 @@ const RULE_ON = {
 // Rules that strike on almost every cast: their name rises at most once a NOISY_MS per side.
 const NOISY = new Set(['sanctuary', 'echo', 'dragonfire', 'deadeye'])
 const NOISY_MS = 1000
+// A board with nothing of yours to order waits this long (ms of playback) before its turn ends by itself (autoEnd).
+const AUTO_END_MS = 600
 
 export class BattleScene extends Phaser.Scene {
   constructor () { super('Battle') }
@@ -92,6 +94,9 @@ export class BattleScene extends Phaser.Scene {
     this.monarchShook = -Infinity
     this.payAt = -1e9
     this.payStack = 0
+    // The last turn that ended by itself, and the playback ms the next is due to (autoEnd).
+    this.autoTurn = null
+    this.autoAt = null
   }
 
   create () {
@@ -214,6 +219,7 @@ export class BattleScene extends Phaser.Scene {
       this.waiting = false
       this.settle()
     }
+    this.autoEnd()
     // The end waits for the crumble to play out.
     if (b.over && this.player.finished && !this.ending && this.playMs >= this.holdUntil) this.finish()
 
@@ -975,6 +981,21 @@ export class BattleScene extends Phaser.Scene {
     this.send({ type: 'end' })
   }
 
+  // Nothing of yours takes orders (roster's total 0: every soul fallen, the shadows and summons acting by themselves):
+  // once the board is free AUTO_END_MS of playback, the turn ends by itself. Once a turn, never paused, never once over.
+  autoEnd () {
+    const b = this.battle
+    if (this.paused || this.locked() || this.autoTurn === b.turn || b.units.some((u) => orderable(b, u))) {
+      this.autoAt = null
+      return
+    }
+    this.autoAt ??= this.playMs + AUTO_END_MS
+    if (this.playMs < this.autoAt) return
+    this.autoAt = null
+    this.autoTurn = b.turn
+    this.endTurn()
+  }
+
   // Gives an order (the run applies it) and plays back its events; the board waits until they have played (settle).
   send (o) {
     let events
@@ -1685,7 +1706,7 @@ export class BattleScene extends Phaser.Scene {
         this.floating(a, 'HEXED', '#c9a6ff', 12)
         this.burst(a.sprite.x, a.sprite.y - a.chest, HEX, 8, { up: true, speed: 50 })
         break
-      // A boss shrugs off a Hex: its last act was lost to one.
+      // A unit shrugs off a Hex: its last act was lost to one.
       case 'shrug':
         this.floating(a, 'SHRUGS OFF HEX', '#c9a6ff', 11)
         break

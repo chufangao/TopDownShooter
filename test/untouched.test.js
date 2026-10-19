@@ -30,7 +30,8 @@ test('End Turn\'s own part, read ahead: each untouched piece of yours in acting 
     on('tomb_knight', 6, 'party', 2, 5, 30),
     on('hive_warden', 2, 'party', 0, 1, 30),
     on('tomb_knight', 3, 'party', 1, 1, 30),
-    on('grave_ghoul', 9, 'foe', 3, 6, 1),
+    // The ghoul at level 10: it must survive one knight's strike and fall to the next.
+    on('grave_ghoul', 9, 'foe', 3, 6, 10),
     on('iron_golem', 10, 'foe', 4, 6, 30)
   ])
   unit(b, 3).hp = Math.round(unit(b, 3).maxHp * 0.3)

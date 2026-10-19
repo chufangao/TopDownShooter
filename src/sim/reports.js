@@ -482,8 +482,9 @@ async function pairedSequential (o) {
 
 // ── skill ladder ─────────────────────────────────────────────────────────────────────────────────
 
-// What ended a run, one cause per defeat: the killer's first threat, or 'stall' for a battle played past the sim's bound.
-export const causesOf = (death) => !death ? [] : [death.reason === 'stall' ? 'stall' : death.threat ?? 'none']
+// What ended a run, one cause per defeat: the killer's first threat, 'overrun' for a battle lost with nothing of yours
+// but the Monarch standing, or 'stall' for one played past the sim's bound.
+export const causesOf = (death) => !death ? [] : [death.reason === 'stall' || death.reason === 'overrun' ? death.reason : death.threat ?? 'none']
 
 // The ladder's rungs, the weakest first:
 //   basic     rules of thumb (LEVELS.basic)

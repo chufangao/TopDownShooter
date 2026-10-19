@@ -302,6 +302,13 @@ b { font-weight: 600; color: var(--bright); }
 @container dag (min-height: 280px) { .node.reach .node-name { display: block; } .dag { bottom: 52px; } }
 @container dag (min-height: 280px) and (min-width: 1300px) { .node .node-name { display: block; } }
 .node kbd { position: absolute; top: -8px; right: -8px; min-width: 22px; background: var(--c-essence); color: var(--ink); font-weight: 700; rotate: 6deg; }
+/* A room ahead with a threat nothing fielded answers: a tag at the medal's upper left, a mark per missing answer
+   (ui/run.js unmet), in the warning's colour. */
+.node .unmet {
+  position: absolute; top: -8px; left: -10px; display: flex; gap: 1px; padding: 2px 3px; pointer-events: none; rotate: -6deg;
+  background: #2e1c2a; color: var(--c-warn); border: 2px solid var(--ink); border-radius: 9px 7px 10px 6px; box-shadow: 1px 2px 0 var(--ink);
+}
+.rt-unmet { display: flex; align-items: center; gap: 6px; }
 /* A room you can't reach yet is dimmed, never greyed out: its icon, and its ring in its room's colour (the
    rooms' own tokens), still tell altar, shop and elite apart at a glance. */
 .node.t-altar { --room: var(--c-ossuary); }

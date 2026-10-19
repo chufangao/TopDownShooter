@@ -28,10 +28,10 @@ const board = (units) => {
 
 // A Grave Ghoul two tiles from a Monarch at 1 HP, itself at 1 HP; your Tomb Knight within a walk of it; another foe far
 // off, so the battle goes on. Felling the Ghoul (or standing where End Turn's blow fells it) saves the Monarch; walking
-// away loses the battle.
+// away loses the battle. The Knight at level 6: it must outfight the far foe once the near one falls.
 const peril = () => board([
   { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0, hp: 1 },
-  { id: 'tomb_knight', uid: 1, side: 'party', x: 1, y: 1 },
+  { id: 'tomb_knight', uid: 1, side: 'party', x: 1, y: 1, lvl: 6 },
   { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 2, hp: 1 },
   { id: 'grave_ghoul', uid: 10, side: 'foe', x: 6, y: 10 }
 ])
@@ -82,7 +82,7 @@ test('an option given: its move, then its act; a stay given what End Turn would 
   assert.ok(g.byUid.get(9).hp <= 0)
 })
 
-test('the label to the battle\'s end: a loss −lost; else the shares lost as the run carries them, a fall all of its share', () => {
+test('the label to the battle\'s end: a loss −lost; else the shares lost as the battle ends, a fall all of its share', () => {
   const b = peril()
   const L = labelPosition(b, 1, null)
   const legal = L.options.filter((o) => o.legal)
@@ -96,7 +96,7 @@ test('the label to the battle\'s end: a loss −lost; else the shares lost as th
     }
   }
   assert.ok(!L.options[L.best].parts.lost)
-  // By hand: the Knight at half its HP falls, the battle won four rounds on; the Monarch at 1 HP heals as it carries.
+  // By hand: the Knight at half its HP falls, the battle won four rounds on; the Monarch at 1 HP as it began: nothing lost.
   const k = b.byUid.get(1)
   k.hp = Math.ceil(k.maxHp / 2)
   const before = endTally(b)
@@ -108,7 +108,7 @@ test('the label to the battle\'s end: a loss −lost; else the shares lost as th
   assert.equal(parts.fell, 1)
   assert.equal(parts.own, 1)
   assert.equal(parts.turns, 4)
-  assert.ok(Math.abs(parts.monarch - (1 - Math.min(m.maxHp, 1 + Math.ceil(m.maxHp * 0.2))) / m.maxHp) < 1e-5)
+  assert.equal(parts.monarch, 0)
   assert.ok(Math.abs(value - (-w.monarch * parts.monarch - w.own - 4 * w.turn)) < 1e-5)
   // The same board lost: −lost, whatever else.
   g.winner = 'foe'
@@ -469,12 +469,13 @@ test('drawn by the floor, a decision\'s chance is its danger\'s times its floor\
 test('smoothed labels: one playout is today\'s label exactly; k are their mean, the exact line first, the same seed the same', () => {
   // One playout an option, whatever epsilon: today's labels, row for row (no `values` written).
   assert.deepEqual(labelPosition(peril(), 1, null, { smooth: 1, epsilon: 0.5, key: 'p' }), labelPosition(peril(), 1, null))
+  // The run's first three battles: a battle of floor 1's first room is a few decisions.
   const keep = { lost: 1, near: 1, reach: 1, calm: 1 }
-  const exact = teachRun('teach-test-1', { battles: 1, limit: 3, keep }).positions
-  assert.deepEqual(teachRun('teach-test-1', { battles: 1, limit: 3, keep, smooth: 1, epsilon: 0.3 }).positions, exact)
+  const exact = teachRun('teach-test-1', { battles: 3, limit: 9, keep }).positions
+  assert.deepEqual(teachRun('teach-test-1', { battles: 3, limit: 9, keep, smooth: 1, epsilon: 0.3 }).positions, exact)
   // Three an option: the same seed the same labels; the run and its positions as ever (only the labels are smoothed),
   // each legal option's first playout the exact one, its label their mean, its parts their means.
-  const cfg = { battles: 1, limit: 3, keep, smooth: 3, epsilon: 0.3 }
+  const cfg = { battles: 3, limit: 9, keep, smooth: 3, epsilon: 0.3 }
   const a = teachRun('teach-test-1', cfg).positions
   assert.deepEqual(teachRun('teach-test-1', cfg).positions, a)
   assert.deepEqual(a.map((p) => p.id), exact.map((p) => p.id))

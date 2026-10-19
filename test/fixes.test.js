@@ -1,11 +1,12 @@
 // The final pass's fixes, each with the case that broke it: the Legion's shadows held to the board, Court of Bone's heal
 // gates, heals that count only whom they can mend, a Monarch that takes no stat it did not buy, the Monarch's seat,
-// threat types on every route, and the autoplayer's room weights and ladder measures.
+// threat types on every route but Fly, and the autoplayer's room weights and ladder measures.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, playTurns, stats } from '../src/sim/turns.js'
 import {
-  createRun, apply, battleSetup, monarchOf, drawRoom, varyRoutes, walkWithout, routeThreats, roomThreats, fielded, availableNodes, isRunPath, START_PARTY
+  createRun, apply, battleSetup, monarchOf, drawRoom, varyRoutes, walkWithout, routeThreats, forcedThreats, roomThreats, fielded,
+  availableNodes, isRunPath, answerArmy, unanswered, ANSWERS, START_PARTY
 } from '../src/sim/run.js'
 import { policy, causesOf, armyMeasures } from '../src/sim/autoplay.js'
 import { generateFloor } from '../src/sim/map.js'
@@ -157,17 +158,25 @@ test('a new floor seats the Monarch on its new camp\'s seat, and a soul standing
   assert.equal(new Set(fielded(s.party).map((u) => u.slot)).size, fielded(s.party).length)
 })
 
-test('every walk through a floor meets every threat type its foes can bring', () => {
+// A floor of seed `seed` as drawn, before its routes are varied: every battle room's foes fixed.
+function floorAt (seed, floor) {
+  const map = generateFloor({ seed, floor, boss: floor <= TUNING.run.floors })
+  for (const n of map.nodes) if (['fight', 'elite', 'boss', 'siege'].includes(n.type)) Object.assign(n, drawRoom(seed, floor, n))
+  return map
+}
+const flies = (n) => ['fight', 'elite', 'boss', 'siege'].includes(n.type) && roomThreats(n).has('fly')
+
+test('every walk through a floor meets every threat type its foes can bring but Fly', () => {
   const v = TUNING.spawn.variety
   let redrawn = 0
   for (let i = 0; i < 24; i++) {
     for (let floor = 1; floor <= TUNING.run.floors + 2; floor++) {
       const seed = `route${i}`
-      const map = generateFloor({ seed, floor, boss: floor <= TUNING.run.floors })
-      for (const n of map.nodes) if (['fight', 'elite', 'boss', 'siege'].includes(n.type)) Object.assign(n, drawRoom(seed, floor, n))
+      const map = floorAt(seed, floor)
       const before = structuredClone(map)
       varyRoutes({ seed, floor, map })
-      for (const type of routeThreats(floor)) assert.equal(walkWithout(map, type), null, `${seed} floor ${floor}: a walk with no ${type}`)
+      assert.deepEqual(forcedThreats(floor), routeThreats(floor).filter((t) => t !== 'fly'))
+      for (const type of forcedThreats(floor)) assert.equal(walkWithout(map, type), null, `${seed} floor ${floor}: a walk with no ${type}`)
       map.nodes.forEach((n, k) => {
         if (JSON.stringify(n) === JSON.stringify(before.nodes[k])) return
         redrawn++
@@ -176,8 +185,7 @@ test('every walk through a floor meets every threat type its foes can bring', ()
         assert.ok(roomThreats(n).size >= (n.type === 'elite' ? v.elite : v.fight), `${seed} floor ${floor} ${n.id}`)
       })
       // The same seed draws the same floor.
-      const again = generateFloor({ seed, floor, boss: floor <= TUNING.run.floors })
-      for (const n of again.nodes) if (['fight', 'elite', 'boss', 'siege'].includes(n.type)) Object.assign(n, drawRoom(seed, floor, n))
+      const again = floorAt(seed, floor)
       varyRoutes({ seed, floor, map: again })
       assert.deepEqual(again, map)
     }
@@ -185,7 +193,59 @@ test('every walk through a floor meets every threat type its foes can bring', ()
   assert.ok(redrawn > 0, 'some walk needed a room drawn again')
   // A run's floor holds to it as made.
   const run = createRun({ start: START_PARTY, seed: 'route-run' })
-  for (const type of routeThreats(1)) assert.equal(walkWithout(run.state.map, type), null)
+  for (const type of forcedThreats(1)) assert.equal(walkWithout(run.state.map, type), null)
+})
+
+test('a walk through a floor whose foes fly may meet no flyer: its battle rooms all on the ground, start to end', () => {
+  assert.ok(routeThreats(2).includes('fly') && !forcedThreats(2).includes('fly'))
+  let walk = null
+  let seed = null
+  for (let i = 0; i < 400 && !walk; i++) {
+    seed = `nofly${i}`
+    for (let floor = 2; floor <= TUNING.run.floors && !walk; floor++) {
+      const map = floorAt(seed, floor)
+      varyRoutes({ seed, floor, map })
+      walk = walkWithout(map, 'fly')
+      if (!walk) continue
+      assert.deepEqual([walk[0].id, walk.at(-1).id], [map.start, map.end])
+      assert.ok(walk.every((n) => !flies(n)), `${seed} floor ${floor}`)
+      assert.ok(map.nodes.some(flies), `${seed} floor ${floor}: flyers elsewhere on it`)
+    }
+  }
+  assert.ok(walk, 'some walk meets no flyer')
+})
+
+test('an elite may still bring Fly to an army with no answer to it (answerArmy), the same on the same seed', () => {
+  // Two ground melee souls: no blow reaches a flyer, nor strikes from afar, nor tends.
+  const melee = ['tomb_knight', 'grave_ghoul'].map((id, i) => makeUnit(id, { uid: i + 1, lvl: 1 }))
+  assert.ok(melee.every((u) => !ANSWERS.fly(u) && !ANSWERS.reach(u)))
+  let flown = 0
+  for (let i = 0; i < 200 && !flown; i++) {
+    const seed = `melee${i}`
+    for (const floor of [2, 3]) {
+      assert.ok(unanswered(floor, melee).includes('fly'), `floor ${floor}`)
+      const map = floorAt(seed, floor)
+      varyRoutes({ seed, floor, map })
+      const elites = map.nodes.filter((n) => n.type === 'elite')
+      if (!elites.length) continue
+      // Each elite a lone Tomb Knight (Shape alone), so none brings what the army lacks: one is drawn again.
+      for (const n of elites) {
+        n.foes = [{ ...n.foes[0], id: 'tomb_knight' }]
+        delete n.waves
+      }
+      const before = structuredClone(map)
+      answerArmy({ seed, floor, map, ascension: 0 }, melee)
+      const moved = elites.filter((n) => JSON.stringify(n) !== JSON.stringify(before.nodes.find((x) => x.id === n.id)))
+      assert.equal(moved.length, 1, `${seed} floor ${floor}`)
+      const got = roomThreats(moved[0])
+      assert.ok(got.has('shape') && unanswered(floor, melee).some((t) => got.has(t)), `${seed} floor ${floor}: ${[...got]}`)
+      if (got.has('fly')) flown++
+      const again = structuredClone(before)
+      answerArmy({ seed, floor, map: again, ascension: 0 }, melee)
+      assert.deepEqual(again, map)
+    }
+  }
+  assert.ok(flown > 0, 'an elite drawn again for the melee army brings Fly')
 })
 
 // ── the autoplayer ───────────────────────────────────────────────────────────────────────────────

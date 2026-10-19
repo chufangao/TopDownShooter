@@ -7,7 +7,7 @@ import { abilityDef } from '../content.js'
 // The player only reads events; it never computes a result. Events come an order at a time, stamped with a beat, and
 // each beat plays once the one before has had its time (spanOf), never before now: the playhead is the scene's clock.
 
-export const STEP_MS = 190     // a tile of a move's path
+export const STEP_MS = 120     // a tile of a move's path
 const ECHO_MS = 260     // an Echo's second pass lands this long after the first
 
 export class TimelinePlayer {
@@ -16,10 +16,12 @@ export class TimelinePlayer {
     this.template = template
     this.actorOf = actorOf
     this.onEvent = onEvent
-    // When the last beat began (tail), how long it takes (span), and its index (last).
+    // When the last beat began (tail), how long it takes (span), and its index (last); the units walking in it (walkers:
+    // a run of moves, each another unit's, empty when it was no move).
     this.tail = 0
     this.span = 0
     this.last = null
+    this.walkers = new Set()
     this.playhead = 0
     this.queue = []       // beats: { at, action, results }
     this.cursor = 0
@@ -47,11 +49,18 @@ export class TimelinePlayer {
     }
   }
 
-  // When `ev` plays (its beat's start): each beat after the last has had its span, and none before now.
+  // When `ev` plays (its beat's start): each beat after the last has had its span, and none before now. A move of a unit
+  // not yet walking, right after another's move that has not begun, starts with it, the span the longer of the two: a
+  // line of foes walks as one.
   slot (ev) {
     if (ev.beat !== this.last) {
-      this.tail = Math.max(this.tail + this.span, this.playhead)
-      this.span = 0
+      const along = ev.type === 'move' && this.walkers.size > 0 && !this.walkers.has(ev.actor) && this.tail >= this.playhead
+      if (!along) {
+        this.tail = Math.max(this.tail + this.span, this.playhead)
+        this.span = 0
+        this.walkers.clear()
+      }
+      if (ev.type === 'move') this.walkers.add(ev.actor)
       this.last = ev.beat
     }
     this.span = Math.max(this.span, spanOf(ev, this.template))
@@ -146,7 +155,7 @@ function spanOf (ev, template) {
     case 'action': return ev.anim ? template(ev.anim).dur ?? 600 : 300
     case 'move': return (ev.path?.length ?? 1) * STEP_MS + 60
     case 'undo': return STEP_MS + 60
-    case 'stage': return ev.stage === 'foes' ? 650 : 120
+    case 'stage': return ev.stage === 'foes' ? 250 : 120
     case 'turn': return 300
     case 'wave': return 900
     case 'enter': return 600

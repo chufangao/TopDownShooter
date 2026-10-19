@@ -2,19 +2,19 @@
 // sieges, the Sovereign's court and its Grave Tide, the depth threat.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus } from '../src/sim/turns.js'
+import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus, roadOf } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier, roomSize
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
-import { foeTurn } from '../src/sim/policy.js'
+import { foeTurn, danger, options } from '../src/sim/policy.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
 import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT } from '../src/sim/unit.js'
-import { sturdy, grant } from './tuned.js'
+import { sturdy, grant, tuned } from './tuned.js'
 import { on, scene, slay, unit, turns } from './scene.js'
 import { fight } from './rooms.js'
 
@@ -33,17 +33,17 @@ function rebuilt (run) {
   for (const o of log.slice(from + 1)) if (!b.over) order(b, o)
   return b
 }
-// A run's souls at level 10 and a Monarch that takes a while to fell (the HP `monarch` points once gave: tuned.js
+// A run's souls at level `lvl` and a Monarch that takes a while to fell (the HP `monarch` points once gave: tuned.js
 // sturdy), so a battle runs its course (the state edited outside the log: not a replay).
-function strong (run, monarch = 40) {
+function strong (run, monarch = 40, lvl = 10) {
   for (const u of run.state.party) {
     if (u.id === 'monarch') {
       const { hp, maxHp } = sturdy({ ...u, lvl: monarch })
       Object.assign(u, { hp, maxHp })
       continue
     }
-    u.lvl = 10
-    u.hp = u.maxHp = baseStats(u.id, 10).hp
+    u.lvl = lvl
+    u.hp = u.maxHp = baseStats(u.id, lvl).hp
   }
 }
 
@@ -216,9 +216,10 @@ test('a run\'s room becomes battle units: foes take the first uids, formation th
   // The elite's captains brought their cohorts as foes of their own.
   assert.equal(setup.foes.length, at(sp.elite, 3) + sp.captains.elite * at(sp.cohort, 3))
   // The battle plays it: the second wave announced and entering, and the run moves past every uid it made. (A
-  // Monarch that outlasts the wave: twelve level-1 foes with their Drake 6 and Ranger 6 steps outfight three
-  // level-10 souls, so the wave would otherwise come to a battle already lost.)
-  strong(run, 400)
+  // Monarch and souls that outlast the wave: twelve level-1 foes with their Drake 6 and Ranger 6 steps outfight three
+  // level-10 souls, and a Monarch left alone is overrun, so the souls stand at level 40 or the wave comes to a battle
+  // already lost.)
+  strong(run, 400, 40)
   apply(run, { type: 'fight' })
   const b = run.battle
   while (s.phase === 'battle' && b.reserve.length) apply(run, { type: 'end' })
@@ -248,7 +249,8 @@ test('a later wave enters at the top edge at the end of its turn, each foe in it
 })
 
 test('waves come on fixed turns, whatever the field: wave k at turn 1 + k × every; and foes still to come keep a battle going', () => {
-  const make = () => scene([on('monarch', 0, 'party', 3, 0, 100), on('grave_ghoul', 10, 'foe', 0, 10, 1), on('grave_ghoul', 11, 'foe', 3, 10, 1), on('grave_ghoul', 12, 'foe', 6, 10, 1)], {
+  // A Knight of yours in the corner holds the battle open (the Monarch alone is overrun).
+  const make = () => scene([on('monarch', 0, 'party', 3, 0, 100), on('tomb_knight', 1, 'party', 0, 0, 100), on('grave_ghoul', 10, 'foe', 0, 10, 1), on('grave_ghoul', 11, 'foe', 3, 10, 1), on('grave_ghoul', 12, 'foe', 6, 10, 1)], {
     reserve: [coming('tomb_knight', 20, 1, 2), coming('tomb_knight', 21, 1, 4), coming('iron_golem', 30, 2, 3)]
   })
   const b = make()
@@ -267,9 +269,10 @@ test('waves come on fixed turns, whatever the field: wave k at turn 1 + k × eve
 test('the Sovereign\'s Grave Tide raises two of the field\'s dead on its side: the strongest, then the nearest; Arise\'s cap is untouched', () => {
   // A Tomb Knight of yours stands before it; the dead lie about: your Tomb Knight (tier 2), a foe Ghoul two
   // tiles off and a foe Page three off (tier 1), and a fallen foe shadow (never raised again). Never raised
-  // either: a fallen boss (tier 5), and a foe Golem (tier 3) with a Ghoul of yours standing on its corpse.
+  // either: a fallen boss (tier 5), and a foe Golem (tier 3) with a Ghoul of yours standing on its corpse. The Knight
+  // before it at level 20: it must stand through both casts.
   const b = scene([
-    on('tomb_knight', 1, 'party', 3, 6, 9), on('tomb_knight', 2, 'party', 5, 5, 1), on('grave_ghoul', 3, 'party', 4, 4, 9),
+    on('tomb_knight', 1, 'party', 3, 6, 20), on('tomb_knight', 2, 'party', 5, 5, 1), on('grave_ghoul', 3, 'party', 4, 4, 9),
     on('hollow_sovereign', 50, 'foe', 3, 7, 1), on('grave_ghoul', 51, 'foe', 2, 9, 1), on('clockwork_page', 52, 'foe', 6, 10, 1),
     { ...on('bone_chanter', 53, 'foe', 0, 9, 1), shadow: true }, on('iron_golem', 54, 'foe', 4, 8, 1), on('hollow_sovereign', 55, 'foe', 1, 10, 1)
   ], { nextUid: 200 })
@@ -323,26 +326,25 @@ test('the Sovereign\'s override casts Grave Tide as the foes\' turn begins, ever
   assert.deepEqual(tideTurn(true), { cast: false, lost: true }, 'Hexed: no Tide, no act')
 })
 
-// The user's rule of 2026-10-16: the Pale Court's Hex every turn held the Sovereign to 0–1 acts a
-// battle. A boss whose act a Hex took shrugs off every Hex until its turn comes unHexed; any other foe does not.
-test('a boss is never Hexed twice in a row: one that lost its act to a Hex shrugs off every Hex until it has acted again', () => {
+// No unit is Hexed twice in a row: a foe whose act a Hex took, a boss or any other, shrugs off every Hex until its turn
+// comes unHexed (so a Hex every turn never holds the Sovereign to no acts).
+test('no foe is Hexed twice in a row: one that lost its act to a Hex shrugs off every Hex until it has acted again, a boss or not', () => {
   const hexed = (u) => u.statuses.find((s) => s.id === 'hexed')
   for (const id of ['hollow_sovereign', 'mire_mother']) {
     const b = scene([on('tomb_knight', 1, 'party', 3, 6, 9), on(id, 50, 'foe', 3, 7, 1), on('grave_ghoul', 51, 'foe', 1, 7, 1)])
-    const boss = unit(b, 50)
-    const ghoul = unit(b, 51)
+    const foes = [unit(b, 50), unit(b, 51)]
     const rows = []
     for (let turn = 0; turn < 3; turn++) {
       const from = b.events.length
-      addStatus(b, boss, 'hexed', 1, unit(b, 1))
-      addStatus(b, ghoul, 'hexed', 1, unit(b, 1))
-      const shrugged = b.events.slice(from).some((e) => e.type === 'shrug' && e.target === 50)
-      const held = !!hexed(boss)
+      for (const u of foes) addStatus(b, u, 'hexed', 1, unit(b, 1))
+      const laid = foes.map((u) => [!!hexed(u), b.events.slice(from).some((e) => e.type === 'shrug' && e.target === u.uid)])
       const ev = order(b, { type: 'end' })
-      rows.push([held, shrugged, ev.some((e) => e.type === 'hexed' && e.target === 50), ev.some((e) => e.type === 'hexed' && e.target === 51)])
+      rows.push(laid.map((r, i) => [...r, ev.some((e) => e.type === 'hexed' && e.target === foes[i].uid)]))
     }
-    // [held, shrugged, its act lost, the ghoul's act lost]
-    assert.deepEqual(rows, [[true, false, true, true], [false, true, false, true], [true, false, true, true]], id)
+    // Each [held, shrugged, its act lost], the boss's and the Ghoul's alike.
+    const lost = [true, false, true]
+    const shrugged = [false, true, false]
+    assert.deepEqual(rows, [[lost, lost], [shrugged, shrugged], [lost, lost]], id)
   }
   // Whenever it is laid and by whom: after the act it lost, later in the foes' turn and at the turn's end, by your side or
   // its own, none takes hold (nor renews the one it holds); once its turn has come unHexed, the next lands, one laid in
@@ -376,6 +378,36 @@ test('a boss is never Hexed twice in a row: one that lost its act to a Hex shrug
     lost.push(order(c, { type: 'end' }).some((e) => e.type === 'hexed' && e.target === 50))
   }
   assert.deepEqual(lost, [true, true, false, true])
+})
+
+// A foe whose options hold no blow at one of yours this turn weighs its road at TUNING.policy.walk's aggression at least;
+// one with a blow to land keeps its own temper.
+test('a Keeper with nothing to strike comes on along its road at the least aggression to walk by; with one of yours in reach it keeps its temper', () => {
+  // The Warden comes down the middle lane into a Bone Chanter's reach, the Chanter well past its own.
+  const play = (extra, walk) => tuned({ policy: { walk } }, () => {
+    const b = scene([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 3, 2), ...extra, on('hive_warden', 50, 'foe', 3, 10, 1)])
+    const w = unit(b, 50)
+    assert.equal(w.temper.aggression, 0, 'a Keeper')
+    const road = roadOf(b, w)
+    const from = road.dist[w.tile]
+    const blows = options(b, w).filter((o) => o.ability && o.target.side !== w.side).length
+    b.stage = 'foes'
+    const { orders } = foeTurn(b)
+    return { gained: from - road.dist[w.tile], hurt: danger(b, 'foe').ground[w.tile], orders, blows }
+  })
+  // Nothing in reach: at no least aggression it stops at the edge of your reach; weighed high enough, it walks its Move in.
+  const wary = play([], 0)
+  const bold = play([], 1e3)
+  assert.equal(wary.blows, 0, 'nothing to strike from any tile of its road ahead')
+  assert.equal(wary.hurt, 0, 'it holds out of your reach')
+  assert.ok(wary.gained >= 1, 'having come as far as it safely could')
+  assert.equal(bold.gained, unitDef('hive_warden').move, 'it walks its Move')
+  assert.ok(bold.hurt > 0, 'into your reach')
+  assert.ok(play([], TUNING.policy.walk).gained >= wary.gained, 'the knob as it stands: at least as far')
+  // A Sprite of yours where its road ends: a blow to land, so the knob changes nothing.
+  const near = [on('frost_sprite', 2, 'party', 3, 7)]
+  assert.ok(play(near, 0).blows > 0)
+  assert.deepEqual(play(near, 1e3).orders, play(near, 0).orders, 'its own temper')
 })
 
 test('killing the Sovereign ends the battle: its court and every foe still standing crumble and pay as if slain, and the foes still to come never enter', () => {
@@ -418,8 +450,9 @@ test('the Sovereign\'s crumbled court never rises: the battle ends with its fall
 })
 
 test('a Monarch felled by a foe of a later wave is recorded with that wave, under the killer\'s own threat', () => {
+  // A Knight of yours across the camp holds the battle open, out of the killer's way.
   const fell = (wave, id = 'mantis_reaper') => {
-    const b = scene([on('monarch', 0, 'party', 3, 0), { ...on(id, 50, 'foe', 3, 1, 5), ...(wave && { wave }) }])
+    const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 6, 6), { ...on(id, 50, 'foe', 3, 1, 5), ...(wave && { wave }) }])
     b.monarch.hp = 1
     playOut(b)
     return b.death

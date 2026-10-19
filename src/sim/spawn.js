@@ -11,12 +11,12 @@ import { lined, basicOf } from './turns.js'
 import { nodeOf, RANKS } from './map.js'
 import { BATTLE_NODES, at, roomSize } from './state.js'
 
-// Every threat type the floor's foes bring (routeThreats) appears on every route: while some walk meets none of a type,
-// its first battle room from rank variety.from (never the boss's) is drawn again wanting it, keeping the types it had.
+// Every threat type of forcedThreats appears on every route: while some walk meets none of a type, one of its battle
+// rooms from rank variety.from (never the boss's) is drawn again wanting it, keeping the types it had.
 export function varyRoutes (s) {
   const v = TUNING.spawn.variety
   for (let pass = 0; pass < v.routePasses; pass++) {
-    for (const type of routeThreats(s.floor)) {
+    for (const type of forcedThreats(s.floor)) {
       for (let k = 0; k < v.routeTries; k++) {
         const rooms = walkWithout(s.map, type)?.filter((n) => BATTLE_NODES.includes(n.type) && n.type !== 'boss' && n.rank >= v.from)
         if (!rooms?.length) break
@@ -34,6 +34,9 @@ export const routeThreats = (floor) => {
   const out = threatsOf([...spawnPool(poolFloor(floor)).units, ...spawnPool(poolFloor(floor), sp.eliteTier).units])
   return Object.keys(THREATS).filter((t) => out.has(t))
 }
+// The threat types every walk through a floor meets (varyRoutes): routeThreats but Fly, which a ground melee army cannot
+// touch at all. Fly comes by the ordinary draw, and to an elite that answers the army (answerArmy): elites are optional.
+export const forcedThreats = (floor) => routeThreats(floor).filter((t) => t !== 'fly')
 
 // A walk from a floor's start to its end that meets no battle room carrying `type`, as its rooms in order
 // (the first found, breadth first), or null if every walk meets one.

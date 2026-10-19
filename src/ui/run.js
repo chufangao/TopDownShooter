@@ -1,8 +1,11 @@
 // The run's screen between battles, its four tabs folded into the top bar, and the Map: the floor's rooms.
 import { roomTip, ROOM, codexView, bestiaryCount } from '../codex.js'
 import { h, fill, icon, hideTip, pinTip, touchy, say } from '../dom.js'
+import { THREATS } from '../content.js'
 import { RANKS, WIDTH } from '../sim/map.js'
-import { availableNodes, shopOffers, shelfFusions } from '../sim/run.js'
+import {
+  availableNodes, shopOffers, shelfFusions, fielded, souls, roomThreats, ANSWERS, BATTLE_NODES
+} from '../sim/run.js'
 import { topbar, ossuaryCount } from './chrome.js'
 import { fieldEditor } from './field.js'
 import { shopView } from './shop.js'
@@ -31,15 +34,19 @@ function shopCount (run) {
 export function runScreen ({ run, act, trail, note = '', onNode, onHelp, onTab = null }) {
   const bar = h('div', { class: 'bar-slot' })
   const tabsEl = h('nav', { class: 'top-tabs', role: 'tablist', 'aria-label': 'Views' })
-  const refresh = () => fill(bar, topbar(run, onHelp, tabsEl))
+  const body = h('div', { class: 'run-body' })
+  let tab = null
+  // Every change read again: the top bar, and the Map where it is open (its marks follow the field).
+  const refresh = () => {
+    fill(bar, topbar(run, onHelp, tabsEl))
+    if (tab === 'map') fill(body, mapView({ run, trail, onNode }))
+  }
   const editor = fieldEditor({ run, act, onChange: refresh })
   refresh()
 
-  const body = h('div', { class: 'run-body' })
   // The note (what just happened) floats over the foot of the view: a tap dismisses it, and it fades by itself.
   const toast = note && h('div', { class: 'note', role: 'status', onclick: (e) => e.currentTarget.remove() }, note)
   const reach = availableNodes(run)
-  let tab = null
   const show = (id) => {
     if (tab === id) return
     if (tab && toast) toast.remove()
@@ -61,6 +68,11 @@ export function runScreen ({ run, act, trail, note = '', onNode, onHelp, onTab =
   const el = h('div', { class: 'screen fit run-screen' }, bar, body, toast)
   return {
     el,
+    // A battle refused for want of a soul on the field: the Field opens, asking for one.
+    wantSoul () {
+      show('field')
+      editor.wantSoul()
+    },
     key (e) {
       const n = reach[Number(e.key) - 1]
       if (n) { editor.release(); onNode(n.id) } else if (e.key === 'f' || e.key === 'F') show('field')
@@ -79,9 +91,50 @@ export const NODE = Object.fromEntries(Object.entries(ROOM).map(([k, v]) => [k, 
 // The whole floor at once: ranks across (the start on the left), lanes down, in % of the floor's box to fit any frame.
 const pos = (n) => ({ x: n.rank / (RANKS - 1) * 100, y: n.lane / (WIDTH - 1) * 100 })
 
-// A click enters a glowing room. By touch a tap scouts (its tooltip pinned with Enter ▸) and a second tap enters.
+// What a threat asks of the army (spawn.js ANSWERS), as a room ahead that nothing fielded answers wears it: its mark on
+// the room, and what is missing; the three a mend answers share theirs.
+const MENDS = { ico: 'hp', lack: 'nothing fielded mends another or cleanses' }
+const UNMET = {
+  fly: { ico: 'wing', lack: 'nothing fielded can strike a flyer' },
+  reach: { ico: 'reach', lack: 'nothing fielded strikes from afar' },
+  drain: MENDS,
+  burn: MENDS,
+  bleed: MENDS
+}
+const OTHER = { ico: 'elite', lack: 'nothing fielded answers it' }
+const unmetOf = (t) => UNMET[t] ?? OTHER
+
+// The threat types of battle room `n` that none of `army` answers, in THREATS' order.
+function unmet (n, army) {
+  if (!BATTLE_NODES.includes(n.type)) return []
+  const has = roomThreats(n)
+  return Object.keys(THREATS).filter((t) => ANSWERS[t] && has.has(t) && !army.some(ANSWERS[t]))
+}
+// Its marks, one per missing answer, at the medal's upper left.
+const unmetMark = (types) => types.length > 0 && h('span', { class: 'unmet', 'aria-hidden': 'true' },
+  [...new Set(types.map((t) => unmetOf(t).ico))].map((ico) => icon(ico, 14)))
+// The room's tooltip, a line for each missing answer under its title.
+function unmetTip (tip, types) {
+  const by = new Map()
+  for (const t of types) {
+    const u = unmetOf(t)
+    by.set(u, [...(by.get(u) ?? []), THREATS[t].name])
+  }
+  const lines = [...by].map(([u, names]) => h('p', { class: 'warn rt-unmet' }, icon(u.ico, 16), `No answer to ${names.join(', ')}: ${u.lack}.`))
+  if (!lines.length) return tip
+  const head = tip.querySelector('.rt-head')
+  if (head) head.after(...lines)
+  else tip.prepend(...lines)
+  return tip
+}
+
+// A click enters a glowing room. By touch a tap scouts (its tooltip pinned with Enter ▸) and a second tap enters. A room
+// ahead whose threats include one that no living fielded soul answers wears its mark (unmet).
 function mapView ({ run, trail, onNode }) {
   const s = run.state
+  const army = fielded(souls(s.party)).filter((u) => u.hp > 0)
+  const here = s.map.nodes.find((n) => n.id === s.at)
+  const lacks = (n) => trail.includes(n.id) || n.rank <= (here?.rank ?? -1) ? [] : unmet(n, army)
   const reach = availableNodes(run)
   const reachIds = new Set(reach.map((n) => n.id))
   const walked = new Set(trail.slice(1).map((id, i) => `${trail[i]}>${id}`))
@@ -105,7 +158,7 @@ function mapView ({ run, trail, onNode }) {
   const scout = (el, n, ok) => {
     chosen = ok ? el : null
     el.classList.toggle('chosen', ok)
-    pinTip(el, () => [roomTip(run, n, { reachable: ok, enter: ok }),
+    pinTip(el, () => [unmetTip(roomTip(run, n, { reachable: ok, enter: ok }), lacks(n)),
       ok && h('button', { class: 'primary small tip-act', onclick: () => onNode(n.id) }, 'Enter ▸')], {
       keep: true,
       onHide: () => { el.classList.remove('chosen'); if (chosen === el) chosen = null }
@@ -115,18 +168,19 @@ function mapView ({ run, trail, onNode }) {
     const p = pos(n)
     const ok = reachIds.has(n.id)
     const key = ok ? reach.findIndex((x) => x.id === n.id) + 1 : null
+    const lack = lacks(n)
     return h('button', {
       class: `node t-${n.type}` + (ok ? ' reach' : '') + (trail.includes(n.id) ? ' visited' : '') + (n.id === s.at ? ' here' : '') + (!ok && !trail.includes(n.id) ? ' far' : ''),
       style: `left:${p.x}%;top:${p.y}%`,
       'aria-disabled': ok ? null : 'true',
-      'aria-label': NODE[n.type].name,
-      tip: () => roomTip(run, n, { reachable: ok }),
+      'aria-label': NODE[n.type].name + (lack.length ? `, no answer to ${lack.map((t) => THREATS[t].name).join(', ')}` : ''),
+      tip: () => unmetTip(roomTip(run, n, { reachable: ok }), lack),
       onclick: (e) => {
         if (!touchy()) { if (ok) onNode(n.id); return }
         if (ok && chosen === e.currentTarget) return onNode(n.id)
         scout(e.currentTarget, n, ok)
       }
-    }, h('span', { class: 'medal' }, icon(n.type, 24)), h('span', { class: 'node-name' }, NODE[n.type].name), key && h('kbd', null, key))
+    }, h('span', { class: 'medal' }, icon(n.type, 24)), h('span', { class: 'node-name' }, NODE[n.type].name), key && h('kbd', null, key), unmetMark(lack))
   })
   return h('section', { class: 'panel mapcol', 'aria-label': 'The floor' },
     h('div', { class: 'map-head' }, h('h2', null, s.tutorial ? 'The threshold' : `Floor ${s.floor}`),

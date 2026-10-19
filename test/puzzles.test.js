@@ -25,6 +25,11 @@ const M = (x, y) => ({ id: 'monarch', uid: 0, side: 'party', x, y })
 const at = (x, y) => tileAt(x, y)
 const where = (t) => `(${tileX(t)},${tileY(t)})`
 const piece = (b, uid) => b.byUid.get(uid)
+// HP at which neither of `uids` fells `target` alone with its best blow (policy.js blowOn), and the two together do.
+const twoBlows = (b, uids, target) => {
+  const best = uids.map((uid) => Math.max(...piece(b, uid).kit.filter(isBlow).map((a) => blowOn(b, piece(b, uid), a, target))))
+  return Math.max(...best) + Math.ceil(Math.min(...best) / 2)
+}
 // One turn of the expert's: its orders given, End Turn last. → the orders.
 function play (b) {
   const orders = expertTurn(b)
@@ -223,10 +228,11 @@ test('puzzle: focus a key foe the kill list can fell with two blows together', (
     { id: 'frost_sprite', uid: 1, side: 'party', x: 3, y: 3 },
     { id: 'bone_chanter', uid: 2, side: 'party', x: 2, y: 2 },
     { id: 'tomb_knight', uid: 9, side: 'foe', x: 1, y: 8 },
-    { id: 'hive_warden', uid: 10, side: 'foe', x: 4, y: 7, hp: 20 },
+    { id: 'hive_warden', uid: 10, side: 'foe', x: 4, y: 7 },
     { id: 'tomb_knight', uid: 11, side: 'foe', x: 3, y: 10 }
   ])
   const w = piece(b, 10)
+  w.hp = twoBlows(b, [1, 2], w)
   for (const uid of [1, 2]) assert.ok(piece(b, uid).kit.every((a) => !isBlow(a) || blowOn(b, piece(b, uid), a, w) < w.hp), `${uid} alone`)
   const list = killList(b, situation(b)).list
   assert.deepEqual(list.map((k) => [k.uid, k.strikes.map((s) => s.uid).sort()]), [[10, [1, 2]]])
@@ -241,9 +247,11 @@ test('puzzle: the kill list strikes from range first, so the melee blow that fel
     M(3, 0),
     { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
     { id: 'frost_sprite', uid: 2, side: 'party', x: 5, y: 2 },
-    { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 5, hp: 20 },
+    { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 5 },
     { id: 'tomb_knight', uid: 10, side: 'foe', x: 0, y: 10 }
   ])
+  // The Knight wounded so that it takes both blows.
+  piece(b, 9).hp = twoBlows(b, [1, 2], piece(b, 9))
   const list = killList(b, situation(b)).list
   assert.deepEqual(list.map((k) => [k.uid, k.strikes.map((s) => s.uid)]), [[9, [2, 1]]])
   const hp = piece(b, 1).hp

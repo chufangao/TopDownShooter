@@ -22,8 +22,8 @@ const F = TUNING.run.floors
 
 // ── helpers ──────────────────────────────────────────────────────────────────────────────────────
 
-// Party units of `ids` (cycled) on `tiles`, uids from `uid`; the foes' the same (uids from 101).
-const squad = (ids, tiles, uid = 1) => tiles.map(([x, y], i) => on(ids[i % ids.length], uid + i, 'party', x, y))
+// Party units of `ids` (cycled) on `tiles`, uids from `uid`, at level `lvl`; the foes' the same (uids from 101).
+const squad = (ids, tiles, uid = 1, lvl = 3) => tiles.map(([x, y], i) => on(ids[i % ids.length], uid + i, 'party', x, y, lvl))
 const foeSquad = (ids, tiles, uid = 101) => tiles.map(([x, y], i) => on(ids[i % ids.length], uid + i, 'foe', x, y))
 // Four tiles of a row `y` (lanes 1–4), or three.
 const four = (y) => [1, 2, 3, 4].map((x) => [x, y])
@@ -153,7 +153,8 @@ function legionReap () {
 }
 
 test('Mirage: the first blow each foe would land on the side holding it each turn misses, and only the first; either side', () => {
-  const b = scene([...squad(['will_o_wisp', 'thorn_dryad'], four(5)), ...[1, 3].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
+  // The fae at level 20: a wisp must outlive two of the knights' blows, or the four that hold Mirage are three.
+  const b = scene([...squad(['will_o_wisp', 'thorn_dryad'], four(5), 1, 20), ...[1, 3].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
   const foiled = (uid) => {
     const first = strike(b, uid, uid === 101 ? 1 : 3)
     assert.deepEqual(first.filter((e) => ['rule', 'miss', 'damage'].includes(e.type)).map((e) => [e.type, e.actor]).slice(0, 2), [['rule', uid], ['miss', uid]])
@@ -690,8 +691,8 @@ function deepWalk () {
   const again = { state: structuredClone(snap), battle: null, setup: null }
   for (const a of s.log.slice(snap.log.length)) apply(again, a)
   assert.deepEqual(again.state, s)
-  // A fall in the deep: the Monarch alone on the field, against a room of the deep. The run is over, the
-  // clear stands, the death is recorded, and there is no descending from it.
+  // A fall in the deep: the Monarch alone on the field, against a room of the deep, overrun as the battle opens. The run
+  // is over, the clear stands, the death is recorded, and there is no descending from it.
   const fall = { state: structuredClone(snap), battle: null, setup: null }
   apply(fall, { type: 'descend' })
   const node = fall.state.map.nodes.find((n) => fall.state.map.nodes.find((x) => x.id === fall.state.at).next.includes(n.id) && n.foes)
@@ -700,7 +701,7 @@ function deepWalk () {
     for (const u of fielded(souls(fall.state.party))) apply(fall, { type: 'place', uid: u.uid, slot: -1 })
     apply(fall, { type: 'fight' })
     while (fall.state.phase === 'battle') apply(fall, { type: 'end' })
-    assert.deepEqual([fall.state.phase, fall.state.result, fall.state.death?.reason], ['over', 'victory', 'monarch'])
+    assert.deepEqual([fall.state.phase, fall.state.result, fall.state.death?.reason], ['over', 'victory', 'overrun'])
     assert.deepEqual(legalActions(fall), [])
     assert.throws(() => apply(fall, { type: 'descend' }), /slew the Sovereign/)
     checkDeep(fall)

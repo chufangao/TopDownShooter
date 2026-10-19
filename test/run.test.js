@@ -13,7 +13,7 @@ import { createRng } from '../src/sim/rng.js'
 import { generateFloor } from '../src/sim/map.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, FIRST_BALANCE, LEVEL_A_TIER, relicMod } from './tuned.js'
-import { RELICS, UNITS, UNIT_LIST, FUSION_LIST, CAMP_LIST } from '../src/content.js'
+import { RELICS, UNITS, UNIT_LIST, FUSION_LIST, CAMP_LIST, MONARCH_LIST, unitDef } from '../src/content.js'
 import {
   CAMP_SLOTS, COLS, campOpen, isWall, slotAt, rowOf, colOf, baseStats, makeUnit,
   sizeOf, footprint, footprintSlots, fits, monarchSlot, isMonarchCell, meleeOnly
@@ -159,6 +159,38 @@ test('the draft: a kind may be taken twice, each a soul of its own; offers are t
   }
   assert.deepEqual([...seen].sort(), draftPool().slice().sort())
 })
+// Whether a kind's kit holds a blow past melee.
+const shoots = (id) => !meleeOnly(makeUnit(id))
+
+// Every offer holds a kind that shoots: an offer of melee alone gives one place to one, as the rest are drawn.
+test('the draft always offers a kind with a ranged blow: the seed\'s, distinct kinds of the pool, a Monarch\'s kin still favoured', () => {
+  assert.ok(draftPool().some(shoots) && draftPool().some((id) => !shoots(id)), 'the pool holds both')
+  const plain = (seed) => createRng(seed).stream('draft|0').shuffle(draftPool()).slice(0, TUNING.draft.offer)
+  const n = 300
+  let given = 0
+  for (const bias of [null, ...MONARCH_LIST.slice(1).map((m) => m.bias)]) {
+    let kin = 0
+    for (let i = 0; i < n; i++) {
+      const seed = `ranged-${i}`
+      const offer = draftOffer(seed, 0, [], bias)
+      const where = `${seed} ${bias}: ${offer.join(',')}`
+      assert.ok(offer.some(shoots), where)
+      assert.equal(new Set(offer).size, TUNING.draft.offer, where)
+      assert.ok(offer.every((id) => draftPool().includes(id)), where)
+      assert.deepEqual(draftOffer(seed, 0, [], bias), offer, where)
+      const later = draftOffer(seed, 1, [offer[0]], bias)
+      assert.ok(later.some(shoots) && later.some((id) => partners(offer[0], id)), `${where} → ${later.join(',')}`)
+      if (bias) kin += offer.some((id) => unitDef(id).kin === bias)
+      else if (!plain(seed).some(shoots)) {
+        assert.equal(offer.filter((id, k) => id !== plain(seed)[k]).length, 1, where)
+        given++
+      }
+    }
+    if (bias) assert.ok(kin / n > 0.6, `${bias}: its kin in ${kin} of ${n} first offers`)
+  }
+  assert.ok(given > 0, 'some plain draws were melee alone')
+})
+
 // From the second pick, the offer holds a plan.
 test('the draft guarantees a plan: every pick after the first offers a kin-mate or a recipe partner of a soul held', () => {
   // The relation, read from the kins and the recipes: a kin (a kind its own), a recipe across kins, nothing else.
@@ -167,8 +199,8 @@ test('the draft guarantees a plan: every pick after the first offers a kin-mate 
   assert.ok(!partners('pyre_hound', 'frost_sprite') && !partners('clockwork_page', 'hive_warden') && !partners('grave_ghoul', 'will_o_wisp'))
   for (const r of FUSION_LIST) for (const a of Object.keys(r.needs)) for (const b of Object.keys(r.needs)) assert.ok(partners(a, b), `${r.id}: ${a}, ${b}`)
   // Every pick of every path through the draft, on many seeds: the offer as many different floor-1 kinds as TUNING says,
-  // the seed's (the same twice), and from the second pick one at least goes with a soul held. The first pick's is the
-  // draw as it was, and a later one differs from the plain draw only where that draw had no partner, in one place.
+  // the seed's (the same twice), and from the second pick one at least goes with a soul held. An offer is the plain
+  // draw but for a place given to a partner where the draw had none, and one to a kind that shoots where it then had none.
   const plain = (seed, pick) => createRng(seed).stream(`draft|${pick}`).shuffle(draftPool()).slice(0, TUNING.draft.offer)
   // Three picks deep, past the run's own where it drafts fewer (TUNING.draft.picks; one since 2026-10-18): draftOffer
   // deals any pick its rule.
@@ -185,12 +217,13 @@ test('the draft guarantees a plan: every pick after the first offers a kin-mate 
     assert.deepEqual(draftOffer(seed, held.length, held.slice()), offer, where)
     const was = plain(seed, held.length)
     const mate = (o) => o.some((id) => held.some((h) => partners(h, id)))
-    if (!held.length || mate(was)) assert.deepEqual(offer, was, where)
-    else {
-      assert.ok(mate(offer), where)
-      assert.equal(offer.filter((id, i) => id !== was[i]).length, 1, where)
-      dealt++
-    }
+    const partnered = held.length > 0 && !mate(was)
+    const changed = offer.filter((id, i) => id !== was[i]).length
+    if (held.length) assert.ok(mate(offer), where)
+    assert.ok(offer.some(shoots), where)
+    if (!partnered && was.some(shoots)) assert.deepEqual(offer, was, where)
+    else assert.ok(changed >= 1 && changed <= (partnered ? 2 : 1), where)
+    if (partnered) dealt++
     offers++
     for (const id of offer) walk(seed, [...held, id])
   }
@@ -462,26 +495,32 @@ test('prep: the Monarch alone may fight; a fight with no one standing may not', 
   assert.throws(() => apply(run, { type: 'fight' }), /nobody standing/)
 })
 
-test('altar\'s heal heals everyone and raises the fallen', () => {
+test('an altar\'s heal mends the Monarch to altarHeal and nothing else; whole, it changes nothing', () => {
   const run = createRun({ start: START_PARTY, seed: 'altar' })
-  const [a, b] = run.state.party
-  a.hp = 1
-  b.hp = 0
+  const s = run.state
+  const m = monarchOf(s)
+  m.hp = 1
   visit(run, 'altar')
-  assert.equal(run.state.phase, 'altar')
-  assert.equal(a.hp, 1)
+  assert.equal(s.phase, 'altar')
+  const souls0 = structuredClone(souls(s.party))
   apply(run, { type: 'heal' })
-  assert.equal(run.state.phase, 'map')
-  assert.equal(a.hp, a.maxHp)
-  assert.equal(b.hp, Math.ceil(b.maxHp * TUNING.run.altarRevive))
+  assert.equal(s.phase, 'map')
+  assert.equal(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal))
+  assert.deepEqual(souls(s.party), souls0)
+  const whole = createRun({ start: START_PARTY, seed: 'altar' })
+  visit(whole, 'altar')
+  const before = structuredClone(whole.state.party)
+  apply(whole, { type: 'heal' })
+  assert.deepEqual(whole.state.party, before)
 })
-// A piece that fell leaves the field as the battle ends: it lies fallen in the ossuary, its cell and its
-// Command free, and nothing fields it until an altar raises it. It still fuses and is released.
+// A piece that fell stands again as the battle is won: whole, in the cell it fought from, its Command held. Only a
+// loss keeps it down, and a loss ends the run.
 // The first room given a full fight's foes, those of the floor's first fight past the opening (floor 1's first rooms
 // hold one foe since the first battle of 2026-10-18: TUNING.spawn.opening), for a test that needs a fight's dead.
 const fuller = (run) => { availableNodes(run)[0].foes = run.state.map.nodes.find((n) => n.type === 'fight' && n.rank > TUNING.spawn.opening.length).foes }
 
-test('a piece that falls in a won battle goes to the ossuary: its cell and Command free, never placed, until an altar raises it', () => {
+test('a piece that falls in a won battle stands again whole, in its cell, its Command held', () => {
+  const fell = (run) => run.battle.units.filter((u) => u.side === 'party' && !u.shadow && u.uid !== MONARCH_UID && u.hp <= 0)
   const won = (() => {
     for (let i = 0; i < 200; i++) {
       // The fights of the floor walked in turn, as the log records them (floor 1's first rooms hold one foe since the
@@ -493,33 +532,25 @@ test('a piece that falls in a won battle goes to the ossuary: its cell and Comma
         apply(run, { type: 'node', id: node.id })
         fight(run)
         if (run.state.phase !== 'reap') break
-        if (souls(run.state.party).some((u) => u.hp <= 0)) return run
+        if (fell(run).length) return run
         apply(run, { type: 'reap', index: null })
       }
     }
     assert.fail('no seed felled a soul in a won fight')
   })()
   const s = won.state
-  const u = souls(s.party).find((x) => x.hp <= 0)
-  const cell = won.setup.party.find((x) => x.uid === u.uid).slot
-  assert.ok(cell >= 0, 'it fought from a cell')
-  assert.equal(u.slot, OSSUARY)
-  assert.ok(inOssuary(souls(s.party)).includes(u) && !fielded(s.party).includes(u))
-  assert.ok(!fielded(s.party).some((v) => (footprintSlots(v.slot, sizeOf(v)) ?? []).includes(cell)), 'its cell free')
-  assert.equal(fielded(souls(s.party)).length, won.setup.party.filter((x) => x.uid !== MONARCH_UID).length - souls(s.party).filter((x) => x.hp <= 0).length, 'its Command free')
-  // Nothing places it: no camp cell takes it, no action offers one; it may still be released.
-  assert.ok([...Array(CAMP_SLOTS).keys()].every((slot) => !canPlace(won, u, slot)))
-  assert.ok(!legalActions(won).some((a) => a.type === 'place' && a.uid === u.uid && a.slot >= 0))
-  assert.ok(legalActions(won).some((a) => a.type === 'release' && a.uid === u.uid))
-  assert.throws(() => apply(won, { type: 'place', uid: u.uid, slot: cell }))
+  for (const bu of fell(won)) {
+    const u = s.party.find((x) => x.uid === bu.uid)
+    const cell = won.setup.party.find((x) => x.uid === u.uid).slot
+    assert.ok(cell >= 0, 'it fought from a cell')
+    assert.deepEqual([u.hp, u.slot], [u.maxHp, cell], `${u.id} ${u.uid}: whole, in its cell`)
+    assert.ok(fielded(s.party).includes(u) && !inOssuary(souls(s.party)).includes(u))
+    assert.ok([...Array(CAMP_SLOTS).keys()].some((slot) => canPlace(won, u, slot)), 'and it may be placed')
+  }
+  assert.equal(fielded(souls(s.party)).length, won.setup.party.filter((x) => x.uid !== MONARCH_UID).length, 'its Command held')
   // The run replays to the same retinue: the fall is the battle's, and the battle is the log's.
   apply(won, { type: 'reap', index: null })
   assert.deepEqual(replay(s.seed, s.log).state.party, s.party)
-  // An altar's heal raises it where it lies, in the ossuary; then it may be placed.
-  visit(won, 'altar')
-  apply(won, { type: 'heal' })
-  assert.deepEqual([u.hp, u.slot], [Math.ceil(u.maxHp * TUNING.run.altarRevive), OSSUARY])
-  assert.ok([...Array(CAMP_SLOTS).keys()].some((slot) => canPlace(won, u, slot)))
 })
 
 // ── the Shop ─────
@@ -728,11 +759,11 @@ test('autoplay finishes 20 seeded runs with a sane final state, and each defeat 
     assert.ok(s.stats.wins <= s.stats.fights)
     if (s.result === 'victory') assert.equal(s.stats.floorsCleared, TUNING.run.floors)
     if (s.result === 'defeat') {
-      // Only the Monarch's fall loses (no clock), or for the autoplayer a stall: End Turn alone may hold a battle
-      // forever (turns.js stalled). Always the killer's kind's first threat; a foe of a later wave (a late pair) also
-      // records its wave.
-      assert.ok(['monarch', 'stall'].includes(s.death?.reason), JSON.stringify(s.death))
-      if (s.death.reason === 'stall') assert.deepEqual(s.death, { by: null, reason: 'stall', threat: null })
+      // Only the Monarch's fall loses (no clock), or an overrun (nothing of yours but the Monarch standing), or for the
+      // autoplayer a stall: End Turn alone may hold a battle forever (turns.js stalled). A fall is always the killer's
+      // kind's first threat; a foe of a later wave (a late pair) also records its wave.
+      assert.ok(['monarch', 'overrun', 'stall'].includes(s.death?.reason), JSON.stringify(s.death))
+      if (s.death.reason !== 'monarch') assert.deepEqual(s.death, { by: null, reason: s.death.reason, threat: null })
       else {
         assert.ok(UNITS[s.death.by] && Number.isInteger(s.death.from), JSON.stringify(s.death))
         assert.equal(s.death.threat, UNITS[s.death.by].threats[0], JSON.stringify(s.death))
@@ -989,7 +1020,7 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
   assert.equal(run.state.stats.essence, Math.round(slain.reduce((n, u) => n + foeEssence(u, run.battle.floor), 0)))
   assert.equal(run.state.nextUid, run.battle.nextUid)
   assert.ok(!run.state.party.some((u) => shadows.some((x) => x.uid === u.uid)))
-  // A won fight where the Monarch, wounded coming in, was struck: it keeps its share of HP, then heals.
+  // A won fight where the Monarch, wounded coming in, was struck: it keeps its share of HP, healed by nothing.
   const woundFight = (() => {
     for (let i = 0; i < 200; i++) {
       const run = fightFrom('wound' + i, 100)
@@ -1001,28 +1032,28 @@ test('a fight: shadows never join the retinue and the run moves past their uids;
   const bm = woundFight.battle.monarch
   const carried = Math.max(1, Math.round(bm.hp / bm.maxHp * m.maxHp))
   assert.ok(carried < m.maxHp, `it carried its wounds out: ${bm.hp}/${bm.maxHp}`)
-  assert.equal(m.hp, Math.min(m.maxHp, carried + Math.ceil(m.maxHp * TUNING.run.postBattleHeal)))
-  assert.ok(m.hp > carried, 'and healed after the win')
-  // The Monarch alone against a room: it falls, and the run says to what.
+  assert.equal(m.hp, carried, 'and no win heals it')
+  // The Monarch alone against a room: overrun as the battle begins, no blow struck, and the run says so.
   const lone = createRun({ start: START_PARTY, seed: 'lone' })
   visit(lone, 'fight')
   for (const u of souls(lone.state.party)) apply(lone, { type: 'place', uid: u.uid, slot: -1 })
+  const before = monarchOf(lone.state).hp
   fight(lone, basicTurn)
-  assert.deepEqual([lone.state.phase, lone.state.result, lone.battle.reason], ['over', 'defeat', 'monarch'])
-  assert.deepEqual(lone.state.death, { ...lone.battle.death, reason: 'monarch' })
-  assert.ok(lone.state.death.by && lone.state.death.threat)
-  assert.equal(monarchOf(lone.state).hp, 0)
-  // No clock: a battle is never lost by time, only by the Monarch's fall.
+  assert.deepEqual([lone.state.phase, lone.state.result, lone.battle.reason, lone.battle.turn], ['over', 'defeat', 'overrun', 1])
+  assert.deepEqual(lone.state.death, { by: null, reason: 'overrun', threat: null })
+  assert.ok(!lone.battle.events.some((e) => e.type === 'damage'), 'no blow struck')
+  assert.equal(monarchOf(lone.state).hp, before, 'the Monarch untouched')
+  // No clock: a battle is never lost by time, only by the Monarch's fall or an overrun.
   const slow = createRun({ start: START_PARTY, seed: 'slow' })
   visit(slow, 'fight')
   fight(slow, basicTurn)
-  assert.ok(slow.battle.winner === 'party' || slow.state.death?.reason === 'monarch', JSON.stringify(slow.state.death))
-  // An altar's heal heals it like a soul.
+  assert.ok(slow.battle.winner === 'party' || ['monarch', 'overrun'].includes(slow.state.death?.reason), JSON.stringify(slow.state.death))
+  // An altar's heal mends it, where a win does not.
   const rest = createRun({ start: START_PARTY, seed: 'rest' })
   monarchOf(rest.state).hp = 1
   visit(rest, 'altar')
   apply(rest, { type: 'heal' })
-  assert.equal(monarchOf(rest.state).hp, monarchOf(rest.state).maxHp)
+  assert.equal(monarchOf(rest.state).hp, Math.round(monarchOf(rest.state).maxHp * TUNING.run.altarHeal))
 }))
 
 // Every wave counted, and depth for a room with more than one (a floor-1 elite's late pair, waves); a siege and
@@ -1155,9 +1186,9 @@ test('a recruit with room on the field takes the free cell nearest the Monarch, 
 
 // ── a soul's HP, and prices ────────────────────────────────────────────────────────
 
-// One soul is one piece is one body: it fights as one, comes out of a won battle with the share of its HP it kept, and
-// heals; one that fell stays down, in the ossuary.
-test('a won battle leaves each piece the share of its HP it kept, then heals each living one by postBattleHeal; the fallen stay down', () => {
+// One soul is one piece is one body: it fights as one, and comes out of a won battle whole, standing or fallen, in the
+// cell it fought from; the Monarch keeps the share of its HP it ended with.
+test('a won battle makes each soul whole at postBattleHeal of its max HP, the fallen too, each in its cell; the Monarch keeps its share', () => {
   const run = win('kept-hp')
   const s = run.state
   const b = run.battle
@@ -1166,18 +1197,17 @@ test('a won battle leaves each piece the share of its HP it kept, then heals eac
     const bu = b.byUid.get(u.uid)
     if (!bu) continue
     fought++
-    // The run's HP: the battle's share of it, at least 1 while it stood, then the won battle's heal.
+    // The run's HP: the battle's share of it, at least 1 while it stood, then the won battle's heal, whole at 1.
     const kept = bu.hp > 0 ? Math.min(u.maxHp, Math.max(1, Math.round(bu.hp / bu.maxHp * u.maxHp))) : 0
-    const healed = kept > 0 ? Math.min(u.maxHp, kept + Math.ceil(u.maxHp * TUNING.run.postBattleHeal)) : 0
-    assert.equal(u.hp, healed, `${u.id} ${u.uid}`)
+    assert.equal(u.hp, u.uid === MONARCH_UID ? kept : Math.max(kept, Math.min(u.maxHp, Math.ceil(u.maxHp * TUNING.run.postBattleHeal))), `${u.id} ${u.uid}`)
     assert.equal(u.maxHp, u.uid === MONARCH_UID ? monarchHp(s) : baseStats(u.id, u.lvl).hp, `${u.id} ${u.uid}: its max HP its level's`)
-    if (!kept) assert.equal(u.slot, OSSUARY, `${u.id} ${u.uid}: the fallen to the ossuary`)
+    assert.equal(u.slot, run.setup.party.find((x) => x.uid === u.uid).slot, `${u.id} ${u.uid}: in its cell`)
   }
   assert.equal(fought, run.setup.party.length, 'every piece fielded fought')
   checkState(s)
 })
 
-test('a tier\'s level heals a living soul by its gain and leaves a fallen one down; an altar heals the living to altarHeal and raises the fallen to altarRevive', () => tuned(LEVEL_A_TIER, () => {
+test('a tier\'s level heals a living soul by its gain and leaves a fallen one down', () => tuned(LEVEL_A_TIER, () => {
   const run = createRun({ start: START_PARTY, seed: 'level-heal' })
   const s = run.state
   const [knight] = souls(s.party)
@@ -1190,12 +1220,6 @@ test('a tier\'s level heals a living soul by its gain and leaves a fallen one do
   assert.ok(knight.lvl > TUNING.level.base)
   const b2 = baseStats('tomb_knight', knight.lvl).hp
   assert.deepEqual([knight.maxHp, knight.hp, fallen.maxHp, fallen.hp], [b2, 10 + b2 - b, b2, 0])
-  const T = TUNING.run
-  knight.hp = 10
-  const node = visit(run, 'altar')
-  assert.equal(node.type, 'altar')
-  apply(run, { type: 'heal' })
-  assert.deepEqual([knight.hp, fallen.hp], [Math.max(10, Math.round(b2 * T.altarHeal)), Math.ceil(b2 * T.altarRevive)])
 }))
 
 test('a foe pays essence by its tier alone, whatever its level: the floor\'s pay a tier, the last floor\'s past them', () => {
@@ -1660,9 +1684,11 @@ test('fuzz: 120 runs of random legal actions keep every invariant, cover every a
 
 // ── the battle in the run ─────────────────────────────────────────────────────
 
-// A new run walked into the first battle room it can reach (by the log: replay walks it too).
+// A new run walked into the first battle room it can reach (by the log: replay walks it too), its one soul the draft's
+// first offer: floor 1's first room is sized to one, so its battle runs past an End Turn.
 function atBattle (seed) {
-  const run = createRun({ start: START_PARTY, seed })
+  const run = createRun({ seed })
+  apply(run, legalActions(run).find((a) => a.type === 'pick'))
   const node = availableNodes(run).find((n) => ['fight', 'elite'].includes(n.type))
   apply(run, { type: 'node', id: node.id })
   return run

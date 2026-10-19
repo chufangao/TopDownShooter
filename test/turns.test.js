@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   createBattle, legalOrders, order, preview, playOut, playTurns, reach, usable, impatience, stalled, fork, perform, corpses, roadAhead, addStatus, roadOf,
   timelineHash, stats, enterBattle, foesNextTo, auraGivers, field as roads, fieldOf, airOf, arrowOf, applyDamage, runEffect, riseTile, pick,
-  targetsFrom, orderable, synergiesOf, ariseOf, phases
+  targetsFrom, orderable, synergiesOf, ariseOf, phases, settle, hexed, answer
 } from '../src/sim/turns.js'
 import { basicTurn, expertTurn, press } from '../src/sim/policy.js'
 import { TUNING } from '../src/tuning.js'
@@ -210,6 +210,36 @@ test('Hexed loses the act: no order, nothing at End Turn; it moves still, and th
   assert.ok(legalOrders(b).some((o) => o.uid === 1 && o.type === 'act'))
 })
 
+test('no piece of yours is Hexed twice in a row: one whose act a Hex cost shrugs off every Hex until it acts again', () => {
+  const b = field([
+    { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0 },
+    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 2, lvl: 10 },
+    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 0, y: 10, lvl: 20 }
+  ])
+  const knight = unit(b, 1)
+  const ghoul = unit(b, 9)
+  addStatus(b, knight, 'hexed', 1, ghoul)
+  assert.ok(end(b).some((e) => e.type === 'hexed' && e.target === 1), 'its act lost at End Turn')
+  assert.ok(knight.shrugs && !hexed(knight))
+  // Laid in your turn, in the foes' or at the turn's end, by either side: shrugged off, nothing held.
+  for (const [stage, by] of [['party', ghoul], ['foes', ghoul], ['end', knight]]) {
+    b.stage = stage
+    const from = b.events.length
+    addStatus(b, knight, 'hexed', 1, by)
+    assert.deepEqual(b.events.slice(from).map((e) => [e.type, e.target]), [['shrug', 1]], stage)
+    assert.ok(!hexed(knight), stage)
+  }
+  b.stage = 'party'
+  // A counter is no act.
+  answer(b, knight, knight.basic, ghoul, { counter: true })
+  assert.ok(knight.shrugs, 'a counter: it shrugs still')
+  // Once it acts, the next Hex takes hold, for its next act.
+  perform(b, knight, knight.basic, ghoul)
+  assert.ok(!knight.shrugs && !b.over)
+  addStatus(b, knight, 'hexed', 1, ghoul)
+  assert.ok(hexed(knight) && knight.statuses.find((s) => s.id === 'hexed').fresh, 'laid after it acted: for its next act')
+})
+
 test('statuses last turns: a damage-over-time ticks at the turn\'s end for its power a stack; one laid in the foes\' turn on yours waits a round', () => {
   const b = field([
     { id: 'tomb_knight', uid: 1, side: 'party', x: 0, y: 0, lvl: 30 },
@@ -282,7 +312,7 @@ const still = () => field([
 ])
 const PATIENT = { policy: { press: { turns: 1e6, strength: 0 } } }
 
-test('no clock: a battle is lost only when the Monarch falls, however long; order by order (the interface\'s) it never stalls', () => tuned(PATIENT, () => {
+test('no clock: a battle is never lost by time, however long; order by order (the interface\'s) it never stalls', () => tuned(PATIENT, () => {
   const b = still()
   playTurns(b, 40, basicTurn)
   assert.deepEqual([b.over, b.turn], [false, 41], 'forty turns on, nothing lost by time')
@@ -664,14 +694,14 @@ test('turn by turn, or played out at once, the same battle', () => {
 // No clock: one with a Monarch ends by a side's fall (playOut would throw past TUNING.turn.guard). One without (a
 // sample) has no seat for the camp to take: its foes may stand at their roads' end with nothing in reach, so it is
 // played a bounded number of turns.
-test('120 seeded battles across floors under either policy end, won or the Monarch fallen, with sane HP', () => {
+test('120 seeded battles across floors under either policy end, won, overrun or the Monarch fallen, with sane HP', () => {
   for (let i = 0; i < 120; i++) {
     const floor = 1 + (i % 4)
     const b = fresh('fuzz' + i, floor, i % 3 ? {} : SUMMONED)
     if (b.monarch) playOut(b, i % 5 ? basicTurn : expertTurn)
     else playTurns(b, 100, i % 5 ? basicTurn : expertTurn)
     assert.ok(b.over || !b.monarch, `seed ${i}`)
-    if (b.over) assert.ok(['monarch', 'wipe', 'crumble'].includes(b.reason) && ['party', 'foe'].includes(b.winner), `seed ${i}: ${b.reason}`)
+    if (b.over) assert.ok(['monarch', 'overrun', 'wipe', 'crumble'].includes(b.reason) && ['party', 'foe'].includes(b.winner), `seed ${i}: ${b.reason}`)
     for (const u of b.units) assert.ok(Number.isInteger(u.hp) && u.hp >= 0 && u.hp <= u.maxHp, `seed ${i}: ${u.id} hp ${u.hp}`)
     for (const e of b.events) if (e.type === 'damage') assert.ok(Number.isInteger(e.damage) && e.damage >= 0)
   }
@@ -770,7 +800,8 @@ test('a tie between arrows goes to the tile nearest the root\'s lane, then neare
 
 test('a lone foe walks its road to the Monarch, every step its tile\'s arrow, and strikes it', () => {
   const walls = wallTiles('spiral')
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('grave_ghoul', 10, 'foe', 0, 10, 1)], { walls })
+  // A Knight of yours inside the spiral, off the road, holds the battle open: out of the Ghoul's reach, the Ghoul out of its.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 3), on('grave_ghoul', 10, 'foe', 0, 10, 1)], { walls })
   const ghoul = unit(b, 10)
   const road = roads({ root: tileAt(3, 0), walls })
   const path = []
@@ -939,11 +970,85 @@ test('the battle is lost the instant the Monarch falls, and the killer is record
   assert.ok(unit(b, 1).hp > 0, 'its soul still stood')
 })
 
-test('a party wiped but for the Monarch fights on; units made mid-battle take uids from nextUid', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 2), on('frost_sprite', 1, 'party', 0, 0, 1), on('tomb_knight', 11, 'foe', 3, 9, 1)])
-  slay(b, unit(b, 1))
-  end(b)
-  assert.ok(!b.over, 'the Monarch still stands')
+// Overrun: the Monarch never acts and nothing of yours can come again once it stands alone, so the battle is lost then.
+test('the battle is overrun the instant nothing of yours but the Monarch stands: lost then, no blow on the Monarch', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 3, 5, 1), on('tomb_knight', 9, 'foe', 3, 6, 20)])
+  const m = b.monarch
+  const hp = m.hp
+  b.stage = 'foes'
+  const knight = unit(b, 9)
+  unit(b, 1).hp = 1
+  perform(b, knight, knight.basic, unit(b, 1))
+  assert.ok(!alive(unit(b, 1)))
+  assert.deepEqual([b.over, b.winner, b.reason, b.death], [true, 'foe', 'overrun', null])
+  assert.equal(m.hp, hp, 'the Monarch untouched')
+  assert.deepEqual(b.events.at(-1), { beat: b.beat, type: 'battle:end', winner: 'foe', reason: 'overrun' })
+  // The last piece burnt out as the turn ends: lost there, nothing after its fall, no next turn.
+  const c = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 0, 0, 1), on('tomb_knight', 11, 'foe', 3, 9, 1)])
+  unit(c, 1).hp = 1
+  addStatus(c, unit(c, 1), 'burning', null, unit(c, 11))
+  const ev = end(c)
+  const burnt = ev.findIndex((e) => e.type === 'death' && e.target === 1)
+  assert.ok(burnt >= 0)
+  assert.deepEqual(ev.slice(burnt + 1).map((e) => e.type), ['battle:end'])
+  assert.deepEqual([c.over, c.winner, c.reason, c.turn], [true, 'foe', 'overrun', 1])
+  // One with no piece but the Monarch from the start is overrun as it begins.
+  const d = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 11, 'foe', 3, 9, 1)])
+  assert.deepEqual([d.over, d.winner, d.reason, d.monarch.hp], [true, 'foe', 'overrun', d.monarch.maxHp])
+})
+
+test('a win comes first: the last foe felled in the beat the last piece falls wins; the Monarch falling loses whatever stands', () => {
+  // A shadow of yours falls and its Grave Powder burst fells the last foe; the blow then fells the holder, the last piece.
+  const board = (foeHp = null) => {
+    const b = scene([on('monarch', 0, 'party', 0, 0), on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['grave_powder']), on('grave_ghoul', 2, 'party', 3, 4), on('grave_ghoul', 10, 'foe', 3, 5, 9)])
+    unit(b, 2).shadow = true
+    if (foeHp) unit(b, 10).hp = foeHp
+    applyDamage(b, unit(b, 2), 9999, { actor: unit(b, 10) })
+    applyDamage(b, unit(b, 1), 9999, { actor: unit(b, 10) })
+    settle(b)
+    return b
+  }
+  const burst = board(1)
+  assert.ok(!alive(unit(burst, 10)) && !alive(unit(burst, 1)) && !alive(unit(burst, 2)))
+  assert.deepEqual([burst.over, burst.winner, burst.reason], [true, 'party', 'wipe'], 'won, nothing of yours but the Monarch left')
+  const short = board()
+  assert.ok(alive(unit(short, 10)), 'the burst short of its HP')
+  assert.deepEqual([short.over, short.winner, short.reason], [true, 'foe', 'overrun'], 'the foe left standing: overrun')
+  // The Monarch's fall is a loss even with pieces standing (the reason the Monarch's).
+  const fell = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0), on('grave_ghoul', 10, 'foe', 3, 2, 9)])
+  applyDamage(fell, fell.monarch, 9999, { actor: unit(fell, 10) })
+  settle(fell)
+  assert.deepEqual([fell.winner, fell.reason], ['foe', 'monarch'])
+})
+
+test('a piece that Undying lifts again, or a shadow or a summon standing alone, keeps the battle going; their fall overruns it', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 5, 3, [0, 0], ['undying']), on('tomb_knight', 9, 'foe', 3, 6, 20)])
+  const knight = unit(b, 9)
+  const mine = unit(b, 1)
+  b.stage = 'foes'
+  mine.hp = 1
+  perform(b, knight, knight.basic, mine)
+  assert.ok(alive(mine) && mine.rose, 'lifted again')
+  assert.ok(!b.over, 'the battle goes on')
+  mine.hp = 1
+  perform(b, knight, knight.basic, mine)
+  assert.ok(!alive(mine))
+  assert.deepEqual([b.over, b.reason], [true, 'overrun'], 'once a battle: its next fall overruns it')
+  // A shadow and a summon are pieces: one alone holds the battle open, its fall ends it.
+  for (const flags of [{ shadow: true }, { shadow: true, summoned: true, summoner: 1 }]) {
+    const c = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 0, 2, 1), on('grave_ghoul', 2, 'party', 3, 5, 1), on('tomb_knight', 9, 'foe', 3, 6, 20)])
+    Object.assign(unit(c, 2), flags)
+    c.stage = 'foes'
+    const foe = unit(c, 9)
+    unit(c, 1).hp = unit(c, 2).hp = 1
+    perform(c, foe, foe.basic, unit(c, 1))
+    assert.ok(!alive(unit(c, 1)) && !c.over, `${JSON.stringify(flags)}: it alone holds the battle open`)
+    perform(c, foe, foe.basic, unit(c, 2))
+    assert.deepEqual([c.over, c.reason], [true, 'overrun'], JSON.stringify(flags))
+  }
+})
+
+test('units made mid-battle take uids from nextUid', () => {
   const units = [on('monarch', 0, 'party', 3, 2), on('tomb_knight', 7, 'party', 3, 4), on('grave_ghoul', 40, 'foe', 3, 5, 1)]
   assert.equal(scene(units).nextUid, 41)
   assert.equal(scene(units, { nextUid: 100 }).nextUid, 100)
@@ -951,13 +1056,14 @@ test('a party wiped but for the Monarch fights on; units made mid-battle take ui
   assert.equal(scene(units, { reserve }).nextUid, 61, 'past the reserve\'s too')
 })
 
-test('with the foes\' rows full, a ground foe of a wave waits in the reserve and enters once a tile there frees; a flyer due beside it enters in the air', () => {
+test('with the foes\' rows full, a ground foe of a wave waits in the reserve and enters once a tile there frees; a flyer due beside it enters in the air', () => tuned({ policy: { walk: -1 } }, () => {
   const rows = [...Array(21).keys()].map((i) => on('clockwork_page', 10 + i, 'foe', i % 7, DEPTH - 1 - Math.floor(i / 7), 1))
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 30), ...rows], {
     reserve: [{ ...makeUnit('grave_ghoul', { uid: 70, lvl: 1 }), side: 'foe', lane: 5, wave: 1 },
       { ...makeUnit('hive_drone', { uid: 71, lvl: 1 }), side: 'foe', lane: 5, wave: 1 }]
   })
-  // The Pages hold their rows: a road gained is a loss to them, and they never come down while the test runs.
+  // The Pages hold their rows: a road gained is a loss to them and no least aggression (TUNING.policy.walk) brings them on,
+  // so they never come down while the test runs.
   for (const u of b.units) if (u.id === 'clockwork_page') u.temper = { aggression: -1, caution: 0, prey: 'weakest' }
   const due = 1 + TUNING.spawn.waves.every
   const seen = []
@@ -968,7 +1074,7 @@ test('with the foes\' rows full, a ground foe of a wave waits in the reserve and
   seen.length = 0
   seen.push(...turns(b).filter((e) => e.type === 'enter'))
   assert.deepEqual(seen.map((e) => [e.unit.uid, e.unit.tile]), [[70, tileAt(2, DEPTH - 2)]], 'the nearest open tile of the foes\' rows to the top of its lane')
-})
+}))
 
 // ── Arise ────────────────────────────────────────────────────────────────────────────────────────
 

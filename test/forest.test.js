@@ -166,7 +166,8 @@ test('the rows\' inputs: every condition, the role and size, every option featur
 })
 
 test('the rows\' inputs from a label row (teach.js) are the inputs in play, number for number, over the same options', () => {
-  const { points } = playing({}, () => battles('rank-test-1', 1))
+  // A run's first two battles: a battle of floor 1's first room is a few decisions.
+  const { points } = playing({}, () => battles('rank-test-1', 2))
   assert.ok(points.length >= 4)
   let compared = 0
   for (const p of points.slice(0, 6)) {
@@ -230,11 +231,12 @@ test('the inputs: the rows\', then the gap of today\'s score and each feature ag
   assert.equal(predict(f, x), (-1 + 0.5 + 0.25) / 3)
 })
 
-// A run's first battle labelled (teach.js teachRun: every decision kept, its options played out a round), as rows.
-const labelled = (seed, limit = 6) => teachRun(seed, { battles: 1, limit, rounds: 1, forest: null, keep: { lost: 1, near: 1, reach: 1, calm: 1 } }).positions
+// A run's first `n` battles labelled (teach.js teachRun: every decision kept, its options played out a round), as rows.
+const labelled = (seed, limit = 6, n = 1) => teachRun(seed, { battles: n, limit, rounds: 1, forest: null, keep: { lost: 1, near: 1, reach: 1, calm: 1 } }).positions
 
 test('a forest\'s inputs and prediction in play are its inputs and prediction on the label row, number for number', async () => {
-  const rows = playing({}, () => labelled('forest-test-1'))
+  // Two battles: a battle of floor 1's first room is a few decisions.
+  const rows = playing({}, () => labelled('forest-test-1', 6, 2))
   assert.ok(rows.length >= 4)
   // A forest fitted on these very rows: its thresholds the values they hold.
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-forest-test-'))
@@ -250,7 +252,7 @@ test('a forest\'s inputs and prediction in play are its inputs and prediction on
     fs.rmSync(dir, { recursive: true, force: true })
   }
   assert.ok(f.feat.some((x) => x >= 0), 'some tree split')
-  const { points } = playing({}, () => battles('forest-test-1', 1))
+  const { points } = playing({}, () => battles('forest-test-1', 2))
   let compared = 0
   let r = 0
   for (const row of rows) {
