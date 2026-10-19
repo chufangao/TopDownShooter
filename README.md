@@ -7,7 +7,7 @@
 - A turn-based tactics roguelike in the browser: a necromancer's retinue holds a line against foes walking down to the Monarch.
 - A run: draft one soul, walk three floors of rooms (fights, elites, altars, a boss a floor; the Shop open wherever essence is spent), at ascension 0–10, as one of four Monarchs. Saves, a history, a tutorial, music.
 - A battle: foes enter in waves along one drawn road toward your camp. Each piece moves and acts once a turn: a free basic, or a skill that then rests. End Turn: idle pieces use basics, the foes play, statuses tick. No dice. Lost the instant the Monarch falls, or nothing of yours but the Monarch stands.
-- Between battles, essence buys tiers (two tracks a kind), recruits (one slain foe a battle), fusions (44 recipes, on the Shop's shelf) and relics. A won battle makes every soul whole again, the fallen too; the Monarch's HP carries, and altars heal it, transmute or consecrate. Eleven synergies of kin and role at four pieces.
+- Between battles, essence buys growth for a soul: tiers (two tracks of four, each soul's own), relics (one held a soul), recruits (one slain foe a battle, fresh) and fusions (52 recipes, on the Shop's shelf: souls and essence traded for a fresh soul, the parts' tiers paid back). A won battle makes every soul whole again, the fallen too; the Monarch's HP carries, and altars heal it, transmute or consecrate. Eleven synergies of kin and role at four pieces.
 - Statuses (Burning, Hexed, Brittle, Bleeding, Hasten, Rooted, Bloodlust…), each a stat mod or a tick. Elements: piece relics and Legendaries that read a status or a piece's own movement.
 - Not a card game: no deck, hand, energy, discard or exhaust.
 
@@ -15,7 +15,7 @@
 
 - Content is data: `src/content.js` (the records: units, abilities, statuses, synergies, relics, fusions, Monarchs) and `src/tuning.js` (the numbers). Code grows only when the vocabulary grows.
 - The battle, shipped: `src/sim/turns.js` (the turn, effects, orders, previews), `unit.js` (stats, the board), `rules.js` (the rule registry: synergies, capstones, bosses, Legendaries), `field.js` (roads), `foe.js` (the camp's play: the danger map, a unit's options, the foes' turn).
-- The run, shipped: `src/sim/run.js` (actions and their handlers, the camp, fusions, the Shop and the altar, a battle's setup and close), `state.js` (the readers of a run's state), `economy.js` (prices, levels, rewards, offers, the shelf), `spawn.js` (rooms, foes, bosses, the army), `map.js`, `save.js`, `history.js`, `rng.js`.
+- The run, shipped: `src/sim/run.js` (actions and their handlers, the camp, fusions, the Shop and the altar, a battle's setup and close), `state.js` (the readers of a run's state), `economy.js` (prices, refunds, a soul's tiers and level, rewards, offers, the shelf), `spawn.js` (rooms, foes, bosses, the army), `map.js`, `save.js`, `history.js`, `rng.js`.
 - The page, shipped: `src/main.js` (the run's flow), `src/ui/` (one screen a file; `src/ui.js` re-exports them), `src/engine/` (Phaser: palette, textures, marks, geometry, the battle scene, the timeline player; `src/engine.js` the entry), `board.js` (the prep board), `codex.js` (the rules' text), `dom.js`, `keywords.js`, `frame.js`, `music.js`, `sfx.js`, `src/css/`.
 - The expert, never shipped: `src/sim/policy.js` (its battle turn), `plan.js`, `expert.js` (the model tree), `forest.js` (the battle forest as play reads it), `player.js` (its play out of battle: route, formation, growth, recruits, the combo book), `reports.js` (the balance reports), `autoplay.js` (the command line; re-exports the two).
 - The offline tools: `teach.js` (the battle teacher and its labels), `outside.js` (the outside teacher and its labels), `fit.js` (the model tree's fitting), `forestfit.js` and `outforest.js` (the forests' fitting), `calc.js` (the calculator, the ladder's second rung), `sequential.js`, `runcache.js`, `bundle.js` (the parts of `expert.json`), `pool.js` (worker threads), `cli.js`. `src/sim/expert.json` is the shipped expert (its tree, forest, outforest and route); `combos.json` the book.
@@ -57,10 +57,17 @@ Landed on 2026-10-18: fusing out of battle alone; the elements (two statuses, si
 - Skill rests stay at 2: a rest of 1 would leave the cooldown vocabulary (Hasten's second half, Arcane Focus, Quicksilver, Gossamer Standard, Court of Frost) with nothing to do.
 - The lethality band: `damage.atkDivisor` 16, provisional, so a same-tier foe falls to about three or four basic blows (a level-2 Tomb Knight fells a level-1 Grave Ghoul in 4; the Ghoul fells the Knight in 8). The balance pass sets the number.
 
+## Decisions of 2026-10-18, evening (the user's word): one upgrade mechanic
+
+- Every upgrade enhances one soul, never a kind: a soul's two tracks of tiers, its level (its tiers' alone, `levelOf`), its one relic. There is no kind record (`s.kinds`, `least`, a kind's level are gone); a recruit joins fresh at the first level (Soul Lantern's free tiers in) and is priced by its tier alone; a transmuted soul keeps its tiers by index on its new kind's tracks.
+- A fusion is a trade: souls and essence in, one fresh soul out (first level, no tier, no relic) in the ossuary; the tiers the parts held pay back `essence.refund` of their price, as a released soul's do on top of half its recruit price. The parts picked are the least grown. No track merging, no level carry: the fused soul starts over.
+- Everything bought is a trade on one shelf, in words: a tier, a relic, a fusion, a recruit. The Shop as the one screen for them (the soul's panel its filter, the spoils and the altar its modes) is the next step; the rules are in.
+- Reversed: "a tier is the kind's" (2026-10-10). Kept: relics held one a soul, the trines' own tracks (content), Arise a holder's skill, fusion a recipe, tier-V placement cancelled. The expert, its forest and the combo book were fit on per-kind tiers: the refit follows.
+
 ## Standing rules
 
 - Enemy behaviour is discovered, never previewed. Defeat is absolute. Floor 1 is hard at the top of the ladder, winnable at its foot.
-- One soul is one piece. A fusion is never weaker than its parts. Money always matters.
+- One soul is one piece. Growth is a soul's own. A fusion is never weaker in power than its parts. Money always matters.
 - Content is data; code grows only when the vocabulary grows. Balance once, at the end.
 - Measure with the right instrument, pair by seed, never keep a change on the seeds it was chosen on.
 - One landscape interface, nothing that needs hover or a key. Recruit only.

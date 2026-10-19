@@ -1,10 +1,10 @@
-// Upgrades per kind: a kind's two tracks of tiers and the level they give, held by every soul of it,
-// the crosspath rule, the costs, recruits at the kind's level, and how the autoplayer spends on them.
+// Upgrades per soul: a soul's two tracks of tiers and the level they give, its own alone, the crosspath rule, the
+// costs, recruits fresh, and how the autoplayer spends on them.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createRun, apply, legalActions, join, souls, monarchOf, tierCost, canAdvance, heldKinds, battleSetup, availableNodes,
-  OSSUARY, fielded, levelOf, kindLevel, lowerTrack, floorPrice, START_PARTY
+  createRun, apply, legalActions, join, souls, monarchOf, isMonarch, tierCost, canAdvance, battleSetup, availableNodes,
+  OSSUARY, fielded, levelOf, lowerTrack, floorPrice, START_PARTY
 } from '../src/sim/run.js'
 import { createBattle } from '../src/sim/turns.js'
 import { policy, autoplay, offerState } from '../src/sim/autoplay.js'
@@ -76,121 +76,114 @@ test('an `all` ability with a range reaches every foe within it of the caster, a
 
 // ── upgrades belong to the kind ──────────────────────────────────────────────────────────────────
 
-test('a tier is the kind\'s, and so is the level it gives: every soul of it, fielded or in the ossuary, holds them, for the tier\'s price; no level is bought', () => tuned(LEVEL_A_TIER, () => {
+test('a tier is the soul\'s, and so is the level it gives: it alone holds them, for the tier\'s price; another of its kind is untouched; no level is bought', () => tuned(LEVEL_A_TIER, () => {
   const run = createRun({ start: START_PARTY, seed: 'kinds' })
   const s = run.state
   const first = levelOf({ tracks: [0, 0] })
   assert.equal(first, TUNING.level.base)
-  assert.deepEqual(s.kinds, { tomb_knight: { lvl: first, tracks: [0, 0] }, bone_chanter: { lvl: first, tracks: [0, 0] }, frost_sprite: { lvl: first, tracks: [0, 0] } })
+  assert.ok(!('kinds' in s), 'no kind record: a soul\'s tiers are its own')
   const a = soul(run, 'tomb_knight')
   const b = join(run, 'tomb_knight')
   assert.equal(b.slot, OSSUARY, 'the field is full: it waits in the ossuary')
   assert.deepEqual([b.lvl, b.tracks], [first, [0, 0]])
   s.essence = 1000
-  assert.throws(() => apply(run, { type: 'level', kind: 'tomb_knight' }), /unknown action "level"/)
+  assert.throws(() => apply(run, { type: 'level', uid: a.uid }), /unknown action "level"/)
   assert.ok(!legalActions(run).some((x) => x.type === 'level'))
-  // A tier: its price is the kind's next tier's on that track; every soul of it holds it and rises to the level its
-  // tiers give, each healing by what it gains (the fallen stay down).
-  b.hp = 0
-  a.hp = 10
+  // A tier: its price is the soul's next tier's on that track; it alone holds it and rises to the level its tiers give,
+  // healing by what it gains.
   const was = a.maxHp
+  a.hp = 10
   const lvl1 = levelOf({ tracks: [1, 0] })
   assert.ok(lvl1 > first)
-  apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 })
-  assert.deepEqual([s.kinds.tomb_knight.lvl, a.lvl, b.lvl, s.essence], [lvl1, lvl1, lvl1, 1000 - TUNING.essence.tier[0]])
+  apply(run, { type: 'upgrade', uid: a.uid, track: 0 })
+  assert.deepEqual([a.lvl, a.tracks, b.lvl, b.tracks, s.essence], [lvl1, [1, 0], first, [0, 0], 1000 - TUNING.essence.tier[0]])
   assert.ok(statsOf(a).def > statsOf({ ...a, lvl: first, tracks: [0, 0] }).def, 'Bulwark I (and the level) raise DEF')
-  assert.deepEqual([a.maxHp, b.maxHp], [baseStats('tomb_knight', lvl1).hp, baseStats('tomb_knight', lvl1).hp])
-  assert.deepEqual([a.hp, b.hp], [10 + a.maxHp - was, 0])
+  assert.deepEqual([a.maxHp, a.hp, b.maxHp], [baseStats('tomb_knight', lvl1).hp, 10 + baseStats('tomb_knight', lvl1).hp - was, baseStats('tomb_knight', first).hp])
   assert.equal(soul(run, 'bone_chanter').lvl, first, 'another kind is untouched')
   // More tiers, either track, each at its price; the level counts them all.
   for (const [track, tier] of [[0, 1], [1, 0], [0, 2]]) {
-    const price = tierCost(run, 'tomb_knight', track)
+    const price = tierCost(run, a, track)
     assert.equal(price, TUNING.essence.tier[tier])
     const before = s.essence
-    apply(run, { type: 'upgrade', kind: 'tomb_knight', track })
+    apply(run, { type: 'upgrade', uid: a.uid, track })
     assert.equal(s.essence, before - price)
   }
-  assert.deepEqual([s.kinds.tomb_knight.tracks, a.tracks, b.tracks], [[3, 1], [3, 1], [3, 1]])
-  assert.deepEqual([s.kinds.tomb_knight.lvl, a.lvl, b.lvl], Array(3).fill(levelOf({ tracks: [3, 1] })))
-  assert.equal(auraOf(b).range, 2, 'the soul in the ossuary holds Bulwark III too')
+  assert.deepEqual([a.tracks, a.lvl, b.tracks, b.lvl], [[3, 1], levelOf({ tracks: [3, 1] }), [0, 0], first])
+  assert.equal(auraOf(a).range, 2, 'Bulwark III')
+  assert.equal(auraOf(b).range, 1, 'the other Knight holds none of it')
   assert.equal(s.stats.spent, 1000 - s.essence, 'every price paid counts as spent')
-  // Refused: the crosspath rule, a kind not held, a track that is not one, short of essence, the Monarch.
-  apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 1 })
-  assert.throws(() => apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 1 }), /cannot upgrade/, 'Reaver stops at II')
-  assert.ok(!canAdvance(s, 'tomb_knight', 1) && canAdvance(s, 'tomb_knight', 0))
-  for (const a of [{ kind: 'iron_golem', track: 0 }, { kind: 'tomb_knight', track: 2 }, { kind: 'monarch', track: 0 }]) {
-    assert.throws(() => apply(run, { type: 'upgrade', ...a }), /cannot upgrade/, JSON.stringify(a))
+  // Refused: the crosspath rule, a soul not held, a track that is not one, short of essence, the Monarch.
+  apply(run, { type: 'upgrade', uid: a.uid, track: 1 })
+  assert.throws(() => apply(run, { type: 'upgrade', uid: a.uid, track: 1 }), /cannot upgrade/, 'Reaver stops at II')
+  assert.ok(!canAdvance(s, a, 1) && canAdvance(s, a, 0))
+  for (const x of [{ uid: 999, track: 0 }, { uid: a.uid, track: 2 }, { uid: monarchOf(s).uid, track: 0 }]) {
+    assert.throws(() => apply(run, { type: 'upgrade', ...x }), /cannot upgrade/, JSON.stringify(x))
   }
   s.essence = 0
-  assert.throws(() => apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 }), /cannot upgrade/)
-  assert.deepEqual(heldKinds(s), ['tomb_knight', 'bone_chanter', 'frost_sprite'])
+  assert.throws(() => apply(run, { type: 'upgrade', uid: a.uid, track: 0 }), /cannot upgrade/)
 }))
 
-test('the level a kind\'s tiers give: TUNING.level.base and perTier a tier on either track, rounded down; six tiers the cap a level once had; a fused kind never below its least', () => tuned(LEVEL_A_TIER, () => {
+test('the level a soul\'s tiers give: TUNING.level.base and perTier a tier on either track, rounded down; six tiers the most a soul can hold', () => tuned(LEVEL_A_TIER, () => {
   const { base, perTier } = TUNING.level
   for (const tracks of [[0, 0], [1, 0], [0, 1], [2, 2], [4, 2], [2, 4], [3, 1]]) {
     assert.equal(levelOf({ tracks }), Math.floor(base + perTier * (tracks[0] + tracks[1])), JSON.stringify(tracks))
   }
   assert.equal(levelOf({ tracks: [4, 2] }), 10)
   for (let t = 0; t < 4; t++) assert.ok(levelOf({ tracks: [t, 0] }) <= levelOf({ tracks: [t + 1, 0] }), 'never falls with a tier')
-  assert.deepEqual([levelOf({ tracks: [0, 0], least: 6 }), levelOf({ tracks: [4, 2], least: 6 })], [6, 10])
+  assert.equal(levelOf(makeUnit('tomb_knight', { tracks: [3, 1] })), levelOf({ tracks: [3, 1] }), 'a soul reads as its tracks')
   const s = createRun({ start: START_PARTY, seed: 'levels' }).state
-  assert.deepEqual([kindLevel(s, 'tomb_knight'), kindLevel(s, 'iron_golem')], [base, base], 'a kind new to the run at its first')
+  assert.ok(souls(s.party).every((u) => u.lvl === base && u.tracks.join() === '0,0'), 'every soul at its first, with no tier')
   // The track a free tier goes on (Soul Lantern): the lower, the first on a tie, the other where the lower may not.
   assert.deepEqual([[0, 0], [1, 0], [1, 2], [3, 2], [4, 2], [2, 4]].map(lowerTrack), [0, 1, 0, 0, null, null])
 }))
 
-test('a recruit joins its kind at the kind\'s level and tiers (a kind new to the run at its first, with Soul Lantern\'s free tiers); the offer says that level and is priced by it; a kind\'s state outlives its souls', () => {
+test('a recruit joins fresh: its first level and no tier, whatever its kind\'s other souls hold (Soul Lantern\'s free tiers in); the offer says that level and is priced by its tier alone', () => {
   const run = createRun({ start: START_PARTY, seed: 'recruits' })
   const s = run.state
   s.essence = 1000
-  apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 0 })
-  apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 0 })
-  const lvl = levelOf({ tracks: [2, 0] })
+  const first = soul(run, 'bone_chanter')
+  apply(run, { type: 'upgrade', uid: first.uid, track: 0 })
+  apply(run, { type: 'upgrade', uid: first.uid, track: 0 })
+  assert.deepEqual([first.lvl, first.tracks], [levelOf({ tracks: [2, 0] }), [2, 0]])
   const chanter = join(run, 'bone_chanter')
-  assert.deepEqual([chanter.lvl, chanter.tracks], [lvl, [2, 0]])
+  assert.deepEqual([chanter.lvl, chanter.tracks], [TUNING.level.base, [0, 0]], 'fresh, whatever the other Chanter holds')
   const golem = join(run, 'iron_golem')
-  assert.deepEqual([golem.lvl, golem.tracks, s.kinds.iron_golem], [TUNING.level.base, [0, 0], { lvl: TUNING.level.base, tracks: [0, 0] }])
+  assert.deepEqual([golem.lvl, golem.tracks], [TUNING.level.base, [0, 0]])
   apply(run, { type: 'release', uid: golem.uid })
-  assert.deepEqual(s.kinds.iron_golem, { lvl: TUNING.level.base, tracks: [0, 0] }, 'kept with no soul of it')
-  assert.ok(!heldKinds(s).includes('iron_golem') && !legalActions(run).some((a) => a.kind === 'iron_golem'))
-  // The spoils: whatever level the slain fought at, each soul is offered at its kind's level, at that level's price.
+  assert.ok(!legalActions(run).some((a) => a.type === 'upgrade' && a.uid === golem.uid))
+  // The spoils: whatever level the slain fought at, each soul is offered fresh, at its tier's price.
   const fought = (relics) => {
     for (let i = 0; i < 100; i++) {
       const r = createRun({ start: START_PARTY, seed: 'recruit-spoils' + i })
       r.state.relics = relics
       r.state.essence = 1000
-      apply(r, { type: 'upgrade', kind: 'tomb_knight', track: 1 })
+      apply(r, { type: 'upgrade', uid: soul(r, 'tomb_knight').uid, track: 1 })
       const node = availableNodes(r)[0]
       node.type = 'fight'
       apply(r, { type: 'node', id: node.id })
       fight(r)
-      if (r.state.phase === 'reap' && r.state.offers.some((o) => o.type === 'soul' && !r.state.kinds[o.id])) return r
+      if (r.state.phase === 'reap' && r.state.offers.some((o) => o.type === 'soul')) return r
     }
-    assert.fail('no won fight offered a kind new to the run')
+    assert.fail('no won fight offered a soul')
   }
   const won = fought([])
   const w = won.state
   for (const o of w.offers.filter((x) => x.type === 'soul')) {
-    assert.equal(o.lvl, kindLevel(w, o.id), o.id)
+    assert.equal(o.lvl, TUNING.level.base, o.id)
     assert.equal(o.desc, `Rises at level ${o.lvl}.`)
-    assert.equal(o.cost, Math.round(TUNING.essence.recruit * unitDef(o.id).tier * (1 + TUNING.essence.perLevel * (o.lvl - 1)) * floorPrice(w.floor)), o.id)
+    assert.equal(o.cost, Math.round(TUNING.essence.recruit * unitDef(o.id).tier * floorPrice(w.floor)), o.id)
   }
-  const fresh = w.offers.findIndex((o) => o.type === 'soul' && !w.kinds[o.id])
-  const id = w.offers[fresh].id
-  apply(won, { type: 'reap', index: fresh })
-  assert.deepEqual([w.kinds[id], souls(w.party).find((u) => u.id === id).lvl], [{ lvl: TUNING.level.base, tracks: [0, 0] }, TUNING.level.base])
-  // Two Soul Lanterns: a kind new to the run joins with a free tier on each track (each on the lower), at their
-  // level, and its offer says so; a kind held already joins as it is.
+  const id = w.offers[0].id
+  apply(won, { type: 'reap', index: 0 })
+  assert.deepEqual([souls(w.party).at(-1).id, souls(w.party).at(-1).lvl, souls(w.party).at(-1).tracks], [id, TUNING.level.base, [0, 0]])
+  // Two Soul Lanterns: a recruit joins with a free tier on each track (each on the lower), at their level, and its
+  // offer says so; its price is its tier's still.
   const lit = fought(['soul_lantern', 'soul_lantern'])
   const l = lit.state
-  const i = l.offers.findIndex((o) => o.type === 'soul' && !l.kinds[o.id])
-  const kind = l.offers[i].id
-  assert.equal(l.offers[i].lvl, levelOf({ tracks: [1, 1] }))
-  for (const o of l.offers.filter((x) => x.type === 'soul' && l.kinds[x.id])) assert.equal(o.lvl, kindLevel(l, o.id))
-  apply(lit, { type: 'reap', index: i })
-  assert.deepEqual(l.kinds[kind], { lvl: levelOf({ tracks: [1, 1] }), tracks: [1, 1] })
-  assert.deepEqual(souls(l.party).filter((u) => u.id === kind).map((u) => [u.lvl, u.tracks]), [[levelOf({ tracks: [1, 1] }), [1, 1]]])
+  const kind = l.offers[0].id
+  assert.deepEqual([l.offers[0].lvl, l.offers[0].cost], [levelOf({ tracks: [1, 1] }), Math.round(TUNING.essence.recruit * unitDef(kind).tier * floorPrice(l.floor))])
+  apply(lit, { type: 'reap', index: 0 })
+  assert.deepEqual([souls(l.party).at(-1).lvl, souls(l.party).at(-1).tracks], [levelOf({ tracks: [1, 1] }), [1, 1]])
 })
 
 test('legalActions lists exactly the tiers apply accepts, and no level', () => {
@@ -199,12 +192,11 @@ test('legalActions lists exactly the tiers apply accepts, and no level', () => {
   join(run, 'grave_ghoul')
   for (const [tracks, essence] of [[[0, 0], 0], [[0, 0], 15], [[2, 2], 100], [[3, 2], 2000], [[4, 2], 2000], [[2, 4], 30]]) {
     const lvl = levelOf({ tracks })
-    for (const k of Object.values(s.kinds)) Object.assign(k, { lvl, tracks: tracks.slice() })
     for (const u of souls(s.party)) Object.assign(u, { lvl, tracks: tracks.slice() })
     s.essence = essence
     assert.ok(!legalActions(run).some((a) => a.type === 'level'))
     const listed = legalActions(run).filter((a) => a.type === 'upgrade').map((a) => JSON.stringify(a))
-    const tries = heldKinds(s).flatMap((kind) => [{ type: 'upgrade', kind, track: 0 }, { type: 'upgrade', kind, track: 1 }])
+    const tries = souls(s.party).flatMap((u) => [{ type: 'upgrade', uid: u.uid, track: 0 }, { type: 'upgrade', uid: u.uid, track: 1 }])
     const accepted = tries.filter((a) => {
       try {
         apply(copyOf(run), a)
@@ -217,28 +209,26 @@ test('legalActions lists exactly the tiers apply accepts, and no level', () => {
   }
 })
 
-// The Shop's shelf holds relics alone, and a kind's next tier is bought on the
-// field, at its price, beside it.
+// The Shop's shelf holds relics alone, and a soul's next tier is bought on the field, at its price, beside it.
 test('no shelf gives a tier: the Shop sells relics alone, and the Knight\'s Bulwark IV is bought on the field beside it', () => {
   const run = createRun({ start: START_PARTY, seed: 'rite-kinds' })
   const r = run.state
-  // Every kind past II on track 0 but the Knight, which stands at III with Reaver at II: Bulwark IV is its only tier.
-  for (const k of Object.keys(r.kinds)) r.kinds[k].tracks = [4, 2]
-  r.kinds.tomb_knight.tracks = [3, 2]
-  for (const u of souls(r.party)) u.tracks = r.kinds[u.id].tracks.slice()
+  // Every soul past II on track 0 but the Knight, which stands at III with Reaver at II: Bulwark IV is its only tier.
+  for (const u of souls(r.party)) u.tracks = [4, 2]
+  const knight = soul(run, 'tomb_knight')
+  knight.tracks = [3, 2]
   r.essence = 1000
   assert.equal(r.phase, 'map')
   assert.ok(r.offers.length === 0 && r.shop.length > 0 && r.shop.every((id) => RELICS[id]), JSON.stringify(r.shop))
   assert.ok(legalActions(run).some((a) => a.type === 'buy'), 'the shelf is open')
-  assert.deepEqual(legalActions(run).filter((a) => a.type === 'upgrade'), [{ type: 'upgrade', kind: 'tomb_knight', track: 0 }])
-  apply(run, { type: 'upgrade', kind: 'tomb_knight', track: 0 })
-  assert.deepEqual([r.kinds.tomb_knight.tracks, soul(run, 'tomb_knight').tracks], [[4, 2], [4, 2]])
+  assert.deepEqual(legalActions(run).filter((a) => a.type === 'upgrade'), [{ type: 'upgrade', uid: knight.uid, track: 0 }])
+  apply(run, { type: 'upgrade', uid: knight.uid, track: 0 })
+  assert.deepEqual(knight.tracks, [4, 2])
 })
 
-test('the battle fights with a kind\'s tiers: battleSetup carries them into the kit', () => {
+test('the battle fights with a soul\'s tiers: battleSetup carries them into the kit', () => {
   const run = createRun({ start: START_PARTY, seed: 'kit' })
   const knight = soul(run, 'tomb_knight')
-  run.state.kinds.tomb_knight.tracks = [2, 4]
   knight.tracks = [2, 4]
   const node = availableNodes(run)[0]
   node.type = 'fight'
@@ -252,7 +242,7 @@ test('the battle fights with a kind\'s tiers: battleSetup carries them into the 
 
 // ── the autoplayer ───────────────────────────────────────────────────────────────────────────────
 
-test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, on the track it is on; the expert by worth; neither buys a level', () => {
+test('the autoplayer spends on souls: basic buys its lowest soul\'s next tier, on the track it is on; the expert by worth; neither buys a level', () => {
   const run = createRun({ start: START_PARTY, seed: 'spender' })
   const s = run.state
   // The Shop's shelf bare (basic buys a Command relic off it before a tier: autoplay.js pickNode): tiers alone here.
@@ -261,22 +251,23 @@ test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, o
   const rng = createRng('spender').stream('autoplay')
   const a = policy(copyOf(run), rng, 'basic')
   assert.deepEqual([a.type, a.track], ['upgrade', 0])
-  assert.ok(Object.keys(s.kinds).includes(a.kind))
-  // That kind a level ahead (two tiers or three, as TUNING.level has it): the lowest is another, on its own track;
+  const first = s.party.find((u) => u.uid === a.uid)
+  assert.ok(first && !isMonarch(first))
+  // That soul a level ahead (two tiers or three, as TUNING.level has it): the lowest is another, on its own track;
   // short of its price, basic waits.
-  apply(run, { type: 'upgrade', kind: a.kind, track: 0 })
+  apply(run, { type: 'upgrade', uid: a.uid, track: 0 })
   s.essence = 1000
-  while (kindLevel(s, a.kind) <= levelOf({ tracks: [0, 0] })) apply(run, { type: 'upgrade', kind: a.kind, track: 0 })
+  while (first.lvl <= levelOf({ tracks: [0, 0] })) apply(run, { type: 'upgrade', uid: a.uid, track: 0 })
   s.essence = TUNING.essence.tier[0]
   const b = policy(copyOf(run), rng, 'basic')
   assert.equal(b.type, 'upgrade')
-  assert.notEqual(b.kind, a.kind)
-  assert.ok(kindLevel(s, b.kind) < kindLevel(s, a.kind))
+  assert.notEqual(b.uid, a.uid)
+  assert.ok(s.party.find((u) => u.uid === b.uid).lvl < first.lvl)
   s.essence = TUNING.essence.tier[0] - 1
   assert.notEqual(policy(copyOf(run), rng, 'basic').type, 'upgrade')
-  // On the track it is on: a kind on track 1 stays on it.
+  // On the track it is on: a soul on track 1 stays on it.
   s.essence = 1000
-  for (const kind of Object.keys(s.kinds).filter((k) => k !== a.kind)) apply(run, { type: 'upgrade', kind, track: 1 })
+  for (const u of souls(s.party).filter((x) => x.uid !== a.uid)) apply(run, { type: 'upgrade', uid: u.uid, track: 1 })
   const c = policy(copyOf(run), rng, 'basic')
   assert.deepEqual([c.type, c.track], ['upgrade', 1])
   s.essence = 500
@@ -286,24 +277,23 @@ test('the autoplayer spends on kinds: basic buys its lowest kind\'s next tier, o
   for (const level of ['basic']) {
     const r = autoplay(createRun({ start: START_PARTY, seed: 'spender-run' }), { level })
     assert.ok(!r.state.log.some((x) => ['promote', 'level', 'monarch'].includes(x.type)))
-    assert.ok(r.state.log.filter((x) => x.type === 'upgrade').every((x) => typeof x.kind === 'string'))
+    assert.ok(r.state.log.filter((x) => x.type === 'upgrade').every((x) => Number.isInteger(x.uid)))
   }
 })
 
 // On the level scale of one a tier (LEVEL_A_TIER), so the tier offered gives a level.
-test('the expert weighs a tier as the run would make it: the kind\'s every soul with the tier and the level it gives', () => tuned(LEVEL_A_TIER, () => {
+test('the expert weighs a tier as the run would make it: that soul alone with the tier and the level it gives', () => tuned(LEVEL_A_TIER, () => {
   const lvl = levelOf({ tracks: [3, 0] })
   const u = { ...makeUnit('tomb_knight', { uid: 1, lvl }), tracks: [3, 0] }
   const v = { ...makeUnit('tomb_knight', { uid: 2, lvl }), tracks: [3, 0] }
-  const s = { party: [u, v, makeUnit('frost_sprite', { uid: 3 })], kinds: { tomb_knight: { lvl, tracks: [3, 0] }, frost_sprite: { lvl: 1, tracks: [0, 0] } }, relics: [] }
-  const after = offerState(s, { type: 'tier', kind: 'tomb_knight', track: 1 })
+  const s = { party: [u, v, makeUnit('frost_sprite', { uid: 3 })], relics: [] }
+  const after = offerState(s, { type: 'tier', uid: 1, track: 1 })
   const next = levelOf({ tracks: [3, 1] })
   assert.ok(next > lvl)
-  assert.deepEqual(after.kinds.tomb_knight, { lvl: next, tracks: [3, 1] })
-  assert.deepEqual(after.party.map((x) => [x.lvl, x.tracks]), [[next, [3, 1]], [next, [3, 1]], [1, [0, 0]]])
+  assert.deepEqual(after.party.map((x) => [x.lvl, x.tracks]), [[next, [3, 1]], [lvl, [3, 0]], [1, [0, 0]]])
   assert.equal(auraOf(after.party[0]).range, 2, 'Bulwark\'s aura stays')
   assert.deepEqual(offerState(s, { type: 'relic', id: 'whetstone' }), { relics: ['whetstone'] })
-  assert.deepEqual(s.kinds.tomb_knight.tracks, [3, 0], 'the state as it was')
+  assert.deepEqual([u.tracks, v.tracks], [[3, 0], [3, 0]], 'the state as it was')
 }))
 
 // ── fuzz: levels and tiers bought at random, then a fight ────────────────────────────────────────
@@ -314,7 +304,7 @@ const COLOSSI = Object.keys(TRACKS).filter((id) => TRACKS[id].some((t) => t.tier
 // Every run starts rich in essence, so random tiers reach tier IV, Colossus tiers and summon tiers, and then fight;
 // random places and fusions move the pieces about as they go. A soul of a kind with a Colossus tier and the souls a
 // recipe needs are among them.
-test('kinds fuzz: random tiers, places and fusions keep the crosspath rule and the footprints, every piece of a kind holds its kind\'s, and the battle fights them with their summons', () => tuned({}, () => {
+test('kinds fuzz: random tiers, places and fusions keep the crosspath rule and the footprints, every soul holds its own, and the battle fights them with their summons', () => tuned({}, () => {
   const seen = { iv: 0, colossus: 0, summoned: 0, fused: 0 }
   for (let i = 0; i < 24; i++) {
     const run = createRun({ start: START_PARTY, seed: 'kindfuzz' + i })
@@ -338,10 +328,9 @@ test('kinds fuzz: random tiers, places and fusions keep the crosspath rule and t
       if (!legal.length) break
       const type = rng.pick([...new Set(legal.map((a) => a.type))])
       apply(run, rng.pick(legal.filter((a) => a.type === type)))
-      for (const [kind, st] of Object.entries(s.kinds)) {
-        assert.ok(st.tracks.every((t) => t >= 0 && t <= 4) && !(st.tracks[0] > 2 && st.tracks[1] > 2), `kindfuzz${i}: ${kind} ${st.tracks}`)
-        assert.equal(st.lvl, levelOf(st), `kindfuzz${i}: ${kind}'s level is its tiers'`)
-        for (const u of souls(s.party).filter((x) => x.id === kind)) assert.deepEqual([u.lvl, u.tracks, u.maxHp], [st.lvl, st.tracks, baseStats(kind, st.lvl).hp], `kindfuzz${i}: ${u.uid}`)
+      for (const u of souls(s.party)) {
+        assert.ok(u.tracks.every((t) => t >= 0 && t <= 4) && !(u.tracks[0] > 2 && u.tracks[1] > 2), `kindfuzz${i}: ${u.id} ${u.tracks}`)
+        assert.deepEqual([u.lvl, u.maxHp], [levelOf(u), baseStats(u.id, levelOf(u)).hp], `kindfuzz${i}: ${u.uid}'s level is its tiers'`)
       }
       // Every fielded piece wholly on open ground, none on another's cells, only the Monarch on the seat.
       const cells = s.party.filter((u) => u.slot >= 0).flatMap((u) => (u.id === 'monarch' ? [u.slot] : footprintSlots(u.slot, sizeOf(u)) ?? [null]))
@@ -349,7 +338,7 @@ test('kinds fuzz: random tiers, places and fusions keep the crosspath rule and t
       assert.deepEqual(cells.filter((c) => isMonarchCell(s.camp, c)), [monarchOf(s).slot])
     }
     seen.fused += s.log.some((a) => a.type === 'fuse')
-    for (const st of Object.values(s.kinds)) seen.iv += st.tracks.includes(4)
+    seen.iv += souls(s.party).some((u) => u.tracks.includes(4))
     const before = s.party.map((u) => u.uid)
     seen.colossus += fielded(souls(s.party)).some((u) => sizeOf(u) === 2)
     apply(run, { type: 'fight' })

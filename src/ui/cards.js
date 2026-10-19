@@ -1,5 +1,5 @@
 // The cards the screens deal, what is taken flying to where it now lives, and the spoils' strips of souls and relics.
-import { unitCard, partyMods, relicTip, realmOf, relicIcon, tally } from '../codex.js'
+import { unitCard, partyMods, relicTip, realmOf, relicIcon, tally, releaseText } from '../codex.js'
 import { unitDef, relicDef, RELIC_TIERS } from '../content.js'
 import { h, icon, portrait, hideTip, pinTip, touchy, say } from '../dom.js'
 import { frame, toLocal } from '../frame.js'
@@ -126,7 +126,7 @@ export function soulsStrip ({ run, act, busy, again, why }) {
         h('div', { class: 'units' }, s.party.filter((u) => !isMonarch(u)).sort(fieldOrder).map((u) => unitRow(run, u, h('button', {
           class: 'danger small',
           onclick: () => { if (!busy()) { act({ type: 'release', uid: u.uid }); roster = false; again() } },
-          tip: () => `Release ${unitDef(u.id).name} forever, freeing a place among your souls, for ${releaseRefund(run, u)} essence back (${Math.round(TUNING.essence.refund * 100)}% of what recruiting it would cost now). This can't be undone.`
+          tip: () => `Release ${unitDef(u.id).name} forever, freeing a place among your souls, ${releaseText(run, u)}. This can't be undone.`
         }, icon('release', 16), 'Release', h('span', { class: 'price' }, icon('soul', 14), `+${releaseRefund(run, u)}`)))))))
   }
 }

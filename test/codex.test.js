@@ -383,7 +383,7 @@ test('the threat meter counts a trine\'s summons as the kind they are, a kind\'s
   const alone = (id) => {
     const run = createRun({ seed: 'meter', start: [id] })
     run.state.essence = 1e4
-    for (let i = 0; i < 2; i++) apply(run, { type: 'upgrade', kind: id, track: 1 })
+    for (let i = 0; i < 2; i++) apply(run, { type: 'upgrade', uid: run.state.party[1].uid, track: 1 })
     return run
   }
   const whole = (id, u) => {

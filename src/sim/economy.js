@@ -1,10 +1,10 @@
-// The run's economy: the essence a battle pays (its foes, a won room's bounty), every price and the purse, a kind's
+// The run's economy: the essence a battle pays (its foes, a won room's bounty), every price and the purse, a soul's
 // track tiers and level, and the rewards: the spoils' soul offers and the Shop's shelf, stocked and restocked.
 import { TUNING } from '../tuning.js'
 import { relicDef, unitDef, RELIC_LIST, RELIC_TIERS, fusionDef } from '../content.js'
 import { createRng } from './rng.js'
-import { baseStats, tracksOf, canTrack, nextTracks, sizeOf, fits, cellsOf } from './unit.js'
-import { OSSUARY, at, runStat, ariseHeld, relicTier, fielded, souls, takenBy, ascensionOf } from './state.js'
+import { baseStats, tracksOf, canTrack, nextTracks, sizeOf, fits, onField } from './unit.js'
+import { OSSUARY, at, runStat, ariseHeld, relicTier, takenBy, ascensionOf, isMonarch } from './state.js'
 
 // ── progression: the retinue ─────────────────────────────────────────────────────────────────────
 
@@ -33,19 +33,27 @@ export const floorPrice = (floor) => 1 + TUNING.essence.perFloor * (floor - 1)
 // Every price's scale here, against floor 1's at level 0.
 export const priceScale = (s) => floorPrice(s.floor) * ascensionOf(s).price
 const price = (run, base, ...paths) => Math.max(1, Math.round(base * floorPrice(run.state.floor) * runStat(run.state, paths, 1) * ascensionOf(run.state).price))
-export const tierCost = (run, kind, track) => {
-  const next = run.state.kinds[kind].tracks[track]
-  return price(run, TUNING.essence.tier[next], 'price.tier', ...(next < 2 ? ['price.lowTier'] : []))
+// What tier `i` (0-based: I is 0) costs a soul now; tiers I and II take the `price.lowTier` cuts too.
+export const tierPrice = (run, i) => price(run, TUNING.essence.tier[i], 'price.tier', ...(i < 2 ? ['price.lowTier'] : []))
+// What soul `u`'s next tier on `track` costs.
+export const tierCost = (run, u, track) => tierPrice(run, u.tracks[track])
+// What the tiers soul `u` holds pay back when it is fused or released: TUNING.essence.refund of each one's price now,
+// rounded down once.
+export function tierRefund (run, u) {
+  let sum = 0
+  for (const held of u.tracks) for (let i = 0; i < held; i++) sum += tierPrice(run, i)
+  return Math.floor(TUNING.essence.refund * sum)
 }
-export const recruitCost = (run, id, lvl) => price(run, TUNING.essence.recruit * unitDef(id).tier * (1 + TUNING.essence.perLevel * (lvl - 1)), 'price.recruit')
+// What recruiting a soul of kind `id` costs: TUNING.essence.recruit × its tier, whatever level it rises at.
+export const recruitCost = (run, id) => price(run, TUNING.essence.recruit * unitDef(id).tier, 'price.recruit')
 export const fuseCost = (run, id) => price(run, TUNING.essence.fuse * unitDef(fusionDef(id).result).tier)
 export const relicPrice = (run, id) => relicTierPrice(run, relicTier(id))
 const relicTierPrice = (run, tier) => price(run, TUNING.shop.price[tier], 'price.relic')
 
-export const heldKinds = (s) => [...new Set(souls(s.party).map((u) => u.id))]
-// Whether a kind the run holds may take its next tier on `track` (canTrack: up to IV, the other stopping at II).
-export const canAdvance = (s, kind, track) => heldKinds(s).includes(kind) && (track === 0 || track === 1) && tracksOf(kind).length === 2 && canTrack(s.kinds[kind].tracks, track)
-export const canUpgrade = (run, kind, track) => canAdvance(run.state, kind, track) && run.state.essence >= tierCost(run, kind, track)
+// Whether soul `u` (one of the run's, never the Monarch) may take its next tier on `track` (0 or 1): a kind with two
+// tracks, within the crosspath rule (canTrack: up to IV, the other stopping at II).
+export const canAdvance = (s, u, track) => !!u && !isMonarch(u) && s.party.includes(u) && (track === 0 || track === 1) && tracksOf(u.id).length === 2 && canTrack(u.tracks, track)
+export const canUpgrade = (run, u, track) => canAdvance(run.state, u, track) && run.state.essence >= tierCost(run, u, track)
 
 export function pay (run, cost) {
   const s = run.state
@@ -54,36 +62,22 @@ export function pay (run, cost) {
   s.stats.spent += cost
 }
 
-// A kind takes its next tier on `track`, every soul of it too (syncKind). A Colossus tier (`size: 2`) grows its pieces to
-// 2×2: in party order, one that no longer fits beside the pieces kept so far goes to the ossuary.
-export function advance (s, kind, track) {
-  if (!canAdvance(s, kind, track)) throw new Error(`no next tier on track ${track} for ${kind}`)
-  s.kinds[kind].tracks = nextTracks(s.kinds[kind].tracks, track)
-  for (const u of s.party) if (u.id === kind) u.tracks = s.kinds[kind].tracks.slice()
-  syncKind(s, kind)
-  const grown = fielded(s.party).filter((u) => u.id === kind)
-  const taken = takenBy(s, grown)
-  for (const u of grown) {
-    if (fits(s.camp, u.slot, sizeOf(u), taken)) cellsOf(u).forEach((c) => taken.add(c))
-    else u.slot = OSSUARY
-  }
+// Soul `u` takes its next tier on `track`, and the level its tiers give (setLevel). A Colossus tier (`size: 2`) grows
+// it to 2×2: fielded where its footprint no longer fits, it goes to the ossuary.
+export function advance (s, u, track) {
+  if (!canAdvance(s, u, track)) throw new Error(`no next tier on track ${track} for ${u?.id} ${u?.uid}`)
+  u.tracks = nextTracks(u.tracks, track)
+  setLevel(u, levelOf(u))
+  if (onField(u) && !fits(s.camp, u.slot, sizeOf(u), takenBy(s, [u]))) u.slot = OSSUARY
 }
 
-// A kind's level from its state (s.kinds[id]: { tracks, least? }): TUNING.level.base + perTier a tier held, rounded
-// down, never below `least` (a fused kind's: the highest level of the kinds that went into it).
-export const levelOf = (k) => Math.max(k.least ?? 0, Math.floor(TUNING.level.base + TUNING.level.perTier * (k.tracks[0] + k.tracks[1])))
-export const newKind = () => ({ lvl: levelOf({ tracks: [0, 0] }), tracks: [0, 0] })
-// The level of `kind` in the run (its first, for a kind new to the run).
-export const kindLevel = (s, kind) => levelOf(s.kinds[kind] ?? { tracks: [0, 0] })
-
-// A kind at the level its state gives (levelOf), and every soul of it too.
-export function syncKind (s, kind) {
-  s.kinds[kind].lvl = kindLevel(s, kind)
-  for (const u of s.party) if (u.id === kind && u.lvl !== s.kinds[kind].lvl) setLevel(u, s.kinds[kind].lvl)
-}
+// A soul's level from the tiers it holds (`tracks`: its own, or any { tracks }): TUNING.level.base + perTier a tier on
+// either track, rounded down. No level is bought; a soul with no tier (a recruit, a fused soul) stands at the first.
+export const levelOf = ({ tracks }) => Math.floor(TUNING.level.base + TUNING.level.perTier * (tracks[0] + tracks[1]))
+export const firstLevel = () => levelOf({ tracks: [0, 0] })
 
 // A level-up raises the soul's max HP and heals a living one by the difference; the fallen stay at 0.
-function setLevel (u, lvl) {
+export function setLevel (u, lvl) {
   const before = u.maxHp
   u.lvl = lvl
   u.maxHp = baseStats(u.id, u.lvl).hp
@@ -92,28 +86,30 @@ function setLevel (u, lvl) {
 
 // The track a free tier goes on (Soul Lantern): the one with fewer tiers (the first on a tie), else the other; null: none.
 export const lowerTrack = (tracks) => [tracks[1] < tracks[0] ? 1 : 0, tracks[1] < tracks[0] ? 0 : 1].find((t) => canTrack(tracks, t)) ?? null
-// The tracks Soul Lantern's free tiers go on, in order, for a kind new to the run (a copy each).
+// The tracks Soul Lantern's free tiers go on, in order, for a soul recruited (a copy each).
 export function lanternSteps (s) {
   const steps = []
   for (let tracks = [0, 0], t; steps.length < runStat(s, 'run.soulTiers', 0) && (t = lowerTrack(tracks)) !== null; tracks = nextTracks(tracks, t)) steps.push(t)
   return steps
 }
+// The tracks a soul recruited joins with: Soul Lantern's free tiers (lanternSteps), none without it.
+export const freshTracks = (s) => lanternSteps(s).reduce(nextTracks, [0, 0])
 
 // ── rewards ──────────────────────────────────────────────────────────────────────────────────────
 
-// One soul for sale per kind of foe slain, a full soul joining its kind at the kind's level (soulOffer); one of them is
-// recruited a battle (reap). A foe shadow is no foe's soul, and a boss leaves none (its court does).
+// One soul for sale per kind of foe slain, a fresh soul (soulOffer); one of them is recruited a battle (reap). A foe
+// shadow is no foe's soul, and a boss leaves none (its court does).
 export function soulOffers (run, battle) {
   const slain = battle.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0 && !unitDef(u.id).boss)
   return [...new Set(slain.map((u) => u.id))].map((id) => soulOffer(run, { type: 'soul', id, name: unitDef(id).name }))
 }
 
-// A soul offer as the run stands now: the level it would join at, its cost (recruitCost) and its line. Every reading of
-// an offer's price or level goes through here, so the relics held now are in the price.
+// A soul offer as the run stands now: the level it rises at (its first, Soul Lantern's tiers in), its cost
+// (recruitCost) and its line. Every reading of an offer's price or level goes through here, so the relics held now are
+// in both.
 export function soulOffer (run, o) {
-  const s = run.state
-  const lvl = s.kinds[o.id] ? kindLevel(s, o.id) : levelOf({ tracks: lanternSteps(s).reduce(nextTracks, [0, 0]) })
-  return { ...o, lvl, cost: recruitCost(run, o.id, lvl), desc: `Rises at level ${lvl}.` }
+  const lvl = levelOf({ tracks: freshTracks(run.state) })
+  return { ...o, lvl, cost: recruitCost(run, o.id), desc: `Rises at level ${lvl}.` }
 }
 
 export const relicOffer = (r) => ({ type: 'relic', id: r.id, name: r.name, desc: r.desc, tier: r.tier })

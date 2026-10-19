@@ -8,7 +8,7 @@ import { h, icon, prefs } from '../dom.js'
 import { music } from '../music.js'
 import { sfx } from '../sfx.js'
 import {
-  fieldCap, rosterCap, fielded, inOssuary, souls, monarchOf, depthOf, canAdvance, tierCost, relicCount, heldKinds,
+  fieldCap, rosterCap, fielded, inOssuary, souls, monarchOf, depthOf, canAdvance, tierCost, relicCount,
   payPer, ascensionOf, priceScale
 } from '../sim/run.js'
 import { tracksOf } from '../sim/unit.js'
@@ -76,12 +76,12 @@ export function ossuaryCount (run) {
 function essenceTip (run) {
   const s = run.state
   const scale = priceScale(s)
-  const next = heldKinds(s).flatMap((id) => [0, 1].filter((t) => canAdvance(s, id, t)).map((t) => ({ id, t, cost: tierCost(run, id, t) })))
+  const next = souls(s.party).flatMap((u) => [0, 1].filter((t) => canAdvance(s, u, t)).map((t) => ({ u, t, cost: tierCost(run, u, t) })))
     .sort((a, b) => a.cost - b.cost)[0]
   return h('div', { class: 'syn-tip' }, h('b', null, `${s.essence} essence`),
     h('p', null, `${s.stats.essence} earned, ${s.stats.spent} spent this run · ${scale === 1 ? 'floor 1 prices' : `prices ×${+scale.toFixed(2)} floor 1's`}` +
       `${ascensionOf(s).price !== 1 ? `, ascension ${s.ascension}'s ×${+ascensionOf(s).price.toFixed(2)} among them` : ''}.`),
-    next && h('p', null, `Cheapest tier now: ${unitDef(next.id).name}, ${tracksOf(next.id)[next.t].name} ${ROMAN[s.kinds[next.id].tracks[next.t]]}, for ${next.cost}${next.cost > s.essence ? ` (${next.cost - s.essence} short)` : ''}.`),
+    next && h('p', null, `Cheapest tier now: ${unitDef(next.u.id).name}, ${tracksOf(next.u.id)[next.t].name} ${ROMAN[next.u.tracks[next.t]]}, for ${next.cost}${next.cost > s.essence ? ` (${next.cost - s.essence} short)` : ''}.`),
     h('p', { class: 'dim' }, `A slain foe pays ${payPer(s.floor)} × its tier on this floor.`))
 }
 

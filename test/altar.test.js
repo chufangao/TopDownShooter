@@ -5,10 +5,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  createRun, apply, legalActions, availableNodes, replay, souls, heldKinds, canAdvance, levelOf, spawnPool, monarchOf, join,
+  createRun, apply, legalActions, availableNodes, replay, souls, canAdvance, levelOf, spawnPool, monarchOf, join,
   altarActions, transmuteOffer, canTransmute, START_PARTY
 } from '../src/sim/run.js'
-import { nextTracks, baseStats } from '../src/sim/unit.js'
+import { nextTracks, baseStats, tiersOf, tracksOf } from '../src/sim/unit.js'
 import { policy, pickAltar, altarOptions, altarCandidates, survey, LEVELS } from '../src/sim/autoplay.js'
 import { UNITS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
@@ -41,7 +41,7 @@ function atAltar (ready = () => {}) {
   return run
 }
 
-test('an altar asks one rite of three: the heal, each soul\'s transmutations, each kind\'s free tiers; nothing else', () => {
+test('an altar asks one rite of three: the heal, each soul\'s transmutations, each soul\'s free tiers; nothing else', () => {
   const run = atAltar()
   const s = run.state
   assert.equal(s.phase, 'altar')
@@ -54,7 +54,7 @@ test('an altar asks one rite of three: the heal, each soul\'s transmutations, ea
     assert.deepEqual(offered.map((a) => a.index), transmuteOffer(s, u.id).map((_, i) => i), u.id)
     assert.ok(offered.length > 0, `${u.id}: a drafted kind is offered others`)
   }
-  for (const kind of heldKinds(s)) for (const track of [0, 1]) assert.equal(legal.some((a) => a.type === 'consecrate' && a.kind === kind && a.track === track), canAdvance(s, kind, track))
+  for (const u of souls(s.party)) for (const track of [0, 1]) assert.equal(legal.some((a) => a.type === 'consecrate' && a.uid === u.uid && a.track === track), canAdvance(s, u, track))
   // No room walked, no soul placed, released or given a relic there.
   const u = souls(s.party)[0]
   for (const a of [{ type: 'node', id: availableNodes(BEFORE.run)[0].id }, { type: 'place', uid: u.uid, slot: -1 }, { type: 'release', uid: u.uid }, { type: 'buy', index: 0 }]) {
@@ -82,7 +82,7 @@ test('a transmutation draws a kind of the floor\'s pool at the soul\'s tier, nev
   const run = atAltar()
   const s = run.state
   const pool = spawnPool(s.floor).units
-  for (const kind of heldKinds(s)) {
+  for (const kind of new Set(souls(s.party).map((u) => u.id))) {
     const offer = transmuteOffer(s, kind)
     const same = pool.filter((k) => k.tier === UNITS[kind].tier && k.id !== kind)
     assert.equal(offer.length, Math.min(TUNING.run.altarOffer, same.length), kind)
@@ -106,88 +106,80 @@ test('a transmutation draws a kind of the floor\'s pool at the soul\'s tier, nev
   for (const index of [TUNING.run.altarOffer, -1, null, '0']) assert.throws(() => apply(run, { type: 'transmute', uid: v.uid, index }), /cannot transmute/, String(index))
 })
 
-test('a transmutation keeps the soul: its uid, level, relics, share of HP and cell; tiers stay their kind\'s', () => {
+test('a transmutation keeps the soul: its uid, level, tiers, relics, share of HP and cell', () => {
   let u = null
   let into = null
   const run = atAltar((r) => {
     const s = r.state
     u = souls(s.party).find((x) => x.hp > 0)
-    // Two tiers bought on its kind (a level above its first), a relic held, half its HP.
+    // Two tiers bought on it (a level above its first), a relic held, half its HP.
     s.essence = 5000
-    apply(r, { type: 'upgrade', kind: u.id, track: 0 })
-    apply(r, { type: 'upgrade', kind: u.id, track: 0 })
+    apply(r, { type: 'upgrade', uid: u.uid, track: 0 })
+    apply(r, { type: 'upgrade', uid: u.uid, track: 0 })
     s.relics.push('whetstone')
     apply(r, { type: 'hold', relic: 'whetstone', uid: u.uid })
     u.hp = Math.round(u.maxHp / 2)
-    // The kind it becomes: one new to the run.
-    into = transmuteOffer({ ...s, at: BEFORE.altar }, u.id).findIndex((id) => !s.kinds[id])
+    into = 0
   })
   const s = run.state
-  assert.ok(into >= 0, 'a kind new to the run is offered')
-  const was = { ...structuredClone(u), kind: structuredClone(s.kinds[u.id]), n: souls(s.party).length, essence: s.essence }
+  const was = { ...structuredClone(u), n: souls(s.party).length, essence: s.essence }
   assert.ok(was.lvl > levelOf({ tracks: [0, 0] }))
   apply(run, { type: 'transmute', uid: u.uid, index: into })
   const v = s.party.find((x) => x.uid === was.uid)
   assert.equal(v.id, transmuteOffer({ ...s, at: BEFORE.altar }, was.id)[into])
-  assert.deepEqual([v.lvl, v.relics, v.slot], [was.lvl, ['whetstone'], was.slot])
+  assert.deepEqual([v.lvl, v.tracks, v.relics, v.slot], [was.lvl, [2, 0], ['whetstone'], was.slot])
   assert.ok(Math.abs(v.hp / v.maxHp - was.hp / was.maxHp) < 0.01, `${v.hp}/${v.maxHp}`)
   assert.equal(v.maxHp, baseStats(v.id, v.lvl).hp)
-  // Tiers are the kind's: the old keeps its own, the new has none and stands at the soul's level (its `least`).
-  assert.deepEqual(s.kinds[was.id], was.kind)
-  assert.deepEqual([v.tracks, s.kinds[v.id].tracks, s.kinds[v.id].least, s.kinds[v.id].lvl], [[0, 0], [0, 0], was.lvl, was.lvl])
+  // Its tiers come with it, each on its new kind's track of the same number: the first track's I and II of the new kind.
+  assert.deepEqual(tiersOf(v).map((t) => t.desc), tracksOf(v.id)[0].tiers.slice(0, 2).map((t) => t.desc))
   assert.deepEqual([souls(s.party).length, s.essence], [was.n, was.essence])
 })
 
-test('a transmutation into a kind held at a lower level raises every soul of it to the soul\'s; into one held higher, the soul rises', () => {
-  for (const higher of [false, true]) {
-    let u = null
-    let index = -1
-    const run = atAltar((r) => {
-      const s = r.state
-      u = souls(s.party).find((x) => x.hp > 0)
-      const offer = transmuteOffer({ ...s, at: BEFORE.altar }, u.id)
-      index = 0
-      join(r, offer[0])
-      s.essence = 5000
-      for (let k = 0; k < 2; k++) apply(r, { type: 'upgrade', kind: higher ? offer[0] : u.id, track: 0 })
-    })
-    const s = run.state
-    const lvl = u.lvl
-    const kind = transmuteOffer(s, u.id)[index]
-    const theirs = s.kinds[kind].lvl
-    apply(run, { type: 'transmute', uid: u.uid, index })
-    const top = Math.max(lvl, theirs)
-    assert.ok(higher ? theirs > lvl : lvl > theirs)
-    for (const x of souls(s.party).filter((y) => y.id === kind)) assert.equal(x.lvl, top, `${higher}: ${x.uid}`)
-    assert.equal(s.kinds[kind].lvl, top)
-  }
+test('a transmutation touches the soul alone: another soul of the kind it becomes keeps its own tiers and level', () => {
+  let u = null
+  let other = null
+  const run = atAltar((r) => {
+    const s = r.state
+    u = souls(s.party).find((x) => x.hp > 0)
+    other = join(r, transmuteOffer({ ...s, at: BEFORE.altar }, u.id)[0])
+    s.essence = 5000
+    for (let k = 0; k < 2; k++) apply(r, { type: 'upgrade', uid: other.uid, track: 0 })
+  })
+  const s = run.state
+  const was = { u: structuredClone(u), other: structuredClone(other) }
+  apply(run, { type: 'transmute', uid: u.uid, index: 0 })
+  const v = s.party.find((x) => x.uid === was.u.uid)
+  const o = s.party.find((x) => x.uid === was.other.uid)
+  assert.equal(v.id, o.id)
+  assert.deepEqual([v.lvl, v.tracks], [was.u.lvl, was.u.tracks])
+  assert.deepEqual([o.lvl, o.tracks, o.maxHp], [was.other.lvl, was.other.tracks, was.other.maxHp])
+  assert.ok(o.lvl > v.lvl)
 })
 
-test('a consecration is one tier, free: the kind\'s next on the track chosen, as an upgrade would buy it; none past what the tracks allow', () => {
-  const kind = heldKinds(BEFORE.run.state)[0]
+test('a consecration is one tier, free: the soul\'s next on the track chosen, as an upgrade would buy it; none past what the tracks allow', () => {
+  const uid = souls(BEFORE.run.state.party)[0].uid
   for (const track of [0, 1]) {
     const run = atAltar()
     const s = run.state
-    const before = { essence: s.essence, spent: s.stats.spent, kinds: structuredClone(s.kinds) }
-    apply(run, { type: 'consecrate', kind, track })
+    const before = { essence: s.essence, spent: s.stats.spent, party: structuredClone(s.party) }
+    apply(run, { type: 'consecrate', uid, track })
     assert.deepEqual([s.essence, s.stats.spent], [before.essence, before.spent])
-    assert.deepEqual(s.kinds[kind].tracks, nextTracks(before.kinds[kind].tracks, track))
-    for (const [id, k] of Object.entries(s.kinds)) if (id !== kind) assert.deepEqual(k, before.kinds[id])
+    const u = s.party.find((x) => x.uid === uid)
+    assert.deepEqual([u.tracks, u.lvl], [nextTracks(before.party.find((x) => x.uid === uid).tracks, track), levelOf(u)])
+    for (const x of s.party) if (x.uid !== uid) assert.deepEqual(x, before.party.find((y) => y.uid === x.uid))
     // As buying it would: the same retinue as the tier paid for on the map, but for the purse.
     const paid = copyOf(BEFORE.run)
     paid.state.essence = 5000
-    apply(paid, { type: 'upgrade', kind, track })
-    assert.deepEqual(s.kinds, paid.state.kinds)
+    apply(paid, { type: 'upgrade', uid, track })
     assert.deepEqual(s.party, paid.state.party)
-    for (const u of souls(s.party).filter((x) => x.id === kind)) assert.equal(u.lvl, levelOf(s.kinds[kind]))
   }
-  // A track the crosspath rule stops (the other past II, this at II) takes none, nor a kind not held.
-  const run = atAltar((r) => { r.state.kinds[kind].tracks = [3, 2] })
-  assert.ok(!legalActions(run).some((a) => a.type === 'consecrate' && a.kind === kind && a.track === 1))
-  assert.throws(() => apply(run, { type: 'consecrate', kind, track: 1 }), /cannot consecrate/)
-  assert.throws(() => apply(run, { type: 'consecrate', kind: 'iron_golem', track: 0 }), /cannot consecrate/)
-  apply(run, { type: 'consecrate', kind, track: 0 })
-  assert.deepEqual(run.state.kinds[kind].tracks, [4, 2])
+  // A track the crosspath rule stops (the other past II, this at II) takes none, nor a soul not held.
+  const run = atAltar((r) => { r.state.party.find((x) => x.uid === uid).tracks = [3, 2] })
+  assert.ok(!legalActions(run).some((a) => a.type === 'consecrate' && a.uid === uid && a.track === 1))
+  assert.throws(() => apply(run, { type: 'consecrate', uid, track: 1 }), /cannot consecrate/)
+  assert.throws(() => apply(run, { type: 'consecrate', uid: 999, track: 0 }), /cannot consecrate/)
+  apply(run, { type: 'consecrate', uid, track: 0 })
+  assert.deepEqual(run.state.party.find((x) => x.uid === uid).tracks, [4, 2])
 })
 
 test('a log with each rite replays to the same run', () => {

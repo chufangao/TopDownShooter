@@ -731,11 +731,11 @@ test('copies: a run relic\'s stack, a piece relic\'s are more holders; numbers a
   s.relics = ['grave_banner', 'grave_banner', 'ossuary_key', 'ossuary_key', 'grave_shroud', 'grave_shroud']
   assert.deepEqual([fieldCap(run), rosterCap(run), monarchHp(s)], [TUNING.party.field + 2, TUNING.party.roster + 2 * relicMod('ossuary_key', 'run.roster'), TUNING.monarch.hp + 2 * relicMod('grave_shroud', 'run.monarchHp')])
   s.relics = []
-  const full = tierCost(run, 'tomb_knight', 0)
+  const full = tierCost(run, souls(s.party)[0], 0)
   s.relics = ['grave_ledger']
-  assert.equal(tierCost(run, 'tomb_knight', 0), Math.max(1, Math.round(full * (1 + relicMod('grave_ledger', 'price.lowTier')))))
+  assert.equal(tierCost(run, souls(s.party)[0], 0), Math.max(1, Math.round(full * (1 + relicMod('grave_ledger', 'price.lowTier')))))
   s.relics = Array(6).fill('grave_ledger')
-  assert.equal(tierCost(run, 'tomb_knight', 0), 1)
+  assert.equal(tierCost(run, souls(s.party)[0], 0), 1)
 })
 
 test('no cap: a relic owned is stocked again and bought again, however many the run owns', () => {

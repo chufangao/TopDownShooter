@@ -2229,8 +2229,8 @@ const ABILITY_LIST = [
 
 // ── upgrade tracks ───────────────────────────────────────────────────────────────────────────
 
-// Each kind of soul has two tracks of four tiers (`tracks`), bought with essence for the kind: every soul of it holds
-// them. One track may pass tier II, and the other then stops at II (canTrack). A tier can carry `mods` (always on, for
+// Each kind of soul has two tracks of four tiers (`tracks`), bought with essence by one soul at a time: each soul holds
+// its own. One track may pass tier II, and the other then stops at II (canTrack). A tier can carry `mods` (always on, for
 // the kind's souls), `ability` ({ id, replace } swaps one; { id, at } adds one there, first by default, so the basics
 // stay last), `aura` (replaces its aura), `summon` (shadows of its kind beside each soul as a battle begins) and `size`
 // (2: Colossus, the kind's pieces grow to 2×2, one that no longer fits going to the ossuary). Tier IV is a rule, never
@@ -2727,7 +2727,7 @@ export const RELIC_LIST = [
   { id: 'rowan_charm', tier: 'common', name: 'Rowan Charm', desc: 'As the battle begins, and as each later wave begins to enter, while its holder stands: your side within 2 tiles of it gains Barkskin (+25% DEF).', on: 'wave', effects: [{ op: 'apply_status', status: 'barkskin', to: 'allies', range: 2 }] },
   { id: 'war_drum', tier: 'uncommon', name: 'War Drum', desc: 'When its holder falls, your side within 2 tiles of it gains Hasten.', on: 'fall', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
   { id: 'rally_horn', tier: 'uncommon', name: 'Rally Horn', desc: 'When its holder strikes, your side within 2 tiles of it gains Hasten.', on: 'blow', effects: [{ op: 'apply_status', status: 'hasten', to: 'allies', range: 2 }] },
-  { id: 'soul_lantern', tier: 'uncommon', name: 'Soul Lantern', run: true, desc: 'A kind new to the run that you recruit joins with a free tier, on its lower track. Each copy: a tier more.', mods: [m('run.soulTiers', 'add', 1)] },
+  { id: 'soul_lantern', tier: 'uncommon', name: 'Soul Lantern', run: true, desc: 'A soul you recruit joins with a free tier, on its lower track. Each copy: a tier more.', mods: [m('run.soulTiers', 'add', 1)] },
   { id: 'tower_shield', tier: 'uncommon', name: 'Tower Shield', desc: 'As the battle begins, and as each later wave begins to enter, while its holder stands: your side within 2 tiles of it is Shielded for 4 turns (takes 40% less damage).', on: 'wave', effects: [{ op: 'apply_status', status: 'shield', to: 'allies', range: 2 }] },
   { id: 'grave_ledger', tier: 'uncommon', name: 'Grave Ledger', run: true, desc: 'Tiers I and II cost 30% less essence.', mods: [m('price.lowTier', 'add', -0.3)] },
   { id: 'bone_mantle', tier: 'uncommon', name: 'Bone Mantle', run: true, desc: 'The Monarch has 65 more max HP.', mods: [m('run.monarchHp', 'add', 65)] },

@@ -3,7 +3,7 @@ import { board } from '../board.js'
 import {
   unitCard, partyMods, synergyTracker, synergyGroups, relicTip, realmOf, MONARCH_TEXT, MONARCH_RULE, tileText,
   fieldRule, ROMAN, alsoOf, reachText, reachRule, standing, abilityBlocks, auraBlock, hpBar, hpAt, summonText,
-  relicIcon, ariseFor, statTip, tally
+  relicIcon, ariseFor, statTip, tally, releaseText
 } from '../codex.js'
 import { unitDef, relicDef, KIN, ROLES, FUSION_LIST } from '../content.js'
 import { h, fill, icon, portrait, showTip, hideTip, pinTip, hold, HOLD, touchy, say } from '../dom.js'
@@ -13,7 +13,7 @@ import { sfx } from '../sfx.js'
 import { field } from '../sim/field.js'
 import {
   fieldCap, rosterCap, fielded, inOssuary, souls, isMonarch, monarchOf, OSSUARY, canAdvance, tierCost, canPlace,
-  canFuse, levelOf, kindLevel, swapWith, releaseRefund, unheld, canHold
+  canFuse, levelOf, swapWith, releaseRefund, unheld, canHold
 } from '../sim/run.js'
 import {
   COLS, CAMP_ROWS, slotAt, rowOf, isWall, LANES, DEPTH, tileAt, deployTile, wallTiles, onField, tileX, tileY, statsOf,
@@ -306,7 +306,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
       relicSection(u),
       summonsOf(u) > 0 && h('p', { class: 'uc-note uc-summons' }, summonText(u, statsOf(u, mods), mods)),
       !on && h('p', { class: 'dim uc-note' }, full() ? fullText(u) : say('In the ossuary. Drag it onto an open tile of the camp, or click one.', 'In the ossuary. Drag it onto an open tile of the camp, or tap one.')),
-      kindPanel(u.id),
+      tierPanel(u),
       h('div', { class: 'uc-sec' }, 'Abilities'),
       abilities(u, statsOf(u, mods)),
       h('div', { class: 'uc-acts' },
@@ -328,37 +328,33 @@ export function fieldEditor ({ run, act, onChange = null }) {
         if (sel?.uid === u.uid) sel = null
         send({ type: 'release', uid: u.uid })
       },
-      tip: () => `Release ${unitDef(u.id).name} forever, for ${releaseRefund(run, u)} essence back (${Math.round(TUNING.essence.refund * 100)}% of what recruiting it would cost now). Press twice: it can't be undone.`
+      tip: () => `Release ${unitDef(u.id).name} forever, ${releaseText(run, u)}. Press twice: it can't be undone.`
     }, icon('release', 16), armed ? 'Release for good' : 'Release', h('span', { class: 'price' }, icon('soul', 14), `+${releaseRefund(run, u)}`))
   }
 
-  // A kind's two tracks of tiers I–IV, held by every soul of the kind; once one passes II the other stops there.
-  function kindPanel (id) {
-    const k = s.kinds[id]
-    if (!k) return null
-    const name = unitDef(id).name
-    const held = s.party.filter((x) => x.id === id)
-    const tracks = tracksOf(id)
-    const lvl = kindLevel(s, id)
-    const raw = levelOf({ tracks: k.tracks })
+  // Soul `u`'s two tracks of tiers I–IV, its own; once one passes II the other stops there.
+  function tierPanel (u) {
+    const name = unitDef(u.id).name
+    const tracks = tracksOf(u.id)
+    const lvl = u.lvl
     // The level one tier more gives (either track's: a tier is a tier).
-    const up = levelOf({ ...k, tracks: [k.tracks[0] + 1, k.tracks[1]] })
+    const up = levelOf({ tracks: [u.tracks[0] + 1, u.tracks[1]] })
     const rise = up > lvl ? `Level ${lvl} → ${up}.` : `Level stays ${lvl}.`
     const row = (tr, t) => {
-      const have = k.tracks[t]
-      const can = canAdvance(s, id, t)
+      const have = u.tracks[t]
+      const can = canAdvance(s, u, t)
       const blocked = !can && have < 4
-      const cost = can ? tierCost(run, id, t) : 0
+      const cost = can ? tierCost(run, u, t) : 0
       const next = tr.tiers[have]
       const other = tracks[1 - t]
       const lockText = `Locked: ${other.name} has passed II, so ${tr.name} stops at II.`
       const node = (tier, i) => {
-        const lock = i >= have && !canTrack(k.tracks.map((v, j) => (j === t ? i : v)), t)
+        const lock = i >= have && !canTrack(u.tracks.map((v, j) => (j === t ? i : v)), t)
         const state = i < have ? 'own' : i === have && can ? (s.essence < cost ? 'next poor' : 'next') : lock ? 'lock' : 'later'
         const tip = () => h('div', { class: 'syn-tip' }, h('p', null, h('b', null, `${tr.name} ${ROMAN[i]}: `), tier.desc),
           i < have ? null : lock ? h('p', { class: 'warn' }, lockText) : i > have ? h('p', { class: 'dim' }, `After ${ROMAN[i - 1]}.`)
-            : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}. ${rise}`) : h('p', { class: 'dim' }, `${cost} essence, for every ${name}. ${rise}`))
-        const press = (e) => { if (i === have && can) return buyTier(e, id, t, cost); if (i >= have) { sfx.play('poor'); shake(e) } }
+            : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}. ${rise}`) : h('p', { class: 'dim' }, `${cost} essence, for this ${name}. ${rise}`))
+        const press = (e) => { if (i === have && can) return buyTier(e, u, t, cost); if (i >= have) { sfx.play('poor'); shake(e) } }
         return h('button', {
           class: `tnode ${state}` + (tier.size === 2 ? ' colossus' : ''), 'aria-label': `${tr.name} ${ROMAN[i]}`, 'aria-disabled': i === have && can && s.essence >= cost ? null : 'true',
           onclick: (e) => (i < have ? null : twice(e, tip, `Buy ${ROMAN[i]} ▸`, () => i === have && can && s.essence >= cost, press)),
@@ -376,37 +372,34 @@ export function fieldEditor ({ run, act, onChange = null }) {
           can && h('span', { class: 'tprice' + (s.essence < cost ? ' poor' : '') }, icon('soul', 16), cost)),
         h('div', { class: 'track-next' + (blocked ? ' warn' : '') }, have >= 4 ? 'Complete.' : blocked ? lockText : [h('b', null, `${ROMAN[have]} `), next.desc]))
     }
-    return h('div', { class: 'uc-kind' },
-      h('div', { class: 'uc-sec' }, `Every ${name}`, h('span', { class: 'dim' }, ` · ${held.length} held`)),
+    return h('div', { class: 'uc-tiers' },
+      h('div', { class: 'uc-sec' }, 'Its tiers'),
       h('div', {
         class: 'uc-level',
-        tip: () => levelTip(id, lvl, up, raw < lvl)
+        tip: () => levelTip(u, lvl, up)
       }, icon('levelup', 20), h('b', null, 'Level ', h('span', { class: 'num' }, lvl)), h('span', { class: 'dim' }, ' · rises with its tiers')),
       tracks.length === 2 && h('div', { class: 'tracks' }, tracks.map(row)))
   }
-  // A kind's level in its stats: what it gives every soul of the kind now (`lvl`), what the next tier's (`up`) adds;
-  // `fused`: the level is the kinds' fused into it, above its tiers'.
-  function levelTip (id, lvl, up, fused) {
-    const name = unitDef(id).name
-    const [now, next] = [baseStats(id, lvl), baseStats(id, up)]
+  // Soul `u`'s level in its stats: what it gives the soul now (`lvl`), what the next tier's (`up`) adds.
+  function levelTip (u, lvl, up) {
+    const name = unitDef(u.id).name
+    const [now, next] = [baseStats(u.id, lvl), baseStats(u.id, up)]
     const r = (st) => ({ hp: Math.round(st.hp), atk: Math.round(st.atk), def: Math.round(st.def) })
     const [a, b] = [r(now), r(next)]
     const gain = [['HP', 'hp'], ['ATK', 'atk'], ['DEF', 'def']].filter(([, k]) => b[k] !== a[k]).map(([w, k]) => `+${b[k] - a[k]} ${w}`).join(', ')
-    const more = canAdvance(s, id, 0) || canAdvance(s, id, 1)
+    const more = canAdvance(s, u, 0) || canAdvance(s, u, 1)
     return h('div', { class: 'syn-tip' },
-      h('p', null, h('b', null, `Level ${lvl}: `), `HP ${a.hp}, ATK ${a.atk}, DEF ${a.def} for every ${name}, a recruit too${fused ? `; raised to ${lvl} by the kinds fused into it` : ''}.`),
-      h('p', { class: 'dim' }, !more ? 'No tier left to buy.' : up > lvl ? `Next tier: Level ${up}${gain ? `, ${gain} each` : ''}.` : `Next tier: level stays ${lvl}.`))
+      h('p', null, h('b', null, `Level ${lvl}: `), `HP ${a.hp}, ATK ${a.atk}, DEF ${a.def} for this ${name}.`),
+      h('p', { class: 'dim' }, !more ? 'No tier left to buy.' : up > lvl ? `Next tier: Level ${up}${gain ? `, ${gain}` : ''}.` : `Next tier: level stays ${lvl}.`))
   }
-  // A Colossus tier sends each piece of the kind that no longer fits 2×2 where it stood to the ossuary: said.
-  function buyTier (e, kind, track, cost) {
+  // A Colossus tier sends the soul to the ossuary where it no longer fits 2×2 where it stood: said.
+  function buyTier (e, u, track, cost) {
     if (s.essence < cost) { sfx.play('poor'); return shake(e) }
-    const stood = fielded(s.party).filter((x) => x.id === kind).map((x) => x.uid)
-    if (!send({ type: 'upgrade', kind, track })) return
+    const stood = onField(u)
+    if (!send({ type: 'upgrade', uid: u.uid, track })) return
     sfx.play('buy')
-    const n = stood.filter((uid) => !onField(soulOf(uid))).length
-    if (!n) return
-    const name = unitDef(kind).name
-    error = `${n === 1 ? `A ${name} no longer fits` : `${n} ${name} pieces no longer fit`} 2×2 where ${n === 1 ? 'it' : 'they'} stood: in the ossuary until you place ${n === 1 ? 'it' : 'them'} again.`
+    if (!stood || onField(soulOf(u.uid))) return
+    error = `The ${unitDef(u.id).name} no longer fits 2×2 where it stood: in the ossuary until you place it again.`
     render()
   }
 

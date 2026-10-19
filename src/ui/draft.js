@@ -3,7 +3,7 @@ import { unitCard, reachText, recruitWorth } from '../codex.js'
 import { unitDef, KIN, ROLES, FUSION_LIST } from '../content.js'
 import { h, fill, icon, portrait, hideTip, touchy, say } from '../dom.js'
 import { sfx } from '../sfx.js'
-import { souls, levelOf } from '../sim/run.js'
+import { souls, firstLevel } from '../sim/run.js'
 import { TUNING } from '../tuning.js'
 import { offerKeys, still, centre, flyOne, cardDeck } from './cards.js'
 import { topbar } from './chrome.js'
@@ -38,16 +38,15 @@ export function draftScreen ({ run, onPick, onHelp }) {
     }
     still() ? go() : setTimeout(go, 300)
   }
-  const lvlOf = (id) => s.kinds[id]?.lvl ?? levelOf({ tracks: [0, 0] })
   const recipesOf = (id) => FUSION_LIST.filter((f) => Object.hasOwn(f.needs, id))
   function card (id, i) {
     const d = unitDef(id)
     const worth = recruitWorth(run, id)
     const recipes = recipesOf(id)
     const notes = worth?.lines ?? (recipes.length ? recipes.map((f) => `Fusion: ${f.desc}`) : ['It goes into no fusion.'])
-    const tip = () => unitCard({ id, lvl: lvlOf(id), slot: -1 }, {
+    const tip = () => unitCard({ id, lvl: firstLevel(), tracks: [0, 0], slot: -1 }, {
       open: !touchy(),
-      live: `Joins free at Lv ${lvlOf(id)}, on the field`,
+      live: `Joins free at Lv ${firstLevel()}, on the field`,
       notes: [`${say('Click', 'Tap it again (or Raise ▸)')} to raise it.`, ...notes]
     })
     const chips = worth?.chips ?? recipes.map((f) => ({ text: `Fuses into ${f.name}` }))
@@ -57,7 +56,7 @@ export function draftScreen ({ run, onPick, onHelp }) {
       h('div', { class: 'offer-name' }, d.name),
       chips.length > 0 && h('div', { class: 'offer-worth' }, chips.map((c) => h('span', { class: 'ow-chip' + (c.up ? ' up' : '') }, c.text))),
       h('div', { class: 'offer-line' }, `${KIN[d.kin].name} ${ROLES[d.role].name}`),
-      h('div', { class: 'offer-line draft-reach' }, reachText({ id, lvl: lvlOf(id), tracks: s.kinds[id]?.tracks ?? [0, 0] })))
+      h('div', { class: 'offer-line draft-reach' }, reachText({ id, lvl: firstLevel(), tracks: [0, 0] })))
   }
   // The seats: one a pick, a soul's face in each taken, the next marked.
   const picked = souls(s.party)

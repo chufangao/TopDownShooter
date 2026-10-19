@@ -5,8 +5,8 @@
 //            [ the Monarch out of the foes' reach next turn, material in HP: dealt, mended, statuses and raised, less the
 //            counter and next turn's losses ], read again on the board the ones before left (calcTurn)
 //   draft    the offers, the highest tier first
-//   map      each purchase the purse affords (a fusion first, the highest tier; then a tier, the most souls of its kind an
-//            essence), then each relic of the shelf it affords (the rarest first), then each room open (an altar first
+//   map      each purchase the purse affords (a fusion first, the highest tier; then a standing soul's tier, the
+//            cheapest first), then each relic of the shelf it affords (the rarest first), then each room open (an altar first
 //            while the Monarch stands below half or a soul is fallen, then a fight, a siege, an elite, the rest)
 //   prep     the strongest souls standing (tier, level, max HP) up to Command, on the camp's default frontier
 //   reap     each soul offered the purse affords (the highest tier, then a kind held), and none; a full retinue lets its
@@ -14,7 +14,7 @@
 //   shop     each relic of the shelf the purse affords, the rarest first, then each room open
 //   hold     an unheld piece relic to the strongest fielded soul that may take it
 //   altar    the heal first while hurt (as the map's altar), else each free tier and then the heal; the transmutations last
-import { createRun, apply, availableNodes, currentNode, souls, fielded, fieldCap, canFuse, fuseParts, tierCost, heldKinds, canAdvance,
+import { createRun, apply, availableNodes, currentNode, souls, fielded, fieldCap, canFuse, fuseParts, tierCost, canAdvance,
   canBuy, relicPrice, canHold, unheld, soulCount, rosterCap, frontier, monarchOf, relicTier, soulOffer, altarActions, copyRun } from './run.js'
 import { fork, orderable, stalled, order } from './turns.js'
 import { situation, features, options, untouchedOrders } from './policy.js'
@@ -95,29 +95,26 @@ const strongest = (a, b) => cmp(strength(b), strength(a))
 const RARITY = { legendary: 3, rare: 2, uncommon: 1, common: 0 }
 const standing = (s) => souls(s.party).filter((u) => u.hp > 0)
 
-// What the purse buys now: each fusion (the highest tier first), then each tier of a kind held (tiers).
+// What the purse buys now: each fusion (the highest tier first), then each soul's next tier (tiers).
 export function purchases (run) {
   const fuses = FUSION_LIST.filter((r) => canFuse(run, r.id))
     .sort((a, b) => tierOf(b.result) - tierOf(a.result) || (a.id < b.id ? -1 : 1))
     .map((r) => ({ type: 'fuse', id: r.id, parts: fuseParts(run, r.id) }))
   return [...fuses, ...tiers(run)]
 }
-// Each next tier of a kind held with a soul standing, the most souls of the kind standing an essence first, as `type`
-// actions: those the purse affords (upgrades), or with `free` every one as if it paid (an altar's consecrations).
+// Each next tier of a soul standing, the cheapest first (then the party's order, then the track), as `type` actions:
+// those the purse affords (upgrades), or with `free` every one as if it paid (an altar's consecrations).
 function tiers (run, { type = 'upgrade', free = false } = {}) {
   const s = run.state
   const out = []
-  for (const kind of heldKinds(s)) {
-    const n = standing(s).filter((u) => u.id === kind).length
-    if (!n) continue
+  for (const u of standing(s)) {
     for (const track of [0, 1]) {
-      if (!canAdvance(s, kind, track)) continue
-      const cost = tierCost(run, kind, track)
-      if (free || s.essence >= cost) out.push({ a: { type, kind, track }, rate: n / cost })
+      if (!canAdvance(s, u, track)) continue
+      const cost = tierCost(run, u, track)
+      if (free || s.essence >= cost) out.push({ a: { type, uid: u.uid, track }, cost })
     }
   }
-  out.sort((a, b) => b.rate - a.rate || (a.a.kind < b.a.kind ? -1 : a.a.kind > b.a.kind ? 1 : a.a.track - b.a.track))
-  return out.map((t) => t.a)
+  return out.sort((a, b) => a.cost - b.cost).map((t) => t.a)
 }
 // Whether the calculator would heal: the Monarch below half its HP, or a soul fallen.
 function hurt (s) {
@@ -157,7 +154,7 @@ function recruits (run) {
   const s = run.state
   const full = soulCount(s.party) >= rosterCap(run)
   const spare = full ? souls(s.party).filter((u) => souls(s.party).some((x) => x !== u && x.hp > 0)).sort(strongest).at(-1) : null
-  const held = new Set(heldKinds(s))
+  const held = new Set(souls(s.party).map((u) => u.id))
   const out = []
   s.offers.forEach((o, index) => {
     const cost = soulOffer(run, o).cost

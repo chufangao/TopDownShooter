@@ -23,8 +23,8 @@ import {
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
-  foeMods, roomThreats, isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, heldKinds, canPlace, canFuse,
-  fuseParts, fuseCost, OSSUARY, START_PARTY, relicTier, levelOf, kindLevel, monarchHp, ariseOf, commandOf, canBuy,
+  foeMods, roomThreats, isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, canPlace, canFuse,
+  fuseParts, fuseCost, OSSUARY, START_PARTY, relicTier, levelOf, monarchHp, ariseOf, commandOf, canBuy,
   relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat, spawnPool, altarActions,
   transmuteOffer, foeScale, ANSWERS, tends, BASE_MONARCH, copyRun, copyPlain
 } from './run.js'
@@ -263,7 +263,7 @@ export function survey (run, L = LEVELS.expert) {
   const target = L.book ? targetOf(s) : null
   const keeps = targetKinds(target)
   const common = RELIC_LIST.find((r) => r.tier === 'common')
-  const tiers = heldKinds(s).flatMap((kind) => [0, 1].filter((t) => canAdvance(s, kind, t)).map((t) => tierCost(run, kind, t)))
+  const tiers = all.flatMap((u) => [0, 1].filter((t) => canAdvance(s, u, t)).map((t) => tierCost(run, u, t)))
   const m = monarchOf(s)
   return {
     floor: s.floor,
@@ -1077,11 +1077,12 @@ function pickSpend (run, L, sit) {
   return pickHold(run, L, sit) ?? spendPick(run, L, sit)
 }
 
-// Every purchase the purse affords L: a tier of any kind held (but under the tracks ablation).
+// Every purchase the purse affords L: any soul's next tier on either track (but under the tracks ablation).
 export function spendOptions (run, L) {
   const s = run.state
-  return heldKinds(s).flatMap((kind) => [0, 1].filter((track) => L.ablate !== 'tracks' && canAdvance(s, kind, track) && s.essence >= tierCost(run, kind, track))
-    .map((track) => ({ type: 'upgrade', kind, track })))
+  if (L.ablate === 'tracks') return []
+  return souls(s.party).flatMap((u) => [0, 1].filter((track) => canAdvance(s, u, track) && s.essence >= tierCost(run, u, track))
+    .map((track) => ({ type: 'upgrade', uid: u.uid, track })))
 }
 
 // The fusions L may make now, each of its canonical parts (fuseParts); none for basic or under the fusions ablation.
@@ -1090,18 +1091,19 @@ export function fusionOptions (run, L) {
   return FUSION_LIST.filter((r) => canFuse(run, r.id) && mayFuse(r.id)).map((r) => ({ type: 'fuse', id: r.id, parts: fuseParts(run, r.id) }))
 }
 
-// Basic's spending: the next tier of the lowest kind that will fight, on the track it is on, as the purse affords.
+// Basic's spending: the next tier of the lowest soul that will fight (by level, then party order) that has one, on the
+// track it is on (the one with more tiers, the first on a tie), else the other where that one is stopped, as the purse
+// affords.
 function basicSpend (run, L) {
   const s = run.state
   if (L.ablate === 'tracks') return null
-  const kinds = [...new Set(standing(souls(s.party)).sort(byFieldPower).slice(0, fieldCap(run)).map((u) => u.id))]
-  const affords = (kind, track) => canAdvance(s, kind, track) && s.essence >= tierCost(run, kind, track)
-  const on = (kind) => (s.kinds[kind].tracks[1] > s.kinds[kind].tracks[0] ? 1 : 0)
-  const low = (kind) => [kindLevel(s, kind), kinds.indexOf(kind)]
-  const lowest = kinds.filter((kind) => [0, 1].some((t) => canAdvance(s, kind, t))).sort((a, b) => low(a)[0] - low(b)[0] || low(a)[1] - low(b)[1])[0]
+  const fight = new Set(standing(souls(s.party)).sort(byFieldPower).slice(0, fieldCap(run)))
+  const affords = (u, track) => canAdvance(s, u, track) && s.essence >= tierCost(run, u, track)
+  const lowest = souls(s.party).filter((u) => fight.has(u) && [0, 1].some((t) => canAdvance(s, u, t))).sort((a, b) => a.lvl - b.lvl)[0]
   if (!lowest) return null
-  const track = affords(lowest, on(lowest)) ? on(lowest) : !canAdvance(s, lowest, on(lowest)) && affords(lowest, 1 - on(lowest)) ? 1 - on(lowest) : null
-  return track === null ? null : { type: 'upgrade', kind: lowest, track }
+  const on = lowest.tracks[1] > lowest.tracks[0] ? 1 : 0
+  const track = affords(lowest, on) ? on : !canAdvance(s, lowest, on) && affords(lowest, 1 - on) ? 1 - on : null
+  return track === null ? null : { type: 'upgrade', uid: lowest.uid, track }
 }
 
 // What a state is worth to grow toward: the field's strength (a log), the book's worth of its target; `sketch` weighs them.
@@ -1117,7 +1119,7 @@ const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : a.type)
 export function grow (run, L, actions, why, sit = null) {
   if (!actions.length) return null
   const s = run.state
-  const key = JSON.stringify([L.ablate, s.floor, s.at, s.phase, s.essence, s.kinds, s.relics, s.party.map((u) => [u.uid, u.hp, u.slot >= 0, u.relics])])
+  const key = JSON.stringify([L.ablate, s.floor, s.at, s.phase, s.essence, s.relics, s.party.map((u) => [u.uid, u.hp, u.slot >= 0, u.relics, u.tracks, u.lvl])])
   const seen = growths.get(run) ?? {}
   if (seen[why]?.key === key) return seen[why].pick
   if (audited(run)) for (const a of actions) note('considered', label(a))
@@ -1151,12 +1153,16 @@ export function grow (run, L, actions, why, sit = null) {
 }
 
 // Whether, with tier `a` just bought on `sim`, the next on its track may be bought too (the two priced together).
-const nextTier = (sim, a) => a.type === 'upgrade' && canAdvance(sim.state, a.kind, a.track) && sim.state.essence >= tierCost(sim, a.kind, a.track)
+function nextTier (sim, a) {
+  if (a.type !== 'upgrade') return false
+  const u = sim.state.party.find((x) => x.uid === a.uid)
+  return canAdvance(sim.state, u, a.track) && sim.state.essence >= tierCost(sim, u, a.track)
+}
 
-// A kind's state ({ lvl, tracks, least? }) with the next tier on `track` taken, at the level it gives.
-const afterTier = (k, track) => {
-  const next = { ...k, tracks: nextTracks(k.tracks, track) }
-  return { ...next, lvl: levelOf(next) }
+// Soul `u` with its next tier on `track` taken, at the level it gives (its other fields as they are).
+const afterTier = (u, track) => {
+  const tracks = nextTracks(u.tracks, track)
+  return { ...u, tracks, lvl: levelOf({ tracks }) }
 }
 
 // ── the combo book ───────────────────────────────────────────────────────────────────────────────
@@ -1165,7 +1171,8 @@ const afterTier = (k, track) => {
 // every floor as that floor's army (BOOK_FLOORS), its pieces in it and the rest the plain army's (FILLER):
 //   { made, plain: { relic: points on the plain army }, combos: [entry] }; an entry:
 //   { id: fusion:<recipe>:<track> | core:<kind>:<track> | kin:<kin>:<n> | role:<role>:<n>, needs: { kind: pieces },
-//     fuse?: recipe, tracks: { kind: track }, kin?|role?: { name: n }, from: the first floor its kinds are met,
+//     fuse?: recipe, tracks: { kind: the track each soul of it grows on }, kin?|role?: { name: n }, from: the first
+//     floor its kinds are met,
 //     gain: [per floor, the log of its army's power over the plain army's; null where it cannot stand],
 //     relics?: { relic: points, floors 2 and 4 } }
 const BOOK_FLOORS = [
@@ -1231,16 +1238,20 @@ function bookArmy (combo, floor, relics = []) {
   for (const id of FILLER) if (ids.length < F.command) ids.push(id)
   const run = { state: { ...bookRun().state }, battle: null, setup: null }
   const s = run.state
-  const kindOf = (id) => {
+  // Each soul of a kind the combo names grows on that track (the rest on the first), the floor's tiers on it and up
+  // to II on the other.
+  const tiersOn = (id) => {
     const t = tracks[id] ?? 0
     const tiers = [0, 0]
     tiers[t] = F.tiers
     tiers[1 - t] = Math.min(2, Math.max(0, F.tiers - 2))
-    return { tracks: tiers, lvl: levelOf({ tracks: tiers }) }
+    return tiers
   }
-  s.kinds = Object.fromEntries([...new Set(ids)].map((id) => [id, kindOf(id)]))
   const monarch = { ...monarchOf(s), maxHp: F.hp, hp: F.hp }
-  s.party = [monarch, ...ids.map((id, i) => makeUnit(id, { uid: i + 1, lvl: s.kinds[id].lvl, tracks: s.kinds[id].tracks }))]
+  s.party = [monarch, ...ids.map((id, i) => {
+    const t = tiersOn(id)
+    return makeUnit(id, { uid: i + 1, lvl: levelOf({ tracks: t }), tracks: t })
+  })]
   s.nextUid = ids.length + 1
   // The floor first: the banners fill the Command up from the floor's base.
   s.floor = floor
@@ -1459,8 +1470,9 @@ function strictRecruit (run, L) {
 const bookCombos = () => COMMIT?.combos ?? BOOK.combos
 
 // How far a run is along a combo, 0 to 1: the mean of its pieces standing (a fused part by its own recipe's progress, a
-// kin or role as its synergy counts), a fusion made, and its tracks' tiers of four. `counts`: standingCounts(s).
-function comboProgress (s, c, counts = standingCounts(s)) {
+// kin or role as its synergy counts), a fusion made, and its tracks' tiers of four (each kind's by its soul with the most
+// tiers). `counts`: standingCounts(s); `best`: bestTracks(s).
+function comboProgress (s, c, counts = standingCounts(s), best = bestTracks(s)) {
   const pieces = (id) => counts.get(id) ?? 0
   const share = (needs) => {
     let got = 0
@@ -1511,7 +1523,7 @@ function comboProgress (s, c, counts = standingCounts(s)) {
   } else part(share(c.needs))
   const tracks = entriesOf(c.tracks)
   const held = tracks.filter(([id]) => pieces(id) > 0)
-  part(held.length ? held.reduce((n, [id, t]) => n + (s.kinds[id]?.tracks[t] ?? 0) / 4, 0) / tracks.length : 0)
+  part(held.length ? held.reduce((n, [id, t]) => n + (best.get(id)?.[t] ?? 0) / 4, 0) / tracks.length : 0)
   return sum / parts
 }
 // An object's entries, made once an object (the book's combos and the recipes' needs never change).
@@ -1526,6 +1538,15 @@ function standingCounts (s) {
   const counts = new Map()
   for (const u of souls(s.party)) if (u.hp > 0) counts.set(u.id, (counts.get(u.id) ?? 0) + 1)
   return counts
+}
+// Each kind held, the tracks of its soul with the most tiers (the first in the party among equals). → Map id → tracks
+function bestTracks (s) {
+  const best = new Map()
+  for (const u of souls(s.party)) {
+    const t = best.get(u.id)
+    if (!t || u.tracks[0] + u.tracks[1] > t[0] + t[1]) best.set(u.id, u.tracks)
+  }
+  return best
 }
 
 // A combo's worth from here: its gain over the plain army on the floors left, and the points of the relics at work that
@@ -1560,14 +1581,16 @@ export function targetOf (s) {
   return bookRead(s).target
 }
 // Both, read once for what they read of a state (by the combos in play): its floor, the relics at work, whether nothing
-// heals the Monarch, the standing souls of each kind and their tiers. Dropped whole past 4,096 states.
+// heals the Monarch, the standing souls of each kind and the tiers of its soul with the most. Dropped whole past 4,096
+// states.
 const BOOK_READS = new WeakMap()
 function bookRead (s) {
   const work = atWork(s)
   const bled = unhealed(s)
   const counts = standingCounts(s)
+  const best = bestTracks(s)
   const combos = bookCombos()
-  const key = JSON.stringify([s.floor, [...work], bled, [...counts], [...counts.keys()].map((id) => s.kinds[id]?.tracks ?? null), TUNING.expert.book.ahead])
+  const key = JSON.stringify([s.floor, [...work], bled, [...counts], [...counts.keys()].map((id) => best.get(id)), TUNING.expert.book.ahead])
   let seen = BOOK_READS.get(combos)
   if (!seen || seen.size >= 4096) BOOK_READS.set(combos, (seen = new Map()))
   let read = seen.get(key)
@@ -1576,7 +1599,7 @@ function bookRead (s) {
   let target = null
   let most = 0
   for (const c of combos) {
-    const v = comboWorth(s, c, work, bled) * comboProgress(s, c, counts)
+    const v = comboWorth(s, c, work, bled) * comboProgress(s, c, counts, best)
     value = Math.max(value, v)
     if (v > most) { most = v; target = c }
   }
@@ -1691,7 +1714,7 @@ export function pickDraft (run, L) {
   const s = run.state
   const offer = s.draft.offer
   if (!L.spend) {
-    const fresh = offer.findIndex((id) => !s.kinds[id])
+    const fresh = offer.findIndex((id) => !souls(s.party).some((u) => u.id === id))
     return { type: 'pick', index: Math.max(0, fresh) }
   }
   const ranged = (id) => !meleeOnly(makeUnit(id, { lvl: 1 }))
@@ -1720,7 +1743,7 @@ function recruit (run) {
 }
 
 // The state a purchase would make, for the sketch: a relic owned (an HP relic's Monarch raised, and healed unless nothing
-// may heal it), or the kind with a tier more on a track. Only what changes: { relics?, party?, kinds? }
+// may heal it), or soul `o.uid` alone with a tier more on track `o.track` (afterTier). Only what changes: { relics?, party? }
 export function offerState (s, o) {
   if (o.type === 'relic') {
     const relics = [...s.relics, o.id]
@@ -1730,8 +1753,7 @@ export function offerState (s, o) {
     return { relics, party: s.party.map((u) => (isMonarch(u) ? { ...u, maxHp: monarchHp({ ...s, relics }), hp: u.hp + (heal ? gain : 0) } : u)) }
   }
   if (o.type !== 'tier') return {}
-  const k = afterTier(s.kinds[o.kind], o.track)
-  return { kinds: { ...s.kinds, [o.kind]: k }, party: s.party.map((u) => (u.id === o.kind ? { ...u, lvl: k.lvl, tracks: k.tracks } : u)) }
+  return { party: s.party.map((u) => (u.uid === o.uid ? afterTier(u, o.track) : u)) }
 }
 
 // ── the Shop ─────────────────────────────────────────────────────────────────────────────────────
@@ -1779,18 +1801,18 @@ export function held (s, id, L) {
   return best
 }
 
-// The best sketch gain per essence among the next tiers of the kinds held (each also with the one after it); 0 for none.
+// The best sketch gain per essence among the souls' next tiers (each also with the one after it); 0 for none.
 export function tierRate (run, L, base) {
   const s = run.state
   if (L.ablate === 'tracks') return 0
   let best = 0
-  for (const kind of heldKinds(s)) {
+  for (const { uid } of souls(s.party)) {
     for (const track of [0, 1]) {
       let st = s
       let cost = 0
-      for (let k = 0; k < 2 && canAdvance(st, kind, track); k++) {
-        cost += tierCost({ state: st }, kind, track)
-        st = { ...st, ...offerState(st, { type: 'tier', kind, track }) }
+      for (let k = 0, u; k < 2 && canAdvance(st, (u = st.party.find((x) => x.uid === uid)), track); k++) {
+        cost += tierCost({ state: st }, u, track)
+        st = { ...st, ...offerState(st, { type: 'tier', uid, track }) }
         best = Math.max(best, (sketch(st, L) - base) / cost)
       }
     }
@@ -1829,8 +1851,8 @@ export function pickAltar (run, L, sit = null) {
 }
 // A rite in words, for the candidates' labels ("transmute 7 frost_sprite into will_o_wisp").
 function riteLabel (run, a) {
-  if (a.type !== 'transmute') return a.type === 'consecrate' ? `consecrate ${a.kind} ${a.track}` : a.type
   const u = run.state.party.find((x) => x.uid === a.uid)
+  if (a.type !== 'transmute') return a.type === 'consecrate' ? `consecrate ${a.uid} ${u.id} ${a.track}` : a.type
   return `transmute ${a.uid} ${u.id} into ${transmuteOffer(run.state, u.id)[a.index]}`
 }
 
@@ -1864,7 +1886,7 @@ export function spendCandidates (run, L, sit = null) {
   if (!actions.length) return null
   const today = grow(run, L, actions, 'spend', sit)
   const { scores } = growths.get(run).spend
-  const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : `tier ${a.kind} ${a.track}`)
+  const label = (a) => (a.type === 'fuse' ? `fuse ${a.id}` : `tier ${a.uid} ${run.state.party.find((u) => u.uid === a.uid).id} ${a.track}`)
   return {
     today: outId(today),
     cands: [{ id: outId(null), label: 'stop', actions: [], score: scores.get(outId(null)) }, ...actions.map((a) => ({ id: outId(a), label: label(a), actions: [a], score: scores.get(outId(a)) }))]
@@ -2047,12 +2069,11 @@ function fieldRead (s, L) {
   return { f, best, target: target?.id ?? null, up: up.length }
 }
 
-// A kind as a candidate touches it, at its level and tiers in `s` (k.*): its role, whether it flies, shoots, fights in
+// The soul a candidate touches, at its level and tiers after it (k.*): its role, whether it flies, shoots, fights in
 // melee alone, tends or gives an aura; its reach, tier, level, HP, ATK, DEF, Move, worth (a log) and footprint.
-function kindRead (s, id, out) {
-  const k = s.kinds[id] ?? { lvl: TUNING.level.base, tracks: [0, 0] }
-  const u = makeUnit(id, { lvl: k.lvl, tracks: k.tracks })
-  const d = unitDef(id)
+function soulRead (v, out) {
+  const u = makeUnit(v.id, { lvl: v.lvl, tracks: v.tracks })
+  const d = unitDef(v.id)
   const st = statsOf(u)
   if (OUT_ROLES.includes(d.role)) put(out, `k.${d.role}`, 1)
   put(out, 'k.flies', !!d.flies)
@@ -2062,7 +2083,7 @@ function kindRead (s, id, out) {
   put(out, 'k.aura', !!auraOf(u))
   put(out, 'k.reach', reachOf(u))
   put(out, 'k.tier', d.tier)
-  put(out, 'k.lvl', k.lvl)
+  put(out, 'k.lvl', u.lvl)
   put(out, 'k.hp', st.hp)
   put(out, 'k.atk', st.atk)
   put(out, 'k.def', st.def)
@@ -2093,8 +2114,9 @@ const fitOf = (reads, u) => (reads.length ? reads.reduce((n, r) => n + r.t.fly *
 //   score, cost, none                today's score; its cost in tier prices; a recruit of none or stopping
 //   tier, t.*                        a tier: its track and number, what it grants, `double` with the next
 //   fuse, u.*                        a fusion: its parts, their worth, its gain, those fielded
-//   recruit, r.*                     a recruit: a new kind; a release, the soul let go's worth, of a kept kind
-//   k.*, fit.*                       the kind it touches (kindRead): how many stand, fielded, the target's; fitOf
+//   recruit, r.*                     a recruit: of a kind none holds; a release, the soul let go's worth, of a kept kind
+//   k.*, fit.*                       the soul it touches (soulRead), and of its kind how many stand, fielded, the
+//                                    target's; fitOf
 //   d.*                              the field's read of the state it leaves less this one's
 export function outsideRead (run, L, sit, phase, cands) {
   sit ??= survey(run, L)
@@ -2157,13 +2179,15 @@ function candidateRead (run, L, cand, reads, was, scale) {
   put(out, 'score', cand.score)
   put(out, 'cost', (s.essence - st.essence) / scale)
   const main = acts.find((a) => a.type !== 'release')
-  let kind = null
+  // The soul it touches, as it stands after: the one tiered, the fused, the recruit.
+  const joined = () => st.party.find((u) => !s.party.some((x) => x.uid === u.uid))
+  let soul = null
   if (!main) put(out, 'none', 1)
   else if (main.type === 'upgrade') {
     put(out, 'tier', 1)
-    kind = main.kind
-    const no = st.kinds[kind].tracks[main.track]
-    const tier = tracksOf(kind)[main.track].tiers[no - 1]
+    soul = st.party.find((u) => u.uid === main.uid)
+    const no = soul.tracks[main.track]
+    const tier = tracksOf(soul.id)[main.track].tiers[no - 1]
     put(out, 't.track', main.track)
     put(out, 't.no', no)
     put(out, 't.mods', !!tier.mods?.length)
@@ -2174,18 +2198,18 @@ function candidateRead (run, L, cand, reads, was, scale) {
     put(out, 't.double', nextTier(sim, main))
   } else if (main.type === 'fuse') {
     put(out, 'fuse', 1)
-    kind = fusionDef(main.id).result
+    soul = joined()
     const parts = main.parts.map((uid) => s.party.find((u) => u.uid === uid))
-    const made = st.party.find((u) => u.id === kind && !s.party.some((x) => x.uid === u.uid))
     const sum = parts.reduce((n, u) => n + worth(u), 0)
     put(out, 'u.parts', parts.length)
     put(out, 'u.worth', Math.log(1 + sum))
-    put(out, 'u.gain', Math.log(1 + (made ? worth(made) : 0)) - Math.log(1 + sum))
+    put(out, 'u.gain', Math.log(1 + (soul ? worth(soul) : 0)) - Math.log(1 + sum))
     put(out, 'u.fielded', parts.filter((u) => was.best.includes(u)).length)
   } else if (main.type === 'reap') {
     put(out, 'recruit', 1)
-    kind = s.offers[main.index].id
-    put(out, 'r.new', !s.kinds[kind])
+    soul = joined()
+    const id = s.offers[main.index].id
+    put(out, 'r.new', !souls(s.party).some((u) => u.id === id))
     const release = acts.find((a) => a.type === 'release')
     if (release) {
       const u = s.party.find((x) => x.uid === release.uid)
@@ -2195,8 +2219,9 @@ function candidateRead (run, L, cand, reads, was, scale) {
       put(out, 'r.kept', targetKinds(L.book ? targetOf(s) : null).has(u.id))
     }
   }
-  if (kind) {
-    const u = kindRead(st, kind, out)
+  if (soul) {
+    const kind = soul.id
+    const u = soulRead(soul, out)
     const target = L.book ? targetOf(s) : null
     put(out, 'k.count', standing(souls(st.party)).filter((x) => x.id === kind).length)
     put(out, 'k.fielded', was.best.filter((x) => x.id === kind).length)

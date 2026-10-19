@@ -171,15 +171,16 @@ test('a level\'s prices: a tier, a recruit, a fusion and a relic, each the base\
     for (const floor of [1, 3]) {
       s.floor = floor
       const at = (base) => Math.max(1, Math.round(base * floorPrice(floor) * row.price))
-      assert.equal(tierCost(run, 'tomb_knight', 0), at(TUNING.essence.tier[0]), `tier, level ${a} floor ${floor}`)
-      assert.equal(recruitCost(run, 'tomb_knight', 1), at(TUNING.essence.recruit * UNITS.tomb_knight.tier), `recruit, level ${a}`)
+      assert.equal(tierCost(run, s.party[1], 0), at(TUNING.essence.tier[0]), `tier, level ${a} floor ${floor}`)
+      assert.equal(recruitCost(run, 'tomb_knight'), at(TUNING.essence.recruit * UNITS.tomb_knight.tier), `recruit, level ${a}`)
       const r = FUSION_LIST[0]
       assert.equal(fuseCost(run, r.id), at(TUNING.essence.fuse * UNITS[r.result].tier), `fusion, level ${a}`)
       assert.equal(relicPrice(run, 'whetstone'), at(TUNING.shop.price.common), `relic, level ${a}`)
       near(priceScale(s), floorPrice(floor) * row.price, 'the price scale')
     }
   }
-  assert.ok(tierCost(createRun({ seed: 'p', ascension: TOP, start: START_PARTY }), 'tomb_knight', 0) > TUNING.essence.tier[0])
+  const top = createRun({ seed: 'p', ascension: TOP, start: START_PARTY })
+  assert.ok(tierCost(top, top.state.party[1], 0) > TUNING.essence.tier[0])
 })
 
 test('replay at a level: the same run again, and the level is part of it', () => {

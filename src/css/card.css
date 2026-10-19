@@ -1,5 +1,5 @@
 /* card: the Field's panel (ui.js fieldEditor): a soul's card (soulPanel: its head and reach, its relic slot, its
-   summons, its kind's tracks, Fuse, its abilities), and with nothing selected the Monarch's (a gold card, its HP and
+   summons, its tiers, its abilities), and with nothing selected the Monarch's (a gold card, its HP and
    Command) over your synergies and the board's key. Every purchase pops, every refusal shakes. Sizes are the shared
    scale (style.css :root): body text --fs-md, secondary --fs-sm, badge numbers --fs-xs; anything pressed --tap
    on its short side. */
@@ -173,15 +173,15 @@
   .tnode.next, .shake { animation: none; }
 }
 
-/* ── its summons and its kind (soulPanel's summons line and kindPanel) ───────────────────────────── */
+/* ── its summons and its tiers (soulPanel's summons line and tierPanel) ─────────────────────────── */
 
-/* The summons its kind's tiers bring each battle, in the shadows' colour. */
+/* The summons its tiers bring each battle, in the shadows' colour. */
 .uc-summons { margin-top: 4px; color: var(--text); }
 .uc-summons b { color: var(--c-shadow); }
-.uc-kind { margin-top: 4px; }
-/* The kind's tracks: a row each, the second in the paler cyan; a Colossus tier IV (2×2) wears its badge. */
-.uc-kind .tracks { margin-top: 8px; }
-/* The kind's level, a read-out of its tiers (never bought): it rises as they do. */
+.uc-tiers { margin-top: 4px; }
+/* Its tracks: a row each, the second in the paler cyan; a Colossus tier IV (2×2) wears its badge. */
+.uc-tiers .tracks { margin-top: 8px; }
+/* Its level, a read-out of its tiers (never bought): it rises as they do. */
 .uc-level { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: var(--fs-sm); color: var(--text); cursor: help; }
 .uc-level .ico { color: var(--c-path); }
 .uc-level .num { color: var(--bright); }

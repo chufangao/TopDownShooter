@@ -16,7 +16,7 @@ export const KEYWORDS = {
   shadow: { name: 'Shadow', sys: 'shadow', line: 'A slain foe risen to fight for you, on the free tile nearest the Monarch. It acts on its own each turn, and is gone when the battle ends.' },
   summon: { name: 'Summon', sys: 'shadow', line: `A shadow of its own kind (a trine's: of the kind it was made of) that a tier calls up beside a piece of yours as each battle begins, at ${Math.round(TUNING.summon.hp * 100)}% of its HP. It acts on its own each turn, and is gone when the battle ends.` },
   essence: { name: 'Essence', sys: 'essence', line: 'Paid by every foe slain, by its tier; buys tiers, fusions, recruits and relics, every price dearer each floor down.' },
-  tier: { name: 'Tier', sys: 'path', line: 'A step, I–IV, on one of a kind\'s two tracks: it upgrades every soul of that kind and raises the kind\'s level.' },
+  tier: { name: 'Tier', sys: 'path', line: 'A step, I–IV, on one of a soul\'s two tracks: it upgrades that soul alone and raises its level.' },
   fusion: { name: 'Fusion', sys: 'path', line: 'A recipe: souls of set kinds become one much stronger piece, most of them 2×2. The Codex lists every one.' },
   trine: { name: 'Trine', sys: 'path', line: `Three of a kind fused: one piece ${TRINE_RISE} tiers higher, its blows at one foe now strike a crowd and its shots reach a tile farther. It counts as three toward synergies. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has one.` },
   synergy: { name: 'Synergy', sys: 'synergy', line: 'Four pieces of one kin or role on the board bring its rule, which changes what happens, a trine counting as three. Its pieces glow in its colour.' },
@@ -29,7 +29,7 @@ export const KEYWORDS = {
   counter: { name: 'Counter', sys: 'foe', line: 'A melee blow whose target stands and can reach back is answered at once by its basic melee blow, both sides alike. A ranged blow never is; a Hexed piece never answers; a counter is never countered.' },
   line: { name: 'Line of fire', sys: 'plan', line: 'A ranged blow at one target flies straight from the shooter: the first piece of the target\'s side on a tile it crosses takes it instead, both sides alike. A side never blocks its own shots. Melee, a blow that strikes an area and a lobbed blow ignore lines.' },
   shop: { name: 'Shop', sys: 'relic', line: `Open between battles, never in one: the floor's shelf of ${TUNING.shop.relics} relics for essence, one always a Command relic, a slot bought filled again after your next win; and every fusion whose parts you hold. Buy as many as you can pay for.` },
-  altar: { name: 'Altar', sys: 'path', line: 'A room with no battle that grants one rite of three: heal the Monarch; transmute a soul into another kind of its tier from this floor\'s foes; or consecrate a kind, its next tier free.' }
+  altar: { name: 'Altar', sys: 'path', line: 'A room with no battle that grants one rite of three: heal the Monarch; transmute a soul into another kind of its tier from this floor\'s foes; or consecrate a soul, its next tier free.' }
 }
 for (const k of Object.values(KEYWORDS)) k.group = 'Words'
 

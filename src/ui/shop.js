@@ -4,7 +4,7 @@ import { unitDef, relicDef, fusionDef, FUSION_LIST } from '../content.js'
 import { h, fill, icon, portrait, hideTip, pinTip, touchy, say } from '../dom.js'
 import { kw } from '../keywords.js'
 import { sfx } from '../sfx.js'
-import { souls, fuseCost, relicCount, shopOffers, shelfFusions, canBuy, isRunRelic } from '../sim/run.js'
+import { souls, fuseCost, relicCount, shopOffers, shelfFusions, canBuy, isRunRelic, firstLevel } from '../sim/run.js'
 import { deployTile, onField } from '../sim/unit.js'
 import { hiNums, flyTrinket, RELIC_TIER_NAME, cardDeck, cardRow, mostCards } from './cards.js'
 import { learnt } from './chrome.js'
@@ -82,13 +82,13 @@ export function shopView ({ run, act, onChange = null }) {
     t.classList.add('shake')
   }
 
-  // A recipe's row: its result, its parts (how many of each you hold) and, where every part is held, its button.
+  // A recipe's row: its result (as it rises: fresh), its parts (how many of each you hold) and, where every part is
+  // held, its button.
   const heldOf = (k) => souls(s.party).filter((x) => x.id === k).length
   function fuseRow (f, entry = null) {
     const d = unitDef(f.result)
-    const k = s.kinds[f.result]
     return h('div', { class: 'fuse-row' + (entry?.can ? ' ready' : '') + (entry ? '' : ' toward') },
-      h('span', { tip: () => unitCard({ id: f.result, lvl: k?.lvl ?? 1, tracks: k?.tracks ?? [0, 0] }, { realm: realmOf(run), notes: [f.desc] }) }, portrait(f.result, 40)),
+      h('span', { tip: () => unitCard({ id: f.result, lvl: firstLevel(), tracks: [0, 0] }, { realm: realmOf(run), notes: [f.desc] }) }, portrait(f.result, 40)),
       h('div', { class: 'fuse-text' },
         h('div', null, h('b', null, f.name), h('span', { class: 'dim' }, ` · tier ${d.tier}${(d.size ?? 1) > 1 ? ' · 2×2' : ''}`)),
         h('div', { class: 'fuse-parts' }, Object.entries(f.needs).map(([id, n]) => {
@@ -97,24 +97,28 @@ export function shopView ({ run, act, onChange = null }) {
         }))),
       entry ? fuseButton(f, entry) : h('span', { class: 'price dim', tip: () => `${fuseCost(run, f.id)} essence once every part is held.` }, icon('soul', 16), fuseCost(run, f.id)))
   }
-  // A ready recipe's button, lit when it can be made now; on the spoils it waits for the map.
+  // A ready recipe's button, lit when it can be made now, its price and what its parts' tiers pay back (`back`); on the
+  // spoils it waits for the map.
   function fuseButton (f, entry) {
-    const { cost, can, open } = entry
+    const { cost, back, can, open } = entry
+    const name = unitDef(f.result).name
     const partsText = entry.action.parts.map((uid) => {
       const p = s.party.find((x) => x.uid === uid)
       return `the ${unitDef(p.id).name} ${onField(p) ? `on ${tileText(deployTile('party', p.slot)).replace(/^your camp, /, '')}` : 'in the ossuary'}`
     }).join(', ')
+    const trade = `it takes ${partsText}, for ${cost} essence${back > 0 ? `; its parts' tiers pay back ${back}` : ''}`
+    const fresh = `The ${name} waits in the ossuary, fresh: level ${firstLevel()}, no tier.`
     const tip = () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ' ', f.desc,
-      !open ? h('p', { class: 'warn' }, `Fused on the map, once the spoils are done: it takes ${partsText}, for ${cost} essence.`)
+      !open ? h('p', { class: 'warn' }, `Fused on the map, once the spoils are done: ${trade}.`)
         : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
-          : h('p', { class: 'dim' }, `It takes ${partsText}, for ${cost} essence; the ${unitDef(f.result).name} waits in the ossuary.`))
+          : h('p', { class: 'dim' }, `${trade[0].toUpperCase()}${trade.slice(1)}. ${fresh}`))
     const press = (e) => {
       if (!can) { sfx.play('poor'); return shake(e) }
       const error = act(entry.action)
       if (error) { said = error; sfx.play('poor'); return done() }
       learnt('fuse')
       sfx.play('buy')
-      said = `${unitDef(f.result).name} is made: it waits in the ossuary.`
+      said = `${name} is made${back > 0 ? `, its parts' tiers paying back ${back}` : ''}: it waits in the ossuary, fresh at level ${firstLevel()}.`
       done()
     }
     // Dim while it cannot be made; its price red only when the essence is short.
@@ -122,7 +126,7 @@ export function shopView ({ run, act, onChange = null }) {
       class: 'buy' + (can ? '' : ' off') + (s.essence < cost ? ' poor' : ''), 'aria-disabled': can ? null : 'true', 'aria-label': `Fuse ${f.name}`,
       onclick: (e) => twice(e, tip, `Fuse ${f.name} ▸`, () => can, press),
       tip
-    }, icon('fuse', 18), 'Fuse', h('span', { class: 'price' }, icon('soul', 16), cost))
+    }, icon('fuse', 18), 'Fuse', h('span', { class: 'price' }, icon('soul', 16), cost), back > 0 && h('span', { class: 'back dim' }, `+${back} back`))
   }
   function fusions () {
     const ready = shelfFusions(run)

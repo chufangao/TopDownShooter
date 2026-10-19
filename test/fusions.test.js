@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { UNITS, FUSION_LIST, trineOf, isTriple } from '../src/content.js'
 import { perform, applyDamage } from '../src/sim/turns.js'
 import { call } from '../src/sim/rules.js'
-import { createRun, apply, join, souls, canFuse, fuseParts, fuseCost, kindLevel, legalActions, START_PARTY } from '../src/sim/run.js'
+import { createRun, apply, join, souls, canFuse, fuseParts, fuseCost, legalActions, START_PARTY } from '../src/sim/run.js'
 import { combosOf, growthOf, LEVELS } from '../src/sim/autoplay.js'
 import { alive, tileAt, summonsOf } from '../src/sim/unit.js'
 import { TUNING } from '../src/tuning.js'
@@ -15,7 +15,7 @@ import { on, scene, unit } from './scene.js'
 const at = (x, y) => tileAt(x, y)
 const rose = (b, rule) => b.events.filter((e) => e.type === 'arise' && e.rule === rule)
 
-test('out of battle: a triple and a capstone are made as any recipe is, the result at least at its parts\' level', () => {
+test('out of battle: a triple and a capstone are made as any recipe is, the result fresh', () => {
   const run = createRun({ start: START_PARTY, seed: 'graph' })
   run.state.essence = 1e4
   for (let i = 0; i < 2; i++) join(run, 'grave_ghoul')
@@ -24,7 +24,7 @@ test('out of battle: a triple and a capstone are made as any recipe is, the resu
   assert.ok(legalActions(run).some((a) => a.type === 'fuse' && a.id === 'trine:grave_ghoul'))
   apply(run, { type: 'fuse', id: 'trine:grave_ghoul', parts: fuseParts(run, 'trine:grave_ghoul') })
   const trine = souls(run.state.party).find((u) => u.id === 'trine:grave_ghoul')
-  assert.ok(trine && trine.lvl >= kindLevel(run.state, 'grave_ghoul'))
+  assert.deepEqual([trine.lvl, trine.tracks], [TUNING.level.base, [0, 0]], 'fresh: its first level, no tier')
   assert.equal(fuseCost(run, 'trine:grave_ghoul'), 8 * UNITS['trine:grave_ghoul'].tier)
   // The Charnel Cathedral: a Bone Colossus and the trine.
   assert.ok(!canFuse(run, 'charnel_cathedral'))
@@ -51,13 +51,13 @@ test('the sketch reads a trine\'s summons as the kind they are, at its level and
   const alone = (id) => {
     const run = createRun({ seed: 'summoned', start: [id] })
     run.state.essence = 1e4
-    for (let i = 0; i < 2; i++) apply(run, { type: 'upgrade', kind: id, track: 1 })
+    for (let i = 0; i < 2; i++) apply(run, { type: 'upgrade', uid: souls(run.state.party)[0].uid, track: 1 })
     return run.state
   }
   const strength = (s, summons = true) => Math.exp(growthOf(s, summons ? LEVELS.expert : { ...LEVELS.expert, ablate: 'summons' }).strength)
   const chanter = alone('bone_chanter')
   const trine = alone('trine:bone_chanter')
-  for (const s of [chanter, trine]) assert.deepEqual([summonsOf(souls(s.party)[0]), s.kinds[souls(s.party)[0].id].tracks], [2, [0, 2]])
+  for (const s of [chanter, trine]) assert.deepEqual([summonsOf(souls(s.party)[0]), souls(s.party)[0].tracks], [2, [0, 2]])
   assert.equal(souls(chanter.party)[0].lvl, souls(trine.party)[0].lvl)
   // A Bone Chanter's two are Bone Chanters: as much again each, at the root of a summon's share.
   assert.ok(Math.abs(strength(chanter) / strength(chanter, false) - (1 + 2 * k)) < 1e-9)

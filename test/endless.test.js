@@ -130,7 +130,6 @@ function legionReap () {
     const run = createRun({ start: START_PARTY, seed: `legion-reap${i}` })
     const s = run.state
     s.party = s.party.map((u) => u.uid === MONARCH_UID ? u : { ...makeUnit(u.id, { uid: u.uid, lvl: 20 }), slot: u.slot })
-    for (const k of Object.values(s.kinds)) k.lvl = 20
     const golem = join(run, 'iron_golem')
     Object.assign(golem, { slot: -1, hp: 1 })
     const node = availableNodes(run)[0]

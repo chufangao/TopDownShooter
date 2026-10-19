@@ -17,7 +17,7 @@
 //     --runs 200 --seed outl --from 0 --workers 8 --out dir   as above (retinue-outlabel-<seed>)
 //     --phases recruit,spend    the decisions labelled, of recruit, spend and prep
 //     --cap 6 --formations 9    a recruit's or a purchase's candidates at most, and a prep's
-//     --spend 1 --calm 0.25     a purchase's chance of a label with two kinds (or a fusion) among its candidates, and without
+//     --spend 1 --calm 0.25     a purchase's chance of a label with two souls (or a fusion) among its candidates, and without
 //     --floors 1,…              a label's chance by floor, the last for every floor past them, 0 for none there; a
 //                               purchase's is it × --spend or --calm, a recruit's it × --recruits
 //     --recruits 1,…            a recruit's chance of a label by floor, × --floors
@@ -551,10 +551,11 @@ function prepAt (run, lc, sit, plans) {
   return { phase: 'prep', cands, plays: cands.map((x) => ({ goal: x.goal, actions: [] })), base }
 }
 
-// A purchase decision's chance of a label: `spend` with two kinds, or a fusion and another, among its candidates, else `calm`.
+// A purchase decision's chance of a label: `spend` with two souls' tiers, or a fusion and another, among its candidates,
+// else `calm`.
 function spendChance (cands, lc) {
-  const kinds = new Set(cands.flatMap((x) => x.actions.map((a) => (a.type === 'fuse' ? `fuse ${a.id}` : a.kind))))
-  return kinds.size >= 2 ? lc.spend : lc.calm
+  const buys = new Set(cands.flatMap((x) => x.actions.map((a) => (a.type === 'fuse' ? `fuse ${a.id}` : a.uid))))
+  return buys.size >= 2 ? lc.spend : lc.calm
 }
 
 // One run of the base on `seed`, labelled. → { line (runs.jsonl's), rows (labels.jsonl's) }
@@ -584,7 +585,7 @@ export function labelRun (seed, cfg = {}) {
         if (!d) continue
         const k = counts[d.phase]
         k.met++
-        const key = d.phase === 'spend' ? JSON.stringify([s.floor, s.at, s.essence, s.kinds, s.relics, s.party.map((u) => [u.uid, u.hp, u.relics])]) : null
+        const key = d.phase === 'spend' ? JSON.stringify([s.floor, s.at, s.essence, s.relics, s.party.map((u) => [u.uid, u.hp, u.relics, u.tracks, u.lvl])]) : null
         const chance = floorChance(s.floor, lc) * (d.phase === 'spend' ? spendChance(d.cands, lc) : d.phase === 'prep' ? 1 : floorChance(s.floor, lc, lc.recruits))
         if (key && seen.has(key)) k.again++
         else if (labelDraw(seed, s.log.length, d.phase) >= chance) k.undrawn++

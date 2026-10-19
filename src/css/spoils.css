@@ -96,6 +96,8 @@
 .shop-fusions .fuse-row.toward { opacity: .6; }
 .shop-fusions .fuse-row .buy { padding: 3.5px 12.5px 5.5px; }
 .shop-fusions .fuse-row .price { display: inline-flex; align-items: center; gap: 2px; }
+/* What the parts' tiers pay back, small beside the price. */
+.shop-fusions .fuse-row .back { font-size: var(--fs-xs); white-space: nowrap; }
 .shop-toward { margin: 12px 0 6px; }
 @container frame (max-width: 900px) { .shop-cols { grid-template-columns: minmax(0, 1fr); } }
 /* A ready fusion that waits for the map (on the spoils): dim, its price the button's own colour; red is for too little

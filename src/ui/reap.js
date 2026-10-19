@@ -7,7 +7,7 @@ import { kw } from '../keywords.js'
 import { sfx } from '../sfx.js'
 import {
   fieldCap, rosterCap, fielded, currentNode, souls, reapedShadows, essenceByWave, floorPrice, soulOffer, eliteBonus,
-  runStat, foeEssence
+  runStat, foeEssence, freshTracks
 } from '../sim/run.js'
 import { TUNING } from '../tuning.js'
 import {
@@ -132,7 +132,7 @@ export function reapScreen ({ run, title, act, onDone, onHelp }) {
       const steps = recruitSteps(run, o.id)
       return `New to your souls. Fielded, it brings ${steps.length ? steps.join(', ') : 'no new synergy'}.`
     }
-    const tip = () => unitCard({ id: o.id, lvl: o.lvl, slot: -1 }, {
+    const tip = () => unitCard({ id: o.id, lvl: o.lvl, tracks: freshTracks(s), slot: -1 }, {
       // A click takes the card: a mouse reads it on the hover, never under Shift.
       open: !touchy(),
       mods: partyMods(run),

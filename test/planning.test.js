@@ -246,22 +246,21 @@ test('the audit counts what a run considered and chose, and leaves the audit off
   assert.equal(AUDIT.on, false)
 })
 
-test('idle essence: when its fielded kinds can buy nothing, the expert weighs every tier it can afford, and nothing else', () => {
+test('idle essence: when its fielded souls can buy nothing, the expert weighs every tier it can afford, and nothing else', () => {
   const run = createRun({ start: START_PARTY, seed: 'idle' })
   const s = run.state
   s.essence = 5000
   // The Shop's shelf bare (it is weighed before the tiers on the map: autoplay.js pickNode), so the tiers are all there is.
   s.shop = []
-  // Every held kind's tracks full: nothing remains to buy (no level, nothing for the Monarch, Arise or not); then a
-  // kind with room to grow.
-  for (const k of Object.values(s.kinds)) Object.assign(k, { lvl: 10, tracks: [4, 2] })
+  // Every soul's tracks full: nothing remains to buy (no level, nothing for the Monarch, Arise or not); then a soul
+  // with room to grow.
   for (const u of souls(s.party)) Object.assign(u, { lvl: 10, tracks: [4, 2] })
   assert.deepEqual(spendOptions(run, LEVELS.expert), [])
   s.relics.push('arise')
   souls(s.party)[0].relics = ['arise']
   assert.deepEqual(spendOptions(run, LEVELS.expert), [])
-  join(run, 'grave_ghoul')
-  assert.deepEqual(spendOptions(run, LEVELS.expert), [0, 1].map((track) => ({ type: 'upgrade', kind: 'grave_ghoul', track })))
+  const ghoul = join(run, 'grave_ghoul')
+  assert.deepEqual(spendOptions(run, LEVELS.expert), [0, 1].map((track) => ({ type: 'upgrade', uid: ghoul.uid, track })))
   assert.deepEqual(spendOptions(run, { ...LEVELS.expert, ablate: 'tracks' }), [])
   // The expert's purchase, if it makes one, is one of them.
   const a = policy(run, createRng('idle').stream('autoplay'), 'expert')
@@ -282,38 +281,35 @@ test('the expert weighs a track\'s next two tiers together: a tier whose level r
     const run = createRun({ start: START_PARTY, seed: 'pair' })
     const s = run.state
     const [knight, chanter, sprite] = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((id) => souls(s.party).find((u) => u.id === id))
-    const tier = (u, tracks) => {
-      s.kinds[u.id] = { tracks, lvl: levelOf({ tracks }) }
-      Object.assign(u, makeUnit(u.id, { uid: u.uid, slot: u.slot, lvl: s.kinds[u.id].lvl, tracks }))
-    }
+    const tier = (u, tracks) => Object.assign(u, makeUnit(u.id, { uid: u.uid, slot: u.slot, lvl: levelOf({ tracks }), tracks }))
     tier(knight, [4, 2])
     tier(chanter, [4, 2])
     tier(sprite, start)
     // The Shop's shelf bare (it is weighed before the tiers on the map: autoplay.js pickNode).
     s.shop = []
-    const tracks = s.kinds.frost_sprite.tracks
-    s.essence = Math.max(...[0, 1].map((t) => TUNING.essence.tier[tracks[t]] + TUNING.essence.tier[tracks[t] + 1]))
+    s.essence = Math.max(...[0, 1].map((t) => TUNING.essence.tier[sprite.tracks[t]] + TUNING.essence.tier[sprite.tracks[t] + 1]))
     return run
   }
+  const spriteOf = (s) => souls(s.party).find((u) => u.id === 'frost_sprite')
   const { state } = build()
-  const lvl = state.kinds.frost_sprite.lvl
-  const after = (n, track) => levelOf({ tracks: [0, 1].map((t) => state.kinds.frost_sprite.tracks[t] + (t === track ? n : 0)) })
+  const { lvl, uid } = spriteOf(state)
+  const after = (n, track) => levelOf({ tracks: [0, 1].map((t) => spriteOf(state).tracks[t] + (t === track ? n : 0)) })
   for (const track of [0, 1]) assert.deepEqual([after(1, track), after(2, track)], [lvl, lvl + 1], `track ${track}`)
   // The expert, and the expert with its book aside (a tier on the tracks of the combo it plays toward is worth something
   // to it alone): the field's own worth decides.
   for (const L of [LEVELS.expert, { ...LEVELS.expert, book: false }]) {
     const run = build()
     const s = run.state
-    assert.deepEqual(spendOptions(run, L), [0, 1].map((track) => ({ type: 'upgrade', kind: 'frost_sprite', track })), 'nothing else to buy')
+    assert.deepEqual(spendOptions(run, L), [0, 1].map((track) => ({ type: 'upgrade', uid, track })), 'nothing else to buy')
     const rng = createRng('pair').stream('autoplay')
     const a = policy(run, rng, L)
-    assert.deepEqual([a.type, a.kind], ['upgrade', 'frost_sprite'], JSON.stringify(a))
+    assert.deepEqual([a.type, a.uid], ['upgrade', uid], JSON.stringify(a))
     apply(run, a)
-    assert.equal(s.kinds.frost_sprite.lvl, lvl)
+    assert.equal(spriteOf(s).lvl, lvl)
     const b = policy(run, rng, L)
-    assert.deepEqual([b.type, b.kind], ['upgrade', 'frost_sprite'], JSON.stringify(b))
+    assert.deepEqual([b.type, b.uid], ['upgrade', uid], JSON.stringify(b))
     apply(run, b)
-    assert.equal(s.kinds.frost_sprite.lvl, lvl + 1)
+    assert.equal(spriteOf(s).lvl, lvl + 1)
   }
 })
 

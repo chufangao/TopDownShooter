@@ -19,9 +19,8 @@ import { visit, fight as fought } from './rooms.js'
 
 const without = (ablate) => ({ ...LEVELS.expert, ablate })
 
-// A kind's tiers, and the level they give, set on the kind and every soul of it.
+// Tiers, and the level they give, set on every soul of a kind. → the first of them
 function hold (run, kind, tracks, lvl = levelOf({ tracks })) {
-  run.state.kinds[kind] = { lvl, tracks }
   for (const u of souls(run.state.party)) if (u.id === kind) Object.assign(u, { tracks: tracks.slice(), lvl })
   return run.state.party.find((u) => u.id === kind)
 }
@@ -152,7 +151,9 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
     return out
   }
   const full = buys(rich('sum-buy', null), LEVELS.expert)
-  const marrow = (a) => a.type === 'upgrade' && a.kind === 'bone_chanter' && a.track === 1
+  // The chanter's uid, the same in every run of the start party.
+  const caller = souls(rich('sum-buy', null).state.party).find((u) => u.id === 'bone_chanter').uid
+  const marrow = (a) => a.type === 'upgrade' && a.uid === caller && a.track === 1
   assert.ok(full.some(marrow), 'the full expert buys the tier')
   const off = rich('sum-buy', 'summons')
   const order = buys(off, without('summons')).filter((a) => a.type === 'upgrade')
@@ -165,13 +166,13 @@ test('ablating summons: no tier calls a summon in battle, and such a tier is wor
   assert.ok(battles.length && battles.every((b) => b.ablate.has('summons')))
 })
 
-// The Shop's shelf stocked by hand, on the map, the purse full and every tier its kinds can take already held (so a
+// The Shop's shelf stocked by hand, on the map, the purse full and every tier its souls can take already held (so a
 // relic's price displaces none, and the expert's buyFor has every reason to buy).
 function shop (stock, floor = 1) {
   const run = createRun({ start: START_PARTY, seed: 'shopx' })
   const s = run.state
   s.floor = floor
-  for (const kind of Object.keys(s.kinds)) hold(run, kind, [4, 2])
+  for (const kind of new Set(souls(s.party).map((u) => u.id))) hold(run, kind, [4, 2])
   Object.assign(s, { shop: stock.slice(), essence: 1e4 })
   return run
 }
@@ -322,7 +323,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   join(run, 'grave_ghoul')
   join(run, 'pale_court')
   const chanter = souls(s.party).find((u) => u.id === 'bone_chanter')
-  // The Knight's kind at Bulwark IV (Barrow Wall: 2×2) and Reaver II; the chanter's calls summons (Marrowcaller II).
+  // The Knight at Bulwark IV (Barrow Wall: 2×2) and Reaver II; the chanter's calls summons (Marrowcaller II).
   hold(run, 'tomb_knight', [4, 2])
   hold(run, 'bone_chanter', [0, 2])
   for (let a; (a = policy(run, rng, 'basic')).type !== 'fight';) apply(run, a)

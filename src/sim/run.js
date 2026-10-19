@@ -2,8 +2,8 @@
 // way to change it, legalActions(run) lists what apply accepts now, and the log replays it exactly: replay(seed, log).
 // run.state:
 //   seed, floor, phase, map, at (the room stood in), camp, essence, result ('victory' | 'defeat' | null), death
-//   party    the Monarch (uid MONARCH_UID, on the camp's seat) and every soul, one piece each; slot OSSUARY (−1): in the ossuary
-//   kinds    { [id]: { lvl, tracks: [tier, tier], least? } }: upgrades are a kind's, each soul of it carrying a copy
+//   party    the Monarch (uid MONARCH_UID, on the camp's seat) and every soul, one piece each, its tiers (`tracks`), level and
+//            relics its own; slot OSSUARY (−1): in the ossuary
 //   relics   every relic owned, by id in the order bought; `shop` the floor's shelf (relic ids, null once bought)
 //   draft, offers (the spoils' souls), stats, log, nextUid; where set: ablate, ascension, scale, monarch, tutorial
 // Actions, by phase:
@@ -11,13 +11,13 @@
 //   map              { type: 'node', id }                walk to a connected room
 //   map, prep        { type: 'place', uid, slot }        a soul to camp cell `slot` (its anchor) or the ossuary (−1)
 //   map, prep        { type: 'fuse', id, parts }         make fusion `id` of `parts` (uids), for fuseCost
-//   map, prep        { type: 'upgrade', kind, track }    buy a held kind its next tier on track 0 or 1
+//   map, prep        { type: 'upgrade', uid, track }     buy a soul its next tier on track 0 or 1
 //   map, prep, reap  { type: 'release', uid }            let a soul go, for its refund (releaseRefund)
 //   map, prep, reap  { type: 'hold', relic, uid }        a soul takes an unheld piece relic; 'unhold' { uid, relic? }
 //   map, prep, reap  { type: 'buy', index }              buy the shelf's slot `index` (relicPrice)
 //   prep             { type: 'fight' }                   the battle opens; in it an action is an order (turns.js order)
 //   reap             { type: 'reap', index }             recruit offer `index`, or null to move on
-//   altar            'heal', 'transmute' { uid, index }, 'consecrate' { kind, track }: one rite, and the room ends
+//   altar            'heal', 'transmute' { uid, index }, 'consecrate' { uid, track }: one rite, and the room ends
 //   over             { type: 'descend' }                 past the Sovereign, on to the endless floors
 import { TUNING } from '../tuning.js'
 import { relicDef, unitDef, CAMP_LIST, FUSION_LIST, FUSIONS, TUTORIAL, MONARCH_LIST, MONARCHS } from '../content.js'
@@ -35,9 +35,8 @@ import {
   rosterCap, soulCount, fielded, isMonarch, monarchOf, souls, takenBy, monarchHp, ascensionTop, foeScale, waveEvery
 } from './state.js'
 import {
-  foeEssence, battleEssence, clearsRun, bountyOf, tierCost, recruitCost, fuseCost, relicPrice, heldKinds, canAdvance,
-  canUpgrade, pay, advance, newKind, kindLevel, syncKind, lanternSteps, soulOffers, soulOffer, relicOffer, stockShop,
-  restock
+  foeEssence, battleEssence, clearsRun, bountyOf, tierCost, tierRefund, recruitCost, fuseCost, relicPrice, canAdvance,
+  canUpgrade, pay, advance, levelOf, firstLevel, freshTracks, soulOffers, soulOffer, relicOffer, stockShop, restock
 } from './economy.js'
 import {
   varyRoutes, drawRoom, bossPool, bossFor, answerArmy, foeUnits, foeLevel, poolFloor, spawnPool, foeMods
@@ -59,7 +58,7 @@ export function createRun ({ seed, ablate = null, start = null, scale = 1, ascen
   if (!Object.hasOwn(MONARCHS, monarch)) throw new Error(`monarch "${monarch}": one of ${MONARCH_LIST.map((m) => m.id).join(', ')}`)
   const state = {
     seed, floor: 1, phase: 'map', map: null, camp: null, at: null, party: [], relics: [], offers: [], shop: [],
-    essence: TUNING.essence.start, result: null, death: null, draft: null, kinds: {},
+    essence: TUNING.essence.start, result: null, death: null, draft: null,
     stats: { fights: 0, wins: 0, reaped: 0, essence: 0, spent: 0, floorsCleared: 0 }, log: [], nextUid: 1
   }
   state.party = [makeUnit('monarch', { uid: MONARCH_UID, lvl: 0 })]
@@ -118,7 +117,7 @@ function rosterActions (run) {
   for (const u of souls(s.party)) {
     for (let slot = -1; slot < CAMP_SLOTS; slot++) if (canPlace(run, u, slot)) out.push({ type: 'place', uid: u.uid, slot })
   }
-  for (const kind of heldKinds(s)) for (const track of [0, 1]) if (canUpgrade(run, kind, track)) out.push({ type: 'upgrade', kind, track })
+  for (const u of souls(s.party)) for (const track of [0, 1]) if (canUpgrade(run, u, track)) out.push({ type: 'upgrade', uid: u.uid, track })
   // One fuse a recipe that can be made, of its canonical parts (fuseParts: the ossuary's pieces first).
   for (const r of FUSION_LIST) if (canFuse(run, r.id)) out.push({ type: 'fuse', id: r.id, parts: fuseParts(run, r.id) })
   out.push(...buyActions(run))
@@ -366,17 +365,18 @@ function releasable (s) {
 // The Monarch alone may fight (and will likely fall).
 const canFight = (s) => s.party.some((u) => onField(u) && u.hp > 0)
 
-// What letting soul `u` go pays back: TUNING.essence.refund of what recruiting it would cost now, rounded down.
-export const releaseRefund = (run, u) => Math.floor(TUNING.essence.refund * recruitCost(run, u.id, u.lvl))
+// What letting soul `u` go pays back: TUNING.essence.refund of what recruiting one of its kind costs now, rounded down,
+// and the same share of each tier it holds (tierRefund).
+export const releaseRefund = (run, u) => Math.floor(TUNING.essence.refund * recruitCost(run, u.id)) + tierRefund(run, u)
 
-// A new soul joins its kind at the kind's level and tiers, beside the Monarch while the field has room, else in the
-// ossuary. → the piece.
+// A new soul joins with Soul Lantern's free tiers (freshTracks) and the level they give, beside the Monarch while the
+// field has room, else in the ossuary. → the piece.
 export function join (run, id, { uid = run.state.nextUid++ } = {}) {
   const s = run.state
   if (unitDef(id).monarch) throw new Error('there is one Monarch')
   if (soulCount(s.party) >= rosterCap(run)) throw new Error('the retinue is full')
-  s.kinds[id] ??= newKind()
-  const u = makeUnit(id, { uid, lvl: s.kinds[id].lvl, tracks: s.kinds[id].tracks })
+  const tracks = freshTracks(s)
+  const u = makeUnit(id, { uid, lvl: levelOf({ tracks }), tracks })
   s.party.push(u)
   if (fielded(souls(s.party)).length < fieldCap(run)) besideSeat(s, u)
   return u
@@ -384,14 +384,18 @@ export function join (run, id, { uid = run.state.nextUid++ } = {}) {
 
 // ── fusions ──────────────────────────────────────────────────────────────────────────────────────
 
+// The tiers a soul holds, both tracks together.
+const tiersHeld = (u) => u.tracks[0] + u.tracks[1]
+
 // The parts the run picks for fusion `id`, uids, or null where the retinue lacks them: for each kind it needs, in the
-// recipe's order, its pieces in the ossuary first, then the fielded.
+// recipe's order, its pieces in the ossuary first, then the fielded, those with the fewest tiers first among each (the
+// least growth given up), party order among equals.
 export function fuseParts (run, id) {
   const recipe = Object.hasOwn(FUSIONS, id) ? FUSIONS[id] : null
   if (!recipe) return null
   const out = []
   for (const [kind, need] of Object.entries(recipe.needs)) {
-    const pieces = souls(run.state.party).filter((u) => u.id === kind).sort((a, b) => onField(a) - onField(b))
+    const pieces = souls(run.state.party).filter((u) => u.id === kind).sort((a, b) => onField(a) - onField(b) || tiersHeld(a) - tiersHeld(b))
     if (pieces.length < need) return null
     out.push(...pieces.slice(0, need).map((u) => u.uid))
   }
@@ -399,6 +403,8 @@ export function fuseParts (run, id) {
 }
 
 export const canFuse = (run, id) => Object.hasOwn(FUSIONS, id) && run.state.essence >= fuseCost(run, id) && fuseParts(run, id) !== null
+// What fusion `id`'s canonical parts (fuseParts) pay back for the tiers they hold (tierRefund); 0 with none.
+export const fuseRefund = (run, id) => (fuseParts(run, id) ?? []).reduce((n, uid) => n + tierRefund(run, run.state.party.find((u) => u.uid === uid)), 0)
 
 // `parts` (uids) as the pieces they name if they are exactly `recipe`'s needs (souls, each once), else null.
 function partsOf (s, recipe, parts) {
@@ -476,7 +482,9 @@ function place (run, { uid, slot }) {
   u.slot = slot
 }
 
-// A fusion: its parts consumed, its price paid, its fused piece in the ossuary at full HP, never below its parts' level.
+// A fusion, a trade of souls and essence for a soul: its parts consumed, its price paid, the tiers the parts held paid
+// back (tierRefund), and the fused soul in the ossuary at full HP, fresh: its first level, no tier, no relic (the
+// parts' wait unheld).
 function fuse (run, { id, parts }) {
   const s = run.state
   const recipe = Object.hasOwn(FUSIONS, id) ? FUSIONS[id] : null
@@ -484,24 +492,17 @@ function fuse (run, { id, parts }) {
   if (!took) throw new Error(`cannot fuse ${id} of ${JSON.stringify(parts)}`)
   if (s.essence < fuseCost(run, id)) throw new Error(`cannot fuse ${id}: not enough essence`)
   pay(run, fuseCost(run, id))
-  const u = fused(s, recipe.result, took, s.nextUid++)
-  s.party.push(u)
-}
-
-// The parts `took` leave the party for the fused piece of `kind` (uid `uid`), its kind's level never below theirs.
-function fused (s, kind, took, uid) {
-  const least = Math.max(...took.map((u) => kindLevel(s, u.id)))
+  s.essence += took.reduce((n, u) => n + tierRefund(run, u), 0)
   s.party = s.party.filter((x) => !took.includes(x))
-  s.kinds[kind] ??= newKind()
-  s.kinds[kind].least = Math.max(s.kinds[kind].least ?? 0, least)
-  syncKind(s, kind)
-  return makeUnit(kind, { uid, lvl: s.kinds[kind].lvl, tracks: s.kinds[kind].tracks })
+  s.party.push(makeUnit(recipe.result, { uid: s.nextUid++, lvl: firstLevel() }))
 }
 
-function upgrade (run, { kind, track }) {
-  if (!canUpgrade(run, kind, track)) throw new Error(`cannot upgrade ${kind} on track ${track}`)
-  pay(run, tierCost(run, kind, track))
-  advance(run.state, kind, track)
+// A soul buys its next tier on `track` (advance), for tierCost.
+function upgrade (run, { uid, track }) {
+  const u = run.state.party.find((x) => x.uid === uid)
+  if (!canUpgrade(run, u, track)) throw new Error(`cannot upgrade ${uid} on track ${track}`)
+  pay(run, tierCost(run, u, track))
+  advance(run.state, u, track)
 }
 
 // A soul let go pays back its refund (releaseRefund); the relics it held come back unheld.
@@ -580,9 +581,7 @@ function reap (run, { index }) {
   }
   if (o) {
     pay(run, soulOffer(run, o).cost)
-    const steps = s.kinds[o.id] ? [] : lanternSteps(s)
     join(run, o.id)
-    for (const t of steps) if (canAdvance(s, o.id, t)) advance(s, o.id, t)
     s.stats.reaped++
   }
   s.offers = []
@@ -615,12 +614,12 @@ export const canBuy = (run, index) => {
 // The shelf as the interface shows it: each slot's relic and its price now, null for one bought.
 export const shopOffers = (run) => run.state.shop.map((id, index) => id && { ...relicOffer(relicDef(id)), index, cost: relicPrice(run, id) })
 // The Shop's Fusions as the interface shows them: every recipe whose parts are all held, with its fuse action, its
-// price, whether the phase fuses (`open`) and whether it can be made now (`can`).
+// price, what its parts' tiers pay back (`back`), whether the phase fuses (`open`) and whether it can be made now (`can`).
 export function shelfFusions (run) {
   const open = HANDLERS.fuse.phases.includes(run.state.phase)
   return FUSION_LIST.flatMap((f) => {
     const parts = fuseParts(run, f.id)
-    return parts ? [{ id: f.id, action: { type: 'fuse', id: f.id, parts }, cost: fuseCost(run, f.id), open, can: open && canFuse(run, f.id) }] : []
+    return parts ? [{ id: f.id, action: { type: 'fuse', id: f.id, parts }, cost: fuseCost(run, f.id), back: fuseRefund(run, f.id), open, can: open && canFuse(run, f.id) }] : []
   })
 }
 
@@ -650,12 +649,12 @@ export function transmuteOffer (s, kind) {
 // Whether soul `u` may be transmuted now: a standing soul, never the Monarch, of a kind the altar offers others for.
 export const canTransmute = (s, u) => !!u && !isMonarch(u) && s.party.includes(u) && u.hp > 0 && transmuteOffer(s, u.id).length > 0
 
-// Every rite the altar takes now: the heal, each soul's transmutations, each held kind's next tiers (free).
+// Every rite the altar takes now: the heal, each soul's transmutations, each soul's next tiers (free).
 export function altarActions (run) {
   const s = run.state
   const out = [{ type: 'heal' }]
   for (const u of souls(s.party)) if (canTransmute(s, u)) out.push(...transmuteOffer(s, u.id).map((_, index) => ({ type: 'transmute', uid: u.uid, index })))
-  for (const kind of heldKinds(s)) for (const track of [0, 1]) if (canAdvance(s, kind, track)) out.push({ type: 'consecrate', kind, track })
+  for (const u of souls(s.party)) for (const track of [0, 1]) if (canAdvance(s, u, track)) out.push({ type: 'consecrate', uid: u.uid, track })
   return out
 }
 
@@ -667,18 +666,14 @@ function heal (run) {
   nextRoom(run)
 }
 
-// A transmutation: soul `uid` becomes the kind its offer `index` names, its uid, relics and HP share kept, its cell kept
-// where it fits. Tiers stay with the kinds; its level it keeps (its new kind's `least` rises to it).
+// A transmutation: soul `uid` becomes the kind its offer `index` names, its uid, relics, HP share and cell (where it
+// fits) kept, and its tiers too, each on its new kind's track of the same number, so its level stands.
 function transmute (run, { uid, index }) {
   const s = run.state
   const u = s.party.find((x) => x.uid === uid)
   const into = canTransmute(s, u) && Number.isInteger(index) ? transmuteOffer(s, u.id)[index] : undefined
   if (!into) throw new Error(`cannot transmute ${uid} into offer ${index}`)
-  s.kinds[into] ??= newKind()
-  s.kinds[into].least = Math.max(s.kinds[into].least ?? 0, u.lvl)
-  syncKind(s, into)
-  const k = s.kinds[into]
-  const v = makeUnit(into, { uid: u.uid, lvl: k.lvl, tracks: k.tracks, slot: u.slot })
+  const v = makeUnit(into, { uid: u.uid, lvl: u.lvl, tracks: u.tracks, slot: u.slot })
   v.hp = Math.max(1, Math.round(v.maxHp * u.hp / u.maxHp))
   if (u.relics) v.relics = u.relics.slice()
   s.party[s.party.indexOf(u)] = v
@@ -686,10 +681,11 @@ function transmute (run, { uid, index }) {
   nextRoom(run)
 }
 
-// A consecration: kind `kind` takes its next tier on `track` free, as buying it would.
-function consecrate (run, { kind, track }) {
-  if (!canAdvance(run.state, kind, track)) throw new Error(`cannot consecrate ${kind} on track ${track}`)
-  advance(run.state, kind, track)
+// A consecration: soul `uid` takes its next tier on `track` free, as buying it would.
+function consecrate (run, { uid, track }) {
+  const u = run.state.party.find((x) => x.uid === uid)
+  if (!canAdvance(run.state, u, track)) throw new Error(`cannot consecrate ${uid} on track ${track}`)
+  advance(run.state, u, track)
   nextRoom(run)
 }
 

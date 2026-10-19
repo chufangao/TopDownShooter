@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { stats } from '../src/sim/turns.js'
 import {
   createRun, apply, legalActions, join, drawRoom, battleSetup, availableNodes, souls, fielded, monarchOf, canPlace, swapWith, releaseRefund,
-  recruitCost, soulOffer, levelOf, kindLevel, OSSUARY, START_PARTY
+  recruitCost, soulOffer, levelOf, OSSUARY, START_PARTY
 } from '../src/sim/run.js'
 import {
   makeUnit, tileAt, tileX, tileY, distanceBetween, summonsOf, footprintSlots, fits, monarchSlot, tracksOf, CAMP_ROWS, CAMP_SLOTS, COLS, LANES, SLOTS
@@ -86,9 +86,9 @@ test('in a run, a soul\'s summons fight its battles and are gone after: nothing 
   const run = createRun({ start: START_PARTY, seed: 'summons' })
   const s = run.state
   s.essence = 1000
-  apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 1 })
-  apply(run, { type: 'upgrade', kind: 'bone_chanter', track: 1 })
   const chanter = souls(s.party).find((u) => u.id === 'bone_chanter')
+  apply(run, { type: 'upgrade', uid: chanter.uid, track: 1 })
+  apply(run, { type: 'upgrade', uid: chanter.uid, track: 1 })
   assert.ok(chanter.slot >= 0 && summonsOf(chanter) === tracksOf('bone_chanter')[1].tiers[1].summon)
   const node = availableNodes(run).find((n) => n.foes)
   apply(run, { type: 'node', id: node.id })
@@ -156,7 +156,7 @@ test('a soul let go pays back half of what recruiting it would cost now, rounded
   s.essence = 0
   const [knight, chanter, sprite] = ['tomb_knight', 'bone_chanter', 'frost_sprite'].map((id) => souls(s.party).find((u) => u.id === id))
   const refund = releaseRefund(run, knight)
-  assert.equal(refund, Math.floor(TUNING.essence.refund * recruitCost(run, knight.id, knight.lvl)))
+  assert.equal(refund, Math.floor(TUNING.essence.refund * recruitCost(run, knight.id)))
   assert.ok(refund > 0)
   apply(run, { type: 'release', uid: knight.uid })
   assert.equal(s.essence, refund)
@@ -171,8 +171,8 @@ test('a soul let go pays back half of what recruiting it would cost now, rounded
   s.floor = 3
   assert.ok(releaseRefund(run, sprite) > here)
   s.relics = ['binding_chain']
-  assert.equal(releaseRefund(run, sprite), Math.floor(TUNING.essence.refund * recruitCost(run, sprite.id, sprite.lvl)))
-  assert.ok(recruitCost(run, sprite.id, sprite.lvl) < recruitCost({ state: { ...s, relics: [] } }, sprite.id, sprite.lvl))
+  assert.equal(releaseRefund(run, sprite), Math.floor(TUNING.essence.refund * recruitCost(run, sprite.id)))
+  assert.ok(recruitCost(run, sprite.id) < recruitCost({ state: { ...s, relics: [] } }, sprite.id))
   // The Monarch is never released, nor the last soul standing.
   assert.throws(() => apply(run, { type: 'release', uid: monarchOf(s).uid }))
   assert.throws(() => apply(run, { type: 'release', uid: sprite.uid }))
@@ -271,27 +271,28 @@ function spoils (seed, offers, relics = []) {
 }
 
 test('a soul offer is levelled and priced as the run stands when it is read: Soul Lantern levels it, Binding Chain prices it', () => {
-  // A kind new to the run, with a Soul Lantern held: one free tier makes no level; a second copy held, two do.
+  // With a Soul Lantern held: one free tier makes no level; a second copy held, two do.
   const run = spoils('lantern', [{ type: 'soul', id: 'grave_ghoul', name: unitDef('grave_ghoul').name }], ['soul_lantern'])
   const s = run.state
   s.essence = 1000
   const before = soulOffer(run, s.offers[0])
-  assert.deepEqual([before.lvl, before.cost], [levelOf({ tracks: [1, 0] }), recruitCost(run, 'grave_ghoul', levelOf({ tracks: [1, 0] }))])
+  assert.deepEqual([before.lvl, before.cost], [levelOf({ tracks: [1, 0] }), recruitCost(run, 'grave_ghoul')])
   s.relics.push('soul_lantern')
   const lvl = levelOf({ tracks: [1, 1] })
   assert.ok(lvl > before.lvl)
   const now = soulOffer(run, s.offers[0])
-  assert.deepEqual([now.lvl, now.cost, now.desc], [lvl, recruitCost(run, 'grave_ghoul', lvl), `Rises at level ${lvl}.`], 'the offer read again')
+  assert.deepEqual([now.lvl, now.cost, now.desc], [lvl, recruitCost(run, 'grave_ghoul'), `Rises at level ${lvl}.`], 'the offer read again: the level its free tiers give, the price its tier\'s still')
   const purse = s.essence
   apply(run, { type: 'reap', index: 0 })
-  assert.equal(s.essence, purse - recruitCost(run, 'grave_ghoul', lvl))
-  assert.deepEqual([s.kinds.grave_ghoul.tracks, kindLevel(s, 'grave_ghoul'), souls(s.party).find((u) => u.id === 'grave_ghoul').lvl], [[1, 1], lvl, lvl])
+  assert.equal(s.essence, purse - recruitCost(run, 'grave_ghoul'))
+  const ghoul = souls(s.party).find((u) => u.id === 'grave_ghoul')
+  assert.deepEqual([ghoul.tracks, ghoul.lvl], [[1, 1], lvl])
   // A kind held, the purse between the two prices: the recruit is not to be had without Binding Chain, and with it held
   // it is, at the lower price.
   const chain = spoils('chain', [{ type: 'soul', id: 'tomb_knight', name: unitDef('tomb_knight').name }])
   const c = chain.state
   const full = soulOffer(chain, c.offers[0]).cost
-  const cut = recruitCost({ state: { ...c, relics: ['binding_chain'] } }, 'tomb_knight', kindLevel(c, 'tomb_knight'))
+  const cut = recruitCost({ state: { ...c, relics: ['binding_chain'] } }, 'tomb_knight')
   assert.ok(cut < full)
   c.essence = cut
   assert.ok(!legalActions(chain).some((x) => x.type === 'reap' && x.index === 0))

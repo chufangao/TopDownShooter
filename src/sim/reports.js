@@ -13,7 +13,7 @@ import { outForestModel, useOutForest } from './outforest.js'
 import { expertModel, useExpert } from './expert.js'
 import { grantsArise } from './rules.js'
 import {
-  createRun, fieldCap, fielded, currentNode, battleSetup, isMonarch, monarchOf, souls, soulCount, levelOf, kindLevel,
+  createRun, fieldCap, fielded, currentNode, battleSetup, isMonarch, monarchOf, souls, soulCount, levelOf, firstLevel,
   monarchHp, ariseOf, spawnPool, captainPool, draftOffer, drawRoom, varyRoutes, ascensionTop, bossPool, bossIn,
   BASE_MONARCH
 } from './run.js'
@@ -122,7 +122,7 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
     monarch: { maxHp: monarchOf(s).maxHp, command: fieldCap(run), copies: s.relics.filter(grantsArise).length, ...ariseOf(s) }, death: s.death, legendaries: legendariesOf(s), build: buildOf(s),
     ossuary: souls(s.party).filter((u) => u.slot < 0).length,
     acts: s.log.reduce((n, a) => ({ ...n, [a.type]: (n[a.type] ?? 0) + 1 }), {}),
-    tiers: Object.values(s.kinds).reduce((n, k) => n + k.tracks[0] + k.tracks[1], 0),
+    tiers: souls(s.party).reduce((n, u) => n + u.tracks[0] + u.tracks[1], 0),
     progress: progressOf({ result: s.result, floor: s.floor, rank: fell?.rank ?? 1, share: fell?.share ?? 0 }),
     fell,
     commit: commitOf(),
@@ -845,7 +845,7 @@ export async function ablations ({ runs, seed: seed0, variants = ABLATIONS, out 
 //   orders, moves              as it stood: refight plays it with End Turn alone, or never moving a piece
 //   arise, synergies, summons  the rules switch
 //   fusions                    every fused piece back in its parts
-//   tracks                     no tier on any track, every kind at the level that gives
+//   tracks                     no tier on any track, every soul at the level that gives
 //   legendaries                no Legendary relic
 //   relics                     no Common, Uncommon or Rare relic
 //   formation                  the souls in basic's first draft's cells
@@ -866,13 +866,9 @@ export function stripped (state, mechanic = null) {
   } else if (mechanic === 'fusions') {
     unfused(s)
   } else if (mechanic === 'tracks') {
-    for (const k of Object.values(s.kinds)) {
-      k.tracks = [0, 0]
-      k.lvl = levelOf(k)
-    }
     for (const u of team) {
       u.tracks = [0, 0]
-      relevel(u, s.kinds[u.id].lvl)
+      relevel(u, levelOf(u))
     }
   } else if (mechanic === 'legendaries') {
     s.relics = s.relics.filter((id) => !legendary(id))
@@ -907,8 +903,9 @@ export function stripped (state, mechanic = null) {
   return run
 }
 
-// Every fused piece of `s` back in its recipe's parts, at their kinds' levels and tiers, wounded as it was, each on the
-// first of its cells it fits, else in the ossuary. Mutates s.
+// Every fused piece of `s` back in its recipe's parts, each at the level and tiers of its kind's soul held with the most
+// tiers (none held: its first level, no tier), wounded as it was, each on the first of its cells it fits, else in the
+// ossuary. Mutates s.
 function unfused (s) {
   for (const u of souls(s.party).filter((x) => unitDef(x.id).fused)) {
     const recipe = FUSION_LIST.find((r) => r.result === u.id)
@@ -917,7 +914,7 @@ function unfused (s) {
     s.party = s.party.filter((x) => x !== u)
     const taken = new Set(s.party.filter((x) => x.slot >= 0).flatMap(cellsOf))
     for (const [kind, n] of Object.entries(recipe.needs)) {
-      const k = s.kinds[kind] ?? { lvl: kindLevel(s, kind), tracks: [0, 0] }
+      const k = souls(s.party).filter((x) => x.id === kind).reduce((a, x) => (x.tracks[0] + x.tracks[1] > a.tracks[0] + a.tracks[1] ? x : a), { lvl: firstLevel(), tracks: [0, 0] })
       for (let i = 0; i < n; i++) {
         const part = makeUnit(kind, { uid: s.nextUid++, lvl: k.lvl, tracks: k.tracks.slice() })
         part.hp = u.hp > 0 ? Math.max(1, Math.round(part.maxHp * hpPct(u))) : 0

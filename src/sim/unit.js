@@ -17,7 +17,8 @@ export function baseStats (id, lvl = 1) {
 
 // A piece as the run keeps it between battles (createBattle adds the per-battle fields): { uid, id, lvl, tracks, hp,
 // maxHp, slot, relics? }. slot −1: the ossuary. `lvl` and `tracks` (the tier held on each of its kind's two tracks, 0–4)
-// are its kind's, a foe's its own; `relics`: the piece relics it holds (ids, at most TUNING.relic.perPiece).
+// are its own, bought for it alone (a foe holds no tier); `relics`: the piece relics it holds (ids, at most
+// TUNING.relic.perPiece).
 export function makeUnit (id, { uid, lvl = 1, slot = -1, tracks = [0, 0] } = {}) {
   const hp = baseStats(id, lvl).hp
   return { uid, id, lvl, tracks: tracks.slice(), hp, maxHp: hp, slot }

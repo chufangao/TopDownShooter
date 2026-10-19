@@ -272,14 +272,15 @@ export const TUNING = {
   // The field cap never passes `board` pieces, and the Legion's shadows rise only while fewer than `board` of yours
   // stand (Arise's rise past it: a skill is its own bound).
   army: { board: 10 },
-  // A kind's level (every soul of it): base + perTier × the tiers it holds on both tracks, rounded down; no level is
-  // bought, and a fused kind stands at least at the highest level of its parts. Foes keep their floor's levels.
+  // A soul's level: base + perTier × the tiers it holds on both tracks, rounded down; no level is bought, and a soul
+  // with no tier (a recruit, a fused soul) stands at `base`. Foes keep their floor's levels.
   level: { base: 2, perTier: 0.67 },
   // Essence: each foe slain pays perTier[floor − 1] × its tier (the last entry past them); a run starts with `start`.
-  // Every price is its base × the floor's price scale, 1 + perFloor × (floor − 1): a track tier I–IV tier[]; a recruit
-  // recruit × tier × (1 + perLevel × (level − 1)); a fusion fuse × the fused kind's tier. A won elite pays eliteBonus
-  // × the price scale on top. `refund`: the share of a recruit's price a released soul pays back, rounded down.
-  essence: { start: 52, perTier: [7, 3.5, 3.5], perLevel: 0.35, perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
+  // Every price is its base × the floor's price scale, 1 + perFloor × (floor − 1): a soul's track tier I–IV tier[]; a
+  // recruit recruit × its tier; a fusion fuse × the fused kind's tier. A won elite pays eliteBonus × the price scale on
+  // top. `refund`: the share a released soul pays back of a recruit's price and of each tier it holds, and the share a
+  // fusion pays back of its parts' tiers, rounded down.
+  essence: { start: 52, perTier: [7, 3.5, 3.5], perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp[floor − 1] more across a floor's ranks. A room draws
   // its kinds from those of tier at most tierOverCap above the floor's target tier (1 + (floor − 1) × tierPerFloor,
   // rounded down, at most tierMax; an elite's eliteTier more), each by its spawn weight / (1 + its tiers from the
