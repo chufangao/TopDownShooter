@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, legalOrders, order, fork, reach, addStatus, roadAhead } from '../src/sim/turns.js'
+import { createBattle, legalOrders, order, fork, reach, addStatus, roadAhead, costOf } from '../src/sim/turns.js'
 import {
   danger, dangerAt, threatOf, press, options, choose, foeTurn, expertTurn, basicTurn, situation, features, choice, expertOptions, boardFeatures, judge, untouchedOrders
 } from '../src/sim/policy.js'
@@ -63,17 +63,18 @@ test('the danger map: what your side could deal next turn, by tile, from everywh
   assert.ok(dangerAt(b, foe, at(3, far), map) > 0 && dangerAt(b, foe, at(3, far), map) <= foe.hp)
 })
 
-test('a foe\'s reach, for the board to light when its kind is met: its road ahead within its Move, and every tile a blow could strike from there, as the danger map reads them', () => {
+test('a foe\'s reach, for the board to light when its kind is met: its road ahead within its energy, and every tile a blow could strike from where it can still pay it, as the danger map reads them', () => {
   // A Tomb Knight of the camp down the middle lane: melee, so nothing in the air; its road's tiles, its own first.
   const b = approach()
   const knight = b.byUid.get(9)
   const t = threatOf(b, knight)
-  assert.deepEqual(t.move, roadAhead(b, knight, knight.move).map((s) => s.tile))
+  // Its road within its whole energy (a walk alone), and its blows from the tiles it can walk and still pay each.
+  assert.deepEqual(t.move, roadAhead(b, knight, knight.energy).map((s) => s.tile))
   assert.equal(t.move[0], knight.tile)
   assert.ok(t.move.length > 1, 'it could come on')
   const square = (c, r) => [...Array(DEPTH * 7).keys()].filter((x) => Math.abs(tileX(x) - tileX(c)) <= r && Math.abs(tileY(x) - tileY(c)) <= r)
-  const r = Math.max(...knight.kit.filter(isBlow).map((a) => blowReach(knight, a)))
-  assert.deepEqual(t.ground, [...new Set(t.move.flatMap((c) => square(c, r)))].sort((p, q) => p - q))
+  const struck = knight.kit.filter(isBlow).flatMap((a) => roadAhead(b, knight, knight.energy - costOf(knight, a)).flatMap((s) => square(s.tile, blowReach(knight, a))))
+  assert.deepEqual(t.ground, [...new Set(struck)].sort((p, q) => p - q))
   assert.deepEqual(t.air, [])
   // The danger map, its lines aside, is struck on exactly those tiles by that foe alone, on the ground and in the air.
   for (const [id, side] of [['tomb_knight', 'foe'], ['will_o_wisp', 'foe'], ['bone_chanter', 'foe']]) {

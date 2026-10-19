@@ -60,7 +60,7 @@ test('a met foe\'s card tells its reach, its Move, its way and its way line; no 
     const text = reachRule({ id: u.id, lvl: 1 }, true)
     assert.ok(text.includes(BEHAVIOURS[u.behaviour ?? 'walk'].desc), `${u.id}: its way`)
     if (u.temper) assert.ok(text.includes(temperLine(temperOf(u.id)).toLowerCase()), `${u.id}: ${text}`)
-    assert.match(reachText({ id: u.id, lvl: 1 }, true), /^Reach \d+ · (melee|ranged) · Move \d+/)
+    assert.match(reachText({ id: u.id, lvl: 1 }, true), /^Reach \d+ · (melee|ranged) · Energy \d+/)
     assert.ok(!/flank|\bring|gauge|halts?\b/i.test(text + reachText({ id: u.id, lvl: 1 }, true)), `${u.id}: ${text}`)
   }
   assert.ok(FOES.filter((u) => u.temper).length >= 8, 'the floor-1 kinds carry a temperament')
@@ -72,9 +72,9 @@ test('a met foe\'s card tells its reach, its Move, its way and its way line; no 
 
 // The seventeen, Line of fire: a rule the player must read to screen the
 // Monarch, so it is a word of its own; Trine: three of a kind fused; and Altar: one rite of three.
-test('the glossary\'s words are the seventeen, Line of fire, Trine and Altar; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
+test('the glossary\'s words are the seventeen, Line of fire, Trine, Altar, Key and Lock; each way is its own line; no word is Ring, Gauge, ACC, EVA, CRT or Flank', () => {
   const names = Object.values(KEYWORDS).filter((k) => k.group === 'Words').map((k) => k.name)
-  assert.deepEqual(names.slice().sort(), ['Altar', 'Command', 'Cooldown', 'Counter', 'Essence', 'Fusion', 'Line of fire', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
+  assert.deepEqual(names.slice().sort(), ['Altar', 'Command', 'Cooldown', 'Counter', 'Energy', 'Essence', 'Fusion', 'Key', 'Line of fire', 'Lock', 'Move', 'Piece', 'Relic', 'Road', 'Shadow', 'Shop', 'Skill',
     'Summon', 'Synergy', 'Tier', 'Trine', 'Turn', 'Wave'])
   for (const [id, b] of Object.entries(BEHAVIOURS)) assert.equal(KEYWORDS[id].line, b.desc)
   for (const k of Object.values(KEYWORDS)) assert.ok(!/\bring\b|gauge|\b(ACC|EVA|CRT)\b|crit|flank|chance/i.test(k.line), `${k.name}: ${k.line}`)
@@ -368,7 +368,7 @@ test('a room\'s tip tells its pay and recruit prices, an altar what it would men
   assert.ok(relicTip('bone_horn', run).textContent.includes('every soul\'s HP ×1 → ×0.9'), relicTip('bone_horn', run).textContent)
   assert.ok(relicTip('hive_standard', run).textContent.includes('One more: every Insect\'s Move +0 → +1'), relicTip('hive_standard', run).textContent)
   // A soul's rule is its Move and reach alone: what it does left alone is on the board (the intents), never on its card.
-  for (const u of souls(s.party)) assert.match(reachRule(u), /^Moves up to \d+ tiles, then acts once; its blows reach \d+ tiles?\./, reachRule(u))
+  for (const u of souls(s.party)) assert.match(reachRule(u), /^\d+ energy a turn: a tile \d+, its basic \d+, a skill \d+; it walks, then acts once\. Its blows reach \d+ tiles?\./, reachRule(u))
   for (const u of souls(s.party)) assert.ok(!/left alone|it uses/i.test(reachRule(u)), reachRule(u))
 })
 

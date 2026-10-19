@@ -5,7 +5,7 @@ import { STATUS_WORTH, statusDef } from '../content.js'
 import { TUNING } from '../tuning.js'
 import { LANE, roadOf } from './field.js'
 import { call } from './rules.js'
-import { stats, emit, computeDamage, reach, roadAhead, roadTiles, targetsFrom, usable, canAct, hexed, perform, walk, moveMoment, aloft, helped, shape, impatience, orderable, isSkill, counterOf, rateOf, lined, struckBy } from './turns.js'
+import { stats, emit, computeDamage, reach, roadAhead, roadTiles, targetsFrom, usable, canAct, hexed, perform, walk, moveMoment, aloft, helped, shape, impatience, orderable, isSkill, counterOf, rateOf, lined, struckBy, keyOn, lockShare, left, costOf, tilesLeft } from './turns.js'
 import { alive, enemySide, isBlow, isAllyShape, footprint, tileX, tileY, blowReach, lineEnds, LINE_AT, LINE_TILES, TILES, LANES, DEPTH } from './unit.js'
 
 // ── the danger map ───────────────────────────────────────────────────────────────────────────────
@@ -27,7 +27,6 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
     const rate = later ? rateOf(battle, u) : 0
     const blows = u.kit.filter((x) => isBlow(x) && (!isSkill(u, x) || (u.cooldowns[x.id] ?? 0) <= rate))
     if (!blows.length) continue
-    const spots = spotsOf(battle, u, at)
     g.fill(0)
     a.fill(0)
     const alone = new Map()
@@ -36,6 +35,7 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
       if (!(raw > 0)) continue
       const r = blowReach(u, b)
       const ra = aloft(u, b, r)
+      const spots = spotsOf(battle, u, at, strideNext(u, b))
       for (const t of spots) {
         if (lines && lined(b)) {
           // A ranged blow reaches the air as the ground (aloft), on the same lines.
@@ -72,15 +72,17 @@ const DANGER_A = new Array(TILES)
 // Whether a Hexed `u` will lose its next act (`later`: it acts after a turn's end, where a Hexed of a turn runs out).
 export const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id === 'hexed' && (s.fresh || s.dur === 'battle' || s.dur > 1)))
 
-// The tiles `u` could strike from on its side's next turn: a foe's road ahead within its Move (or the one tile `at`
-// names), a piece of yours anywhere its Move reaches, a summon or a shadow where it stands.
-const spotsOf = (battle, u, at = null) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadTiles(battle, u, u.move))
-  : orderable(battle, u) ? [u.tile, ...reach(battle, u, u.move).keys()] : [u.tile]
+// The tiles `u` could strike from on its side's next turn: a foe's road ahead within `tiles` (or the one tile `at`
+// names), a piece of yours anywhere `tiles` reaches, a summon or a shadow where it stands.
+const spotsOf = (battle, u, at = null, tiles = strideNext(u)) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadTiles(battle, u, tiles))
+  : orderable(battle, u) ? [u.tile, ...reach(battle, u, tiles).keys()] : [u.tile]
+// The tiles `u` can walk on a whole turn's energy and still pay blow `b` (its basic by default): its next turn's stride.
+const strideNext = (u, b = u.basic ?? null) => (u.move > 0 ? Math.max(0, Math.floor(((u.energy ?? 0) - (b ? costOf(u, b) : 0)) / TUNING.energy.tile)) : 0)
 
 // What a unit could strike on its side's next turn, for the board to light when a foe is tapped (every blow, no line of
 // fire; a Hexed one nothing). → { move (road order), ground, air }: tile lists, ascending.
 export function threatOf (battle, u) {
-  const move = alive(u) ? spotsOf(battle, u) : []
+  const move = alive(u) ? spotsOf(battle, u, null, u.move > 0 ? Math.floor((u.energy ?? 0) / TUNING.energy.tile) : 0) : []
   const ground = new Array(TILES).fill(0)
   const air = new Array(TILES).fill(0)
   if (move.length && !stunned(u, false)) {
@@ -88,7 +90,7 @@ export function threatOf (battle, u) {
       if (!isBlow(b)) continue
       const r = blowReach(u, b)
       const ra = aloft(u, b, r)
-      for (const t of move) {
+      for (const t of spotsOf(battle, u, null, strideNext(u, b))) {
         dilate(ground, t, u.size ?? 1, r, 1)
         if (ra >= 0) dilate(air, t, u.size ?? 1, ra, 1)
       }
@@ -201,6 +203,8 @@ export function options (battle, u, { moving = true } = {}) {
   for (const s of spots) {
     out.push({ tile: s.tile, path: s.path, ability: null, target: null })
     for (const a of acts) {
+      // Its energy: the tiles walked and the act together.
+      if (s.path.length * TUNING.energy.tile + costOf(u, a) > left(u)) continue
       let list
       if (isAllyShape(a.shape) && a.effects.some((e) => (e.op === 'heal' && !e.self) || e.op === 'cleanse')) list = helped(battle, u, a, s.tile)
       else list = targetsFrom(battle, u, a, s.tile)
@@ -260,8 +264,10 @@ export function estimate (battle, u, o, prey, map = null) {
   let primary = 0
   for (const x of targets) {
     if (x.side !== u.side) {
+      // A keyed blow on its key deals its multiple; a locked foe takes its lock's share.
       let d = 0
-      for (const e of a.effects) if (e.op === 'damage') d += hit(battle, s, x, e.power)
+      for (const e of a.effects) if (e.op === 'damage') d += hit(battle, s, x, e.power) * (keyOn(battle, u, x, e.keyed) ? e.keyed.mul : 1)
+      d = Math.round(d * lockShare(battle, x, u))
       if (x === struck) primary = d
       const dd = Math.min(d, x.hp)
       if (map !== null && dd > 0 && dd < x.hp) out.hits.push([x, dd])
@@ -320,7 +326,7 @@ function answer (battle, u, o, x) {
   const s = stats(battle, x)
   let d = 0
   for (const e of b.effects) if (e.op === 'damage') d += hit(battle, s, u, e.power)
-  return Math.min(d, u.hp)
+  return Math.min(Math.round(d * lockShare(battle, u, x)), u.hp)
 }
 
 // Whom `u` would rather strike, by its temperament's `prey` (the Monarch once the pressure is 1): weakest the lowest HP,

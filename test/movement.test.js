@@ -83,7 +83,12 @@ test('the default frontier: each start soul on a cell of its own, the Tomb Knigh
 // walked }`, a trigger's `when`), and a walk once committed (the 'move' moment, rules.js onMove), told as the piece acts
 // or in End Turn's untouched pass, never on the walk: an Undo leaves nothing to unwind. Each on a board built tile by
 // tile; the far Golem keeps a battle from ending on a wipe, the Monarch sits in the corner out of everyone's way.
-const board = (units) => scene([on('monarch', 0, 'party', 0, 0), ...units, on('iron_golem', 99, 'foe', 6, 10, 1)], { ablate: ['summons'] })
+const board = (units) => {
+  const b = scene([on('monarch', 0, 'party', 0, 0), ...units, on('iron_golem', 99, 'foe', 6, 10, 1)], { ablate: ['summons'] })
+  // The far Golem stays far: Rooted for the battle (its energy would walk it three tiles a turn).
+  addStatus(b, unit(b, 99), 'rooted', 'battle')
+  return b
+}
 // Piece `uid` uses its basic on `target` (→ the events), or walks to (x, y).
 const basic = (b, uid, target) => order(b, { type: 'act', uid, ability: unit(b, uid).basic.id, target })
 const walkTo = (b, uid, x, y) => order(b, { type: 'move', uid, tile: tileAt(x, y) })

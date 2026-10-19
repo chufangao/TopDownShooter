@@ -71,11 +71,11 @@ test('the un-ablated players: a level with no ablation plays exactly as the leve
 
 test('ablation: the names, the rules switches carried by the run and its replay, and a policy that refuses a run without its switch', () => {
   // The orders given in battle are core.
-  assert.deepEqual(ABLATIONS, ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves'])
-  assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons'])
+  assert.deepEqual(ABLATIONS, ['orders', 'combos', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves'])
+  assert.deepEqual(RULE_SWITCHES, ['arise', 'synergies', 'summons', 'combos'])
   // The formation measured with no band since 2026-10-11 (pieces move in battle: the orders absorb it), and the moves
   // (the plan's walking).
-  assert.deepEqual(CORE, ['orders', 'tracks', 'summons'])
+  assert.deepEqual(CORE, ['orders', 'combos', 'tracks', 'summons'])
   assert.deepEqual(MEASURED, ['formation', 'moves'])
   // Every ablation is played: a core one targeted at 25–50 points, an extra one at 8–25, a measured one at none.
   assert.deepEqual([...CORE, ...EXTRA, ...MEASURED].sort(), ABLATIONS.slice().sort())

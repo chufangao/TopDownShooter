@@ -1,10 +1,10 @@
 // The run's screen between battles, its four tabs folded into the top bar, and the Map: the floor's rooms.
 import { roomTip, ROOM, codexView, bestiaryCount } from '../codex.js'
 import { h, fill, icon, hideTip, pinTip, touchy, say } from '../dom.js'
-import { THREATS } from '../content.js'
+import { THREATS, unitDef, statusDef } from '../content.js'
 import { RANKS, WIDTH } from '../sim/map.js'
 import {
-  availableNodes, shopOffers, shelfFusions, fielded, souls, roomThreats, ANSWERS, BATTLE_NODES
+  availableNodes, shopOffers, shelfFusions, fielded, souls, roomThreats, ANSWERS, BATTLE_NODES, unkeyed
 } from '../sim/run.js'
 import { topbar, ossuaryCount } from './chrome.js'
 import { fieldEditor } from './field.js'
@@ -104,12 +104,14 @@ const UNMET = {
 const OTHER = { ico: 'elite', lack: 'nothing fielded answers it' }
 const unmetOf = (t) => UNMET[t] ?? OTHER
 
-// The threat types of battle room `n` that none of `army` answers, in THREATS' order.
+// The threat types of battle room `n` that none of `army` answers, in THREATS' order, then its locks the army holds no
+// key to ('lock:<kind>').
 function unmet (n, army) {
   if (!BATTLE_NODES.includes(n.type)) return []
   const has = roomThreats(n)
-  return Object.keys(THREATS).filter((t) => ANSWERS[t] && has.has(t) && !army.some(ANSWERS[t]))
+  return [...Object.keys(THREATS).filter((t) => ANSWERS[t] && has.has(t) && !army.some(ANSWERS[t])), ...unkeyed(n, army).map((x) => `lock:${x.id}`)]
 }
+const LOCK = { ico: 'elite', lack: 'nothing fielded lays its key' }
 // Its marks, one per missing answer, at the medal's upper left.
 const unmetMark = (types) => types.length > 0 && h('span', { class: 'unmet', 'aria-hidden': 'true' },
   [...new Set(types.map((t) => unmetOf(t).ico))].map((ico) => icon(ico, 14)))
@@ -117,10 +119,15 @@ const unmetMark = (types) => types.length > 0 && h('span', { class: 'unmet', 'ar
 function unmetTip (tip, types) {
   const by = new Map()
   for (const t of types) {
+    if (t.startsWith('lock:')) {
+      const d = unitDef(t.slice(5))
+      by.set(LOCK, [...(by.get(LOCK) ?? []), `the ${d.name} (${d.lock.keys.map((k) => statusDef(k).name).join(' or ')})`])
+      continue
+    }
     const u = unmetOf(t)
     by.set(u, [...(by.get(u) ?? []), THREATS[t].name])
   }
-  const lines = [...by].map(([u, names]) => h('p', { class: 'warn rt-unmet' }, icon(u.ico, 16), `No answer to ${names.join(', ')}: ${u.lack}.`))
+  const lines = [...by].map(([u, names]) => h('p', { class: 'warn rt-unmet' }, icon(u.ico, 16), u === LOCK ? `No key to ${names.join(', ')}: ${u.lack}.` : `No answer to ${names.join(', ')}: ${u.lack}.`))
   if (!lines.length) return tip
   const head = tip.querySelector('.rt-head')
   if (head) head.after(...lines)

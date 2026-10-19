@@ -67,10 +67,11 @@ test('a move is undone until the piece acts, and the board is as it was', () => 
   assert.deepEqual(events.map((e) => [e.type, e.from, e.to]), [['undo', at(3, 4), at(3, 2)]])
   assert.deepEqual([u.tile, u.moved, b.at[at(3, 2)], b.at[at(3, 4)]], [at(3, 2), 0, u, null])
   assert.throws(() => order(b, { type: 'undo', uid: 1 }), 'nothing left to undo')
-  // Two moves, one undo: back to where it began its turn.
+  // Walks, one undo: back to where it began its turn. Its energy (base + Move 2) walks four tiles, never a fifth.
   order(b, { type: 'move', uid: 1, tile: at(3, 3) })
   order(b, { type: 'move', uid: 1, tile: at(3, 4) })
-  assert.throws(() => order(b, { type: 'move', uid: 1, tile: at(3, 5) }), 'its Move is spent')
+  order(b, { type: 'move', uid: 1, tile: at(3, 6) })
+  assert.throws(() => order(b, { type: 'move', uid: 1, tile: at(3, 7) }), 'its energy is spent')
   order(b, { type: 'undo', uid: 1 })
   assert.equal(u.tile, at(3, 2))
 })

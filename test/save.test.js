@@ -17,13 +17,23 @@ function played (made, stop, level = 'expert') {
   return run
 }
 
+// The first of a few seeds named after `name` whose run reaches `stop` (the balance may end a seed's run before it):
+// { run, made }.
+function reaching (name, stop, level = 'expert') {
+  for (let k = 0; k < 8; k++) {
+    const made = { seed: k ? `${name}-${k}` : name }
+    const run = played(made, stop, level)
+    if (stop(run)) return { run, made }
+  }
+  throw new Error(`no run of ${name} reaches the state`)
+}
+
 // Mid-battle: the second battle's third turn, with orders given in it (a move or an act since the turn began).
 const midBattle = (run) => run.state.phase === 'battle' && run.state.stats.fights >= 1 && run.battle.turn >= 3 &&
   ['move', 'act'].includes(run.state.log.at(-1).type)
 
 test('a run saved mid-battle plays back as it stood: the state, the battle board order by order, and what it may do next', () => {
-  const made = { seed: 'save-mid' }
-  const run = played(made, midBattle)
+  const { run, made } = reaching('save-mid', midBattle)
   assert.equal(run.state.phase, 'battle', 'the expert reached a second battle')
   const text = saveOf(run, made)
   const back = restore(text)

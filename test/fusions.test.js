@@ -25,7 +25,7 @@ test('out of battle: a triple and a capstone are made as any recipe is, the resu
   apply(run, { type: 'fuse', id: 'trine:grave_ghoul', parts: fuseParts(run, 'trine:grave_ghoul') })
   const trine = souls(run.state.party).find((u) => u.id === 'trine:grave_ghoul')
   assert.deepEqual([trine.lvl, trine.tracks], [TUNING.level.base, [0, 0]], 'fresh: its first level, no tier')
-  assert.equal(fuseCost(run, 'trine:grave_ghoul'), 8 * UNITS['trine:grave_ghoul'].tier)
+  assert.equal(fuseCost(run, 'trine:grave_ghoul'), TUNING.essence.fuse * UNITS['trine:grave_ghoul'].tier)
   // The Charnel Cathedral: a Bone Colossus and the trine.
   assert.ok(!canFuse(run, 'charnel_cathedral'))
   join(run, 'bone_colossus')

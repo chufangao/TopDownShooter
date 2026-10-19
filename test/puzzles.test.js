@@ -187,7 +187,7 @@ test('puzzle: the shooter behind the blocker', () => {
   assert.ok(road.dist[piece(b, 1).tile] <= road.dist[block.tile])
 })
 
-test('puzzle: a walk of two turns to the choke, the first step heading there', () => {
+test('puzzle: a walk to the choke, the first step heading there, the plan kept until it stands on it', () => {
   const b = board([
     M(3, 0),
     { id: 'tomb_knight', uid: 1, side: 'party', x: 6, y: 0 },
@@ -196,11 +196,13 @@ test('puzzle: a walk of two turns to the choke, the first step heading there', (
   play(b)
   const goal = b.plan.goals.get(1)
   assert.deepEqual([goal.role, where(goal.tile)], ['block', '(3,2)'])
-  // Three steps away, two a turn: two nearer after the first turn, there after the second, the plan kept between.
-  assert.equal(distance(piece(b, 1).tile, goal.tile), 1, where(piece(b, 1).tile))
+  // Three steps away: the first turn brings it within a step, the plan kept after; it stands on the choke, or a step
+  // short of it while the ghoul (its energy walks it four tiles a turn) could strike the choke next turn.
+  assert.ok(distance(piece(b, 1).tile, goal.tile) <= 1, where(piece(b, 1).tile))
   play(b)
   assert.equal(b.plan.trigger === null || b.plan.kind === 'hold', true)
-  assert.equal(piece(b, 1).tile, goal.tile)
+  assert.deepEqual(b.plan.goals.get(1)?.tile, goal.tile, 'the goal kept')
+  assert.ok(distance(piece(b, 1).tile, goal.tile) <= 1, where(piece(b, 1).tile))
 })
 
 test('puzzle: the healer first', () => {
@@ -212,6 +214,8 @@ test('puzzle: the healer first', () => {
     { id: 'hive_warden', uid: 10, side: 'foe', x: 5, y: 6, hp: 10 },
     { id: 'tomb_knight', uid: 11, side: 'foe', x: 3, y: 10 }
   ])
+  // The Warden's lock open (a key on it): the puzzle is the healer, not the lock.
+  addStatus(b, piece(b, 10), 'burning', 3)
   const sit = situation(b)
   assert.ok(!sit.monarch.threats.length, 'nothing threatens the Monarch')
   assert.deepEqual(killList(b, sit).list.map((k) => k.uid), [10])
@@ -232,6 +236,8 @@ test('puzzle: focus a key foe the kill list can fell with two blows together', (
     { id: 'tomb_knight', uid: 11, side: 'foe', x: 3, y: 10 }
   ])
   const w = piece(b, 10)
+  // Its lock open (a key on it): the puzzle is the kill list, not the lock.
+  addStatus(b, w, 'burning', 3)
   w.hp = twoBlows(b, [1, 2], w)
   for (const uid of [1, 2]) assert.ok(piece(b, uid).kit.every((a) => !isBlow(a) || blowOn(b, piece(b, uid), a, w) < w.hp), `${uid} alone`)
   const list = killList(b, situation(b)).list

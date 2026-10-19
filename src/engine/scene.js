@@ -4,7 +4,7 @@ import { TUNING } from '../tuning.js'
 import { unitDef, statusDef, animDef, abilityDef, relicDef, SYNERGIES, ROLES } from '../content.js'
 import {
   reach, targetsFrom, preview, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
-  lined, lineOf, lineStruck, stats, intents
+  lined, lineOf, lineStruck, stats, intents, left, stride, costOf
 } from '../sim/turns.js'
 import { foeEssence, eliteBonus } from '../sim/run.js'
 import { threatOf } from '../sim/foe.js'
@@ -389,7 +389,7 @@ export class BattleScene extends Phaser.Scene {
     const skills = u.kit.filter((a) => isSkill(u, a)).map((a) => (u.cooldowns[a.id] > 0 ? `${a.name} ready in ${u.cooldowns[a.id]}` : `${a.name} ready`))
     if (u.acted) return ['Acted', ...skills].join(' · ')
     const n = u.basic && !hexed(u) ? targetsFrom(b, u, u.basic).length : 0
-    return [hexed(u) && 'Hexed: no act this turn', `Move ${Math.max(0, u.move - u.moved)}/${u.move}`, ...skills,
+    return [hexed(u) && 'Hexed: no act this turn', `Energy ${left(u)}/${u.energy}`, ...skills,
       u.basic && !hexed(u) && (n ? `${n} in reach of ${u.basic.name}` : `no foe in reach of ${u.basic.name}`)].filter(Boolean).join(' · ')
   }
 
@@ -670,6 +670,8 @@ export class BattleScene extends Phaser.Scene {
     const size = u.size ?? 1
     s.reach = u.acted ? new Map() : reach(b, u)
     const a = u.kit.find((x) => x.id === s.ability)
+    // The tiles the armed act is still paid from after the walk (a skill costs more than a basic).
+    const paid = a && !u.acted ? new Set(reach(b, u, stride(u, a)).keys()) : new Set()
     const can = !!a && canAct(b, u) && usable(b, u, a)
     const from = (t) => (can ? targetsFrom(b, u, a, t).map((x) => x.uid) : [])
     s.targets = new Set(from(u.tile))
@@ -696,7 +698,7 @@ export class BattleScene extends Phaser.Scene {
         g.fillStyle(DOMAIN, 0.05).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round)
         inked(g, 1.5, DOMAIN, 0.55, (g) => g.strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round))
       }
-      inked(g, REACH.line, colour, 0.5 * fade, (g) => envelope(g, [u.tile, ...s.reach.keys()], r, size, box))
+      inked(g, REACH.line, colour, 0.5 * fade, (g) => envelope(g, [u.tile, ...paid], r, size, box))
     }
     if (at != null) {
       dottedPath(g, [foot(u), ...s.reach.get(at).map((t) => posAt(t, size))], 0xffffff, 0.55, 0.4)
@@ -710,7 +712,7 @@ export class BattleScene extends Phaser.Scene {
     // Aimed through a screen, the piece that takes the blow is lit as the aimed one is.
     const shot = s.aim != null ? s.shot : null
     const solid = at != null ? new Set(from(at)) : s.targets
-    const later = new Set([...s.targets, ...[...s.reach.keys()].flatMap(from)].filter((x) => !solid.has(x)))
+    const later = new Set([...s.targets, ...[...paid].flatMap(from)].filter((x) => !solid.has(x)))
     for (const uid of solid) {
       const x = b.byUid.get(uid)
       const q = spot(x)
@@ -840,6 +842,8 @@ export class BattleScene extends Phaser.Scene {
         label(+uid, `${d.name.toUpperCase()}${st.stacks > 1 ? ` ×${st.stacks}` : ''}${st.dur === 'battle' ? '' : ` ${st.dur}T`}`, d.tags.includes('debuff') ? C.foe : C.synergy, 11)
       }
     }
+    for (const k of x.keyed ?? []) label(k.uid, `${statusDef(k.status).name.toUpperCase()} ×${k.mul}`, '#ffe08a', 11)
+    for (const uid of x.locked ?? []) label(uid, 'LOCKED', '#8e8e9e', 11)
     // An act with nothing to show (a cooldown's, a raise): its name over its target.
     if (this.intentMarks.length === n && struck != null) label(struck, def.name.toUpperCase(), '#d8d0ff', 11)
     if (x.counter > 0) label(x.uid, `↩ −${x.counter}${fell.has(x.uid) ? ' · FALLS' : ''}`, '#ffb27a')
@@ -953,6 +957,8 @@ export class BattleScene extends Phaser.Scene {
       }
       for (const [x, list] of Object.entries(p.cleansed ?? {})) this.mark(+x, list.length > 1 ? `CLEANSED ×${list.length}` : 'CLEANSED', C.synergy, 12)
       for (const x of p.rises ?? []) this.mark(x, 'RISES', C.shadow, 12)
+      for (const k of p.keyed ?? []) this.mark(k.uid, `${statusDef(k.status).name.toUpperCase()} ×${k.mul}`, '#ffe08a', 12)
+      for (const x of p.locked ?? []) this.mark(x, 'LOCKED', '#8e8e9e', 11)
       // An act with nothing to show (a cooldown's): its name over the target.
       if (this.aimMarks.length === shown) this.mark(uid, abilityDef(s.ability).name, '#d8d0ff', 12)
       if (p.counter > 0) this.mark(s.uid, `↩ −${p.counter}`, '#ffb27a')
@@ -1121,7 +1127,7 @@ export class BattleScene extends Phaser.Scene {
     const free = !this.locked() && canAct(b, u) && usable(b, u, a)
     const now = free ? targetsFrom(b, u, a) : []
     const later = new Map()
-    if (free) for (const t of reach(b, u).keys()) for (const x of targetsFrom(b, u, a, t)) if (!now.includes(x)) later.set(x.uid, x)
+    if (free) for (const t of reach(b, u, stride(u, a)).keys()) for (const x of targetsFrom(b, u, a, t)) if (!now.includes(x)) later.set(x.uid, x)
     const name = (x) => unitDef(x.id).name
     return {
       a, st: stats(b, u), range, flies: !!u.flies, arise: a.shape === 'corpse' ? ariseOf(b, u) : null,
@@ -1147,11 +1153,12 @@ export class BattleScene extends Phaser.Scene {
       const rests = isSkill(u, a) ? Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.grants === a.id && r.params.cooldown).map((r) => r.params.cooldown)) - 1 : 0
       return {
         id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, rests, armed: a.id === s.ability, can,
+        cost: costOf(u, a), short: left(u) < costOf(u, a),
         targets: can ? targetsFrom(b, u, a).length : 0, arise: a.shape === 'corpse' ? ariseOf(b, u) : null
       }
     })
     return {
-      uid: u.uid, id: u.id, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, acted: u.acted, hexed: hexed(u), relics: u.relics ?? [],
+      uid: u.uid, id: u.id, hp: u.hp, maxHp: u.maxHp, move: u.move, moved: u.moved, energy: u.energy, left: left(u), tiles: stride(u, null), acted: u.acted, hexed: hexed(u), relics: u.relics ?? [],
       acts, aim: s.aim != null, undo: free && this.undoable(u), from: u.from,
       // Aimed through a screen: the kind of the piece on the line that takes the blow.
       screen: s.aim != null && s.shot && s.shot.hit !== s.aim ? unitDef(b.byUid.get(s.shot.hit)?.id ?? b.byUid.get(s.aim).id).name : null
@@ -1773,6 +1780,16 @@ export class BattleScene extends Phaser.Scene {
       case 'cleanse':
         a.st.delete(ev.status)
         this.burst(a.sprite.x, a.sprite.y - a.chest, BOON, 6, { up: true, speed: 40 })
+        break
+      // A key spent: the blow lands ×mul, the status gone with it.
+      case 'key':
+        a.st.delete(ev.status)
+        this.floating(a, `${statusDef(ev.status).name.toUpperCase()} ×${ev.mul}`, '#ffe08a', 13)
+        this.burst(a.sprite.x, a.sprite.y - a.chest, 0xffe08a, 10, { up: true, speed: 90 })
+        break
+      // A lock met: the blow lands at the lock's share.
+      case 'locked':
+        this.floating(a, 'LOCKED', '#8e8e9e', 11)
         break
       case 'expire':
         a.st.delete(ev.status)

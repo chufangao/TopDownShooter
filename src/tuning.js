@@ -233,7 +233,10 @@ export const TUNING = {
   shop: { relics: 4, price: { common: 24, uncommon: 48, rare: 96, legendary: 72 } },
   // raw = power × atk / atkDivisor, then × defConstant / (defConstant + def). The lethality band: a same-tier foe falls
   // to about three or four basic blows; the balance pass sets the number.
-  damage: { atkDivisor: 16, defConstant: 100, min: 1 },
+  damage: { atkDivisor: 20, defConstant: 100, min: 1 },
+  // A unit's energy a turn: `base` + its Move, shared by what it does (turns.js energyOf): a tile walked `tile`, its basic
+  // blow or heal `basic`, a skill `skill` (one act a turn still, after its walk). A unit with Move 0 (Rooted) walks no tile.
+  energy: { base: 2, tile: 1, basic: 2, skill: 3 },
   // Deathblow (the Trickster's rule): a blow on a foe below `below` of its max HP deals `mult` times its damage.
   deathblow: { below: 0.35, mult: 2 },
   // The other synergies' numbers. Echo (the Channeler's): below its synergy's `full` count every ability echoes at `half`
@@ -263,7 +266,7 @@ export const TUNING = {
   // by the parts' tier (`parts`, tier 1 first) or, for a fused kind's trine, `fused`. A fusion is never weaker than what
   // went into it: HP at least the three parts', ATK at least a part's.
   trine: {
-    parts: [{ hp: 9, atk: 6.2, def: 2.2 }, { hp: 9, atk: 5.8, def: 1.7 }, { hp: 7.7, atk: 4.9, def: 1.7 }, { hp: 7, atk: 4.1, def: 1.7 }],
+    parts: [{ hp: 4, atk: 2.6, def: 1.6 }, { hp: 4, atk: 2.5, def: 1.4 }, { hp: 3.6, atk: 2.2, def: 1.4 }, { hp: 3.3, atk: 2, def: 1.4 }],
     fused: { hp: 3, atk: 1.8, def: 1.2 }
   },
   // Arise, a Legendary piece relic: its holder's skill raises one corpse within `domain` tiles (Chebyshev, from its
@@ -280,7 +283,7 @@ export const TUNING = {
   // recruit recruit × its tier; a fusion fuse × the fused kind's tier. A won elite pays eliteBonus × the price scale on
   // top. `refund`: the share a released soul pays back of a recruit's price and of each tier it holds, and the share a
   // fusion pays back of its parts' tiers, rounded down.
-  essence: { start: 52, perTier: [7, 3.5, 3.5], perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 8, fuse: 8, refund: 0.5, eliteBonus: 96 },
+  essence: { start: 52, perTier: [7, 3.5, 3.5], perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 12, fuse: 14, refund: 0.5, eliteBonus: 96 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp[floor − 1] more across a floor's ranks. A room draws
   // its kinds from those of tier at most tierOverCap above the floor's target tier (1 + (floor − 1) × tierPerFloor,
   // rounded down, at most tierMax; an elite's eliteTier more), each by its spawn weight / (1 + its tiers from the

@@ -33,7 +33,31 @@ const L = LEVELS.expert
 // pay and levels): its run clears; sim-130 again since, found by search among the seeds ≡ 0 mod 5. Since every unit is
 // whole after a won battle, 2026-10-18 later, its run lives long: the fixture labels floor 1 alone, FLOORS, as --floors 1,0
 // would.)
-const SEED = 'sim-130'
+// The balance moves which seed falls where: the first seed ≡ 0 mod 5 from sim-130 on whose expert run recruits and
+// buys on floor 1 and falls there within twelve battles (a run that clears takes minutes to label).
+function findSeed () {
+  // As the tests play it: today's expert, no forest out of battle.
+  const before = outForestModel()
+  useOutForest(null)
+  try {
+    for (let k = 26; k < 160; k++) {
+      const seed = `sim-${5 * k}`
+      const st = autoplay(createRun({ seed }), { level: 'expert' }).state
+      const log = st.log
+      const steps = (l) => l.filter((a) => !['move', 'act', 'end'].includes(a.type)).length
+      if (!(st.result === 'defeat' && st.floor === 1 && st.stats.fights >= 3 && st.stats.fights <= 12 && steps(log) > 12 &&
+        log.some((a) => a.type === 'reap' && a.index !== null) && log.some((a) => a.type === 'upgrade'))) continue
+      // And under a forest that passes on every recruit and purchase, the walk is still more than ten steps.
+      useOutForest(passer())
+      const passed = steps(autoplay(createRun({ seed }), { level: 'expert' }).state.log) > 10
+      useOutForest(null)
+      if (passed) return seed
+    }
+  } finally {
+    useOutForest(before)
+  }
+  throw new Error('no seed from sim-130 on falls on floor 1 after recruiting and buying')
+}
 const CAP = 3
 const FLOORS = [1, 0]
 
@@ -72,6 +96,8 @@ const drafter = () => phaseOf([{ f: 'f.draft', t: 0.5, l: -1, r: 5 }], { phase: 
 // A forest that reads passing on (no recruit, no purchase) far above every other candidate: it never recruits or buys
 // where today would.
 const passer = () => outOf({ recruit: phaseOf([{ f: 'f.none', t: 0.5, l: -1, r: 5 }]), spend: phaseOf([{ f: 'f.none', t: 0.5, l: -1, r: 5 }]) }, 'passer')
+// The fixture's seed, found once the helpers it plays with are made.
+const SEED = findSeed()
 
 // The labels of SEED (labelRun at a cap of CAP), made once; and of its formations (FORMATIONS a prep), made once: each
 // by today's expert, no forest out of battle in use (whatever outforest.json ships), as the tests that walk it again read

@@ -762,10 +762,10 @@ export async function decisions ({ runs, seed: seed0, level, tries = 8, ascensio
 
 // --ablations: the full expert and each of `variants` on the same seeds: clear rate, deaths, causes and uses, and each
 // drop in clear rate and in progress (paired by seed, on the clear rate's scale by k) against its band:
-//   CORE      orders, tracks, summons: 25–50 points
+//   CORE      orders, combos, tracks, summons: 25–50 points
 //   EXTRA     fusions, legendaries, relics, synergies: 8–25 points
 //   MEASURED  formation, moves: reported, no band
-export const CORE = ['orders', 'tracks', 'summons']
+export const CORE = ['orders', 'combos', 'tracks', 'summons']
 export const EXTRA = ['fusions', 'legendaries', 'relics', 'synergies']
 export const MEASURED = ['formation', 'moves']
 export const BANDS = { ...Object.fromEntries(CORE.map((m) => [m, [25, 50]])), ...Object.fromEntries(EXTRA.map((m) => [m, [8, 25]])) }

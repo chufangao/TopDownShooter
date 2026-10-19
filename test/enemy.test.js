@@ -401,7 +401,8 @@ test('a Keeper with nothing to strike comes on along its road at the least aggre
   assert.equal(wary.blows, 0, 'nothing to strike from any tile of its road ahead')
   assert.equal(wary.hurt, 0, 'it holds out of your reach')
   assert.ok(wary.gained >= 1, 'having come as far as it safely could')
-  assert.equal(bold.gained, unitDef('hive_warden').move, 'it walks its Move')
+  // Nothing to strike: it walks the whole of its energy, past its Move.
+  assert.equal(bold.gained, TUNING.energy.base + unitDef('hive_warden').move, 'it walks its whole energy')
   assert.ok(bold.hurt > 0, 'into your reach')
   assert.ok(play([], TUNING.policy.walk).gained >= wary.gained, 'the knob as it stands: at least as far')
   // A Sprite of yours where its road ends: a blow to land, so the knob changes nothing.

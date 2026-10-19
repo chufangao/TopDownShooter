@@ -235,3 +235,6 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   .relic-strip .bench-label > span::before { content: none; }
   .relics-unheld { flex: 1; min-width: 0; }
 }
+
+/* An act the selected piece cannot pay for this turn: its cost in the foes' red. */
+.act-kind.short { color: var(--c-foe); }

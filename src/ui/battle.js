@@ -2,6 +2,7 @@
 // orders, both sides' synergies, End Turn and the playback's controls).
 import { relicTip, tileText, hpBar, relicIcon, actText, theirText } from '../codex.js'
 import { unitDef, relicDef } from '../content.js'
+import { TUNING } from '../tuning.js'
 import { h, fill, icon, portrait, say } from '../dom.js'
 import { kw } from '../keywords.js'
 import { sfx } from '../sfx.js'
@@ -142,7 +143,7 @@ export function battleChrome ({ onHelp = null } = {}) {
         a.skill && h('span', { class: 'dim' }, a.rest > 0 ? ` · ready in ${turns(a.rest)}` : a.rests > 0 ? ` · rests ${turns(a.rests)} after use` : ' · ready again next turn'),
         info && actText(info.a, info.st, info),
         !a.can ? (p.acted ? h('p', { class: 'warn' }, 'Already acted this turn.') : p.hexed ? h('p', { class: 'warn' }, 'Hexed: it cannot act this turn.')
-          : a.rest > 0 ? null : h('p', { class: 'dim' }, a.heal ? 'No ally in reach needs it.' : 'Not usable now.'))
+          : a.short ? h('p', { class: 'warn' }, `Costs ${a.cost} energy: ${p.left} left.`) : a.rest > 0 ? null : h('p', { class: 'dim' }, a.heal ? 'No ally in reach needs it.' : 'Not usable now.'))
           : info?.now.length ? [h('p', { class: 'act-k' }, a.arise ? 'Corpses in reach:' : 'In reach now:'), h('ul', { class: 'act-targets' }, info.now.map(target))]
             : info?.later.length ? h('p', null, `Nothing in reach from here. Moving first brings in: ${group(info.later)}.`)
               : h('p', { class: 'dim' }, 'Nothing it can reach this turn.'))
@@ -150,16 +151,16 @@ export function battleChrome ({ onHelp = null } = {}) {
     const acts = p.acts.map((a) => btn({
       class: 'act-btn' + (a.armed ? ' armed' : '') + (a.skill ? ' skill' : '') + (a.arise ? ' arise' : ''), 'aria-pressed': a.armed ? 'true' : 'false',
       'aria-disabled': a.can ? null : 'true', onclick: () => a.can && scene?.arm(a.id), tip: actTip(a)
-    }, pip(a), h('span', { class: 'act-name' }, a.name), h('span', { class: 'act-kind' }, a.skill ? 'skill' : 'basic')))
+    }, pip(a), h('span', { class: 'act-name' }, a.name), h('span', { class: 'act-kind' + (a.short ? ' short' : '') }, `${a.skill ? 'skill' : 'basic'} · ${a.cost}`)))
     const armed = p.acts.find((a) => a.armed)
     // The armed act with nothing to take from here: why, and who a move brings in reach, or that none would.
-    const moves = p.move > p.moved
+    const moves = p.tiles > 0
     const later = !st.busy && armed?.can && !armed.targets ? scene?.actInfo(armed.id)?.later ?? [] : []
     const none = armed?.arise ? 'No corpse' : 'Nothing'
     const stuck = !armed || st.busy || armed.targets ? null
       : !armed.can ? (armed.rest > 0 ? `${armed.name} rests ${turns(armed.rest)} more.` : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
         : later.length ? `${none} in reach of ${armed.name} from here: moving brings in ${group(later)}.`
-          : moves ? `${none} in reach of ${armed.name} this turn, even after a move.` : `${none} in reach of ${armed.name} from here, and no Move left.`
+          : moves ? `${none} in reach of ${armed.name} this turn, even after a move.` : `${none} in reach of ${armed.name} from here, and no energy to walk.`
     const line = p.hexed && !p.acted ? h('span', { class: 'warn' }, 'Hexed: it loses its act.')
       : p.acted ? h('span', { class: 'dim' }, 'Acted this turn.')
         : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to raise it.', 'Tap it again to raise it.') : say('Click it again to strike.', 'Tap it again to strike.'),
@@ -174,11 +175,11 @@ export function battleChrome ({ onHelp = null } = {}) {
           h('b', { class: 'sel-name' }, d.name),
           h('div', { class: 'sel-nums' },
             h('span', { class: 'sel-hp' }, hpBar(p.hp, p.maxHp), `${p.hp}/${p.maxHp}`),
-            h('span', { class: 'sel-move', tip: () => `Move: ${p.move - p.moved} of ${p.move} tiles left this turn.` }, `Move ${Math.max(0, p.move - p.moved)}/${p.move}`)),
+            h('span', { class: 'sel-move', tip: () => `Energy: ${p.left} of ${p.energy} left this turn. A tile walked costs ${TUNING.energy.tile}, its basic ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}.` }, `Energy ${p.left}/${p.energy}`)),
           p.relics.length > 0 && h('div', { class: 'sel-relic' }, p.relics.map((id) => h('span', { class: `rs-relic rt-${relicDef(id).tier}`, tip: () => relicTip(id) }, icon(relicIcon(id), 14), relicDef(id).name))))),
       acts.length > 0 && h('div', { class: 'sel-acts' }, acts),
       p.undo && h('div', { class: 'sel-acts' },
-        btn({ class: 'undo-btn', onclick: () => scene?.undo(), tip: () => `Back to ${tileText(p.from)}, Move ${p.move}/${p.move} again. (U)` }, icon('undo', 18), 'Undo move')),
+        btn({ class: 'undo-btn', onclick: () => scene?.undo(), tip: () => `Back to ${tileText(p.from)}, its energy whole again. (U)` }, icon('undo', 18), 'Undo move')),
       h('div', { class: 'sel-line' }, line))
   }
 

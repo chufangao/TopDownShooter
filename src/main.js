@@ -398,7 +398,7 @@ function hintFor () {
     if (k.basic && targetsFrom(b, k, k.basic).some((x) => x.uid === foe.uid)) {
       return { at: () => sc.rectOf(foe.uid), text: sc.sel.aim === foe.uid ? 'Tap it again to strike' : 'Tap the foe to aim at it' }
     }
-    if (k.moved < k.move) return { at: () => sc.rectOf(k.uid), text: 'Tap a blue tile to move toward the foe' }
+    if (k.spent === 0) return { at: () => sc.rectOf(k.uid), text: 'Tap a blue tile to move toward the foe' }
     return { at: end, text: 'End Turn: the foe comes to you' }
   }
   if (s.phase === 'reap') {

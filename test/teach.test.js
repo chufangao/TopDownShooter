@@ -33,7 +33,8 @@ const peril = () => board([
   { id: 'monarch', uid: 0, side: 'party', x: 3, y: 0, hp: 1 },
   { id: 'tomb_knight', uid: 1, side: 'party', x: 1, y: 1, lvl: 6 },
   { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 2, hp: 1 },
-  { id: 'grave_ghoul', uid: 10, side: 'foe', x: 6, y: 10 }
+  // The far ghoul at 1 HP too: the knight must still fell it before it reaches the Monarch in the lines that save it.
+  { id: 'grave_ghoul', uid: 10, side: 'foe', x: 6, y: 10, hp: 1 }
 ])
 
 test('the option that saves the Monarch has the higher playout value', () => {
@@ -382,9 +383,10 @@ test('a piece with one option takes it with no playout', () => {
     { id: 'tomb_knight', uid: 1, side: 'party', x: 1, y: 1 },
     { id: 'grave_ghoul', uid: 9, side: 'foe', x: 6, y: 10 }
   ])
-  // Its Move spent and no foe in its reach: it may only stand where it is.
+  // Its energy spent and no foe in its reach: it may only stand where it is.
   const k = b.byUid.get(1)
   k.moved = k.move
+  k.spent = k.energy
   const pick = teacherPick(b, 1, null)
   assert.equal(pick.playouts, 0)
   assert.equal(pick.option.tile, k.tile)

@@ -7,7 +7,7 @@ import { LANE, roadOf } from './field.js'
 import { danger, stunned, rawOf, mitigation, dangerAt, options, score, NOBODY, MONARCH, gain, hit, landed, NONE, estimate, struckOf, EPS, lane, better, hardest } from './foe.js'
 import { forestModel, predictions, playOf, playView, meanOf, readsAfter as forestReadsAfter } from './forest.js'
 import { readPlan } from './plan.js'
-import { stats, computeDamage, fork, order, reach, roadTiles, targetsFrom, usable, canAct, hexed, perform, aloft, helped, shape, orderable, isSkill, synergiesOf, corpses, nextWave, allowed, pick, lined } from './turns.js'
+import { stats, computeDamage, fork, order, reach, roadTiles, targetsFrom, usable, canAct, hexed, perform, aloft, helped, shape, orderable, isSkill, synergiesOf, corpses, nextWave, allowed, pick, lined, stride } from './turns.js'
 import { alive, isBlow, isAllyShape, footprint, tileX, distanceBetween, blowReach, rangeOf, steps, lineEnds, LINE_AT, LINE_TILES, TILES, DEPTH, synergyCounts, synergyNeeds } from './unit.js'
 export * from './foe.js'
 
@@ -362,7 +362,7 @@ function roadWith (battle, x, u, tile) {
 // Whether piece `u` could fell foe `x` alone this turn: a usable blow within its Move left and reach (as the crow flies).
 function fells (battle, u, x) {
   if (!canAct(battle, u)) return false
-  const gap = distanceBetween(u.tile, u.size, x.tile, x.size) - Math.max(0, u.move - u.moved)
+  const gap = distanceBetween(u.tile, u.size, x.tile, x.size) - stride(u)
   for (const b of u.kit) {
     if (!isBlow(b) || !usable(battle, u, b)) continue
     const r = x.flies ? aloft(u, b, blowReach(u, b)) : blowReach(u, b)
@@ -579,7 +579,7 @@ function engage (battle, sit, u, o, gone) {
     for (const [x, spots] of sit.threat.spots) {
       if (gone.has(x)) continue
       const rr = x.flies ? ra : r
-      if (rr < 0 || !spots.some((t) => distanceBetween(o.tile, u.size, t, x.size) <= u.move + rr)) continue
+      if (rr < 0 || !spots.some((t) => distanceBetween(o.tile, u.size, t, x.size) <= u.move + rr)) continue // Move: a next turn's stride
       let n = 0
       let sx = null
       for (const e of b.effects) if (e.op === 'damage') n += landed(s, (sx ??= stats(battle, x)), e.power)
@@ -922,16 +922,38 @@ function fastTurn (battle, { note, moving, record, explore }) {
   const turnOrder = pieces.slice().sort((a, b) => rank(a) - rank(b) || a.ord - b.ord).map((u) => u.uid)
   note?.({ decision: 'plan', by: `${plan.kind} (${plan.trigger ?? 'kept'})`, rules: plan.rules, sit })
   const log = () => (note ? [] : null)
-  const weigh = plan.shooters.length && plan.kills.length && (!(explore?.epsilon > 0) || !!explore.weigh)
-  let pick = fastPass(battle, plan, turnOrder, weigh ? { moving, log: log() } : { moving, record, explore, log: log() })
-  if (weigh) {
-    const kills = fastPass(battle, plan, turnOrder, { moving, log: log(), kills: true })
-    const taken = judge(kills.f, battle).value > judge(pick.f, battle).value
-    if (taken) pick = kills
-    if (record || explore) pick = fastPass(battle, plan, turnOrder, { moving, record, explore, log: log(), kills: taken })
+  const greedy = !(explore?.epsilon > 0) || !!explore.weigh
+  const weigh = plan.shooters.length && plan.kills.length && greedy
+  // Keys: a key laid this turn is another piece's payoff, so a pass with the key-layers first is judged beside the
+  // first, where any piece pays a key another could lay.
+  const keyOrder = greedy ? keysFirst(battle, pieces, turnOrder) : null
+  const again = weigh || keyOrder
+  let pick = fastPass(battle, plan, turnOrder, again ? { moving, log: log() } : { moving, record, explore, log: log() })
+  let value = again ? judge(pick.f, battle).value : 0
+  const best = { order: turnOrder, kills: false }
+  const better = (pass) => {
+    const v = judge(pass.f, battle).value
+    if (!(v > value)) return false
+    pick = pass
+    value = v
+    return true
   }
+  if (weigh && better(fastPass(battle, plan, turnOrder, { moving, log: log(), kills: true }))) best.kills = true
+  if (keyOrder && better(fastPass(battle, plan, keyOrder, { moving, log: log(), kills: best.kills }))) best.order = keyOrder
+  if (again && (record || explore)) pick = fastPass(battle, plan, best.order, { moving, record, explore, log: log(), kills: best.kills })
   for (const r of pick.log ?? NONE) note(r)
   return [...pick.orders, { type: 'end' }]
+}
+
+// The turn order with the key-layers first: the pieces with a usable blow that lays a status another piece's usable
+// keyed blow pays (turns.js keyOn); null where no piece pays a key another could lay.
+function keysFirst (battle, pieces, turnOrder) {
+  const blows = (u) => u.kit.filter((a) => isBlow(a) && usable(battle, u, a))
+  const lays = (u) => blows(u).flatMap((a) => a.effects.filter((e) => e.op === 'apply_status').map((e) => e.status))
+  const pays = (u) => blows(u).flatMap((a) => a.effects.filter((e) => e.keyed).map((e) => e.keyed.status))
+  const layers = pieces.filter((u) => lays(u).some((k) => pieces.some((v) => v !== u && pays(v).includes(k)))).map((u) => u.uid)
+  if (!layers.length) return null
+  return [...turnOrder.filter((uid) => layers.includes(uid)), ...turnOrder.filter((uid) => !layers.includes(uid))]
 }
 
 // One pass of the fast turn on a copy of `battle`: with `kills`, the kill list's strikes first as listed, then each
@@ -994,11 +1016,12 @@ function fastPass (battle, plan, turnOrder, { moving, record = null, explore = n
 // furthest along its road, else its basic heal on the most wounded; null for nothing.
 export function untouchedOrder (f, u, tile = u.tile) {
   if (!canAct(f, u)) return null
+  // Its basic, where its energy after the walk pays for it (usable).
   const b = u.basic
-  const foes = b && allowed(f, u, b) ? targetsFrom(f, u, b, tile) : NONE
+  const foes = b && usable(f, u, b) ? targetsFrom(f, u, b, tile) : NONE
   if (foes.length) return { type: 'act', uid: u.uid, ability: b.id, target: pick(f, u, foes).uid }
   const m = u.mend
-  const allies = m && allowed(f, u, m) ? helped(f, u, m, tile) : NONE
+  const allies = m && usable(f, u, m) ? helped(f, u, m, tile) : NONE
   if (allies.length) return { type: 'act', uid: u.uid, ability: m.id, target: allies.slice().sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp || p.uid - q.uid)[0].uid }
   return null
 }

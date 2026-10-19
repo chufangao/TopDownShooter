@@ -23,7 +23,7 @@ import {
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
-  foeMods, roomThreats, isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, canPlace, canFuse,
+  foeMods, roomThreats, unkeyed, isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, canPlace, canFuse,
   fuseParts, fuseCost, OSSUARY, START_PARTY, relicTier, levelOf, monarchHp, ariseOf, commandOf, canBuy,
   relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat, spawnPool, altarActions,
   transmuteOffer, foeScale, ANSWERS, tends, BASE_MONARCH, copyRun, copyPlain
@@ -64,8 +64,8 @@ export const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 
 //   formation      its souls in basic's first draft's cells
 //   moves          its pieces never move in battle (TURNS still)
 // A run under a rules switch is made with it (ablatedRun). 'arise' is a rules switch but no ablation.
-export const ABLATIONS = ['orders', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves']
-export const RULE_SWITCHES = ['arise', 'synergies', 'summons']
+export const ABLATIONS = ['orders', 'combos', 'fusions', 'summons', 'tracks', 'legendaries', 'relics', 'synergies', 'formation', 'moves']
+export const RULE_SWITCHES = ['arise', 'synergies', 'summons', 'combos']
 // A run for a level under `ablate` (its rules switch where it is one), from `start` where given, else the draft.
 export const ablatedRun = (seed, ablate = null, start = null, { scale = 1, ascension = 0, monarch = BASE_MONARCH } = {}) => createRun({ seed, ablate: RULE_SWITCHES.includes(ablate) ? [ablate] : null, start, scale, ascension, monarch })
 // A job's Monarch where it is not the base one: spread into its spec (asMonarch), named in a header (monarchText).
@@ -299,7 +299,7 @@ function scoutRoom (run, n, up, keeps) {
     type: n.type,
     threat: foes.reduce((t, f) => t + worth(makeUnit(f.id, { lvl: f.lvl }), false, mods), 0),
     threats,
-    unanswered: threats.filter((t) => ANSWERS[t] && !up.some(ANSWERS[t])),
+    unanswered: [...threats.filter((t) => ANSWERS[t] && !up.some(ANSWERS[t])), ...unkeyed(n, up).map((x) => `lock:${x.id}`)],
     want: foes.filter((f) => keeps.has(f.id)).length,
     ahead: { shop: null, altar: roomsTo(s.map, n.id, 'altar') }
   }

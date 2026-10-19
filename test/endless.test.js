@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { enterBattle, rulesOf, perform, order, preview, orderable, fork, addStatus, runEffect, stats, computeDamage } from '../src/sim/turns.js'
-import { makeUnit, tileAt, activeSynergies, alive, SLOTS, campOpen, distance } from '../src/sim/unit.js'
+import { makeUnit, tileAt, activeSynergies, alive, SLOTS, campOpen, distance, tileY, deployTile } from '../src/sim/unit.js'
 import { UNITS, CAMP_LIST, SYNERGIES, STATUSES } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, BOARD_14, grant } from './tuned.js'
@@ -16,6 +16,7 @@ import { generateFloor, RANKS } from '../src/sim/map.js'
 import { createRng } from '../src/sim/rng.js'
 import { on, scene, unit, turns } from './scene.js'
 import { fight } from './rooms.js'
+import { basicTurn } from '../src/sim/foe.js'
 
 const E = TUNING.spawn.endless
 const F = TUNING.run.floors
@@ -126,7 +127,26 @@ test('Legion on the foes\' side: your fallen risen against you are not sold back
 })
 function legionReap () {
   let won = null
+  // Each seed, and each cell the golem may take (the camp's layout decides which stands in the ghouls' way): the first
+  // fight won with the golem risen against you.
   for (let i = 0; i < 20 && !won; i++) {
+    const cells = legalActions((() => { const r = setup(i); return r })()).filter((a) => a.type === 'place' && a.slot >= 0).length
+    for (let c = 0; c < cells && !won; c++) {
+      const run = setup(i)
+      const s = run.state
+      const golem = souls(s.party).find((u) => u.id === 'iron_golem')
+      const places = legalActions(run).filter((a) => a.type === 'place' && a.uid === golem.uid && a.slot >= 0)
+      if (!places[c]) break
+      apply(run, places[c])
+      const before = s.essence
+      // End Turn alone: the expert would walk the 1-HP golem out of the ghouls' reach; left alone it stands and falls.
+      fight(run, basicTurn)
+      if (s.phase === 'reap' && run.battle.units.some((u) => u.side === 'foe' && u.shadow)) won = { run, earned: s.essence - before }
+    }
+  }
+  // A run at the fight's door: your souls at level 20, a golem at 1 HP unplaced, five ghouls (their Legion, four undead,
+  // holds through the one your untouched pieces fell before the foes' turn).
+  function setup (i) {
     const run = createRun({ start: START_PARTY, seed: `legion-reap${i}` })
     const s = run.state
     s.party = s.party.map((u) => u.uid === MONARCH_UID ? u : { ...makeUnit(u.id, { uid: u.uid, lvl: 20 }), slot: u.slot })
@@ -134,12 +154,9 @@ function legionReap () {
     Object.assign(golem, { slot: -1, hp: 1 })
     const node = availableNodes(run)[0]
     node.type = 'fight'
-    node.foes = [...Array(4).keys()].map((slot) => ({ id: 'grave_ghoul', lvl: 1, slot }))
+    node.foes = [...Array(5).keys()].map((slot) => ({ id: 'grave_ghoul', lvl: 1, slot }))
     apply(run, { type: 'node', id: node.id })
-    apply(run, legalActions(run).find((a) => a.type === 'place' && a.uid === golem.uid && a.slot >= 0))
-    const before = s.essence
-    fight(run)
-    if (s.phase === 'reap' && run.battle.units.some((u) => u.side === 'foe' && u.shadow)) won = { run, earned: s.essence - before }
+    return run
   }
   assert.ok(won, 'some seed won, the golem risen against it')
   const { run, earned } = won

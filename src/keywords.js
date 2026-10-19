@@ -10,6 +10,8 @@ export const turnsText = (n) => (n === 'battle' ? 'all battle' : n == null ? '' 
 
 // The words, in the order a player meets them.
 export const KEYWORDS = {
+  key: { name: 'Key', sys: 'foe', group: 'Words', line: 'A status laid this turn by another piece of the striker\'s side. A blow keyed to it deals its multiple and spends it: a combo is two pieces\' acts in one turn, never one piece\'s.' },
+  lock: { name: 'Lock', sys: 'foe', group: 'Words', line: 'A kind that takes a share of any blow while none of its keys is on it. One piece lays the key, the rest strike.' },
   piece: { name: 'Piece', sys: 'essence', line: 'One soul on one cell, or four for a 2×2. On your turn each moves up to its Move, then acts once.' },
   road: { name: 'Road', sys: 'foe', line: 'The arrows the foes walk to the Monarch. A foe keeps to its road: how far it comes each turn is its choice, where it goes is the road\'s. Your pieces block it; the dead never do.' },
   wave: { name: 'Wave', sys: 'foe', line: 'More foes over the far edge as a set turn begins: the wave counter says which.' },
@@ -23,7 +25,8 @@ export const KEYWORDS = {
   relic: { name: 'Relic', sys: 'relic', line: `Bought in the Shop: Common, Uncommon, Rare or Legendary. A run relic works for the whole run; a piece relic works only through the soul holding it, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul, given and taken back out of battle.` },
   command: { name: 'Command', sys: 'monarch', line: `How many pieces the Monarch fields: ${TUNING.party.field} to begin, more with each Command relic, at most ${TUNING.army.board}.` },
   turn: { name: 'Turn', sys: 'plan', line: `Yours, then the foes'. Give your pieces their orders, then End Turn: what you left alone strikes with its basic blow (or mends with its basic heal), then the foes move and strike. A battle lasts until no foe is left, the Monarch falls, or nothing of yours but the Monarch stands.` },
-  move: { name: 'Move', sys: 'plan', line: 'How many tiles a piece may go in a turn, before it acts: through your own pieces, never through a foe, never diagonally past a wall\'s corner. A move may be undone until the piece acts.' },
+  energy: { name: 'Energy', sys: 'plan', line: `A piece\'s budget each turn, ${TUNING.energy.base} plus its Move: a tile walked costs ${TUNING.energy.tile}, its basic blow or heal ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}. It walks first and acts once; what it cannot pay for, it cannot do.` },
+  move: { name: 'Move', sys: 'plan', line: 'The tiles a piece may walk and still strike: through your own pieces, never through a foe, never diagonally past a wall\'s corner. A walk may be undone until the piece acts.' },
   skill: { name: 'Skill', sys: 'plan', line: 'Any act but a piece\'s basic blow and basic heal. Only your orders use one: a piece left alone never does. Every skill rests a turn once used.' },
   cooldown: { name: 'Cooldown', sys: 'plan', line: 'The turn a skill rests once used: its pip goes dark, and lights again when it is ready.' },
   counter: { name: 'Counter', sys: 'foe', line: 'A melee blow whose target stands and can reach back is answered at once by its basic melee blow, both sides alike. A ranged blow never is; a Hexed piece never answers; a counter is never countered.' },

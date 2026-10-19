@@ -161,6 +161,7 @@ export const RULES = {
       if (by !== r.holder || !slew(by, side, slain) || !alive(by) || !by.acted || battle.phase !== 'orders' || battle.stage !== 'party') return
       emit(battle, { type: 'rule', rule: 'reapers_hunger', side, actor: by.uid, target: slain.uid })
       by.acted = false
+      by.spent = Math.max(0, by.spent - TUNING.energy.basic)
     }
   },
   // Seven-League Boots: its holder's blows (a counter's too) deal `mul` on a turn it has moved `tiles` or more.

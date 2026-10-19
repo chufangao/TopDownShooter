@@ -222,6 +222,21 @@ export const ANSWERS = {
 // The threat types floor `floor`'s foes can bring that none of `army` answers, in THREATS' order.
 export const unanswered = (floor, army) => routeThreats(floor).filter((t) => ANSWERS[t] && !army.some(ANSWERS[t]))
 
+// Whether a soul lays status `k` with any blow or skill of its kit (a key for a lock).
+export const laysKey = (u, k) => abilitiesOf(u).map(abilityDef).some((a) => a.effects.some((e) => e.op === 'apply_status' && e.status === k))
+// The locked kinds of battle room `node` that `army` holds no key to: each its lock's keys, none of which a soul lays,
+// or every one where fewer than two souls stand (a key and a blow are two pieces' acts). → [{ id, keys }]
+export function unkeyed (node, army) {
+  const foes = [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flat()
+  const out = []
+  for (const id of new Set(foes.map((f) => f.id))) {
+    const lock = unitDef(id).lock
+    if (!lock || out.some((x) => x.id === id)) continue
+    if (army.length < 2 || !lock.keys.some((k) => army.some((u) => laysKey(u, k)))) out.push({ id, keys: lock.keys })
+  }
+  return out
+}
+
 // Elites that answer the army, as the floor opens: where no elite carries a threat type `army` has no answer to, an
 // elite (in a seeded order) is drawn again wanting one, keeping its types; the first draw that has them all is kept.
 export function answerArmy (s, army) {

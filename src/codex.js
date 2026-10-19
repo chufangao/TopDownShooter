@@ -67,7 +67,7 @@ const lasts = (e, s) => turnsText(e.turns ?? s.turns)
 function effectText (e, st) {
   const est = (power) => Math.round(power * st.atk / TUNING.damage.atkDivisor)
   switch (e.op) {
-    case 'damage': return [h('b', null, e.power), ' power ', h('span', { class: 'dim' }, `≈${est(e.power)} pre-DEF`)]
+    case 'damage': return [h('b', null, e.power), ' power ', h('span', { class: 'dim' }, `≈${est(e.power)} pre-DEF`), e.keyed && [' · ×', e.keyed.mul, ' on a ', kw(e.keyed.status, statusDef(e.keyed.status).name), ' ', kw('key')]]
     case 'heal': return [e.self ? 'heals self ' : 'heals ', h('b', null, e.power), h('span', { class: 'dim' }, ` ≈${Math.round(est(e.power) * st.heal.given)} HP`)]
     case 'apply_status': return [kw(e.status, statusDef(e.status).name), ` ${lasts(e, statusDef(e.status))}`]
     case 'cleanse': return `cleanses ${e.count}`
@@ -127,7 +127,7 @@ export function actText (a, st, { range, arise = null, flies = false } = {}) {
   const them = a.shape === 'self' ? 'itself' : many ? 'them' : 'it'
   const lines = []
   for (const e of a.effects) {
-    if (e.op === 'damage') lines.push([`Hits ${who}${who.includes(',') ? ',' : ''} for `, h('b', null, `≈${est(e.power)}`), `${many ? ' each' : ''}.`])
+    if (e.op === 'damage') lines.push([`Hits ${who}${who.includes(',') ? ',' : ''} for `, h('b', null, `≈${est(e.power)}`), `${many ? ' each' : ''}.`, e.keyed && [` ×${e.keyed.mul} on a `, kw(e.keyed.status, statusDef(e.keyed.status).name), ' ', kw('key'), ' laid this turn by another of yours, spent.']])
     else if (e.op === 'heal' && e.self) lines.push(['Heals itself ', h('b', null, `≈${Math.round(est(e.power) * st.heal.given)}`), ' HP.'])
     else if (e.op === 'heal') lines.push([`Heals ${lines.length ? them : who} for `, h('b', null, `≈${Math.round(est(e.power) * st.heal.given)}`), ' HP.'])
     else if (e.op === 'apply_status') {
@@ -329,13 +329,14 @@ const WOUNDS_TEXT = `A win makes every soul whole again, the fallen standing in 
 
 // Reach and melee-only are the sim's own (reachOf, meleeOnly), so a card never disagrees with the battle.
 const moveOf = (u) => Math.round(statsOf(u).move)
+const energyOf = (u) => Math.max(0, Math.floor(TUNING.energy.base + Math.max(0, statsOf(u).move)))
 // "Reach 4 · ranged · Move 2 · 2×2", a foe met's way too; a foe not met keeps it to itself (the bestiary).
 export function reachText (u, foe = false) {
   const d = unitDef(u.id)
   if (d.monarch) return 'Never strikes · never moves'
   const big = sizeOf(u) > 1 && '2×2'
   if (foe && !bestiary.has(u.id)) return ['Reach ?', big].filter(Boolean).join(' · ')
-  return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Move ${moveOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
+  return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Energy ${energyOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
 }
 // The same in a sentence, short: what the reach line, the tags and the board (a piece's intent) do not already say.
 // A kind with a lined blow says so; a foe met, its way.
@@ -345,9 +346,10 @@ export function reachRule (u, foe = false) {
   if (foe && !bestiary.has(u.id)) return 'Not met yet: meet it to learn its reach and way.'
   const r = reachOf(u)
   const line = abilitiesOf(u).map(abilityDef).some(lined) ? ` Its shots stop at the first ${foe ? 'of yours' : 'foe'} on their line of fire.` : ''
-  if (!foe) return `Moves up to ${moveOf(u)} tiles, then acts once; its blows reach ${r} tile${r === 1 ? '' : 's'}.${line}`
+  const lock = d.lock ? ` Locked: takes ${pct(d.lock.share)} of any blow while none of ${d.lock.keys.map((k) => statusDef(k).name).join(', ')} is on it.` : ''
+  if (!foe) return `${energyOf(u)} energy a turn: a tile ${TUNING.energy.tile}, its basic ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}; it walks, then acts once. Its blows reach ${r} tile${r === 1 ? '' : 's'}.${line}${lock}`
   const way = d.temper ? ` Its way: ${temperLine(temperOf(u.id)).toLowerCase()}.` : ''
-  return `${BEHAVIOURS[behaviourOf(u)].desc}${line}${way}`
+  return `${BEHAVIOURS[behaviourOf(u)].desc}${line}${lock}${way}`
 }
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
@@ -1231,7 +1233,7 @@ export function codexView (run = null, { onClose = null, sound = null } = {}) {
 // The primer: what the player may rely on.
 const primer = () => h('ol', { class: 'primer' },
   h('li', null, 'You are the Monarch. You never strike, and ', h('b', { class: 'warn' }, 'if you fall, the run ends'), '.'),
-  h('li', null, 'Place your souls in the camp, then fight ', kw('turn'), ' by turn. ', h('b', null, 'A turn is yours'), ': each ', kw('piece'), ' may ', kw('move'), ', then act once: its basic blow, a ', kw('skill'), ' or a heal. A blow shows its damage and the ', kw('counter'), ' it would draw before you commit; a move can be undone until the piece acts.'),
+  h('li', null, 'Place your souls in the camp, then fight ', kw('turn'), ' by turn. ', h('b', null, 'A turn is yours'), ': each ', kw('piece'), ' has its ', kw('energy'), ` for the turn, ${TUNING.energy.base} plus its Move: a tile walked costs ${TUNING.energy.tile}, its basic blow or heal ${TUNING.energy.basic}, a `, kw('skill'), ` ${TUNING.energy.skill}; it walks, then acts once, and a walk that spends it all leaves nothing to strike with. A blow shows its damage and the `, kw('counter'), ' it would draw before you commit; a walk can be undone until the piece acts.'),
   h('li', null, 'What you leave alone strikes anyway at ', h('b', null, 'End Turn'), ', with its basic blow or heal, never a skill. Every skill rests a turn once used.'),
   h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. Each foe\'s coming turn is drawn on the board as it stands, exactly: where it will stop, whom it will strike and for how much; your moves change it. How far each kind could come and strike you learn by meeting it: a kind met shows its whole reach when tapped.'),
   h('li', null, 'A ranged blow at one target strikes the first piece of the target\'s side on its ', kw('line', 'line of fire'), ', both sides alike; a side never blocks its own shots. Stand a piece between their shooters and the Monarch, and mind who stands in front of the foe you aim at. Melee, blows that strike an area and lobbed blows ignore lines.'),
