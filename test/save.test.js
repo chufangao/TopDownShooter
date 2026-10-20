@@ -1,6 +1,7 @@
 // A run saved and resumed: a save is the run's createRun options and its log, and
 // playing it back rebuilds the run as it stood, mid-battle too, order by order; a save that no longer plays is set
 // aside, never thrown.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRun, apply, legalActions, replay } from '../src/sim/run.js'

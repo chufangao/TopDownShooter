@@ -3,6 +3,7 @@
 // by its features; every fusion it can make weighed by the growth search; the tree's rules out of battle; basic never
 // fuses; and the audit that says what it considered against what it chose, and which rule decided.
 // Functional only: what is generated and considered, never how often it is chosen or how it fares.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRun, apply, availableNodes, souls, join, legalActions, fuseParts, MONARCH_UID, levelOf, battleSetup, START_PARTY } from '../src/sim/run.js'
@@ -10,7 +11,7 @@ import {
   drafts, planFor, LEVELS, AUDIT, resetAudit, auditRecord, spendOptions, policy, fusionOptions, gateOf, BOOK, combosOf, autoplay, formationFeatures,
   survey, pickRoute, roomFeatures, routeConditions, record, withRoute
 } from '../src/sim/autoplay.js'
-import { value, decide, TREES } from '../src/sim/expert.js'
+import { value, decide, TREES, situation, readPlan, formation as targetFormation } from '../src/sim/read.js'
 import { tuned } from './tuned.js'
 import { TUNING } from '../src/tuning.js'
 import { createRng } from '../src/sim/rng.js'
@@ -20,9 +21,7 @@ import {
   LANES
 } from '../src/sim/unit.js'
 import { field, createBattle } from '../src/sim/turns.js'
-import { situation } from '../src/sim/policy.js'
 import { useOutForest, outForestModel } from '../src/sim/outforest.js'
-import { readPlan } from '../src/sim/plan.js'
 import { fight } from './rooms.js'
 
 
@@ -109,8 +108,8 @@ test('the plan\'s draft, in every camp: the first turn\'s blockers already on th
     const draft = drafts(run, want, LEVELS.expert)[0]
     assert.equal(formationFeatures(run, draft).open, 0, c.id)
     const b = createBattle({ ...battleSetup(run, { party: draft.filter((u) => u.slot >= 0) }), quiet: true })
-    const plan = readPlan(b, situation(b), { store: false })
-    const blocks = [...plan.goals].filter(([, g]) => g.role === 'block')
+    const sit = situation(b)
+    const blocks = [...targetFormation(b, readPlan(b, sit))].filter(([, g]) => g.role === 'block')
     assert.ok(blocks.length > 0, `${c.id}: a blocker`)
     for (const [uid, g] of blocks) assert.equal(b.byUid.get(uid).tile, g.tile, `${c.id}: ${b.byUid.get(uid).id} on its choke`)
   }
@@ -218,24 +217,6 @@ test('the autoplayer plays a run to its end at each level, the same seed the sam
     while (again.state.phase !== 'over' && (name === 'basic' || again.state.stats.fights < 3)) apply(again, policy(again, rng, level))
     assert.deepEqual(again.state.log, s.log.slice(0, again.state.log.length), `${name}: the same run again`)
   }
-})
-
-// The learner's hooks pass through the autoplayer to every turn of the expert's: `record` hears
-// each decision in battle, `explore` with epsilon 1 marks each one explored; with epsilon 0 the run is the run.
-test('the autoplayer hands the expert\'s turns the learner\'s hooks: record and explore', () => {
-  const play = (turnOptions) => {
-    const run = createRun({ start: START_PARTY, seed: 'hooks' })
-    const rng = createRng('hooks').stream('autoplay')
-    while (run.state.phase !== 'over' && run.state.stats.fights < 2) apply(run, policy(run, rng, 'expert', turnOptions))
-    return run.state.log
-  }
-  const heard = []
-  const log = play({ record: (b, info) => heard.push([b.turn, info]), explore: { rng: createRng('x').stream('e'), epsilon: 0, top: 3 } })
-  assert.ok(heard.length > 0 && heard.every(([t, info]) => t >= 1 && info.options.length > 0 && info.chosen >= 0 && !info.explored))
-  assert.deepEqual(log, play(null), 'epsilon 0: the same run')
-  const wild = []
-  play({ record: (b, info) => wild.push(info), explore: { rng: createRng('y').stream('e'), epsilon: 1, top: 2 } })
-  assert.ok(wild.length > 0 && wild.every((info) => info.explored && info.chosen < 2))
 })
 
 test('the audit counts what a run considered and chose, and leaves the audit off after', () => {
@@ -500,11 +481,10 @@ test('the survey: where the run stands, its purse and prices, wounds, the target
   }
 })
 
-// No decision of the expert's plays a battle or a turn of the foes: the camp's turn reads its pressure
+// No decision of the expert's out of battle plays a battle or a turn of the foes: the camp's turn reads its pressure
 // (TUNING.policy.press) and a battle played out reads the sim's bound on turns (TUNING.turn.guard), so both are counted
-// while the expert decides, over whole runs (its turns' End Turns are the run's, made by apply, not by the policy; in
-// battle the policy reads the bound only to end a stall, so there only the pressure is counted).
-test('no decision of the expert plays a battle or a turn of the foes, over whole runs', () => {
+// while the expert decides, over whole runs (in battle the solver plays its lines ahead on copies, so there neither is).
+test('no decision of the expert out of battle plays a battle or a turn of the foes, over whole runs', () => {
   const reads = { press: 0, guard: 0 }
   const spy = (o, key, count) => {
     const real = o[key]
@@ -520,8 +500,7 @@ test('no decision of the expert plays a battle or a turn of the foes, over whole
         const phase = run.state.phase
         reads.press = reads.guard = 0
         const a = policy(run, rng, 'expert')
-        assert.equal(reads.press, 0, `${seed} ${phase}: the camp's pressure read`)
-        if (phase !== 'battle') assert.equal(reads.guard, 0, `${seed} ${phase}: a battle played`)
+        if (phase !== 'battle') assert.deepEqual([reads.press, reads.guard], [0, 0], `${seed} ${phase}: the camp's pressure read, or a battle played`)
         apply(run, a)
       }
     }

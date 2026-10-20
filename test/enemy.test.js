@@ -1,5 +1,6 @@
 // The enemy as an army (slice 5): late pairs, foe captains with cohorts, behaviours hinted in flavour, waves,
 // sieges, the Sovereign's court and its Grave Tide, the depth threat.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus, roadOf } from '../src/sim/turns.js'
@@ -9,7 +10,7 @@ import {
 } from '../src/sim/run.js'
 import { generateFloor, RANKS, SIEGE_RANK } from '../src/sim/map.js'
 import { policy, LEVELS } from '../src/sim/autoplay.js'
-import { foeTurn, danger, options } from '../src/sim/policy.js'
+import { foeTurn, danger, options } from '../src/sim/foe.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
@@ -528,7 +529,7 @@ test('the deep floors play: every legal action applying on the way, every deep f
   const run = createRun({ start: START_PARTY, seed: 'rich' })
   const s = run.state
   const rng = createRng(s.seed).stream('autoplay')
-  const STEADY = { ...LEVELS.basic, wounds: true, turns: 'expert' }
+  const STEADY = { ...LEVELS.basic, wounds: true, turns: 'solver' }
   const fought = []
   // Each floor, the relics a rich run might have taken (outside the log, as the purse): HP and three Command.
   let granted = 0

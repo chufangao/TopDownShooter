@@ -1213,7 +1213,7 @@ export const UNIT_LIST = [
 
 // An ability is ops, a shape and an anim; a new one that composes them is one record.
 //   `effects`: damage (`power`); heal (`power`, or `pct` of max HP; `self` mends the caster); cleanse (`count` of `tag`);
-//   apply_status (`status`, `turns` where not the status's own; it always lands); raise (corpses as shadows); cooldown
+//   apply_status (`status`, `turns` where not the status's own; none on a miss); raise (corpses as shadows); cooldown
 //   (`amount` turns on every cooldown of its target). `shape`: single, ally, self, row, column (its lane), blast (the
 //   target and its neighbours), all, all_allies (within `range`), corpse (Arise's).
 //   Reach, from the caster's footprint: ranged its `range` (none: the whole board); melee (`melee`) its `range`, else its
@@ -2364,9 +2364,10 @@ const STATUS_LIST = [
     mods: [{ path: 'damage.taken', op: 'mul', v: 0.6 }]
   },
   {
-    // Snare's: a foe held where it stands for a turn (Move set to 0, whatever adds to it).
+    // Snare's: a foe held where it stands for a turn (Move set to 0, whatever adds to it); its energy is as if free, so
+    // it still pays any act (turns.js energyOf).
     id: 'rooted',
-    desc: 'Cannot move.',
+    desc: 'Cannot move; keeps its energy.',
     name: 'Rooted',
     tags: ['debuff'],
     colour: '#9a7a4a',
@@ -2448,7 +2449,7 @@ const ECHO_FULL = 8
 export const SYNERGIES = [
   { id: 'undead_4', name: 'Undead 4', desc: 'Legion: every foe slain rises at once as a shadow on your side, past Arise\'s reach and tier (never a boss, a shadow or a Monarch), while your side has room on the board for it.', needs: { kin: { undead: 4 } }, rule: 'legion' },
   { id: 'drake_4', name: 'Drake 4', desc: 'Dragonfire: every single-target blow of yours bursts, striking its target and every foe next to it.', needs: { kin: { drake: 4 } }, rule: 'dragonfire' },
-  { id: 'fae_4', name: 'Fae 4', desc: 'Mirage: each turn, the first blow each foe would land on one of yours strikes only an illusion and does no harm there (the rest of a blast, and an echo, land).', needs: { kin: { fae: 4 } }, rule: 'mirage' },
+  { id: 'fae_4', name: 'Fae 4', desc: 'Mirage: the first blow each foe would land on one of yours in a battle strikes only an illusion and lays nothing (the rest of a blast, and an echo, land).', needs: { kin: { fae: 4 } }, rule: 'mirage' },
   { id: 'insect_4', name: 'Insect 4', desc: 'Frenzy: one of yours that slays a foe has every skill ready again at once.', needs: { kin: { insect: 4 } }, rule: 'frenzy' },
   { id: 'construct_4', name: 'Construct 4', desc: `Last Stand: the first time each of yours would fall in a battle, to anything that harms it (a burn and a bleed too), it stands at 1 HP instead and heals ${pctOf(TUNING.lastStand.heal)} of its max HP (never the Monarch).`, needs: { kin: { construct: 4 } }, rule: 'last_stand' },
   { id: 'vanguard_4', name: 'Vanguard 4', desc: `Bodyguard: a single-target blow at one of yours that is not a Vanguard lands instead on a Vanguard of yours standing next to it, and your Vanguards take ${pctOf(1 - TUNING.bodyguard.taken)} less damage.`, needs: { role: { vanguard: 4 } }, rule: 'bodyguard' },

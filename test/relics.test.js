@@ -2,10 +2,12 @@
 // relic works only through the soul holding it (its mods, its moments, a Legendary's rule scoped to it), at most
 // TUNING.relic.perPiece a soul, given and taken back out of battle; Arise a skill its holder learns. The Monarch's HP and
 // Command are run relics alone.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, enterBattle, order, playOut, playTurns, preview, perform, stats, corpses, ariseOf as ariseIn, synergiesOf, timelineHash, legalOrders } from '../src/sim/turns.js'
-import { expertTurn, basicTurn } from '../src/sim/policy.js'
+import { basicTurn } from '../src/sim/foe.js'
+import { solverTurn } from '../src/sim/solver.js'
 import {
   createRun, apply, battleSetup, fieldCap, rosterCap, souls, monarchOf, fielded, legalActions, join, reapedShadows, encounter,
   relicCount, ariseHeld, relicWeights, replay, tierCost, ariseOf, monarchHp, commandOf, isRunPath, floorPrice, shopOffers, relicTier,
@@ -15,7 +17,7 @@ import { policy, planFor, LEVELS, autoplay, offerState } from '../src/sim/autopl
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, relicMod } from './tuned.js'
-import { RELIC_LIST, RELICS } from '../src/content.js'
+import { RELIC_LIST, RELICS, UNITS } from '../src/content.js'
 import { makeUnit, alive, baseStats, footprint } from '../src/sim/unit.js'
 import { on, scene as sceneOf, slay, unit, turns } from './scene.js'
 import { visit, win } from './rooms.js'
@@ -329,8 +331,9 @@ test('Briar Mail: when its holder is struck, its attacker takes 12 true damage, 
     { type: 'trigger', relic: 'briar_mail', on: 'struck', unit: 1 },
     { type: 'damage', actor: 1, target: 10, damage: RELICS.briar_mail.effects[0].amount, ability: null }
   ])
-  // A Golem (DEF 30, at level 9) takes as much as the Wisp did; the knight's counter follows.
-  const b = scene([on('tomb_knight', 1, 'party', 3, 5, 9, [0, 0], ['briar_mail']), on('iron_golem', 10, 'foe', 3, 6, 9), on('iron_golem', 11, 'foe', 6, 10)])
+  // A foe Knight (DEF 22, at level 9) takes as much as the Wisp did; the knight's counter follows. (A locked foe's lock
+  // would cut it: keys.test.js.)
+  const b = scene([on('tomb_knight', 1, 'party', 3, 5, 9, [0, 0], ['briar_mail']), on('tomb_knight', 10, 'foe', 3, 6, 9), on('iron_golem', 11, 'foe', 6, 10)])
   const ev = after(strike(b, 10, 1), (e) => e.type === 'trigger' && e.relic === 'briar_mail')
   assert.deepEqual([ev[0].type, ev[0].target, ev[0].damage], ['damage', 10, 12])
   const dead = scene([on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['briar_mail']), on('will_o_wisp', 10, 'foe', 3, 4, 9), on('iron_golem', 11, 'foe', 6, 10)])
@@ -395,7 +398,8 @@ test('the twelve at their edges: a banner on your shadows and summons of its kin
   assert.ok(answer > 0, 'the Golem answers')
   const then = events.slice(answer)
   assert.deepEqual(then.filter((e) => e.type === 'trigger').map((e) => e.relic), ['briar_mail'])
-  assert.deepEqual(then.filter((e) => e.type === 'damage' && e.actor === 1).map((e) => [e.target, e.damage]), [[10, RELICS.briar_mail.effects[0].amount]])
+  // Its 12 at the Golem's lock's share: no key on it.
+  assert.deepEqual(then.filter((e) => e.type === 'damage' && e.actor === 1).map((e) => [e.target, e.damage]), [[10, Math.round(RELICS.briar_mail.effects[0].amount * UNITS.iron_golem.lock.share)]])
   // Quicksilver on a holder whose skills are ready: nothing to bring sooner, none below 0.
   const quick = blowing(['quicksilver'])
   assert.ok(quick.events.some((e) => e.type === 'trigger' && e.relic === 'quicksilver'))
@@ -536,7 +540,7 @@ test('every Legendary, held alone, together and twice over, plays deterministica
       s.relics = [...legend, 'court_of_bone']
       caps.forEach((u, k) => { u.relics = legend[k] ? [legend[k]] : [] })
       const setup = battleSetup(run)
-      for (const policy of [basicTurn, expertTurn]) {
+      for (const policy of [basicTurn, solverTurn]) {
         const b = createBattle(setup)
         while (!b.over) {
           const from = b.events.length

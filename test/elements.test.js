@@ -5,9 +5,9 @@
 // Hunger), a charge (Seven-League Boots), a glass Monarch (Last Candle) and a horde that bursts (Grave Powder).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { order, perform, applyDamage, addStatus, stats, legalOrders, hexed } from '../src/sim/turns.js'
+import { order, perform, applyDamage, addStatus, stats, legalOrders, hexed, enterBattle } from '../src/sim/turns.js'
 import { RELICS, STATUSES } from '../src/content.js'
-import { alive } from '../src/sim/unit.js'
+import { alive, makeUnit, tileAt } from '../src/sim/unit.js'
 import { on, scene as sceneOf, unit } from './scene.js'
 
 // A battle of units on tiles, no summons called; the far foe keeps every battle from ending on a wipe.
@@ -59,9 +59,10 @@ test('Butcher\'s Hook: a kill gives its holder Bloodlust, +6% ATK a stack for th
   assert.equal(knight.statuses[0].stacks, STATUSES.bloodlust.stacks)
 })
 
-// The payoffs, each on a Tomb Knight's basic at an Iron Golem (DEF 30: the relic's damage is true, DEF nothing to it).
+// The payoffs, each on a Tomb Knight's basic at a foe Tomb Knight (DEF 22: the relic's damage is true, DEF nothing to
+// it; no lock, which would cut it: keys.test.js).
 const struck = (relic, lay) => {
-  const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 3, 9, [0, 0], [relic]), on('iron_golem', 10, 'foe', 3, 4, 9)])
+  const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 3, 9, [0, 0], [relic]), on('tomb_knight', 10, 'foe', 3, 4, 9)])
   const golem = unit(b, 10)
   lay(b, golem)
   const hp = golem.hp
@@ -157,7 +158,7 @@ test('Last Candle: while the Monarch is below half, its holder is Desperate as e
 
 test('Grave Powder: while its holder stands, a shadow of yours that falls bursts, 20 true damage to every foe beside it, the holder\'s blow', () => {
   const field = () => {
-    const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['grave_powder']), on('grave_ghoul', 2, 'party', 3, 4), on('iron_golem', 10, 'foe', 3, 5, 9), on('grave_ghoul', 11, 'foe', 2, 5, 9), on('will_o_wisp', 12, 'foe', 3, 8, 9)])
+    const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['grave_powder']), on('grave_ghoul', 2, 'party', 3, 4), on('tomb_knight', 10, 'foe', 3, 5, 9), on('grave_ghoul', 11, 'foe', 2, 5, 9), on('will_o_wisp', 12, 'foe', 3, 8, 9)])
     unit(b, 2).shadow = true
     return b
   }
@@ -178,4 +179,85 @@ test('Grave Powder: while its holder stands, a shadow of yours that falls bursts
   const since = soul.events.length
   applyDamage(soul, unit(soul, 2), 9999, { actor: unit(soul, 10) })
   assert.deepEqual(dealt(soul.events.slice(since), 1), [])
+})
+
+// ── a miss lays nothing ──────────────────────────────────────────────────────────────────────────
+
+// Four fae foes, Mirage on their side (rules.js mirage): each piece's first blow at them in the battle misses. The
+// thornling in front is too tough to fall.
+const faeFoes = (party) => {
+  const b = scene([monarch(), ...party, on('thornling', 9, 'foe', 3, 6, 10), on('frost_sprite', 10, 'foe', 0, 9, 1), on('will_o_wisp', 11, 'foe', 1, 9, 1), on('frost_sprite', 12, 'foe', 5, 9, 1)])
+  unit(b, 9).hp = unit(b, 9).maxHp = 9999
+  return b
+}
+// Piece `uid` may act again this turn (the tests' shortcut past a turn's end).
+const again = (b, uid) => Object.assign(unit(b, uid), { acted: false, spent: 0 })
+const kinds = (events, type) => events.filter((e) => e.type === type)
+
+test('Mirage foils each foe\'s first blow a battle and not its second; the miss lays no status and fires no relic, the hit both', () => {
+  const b = faeFoes([on('bone_chanter', 1, 'party', 3, 3, 10, [0, 0], ['snare'])])
+  const thornling = unit(b, 9)
+  // The Marrow Bolt lays Brittle and the Snare Roots, but on a blow that lands.
+  const miss = basic(b, 1, 9)
+  assert.deepEqual(kinds(miss, 'miss').map((e) => [e.actor, e.target]), [[1, 9]])
+  assert.deepEqual([kinds(miss, 'damage'), kinds(miss, 'status'), kinds(miss, 'trigger')], [[], [], []])
+  assert.deepEqual(thornling.statuses, [])
+  again(b, 1)
+  const hit = basic(b, 1, 9)
+  assert.ok(kinds(hit, 'damage').some((e) => e.actor === 1 && e.target === 9 && e.damage > 0), 'the second lands')
+  assert.ok(!kinds(hit, 'miss').length)
+  assert.deepEqual(kinds(hit, 'trigger').map((e) => e.relic), ['snare'])
+  assert.deepEqual(thornling.statuses.map((s) => s.id).sort(), ['brittle', 'rooted'])
+  // Turns on, the chanter's blows still land: a foe's one first blow, the battle's.
+  b.turn++
+  again(b, 1)
+  assert.ok(kinds(basic(b, 1, 9), 'damage').some((e) => e.actor === 1 && e.damage > 0))
+  assert.equal(b.events.filter((e) => e.type === 'rule' && e.rule === 'mirage').length, 1)
+})
+
+test('a blast at a Mirage side misses one target and hits the rest, each on its own: the missed one alone takes nothing', () => {
+  // The wyvern's Cinder Breath (Burning on whom it hits) at the thornling, two more fae beside it; its Firebrand sets the
+  // one it strikes Burning.
+  const b = faeFoes([on('ash_wyvern', 1, 'party', 3, 4, 10, [0, 0], ['firebrand'])])
+  for (const [uid, x] of [[13, 2], [14, 4]]) enterBattle(b, { ...makeUnit('thornling', { uid, lvl: 10 }), side: 'foe', tile: tileAt(x, 6) })
+  const events = order(b, { type: 'act', uid: 1, ability: 'cinder_breath', target: 9 })
+  assert.deepEqual(kinds(events, 'miss').map((e) => e.target), [9], 'the first blow, on the one it strikes')
+  assert.deepEqual(kinds(events, 'damage').filter((e) => e.actor === 1).map((e) => e.target), [13, 14])
+  const burning = (uid) => unit(b, uid).statuses.find((s) => s.id === 'burning')?.stacks ?? 0
+  // The blow landed on the rest: the Firebrand is told, but lays nothing on the one it missed.
+  assert.deepEqual(kinds(events, 'trigger').map((e) => e.relic), ['firebrand'])
+  assert.deepEqual([9, 13, 14].map(burning), [0, 1, 1])
+})
+
+test('a status-only act at a Mirage side lands and leaves the foe\'s first blow to be foiled; a blow at one of yours that misses fires none of your relics, and is countered', () => {
+  // An act that lays only a status (none in the content yet): it lands, and Mirage waits for the chanter's first damage.
+  const b = faeFoes([on('bone_chanter', 1, 'party', 3, 3, 10)])
+  const mark = { id: 'test_mark', shape: 'single', range: 9, effects: [{ op: 'apply_status', status: 'withered' }] }
+  perform(b, unit(b, 1), mark, unit(b, 9))
+  assert.ok(unit(b, 9).statuses.some((s) => s.id === 'withered'))
+  again(b, 1)
+  assert.ok(kinds(basic(b, 1, 9), 'miss').length, 'its first damage is foiled')
+  // Mirage on your side: a thornling of yours holding Grave Bell (its attacker Withered when it is struck), and its
+  // counter (a melee blow at it answered).
+  const c = scene([
+    monarch(), on('thornling', 1, 'party', 3, 4, 10, [0, 0], ['grave_bell']), on('frost_sprite', 2, 'party', 1, 2), on('will_o_wisp', 3, 'party', 2, 2), on('frost_sprite', 4, 'party', 4, 2),
+    on('tomb_knight', 10, 'foe', 3, 5, 10)
+  ])
+  const knight = unit(c, 10)
+  const strike = () => {
+    const from = c.events.length
+    c.stage = 'foes'
+    knight.acted = false
+    perform(c, knight, knight.basic, unit(c, 1))
+    c.stage = 'party'
+    return c.events.slice(from)
+  }
+  const missed = strike()
+  assert.ok(kinds(missed, 'miss').some((e) => e.actor === 10 && e.target === 1))
+  assert.deepEqual(kinds(missed, 'trigger'), [])
+  assert.ok(missed.some((e) => e.type === 'action' && e.actor === 1 && e.counter), 'countered all the same')
+  assert.ok(!knight.statuses.some((s) => s.id === 'withered'))
+  const struck = strike()
+  assert.deepEqual(kinds(struck, 'trigger').map((e) => e.relic), ['grave_bell'])
+  assert.ok(knight.statuses.some((s) => s.id === 'withered'))
 })

@@ -100,9 +100,10 @@ const watches = (events) => events.filter((e) => e.type === 'rule' && e.rule ===
 const tough = (b, ...uids) => { for (const uid of uids) unit(b, uid).hp = unit(b, uid).maxHp = 999 }
 
 test('Momentum: 6 true damage a tile its holder moved this turn, none standing still; an Undo and a second walk count the second alone', () => {
-  // A Frost Sprite (Move 3, Frost Lance at 3) shoots a Golem at (3, 6) from (3, 3), having walked there from (3, y).
+  // A Frost Sprite (Move 3, Frost Lance at 3) shoots a Tomb Knight at (3, 6) from (3, 3), having walked there from (3,
+  // y); no lock to cut what the relic deals (keys.test.js).
   const shoot = (y) => {
-    const b = board([on('frost_sprite', 1, 'party', 3, y, 3, [0, 0], ['momentum']), on('iron_golem', 10, 'foe', 3, 6, 9)])
+    const b = board([on('frost_sprite', 1, 'party', 3, y, 3, [0, 0], ['momentum']), on('tomb_knight', 10, 'foe', 3, 6, 9)])
     if (y !== 3) walkTo(b, 1, 3, 3)
     assert.equal(unit(b, 1).moved, 3 - y)
     return dealt(basic(b, 1, 10), 1)
@@ -111,7 +112,7 @@ test('Momentum: 6 true damage a tile its holder moved this turn, none standing s
   assert.deepEqual(shoot(2), [[10, 6]])
   assert.deepEqual(shoot(0), [[10, 18]])
   // Three tiles, undone, then two: the blow counts the two, once.
-  const b = board([on('frost_sprite', 1, 'party', 3, 1, 3, [0, 0], ['momentum']), on('iron_golem', 10, 'foe', 3, 6, 9)])
+  const b = board([on('frost_sprite', 1, 'party', 3, 1, 3, [0, 0], ['momentum']), on('tomb_knight', 10, 'foe', 3, 6, 9)])
   walkTo(b, 1, 3, 4)
   order(b, { type: 'undo', uid: 1 })
   assert.equal(unit(b, 1).moved, 0)

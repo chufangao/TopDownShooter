@@ -1,6 +1,6 @@
 // The autoplayer's players out of battle, for tests and balance runs: a policy that picks one action at a time for
 // apply(). Basic plays by rules of thumb; the expert reads the run once a decision (survey), lets the tree of hard rules
-// (expert.js TREES) force or filter its options and the weights score the rest, and never plays ahead to decide.
+// (read.js TREES) force or filter its options and the weights score the rest, and never plays ahead to decide.
 import fs from 'node:fs'
 import { createRng } from './rng.js'
 import {
@@ -11,15 +11,15 @@ import {
 } from './unit.js'
 import { roadsTo } from './field.js'
 import { createBattle, legalOrders, stalled } from './turns.js'
-import { expertTurn, basicTurn, brief, situation } from './policy.js'
+import { basicTurn } from './foe.js'
+import { solverTurn } from './solver.js'
 import {
   outForestModel, outDecides, chooseOut, opensBoard, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS,
   OUT_ROLES, OUT_ROOMS, PREP_SIT_KEYS, PREP_CAND_KEYS, FORMATION_KEYS, OPENING_KEYS, OPENING_ROOM_KEYS
 } from './outforest.js'
-import { deployment } from './plan.js'
 import {
-  value, decide, standing as keysOf, outranks, TREES, leafOf, checkModel, pathName, conditions, shippedPart
-} from './expert.js'
+  value, decide, standing as keysOf, outranks, TREES, leafOf, checkTree, pathName, conditions, situation, deployment, shippedPart
+} from './read.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
@@ -40,16 +40,17 @@ import {
 // `more` the expert's zone drafts too; `turns` its turn policy in battle (TURNS).
 export const LEVELS = {
   basic: { search: 0, wounds: false, route: false, spend: false, fuse: false, turns: 'basic' },
-  expert: { search: 120, wounds: true, route: true, spend: true, fuse: true, more: true, book: true, turns: 'expert' }
+  expert: { search: 120, wounds: true, route: true, spend: true, fuse: true, more: true, book: true, turns: 'solver' }
 }
-// The turn policies by name; `still` is the expert's that never moves a piece (the moves ablation's).
+// The turn policies by name, the battle players a level plugs in: `solver` the beam search's line (solver.js), `still`
+// the same never moving a piece (the moves ablation's).
 export const TURNS = {
   basic: basicTurn,
-  expert: (b, o) => expertTurn(b, o),
-  still: (b, o) => expertTurn(b, { ...o, moving: false })
+  solver: (b, o) => solverTurn(b, o),
+  still: (b, o) => solverTurn(b, { ...o, moving: false })
 }
 export const turnsOf = (L) => ablatedTurns(L.turns ?? 'basic', L.ablate)
-export const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns !== 'expert' ? turns : m === 'moves' ? 'still' : turns)
+export const ablatedTurns = (turns, m) => (m === 'orders' ? 'basic' : turns === 'solver' && m === 'moves' ? 'still' : turns)
 
 // ── ablation: the expert with one mechanic taken away ─────────────────────────────────────────────
 
@@ -357,7 +358,7 @@ export function pickRoute (run, sit = survey(run)) {
 
 // ── the learned route ─────────────────────────────────────────────────────────────────────────────
 
-// The route's model tree (expert.json's `route`): splits on the run's situation (routeConditions), each leaf its weights
+// The route's model tree (src/sim/route.json): splits on the run's situation (routeConditions), each leaf its weights
 // over a room's features (routeFeatures); TREES.route's rules first only where it keeps them (`hand`).
 export const ROUTE_LEARNED = true
 let ROUTE_MODEL
@@ -367,12 +368,12 @@ export function routeModel () {
   ROUTE_MODEL = null
   if (!ROUTE_LEARNED) return null
   const json = shippedRoute()
-  ROUTE_MODEL = json ? checkModel(json) : null
+  ROUTE_MODEL = json ? checkTree(json) : null
   return ROUTE_MODEL
 }
 // Installs route `model` (false: the hand-built route; undefined: back to the shipped one). → the one in use
 export function useRoute (model) {
-  ROUTE_MODEL = model === undefined ? undefined : model ? checkModel(model) : null
+  ROUTE_MODEL = model === undefined ? undefined : model ? checkTree(model) : null
   return routeModel()
 }
 
@@ -2463,10 +2464,7 @@ function battleOrder (run, L, turnOptions = null) {
   if (stalled(b)) return { type: 'stall' }
   let p = planned.get(b)
   const stale = !p || p.turn !== b.turn || !p.orders.length || (p.orders[0].type !== 'end' && !legalOrders(b).some((a) => same(a, p.orders[0])))
-  if (stale) {
-    const note = audited(run) ? (r) => noteRule(run, r.decision, r, r.sit ? brief(r.sit) : `turn ${b.turn}`) : null
-    planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b, { ...turnOptions, note }) }))
-  }
+  if (stale) planned.set(b, (p = { turn: b.turn, orders: TURNS[turnsOf(L)](b, { ...turnOptions }) }))
   return p.orders.shift()
 }
 

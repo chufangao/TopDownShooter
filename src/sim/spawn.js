@@ -1,11 +1,11 @@
 // The foes' side of the run: each battle room's foes (drawRoom: formations, waves, captains and courts), the routes'
 // threats, the bosses and the elites that answer the army, and how the foes grow floor by floor.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, unitDef, abilityDef, statusDef, THREATS } from '../content.js'
+import { UNIT_LIST, unitDef, abilityDef, statusDef, relicDef, THREATS } from '../content.js'
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CENTRE_OUT, nearestOpen, colOf, FORMATION, SLOTS, meleeOnly, abilitiesOf, isBlow,
-  isAllyShape
+  isAllyShape, summonsOf, summonedOf
 } from './unit.js'
 import { lined, basicOf } from './turns.js'
 import { nodeOf, RANKS } from './map.js'
@@ -222,17 +222,22 @@ export const ANSWERS = {
 // The threat types floor `floor`'s foes can bring that none of `army` answers, in THREATS' order.
 export const unanswered = (floor, army) => routeThreats(floor).filter((t) => ANSWERS[t] && !army.some(ANSWERS[t]))
 
-// Whether a soul lays status `k` with any blow or skill of its kit (a key for a lock).
-export const laysKey = (u, k) => abilitiesOf(u).map(abilityDef).some((a) => a.effects.some((e) => e.op === 'apply_status' && e.status === k))
+// Whether a soul lays status `k` on a foe (a key for a lock): with any blow or skill of its kit, a piece relic it holds
+// (Firebrand, Hunter's Mark), or the kit of its summons.
+export const laysKey = (u, k) => kitLays(u, k) || (u.relics ?? []).some((id) => relicDef(id).effects?.some((e) => e.op === 'apply_status' && e.status === k && (e.to === 'other' || e.to === 'foes'))) ||
+  (summonsOf(u) > 0 && kitLays({ id: summonedOf(u), tracks: u.tracks }, k))
+const kitLays = (u, k) => abilitiesOf(u).map(abilityDef).some((a) => a.effects.some((e) => e.op === 'apply_status' && e.status === k))
 // The locked kinds of battle room `node` that `army` holds no key to: each its lock's keys, none of which a soul lays,
-// or every one where fewer than two souls stand (a key and a blow are two pieces' acts). → [{ id, keys }]
+// or every one where fewer than two pieces stand, a soul's summons among them (a key and a blow are two pieces' acts).
+// → [{ id, keys }]
 export function unkeyed (node, army) {
   const foes = [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flat()
+  const pieces = army.reduce((n, u) => n + 1 + summonsOf(u), 0)
   const out = []
   for (const id of new Set(foes.map((f) => f.id))) {
     const lock = unitDef(id).lock
-    if (!lock || out.some((x) => x.id === id)) continue
-    if (army.length < 2 || !lock.keys.some((k) => army.some((u) => laysKey(u, k)))) out.push({ id, keys: lock.keys })
+    if (!lock) continue
+    if (pieces < 2 || !lock.keys.some((k) => army.some((u) => laysKey(u, k)))) out.push({ id, keys: lock.keys })
   }
   return out
 }

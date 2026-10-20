@@ -210,49 +210,39 @@ test('the ladder report\'s shape: the levels a --ascension names, a job a rung a
   assert.deepEqual(ascensionsOf('0'), [0])
   assert.deepEqual(ascensionsOf('0,5'), [0, 5])
   for (const bad of [String(TOP + 1), '-1', 'x', '1.5', '']) assert.throws(() => ascensionsOf(bad), /ascension/)
-  assert.deepEqual(RUNGS, ['basic', 'calc', 'expert', 'teacher'])
-  const jobs = ladderJobs({ ascensions: [0, 3], rungs: ['basic', 'calc'], runs: 2, seed: 'l' })
-  assert.deepEqual(jobs.map((j) => [j.ascension, j.player, j.seed]), [[0, 'basic', 'l-0'], [0, 'basic', 'l-1'], [0, 'calc', 'l-0'], [0, 'calc', 'l-1'], [3, 'basic', 'l-0'], [3, 'basic', 'l-1'], [3, 'calc', 'l-0'], [3, 'calc', 'l-1']])
+  assert.deepEqual(RUNGS, ['basic', 'expert'])
+  const jobs = ladderJobs({ ascensions: [0, 3], runs: 2, seed: 'l' })
+  assert.deepEqual(jobs.map((j) => [j.ascension, j.player, j.seed]), [[0, 'basic', 'l-0'], [0, 'basic', 'l-1'], [0, 'expert', 'l-0'], [0, 'expert', 'l-1'], [3, 'basic', 'l-0'], [3, 'basic', 'l-1'], [3, 'expert', 'l-0'], [3, 'expert', 'l-1']])
   assert.ok(jobs.every((j) => j.ladder))
-  // Records as the rungs leave them (only the fields the table reads): at 0 the order kept, at 5 the expert below the
-  // calculator on one seed.
+  // Records as the rungs leave them (only the fields the table reads): at 0 the order kept, at 5 the expert below basic.
   const rec = (player, ascension, i, result, floor, progress, battles) => ({ seed: `l-${i}`, player, ascension, result, floor, progress, battles: Array.from({ length: battles }, (_, k) => ({ won: k < battles - 1 || result === 'victory' })), secs: 1 })
   const records = [
     rec('basic', 0, 0, 'defeat', 1, 0.05, 2), rec('basic', 0, 1, 'defeat', 1, 0.04, 2),
-    rec('calc', 0, 0, 'defeat', 2, 0.3, 12), rec('calc', 0, 1, 'defeat', 1, 0.1, 6),
     rec('expert', 0, 0, 'victory', F, 1, 50), rec('expert', 0, 1, 'defeat', F, 0.8, 40),
-    rec('basic', 5, 0, 'defeat', 1, 0.02, 1), rec('basic', 5, 1, 'defeat', 1, 0.02, 1),
-    rec('calc', 5, 0, 'defeat', 1, 0.2, 4), rec('calc', 5, 1, 'defeat', 1, 0.1, 3),
+    rec('basic', 5, 0, 'defeat', 1, 0.2, 4), rec('basic', 5, 1, 'defeat', 1, 0.1, 3),
     rec('expert', 5, 0, 'defeat', 1, 0.1, 3), rec('expert', 5, 1, 'defeat', 1, 0.15, 4)
   ]
-  const t = ladderTable(records.slice().reverse(), { ascensions: [0, 5], rungs: ['basic', 'calc', 'expert'], runs: 2, seed: 'l' })
-  assert.deepEqual(t.rows.map((r) => [r.ascension, r.rung, r.below]), [[0, 'basic', null], [0, 'calc', 'basic'], [0, 'expert', 'calc'], [5, 'basic', null], [5, 'calc', 'basic'], [5, 'expert', 'calc']])
-  const ex = t.rows[2]
+  const t = ladderTable(records.slice().reverse(), { ascensions: [0, 5], rungs: RUNGS, runs: 2, seed: 'l' })
+  assert.deepEqual(t.rows.map((r) => [r.ascension, r.rung, r.below]), [[0, 'basic', null], [0, 'expert', 'basic'], [5, 'basic', null], [5, 'expert', 'basic']])
+  const ex = t.rows[1]
   assert.deepEqual([ex.runs, ex.clears, ex.deaths, ex.battles, ex.won, ex.lost], [2, 1, Array.from({ length: F }, (_, f) => (f === F - 1 ? 1 : 0)), 45, 1, 0])
   near(ex.progress, 90, 'progress in points')
-  near(ex.diff, 70, 'the gap to the calculator')
+  near(ex.diff, 85.5, 'the gap to basic')
   assert.ok(t.rows[0].diff === null && t.rows[0].won === null)
   assert.deepEqual(t.ordered, { 0: true, 5: false })
   const lines = ladderLines(t)
   assert.equal(lines.length, 2 + t.rows.length + 1)
   assert.ok(lines[1].includes(`died fl ${Array.from({ length: F }, (_, f) => f + 1).join('/')} `), `the run's floors: ${lines[1]}`)
   assert.ok(lines[0].includes('ascension 0, 5'))
-  assert.ok(lines.some((l) => l.includes('calc → expert: +1 −0, +70.0')))
+  assert.ok(lines.some((l) => l.includes('basic → expert: +1 −0, +85.5')))
   assert.ok(lines.at(-1).includes('0 yes') && lines.at(-1).includes('5 NO'))
 })
 
-test('a ladder run at a level: basic\'s a record\'s, the calculator\'s its own, its readers put back after', async () => {
-  const B = TUNING.expert.battle
-  const was = [B.brink, B.peril]
-  const calc = await ladderRecord({ seed: 'lad-0', player: 'calc', ascension: TOP })
-  assert.deepEqual([B.brink, B.peril], was, 'the calculator\'s plain readers are its run\'s alone')
-  assert.deepEqual([calc.player, calc.ascension, calc.seed], ['calc', TOP, 'lad-0'])
-  assert.ok(calc.battles.length > 0 && calc.battles.every((b) => typeof b.won === 'boolean' && b.t > 0))
-  assert.ok(calc.progress >= 0 && calc.progress <= 1 && Number.isInteger(calc.floor))
+test('a ladder run at a level: its rung\'s record, the rung and level named; no rung but the ladder\'s', async () => {
   const basic = await ladderRecord({ seed: 'lad-0', player: 'basic', ascension: TOP })
   assert.deepEqual([basic.player, basic.ascension], ['basic', TOP])
   assert.ok(Array.isArray(basic.battles) && 'progress' in basic && 'result' in basic)
-  await assert.rejects(ladderRecord({ seed: 'lad-0', player: 'nobody' }), /unknown rung/)
+  for (const player of ['nobody', 'calc', 'teacher']) await assert.rejects(ladderRecord({ seed: 'lad-0', player }), /unknown rung/)
 })
 
 // `--ascension <level>` plays any report at that level (autoplay.js's CLI): a paired report's runs and an audit's are

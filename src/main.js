@@ -9,7 +9,7 @@ import {
 } from './sim/run.js'
 import { saveOf, restore, SAVE_VERSION } from './sim/save.js'
 import { recordOf, readBook, withRun } from './sim/history.js'
-import { stats, ariseOf, targetsFrom, canAct } from './sim/turns.js'
+import { stats, ariseOf, targetsFrom, canAct, stride } from './sim/turns.js'
 import { deployTile } from './sim/unit.js'
 import { RELICS, TUTORIAL } from './content.js'
 import {
@@ -398,7 +398,8 @@ function hintFor () {
     if (k.basic && targetsFrom(b, k, k.basic).some((x) => x.uid === foe.uid)) {
       return { at: () => sc.rectOf(foe.uid), text: sc.sel.aim === foe.uid ? 'Tap it again to strike' : 'Tap the foe to aim at it' }
     }
-    if (k.spent === 0) return { at: () => sc.rectOf(k.uid), text: 'Tap a blue tile to move toward the foe' }
+    // Walking on while a tile walked still leaves its basic paid (stride); else the foe comes to it.
+    if (stride(k) > 0) return { at: () => sc.rectOf(k.uid), text: 'Tap a blue tile to move toward the foe' }
     return { at: end, text: 'End Turn: the foe comes to you' }
   }
   if (s.phase === 'reap') {
@@ -576,6 +577,8 @@ async function fight ({ resume = false } = {}) {
     onChange: (st) => { bar.update(st); hint() },
     // A slain foe's essence is multiplied by this as the purse takes it, for the per-wave popups.
     essence: runStat(s, 'essence.gain', 1),
+    // The run's purse, which a win adds the battle's pay to (the purse's card).
+    bank: () => s.essence,
     // An elite or a floor's boss pays its bounty on a win (the purse's card); what the run took for the battle, read as it ends.
     elite: bountyOf(s, node) > 0,
     earned: () => (s.stats?.essence ?? 0) - paid,
@@ -585,7 +588,7 @@ async function fight ({ resume = false } = {}) {
       const d = deathText(s, battle)
       return { ...d, from: d.tick ? null : s.death.from ?? null, by: s.death.uid ?? null }
     },
-    // Live stats and statuses for the unit under the pointer; a foe's plans are never told. `pin`: a long press or a
+    // Live stats and statuses for the unit under the pointer; a foe's coming turn is on the board. `pin`: a long press or a
     // click, the card stays until the next press.
     onHover: (u, at, pin = false) => {
       if (!u) return tipPinned() || hideTip()
@@ -594,7 +597,7 @@ async function fight ({ resume = false } = {}) {
       const legion = u.shadow && battle.events.some((e) => e.type === 'arise' && e.rule === 'legion' && e.unit.uid === u.uid)
       const me = u.uid === battle.monarch?.uid
       const arise = !foe && u.hp > 0 && u.kit && ariseOf(battle, u)
-      // One of yours leads with its turn as it stands (its Move left, its skills, how many foes its basic reaches).
+      // One of yours leads with its turn as it stands (its energy left, its skills, how many foes its basic reaches).
       const turn = !foe && u.hp > 0 ? battleScene()?.pieceLine(u.uid) ?? null : null
       const live = [
         u.hp <= 0 && (foe || u.shadow ? 'Fallen' : 'Fallen: whole again after a win'),

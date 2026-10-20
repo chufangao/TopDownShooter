@@ -1,5 +1,6 @@
 // The synergies' rules at 4, for either side, and
 // the endless floors past the Sovereign.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { enterBattle, rulesOf, perform, order, preview, orderable, fork, addStatus, runEffect, stats, computeDamage } from '../src/sim/turns.js'
@@ -32,7 +33,7 @@ const three = (y) => four(y).slice(0, 3)
 const set = (b, uid, hp) => { unit(b, uid).hp = hp }
 const rules = (b, rule) => b.events.filter((e) => e.type === 'rule' && e.rule === rule)
 const holding = (b, side) => rulesOf(b, side).map((r) => r.id)
-// A foe's act on the board as it stands (a foe's turn, as policy.js foeTurn would give it). → its events.
+// A foe's act on the board as it stands (a foe's turn, as foe.js foeTurn would give it). → its events.
 function strike (b, uid, target, ability = null) {
   const u = unit(b, uid)
   const from = b.events.length
@@ -120,69 +121,75 @@ test('Legion works for the foes too: one of yours slain rises on their side, whe
 })
 
 // A run's reap after the foes' Legion: a soul of yours that rose against you is no foe's soul. It is not for
-// sale and pays no essence (iron golem: a kind none of the four ghouls is).
+// sale and pays no essence (a Brass Sentry: a kind none of the ghouls is, of Move 1, and no locked kind, so End Turn's
+// untouched blows fell it once risen).
 test('Legion on the foes\' side: your fallen risen against you are not sold back or paid for', () => {
   // The foes hold their rules on every floor: here, on floor 1.
   legionReap()
 })
 function legionReap () {
   let won = null
-  // Each seed, and each cell the golem may take (the camp's layout decides which stands in the ghouls' way): the first
-  // fight won with the golem risen against you.
+  // Each seed, and each cell the sentry may take (the camp's layout decides which stands in the ghouls' way): the first
+  // fight won with the sentry risen against you.
   for (let i = 0; i < 20 && !won; i++) {
     const cells = legalActions((() => { const r = setup(i); return r })()).filter((a) => a.type === 'place' && a.slot >= 0).length
     for (let c = 0; c < cells && !won; c++) {
       const run = setup(i)
       const s = run.state
-      const golem = souls(s.party).find((u) => u.id === 'iron_golem')
-      const places = legalActions(run).filter((a) => a.type === 'place' && a.uid === golem.uid && a.slot >= 0)
+      const sentry = souls(s.party).find((u) => u.id === 'brass_sentry')
+      const places = legalActions(run).filter((a) => a.type === 'place' && a.uid === sentry.uid && a.slot >= 0)
       if (!places[c]) break
       apply(run, places[c])
       const before = s.essence
-      // End Turn alone: the expert would walk the 1-HP golem out of the ghouls' reach; left alone it stands and falls.
+      // End Turn alone: the expert would walk the 1-HP sentry out of the ghouls' reach; left alone it stands and falls.
       fight(run, basicTurn)
       if (s.phase === 'reap' && run.battle.units.some((u) => u.side === 'foe' && u.shadow)) won = { run, earned: s.essence - before }
     }
   }
-  // A run at the fight's door: your souls at level 20, a golem at 1 HP unplaced, five ghouls (their Legion, four undead,
+  // A run at the fight's door: your souls at level 20, a sentry at 1 HP unplaced, five ghouls (their Legion, four undead,
   // holds through the one your untouched pieces fell before the foes' turn).
   function setup (i) {
     const run = createRun({ start: START_PARTY, seed: `legion-reap${i}` })
     const s = run.state
     s.party = s.party.map((u) => u.uid === MONARCH_UID ? u : { ...makeUnit(u.id, { uid: u.uid, lvl: 20 }), slot: u.slot })
-    const golem = join(run, 'iron_golem')
-    Object.assign(golem, { slot: -1, hp: 1 })
+    const sentry = join(run, 'brass_sentry')
+    Object.assign(sentry, { slot: -1, hp: 1 })
     const node = availableNodes(run)[0]
     node.type = 'fight'
     node.foes = [...Array(5).keys()].map((slot) => ({ id: 'grave_ghoul', lvl: 1, slot }))
     apply(run, { type: 'node', id: node.id })
     return run
   }
-  assert.ok(won, 'some seed won, the golem risen against it')
+  assert.ok(won, 'some seed won, the sentry risen against it')
   const { run, earned } = won
   const b = run.battle
-  assert.ok(b.units.some((u) => u.side === 'foe' && u.shadow && u.id === 'iron_golem' && u.hp <= 0), 'the golem rose against you, and fell')
-  assert.ok(!run.state.offers.some((o) => o.type === 'soul' && o.id === 'iron_golem'))
+  assert.ok(b.units.some((u) => u.side === 'foe' && u.shadow && u.id === 'brass_sentry' && u.hp <= 0), 'the sentry rose against you, and fell')
+  assert.ok(!run.state.offers.some((o) => o.type === 'soul' && o.id === 'brass_sentry'))
   assert.ok(run.state.offers.some((o) => o.type === 'soul' && o.id === 'grave_ghoul'))
   const paid = b.units.filter((u) => u.side === 'foe' && !u.shadow && u.hp <= 0).reduce((n, u) => n + foeEssence(u, b.floor), 0)
   assert.equal(earned, Math.round(paid))
 }
 
-test('Mirage: the first blow each foe would land on the side holding it each turn misses, and only the first; either side', () => {
+test('Mirage: the first blow each foe would land on the side holding it in a battle misses, and only the first; either side', () => {
   // The fae at level 20: a wisp must outlive two of the knights' blows, or the four that hold Mirage are three.
   const b = scene([...squad(['will_o_wisp', 'thorn_dryad'], four(5), 1, 20), ...[1, 3].map((x, i) => on('tomb_knight', 101 + i, 'foe', x, 6, 10))])
-  const foiled = (uid) => {
-    const first = strike(b, uid, uid === 101 ? 1 : 3)
+  const lands = (uid, target) => strike(b, uid, target).some((e) => e.type === 'damage' && e.actor === uid)
+  const foiled = (uid, target) => {
+    const first = strike(b, uid, target)
     assert.deepEqual(first.filter((e) => ['rule', 'miss', 'damage'].includes(e.type)).map((e) => [e.type, e.actor]).slice(0, 2), [['rule', uid], ['miss', uid]])
     assert.ok(!first.some((e) => e.type === 'damage' && e.actor === uid), 'no harm done')
-    assert.ok(strike(b, uid, uid === 101 ? 1 : 3).some((e) => e.type === 'damage' && e.actor === uid), 'the next lands')
+    assert.ok(lands(uid, target), 'the next lands')
   }
-  for (const uid of [101, 102]) foiled(uid)
+  for (const uid of [101, 102]) foiled(uid, uid === 101 ? 1 : 3)
   assert.equal(rules(b, 'mirage').length, 2)
-  // Once a foe a turn, not once a battle: the next turn its first blow misses again.
+  // Once a foe a battle, not once a turn: the next turn its blow lands.
   b.turn++
-  for (const uid of [101, 102]) foiled(uid)
-  assert.equal(rules(b, 'mirage').length, 4)
+  for (const uid of [101, 102]) assert.ok(lands(uid, uid === 101 ? 1 : 3), `${uid} lands on the next turn`)
+  assert.equal(rules(b, 'mirage').length, 2)
+  // A foe entering later has a first blow of its own.
+  enterBattle(b, { ...makeUnit('tomb_knight', { uid: 103, lvl: 10 }), side: 'foe', tile: tileAt(2, 6) })
+  foiled(103, 2)
+  assert.equal(rules(b, 'mirage').length, 3)
   const few = scene([...squad(['will_o_wisp', 'thorn_dryad'], three(5)), on('tomb_knight', 101, 'foe', 1, 6, 10)])
   assert.ok(strike(few, 101, 1).some((e) => e.type === 'damage'))
   // Theirs: your first blow at one of their four fae misses.
@@ -612,7 +619,7 @@ function clear (seed) {
     return run
   })
 }
-const STEADY = { ...LEVELS.basic, wounds: true, turns: 'expert' }
+const STEADY = { ...LEVELS.basic, wounds: true, turns: 'solver' }
 // The 'deep' clear is played once and shared: each test takes its own copy of the state.
 let cleared = null
 const clearDeep = () => {

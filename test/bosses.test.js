@@ -1,5 +1,6 @@
 // A boss a floor: each floor's boss, the one that answers what the army leans on as the floor opens,
 // its counter in its kit and in its rule; the elites that answer the army; the run's boss rooms as any boss's.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { order, corpses, risable, addStatus, applyDamage, settle } from '../src/sim/turns.js'
@@ -185,7 +186,7 @@ function walk (seed) {
       }
       const fighting = s.phase === 'battle'
       const was = s.stats.essence
-      apply(run, policy(run, rng, { ...LEVELS.basic, wounds: true, turns: 'expert' }))
+      apply(run, policy(run, rng, { ...LEVELS.basic, wounds: true, turns: 'solver' }))
       if (fighting && s.phase !== 'battle' && currentNode(run).type === 'boss') {
         rooms.push({ floor: run.battle.floor, boss: bossIn(currentNode(run)), phase: s.phase, offers: s.offers.map((o) => o.id), earned: s.stats.essence - was, battle: run.battle })
       }

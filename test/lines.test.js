@@ -1,11 +1,12 @@
 // Lines of fire: a single-target blow from range strikes the first piece of its target's side
 // standing strictly between them on a supercover line; the shooter's own side never blocks; melee, shapes and a blow
-// that arcs ignore lines; a Bodyguard comes after the line. And the policy reads it: the danger map, the camp's scoring,
-// the expert's threat read and features count the piece a blow would actually strike.
+// that arcs ignore lines; a Bodyguard comes after the line. And the reads count it: the danger map, the camp's scoring
+// and the board's situation (read.js) count the piece a blow would actually strike.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { order, perform, preview, legalOrders, lineOf, struckBy, lined, fork } from '../src/sim/turns.js'
-import { danger, dangerAt, situation, features, expertOptions } from '../src/sim/policy.js'
+import { danger, dangerAt } from '../src/sim/foe.js'
+import { situation } from '../src/sim/read.js'
 import { abilityDef } from '../src/content.js'
 import { tileAt, tileX, tileY, between, lineEnds } from '../src/sim/unit.js'
 import { on, scene } from './scene.js'
@@ -187,19 +188,13 @@ test('the camp shoots the screen: a Monarch at 1 HP behind a piece of yours is n
   assert.ok(!b.over && unit(b, 0).hp === 1, 'the Monarch stands')
 })
 
-test('the expert reads screens: a screened shooter is no threat to the Monarch, and a move that screens it guards the Monarch', () => {
+test('the board\'s read counts screens: a shooter with a clear line threatens the Monarch, a screened one does not', () => {
   // The camp's Bone Chanter at (3,6) can come to (3,4) and bolt the Monarch at (3,0); a knight of yours at (2,1) can
   // step into its line.
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 2, 1), on('bone_chanter', 101, 'foe', 3, 6)])
   const sit = situation(b)
   assert.ok(sit.monarch.deals.has(unit(b, 101)) && sit.monarch.danger > 0)
-  const opts = expertOptions(b, unit(b, 1))
-  const into = opts.find((o) => o.tile === at(3, 1) && !o.ability)
-  const aside = opts.find((o) => o.tile === at(1, 1) && !o.ability)
-  const v = features(b, unit(b, 1), into, sit)
-  assert.equal(v.guard, Math.min(sit.monarch.hp, sit.monarch.danger), 'all of it')
-  assert.equal(features(b, unit(b, 1), aside, sit).guard, 0)
-  // Once it stands there: the shooter is screened, and the threat read has it strike the knight, never the Monarch.
+  // Once the knight stands there: the shooter is screened, and the threat read has it strike the knight, never the Monarch.
   order(b, { type: 'move', uid: 1, tile: at(3, 1) })
   const now = situation(b)
   assert.ok(!now.monarch.deals.has(unit(b, 101)) && now.monarch.screened.includes(unit(b, 101)))

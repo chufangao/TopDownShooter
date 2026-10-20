@@ -1,6 +1,7 @@
 // The harness (autoplay.js --builds and --pool): a run committed to an archetype, the
 // difficulty's scale, the pool's table and the report's shape. Functional only: what a committed run plays toward,
 // never how well it does.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {

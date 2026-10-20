@@ -13,7 +13,7 @@ import {
   foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, unhealed, isMonarch, depthOf, rosterCap,
   inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice, isRunPath, isRunRelic, unheld,
   runStat, foeEssence, soulOffer, foeScale, waveEvery, monarchBase, ascensionOf, releaseRefund, firstLevel, freshTracks,
-  ascensionTop, roomSize, bossIn, clearsRun, bountyOf
+  ascensionTop, roomSize, bossIn, clearsRun, bountyOf, BATTLE_NODES, roomThreats, ANSWERS, unkeyed, laysKey
 } from './sim/run.js'
 import { RANKS } from './sim/map.js'
 import { heldRules } from './sim/rules.js'
@@ -328,9 +328,9 @@ const WOUNDS_TEXT = `A win makes every soul whole again, the fallen standing in 
 // ── reach and Move ───────────────────────────────────────────────────────────────────────────────
 
 // Reach and melee-only are the sim's own (reachOf, meleeOnly), so a card never disagrees with the battle.
-const moveOf = (u) => Math.round(statsOf(u).move)
+// Its energy a turn, as turns.js energyOf gives it.
 const energyOf = (u) => Math.max(0, Math.floor(TUNING.energy.base + Math.max(0, statsOf(u).move)))
-// "Reach 4 · ranged · Move 2 · 2×2", a foe met's way too; a foe not met keeps it to itself (the bestiary).
+// "Reach 4 · ranged · Energy 4 · 2×2", a foe met's way too; a foe not met keeps it to itself (the bestiary).
 export function reachText (u, foe = false) {
   const d = unitDef(u.id)
   if (d.monarch) return 'Never strikes · never moves'
@@ -339,18 +339,19 @@ export function reachText (u, foe = false) {
   return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Energy ${energyOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
 }
 // The same in a sentence, short: what the reach line, the tags and the board (a piece's intent) do not already say.
-// A kind with a lined blow says so; a foe met, its way.
+// A kind with a lined blow says so; a foe met, its way and its lock (a lock stands on foes alone: a soul of yours has none).
 export function reachRule (u, foe = false) {
   const d = unitDef(u.id)
   if (d.monarch) return 'The roads run to it; if it falls, the run ends.'
   if (foe && !bestiary.has(u.id)) return 'Not met yet: meet it to learn its reach and way.'
   const r = reachOf(u)
   const line = abilitiesOf(u).map(abilityDef).some(lined) ? ` Its shots stop at the first ${foe ? 'of yours' : 'foe'} on their line of fire.` : ''
-  const lock = d.lock ? ` Locked: takes ${pct(d.lock.share)} of any blow while none of ${d.lock.keys.map((k) => statusDef(k).name).join(', ')} is on it.` : ''
-  if (!foe) return `${energyOf(u)} energy a turn: a tile ${TUNING.energy.tile}, its basic ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}; it walks, then acts once. Its blows reach ${r} tile${r === 1 ? '' : 's'}.${line}${lock}`
+  if (!foe) return `${energyOf(u)} energy a turn: a tile ${TUNING.energy.tile}, its basic ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}; it walks, then acts once. Its blows reach ${r} tile${r === 1 ? '' : 's'}.${line}`
   const way = d.temper ? ` Its way: ${temperLine(temperOf(u.id)).toLowerCase()}.` : ''
-  return `${BEHAVIOURS[behaviourOf(u)].desc}${line}${lock}${way}`
+  return `${BEHAVIOURS[behaviourOf(u)].desc}${line}${d.lock ? ` ${lockText(d.lock)}` : ''}${way}`
 }
+// A kind's lock, as a foe's card says it.
+const lockText = (lock) => `Locked: takes ${pct(lock.share)} of all damage but a status's tick; all of it on a ${lock.keys.map((k) => statusDef(k).name).join(' or ')} Key laid this turn by another of yours.`
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
 
@@ -507,7 +508,7 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
       h('div', { class: 'ct-foot' },
         h('div', { class: 'ct-role' }, h('b', null, reachText(u, foe)), h('span', { class: 'dim' }, ` · ${reachRule(u, foe)}`)),
         d.monarch && h('div', { class: 'warn' }, 'Only relics raise its HP and Command.'),
-        // A foe's lore hints at what its kind does: what it will do is never shown.
+        // A foe's lore hints at what its kind does (what it will do is on the board: the intents).
         foe && d.flavour && h('div', { class: 'flavour' }, d.flavour),
         notes.filter(Boolean).map((n) => h('div', { class: 'note-line' }, n)))])
 }
@@ -693,6 +694,25 @@ export function roomTip (run, node, { reachable, enter = false }) {
 
 // A room's synergies, short: those any of its formations holds as it enters.
 export const roomSynergies = (node) => [...new Set([node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flatMap((foes) => synergyNames(activeSynergies(foes))))]
+
+// What battle room `node` asks that `army` (the living fielded souls) cannot give, for the Map's marks: each threat
+// type none of it answers, in THREATS' order; then each locked kind none of it lays a key to ('lock:<kind>'), or whose
+// key it lays as one piece alone, its summons counted as unkeyed counts them ('pair:<kind>': a key and a blow are two
+// pieces' acts).
+export function roomLacks (node, army) {
+  if (!BATTLE_NODES.includes(node.type)) return []
+  const has = roomThreats(node)
+  const laid = (x) => x.keys.some((k) => army.some((u) => laysKey(u, k)))
+  return [...Object.keys(THREATS).filter((t) => ANSWERS[t] && has.has(t) && !army.some(ANSWERS[t])),
+    ...unkeyed(node, army).map((x) => `${laid(x) ? 'pair' : 'lock'}:${x.id}`)]
+}
+// One of roomLacks named: a threat type's name; a locked kind's, with the keys that open it.
+export function lackName (t) {
+  const id = t.split(':')[1]
+  if (!id) return THREATS[t].name
+  const d = unitDef(id)
+  return `the ${d.name} (${d.lock.keys.map((k) => statusDef(k).name).join(' or ')})`
+}
 
 // ── the ascension ladder ─────────────────────────────────────────────────────────────────────────
 
@@ -1026,7 +1046,7 @@ const priceScaleText = (run) => `every price is its floor-1 price ${Array.from({
 const WORD_MORE = {
   piece: () => `Command sets how many pieces you field (at most ${TUNING.army.board}); the rest of your souls wait in the ossuary. Where you place them is where each battle starts: from there each moves on your turn. A 2×2 piece (a fused kind, or a soul with a Colossus tier) moves as one. Each soul has a relic slot (${TUNING.relic.perPiece} a soul) for a piece relic. The Monarch is a piece too: it stands on the seat the camp marks with a crown, never moves, never strikes and holds no relic.`,
   summon: () => `A tier of a few kinds calls up shadows of the kind itself (a trine's, of the kind it was made of): at each battle's start, as many as a piece's tiers say rise for it on the field, each on the free tile of the camp nearest that piece, at ${pct(TUNING.summon.hp)} of a whole one's HP, with its level and tiers. A summon takes no orders: it strikes or mends with its basic each turn, counts toward your synergies as any shadow, pays no essence, and is gone after the battle.`,
-  road: () => 'Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch, and every foe on the ground keeps to these arrows. How far it comes each turn, from nothing to its Move, is its own judgement: it weighs what it could deal against what your side could deal to it there, and the longer since the last wave came, the less it waits: in time every foe comes. A comrade stopped ahead of it holds it back, and a piece of yours blocks it. Some kinds Fly instead, straight over the walls but never through your pieces. You learn which by meeting them.',
+  road: () => 'Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch, and every foe on the ground keeps to these arrows. How far it comes each turn, from nothing to its energy\'s worth of tiles, is its own judgement: it weighs what it could deal against what your side could deal to it there, and the longer since the last wave came, the less it waits: in time every foe comes. A comrade stopped ahead of it holds it back, and a piece of yours blocks it. Some kinds Fly instead, straight over the walls but never through your pieces. You learn which by meeting them.',
   wave: (run) => `${ENEMY_TEXT.waves}${run && waveEvery(run.state) !== W.every ? ` At ascension ${run.state.ascension} they come ${waveEvery(run.state)} turns apart.` : ''} ${ENEMY_TEXT.entry}`,
   shadow: (run) => `A soul holding an Arise relic raises one foe slain within its reach, the corpse you choose, as a skill; Undead 4 raises every foe slain. A shadow of yours rises on the free tile nearest the Monarch, never where it fell, so the dead never block a road. It takes no orders: each turn it strikes or mends with its basic. Shadows count toward your synergies and are gone after the battle.` +
     (run && run.state.relics.includes('hollow_court') ? ' Those a Hollow Court holder raised that stand at a win pay their essence again.' : ''),
@@ -1040,8 +1060,8 @@ const WORD_MORE = {
     (run && unheld(run.state).length ? ` Unheld now: ${tally(unheld(run.state).map((id) => relicDef(id).name))}.` : ''),
   altar: () => `One rite, then the room is done. Heal: the Monarch to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)}, unless Court of Bone holds (your souls are whole after every win, and need none). Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic, its tiers and its level: its tiers sit on its new kind's tracks of the same number. Consecrate: one soul's next tier on the track you choose, free, as buying it would give it.`,
   shop: (run) => `Open between battles wherever essence is spent: its tab beside the Map, and on the spoils; closed in battle. Its shelf of ${TUNING.shop.relics} relics is the floor's, drawn as you arrive and kept from room to room; a relic bought leaves its slot empty until your next win fills it again. Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows: a relic bought is a tier not bought. Its Fusions list every recipe whose parts you hold, lit when you can pay, one press to fuse.`,
-  turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, and lost the instant the Monarch falls or nothing of yours but the Monarch stands (a shadow and a summon count), however long it lasts: the Monarch never acts.`,
-  move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its Move whole again, until it acts. Some tiers and statuses add Move.',
+  turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, if its energy left pays for it, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, and lost the instant the Monarch falls or nothing of yours but the Monarch stands (a shadow and a summon count), however long it lasts: the Monarch never acts.`,
+  move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its energy whole again, until it acts. Some tiers and statuses add Move.',
   skill: () => 'Every kind has a basic blow, usable every turn, and a mender a basic heal too; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise: Arise rests none. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
   cooldown: () => 'Every skill but Arise rests a turn once used: its pip under the piece\'s bars goes dark, and lights again as the turn after next begins. Arise rests none: its pip lights again as the next turn begins. Some statuses and relics hurry a rest.',
   counter: () => 'A melee blow whose target survives, standing within its own basic blow\'s reach of the striker, is answered at once by that blow, if it is melee, on the striker alone. Ground melee never answers a flyer. One answer a blow; a counter is never answered; a Hexed piece and the Monarch never answer. A blow\'s preview shows the counter it would draw before you commit.',
@@ -1193,7 +1213,7 @@ export function codexView (run = null, { onClose = null, sound = null } = {}) {
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its tiers and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),
-    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ', say('Click', 'Tap'), ' a foe to see its coming turn alone: every foe shows it on the board as it stands, dots down its road to a faint ghost where it will stop, a line from there to the piece it will strike and the damage over that piece (yours left alone show their basic the same way); move a piece and it changes. A foe of a kind you have met lights its whole reach in red too: the road it could take within its Move, dotted, and every tile it could strike from there; ', say('click', 'tap'), ' elsewhere and it goes. ',
+    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ', say('Click', 'Tap'), ' a foe to see its coming turn alone: every foe shows it on the board as it stands, dots down its road to a faint ghost where it will stop, a line from there to the piece it will strike and the damage over that piece (yours left alone show their basic the same way); move a piece and it changes. A foe of a kind you have met lights its whole reach in red too: the road it could walk this turn, dotted, and every tile it could strike from there; ', say('click', 'tap'), ' elsewhere and it goes. ',
       h('b', null, 'End Turn'), ' when you are done.'),
     s && h('div', { class: 'gl-run' },
       h('span', null, `The Monarch ${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · Command ${commandOf(s)}${ariseHeld(s) ? ` · Arise: tier ≤ ${ariseOf(s).tier} within ${ariseOf(s).domain} tiles of its holder` : ''}`),

@@ -1,3 +1,4 @@
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -19,7 +20,8 @@ import {
   sizeOf, footprint, footprintSlots, fits, monarchSlot, isMonarchCell, meleeOnly
 } from '../src/sim/unit.js'
 import { visit, win, fight, rebuilt as rebuiltBattle } from './rooms.js'
-import { basicTurn, expertTurn } from '../src/sim/policy.js'
+import { basicTurn } from '../src/sim/foe.js'
+import { solverTurn } from '../src/sim/solver.js'
 
 const play = (seed) => autoplay(createRun({ start: START_PARTY, seed }), { rng: createRng(seed).stream('autoplay') })
 
@@ -514,7 +516,7 @@ test('an altar\'s heal mends the Monarch to altarHeal and nothing else; whole, i
   assert.deepEqual(whole.state.party, before)
 })
 // A piece that fell stands again as the battle is won: whole, in the cell it fought from, its Command held. Only a
-// loss keeps it down, and a loss ends the run.
+// loss keeps it down, and a loss ends the run. Its fights are End Turn alone (basicTurn), so that a soul falls.
 // The first room given a full fight's foes, those of the floor's first fight past the opening (floor 1's first rooms
 // hold one foe since the first battle of 2026-10-18: TUNING.spawn.opening), for a test that needs a fight's dead.
 const fuller = (run) => { availableNodes(run)[0].foes = run.state.map.nodes.find((n) => n.type === 'fight' && n.rank > TUNING.spawn.opening.length).foes }
@@ -530,7 +532,7 @@ test('a piece that falls in a won battle stands again whole, in its cell, its Co
         const node = availableNodes(run).find((n) => n.type === 'fight')
         if (!node) break
         apply(run, { type: 'node', id: node.id })
-        fight(run)
+        fight(run, basicTurn)
         if (run.state.phase !== 'reap') break
         if (fell(run).length) return run
         apply(run, { type: 'reap', index: null })
@@ -1696,7 +1698,7 @@ function atBattle (seed) {
 }
 
 test('a fight opens the battle: its orders are the run\'s actions, each returning its events, and the run replays exactly', () => {
-  for (const [k, turn] of [basicTurn, expertTurn].entries()) {
+  for (const [k, turn] of [basicTurn, solverTurn].entries()) {
     const run = atBattle(`turnsrun${k}`)
     assert.equal(apply(run, { type: 'fight' }), undefined)
     assert.equal(run.state.phase, 'battle')

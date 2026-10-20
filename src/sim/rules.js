@@ -48,12 +48,15 @@ export const RULES = {
       ctx.targets = ability.melee && !actor.flies ? out.filter((x) => !x.flies) : out
     }
   },
-  // Fae 4: the first blow each foe would land on the side each turn (the battle's: yours and theirs) misses.
+  // Fae 4: the first blow each foe would land on the side (yours or theirs) in the battle misses; its later blows land
+  // (`foiled`, set once and never reset: one entering later has a first blow of its own). Damage alone is foiled, a
+  // tick never, and an act that lays only a status lands. A miss is whole (turns.js runEffect): it lays nothing on the
+  // one it missed, and no relic hears it.
   mirage: {
     modify (battle, ctx) {
       const { actor, target } = ctx
-      if (ctx.as !== 'target' || ctx.status || ctx.miss || !actor || actor.side === target.side || actor.foiled === battle.turn) return
-      actor.foiled = battle.turn
+      if (ctx.as !== 'target' || ctx.status || ctx.miss || !actor || actor.side === target.side || actor.foiled) return
+      actor.foiled = true
       emit(battle, { type: 'rule', rule: 'mirage', side: target.side, actor: actor.uid, target: target.uid })
       ctx.miss = true
     }
@@ -113,12 +116,14 @@ export const RULES = {
     }
   },
   // Channeler 4: every ability of the side's (never an Arise) rings out once more, free; at TUNING.echo.half below `full`.
+  // The echo is a blow of its own: it may land on one the first missed, and a miss of its own is whole (`missed`).
   echo: {
     params: { full: true },
     onBlow (battle, { actor, ability, targets }, r) {
       if (!alive(actor) || ability.effects.some((e) => e.op === 'raise')) return
       emit(battle, { type: 'rule', rule: 'echo', side: actor.side, actor: actor.uid, ability: ability.id, ...(!r.params.full && { half: true }) })
-      for (const effect of ability.effects) runEffect(battle, r.params.full ? effect : scaled(effect, TUNING.echo.half), actor, targets, ability)
+      const missed = new Set()
+      for (const effect of ability.effects) runEffect(battle, r.params.full ? effect : scaled(effect, TUNING.echo.half), actor, targets, ability, null, missed)
     }
   },
   // Warden 4: an ability of the side's aimed at an ally reaches, and touches, every one of its side on the board.

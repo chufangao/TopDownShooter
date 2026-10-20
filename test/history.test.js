@@ -1,5 +1,6 @@
 // The runs kept in this browser: a run's line as it ended, the book of
 // them newest first with its totals, read as far as it holds whatever was kept.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRun, apply } from '../src/sim/run.js'

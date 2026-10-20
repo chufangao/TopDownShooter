@@ -37,8 +37,8 @@ export function codeHash (root = SRC) {
   return h.digest('hex')
 }
 
-// A job's fields that name a file (a forest, a forest out of battle, a route, a whole expert): read by its bytes.
-const FILES = ['expert', 'forest', 'outforest', 'route']
+// A job's fields that name a file (a forest out of battle, a route): read by its bytes.
+const FILES = ['outforest', 'route']
 const NAMES = new Set(['none', 'hand', 'learned'])
 // A job as its key reads it: its keys sorted, undefined ones dropped, each file it names as its bytes' hash (`files`
 // caches path, size and time → hash).

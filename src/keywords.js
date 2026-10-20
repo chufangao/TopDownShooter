@@ -10,9 +10,7 @@ export const turnsText = (n) => (n === 'battle' ? 'all battle' : n == null ? '' 
 
 // The words, in the order a player meets them.
 export const KEYWORDS = {
-  key: { name: 'Key', sys: 'foe', group: 'Words', line: 'A status laid this turn by another piece of the striker\'s side. A blow keyed to it deals its multiple and spends it: a combo is two pieces\' acts in one turn, never one piece\'s.' },
-  lock: { name: 'Lock', sys: 'foe', group: 'Words', line: 'A kind that takes a share of any blow while none of its keys is on it. One piece lays the key, the rest strike.' },
-  piece: { name: 'Piece', sys: 'essence', line: 'One soul on one cell, or four for a 2×2. On your turn each moves up to its Move, then acts once.' },
+  piece: { name: 'Piece', sys: 'essence', line: 'One soul on one cell, or four for a 2×2. On your turn each walks, then acts once, out of its energy.' },
   road: { name: 'Road', sys: 'foe', line: 'The arrows the foes walk to the Monarch. A foe keeps to its road: how far it comes each turn is its choice, where it goes is the road\'s. Your pieces block it; the dead never do.' },
   wave: { name: 'Wave', sys: 'foe', line: 'More foes over the far edge as a set turn begins: the wave counter says which.' },
   shadow: { name: 'Shadow', sys: 'shadow', line: 'A slain foe risen to fight for you, on the free tile nearest the Monarch. It acts on its own each turn, and is gone when the battle ends.' },
@@ -24,13 +22,15 @@ export const KEYWORDS = {
   synergy: { name: 'Synergy', sys: 'synergy', line: 'Four pieces of one kin or role on the board bring its rule, which changes what happens, a trine counting as three. Its pieces glow in its colour.' },
   relic: { name: 'Relic', sys: 'relic', line: `Bought in the Shop: Common, Uncommon, Rare or Legendary. A run relic works for the whole run; a piece relic works only through the soul holding it, ${TUNING.relic.perPiece === 1 ? 'one' : TUNING.relic.perPiece} a soul, given and taken back out of battle.` },
   command: { name: 'Command', sys: 'monarch', line: `How many pieces the Monarch fields: ${TUNING.party.field} to begin, more with each Command relic, at most ${TUNING.army.board}.` },
-  turn: { name: 'Turn', sys: 'plan', line: `Yours, then the foes'. Give your pieces their orders, then End Turn: what you left alone strikes with its basic blow (or mends with its basic heal), then the foes move and strike. A battle lasts until no foe is left, the Monarch falls, or nothing of yours but the Monarch stands.` },
+  turn: { name: 'Turn', sys: 'plan', line: `Yours, then the foes'. Give your pieces their orders, then End Turn: what you left alone strikes with its basic blow (or mends with its basic heal) if its energy left pays for it, then the foes move and strike. A battle lasts until no foe is left, the Monarch falls, or nothing of yours but the Monarch stands.` },
   energy: { name: 'Energy', sys: 'plan', line: `A piece\'s budget each turn, ${TUNING.energy.base} plus its Move: a tile walked costs ${TUNING.energy.tile}, its basic blow or heal ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}. It walks first and acts once; what it cannot pay for, it cannot do.` },
   move: { name: 'Move', sys: 'plan', line: 'The tiles a piece may walk and still strike: through your own pieces, never through a foe, never diagonally past a wall\'s corner. A walk may be undone until the piece acts.' },
   skill: { name: 'Skill', sys: 'plan', line: 'Any act but a piece\'s basic blow and basic heal. Only your orders use one: a piece left alone never does. Every skill rests a turn once used.' },
   cooldown: { name: 'Cooldown', sys: 'plan', line: 'The turn a skill rests once used: its pip goes dark, and lights again when it is ready.' },
   counter: { name: 'Counter', sys: 'foe', line: 'A melee blow whose target stands and can reach back is answered at once by its basic melee blow, both sides alike. A ranged blow never is; a Hexed piece never answers; a counter is never countered.' },
   line: { name: 'Line of fire', sys: 'plan', line: 'A ranged blow at one target flies straight from the shooter: the first piece of the target\'s side on a tile it crosses takes it instead, both sides alike. A side never blocks its own shots. Melee, a blow that strikes an area and a lobbed blow ignore lines.' },
+  key: { name: 'Key', sys: 'foe', group: 'Words', line: 'A status another piece of the striker\'s side laid in that side\'s own turn, struck in the same turn: never a counter\'s. A blow keyed to it deals its multiple and spends it: a combo is two pieces\' acts in one turn, never one piece\'s.' },
+  lock: { name: 'Lock', sys: 'foe', group: 'Words', line: 'A foe that takes a share of all damage but a status\'s tick, and all of it while one of its keys is on it as a Key (opening spends none). One piece lays the key, the rest strike.' },
   shop: { name: 'Shop', sys: 'relic', line: `Open between battles, never in one: the floor's shelf of ${TUNING.shop.relics} relics for essence, one always a Command relic, a slot bought filled again after your next win; and every fusion whose parts you hold. Buy as many as you can pay for.` },
   altar: { name: 'Altar', sys: 'path', line: 'A room with no battle that grants one rite of three: heal the Monarch; transmute a soul into another kind of its tier from this floor\'s foes; or consecrate a soul, its next tier free.' }
 }

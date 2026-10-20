@@ -47,7 +47,7 @@ for (const [k, value] of Object.entries(page)) Object.defineProperty(globalThis,
 
 const { reachRule, reachText, bestiary, codexView, recruitWorth, unitCard, relicTip, relicKind, synergyLabels, ariseFor, realmOf, roomSynergies, roomTip, DEEP_TEXT, ENEMY_TEXT, riteNote, transmuteWorth, ROOM } = await import('../src/codex.js')
 const { KEYWORDS } = await import('../src/keywords.js')
-const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, temperLine } = await import('../src/content.js')
+const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, STATUSES, THREATS, temperLine, unitDef } = await import('../src/content.js')
 const { makeUnit } = await import('../src/sim/unit.js')
 const { createRun, souls, rosterCap, apply, START_PARTY, availableNodes, transmuteOffer, legalActions } = await import('../src/sim/run.js')
 const { temperOf } = await import('../src/sim/turns.js')
@@ -342,9 +342,6 @@ test('a kind with a blow that keeps to its line says so; a lobbed blow says it i
 test('a room\'s tip tells its pay and recruit prices, an altar what it would mend now; a run relic one more copy; a soul its Move and reach alone', async () => {
   const { roomGain } = await import('../src/codex.js')
   const { foeEssence, commandOf, monarchOf, soulOffer } = await import('../src/sim/run.js')
-  const { abilitiesOf } = await import('../src/sim/unit.js')
-  const { abilityDef } = await import('../src/content.js')
-  const { basicOf } = await import('../src/sim/turns.js')
   const run = createRun({ start: START_PARTY, seed: 'told' })
   const s = run.state
   const node = s.map.nodes.find((n) => n.type === 'fight')
@@ -570,4 +567,54 @@ test('a floor\'s boss is told: its room by its name and what it came for, the So
   assert.match(bossLine(UNIT_LIST.find((x) => x.id === 'hollow_sovereign')), /last floor's; its fall clears the run/)
   const text = codexView(createRun({ start: START_PARTY, seed: 'codex' })).textContent
   assert.match(text, /ending in a boss and its court, the last floor's the Hollow Sovereign/)
+})
+
+// The Map's marks (ui/run.js): a room ahead names what nothing fielded answers, a locked kind with the keys that open
+// it; no key laid by anything fielded, or one soul alone to lay it and strike. The drafted soul's first Map draws.
+test('a room\'s missing answers are named, a lock\'s with its keys: none laid, or a lone soul to lay it and strike', async () => {
+  const { roomLacks, lackName } = await import('../src/codex.js')
+  const { fielded } = await import('../src/sim/run.js')
+  let locks = 0
+  for (let i = 0; i < 6; i++) {
+    const run = createRun({ seed: 'lacks' + i })
+    apply(run, { type: 'pick', index: 0 })
+    const army = fielded(souls(run.state.party)).filter((u) => u.hp > 0)
+    for (const n of run.state.map.nodes) {
+      for (const t of roomLacks(n, army)) {
+        assert.ok(lackName(t).length > 0, t)
+        if (/^(lock|pair):/.test(t)) locks++
+      }
+    }
+  }
+  assert.ok(locks > 0, 'a lone drafted soul meets a locked boss')
+  const abbess = unitDef('molting_abbess')
+  const boss = { type: 'boss', foes: [{ id: abbess.id, lvl: 1, slot: 0 }] }
+  const soul = (id, uid) => makeUnit(id, { uid, lvl: 1 })
+  const locked = (army) => roomLacks(boss, army).filter((t) => /^(lock|pair):/.test(t))
+  assert.deepEqual(locked([soul('pyre_hound', 1)]), [`pair:${abbess.id}`], 'a lone soul lays Burning')
+  assert.deepEqual(locked([soul('brass_sentry', 1)]), [`lock:${abbess.id}`], 'nothing lays a key')
+  assert.deepEqual(locked([soul('pyre_hound', 1), soul('brass_sentry', 2)]), [], 'a key and a blow')
+  assert.equal(lackName(`pair:${abbess.id}`), `the ${abbess.name} (${abbess.lock.keys.map((k) => STATUSES[k].name).join(' or ')})`)
+  assert.equal(lackName('fly'), THREATS.fly.name)
+})
+
+// Keys and locks on the cards: a keyed blow says its multiple and its key; a locked foe met says its share, what it
+// cuts and the keys that open it; a soul of yours of a locked kind has no lock, and its card none.
+test('a keyed blow\'s card says its multiple on its key; a locked foe\'s card its share and the keys that open it, a soul of yours none', async () => {
+  const { actText } = await import('../src/codex.js')
+  const { abilityDef } = await import('../src/content.js')
+  const { statsOf } = await import('../src/sim/unit.js')
+  for (const d of UNIT_LIST.filter((x) => x.lock)) {
+    const text = reachRule({ id: d.id, lvl: 1 }, true)
+    assert.ok(text.includes(`Locked: takes ${Math.round(d.lock.share * 100)}% of all damage but a status's tick; all of it on a ${d.lock.keys.map((k) => STATUSES[k].name).join(' or ')} Key laid this turn by another of yours.`), text)
+    const soul = reachRule(makeUnit(d.id, { uid: 1, lvl: 1 }))
+    assert.ok(!/lock/i.test(soul), `${d.id} of yours: ${soul}`)
+  }
+  const keyed = UNIT_LIST.flatMap((d) => (d.abilities ?? []).map((id) => [d, abilityDef(id)])).filter(([, a]) => a.effects.some((e) => e.keyed))
+  assert.ok(keyed.length > 0)
+  for (const [d, a] of keyed) {
+    const e = a.effects.find((x) => x.keyed)
+    const text = actText(a, statsOf({ id: d.id, lvl: 1, tracks: [0, 0] }), { range: 1 }).filter(Boolean).map((x) => x.textContent).join(' ')
+    assert.ok(text.includes(`×${e.keyed.mul} on a ${STATUSES[e.keyed.status].name} Key`), `${a.id}: ${text}`)
+  }
 })

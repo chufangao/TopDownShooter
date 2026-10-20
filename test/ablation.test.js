@@ -1,11 +1,12 @@
 // The ablation harness (autoplay.js ABLATIONS, stripped): the expert with one mechanic taken away, and its
 // battles refought with one mechanic stripped. Each ablation must take its mechanic away and change nothing
 // else; a level with no ablation plays exactly as the level itself.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createRun, apply, battleSetup, join, souls, fielded, replay, levelOf, monarchHp, monarchOf, commandOf, START_PARTY } from '../src/sim/run.js'
 import { createBattle, playOut, timelineHash, rulesOf } from '../src/sim/turns.js'
-import { expertTurn } from '../src/sim/policy.js'
+import { solverTurn } from '../src/sim/solver.js'
 import { createRng } from '../src/sim/rng.js'
 import { monarchSlot, tracksOf } from '../src/sim/unit.js'
 import {
@@ -99,14 +100,14 @@ test('ablation: the names, the rules switches carried by the run and its replay,
 test('the arise switch: no relic grants Arise; the synergies switch: the party holds no synergy, the foes keep theirs', () => tuned({ arise: { domain: 11, tier: 5 } }, () => {
   let raised = 0
   let held = 0
-  // Each refought under the expert's turns, a fielded soul holding Arise, its reach over the whole board, so that the
+  // Each refought under the solver's turns, a fielded soul holding Arise, its reach over the whole board, so that the
   // corpses fall in it; and the undead fielded among them (Undead 4). Every fight of the two runs: floor 1's first
   // rooms fall before a corpse can be raised.
   for (const snap of [...snapshots('switch-a', Infinity), ...snapshots('switch-b', Infinity)]) {
     const fight = (mechanic) => {
       const s = structuredClone({ ...snap, relics: [...snap.relics, 'arise'] })
       s.party.find((u) => u.uid !== 0 && u.slot >= 0 && u.hp > 0).relics = ['arise']
-      return playOut(createBattle(battleSetup(stripped(s, mechanic))), expertTurn)
+      return playOut(createBattle(battleSetup(stripped(s, mechanic))), solverTurn)
     }
     const full = fight(null)
     raised += full.raised
@@ -208,7 +209,7 @@ test('ablating relics: no Common, Uncommon or Rare relic is bought, so the field
   if (!run.state.relics.includes('legion')) assert.deepEqual([commandOf(run.state), monarchOf(run.state).maxHp], [TUNING.party.field, TUNING.monarch.hp])
 })
 
-// The expert's turns are policy.js expertTurn's; under the orders ablation it ends every turn without an order.
+// The expert's turns are solver.js solverTurn's; under the orders ablation it ends every turn without an order.
 test('ablating orders: the expert gives no order in battle but End Turn, where the full expert moves and acts', () => {
   const orders = (L) => {
     const run = createRun({ start: START_PARTY, seed: 'orders' })
@@ -331,7 +332,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   assert.ok(fielded(souls(s.party)).some((u) => u.id === 'pale_court'), 'the fused piece fights')
   snaps.push({ snapshot: structuredClone({ ...s, log: [] }) })
   fought(run)
-  snaps[0].outcome = { hash: timelineHash(run.battle.events), turns: 'expert' }
+  snaps[0].outcome = { hash: timelineHash(run.battle.events), turns: 'solver' }
   const [r] = refight({ snaps })
   assert.equal(r.same, true, 'as it stood, the refight is the real battle')
   assert.deepEqual(Object.keys(r).filter((k) => k !== 'same'), ['full', ...NECESSITY])

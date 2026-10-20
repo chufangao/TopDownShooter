@@ -533,7 +533,7 @@ test('every kin and every role has one synergy, a rule at 4 pieces, and no stat 
   assert.ok(card('last_stand').includes(`stands at 1 HP instead and heals ${pct(TUNING.lastStand.heal)} of its max HP`))
   assert.ok(card('bodyguard').includes(`your Vanguards take ${pct(1 - TUNING.bodyguard.taken)} less damage`))
   assert.ok(card('ambush').includes(`Hastened for their first ${['', 'turn', 'two turns'][TUNING.ambush.turns]}`))
-  assert.match(card('mirage'), /each turn/)
+  assert.match(card('mirage'), /in a battle/)
   assert.ok(card('echo').includes('at half its effect') && TUNING.echo.half === 0.5)
   assert.ok(card('echo').includes(`with ${SYNERGIES.find((s) => s.rule === 'echo').full} Channelers, in full`))
 })
@@ -689,7 +689,7 @@ test('the rules registry: every rule a synergy, a relic or a boss names is in it
 test('nothing in the sim but the registry branches on a rule\'s name', () => {
   const name = `'(${Object.keys(RULES).join('|')})'`
   const branch = new RegExp(`(===|!==)\\s*${name}|${name}\\s*(===|!==)|has\\(${name}\\)`)
-  for (const file of ['turns.js', 'foe.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'state.js', 'economy.js', 'spawn.js', 'map.js', 'autoplay.js', 'player.js', 'reports.js']) {
+  for (const file of ['turns.js', 'foe.js', 'solver.js', 'read.js', 'field.js', 'unit.js', 'run.js', 'state.js', 'economy.js', 'spawn.js', 'map.js', 'autoplay.js', 'player.js', 'reports.js']) {
     readFileSync(new URL(`../src/sim/${file}`, import.meta.url), 'utf8').split('\n').forEach((line, i) => {
       if (!line.trim().startsWith('//')) assert.doesNotMatch(line, branch, `${file}:${i + 1}`)
     })
@@ -699,7 +699,7 @@ test('nothing in the sim but the registry branches on a rule\'s name', () => {
 // No clock: no module of the game keeps a turn cap, a deadline or a battle lost by time ('turn-cap');
 // TUNING.turn holds only the sim's bug guard.
 test('no clock anywhere: no turn cap, no deadline, no \'turn-cap\' end; TUNING.turn is the bug guard alone', () => {
-  const sim = ['turns.js', 'foe.js', 'policy.js', 'field.js', 'unit.js', 'run.js', 'state.js', 'economy.js', 'spawn.js', 'map.js', 'rules.js', 'autoplay.js', 'player.js', 'reports.js'].map((f) => `sim/${f}`)
+  const sim = ['turns.js', 'foe.js', 'field.js', 'unit.js', 'run.js', 'state.js', 'economy.js', 'spawn.js', 'map.js', 'rules.js', 'autoplay.js', 'player.js', 'reports.js'].map((f) => `sim/${f}`)
   // The engine's and the UI's directories whole, as they are split.
   const under = (dir) => (existsSync(new URL(`../src/${dir}/`, import.meta.url)) ? readdirSync(new URL(`../src/${dir}/`, import.meta.url)).filter((f) => f.endsWith('.js')).map((f) => `${dir}/${f}`) : [])
   for (const file of [...sim, 'engine.js', 'ui.js', ...under('engine'), ...under('ui'), 'board.js', 'codex.js', 'keywords.js', 'main.js', 'dom.js', 'content.js', 'tuning.js']) {

@@ -1,6 +1,7 @@
 // The Monarchs: who the player is. The base Monarch is every run's
 // unless another is chosen, and changes nothing; each other starts holding its relic and drafts its kin more often, is
 // carried by replay, the save, the history, the harness and the offline tools, and is opened by a clear at its level.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { MONARCH_LIST, MONARCHS, KIN, relicDef, unitDef } from '../src/content.js'
@@ -12,7 +13,6 @@ import { saveOf, restore } from '../src/sim/save.js'
 import { recordOf } from '../src/sim/history.js'
 import { policy, record, ablatedRun, asMonarch, monarchArg, autoplay, LEVELS } from '../src/sim/autoplay.js'
 import { outsideRun, configOf } from '../src/sim/outside.js'
-import { teacherRun } from '../src/sim/teach.js'
 import { createRng } from '../src/sim/rng.js'
 
 test('the Monarchs: the base first with nothing more; each other a run relic, a kin to favour and the clear that opens it', () => {
@@ -106,20 +106,18 @@ test('a Monarch rides with the run: replay, the save, the history, the harness',
   for (const m of MONARCH_LIST) assert.equal(autoplay(createRun({ seed: `mw-${m.id}`, monarch: m.id }), { level: LEVELS.basic }).state.phase, 'over')
 })
 
-// The offline tools as autoplay.js and calc.js (--monarch): the outside teacher's run and the battle teacher's played as
-// the Monarch named, their logs its runs' (a biased draft: not the base one's), the outside teacher's settings naming it.
-test('a Monarch rides with the offline tools: outside.js and teach.js play their runs as it', () => {
+// The offline tools as autoplay.js (--monarch): the outside teacher's run played as the Monarch named, its log its run's
+// (a biased draft: not the base one's), its settings naming it.
+test('a Monarch rides with the offline tools: outside.js plays its runs as it', () => {
   assert.equal(configOf().monarch, BASE_MONARCH)
   assert.throws(() => configOf({ monarch: 'nobody' }), /--monarch "nobody"/)
   const as = outsideRun('cmo-0', { phases: 'hold', battles: 1, log: true, monarch: 'brass' })
   assert.equal(as.settings.monarch, 'brass')
-  assert.equal('monarch' in outsideRun('cmo-0', { phases: 'hold', battles: 1 }).settings, false)
-  const teacher = teacherRun('cmo-0', { fights: 1, log: true, monarch: 'brass' })
-  for (const r of [as, teacher]) {
-    const back = replay('cmo-0', r.log, { monarch: 'brass' }).state
-    assert.ok(back.monarch === 'brass' && back.relics.includes(MONARCHS.brass.relic))
-  }
-  assert.notDeepEqual(teacher.log, teacherRun('cmo-0', { fights: 1, log: true }).log)
+  const plain = outsideRun('cmo-0', { phases: 'hold', battles: 1, log: true })
+  assert.equal('monarch' in plain.settings, false)
+  const back = replay('cmo-0', as.log, { monarch: 'brass' }).state
+  assert.ok(back.monarch === 'brass' && back.relics.includes(MONARCHS.brass.relic))
+  assert.notDeepEqual(as.log, plain.log)
 })
 
 test('the unlock rule: the base always; each other by a clear at its level or above', () => {

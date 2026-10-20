@@ -99,7 +99,7 @@ test('the stopping rule\'s false positives stay under α on comparisons of nothi
   assert.ok(seeds < K * 256, 'futility cuts some')
 })
 
-test('the run cache: its key follows the code, the expert\'s bytes and the run\'s options; a hit is the record kept', () => {
+test('the run cache: its key follows the code, a model file\'s bytes and the run\'s options; a hit is the record kept', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'retinue-cache-'))
   try {
     const root = path.join(tmp, 'src')
@@ -110,20 +110,20 @@ test('the run cache: its key follows the code, the expert\'s bytes and the run\'
     const c = runCache({ dir, root })
     const job = { seed: 'k-0', level: 'expert', ascension: 2 }
     const k = c.key(job)
-    assert.equal(c.key({ ascension: 2, level: 'expert', seed: 'k-0', forest: undefined }), k, 'the keys\' order and an undefined one read nothing')
+    assert.equal(c.key({ ascension: 2, level: 'expert', seed: 'k-0', outforest: undefined }), k, 'the keys\' order and an undefined one read nothing')
     for (const other of [{ ...job, seed: 'k-1' }, { ...job, level: 'basic' }, { ...job, ascension: 3 }, { ...job, monarch: 'brass' }, { ...job, scale: 1.2 },
       { ...job, ablate: 'orders' }, { builds: true, ...job, commit: 'pale_court', strict: true }, { builds: true, ...job, commit: 'pale_court' }]) assert.notEqual(c.key(other), k, JSON.stringify(other))
-    // An expert file by its bytes: two paths alike are one key; a byte changed, another.
+    // A forest out of battle's file by its bytes: two paths alike are one key; a byte changed, another.
     const e1 = path.join(tmp, 'e1.json')
     const e2 = path.join(tmp, 'e2.json')
     fs.writeFileSync(e1, '{"name":"x"}')
     fs.writeFileSync(e2, '{"name":"x"}')
-    assert.equal(c.key({ ...job, expert: e1 }), c.key({ ...job, expert: e2 }))
-    assert.notEqual(c.key({ ...job, expert: e1 }), k)
+    assert.equal(c.key({ ...job, outforest: e1 }), c.key({ ...job, outforest: e2 }))
+    assert.notEqual(c.key({ ...job, outforest: e1 }), k)
     fs.writeFileSync(e2, '{"name":"y"}')
     fs.utimesSync(e2, new Date(), new Date(Date.now() + 5000))
-    assert.notEqual(c.key({ ...job, expert: e1 }), c.key({ ...job, expert: e2 }))
-    assert.equal(c.key({ ...job, forest: 'none' }), c.key({ ...job, forest: 'none' }))
+    assert.notEqual(c.key({ ...job, outforest: e1 }), c.key({ ...job, outforest: e2 }))
+    assert.equal(c.key({ ...job, outforest: 'none' }), c.key({ ...job, outforest: 'none' }))
     // A hit: what was kept, read back as JSON reads it (an undefined field left out, as the record a miss returns).
     const rec = { seed: 'k-0', progress: 0.5, battles: [{ won: true, setup: undefined }], secs: 1.5 }
     assert.equal(c.get(k), null)

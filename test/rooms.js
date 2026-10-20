@@ -1,7 +1,8 @@
 // Rooms walked into by hand, and their battles fought, for the tests.
+import './budget.js'
 import assert from 'node:assert/strict'
 import { createRun, apply, availableNodes, START_PARTY } from '../src/sim/run.js'
-import { expertTurn } from '../src/sim/policy.js'
+import { solverTurn } from '../src/sim/solver.js'
 import { createBattle, order, stalled } from '../src/sim/turns.js'
 
 // Turns the first reachable room into `type` and walks in. A battle room keeps its foes; one that had none gets the
@@ -14,10 +15,10 @@ export function visit (run, type) {
   return node
 }
 
-// Fights the room the run stands in: `fight` opens the battle, and `policy` (policy.js expertTurn by default; basicTurn
+// Fights the room the run stands in: `fight` opens the battle, and `policy` (solver.js solverTurn by default; basicTurn
 // ends every turn) gives each turn's orders, as the run's actions, until it is over (past the sim's bound on turns, a
 // stall, as the autoplayer ends one). Returns the run.
-export function fight (run, policy = expertTurn) {
+export function fight (run, policy = solverTurn) {
   apply(run, { type: 'fight' })
   while (run.state.phase === 'battle') {
     if (stalled(run.battle)) apply(run, { type: 'stall' })
@@ -30,7 +31,7 @@ export function fight (run, policy = expertTurn) {
 }
 
 // A new run, made `ready`, that won its first room of `type` (the first of seeds `prefix`0, 1… to win it, its turns
-// the expert's), on its spoils.
+// the solver's), on its spoils.
 export function win (prefix, ready = () => {}, type = 'fight') {
   for (let i = 0; i < 200; i++) {
     const run = createRun({ start: START_PARTY, seed: prefix + i })

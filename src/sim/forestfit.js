@@ -1,36 +1,10 @@
-// The battle forest's fitting, offline (play reads a forest through forest.js alone): teach.js's labels read as play
-// reads a board, regression trees on histogram splits bagged by run in worker threads, the margins measured.
-// outforest.js fits and measures its forests by binTable, fitForest and marginText.
-//
-//   npm run forest -- --data <dir>[,<dir>…] [--out file] [flags]   fit a forest, printing its out-of-bag and held-out margins
-//   npm run forest -- --data <dir>[,<dir>…] --eval <file>[,<file>…]   the held-out margins of forests already fitted
-//     --out file                 where the forest is written (src/sim/forest.json is the one play reads)
-//     --inputs base|aft          the inputs; aft adds the afterstate's (each label set augmented: teach.js --augment)
-//     --data-weight 1,0.5,…      each label set's weight, in --data's order
-//     --use <dir>,…              the label sets fitted on (all by default; the rest read only for the bins)
-//     --label mean|exact         a smoothed set's means, or its exact lines
-//     --target mean|today        an option's value less its position's mean, or less today's choice's
-//     --trees 200 --depth 12 --leaves 512 --min-leaf 40   the trees' bounds
-//     --mtry 0.333               the share of the inputs drawn at each split
-//     --shrink 0                 a leaf's value its rows' mean, shrunk by that many rows of 0
-//     --bins 64                  the bins an input is cut into, at most
-//     --weighted --wclip 10      each row by its draw's `wt`, clipped
-//     --seed 1                   the trees' draws
-//     --delta 0.1                the margin play reads the forest at
-//     --name forest              the forest's name
-//     --workers n                worker threads (every core but one by default)
-//
-// The target, a row an option: its playout value less its position's mean (`mean`) or today's choice's (`today`),
-//   clipped to ±`clip`; today's choice the best by the row's `prior`, ties as policy.js better. Trees are bagged by
-//   whole runs; seeds ≡ 0 mod 5 are held out (splitOf), never fitted.
-// forest.json: { kind, name, about, made, data, inputs, target, delta, size, feat, thr, right, value }.
-import {
-  inputNames, INPUT_SETS, checkForest, TARGETS, meanOf, rowView, rowOf, rowAfter, afterNames, encodeAgainst, readsAfter, predict
-} from './forest.js'
-import { LANE } from './field.js'
-import { tileX } from './unit.js'
+// The forests' fitting, offline (play reads a forest through trees.js): a table of label rows binned (binTable),
+// regression trees on histogram splits bagged by run in worker threads (fitForest), the margins measured (marginText).
+// outforest.js fits and measures its forests by them.
+//   The target, a row an option: its playout value less its position's mean (`mean`) or today's choice's (`today`),
+//   clipped to ±`clip`. Trees are bagged by whole runs; seeds ≡ 0 mod 5 are held out (splitOf), never fitted.
+import { TARGETS } from './trees.js'
 import { pool as workerPool } from './pool.js'
-import { arg, has, list, num, isMain } from './cli.js'
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
 
@@ -54,77 +28,11 @@ export async function * linesOf (file) {
   const rl = readline.createInterface({ input: fs.createReadStream(file), crlfDelay: Infinity })
   for await (const line of rl) if (line.trim()) yield line
 }
-// A label set's file: a directory's labels.jsonl, else the file named.
-const labelsIn = (where) => {
-  const fs = node('fs')
-  return fs.statSync(where).isDirectory() ? `${where.replace(/\/$/, '')}/labels.jsonl` : where
-}
 
-// The split of a position by its seed's number (teach.js `run`): ≡ 0 mod 5 held out, ≡ 1 validation, the rest training.
+// The split of a position by its seed's number (its row's `run`): ≡ 0 mod 5 held out, ≡ 1 validation, the rest training.
 export const splitOf = (run) => (run % 5 === 0 ? 'held' : run % 5 === 1 ? 'val' : 'train')
 
 const EPS = 1e-9
-// The better of two label options by today's score, ties as policy.js better.
-const ahead = (o, b) => {
-  if (Math.abs(o.prior - b.prior) > EPS) return o.prior > b.prior
-  if (o.steps !== b.steps) return o.steps < b.steps
-  const lo = LANE[tileX(o.tile)]
-  const lb = LANE[tileX(b.tile)]
-  if (lo !== lb) return lo < lb
-  return (o.target ?? -1) < (b.target ?? -1)
-}
-
-// One label row as the forest reads it: of the options the hard rules keep (meanOf's reference), the legal with a value,
-// today's first, each with its inputs against today's (encodeAgainst). → { today, mean, rows: [{ o, x, value, … }] } or null
-export function readDecision (row, after = null, names = afterNames()) {
-  const kept = row.options.filter((o) => o.kept)
-  const opts = kept.filter((o) => o.legal && Number.isFinite(o.value))
-  if (opts.length < 2) return null
-  const mean = meanOf(kept.map((o) => rowView(o)))
-  let today = opts[0]
-  for (const o of opts) if (ahead(o, today)) today = o
-  const view = (o) => rowOf(o, rowAfter(row.sit, after?.a?.[o.i] ?? null, names))
-  const own = view(today)
-  const rows = [today, ...opts.filter((o) => o !== today)].map((o) => ({
-    o, x: encodeAgainst(row.sit, row.kind, o === today ? own : view(o), mean, own), value: o.value, steps: o.steps, lane: LANE[tileX(o.tile)], target: o.target ?? -1
-  }))
-  return { today, mean, rows }
-}
-
-// What an option's value is read from: `value` (a smoothed set's mean), or `values[0]` (its exact line).
-export const LABELS = Object.freeze(['mean', 'exact'])
-
-// The decisions of label sets `dirs`, streamed as { row, d (readDecision's), k (its set's index) }, with the afterstates
-// of each set's after.jsonl where `after` (rows past it left out, counted in `skipped`), each value by `label`.
-async function * decisionsOf (dirs, after, skipped = null, label = 'mean') {
-  if (!LABELS.includes(label)) throw new Error(`forest: no label "${label}": ${LABELS.join(', ')}`)
-  const fs = node('fs')
-  for (const [k, dir] of dirs.entries()) {
-    const file = labelsIn(dir)
-    const side = file.replace(/labels\.jsonl$/, 'after.jsonl')
-    if (after && !fs.existsSync(side)) throw new Error(`forest: ${dir} has no after.jsonl (npm run teach -- --augment ${dir})`)
-    const lines = after ? linesOf(side)[Symbol.asyncIterator]() : null
-    const names = after ? JSON.parse(fs.readFileSync(side.replace(/after\.jsonl$/, 'after.json'), 'utf8')).conditions : undefined
-    let past = false
-    for await (const line of linesOf(file)) {
-      const row = JSON.parse(line)
-      if (label === 'exact') for (const o of row.options) if (o.values) o.value = o.values[0]
-      let a = null
-      if (lines) {
-        const next = past ? { done: true } : await lines.next()
-        if (next.done) {
-          past = true
-          if (skipped) skipped[k] = (skipped[k] ?? 0) + 1
-          continue
-        }
-        a = JSON.parse(next.value)
-        if (a.id !== row.id) throw new Error(`forest: ${side} is not line for line with its labels (at ${row.id})`)
-      }
-      const d = readDecision(row, a, names)
-      if (d) yield { row, d, k }
-    }
-  }
-}
 
 // The cuts of one input from sample values `v`: at most `B` − 1, each where the sample's count passes the next of B
 // quantiles and two distinct values meet, at the shortest decimal between them (between). → Float64Array, ascending
@@ -211,35 +119,10 @@ export async function binTable (decisions, cols, { bins = 64, sample = 100000, s
   return { D, N, P, cuts, nb: Uint8Array.from(cuts, (c) => c.length + 1), bins: B, v, ...Object.fromEntries(own.map(([name, a]) => [name, a])), start, meta }
 }
 
-// The decisions of label sets `dirs` (directories of teach.js's labels, or files) as one table (binTable's): a row an
-// option, today's choice first, its `inputs` binned; per row its value (v), position and tie keys (steps, lane, target);
-// per position its start, id, run, split, group, floor, danger, `wt`, label set (`data`, `dw` its `weights`) and `runKey`.
-export async function readTable (dirs, { inputs = INPUT_SETS.base(), weights = null, bins = 64, sample = 100000, seed = 1, log = null, label = 'mean' } = {}) {
-  const known = inputNames()
-  const cols = Int32Array.from(inputs.map((n) => {
-    const i = known.indexOf(n)
-    if (i < 0) throw new Error(`forest: unknown input "${n}"`)
-    return i
-  }))
-  const after = inputs.some((n) => n.startsWith('aft.'))
-  const skipped = {}
-  const t = await binTable((pass) => decisionsOf(dirs, after, pass === 2 ? skipped : null, label), cols, {
-    bins,
-    sample,
-    seed,
-    extras: { pos: [Int32Array, (o, p) => p], steps: [Int16Array, (o) => o.steps], lane: [Int8Array, (o) => o.lane], target: [Int32Array, (o) => o.target] },
-    metaOf: (row, k) => ({ id: row.id, run: row.run, split: splitOf(row.run), group: row.group, floor: row.floor, danger: row.danger, wt: row.wt ?? 1, data: dirs[k], dw: weights?.[k] ?? 1, runKey: `${k}:${row.run}` })
-  })
-  for (const [k, n] of Object.entries(skipped)) log?.(`  ${dirs[k]}: ${n} rows past its after.jsonl left out`)
-  return { names: inputs.slice(), ...t, dirs: dirs.slice(), label }
-}
-
 // ── the trees ────────────────────────────────────────────────────────────────────────────────────
 
-export const FIT = Object.freeze({ target: 'mean', trees: 200, depth: 12, leaves: 512, minLeaf: 40, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 10, weighted: false, wclip: 10, seed: 1, delta: 0.1 })
-
 // Tree `t` grown on shared table `S` ({ bins, N, cols, nb, y (the clipped target), w (weights), run (−1: not fitted),
-// nRuns }) by `cfg` (FIT's keys): whole runs drawn with replacement, grown best first on `mtry` of the columns at each
+// nRuns }) by `cfg` (a fit's settings: seed, depth, leaves, minLeaf, mtry, shrink, minGain): whole runs drawn with replacement, grown best first on `mtry` of the columns at each
 // split; deterministic for the seed and t. → { feat (−1 a leaf), bin (left: at most it), right, value, count } in preorder
 export function growTree (S, cfg, t) {
   const { bins, N, cols, nb, y, w, run, nRuns } = S
@@ -401,12 +284,12 @@ export async function growTrees (S, cfg, workers, done) {
 }
 
 // Fits a forest on table `t` (binTable's) by `cfg` (`defaults`' keys; `inputs`, less those starting with one of
-//   `without`; `use`, the label sets fitted on) on `workers` threads: the positions not held out fitted, each row weighing
-//   alike or by its `wt` clipped (`weighted`), × `weightOf(meta, cfg)`, normalised to a mean of 1. `what`, `lineOf`,
-//   `progress` and `configOf(trees, t, cols, cfg, fit)` are the caller's (the battle forest's by default).
+//   `without`) on `workers` threads: the positions not held out fitted, each row weighing alike or by its `wt` clipped
+//   (`weighted`), × `weightOf(meta, cfg)`, normalised to a mean of 1. `defaults`, `what`, `lineOf(cfg, t, counts)`,
+//   `progress` and `configOf(trees, t, cols, cfg, fit)` are the caller's.
 //   → { config, trees, oob (each fitted row by the trees whose draw left its run out; NaN for none), held (each held-out
 //   row by them all), fitted, heldOut (the positions) }
-export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0, defaults = FIT, what = 'forest', weightOf = (M) => M.dw, lineOf = fitLine, progress = true, configOf = toConfig } = {}) {
+export async function fitForest (t, cfg, { defaults, lineOf, configOf, log = () => {}, workers = 0, what = 'forest', weightOf = () => 1, progress = true }) {
   cfg = { ...defaults, ...cfg }
   if (!TARGETS.includes(cfg.target)) throw new Error(`${what}: no target "${cfg.target}": ${TARGETS.join(', ')}`)
   const yt = targetsOf(t, cfg.target)
@@ -416,7 +299,6 @@ export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0, def
     if (j < 0) throw new Error(`${what}: the table lacks input "${n}"`)
     return j
   }))
-  const use = cfg.use ? new Set(cfg.use) : null
   const runs = new Map()
   const run = shared(Int32Array, t.N).fill(-1)
   const w = shared(Float64Array, t.N)
@@ -431,7 +313,6 @@ export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0, def
       heldOut.push(p)
       continue
     }
-    if (use && !use.has(M.data)) continue
     fitted.push(p)
     if (!runs.has(M.runKey)) runs.set(M.runKey, runs.size)
     const wp = (cfg.weighted ? Math.min(M.wt, cfg.wclip) : 1) * weightOf(M, cfg)
@@ -481,10 +362,6 @@ export async function fitForest (t, cfg = {}, { log = () => {}, workers = 0, def
   return { config, trees, oob, held, fitted, heldOut }
 }
 
-// The battle forest's first line of a fitting (fitForest's lineOf).
-const fitLine = (cfg, t, n) => `fitting ${cfg.trees} trees to the ${cfg.target === 'mean' ? 'centred value' : 'advantage over today\'s choice'} on ${n.fitted} positions (${n.rows} rows, ${n.runs} runs), ${n.inputs} inputs: depth ≤ ${cfg.depth}, leaves ≤ ${cfg.leaves}, ` +
-  `min leaf ${cfg.minLeaf}, mtry ${+cfg.mtry.toFixed(3)}, shrink ${cfg.shrink}${cfg.weighted ? `, weighted (clip ${cfg.wclip})` : ''}`
-
 // Each row's target: its value less its position's mean (`mean`), or less today's choice's (`today`).
 function targetsOf (t, target) {
   const y = new Float64Array(t.N)
@@ -503,7 +380,7 @@ function targetsOf (t, target) {
 }
 
 const round = (v, p = 5) => +v.toPrecision(p)
-// Fitted trees as forest.js reads them (compileTrees): each tree's size, each node's input its place among `cols` (−1 a
+// Fitted trees as trees.js reads them (compileTrees): each tree's size, each node's input its place among `cols` (−1 a
 // leaf), each split's threshold its bin's cut, each right child as nodes ahead, each leaf's value to five figures.
 export function flatTrees (trees, t, cols) {
   const feat = []
@@ -523,32 +400,10 @@ export function flatTrees (trees, t, cols) {
   }
   return { size: trees.map((x) => x.feat.length), feat, thr, right, value }
 }
-// Fitted trees as forest.json's configuration (fitForest's configOf).
-function toConfig (trees, t, cols, cfg, fit) {
-  const { target, trees: n, depth, leaves, minLeaf, mtry, shrink, weighted, wclip, clip, seed, delta } = cfg
-  return {
-    kind: 'forest',
-    name: cfg.name ?? 'forest',
-    about: `a random forest's advantage over today's choice (src/sim/forest.js), fitted on teach.js's labels to the battle's end (target ${target}); today's choice unless the best other candidate's exceeds delta`,
-    made: { at: new Date().toISOString(), trees: n, depth, leaves, minLeaf, mtry: +mtry.toFixed(4), shrink, weighted, wclip, clip, seed, bins: Math.max(...t.nb), label: t.label ?? 'mean', positions: fit.fitted, rows: fit.rows, runs: fit.runs, seconds: +fit.seconds.toFixed(1) },
-    data: cfg.data ?? t.dirs,
-    inputs: Array.from(cols, (j) => t.names[j]),
-    target,
-    delta,
-    ...flatTrees(trees, t, cols)
-  }
-}
-
 // ── measuring ────────────────────────────────────────────────────────────────────────────────────
 
-// The better of two table rows by predictions `P`, ties as policy.js better where the table has the tie keys, else the earlier.
-const aheadRow = (t, P, r, b) => {
-  if (Math.abs(P[r] - P[b]) > EPS) return P[r] > P[b]
-  if (!t.steps) return false
-  if (t.steps[r] !== t.steps[b]) return t.steps[r] < t.steps[b]
-  if (t.lane[r] !== t.lane[b]) return t.lane[r] < t.lane[b]
-  return t.target[r] < t.target[b]
-}
+// Whether table row `r` is ahead of row `b` by predictions `P` (ties: the earlier).
+const aheadRow = (P, r, b) => P[r] - P[b] > EPS
 
 // How predictions `P` (a table row each) decide positions `list` at margin `delta`, as play would: the best other option
 //   taken where its advantage over today's choice exceeds delta. → { n, changed (the share), gain (the mean advantage
@@ -572,7 +427,7 @@ export function decided (t, list, P, delta, target = 'mean') {
     let b = a + 1
     let top = 0
     for (let r = a + 1; r < z; r++) {
-      if (r > a + 1 && aheadRow(t, P, r, b)) b = r
+      if (r > a + 1 && aheadRow(P, r, b)) b = r
       top = Math.max(top, t.v[r] - t.v[a])
     }
     const wt = t.meta[p].wt
@@ -593,7 +448,7 @@ export function decided (t, list, P, delta, target = 'mean') {
 }
 
 // The margins a table is read at.
-const DELTAS = Object.freeze([0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1])
+export const DELTAS = Object.freeze([0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 1])
 // A table of predictions `P` over positions `list`, a line a margin (decided's): the decisions changed, the advantage
 // realised (per position and by the draw's weight), the changes that gained and lost.
 export function marginText (t, list, P, deltas = DELTAS, target = 'mean') {
@@ -627,61 +482,6 @@ export async function heldTable (decisions, of, keys = []) {
   return { t, P }
 }
 
-// The held-out margins table of forests `configs` on label sets `dirs`, read as play reads them. → { [name]: text }
-async function evalForests (dirs, configs, { log = null } = {}) {
-  const after = configs.some((c) => readsAfter(c))
-  const { t, P } = await heldTable(decisionsOf(dirs, after), configs.map((c) => (x) => predict(c, x)), ['steps', 'lane', 'target'])
-  const list = t.meta.map((_, p) => p)
-  const out = {}
-  configs.forEach((c, i) => {
-    out[c.name] = marginText(t, list, P[i], [...new Set([c.delta, ...DELTAS])].sort((a, b) => a - b), c.target ?? 'today')
-    log?.(`\n${c.name} (delta ${c.delta}), held out (seeds ≡ 0 mod 5):\n${out[c.name]}`)
-  })
-  return out
-}
-
-// ── the command ──────────────────────────────────────────────────────────────────────────────────
-
-async function main () {
-  const dirs = list('data')
-  if (!dirs.length) throw new Error('forest: --data <dir>[,<dir>…] of teach.js labels')
-  const fs = node('fs')
-  const os = node('os')
-  const t0 = Date.now()
-  const evals = list('eval')
-  if (evals.length) {
-    await evalForests(dirs, evals.map((f) => ({ ...checkForest(JSON.parse(fs.readFileSync(f, 'utf8'))), name: f })), { log: console.log })
-    return
-  }
-  const set = arg('inputs', 'base')
-  if (!INPUT_SETS[set]) throw new Error(`forest: --inputs ${set}: one of ${Object.keys(INPUT_SETS).join(', ')}`)
-  const weights = list('data-weight').map(Number)
-  const bins = Number(arg('bins', 64))
-  if (!(bins >= 2 && bins <= 256)) throw new Error('forest: --bins between 2 and 256')
-  const label = arg('label', 'mean')
-  console.log(`reading ${dirs.join(', ')} (inputs ${set}${weights.length ? `, weights ${weights.join(', ')}` : ''}, ${bins} bins${label !== 'mean' ? `, the ${label} labels` : ''})`)
-  const t = await readTable(dirs, { inputs: INPUT_SETS[set](), weights: weights.length ? weights : null, bins, log: console.log, label })
-  console.log(`${t.P} positions, ${t.N} rows, ${t.D} inputs (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
-  const cfg = Object.fromEntries(Object.entries({
-    target: arg('target'), trees: num('trees'), depth: num('depth'), leaves: num('leaves'), minLeaf: num('min-leaf'), mtry: num('mtry'), shrink: num('shrink'), wclip: num('wclip'), seed: num('seed'), delta: num('delta'),
-    name: arg('name')
-  }).filter(([, v]) => v != null))
-  if (has('weighted')) cfg.weighted = true
-  if (list('use').length) cfg.use = list('use')
-  cfg.data = dirs
-  const workers = Number(arg('workers', Math.max(1, os.availableParallelism() - 1)))
-  const r = await fitForest(t, cfg, { log: console.log, workers })
-  const target = r.config.target
-  console.log(`\nout of bag (the positions fitted, each by the trees whose draw left its run out):\n${marginText(t, r.fitted, r.oob, DELTAS, target)}`)
-  console.log(`\nheld out (seeds ≡ 0 mod 5):\n${marginText(t, r.heldOut, r.held, DELTAS, target)}`)
-  const out = arg('out', null)
-  if (out) {
-    const text = JSON.stringify(r.config) + '\n'
-    fs.writeFileSync(out, text)
-    console.log(`\nwrote ${out}: ${r.config.size.length} trees, ${r.config.feat.length} nodes, ${(text.length / 1e6).toFixed(2)} MB (${((Date.now() - t0) / 1000).toFixed(0)} s)`)
-  }
-}
-
 const threads = node('worker_threads')
 if (threads && !threads.isMainThread && threads.workerData?.forest === 'fit') {
   // A fitting worker: tree after tree of the shared table, until it is let go.
@@ -689,10 +489,5 @@ if (threads && !threads.isMainThread && threads.workerData?.forest === 'fit') {
   threads.parentPort.on('message', (t) => {
     const tree = growTree(S, cfg, t)
     threads.parentPort.postMessage(tree, [tree.feat.buffer, tree.bin.buffer, tree.right.buffer, tree.value.buffer, tree.count.buffer])
-  })
-} else if (isMain(import.meta.url)) {
-  main().catch((e) => {
-    console.error(e)
-    process.exit(1)
   })
 }

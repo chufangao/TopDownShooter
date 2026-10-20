@@ -1,6 +1,6 @@
 // The outside teacher, offline and never shipped: each of the expert's choices between battles made by playing its
-// candidates out on a copy of the run by the base (the expert in use, which also plays every battle), the best taken;
-// and the labels for the forest out of battle (outforest.js).
+// candidates out on a copy of the run by the base (the expert out of battle, its level's turn policy in every battle:
+// LEVELS.expert, player.js TURNS), the best taken; and the labels for the forest out of battle (outforest.js).
 //
 //   npm run outside -- [flags]                 seeds played by the outside teacher and by the expert as it ships, paired
 //     --runs 64 --seed sim --from 0   seeds <seed>-<from>…<seed>-<from + runs − 1>
@@ -23,7 +23,7 @@
 //     --recruits 1,…            a recruit's chance of a label by floor, × --floors
 //   npm run outside -- --reread <dir> --out <dir> [--workers 8]   a label set's reads made again, its values kept
 //
-// A playout's value: to the run's end teach.js routeEndValue's from the decision (ROUTE_END_WEIGHTS), over a window
+// A playout's value (values.js): to the run's end routeEndValue's from the decision (ROUTE_END_WEIGHTS), over a window
 // routeValue's (ROUTE_WEIGHTS), a formation's by its coming battle endValue's (END_WEIGHTS).
 // runs.jsonl, a line a run: { seed, player ('outside' or 'expert'), result, floor, progress, battles: { won, fought },
 //   ms, and the teacher's decisions, playouts, single, decisionMs, phases (outsideStats'), fights, picks, settings, base }
@@ -41,17 +41,17 @@ import { createRng, hashString } from './rng.js'
 import {
   LEVELS, policy, survey, planFor, plan, pickRoute, pickHold, pickReap, buyFor, growthOf, sketch, held, tierRate, offerState,
   progressOf, routeRooms, ablatedRun, routeModel, ROUTE_LEARNED, spendCandidates, recruitCandidates, rankCandidates, outCandidates, spendPick, recruitPick, outsideRead,
-  prepCandidates, prepRead, formationName, PREP_CAP, pickDraft, pickAltar, altarCandidates, asMonarch, monarchArg
+  prepCandidates, prepRead, formationName, PREP_CAP, pickDraft, pickAltar, altarCandidates, asMonarch, monarchArg, turnsOf, foeShare, record
 } from './autoplay.js'
 import { outForestModel, outDecides } from './outforest.js'
-import { value, expertModel } from './expert.js'
-import { forestModel, r6 } from './forest.js'
+import { value } from './read.js'
+import {
+  routeEndValue, routeEndOf, routeValue, runTally, roomDone, ROUTE_END_WEIGHTS, ROUTE_WEIGHTS, endTally, endValue, END_WEIGHTS
+} from './values.js'
+import { r6 } from './trees.js'
 import { pool as workerPool } from './pool.js'
 import { splitOf } from './forestfit.js'
 import { arg, has, isMain } from './cli.js'
-import {
-  routeEndValue, routeEndOf, routeValue, ROUTE_END_WEIGHTS, ROUTE_WEIGHTS, endTally, endValue, END_WEIGHTS, expertRun, pairedReport, pairedLines, pc, closeOf
-} from './teach.js'
 import { TUNING } from '../tuning.js'
 
 export const PHASES = Object.freeze(['prep', 'spend', 'recruit', 'shop', 'hold', 'altar'])
@@ -130,21 +130,6 @@ export function beforeOf (run) {
 // A playout's end (routeEndValue from floor 0, no room done) read from `before`: its parts from there, and its value.
 const partsFrom = (end, before) => ({ ...end.parts, rooms: end.parts.rooms - before.share * routeRooms(), floors: end.parts.floors - before.floor })
 const fromEnd = (end, before, w) => r6(routeEndOf(partsFrom(end, before), w))
-
-// What a window's value reads of a run (teach.js runTally, mirrored).
-function tallyOf (run) {
-  const s = run.state
-  const m = s.party.find(isMonarch)
-  let hp = 0
-  let max = 0
-  for (const u of souls(s.party)) {
-    hp += Math.max(0, u.hp)
-    max += u.maxHp
-  }
-  const share = s.phase === 'map' ? progressOf({ result: null, floor: s.floor, rank: (currentNode(run)?.rank ?? 0) + 1 }) : null
-  return { floor: s.floor, m: Math.max(0, m.hp) / m.maxHp, own: max ? hp / max : 0, essence: s.stats.essence, purse: s.essence, power: Math.log(survey(run).strength), share }
-}
-const roomDone = (was, now, action, run) => (now === 'over' ? !run.state.death : now === 'map' && (was !== 'map' || action.type === 'node'))
 
 // A run's board at a fight it opens: its state but its log, hashed (the base's play from there is a pure function of it).
 const keyOf = (run) => {
@@ -231,7 +216,7 @@ function choose (run, m, c, phase, cands, opts = {}) {
   st.asked++
   if (cands.length < 2) return cands[0]
   const t0 = performance.now()
-  const before = { ...beforeOf(run), ...(c.rooms > 0 && !opts.battle && { window: tallyOf(run) }) }
+  const before = { ...beforeOf(run), ...(c.rooms > 0 && !opts.battle && { window: runTally(run) }) }
   const count = (p) => {
     st.playouts++
     if (p.hit) st.hits++
@@ -454,8 +439,24 @@ export function candidatesAt (run, cfg = {}) {
 
 // ── runs ─────────────────────────────────────────────────────────────────────────────────────────
 
-// What played as the base: the expert's model, the forest, the route and the forest out of battle in use.
-const baseOf = () => ({ expert: expertModel()?.name ?? null, forest: forestModel()?.name ?? null, route: routeModel() ? routeModel().name ?? 'learned' : 'hand', learned: ROUTE_LEARNED, outforest: outForestModel()?.name ?? null })
+// What played as the base: its turn policy in battle, the route and the forest out of battle in use.
+const baseOf = () => ({ turns: turnsOf(L), route: routeModel() ? routeModel().name ?? 'learned' : 'hand', learned: ROUTE_LEARNED, outforest: outForestModel()?.name ?? null })
+
+// A battle's tally for a run's line: won, and where the run fell in it (progressOf's rank and share).
+export function closeOf (run) {
+  const b = run.battle
+  return b.winner === 'party' ? { won: true, fell: null } : { won: false, fell: { rank: currentNode(run)?.rank ?? 1, share: foeShare(b) } }
+}
+
+// One run of the expert as it ships (autoplay.js record), as a teacher's runs.jsonl line.
+export function expertRun (seed, cfg = {}) {
+  const t0 = performance.now()
+  const r = record({ seed, level: 'expert', ascension: cfg.ascension ?? 0, ...asMonarch(cfg.monarch) })
+  return {
+    seed, player: 'expert', result: r.result ?? null, floor: r.floor, progress: r.progress,
+    battles: { won: r.battles.filter((b) => b.won).length, fought: r.battles.length }, ms: Math.round(performance.now() - t0)
+  }
+}
 
 // One run, the outside teacher out of battle and the base in it (`battles`: stop early; `log`). → its runs.jsonl line
 export function outsideRun (seed, cfg = {}) {
@@ -745,7 +746,61 @@ async function rereadMain (arg) {
   console.log(`${n} runs read again from ${from} into ${dir} (${((performance.now() - t0) / 1000).toFixed(0)} s)`)
 }
 
-// The outside teacher against the expert as it ships (teach.js pairedReport), and by phase: decisions a run, overrides,
+// The teacher against the expert, paired by seed over runs.jsonl's `lines`. → { n, teacher, expert, clears: { gained,
+// lost }, progress: { diff, se } (the paired difference ± one standard error), cost }
+export function pairedReport (lines) {
+  const by = new Map()
+  for (const r of lines) {
+    if (!by.has(r.seed)) by.set(r.seed, {})
+    by.get(r.seed)[r.player] = r
+  }
+  const pairs = [...by.values()].filter((p) => p.teacher && p.expert)
+  const n = pairs.length
+  const mean = (xs) => (xs.length ? xs.reduce((k, x) => k + x, 0) / xs.length : 0)
+  const cleared = (r) => r.result === 'victory'
+  const side = (k) => {
+    const rs = pairs.map((p) => p[k])
+    const won = rs.reduce((t, r) => t + r.battles.won, 0)
+    const fought = rs.reduce((t, r) => t + r.battles.fought, 0)
+    const deaths = {}
+    for (const r of rs) if (!cleared(r)) deaths[r.floor] = (deaths[r.floor] ?? 0) + 1
+    return {
+      clears: rs.filter(cleared).length, rate: n ? +(rs.filter(cleared).length / n).toFixed(4) : null, progress: +mean(rs.map((r) => r.progress)).toFixed(4),
+      battles: { won, fought, rate: fought ? +(won / fought).toFixed(4) : null }, deaths, msPerRun: Math.round(mean(rs.map((r) => r.ms)))
+    }
+  }
+  const d = pairs.map((p) => p.teacher.progress - p.expert.progress)
+  const dm = mean(d)
+  const se = n > 1 ? Math.sqrt(d.reduce((t, x) => t + (x - dm) ** 2, 0) / (n - 1) / n) : 0
+  const T = pairs.map((p) => p.teacher)
+  const decisions = T.reduce((t, r) => t + r.decisions, 0)
+  return {
+    n, teacher: side('teacher'), expert: side('expert'),
+    clears: { gained: pairs.filter((p) => cleared(p.teacher) && !cleared(p.expert)).length, lost: pairs.filter((p) => !cleared(p.teacher) && cleared(p.expert)).length },
+    progress: { diff: +dm.toFixed(4), se: +se.toFixed(4) },
+    cost: {
+      decisionsPerRun: Math.round(decisions / Math.max(1, n)), playoutsPerDecision: +(T.reduce((t, r) => t + r.playouts, 0) / Math.max(1, decisions)).toFixed(2),
+      single: +(T.reduce((t, r) => t + r.single, 0) / Math.max(1, decisions)).toFixed(4), msPerDecision: +(T.reduce((t, r) => t + r.decisionMs, 0) / Math.max(1, decisions)).toFixed(1)
+    }
+  }
+}
+
+// pairedReport's in lines, for the console.
+export const pc = (x) => (x === null ? '-' : `${(100 * x).toFixed(1)}%`)
+const deathsText = (x) => Object.entries(x).map(([k, v]) => `floor ${k} ${v}`).join(', ') || 'none'
+export function pairedLines (rep, { who = 'the teacher', vs = "today's expert", a = 'teacher', b = "today's", more = `${pc(rep.cost.single)} of one option` } = {}) {
+  const { teacher: t, expert: e } = rep
+  return [
+    `${who} against ${vs}, ${rep.n} seeds paired:`,
+    `  clears          ${a} ${t.clears}/${rep.n} (${pc(t.rate)}), ${b} ${e.clears}/${rep.n} (${pc(e.rate)}); ${who} cleared ${rep.clears.gained} ${b} lost, lost ${rep.clears.lost} ${b} cleared`,
+    `  progress        ${a} ${t.progress.toFixed(4)}, ${b} ${e.progress.toFixed(4)}; difference ${rep.progress.diff >= 0 ? '+' : ''}${rep.progress.diff.toFixed(4)} ± ${rep.progress.se.toFixed(4)} (one standard error, paired)`,
+    `  battles won     ${a} ${t.battles.won}/${t.battles.fought} (${pc(t.battles.rate)}), ${b} ${e.battles.won}/${e.battles.fought} (${pc(e.battles.rate)})`,
+    `  deaths by floor ${a} ${deathsText(t.deaths)}; ${b} ${deathsText(e.deaths)}`,
+    `  time a run      ${a} ${(t.msPerRun / 1000).toFixed(1)} s (${rep.cost.decisionsPerRun} decisions, ${rep.cost.playoutsPerDecision} playouts and ${rep.cost.msPerDecision} ms a decision, ${more}), ${b} ${(e.msPerRun / 1000).toFixed(1)} s`
+  ]
+}
+
+// The outside teacher against the expert as it ships (pairedReport), and by phase: decisions a run, overrides,
 // candidates, playouts and hits, settled, `found` (overrides whose line cleared), ms and gain a decision.
 export function outsideReport (lines) {
   const rep = pairedReport(lines.map((r) => (r.player === 'outside' ? { ...r, player: 'teacher' } : r)))

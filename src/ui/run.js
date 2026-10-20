@@ -1,11 +1,8 @@
 // The run's screen between battles, its four tabs folded into the top bar, and the Map: the floor's rooms.
-import { roomTip, ROOM, codexView, bestiaryCount } from '../codex.js'
+import { roomTip, ROOM, codexView, bestiaryCount, roomLacks, lackName } from '../codex.js'
 import { h, fill, icon, hideTip, pinTip, touchy, say } from '../dom.js'
-import { THREATS, unitDef, statusDef } from '../content.js'
 import { RANKS, WIDTH } from '../sim/map.js'
-import {
-  availableNodes, shopOffers, shelfFusions, fielded, souls, roomThreats, ANSWERS, BATTLE_NODES, unkeyed
-} from '../sim/run.js'
+import { availableNodes, shopOffers, shelfFusions, fielded, souls } from '../sim/run.js'
 import { topbar, ossuaryCount } from './chrome.js'
 import { fieldEditor } from './field.js'
 import { shopView } from './shop.js'
@@ -102,16 +99,12 @@ const UNMET = {
   bleed: MENDS
 }
 const OTHER = { ico: 'elite', lack: 'nothing fielded answers it' }
-const unmetOf = (t) => UNMET[t] ?? OTHER
+// A locked kind (codex.js roomLacks): no key laid by anything fielded, or one piece alone (a soul's summons are pieces)
+// to lay it and strike.
+const LOCK = { ico: 'elite', head: 'No key to', lack: 'nothing fielded lays its key' }
+const PAIR = { ico: 'elite', head: 'No key to', lack: 'one piece cannot both lay its key and strike' }
+const unmetOf = (t) => (t.startsWith('lock:') ? LOCK : t.startsWith('pair:') ? PAIR : UNMET[t] ?? OTHER)
 
-// The threat types of battle room `n` that none of `army` answers, in THREATS' order, then its locks the army holds no
-// key to ('lock:<kind>').
-function unmet (n, army) {
-  if (!BATTLE_NODES.includes(n.type)) return []
-  const has = roomThreats(n)
-  return [...Object.keys(THREATS).filter((t) => ANSWERS[t] && has.has(t) && !army.some(ANSWERS[t])), ...unkeyed(n, army).map((x) => `lock:${x.id}`)]
-}
-const LOCK = { ico: 'elite', lack: 'nothing fielded lays its key' }
 // Its marks, one per missing answer, at the medal's upper left.
 const unmetMark = (types) => types.length > 0 && h('span', { class: 'unmet', 'aria-hidden': 'true' },
   [...new Set(types.map((t) => unmetOf(t).ico))].map((ico) => icon(ico, 14)))
@@ -119,15 +112,10 @@ const unmetMark = (types) => types.length > 0 && h('span', { class: 'unmet', 'ar
 function unmetTip (tip, types) {
   const by = new Map()
   for (const t of types) {
-    if (t.startsWith('lock:')) {
-      const d = unitDef(t.slice(5))
-      by.set(LOCK, [...(by.get(LOCK) ?? []), `the ${d.name} (${d.lock.keys.map((k) => statusDef(k).name).join(' or ')})`])
-      continue
-    }
     const u = unmetOf(t)
-    by.set(u, [...(by.get(u) ?? []), THREATS[t].name])
+    by.set(u, [...(by.get(u) ?? []), lackName(t)])
   }
-  const lines = [...by].map(([u, names]) => h('p', { class: 'warn rt-unmet' }, icon(u.ico, 16), u === LOCK ? `No key to ${names.join(', ')}: ${u.lack}.` : `No answer to ${names.join(', ')}: ${u.lack}.`))
+  const lines = [...by].map(([u, names]) => h('p', { class: 'warn rt-unmet' }, icon(u.ico, 16), `${u.head ?? 'No answer to'} ${names.join(', ')}: ${u.lack}.`))
   if (!lines.length) return tip
   const head = tip.querySelector('.rt-head')
   if (head) head.after(...lines)
@@ -141,7 +129,7 @@ function mapView ({ run, trail, onNode }) {
   const s = run.state
   const army = fielded(souls(s.party)).filter((u) => u.hp > 0)
   const here = s.map.nodes.find((n) => n.id === s.at)
-  const lacks = (n) => trail.includes(n.id) || n.rank <= (here?.rank ?? -1) ? [] : unmet(n, army)
+  const lacks = (n) => trail.includes(n.id) || n.rank <= (here?.rank ?? -1) ? [] : roomLacks(n, army)
   const reach = availableNodes(run)
   const reachIds = new Set(reach.map((n) => n.id))
   const walked = new Set(trail.slice(1).map((id, i) => `${trail[i]}>${id}`))
@@ -180,7 +168,7 @@ function mapView ({ run, trail, onNode }) {
       class: `node t-${n.type}` + (ok ? ' reach' : '') + (trail.includes(n.id) ? ' visited' : '') + (n.id === s.at ? ' here' : '') + (!ok && !trail.includes(n.id) ? ' far' : ''),
       style: `left:${p.x}%;top:${p.y}%`,
       'aria-disabled': ok ? null : 'true',
-      'aria-label': NODE[n.type].name + (lack.length ? `, no answer to ${lack.map((t) => THREATS[t].name).join(', ')}` : ''),
+      'aria-label': NODE[n.type].name + (lack.length ? `, no answer to ${lack.map(lackName).join(', ')}` : ''),
       tip: () => unmetTip(roomTip(run, n, { reachable: ok }), lack),
       onclick: (e) => {
         if (!touchy()) { if (ok) onNode(n.id); return }

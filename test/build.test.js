@@ -1,6 +1,6 @@
 // The store build (build.js): dist/ holds every file the game loads, by any static import from
 // src/main.js and by index.html, its stylesheets and its manifest, and every picture a unit is drawn by; never the
-// offline tools, the expert's file, the tests or press/; its page marked with the build's hash, and a service worker
+// offline tools, the model files, the tests or press/; its page marked with the build's hash, and a service worker
 // caching exactly what ships.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -44,9 +44,9 @@ test('the build ships what the page loads: its stylesheets and what they name, t
   assert.ok(has.has('src/assets/fonts/OFL.txt'), 'the font\'s licence with it')
 })
 
-test('the build never ships the offline tools (the forest\'s fitting among them), the expert\'s file, the tests, press/ or the docs', () => {
-  for (const f of ['src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/expert.json', 'src/sim/autoplay.js', 'src/sim/player.js', 'src/sim/reports.js', 'src/sim/calc.js',
-    'src/sim/policy.js', 'src/sim/plan.js', 'src/sim/expert.js', 'src/sim/forest.js', 'src/sim/pool.js', 'src/sim/cli.js']) {
+test('the build never ships the offline tools (the forest\'s fitting among them), the model files, the tests, press/ or the docs', () => {
+  for (const f of ['src/sim/outside.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/autoplay.js', 'src/sim/player.js', 'src/sim/reports.js',
+    'src/sim/solver.js', 'src/sim/pool.js', 'src/sim/cli.js', 'src/sim/read.js', 'src/sim/values.js', 'src/sim/trees.js', 'src/sim/outforest.json', 'src/sim/route.json']) {
     assert.ok(OFFLINE.includes(f) && !has.has(f), f)
   }
   // No module shipped grows a tree, bins a column or reads a label.

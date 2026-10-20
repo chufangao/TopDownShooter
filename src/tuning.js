@@ -16,115 +16,28 @@ export const TUNING = {
     press: { strength: 0.25, turns: 6 },
     walk: 0.5 // the least aggression a foe that can land no blow this turn weighs its road by, so keepers and shooters with nothing to shoot come on
   },
-  // The expert's weights: a decision reads each option as a named vector of features, the tree of hard rules
-  // (expert.js TREES) forces or filters them, and the highest weighted sum wins; 0 marks a feature the tree reads or none.
+  // The expert's weights out of battle: a decision reads each option as a named vector of features, the tree of hard
+  // rules (read.js TREES) forces or filters them, and the highest weighted sum wins; 0 marks a feature the tree reads or
+  // none.
   expert: {
     // The tree's thresholds: `wounded`, the army's share of HP below which it is badly wounded; `odds`, the log of its
-    // strength over a room's threat below which a battle is the long odds; `stall`, the turns past the last wave's entry
-    // after which the expert presses, two turns past the camp's own press (policy.press.turns); `altar`, `elite`, the
-    // Monarch's share of its max HP below which it takes an open altar, and below which it walks into no elite while
-    // another room is open.
-    tree: { wounded: 0.653, odds: 0.158, stall: 8, altar: 0.5, elite: 0.7 },
+    // strength over a room's threat below which a battle is the long odds; `altar`, `elite`, the Monarch's share of its
+    // max HP below which it takes an open altar, and below which it walks into no elite while another room is open.
+    tree: { wounded: 0.653, odds: 0.158, altar: 0.5, elite: 0.7 },
     // The draft: below `ranged` drafted pieces that reach past melee, a ranged kind offered is taken over any melee one.
     draft: { ranged: 2 },
-    // In battle, in HP: `option`, one piece's move and act read off the board as it stands; `board`, the board a turn's
-    // orders leave before End Turn (the static evaluation two boards are compared by).
-    battle: {
-      option: {
-        damage: 2.86, // HP its act deals the foes, each as far as its HP
-        kill: 1.35, // each foe it fells: that foe's max HP
-        menace: 0.108, // each foe it fells: the hardest blow that foe would have dealt next turn
-        focus: 0.673, // its damage × the share of HP its target had lost already (focus fire: finish the wounded)
-        bane: 0, // its damage on a foe that mends (what the rest deal, it undoes)
-        harry: 0.195, // its damage on a foe that could strike the Monarch next turn
-        status: 0.757, // a status it lays (content.js STATUS_WORTH): a debuff on a foe, a ward on one of yours
-        mend: 1.64, // HP it mends
-        rescue: 1.5, // HP it mends on one of yours that the foes could fell next turn where it stands
-        danger: -0.341, // HP the foes could deal it next turn on the tile it ends on (the danger map: every foe that could
-        //               reach it counted, as if all struck it, so it is weighed at a third; `loss` reads each blow once)
-        fall: -1.32, // its max HP, where they could fell it there, or its blow's counter would
-        counter: -1.58, // HP the counter its blow draws would take
-        screen: 0, // foes' roads into the Monarch it holds from the tile it ends on (the tile beside the seat each
-        //             comes in by), less those it holds where it stands
-        guard: 0, // HP of what the foes could deal the Monarch next turn that it takes away (a kill, a Hex, a road held)
-        lethal: -500, // the foes could still fell the Monarch next turn after it (the tree's monarch-lethal)
-        cull: 34.6, // foes it fells that could strike the Monarch next turn (the tree's kill-first)
-        shadow: 0.876, // a corpse it raises (Arise): the shadow's max HP
-        fuse: 1.15, // a fusion: the fused piece's HP, less what its parts stand at
-        essence: -0.766, // essence it spends (a fusion's price)
-        waste: -1.54, // an act that changes nothing (the tree's no-waste)
-        loss: -0.195, // your souls' HP the foes would take next turn, each foe's blow once on whom its way line says it hunts
-        //             (policy.js assign), weighed by how near each would come to its fall (standingAt: a fall its max HP)
-        shadowLoss: -0.357, // the same for your shadows and summons
-        hit: 0, // HP the foes would take from the Monarch next turn, as `loss` reads them
-        engage: 0.00414, // what it could deal next turn from the tile it ends on (its Move and reach to a foe's road ahead)
-        undone: 0, // its damage the foes' healers could mend back next turn (policy.js healingRead), kills aside
-        quell: 0.215, // each foe it wounds and leaves standing: the share of its HP taken × the hardest blow it deals (raw), as
-        //          `menace` counts a kill's
-        // The plan's terms.
-        progress: 1, // steps it ends nearer the tile the target formation gives it
-        role: 2, // it ends on that tile: its role held
-        post: 0, // and that role a post, a road's or a screen (the tree's hold-the-line)
-        listed: 5, // its act is its strike on the kill list
-        forecast: -0.15, // HP the foes could deal it next turn where it ends, each from where the forecast has it stand
-        // A hold's End-Turn act: its basic blow or heal from where it ends.
-        basic: 0, // HP it deals or mends
-        basicKill: 0, // the max HP of a foe it fells
-        basicCounter: 0 // HP the counter it draws would take
-      },
-      // The weight sets a mode of the tree switches to, each over `option`: `guard` while the Monarch is in the foes'
-      // reach next turn; `protect` (on top of the guard's) while the plan closes about the Monarch, `push` while it takes
-      // the fight to foes that hold off; `press` long past the last wave (tree.stall). `boardModes`: the same over `board`.
-      modes: {
-        guard: { guard: 0, harry: 0.243, screen: 0.887, hit: 0 },
-        protect: {},
-        push: { progress: 3, danger: -0.1, forecast: 0, loss: -0.1 },
-        press: { progress: 6, engage: 1, danger: -0.1, fall: -0.2, loss: -0.3, mend: 0.2, status: 0.2 },
-        // Added, not switched to (the tree's frail), × the share of its max HP the Monarch lacks, while it is in the foes'
-        // reach or the plan closes about it.
-        frail: { guard: 1, hit: -1, screen: 1, harry: 0.5 }
-      },
-      boardModes: { push: { progress: 4, loss: -0.4 }, press: { loss: -0.3, shadowLoss: -0.1, foeHp: -2, foes: -1.5, closer: 10 } },
-      board: {
-        hp: 0.989, // your souls' HP (a soul's wounds leave the battle with it)
-        shadows: 1.76, // your shadows' and summons' HP
-        foeHp: -1.27, // the foes' HP
-        foes: -0.465, // the foes standing, each its max HP (what felling it takes)
-        danger: 0, // HP the foes could deal your pieces next turn where they stand
-        falls: -0.322, // the max HP of each of yours they could fell there
-        monarch: -0.998, // HP they could deal the Monarch next turn
-        doom: -1e6, // they could fell the Monarch next turn: the run's end
-        open: 0, // foes whose road into the Monarch nothing of yours holds
-        spent: -0.935, // essence spent this turn (a fusion's price)
-        won: 1e9, // the battle won
-        lost: -1e9, // the battle lost
-        loss: -1.65, // as the option's: your souls' HP the foes would take next turn (assign), by standingAt
-        shadowLoss: -0.777, // the same for your shadows and summons
-        hit: -2.49, // HP the foes would take from the Monarch next turn, as `loss` reads them
-        counters: 2.88, // HP your pieces' counters would take from the foes whose melee blows `loss` reads
-        mended: -6.24, // HP the foes' healers would mend next turn (each its most wounded in reach)
-        foeTicks: 0.518, // HP the damage over time on the foes will take at the turn's end
-        ticks: -0.781, // the same on your pieces
-        closer: 0, // tiles your pieces came nearer the nearest foe this turn (0: the press's alone)
-        progress: 0.5, // steps your pieces came nearer the tiles the plan's target formation gives them
-        shooters: 0 // the Monarch's shooters the plan read still standing (the tree's shooters-first)
-      },
-      // How much dearer a soul's HP is the nearer its fall: this share of its max HP × the square of the share it lost.
-      brink: 0.496,
-      // How much dearer the Monarch's HP is the nearer its fall: an HP weighs 1 + peril as it is about to fall, 1 whole.
-      peril: 2.34
-    },
-    // The options a piece's shortlist keeps of all it has (the battle forest's candidates; teach.js labels as many).
-    shortlist: 16,
-    // The battle plan: chosen once a turn by the tree and these weights, kept until a trigger.
+    // What a relic's trigger is worth (player.js triggerShare), in HP of `damage` dealt: a status laid (content.js
+    // STATUS_WORTH), an HP mended, a raised shadow's max HP.
+    battle: { option: { damage: 2.86, status: 0.757, mend: 1.64, shadow: 0.876 } },
+    // The plan prep deploys by (read.js readPlan, formation): chosen on a battle's first board by the tree and these
+    // weights.
     plan: {
       // `line`: a road's line no more than this many road steps from the Monarch's seat; `reach`: the shooters' and
       // strikers' tiles no farther than this from the tiles they cover; `shooters`, `strikers`: how many such tiles the
       // formation offers (the strikers' in each of three rings about a target); `impatient`: the turns since the last
-      // wave past which the forecast has every foe come on; `far`: a focus fails when none of yours could strike its
-      // target within this many turns; `horizon`: the turns within which yours could fell one of the Monarch's shooters,
-      // or they screen it instead.
-      line: 4, reach: 4, shooters: 8, strikers: 4, impatient: 6, far: 2, horizon: 2,
+      // wave past which the forecast has every foe come on; `horizon`: the turns within which yours could fell one of the
+      // Monarch's shooters, or they screen it instead.
+      line: 4, reach: 4, shooters: 8, strikers: 4, impatient: 6, horizon: 2,
       // Choosing the plan: a bias for each of hold, focus, push and protect, and what makes each worth it.
       choose: {
         hold: 1, focus: -0.5, push: -0.5, protect: -0.5,
@@ -148,10 +61,9 @@ export const TUNING = {
         push: { block: 0.5, air: 1, heal: 1, shoot: 1, strike: 3, screen: 1 },
         protect: { block: 3, air: 3, heal: 2, shoot: 1.5, strike: 0, screen: 3 }
       },
-      // A piece's fit beside its role's worth: `melee`, a blocker's aptness lost for a blow at range; `travel`, a turn of
-      // its walk to the slot; `exposed`, the share of its HP the forecast foes could deal it there; `keep`, the slot it
-      // held last turn; `raise`, an Arise holder within its reach of the kill zone.
-      fit: { melee: 0.5, travel: -0.4, exposed: -1, keep: 0.5, raise: 0.5 }
+      // A piece's fit beside its role's worth: `melee`, a blocker's aptness lost for a blow at range; `exposed`, the share
+      // of its HP the forecast foes could deal it there; `raise`, an Arise holder within its reach of the kill zone.
+      fit: { melee: 0.5, exposed: -1, raise: 0.5 }
     },
     // Prep (formationFeatures): a formation read against the scouted foes' roads to the seat, a piece on one holding its foe.
     formation: {

@@ -2,6 +2,7 @@
 // their candidates out, offline. Functional only: its base step is the base's, the base's pick is always its first
 // candidate, a playout leaves the live run untouched, the same run gives the same choice, a decision of one candidate
 // spends no playout, a fight already played gives what it gave, and a cap of 1 plays as the base; never a win or a rate.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {

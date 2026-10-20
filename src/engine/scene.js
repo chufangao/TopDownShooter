@@ -365,8 +365,12 @@ export class BattleScene extends Phaser.Scene {
         const laid = (uid) => (x.statuses[uid] ?? []).map((s) => statusDef(s.id).name)
         const hit = Object.entries(x.hits).map(([uid, n]) => [+uid, n]).filter(([uid, n]) => n > 0 && b.byUid.get(uid)?.side === 'foe')
         for (const uid of x.falls) if (!hit.some(([y]) => y === uid)) hit.push([uid, 0])
+        // One that does nothing for want of the energy for its basic (it walked it away), not of a target.
+        const u = b.byUid.get(x.uid)
+        const basic = u && (u.basic ?? u.mend)
         return {
           name: unitDef(x.id).name, shadow: x.shadow, hexed: x.hexed, act: x.ability ? abilityDef(x.ability).name : null,
+          short: !x.ability && !x.hexed && !!basic && left(u) < costOf(u, basic),
           target: x.target != null ? name(x.target) : null, missed: x.missed.length > 0,
           hits: hit.map(([uid, n]) => ({ name: name(uid), n, falls: x.falls.includes(uid), laid: laid(uid) })),
           heals: Object.entries(x.heals).filter(([, n]) => n > 0).map(([uid, n]) => ({ name: name(+uid), n, laid: laid(+uid) })),
@@ -390,10 +394,11 @@ export class BattleScene extends Phaser.Scene {
     if (u.acted) return ['Acted', ...skills].join(' · ')
     const n = u.basic && !hexed(u) ? targetsFrom(b, u, u.basic).length : 0
     return [hexed(u) && 'Hexed: no act this turn', `Energy ${left(u)}/${u.energy}`, ...skills,
-      u.basic && !hexed(u) && (n ? `${n} in reach of ${u.basic.name}` : `no foe in reach of ${u.basic.name}`)].filter(Boolean).join(' · ')
+      u.basic && !hexed(u) && (left(u) < costOf(u, u.basic) ? `no energy for ${u.basic.name}` : n ? `${n} in reach of ${u.basic.name}` : `no foe in reach of ${u.basic.name}`)].filter(Boolean).join(' · ')
   }
 
-  // The counters' cards as the playback has shown the battle: foes standing and slain, essence owed, bounty, `court`.
+  // The counters' cards as the playback has shown the battle: foes standing and slain, essence owed, the run's purse
+  // (`bank`), bounty, `court`.
   tally () {
     const b = this.battle
     let foes = 0
@@ -401,7 +406,7 @@ export class BattleScene extends Phaser.Scene {
     for (const a of this.actors.values()) if (a.side === 'foe') { if (!a.gone) foes++; else if (a.paid) slain++ }
     const court = this.locked() ? [] : b.units.filter((u) => u.side === 'party' && u.reap > 0 && alive(u))
     return {
-      foes, slain, owed: Math.round(this.owed), gain: this.essence,
+      foes, slain, owed: Math.round(this.owed), bank: this.args.bank?.() ?? 0, gain: this.essence,
       bonus: this.args.elite ? Math.round(eliteBonus(b.floor) * this.essence) : 0,
       court: court.length ? { n: court.length, essence: Math.round(court.reduce((n, u) => n + foeEssence(u, b.floor) * u.reap, 0) * this.essence) } : null
     }
@@ -686,19 +691,21 @@ export class BattleScene extends Phaser.Scene {
     if (this.undoable(u)) for (const c of footprint(u.from, size)) cell(c, 0, 0.55, 0xffffff)
     const at = this.pointedAt(u)
     const here = at ?? u.tile
+    // A hovered tile the armed act is no longer paid from after the walk there: from it the act reaches nothing.
+    const there = at == null || paid.has(at)
     const spot = (x) => (x === u && at != null ? posAt(at, size) : foot(x))
     const colour = a?.shape === 'corpse' ? DOMAIN : a && !isBlow(a) ? BOON : FOE
     // Once a target is aimed, what a move would bring stands back.
     const fade = s.aim != null ? 0.5 : 1
     const r = can ? actReach(b, u, a) : null
     if (r != null) {
-      const box = ringBox(here, r, REACH.pad, size)
-      if (a.shape !== 'corpse') paintReach(g, box, colour)
-      else {
+      const box = there ? ringBox(here, r, REACH.pad, size) : null
+      if (box && a.shape !== 'corpse') paintReach(g, box, colour)
+      else if (box) {
         g.fillStyle(DOMAIN, 0.05).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round)
         inked(g, 1.5, DOMAIN, 0.55, (g) => g.strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round))
       }
-      inked(g, REACH.line, colour, 0.5 * fade, (g) => envelope(g, [u.tile, ...paid], r, size, box))
+      inked(g, REACH.line, colour, 0.5 * fade, (g) => envelope(g, [u.tile, ...paid], r, size, box ?? { l: 0, r: 0, t: 0, b: 0 }))
     }
     if (at != null) {
       dottedPath(g, [foot(u), ...s.reach.get(at).map((t) => posAt(t, size))], 0xffffff, 0.55, 0.4)
@@ -711,7 +718,7 @@ export class BattleScene extends Phaser.Scene {
     ring(u, 0xffffff, 0.95, 3, 6)
     // Aimed through a screen, the piece that takes the blow is lit as the aimed one is.
     const shot = s.aim != null ? s.shot : null
-    const solid = at != null ? new Set(from(at)) : s.targets
+    const solid = at == null ? s.targets : new Set(there ? from(at) : [])
     const later = new Set([...s.targets, ...[...paid].flatMap(from)].filter((x) => !solid.has(x)))
     for (const uid of solid) {
       const x = b.byUid.get(uid)
@@ -765,7 +772,7 @@ export class BattleScene extends Phaser.Scene {
         if (!has(x - 1, y)) g.lineBetween(b.l, b.b, b.r, b.b)
       }
     })
-    // Its road within its Move: dots from its feet, a dashed ring on the farthest it could come.
+    // Its road within its energy: dots from its feet, a dashed ring on the farthest it could come.
     const pts = move.map((t) => posAt(t, u.size ?? 1))
     dottedPath(g, pts, FOE, 0.95)
     const p = pts[0]
@@ -784,7 +791,8 @@ export class BattleScene extends Phaser.Scene {
 
   // Each piece's intent on the board, if End Turn came now (intentsNow): a foe's walk, dotted, to a ghost where it
   // stops, and from there its line to the piece it strikes, the damage over the struck (FALLS where it fells, SCREENED
-  // over the one aimed at past a screen), a heal's number in green, HOLDS over one that does nothing; each of yours
+  // over the one aimed at past a screen, GUARDED over one a guard shielded), a heal's number in green, HOLDS over one
+  // that does nothing; each of yours
   // left untouched the same from where it stands, but the selected one, whose act is being chosen. A tapped foe's
   // (focus) in full and the rest faint while one is.
   drawIntents () {
@@ -828,7 +836,11 @@ export class BattleScene extends Phaser.Scene {
     const struck = x.struck ?? x.target
     const to = struck != null ? this.chestOf(struck) : null
     if (to) lineOfFire(this.intentLines, { x: feet.x, y: feet.y - a.chest }, to, x.struck !== x.target ? this.chestOf(x.target) : null, isBlow(def) ? colour : BOON, this.cameras.main.zoom, 0.8 * alpha)
-    if (x.struck != null && x.struck !== x.target) label(x.target, 'SCREENED', '#d8d0ff', 11)
+    // Another took it, as the aim says it: SCREENED over the one aimed at where a screen on the line took it, GUARDED
+    // over the one a guard shielded (the line's pick).
+    const picked = x.guarded ?? x.struck
+    if (picked != null && picked !== x.target) label(x.target, 'SCREENED', '#d8d0ff', 11)
+    if (x.guarded != null) label(x.guarded, 'GUARDED', '#d8d0ff', 11)
     const fell = new Set([...x.falls, ...x.lost])
     const dmg = theirs ? '#ff9aaa' : '#cfe3ff'
     const big = (uid) => (uid === this.monarch && fell.has(uid) ? 16 : 12)
@@ -931,15 +943,18 @@ export class BattleScene extends Phaser.Scene {
     const s = this.sel
     this.dropMarks()
     if (!s) return
+    // The intents' marks go too, so the aim's stand nearest the unit and the intents' come back over them (plan).
+    this.dropIntents()
     s.aim = null
     s.shot = null
     const p = uid == null ? null : preview(this.battle, s.uid, s.ability, uid)
     if (p) {
       s.aim = uid
-      // A ranged blow keeps to its line: SCREENED over the one aimed at when another takes it, GUARDED for a Bodyguard.
+      // A ranged blow keeps to its line: SCREENED over the one aimed at when another on it takes it; GUARDED over the one
+      // a guard shielded (a shot's or a melee blow's).
       s.shot = this.shotOf(s, p, uid)
       if (s.shot && s.shot.hit !== uid) this.mark(uid, 'SCREENED', '#d8d0ff', 12)
-      if (s.shot && p.struck != null && p.struck !== s.shot.hit) this.mark(s.shot.hit, 'GUARDED', '#d8d0ff', 12)
+      if (p.guarded != null) this.mark(p.guarded, 'GUARDED', '#d8d0ff', 12)
       // FALLS over every one the act would fell, with a number of its own or not.
       const hits = Object.entries(p.hits).filter(([, d]) => d > 0)
       const falls = new Set(p.falls)
@@ -1153,7 +1168,8 @@ export class BattleScene extends Phaser.Scene {
       const rests = isSkill(u, a) ? Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.grants === a.id && r.params.cooldown).map((r) => r.params.cooldown)) - 1 : 0
       return {
         id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, rests, armed: a.id === s.ability, can,
-        cost: costOf(u, a), short: left(u) < costOf(u, a),
+        // Short: it could act but for the energy (never once it has acted, or a Hex took its act).
+        cost: costOf(u, a), short: canAct(b, u) && left(u) < costOf(u, a),
         targets: can ? targetsFrom(b, u, a).length : 0, arise: a.shape === 'corpse' ? ariseOf(b, u) : null
       }
     })

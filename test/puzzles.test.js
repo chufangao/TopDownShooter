@@ -1,17 +1,17 @@
-// The expert's plan, tested as tactical puzzles: hand-built boards with a known right answer, each
-// asserting the plan, the target formation, the kill list or the orders a turn gives do it. Functional only: what the
-// expert does on a board, never how often it wins. The boards are clear-cut (the right answer wins by far), so that
-// the weight search can move the numbers without flipping them.
+// Tactical puzzles: hand-built boards with a known right answer. On each, the reads prep deploys by (read.js: the kill
+// list, the forecast, the chokes, the plan and its target formation, the assignment), and the solver's line (solver.js):
+// the kill, the block, the hold. Functional only: what is done on a board, never how often it wins. The boards are
+// clear-cut (the right answer wins by far).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { order, fork, airOf, fieldOf, addStatus, roadAhead, lineStruck } from '../src/sim/turns.js'
-import { expertTurn, situation, options, expertOptions, features, blowOn, danger } from '../src/sim/policy.js'
-import { readPlan, killList, forecast, chokes, hungarian } from '../src/sim/plan.js'
-import { value, decide, TREES } from '../src/sim/expert.js'
+import { options, danger } from '../src/sim/foe.js'
+import { solve, solverTurn } from '../src/sim/solver.js'
+import { decide, TREES, situation, blowOn, readPlan, killList, forecast, chokes, hungarian, formation } from '../src/sim/read.js'
 import { createRun, availableNodes, monarchOf, START_PARTY } from '../src/sim/run.js'
 import { survey, pickRoute, roomFeatures, AUDIT, resetAudit, withRoute } from '../src/sim/autoplay.js'
 import { TUNING } from '../src/tuning.js'
-import { on, scene, slay } from './scene.js'
+import { on, scene } from './scene.js'
 import { tileAt, tileX, tileY, distance, isBlow, blowReach } from '../src/sim/unit.js'
 
 // A board of units on tiles (scene.js): [{ id, uid, side, x, y, lvl?, hp? }], `hp` the HP it stands at; `walls` as
@@ -25,17 +25,24 @@ const M = (x, y) => ({ id: 'monarch', uid: 0, side: 'party', x, y })
 const at = (x, y) => tileAt(x, y)
 const where = (t) => `(${tileX(t)},${tileY(t)})`
 const piece = (b, uid) => b.byUid.get(uid)
-// HP at which neither of `uids` fells `target` alone with its best blow (policy.js blowOn), and the two together do.
+// HP at which neither of `uids` fells `target` alone with its best blow (read.js blowOn), and the two together do.
 const twoBlows = (b, uids, target) => {
   const best = uids.map((uid) => Math.max(...piece(b, uid).kit.filter(isBlow).map((a) => blowOn(b, piece(b, uid), a, target))))
   return Math.max(...best) + Math.ceil(Math.min(...best) / 2)
 }
-// One turn of the expert's: its orders given, End Turn last. → the orders.
+// The solver's knobs on these boards: a budget, so that its line is a function of the board.
+const SOLVE = Object.freeze({ budget: 5000, slack: false })
+// The board solved (solve: `b` untouched). → { line, won, end, … }
+const solved = (b) => solve(b, SOLVE)
+// The solver's first turn on `b`, played on it: its orders, End Turn last. → the orders.
 function play (b) {
-  const orders = expertTurn(b)
+  const orders = solved(b).line[0].orders
   for (const o of orders) if (!b.over) order(b, o)
   return orders
 }
+// The plan read on the board as prep reads it, and its target formation (Map piece uid → { role, tile, … }).
+const planOf = (b) => readPlan(b, situation(b))
+const goalsOf = (b) => formation(b, planOf(b))
 // The road a foe walks from its tile to the Monarch (its arrows), its own tile first.
 const roadFrom = (road, t) => {
   const out = []
@@ -74,9 +81,8 @@ test('the forecast: the bold come as far as lets them strike, the wary stop outs
     { id: 'frost_sprite', uid: 10, side: 'foe', x: 5, y: 9 },
     { id: 'hive_warden', uid: 11, side: 'foe', x: 1, y: 10 }
   ])
-  const sit = situation(b)
   const map = danger(b, 'foe')
-  const fc = forecast(b, sit, map)
+  const fc = forecast(b, map)
   // The hound (bold) comes to strike the knight: beside it, on its road.
   assert.ok(fc.bold.has(9) && distance(fc.at.get(9), at(3, 3)) === 1, where(fc.at.get(9)))
   // The sprite (wary) comes as far as your side could not strike it, and no farther.
@@ -90,60 +96,17 @@ test('the forecast: the bold come as far as lets them strike, the wary stop outs
   assert.ok(d[fc.at.get(11)] > Math.min(d[fc.at.get(9)], d[fc.at.get(10)]), where(fc.at.get(11)))
   // Once the camp's patience has run long, as the counts show it, every foe comes as far as its road lets it.
   b.turn = b.foeIn + TUNING.expert.plan.impatient
-  const late = forecast(b, situation(b))
+  const late = forecast(b)
   for (const uid of [9, 10, 11]) assert.equal(late.at.get(uid), roadAhead(b, piece(b, uid), piece(b, uid).move).at(-1).tile, `${uid}`)
 })
 
-test('the plan is kept across turns until a trigger changes it: a wave, a piece fallen', () => {
-  // A Pyre Hound coming down the road at your Knight: the hold's goal (the foes walk into your fire) neither met nor
-  // failed.
-  const b = board([
-    M(3, 0),
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
-    { id: 'frost_sprite', uid: 2, side: 'party', x: 2, y: 1 },
-    { id: 'pyre_hound', uid: 9, side: 'foe', x: 3, y: 7 }
-  ])
-  const first = readPlan(b, situation(b))
-  assert.equal(first.trigger, 'start')
-  // Read again in the same turn, it is the same plan; and the same board makes the same plan.
-  assert.equal(readPlan(b, situation(b)), first)
-  assert.deepEqual(readPlan(fork(b), situation(b), { store: false }).kind, first.kind)
-  play(b)
-  const second = readPlan(b, situation(b))
-  assert.deepEqual([second.kind, second.trigger, second.since], [first.kind, null, 1])
-  assert.equal(second.by, 'keep-plan')
-  // A wave in (the camp's patience counts from it), a piece of yours fallen: the plan is read afresh.
-  const waved = fork(b)
-  waved.plan = second
-  waved.turn++
-  waved.foeIn = waved.turn
-  assert.equal(readPlan(waved, situation(waved)).trigger, 'wave')
-  const fell = fork(b)
-  fell.plan = second
-  fell.turn++
-  slay(fell, fell.byUid.get(2))
-  assert.equal(readPlan(fell, situation(fell)).trigger, 'fell')
-})
-
-test('every feature the plan reads has its weight', () => {
-  const b = board([
-    M(3, 0),
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
-    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6, hp: 5 }
-  ])
-  const sit = situation(b)
-  const plan = readPlan(b, sit)
-  const W = TUNING.expert
-  assert.ok(['hold', 'focus', 'push', 'protect'].every((k) => k in W.plan.choose && k in W.plan.roles))
-  for (const o of expertOptions(b, piece(b, 1))) {
-    const v = features(b, piece(b, 1), o, { ...sit, plan })
-    for (const k of ['progress', 'role', 'listed', 'forecast']) assert.ok(k in v && k in W.battle.option, k)
-    assert.ok(Number.isFinite(value(v, W.battle.option)))
-  }
-  for (const mode of Object.values(W.battle.modes)) for (const k of Object.keys(mode)) assert.ok(k in W.battle.option, k)
-  for (const mode of Object.values(W.battle.boardModes)) for (const k of Object.keys(mode)) assert.ok(k in W.battle.board, k)
-  assert.deepEqual(TREES.plan.map((n) => n.id), ['keep-plan', 'monarch-shooter', 'monarch-reach', 'fell-healer', 'no-stall', 'go-to-them'])
-  for (const roles of Object.values(W.plan.roles)) assert.deepEqual(Object.keys(roles).sort(), ['air', 'block', 'heal', 'screen', 'shoot', 'strike'])
+test('every plan the reads choose among has its weights and its roles', () => {
+  const W = TUNING.expert.plan
+  assert.ok(['hold', 'focus', 'push', 'protect'].every((k) => k in W.choose && k in W.roles))
+  assert.deepEqual(TREES.plan.map((n) => n.id), ['monarch-shooter', 'monarch-reach', 'fell-healer', 'go-to-them'])
+  for (const roles of Object.values(W.roles)) assert.deepEqual(Object.keys(roles).sort(), ['air', 'block', 'heal', 'screen', 'shoot', 'strike'])
+  const b = board([M(3, 0), { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 }, { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 6, hp: 5 }])
+  assert.ok(['hold', 'focus', 'push', 'protect'].includes(planOf(b).kind))
 })
 
 // ── the puzzles ─────────────────────────────────────────────────────────────────────────────────
@@ -158,9 +121,11 @@ test('puzzle: hold the line rather than chase', () => {
     { id: 'pyre_hound', uid: 10, side: 'foe', x: 5, y: 9 }
   ])
   assert.ok(!options(b, piece(b, 1)).some((o) => o.ability && isBlow(o.ability)), 'nothing in reach')
+  assert.equal(planOf(b).kind, 'hold')
+  assert.deepEqual([goalsOf(b).get(1).role, goalsOf(b).get(1).tile], ['block', at(3, 2)])
+  const r = solved(b)
+  assert.ok(r.won && r.end.byUid.get(0).hp === piece(b, 0).hp, 'won, the Monarch unhurt')
   const orders = play(b)
-  assert.equal(b.plan.kind, 'hold')
-  assert.deepEqual([b.plan.goals.get(1).role, b.plan.goals.get(1).tile], ['block', at(3, 2)])
   assert.ok(!orders.some((o) => o.type === 'move' && o.uid === 1), JSON.stringify(orders))
   assert.equal(piece(b, 1).tile, at(3, 2))
 })
@@ -174,35 +139,16 @@ test('puzzle: the shooter behind the blocker', () => {
     { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 10 },
     { id: 'grave_ghoul', uid: 10, side: 'foe', x: 2, y: 10 }
   ])
-  play(b)
-  const block = b.plan.goals.get(2)
-  const shoot = b.plan.goals.get(1)
+  const goals = goalsOf(b)
+  const block = goals.get(2)
+  const shoot = goals.get(1)
   assert.deepEqual([block.role, shoot.role], ['block', 'shoot'])
   const road = fieldOf(b)
   // Behind the blocker by the road, and its lance (range 3) reaches where the held foes would wait.
   const front = roadFrom(road, at(3, 10)).find((t) => road.arrow[t] === block.tile)
   assert.ok(road.dist[shoot.tile] <= road.dist[block.tile] && distance(shoot.tile, front) <= 3, `${where(shoot.tile)} for ${where(block.tile)}`)
-  // And the turn walks it there, never out in front of the line.
-  assert.equal(piece(b, 1).tile, shoot.tile)
-  assert.ok(road.dist[piece(b, 1).tile] <= road.dist[block.tile])
-})
-
-test('puzzle: a walk to the choke, the first step heading there, the plan kept until it stands on it', () => {
-  const b = board([
-    M(3, 0),
-    { id: 'tomb_knight', uid: 1, side: 'party', x: 6, y: 0 },
-    { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 10 }
-  ])
-  play(b)
-  const goal = b.plan.goals.get(1)
-  assert.deepEqual([goal.role, where(goal.tile)], ['block', '(3,2)'])
-  // Three steps away: the first turn brings it within a step, the plan kept after; it stands on the choke, or a step
-  // short of it while the ghoul (its energy walks it four tiles a turn) could strike the choke next turn.
-  assert.ok(distance(piece(b, 1).tile, goal.tile) <= 1, where(piece(b, 1).tile))
-  play(b)
-  assert.equal(b.plan.trigger === null || b.plan.kind === 'hold', true)
-  assert.deepEqual(b.plan.goals.get(1)?.tile, goal.tile, 'the goal kept')
-  assert.ok(distance(piece(b, 1).tile, goal.tile) <= 1, where(piece(b, 1).tile))
+  const r = solved(b)
+  assert.ok(r.won && r.end.byUid.get(0).hp === piece(b, 0).hp, 'won, the Monarch unhurt')
 })
 
 test('puzzle: the healer first', () => {
@@ -219,8 +165,9 @@ test('puzzle: the healer first', () => {
   const sit = situation(b)
   assert.ok(!sit.monarch.threats.length, 'nothing threatens the Monarch')
   assert.deepEqual(killList(b, sit).list.map((k) => k.uid), [10])
+  const plan = planOf(b)
+  assert.deepEqual([plan.kind, plan.target, plan.by], ['focus', 10, 'fell-healer'])
   const orders = play(b)
-  assert.deepEqual([b.plan.kind, b.plan.target, b.plan.by], ['focus', 10, 'fell-healer'])
   assert.ok(orders.some((o) => o.type === 'act' && o.uid === 1 && o.target === 10), JSON.stringify(orders))
   assert.ok(piece(b, 10).hp <= 0 && piece(b, 9).hp > 0)
 })
@@ -242,13 +189,13 @@ test('puzzle: focus a key foe the kill list can fell with two blows together', (
   for (const uid of [1, 2]) assert.ok(piece(b, uid).kit.every((a) => !isBlow(a) || blowOn(b, piece(b, uid), a, w) < w.hp), `${uid} alone`)
   const list = killList(b, situation(b)).list
   assert.deepEqual(list.map((k) => [k.uid, k.strikes.map((s) => s.uid).sort()]), [[10, [1, 2]]])
+  assert.deepEqual([planOf(b).kind, planOf(b).target], ['focus', 10])
   const orders = play(b)
-  assert.deepEqual([b.plan.kind, b.plan.target], ['focus', 10])
   assert.deepEqual(orders.filter((o) => o.type === 'act' && o.target === 10).map((o) => o.uid).sort(), [1, 2])
   assert.ok(w.hp <= 0)
 })
 
-test('puzzle: the kill list strikes from range first, so the melee blow that fells it draws no counter', () => {
+test('puzzle: the kill list strikes from range first, so the melee blow that fells it draws no counter; the solver fells it', () => {
   const b = board([
     M(3, 0),
     { id: 'tomb_knight', uid: 1, side: 'party', x: 3, y: 3 },
@@ -260,11 +207,9 @@ test('puzzle: the kill list strikes from range first, so the melee blow that fel
   piece(b, 9).hp = twoBlows(b, [1, 2], piece(b, 9))
   const list = killList(b, situation(b)).list
   assert.deepEqual(list.map((k) => [k.uid, k.strikes.map((s) => s.uid)]), [[9, [2, 1]]])
-  const hp = piece(b, 1).hp
   const orders = play(b).filter((o) => o.type === 'act')
-  assert.deepEqual(orders.map((o) => o.uid), [2, 1])
+  assert.deepEqual(orders.map((o) => o.uid).sort(), [1, 2])
   assert.ok(piece(b, 9).hp <= 0)
-  assert.equal(piece(b, 1).hp, hp, 'no counter')
 })
 
 test('puzzle: never into the danger map for nothing', () => {
@@ -293,17 +238,13 @@ test('puzzle: a road walled by two, each road into the Monarch held by its own p
     { id: 'grave_ghoul', uid: 9, side: 'foe', x: 0, y: 6 },
     { id: 'grave_ghoul', uid: 10, side: 'foe', x: 6, y: 6 }
   ], { walls: [[0, 3], [2, 3], [3, 3], [4, 3], [6, 3]] })
-  const before = [1, 2].map((uid) => piece(b, uid).tile)
-  play(b)
-  const goals = [1, 2].map((uid) => b.plan.goals.get(uid))
+  const goals = [1, 2].map((uid) => goalsOf(b).get(uid))
   assert.deepEqual(goals.map((g) => g.role), ['block', 'block'])
   assert.deepEqual(goals.map((g) => where(g.tile)).sort(), ['(1,3)', '(5,3)'])
-  // Each on the road of its own Ghoul, and each nearer it after the turn.
-  for (const [i, uid] of [1, 2].entries()) {
-    assert.ok(distance(piece(b, uid).tile, goals[i].tile) < distance(before[i], goals[i].tile), `${uid} at ${where(piece(b, uid).tile)}`)
-  }
   const roads = [9, 10].map((uid) => roadFrom(fieldOf(b), at(uid === 9 ? 0 : 6, 6)))
   assert.ok(goals.every((g) => roads.filter((r) => r.includes(g.tile)).length === 1))
+  const r = solved(b)
+  assert.ok(r.won && r.end.byUid.get(0).hp === piece(b, 0).hp, 'won, the Monarch unhurt')
 })
 
 // A strong Tomb Knight of theirs two tiles from the Monarch, too strong to fell this turn.
@@ -314,27 +255,19 @@ const threatened = () => board([
   { id: 'tomb_knight', uid: 9, side: 'foe', x: 3, y: 2, lvl: 9 }
 ])
 
-test('puzzle: protect when the Monarch is within the foes\' reach', () => {
+test('puzzle: protect when the Monarch is within the foes\' reach: the plan closes about it, the solver\'s turn keeps it unhurt', () => {
   const b = threatened()
   const sit = situation(b)
   assert.ok(sit.monarch.danger > 0 && !killList(b, sit).list.length)
-  play(b)
   // The plan closes about the Monarch, your Knight's tile the one the threat's road comes in by.
-  assert.deepEqual([b.plan.kind, b.plan.by], ['protect', 'monarch-reach'])
-  assert.deepEqual([b.plan.goals.get(1).role, where(b.plan.goals.get(1).tile)], ['block', '(3,1)'])
-})
-
-// Protecting, a piece the formation posts on a road ends on it where it can (the tree's hold-the-line): the searched
-// weights alone weigh nothing the Monarch is spared (the guard mode's `guard` and `hit` are 0).
-test('puzzle: protect, the Knight steps in front of the Monarch\'s attacker', () => {
-  const b = threatened()
+  assert.deepEqual([planOf(b).kind, planOf(b).by], ['protect', 'monarch-reach'])
+  assert.deepEqual([goalsOf(b).get(1).role, where(goalsOf(b).get(1).tile)], ['block', '(3,1)'])
   const hp = piece(b, 0).hp
   play(b)
-  assert.equal(piece(b, 1).tile, at(3, 1))
   assert.equal(piece(b, 0).hp, hp, 'the Monarch unhurt through the foes\' turn')
 })
 
-// ── the line out of range, the Monarch's shooters, its wounds ─────────────
+// ── the line out of range, the Monarch's shooters ─────────────────────────────────────────────
 
 // The tile a foe walking the road from tile `from` waits on, held by a piece on road tile `t`: the one before t.
 const before = (b, t, from) => roadFrom(fieldOf(b), from).find((x) => fieldOf(b).arrow[x] === t)
@@ -348,11 +281,10 @@ test('puzzle: the line out of range, where a shooter held cannot reach the Monar
     { id: 'ember_drake', uid: 9, side: 'foe', x: 3, y: 10 },
     { id: 'pyre_hound', uid: 10, side: 'foe', x: 4, y: 9 }
   ])
-  play(blast)
-  const g = blast.plan.goals.get(1)
+  const g = goalsOf(blast).get(1)
   const drake = piece(blast, 9)
   const reach = Math.max(...drake.kit.filter(isBlow).map((a) => blowReach(drake, a)))
-  assert.deepEqual([blast.plan.kind, g.role, where(g.tile)], ['hold', 'block', '(3,4)'])
+  assert.deepEqual([planOf(blast).kind, g.role, where(g.tile)], ['hold', 'block', '(3,4)'])
   assert.ok(distance(before(blast, g.tile, at(3, 10)), at(3, 0)) > reach, 'held out of its reach')
   assert.ok(distance(before(blast, fieldOf(blast).arrow[g.tile], at(3, 10)), at(3, 0)) <= reach, 'and no farther out than that')
   // A Bone Chanter (its bolt keeps to a line, reach 4) and a Pyre Hound: held beside the seat, the Chanter's every line to
@@ -363,9 +295,7 @@ test('puzzle: the line out of range, where a shooter held cannot reach the Monar
     { id: 'bone_chanter', uid: 9, side: 'foe', x: 3, y: 10 },
     { id: 'pyre_hound', uid: 10, side: 'foe', x: 3, y: 9 }
   ])
-  play(lined)
-  assert.deepEqual([lined.plan.kind, lined.plan.goals.get(1).role, where(lined.plan.goals.get(1).tile)], ['hold', 'block', '(3,1)'])
-  assert.equal(piece(lined, 1).tile, at(3, 1))
+  assert.deepEqual([planOf(lined).kind, goalsOf(lined).get(1).role, where(goalsOf(lined).get(1).tile)], ['hold', 'block', '(3,1)'])
 })
 
 test('puzzle: the Monarch\'s shooter felled first, before the healer the weights would take', () => {
@@ -379,10 +309,11 @@ test('puzzle: the Monarch\'s shooter felled first, before the healer the weights
     { id: 'hive_warden', uid: 10, side: 'foe', x: 1, y: 5, hp: 10 },
     { id: 'tomb_knight', uid: 11, side: 'foe', x: 3, y: 10 }
   ])
+  const plan = planOf(b)
+  assert.deepEqual([plan.kind, plan.target, plan.by], ['focus', 9, 'monarch-shooter'])
+  assert.equal(plan.kills[0].uid, 9)
   const hp = piece(b, 0).hp
   play(b)
-  assert.deepEqual([b.plan.kind, b.plan.target, b.plan.by], ['focus', 9, 'monarch-shooter'])
-  assert.equal(b.plan.kills[0].uid, 9)
   assert.ok(piece(b, 9).hp <= 0, 'the shooter felled')
   assert.equal(piece(b, 0).hp, hp, 'the Monarch unhurt through the foes\' turn')
 })
@@ -399,9 +330,9 @@ test('puzzle: a shooter none of yours can fell is screened', () => {
   const chanter = piece(b, 9)
   const bolt = chanter.kit.find((a) => a.id === 'marrow_bolt')
   assert.equal(lineStruck(b, chanter, bolt, piece(b, 0)), piece(b, 0), 'a clear line at first')
+  assert.deepEqual([planOf(b).kind, planOf(b).by], ['protect', 'monarch-shooter'])
   const hp = piece(b, 0).hp
-  const orders = expertTurn(b)
-  assert.deepEqual([b.plan.kind, b.plan.by], ['protect', 'monarch-shooter'])
+  const orders = solved(b).line[0].orders
   for (const o of orders) if (o.type !== 'end') order(b, o)
   assert.notEqual(lineStruck(b, chanter, bolt, piece(b, 0)), piece(b, 0), 'screened before the foes\' turn')
   order(b, { type: 'end' })
@@ -471,14 +402,12 @@ test('puzzle: push against wary shooters that will not come', () => {
     { id: 'frost_sprite', uid: 9, side: 'foe', x: 2, y: 9, lvl: 1 },
     { id: 'frost_sprite', uid: 10, side: 'foe', x: 4, y: 9, lvl: 1 }
   ])
+  assert.deepEqual([planOf(b).kind, planOf(b).by], ['push', 'go-to-them'])
+  assert.ok(solved(b).won)
   const near = () => [1, 2].reduce((n, uid) => n + Math.min(...[9, 10].map((f) => distance(piece(b, uid).tile, piece(b, f).tile))), 0)
   const was = near()
   play(b)
-  assert.deepEqual([b.plan.kind, b.plan.by], ['push', 'go-to-them'])
   assert.ok(near() < was, `${near()} vs ${was}`)
-  // And it keeps pushing.
-  play(b)
-  assert.equal(b.plan.kind, 'push')
 })
 
 test('puzzle: a flyer met where the air road comes in, by a piece that can strike it', () => {
@@ -489,12 +418,12 @@ test('puzzle: a flyer met where the air road comes in, by a piece that can strik
     { id: 'frost_sprite', uid: 2, side: 'party', x: 5, y: 1 },
     { id: 'hive_drone', uid: 9, side: 'foe', x: 3, y: 9 }
   ])
-  play(open)
+  const goals = goalsOf(open)
   const air = roadFrom(airOf(open), at(3, 9))
   // Its sting reaches 1: held beside the seat, it waits two tiles off (the line out of range).
-  assert.deepEqual([open.plan.goals.get(2).role, where(open.plan.goals.get(2).tile)], ['air', '(3,1)'])
-  assert.ok(air.includes(open.plan.goals.get(2).tile))
-  assert.notEqual(open.plan.goals.get(1).role, 'air')
+  assert.deepEqual([goals.get(2).role, where(goals.get(2).tile)], ['air', '(3,1)'])
+  assert.ok(air.includes(goals.get(2).tile))
+  assert.notEqual(goals.get(1).role, 'air')
   // Walled: the ground road goes round the wall's end, the air road over it; the Sprite meets the Drone inside the
   // wall on the air road, the Knight holds the ground road.
   const walled = board([
@@ -504,12 +433,11 @@ test('puzzle: a flyer met where the air road comes in, by a piece that can strik
     { id: 'hive_drone', uid: 9, side: 'foe', x: 3, y: 9 },
     { id: 'grave_ghoul', uid: 10, side: 'foe', x: 0, y: 9 }
   ], { walls: [[1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2]] })
-  play(walled)
-  const sprite = walled.plan.goals.get(2)
-  const knight = walled.plan.goals.get(1)
+  const sprite = goalsOf(walled).get(2)
+  const knight = goalsOf(walled).get(1)
   assert.deepEqual([sprite.role, where(sprite.tile), knight.role], ['air', '(3,1)', 'block'])
   assert.ok(roadFrom(airOf(walled), at(3, 9)).includes(sprite.tile) && roadFrom(fieldOf(walled), at(0, 9)).includes(knight.tile))
-  assert.equal(piece(walled, 2).tile, sprite.tile)
+  for (const b of [open, walled]) assert.ok(solved(b).won)
 })
 
 test('puzzle: the moves ablation acts from where each stands', () => {
@@ -520,7 +448,8 @@ test('puzzle: the moves ablation acts from where each stands', () => {
     { id: 'grave_ghoul', uid: 9, side: 'foe', x: 3, y: 4 }
   ])
   addStatus(b, piece(b, 9), 'hexed', 1)
-  const orders = expertTurn(b, { moving: false })
+  const orders = solverTurn(b, { ...SOLVE, moving: false })
   assert.ok(!orders.some((o) => o.type === 'move'), JSON.stringify(orders))
-  assert.ok(expertTurn(fork(b)).some((o) => o.type === 'move'), 'the full expert moves')
+  assert.ok(orders.some((o) => o.type === 'act'), 'it acts from where it stands')
+  assert.ok(solverTurn(fork(b), SOLVE).some((o) => o.type === 'move'), 'the full solver moves')
 })

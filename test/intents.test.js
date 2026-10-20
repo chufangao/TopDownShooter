@@ -86,3 +86,22 @@ test('a foe that can neither walk nor strike holds; a Hexed foe loses its act; t
   order(won, { type: 'end' })
   assert.equal(intents(won), null)
 })
+
+test('a blow a guard takes is read as guarded, the one it shielded named, as End Turn plays it; a screen\'s is not', () => {
+  // The sprite's lance at the chanter, its one foe in reach; the Vanguard beside the chanter takes it (Bodyguard).
+  const b = scene([
+    on('monarch', 0, 'party', 3, 0),
+    on('frost_sprite', 1, 'party', 0, 3, 30),
+    on('bone_chanter', 101, 'foe', 0, 6, 30),
+    ...[[1, 7], [2, 9], [3, 9], [4, 9]].map(([x, y], i) => on('tomb_knight', 102 + i, 'foe', x, y, 30))
+  ])
+  const read = intents(b).mine.find((x) => x.uid === 1)
+  assert.deepEqual([read.target, read.struck, read.guarded], [101, 102, 101])
+  const played = order(b, { type: 'end' }).find((e) => e.type === 'action' && e.actor === 1)
+  assert.deepEqual([played.primary, played.struck, played.guarded], [101, 102, 101])
+  // A screen on the line alone: struck, never guarded.
+  const c = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 0, 3, 30), on('tomb_knight', 100, 'foe', 0, 5, 30), on('bone_chanter', 101, 'foe', 0, 6, 30)])
+  const events = order(c, { type: 'act', uid: 1, ability: 'frost_lance', target: 101 })
+  const shot = events.find((e) => e.type === 'action' && e.actor === 1)
+  assert.deepEqual([shot.struck, shot.guarded], [100, undefined])
+})

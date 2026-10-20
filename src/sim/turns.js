@@ -2,7 +2,7 @@
 // setup and orders give the same battle. A round: your turn (each piece moves, then acts once), then End Turn: the
 // untouched strike with their basics, the foes take their turn (foe.js foeTurn), statuses tick, waves enter.
 import { TUNING } from '../tuning.js'
-import { unitDef, abilityDef, statusDef, relicDef, SYNERGIES } from '../content.js'
+import { unitDef, abilityDef, statusDef, relicDef, SYNERGIES, STATUSES } from '../content.js'
 import { hashString } from './rng.js'
 import {
   alive, livingOn, enemySide, isAllyShape, isBlow, footprint, distanceBetween, unitDistance, rangeOf, expand, makeUnit, sizeOf, tileX, tileY,
@@ -195,15 +195,22 @@ function budget (battle, side) {
 
 // ── energy ───────────────────────────────────────────────────────────────────────────────────────
 
-// A unit's energy a turn (TUNING.energy): `base` + its Move; the Monarch's none.
+// A unit's energy a turn (TUNING.energy): `base` + its Move as a hold leaves it (paceOf); the Monarch's none.
 export function energyOf (battle, u) {
-  return u === battle.monarch ? 0 : Math.max(0, Math.floor(TUNING.energy.base + Math.max(0, stats(battle, u).move)))
+  return u === battle.monarch ? 0 : Math.max(0, Math.floor(TUNING.energy.base + Math.max(0, paceOf(battle, u))))
+}
+// A status that holds its holder where it stands: one whose mods set Move to 0 (Rooted). It bans every tile, never an act.
+const HOLDS = new Set(Object.values(STATUSES).filter((d) => (d.mods ?? []).some((m) => m.path === 'move' && m.op === 'set' && m.v === 0)).map((d) => d.id))
+// The Move `u`'s energy reads: its stats' but for the statuses that hold it (a Move a status cuts is still cut).
+function paceOf (battle, u) {
+  if (!u.statuses.some((s) => HOLDS.has(s.id))) return stats(battle, u).move
+  return statsOf({ id: u.id, lvl: u.lvl, tracks: u.tracks, pos: pressed(battle, u) ? 'engaged' : 'free' }, modsFor(battle, u, u.statuses.filter((s) => !HOLDS.has(s.id)))).move
 }
 // What `u` has left of its energy this turn.
 export const left = (u) => Math.max(0, (u.energy ?? 0) - (u.spent ?? 0))
 // What act `a` costs `u`: a skill `skill`, a basic `basic`.
 export const costOf = (u, a) => (isSkill(u, a) ? TUNING.energy.skill : TUNING.energy.basic)
-// The tiles `u` may still walk: its energy left a tile at a time, none while its Move is 0 (Rooted).
+// The tiles `u` may still walk: its energy left a tile at a time, none while its Move is 0 (Rooted: a hold).
 export const tilesLeft = (u) => (u.move > 0 ? Math.floor(left(u) / TUNING.energy.tile) : 0)
 // The tiles `u` may walk and still pay act `a` (its basic by default): none for a unit that cannot pay it from here.
 export const stride = (u, a = u.basic ?? null) => (u.move > 0 ? Math.max(0, Math.floor((left(u) - (a ? costOf(u, a) : 0)) / TUNING.energy.tile)) : 0)
@@ -332,8 +339,16 @@ export function computeDamage ({ power, atk, def, mul = 1 }) {
   return Math.max(t.min, Math.round(raw * (t.defConstant / (t.defConstant + Math.max(0, def))) * mul))
 }
 
-// One effect run by `actor` on `targets`: of `ability`, or of the status whose tick runs it (`status`).
-export function runEffect (battle, effect, actor, targets, ability = null, status = null) {
+// One effect run by `actor` on `targets`: of `ability`, or of the status whose tick runs it (`status`). One blow's effects
+// share `missed`, the targets its damage missed (land), filled as they miss: a miss is whole, so a later effect of the
+// blow passes over them (no status laid, nothing cleansed or delayed), and once it has missed every target it touched
+// none runs at all (no `self` heal, no raise).
+export function runEffect (battle, effect, actor, targets, ability = null, status = null, missed = null) {
+  if (missed?.size) {
+    const on = targets.filter((x) => !missed.has(x))
+    if (!on.length && targets.length) return
+    targets = on
+  }
   if (effect.op === 'cooldown') return cooldown(battle, effect, effect.self ? [actor] : targets)
   // A `self` heal mends the actor once, whoever it struck and whether they still stand.
   if (effect.self) return alive(actor) && heal(battle, actor, actor, effect.power)
@@ -373,20 +388,22 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
         if (!times) continue
         damage *= times
       }
-      // A keyed blow on its key (keyOn): `mul` times, and the key spent as it lands.
+      // A keyed blow on its key (keyOn): `mul` times, and the key spent as it lands (a miss spends none).
       let key = null
       if (damage === undefined) {
         const a = stats(battle, actor)
         const d = stats(battle, target)
         damage = computeDamage({ power: effect.power, atk: a.atk, def: d.def, mul: a.damage.dealt * d.damage.taken })
         key = keyOn(battle, actor, target, effect.keyed)
-        if (key) {
-          damage = Math.round(damage * effect.keyed.mul)
-          emit(battle, { type: 'key', actor: actor.uid, target: target.uid, status: key.id, mul: effect.keyed.mul })
-        }
+        if (key) damage = Math.round(damage * effect.keyed.mul)
       }
-      applyDamage(battle, target, damage, { actor, ability: ability?.id ?? null })
+      const hit = applyDamage(battle, target, damage, { actor, ability: ability?.id ?? null, key: key && { status: key.id, mul: effect.keyed.mul } })
+      if (!hit) {
+        missed?.add(target)
+        continue
+      }
       if (key && target.statuses.includes(key)) target.statuses.splice(target.statuses.indexOf(key), 1)
+      // What it reads is spent as it lands (`consume`); a miss spends nothing.
       if (counted && effect.consume && alive(target)) {
         for (const s of counted) {
           if (!target.statuses.includes(s)) continue
@@ -397,7 +414,7 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
     } else if (effect.op === 'heal') {
       heal(battle, actor, target, effect.power, effect.pct)
     } else if (effect.op === 'apply_status') {
-      // A status an effect lays always lands.
+      // A status an effect lays lands, but on one its blow missed (`missed`).
       addStatus(battle, target, effect.status, effect.turns, actor)
     } else if (effect.op === 'cleanse') {
       const hits = target.statuses.filter((s) => statusDef(s.id).tags.includes(effect.tag)).slice(0, effect.count)
@@ -455,8 +472,9 @@ export function heal (battle, actor, target, power, pct = 0) {
 }
 
 // The rules bend damage as it lands (modify: the actor's side's, then the target's), then those of the target's side
-// that stand against a fall (stand). → { damage, mend }, or null: it missed.
-function land (battle, target, amount, { actor, ability, status }) {
+// that stand against a fall (stand); a key it spends (`key`: { status, mul }) is told only where it lands.
+// → { damage, mend }, or null: it missed.
+function land (battle, target, amount, { actor, ability, status, key }) {
   const ctx = { actor, target, ability: ability ? abilityDef(ability) : null, status, damage: amount, miss: false, as: 'actor' }
   if (actor) call(battle, 'modify', actor.side, ctx)
   ctx.as = 'target'
@@ -465,8 +483,9 @@ function land (battle, target, amount, { actor, ability, status }) {
     emit(battle, { type: 'miss', actor: actor.uid, target: target.uid })
     return null
   }
-  // A locked kind takes its lock's share of any blow while no key is on it (lockShare).
-  const share = ability ? lockShare(battle, target, actor) : 1
+  if (key) emit(battle, { type: 'key', actor: actor.uid, target: target.uid, status: key.status, mul: key.mul })
+  // A locked foe takes its lock's share of all damage but a status's tick, unless a key opens it (lockShare).
+  const share = status ? 1 : lockShare(battle, target, actor)
   if (share < 1) {
     ctx.damage *= share
     ctx.locked = true
@@ -479,9 +498,10 @@ function land (battle, target, amount, { actor, ability, status }) {
 }
 
 // Damage lands, a blow's or a status's tick (`status`: no blow); a blow on one that still stands is its 'struck' moment.
-export function applyDamage (battle, target, amount, { actor, ability = null, status = null }) {
-  const landed = land(battle, target, amount, { actor, ability, status })
-  if (!landed) return
+// → what landed (land), or null: it missed.
+export function applyDamage (battle, target, amount, { actor, ability = null, status = null, key = null }) {
+  const landed = land(battle, target, amount, { actor, ability, status, key })
+  if (!landed) return null
   target.hp = Math.max(0, target.hp - landed.damage)
   emit(battle, { type: 'damage', actor: actor.uid, target: target.uid, damage: landed.damage, ability, hp: target.hp, ...(status && { status }) })
   if (!alive(target)) fall(battle, target, actor, ability)
@@ -489,6 +509,7 @@ export function applyDamage (battle, target, amount, { actor, ability = null, st
     if (landed.mend) heal(battle, target, target, 0, landed.mend)
     if (!status) trigger(battle, 'struck', target, target, actor)
   }
+  return landed
 }
 
 // A unit falls to `actor`'s blow (or a status it laid): it bursts, its side's rules hear first (onFall: Undying may lift
@@ -511,7 +532,7 @@ export function fall (battle, target, actor, ability) {
   vacate(battle, target)
   battle.roster++
   if (target.side === 'foe' && unitDef(target.id).boss) crumble(battle, target)
-    // What felled the Monarch, for the defeat screen and the ladder.
+  // What felled the Monarch, for the defeat screen and the ladder.
   if (target === battle.monarch) {
     battle.death = {
       by: actor.id, uid: actor.uid, ability, from: actor.tile,
@@ -532,13 +553,15 @@ function vacate (battle, u) {
   for (const t of footprint(u.tile, u.size)) if (layer[t] === u) layer[t] = null
 }
 
-// A death burst (its kind's `onFall`: { range, effects }), run from where it fell on the other side within `range`.
+// A death burst (its kind's `onFall`: { range, effects }), run from where it fell on the other side within `range`, as
+// one blow (runEffect's `missed`).
 export function burst (battle, u) {
   const on = unitDef(u.id).onFall
   if (!on) return
   const targets = around(battle, u.tile, on.range, enemySide(u.side), u.size)
   emit(battle, { type: 'burst', actor: u.uid, tile: u.tile, targets: targets.map((x) => x.uid) })
-  for (const effect of on.effects) runEffect(battle, effect, u, targets)
+  const missed = new Set()
+  for (const effect of on.effects) runEffect(battle, effect, u, targets, null, null, missed)
 }
 
 // A boss's fall: every other foe standing crumbles with it, a death (`crumble: true`) as if slain (they pay), and the
@@ -631,23 +654,29 @@ export function addStatus (battle, target, id, turns, by = null) {
 
 // ── keys and locks ───────────────────────────────────────────────────────────────────────────────
 
-// A key on `target` for a blow of `actor`'s `keyed` on it: a status of `keyed.status` laid this turn, in this side's
-// stage, by another piece of the actor's side (one piece acts once a turn: a combo is two pieces' acts). Null for none,
-// or for a piece of yours with combos ablated (the foes keep theirs: the ablation asks whether you can win without).
-export function keyOn (battle, actor, target, keyed) {
-  if (!keyed || (actor.side === 'party' && battle.ablate.has('combos'))) return null
-  return target.statuses.find((s) => s.id === keyed.status && s.turn === battle.turn && s.stage === battle.stage &&
+// The stage each side's own turn is played in; End Turn's untouched pass is your side's, in 'party'.
+const OWN = { party: 'party', foe: 'foes' }
+
+// A key on `target` for a blow of `actor`'s `keyed` on it (keyFor).
+export const keyOn = (battle, actor, target, keyed) => (keyed ? keyFor(battle, actor, target, keyed.status) : null)
+
+// A key of `status` on `target` for `actor`: laid this turn by another piece of the actor's side, in that side's own
+// turn, and struck in it too (one piece acts once a turn: a combo is two pieces' acts); a counter or an Overwatch in the
+// other side's turn meets none. Null for none, or for a piece of yours with combos ablated (the foes keep theirs: the
+// ablation asks whether you can win without).
+function keyFor (battle, actor, target, status) {
+  if (battle.stage !== OWN[actor.side] || (actor.side === 'party' && battle.ablate.has('combos'))) return null
+  return target.statuses.find((s) => s.id === status && s.turn === battle.turn && s.stage === battle.stage &&
     s.by != null && s.by !== actor.uid && battle.byUid.get(s.by)?.side === actor.side) ?? null
 }
 
-// What share of a blow from `actor` `target` takes by its kind's lock (`lock: { keys, share }`): `share` while none of
-// its keys is on it, else all of it; a status's tick passes. 1 unlocked. A lock stands under every ablation (it is the
-// world's), and with combos ablated no status is a key to a blow of yours: the ablation asks whether you can win without.
+// What share of damage from `actor` a foe `target` takes by its kind's lock (`lock: { keys, share }`): all of it where
+// one of its keys is on it as a key for `actor` (keyFor; opening spends none), else `share`; with no actor, `share`.
+// None of yours is locked: a lock stands on foes alone. A lock stands under every ablation (it is the world's).
 export function lockShare (battle, target, actor = null) {
   const lock = unitDef(target.id).lock
-  if (!lock) return 1
-  if (actor?.side === 'party' && battle.ablate.has('combos')) return lock.share
-  return target.statuses.some((s) => lock.keys.includes(s.id)) ? 1 : lock.share
+  if (!lock || target.side === 'party') return 1
+  return actor && lock.keys.some((k) => keyFor(battle, actor, target, k)) ? 1 : lock.share
 }
 
 // HP thresholds grant a status; a loop, so one big hit can cross two.
@@ -666,13 +695,15 @@ export function phases (battle) {
 // ── relics: the moments their holders meet ───────────────────────────────────────────────────────
 
 // A holder's moment `on`: each relic it holds firing on it whose `when` holds is announced, its effects run with the
-// holder as caster on each's `to` (the holder, the 'other' end, the Monarch, or 'allies' / 'foes' around `place`).
+// holder as caster on each's `to` (the holder, the 'other' end, the Monarch, or 'allies' / 'foes' around `place`), a
+// relic's effects as one blow (runEffect's `missed`).
 export function trigger (battle, on, subject, place, other = null) {
   for (const id of subject.relics) {
     const relic = relicDef(id)
     if (relic.on !== on || !moving(relic.when, subject)) continue
     emit(battle, { type: 'trigger', relic: id, on, unit: subject.uid })
-    for (const effect of relic.effects) runEffect(battle, effect, subject, triggered(battle, effect, subject, place, other))
+    const missed = new Set()
+    for (const effect of relic.effects) runEffect(battle, effect, subject, triggered(battle, effect, subject, place, other), null, null, missed)
   }
 }
 
@@ -826,12 +857,12 @@ export function struckBy (battle, u, a, x, from = u.tile) {
   return ctx.primary
 }
 
-// Who an ability aimed at `primary` touches: the line's pick and its side's rules, then its shape, then the actor's
-// rules (Dragonfire, Sanctuary). → { primary, targets }.
+// Who an ability aimed at `primary` touches: the line's pick (`line`) and its side's rules (a guard: Bodyguard, the
+// Barrow Marshal), then its shape, then the actor's rules (Dragonfire, Sanctuary). → { primary, line, targets }.
 function spread (battle, u, a, primary) {
-  const ctx = { actor: u, ability: a, primary, targets: null, as: 'target' }
+  const ctx = { actor: u, ability: a, primary, line: primary, targets: null, as: 'target' }
   if (isBlow(a)) {
-    ctx.primary = lineStruck(battle, u, a, primary)
+    ctx.primary = ctx.line = lineStruck(battle, u, a, primary)
     call(battle, 'targets', ctx.primary.side, ctx)
   }
   ctx.targets = shape(battle, u, a, ctx.primary)
@@ -852,24 +883,32 @@ export function shape (battle, u, a, primary) {
 
 // `u` uses `a` on `primary`: its act for the turn, after which a Hex may take hold of it again (a counter is no act). A
 // skill rests (set first, so a rule may ready it again); the rules hear of it; a blow is its 'blow' moment and a melee
-// one is countered. Once the Monarch falls nothing follows.
+// one is countered. A miss is whole, each target on its own (runEffect's `missed`): a blow that missed everyone it
+// touched is no moment of its holder's, and one that missed the one it struck brings that one nothing of its relics
+// (their 'other' end), though it hit the rest; a melee blow is countered all the same. Once the Monarch falls nothing
+// follows. Its event names whom it lands on (`struck`) when another than the one aimed at, and the one a guard shielded
+// (`guarded`: the line's pick) when a guard took it.
 export function perform (battle, u, a, primary) {
   battle.beat++
-  const { primary: aimed, targets } = spread(battle, u, a, primary)
-  emit(battle, { type: 'action', actor: u.uid, ability: a.id, anim: a.anim, primary: primary.uid, ...(aimed !== primary && { struck: aimed.uid }), targets: targets.map((x) => x.uid), tile: u.tile })
+  const { primary: aimed, line, targets } = spread(battle, u, a, primary)
+  emit(battle, {
+    type: 'action', actor: u.uid, ability: a.id, anim: a.anim, primary: primary.uid, ...(aimed !== primary && { struck: aimed.uid }),
+    ...(aimed !== line && { guarded: line.uid }), targets: targets.map((x) => x.uid), tile: u.tile
+  })
   u.acted = true
   u.spent += costOf(u, a)
   if (u.shrugs) u.shrugs = false
   if (isSkill(u, a)) cool(battle, u, a.id, restOf(u, a))
   const before = targets.map((x) => x.hp)
-  for (const effect of a.effects) runEffect(battle, effect, u, targets, a)
+  const missed = new Set()
+  for (const effect of a.effects) runEffect(battle, effect, u, targets, a, null, missed)
   if (a.shape !== 'corpse' && !fallen(battle)) {
     targets.forEach((x, i) => {
       if (x.side !== u.side && alive(x) && x.hp < before[i]) call(battle, 'onStruck', x.side, { actor: u, target: x, ability: a, damage: before[i] - x.hp })
     })
     call(battle, 'onBlow', u.side, { actor: u, ability: a, primary: aimed, targets })
     if (isBlow(a)) {
-      if (!fallen(battle)) trigger(battle, 'blow', u, u, aimed)
+      if (!fallen(battle) && targets.some((x) => !missed.has(x))) trigger(battle, 'blow', u, u, missed.has(aimed) ? null : aimed)
       if (a.melee) counter(battle, aimed, u)
     }
   }
@@ -892,12 +931,13 @@ function counter (battle, defender, attacker) {
   if (b) answer(battle, defender, b, attacker, { counter: true })
 }
 
-// Blow `b` of `u`'s at `x` alone, as a counter: no line, no shape, no blow's moment, never answered; the action marked
-// by `mark` (`counter`, or Overwatch's `rule`).
+// Blow `b` of `u`'s at `x` alone, as a counter: no line, no shape, no blow's moment, never answered, missed whole where it
+// misses (runEffect's `missed`); the action marked by `mark` (`counter`, or Overwatch's `rule`).
 export function answer (battle, u, b, x, mark) {
   battle.beat++
   emit(battle, { type: 'action', actor: u.uid, ability: b.id, anim: b.anim, targets: [x.uid], tile: u.tile, ...mark })
-  for (const effect of b.effects) runEffect(battle, effect, u, [x], b)
+  const missed = new Set()
+  for (const effect of b.effects) runEffect(battle, effect, u, [x], b, null, missed)
 }
 
 // Whom one of yours left untouched strikes among `list`: the foe furthest along its road, then by lane (centre first),
@@ -1119,8 +1159,9 @@ export function order (battle, o, path = null) {
     battle.beat++
     emit(battle, { type: 'undo', actor: u.uid, from: u.tile, to: u.from })
     relocate(battle, u, u.from)
+    // The walk's energy back, never an act's (Reaper's Hunger gives an act back after one).
+    u.spent = Math.max(0, u.spent - u.moved * TUNING.energy.tile)
     u.moved = 0
-    u.spent = 0
     u.told = 0
   } else if (o.type === 'act') {
     const a = u.kit.find((x) => x.id === o.ability)
@@ -1144,6 +1185,9 @@ function endTurn (battle) {
   if (!battle.over) {
     battle.stage = 'foes'
     for (const u of battle.units) if (u.side === 'foe') ready(u)
+    // Their energy as their turn begins, for an act at its start (the Sovereign's tide); set again once its rules have run.
+    refresh(battle)
+    budget(battle, 'foe')
     battle.beat++
     emit(battle, { type: 'stage', stage: 'foes' })
     call(battle, 'onTurn', 'foe', { side: 'foe', turn: battle.turn })
@@ -1169,11 +1213,12 @@ function untouchedAll (battle) {
 // If End Turn came now, what each piece does, played on a fork and read a piece at a time: `mine`, each of yours left
 // untouched in acting order (one that would do nothing too, and one risen meanwhile); `theirs`, each foe in its turn's
 // order, then those that hold. An act: { uid, id, shadow, from, to, path (a foe's walk, null for none), hexed (its act
-// lost), ability, target, struck (whom it lands on: a screen on the line, a Bodyguard), hits, missed, heals, statuses
-// (laid, by uid), falls (the other side's fallen to it), counter (what it takes back: a counter's blow, an Overwatch's
-// on its walk), lost (its own side's fallen to it, itself too), holds (a foe that neither walks nor acts), keyed (the
-// keys it spends: { uid, status, mul }), locked (the uids whose lock cut it) }. `ended`:
-// the untouched pass alone ends the battle; `over`, `winner`: the whole turn's. Null while no orders are taken.
+// lost), ability, target, struck (whom it lands on: a screen on the line, a guard), guarded (the one a guard shielded,
+// the line's pick; null for none), hits, missed, heals, statuses (laid, by uid), falls (the other side's fallen to it),
+// counter (what it takes back: a counter's blow, an Overwatch's on its walk), lost (its own side's fallen to it, itself
+// too), holds (a foe that neither walks nor acts), keyed (the keys it spends: { uid, status, mul }), locked (the uids
+// whose lock cut it) }. `ended`: the untouched pass alone ends the battle; `over`, `winner`: the whole turn's. Null
+// while no orders are taken.
 export function intents (battle) {
   if (battle.over || battle.phase !== 'orders') return null
   const f = fork(battle, { quiet: false })
@@ -1204,7 +1249,7 @@ export function intents (battle) {
   return { mine, theirs: out, ended: foes < 0 && f.over, over: f.over, winner: f.winner }
 }
 
-const blank = (u) => ({ uid: u.uid, id: u.id, shadow: !!u.shadow, from: null, to: null, path: null, hexed: false, ability: null, target: null, struck: null, hits: {}, missed: [], heals: {}, statuses: {}, falls: [], counter: 0, lost: [], holds: false, keyed: [], locked: [] })
+const blank = (u) => ({ uid: u.uid, id: u.id, shadow: !!u.shadow, from: null, to: null, path: null, hexed: false, ability: null, target: null, struck: null, guarded: null, hits: {}, missed: [], heals: {}, statuses: {}, falls: [], counter: 0, lost: [], holds: false, keyed: [], locked: [] })
 
 // The acts of `side` in `events`, one a piece: a piece's begins at its walk, its lost act or its act, and runs to the
 // next piece's. An answer (a counter, an Overwatch) is what the piece takes, not what it does: its damage on the piece
@@ -1229,7 +1274,7 @@ function readActs (f, events, side) {
       if (e.actor !== cur.uid || e.counter) answered = true
       else {
         answered = false
-        if (cur.ability === null) [cur.ability, cur.target, cur.struck] = [e.ability, e.primary ?? null, e.struck ?? e.primary ?? null]
+        if (cur.ability === null) [cur.ability, cur.target, cur.struck, cur.guarded] = [e.ability, e.primary ?? null, e.struck ?? e.primary ?? null, e.guarded ?? null]
       }
     } else if (e.type === 'trigger' && e.on === 'move' && e.unit === cur.uid) answered = false
     else if (e.type === 'damage' && !e.status) {
@@ -1373,11 +1418,12 @@ export function playOut (battle, policy = basicTurn) {
   return battle
 }
 
-// What an act would do, played on a fork before it is committed: { struck, line, damage, counter, heal, hits, kills,
-// falls, heals, statuses, cleansed, rises, keyed, locked }: `struck` who it lands on (a blocker on the line, a Bodyguard),
-// `line` the tiles it crosses, `damage` on the struck, `counter` its answer's on the actor, `heal` on `target`; `hits`,
-// `heals`, `statuses`, `cleansed` by uid; `falls` the foes it fells, `rises` the corpses risen on its side; `keyed` the
-// keys it spends ({ uid, status, mul }), `locked` the uids whose lock cut it. Null: not a legal act.
+// What an act would do, played on a fork before it is committed: { struck, guarded, line, damage, counter, heal, hits,
+// kills, falls, heals, statuses, cleansed, rises, keyed, locked }: `struck` who it lands on (a blocker on the line, a
+// guard), `guarded` the one a guard shielded (null for none), `line` the tiles it crosses, `damage` on the struck,
+// `counter` its answer's on the actor, `heal` on `target`; `hits`, `heals`, `statuses`, `cleansed` by uid; `falls` the
+// foes it fells, `rises` the corpses risen on its side; `keyed` the keys it spends ({ uid, status, mul }), `locked` the
+// uids whose lock cut it. Null: not a legal act.
 export function preview (battle, uid, ability, target) {
   const f = fork(battle, { quiet: false })
   try {
@@ -1387,7 +1433,7 @@ export function preview (battle, uid, ability, target) {
   }
   const u = battle.byUid.get(uid)
   const out = {
-    damage: 0, counter: 0, heal: 0, hits: {}, struck: target, line: lineOf(battle, u, battle.byUid.get(target), ability), kills: false, falls: [],
+    damage: 0, counter: 0, heal: 0, hits: {}, struck: target, guarded: null, line: lineOf(battle, u, battle.byUid.get(target), ability), kills: false, falls: [],
     heals: {}, statuses: laid(f, f.events), cleansed: {}, rises: [], keyed: [], locked: []
   }
   let answered = false
@@ -1397,7 +1443,7 @@ export function preview (battle, uid, ability, target) {
     else if (e.type === 'locked' && e.actor === uid && !out.locked.includes(e.target)) out.locked.push(e.target)
     // The actor's move's moment, once its act and any answer are over (moveMoment): the act's again.
     else if (e.type === 'trigger' && e.on === 'move' && e.unit === uid) answered = false
-    else if (e.type === 'action' && e.actor === uid && e.primary != null && !answered) out.struck = e.struck ?? e.primary
+    else if (e.type === 'action' && e.actor === uid && e.primary != null && !answered) [out.struck, out.guarded] = [e.struck ?? e.primary, e.guarded ?? null]
     else if (e.type === 'death' && !answered && f.byUid.get(e.target)?.side !== f.byUid.get(uid).side && !out.falls.includes(e.target)) out.falls.push(e.target)
     else if (e.type === 'damage' && !e.status) {
       if (answered) {
@@ -1419,7 +1465,7 @@ export function preview (battle, uid, ability, target) {
   return out
 }
 
-// A copy of the battle to play ahead on (preview, policy.js): every unit and status copied, the index, every list of
+// A copy of the battle to play ahead on (preview, solver.js): every unit and status copied, the index, every list of
 // units and every rule's holder pointing at the copies, and no events kept (`quiet`). The original is never touched.
 export function fork (battle, { quiet = true } = {}) {
   const map = new Map()

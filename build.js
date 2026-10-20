@@ -11,12 +11,13 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-// What never ships: the offline tools, the expert's file and the combo book.
+// What never ships: the offline tools, the autoplayer's model files and the combo book.
 export const OFFLINE = [
-  'src/sim/teach.js', 'src/sim/outside.js', 'src/sim/fit.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/calc.js',
-  'src/sim/bundle.js', 'src/sim/autoplay.js', 'src/sim/player.js', 'src/sim/reports.js', 'src/sim/sequential.js', 'src/sim/runcache.js', 'src/sim/pool.js', 'src/sim/cli.js', 'src/sim/expert.json', 'src/sim/combos.json',
-  // The expert's battle play and what it reads (the game plays the foes by foe.js alone).
-  'src/sim/policy.js', 'src/sim/plan.js', 'src/sim/expert.js', 'src/sim/forest.js'
+  'src/sim/outside.js', 'src/sim/forestfit.js', 'src/sim/outforest.js', 'src/sim/values.js', 'src/sim/trees.js',
+  'src/sim/autoplay.js', 'src/sim/player.js', 'src/sim/reports.js', 'src/sim/sequential.js', 'src/sim/runcache.js', 'src/sim/pool.js', 'src/sim/cli.js',
+  'src/sim/outforest.json', 'src/sim/route.json', 'src/sim/combos.json',
+  // The autoplayer's reads and the expert's battle play (the game plays the foes by foe.js alone).
+  'src/sim/read.js', 'src/sim/solver.js'
 ]
 
 // A module's relative static imports and re-exports ('./x.js', '../y.js'), as written.

@@ -2,8 +2,8 @@
 // the phase's random forest, fitted offline on outside.js --label's playouts, reads another candidate more than its
 // margin above it. Consulted in play by player.js (pickReap, pickSpend, planFor); fitted by `npm run outforest`.
 //
-//   useOutForest(config)   installs a configuration; null: none, today's expert; undefined: back to the shipped
-//                          expert's (expert.json's `outforest`). → the one in use
+//   useOutForest(config)   installs a configuration; null: none, today's expert; undefined: back to the shipped one
+//                          (src/sim/outforest.json). → the one in use
 //   outForestModel()       → the forest in use, or null for none
 //   outDecides(phase)      → whether the forest in use decides `phase` ('recruit', 'spend' or 'prep')
 // With none in use, or for a phase it has no forest of, the expert is today's, move for move.
@@ -13,8 +13,8 @@
 //   feature less today's pick's, gap today's score of today's pick less the candidate's.
 // The target, a row a candidate: its playout's value less its decision's mean (`mean`) or today's pick's (`today`), clipped.
 // outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend?, prep? } }, a phase's forest
-//   { inputs, target, delta, deltas? (deltaAt), adjust? (adjustAt), size, feat, thr, right, value, made } in
-//   forest.json's shape; shipped inside src/sim/expert.json as its `outforest`.
+//   { inputs, target, delta, deltas? (deltaAt), adjust? (adjustAt), size, feat, thr, right, value, made } (trees.js
+//   compileTrees reads it); shipped as src/sim/outforest.json.
 //
 //   npm run outforest -- --data <dir>[,<dir>…] [--out file] [flags]   fit a forest a phase, printing its margins tables
 //     --phases recruit,spend,prep   the phases fitted (all by default); a phase with no labels gets no forest
@@ -32,9 +32,9 @@
 //   npm run outforest -- --data <dir>[,<dir>…] --stats         what the labels hold (outLabelStats)
 //   npm run outforest -- --merge a.json[:2],b.json[:1] --out <file> [--phase recruit] [--adjust '{"recruit":[0.4,0,0]}']
 //                        [--name merged]   a phase's forests as one (mergeOutForests; an expert file's outforest read)
-import { compileTrees, treesMean, TARGETS, r6 } from './forest.js'
+import { compileTrees, treesMean, TARGETS, r6 } from './trees.js'
 import { binTable, fitForest, flatTrees, heldTable, linesOf, marginText, splitOf } from './forestfit.js'
-import { shippedPart } from './expert.js'
+import { shippedPart } from './read.js'
 import { arg, has, list, num, isMain } from './cli.js'
 
 const node = (name) => globalThis.process?.getBuiltinModule?.(`node:${name}`)
@@ -70,7 +70,7 @@ export const CAND_KEYS = Object.freeze([
 ])
 // What player.js formationFeatures reads of a formation against the scouted room (TUNING.expert.formation's keys).
 export const FORMATION_KEYS = Object.freeze(['fielded', 'air', 'power', 'cover', 'exposed', 'open', 'blockers', 'behind', 'mend', 'monarch', 'synergies', 'aura', 'arise', 'lasts', 'heals', 'answers', 'dps', 'focus', 'contact'])
-// Of the battle's own read (expert.js conditions) of the board a formation opens the battle on: what one formation
+// Of the battle's own read (read.js conditions) of the board a formation opens the battle on: what one formation
 // changes from another.
 export const OPENING_KEYS = Object.freeze([
   'monarch.danger', 'monarch.peril', 'monarch.threats', 'monarch.screened', 'roads.open', 'roads.openFoes', 'roads.soonest', 'holding', 'holding.foes', 'pieces',
@@ -133,7 +133,7 @@ export function encodeOut (sit, f, today, phase = 'recruit', out = new Float64Ar
 
 // ── the forest in use ────────────────────────────────────────────────────────────────────────────
 
-// The shipped expert's forests out of battle (expert.json's `outforest`; Node only).
+// The shipped forests out of battle (src/sim/outforest.json; Node only).
 const readJSON = () => shippedPart('outforest')
 let SHIPPED
 let INSTALLED = false
@@ -295,8 +295,8 @@ export async function readOutTable (dirs, phase, { bins = 64, sample = 100000, s
 // past them; null, alike); `without`: the inputs never split on, by the start of their names.
 const OUT_FIT = Object.freeze({ target: 'mean', trees: 200, depth: 6, leaves: 64, minLeaf: 50, mtry: 1 / 3, shrink: 0, minGain: 1e-6, clip: 30, weighted: false, wclip: 10, floors: null, without: null, seed: 1, delta: 0.25 })
 
-// Fits a phase's forest on table `t` (readOutTable's) by `cfg` (OUT_FIT's keys) as forestfit.js fitForest fits the
-// battle forest, each decision weighed by its floor's `floors`. → { config (the phase's forest), oob, held, fitted, heldOut }
+// Fits a phase's forest on table `t` (readOutTable's) by `cfg` (OUT_FIT's keys) with forestfit.js fitForest, each
+// decision weighed by its floor's `floors`. → { config (the phase's forest), oob, held, fitted, heldOut }
 export async function fitOutForest (t, cfg = {}, { log = () => {}, workers = 0 } = {}) {
   const { config, oob, held, fitted, heldOut } = await fitForest(t, cfg, {
     log,

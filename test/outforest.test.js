@@ -3,6 +3,7 @@
 // by, alike in a label row (outside.js --label) and in play (autoplay.js outsideRead, prepRead), the labeller, the
 // fitting's plumbing and the measurement's (autoplay.js withOutForest, record's `outforest`, playerOf). Functional only:
 // what a forest decides and how it is read, never how often it wins.
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
@@ -18,8 +19,9 @@ import { slotAt } from '../src/sim/unit.js'
 import { fight } from './rooms.js'
 import {
   policy, autoplay, record, withOutForest, playerOf, survey, LEVELS, recruitCandidates, spendCandidates, outCandidates, outsideRead, plan, planFor, prepCandidates,
-  prepRead, formationName, PREP_CAP
+  prepRead, formationName, PREP_CAP, routeModel, ROUTE_LEARNED
 } from '../src/sim/autoplay.js'
+import { shippedPart } from '../src/sim/read.js'
 import { createRng } from '../src/sim/rng.js'
 
 const L = LEVELS.expert
@@ -128,6 +130,20 @@ function walk (seed, visit) {
   }
   return run
 }
+
+// The models as they ship, each its own file beside the code: the forests out of battle src/sim/outforest.json and the
+// learned route src/sim/route.json, each read by its own module.
+test('each shipped model is its own file, read by its own module; a part with no file is none', () => {
+  const read = (name) => {
+    const file = new URL(`../src/sim/${name}.json`, import.meta.url)
+    return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null
+  }
+  for (const k of ['outforest', 'route']) assert.deepEqual(shippedPart(k), read(k), k)
+  assert.equal(shippedPart('outforest')?.kind, 'outforest', 'the forests out of battle ship')
+  assert.equal(outForestModel()?.name ?? null, shippedPart('outforest')?.name ?? null)
+  if (ROUTE_LEARNED) assert.equal(routeModel()?.name ?? null, shippedPart('route')?.name ?? null)
+  assert.equal(shippedPart('no-such-part'), null)
+})
 
 test('a label row\'s candidates and reads are play\'s for the same decision', () => {
   const before = outForestModel()

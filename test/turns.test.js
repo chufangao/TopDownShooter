@@ -1,3 +1,4 @@
+import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -5,7 +6,8 @@ import {
   timelineHash, stats, enterBattle, foesNextTo, auraGivers, field as roads, fieldOf, airOf, arrowOf, applyDamage, runEffect, riseTile, pick,
   targetsFrom, orderable, synergiesOf, ariseOf, phases, settle, hexed, answer
 } from '../src/sim/turns.js'
-import { basicTurn, expertTurn, press } from '../src/sim/policy.js'
+import { basicTurn, press } from '../src/sim/foe.js'
+import { solverTurn } from '../src/sim/solver.js'
 import { TUNING } from '../src/tuning.js'
 import {
   makeUnit, autoPlace, campGrid, wallTiles, monarchSlot, tileAt, tileY, distance, footprint, slotAt, alive, deployTile, steps, TILES, DEPTH,
@@ -456,8 +458,19 @@ function holds (b) {
   }
 }
 
-// Random legal orders, `per` at most a turn, then End Turn; every act's preview checked against what it dealt.
-function fuzz (b, rng, per = 8, log = null) {
+// floorOne with locked foes in half its formation's places (the party's kinds lay their keys: the Chanter's Brittle,
+// the Hound's Burning, the Ghoul's Brittle; the Wisp's and the Sprite's blows are keyed), so locks meet keys and none.
+const LOCKED = ['iron_golem', 'rot_bloat', 'marsh_hag', 'barrow_wight', 'thorn_dryad']
+function lockedFloor (seed) {
+  const s = floorOne(seed)
+  const rng = createRng(`${seed}:locks`)
+  s.foes = s.foes.map((u, i) => (i % 2 ? u : { ...makeUnit(rng.pick(LOCKED), { uid: u.uid, lvl: u.lvl }), slot: u.slot }))
+  return s
+}
+
+// Random legal orders, `per` at most a turn, then End Turn; every act's preview checked against what it dealt, and
+// (`read`) End Turn as the intents read it on a fork against what it plays.
+function fuzz (b, rng, per = 8, log = null, read = false) {
   while (!b.over) {
     for (let k = 0; k < per && !b.over; k++) {
       const list = legalOrders(b).filter((o) => o.type !== 'end')
@@ -478,7 +491,9 @@ function fuzz (b, rng, per = 8, log = null) {
     }
     if (!b.over) {
       log?.push({ type: 'end' })
-      end(b)
+      const ahead = read ? order(fork(b, { quiet: false }), { type: 'end' }) : null
+      const played = end(b)
+      if (ahead) assert.deepEqual(ahead, played, 'End Turn as read')
       holds(b)
     }
     // Past the sim's bound a stall (which fails the fuzz's verdict), never a hang.
@@ -493,6 +508,19 @@ test('fuzz: random legal orders to the end keep the foes on their roads, one uni
     assert.ok(b.over && ['party', 'foe'].includes(b.winner), `fuzz${i}`)
     assert.ok(b.events.at(-1).type === 'battle:end')
   }
+})
+
+test('fuzz with locked foes: every preview is what lands, keys and locks alike, and End Turn plays as the intents read it', () => {
+  let shut = 0
+  let blows = 0
+  for (let i = 0; i < 12; i++) {
+    const b = fuzz(createBattle(lockedFloor(`locks${i}`)), createRng(`lockorders${i}`), 8, null, true)
+    assert.ok(b.over && ['party', 'foe'].includes(b.winner), `locks${i}`)
+    shut += b.events.filter((e) => e.type === 'locked').length
+    blows += b.events.filter((e) => e.type === 'damage' && !e.status && unitDef(b.byUid.get(e.target).id).lock && b.byUid.get(e.target).side === 'foe').length
+  }
+  // Some damage on a locked foe met its lock, and some found it open.
+  assert.ok(shut > 0 && blows > shut, `locks met ${shut} of ${blows}`)
 })
 
 test('the same orders give the same events', () => {
@@ -511,7 +539,7 @@ test('a copy plays on apart: its orders never touch the battle it came from', ()
   const was = JSON.stringify(b.units.map((u) => [u.uid, u.tile, u.hp, u.statuses, u.cooldowns]))
   const events = b.events.length
   const f = fork(b)
-  playOut(f, expertTurn)
+  playOut(f, solverTurn)
   assert.ok(f.over)
   assert.equal(JSON.stringify(b.units.map((u) => [u.uid, u.tile, u.hp, u.statuses, u.cooldowns])), was)
   assert.equal(b.events.length, events)
@@ -557,8 +585,8 @@ test('no dice: a battle reads no random number, and nothing misses but to a rule
       const a = fuzz(createBattle(floorOne(`rng${i}`)), createRng(`rng${i}`), 8)
       assert.ok(!a.events.some((e) => e.type === 'miss' && !a.events.some((r) => r.type === 'rule' && r.rule === 'mirage')), 'nothing misses but to a rule')
     }
-    // And under the expert, whose plans are played ahead on copies.
-    playOut(createBattle(floorOne('rngx')), expertTurn)
+    // And under the solver, whose lines are played ahead on copies.
+    playOut(createBattle(floorOne('rngx')), solverTurn)
   } finally {
     Math.random = random
   }
@@ -567,7 +595,7 @@ test('no dice: a battle reads no random number, and nothing misses but to a rule
 test('a battle with no foe left at its start is won at once; a battle plays out under either policy', () => {
   const b = field([{ id: 'tomb_knight', uid: 1, side: 'party', x: 0, y: 0 }])
   assert.deepEqual([b.over, b.winner], [true, 'party'])
-  for (const policy of [basicTurn, expertTurn]) {
+  for (const policy of [basicTurn, solverTurn]) {
     const c = playOut(createBattle(floorOne('play')), policy)
     assert.ok(c.over)
   }
@@ -699,8 +727,8 @@ test('120 seeded battles across floors under either policy end, won, overrun or 
   for (let i = 0; i < 120; i++) {
     const floor = 1 + (i % 4)
     const b = fresh('fuzz' + i, floor, i % 3 ? {} : SUMMONED)
-    if (b.monarch) playOut(b, i % 5 ? basicTurn : expertTurn)
-    else playTurns(b, 100, i % 5 ? basicTurn : expertTurn)
+    if (b.monarch) playOut(b, i % 5 ? basicTurn : solverTurn)
+    else playTurns(b, 100, i % 5 ? basicTurn : solverTurn)
     assert.ok(b.over || !b.monarch, `seed ${i}`)
     if (b.over) assert.ok(['monarch', 'overrun', 'wipe', 'crumble'].includes(b.reason) && ['party', 'foe'].includes(b.winner), `seed ${i}: ${b.reason}`)
     for (const u of b.units) assert.ok(Number.isInteger(u.hp) && u.hp >= 0 && u.hp <= u.maxHp, `seed ${i}: ${u.id} hp ${u.hp}`)
@@ -714,8 +742,9 @@ test('boss phases fire once each, in order, as its HP crosses them; a delay to i
   const b = createBattle({ party: team(['tomb_knight'], { lvl: 9 }), foes: boss, boss: true })
   const sov = b.units.find((u) => u.id === 'hollow_sovereign')
   const knight = b.units.find((u) => u.id === 'tomb_knight')
+  // Its HP cut by hand (a blow would meet its lock: keys.test.js).
   for (const share of [0.5, 0.3, 0.01]) {
-    applyDamage(b, sov, Math.ceil(sov.maxHp * share), { actor: knight })
+    sov.hp -= Math.ceil(sov.maxHp * share)
     phases(b)
   }
   assert.deepEqual(b.events.filter((e) => e.type === 'phase').map((e) => [e.phase, e.status]), [[1, 'enraged'], [2, 'desperate']])
@@ -859,7 +888,7 @@ test('the tile index matches the living (every tile of a 2×2), and the caches a
     const b = i % 2 ? fresh('index' + i, 1 + (i % 4), { monarch: true }) : fresh('index' + i, 1 + (i % 4), { ids, tune: bulwark })
     big += b.units.filter((u) => u.size > 1).length
     while (!b.over) {
-      playTurns(b, 1, i % 4 === 1 ? expertTurn : basicTurn)
+      playTurns(b, 1, i % 4 === 1 ? solverTurn : basicTurn)
       // Past the sim's bound a stall (lines of fire left one seed a flyer no one of yours can strike, out of its reach).
       if (stalled(b)) order(b, { type: 'stall' })
       holds(b)

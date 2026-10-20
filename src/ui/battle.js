@@ -94,12 +94,13 @@ export function battleChrome ({ onHelp = null } = {}) {
     const info = scene?.endInfo()
     const head = [h('b', null, 'End Turn'), say(' (E)', '')]
     if (st.over || !info) return h('div', { class: 'syn-tip' }, head, h('p', { class: 'dim' }, st.over ? 'The battle is over.' : 'The turn plays out…'))
-    // Those with nothing to do are one line, after the rest, in order.
+    // Those with nothing to do are a line each, after the rest, in order: none in reach, or no energy left for it.
     const n = info.acts.length
-    const idle = info.acts.filter((x) => !x.hexed && !x.act).map((x) => (x.shadow ? `${x.name} (shadow)` : x.name))
+    const idle = (short) => group(info.acts.filter((x) => !x.hexed && !x.act && !!x.short === short).map((x) => (x.shadow ? `${x.name} (shadow)` : x.name)))
     return h('div', { class: 'syn-tip act-tip' }, head,
       n ? [h('p', null, `${n} still to act ${n === 1 ? 'uses its' : 'use their'} basic:`),
-        h('ul', { class: 'act-targets' }, info.acts.filter((x) => x.hexed || x.act).map(endLine), idle.length > 0 && h('li', { class: 'dim' }, `Nothing in reach: ${group(idle)}`)),
+        h('ul', { class: 'act-targets' }, info.acts.filter((x) => x.hexed || x.act).map(endLine),
+          idle(false) && h('li', { class: 'dim' }, `Nothing in reach: ${idle(false)}`), idle(true) && h('li', { class: 'dim' }, `No energy left: ${idle(true)}`)),
         h('p', { class: 'dim' }, info.won ? 'The last foe falls: the battle is won.' : 'Then the foes\' turn.')]
         : h('p', null, 'All yours have acted. The foes\' turn next.'))
   }
@@ -118,7 +119,7 @@ export function battleChrome ({ onHelp = null } = {}) {
           h('div', { class: 'bs-k' }, 'Yours'), mine, myRules),
         h('div', { class: 'bs-controls' }, endBtn, h('div', { class: 'bs-row' }, pause, skip)))))
 
-  // The selected piece's orders: name, HP, Move left, relic; an act a button (a skill with its cooldown pip); Undo.
+  // The selected piece's orders: name, HP, energy left, relic; an act a button (a skill with its cooldown pip); Undo.
   function selection () {
     const p = st.panel
     // With none selected: how many of yours may still act, and which.
@@ -158,9 +159,10 @@ export function battleChrome ({ onHelp = null } = {}) {
     const later = !st.busy && armed?.can && !armed.targets ? scene?.actInfo(armed.id)?.later ?? [] : []
     const none = armed?.arise ? 'No corpse' : 'Nothing'
     const stuck = !armed || st.busy || armed.targets ? null
-      : !armed.can ? (armed.rest > 0 ? `${armed.name} rests ${turns(armed.rest)} more.` : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
+      : !armed.can ? (armed.rest > 0 ? `${armed.name} rests ${turns(armed.rest)} more.` : armed.short ? `${armed.name} costs ${armed.cost} energy: ${p.left} left.`
+        : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
         : later.length ? `${none} in reach of ${armed.name} from here: moving brings in ${group(later)}.`
-          : moves ? `${none} in reach of ${armed.name} this turn, even after a move.` : `${none} in reach of ${armed.name} from here, and no energy to walk.`
+          : moves ? `${none} in reach of ${armed.name} this turn, even after a move.` : `${none} in reach of ${armed.name} from here${p.move > 0 ? ', and no energy to walk' : ''}.`
     const line = p.hexed && !p.acted ? h('span', { class: 'warn' }, 'Hexed: it loses its act.')
       : p.acted ? h('span', { class: 'dim' }, 'Acted this turn.')
         : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to raise it.', 'Tap it again to raise it.') : say('Click it again to strike.', 'Tap it again to strike.'),
