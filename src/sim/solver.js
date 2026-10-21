@@ -380,6 +380,21 @@ function outranks (a, b) {
   return a.foes < b.foes - EPS
 }
 
+// The better of two candidate formations' ends (bestFormation): a won battle heals every soul, the Monarch's HP carries
+// the run, so of two won the Monarch's share kept first, then the fewer rounds, then the value (the souls' margin); of
+// lines not won, as outranks.
+function prepOutranks (a, b) {
+  if (a.won !== b.won) return a.won
+  if (!a.won) return outranks(a, b)
+  if (Math.abs(a.monarch - b.monarch) > EPS) return a.monarch > b.monarch
+  if (a.turn !== b.turn) return a.turn < b.turn
+  return a.value > b.value + EPS
+}
+// The value a line must better to outrank won end `best` by the Monarch's share (solve's `beat`): the least value of
+// one keeping the Monarch's HP at the best's, every soul lost and PREP_ROUNDS rounds allowed.
+const PREP_ROUNDS = 50
+const prepBeat = (best) => -END_WEIGHTS.monarch * (1 - best.monarch) - END_WEIGHTS.own - END_WEIGHTS.turn * PREP_ROUNDS
+
 // An end of a line: its board's hash, its line, won, value, open (still under way), and what outranks reads of its
 // board past those, the round and the foes' HP left. No board: the line makes it again (replay).
 const endOf = (before, board, hash, line, open = false) => {
@@ -753,9 +768,10 @@ export function openingOf (run, goal) {
 
 // The formation the coming battle is fought in, of `cands` (player.js prepCandidates': today's pick first, each with its
 // `goal`), the first `cap`: each one's battle (openingOf) solved, the first as the battle would solve it (the knobs in
-// use), every other at `budget` plans, no cap and no slack, a line that cannot better the best won value found so far
-// dropped (solve's `beat`). The best by its line's end (outranks): won before not, then the higher value (valueOf); of
-// lines not won, one the budget cut short before one lost, then the more rounds held, then the more of the foes' HP
+// use), every other at `budget` plans, no cap and no slack, a line that cannot keep the Monarch's HP at the best won
+// so far dropped (solve's `beat`, prepBeat). The best by its line's end (prepOutranks): won before not, then the
+// Monarch's share kept (a won battle heals the souls; the Monarch's HP carries), then the fewer rounds, then the value;
+// of lines not won, one the budget cut short before one lost, then the more rounds held, then the more of the foes' HP
 // taken; ties to the earlier. Its line is kept for the battle (solverTurn) where it is the first's or won. `moving`
 // false: the moves ablation's (TURNS.still).
 // → { index, cand, stats: [{ won, value, margin, plans, ms, truncated, level } a candidate solved] }
@@ -764,11 +780,11 @@ export function bestFormation (run, cands, { budget = prepBudgetOf(), cap = prep
   let best = null
   for (const [i, c] of cands.slice(0, Math.max(1, cap)).entries()) {
     const board = openingOf(run, c.goal)
-    const r = i === 0 ? solve(board, { moving }) : solve(board, { budget, cap: Infinity, slack: false, moving, beat: best?.end.won ? best.end.value : -Infinity })
+    const r = i === 0 ? solve(board, { moving }) : solve(board, { budget, cap: Infinity, slack: false, moving, beat: best?.end.won ? prepBeat(best.end) : -Infinity })
     const { margin, plans, ms, truncated, level } = r.stats
     stats.push({ won: r.won, value: r.value, margin, plans, ms, truncated, level })
-    const end = { won: r.won, value: r.value, open: !r.end.over && !stalled(r.end), turn: r.end.turn, foes: foesLeft(r.end) }
-    if (!best || outranks(end, best.end)) best = { i, r, board, end }
+    const end = { won: r.won, value: r.value, monarch: margin?.monarch ?? 0, open: !r.end.over && !stalled(r.end), turn: r.end.turn, foes: foesLeft(r.end) }
+    if (!best || prepOutranks(end, best.end)) best = { i, r, board, end }
   }
   if (best.i === 0 || best.r.won) keep(boardHash(best.board), moving, best.r)
   for (const fn of FORMATION_HOOKS) fn({ index: best.i, stats }, run)

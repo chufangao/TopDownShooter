@@ -2294,12 +2294,12 @@ function prepPick (run, L, made) {
   if (!L.search || L.ablate === 'formation' || (turns !== 'solver' && turns !== 'still')) return made.party
   const { cands } = prepCandidates(run, L, made)
   const r = bestFormation(run, cands, { moving: turns !== 'still' })
-  // The audit's note where another than today's pick is fielded: won where today's was not, or more value, or (neither
-  // won) held longer.
+  // The audit's note where another than today's pick is fielded: won where today's was not, or the Monarch kept more
+  // (else the fewer rounds, else more value), or (neither won) held longer.
   const was = r.stats[0]
   const now = r.stats[r.index]
-  const why = now.won ? (was.won ? 'more value' : 'won') : 'held longer'
-  if (r.index > 0) noteRule(run, 'prep', { by: `solver, ${why}` }, `${cands[r.index].label}: ${now.won ? now.value : 'not won'} over ${was.won ? was.value : 'not won'}`)
+  const why = now.won ? (was.won ? (now.margin.monarch > was.margin.monarch ? 'the Monarch kept more' : 'sooner or more value') : 'won') : 'held longer'
+  if (r.index > 0) noteRule(run, 'prep', { by: `solver, ${why}` }, `${cands[r.index].label}: ${now.won ? `Monarch ${now.margin.monarch}, ${now.value}` : 'not won'} over ${was.won ? `Monarch ${was.margin.monarch}, ${was.value}` : 'not won'}`)
   return r.cand.party
 }
 
