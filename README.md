@@ -22,25 +22,28 @@
 - `build.js` writes dist/ (what ships, and nothing of the tools); `serve.js` serves either tree; `test/` is the suite (`npm test`, functional only: no win-rate assertions until the balance pass).
 - The code's comments say the rule, not the history: git holds the history. The autoplayer (`npm run sim`) is the measuring instrument, and frozen: changed only on a paired gain over fresh seeds. In battle it searches (minutes a run, not seconds): give it `--solver-budget` so a run is a pure function of its seed and is cached.
 
-## State (2026-10-20)
+## State (2026-10-21, the handoff)
 
-- The expert's battles are the solver's. Free play on 64 fresh seeds at ascension 0, budget 150,000 plans: 57 of 64 clears (89%), deaths on floors 1/2/3 1/3/3; with the formation the solver's (below) 51 of 64 on another set, ~200 s a run on one core (16 GB fits 8 workers). The old one-ply expert on the same shop and route: 42% (M1, 48 paired seeds), its deaths nearly all at bosses the solver wins from the same board.
-- The fights are formalities (nearly every plan the search keeps wins); the sharp battles are the bosses. The one battle type the solver still loses is a boss that cannot be opened in time.
-- The out-of-battle forests were fitted on labels the old expert's battles made: a refit with the solver fighting follows.
-- 36 of 44 recipes reachable; 4 of 15 archetypes viable; the Pale Court in 66% of final armies (2026-10-16, to be read again).
+Master `f6458a9`; 543 tests, ~3.5 minutes (the expert's battles at 300 plans, `test/budget.js`). Everything of 2026-10-19/20 is pushed; the three commits since `cc58b9e` say what landed. The Decisions sections below are the record; this section is where things stand and what to do next.
 
-## Next
+- **The expert = the out-of-battle player (player.js, rules + the recruit forest + the route tree + the combo book) with the solver fighting every battle and choosing every formation.** Free play, 64 fresh seeds, ascension 0, `--solver-budget 150000 --solver-slack 0`, prep 5,000 / cap 3: 51 of 64 clears (80%; 57 of 64 on another set before the formation change), ~200 s a run on one core, 342 MB a worker, 8 workers on 16 GB without paging, so a 64-seed set is ~1 hour. The old one-ply expert on the same shop and route: 42% (M1, 48 paired seeds).
+- **What the solver says about the game:** the fights are formalities (nearly every plan the search keeps wins); the sharp battles are the bosses, and the one battle the solver still loses is a boss it cannot open in time (the Sovereign, 10 pieces against 22). The user's standing read: the game is too easy; a low clear rate is the simulator's fault before the game's; the game is never eased for it (Standing rules).
+- **Unmeasured in the tree:** the prep's Monarch-first ranking (`prepOutranks`, `prepBeat`; the user's "just make the change").
+- **Stale:** the recruit forest (`outforest.json`, "recruit-merged-2") and the route tree (`route.json`) were fitted on labels the old expert's battles made. The route tree cannot be refit (its fitter went with teach.js/fit.js, in git at `7b03221^`). The combo book was remade once and lost (its fusion gains halved with step 1's nerf); the old book stands.
+- **Known small faults:** `foe.js estimate` counts a Mirage-foiled blow as landing (one blow a unit a battle); the solver's piece orders are acting order and keys-first only, so a melee piece may strike before a shooter and take a counter (the "Range first" puzzle). Three Standard-lint findings in foe.js predate today.
+- 36 of 44 recipes reachable; 4 of 15 archetypes viable; the Pale Court in 66% of final armies (2026-10-16, not read again since).
 
-Landed on 2026-10-18: fusing out of battle alone; the elements (two statuses, six piece relics, four Legendaries); the Shop open between battles with fusions on its shelf, Barkskin and Veiled merged into one ward; movement as a channel (six elements that read a piece's own tiles moved); the draft of one soul; floor 1's first rooms sized to it. What remains is the measurement.
+## Next (in order; each a paired measurement on fresh seeds)
 
-### The next balance pass
+1. **Measure the Monarch-first ranking** against `99afe41`'s prep on 64 seeds: clears, progress, the Monarch's HP entering each boss. Keep it on a non-loss; the ranking is the user's word, the numbers decide the bound (`PREP_ROUNDS`).
+2. **The recruit forest: drop or refit.** Cheap first: 64 seeds with `--paired none,outforest:none` (the rules alone against the forest), the solver fighting. If the forest no longer earns its keep, delete `outforest.js`/`outforest.json`/`trees.js` and outside.js's labels. If it does, refit it with the solver fighting: `outside.js --label --phases recruit` plays each candidate to the run's end, so give it a small battle budget (`--solver-budget 20000`) and a window (`--rooms`), and expect hours.
+3. **The economy check** (the user's: money must matter on every floor): essence left as each floor's boss is entered (`purse` in every battle record), tuned by prices and gains alone (never a new sink), the clears before and after reported. Not done.
+4. **A difficulty map from the solver** (M2): per battle solved, the width that first won, the margin, the sharp turns (`useSolverHook` gives every solve's stats; a report in reports.js by floor, room type and rank). The instrument for the balance pass the user wants: skill from decisions, bosses sharp, fights not formalities.
+5. **The combos ablation** re-read (CORE 25–50 points; last 31 with the old expert, before the locks tightened): `--ablations --variants full,combos --solver-budget 150000`.
+6. **Balance pass proper**, levers one at a time, numbers only, never easing: the map (4) says where; the economy (3) says what the purse allows.
+7. Smaller: the Mirage-aware estimate in foe.js; a ranged-first piece order in the solver (cheap, measurable on the puzzles and 16 seeds); the old items (relics worth 0 because bought on floor 3; kins whose one floor-1 kind is melee) read again with the solver.
 
-- Relics: worth 0 because they are bought on floor 3 and runs die on floor 1. Levers: a relic in an elite's or a boss's spoils, an early Shop, or the elements.
-- Viability: kins whose one floor-1 kind is melee die there under strict commitment. Levers: a shooter a kin on floor 1, or judging a kin as its Monarch.
-- The recruit forest refitted with the solver fighting (outside.js's playouts, slow), then diversity read again. Instruments as before: strict rows, free play, fresh seeds, every comparison paired.
-- The prep's Monarch-first ranking measured as the formation choice was (it landed unmeasured, the user's word).
-- Difficulty read from the solver, not from a player's clear rate: per battle, won or not, the width that first won, the win's margin, and the sharp turns (few of the kept plans win). A map of it by floor and room.
-- The economy check (essence left at each floor's end; `purse` is in every run record) was not done.
+How to run things: `npm run sim -- --runs 64 --seed <new name> --solver-budget 150000 --solver-slack 0` (cached; a wall-clock cap is never cached); `--paired a,b` with `none`, `outforest:<file|none>`, `route:<hand|learned|file>`; `--level basic|expert`; `--ablations`, `--necessity`, `--decisions`, `--builds` as before. Seeds used so far, never again for a confirmation: sim, chk*, sel*, rf*, rc*, r19*, b19*, sv0, m1s, sa0, pf0, pf1, sp, sp0, p2, id*, idb. Two agents at most, one running sims; pair by seed; keep a log.
 
 ## Decisions of 2026-10-18 (the user's word)
 
