@@ -5,11 +5,12 @@ import os from 'node:os'
 import path from 'node:path'
 import { createRng } from './rng.js'
 import {
-  tracksOf, CAMP_SLOTS, campOpen, makeUnit, baseStats, sizeOf, footprintSlots, fits, monarchSlot, cellsOf
+  tracksOf, CAMP_SLOTS, campOpen, makeUnit, baseStats, sizeOf, footprintSlots, fits, monarchSlot, cellsOf, statsOf
 } from './unit.js'
-import { createBattle, playOut, timelineHash } from './turns.js'
+import { createBattle, playOut, timelineHash, fork, order, stalled } from './turns.js'
 import { outForestModel, useOutForest } from './outforest.js'
 import { grantsArise } from './rules.js'
+import { useSolverHook, useFormationHook, forgetPrepped, solve } from './solver.js'
 import {
   createRun, fieldCap, fielded, currentNode, battleSetup, isMonarch, monarchOf, souls, soulCount, levelOf, firstLevel,
   monarchHp, ariseOf, spawnPool, captainPool, draftOffer, drawRoom, varyRoutes, ascensionTop, bossPool, bossIn,
@@ -58,7 +59,11 @@ const buildOf = (s) => {
 // place of the level's policy. The record:
 //   battles      each as the retinue entered it: floor, boss, t, stall, won, lvl, size, roster, foes, relics, raised,
 //                pieces, fell, summoned, waves, foesIn, colossi, syn, lead, army, acted, camp, purse (the essence
-//                unspent as it began); with `setups` its setup, with `snapshots` its snapshot and outcome (for refights)
+//                unspent as it began), room and rank (its room's type and rank), mhp and mend (the Monarch's share of
+//                its max HP as it began and ended), solve (its first solve's stats: solved, level, plans, turns,
+//                margin, prep, truncated, sharp), solves (how many), prep (the formation's: index fielded, candidates
+//                solved, those won), probe (probeOf: weaker play from its opening); with `setups` its setup, with
+//                `snapshots` its snapshot and outcome (for refights)
 //   result, floor, camp, relics, reaped, death   how it ended
 //   monarch      its max HP, Command and Arise copies, and Arise's reach and tier
 //   legendaries, build, ossuary   what it held at the end (buildOf)
@@ -74,51 +79,86 @@ export function record ({ route, outforest, ...job }) {
 function recordRun ({ seed, level, ablate = null, setups = false, snapshots = false, scale = 1, ascension = 0, monarch = BASE_MONARCH, act = null }) {
   const battles = []
   const t0 = Date.now()
+  forgetPrepped()
   const run = ablatedRun(seed, ablate, null, { scale, ascension, monarch })
   const L = { ...LEVELS[level], ...(ablate && { ablate }) }
   let snap = null
   let purse = 0
+  let mhp = 1
+  // The solves of the battle under way, and the formation chosen for it (the prep comes before the fight).
+  let solves = []
+  let probe = null
+  let prepNow = null
+  let prep = null
+  const offSolver = useSolverHook(({ stats }, b) => {
+    if (!solves.length) probe = probeOf(b)
+    solves.push(stats)
+  })
+  const offFormation = useFormationHook(({ index, stats }) => { prepNow = { index, n: stats.length, won: stats.filter((x) => x.won).length } })
   // The battle the run fell in: its room's rank and the share of its foes' HP removed.
   let fell = null
-  autoplay(run, {
-    level: L,
-    act,
-    beforeFight: (r) => {
-      purse = r.state.essence
-      if (snapshots) snap = structuredClone({ ...r.state, log: [] })
-    },
-    onBattle: (b, r) => {
-      if (b.winner !== 'party') fell = { rank: currentNode(r).rank, share: foeShare(b) }
-      const party = b.units.filter((u) => u.side === 'party' && !u.shadow && u !== b.monarch)
-      battles.push({
-        floor: b.floor + (b.boss ? 'B' : ''),
-        ...(b.boss && { boss: bossIn(currentNode(r)) }),
-        t: b.turn,
-        stall: b.reason === 'stall',
-        won: b.winner === 'party',
-        lvl: party.reduce((n, u) => n + u.lvl, 0) / Math.max(1, party.length),
-        size: party.length,
-        roster: soulCount(r.state.party),
-        foes: b.units.filter((u) => u.side === 'foe').length,
-        relics: r.state.relics.length,
-        raised: b.raised,
-        pieces: party.length,
-        fell: party.filter((u) => u.hp <= 0).length,
-        summoned: b.units.filter((u) => u.summoned).length,
-        waves: b.events.filter((e) => e.type === 'wave').length,
-        foesIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').length,
-        colossi: r.setup.party.filter((u) => u.uid !== 0 && sizeOf(u) === 2).length,
-        syn: synergiesAt(b),
-        lead: leadOf(r.setup.party.filter((u) => u.uid !== 0)),
-        ...armyMeasures(b),
-        camp: r.state.camp,
-        purse,
-        setup: setups ? r.setup : undefined,
-        snapshot: snapshots ? snap : undefined,
-        outcome: snapshots ? { won: b.winner === 'party', t: b.turn, hash: timelineHash(b.events), turns: turnsOf(L) } : undefined
-      })
-    }
-  })
+  try {
+    autoplay(run, {
+      level: L,
+      act,
+      beforeFight: (r) => {
+        purse = r.state.essence
+        const m = monarchOf(r.state)
+        mhp = m.maxHp > 0 ? Math.max(0, m.hp) / m.maxHp : 0
+        solves = []
+        probe = null
+        prep = prepNow
+        prepNow = null
+        if (snapshots) snap = structuredClone({ ...r.state, log: [] })
+      },
+      onBattle: (b, r) => {
+        const node = currentNode(r)
+        const s0 = solves[0]
+        const m = b.monarch
+        if (b.winner !== 'party') fell = { rank: currentNode(r).rank, share: foeShare(b) }
+        const party = b.units.filter((u) => u.side === 'party' && !u.shadow && u !== b.monarch)
+        battles.push({
+          floor: b.floor + (b.boss ? 'B' : ''),
+          ...(b.boss && { boss: bossIn(currentNode(r)) }),
+          t: b.turn,
+          stall: b.reason === 'stall',
+          won: b.winner === 'party',
+          lvl: party.reduce((n, u) => n + u.lvl, 0) / Math.max(1, party.length),
+          size: party.length,
+          roster: soulCount(r.state.party),
+          foes: b.units.filter((u) => u.side === 'foe').length,
+          relics: r.state.relics.length,
+          raised: b.raised,
+          pieces: party.length,
+          fell: party.filter((u) => u.hp <= 0).length,
+          summoned: b.units.filter((u) => u.summoned).length,
+          waves: b.events.filter((e) => e.type === 'wave').length,
+          foesIn: b.events.filter((e) => e.type === 'enter' && e.unit.side === 'foe').length,
+          colossi: r.setup.party.filter((u) => u.uid !== 0 && sizeOf(u) === 2).length,
+          syn: synergiesAt(b),
+          lead: leadOf(r.setup.party.filter((u) => u.uid !== 0)),
+          ...armyMeasures(b),
+          camp: r.state.camp,
+          purse,
+          room: node.type,
+          rank: node.rank,
+          mhp: +mhp.toFixed(3),
+          mend: m ? +(Math.max(0, m.hp) / m.maxHp).toFixed(3) : null,
+          solve: s0 ? { solved: s0.solved, level: s0.level, plans: s0.plans, turns: s0.turns, margin: s0.margin, prep: !!s0.prep, truncated: s0.truncated, sharp: s0.sharp } : null,
+          solves: solves.length,
+          prep,
+          probe,
+          setup: setups ? r.setup : undefined,
+          snapshot: snapshots ? snap : undefined,
+          outcome: snapshots ? { won: b.winner === 'party', t: b.turn, hash: timelineHash(b.events), turns: turnsOf(L) } : undefined
+        })
+        prep = null
+      }
+    })
+  } finally {
+    offSolver()
+    offFormation()
+  }
   const s = run.state
   return {
     battles, result: s.result, floor: s.floor, camp: s.camp, relics: s.relics.length, reaped: s.stats.reaped,
@@ -137,6 +177,18 @@ function recordRun ({ seed, level, ablate = null, setups = false, snapshots = fa
     secs: (Date.now() - t0) / 1000,
     outforest: outForestModel()?.name ?? null
   }
+}
+
+// How a battle goes for weaker play than the solver's, from its opening board `b` (never touched): `idle` End Turn
+// alone (what is left untouched strikes with its basics), `greedy` the solver one option, one plan and one board wide
+// (PROBE plans at most). Each { won, m (the Monarch's share of its max HP at the end), t (rounds played) }.
+const PROBE = 1500
+export function probeOf (b) {
+  const end = (g) => ({ won: g.over && g.winner === 'party', m: g.monarch ? +(Math.max(0, g.monarch.hp) / g.monarch.maxHp).toFixed(3) : null, t: g.turn - b.turn + 1 })
+  const f = fork(b)
+  while (!f.over && !stalled(f)) order(f, { type: 'end' })
+  const g = solve(b, { widths: [[1, 1, 1]], budget: PROBE, cap: Infinity, slack: false })
+  return { idle: end(f), greedy: end(g.end) }
 }
 
 // The model a job names: its file's (read once a worker), none for 'none' or null, or the configuration itself.
@@ -190,6 +242,7 @@ export function playerOf (spec) {
 export function auditRecord ({ seed, level, ascension = 0, monarch = BASE_MONARCH }) {
   const t0 = Date.now()
   const battles = { n: 0, won: 0, raised: 0, synergies: 0 }
+  forgetPrepped()
   const run = createRun({ seed, ascension, monarch })
   resetAudit(true, run)
   autoplay(run, {
@@ -266,14 +319,20 @@ export function progressOf ({ result, floor, rank = 1, share = 0 }) {
   const done = (floor - 1) * ROOMS_PER_FLOOR + (rank - 1) + Math.min(1, Math.max(0, share))
   return Math.min(1, Math.max(0, done / routeRooms()))
 }
-// The share of a battle's foe HP removed, the reserve's waves counted, shadows left out.
+// The share of a battle's foe HP removed, the reserve's waves counted whole at the HP they enter with (the side's mods:
+// the floor's and the boss's scale), shadows left out.
 export function foeShare (b) {
   let hp = 0
   let max = 0
-  for (const u of [...b.units, ...b.reserve]) {
-    if ((u.side ?? 'party') !== 'foe' || u.shadow) continue
+  for (const u of b.units) {
+    if (u.side !== 'foe' || u.shadow) continue
     hp += Math.max(0, u.hp)
     max += u.maxHp
+  }
+  for (const u of b.reserve) {
+    const whole = Math.max(1, Math.round(statsOf({ id: u.id, lvl: u.lvl, tracks: u.tracks }, b.foeMods ?? []).hp))
+    hp += whole
+    max += whole
   }
   return max ? 1 - hp / max : 0
 }
@@ -325,8 +384,9 @@ const jobTime = (job, times) => times[jobKey(job)] ?? (job.refight || job.level 
 // ── balance report ─────────────────────────────────────────────────────────────────────────────
 
 // Autoplays `runs` seeded runs and prints the clear rate, battle length, per-floor progression and each camp's record.
-export async function report ({ runs, seed: seed0, level, ablate = null, ascension = 0, monarch = null }) {
+export async function report ({ runs, seed: seed0, level, ablate = null, ascension = 0, monarch = null, out = null }) {
   const played = await playAll(Array.from({ length: runs }, (_, i) => ({ seed: `${seed0}-${i}`, level, ablate, ...(ascension && { ascension }), ...asMonarch(monarch) })), { cache: CACHE })
+  if (out) fs.writeFileSync(out, JSON.stringify({ seed: seed0, level, ablate, ascension, runs, records: played.map((r, i) => ({ seed: `${seed0}-${i}`, ...r })) }) + '\n')
   const battles = played.flatMap((r) => r.battles)
   const turns = battles.map((b) => b.t).sort((a, b) => a - b)
   const deaths = {}
@@ -407,6 +467,8 @@ export async function paired (o) {
   const { runs, seed: seed0 } = o
   const all = await playAll(pairedJobs(o, 0, runs), { cache: CACHE })
   const S = pairedStats(all.slice(0, runs), all.slice(runs))
+  const seeds = Array.from({ length: runs }, (_, i) => `${seed0}-${i}`)
+  if (o.out) fs.writeFileSync(o.out, JSON.stringify({ seed: seed0, players: o.players, runs, a: all.slice(0, runs).map((r, i) => ({ seed: seeds[i], ...r })), b: all.slice(runs).map((r, i) => ({ seed: seeds[i], ...r })) }) + '\n')
   for (const line of pairedLines(S, o, `${runs} seeds ${seed0}-0…${seed0}-${runs - 1}`)) console.log(line)
   return S
 }

@@ -446,11 +446,12 @@ function beam (root, before, { K, B, W, per, turns, deadline, budget, moving, be
       if (layer[0].line.length) meet(endOf(before, layer[0].board, layer[0].hash, layer[0].line, true))
       break
     }
-    // The W best by the score, ties by the value so far; none that cannot better a win found.
+    // The W best by the score, ties by the value so far; none whose value so far is no better than a win found (a win in
+    // a node's own round costs no round more; a heal may yet raise a value, so the bound is a heuristic).
     const ranked = [...next.values()]
     ranked.sort((a, b) => (Math.abs(a.score - b.score) > EPS ? b.score - a.score : b.soFar - a.soFar))
     layer = ranked.slice(0, W)
-    if (bestWon > -Infinity) layer = layer.filter((c) => c.soFar - END_WEIGHTS.turn > bestWon + EPS)
+    if (bestWon > -Infinity) layer = layer.filter((c) => c.soFar > bestWon + EPS)
     for (const c of layer) grow(c)
   }
   return out
@@ -744,7 +745,7 @@ export function solverTurn (battle, { cap, budget, widths, slack, moving, onSolv
   const had = LINES.get(battle)
   let orders = had?.byHash.get(hash)
   if (!orders) {
-    const r = (!had && taken(hash, moving ?? true, budget === undefined && cap === undefined && widths === undefined && slack === undefined)) || solve(battle, {
+    const r = (!had && taken(battle, hash, moving ?? true, budget === undefined && cap === undefined && widths === undefined && slack === undefined)) || solve(battle, {
       ...(budget !== undefined && { budget }), ...(cap !== undefined && { cap }), ...(widths !== undefined && { widths }), ...(slack !== undefined && { slack }), ...(moving !== undefined && { moving })
     })
     r.stats.mismatch = !!had?.turns.has(battle.turn)
@@ -786,24 +787,33 @@ export function bestFormation (run, cands, { budget = prepBudgetOf(), cap = prep
     const end = { won: r.won, value: r.value, monarch: margin?.monarch ?? 0, open: !r.end.over && !stalled(r.end), turn: r.end.turn, foes: foesLeft(r.end) }
     if (!best || prepOutranks(end, best.end)) best = { i, r, board, end }
   }
-  if (best.i === 0 || best.r.won) keep(boardHash(best.board), moving, best.r)
+  if (best.i === 0 || best.r.won) keep(best.board, moving, best.r)
   for (const fn of FORMATION_HOOKS) fn({ index: best.i, stats }, run)
   return { index: best.i, cand: cands[best.i], stats }
 }
 
-// The lines bestFormation kept, by opening board (boardHash) and `moving`: the last PREPPED of them, each taken once.
+// The lines bestFormation kept, by opening board (boardHash and setupOf) and `moving`: the last PREPPED of them, each
+// taken once.
 const PREPPED = 4
 const KEPT = new Map()
-function keep (hash, moving, r) {
-  const k = `${moving}|${hash}`
+// What boardHash leaves out of a board and play reads: each unit's tracks, relics and kit, the waves' foes, the sides'
+// mods, the ablated mechanics and the walls. A kept line is taken only by a battle that agrees on these too.
+const setupOf = (b) => JSON.stringify([b.units.map((u) => [u.uid, u.id, u.tracks, u.relics, u.kit.map((a) => a.id)]),
+  b.reserve.map((u) => [u.uid, u.id, u.lvl, u.tracks, u.wave, u.lane]), b.partyMods, b.foeMods, [...b.ablate], [...b.walls]])
+const keptKey = (b, hash, moving) => `${moving}|${hash}|${setupOf(b)}`
+function keep (board, moving, r) {
+  const k = keptKey(board, boardHash(board), moving)
   KEPT.delete(k)
   KEPT.set(k, { line: r.line, won: r.won, stats: { ...r.stats, prep: true } })
   while (KEPT.size > PREPPED) KEPT.delete(KEPT.keys().next().value)
 }
+// Every kept line let go: a run's prep lines are its own, so a run played after another on one worker starts with none
+// (reports.js record).
+export const forgetPrepped = () => KEPT.clear()
 // The line kept for a battle opening on board `hash`, taken out; one not won (the first candidate's, solved as the
 // battle would be) only for a battle solved by the knobs in use (`plain`). null for none.
-function taken (hash, moving, plain) {
-  const k = `${moving}|${hash}`
+function taken (battle, hash, moving, plain) {
+  const k = keptKey(battle, hash, moving)
   const r = KEPT.get(k)
   if (!r || (!r.won && !plain)) return null
   KEPT.delete(k)

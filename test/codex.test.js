@@ -51,6 +51,7 @@ const { UNIT_LIST, BEHAVIOURS, FUSION_LIST, RELIC_LIST, SYNERGIES, STATUSES, THR
 const { makeUnit } = await import('../src/sim/unit.js')
 const { createRun, souls, rosterCap, apply, START_PARTY, availableNodes, transmuteOffer, legalActions } = await import('../src/sim/run.js')
 const { temperOf } = await import('../src/sim/turns.js')
+const { RANKS } = await import('../src/sim/map.js')
 
 const FOES = UNIT_LIST.filter((u) => u.spawn || u.boss)
 bestiary.record(FOES.map((u) => u.id))
@@ -500,10 +501,16 @@ test('an ascension is told as it plays: level 0 the base game, a level each numb
     assert.equal(lines.some((l) => l.includes(`Waves ${waveEvery(s)} turns apart`)), waveEvery(s) !== TUNING.spawn.waves.every, `${a}: the waves`)
     assert.equal(lines.some((l) => l.includes(`The Monarch ${monarchBase(s)} HP`)), monarchBase(s) !== TUNING.monarch.hp, `${a}: the Monarch`)
     // The counts on the run's floors (the second bug hunt: on floors 1–4, the fourth the deep's since there are three).
+    // Each floor's rooms its first ranked room's foes to its last's (a floor-1 fight past the opening's).
     const floors = Array.from({ length: TUNING.run.floors }, (_, f) => f + 1)
-    assert.equal(short.includes('more foes'), floors.some((f) => roomSize(f, false, a) !== roomSize(f, false) || roomSize(f, true, a) !== roomSize(f, true)), `${a}: the counts`)
+    const span = (f, elite, at) => {
+      const lo = roomSize(f, elite, at, !elite && f === 1 ? TUNING.spawn.opening.length + 1 : 1)
+      const hi = roomSize(f, elite, at, RANKS - 2)
+      return lo === hi ? `${lo}` : `${lo}–${hi}`
+    }
+    assert.equal(short.includes('more foes'), floors.some((f) => span(f, false, a) !== span(f, false, 0) || span(f, true, a) !== span(f, true, 0)), `${a}: the counts`)
     const counts = lines.find((l) => l.startsWith('Fights of'))
-    if (counts) assert.ok(counts.startsWith(`Fights of ${floors.map((f) => roomSize(f, false, a)).join('/')} foes on floors 1–${TUNING.run.floors} (`), counts)
+    if (counts) assert.ok(counts.startsWith(`Fights of ${floors.map((f) => span(f, false, a)).join(' / ')} foes on floors 1–${TUNING.run.floors} (`), counts)
   }
   // A room at the top: its foes' mods the level's, and its later wave's turn on the level's spacing.
   const run = createRun({ start: START_PARTY, seed: 'told-asc', ascension: top })

@@ -217,10 +217,15 @@ function act (action) {
 
 // ── the run saved ────────────────────────────────────────────────────────────────────────────────
 
-// After every action the run in play is saved with its options and log; a finished run drops its save.
+// After every action the run in play is saved with its options and log; a finished run drops its save, and is kept in
+// the history and opens what its clear opens at once, before its battle plays back (a tab closed then loses neither).
 function keep () {
   if (!run || run.state.tutorial) return
   played()
+  if (run.state.phase === 'over') {
+    chronicle()
+    ascend()
+  }
   const text = saveOf(run, made, meta)
   if (text) prefs.set('save', text)
   else prefs.drop('save')
@@ -472,7 +477,7 @@ function route () {
   music.set(s.phase === 'over' ? 'title' : trackOf(s.floor, depthOf(s.floor) > 0), s.phase === 'battle' || s.phase === 'prep')
   if (!trail || trail.floor !== s.floor) {
     // A new floor: its number and its prices; in the deep, how the foes have grown.
-    if (trail && s.phase === 'map') note = floorNote(s)
+    if (trail && s.phase === 'map') note = note ? `${note} ${floorNote(s)}` : floorNote(s)
     trail = { floor: s.floor, ids: [s.map.start] }
   }
   if (s.phase === 'battle') {

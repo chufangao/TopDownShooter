@@ -38,11 +38,18 @@ export const tierPrice = (run, i) => price(run, TUNING.essence.tier[i], 'price.t
 // What soul `u`'s next tier on `track` costs.
 export const tierCost = (run, u, track) => tierPrice(run, u.tracks[track])
 // What the tiers soul `u` holds pay back when it is fused or released: TUNING.essence.refund of each one's price now,
-// rounded down once.
+// rounded down once; a tier it was given free (Soul Lantern's, a consecration's: isFree) pays back nothing.
 export function tierRefund (run, u) {
   let sum = 0
-  for (const held of u.tracks) for (let i = 0; i < held; i++) sum += tierPrice(run, i)
+  for (let t = 0; t < u.tracks.length; t++) for (let i = 0; i < u.tracks[t]; i++) if (!isFree(u, t, i)) sum += tierPrice(run, i)
   return Math.floor(TUNING.essence.refund * sum)
+}
+// Whether tier `i` (0-based) of soul `u`'s track `t` was given free: `u.free`, a bit a tier on each track (none: none).
+export const isFree = (u, t, i) => (((u.free?.[t] ?? 0) >> i) & 1) === 1
+// Marks tier `i` of soul `u`'s track `t` as given free.
+export function markFree (u, t, i) {
+  u.free = (u.free ?? [0, 0]).slice()
+  u.free[t] |= 1 << i
 }
 // What recruiting a soul of kind `id` costs: TUNING.essence.recruit × its tier, whatever level it rises at.
 export const recruitCost = (run, id) => price(run, TUNING.essence.recruit * unitDef(id).tier, 'price.recruit')

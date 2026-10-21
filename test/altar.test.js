@@ -9,6 +9,7 @@ import {
   altarActions, transmuteOffer, canTransmute, START_PARTY
 } from '../src/sim/run.js'
 import { nextTracks, baseStats, tiersOf, tracksOf } from '../src/sim/unit.js'
+import { isFree } from '../src/sim/economy.js'
 import { policy, pickAltar, altarOptions, altarCandidates, survey, LEVELS } from '../src/sim/autoplay.js'
 import { UNITS } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
@@ -171,7 +172,10 @@ test('a consecration is one tier, free: the soul\'s next on the track chosen, as
     const paid = copyOf(BEFORE.run)
     paid.state.essence = 5000
     apply(paid, { type: 'upgrade', uid, track })
-    assert.deepEqual(s.party, paid.state.party)
+    // but the tier is marked given free (it pays nothing back).
+    const held = s.party.find((x) => x.uid === uid)
+    assert.ok(isFree(held, track, held.tracks[track] - 1))
+    assert.deepEqual(s.party.map(({ free, ...x }) => x), paid.state.party.map(({ free, ...x }) => x))
   }
   // A track the crosspath rule stops (the other past II, this at II) takes none, nor a soul not held.
   const run = atAltar((r) => { r.state.party.find((x) => x.uid === uid).tracks = [3, 2] })

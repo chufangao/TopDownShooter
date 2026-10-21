@@ -10,7 +10,7 @@ import { TUNING } from '../src/tuning.js'
 import { tuned, BOARD_14, grant } from './tuned.js'
 import {
   createRun, apply, legalActions, replay, depthOf, deepGrowth, foeMods, foeLevel, drawRoom, canDescend, captainPool,
-  MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join, START_PARTY
+  MONARCH_UID, monarchOf, souls, fielded, currentNode, availableNodes, foeEssence, battleSetup, join, START_PARTY, roomSize
 } from '../src/sim/run.js'
 import { autoplay, policy, LEVELS } from '../src/sim/autoplay.js'
 import { generateFloor, RANKS } from '../src/sim/map.js'
@@ -561,7 +561,7 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
         const room = drawRoom(seed, floor, node)
         const g = deepGrowth(floor, node)
         const elite = node.type === 'elite'
-        const n = Math.min(SLOTS, (elite ? sp.elite : sp.fight).at(-1) + g.count)
+        const n = Math.min(SLOTS, roomSize(floor, elite, 0, node.rank) + g.count)
         const base = node.type === 'siege' ? W.siege : elite ? W.elite : node.rank >= W.fightRank ? W.fight : 1
         const forms = [room.foes, ...(room.waves ?? []).map((w) => w.foes)]
         assert.equal(forms.length, Math.max(base, Math.min(E.maxWaves, base + g.waves)), `${floor} ${node.id}: waves`)
@@ -587,7 +587,7 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
           assert.ok(foes.slice(led).every((f) => UNITS[f.id].spawn.minFloor <= F && UNITS[f.id].tier <= tier), `${floor} ${node.id} ${foes.map((f) => f.id)}`)
           assert.ok(foes.every((f) => f.lvl === lvl), `${floor} ${node.id} ${foes.map((f) => f.lvl)} ${lvl}`)
         }
-        if (node.id === map.end) assert.ok(n > (elite ? sp.elite : sp.fight).at(-1) + Math.floor((floor - F) * E.count))
+        if (node.id === map.end) assert.ok(n > roomSize(floor, elite, 0, node.rank) + Math.floor((floor - F) * E.count))
       }
     }
   }
@@ -603,7 +603,7 @@ test('past the Sovereign\'s floor the foes grow by the floor, as an army: more l
 // test here, not the fights on the way (whether a run gets there is the final balance pass's business).
 function clear (seed) {
   const sp = TUNING.spawn
-  const empty = { fight: sp.fight.map(() => 0), elite: sp.elite.map(() => 0), court: sp.court.map(() => 0), bossHp: sp.bossHp.map(() => 0.02), bossAtk: sp.bossAtk.map(() => 0.02), late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
+  const empty = { fight: sp.fight.map(() => 0), fightRamp: sp.fightRamp.map(() => 0), elite: sp.elite.map(() => 0), eliteRamp: sp.eliteRamp.map(() => 0), court: sp.court.map(() => 0), bossHp: sp.bossHp.map(() => 0.02), bossAtk: sp.bossAtk.map(() => 0.02), late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
   return tuned({ spawn: empty }, () => {
     const run = createRun({ start: START_PARTY, seed })
     const s = run.state

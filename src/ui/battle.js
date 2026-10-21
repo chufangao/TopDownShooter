@@ -35,7 +35,7 @@ export function battleChrome ({ onHelp = null } = {}) {
     const t = scene?.tally()
     return h('div', { class: 'syn-tip' }, h('b', null, 'Essence'), t && [
       h('p', null, h('b', null, `+${t.owed}`), ` from ${t.slain} ${t.slain === 1 ? 'foe' : 'foes'} slain. A win adds it to your `, h('b', null, `${t.bank}`), '.'),
-      t.bonus > 0 && h('p', null, `The elite pays +${t.bonus} more on a win.`),
+      t.bonus > 0 && h('p', null, `The bounty: +${t.bonus} more on a win.`),
       t.court && h('p', null, `Hollow Court: +${t.court.essence} more if ${t.court.n === 1 ? 'its shadow stands' : `its ${t.court.n} shadows stand`} at the win.`),
       t.gain !== 1 && h('p', { class: 'dim' }, `Your relics make each foe pay ×${+t.gain.toFixed(2)}, counted in.`)])
   }

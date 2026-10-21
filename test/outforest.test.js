@@ -22,7 +22,12 @@ import {
 } from '../src/sim/autoplay.js'
 import { shippedPart } from '../src/sim/read.js'
 import { createRng } from '../src/sim/rng.js'
+import { FLAT_ROOMS } from './tuned.js'
+import { TUNING } from '../src/tuning.js'
 
+// The fixture's walks were found on the rooms before balance step 2 (tuned.js FLAT_ROOMS), held for this file (each test
+// file plays in a process of its own): the forests' machinery is under test here, not the balance.
+for (const [k, v] of Object.entries(FLAT_ROOMS)) Object.assign(TUNING[k], v)
 const L = LEVELS.expert
 // sim-130's expert drafts, then falls on floor 1 after ten battles: its recruits and a purchase labelled, a whole run
 // in about ten seconds; a seed ≡ 0 mod 5, so its rows are held out. (sim-0 was the seed before the draft: drafted, its run

@@ -195,16 +195,17 @@ export const TUNING = {
   // recruit recruit × its tier; a fusion fuse × the fused kind's tier. A won elite pays eliteBonus × the price scale on
   // top. `refund`: the share a released soul pays back of a recruit's price and of each tier it holds, and the share a
   // fusion pays back of its parts' tiers, rounded down.
-  essence: { start: 52, perTier: [7, 3.5, 3.5], perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 12, fuse: 14, refund: 0.5, eliteBonus: 96 },
+  essence: { start: 52, perTier: [4.5, 2.5, 2.6], perFloor: 1.1, tier: [16, 36, 60, 96], recruit: 12, fuse: 14, refund: 0.5, eliteBonus: 96 },
   // Foe level = 1 + (floor − 1) × levelPerFloor, rising by levelRamp[floor − 1] more across a floor's ranks. A room draws
   // its kinds from those of tier at most tierOverCap above the floor's target tier (1 + (floor − 1) × tierPerFloor,
   // rounded down, at most tierMax; an elite's eliteTier more), each by its spawn weight / (1 + its tiers from the
-  // target)^tierFalloff. fight/elite: foes per room on floors 1–4; `opening`: a floor-1 fight of rank k has
+  // target)^tierFalloff. fight/elite: foes per room on floors 1–4, rising across the floor as the levels do: its last
+  // ranked room fightRamp[floor − 1] (an elite's eliteRamp) more than its first; `opening`: a floor-1 fight of rank k has
   // opening[k − 1] foes where it has an entry; `openingTier`: floor 1's fights of the first that many ranks draw its
   // tier-1 kinds alone. foeHp/foeAtk multiply ordinary foes per floor, bossHp/bossAtk the floor's boss.
   spawn: {
     levelPerFloor: 1, levelRamp: [0, 2, 2], tierPerFloor: 0.5, tierMax: 5, tierOverCap: 2, tierFalloff: 1.5,
-    fight: [3, 4, 5, 5], elite: [2, 5, 6, 6], eliteLevel: 0, eliteTier: 1, opening: [1, 1, 2], openingTier: 1,
+    fight: [1.5, 5, 6, 6], fightRamp: [5.5, 3, 3, 3], elite: [1.5, 5, 6, 6], eliteRamp: [3.5, 2, 2, 2], eliteLevel: 0, eliteTier: 1, opening: [1, 1, 2], openingTier: 1,
     foeHp: [1.08, 1.1, 1.12, 1.52], foeAtk: [1.02, 1.03, 1.12, 1.45], bossHp: [1, 2, 0.25], bossAtk: [1, 1.4, 0.4],
     // From rank `from` of every floor, a fight's foes carry at least `fight` distinct threat types and an elite's
     // `elite`, redrawn up to `tries` times, keeping the most varied. Every walk through a floor meets every threat type

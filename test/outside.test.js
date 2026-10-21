@@ -12,6 +12,7 @@ import { createRun, apply, currentNode, availableNodes, legalActions } from '../
 import { policy, autoplay } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
+import { tuned, FLAT_ROOMS } from './tuned.js'
 
 // sim-10's expert falls on floor 1 after five battles: a whole run in about a second, so a playout to its end is cheap.
 // (sim-0 until the pool was flattened, 2026-10-15: its run clears now.)
@@ -155,7 +156,7 @@ test('in prep the teacher walks to the base\'s formation: no formation is its de
   assert.ok(met > 0)
 })
 
-test('with won, a decision whose base\'s line clears the run plays that line alone and keeps the base\'s pick', () => {
+test('with won, a decision whose base\'s line clears the run plays that line alone and keeps the base\'s pick', () => tuned(FLAT_ROOMS, () => {
   // sim-1's expert clears: late on the last floor its own line clears from wherever it stands (sim-2 fell on floor 4
   // with the twelve relics in the Shops, sim-1 with Echo at half; on three floors sim-0 falls on floor 3).
   // The first of a few seeds whose expert clears the run (the balance moves which), walked to the last floor's end.
@@ -176,7 +177,7 @@ test('with won, a decision whose base\'s line clears the run plays that line alo
   assert.equal(sum('overrides'), 0)
   assert.equal(sum('playouts'), sum('settled'))
   assert.equal(configOf({ won: true, rooms: 2 }).won, false)
-})
+}))
 
 test('a cap of 1 plays as the base, and a run\'s line reads as the report wants it', () => {
   const r = outsideRun(SEED, { cap: 1, log: true })

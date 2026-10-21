@@ -36,7 +36,7 @@ import {
 } from './state.js'
 import {
   foeEssence, battleEssence, clearsRun, bountyOf, tierCost, tierRefund, recruitCost, fuseCost, relicPrice, canAdvance,
-  canUpgrade, pay, advance, levelOf, firstLevel, freshTracks, soulOffers, soulOffer, relicOffer, stockShop, restock
+  canUpgrade, pay, advance, levelOf, firstLevel, freshTracks, lanternSteps, markFree, soulOffers, soulOffer, relicOffer, stockShop, restock
 } from './economy.js'
 import {
   varyRoutes, drawRoom, bossPool, bossFor, answerArmy, foeUnits, foeLevel, poolFloor, spawnPool, foeMods
@@ -369,14 +369,16 @@ const canFight = (s) => s.party.some((u) => onField(u) && u.hp > 0)
 // and the same share of each tier it holds (tierRefund).
 export const releaseRefund = (run, u) => Math.floor(TUNING.essence.refund * recruitCost(run, u.id)) + tierRefund(run, u)
 
-// A new soul joins with Soul Lantern's free tiers (freshTracks) and the level they give, beside the Monarch while the
-// field has room, else in the ossuary. → the piece.
+// A new soul joins with Soul Lantern's free tiers (freshTracks, marked free: they pay nothing back) and the level they
+// give, beside the Monarch while the field has room, else in the ossuary. → the piece.
 export function join (run, id, { uid = run.state.nextUid++ } = {}) {
   const s = run.state
   if (unitDef(id).monarch) throw new Error('there is one Monarch')
   if (soulCount(s.party) >= rosterCap(run)) throw new Error('the retinue is full')
   const tracks = freshTracks(s)
   const u = makeUnit(id, { uid, lvl: levelOf({ tracks }), tracks })
+  const at = [0, 0]
+  for (const t of lanternSteps(s)) markFree(u, t, at[t]++)
   s.party.push(u)
   if (fielded(souls(s.party)).length < fieldCap(run)) besideSeat(s, u)
   return u
@@ -676,15 +678,17 @@ function transmute (run, { uid, index }) {
   const v = makeUnit(into, { uid: u.uid, lvl: u.lvl, tracks: u.tracks, slot: u.slot })
   v.hp = Math.max(1, Math.round(v.maxHp * u.hp / u.maxHp))
   if (u.relics) v.relics = u.relics.slice()
+  if (u.free) v.free = u.free.slice()
   s.party[s.party.indexOf(u)] = v
   if (onField(v) && !fits(s.camp, v.slot, sizeOf(v), takenBy(s, [v]))) v.slot = OSSUARY
   nextRoom(run)
 }
 
-// A consecration: soul `uid` takes its next tier on `track` free, as buying it would.
+// A consecration: soul `uid` takes its next tier on `track` free, as buying it would (marked free: it pays nothing back).
 function consecrate (run, { uid, track }) {
   const u = run.state.party.find((x) => x.uid === uid)
   if (!canAdvance(run.state, u, track)) throw new Error(`cannot consecrate ${uid} on track ${track}`)
+  markFree(u, track, u.tracks[track])
   advance(run.state, u, track)
   nextRoom(run)
 }

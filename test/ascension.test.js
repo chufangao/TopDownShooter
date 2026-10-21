@@ -49,7 +49,7 @@ test('level 0 is the base game: no field on the run, the setup and the numbers a
   for (const floor of [1, 2, 3, 4, 6]) for (const boss of [false, true]) assert.deepEqual(foeMods(floor, boss, foeScale(s)), foeMods(floor, boss))
   assert.deepEqual([waveEvery(s), monarchBase(s), monarchHp(s), monarchOf(s).maxHp], [TUNING.spawn.waves.every, TUNING.monarch.hp, TUNING.monarch.hp, TUNING.monarch.hp])
   for (let floor = 1; floor <= 4; floor++) {
-    assert.deepEqual([roomSize(floor, false), roomSize(floor, true)], [TUNING.spawn.fight[floor - 1], TUNING.spawn.elite[floor - 1]])
+    assert.deepEqual([roomSize(floor, false), roomSize(floor, true)], [Math.round(TUNING.spawn.fight[floor - 1]), Math.round(TUNING.spawn.elite[floor - 1])])
     assert.equal(priceScale({ ...s, floor }), floorPrice(floor))
   }
   // A battle's setup carries no spacing of its own; and a run played at 0 is the one played without a level.

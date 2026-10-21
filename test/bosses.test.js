@@ -172,7 +172,7 @@ test('the draft opens floor 1: its boss and elites read the souls drafted, the s
 // of foes but the bosses' and a court of one, each boss frail: what a boss room is in the run under test here.
 function walk (seed) {
   const sp = TUNING.spawn
-  const empty = { fight: sp.fight.map(() => 0), elite: sp.elite.map(() => 0), court: [1, 1, 1], bossHp: [0.05, 0.05, 0.02], bossAtk: [0.05, 0.05, 0.02], late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
+  const empty = { fight: sp.fight.map(() => 0), fightRamp: sp.fightRamp.map(() => 0), elite: sp.elite.map(() => 0), eliteRamp: sp.eliteRamp.map(() => 0), court: [1, 1, 1], bossHp: [0.05, 0.05, 0.02], bossAtk: [0.05, 0.05, 0.02], late: { ...sp.late, n: 0 }, waves: { ...sp.waves, siege: 1 } }
   return tuned({ spawn: empty }, () => {
     const run = createRun({ start: START_PARTY, seed })
     const s = run.state

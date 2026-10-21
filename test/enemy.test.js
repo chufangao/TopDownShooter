@@ -15,7 +15,7 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
 import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT } from '../src/sim/unit.js'
-import { sturdy, grant, tuned } from './tuned.js'
+import { sturdy, grant, tuned, FLAT_ROOMS } from './tuned.js'
 import { on, scene, slay, unit, turns } from './scene.js'
 import { fight } from './rooms.js'
 
@@ -141,7 +141,7 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
             // No captains on floor 1: the formation is the foes drawn, no more, a fight's first ranks as many as the
             // opening says (roomSize), and those of the first openingTier ranks of tier 1 alone.
             assert.equal(g.length, k ? sp.late.n : roomSize(floor, elite, 0, node.rank), w)
-            if (!elite) assert.equal(g.length, node.rank <= sp.opening.length ? sp.opening[node.rank - 1] : sp.fight[0], w)
+            if (!elite) assert.equal(g.length, node.rank <= sp.opening.length ? sp.opening[node.rank - 1] : Math.round(sp.fight[0] + sp.fightRamp[0] * Math.min(1, (node.rank - 1) / (RANKS - 2))), w)
             if (!elite && node.rank <= sp.openingTier) assert.ok(g.every((f) => UNITS[f.id].tier === 1), `${w}: tier 1`)
             // The late pair comes from the floor's own pool: within its tier cap, and weighted to its tier.
             if (k) {
@@ -157,7 +157,7 @@ test('rooms: floor-1 elites bring a late pair; captains with cohorts from floor 
           // floor's target and of its minimum at least (captainPool: floor 2's a keystone of tier 3).
           const cohort = at(sp.cohort, floor)
           const captains = elite ? sp.captains.elite : sp.captains.fight
-          const drawn = at(elite ? sp.elite : sp.fight, floor)
+          const drawn = roomSize(floor, elite, 0, node.rank)
           assert.equal(g.length, drawn + captains * cohort, w)
           const led = !elite && !boss
           if (led) {
@@ -215,7 +215,7 @@ test('a run\'s room becomes battle units: foes take the first uids, formation th
     }
   }
   // The elite's captains brought their cohorts as foes of their own.
-  assert.equal(setup.foes.length, at(sp.elite, 3) + sp.captains.elite * at(sp.cohort, 3))
+  assert.equal(setup.foes.length, roomSize(3, true, 0, 9) + sp.captains.elite * at(sp.cohort, 3))
   // The battle plays it: the second wave announced and entering, and the run moves past every uid it made. (A
   // Monarch and souls that outlast the wave: twelve level-1 foes with their Drake 6 and Ranger 6 steps outfight three
   // level-10 souls, and a Monarch left alone is overrun, so the souls stand at level 40 or the wave comes to a battle
@@ -335,17 +335,22 @@ test('no foe is Hexed twice in a row: one that lost its act to a Hex shrugs off 
     const b = scene([on('tomb_knight', 1, 'party', 3, 6, 9), on(id, 50, 'foe', 3, 7, 1), on('grave_ghoul', 51, 'foe', 1, 7, 1)])
     const foes = [unit(b, 50), unit(b, 51)]
     const rows = []
+    const acted = []
     for (let turn = 0; turn < 3; turn++) {
       const from = b.events.length
       for (const u of foes) addStatus(b, u, 'hexed', 1, unit(b, 1))
       const laid = foes.map((u) => [!!hexed(u), b.events.slice(from).some((e) => e.type === 'shrug' && e.target === u.uid)])
       const ev = order(b, { type: 'end' })
       rows.push(laid.map((r, i) => [...r, ev.some((e) => e.type === 'hexed' && e.target === foes[i].uid)]))
+      acted.push(foes.map((u) => ev.some((e) => e.type === 'action' && e.actor === u.uid && !e.counter && !e.rule)))
     }
-    // Each [held, shrugged, its act lost], the boss's and the Ghoul's alike.
+    // Each [held, shrugged, its act lost], the boss's and the Ghoul's alike: the first Hex costs the act, the second is
+    // shrugged off, the third lands where the foe acted in between (a walk alone is no act) and is shrugged where not.
     const lost = [true, false, true]
     const shrugged = [false, true, false]
-    assert.deepEqual(rows, [[lost, lost], [shrugged, shrugged], [lost, lost]], id)
+    assert.deepEqual(rows.slice(0, 2), [[lost, lost], [shrugged, shrugged]], id)
+    assert.deepEqual(rows[2], acted[1].map((a) => (a ? lost : shrugged)), id)
+    assert.ok(acted[1].some(Boolean), `${id}: one acted between`)
   }
   // Whenever it is laid and by whom: after the act it lost, later in the foes' turn and at the turn's end, by your side or
   // its own, none takes hold (nor renews the one it holds); once its turn has come unHexed, the next lands, one laid in
@@ -525,7 +530,7 @@ test('a siege is one battle of three waves with no prep between them, paying ess
 // court last, and its fall ends the battle.
 // Functionality, not balance: however far the run gets, every legal action applies, every deep fight rebuilds
 // from its setup, and uids and slots stay unique. (Whether it wins is the final balance pass's business.)
-test('the deep floors play: every legal action applying on the way, every deep fight rebuilt from its setup', () => {
+test('the deep floors play: every legal action applying on the way, every deep fight rebuilt from its setup', () => tuned(FLAT_ROOMS, () => {
   const run = createRun({ start: START_PARTY, seed: 'rich' })
   const s = run.state
   const rng = createRng(s.seed).stream('autoplay')
@@ -559,4 +564,4 @@ test('the deep floors play: every legal action applying on the way, every deep f
   }
   assert.ok(fought.length > 0, 'it fought')
   assert.ok(fought.some((f) => f.floor >= W.floor), `it fought on floor ${W.floor}: ${fought.map((f) => f.floor)}`)
-})
+}))

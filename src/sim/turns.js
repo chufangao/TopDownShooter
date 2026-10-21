@@ -728,7 +728,8 @@ function waveMoment (battle) {
 }
 
 // A move's moment, fired as `u`'s walk is committed, never on the walk (an Undo leaves nothing to unwind), for tiles not
-// told yet (`told`): the rules hear first (onMove), then, if it still stands, its holder's 'move' moment.
+// told yet (`told`): the rules hear first (onMove), then, if it still stands, its holder's 'move' moment; the battle
+// ends there if what they dealt decided it (a Trample or an Overwatch felling the last foe).
 export function moveMoment (battle, u) {
   if (battle.over || !alive(u) || !(u.moved > u.told)) return
   u.told = u.moved
@@ -737,6 +738,7 @@ export function moveMoment (battle, u) {
   ctx.as = 'other'
   call(battle, 'onMove', enemySide(u.side), ctx)
   if (!battle.over && alive(u)) trigger(battle, 'move', u, u)
+  settle(battle)
 }
 
 // ── reach and targets ────────────────────────────────────────────────────────────────────────────
@@ -1106,14 +1108,14 @@ function mine (battle, uid) {
   return u
 }
 
-// The acts `u` may make from where it stands: each usable ability at each target (an `all` shape's once).
+// The acts `u` may make from where it stands: each usable ability at each target (an `all` shape's at each primary it
+// may name: the blow strikes them all, the primary is its relics' `other` end, End Turn's pick among them).
 function actsOf (battle, u) {
   const out = []
   if (!canAct(battle, u)) return out
   for (const a of u.kit) {
     if (!usable(battle, u, a)) continue
-    const list = targetsFrom(battle, u, a)
-    for (const x of a.shape === 'all' ? list.slice(0, 1) : list) out.push({ type: 'act', uid: u.uid, ability: a.id, target: x.uid })
+    for (const x of targetsFrom(battle, u, a)) out.push({ type: 'act', uid: u.uid, ability: a.id, target: x.uid })
   }
   return out
 }
@@ -1125,7 +1127,7 @@ export function legalOrders (battle) {
     if (!orderable(battle, u) || u.acted) continue
     for (const tile of reach(battle, u).keys()) out.push({ type: 'move', uid: u.uid, tile })
     out.push(...actsOf(battle, u))
-    if (u.moved > 0 && endable(battle, u, u.from)) out.push({ type: 'undo', uid: u.uid })
+    if (u.moved > 0 && !u.told && endable(battle, u, u.from)) out.push({ type: 'undo', uid: u.uid })
   }
   out.push({ type: 'end' })
   return out
@@ -1155,7 +1157,8 @@ export function order (battle, o, path = null) {
     if (!way) throw new Error(`${u.id} ${u.uid} cannot move to ${o.tile}`)
     walk(battle, u, way)
   } else if (o.type === 'undo') {
-    if (u.acted || !(u.moved > 0) || !endable(battle, u, u.from)) throw new Error(`${u.id} ${u.uid} has no move to undo`)
+    // A walk is undone only before it is committed (told): an act commits it, Reaper's Hunger's act again too.
+    if (u.acted || !(u.moved > 0) || u.told > 0 || !endable(battle, u, u.from)) throw new Error(`${u.id} ${u.uid} has no move to undo`)
     battle.beat++
     emit(battle, { type: 'undo', actor: u.uid, from: u.tile, to: u.from })
     relocate(battle, u, u.from)
@@ -1351,11 +1354,12 @@ export function rateOf (battle, u) {
   return Math.max(1, Math.round(s.cooldown.rate))
 }
 
-// Each status ticks once, then ages a turn and may run out; a `fresh` one waits a round. None once the Monarch falls.
+// Each status ticks once, then ages a turn and may run out; a `fresh` one waits a round. None once the battle is decided
+// (the Monarch fallen, the last foe slain, nothing of yours but the Monarch standing): it ends the instant it is.
 function age (battle) {
   for (let i = 0; i < battle.units.length; i++) {
     const u = battle.units[i]
-    if (fallen(battle)) return
+    if (settle(battle)) return
     if (!alive(u) || !u.statuses.length) continue
     for (const s of u.statuses.slice()) {
       if (!u.statuses.includes(s)) continue

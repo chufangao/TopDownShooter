@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { stats } from '../src/sim/turns.js'
 import {
   createRun, apply, legalActions, join, drawRoom, battleSetup, availableNodes, souls, fielded, monarchOf, canPlace, swapWith, releaseRefund,
-  recruitCost, soulOffer, levelOf, OSSUARY, START_PARTY
+  recruitCost, soulOffer, levelOf, OSSUARY, START_PARTY, roomSize
 } from '../src/sim/run.js'
 import {
   makeUnit, tileAt, tileX, tileY, distanceBetween, summonsOf, footprintSlots, fits, monarchSlot, tracksOf, CAMP_ROWS, CAMP_SLOTS, COLS, LANES, SLOTS
@@ -109,7 +109,7 @@ test('a captain\'s cohort are foes of their own: a fight\'s of its wave\'s other
   for (let i = 0; i < 12; i++) {
     const room = drawRoom(`cohort${i}`, 2, { id: 'n', type: 'fight', rank: 2 })
     const g = room.foes
-    const drawn = sp.fight[1]
+    const drawn = roomSize(2, false, 0, 2)
     const cohort = sp.cohort[1]
     assert.equal(g.length, drawn + sp.captains.fight * cohort, `cohort${i}`)
     assert.equal(new Set(g.map((f) => f.slot)).size, g.length, 'a slot each')
@@ -134,7 +134,7 @@ test('a captain\'s cohort are foes of their own: a fight\'s of its wave\'s other
   // An elite's: every one of its captain's kind, a foe drawn, beside it.
   for (let i = 0; i < 12; i++) {
     const g = drawRoom(`cohort${i}`, 2, { id: 'n', type: 'elite', rank: 2 }).foes
-    const drawn = sp.elite[1]
+    const drawn = roomSize(2, true, 0, 2)
     for (let c = 0; c < sp.captains.elite; c++) {
       const band = g.slice(drawn + c * sp.cohort[1], drawn + (c + 1) * sp.cohort[1])
       assert.ok(band.every((f) => f.id === band[0].id) && g.slice(0, drawn).some((f) => f.id === band[0].id), `cohort${i} elite`)

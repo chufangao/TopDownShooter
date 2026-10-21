@@ -293,7 +293,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
     h('div', { class: 'uc-stats' },
       stat('hp', hp < maxHp ? `${hp}/${maxHp}` : maxHp),
       stat('atk', Math.round(st.atk)), stat('def', Math.round(st.def)), stat('move', Math.round(st.move))),
-    h('div', { class: 'uc-reach', tip: () => reachRule(u) }, icon('reach', 18), h('span', null, reachText(u)))]
+    h('div', { class: 'uc-reach', tip: () => reachRule(u, false, st) }, icon('reach', 18), h('span', null, reachText(u, false, st)))]
   }
 
   const abilities = (u, st) => h('div', { class: 'uc-abs' }, abilityBlocks(u, st, realmOf(run)), auraBlock(u))
@@ -438,7 +438,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
 
   // A fielded soul's card leads with where it starts, its reach and Move, and its synergies, unless it holds Arise.
   const pieceTip = (u) => {
-    const at = !isMonarch(u) && [sentence(tileText(deployTile('party', u.slot)).replace(/^your camp, /, '')), reachText(u),
+    const at = !isMonarch(u) && [sentence(tileText(deployTile('party', u.slot)).replace(/^your camp, /, '')), reachText(u, false, statsOf(u, partyMods(run, u))),
       ...synergyGroups(souls(standing(run)), alsoOf).filter((g) => g.uids.has(u.uid)).map((g) => g.name)].join(' · ')
     return unitCard(u, {
       mods: partyMods(run, u), realm: realmOf(run), run,

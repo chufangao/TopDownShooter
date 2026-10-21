@@ -67,7 +67,7 @@ test('a foe\'s options keep to its energy: a far tile with no act, a near one wi
   assert.ok(opts.every((o) => !o.ability || o.path.length <= g.energy - costOf(g, o.ability)), 'an act only from a tile it can still pay from')
 })
 
-test('Undo after Reaper\'s Hunger gives back the walk alone, never the energy of the act it gave back', () => {
+test('Reaper\'s Hunger gives the act back and its basic\'s energy, never the walk: the act committed it, so no Undo', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3, 10, [0, 0], ['reapers_hunger']), on('grave_ghoul', 9, 'foe', 3, 5, 1), on('grave_ghoul', 8, 'foe', 1, 9, 10)])
   const k = unit(b, 1)
   unit(b, 9).hp = 1
@@ -75,8 +75,8 @@ test('Undo after Reaper\'s Hunger gives back the walk alone, never the energy of
   const events = order(b, { type: 'act', uid: 1, ability: 'cleave', target: 9 })
   assert.ok(events.some((e) => e.rule === 'reapers_hunger') && !k.acted, 'the kill gives its act back')
   assert.equal(k.spent, E.tile + E.skill - E.basic)
-  order(b, { type: 'undo', uid: 1 })
-  assert.deepEqual([k.moved, k.spent, left(k)], [0, E.skill - E.basic, k.energy - (E.skill - E.basic)], 'the tile back, the skill\'s cost less the basic\'s still spent')
+  assert.throws(() => order(b, { type: 'undo', uid: 1 }), /no move to undo/)
+  assert.deepEqual([k.tile, k.moved, k.spent, left(k)], [tileAt(3, 4), 1, E.tile + E.skill - E.basic, k.energy - (E.tile + E.skill - E.basic)], 'the walk stands, its tile still spent')
 })
 
 test('the danger map and a foe\'s reach read its next turn\'s energy at its Move now: a foe freed of Rooted comes its whole walk, a Rooted one walks none and keeps its skill', () => {

@@ -9,7 +9,7 @@
 import { replay, monarchOf, currentNode } from './run.js'
 
 // Raised whenever an older save's log may no longer play the same.
-export const SAVE_VERSION = 7
+export const SAVE_VERSION = 8
 
 // Where a run stands, as a save keeps it. room: the rank of its room (0: the floor's start); turn: null out of battle.
 export function placeOf (run) {

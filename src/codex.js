@@ -27,7 +27,7 @@ const backShare = () => (TUNING.essence.refund === 0.5 ? 'half' : pct(TUNING.ess
 // What releasing soul `u` pays: "for 12 essence back (half of what recruiting it would cost now, and half of each tier
 // it holds)".
 export const releaseText = (run, u) => `for ${releaseRefund(run, u)} essence back (${backShare()} of what recruiting it would cost now` +
-  `${u.tracks[0] + u.tracks[1] > 0 ? `, and ${backShare()} of each tier it holds` : ''})`
+  `${u.tracks[0] + u.tracks[1] > 0 ? `, and ${backShare()} of each tier it holds but those it was given free` : ''})`
 
 export const campRowLabel = (r) => (r === 0 ? 'Front' : r === CAMP_ROWS - 1 ? 'Rear' : `Row ${r + 1}`)
 
@@ -328,25 +328,26 @@ const WOUNDS_TEXT = `A win makes every soul whole again, the fallen standing in 
 // ── reach and Move ───────────────────────────────────────────────────────────────────────────────
 
 // Reach and melee-only are the sim's own (reachOf, meleeOnly), so a card never disagrees with the battle.
-// Its energy a turn, as turns.js energyOf gives it.
-const energyOf = (u) => Math.max(0, Math.floor(TUNING.energy.base + Math.max(0, statsOf(u).move)))
-// "Reach 4 · ranged · Energy 4 · 2×2", a foe met's way too; a foe not met keeps it to itself (the bestiary).
-export function reachText (u, foe = false) {
+// Its energy a turn, as turns.js energyOf gives it, from its stats `st` (statsOf, its relics' and auras' mods in).
+const energyOf = (u, st = null) => Math.max(0, Math.floor(TUNING.energy.base + Math.max(0, (st ?? statsOf(u)).move)))
+// "Reach 4 · ranged · Energy 4 · 2×2", a foe met's way too; a foe not met keeps it to itself (the bestiary). `st`: its
+// stats as the card shows them.
+export function reachText (u, foe = false, st = null) {
   const d = unitDef(u.id)
   if (d.monarch) return 'Never strikes · never moves'
   const big = sizeOf(u) > 1 && '2×2'
   if (foe && !bestiary.has(u.id)) return ['Reach ?', big].filter(Boolean).join(' · ')
-  return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Energy ${energyOf(u)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
+  return [`Reach ${reachOf(u)}`, meleeOnly(u) ? 'melee' : 'ranged', `Energy ${energyOf(u, st)}`, big, foe && BEHAVIOURS[behaviourOf(u)].name].filter(Boolean).join(' · ')
 }
 // The same in a sentence, short: what the reach line, the tags and the board (a piece's intent) do not already say.
 // A kind with a lined blow says so; a foe met, its way and its lock (a lock stands on foes alone: a soul of yours has none).
-export function reachRule (u, foe = false) {
+export function reachRule (u, foe = false, st = null) {
   const d = unitDef(u.id)
   if (d.monarch) return 'The roads run to it; if it falls, the run ends.'
   if (foe && !bestiary.has(u.id)) return 'Not met yet: meet it to learn its reach and way.'
   const r = reachOf(u)
   const line = abilitiesOf(u).map(abilityDef).some(lined) ? ` Its shots stop at the first ${foe ? 'of yours' : 'foe'} on their line of fire.` : ''
-  if (!foe) return `${energyOf(u)} energy a turn: a tile ${TUNING.energy.tile}, its basic ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}; it walks, then acts once. Its blows reach ${r} tile${r === 1 ? '' : 's'}.${line}`
+  if (!foe) return `${energyOf(u, st)} energy a turn: a tile ${TUNING.energy.tile}, its basic ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}; it walks, then acts once. Its blows reach ${r} tile${r === 1 ? '' : 's'}.${line}`
   const way = d.temper ? ` Its way: ${temperLine(temperOf(u.id)).toLowerCase()}.` : ''
   return `${BEHAVIOURS[behaviourOf(u)].desc}${line}${d.lock ? ` ${lockText(d.lock)}` : ''}${way}`
 }
@@ -480,7 +481,7 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
   const abs = abilityBlocks(u, st, realm)
   // Its own trine: the one three of its kind fuse into, none for a kind of tier 5 or more.
   const trine = !d.monarch && !u.shadow && trineOf(u.id)
-  const lead = live ?? (d.monarch ? 'Never strikes; if it falls, the run ends' : firstSentence(notes.find((n) => typeof n === 'string')) ?? reachText(u, foe))
+  const lead = live ?? (d.monarch ? 'Never strikes; if it falls, the run ends' : firstSentence(notes.find((n) => typeof n === 'string')) ?? reachText(u, foe, st))
   const mults = [mult(st.damage.dealt, 'dealt'), mult(st.damage.taken, 'taken')].filter(Boolean)
   return h('div', { class: 'card-tip compact' + (foe ? ' foe' : '') + (d.monarch ? ' monarch' : '') + (more ? ' open' : '') },
     h('div', { class: 'ct-name' },
@@ -506,7 +507,7 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
       trine && h('div', { class: 'ct-trine small' }, kw('trine'), `: three fuse into the ${trine.name}, tier ${trine.tier}${(trine.size ?? 1) > 1 ? ', 2×2' : ''}.`),
       statuses?.length > 0 && h('div', { class: 'ct-statuses' }, statuses.map((x, i) => [i ? ' · ' : '', statusLine(x)])),
       h('div', { class: 'ct-foot' },
-        h('div', { class: 'ct-role' }, h('b', null, reachText(u, foe)), h('span', { class: 'dim' }, ` · ${reachRule(u, foe)}`)),
+        h('div', { class: 'ct-role' }, h('b', null, reachText(u, foe, st)), h('span', { class: 'dim' }, ` · ${reachRule(u, foe, st)}`)),
         d.monarch && h('div', { class: 'warn' }, 'Only relics raise its HP and Command.'),
         // A foe's lore hints at what its kind does (what it will do is on the board: the intents).
         foe && d.flavour && h('div', { class: 'flavour' }, d.flavour),
@@ -626,18 +627,25 @@ const perDeepWaves = every(DEEP.waves, 'more wave to every room')
 const perDeepCohort = every(DEEP.cohort, 'more foe beside every captain')
 const UP = TUNING.spawn.levelPerFloor + DEEP.level
 const perDeep = DEEP.count >= 1 ? `${DEEP.count} more foe${DEEP.count === 1 ? '' : 's'} a wave` : `one more foe a wave every ${+(1 / DEEP.count).toFixed(1)} floors`
+// A deep floor's foes against the Sovereign's floor's (spawn.js foeMods): HP or ATK (`key`) as the floor's own entry ×
+// the deep's growth, over floor TUNING.run.floors's; the foes beside a captain more than there.
+const LAST = TUNING.run.floors
+const entry = (list, floor) => list[Math.min(floor, list.length) - 1]
+const deepScale = (floor, key) => entry(SP[key === 'hp' ? 'foeHp' : 'foeAtk'], floor) * (1 + DEEP[key] * depthOf(floor)) / entry(SP[key === 'hp' ? 'foeHp' : 'foeAtk'], LAST)
+const deepCohort = (floor) => entry(SP.cohort, floor) + Math.floor(depthOf(floor) * DEEP.cohort) - entry(SP.cohort, LAST)
 export const DEEP_TEXT = {
   descend: 'Slaying the Sovereign clears the run for good; then you may descend into the deep, floor after floor, for as long as the Monarch lasts.',
-  growth: `Floor ${TUNING.run.floors}'s camps and foes; each floor deeper, +${UP} level${UP === 1 ? '' : 's'}, +${pct(DEEP.hp)} HP and +${pct(DEEP.atk)} ATK, with ${perDeep} (at most ${COLS * ROWS}), ${perDeepWaves} (up to ${DEEP.maxWaves}) and ${perDeepCohort}. ` +
+  growth: `Floor ${LAST}'s camps and foes, stronger: the first floor deeper ×${deepScale(LAST + 1, 'hp').toFixed(2)} HP and ×${deepScale(LAST + 1, 'atk').toFixed(2)} ATK against floor ${LAST}'s` +
+    `${deepCohort(LAST + 1) > 0 ? ` and ${deepCohort(LAST + 1)} more beside every captain` : ''}; each floor deeper, +${UP} level${UP === 1 ? '' : 's'}, +${pct(DEEP.hp)} HP and +${pct(DEEP.atk)} ATK more, with ${perDeep} (at most ${COLS * ROWS}), ${perDeepWaves} (up to ${DEEP.maxWaves}) and ${perDeepCohort}. ` +
     `Each floor ends in a big elite: +${DEEP.final.count} foes, +${DEEP.final.level} level${DEEP.final.level === 1 ? '' : 's'}.`,
   fall: 'A fall in the deep ends the run, but the clear stands.',
   now: (floor) => {
     const d = depthOf(floor)
     const more = Math.floor(d * DEEP.count)
     const waves = Math.floor(d * DEEP.waves)
-    const cohort = Math.floor(d * DEEP.cohort)
+    const cohort = deepCohort(floor)
     const up = d * DEEP.level
-    return `Deep ${d}: foes ×${(1 + DEEP.hp * d).toFixed(2)} HP, ×${(1 + DEEP.atk * d).toFixed(2)} ATK${up ? `, +${up} level${up === 1 ? '' : 's'}` : ''}` +
+    return `Deep ${d}: foes ×${deepScale(floor, 'hp').toFixed(2)} HP, ×${deepScale(floor, 'atk').toFixed(2)} ATK against floor ${LAST}'s${up ? `, +${up} level${up === 1 ? '' : 's'}` : ''}` +
       `${more ? `, +${more} a wave` : ''}${waves ? `, +${waves} wave${waves === 1 ? '' : 's'} a room` : ''}${cohort ? `, +${cohort} beside every captain` : ''}.`
   }
 }
@@ -724,7 +732,13 @@ export function ascensionText (level) {
   const r = ascensionOf(s)
   const sp = TUNING.spawn
   const up = (x) => `${x < 1 ? '−' : '+'}${Math.round(Math.abs(x - 1) * 100)}%`
-  const sizes = (elite, a) => Array.from({ length: TUNING.run.floors }, (_, f) => roomSize(f + 1, elite, a)).join('/')
+  // Each floor's rooms, its first ranked room's foes to its last's (a floor-1 fight past the opening's).
+  const span = (f, elite, a) => {
+    const lo = roomSize(f, elite, a, !elite && f === 1 ? sp.opening.length + 1 : 1)
+    const hi = roomSize(f, elite, a, RANKS - 2)
+    return lo === hi ? `${lo}` : `${lo}–${hi}`
+  }
+  const sizes = (elite, a) => Array.from({ length: TUNING.run.floors }, (_, f) => span(f + 1, elite, a)).join(' / ')
   const more = sizes(false, level) !== sizes(false, 0) || sizes(true, level) !== sizes(true, 0)
   const every = waveEvery(s)
   const hp = monarchBase(s)
@@ -1050,9 +1064,9 @@ const WORD_MORE = {
   wave: (run) => `${ENEMY_TEXT.waves}${run && waveEvery(run.state) !== W.every ? ` At ascension ${run.state.ascension} they come ${waveEvery(run.state)} turns apart.` : ''} ${ENEMY_TEXT.entry}`,
   shadow: (run) => `A soul holding an Arise relic raises one foe slain within its reach, the corpse you choose, as a skill; Undead 4 raises every foe slain. A shadow of yours rises on the free tile nearest the Monarch, never where it fell, so the dead never block a road. It takes no orders: each turn it strikes or mends with its basic. Shadows count toward your synergies and are gone after the battle.` +
     (run && run.state.relics.includes('hollow_court') ? ' Those a Hollow Court holder raised that stand at a win pay their essence again.' : ''),
-  essence: (run) => `Each foe slain pays ${TUNING.essence.perTier} × its tier, whatever its level, into one purse. It buys tiers, fusions (${TUNING.essence.fuse} × the result's tier), one recruit after a win (${TUNING.essence.recruit} × its tier) and relics in the Shop, and ${priceScaleText(run)}: what a floor pays is worth less on the next. Nothing is bought for the Monarch, and no level is bought: a soul's level is its tiers'.`,
+  essence: (run) => `Each foe slain pays ${run ? entry(TUNING.essence.perTier, run.state.floor) : TUNING.essence.perTier.map((v, i) => `${v} on floor ${i + 1}`).join(', ')} × its tier, whatever its level, into one purse. It buys tiers, fusions (${TUNING.essence.fuse} × the result's tier), one recruit after a win (${TUNING.essence.recruit} × its tier) and relics in the Shop, and ${priceScaleText(run)}: what a floor pays is worth less on the next. Nothing is bought for the Monarch, and no level is bought: a soul's level is its tiers'.`,
   tier: (run) => `Each soul has its kind's two tracks, four tiers each (${TUNING.essence.tier.join(' / ')} essence on floor 1; ${priceScaleText(run)}). The first track you take may reach IV; the other then stops at II. A tier IV is a rule: a new ability, an aura, more reach, or Colossus, which grows the soul to 2×2 (to the ossuary if it no longer fits where it stands). A soul's level is its tiers': ${TUNING.level.base} + ${TUNING.level.perTier} × the tiers it holds, rounded down; a tier bought raises that soul alone; a recruit joins fresh, at level ${firstLevel()}, with Soul Lantern's free tiers.`,
-  fusion: () => `Between battles it takes exactly the souls the recipe names, each a whole piece, from the ossuary first, then the field, costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one fresh piece of the fused kind in the ossuary, to be placed: its first level, no tier, no relic; the tiers its parts held pay back ${backShare()} their price, and a relic its parts held comes back unheld. Never weaker in power than what went into it. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has a triple, three of it into its trine; the mixed recipes join kinds, and the capstones join fused kinds into a piece of tier 5 or 6. The Shop sells them: its Fusions list every recipe whose parts you hold, lit when you can pay, and the recipes your kinds go toward; the Codex's Fusions lists the mixed recipes and the capstones, and a kind's card its triple.`,
+  fusion: () => `Between battles it takes exactly the souls the recipe names, each a whole piece, from the ossuary first, then the field, costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one fresh piece of the fused kind in the ossuary, to be placed: its first level, no tier, no relic; the tiers its parts held pay back ${backShare()} their price now (none of those given free: Soul Lantern's, an altar's), and a relic its parts held comes back unheld. Never weaker in power than what went into it. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has a triple, three of it into its trine; the mixed recipes join kinds, and the capstones join fused kinds into a piece of tier 5 or 6. The Shop sells them: its Fusions list every recipe whose parts you hold, lit when you can pay, and the recipes your kinds go toward; the Codex's Fusions lists the mixed recipes and the capstones, and a kind's card its triple.`,
   trine: () => `Three souls of one kind fused become its trine: a fused kind ${TRINE_RISE} tiers higher (tier ${TOP_TIER} at most), 2×2 from tier 4, with the kind's kin, role, Move and tracks, its HP and ATK several times one soul's, and its kit with every blow at one foe a blast (its target and everyone next to it) and every shot a tile longer. A trine of tier ${TOP_TIER - TRINE_RISE} or less has a trine of its own. ${writtenTrines()} A trine is one piece, and counts as the three it was made of toward its kin's and its role's synergies; a trine of a trine as three too.`,
   command: (run) => `${TUNING.party.field} to begin. Nothing is bought for the Monarch: only Command relics raise it, every copy in full (${giversOf('run.command').join(', ')}); the rarer, the cleaner. The Shop's shelf always holds one. The field stops at ${TUNING.army.board} pieces however high it goes.` + (run ? ` Now: ${fieldRule(run)}.` : ''),
   synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A trine counts as the three of a kind it was made of (a trine of a trine as three too), so a trine and one more piece hold a rule at 4; every other fused piece counts once, with its own kin and role; a relic may make its holder count as another role too, once. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
@@ -1257,7 +1271,7 @@ const primer = () => h('ol', { class: 'primer' },
   h('li', null, 'What you leave alone strikes anyway at ', h('b', null, 'End Turn'), ', with its basic blow or heal, never a skill. Every skill rests a turn once used.'),
   h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. Each foe\'s coming turn is drawn on the board as it stands, exactly: where it will stop, whom it will strike and for how much; your moves change it. How far each kind could come and strike you learn by meeting it: a kind met shows its whole reach when tapped.'),
   h('li', null, 'A ranged blow at one target strikes the first piece of the target\'s side on its ', kw('line', 'line of fire'), ', both sides alike; a side never blocks its own shots. Stand a piece between their shooters and the Monarch, and mind who stands in front of the foe you aim at. Melee, blows that strike an area and lobbed blows ignore lines.'),
-  h('li', null, `No dice: every blow lands and deals what its preview says; the same board and the same orders give the same battle. A battle is lost only when you fall, however long it lasts, and a horde that waits at the edge of your reach comes in time. ${WOUNDS_TEXT}.`),
+  h('li', null, `No dice: every blow deals what its preview says (Mirage, the Fae 4 rule, foils each striker's first); the same board and the same orders give the same battle. A battle is lost when you fall, or when nothing of yours but you still stands, however long it lasts, and a horde that waits at the edge of your reach comes in time. ${WOUNDS_TEXT}.`),
   h('li', null, 'Spend ', kw('essence'), ' on your souls\' ', kw('tier', 'tiers'), ' and ', kw('fusion', 'fusions'), ' (three of a kind make its ', kw('trine'), '), on a recruit after a win, and in the ', kw('shop'), ' on ', kw('relic', 'relics'), '. A run relic works for the whole run: the Monarch grows only by them, its HP and its ', kw('command'), '. A piece relic works through the soul you give it to, one a soul, out of battle; Arise is one, and its holder raises the slain.'))
 
 // The bestiary: every foe kind, the ones met with their reach and Move, their way line (from the kind's temperament,

@@ -494,9 +494,8 @@ export function foeTurn (battle) {
   for (const u of queue) {
     if (battle.over) break
     if (!alive(u)) continue
-    // One whose act a Hex cost shrugs off Hexes until a turn comes to it unHexed (turns.js addStatus).
+    // One whose act a Hex cost shrugs off Hexes until it acts again (turns.js addStatus, perform).
     const lost = hexed(u) && !u.acted
-    if (u.shrugs && !lost) u.shrugs = false
     const best = p >= 1 ? choose(battle, u, hasty(u.temper), p, maps.foe, fighting(battle, u)) : choose(battle, u, u.temper, p, maps.foe)
     if (best.tile !== u.tile) {
       out.push({ type: 'move', uid: u.uid, tile: best.tile })
@@ -504,10 +503,11 @@ export function foeTurn (battle) {
       moveMoment(battle, u)
       if (battle.over || !alive(u)) continue
     }
-    if (best.ability) {
+    // A Hex laid on the walk (an Overwatch's) costs the act it was walking to.
+    if (best.ability && !hexed(u)) {
       out.push({ type: 'act', uid: u.uid, ability: best.ability.id, target: best.target.uid })
       perform(battle, u, best.ability, best.target)
-    } else if (lost) {
+    } else if (lost || best.ability) {
       battle.beat++
       emit(battle, { type: 'hexed', target: u.uid })
       u.shrugs = true

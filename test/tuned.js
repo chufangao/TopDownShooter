@@ -36,6 +36,13 @@ export const FIRST_BALANCE = {
   essence: { tier: [30, 60, 100, 150] }
 }
 
+// The rooms a run's walks were built on (before balance step 2, 2026-10-21): a floor's fights and elites one count,
+// none rising across the floor, and the essence a foe paid then, so a walk that must reach a floor or clear still does.
+export const FLAT_ROOMS = {
+  spawn: { fight: [3, 4, 5, 5], fightRamp: [0, 0, 0, 0], elite: [2, 5, 6, 6], eliteRamp: [0, 0, 0, 0] },
+  essence: { perTier: [7, 3.5, 3.5] }
+}
+
 // A battle scene's Monarch as the scenes were built, before its HP points were cut (2026-10-09): `u.lvl` points of
 // HP, HP_PER_POINT each over TUNING.monarch.hp, so a scene's Monarch takes as long to fell as it did. The run's
 // Monarch has no level now (its HP is its base and its HP relics': run.js monarchHp); any other unit as it is.

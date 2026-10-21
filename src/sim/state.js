@@ -4,6 +4,7 @@ import { TUNING } from '../tuning.js'
 import { relicDef } from '../content.js'
 import { onField, isRunPath, cellsOf } from './unit.js'
 import { grantsArise, unhealable } from './rules.js'
+import { RANKS } from './map.js'
 
 export const MONARCH_UID = 0
 // The slot of a soul in the ossuary: kept, not fighting.
@@ -96,11 +97,15 @@ export const ascensionOf = (s) => TUNING.ascension[s.ascension ?? 0]
 // What every foe's HP and ATK are multiplied by in the run's battles: its level's, × the harness's `scale`.
 export const foeScale = (s) => ({ hp: ascensionOf(s).foeHp * (s.scale ?? 1), atk: ascensionOf(s).foeAtk * (s.scale ?? 1) })
 // The foes of a formation on `floor` (an elite's or a fight's) at level `ascension`: TUNING.spawn's × the level's, rounded.
-// A floor-1 fight of rank `rank` within TUNING.spawn.opening counts its entry there instead.
+// A room of rank `rank` takes its share of the floor's ramp (the floor's last ranked room fightRamp more, an elite
+// eliteRamp, as foeLevel's levels; none for a rank not given); a floor-1 fight within TUNING.spawn.opening counts its
+// entry there instead.
 export const roomSize = (floor, elite, ascension = 0, rank = null) => {
+  const sp = TUNING.spawn
   const row = TUNING.ascension[ascension]
-  const open = !elite && floor === 1 && rank !== null ? TUNING.spawn.opening[rank - 1] : undefined
-  return Math.round((open ?? at(elite ? TUNING.spawn.elite : TUNING.spawn.fight, floor)) * (elite ? row.elite : row.fight))
+  const open = !elite && floor === 1 && rank !== null ? sp.opening[rank - 1] : undefined
+  const ramp = rank !== null ? at(elite ? sp.eliteRamp : sp.fightRamp, floor) * Math.min(1, (rank - 1) / (RANKS - 2)) : 0
+  return Math.round((open ?? at(elite ? sp.elite : sp.fight, floor) + ramp) * (elite ? row.elite : row.fight))
 }
 // The turns between waves in the run's battles.
 export const waveEvery = (s) => Math.max(1, Math.round(TUNING.spawn.waves.every * ascensionOf(s).every))

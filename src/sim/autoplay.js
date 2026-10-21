@@ -24,6 +24,7 @@
 //     --prep-budget 5000      the formation's (solver.js bestFormation): its plans a candidate but today's pick (never
 //                             more than --solver-budget)
 //     --prep-cap 3            the formation's candidates solved at most, today's pick among them
+//     --out file.json         the report's and --paired's records, each with its seed, written to a file
 //     --ascension 0|a,b,…|all the ascension level (a list or all for --ladder alone)
 //     --monarch id            who plays (the base Monarch by default)
 //     --workers n             the pool's size (one per core by default)
@@ -67,9 +68,11 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     if (arg('solver-slack', null) !== null) process.env.RETINUE_SOLVER_SLACK = String(Number(arg('solver-slack')))
     if (arg('prep-budget', null) !== null) process.env.RETINUE_PREP_BUDGET = String(Number(arg('prep-budget')))
     if (arg('prep-cap', null) !== null) process.env.RETINUE_PREP_CAP = String(Number(arg('prep-cap')))
-    // A run whose battles the solver plays (every report's but basic's own) is a pure function of its job only under a
-    // budget and no cap (a cap is wall-clock): kept then, its knobs in the key.
-    const knobs = opts.level === 'basic' && !has('ablations') ? null : solverKnobs()
+    // A run whose battles the solver plays (every report's but a plain basic one's: the ladder, the builds, the audit and
+    // the ablations play the expert whatever --level says) is a pure function of its job only under a budget and no cap
+    // (a cap is wall-clock): kept then, its knobs in the key.
+    const plainBasic = opts.level === 'basic' && !['ablations', 'ladder', 'builds', 'audit', 'necessity', 'decisions'].some(has)
+    const knobs = plainBasic ? null : solverKnobs()
     const cache = has('no-cache') || (knobs && !knobs.pure) ? null : runCache({ dir: arg('cache', defaultDir()) })
     if (cache && knobs) {
       const key = cache.key
@@ -97,14 +100,14 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     else if (arg('paired', null)) {
       const players = arg('paired').split(',')
       if (players.length !== 2) throw new Error('--paired <a>,<b>: two players (none, route:… or outforest:…), comma-separated')
-      await paired({ ...opts, players, runs: most(256), ...seq })
+      await paired({ ...opts, players, runs: most(256), out: arg('out', null), ...seq })
     }
     else if (has('audit')) await audit({ seed: arg('seed', 'audit'), runs: Number(arg('runs', 4)), ascension: opts.ascension, ...asMonarch(monarch) })
     else if (has('ablations')) await ablations({ ...opts, variants, runs: Number(arg('runs', RUNS.ablations)), out: arg('out', null) })
     else if (has('necessity')) await necessity({ ...opts, runs: Number(arg('runs', RUNS.necessity)), setups: arg('setups', null) })
     else if (has('decisions')) await decisions({ ...opts, runs: Number(arg('runs', RUNS.decisions)) })
     else if (has('ladder')) await ladder({ ...opts, ascensions, runs: Number(arg('runs', RUNS.ladder)) })
-    else await report({ ...opts, ablate, ascension: ascensions[0], runs: Number(arg('runs', RUNS.sim)) })
+    else await report({ ...opts, ablate, ascension: ascensions[0], runs: Number(arg('runs', RUNS.sim)), out: arg('out', null) })
     if (cache?.hits || cache?.played) console.error(`(the run cache, ${path.join(cache.dir, cache.code.slice(0, 16))}: ${cache.hits} runs read, ${cache.played} played)`)
   }
 }
