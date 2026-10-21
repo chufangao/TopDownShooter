@@ -6,7 +6,7 @@ import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  outsideTeacher, outsideStats, candidatesAt, baseStep, prepStep, playout, outsideRun, configOf, beforeOf, outsideReport, outsideLines, PHASES
+  outsideTeacher, outsideStats, candidatesAt, baseStep, playout, outsideRun, configOf, beforeOf, outsideReport, outsideLines, PHASES
 } from '../src/sim/outside.js'
 import { createRun, apply, currentNode, availableNodes, legalActions } from '../src/sim/run.js'
 import { policy, autoplay } from '../src/sim/autoplay.js'
@@ -33,8 +33,8 @@ function walk (seed, { visit = null, until = null } = {}) {
 }
 // The run where the base first meets a decision of two candidates or more (in `phase`, where named).
 const atDecision = (phase = null, cfg = {}) => walk(SEED, { until: (r) => { const d = candidatesAt(r, cfg); return d.cands?.length >= 2 && (!phase || d.phase === phase) } })
-// The action a candidate takes first: its first action, or a formation's first step.
-const firstOf = (run, x) => (x.goal ? prepStep(run, x.goal) : x.actions[0])
+// The action a candidate takes first.
+const firstOf = (run, x) => x.actions[0]
 
 test('baseStep is the base\'s step out of battle, step for step', () => {
   let n = 0
@@ -62,7 +62,7 @@ test('at an altar baseStep is the base\'s rite, its pick the first candidate, an
   const st = outsideStats(r)
   assert.deepEqual([st.phases.altar.asked, st.phases.altar.decided, st.phases.altar.playouts], [1, 1, d.cands.length])
   assert.ok(legalActions(run).some((x) => JSON.stringify(x) === JSON.stringify(pick)))
-  assert.deepEqual(outsideTeacher(copyOf(run), rng, { phases: 'prep,spend,recruit,shop,hold' }), a)
+  assert.deepEqual(outsideTeacher(copyOf(run), rng, { phases: 'spend,recruit,shop,hold' }), a)
   // The same step the base's run takes: the rite applied, the room is done and the map stands.
   apply(run, a)
   assert.equal(run.state.phase, 'map')
@@ -119,7 +119,7 @@ test('a decision of one candidate spends no playout', () => {
 test('a fight already played gives what it gave: the base\'s line a step on ends where it did', () => {
   const { run } = walk(SEED, { until: (r) => r.state.phase === 'map' && r.state.log.length > 0 })
   const c = configOf({})
-  const memo = () => ({ ends: new Map(), battles: new Map(), plans: new Map(), goal: null, stats: { fights: 0 } })
+  const memo = () => ({ ends: new Map(), plans: new Map(), stats: { fights: 0 } })
   const before = beforeOf(run)
   const own = { actions: [baseStep(run)] }
   const m = memo()
@@ -137,16 +137,22 @@ test('a fight already played gives what it gave: the base\'s line a step on ends
   assert.equal(playout(run, { actions: [{ type: 'fight' }] }, m, c, before).value, -Infinity)
 })
 
-test('a formation is judged by its coming battle, the base\'s own first', () => {
-  const { run, rng } = atDecision('prep')
-  const d = candidatesAt(run)
-  assert.ok(d.cands.every((x) => Array.isArray(x.goal) && x.actions.length === 0))
-  const act = outsideTeacher(run, rng)
-  const st = outsideStats(run)
-  assert.equal(st.last.phase, 'prep')
-  assert.equal(st.phases.prep.playouts, d.cands.length)
-  assert.ok(st.last.cands.every((x) => Number.isFinite(x.value)))
-  assert.ok(['place', 'fight'].includes(act.type))
+// The formation is the base's (the solver's, solver.js bestFormation): in prep the teacher decides only the relics and the
+// purse, then walks to it step for step.
+test('in prep the teacher walks to the base\'s formation: no formation is its decision', () => {
+  assert.throws(() => configOf({ phases: 'prep' }), /unknown phase/)
+  let met = 0
+  walk(SEED, {
+    visit: (run, a) => {
+      if (run.state.phase !== 'prep' || !['place', 'fight'].includes(a.type)) return
+      const d = candidatesAt(run)
+      assert.notEqual(d.phase, 'prep')
+      if (!d.cands) assert.deepEqual(d.act, a)
+      assert.deepEqual(candidatesAt(run, { phases: '' }), { act: a })
+      met++
+    }
+  })
+  assert.ok(met > 0)
 })
 
 test('with won, a decision whose base\'s line clears the run plays that line alone and keeps the base\'s pick', () => {
@@ -185,5 +191,5 @@ test('a cap of 1 plays as the base, and a run\'s line reads as the report wants 
   assert.equal(rep.progress.diff, 0)
   assert.ok(PHASES.every((p) => rep.phases[p].decided === 0))
   assert.ok(outsideLines(rep).length > 5)
-  assert.throws(() => configOf({ phases: 'prep,route' }))
+  assert.throws(() => configOf({ phases: 'spend,route' }))
 })

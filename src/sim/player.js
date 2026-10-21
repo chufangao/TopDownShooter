@@ -1,6 +1,7 @@
 // The autoplayer's players out of battle, for tests and balance runs: a policy that picks one action at a time for
 // apply(). Basic plays by rules of thumb; the expert reads the run once a decision (survey), lets the tree of hard rules
-// (read.js TREES) force or filter its options and the weights score the rest, and never plays ahead to decide.
+// (read.js TREES) force or filter its options and the weights score the rest, and never plays ahead to decide but for its
+// formation, which the solver picks by solving the coming battle in each candidate (solver.js bestFormation).
 import fs from 'node:fs'
 import { createRng } from './rng.js'
 import {
@@ -12,14 +13,9 @@ import {
 import { roadsTo } from './field.js'
 import { createBattle, legalOrders, stalled } from './turns.js'
 import { basicTurn } from './foe.js'
-import { solverTurn } from './solver.js'
-import {
-  outForestModel, outDecides, chooseOut, opensBoard, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS,
-  OUT_ROLES, OUT_ROOMS, PREP_SIT_KEYS, PREP_CAND_KEYS, FORMATION_KEYS, OPENING_KEYS, OPENING_ROOM_KEYS
-} from './outforest.js'
-import {
-  value, decide, standing as keysOf, outranks, TREES, leafOf, checkTree, pathName, conditions, situation, deployment, shippedPart
-} from './read.js'
+import { solverTurn, bestFormation, solverKnobs } from './solver.js'
+import { outForestModel, outDecides, chooseOut, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS, OUT_ROLES, OUT_ROOMS } from './outforest.js'
+import { value, decide, standing as keysOf, outranks, TREES, leafOf, checkTree, pathName, situation, deployment, shippedPart } from './read.js'
 import { grantsArise, bleeds, ariseGrants } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
@@ -994,9 +990,9 @@ function mutate (party, pool, open, rng, s, L) {
   return out
 }
 
-// The expert's formation, made once a prep (the plan reads who stands, not where), or the forest's pick (prepPick).
+// The expert's formation, made once a prep (the plan reads who stands, not where): the solver's pick (prepPick).
 const plans = new WeakMap()
-export function planFor (run, L, sit = null) {
+export function planFor (run, L) {
   const s = run.state
   const key = JSON.stringify([L, s.floor, s.at, s.camp, s.relics, s.nextUid, s.party.map((u) => [u.uid, u.id, u.lvl, u.hp, u.maxHp, u.tracks, u.relics])])
   const have = plans.get(run)
@@ -1004,7 +1000,7 @@ export function planFor (run, L, sit = null) {
   const onCandidate = audited(run) ? (party) => { AUDIT.candidates++; for (const f of new Set(featuresOf(s, party))) note('considered', f) } : null
   const made = plan(run, L, { onCandidate })
   noteRule(run, 'formation', made, `floor ${s.floor}, ${currentNode(run).type} in ${s.camp}`)
-  const out = prepPick(run, L, made, sit).map((u) => ({ uid: u.uid, slot: u.slot }))
+  const out = prepPick(run, L, made).map((u) => ({ uid: u.uid, slot: u.slot }))
   plans.set(run, { key, plan: out })
   return out
 }
@@ -1014,7 +1010,7 @@ function pickPrep (run, L, sit) {
   const s = run.state
   const spend = pickSpend(run, L, sit)
   if (spend) return spend
-  const goal = planFor(run, L, sit).filter((p) => !isMonarch(p))
+  const goal = planFor(run, L).filter((p) => !isMonarch(p))
   const piece = (p) => s.party.find((u) => u.uid === p.uid)
   const out = fielded(souls(s.party)).find((u) => !goal.some((p) => p.uid === u.uid && p.slot >= 0))
   if (out) return { type: 'place', uid: out.uid, slot: OSSUARY }
@@ -2242,16 +2238,14 @@ function candidateRead (run, L, cand, reads, was, scale) {
 function outChoice (run, L, sit, phase, cands) {
   const model = outForestModel()
   if (cands.length < 2 || !model?.phases?.[phase]) return cands[0]
-  const read = phase === 'prep' ? prepRead(run, L, sit, cands, { boards: opensBoard(model.phases.prep) }) : outsideRead(run, L, sit, phase, cands)
-  const pick = chooseOut(model, phase, read)
+  const pick = chooseOut(model, phase, outsideRead(run, L, sit, phase, cands))
   if (pick.index > 0) noteRule(run, phase, { by: 'outforest' }, sit && surveyLine(sit))
   return cands[pick.index]
 }
 
-// ── the formation by the forest out of battle ────────────────────────────────────────────────────
+// ── the formation by the solver ──────────────────────────────────────────────────────────────────
 
-// The formations a prep's forest reads (prepCandidates), and the places among them its drafts may take.
-export const PREP_CAP = 9
+// The places among a prep's candidates its drafts may take (prepCandidates).
 const PREP_DRAFTS = 3
 // What names a formation: the cells its pieces take (the Monarch's among them), whoever waits in the ossuary aside.
 export const formationName = (party) => party.filter((u) => u.slot >= 0).map((u) => `${u.uid}@${u.slot}`).sort().join()
@@ -2261,10 +2255,11 @@ function byStanding (a, b) {
   return b.score - a.score
 }
 
-// The formations a prep's forest reads, at most `cap`: today's pick first, then the plan's others in today's order to
-// `cap` less `drafts`, then its best drafts not among them (formations of another shape), then today's order again.
-// → { today, cands: [{ id (formationName), label, goal: [{ uid, slot }], party, v, keys, score, draft, rank }] }
-export function prepCandidates (run, L, made = plan(run, L), { cap = PREP_CAP, drafts = PREP_DRAFTS } = {}) {
+// The formations a prep's solve weighs, at most `cap` (the solver's prep cap): today's pick first, then the plan's others
+// in today's order to `cap` less `drafts`, then its best drafts not among them (formations of another shape), then
+// today's order again. → { today, cands: [{ id (formationName), label, goal: [{ uid, slot }], party, v, keys, score,
+// draft, rank }] }
+export function prepCandidates (run, L, made = plan(run, L), { cap = solverKnobs().prep.cap, drafts = PREP_DRAFTS } = {}) {
   const today = formationName(made.party)
   const order = made.met.slice().sort(byStanding)
   const own = made.met.find((c) => formationName(c.party) === today)
@@ -2292,112 +2287,20 @@ export function prepCandidates (run, L, made = plan(run, L), { cap = PREP_CAP, d
   }
 }
 
-// The expert's formation from plan `made`: its own, or the forest's where one decides the prep (never under the ablation).
-function prepPick (run, L, made, sit) {
-  if (!L.search || L.ablate === 'formation' || !outDecides('prep')) return made.party
-  return outChoice(run, L, sit, 'prep', prepCandidates(run, L, made).cands).party
-}
-
-// The board formation `party` opens the coming battle on, no turn played, read as the battle reads a board (conditions).
-const openingOf = (run, party) => conditions(situation(createBattle({ ...battleSetup(run, { party: party.filter((u) => u.slot >= 0) }), quiet: true }), { short: true }))
-
-// The reads the forest out of battle decides a formation by (PREP_SIT_KEYS, PREP_CAND_KEYS), over `cands` (today's
-// pick first); nothing read of where a soul stands now, no battle played, every number rounded (put). Without `boards`
-// no opening board is made and the o.* reads stay 0. → { sit, f: [per formation] }
-// The situation:
-//   floor, rank, elite, boss, siege  where the run stands; the room's type
-//   monarch, monarch.hp, health, fallen, souls, command, cands   as outsideRead's
-//   field.*                          the field's read (fieldRead)
-//   room.*                           the coming battle (roomRead): threat, odds, foes, hp, def, raw, waves, t.<type>, gap
-//   scout.*                          its flyers, shooters (reach 2+), farthest reach, raw of all and of the shooters
-//                                    on the Monarch's HP, boss, mean ground road, the threat map's mass
-//   camp.open, camp.gate             the camp's open cells; its gate's
-//   o.*                              the opening board on today's pick (OPENING_ROOM_KEYS)
-// Each formation (formationRead):
-//   score, rank, draft               today's score; its place in the list; a draft or the climb's
-//   v.*                              formationFeatures'
-//   moved, swapped                   pieces moved; souls fielded in place of today's
-//   seat1, seat2, front, row         pieces beside and near the seat, in the front row; the mean row
-//   lanes, big, gate                 the lanes held; the 2×2 fielded; the gate's cells held
-//   shooters, melee, flyers, menders by kind
-//   wounded, hp                      pieces under half HP; the mean HP share
-//   o.*                              the board it opens on (OPENING_KEYS)
-export function prepRead (run, L, sit, cands, { boards = true } = {}) {
-  sit ??= survey(run, L)
-  const s = run.state
-  const node = currentNode(run)
-  const was = fieldRead(s, L)
-  const room = roomRead(s, node)
-  const foes = scout(run)
-  const m = monarchOf(s)
-  const x = zeros(PREP_SIT_KEYS)
-  put(x, 'floor', s.floor)
-  put(x, 'rank', sit.rank)
-  for (const type of ['elite', 'boss', 'siege']) put(x, type, node.type === type)
-  put(x, 'monarch', sit.monarch)
-  put(x, 'monarch.hp', Math.max(0, m.hp))
-  put(x, 'health', sit.health)
-  put(x, 'fallen', sit.fallen)
-  put(x, 'souls', was.up)
-  put(x, 'command', sit.command)
-  put(x, 'cands', cands.length)
-  for (const k of FIELD_KEYS) put(x, `field.${k}`, was.f[k])
-  put(x, 'room.threat', Math.log(Math.max(1e-9, room.threat)))
-  put(x, 'room.odds', was.f.strength - Math.log(Math.max(1e-9, room.threat)))
-  for (const k of ['foes', 'hp', 'def', 'raw', 'waves']) put(x, `room.${k}`, room[k])
-  for (const t of OUT_THREATS) put(x, `room.t.${t}`, room.t[t])
-  put(x, 'room.gap', gapOf([room], was.f))
-  const onM = mitigation(m) / Math.max(1, m.hp)
-  const ground = foes.filter((f) => !f.flies)
-  put(x, 'scout.flyers', foes.length - ground.length)
-  put(x, 'scout.shooters', foes.filter((f) => f.reach >= 2).length)
-  put(x, 'scout.reach', Math.max(0, ...foes.map((f) => f.reach)))
-  put(x, 'scout.raw', foes.reduce((n, f) => n + f.raw, 0) * onM)
-  put(x, 'scout.far', foes.filter((f) => f.reach >= 2).reduce((n, f) => n + f.raw, 0) * onM)
-  put(x, 'scout.boss', foes.some((f) => f.boss))
-  put(x, 'scout.road', ground.length ? ground.reduce((n, f) => n + f.road.length, 0) / ground.length : 0)
-  const ctx = formationContext(run, L)
-  put(x, 'scout.mass', ctx.total)
-  put(x, 'camp.open', openCells(s.camp).length)
-  const gate = gateOf(s.camp)
-  put(x, 'camp.gate', gate.length)
-  const opened = cands.map((c) => (boards ? openingOf(run, c.party) : {}))
-  for (const k of OPENING_ROOM_KEYS) put(x, `o.${k}`, opened[0][k] ?? 0)
-  const own = cands[0]
-  const f = cands.map((c, i) => formationRead(run, c, own, ctx.seat, gate, opened[i]))
-  return { sit: x, f }
-}
-
-// One formation's read (prepRead's), against today's pick `own`; `opened` the board it opens on (openingOf).
-function formationRead (run, c, own, seat, gate, opened) {
-  const out = zeros(PREP_CAND_KEYS)
-  put(out, 'score', c.score)
-  put(out, 'rank', c.rank)
-  put(out, 'draft', c.draft)
-  for (const k of FORMATION_KEYS) put(out, `v.${k}`, c.v[k])
-  const fielded = (party) => party.filter((u) => !isMonarch(u) && u.slot >= 0)
-  const pieces = fielded(c.party)
-  const at = new Map(fielded(own.party).map((u) => [u.uid, u.slot]))
-  const mine = new Set(pieces.map((u) => u.uid))
-  put(out, 'moved', pieces.filter((u) => at.get(u.uid) !== u.slot).length + [...at.keys()].filter((uid) => !mine.has(uid)).length)
-  put(out, 'swapped', pieces.filter((u) => !at.has(u.uid)).length)
-  const near = (u) => Math.min(...tilesAt(u, u.slot).map((t) => distance(t, seat)))
-  put(out, 'seat1', pieces.filter((u) => near(u) <= 1).length)
-  put(out, 'seat2', pieces.filter((u) => near(u) <= 2).length)
-  put(out, 'front', pieces.filter((u) => cellsOf(u).some((cell) => rowOf(cell) === 0)).length)
-  put(out, 'row', pieces.length ? pieces.reduce((n, u) => n + rowOf(u.slot), 0) / pieces.length : 0)
-  put(out, 'lanes', new Set(pieces.flatMap((u) => cellsOf(u).map(colOf))).size)
-  put(out, 'big', pieces.filter((u) => sizeOf(u) === 2).length)
-  const held = new Set(pieces.flatMap(cellsOf))
-  put(out, 'gate', gate.filter((cell) => held.has(cell)).length)
-  put(out, 'shooters', pieces.filter((u) => kitOf(u).some((a) => isBlow(a) && !a.melee)).length)
-  put(out, 'melee', pieces.filter(meleeOnly).length)
-  put(out, 'flyers', pieces.filter((u) => !!unitDef(u.id).flies).length)
-  put(out, 'menders', pieces.filter(tends).length)
-  put(out, 'wounded', pieces.filter((u) => hpPct(u) < 0.5).length)
-  put(out, 'hp', pieces.length ? pieces.reduce((n, u) => n + hpPct(u), 0) / pieces.length : 0)
-  for (const k of OPENING_KEYS) put(out, `o.${k}`, opened[k] ?? 0)
-  return out
+// The expert's formation from plan `made`: the solver's pick of prepCandidates' (solver.js bestFormation: the coming
+// battle solved in each), where its battles are the solver's; else, and under the formation ablation, the plan's own.
+function prepPick (run, L, made) {
+  const turns = turnsOf(L)
+  if (!L.search || L.ablate === 'formation' || (turns !== 'solver' && turns !== 'still')) return made.party
+  const { cands } = prepCandidates(run, L, made)
+  const r = bestFormation(run, cands, { moving: turns !== 'still' })
+  // The audit's note where another than today's pick is fielded: won where today's was not, or more value, or (neither
+  // won) held longer.
+  const was = r.stats[0]
+  const now = r.stats[r.index]
+  const why = now.won ? (was.won ? 'more value' : 'won') : 'held longer'
+  if (r.index > 0) noteRule(run, 'prep', { by: `solver, ${why}` }, `${cands[r.index].label}: ${now.won ? now.value : 'not won'} over ${was.won ? was.value : 'not won'}`)
+  return r.cand.party
 }
 
 // The expert's recruit as actions: today's, or the forest's (outChoice); decided once a room. → [action, …]

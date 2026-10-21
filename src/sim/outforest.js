@@ -1,25 +1,26 @@
-// The forests out of battle: the expert's recruit, purchases (tiers and fusions) and formation are today's pick unless
-// the phase's random forest, fitted offline on outside.js --label's playouts, reads another candidate more than its
-// margin above it. Consulted in play by player.js (pickReap, pickSpend, planFor); fitted by `npm run outforest`.
+// The forests out of battle: the expert's recruit and purchases (tiers and fusions) are today's pick unless the phase's
+// random forest, fitted offline on outside.js --label's playouts, reads another candidate more than its margin above it.
+// Consulted in play by player.js (pickReap, pickSpend); fitted by `npm run outforest`. (The formation is the solver's:
+// solver.js bestFormation.)
 //
 //   useOutForest(config)   installs a configuration; null: none, today's expert; undefined: back to the shipped one
 //                          (src/sim/outforest.json). → the one in use
 //   outForestModel()       → the forest in use, or null for none
-//   outDecides(phase)      → whether the forest in use decides `phase` ('recruit', 'spend' or 'prep')
+//   outDecides(phase)      → whether the forest in use decides `phase` ('recruit' or 'spend')
 // With none in use, or for a phase it has no forest of, the expert is today's, move for move.
 //
 // The inputs (layoutOf), read alike from a label row and in play (encodeOut), each rounded to 6 decimals: s.* the
-//   situation (SIT_KEYS; the prep's PREP_SIT_KEYS), f.* the candidate (CAND_KEYS; PREP_CAND_KEYS), vs.* each candidate
-//   feature less today's pick's, gap today's score of today's pick less the candidate's.
+//   situation (SIT_KEYS), f.* the candidate (CAND_KEYS), vs.* each candidate feature less today's pick's, gap today's
+//   score of today's pick less the candidate's.
 // The target, a row a candidate: its playout's value less its decision's mean (`mean`) or today's pick's (`today`), clipped.
-// outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend?, prep? } }, a phase's forest
+// outforest.json: { kind: 'outforest', name, about, made, data, phases: { recruit?, spend? } }, a phase's forest
 //   { inputs, target, delta, deltas? (deltaAt), adjust? (adjustAt), size, feat, thr, right, value, made } (trees.js
 //   compileTrees reads it); shipped as src/sim/outforest.json.
 //
 //   npm run outforest -- --data <dir>[,<dir>…] [--out file] [flags]   fit a forest a phase, printing its margins tables
-//     --phases recruit,spend,prep   the phases fitted (all by default); a phase with no labels gets no forest
+//     --phases recruit,spend     the phases fitted (both by default); a phase with no labels gets no forest
 //     --with file                the phases of that configuration not fitted here, carried over
-//     --delta 0.25               the margin; --delta-recruit, --delta-spend, --delta-prep a phase's own
+//     --delta 0.25               the margin; --delta-recruit, --delta-spend a phase's own
 //     --target mean|today        the target, as above
 //     --trees 200 --depth 6 --leaves 64 --min-leaf 50 --mtry 0.333 --shrink 0   the trees, as forestfit.js grows them
 //     --bins 64 --seed 1         the bins an input is cut into at most, and the trees' draws
@@ -42,7 +43,7 @@ const EPS = 1e-9
 
 // ── the vocabulary ───────────────────────────────────────────────────────────────────────────────
 
-const OUT_PHASES = Object.freeze(['recruit', 'spend', 'prep'])
+const OUT_PHASES = Object.freeze(['recruit', 'spend'])
 // The threat types the coming rooms are read by (content.js THREATS; depth, a room's, read as its waves).
 export const OUT_THREATS = Object.freeze(['reach', 'shape', 'drain', 'sustain', 'fly', 'burn', 'bleed'])
 // The roles a kind is read by (content.js ROLE_LIST, the Monarch's aside).
@@ -68,30 +69,8 @@ export const CAND_KEYS = Object.freeze([
   ...['strength', 'book', 'progress', 'target', 'fly', 'reach', 'tend', 'ranged', 'melee', 'flyers', 'healers', 'dps', 'tough', 'syn', 'near', 'summons', 'lvl', 'souls', 'purse'].map((k) => `d.${k}`),
   ...OUT_ROOMS.map((r) => `d.gap.${r}`)
 ])
-// What player.js formationFeatures reads of a formation against the scouted room (TUNING.expert.formation's keys).
-export const FORMATION_KEYS = Object.freeze(['fielded', 'air', 'power', 'cover', 'exposed', 'open', 'blockers', 'behind', 'mend', 'monarch', 'synergies', 'aura', 'arise', 'lasts', 'heals', 'answers', 'dps', 'focus', 'contact'])
-// Of the battle's own read (read.js conditions) of the board a formation opens the battle on: what one formation
-// changes from another.
-export const OPENING_KEYS = Object.freeze([
-  'monarch.danger', 'monarch.peril', 'monarch.threats', 'monarch.screened', 'roads.open', 'roads.openFoes', 'roads.soonest', 'holding', 'holding.foes', 'pieces',
-  'pieces.dies', 'pieces.danger', 'pieces.ready', 'killable', 'synergies.party', 'synergies.gains', 'synergies.breaks', 'shadows', 'idle'
-])
-// The room's own on that board, whatever the formation, read on today's pick's.
-export const OPENING_ROOM_KEYS = Object.freeze(['roads', 'entries.ground', 'entries.air', 'foes.ready', 'foes.mends', 'healers.foe', 'healing', 'synergies.foe', 'wave.in', 'wave.lanes'])
-export const PREP_SIT_KEYS = Object.freeze([
-  'floor', 'rank', 'elite', 'boss', 'siege', 'monarch', 'monarch.hp', 'health', 'fallen', 'souls', 'command', 'cands', ...FIELD_KEYS.map((k) => `field.${k}`),
-  ...['threat', 'odds', 'foes', 'hp', 'def', 'raw', 'waves', 'gap', ...OUT_THREATS.map((t) => `t.${t}`)].map((k) => `room.${k}`),
-  'scout.flyers', 'scout.shooters', 'scout.reach', 'scout.raw', 'scout.far', 'scout.boss', 'scout.road', 'scout.mass', 'camp.open', 'camp.gate',
-  ...OPENING_ROOM_KEYS.map((k) => `o.${k}`)
-])
-export const PREP_CAND_KEYS = Object.freeze([
-  'score', 'rank', 'draft', ...FORMATION_KEYS.map((k) => `v.${k}`),
-  'moved', 'swapped', 'seat1', 'seat2', 'front', 'row', 'lanes', 'big', 'gate', 'shooters', 'melee', 'flyers', 'menders', 'wounded', 'hp',
-  ...OPENING_KEYS.map((k) => `o.${k}`)
-])
-
 // Each phase's reads: the situation's keys and a candidate's.
-const KEYS = Object.freeze({ recruit: [SIT_KEYS, CAND_KEYS], spend: [SIT_KEYS, CAND_KEYS], prep: [PREP_SIT_KEYS, PREP_CAND_KEYS] })
+const KEYS = Object.freeze({ recruit: [SIT_KEYS, CAND_KEYS], spend: [SIT_KEYS, CAND_KEYS] })
 
 // An object of `keys`, each 0: the read fills it (put).
 export const zeros = (keys) => Object.fromEntries(keys.map((k) => [k, 0]))
@@ -116,7 +95,7 @@ export function layoutOf (phase = 'recruit') {
 export const outInputNames = (phase = 'recruit') => layoutOf(phase).names
 export const OUT_D = layoutOf('recruit').D
 
-// The inputs of candidate `f` (its read: outsideRead's or prepRead's `f[i]`) of a decision of `phase` read as `sit`,
+// The inputs of candidate `f` (its read: outsideRead's `f[i]`) of a decision of `phase` read as `sit`,
 // against today's pick `today` (its read), in the phase's layout (layoutOf). → out
 export function encodeOut (sit, f, today, phase = 'recruit', out = new Float64Array(layoutOf(phase).D)) {
   const { sit: S, cand: C, F0, V0, G0 } = layoutOf(phase)
@@ -200,14 +179,6 @@ function runtimeOf (m, phase) {
 }
 // Phase `phase`'s forest `m`'s mean leaf for inputs `x` (encodeOut's).
 export const predictOut = (m, x, phase = 'recruit') => treesMean(runtimeOf(m, phase), x)
-
-// Whether a prep's forest `m` splits on the board a formation opens the battle on (an o.* input): where it does not,
-// play makes no opening board (player.js prepRead's `boards`).
-const OPENS = new WeakMap()
-export function opensBoard (m) {
-  if (!OPENS.has(m)) OPENS.set(m, m.feat.some((f) => f >= 0 && /^(s|f|vs)\.o\./.test(m.inputs[f])))
-  return OPENS.get(m)
-}
 
 // A phase's correction `adjust` ({ key: w } or { key: [w by floor, …] } over a candidate's reads) on `floor`: each
 // candidate's advantage gains Σ w × (its read − today's pick's), the list's last past its end. → [[key, w], …] or null
@@ -448,7 +419,7 @@ async function main () {
   const bins = Number(arg('bins', 64))
   const kept = arg('with', null) ? checkOutForest(JSON.parse(fs.readFileSync(arg('with'), 'utf8'))) : null
   const config = {
-    kind: 'outforest', name: arg('name', 'outforest'), about: 'random forests over the expert\'s recruit, purchases and formation (src/sim/outforest.js), fitted on outside.js --label\'s playouts (to the run\'s end; a formation\'s to its battle\'s end); today\'s pick unless another\'s predicted advantage exceeds delta',
+    kind: 'outforest', name: arg('name', 'outforest'), about: 'random forests over the expert\'s recruit and purchases (src/sim/outforest.js), fitted on outside.js --label\'s playouts to the run\'s end; today\'s pick unless another\'s predicted advantage exceeds delta',
     made: new Date().toISOString(), data: [...new Set([...(kept?.data ?? []), ...dirs])], phases: Object.fromEntries(Object.entries(kept?.phases ?? {}).filter(([p]) => !phases.includes(p)))
   }
   for (const phase of phases) {

@@ -12,10 +12,13 @@
 //   A battle's end is valued by END_WEIGHTS (valueOf): the best won line, else the one that held out longest. Widening:
 //   WIDTHS in turn, stopping at the first that wins, under a wall-clock cap, or a budget of plans given (the search then
 //   a pure function of the board).
+// The formation before a battle (bestFormation): the coming battle solved once a candidate formation, the best fielded;
+// its line is the battle's.
 import { unitDef } from '../content.js'
-import { fork, order, orderable, canAct, usable, stalled, targetsFrom, helped, pick } from './turns.js'
-import { danger, dangerAt, options, estimate, better, EPS, NOBODY } from './foe.js'
-import { alive, isBlow, distanceBetween } from './unit.js'
+import { fork, order, orderable, canAct, usable, stalled, targetsFrom, helped, pick, createBattle } from './turns.js'
+import { danger, dangerAt, mitigation, options, estimate, better, stepsOf, EPS, NOBODY } from './foe.js'
+import { alive, isBlow, distanceBetween, footprint, tileX, tileY, LANES, DEPTH } from './unit.js'
+import { battleSetup } from './run.js'
 
 // (K, B, W) a level: options kept a piece, plans kept a turn, nodes kept across turns.
 export const WIDTHS = Object.freeze([Object.freeze([4, 16, 16]), Object.freeze([6, 48, 64]), Object.freeze([8, 128, 256])])
@@ -28,17 +31,23 @@ export const SOLVER = Object.freeze({ cap: 20, budget: Infinity, per: 1, sharp: 
 // share lost (1); `danger` the share of what the foes could deal yours next turn counted as dealt, `threat` the share of
 // what yours could deal them.
 export const SCORE = Object.freeze({ foes: 2, danger: 0.1, threat: 0.5 })
-// The defaults as the environment sets them (autoplay.js --solver-cap, --solver-budget, --solver-widths, --solver-slack:
-// a pool's workers inherit them).
+// The formation's (bestFormation): `budget` plans the solve of each candidate but the first (never more than a battle's
+// own), `cap` the candidates solved at most.
+export const PREP = Object.freeze({ budget: 5000, cap: 3 })
+// The defaults as the environment sets them (autoplay.js --solver-cap, --solver-budget, --solver-widths, --solver-slack,
+// --prep-budget, --prep-cap: a pool's workers inherit them).
 const budgetOf = () => Number(process.env.RETINUE_SOLVER_BUDGET ?? SOLVER.budget)
 const capOf = (budget = budgetOf()) => Number(process.env.RETINUE_SOLVER_CAP ?? (budget < Infinity ? Infinity : SOLVER.cap))
 const widthsOf = () => process.env.RETINUE_SOLVER_WIDTHS?.split(',').map((w) => w.split('/').map(Number)) ?? WIDTHS
 const slackOn = () => process.env.RETINUE_SOLVER_SLACK !== '0'
-// The knobs as the environment sets them; `pure`: a budget and no cap, so that a solved battle is a function of its board.
+const prepBudgetOf = () => Math.min(Number(process.env.RETINUE_PREP_BUDGET ?? PREP.budget), budgetOf())
+const prepCapOf = () => Number(process.env.RETINUE_PREP_CAP ?? PREP.cap)
+// The knobs as the environment sets them; `pure`: a budget and no cap, so that a solved battle is a function of its board;
+// `prep` the formation's.
 export function solverKnobs () {
   const budget = budgetOf()
   const cap = capOf(budget)
-  return { budget, cap, widths: widthsOf(), slack: slackOn(), pure: budget < Infinity && cap === Infinity }
+  return { budget, cap, widths: widthsOf(), slack: slackOn(), pure: budget < Infinity && cap === Infinity, prep: { budget: prepBudgetOf(), cap: prepCapOf() } }
 }
 
 const END = Object.freeze({ type: 'end' })
@@ -47,21 +56,143 @@ const END = Object.freeze({ type: 'end' })
 
 // A board as play reads it, for merging and the replay check: the battle's turn, stage, outcome, waves and reserve;
 // each unit's every plain field (uid, tile, HP, energy, moved, acted, shrugs, phase, raised…), its statuses (id, dur,
-// stacks, turn, stage, by, fresh) and cooldowns. No cache, plan or event: they change no play.
+// stacks, turn, stage, by, fresh) and cooldowns. No cache, plan or event: they change no play. → a 53-bit number: those
+// values in that order as 32-bit words (word), each tagged by its type (val), a field by its name's own word (KEYS),
+// each unit, status and cooldown opened by a word of its own, folded by two lanes; equal boards hash alike, two boards
+// part but by a 53-bit collision.
 export function boardHash (b) {
-  let s = `${b.turn}|${b.phase}|${b.stage}|${b.over}|${b.winner}|${b.reason}|${b.foeIn}|${b.raised}|${b.crumbled}|${b.nextUid}|${b.roster}|` +
-    `${b.waveAt.join()}|${b.waves.map((w) => `${w.wave}:${+w.entered}`).join()}|${b.reserve.map((u) => u.uid).join()}`
+  ha = 0x9747b28c
+  hb = 0x2545f491
+  val(b.turn)
+  val(b.phase)
+  val(b.stage)
+  val(b.over)
+  val(b.winner)
+  val(b.reason)
+  val(b.foeIn)
+  val(b.raised)
+  val(b.crumbled)
+  val(b.nextUid)
+  val(b.roster)
+  // The waves' turns as a list joins them: an empty one as nothing.
+  word(b.waveAt.length)
+  for (let i = 0; i < b.waveAt.length; i++) val(b.waveAt[i] ?? undefined)
+  word(b.waves.length)
+  for (const w of b.waves) {
+    val(w.wave)
+    val(+w.entered)
+  }
+  word(b.reserve.length)
+  for (const u of b.reserve) val(u.uid)
   for (const u of b.units) {
-    s += '\n'
+    word(UNIT)
+    let i = 0
     for (const k in u) {
       const v = u[k]
-      if (v === null || typeof v !== 'object') s += `${k}=${v};`
+      if (v === null || typeof v !== 'object') {
+        // The name's word, by the name last met in this place (the units' fields mostly come in one order).
+        if (PLACED[i] !== k) {
+          PLACED[i] = k
+          PLACED_WORD[i] = keyOf(k)
+        }
+        word(PLACED_WORD[i])
+        // A string by the one last met in this place, its word kept (the same string, the same word).
+        if (typeof v === 'string' && PLACED_STRING[i] === v) word(PLACED_STRING_WORD[i])
+        else {
+          val(v)
+          if (typeof v === 'string' && STRINGS.has(v)) {
+            PLACED_STRING[i] = v
+            PLACED_STRING_WORD[i] = STRINGS.get(v)
+          }
+        }
+        i++
+      }
     }
-    for (const x of u.statuses) s += `[${x.id},${x.dur},${x.stacks},${x.turn},${x.stage},${x.by},${x.fresh}]`
-    for (const k in u.cooldowns) s += `{${k}:${u.cooldowns[k]}}`
+    for (const x of u.statuses) {
+      word(STATUS)
+      val(x.id)
+      val(x.dur)
+      val(x.stacks)
+      val(x.turn)
+      val(x.stage)
+      val(x.by)
+      val(x.fresh)
+    }
+    for (const k in u.cooldowns) {
+      word(COOLDOWN)
+      word(keyOf(k))
+      val(u.cooldowns[k])
+    }
   }
-  return s
+  return 4294967296 * (fmix(hb) & 0x1fffff) + (fmix(ha) >>> 0)
 }
+// The lanes, as boardHash folds its words.
+let ha = 0
+let hb = 0
+// A word into both lanes: murmur3's mix of it, then lane a by murmur3's step, lane b by a multiply and a shift.
+function word (w) {
+  let k = Math.imul(w, 0xcc9e2d51)
+  k = Math.imul((k << 15) | (k >>> 17), 0x1b873593)
+  ha ^= k
+  ha = (Math.imul((ha << 13) | (ha >>> 19), 5) + 0xe6546b64) | 0
+  hb = Math.imul(hb ^ k, 0x2c1b3c6d)
+  hb ^= hb >>> 15
+}
+// murmur3's finish.
+function fmix (h) {
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b)
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35)
+  return h ^ (h >>> 16)
+}
+// A value as words, by its type: a 32-bit integer itself (−0 as 0), another number its 64 bits (every NaN one), a
+// string its own word (STRINGS; past STRINGS_KEPT strings, its length and characters), true, false, null and undefined
+// a word each; a function its source. Distinct values give distinct words, as their text would (but a number and a
+// string of its digits).
+function val (v) {
+  if (typeof v === 'number') {
+    if ((v | 0) === v) {
+      word(INT)
+      word(v)
+    } else if (Number.isNaN(v)) word(NAN)
+    else {
+      F64[0] = v
+      word(FLOAT)
+      word(U32[0])
+      word(U32[1])
+    }
+  } else if (typeof v === 'string') {
+    const w = STRINGS.get(v) ?? named(v)
+    if (w === undefined) str(STR, v)
+    else word(w)
+  } else if (v === true) word(TRUE)
+  else if (v === false) word(FALSE)
+  else if (v === null) word(NULL)
+  else if (v === undefined) word(UNDEFINED)
+  else str(TEXT, String(v))
+}
+function str (tag, s) {
+  word(tag)
+  word(s.length)
+  for (let i = 0; i < s.length; i += 2) word(s.charCodeAt(i) | ((s.charCodeAt(i + 1) | 0) << 16))
+}
+// A string → its own word, in the order first met (from 3 × 2^29 on: no tag's, field's or opener's), STRINGS_KEPT at
+// most: one met past them is read by its characters, every time (a string's words never change).
+const STRINGS = new Map()
+const STRINGS_KEPT = 4096
+const named = (v) => (STRINGS.size < STRINGS_KEPT ? STRINGS.set(v, 0x60000000 + STRINGS.size).get(v) : undefined)
+const F64 = new Float64Array(1)
+const U32 = new Uint32Array(F64.buffer)
+// The words that tag a value (val) and open a unit, a status, a cooldown: none a field's word (KEYS: from 2^29 on).
+const [INT, FLOAT, NAN, STR, TEXT, TRUE, FALSE, NULL, UNDEFINED] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+const [UNIT, STATUS, COOLDOWN] = [0x40000001, 0x40000002, 0x40000003]
+// A field's or a cooldown's name → its own word, in the order first met; the names last met at each place of a unit's
+// plain fields, and their words; the strings last met there, and theirs.
+const KEYS = new Map()
+const keyOf = (k) => KEYS.get(k) ?? KEYS.set(k, 0x20000000 + KEYS.size).get(k)
+const PLACED = []
+const PLACED_WORD = []
+const PLACED_STRING = []
+const PLACED_STRING_WORD = []
 
 // ── the value and the score ──────────────────────────────────────────────────────────────────────
 
@@ -109,7 +240,7 @@ const r6 = (x) => Math.round(x * 1e6) / 1e6
 //   share of the foes' HP as the line began (the field's and the reserve's) − SCORE.danger × what the foes could deal
 //   yours next turn, read as the value reads a loss (the Monarch 3 × its share, the battle lost where it would fall; a
 //   soul its share, all of it where it would fall; a shadow its HP).
-// Both sides' next turns are read off foe.js danger. `map`: the danger map for your side, made already.
+// Both sides' next turns are read off foe.js danger (threatOn yours). `map`: the danger map for your side, made already.
 export function scoreOf (g, before, map = null) {
   if (g.over) return g.winner === 'party' ? WON + valueOf(before, g, true) : -WON - foesLeft(g) / Math.max(1, before.foes)
   map ??= danger(g, 'party')
@@ -127,13 +258,56 @@ export function scoreOf (g, before, map = null) {
     if (u.shadow) shadows += u.hp
     loss += END_WEIGHTS.own * (d >= u.hp && !u.shadow ? u.maxHp : d) / max
   }
-  const theirs = danger(g, 'foe')
-  let dealt = 0
-  for (const x of g.units) if (x.side === 'foe' && alive(x)) dealt += dangerAt(g, x, x.tile, theirs)
-  const foes = SCORE.foes * (foesLeft(g) - SCORE.threat * dealt) / Math.max(1, before.foes)
+  const foes = SCORE.foes * (foesLeft(g) - SCORE.threat * threatOn(g)) / Math.max(1, before.foes)
   return valueOf(before, g, true) + END_WEIGHTS.own * shadows / max - foes - SCORE.danger * loss
 }
 const WON = 1e6
+
+// What yours could deal the foes next turn: each living foe's dangerAt on foe.js danger's map for the foes, summed in
+// acting order; the map read at the foes' tiles alone (`only`: each tile's reading is its own) and your pieces' tiles
+// kept in a book (stepsBy): the full map's numbers there.
+export function threatOn (g) {
+  const at = []
+  for (const x of g.units) {
+    if (x.side !== 'foe' || !alive(x)) continue
+    for (const t of footprint(x.tile, x.size) ?? [x.tile]) if (!at.includes(t)) at.push(t)
+  }
+  const map = danger(g, 'foe', null, { only: at, steps: stepsBy(g) })
+  let dealt = 0
+  for (const x of g.units) if (x.side === 'foe' && alive(x)) dealt += dangerAt(g, x, x.tile, map)
+  return dealt
+}
+
+// foe.js stepsOf, kept in a book by what it reads: a piece of yours (orderable: its reach) by its tile, size, flight and
+// side, the stride, and the board's occupancy within the stride of its footprint (each tile's holder's side, on the
+// ground and in the air: all reach reads of the board there but its walls, the battle's own). One book a battle (its
+// walls' Set, which every copy shares), emptied at STEPS_KEPT entries; any other unit's read afresh.
+function stepsBy (b) {
+  let book = STEPS.get(b.walls)
+  if (!book) STEPS.set(b.walls, (book = new Map()))
+  return (f, u, at, tiles) => {
+    if (at || !orderable(f, u)) return stepsOf(f, u, at, tiles)
+    const x0 = tileX(u.tile)
+    const y0 = tileY(u.tile)
+    const xa = Math.max(0, x0 - tiles)
+    const xb = Math.min(LANES - 1, x0 + u.size - 1 + tiles)
+    const near = []
+    for (let y = Math.max(0, y0 - tiles), yb = Math.min(DEPTH - 1, y0 + u.size - 1 + tiles); y <= yb; y++) {
+      for (let t = y * LANES + xa, tb = y * LANES + xb; t <= tb; t++) near.push(48 + 3 * sideCode(f.at[t]) + sideCode(f.sky[t]))
+    }
+    const k = `${u.tile},${u.size},${u.flies},${u.side},${tiles},${String.fromCharCode.apply(null, near)}`
+    let s = book.get(k)
+    if (s === undefined) {
+      if (book.size >= STEPS_KEPT) book.clear()
+      s = stepsOf(f, u, at, tiles)
+      book.set(k, s)
+    }
+    return s
+  }
+}
+const STEPS = new WeakMap()
+const STEPS_KEPT = 20000
+const sideCode = (x) => (x === null ? 0 : x.side === 'party' ? 1 : 2)
 
 // The foes' HP left: the living on the field and the reserve's.
 const foesLeft = (b) => b.units.reduce((n, u) => n + (u.side === 'foe' && alive(u) ? u.hp : 0), 0) + b.reserve.reduce((n, u) => n + u.hp, 0)
@@ -154,10 +328,11 @@ function marginOf (before, g) {
 // stats: { solved, level (of widths, 1-based, after which a won line was held; null for none), ms, nodes (turns
 // expanded), plans (pieces' options given), truncated (the cap or the budget cut a level short), margin (a won line's),
 // value, turns, slack (slackOf; null for a turn not read), sharp (the line's turns, 0-based, with slack under `sharp`),
-// slackMs }. `slack` false: no slack read. `moving` false: every piece acts from where it stands.
+// slackMs }. `slack` false: no slack read. `moving` false: every piece acts from where it stands. `beat`: a value to
+// better, as a won line's is: a line that cannot better it is dropped.
 export function solve (battle, {
   budget = budgetOf(), cap = capOf(budget), widths = widthsOf(), per = SOLVER.per, sharp = SOLVER.sharp, sample = SOLVER.sample, turns = SOLVER.turns,
-  slack = slackOn(), moving = true
+  slack = slackOn(), moving = true, beat = -Infinity
 } = {}) {
   const t0 = Date.now()
   const deadline = t0 + cap * 1000
@@ -168,7 +343,7 @@ export function solve (battle, {
   let won = null
   for (let i = 0; i < widths.length && !stats.truncated; i++) {
     const [K, B, W] = widths[i]
-    const s = beam(root, before, { K, B, W, per, turns, deadline, budget: budget - stats.plans, moving })
+    const s = beam(root, before, { K, B, W, per, turns, deadline, budget: budget - stats.plans, moving, beat })
     stats.nodes += s.nodes
     stats.plans += s.plans
     stats.truncated = s.truncated
@@ -179,19 +354,20 @@ export function solve (battle, {
       break
     }
   }
-  best ??= endOf(before, root, [], true)
-  replay(battle, best)
+  best ??= endOf(before, root, boardHash(root), [], true)
+  // The line's last board, made again by its orders: the search keeps no board past its layer.
+  const end = replay(battle, best)
   stats.solved = best.won
   stats.value = best.value
   stats.turns = best.line.length
-  if (best.won) stats.margin = marginOf(before, best.board)
+  if (best.won) stats.margin = marginOf(before, end)
   stats.ms = Date.now() - t0
   if (won && slack) {
     stats.slack = slackOf(won, root, best.line, { sample, deadline: Date.now() + cap * 500 })
     stats.sharp = stats.slack.flatMap((x, t) => (x !== null && x < sharp ? [t] : []))
     stats.slackMs = Date.now() - t0 - stats.ms
   }
-  return { line: best.line, won: best.won, value: best.value, end: best.board, stats }
+  return { line: best.line, won: best.won, value: best.value, end, stats }
 }
 
 // The better of two lines' ends: won first, then the higher value; of lines not won, one still open (the cap cut it)
@@ -200,20 +376,23 @@ function outranks (a, b) {
   if (a.won !== b.won) return a.won
   if (a.won) return a.value > b.value + EPS
   if (a.open !== b.open) return a.open
-  if (a.board.turn !== b.board.turn) return a.board.turn > b.board.turn
-  return foesLeft(a.board) < foesLeft(b.board) - EPS
+  if (a.turn !== b.turn) return a.turn > b.turn
+  return a.foes < b.foes - EPS
 }
 
-// An end of a line: its board, its line, won, value, open (still under way).
-const endOf = (before, board, line, open = false) => {
+// An end of a line: its board's hash, its line, won, value, open (still under way), and what outranks reads of its
+// board past those, the round and the foes' HP left. No board: the line makes it again (replay).
+const endOf = (before, board, hash, line, open = false) => {
   const won = board.over && board.winner === 'party'
-  return { board, hash: boardHash(board), line, won, value: open ? null : valueOf(before, board, won), open }
+  return { hash, line, won, value: open ? null : valueOf(before, board, won), open, turn: board.turn, foes: foesLeft(board) }
 }
 
 // One level of the search, `budget` plans at most. → { nodes, plans, truncated, best (the best end of a line met, by
-// outranks: won, lost, or open where the cap or the budget stopped it), edges (Map an expanded node's digest → its
-// children's), wins (won ends' digests), ctx }. The books keep digests, not boards: a line may run to the turn guard.
-function beam (root, before, { K, B, W, per, turns, deadline, budget, moving }) {
+// outranks: won, lost, or open where the cap or the budget stopped it), edges (Map an expanded node's hash → its
+// children's), wins (won ends' hashes), ctx }. The books keep hashes, not boards: a line may run to the turn guard.
+// One layer's boards are held at a time: a child keeps its hash, its line, its parent and the numbers it is ranked by,
+// and the W kept are made again from their parents' boards (grow) once the layer is ranked.
+function beam (root, before, { K, B, W, per, turns, deadline, budget, moving, beat = -Infinity }) {
   const out = { nodes: 0, plans: 0, truncated: false, best: null, edges: new Map(), wins: new Set() }
   const meet = (end) => {
     if (!out.best || outranks(end, out.best)) out.best = end
@@ -221,7 +400,7 @@ function beam (root, before, { K, B, W, per, turns, deadline, budget, moving }) 
   const ctx = { K, B, per, deadline, budget, before, out, moving }
   out.ctx = ctx
   let layer = [{ board: root, hash: boardHash(root), line: [] }]
-  let bestWon = -Infinity
+  let bestWon = beat
   for (let depth = 0; layer.length; depth++) {
     const next = new Map()
     for (const node of layer) {
@@ -234,35 +413,43 @@ function beam (root, before, { K, B, W, per, turns, deadline, budget, moving }) 
         break
       }
       out.nodes++
-      out.edges.set(digest(node.hash), kids.map((c) => digest(c.hash)))
+      out.edges.set(node.hash, kids.map((c) => c.hash))
       for (const c of kids) {
         const line = [...node.line, { turn: node.board.turn, hash: node.hash, orders: c.orders }]
         if (c.board.over || stalled(c.board) || line.length >= turns) {
-          const end = endOf(before, c.board, line, !c.board.over && !stalled(c.board))
+          const end = endOf(before, c.board, c.hash, line, !c.board.over && !stalled(c.board))
           meet(end)
           if (end.won) {
-            out.wins.add(digest(c.hash))
+            out.wins.add(c.hash)
             bestWon = Math.max(bestWon, end.value)
           }
-        } else if (!next.has(c.hash)) next.set(c.hash, { board: c.board, hash: c.hash, line })
+        } else if (!next.has(c.hash)) next.set(c.hash, { hash: c.hash, line, parent: node, score: scoreOf(c.board, before), soFar: valueOf(before, c.board, true) })
       }
     }
     if (out.truncated) {
       // The line still open where the cap or the budget stopped the search: the best of this layer by the score.
-      if (layer[0].line.length) meet(endOf(before, layer[0].board, layer[0].line, true))
+      if (layer[0].line.length) meet(endOf(before, layer[0].board, layer[0].hash, layer[0].line, true))
       break
     }
     // The W best by the score, ties by the value so far; none that cannot better a win found.
     const ranked = [...next.values()]
-    for (const c of ranked) {
-      c.score = scoreOf(c.board, before)
-      c.soFar = valueOf(before, c.board, true)
-    }
     ranked.sort((a, b) => (Math.abs(a.score - b.score) > EPS ? b.score - a.score : b.soFar - a.soFar))
     layer = ranked.slice(0, W)
     if (bestWon > -Infinity) layer = layer.filter((c) => c.soFar - END_WEIGHTS.turn > bestWon + EPS)
+    for (const c of layer) grow(c)
   }
   return out
+}
+
+// A child's board made again: its parent's board copied and its turn's orders given (as replay gives them), checked by
+// its hash (a board that parts is a game bug, thrown); its parent let go.
+function grow (c) {
+  const g = copy(c.parent.board)
+  for (const o of c.line.at(-1).orders) order(g, o)
+  const h = boardHash(g)
+  if (h !== c.hash) throw new Error(`solver: turn ${c.line.at(-1).turn}'s child made again parts from the one searched (searched ${c.hash}, made ${h})`)
+  c.board = g
+  c.parent = null
 }
 const CUT = new Error('the solver\'s cap or budget')
 
@@ -306,10 +493,11 @@ function keysFirst (board, pieces) {
 
 // The turn's plans on `board` in piece order `seq`: each plan's next piece takes each of its candidates on a copy, a move
 // alone with its End-Turn act given at once; the B best by the score kept after each piece. Each plan keeps its board's
-// danger map for your side (`map`: its shields are that board's units). → [{ f (the board, End Turn not yet), orders }]
+// hash (`h`) and danger map for your side (`map`: its shields are that board's units). → [{ f (the board, End Turn not
+// yet), orders }]
 function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, moving }) {
   const f = copy(board)
-  let plans = [{ f, orders: [], value: 0, map: danger(f, 'party') }]
+  let plans = [{ f, h: boardHash(f), orders: [], value: 0, map: danger(f, 'party') }]
   for (let i = 0; i < seq.length; i++) {
     const uid = seq[i]
     const later = seq.slice(i + 1)
@@ -318,8 +506,7 @@ function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, movi
       if (out.plans >= budget || Date.now() > deadline) throw CUT
       const u = p.f.byUid.get(uid)
       if (p.f.over || !u || !orderable(p.f, u) || u.acted) {
-        const h = boardHash(p.f)
-        if (!next.has(h)) next.set(h, p)
+        if (!next.has(p.h)) next.set(p.h, p)
         continue
       }
       for (const o of candidates(p.f, u, later, K, per, p.map, moving)) {
@@ -342,7 +529,7 @@ function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, movi
         const h = boardHash(g)
         if (next.has(h)) continue
         const gm = g.over ? null : danger(g, 'party')
-        next.set(h, { f: g, orders: [...p.orders, ...given], value: scoreOf(g, before, gm), map: gm })
+        next.set(h, { f: g, h, orders: [...p.orders, ...given], value: scoreOf(g, before, gm), map: gm })
       }
     }
     plans = [...next.values()].sort((a, b) => (Math.abs(a.value - b.value) > EPS ? b.value - a.value : 0)).slice(0, B)
@@ -357,10 +544,11 @@ function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, movi
 // of every kill and of every act laying a key one of `later` can pay. `moving` false: its options where it stands alone.
 export function candidates (f, u, later, K, per = SOLVER.per, map = danger(f, 'party'), moving = true) {
   const list = options(f, u, { moving })
+  const mit = mitigation(f, u)
   for (const o of list) {
     const e = estimate(f, u, o, NOBODY)
     o.kill = e.kill
-    o.score = e.dealt + e.kill - dangerAt(f, u, o.tile, map) - e.counter
+    o.score = e.dealt + e.kill - dangerAt(f, u, o.tile, map, mit) - e.counter
     o.road = -o.path.length
   }
   list.sort(byScore)
@@ -496,8 +684,8 @@ function slackOf (s, root, line, { sample, deadline }) {
   const ctx = { ...s.ctx, deadline: Infinity, budget: Infinity, out: { plans: 0 } }
   const g = fork(root)
   return line.map((t) => {
-    const had = s.edges.get(digest(t.hash))
-    const kids = had && Date.now() <= deadline ? expand({ board: g, hash: t.hash, line: [] }, ctx).map((c) => digest(c.hash)) : null
+    const had = s.edges.get(t.hash)
+    const kids = had && Date.now() <= deadline ? expand({ board: g, hash: t.hash, line: [] }, ctx).map((c) => c.hash) : null
     for (const o of t.orders) order(g, o)
     if (!kids) return null
     if (kids.join() !== had.join()) throw new Error(`solver: turn ${t.turn}'s node expanded twice gave two sets of children`)
@@ -506,38 +694,18 @@ function slackOf (s, root, line, { sample, deadline }) {
   })
 }
 
-// A board hash's digest (cyrb53), for the slack's books: two boards of one digest misread a share, never a play.
-function digest (h) {
-  let a = 0xdeadbeef
-  let b = 0x41c6ce57
-  for (let i = 0; i < h.length; i++) {
-    const c = h.charCodeAt(i)
-    a = Math.imul(a ^ c, 2654435761)
-    b = Math.imul(b ^ c, 1597334677)
-  }
-  a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909)
-  b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909)
-  return 4294967296 * (2097151 & b) + (a >>> 0)
-}
-
 // The replay check: line `r` given on a fresh copy of `battle` order by order must reach its boards, each turn's start
-// and its end, else the fork leaked or the battle is not deterministic: a game bug, thrown with the board.
+// and its end, else the fork leaked or the battle is not deterministic: a game bug, thrown with the two hashes.
 export function replay (battle, r) {
   const g = fork(battle)
   for (const [t, step] of r.line.entries()) {
     const at = boardHash(g)
-    if (at !== step.hash) throw new Error(`solver replay: turn ${t} (${step.turn}) begins on another board\n${diffOf(step.hash, at)}`)
+    if (at !== step.hash) throw new Error(`solver replay: turn ${t} (${step.turn}) begins on another board (searched ${step.hash}, replayed ${at})`)
     for (const o of step.orders) order(g, o)
   }
   const at = boardHash(g)
-  if (at !== r.hash) throw new Error(`solver replay: the line ends on another board\n${diffOf(r.hash, at)}`)
+  if (at !== r.hash) throw new Error(`solver replay: the line ends on another board (searched ${r.hash}, replayed ${at})`)
   return g
-}
-// The lines where two board hashes part, for the report of a replay that failed.
-const diffOf = (a, b) => {
-  const x = a.split('\n')
-  const y = b.split('\n')
-  return x.flatMap((l, i) => (l === y[i] ? [] : [`  searched ${l}\n  replayed ${y[i]}`])).join('\n')
 }
 
 // ── the solver as a turn policy ──────────────────────────────────────────────────────────────────
@@ -553,14 +721,15 @@ export const useSolverHook = (fn) => {
 
 // The solver's turn (player.js TURNS.solver): the battle solved once, its line's orders given turn by turn while the
 // board is the line's, solved again where it is not (the line ran out, the cap having cut it; anything else is a
-// determinism bug, `mismatch` in the stats). → that turn's orders (copies), End Turn last but where the battle ends.
+// determinism bug, `mismatch` in the stats). A battle that opens on a board bestFormation solved takes that line (taken)
+// and is not solved again; its stats say `prep`. → that turn's orders (copies), End Turn last but where the battle ends.
 export function solverTurn (battle, { cap, budget, widths, slack, moving, onSolve = null } = {}) {
   if (battle.over) return []
   const hash = boardHash(battle)
   const had = LINES.get(battle)
   let orders = had?.byHash.get(hash)
   if (!orders) {
-    const r = solve(battle, {
+    const r = (!had && taken(hash, moving ?? true, budget === undefined && cap === undefined && widths === undefined && slack === undefined)) || solve(battle, {
       ...(budget !== undefined && { budget }), ...(cap !== undefined && { cap }), ...(widths !== undefined && { widths }), ...(slack !== undefined && { slack }), ...(moving !== undefined && { moving })
     })
     r.stats.mismatch = !!had?.turns.has(battle.turn)
@@ -570,4 +739,63 @@ export function solverTurn (battle, { cap, budget, widths, slack, moving, onSolv
     orders = kept.byHash.get(hash) ?? [END]
   }
   return orders.map((o) => ({ ...o }))
+}
+
+// ── the formation ────────────────────────────────────────────────────────────────────────────────
+
+// The battle the room in prep opens on with formation `goal` ([{ uid, slot }]: those souls in those cells, every other
+// in the ossuary), no order given: run.js battleSetup as the run's fight makes it, quiet.
+export function openingOf (run, goal) {
+  const at = new Map(goal.map((p) => [p.uid, p.slot]))
+  const party = run.state.party.map((u) => ({ ...u, slot: at.get(u.uid) ?? -1 })).filter((u) => u.slot >= 0)
+  return createBattle({ ...battleSetup(run, { party }), quiet: true })
+}
+
+// The formation the coming battle is fought in, of `cands` (player.js prepCandidates': today's pick first, each with its
+// `goal`), the first `cap`: each one's battle (openingOf) solved, the first as the battle would solve it (the knobs in
+// use), every other at `budget` plans, no cap and no slack, a line that cannot better the best won value found so far
+// dropped (solve's `beat`). The best by its line's end (outranks): won before not, then the higher value (valueOf); of
+// lines not won, one the budget cut short before one lost, then the more rounds held, then the more of the foes' HP
+// taken; ties to the earlier. Its line is kept for the battle (solverTurn) where it is the first's or won. `moving`
+// false: the moves ablation's (TURNS.still).
+// → { index, cand, stats: [{ won, value, margin, plans, ms, truncated, level } a candidate solved] }
+export function bestFormation (run, cands, { budget = prepBudgetOf(), cap = prepCapOf(), moving = true } = {}) {
+  const stats = []
+  let best = null
+  for (const [i, c] of cands.slice(0, Math.max(1, cap)).entries()) {
+    const board = openingOf(run, c.goal)
+    const r = i === 0 ? solve(board, { moving }) : solve(board, { budget, cap: Infinity, slack: false, moving, beat: best?.end.won ? best.end.value : -Infinity })
+    const { margin, plans, ms, truncated, level } = r.stats
+    stats.push({ won: r.won, value: r.value, margin, plans, ms, truncated, level })
+    const end = { won: r.won, value: r.value, open: !r.end.over && !stalled(r.end), turn: r.end.turn, foes: foesLeft(r.end) }
+    if (!best || outranks(end, best.end)) best = { i, r, board, end }
+  }
+  if (best.i === 0 || best.r.won) keep(boardHash(best.board), moving, best.r)
+  for (const fn of FORMATION_HOOKS) fn({ index: best.i, stats }, run)
+  return { index: best.i, cand: cands[best.i], stats }
+}
+
+// The lines bestFormation kept, by opening board (boardHash) and `moving`: the last PREPPED of them, each taken once.
+const PREPPED = 4
+const KEPT = new Map()
+function keep (hash, moving, r) {
+  const k = `${moving}|${hash}`
+  KEPT.delete(k)
+  KEPT.set(k, { line: r.line, won: r.won, stats: { ...r.stats, prep: true } })
+  while (KEPT.size > PREPPED) KEPT.delete(KEPT.keys().next().value)
+}
+// The line kept for a battle opening on board `hash`, taken out; one not won (the first candidate's, solved as the
+// battle would be) only for a battle solved by the knobs in use (`plain`). null for none.
+function taken (hash, moving, plain) {
+  const k = `${moving}|${hash}`
+  const r = KEPT.get(k)
+  if (!r || (!r.won && !plain)) return null
+  KEPT.delete(k)
+  return { line: r.line, stats: { ...r.stats } }
+}
+// Listeners on each formation chosen: fn({ index, stats }, run), for the reports (useFormationHook).
+const FORMATION_HOOKS = new Set()
+export const useFormationHook = (fn) => {
+  FORMATION_HOOKS.add(fn)
+  return () => FORMATION_HOOKS.delete(fn)
 }

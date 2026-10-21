@@ -222,8 +222,8 @@ test('ablating orders: the expert gives no order in battle but End Turn, where t
   assert.ok(!('ablate' in ablatedRun('orders', 'orders', START_PARTY).state))
 })
 
-// Under the moves ablation its pieces act from where they stand;
-// prep is the full expert's.
+// Under the moves ablation its pieces act from where they stand; prep is the full expert's but for the formation, which the
+// solver picks by solving the coming battle as the still player plays it (solver.js bestFormation, `moving` false).
 test('ablating moves: the expert acts in battle but never moves a piece, where the full expert does', () => {
   const given = (L) => {
     const run = createRun({ start: START_PARTY, seed: 'moves' })
@@ -235,14 +235,15 @@ test('ablating moves: the expert acts in battle but never moves a piece, where t
   assert.ok(full.move > 0 && full.act > 0)
   assert.deepEqual([still.move, still.act > 0], [0, true])
   assert.ok(!('ablate' in ablatedRun('moves', 'moves', START_PARTY).state))
-  // The first prep is the full expert's.
+  // The first prep is the full expert's but for where the souls stand.
   const one = createRun({ start: START_PARTY, seed: 'moves' })
   const two = createRun({ start: START_PARTY, seed: 'moves' })
   for (const [run, L] of [[one, LEVELS.expert], [two, without('moves')]]) {
     const rng = createRng('moves').stream('autoplay')
     for (let a; (a = policy(run, rng, L)).type !== 'fight';) apply(run, a)
   }
-  assert.deepEqual(two.state.log, one.state.log)
+  const unplaced = (run) => run.state.log.filter((a) => a.type !== 'place')
+  assert.deepEqual(unplaced(two), unplaced(one))
 })
 
 test('ablating fusions: never fuses, nor weighs one, where the full expert weighs every one it can make', () => {

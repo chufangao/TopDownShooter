@@ -12,14 +12,17 @@ import { alive, enemySide, isBlow, isAllyShape, footprint, tileX, tileY, blowRea
 
 // By tile, what the other side could deal on its next turn to one of `side`'s standing there, before DEF. → { ground,
 // air (for a flyer), shields: Map unit → { ground, air }, what that piece alone screens of lined blows }. `at` (Map uid
-// → tile) fixes each foe's tile; `lines` false ignores lines of fire.
-export function danger (battle, side, at = null, { lines = true } = {}) {
+// → tile) fixes each foe's tile; `lines` false ignores lines of fire; `only` (distinct tiles) reads those tiles alone,
+// the rest left 0 (each tile's reading is its own: the same numbers there); `steps` stands in for stepsOf (the same
+// tiles and steps out: a book of them).
+export function danger (battle, side, at = null, { lines = true, only = null, steps: stepsFn = stepsOf } = {}) {
   const dealer = enemySide(side)
   const ground = new Array(TILES).fill(0)
   const air = new Array(TILES).fill(0)
   const shields = new Map()
     // Yours, read in the foes' turn, act after a turn's end: a skill whose cooldown runs out by then counts.
   const later = dealer === 'party' && battle.stage !== 'party'
+  const area = only && areaOf(only)
   const g = DANGER_G
   const a = DANGER_A
   for (const u of battle.units) {
@@ -27,37 +30,59 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
     const rate = later ? rateOf(battle, u) : 0
     const blows = u.kit.filter((x) => isBlow(x) && (!isSkill(u, x) || (u.cooldowns[x.id] ?? 0) <= rate))
     if (!blows.length) continue
-    g.fill(0)
-    a.fill(0)
+    if (only) {
+      for (const t of only) {
+        g[t] = 0
+        a[t] = 0
+      }
+    } else {
+      g.fill(0)
+      a.fill(0)
+    }
     const alone = new Map()
-    for (const b of blows) {
-      const raw = rawOf(battle, u, b)
-      const k = strideNext(battle, u, b)
+    // Its tiles at its longest stride, each with the steps it takes: a shorter stride's tiles are those within it.
+    const raws = blows.map((b) => rawOf(battle, u, b))
+    const ks = blows.map((b) => strideNext(battle, u, b))
+    const most = blows.reduce((m, b, i) => (raws[i] > 0 ? Math.max(m, ks[i]) : m), -1)
+    if (most < 0) continue
+    const { tiles, steps } = stepsFn(battle, u, at, most)
+    for (let i = 0; i < blows.length; i++) {
+      const b = blows[i]
+      const raw = raws[i]
+      const k = ks[i]
       if (!(raw > 0) || k < 0) continue
       const r = blowReach(u, b)
       const ra = aloft(u, b, r)
-      const spots = spotsOf(battle, u, at, k)
-      for (const t of spots) {
+      for (let j = 0; j < tiles.length && steps[j] <= k; j++) {
+        const t = tiles[j]
         if (lines && lined(b)) {
           // A ranged blow reaches the air as the ground (aloft), on the same lines.
-          sight(battle, side, t, u.size, r, raw, g, a, alone)
+          sight(battle, side, t, u.size, r, raw, g, a, alone, area)
           continue
         }
-        dilate(g, t, u.size, r, raw)
-        if (ra >= 0) dilate(a, t, u.size, ra, raw)
+        dilate(g, t, u.size, r, raw, area)
+        if (ra >= 0) dilate(a, t, u.size, ra, raw, area)
       }
     }
-    for (let t = 0; t < TILES; t++) {
-      ground[t] += g[t]
-      air[t] += a[t]
+    if (only) {
+      for (const t of only) {
+        ground[t] += g[t]
+        air[t] += a[t]
+      }
+    } else {
+      for (let t = 0; t < TILES; t++) {
+        ground[t] += g[t]
+        air[t] += a[t]
+      }
     }
     for (const [y, list] of alone) {
       let w = null
-      for (let t = 0; t < TILES; t++) {
+      for (let i = 0, n = only ? only.length : TILES; i < n; i++) {
+        const t = only ? only[i] : i
         const dg = list[t] - g[t]
         const da = list[t] - a[t]
         if (dg <= 0 && da <= 0) continue
-        w ??= shields.get(y) ?? shields.set(y, { ground: new Float64Array(TILES), air: new Float64Array(TILES) }).get(y)
+        w ??= shields.get(y) ?? shields.set(y, { ground: new Array(TILES).fill(0), air: new Array(TILES).fill(0) }).get(y)
         if (dg > 0) w.ground[t] += dg
         if (da > 0) w.air[t] += da
       }
@@ -66,9 +91,24 @@ export function danger (battle, side, at = null, { lines = true } = {}) {
   return { ground, air, shields }
 }
 
+// Tiles read alone (danger's `only`) and the box that bounds them: a reach that misses the box reads none of them.
+function areaOf (tiles) {
+  let xa = LANES
+  let xb = -1
+  let ya = DEPTH
+  let yb = -1
+  for (const t of tiles) {
+    xa = Math.min(xa, tileX(t))
+    xb = Math.max(xb, tileX(t))
+    ya = Math.min(ya, tileY(t))
+    yb = Math.max(yb, tileY(t))
+  }
+  return { tiles, xa, xb, ya, yb }
+}
+
 // danger's scratch, one unit's reach at a time (nothing danger calls reads a danger map).
-const DANGER_G = new Array(TILES)
-const DANGER_A = new Array(TILES)
+const DANGER_G = new Array(TILES).fill(0)
+const DANGER_A = new Array(TILES).fill(0)
 
 // Whether a Hexed `u` will lose its next act (`later`: it acts after a turn's end, where a Hexed of a turn runs out).
 export const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id === 'hexed' && (s.fresh || s.dur === 'battle' || s.dur > 1)))
@@ -77,6 +117,21 @@ export const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) 
 // names), a piece of yours anywhere `tiles` reaches, a summon or a shadow where it stands.
 const spotsOf = (battle, u, at, tiles) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadTiles(battle, u, tiles))
   : orderable(battle, u) ? [u.tile, ...reach(battle, u, tiles).keys()] : [u.tile]
+// spotsOf's tiles, each with the steps it takes, the fewest first: a road's tile its place on the road, a reached
+// tile its path's length. Those within k steps are spotsOf's at k (a road's first k + 1; reach's within k).
+export function stepsOf (battle, u, at, tiles) {
+  if (u.side === 'foe' || !orderable(battle, u)) {
+    const list = spotsOf(battle, u, at, tiles)
+    return { tiles: list, steps: list.map((t, i) => i) }
+  }
+  const list = [u.tile]
+  const steps = [0]
+  for (const [t, path] of reach(battle, u, tiles)) {
+    list.push(t)
+    steps.push(path.length)
+  }
+  return { tiles: list, steps }
+}
 // The tiles `u` can walk on its next turn's energy (energyOf, as its Move stands now: the budget set last is its last
 // turn's; a Rooted one keeps its energy and walks none) and still pay blow `b` (none: the walk alone): its next turn's
 // stride; −1 where that energy cannot pay `b`.
@@ -108,49 +163,74 @@ export function threatOf (battle, u) {
 }
 
 // A lined blow of `raw` from a footprint at `tile` within `r`: each tile it reaches with no one of `side` between holds
-// at least `raw` in `g` and `a`; one a single unit alone screens holds it in that unit's list in `alone`.
-function sight (battle, side, tile, size, r, raw, g, a, alone) {
+// at least `raw` in `g` and `a`; one a single unit alone screens holds it in that unit's list in `alone`. `area`
+// (areaOf): of those tiles, its tiles alone.
+function sight (battle, side, tile, size, r, raw, g, a, alone, area = null) {
   const x0 = tileX(tile)
   const y0 = tileY(tile)
+  const ya = Math.max(0, y0 - r)
   const yb = Math.min(DEPTH - 1, y0 + size - 1 + r)
   const xa = Math.max(0, x0 - r)
   const xb = Math.min(LANES - 1, x0 + size - 1 + r)
-  for (let y = Math.max(0, y0 - r); y <= yb; y++) {
-    for (let x = xa, t = y * LANES + xa; x <= xb; x++, t++) {
-      if (g[t] >= raw && a[t] >= raw) continue
-      const [p, q] = size === 1 ? [tile, t] : lineEnds(tile, size, t, 1)
-      const k = p * TILES + q
-      let one = null
-      let many = false
-      for (let i = LINE_AT[k]; i < LINE_AT[k + 1] && !many; i++) {
-        const c = LINE_TILES[i]
-        for (let n = 0; n < 2; n++) {
-          const w = n ? battle.sky[c] : battle.at[c]
-          if (w === null || w.side !== side || w === one) continue
-          if (one === null) one = w
-          else many = true
-        }
-      }
-      if (one === null) {
-        if (g[t] < raw) g[t] = raw
-        if (a[t] < raw) a[t] = raw
-      } else if (!many) {
-        const list = alone.get(one) ?? alone.set(one, new Float64Array(TILES)).get(one)
-        if (list[t] < raw) list[t] = raw
-      }
+  if (area) {
+    if (xb < area.xa || xa > area.xb || yb < area.ya || ya > area.yb) return
+    for (const t of area.tiles) {
+      const x = tileX(t)
+      const y = tileY(t)
+      if (x >= xa && x <= xb && y >= ya && y <= yb) seen(battle, side, tile, size, t, raw, g, a, alone)
     }
+    return
+  }
+  for (let y = ya; y <= yb; y++) {
+    for (let t = y * LANES + xa, tb = y * LANES + xb; t <= tb; t++) seen(battle, side, tile, size, t, raw, g, a, alone)
+  }
+}
+// sight's reading of tile `t`.
+function seen (battle, side, tile, size, t, raw, g, a, alone) {
+  if (g[t] >= raw && a[t] >= raw) return
+  let p = tile
+  let q = t
+  if (size !== 1) [p, q] = lineEnds(tile, size, t, 1)
+  const k = p * TILES + q
+  let one = null
+  let many = false
+  for (let i = LINE_AT[k]; i < LINE_AT[k + 1] && !many; i++) {
+    const c = LINE_TILES[i]
+    for (let n = 0; n < 2; n++) {
+      const w = n ? battle.sky[c] : battle.at[c]
+      if (w === null || w.side !== side || w === one) continue
+      if (one === null) one = w
+      else many = true
+    }
+  }
+  if (one === null) {
+    if (g[t] < raw) g[t] = raw
+    if (a[t] < raw) a[t] = raw
+  } else if (!many) {
+    const list = alone.get(one) ?? alone.set(one, new Array(TILES).fill(0)).get(one)
+    if (list[t] < raw) list[t] = raw
   }
 }
 
-// Every tile within `r` of a footprint at `tile` holds at least `raw`.
-function dilate (list, tile, size, r, raw) {
+// Every tile within `r` of a footprint at `tile` holds at least `raw`; `area` (areaOf): of those tiles, its tiles alone.
+function dilate (list, tile, size, r, raw, area = null) {
   const x0 = tileX(tile)
   const y0 = tileY(tile)
+  const ya = Math.max(0, y0 - r)
   const yb = Math.min(DEPTH - 1, y0 + size - 1 + r)
   const xa = Math.max(0, x0 - r)
   const xb = Math.min(LANES - 1, x0 + size - 1 + r)
-  for (let y = Math.max(0, y0 - r); y <= yb; y++) {
-    for (let x = xa, t = y * LANES + xa; x <= xb; x++, t++) if (list[t] < raw) list[t] = raw
+  if (area) {
+    if (xb < area.xa || xa > area.xb || yb < area.ya || ya > area.yb) return
+    for (const t of area.tiles) {
+      const x = tileX(t)
+      const y = tileY(t)
+      if (x >= xa && x <= xb && y >= ya && y <= yb && list[t] < raw) list[t] = raw
+    }
+    return
+  }
+  for (let y = ya; y <= yb; y++) {
+    for (let t = y * LANES + xa, tb = y * LANES + xb; t <= tb; t++) if (list[t] < raw) list[t] = raw
   }
 }
 
@@ -169,14 +249,15 @@ export const mitigation = (battle, x) => {
 }
 
 // What `u` would take standing on `tile` (its footprint's worst tile) by a danger map for its side, at most its HP. A
-// piece never screens itself: what the map has it alone screen counts against it here.
-export function dangerAt (battle, u, tile, map) {
+// piece never screens itself: what the map has it alone screen counts against it here. `mit`: its mitigation, read
+// already on this board.
+export function dangerAt (battle, u, tile, map, mit = mitigation(battle, u)) {
   const list = u.flies ? map.air : map.ground
   const own = map.shields?.get(u)
   const mine = own && (u.flies ? own.air : own.ground)
   let raw = 0
   for (const t of footprint(tile, u.size) ?? [tile]) raw = Math.max(raw, list[t] + (mine ? mine[t] : 0))
-  return Math.min(u.hp, raw * mitigation(battle, u))
+  return Math.min(u.hp, raw * mit)
 }
 
 // ── the pressure ─────────────────────────────────────────────────────────────────────────────────

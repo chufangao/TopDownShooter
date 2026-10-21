@@ -1,18 +1,17 @@
 // What the autoplayer reads out of battle: the models it ships beside its code (shippedPart); its decisions by a tree of
-// hard rules, then weights (decide, TREES), and the learned route's model tree (leafOf); a board's situation (situation)
-// and the opening board's conditions as named numbers (conditions); and the plan for your pieces on a battle's first
-// board with its formation (readPlan, formation), which prep deploys by (deployment). Never shipped.
+// hard rules, then weights (decide, TREES), and the learned route's model tree (leafOf); a board's situation (situation);
+// and the plan for your pieces on a battle's first board with its formation (readPlan, formation), which prep's plan
+// draft deploys by (deployment). Never shipped.
 import { TUNING } from '../tuning.js'
-import { SYNERGIES, unitDef, abilityDef } from '../content.js'
+import { unitDef, abilityDef } from '../content.js'
 import { LANE, roadOf, fieldOf, airOf } from './field.js'
 import { danger, stunned, rawOf, mitigation, dangerAt, hit, options, hardest, struckOf } from './foe.js'
 import {
-  stats, computeDamage, roadTiles, usable, canAct, hexed, aloft, orderable, isSkill, synergiesOf, nextWave, lined, stride, counterOf, ariseOf,
-  lineBlocker
+  stats, computeDamage, roadTiles, usable, canAct, hexed, aloft, orderable, isSkill, nextWave, lined, stride, counterOf, ariseOf, lineBlocker
 } from './turns.js'
 import {
-  alive, isBlow, isAllyShape, footprint, tileX, tileAt, distance, distanceBetween, blowReach, rangeOf, statsOf, abilitiesOf, lineEnds, between,
-  LINE_AT, LINE_TILES, TILES, LANES, DEPTH, NEIGHBOURS, synergyCounts, synergyNeeds
+  alive, isBlow, footprint, tileX, tileAt, distance, distanceBetween, blowReach, statsOf, abilitiesOf, lineEnds, between, LINE_AT, LINE_TILES,
+  TILES, LANES, DEPTH, NEIGHBOURS
 } from './unit.js'
 
 // ── the models shipped ───────────────────────────────────────────────────────────────────────────
@@ -85,80 +84,7 @@ export function outranks (a, b) {
   return a.score > b.score ? a.keys.length : -1
 }
 
-// ── the vocabulary of conditions ─────────────────────────────────────────────────────────────────
-
-// The situation of a board (situation) as named numbers: what the forests out of battle read of the board a formation
-// opens a battle on (outforest.js OPENING_KEYS, OPENING_ROOM_KEYS), each a count, a sum or a share. The labelled data
-// reads these names: add, never rename.
-export function conditions (sit) {
-  const m = sit.monarch
-  let open = 0
-  let soonest = 99
-  let unheld = 0
-  for (const r of sit.roads) {
-    if (r.held !== null) continue
-    unheld++
-    open += r.foes.length
-    for (const f of r.foes) soonest = Math.min(soonest, f.turns)
-  }
-  let held = 0
-  for (const xs of sit.holding.values()) held += xs.length
-  let dies = 0
-  let danger = 0
-  let ready = 0
-  for (const p of sit.pieces) {
-    if (p.dies) dies++
-    danger += p.danger
-    ready += p.ready.length
-  }
-  let primed = 0
-  let mends = 0
-  for (const x of sit.foes) {
-    primed += x.ready.length
-    if (x.mends) mends++
-  }
-  let healing = 0
-  for (const x of sit.healing.values()) healing += x
-  const w = sit.wave
-  return {
-    'monarch.danger': m?.danger ?? 0,
-    'monarch.peril': m ? Math.min(4, m.danger / Math.max(1, m.hp)) : 0,
-    'monarch.threats': m?.threats.length ?? 0,
-    'monarch.screened': m?.screened.length ?? 0,
-    roads: sit.roads.length,
-    'roads.open': unheld,
-    'roads.openFoes': open,
-    'roads.soonest': soonest,
-    holding: sit.holding.size,
-    'holding.foes': held,
-    'entries.ground': sum(sit.entries.ground),
-    'entries.air': sum(sit.entries.air),
-    pieces: sit.pieces.length,
-    'pieces.dies': dies,
-    'pieces.danger': danger,
-    'pieces.ready': ready,
-    killable: sit.killable.length,
-    'foes.ready': primed,
-    'foes.mends': mends,
-    'healers.foe': sit.healers.foe.length,
-    healing,
-    'synergies.party': sit.synergies.party.length,
-    'synergies.foe': sit.synergies.foe.length,
-    'synergies.breaks': sit.synergies.breaks.length,
-    'synergies.gains': sit.synergies.gains.length,
-    'wave.in': w ? w.turn - sit.turn : 99,
-    'wave.lanes': w?.lanes.length ?? 0,
-    shadows: sit.shadows,
-    idle: sit.idle.length
-  }
-}
-
 const NONE = Object.freeze([])
-const sum = (xs) => {
-  let n = 0
-  for (let i = 0; i < xs.length; i++) n += xs[i]
-  return n
-}
 
 // ── the hard rules ───────────────────────────────────────────────────────────────────────────────
 
@@ -255,95 +181,40 @@ export const pathName = (r) => `${r.path.map((p) => `${p.if}${p.hi ? '>' : '≤'
 
 // ── the situation ────────────────────────────────────────────────────────────────────────────────
 
-// What a player reads of the board, never the camp's pressure nor its coming turn: the fields the conditions, the plan
-// and the kill list read:
-//   turn       the turn
+// What a player reads of the board, never the camp's pressure nor its coming turn: the fields the plan and the kill list
+// read:
 //   map        the danger map for your side (danger)
-//   healing    Map foe → what the foes' healers could mend it next turn (healingRead)
 //   threat     { foes (threatRead), d (Map foe → Map unit of yours → HP) }
-//   entries    { ground, air }: by tile beside the Monarch, how many foes' roads come in by it
-//   roads      [{ tile, held (a uid or null), foes: [{ uid, turns (to come beside the Monarch), reach }] }]
-//   holding    Map piece uid → the foes whose road it holds within their Move
 //   monarch    { hp, danger, threats: [{ uid, deals }], deals (Map), screened }, or null
-//   pieces     [{ uid, danger, dies, ready }]: yours that take orders
 //   killable   [{ uid, by: [uids] }]: the foes one of yours could fell alone this turn
-//   foes       [{ uid, ready, mends }]: the living foes
-//   healers    { foe }: the uids of theirs that heal
-//   synergies  { party, foe, breaks (the foes' one kill would end), gains (yours one more piece would bring) }
 //   wave       the next wave { wave, turn, lanes }, or null
-//   shadows    how many shadows and summons of yours stand
-//   idle       the uids of your pieces yet to act
-// `short`: threat.d left out (the opening board's read).
-export function situation (battle, { short = false } = {}) {
+export function situation (battle) {
   const map = danger(battle, 'party')
   const m = battle.monarch && alive(battle.monarch) ? battle.monarch : null
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
   const mine = battle.units.filter((x) => orderable(battle, x))
-  const entries = { ground: new Array(TILES).fill(0), air: new Array(TILES).fill(0) }
-  const roads = new Map()
-  const holding = new Map()
   const deals = new Map()
   const screened = []
   const aheads = new Map()
   for (const x of foes) {
     const spots = roadTiles(battle, x, x.move)
     aheads.set(x, spots)
-    // The tile its road stops before this turn, short of its Move: who holds it there.
-    const stop = spots.length <= x.move ? roadOf(battle, x).arrow[spots[spots.length - 1]] : -1
-    const holder = stop >= 0 ? holderOn(battle, x, stop) : null
-    if (holder && orderable(battle, holder)) holding.set(holder.uid, [...(holding.get(holder.uid) ?? []), x])
     if (!m) continue
     const d = strikeOn(battle, x, m, spots)
     if (d > 0) deals.set(x, d)
     else if (strikeOn(battle, x, m, spots, false) > 0) screened.push(x)
-    const road = roadOf(battle, x)
-    const t = entryOf(road, x.tile)
-    if (t < 0) continue
-    const by = x.flies ? entries.air : entries.ground
-    by[t]++
-    if (!roads.has(t)) roads.set(t, { tile: t, held: battle.at[t]?.side === 'party' ? battle.at[t].uid : null, foes: [] })
-    roads.get(t).foes.push({ uid: x.uid, turns: Math.ceil((road.dist[x.tile] - 1) / Math.max(1, x.move)), reach: farthest(x) })
   }
   const total = [...deals.values()].reduce((n, d) => n + d, 0)
-  const ready = (u) => u.kit.filter((a) => isSkill(u, a) && !(u.cooldowns[a.id] > 0)).map((a) => a.id)
   const read = threatRead(battle, aheads)
   const next = nextWave(battle)
   return {
-    turn: battle.turn,
     map,
-    healing: healingRead(battle),
-    threat: { foes: read, d: short ? null : strikes(battle, read, targetsOf(battle)) },
-    entries,
-    roads: [...roads.values()].sort((a, b) => a.tile - b.tile),
-    holding,
+    threat: { foes: read, d: strikes(battle, read, targetsOf(battle)) },
     monarch: m && { hp: m.hp, danger: total, threats: [...deals].map(([x, d]) => ({ uid: x.uid, deals: d })), deals, screened },
-    pieces: mine.map((u) => {
-      const d = dangerAt(battle, u, u.tile, map)
-      return { uid: u.uid, danger: d, dies: d >= u.hp, ready: ready(u) }
-    }),
     killable: foes.map((x) => ({ uid: x.uid, by: mine.filter((u) => fells(battle, u, x)).map((u) => u.uid) })).filter((k) => k.by.length),
-    foes: foes.map((x) => ({ uid: x.uid, ready: ready(x), mends: !!x.mend })),
-    healers: { foe: foes.filter((u) => u.mend).map((u) => u.uid) },
-    synergies: synergyRead(battle),
-    wave: next && { ...next, lanes: [...new Set(battle.reserve.filter((f) => (f.wave || 1) === next.wave).map((f) => f.lane))] },
-    shadows: battle.units.filter((u) => u.side === 'party' && alive(u) && u.shadow).length,
-    idle: mine.filter((u) => !u.acted).map((u) => u.uid)
+    wave: next && { ...next, lanes: [...new Set(battle.reserve.filter((f) => (f.wave || 1) === next.wave).map((f) => f.lane))] }
   }
 }
-
-// Who holds foe `x`'s road on tile `t`, as turns.js roadAhead reads it (a flyer's: one of yours on the ground, else the air).
-const holderOn = (battle, x, t) => (x.flies ? (battle.at[t] !== null && battle.at[t].side !== x.side ? battle.at[t] : battle.sky[t]) : battle.at[t])
-
-// The tile road `road` comes into its root by (the one beside it), from `tile`; −1 where no road runs.
-function entryOf (road, tile) {
-  if (!(road.dist[tile] < Infinity) || road.dist[tile] < 1) return -1
-  let t = tile
-  for (let k = 0; k < TILES && road.dist[t] > 1; k++) t = road.arrow[t]
-  return t
-}
-
-// How far a unit's blows reach at most (on the board).
-const farthest = (u) => Math.min(DEPTH, Math.max(0, ...u.kit.filter(isBlow).map((b) => blowReach(u, b))))
 
 // What foe `x` could deal the Monarch `m` next turn after DEF: its hardest ready blow reaching m from `spots` (a lined one
 // on a clear line; `lines` false: no lines), 0 for none.
@@ -418,28 +289,6 @@ function strikeAt (battle, f, y, tile, spots) {
   return best
 }
 
-// What the foes' healers could mend each foe next turn (ready heals within Move and range, each healer counted for
-// everyone it reaches): Map foe → HP.
-function healingRead (battle) {
-  const out = new Map()
-  for (const h of battle.units) {
-    if (h.side !== 'foe' || !alive(h) || stunned(h, false)) continue
-    const s = stats(battle, h)
-    for (const a of h.kit) {
-      if (!isAllyShape(a.shape) || (isSkill(h, a) && (h.cooldowns[a.id] ?? 0) > 0)) continue
-      const heal = a.effects.find((e) => e.op === 'heal' && !e.self)
-      if (!heal) continue
-      const r = rangeOf(a) + h.move
-      for (const x of battle.units) {
-        if (x.side !== 'foe' || !alive(x) || distanceBetween(h.tile, h.size, x.tile, x.size) > r) continue
-        const n = heal.pct ? x.maxHp * heal.pct : heal.power * s.atk / TUNING.damage.atkDivisor * s.heal.given
-        out.set(x, Math.max(out.get(x) ?? 0, 0) + n)
-      }
-    }
-  }
-  return out
-}
-
 // Your side's units the foes may strike: the Monarch, your pieces, your shadows and summons.
 const targetsOf = (battle) => battle.units.filter((y) => y.side === 'party' && alive(y))
 
@@ -468,27 +317,6 @@ function fells (battle, u, x) {
     if (r >= 0 && gap - stride(u, b) <= r && blowOn(battle, u, b, x) >= x.hp) return true
   }
   return false
-}
-
-// The synergies on each side; `breaks`: the foes' one fewer of a kin or role would end; `gains`: yours one more would bring.
-function synergyRead (battle) {
-  // Each side's living by kin and role, a trine as three (unit.js synergyCounts), the Monarch none.
-  const counts = (side) => synergyCounts(battle.units.filter((u) => u.side === side && alive(u) && u !== battle.monarch))
-  const short = (syn, c) => {
-    let n = 0
-    for (const [axis, id, need] of synergyNeeds(syn)) n += Math.max(0, need - (c[axis][id] ?? 0))
-    return n
-  }
-  const theirs = counts('foe')
-  const ours = counts('party')
-  const party = synergiesOf(battle, 'party').map((x) => x.id)
-  const foe = synergiesOf(battle, 'foe')
-  return {
-    party,
-    foe: foe.map((x) => x.id),
-    breaks: foe.filter((syn) => synergyNeeds(syn).some(([axis, id, need]) => theirs[axis][id] === need)).map((x) => x.id),
-    gains: SYNERGIES.filter((syn) => !party.includes(syn.id) && short(syn, ours) === 1).map((x) => x.id)
-  }
 }
 
 // What blow `a` of `u` would deal `x` as it lands (its damage effects; before the rules that bend it).

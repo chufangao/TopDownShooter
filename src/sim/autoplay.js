@@ -21,6 +21,9 @@
 //     --solver-budget n       its plans a battle (none by default): a solved battle then a function of its board
 //     --solver-widths 4/16/16,6/48/64,8/128/256   its levels of K/B/W, widened in turn to the first that wins
 //     --solver-slack 0|1      whether it reads each turn's slack of its line (1)
+//     --prep-budget 5000      the formation's (solver.js bestFormation): its plans a candidate but today's pick (never
+//                             more than --solver-budget)
+//     --prep-cap 3            the formation's candidates solved at most, today's pick among them
 //     --ascension 0|a,b,…|all the ascension level (a list or all for --ladder alone)
 //     --monarch id            who plays (the base Monarch by default)
 //     --workers n             the pool's size (one per core by default)
@@ -62,13 +65,15 @@ if (typeof process !== 'undefined' && process.argv[1] === decodeURIComponent(new
     if (arg('solver-widths', null) !== null) process.env.RETINUE_SOLVER_WIDTHS = arg('solver-widths')
     if (arg('solver-budget', null) !== null) process.env.RETINUE_SOLVER_BUDGET = String(Number(arg('solver-budget')))
     if (arg('solver-slack', null) !== null) process.env.RETINUE_SOLVER_SLACK = String(Number(arg('solver-slack')))
+    if (arg('prep-budget', null) !== null) process.env.RETINUE_PREP_BUDGET = String(Number(arg('prep-budget')))
+    if (arg('prep-cap', null) !== null) process.env.RETINUE_PREP_CAP = String(Number(arg('prep-cap')))
     // A run whose battles the solver plays (every report's but basic's own) is a pure function of its job only under a
     // budget and no cap (a cap is wall-clock): kept then, its knobs in the key.
     const knobs = opts.level === 'basic' && !has('ablations') ? null : solverKnobs()
     const cache = has('no-cache') || (knobs && !knobs.pure) ? null : runCache({ dir: arg('cache', defaultDir()) })
     if (cache && knobs) {
       const key = cache.key
-      cache.key = (job) => key({ ...job, solver: { budget: knobs.budget, widths: knobs.widths, slack: knobs.slack } })
+      cache.key = (job) => key({ ...job, solver: { budget: knobs.budget, widths: knobs.widths, slack: knobs.slack, prep: knobs.prep } })
     }
     configure({ cache })
     const sequential = has('sequential')

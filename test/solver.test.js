@@ -1,12 +1,14 @@
 // The battle solver (solver.js): a beam search over whole turns to the battle's end. Functional only: that it is
 // deterministic, that its line replays order by order and every order is legal, that it finds forced wins (a key before
 // its blow), that its score ranks a won board first and a lost one last, that its filter keeps every kill and key, that
-// its value is the labels' (values.js), and that it plays as a turn policy, the expert's battles; never how often it
-// wins; that a budget of plans makes it a function of the board.
+// its value is the labels' (values.js), that its reading of what yours could deal is the full danger map's, and that it
+// plays as a turn policy, the expert's battles; never how often it wins; that a budget of plans makes it a function of
+// the board.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createBattle, fork, order, legalOrders, preview } from '../src/sim/turns.js'
-import { solve, solverTurn, solverKnobs, boardHash, tallyOf, valueOf, scoreOf, candidates, replay, useSolverHook } from '../src/sim/solver.js'
+import { solve, solverTurn, solverKnobs, boardHash, tallyOf, valueOf, scoreOf, threatOn, candidates, replay, useSolverHook, PREP } from '../src/sim/solver.js'
+import { danger, dangerAt } from '../src/sim/foe.js'
 import { endTally, endValue } from '../src/sim/values.js'
 import { record, LEVELS, TURNS, turnsOf } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
@@ -61,6 +63,7 @@ const timeless = (s) => ({ ...s, ms: 0, slackMs: 0 })
 
 test('the board\'s hash: a copy hashes alike, a walk parts it, its Undo merges it back; a status laid parts it', () => {
   const b = createBattle(SAMPLE[0].setup)
+  assert.ok(Number.isSafeInteger(boardHash(b)), 'a number')
   assert.equal(boardHash(fork(b)), boardHash(b))
   const u = b.units.find((x) => x.side === 'party' && x !== b.monarch && !x.shadow)
   const tile = legalOrders(b).find((o) => o.type === 'move' && o.uid === u.uid).tile
@@ -208,6 +211,28 @@ test('the score: a won board above every board under way, a lost one below; unde
   }
 })
 
+test('what yours could deal, read at the foes\' tiles alone and by the book of your reach, is the full map\'s to the bit', () => {
+  // Every board of a few fuzzed turns and each legal order's board from there, read twice (the book's second reading).
+  let n = 0
+  for (const [seed, list] of Object.entries(RUNS)) {
+    for (const [i, x] of list.entries()) {
+      if (i % 5) continue
+      const b = fuzzed(x.setup, `threat|${seed}|${i}`, 1 + (i % 3))
+      if (b.over) continue
+      for (const o of legalOrders(b).slice(0, 24)) {
+        const g = fork(b)
+        order(g, o)
+        if (g.over) continue
+        const map = danger(g, 'foe')
+        const full = g.units.reduce((s, u) => s + (u.side === 'foe' && u.hp > 0 ? dangerAt(g, u, u.tile, map) : 0), 0)
+        assert.ok(Object.is(threatOn(g), full) && Object.is(threatOn(g), full), `${threatOn(g)} against ${full}`)
+        n++
+      }
+    }
+  }
+  assert.ok(n >= 50, `${n} boards read`)
+})
+
 test('the filter: at the narrowest it keeps every kill, every key a later piece pays, a lock\'s key, and the hold', () => {
   // Marrow Bolt lays Brittle: the knight's Strike is keyed to it, and the golem's lock opens to it. The thornling at 1
   // HP is a kill; the one at full HP no lock.
@@ -287,7 +312,8 @@ test('a budget of plans: the same board and budget give the same line, the cap o
   delete process.env.RETINUE_SOLVER_CAP
   try {
     withKnobs({ budget: 2000, slack: 0 }, () => {
-      assert.deepEqual({ ...solverKnobs(), widths: null }, { budget: 2000, cap: Infinity, widths: null, slack: false, pure: true })
+      // The formation's budget a candidate never above a battle's own.
+      assert.deepEqual({ ...solverKnobs(), widths: null }, { budget: 2000, cap: Infinity, widths: null, slack: false, pure: true, prep: { budget: Math.min(PREP.budget, 2000), cap: PREP.cap } })
       const c = solve(createBattle(setup))
       assert.deepEqual(c.line, a.line)
       assert.deepEqual(timeless(c.stats), timeless(a.stats))

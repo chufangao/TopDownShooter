@@ -481,10 +481,12 @@ test('the survey: where the run stands, its purse and prices, wounds, the target
   }
 })
 
-// No decision of the expert's out of battle plays a battle or a turn of the foes: the camp's turn reads its pressure
-// (TUNING.policy.press) and a battle played out reads the sim's bound on turns (TUNING.turn.guard), so both are counted
-// while the expert decides, over whole runs (in battle the solver plays its lines ahead on copies, so there neither is).
-test('no decision of the expert out of battle plays a battle or a turn of the foes, over whole runs', () => {
+// No decision of the expert's out of battle plays a battle or a turn of the foes but its formation (the coming battle
+// solved in each candidate, solver.js bestFormation: a step of the prep's walk to it, a place or the fight): the camp's
+// turn reads its pressure (TUNING.policy.press) and a battle played out reads the sim's bound on turns
+// (TUNING.turn.guard), so both are counted while the expert decides, over whole runs (in battle the solver plays its
+// lines ahead on copies, so there neither is).
+test('no decision of the expert out of battle but its formation plays a battle or a turn of the foes, over whole runs', () => {
   const reads = { press: 0, guard: 0 }
   const spy = (o, key, count) => {
     const real = o[key]
@@ -500,7 +502,8 @@ test('no decision of the expert out of battle plays a battle or a turn of the fo
         const phase = run.state.phase
         reads.press = reads.guard = 0
         const a = policy(run, rng, 'expert')
-        if (phase !== 'battle') assert.deepEqual([reads.press, reads.guard], [0, 0], `${seed} ${phase}: the camp's pressure read, or a battle played`)
+        const formation = phase === 'prep' && (a.type === 'place' || a.type === 'fight')
+        if (phase !== 'battle' && !formation) assert.deepEqual([reads.press, reads.guard], [0, 0], `${seed} ${phase} ${a.type}: the camp's pressure read, or a battle played`)
         apply(run, a)
       }
     }
