@@ -24,7 +24,7 @@
 
 ## State (2026-10-21, after the audit and balance step 2)
 
-Master `3419ede` plus this session's work, uncommitted: the audit's fixes and balance step 2 (both recorded below). 550 tests, all passing, ~9 minutes here (the expert's battles at 300 plans, `test/budget.js`). The Decisions sections below are the record; this section is where things stand and what to do next.
+Master `f9b64f3`: the audit's fixes and balance step 2 (both recorded below), pushed. 550 tests, all passing, ~9 minutes here (the expert's battles at 300 plans, `test/budget.js`). The Decisions sections below are the record; this section is where things stand and what to do next.
 
 - **The expert = the out-of-battle player (player.js, rules + the recruit forest + the route tree + the combo book) with the solver fighting every battle and choosing every formation.** Free play, ascension 0, `--solver-budget 150000 --solver-slack 0`, prep 5,000 / cap 3: on 64 fresh seeds (cf21) 50 of 64 clears before step 2, 45 of 64 after (+11 −16, progress −2.2 ± 3.2); ~310 s a run on one core with step 2's foes (230 before), 8 workers on 16 GB, so a 64-seed set is ~45 minutes.
 - **What the solver says about the game now:** fights ask for play: End Turn alone wins 78% of floor-1 fights (90% before), a one-wide greedy search 92% (99%), the solver all of them at ~1.4% of the Monarch's HP a fight; the Monarch enters the floor-1 boss ~7 points lower. The bosses are the sharp battles; every loss is a solve the budget cut short, or a fight entered with the Monarch already low. The basic player (rules of thumb, End Turn) clears none and falls on floor 1.
