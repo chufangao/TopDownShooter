@@ -750,7 +750,7 @@ export function formation (battle, plan, within = null) {
   const foes = battle.units.filter((x) => x.side === 'foe' && alive(x))
   const taken = new Set()
   const ok = (t) => !taken.has(t) && t !== battle.root && !battle.walls.has(t) && (within === null || within.has(t)) && (battle.at[t] === null || battle.at[t].side === 'party')
-  const shadow = (u) => !!u && u.side === 'party' && u !== battle.monarch && !orderable(battle, u)
+  const summon = (u) => !!u && u.side === 'party' && u !== battle.monarch && !orderable(battle, u)
   const slots = []
   const add = (s) => {
     slots.push(s)
@@ -760,7 +760,7 @@ export function formation (battle, plan, within = null) {
   const gsrc = roadSources(battle, foes, false)
   const sources = gsrc.tiles
   const line = chokes(ground, sources, W.line, outOfRange(battle, ground, gsrc, ok))
-  for (const c of line) if (ok(c.tile) && !shadow(battle.at[c.tile])) add({ role: 'block', tile: c.tile })
+  for (const c of line) if (ok(c.tile) && !summon(battle.at[c.tile])) add({ role: 'block', tile: c.tile })
   const asrc = roadSources(battle, foes, true)
   const aline = chokes(air, asrc.tiles, W.line, outOfRange(battle, air, asrc, (t) => ok(t) || line.some((g) => g.tile === t && taken.has(t))))
   // An air choke past a wall comes back to the tile inside the last wall its road crosses, unless that is the seat.
@@ -768,7 +768,7 @@ export function formation (battle, plan, within = null) {
     let t = c.tile
     for (let n = c.tile; n >= 0 && air.dist[n] > 0; n = air.arrow[n]) if (battle.walls.has(n)) t = air.arrow[n]
     if (t === battle.root) t = c.tile
-    if (!line.some((g) => g.tile === t) && ok(t) && !shadow(battle.at[t]) && !shadow(battle.sky[t])) add({ role: 'air', tile: t })
+    if (!line.some((g) => g.tile === t) && ok(t) && !summon(battle.at[t]) && !summon(battle.sky[t])) add({ role: 'air', tile: t })
   }
   // A screen on the line of each foe whose lined blow reaches the Monarch from its forecast tile, where no slot stands on
   // that line already: its tile nearest the Monarch, or one of yours on it already.

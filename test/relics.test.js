@@ -5,7 +5,7 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, enterBattle, order, playOut, playTurns, preview, perform, stats, corpses, ariseOf as ariseIn, synergiesOf, timelineHash, legalOrders } from '../src/sim/turns.js'
+import { createBattle, enterBattle, order, playOut, playTurns, preview, perform, stats, corpses, ariseOf as ariseIn, synergiesOf, timelineHash, legalOrders, orderable } from '../src/sim/turns.js'
 import { basicTurn } from '../src/sim/foe.js'
 import { solverTurn } from '../src/sim/solver.js'
 import {
@@ -18,8 +18,8 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, relicMod } from './tuned.js'
 import { RELIC_LIST, RELICS, UNITS } from '../src/content.js'
-import { makeUnit, alive, baseStats, footprint, tileAt, distance } from '../src/sim/unit.js'
-import { on, scene as sceneOf, slay, unit, turns } from './scene.js'
+import { makeUnit, alive, baseStats, footprint, tileAt } from '../src/sim/unit.js'
+import { on, scene as sceneOf, slay, unit, turns, moves } from './scene.js'
 import { visit, win } from './rooms.js'
 
 // Legion's mods on your souls (its Command is the run's: run.js RUN_PATHS).
@@ -804,19 +804,70 @@ test('Arise\'s reach and tier are the run\'s, a run relic at a time (Hourglass, 
   assert.ok(!legalOrders(none).some((o) => o.ability === 'arise'))
 })
 
-// field.js riseTile: the free tile nearest the Monarch, but never the one it fell on, so the dead never block a road.
-test('a shadow of yours never rises where it fell, though that is the free tile nearest the Monarch: by Arise, or as the slain rises (Gravedigger\'s Spade)', () => {
+// field.js riseTile: a shadow of yours rises where it fell, though a tile beside the Monarch is free.
+test('a shadow of yours rises where it fell, never beside the Monarch for being nearest it: by Arise, or as the slain rises (Gravedigger\'s Spade)', () => {
   const foe = [on('grave_ghoul', 10, 'foe', 3, 1, 1), on('iron_golem', 50, 'foe', 6, 10)]
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), ...foe])
   slay(b, unit(b, 10))
   const arise = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
-  assert.equal(arise.from, tileAt(3, 1))
-  assert.equal(arise.unit.tile, tileAt(2, 0), 'the next tile beside the Monarch, ties as riseTile breaks them')
-  assert.equal(distance(arise.unit.tile, b.monarch.tile), 1)
+  assert.deepEqual([arise.from, arise.unit.tile], [tileAt(3, 1), tileAt(3, 1)], 'where it fell')
   const spade = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['gravediggers_spade']), ...foe])
   unit(spade, 10).hp = 1
   const rise = order(spade, { type: 'act', uid: 1, ability: 'strike', target: 10 }).find((e) => e.type === 'arise')
-  assert.deepEqual([rise.from, rise.unit.tile], [tileAt(3, 1), tileAt(2, 0)])
+  assert.deepEqual([rise.from, rise.unit.tile], [tileAt(3, 1), tileAt(3, 1)])
+})
+
+// An Arise raise rises on the corpse's tile; with a living unit on it, on the free tile nearest it (ties nearest the
+// Monarch, then lane order).
+test('an Arise raise rises on its corpse\'s tile; with one standing there, on the free tile nearest it', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 6, 10)])
+  slay(b, unit(b, 10))
+  const arise = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
+  assert.deepEqual([arise.from, arise.unit.tile, unit(b, arise.unit.uid).tile], [tileAt(3, 4), tileAt(3, 4), tileAt(3, 4)])
+  assert.equal(b.at[tileAt(3, 4)], unit(b, arise.unit.uid))
+  // A Bone Chanter walks onto the corpse: its shadow rises beside it, of the tiles there the one nearest the Monarch,
+  // the centre lane first: (3, 3), the tile the Chanter left.
+  const c = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('bone_chanter', 2, 'party', 3, 3),
+    on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 6, 10)])
+  slay(c, unit(c, 10))
+  order(c, { type: 'move', uid: 2, tile: tileAt(3, 4) })
+  const r = order(c, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
+  assert.deepEqual([r.from, r.unit.tile], [tileAt(3, 4), tileAt(3, 3)])
+  assert.equal(unit(c, 2).tile, tileAt(3, 4), 'the Chanter stands where it walked')
+})
+
+// A shadow of yours takes orders the turn it rises: it enters with its energy and no act spent.
+test('a shadow of yours takes orders the turn it rises: it walks, then strikes a foe', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 3, 5)])
+  slay(b, unit(b, 10))
+  const uid = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise').unit.uid
+  const s = unit(b, uid)
+  assert.ok(s.shadow && !s.summoned && orderable(b, s))
+  assert.deepEqual([s.acted, s.cooldowns, s.energy > 0], [false, {}, true])
+  const mine = legalOrders(b).filter((o) => o.uid === uid)
+  assert.ok(mine.some((o) => o.type === 'move' && o.tile === tileAt(2, 4)), 'a move')
+  assert.ok(mine.some((o) => o.type === 'act' && o.ability === s.basic.id && o.target === 50), 'a strike')
+  const walked = order(b, { type: 'move', uid, tile: tileAt(2, 4) })
+  assert.deepEqual(moves(walked, uid).map((e) => [e.from, e.to]), [[tileAt(3, 4), tileAt(2, 4)]])
+  assert.equal(s.tile, tileAt(2, 4))
+  const hp = unit(b, 50).hp
+  const struck = order(b, { type: 'act', uid, ability: s.basic.id, target: 50 })
+  assert.ok(struck.some((e) => e.type === 'action' && e.actor === uid && e.ability === s.basic.id))
+  assert.ok(unit(b, 50).hp < hp, 'it lands')
+  assert.ok(s.acted && !legalOrders(b).some((o) => o.uid === uid), 'acted: done for the turn')
+})
+
+// A summon still takes no orders: it holds and acts as the untouched do.
+test('a summon takes no orders, though a shadow does', () => {
+  const b = sceneOf([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 3, 3, 4, [0, 2]), on('iron_golem', 50, 'foe', 3, 10)])
+  const called = b.units.filter((u) => u.summoned)
+  assert.ok(called.length > 0)
+  for (const s of called) {
+    assert.ok(s.shadow && !orderable(b, s))
+    assert.ok(!legalOrders(b).some((o) => o.uid === s.uid))
+    assert.throws(() => order(b, { type: 'move', uid: s.uid, tile: s.tile + 1 }), /takes orders/)
+  }
+  assert.ok(orderable(b, unit(b, 1)))
 })
 
 test('what needs an Arise relic is stocked only once one is owned: Hourglass, Bone Idol; a variant counts', () => {

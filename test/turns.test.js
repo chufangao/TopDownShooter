@@ -377,7 +377,7 @@ test('Arise is a skill of the piece holding the relic: one corpse within its rea
   assert.deepEqual(events.filter((e) => e.type === 'arise').map((e) => [e.actor, e.corpse]), [[1, 21]])
   assert.ok(events.some((e) => e.type === 'cooldown' && e.target === 1 && e.ability === 'arise' && e.turns === 1), 'a skill with no rest')
   const shadow = b.byUid.get(events.find((e) => e.type === 'arise').unit.uid)
-  assert.deepEqual([shadow.hp, shadow.maxHp, shadow.shadow, orderable(b, shadow)], [shadow.maxHp, Math.round(stats(b, shadow).hp), true, false], 'at full HP, taking no orders')
+  assert.deepEqual([shadow.hp, shadow.maxHp, shadow.shadow, orderable(b, shadow)], [shadow.maxHp, Math.round(stats(b, shadow).hp), true, true], 'at full HP, taking orders')
   assert.deepEqual(rises(), [], 'its act spent this turn')
   end(b)
   assert.deepEqual(rises().map((o) => o.target), [20], 'the other, the very next turn')
@@ -1109,7 +1109,7 @@ test('with the foes\' rows full, a ground foe of a wave waits in the reserve and
 
 // ── Arise ────────────────────────────────────────────────────────────────────────────────────────
 
-test('Arise raises any corpse in its holder\'s reach of a tier it allows, whoever stands on it, at full HP beside the Monarch', () => tuned(FIRST_ARISE, () => {
+test('Arise raises any corpse in its holder\'s reach of a tier it allows, whoever stands on it, at full HP on the free tile nearest it', () => tuned(FIRST_ARISE, () => {
   // The holder at (3, 2), reach 3, tier 1. Corpses: a Bone Chanter (tier 2) 3 tiles off, a Ghoul (tier 1) 3 off, a
   // Tomb Knight 4 off (outside), and a Wisp (tier 1) a tile off under a living knight of yours.
   const b = scene([
@@ -1127,24 +1127,30 @@ test('Arise raises any corpse in its holder\'s reach of a tier it allows, whoeve
   const arise = events.find((e) => e.type === 'arise')
   const body = Math.round(baseStats('will_o_wisp', 2).hp)
   assert.deepEqual([arise.actor, arise.corpse, arise.from, arise.unit.hp, arise.unit.maxHp, arise.unit.side], [1, 14, tileAt(2, 2), body, body, 'party'])
-  assert.equal(distance(arise.unit.tile, b.monarch.tile), 1, 'beside the Monarch')
+  // Where it fell is the knight's: beside it, the tiles nearest the Monarch, the centre lane first.
+  assert.equal(arise.unit.tile, tileAt(3, 1), 'beside where it fell')
   assert.ok(unit(b, 14).raised && b.at[unit(b, 14).tile] === knight)
 }))
 
-test('a shadow rises on the free tile closest to the Monarch: ties to the tile nearest where it fell, then lane order', () => {
-  const rise = (from, taken = []) => {
-    const b = scene([on('monarch', 0, 'party', 3, 0), ...taken.map(([x, y], i) => on('tomb_knight', 1 + i, 'party', x, y)), on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)])
+test('a shadow rises where it fell; with one standing there, on the free tile nearest it: ties to the tile nearest the Monarch, then lane order', () => {
+  const rise = (from, taken = [], walls = []) => {
+    const b = scene([on('monarch', 0, 'party', 3, 0), ...taken.map(([x, y], i) => on('tomb_knight', 1 + i, 'party', x, y)), on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)],
+      { walls: walls.map((xy) => tileAt(...xy)) })
     return riseTile(b, tileAt(...from))
   }
-  assert.equal(rise([3, 6]), tileAt(3, 1))
-  assert.equal(rise([0, 3]), tileAt(2, 1))
-  assert.equal(rise([1, 3]), tileAt(3, 1))
-  assert.equal(rise([6, 1]), tileAt(4, 0))
-  assert.equal(rise([3, 6], [[3, 1]]), tileAt(2, 1))
-  assert.equal(rise([3, 6], [[2, 0], [4, 0], [2, 1], [3, 1], [4, 1]]), tileAt(3, 2))
+  assert.equal(rise([3, 6]), tileAt(3, 6))
+  assert.equal(rise([0, 3]), tileAt(0, 3))
+  assert.equal(rise([3, 1]), tileAt(3, 1), 'beside the Monarch only where it fell there')
+  // Taken: of the tiles beside it, those nearest the Monarch, the centre lane first.
+  assert.equal(rise([3, 6], [[3, 6]]), tileAt(3, 5))
+  assert.equal(rise([0, 3], [[0, 3]]), tileAt(1, 2))
+  assert.equal(rise([3, 6], [[3, 6], [2, 5], [3, 5], [4, 5]]), tileAt(2, 6))
+  assert.equal(rise([3, 6], [[3, 6], [2, 5], [3, 5], [4, 5], [2, 6], [4, 6], [2, 7], [3, 7], [4, 7]]), tileAt(3, 4), 'two tiles off')
+  // A wall under it is no tile for a walker's shadow.
+  assert.equal(rise([3, 6], [], [[3, 6]]), tileAt(3, 5))
 })
 
-test('with no free tile for its shadow a corpse is not Arise\'s to raise (where it fell is none); once one frees, it rises there', () => {
+test('with no free tile for its shadow a corpse is not Arise\'s to raise (where it fell is taken too); once one frees, it rises there', () => {
   const spare = deployTile('party', slotAt(4, 3))
   const open = [deployTile('party', slotAt(6, 3)), deployTile('party', slotAt(5, 3)), spare, deployTile('foe', slotAt(0, 3)), deployTile('foe', slotAt(0, 4))]
   const walls = [...Array(TILES).keys()].filter((t) => !open.includes(t))
@@ -1157,20 +1163,23 @@ test('with no free tile for its shadow a corpse is not Arise\'s to raise (where 
   slay(full, corpse)
   const sprite = enterBattle(full, { ...makeUnit('frost_sprite', { uid: 5, lvl: 1 }), side: 'party', tile: spare })
   assert.ok(full.at[corpse.tile] === null, 'its own tile lies free')
-  assert.deepEqual(corpses(full, full.byUid.get(1)), [], 'no tile but where it fell, no Arise')
+  assert.deepEqual(corpses(full, full.byUid.get(1)).map((c) => c.uid), [10], 'where it fell is its tile')
+  const ghoul = enterBattle(full, { ...makeUnit('grave_ghoul', { uid: 6, lvl: 1 }), side: 'party', tile: corpse.tile })
+  assert.deepEqual(corpses(full, full.byUid.get(1)), [], 'one of yours stands there: no tile, no Arise')
+  assert.equal(full.at[corpse.tile], ghoul)
   slay(full, sprite)
   const rose = order(full, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
   assert.deepEqual([rose.corpse, rose.unit.tile], [10, spare])
 })
 
-test('a foe road through Arise\'s reach stays clear of its dead: the next foe walks over where the first fell', () => {
+test('a foe road through Arise\'s reach holds a shadow of yours where the first fell, as any piece of yours', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 3, [0, 0], ['arise']), on('grave_ghoul', 10, 'foe', 3, 3, 2),
     on('grave_ghoul', 11, 'foe', 3, 5, 2), on('iron_golem', 50, 'foe', 6, DEPTH - 1, 1)])
   slay(b, unit(b, 10))
   const arise = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
-  assert.deepEqual([arise.from, arise.unit.tile], [tileAt(3, 3), tileAt(3, 1)])
+  assert.deepEqual([arise.from, arise.unit.tile], [tileAt(3, 3), tileAt(3, 3)])
   assert.equal(fieldOf(b).arrow[tileAt(3, 4)], tileAt(3, 3), 'the road runs through where it fell')
-  assert.ok(roadAhead(b, unit(b, 11), 9).some((s) => s.tile === tileAt(3, 3)), 'and the next Ghoul may walk onto it')
+  assert.ok(!roadAhead(b, unit(b, 11), 9).some((s) => s.tile === tileAt(3, 3)), 'the shadow blocks it, as a piece of yours does')
 })
 
 test('Arise by the numbers: the run\'s reach and tier, a variant\'s own on top; more holders are more raisers', () => {
@@ -1187,7 +1196,7 @@ test('Arise by the numbers: the run\'s reach and tier, a variant\'s own on top; 
   assert.equal(b.units.filter((u) => u.arisen).length, 2, 'two holders, two raised in a turn')
 })
 
-test('a shadow takes no orders, holds or acts as the untouched do, and counts for synergies', () => {
+test('a shadow takes orders, a summon none; left alone either holds or acts as the untouched do; a shadow counts for synergies', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), ...[0, 1, 2].map((x) => on('grave_ghoul', 1 + x, 'party', x, 3, 3, [0, 0], x === 0 ? ['arise'] : [])),
     on('grave_ghoul', 10, 'foe', 1, 5, 3), on('iron_golem', 11, 'foe', 6, 10, 1)])
   assert.ok(!synergiesOf(b, 'party').some((s) => s.id === 'undead_4'))
@@ -1195,10 +1204,13 @@ test('a shadow takes no orders, holds or acts as the untouched do, and counts fo
   order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
   const shadow = b.units.find((u) => u.shadow)
   assert.ok(synergiesOf(b, 'party').some((s) => s.id === 'undead_4'), 'the shadow made Undead 4')
-  assert.ok(!legalOrders(b).some((o) => o.uid === shadow.uid))
-  const tile = shadow.tile
+  assert.ok(legalOrders(b).some((o) => o.uid === shadow.uid && o.type === 'move'), 'it takes orders')
+  const summon = enterBattle(b, { ...makeUnit('grave_ghoul', { uid: 60, lvl: 3 }), side: 'party', shadow: true, summoned: true, summoner: 2, tile: tileAt(5, 1) })
+  assert.ok(!legalOrders(b).some((o) => o.uid === summon.uid), 'a summon takes none')
+  assert.throws(() => order(b, { type: 'move', uid: summon.uid, tile: tileAt(5, 2) }), /takes orders/)
+  const [tile, at] = [shadow.tile, summon.tile]
   for (let k = 0; k < 3 && !b.over; k++) turns(b)
-  assert.equal(shadow.tile, tile, 'it holds')
+  assert.deepEqual([shadow.tile, summon.tile], [tile, at], 'left alone, they hold')
 })
 
 test('Arise never raises a boss, a shadow, one consumed by a fusion, or its own side\'s dead; nor anyone past a boss\'s fall; and it raises past the board\'s cap', () => tuned({ army: { board: 1 } }, () => {
@@ -1297,15 +1309,16 @@ test('flyers hold the air: a flyer and a ground unit share a tile and never bloc
   assert.doesNotThrow(() => enterBattle(sky, flyer(92, sky.monarch.tile)))
 })
 
-test('a shadow of a flying kind flies: it rises in the air nearest the Monarch, over it, and melee from the ground cannot touch it', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 3, [0, 0], ['arise']), on('hive_drone', 10, 'foe', 2, 2, 1),
+test('a shadow of a flying kind flies: it rises in the air where it fell, over one standing there, and melee from the ground cannot touch it', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 3, [0, 0], ['arise']), on('hive_drone', 10, 'foe', 3, 1, 1),
     on('tomb_knight', 11, 'foe', 3, 1, 9), on('iron_golem', 50, 'foe', 6, 10, 1)])
   slay(b, unit(b, 10))
+  // A foe stands under the fallen drone: its shadow still rises where it fell, in the air over it.
   const arise = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
-  assert.deepEqual([arise?.corpse, arise?.unit.tile], [10, tileAt(3, 0)])
+  assert.deepEqual([arise?.corpse, arise?.unit.tile], [10, tileAt(3, 1)])
   const shadow = unit(b, arise.unit.uid)
   assert.ok(shadow.flies && shadow.shadow)
-  assert.deepEqual([b.sky[shadow.tile], b.at[shadow.tile]], [shadow, b.monarch])
+  assert.deepEqual([b.sky[shadow.tile], b.at[shadow.tile]], [shadow, unit(b, 11)])
   const knight = unit(b, 11)
   assert.ok(!targetsFrom(b, knight, knight.basic).includes(shadow), 'no melee blow reaches it')
 })

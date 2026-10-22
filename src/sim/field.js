@@ -123,16 +123,18 @@ export function free (battle, tile, size = 1, flies = false) {
   return tiles !== null && tiles.every(open)
 }
 
-// Where a shadow of yours rises: never where it fell, but on a free footprint (a flyer's in the air) closest to the
-// Monarch, ties nearest `from` (where it fell), then lane order, then the lower tile. −1 when none is free.
+// Where a shadow of yours rises: where it fell (`from`) when that footprint is free (the dead are off the index), else on
+// the free footprint (a flyer's in the air) nearest where it fell, ties nearest the Monarch, then lane order, then the
+// lower tile. −1 when none is free.
 export function riseTile (battle, from, size = 1, flies = false) {
+  if (free(battle, from, size, flies)) return from
   const to = battle.monarch?.tile ?? battle.root
   let best = -1
   let bestK = null
   for (let t = 0; t < TILES; t++) {
-    if (!free(battle, t, size, flies) || footprint(t, size).includes(from)) continue
+    if (!free(battle, t, size, flies)) continue
     // Scanned in tile order, so a tie on all three keeps the lower tile.
-    const k = [distanceBetween(t, size, to, 1), distanceBetween(t, size, from, 1), LANE[tileX(t)]]
+    const k = [distanceBetween(t, size, from, size), distanceBetween(t, size, to, 1), LANE[tileX(t)]]
     if (bestK === null || (k[0] - bestK[0] || k[1] - bestK[1] || k[2] - bestK[2]) < 0) {
       best = t
       bestK = k

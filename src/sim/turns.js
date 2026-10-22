@@ -589,8 +589,9 @@ export const roomFor = (battle, side) => side !== 'party' || pieces(battle) < TU
 // The size a shadow of `corpse` rising on `side` stands at: a foe piece's 1, one of yours its kind's (no tiers).
 export const shadowSize = (corpse, side) => (side === 'party' ? sizeOf({ id: corpse.id }) : 1)
 
-// The corpse rises on `side` as a shadow of itself at full HP: yours on the free tile closest to the Monarch (riseTile),
-// a foe's where it fell if free; its corpse never rises again. → the shadow, or null with no tile.
+// The corpse rises on `side` as a shadow of itself at full HP: yours where it fell, else on the free tile nearest it
+// (riseTile), a foe's where it fell if free; its corpse never rises again. → the shadow, or null with no tile. One of
+// yours enters with its energy and no act spent: it takes orders in the turn it rises.
 export function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) {
   const tile = side === 'party' ? riseTile(battle, corpse.tile, shadowSize(corpse, side), corpse.flies)
     : layerOf(battle, corpse)[corpse.tile] === null ? corpse.tile : -1
@@ -1098,8 +1099,8 @@ export function summon (battle, u) {
 
 // ── orders ───────────────────────────────────────────────────────────────────────────────────────
 
-// A piece the player orders: one of yours, living, no shadow, never the Monarch.
-export const orderable = (battle, u) => u.side === 'party' && alive(u) && !u.shadow && u !== battle.monarch
+// A piece the player orders: one of yours, living, a shadow too, never the Monarch nor a summon.
+export const orderable = (battle, u) => u.side === 'party' && alive(u) && !u.summoned && u !== battle.monarch
 
 function mine (battle, uid) {
   const u = battle.byUid.get(uid)

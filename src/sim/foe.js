@@ -114,7 +114,7 @@ const DANGER_A = new Array(TILES).fill(0)
 export const stunned = (u, later) => hexed(u) && (!later || u.statuses.some((s) => s.id === 'hexed' && (s.fresh || s.dur === 'battle' || s.dur > 1)))
 
 // The tiles `u` could strike from on its side's next turn: a foe's road ahead within `tiles` (or the one tile `at`
-// names), a piece of yours anywhere `tiles` reaches, a summon or a shadow where it stands.
+// names), a piece of yours (a shadow too) anywhere `tiles` reaches, a summon where it stands.
 const spotsOf = (battle, u, at, tiles) => u.side === 'foe' ? (at ? [at.get(u.uid) ?? u.tile] : roadTiles(battle, u, tiles))
   : orderable(battle, u) ? [u.tile, ...reach(battle, u, tiles).keys()] : [u.tile]
 // spotsOf's tiles, each with the steps it takes, the fewest first: a road's tile its place on the road, a reached

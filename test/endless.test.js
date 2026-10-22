@@ -4,7 +4,7 @@ import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { enterBattle, rulesOf, perform, order, preview, orderable, fork, addStatus, runEffect, stats, computeDamage } from '../src/sim/turns.js'
-import { makeUnit, tileAt, activeSynergies, alive, SLOTS, campOpen, distance, tileY, deployTile } from '../src/sim/unit.js'
+import { makeUnit, tileAt, activeSynergies, alive, SLOTS, campOpen, tileY, deployTile } from '../src/sim/unit.js'
 import { UNITS, CAMP_LIST, SYNERGIES, STATUSES } from '../src/content.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, BOARD_14, grant } from './tuned.js'
@@ -76,7 +76,7 @@ test('synergies: a trine counts as three, on either side, a shadow beside it as 
 })
 
 // The Legion (Undead 4): every foe slain rises on the side holding it, past Arise's reach and tier.
-test('Legion: every foe slain rises at once as a shadow of yours beside the Monarch; never a boss or a shadow', () => tuned(BOARD_14, () => {
+test('Legion: every foe slain rises at once as a shadow of yours where it fell, taking orders; never a boss or a shadow', () => tuned(BOARD_14, () => {
   const foes = () => [on('clockwork_page', 101, 'foe', 1, 6), on('iron_golem', 102, 'foe', 3, 6), on('frost_sprite', 103, 'foe', 5, 6)]
   const play = (party) => {
     const b = scene([...party, on('monarch', MONARCH_UID, 'party', 3, 1), ...foes()])
@@ -91,8 +91,9 @@ test('Legion: every foe slain rises at once as a shadow of yours beside the Mona
   for (const e of risen) {
     const corpse = unit(b, e.corpse)
     assert.equal(e.from, corpse.tile)
-    assert.ok(distance(e.unit.tile, b.monarch.tile) < distance(corpse.tile, b.monarch.tile), `${e.unit.tile} from ${corpse.tile}`)
-    assert.ok(corpse.raised && !orderable(b, unit(b, e.unit.uid)), 'a shadow: it takes no orders')
+    assert.equal(e.unit.tile, corpse.tile, 'where it fell')
+    const s = unit(b, e.unit.uid)
+    assert.ok(corpse.raised && orderable(b, s) === alive(s), 'a shadow: it takes orders while it stands')
     // The rule is announced right before the shadow rises, by its raiser.
     const i = b.events.indexOf(e)
     assert.deepEqual([b.events[i - 1].type, b.events[i - 1].rule, b.events[i - 1].target, b.events[i - 1].actor], ['rule', 'legion', e.corpse, e.actor])

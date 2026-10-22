@@ -319,7 +319,7 @@ export class BattleScene extends Phaser.Scene {
     })
   }
 
-  // Your pieces that take orders (never the Monarch or the shadows) and the names of those that may still act.
+  // Your pieces that take orders (shadows too, never the Monarch or a summon) and the names of those that may still act.
   roster () {
     const b = this.battle
     const mine = b.units.filter((u) => orderable(b, u))
@@ -380,20 +380,20 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  // The lead line of a piece of yours' card: a shadow's fate, or a piece's Move, skills and foes in reach; null while busy.
+  // The lead line of a piece of yours' card: a summon's fate, or a piece's Move, skills and foes in reach (a shadow's
+  // after its fate); a shadow's fate alone, else null, while busy.
   pieceLine (uid) {
     const b = this.battle
     const u = b.byUid.get(uid)
     if (!u || u.side !== 'party' || u === b.monarch) return null
-    if (u.shadow) {
-      const reap = u.reap > 0 ? Math.round(foeEssence(u, b.floor) * u.reap * this.essence) : 0
-      return `${u.summoned ? summonedBy(b, u) : 'Shadow'}: ${reap > 0 ? `+${reap} essence if it stands at the win` : 'gone after the battle'}`
-    }
-    if (this.locked() || this.ending || !alive(u)) return null
+    const reap = u.shadow && u.reap > 0 ? Math.round(foeEssence(u, b.floor) * u.reap * this.essence) : 0
+    const fate = u.shadow && `${u.summoned ? summonedBy(b, u) : 'Shadow'}: ${reap > 0 ? `+${reap} essence if it stands at the win` : 'gone after the battle'}`
+    if (u.summoned) return fate
+    if (this.locked() || this.ending || !alive(u)) return fate || null
     const skills = u.kit.filter((a) => isSkill(u, a)).map((a) => (u.cooldowns[a.id] > 0 ? `${a.name} ready in ${u.cooldowns[a.id]}` : `${a.name} ready`))
-    if (u.acted) return ['Acted', ...skills].join(' · ')
+    if (u.acted) return [fate, 'Acted', ...skills].filter(Boolean).join(' · ')
     const n = u.basic && !hexed(u) ? targetsFrom(b, u, u.basic).length : 0
-    return [hexed(u) && 'Hexed: no act this turn', `Energy ${left(u)}/${u.energy}`, ...skills,
+    return [fate, hexed(u) && 'Hexed: no act this turn', `Energy ${left(u)}/${u.energy}`, ...skills,
       u.basic && !hexed(u) && (left(u) < costOf(u, u.basic) ? `no energy for ${u.basic.name}` : n ? `${n} in reach of ${u.basic.name}` : `no foe in reach of ${u.basic.name}`)].filter(Boolean).join(' · ')
   }
 
@@ -466,8 +466,8 @@ export class BattleScene extends Phaser.Scene {
     const width = BAR * u.hp / u.maxHp
     const trail = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, 0xfff1d0, 0.85).setOrigin(0, 0.5)
     const bar = this.add.rectangle(home.x - BAR / 2, home.y + 12, width, crowned ? 6 : 4, side).setOrigin(0, 0.5)
-    // A piece of yours carries a pip a skill under its bars; the foes none (their coming turn is on the board: drawIntents).
-    const skills = u.side === 'party' && !u.shadow && !crowned ? (whole.kit ?? []).filter((a) => isSkill(whole, a)).map((a) => a.id) : []
+    // A piece of yours (a shadow too) carries a pip a skill under its bars; a summon and the foes none (theirs: drawIntents).
+    const skills = u.side === 'party' && !u.summoned && !crowned ? (whole.kit ?? []).filter((a) => isSkill(whole, a)).map((a) => a.id) : []
     const actor = {
       uid: u.uid, id: u.id, side: u.side, tile: u.tile, art, skin, shade: !!u.shadow, sprite, scale, home, shadow, ring, bar, trail, barBg,
       // fp: its footprint's side, big: its picture's scale for it; hover: how high it floats now (fly: when standing).
@@ -1092,7 +1092,7 @@ export class BattleScene extends Phaser.Scene {
     this.send({ type: 'end' })
   }
 
-  // Nothing of yours takes orders (roster's total 0: every soul fallen, the shadows and summons acting by themselves):
+  // Nothing of yours takes orders (roster's total 0: every soul and shadow fallen, the summons acting by themselves):
   // once the board is free AUTO_END_MS of playback, the turn ends by itself. Once a turn, never paused, never once over.
   autoEnd () {
     const b = this.battle
