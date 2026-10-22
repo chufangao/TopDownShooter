@@ -591,7 +591,7 @@ export const shadowSize = (corpse, side) => (side === 'party' ? sizeOf({ id: cor
 
 // The corpse rises on `side` as a shadow of itself at full HP: yours where it fell, else on the free tile nearest it
 // (riseTile), a foe's where it fell if free; its corpse never rises again. → the shadow, or null with no tile. One of
-// yours enters with its energy and no act spent: it takes orders in the turn it rises.
+// yours enters with its energy and no act spent: it walks and strikes by itself at End Turn in the turn it rises.
 export function raise (battle, actor, corpse, { side = actor.side, rule = null } = {}) {
   const tile = side === 'party' ? riseTile(battle, corpse.tile, shadowSize(corpse, side), corpse.flies)
     : layerOf(battle, corpse)[corpse.tile] === null ? corpse.tile : -1
@@ -956,26 +956,60 @@ export function pick (battle, u, list) {
 }
 
 // One left untouched acts at End Turn with its basics alone: its blow at `pick`'s foe, else its heal on the most
-// wounded it can help, else nothing. A Hexed one loses its act, and shrugs off every Hex until it acts again.
+// wounded it can help, else nothing. A shadow (no summon) with no foe in its blow's reach walks first (seek), then
+// strikes or mends from there. A Hexed one loses its act, and shrugs off every Hex until it acts again.
 function untouched (battle, u) {
-  if (hexed(u)) {
-    battle.beat++
-    emit(battle, { type: 'hexed', target: u.uid })
-    u.acted = true
-    u.shrugs = true
-    return
-  }
-  // Its basic, where it has the energy for it after its walk (usable).
-  const b = u.basic
-  if (b && usable(battle, u, b)) {
-    const list = targetsFrom(battle, u, b)
-    if (list.length) return perform(battle, u, b, pick(battle, u, list))
+  if (hexed(u)) return lose(battle, u)
+  if (strikes(battle, u)) return
+  const way = u.shadow && !u.summoned ? seek(battle, u) : null
+  if (way) {
+    walk(battle, u, way)
+    moveMoment(battle, u)
+    refresh(battle)
+    if (battle.over || !alive(u)) return
+    // A Hex laid on the walk (an Overwatch's) costs the act it was walking to.
+    if (hexed(u)) return lose(battle, u)
+    if (strikes(battle, u)) return
   }
   const m = u.mend
   if (m && usable(battle, u, m)) {
     const list = helped(battle, u, m, u.tile)
     if (list.length) return perform(battle, u, m, lowest(list))
   }
+}
+
+// `u`'s basic at `pick`'s foe, where it has the energy for it after its walk (usable). → whether it struck.
+function strikes (battle, u) {
+  const b = u.basic
+  const list = b && usable(battle, u, b) ? targetsFrom(battle, u, b) : []
+  if (list.length) perform(battle, u, b, pick(battle, u, list))
+  return list.length > 0
+}
+
+// A Hexed one's act lost: it shrugs off every Hex until it acts again.
+function lose (battle, u) {
+  battle.beat++
+  emit(battle, { type: 'hexed', target: u.uid })
+  u.acted = true
+  u.shrugs = true
+}
+
+// Where a shadow of yours left untouched walks at End Turn: the nearest tile its basic strikes from with the energy to
+// pay it still (fewest steps, then the lower tile); else, as far as its energy goes, the tile nearest the nearest foe
+// (ties fewest steps, then the lower tile), if nearer than it stands. → the path, or null to hold.
+function seek (battle, u) {
+  const b = u.basic
+  // reach's [tile, path]s by `k`, then the fewest steps, then the lower tile.
+  const by = (k) => (x, y) => k(x) - k(y) || x[1].length - y[1].length || x[0] - y[0]
+  if (b && usable(battle, u, b)) {
+    const ways = [...reach(battle, u, stride(u, b))].filter(([t]) => targetsFrom(battle, u, b, t).length > 0)
+    if (ways.length) return ways.sort(by(() => 0))[0][1]
+  }
+  const foe = battle.units.filter((x) => x.side !== u.side && alive(x)).sort((x, y) => unitDistance(u, x) - unitDistance(u, y) || x.ord - y.ord)[0]
+  if (!foe) return null
+  const d = ([t]) => distanceBetween(t, u.size, foe.tile, foe.size)
+  const best = [...reach(battle, u)].sort(by(d))[0]
+  return best && d(best) < unitDistance(u, foe) ? best[1] : null
 }
 
 // The allies a heal of `u`'s on `tile` can do something for, as primaries (an all-allies one: itself, once anyone can).
@@ -1099,8 +1133,8 @@ export function summon (battle, u) {
 
 // ── orders ───────────────────────────────────────────────────────────────────────────────────────
 
-// A piece the player orders: one of yours, living, a shadow too, never the Monarch nor a summon.
-export const orderable = (battle, u) => u.side === 'party' && alive(u) && !u.summoned && u !== battle.monarch
+// A piece the player orders: one of yours, living, no shadow, never the Monarch.
+export const orderable = (battle, u) => u.side === 'party' && alive(u) && !u.shadow && u !== battle.monarch
 
 function mine (battle, uid) {
   const u = battle.byUid.get(uid)

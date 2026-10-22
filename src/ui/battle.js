@@ -88,9 +88,10 @@ export function battleChrome ({ onHelp = null } = {}) {
   const laid = (list) => list.length > 0 && h('span', { class: 'dim' }, `, ${list.join(', ')}`)
   const endLine = (x) => h('li', null, x.name, x.shadow && h('span', { class: 'dim' }, ' (shadow)'),
     x.hexed ? h('span', { class: 'warn' }, ': Hexed, its act is lost')
-      : [' → ', x.hits.length ? x.hits.map((t, i) => [i > 0 && '; ', t.name, t.n > 0 && h('b', { class: 'n-dmg' }, ` −${t.n}`), t.falls && h('b', { class: 'n-falls' }, ', falls'), laid(t.laid)])
-        : x.heals.length ? x.heals.map((t, i) => [i > 0 && '; ', t.name, h('b', { class: 'n-heal' }, ` +${t.n}`), laid(t.laid)])
-          : [x.target ?? x.act, x.missed && h('span', { class: 'dim' }, ': misses')]],
+      : !x.act ? h('span', { class: 'dim' }, ': walks toward the foes')
+        : [x.walks && h('span', { class: 'dim' }, ' walks, then'), ' → ', x.hits.length ? x.hits.map((t, i) => [i > 0 && '; ', t.name, t.n > 0 && h('b', { class: 'n-dmg' }, ` −${t.n}`), t.falls && h('b', { class: 'n-falls' }, ', falls'), laid(t.laid)])
+          : x.heals.length ? x.heals.map((t, i) => [i > 0 && '; ', t.name, h('b', { class: 'n-heal' }, ` +${t.n}`), laid(t.laid)])
+            : [x.target ?? x.act, x.missed && h('span', { class: 'dim' }, ': misses')]],
     x.counter > 0 && h('span', { class: 'n-counter' }, ` · takes −${x.counter} back${x.fell ? ', falls' : ''}`),
     x.lost.length > 0 && h('span', { class: 'n-falls' }, ` · ${x.lost.join(', ')} ${x.lost.length === 1 ? 'falls' : 'fall'}`))
   const endTip = () => {
@@ -99,10 +100,10 @@ export function battleChrome ({ onHelp = null } = {}) {
     if (st.over || !info) return h('div', { class: 'syn-tip' }, head, h('p', { class: 'dim' }, st.over ? 'The battle is over.' : 'The turn plays out…'))
     // Those with nothing to do are a line each, after the rest, in order: none in reach, or no energy left for it.
     const n = info.acts.length
-    const idle = (short) => group(info.acts.filter((x) => !x.hexed && !x.act && !!x.short === short).map((x) => (x.shadow ? `${x.name} (shadow)` : x.name)))
+    const idle = (short) => group(info.acts.filter((x) => !x.hexed && !x.act && !x.walks && !!x.short === short).map((x) => (x.shadow ? `${x.name} (shadow)` : x.name)))
     return h('div', { class: 'syn-tip act-tip' }, head,
       n ? [h('p', null, `${n} still to act ${n === 1 ? 'uses its' : 'use their'} basic:`),
-        h('ul', { class: 'act-targets' }, info.acts.filter((x) => x.hexed || x.act).map(endLine),
+        h('ul', { class: 'act-targets' }, info.acts.filter((x) => x.hexed || x.act || x.walks).map(endLine),
           idle(false) && h('li', { class: 'dim' }, `Nothing in reach: ${idle(false)}`), idle(true) && h('li', { class: 'dim' }, `No energy left: ${idle(true)}`)),
         h('p', { class: 'dim' }, info.won ? 'The last foe falls: the battle is won.' : 'Then the foes\' turn.')]
         : h('p', null, 'All yours have acted. The foes\' turn next.'))

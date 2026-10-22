@@ -377,7 +377,7 @@ test('Arise is a skill of the piece holding the relic: one corpse within its rea
   assert.deepEqual(events.filter((e) => e.type === 'arise').map((e) => [e.actor, e.corpse]), [[1, 21]])
   assert.ok(events.some((e) => e.type === 'cooldown' && e.target === 1 && e.ability === 'arise' && e.turns === 1), 'a skill with no rest')
   const shadow = b.byUid.get(events.find((e) => e.type === 'arise').unit.uid)
-  assert.deepEqual([shadow.hp, shadow.maxHp, shadow.shadow, orderable(b, shadow)], [shadow.maxHp, Math.round(stats(b, shadow).hp), true, true], 'at full HP, taking orders')
+  assert.deepEqual([shadow.hp, shadow.maxHp, shadow.shadow, orderable(b, shadow)], [shadow.maxHp, Math.round(stats(b, shadow).hp), true, false], 'at full HP, taking no orders')
   assert.deepEqual(rises(), [], 'its act spent this turn')
   end(b)
   assert.deepEqual(rises().map((o) => o.target), [20], 'the other, the very next turn')
@@ -1196,7 +1196,7 @@ test('Arise by the numbers: the run\'s reach and tier, a variant\'s own on top; 
   assert.equal(b.units.filter((u) => u.arisen).length, 2, 'two holders, two raised in a turn')
 })
 
-test('a shadow takes orders, a summon none; left alone either holds or acts as the untouched do; a shadow counts for synergies', () => {
+test('a shadow takes no orders, nor a summon; left alone a summon holds, a shadow walks to the foe; a shadow counts for synergies', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), ...[0, 1, 2].map((x) => on('grave_ghoul', 1 + x, 'party', x, 3, 3, [0, 0], x === 0 ? ['arise'] : [])),
     on('grave_ghoul', 10, 'foe', 1, 5, 3), on('iron_golem', 11, 'foe', 6, 10, 1)])
   assert.ok(!synergiesOf(b, 'party').some((s) => s.id === 'undead_4'))
@@ -1204,13 +1204,17 @@ test('a shadow takes orders, a summon none; left alone either holds or acts as t
   order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
   const shadow = b.units.find((u) => u.shadow)
   assert.ok(synergiesOf(b, 'party').some((s) => s.id === 'undead_4'), 'the shadow made Undead 4')
-  assert.ok(legalOrders(b).some((o) => o.uid === shadow.uid && o.type === 'move'), 'it takes orders')
+  assert.ok(!legalOrders(b).some((o) => o.uid === shadow.uid), 'it takes none')
   const summon = enterBattle(b, { ...makeUnit('grave_ghoul', { uid: 60, lvl: 3 }), side: 'party', shadow: true, summoned: true, summoner: 2, tile: tileAt(5, 1) })
   assert.ok(!legalOrders(b).some((o) => o.uid === summon.uid), 'a summon takes none')
-  assert.throws(() => order(b, { type: 'move', uid: summon.uid, tile: tileAt(5, 2) }), /takes orders/)
-  const [tile, at] = [shadow.tile, summon.tile]
-  for (let k = 0; k < 3 && !b.over; k++) turns(b)
-  assert.deepEqual([shadow.tile, summon.tile], [tile, at], 'left alone, they hold')
+  for (const u of [shadow, summon]) assert.throws(() => order(b, { type: 'move', uid: u.uid, tile: u.tile + 1 }), /takes orders/)
+  const at = summon.tile
+  // Its walk is End Turn's, before the foes' (turns.js untouched).
+  const events = turns(b)
+  const walked = moves(events.slice(0, events.findIndex((e) => e.type === 'stage' && e.stage === 'foes')), shadow.uid)
+  assert.deepEqual(walked.map((e) => e.from), [tileAt(1, 5)], 'left alone, the shadow walks')
+  for (let k = 0; k < 2 && !b.over; k++) turns(b)
+  assert.equal(summon.tile, at, 'the summon holds')
 })
 
 test('Arise never raises a boss, a shadow, one consumed by a fusion, or its own side\'s dead; nor anyone past a boss\'s fall; and it raises past the board\'s cap', () => tuned({ army: { board: 1 } }, () => {
