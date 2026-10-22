@@ -87,8 +87,8 @@ export function altarScreen ({ run, onRite, onHelp }) {
     const card = (id, i) => {
       const d = unitDef(id)
       const worth = transmuteWorth(run, u, id)
-      const tip = () => unitCard({ id, lvl: worth.lvl, tracks: u.tracks, slot: -1 }, {
-        open: !touchy(), realm: realmOf(run), live: `${unitDef(u.id).name} → ${d.name}, Lv ${worth.lvl}`,
+      const tip = () => unitCard({ id, uid: u.uid, lvl: worth.lvl, tracks: u.tracks, relics: u.relics, slot: -1 }, {
+        open: !touchy(), realm: realmOf(run), run, live: `${unitDef(u.id).name} → ${d.name}, Lv ${worth.lvl}`,
         notes: [`${say('Click', 'Tap it again (or Transmute ▸)')} to transmute it. (${i + 1})`, ...worth.lines]
       })
       const action = { type: 'transmute', uid: u.uid, index: i }

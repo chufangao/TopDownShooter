@@ -182,8 +182,9 @@ export const TUNING = {
     fused: { hp: 3, atk: 1.8, def: 1.2 }
   },
   // Arise, a Legendary piece relic: its holder's skill raises one corpse within `domain` tiles (Chebyshev, from its
-  // footprint) of tier up to `tier` as a shadow of yours at full HP; Hourglass and Bone Idol add to both.
-  arise: { domain: 7, tier: 4 },
+  // footprint) of tier up to `tier` as a shadow of yours at full HP; Hourglass and Bone Idol add to both. Tier 4 is
+  // the highest a foe that can rise spawns at (barrow wight, frost wyrm): the base stops a tier short, Bone Idol's.
+  arise: { domain: 7, tier: 3 },
   // The field cap never passes `board` pieces, and the Legion's shadows rise only while fewer than `board` of yours
   // stand (Arise's rise past it: a skill is its own bound).
   army: { board: 10 },

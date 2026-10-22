@@ -18,7 +18,7 @@ import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, relicMod } from './tuned.js'
 import { RELIC_LIST, RELICS, UNITS } from '../src/content.js'
-import { makeUnit, alive, baseStats, footprint } from '../src/sim/unit.js'
+import { makeUnit, alive, baseStats, footprint, tileAt, distance } from '../src/sim/unit.js'
 import { on, scene as sceneOf, slay, unit, turns } from './scene.js'
 import { visit, win } from './rooms.js'
 
@@ -802,6 +802,21 @@ test('Arise\'s reach and tier are the run\'s, a run relic at a time (Hourglass, 
   const none = scene([on('monarch', 0, 'party', 3, 1), on('tomb_knight', 1, 'party', 0, 0), on('grave_ghoul', 10, 'foe', 3, 3), on('iron_golem', 50, 'foe', 6, 10)], { relics: ['arise', 'hourglass'] })
   slay(none, unit(none, 10))
   assert.ok(!legalOrders(none).some((o) => o.ability === 'arise'))
+})
+
+// field.js riseTile: the free tile nearest the Monarch, but never the one it fell on, so the dead never block a road.
+test('a shadow of yours never rises where it fell, though that is the free tile nearest the Monarch: by Arise, or as the slain rises (Gravedigger\'s Spade)', () => {
+  const foe = [on('grave_ghoul', 10, 'foe', 3, 1, 1), on('iron_golem', 50, 'foe', 6, 10)]
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), ...foe])
+  slay(b, unit(b, 10))
+  const arise = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
+  assert.equal(arise.from, tileAt(3, 1))
+  assert.equal(arise.unit.tile, tileAt(2, 0), 'the next tile beside the Monarch, ties as riseTile breaks them')
+  assert.equal(distance(arise.unit.tile, b.monarch.tile), 1)
+  const spade = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['gravediggers_spade']), ...foe])
+  unit(spade, 10).hp = 1
+  const rise = order(spade, { type: 'act', uid: 1, ability: 'strike', target: 10 }).find((e) => e.type === 'arise')
+  assert.deepEqual([rise.from, rise.unit.tile], [tileAt(3, 1), tileAt(2, 0)])
 })
 
 test('what needs an Arise relic is stocked only once one is owned: Hourglass, Bone Idol; a variant counts', () => {

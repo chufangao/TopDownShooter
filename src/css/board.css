@@ -160,8 +160,9 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 /* A count, never a clock: the turn's number holds its width, so the wave counter beside it never jumps. */
 .turn-n { color: var(--bright); font-weight: 600; }
 .turn-n b { min-width: 7ch; font-variant-numeric: tabular-nums; }
-/* When the panel runs short the synergies give way first, then the selected piece's orders (each scrolling inside
-   itself): the Monarch's HP and the controls (End Turn, Pause, Skip) always show whole. */
+/* When the panel runs short the synergies give way first, then the selected piece's card (each scrolling inside
+   itself): the Monarch's HP and the controls (End Turn, Pause, Skip) always show whole. Inside the card the head
+   gives way (its relics, then its numbers): the acts and the line under them always show whole. */
 .bs-syn-box { flex: 0 1000 auto; min-height: 0; overflow: hidden auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
 .bs-sel {
   flex: 0 1 auto; min-height: 0; overflow: hidden auto; overscroll-behavior: contain;
@@ -169,7 +170,7 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   border: 2px solid var(--ink); background: var(--sunk); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c-plan) 45%, transparent);
 }
 .bs-hint { margin: 0; font-size: var(--fs-sm); line-height: 1.35; }
-.sel-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sel-head { flex: 0 1 auto; min-height: calc(var(--fs-md) * 1.2); overflow: hidden; display: flex; align-items: center; align-items: safe center; gap: 8px; min-width: 0; }
 .sel-head .portrait { flex: none; }
 .sel-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .sel-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 var(--fs-md)/1.2 var(--display); color: var(--bright); }
@@ -177,7 +178,9 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .sel-hp { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
 .sel-hp .hpbar { width: 44px; }
 .sel-move { font-size: var(--fs-sm); color: var(--c-plan); font-weight: 600; white-space: nowrap; cursor: help; }
-.sel-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The acts and Undo, two rows (desktop: display: contents, each a row of the card) or, on a phone, one. */
+.sel-orders { display: contents; }
+.sel-acts { flex: none; display: flex; flex-wrap: wrap; gap: 6px; }
 .sel-acts > button { flex: 1 1 auto; min-width: 0; justify-content: flex-start; gap: 6px; padding: 0 8.5px; font-size: var(--fs-sm); }
 .act-btn .act-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 var(--fs-sm) var(--display); }
 .act-btn .act-kind { margin-left: auto; color: var(--dim); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .06em; }
@@ -190,7 +193,9 @@ body.dragging { -webkit-user-select: none; user-select: none; }
 .cd-pip.rest { background: #3a3258; }
 .sel-acts .price { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; color: var(--c-essence2); }
 /* What a tap does next stays in view at the box's foot while the orders above it scroll. */
-.sel-line { position: sticky; bottom: calc(-1 * var(--pad)); margin-bottom: calc(-1 * var(--pad)); padding-bottom: var(--pad); background: var(--sunk); font-size: var(--fs-sm); line-height: 1.3; min-height: 1.3em; }
+.sel-line { flex: none; position: sticky; bottom: calc(-1 * var(--pad)); margin-bottom: calc(-1 * var(--pad)); padding-bottom: var(--pad); background: var(--sunk); font-size: var(--fs-sm); line-height: 1.3; min-height: 1.3em; }
+/* More under it (battle.js): a shade over the line's top edge. */
+.bs-sel.more .sel-line { box-shadow: 0 -12px 10px -8px var(--ink); }
 .sel-line .aim-line { color: var(--c-warn); }
 .sel-line .aim-line .screened { color: #d8d0ff; }
 .battle-panel .end-turn { width: 100%; }
@@ -207,6 +212,20 @@ body.dragging { -webkit-user-select: none; user-select: none; }
   .battle-screen .bs-controls { gap: 6px; padding-top: 4px; }
   .battle-screen .end-turn { min-height: var(--tap); }
   .bs-sel { --pad: 6px; padding: var(--pad) 8px; gap: 6px; }
+}
+/* A phone's frame (540 tall, its buttons a finger's size): the acts and Undo in one row, each its name over its pip
+   and cost, Undo its arrow; the head's relics one line. */
+@container frame (max-height: 560px) {
+  .sel-orders { display: flex; gap: 6px; }
+  .sel-orders > .sel-acts { display: contents; }
+  .sel-acts > .act-btn { flex: 1 1 0; flex-wrap: wrap; align-content: center; justify-content: center; gap: 1px 4px; padding: 0 4px; }
+  .act-btn .act-name { order: -1; flex: 1 0 100%; text-align: center; }
+  .act-btn .act-kind { margin: 0; }
+  .act-btn .act-word { display: none; }
+  .sel-acts > .undo-btn { flex: none; min-width: calc(var(--tap-px) * .65); padding: 0 8.5px; }
+  .undo-btn .undo-name { display: none; }
+  .sel-relic { flex-wrap: nowrap; overflow: hidden; }
+  .sel-relic > * { flex: none; }
 }
 
 /* On a short frame (a phone's, 540 tall) the board gets every pixel: less padding, a slimmer ossuary. */

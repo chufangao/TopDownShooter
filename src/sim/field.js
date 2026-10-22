@@ -130,7 +130,7 @@ export function riseTile (battle, from, size = 1, flies = false) {
   let best = -1
   let bestK = null
   for (let t = 0; t < TILES; t++) {
-    if (!free(battle, t, size, flies)) continue
+    if (!free(battle, t, size, flies) || footprint(t, size).includes(from)) continue
     // Scanned in tile order, so a tie on all three keeps the lower tile.
     const k = [distanceBetween(t, size, to, 1), distanceBetween(t, size, from, 1), LANE[tileX(t)]]
     if (bestK === null || (k[0] - bestK[0] || k[1] - bestK[1] || k[2] - bestK[2]) < 0) {

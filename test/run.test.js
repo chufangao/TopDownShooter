@@ -1460,6 +1460,31 @@ test('a fusion pays back the tiers its parts held: TUNING.essence.refund of each
   checkState(s)
 })
 
+test('the parts picked for a fusion keep a relic holder back: the fewest relics held first, before the fewest tiers; one fused of a holder by name gives its relic back unheld', () => {
+  const run = createRun({ start: START_PARTY, seed: 'fuse-holder' })
+  const s = run.state
+  s.essence = 1e5
+  const knights = Array.from({ length: 4 }, () => join(run, 'tomb_knight'))
+  // The first holds Arise, the second a tier up: the parts are the two bare ones, then the tiered, never the holder.
+  const [holder, grown] = knights
+  s.relics.push('arise')
+  apply(run, { type: 'hold', relic: 'arise', uid: holder.uid })
+  apply(run, { type: 'upgrade', uid: grown.uid, track: 0 })
+  const parts = fuseParts(run, 'trine:tomb_knight')
+  assert.deepEqual(parts, [knights[2].uid, knights[3].uid, grown.uid])
+  assert.deepEqual(legalActions(run).filter((a) => a.type === 'fuse' && a.id === 'trine:tomb_knight'), [{ type: 'fuse', id: 'trine:tomb_knight', parts }])
+  apply(run, { type: 'fuse', id: 'trine:tomb_knight', parts })
+  assert.ok(s.party.includes(holder) && !s.party.some((u) => parts.includes(u.uid)))
+  assert.deepEqual([holder.relics, unheld(s)], [['arise'], []])
+  checkState(s)
+  // Named outright, the holder goes into a fusion all the same: Arise comes back unheld.
+  const more = [join(run, 'tomb_knight'), join(run, 'tomb_knight')]
+  apply(run, { type: 'fuse', id: 'trine:tomb_knight', parts: [holder.uid, ...more.map((u) => u.uid)] })
+  assert.ok(!s.party.includes(holder))
+  assert.deepEqual(unheld(s), ['arise'])
+  checkState(s)
+})
+
 test('legalActions lists one fuse a recipe that can be made, of its canonical parts: the ossuary\'s pieces first, then the fielded, party order among equals', () => {
   for (const r of FUSION_LIST) {
     const run = createRun({ start: START_PARTY, seed: 'fuse-legal-' + r.id })

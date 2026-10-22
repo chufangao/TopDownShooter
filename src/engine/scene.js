@@ -4,7 +4,7 @@ import { TUNING } from '../tuning.js'
 import { unitDef, statusDef, animDef, abilityDef, relicDef, SYNERGIES, ROLES } from '../content.js'
 import {
   reach, targetsFrom, preview, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
-  lined, lineOf, lineStruck, stats, intents, left, stride, costOf
+  lined, lineOf, lineStruck, stats, intents, left, stride, costOf, corpses
 } from '../sim/turns.js'
 import { foeEssence, eliteBonus } from '../sim/run.js'
 import { threatOf } from '../sim/foe.js'
@@ -572,7 +572,19 @@ export class BattleScene extends Phaser.Scene {
       if (t) return t.uid === s.aim ? this.commit() : this.aim(t.uid)
       // Off the board (tileUnder snaps to the nearest tile on it) nothing moves.
       const on = !offBoard(w)
-      if (on && this.undoable(u) && footprint(u.from, u.size ?? 1).includes(tile) && !hits.some((x) => x !== u && alive(x))) return this.undo()
+      const others = hits.some((x) => x !== u && alive(x))
+      if (on && this.undoable(u) && footprint(u.from, u.size ?? 1).includes(tile) && !others) return this.undo()
+      // A corpse it may raise is never walked onto: Arise is armed and, from here, aimed (tapped again, raised).
+      const rise = u.kit.find((a) => a.shape === 'corpse')
+      const dead = rise && !others ? corpses(b, u).find((c) => hits.includes(c)) : null
+      if (dead) {
+        s.ability = rise.id
+        s.chosen = true
+        this.plan()
+        return s.targets.has(dead.uid) ? this.aim(dead.uid) : this.aim(null)
+      }
+      // Its own tiles (a 2×2's other three are anchors in reach) let it go, as a tap on it does.
+      if (on && footprint(u.tile, u.size ?? 1).includes(tile) && !others) return this.select(null)
       const to = on ? this.anchorFor(u, tile) : null
       if (to != null) return this.send({ type: 'move', uid: u.uid, tile: to })
     }
@@ -1299,6 +1311,8 @@ export class BattleScene extends Phaser.Scene {
       { to: { sx: 0.12, sy: -0.2 }, ms: 1, picture: 'dead', start: land },
       { to: REST, ms: 280, ease: 'Back.Out' }])
     this.tweens.add({ targets: this.parts(a), alpha: 0, duration: 300 })
+    // Raised in the beat that felled it (arise): its shadow climbs out as it lands.
+    this.raiseFrom(a, 500)
   }
 
   // What stands beside a unit's picture: its bars, its pool of shadow, its growth.
@@ -1336,16 +1350,14 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // Arise: the corpse sinks and its shadow climbs out in a ring of light, then glides to its tile (`from`: the corpse's),
-  // from the beam's cast on; a Legion's raise has no actor and waits for the fall to land.
+  // from the beam's cast on; a Legion's raise has no actor and waits for the fall to land. One slain in the same beat
+  // (a Spade's, the Cathedral's, a Grave Tide's) still stands as the raise plays (at the beat's start: timeline.js), so
+  // its shadow waits for that fall to land (fall: `raise`), or a moment more should none come.
   arise (ev) {
-    const LAND = ev.rule === 'legion' ? 620 : 340
     const glow = ev.unit.side === 'foe' ? ROT : RISE
     this.units.set(ev.unit.uid, this.battle.units.find((x) => x.uid === ev.unit.uid))
     const corpse = this.actors.get(ev.corpse)
-    if (corpse) {
-      corpse.sprite.disableInteractive()
-      this.tweens.add({ targets: corpse, fade: 0, delay: LAND - 60, duration: 420, ease: 'Quad.In' })
-    }
+    corpse?.sprite.disableInteractive()
     this.addActor(ev.unit)
     const a = this.actors.get(ev.unit.uid)
     const from = ev.from != null && ev.from !== ev.unit.tile ? posOf(ev.from) : null
@@ -1354,6 +1366,23 @@ export class BattleScene extends Phaser.Scene {
     a.rise.v = 0
     a.pose = { ...REST, sx: -0.3, sy: -0.75 }
     for (const part of this.parts(a)) part.setAlpha(0)
+    const climb = (LAND) => this.climb(corpse, a, from, at, glow, LAND)
+    if (ev.rule === 'legion' || !corpse || corpse.gone) return climb(ev.rule === 'legion' ? 620 : 340)
+    corpse.raise = climb
+    // On the tweens' clock, so a pause holds it as it holds the fall.
+    this.tweens.addCounter({ duration: 1600, onComplete: () => { if (corpse.raise === climb) this.raiseFrom(corpse, 340) } })
+  }
+
+  // A corpse a raise waits on has fallen: its shadow climbs out once it lands, `ms` on.
+  raiseFrom (corpse, ms) {
+    const go = corpse.raise
+    corpse.raise = null
+    go?.(ms)
+  }
+
+  // The raise itself, `LAND` ms on: the corpse fades as the shadow climbs out.
+  climb (corpse, a, from, at, glow, LAND) {
+    if (corpse) this.tweens.add({ targets: corpse, fade: 0, delay: LAND - 60, duration: 420, ease: 'Quad.In' })
     this.tweens.add({ targets: a.rise, v: 1, delay: LAND, duration: 520, ease: 'Sine.Out' })
     this.tweens.add({ targets: [a.bar, a.trail, a.barBg], alpha: 1, delay: LAND + 300, duration: 300 })
     this.tweens.add({ targets: a.shadow, alpha: 1, delay: LAND, duration: 400 })

@@ -102,23 +102,25 @@ export function shopView ({ run, act, onChange = null }) {
   function fuseButton (f, entry) {
     const { cost, back, can, open } = entry
     const name = unitDef(f.result).name
-    const partsText = entry.action.parts.map((uid) => {
-      const p = s.party.find((x) => x.uid === uid)
-      return `the ${unitDef(p.id).name} ${onField(p) ? `on ${tileText(deployTile('party', p.slot)).replace(/^your camp, /, '')}` : 'in the ossuary'}`
-    }).join(', ')
+    const parts = entry.action.parts.map((uid) => s.party.find((x) => x.uid === uid))
+    const partsText = parts.map((p) => `the ${unitDef(p.id).name} ${onField(p) ? `on ${tileText(deployTile('party', p.slot)).replace(/^your camp, /, '')}` : 'in the ossuary'}`).join(', ')
     const trade = `it takes ${partsText}, for ${cost} essence${back > 0 ? `; its parts' tiers pay back ${back}` : ''}`
     const fresh = `The ${name} waits in the ossuary, fresh: level ${firstLevel()}, no tier.`
+    // A part holding a relic gives it up: it comes back unheld (the run picks holders last, fuseParts).
+    const freed = parts.flatMap((p) => (p.relics ?? []).map((r) => ({ kind: unitDef(p.id).name, relic: relicDef(r).name })))
+    const gives = freed.map((x) => `The ${x.kind} gives up ${x.relic}: it comes back unheld, to give again on the Field.`).join(' ')
     const tip = () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ' ', f.desc,
       !open ? h('p', { class: 'warn' }, `Fused on the map, once the spoils are done: ${trade}.`)
         : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
-          : h('p', { class: 'dim' }, `${trade[0].toUpperCase()}${trade.slice(1)}. ${fresh}`))
+          : h('p', { class: 'dim' }, `${trade[0].toUpperCase()}${trade.slice(1)}. ${fresh}`),
+      freed.length > 0 && h('p', { class: 'warn' }, gives))
     const press = (e) => {
       if (!can) { sfx.play('poor'); return shake(e) }
       const error = act(entry.action)
       if (error) { said = error; sfx.play('poor'); return done() }
       learnt('fuse')
       sfx.play('buy')
-      said = `${name} is made${back > 0 ? `, its parts' tiers paying back ${back}` : ''}: it waits in the ossuary, fresh at level ${firstLevel()}.`
+      said = `${name} is made${back > 0 ? `, its parts' tiers paying back ${back}` : ''}: it waits in the ossuary, fresh at level ${firstLevel()}.${freed.length ? ` ${freed.map((x) => x.relic).join(' and ')} ${freed.length > 1 ? 'wait' : 'waits'} unheld.` : ''}`
       done()
     }
     // Dim while it cannot be made; its price red only when the essence is short.

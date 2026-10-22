@@ -81,6 +81,9 @@ export function battleChrome ({ onHelp = null } = {}) {
           : ['The next ', kw('wave'), ` enters over the far edge as turn ${st.next.turn} begins.`])
   }, icon('wave', 18), waveT, waveNext)
   const selBox = h('div', { class: 'bs-sel' })
+  // Run short, the box scrolls: a shade over its foot says more lies under the line.
+  const more = () => selBox.classList.toggle('more', selBox.scrollHeight - selBox.scrollTop - selBox.clientHeight > 1)
+  selBox.addEventListener('scroll', more, { passive: true })
   // End Turn's card: what each of yours still to act does as it is pressed (the sim's own reckoning); never the foes'.
   const laid = (list) => list.length > 0 && h('span', { class: 'dim' }, `, ${list.join(', ')}`)
   const endLine = (x) => h('li', null, x.name, x.shadow && h('span', { class: 'dim' }, ' (shadow)'),
@@ -125,9 +128,10 @@ export function battleChrome ({ onHelp = null } = {}) {
     // With none selected: how many of yours may still act, and which.
     if (!p) {
       const r = st.roster
-      return fill(selBox, h('p', { class: 'bs-hint dim' }, st.over ? 'The battle is over.' : st.busy || !r ? 'The turn plays out…'
+      fill(selBox, h('p', { class: 'bs-hint dim' }, st.over ? 'The battle is over.' : st.busy || !r ? 'The turn plays out…'
         : r.ready.length ? [`${r.ready.length} of ${r.total} still to act: ${group(r.ready)}. `, say('Click', 'Tap'), ' one, or ', h('b', null, 'End Turn'), '.']
           : [!r.total ? 'None of yours takes orders: ' : r.total === 1 ? 'Yours has acted: ' : `All ${r.total} have acted: `, h('b', null, 'End Turn'), '.']))
+      return more()
     }
     const d = unitDef(p.id)
     const pip = (a) => a.skill && h('span', { class: 'cd-pip' + (a.rest > 0 ? ' rest' : ''), 'aria-label': a.rest > 0 ? 'resting' : 'ready' })
@@ -143,16 +147,19 @@ export function battleChrome ({ onHelp = null } = {}) {
         h('b', null, a.name),
         a.skill && h('span', { class: 'dim' }, a.rest > 0 ? ` · ready in ${turns(a.rest)}` : a.rests > 0 ? ` · rests ${turns(a.rests)} after use` : ' · ready again next turn'),
         info && actText(info.a, info.st, info),
-        !a.can ? (p.acted ? h('p', { class: 'warn' }, 'Already acted this turn.') : p.hexed ? h('p', { class: 'warn' }, 'Hexed: it cannot act this turn.')
-          : a.short ? h('p', { class: 'warn' }, `Costs ${a.cost} energy: ${p.left} left.`) : a.rest > 0 ? null : h('p', { class: 'dim' }, a.heal ? 'No ally in reach needs it.' : 'Not usable now.'))
-          : info?.now.length ? [h('p', { class: 'act-k' }, a.arise ? 'Corpses in reach:' : 'In reach now:'), h('ul', { class: 'act-targets' }, info.now.map(target))]
-            : info?.later.length ? h('p', null, `Nothing in reach from here. Moving first brings in: ${group(info.later)}.`)
-              : h('p', { class: 'dim' }, 'Nothing it can reach this turn.'))
+        st.busy ? h('p', { class: 'dim' }, 'The turn plays out…')
+          : !a.can ? (p.acted ? h('p', { class: 'warn' }, 'Already acted this turn.') : p.hexed ? h('p', { class: 'warn' }, 'Hexed: it cannot act this turn.')
+            : a.short ? h('p', { class: 'warn' }, `Costs ${a.cost} energy: ${p.left} left.`) : a.rest > 0 ? null
+              : h('p', { class: 'dim' }, a.arise ? 'No corpse in reach.' : a.heal ? 'No ally in reach needs it.' : 'Not usable now.'))
+            : info?.now.length ? [h('p', { class: 'act-k' }, a.arise ? 'Corpses in reach:' : 'In reach now:'), h('ul', { class: 'act-targets' }, info.now.map(target))]
+              : info?.later.length ? h('p', null, `${a.arise ? 'No corpse' : 'Nothing'} in reach from here. Moving first brings in: ${group(info.later)}.`)
+                : h('p', { class: 'dim' }, a.arise ? 'No corpse it can reach this turn.' : 'Nothing it can reach this turn.'))
     }
     const acts = p.acts.map((a) => btn({
       class: 'act-btn' + (a.armed ? ' armed' : '') + (a.skill ? ' skill' : '') + (a.arise ? ' arise' : ''), 'aria-pressed': a.armed ? 'true' : 'false',
       'aria-disabled': a.can ? null : 'true', onclick: () => a.can && scene?.arm(a.id), tip: actTip(a)
-    }, pip(a), h('span', { class: 'act-name' }, a.name), h('span', { class: 'act-kind' + (a.short ? ' short' : '') }, `${a.skill ? 'skill' : 'basic'} · ${a.cost}`)))
+    }, pip(a), h('span', { class: 'act-name' }, a.name),
+    h('span', { class: 'act-kind' + (a.short ? ' short' : '') }, h('span', { class: 'act-word' }, `${a.skill ? 'skill' : 'basic'} · `), `${a.cost}`)))
     const armed = p.acts.find((a) => a.armed)
     // The armed act with nothing to take from here: why, and who a move brings in reach, or that none would.
     const moves = p.tiles > 0
@@ -160,7 +167,7 @@ export function battleChrome ({ onHelp = null } = {}) {
     const none = armed?.arise ? 'No corpse' : 'Nothing'
     const stuck = !armed || st.busy || armed.targets ? null
       : !armed.can ? (armed.rest > 0 ? `${armed.name} rests ${turns(armed.rest)} more.` : armed.short ? `${armed.name} costs ${armed.cost} energy: ${p.left} left.`
-        : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
+        : armed.arise ? `No corpse in reach of ${armed.name}.` : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
         : later.length ? `${none} in reach of ${armed.name} from here: moving brings in ${group(later)}.`
           : moves ? `${none} in reach of ${armed.name} this turn, even after a move.` : `${none} in reach of ${armed.name} from here${p.move > 0 ? ', and no energy to walk' : ''}.`
     const line = p.hexed && !p.acted ? h('span', { class: 'warn' }, 'Hexed: it loses its act.')
@@ -179,10 +186,15 @@ export function battleChrome ({ onHelp = null } = {}) {
             h('span', { class: 'sel-hp' }, hpBar(p.hp, p.maxHp), `${p.hp}/${p.maxHp}`),
             h('span', { class: 'sel-move', tip: () => `Energy: ${p.left} of ${p.energy} left this turn. A tile walked costs ${TUNING.energy.tile}, its basic ${TUNING.energy.basic}, a skill ${TUNING.energy.skill}.` }, `Energy ${p.left}/${p.energy}`)),
           p.relics.length > 0 && h('div', { class: 'sel-relic' }, p.relics.map((id) => h('span', { class: `rs-relic rt-${relicDef(id).tier}`, tip: () => relicTip(id) }, icon(relicIcon(id), 14), relicDef(id).name))))),
-      acts.length > 0 && h('div', { class: 'sel-acts' }, acts),
-      p.undo && h('div', { class: 'sel-acts' },
-        btn({ class: 'undo-btn', onclick: () => scene?.undo(), tip: () => `Back to ${tileText(p.from)}, its energy whole again. (U)` }, icon('undo', 18), 'Undo move')),
+      h('div', { class: 'sel-orders' },
+        acts.length > 0 && h('div', { class: 'sel-acts' }, acts),
+        p.undo && h('div', { class: 'sel-acts' },
+          btn({ class: 'undo-btn', 'aria-label': 'Undo move', onclick: () => scene?.undo(), tip: () => `Back to ${tileText(p.from)}, its energy whole again. (U)` }, icon('undo', 18), h('span', { class: 'undo-name' }, 'Undo move')))),
       h('div', { class: 'sel-line' }, line))
+    // The armed act (Arise among them) never left scrolled under the line.
+    const on = selBox.querySelector('.act-btn.armed')
+    if (on && selBox.scrollHeight > selBox.clientHeight) on.scrollIntoView({ block: 'nearest' })
+    more()
   }
 
   function render () {

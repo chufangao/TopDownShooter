@@ -390,14 +390,15 @@ export function join (run, id, { uid = run.state.nextUid++ } = {}) {
 const tiersHeld = (u) => u.tracks[0] + u.tracks[1]
 
 // The parts the run picks for fusion `id`, uids, or null where the retinue lacks them: for each kind it needs, in the
-// recipe's order, its pieces in the ossuary first, then the fielded, those with the fewest tiers first among each (the
-// least growth given up), party order among equals.
+// recipe's order, its pieces in the ossuary first, then the fielded; among each those holding the fewest relics first
+// (a holder's relic would come back unheld), then the fewest tiers (the least growth given up), party order among
+// equals. A fuse logged names its parts, so a saved run replays whatever this picks.
 export function fuseParts (run, id) {
   const recipe = Object.hasOwn(FUSIONS, id) ? FUSIONS[id] : null
   if (!recipe) return null
   const out = []
   for (const [kind, need] of Object.entries(recipe.needs)) {
-    const pieces = souls(run.state.party).filter((u) => u.id === kind).sort((a, b) => onField(a) - onField(b) || tiersHeld(a) - tiersHeld(b))
+    const pieces = souls(run.state.party).filter((u) => u.id === kind).sort((a, b) => onField(a) - onField(b) || (a.relics?.length ?? 0) - (b.relics?.length ?? 0) || tiersHeld(a) - tiersHeld(b))
     if (pieces.length < need) return null
     out.push(...pieces.slice(0, need).map((u) => u.uid))
   }
