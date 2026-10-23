@@ -85,7 +85,7 @@ function essenceTip (run) {
     h('p', { class: 'dim' }, `A slain foe pays ${payPer(s.floor)} × its tier on this floor.`))
 }
 
-// A Legendary's tag, its words' initials ("Court of Bone" CB), small words skipped.
+// A Legendary's tag, its words' initials ("Hold the Line" HL), small words skipped.
 const letterPair = (name) => name.split(/\s+/).filter((w) => /^[A-Z]/.test(w)).map((w) => w[0]).join('').slice(0, 2)
 
 // Counts `el` from `from` to `to`, then flashes `host` (green a gain, red a loss); onStep sees every value drawn, so a

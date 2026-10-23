@@ -16,10 +16,10 @@ import { basicTurn } from './foe.js'
 import { solverTurn, bestFormation, solverKnobs } from './solver.js'
 import { outForestModel, outDecides, chooseOut, zeros, put, SIT_KEYS, CAND_KEYS, FIELD_KEYS, OUT_THREATS, OUT_ROLES, OUT_ROOMS } from './outforest.js'
 import { value, decide, standing as keysOf, outranks, TREES, leafOf, checkTree, pathName, situation, deployment, shippedPart } from './read.js'
-import { grantsArise, bleeds, ariseGrants } from './rules.js'
+import { grantsArise } from './rules.js'
 import {
   createRun, apply, availableNodes, fieldCap, rosterCap, fielded, inOssuary, currentNode, battleSetup, tierCost,
-  foeMods, roomThreats, unkeyed, isMonarch, monarchOf, souls, canAdvance, unhealed, soulCount, canPlace, canFuse,
+  foeMods, roomThreats, unkeyed, isMonarch, monarchOf, souls, canAdvance, soulCount, canPlace, canFuse,
   fuseParts, fuseCost, OSSUARY, START_PARTY, relicTier, levelOf, monarchHp, ariseOf, commandOf, canBuy,
   relicPrice, isRunRelic, unheld, canHold, foeEssence, eliteBonus, floorPrice, runStat, spawnPool, altarActions,
   transmuteOffer, foeScale, ANSWERS, tends, BASE_MONARCH, copyRun, copyPlain
@@ -186,13 +186,10 @@ function raiseHp (floor, tier, lvl) {
 
 // ── Arise's worth, read from the roads ────────────────────────────────────────────────────────────
 
-// Arise as soul `u` holds it, its rules' additions counted: { domain, tier, count }; null for none or under 'arise'.
+// Arise as soul `u` holds it: { domain, tier, count } (a claim a turn); null for none or under 'arise'.
 function ariseIn (s, u) {
-  const grants = ariseGrants(u)
-  if (!grants.length || s.ablate?.includes('arise')) return null
-  const a = ariseOf(s)
-  const sum = (k) => grants.reduce((n, r) => n + (r.params[k] ?? 0), 0)
-  return { domain: a.domain + sum('domain'), tier: a.tier + sum('tier'), count: Math.max(1, ...grants.map((r) => r.params.count ?? 1)) }
+  if (!(u.relics ?? []).some(grantsArise) || s.ablate?.includes('arise')) return null
+  return { ...ariseOf(s), count: 1 }
 }
 
 // The share of a foe's road within `domain` tiles of `tiles`, a tile weighed (1 + its distance to the seat)^−1.
@@ -246,7 +243,7 @@ function shadowWorth (id, lvl) {
 // What the expert reads of the run before a decision out of battle, as a player is shown it; no battle played:
 //   floor, rank, phase         where the run stands
 //   purse, prices              its essence; the cheapest next `tier`, `recruit` and `relic` (null for none)
-//   health, fallen, monarch    the souls' HP share, the fallen, the Monarch's HP share; `unhealed`: nothing heals it
+//   health, fallen, monarch    the souls' HP share, the fallen, the Monarch's HP share
 //   strength                   the field's (strength)
 //   command, fielded, waiting  the field cap, the standing souls fielded and in the ossuary
 //   target                     the combo it plays toward: { id, progress, missing kinds }, null for none
@@ -275,7 +272,6 @@ export function survey (run, L = LEVELS.expert) {
     health: all.reduce((n, u) => n + Math.max(0, u.hp), 0) / Math.max(1, all.reduce((n, u) => n + u.maxHp, 0)),
     fallen: all.length - up.length,
     monarch: m.hp / m.maxHp,
-    unhealed: unhealed(s),
     strength: strength(s, L.ablate !== 'summons'),
     command: fieldCap(run),
     fielded: fielded(up).length,
@@ -391,7 +387,7 @@ const THREAT_TYPES = ['reach', 'shape', 'drain', 'sustain', 'fly', 'burn', 'blee
 //   strength                         the army's, as a log
 //   souls, fielded, waiting, fallen  the souls standing, fielded, in the ossuary; the fallen
 //   command, health                  the field cap; the souls' HP share
-//   monarch, monarch.hp, unhealed    the Monarch's HP share, its HP, whether nothing may heal it
+//   monarch, monarch.hp              the Monarch's HP share, its HP
 //   purse, purse.relic               the essence in tier prices, and in the floor's cheapest relic's
 //   relics, progress                 the relics owned; how far along its target combo
 //   rooms, open.*                    the rooms open; an elite or an altar among them (open.shop always 0)
@@ -413,7 +409,6 @@ export function routeConditions (run, sit = survey(run)) {
     health: sit.health,
     monarch: sit.monarch,
     'monarch.hp': Math.max(0, m.hp),
-    unhealed: sit.unhealed ? 1 : 0,
     purse: sit.purse / tierScale(sit.floor),
     'purse.relic': sit.prices.relic ? sit.purse / sit.prices.relic : 0,
     relics: s.relics.length,
@@ -482,12 +477,12 @@ export function roomFeatures (sit, room) {
     odds,
     weak: Math.max(0, -odds),
     wounds: room.type === 'altar' ? 1 - sit.health : 0,
-    monarch: room.type === 'altar' && !sit.unhealed ? 1 - sit.monarch : 0,
+    monarch: room.type === 'altar' ? 1 - sit.monarch : 0,
     purse: 0,
     want: room.want,
     unanswered: room.unanswered.length,
     altarAhead: room.ahead.altar === null ? 0 : (1 - sit.health) / (1 + room.ahead.altar),
-    monarchAhead: room.ahead.altar === null || sit.unhealed ? 0 : (1 - sit.monarch) / (1 + room.ahead.altar),
+    monarchAhead: room.ahead.altar === null ? 0 : (1 - sit.monarch) / (1 + room.ahead.altar),
     shopAhead: 0
   }
 }
@@ -1547,12 +1542,12 @@ function bestTracks (s) {
 }
 
 // A combo's worth from here: its gain over the plain army on the floors left, and the points of the relics at work that
-// pair with it; a relic that costs the Monarch HP counts none while nothing may heal it.
+// pair with it.
 const BOOK_CAP = BOOK_FLOORS.length
-function comboWorth (s, c, work = atWork(s), bled = unhealed(s)) {
+function comboWorth (s, c, work = atWork(s)) {
   const pairs = c.relics ?? BOOK.plain ?? {}
   let relics = 0
-  for (const id of work) relics += bled && bleeds(id) ? 0 : pairs[id] ?? 0
+  for (const id of work) relics += pairs[id] ?? 0
   // A combo whose kinds are not met before a later floor (`from`) is worth TUNING.expert.book.ahead of it until then.
   return (gainFrom(c, Math.min(s.floor, BOOK_CAP)) + relics) * (c.from > s.floor ? TUNING.expert.book.ahead : 1)
 }
@@ -1577,17 +1572,15 @@ function bookValue (s) {
 export function targetOf (s) {
   return bookRead(s).target
 }
-// Both, read once for what they read of a state (by the combos in play): its floor, the relics at work, whether nothing
-// heals the Monarch, the standing souls of each kind and the tiers of its soul with the most. Dropped whole past 4,096
-// states.
+// Both, read once for what they read of a state (by the combos in play): its floor, the relics at work, the standing
+// souls of each kind and the tiers of its soul with the most. Dropped whole past 4,096 states.
 const BOOK_READS = new WeakMap()
 function bookRead (s) {
   const work = atWork(s)
-  const bled = unhealed(s)
   const counts = standingCounts(s)
   const best = bestTracks(s)
   const combos = bookCombos()
-  const key = JSON.stringify([s.floor, [...work], bled, [...counts], [...counts.keys()].map((id) => best.get(id)), TUNING.expert.book.ahead])
+  const key = JSON.stringify([s.floor, [...work], [...counts], [...counts.keys()].map((id) => best.get(id)), TUNING.expert.book.ahead])
   let seen = BOOK_READS.get(combos)
   if (!seen || seen.size >= 4096) BOOK_READS.set(combos, (seen = new Map()))
   let read = seen.get(key)
@@ -1596,7 +1589,7 @@ function bookRead (s) {
   let target = null
   let most = 0
   for (const c of combos) {
-    const v = comboWorth(s, c, work, bled) * comboProgress(s, c, counts, best)
+    const v = comboWorth(s, c, work) * comboProgress(s, c, counts, best)
     value = Math.max(value, v)
     if (v > most) { most = v; target = c }
   }
@@ -1739,15 +1732,14 @@ function recruit (run) {
   return affordable.sort((a, b) => unitDef(b.o.id).tier - unitDef(a.o.id).tier || a.index - b.index)[0]?.index ?? null
 }
 
-// The state a purchase would make, for the sketch: a relic owned (an HP relic's Monarch raised, and healed unless nothing
-// may heal it), or soul `o.uid` alone with a tier more on track `o.track` (afterTier). Only what changes: { relics?, party? }
+// The state a purchase would make, for the sketch: a relic owned (an HP relic's Monarch raised, and healed as much), or
+// soul `o.uid` alone with a tier more on track `o.track` (afterTier). Only what changes: { relics?, party? }
 export function offerState (s, o) {
   if (o.type === 'relic') {
     const relics = [...s.relics, o.id]
     const gain = monarchHp({ ...s, relics }) - monarchHp(s)
     if (!gain) return { relics }
-    const heal = !unhealed({ relics })
-    return { relics, party: s.party.map((u) => (isMonarch(u) ? { ...u, maxHp: monarchHp({ ...s, relics }), hp: u.hp + (heal ? gain : 0) } : u)) }
+    return { relics, party: s.party.map((u) => (isMonarch(u) ? { ...u, maxHp: monarchHp({ ...s, relics }), hp: u.hp + gain } : u)) }
   }
   if (o.type !== 'tier') return {}
   return { party: s.party.map((u) => (u.uid === o.uid ? afterTier(u, o.track) : u)) }

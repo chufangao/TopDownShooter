@@ -973,8 +973,8 @@ test('the Monarch\'s HP and Command are its relics\', and Arise\'s numbers the r
   const s = run.state
   const m = monarchOf(s)
   assert.deepEqual([m.lvl, m.maxHp], [0, TUNING.monarch.hp])
-  // Relics: two Command (one Legion), two copies of Arise, Court of Bone and an Hourglass.
-  s.relics = ['grave_banner', 'legion', 'arise', 'arise', 'court_of_bone', 'hourglass']
+  // Relics: two Command (one Legion), two copies of Arise, Undying and an Hourglass.
+  s.relics = ['grave_banner', 'legion', 'arise', 'arise', 'undying', 'hourglass']
   assert.equal(fieldCap(run), TUNING.party.field + 3)
   assert.equal(commandOf(s), baseField(s) + 3)
   const a = ariseOf(s)
@@ -986,7 +986,7 @@ test('the Monarch\'s HP and Command are its relics\', and Arise\'s numbers the r
 })
 
 test('a fight: shadows never join the retinue and the run moves past their uids; wounds carry; a fallen Monarch ends the run', () => tuned({ ...FIRST_BALANCE, arise: { ...FIRST_BALANCE.arise, domain: 8 } }, () => {
-  // With Arise's reach over the whole board (two souls holding Arise), where corpses fall in reach; with `hp`, the
+  // With Arise's reach over the whole board (two souls holding Arise), every foe in reach of a claim; with `hp`, the
   // Monarch wounded before the fight, its souls on the cells beside its seat, where the foes come to them.
   const fightFrom = (seed, hp) => {
     const run = createRun({ start: START_PARTY, seed })

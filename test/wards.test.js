@@ -17,7 +17,7 @@ function laid (x, out = new Set()) {
 test('nothing lays Veiled: it is no status and has no worth; Veil and Court Eternal lay Barkskin', () => {
   // The glossary's statuses are STATUSES' own (keywords.js): no word for it either.
   assert.ok(!('veiled' in STATUSES) && !('veiled' in STATUS_WORTH))
-  assert.equal(Object.keys(STATUSES).length, 13)
+  assert.equal(Object.keys(STATUSES).length, 14)
   const all = laid([Object.values(ABILITIES), UNIT_LIST, RELIC_LIST, Object.values(SYNERGIES), FUSION_LIST, MONARCH_LIST])
   assert.ok(!all.has('veiled'), [...all].join(', '))
   for (const id of all) assert.ok(STATUSES[id], `${id}: a status`)

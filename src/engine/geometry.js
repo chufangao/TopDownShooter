@@ -181,7 +181,7 @@ export function dashedEllipse (g, x, y, w, h, n = 14) {
 // (Sanctuary's anywhere), Arise its domain. Null for an act on itself or all its side, or one that takes the whole board.
 export function actReach (b, u, a) {
   if (a.shape === 'self' || a.shape === 'all_allies') return null
-  const r = a.shape === 'corpse' ? ariseOf(b, u)?.domain : isBlow(a) ? blowReach(u, a) : holds(b, u.side, 'sanctuary') ? Infinity : rangeOf(a)
+  const r = a.claim ? ariseOf(b, u)?.domain : isBlow(a) ? blowReach(u, a) : holds(b, u.side, 'sanctuary') ? Infinity : rangeOf(a)
   return r < DEPTH ? r : null
 }
 

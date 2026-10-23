@@ -148,7 +148,7 @@ test('a relic card says Run or Held; a soul\'s card shows its relic slot, the Mo
   for (const u of [soul, monarch]) assert.ok(!/\b(ACC|EVA|CRT|SPD)\b/.test(unitCard(u, { run, open: true }).textContent))
 })
 
-test('Arise is its holder\'s skill on its card, with its reach and tier; a soul holding none has no Arise', () => {
+test('Arise is its holder\'s skill on its card, with its reach and tier; a soul holding none has no Arise', async () => {
   const run = createRun({ start: START_PARTY, seed: 'codex' })
   const [holder, other] = souls(run.state.party)
   run.state.relics.push('arise')
@@ -158,7 +158,13 @@ test('Arise is its holder\'s skill on its card, with its reach and tier; a soul 
   assert.equal(ariseFor(run.state, other), null)
   const card = (u) => unitCard(u, { run, realm: realmOf(run), open: true }).textContent
   assert.ok(card(holder).includes('Arise') && card(holder).includes(`${a.domain} tiles`), card(holder))
+  assert.ok(card(holder).includes('Claimed') && !/corpse/i.test(card(holder)), card(holder))
   assert.ok(!card(other).includes('Arise'))
+  // Its act's card: the claim, its reach and tier and Claimed's turns, and what a fall brings.
+  const { actText } = await import('../src/codex.js')
+  const { abilityDef } = await import('../src/content.js')
+  const said = actText(abilityDef('arise'), { atk: 10, heal: { given: 1 } }, { arise: a }).map((p) => p.textContent).join(' ')
+  assert.ok(said.toLowerCase().includes(`claims a foe of tier ≤ ${a.tier} within ${a.domain} tiles for 3 turns: if it falls, it rises where it fell as your shadow`), said)
 })
 
 test('a battle\'s synergy labels name the rule each brings at 4', () => {
@@ -330,7 +336,7 @@ test('a kind with a blow that keeps to its line says so; a lobbed blow says it i
     assert.equal(/line of fire/.test(reachRule(u)), keeps, `${d.id}: ${reachRule(u)}`)
   }
   const st = { atk: 10, heal: { given: 1 } }
-  for (const a of Object.values(ABILITIES).filter((x) => x.arc && x.shape !== 'corpse')) {
+  for (const a of Object.values(ABILITIES).filter((x) => x.arc && !x.claim)) {
     assert.ok(!lined(a), a.id)
     assert.match(abilityBlock(a.id, st).textContent, /ignores lines/, a.id)
   }

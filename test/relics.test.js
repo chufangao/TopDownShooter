@@ -5,20 +5,20 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, enterBattle, order, playOut, playTurns, preview, perform, stats, corpses, ariseOf as ariseIn, synergiesOf, timelineHash, legalOrders, orderable, intents, targetsFrom } from '../src/sim/turns.js'
+import { createBattle, enterBattle, order, playOut, playTurns, perform, stats, ariseOf as ariseIn, addStatus, applyDamage, fork, lined, synergiesOf, timelineHash, legalOrders, orderable, intents, targetsFrom } from '../src/sim/turns.js'
 import { basicTurn } from '../src/sim/foe.js'
 import { solverTurn } from '../src/sim/solver.js'
 import {
-  createRun, apply, battleSetup, fieldCap, rosterCap, souls, monarchOf, fielded, legalActions, join, reapedShadows, encounter,
+  createRun, apply, battleSetup, fieldCap, rosterCap, souls, monarchOf, fielded, legalActions, join, encounter,
   relicCount, ariseHeld, relicWeights, replay, tierCost, ariseOf, monarchHp, commandOf, isRunPath, floorPrice, shopOffers, relicTier,
-  unheld, canHold, isRunRelic, fuseParts, OSSUARY, START_PARTY, stockShop
+  unheld, canHold, isRunRelic, fuseParts, OSSUARY, START_PARTY, stockShop, battleEssence, foeEssence
 } from '../src/sim/run.js'
 import { policy, planFor, LEVELS, autoplay, offerState } from '../src/sim/autoplay.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { tuned, relicMod } from './tuned.js'
-import { RELIC_LIST, RELICS, UNITS } from '../src/content.js'
-import { makeUnit, alive, baseStats, footprint, tileAt, unitDistance, distanceBetween } from '../src/sim/unit.js'
+import { RELIC_LIST, RELICS, UNITS, STATUSES, abilityDef } from '../src/content.js'
+import { makeUnit, alive, baseStats, footprint, tileAt, unitDistance, distanceBetween, isBlow } from '../src/sim/unit.js'
 import { on, scene as sceneOf, slay, unit, turns, moves } from './scene.js'
 import { visit, win } from './rooms.js'
 
@@ -459,74 +459,9 @@ test('Mimicry: its holder counts as a Warden too, for its side\'s synergies; cop
   assert.ok(sanctuary(wardens([['mimicry'], ['mimicry']])), 'two Wardens and two holders: four')
 })
 
-test('Blood Tithe: its holder\'s Arise raises two corpses a turn, the chosen then the highest tier, each costing the Monarch its share of max HP, never its last', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['blood_tithe']), on('tomb_knight', 2, 'party', 0, 0, 3, [0, 0], ['arise']),
-    ...[0, 1, 2].map((x) => on(x === 2 ? 'pyre_hound' : 'grave_ghoul', 10 + x, 'foe', x, 4, 1)), on('iron_golem', 20, 'foe', 6, 10)])
-  for (const uid of [10, 11, 12]) slay(b, unit(b, uid))
-  const m = b.monarch
-  const tithe = Math.ceil(m.maxHp * RELICS.blood_tithe.params.tithe)
-  const ev = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
-  assert.deepEqual(ev.filter((e) => e.type === 'arise').map((e) => [e.actor, e.corpse]), [[1, 10], [1, 12]], 'the chosen, then the tier 2 over the tier 1')
-  assert.deepEqual(ev.filter((e) => e.type === 'tithe').map((e) => [e.target, e.damage]), [[0, tithe], [0, tithe]], 'a tithe a shadow')
-  assert.equal(m.hp, m.maxHp - 2 * tithe)
-  assert.equal(b.raised, 2)
-  assert.ok(ev.some((e) => e.type === 'cooldown' && e.ability === 'arise' && e.turns === 1), 'no rest, as every Arise')
-  // A plain Arise raises one: the holder beside it takes the last.
-  const plain = order(b, { type: 'act', uid: 2, ability: 'arise', target: 11 })
-  assert.deepEqual(plain.filter((e) => e.type === 'arise').map((e) => e.corpse), [11])
-  assert.ok(!plain.some((e) => e.type === 'tithe'), 'and pays no tithe')
-  // The next turn: one corpse left in reach, one raised; and no more than the Monarch's HP pays for, never its last.
-  order(b, { type: 'end' })
-  assert.ok(legalOrders(b).every((o) => o.ability !== 'arise'), 'no corpse left')
-  const two = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 3, [0, 0], ['blood_tithe']), ...[0, 1].map((x) => on('grave_ghoul', 10 + x, 'foe', x, 4, 1)),
-    on('iron_golem', 20, 'foe', 6, 10)])
-  for (const uid of [10, 11]) slay(two, unit(two, uid))
-  two.monarch.hp = 2 * tithe
-  const once = order(two, { type: 'act', uid: 1, ability: 'arise', target: 11 })
-  assert.deepEqual([once.filter((e) => e.type === 'arise').map((e) => e.corpse), two.monarch.hp], [[11], tithe], 'its HP pays for one')
-  order(two, { type: 'end' })
-  assert.deepEqual(corpses(two, unit(two, 1)), [], 'never with its last HP')
-})
-
-test('Court of Bone: its holder\'s Arise reaches 2 farther; and while the run holds it nothing heals the Monarch, in battle or out, though a buff still reaches it', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 1), on('tomb_knight', 1, 'party', 0, 0, 3, [0, 0], ['court_of_bone']), on('clockwork_page', 2, 'party', 3, 2, 9, [0, 3]),
-    on('iron_golem', 50, 'foe', 6, 10)], { relics: ['court_of_bone'] })
-  assert.deepEqual(ariseIn(b, unit(b, 1)).domain, TUNING.arise.domain + RELICS.court_of_bone.params.domain)
-  b.monarch.hp = 30
-  const kit = unit(b, 2).kit.map((a) => a.id)
-  assert.ok(kit.includes('overclock'), kit.join())
-  assert.ok(legalOrders(b).some((o) => o.uid === 2 && o.ability === 'overclock' && o.target === 0), 'a buff still reaches it')
-  const mend = scene([on('monarch', 0, 'party', 3, 1), on('hive_warden', 1, 'party', 3, 2, 5), on('iron_golem', 50, 'foe', 6, 10)], { relics: ['court_of_bone'] })
-  mend.monarch.hp = 30
-  assert.ok(!legalOrders(mend).some((o) => o.ability === 'mend' && o.target === 0) || !preview(mend, 1, 'mend', 0)?.heal, 'no heal lands on it')
-  assert.ok(!turns(mend).some((e) => e.type === 'heal' && e.target === 0))
-  // Out of battle: not an altar (an HP relic bought: run.test.js, offerState above).
-  const run = createRun({ start: START_PARTY, seed: 'cob-out' })
-  const s = run.state
-  s.relics = ['court_of_bone']
-  monarchOf(s).hp = 40
-  visit(run, 'altar')
-  apply(run, { type: 'heal' })
-  assert.equal(monarchOf(s).hp, 40)
-})
-
-test('Hollow Court: the shadows its holder raised that stand when the battle is won pay their essence again; a plain Arise\'s do not', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 2, 2, 3, [0, 0], ['hollow_court']), on('tomb_knight', 2, 'party', 4, 2, 3, [0, 0], ['arise']),
-    on('grave_ghoul', 10, 'foe', 2, 4, 1), on('grave_ghoul', 11, 'foe', 4, 4, 1), on('iron_golem', 20, 'foe', 6, 10)])
-  slay(b, unit(b, 10))
-  slay(b, unit(b, 11))
-  const court = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
-  const plain = order(b, { type: 'act', uid: 2, ability: 'arise', target: 11 }).find((e) => e.type === 'arise')
-  assert.deepEqual([unit(b, court.unit.uid).reap, unit(b, plain.unit.uid).reap], [1, undefined])
-  b.winner = 'party'
-  assert.deepEqual(reapedShadows({ battle: b }).map((u) => u.uid), [court.unit.uid])
-  b.winner = 'foe'
-  assert.deepEqual(reapedShadows({ battle: b }), [])
-})
-
 test('every Legendary, held alone, together and twice over, plays deterministically and keeps the battle\'s invariants', () => {
   const pieceLegends = LEGENDARIES.filter((id) => !isRunRelic(id))
-  const combos = [...pieceLegends.map((id) => [id]), pieceLegends, ['undying', 'undying'], ['court_of_bone', 'blood_tithe', 'arise']]
+  const combos = [...pieceLegends.map((id) => [id]), pieceLegends, ['undying', 'undying'], ['arise', 'arise', 'undying']]
   const counts = {}
   for (let i = 0; i < 4; i++) {
     const run = createRun({ start: START_PARTY, seed: 'soak' + i })
@@ -537,7 +472,7 @@ test('every Legendary, held alone, together and twice over, plays deterministica
     const caps = fielded(souls(s.party))
     for (const u of caps) Object.assign(u, { lvl: 9, maxHp: baseStats(u.id, 9).hp, hp: Math.max(1, Math.round(baseStats(u.id, 9).hp * (i % 2 ? 0.25 : 0.6))) })
     for (const legend of combos) {
-      s.relics = [...legend, 'court_of_bone']
+      s.relics = [...legend]
       caps.forEach((u, k) => { u.relics = legend[k] ? [legend[k]] : [] })
       const setup = battleSetup(run)
       for (const policy of [basicTurn, solverTurn]) {
@@ -548,8 +483,6 @@ test('every Legendary, held alone, together and twice over, plays deterministica
           for (const e of b.events.slice(from)) {
             counts[e.type] = (counts[e.type] ?? 0) + 1
             if (e.type === 'rise') assert.notEqual(e.target, 0, 'the Monarch never rises')
-            if (e.type === 'heal') assert.notEqual(e.target, 0, 'Court of Bone: no heal for the Monarch')
-            if (e.type === 'tithe') assert.ok(e.hp > 0, 'the tithe never fells the Monarch')
           }
           for (const u of b.units) {
             assert.ok(u.hp >= 0 && u.hp <= u.maxHp, `${legend} turn ${b.turn}: ${u.uid} at ${u.hp}/${u.maxHp}`)
@@ -616,7 +549,7 @@ test('basic at the Shop: it buys Legion for its Command, gives a piece relic wai
     const run = createRun({ start: START_PARTY, seed: 'ksauto' })
     run.state.floor = 2
     stock(run)
-    Object.assign(run.state, { shop: ['hollow_court', 'legion'], essence: 1e4 })
+    Object.assign(run.state, { shop: ['undying', 'legion'], essence: 1e4 })
     assert.deepEqual(policy(run, rng, level), { type: 'buy', index: 1 }, level)
     apply(run, { type: 'buy', index: 1 })
     assert.notEqual(policy(run, rng, level).type, 'buy', level)
@@ -645,9 +578,6 @@ test('basic at the Shop: it buys Legion for its Command, gives a piece relic wai
   const gain = relicMod('bone_mantle', 'run.monarchHp')
   const healed = offerState(s, hpRelic).party.find((u) => u.uid === 0)
   assert.deepEqual([healed.hp, healed.maxHp], [40 + gain, monarchOf(s).maxHp + gain])
-  s.relics = ['court_of_bone']
-  const court = offerState(s, hpRelic).party.find((u) => u.uid === 0)
-  assert.deepEqual([court.hp, court.maxHp], [40, healed.maxHp])
 }))
 
 // ── the Monarch's HP and Command ─────────────────────────────────────────────────────────────────
@@ -782,7 +712,7 @@ test('the tiers the Shop draws: by TUNING.relic.weights for its floor, the last 
 
 // ── Arise ────────────────────────────────────────────────────────────────────────────────────────
 
-test('Arise\'s reach and tier are the run\'s, a run relic at a time (Hourglass, Bone Idol), a variant\'s on top in battle; the battle takes them from the run', () => {
+test('Arise\'s reach and tier are the run\'s, a run relic at a time (Hourglass, Bone Idol); the battle takes them from the run', () => {
   const run = createRun({ start: START_PARTY, seed: 'gate' })
   const s = run.state
   const A = TUNING.arise
@@ -797,53 +727,153 @@ test('Arise\'s reach and tier are the run\'s, a run relic at a time (Hourglass, 
   assert.deepEqual([setup.arise, setup.partyMods], [ariseOf(s), []])
   const b = createBattle(setup)
   assert.deepEqual(ariseIn(b, b.units.find((u) => u.id === 'tomb_knight')), ariseOf(s))
-  assert.equal(ariseIn(b, b.units.find((u) => u.id === 'bone_chanter')), null, 'only its holder raises')
-  // Without an Arise relic held on the field, no shadow rises: none of the Monarch's.
+  assert.equal(ariseIn(b, b.units.find((u) => u.id === 'bone_chanter')), null, 'only its holder claims')
+  // Without an Arise relic held on the field, nothing is claimed: none of the Monarch's.
   const none = scene([on('monarch', 0, 'party', 3, 1), on('tomb_knight', 1, 'party', 0, 0), on('grave_ghoul', 10, 'foe', 3, 3), on('iron_golem', 50, 'foe', 6, 10)], { relics: ['arise', 'hourglass'] })
-  slay(none, unit(none, 10))
   assert.ok(!legalOrders(none).some((o) => o.ability === 'arise'))
-})
-
-// field.js riseTile: a shadow of yours rises where it fell, though a tile beside the Monarch is free.
-test('a shadow of yours rises where it fell, never beside the Monarch for being nearest it: by Arise, or as the slain rises (Gravedigger\'s Spade)', () => {
-  const foe = [on('grave_ghoul', 10, 'foe', 3, 1, 1), on('iron_golem', 50, 'foe', 6, 10)]
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), ...foe])
-  slay(b, unit(b, 10))
-  const arise = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
-  assert.deepEqual([arise.from, arise.unit.tile], [tileAt(3, 1), tileAt(3, 1)], 'where it fell')
-  const spade = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['gravediggers_spade']), ...foe])
-  unit(spade, 10).hp = 1
-  const rise = order(spade, { type: 'act', uid: 1, ability: 'strike', target: 10 }).find((e) => e.type === 'arise')
-  assert.deepEqual([rise.from, rise.unit.tile], [tileAt(3, 1), tileAt(3, 1)])
-})
-
-// An Arise raise rises on the corpse's tile; with a living unit on it, on the free tile nearest it (ties nearest the
-// Monarch, then lane order).
-test('an Arise raise rises on its corpse\'s tile; with one standing there, on the free tile nearest it', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 6, 10)])
-  slay(b, unit(b, 10))
-  const arise = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
-  assert.deepEqual([arise.from, arise.unit.tile, unit(b, arise.unit.uid).tile], [tileAt(3, 4), tileAt(3, 4), tileAt(3, 4)])
-  assert.equal(b.at[tileAt(3, 4)], unit(b, arise.unit.uid))
-  // A Bone Chanter walks onto the corpse: its shadow rises beside it, of the tiles there the one nearest the Monarch,
-  // the centre lane first: (3, 3), the tile the Chanter left.
-  const c = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('bone_chanter', 2, 'party', 3, 3),
-    on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 6, 10)])
-  slay(c, unit(c, 10))
-  order(c, { type: 'move', uid: 2, tile: tileAt(3, 4) })
-  const r = order(c, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise')
-  assert.deepEqual([r.from, r.unit.tile], [tileAt(3, 4), tileAt(3, 3)])
-  assert.equal(unit(c, 2).tile, tileAt(3, 4), 'the Chanter stands where it walked')
 })
 
 // End Turn's untouched stage of `events`, before the foes' (turns.js endTurn).
 const untouchedOf = (events) => events.slice(0, events.findIndex((e) => e.type === 'stage' && e.stage === 'foes'))
 
+// `holder` Claims `target`, and `striker` fells it with its basic from where it stands (`target` brought to 1 HP first):
+// → the strike's events.
+function claimFell (b, holder, target, striker) {
+  order(b, { type: 'act', uid: holder, ability: 'arise', target })
+  unit(b, target).hp = 1
+  return order(b, { type: 'act', uid: striker, ability: unit(b, striker).basic.id, target })
+}
+
+// Arise's targets: the living foes within its domain (Chebyshev, over any line) of a tier up to its cap, never a boss, a
+// shadow or one already Claimed; Hourglass widens the domain a tile, Bone Idol lifts the cap a tier.
+test('Arise claims a living foe within its domain of a tier up to its cap, never a boss, a shadow or one Claimed; Hourglass widens it, Bone Idol lifts the cap', () => {
+  const A = TUNING.arise
+  const field = (relics = []) => {
+    const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 0, 3, [0, 0], ['arise']), on('tomb_knight', 2, 'party', 1, 0, 3, [0, 0], ['arise']),
+      on('grave_ghoul', 10, 'foe', 0, A.domain, 1), on('grave_ghoul', 11, 'foe', 1, A.domain + 1, 1), on('barrow_wight', 12, 'foe', 2, 3),
+      on('grave_ghoul', 13, 'foe', 3, 3, 1), on('grave_ghoul', 14, 'foe', 4, 4, 1), on('barrow_marshal', 50, 'foe', 5, 5)], { arise: ariseOf({ relics }) })
+    unit(b, 13).shadow = true
+    slay(b, unit(b, 14))
+    return b
+  }
+  const claims = (b, uid = 1) => targetsFrom(b, unit(b, uid), abilityDef('arise')).map((x) => x.uid)
+  const b = field()
+  assert.deepEqual(claims(b), [10], 'the tier 1 at the domain\'s edge; not a tile past it, the tier 4, the shadow, the dead, the boss')
+  assert.ok(legalOrders(b).some((o) => o.uid === 1 && o.ability === 'arise' && o.target === 10))
+  const ev = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
+  assert.ok(ev.some((e) => e.type === 'status' && e.target === 10 && e.status === 'claimed' && e.dur === STATUSES.claimed.turns))
+  assert.ok(!ev.some((e) => e.type === 'damage' || e.type === 'trigger' || (e.type === 'action' && e.counter)), 'no blow: no damage, no moment, no counter')
+  assert.deepEqual(claims(b, 2), [], 'one Claimed is claimed no second time')
+  assert.deepEqual(claims(field(['hourglass'])), [10, 11], 'Hourglass: a tile farther')
+  assert.deepEqual(claims(field(['bone_idol'])), [10, 12], 'Bone Idol: the tier 4, never the boss')
+  assert.ok(!isBlow(abilityDef('arise')) && abilityDef('arise').arc && !lined(abilityDef('arise')), 'over any line of fire')
+})
+
+// A Claimed foe felled by a blow rises at once where it fell, a shadow of yours: no orders, and at End Turn it walks to a
+// foe and strikes it. The foe pays its essence as one slain.
+test('a Claimed foe slain by a blow rises where it fell as your shadow, takes no orders and strikes at End Turn; it still pays as slain', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('tomb_knight', 2, 'party', 2, 4),
+    on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 3, 7)])
+  const ev = claimFell(b, 1, 10, 2)
+  const rise = ev.find((e) => e.type === 'arise')
+  assert.ok(ev.findIndex((e) => e.type === 'death' && e.target === 10) < ev.indexOf(rise), 'it falls, then rises')
+  assert.deepEqual([rise.actor, rise.corpse, rise.from, rise.unit.tile, rise.unit.side, rise.unit.id, rise.rule], [1, 10, tileAt(3, 4), tileAt(3, 4), 'party', 'grave_ghoul', 'arise'])
+  const s = unit(b, rise.unit.uid)
+  assert.ok(s.shadow && s.arisen && s.raiser === 1 && alive(s) && unit(b, 10).raised && b.raised === 1)
+  assert.equal(b.at[tileAt(3, 4)], s)
+  assert.ok(!orderable(b, s) && !legalOrders(b).some((o) => o.uid === s.uid))
+  assert.equal(battleEssence(b), foeEssence(unit(b, 10), b.floor), 'the slain pays')
+  const hp = unit(b, 50).hp
+  const mine = untouchedOf(order(b, { type: 'end' }))
+  assert.equal(moves(mine, s.uid).length, 1, 'it walks')
+  assert.ok(mine.some((e) => e.type === 'action' && e.actor === s.uid && e.ability === s.basic.id && e.primary === 50), 'then strikes')
+  assert.ok(unit(b, 50).hp < hp)
+})
+
+// Any fall counts: a tick of a status, a counter, a foe's own blow. Unclaimed, the slain stays down.
+test('a Claimed foe slain by a Burning tick rises too; one never Claimed stays down', () => {
+  const burn = (claim) => {
+    const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']),
+      on('grave_ghoul', 10, 'foe', 3, 8, 1), on('iron_golem', 50, 'foe', 6, 10)])
+    if (claim) order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
+    addStatus(b, unit(b, 10), 'burning', null, unit(b, 1))
+    unit(b, 10).hp = 1
+    return { b, ev: order(b, { type: 'end' }) }
+  }
+  const { b, ev } = burn(true)
+  const tick = ev.find((e) => e.type === 'damage' && e.target === 10)
+  assert.equal(tick?.status, 'burning', 'a tick fells it')
+  const rise = ev.find((e) => e.type === 'arise')
+  assert.deepEqual([rise.corpse, rise.actor, rise.from, rise.unit.tile, rise.unit.side], [10, 1, unit(b, 10).tile, unit(b, 10).tile, 'party'])
+  assert.ok(ev.indexOf(tick) < ev.indexOf(rise))
+  const plain = burn(false)
+  assert.ok(!alive(unit(plain.b, 10)) && !plain.ev.some((e) => e.type === 'arise'), 'never Claimed: down for good')
+})
+
+// A shadow of yours rises where it fell; where its footprint finds one standing (a kind 2×2 on your side: Bone Colossus),
+// on the free footprint nearest it (field.js riseTile: ties nearest the Monarch, then lane order).
+test('a Claimed foe whose shadow\'s footprint finds one of yours standing rises on the free tile nearest where it fell', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('tomb_knight', 2, 'party', 3, 5, 9),
+    on('bone_colossus', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 6, 10)], { arise: ariseOf({ relics: ['bone_idol'] }) })
+  const rise = claimFell(b, 1, 10, 2).find((e) => e.type === 'arise')
+  const s = unit(b, rise.unit.uid)
+  assert.deepEqual([rise.from, s.size], [tileAt(3, 4), 2])
+  // Of the free footprints over the tile it fell on, the one nearest the Monarch, the centre lane first.
+  assert.equal(s.tile, tileAt(3, 3), 'the piece of yours stands in its footprint where it fell')
+  assert.ok(footprint(s.tile, 2).includes(tileAt(3, 4)) && footprint(s.tile, 2).every((t) => b.at[t] === s))
+  assert.equal(unit(b, 2).tile, tileAt(3, 5), 'the striker stands where it stood')
+})
+
+// The claim lasts Claimed's turns, the turn it is laid its first; once it is gone the foe falls for good.
+test('a claim lasts its turns and is laid once: Claimed no second time while it holds, and a foe slain after it ends stays down', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('iron_golem', 10, 'foe', 6, 9)])
+  const claimed = () => unit(b, 10).statuses.some((s) => s.id === 'claimed')
+  // Slain on a copy of the battle as it stands: does it rise?
+  const rises = () => {
+    const f = fork(b, { quiet: false })
+    const x = unit(f, 10)
+    applyDamage(f, x, 1e6, { actor: unit(f, 1) })
+    return f.events.some((e) => e.type === 'arise' && e.corpse === 10)
+  }
+  order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
+  const held = []
+  for (let t = 0; t < STATUSES.claimed.turns; t++) {
+    held.push([claimed(), rises()])
+    assert.ok(!legalOrders(b).some((o) => o.ability === 'arise' && o.target === 10), 'never claimed twice while it holds')
+    order(b, { type: 'end' })
+    assert.ok(!b.over)
+  }
+  assert.deepEqual([...held, [claimed(), rises()]], [[true, true], [true, true], [true, true], [false, false]])
+  assert.equal(b.events.filter((e) => e.type === 'status' && e.status === 'claimed').length, 1, 'laid once')
+})
+
+// Undead 4 raises every foe slain; a Claimed one rises once, to Legion (onKill comes first), never twice.
+test('a Claimed foe slain under Legion rises once, not twice', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 3, 3, [0, 0], ['arise']), on('grave_ghoul', 2, 'party', 3, 6),
+    ...[0, 1].map((k) => on('grave_ghoul', 3 + k, 'party', k, 1)), on('grave_ghoul', 10, 'foe', 3, 7, 1), on('iron_golem', 50, 'foe', 6, 10)])
+  assert.ok(synergiesOf(b, 'party').some((s) => s.id === 'undead_4'))
+  const ev = claimFell(b, 1, 10, 2)
+  assert.deepEqual(ev.filter((e) => e.type === 'arise').map((e) => [e.corpse, e.rule]), [[10, 'legion']])
+  assert.equal(b.units.filter((u) => u.shadow && u.corpse === 10).length, 1)
+  assert.equal(b.raised, 0, 'Arise\'s count is its own raises')
+})
+
+// The arise switch takes the skill from its holder; the combos switch leaves it (a claim is no key and needs none).
+test('the arise ablation takes Arise from its holder; the combos ablation leaves it', () => {
+  const field = (ablate) => scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('tomb_knight', 2, 'party', 2, 4),
+    on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 3, 7)], { ablate: ['summons', ...ablate] })
+  const off = field(['arise'])
+  assert.ok(!unit(off, 1).kit.some((a) => a.id === 'arise') && ariseIn(off, unit(off, 1)) === null)
+  assert.ok(!legalOrders(off).some((o) => o.ability === 'arise'))
+  const combos = field(['combos'])
+  assert.ok(claimFell(combos, 1, 10, 2).some((e) => e.type === 'arise' && e.corpse === 10))
+})
+
 // A shadow of yours takes no orders: it enters with its energy and no act spent, and acts by itself at End Turn.
 test('a shadow of yours takes no orders: at End Turn, the turn it rises, it walks to a foe out of its reach and strikes it', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 3, 7)])
-  slay(b, unit(b, 10))
-  const uid = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise').unit.uid
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('tomb_knight', 2, 'party', 2, 4),
+    on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 3, 7)])
+  const uid = claimFell(b, 1, 10, 2).find((e) => e.type === 'arise').unit.uid
   const s = unit(b, uid)
   assert.ok(s.shadow && !s.summoned && !orderable(b, s))
   assert.deepEqual([s.acted, s.cooldowns, s.energy > 0], [false, {}, true])
@@ -865,9 +895,9 @@ test('a shadow of yours takes no orders: at End Turn, the turn it rises, it walk
 
 // With no tile to strike from within its energy, it closes on the nearest foe as far as its energy goes.
 test('a shadow of yours with no foe to walk to and strike still closes on the nearest at End Turn', () => {
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 3, 10)])
-  slay(b, unit(b, 10))
-  const uid = order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 }).find((e) => e.type === 'arise').unit.uid
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('tomb_knight', 2, 'party', 2, 4),
+    on('grave_ghoul', 10, 'foe', 3, 4, 1), on('iron_golem', 50, 'foe', 3, 10)])
+  const uid = claimFell(b, 1, 10, 2).find((e) => e.type === 'arise').unit.uid
   const s = unit(b, uid)
   const far = unitDistance(s, unit(b, 50))
   const mine = untouchedOf(order(b, { type: 'end' }))
@@ -895,7 +925,7 @@ test('a summon takes no orders and stays put at End Turn, a foe far off', () => 
   assert.deepEqual(called.map((s) => s.tile), tiles)
 })
 
-test('what needs an Arise relic is stocked only once one is owned: Hourglass, Bone Idol; a variant counts', () => {
+test('what needs an Arise relic is stocked only once one is owned: Hourglass, Bone Idol', () => {
   const needs = RELIC_LIST.filter((r) => r.needsArise).map((r) => r.id)
   const stocked = (relics) => {
     const seen = new Set()
@@ -912,7 +942,6 @@ test('what needs an Arise relic is stocked only once one is owned: Hourglass, Bo
   assert.deepEqual(needs.filter((id) => without.has(id)), [])
   assert.ok(without.has('arise'), 'Arise itself is stocked')
   assert.deepEqual(needs.filter((id) => !stocked(['arise']).has(id)), [], 'each comes once Arise is owned')
-  assert.deepEqual(needs.filter((id) => !stocked(['court_of_bone']).has(id)), [], 'or a variant')
 })
 
 test('a run owning copies saves and replays exactly: the log rebuilds its relics, repeats and all, and who holds them', () => {

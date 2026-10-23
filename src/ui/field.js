@@ -431,7 +431,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
     h('ul', { class: 'legend-list dim' },
       h('li', null, h('i', { class: 'lg-road' }), kw('road', 'Roads'), ': the arrows the foes walk to the Monarch.'),
       h('li', null, h('i', { class: 'lg-seat' }), 'The crown: the Monarch\'s seat, the camp\'s own. It never moves.'),
-      domainNow(null) && h('li', null, h('i', { class: 'lg-dom' }), 'Arise\'s reach, round the soul holding it as the battle begins: the corpses it may raise.'))]
+      domainNow(null) && h('li', null, h('i', { class: 'lg-dom' }), 'Arise\'s reach, round the soul holding it as the battle begins: the foes it may claim.'))]
   }
 
   // ── tooltips ──
@@ -442,7 +442,7 @@ export function fieldEditor ({ run, act, onChange = null }) {
       ...synergyGroups(souls(standing(run)), alsoOf).filter((g) => g.uids.has(u.uid)).map((g) => g.name)].join(' · ')
     return unitCard(u, {
       mods: partyMods(run, u), realm: realmOf(run), run,
-      live: isMonarch(u) ? 'If it falls, the run ends' : ariseFor(s, u) ? `Holds Arise: corpses within ${ariseFor(s, u).domain} tiles` : at,
+      live: isMonarch(u) ? 'If it falls, the run ends' : ariseFor(s, u) ? `Holds Arise: claims within ${ariseFor(s, u).domain} tiles` : at,
       notes: [isMonarch(u) ? 'Its seat is the camp\'s, marked by the crown: it never moves.' : ariseFor(s, u) && at]
     })
   }

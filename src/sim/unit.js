@@ -228,8 +228,8 @@ export const onField = (u) => u.slot >= 0
 export const livingOn = (units, side) => units.filter((u) => u.side === side && alive(u))
 export const enemySide = (side) => (side === 'party' ? 'foe' : 'party')
 export const isAllyShape = (shape) => shape === 'ally' || shape === 'all_allies' || shape === 'self'
-// A blow: an ability aimed at the other side (not an ally ability, nor Arise's raise).
-export const isBlow = (a) => !isAllyShape(a.shape) && a.shape !== 'corpse'
+// A blow: an ability aimed at the other side (not an ally ability, nor Arise's claim).
+export const isBlow = (a) => !isAllyShape(a.shape) && !a.claim
 
 // Columns from the middle lane outward: where a formation fills first.
 export const CENTRE_OUT = Array.from({ length: COLS }, (_, i) => (COLS - 1) / 2 + (i % 2 ? -1 : 1) * Math.ceil(i / 2))

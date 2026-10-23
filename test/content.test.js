@@ -18,7 +18,7 @@ import { RULES } from '../src/sim/rules.js'
 
 // What an ability is made of: its ops (and a status tick's dot), its shapes (the ally shapes too), its anims.
 const OPS = ['damage', 'heal', 'cleanse', 'apply_status', 'raise', 'cooldown']
-const SHAPES = ['single', 'blast', 'column', 'row', 'all', 'corpse', 'ally', 'all_allies', 'self']
+const SHAPES = ['single', 'blast', 'column', 'row', 'all', 'ally', 'all_allies', 'self']
 const ANIM_IDS = ['cast_beam', 'melee_lunge', 'ranged_bolt']
 const PREYS = ['weakest', 'wounded', 'unarmoured', 'monarch', 'crowd', 'rested']
 // A unit's stats: HP, ATK and DEF on its base, Move on its def. No record carries a cut mechanic's key or stat
@@ -240,9 +240,12 @@ test('the Monarch: one of a kind, never spawned, never moving, never striking, n
   assert.deepEqual([m.name, m.kin, m.role, m.tier, m.monarch, m.spawn, m.abilities, m.move, m.tracks, m.temper], ['The Monarch', null, 'monarch', 0, true, undefined, [], 0, undefined, undefined])
   assert.equal(UNIT_LIST.filter((u) => u.monarch).length, 1)
   assert.equal(ROLES.monarch.hidden, true)
-  // Arise is a skill of the piece that holds an Arise relic: no kind holds it of its own.
+  // Arise is a skill of the piece that holds an Arise relic: no kind holds it of its own. It Claims a foe within Arise's
+  // domain, over any line, every turn.
   const arise = ABILITIES.arise
-  assert.deepEqual([arise.shape, arise.anim, arise.effects, arise.cooldown], ['corpse', 'cast_beam', [{ op: 'raise' }], 1])
+  assert.deepEqual([arise.shape, arise.range, arise.arc, arise.claim, arise.anim, arise.effects, arise.cooldown],
+    ['single', TUNING.arise.domain, true, true, 'cast_beam', [{ op: 'apply_status', status: 'claimed' }], 1])
+  assert.deepEqual(Object.values(ABILITIES).filter((a) => a.claim).map((a) => a.id), ['arise'], 'the one claim')
   assert.ok(!UNIT_LIST.some((u) => u.abilities.includes('arise') || Object.values(u.tracks ?? []).some((t) => t.tiers.some((x) => x.ability?.id === 'arise'))))
   // No level and no points: its base HP whatever `lvl` says (its HP relics are the run's: run.js monarchHp).
   const T = TUNING.monarch
@@ -446,7 +449,8 @@ test('every ability is ops, a shape and an anim; Hexed for one act or two; no co
 
 // The statuses' turns: 'battle' the battle; Hexed's turns the acts it costs.
 const TURNS = {
-  brittle: 3, hasten: 2, regen: 5, barkskin: 4, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4, rooted: 1, bloodlust: 'battle' }
+  brittle: 3, hasten: 2, regen: 5, barkskin: 4, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4, rooted: 1, bloodlust: 'battle',
+  claimed: 3 }
 
 test('every status lasts turns, is drawn in its colour, has a worth, and its text is for turns', () => {
   assert.deepEqual(Object.keys(STATUSES).sort(), Object.keys(TURNS).sort())
@@ -561,7 +565,7 @@ const isCost = (x) => x.path === 'hp' && x.op === 'mul' && x.v < 1 && !x.who
 // A kin banner's mod: a unit's, scoped to the souls of one kin or one role (`who`, unit.js statsOf).
 const isBanner = (x) => !isRunPath(x.path) && !!x.who && Object.keys(x.who).length === 1 &&
   (!!KIN[x.who.kin] || (!!ROLES[x.who.role] && !ROLES[x.who.role].hidden))
-const ARISE_RELICS = ['arise', 'hollow_court', 'blood_tithe', 'court_of_bone']
+const ARISE_RELICS = ['arise']
 
 test('every relic is a run relic or a piece relic, in one of the three forms, its tier and form matching: no rule below Legendary', () => {
   const unit = makeUnit('tomb_knight', { uid: 1 })
@@ -650,26 +654,22 @@ test('the twelve relics that define a build: a kin banner for every kin, and sev
   assert.ok(RELICS.gravediggers_spade.desc.includes('tier 1') && RELICS.firebrand.desc.includes(`${STATUSES.burning.tick[0].power} true damage`))
 })
 
-test('the Legendaries: a rule scoped to the holder, Arise a skill it teaches, and the Arise variants', () => {
+test('the Legendaries: a rule scoped to the holder, and Arise a skill it teaches', () => {
   const legendary = RELIC_LIST.filter((r) => r.tier === 'legendary')
-  assert.deepEqual(legendary.map((r) => r.id), ['arise', 'legion', 'undying', 'mimicry', 'hollow_court', 'blood_tithe', 'court_of_bone', 'reapers_hunger', 'seven_league_boots', 'last_candle', 'grave_powder', 'overwatch', 'hold_the_line'])
+  assert.deepEqual(legendary.map((r) => r.id), ['arise', 'legion', 'undying', 'mimicry', 'reapers_hunger', 'seven_league_boots', 'last_candle', 'grave_powder', 'overwatch', 'hold_the_line'])
   // Legion is a run relic, Command at a cost; every other a piece relic with a rule.
   assert.ok(RELICS.legion.run && !RELICS.legion.rule)
   for (const r of legendary.filter((x) => !x.run)) assert.equal(r.rule, r.id, `${r.id}: its rule is its own`)
-  // Arise and its variants teach the holder the skill Arise (their rules' `grants`), and say so; nothing else does.
+  // Arise teaches the holder the skill Arise (its rule's `grants`), and says so; nothing else does.
   assert.deepEqual(RELIC_LIST.filter((r) => RULES[r.rule]?.grants).map((r) => r.id), ARISE_RELICS)
   for (const id of ARISE_RELICS) {
     assert.equal(RULES[RELICS[id].rule].grants, 'arise', id)
     assert.match(RELICS[id].desc, /^Its holder learns Arise\b/, id)
   }
-  // Arise's numbers are TUNING.arise's, and its card says them.
+  // Arise's numbers are TUNING.arise's and Claimed's, and its card says them.
   assert.ok(RELICS.arise.desc.includes(`tier ${TUNING.arise.tier} `) && RELICS.arise.desc.includes(`within ${TUNING.arise.domain} tiles`), RELICS.arise.desc)
-  // The variants: Court of Bone reaches farther, and its card says how far; Blood Tithe's Arise raises two corpses a
-  // turn, each for a share of the Monarch's HP; Undying rises at its share; Mimicry counts as a Warden.
-  assert.ok(RELICS.court_of_bone.desc.includes(`${RELICS.court_of_bone.params.domain} tiles farther`))
-  assert.deepEqual(RELICS.blood_tithe.params, { count: 2, tithe: 0.02 })
-  assert.ok(RELICS.blood_tithe.desc.includes('two corpses a turn'), RELICS.blood_tithe.desc)
-  assert.ok(RELICS.blood_tithe.desc.includes(`${RELICS.blood_tithe.params.tithe * 100}%`))
+  assert.ok(RELICS.arise.desc.includes(`Claimed for ${STATUSES.claimed.turns} turns`) && RELICS.arise.desc.includes('as your shadow'), RELICS.arise.desc)
+  // Undying rises at its share; Mimicry counts as a Warden.
   assert.ok(RELICS.undying.desc.includes(`${RELICS.undying.params.hp * 100}% HP`))
   assert.ok(ROLES[RELICS.mimicry.params.role] && RELICS.mimicry.desc.includes(ROLES[RELICS.mimicry.params.role].name))
   // An Arise relic grants Arise itself, so needs none held.

@@ -100,9 +100,9 @@ test('ablation: the names, the rules switches carried by the run and its replay,
 test('the arise switch: no relic grants Arise; the synergies switch: the party holds no synergy, the foes keep theirs', () => tuned({ arise: { domain: 11, tier: 5 } }, () => {
   let raised = 0
   let held = 0
-  // Each refought under the solver's turns, a fielded soul holding Arise, its reach over the whole board, so that the
-  // corpses fall in it; and the undead fielded among them (Undead 4). Every fight of the two runs: floor 1's first
-  // rooms fall before a corpse can be raised.
+  // Each refought under the solver's turns, a fielded soul holding Arise, its reach over the whole board, so that every
+  // foe is in it; and the undead fielded among them (Undead 4). Every fight of the two runs: floor 1's first rooms fall
+  // before a claim can bring a shadow.
   for (const snap of [...snapshots('switch-a', Infinity), ...snapshots('switch-b', Infinity)]) {
     const fight = (mechanic) => {
       const s = structuredClone({ ...snap, relics: [...snap.relics, 'arise'] })
@@ -319,7 +319,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   s.essence = 0
   const rng = createRng('nec-0').stream('autoplay')
   visit(run, 'fight')
-  s.relics = ['arise', 'arise', 'court_of_bone', 'bone_idol', 'grave_banner', 'bone_mantle']
+  s.relics = ['arise', 'arise', 'undying', 'bone_idol', 'grave_banner', 'bone_mantle']
   Object.assign(monarchOf(s), { hp: monarchHp(s), maxHp: monarchHp(s) })
   souls(s.party).find((u) => u.id === 'tomb_knight').relics = ['arise']
   join(run, 'grave_ghoul')
@@ -359,7 +359,7 @@ test('necessity: the snapshots refight exactly as recorded, and each mechanic is
   assert.ok(setup('legendaries').party.every((u) => !u.relics?.length), 'no soul holds a relic stripped')
   // The relics stripped: the Monarch at its base HP (its wounds a share), the field at its base Command.
   const bare = setup('relics')
-  assert.deepEqual([bare.relics, bare.partyMods, bare.party.find((u) => u.uid === 0).maxHp], [['arise', 'arise', 'court_of_bone'], [], TUNING.monarch.hp])
+  assert.deepEqual([bare.relics, bare.partyMods, bare.party.find((u) => u.uid === 0).maxHp], [['arise', 'arise', 'undying'], [], TUNING.monarch.hp])
   assert.ok(bare.party.filter((u) => u.uid !== 0).length <= TUNING.party.field)
   assert.deepEqual(setup('arise').ablate, ['arise'])
   assert.deepEqual(setup('synergies').ablate, ['synergies'])

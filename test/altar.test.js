@@ -209,11 +209,9 @@ test('basic heals; the expert takes the rite that adds most to its sketch, heals
   const best = d.cands.reduce((a, b) => (b.score > a.score ? b : a))
   assert.equal(d.today, best.score > TUNING.expert.growth.keep ? best.id : JSON.stringify({ type: 'heal' }))
   assert.equal(d.cands.length, altarOptions(run, L).length)
-  // A Monarch below TUNING.expert.tree.altar of its HP is healed (TREES.altar's monarch-heal), unless nothing may heal it.
+  // A Monarch below TUNING.expert.tree.altar of its HP is healed (TREES.altar's monarch-heal).
   const hurt = atAltar((r) => { const m = monarchOf(r.state); m.hp = Math.floor(m.maxHp * TUNING.expert.tree.altar * 0.5) })
   assert.deepEqual(policy(hurt, null, 'expert'), { type: 'heal' })
-  const cob = atAltar((r) => { r.state.relics.push('court_of_bone'); const m = monarchOf(r.state); m.hp = Math.floor(m.maxHp * TUNING.expert.tree.altar * 0.5) })
-  assert.notDeepEqual(policy(cob, null, 'expert'), { type: 'heal' })
   // The tracks ablation takes no tier, bought or free.
   assert.ok(!altarOptions(run, { ...L, ablate: 'tracks' }).some((a) => a.type === 'consecrate'))
   assert.ok(altarOptions(run, L).some((a) => a.type === 'consecrate'))

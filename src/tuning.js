@@ -117,7 +117,7 @@ export const TUNING = {
       //            saving), a share
       later: 0, // a recruit that completes such a fusion: the share of the fusion's gain it is worth
       // Arise in the field's strength: the shadows its holders would raise a battle, read from the floor's rooms and
-      // roads, each at `share` of its worth, and no more than `turns` a holder a battle (one corpse a turn).
+      // roads, each at `share` of its worth, and no more than `turns` a holder a battle (one claim a turn).
       raise: { share: 0.5, turns: 3 },
       // A soul's fighting worth: √(how long it lasts × how hard it hits^`hits`), its hits raised by `move` a tile of
       // Move and `mend` of its healing; `signature` more a tier that grants an ability, an aura or a Colossus's footprint,
@@ -181,9 +181,10 @@ export const TUNING = {
     parts: [{ hp: 4, atk: 2.6, def: 1.6 }, { hp: 4, atk: 2.5, def: 1.4 }, { hp: 3.6, atk: 2.2, def: 1.4 }, { hp: 3.3, atk: 2, def: 1.4 }],
     fused: { hp: 3, atk: 1.8, def: 1.2 }
   },
-  // Arise, a Legendary piece relic: its holder's skill raises one corpse within `domain` tiles (Chebyshev, from its
-  // footprint) of tier up to `tier` as a shadow of yours at full HP; Hourglass and Bone Idol add to both. Tier 4 is
-  // the highest a foe that can rise spawns at (barrow wight, frost wyrm): the base stops a tier short, Bone Idol's.
+  // Arise, a Legendary piece relic: its holder's skill Claims a living foe within `domain` tiles (Chebyshev, from its
+  // footprint) of tier up to `tier`, and one that falls Claimed rises as a shadow of yours at full HP; Hourglass adds to
+  // the one, Bone Idol to the other. Tier 4 is the highest a foe that can rise spawns at (barrow wight, frost wyrm): the
+  // base stops a tier short, Bone Idol's.
   arise: { domain: 7, tier: 3 },
   // The field cap never passes `board` pieces, and the Legion's shadows rise only while fewer than `board` of yours
   // stand (Arise's rise past it: a skill is its own bound).

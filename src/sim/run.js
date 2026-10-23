@@ -31,11 +31,11 @@ import { roadsTo } from './field.js'
 import { createBattle, order, legalOrders } from './turns.js'
 import { generateFloor, nodeOf, RANKS, WIDTH } from './map.js'
 import {
-  MONARCH_UID, OSSUARY, BATTLE_NODES, runStat, isRunRelic, unheld, canHold, ariseOf, reapedShadows, unhealed, fieldCap,
+  MONARCH_UID, OSSUARY, BATTLE_NODES, runStat, isRunRelic, unheld, canHold, ariseOf, fieldCap,
   rosterCap, soulCount, fielded, isMonarch, monarchOf, souls, takenBy, monarchHp, ascensionTop, foeScale, waveEvery
 } from './state.js'
 import {
-  foeEssence, battleEssence, clearsRun, bountyOf, tierCost, tierRefund, recruitCost, fuseCost, relicPrice, canAdvance,
+  battleEssence, clearsRun, bountyOf, tierCost, tierRefund, recruitCost, fuseCost, relicPrice, canAdvance,
   canUpgrade, pay, advance, levelOf, firstLevel, freshTracks, lanternSteps, markFree, soulOffers, soulOffer, relicOffer, stockShop, restock
 } from './economy.js'
 import {
@@ -596,14 +596,14 @@ function canTake (run, o) {
   return soulCount(s.party) < rosterCap(run) && s.essence >= soulOffer(run, o).cost
 }
 
-// A relic owned: a copy more in s.relics; one that raises the Monarch's max HP heals it by as much, unless nothing may.
+// A relic owned: a copy more in s.relics; one that raises the Monarch's max HP heals it by as much.
 function takeRelic (s, id) {
   const gain = monarchHp({ ...s, relics: [...s.relics, id] }) - monarchHp(s)
   s.relics.push(id)
   if (!gain) return
   const m = monarchOf(s)
   m.maxHp += gain
-  if (!unhealed(s)) m.hp += gain
+  m.hp += gain
 }
 
 // ── the Shop ─────────────────────────────────────────────────────────────────────────────────────
@@ -661,11 +661,11 @@ export function altarActions (run) {
   return out
 }
 
-// The heal: the Monarch to TUNING.run.altarHeal of its max HP, unless nothing may heal it; the souls are whole already.
+// The heal: the Monarch to TUNING.run.altarHeal of its max HP; the souls are whole already.
 function heal (run) {
   const s = run.state
   const m = monarchOf(s)
-  if (!unhealed(s)) m.hp = Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal))
+  m.hp = Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal))
   nextRoom(run)
 }
 
@@ -786,10 +786,9 @@ function finishBattle (run) {
     return
   }
   s.stats.wins++
-  // Hollow Court's reaped shadows pay their essence again, a won elite or boss its bounty, relics `essence.gain` on all.
+  // A won elite or boss pays its bounty, relics `essence.gain` on all.
   const node = currentNode(run)
-  const court = reapedShadows(run).reduce((n, u) => n + foeEssence(u, s.floor) * u.reap, 0)
-  const earned = Math.round((battleEssence(b) + court + bountyOf(s, node)) * runStat(s, 'essence.gain', 1))
+  const earned = Math.round((battleEssence(b) + bountyOf(s, node)) * runStat(s, 'essence.gain', 1))
   s.essence += earned
   s.stats.essence += earned
   // Every soul whole again at TUNING.run.postBattleHeal of its max HP, the fallen standing in their cells: no wound and

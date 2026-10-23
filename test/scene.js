@@ -43,8 +43,8 @@ export function turns (b, n = 1) {
   return b.events.slice(from)
 }
 
-// Lays a unit dead where it stands (a corpse for Arise), as a blow would: off the index, every tile of it; the roster
-// bumped.
+// Lays a unit dead where it stands, off the index, every tile of it, the roster bumped: a corpse as a blow leaves one,
+// but no fall (no rule hears it, no claim raises it).
 export function slay (b, u) {
   u.hp = 0
   u.statuses = []

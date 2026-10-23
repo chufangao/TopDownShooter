@@ -4,7 +4,7 @@ import { TUNING } from '../tuning.js'
 import { unitDef, statusDef, animDef, abilityDef, relicDef, SYNERGIES, ROLES } from '../content.js'
 import {
   reach, targetsFrom, preview, canAct, usable, isSkill, hexed, orderable, endable, nextWave, holds, synergiesOf, ariseOf,
-  lined, lineOf, lineStruck, stats, intents, left, stride, costOf, corpses
+  lined, lineOf, lineStruck, stats, intents, left, stride, costOf
 } from '../sim/turns.js'
 import { foeEssence, eliteBonus } from '../sim/run.js'
 import { threatOf } from '../sim/foe.js'
@@ -36,7 +36,6 @@ export const SCALE = 0.95      // world px per unit of a picture's viewBox
 export const WALL_SCALE = 1
 export const BREATH = 0.014    // idle breathing: the share of its height a unit swells by
 const REST = { lean: 0, sx: 0, sy: 0, dx: 0, dy: 0 } // a unit's pose at rest
-const TITHE = '#ff6a8a'  // the HP Blood Tithe takes from the Monarch
 const SHADE_ALPHA = 0.8 // a shadow is see-through
 const HEX = 0x9b5cff     // Hexed: the violet pall over the hexed
 const FLOAT_ROWS = 4    // popups over one unit stack this many rows high at once
@@ -47,7 +46,7 @@ const SIDE_ROW = 13
 // A status worn shows as a chip under the bars, its two letters in its colour (statusDef), ×stacks, the turns it has left.
 const GLYPH = {
   brittle: 'BR', burning: 'BU', bleeding: 'BL', hexed: 'HX', withered: 'WI', rooted: 'RT', hasten: 'HA', regen: 'RG',
-  barkskin: 'BK', shield: 'SH', enraged: 'EN', desperate: 'DS', bloodlust: 'LU'
+  barkskin: 'BK', shield: 'SH', enraged: 'EN', desperate: 'DS', bloodlust: 'LU', claimed: 'CL'
 }
 // A chip's print (world px, before it is scaled to stay legible: px of --fs-xs's 14, never under floor CSS px), its
 // plate's padding, and the gaps between chips and rows.
@@ -419,10 +418,7 @@ export class BattleScene extends Phaser.Scene {
     const b = this.battle
     const u = b.byUid.get(uid)
     if (!u || u.side !== 'party' || u === b.monarch) return null
-    if (u.shadow) {
-      const reap = u.reap > 0 ? Math.round(foeEssence(u, b.floor) * u.reap * this.essence) : 0
-      return `${u.summoned ? summonedBy(b, u) : 'Shadow'}: ${reap > 0 ? `+${reap} essence if it stands at the win` : 'gone after the battle'}`
-    }
+    if (u.shadow) return `${u.summoned ? summonedBy(b, u) : 'Shadow'}: gone after the battle`
     if (this.locked() || this.ending || !alive(u)) return null
     const skills = u.kit.filter((a) => isSkill(u, a)).map((a) => (u.cooldowns[a.id] > 0 ? `${a.name} ready in ${u.cooldowns[a.id]}` : `${a.name} ready`))
     if (u.acted) return ['Acted', ...skills].join(' · ')
@@ -432,17 +428,15 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // The counters' cards as the playback has shown the battle: foes standing and slain, essence owed, the run's purse
-  // (`bank`), bounty, `court`.
+  // (`bank`), bounty.
   tally () {
     const b = this.battle
     let foes = 0
     let slain = 0
     for (const a of this.actors.values()) if (a.side === 'foe') { if (!a.gone) foes++; else if (a.paid) slain++ }
-    const court = this.locked() ? [] : b.units.filter((u) => u.side === 'party' && u.reap > 0 && alive(u))
     return {
       foes, slain, owed: Math.round(this.owed), bank: this.args.bank?.() ?? 0, gain: this.essence,
-      bonus: this.args.elite ? Math.round(eliteBonus(b.floor) * this.essence) : 0,
-      court: court.length ? { n: court.length, essence: Math.round(court.reduce((n, u) => n + foeEssence(u, b.floor) * u.reap, 0) * this.essence) } : null
+      bonus: this.args.elite ? Math.round(eliteBonus(b.floor) * this.essence) : 0
     }
   }
 
@@ -608,15 +602,6 @@ export class BattleScene extends Phaser.Scene {
       const on = !offBoard(w)
       const others = hits.some((x) => x !== u && alive(x))
       if (on && this.undoable(u) && footprint(u.from, u.size ?? 1).includes(tile) && !others) return this.undo()
-      // A corpse it may raise is never walked onto: Arise is armed and, from here, aimed (tapped again, raised).
-      const rise = u.kit.find((a) => a.shape === 'corpse')
-      const dead = rise && !others ? corpses(b, u).find((c) => hits.includes(c)) : null
-      if (dead) {
-        s.ability = rise.id
-        s.chosen = true
-        this.plan()
-        return s.targets.has(dead.uid) ? this.aim(dead.uid) : this.aim(null)
-      }
       // Its own tiles (a 2×2's other three are anchors in reach) let it go, as a tap on it does.
       if (on && footprint(u.tile, u.size ?? 1).includes(tile) && !others) return this.select(null)
       const to = on ? this.anchorFor(u, tile) : null
@@ -740,13 +725,13 @@ export class BattleScene extends Phaser.Scene {
     // A hovered tile the armed act is no longer paid from after the walk there: from it the act reaches nothing.
     const there = at == null || paid.has(at)
     const spot = (x) => (x === u && at != null ? posAt(at, size) : foot(x))
-    const colour = a?.shape === 'corpse' ? DOMAIN : a && !isBlow(a) ? BOON : FOE
+    const colour = a?.claim ? DOMAIN : a && !isBlow(a) ? BOON : FOE
     // Once a target is aimed, what a move would bring stands back.
     const fade = s.aim != null ? 0.5 : 1
     const r = can ? actReach(b, u, a) : null
     if (r != null) {
       const box = there ? ringBox(here, r, REACH.pad, size) : null
-      if (box && a.shape !== 'corpse') paintReach(g, box, colour)
+      if (box && !a.claim) paintReach(g, box, colour)
       else if (box) {
         g.fillStyle(DOMAIN, 0.05).fillRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round)
         inked(g, 1.5, DOMAIN, 0.55, (g) => g.strokeRoundedRect(box.l, box.t, box.r - box.l, box.b - box.t, REACH.round))
@@ -1007,7 +992,7 @@ export class BattleScene extends Phaser.Scene {
       const shown = this.aimMarks.length
       for (const [x, d] of hits) this.mark(+x, `−${d}${falls.has(+x) ? ' · FALLS' : ''}`, falls.has(+x) ? '#ff8a9a' : '#ffe6c8')
       for (const x of falls) if (!(p.hits[x] > 0)) this.mark(x, 'FALLS', '#ff8a9a')
-      // Each one it would mend, and over each the statuses it would wear (stacks, turns), CLEANSED, and RISES for a corpse.
+      // Each one it would mend, and over each the statuses it would wear (stacks, turns), CLEANSED, and RISES for a shadow.
       for (const [x, n] of Object.entries(p.heals ?? {})) if (n > 0) this.mark(+x, `+${n}`, '#7be0a0')
       for (const [x, list] of Object.entries(p.statuses ?? {})) {
         for (const st of list) {
@@ -1184,14 +1169,14 @@ export class BattleScene extends Phaser.Scene {
     const u = this.sel && b.byUid.get(this.sel.uid)
     const a = u?.kit.find((x) => x.id === id)
     if (!a || !alive(u)) return null
-    const range = isBlow(a) ? blowReach(u, a) : holds(b, u.side, 'sanctuary') ? Infinity : rangeOf(a)
+    const range = a.claim ? ariseOf(b, u).domain : isBlow(a) ? blowReach(u, a) : holds(b, u.side, 'sanctuary') ? Infinity : rangeOf(a)
     const free = !this.locked() && canAct(b, u) && usable(b, u, a)
     const now = free ? targetsFrom(b, u, a) : []
     const later = new Map()
     if (free) for (const t of reach(b, u, stride(u, a)).keys()) for (const x of targetsFrom(b, u, a, t)) if (!now.includes(x)) later.set(x.uid, x)
     const name = (x) => unitDef(x.id).name
     return {
-      a, st: stats(b, u), range, flies: !!u.flies, arise: a.shape === 'corpse' ? ariseOf(b, u) : null,
+      a, st: stats(b, u), range, flies: !!u.flies, arise: a.claim ? ariseOf(b, u) : null,
       now: now.map((x) => {
         const p = preview(b, u.uid, a.id, x.uid)
         const by = p && p.struck !== x.uid ? b.byUid.get(p.struck) : null
@@ -1213,10 +1198,10 @@ export class BattleScene extends Phaser.Scene {
       // How many turns it rests once used (its cooldown, 2 where absent, or a granting rule's), less the turn it is used in.
       const rests = isSkill(u, a) ? Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.grants === a.id && r.params.cooldown).map((r) => r.params.cooldown)) - 1 : 0
       return {
-        id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a), rest: u.cooldowns[a.id] ?? 0, rests, armed: a.id === s.ability, can,
+        id: a.id, name: a.name, skill: isSkill(u, a), heal: !isBlow(a) && !a.claim, rest: u.cooldowns[a.id] ?? 0, rests, armed: a.id === s.ability, can,
         // Short: it could act but for the energy (never once it has acted, or a Hex took its act).
         cost: costOf(u, a), short: canAct(b, u) && left(u) < costOf(u, a),
-        targets: can ? targetsFrom(b, u, a).length : 0, arise: a.shape === 'corpse' ? ariseOf(b, u) : null
+        targets: can ? targetsFrom(b, u, a).length : 0, arise: a.claim ? ariseOf(b, u) : null
       }
     })
     return {
@@ -1383,9 +1368,9 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: this.parts(a), alpha: 0, delay, duration: 400 })
   }
 
-  // Arise: the corpse sinks and its shadow climbs out in a ring of light, then glides to its tile (`from`: the corpse's),
-  // from the beam's cast on; a Legion's raise has no actor and waits for the fall to land. One slain in the same beat
-  // (a Spade's, the Cathedral's, a Grave Tide's) still stands as the raise plays (at the beat's start: timeline.js), so
+  // Arise: the corpse sinks and its shadow climbs out in a ring of light, then glides to its tile (`from`: the corpse's);
+  // a Legion's raise has no actor and waits for the fall to land. One slain in the same beat (a Claimed foe's, a
+  // Spade's, the Cathedral's, a Grave Tide's) still stands as the raise plays (at the beat's start: timeline.js), so
   // its shadow waits for that fall to land (fall: `raise`), or a moment more should none come.
   arise (ev) {
     const glow = ev.unit.side === 'foe' ? ROT : RISE
@@ -1960,12 +1945,6 @@ export class BattleScene extends Phaser.Scene {
       case 'rise':
         if (!(seq < a.seq)) a.seq = seq
         this.rise(a, ev)
-        break
-      // Blood Tithe: the Monarch pays for a shadow with its own HP.
-      case 'tithe':
-        this.setHp(a, ev.hp, seq)
-        this.floating(a, `−${ev.damage} tithe`, TITHE, 11)
-        this.burst(a.sprite.x, a.sprite.y - a.chest, 0xc0304a, 8, { up: true, speed: 40 })
         break
       // A status in its keyword's colour (a debuff red, a buff blue), beside the unit, apart from the numbers: its name,
       // stacks and turns ("Brittle ×2 · 3T"), the turns the longer of those laid and those the sim's record holds.

@@ -12,7 +12,7 @@ import {
 import {
   LANE, field, fieldOf, airOf, roadOf, arrowOf, roadLeft, layerOf, around, foesNextTo, pressed, auraGivers, riseTile, summonTile, entryTile
 } from './field.js'
-import { call, heldRules, grantsOf, unhealable } from './rules.js'
+import { call, heldRules, grantsOf } from './rules.js'
 import { foeTurn, basicTurn } from './foe.js'
 
 // The board's reads and the rules a side holds, for the interface and the tests: one module to import the battle from.
@@ -43,7 +43,7 @@ export function createBattle ({
     reserve: reserve.map((u) => ({ ...u })), byUid: new Map(), waveAt: [1], crumbled: false,
     units: [], events: [], walls: new Set(walls),
     root: monarch?.tile ?? tileAt(CENTRE_OUT[0], 0), roads: { walk: null, air: null },
-    partyMods, foeMods, relics: relics.slice(), unhealable: unhealable(relics),
+    partyMods, foeMods, relics: relics.slice(),
     at: new Array(TILES).fill(null), sky: new Array(TILES).fill(null), roster: 0, auraReach: 0, auras: [], phased: [],
     syn: {}, cache: new Map(), ruleList: {},
     turn: 1, phase: 'orders', stage: 'party', beat: 0, foeIn: 1,
@@ -360,18 +360,14 @@ export function runEffect (battle, effect, actor, targets, ability = null, statu
     }
     return
   }
-  // Raising works on the dead: an Arise's corpse (its shadow `arisen`; onRaise), a relic's slain of up to `tier`
-  // (risable), or `count` of the field's dead (Grave Tide: raiseDead).
+  // Raising works on the dead: a relic's slain of up to `tier` (risable; its shadow `arisen`), or `count` of the field's
+  // dead (Grave Tide: raiseDead). An Arise raises none itself: the foe it Claimed rises as it falls (fall).
   if (effect.op === 'raise') {
     if (effect.count) return raiseDead(battle, actor, effect.count)
     for (const corpse of targets) {
-      if (effect.tier !== undefined && !(unitDef(corpse.id).tier <= effect.tier && risable(battle, corpse, actor.side))) continue
+      if (!(unitDef(corpse.id).tier <= effect.tier && risable(battle, corpse, actor.side))) continue
       const shadow = raise(battle, actor, corpse)
-      if (!shadow) continue
-      battle.raised++
-      shadow.arisen = true
-      shadow.raiser = actor.uid
-      call(battle, 'onRaise', actor.side, { actor, corpse, shadow })
+      if (shadow) arisen(battle, actor, corpse, shadow)
     }
     return
   }
@@ -456,9 +452,7 @@ export function cool (battle, u, id, turns) {
 }
 
 // A heal mends `power` by the healer's ATK and healing given, or `pct` of the target's max HP, never past its max.
-// Nothing heals the Monarch while the run holds Court of Bone.
 export function heal (battle, actor, target, power, pct = 0) {
-  if (target === battle.monarch && battle.unhealable) return
   let amount
   if (pct) {
     amount = Math.max(1, Math.round(target.maxHp * pct))
@@ -513,8 +507,10 @@ export function applyDamage (battle, target, amount, { actor, ability = null, st
 }
 
 // A unit falls to `actor`'s blow (or a status it laid): it bursts, its side's rules hear first (onFall: Undying may lift
-// it again); else it leaves the board, a boss crumbles its side, and the fall and kill moments and onKill follow.
+// it again); else it leaves the board, a boss crumbles its side, and the fall and kill moments and onKill follow, then
+// a foe that fell Claimed rises as the claimer's shadow (claimed), unless one of those raised it first.
 export function fall (battle, target, actor, ability) {
+  const claim = target.statuses.find((s) => s.id === 'claimed')
   target.statuses = []
   emit(battle, { type: 'death', target: target.uid, actor: actor.uid })
   burst(battle, target)
@@ -546,6 +542,25 @@ export function fall (battle, target, actor, ability) {
   if (actor.side !== target.side) trigger(battle, 'kill', actor, target, target)
   const side = enemySide(target.side)
   call(battle, 'onKill', side, { slain: target, by: actor, side })
+  if (claim) claimed(battle, target, claim)
+}
+
+// A Claimed foe fallen (Arise): it rises where it fell as a shadow of yours (on the nearest free tile when one stands
+// there), its claimer the raiser, whoever slew it and however; never a boss, a shadow, or one risen already (Legion, a
+// Spade), nor with no tile free.
+function claimed (battle, target, claim) {
+  if (target.side !== 'foe' || target.raised || target.shadow || unitDef(target.id).boss) return
+  if (riseTile(battle, target.tile, shadowSize(target, 'party'), target.flies) < 0) return
+  const actor = battle.byUid.get(claim.by) ?? null
+  arisen(battle, actor, target, raise(battle, actor, target, { side: 'party', rule: 'arise' }))
+}
+
+// A shadow risen to an Arise or a relic: counted (`raised`), marked `arisen` with its `raiser`, and its side told (onRaise).
+function arisen (battle, actor, corpse, shadow) {
+  battle.raised++
+  shadow.arisen = true
+  shadow.raiser = actor?.uid ?? null
+  call(battle, 'onRaise', shadow.side, { actor, corpse, shadow })
 }
 
 function vacate (battle, u) {
@@ -751,25 +766,31 @@ export const aloft = (u, a, r) => (a.melee && !u.flies ? -1 : r)
 
 // Whether ally ability `a` of `u`'s can do anything for `x`: mend it (hurt and healable), or strip a status it cleanses.
 function canMend (battle, u, a, x) {
-  if (mends(a) && x.hp < x.maxHp && !(x === battle.monarch && battle.unhealable)) return true
+  if (mends(a) && x.hp < x.maxHp) return true
   return a.effects.some((e) => e.op === 'cleanse' && x.statuses.some((s) => statusDef(s.id).tags.includes(e.tag)))
 }
 
-// How far ability `a` of `u`'s reaches its primaries (a blow by blowReach, else rangeOf), as its side's rules bend it.
+// How far ability `a` of `u`'s reaches its primaries (a blow by blowReach, an Arise its domain, else rangeOf), as its
+// side's rules bend it.
 function rangeFor (battle, u, a) {
-  const ctx = { actor: u, ability: a, range: isBlow(a) ? blowReach(u, a) : rangeOf(a) }
+  const ctx = { actor: u, ability: a, range: a.claim ? ariseOf(battle, u).domain : isBlow(a) ? blowReach(u, a) : rangeOf(a) }
   call(battle, 'reach', u.side, ctx)
   return ctx.range
 }
 
-// The primaries ability `a` of `u`'s may take with `u` on `tile`: foes in reach, allies in range, itself, or corpses.
+// The primaries ability `a` of `u`'s may take with `u` on `tile`: foes in reach (an Arise's, those it may claim), allies
+// in range, or itself.
 export function targetsFrom (battle, u, a, tile = u.tile) {
-  if (a.shape === 'corpse') return corpses(battle, u, tile)
   if (a.shape === 'self' || a.shape === 'all_allies') return [u]
   const r = rangeFor(battle, u, a)
   if (isAllyShape(a.shape)) return battle.units.filter((x) => x.side === u.side && alive(x) && (x === u || distanceBetween(tile, u.size, x.tile, x.size) <= r))
-  return around(battle, tile, r, enemySide(u.side), u.size, aloft(u, a, r))
+  const foes = around(battle, tile, r, enemySide(u.side), u.size, aloft(u, a, r))
+  return a.claim ? foes.filter((x) => claimable(battle, u, x)) : foes
 }
+
+// Whether `u`'s Arise may claim `x`: of a tier up to its Arise's, never a boss, a shadow (a summon too) or one Claimed.
+const claimable = (battle, u, x) => !x.shadow && !unitDef(x.id).boss && unitDef(x.id).tier <= ariseOf(battle, u).tier &&
+  !x.statuses.some((s) => s.id === 'claimed')
 
 export const mends = (a) => a.effects.some((e) => e.op === 'heal' && !e.self)
 
@@ -786,25 +807,11 @@ export const usable = (battle, u, a) => (!isSkill(u, a) || !(u.cooldowns[a.id] >
 
 export const canAct = (battle, u) => !battle.over && alive(u) && !u.acted && !hexed(u)
 
-// Arise's reach and tier for holder `u`, the battle's and its granting rules': { domain, tier }, or null with no Arise.
+// Arise's reach and tier for holder `u`, the battle's (TUNING.arise's with the run's Hourglass and Bone Idol):
+// { domain, tier }, or null with no Arise.
 export function ariseOf (battle, u) {
-  if (!u.kit.some((a) => a.shape === 'corpse')) return null
-  const grants = u.held.filter((r) => r.grants)
-  return {
-    domain: battle.arise.domain + grants.reduce((n, r) => n + (r.params.domain ?? 0), 0),
-    tier: battle.arise.tier + grants.reduce((n, r) => n + (r.params.tier ?? 0), 0)
-  }
-}
-
-// What `u`'s Arise may raise from `tile`: a fallen foe, never raised, no shadow nor boss, of a tier and within a reach
-// up to its Arise's, with a tile for its shadow; none once a boss has fallen, nor while a held rule says no (raisable).
-export function corpses (battle, u, tile = u.tile) {
-  const arise = ariseOf(battle, u)
-  if (!arise || !alive(u) || battle.crumbled) return []
-  if (u.held.some((r) => r.raisable && !r.raisable(battle, u, r))) return []
-  return battle.units.filter((c) => c.side !== u.side && !alive(c) && !c.raised && !c.shadow && !unitDef(c.id).boss &&
-    unitDef(c.id).tier <= arise.tier && distanceBetween(c.tile, c.size, tile, u.size) <= arise.domain &&
-    (u.side !== 'party' || riseTile(battle, c.tile, shadowSize(c, u.side), c.flies) >= 0))
+  if (!u.kit.some((a) => a.claim)) return null
+  return { domain: battle.arise.domain, tier: battle.arise.tier }
 }
 
 // ── lines of fire ────────────────────────────────────────────────────────────────────────────────
@@ -877,7 +884,6 @@ function spread (battle, u, a, primary) {
 // The units a shape touches from its primary (blast: its side around its footprint; else unit.js expand); a melee blow
 // from the ground never strikes a flyer.
 export function shape (battle, u, a, primary) {
-  if (a.shape === 'corpse') return [primary]
   const out = a.shape === 'blast' ? around(battle, primary.tile, 1, primary.side, primary.size) : expand(battle.units, u, a, primary)
   return a.melee && !u.flies && primary.side !== u.side ? out.filter((x) => !x.flies) : out
 }
@@ -905,7 +911,7 @@ export function perform (battle, u, a, primary) {
   const before = targets.map((x) => x.hp)
   const missed = new Set()
   for (const effect of a.effects) runEffect(battle, effect, u, targets, a, null, missed)
-  if (a.shape !== 'corpse' && !fallen(battle)) {
+  if (!fallen(battle)) {
     targets.forEach((x, i) => {
       if (x.side !== u.side && alive(x) && x.hp < before[i]) call(battle, 'onStruck', x.side, { actor: u, target: x, ability: a, damage: before[i] - x.hp })
     })
@@ -1171,7 +1177,7 @@ export function legalOrders (battle) {
 // Applies order `o` and returns the events it made, throwing on an illegal one (`path`: a move's, as reach found it here):
 //   { type: 'move', uid, tile }             a piece of yours moves, within its Move by a path
 //   { type: 'undo', uid }                   it goes back where its turn began, its Move whole again (until it acts)
-//   { type: 'act', uid, ability, target }   it acts: `target` a unit's uid (a corpse's for Arise)
+//   { type: 'act', uid, ability, target }   it acts: `target` a unit's uid
 //   { type: 'end' }                         End Turn: the rest of the round
 //   { type: 'stall' }                       past TUNING.turn.guard turns the battle ends with no winner (never the player's)
 export function order (battle, o, path = null) {
@@ -1461,7 +1467,7 @@ export function playOut (battle, policy = basicTurn) {
 // kills, falls, heals, statuses, cleansed, rises, keyed, locked }: `struck` who it lands on (a blocker on the line, a
 // guard), `guarded` the one a guard shielded (null for none), `line` the tiles it crosses, `damage` on the struck,
 // `counter` its answer's on the actor, `heal` on `target`; `hits`, `heals`, `statuses`, `cleansed` by uid; `falls` the
-// foes it fells, `rises` the corpses risen on its side; `keyed` the keys it spends ({ uid, status, mul }), `locked` the
+// foes it fells, `rises` the slain risen on its side; `keyed` the keys it spends ({ uid, status, mul }), `locked` the
 // uids whose lock cut it. Null: not a legal act.
 export function preview (battle, uid, ability, target) {
   const f = fork(battle, { quiet: false })

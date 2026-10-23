@@ -366,16 +366,6 @@ test('puzzle: a wounded Monarch takes the altar, and walks into no elite', () =>
   } finally {
     resetAudit(false)
   }
-  // Under Court of Bone nothing heals it: no altar for its sake.
-  run.state.relics.push('court_of_bone')
-  assert.ok(survey(run).unhealed)
-  resetAudit(true, run)
-  try {
-    withRoute('hand', () => pickRoute(run))
-    assert.equal(AUDIT.rules['route: monarch-altar'], undefined)
-  } finally {
-    resetAudit(false)
-  }
   // Less wounded, but below the elite's threshold: an elite beside a fight is refused, the elite weighed far above.
   const elite = crossroads(['elite', 'fight'])
   // The same foes in both, so the odds choose neither.

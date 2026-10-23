@@ -9,7 +9,7 @@
 .reap-main { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; max-width: 1480px; margin: 0 auto; text-align: center; }
 .reap-head { flex: none; display: flex; align-items: center; justify-content: center; gap: 10px 28px; flex-wrap: wrap; padding-top: 14px; }
 .reap-title h1 { white-space: nowrap; }
-.reap-note, .reap-main > .wave-pay { flex: none; margin: 8px auto 0; }
+.reap-main > .wave-pay { flex: none; margin: 8px auto 0; }
 .wave-pay { font-size: var(--fs-sm); }
 /* The middle: whatever the cards, it holds them, scrolling inside itself when they outgrow it, so the foot and
    its actions always stand clear below. */
@@ -77,10 +77,10 @@
 .reap-screen .offers.picks.rows .offer-art > .portrait { width: 68px; height: 68px; }
 /* …the effect kept to three lines (all of it on the hover). */
 .reap-screen .offers.picks.rows .offer-line { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
-/* The Shop (ui.js shopView): the run screen's Shop tab, or the spoils' cards' place at a press. Its head, then its two
-   sections side by side where the width holds them, stacked where it does not: Relics, the spoils' cards, each relic
-   with its price, a slot bought a faint card until the next win restocks it; Fusions, a row a recipe (the Field's
-   card's rows, card.css), the ready first, those toward dim. The panel scrolls inside itself. */
+/* The Shop (ui.js shopView): the run screen's Shop tab. Its head, then its two sections side by side where the width
+   holds them, stacked where it does not: Relics, the spoils' cards, each relic with its price, a slot bought a faint
+   card until the next win restocks it; Fusions, a row a recipe (the Field's card's rows, card.css), the ready first,
+   those toward dim. The panel scrolls inside itself. */
 .shop-screen .o-sold { --f: var(--line); justify-content: center; opacity: .4; color: var(--dim); }
 .shop-screen .o-sold .offer-art { color: var(--dim); }
 .shop-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px 18px 12px; overflow-y: auto; overscroll-behavior: contain; text-align: left; }
@@ -100,38 +100,8 @@
 .shop-fusions .fuse-row .back { font-size: var(--fs-xs); white-space: nowrap; }
 .shop-toward { margin: 12px 0 6px; }
 @container frame (max-width: 900px) { .shop-cols { grid-template-columns: minmax(0, 1fr); } }
-/* A ready fusion that waits for the map (on the spoils): dim, its price the button's own colour; red is for too little
-   essence. The line under the heading says why. */
+/* A ready fusion the purse cannot pay yet: dim. */
 .shop-fusions .buy.off { opacity: .5; cursor: not-allowed; }
-.shop-fusions .buy.off:not(.poor) .price { color: inherit; }
-.shop-fusions .fuse-wait { margin: -4px 0 0; }
-/* On the spoils, the Shop fills the cards' place, fitted to it (ui.js fitShop): the relics' pictures only as tall as
-   leaves every price in view (--art, 144 px down to 64). Side by side, the relics take five eighths (their cards wider,
-   their lines fewer) and a long list of fusions scrolls in its own column, never pushing the cards' prices down. What
-   still lies below the fold (the shortest frames) scrolls, and says so: `.more`, a fade and a ▾ along the foot. */
-.reap-screen .reap-body.shopping { padding: 6px 0 0; }
-.reap-screen .reap-body.shopping > .shop-panel { margin: 0; flex: 1 0 auto; overflow: visible; }
-.reap-screen .reap-body.shopping .shop-relics .offers.picks:not(.rows) .offer-art { height: var(--art, 144px); }
-/* …its icon as large as the picture holds, above the trigger's tag where it has one. */
-.reap-body.shopping .shop-relics .offers.picks:not(.rows) .o-relic .offer-art > .ico svg { width: min(72px, calc(var(--art, 144px) - 12px)); height: min(72px, calc(var(--art, 144px) - 12px)); }
-.reap-body.shopping .shop-relics .offers.picks:not(.rows) .o-relic .offer-art:has(.trig-tag) { padding-bottom: 24px; }
-.reap-body.shopping .shop-relics .offers.picks:not(.rows) .o-relic .offer-art:has(.trig-tag) > .ico svg { width: min(72px, calc(var(--art, 144px) - 36px)); height: min(72px, calc(var(--art, 144px) - 36px)); }
-@container frame (min-width: 901px) {
-  .reap-body.shopping .shop-cols { flex: 1 0 auto; grid-template-columns: minmax(0, 5fr) minmax(320px, 3fr); align-items: stretch; }
-  .reap-body.shopping .shop-fusions { contain: size; overflow-y: auto; overscroll-behavior: contain; }
-}
-.reap-body.shopping.more::after, .reap-body.shopping .shop-fusions.more::after {
-  content: "▾"; position: sticky; bottom: 0; z-index: 3; display: block; flex: none; height: 24px; margin-top: -24px; padding-right: 14px;
-  text-align: right; font: 700 var(--fs-lg)/24px var(--display); color: var(--bright); text-shadow: 1px 2px 0 var(--ink), 0 0 4px var(--ink);
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ink) 80%, transparent)); pointer-events: none;
-}
-/* A short frame: the Shop's own spacing tighter, so a row of cards keeps its prices above the fold. */
-@container frame (max-height: 640px) {
-  .reap-screen .reap-body.shopping { padding-top: 4px; }
-  .reap-body.shopping > .shop-panel { gap: 6px; padding-top: 8px; padding-bottom: 8px; }
-  .reap-body.shopping .shop-sec > h3 { margin-bottom: 6px; }
-}
-.reap-actions .open-shop.on { color: var(--c-relic); }
 @container frame (max-height: 640px) {
   .reap-screen .offers.picks .offer-art > .portrait { width: 84px; height: 84px; }
   .reap-screen .offers.picks .offer-art { height: 96px; }
@@ -215,11 +185,6 @@ button.ret-toggle:hover:not([aria-disabled]) { background-color: #463614; color:
 .ret-pop .units { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 8px; }
 .ret-pop .unit { padding: 6px 10px; }
 .ret-pop .unit > button { flex: none; gap: 4px; padding: 0 12px; }
-/* The relics' list (ui.js relicsStrip): its toggle in the relics' orange, each soul's relic buttons at its row's end. */
-.ret-strip.relics button.ret-toggle { background: #3a2112; color: var(--c-relic); }
-.ret-strip.relics button.ret-toggle:hover:not([aria-disabled]) { background-color: #482a16; color: var(--c-relic); }
-.ret-strip.relics .ret-toggle b { color: var(--c-relic); }
-.ret-strip.relics.open .ret-toggle { box-shadow: inset 0 0 0 2px var(--c-relic), inset 0 -4px 0 var(--lip), var(--drop-sm); }
 
 /* ── a soul's portrait framed in its rank's metal (ui.js unitRow): the lists ─────────────────────────── */
 .rank-port {
@@ -416,18 +381,6 @@ button.ret-toggle:hover:not([aria-disabled]) { background-color: #463614; color:
 .reap-screen .ow-chip.up { background: color-mix(in srgb, var(--c-synergy) 20%, var(--sunk)); color: #8cc0ff; }
 /* The essence a release pays back, on its button. */
 .ret-pop .unit > button .price { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; color: var(--c-essence); font: 700 var(--fs-md) var(--display); }
-
-/* The Shop's and spoils' souls to give relics to (ui.js relicsStrip): the Field's Relics strip on top, then a compact
-   row a soul: its portrait and name (a tap gives the readied relic) and its relic slot (a tap takes it back). */
-.ret-pop .relic-strip { margin-bottom: 8px; }
-.give-hint { margin: 0 0 8px; font-size: var(--fs-sm); }
-.give-souls { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px; }
-.give-soul { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: var(--radius); border: 1px solid transparent; }
-.give-soul.gift { box-shadow: 0 0 0 3px var(--c-relic); }
-.give-soul .gs-soul { flex: 1; min-width: 0; justify-content: flex-start; gap: 8px; padding: 0 8px; min-height: var(--tap); overflow: hidden; }
-.give-soul .gs-soul b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.give-soul .give-relic { max-width: 50%; min-height: var(--tap); }
-.give-soul .give-relic.empty { border-style: dashed; color: var(--dim); }
 
 /* ── the draft: the run's first souls (ui.js draftScreen) ─────────────────────────────────────── */
 /* The seats along the foot: a hollow a pick, inked like the cards; empty ones dashed, the pick being made ringed in

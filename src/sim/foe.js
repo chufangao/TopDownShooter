@@ -336,12 +336,16 @@ const debuff = (id) => statusDef(id).tags.includes('debuff')
 
 // What an option would do, read off the board: for the score `dealt`, `kill`, `counter`; for the expert's features
 // `damage`, `focus` (× the target's lost share of HP), `bane` (on a healer), `preyed`, `menace` (the hardest blow of each
-// foe felled), `status`, `mend`, `rescue` (mending one `map` says could fall), `shadow`, and the `felled` and `hexed` (a
-// Hex on one that shrugs it off stuns nobody).
+// foe felled), `status`, `mend`, `rescue` (mending one `map` says could fall), `shadow` (an Arise's claim, a Claimed foe
+// felled), and the `felled` and `hexed` (a Hex on one that shrugs it off stuns nobody).
 export function estimate (battle, u, o, prey, map = null) {
   const a = o.ability
   if (!a) return ZERO
-  if (a.shape === 'corpse') return { ...ZERO, dealt: o.target.maxHp, shadow: o.target.maxHp }
+  // A claim is worth the shadow it may bring, the more the nearer its foe stands to falling.
+  if (a.claim) {
+    const w = o.target.maxHp * (1 - o.target.hp / o.target.maxHp / 2)
+    return { ...ZERO, dealt: w, shadow: w }
+  }
   const s = stats(battle, u)
   // The actor where it would stand, for the shapes that measure from it; a blow spreads from the one it strikes.
   const at = { uid: u.uid, side: u.side, tile: o.tile, size: u.size, flies: u.flies }
@@ -367,6 +371,7 @@ export function estimate (battle, u, o, prey, map = null) {
       if (d >= x.hp) {
         out.kill += worth(battle, x)
         out.menace += hardest(battle, x)
+        if (x.statuses.some((st) => st.id === 'claimed')) out.shadow += x.maxHp
         out.felled = [...out.felled, x]
       } else {
         for (const e of a.effects) {
@@ -378,7 +383,7 @@ export function estimate (battle, u, o, prey, map = null) {
         }
       }
     } else {
-      const missing = x === battle.monarch && battle.unhealable ? 0 : x.maxHp - x.hp
+      const missing = x.maxHp - x.hp
       const brink = map !== null && x.hp <= dangerAt(battle, x, x.tile, map)
       for (const e of a.effects) {
         if (e.op === 'heal' && !e.self) {

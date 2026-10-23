@@ -10,7 +10,7 @@ import {
   tileX, tileY, DEPTH, distance, deployTile, behaviourOf, summonsOf, summonedOf, sizeOf, tracksOf, reachOf, meleeOnly, isBlow, onField
 } from './sim/unit.js'
 import {
-  foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, unhealed, isMonarch, depthOf, rosterCap,
+  foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, isMonarch, depthOf, rosterCap,
   inOssuary, canFuse, fuseCost, relicCount, relicTier, floorPrice, isRunPath, isRunRelic, unheld,
   runStat, foeEssence, soulOffer, foeScale, waveEvery, monarchBase, ascensionOf, releaseRefund, firstLevel, freshTracks,
   ascensionTop, roomSize, bossIn, clearsRun, bountyOf, BATTLE_NODES, roomThreats, ANSWERS, unkeyed, laysKey
@@ -89,16 +89,17 @@ function reachTag (a) {
 // drawn only with `arise`, its holder's { domain, tier }.
 export function abilityBlock (id, st, arise = null, basic = false) {
   const a = abilityDef(id)
-  if (a.shape === 'corpse' && !arise) return null
+  if (a.claim && !arise) return null
   const word = a.shape === 'all_allies' && Number.isFinite(rangeOf(a)) ? `allies ≤${rangeOf(a)}` : a.shape === 'all' && a.range ? `foes ≤${a.range}` : SHAPE_WORD[a.shape]
   const rest = (n) => (n === 2 ? 'skill · rests a turn' : n <= 1 ? 'skill · no rest' : `skill · rests ${n - 1} turns`)
-  return h('div', { class: 'ability' + (a.shape === 'corpse' ? ' arise' : '') },
+  return h('div', { class: 'ability' + (a.claim ? ' arise' : '') },
     h('b', null, a.name), ' ',
-    a.shape === 'corpse'
-      ? [h('span', { class: 'tag-domain' }, `${arise.domain} tiles`), ` a foe corpse, tier ≤ ${arise.tier} → `, kw('shadow'), ', the corpse you choose']
+    a.claim
+      ? [h('span', { class: 'tag-domain' }, `${arise.domain} tiles`), ` a foe, tier ≤ ${arise.tier} → `, kw('claimed', 'Claimed'),
+          ` ${turnsText(statusDef('claimed').turns)}: falling, your `, kw('shadow')]
       : [reachTag(a), word && h('span', { class: 'tag-shape' }, word), a.arc && h('span', { class: 'tag-arc' }, 'lobbed: ignores lines'), ' ', a.effects.map((e, i) => [i ? ' · ' : '', effectText(e, st)]),
           a.cond && h('span', { class: 'dim' }, ` · only ${a.cond}`)],
-    h('span', { class: 'ab-cost dim' }, basic ? 'basic' : rest(a.shape === 'corpse' ? arise.cooldown ?? a.cooldown ?? 2 : a.cooldown ?? 2)))
+    h('span', { class: 'ab-cost dim' }, basic ? 'basic' : rest(a.claim ? arise.cooldown ?? a.cooldown ?? 2 : a.cooldown ?? 2)))
 }
 
 // A unit's abilities, a line each, and Arise last for a soul holding an Arise relic.
@@ -114,7 +115,10 @@ export function abilityBlocks (u, st, realm = null) {
 // `arise`: Arise's { domain, tier }; `flies`: the piece flies. For the act buttons' cards.
 export function actText (a, st, { range, arise = null, flies = false } = {}) {
   const tiles = (r) => `${r} tile${r === 1 ? '' : 's'}`
-  if (a.shape === 'corpse') return [h('p', null, `Raises one fallen foe of tier ${arise.tier} or lower within ${tiles(arise.domain)} as your `, kw('shadow'), '.')]
+  if (a.claim) {
+    return [h('p', null, kw('claimed', 'Claims'), ` a foe of tier ≤ ${arise.tier} within ${tiles(arise.domain)} for ${turnsText(statusDef('claimed').turns)}: if it falls, it rises where it fell as your `, kw('shadow'), '.'),
+      h('p', { class: 'dim' }, 'Never a boss, a shadow or one Claimed already. Lobbed: ignores lines.')]
+  }
   const far = Number.isFinite(range)
   const where = a.melee && range === 1 ? 'beside it' : far ? `within ${tiles(range)}` : 'anywhere on the board'
   const blow = isBlow(a)
@@ -243,15 +247,11 @@ function statusLine (s) {
 
 // ── Arise and the relic slot ─────────────────────────────────────────────────────────────────────
 
-// Arise as soul `u` holds it out of battle: the run's reach and tier, what its relic's rule adds (Court of Bone's
-// tiles) and its rest, as the battle reads them. Null for a soul holding no Arise relic.
+// Arise as soul `u` holds it out of battle: the run's reach and tier and its rest, as the battle reads them. Null for a
+// soul holding no Arise relic.
 export function ariseFor (s, u) {
-  const grants = heldRules(u).filter((r) => r.grants === 'arise')
-  if (!grants.length) return null
-  const a = ariseOf(s)
-  const sum = (k) => grants.reduce((n, r) => n + (r.params[k] ?? 0), 0)
-  const own = abilityDef('arise').cooldown ?? 2
-  return { domain: a.domain + sum('domain'), tier: a.tier + sum('tier'), cooldown: Math.min(own, ...grants.map((r) => r.params.cooldown ?? own)) }
+  if (!heldRules(u).some((r) => r.grants === 'arise')) return null
+  return { ...ariseOf(s), cooldown: abilityDef('arise').cooldown ?? 2 }
 }
 // What a card reads Arise from: out of battle the run's (ariseFor); a battle passes its own.
 export const realmOf = (run) => ({ arise: (u) => ariseFor(run.state, u) })
@@ -314,16 +314,15 @@ export const MONARCH_TEXT = {
       `Raised only by relics: ${giversOf('run.command').join(', ')}. The Shop's shelf always holds one.`]
   }
 }
-// What would mend the Monarch now: an altar's heal (nothing under Court of Bone), or "full"; no win heals it.
+// What would mend the Monarch now: an altar's heal, or "full"; no win heals it.
 function monarchMends (run) {
   const m = monarchOf(run.state)
-  if (unhealed(run.state)) return 'nothing heals it (Court of Bone)'
   return m.hp >= m.maxHp ? 'full' : `an altar heals it ${TUNING.run.altarHeal >= 1 ? 'to full' : `+${Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal)) - m.hp}`}`
 }
 // The Monarch's HP in a line, for the top bar's chip: "210/250 · an altar heals it to full".
 export const monarchHpText = (run) => `${monarchOf(run.state).hp}/${monarchOf(run.state).maxHp} · ${monarchMends(run)}`
 export const MONARCH_RULE = 'Nothing is bought for the Monarch: its HP and Command grow only by relics.'
-const WOUNDS_TEXT = `A win makes every soul whole again, the fallen standing in their cells: no wound and no fall of a soul carries from one battle to the next. The Monarch's HP is the run's: it carries from battle to battle, and only an altar's heal (${TUNING.run.altarHeal >= 1 ? 'to full' : `to ${pct(TUNING.run.altarHeal)}`}) or an HP relic mends it, never under Court of Bone`
+const WOUNDS_TEXT = `A win makes every soul whole again, the fallen standing in their cells: no wound and no fall of a soul carries from one battle to the next. The Monarch's HP is the run's: it carries from battle to battle, and only an altar's heal (${TUNING.run.altarHeal >= 1 ? 'to full' : `to ${pct(TUNING.run.altarHeal)}`}) or an HP relic mends it`
 
 // ── reach and Move ───────────────────────────────────────────────────────────────────────────────
 
@@ -612,7 +611,7 @@ export function roomGain (run, node) {
   }
   if (node.type === 'altar') {
     const m = monarchOf(s)
-    const mon = unhealed(s) ? 0 : Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal)) - m.hp
+    const mon = Math.max(m.hp, Math.round(m.maxHp * TUNING.run.altarHeal)) - m.hp
     return [mon > 0 ? ['Heals the Monarch ', num(`+${mon}`), '; or '] : 'The Monarch is whole. One rite: ', 'transmute a soul into another kind of its tier, or consecrate a soul its next tier, free.']
   }
   return null
@@ -687,7 +686,6 @@ export function roomTip (run, node, { reachable, enter = false }) {
       node.foes && h('span', { class: 'rt-count' }, `${foeCountText(node)} · Lv ${node.foes[0].lvl}`)),
     h('p', { class: 'rt-text' }, r.text),
     gain && h('p', { class: 'rt-gain' }, gain),
-    node.type === 'altar' && unhealed(run.state) && h('p', { class: 'warn' }, 'Court of Bone: not the Monarch.'),
     depthOf(run.state.floor) > 0 && node.type === 'elite' && node.next.length === 0 && h('p', { class: 'warn' }, `Big elite: +${DEEP.final.count} foes, +${DEEP.final.level} levels. Then floor ${run.state.floor + 1}.`),
     node.foes && [
       h('div', { class: 'rt-body' }, miniGrid(node.foes), h('div', { class: 'rt-info' },
@@ -766,7 +764,7 @@ export function floorNote (s) {
 function altarNote (s, was) {
   const m = monarchOf(s)
   if (m.hp > was) return `The altar burns: the Monarch +${m.hp - was} (${m.hp}/${m.maxHp}).`
-  return unhealed(s) && m.hp < m.maxHp ? 'The altar burns, but Court of Bone holds: nothing heals the Monarch.' : 'The altar burns, but the Monarch was whole.'
+  return 'The altar burns, but the Monarch was whole.'
 }
 // An altar's rite just taken (`a`: heal, transmute or consecrate), read off the party as it stood before (`before`).
 export function riteNote (s, a, before) {
@@ -1062,8 +1060,7 @@ const WORD_MORE = {
   summon: () => `A tier of a few kinds calls up shadows of the kind itself (a trine's, of the kind it was made of): at each battle's start, as many as a piece's tiers say rise for it on the field, each on the free tile of the camp nearest that piece, at ${pct(TUNING.summon.hp)} of a whole one's HP, with its level and tiers. A summon takes no orders: it strikes or mends with its basic each turn, counts toward your synergies as any shadow, pays no essence, and is gone after the battle.`,
   road: () => 'Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch, and every foe on the ground keeps to these arrows. How far it comes each turn, from nothing to its energy\'s worth of tiles, is its own judgement: it weighs what it could deal against what your side could deal to it there, and the longer since the last wave came, the less it waits: in time every foe comes. A comrade stopped ahead of it holds it back, and a piece of yours blocks it. Some kinds Fly instead, straight over the walls but never through your pieces. You learn which by meeting them.',
   wave: (run) => `${ENEMY_TEXT.waves}${run && waveEvery(run.state) !== W.every ? ` At ascension ${run.state.ascension} they come ${waveEvery(run.state)} turns apart.` : ''} ${ENEMY_TEXT.entry}`,
-  shadow: (run) => `A soul holding an Arise relic raises one foe slain within its reach, the corpse you choose, as a skill; Undead 4 raises every foe slain. A shadow of yours rises where the foe fell (on the nearest free tile when something stands there) and takes no orders: at End Turn, the very turn it rises too, it walks toward the nearest foe it can reach and strikes it with its basic (or mends with it). Summons strike or mend from where they stand. Shadows count toward your synergies and are gone after the battle.` +
-    (run && run.state.relics.includes('hollow_court') ? ' Those a Hollow Court holder raised that stand at a win pay their essence again.' : ''),
+  shadow: () => `A soul holding an Arise relic Claims a foe within its reach, as a skill: if that foe falls while Claimed, by any blow or tick, it rises as your shadow. Undead 4 raises every foe slain. A shadow of yours rises where the foe fell (on the nearest free tile when something stands there) and takes no orders: at End Turn, the very turn it rises too, it walks toward the nearest foe it can reach and strikes it with its basic (or mends with it). Summons strike or mend from where they stand. Shadows count toward your synergies and are gone after the battle.`,
   essence: (run) => `Each foe slain pays ${run ? entry(TUNING.essence.perTier, run.state.floor) : TUNING.essence.perTier.map((v, i) => `${v} on floor ${i + 1}`).join(', ')} × its tier, whatever its level, into one purse. It buys tiers, fusions (${TUNING.essence.fuse} × the result's tier), one recruit after a win (${TUNING.essence.recruit} × its tier) and relics in the Shop, and ${priceScaleText(run)}: what a floor pays is worth less on the next. Nothing is bought for the Monarch, and no level is bought: a soul's level is its tiers'.`,
   tier: (run) => `Each soul has its kind's two tracks, four tiers each (${TUNING.essence.tier.join(' / ')} essence on floor 1; ${priceScaleText(run)}). The first track you take may reach IV; the other then stops at II. A tier IV is a rule: a new ability, an aura, more reach, or Colossus, which grows the soul to 2×2 (to the ossuary if it no longer fits where it stands). A soul's level is its tiers': ${TUNING.level.base} + ${TUNING.level.perTier} × the tiers it holds, rounded down; a tier bought raises that soul alone; a recruit joins fresh, at level ${firstLevel()}, with Soul Lantern's free tiers.`,
   fusion: () => `Between battles it takes exactly the souls the recipe names, each a whole piece, from the ossuary first, then the field, costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one fresh piece of the fused kind in the ossuary, to be placed: its first level, no tier, no relic; the tiers its parts held pay back ${backShare()} their price now (none of those given free: Soul Lantern's, an altar's), and a relic its parts held comes back unheld. Never weaker in power than what went into it. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has a triple, three of it into its trine; the mixed recipes join kinds, and the capstones join fused kinds into a piece of tier 5 or 6. The Shop sells them: its Fusions list every recipe whose parts you hold, lit when you can pay, and the recipes your kinds go toward; the Codex's Fusions lists the mixed recipes and the capstones, and a kind's card its triple.`,
@@ -1072,8 +1069,8 @@ const WORD_MORE = {
   synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A trine counts as the three of a kind it was made of (a trine of a trine as three too), so a trine and one more piece hold a rule at 4; every other fused piece counts once, with its own kin and role; a relic may make its holder count as another role too, once. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
   relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Only the Shop sells them, for essence, between battles: its shelf is the floor's, deeper floors the rarer, and always holds a Command relic, and from floor ${R.legendary.fromFloor} a Legendary, a rule that rewrites the game. A run relic (its card says Run) touches the run or the whole side and works unheld: Command, the Monarch's HP, prices, essence, Arise's reach; its copies add up with no cap. Every other is a piece relic (Held): it waits unheld until you give it to a soul (tap it in the Relics strip beside the ossuary, then the soul, or the slot in the soul's panel), and works only through its holder, its triggers on its holder's own moments. Give, take back and swap freely out of battle, never in one. A held relic stays with its soul in the ossuary, works only on the field, and comes back unheld when its holder is released or fused away; copies are more holders. Arise is one: its holder learns the skill Arise.` +
     (run && unheld(run.state).length ? ` Unheld now: ${tally(unheld(run.state).map((id) => relicDef(id).name))}.` : ''),
-  altar: () => `One rite, then the room is done. Heal: the Monarch to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)}, unless Court of Bone holds (your souls are whole after every win, and need none). Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic, its tiers and its level: its tiers sit on its new kind's tracks of the same number. Consecrate: one soul's next tier on the track you choose, free, as buying it would give it.`,
-  shop: (run) => `Open between battles wherever essence is spent: its tab beside the Map, and on the spoils; closed in battle. Its shelf of ${TUNING.shop.relics} relics is the floor's, drawn as you arrive and kept from room to room; a relic bought leaves its slot empty until your next win fills it again. Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows: a relic bought is a tier not bought. Its Fusions list every recipe whose parts you hold, lit when you can pay, one press to fuse.`,
+  altar: () => `One rite, then the room is done. Heal: the Monarch to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)} (your souls are whole after every win, and need none). Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic, its tiers and its level: its tiers sit on its new kind's tracks of the same number. Consecrate: one soul's next tier on the track you choose, free, as buying it would give it.`,
+  shop: (run) => `Open between battles: its tab beside the Map; closed in battle. Its shelf of ${TUNING.shop.relics} relics is the floor's, drawn as you arrive and kept from room to room; a relic bought leaves its slot empty until your next win fills it again. Each relic's price is its tier's (${RELIC_TIERS.map((x) => `${x.name} ${TUNING.shop.price[x.id]}`).join(', ')} on floor 1; ${priceScaleText(run)}). Buy any number while the purse allows: a relic bought is a tier not bought. Its Fusions list every recipe whose parts you hold, lit when you can pay, one press to fuse.`,
   turn: () => `A round: your turn (each piece moves, then acts, in any order you like), then End Turn: each piece of yours given no act strikes with its basic blow (the foe furthest along its road) or mends with its basic heal, if its energy left pays for it, then the foes take their turn, one judgement for the camp, then statuses tick, cooldowns fall and a wave whose turn has come enters. Nothing is rolled: the same board and the same orders give the same battle. The battle is won when no foe stands and none is to come, and lost the instant the Monarch falls or nothing of yours but the Monarch stands (a shadow and a summon count), however long it lasts: the Monarch never acts.`,
   move: () => 'A piece moves first, then acts, never the other way: where it strikes from is where it stands for the foes\' turn. It steps to any of the eight tiles round it, through your own pieces but never through a foe, never diagonally past a wall\'s corner, and never ends on a held tile; a flyer of yours goes over anything. Undo puts it back, its energy whole again, until it acts. Some tiers and statuses add Move.',
   skill: () => 'Every kind has a basic blow, usable every turn, and a mender a basic heal too; everything else is a skill, Arise among them. A skill used rests the next turn (its cooldown) unless its card says otherwise: Arise rests none. The pieces you leave alone, the summons and the shadows act with their basics only: the skills are yours to time.',
@@ -1227,14 +1224,13 @@ export function codexView (run = null, { onClose = null, sound = null } = {}) {
     primer(),
     h('p', { class: 'gestures' }, h('b', null, say('Mouse', 'Touch')), ': ', say('click', 'tap'), ' a piece to select it; drag a soul from the ossuary onto the camp to place it, or onto a piece to swap them (a 2×2 swaps with the one piece under it, never two); ',
       say('click', 'tap'), ' empty ground to go back to the Monarch. A selected piece\'s panel holds its tiers and its relic slot; ', say('click', 'tap'), ' a relic in the Relics strip, then a soul, to give it. ', say('Hover', 'Long-press'), ' anything for what it is.'),
-    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s targets are the corpses ringed in green). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ', say('Click', 'Tap'), ' a foe to see its coming turn alone: every foe shows it on the board as it stands, dots down its road to a faint ghost where it will stop, a line from there to the piece it will strike and the damage over that piece (yours left alone show their basic the same way); move a piece and it changes. A foe of a kind you have met lights its whole reach in red too: the road it could walk this turn, dotted, and every tile it could strike from there; ', say('click', 'tap'), ' elsewhere and it goes. ',
+    h('p', { class: 'gestures' }, h('b', null, 'In battle'), ': ', say('click', 'tap'), ' a piece of yours, then a lit tile to move it (Undo, or its old tile, puts it back); ', say('click', 'tap'), ' a ringed foe to see the damage and the counter, and again to strike; a skill\'s button first to use it instead (Arise\'s: a foe to claim). A ranged blow keeps to its ', kw('line', 'line of fire'), ': aimed, its line is drawn from the shooter, the number stands on the foe that would take it, and SCREENED over the one behind. ', say('Click', 'Tap'), ' a foe to see its coming turn alone: every foe shows it on the board as it stands, dots down its road to a faint ghost where it will stop, a line from there to the piece it will strike and the damage over that piece (yours left alone show their basic the same way); move a piece and it changes. A foe of a kind you have met lights its whole reach in red too: the road it could walk this turn, dotted, and every tile it could strike from there; ', say('click', 'tap'), ' elsewhere and it goes. ',
       h('b', null, 'End Turn'), ' when you are done.'),
     s && h('div', { class: 'gl-run' },
       h('span', null, `The Monarch ${monarchOf(s).hp}/${monarchOf(s).maxHp} HP · Command ${commandOf(s)}${ariseHeld(s) ? ` · Arise: tier ≤ ${ariseOf(s).tier} within ${ariseOf(s).domain} tiles of its holder` : ''}`),
       h('span', null, `Souls ${souls(s.party).length}/${rosterCap(run)} · ${fielded(souls(s.party)).length}/${fieldCap(run)} on the field · ${inOssuary(souls(s.party)).length} in the ossuary`),
       h('span', { class: 'gl-relics' }, kw('relic', 'Relics'), s.relics.length ? relicsByTier(s.relics, ({ id, n }) => h('span', { class: `relic rt-${relicTier(id)}`, tip: () => relicTip(id, run) }, relicDef(id).name, n > 1 && h('span', { class: 'relic-n' }, `×${n}`))) : ' none'),
-      depthOf(s.floor) > 0 && h('span', null, DEEP_TEXT.now(s.floor)),
-      unhealed(s) && h('span', { class: 'warn' }, 'Court of Bone: nothing heals the Monarch.')),
+      depthOf(s.floor) > 0 && h('span', null, DEEP_TEXT.now(s.floor))),
     h('div', { class: 'help-foot' },
       h('p', { class: 'dim' }, say([h('kbd', null, 'H'), ' or ', h('kbd', null, '?'), ' opens How to play anywhere; ', h('kbd', null, 'Esc'), ' closes it.'],
         'The ? button opens How to play from any screen.')),
@@ -1272,7 +1268,7 @@ const primer = () => h('ol', { class: 'primer' },
   h('li', null, 'Foes keep to the ', kw('road', 'roads'), ', the arrows to your seat; some ', kw('fly'), '. Each foe\'s coming turn is drawn on the board as it stands, exactly: where it will stop, whom it will strike and for how much; your moves change it. How far each kind could come and strike you learn by meeting it: a kind met shows its whole reach when tapped.'),
   h('li', null, 'A ranged blow at one target strikes the first piece of the target\'s side on its ', kw('line', 'line of fire'), ', both sides alike; a side never blocks its own shots. Stand a piece between their shooters and the Monarch, and mind who stands in front of the foe you aim at. Melee, blows that strike an area and lobbed blows ignore lines.'),
   h('li', null, `No dice: every blow deals what its preview says (Mirage, the Fae 4 rule, foils each striker's first); the same board and the same orders give the same battle. A battle is lost when you fall, or when nothing of yours but you still stands, however long it lasts, and a horde that waits at the edge of your reach comes in time. ${WOUNDS_TEXT}.`),
-  h('li', null, 'Spend ', kw('essence'), ' on your souls\' ', kw('tier', 'tiers'), ' and ', kw('fusion', 'fusions'), ' (three of a kind make its ', kw('trine'), '), on a recruit after a win, and in the ', kw('shop'), ' on ', kw('relic', 'relics'), '. A run relic works for the whole run: the Monarch grows only by them, its HP and its ', kw('command'), '. A piece relic works through the soul you give it to, one a soul, out of battle; Arise is one, and its holder raises the slain.'))
+  h('li', null, 'Spend ', kw('essence'), ' on your souls\' ', kw('tier', 'tiers'), ' and ', kw('fusion', 'fusions'), ' (three of a kind make its ', kw('trine'), '), on a recruit after a win, and in the ', kw('shop'), ' on ', kw('relic', 'relics'), '. A run relic works for the whole run: the Monarch grows only by them, its HP and its ', kw('command'), '. A piece relic works through the soul you give it to, one a soul, out of battle; Arise is one: its holder Claims a foe, and the Claimed rise as your shadows when they fall.'))
 
 // The bestiary: every foe kind, the ones met with their reach and Move, their way line (from the kind's temperament,
 // so it never says what the kind does not do) and their lore; the rest a shade, until met.

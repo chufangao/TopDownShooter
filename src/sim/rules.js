@@ -5,7 +5,7 @@
 //   onStruck  a blow has landed on one that still stands: { actor, target, ability, damage }
 //   onFall    one of the side's own has fallen: { fallen, by }; a rule may lift it again (Undying)
 //   onKill    one of the other side has fallen, whoever felled it (a status too): { slain, by, side }
-//   onRaise   a shadow has risen to an Arise of the side's: { actor, corpse, shadow }
+//   onRaise   a foe Claimed by an Arise of the side's has risen as its shadow: { actor, corpse, shadow }
 //   onTurn    the side's turn begins: { side, turn }
 //   onWave    a foe wave has entered: { wave }
 //   onMove    a walk committed (never one undone): { actor, from, to, moved, as }, `as` 'actor', then 'other'
@@ -16,13 +16,11 @@
 //   queue     the foes' turn's order: { queue } (it may reorder it)
 //   grants    an ability id its holder gains (Arise's)
 //   roles     (battle, u, r) → the roles its holder counts as besides its own, for synergies (Mimicry)
-//   raisable  (battle, u, r) → whether its holder may raise now (Blood Tithe)
-// A Legendary's cost beyond its holder is a flag on its entry, read for the run: `unhealable`, `bleeds`.
 import { TUNING } from '../tuning.js'
 import { unitDef, relicDef, abilityDef, statusDef } from '../content.js'
 import { alive, livingOn, unitDistance, distanceBetween, blowReach, makeUnit, synergyFull, enemySide } from './unit.js'
 import { around, riseTile, summonTile } from './field.js'
-import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, corpses, enterBattle, lined, hexed, aloft, answer } from './turns.js'
+import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, enterBattle, lined, hexed, aloft, answer } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
@@ -43,7 +41,7 @@ export const RULES = {
   dragonfire: {
     targets (battle, ctx) {
       const { actor, ability, primary } = ctx
-      if (ctx.as !== 'actor' || ability.shape !== 'single' || primary.side === actor.side) return
+      if (ctx.as !== 'actor' || ability.shape !== 'single' || ability.claim || primary.side === actor.side) return
       const out = around(battle, primary.tile, 1, primary.side, primary.size)
       ctx.targets = ability.melee && !actor.flies ? out.filter((x) => !x.flies) : out
     }
@@ -120,7 +118,7 @@ export const RULES = {
   echo: {
     params: { full: true },
     onBlow (battle, { actor, ability, targets }, r) {
-      if (!alive(actor) || ability.effects.some((e) => e.op === 'raise')) return
+      if (!alive(actor) || ability.claim || ability.effects.some((e) => e.op === 'raise')) return
       emit(battle, { type: 'rule', rule: 'echo', side: actor.side, actor: actor.uid, ability: ability.id, ...(!r.params.full && { half: true }) })
       const missed = new Set()
       for (const effect of ability.effects) runEffect(battle, r.params.full ? effect : scaled(effect, TUNING.echo.half), actor, targets, ability, null, missed)
@@ -149,7 +147,7 @@ export const RULES = {
 
   // ── the Legendaries, each scoped to its holder ──
 
-  // Arise: its holder gains the skill (one corpse within its reach rises).
+  // Arise: its holder gains the skill (a foe within its reach Claimed: turns.js fall raises it).
   arise: { grants: 'arise' },
   // Undying: its holder, fallen, rises where it fell at `hp` of its max HP, once a battle.
   undying: {
@@ -230,40 +228,6 @@ export const RULES = {
     params: { role: 'warden' },
     roles: (battle, u, r) => (u === r.holder ? [r.params.role] : [])
   },
-  // Hollow Court, an Arise variant: its holder's shadows standing when the battle is won pay their essence again (`reap`).
-  hollow_court: {
-    grants: 'arise',
-    params: { reap: 1 },
-    onRaise (battle, { actor, shadow }, r) {
-      if (actor === r.holder) shadow.reap = (shadow.reap ?? 0) + r.params.reap
-    }
-  },
-  // Blood Tithe, an Arise variant: its Arise raises `count` corpses, each costing the Monarch `tithe` of its max HP.
-  blood_tithe: {
-    grants: 'arise',
-    bleeds: true,
-    params: { tithe: 0.02, count: 2 },
-    raisable: (battle, u, r) => !battle.monarch || battle.monarch.hp > titheOf(battle, r),
-    targets (battle, ctx, r) {
-      const { actor, ability, primary } = ctx
-      if (ctx.as !== 'actor' || actor !== r.holder || ability.shape !== 'corpse') return
-      const m = battle.monarch
-      const pays = m ? Math.floor((m.hp - 1) / titheOf(battle, r)) : Infinity
-      const more = corpses(battle, actor).filter((c) => c !== primary)
-        .sort((a, b) => unitDef(b.id).tier - unitDef(a.id).tier || unitDistance(actor, a) - unitDistance(actor, b) || a.ord - b.ord)
-      ctx.targets = [primary, ...more].slice(0, Math.max(1, Math.min(r.params.count, pays)))
-    },
-    onRaise (battle, { actor }, r) {
-      const m = battle.monarch
-      if (actor !== r.holder || !m || !alive(m)) return
-      const cost = titheOf(battle, r)
-      m.hp -= cost
-      emit(battle, { type: 'tithe', target: m.uid, damage: cost, hp: m.hp })
-    }
-  },
-  // Court of Bone, an Arise variant: its holder's Arise reaches `domain` tiles farther; nothing heals the Monarch.
-  court_of_bone: { grants: 'arise', params: { domain: 2 }, unhealable: true },
-
   // ── a capstone's rule, scoped to the piece of its kind: what its abilities cannot say ──
 
   // The Charnel Cathedral: a foe it slays within a tile of it rises at once as a shadow of its side, as Legion raises.
@@ -376,9 +340,6 @@ function scaled (e, k) {
   return turns === 'battle' ? e : { ...e, turns: Math.ceil(turns * k) }
 }
 
-// What a shadow of a Blood Tithe holder's costs the Monarch.
-const titheOf = (battle, r) => Math.ceil(battle.monarch.maxHp * r.params.tithe)
-
 // A Hive Mind's or a Swarm Queen's drones hatch: `n` summons of its holder's on the free tiles nearest it (summonTile),
 // while it stands and its side has room; with no tile free, fewer.
 function hatch (battle, r, n = r.params.drones) {
@@ -437,13 +398,5 @@ export const holds = (battle, side, id) => rulesOf(battle, side).some((r) => r.i
 export const grantsOf = (battle, u) => (u.held ?? []).filter((r) => r.grants && !(battle.ablate.has('arise') && r.grants === 'arise'))
   .map((r) => abilityDef(r.grants))
 
-// Whether any of these relic ids (the run's) brings a rule that leaves the Monarch unhealable (Court of Bone).
-export const unhealable = (ids) => ids.some((id) => RULES[relicDef(id).rule]?.unhealable)
-
-// Whether relic `id` brings a rule its holder's raises pay for in the Monarch's HP (Blood Tithe).
-export const bleeds = (id) => !!RULES[relicDef(id).rule]?.bleeds
-
-// Whether relic `id` grants its holder Arise (Arise and its variants).
+// Whether relic `id` grants its holder Arise.
 export const grantsArise = (id) => RULES[relicDef(id).rule]?.grants === 'arise'
-// The Arise rules of the relics `u` holds, as it holds them, their params among them.
-export const ariseGrants = (u) => heldRules(u).filter((r) => r.grants === 'arise')

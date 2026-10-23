@@ -410,11 +410,8 @@ test('Echo: every ability of the side\'s rings out once more on the same targets
   const { b, fire } = play(four(4))
   assert.equal(fire.filter((e) => e.type === 'damage' && e.target === 101).length, 2, 'two blows')
   assert.deepEqual(rules(b, 'echo').map((e) => [e.actor, e.ability]), [[1, 'witchfire']])
-  set(b, 102, 0)
-  b.roster++
-  for (const t of [unit(b, 102).tile]) b.at[t] = null
-  const rose = order(b, { type: 'act', uid: 9, ability: 'arise', target: 102 })
-  assert.ok(rose.some((e) => e.type === 'arise') && !rose.some((e) => e.type === 'rule' && e.rule === 'echo'), 'Arise never echoes')
+  const claim = order(b, { type: 'act', uid: 9, ability: 'arise', target: 102 })
+  assert.ok(claim.some((e) => e.type === 'status' && e.status === 'claimed') && !claim.some((e) => e.type === 'rule' && e.rule === 'echo'), 'Arise never echoes')
   assert.equal(play(three(4)).fire.filter((e) => e.type === 'damage' && e.target === 101).length, 1)
   const theirs = scene([...foeSquad(['will_o_wisp', 'bone_chanter'], four(7)), on('tomb_knight', 1, 'party', 1, 5, 20)])
   const twice = strike(theirs, 101, 1).filter((e) => e.type === 'damage' && e.target === 1)

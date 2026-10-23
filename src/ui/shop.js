@@ -1,4 +1,4 @@
-// The Shop: the floor's shelf of relics and the fusions, a tab of the run's screen and a press away on the spoils.
+// The Shop: the floor's shelf of relics and the fusions, a tab of the run's screen.
 import { unitCard, relicTip, realmOf, tileText, TRIGGER_TEXT, relicIcon, relicKind } from '../codex.js'
 import { unitDef, relicDef, fusionDef, FUSION_LIST } from '../content.js'
 import { h, fill, icon, portrait, hideTip, pinTip, touchy, say } from '../dom.js'
@@ -97,10 +97,9 @@ export function shopView ({ run, act, onChange = null }) {
         }))),
       entry ? fuseButton(f, entry) : h('span', { class: 'price dim', tip: () => `${fuseCost(run, f.id)} essence once every part is held.` }, icon('soul', 16), fuseCost(run, f.id)))
   }
-  // A ready recipe's button, lit when it can be made now, its price and what its parts' tiers pay back (`back`); on the
-  // spoils it waits for the map.
+  // A ready recipe's button, lit when it can be made now, its price and what its parts' tiers pay back (`back`).
   function fuseButton (f, entry) {
-    const { cost, back, can, open } = entry
+    const { cost, back, can } = entry
     const name = unitDef(f.result).name
     const parts = entry.action.parts.map((uid) => s.party.find((x) => x.uid === uid))
     const partsText = parts.map((p) => `the ${unitDef(p.id).name} ${onField(p) ? `on ${tileText(deployTile('party', p.slot)).replace(/^your camp, /, '')}` : 'in the ossuary'}`).join(', ')
@@ -110,9 +109,8 @@ export function shopView ({ run, act, onChange = null }) {
     const freed = parts.flatMap((p) => (p.relics ?? []).map((r) => ({ kind: unitDef(p.id).name, relic: relicDef(r).name })))
     const gives = freed.map((x) => `The ${x.kind} gives up ${x.relic}: it comes back unheld, to give again on the Field.`).join(' ')
     const tip = () => h('div', { class: 'syn-tip' }, h('b', null, f.name), ' ', f.desc,
-      !open ? h('p', { class: 'warn' }, `Fused on the map, once the spoils are done: ${trade}.`)
-        : s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
-          : h('p', { class: 'dim' }, `${trade[0].toUpperCase()}${trade.slice(1)}. ${fresh}`),
+      s.essence < cost ? h('p', { class: 'warn' }, `Needs ${cost} essence; you have ${s.essence}.`)
+        : h('p', { class: 'dim' }, `${trade[0].toUpperCase()}${trade.slice(1)}. ${fresh}`),
       freed.length > 0 && h('p', { class: 'warn' }, gives))
     const press = (e) => {
       if (!can) { sfx.play('poor'); return shake(e) }
@@ -137,8 +135,6 @@ export function shopView ({ run, act, onChange = null }) {
       .map((f) => ({ f, at: share(f) })).sort((a, b) => b.at - a.at).map((x) => x.f)
     return h('div', { class: 'shop-sec shop-fusions' },
       h('h3', null, kw('fusion', 'Fusions'), h('span', { class: 'dim' }, ` · ${ready.length} ready`)),
-      // On the spoils a ready recipe waits for the map: said here, not only on its button's hover.
-      ready.some((x) => !x.open) && h('p', { class: 'dim small fuse-wait' }, 'Fused on the map, once the spoils are done.'),
       ready.length ? h('div', { class: 'fuse-list' }, ready.map((x) => fuseRow(fusionDef(x.id), x)))
         : h('p', { class: 'dim small' }, 'No recipe has every part held yet. Recruit its kinds from the slain.'),
       toward.length > 0 && [h('p', { class: 'dim small shop-toward' }, 'Toward, from the kinds you hold:'), h('div', { class: 'fuse-list' }, toward.map((f) => fuseRow(f)))])

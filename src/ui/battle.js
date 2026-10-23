@@ -36,7 +36,6 @@ export function battleChrome ({ onHelp = null } = {}) {
     return h('div', { class: 'syn-tip' }, h('b', null, 'Essence'), t && [
       h('p', null, h('b', null, `+${t.owed}`), ` from ${t.slain} ${t.slain === 1 ? 'foe' : 'foes'} slain. A win adds it to your `, h('b', null, `${t.bank}`), '.'),
       t.bonus > 0 && h('p', null, `The bounty: +${t.bonus} more on a win.`),
-      t.court && h('p', null, `Hollow Court: +${t.court.essence} more if ${t.court.n === 1 ? 'its shadow stands' : `its ${t.court.n} shadows stand`} at the win.`),
       t.gain !== 1 && h('p', { class: 'dim' }, `Your relics make each foe pay ×${+t.gain.toFixed(2)}, counted in.`)])
   }
   const purse = h('span', { class: 'purse', tip: purseTip }, icon('soul', 20), h('span', { class: 'purse-plus' }, '+'), count)
@@ -151,10 +150,10 @@ export function battleChrome ({ onHelp = null } = {}) {
         st.busy ? h('p', { class: 'dim' }, 'The turn plays out…')
           : !a.can ? (p.acted ? h('p', { class: 'warn' }, 'Already acted this turn.') : p.hexed ? h('p', { class: 'warn' }, 'Hexed: it cannot act this turn.')
             : a.short ? h('p', { class: 'warn' }, `Costs ${a.cost} energy: ${p.left} left.`) : a.rest > 0 ? null
-              : h('p', { class: 'dim' }, a.arise ? 'No corpse in reach.' : a.heal ? 'No ally in reach needs it.' : 'Not usable now.'))
-            : info?.now.length ? [h('p', { class: 'act-k' }, a.arise ? 'Corpses in reach:' : 'In reach now:'), h('ul', { class: 'act-targets' }, info.now.map(target))]
-              : info?.later.length ? h('p', null, `${a.arise ? 'No corpse' : 'Nothing'} in reach from here. Moving first brings in: ${group(info.later)}.`)
-                : h('p', { class: 'dim' }, a.arise ? 'No corpse it can reach this turn.' : 'Nothing it can reach this turn.'))
+              : h('p', { class: 'dim' }, a.heal ? 'No ally in reach needs it.' : 'Not usable now.'))
+            : info?.now.length ? [h('p', { class: 'act-k' }, 'In reach now:'), h('ul', { class: 'act-targets' }, info.now.map(target))]
+              : info?.later.length ? h('p', null, `Nothing in reach from here. Moving first brings in: ${group(info.later)}.`)
+                : h('p', { class: 'dim' }, 'Nothing it can reach this turn.'))
     }
     const acts = p.acts.map((a) => btn({
       class: 'act-btn' + (a.armed ? ' armed' : '') + (a.skill ? ' skill' : '') + (a.arise ? ' arise' : ''), 'aria-pressed': a.armed ? 'true' : 'false',
@@ -165,18 +164,16 @@ export function battleChrome ({ onHelp = null } = {}) {
     // The armed act with nothing to take from here: why, and who a move brings in reach, or that none would.
     const moves = p.tiles > 0
     const later = !st.busy && armed?.can && !armed.targets ? scene?.actInfo(armed.id)?.later ?? [] : []
-    const none = armed?.arise ? 'No corpse' : 'Nothing'
     const stuck = !armed || st.busy || armed.targets ? null
       : !armed.can ? (armed.rest > 0 ? `${armed.name} rests ${turns(armed.rest)} more.` : armed.short ? `${armed.name} costs ${armed.cost} energy: ${p.left} left.`
-        : armed.arise ? `No corpse in reach of ${armed.name}.` : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
-        : later.length ? `${none} in reach of ${armed.name} from here: moving brings in ${group(later)}.`
-          : moves ? `${none} in reach of ${armed.name} this turn, even after a move.` : `${none} in reach of ${armed.name} from here${p.move > 0 ? ', and no energy to walk' : ''}.`
+        : armed.heal ? `No ally in reach needs ${armed.name}.` : `${armed.name} cannot be used now.`)
+        : later.length ? `Nothing in reach of ${armed.name} from here: moving brings in ${group(later)}.`
+          : moves ? `Nothing in reach of ${armed.name} this turn, even after a move.` : `Nothing in reach of ${armed.name} from here${p.move > 0 ? ', and no energy to walk' : ''}.`
     const line = p.hexed && !p.acted ? h('span', { class: 'warn' }, 'Hexed: it loses its act.')
       : p.acted ? h('span', { class: 'dim' }, 'Acted this turn.')
-        : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to raise it.', 'Tap it again to raise it.') : say('Click it again to strike.', 'Tap it again to strike.'),
+        : p.aim ? h('b', { class: 'aim-line' }, armed?.arise ? say('Click it again to claim it.', 'Tap it again to claim it.') : say('Click it again to strike.', 'Tap it again to strike.'),
           p.screen && [' ', h('span', { class: 'screened' }, 'Screened'), `: the ${p.screen} on its `, kw('line', 'line of fire'), ' takes it.'])
-          : armed?.arise && armed.targets ? h('span', { class: 'dim' }, [say('Click', 'Tap'), ' a corpse ringed in green, again to raise it.'])
-            : h('span', { class: 'dim' }, moves && armed?.targets ? [say('Click', 'Tap'), ' a lit tile to move, a ringed target to aim.']
+          : h('span', { class: 'dim' }, moves && armed?.targets ? [say('Click', 'Tap'), ' a lit tile to move, a ringed target to aim.']
               : armed?.targets ? [say('Click', 'Tap'), ' a ringed target to aim.']
                 : [stuck, stuck && moves && ' ', moves && [say('Click', 'Tap'), ' a lit tile to move.']])
     fill(selBox,

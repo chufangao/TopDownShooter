@@ -1,5 +1,5 @@
-// The final pass's fixes, each with the case that broke it: the Legion's shadows held to the board, Court of Bone's heal
-// gates, heals that count only whom they can mend, a Monarch that takes no stat it did not buy, the Monarch's seat,
+// The final pass's fixes, each with the case that broke it: the Legion's shadows held to the board, a healer's choice,
+// heals that count only whom they can mend, a Monarch that takes no stat it did not buy, the Monarch's seat,
 // threat types on every route but Fly, and the autoplayer's room weights and ladder measures.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -60,18 +60,13 @@ const healsBy = (b, uid) => b.events.filter((e) => e.type === 'heal' && e.actor 
 const aimedAt = (b, uid, target) => b.events.filter((e) => e.type === 'action' && e.actor === uid && e.targets.includes(target)).length
 const blowsBy = (b, uid) => b.events.filter((e) => e.type === 'action' && e.actor === uid && e.ability === b.byUid.get(uid).basic.id).length
 
-test('Court of Bone: nothing heals the Monarch, and a healer left untouched tends someone it can mend instead', () => {
-  const tend = (relics) => {
-    const b = scene([on('monarch', 0, 'party', 3, 0), on('hive_warden', 1, 'party', 6, 0, 5), on('tomb_knight', 2, 'party', 0, 0, 5),
-      on('iron_golem', 10, 'foe', 3, 10, 3)], { relics })
-    b.monarch.hp = Math.round(b.monarch.maxHp * 0.4)
-    unit(b, 2).hp = Math.round(unit(b, 2).maxHp * 0.8)
-    turns(b)
-    return castHeals(b, 1)
-  }
-  const cob = tend(['court_of_bone'])
-  assert.ok(cob.length > 0 && cob.every((e) => e.target !== 0 && e.heal > 0), JSON.stringify(cob))
-  assert.ok(tend([]).some((e) => e.target === 0 && e.heal > 0), 'without the relic the wounded Monarch is mended first')
+test('a healer left untouched mends the wounded Monarch first', () => {
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('hive_warden', 1, 'party', 6, 0, 5), on('tomb_knight', 2, 'party', 0, 0, 5),
+    on('iron_golem', 10, 'foe', 3, 10, 3)])
+  b.monarch.hp = Math.round(b.monarch.maxHp * 0.4)
+  unit(b, 2).hp = Math.round(unit(b, 2).maxHp * 0.8)
+  turns(b)
+  assert.ok(castHeals(b, 1).some((e) => e.target === 0 && e.heal > 0), 'the wounded Monarch is mended first')
 })
 
 // A heal never lifts an ally past its max HP, so one at full HP has nothing to mend; a heal that cleanses tends an ally

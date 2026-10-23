@@ -1213,9 +1213,10 @@ export const UNIT_LIST = [
 
 // An ability is ops, a shape and an anim; a new one that composes them is one record.
 //   `effects`: damage (`power`); heal (`power`, or `pct` of max HP; `self` mends the caster); cleanse (`count` of `tag`);
-//   apply_status (`status`, `turns` where not the status's own; none on a miss); raise (corpses as shadows); cooldown
-//   (`amount` turns on every cooldown of its target). `shape`: single, ally, self, row, column (its lane), blast (the
-//   target and its neighbours), all, all_allies (within `range`), corpse (Arise's).
+//   apply_status (`status`, `turns` where not the status's own; none on a miss); raise (the dead as shadows: `count` of
+//   the field's, or the one slain up to `tier`); cooldown (`amount` turns on every cooldown of its target). `shape`:
+//   single, ally, self, row, column (its lane), blast (the target and its neighbours), all, all_allies (within `range`).
+//   `claim` (Arise's): no blow; it takes a living foe of a tier up to Arise's, never a boss, a shadow or one Claimed.
 //   Reach, from the caster's footprint: ranged its `range` (none: the whole board); melee (`melee`) its `range`, else its
 //   kind's arm, never a flyer unless the caster flies. A ranged single-target blow hits the first piece of the target's
 //   side in its way unless it arcs (`arc`). Basics are usable every turn; any other ability is a skill that rests
@@ -1224,15 +1225,18 @@ const hpPct = (u) => u.hp / u.maxHp
 
 const ABILITY_LIST = [
   {
-    // The skill an Arise relic gives its holder: a corpse within Arise's reach, of a tier Arise allows, rises as a shadow
-    // of yours; usable every turn (cooldown 1).
+    // The skill an Arise relic gives its holder: a foe within Arise's reach (its `range` the battle's: turns.js ariseOf),
+    // of a tier Arise allows, is Claimed, over any line of fire; usable every turn (cooldown 1).
     id: 'arise',
     name: 'Arise',
-    shape: 'corpse',
+    shape: 'single',
+    range: TUNING.arise.domain,
+    arc: true,
+    claim: true,
     cooldown: 1,
     tint: '#c8f5d2',
     anim: 'cast_beam',
-    effects: [{ op: 'raise' }]
+    effects: [{ op: 'apply_status', status: 'claimed' }]
   },
   { id: 'strike', name: 'Strike', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 2 } }] },
   { id: 'cleave', name: 'Cleave', shape: 'row', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 22, keyed: { status: 'brittle', mul: 2 } }] },
@@ -2385,6 +2389,17 @@ const STATUS_LIST = [
     turns: 'battle',
     stacks: 8,
     mods: [m('atk', 'mul', 1.06)]
+  },
+  {
+    // Arise's: a foe that falls while it holds rises where it fell as a shadow of the claimer's side (turns.js fall).
+    id: 'claimed',
+    desc: 'If it falls while Claimed, it rises where it fell as your shadow.',
+    name: 'Claimed',
+    tags: ['debuff'],
+    colour: '#e48cf0',
+    turns: 3,
+    stacks: 1,
+    mods: []
   }
 ]
 
@@ -2420,7 +2435,7 @@ export const BEHAVIOURS = {
 // What laying a status is worth to the policy, in HP-equivalents a stack.
 export const STATUS_WORTH = {
   brittle: 20, hasten: 20, regen: 40, barkskin: 25, withered: 20, enraged: 25, desperate: 20,
-  burning: 24, bleeding: 16, hexed: 40, shield: 30, rooted: 30, bloodlust: 12
+  burning: 24, bleeding: 16, hexed: 40, shield: 30, rooted: 30, bloodlust: 12, claimed: 30
 }
 
 // What a foe can do to a Monarch, by kind (`threats`); what each does is learnt by fighting it.
@@ -2584,7 +2599,7 @@ export const holdable = (d) => !d.monarch && !d.boss && !!(d.spawn || d.fused)
 // "Will-o'-Wisps", "Bone Colossi".
 const plural = (name) => (name.endsWith('us') ? `${name.slice(0, -2)}i` : `${name}s`)
 const tenths = (x) => Math.round(x * 10) / 10
-const isAlly = (a) => ['ally', 'all_allies', 'self', 'corpse'].includes(a.shape)
+const isAlly = (a) => ['ally', 'all_allies', 'self'].includes(a.shape) || !!a.claim
 const abilityById = new Map(ABILITY_LIST.map((a) => [a.id, a]))
 
 // The trine form of ability `id`: a blow at one foe a blast, a ranged one a tile longer (made once, id `trine:<id>`).
@@ -2746,7 +2761,7 @@ export const RELIC_LIST = [
   { id: 'muster_roll', tier: 'uncommon', name: 'Muster Roll', run: true, desc: '+1 Command (a piece more on the field), but every soul has 5% less HP.', mods: [m('run.command', 'add', 1), m('hp', 'mul', 0.95)] },
   { id: 'hunters_mark', tier: 'uncommon', name: "Hunter's Mark", desc: 'When its holder slays a foe, the foes next to the slain turn Brittle.', on: 'kill', effects: [{ op: 'apply_status', status: 'brittle', to: 'foes', range: 1 }] },
   { id: 'hourglass', tier: 'uncommon', name: 'Hourglass', run: true, desc: 'Every Arise of yours reaches a tile farther.', mods: [m('arise.domain', 'add', 1)], needsArise: true },
-  { id: 'bone_idol', tier: 'uncommon', name: 'Bone Idol', run: true, desc: 'Every Arise of yours raises a foe of a tier higher.', mods: [m('arise.tier', 'add', 1)], needsArise: true },
+  { id: 'bone_idol', tier: 'uncommon', name: 'Bone Idol', run: true, desc: 'Every Arise of yours claims a foe a tier higher.', mods: [m('arise.tier', 'add', 1)], needsArise: true },
   { id: 'firebrand', tier: 'uncommon', name: 'Firebrand', desc: 'When its holder strikes, its target is set Burning (12 true damage each turn, up to 3 stacks).', on: 'blow', effects: [{ op: 'apply_status', status: 'burning', to: 'other' }] },
   { id: 'briar_mail', tier: 'uncommon', name: 'Briar Mail', desc: 'When its holder is struck, its attacker takes 12 true damage.', on: 'struck', effects: [{ op: 'damage', amount: 12, to: 'other' }] },
   { id: 'leech_fang', tier: 'uncommon', name: 'Leech Fang', desc: 'When its holder strikes, it heals 10% of its max HP.', on: 'blow', effects: [{ op: 'heal', pct: 0.1, to: 'self' }] },
@@ -2772,13 +2787,10 @@ export const RELIC_LIST = [
   { id: 'glass_hammer', tier: 'rare', name: 'Glass Hammer', desc: 'When its holder strikes, its target takes 12 true damage for each stack of Brittle on it, and the Brittle is spent.', on: 'blow', effects: [{ op: 'damage', amount: 12, per: { status: 'brittle' }, consume: true, to: 'other' }] },
   { id: 'headsmans_hood', tier: 'rare', name: "Headsman's Hood", desc: 'When its holder strikes a Hexed foe, the foe takes 25 true damage more.', on: 'blow', effects: [{ op: 'damage', amount: 25, per: { status: 'hexed' }, to: 'other' }] },
   { id: 'plague_mask', tier: 'rare', name: 'Plague Mask', desc: 'When its holder strikes, its target takes 8 true damage for each harmful status on it.', on: 'blow', effects: [{ op: 'damage', amount: 8, per: { tag: 'debuff' }, to: 'other' }] },
-  { id: 'arise', tier: 'legendary', name: 'Arise', desc: `Its holder learns Arise, a skill usable every turn: a foe of tier ${TUNING.arise.tier} or lower that fell within ${TUNING.arise.domain} tiles of it rises as your shadow, the corpse of your choosing.`, rule: 'arise' },
+  { id: 'arise', tier: 'legendary', name: 'Arise', desc: `Its holder learns Arise, a skill usable every turn: a foe of tier ${TUNING.arise.tier} or lower within ${TUNING.arise.domain} tiles is Claimed for ${STATUS_LIST.find((x) => x.id === 'claimed').turns} turns; if it falls while Claimed it rises where it fell as your shadow, taking no orders and striking on its own.`, rule: 'arise' },
   { id: 'legion', tier: 'legendary', name: 'Legion', run: true, desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', mods: [m('run.command', 'add', 2), m('hp', 'mul', 0.85)] },
   { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'When its holder falls, it rises at once at 60% HP, once a battle.', rule: 'undying', params: { hp: 0.6 } },
   { id: 'mimicry', tier: 'legendary', name: 'Mimicry', desc: 'Its holder counts as a Warden too, for synergies.', rule: 'mimicry', params: { role: 'warden' } },
-  { id: 'hollow_court', tier: 'legendary', name: 'Hollow Court', desc: 'Its holder learns Arise, as the relic gives it; the shadows it raised that still stand when a battle is won are reaped, and each pays its essence again.', rule: 'hollow_court' },
-  { id: 'blood_tithe', tier: 'legendary', name: 'Blood Tithe', desc: 'Its holder learns Arise, as the relic gives it but raising two corpses a turn (the one you choose, then the highest tier in its reach); each shadow it raises costs the Monarch 2% of its max HP.', rule: 'blood_tithe', params: { count: 2, tithe: 0.02 } },
-  { id: 'court_of_bone', tier: 'legendary', name: 'Court of Bone', desc: 'Its holder learns Arise, as the relic gives it but reaching 2 tiles farther; and nothing heals the Monarch, in battle or out.', rule: 'court_of_bone', params: { domain: 2 } },
   // The Legendaries with a rule: an act refunded, a charge, a glass Monarch, a horde that bursts.
   { id: 'reapers_hunger', tier: 'legendary', name: "Reaper's Hunger", desc: 'When its holder slays a foe in your turn, it may act again.', rule: 'reapers_hunger' },
   { id: 'seven_league_boots', tier: 'legendary', name: 'Seven-League Boots', desc: 'On a turn its holder has moved 3 tiles or more, its blows deal 50% more damage.', rule: 'seven_league_boots', params: { tiles: 3, mul: 1.5 } },

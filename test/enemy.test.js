@@ -3,7 +3,7 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, perform, corpses, impatience, entryTurn, fork, addStatus, roadOf } from '../src/sim/turns.js'
+import { createBattle, order, playOut, perform, impatience, entryTurn, fork, addStatus, roadOf } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier, roomSize
@@ -442,16 +442,16 @@ test('killing the Sovereign ends the battle: its court and every foe still stand
   assert.equal(pay[1], 0)
 })
 
-test('the Sovereign\'s crumbled court never rises: the battle ends with its fall, and its dust is no corpse (no shadow for Hollow Court to reap)', () => {
-  // A Frost Sprite of yours fells the Sovereign at (3, 4) with one shot; two Pages of its court stand beside it, well
-  // inside the reach of a Knight of yours holding Hollow Court.
-  const b = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 1, 1, 20), on('tomb_knight', 2, 'party', 3, 2, 3, [0, 0], ['hollow_court']),
+test('the Sovereign\'s crumbled court never rises: the battle ends with its fall, and a Claimed one of its dust rises no shadow', () => {
+  // A Frost Sprite of yours fells the Sovereign at (3, 4) with one shot; two Pages of its court stand beside it, one
+  // Claimed by a Knight of yours holding Arise.
+  const b = scene([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 1, 'party', 1, 1, 20), on('tomb_knight', 2, 'party', 3, 2, 3, [0, 0], ['arise']),
     on('hollow_sovereign', 10, 'foe', 3, 4, 1), on('clockwork_page', 11, 'foe', 2, 4, 1), on('clockwork_page', 12, 'foe', 4, 4, 1)], { boss: true })
+  order(b, { type: 'act', uid: 2, ability: 'arise', target: 11 })
   unit(b, 10).hp = 1
   order(b, { type: 'act', uid: 1, ability: unit(b, 1).basic.id, target: 10 })
   assert.deepEqual([b.winner, b.reason, b.turn], ['party', 'crumble', 1])
   assert.deepEqual(b.events.filter((e) => e.type === 'death' && e.crumble).map((e) => e.target), [11, 12])
-  assert.deepEqual(corpses(b, unit(b, 2)), [], 'nothing for Arise')
   assert.ok(!b.events.some((e) => e.type === 'arise'))
   assert.equal(b.units.filter((u) => u.shadow).length, 0)
 })

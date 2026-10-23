@@ -13,7 +13,7 @@ export const KEYWORDS = {
   piece: { name: 'Piece', sys: 'essence', line: 'One soul on one cell, or four for a 2×2. On your turn each walks, then acts once, out of its energy.' },
   road: { name: 'Road', sys: 'foe', line: 'The arrows the foes walk to the Monarch. A foe keeps to its road: how far it comes each turn is its choice, where it goes is the road\'s. Your pieces block it; the dead never do.' },
   wave: { name: 'Wave', sys: 'foe', line: 'More foes over the far edge as a set turn begins: the wave counter says which.' },
-  shadow: { name: 'Shadow', sys: 'shadow', line: 'A slain foe risen to fight for you where it fell (or on the free tile nearest it). It takes no orders: at End Turn it walks toward the nearest foe and strikes one in reach, and is gone when the battle ends.' },
+  shadow: { name: 'Shadow', sys: 'shadow', line: 'A slain foe risen to fight for you where it fell (or on the free tile nearest it): one your Arise Claimed, or one Undead 4 or a relic raised. It takes no orders: at End Turn it walks toward the nearest foe and strikes one in reach, and is gone when the battle ends.' },
   summon: { name: 'Summon', sys: 'shadow', line: `A shadow of its own kind (a trine's: of the kind it was made of) that a tier calls up beside a piece of yours as each battle begins, at ${Math.round(TUNING.summon.hp * 100)}% of its HP. It acts on its own each turn, and is gone when the battle ends.` },
   essence: { name: 'Essence', sys: 'essence', line: 'Paid by every foe slain, by its tier; buys tiers, fusions, recruits and relics, every price dearer each floor down.' },
   tier: { name: 'Tier', sys: 'path', line: 'A step, I–IV, on one of a soul\'s two tracks: it upgrades that soul alone and raises its level.' },

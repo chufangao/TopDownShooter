@@ -3,7 +3,7 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { order, corpses, risable, addStatus, applyDamage, settle } from '../src/sim/turns.js'
+import { order, risable, addStatus, applyDamage, settle, targetsFrom } from '../src/sim/turns.js'
 import {
   createRun, apply, replay, legalActions, bossPool, bossFor, bossIn, leaningOf, leanings, LEANINGS, courtPool, foeMods, foeScale,
   roomThreats, unanswered, answerArmy, ANSWERS, routeThreats, ascensionTop, ascensionOf, souls, START_PARTY, currentNode, eliteBonus, foeEssence
@@ -312,10 +312,10 @@ test('every boss: its fall crumbles its side, no Arise or Legion ever raises it,
     order(c, { type: 'act', uid: 1, ability: 'frost_lance', target: 50 })
     assert.deepEqual([c.winner, c.reason], ['party', 'crumble'], id)
     assert.ok(!alive(unit(c, 51)))
-    // Never raised: no corpse for Arise, Legion's rise refused.
+    // Never raised: never Claimed by Arise, Legion's rise refused.
     const d = build()
+    assert.ok(!targetsFrom(d, unit(d, 1), unit(d, 1).kit.find((a) => a.id === 'arise')).some((x) => x.uid === 50), `${id}: Arise`)
     slay(d, unit(d, 50))
-    assert.ok(!corpses(d, unit(d, 1)).some((x) => x.uid === 50), `${id}: Arise`)
     assert.equal(risable(d, unit(d, 50), 'party'), false, `${id}: Legion`)
   }
 })

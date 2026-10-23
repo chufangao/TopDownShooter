@@ -167,7 +167,7 @@ test('a fusion from the Shop is the fuse action itself: the one the panel fired,
 })
 
 test('a save from before the Shop opened between battles (version 3) reads as outdated, as does a log that leaves a Shop', () => {
-  assert.equal(SAVE_VERSION, 8)
+  assert.equal(SAVE_VERSION, 9)
   const made = { seed: 'shop-save' }
   const run = createRun(made)
   apply(run, { type: 'pick', index: 0 })

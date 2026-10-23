@@ -3,7 +3,7 @@
 import { TUNING } from '../tuning.js'
 import { relicDef } from '../content.js'
 import { onField, isRunPath, cellsOf } from './unit.js'
-import { grantsArise, unhealable } from './rules.js'
+import { grantsArise } from './rules.js'
 import { RANKS } from './map.js'
 
 export const MONARCH_UID = 0
@@ -49,20 +49,14 @@ export function unheld (s) {
 }
 // Whether soul `u` (never the Monarch) may take an unheld copy of piece relic `relic`, holding none of it yet.
 export const canHold = (s, relic, u) => !!u && !isMonarch(u) && s.party.includes(u) && !(u.relics ?? []).includes(relic) && unheld(s).includes(relic)
-// Whether the run owns an Arise relic (Arise or a variant): only then is a relic that needs one stocked.
+// Whether the run owns an Arise relic: only then is a relic that needs one stocked.
 export const ariseHeld = (s) => s.relics.some(grantsArise)
-// Arise's reach and tier for any holder: TUNING.arise's with the run relics' mods, never below 0 (a variant adds its own
-// reach in battle).
+// Arise's reach and tier for any holder: TUNING.arise's with the run relics' mods, never below 0.
 export const ariseOf = (s) => ({
   domain: Math.max(0, runStat(s, 'arise.domain', TUNING.arise.domain)),
   tier: Math.max(0, runStat(s, 'arise.tier', TUNING.arise.tier))
 })
 export const relicTier = (id) => relicDef(id).tier
-// Hollow Court: the shadows it reaped (`reap` > 0) still standing when the last battle was won; each pays its essence again.
-export const reapedShadows = (run) => run.battle && run.battle.winner === 'party'
-  ? run.battle.units.filter((u) => u.reap > 0 && u.side === 'party' && u.hp > 0) : []
-// Whether nothing may heal the Monarch: while the run owns Court of Bone.
-export const unhealed = (s) => unhealable(s.relics)
 // The field cap counts the souls fielded, the roster every soul held: the Monarch takes no room in either.
 // The base Command: TUNING.party.field, and fieldPerFloor more a floor down to the Sovereign's.
 export const baseField = (s) => TUNING.party.field + TUNING.party.fieldPerFloor * (Math.min(s.floor, TUNING.run.floors) - 1)

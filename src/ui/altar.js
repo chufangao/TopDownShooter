@@ -6,7 +6,7 @@ import { frame } from '../frame.js'
 import { kw } from '../keywords.js'
 import { sfx } from '../sfx.js'
 import {
-  souls, monarchOf, canAdvance, tierCost, levelOf, unhealed, transmuteOffer, canTransmute
+  souls, monarchOf, canAdvance, tierCost, levelOf, transmuteOffer, canTransmute
 } from '../sim/run.js'
 import { tracksOf, nextTracks } from '../sim/unit.js'
 import { TUNING } from '../tuning.js'
@@ -32,8 +32,8 @@ export function altarScreen ({ run, onRite, onHelp }) {
   const m = monarchOf(s)
   const turnable = souls(s.party).sort(fieldOrder).filter((u) => canTransmute(s, u))
   const rising = souls(s.party).sort(fieldOrder).filter((u) => canAdvance(s, u, 0) || canAdvance(s, u, 1))
-  // What the heal would leave the Monarch at: nothing more under Court of Bone.
-  const after = unhealed(s) ? m.hp : Math.max(m.hp, Math.round(m.maxHp * t.altarHeal))
+  // What the heal would leave the Monarch at.
+  const after = Math.max(m.hp, Math.round(m.maxHp * t.altarHeal))
   const mends = after > m.hp
   let tab = mends || !rising.length ? 'heal' : 'consecrate'
   let soul = turnable[0]?.uid ?? null
@@ -52,7 +52,7 @@ export function altarScreen ({ run, onRite, onHelp }) {
 
   // The rites' tabs, each with its count now.
   const count = {
-    heal: () => (mends ? `the Monarch ${m.hp} → ${after}` : unhealed(s) && m.hp < m.maxHp ? 'Court of Bone: nothing heals it' : 'the Monarch whole'),
+    heal: () => (mends ? `the Monarch ${m.hp} → ${after}` : 'the Monarch whole'),
     transmute: () => `${turnable.length} soul${turnable.length === 1 ? '' : 's'}`,
     consecrate: () => `${rising.length} soul${rising.length === 1 ? '' : 's'}`
   }
@@ -73,7 +73,6 @@ export function altarScreen ({ run, onRite, onHelp }) {
   function healPanel () {
     return h('div', { class: 'rite-panel' },
       h('p', { class: 'rite-say' }, roomGain(run, { type: 'altar' })),
-      unhealed(s) && m.hp < m.maxHp && h('p', { class: 'warn' }, 'Court of Bone: nothing heals the Monarch.'),
       h('div', { class: 'rite-mends' }, h('div', { class: 'rite-mend', tip: () => unitCard(m, { mods: partyMods(run, m), realm: realmOf(run), run }) },
         h('span', { class: 'rank-port monarch' }, portrait(m.id, 40)),
         h('span', null, h('b', null, 'The Monarch'), h('span', { class: 'dim' }, mends ? ` ${m.hp} → ${after}` : ` ${m.hp}/${m.maxHp}`)))))

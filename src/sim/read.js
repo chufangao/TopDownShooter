@@ -118,7 +118,7 @@ export const TREES = {
     // A badly wounded army (TUNING.expert.tree.wounded) takes an altar where one is open,
     { id: 'wounded-altar', when: (sit) => sit.health < T().wounded, force: (rooms) => rooms.find((o) => o.node.type === 'altar') },
     // and so does a wounded Monarch (below TUNING.expert.tree.altar of its HP), where an altar may heal it.
-    { id: 'monarch-altar', when: (sit) => !sit.unhealed && sit.monarch < T().altar, force: (rooms) => rooms.find((o) => o.node.type === 'altar') },
+    { id: 'monarch-altar', when: (sit) => sit.monarch < T().altar, force: (rooms) => rooms.find((o) => o.node.type === 'altar') },
     // A badly wounded army never walks into an elite where another room is open,
     { id: 'wounded-no-elite', when: (sit) => sit.health < T().wounded, keep: (o) => o.node.type !== 'elite' },
     // nor does a Monarch below TUNING.expert.tree.elite of its HP.
@@ -133,7 +133,7 @@ export const TREES = {
   ],
   // An altar's rite (autoplay.js pickAltar: `o.action`): the heal, for the route's reason to walk to an altar.
   altar: [
-    { id: 'monarch-heal', when: (sit) => !sit.unhealed && sit.monarch < T().altar, force: (opts) => opts.find((o) => o.action?.type === 'heal') }
+    { id: 'monarch-heal', when: (sit) => sit.monarch < T().altar, force: (opts) => opts.find((o) => o.action?.type === 'heal') }
   ]
 }
 
