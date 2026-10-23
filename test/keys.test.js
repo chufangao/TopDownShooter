@@ -7,7 +7,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { order, preview, intents, addStatus, keyOn, lockShare, applyDamage, perform } from '../src/sim/turns.js'
 import { estimate, NOBODY } from '../src/sim/foe.js'
-import { abilityDef, unitDef } from '../src/content.js'
+import { abilityDef, unitDef, RELICS } from '../src/content.js'
 import { unkeyed } from '../src/sim/spawn.js'
 import { makeUnit, tileAt } from '../src/sim/unit.js'
 import { on, scene, unit } from './scene.js'
@@ -218,7 +218,7 @@ test('a lock cuts all damage but a status\'s tick: a relic\'s, a rule\'s and any
     return order(b, { type: 'act', uid: 2, ability: 'witchfire', target: 9 }).filter((e) => e.type === 'damage' && e.ability === null && e.actor === 2).map((e) => e.damage)
   }
   assert.deepEqual([momentum(false), momentum(true)], [[Math.round(6 * share)], [6]])
-  // Grave Powder: a shadow of yours falls beside the Golem; its holder's 20 is cut the same way.
+  // Grave Powder: a shadow of yours falls beside the Golem; its holder's burst is cut the same way.
   const powder = (key) => {
     const b = scene([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 3, 2, 10), on('tomb_knight', 4, 'party', 1, 2, 10, [0, 0], ['grave_powder']), on('grave_ghoul', 5, 'party', 3, 5, 3), on('iron_golem', 9, 'foe', 3, 6, 10)], { ablate: ['summons'] })
     unit(b, 9).hp = unit(b, 9).maxHp = 9999
@@ -228,7 +228,8 @@ test('a lock cuts all damage but a status\'s tick: a relic\'s, a rule\'s and any
     applyDamage(b, unit(b, 5), 9999, { actor: unit(b, 9) })
     return b.events.slice(from).filter((e) => e.type === 'damage' && e.target === 9 && e.actor === 4).map((e) => e.damage)
   }
-  assert.deepEqual([powder(false), powder(true)], [[Math.round(20 * share)], [20]])
+  const burst = RELICS.grave_powder.params.amount
+  assert.deepEqual([powder(false), powder(true)], [[Math.round(burst * share)], [burst]])
   // Damage with no blow at all: its share with no key, whole with one, whole as a status's tick.
   const b = lockScene()
   const g = unit(b, 9)

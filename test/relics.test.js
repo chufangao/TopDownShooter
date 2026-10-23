@@ -5,7 +5,7 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, enterBattle, order, playOut, playTurns, perform, stats, ariseOf as ariseIn, addStatus, applyDamage, fork, lined, synergiesOf, timelineHash, legalOrders, orderable, intents, targetsFrom } from '../src/sim/turns.js'
+import { createBattle, enterBattle, order, playOut, playTurns, perform, stats, ariseOf as ariseIn, addStatus, applyDamage, fork, lined, synergiesOf, synergyCountsOf, timelineHash, legalOrders, orderable, intents, targetsFrom } from '../src/sim/turns.js'
 import { basicTurn } from '../src/sim/foe.js'
 import { solverTurn } from '../src/sim/solver.js'
 import {
@@ -432,14 +432,15 @@ test('the Shop stocks the twelve by their tiers, each at its tier\'s price', () 
 
 // ── the Legendaries, scoped to their holders ─────────────────────────────────────────────────────
 
-test('Undying: its holder rises where it fell at its share of HP, once a battle; one beside it holding none stays down; a soul that bursts and rises still counts', () => {
+test('Undying: its holder rises where it fell at full HP, once a battle; one beside it holding none stays down; a soul that bursts and rises still counts', () => {
   const b = scene([on('rot_bloat', 1, 'party', 3, 5, 3, [0, 0], ['undying']), ...[0, 1, 2].map((x) => on('grave_ghoul', 2 + x, 'party', x, 3)), on('grave_ghoul', 5, 'party', 4, 5),
     on('tomb_knight', 10, 'foe', 3, 6, 20), on('iron_golem', 11, 'foe', 6, 10)])
   const bloat = unit(b, 1)
   bloat.hp = 1
   const ev = strike(b, 10, 1)
   assert.deepEqual(ev.filter((e) => ['death', 'burst', 'rise'].includes(e.type) && (e.target === 1 || e.actor === 1)).map((e) => e.type), ['death', 'burst', 'rise'])
-  assert.equal(bloat.hp, Math.max(1, Math.round(bloat.maxHp * RELICS.undying.params.hp)))
+  assert.equal(RELICS.undying.params.hp, 1)
+  assert.equal(bloat.hp, bloat.maxHp, 'at full HP')
   assert.equal(bloat.tile, b.at.indexOf(bloat), 'where it fell')
   assert.ok(synergiesOf(b, 'party').some((s) => s.id === 'undead_4'), 'it still counts')
   bloat.hp = 1
@@ -450,13 +451,21 @@ test('Undying: its holder rises where it fell at its share of HP, once a battle;
   assert.ok(!alive(unit(b, 5)) && !b.events.some((e) => e.type === 'rise' && e.target === 5), 'its neighbour holds none')
 })
 
-test('Mimicry: its holder counts as a Warden too, for its side\'s synergies; copies are more holders', () => {
+test('Mimicry: its holder counts as every role, for its side\'s synergies: a Warden, a Ranger; copies are more holders', () => {
   const wardens = (relics) => scene([on('hive_warden', 1, 'party', 0, 0), on('thorn_dryad', 2, 'party', 1, 0), on('tomb_knight', 3, 'party', 2, 0, 3, [0, 0], relics[0] ?? []),
     on('grave_ghoul', 4, 'party', 3, 0, 3, [0, 0], relics[1] ?? []), on('iron_golem', 10, 'foe', 6, 10)])
-  const sanctuary = (b) => synergiesOf(b, 'party').some((s) => s.id === 'warden_4')
-  assert.ok(!sanctuary(wardens([])))
-  assert.ok(!sanctuary(wardens([['mimicry']])), 'three')
-  assert.ok(sanctuary(wardens([['mimicry'], ['mimicry']])), 'two Wardens and two holders: four')
+  const holds = (b, id) => synergiesOf(b, 'party').some((s) => s.id === id)
+  assert.ok(!holds(wardens([]), 'warden_4'))
+  assert.ok(!holds(wardens([['mimicry']]), 'warden_4'), 'three')
+  assert.ok(holds(wardens([['mimicry'], ['mimicry']]), 'warden_4'), 'two Wardens and two holders: four')
+  // Three Rangers and a Vanguard holding it: Ranger 4 (Deadeye); its own role it counts once.
+  const rangers = (relics) => scene([on('cinder_whelp', 1, 'party', 0, 0), on('brass_sentry', 2, 'party', 1, 0), on('hive_spitter', 3, 'party', 2, 0),
+    on('tomb_knight', 4, 'party', 3, 0, 3, [0, 0], relics), on('iron_golem', 10, 'foe', 6, 10)])
+  assert.ok(!holds(rangers([]), 'ranger_4'))
+  const b = rangers(['mimicry'])
+  assert.ok(holds(b, 'ranger_4'), 'three Rangers and the holder: four')
+  const c = synergyCountsOf(b, 'party').role
+  assert.deepEqual([c.ranger, c.vanguard, c.warden, c.skirmisher, c.channeler, c.trickster, c.monarch], [4, 1, 1, 1, 1, 1, undefined], 'every role once, never the Monarch\'s')
 })
 
 test('every Legendary, held alone, together and twice over, plays deterministically and keeps the battle\'s invariants', () => {
@@ -824,8 +833,8 @@ test('a Claimed foe whose shadow\'s footprint finds one of yours standing rises 
   assert.equal(unit(b, 2).tile, tileAt(3, 5), 'the striker stands where it stood')
 })
 
-// The claim lasts Claimed's turns, the turn it is laid its first; once it is gone the foe falls for good.
-test('a claim lasts its turns and is laid once: Claimed no second time while it holds, and a foe slain after it ends stays down', () => {
+// The claim holds the battle through: a foe Claimed on turn 1 and slain turns later still rises.
+test('a claim holds the battle through and is laid once: Claimed no second time while it holds, and slain past the old 3 turns it still rises', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 0, 2, 3, [0, 0], ['arise']), on('iron_golem', 10, 'foe', 6, 9)])
   const claimed = () => unit(b, 10).statuses.some((s) => s.id === 'claimed')
   // Slain on a copy of the battle as it stands: does it rise?
@@ -837,13 +846,15 @@ test('a claim lasts its turns and is laid once: Claimed no second time while it 
   }
   order(b, { type: 'act', uid: 1, ability: 'arise', target: 10 })
   const held = []
-  for (let t = 0; t < STATUSES.claimed.turns; t++) {
+  assert.equal(STATUSES.claimed.turns, 'battle')
+  for (let t = 0; t < 5; t++) {
     held.push([claimed(), rises()])
     assert.ok(!legalOrders(b).some((o) => o.ability === 'arise' && o.target === 10), 'never claimed twice while it holds')
     order(b, { type: 'end' })
     assert.ok(!b.over)
   }
-  assert.deepEqual([...held, [claimed(), rises()]], [[true, true], [true, true], [true, true], [false, false]])
+  assert.deepEqual([...held, [claimed(), rises()]], Array(6).fill([true, true]))
+  assert.equal(unit(b, 10).statuses.find((s) => s.id === 'claimed').dur, 'battle')
   assert.equal(b.events.filter((e) => e.type === 'status' && e.status === 'claimed').length, 1, 'laid once')
 })
 

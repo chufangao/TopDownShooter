@@ -1,11 +1,11 @@
 // The elements of 2026-10-17: ten individual rules a player combines, each one
 // relic or status, none a synergy. A hold (Snare: Rooted), strength that grows (Butcher's Hook: Bloodlust), four payoffs
 // that read what the foe struck carries (`per` on a damage effect, turns.js runEffect: Powder Keg and Glass Hammer spend
-// it, Headsman's Hood and Plague Mask do not), and four Legendary rules (rules.js): an act refunded on a kill (Reaper's
-// Hunger), a charge (Seven-League Boots), a glass Monarch (Last Candle) and a horde that bursts (Grave Powder).
+// it, Headsman's Hood and Plague Mask do not), and four Legendary rules (rules.js): a turn begun again on a kill (Reaper's
+// Hunger), a charge (Seven-League Boots), a candle burning (Last Candle) and a horde that bursts (Grave Powder).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { order, perform, applyDamage, addStatus, stats, legalOrders, hexed, enterBattle } from '../src/sim/turns.js'
+import { order, perform, applyDamage, addStatus, stats, legalOrders, hexed, enterBattle, stride } from '../src/sim/turns.js'
 import { RELICS, STATUSES } from '../src/content.js'
 import { alive, makeUnit, tileAt } from '../src/sim/unit.js'
 import { on, scene as sceneOf, unit } from './scene.js'
@@ -104,13 +104,13 @@ test('Plague Mask: 8 true damage for each harmful status on the foe, a stack cou
   assert.equal(golem.statuses.length, 4, 'nothing spent')
 })
 
-test('Reaper\'s Hunger: a kill in your turn gives its holder its act again, as often as it slays; never a kill outside your orders', () => {
+test('Reaper\'s Hunger: a kill in your turn begins its holder\'s turn again, as often as it slays; never a kill outside your orders', () => {
   const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 3, 9, [0, 0], ['reapers_hunger']), on('grave_ghoul', 10, 'foe', 2, 4), on('grave_ghoul', 11, 'foe', 4, 4)])
   const knight = unit(b, 1)
   for (const uid of [10, 11]) unit(b, uid).hp = 1
   const first = basic(b, 1, 10)
   assert.ok(first.some((e) => e.type === 'rule' && e.rule === 'reapers_hunger' && e.actor === 1 && e.target === 10))
-  assert.equal(knight.acted, false)
+  assert.deepEqual([knight.acted, knight.spent], [false, 0], 'its act and its whole energy')
   const again = legalOrders(b).find((o) => o.type === 'act' && o.uid === 1 && o.target === 11)
   assert.ok(again, 'it may act again')
   order(b, again)
@@ -126,39 +126,65 @@ test('Reaper\'s Hunger: a kill in your turn gives its holder its act again, as o
   assert.ok(!foes.events.slice(from).some((e) => e.type === 'rule'))
 })
 
-test('Seven-League Boots: a blow deals half again on a turn its holder has moved 3 tiles or more, not after 2', () => {
-  // A Frost Sprite (Move 3, Frost Lance at 3) against a Golem at (3, 6): from (3, 4) in reach, from (3, 1) only after a move of 3.
+test('Seven-League Boots: its holder has +1 Move, and a blow deals half again on a turn it has moved 2 tiles or more, not after 1', () => {
+  // A Frost Sprite (Move 3, Frost Lance at 3) against a Golem at (3, 6): from (3, 4) in reach, from (3, 2) after a move of 2.
+  const field = (y, relics) => scene([monarch(), on('frost_sprite', 1, 'party', 3, y, 3, [0, 0], relics), on('iron_golem', 10, 'foe', 3, 6, 9)])
   const shoot = (y, relics) => {
-    const b = scene([monarch(), on('frost_sprite', 1, 'party', 3, y, 3, [0, 0], relics), on('iron_golem', 10, 'foe', 3, 6, 9)])
+    const b = field(y, relics)
     if (y !== 4) order(b, { type: 'move', uid: 1, tile: unit(b, 10).tile - 2 * 7 })
     assert.equal(unit(b, 1).moved, 4 - y)
     return basic(b, 1, 10).find((e) => e.type === 'damage').damage
   }
   const plain = shoot(4, [])
+  assert.equal(RELICS.seven_league_boots.params.tiles, 2)
   assert.equal(shoot(4, ['seven_league_boots']), plain, 'standing still')
-  assert.equal(shoot(2, ['seven_league_boots']), plain, 'two tiles')
-  const far = shoot(1, ['seven_league_boots'])
-  assert.ok(near(far, plain * RELICS.seven_league_boots.params.mul, 0.1), `${far} against ${plain} × 1.5`)
-  assert.equal(shoot(1, []), plain, 'without the boots a move is no charge')
+  assert.equal(shoot(3, ['seven_league_boots']), plain, 'one tile')
+  const charge = shoot(2, ['seven_league_boots'])
+  assert.ok(near(charge, plain * RELICS.seven_league_boots.params.mul, 0.1), `${charge} against ${plain} × 1.5`)
+  assert.equal(shoot(2, []), plain, 'without the boots a move is no charge')
+  // +1 Move: a tile more in its energy, so a tile more it may walk and still strike.
+  const pace = (relics) => {
+    const b = field(1, relics)
+    const u = unit(b, 1)
+    return [stats(b, u).move, u.energy, stride(u)]
+  }
+  const [move, energy, steps] = pace([])
+  assert.deepEqual(pace(['seven_league_boots']), [move + 1, energy + 1, steps + 1])
+  // Shod, 4 tiles from (3, 1) to (3, 5), and its blow still paid for, half again.
+  const b = field(1, ['seven_league_boots'])
+  order(b, { type: 'move', uid: 1, tile: tileAt(3, 5) })
+  assert.equal(unit(b, 1).moved, 4)
+  assert.ok(near(basic(b, 1, 10).find((e) => e.type === 'damage').damage, charge, 0.1))
 })
 
-test('Last Candle: while the Monarch is below half, its holder is Desperate as each of your turns begins; mended past it, the candle goes out', () => {
-  const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['last_candle'])])
+test('Last Candle: its holder is Enraged for the battle from your first turn, the Monarch full; while the Monarch is below half, Desperate too as each of your turns begins; mended past it, the Desperate goes out', () => {
+  const field = (relics) => scene([monarch(), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], relics)])
+  const b = field(['last_candle'])
   const m = unit(b, 0)
   const knight = unit(b, 1)
+  assert.equal(m.hp, m.maxHp)
+  assert.ok(b.events.some((e) => e.type === 'rule' && e.rule === 'last_candle' && e.actor === 1), 'lit as the battle begins')
+  assert.deepEqual(knight.statuses.map((s) => [s.id, s.dur]), [['enraged', 'battle']])
+  // Enraged on turn 1: its ATK, and its Move in this turn's energy.
+  const bare = field([])
+  const plain = unit(bare, 1)
+  assert.ok(near(stats(b, knight).atk, stats(bare, plain).atk * 1.35))
+  assert.deepEqual([stats(b, knight).move, knight.energy], [stats(bare, plain).move + 1, plain.energy + 1])
   m.hp = Math.floor(m.maxHp * 0.4)
   const events = order(b, { type: 'end' })
   assert.ok(events.some((e) => e.type === 'rule' && e.rule === 'last_candle' && e.actor === 1))
-  assert.deepEqual(knight.statuses.map((s) => [s.id, s.dur]), [['desperate', 1]])
+  assert.deepEqual(knight.statuses.map((s) => [s.id, s.dur]), [['enraged', 'battle'], ['desperate', 1]])
   assert.ok(stats(b, knight).damage.dealt > 1.4)
   m.hp = m.maxHp
   order(b, { type: 'end' })
-  assert.ok(!knight.statuses.some((s) => s.id === 'desperate'), 'out')
+  assert.deepEqual(knight.statuses.map((s) => s.id), ['enraged'], 'the Desperate out, the Enraged burning on')
+  assert.equal(b.events.filter((e) => e.type === 'status' && e.status === 'enraged').length, 1, 'lit once')
 })
 
-test('Grave Powder: while its holder stands, a shadow of yours that falls bursts, 20 true damage to every foe beside it, the holder\'s blow', () => {
+test('Grave Powder: while its holder stands, a shadow of yours that falls bursts, 40 true damage to every foe within 2 tiles, the holder\'s blow', () => {
   const field = () => {
-    const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['grave_powder']), on('grave_ghoul', 2, 'party', 3, 4), on('tomb_knight', 10, 'foe', 3, 5, 9), on('grave_ghoul', 11, 'foe', 2, 5, 9), on('will_o_wisp', 12, 'foe', 3, 8, 9)])
+    const b = scene([monarch(), on('tomb_knight', 1, 'party', 3, 2, 9, [0, 0], ['grave_powder']), on('grave_ghoul', 2, 'party', 3, 4), on('tomb_knight', 10, 'foe', 3, 5, 9), on('grave_ghoul', 11, 'foe', 2, 5, 9),
+      on('will_o_wisp', 12, 'foe', 3, 8, 9), on('clockwork_page', 13, 'foe', 5, 6, 9)])
     unit(b, 2).shadow = true
     return b
   }
@@ -167,7 +193,9 @@ test('Grave Powder: while its holder stands, a shadow of yours that falls bursts
   applyDamage(b, unit(b, 2), 9999, { actor: unit(b, 10) })
   const ev = b.events.slice(from)
   assert.ok(ev.some((e) => e.type === 'rule' && e.rule === 'grave_powder' && e.actor === 1 && e.target === 2))
-  assert.deepEqual(dealt(ev, 1).map((e) => [e.target, e.damage]).sort(), [[10, 20], [11, 20]], 'beside it, not the Wisp three tiles off')
+  const { amount, range } = RELICS.grave_powder.params
+  assert.deepEqual([amount, range], [40, 2])
+  assert.deepEqual(dealt(ev, 1).map((e) => [e.target, e.damage]).sort(), [[10, amount], [11, amount], [13, amount]], 'beside it and 2 tiles off, not the Wisp four tiles off')
   // The holder fallen, nothing bursts; nor does a soul of yours that is no shadow.
   const down = field()
   unit(down, 1).hp = 0

@@ -164,7 +164,7 @@ test('Arise is its holder\'s skill on its card, with its reach and tier; a soul 
   const { actText } = await import('../src/codex.js')
   const { abilityDef } = await import('../src/content.js')
   const said = actText(abilityDef('arise'), { atk: 10, heal: { given: 1 } }, { arise: a }).map((p) => p.textContent).join(' ')
-  assert.ok(said.toLowerCase().includes(`claims a foe of tier ≤ ${a.tier} within ${a.domain} tiles for 3 turns: if it falls, it rises where it fell as your shadow`), said)
+  assert.ok(said.toLowerCase().includes(`claims a foe of tier ≤ ${a.tier} within ${a.domain} tiles for the battle: if it falls, it rises where it fell as your shadow`), said)
 })
 
 test('a battle\'s synergy labels name the rule each brings at 4', () => {

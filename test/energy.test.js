@@ -67,16 +67,21 @@ test('a foe\'s options keep to its energy: a far tile with no act, a near one wi
   assert.ok(opts.every((o) => !o.ability || o.path.length <= g.energy - costOf(g, o.ability)), 'an act only from a tile it can still pay from')
 })
 
-test('Reaper\'s Hunger gives the act back and its basic\'s energy, never the walk: the act committed it, so no Undo', () => {
+test('Reaper\'s Hunger begins its holder\'s turn again, its act and its whole energy, never the walk\'s Undo: the act committed it; it walks again', () => {
   const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3, 10, [0, 0], ['reapers_hunger']), on('grave_ghoul', 9, 'foe', 3, 5, 1), on('grave_ghoul', 8, 'foe', 1, 9, 10)])
   const k = unit(b, 1)
   unit(b, 9).hp = 1
   order(b, { type: 'move', uid: 1, tile: tileAt(3, 4) })
   const events = order(b, { type: 'act', uid: 1, ability: 'cleave', target: 9 })
   assert.ok(events.some((e) => e.rule === 'reapers_hunger') && !k.acted, 'the kill gives its act back')
-  assert.equal(k.spent, E.tile + E.skill - E.basic)
+  assert.equal(k.spent, 0)
   assert.throws(() => order(b, { type: 'undo', uid: 1 }), /no move to undo/)
-  assert.deepEqual([k.tile, k.moved, k.spent, left(k)], [tileAt(3, 4), 1, E.tile + E.skill - E.basic, k.energy - (E.tile + E.skill - E.basic)], 'the walk stands, its tile still spent')
+  assert.deepEqual([k.tile, k.moved, k.spent, left(k)], [tileAt(3, 4), 1, 0, k.energy], 'the walk stands, its energy whole')
+  // A second walk, out of the whole: two tiles on, through where the slain stood, its blow still paid for.
+  assert.equal(stride(k), k.energy - E.basic)
+  order(b, { type: 'move', uid: 1, tile: tileAt(3, 6) })
+  assert.deepEqual([k.tile, k.moved, left(k)], [tileAt(3, 6), 3, k.energy - 2 * E.tile])
+  assert.ok(!legalOrders(b).some((o) => o.type === 'undo' && o.uid === 1), 'a walk after a committed one is no Undo\'s either')
 })
 
 test('the danger map and a foe\'s reach read its next turn\'s energy at its Move now: a foe freed of Rooted comes its whole walk, a Rooted one walks none and keeps its skill', () => {

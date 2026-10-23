@@ -19,7 +19,7 @@ import { RANKS } from './sim/map.js'
 import { heldRules } from './sim/rules.js'
 import { basicOf, mendOf, temperOf, lined } from './sim/turns.js'
 import { h, fill, icon, portrait, prefs, say } from './dom.js'
-import { KEYWORDS, kw, turnsText } from './keywords.js'
+import { KEYWORDS, kw, turnsText, forTurns } from './keywords.js'
 
 const pct = (v) => `${Math.round(v * 100)}%`
 // The share a release or a fusion pays back (TUNING.essence.refund), in a word where one fits.
@@ -33,7 +33,7 @@ export const campRowLabel = (r) => (r === 0 ? 'Front' : r === CAMP_ROWS - 1 ? 'R
 
 // ── mods: what a unit really fights with ─────────────────────────────────────────────────────────
 
-// The roles a soul counts as besides its own, for synergies, as its held rules say (Mimicry's Warden).
+// The roles a soul counts as besides its own, for synergies, as its held rules say (Mimicry's: every one).
 export const alsoOf = (u) => heldRules(u).flatMap((r) => r.roles?.(null, u, r) ?? [])
 
 // The pieces of yours standing as the battle begins: the living on the field, the Monarch too.
@@ -96,7 +96,7 @@ export function abilityBlock (id, st, arise = null, basic = false) {
     h('b', null, a.name), ' ',
     a.claim
       ? [h('span', { class: 'tag-domain' }, `${arise.domain} tiles`), ` a foe, tier ≤ ${arise.tier} → `, kw('claimed', 'Claimed'),
-          ` ${turnsText(statusDef('claimed').turns)}: falling, your `, kw('shadow')]
+          ` ${forTurns(statusDef('claimed').turns)}: falling, your `, kw('shadow')]
       : [reachTag(a), word && h('span', { class: 'tag-shape' }, word), a.arc && h('span', { class: 'tag-arc' }, 'lobbed: ignores lines'), ' ', a.effects.map((e, i) => [i ? ' · ' : '', effectText(e, st)]),
           a.cond && h('span', { class: 'dim' }, ` · only ${a.cond}`)],
     h('span', { class: 'ab-cost dim' }, basic ? 'basic' : rest(a.claim ? arise.cooldown ?? a.cooldown ?? 2 : a.cooldown ?? 2)))
@@ -116,7 +116,7 @@ export function abilityBlocks (u, st, realm = null) {
 export function actText (a, st, { range, arise = null, flies = false } = {}) {
   const tiles = (r) => `${r} tile${r === 1 ? '' : 's'}`
   if (a.claim) {
-    return [h('p', null, kw('claimed', 'Claims'), ` a foe of tier ≤ ${arise.tier} within ${tiles(arise.domain)} for ${turnsText(statusDef('claimed').turns)}: if it falls, it rises where it fell as your `, kw('shadow'), '.'),
+    return [h('p', null, kw('claimed', 'Claims'), ` a foe of tier ≤ ${arise.tier} within ${tiles(arise.domain)} ${forTurns(statusDef('claimed').turns)}: if it falls, it rises where it fell as your `, kw('shadow'), '.'),
       h('p', { class: 'dim' }, 'Never a boss, a shadow or one Claimed already. Lobbed: ignores lines.')]
   }
   const far = Number.isFinite(range)
@@ -136,7 +136,7 @@ export function actText (a, st, { range, arise = null, flies = false } = {}) {
     else if (e.op === 'heal') lines.push([`Heals ${lines.length ? them : who} for `, h('b', null, `≈${Math.round(est(e.power) * st.heal.given)}`), ' HP.'])
     else if (e.op === 'apply_status') {
       const s = statusDef(e.status)
-      lines.push([blow && !e.self ? `Leaves ${them} ` : e.self ? 'It gains ' : `Gives ${lines.length ? them : who} `, kw(e.status, s.name), ` for ${turnsText(e.turns ?? s.turns)}: ${s.desc}`])
+      lines.push([blow && !e.self ? `Leaves ${them} ` : e.self ? 'It gains ' : `Gives ${lines.length ? them : who} `, kw(e.status, s.name), ` ${forTurns(e.turns ?? s.turns)}: ${s.desc}`])
     } else if (e.op === 'cleanse') lines.push([`Clears ${e.count} harmful status${e.count === 1 ? '' : 'es'} from ${lines.length ? them : who}.`])
     else if (e.op === 'cooldown') {
       const n = Math.abs(e.amount)
@@ -789,7 +789,7 @@ export function recruitNote (run, u) {
 
 // ── synergies ────────────────────────────────────────────────────────────────────────────────────
 
-// The roles a unit counts as: its own, and those `also(u)` adds (Mimicry's holder, a Warden too: alsoOf).
+// The roles a unit counts as: its own, and those `also(u)` adds (Mimicry's holder, every role: alsoOf).
 const rolesOf = (u, also) => [unitDef(u.id).role, ...(also?.(u) ?? []).filter((r) => r !== unitDef(u.id).role)]
 // Each synergy's need: { axis, id, n }, one kin or one role.
 const needOf = (syn) => ['kin', 'role'].flatMap((axis) => Object.entries(syn.needs[axis] ?? {}).map(([id, n]) => ({ axis, id, n })))[0]
@@ -1066,7 +1066,7 @@ const WORD_MORE = {
   fusion: () => `Between battles it takes exactly the souls the recipe names, each a whole piece, from the ossuary first, then the field, costs ${TUNING.essence.fuse} essence × the result's tier on floor 1 (× the floor's price scale, as every price), and gives one fresh piece of the fused kind in the ossuary, to be placed: its first level, no tier, no relic; the tiers its parts held pay back ${backShare()} their price now (none of those given free: Soul Lantern's, an altar's), and a relic its parts held comes back unheld. Never weaker in power than what went into it. Every kind of tier ${TOP_TIER - TRINE_RISE} or less has a triple, three of it into its trine; the mixed recipes join kinds, and the capstones join fused kinds into a piece of tier 5 or 6. The Shop sells them: its Fusions list every recipe whose parts you hold, lit when you can pay, and the recipes your kinds go toward; the Codex's Fusions lists the mixed recipes and the capstones, and a kind's card its triple.`,
   trine: () => `Three souls of one kind fused become its trine: a fused kind ${TRINE_RISE} tiers higher (tier ${TOP_TIER} at most), 2×2 from tier 4, with the kind's kin, role, Move and tracks, its HP and ATK several times one soul's, and its kit with every blow at one foe a blast (its target and everyone next to it) and every shot a tile longer. A trine of tier ${TOP_TIER - TRINE_RISE} or less has a trine of its own. ${writtenTrines()} A trine is one piece, and counts as the three it was made of toward its kin's and its role's synergies; a trine of a trine as three too.`,
   command: (run) => `${TUNING.party.field} to begin. Nothing is bought for the Monarch: only Command relics raise it, every copy in full (${giversOf('run.command').join(', ')}); the rarer, the cleaner. The Shop's shelf always holds one. The field stops at ${TUNING.army.board} pieces however high it goes.` + (run ? ` Now: ${fieldRule(run)}.` : ''),
-  synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A trine counts as the three of a kind it was made of (a trine of a trine as three too), so a trine and one more piece hold a rule at 4; every other fused piece counts once, with its own kin and role; a relic may make its holder count as another role too, once. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
+  synergy: () => `Each kin and each role has one rule, held while four of your pieces of it stand on the board. A trine counts as the three of a kind it was made of (a trine of a trine as three too), so a trine and one more piece hold a rule at 4; every other fused piece counts once, with its own kin and role; a relic may make its holder count as every other role too, once each. ${COUNT_NOTE} ${FOE_SYNERGIES}`,
   relic: (run) => `Four tiers: ${RELIC_TIERS.map((x) => x.name).join(', ')}. Only the Shop sells them, for essence, between battles: its shelf is the floor's, deeper floors the rarer, and always holds a Command relic, and from floor ${R.legendary.fromFloor} a Legendary, a rule that rewrites the game. A run relic (its card says Run) touches the run or the whole side and works unheld: Command, the Monarch's HP, prices, essence, Arise's reach; its copies add up with no cap. Every other is a piece relic (Held): it waits unheld until you give it to a soul (tap it in the Relics strip beside the ossuary, then the soul, or the slot in the soul's panel), and works only through its holder, its triggers on its holder's own moments. Give, take back and swap freely out of battle, never in one. A held relic stays with its soul in the ossuary, works only on the field, and comes back unheld when its holder is released or fused away; copies are more holders. Arise is one: its holder learns the skill Arise.` +
     (run && unheld(run.state).length ? ` Unheld now: ${tally(unheld(run.state).map((id) => relicDef(id).name))}.` : ''),
   altar: () => `One rite, then the room is done. Heal: the Monarch to ${TUNING.run.altarHeal >= 1 ? 'full' : pct(TUNING.run.altarHeal)} (your souls are whole after every win, and need none). Transmute: a standing soul of a kind the foes bring becomes one of the ${TUNING.run.altarOffer} kinds the altar offers it, drawn from this floor's foes of its tier, never its own (a fused soul is made, not met: none). It keeps its relic, its tiers and its level: its tiers sit on its new kind's tracks of the same number. Consecrate: one soul's next tier on the track you choose, free, as buying it would give it.`,

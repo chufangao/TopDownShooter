@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { field, targetsFrom, order, addStatus, untouchedPreview, preview, legalOrders } from '../src/sim/turns.js'
+import { field, targetsFrom, order, addStatus, untouchedPreview, preview, legalOrders, perform, applyDamage } from '../src/sim/turns.js'
 import {
   makeUnit, tileAt, DEPTH, ROWS, TILES, sizeOf, fits, footprintSlots, distanceBetween, deployTile, monarchSlot, wallTiles, armOf, reachOf,
   blowReach
@@ -201,21 +201,25 @@ test('Trample: 10 true damage to each foe beside where its holder ends, told as 
   assert.ok(at > 0 && at < events.findIndex((e) => e.type === 'stage' && e.stage === 'foes'), 'in the untouched pass')
 })
 
-test('Overwatch: the holder\'s basic strikes a foe ending its walk within its reach, as a counter, once a turn; never a flyer a melee holder cannot strike', () => {
-  // A Frost Sprite at (3, 3) (Frost Lance, reach 3): two Grave Ghouls walk to within 3 of it in the foes' turn.
-  const b = board([on('frost_sprite', 1, 'party', 3, 3, 3, [0, 0], ['overwatch']), on('grave_ghoul', 10, 'foe', 3, 8), on('grave_ghoul', 11, 'foe', 4, 8)])
-  tough(b, 10, 11)
+test('Overwatch: the holder\'s basic strikes a foe ending its walk within its reach, as a counter, twice a turn; never a flyer a melee holder cannot strike', () => {
+  // A Frost Sprite at (3, 3) (Frost Lance, reach 3): three Grave Ghouls walk to within 3 of it in the foes' turn.
+  const b = board([on('frost_sprite', 1, 'party', 3, 3, 3, [0, 0], ['overwatch']), on('grave_ghoul', 10, 'foe', 3, 8), on('grave_ghoul', 11, 'foe', 4, 8), on('grave_ghoul', 12, 'foe', 2, 8)])
+  tough(b, 10, 11, 12)
+  assert.equal(RELICS.overwatch.params.times, 2)
   const first = order(b, { type: 'end' })
   const said = watches(first)
-  assert.equal(said.length, 1, 'once a turn, though both end in reach')
-  const struck = said[0].target
-  const i = first.indexOf(said[0])
-  assert.deepEqual([first[i - 1].type, first[i - 1].actor], ['move', struck], 'as its walk resolves')
-  const blow = first[i + 1]
-  assert.deepEqual([blow.type, blow.actor, blow.ability, blow.targets], ['action', 1, 'frost_lance', [struck]])
-  assert.ok(first.some((e) => e.type === 'move' && e.actor === 21 - struck), 'the other walked too')
+  assert.equal(said.length, 2, 'twice a turn, though all three end in reach')
+  for (const w of said) {
+    const i = first.indexOf(w)
+    assert.deepEqual([first[i - 1].type, first[i - 1].actor], ['move', w.target], 'as its walk resolves')
+    const blow = first[i + 1]
+    assert.deepEqual([blow.type, blow.actor, blow.ability, blow.targets], ['action', 1, 'frost_lance', [w.target]])
+  }
+  assert.notEqual(said[0].target, said[1].target, 'two foes, one blow each')
+  const spared = [10, 11, 12].find((uid) => !said.some((w) => w.target === uid))
+  assert.ok(first.some((e) => e.type === 'move' && e.actor === spared), 'the third walked too, unstruck')
   // The next turn it watches again.
-  assert.equal(watches(order(b, { type: 'end' })).length, 1)
+  assert.ok(watches(order(b, { type: 'end' })).length >= 1)
   // A Tomb Knight (melee, on the ground) at (1, 4): an Ash Wyvern ends beside it, unstruck; a foe Tomb Knight is struck.
   const knight = (foe) => {
     const k = board([on('tomb_knight', 1, 'party', 1, 4, 3, [0, 0], ['overwatch']), on(foe, 10, 'foe', 1, 7)])
@@ -234,7 +238,7 @@ test('Overwatch: the holder\'s basic strikes a foe ending its walk within its re
   assert.ok(next && !(next.counter && next.actor === 10), `no answer to the Overwatch blow: ${JSON.stringify(next)}`)
 })
 
-test('Hold the Line: its holder and a still ally beside it deal 25% more; not one that moved, nor one two tiles off', () => {
+test('Hold the Line: its holder and a still ally beside it deal 50% more and take 15% less; not one that moved, nor one two tiles off', () => {
   // A Frost Sprite at (3, 3) shoots a Grave Ghoul at (3, 6); the holder, a Tomb Knight, stands at (kx, 3).
   const shot = (kx, { relic = true, from = 3 } = {}) => {
     const b = board([on('tomb_knight', 2, 'party', kx, 3, 3, [0, 0], relic ? ['hold_the_line'] : []), on('frost_sprite', 1, 'party', 3, from), on('grave_ghoul', 10, 'foe', 3, 6)])
@@ -258,4 +262,27 @@ test('Hold the Line: its holder and a still ally beside it deal 25% more; not on
   const strike = own(false, 3)
   assert.equal(own(true, 3), Math.round(strike * RELICS.hold_the_line.params.mul))
   assert.equal(own(true, 2), strike)
+  // A Grave Ghoul at (3, 4) strikes the Sprite at (3, 3), or the holder at (kx, 3), in the foes' turn.
+  const taken = (kx, { relic = true, from = 3, at = 1 } = {}) => {
+    const b = board([on('tomb_knight', 2, 'party', kx, 3, 3, [0, 0], relic ? ['hold_the_line'] : []), on('frost_sprite', 1, 'party', 3, from), on('grave_ghoul', 10, 'foe', 3, 4)])
+    tough(b, 1, 2)
+    if (from !== 3) walkTo(b, 1, 3, 3)
+    b.stage = 'foes'
+    const g = unit(b, 10)
+    const since = b.events.length
+    perform(b, g, g.basic, unit(b, at))
+    return b.events.slice(since).find((e) => e.type === 'damage' && e.actor === 10).damage
+  }
+  const less = (plain) => Math.round(plain * RELICS.hold_the_line.params.taken)
+  const struck = taken(2, { relic: false })
+  assert.ok(less(struck) < struck)
+  assert.equal(taken(2), less(struck), 'a still ally beside it')
+  assert.equal(taken(2, { from: 2 }), struck, 'it moved')
+  assert.equal(taken(1), taken(1, { relic: false }), 'two tiles off')
+  assert.equal(taken(2, { at: 2 }), less(taken(2, { relic: false, at: 2 })), 'the holder itself')
+  // Never a tick.
+  const b = board([on('tomb_knight', 2, 'party', 2, 3, 3, [0, 0], ['hold_the_line']), on('frost_sprite', 1, 'party', 3, 3), on('grave_ghoul', 10, 'foe', 3, 4)])
+  tough(b, 1)
+  applyDamage(b, unit(b, 1), 100, { actor: unit(b, 10), status: 'burning' })
+  assert.equal(unit(b, 1).hp, 899)
 })

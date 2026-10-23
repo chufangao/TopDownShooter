@@ -2391,13 +2391,14 @@ const STATUS_LIST = [
     mods: [m('atk', 'mul', 1.06)]
   },
   {
-    // Arise's: a foe that falls while it holds rises where it fell as a shadow of the claimer's side (turns.js fall).
+    // Arise's: a foe that falls while it holds rises where it fell as a shadow of the claimer's side (turns.js fall);
+    // it holds the battle through.
     id: 'claimed',
-    desc: 'If it falls while Claimed, it rises where it fell as your shadow.',
+    desc: 'Held the battle through: if it falls while Claimed, it rises where it fell as your shadow.',
     name: 'Claimed',
     tags: ['debuff'],
     colour: '#e48cf0',
-    turns: 3,
+    turns: 'battle',
     stacks: 1,
     mods: []
   }
@@ -2617,6 +2618,9 @@ function trineAbility (id) {
   return made
 }
 
+// How long a status lasts, in words: "for 3 turns", "for the battle".
+const lasting = (n) => (n === 'battle' ? 'for the battle' : `for ${n} turns`)
+
 // A made blow in words, for the tier that grants it: its power, whom it takes and how far, what it leaves and mends.
 function blowText (a) {
   const power = a.effects.find((e) => e.op === 'damage')?.power
@@ -2628,7 +2632,7 @@ function blowText (a) {
     column: `a foe and everyone in its lane${at}`,
     all: a.range ? `every foe within ${a.range} tiles` : 'every foe'
   }[a.shape]
-  const statusName = (e) => `${STATUS_LIST.find((s) => s.id === e.status).name}${e.turns ? ` for ${e.turns === 'battle' ? 'the battle' : `${e.turns} turns`}` : ''}`
+  const statusName = (e) => `${STATUS_LIST.find((s) => s.id === e.status).name}${e.turns ? ` ${lasting(e.turns)}` : ''}`
   const lays = a.effects.filter((e) => e.op === 'apply_status').map(statusName)
   return [`${power ?? 0} power to ${whom}`, lays.length && `leaving them ${lays.join(' and ')}`,
     a.effects.some((e) => e.op === 'heal' && e.self) && 'and it heals itself', a.cond].filter(Boolean).join(', ')
@@ -2787,22 +2791,23 @@ export const RELIC_LIST = [
   { id: 'glass_hammer', tier: 'rare', name: 'Glass Hammer', desc: 'When its holder strikes, its target takes 12 true damage for each stack of Brittle on it, and the Brittle is spent.', on: 'blow', effects: [{ op: 'damage', amount: 12, per: { status: 'brittle' }, consume: true, to: 'other' }] },
   { id: 'headsmans_hood', tier: 'rare', name: "Headsman's Hood", desc: 'When its holder strikes a Hexed foe, the foe takes 25 true damage more.', on: 'blow', effects: [{ op: 'damage', amount: 25, per: { status: 'hexed' }, to: 'other' }] },
   { id: 'plague_mask', tier: 'rare', name: 'Plague Mask', desc: 'When its holder strikes, its target takes 8 true damage for each harmful status on it.', on: 'blow', effects: [{ op: 'damage', amount: 8, per: { tag: 'debuff' }, to: 'other' }] },
-  { id: 'arise', tier: 'legendary', name: 'Arise', desc: `Its holder learns Arise, a skill usable every turn: a foe of tier ${TUNING.arise.tier} or lower within ${TUNING.arise.domain} tiles is Claimed for ${STATUS_LIST.find((x) => x.id === 'claimed').turns} turns; if it falls while Claimed it rises where it fell as your shadow, taking no orders and striking on its own.`, rule: 'arise' },
+  { id: 'arise', tier: 'legendary', name: 'Arise', desc: `Its holder learns Arise, a skill usable every turn: a foe of tier ${TUNING.arise.tier} or lower within ${TUNING.arise.domain} tiles is Claimed ${lasting(STATUS_LIST.find((x) => x.id === 'claimed').turns)}; if it falls while Claimed it rises where it fell as your shadow, taking no orders and striking on its own.`, rule: 'arise' },
   { id: 'legion', tier: 'legendary', name: 'Legion', run: true, desc: '+2 Command (two pieces more on the field), but every soul has 15% less HP.', mods: [m('run.command', 'add', 2), m('hp', 'mul', 0.85)] },
-  { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'When its holder falls, it rises at once at 60% HP, once a battle.', rule: 'undying', params: { hp: 0.6 } },
-  { id: 'mimicry', tier: 'legendary', name: 'Mimicry', desc: 'Its holder counts as a Warden too, for synergies.', rule: 'mimicry', params: { role: 'warden' } },
-  // The Legendaries with a rule: an act refunded, a charge, a glass Monarch, a horde that bursts.
-  { id: 'reapers_hunger', tier: 'legendary', name: "Reaper's Hunger", desc: 'When its holder slays a foe in your turn, it may act again.', rule: 'reapers_hunger' },
-  { id: 'seven_league_boots', tier: 'legendary', name: 'Seven-League Boots', desc: 'On a turn its holder has moved 3 tiles or more, its blows deal 50% more damage.', rule: 'seven_league_boots', params: { tiles: 3, mul: 1.5 } },
-  { id: 'last_candle', tier: 'legendary', name: 'Last Candle', desc: 'While the Monarch is below half its HP, its holder is Desperate (+50% damage dealt, +25% damage taken, +1 Move, and its skills come back a turn sooner).', rule: 'last_candle', params: { below: 0.5 } },
-  { id: 'grave_powder', tier: 'legendary', name: 'Grave Powder', desc: 'While its holder stands, a shadow of yours that falls bursts: every foe next to it takes 20 true damage.', rule: 'grave_powder', params: { amount: 20 } },
+  { id: 'undying', tier: 'legendary', name: 'Undying', desc: 'When its holder falls, it rises at once at full HP, once a battle.', rule: 'undying', params: { hp: 1 } },
+  { id: 'mimicry', tier: 'legendary', name: 'Mimicry', desc: 'Its holder counts as every role, for synergies.', rule: 'mimicry' },
+  // The Legendaries with a rule: a turn begun again, a charge, a candle burning, a horde that bursts.
+  // Seven-League Boots: its rule and its holder's Move both (heldRules and heldMods read a relic each its own way).
+  { id: 'reapers_hunger', tier: 'legendary', name: "Reaper's Hunger", desc: 'When its holder slays a foe in your turn, its turn begins again: its energy whole, its act again.', rule: 'reapers_hunger' },
+  { id: 'seven_league_boots', tier: 'legendary', name: 'Seven-League Boots', desc: 'Its holder has +1 Move, and on a turn it has moved 2 tiles or more its blows deal 50% more damage.', mods: [m('move', 'add', 1)], rule: 'seven_league_boots', params: { tiles: 2, mul: 1.5 } },
+  { id: 'last_candle', tier: 'legendary', name: 'Last Candle', desc: 'Its holder is Enraged for the battle (+35% ATK, +1 Move, skills back sooner); while the Monarch is below half its HP, Desperate too (+50% damage dealt, +25% taken, +1 Move more, skills back sooner still).', rule: 'last_candle', params: { below: 0.5 } },
+  { id: 'grave_powder', tier: 'legendary', name: 'Grave Powder', desc: 'While its holder stands, a shadow of yours that falls bursts: every foe within 2 tiles of it takes 40 true damage.', rule: 'grave_powder', params: { amount: 40, range: 2 } },
   // Movement: each reads a piece's own tiles moved this turn, or its target's, or a walk once it is committed.
   { id: 'momentum', tier: 'rare', name: 'Momentum', desc: 'When its holder strikes, its target takes 6 true damage for each tile its holder moved this turn.', on: 'blow', effects: [{ op: 'damage', amount: 6, per: { moved: 'actor' }, to: 'other' }] },
   { id: 'quarry', tier: 'rare', name: 'Quarry', desc: 'When its holder strikes a foe that moved on its last turn, the foe takes 15 true damage more.', on: 'blow', effects: [{ op: 'damage', amount: 15, per: { walked: 'target' }, to: 'other' }] },
   { id: 'bastion', tier: 'uncommon', name: 'Bastion', desc: 'When its holder is struck on a turn it has not moved, its attacker takes 12 true damage.', on: 'struck', when: { still: true }, effects: [{ op: 'damage', amount: 12, to: 'other' }] },
   { id: 'trample', tier: 'rare', name: 'Trample', desc: 'When its holder ends a move (as it acts, or at End Turn), every foe next to where it stands takes 10 true damage.', on: 'move', effects: [{ op: 'damage', amount: 10, to: 'foes', range: 1 }] },
-  { id: 'overwatch', tier: 'legendary', name: 'Overwatch', desc: 'Once a turn, when a foe ends its move within reach of its holder\'s basic blow, its holder strikes it at once with that blow, as a counter (a melee holder never reaches a flyer).', rule: 'overwatch', params: { times: 1 } },
-  { id: 'hold_the_line', tier: 'legendary', name: 'Hold the Line', desc: 'On a turn they have not moved, its holder and each of yours next to it deal 25% more damage to foes.', rule: 'hold_the_line', params: { mul: 1.25 } }
+  { id: 'overwatch', tier: 'legendary', name: 'Overwatch', desc: 'Twice a turn, when a foe ends its move within reach of its holder\'s basic blow, its holder strikes it at once with that blow, as a counter (a melee holder never reaches a flyer).', rule: 'overwatch', params: { times: 2 } },
+  { id: 'hold_the_line', tier: 'legendary', name: 'Hold the Line', desc: 'On a turn they have not moved, its holder and each of yours next to it deal 50% more damage to foes and take 15% less.', rule: 'hold_the_line', params: { mul: 1.5, taken: 0.85 } }
 ]
 
 // The holder's moments a piece relic can trigger on ('move': a walk of its committed).

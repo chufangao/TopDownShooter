@@ -7,6 +7,8 @@ import { h } from './dom.js'
 
 // "3 turns", "all battle".
 export const turnsText = (n) => (n === 'battle' ? 'all battle' : n == null ? '' : `${n} turn${n === 1 ? '' : 's'}`)
+// "for 3 turns", "for the battle".
+export const forTurns = (n) => (n === 'battle' ? 'for the battle' : `for ${turnsText(n)}`)
 
 // The words, in the order a player meets them.
 export const KEYWORDS = {

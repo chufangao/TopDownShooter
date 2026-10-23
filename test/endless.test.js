@@ -499,7 +499,7 @@ test('Last Stand under Undying comes before the rise; Undying lifts only its hol
   strike(u, 101, 1)
   const order = u.events.filter((e) => e.target === 1 && ['rule', 'death', 'rise'].includes(e.type)).map((e) => e.rule ?? e.type)
   assert.deepEqual(order, ['last_stand', 'death', 'rise'])
-  assert.equal(golem.hp, Math.max(1, Math.round(golem.maxHp * 0.6)), 'at its relic\'s share')
+  assert.equal(golem.hp, golem.maxHp, 'at its relic\'s share: full')
   while (alive(golem)) strike(u, 101, 1)
   assert.equal(u.events.filter((e) => e.type === 'rise').length, 1, 'once a battle')
   // A page beside it holding nothing falls, and stays down.

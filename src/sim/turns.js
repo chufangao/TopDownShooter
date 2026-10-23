@@ -264,7 +264,7 @@ const restOf = (u, a) => Math.min(a.cooldown ?? 2, ...u.held.filter((r) => r.gra
 
 // ── stats and synergies ──────────────────────────────────────────────────────────────────────────
 
-// The synergies `side` holds, kept until the roster changes; a holder of Mimicry counts as its role too (rules.js `roles`).
+// The synergies `side` holds, kept until the roster changes; a holder of Mimicry counts as every role (rules.js `roles`).
 export function synergiesOf (battle, side) {
   const c = battle.syn[side]
   if (c?.v === battle.roster) return c.list
@@ -1198,12 +1198,12 @@ export function order (battle, o, path = null) {
     if (!way) throw new Error(`${u.id} ${u.uid} cannot move to ${o.tile}`)
     walk(battle, u, way)
   } else if (o.type === 'undo') {
-    // A walk is undone only before it is committed (told): an act commits it, Reaper's Hunger's act again too.
+    // A walk is undone only before it is committed (told): an act commits it, Reaper's Hunger's turn begun again too.
     if (u.acted || !(u.moved > 0) || u.told > 0 || !endable(battle, u, u.from)) throw new Error(`${u.id} ${u.uid} has no move to undo`)
     battle.beat++
     emit(battle, { type: 'undo', actor: u.uid, from: u.tile, to: u.from })
     relocate(battle, u, u.from)
-    // The walk's energy back, never an act's (Reaper's Hunger gives an act back after one).
+    // The walk's energy back, never an act's (Reaper's Hunger gives the whole back after one).
     u.spent = Math.max(0, u.spent - u.moved * TUNING.energy.tile)
     u.moved = 0
     u.told = 0

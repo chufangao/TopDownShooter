@@ -17,12 +17,14 @@
 //   grants    an ability id its holder gains (Arise's)
 //   roles     (battle, u, r) → the roles its holder counts as besides its own, for synergies (Mimicry)
 import { TUNING } from '../tuning.js'
-import { unitDef, relicDef, abilityDef, statusDef } from '../content.js'
+import { unitDef, relicDef, abilityDef, statusDef, ROLES } from '../content.js'
 import { alive, livingOn, unitDistance, distanceBetween, blowReach, makeUnit, synergyFull, enemySide } from './unit.js'
 import { around, riseTile, summonTile } from './field.js'
 import { emit, raise, roomFor, shadowSize, runEffect, synergiesOf, synergyCountsOf, addStatus, perform, usable, canAct, shape, targetsFrom, cool, enterBattle, lined, hexed, aloft, answer } from './turns.js'
 
 const vanguard = (u) => unitDef(u.id).role === 'vanguard'
+// The roles a synergy counts (never a hidden one, the Monarch's).
+const PLAIN_ROLES = Object.values(ROLES).filter((x) => !x.hidden).map((x) => x.id)
 // Whether one of the side's own felled `slain` (a status it laid counts: `by` is its layer).
 const slew = (by, side, slain) => !!by && by.side === side && slain.side !== side
 
@@ -151,49 +153,59 @@ export const RULES = {
   arise: { grants: 'arise' },
   // Undying: its holder, fallen, rises where it fell at `hp` of its max HP, once a battle.
   undying: {
-    params: { hp: 0.6 },
+    params: { hp: 1 },
     onFall (battle, { fallen }, r) {
       if (fallen !== r.holder || fallen.rose) return
       fallen.rose = 1
       fallen.hp = Math.max(1, Math.round(fallen.maxHp * r.params.hp))
     }
   },
-  // Reaper's Hunger: its holder, slaying a foe in your orders (never by a counter or a tick), has its act again.
+  // Reaper's Hunger: its holder, slaying a foe in your orders (never by a counter or a tick), has its turn begun again:
+  // its act and its whole energy, for another walk and act. A walk it committed stays committed (`told`: no Undo).
   reapers_hunger: {
     onKill (battle, { slain, by, side }, r) {
       if (by !== r.holder || !slew(by, side, slain) || !alive(by) || !by.acted || battle.phase !== 'orders' || battle.stage !== 'party') return
       emit(battle, { type: 'rule', rule: 'reapers_hunger', side, actor: by.uid, target: slain.uid })
       by.acted = false
-      by.spent = Math.max(0, by.spent - TUNING.energy.basic)
+      by.spent = 0
     }
   },
-  // Seven-League Boots: its holder's blows (a counter's too) deal `mul` on a turn it has moved `tiles` or more.
+  // Seven-League Boots: its holder's blows (a counter's too) deal `mul` on a turn it has moved `tiles` or more; its +1
+  // Move is the relic's mods (heldMods).
   seven_league_boots: {
-    params: { tiles: 3, mul: 1.5 },
+    params: { tiles: 2, mul: 1.5 },
     modify (battle, ctx, r) {
       const { actor, target, ability } = ctx
       if (ctx.as !== 'actor' || actor !== r.holder || ctx.status || !ability || target.side === actor.side) return
       if (actor.moved >= r.params.tiles) ctx.damage *= r.params.mul
     }
   },
-  // Last Candle: as your turn begins with the Monarch below `below` of its HP, its holder is Desperate for the round.
+  // Last Candle: as your first turn begins its holder is Enraged for the battle (once: `lit`); as your turn begins with
+  // the Monarch below `below` of its HP, Desperate for the round too.
   last_candle: {
     params: { below: 0.5 },
     onTurn (battle, { side }, r) {
       const u = r.holder
+      if (side !== u.side || !alive(u)) return
+      if (!u.lit) {
+        u.lit = true
+        emit(battle, { type: 'rule', rule: 'last_candle', side, actor: u.uid })
+        addStatus(battle, u, 'enraged', 'battle', u)
+      }
       const m = battle.monarch
-      if (side !== u.side || !alive(u) || !m || !alive(m) || m.hp >= m.maxHp * r.params.below) return
+      if (!m || !alive(m) || m.hp >= m.maxHp * r.params.below) return
       if (!u.statuses.some((s) => s.id === 'desperate')) emit(battle, { type: 'rule', rule: 'last_candle', side, actor: u.uid })
       addStatus(battle, u, 'desperate', 1, u)
     }
   },
-  // Grave Powder: while its holder stands, a shadow of its side that falls bursts, `amount` true damage to foes beside it.
+  // Grave Powder: while its holder stands, a shadow of its side that falls bursts, `amount` true damage to foes within
+  // `range` of it.
   grave_powder: {
-    params: { amount: 20 },
+    params: { amount: 40, range: 2 },
     onFall (battle, { fallen }, r) {
       const u = r.holder
       if (!fallen.shadow || fallen.side !== u.side || !alive(u)) return
-      const near = around(battle, fallen.tile, 1, enemySide(fallen.side), fallen.size)
+      const near = around(battle, fallen.tile, r.params.range, enemySide(fallen.side), fallen.size)
       if (!near.length) return
       emit(battle, { type: 'rule', rule: 'grave_powder', side: u.side, actor: u.uid, target: fallen.uid })
       runEffect(battle, { op: 'damage', amount: r.params.amount }, u, near)
@@ -201,7 +213,7 @@ export const RULES = {
   },
   // Overwatch: a foe ending its walk in reach of its holder's basic blow is struck by it at once, `times` a turn.
   overwatch: {
-    params: { times: 1 },
+    params: { times: 2 },
     onMove (battle, { actor, to, as }, r) {
       const u = r.holder
       const b = u.basic
@@ -213,20 +225,21 @@ export const RULES = {
       answer(battle, u, b, actor, { rule: 'overwatch' })
     }
   },
-  // Hold the Line: its holder and its side within a tile deal `mul` at a foe on a turn they have not moved (never a tick).
+  // Hold the Line: on a turn they have not moved, its holder and its side within a tile deal `mul` at a foe and take
+  // `taken` of a foe's blow, while the holder stands (never a tick).
   hold_the_line: {
-    params: { mul: 1.25 },
+    params: { mul: 1.5, taken: 0.85 },
     modify (battle, ctx, r) {
       const { actor, target } = ctx
       const u = r.holder
-      if (ctx.as !== 'actor' || ctx.status || !actor || target.side === actor.side || actor.side !== u.side || !alive(u)) return
-      if (actor.moved === 0 && unitDistance(actor, u) <= 1) ctx.damage *= r.params.mul
+      if (ctx.status || !actor || target.side === actor.side || !alive(u)) return
+      if (ctx.as === 'actor' && actor.side === u.side && actor.moved === 0 && unitDistance(actor, u) <= 1) ctx.damage *= r.params.mul
+      if (ctx.as === 'target' && !ctx.miss && target.side === u.side && target.moved === 0 && unitDistance(target, u) <= 1) ctx.damage *= r.params.taken
     }
   },
-  // Mimicry: its holder counts as a `role` too, for its side's synergies.
+  // Mimicry: its holder counts as every role besides its own too, for its side's synergies.
   mimicry: {
-    params: { role: 'warden' },
-    roles: (battle, u, r) => (u === r.holder ? [r.params.role] : [])
+    roles: (battle, u, r) => (u === r.holder ? PLAIN_ROLES.filter((id) => id !== unitDef(u.id).role) : [])
   },
   // ── a capstone's rule, scoped to the piece of its kind: what its abilities cannot say ──
 

@@ -450,7 +450,7 @@ test('every ability is ops, a shape and an anim; Hexed for one act or two; no co
 // The statuses' turns: 'battle' the battle; Hexed's turns the acts it costs.
 const TURNS = {
   brittle: 3, hasten: 2, regen: 5, barkskin: 4, withered: 3, enraged: 'battle', desperate: 'battle', burning: 3, bleeding: 2, hexed: 1, shield: 4, rooted: 1, bloodlust: 'battle',
-  claimed: 3 }
+  claimed: 'battle' }
 
 test('every status lasts turns, is drawn in its colour, has a worth, and its text is for turns', () => {
   assert.deepEqual(Object.keys(STATUSES).sort(), Object.keys(TURNS).sort())
@@ -572,8 +572,9 @@ test('every relic is a run relic or a piece relic, in one of the three forms, it
   for (const r of RELIC_LIST) {
     assert.ok(RELIC_TIERS.some((t) => t.id === r.tier) && r.name && r.desc, r.id)
     for (const k of Object.keys(r)) assert.ok(RELIC_KEYS.includes(k), `${r.id}: no ${k}`)
+    // One form; a Legendary's rule may bring its holder's mods too (Seven-League Boots' Move).
     const forms = [!!r.mods, !!r.on, !!r.rule].filter(Boolean).length
-    assert.equal(forms, 1, `${r.id}: one form`)
+    assert.equal(forms, r.rule && r.mods && !r.run ? 2 : 1, `${r.id}: one form`)
     assert.equal(!!r.on, !!r.effects, `${r.id}: a trigger is its moment and its effects`)
     if (r.tier !== 'legendary') for (const k of ['rule', 'params']) assert.ok(!(k in r), `${r.id}: no ${k} below Legendary`)
     assert.ok(!r.params || r.rule, `${r.id}: params are a rule's`)
@@ -668,10 +669,20 @@ test('the Legendaries: a rule scoped to the holder, and Arise a skill it teaches
   }
   // Arise's numbers are TUNING.arise's and Claimed's, and its card says them.
   assert.ok(RELICS.arise.desc.includes(`tier ${TUNING.arise.tier} `) && RELICS.arise.desc.includes(`within ${TUNING.arise.domain} tiles`), RELICS.arise.desc)
-  assert.ok(RELICS.arise.desc.includes(`Claimed for ${STATUSES.claimed.turns} turns`) && RELICS.arise.desc.includes('as your shadow'), RELICS.arise.desc)
-  // Undying rises at its share; Mimicry counts as a Warden.
-  assert.ok(RELICS.undying.desc.includes(`${RELICS.undying.params.hp * 100}% HP`))
-  assert.ok(ROLES[RELICS.mimicry.params.role] && RELICS.mimicry.desc.includes(ROLES[RELICS.mimicry.params.role].name))
+  assert.equal(STATUSES.claimed.turns, 'battle')
+  assert.ok(RELICS.arise.desc.includes('Claimed for the battle') && RELICS.arise.desc.includes('as your shadow'), RELICS.arise.desc)
+  // Undying rises at full HP; Mimicry counts as every role.
+  assert.ok(RELICS.undying.params.hp === 1 && RELICS.undying.desc.includes('at full HP'), RELICS.undying.desc)
+  assert.ok(!RELICS.mimicry.params && RELICS.mimicry.desc.includes('every role'), RELICS.mimicry.desc)
+  // The rest say their numbers: a share as a percentage, a count in words.
+  const pct = (x) => `${Math.round(Math.abs(x - 1) * 100)}%`
+  const { seven_league_boots: boots, grave_powder: powder, overwatch, hold_the_line: line } = RELICS
+  assert.deepEqual(boots.mods, [{ path: 'move', op: 'add', v: 1 }])
+  assert.ok(boots.desc.includes('+1 Move') && boots.desc.includes(`${boots.params.tiles} tiles or more`) && boots.desc.includes(`${pct(boots.params.mul)} more`), boots.desc)
+  assert.ok(powder.desc.includes(`within ${powder.params.range} tiles`) && powder.desc.includes(`${powder.params.amount} true damage`), powder.desc)
+  assert.ok(overwatch.params.times === 2 && overwatch.desc.startsWith('Twice a turn'), overwatch.desc)
+  assert.ok(line.desc.includes(`${pct(line.params.mul)} more damage`) && line.desc.includes(`take ${pct(line.params.taken)} less`), line.desc)
+  assert.ok(RELICS.last_candle.desc.includes('Enraged for the battle') && RELICS.last_candle.desc.includes('Desperate too'), RELICS.last_candle.desc)
   // An Arise relic grants Arise itself, so needs none held.
   assert.ok(ARISE_RELICS.every((id) => !RELICS[id].needsArise))
 })
