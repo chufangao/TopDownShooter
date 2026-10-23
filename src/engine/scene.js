@@ -44,6 +44,16 @@ const FLOAT_ROWS = 4    // popups over one unit stack this many rows high at onc
 const FLOAT_HOLD = 520
 // A status's name rises in a column of its own beside the unit (floating, `side`), never over the numbers.
 const SIDE_ROW = 13
+// A status worn shows as a chip under the bars, its two letters in its colour (statusDef), ×stacks, the turns it has left.
+const GLYPH = {
+  brittle: 'BR', burning: 'BU', bleeding: 'BL', hexed: 'HX', withered: 'WI', rooted: 'RT', hasten: 'HA', regen: 'RG',
+  barkskin: 'BK', shield: 'SH', enraged: 'EN', desperate: 'DS', bloodlust: 'LU'
+}
+// A chip's print (world px, before it is scaled to stay legible: px of --fs-xs's 14, never under floor CSS px), its
+// plate's padding, and the gaps between chips and rows.
+const CHIP = { size: 8, px: 11 / 14, floor: 9, pad: 2.5, gap: 2, row: 2 }
+const KEY = '#ffe08a' // a key on a foe (its chip's rim, an open lock): the gold a key spent rises in
+const SHUT = '#8e8e9e' // a lock still shut
 const HIT_WASH = 0x8c8c8c // a blow's flash: screened over the struck, about half way to white
 const ROT = 0xd88ab8   // the Sovereign's Grave Tide: the glow its shadows rise in, on the foes' side
 const ORDINAL = ['FIRST', 'SECOND', 'THIRD', 'FOURTH', 'FIFTH', 'SIXTH']
@@ -65,6 +75,25 @@ const NOISY_MS = 1000
 // A board with nothing of yours to order waits this long (ms of playback) before its turn ends by itself (autoEnd).
 const AUTO_END_MS = 600
 
+// A key's mark on its chip: '⚷' where a face on the page draws it (inked unlike a code point none has), else 'K'.
+let keyGlyph = null
+function keyMark () {
+  if (keyGlyph) return keyGlyph
+  keyGlyph = 'K'
+  try {
+    const g = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
+    const ink = (ch) => {
+      g.clearRect(0, 0, 24, 24)
+      g.font = `bold 18px ${DISPLAY}`
+      g.fillText(ch, 2, 19)
+      return g.getImageData(0, 0, 24, 24).data.join()
+    }
+    const key = ink('⚷')
+    if (/[1-9]/.test(key) && key !== ink('\u0378')) keyGlyph = '⚷'
+  } catch {}
+  return keyGlyph
+}
+
 export class BattleScene extends Phaser.Scene {
   constructor () { super('Battle') }
 
@@ -83,6 +112,8 @@ export class BattleScene extends Phaser.Scene {
     this.studied = null
     this.waiting = false
     this.counts = { turn: this.battle.turn, next: nextWave(this.battle), wave: 1 }
+    // The stage the playback has reached ('party' through End Turn's untouched pass), for the keys the chips show.
+    this.stage = 'party'
     this.synKey = null
     this.ending = false
     this.hover = null
@@ -267,6 +298,7 @@ export class BattleScene extends Phaser.Scene {
       a.growth?.place(x, a.sprite.y)
       a.sprite.setAlpha(a.fade * a.rise.v * (a.shade ? SHADE_ALPHA : 1))
       this.wear(a)
+      this.chips(a, x - BAR * k / 2, y, foot)
       // A skill's cooldown pip, as the playback has reached it (a.cd), so End Turn's ticking shows when it plays.
       if (a.pips && !a.gone) a.skills.forEach((id, i) => a.pips[i].setFillStyle(a.cd[id] > 0 ? PIP.rest : GOLD, a.cd[id] > 0 ? 0.9 : 1))
     }
@@ -1473,6 +1505,7 @@ export class BattleScene extends Phaser.Scene {
 
   newTurn (ev) {
     this.counts = { ...this.counts, turn: ev.turn, next: ev.next }
+    this.stage = 'party'
     this.changed()
     this.flag(`TURN ${ev.turn}`, C.soul2, SOUL)
   }
@@ -1549,10 +1582,120 @@ export class BattleScene extends Phaser.Scene {
     want.forEach((x, i) => {
       let img = a.palls.get(x.id)
       if (!img) a.palls.set(x.id, img = this.add.image(0, 0, 'glow').setTint(hex(statusDef(x.id).colour)).setBlendMode(Phaser.BlendModes.ADD))
-      const pulse = calm ? 0.3 : 0.27 + 0.08 * Math.sin(this.playMs / 340 + a.uid + i)
+      // Fainter now the chips under the bars name them.
+      const pulse = calm ? 0.22 : 0.2 + 0.06 * Math.sin(this.playMs / 340 + a.uid + i)
       img.setPosition(a.vx, top + 6 * i).setDisplaySize(a.sprite.displayWidth * (0.9 - 0.12 * i), a.sprite.displayHeight * (0.8 - 0.1 * i))
         .setDepth(a.sprite.depth + 0.1).setAlpha(pulse * a.fade * a.rise.v)
     })
+  }
+
+  // ── status chips ─────────────────────────────────────────────────────────────────────────────
+
+  // What a unit's chips say: a lock first (its kind's, a foe's), then each status it wears as the playback has reached it
+  // (a.st), with its turns left off the sim's record (seen's way) and whether it is a key for your side now (keyed).
+  chipsOf (a) {
+    const lock = a.side === 'foe' ? unitDef(a.id).lock : null
+    if (a.gone || (!a.st.size && !lock)) return []
+    const u = this.battle.byUid.get(a.uid)
+    const out = [...a.st].map(([id, stacks]) => {
+      const s = u?.statuses.find((x) => x.id === id)
+      return { id, stacks, turns: typeof s?.dur === 'number' ? s.dur : null, key: this.keyed(u, s, lock) }
+    })
+    if (lock) out.unshift({ id: 'lock', open: out.some((x) => x.key && lock.keys.includes(x.id)) })
+    return out
+  }
+
+  // Whether status `s` on foe `u` is a key for your side as the playback stands: laid in your stage of the turn shown, by
+  // a piece of yours, and of a status a blow of yours or the foe's lock (`lock`) opens on. keyFor's test short of the
+  // striker (who must be another piece than the one that laid it): a hint, not the check.
+  keyed (u, s, lock) {
+    const b = this.battle
+    if (!s || u?.side !== 'foe' || this.stage !== 'party' || s.turn !== this.counts.turn || s.stage !== 'party' || s.by == null) return false
+    if (b.byUid.get(s.by)?.side !== 'party' || b.ablate?.has('combos')) return false
+    if (lock?.keys.includes(s.id)) return true
+    return b.units.some((p) => p.side === 'party' && alive(p) && (p.kit ?? []).some((x) => (x.effects ?? []).some((e) => e.keyed?.status === s.id)))
+  }
+
+  // A unit's chips (chipsOf) on dark plates in a row from its bar's left (`x`) under its bars and marks, wrapping inside
+  // its picture's width (a bar's, on a shared tile); remade only when what they say changes (a.chipSig), placed each frame.
+  chips (a, x, y, foot) {
+    const zoom = this.cameras.main.zoom
+    const s = Math.max(1, Math.max(CHIP.floor, labelPx('num') * CHIP.px) / (CHIP.size * zoom))
+    const list = this.chipsOf(a)
+    const narrow = a.share > 0.5
+    const sig = list.length
+      ? `${s.toFixed(2)}|${narrow ? 1 : 0}|${list.map((c) => (c.id === 'lock' ? (c.open ? 'open' : 'lock') : `${c.id}${c.stacks}.${c.turns}.${c.key ? 1 : 0}`)).join(',')}`
+      : ''
+    if (sig !== a.chipSig) {
+      a.chipSig = sig
+      a.chipBox?.destroy()
+      a.chipBox = a.chipGlow = null
+      if (list.length) this.layChips(a, list, s, narrow)
+    }
+    const box = a.chipBox
+    if (!box) return
+    // Under the bar, the cooldown pips, a soul's tiers: whichever lies lowest; on the front row, where they would run off
+    // the camera's foot, just over the bar instead.
+    a.chipDrop ??= (this.battle.byUid.get(a.uid)?.tracks ?? []).some((n) => n > 0) && a.growth ? 27 : a.pips ? 11 : 9
+    const edge = this.cameras.main.worldView.bottom
+    const low = y + a.chipDrop + a.chipTall + 2 > edge && y < edge
+    box.setPosition(x, low ? y - 4 - a.chipTall : y + a.chipDrop).setDepth(foot + 0.3).setAlpha(a.fade * a.rise.v)
+    if (a.chipGlow) a.chipGlow.setAlpha(calm ? 0.7 : 0.45 + 0.45 * Math.sin(this.playMs / 200))
+  }
+
+  // The chips' row, in a container scaled by `s` (legible at the zoom): from the bar's left, a row too wide for the
+  // picture's right edge drawn back toward its left, wrapping past its width (a bar's, on a shared tile). A key's chip and
+  // an open lock are rimmed gold over a glow that pulses (a.chipGlow), a key's led by its mark (keyMark).
+  layChips (a, list, s, narrow) {
+    const box = this.add.container(0, 0).setScale(s)
+    const glow = this.add.graphics()
+    box.add(glow)
+    const wide = a.sprite.width * a.scale
+    const [room, reach] = narrow ? [BAR * SHARE.bar + 8, BAR * SHARE.bar + 8].map((n) => n / s) : [wide / s, (BAR + wide) / 2 / s]
+    const h = CHIP.size + 2 * CHIP.pad
+    const chips = list.map((c) => {
+      const lock = c.id === 'lock'
+      const def = lock ? null : statusDef(c.id)
+      const colour = lock ? (c.open ? KEY : SHUT) : def.colour
+      const head = this.text(0, 0, lock ? (c.open ? 'OPEN' : 'LOCK') : `${GLYPH[c.id] ?? def.name.slice(0, 2).toUpperCase()}${c.stacks > 1 ? `×${c.stacks}` : ''}`,
+        CHIP.size, colour).setOrigin(0, 0.5)
+      const turns = !lock && c.turns != null ? this.text(0, 0, `${c.turns}`, CHIP.size * 0.8, '#d8d0e6').setOrigin(0, 0.5) : null
+      const mark = !lock && c.key ? this.text(0, 0, keyMark(), CHIP.size, KEY).setOrigin(0, 0.5) : null
+      const w = CHIP.pad * 2 + (mark ? mark.width + 1 : 0) + head.width + (turns ? 1.5 + turns.width : 0)
+      return { lock, colour, mark, head, turns, gold: lock ? c.open : c.key, w }
+    })
+    const rows = [[]]
+    for (const c of chips) {
+      const row = rows[rows.length - 1]
+      if (row.length && row.reduce((n, x) => n + x.w + CHIP.gap, 0) + c.w > room) rows.push([c])
+      else row.push(c)
+    }
+    let lit = false
+    rows.forEach((row, i) => {
+      const y = i * (h + CHIP.row)
+      let x = Math.min(0, reach - row.reduce((n, c) => n + c.w, CHIP.gap * (row.length - 1)))
+      for (const c of row) {
+        const edge = c.gold ? hex(KEY) : hex(c.colour)
+        box.add(this.add.graphics().fillStyle(INK, 0.9).fillRoundedRect(x, y, c.w, h, h * 0.35)
+          .lineStyle(c.gold ? 1.5 : 1, edge, c.gold ? 1 : 0.5).strokeRoundedRect(x, y, c.w, h, h * 0.35))
+        let at = x + CHIP.pad
+        if (c.mark) box.add(c.mark.setPosition(at, y + h / 2))
+        at += c.mark ? c.mark.width + 1 : 0
+        box.add(c.head.setPosition(at, y + h / 2))
+        if (c.turns) box.add(c.turns.setPosition(at + c.head.width + 1.5, y + h / 2 + 0.5))
+        if (c.gold) {
+          lit = true
+          for (const [grow, alpha] of [[3, 0.2], [1.5, 0.35]]) {
+            glow.lineStyle(grow * 2, hex(KEY), alpha).strokeRoundedRect(x - grow / 2, y - grow / 2, c.w + grow, h + grow, h * 0.35 + grow / 2)
+          }
+        }
+        x += c.w + CHIP.gap
+      }
+    })
+    a.chipBox = box
+    a.chipTall = (rows.length * (h + CHIP.row) - CHIP.row) * s
+    a.chipGlow = lit ? glow : null
+    if (!lit) glow.destroy()
   }
 
   decorate (start) {
@@ -1732,7 +1875,10 @@ export class BattleScene extends Phaser.Scene {
       return ev.wave > 0 ? this.waveBanner(ev.wave) : undefined
     }
     if (ev.type === 'turn') return this.newTurn(ev)
-    if (ev.type === 'stage') return ev.stage === 'foes' ? this.flag('THE FOES\' TURN', '#ff8a9a', FOE) : undefined
+    if (ev.type === 'stage') {
+      this.stage = ev.stage === 'untouched' ? 'party' : ev.stage
+      return ev.stage === 'foes' ? this.flag('THE FOES\' TURN', '#ff8a9a', FOE) : undefined
+    }
     if (ev.type === 'action') {
       // A counter: the struck answers at once, and says so over itself.
       if (ev.counter) { const x = this.actors.get(ev.actor); if (x) this.floating(x, 'COUNTER', '#ffb27a', 11) }
@@ -1787,6 +1933,8 @@ export class BattleScene extends Phaser.Scene {
               this.shake(120, 0.003)
             }
             sfx.play(a.uid === this.monarch ? 'monarchHit' : 'hit')
+            // A Burning or Bleeding tick has no blow's popup: its number rises named, in the status's colour.
+            if (ev.status && !inAction) this.floating(a, `−${ev.damage} ${statusDef(ev.status).name}`, statusDef(ev.status).colour, 12)
           }
         } else {
           a.trail.width = w
@@ -1819,11 +1967,17 @@ export class BattleScene extends Phaser.Scene {
         this.floating(a, `−${ev.damage} tithe`, TITHE, 11)
         this.burst(a.sprite.x, a.sprite.y - a.chest, 0xc0304a, 8, { up: true, speed: 40 })
         break
-      // A status in its keyword's colour (a debuff red, a buff blue), beside the unit, apart from the numbers.
-      case 'status':
-        a.st.set(ev.status, Math.min(statusDef(ev.status).stacks ?? 1, (a.st.get(ev.status) ?? 0) + 1))
-        this.floating(a, statusDef(ev.status).name, statusDef(ev.status).tags.includes('debuff') ? C.foe : C.synergy, 11, 1, true)
+      // A status in its keyword's colour (a debuff red, a buff blue), beside the unit, apart from the numbers: its name,
+      // stacks and turns ("Brittle ×2 · 3T"), the turns the longer of those laid and those the sim's record holds.
+      case 'status': {
+        const def = statusDef(ev.status)
+        const n = Math.min(def.stacks ?? 1, (a.st.get(ev.status) ?? 0) + 1)
+        a.st.set(ev.status, n)
+        const held = this.battle.byUid.get(a.uid)?.statuses.find((x) => x.id === ev.status)?.dur
+        const dur = ev.dur === 'battle' || held === 'battle' ? null : Math.max(ev.dur ?? 0, held ?? 0) || null
+        this.floating(a, `${def.name}${n > 1 ? ` ×${n}` : ''}${dur ? ` · ${dur}T` : ''}`, def.tags.includes('debuff') ? C.foe : C.synergy, 11, 1, true)
         break
+      }
       case 'cleanse':
         a.st.delete(ev.status)
         this.burst(a.sprite.x, a.sprite.y - a.chest, BOON, 6, { up: true, speed: 40 })
