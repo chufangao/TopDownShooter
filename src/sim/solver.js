@@ -61,8 +61,8 @@ const END = Object.freeze({ type: 'end' })
 // each unit, status and cooldown opened by a word of its own, folded by two lanes; equal boards hash alike, two boards
 // part but by a 53-bit collision.
 export function boardHash (b) {
-  ha = 0x9747b28c
-  hb = 0x2545f491
+  H[0] = 0x9747b28c
+  H[1] = 0x2545f491
   val(b.turn)
   val(b.phase)
   val(b.stage)
@@ -84,30 +84,10 @@ export function boardHash (b) {
   }
   word(b.reserve.length)
   for (const u of b.reserve) val(u.uid)
-  for (const u of b.units) {
+  for (let n = 0; n < b.units.length; n++) {
+    const u = b.units[n]
     word(UNIT)
-    let i = 0
-    for (const k in u) {
-      const v = u[k]
-      if (v === null || typeof v !== 'object') {
-        // The name's word, by the name last met in this place (the units' fields mostly come in one order).
-        if (PLACED[i] !== k) {
-          PLACED[i] = k
-          PLACED_WORD[i] = keyOf(k)
-        }
-        word(PLACED_WORD[i])
-        // A string by the one last met in this place, its word kept (the same string, the same word).
-        if (typeof v === 'string' && PLACED_STRING[i] === v) word(PLACED_STRING_WORD[i])
-        else {
-          val(v)
-          if (typeof v === 'string' && STRINGS.has(v)) {
-            PLACED_STRING[i] = v
-            PLACED_STRING_WORD[i] = STRINGS.get(v)
-          }
-        }
-        i++
-      }
-    }
+    plainOf(u, n)(u, H)
     for (const x of u.statuses) {
       word(STATUS)
       val(x.id)
@@ -124,20 +104,24 @@ export function boardHash (b) {
       val(u.cooldowns[k])
     }
   }
-  return 4294967296 * (fmix(hb) & 0x1fffff) + (fmix(ha) >>> 0)
+  return 4294967296 * (fmix(H[1]) & 0x1fffff) + (fmix(H[0]) >>> 0)
 }
-// The lanes, as boardHash folds its words.
-let ha = 0
-let hb = 0
-// A word into both lanes: murmur3's mix of it, then lane a by murmur3's step, lane b by a multiply and a shift.
+// The lanes, a and b, as boardHash folds its words.
+const H = new Int32Array(2)
+// A word into both lanes: murmur3's mix of it (mix), then lane a by murmur3's step, lane b by a multiply and a shift
+// (STEP, as a unit's reader writes it out).
 function word (w) {
-  let k = Math.imul(w, 0xcc9e2d51)
-  k = Math.imul((k << 15) | (k >>> 17), 0x1b873593)
-  ha ^= k
-  ha = (Math.imul((ha << 13) | (ha >>> 19), 5) + 0xe6546b64) | 0
-  hb = Math.imul(hb ^ k, 0x2c1b3c6d)
-  hb ^= hb >>> 15
+  const k = mix(w)
+  let a = H[0] ^ k
+  H[0] = (Math.imul((a << 13) | (a >>> 19), 5) + 0xe6546b64) | 0
+  a = Math.imul(H[1] ^ k, 0x2c1b3c6d)
+  H[1] = a ^ (a >>> 15)
 }
+function mix (w) {
+  const k = Math.imul(w, 0xcc9e2d51)
+  return Math.imul((k << 15) | (k >>> 17), 0x1b873593)
+}
+const STEP = (k) => `a ^= ${k}; a = (Math.imul((a << 13) | (a >>> 19), 5) + 0xe6546b64) | 0; b = Math.imul(b ^ ${k}, 0x2c1b3c6d); b ^= b >>> 15`
 // murmur3's finish.
 function fmix (h) {
   h = Math.imul(h ^ (h >>> 16), 0x85ebca6b)
@@ -185,14 +169,76 @@ const U32 = new Uint32Array(F64.buffer)
 // The words that tag a value (val) and open a unit, a status, a cooldown: none a field's word (KEYS: from 2^29 on).
 const [INT, FLOAT, NAN, STR, TEXT, TRUE, FALSE, NULL, UNDEFINED] = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 const [UNIT, STATUS, COOLDOWN] = [0x40000001, 0x40000002, 0x40000003]
-// A field's or a cooldown's name → its own word, in the order first met; the names last met at each place of a unit's
-// plain fields, and their words; the strings last met there, and theirs.
+// A field's or a cooldown's name → its own word, in the order first met.
 const KEYS = new Map()
 const keyOf = (k) => KEYS.get(k) ?? KEYS.set(k, 0x20000000 + KEYS.size).get(k)
-const PLACED = []
-const PLACED_WORD = []
-const PLACED_STRING = []
-const PLACED_STRING_WORD = []
+// A unit's plain fields (null or not an object) into the lanes, in its fields' order: each its name's word (keyOf, taken
+// the first time the field is plain), then its value as val gives it (a string by the one last met in that field, its
+// word kept). By a reader made for the unit's field list (the words written out, the lanes held in locals), the last one
+// used at its place `n` in the units' list (PLACE_KEPT kept a place) whose fields are that list's.
+function plainOf (u, n) {
+  const keys = Object.keys(u)
+  const at = READERS[n] ?? (READERS[n] = [])
+  for (const r of at) if (sameKeys(r.keys, keys)) return r.read
+  const k = keys.join('\n')
+  let r = READER_BY_KEYS.get(k)
+  if (r === undefined || !sameKeys(r.keys, keys)) READER_BY_KEYS.set(k, (r = { keys, read: readerOf(keys) }))
+  if (at.length >= PLACE_KEPT) at.pop()
+  at.unshift(r)
+  return r.read
+}
+function readerOf (keys) {
+  const body = keys.map((f, j) => `v = u[${JSON.stringify(f)}]
+    if (v === null || typeof v !== 'object') {
+      if (w${j} === undefined) w${j} = mix(keyOf(${JSON.stringify(f)}))
+      ${STEP(`w${j}`)}
+      if (typeof v === 'number' && (v | 0) === v) {
+        ${STEP(mix(INT))}
+        k = Math.imul(v, 0xcc9e2d51)
+        k = Math.imul((k << 15) | (k >>> 17), 0x1b873593)
+        ${STEP('k')}
+      } else if (typeof v === 'string' && s${j} === v) {
+        ${STEP(`sw${j}`)}
+      } else if (v === true) {
+        ${STEP(mix(TRUE))}
+      } else if (v === false) {
+        ${STEP(mix(FALSE))}
+      } else if (v === null) {
+        ${STEP(mix(NULL))}
+      } else if (v === undefined) {
+        ${STEP(mix(UNDEFINED))}
+      } else {
+        H[0] = a
+        H[1] = b
+        val(v)
+        a = H[0]
+        b = H[1]
+        if (typeof v === 'string' && STRINGS.has(v)) {
+          s${j} = v
+          sw${j} = mix(STRINGS.get(v))
+        }
+      }
+    }`)
+  const vars = keys.map((f, j) => `let w${j}, s${j}, sw${j}`).join('\n')
+  return new Function('mix', 'val', 'keyOf', 'STRINGS', `${vars}
+return function (u, H) {
+  let a = H[0]
+  let b = H[1]
+  let v
+  let k
+  ${body.join('\n  ')}
+  H[0] = a
+  H[1] = b
+}`)(mix, val, keyOf, STRINGS)
+}
+const sameKeys = (a, b) => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+const READERS = []
+const READER_BY_KEYS = new Map()
+const PLACE_KEPT = 4
 
 // ── the value and the score ──────────────────────────────────────────────────────────────────────
 
@@ -281,32 +327,57 @@ export function threatOn (g) {
 // foe.js stepsOf, kept in a book by what it reads: a piece of yours (orderable: its reach) by its tile, size, flight and
 // side, the stride, and the board's occupancy within the stride of its footprint (each tile's holder's side, on the
 // ground and in the air: all reach reads of the board there but its walls, the battle's own). One book a battle (its
-// walls' Set, which every copy shares), emptied at STEPS_KEPT entries; any other unit's read afresh.
+// walls' Set, which every copy shares), emptied at STEPS_KEPT entries; any other unit's read afresh. An entry is found by
+// a number folded of those (a bucket of the entries it folds), and is that entry only where every one of them is equal.
 function stepsBy (b) {
   let book = STEPS.get(b.walls)
-  if (!book) STEPS.set(b.walls, (book = new Map()))
+  if (!book) STEPS.set(b.walls, (book = { size: 0, buckets: new Map() }))
   return (f, u, at, tiles) => {
     if (at || !orderable(f, u)) return stepsOf(f, u, at, tiles)
+    const fly = u.flies === true ? 1 : u.flies === false ? 0 : u.flies === undefined ? 2 : -1
+    if (fly < 0 || !Number.isInteger(u.tile) || !Number.isInteger(u.size) || !Number.isInteger(tiles) || u.side !== 'party') return stepsOf(f, u, at, tiles)
     const x0 = tileX(u.tile)
     const y0 = tileY(u.tile)
     const xa = Math.max(0, x0 - tiles)
     const xb = Math.min(LANES - 1, x0 + u.size - 1 + tiles)
-    const near = []
+    let n = 0
+    let h = Math.imul(u.tile, 0x9e3779b1) ^ Math.imul(u.size, 0x85ebca6b) ^ Math.imul(fly + 1, 0xc2b2ae35) ^ Math.imul(tiles, 0x27d4eb2f)
     for (let y = Math.max(0, y0 - tiles), yb = Math.min(DEPTH - 1, y0 + u.size - 1 + tiles); y <= yb; y++) {
-      for (let t = y * LANES + xa, tb = y * LANES + xb; t <= tb; t++) near.push(48 + 3 * sideCode(f.at[t]) + sideCode(f.sky[t]))
+      for (let t = y * LANES + xa, tb = y * LANES + xb; t <= tb; t++) {
+        const c = 3 * sideCode(f.at[t]) + sideCode(f.sky[t])
+        NEAR[n++] = c
+        h = Math.imul(h ^ c, 0x01000193) + n | 0
+      }
     }
-    const k = `${u.tile},${u.size},${u.flies},${u.side},${tiles},${String.fromCharCode.apply(null, near)}`
-    let s = book.get(k)
-    if (s === undefined) {
-      if (book.size >= STEPS_KEPT) book.clear()
-      s = stepsOf(f, u, at, tiles)
-      book.set(k, s)
+    let bucket = book.buckets.get(h)
+    if (bucket !== undefined) {
+      for (const e of bucket) {
+        if (e.tile !== u.tile || e.size !== u.size || e.fly !== fly || e.tiles !== tiles || e.near.length !== n) continue
+        let same = true
+        for (let i = 0; i < n; i++) {
+          if (e.near[i] !== NEAR[i]) {
+            same = false
+            break
+          }
+        }
+        if (same) return e.s
+      }
     }
+    if (book.size >= STEPS_KEPT) {
+      book.buckets.clear()
+      book.size = 0
+      bucket = undefined
+    }
+    const s = stepsOf(f, u, at, tiles)
+    if (bucket === undefined) book.buckets.set(h, (bucket = []))
+    bucket.push({ tile: u.tile, size: u.size, fly, tiles, near: NEAR.slice(0, n), s })
+    book.size++
     return s
   }
 }
 const STEPS = new WeakMap()
 const STEPS_KEPT = 20000
+const NEAR = new Uint8Array(LANES * DEPTH)
 const sideCode = (x) => (x === null ? 0 : x.side === 'party' ? 1 : 2)
 
 // The foes' HP left: the living on the field and the reserve's.
@@ -341,9 +412,10 @@ export function solve (battle, {
   const stats = { solved: false, level: null, ms: 0, nodes: 0, plans: 0, truncated: false, margin: null, value: null, turns: 0, slack: [], sharp: [], slackMs: 0 }
   let best = null
   let won = null
+  const scores = new Map()
   for (let i = 0; i < widths.length && !stats.truncated; i++) {
     const [K, B, W] = widths[i]
-    const s = beam(root, before, { K, B, W, per, turns, deadline, budget: budget - stats.plans, moving, beat })
+    const s = beam(root, before, { K, B, W, per, turns, deadline, budget: budget - stats.plans, moving, beat, scores })
     stats.nodes += s.nodes
     stats.plans += s.plans
     stats.truncated = s.truncated
@@ -407,12 +479,12 @@ const endOf = (before, board, hash, line, open = false) => {
 // children's), wins (won ends' hashes), ctx }. The books keep hashes, not boards: a line may run to the turn guard.
 // One layer's boards are held at a time: a child keeps its hash, its line, its parent and the numbers it is ranked by,
 // and the W kept are made again from their parents' boards (grow) once the layer is ranked.
-function beam (root, before, { K, B, W, per, turns, deadline, budget, moving, beat = -Infinity }) {
+function beam (root, before, { K, B, W, per, turns, deadline, budget, moving, beat = -Infinity, scores = new Map() }) {
   const out = { nodes: 0, plans: 0, truncated: false, best: null, edges: new Map(), wins: new Set() }
   const meet = (end) => {
     if (!out.best || outranks(end, out.best)) out.best = end
   }
-  const ctx = { K, B, per, deadline, budget, before, out, moving }
+  const ctx = { K, B, per, deadline, budget, before, out, moving, scores }
   out.ctx = ctx
   let layer = [{ board: root, hash: boardHash(root), line: [] }]
   let bestWon = beat
@@ -468,6 +540,8 @@ function grow (c) {
   c.parent = null
 }
 const CUT = new Error('the solver\'s cap or budget')
+// The scores a solve keeps by board (turnPlans), emptied at this many: a board is scored once, however many plans reach it.
+const SCORES_KEPT = 1 << 20
 
 // A node's children: the plans of its turn in each piece order (turnPlans), End Turn given, one board once.
 // → [{ board, hash, orders }]
@@ -508,10 +582,11 @@ function keysFirst (board, pieces) {
 }
 
 // The turn's plans on `board` in piece order `seq`: each plan's next piece takes each of its candidates on a copy, a move
-// alone with its End-Turn act given at once; the B best by the score kept after each piece. Each plan keeps its board's
-// hash (`h`) and danger map for your side (`map`: its shields are that board's units). → [{ f (the board, End Turn not
-// yet), orders }]
-function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, moving }) {
+// alone with its End-Turn act given at once; the B best by the score kept after each piece (a board met before in the
+// solve by its score kept: `scores`, by hash). Each plan keeps its board's hash (`h`) and danger map for your side (`map`:
+// its shields are that board's units; made as a piece is to act on it where the score was kept). → [{ f (the board, End
+// Turn not yet), orders }]
+function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, moving, scores }) {
   const f = copy(board)
   let plans = [{ f, h: boardHash(f), orders: [], value: 0, map: danger(f, 'party') }]
   for (let i = 0; i < seq.length; i++) {
@@ -525,7 +600,7 @@ function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, movi
         if (!next.has(p.h)) next.set(p.h, p)
         continue
       }
-      for (const o of candidates(p.f, u, later, K, per, p.map, moving)) {
+      for (const o of candidates(p.f, u, later, K, per, (p.map ??= danger(p.f, 'party')), moving)) {
         const g = copy(p.f)
         const gu = g.byUid.get(uid)
         let given
@@ -544,8 +619,14 @@ function turnPlans (board, seq, { K, B, per, deadline, budget, before, out, movi
         out.plans++
         const h = boardHash(g)
         if (next.has(h)) continue
-        const gm = g.over ? null : danger(g, 'party')
-        next.set(h, { f: g, h, orders: [...p.orders, ...given], value: scoreOf(g, before, gm), map: gm })
+        let value = scores.get(h)
+        let gm = null
+        if (value === undefined) {
+          gm = g.over ? null : danger(g, 'party')
+          if (scores.size >= SCORES_KEPT) scores.clear()
+          scores.set(h, (value = scoreOf(g, before, gm)))
+        }
+        next.set(h, { f: g, h, orders: [...p.orders, ...given], value, map: gm })
       }
     }
     plans = [...next.values()].sort((a, b) => (Math.abs(a.value - b.value) > EPS ? b.value - a.value : 0)).slice(0, B)

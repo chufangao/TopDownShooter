@@ -1090,31 +1090,44 @@ export function endable (battle, u, t) {
 export function reach (battle, u, budget = tilesLeft(u)) {
   const out = new Map()
   if (!(budget > 0)) return out
-  const prev = new Map([[u.tile, -1]])
-  const cost = new Map([[u.tile, 0]])
+  // Each tile's steps and the tile it was stepped onto from, in scratch arrays: a tile is met in this search where its
+  // stamp is the search's.
+  if (++STAMP > 0x3fffffff) {
+    MET.fill(0)
+    STAMP = 1
+  }
+  const stamp = STAMP
+  MET[u.tile] = stamp
+  COST[u.tile] = 0
+  PREV[u.tile] = -1
   const queue = [u.tile]
   for (let i = 0; i < queue.length; i++) {
     const t = queue[i]
-    const c = cost.get(t)
+    const c = COST[t]
     if (c >= budget) continue
     const x = tileX(t)
     const y = tileY(t)
     for (const n of NEIGHBOURS[t]) {
-      if (cost.has(n) || !passes(battle, u, n)) continue
+      if (MET[n] === stamp || !passes(battle, u, n)) continue
       if (!u.flies && tileX(n) !== x && tileY(n) !== y && !(clear(battle, u, tileAt(tileX(n), y)) && clear(battle, u, tileAt(x, tileY(n))))) continue
-      cost.set(n, c + 1)
-      prev.set(n, t)
+      MET[n] = stamp
+      COST[n] = c + 1
+      PREV[n] = t
       queue.push(n)
     }
   }
   for (const t of queue) {
     if (t === u.tile || !endable(battle, u, t)) continue
     const path = []
-    for (let s = t; s !== u.tile; s = prev.get(s)) path.unshift(s)
-    out.set(t, path)
+    for (let s = t; s !== u.tile; s = PREV[s]) path.push(s)
+    out.set(t, path.reverse())
   }
   return out
 }
+const MET = new Int32Array(TILES)
+const COST = new Int32Array(TILES)
+const PREV = new Int32Array(TILES)
+let STAMP = 0
 
 // The road a foe may take this turn: its road's tiles up to `steps` ahead, stopping before the first held one or a
 // wall. → [{ tile, path }], its own tile first.
@@ -1542,23 +1555,63 @@ export function preview (battle, uid, ability, target) {
   return out
 }
 
+// A unit's copy as `{ ...u }` makes it (its own fields, in their order, the same values), by a maker of that field list
+// (a literal of those fields, many times quicker than the spread): of the last used at its place `i` in the units' list
+// (PLACE_KEPT kept a place), the one whose list its fields are; the spread itself for a list a literal cannot write (a
+// `__proto__`).
+function copyAt (u, i) {
+  const keys = Object.keys(u)
+  const at = MAKERS[i] ?? (MAKERS[i] = [])
+  for (const m of at) if (sameKeys(m.keys, keys)) return m.make(u)
+  const k = keys.join('\n')
+  let m = MAKER_BY_KEYS.get(k)
+  if (m === undefined || !sameKeys(m.keys, keys)) {
+    m = { keys, make: keys.includes('__proto__') ? (x) => ({ ...x }) : new Function('u', `return {${keys.map((f) => `${JSON.stringify(f)}: u[${JSON.stringify(f)}]`).join(', ')}}`) }
+    MAKER_BY_KEYS.set(k, m)
+  }
+  if (at.length >= PLACE_KEPT) at.pop()
+  at.unshift(m)
+  return m.make(u)
+}
+const sameKeys = (a, b) => {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+const MAKERS = []
+const MAKER_BY_KEYS = new Map()
+const PLACE_KEPT = 4
+
 // A copy of the battle to play ahead on (preview, solver.js): every unit and status copied, the index, every list of
 // units and every rule's holder pointing at the copies, and no events kept (`quiet`). The original is never touched.
 export function fork (battle, { quiet = true } = {}) {
   const map = new Map()
-  const units = battle.units.map((u) => {
-    const c = { ...u, statuses: u.statuses.map((s) => ({ ...s })), cooldowns: { ...u.cooldowns } }
+  const units = []
+  const byUid = new Map()
+  for (let i = 0; i < battle.units.length; i++) {
+    const u = battle.units[i]
+    const c = copyAt(u, i)
+    const statuses = []
+    for (const x of u.statuses) statuses.push({ ...x })
+    c.statuses = statuses
+    c.cooldowns = { ...u.cooldowns }
     map.set(u, c)
-    return c
-  })
-  for (const c of units) c.held = c.held.map((r) => ({ ...r, holder: map.get(r.holder) ?? r.holder }))
+    units.push(c)
+    byUid.set(c.uid, c)
+  }
+  // A rule's holder made the copy; a unit holding none keeps its empty list (a held list is never changed in place).
+  for (const c of units) if (c.held.length) c.held = c.held.map((r) => ({ ...r, holder: map.get(r.holder) ?? r.holder }))
   const re = (u) => (u === null ? null : map.get(u))
+  const at = []
+  const sky = []
+  for (const x of battle.at) at.push(x === null ? null : map.get(x))
+  for (const x of battle.sky) sky.push(x === null ? null : map.get(x))
   return {
     ...battle,
     units,
-    at: battle.at.map(re),
-    sky: battle.sky.map(re),
-    byUid: new Map(units.map((u) => [u.uid, u])),
+    at,
+    sky,
+    byUid,
     monarch: battle.monarch && re(battle.monarch),
     auras: battle.auras.map(re),
     phased: battle.phased.map(re),
