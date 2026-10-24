@@ -120,9 +120,11 @@ test('a captain\'s cohort are foes of their own: a fight\'s of its wave\'s other
     const band = g.slice(drawn)
     const captain = g[0]
     assert.ok(band.every((f) => g.slice(1, drawn).some((x) => x.id === f.id)), JSON.stringify(g))
-    // A sentry of the cohort stands on a sentry's post instead (spawn.js SENTRY_POSTS), off its wave's road.
+    // A sentry of the cohort stands on a sentry's post instead (spawn.js SENTRY_POSTS), off its wave's road; a room's
+    // wall among the foes' rows may move one off it to the nearest free slot (spawn.js roomGround).
     const near = (a, b) => Math.abs(Math.floor(a / COLS) - Math.floor(b / COLS)) + Math.abs((a % COLS) - (b % COLS))
-    assert.ok(band.every((f) => (unitDef(f.id).hold ? SENTRY_POSTS.includes(f.slot) : near(captain.slot, f.slot) <= 2)), JSON.stringify(g))
+    const walled = room.walls.some((t) => tileY(t) >= CAMP_ROWS + TUNING.board.gap)
+    assert.ok(band.every((f) => (unitDef(f.id).hold ? SENTRY_POSTS.includes(f.slot) : walled || near(captain.slot, f.slot) <= 2)), JSON.stringify(g))
     // In a battle each is a foe unit of its own, with its own uid and a body's HP.
     const run = createRun({ start: START_PARTY, seed: `cohort${i}` })
     const node = availableNodes(run)[0]

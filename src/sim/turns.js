@@ -103,6 +103,7 @@ function occupy (battle, u) {
   for (const t of tiles) layer[t] = u
   battle.auraReach = Math.max(battle.auraReach, u.aura?.range ?? 0)
   if (u.aura) battle.auras.push(u)
+  if (u.hold) reroute(battle)
   if (unitDef(u.id).phases) battle.phased.push(u)
   u.move = 0
   u.moved = 0
@@ -118,12 +119,13 @@ function occupy (battle, u) {
   u.mend = mendOf(u.kit)
 }
 
-// Max HP with its HP mods, read once as it takes its place (a summon's × TUNING.summon.hp; a sentry's at most sentryHp),
-// HP keeping its fraction.
+// Max HP with its HP mods, read once as it takes its place (a summon's × TUNING.summon.hp), HP keeping its fraction. A
+// sentry's at most a tier-2 soul kind's as a foe of the room would have it: sentryHp at its level, × the share its HP
+// mods (the floor's, the ladder's, the deep's) raise its kind's by.
 function fit (battle, u) {
   if (u === battle.monarch) return
   const whole = Math.round(stats(battle, u).hp * (u.summoned ? TUNING.summon.hp : 1))
-  const max = Math.max(1, u.hold ? Math.min(whole, sentryHp(u.lvl)) : whole)
+  const max = Math.max(1, u.hold ? Math.round(whole * Math.min(1, sentryHp(u.lvl) / statsOf({ id: u.id, lvl: u.lvl, tracks: u.tracks }).hp)) : whole)
   if (max === u.maxHp) return
   u.hp = Math.max(1, Math.round(u.hp * max / u.maxHp))
   u.maxHp = max
@@ -573,7 +575,11 @@ function arisen (battle, actor, corpse, shadow) {
 function vacate (battle, u) {
   const layer = layerOf(battle, u)
   for (const t of footprint(u.tile, u.size)) if (layer[t] === u) layer[t] = null
+  if (u.hold) reroute(battle)
 }
+// The Walk road made again when next read (field.js fieldOf: it runs round the sentries' tiles); a fork's own, never
+// its parent's.
+const reroute = (battle) => { battle.roads = { walk: null, air: battle.roads.air } }
 
 // A death burst (its kind's `onFall`: { range, effects }), run from where it fell on the other side within `range`, as
 // one blow (runEffect's `missed`).
@@ -1430,7 +1436,7 @@ function arrive (battle) {
   const begun = []
   for (const foe of battle.reserve.slice()) {
     if (entryTurn(foe, battle.every) > battle.turn) continue
-    const tile = entryTile(battle, foe.lane, !!unitDef(foe.id).flies)
+    const tile = entryTile(battle, foe.lane, !!unitDef(foe.id).flies, !!unitDef(foe.id).hold)
     if (tile < 0) continue
     const wave = (foe.wave ||= 1)
     battle.reserve.splice(battle.reserve.indexOf(foe), 1)

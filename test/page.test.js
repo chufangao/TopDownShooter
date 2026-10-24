@@ -162,8 +162,14 @@ test('a room\'s shape is named on its card, and its walls are drawn on the battl
   const run = createRun({ seed: 'ground-card', start: ['tomb_knight', 'bone_chanter', 'frost_sprite'] })
   const node = availableNodes(run)[0]
   Object.assign(node, { type: 'fight', foes: [{ id: 'grave_ghoul', lvl: 1, slot: 3 }], shape: 'choke', walls: shapeWalls('choke', createRng('card').stream('shape')) })
-  const text = roomTip(run, node, { reachable: true }).textContent
+  const card = roomTip(run, node, { reachable: true })
+  const text = card.textContent
   assert.ok(text.includes(`Ground: ${SHAPES.choke.name}`) && text.includes(SHAPES.choke.desc), text)
+  // Its mini grid draws every wall, the open ground's row too.
+  let drawn = 0
+  const walk = (el) => { if (el?.classList?.contains('mini-cell') && el.classList.contains('wall')) drawn++; for (const c of el?.childNodes ?? []) if (typeof c !== 'string') walk(c) }
+  walk(card)
+  assert.equal(drawn, node.walls.length)
   apply(run, { type: 'node', id: node.id })
   const b = createBattle(battleSetup(run))
   const start = b.events.find((e) => e.type === 'battle:start')

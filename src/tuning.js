@@ -217,8 +217,9 @@ export const TUNING = {
     // in each of `routePasses` passes.
     variety: { from: 3, fight: 2, elite: 3, tries: 50, routeTries: 24, routePasses: 8 },
     // Sentries (kinds marked `hold`): floor 1's rooms of rank below `from` draw none; a sentry foe stands with at most
-    // the HP of a soul kind of tier `hpTier` at its level (unit.js sentryHp). A wave's sentries take its far row, the
-    // wings first, then the middle row's wings: off the road its walkers take (spawn.js formation).
+    // the HP a soul kind of tier `hpTier` would have as a foe of its room (unit.js sentryHp, turns.js fit). Whatever its
+    // wave, a sentry takes a post: the far row, the wings first, then the middle row's wings, off its walkers' road
+    // (spawn.js formation, field.js entryTile).
     sentry: { from: 3, hpTier: 2 },
     // A battle room's shape (content.js SHAPES): floor 1's rooms before rank `from` and a boss's room none; a room whose
     // first formation holds a sentry a cover; else one drawn by `weights`, a choke only from rank `choke`. A corridor's

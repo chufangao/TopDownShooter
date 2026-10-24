@@ -632,3 +632,18 @@ test('a keyed blow\'s card says its multiple on its key; a locked foe\'s card it
     assert.ok(text.includes(`×${e.keyed.mul} on a ${STATUSES[e.keyed.status].name} Key`), `${a.id}: ${text}`)
   }
 })
+
+// A sentry foe's card shows Move 0 beside its Hold (it never walks); a soul of the kind shows its kind's Move.
+test('a sentry foe\'s card shows Move 0; a soul of its kind shows its own Move', () => {
+  // The stats' row: ATK, DEF, then Move.
+  const moveOf = (card) => {
+    let v = null
+    const walk = (el) => { if (el?.className === 'ct-stats') v = el.childNodes[2].textContent; for (const c of el?.childNodes ?? []) if (typeof c !== 'string') walk(c) }
+    walk(card)
+    return v
+  }
+  const u = makeUnit('brass_sentry', { uid: 9, lvl: 1 })
+  assert.equal(moveOf(unitCard(u, { foe: true })), '0')
+  assert.equal(moveOf(unitCard(u, {})), String(unitDef('brass_sentry').move))
+  assert.match(reachRule(u, true), new RegExp(BEHAVIOURS.hold.desc.slice(0, 20)))
+})

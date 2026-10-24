@@ -2,7 +2,7 @@
 // Pure reads of a battle, but for the roads, made the first time they are read.
 import {
   steps, tileX, tileY, tileAt, distance, distanceBetween, unitDistance, footprint, deployTile, slotAt, enemySide, monarchSlot, wallTiles,
-  TILES, LANES, DEPTH, ROWS, CENTRE_OUT, CAMP_ROWS, NEIGHBOURS
+  alive, TILES, LANES, DEPTH, ROWS, CENTRE_OUT, CAMP_ROWS, NEIGHBOURS, SENTRY_POSTS
 } from './unit.js'
 
 // Each lane's place in CENTRE_OUT: the centre first.
@@ -35,8 +35,18 @@ export function field ({ root, walls = [] }) {
   return { root, dist, arrow }
 }
 
-// A battle's Walk road, made when first read: every ground foe's, rooted at the Monarch. Your pieces are no wall to it.
-export const fieldOf = (battle) => (battle.roads.walk ??= field({ root: battle.root, walls: battle.walls }))
+// A battle's Walk road, made when first read (and again whenever a sentry takes or leaves its tile: turns.js occupy,
+// vacate): every ground foe's, rooted at the Monarch, round the walls and the tiles the living sentries hold, so no
+// walker's road runs through a sentry. A sentry's own tile has no arrow; its distance is its nearest neighbour's and one
+// (the foes' order reads it). Your pieces are no wall to it.
+export const fieldOf = (battle) => (battle.roads.walk ??= walkRoad(battle))
+function walkRoad (battle) {
+  const held = battle.units.filter((u) => u.hold && alive(u)).map((u) => u.tile)
+  if (!held.length) return field({ root: battle.root, walls: battle.walls })
+  const f = field({ root: battle.root, walls: [...battle.walls, ...held] })
+  for (const t of held) for (const n of steps(t, battle.walls)) f.dist[t] = Math.min(f.dist[t], f.dist[n] + 1)
+  return f
+}
 
 // A battle's air road, made when first read: flooded over every tile, walls and all.
 export const airOf = (battle) => (battle.roads.air ??= field({ root: battle.root, walls: [] }))
@@ -163,15 +173,32 @@ export function summonTile (battle, u, size, flies) {
   return best
 }
 
-// Where a foe enters: the open tile of the foes' rows nearest the top edge in its `lane` (a flyer's in the air), ties
-// ahead of it, then level, then the nearest lane, then the lower tile; −1 while the rows are full (it waits in reserve).
-export function entryTile (battle, lane = CENTRE_OUT[0], flies = false) {
+// Where a foe enters: a sentry (`holds`) on the first free post that cuts no walker off (none: −1, it waits); else the
+// open tile of the foes' rows nearest the top edge in its `lane` (a flyer's in the air; a walker's one its road runs on
+// from), ties ahead of it, then level, then the nearest lane, then the lower tile; −1 while none is free (it waits in
+// reserve).
+export function entryTile (battle, lane = CENTRE_OUT[0], flies = false, holds = false) {
+  // A sentry: the first free post (spawn.js formation's) it leaves every walker standing a road from; it waits while
+  // none is.
+  if (holds) {
+    const held = battle.units.filter((u) => u.hold && alive(u)).map((u) => u.tile)
+    const walkers = battle.units.filter((u) => u.side === 'foe' && alive(u) && !u.hold && !u.flies)
+    for (const slot of SENTRY_POSTS) {
+      const t = deployTile('foe', slot)
+      if (battle.at[t] !== null || battle.walls.has(t)) continue
+      const f = field({ root: battle.root, walls: [...battle.walls, ...held, t] })
+      if (walkers.every((u) => f.dist[u.tile] < Infinity)) return t
+    }
+    return -1
+  }
   const from = deployTile('foe', slotAt(ROWS - 1, lane))
   const layer = flies ? battle.sky : battle.at
+  // A walker: only where its road runs on to the Monarch (round the walls and the sentries).
+  const road = flies ? null : fieldOf(battle)
   let best = -1
   let bestK = Infinity
   for (let t = tileAt(0, DEPTH - ROWS); t < TILES; t++) {
-    if (layer[t] !== null || (!flies && battle.walls.has(t))) continue
+    if (layer[t] !== null || (!flies && battle.walls.has(t)) || (road && !(road.dist[t] < Infinity))) continue
     const dy = tileY(from) - tileY(t)
     const k = distance(t, from) * 1e4 + (dy > 0 ? 0 : dy === 0 ? 1 : 2) * 1e3 + Math.abs(tileX(t) - tileX(from)) * 100 + t / TILES
     if (k < bestK) { best = t; bestK = k }

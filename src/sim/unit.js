@@ -76,14 +76,16 @@ export const auraOf = (u) => tiersOf(u).reduce((aura, t) => t.aura ?? aura, unit
 const baseMove = (id) => unitDef(id).move
 // How a foe of its kind moves: Hold for a kind marked `hold` (a sentry), else its `behaviour` (Walk by default).
 export const behaviourOf = (u) => (unitDef(u.id).hold ? 'hold' : unitDef(u.id).behaviour ?? 'walk')
-// The most HP a sentry stands with as a foe at level `lvl` (turns.js fit): the median of the soul kinds of tier
-// TUNING.spawn.sentry.hpTier at that level, so the walk to it is the cost, not the fight.
+// The most HP a sentry stands with at level `lvl`, before a room's HP mods (turns.js fit scales it by them): the median
+// of the soul kinds of tier TUNING.spawn.sentry.hpTier at that level, so the walk to it is the cost, not the fight.
 export function sentryHp (lvl) {
-  let hp = SENTRY_HP.get(lvl)
+  const tier = TUNING.spawn.sentry.hpTier
+  const key = `${tier}|${lvl}`
+  let hp = SENTRY_HP.get(key)
   if (hp === undefined) {
-    const list = UNIT_LIST.filter((d) => d.tier === TUNING.spawn.sentry.hpTier && d.spawn && !d.boss).map((d) => baseStats(d.id, lvl).hp).sort((a, b) => a - b)
+    const list = UNIT_LIST.filter((d) => d.tier === tier && d.spawn && !d.boss).map((d) => baseStats(d.id, lvl).hp).sort((a, b) => a - b)
     hp = list.length ? list[Math.floor((list.length - 1) / 2)] : Infinity
-    SENTRY_HP.set(lvl, hp)
+    SENTRY_HP.set(key, hp)
   }
   return hp
 }
@@ -246,6 +248,11 @@ export const isBlow = (a) => !isAllyShape(a.shape) && !a.claim
 
 // Columns from the middle lane outward: where a formation fills first.
 export const CENTRE_OUT = Array.from({ length: COLS }, (_, i) => (COLS - 1) / 2 + (i % 2 ? -1 : 1) * Math.ceil(i / 2))
+// A sentry's posts in a formation, in order: the far row from the wings in, then the middle row's wings: off the road
+// a wave's walkers take, so none is held behind one. A sentry of a later wave enters on the first free one (field.js
+// entryTile).
+const WINGS_IN = CENTRE_OUT.slice().reverse()
+export const SENTRY_POSTS = [...WINGS_IN.map((c) => slotAt(ROWS - 1, c)), ...WINGS_IN.slice(0, COLS - 3).map((c) => slotAt(ROWS - 2, c))]
 
 export const isWall = (camp, slot) => campDef(camp).map[rowOf(slot)][colOf(slot)] === '#'
 export const campOpen = (camp, slot) => Number.isInteger(slot) && slot >= 0 && slot < CAMP_SLOTS && !isWall(camp, slot)

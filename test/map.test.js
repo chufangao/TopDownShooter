@@ -2,9 +2,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
 import { drawRoom, roomThreats, SENTRY_POSTS, groundOpen, shapeWalls } from '../src/sim/spawn.js'
-import { rowOf, colOf, deployTile, tileY, tileX, tileAt, wallTiles, monarchSlot, CAMP_ROWS, DEPTH, LANES, ROWS, TILES } from '../src/sim/unit.js'
+import { rowOf, colOf, deployTile, tileY, tileX, tileAt, wallTiles, monarchSlot, makeUnit, alive, CAMP_ROWS, DEPTH, LANES, ROWS, TILES } from '../src/sim/unit.js'
 import { unitDef, SHAPES, CAMP_LIST } from '../src/content.js'
-import { field } from '../src/sim/field.js'
+import { field, fieldOf } from '../src/sim/field.js'
+import { createBattle, order } from '../src/sim/turns.js'
+import { foeUnits } from '../src/sim/spawn.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 
@@ -108,7 +110,7 @@ test('sentries stand on their posts off the walkers\' road, never in floor 1\'s 
 test('a room\'s ground: shapes by rank and sentries, walls off the camp, the top edge and every foe, every road open in every camp', () => {
   const sh = TUNING.spawn.shape
   const seen = new Set()
-  const roads = (walls) => CAMP_LIST.map((camp) => field({ root: deployTile('party', monarchSlot(camp.id)), walls: [...wallTiles(camp.id), ...walls] }))
+  const roads = (walls, floor) => CAMP_LIST.filter((c) => c.floor === floor).map((camp) => field({ root: deployTile('party', monarchSlot(camp.id)), walls: [...wallTiles(camp.id), ...walls] }))
   for (let i = 0; i < 40; i++) {
     for (const floor of [1, 2, 3]) {
       const map = generateFloor({ seed: 'ground' + i, floor, boss: true })
@@ -122,7 +124,10 @@ test('a room\'s ground: shapes by rank and sentries, walls off the camp, the top
         else if (sentries.length) assert.ok(room.shape === 'cover' || room.shape === 'none', where)
         if (room.shape === 'choke') assert.ok(node.rank >= sh.choke, where)
         if (room.shape === 'none') assert.deepEqual(room.walls, [], where)
-        if (room.shape === 'cover') assert.ok(room.walls.every((t) => sentries.some((f) => deployTile('foe', f.slot) === t + LANES)), `${where}: a wall in front of a sentry`)
+        if (room.shape === 'cover') {
+          assert.ok(room.walls.every((t) => sentries.some((f) => deployTile('foe', f.slot) === t + LANES)), `${where}: a wall in front of a sentry`)
+          assert.ok(sentries.every((f) => room.walls.includes(deployTile('foe', f.slot) - LANES)), `${where}: every sentry covered, cohorts and all`)
+        }
         // Off the camp and the top edge, and off every tile a foe of the first formation stands on.
         assert.ok(room.walls.every((t) => tileY(t) >= CAMP_ROWS && tileY(t) < DEPTH - 1), where)
         const starts = new Set(room.foes.map((f) => deployTile('foe', f.slot)))
@@ -130,7 +135,7 @@ test('a room\'s ground: shapes by rank and sentries, walls off the camp, the top
         // Every road open: each foe's tile, each sentry post and each entry on the top edge reaches the Monarch.
         const shut = new Set(room.walls)
         const must = [...starts, ...SENTRY_POSTS.map((slot) => deployTile('foe', slot)), ...[...Array(LANES).keys()].map((x) => tileAt(x, DEPTH - 1))].filter((t) => !shut.has(t))
-        for (const f of roads(room.walls)) assert.ok(must.every((t) => f.dist[t] < Infinity), `${where}: a road shut`)
+        for (const f of roads(room.walls, floor)) assert.ok(must.every((t) => f.dist[t] < Infinity), `${where}: a road shut`)
       }
     }
   }
@@ -141,16 +146,60 @@ test('a room\'s ground: shapes by rank and sentries, walls off the camp, the top
   const rng = createRng('shapes').stream('s')
   for (let k = 0; k < 20; k++) {
     const choke = shapeWalls('choke', rng)
-    const gap = [...Array(LANES).keys()].find((x) => !choke.includes(tileAt(x, CAMP_ROWS)))
-    assert.ok(choke.length === LANES - 1 && choke.every((t) => tileY(t) === CAMP_ROWS) && gap > 0 && gap < LANES - 1 && groundOpen(choke))
+    const gap = [...Array(LANES).keys()].filter((x) => !choke.includes(tileAt(x, CAMP_ROWS)))
+    assert.ok(choke.length === LANES - 2 && choke.every((t) => tileY(t) === CAMP_ROWS) && gap.length === 2 && gap[1] === gap[0] + 1 && gap[0] > 0 && gap[1] < LANES - 1)
+    assert.ok(groundOpen(choke, ['stones']), 'a 2×2 passes a choke\'s gap')
     const corridor = shapeWalls('corridor', rng)
     const sides = [...new Set(corridor.map(tileX))].sort((a, b) => a - b)
-    assert.ok(sides.length === 2 && sides[1] - sides[0] === 2 && corridor.length === 2 * TUNING.spawn.shape.corridor && groundOpen(corridor))
+    assert.ok(sides.length === 2 && sides[1] - sides[0] === 3 && corridor.length === 2 * TUNING.spawn.shape.corridor && groundOpen(corridor, ['stones']))
   }
   const pillars = shapeWalls('pillars', rng)
-  assert.ok(pillars.length === 4 && pillars.every((t) => tileX(t) > 0 && tileX(t) < LANES - 1) && groundOpen(pillars))
+  assert.ok(pillars.length === 4 && pillars.every((t) => tileX(t) > 0 && tileX(t) < LANES - 1) && groundOpen(pillars, ['stones']))
   assert.equal(groundOpen(shapeWalls('cover', rng, SENTRY_POSTS.slice(0, LANES))), false)
+  // A 2×2 piece of yours must still reach in melee what it reached without the walls: a one-wide gap, or six sentries
+  // covered side by side, are refused though every road stays open.
+  const narrow = [0, 1, 2, 4, 5, 6].map((x) => tileAt(x, CAMP_ROWS))
+  assert.ok(field({ root: deployTile('party', monarchSlot('stones')), walls: [...wallTiles('stones'), ...narrow] }).dist[tileAt(3, DEPTH - 1)] < Infinity)
+  assert.equal(groundOpen(narrow, ['stones']), false, 'a one-wide gap')
+  assert.equal(groundOpen(shapeWalls('cover', rng, SENTRY_POSTS.slice(0, 6)), ['stones']), false, 'six covers side by side')
   assert.equal(groundOpen([tileAt(3, 2)]), false, 'never in the camp')
   assert.equal(groundOpen([...Array(LANES).keys()].map((x) => tileAt(x, CAMP_ROWS))), false, 'never a wall with no gap')
   assert.ok(TILES > 0 && ROWS > 0)
+})
+
+// A sentry of any wave stands on a post, and no walker's road runs through a sentry: the later waves' entries too (an
+// immortal party, End Turn after End Turn until every wave is in), floors 1–3, in each floor's camps.
+test('every wave\'s sentries enter on posts, and no walker\'s road ever runs through a sentry, so none stands frozen', () => {
+  let entered = 0
+  for (const floor of [1, 2, 3]) {
+    const camps = CAMP_LIST.filter((c) => c.floor === floor).map((c) => c.id)
+    for (let i = 0; i < 30; i++) {
+      const camp = camps[i % camps.length]
+      const map = generateFloor({ seed: 'posts-in' + i, floor, boss: true })
+      for (const node of map.nodes.filter((n) => ['fight', 'elite', 'siege'].includes(n.type))) {
+        const room = drawRoom('posts-in' + i, floor, node, { camp })
+        if (!room.waves || ![room.foes, ...room.waves.map((w) => w.foes)].flat().some((f) => unitDef(f.id).hold)) continue
+        const foes = foeUnits(room, 100)
+        const b = createBattle({
+          party: [{ ...makeUnit('monarch', { uid: 0, lvl: 1 }), slot: monarchSlot(camp) }, { ...makeUnit('hive_warden', { uid: 1, lvl: 1 }), slot: [...Array(49).keys()].find((c) => c !== monarchSlot(camp) && !wallTiles(camp).includes(deployTile('party', c)) && c >= 42) }],
+          foes: foes.filter((f) => !f.wave), reserve: foes.filter((f) => f.wave), walls: [...wallTiles(camp), ...room.walls], floor
+        })
+        for (const u of b.units.filter((x) => x.side === 'party')) u.hp = u.maxHp = 1e9
+        const posts = new Set(SENTRY_POSTS.map((slot) => deployTile('foe', slot)))
+        for (let k = 0; k < 4 * TUNING.spawn.waves.every * (room.waves.length + 1) && !b.over; k++) {
+          order(b, { type: 'end' })
+          const held = b.units.filter((u) => u.hold && alive(u))
+          const shut = new Set(held.map((u) => u.tile))
+          for (const u of held) assert.ok(posts.has(u.tile), `posts-in${i} floor ${floor} ${node.id}: ${u.id} off its post at ${u.tile}`)
+          const road = fieldOf(b)
+          for (const u of b.units.filter((x) => x.side === 'foe' && alive(x) && !x.hold && !x.flies)) {
+            assert.ok(road.dist[u.tile] < Infinity, `posts-in${i} floor ${floor} ${node.id}: ${u.id} cut off`)
+            for (let t = u.tile; t >= 0 && t !== b.root; t = road.arrow[t]) assert.ok(t === u.tile || !shut.has(t), `posts-in${i} floor ${floor} ${node.id}: ${u.id}'s road through a sentry`)
+          }
+        }
+        entered += b.units.filter((u) => u.hold && u.wave).length
+      }
+    }
+  }
+  assert.ok(entered > 0, 'later waves bring sentries')
 })

@@ -718,7 +718,7 @@ function openFloor (run) {
   const boss = bossFor(s.seed, s.floor, army)
   for (const n of s.map.nodes) {
     if (!BATTLE_NODES.includes(n.type)) continue
-    Object.assign(n, drawRoom(s.seed, s.floor, n, { ascension: s.ascension, boss: boss?.id }))
+    Object.assign(n, drawRoom(s.seed, s.floor, n, { ascension: s.ascension, boss: boss?.id, camp: s.camp }))
     if (n.type === 'boss') n.lean = boss.lean
   }
   varyRoutes(s)

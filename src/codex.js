@@ -7,7 +7,7 @@ import {
 } from './content.js'
 import {
   statsOf, activeSynergies, synergyCounts, synergyWeight, COLS, ROWS, slotAt, rangeOf, isAllyShape, CAMP_ROWS, abilitiesOf, auraOf, tiersOf,
-  tileX, tileY, DEPTH, distance, deployTile, behaviourOf, summonsOf, summonedOf, sizeOf, tracksOf, reachOf, meleeOnly, isBlow, onField
+  tileX, tileY, tileAt, DEPTH, distance, deployTile, behaviourOf, summonsOf, summonedOf, sizeOf, tracksOf, reachOf, meleeOnly, isBlow, onField
 } from './sim/unit.js'
 import {
   foeMods, fielded, souls, monarchOf, fieldCap, baseField, commandOf, monarchHp, ariseOf, ariseHeld, isMonarch, depthOf, rosterCap,
@@ -488,11 +488,12 @@ export function unitCard (u, { mods = [], stats = null, statuses = null, notes =
       // The Monarch has no level: nothing is bought for it.
       !d.monarch && h('span', { class: 'ct-lv dim' }, `Lv ${u.lvl}`),
       h('span', { class: 'ct-hp' }, hpBar(shown, maxHp), h('span', null, shown <= 0 ? 'fallen' : `${shown}/${maxHp}`))),
-    // The stats as icons. The Monarch never strikes nor moves: its ATK and Move would mean nothing.
+    // The stats as icons. The Monarch never strikes nor moves: its ATK and Move would mean nothing. A sentry foe holds
+    // its tile: Move 0 (its soul walks by its kind's).
     h('div', { class: 'ct-stats' },
       !d.monarch && stat('atk', 'ATK', Math.round(st.atk)),
       stat('def', 'DEF', Math.round(st.def)),
-      !d.monarch && stat('move', 'Move', Math.round(st.move)),
+      !d.monarch && stat('move', 'Move', foe && d.hold ? 0 : Math.round(st.move)),
       soul && relicSlot(u, run)),
     h('div', { class: 'ct-live' },
       h('span', { class: 'ct-lead' }, lead, statuses?.length > 0 && statuses.slice(0, 2).map((x) => [' · ', kw(x.id, statusDef(x.id).name)]), statuses?.length > 2 && ` +${statuses.length - 2}`),
@@ -661,6 +662,11 @@ function miniGrid (foes, { small = false, walls = [] } = {}) {
       cells.push(h('span', { class: 'mini-cell' + (f ? ' on' : walled.has(deployTile('foe', slotAt(r, c))) ? ' wall' : '') }, f && portrait(f.id, small ? 16 : 24)))
     }
     rows.push(h('div', { class: 'mini-row' }, cells))
+  }
+  // The open ground below the foes' rows, where a room walls any of it.
+  for (let y = DEPTH - ROWS - 1; y >= CAMP_ROWS; y--) {
+    if (![...walled].some((t) => tileY(t) === y)) continue
+    rows.push(h('div', { class: 'mini-row ground' }, Array.from({ length: COLS }, (_, c) => h('span', { class: 'mini-cell' + (walled.has(tileAt(c, y)) ? ' wall' : ' open') }))))
   }
   return h('div', { class: 'mini-grid' + (small ? ' small' : '') }, rows, !small && h('div', { class: 'mini-label dim' }, 'front row ↓'))
 }

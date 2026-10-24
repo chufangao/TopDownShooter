@@ -767,11 +767,12 @@ test('under basic play every move is a foe\'s, along its road onto a tile free i
   let flights = 0
   for (let i = 0; i < 40; i++) {
     const b = fresh('walk' + i, 1 + (i % 4), { monarch: i % 3 === 0 })
-    const walk = fieldOf(b)
     const air = airOf(b)
-    // Without a Monarch (no seat to take) the foes may end their roads with nothing in reach: a bounded watch.
+    // Without a Monarch (no seat to take) the foes may end their roads with nothing in reach: a bounded watch. The Walk
+    // road runs round the living sentries, so it is read as the turn began and as it ended (one may fall in it).
     while (!b.over && b.turn <= 100) {
       const before = new Map(b.units.map((u) => [u.uid, u.tile]))
+      const was = fieldOf(b)
       for (const e of turns(b)) {
         if (e.type !== 'move') continue
         const u = b.byUid.get(e.actor)
@@ -779,7 +780,8 @@ test('under basic play every move is a foe\'s, along its road onto a tile free i
         assert.equal(u.side, 'foe', `${where}: one of yours moved`)
         let t = e.from
         for (const s of e.path) {
-          assert.equal(s, (u.flies ? air : walk).arrow[t], `${where}: off its road`)
+          if (u.flies) assert.equal(s, air.arrow[t], `${where}: off its road`)
+          else assert.ok([was, fieldOf(b)].some((r) => r.arrow[t] === s), `${where}: off its road`)
           if (!u.flies) assert.ok(steps(t, b.walls).includes(s), `${where}: into or past a wall`)
           t = s
         }

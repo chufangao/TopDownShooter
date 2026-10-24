@@ -127,6 +127,12 @@ test('the prep sees the room\'s walls: on every candidate\'s board, never under 
   for (const u of board.units.filter((x) => x.side === 'party' && x.move > 0)) assert.ok([...reach(board, u).keys()].every((t) => !board.walls.has(t)))
   const map = danger(board, 'party')
   assert.ok(map.ground.some((v) => v > 0), 'the foes threaten something')
-  const r = bestFormation(run, [{ goal: all }], { cap: 1 })
-  assert.equal(r.index, 0)
+  // The prep weighs two candidates on the walled board: the whole party before the Monarch alone, and the one it fields
+  // stands on no wall.
+  const { alone } = prepRun('formation-walls')
+  const cands = [{ goal: alone }, { goal: all }]
+  const r = bestFormation(run, cands, { cap: 2 })
+  assert.deepEqual([r.stats.length, r.index], [2, 1])
+  const fielded = openingOf(run, cands[r.index].goal)
+  assert.ok(fielded.units.every((u) => (footprint(u.tile, u.size) ?? [u.tile]).every((t) => !fielded.walls.has(t))))
 })

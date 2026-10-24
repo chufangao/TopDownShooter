@@ -95,7 +95,8 @@ function deathPanel (s, battle) {
   const m = monarchOf(s)
   const mine = m.slot >= 0 ? deployTile('party', m.slot) : null
   const from = s.death.reason === 'monarch' && s.death.uid !== m.uid && !d.tick ? s.death.from : null
-  const walls = new Set(wallTiles(s.camp))
+  // The battle's walls, the room's with the camp's (the camp's alone where no battle is kept).
+  const walls = new Set(battle?.walls ?? wallTiles(s.camp))
   // On its side as the battle draws it: their side on the left, your camp on the right, the top lane at the top.
   const at = (t) => [DEPTH - 1 - tileY(t) + 0.5, LANES - 1 - tileX(t) + 0.5]
   const cells = []

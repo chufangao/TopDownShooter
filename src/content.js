@@ -2513,9 +2513,9 @@ export const CAMP_LIST = [
 // over them; the roads bend round them. The tiles each draws are spawn.js shapeWalls'; which room gets which, TUNING's.
 export const SHAPES = {
   none: { name: 'Open ground', desc: 'No wall stands between the camp and the foes.' },
-  choke: { name: 'Choke', desc: 'A wall across the open ground with one gap: every road on the ground runs through it.' },
+  choke: { name: 'Choke', desc: 'A wall across the open ground with one gap, two lanes wide: every road on the ground runs through it.' },
   pillars: { name: 'Pillars', desc: 'Two pillars on the open ground, the roads bending round them.' },
-  corridor: { name: 'Corridor', desc: 'Two walls down a lane, from the open ground into the foes\' rows.' },
+  corridor: { name: 'Corridor', desc: 'Two walls down either side of two lanes, from the open ground into the foes\' rows.' },
   cover: { name: 'Cover', desc: 'A wall ahead of each sentry: a piece goes round it to strike one close; shots cross it.' }
 }
 

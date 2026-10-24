@@ -13,7 +13,7 @@ import { policy, LEVELS } from '../src/sim/autoplay.js'
 import { foeTurn, danger, options, threatOf, stepsOf } from '../src/sim/foe.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
-import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
+import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef, CAMP_LIST } from '../src/content.js'
 import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT, TILES, LANES, distance, sentryHp, deployTile } from '../src/sim/unit.js'
 import { SENTRY_POSTS } from '../src/sim/spawn.js'
 import { sturdy, grant, tuned, FLAT_ROOMS } from './tuned.js'
@@ -605,12 +605,21 @@ test('a sentry holds its tile: never a step, out of patience too; it strikes fro
   unit(slain, 50).hp = 1
   turns(slain)
   assert.deepEqual([alive(unit(slain, 50)), slain.over, slain.winner], [false, true, 'party'])
-  // Its HP at most a tier-2 soul's at its level, however the foes' HP mods swell it; a walker's is not capped.
-  const swollen = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('brass_sentry', 50, 'foe', 0, 10, 5), on('grave_ghoul', 51, 'foe', 6, 10, 5)],
-    { foeMods: [{ path: 'hp', op: 'mul', v: 4 }] })
-  assert.equal(unit(swollen, 50).maxHp, sentryHp(5))
-  assert.ok(unit(swollen, 50).maxHp < 4 * baseStats('brass_sentry', 5).hp)
-  assert.equal(unit(swollen, 51).maxHp, Math.round(4 * baseStats('grave_ghoul', 5).hp))
+  // Its HP at most a soul kind's of the cap's tier as a foe of the room would have it: the cap scales with the foes' HP
+  // mods, so it cuts the same share at every rung (here the tier-1 kinds' median, below the Sentry's own); a walker's is
+  // not capped.
+  tuned({ spawn: { sentry: { ...TUNING.spawn.sentry, hpTier: 1 } } }, () => {
+    const share = Math.min(1, sentryHp(5) / baseStats('brass_sentry', 5).hp)
+    assert.ok(share < 1, 'the cap cuts')
+    for (const v of [1, 4]) {
+      const b = scene([on('monarch', 0, 'party', 3, 0), on('tomb_knight', 1, 'party', 3, 3), on('brass_sentry', 50, 'foe', 0, 10, 5), on('grave_ghoul', 51, 'foe', 6, 10, 5)],
+        { foeMods: [{ path: 'hp', op: 'mul', v }] })
+      assert.equal(unit(b, 50).maxHp, Math.round(Math.round(v * baseStats('brass_sentry', 5).hp) * share), `×${v}`)
+      assert.equal(unit(b, 51).maxHp, Math.round(v * baseStats('grave_ghoul', 5).hp))
+    }
+  })
+  // At the shipped tier the Sentries stand under the cap: whole.
+  assert.ok(['brass_sentry', 'hive_spitter', 'thornling'].every((id) => baseStats(id, 5).hp <= sentryHp(5)))
   // A soul of the kind walks by its Move.
   const mine = scene([on('monarch', 0, 'party', 3, 0), on('brass_sentry', 3, 'party', 3, 3, 1), on('grave_ghoul', 51, 'foe', 6, 10, 1)])
   assert.equal(unit(mine, 3).move, UNITS.brass_sentry.move)
@@ -682,5 +691,20 @@ test('a room\'s walls in battle: the ground roads through a choke\'s gap, shots 
     }
   }
   assert.ok(covers > 0, 'cover rooms come')
-  assert.ok(sh.shape.from >= 1)
+  // Floors 1–3, cohorts and all: every sentry of a cover room's first formation has its wall in front.
+  let more = 0
+  for (const floor of [1, 2, 3]) {
+    const camps = CAMP_LIST.filter((c) => c.floor === floor).map((c) => c.id)
+    for (let i = 0; i < 40; i++) {
+      const map = generateFloor({ seed: 'covers' + i, floor, boss: true })
+      for (const node of map.nodes.filter((n) => ['fight', 'elite', 'siege'].includes(n.type))) {
+        const room = drawRoom('covers' + i, floor, node, { camp: camps[i % camps.length] })
+        if (room.shape !== 'cover') continue
+        more++
+        const walls = new Set(room.walls)
+        for (const f of room.foes.filter((x) => UNITS[x.id].hold)) assert.ok(walls.has(deployTile('foe', f.slot) - LANES), `covers${i} floor ${floor} ${node.id}: ${f.id} at ${f.slot} uncovered`)
+      }
+    }
+  }
+  assert.ok(more > 0 && sh.shape.from >= 1)
 })
