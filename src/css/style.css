@@ -30,12 +30,13 @@
        essence teal · foe red (also harm: a loss, low HP, too little essence) · plan blue (a move's tiles; synergies,
        rules and buffs share it, worn as filled tints where the plan is outlines) · Monarch deep gold · relic
        orange, its four tiers (RELIC_TIERS) a ramp: common parchment, uncommon the relic orange, rare amber, legendary
-       lilac · warn amber-yellow (warnings, the threat scale) · ossuary bone · domain green
+       lilac · warn amber-yellow (warnings, the threat scale) · key pale gold (a key, a lock's hint: the board's
+       scene.js KEY) · ossuary bone · domain green
        · shadow pink (Arise) · path cyan (a second path pale cyan, 12 apart)
      Bronze (soldier) frames a soul's portrait in the lists; steel (knight)
      numbers a card's tiers. */
   --c-essence: #5ef0c0; --c-essence2: #8ff7d6; --c-foe2: #ff8596; --c-monarch: #c08a00; --c-plan: #3697ff; --c-foe: #e0566a;
-  --c-relic: #ff7f45; --c-warn: #ffdc4a; --c-ossuary: #b8ae9e; --c-domain: #84d21a;
+  --c-relic: #ff7f45; --c-warn: #ffdc4a; --c-key: #ffe08a; --c-ossuary: #b8ae9e; --c-domain: #84d21a;
   --c-shadow: #fb9ad5; --c-path: #3bd3ea; --c-path2: #b3f3f9; --c-synergy: var(--c-plan);
   --c-soldier: #b07040; --c-knight: #b4bfd0;
   --c-common: #e0c2a8; --c-uncommon: #ff7f45; --c-rare: #ffb02e; --c-legendary: #ab94fc;
@@ -308,7 +309,15 @@ b { font-weight: 600; color: var(--bright); }
   position: absolute; top: -8px; left: -10px; display: flex; gap: 1px; padding: 2px 3px; pointer-events: none; rotate: -6deg;
   background: #2e1c2a; color: var(--c-warn); border: 2px solid var(--ink); border-radius: 9px 7px 10px 6px; box-shadow: 1px 2px 0 var(--ink);
 }
+/* A room ahead with a lock nothing fielded keys: a hint, not a warning (a lock is a slog unkeyed, never a wall), so
+   a quiet tag at the medal's left edge (clear of the warnings above it and the name below), the key's gold on the
+   panel's plate. */
+.node .keyhint {
+  position: absolute; top: 18px; left: -14px; display: flex; gap: 1px; padding: 1px 2px; pointer-events: none; rotate: 5deg;
+  background: var(--panel); color: var(--c-key); border: 2px solid var(--ink); border-radius: 7px 9px 6px 10px; box-shadow: 1px 2px 0 var(--ink);
+}
 .rt-unmet { display: flex; align-items: center; gap: 6px; }
+.rt-key { color: var(--c-key); }
 /* A room you can't reach yet is dimmed, never greyed out: its icon, and its ring in its room's colour (the
    rooms' own tokens), still tell altar, shop and elite apart at a glance. */
 .node.t-altar { --room: var(--c-ossuary); }

@@ -351,7 +351,7 @@ export function reachRule (u, foe = false, st = null) {
   return `${BEHAVIOURS[behaviourOf(u)].desc}${line}${d.lock ? ` ${lockText(d.lock)}` : ''}${way}`
 }
 // A kind's lock, as a foe's card says it.
-const lockText = (lock) => `Locked: takes ${pct(lock.share)} of all damage but a status's tick; all of it on a ${lock.keys.map((k) => statusDef(k).name).join(' or ')} Key laid this turn by another of yours.`
+const lockText = (lock) => `Locked: takes ${pct(lock.share)} of all damage but a status's tick; all of it on a ${lock.keys.map((k) => statusDef(k).name).join(' or ')} Key laid this turn by another of yours. A slog unkeyed, never a wall.`
 
 // ── the enemy ────────────────────────────────────────────────────────────────────────────────────
 
@@ -702,9 +702,9 @@ export function roomTip (run, node, { reachable, enter = false }) {
 export const roomSynergies = (node) => [...new Set([node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flatMap((foes) => synergyNames(activeSynergies(foes))))]
 
 // What battle room `node` asks that `army` (the living fielded souls) cannot give, for the Map's marks: each threat
-// type none of it answers, in THREATS' order; then each locked kind none of it lays a key to ('lock:<kind>'), or whose
-// key it lays as one piece alone, its summons counted as unkeyed counts them ('pair:<kind>': a key and a blow are two
-// pieces' acts).
+// type none of it answers, in THREATS' order (a warning); then each locked kind none of it lays a key to
+// ('lock:<kind>'), or whose key it lays as one piece alone, its summons counted as unkeyed counts them ('pair:<kind>':
+// a key and a blow are two pieces' acts), each a hint (a lock is a slog unkeyed, never a wall).
 export function roomLacks (node, army) {
   if (!BATTLE_NODES.includes(node.type)) return []
   const has = roomThreats(node)

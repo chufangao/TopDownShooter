@@ -45,6 +45,7 @@ const m = (path, op, v, pos) => (pos ? { path, op, v, pos } : { path, op, v })
 //   `temper`, `threats`, `behaviour`: how it thinks, what it does to a Monarch, how it comes down the roads as a foe
 //   `fused`: a fusion's result, never spawned; `trineOf`: a kind's written trine; `trine`: its made trine's name
 //   `summons`: the kind its summon tiers call up; `rule`: a boss's or a capstone's rule; `art`: borrowed pictures
+//   `lock`: as a foe, it takes `share` of all damage but a status's tick unless one of its `keys` is on it as a key
 //   a boss: `phases` (HP shares granting a status), `court` (`kin`, `role` or `kinds`; `front`), `last` or `floors`, `answers`
 
 export const UNIT_LIST = [
@@ -304,7 +305,7 @@ export const UNIT_LIST = [
     kin: 'fae',
     role: 'warden',
     tier: 2,
-    lock: { keys: ['burning'], share: 0.35 },
+    lock: { keys: ['burning'], share: 0.6 },
     base: { hp: 104, atk: 12, def: 12 },
     growth: { hp: 12, atk: 1.6, def: 1.1 },
     abilities: ['barkskin', 'mend', 'strike'],
@@ -364,7 +365,7 @@ export const UNIT_LIST = [
     kin: 'construct',
     role: 'vanguard',
     tier: 3,
-    lock: { keys: ['brittle'], share: 0.3 },
+    lock: { keys: ['brittle'], share: 0.6 },
     base: { hp: 220, atk: 17, def: 30 },
     growth: { hp: 22, atk: 2.2, def: 2.4 },
     abilities: ['quake', 'strike'],
@@ -394,7 +395,7 @@ export const UNIT_LIST = [
     kin: 'undead',
     role: 'skirmisher',
     tier: 4,
-    lock: { keys: ['hexed'], share: 0.3 },
+    lock: { keys: ['hexed'], share: 0.6 },
     base: { hp: 128, atk: 27, def: 13 },
     growth: { hp: 14, atk: 3.4, def: 1.1 },
     abilities: ['wither', 'strike'],
@@ -424,7 +425,7 @@ export const UNIT_LIST = [
     kin: 'drake',
     role: 'ranger',
     tier: 4,
-    lock: { keys: ['burning'], share: 0.3 },
+    lock: { keys: ['burning'], share: 0.6 },
     base: { hp: 190, atk: 29, def: 16 },
     growth: { hp: 20, atk: 3.4, def: 1.5 },
     abilities: ['glacial_breath', 'strike'],
@@ -514,7 +515,7 @@ export const UNIT_LIST = [
     kin: 'undead',
     role: 'vanguard',
     tier: 2,
-    lock: { keys: ['burning'], share: 0.3 },
+    lock: { keys: ['burning'], share: 0.6 },
     base: { hp: 150, atk: 12, def: 10 },
     growth: { hp: 16, atk: 1.6, def: 0.9 },
     abilities: ['bile', 'strike'],
@@ -545,7 +546,7 @@ export const UNIT_LIST = [
     kin: 'fae',
     role: 'channeler',
     tier: 3,
-    lock: { keys: ['brittle', 'burning'], share: 0.3 },
+    lock: { keys: ['brittle', 'burning'], share: 0.6 },
     base: { hp: 88, atk: 20, def: 8 },
     growth: { hp: 10, atk: 2.7, def: 0.7 },
     abilities: ['hex', 'strike'],
@@ -636,6 +637,7 @@ export const UNIT_LIST = [
     kin: 'construct',
     role: 'ranger',
     tier: 1,
+    lock: { keys: ['brittle'], share: 0.75 },
     base: { hp: 76, atk: 10, def: 10 },
     growth: { hp: 8, atk: 1.6, def: 0.9 },
     abilities: ['brass_bolt'],
@@ -1088,7 +1090,7 @@ export const UNIT_LIST = [
     kin: 'undead',
     role: 'vanguard',
     tier: 5,
-    lock: { keys: ['brittle', 'burning', 'hexed'], share: 0.3 },
+    lock: { keys: ['brittle', 'burning', 'hexed'], share: 0.6 },
     boss: true,
     last: true,
     base: { hp: 2800, atk: 65, def: 30 },
@@ -1115,7 +1117,7 @@ export const UNIT_LIST = [
     kin: 'fae',
     role: 'channeler',
     tier: 4,
-    lock: { keys: ['brittle', 'burning'], share: 0.3 },
+    lock: { keys: ['brittle', 'burning'], share: 0.6 },
     boss: true,
     floors: [1, 2],
     answers: 'casters',
@@ -1139,7 +1141,7 @@ export const UNIT_LIST = [
     kin: 'insect',
     role: 'warden',
     tier: 4,
-    lock: { keys: ['brittle', 'burning'], share: 0.3 },
+    lock: { keys: ['brittle', 'burning'], share: 0.6 },
     boss: true,
     floors: [1, 2],
     answers: 'statuses',
@@ -1164,7 +1166,7 @@ export const UNIT_LIST = [
     kin: 'undead',
     role: 'ranger',
     tier: 4,
-    lock: { keys: ['brittle', 'burning'], share: 0.3 },
+    lock: { keys: ['brittle', 'burning'], share: 0.6 },
     boss: true,
     floors: [1, 2],
     answers: 'shooters',
@@ -1189,7 +1191,7 @@ export const UNIT_LIST = [
     kin: 'insect',
     role: 'skirmisher',
     tier: 4,
-    lock: { keys: ['brittle', 'burning'], share: 0.3 },
+    lock: { keys: ['brittle', 'burning'], share: 0.6 },
     boss: true,
     floors: [1, 2],
     answers: 'walls',
@@ -1238,8 +1240,8 @@ const ABILITY_LIST = [
     anim: 'cast_beam',
     effects: [{ op: 'apply_status', status: 'claimed' }]
   },
-  { id: 'strike', name: 'Strike', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 2 } }] },
-  { id: 'cleave', name: 'Cleave', shape: 'row', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 22, keyed: { status: 'brittle', mul: 2 } }] },
+  { id: 'strike', name: 'Strike', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
+  { id: 'cleave', name: 'Cleave', shape: 'row', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 22, keyed: { status: 'brittle', mul: 3 } }] },
   {
     id: 'marrow_bolt',
     name: 'Marrow Bolt',
@@ -1253,8 +1255,8 @@ const ABILITY_LIST = [
     ]
   },
   { id: 'dirge', name: 'Dirge', shape: 'all_allies', range: 2, tint: '#7a5c9e', anim: 'cast_beam', effects: [{ op: 'apply_status', status: 'hasten' }] },
-  { id: 'ember_burst', name: 'Ember Burst', shape: 'blast', range: 4, tint: '#ff7a33', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 26, keyed: { status: 'brittle', mul: 2 } }] },
-  { id: 'frost_lance', name: 'Frost Lance', shape: 'single', range: 3, tint: '#66c8ff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 2 } }] },
+  { id: 'ember_burst', name: 'Ember Burst', shape: 'blast', range: 4, tint: '#ff7a33', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 26, keyed: { status: 'brittle', mul: 3 } }] },
+  { id: 'frost_lance', name: 'Frost Lance', shape: 'single', range: 3, tint: '#66c8ff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
   { id: 'mend', name: 'Mend', shape: 'ally', tint: '#ffe9a8', anim: 'cast_beam', effects: [{ op: 'heal', power: 28 }, { op: 'apply_status', status: 'regen' }] },
   { id: 'purge', name: 'Purge', shape: 'ally', tint: '#ffe9a8', anim: 'cast_beam', effects: [{ op: 'cleanse', tag: 'debuff', count: 2 }, { op: 'heal', power: 8 }] },
   {
@@ -1265,11 +1267,11 @@ const ABILITY_LIST = [
     tint: '#d8d4cc',
     anim: 'melee_lunge',
     effects: [
-      { op: 'damage', power: 30, keyed: { status: 'hexed', mul: 2 } },
+      { op: 'damage', power: 30, keyed: { status: 'hexed', mul: 3 } },
       { op: 'apply_status', status: 'brittle', turns: 2 }
     ]
   },
-  { id: 'witchfire', name: 'Witchfire', shape: 'single', range: 4, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'damage', power: 30, keyed: { status: 'burning', mul: 2 } }] },
+  { id: 'witchfire', name: 'Witchfire', shape: 'single', range: 4, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'damage', power: 30, keyed: { status: 'burning', mul: 3 } }] },
   { id: 'barkskin', name: 'Barkskin', shape: 'all_allies', range: 2, tint: '#ffe9a8', anim: 'cast_beam', effects: [{ op: 'apply_status', status: 'barkskin' }] },
   {
     id: 'reap',
@@ -1301,7 +1303,7 @@ const ABILITY_LIST = [
       { op: 'apply_status', status: 'withered' }
     ]
   },
-  { id: 'glacial_breath', name: 'Glacial Breath', shape: 'column', range: 3, tint: '#66c8ff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 2 } }] },
+  { id: 'glacial_breath', name: 'Glacial Breath', shape: 'column', range: 3, tint: '#66c8ff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
   { id: 'sovereign_sweep', name: 'Sovereign Sweep', shape: 'row', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 26 }] },
   {
     id: 'grave_tide',
@@ -1346,7 +1348,7 @@ const ABILITY_LIST = [
     anim: 'ranged_bolt',
     effects: [{ op: 'damage', power: 32 }, { op: 'apply_status', status: 'burning' }]
   },
-  { id: 'searing_bolt', name: 'Searing Bolt', shape: 'single', range: 5, tint: '#ff7a33', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 2 } }] },
+  { id: 'searing_bolt', name: 'Searing Bolt', shape: 'single', range: 5, tint: '#ff7a33', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 3 } }] },
   {
     id: 'shatter_lance',
     name: 'Shatter Lance',
@@ -1390,12 +1392,12 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#d8d4cc',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 2 } }, { op: 'heal', power: 20, self: true }]
+    effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 3 } }, { op: 'heal', power: 20, self: true }]
   },
-  { id: 'wildfire', name: 'Wildfire', shape: 'blast', range: 4, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'damage', power: 24, keyed: { status: 'burning', mul: 2 } }] },
+  { id: 'wildfire', name: 'Wildfire', shape: 'blast', range: 4, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'damage', power: 24, keyed: { status: 'burning', mul: 3 } }] },
   { id: 'bloom', name: 'Bloom', shape: 'ally', tint: '#ffe9a8', anim: 'cast_beam', effects: [{ op: 'heal', power: 34 }, { op: 'apply_status', status: 'regen' }] },
-  { id: 'thorn_lash', name: 'Thorn Lash', shape: 'row', melee: true, tint: '#ffe9a8', anim: 'melee_lunge', effects: [{ op: 'damage', power: 20, keyed: { status: 'burning', mul: 2 } }] },
-  { id: 'execute', name: 'Execute', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 48, keyed: { status: 'bleeding', mul: 3 } }] },
+  { id: 'thorn_lash', name: 'Thorn Lash', shape: 'row', melee: true, tint: '#ffe9a8', anim: 'melee_lunge', effects: [{ op: 'damage', power: 20, keyed: { status: 'burning', mul: 3 } }] },
+  { id: 'execute', name: 'Execute', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 48, keyed: { status: 'bleeding', mul: 4 } }] },
   {
     id: 'earthshatter',
     name: 'Earthshatter',
@@ -1412,7 +1414,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#7a5c9e',
     anim: 'cast_beam',
-    effects: [{ op: 'damage', power: 34, keyed: { status: 'withered', mul: 2 } }, { op: 'heal', power: 20, self: true }]
+    effects: [{ op: 'damage', power: 34, keyed: { status: 'withered', mul: 3 } }, { op: 'heal', power: 20, self: true }]
   },
   {
     id: 'dread_wail',
@@ -1423,7 +1425,7 @@ const ABILITY_LIST = [
     anim: 'cast_beam',
     effects: [{ op: 'damage', power: 16 }, { op: 'apply_status', status: 'withered' }]
   },
-  { id: 'blizzard', name: 'Blizzard', shape: 'row', range: 3, tint: '#66c8ff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 26, keyed: { status: 'hexed', mul: 2 } }] },
+  { id: 'blizzard', name: 'Blizzard', shape: 'row', range: 3, tint: '#66c8ff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 26, keyed: { status: 'hexed', mul: 3 } }] },
   // ── abilities a tier IV grants ──
   {
     id: 'dirge_unending',
@@ -1470,7 +1472,7 @@ const ABILITY_LIST = [
     arc: true,
     tint: '#ff7a33',
     anim: 'ranged_bolt',
-    effects: [{ op: 'damage', power: 34, keyed: { status: 'burning', mul: 2 } }]
+    effects: [{ op: 'damage', power: 34, keyed: { status: 'burning', mul: 3 } }]
   },
   {
     id: 'glacier_lance',
@@ -1525,9 +1527,9 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#d8d4cc',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 30, keyed: { status: 'hexed', mul: 2 } }, { op: 'heal', power: 24, self: true }]
+    effects: [{ op: 'damage', power: 30, keyed: { status: 'hexed', mul: 3 } }, { op: 'heal', power: 24, self: true }]
   },
-  { id: 'conflagration', name: 'Conflagration', shape: 'all', range: 4, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'damage', power: 18, keyed: { status: 'burning', mul: 2 } }] },
+  { id: 'conflagration', name: 'Conflagration', shape: 'all', range: 4, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'damage', power: 18, keyed: { status: 'burning', mul: 3 } }] },
   { id: 'veil', name: 'Veil', shape: 'all_allies', range: 2, tint: '#b57bff', anim: 'cast_beam', effects: [{ op: 'apply_status', status: 'barkskin' }] },
   {
     id: 'verdant_bloom',
@@ -1545,10 +1547,10 @@ const ABILITY_LIST = [
     range: 2,
     tint: '#ffe9a8',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 20, keyed: { status: 'burning', mul: 2 } }, { op: 'apply_status', status: 'brittle' }]
+    effects: [{ op: 'damage', power: 20, keyed: { status: 'burning', mul: 3 } }, { op: 'apply_status', status: 'brittle' }]
   },
-  { id: 'harvest', name: 'Harvest', shape: 'blast', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 40, keyed: { status: 'bleeding', mul: 3 } }] },
-  { id: 'phantom_edge', name: 'Phantom Edge', shape: 'single', range: 3, tint: '#b57bff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 2 } }] },
+  { id: 'harvest', name: 'Harvest', shape: 'blast', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 40, keyed: { status: 'bleeding', mul: 4 } }] },
+  { id: 'phantom_edge', name: 'Phantom Edge', shape: 'single', range: 3, tint: '#b57bff', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 3 } }] },
   {
     id: 'worldbreaker',
     name: 'Worldbreaker',
@@ -1565,7 +1567,7 @@ const ABILITY_LIST = [
     range: 3,
     tint: '#7a5c9e',
     anim: 'cast_beam',
-    effects: [{ op: 'damage', power: 28, keyed: { status: 'withered', mul: 2 } }, { op: 'heal', power: 24, self: true }]
+    effects: [{ op: 'damage', power: 28, keyed: { status: 'withered', mul: 3 } }, { op: 'heal', power: 24, self: true }]
   },
   {
     id: 'death_knell',
@@ -1595,7 +1597,7 @@ const ABILITY_LIST = [
     anim: 'ranged_bolt',
     when: (s) => s.enemies.some((u) => hpPct(u) < 0.5),
     cond: 'once a foe is below half HP',
-    effects: [{ op: 'damage', power: 40, keyed: { status: 'hexed', mul: 2 } }]
+    effects: [{ op: 'damage', power: 40, keyed: { status: 'hexed', mul: 3 } }]
   },
   // ── the foes of the deeper floors, and the fused kinds ──
   {
@@ -1605,15 +1607,15 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#ff7a33',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 26, keyed: { status: 'brittle', mul: 2 } }, { op: 'apply_status', status: 'burning', turns: 2 }]
+    effects: [{ op: 'damage', power: 26, keyed: { status: 'brittle', mul: 3 } }, { op: 'apply_status', status: 'burning', turns: 2 }]
   },
-  { id: 'drone_sting', name: 'Sting', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 24, keyed: { status: 'withered', mul: 2 } }] },
+  { id: 'drone_sting', name: 'Sting', shape: 'single', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 24, keyed: { status: 'withered', mul: 3 } }] },
   // The simple floor-1 kinds' shots, three tiles long at one foe, each its kind's basic, and the tiers that sharpen them.
-  { id: 'ember_spit', name: 'Ember Spit', shape: 'single', range: 3, tint: '#ff7a33', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'hexed', mul: 2 } }] },
-  { id: 'brass_bolt', name: 'Brass Bolt', shape: 'single', range: 3, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 2 } }] },
-  { id: 'long_bolt', name: 'Long Bolt', shape: 'single', range: 4, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 2 } }] },
-  { id: 'piercing_bolt', name: 'Piercing Bolt', shape: 'column', range: 4, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 2 } }] },
-  { id: 'acid_spit', name: 'Acid Spit', shape: 'single', range: 3, tint: '#9bd14a', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 2 } }] },
+  { id: 'ember_spit', name: 'Ember Spit', shape: 'single', range: 3, tint: '#ff7a33', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'hexed', mul: 3 } }] },
+  { id: 'brass_bolt', name: 'Brass Bolt', shape: 'single', range: 3, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
+  { id: 'long_bolt', name: 'Long Bolt', shape: 'single', range: 4, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 34, keyed: { status: 'hexed', mul: 3 } }] },
+  { id: 'piercing_bolt', name: 'Piercing Bolt', shape: 'column', range: 4, tint: '#c9a45c', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
+  { id: 'acid_spit', name: 'Acid Spit', shape: 'single', range: 3, tint: '#9bd14a', anim: 'ranged_bolt', effects: [{ op: 'damage', power: 30, keyed: { status: 'brittle', mul: 3 } }] },
   {
     id: 'venom_spit',
     name: 'Venom Spit',
@@ -1753,7 +1755,7 @@ const ABILITY_LIST = [
     anim: 'melee_lunge',
     effects: [{ op: 'damage', power: 30 }, { op: 'apply_status', status: 'withered' }, { op: 'apply_status', status: 'hexed' }]
   },
-  { id: 'swarm_cloud', name: 'Swarm Cloud', shape: 'blast', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 22, keyed: { status: 'withered', mul: 2 } }] },
+  { id: 'swarm_cloud', name: 'Swarm Cloud', shape: 'blast', melee: true, tint: '#d8d4cc', anim: 'melee_lunge', effects: [{ op: 'damage', power: 22, keyed: { status: 'withered', mul: 3 } }] },
   {
     id: 'spew',
     name: 'Spew',
@@ -1761,7 +1763,7 @@ const ABILITY_LIST = [
     melee: true,
     tint: '#9bc25a',
     anim: 'melee_lunge',
-    effects: [{ op: 'damage', power: 22, keyed: { status: 'withered', mul: 2 } }, { op: 'apply_status', status: 'withered' }]
+    effects: [{ op: 'damage', power: 22, keyed: { status: 'withered', mul: 3 } }, { op: 'apply_status', status: 'withered' }]
   },
   {
     id: 'miasma',

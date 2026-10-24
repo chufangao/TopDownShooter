@@ -229,7 +229,7 @@ export const laysKey = (u, k) => kitLays(u, k) || (u.relics ?? []).some((id) => 
 const kitLays = (u, k) => abilitiesOf(u).map(abilityDef).some((a) => a.effects.some((e) => e.op === 'apply_status' && e.status === k))
 // The locked kinds of battle room `node` that `army` holds no key to: each its lock's keys, none of which a soul lays,
 // or every one where fewer than two pieces stand, a soul's summons among them (a key and a blow are two pieces' acts).
-// → [{ id, keys }]
+// The Map's hint, never a warning: a lock is fought unkeyed at its share, a slog, never a wall. → [{ id, keys }]
 export function unkeyed (node, army) {
   const foes = [node.foes ?? [], ...(node.waves ?? []).map((w) => w.foes)].flat()
   const pieces = army.reduce((n, u) => n + 1 + summonsOf(u), 0)

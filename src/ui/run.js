@@ -100,22 +100,25 @@ const UNMET = {
 }
 const OTHER = { ico: 'elite', lack: 'nothing fielded answers it' }
 // A locked kind (codex.js roomLacks): no key laid by anything fielded, or one piece alone (a soul's summons are pieces)
-// to lay it and strike.
-const LOCK = { ico: 'elite', head: 'No key to', lack: 'nothing fielded lays its key' }
-const PAIR = { ico: 'elite', head: 'No key to', lack: 'one piece cannot both lay its key and strike' }
+// to lay it and strike. A lock is a temptation, never a wall: its mark is a hint (the key's gold, apart from the
+// warnings), and its line says the fight is a slog unkeyed and what would open it.
+const LOCK = { ico: 'r-key', hint: true, head: 'A lock on', lack: 'a slog unkeyed, never a wall; a soul that lays its key makes it the payoff' }
+const PAIR = { ico: 'r-key', hint: true, head: 'A lock on', lack: 'a slog unkeyed, never a wall; one soul lays its key, a second strikes for the payoff' }
 const unmetOf = (t) => (t.startsWith('lock:') ? LOCK : t.startsWith('pair:') ? PAIR : UNMET[t] ?? OTHER)
+const isHint = (t) => !!unmetOf(t).hint
 
-// Its marks, one per missing answer, at the medal's upper left.
-const unmetMark = (types) => types.length > 0 && h('span', { class: 'unmet', 'aria-hidden': 'true' },
+// Its marks, one per missing answer, at the medal's upper left; a lock's hint at its left edge.
+const marks = (cls, types) => types.length > 0 && h('span', { class: cls, 'aria-hidden': 'true' },
   [...new Set(types.map((t) => unmetOf(t).ico))].map((ico) => icon(ico, 14)))
-// The room's tooltip, a line for each missing answer under its title.
+const unmetMark = (types) => [marks('unmet', types.filter((t) => !isHint(t))), marks('keyhint', types.filter(isHint))]
+// The room's tooltip, a line for each missing answer under its title, the locks' last (roomLacks' order).
 function unmetTip (tip, types) {
   const by = new Map()
   for (const t of types) {
     const u = unmetOf(t)
     by.set(u, [...(by.get(u) ?? []), lackName(t)])
   }
-  const lines = [...by].map(([u, names]) => h('p', { class: 'warn rt-unmet' }, icon(u.ico, 16), `${u.head ?? 'No answer to'} ${names.join(', ')}: ${u.lack}.`))
+  const lines = [...by].map(([u, names]) => h('p', { class: (u.hint ? 'rt-key' : 'warn') + ' rt-unmet' }, icon(u.ico, 16), `${u.head ?? 'No answer to'} ${names.join(', ')}: ${u.lack}.`))
   if (!lines.length) return tip
   const head = tip.querySelector('.rt-head')
   if (head) head.after(...lines)
@@ -123,8 +126,12 @@ function unmetTip (tip, types) {
   return tip
 }
 
+// A room's marks in words, for its label.
+const label = (head, types) => (types.length ? `${head} ${types.map(lackName).join(', ')}` : '')
+
 // A click enters a glowing room. By touch a tap scouts (its tooltip pinned with Enter ▸) and a second tap enters. A room
-// ahead whose threats include one that no living fielded soul answers wears its mark (unmet).
+// ahead whose threats include one that no living fielded soul answers wears its mark (unmet); one with a lock nothing
+// fielded keys, its hint.
 function mapView ({ run, trail, onNode }) {
   const s = run.state
   const army = fielded(souls(s.party)).filter((u) => u.hp > 0)
@@ -168,7 +175,7 @@ function mapView ({ run, trail, onNode }) {
       class: `node t-${n.type}` + (ok ? ' reach' : '') + (trail.includes(n.id) ? ' visited' : '') + (n.id === s.at ? ' here' : '') + (!ok && !trail.includes(n.id) ? ' far' : ''),
       style: `left:${p.x}%;top:${p.y}%`,
       'aria-disabled': ok ? null : 'true',
-      'aria-label': NODE[n.type].name + (lack.length ? `, no answer to ${lack.map(lackName).join(', ')}` : ''),
+      'aria-label': NODE[n.type].name + label(', no answer to', lack.filter((t) => !isHint(t))) + label(', a lock on', lack.filter(isHint)),
       tip: () => unmetTip(roomTip(run, n, { reachable: ok }), lack),
       onclick: (e) => {
         if (!touchy()) { if (ok) onNode(n.id); return }

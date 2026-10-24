@@ -612,14 +612,15 @@ test('a room\'s missing answers are named, a lock\'s with its keys: none laid, o
 })
 
 // Keys and locks on the cards: a keyed blow says its multiple and its key; a locked foe met says its share, what it
-// cuts and the keys that open it; a soul of yours of a locked kind has no lock, and its card none.
+// cuts, the keys that open it and that unkeyed it is a slog, never a wall; a soul of yours of a locked kind has no
+// lock, and its card none.
 test('a keyed blow\'s card says its multiple on its key; a locked foe\'s card its share and the keys that open it, a soul of yours none', async () => {
   const { actText } = await import('../src/codex.js')
   const { abilityDef } = await import('../src/content.js')
   const { statsOf } = await import('../src/sim/unit.js')
   for (const d of UNIT_LIST.filter((x) => x.lock)) {
     const text = reachRule({ id: d.id, lvl: 1 }, true)
-    assert.ok(text.includes(`Locked: takes ${Math.round(d.lock.share * 100)}% of all damage but a status's tick; all of it on a ${d.lock.keys.map((k) => STATUSES[k].name).join(' or ')} Key laid this turn by another of yours.`), text)
+    assert.ok(text.includes(`Locked: takes ${Math.round(d.lock.share * 100)}% of all damage but a status's tick; all of it on a ${d.lock.keys.map((k) => STATUSES[k].name).join(' or ')} Key laid this turn by another of yours. A slog unkeyed, never a wall.`), text)
     const soul = reachRule(makeUnit(d.id, { uid: 1, lvl: 1 }))
     assert.ok(!/lock/i.test(soul), `${d.id} of yours: ${soul}`)
   }

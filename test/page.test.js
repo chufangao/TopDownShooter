@@ -126,8 +126,8 @@ const marksOver = (sc, uid) => sc.intentMarks.filter((m) => m.data.uid === uid)
 
 // ── the Map ──────────────────────────────────────────────────────────────────────────────────────
 
-// A fresh run's first Map, its drafted soul alone: every room ahead draws, the locked boss's mark named in its label.
-test('the Map draws after the draft: a locked room ahead is named in its mark and label, never a crash', () => {
+// A fresh run's first Map, its drafted soul alone: every room ahead draws, the locked boss's hint named in its label.
+test('the Map draws after the draft: a locked room ahead is named in its hint and label, never a crash', () => {
   const run = createRun({ seed: 'map-lock' })
   apply(run, { type: 'pick', index: 0 })
   const screen = runScreen({ run, act: () => {}, trail: [run.state.map.start], onNode: () => {}, onHelp: null })
@@ -138,8 +138,12 @@ test('the Map draws after the draft: a locked room ahead is named in its mark an
   const end = run.state.map.nodes.find((n) => n.id === run.state.map.end)
   const boss = end.foes.map((f) => unitDef(f.id)).find((d) => d.boss)
   assert.ok(boss?.lock, 'the floor-1 boss is locked')
-  const label = nodes.find((el) => el.className.includes(`t-${end.type}`)).getAttribute('aria-label')
-  assert.ok(label.includes(`the ${boss.name} (`), label)
+  const el = nodes.find((x) => x.className.includes(`t-${end.type}`))
+  const label = el.getAttribute('aria-label')
+  assert.ok(label.includes(`a lock on the ${boss.name} (`), label)
+  // A lock is a hint, never a warning: its own tag, apart from the unmet threats'.
+  const tags = (cls) => { let n = 0; const w = (x) => { if (x?.classList?.contains(cls)) n++; for (const c of x?.childNodes ?? []) if (typeof c !== 'string') w(c) }; w(el); return n }
+  assert.equal(tags('keyhint'), 1, 'the lock\'s hint')
 })
 
 // ── the intents ──────────────────────────────────────────────────────────────────────────────────

@@ -2,27 +2,33 @@
 // another piece of its side and spends it; never on its own key, a last turn's, the other side's, nor in the other
 // side's turn (a counter); a locked foe takes its lock's share of all damage but a status's tick unless such a key is on
 // it, which opening spends not; a lock stands on foes alone; the previews, the intents and the foes' reckoning say so;
-// the combos ablation switches both off for yours. Functional only.
+// the combos ablation switches both off for yours; the Brass Sentry is a floor-1 lock a floor-1 soul keys. The numbers
+// are the content's (a lock's share, a blow's multiple), never the test's. Functional only.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { order, preview, intents, addStatus, keyOn, lockShare, applyDamage, perform } from '../src/sim/turns.js'
 import { estimate, NOBODY } from '../src/sim/foe.js'
-import { abilityDef, unitDef, RELICS } from '../src/content.js'
-import { unkeyed } from '../src/sim/spawn.js'
+import { abilityDef, unitDef, RELICS, UNITS, ABILITIES } from '../src/content.js'
+import { unkeyed, laysKey, spawnPool } from '../src/sim/spawn.js'
 import { makeUnit, tileAt } from '../src/sim/unit.js'
 import { on, scene, unit } from './scene.js'
 
 const keyedBy = (id) => abilityDef(id).effects.find((e) => e.op === 'damage')?.keyed ?? null
+// The content's numbers: the Iron Golem's lock's share, the Frost Lance's multiple on its key.
+const GOLEM = UNITS.iron_golem.lock.share
+const LANCE = ABILITIES.frost_lance.effects.find((e) => e.op === 'damage').keyed.mul
 const struck = (events, uid) => events.filter((e) => e.type === 'damage' && e.target === uid && !e.status).reduce((n, e) => n + e.damage, 0)
 
 test('the content: a Frost Lance is keyed to Brittle, a Marrow Bolt lays it; the Iron Golem is locked to Brittle; every key is a status', () => {
-  assert.deepEqual(keyedBy('frost_lance'), { status: 'brittle', mul: 2 })
+  assert.equal(keyedBy('frost_lance').status, 'brittle')
+  assert.ok(LANCE > 1, 'a keyed blow pays more than one blow')
   assert.ok(abilityDef('marrow_bolt').effects.some((e) => e.op === 'apply_status' && e.status === 'brittle'))
-  assert.deepEqual(unitDef('iron_golem').lock, { keys: ['brittle'], share: 0.3 })
+  assert.deepEqual(unitDef('iron_golem').lock.keys, ['brittle'])
+  assert.ok(GOLEM > 0 && GOLEM < 1, 'a lock cuts, never shuts')
   assert.ok(unitDef('hollow_sovereign').lock.keys.length >= 2, 'the Sovereign is locked')
 })
 
-test('a keyed blow: ×2 on a key another piece laid this turn, the key spent; plain on its own key, on a last turn\'s, and with combos ablated', () => {
+test('a keyed blow: its multiple on a key another piece laid this turn, the key spent; plain on its own key, on a last turn\'s, and with combos ablated', () => {
   const make = (opts = {}) => scene([
     on('monarch', 0, 'party', 3, 0),
     on('bone_chanter', 1, 'party', 3, 3, 10),
@@ -33,16 +39,16 @@ test('a keyed blow: ×2 on a key another piece laid this turn, the key spent; pl
   const plain = make()
   const base = struck(order(plain, { type: 'act', uid: 2, ability: 'frost_lance', target: 9 }), 9)
   assert.ok(base > 0)
-  // The chanter's bolt lays Brittle, then the lance: twice the plain lance on the brittler foe, less its lost DEF.
+  // The chanter's bolt lays Brittle, then the lance: its multiple of the plain lance on the brittler foe, less its lost DEF.
   const b = make()
   order(b, { type: 'act', uid: 1, ability: 'marrow_bolt', target: 9 })
   assert.ok(keyOn(b, unit(b, 2), unit(b, 9), keyedBy('frost_lance')), 'a key for the sprite')
   const p = preview(b, 2, 'frost_lance', 9)
-  assert.deepEqual(p.keyed, [{ uid: 9, status: 'brittle', mul: 2 }])
+  assert.deepEqual(p.keyed, [{ uid: 9, status: 'brittle', mul: LANCE }])
   const events = order(b, { type: 'act', uid: 2, ability: 'frost_lance', target: 9 })
   const keyed = struck(events, 9)
   assert.ok(events.some((e) => e.type === 'key' && e.actor === 2 && e.target === 9 && e.status === 'brittle'))
-  assert.ok(keyed >= 2 * base, `keyed ${keyed} against plain ${base}`)
+  assert.ok(keyed >= LANCE * base, `keyed ${keyed} against plain ${base}`)
   assert.ok(!unit(b, 9).statuses.some((s) => s.id === 'brittle'), 'the key spent')
   // Its own key is none: the sprite's Shatter Lance lays Brittle, but the sprite cannot pay it.
   const own = make()
@@ -74,7 +80,7 @@ test('a locked kind takes its lock\'s share of a blow while no key for the strik
     on('iron_golem', 9, 'foe', 3, 6, 10)
   ], opts)
   const b = make()
-  assert.equal(lockShare(b, unit(b, 9), unit(b, 2)), 0.3)
+  assert.equal(lockShare(b, unit(b, 9), unit(b, 2)), GOLEM)
   const p = preview(b, 2, 'strike', 9)
   assert.deepEqual(p.locked, [9])
   const cut = struck(order(b, { type: 'act', uid: 2, ability: 'strike', target: 9 }), 9)
@@ -82,13 +88,13 @@ test('a locked kind takes its lock\'s share of a blow while no key for the strik
   addStatus(open, unit(open, 9), 'brittle', 3, unit(open, 1))
   assert.equal(lockShare(open, unit(open, 9), unit(open, 2)), 1)
   const full = struck(order(open, { type: 'act', uid: 2, ability: 'strike', target: 9 }), 9)
-  assert.ok(cut < full && cut <= Math.ceil(full * 0.3 * 1.5), `locked ${cut} against open ${full}`)
+  assert.ok(cut < full && cut <= Math.ceil(full * GOLEM * 1.5), `locked ${cut} against open ${full}`)
   // The lock is the world's: with combos ablated it stands, and no status of yours is a key to it; damage with no
   // actor meets it too.
   const off = make({ ablate: ['combos'] })
   addStatus(off, unit(off, 9), 'brittle', 3, unit(off, 1))
-  assert.equal(lockShare(off, unit(off, 9), unit(off, 2)), 0.3)
-  assert.equal(lockShare(off, unit(off, 9)), 0.3)
+  assert.equal(lockShare(off, unit(off, 9), unit(off, 2)), GOLEM)
+  assert.equal(lockShare(off, unit(off, 9)), GOLEM)
   assert.deepEqual(preview(off, 2, 'strike', 9).locked, [9])
   // Burning's tick is no blow: the lock lets it through whole.
   const tick = make()
@@ -184,14 +190,14 @@ test('a lock opens only on a real key: laid this turn by another of the striker\
   assert.ok(struck(cut, 9) < q.damage)
   assert.equal(struck(whole, 9), q.damage)
   assert.ok(brittle(unit(open, 9)), 'opening spends no key')
-  // A blow keyed to it both opens the lock and pays: ×2, the key spent.
+  // A blow keyed to it both opens the lock and pays: its multiple, the key spent.
   const pays = order(open, { type: 'act', uid: 3, ability: 'frost_lance', target: 9 })
   assert.ok(!locked(pays, 3) && pays.some((e) => e.type === 'key' && e.actor === 3 && e.status === 'brittle'))
   assert.ok(!brittle(unit(open, 9)), 'the payoff spends it')
   // Its own key opens nothing to the one that laid it.
   const own = lockScene()
   order(own, { type: 'act', uid: 1, ability: 'marrow_bolt', target: 9 })
-  assert.deepEqual([lockShare(own, unit(own, 9), unit(own, 1)), lockShare(own, unit(own, 9), unit(own, 2))], [0.3, 1])
+  assert.deepEqual([lockShare(own, unit(own, 9), unit(own, 1)), lockShare(own, unit(own, 9), unit(own, 2))], [GOLEM, 1])
   // A key laid last turn: opened in End Turn's untouched pass (your turn still), shut on the next.
   const last = lockScene()
   order(last, { type: 'act', uid: 3, ability: 'frost_lance', target: 9 })
@@ -200,15 +206,15 @@ test('a lock opens only on a real key: laid this turn by another of the striker\
   const mine = ended.slice(0, ended.findIndex((e) => e.type === 'stage' && e.stage === 'foes'))
   assert.ok(mine.some((e) => e.type === 'action' && e.actor === 2 && e.primary === 9) && !locked(mine, 2), 'the untouched wisp\'s Witchfire, opened')
   assert.ok(brittle(unit(last, 9)), 'Brittle still on it')
-  assert.equal(lockShare(last, unit(last, 9), unit(last, 2)), 0.3)
+  assert.equal(lockShare(last, unit(last, 9), unit(last, 2)), GOLEM)
   // The other side's Brittle opens nothing to yours.
   const other = lockScene()
   addStatus(other, unit(other, 9), 'brittle', 3, unit(other, 8))
-  assert.equal(lockShare(other, unit(other, 9), unit(other, 2)), 0.3)
+  assert.equal(lockShare(other, unit(other, 9), unit(other, 2)), GOLEM)
 })
 
 test('a lock cuts all damage but a status\'s tick: a relic\'s, a rule\'s and any with no blow, opened by the same key', () => {
-  const share = unitDef('iron_golem').lock.share
+  const share = GOLEM
   // Momentum on the wisp: a tile walked, then its Witchfire; the relic's 6 a tile is cut unless the chanter's key opens it.
   const momentum = (key) => {
     const b = scene([on('monarch', 0, 'party', 3, 0), on('bone_chanter', 1, 'party', 3, 3, 10), on('will_o_wisp', 2, 'party', 2, 2, 10, [0, 0], ['momentum']), on('iron_golem', 9, 'foe', 3, 6, 10)])
@@ -282,7 +288,7 @@ test('a key pays and opens only in its striker\'s own turn: a counter in the oth
   unit(end, 9).hp = unit(end, 9).maxHp = 9999
   order(end, { type: 'act', uid: 1, ability: 'marrow_bolt', target: 9 })
   const read = intents(end).mine.find((x) => x.uid === 3)
-  assert.deepEqual([read.keyed, read.locked], [[{ uid: 9, status: 'brittle', mul: 2 }], []])
+  assert.deepEqual([read.keyed, read.locked], [[{ uid: 9, status: 'brittle', mul: LANCE }], []])
   const played = order(end, { type: 'end' })
   assert.ok(played.slice(0, played.findIndex((e) => e.type === 'stage' && e.stage === 'foes')).some((e) => e.type === 'key' && e.actor === 3 && e.target === 9))
 })
@@ -299,4 +305,54 @@ test('a lock stands on foes alone: a locked kind of yours takes a foe\'s blow wh
   const answer = ev.findIndex((e) => e.type === 'action' && e.counter)
   assert.ok(!ev.some((e) => e.type === 'locked'))
   assert.equal(struck(ev.slice(0, answer < 0 ? ev.length : answer), 1), est)
+})
+
+// The Brass Sentry, a floor-1 kind, is locked to a key a floor-1 kind lays from its first tier (the Grave Ghoul's Gnaw):
+// unkeyed it takes its share, a slog; the Ghoul's Brittle laid this turn opens it to the Frost Sprite, whose lance deals
+// its multiple and spends the key; the Map's unkeyed reads it as any lock.
+test('the Brass Sentry: a floor-1 lock a floor-1 soul keys; its share unkeyed, a keyed blow\'s multiple once opened; unkeyed reports it', () => {
+  const lock = UNITS.brass_sentry.lock
+  const pool = spawnPool(1).units
+  assert.ok(pool.some((d) => d.id === 'brass_sentry'), 'the Sentry comes on floor 1')
+  assert.ok(lock && lock.share > 0 && lock.share < 1, 'a lock that cuts, never shuts')
+  const fresh = (id, uid) => ({ ...makeUnit(id, { uid, lvl: 1, tracks: [0, 0] }), relics: [] })
+  const layers = pool.filter((d) => lock.keys.some((k) => laysKey(fresh(d.id, 1), k))).map((d) => d.id)
+  assert.ok(layers.includes('grave_ghoul') && UNITS.grave_ghoul.tier === 1, `floor 1's key-layers: ${layers}`)
+  assert.ok(lock.keys.includes(keyedBy('frost_lance').status) && pool.some((d) => d.id === 'frost_sprite'), 'a floor-1 blow keyed to it')
+  // The Map's hint: no key laid, or one soul alone to lay it and strike; a key-layer and a second soul key it.
+  const room = { type: 'fight', foes: [{ id: 'brass_sentry', lvl: 1 }] }
+  assert.deepEqual(unkeyed(room, [fresh('will_o_wisp', 1), fresh('frost_sprite', 2)]), [{ id: 'brass_sentry', keys: lock.keys }])
+  assert.deepEqual(unkeyed(room, [fresh('grave_ghoul', 1)]).map((x) => x.id), ['brass_sentry'], 'one soul alone')
+  assert.deepEqual(unkeyed(room, [fresh('grave_ghoul', 1), fresh('frost_sprite', 2)]), [])
+  // In battle: the Ghoul beside the Sentry, the Sprite three rows back.
+  const make = () => {
+    const b = scene([on('monarch', 0, 'party', 3, 0), on('grave_ghoul', 1, 'party', 3, 5, 10), on('frost_sprite', 2, 'party', 2, 3, 10), on('brass_sentry', 9, 'foe', 3, 6, 10)])
+    unit(b, 9).hp = unit(b, 9).maxHp = 9999
+    return b
+  }
+  const lance = { type: 'act', uid: 2, ability: 'frost_lance', target: 9 }
+  // Unkeyed: its share of any blow, the lance cut as its preview says.
+  const shut = make()
+  assert.equal(lockShare(shut, unit(shut, 9), unit(shut, 2)), lock.share)
+  const was = unit(shut, 9).hp
+  applyDamage(shut, unit(shut, 9), 100, { actor: unit(shut, 2) })
+  assert.equal(was - unit(shut, 9).hp, Math.round(100 * lock.share))
+  const p = preview(shut, 2, 'frost_lance', 9)
+  assert.deepEqual([p.locked, p.keyed], [[9], []])
+  const cutEvents = order(shut, lance)
+  const cut = struck(cutEvents, 9)
+  assert.ok(locked(cutEvents, 2) && cut > 0 && cut === p.damage, `cut ${cut}`)
+  // Keyed: the Ghoul's Gnaw lays Brittle; the lance opens the lock, deals its multiple and spends the key.
+  const open = make()
+  order(open, { type: 'act', uid: 1, ability: 'gnaw', target: 9 })
+  assert.ok(brittle(unit(open, 9)))
+  assert.equal(lockShare(open, unit(open, 9), unit(open, 2)), 1)
+  const q = preview(open, 2, 'frost_lance', 9)
+  assert.deepEqual([q.locked, q.keyed], [[], [{ uid: 9, status: 'brittle', mul: LANCE }]])
+  const paidEvents = order(open, lance)
+  const paid = struck(paidEvents, 9)
+  assert.ok(!locked(paidEvents, 2) && paidEvents.some((e) => e.type === 'key' && e.actor === 2 && e.target === 9 && e.status === 'brittle'))
+  assert.equal(paid, q.damage)
+  assert.ok(paid >= LANCE * (cut - 1) / lock.share, `keyed ${paid} against locked ${cut}`)
+  assert.ok(!brittle(unit(open, 9)), 'the payoff spends it')
 })
