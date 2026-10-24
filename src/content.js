@@ -2438,7 +2438,7 @@ export const BEHAVIOURS = {
   // A flyer flies the air road: no wall stops it, but a piece of yours in its way does, and it never goes round.
   fly: { name: 'Fly', desc: 'Flies straight at the Monarch over the walls; a piece of yours in its way, on the ground or in the air, blocks it. Ranged blows and flyers alone reach it.' },
   // A sentry: as a foe it keeps the tile it stands on (its kind's soul walks as any soul).
-  hold: { name: 'Hold', desc: 'Holds its tile and strikes from it; it never comes, and the battle is not won while it stands.' }
+  hold: { name: 'Hold', desc: 'Holds its tile and strikes from it; it never comes: the battle is not won while it stands, and lost when nothing of yours can reach one.' }
 }
 
 // What laying a status is worth to the policy, in HP-equivalents a stack.
@@ -2459,7 +2459,7 @@ export const THREATS = {
   // A room's, not a kind's: more foes enter behind the first (a late pair, waves).
   depth: { name: 'Depth', desc: 'More foes arrive behind the first, from the far edge.' },
   // A room's, not a kind's: one of its foes Holds (a kind marked `hold`).
-  sentries: { name: 'Sentries', desc: 'Some foes hold their tile and strike from it: they never come, and the battle is not won while one stands.' }
+  sentries: { name: 'Sentries', desc: 'Some foes hold their tile and strike from it: they never come; the battle is not won while one stands, and lost when nothing of yours can reach one.' }
 }
 
 // ── synergies ────────────────────────────────────────────────────────────────────────────────

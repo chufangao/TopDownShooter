@@ -782,7 +782,8 @@ function finishBattle (run) {
     // A fall in the deep, past the Sovereign, leaves the clear standing.
     if (s.result !== 'victory') s.result = 'defeat'
     // The Monarch's fall loses a battle in play (its killer told), and so does an overrun, nothing of yours but the
-    // Monarch standing (no one's blow); the autoplayer's may also end as a stall.
+    // Monarch standing (no one's blow), and a standoff (nothing of yours could reach the sentries that alone stand);
+    // the autoplayer's may also end as a stall.
     s.death = b.reason === 'monarch' ? { ...b.death, reason: 'monarch' } : { by: null, reason: b.reason, threat: null }
     return
   }

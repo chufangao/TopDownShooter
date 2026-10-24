@@ -3,7 +3,7 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, perform, impatience, entryTurn, fork, addStatus, roadOf, reach, targetsFrom, stalled, fieldOf } from '../src/sim/turns.js'
+import { createBattle, order, playOut, perform, impatience, entryTurn, fork, addStatus, roadOf, reach, targetsFrom, stalled, fieldOf, settle } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier, roomSize
@@ -707,4 +707,35 @@ test('a room\'s walls in battle: the ground roads through a choke\'s gap, shots 
     }
   }
   assert.ok(more > 0 && sh.shape.from >= 1)
+})
+
+// A standoff: every foe standing holds its tile, none is to come, and nothing of yours but the Monarch could ever reach
+// one (no piece that walks: a summon never does, a Rooted for the battle no more; no blow that reaches a sentry from
+// where it stands): lost at once, by its reason. One piece that walks, a blow that reaches, a walker foe: not lost.
+test('a standoff is lost: sentries alone, out of reach of every piece of yours that cannot walk; one that walks or reaches, or a walker foe, keeps it going', () => {
+  const sentries = () => [on('brass_sentry', 50, 'foe', 0, 10, 1), on('thornling', 51, 'foe', 6, 10, 1)]
+  const summon = (x, y) => ({ ...on('frost_sprite', 2, 'party', x, y, 1), summoned: true, shadow: true, summoner: 99 })
+  const judge = (units) => {
+    const b = scene(units)
+    b.over = false
+    b.winner = b.reason = null
+    settle(b)
+    return b
+  }
+  const lost = judge([on('monarch', 0, 'party', 3, 0), summon(3, 3), ...sentries()])
+  assert.deepEqual([lost.over, lost.winner, lost.reason], [true, 'foe', 'standoff'])
+  // A piece of yours that walks keeps it going; so does a temporary Rooted on it; a Rooted for the battle does not.
+  assert.equal(judge([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 2, 'party', 3, 3, 1), ...sentries()]).over, false)
+  const rooted = judge([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 2, 'party', 3, 3, 1), ...sentries()])
+  addStatus(rooted, unit(rooted, 2), 'rooted', 2)
+  assert.equal(settle(rooted), false, 'a passing hold')
+  const held = judge([on('monarch', 0, 'party', 3, 0), on('frost_sprite', 2, 'party', 3, 3, 1), ...sentries()])
+  addStatus(held, unit(held, 2), 'rooted', 'battle')
+  assert.deepEqual([settle(held), held.reason], [true, 'standoff'])
+  // A summon whose lance reaches a sentry from where it stands keeps it going.
+  assert.equal(judge([on('monarch', 0, 'party', 3, 0), summon(0, 7), ...sentries()]).over, false)
+  // A walker foe still standing keeps it going.
+  assert.equal(judge([on('monarch', 0, 'party', 3, 0), summon(3, 3), ...sentries(), on('grave_ghoul', 52, 'foe', 3, 9, 1)]).over, false)
+  // Its defeat names it.
+  assert.ok(BEHAVIOURS.hold.desc.includes('lost when nothing of yours can reach one'))
 })

@@ -397,7 +397,7 @@ export function tileText (tile) {
 
 // What felled the Monarch (run.state.death), in words: who, with what, from where, and the threat. `battle` tells a
 // shadow (one of your own dead risen against you) from the living; a status's tick tells no tile and replays no blow.
-// A battle lost with no blow on the Monarch (overrun, or the sim's stall) is told by its reason alone.
+// A battle lost with no blow on the Monarch (overrun, a standoff, or the sim's stall) is told by its reason alone.
 export function deathText (s, battle = null) {
   const d = s.death
   if (!d) return null
@@ -425,6 +425,7 @@ export function deathText (s, battle = null) {
 // The battles lost with no blow on the Monarch, by their reason (turns.js settle).
 const ENDS = {
   overrun: { head: 'Overrun', line: 'The retinue fell, and with it the Monarch: nothing stood between the foes and the seat.' },
+  standoff: { head: 'Standoff', line: 'Nothing of yours could reach the sentries: none could walk to them, and no blow reached them where they held.' },
   stall: { head: 'The battle stalled', line: 'It ran past the bound on turns with no side fallen.' },
   lost: { head: 'The battle was lost', line: 'It ended with no blow on the Monarch.' }
 }

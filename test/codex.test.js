@@ -647,3 +647,11 @@ test('a sentry foe\'s card shows Move 0; a soul of its kind shows its own Move',
   assert.equal(moveOf(unitCard(u, {})), String(unitDef('brass_sentry').move))
   assert.match(reachRule(u, true), new RegExp(BEHAVIOURS.hold.desc.slice(0, 20)))
 })
+
+// A standoff's defeat says why: nothing of yours could reach the sentries.
+test('a battle lost in a standoff is told so on the defeat screen', async () => {
+  const { deathText } = await import('../src/codex.js')
+  const d = deathText({ death: { by: null, reason: 'standoff', threat: null } })
+  assert.equal(d.head, 'Standoff')
+  assert.match(d.lines[0], /Nothing of yours could reach the sentries/)
+})

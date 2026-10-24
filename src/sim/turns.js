@@ -226,7 +226,8 @@ export const stride = (u, a = u.basic ?? null) => (u.move > 0 ? Math.max(0, Math
 
 // Whether the battle is over: lost the instant the Monarch falls (none: a wipe once nobody stands); else won once no foe
 // stands nor is to come; else overrun, lost, the instant nothing of yours but the Monarch stands (a shadow and a summon
-// count): the Monarch never acts, and nothing of yours can come again.
+// count): the Monarch never acts, and nothing of yours can come again; else a standoff, lost the instant nothing of
+// yours could ever reach the sentries that alone stand (standoff).
 export function settle (battle) {
   if (battle.over) return true
   const m = battle.monarch
@@ -236,8 +237,26 @@ export function settle (battle) {
   const lost = m ? !alive(m) : !party
   if (lost || !foe) finish(battle, lost ? 'foe' : 'party', lost ? (m ? 'monarch' : 'wipe') : battle.crumbled ? 'crumble' : 'wipe')
   else if (m && !pieces(battle)) finish(battle, 'foe', 'overrun')
+  else if (m && standoff(battle)) finish(battle, 'foe', 'standoff')
   return battle.over
 }
+
+// A standoff: every foe standing holds its tile (a sentry, which never comes) and none is still to come, and no piece of
+// yours could ever reach one: none could walk (walks), and none has a blow that reaches a sentry from where it stands.
+function standoff (battle) {
+  if (battle.reserve.length) return false
+  let any = false
+  for (const u of battle.units) {
+    if (u.side !== 'foe' || !alive(u)) continue
+    if (!u.hold) return false
+    any = true
+  }
+  return any && battle.units.every((u) => u.side !== 'party' || !alive(u) || u === battle.monarch ||
+    (!walks(battle, u) && !u.kit.some((a) => isBlow(a) && targetsFrom(battle, u, a).some((x) => x.hold))))
+}
+// Whether a piece of yours could walk again: its Move above 0 as its stats stand but for a passing hold (a Rooted for
+// the battle holds for good); a summon never walks (it takes no orders and seeks nothing), a shadow walks at End Turn.
+const walks = (battle, u) => !u.summoned && !u.statuses.some((s) => HOLDS.has(s.id) && s.dur === 'battle') && paceOf(battle, u) > 0
 
 function finish (battle, winner, reason) {
   battle.over = true

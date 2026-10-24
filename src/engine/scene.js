@@ -2160,7 +2160,7 @@ export class BattleScene extends Phaser.Scene {
     const [title, line] = won ? (!boss ? ['VICTORY', tally]
       : this.battle.floor === TUNING.run.floors ? ['THE SOVEREIGN FALLS', `${crumbled}The run is cleared.`]
         : [`${unitDef(boss.id).name.toUpperCase()} FALLS`, `${crumbled}${tally}`])
-      : death ? ['THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
+      : death ? [reason === 'standoff' ? 'STANDOFF' : 'THE MONARCH FALLS', `${death.head}. ${death.lines.join(' ')}${clear}`]
         : reason === 'monarch' ? ['THE MONARCH FALLS', `Its retinue crumbles with it. The run is over.${clear}`]
           : ['YOUR RETINUE FALLS', 'The dead return to the dark.']
     const killer = death && reason === 'monarch' && death.from != null && death.by !== this.monarch ? death.from : null
