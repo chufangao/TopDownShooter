@@ -146,6 +146,56 @@ test('the Map draws after the draft: a locked room ahead is named in its hint an
   assert.equal(tags('keyhint'), 1, 'the lock\'s hint')
 })
 
+// ── a room's ground ──────────────────────────────────────────────────────────────────────────────
+
+// A room with a choke: its card names the shape beside the foes, and the battle on it draws the room's walls with the
+// camp's (scene.js decorate, from the battle's start), a wall picture on each.
+test('a room\'s shape is named on its card, and its walls are drawn on the battle\'s board with the camp\'s', async () => {
+  const { roomTip } = await import('../src/codex.js')
+  const { battleSetup, availableNodes } = await import('../src/sim/run.js')
+  const { createBattle } = await import('../src/sim/turns.js')
+  const { shapeWalls } = await import('../src/sim/spawn.js')
+  const { createRng } = await import('../src/sim/rng.js')
+  const { SHAPES } = await import('../src/content.js')
+  const { posOf } = await import('../src/engine/geometry.js')
+  const { WALLS } = await import('../src/engine/textures.js')
+  const run = createRun({ seed: 'ground-card', start: ['tomb_knight', 'bone_chanter', 'frost_sprite'] })
+  const node = availableNodes(run)[0]
+  Object.assign(node, { type: 'fight', foes: [{ id: 'grave_ghoul', lvl: 1, slot: 3 }], shape: 'choke', walls: shapeWalls('choke', createRng('card').stream('shape')) })
+  const text = roomTip(run, node, { reachable: true }).textContent
+  assert.ok(text.includes(`Ground: ${SHAPES.choke.name}`) && text.includes(SHAPES.choke.desc), text)
+  apply(run, { type: 'node', id: node.id })
+  const b = createBattle(battleSetup(run))
+  const start = b.events.find((e) => e.type === 'battle:start')
+  assert.ok(node.walls.every((t) => start.walls.includes(t)), 'the room\'s walls start the battle')
+  const sc = sceneOf(b)
+  const images = []
+  sc.add = new Proxy({}, { get: (_, kind) => (...args) => { const o = fake({ kind, args }); sc.made.push(o); if (kind === 'image') images.push(args); return o } })
+  sc.args = { met: () => true }
+  sc.crownHp = () => {}
+  sc.decorate(start)
+  for (const t of start.walls) {
+    const p = posOf(t)
+    assert.ok(images.some(([x, y, key]) => x === p.x && y === p.y + 8 && WALLS.includes(key)), `a wall picture on ${t}`)
+  }
+  // The prep's board (the Field) shows the room's walls with the camp's, so placement answers the shape.
+  const { board } = await import('../src/board.js')
+  const { fieldEditor } = await import('../src/ui/field.js')
+  const prep = createRun({ seed: 'ground-card', start: ['tomb_knight', 'bone_chanter', 'frost_sprite'] })
+  const there = availableNodes(prep)[0]
+  Object.assign(there, { type: 'fight', foes: node.foes, shape: 'choke', walls: node.walls })
+  apply(prep, { type: 'node', id: there.id })
+  const show = board.show
+  let picture = null
+  board.show = (stage, p) => { picture = p }
+  try {
+    fieldEditor({ run: prep, act: () => {} })
+  } finally {
+    board.show = show
+  }
+  assert.ok(picture && there.walls.every((t) => picture.walls.includes(t)), 'the Field draws the room\'s walls')
+})
+
 // ── the intents ──────────────────────────────────────────────────────────────────────────────────
 
 // A sentry with nothing of yours in its reach: HOLDS over it on the board, and no walk drawn.

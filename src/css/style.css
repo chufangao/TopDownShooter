@@ -530,6 +530,8 @@ b { font-weight: 600; color: var(--bright); }
 .mini-row { display: flex; gap: 3px; }
 .mini-cell { width: 34px; height: 34px; border-radius: 7px 5px 8px 6px; background: var(--sunk); border: 1.5px solid var(--ink); display: grid; place-items: center; }
 .mini-cell.on { background: #4a2232; }
+/* A room's wall among the foes' rows (codex.js miniGrid): stone, crossed. */
+.mini-cell.wall { background: repeating-linear-gradient(45deg, var(--raise) 0 4px, var(--sunk) 4px 8px); }
 .mini-label { font-size: var(--fs-sm); }
 .room-tip .threat { margin-top: 8px; }
 

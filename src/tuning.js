@@ -220,6 +220,10 @@ export const TUNING = {
     // the HP of a soul kind of tier `hpTier` at its level (unit.js sentryHp). A wave's sentries take its far row, the
     // wings first, then the middle row's wings: off the road its walkers take (spawn.js formation).
     sentry: { from: 3, hpTier: 2 },
+    // A battle room's shape (content.js SHAPES): floor 1's rooms before rank `from` and a boss's room none; a room whose
+    // first formation holds a sentry a cover; else one drawn by `weights`, a choke only from rank `choke`. A corridor's
+    // walls run `corridor` rows from the open ground; a choke's gap and a corridor's lane stand off the board's edges.
+    shape: { from: 3, choke: 4, corridor: 3, weights: { none: 2, pillars: 1, corridor: 1, choke: 1 } },
     // From floor 2 a room's foes have captains (`captains.fight` in a fight or a wave, `.elite` in an elite), each
     // leading a cohort of cohort[floor − 1] more. An elite's captains are of its foes, cohorts of their own kind; a
     // fight's are drawn `captains.above` tiers over the room's target, of tier minTier[floor − 1] at least, cohorts of

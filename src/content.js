@@ -2506,6 +2506,19 @@ export const CAMP_LIST = [
   { id: 'spiral', name: 'Spiral', floor: 4, map: ['.......', '.......', '######.', '.....#.', '.#M..#.', '.#####.', '.......'] }
 ]
 
+// ── the rooms' ground ────────────────────────────────────────────────────────────────────────────
+
+// A battle room's shape (spawn.js drawRoom, roomWalls): walls on the open ground between the camp and the foes' rows and
+// among those rows, never in the camp, on the top edge or on a foe's slot. They block walking, never shots; flyers pass
+// over them; the roads bend round them. The tiles each draws are spawn.js shapeWalls'; which room gets which, TUNING's.
+export const SHAPES = {
+  none: { name: 'Open ground', desc: 'No wall stands between the camp and the foes.' },
+  choke: { name: 'Choke', desc: 'A wall across the open ground with one gap: every road on the ground runs through it.' },
+  pillars: { name: 'Pillars', desc: 'Two pillars on the open ground, the roads bending round them.' },
+  corridor: { name: 'Corridor', desc: 'Two walls down a lane, from the open ground into the foes\' rows.' },
+  cover: { name: 'Cover', desc: 'A wall ahead of each sentry: a piece goes round it to strike one close; shots cross it.' }
+}
+
 // ── the tutorial ─────────────────────────────────────────────────────────────────────────────
 
 // One room before floor 1, the threshold: a real run on its seed's floor-1 camp, its draft fixed (`party`) and its foe

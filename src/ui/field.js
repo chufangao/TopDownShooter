@@ -5,7 +5,7 @@ import {
   fieldRule, ROMAN, alsoOf, reachText, reachRule, standing, abilityBlocks, auraBlock, hpBar, hpAt, summonText,
   relicIcon, ariseFor, statTip, tally, releaseText
 } from '../codex.js'
-import { unitDef, relicDef, KIN, ROLES, FUSION_LIST } from '../content.js'
+import { unitDef, relicDef, KIN, ROLES, FUSION_LIST, SHAPES } from '../content.js'
 import { h, fill, icon, portrait, showTip, hideTip, pinTip, hold, HOLD, touchy, say } from '../dom.js'
 import { frame, toLocal } from '../frame.js'
 import { kw } from '../keywords.js'
@@ -13,7 +13,7 @@ import { sfx } from '../sfx.js'
 import { field } from '../sim/field.js'
 import {
   fieldCap, rosterCap, fielded, inOssuary, souls, isMonarch, monarchOf, OSSUARY, canAdvance, tierCost, canPlace,
-  canFuse, levelOf, swapWith, releaseRefund, unheld, canHold
+  canFuse, levelOf, swapWith, releaseRefund, unheld, canHold, currentNode
 } from '../sim/run.js'
 import {
   COLS, CAMP_ROWS, slotAt, rowOf, isWall, LANES, DEPTH, tileAt, deployTile, wallTiles, onField, tileX, tileY, statsOf,
@@ -143,7 +143,11 @@ export function fieldEditor ({ run, act, onChange = null }) {
     const fieldNow = fielded(s.party)
     const m = monarchOf(s)
     const mTile = deployTile('party', m.slot)
-    const walls = wallTiles(s.camp)
+    // The camp's walls, and in prep the room's own (its shape), so placement answers the ground.
+    const room = s.phase === 'prep' ? currentNode(run) : null
+    const roomWalls = new Set(room?.walls ?? [])
+    const shape = SHAPES[room?.shape ?? 'none']
+    const walls = [...wallTiles(s.camp), ...roomWalls]
     const groups = synergyGroups(souls(standing(run)), alsoOf)
     const picked = selected()
     if (sel && !picked) sel = null
@@ -168,7 +172,8 @@ export function fieldEditor ({ run, act, onChange = null }) {
       const wall = walls.includes(t)
       const d = roads.dist[t]
       tips.set(t, () => h('div', { class: 'syn-tip tile-tip' },
-        h('div', null, h('b', null, wall ? 'Wall' : sentence(tileText(t))), dom && [' · ', distanceBetween(dom.centre, dom.size, t, 1) <= dom.r ? 'within Arise\'s reach' : h('span', { class: 'dim' }, 'beyond Arise\'s reach')]),
+        h('div', null, h('b', null, wall ? (roomWalls.has(t) ? `Wall · the room's ${shape.name}` : 'Wall') : sentence(tileText(t))), dom && [' · ', distanceBetween(dom.centre, dom.size, t, 1) <= dom.r ? 'within Arise\'s reach' : h('span', { class: 'dim' }, 'beyond Arise\'s reach')]),
+        roomWalls.has(t) && h('div', { class: 'dim' }, shape.desc),
         h('div', { class: 'dim' }, wall ? 'It blocks walking, not shots: the roads bend round it.'
           : Number.isFinite(d) ? `Its road runs ${d} step${d === 1 ? '' : 's'} to the Monarch.` : 'No road runs from here.')))
     }

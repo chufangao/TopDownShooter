@@ -2,7 +2,7 @@
 // room and threat tooltips, relic tips, the synergy tracker, the fusions, the bestiary and the codex (How to play).
 import { TUNING } from './tuning.js'
 import {
-  unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, BEHAVIOURS, SYNERGIES, THREATS, RELIC_TIERS, RELIC_LIST, UNIT_LIST, FUSION_LIST, STATUSES, temperLine,
+  unitDef, abilityDef, statusDef, relicDef, KIN, ROLES, BEHAVIOURS, SYNERGIES, THREATS, SHAPES, RELIC_TIERS, RELIC_LIST, UNIT_LIST, FUSION_LIST, STATUSES, temperLine,
   trineOf, isTriple, TOP_TIER, TRINE_RISE
 } from './content.js'
 import {
@@ -650,14 +650,15 @@ export const DEEP_TEXT = {
 }
 
 // A small read-only formation, front row at the bottom, a foe to a cell; `small`: a later wave's, in a row of them.
-function miniGrid (foes, { small = false } = {}) {
+function miniGrid (foes, { small = false, walls = [] } = {}) {
   const at = new Map(foes.map((f) => [f.slot, f]))
+  const walled = new Set(walls)
   const rows = []
   for (let r = ROWS - 1; r >= 0; r--) {
     const cells = []
     for (let c = 0; c < COLS; c++) {
       const f = at.get(slotAt(r, c))
-      cells.push(h('span', { class: 'mini-cell' + (f ? ' on' : '') }, f && portrait(f.id, small ? 16 : 24)))
+      cells.push(h('span', { class: 'mini-cell' + (f ? ' on' : walled.has(deployTile('foe', slotAt(r, c))) ? ' wall' : '') }, f && portrait(f.id, small ? 16 : 24)))
     }
     rows.push(h('div', { class: 'mini-row' }, cells))
   }
@@ -675,6 +676,10 @@ export function roomWords (run, node) {
   return { name: unitDef(id).name, text: `The floor's boss and its court. Its fall crumbles them; then a bounty and a recruit, and the next floor.${why}` }
 }
 
+// A battle room's ground beside its foes: its shape's name and what it does, none for open ground.
+export const shapeLine = (node) => node.shape && node.shape !== 'none' &&
+  h('div', { class: 'small rt-shape' }, h('span', { class: 'dim' }, 'Ground: '), h('b', null, SHAPES[node.shape].name), h('span', { class: 'dim' }, ` · ${SHAPES[node.shape].desc}`))
+
 // `enter`: an Enter ▸ button stands under it (a room chosen by touch), so its foot says nothing more.
 export function roomTip (run, node, { reachable, enter = false }) {
   const r = roomWords(run, node)
@@ -688,8 +693,9 @@ export function roomTip (run, node, { reachable, enter = false }) {
     gain && h('p', { class: 'rt-gain' }, gain),
     depthOf(run.state.floor) > 0 && node.type === 'elite' && node.next.length === 0 && h('p', { class: 'warn' }, `Big elite: +${DEEP.final.count} foes, +${DEEP.final.level} levels. Then floor ${run.state.floor + 1}.`),
     node.foes && [
-      h('div', { class: 'rt-body' }, miniGrid(node.foes), h('div', { class: 'rt-info' },
+      h('div', { class: 'rt-body' }, miniGrid(node.foes, { walls: node.walls }), h('div', { class: 'rt-info' },
         h('div', { class: 'dim small' }, kinds.join(', ')),
+        shapeLine(node),
         syns.length > 0 && h('div', { class: 'dim small' }, kw('synergy', 'Synergies'), ': ', syns.map((n, i) => [i ? ' · ' : '', h('b', null, n)])))),
       node.waves && h('div', { class: 'rt-waves' }, node.waves.map((w, k) => h('div', { class: 'rt-wave' },
         h('b', null, waveName(node, k)), miniGrid(w.foes, { small: true }), h('div', { class: 'dim small' }, waveWhen(w, k, waveEvery(run.state)))))),
@@ -1058,7 +1064,7 @@ const priceScaleText = (run) => `every price is its floor-1 price ${Array.from({
 const WORD_MORE = {
   piece: () => `Command sets how many pieces you field (at most ${TUNING.army.board}); the rest of your souls wait in the ossuary. Where you place them is where each battle starts: from there each moves on your turn. A 2×2 piece (a fused kind, or a soul with a Colossus tier) moves as one. Each soul has a relic slot (${TUNING.relic.perPiece} a soul) for a piece relic. The Monarch is a piece too: it stands on the seat the camp marks with a crown, never moves, never strikes and holds no relic.`,
   summon: () => `A tier of a few kinds calls up shadows of the kind itself (a trine's, of the kind it was made of): at each battle's start, as many as a piece's tiers say rise for it on the field, each on the free tile of the camp nearest that piece, at ${pct(TUNING.summon.hp)} of a whole one's HP, with its level and tiers. A summon takes no orders: it strikes or mends with its basic each turn, counts toward your synergies as any shadow, pays no essence, and is gone after the battle.`,
-  road: () => 'Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch, and every foe on the ground keeps to these arrows. How far it comes each turn, from nothing to its energy\'s worth of tiles, is its own judgement: it weighs what it could deal against what your side could deal to it there, and the longer since the last wave came, the less it waits: in time every foe comes. A comrade stopped ahead of it holds it back, and a piece of yours blocks it. Some kinds Fly instead, straight over the walls but never through your pieces; some Hold, never leaving their tile, and the battle waits until you go to them. You learn which by meeting them.',
+  road: () => `Before every battle the board floods out from the Monarch through every open tile: each tile\'s arrow points to its neighbour nearest the Monarch, and every foe on the ground keeps to these arrows. How far it comes each turn, from nothing to its energy\'s worth of tiles, is its own judgement: it weighs what it could deal against what your side could deal to it there, and the longer since the last wave came, the less it waits: in time every foe comes. A comrade stopped ahead of it holds it back, and a piece of yours blocks it. Some kinds Fly instead, straight over the walls but never through your pieces; some Hold, never leaving their tile, and the battle waits until you go to them. You learn which by meeting them. A room may raise walls of its own on the open ground (${Object.values(SHAPES).filter((x) => x !== SHAPES.none).map((x) => x.name.toLowerCase()).join(', ')}: the map names its shape): like the camp\'s they block walking, never shots, and the roads bend round them.`,
   wave: (run) => `${ENEMY_TEXT.waves}${run && waveEvery(run.state) !== W.every ? ` At ascension ${run.state.ascension} they come ${waveEvery(run.state)} turns apart.` : ''} ${ENEMY_TEXT.entry}`,
   shadow: () => `A soul holding an Arise relic Claims a foe within its reach, as a skill: if that foe falls while Claimed, by any blow or tick, it rises as your shadow. Undead 4 raises every foe slain. A shadow of yours rises where the foe fell (on the nearest free tile when something stands there) and takes no orders: at End Turn, the very turn it rises too, it walks toward the nearest foe it can reach and strikes it with its basic (or mends with it). Summons strike or mend from where they stand. Shadows count toward your synergies and are gone after the battle.`,
   essence: (run) => `Each foe slain pays ${run ? entry(TUNING.essence.perTier, run.state.floor) : TUNING.essence.perTier.map((v, i) => `${v} on floor ${i + 1}`).join(', ')} × its tier, whatever its level, into one purse. It buys tiers, fusions (${TUNING.essence.fuse} × the result's tier), one recruit after a win (${TUNING.essence.recruit} × its tier) and relics in the Shop, and ${priceScaleText(run)}: what a floor pays is worth less on the next. Nothing is bought for the Monarch, and no level is bought: a soul's level is its tiers'.`,

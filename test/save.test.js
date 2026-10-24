@@ -87,6 +87,10 @@ test('a save is the options, the log and where it stood, as JSON; a finished run
   const save = JSON.parse(saveOf(run, made))
   assert.deepEqual(Object.keys(save).sort(), ['at', 'log', 'run', 'v'])
   assert.equal(save.v, SAVE_VERSION)
+  // The rooms' ground is the seed's: a run played back carries each battle room's shape and walls as they were.
+  const back = restore(saveOf(run, made)).run.state.map.nodes
+  assert.deepEqual(back.map((n) => [n.shape, n.walls]), run.state.map.nodes.map((n) => [n.shape, n.walls]))
+  assert.ok(run.state.map.nodes.every((n) => !n.foes || Array.isArray(n.walls)))
   assert.deepEqual(save.run, made)
   assert.deepEqual(save.log, run.state.log)
   assert.deepEqual(save.at, { floor: 1, room: save.at.room, phase: 'reap', turn: null, essence: run.state.essence, hp: run.state.party[0].hp, actions: run.state.log.length })

@@ -1,9 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { generateFloor, nodeOf, RANKS, WIDTH } from '../src/sim/map.js'
-import { drawRoom, roomThreats, SENTRY_POSTS } from '../src/sim/spawn.js'
-import { rowOf, colOf } from '../src/sim/unit.js'
-import { unitDef } from '../src/content.js'
+import { drawRoom, roomThreats, SENTRY_POSTS, groundOpen, shapeWalls } from '../src/sim/spawn.js'
+import { rowOf, colOf, deployTile, tileY, tileX, tileAt, wallTiles, monarchSlot, CAMP_ROWS, DEPTH, LANES, ROWS, TILES } from '../src/sim/unit.js'
+import { unitDef, SHAPES, CAMP_LIST } from '../src/content.js'
+import { field } from '../src/sim/field.js'
+import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 
 // The room types: no Shop among them.
@@ -96,4 +98,59 @@ test('sentries stand on their posts off the walkers\' road, never in floor 1\'s 
   assert.ok(sentries > 0, 'sentries come')
   // The posts: the far row, then the middle row's wings, never the front row.
   assert.ok(SENTRY_POSTS.every((slot) => rowOf(slot) >= 1) && SENTRY_POSTS.slice(0, 7).every((slot) => rowOf(slot) === 2))
+})
+
+// A battle room's ground (spawn.js roomGround): none in a boss's room and in floor 1's rooms before rank shape.from; a
+// cover, a wall in front of each sentry, where its first formation holds one; a choke only from rank shape.choke. Its
+// walls stand on the open ground and the foes' rows below the top edge, never on a foe's slot; in every camp every
+// other tile there (every slot, post and entry) keeps a road to the Monarch, so no shape seals the camp and a piece of
+// yours walks to every foe. Every shape comes.
+test('a room\'s ground: shapes by rank and sentries, walls off the camp, the top edge and every foe, every road open in every camp', () => {
+  const sh = TUNING.spawn.shape
+  const seen = new Set()
+  const roads = (walls) => CAMP_LIST.map((camp) => field({ root: deployTile('party', monarchSlot(camp.id)), walls: [...wallTiles(camp.id), ...walls] }))
+  for (let i = 0; i < 40; i++) {
+    for (const floor of [1, 2, 3]) {
+      const map = generateFloor({ seed: 'ground' + i, floor, boss: true })
+      for (const node of map.nodes.filter((n) => ['fight', 'elite', 'siege', 'boss'].includes(n.type))) {
+        const room = drawRoom('ground' + i, floor, node)
+        const where = `seed ${i} floor ${floor} ${node.id} rank ${node.rank} ${room.shape}`
+        assert.ok(SHAPES[room.shape] && Array.isArray(room.walls), where)
+        seen.add(room.shape)
+        const sentries = room.foes.filter((f) => unitDef(f.id).hold)
+        if (node.type === 'boss' || (floor === 1 && node.rank < sh.from)) assert.equal(room.shape, 'none', where)
+        else if (sentries.length) assert.ok(room.shape === 'cover' || room.shape === 'none', where)
+        if (room.shape === 'choke') assert.ok(node.rank >= sh.choke, where)
+        if (room.shape === 'none') assert.deepEqual(room.walls, [], where)
+        if (room.shape === 'cover') assert.ok(room.walls.every((t) => sentries.some((f) => deployTile('foe', f.slot) === t + LANES)), `${where}: a wall in front of a sentry`)
+        // Off the camp and the top edge, and off every tile a foe of the first formation stands on.
+        assert.ok(room.walls.every((t) => tileY(t) >= CAMP_ROWS && tileY(t) < DEPTH - 1), where)
+        const starts = new Set(room.foes.map((f) => deployTile('foe', f.slot)))
+        assert.ok(room.walls.every((t) => !starts.has(t)), `${where}: a wall on a foe`)
+        // Every road open: each foe's tile, each sentry post and each entry on the top edge reaches the Monarch.
+        const shut = new Set(room.walls)
+        const must = [...starts, ...SENTRY_POSTS.map((slot) => deployTile('foe', slot)), ...[...Array(LANES).keys()].map((x) => tileAt(x, DEPTH - 1))].filter((t) => !shut.has(t))
+        for (const f of roads(room.walls)) assert.ok(must.every((t) => f.dist[t] < Infinity), `${where}: a road shut`)
+      }
+    }
+  }
+  assert.deepEqual([...seen].sort(), Object.keys(SHAPES).sort(), 'every shape comes')
+  // The shapes as drawn: a choke one gap in a wall across the open ground, the gap off the edges; the pillars off the
+  // edges; a corridor two walls down either side of a lane off the edges; a wall across the row ahead of seven sentries
+  // would seal the far row, and is refused.
+  const rng = createRng('shapes').stream('s')
+  for (let k = 0; k < 20; k++) {
+    const choke = shapeWalls('choke', rng)
+    const gap = [...Array(LANES).keys()].find((x) => !choke.includes(tileAt(x, CAMP_ROWS)))
+    assert.ok(choke.length === LANES - 1 && choke.every((t) => tileY(t) === CAMP_ROWS) && gap > 0 && gap < LANES - 1 && groundOpen(choke))
+    const corridor = shapeWalls('corridor', rng)
+    const sides = [...new Set(corridor.map(tileX))].sort((a, b) => a - b)
+    assert.ok(sides.length === 2 && sides[1] - sides[0] === 2 && corridor.length === 2 * TUNING.spawn.shape.corridor && groundOpen(corridor))
+  }
+  const pillars = shapeWalls('pillars', rng)
+  assert.ok(pillars.length === 4 && pillars.every((t) => tileX(t) > 0 && tileX(t) < LANES - 1) && groundOpen(pillars))
+  assert.equal(groundOpen(shapeWalls('cover', rng, SENTRY_POSTS.slice(0, LANES))), false)
+  assert.equal(groundOpen([tileAt(3, 2)]), false, 'never in the camp')
+  assert.equal(groundOpen([...Array(LANES).keys()].map((x) => tileAt(x, CAMP_ROWS))), false, 'never a wall with no gap')
+  assert.ok(TILES > 0 && ROWS > 0)
 })

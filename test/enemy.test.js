@@ -3,7 +3,7 @@
 import './budget.js'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createBattle, order, playOut, perform, impatience, entryTurn, fork, addStatus, roadOf, reach, targetsFrom, stalled } from '../src/sim/turns.js'
+import { createBattle, order, playOut, perform, impatience, entryTurn, fork, addStatus, roadOf, reach, targetsFrom, stalled, fieldOf } from '../src/sim/turns.js'
 import {
   createRun, apply, availableNodes, legalActions, battleSetup, drawRoom, encounter, roomThreats, foeLevel, foeMods, foeEssence,
   essenceByWave, MONARCH_UID, currentNode, START_PARTY, bossFor, courtPool, captainPool, targetTier, roomSize
@@ -14,7 +14,8 @@ import { foeTurn, danger, options, threatOf, stepsOf } from '../src/sim/foe.js'
 import { createRng } from '../src/sim/rng.js'
 import { TUNING } from '../src/tuning.js'
 import { UNITS, ABILITIES, THREATS, BEHAVIOURS, unitDef } from '../src/content.js'
-import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT, TILES, distance, sentryHp } from '../src/sim/unit.js'
+import { makeUnit, tileAt, slotAt, colOf, statsOf, baseStats, alive, DEPTH, CENTRE_OUT, TILES, LANES, distance, sentryHp, deployTile } from '../src/sim/unit.js'
+import { SENTRY_POSTS } from '../src/sim/spawn.js'
 import { sturdy, grant, tuned, FLAT_ROOMS } from './tuned.js'
 import { on, scene, slay, unit, turns } from './scene.js'
 import { fight } from './rooms.js'
@@ -636,4 +637,50 @@ test('a battle whose foes are all sentries never stalls before your pieces can r
     if (!b.over) order(b, { type: 'end' })
   }
   assert.deepEqual([b.over, b.winner, t.tile], [true, 'party', home])
+})
+
+// ── a room's ground ──────────────────────────────────────────────────────────────────────────────
+
+// A room's walls are the battle's (run.js battleSetup): a choke's gap takes every ground road and the foes walk through
+// it, never across a wall; shots cross walls and flyers fly over them; in a run's cover rooms every foe, the sentries
+// behind their walls among them, keeps a road a piece of yours can walk.
+test('a room\'s walls in battle: the ground roads through a choke\'s gap, shots and flyers across them; every sentry behind its cover reached', () => {
+  const sh = TUNING.spawn
+  const gapAt = 3
+  const walls = [0, 1, 2, 4, 5, 6].map((x) => tileAt(x, 7))
+  const b = createBattle({ party: [{ ...makeUnit('monarch', { uid: 0, lvl: 1 }), slot: slotAt(6, 3) }, { ...makeUnit('frost_sprite', { uid: 1, lvl: 10 }), slot: slotAt(0, 1) }],
+    foes: [{ ...makeUnit('grave_ghoul', { uid: 9, lvl: 1 }), slot: slotAt(0, 0) }, { ...makeUnit('hive_drone', { uid: 10, lvl: 1 }), slot: slotAt(0, 6) }], walls })
+  const road = fieldOf(b)
+  for (let t = tileAt(0, 8); t < TILES; t++) {
+    let x = t
+    for (let k = 0; k < 40 && road.arrow[x] >= 0 && x !== tileAt(gapAt, 7); k++) x = road.arrow[x]
+    assert.ok(x === tileAt(gapAt, 7) || road.dist[t] === Infinity, `the road from ${t} runs through the gap`)
+  }
+  const drone = unit(b, 10)
+  assert.ok(roadOf(b, drone).dist[drone.tile] < fieldOf(b).dist[drone.tile], 'the drone\'s air road runs over the wall')
+  const ghoul = unit(b, 9)
+  const seen = new Set()
+  for (let k = 0; k < 6 && !b.over && alive(ghoul); k++) { order(b, { type: 'end' }); seen.add(ghoul.tile) }
+  assert.ok(![...seen].some((t) => walls.includes(t)), 'never on a wall')
+  // The sprite's lance crosses the wall in front of it; the drone flies over.
+  const shot = createBattle({ party: [{ ...makeUnit('monarch', { uid: 0, lvl: 1 }), slot: slotAt(6, 3) }, { ...makeUnit('frost_sprite', { uid: 1, lvl: 10 }), slot: slotAt(0, 1) }],
+    foes: [{ ...makeUnit('grave_ghoul', { uid: 9, lvl: 1 }), slot: slotAt(0, 1) }], walls })
+  assert.ok(targetsFrom(shot, unit(shot, 1), unit(shot, 1).basic).includes(unit(shot, 9)), 'a shot across the wall')
+  // A run's cover rooms: each sentry with its wall in front, every foe on a road to the Monarch.
+  let covers = 0
+  for (let i = 0; i < 30 && covers < 6; i++) {
+    const run = createRun({ start: START_PARTY, seed: 'cover' + i })
+    for (const node of run.state.map.nodes.filter((n) => n.shape === 'cover')) {
+      run.state.at = node.id
+      const battle = createBattle(battleSetup(run))
+      const f = fieldOf(battle)
+      for (const u of battle.units.filter((x) => x.side === 'foe')) {
+        assert.ok(f.dist[u.tile] < Infinity, `cover${i} ${node.id}: ${u.id} cut off`)
+        if (u.hold && node.foes.some((x) => deployTile('foe', x.slot) === u.tile && SENTRY_POSTS.slice(0, 7).includes(x.slot))) assert.ok(battle.walls.has(u.tile - LANES), `cover${i} ${node.id}: ${u.id} uncovered`)
+      }
+      covers++
+    }
+  }
+  assert.ok(covers > 0, 'cover rooms come')
+  assert.ok(sh.shape.from >= 1)
 })

@@ -7,7 +7,11 @@ import assert from 'node:assert/strict'
 import { bestFormation, openingOf, solve, solverTurn, useSolverHook, useFormationHook, boardHash } from '../src/sim/solver.js'
 import { createRun, apply, availableNodes, souls, START_PARTY } from '../src/sim/run.js'
 import { createBattle } from '../src/sim/turns.js'
-import { slotAt, monarchSlot } from '../src/sim/unit.js'
+import { slotAt, monarchSlot, footprint, tileY, CAMP_ROWS } from '../src/sim/unit.js'
+import { shapeWalls } from '../src/sim/spawn.js'
+import { danger, stepsOf } from '../src/sim/foe.js'
+import { reach } from '../src/sim/turns.js'
+import { createRng } from '../src/sim/rng.js'
 import { record, planFor, LEVELS } from '../src/sim/autoplay.js'
 
 // A run in prep before a fight with one Tomb Knight, and two formations of it: the Monarch alone (nothing of yours but
@@ -106,4 +110,23 @@ test('basic and the formation ablation solve no formation; the expert one a prep
   } finally {
     off()
   }
+})
+
+// The prep sees the room's ground: a choke's walls stand on every candidate's board as on the battle's, off the camp, so
+// no formation stands on one; the foes' roads and the danger map read round them, and so do your pieces' walks.
+test('the prep sees the room\'s walls: on every candidate\'s board, never under a piece, the roads and the reaches round them', () => {
+  const { run, all } = prepRun('formation-walls')
+  const node = run.state.map.nodes.find((n) => n.id === run.state.at)
+  node.foes = [{ id: 'grave_ghoul', lvl: 1, slot: slotAt(0, 3) }, { id: 'tomb_knight', lvl: 1, slot: slotAt(1, 1) }]
+  Object.assign(node, { shape: 'choke', walls: shapeWalls('choke', createRng('walls').stream('shape')) })
+  const board = openingOf(run, all)
+  for (const t of node.walls) assert.ok(board.walls.has(t), `wall ${t} on the board`)
+  assert.ok(node.walls.every((t) => tileY(t) >= CAMP_ROWS), 'no room wall in the camp')
+  for (const u of board.units) assert.ok((footprint(u.tile, u.size) ?? [u.tile]).every((t) => !board.walls.has(t)), `${u.id} on a wall`)
+  for (const u of board.units.filter((x) => x.side === 'foe')) assert.ok(stepsOf(board, u, null, 9).tiles.every((t) => !board.walls.has(t)), `${u.id}'s road crosses a wall`)
+  for (const u of board.units.filter((x) => x.side === 'party' && x.move > 0)) assert.ok([...reach(board, u).keys()].every((t) => !board.walls.has(t)))
+  const map = danger(board, 'party')
+  assert.ok(map.ground.some((v) => v > 0), 'the foes threaten something')
+  const r = bestFormation(run, [{ goal: all }], { cap: 1 })
+  assert.equal(r.index, 0)
 })

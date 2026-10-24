@@ -1,12 +1,13 @@
 // The foes' side of the run: each battle room's foes (drawRoom: formations, waves, captains and courts), the routes'
 // threats, the bosses and the elites that answer the army, and how the foes grow floor by floor.
 import { TUNING } from '../tuning.js'
-import { UNIT_LIST, unitDef, abilityDef, statusDef, relicDef, THREATS } from '../content.js'
+import { UNIT_LIST, unitDef, abilityDef, statusDef, relicDef, THREATS, CAMP_LIST } from '../content.js'
 import { createRng } from './rng.js'
 import {
   makeUnit, autoPlace, slotAt, CENTRE_OUT, nearestOpen, colOf, FORMATION, SLOTS, ROWS, COLS, meleeOnly, abilitiesOf, isBlow,
-  isAllyShape, summonsOf, summonedOf
+  isAllyShape, summonsOf, summonedOf, tileAt, tileX, tileY, deployTile, wallTiles, monarchSlot, CAMP_ROWS, LANES, DEPTH, TILES
 } from './unit.js'
+import { field } from './field.js'
 import { lined, basicOf } from './turns.js'
 import { nodeOf, RANKS } from './map.js'
 import { BATTLE_NODES, at, roomSize } from './state.js'
@@ -135,12 +136,16 @@ export function drawRoom (seed, floor, node, { want = [], redraw = null, ascensi
     if (c > best) { ids = d; best = c }
   }
   const level = lvl + (elite ? sp.eliteLevel : 0)
+  // Its ground, on a stream of its own (the foes' draws stay as they were): the first formation keeps off its walls.
+  const first = boss ? 0 : Math.min(SLOTS, ids[0].length + (cohort > 0 ? (elite ? sp.captains.elite : sp.captains.fight) * cohort : 0))
+  const ground = roomGround(createRng(seed).stream(`shape|${floor}|${node.id}${redraw === null ? '' : `|route|${redraw}`}`), floor, node, boss ? [] : ids[0], !!boss, first)
+  const blocked = new Set(ground.walls.filter((t) => tileY(t) >= DEPTH - ROWS).map((t) => slotAt(tileY(t) - (DEPTH - ROWS), tileX(t))))
   const forms = ids.map((list, k) => boss && k === waves - 1
     ? courtOf(list, level)
-    : formation(rng, list, level, pair && k === waves ? 0 : elite ? sp.captains.elite : sp.captains.fight, cohort, lead))
+    : formation(rng, list, level, pair && k === waves ? 0 : elite ? sp.captains.elite : sp.captains.fight, cohort, lead, k === 0 ? blocked : new Set()))
   const room = { foes: forms[0] }
   if (forms.length > 1) room.waves = forms.slice(1).map((foes) => ({ foes }))
-  return room
+  return { ...room, ...ground }
 
   // The boss at the centre of its first row, its court on the slots nearest it; a court that stands ahead of it
   // (`front`: the Barrow Marshal's) across the front row from the middle lanes out, the boss behind its middle. A
@@ -278,16 +283,17 @@ function postOf (id, taken, near = -1) {
 
 // A wave's formation: its sentries on their posts (postOf), the rest of `ids` placed from the front row, then `captains`
 // of them (by the shuffle, or the first `led`) each leading `cohort` more foes on the free slots nearest it
-// (nearestOpen; a sentry of the cohort on a post), dropped when none is free. A captain leads its own kind, a `led` one
-// the wave's other kinds. Each is an ordinary foe: it pays essence, and may be recruited.
-function formation (rng, ids, lvl, captains, cohort, led = 0) {
+// (nearestOpen; a sentry of the cohort on a post), dropped when none is free; none on a `blocked` slot (a room's wall).
+// A captain leads its own kind, a `led` one the wave's other kinds. Each is an ordinary foe: it pays essence, and may be
+// recruited.
+function formation (rng, ids, lvl, captains, cohort, led = 0, blocked = new Set()) {
   const foes = ids.map((id) => ({ id, lvl, slot: -1 }))
   const cols = [CENTRE_OUT.slice(0, 3), ...[3, 5].map((i) => CENTRE_OUT.slice(i, i + 2))].flatMap((band) => rng.shuffle(band))
-  const posted = new Set()
+  const posted = new Set(blocked)
   for (const f of foes) f.slot = postOf(f.id, posted)
-  autoPlace(led ? rng.shuffle(foes) : foes, { cols })
+  autoPlace(led ? rng.shuffle(foes) : foes, { cols, taken: new Set(blocked) })
   if (!cohort || !captains) return foes
-  const taken = new Set(foes.map((f) => f.slot))
+  const taken = new Set([...blocked, ...foes.map((f) => f.slot)])
   const rest = foes.slice(led)
   for (const c of led ? foes.slice(0, led) : rng.shuffle(foes.slice()).slice(0, captains)) {
     for (let k = 0; k < cohort; k++) {
@@ -298,6 +304,67 @@ function formation (rng, ids, lvl, captains, cohort, led = 0) {
     }
   }
   return foes
+}
+
+// ── the rooms' ground ────────────────────────────────────────────────────────────────────────────
+
+// The row of the open ground nearest the camp; a shape's rows count up from it, through the foes' rows to the one before
+// the top edge (where waves enter, never walled).
+const GROUND_Y = CAMP_ROWS
+const groundAt = (x, row) => tileAt(x, GROUND_Y + row)
+
+// The tiles shape `shape` (content.js SHAPES) walls: `rng` draws a choke's gap and a corridor's lane (off the edges);
+// `posts` the far-row posts a cover's sentries stand on, a wall in front of each.
+export function shapeWalls (shape, rng, posts = []) {
+  const lanes = [...Array(LANES).keys()]
+  if (shape === 'choke') {
+    const gap = 1 + rng.int(LANES - 2)
+    return lanes.filter((x) => x !== gap).map((x) => groundAt(x, 0))
+  }
+  if (shape === 'pillars') return [1, LANES - 2].flatMap((x) => [groundAt(x, 0), groundAt(x, 1)])
+  if (shape === 'corridor') {
+    const lane = 1 + rng.int(LANES - 2)
+    return [lane - 1, lane + 1].flatMap((x) => [...Array(TUNING.spawn.shape.corridor).keys()].map((row) => groundAt(x, row)))
+  }
+  if (shape === 'cover') return posts.map((slot) => deployTile('foe', slot) - LANES)
+  return []
+}
+
+// The shape a battle room's ground takes (TUNING.spawn.shape): none for a boss's room or floor 1's rooms before rank
+// `from`; a cover where its first formation (`first`, kind ids) holds a sentry; else one drawn by its weights, a choke
+// only from rank `choke`.
+export function shapeOf (rng, floor, node, first, boss) {
+  const sh = TUNING.spawn.shape
+  if (boss || (floor === 1 && node.rank < sh.from)) return 'none'
+  if (first.some((id) => unitDef(id).hold)) return 'cover'
+  const names = Object.keys(sh.weights).filter((k) => k !== 'choke' || node.rank >= sh.choke)
+  return rng.weighted(names, names.map((k) => sh.weights[k]))
+}
+
+// Whether `walls` leave the ground whole: none in a camp's rows, on the top edge (where waves enter) or past the board,
+// and, in every camp, every other tile of the open ground and the foes' rows (every foe's slot, every sentry post, every
+// entry) has a road to the Monarch's seat, so no shape seals the camp and a piece of yours can walk to every foe.
+export function groundOpen (walls) {
+  if (walls.some((t) => !(t >= 0 && t < TILES) || tileY(t) < CAMP_ROWS || tileY(t) >= DEPTH - 1)) return false
+  const shut = new Set(walls)
+  return CAMP_LIST.every((camp) => {
+    const f = field({ root: deployTile('party', monarchSlot(camp.id)), walls: [...wallTiles(camp.id), ...walls] })
+    for (let t = tileAt(0, CAMP_ROWS); t < TILES; t++) if (!shut.has(t) && !(f.dist[t] < Infinity)) return false
+    return true
+  })
+}
+
+// A battle room's ground: its shape (shapeOf) and the tiles it walls (shapeWalls), or none where those would not leave
+// the ground whole (groundOpen), where a cover's sentries outnumber the far row's posts, or where the walls among the
+// foes' rows would leave fewer slots than its first formation's `need` foes (a wall never costs a foe its place).
+// → { shape, walls }
+export function roomGround (rng, floor, node, first, boss, need = first.length) {
+  const shape = shapeOf(rng, floor, node, first, boss)
+  const sentries = first.filter((id) => unitDef(id).hold).length
+  if (shape === 'none' || (shape === 'cover' && sentries > LANES)) return { shape: 'none', walls: [] }
+  const walls = shapeWalls(shape, rng, SENTRY_POSTS.slice(0, sentries))
+  const among = walls.filter((t) => tileY(t) >= DEPTH - ROWS).length
+  return groundOpen(walls) && SLOTS - among >= need ? { shape, walls } : { shape: 'none', walls: [] }
 }
 
 // A room's foes as battle units, uids from `uid` on; a later wave's off the board (slot −1), with its wave and lane.

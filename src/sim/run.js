@@ -753,7 +753,8 @@ export function battleSetup (run, { party = fielded(run.state.party) } = {}) {
     floor: s.floor,
     boss,
     camp: s.camp,
-    walls: wallTiles(s.camp),
+    // The camp's walls and the room's own (spawn.js roomGround): none of them on a tile anyone starts on.
+    walls: [...wallTiles(s.camp), ...(node.walls ?? [])],
     partyMods: s.relics.filter(isRunRelic).flatMap((id) => (relicDef(id).mods ?? []).filter((m) => !isRunPath(m.path))),
     foeMods: foeMods(s.floor, boss, foeScale(s)),
     ...(every !== TUNING.spawn.waves.every && { every }),
